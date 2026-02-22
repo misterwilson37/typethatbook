@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "2.9.2";
+const VERSION = "2.9.3";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -2253,7 +2253,6 @@ function createHandGuide() {
 function colorKeyboardKeys() {
     // Reset all keys
     document.querySelectorAll('.key').forEach(k => { k.style.backgroundColor = ''; });
-    if (!handGuideEnabled) return;
 
     // Color each key based on its finger assignment
     Object.entries(fingerMap).forEach(([char, info]) => {
