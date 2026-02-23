@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "2.9.3";
+const VERSION = "2.9.4";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -117,6 +117,28 @@ let completedChapters = new Set();
 let anonCharsTyped = 0;
 let anonMistakes = 0;
 
+// Anonymous infinite-mode login reminders (reset daily)
+let anonInfiniteReminders = 0; // 0 = none shown, 1 = first shown, 2 = both shown
+const ANON_INFINITE_REMINDER_1 = 150; // 2.5 min
+const ANON_INFINITE_REMINDER_2 = 300; // 5 min
+function loadAnonReminderState() {
+    const saved = localStorage.getItem('ttb_anonInfiniteReminders');
+    if (saved) {
+        try {
+            const data = JSON.parse(saved);
+            if (data.date === new Date().toISOString().split('T')[0]) {
+                anonInfiniteReminders = data.count || 0;
+            }
+        } catch(e) {}
+    }
+}
+function saveAnonReminderState() {
+    localStorage.setItem('ttb_anonInfiniteReminders', JSON.stringify({
+        date: new Date().toISOString().split('T')[0],
+        count: anonInfiniteReminders
+    }));
+}
+
 // Leaderboard
 let userInitials = '';
 let leaderboardOptOut = false;
@@ -197,6 +219,7 @@ function escapeHtml(str) {
 
 async function init() {
     console.log("Initializing JS v" + VERSION);
+    loadAnonReminderState();
     const footer = document.querySelector('footer');
     if(footer) footer.innerText = `JS: v${VERSION}`;
 
@@ -517,10 +540,10 @@ function gameTick() {
     if (!isGameActive) return;
     const now = Date.now();
 
-    // AUTO PAUSE FOR INACTIVITY
+    // AUTO PAUSE FOR INACTIVITY - treat as full break (logs time, shows stats, practice option)
     if (now - lastInputTime > AFK_THRESHOLD && !isModalOpen && !ggBypassIdle) {
         if (currentCharIndex >= fullText.length) { finishChapter(); return; }
-        triggerHardStop(fullText[currentCharIndex], true);
+        pauseGameForBreak();
         return;
     }
 
@@ -562,6 +585,23 @@ function gameTick() {
             if (goals.weeklySeconds > 0 && !weeklyGoalCelebrated && statsData.secondsWeek >= goals.weeklySeconds) {
                 weeklyGoalCelebrated = true;
                 launchFireworks();
+            }
+
+            // Anonymous infinite-mode login reminders (based on total typing time)
+            if (sessionLimit === 'infinity' && (!currentUser || currentUser.isAnonymous)) {
+                const totalTyped = anonTotalSeconds + sprintSeconds;
+                if (anonInfiniteReminders === 0 && totalTyped >= ANON_INFINITE_REMINDER_1) {
+                    anonInfiniteReminders = 1;
+                    saveAnonReminderState();
+                    showAnonInfiniteReminder();
+                    return;
+                }
+                if (anonInfiniteReminders === 1 && totalTyped >= ANON_INFINITE_REMINDER_2) {
+                    anonInfiniteReminders = 2;
+                    saveAnonReminderState();
+                    showAnonInfiniteReminder();
+                    return;
+                }
             }
         }
     } else {
@@ -1634,6 +1674,81 @@ function showAnonLoginPrompt() {
     }, SPRINT_COOLDOWN_MS * 2);
 }
 
+function showAnonInfiniteReminder() {
+    isGameActive = false; clearInterval(timerInterval);
+
+    // Log the sprint so far so typing time counts for stats
+    const charsTyped = currentCharIndex - sprintCharStart;
+    const sprintMinutes = sprintSeconds / 60;
+    const sprintWPM = (sprintMinutes > 0) ? Math.round((charsTyped / 5) / sprintMinutes) : 0;
+    const sprintTotalEntries = charsTyped + sprintMistakes;
+    const sprintAcc = (sprintTotalEntries > 0) ? Math.round((charsTyped / sprintTotalEntries) * 100) : 100;
+    if (sprintSeconds > 0) logSession(sprintSeconds, charsTyped, sprintMistakes, sprintWPM, sprintAcc);
+    practiceTypingAccumulator += sprintSeconds;
+    anonTotalSeconds += sprintSeconds;
+
+    isModalOpen = true; isInputBlocked = true;
+    modalActionCallback = null;
+    setModalTitle('');
+    resetModalFooter();
+
+    const minutes = Math.round((anonTotalSeconds) / 60);
+    const isFirst = anonInfiniteReminders === 1;
+
+    document.getElementById('modal-body').innerHTML = `
+        <div style="text-align:center;">
+            <div class="stats-title">${isFirst ? '⚠️ Your progress isn\'t being saved!' : '🚨 Still not signed in!'}</div>
+            <div style="font-size:0.95em; color:#555; margin: 8px 0;">
+                ${isFirst
+                    ? `You've been typing for <b>${minutes} minutes</b> — great work! But none of this is being saved. If you close this tab, it's all gone.`
+                    : `That's <b>${minutes} minutes</b> of typing that will be <b>lost</b> if you close this tab. Please sign in to keep your progress!`
+                }
+            </div>
+            <div style="font-size:0.85em; color:#888; margin-top:6px;">Sign in with your school Google account to save your work.</div>
+        </div>
+    `;
+
+    const btn = document.getElementById('action-btn');
+    btn.innerText = 'Wait...'; btn.disabled = true; btn.style.opacity = '0.5'; btn.style.display = 'inline-block';
+
+    const signInAction = async () => {
+        try {
+            anonLoginInProgress = true;
+            await signInWithPopup(auth, new GoogleAuthProvider());
+            // Reload to properly initialize with signed-in user
+            anonLoginInProgress = false;
+            location.reload();
+        } catch (e) {
+            anonLoginInProgress = false;
+            closeModal();
+            startGame();
+            return;
+        }
+    };
+
+    const gen = ++modalGeneration;
+    setTimeout(() => {
+        if (modalGeneration !== gen) return;
+        isInputBlocked = false;
+        const b = document.getElementById('action-btn');
+        if (b) { b.innerText = '🔑 Sign In'; b.disabled = false; b.style.opacity = '1'; b.onclick = signInAction; }
+        // Smart-start typing dismisses the prompt (sign-in is via button only)
+        modalActionCallback = () => { closeModal(); startGame(); };
+        // Add skip link
+        const footer = document.getElementById('modal-footer');
+        if (footer && !document.getElementById('anon-infinite-skip')) {
+            const skip = document.createElement('a');
+            skip.id = 'anon-infinite-skip';
+            skip.href = '#';
+            skip.style.cssText = 'display:block; color:#999; font-size:0.75em; margin-top:4px;';
+            skip.innerText = isFirst ? 'Skip for now' : 'I understand the risk, continue';
+            skip.onclick = (e) => { e.preventDefault(); closeModal(); startGame(); };
+            footer.appendChild(skip);
+        }
+    }, SPRINT_COOLDOWN_MS);
+    showModalPanel();
+}
+
 function showJumpToProgressPrompt(savedChap, savedIdx) {
     isModalOpen = true; isInputBlocked = false;
     setModalTitle('');
@@ -2128,8 +2243,7 @@ function flashKey(char) {
     if (el) {
         el.style.backgroundColor = 'var(--brute-force-color)';
         setTimeout(() => {
-            if (!handGuideEnabled) { el.style.backgroundColor = ''; return; }
-            // Special keys without dataset.char
+            // Always restore to correct finger color (key colors show regardless of hand guide toggle)
             if (el.id === 'key- ') {
                 el.style.backgroundColor = handGuideRainbow ? '#d0d0d0' : handGuideColor + '38';
                 return;
@@ -2140,9 +2254,15 @@ function flashKey(char) {
             if (el.id === 'key-TAB') {
                 el.style.backgroundColor = getFingerColor('left-pinky') + '38'; return;
             }
+            if (el.id === 'key-SHIFT-L' || el.id === 'key-CAPS') {
+                el.style.backgroundColor = getFingerColor('left-pinky') + '38'; return;
+            }
+            if (el.id === 'key-SHIFT-R') {
+                el.style.backgroundColor = getFingerColor('right-pinky') + '38'; return;
+            }
             const keyChar = el.dataset.char || '';
             const info = fingerMap[keyChar];
-            if (info && info.finger) {
+            if (info && info.finger && info.finger !== 'thumb') {
                 el.style.backgroundColor = getFingerColor(info.finger) + '38';
             } else { el.style.backgroundColor = ''; }
         }, 200);
