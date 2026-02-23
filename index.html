@@ -2,345 +2,302 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeThatBook — Library 2.3.1</title>
-    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Bitter:wght@400;600;700&display=swap" rel="stylesheet">
+    <title>TypeThatBook Admin v2.6.1</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        :root {
-            --carolina-blue: #4B9CD3;
-            --bg: #f5f0eb;
-            --card-bg: #fff;
-            --text: #1a1a1a;
-            --text-muted: #777;
-            --accent: #4B9CD3;
-            --shadow: rgba(0,0,0,0.08);
-            --shadow-hover: rgba(0,0,0,0.15);
+        body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; padding-bottom: 80px; }
+        
+        input, textarea, button, select { 
+            width: 100%; padding: 12px; margin-bottom: 15px; background: #222; 
+            border: 1px solid #444; color: #fff; font-family: inherit; box-sizing: border-box;
         }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Bitter', Georgia, serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-        }
+        
+        button { cursor: pointer; background: #0047AB; font-weight: bold; text-transform: uppercase; border: none; transition: background 0.2s; }
+        button:hover { background: #4B9CD3; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        
+        button.secondary-btn { background: #444; border: 1px solid #666; }
+        button.secondary-btn:hover { background: #666; }
+        button.danger-btn { background: #500; border: 1px solid #800; color: #fcc; }
+        button.danger-btn:hover { background: #800; }
 
-        /* --- HEADER --- */
-        .site-header {
-            background: #1a1a1a;
+        label { display: block; margin-bottom: 5px; color: #888; text-transform: uppercase; font-size: 0.75rem; }
+        
+        .hidden { display: none !important; }
+        .status-bar { padding: 15px; margin-bottom: 20px; background: #222; border-left: 4px solid #555; }
+        .row { display: flex; gap: 20px; }
+        .col { flex: 1; }
+        a { color: #888; text-decoration: none; border-bottom: 1px dotted #888; }
+        a:hover { color: #fff; }
+
+        .import-box { background: #1a1a1a; border: 1px dashed #444; padding: 20px; margin-bottom: 30px; }
+        
+        #chapter-list { max-height: 400px; overflow-y: auto; background: #000; border: 1px solid #333; margin-bottom: 20px; }
+        .chapter-item { padding: 10px; border-bottom: 1px solid #222; display: flex; align-items: center; justify-content: space-between; background: #111; transition: background 0.2s; }
+        .chapter-item:hover { background: #151515; }
+        .chapter-item.uploaded { border-left: 4px solid #00ff41; background: #0a220a; }
+        .chapter-item.error { border-left: 4px solid #ff3333; background: #220a0a; }
+
+        .chap-info { flex-grow: 1; margin-right: 15px; }
+        .chap-title { font-weight: bold; color: #4B9CD3; font-size: 0.9em; }
+        .chap-meta { font-size: 0.8em; color: #666; }
+        .chap-status { font-size: 0.8em; color: #888; margin-left: 10px; }
+        .chap-status.ok { color: #00ff41; font-weight: bold; }
+
+        .chap-actions { display: flex; gap: 5px; }
+        .chap-actions button { width: auto; padding: 5px 10px; font-size: 0.7em; margin: 0; }
+        .split-btn { background: #1a3a5c; border: 1px solid #2a5a8c; color: #7ab8e8; }
+        .split-btn:hover { background: #2a5a8c; color: white; }
+        .merge-btn { background: #2a1a3c; border: 1px solid #5a2a8c; color: #b87ae8; }
+        .merge-btn:hover { background: #4a2a6c; color: white; }
+
+        .checkbox-wrapper { display: flex; align-items: center; margin-bottom: 15px; }
+        .checkbox-wrapper input { width: auto; margin: 0 10px 0 0; }
+        .checkbox-wrapper label { margin: 0; text-transform: none; color: #ddd; }
+
+        /* MODALS */
+        #warning-modal, #error-wizard-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 200;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .warning-content {
+            background: #220000; border: 2px solid #ff3333; padding: 30px;
+            max-width: 500px; text-align: center;
+        }
+        .error-wizard-content {
+            background: #151515; border: 2px solid #ffaa00; padding: 25px;
+            max-width: 800px; width: 90%; text-align: left;
+            max-height: 90vh; overflow-y: auto;
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.2);
+        }
+        .bad-char-highlight {
+            background-color: #ff0000;
             color: white;
-            padding: 12px 24px;
-            display: flex; align-items: center; justify-content: space-between;
-            font-family: 'Courier Prime', monospace;
-            position: sticky; top: 0; z-index: 100;
-        }
-        .site-title {
-            font-size: 1.1rem; font-weight: bold; letter-spacing: 1px;
-            color: var(--carolina-blue);
-        }
-        .site-title span { color: #999; font-weight: 400; }
-        .header-links { display: flex; gap: 16px; align-items: center; font-size: 0.85rem; }
-        .header-links a { color: #999; text-decoration: none; }
-        .header-links a:hover { color: var(--carolina-blue); }
-        #auth-area { display: flex; align-items: center; gap: 10px; }
-        #user-name { color: #ccc; font-size: 0.85rem; }
-        .auth-btn {
-            background: var(--carolina-blue); color: white; border: none;
-            padding: 6px 14px; border-radius: 3px; cursor: pointer;
-            font-family: inherit; font-size: 0.8rem;
-        }
-        .auth-btn.subtle { background: transparent; border: 1px solid #555; color: #aaa; }
-        .auth-btn.subtle:hover { border-color: #999; color: #fff; }
-
-        /* --- HERO --- */
-        .hero { text-align: center; padding: 40px 24px 20px; }
-        .hero h1 {
-            font-size: 2.2rem; font-weight: 700; margin-bottom: 6px;
-            letter-spacing: -0.5px;
-        }
-        .hero p { color: var(--text-muted); font-size: 1rem; }
-
-        /* --- GENRE FILTER --- */
-        .filter-bar {
-            display: flex; justify-content: center; flex-wrap: wrap;
-            gap: 8px; padding: 0 24px 24px;
-            max-width: 900px; margin: 0 auto;
-        }
-        .filter-pill {
-            background: white; border: 1px solid #ddd; padding: 6px 16px;
-            border-radius: 20px; cursor: pointer; font-size: 0.85rem;
-            font-family: 'Bitter', serif; transition: all 0.2s;
-            color: var(--text-muted);
-        }
-        .filter-pill:hover { border-color: var(--accent); color: var(--accent); }
-        .filter-pill.active {
-            background: var(--accent); color: white; border-color: var(--accent);
-        }
-
-        /* --- BOOK GRID --- */
-        .library-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 24px;
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 0 24px 60px;
-        }
-
-        /* --- BOOK CARD --- */
-        .book-card {
-            background: var(--card-bg);
-            border-radius: 6px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px var(--shadow);
-            transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer;
-            text-decoration: none;
-            color: inherit;
-            display: flex; flex-direction: column;
-        }
-        .book-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 24px var(--shadow-hover);
-        }
-        .book-cover {
-            width: 100%; aspect-ratio: 2/3;
-            object-fit: cover; display: block;
-            background: #e0d8cf;
-        }
-        .book-cover-placeholder {
-            width: 100%; aspect-ratio: 2/3;
-            background: linear-gradient(135deg, #c9bfb0 0%, #a89880 100%);
-            display: flex; align-items: center; justify-content: center;
-            padding: 20px;
-            font-family: 'Courier Prime', monospace;
-            font-size: 0.9rem; color: #fff;
-            text-align: center; line-height: 1.3;
             font-weight: bold;
-        }
-        .book-info {
-            padding: 12px 14px 14px;
-            flex: 1; display: flex; flex-direction: column;
-        }
-        .book-title {
-            font-size: 0.9rem; font-weight: 700;
-            line-height: 1.25; margin-bottom: 4px;
-        }
-        .book-author {
-            font-size: 0.78rem; color: var(--text-muted);
-            margin-bottom: 6px;
-        }
-        .book-genre-tag {
-            display: inline-block;
-            font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;
-            color: var(--accent); font-weight: 600;
-            margin-bottom: 6px;
-        }
-        .book-progress { margin-top: auto; padding-top: 8px; }
-        .progress-bar-bg {
-            height: 4px; background: #eee; border-radius: 2px; overflow: hidden;
-        }
-        .progress-bar-fill {
-            height: 100%; background: var(--accent); border-radius: 2px;
-            transition: width 0.4s;
-        }
-        .progress-label {
-            font-size: 0.7rem; color: var(--text-muted); margin-top: 3px;
-            font-family: 'Courier Prime', monospace;
+            padding: 0 2px;
+            border-radius: 2px;
         }
 
-        .empty-state {
-            grid-column: 1 / -1;
-            text-align: center; padding: 60px 20px;
-            color: var(--text-muted);
-        }
-        .loading-spinner {
-            grid-column: 1 / -1;
-            text-align: center; padding: 60px;
-            color: var(--text-muted); font-style: italic;
-        }
-        .site-footer {
-            text-align: center; padding: 20px;
-            font-size: 0.75rem; color: #aaa;
-            font-family: 'Courier Prime', monospace;
-        }
+        footer { position: fixed; bottom: 5px; right: 10px; font-size: 0.7em; color: #666; background: rgba(255,255,255,0.8); z-index: 101; padding: 2px 5px; border-radius: 3px; }
     </style>
 </head>
 <body>
 
-    <header class="site-header">
-        <div class="site-title">TypeThatBook <span>Library</span></div>
-        <div class="header-links">
+<div class="container">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 30px;">
+        <h1>ADMIN PANEL</h1>
+        <div style="display:flex; gap:20px;">
             <a href="reports.html">Reports</a>
-            <a href="admin.html">Admin</a>
-            <div id="auth-area">
-                <span id="user-name" style="display:none;"></span>
-                <button id="login-btn" class="auth-btn">Sign In</button>
-                <button id="logout-btn" class="auth-btn subtle" style="display:none;">Logout</button>
+            <a href="index.html">Back to Library</a>
+        </div>
+    </div>
+
+    <div class="status-bar" id="status">Initializing...</div>
+    
+    <div id="login-section" class="hidden">
+        <p>You must log in to edit the database.</p>
+        <button id="login-btn">Log In with Google</button>
+    </div>
+
+    <div id="editor-section" class="hidden">
+        
+        <div class="import-box" style="border-color: #4B9CD3;">
+            <h3 style="margin-top:0; color:#4B9CD3;">1. Database Manager</h3>
+            
+            <label>Select Book / Action</label>
+            <select id="book-select">
+                <option value="">Loading books...</option>
+            </select>
+
+            <div id="edit-existing-ui" class="hidden" style="margin-top:10px;">
+                <button id="open-book-btn">Open Book</button>
+            </div>
+
+            <div id="create-new-ui" class="hidden" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
+                <div class="row">
+                    <div class="col">
+                        <label>New Book ID (e.g. dracula)</label>
+                        <input type="text" id="new-book-id">
+                    </div>
+                    <div class="col">
+                        <label>Display Title (e.g. Dracula)</label>
+                        <input type="text" id="new-book-title">
+                    </div>
+                    <div class="col">
+                        <label>Author (e.g. Bram Stoker)</label>
+                        <input type="text" id="new-book-author" placeholder="Auto-extracted from EPUB">
+                    </div>
+                </div>
+                <label>Initial EPUB File (Required)</label>
+                <input type="file" id="new-epub-file" accept=".epub">
+                <button id="create-parse-btn" style="margin-top:10px;">Parse & Initialize Staging</button>
             </div>
         </div>
-    </header>
 
-    <div class="hero">
-        <h1>Choose Your Book</h1>
-        <p>Pick a story and start typing</p>
-    </div>
+        <div id="staging-area" class="hidden">
+            <h2>2. Content Staging</h2>
+            <div class="import-box">
+                
+                <div class="row" style="border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 10px;">
+                    <div class="col" style="flex:2;">
+                        <label>Book Display Title</label>
+                        <input type="text" id="active-book-title">
+                    </div>
+                    <div class="col">
+                        <label>Author</label>
+                        <input type="text" id="active-book-author" placeholder="e.g. Mark Twain">
+                    </div>
+                    <div class="col" style="display:flex; align-items:flex-end;">
+                        <button id="save-title-btn" class="secondary-btn" style="background:#224422; border-color:#336633;">Save Metadata</button>
+                    </div>
+                </div>
+                
+                <div class="row" style="border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 15px;">
+                    <div class="col">
+                        <label>Genre</label>
+                        <select id="active-book-genre" style="width:100%;">
+                            <option value="">— Select Genre —</option>
+                            <option value="__custom__">✏️ Custom...</option>
+                        </select>
+                        <input type="text" id="custom-genre-input" class="hidden" placeholder="Type custom genre..." style="margin-top:5px;">
+                    </div>
+                    <div class="col">
+                        <label>Cover Image</label>
+                        <input type="file" id="cover-upload" accept="image/*">
+                        <div style="font-size:0.75em; color:#888; margin-top:3px;">Auto-extracted from EPUB if available</div>
+                    </div>
+                    <div class="col" style="text-align:center;">
+                        <img id="cover-preview" class="hidden" style="max-height:100px; max-width:80px; border:1px solid #444; border-radius:3px;">
+                        <button id="cover-remove-btn" class="hidden danger-btn" style="font-size:0.7em; padding:3px 8px; margin-top:4px;">Remove</button>
+                    </div>
+                </div>
 
-    <div class="filter-bar" id="filter-bar">
-        <button class="filter-pill active" data-genre="all">All</button>
-    </div>
-
-    <div class="library-grid" id="book-grid">
-        <div class="loading-spinner">Loading library...</div>
-    </div>
-
-    <footer class="site-footer">TypeThatBook — Library 2.3.1</footer>
-
-    <script type="module">
-        import { db, auth } from "./firebase-config.js";
-        import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-
-        let currentUser = null;
-        let allBooks = [];
-        let userProgress = {};
-        let activeGenre = "all";
-
-        // --- AUTH ---
-        const loginBtn = document.getElementById('login-btn');
-        const logoutBtn = document.getElementById('logout-btn');
-        const userNameEl = document.getElementById('user-name');
-
-        loginBtn.onclick = async () => {
-            try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-            catch(e) { console.error(e); }
-        };
-        logoutBtn.onclick = async () => {
-            try { await signOut(auth); } catch(e) { console.error(e); }
-        };
-
-        onAuthStateChanged(auth, async (user) => {
-            currentUser = user;
-            if (user) {
-                userNameEl.textContent = user.displayName || user.email;
-                userNameEl.style.display = '';
-                loginBtn.style.display = 'none';
-                logoutBtn.style.display = '';
-                await loadUserProgress();
-            } else {
-                userNameEl.style.display = 'none';
-                loginBtn.style.display = '';
-                logoutBtn.style.display = 'none';
-                userProgress = {};
-            }
-            renderBooks();
-        });
-
-        // --- LOAD BOOKS ---
-        async function loadBooks() {
-            try {
-                const snap = await getDocs(collection(db, "books"));
-                allBooks = [];
-                snap.forEach(d => {
-                    const data = d.data();
-                    allBooks.push({
-                        id: d.id,
-                        title: data.title || d.id,
-                        author: data.author || "",
-                        genre: data.genre || "",
-                        coverUrl: data.coverUrl || "",
-                        totalChapters: data.totalChapters || (data.chapters ? data.chapters.length : 0),
-                        chapters: data.chapters || []
-                    });
-                });
-                allBooks.sort((a, b) => a.title.localeCompare(b.title));
-                buildGenreFilters();
-                renderBooks();
-            } catch(e) {
-                document.getElementById('book-grid').innerHTML =
-                    '<div class="empty-state">Error loading library. Please refresh.</div>';
-                console.error(e);
-            }
-        }
-
-        // --- LOAD USER PROGRESS ---
-        async function loadUserProgress() {
-            if (!currentUser) return;
-            userProgress = {};
-            try {
-                const snap = await getDocs(collection(db, "users", currentUser.uid, "progress"));
-                snap.forEach(d => { userProgress[d.id] = d.data(); });
-            } catch(e) { console.warn("Could not load progress:", e); }
-        }
-
-        // --- GENRE FILTERS ---
-        function buildGenreFilters() {
-            const genres = [...new Set(allBooks.map(b => b.genre).filter(Boolean))].sort();
-            const bar = document.getElementById('filter-bar');
-            bar.innerHTML = '<button class="filter-pill active" data-genre="all">All</button>';
-            genres.forEach(g => {
-                const btn = document.createElement('button');
-                btn.className = 'filter-pill';
-                btn.dataset.genre = g;
-                btn.textContent = g;
-                bar.appendChild(btn);
-            });
-            bar.addEventListener('click', (e) => {
-                const pill = e.target.closest('.filter-pill');
-                if (!pill) return;
-                activeGenre = pill.dataset.genre;
-                bar.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
-                pill.classList.add('active');
-                renderBooks();
-            });
-        }
-
-        // --- RENDER ---
-        function renderBooks() {
-            const grid = document.getElementById('book-grid');
-            const filtered = activeGenre === "all"
-                ? allBooks
-                : allBooks.filter(b => b.genre === activeGenre);
-
-            if (filtered.length === 0) {
-                grid.innerHTML = '<div class="empty-state">No books found.</div>';
-                return;
-            }
-
-            grid.innerHTML = filtered.map(book => {
-                const progress = userProgress[book.id];
-                let progressHTML = '';
-                if (progress && book.totalChapters > 0) {
-                    const chapNum = parseInt(String(progress.chapter || "1").replace("chapter_", ""));
-                    const pct = Math.min(100, Math.round((chapNum / book.totalChapters) * 100));
-                    progressHTML = `
-                        <div class="book-progress">
-                            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
-                            <div class="progress-label">Ch. ${chapNum} / ${book.totalChapters}</div>
-                        </div>`;
-                }
-
-                const coverHTML = book.coverUrl
-                    ? `<img class="book-cover" src="${escapeAttr(book.coverUrl)}" alt="${escapeAttr(book.title)} cover" loading="lazy">`
-                    : `<div class="book-cover-placeholder">${escapeHtml(book.title)}</div>`;
-
-                return `
-                    <a class="book-card" href="game.html?book=${encodeURIComponent(book.id)}">
-                        ${coverHTML}
-                        <div class="book-info">
-                            ${book.genre ? `<span class="book-genre-tag">${escapeHtml(book.genre)}</span>` : ''}
-                            <div class="book-title">${escapeHtml(book.title)}</div>
-                            ${book.author ? `<div class="book-author">${escapeHtml(book.author)}</div>` : ''}
-                            ${progressHTML}
+                <div id="overwrite-section" class="hidden" style="border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 10px;">
+                    <label style="color:#ff9999;">Overwrite Data with New EPUB</label>
+                    <div class="row">
+                        <div class="col">
+                            <input type="file" id="overwrite-epub-file" accept=".epub">
                         </div>
-                    </a>`;
-            }).join('');
-        }
+                        <div class="col">
+                            <button id="overwrite-btn" class="danger-btn">Process Overwrite</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="clean-newlines" checked>
+                    <label for="clean-newlines">Aggressive Cleaning (Remove line breaks inside paragraphs)</label>
+                </div>
+                <div style="font-size: 0.8em; color: #888; margin-bottom: 10px;">* Auto-fixes: Smart quotes, dashes, ligatures (æ→ae), accents (é→e), ellipsis, special spaces, fractions, symbols. Remaining untypeable characters trigger the wizard.</div>
 
-        function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-        function escapeAttr(s) { return s.replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+                <div id="chapter-list"></div>
+                
+                <button id="upload-all-btn">Upload All Chapters to Database</button>
+                
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <button id="audit-book-btn" class="secondary-btn" style="flex:1; background:#332200; border-color:#664400; color:#ffcc66;">🔍 Audit Book for Untypeable Characters</button>
+                    <button id="language-scan-btn" class="secondary-btn" style="flex:1; background:#220022; border-color:#440044; color:#cc66cc;">🔍 Scan for Language Warnings</button>
+                </div>
+                <div id="audit-results" class="hidden" style="margin-top:15px; background:#1a1a00; border:1px solid #444400; padding:15px; max-height:400px; overflow-y:auto;"></div>
+                <div id="language-results" class="hidden" style="margin-top:15px; background:#1a0011; border:1px solid #440022; padding:15px; max-height:400px; overflow-y:auto;"></div>
+            </div>
 
-        // --- INIT ---
-        loadBooks();
-    </script>
+            <hr style="border-color:#333; margin: 30px 0;">
+
+            <details id="manual-details">
+                <summary style="cursor:pointer; color:#4B9CD3; margin-bottom:10px;">Manual Chapter Editor</summary>
+                <div style="padding: 15px; border:1px solid #333; margin-bottom:20px;">
+                    <div class="row">
+                        <div class="col">
+                            <label>Chapter Number (Supports 0, 1.1)</label>
+                            <input type="number" id="manual-chap-num" value="1" step="any">
+                        </div>
+                        <div class="col">
+                            <label>Chapter Title (Optional)</label>
+                            <input type="text" id="manual-chap-title">
+                        </div>
+                    </div>
+                    <label>JSON Segments</label>
+                    <textarea id="json-content" rows="15"></textarea>
+                    
+                    <div style="display:flex; gap:10px;">
+                        <button id="update-staged-btn" class="hidden">Update Staged Chapter</button>
+                        <button id="save-btn">Save Directly to DB</button>
+                    </div>
+                </div>
+            </details>
+        </div>
+
+    </div>
+</div>
+
+<div id="warning-modal" class="hidden">
+    <div class="warning-content">
+        <h2 style="color:#ff3333; margin-top:0;">⚠️ WARNING</h2>
+        <p>This will replace all chapters currently in the Staging Area.</p>
+        <div class="row" style="margin-top:20px;">
+            <div class="col"><button id="confirm-overwrite-btn" class="danger-btn">Yes, Overwrite</button></div>
+            <div class="col"><button id="cancel-overwrite-btn" class="secondary-btn">Cancel</button></div>
+        </div>
+    </div>
+</div>
+
+<div id="error-wizard-modal" class="hidden">
+    <div class="error-wizard-content">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #444; padding-bottom:10px;">
+            <h3 style="margin:0; color:#ffaa00;">Import Issue Detected</h3>
+            <span id="wizard-step" style="color:#888;"></span>
+        </div>
+        
+        <div style="margin-bottom:15px;">
+            <span style="color:#ccc;">Problem Character:</span> 
+            <span id="wizard-char-display" style="font-weight:bold; color:#ff3333; border:1px solid #555; padding:2px 5px; margin-left:5px;"></span>
+        </div>
+        
+        <label>Context:</label>
+        <div style="background:#000; padding:15px; border:1px solid #444; margin-bottom:5px; border-radius:4px 4px 0 0; border-bottom:none;">
+            <div id="wizard-preview" style="font-family:'Courier New', monospace; white-space:pre-wrap; line-height:1.6; font-size:1.1em; color:#aaa;"></div>
+        </div>
+        
+        <label style="margin-top:0;">Edit Sentence to Fix:</label>
+        <textarea id="wizard-edit-input" rows="4" style="width:100%; background:#111; color:white; border:1px solid #555; padding:15px; font-family:'Courier New', monospace; font-size:1.1em; line-height:1.6; border-radius:0 0 4px 4px; margin-top:0;"></textarea>
+        
+        <div class="row" style="margin-top:20px;">
+            <div class="col"><button id="wizard-ignore-btn" class="secondary-btn">Ignore (Keep Char)</button></div>
+            <div class="col"><button id="wizard-save-btn" style="background:#0047AB;">Save & Check</button></div>
+            <div class="col"><button id="wizard-cancel-btn" class="danger-btn">Cancel Import</button></div>
+        </div>
+        
+        <div id="replace-all-section" style="margin-top:20px; padding-top:15px; border-top:1px solid #444;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                <span style="color:#ccc; white-space:nowrap;">Replace all <span id="replace-all-count" style="color:#ffaa00; font-weight:bold;"></span> instances of</span>
+                <span id="replace-all-char" style="font-weight:bold; color:#ff3333; border:1px solid #555; padding:2px 5px; font-family:'Courier New', monospace;"></span>
+                <span style="color:#ccc;">with:</span>
+            </div>
+            <div class="row">
+                <div class="col" style="flex:2;"><input id="replace-all-input" type="text" style="margin:0;" placeholder="Replacement text" /></div>
+                <div class="col"><button id="replace-all-btn" style="background:#0047AB; margin:0;">Replace All (char)</button></div>
+            </div>
+            
+            <div id="replace-word-row" class="hidden" style="margin-top:12px; padding-top:12px; border-top:1px dashed #333;">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <span style="color:#ccc; white-space:nowrap;">Or replace word</span>
+                    <span id="replace-word-original" style="font-weight:bold; color:#ffaa00; border:1px solid #555; padding:2px 5px; font-family:'Courier New', monospace;"></span>
+                    <span style="color:#ccc;">(<span id="replace-word-count" style="color:#ffaa00;"></span> occurrences) with:</span>
+                </div>
+                <div class="row">
+                    <div class="col" style="flex:2;"><input id="replace-word-input" type="text" style="margin:0;" placeholder="Replacement word" /></div>
+                    <div class="col"><button id="replace-word-btn" style="background:#0047AB; margin:0;">Replace All (word)</button></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer id="admin-footer">Admin JS: Loading...</footer>
+
+<script type="module" src="admin.js"></script>
 </body>
 </html>
