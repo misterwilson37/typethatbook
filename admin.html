@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TypeThatBook Admin v1.9.9</title>
+    <title>TypeThatBook Admin v2.5.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
@@ -47,6 +47,10 @@
 
         .chap-actions { display: flex; gap: 5px; }
         .chap-actions button { width: auto; padding: 5px 10px; font-size: 0.7em; margin: 0; }
+        .split-btn { background: #1a3a5c; border: 1px solid #2a5a8c; color: #7ab8e8; }
+        .split-btn:hover { background: #2a5a8c; color: white; }
+        .merge-btn { background: #2a1a3c; border: 1px solid #5a2a8c; color: #b87ae8; }
+        .merge-btn:hover { background: #4a2a6c; color: white; }
 
         .checkbox-wrapper { display: flex; align-items: center; margin-bottom: 15px; }
         .checkbox-wrapper input { width: auto; margin: 0 10px 0 0; }
@@ -84,7 +88,10 @@
 <div class="container">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 30px;">
         <h1>ADMIN PANEL</h1>
-        <a href="index.html">Back to Game</a>
+        <div style="display:flex; gap:20px;">
+            <a href="reports.html">Reports</a>
+            <a href="index.html">Back to Library</a>
+        </div>
     </div>
 
     <div class="status-bar" id="status">Initializing...</div>
@@ -134,8 +141,32 @@
                         <label>Book Display Title</label>
                         <input type="text" id="active-book-title">
                     </div>
+                    <div class="col">
+                        <label>Author</label>
+                        <input type="text" id="active-book-author" placeholder="e.g. Mark Twain">
+                    </div>
                     <div class="col" style="display:flex; align-items:flex-end;">
-                        <button id="save-title-btn" class="secondary-btn" style="background:#224422; border-color:#336633;">Save Title Only</button>
+                        <button id="save-title-btn" class="secondary-btn" style="background:#224422; border-color:#336633;">Save Metadata</button>
+                    </div>
+                </div>
+                
+                <div class="row" style="border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 15px;">
+                    <div class="col">
+                        <label>Genre</label>
+                        <select id="active-book-genre" style="width:100%;">
+                            <option value="">— Select Genre —</option>
+                            <option value="__custom__">✏️ Custom...</option>
+                        </select>
+                        <input type="text" id="custom-genre-input" class="hidden" placeholder="Type custom genre..." style="margin-top:5px;">
+                    </div>
+                    <div class="col">
+                        <label>Cover Image</label>
+                        <input type="file" id="cover-upload" accept="image/*">
+                        <div style="font-size:0.75em; color:#888; margin-top:3px;">Auto-extracted from EPUB if available</div>
+                    </div>
+                    <div class="col" style="text-align:center;">
+                        <img id="cover-preview" class="hidden" style="max-height:100px; max-width:80px; border:1px solid #444; border-radius:3px;">
+                        <button id="cover-remove-btn" class="hidden danger-btn" style="font-size:0.7em; padding:3px 8px; margin-top:4px;">Remove</button>
                     </div>
                 </div>
 
@@ -155,13 +186,15 @@
                     <input type="checkbox" id="clean-newlines" checked>
                     <label for="clean-newlines">Aggressive Cleaning (Remove line breaks inside paragraphs)</label>
                 </div>
-                <div style="font-size: 0.8em; color: #888; margin-bottom: 10px;">* Auto-fixes: Smart quotes, dashes, ligatures (æ→ae, fi→fi), accents (é→e), ellipsis, special spaces, fractions, symbols. Untypeable characters are removed.</div>
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="normalize-chars">
+                    <label for="normalize-chars">Normalize Characters (Convert accents: é→e, ñ→n, etc.)</label>
+                </div>
+                <div style="font-size: 0.8em; color: #888; margin-bottom: 10px;">* Auto-fixes applied: Smart Quotes, Em-Dashes, Ellipsis</div>
 
                 <div id="chapter-list"></div>
                 
                 <button id="upload-all-btn">Upload All Chapters to Database</button>
-                <button id="audit-book-btn" class="secondary-btn" style="margin-top:10px; background:#332200; border-color:#664400; color:#ffcc66;">🔍 Audit Book for Untypeable Characters</button>
-                <div id="audit-results" class="hidden" style="margin-top:15px; background:#1a1a00; border:1px solid #444400; padding:15px; max-height:400px; overflow-y:auto;"></div>
             </div>
 
             <hr style="border-color:#333; margin: 30px 0;">
@@ -225,9 +258,33 @@
         <textarea id="wizard-edit-input" rows="4" style="width:100%; background:#111; color:white; border:1px solid #555; padding:15px; font-family:'Courier New', monospace; font-size:1.1em; line-height:1.6; border-radius:0 0 4px 4px; margin-top:0;"></textarea>
         
         <div class="row" style="margin-top:20px;">
-            <div class="col"><button id="wizard-ignore-btn" class="secondary-btn">⚡ Auto-Fix All</button></div>
+            <div class="col"><button id="wizard-ignore-btn" class="secondary-btn">Ignore (Keep Char)</button></div>
             <div class="col"><button id="wizard-save-btn" style="background:#0047AB;">Save & Check</button></div>
             <div class="col"><button id="wizard-cancel-btn" class="danger-btn">Cancel Import</button></div>
+        </div>
+        
+        <div id="replace-all-section" style="margin-top:20px; padding-top:15px; border-top:1px solid #444;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                <span style="color:#ccc; white-space:nowrap;">Replace all <span id="replace-all-count" style="color:#ffaa00; font-weight:bold;"></span> instances of</span>
+                <span id="replace-all-char" style="font-weight:bold; color:#ff3333; border:1px solid #555; padding:2px 5px; font-family:'Courier New', monospace;"></span>
+                <span style="color:#ccc;">with:</span>
+            </div>
+            <div class="row">
+                <div class="col" style="flex:2;"><input id="replace-all-input" type="text" style="margin:0;" placeholder="Replacement text" /></div>
+                <div class="col"><button id="replace-all-btn" style="background:#0047AB; margin:0;">Replace All (char)</button></div>
+            </div>
+            
+            <div id="replace-word-row" class="hidden" style="margin-top:12px; padding-top:12px; border-top:1px dashed #333;">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <span style="color:#ccc; white-space:nowrap;">Or replace word</span>
+                    <span id="replace-word-original" style="font-weight:bold; color:#ffaa00; border:1px solid #555; padding:2px 5px; font-family:'Courier New', monospace;"></span>
+                    <span style="color:#ccc;">(<span id="replace-word-count" style="color:#ffaa00;"></span> occurrences) with:</span>
+                </div>
+                <div class="row">
+                    <div class="col" style="flex:2;"><input id="replace-word-input" type="text" style="margin:0;" placeholder="Replacement word" /></div>
+                    <div class="col"><button id="replace-word-btn" style="background:#0047AB; margin:0;">Replace All (word)</button></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
