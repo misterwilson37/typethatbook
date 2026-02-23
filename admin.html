@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TypeThatBook Admin v2.5.0</title>
+    <title>TypeThatBook Admin v2.6.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
@@ -122,8 +122,12 @@
                         <input type="text" id="new-book-id">
                     </div>
                     <div class="col">
-                        <label>Display Title (e.g. Dracula by Bram Stoker)</label>
+                        <label>Display Title (e.g. Dracula)</label>
                         <input type="text" id="new-book-title">
+                    </div>
+                    <div class="col">
+                        <label>Author (e.g. Bram Stoker)</label>
+                        <input type="text" id="new-book-author" placeholder="Auto-extracted from EPUB">
                     </div>
                 </div>
                 <label>Initial EPUB File (Required)</label>
@@ -186,15 +190,18 @@
                     <input type="checkbox" id="clean-newlines" checked>
                     <label for="clean-newlines">Aggressive Cleaning (Remove line breaks inside paragraphs)</label>
                 </div>
-                <div class="checkbox-wrapper">
-                    <input type="checkbox" id="normalize-chars">
-                    <label for="normalize-chars">Normalize Characters (Convert accents: é→e, ñ→n, etc.)</label>
-                </div>
-                <div style="font-size: 0.8em; color: #888; margin-bottom: 10px;">* Auto-fixes applied: Smart Quotes, Em-Dashes, Ellipsis</div>
+                <div style="font-size: 0.8em; color: #888; margin-bottom: 10px;">* Auto-fixes: Smart quotes, dashes, ligatures (æ→ae), accents (é→e), ellipsis, special spaces, fractions, symbols. Remaining untypeable characters trigger the wizard.</div>
 
                 <div id="chapter-list"></div>
                 
                 <button id="upload-all-btn">Upload All Chapters to Database</button>
+                
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <button id="audit-book-btn" class="secondary-btn" style="flex:1; background:#332200; border-color:#664400; color:#ffcc66;">🔍 Audit Book for Untypeable Characters</button>
+                    <button id="language-scan-btn" class="secondary-btn" style="flex:1; background:#220022; border-color:#440044; color:#cc66cc;">🔍 Scan for Language Warnings</button>
+                </div>
+                <div id="audit-results" class="hidden" style="margin-top:15px; background:#1a1a00; border:1px solid #444400; padding:15px; max-height:400px; overflow-y:auto;"></div>
+                <div id="language-results" class="hidden" style="margin-top:15px; background:#1a0011; border:1px solid #440022; padding:15px; max-height:400px; overflow-y:auto;"></div>
             </div>
 
             <hr style="border-color:#333; margin: 30px 0;">
