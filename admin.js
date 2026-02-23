@@ -1,10 +1,10 @@
-// v2.5.0 - Cover art, author, genre support
+// v2.6.0 - Comprehensive text sanitization, audit tool, language check
 import { db, auth, storage } from "./firebase-config.js";
 import { doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "2.5.0";
+const ADMIN_VERSION = "2.6.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -48,7 +48,6 @@ const overwriteBtn = document.getElementById('overwrite-btn');
 const chapterListEl = document.getElementById('chapter-list');
 const uploadAllBtn = document.getElementById('upload-all-btn');
 const cleanNewlinesCb = document.getElementById('clean-newlines');
-const normalizeCharsCb = document.getElementById('normalize-chars');
 
 // Manual Editor
 const manualTitle = document.getElementById('manual-chap-title');
@@ -101,6 +100,92 @@ const CHAR_SUGGESTIONS = {
     '\u00B7': '-',                     // middle dot
     '\u2022': '-',                     // bullet
 };
+
+// === COMPREHENSIVE CHARACTER REPLACEMENT MAP ===
+// Shared logic with game.js runtime sanitizer
+const CHAR_REPLACEMENTS = {
+    '\u2018': "'", '\u2019': "'", '\u201A': "'",
+    '\u201C': '"', '\u201D': '"', '\u201E': '"',
+    '\u2039': "'", '\u203A': "'",
+    '\u00AB': '"', '\u00BB': '"',
+    '\u02BC': "'", '\u2032': "'", '\u2033': '"',
+    '\u2013': '-', '\u2014': '--', '\u2015': '--',
+    '\u2012': '-', '\u2010': '-', '\u2011': '-',
+    '\u2026': '...', '\u2022': '-', '\u2023': '-', '\u2027': '-', '\u00B7': '.',
+    '\u00A0': ' ', '\u2002': ' ', '\u2003': ' ', '\u2004': ' ', '\u2005': ' ',
+    '\u2006': ' ', '\u2007': ' ', '\u2008': ' ', '\u2009': ' ', '\u200A': ' ',
+    '\u202F': ' ', '\u205F': ' ',
+    '\u200B': '', '\u200C': '', '\u200D': '', '\u200E': '', '\u200F': '',
+    '\uFEFF': '', '\u2060': '', '\u00AD': '',
+    '\u00C6': 'AE', '\u00E6': 'ae', '\u0152': 'OE', '\u0153': 'oe',
+    '\u0132': 'IJ', '\u0133': 'ij',
+    '\uFB00': 'ff', '\uFB01': 'fi', '\uFB02': 'fl', '\uFB03': 'ffi', '\uFB04': 'ffl',
+    '\u00DF': 'ss', '\u00F0': 'd', '\u00FE': 'th', '\u00DE': 'Th',
+    '\u00A9': '(c)', '\u00AE': '(R)', '\u2122': '(TM)',
+    '\u00B0': ' degrees', '\u00D7': 'x', '\u00F7': '/', '\u2212': '-', '\u00B1': '+/-',
+    '\u00BC': '1/4', '\u00BD': '1/2', '\u00BE': '3/4', '\u2153': '1/3', '\u2154': '2/3',
+    '\u00A2': 'cents', '\u00A3': 'GBP ', '\u00A5': 'JPY ', '\u20AC': 'EUR ',
+    '\u2020': '*', '\u2021': '**', '\u00A7': 'S.', '\u00B6': '', '\u2016': '||', '\u2044': '/',
+};
+
+function sanitizeText(text) {
+    let result = '';
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        result += (ch in CHAR_REPLACEMENTS) ? CHAR_REPLACEMENTS[ch] : ch;
+    }
+    result = result.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    result = result.replace(/[^ -~\t\n]/g, '');
+    result = result.replace(/ {2,}/g, ' ');
+    return result;
+}
+
+function getSanitizedReplacement(ch) {
+    if (ch in CHAR_REPLACEMENTS) return CHAR_REPLACEMENTS[ch] || '(remove)';
+    const nfd = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (nfd !== ch && /^[ -~]+$/.test(nfd)) return nfd;
+    return '(remove)';
+}
+
+// === LANGUAGE CONTENT WARNINGS ===
+const FLAGGED_WORDS = [
+    'nigger', 'niggers', 'nigga', 'niggas',
+    'chink', 'chinks', 'spic', 'spics', 'spick', 'spicks',
+    'wetback', 'wetbacks', 'kike', 'kikes',
+    'gook', 'gooks', 'beaner', 'beaners',
+    'coon', 'coons', 'darkie', 'darkies', 'darky',
+    'redskin', 'redskins', 'injun', 'injuns',
+    'halfbreed', 'half-breed', 'pickaninny', 'pickaninnies',
+    'sambo', 'jap', 'japs',
+    'fuck', 'fucking', 'fucked', 'fucker', 'fucks',
+    'shit', 'shits', 'shitting', 'shitty',
+    'bitch', 'bitches', 'asshole', 'assholes',
+    'damn', 'damned', 'goddamn', 'goddamned',
+    'bastard', 'bastards', 'cunt', 'cunts',
+    'piss', 'pissed', 'pissing', 'whore', 'whores',
+];
+const FLAGGED_REGEX = new RegExp('\\b(' + FLAGGED_WORDS.join('|') + ')\\b', 'gi');
+
+function scanForLanguageIssues(chapters) {
+    const issues = [];
+    chapters.forEach((chap, chapIdx) => {
+        chap.segments.forEach((seg, segIdx) => {
+            const text = seg.text || '';
+            let match;
+            FLAGGED_REGEX.lastIndex = 0;
+            while ((match = FLAGGED_REGEX.exec(text)) !== null) {
+                const start = Math.max(0, match.index - 40);
+                const end = Math.min(text.length, match.index + match[0].length + 40);
+                issues.push({
+                    chapIdx, chapTitle: chap.title, segIdx,
+                    word: match[0], position: match.index,
+                    context: text.substring(start, end)
+                });
+            }
+        });
+    });
+    return issues;
+}
 
 // State
 let stagedChapters = [];
@@ -204,6 +289,7 @@ async function loadBookList() {
 
 bookSelect.onchange = () => {
     stagingArea.classList.add('hidden'); 
+    clearAuditResults();
     
     // Toggle UI Containers
     if (bookSelect.value === "__NEW__") {
@@ -270,6 +356,9 @@ openBookBtn.onclick = async () => {
         overwriteSection.classList.remove('hidden');
         statusEl.innerText = "Loaded.";
         statusEl.style.borderColor = "#00ff41";
+        
+        // Auto-audit for character and language issues
+        runAudit();
     } catch(e) { statusEl.innerText = "Error: " + e.message; }
 };
 
@@ -278,10 +367,16 @@ createParseBtn.onclick = async () => {
     const id = newBookId.value.trim();
     const title = newBookTitle.value.trim();
     const file = newEpubFile.files[0];
-    if(!id || !title || !file) return alert("Fill all fields.");
+    if(!id || !title || !file) return alert("Fill Book ID, Title, and EPUB file.");
     
     activeBookId = id;
     activeBookTitle.value = title;
+    // Pre-fill author if user typed one
+    const newAuthor = document.getElementById('new-book-author');
+    const stagingAuthor = document.getElementById('active-book-author');
+    if (newAuthor && stagingAuthor && newAuthor.value.trim()) {
+        stagingAuthor.value = newAuthor.value.trim();
+    }
     await parseEpubFile(file);
     stagingArea.classList.remove('hidden');
     overwriteSection.classList.add('hidden'); // No overwrite for new
@@ -405,28 +500,8 @@ async function parseEpubFile(file) {
                 if (cleanNewlinesCb.checked) text = text.replace(/[\r\n]+/g, ' '); 
                 text = text.replace(/\s\s+/g, ' ').trim();
                 
-                // Always-on: formatting/invisible chars with obvious ASCII equivalents
-                text = text.replace(/—/g, '--'); 
-                text = text.replace(/[\u2018\u2019]/g, "'"); 
-                text = text.replace(/[\u201C\u201D]/g, '"');
-                text = text.replace(/\u2026/g, "..."); 
-                text = text.replace(/[\u00A0\u200A\u2002\u2003\u2009]/g, ' '); // NBSP, hair, en, em, thin space → space
-                text = text.replace(/[\u2013\u2011]/g, '-');  // en dash, non-breaking hyphen → hyphen
-                text = text.replace(/[\u200B\u200C\u200D\uFEFF]/g, ''); // zero-width chars, BOM → remove
-                text = text.replace(/\u00AD/g, '');           // soft hyphen → remove
-                text = text.replace(/\u00D7/g, 'x');          // × → x
-                text = text.replace(/\u00B7/g, '-');           // · (middle dot) → hyphen
-                text = text.replace(/\u2022/g, '-');           // bullet → hyphen
-                
-                // Aggressive: actual letter substitutions (normalize checkbox)
-                if (normalizeCharsCb.checked) {
-                    text = text.replace(/\u00E6/g, 'ae');      // æ → ae
-                    text = text.replace(/\u00C6/g, 'Ae');      // Æ → Ae
-                    text = text.replace(/\u0153/g, 'oe');      // œ → oe
-                    text = text.replace(/\u0152/g, 'Oe');      // Œ → Oe
-                    text = text.replace(/\u00DF/g, 'ss');      // ß → ss
-                    text = text.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // strip accents
-                }
+                // Comprehensive sanitization
+                text = sanitizeText(text);
 
                 if (text.length > 0) {
                     if (!text.startsWith('\t')) text = '\t' + text;
@@ -460,8 +535,16 @@ async function parseEpubFile(file) {
             showErrorWizard();
         } else {
             renderChapterList();
-            statusEl.innerText = `Parsed ${stagedChapters.length} chapters.`;
-            statusEl.style.borderColor = "#00ff41";
+            // Scan for language issues
+            const langIssues = scanForLanguageIssues(stagedChapters);
+            if (langIssues.length > 0) {
+                showLanguageWarnings(langIssues);
+                statusEl.innerText = `Parsed ${stagedChapters.length} chapters. ⚠️ ${langIssues.length} language warning(s).`;
+                statusEl.style.borderColor = "#ffaa00";
+            } else {
+                statusEl.innerText = `✅ Parsed ${stagedChapters.length} chapters. No character issues or language warnings found.`;
+                statusEl.style.borderColor = "#00ff41";
+            }
         }
 
     } catch (e) {
@@ -476,8 +559,16 @@ function showErrorWizard() {
     if (currentErrorIdx >= importErrors.length) {
         wizardModal.classList.add('hidden');
         renderChapterList();
-        statusEl.innerText = "Errors resolved. Ready to upload.";
-        statusEl.style.borderColor = "#00ff41";
+        // Scan for language issues after all character errors are resolved
+        const langIssues = scanForLanguageIssues(stagedChapters);
+        if (langIssues.length > 0) {
+            showLanguageWarnings(langIssues);
+            statusEl.innerText = `Character errors resolved. ⚠️ ${langIssues.length} language warning(s) found. Ready to upload.`;
+            statusEl.style.borderColor = "#ffaa00";
+        } else {
+            statusEl.innerText = "✅ All errors resolved. No language warnings. Ready to upload.";
+            statusEl.style.borderColor = "#00ff41";
+        }
         return;
     }
 
@@ -1180,3 +1271,291 @@ document.getElementById('cover-remove-btn')?.addEventListener('click', () => {
     updateCoverPreview();
     document.getElementById('cover-upload').value = '';
 });
+
+// === LANGUAGE WARNINGS UI ===
+function showLanguageWarnings(issues) {
+    const container = document.getElementById('language-results');
+    if (!container) return;
+    container.classList.remove('hidden');
+
+    // Group by word
+    const grouped = {};
+    issues.forEach(iss => {
+        const w = iss.word.toLowerCase();
+        if (!grouped[w]) grouped[w] = { word: iss.word, occurrences: [] };
+        grouped[w].occurrences.push(iss);
+    });
+
+    let html = `
+        <div style="color:#ff6666; font-weight:bold; font-size:1.1em; margin-bottom:10px;">
+            ⚠️ ${issues.length} language warning${issues.length !== 1 ? 's' : ''} found
+        </div>
+        <div style="font-size:0.85em; color:#aaa; margin-bottom:12px;">
+            These words may be inappropriate for a classroom. Review before uploading.
+            You can use the import wizard's "Replace All (word)" to substitute them.
+        </div>
+    `;
+
+    Object.values(grouped).forEach(({ word, occurrences }) => {
+        html += `<div style="border-bottom:1px solid #333; padding:8px 0;">`;
+        html += `<div style="font-weight:bold; color:#ff6666;">"${escapeHtml(word)}" — ${occurrences.length} occurrence${occurrences.length !== 1 ? 's' : ''}</div>`;
+        occurrences.slice(0, 3).forEach(occ => {
+            const safeCtx = escapeHtml(occ.context);
+            const highlighted = safeCtx.replace(
+                new RegExp(escapeRegex(escapeHtml(occ.word)), 'gi'),
+                m => `<span style="background:#660000; color:#ff3333; padding:0 2px; border-radius:2px;">${m}</span>`
+            );
+            html += `<div style="font-size:0.8em; color:#888; margin:3px 0 3px 15px; font-family:'Courier New', monospace;">...${highlighted}...</div>`;
+        });
+        if (occurrences.length > 3) html += `<div style="font-size:0.75em; color:#666; margin-left:15px;">...and ${occurrences.length - 3} more</div>`;
+        html += `</div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+// === BOOK AUDIT TOOL ===
+const auditBtn = document.getElementById('audit-book-btn');
+const auditResults = document.getElementById('audit-results');
+const langScanBtn = document.getElementById('language-scan-btn');
+let auditIssueData = [];
+
+function clearAuditResults() {
+    if (auditResults) { auditResults.classList.add('hidden'); auditResults.innerHTML = ''; }
+    const langResults = document.getElementById('language-results');
+    if (langResults) { langResults.classList.add('hidden'); langResults.innerHTML = ''; }
+    auditIssueData = [];
+}
+
+async function runAudit() {
+    if (!activeBookId || !auditBtn) return;
+    auditBtn.disabled = true;
+    auditBtn.innerText = '🔍 Auditing...';
+    auditResults.classList.remove('hidden');
+    auditResults.innerHTML = '<div style="color:#888;">Scanning chapters...</div>';
+    auditIssueData = [];
+
+    try {
+        const metaSnap = await getDoc(doc(db, "books", activeBookId));
+        if (!metaSnap.exists()) { auditResults.innerHTML = '<div style="color:red;">Book metadata not found.</div>'; return; }
+        const meta = metaSnap.data();
+        const chapters = meta.chapters || [];
+
+        for (const chap of chapters) {
+            const chapId = chap.id;
+            const chapSnap = await getDoc(doc(db, "books", activeBookId, "chapters", chapId));
+            if (!chapSnap.exists()) continue;
+            const data = chapSnap.data();
+            const segments = data.segments || [];
+
+            segments.forEach((seg, segIdx) => {
+                const text = seg.text || '';
+                for (let i = 0; i < text.length; i++) {
+                    const ch = text[i];
+                    const code = ch.charCodeAt(0);
+                    if (code === 9 || code === 10 || (code >= 32 && code <= 126)) continue;
+                    const hex = code.toString(16).toUpperCase().padStart(4, '0');
+                    auditIssueData.push({
+                        chapId, chapTitle: chap.title || chapId,
+                        segIdx, charIdx: i, char: ch, hex,
+                        replacement: getSanitizedReplacement(ch),
+                        segments
+                    });
+                }
+            });
+        }
+        renderAuditResults(chapters.length);
+    } catch (e) {
+        auditResults.innerHTML = `<div style="color:red;">Audit error: ${e.message}</div>`;
+    } finally {
+        auditBtn.disabled = false;
+        auditBtn.innerText = '🔍 Audit Book for Untypeable Characters';
+    }
+}
+
+function renderAuditResults(chapCount) {
+    const totalIssues = auditIssueData.length;
+    if (totalIssues === 0) {
+        auditResults.innerHTML = `
+            <div style="color:#00ff41; font-weight:bold; font-size:1.1em;">✅ Clean! No untypeable characters found.</div>
+            <div style="color:#888; margin-top:5px;">Scanned ${chapCount} chapters.</div>
+        `;
+        return;
+    }
+
+    const grouped = {};
+    auditIssueData.forEach((iss, idx) => {
+        if (!grouped[iss.chapId]) grouped[iss.chapId] = { chapTitle: iss.chapTitle, issues: [] };
+        grouped[iss.chapId].issues.push({ ...iss, globalIdx: idx });
+    });
+
+    let html = `
+        <div style="color:#ffaa00; font-weight:bold; font-size:1.1em; margin-bottom:10px;">
+            ⚠️ Found ${totalIssues} untypeable character${totalIssues !== 1 ? 's' : ''} in ${Object.keys(grouped).length} chapter${Object.keys(grouped).length !== 1 ? 's' : ''}
+        </div>
+        <button id="audit-fix-all-btn" style="background:#664400; border:1px solid #996600; color:#ffcc66; padding:8px 16px; cursor:pointer; margin-bottom:15px; width:auto;">
+            ⚡ Auto-Fix All ${totalIssues} Issues in Database
+        </button>
+    `;
+
+    Object.entries(grouped).forEach(([chapId, { chapTitle, issues }]) => {
+        html += `<div style="border-bottom:1px solid #333; padding:8px 0;">`;
+        html += `<div style="font-weight:bold; color:#4B9CD3;">${escapeHtml(chapTitle)} (${chapId}) — ${issues.length} issue${issues.length !== 1 ? 's' : ''}</div>`;
+        issues.forEach(iss => {
+            const seg = iss.segments[iss.segIdx];
+            const text = seg.text || '';
+            // Sentence context
+            let ctxStart = iss.charIdx;
+            for (let j = ctxStart - 1; j >= 0 && j > ctxStart - 80; j--) {
+                if (['.', '!', '?'].includes(text[j]) && j < ctxStart - 5) { ctxStart = j + 1; break; }
+                ctxStart = j;
+            }
+            let ctxEnd = iss.charIdx;
+            for (let j = ctxEnd + 1; j < text.length && j < iss.charIdx + 80; j++) {
+                ctxEnd = j + 1;
+                if (['.', '!', '?'].includes(text[j])) break;
+            }
+            const context = text.substring(ctxStart, ctxEnd).trim();
+            const safeCtx = escapeHtml(context);
+            const safeCh = escapeHtml(iss.char);
+            const highlighted = safeCtx.split(safeCh).join(`<span class="bad-char-highlight">${safeCh}</span>`);
+
+            html += `<div id="audit-issue-${iss.globalIdx}" style="margin:6px 0 6px 15px; padding:6px; background:#111; border:1px solid #333; border-radius:4px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-size:0.8em; color:#aaa;">
+                        Seg ${iss.segIdx}, pos ${iss.charIdx}:
+                        <span style="color:#ff3333; font-weight:bold;">"${safeCh}"</span>
+                        (U+${iss.hex}) → <span style="color:#00ff41;">${escapeHtml(String(iss.replacement))}</span>
+                    </div>
+                    <div style="display:flex; gap:4px;">
+                        <button class="audit-edit-btn" data-idx="${iss.globalIdx}" style="background:#333; color:#4B9CD3; border:1px solid #4B9CD3; padding:2px 8px; cursor:pointer; font-size:0.7em; width:auto;">✏️ Edit</button>
+                        <button class="audit-autofix-btn" data-idx="${iss.globalIdx}" style="background:#333; color:#ffcc66; border:1px solid #664400; padding:2px 8px; cursor:pointer; font-size:0.7em; width:auto;">⚡ Fix</button>
+                    </div>
+                </div>
+                <div style="font-family:'Courier New', monospace; font-size:0.85em; color:#888; margin-top:4px; line-height:1.5;">${highlighted}</div>
+                <div id="audit-editor-${iss.globalIdx}" class="hidden" style="margin-top:6px;">
+                    <textarea id="audit-textarea-${iss.globalIdx}" rows="3" style="width:100%; background:#1a1a1a; color:#ddd; border:1px solid #555; padding:6px; font-family:'Courier New', monospace; font-size:0.9em; box-sizing:border-box;"></textarea>
+                    <div style="display:flex; gap:6px; margin-top:4px;">
+                        <button class="audit-save-btn" data-idx="${iss.globalIdx}" style="background:#0047AB; color:#fff; border:none; padding:4px 12px; cursor:pointer; font-size:0.75em; width:auto;">Save & Re-Check</button>
+                        <button class="audit-cancel-btn" data-idx="${iss.globalIdx}" style="background:#333; color:#aaa; border:1px solid #555; padding:4px 12px; cursor:pointer; font-size:0.75em; width:auto;">Cancel</button>
+                    </div>
+                </div>
+            </div>`;
+        });
+        html += `</div>`;
+    });
+
+    auditResults.innerHTML = html;
+    wireAuditButtons();
+}
+
+function wireAuditButtons() {
+    const fixAllBtn = document.getElementById('audit-fix-all-btn');
+    if (fixAllBtn) {
+        fixAllBtn.onclick = async () => {
+            const chapIds = [...new Set(auditIssueData.map(i => i.chapId))];
+            if (!confirm(`Fix all issues in ${chapIds.length} chapter(s)?`)) return;
+            fixAllBtn.disabled = true; fixAllBtn.innerText = '⏳ Fixing...';
+            let fixed = 0;
+            for (const chapId of chapIds) {
+                const chapSnap = await getDoc(doc(db, "books", activeBookId, "chapters", chapId));
+                if (!chapSnap.exists()) continue;
+                const data = chapSnap.data();
+                let changed = false;
+                data.segments.forEach(seg => { const o = seg.text; seg.text = sanitizeText(seg.text); if (seg.text !== o) changed = true; });
+                if (changed) { await setDoc(doc(db, "books", activeBookId, "chapters", chapId), { segments: data.segments }, { merge: true }); fixed++; }
+            }
+            statusEl.innerText = `Audit fix complete: ${fixed} chapter(s) updated.`;
+            statusEl.style.borderColor = '#00ff41';
+            runAudit();
+        };
+    }
+
+    document.querySelectorAll('.audit-edit-btn').forEach(btn => {
+        btn.onclick = () => {
+            const idx = parseInt(btn.dataset.idx);
+            const iss = auditIssueData[idx];
+            const text = iss.segments[iss.segIdx].text || '';
+            let ctxStart = iss.charIdx;
+            for (let j = ctxStart - 1; j >= 0 && j > ctxStart - 80; j--) {
+                if (['.', '!', '?'].includes(text[j]) && j < ctxStart - 5) { ctxStart = j + 1; break; }
+                ctxStart = j;
+            }
+            let ctxEnd = iss.charIdx;
+            for (let j = ctxEnd + 1; j < text.length && j < iss.charIdx + 80; j++) {
+                ctxEnd = j + 1;
+                if (['.', '!', '?'].includes(text[j])) break;
+            }
+            const textarea = document.getElementById(`audit-textarea-${idx}`);
+            textarea.value = text.substring(ctxStart, ctxEnd).trim();
+            textarea._ctxStart = ctxStart;
+            textarea._ctxEnd = ctxEnd;
+            document.getElementById(`audit-editor-${idx}`).classList.remove('hidden');
+            textarea.focus();
+        };
+    });
+
+    document.querySelectorAll('.audit-cancel-btn').forEach(btn => {
+        btn.onclick = () => document.getElementById(`audit-editor-${btn.dataset.idx}`).classList.add('hidden');
+    });
+
+    document.querySelectorAll('.audit-save-btn').forEach(btn => {
+        btn.onclick = async () => {
+            const idx = parseInt(btn.dataset.idx);
+            const iss = auditIssueData[idx];
+            const textarea = document.getElementById(`audit-textarea-${idx}`);
+            const newSnippet = textarea.value;
+            const remaining = newSnippet.match(/[^ -~\t\n]/g);
+            if (remaining) {
+                const chars = [...new Set(remaining)].map(c => `"${c}" (U+${c.charCodeAt(0).toString(16).toUpperCase().padStart(4,'0')})`).join(', ');
+                if (!confirm(`Still contains untypeable characters: ${chars}\n\nSave anyway?`)) return;
+            }
+            const seg = iss.segments[iss.segIdx];
+            seg.text = seg.text.substring(0, textarea._ctxStart) + newSnippet + seg.text.substring(textarea._ctxEnd);
+            try {
+                await setDoc(doc(db, "books", activeBookId, "chapters", iss.chapId), { segments: iss.segments }, { merge: true });
+                statusEl.innerText = `Saved edit to ${iss.chapTitle}.`;
+                statusEl.style.borderColor = '#00ff41';
+                runAudit();
+            } catch (e) { alert('Save failed: ' + e.message); }
+        };
+    });
+
+    document.querySelectorAll('.audit-autofix-btn').forEach(btn => {
+        btn.onclick = async () => {
+            const idx = parseInt(btn.dataset.idx);
+            const iss = auditIssueData[idx];
+            iss.segments[iss.segIdx].text = sanitizeText(iss.segments[iss.segIdx].text);
+            try {
+                await setDoc(doc(db, "books", activeBookId, "chapters", iss.chapId), { segments: iss.segments }, { merge: true });
+                const el = document.getElementById(`audit-issue-${idx}`);
+                if (el) { el.style.borderColor = '#336633'; el.style.background = '#0a220a'; el.innerHTML = '<div style="color:#00ff41; font-size:0.8em;">✅ Fixed</div>'; }
+                statusEl.innerText = `Fixed issue in ${iss.chapTitle}.`;
+                statusEl.style.borderColor = '#00ff41';
+            } catch (e) { alert('Fix failed: ' + e.message); }
+        };
+    });
+}
+
+if (auditBtn) auditBtn.onclick = () => runAudit();
+
+// Language scan button (for existing books loaded from DB)
+if (langScanBtn) {
+    langScanBtn.onclick = () => {
+        if (stagedChapters.length === 0) return alert("No book loaded. Open a book first.");
+        const issues = scanForLanguageIssues(stagedChapters);
+        if (issues.length > 0) {
+            showLanguageWarnings(issues);
+            statusEl.innerText = `⚠️ ${issues.length} language warning(s) found.`;
+            statusEl.style.borderColor = "#ffaa00";
+        } else {
+            const container = document.getElementById('language-results');
+            if (container) {
+                container.classList.remove('hidden');
+                container.innerHTML = '<div style="color:#00ff41; font-weight:bold;">✅ No flagged language found.</div>';
+            }
+            statusEl.innerText = "Language scan complete — no issues found.";
+            statusEl.style.borderColor = "#00ff41";
+        }
+    };
+}
