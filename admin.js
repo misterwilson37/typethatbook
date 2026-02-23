@@ -1346,13 +1346,19 @@ function showLanguageWarnings(issues, fromDB = false) {
                 new RegExp(escapeRegex(escapeHtml(occ.word)), 'gi'),
                 m => `<span class="bad-char-highlight" style="background:#660000;">${m}</span>`
             );
+            const fullText = occ.segRef.text || '';
+            const prefix = occ.ctxStart > 0 ? '...' : '';
+            const suffix = occ.ctxEnd < fullText.length ? '...' : '';
 
             html += `<div id="lang-issue-${occ.globalIdx}" style="margin:6px 0 6px 15px; padding:6px; background:#111; border:1px solid #333; border-radius:4px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div style="font-size:0.75em; color:#666;">Ch: ${escapeHtml(occ.chapTitle)} | Seg ${occ.segIdx}</div>
-                    <button class="lang-edit-btn" data-idx="${occ.globalIdx}" style="background:#333; color:#4B9CD3; border:1px solid #4B9CD3; padding:2px 8px; cursor:pointer; font-size:0.7em; width:auto;">✏️ Edit</button>
+                    <div style="display:flex; gap:4px;">
+                        <button class="lang-more-ctx-btn" data-idx="${occ.globalIdx}" style="background:#333; color:#aaa; border:1px solid #555; padding:2px 8px; cursor:pointer; font-size:0.7em; width:auto;">📖 More</button>
+                        <button class="lang-edit-btn" data-idx="${occ.globalIdx}" style="background:#333; color:#4B9CD3; border:1px solid #4B9CD3; padding:2px 8px; cursor:pointer; font-size:0.7em; width:auto;">✏️ Edit</button>
+                    </div>
                 </div>
-                <div style="font-family:'Courier New', monospace; font-size:0.85em; color:#888; margin-top:4px; line-height:1.5;">${highlighted}</div>
+                <div id="lang-ctx-${occ.globalIdx}" style="font-family:'Courier New', monospace; font-size:0.85em; color:#888; margin-top:4px; line-height:1.5;">${prefix}${highlighted}${suffix}</div>
                 <div id="lang-editor-${occ.globalIdx}" class="hidden" style="margin-top:6px;">
                     <textarea id="lang-textarea-${occ.globalIdx}" rows="3" style="width:100%; background:#1a1a1a; color:#ddd; border:1px solid #555; padding:6px; font-family:'Courier New', monospace; font-size:0.9em; box-sizing:border-box;"></textarea>
                     <div style="display:flex; gap:6px; margin-top:4px;">
@@ -1395,7 +1401,56 @@ function wireLangButtons() {
         };
     });
 
-    // Edit buttons
+    // More Context buttons — expand by ~120 chars each direction
+    document.querySelectorAll('.lang-more-ctx-btn').forEach(btn => {
+        btn.onclick = () => {
+            const idx = parseInt(btn.dataset.idx);
+            const iss = langIssueData[idx];
+            const text = iss.segRef.text || '';
+
+            // Expand boundaries by ~120 chars, respecting segment edges
+            let newStart = Math.max(0, iss.ctxStart - 120);
+            let newEnd = Math.min(text.length, iss.ctxEnd + 120);
+
+            // If we've reached the full segment, try to hint that
+            const atStart = newStart === 0;
+            const atEnd = newEnd === text.length;
+
+            iss.ctxStart = newStart;
+            iss.ctxEnd = newEnd;
+            iss.context = text.substring(newStart, newEnd).trim();
+
+            // Re-render the context display
+            const ctxDiv = document.getElementById(`lang-ctx-${idx}`);
+            if (ctxDiv) {
+                const safeCtx = escapeHtml(iss.context);
+                const highlighted = safeCtx.replace(
+                    new RegExp(escapeRegex(escapeHtml(iss.word)), 'gi'),
+                    m => `<span class="bad-char-highlight" style="background:#660000;">${m}</span>`
+                );
+                const prefix = atStart ? '' : '...';
+                const suffix = atEnd ? '' : '...';
+                ctxDiv.innerHTML = prefix + highlighted + suffix;
+            }
+
+            // If editor is open, update textarea too
+            const textarea = document.getElementById(`lang-textarea-${idx}`);
+            if (textarea && !document.getElementById(`lang-editor-${idx}`).classList.contains('hidden')) {
+                textarea.value = iss.context;
+                textarea._ctxStart = iss.ctxStart;
+                textarea._ctxEnd = iss.ctxEnd;
+            }
+
+            // Disable if we've hit segment boundaries
+            if (atStart && atEnd) {
+                btn.innerText = '📖 Full segment';
+                btn.disabled = true;
+                btn.style.color = '#555';
+            }
+        };
+    });
+
+    // Edit buttons — use current (possibly expanded) context
     document.querySelectorAll('.lang-edit-btn').forEach(btn => {
         btn.onclick = () => {
             const idx = parseInt(btn.dataset.idx);
