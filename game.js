@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "2.9.4";
+const VERSION = "2.9.5";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -442,9 +442,123 @@ async function loadChapter(chapterNum) {
     }
 }
 
+// Typeable character set: printable ASCII (space through tilde), tab, newline
+// Anything outside this set gets replaced with a logical equivalent or removed.
+const CHAR_REPLACEMENTS = {
+    // Quotes & apostrophes
+    '\u2018': "'", '\u2019': "'", '\u201A': "'",  // single curly quotes
+    '\u201C': '"', '\u201D': '"', '\u201E': '"',  // double curly quotes
+    '\u2039': "'", '\u203A': "'",                  // single angle quotes
+    '\u00AB': '"', '\u00BB': '"',                  // guillemets
+    '\u02BC': "'",                                  // modifier letter apostrophe
+    '\u2032': "'", '\u2033': '"',                  // prime, double prime
+
+    // Dashes & hyphens
+    '\u2013': '-',  // en dash
+    '\u2014': '--', // em dash
+    '\u2015': '--', // horizontal bar
+    '\u2012': '-',  // figure dash
+    '\u2010': '-',  // hyphen
+    '\u2011': '-',  // non-breaking hyphen
+    '\u00AD': '',   // soft hyphen (invisible, just remove)
+
+    // Dots & ellipsis
+    '\u2026': '...', // ellipsis
+    '\u2022': '-',   // bullet
+    '\u2023': '-',   // triangular bullet
+    '\u2027': '-',   // hyphenation point
+    '\u00B7': '.',   // middle dot
+
+    // Spaces
+    '\u00A0': ' ',   // non-breaking space
+    '\u2002': ' ',   // en space
+    '\u2003': ' ',   // em space
+    '\u2004': ' ',   // three-per-em space
+    '\u2005': ' ',   // four-per-em space
+    '\u2006': ' ',   // six-per-em space
+    '\u2007': ' ',   // figure space
+    '\u2008': ' ',   // punctuation space
+    '\u2009': ' ',   // thin space
+    '\u200A': ' ',   // hair space
+    '\u202F': ' ',   // narrow no-break space
+    '\u205F': ' ',   // medium mathematical space
+
+    // Invisible / zero-width (just remove)
+    '\u200B': '', // zero-width space
+    '\u200C': '', // zero-width non-joiner
+    '\u200D': '', // zero-width joiner
+    '\u200E': '', // left-to-right mark
+    '\u200F': '', // right-to-left mark
+    '\uFEFF': '', // byte-order mark / zero-width no-break space
+    '\u2060': '', // word joiner
+    '\u00AD': '', // soft hyphen
+
+    // Ligatures
+    '\u00C6': 'AE', '\u00E6': 'ae', // Æ æ
+    '\u0152': 'OE', '\u0153': 'oe', // Œ œ
+    '\u0132': 'IJ', '\u0133': 'ij', // Ĳ ĳ
+    '\uFB00': 'ff', '\uFB01': 'fi', '\uFB02': 'fl', '\uFB03': 'ffi', '\uFB04': 'ffl',
+    '\u00DF': 'ss', // ß (eszett)
+    '\u00F0': 'd',  // ð (eth)
+    '\u00FE': 'th', '\u00DE': 'Th', // þ Þ (thorn)
+
+    // Symbols with logical replacements
+    '\u00A9': '(c)',  // ©
+    '\u00AE': '(R)',  // ®
+    '\u2122': '(TM)', // ™
+    '\u00B0': ' degrees', // ° (in prose: "90°" → "90 degrees")
+    '\u00D7': 'x',    // × multiplication
+    '\u00F7': '/',    // ÷ division
+    '\u2212': '-',    // minus sign
+    '\u00B1': '+/-',  // ±
+    '\u00BC': '1/4',  // ¼
+    '\u00BD': '1/2',  // ½
+    '\u00BE': '3/4',  // ¾
+    '\u2153': '1/3',  // ⅓
+    '\u2154': '2/3',  // ⅔
+
+    // Currency
+    '\u00A2': 'cents',  // ¢
+    '\u00A3': 'GBP ',   // £
+    '\u00A5': 'JPY ',   // ¥
+    '\u20AC': 'EUR ',   // €
+
+    // Misc punctuation
+    '\u2020': '*',  // † dagger
+    '\u2021': '**', // ‡ double dagger
+    '\u00A7': 'S.',  // § section sign
+    '\u00B6': '',    // ¶ pilcrow (remove)
+    '\u2016': '||',  // ‖ double vertical line
+    '\u2044': '/',   // ⁄ fraction slash
+};
+
+function sanitizeText(text) {
+    // 1. Apply explicit replacements
+    let result = '';
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (ch in CHAR_REPLACEMENTS) {
+            result += CHAR_REPLACEMENTS[ch];
+        } else {
+            result += ch;
+        }
+    }
+
+    // 2. Normalize accented characters → base letters (é→e, ñ→n, etc.)
+    result = result.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    // 3. Remove anything still outside typeable ASCII + tab + newline
+    result = result.replace(/[^ -~\t\n]/g, '');
+
+    // 4. Clean up artifacts: multiple spaces, spaces before punctuation
+    result = result.replace(/ {2,}/g, ' ');
+
+    return result;
+}
+
 function setupGame() {
     fullText = bookData.segments.map(s => s.text).join("\n");
-    fullText = fullText.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
+    fullText = sanitizeText(fullText);
 
     renderText();
     currentCharIndex = savedCharIndex;
