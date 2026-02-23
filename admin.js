@@ -3,7 +3,7 @@ import { db, auth } from "./firebase-config.js";
 import { doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-const ADMIN_VERSION = "1.9.8";
+const ADMIN_VERSION = "1.9.9";
 
 // Comprehensive character replacement map (shared logic with game.js runtime)
 const CHAR_REPLACEMENTS = {
@@ -159,6 +159,7 @@ async function loadBookList() {
 
 bookSelect.onchange = () => {
     stagingArea.classList.add('hidden'); 
+    clearAuditResults();
     
     // Toggle UI Containers
     if (bookSelect.value === "__NEW__") {
@@ -181,6 +182,7 @@ bookSelect.onchange = () => {
 // --- LOAD FROM DB ---
 openBookBtn.onclick = async () => {
     if(!activeBookId) return;
+    clearAuditResults();
     statusEl.innerText = `Loading ${activeBookId}...`;
     chapterListEl.innerHTML = "Loading...";
     stagedChapters = [];
@@ -211,6 +213,9 @@ openBookBtn.onclick = async () => {
         overwriteSection.classList.remove('hidden');
         statusEl.innerText = "Loaded.";
         statusEl.style.borderColor = "#00ff41";
+
+        // Auto-audit after loading
+        runAudit();
     } catch(e) { statusEl.innerText = "Error: " + e.message; }
 };
 
@@ -585,138 +590,278 @@ function resolvePath(base, relative) {
 // --- BOOK AUDIT TOOL ---
 const auditBtn = document.getElementById('audit-book-btn');
 const auditResults = document.getElementById('audit-results');
+let auditIssueData = []; // live reference to issues for editing
 
-if (auditBtn) {
-    auditBtn.onclick = async () => {
-        if (!activeBookId) return alert("No active book. Open a book first.");
+function clearAuditResults() {
+    if (auditResults) {
+        auditResults.classList.add('hidden');
+        auditResults.innerHTML = '';
+    }
+    auditIssueData = [];
+}
 
-        auditBtn.disabled = true;
-        auditBtn.innerText = '🔍 Auditing...';
-        auditResults.classList.remove('hidden');
-        auditResults.innerHTML = '<div style="color:#888;">Scanning chapters...</div>';
+async function runAudit() {
+    if (!activeBookId || !auditBtn) return;
 
-        try {
-            const metaSnap = await getDoc(doc(db, "books", activeBookId));
-            if (!metaSnap.exists()) { auditResults.innerHTML = '<div style="color:red;">Book metadata not found.</div>'; return; }
-            const meta = metaSnap.data();
-            const chapters = meta.chapters || [];
+    auditBtn.disabled = true;
+    auditBtn.innerText = '🔍 Auditing...';
+    auditResults.classList.remove('hidden');
+    auditResults.innerHTML = '<div style="color:#888;">Scanning chapters...</div>';
+    auditIssueData = [];
 
-            let totalIssues = 0;
-            let chaptersWithIssues = 0;
-            let issueDetails = [];
+    try {
+        const metaSnap = await getDoc(doc(db, "books", activeBookId));
+        if (!metaSnap.exists()) { auditResults.innerHTML = '<div style="color:red;">Book metadata not found.</div>'; return; }
+        const meta = metaSnap.data();
+        const chapters = meta.chapters || [];
 
-            for (const chap of chapters) {
-                const chapId = chap.id;
+        let totalIssues = 0;
+
+        for (const chap of chapters) {
+            const chapId = chap.id;
+            const chapSnap = await getDoc(doc(db, "books", activeBookId, "chapters", chapId));
+            if (!chapSnap.exists()) continue;
+            const data = chapSnap.data();
+            const segments = data.segments || [];
+
+            segments.forEach((seg, segIdx) => {
+                const text = seg.text || '';
+                for (let i = 0; i < text.length; i++) {
+                    const ch = text[i];
+                    const code = ch.charCodeAt(0);
+                    if (code === 9 || code === 10 || (code >= 32 && code <= 126)) continue;
+
+                    const hex = code.toString(16).toUpperCase().padStart(4, '0');
+                    const replacement = CHAR_REPLACEMENTS[ch] !== undefined ? CHAR_REPLACEMENTS[ch] : '';
+                    auditIssueData.push({
+                        chapId, chapTitle: chap.title || chapId,
+                        segIdx, charIdx: i, char: ch, hex,
+                        replacement: replacement || '(delete)',
+                        segments // live reference to this chapter's segments array
+                    });
+                    totalIssues++;
+                }
+            });
+        }
+
+        renderAuditResults(chapters.length, totalIssues);
+    } catch (e) {
+        auditResults.innerHTML = `<div style="color:red;">Audit error: ${e.message}</div>`;
+        console.error('Audit error:', e);
+    } finally {
+        auditBtn.disabled = false;
+        auditBtn.innerText = '🔍 Audit Book for Untypeable Characters';
+    }
+}
+
+function renderAuditResults(chapCount, totalIssues) {
+    if (totalIssues === 0) {
+        auditResults.innerHTML = `
+            <div style="color:#00ff41; font-weight:bold; font-size:1.1em;">✅ Clean! No untypeable characters found.</div>
+            <div style="color:#888; margin-top:5px;">Scanned ${chapCount} chapters.</div>
+        `;
+        return;
+    }
+
+    // Group by chapter
+    const grouped = {};
+    auditIssueData.forEach((iss, idx) => {
+        if (!grouped[iss.chapId]) grouped[iss.chapId] = { chapTitle: iss.chapTitle, issues: [] };
+        grouped[iss.chapId].issues.push({ ...iss, globalIdx: idx });
+    });
+
+    let html = `
+        <div style="color:#ffaa00; font-weight:bold; font-size:1.1em; margin-bottom:10px;">
+            ⚠️ Found ${totalIssues} untypeable character${totalIssues !== 1 ? 's' : ''} in ${Object.keys(grouped).length} chapter${Object.keys(grouped).length !== 1 ? 's' : ''}
+        </div>
+        <button id="audit-fix-all-btn" style="background:#664400; border:1px solid #996600; color:#ffcc66; padding:8px 16px; cursor:pointer; margin-bottom:15px; width:auto;">
+            ⚡ Auto-Fix All ${totalIssues} Issues in Database
+        </button>
+    `;
+
+    Object.entries(grouped).forEach(([chapId, { chapTitle, issues }]) => {
+        html += `<div style="border-bottom:1px solid #333; padding:8px 0;">`;
+        html += `<div style="font-weight:bold; color:#4B9CD3;">${escapeForHtml(chapTitle)} (${chapId}) — ${issues.length} issue${issues.length !== 1 ? 's' : ''}</div>`;
+        issues.forEach(iss => {
+            const seg = iss.segments[iss.segIdx];
+            const text = seg.text || '';
+            // Get sentence context around the bad char
+            let ctxStart = iss.charIdx;
+            for (let j = ctxStart - 1; j >= 0 && j > ctxStart - 80; j--) {
+                if (['.', '!', '?'].includes(text[j]) && j < ctxStart - 5) { ctxStart = j + 1; break; }
+                ctxStart = j;
+            }
+            let ctxEnd = iss.charIdx;
+            for (let j = ctxEnd + 1; j < text.length && j < iss.charIdx + 80; j++) {
+                ctxEnd = j + 1;
+                if (['.', '!', '?'].includes(text[j])) break;
+            }
+            const context = text.substring(ctxStart, ctxEnd).trim();
+            const safeCtx = escapeForHtml(context);
+            const safeCh = escapeForHtml(iss.char);
+            const highlighted = safeCtx.split(safeCh).join(`<span style="background:#660000; color:#ff3333; padding:0 2px; border-radius:2px;">${safeCh}</span>`);
+
+            html += `<div id="audit-issue-${iss.globalIdx}" style="margin:6px 0 6px 15px; padding:6px; background:#111; border:1px solid #333; border-radius:4px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-size:0.8em; color:#aaa;">
+                        Seg ${iss.segIdx}, pos ${iss.charIdx}:
+                        <span style="color:#ff3333; font-weight:bold;">"${safeCh}"</span>
+                        (U+${iss.hex}) → <span style="color:#00ff41;">${escapeForHtml(iss.replacement)}</span>
+                    </div>
+                    <div style="display:flex; gap:4px;">
+                        <button class="audit-edit-btn" data-idx="${iss.globalIdx}" style="background:#333; color:#4B9CD3; border:1px solid #4B9CD3; padding:2px 8px; cursor:pointer; font-size:0.7em; width:auto;">✏️ Edit</button>
+                        <button class="audit-autofix-btn" data-idx="${iss.globalIdx}" style="background:#333; color:#ffcc66; border:1px solid #664400; padding:2px 8px; cursor:pointer; font-size:0.7em; width:auto;">⚡ Fix</button>
+                    </div>
+                </div>
+                <div style="font-family:'Courier New', monospace; font-size:0.85em; color:#888; margin-top:4px; line-height:1.5;">${highlighted}</div>
+                <div id="audit-editor-${iss.globalIdx}" class="hidden" style="margin-top:6px;">
+                    <textarea id="audit-textarea-${iss.globalIdx}" rows="3" style="width:100%; background:#1a1a1a; color:#ddd; border:1px solid #555; padding:6px; font-family:'Courier New', monospace; font-size:0.9em; box-sizing:border-box;"></textarea>
+                    <div style="display:flex; gap:6px; margin-top:4px;">
+                        <button class="audit-save-btn" data-idx="${iss.globalIdx}" style="background:#0047AB; color:#fff; border:none; padding:4px 12px; cursor:pointer; font-size:0.75em; width:auto;">Save & Re-Check</button>
+                        <button class="audit-cancel-btn" data-idx="${iss.globalIdx}" style="background:#333; color:#aaa; border:1px solid #555; padding:4px 12px; cursor:pointer; font-size:0.75em; width:auto;">Cancel</button>
+                    </div>
+                </div>
+            </div>`;
+        });
+        html += `</div>`;
+    });
+
+    auditResults.innerHTML = html;
+    wireAuditButtons();
+}
+
+function escapeForHtml(str) {
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function wireAuditButtons() {
+    // Auto-Fix All
+    const fixAllBtn = document.getElementById('audit-fix-all-btn');
+    if (fixAllBtn) {
+        fixAllBtn.onclick = async () => {
+            const chapIds = [...new Set(auditIssueData.map(i => i.chapId))];
+            if (!confirm(`Fix all issues in ${chapIds.length} chapter(s)?`)) return;
+            fixAllBtn.disabled = true;
+            fixAllBtn.innerText = '⏳ Fixing...';
+
+            let fixed = 0;
+            for (const chapId of chapIds) {
                 const chapSnap = await getDoc(doc(db, "books", activeBookId, "chapters", chapId));
                 if (!chapSnap.exists()) continue;
                 const data = chapSnap.data();
                 const segments = data.segments || [];
-                let chapIssues = [];
-
-                segments.forEach((seg, segIdx) => {
-                    const text = seg.text || '';
-                    for (let i = 0; i < text.length; i++) {
-                        const ch = text[i];
-                        const code = ch.charCodeAt(0);
-                        // Typeable: space (32) through tilde (126), tab (9), newline (10)
-                        if (code === 9 || code === 10 || (code >= 32 && code <= 126)) continue;
-
-                        // Found a bad char
-                        const hex = code.toString(16).toUpperCase().padStart(4, '0');
-                        const replacement = CHAR_REPLACEMENTS[ch] !== undefined ? CHAR_REPLACEMENTS[ch] : '';
-                        const ctx = text.substring(Math.max(0, i - 20), Math.min(text.length, i + 20));
-                        chapIssues.push({
-                            segIdx, charIdx: i, char: ch, hex,
-                            replacement: replacement || '(delete)',
-                            context: ctx
-                        });
-                        totalIssues++;
-                    }
+                let changed = false;
+                segments.forEach(seg => {
+                    const orig = seg.text;
+                    seg.text = sanitizeText(seg.text);
+                    if (seg.text !== orig) changed = true;
                 });
-
-                if (chapIssues.length > 0) {
-                    chaptersWithIssues++;
-                    const chapTitle = chap.title || chapId;
-                    issueDetails.push({ chapId, chapTitle, issues: chapIssues });
+                if (changed) {
+                    await setDoc(doc(db, "books", activeBookId, "chapters", chapId), { segments }, { merge: true });
+                    fixed++;
                 }
             }
+            statusEl.innerText = `Audit fix complete: ${fixed} chapter(s) updated.`;
+            statusEl.style.borderColor = '#00ff41';
+            runAudit(); // re-scan
+        };
+    }
 
-            // Render results
-            if (totalIssues === 0) {
-                auditResults.innerHTML = `
-                    <div style="color:#00ff41; font-weight:bold; font-size:1.1em;">✅ Clean! No untypeable characters found.</div>
-                    <div style="color:#888; margin-top:5px;">Scanned ${chapters.length} chapters.</div>
-                `;
-            } else {
-                let html = `
-                    <div style="color:#ffaa00; font-weight:bold; font-size:1.1em; margin-bottom:10px;">
-                        ⚠️ Found ${totalIssues} untypeable character${totalIssues !== 1 ? 's' : ''} in ${chaptersWithIssues} chapter${chaptersWithIssues !== 1 ? 's' : ''}
-                    </div>
-                    <button id="audit-fix-all-btn" style="background:#664400; border:1px solid #996600; color:#ffcc66; padding:8px 16px; cursor:pointer; margin-bottom:15px; width:auto;">
-                        ⚡ Auto-Fix All ${totalIssues} Issues in Database
-                    </button>
-                `;
-
-                issueDetails.forEach(({ chapId, chapTitle, issues }) => {
-                    html += `<div style="border-bottom:1px solid #333; padding:8px 0;">`;
-                    html += `<div style="font-weight:bold; color:#4B9CD3;">${chapTitle} (${chapId}) — ${issues.length} issue${issues.length !== 1 ? 's' : ''}</div>`;
-                    issues.forEach(iss => {
-                        const safeCtx = iss.context.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                        const safeCh = iss.char.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                        html += `<div style="font-size:0.8em; color:#aaa; margin:3px 0 3px 15px;">
-                            Seg ${iss.segIdx}, pos ${iss.charIdx}: 
-                            <span style="color:#ff3333; font-weight:bold;">"${safeCh}"</span> 
-                            (U+${iss.hex}) → <span style="color:#00ff41;">${iss.replacement}</span>
-                            <div style="color:#666; font-family:monospace; font-size:0.9em; margin-top:2px;">...${safeCtx}...</div>
-                        </div>`;
-                    });
-                    html += `</div>`;
-                });
-
-                auditResults.innerHTML = html;
-
-                // Wire fix button
-                document.getElementById('audit-fix-all-btn').onclick = async () => {
-                    if (!confirm(`This will modify ${chaptersWithIssues} chapter(s) in the database, replacing ${totalIssues} untypeable character(s). Continue?`)) return;
-
-                    const fixBtn = document.getElementById('audit-fix-all-btn');
-                    fixBtn.disabled = true;
-                    fixBtn.innerText = '⏳ Fixing...';
-                    let fixed = 0;
-
-                    for (const { chapId } of issueDetails) {
-                        const chapSnap = await getDoc(doc(db, "books", activeBookId, "chapters", chapId));
-                        if (!chapSnap.exists()) continue;
-                        const data = chapSnap.data();
-                        const segments = data.segments || [];
-                        let changed = false;
-
-                        segments.forEach(seg => {
-                            const original = seg.text;
-                            seg.text = sanitizeText(seg.text);
-                            if (seg.text !== original) changed = true;
-                        });
-
-                        if (changed) {
-                            await setDoc(doc(db, "books", activeBookId, "chapters", chapId), { segments }, { merge: true });
-                            fixed++;
-                        }
-                    }
-
-                    fixBtn.innerText = `✅ Fixed ${fixed} chapter(s)!`;
-                    fixBtn.style.background = '#224422';
-                    fixBtn.style.borderColor = '#336633';
-                    fixBtn.style.color = '#00ff41';
-                    statusEl.innerText = `Audit fix complete: ${fixed} chapter(s) updated.`;
-                    statusEl.style.borderColor = '#00ff41';
-                };
+    // Per-issue Edit buttons
+    document.querySelectorAll('.audit-edit-btn').forEach(btn => {
+        btn.onclick = () => {
+            const idx = parseInt(btn.dataset.idx);
+            const iss = auditIssueData[idx];
+            const seg = iss.segments[iss.segIdx];
+            const text = seg.text || '';
+            // Get sentence context
+            let ctxStart = iss.charIdx;
+            for (let j = ctxStart - 1; j >= 0 && j > ctxStart - 80; j--) {
+                if (['.', '!', '?'].includes(text[j]) && j < ctxStart - 5) { ctxStart = j + 1; break; }
+                ctxStart = j;
             }
-        } catch (e) {
-            auditResults.innerHTML = `<div style="color:red;">Audit error: ${e.message}</div>`;
-            console.error('Audit error:', e);
-        } finally {
-            auditBtn.disabled = false;
-            auditBtn.innerText = '🔍 Audit Book for Untypeable Characters';
-        }
-    };
+            let ctxEnd = iss.charIdx;
+            for (let j = ctxEnd + 1; j < text.length && j < iss.charIdx + 80; j++) {
+                ctxEnd = j + 1;
+                if (['.', '!', '?'].includes(text[j])) break;
+            }
+            const context = text.substring(ctxStart, ctxEnd).trim();
+            const editor = document.getElementById(`audit-editor-${idx}`);
+            const textarea = document.getElementById(`audit-textarea-${idx}`);
+            textarea.value = context;
+            textarea._ctxStart = ctxStart;
+            textarea._ctxEnd = ctxEnd;
+            editor.classList.remove('hidden');
+            textarea.focus();
+        };
+    });
+
+    // Per-issue Cancel buttons
+    document.querySelectorAll('.audit-cancel-btn').forEach(btn => {
+        btn.onclick = () => {
+            document.getElementById(`audit-editor-${btn.dataset.idx}`).classList.add('hidden');
+        };
+    });
+
+    // Per-issue Save buttons
+    document.querySelectorAll('.audit-save-btn').forEach(btn => {
+        btn.onclick = async () => {
+            const idx = parseInt(btn.dataset.idx);
+            const iss = auditIssueData[idx];
+            const textarea = document.getElementById(`audit-textarea-${idx}`);
+            const newSnippet = textarea.value;
+
+            // Check for remaining bad chars
+            const remaining = newSnippet.match(/[^ -~\t\n]/g);
+            if (remaining) {
+                const chars = [...new Set(remaining)].map(c => `"${c}" (U+${c.charCodeAt(0).toString(16).toUpperCase().padStart(4,'0')})`).join(', ');
+                if (!confirm(`Still contains untypeable characters: ${chars}\n\nSave anyway?`)) return;
+            }
+
+            // Splice edited text back into segment
+            const seg = iss.segments[iss.segIdx];
+            const before = seg.text.substring(0, textarea._ctxStart);
+            const after = seg.text.substring(textarea._ctxEnd);
+            seg.text = before + newSnippet + after;
+
+            // Save to Firestore
+            try {
+                await setDoc(doc(db, "books", activeBookId, "chapters", iss.chapId), { segments: iss.segments }, { merge: true });
+                statusEl.innerText = `Saved edit to ${iss.chapTitle}.`;
+                statusEl.style.borderColor = '#00ff41';
+                runAudit(); // re-scan
+            } catch (e) {
+                alert('Save failed: ' + e.message);
+            }
+        };
+    });
+
+    // Per-issue Auto-Fix buttons
+    document.querySelectorAll('.audit-autofix-btn').forEach(btn => {
+        btn.onclick = async () => {
+            const idx = parseInt(btn.dataset.idx);
+            const iss = auditIssueData[idx];
+            const seg = iss.segments[iss.segIdx];
+            seg.text = sanitizeText(seg.text);
+
+            try {
+                await setDoc(doc(db, "books", activeBookId, "chapters", iss.chapId), { segments: iss.segments }, { merge: true });
+                // Mark this issue as fixed visually
+                const issueEl = document.getElementById(`audit-issue-${idx}`);
+                if (issueEl) {
+                    issueEl.style.borderColor = '#336633';
+                    issueEl.style.background = '#0a220a';
+                    issueEl.innerHTML = '<div style="color:#00ff41; font-size:0.8em;">✅ Fixed</div>';
+                }
+                statusEl.innerText = `Fixed issue in ${iss.chapTitle}.`;
+                statusEl.style.borderColor = '#00ff41';
+            } catch (e) {
+                alert('Fix failed: ' + e.message);
+            }
+        };
+    });
+}
+
+if (auditBtn) {
+    auditBtn.onclick = () => runAudit();
 }
