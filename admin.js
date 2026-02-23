@@ -4,7 +4,7 @@ import { doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.co
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "2.6.0";
+const ADMIN_VERSION = "2.6.1";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -166,7 +166,18 @@ const FLAGGED_WORDS = [
 ];
 const FLAGGED_REGEX = new RegExp('\\b(' + FLAGGED_WORDS.join('|') + ')\\b', 'gi');
 
-function scanForLanguageIssues(chapters) {
+function getApprovedWords(bookId) {
+    try {
+        const saved = localStorage.getItem(`ttb_approved_lang_${bookId}`);
+        return saved ? JSON.parse(saved) : [];
+    } catch(e) { return []; }
+}
+function saveApprovedWords(bookId, words) {
+    localStorage.setItem(`ttb_approved_lang_${bookId}`, JSON.stringify(words));
+}
+
+function scanForLanguageIssues(chapters, approvedWords = []) {
+    const approvedSet = new Set(approvedWords.map(w => w.toLowerCase()));
     const issues = [];
     chapters.forEach((chap, chapIdx) => {
         chap.segments.forEach((seg, segIdx) => {
@@ -174,12 +185,24 @@ function scanForLanguageIssues(chapters) {
             let match;
             FLAGGED_REGEX.lastIndex = 0;
             while ((match = FLAGGED_REGEX.exec(text)) !== null) {
-                const start = Math.max(0, match.index - 40);
-                const end = Math.min(text.length, match.index + match[0].length + 40);
+                if (approvedSet.has(match[0].toLowerCase())) continue;
+                // Sentence-bounded context (~80 chars each direction)
+                let ctxStart = match.index;
+                for (let j = ctxStart - 1; j >= 0 && j > ctxStart - 80; j--) {
+                    if (['.', '!', '?'].includes(text[j]) && j < ctxStart - 5) { ctxStart = j + 1; break; }
+                    ctxStart = j;
+                }
+                let ctxEnd = match.index + match[0].length;
+                for (let j = ctxEnd; j < text.length && j < match.index + match[0].length + 80; j++) {
+                    ctxEnd = j + 1;
+                    if (['.', '!', '?'].includes(text[j])) break;
+                }
                 issues.push({
                     chapIdx, chapTitle: chap.title, segIdx,
                     word: match[0], position: match.index,
-                    context: text.substring(start, end)
+                    context: text.substring(ctxStart, ctxEnd).trim(),
+                    ctxStart, ctxEnd,
+                    segRef: seg  // live reference for editing
                 });
             }
         });
@@ -536,9 +559,10 @@ async function parseEpubFile(file) {
         } else {
             renderChapterList();
             // Scan for language issues
-            const langIssues = scanForLanguageIssues(stagedChapters);
+            const approved = activeBookId ? getApprovedWords(activeBookId) : [];
+            const langIssues = scanForLanguageIssues(stagedChapters, approved);
             if (langIssues.length > 0) {
-                showLanguageWarnings(langIssues);
+                showLanguageWarnings(langIssues, false);
                 statusEl.innerText = `Parsed ${stagedChapters.length} chapters. ⚠️ ${langIssues.length} language warning(s).`;
                 statusEl.style.borderColor = "#ffaa00";
             } else {
@@ -560,9 +584,10 @@ function showErrorWizard() {
         wizardModal.classList.add('hidden');
         renderChapterList();
         // Scan for language issues after all character errors are resolved
-        const langIssues = scanForLanguageIssues(stagedChapters);
+        const wizApproved = activeBookId ? getApprovedWords(activeBookId) : [];
+        const langIssues = scanForLanguageIssues(stagedChapters, wizApproved);
         if (langIssues.length > 0) {
-            showLanguageWarnings(langIssues);
+            showLanguageWarnings(langIssues, false);
             statusEl.innerText = `Character errors resolved. ⚠️ ${langIssues.length} language warning(s) found. Ready to upload.`;
             statusEl.style.borderColor = "#ffaa00";
         } else {
@@ -1273,45 +1298,160 @@ document.getElementById('cover-remove-btn')?.addEventListener('click', () => {
 });
 
 // === LANGUAGE WARNINGS UI ===
-function showLanguageWarnings(issues) {
+let langIssueData = []; // live reference for editing
+let langIsFromDB = false; // whether edits should write to Firestore
+
+function showLanguageWarnings(issues, fromDB = false) {
     const container = document.getElementById('language-results');
     if (!container) return;
     container.classList.remove('hidden');
+    langIssueData = issues;
+    langIsFromDB = fromDB;
+
+    if (issues.length === 0) {
+        container.innerHTML = '<div style="color:#00ff41; font-weight:bold;">✅ No flagged language found.</div>';
+        return;
+    }
 
     // Group by word
     const grouped = {};
-    issues.forEach(iss => {
+    issues.forEach((iss, idx) => {
         const w = iss.word.toLowerCase();
         if (!grouped[w]) grouped[w] = { word: iss.word, occurrences: [] };
-        grouped[w].occurrences.push(iss);
+        grouped[w].occurrences.push({ ...iss, globalIdx: idx });
     });
+
+    const approvedWords = activeBookId ? getApprovedWords(activeBookId) : [];
 
     let html = `
         <div style="color:#ff6666; font-weight:bold; font-size:1.1em; margin-bottom:10px;">
             ⚠️ ${issues.length} language warning${issues.length !== 1 ? 's' : ''} found
         </div>
         <div style="font-size:0.85em; color:#aaa; margin-bottom:12px;">
-            These words may be inappropriate for a classroom. Review before uploading.
-            You can use the import wizard's "Replace All (word)" to substitute them.
+            Review each flagged word. Edit to replace it, or approve if it's acceptable in context (e.g. "chink in armor").
+            ${approvedWords.length > 0 ? `<div style="margin-top:4px; color:#888;">Approved words for this book: ${approvedWords.map(w => `<span style="color:#66cc66;">${escapeHtml(w)}</span>`).join(', ')} <a href="#" id="lang-clear-approvals" style="color:#ff6666; margin-left:8px;">Clear all</a></div>` : ''}
         </div>
     `;
 
-    Object.values(grouped).forEach(({ word, occurrences }) => {
-        html += `<div style="border-bottom:1px solid #333; padding:8px 0;">`;
-        html += `<div style="font-weight:bold; color:#ff6666;">"${escapeHtml(word)}" — ${occurrences.length} occurrence${occurrences.length !== 1 ? 's' : ''}</div>`;
-        occurrences.slice(0, 3).forEach(occ => {
+    Object.entries(grouped).forEach(([wordKey, { word, occurrences }]) => {
+        html += `<div style="border-bottom:1px solid #333; padding:10px 0;">`;
+        html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div style="font-weight:bold; color:#ff6666; font-size:1em;">"${escapeHtml(word)}" — ${occurrences.length} occurrence${occurrences.length !== 1 ? 's' : ''}</div>
+            <button class="lang-approve-word-btn" data-word="${escapeHtml(wordKey)}" style="background:#1a3a1a; color:#66cc66; border:1px solid #336633; padding:3px 10px; cursor:pointer; font-size:0.75em; width:auto;">✅ Approve all "${escapeHtml(word)}"</button>
+        </div>`;
+
+        occurrences.forEach(occ => {
             const safeCtx = escapeHtml(occ.context);
             const highlighted = safeCtx.replace(
                 new RegExp(escapeRegex(escapeHtml(occ.word)), 'gi'),
-                m => `<span style="background:#660000; color:#ff3333; padding:0 2px; border-radius:2px;">${m}</span>`
+                m => `<span class="bad-char-highlight" style="background:#660000;">${m}</span>`
             );
-            html += `<div style="font-size:0.8em; color:#888; margin:3px 0 3px 15px; font-family:'Courier New', monospace;">...${highlighted}...</div>`;
+
+            html += `<div id="lang-issue-${occ.globalIdx}" style="margin:6px 0 6px 15px; padding:6px; background:#111; border:1px solid #333; border-radius:4px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-size:0.75em; color:#666;">Ch: ${escapeHtml(occ.chapTitle)} | Seg ${occ.segIdx}</div>
+                    <button class="lang-edit-btn" data-idx="${occ.globalIdx}" style="background:#333; color:#4B9CD3; border:1px solid #4B9CD3; padding:2px 8px; cursor:pointer; font-size:0.7em; width:auto;">✏️ Edit</button>
+                </div>
+                <div style="font-family:'Courier New', monospace; font-size:0.85em; color:#888; margin-top:4px; line-height:1.5;">${highlighted}</div>
+                <div id="lang-editor-${occ.globalIdx}" class="hidden" style="margin-top:6px;">
+                    <textarea id="lang-textarea-${occ.globalIdx}" rows="3" style="width:100%; background:#1a1a1a; color:#ddd; border:1px solid #555; padding:6px; font-family:'Courier New', monospace; font-size:0.9em; box-sizing:border-box;"></textarea>
+                    <div style="display:flex; gap:6px; margin-top:4px;">
+                        <button class="lang-save-btn" data-idx="${occ.globalIdx}" style="background:#0047AB; color:#fff; border:none; padding:4px 12px; cursor:pointer; font-size:0.75em; width:auto;">Save & Re-Scan</button>
+                        <button class="lang-cancel-btn" data-idx="${occ.globalIdx}" style="background:#333; color:#aaa; border:1px solid #555; padding:4px 12px; cursor:pointer; font-size:0.75em; width:auto;">Cancel</button>
+                    </div>
+                </div>
+            </div>`;
         });
-        if (occurrences.length > 3) html += `<div style="font-size:0.75em; color:#666; margin-left:15px;">...and ${occurrences.length - 3} more</div>`;
         html += `</div>`;
     });
 
     container.innerHTML = html;
+    wireLangButtons();
+}
+
+function wireLangButtons() {
+    // Clear approvals link
+    const clearLink = document.getElementById('lang-clear-approvals');
+    if (clearLink) {
+        clearLink.onclick = (e) => {
+            e.preventDefault();
+            if (!confirm('Clear all approved words for this book?')) return;
+            saveApprovedWords(activeBookId, []);
+            rerunLanguageScan();
+        };
+    }
+
+    // Approve all instances of a word
+    document.querySelectorAll('.lang-approve-word-btn').forEach(btn => {
+        btn.onclick = () => {
+            const word = btn.dataset.word;
+            const approved = activeBookId ? getApprovedWords(activeBookId) : [];
+            if (!approved.includes(word)) approved.push(word);
+            if (activeBookId) saveApprovedWords(activeBookId, approved);
+            btn.innerText = '✅ Approved';
+            btn.style.background = '#224422';
+            btn.disabled = true;
+            rerunLanguageScan();
+        };
+    });
+
+    // Edit buttons
+    document.querySelectorAll('.lang-edit-btn').forEach(btn => {
+        btn.onclick = () => {
+            const idx = parseInt(btn.dataset.idx);
+            const iss = langIssueData[idx];
+            const textarea = document.getElementById(`lang-textarea-${idx}`);
+            textarea.value = iss.context;
+            textarea._ctxStart = iss.ctxStart;
+            textarea._ctxEnd = iss.ctxEnd;
+            document.getElementById(`lang-editor-${idx}`).classList.remove('hidden');
+            textarea.focus();
+        };
+    });
+
+    // Cancel buttons
+    document.querySelectorAll('.lang-cancel-btn').forEach(btn => {
+        btn.onclick = () => document.getElementById(`lang-editor-${btn.dataset.idx}`).classList.add('hidden');
+    });
+
+    // Save buttons
+    document.querySelectorAll('.lang-save-btn').forEach(btn => {
+        btn.onclick = async () => {
+            const idx = parseInt(btn.dataset.idx);
+            const iss = langIssueData[idx];
+            const textarea = document.getElementById(`lang-textarea-${idx}`);
+            const newSnippet = textarea.value;
+
+            // Splice edit back into segment
+            const seg = iss.segRef;
+            seg.text = seg.text.substring(0, textarea._ctxStart) + newSnippet + seg.text.substring(textarea._ctxEnd);
+
+            // Save to Firestore if loaded from DB
+            if (langIsFromDB && activeBookId) {
+                try {
+                    const chapData = stagedChapters[iss.chapIdx];
+                    const chapId = chapData.id;
+                    await setDoc(doc(db, "books", activeBookId, "chapters", "chapter_" + chapId), { segments: chapData.segments }, { merge: true });
+                    statusEl.innerText = `Saved edit to ${iss.chapTitle}.`;
+                    statusEl.style.borderColor = '#00ff41';
+                } catch (e) { alert('Save failed: ' + e.message); return; }
+            }
+            rerunLanguageScan();
+        };
+    });
+}
+
+function rerunLanguageScan() {
+    const approved = activeBookId ? getApprovedWords(activeBookId) : [];
+    const issues = scanForLanguageIssues(stagedChapters, approved);
+    showLanguageWarnings(issues, langIsFromDB);
+    if (issues.length > 0) {
+        statusEl.innerText = `⚠️ ${issues.length} language warning(s) remaining.`;
+        statusEl.style.borderColor = "#ffaa00";
+    } else {
+        statusEl.innerText = "✅ No language warnings remaining.";
+        statusEl.style.borderColor = "#00ff41";
+    }
 }
 
 // === BOOK AUDIT TOOL ===
@@ -1543,9 +1683,10 @@ if (auditBtn) auditBtn.onclick = () => runAudit();
 if (langScanBtn) {
     langScanBtn.onclick = () => {
         if (stagedChapters.length === 0) return alert("No book loaded. Open a book first.");
-        const issues = scanForLanguageIssues(stagedChapters);
+        const approved = activeBookId ? getApprovedWords(activeBookId) : [];
+        const issues = scanForLanguageIssues(stagedChapters, approved);
         if (issues.length > 0) {
-            showLanguageWarnings(issues);
+            showLanguageWarnings(issues, true);
             statusEl.innerText = `⚠️ ${issues.length} language warning(s) found.`;
             statusEl.style.borderColor = "#ffaa00";
         } else {
