@@ -99,6 +99,115 @@ body {
     padding-bottom: 300px; 
 }
 
+/* --- Book & Chapter Progress Bars --- */
+#chapter-progress-bar {
+    position: absolute;
+    left: 4%;
+    top: 20px;
+    bottom: 20px;
+    width: 6px;
+    background: #e0e0e0;
+    border-radius: 3px;
+    z-index: 5;
+    overflow: hidden;
+}
+#chapter-progress-fill {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 0%;
+    background: var(--carolina-blue, #4B9CD3);
+    border-radius: 3px;
+    transition: height 0.3s ease-out;
+}
+#chapter-progress-label {
+    position: absolute;
+    bottom: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: #999;
+    white-space: nowrap;
+    font-family: 'Courier New', monospace;
+}
+
+#book-progress-bar {
+    position: absolute;
+    right: 2.5%;
+    top: 20px;
+    bottom: 20px;
+    width: 30px;
+    z-index: 5;
+}
+#book-progress-track {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    background: #e8e8e8;
+    border-radius: 4px;
+    overflow: hidden;
+}
+.book-chap-seg {
+    position: absolute;
+    left: 0; right: 0;
+    background: #e0e0e0;
+    transition: background 0.3s;
+}
+.book-chap-seg.completed {
+    background: var(--carolina-blue, #4B9CD3);
+    opacity: 0.55;
+}
+.book-chap-seg.current {
+    background: #d0d0d0;
+    box-shadow: 0 0 5px var(--carolina-blue, #4B9CD3);
+    outline: 1px solid var(--carolina-blue, #4B9CD3);
+    z-index: 1;
+}
+.book-chap-seg.future {
+    background: #e0e0e0;
+}
+.chap-inner-fill {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 0%;
+    background: var(--carolina-blue, #4B9CD3);
+    transition: height 0.3s ease-out;
+}
+.book-chap-divider {
+    position: absolute;
+    left: 0; right: 0;
+    height: 1px;
+    background: #ccc;
+    z-index: 2;
+}
+.book-chap-label {
+    position: absolute;
+    right: 12px;
+    transform: translateY(-50%);
+    font-size: 9px;
+    color: #bbb;
+    font-family: 'Courier New', monospace;
+    white-space: nowrap;
+    pointer-events: none;
+    text-align: right;
+}
+.book-chap-label.active-label {
+    color: var(--carolina-blue, #4B9CD3);
+    font-weight: bold;
+    font-size: 10px;
+}
+#book-progress-label {
+    position: absolute;
+    bottom: -18px;
+    right: 0;
+    font-size: 9px;
+    color: #999;
+    font-family: 'Courier New', monospace;
+    white-space: nowrap;
+    text-align: right;
+}
+
 #image-panel { display: none !important; }
 
 .word { display: inline-block; white-space: pre; line-height: 2.5em; font-size: 24px; color: #ccc; }
@@ -517,3 +626,90 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
 .practice-active .bib-title,
 .practice-active .bib-chap { color: #c4b5fd !important; }
 .practice-active .bib-sep { color: #667eea !important; }
+
+/* --- PROGRESS BARS --- */
+#chapter-progress-bar, #book-progress-bar {
+    position: absolute;
+    top: 16px; bottom: 16px;
+    width: 6px;
+    z-index: 5;
+    pointer-events: none;
+}
+#chapter-progress-bar {
+    left: calc(5% - 3px);
+    background: #e0e0e0;
+    border-radius: 3px;
+    overflow: hidden;
+}
+#chapter-progress-fill {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 0%;
+    background: var(--carolina-blue);
+    border-radius: 3px;
+    transition: height 0.25s ease-out;
+}
+#chapter-progress-label {
+    position: absolute;
+    bottom: -20px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.65rem;
+    color: #999;
+    white-space: nowrap;
+    font-family: 'Courier New', monospace;
+}
+
+#book-progress-bar {
+    right: calc(5% - 3px);
+    background: #e0e0e0;
+    border-radius: 3px;
+    overflow: visible;
+}
+#book-progress-track {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    border-radius: 3px;
+    overflow: hidden;
+}
+.book-chap-seg {
+    position: absolute;
+    left: 0; right: 0;
+    transition: background-color 0.3s;
+}
+.book-chap-seg.completed { background: var(--carolina-blue); }
+.book-chap-seg.current { background: #e0e0e0; overflow: hidden; }
+.book-chap-seg .chap-inner-fill {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    background: var(--carolina-blue);
+    opacity: 0.6;
+    transition: height 0.25s ease-out;
+}
+.book-chap-seg.future { background: #e8e8e8; }
+.book-chap-divider {
+    position: absolute;
+    left: 0; right: 0;
+    height: 1px;
+    background: #ccc;
+    z-index: 1;
+}
+.book-chap-label {
+    position: absolute;
+    right: 10px;
+    font-size: 0.55rem;
+    color: #bbb;
+    font-family: 'Courier New', monospace;
+    transform: translateY(-50%);
+    pointer-events: none;
+    white-space: nowrap;
+}
+.book-chap-label.active-label { color: var(--carolina-blue); font-weight: bold; font-size: 0.65rem; }
+#book-progress-label {
+    position: absolute;
+    bottom: -20px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.65rem;
+    color: #999;
+    white-space: nowrap;
+    font-family: 'Courier New', monospace;
+}
