@@ -102,31 +102,31 @@ body {
 /* --- Book & Chapter Progress Bars --- */
 #chapter-progress-bar {
     position: absolute;
-    left: 4%;
+    left: 3.5%;
     top: 20px;
     bottom: 40px;
-    width: 6px;
-    background: #ccc;
-    border-radius: 3px;
+    width: 8px;
+    background: #d0d0d0;
+    border-radius: 4px;
     z-index: 5;
 }
 #chapter-progress-fill {
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 0%;
-    background: #333;
-    border-radius: 3px 3px 0 0;
+    background: #222;
+    border-radius: 4px 4px 0 0;
     transition: height 0.3s ease-out;
 }
 #chapter-progress-marker {
     position: absolute;
-    left: -3px; right: -3px;
-    height: 3px;
+    left: -4px; right: -4px;
+    height: 4px;
     background: var(--carolina-blue, #4B9CD3);
     border-radius: 2px;
     top: 0%;
     transition: top 0.3s ease-out;
-    box-shadow: 0 0 6px var(--carolina-blue, #4B9CD3);
+    box-shadow: 0 0 8px var(--carolina-blue, #4B9CD3), 0 0 3px var(--carolina-blue, #4B9CD3);
     z-index: 1;
 }
 #chapter-progress-label {
@@ -142,10 +142,10 @@ body {
 
 #book-progress-bar {
     position: absolute;
-    right: 2.5%;
+    right: 2%;
     top: 20px;
     bottom: 40px;
-    width: 30px;
+    width: 34px;
     z-index: 5;
 }
 #book-progress-track {
@@ -153,42 +153,41 @@ body {
     right: 0;
     top: 0;
     bottom: 0;
-    width: 8px;
-    background: #e8e8e8;
-    border-radius: 4px;
+    width: 10px;
+    background: #e0e0e0;
+    border-radius: 5px;
 }
 .book-chap-seg {
     position: absolute;
     left: 0; right: 0;
-    background: #e0e0e0;
+    background: #d8d8d8;
     transition: background 0.3s;
 }
 .book-chap-seg.completed {
-    background: #555;
-    opacity: 0.7;
+    background: #222;
 }
 .book-chap-seg.current {
-    background: #ccc;
-    box-shadow: 0 0 5px var(--carolina-blue, #4B9CD3);
-    outline: 1px solid var(--carolina-blue, #4B9CD3);
+    background: #d0d0d0;
+    box-shadow: 0 0 6px var(--carolina-blue, #4B9CD3);
+    outline: 1.5px solid var(--carolina-blue, #4B9CD3);
     z-index: 1;
 }
 .book-chap-seg.future {
-    background: #e0e0e0;
+    background: #d8d8d8;
 }
 .chap-inner-fill {
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 0%;
-    background: #333;
+    background: #222;
     transition: height 0.3s ease-out;
 }
 .chap-inner-marker {
     position: absolute;
-    left: -2px; right: -2px;
-    height: 2px;
+    left: -3px; right: -3px;
+    height: 3px;
     background: var(--carolina-blue, #4B9CD3);
-    box-shadow: 0 0 4px var(--carolina-blue, #4B9CD3);
+    box-shadow: 0 0 6px var(--carolina-blue, #4B9CD3);
     top: 0%;
     transition: top 0.3s ease-out;
     z-index: 2;
@@ -197,12 +196,12 @@ body {
     position: absolute;
     left: 0; right: 0;
     height: 1px;
-    background: #ccc;
-    z-index: 2;
+    background: #bbb;
+    z-index: 3;
 }
 .book-chap-label {
     position: absolute;
-    right: 12px;
+    right: 14px;
     transform: translateY(-50%);
     font-size: 9px;
     color: #bbb;
