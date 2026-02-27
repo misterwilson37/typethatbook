@@ -632,6 +632,12 @@ function buildBookProgressBar() {
             fill.id = 'book-chap-current-fill';
             fill.style.height = '0%';
             seg.appendChild(fill);
+            
+            const marker = document.createElement('div');
+            marker.className = 'chap-inner-marker';
+            marker.id = 'book-chap-current-marker';
+            marker.style.top = '0%';
+            seg.appendChild(marker);
         }
         track.appendChild(seg);
         
@@ -658,23 +664,35 @@ function buildBookProgressBar() {
 }
 
 function updateProgressBars() {
-    // --- Left bar: chapter progress ---
+    // --- Left bar: chapter progress (black typed, blue marker, grey untyped) ---
     const fill = document.getElementById('chapter-progress-fill');
+    const marker = document.getElementById('chapter-progress-marker');
     const chapLabel = document.getElementById('chapter-progress-label');
     if (fill && fullText.length > 0) {
         const pct = Math.min(100, (currentCharIndex / fullText.length) * 100);
         fill.style.height = pct + '%';
-        if (chapLabel) chapLabel.textContent = Math.round(pct) + '%';
+        if (marker) marker.style.top = pct + '%';
+        if (chapLabel) {
+            const remaining = fullText.length - currentCharIndex;
+            if (remaining > 0) {
+                chapLabel.textContent = remaining.toLocaleString() + ' left';
+            } else {
+                chapLabel.textContent = 'Done!';
+            }
+        }
     } else if (fill) {
         fill.style.height = '0%';
-        if (chapLabel) chapLabel.textContent = '';
+        if (marker) marker.style.top = '0%';
+        if (chapLabel) chapLabel.textContent = fullText.length > 0 ? fullText.length.toLocaleString() + ' chars' : '';
     }
     
-    // --- Right bar: current chapter fill ---
+    // --- Right bar: current chapter fill + marker ---
     const innerFill = document.getElementById('book-chap-current-fill');
+    const innerMarker = document.getElementById('book-chap-current-marker');
     if (innerFill && fullText.length > 0) {
         const pct = Math.min(100, (currentCharIndex / fullText.length) * 100);
         innerFill.style.height = pct + '%';
+        if (innerMarker) innerMarker.style.top = pct + '%';
     }
 }
 
