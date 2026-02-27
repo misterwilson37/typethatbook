@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "2.9.5";
+const VERSION = "2.9.6";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -583,11 +583,98 @@ function setupGame() {
     let btnLabel = "Resume";
     if (savedCharIndex === 0) btnLabel = "Start Reading";
 
+    buildBookProgressBar();
+    updateProgressBars();
+
     if (autoStartNext) {
         autoStartNext = false;
         startGame();
     } else if (!isGameActive) {
         showStartModal(btnLabel);
+    }
+}
+
+// === PROGRESS BARS ===
+function buildBookProgressBar() {
+    const track = document.getElementById('book-progress-track');
+    const barLabel = document.getElementById('book-progress-label');
+    if (!track || !bookMetadata || !bookMetadata.chapters) return;
+    
+    const chapters = bookMetadata.chapters;
+    const total = chapters.length;
+    if (total === 0) return;
+    
+    track.innerHTML = '';
+    // Clear old labels from parent (they're outside the track)
+    track.parentElement.querySelectorAll('.book-chap-label').forEach(el => el.remove());
+    
+    // Decide label frequency: show every Nth chapter number
+    const labelEvery = total <= 20 ? 1 : total <= 50 ? 5 : 10;
+    
+    const segHeight = 100 / total;
+    
+    chapters.forEach((chap, idx) => {
+        const chapNum = chap.id.replace('chapter_', '');
+        const topPct = idx * segHeight;
+        const isCurrent = String(chapNum) === String(currentChapterNum);
+        const isCompleted = completedChapters.has(String(chapNum));
+        
+        // Chapter segment
+        const seg = document.createElement('div');
+        seg.className = 'book-chap-seg ' + (isCurrent ? 'current' : isCompleted ? 'completed' : 'future');
+        seg.style.top = topPct + '%';
+        seg.style.height = segHeight + '%';
+        seg.id = `book-chap-${idx}`;
+        
+        if (isCurrent) {
+            const fill = document.createElement('div');
+            fill.className = 'chap-inner-fill';
+            fill.id = 'book-chap-current-fill';
+            fill.style.height = '0%';
+            seg.appendChild(fill);
+        }
+        track.appendChild(seg);
+        
+        // Divider line between chapters
+        if (idx > 0) {
+            const divider = document.createElement('div');
+            divider.className = 'book-chap-divider';
+            divider.style.top = topPct + '%';
+            track.appendChild(divider);
+        }
+        
+        // Label
+        if ((idx + 1) % labelEvery === 0 || idx === 0 || isCurrent) {
+            const label = document.createElement('div');
+            label.className = 'book-chap-label' + (isCurrent ? ' active-label' : '');
+            label.style.top = (topPct + segHeight / 2) + '%';
+            label.textContent = chapNum;
+            // Only show if it won't overlap with a forced label (current or first)
+            track.parentElement.appendChild(label);
+        }
+    });
+    
+    if (barLabel) barLabel.textContent = `${total} ch`;
+}
+
+function updateProgressBars() {
+    // --- Left bar: chapter progress ---
+    const fill = document.getElementById('chapter-progress-fill');
+    const chapLabel = document.getElementById('chapter-progress-label');
+    if (fill && fullText.length > 0) {
+        const pct = Math.min(100, (currentCharIndex / fullText.length) * 100);
+        fill.style.height = pct + '%';
+        if (chapLabel) chapLabel.textContent = Math.round(pct) + '%';
+    } else if (fill) {
+        fill.style.height = '0%';
+        if (chapLabel) chapLabel.textContent = '';
+    }
+    
+    // --- Right bar: current chapter fill ---
+    const innerFill = document.getElementById('book-chap-current-fill');
+    if (innerFill && fullText.length > 0) {
+        const pct = Math.min(100, (currentCharIndex / fullText.length) * 100);
+        innerFill.style.height = pct + '%';
     }
 }
 
@@ -927,6 +1014,7 @@ function handleTyping(key) {
         }
 
         updateRunningWPM(); updateRunningAccuracy(true); updateStreak(true);
+        updateProgressBars();
 
         if (currentCharIndex >= fullText.length) { finishChapter(); return; }
 
