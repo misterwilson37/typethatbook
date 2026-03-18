@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "2.9.9";
+const VERSION = "3.0.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -990,11 +990,28 @@ document.addEventListener('keydown', (e) => {
 function handleTyping(key) {
     lastInputTime = Date.now();
     timerDisplay.style.opacity = '1';
+    const wasScrolledBack = scrollBackOffset > 10;
     scrollBackOffset = 0; // snap back to current position on any keystroke
 
     let inputChar = key;
     if (key === "Tab") inputChar = "\t";
     if (key === "Enter") inputChar = "\n";
+
+    // If returning from scroll-back and sitting on spaces, let the user type
+    // the first visible character to auto-skip past the spaces
+    if (wasScrolledBack && key !== "Backspace" && fullText[currentCharIndex] === ' ' && inputChar !== ' ') {
+        let peekIdx = currentCharIndex;
+        while (peekIdx < fullText.length && fullText[peekIdx] === ' ') peekIdx++;
+        if (peekIdx < fullText.length && fullText[peekIdx] === inputChar) {
+            // Auto-advance past the spaces silently
+            for (let i = currentCharIndex; i < peekIdx; i++) {
+                const spEl = document.getElementById(`char-${i}`);
+                if (spEl) { spEl.classList.remove('active'); spEl.classList.add('done-perfect'); }
+                currentCharIndex++;
+            }
+            currentLetterStatus = 'clean';
+        }
+    }
 
     const targetChar = fullText[currentCharIndex];
     const currentEl = document.getElementById(`char-${currentCharIndex}`);
@@ -1170,15 +1187,18 @@ function centerView() {
 // --- SCROLL-BACK: review typed text ---
 function getNextTypePreview() {
     if (!fullText || currentCharIndex >= fullText.length) return '';
-    // Grab up to ~20 chars starting from current position
+    // Skip leading spaces — they're invisible and confusing in a preview
+    let startIdx = currentCharIndex;
+    while (startIdx < fullText.length && fullText[startIdx] === ' ') startIdx++;
+    if (startIdx >= fullText.length) return '';
+    
     let preview = '';
     let count = 0;
-    for (let i = currentCharIndex; i < fullText.length && count < 25; i++) {
+    for (let i = startIdx; i < fullText.length && count < 25; i++) {
         const ch = fullText[i];
         if (ch === '\t') { preview += '→'; count++; }
-        else if (ch === '\n') { preview += '↵'; count++; break; } // stop at newline — natural pause
+        else if (ch === '\n') { preview += '↵'; count++; break; }
         else { preview += ch; count++; }
-        // Stop at a word boundary after 10+ chars for a clean cut
         if (count >= 10 && ch === ' ') break;
     }
     return preview.trim();
