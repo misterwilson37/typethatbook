@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "2.9.8";
+const VERSION = "2.9.9";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -429,11 +429,24 @@ async function loadChapter(chapterNum) {
             setupGame();
             getHeaderHTML(); // update book info bar
         } else {
-            if(chapterNum !== 1 && chapterNum !== "1") {
-                alert(`Chapter ${chapterNum} not found. Returning to start.`);
-                currentChapterNum = 1;
+            // Chapter not found — try to fall back using metadata
+            let fallbackId = null;
+            if (bookMetadata && bookMetadata.chapters && bookMetadata.chapters.length > 0) {
+                fallbackId = bookMetadata.chapters[0].id.replace("chapter_", "");
+            }
+            
+            if (fallbackId && String(fallbackId) !== String(chapterNum)) {
+                console.warn(`Chapter "${chapterId}" not found. Falling back to first chapter: ${fallbackId}`);
+                alert(`Chapter ${chapterNum} not found (book may have been re-imported). Starting from Chapter ${fallbackId}.`);
+                currentChapterNum = fallbackId;
                 savedCharIndex = 0;
-                loadChapter(1);
+                // Update saved progress so this doesn't happen again
+                if (currentUser && !currentUser.isAnonymous) {
+                    await setDoc(doc(db, "users", currentUser.uid, "progress", currentBookId), {
+                        chapter: fallbackId, charIndex: 0
+                    }, { merge: true });
+                }
+                loadChapter(fallbackId);
             } else {
                 textStream.innerText = "Book content not found.";
             }
@@ -1563,8 +1576,13 @@ async function finishChapter() {
     }
 
     if (!nextChapterId) {
-        if (!isNaN(currentChapterNum)) nextChapterId = parseFloat(currentChapterNum) + 1;
-        else nextChapterId = 1;
+        if (bookMetadata && bookMetadata.chapters && bookMetadata.chapters.length > 0) {
+            nextChapterId = bookMetadata.chapters[0].id.replace("chapter_", "");
+        } else if (!isNaN(currentChapterNum)) {
+            nextChapterId = parseFloat(currentChapterNum) + 1;
+        } else {
+            nextChapterId = 1;
+        }
     }
 
     const charsTyped = currentCharIndex - sprintCharStart;
@@ -1625,8 +1643,14 @@ async function advanceToNextChapter() {
         }
     }
     if (!nextChapterId) {
-        if (!isNaN(currentChapterNum)) nextChapterId = parseFloat(currentChapterNum) + 1;
-        else nextChapterId = 1;
+        // No metadata match — this shouldn't happen, but if it does, go to first chapter
+        if (bookMetadata && bookMetadata.chapters && bookMetadata.chapters.length > 0) {
+            nextChapterId = bookMetadata.chapters[0].id.replace("chapter_", "");
+        } else if (!isNaN(currentChapterNum)) {
+            nextChapterId = parseFloat(currentChapterNum) + 1;
+        } else {
+            nextChapterId = 1;
+        }
     }
     await saveProgress(true);
     currentChapterNum = nextChapterId;
