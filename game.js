@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "2.9.7";
+const VERSION = "2.9.8";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -1155,17 +1155,36 @@ function centerView() {
 }
 
 // --- SCROLL-BACK: review typed text ---
+function getNextTypePreview() {
+    if (!fullText || currentCharIndex >= fullText.length) return '';
+    // Grab up to ~20 chars starting from current position
+    let preview = '';
+    let count = 0;
+    for (let i = currentCharIndex; i < fullText.length && count < 25; i++) {
+        const ch = fullText[i];
+        if (ch === '\t') { preview += '→'; count++; }
+        else if (ch === '\n') { preview += '↵'; count++; break; } // stop at newline — natural pause
+        else { preview += ch; count++; }
+        // Stop at a word boundary after 10+ chars for a clean cut
+        if (count >= 10 && ch === ' ') break;
+    }
+    return preview.trim();
+}
+
 function updateScrollIndicator() {
     let indicator = document.getElementById('scroll-back-indicator');
     if (scrollBackOffset > 10) {
+        const preview = getNextTypePreview();
+        const displayText = preview ? `↓ Type <span style="background:rgba(255,255,255,0.2); padding:1px 6px; border-radius:4px; letter-spacing:0.5px;">${preview.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span> to return` : '↓ Type to return';
         if (!indicator) {
             indicator = document.createElement('div');
             indicator.id = 'scroll-back-indicator';
-            indicator.innerHTML = '↓ Type to return';
+            indicator.innerHTML = displayText;
             indicator.style.cssText = 'position:absolute; bottom:12px; left:50%; transform:translateX(-50%); ' +
                 'background:rgba(75,156,211,0.9); color:white; padding:6px 16px; border-radius:16px; ' +
                 'font-family:"Courier New",monospace; font-size:13px; font-weight:bold; z-index:10; ' +
-                'pointer-events:none; animation:scrollIndPulse 1.5s ease-in-out infinite;';
+                'pointer-events:none; animation:scrollIndPulse 1.5s ease-in-out infinite; max-width:80%; ' +
+                'white-space:nowrap; overflow:hidden; text-overflow:ellipsis;';
             document.getElementById('game-container').appendChild(indicator);
             if (!document.getElementById('scroll-ind-style')) {
                 const style = document.createElement('style');
@@ -1173,6 +1192,8 @@ function updateScrollIndicator() {
                 style.textContent = '@keyframes scrollIndPulse { 0%,100% { opacity:0.8; } 50% { opacity:1; } }';
                 document.head.appendChild(style);
             }
+        } else {
+            indicator.innerHTML = displayText;
         }
     } else if (indicator) {
         indicator.remove();
