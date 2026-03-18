@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "2.9.6";
+const VERSION = "2.9.7";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -88,6 +88,8 @@ let isGameActive = false; let isOvertime = false;
 let isModalOpen = false; let isInputBlocked = false;
 let modalGeneration = 0;
 let isHardStop = false;
+let scrollBackOffset = 0;  // positive = scrolled back (up), 0 = at typing position
+let centerViewHome = 0;    // cached home translateY for current char
 let backspaceOrigin = -1; // tracks where we were when backspacing started
 let bookSwitchPending = false;
 let anonSprintCount = 0;
@@ -975,6 +977,7 @@ document.addEventListener('keydown', (e) => {
 function handleTyping(key) {
     lastInputTime = Date.now();
     timerDisplay.style.opacity = '1';
+    scrollBackOffset = 0; // snap back to current position on any keystroke
 
     let inputChar = key;
     if (key === "Tab") inputChar = "\t";
@@ -1146,9 +1149,65 @@ function centerView() {
     const currentEl = document.getElementById(`char-${currentCharIndex}`);
     if (!currentEl) return;
     const container = document.getElementById('game-container');
-    const offset = (container.clientHeight / 2) - currentEl.offsetTop - 25;
-    textStream.style.transform = `translateY(${offset}px)`;
+    centerViewHome = (container.clientHeight / 2) - currentEl.offsetTop - 25;
+    textStream.style.transform = `translateY(${centerViewHome + scrollBackOffset}px)`;
+    updateScrollIndicator();
 }
+
+// --- SCROLL-BACK: review typed text ---
+function updateScrollIndicator() {
+    let indicator = document.getElementById('scroll-back-indicator');
+    if (scrollBackOffset > 10) {
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'scroll-back-indicator';
+            indicator.innerHTML = '↓ Type to return';
+            indicator.style.cssText = 'position:absolute; bottom:12px; left:50%; transform:translateX(-50%); ' +
+                'background:rgba(75,156,211,0.9); color:white; padding:6px 16px; border-radius:16px; ' +
+                'font-family:"Courier New",monospace; font-size:13px; font-weight:bold; z-index:10; ' +
+                'pointer-events:none; animation:scrollIndPulse 1.5s ease-in-out infinite;';
+            document.getElementById('game-container').appendChild(indicator);
+            if (!document.getElementById('scroll-ind-style')) {
+                const style = document.createElement('style');
+                style.id = 'scroll-ind-style';
+                style.textContent = '@keyframes scrollIndPulse { 0%,100% { opacity:0.8; } 50% { opacity:1; } }';
+                document.head.appendChild(style);
+            }
+        }
+    } else if (indicator) {
+        indicator.remove();
+    }
+}
+
+document.getElementById('game-container')?.addEventListener('wheel', (e) => {
+    if (!isGameActive && !isModalOpen) return;
+    const delta = -e.deltaY;
+    const maxBack = Math.max(0, -centerViewHome + 100);
+    scrollBackOffset = Math.max(0, Math.min(maxBack, scrollBackOffset + delta));
+    textStream.style.transform = `translateY(${centerViewHome + scrollBackOffset}px)`;
+    updateScrollIndicator();
+    e.preventDefault();
+}, { passive: false });
+
+let touchStartY = 0;
+let touchScrolling = false;
+
+document.getElementById('game-container')?.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) { touchStartY = e.touches[0].clientY; touchScrolling = true; }
+}, { passive: true });
+
+document.getElementById('game-container')?.addEventListener('touchmove', (e) => {
+    if (!touchScrolling || e.touches.length !== 2) return;
+    const deltaY = e.touches[0].clientY - touchStartY;
+    touchStartY = e.touches[0].clientY;
+    const maxBack = Math.max(0, -centerViewHome + 100);
+    scrollBackOffset = Math.max(0, Math.min(maxBack, scrollBackOffset + deltaY));
+    textStream.style.transform = `translateY(${centerViewHome + scrollBackOffset}px)`;
+    updateScrollIndicator();
+    e.preventDefault();
+}, { passive: false });
+
+document.getElementById('game-container')?.addEventListener('touchend', () => { touchScrolling = false; }, { passive: true });
 
 function highlightCurrentChar() {
     document.querySelectorAll('.letter.active').forEach(el => el.classList.remove('active'));
