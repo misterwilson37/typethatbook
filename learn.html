@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TypeThatBook — School</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* ── Learn-specific overrides ───────────────────────────────────── */
+        body { overflow-x: hidden; }
+
+        /* MAP VIEW */
+        #learn-container { display: flex; flex-direction: column; height: calc(100vh - 46px); }
+
+        #map-view {
+            flex: 1; overflow-y: auto; padding: 24px 16px 60px;
+            background: var(--bg);
+        }
+        #map-view.hidden { display: none; }
+
+        .map-unit-header {
+            font-family: 'Courier Prime', monospace;
+            font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px;
+            color: #bbb; margin: 24px 0 10px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .map-unit-header::after {
+            content: ''; flex: 1; height: 1px; background: #333;
+        }
+
+        .map-lesson-row {
+            display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;
+        }
+
+        .map-lesson-card {
+            background: #1a1a1a; border: 1px solid #333;
+            border-radius: 6px; padding: 12px 14px;
+            cursor: pointer; transition: all 0.15s;
+            min-width: 160px; flex: 1; max-width: 220px;
+            position: relative;
+        }
+        .map-lesson-card:hover:not(.locked) { border-color: var(--carolina-blue); transform: translateY(-2px); }
+        .map-lesson-card.locked { opacity: 0.45; cursor: default; }
+        .map-lesson-card.completed { border-color: #2a5c2a; }
+        .map-lesson-card.active-next { border-color: var(--carolina-blue); box-shadow: 0 0 12px rgba(75,156,211,0.25); }
+
+        .mlc-keys {
+            font-family: 'Courier Prime', monospace;
+            font-size: 0.75rem; color: var(--carolina-blue);
+            margin-bottom: 4px; letter-spacing: 1px;
+        }
+        .mlc-title { font-size: 0.85rem; font-weight: bold; color: #eee; line-height: 1.2; }
+        .mlc-meta  { font-size: 0.7rem; color: #555; margin-top: 4px; font-family: 'Courier Prime', monospace; }
+        .mlc-stars { position: absolute; top: 8px; right: 10px; font-size: 0.8rem; letter-spacing: 1px; }
+        .mlc-lock  { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); font-size: 1.1rem; opacity: 0.4; }
+
+        .map-graduate-btn {
+            display: block; width: 100%; max-width: 400px; margin: 32px auto 0;
+            padding: 14px; background: var(--carolina-blue); color: white;
+            border: none; border-radius: 6px; font-size: 1rem; font-weight: bold;
+            font-family: 'Courier Prime', monospace; cursor: pointer;
+            text-align: center; text-decoration: none; letter-spacing: 1px;
+            transition: background 0.2s;
+        }
+        .map-graduate-btn:hover { background: #3a8ec0; }
+
+        /* DRILL VIEW */
+        #drill-view { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        #drill-view.hidden { display: none; }
+
+        /* Intro panel */
+        #intro-panel {
+            flex: 1; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; padding: 20px; background: var(--bg);
+            overflow-y: auto;
+        }
+        #intro-panel.hidden { display: none; }
+
+        .intro-card {
+            background: #1a1a1a; border: 1px solid #333; border-radius: 8px;
+            padding: 28px 32px; max-width: 700px; width: 100%;
+        }
+        .intro-new-keys {
+            display: flex; gap: 10px; justify-content: center;
+            margin-bottom: 20px; flex-wrap: wrap;
+        }
+        .intro-key-badge {
+            font-family: 'Courier Prime', monospace;
+            font-size: 1.6rem; font-weight: bold;
+            background: #111; border: 2px solid var(--carolina-blue);
+            border-radius: 6px; padding: 6px 18px;
+            color: var(--carolina-blue); min-width: 54px; text-align: center;
+        }
+        .intro-title { font-size: 1.1rem; font-weight: bold; color: #eee; text-align: center; margin-bottom: 8px; }
+        .intro-text  { color: #aaa; font-size: 0.9rem; line-height: 1.6; text-align: center; margin-bottom: 20px; }
+
+        /* Animated keyboard (smaller, intro only) */
+        #intro-keyboard-wrap {
+            margin: 0 auto 20px;
+            transform-origin: top center;
+        }
+        #intro-keyboard {
+            height: 220px; background: var(--accent-grey);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 4px; border-top: 3px solid var(--black); padding: 8px 0;
+            transform: scale(0.72); transform-origin: top center;
+            margin-bottom: -64px; /* compensate for scale */
+        }
+
+        /* Add CSS transition to hg elements for intro animation */
+        #intro-keyboard #hand-guide-overlay .hg-body {
+            transition: x1 0.5s ease, y1 0.5s ease, x2 0.5s ease, y2 0.5s ease;
+        }
+        #intro-keyboard #hand-guide-overlay .hg-tip {
+            transition: cx 0.5s ease, cy 0.5s ease;
+        }
+
+        .intro-start-btn {
+            display: block; width: 100%; padding: 12px;
+            background: var(--carolina-blue); color: white; border: none;
+            border-radius: 4px; font-size: 1rem; font-weight: bold;
+            font-family: 'Courier Prime', monospace; cursor: pointer; letter-spacing: 1px;
+            transition: background 0.2s; margin-top: 8px;
+        }
+        .intro-start-btn:hover { background: #3a8ec0; }
+
+        /* Active drill panel */
+        #active-drill {
+            flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg);
+        }
+        #active-drill.hidden { display: none; }
+
+        /* Step progress */
+        #step-progress-bar {
+            display: flex; gap: 6px; padding: 10px 16px; background: #111;
+            border-bottom: 1px solid #222; flex-shrink: 0;
+        }
+        .step-pip {
+            flex: 1; height: 4px; border-radius: 2px; background: #333;
+            transition: background 0.3s;
+        }
+        .step-pip.done { background: var(--carolina-blue); }
+        .step-pip.active { background: #888; }
+
+        /* Drill text display */
+        #drill-text-area {
+            flex: 1; display: flex; align-items: center; justify-content: center;
+            padding: 20px 24px; overflow: hidden;
+        }
+        #drill-text {
+            font-family: 'Courier Prime', monospace;
+            font-size: 1.4rem; line-height: 1.8;
+            max-width: 700px; width: 100%;
+            word-break: break-word; text-align: left;
+        }
+        .dt-done    { color: #4CAF50; }
+        .dt-current { color: #1a1a1a; background: var(--carolina-blue); border-radius: 2px; }
+        .dt-error   { color: #fff; background: #c62828; border-radius: 2px; }
+        .dt-upcoming{ color: #888; }
+
+        /* Anchor warning */
+        #anchor-warning {
+            display: none; position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
+            background: #e65100; color: white; padding: 6px 16px;
+            border-radius: 20px; font-size: 0.8rem; z-index: 50;
+            font-family: 'Courier Prime', monospace; letter-spacing: 0.5px;
+            pointer-events: none;
+        }
+        #anchor-warning.visible { display: block; }
+
+        /* Step label */
+        #step-label {
+            text-align: center; font-size: 0.75rem; color: #555;
+            font-family: 'Courier Prime', monospace; padding: 4px 0;
+            flex-shrink: 0; letter-spacing: 1px; text-transform: uppercase;
+        }
+
+        /* Drill keyboard (full size, same as game) */
+        #drill-keyboard-wrap { flex-shrink: 0; }
+
+        /* Drill modal (overlay on keyboard) */
+        #drill-modal {
+            background: white; border-top: 4px solid var(--carolina-blue);
+            flex-shrink: 0; display: flex; flex-direction: column;
+            box-sizing: border-box; height: 329px;
+            padding: 20px 30px; animation: slideUp 0.2s ease-out;
+        }
+        #drill-modal.hidden { display: none; }
+        .dm-title { font-size: 1.1rem; font-weight: bold; text-align: center; margin-bottom: 8px; }
+        .dm-stats { display: flex; justify-content: center; gap: 30px; margin: 12px 0; }
+        .dm-stat  { text-align: center; }
+        .dm-val   { font-size: 1.8rem; font-weight: bold; color: var(--carolina-blue); font-family: 'Courier Prime', monospace; }
+        .dm-label { font-size: 0.7rem; color: #999; text-transform: uppercase; letter-spacing: 1px; }
+        .dm-stars { font-size: 1.6rem; text-align: center; margin: 8px 0; }
+        .dm-msg   { text-align: center; color: #555; font-size: 0.85rem; margin: 6px 0; }
+        .dm-btns  { display: flex; gap: 12px; margin-top: auto; }
+        .dm-btns button { flex: 1; padding: 12px; border: none; border-radius: 4px; font-family: inherit; font-weight: bold; cursor: pointer; font-size: 0.9rem; }
+        .dm-btn-primary { background: var(--carolina-blue); color: white; }
+        .dm-btn-secondary { background: #eee; color: #555; }
+        .dm-btn-primary:hover { background: #3a8ec0; }
+        .dm-btn-secondary:hover { background: #ddd; }
+
+        /* Remediation notice */
+        .dm-remediation {
+            font-size: 0.78rem; color: #e65100; text-align: center; margin-top: 6px;
+        }
+        .dm-remediation a { color: #e65100; }
+
+        /* Lesson complete */
+        .dm-graduation { font-size: 2rem; text-align: center; margin: 8px 0; }
+    </style>
+</head>
+<body>
+
+    <div id="hud">
+        <div class="hud-section left">
+            <a id="back-btn" href="index.html" style="color:#999; text-decoration:none; margin-right:12px; font-size:13px;">← Home</a>
+            <span id="hud-lesson-label" style="color:#666; font-size:13px;"></span>
+        </div>
+        <div class="hud-section center">
+            WPM: <span id="wpm-display">—</span> | Acc: <span id="acc-display">—</span>
+        </div>
+        <div class="hud-section right" id="auth-container">
+            <div id="user-info" class="hidden">
+                <span id="user-name"></span>
+                <button id="logout-btn" class="text-btn">(Logout)</button>
+            </div>
+            <button id="login-btn" class="action-btn">Sign In</button>
+        </div>
+    </div>
+
+    <div id="anchor-warning">⚠ Keep your fingers on the home keys!</div>
+    <div id="caps-warning" class="hidden">⚠ CAPS LOCK IS ON</div>
+
+    <div id="learn-container">
+
+        <!-- MAP VIEW -->
+        <div id="map-view">
+            <div id="map-header" style="text-align:center; padding: 8px 0 16px;">
+                <div style="font-size:1.2rem; font-weight:bold; color:#eee; font-family:'Courier Prime',monospace;">School</div>
+                <div id="map-progress-summary" style="font-size:0.8rem; color:#666; margin-top:2px;"></div>
+            </div>
+            <div id="lesson-map"></div>
+            <a id="graduate-link" href="index.html" class="map-graduate-btn hidden">📚 Graduate to the Library →</a>
+        </div>
+
+        <!-- DRILL VIEW -->
+        <div id="drill-view" class="hidden">
+
+            <!-- Intro panel -->
+            <div id="intro-panel">
+                <div class="intro-card">
+                    <div class="intro-new-keys" id="intro-keys"></div>
+                    <div class="intro-title" id="intro-title"></div>
+                    <div class="intro-text"  id="intro-text"></div>
+                    <div id="intro-keyboard-wrap">
+                        <div id="intro-keyboard"></div>
+                    </div>
+                    <button class="intro-start-btn" id="intro-start-btn">Start Lesson →</button>
+                </div>
+            </div>
+
+            <!-- Active drill -->
+            <div id="active-drill" class="hidden">
+                <div id="step-progress-bar"></div>
+                <div id="step-label"></div>
+                <div id="drill-text-area">
+                    <div id="drill-text"></div>
+                </div>
+
+                <!-- Keyboard or modal fills the bottom slot -->
+                <div id="drill-keyboard-wrap">
+                    <div id="virtual-keyboard" tabindex="0"></div>
+                </div>
+                <div id="drill-modal" class="hidden">
+                    <div class="dm-title" id="dm-title"></div>
+                    <div class="dm-stars" id="dm-stars"></div>
+                    <div class="dm-stats" id="dm-stats"></div>
+                    <div class="dm-msg"   id="dm-msg"></div>
+                    <div class="dm-remediation" id="dm-remediation"></div>
+                    <div class="dm-btns"  id="dm-btns"></div>
+                </div>
+            </div>
+
+        </div><!-- /drill-view -->
+
+    </div><!-- /learn-container -->
+
+    <footer>TypeThatBook School v1.0.0</footer>
+
+    <script type="module" src="learn.js"></script>
+</body>
+</html>
