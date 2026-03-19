@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeThatBook — Library 2.3.1</title>
+    <title>TypeThatBook — Library 3.0.0</title>
     <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Bitter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -163,6 +163,48 @@
             font-size: 0.75rem; color: #aaa;
             font-family: 'Courier Prime', monospace;
         }
+
+        /* --- LANDING --- */
+        .landing-hero {
+            text-align: center; padding: 48px 24px 28px;
+        }
+        .landing-hero h1 {
+            font-size: 2.4rem; font-weight: 700; margin-bottom: 6px;
+            letter-spacing: -0.5px;
+        }
+        .landing-hero p { color: var(--text-muted); font-size: 1rem; }
+
+        .landing-cards {
+            display: flex; gap: 24px; justify-content: center;
+            padding: 0 24px 60px; flex-wrap: wrap;
+        }
+        .landing-card {
+            background: var(--card-bg);
+            border-radius: 10px;
+            box-shadow: 0 2px 12px var(--shadow);
+            padding: 36px 32px;
+            max-width: 280px; width: 100%;
+            cursor: pointer; text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 2px solid transparent;
+        }
+        .landing-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 28px var(--shadow-hover);
+            border-color: var(--accent);
+        }
+        .lc-icon  { font-size: 2.8rem; margin-bottom: 12px; line-height: 1; }
+        .lc-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 10px; }
+        .lc-desc  { font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 18px; }
+        .lc-action {
+            display: inline-block;
+            background: var(--accent); color: white;
+            padding: 8px 20px; border-radius: 20px;
+            font-size: 0.85rem; font-weight: 600;
+            font-family: 'Courier Prime', monospace;
+        }
+
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -180,23 +222,75 @@
         </div>
     </header>
 
-    <div class="hero">
-        <h1>Choose Your Book</h1>
-        <p>Pick a story and start typing</p>
+    <!-- LANDING: shown until a mode is chosen -->
+    <div id="landing-view">
+        <div class="landing-hero">
+            <h1>TypeThatBook</h1>
+            <p>What would you like to do today?</p>
+        </div>
+        <div class="landing-cards">
+            <div class="landing-card" id="go-school">
+                <div class="lc-icon">⌨</div>
+                <div class="lc-title">School</div>
+                <div class="lc-desc">Learn to type from scratch.<br>Structured lessons, finger guides,<br>and a story along the way.</div>
+                <div class="lc-action">Start Lessons →</div>
+            </div>
+            <div class="landing-card" id="go-library">
+                <div class="lc-icon">📚</div>
+                <div class="lc-title">Library</div>
+                <div class="lc-desc">Type through real books.<br>Track your speed and accuracy<br>chapter by chapter.</div>
+                <div class="lc-action">Browse Books →</div>
+            </div>
+        </div>
     </div>
 
-    <div class="filter-bar" id="filter-bar">
-        <button class="filter-pill active" data-genre="all">All</button>
-    </div>
-
-    <div class="library-grid" id="book-grid">
-        <div class="loading-spinner">Loading library...</div>
+    <!-- LIBRARY VIEW: shown after Library is chosen -->
+    <div id="library-view" class="hidden">
+        <div class="hero">
+            <h1>Choose Your Book</h1>
+            <p>Pick a story and start typing — <a href="#" id="back-to-landing" style="color:var(--text-muted);">← back</a></p>
+        </div>
+        <div class="filter-bar" id="filter-bar">
+            <button class="filter-pill active" data-genre="all">All</button>
+        </div>
+        <div class="library-grid" id="book-grid">
+            <div class="loading-spinner">Loading library...</div>
+        </div>
     </div>
 
     <footer class="site-footer">TypeThatBook — Library 2.3.1</footer>
 
     <script type="module">
         import { db, auth } from "./firebase-config.js";
+
+        // --- LANDING ---
+        const landingView  = document.getElementById('landing-view');
+        const libraryView  = document.getElementById('library-view');
+
+        // Remember last choice in sessionStorage so refresh stays in place
+        const lastMode = sessionStorage.getItem('ttb_mode');
+        if (lastMode === 'library') { showLibrary(); }
+        // else stay on landing
+
+        document.getElementById('go-school').addEventListener('click', () => {
+            sessionStorage.setItem('ttb_mode', 'school');
+            window.location.href = 'learn.html';
+        });
+        document.getElementById('go-library').addEventListener('click', () => {
+            sessionStorage.setItem('ttb_mode', 'library');
+            showLibrary();
+        });
+        document.getElementById('back-to-landing').addEventListener('click', e => {
+            e.preventDefault();
+            sessionStorage.removeItem('ttb_mode');
+            libraryView.classList.add('hidden');
+            landingView.classList.remove('hidden');
+        });
+
+        function showLibrary() {
+            landingView.classList.add('hidden');
+            libraryView.classList.remove('hidden');
+        }
         import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
