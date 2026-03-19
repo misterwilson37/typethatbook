@@ -1,6 +1,6 @@
-// v1.0.0 - Shared Configuration
+// v1.1.0 - experimentalForceLongPolling for Safari WebChannel compatibility
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { initializeFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
@@ -13,8 +13,12 @@ const firebaseConfig = {
   appId: "1:213085805139:web:b7ffdc2b2eab12344a04a6"
 };
 
-// Initialize and export
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+
+// experimentalForceLongPolling fixes Safari's CORS block on Firestore's
+// WebChannel streaming transport. Functionally identical for this app.
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+});
 export const auth = getAuth(app);
 export const storage = getStorage(app);
