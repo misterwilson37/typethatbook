@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TypeThatBook Admin v2.6.1</title>
+    <title>TypeThatBook Admin v3.0.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
@@ -81,12 +81,53 @@
         }
 
         footer { position: fixed; bottom: 5px; right: 10px; font-size: 0.7em; color: #666; background: rgba(255,255,255,0.8); z-index: 101; padding: 2px 5px; border-radius: 3px; }
+
+        /* ── TABS ── */
+        .tab-bar { display:flex; gap:0; margin-bottom:24px; border-bottom:2px solid #333; }
+        .tab-btn {
+            padding: 10px 24px; background: #1a1a1a; border: 1px solid #333;
+            border-bottom: none; color: #777; cursor: pointer; font-family: inherit;
+            font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px;
+            transition: all 0.15s; margin-right: 4px; border-radius: 4px 4px 0 0;
+        }
+        .tab-btn:hover { color: #ccc; background: #222; }
+        .tab-btn.tab-active { background: #222; color: #4B9CD3; border-color: #4B9CD3; border-bottom: 2px solid #222; margin-bottom: -2px; }
+
+        /* ── LESSONS PANEL ── */
+        .lesson-unit-header {
+            padding: 8px 12px; background: #1a1a2a; border-left: 3px solid #4B9CD3;
+            color: #4B9CD3; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;
+            margin: 16px 0 4px;
+        }
+        .lesson-card { background: #111; border: 1px solid #2a2a2a; margin-bottom: 3px; border-radius: 3px; overflow: hidden; }
+        .lesson-card-header { display:flex; align-items:center; padding:10px 12px; gap:8px; background:#141414; }
+        .lesson-card-title { font-weight:bold; color:#ddd; font-size:0.9em; }
+        .lesson-editor { background: #0e0e0e; }
+
+        .lbtn { width:auto; padding:4px 10px; font-size:0.78em; margin:0; cursor:pointer; font-family:inherit; border-radius:2px; text-transform:uppercase; }
+        .lbtn-primary { background:#0047AB; border:none; color:white; }
+        .lbtn-primary:hover { background:#4B9CD3; }
+        .lbtn-secondary { background:#333; border:1px solid #555; color:#aaa; }
+        .lbtn-secondary:hover { background:#555; color:white; }
+        .lbtn-danger { background:#500; border:1px solid #800; color:#fcc; }
+        .lbtn-danger:hover { background:#800; }
+
+        .l-label { display:block; font-size:0.7em; color:#666; text-transform:uppercase; margin-bottom:3px; margin-top:6px; }
+        .l-field { width:100%; padding:7px 9px; background:#1a1a1a; border:1px solid #333; color:#ddd; font-family:inherit; font-size:0.85em; box-sizing:border-box; margin:0; }
+        .l-field:focus { border-color:#4B9CD3; outline:none; }
+        textarea.l-field { resize:vertical; }
+        .l-steps-header { display:flex; justify-content:space-between; align-items:center; color:#888; font-size:0.75em; text-transform:uppercase; letter-spacing:1px; padding:10px 0 6px; border-top:1px solid #222; margin-top:8px; }
+        .l-step-card { background:#0a0a0a; border:1px solid #222; border-radius:3px; padding:10px; margin-bottom:6px; }
+        #lessons-status { padding:10px 14px; margin-bottom:16px; background:#111; border-left:4px solid #555; font-size:0.85em; }
+        #lesson-list { max-height:70vh; overflow-y:auto; }
+        .lessons-toolbar { display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+        #lessons-import-section { background:#1a1a1a; border:1px dashed #444; padding:16px; margin-bottom:16px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 30px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
         <h1>ADMIN PANEL</h1>
         <div style="display:flex; gap:20px;">
             <a href="reports.html">Reports</a>
@@ -95,13 +136,20 @@
     </div>
 
     <div class="status-bar" id="status">Initializing...</div>
-    
+
     <div id="login-section" class="hidden">
         <p>You must log in to edit the database.</p>
         <button id="login-btn">Log In with Google</button>
     </div>
 
     <div id="editor-section" class="hidden">
+
+        <div class="tab-bar">
+            <button class="tab-btn tab-active" id="tab-books">📚 Books</button>
+            <button class="tab-btn" id="tab-lessons">⌨ Lessons</button>
+        </div>
+
+        <div id="books-panel">
         
         <div class="import-box" style="border-color: #4B9CD3;">
             <h3 style="margin-top:0; color:#4B9CD3;">1. Database Manager</h3>
@@ -230,7 +278,36 @@
             </details>
         </div>
 
-    </div>
+        </div><!-- /books-panel -->
+
+        <!-- ── LESSONS PANEL ─────────────────────────────────── -->
+        <div id="lessons-panel" class="hidden">
+            <div id="lessons-status">Loading lessons...</div>
+
+            <div class="lessons-toolbar">
+                <button id="lessons-new-btn" class="lbtn lbtn-primary">+ New Lesson</button>
+                <button id="lessons-import-toggle" class="lbtn lbtn-secondary">▶ Import JSON</button>
+                <button class="lbtn lbtn-secondary" onclick="window._lessonsReload()">↺ Reload</button>
+            </div>
+
+            <div id="lessons-import-section" class="hidden">
+                <h4 style="margin:0 0 10px; color:#4B9CD3;">Import Lessons JSON</h4>
+                <label class="l-label">Upload lessons.json file</label>
+                <input type="file" id="lessons-import-file" accept=".json" style="margin-bottom:10px;">
+                <label class="l-label">— or paste JSON directly —</label>
+                <textarea id="lessons-import-json" rows="6" class="l-field" style="margin-bottom:8px;" placeholder='{"lessons": [...]} or plain array'></textarea>
+                <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                    <button id="lessons-import-preview" class="lbtn lbtn-secondary">Preview</button>
+                    <button id="lessons-import-commit" class="lbtn lbtn-primary" disabled>Import All to Firestore</button>
+                    <span id="lessons-import-preview-area" style="font-size:0.8em; color:#888;"></span>
+                </div>
+                <div style="font-size:0.75em; color:#555;">⚠ Importing will overwrite any existing lessons with matching IDs.</div>
+            </div>
+
+            <div id="lesson-list"></div>
+        </div><!-- /lessons-panel -->
+
+    </div><!-- /editor-section -->
 </div>
 
 <div id="warning-modal" class="hidden">
