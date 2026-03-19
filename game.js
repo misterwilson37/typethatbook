@@ -8,6 +8,19 @@ import {
     signOut
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
+import {
+    FINGER_COLORS, LAYOUTS,
+    createKeyboard as kbCreateKeyboard,
+    buildFingerMap as kbBuildFingerMap,
+    getFingerInfo as kbGetFingerInfo,
+    createHandGuide as kbCreateHandGuide,
+    colorKeyboardKeys as kbColorKeys,
+    setHandGuideToChar,
+    flashFingerPressed as kbFlashFinger,
+    getKeyCenterInKB as kbGetCenter,
+    toggleKeyboardCase as kbToggleCase,
+    highlightKey as kbHighlightKey,
+} from "./keyboard.js";
 
 const VERSION = "3.0.1";
 const DEFAULT_BOOK = "wizard_of_oz";
@@ -29,18 +42,7 @@ let handGuideEnabled = localStorage.getItem('ttb_handGuide') === 'true';
 let handGuideRainbow = localStorage.getItem('ttb_handGuideRainbow') !== 'false'; // default true
 let handGuideColor = localStorage.getItem('ttb_handGuideColor') || '#4FC3F7';
 let fingerMap = {};
-const FINGER_COLORS = {
-    'left-pinky':   '#FF69B4', // pink
-    'left-ring':    '#E53935', // red
-    'left-middle':  '#FF9800', // orange
-    'left-index':   '#FDD835', // yellow
-    'right-index':  '#43A047', // green
-    'right-middle': '#1E88E5', // blue
-    'right-ring':   '#8E24AA', // purple
-    'right-pinky':  '#4FC3F7', // baby blue
-    'left-thumb':   '#FDD835', // yellow (same as index)
-    'right-thumb':  '#43A047', // green (same as index)
-};
+// FINGER_COLORS imported from keyboard.js
 
 function getFingerColor(fingerName) {
     if (handGuideRainbow) return FINGER_COLORS[fingerName] || '#4FC3F7';
@@ -2479,109 +2481,26 @@ async function switchChapterHot(newChapter) {
     closeModal(); textStream.innerHTML = "Switching..."; loadChapter(newChapter);
 }
 
-// --- KEYBOARD LAYOUTS ---
-const LAYOUTS = {
-    qwerty: {
-        numRow:      ['`','1','2','3','4','5','6','7','8','9','0','-','='],
-        numShiftRow: ['~','!','@','#','$','%','^','&','*','(',')','_','+'],
-        rows:      [['q','w','e','r','t','y','u','i','o','p','[',']','\\'],['a','s','d','f','g','h','j','k','l',';',"'"],['z','x','c','v','b','n','m',',','.','/']],
-        shiftRows: [['Q','W','E','R','T','Y','U','I','O','P','{','}','|'],['A','S','D','F','G','H','J','K','L',':','"'],['Z','X','C','V','B','N','M','<','>','?']]
-    },
-    dvorak: {
-        numRow:      ['`','1','2','3','4','5','6','7','8','9','0','[',']'],
-        numShiftRow: ['~','!','@','#','$','%','^','&','*','(',')' ,'{','}'],
-        rows:      [["'",',','.','p','y','f','g','c','r','l','/','+','\\'],['a','o','e','u','i','d','h','t','n','s','-'],[';','q','j','k','x','b','m','w','v','z']],
-        shiftRows: [['"','<','>','P','Y','F','G','C','R','L','?','=','|'],['A','O','E','U','I','D','H','T','N','S','_'],[':', 'Q','J','K','X','B','M','W','V','Z']]
-    }
-};
-
+// LAYOUTS imported from keyboard.js
 let currentLayout = localStorage.getItem('keyboardLayout') || 'qwerty';
-let numRow = LAYOUTS[currentLayout].numRow;
-let numShiftRow = LAYOUTS[currentLayout].numShiftRow;
-let rows = LAYOUTS[currentLayout].rows;
-let shiftRows = LAYOUTS[currentLayout].shiftRows;
+
+// ─── KEYBOARD WRAPPERS (delegating to keyboard.js) ──────────────────────────
 
 function setKeyboardLayout(layout) {
     if (!LAYOUTS[layout]) return;
     currentLayout = layout;
     localStorage.setItem('keyboardLayout', layout);
-    numRow = LAYOUTS[layout].numRow;
-    numShiftRow = LAYOUTS[layout].numShiftRow;
-    rows = LAYOUTS[layout].rows;
-    shiftRows = LAYOUTS[layout].shiftRows;
     createKeyboard();
-    buildFingerMap();
-    // Recreate hand guide overlay for new key positions
+    fingerMap = kbBuildFingerMap(currentLayout);
     const old = document.getElementById('hand-guide-overlay');
     if (old) old.remove();
     createHandGuide();
     highlightCurrentChar();
 }
 
-function createKeyboard() {
-    keyboardDiv.innerHTML = '';
-
-    // Number row: dual-character keys + BACK
-    const numDiv = document.createElement('div'); numDiv.className = 'kb-row';
-    numRow.forEach((char, i) => {
-        const key = document.createElement('div');
-        key.className = 'key key-num';
-        key.dataset.char = char;
-        key.dataset.shift = numShiftRow[i];
-        key.id = `key-${char}`;
-        key.innerHTML = `<span class="num-symbol">${escapeHtml(numShiftRow[i])}</span><span class="num-digit">${escapeHtml(char)}</span>`;
-        numDiv.appendChild(key);
-    });
-    addSpecialKey(numDiv, "BACK", null, 53);
-    keyboardDiv.appendChild(numDiv);
-
-    // Letter rows
-    rows.forEach((rowChars, rIndex) => {
-        const rowDiv = document.createElement('div'); rowDiv.className = 'kb-row';
-        if (rIndex === 0) addSpecialKey(rowDiv, "TAB", null, 72);
-        if (rIndex === 1) addSpecialKey(rowDiv, "CAPS", null, 80);
-        if (rIndex === 2) addSpecialKey(rowDiv, "SHIFT", "key-SHIFT-L", 100);
-        rowChars.forEach((char, cIndex) => {
-            const key = document.createElement('div'); key.className = 'key'; key.innerText = char; key.dataset.char = char; key.dataset.shift = shiftRows[rIndex][cIndex]; key.id = `key-${char}`; rowDiv.appendChild(key);
-        });
-        if (rIndex === 1) addSpecialKey(rowDiv, "ENTER", null, 80);
-        if (rIndex === 2) addSpecialKey(rowDiv, "SHIFT", "key-SHIFT-R", 100);
-        keyboardDiv.appendChild(rowDiv);
-    });
-
-    // Space row
-    const spaceRow = document.createElement('div'); spaceRow.className = 'kb-row';
-    const space = document.createElement('div'); space.className = 'key space'; space.innerText = ""; space.id = "key- ";
-    spaceRow.appendChild(space); keyboardDiv.appendChild(spaceRow);
-}
-
-function addSpecialKey(parent, text, customId, width) {
-    const key = document.createElement('div'); key.className = 'key wide'; key.innerText = text;
-    key.id = customId || `key-${text}`;
-    if (width) key.style.width = width + 'px';
-    parent.appendChild(key);
-}
-
-function toggleKeyboardCase(isShift) {
-    document.querySelectorAll('.key').forEach(k => {
-        if (k.classList.contains('key-num')) return; // number keys always show both
-        if (k.dataset.char) k.innerText = isShift ? k.dataset.shift : k.dataset.char;
-        if (k.id === 'key-SHIFT-L' || k.id === 'key-SHIFT-R') isShift ? k.classList.add('shift-active') : k.classList.remove('shift-active');
-    });
-}
-
-function highlightKey(char) {
-    document.querySelectorAll('.key').forEach(k => k.classList.remove('target'));
-    let targetId = ''; let needsShift = false;
-    if (char === ' ') targetId = 'key- '; else if (char === '\t') targetId = 'key-TAB'; else if (char === '\n') targetId = 'key-ENTER';
-    else {
-        const keys = Array.from(document.querySelectorAll('.key'));
-        const found = keys.find(k => k.dataset.char === char || k.dataset.shift === char);
-        if (found) { targetId = found.id; if (found.dataset.shift === char) needsShift = true; }
-    }
-    const el = document.getElementById(targetId); if (el) el.classList.add('target');
-    toggleKeyboardCase(needsShift);
-}
+function createKeyboard()      { kbCreateKeyboard(keyboardDiv, currentLayout); }
+function toggleKeyboardCase(s) { kbToggleCase(keyboardDiv, s); }
+function highlightKey(char)    { kbHighlightKey(keyboardDiv, char); }
 
 function flashKey(char) {
     let targetId = '';
@@ -2625,293 +2544,23 @@ function flashKey(char) {
 // HAND GUIDE (keyboard overlay - capsule fingers)
 // ========================
 
-function getHomeKeys() {
-    const r = rows[1]; // home row
-    return {
-        'left-pinky':  r[0],  'left-ring':   r[1],  'left-middle': r[2],  'left-index':  r[3],
-        'right-index': r[6],  'right-middle':r[7],  'right-ring':  r[8],  'right-pinky': r[9],
-    };
-}
-
-const FINGER_NAMES = ['left-pinky','left-ring','left-middle','left-index',
-                      'right-index','right-middle','right-ring','right-pinky'];
-
-function buildFingerMap() {
-    fingerMap = {};
-
-    // Number row finger assignments
-    const numAssign = ['left-pinky','left-pinky','left-ring','left-middle','left-index','left-index',
-                       'right-index','right-index','right-middle','right-ring','right-pinky','right-pinky','right-pinky'];
-    numRow.forEach((char, i) => {
-        if (i >= numAssign.length) return;
-        fingerMap[char] = { finger: numAssign[i], keyChar: char };
-        if (numShiftRow[i]) {
-            fingerMap[numShiftRow[i]] = { finger: numAssign[i], keyChar: char, shift: true };
-        }
-    });
-
-    // Letter row finger assignments
-    const assignments = [
-        // Row 0 (top): up to 13 keys
-        ['left-pinky','left-ring','left-middle','left-index','left-index',
-         'right-index','right-index','right-middle','right-ring','right-pinky',
-         'right-pinky','right-pinky','right-pinky'],
-        // Row 1 (home): up to 11 keys
-        ['left-pinky','left-ring','left-middle','left-index','left-index',
-         'right-index','right-index','right-middle','right-ring','right-pinky','right-pinky'],
-        // Row 2 (bottom): up to 10 keys
-        ['left-pinky','left-ring','left-middle','left-index','left-index',
-         'right-index','right-index','right-middle','right-ring','right-pinky'],
-    ];
-    rows.forEach((rowChars, rIndex) => {
-        const assign = assignments[rIndex];
-        if (!assign) return;
-        rowChars.forEach((char, cIndex) => {
-            if (cIndex >= assign.length) return;
-            fingerMap[char] = { finger: assign[cIndex], keyChar: char };
-            if (shiftRows[rIndex] && shiftRows[rIndex][cIndex]) {
-                fingerMap[shiftRows[rIndex][cIndex]] = { finger: assign[cIndex], keyChar: char, shift: true };
-            }
-        });
-    });
-    fingerMap[' '] = { finger: 'thumb', keyChar: ' ' };
-    fingerMap['\n'] = { finger: 'right-pinky', keyChar: 'ENTER' };
-    fingerMap['\t'] = { finger: 'left-pinky', keyChar: 'TAB' };
-}
-
-function getFingerInfo(char) {
-    if (fingerMap[char]) return fingerMap[char];
-    const lower = char.toLowerCase();
-    if (lower !== char && fingerMap[lower]) return { ...fingerMap[lower], shift: true };
-    return null;
-}
-
-function getKeyCenterInKB(charOrId) {
-    const kb = document.getElementById('virtual-keyboard');
-    if (!kb) return null;
-    let keyEl;
-    if (charOrId === ' ') keyEl = document.getElementById('key- ');
-    else if (charOrId === 'ENTER') keyEl = document.getElementById('key-ENTER');
-    else if (charOrId === 'SHIFT-L') keyEl = document.getElementById('key-SHIFT-L');
-    else if (charOrId === 'SHIFT-R') keyEl = document.getElementById('key-SHIFT-R');
-    else keyEl = document.getElementById(`key-${charOrId}`);
-    if (!keyEl) return null;
-    const kbRect = kb.getBoundingClientRect();
-    const keyRect = keyEl.getBoundingClientRect();
-    // Offset by border so SVG coords align with overlay (which sits inside border)
-    return {
-        x: keyRect.left - kbRect.left - kb.clientLeft + keyRect.width / 2,
-        y: keyRect.top - kbRect.top - kb.clientTop + keyRect.height / 2
-    };
-}
+function buildFingerMap() { fingerMap = kbBuildFingerMap(currentLayout); }
+function getFingerInfo(char) { return kbGetFingerInfo(fingerMap, char); }
+function getKeyCenterInKB(cid) { return kbGetCenter(keyboardDiv, cid); }
 
 function createHandGuide() {
-    const old = document.getElementById('hand-guide-overlay');
-    if (old) old.remove();
-    const kb = document.getElementById('virtual-keyboard');
-    if (!kb) return;
-    kb.style.position = 'relative';
-
-    const overlay = document.createElement('div');
-    overlay.id = 'hand-guide-overlay';
-    if (!handGuideEnabled) overlay.classList.add('hidden');
-    overlay.innerHTML = `<svg id="hg-svg" xmlns="http://www.w3.org/2000/svg"></svg>`;
-    kb.appendChild(overlay);
-
-    colorKeyboardKeys();
-    requestAnimationFrame(() => buildFingerSVG());
-}
-
-function colorKeyboardKeys() {
-    // Reset all keys
-    document.querySelectorAll('.key').forEach(k => { k.style.backgroundColor = ''; });
-
-    // Color each key based on its finger assignment
-    Object.entries(fingerMap).forEach(([char, info]) => {
-        if (!info.finger || info.shift || info.finger === 'thumb') return;
-        const color = getFingerColor(info.finger);
-        if (!color) return;
-        let keyEl;
-        if (char === ' ') keyEl = document.getElementById('key- ');
-        else if (char === '\n') keyEl = document.getElementById('key-ENTER');
-        else if (char === '\t') keyEl = document.getElementById('key-TAB');
-        else keyEl = document.getElementById(`key-${char}`);
-        if (keyEl) keyEl.style.backgroundColor = color + '38';
-    });
-
-    // Space bar: grey for rainbow, user color tint for single color
-    const spaceEl = document.getElementById('key- ');
-    if (spaceEl) {
-        if (handGuideRainbow) {
-            spaceEl.style.backgroundColor = '#d0d0d0';
-        } else {
-            spaceEl.style.backgroundColor = handGuideColor + '38';
-        }
+    kbCreateHandGuide(keyboardDiv, fingerMap, currentLayout, handGuideRainbow, handGuideColor);
+    if (!handGuideEnabled) {
+        const overlay = document.getElementById('hand-guide-overlay');
+        if (overlay) overlay.classList.add('hidden');
     }
-
-    // Color special keys by their pinky finger
-    const lp = getFingerColor('left-pinky') + '38';
-    const rp = getFingerColor('right-pinky') + '38';
-    const el = id => document.getElementById(id);
-    if (el('key-TAB')) el('key-TAB').style.backgroundColor = lp;
-    if (el('key-CAPS')) el('key-CAPS').style.backgroundColor = lp;
-    if (el('key-SHIFT-L')) el('key-SHIFT-L').style.backgroundColor = lp;
-    if (el('key-SHIFT-R')) el('key-SHIFT-R').style.backgroundColor = rp;
-    if (el('key-ENTER')) el('key-ENTER').style.backgroundColor = rp;
-    if (el('key-BACK')) el('key-BACK').style.backgroundColor = rp;
 }
-
-function buildFingerSVG() {
-    const kb = document.getElementById('virtual-keyboard');
-    const svg = document.getElementById('hg-svg');
-    if (!kb || !svg) return;
-    svg.innerHTML = '';
-    svg.setAttribute('width', kb.clientWidth);
-    svg.setAttribute('height', kb.clientHeight);
-    svg.setAttribute('viewBox', `0 0 ${kb.clientWidth} ${kb.clientHeight}`);
-
-    const homeKeys = getHomeKeys();
-    const R = 11; // finger circle radius
-
-    // Create each finger group: home circle + reach body + reach tip
-    FINGER_NAMES.forEach(name => {
-        const pos = getKeyCenterInKB(homeKeys[name]);
-        if (!pos) return;
-        const fc = getFingerColor(name);
-
-        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        g.id = `hg-finger-${name}`;
-        g.classList.add('hg-finger-group');
-        g.style.setProperty('--fc', fc);
-
-        // Reach body (thick line with round caps = capsule connector)
-        const body = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        body.classList.add('hg-body');
-        body.setAttribute('x1', pos.x); body.setAttribute('y1', pos.y);
-        body.setAttribute('x2', pos.x); body.setAttribute('y2', pos.y);
-        body.setAttribute('stroke-width', R * 2);
-        body.setAttribute('stroke-linecap', 'round');
-        g.appendChild(body);
-
-        // Home circle (base of finger - always visible)
-        const home = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        home.classList.add('hg-home');
-        home.setAttribute('cx', pos.x); home.setAttribute('cy', pos.y);
-        home.setAttribute('r', R);
-        g.appendChild(home);
-
-        // Fingertip circle (target end - only visible when reaching)
-        const tip = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        tip.classList.add('hg-tip');
-        tip.setAttribute('cx', pos.x); tip.setAttribute('cy', pos.y);
-        tip.setAttribute('r', R);
-        g.appendChild(tip);
-
-        svg.appendChild(g);
-    });
-
-    updateHandGuide();
-}
-
+function colorKeyboardKeys()  { kbColorKeys(keyboardDiv, fingerMap, handGuideRainbow, handGuideColor); }
+function flashFingerPressed() { kbFlashFinger(keyboardDiv); }
 function updateHandGuide() {
     if (!handGuideEnabled) return;
-    const svg = document.getElementById('hg-svg');
-    if (!svg || !fullText || currentCharIndex >= fullText.length) return;
-
-    const nextChar = fullText[currentCharIndex];
-    const info = getFingerInfo(nextChar);
-    const homeKeys = getHomeKeys();
-
-    // Clear space bar highlight
-    const spaceKeyReset = document.getElementById('key- ');
-    if (spaceKeyReset) spaceKeyReset.classList.remove('space-active');
-
-    // Reset all fingers to resting state
-    svg.querySelectorAll('.hg-finger-group').forEach(g => {
-        g.classList.remove('hg-active', 'hg-shift-active');
-        const body = g.querySelector('.hg-body');
-        const home = g.querySelector('.hg-home');
-        const tip = g.querySelector('.hg-tip');
-        const name = g.id.replace('hg-finger-', '');
-
-        // Reset position to home
-        const homePos = getKeyCenterInKB(homeKeys[name]);
-        if (!homePos) return;
-        if (body) {
-            body.setAttribute('x1', homePos.x); body.setAttribute('y1', homePos.y);
-            body.setAttribute('x2', homePos.x); body.setAttribute('y2', homePos.y);
-        }
-        if (tip) { tip.setAttribute('cx', homePos.x); tip.setAttribute('cy', homePos.y); }
-    });
-
-    if (!info) return;
-
-    // Space: just highlight the bar (CSS handles thumb circles via ::before/::after)
-    if (info.finger === 'thumb') {
-        const spaceBar = document.getElementById('key- ');
-        if (spaceBar) spaceBar.classList.add('space-active');
-        return;
-    }
-
-    const fingerName = info.finger;
-    const fingerG = document.getElementById(`hg-finger-${fingerName}`);
-    if (!fingerG) return;
-
-    // Find home and target positions
-    const homeChar = homeKeys[fingerName];
-    const homePos = homeChar ? getKeyCenterInKB(homeChar) : null;
-    const targetPos = getKeyCenterInKB(info.keyChar);
-
-    if (!homePos || !targetPos) return;
-
-    // Stretch the finger from home to target
-    const body = fingerG.querySelector('.hg-body');
-    const tip = fingerG.querySelector('.hg-tip');
-    if (body) {
-        body.setAttribute('x1', homePos.x); body.setAttribute('y1', homePos.y);
-        body.setAttribute('x2', targetPos.x); body.setAttribute('y2', targetPos.y);
-    }
-    if (tip) { tip.setAttribute('cx', targetPos.x); tip.setAttribute('cy', targetPos.y); }
-    fingerG.classList.add('hg-active');
-
-    // Shift: stretch opposite pinky to correct shift key
-    if (info.shift) {
-        const isLeftFinger = fingerName.startsWith('left');
-        const shiftHand = isLeftFinger ? 'right' : 'left';
-        const shiftKey = isLeftFinger ? 'SHIFT-R' : 'SHIFT-L';
-        const shiftFingerG = document.getElementById(`hg-finger-${shiftHand}-pinky`);
-        if (shiftFingerG) {
-            const shiftHome = homeKeys[`${shiftHand}-pinky`];
-            const shiftHomePos = shiftHome ? getKeyCenterInKB(shiftHome) : null;
-            const shiftTargetPos = getKeyCenterInKB(shiftKey);
-            if (shiftHomePos && shiftTargetPos) {
-                const sBody = shiftFingerG.querySelector('.hg-body');
-                const sTip = shiftFingerG.querySelector('.hg-tip');
-                if (sBody) {
-                    sBody.setAttribute('x1', shiftHomePos.x); sBody.setAttribute('y1', shiftHomePos.y);
-                    sBody.setAttribute('x2', shiftTargetPos.x); sBody.setAttribute('y2', shiftTargetPos.y);
-                }
-                if (sTip) { sTip.setAttribute('cx', shiftTargetPos.x); sTip.setAttribute('cy', shiftTargetPos.y); }
-            }
-            shiftFingerG.classList.add('hg-shift-active');
-        }
-    }
-}
-
-function flashFingerPressed() {
-    if (!handGuideEnabled) return;
-    const svg = document.getElementById('hg-svg');
-    if (!svg) return;
-    svg.querySelectorAll('.hg-active').forEach(g => {
-        g.classList.add('hg-pressed');
-        setTimeout(() => g.classList.remove('hg-pressed'), 120);
-    });
-    // Flash space bar on press
-    const spaceKey = document.getElementById('key- ');
-    if (spaceKey && spaceKey.classList.contains('space-active')) {
-        spaceKey.classList.add('space-pressed');
-        setTimeout(() => spaceKey.classList.remove('space-pressed'), 120);
-    }
+    if (!fullText || currentCharIndex >= fullText.length) return;
+    setHandGuideToChar(keyboardDiv, fingerMap, currentLayout, fullText[currentCharIndex]);
 }
 
 let hgResizeTimer;
@@ -3973,3 +3622,4 @@ async function logPracticeSession(wpm, acc, seconds, chars, mistakes) {
     } catch(e) { console.warn("Practice session log failed:", e); }
 }
 
+window.onload = init;
