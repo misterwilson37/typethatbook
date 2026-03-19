@@ -9,6 +9,18 @@ const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
 const DAILY_LIMIT = 5;
 
+// Model fallback chain: aliases first (auto-upgrade), then pinned versions descending.
+// 2.0 models retire June 1 2026 — remove them after that.
+const GEMINI_MODEL = 'gemini-2.0-flash-lite';
+const GEMINI_FALLBACKS = [
+  'gemini-flash-lite-latest',
+  'gemini-flash-latest',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-2.0-flash',
+];
+
 exports.generatePractice = onCall(
   {
     secrets: [geminiApiKey],
@@ -69,54 +81,78 @@ ${safeSnippet ? `Here is a brief excerpt from the book for style reference:\n"${
 
 Remember: write ONLY the practice paragraph, nothing else.`;
 
-    // 5. Call Gemini API
+    // 5. Call Gemini API with fallback chain
     const apiKey = geminiApiKey.value();
     let generatedText;
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.8,
-              maxOutputTokens: 500,
-            },
-            safetySettings: [
-              { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
-              { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
-              { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
-              { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
-            ],
-          }),
+    const models = [GEMINI_MODEL, ...GEMINI_FALLBACKS];
+    const requestBody = JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.8,
+        maxOutputTokens: 500,
+      },
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
+      ],
+    });
+
+    let lastError = null;
+    for (const model of models) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: requestBody,
+          }
+        );
+
+        if (!response.ok) {
+          const errBody = await response.text();
+          const status = response.status;
+          console.warn(`Gemini model ${model} failed (${status}):`, errBody.substring(0, 200));
+          // Retry on rate limit, server error, or model not found
+          if (status === 429 || status >= 500 || status === 404) {
+            lastError = `${model}: HTTP ${status}`;
+            continue;
+          }
+          // Other errors (400 bad request, 403 forbidden) won't be fixed by switching models
+          throw new HttpsError("internal", "Practice text generation failed. Try again.");
         }
-      );
 
-      if (!response.ok) {
-        const errBody = await response.text();
-        console.error("Gemini API error:", response.status, errBody);
-        throw new HttpsError("internal", "Practice text generation failed. Try again.");
+        const result = await response.json();
+        generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!generatedText) {
+          console.warn(`Gemini model ${model} returned empty text, trying next...`);
+          lastError = `${model}: empty response`;
+          continue;
+        }
+
+        // Success — clean up and break
+        console.log(`Practice generated with model: ${model}`);
+        generatedText = generatedText
+          .replace(/[\u2018\u2019]/g, "'")
+          .replace(/[\u201C\u201D]/g, '"')
+          .replace(/\u2014/g, "--")
+          .replace(/\u2013/g, "-")
+          .trim();
+        break;
+
+      } catch (e) {
+        if (e instanceof HttpsError) throw e;
+        console.warn(`Gemini model ${model} exception:`, e.message);
+        lastError = `${model}: ${e.message}`;
+        continue;
       }
+    }
 
-      const result = await response.json();
-      generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (!generatedText) {
-        throw new HttpsError("internal", "No text was generated. Try again.");
-      }
-
-      // Clean up: normalize quotes and trim
-      generatedText = generatedText
-        .replace(/[\u2018\u2019]/g, "'")
-        .replace(/[\u201C\u201D]/g, '"')
-        .replace(/\u2014/g, "--")
-        .replace(/\u2013/g, "-")
-        .trim();
-    } catch (e) {
-      if (e instanceof HttpsError) throw e;
-      console.error("Gemini call failed:", e);
+    if (!generatedText) {
+      console.error("All Gemini models failed. Last error:", lastError);
       throw new HttpsError("internal", "Could not generate practice text. Try again.");
     }
 
