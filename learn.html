@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeThatBook — School</title>
+    <title>TypeThatBook — School 1.1.0</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
     <style>
@@ -95,25 +95,16 @@
         .intro-title { font-size: 1.1rem; font-weight: bold; color: #eee; text-align: center; margin-bottom: 8px; }
         .intro-text  { color: #aaa; font-size: 0.9rem; line-height: 1.6; text-align: center; margin-bottom: 20px; }
 
-        /* Animated keyboard (smaller, intro only) */
+        /* Intro keyboard — full size, no transform (transform:scale breaks
+           SVG coordinate calculation in keyboard.js) */
         #intro-keyboard-wrap {
-            margin: 0 auto 20px;
-            transform-origin: top center;
+            width: 100%; overflow-x: auto; margin: 0 auto 20px;
         }
         #intro-keyboard {
-            height: 220px; background: var(--accent-grey);
+            height: 305px; background: var(--accent-grey);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            gap: 4px; border-top: 3px solid var(--black); padding: 8px 0;
-            transform: scale(0.72); transform-origin: top center;
-            margin-bottom: -64px; /* compensate for scale */
-        }
-
-        /* Add CSS transition to hg elements for intro animation */
-        #intro-keyboard #hand-guide-overlay .hg-body {
-            transition: x1 0.5s ease, y1 0.5s ease, x2 0.5s ease, y2 0.5s ease;
-        }
-        #intro-keyboard #hand-guide-overlay .hg-tip {
-            transition: cx 0.5s ease, cy 0.5s ease;
+            gap: 5px; border-top: 4px solid var(--black); padding: 10px 0;
+            min-width: 600px;
         }
 
         .intro-start-btn {
