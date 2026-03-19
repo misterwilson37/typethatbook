@@ -1,10 +1,11 @@
-// v2.6.0 - Comprehensive text sanitization, audit tool, language check
+// v2.7.0 - + Lessons tab (lessons-admin.js)
 import { db, auth, storage } from "./firebase-config.js";
+import { initLessonsPanel } from "./lessons-admin.js";
 import { doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "2.6.1";
+const ADMIN_VERSION = "3.0.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -266,6 +267,11 @@ onAuthStateChanged(auth, async (user) => {
         statusEl.style.borderColor = "#00ff41"; 
         loginSec.classList.add('hidden');
         editorSec.classList.remove('hidden');
+            // ── Init lessons panel (only once) ──
+            if (!window._lessonsPanelInited) {
+                window._lessonsPanelInited = true;
+                initLessonsPanel(db);
+            }
         await loadBookList();
     } else {
         statusEl.innerText = "Access Restricted. Admin login required.";
