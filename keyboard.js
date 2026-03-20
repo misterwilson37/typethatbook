@@ -2,7 +2,7 @@
 // Imported by both game.js and learn.js.
 // v1.1.0 — fixes duplicate-ID bug (two keyboards in learn.html DOM),
 //           all lookups now scoped to containerEl rather than document.
-export const KB_VERSION = '1.1.0';
+export const KB_VERSION = '1.1.1';
 
 export const FINGER_COLORS = {
     'left-pinky':   '#FF69B4',
