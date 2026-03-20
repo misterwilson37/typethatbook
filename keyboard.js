@@ -2,6 +2,7 @@
 // Imported by both game.js and learn.js.
 // v1.1.0 — fixes duplicate-ID bug (two keyboards in learn.html DOM),
 //           all lookups now scoped to containerEl rather than document.
+export const KB_VERSION = '1.1.0';
 
 export const FINGER_COLORS = {
     'left-pinky':   '#FF69B4',
@@ -276,6 +277,42 @@ export function buildFingerSVG(containerEl, fingerMap, layout, rainbow, singleCo
         g.appendChild(tip);
 
         svg.appendChild(g);
+    });
+}
+
+export function setHandGuideToChars(containerEl, fingerMap, layout, chars) {
+    // Like setHandGuideToChar but activates multiple fingers simultaneously.
+    // Resets all to home once, then stretches each target finger without re-resetting.
+    const svg = _svg(containerEl);
+    if (!svg) return;
+    const home = getHomePositions(layout);
+
+    // Reset all to home first
+    FINGER_NAMES.forEach(function(name) {
+        const g = _finger(containerEl, name);
+        if (!g) return;
+        g.classList.remove('hg-active', 'hg-shift-active');
+        const pos = getKeyCenterInKB(containerEl, home[name]);
+        if (!pos) return;
+        const body = g.querySelector('.hg-body'), tip = g.querySelector('.hg-tip');
+        if (body) { body.setAttribute('x1',pos.x); body.setAttribute('y1',pos.y); body.setAttribute('x2',pos.x); body.setAttribute('y2',pos.y); }
+        if (tip)  { tip.setAttribute('cx',pos.x); tip.setAttribute('cy',pos.y); }
+    });
+
+    // Now activate each char's finger
+    chars.forEach(function(char) {
+        const info = getFingerInfo(fingerMap, char);
+        if (!info || info.finger === 'thumb') return;
+        const homePos   = getKeyCenterInKB(containerEl, home[info.finger]);
+        const targetPos = getKeyCenterInKB(containerEl, info.keyChar);
+        if (!homePos || !targetPos) return;
+        const fg = _finger(containerEl, info.finger);
+        if (fg) {
+            const body = fg.querySelector('.hg-body'), tip = fg.querySelector('.hg-tip');
+            if (body) { body.setAttribute('x1',homePos.x); body.setAttribute('y1',homePos.y); body.setAttribute('x2',targetPos.x); body.setAttribute('y2',targetPos.y); }
+            if (tip)  { tip.setAttribute('cx',targetPos.x); tip.setAttribute('cy',targetPos.y); }
+            fg.classList.add('hg-active');
+        }
     });
 }
 
