@@ -1,7 +1,7 @@
 // learn.js — TypeThatBook School v1.0.0
 import { db, auth } from "./firebase-config.js";
 import {
-    collection, getDocs, doc, getDoc, setDoc
+    collection, getDocs, doc, getDoc, setDoc, addDoc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut
@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.1.3";
+const LEARN_VERSION = "1.1.4"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -24,7 +24,18 @@ let currentUser = null;
 let allLessons   = [];   // sorted lesson objects from Firestore
 let userProgress = {};   // lessonId → progress doc
 
-// Drill session state
+// ─── Stats & Goals (mirrors game.js — writes to same Firestore path) ────────
+let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0,
+                  mistakesToday:0, mistakesWeek:0, lastDate:'', weekStart:0 };
+let goals = { dailySeconds: 0, weeklySeconds: 0 };
+let dailyGoalCelebrated  = false;
+let weeklyGoalCelebrated = false;
+let learnActiveSeconds   = 0;   // active seconds this step (for HUD display)
+let learnTickInterval    = null;
+let learnLastInputTime   = 0;
+const LEARN_IDLE_THRESHOLD = 3000; // 3s idle = paused
+
+// ─── Drill session state ─────────────────────────────────────────────────────
 let currentLesson  = null;
 let currentStepIdx = 0;
 let currentStep    = null;
@@ -62,6 +73,7 @@ const mapProgressEl  = document.getElementById('map-progress-summary');
 const graduateLink   = document.getElementById('graduate-link');
 const backBtn        = document.getElementById('back-btn');
 const hudLessonLabel = document.getElementById('hud-lesson-label');
+const hudTimer       = document.getElementById('hud-timer');
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 document.getElementById('login-btn').onclick = async () => {
@@ -78,6 +90,8 @@ onAuthStateChanged(auth, async user => {
         document.getElementById('user-name').textContent = user.displayName || user.email;
         userInfo.classList.remove('hidden'); loginBtn.style.display = 'none';
         await loadUserProgress();
+        await loadUserStats();
+        await loadGoals();
     } else {
         userInfo.classList.add('hidden'); loginBtn.style.display = '';
         userProgress = {};
@@ -126,6 +140,30 @@ function renderMap() {
         : 'Sign in to save your progress';
 
     // Build by unit
+    // "Continue" button — find first incomplete unlocked lesson
+    const continueLesson = allLessons.find(l => !completed.has(l.id) && isUnlocked(l));
+    const continueBtnEl = document.getElementById('map-continue-btn');
+    if (continueBtnEl) {
+        if (continueLesson) {
+            const keys = (continueLesson.newKeys || []).length
+                ? continueLesson.newKeys.map(k => k.toUpperCase()).join(' ') : '↺';
+            continueBtnEl.textContent = '▶ Continue: ' + (continueLesson.title || continueLesson.id);
+            continueBtnEl.style.display = '';
+            continueBtnEl.onclick = () => startLesson(continueLesson);
+        } else {
+            continueBtnEl.style.display = 'none';
+        }
+    }
+
+    // Show today's time in map header
+    const timeEl = document.getElementById('map-time-today');
+    if (timeEl && statsData.secondsToday > 0) {
+        const dailyDone = goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds;
+        timeEl.innerHTML = 'Today: <strong>' + formatTime(statsData.secondsToday) + '</strong>' +
+            (dailyDone ? ' <span class="goal-badge goal-daily" style="display:inline-flex;width:18px;height:18px;font-size:0.65rem;">✓</span>' : '');
+        timeEl.style.display = '';
+    }
+
     const byUnit = {};
     allLessons.forEach(l => {
         const u = l.unit || 0;
@@ -327,10 +365,48 @@ function beginStep(stepIdx) {
     stepStartTime = Date.now();
     stepSeconds   = 0;
 
+    learnActiveSeconds = 0;
+    learnLastInputTime = 0;
     clearInterval(timerInterval);
+    clearInterval(learnTickInterval);
+
     timerInterval = setInterval(() => {
         if (drillPos > 0) stepSeconds++;
         updateHUD();
+    }, 1000);
+
+    // Active-time tracking (same pattern as game.js gameTick)
+    learnTickInterval = setInterval(() => {
+        if (!learnLastInputTime) return;
+        const idle = Date.now() - learnLastInputTime;
+        if (idle < LEARN_IDLE_THRESHOLD) {
+            learnActiveSeconds++;
+            statsData.secondsToday++;
+            statsData.secondsWeek++;
+            // Midnight rollover
+            const todayStr = getLocalDateStr();
+            if (statsData.lastDate && statsData.lastDate !== todayStr) {
+                statsData.secondsToday = 1; statsData.charsToday = 0; statsData.mistakesToday = 0;
+                statsData.lastDate = todayStr; dailyGoalCelebrated = false;
+                const ws = getWeekStart(new Date());
+                if (statsData.weekStart !== ws) {
+                    statsData.secondsWeek = 1; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
+                    statsData.weekStart = ws; weeklyGoalCelebrated = false;
+                }
+            }
+            // Goal celebrations
+            if (goals.dailySeconds > 0 && !dailyGoalCelebrated && statsData.secondsToday >= goals.dailySeconds) {
+                dailyGoalCelebrated = true; launchConfetti();
+            }
+            if (goals.weeklySeconds > 0 && !weeklyGoalCelebrated && statsData.secondsWeek >= goals.weeklySeconds) {
+                weeklyGoalCelebrated = true; launchFireworks();
+            }
+            // Update HUD timer
+            if (hudTimer) {
+                const m = Math.floor(statsData.secondsToday / 60), s = statsData.secondsToday % 60;
+                hudTimer.textContent = m + ':' + String(s).padStart(2,'0');
+            }
+        }
     }, 1000);
 
     renderDrillText();
@@ -338,7 +414,10 @@ function beginStep(stepIdx) {
 
     // Set up keypress handling
     drillKeyboard.onkeydown = handleDrillKey;
-    drillKeyboard.focus();
+    // Defer focus until after the browser has painted the keyboard
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => { drillKeyboard.focus(); });
+    });
 
     // Show a static anchor hint below the step label when anchorEnforced is true.
     // This replaces the reactive popup — it informs without alarming.
@@ -419,6 +498,8 @@ function handleDrillKey(e) {
     chars++;
     if (typed === expected) {
         flashFingerPressed(drillKeyboard);
+        learnLastInputTime = Date.now();
+        statsData.charsToday++;  statsData.charsWeek++;
         drillPos++;
         renderDrillText();
         if (drillPos >= drillSequence.length) {
@@ -428,6 +509,8 @@ function handleDrillKey(e) {
         advanceHandGuide();
     } else {
         mistakes++;
+        learnLastInputTime = Date.now();
+        statsData.mistakesToday++; statsData.mistakesWeek++;
         if (expected !== ' ') {
             missedChars[expected] = (missedChars[expected] || 0) + 1;
         }
@@ -513,11 +596,13 @@ function updateHUD() {
 // ─── Finish Step ─────────────────────────────────────────────────────────────
 function finishStep() {
     clearInterval(timerInterval);
+    clearInterval(learnTickInterval);
     drillKeyboard.onkeydown = null;
     const spaceHint = document.getElementById('space-hint');
     if (spaceHint) spaceHint.style.visibility = 'hidden';
     const anchorHint = document.getElementById('anchor-hint');
     if (anchorHint) anchorHint.style.display = 'none';
+    saveStats(); // write time to Firestore
 
     const wpm = stepSeconds > 0 ? Math.round((chars / 5) / (stepSeconds / 60)) : 0;
     const acc = chars > 0 ? Math.round(((chars - mistakes) / chars) * 100) : 100;
@@ -539,15 +624,29 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
 
     document.getElementById('dm-title').textContent = 'Step ' + nextIdx + ' of ' + totalSteps + ' done';
     document.getElementById('dm-stars').textContent = '';
+
+    const dailyBadge = (goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds)
+        ? '<span class="goal-badge goal-daily" title="Daily goal reached!">✓</span>' : '';
+    const weeklyBadge = (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds)
+        ? '<span class="goal-badge goal-weekly" title="Weekly goal reached!">✓</span>' : '';
+
     document.getElementById('dm-stats').innerHTML =
+        dailyBadge +
         '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
-        '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>';
-    document.getElementById('dm-msg').innerHTML = '<span style="color:#888; font-size:0.8rem; font-family:monospace;">press Enter to continue</span>';
+        '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>' +
+        weeklyBadge;
+    document.getElementById('dm-msg').innerHTML =
+        '<div style="color:#888;font-size:0.78rem;margin-bottom:4px;">Today: ' + formatTime(statsData.secondsToday) + ' typed</div>' +
+        '<span style="color:#888;font-size:0.8rem;font-family:monospace;">press Enter to continue</span>';
     document.getElementById('dm-remediation').innerHTML = '';
     const btns = document.getElementById('dm-btns');
     btns.innerHTML = '';
+
+    const mapBtn = document.createElement('button');
+    mapBtn.className = 'dm-btn-secondary'; mapBtn.textContent = '← Map';
     const next = document.createElement('button');
-    next.className = 'dm-btn-primary'; next.textContent = 'Next Step →';
+    next.className = 'dm-btn-primary'; next.textContent = 'Next Step → (Enter)';
+
     const advance = () => {
         drillModal.classList.add('hidden');
         document.getElementById('drill-keyboard-wrap').style.display = '';
@@ -555,9 +654,15 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
         beginStep(nextIdx);
     };
     next.onclick = advance;
-    btns.appendChild(next);
+    mapBtn.onclick = () => {
+        document.removeEventListener('keydown', enterHandler);
+        drillModal.classList.add('hidden');
+        document.getElementById('drill-keyboard-wrap').style.display = '';
+        stopLesson();
+    };
+    btns.appendChild(mapBtn);  // left = back
+    btns.appendChild(next);    // right = forward
 
-    // Enter key shortcut
     function enterHandler(e) {
         if (e.key === 'Enter') { e.preventDefault(); advance(); }
     }
@@ -586,15 +691,22 @@ function showLessonResultModal(wpm, acc) {
 
     document.getElementById('dm-title').textContent = passed ? '🎉 Lesson Complete!' : 'Not quite yet…';
     document.getElementById('dm-stars').textContent = passed ? '⭐'.repeat(stars) + '☆'.repeat(3 - stars) : '☆☆☆';
-    document.getElementById('dm-stats').innerHTML = `
-        <div class="dm-stat"><div class="dm-val">${wpm}</div><div class="dm-label">WPM</div></div>
-        <div class="dm-stat"><div class="dm-val">${acc}%</div><div class="dm-label">Accuracy</div></div>
-        <div class="dm-stat"><div class="dm-val">${minWPM}+</div><div class="dm-label">Target WPM</div></div>`;
+    const rdBadge = (goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds)
+        ? '<span class="goal-badge goal-daily" title="Daily goal!">✓</span>' : '';
+    const rwBadge = (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds)
+        ? '<span class="goal-badge goal-weekly" title="Weekly goal!">✓</span>' : '';
+    document.getElementById('dm-stats').innerHTML =
+        rdBadge +
+        '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
+        '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>' +
+        '<div class="dm-stat"><div class="dm-val">' + minWPM + '+</div><div class="dm-label">Target WPM</div></div>' +
+        rwBadge;
 
     const msg = passed
         ? `You hit ${wpm} WPM at ${acc}% accuracy. Gates: ${minWPM} WPM / ${minAcc}% accuracy.`
         : `You need ${minWPM} WPM and ${minAcc}% accuracy. You got ${wpm} WPM and ${acc}%. Try again!`;
-    document.getElementById('dm-msg').textContent = msg;
+    document.getElementById('dm-msg').innerHTML =
+        escHtml(msg) + '<br><span style="color:#888;font-size:0.78rem;">Today: ' + formatTime(statsData.secondsToday) + ' typed</span>';
 
     // Remediation links for missed chars
     const remText = buildRemediationLinks();
@@ -625,15 +737,14 @@ function showLessonResultModal(wpm, acc) {
         nextBtn.className = 'dm-btn-primary';
         nextBtn.textContent = nextLesson ? 'Next Lesson → (Enter)' : '📚 Go to Library';
         nextBtn.onclick = primaryAction;
-        btns.appendChild(nextBtn);
-
-        const mapBtn = document.createElement('button');
-        mapBtn.className = 'dm-btn-secondary'; mapBtn.textContent = 'Back to Map';
-        mapBtn.onclick = () => {
+        const mapBtnP = document.createElement('button');
+        mapBtnP.className = 'dm-btn-secondary'; mapBtnP.textContent = '← Map';
+        mapBtnP.onclick = () => {
             document.removeEventListener('keydown', enterResultHandler);
             stopLesson();
         };
-        btns.appendChild(mapBtn);
+        btns.appendChild(mapBtnP); // left
+        btns.appendChild(nextBtn); // right
     } else {
         primaryAction = () => {
             document.removeEventListener('keydown', enterResultHandler);
@@ -644,15 +755,14 @@ function showLessonResultModal(wpm, acc) {
         const retryBtn = document.createElement('button');
         retryBtn.className = 'dm-btn-primary'; retryBtn.textContent = 'Try Again (Enter)';
         retryBtn.onclick = primaryAction;
-        btns.appendChild(retryBtn);
-
-        const mapBtn = document.createElement('button');
-        mapBtn.className = 'dm-btn-secondary'; mapBtn.textContent = 'Back to Map';
-        mapBtn.onclick = () => {
+        const mapBtnF = document.createElement('button');
+        mapBtnF.className = 'dm-btn-secondary'; mapBtnF.textContent = '← Map';
+        mapBtnF.onclick = () => {
             document.removeEventListener('keydown', enterResultHandler);
             stopLesson();
         };
-        btns.appendChild(mapBtn);
+        btns.appendChild(mapBtnF); // left
+        btns.appendChild(retryBtn); // right
     }
 }
 
@@ -719,6 +829,7 @@ function showView(which) {
 
 function stopLesson() {
     clearInterval(timerInterval);
+    clearInterval(learnTickInterval);
     stopIntroAnim();
     drillKeyboard.onkeydown = null;
     currentLesson = null;
@@ -769,6 +880,166 @@ document.addEventListener('keydown', e => {
 // ─── Utils ────────────────────────────────────────────────────────────────────
 function escHtml(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function formatTime(seconds) {
+    const m = Math.floor(seconds / 60), s = seconds % 60;
+    return m + ':' + String(s).padStart(2,'0');
+}
+
+function getLocalDateStr(date) {
+    const d = date || new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function getWeekStart(date) {
+    const d = new Date(date);
+    const diff = (d.getDay() + 1) % 7;
+    d.setDate(d.getDate() - diff); d.setHours(0,0,0,0);
+    return d.getTime();
+}
+
+// ─── Stats loading (mirrors game.js) ─────────────────────────────────────────
+async function loadUserStats() {
+    if (!currentUser) return;
+    try {
+        const today = new Date();
+        const dateStr = getLocalDateStr(today);
+        const weekStart = getWeekStart(today);
+        const snap = await getDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'));
+        if (snap.exists()) {
+            const data = snap.data();
+            if (data.lastDate === dateStr) {
+                statsData.secondsToday  = data.secondsToday  || 0;
+                statsData.charsToday    = data.charsToday    || 0;
+                statsData.mistakesToday = data.mistakesToday || 0;
+            } else {
+                statsData.secondsToday = statsData.charsToday = statsData.mistakesToday = 0;
+            }
+            if (data.weekStart === weekStart) {
+                statsData.secondsWeek  = data.secondsWeek  || 0;
+                statsData.charsWeek    = data.charsWeek    || 0;
+                statsData.mistakesWeek = data.mistakesWeek || 0;
+            } else {
+                statsData.secondsWeek = statsData.charsWeek = statsData.mistakesWeek = 0;
+            }
+        }
+        statsData.lastDate  = dateStr;
+        statsData.weekStart = weekStart;
+    } catch(e) { console.warn('loadUserStats failed:', e); }
+}
+
+async function loadGoals() {
+    try {
+        const snap = await getDoc(doc(db, 'settings', 'goals'));
+        if (snap.exists()) {
+            const d = snap.data();
+            goals.dailySeconds  = d.dailySeconds  || 0;
+            goals.weeklySeconds = d.weeklySeconds || 0;
+        }
+        if (goals.dailySeconds  > 0 && statsData.secondsToday >= goals.dailySeconds)  dailyGoalCelebrated  = true;
+        if (goals.weeklySeconds > 0 && statsData.secondsWeek  >= goals.weeklySeconds) weeklyGoalCelebrated = true;
+    } catch(e) { console.warn('loadGoals failed:', e); }
+}
+
+async function saveStats() {
+    if (!currentUser) return;
+    try {
+        await setDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'), statsData, { merge: true });
+        // Daily log for admin reporting
+        const today = getLocalDateStr();
+        const logId = currentUser.uid + '_' + today;
+        await setDoc(doc(db, 'typing_logs', logId), {
+            uid: currentUser.uid, email: currentUser.email || '',
+            displayName: currentUser.displayName || 'Anonymous',
+            date: today, seconds: statsData.secondsToday || 0,
+            chars: statsData.charsToday || 0, mistakes: statsData.mistakesToday || 0,
+            lastUpdated: new Date(), source: 'school'
+        }, { merge: true });
+    } catch(e) { console.warn('saveStats failed:', e); }
+}
+
+// ─── Celebration (copied from game.js) ───────────────────────────────────────
+function createCelebrationCanvas() {
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;';
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    document.body.appendChild(canvas); return canvas;
+}
+
+function showGoalToast(message, color) {
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:' + color + ';color:#000;font-family:"Courier Prime",monospace;font-weight:700;font-size:1.2rem;padding:14px 28px;border-radius:8px;z-index:10000;box-shadow:0 4px 20px rgba(0,0,0,0.5);';
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 3000);
+}
+
+function launchConfetti() {
+    const canvas = createCelebrationCanvas();
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const colors = ['#4B9CD3','#FFD700','#FF6B6B','#22c55e','#FF69B4','#FFA500','#9B59B6','#00CED1'];
+    const pieces = [];
+    for (let i = 0; i < 150; i++) {
+        pieces.push({ x: W*0.5+(Math.random()-0.5)*W*0.6, y:-20-Math.random()*100,
+            w:6+Math.random()*6, h:10+Math.random()*8, color:colors[Math.floor(Math.random()*colors.length)],
+            rotation:Math.random()*Math.PI*2, rotSpeed:(Math.random()-0.5)*0.15,
+            vx:(Math.random()-0.5)*4, vy:2+Math.random()*3,
+            wobble:Math.random()*Math.PI*2, wobbleSpeed:0.03+Math.random()*0.05 });
+    }
+    showGoalToast('🎉 Daily Goal Reached!', '#22c55e');
+    let frame = 0;
+    (function animate() {
+        ctx.clearRect(0,0,W,H); let alive=false;
+        pieces.forEach(p => {
+            p.x+=p.vx+Math.sin(p.wobble)*0.5; p.y+=p.vy; p.vy+=0.04;
+            p.rotation+=p.rotSpeed; p.wobble+=p.wobbleSpeed; p.vx*=0.99;
+            if(p.y<H+50){ alive=true; ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rotation);
+                ctx.fillStyle=p.color; ctx.globalAlpha=Math.max(0,1-(frame/200));
+                ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); ctx.restore(); }
+        });
+        frame++; if(alive&&frame<250) requestAnimationFrame(animate); else canvas.remove();
+    })();
+}
+
+function launchFireworks() {
+    const canvas = createCelebrationCanvas();
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const colors = ['#4B9CD3','#FFD700','#FF6B6B','#22c55e','#FF69B4','#FFA500','#9B59B6','#00CED1','#fff'];
+    const shells = [], particles = [];
+    for(let i=0;i<5;i++) setTimeout(()=>{
+        shells.push({x:W*(0.2+Math.random()*0.6),y:H,vy:-(8+Math.random()*4),
+            targetY:H*(0.15+Math.random()*0.35),color:colors[Math.floor(Math.random()*colors.length)],exploded:false});
+    },i*400);
+    showGoalToast('🎆 Weekly Goal Reached!', '#FFD700');
+    let frame=0;
+    (function animate(){
+        ctx.clearRect(0,0,W,H);
+        shells.forEach(s=>{
+            if(s.exploded)return; s.y+=s.vy; s.vy+=0.12;
+            ctx.beginPath();ctx.arc(s.x,s.y,2,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+            if(s.y<=s.targetY||s.vy>=0){
+                s.exploded=true;
+                for(let i=0;i<80;i++){
+                    const angle=(Math.PI*2*i)/80+(Math.random()-0.5)*0.3, speed=2+Math.random()*4;
+                    particles.push({x:s.x,y:s.y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,
+                        color:Math.random()>0.3?s.color:colors[Math.floor(Math.random()*colors.length)],
+                        life:1.0,decay:0.008+Math.random()*0.012,size:1.5+Math.random()*2});
+                }
+            }
+        });
+        for(let i=particles.length-1;i>=0;i--){
+            const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.04; p.vx*=0.98; p.life-=p.decay;
+            if(p.life<=0){particles.splice(i,1);continue;}
+            ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+            ctx.fillStyle=p.color;ctx.globalAlpha=p.life;ctx.fill();
+        }
+        ctx.globalAlpha=1; frame++;
+        if(frame<400&&(particles.length>0||shells.some(s=>!s.exploded))) requestAnimationFrame(animate);
+        else canvas.remove();
+    })();
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
