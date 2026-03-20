@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.1.4"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.1.5"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -485,8 +485,12 @@ function handleDrillKey(e) {
     if (e.key === 'Enter')     typed = '\n';
     else if (e.key === 'Tab')  typed = '\t';
     else if (e.key === 'Backspace') {
-        // Allow backspace to go back one char
-        if (drillPos > 0) { drillPos--; renderDrillText(); advanceHandGuide(); }
+        // Skip back over any spaces too
+        if (drillPos > 0) {
+            drillPos--;
+            while (drillPos > 0 && drillSequence[drillPos] === ' ') drillPos--;
+            renderDrillText(); advanceHandGuide();
+        }
         e.preventDefault(); return;
     } else if (e.key.length === 1) {
         typed = e.key;
@@ -495,8 +499,19 @@ function handleDrillKey(e) {
     }
     e.preventDefault();
 
+    // Auto-skip any spaces at the current position before checking the typed key.
+    // This means spaces between groups/words are never a required keystroke —
+    // students just type continuously without hunting for the space at line breaks.
+    while (drillPos < drillSequence.length && drillSequence[drillPos] === ' ') {
+        drillPos++;
+        learnLastInputTime = Date.now();
+        statsData.charsToday++; statsData.charsWeek++;
+    }
+    if (drillPos >= drillSequence.length) { finishStep(); return; }
+    const newExpected = drillSequence[drillPos];
+
     chars++;
-    if (typed === expected) {
+    if (typed === newExpected) {
         flashFingerPressed(drillKeyboard);
         learnLastInputTime = Date.now();
         statsData.charsToday++;  statsData.charsWeek++;
@@ -511,10 +526,9 @@ function handleDrillKey(e) {
         mistakes++;
         learnLastInputTime = Date.now();
         statsData.mistakesToday++; statsData.mistakesWeek++;
-        if (expected !== ' ') {
-            missedChars[expected] = (missedChars[expected] || 0) + 1;
+        if (newExpected !== ' ') {
+            missedChars[newExpected] = (missedChars[newExpected] || 0) + 1;
         }
-        // Flash the correct key
         flashTargetKey();
         renderDrillText(true);
     }
@@ -543,21 +557,45 @@ function flashTargetKey() {
 // ─── Render Drill Text ────────────────────────────────────────────────────────
 function renderDrillText(showError = false) {
     const seq = drillSequence;
-    const html = seq.map((ch, i) => {
-        const disp = ch === ' ' ? '&nbsp;' : ch === '\n' ? '↵' : escHtml(ch);
-        if (i < drillPos) return `<span class="dt-done">${disp}</span>`;
-        if (i === drillPos) {
-            const cls = showError ? 'dt-error' : 'dt-current';
-            return `<span class="${cls}" id="dt-cursor">${disp}</span>`;
+
+    // Build word-groups so CSS never splits a group across lines.
+    // Each space-separated run of chars is wrapped in a nowrap span.
+    // Spaces between groups are rendered as a small gap span (not a required keystroke).
+    const groups = [];
+    let cur = [];
+    seq.forEach((ch, i) => { if (ch === ' ') { if (cur.length) { groups.push(cur); cur = []; } groups.push([{ch:' ', i}]); } else { cur.push({ch, i}); } });
+    if (cur.length) groups.push(cur);
+
+    let html = '';
+    groups.forEach(group => {
+        const isSpace = group.length === 1 && group[0].ch === ' ';
+        if (isSpace) {
+            // Render space as a thin gap — not highlighted, not a required keystroke
+            html += '<span class="dt-space-gap"> </span>';
+            return;
         }
-        return `<span class="dt-upcoming">${disp}</span>`;
-    }).join('');
+        // Wrap non-space group in nowrap container
+        html += '<span style="display:inline-block;white-space:nowrap;">';
+        group.forEach(({ch, i}) => {
+            const disp = ch === '\n' ? '↵' : escHtml(ch);
+            if (i < drillPos) {
+                html += '<span class="dt-done">' + disp + '</span>';
+            } else if (i === drillPos) {
+                const cls = showError ? 'dt-error' : 'dt-current';
+                html += '<span class="' + cls + '" id="dt-cursor">' + disp + '</span>';
+            } else {
+                html += '<span class="dt-upcoming">' + disp + '</span>';
+            }
+        });
+        html += '</span>';
+    });
+
     drillTextEl.innerHTML = html;
 
     // Scroll cursor into view
     requestAnimationFrame(() => {
         const cursor = document.getElementById('dt-cursor');
-        if (cursor) cursor.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        if (cursor) cursor.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
 }
 
@@ -851,6 +889,18 @@ function getNextLesson() {
     return allLessons[idx + 1] || null;
 }
 
+// ─── Save stats on page unload ───────────────────────────────────────────────
+// Ensures time typed in School is persisted even if student navigates away
+// mid-lesson without completing a step (which is when saveStats() normally fires).
+window.addEventListener('beforeunload', () => {
+    if (currentUser && statsData.secondsToday > 0) {
+        // Synchronous-style fire-and-forget — navigator.sendBeacon would be ideal
+        // but Firestore SDK doesn't support it. setDoc is async; it will usually
+        // complete before the tab closes on desktop, and is a best-effort on mobile.
+        saveStats();
+    }
+});
+
 // ─── Caps Lock Warning ────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
     const capsEl = document.getElementById('caps-warning');
@@ -858,24 +908,51 @@ document.addEventListener('keydown', e => {
 });
 
 // ─── Auto-refocus keyboard on click-back ─────────────────────────────────────
-// When a student clicks away (to a browser tab, to chat, etc.) and returns,
-// a click anywhere on the drill view restores keyboard focus automatically.
-document.getElementById('active-drill').addEventListener('click', () => {
+function ensureKeyboardFocus() {
     if (!activeDrill.classList.contains('hidden') &&
         drillModal.classList.contains('hidden') &&
         drillKeyboard.onkeydown) {
         drillKeyboard.focus();
     }
-});
-// Also refocus on any keydown that lands on document while drill is active
+}
+
+document.getElementById('active-drill').addEventListener('click', ensureKeyboardFocus);
+
 document.addEventListener('keydown', e => {
-    if (e.target !== drillKeyboard &&
-        !activeDrill.classList.contains('hidden') &&
-        drillModal.classList.contains('hidden') &&
-        drillKeyboard.onkeydown) {
-        drillKeyboard.focus();
+    if (e.target !== drillKeyboard) ensureKeyboardFocus();
+});
+
+// ─── Keyboard health-check ────────────────────────────────────────────────────
+// Re-initialize keyboard if it somehow ends up empty (Safari paint timing edge case).
+// Runs whenever the tab becomes visible again and on a periodic interval during drills.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        ensureKeyboardFocus();
+        rebuildKeyboardIfNeeded();
     }
 });
+
+function rebuildKeyboardIfNeeded() {
+    if (activeDrill.classList.contains('hidden')) return;
+    if (drillKeyboard.querySelectorAll('.key').length === 0) {
+        console.warn('Keyboard empty — rebuilding');
+        createKeyboard(drillKeyboard, LAYOUT);
+        createHandGuide(drillKeyboard, fingerMap, LAYOUT, true);
+        colorKeyboardKeys(drillKeyboard, fingerMap, true);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            advanceHandGuide();
+            drillKeyboard.focus();
+        }));
+    }
+}
+
+// Periodic backstop — check every 2 seconds while a lesson is active
+setInterval(() => {
+    if (!activeDrill.classList.contains('hidden') &&
+        drillModal.classList.contains('hidden')) {
+        rebuildKeyboardIfNeeded();
+    }
+}, 2000);
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 function escHtml(s) {
