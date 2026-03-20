@@ -7,15 +7,16 @@ import {
     onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import {
-    FINGER_COLORS, FINGER_NAMES, LAYOUTS,
+    FINGER_COLORS, FINGER_NAMES, LAYOUTS, KB_VERSION,
     createKeyboard, buildFingerMap, getFingerInfo,
-    createHandGuide, buildFingerSVG, setHandGuideToChar,
+    createHandGuide, buildFingerSVG, setHandGuideToChar, setHandGuideToChars,
     resetHandGuideToHome, colorKeyboardKeys, flashFingerPressed,
     getHomePositions, getKeyCenterInKB, toggleKeyboardCase
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const VERSION = "1.0.0";
+const LEARN_VERSION = "1.1.0";
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const ANCHOR_FLASH_MS = 1800;   // how long the anchor warning stays visible
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
@@ -277,12 +278,9 @@ function runIntroAnimFrame(newKeys) {
         // Frame A: all fingers resting at home
         resetHandGuideToHome(introKeyboard, LAYOUT);
     } else {
-        // Frame B: target finger(s) reaching to new key(s)
-        // Reset first, then stretch each new key's finger
-        resetHandGuideToHome(introKeyboard, LAYOUT);
-        newKeys.forEach(k => {
-            setHandGuideToChar(introKeyboard, fingerMap, LAYOUT, k);
-        });
+        // Frame B: all target fingers reach simultaneously
+        // setHandGuideToChars resets once then activates all — no second reset clobbers the first
+        setHandGuideToChars(introKeyboard, fingerMap, LAYOUT, newKeys);
     }
 }
 
@@ -370,13 +368,19 @@ function handleDrillKey(e) {
     if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
     if (e.key === 'CapsLock') return;
 
-    // Check anchor keys first
-    if (currentStep?.anchorEnforced) {
-        const anchors = currentLesson.anchorKeys || [];
-        const heldKeys = getHeldAnchorKeys(e, anchors);
-        if (heldKeys.missing.length > 0) {
-            flashAnchorWarning(heldKeys.missing);
-        }
+    const anchors = (currentStep?.anchorEnforced && currentLesson?.anchorKeys) || [];
+
+    // Silently consume anchor key presses — holding F/J while drilling D/K
+    // would otherwise register as repeated wrong keypresses.
+    if (anchors.length && e.key.length === 1 && anchors.includes(e.key.toLowerCase())) {
+        e.preventDefault();
+        return;
+    }
+
+    // Check that anchor keys are being held when typing a non-anchor key
+    if (anchors.length) {
+        const missing = anchors.filter(k => !heldKeys.has(k));
+        if (missing.length > 0) flashAnchorWarning(missing);
     }
 
     if (drillPos >= drillSequence.length) return;
@@ -416,14 +420,6 @@ function handleDrillKey(e) {
         renderDrillText(true);
     }
     updateHUD();
-}
-
-// Track which anchor keys are NOT being held
-function getHeldAnchorKeys(keyEvent, anchors) {
-    // We can't directly read held keys in keydown for arbitrary keys,
-    // so we use a held-keys set maintained by keydown/keyup
-    const missing = anchors.filter(k => !heldKeys.has(k));
-    return { missing };
 }
 
 // Maintain a set of currently held keys
@@ -525,23 +521,31 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     drillModal.classList.remove('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = 'none';
 
-    document.getElementById('dm-title').textContent = `Step ${nextIdx} of ${totalSteps} done`;
+    document.getElementById('dm-title').textContent = 'Step ' + nextIdx + ' of ' + totalSteps + ' done';
     document.getElementById('dm-stars').textContent = '';
-    document.getElementById('dm-stats').innerHTML = `
-        <div class="dm-stat"><div class="dm-val">${wpm}</div><div class="dm-label">WPM</div></div>
-        <div class="dm-stat"><div class="dm-val">${acc}%</div><div class="dm-label">Accuracy</div></div>`;
-    document.getElementById('dm-msg').textContent = '';
+    document.getElementById('dm-stats').innerHTML =
+        '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
+        '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>';
+    document.getElementById('dm-msg').innerHTML = '<span style="color:#888; font-size:0.8rem; font-family:'Courier Prime',monospace;">press Enter to continue</span>';
     document.getElementById('dm-remediation').innerHTML = '';
     const btns = document.getElementById('dm-btns');
     btns.innerHTML = '';
     const next = document.createElement('button');
     next.className = 'dm-btn-primary'; next.textContent = 'Next Step →';
-    next.onclick = () => {
+    const advance = () => {
         drillModal.classList.add('hidden');
         document.getElementById('drill-keyboard-wrap').style.display = '';
+        document.removeEventListener('keydown', enterHandler);
         beginStep(nextIdx);
     };
+    next.onclick = advance;
     btns.appendChild(next);
+
+    // Enter key shortcut
+    function enterHandler(e) {
+        if (e.key === 'Enter') { e.preventDefault(); advance(); }
+    }
+    document.addEventListener('keydown', enterHandler);
 }
 
 function showLessonResultModal(wpm, acc) {
@@ -583,34 +587,55 @@ function showLessonResultModal(wpm, acc) {
     const btns = document.getElementById('dm-btns');
     btns.innerHTML = '';
 
+    // Enter key shortcut for primary action
+    const enterResultHandler = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.removeEventListener('keydown', enterResultHandler);
+            primaryAction();
+        }
+    };
+    document.addEventListener('keydown', enterResultHandler);
+
+    let primaryAction;
     if (passed) {
         const nextLesson = getNextLesson();
-        const nextBtn = document.createElement('button');
-        nextBtn.className = 'dm-btn-primary';
-        nextBtn.textContent = nextLesson ? 'Next Lesson →' : '📚 Go to Library';
-        nextBtn.onclick = () => {
+        primaryAction = () => {
+            document.removeEventListener('keydown', enterResultHandler);
             if (nextLesson) { startLesson(nextLesson); }
             else { window.location.href = 'index.html'; }
         };
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'dm-btn-primary';
+        nextBtn.textContent = nextLesson ? 'Next Lesson → (Enter)' : '📚 Go to Library';
+        nextBtn.onclick = primaryAction;
         btns.appendChild(nextBtn);
 
         const mapBtn = document.createElement('button');
         mapBtn.className = 'dm-btn-secondary'; mapBtn.textContent = 'Back to Map';
-        mapBtn.onclick = () => stopLesson();
+        mapBtn.onclick = () => {
+            document.removeEventListener('keydown', enterResultHandler);
+            stopLesson();
+        };
         btns.appendChild(mapBtn);
     } else {
-        const retryBtn = document.createElement('button');
-        retryBtn.className = 'dm-btn-primary'; retryBtn.textContent = 'Try Again';
-        retryBtn.onclick = () => {
+        primaryAction = () => {
+            document.removeEventListener('keydown', enterResultHandler);
             drillModal.classList.add('hidden');
             document.getElementById('drill-keyboard-wrap').style.display = '';
             startLesson(currentLesson);
         };
+        const retryBtn = document.createElement('button');
+        retryBtn.className = 'dm-btn-primary'; retryBtn.textContent = 'Try Again (Enter)';
+        retryBtn.onclick = primaryAction;
         btns.appendChild(retryBtn);
 
         const mapBtn = document.createElement('button');
         mapBtn.className = 'dm-btn-secondary'; mapBtn.textContent = 'Back to Map';
-        mapBtn.onclick = () => stopLesson();
+        mapBtn.onclick = () => {
+            document.removeEventListener('keydown', enterResultHandler);
+            stopLesson();
+        };
         btns.appendChild(mapBtn);
     }
 }
@@ -705,6 +730,26 @@ document.addEventListener('keydown', e => {
     if (capsEl) capsEl.classList.toggle('hidden', !e.getModifierState('CapsLock'));
 });
 
+// ─── Auto-refocus keyboard on click-back ─────────────────────────────────────
+// When a student clicks away (to a browser tab, to chat, etc.) and returns,
+// a click anywhere on the drill view restores keyboard focus automatically.
+document.getElementById('active-drill').addEventListener('click', () => {
+    if (!activeDrill.classList.contains('hidden') &&
+        drillModal.classList.contains('hidden') &&
+        drillKeyboard.onkeydown) {
+        drillKeyboard.focus();
+    }
+});
+// Also refocus on any keydown that lands on document while drill is active
+document.addEventListener('keydown', e => {
+    if (e.target !== drillKeyboard &&
+        !activeDrill.classList.contains('hidden') &&
+        drillModal.classList.contains('hidden') &&
+        drillKeyboard.onkeydown) {
+        drillKeyboard.focus();
+    }
+});
+
 // ─── Utils ────────────────────────────────────────────────────────────────────
 function escHtml(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -712,9 +757,11 @@ function escHtml(s) {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
+    // Stamp version into title bar and footer
+    document.title = 'TypeThatBook — School v' + LEARN_VERSION;
+    const footer = document.querySelector('footer');
+    if (footer) footer.textContent = 'School v' + LEARN_VERSION + ' / keyboard.js v' + KB_VERSION;
+
     await loadLessons();
-    // Auth state handled by onAuthStateChanged above
-    // which calls renderMap() when ready
-    // If not signed in, render immediately
     if (!currentUser) renderMap();
 })();
