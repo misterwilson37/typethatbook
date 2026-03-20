@@ -1,4 +1,4 @@
-/* TypeThatBook style.css v3.0.0 */
+/* TypeThatBook style.css v3.0.1 */
 :root {
     --bg-color: #ffffff;
     --text-color: #333333;
@@ -855,11 +855,16 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
     font-family: 'Courier Prime', monospace; font-size: 1.4rem; line-height: 1.8;
     max-width: 700px; width: 100%; word-break: break-word; text-align: left;
 }
-.dt-done    { color: #4CAF50; }
-.dt-current { color: #1a1a1a; background: var(--carolina-blue); border-radius: 2px; }
+/* Drill text character states — mirrors game.js book feel */
+.dt-done    { color: #aaa; }           /* muted: already typed, move on */
+.dt-current { color: #1a1a1a; background: var(--carolina-blue); border-radius: 2px; } /* next key: blue highlight */
 .dt-error   { color: #fff; background: #c62828; border-radius: 2px; }
-.dt-upcoming{ color: #888; }
-.dt-space-gap { display: inline-block; width: 0.5em; } /* visual gap — not a typed character */
+.dt-upcoming{ color: #444; }           /* upcoming: readable but not distracting */
+
+/* Space character states */
+.dt-space-gap     { display: inline-block; width: 0.5em; }   /* upcoming space: thin visual gap */
+.dt-space-done    { color: #ddd; font-size: 0.6em; vertical-align: middle; } /* done space: tiny dim dot */
+.dt-space-current { padding: 0 3px; }  /* current space: slightly wider so the · is easy to see */
 
 /* Drill keyboard wrap */
 #drill-keyboard-wrap { flex-shrink: 0; }
