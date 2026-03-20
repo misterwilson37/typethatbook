@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.1.5"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.1.6"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -485,12 +485,7 @@ function handleDrillKey(e) {
     if (e.key === 'Enter')     typed = '\n';
     else if (e.key === 'Tab')  typed = '\t';
     else if (e.key === 'Backspace') {
-        // Skip back over any spaces too
-        if (drillPos > 0) {
-            drillPos--;
-            while (drillPos > 0 && drillSequence[drillPos] === ' ') drillPos--;
-            renderDrillText(); advanceHandGuide();
-        }
+        if (drillPos > 0) { drillPos--; renderDrillText(); advanceHandGuide(); }
         e.preventDefault(); return;
     } else if (e.key.length === 1) {
         typed = e.key;
@@ -499,15 +494,15 @@ function handleDrillKey(e) {
     }
     e.preventDefault();
 
-    // Auto-skip any spaces at the current position before checking the typed key.
-    // This means spaces between groups/words are never a required keystroke —
-    // students just type continuously without hunting for the space at line breaks.
-    while (drillPos < drillSequence.length && drillSequence[drillPos] === ' ') {
+    // Idle-resume space skip: if the student was idle (> LEARN_IDLE_THRESHOLD)
+    // and the current position is a space, skip it once so they don't have to
+    // type a space as their first character back. During active typing every
+    // space is required as normal.
+    const wasIdle = learnLastInputTime > 0 && (Date.now() - learnLastInputTime) > LEARN_IDLE_THRESHOLD;
+    if (wasIdle && drillPos < drillSequence.length && drillSequence[drillPos] === ' ') {
         drillPos++;
-        learnLastInputTime = Date.now();
-        statsData.charsToday++; statsData.charsWeek++;
+        if (drillPos >= drillSequence.length) { finishStep(); return; }
     }
-    if (drillPos >= drillSequence.length) { finishStep(); return; }
     const newExpected = drillSequence[drillPos];
 
     chars++;
@@ -664,17 +659,17 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     document.getElementById('dm-stars').textContent = '';
 
     const dailyBadge = (goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds)
-        ? '<span class="goal-badge goal-daily" title="Daily goal reached!">✓</span>' : '';
+        ? '<span class="goal-badge goal-blue" title="Daily goal reached!">✓</span>' : '';
     const weeklyBadge = (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds)
-        ? '<span class="goal-badge goal-weekly" title="Weekly goal reached!">✓</span>' : '';
+        ? '<span class="goal-badge goal-blue" title="Weekly goal reached!">✓</span>' : '';
 
     document.getElementById('dm-stats').innerHTML =
-        dailyBadge +
         '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
-        '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>' +
-        weeklyBadge;
+        '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>';
     document.getElementById('dm-msg').innerHTML =
-        '<div style="color:#888;font-size:0.78rem;margin-bottom:4px;">Today: ' + formatTime(statsData.secondsToday) + ' typed</div>' +
+        '<div style="color:#888;font-size:0.78rem;margin-bottom:4px;">' +
+        dailyBadge + ' Today: ' + formatTime(statsData.secondsToday) + ' typed ' + weeklyBadge +
+        '</div>' +
         '<span style="color:#888;font-size:0.8rem;font-family:monospace;">press Enter to continue</span>';
     document.getElementById('dm-remediation').innerHTML = '';
     const btns = document.getElementById('dm-btns');
@@ -730,21 +725,21 @@ function showLessonResultModal(wpm, acc) {
     document.getElementById('dm-title').textContent = passed ? '🎉 Lesson Complete!' : 'Not quite yet…';
     document.getElementById('dm-stars').textContent = passed ? '⭐'.repeat(stars) + '☆'.repeat(3 - stars) : '☆☆☆';
     const rdBadge = (goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds)
-        ? '<span class="goal-badge goal-daily" title="Daily goal!">✓</span>' : '';
+        ? '<span class="goal-badge goal-blue" title="Daily goal!">✓</span>' : '';
     const rwBadge = (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds)
-        ? '<span class="goal-badge goal-weekly" title="Weekly goal!">✓</span>' : '';
+        ? '<span class="goal-badge goal-blue" title="Weekly goal!">✓</span>' : '';
     document.getElementById('dm-stats').innerHTML =
-        rdBadge +
         '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
         '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>' +
-        '<div class="dm-stat"><div class="dm-val">' + minWPM + '+</div><div class="dm-label">Target WPM</div></div>' +
-        rwBadge;
+        '<div class="dm-stat"><div class="dm-val">' + minWPM + '+</div><div class="dm-label">Target WPM</div></div>';
 
     const msg = passed
         ? `You hit ${wpm} WPM at ${acc}% accuracy. Gates: ${minWPM} WPM / ${minAcc}% accuracy.`
         : `You need ${minWPM} WPM and ${minAcc}% accuracy. You got ${wpm} WPM and ${acc}%. Try again!`;
     document.getElementById('dm-msg').innerHTML =
-        escHtml(msg) + '<br><span style="color:#888;font-size:0.78rem;">Today: ' + formatTime(statsData.secondsToday) + ' typed</span>';
+        escHtml(msg) + '<br><span style="color:#888;font-size:0.78rem;">' +
+        rdBadge + ' Today: ' + formatTime(statsData.secondsToday) + ' typed ' + rwBadge +
+        '</span>';
 
     // Remediation links for missed chars
     const remText = buildRemediationLinks();
