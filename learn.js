@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.1.2";
+const LEARN_VERSION = "1.1.3";
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -499,7 +499,7 @@ function advanceHandGuide() {
 
     // Space bar cue: show a small hint so students don't wonder what to press
     const spaceHint = document.getElementById('space-hint');
-    if (spaceHint) spaceHint.style.display = (ch === ' ') ? 'block' : 'none';
+    if (spaceHint) spaceHint.style.visibility = (ch === ' ') ? 'visible' : 'hidden';
 }
 
 // ─── HUD ─────────────────────────────────────────────────────────────────────
@@ -515,7 +515,7 @@ function finishStep() {
     clearInterval(timerInterval);
     drillKeyboard.onkeydown = null;
     const spaceHint = document.getElementById('space-hint');
-    if (spaceHint) spaceHint.style.display = 'none';
+    if (spaceHint) spaceHint.style.visibility = 'hidden';
     const anchorHint = document.getElementById('anchor-hint');
     if (anchorHint) anchorHint.style.display = 'none';
 
