@@ -1,4 +1,4 @@
-/* TypeThatBook style.css v2.9.5 */
+/* TypeThatBook style.css v3.0.0 */
 :root {
     --bg-color: #ffffff;
     --text-color: #333333;
@@ -370,7 +370,8 @@ body {
 .si-val small { font-size: 0.6em; font-weight: normal; color: #777; }
 .si-dot { color: #ccc; font-weight: normal; }
 
-.cumulative-row { display: flex; justify-content: center; gap: 30px; font-size: 0.95em; color: #666; margin: 6px 0; }
+.cumulative-row { display: flex; justify-content: center; align-items: center; gap: 12px; font-size: 0.88em; color: #666; margin: 6px 0; flex-wrap: wrap; }
+.cumulative-sep { color: #ccc; font-weight: normal; padding: 0 2px; }
 
 .goal-progress-row { display: flex; justify-content: center; gap: 20px; margin: 8px 0; font-size: 0.8rem; }
 .goal-item { display: flex; align-items: center; gap: 6px; }
@@ -743,3 +744,147 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
     white-space: nowrap;
     font-family: 'Courier New', monospace;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   SCHOOL (learn.html) STYLES
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Layout ── */
+#learn-container { display: flex; flex-direction: column; height: calc(100vh - 46px); }
+
+/* ── Map view ── */
+#map-view { flex: 1; overflow-y: auto; padding: 24px 16px 60px; background: var(--bg); }
+#map-view.hidden { display: none; }
+
+.map-unit-header {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px;
+    color: #bbb; margin: 24px 0 10px;
+    display: flex; align-items: center; gap: 10px;
+}
+.map-unit-header::after { content: ''; flex: 1; height: 1px; background: #333; }
+
+.map-lesson-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+
+.map-lesson-card {
+    background: #1a1a1a; border: 1px solid #333; border-radius: 6px;
+    padding: 12px 14px; cursor: pointer; transition: all 0.15s;
+    min-width: 160px; flex: 1; max-width: 220px; position: relative;
+}
+.map-lesson-card:hover:not(.locked) { border-color: var(--carolina-blue); transform: translateY(-2px); }
+.map-lesson-card.locked  { opacity: 0.45; cursor: default; }
+.map-lesson-card.completed   { border-color: #2a5c2a; }
+.map-lesson-card.active-next { border-color: var(--carolina-blue); box-shadow: 0 0 12px rgba(75,156,211,0.25); }
+
+.mlc-keys  { font-family: 'Courier Prime', monospace; font-size: 0.75rem; color: var(--carolina-blue); margin-bottom: 4px; letter-spacing: 1px; }
+.mlc-title { font-size: 0.85rem; font-weight: bold; color: #eee; line-height: 1.2; }
+.mlc-meta  { font-size: 0.7rem; color: #555; margin-top: 4px; font-family: 'Courier Prime', monospace; }
+.mlc-stars { position: absolute; top: 8px; right: 10px; font-size: 0.8rem; letter-spacing: 1px; }
+.mlc-lock  { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); font-size: 1.1rem; opacity: 0.4; }
+
+.map-graduate-btn {
+    display: block; width: 100%; max-width: 400px; margin: 32px auto 0;
+    padding: 14px; background: var(--carolina-blue); color: white;
+    border: none; border-radius: 6px; font-size: 1rem; font-weight: bold;
+    font-family: 'Courier Prime', monospace; cursor: pointer;
+    text-align: center; text-decoration: none; letter-spacing: 1px; transition: background 0.2s;
+}
+.map-graduate-btn:hover { background: #3a8ec0; }
+
+/* ── Drill view ── */
+#drill-view { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+#drill-view.hidden { display: none; }
+
+/* Intro panel */
+#intro-panel {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 20px; background: var(--bg); overflow-y: auto;
+}
+#intro-panel.hidden { display: none; }
+
+.intro-card {
+    background: #1a1a1a; border: 1px solid #333; border-radius: 8px;
+    padding: 28px 32px; max-width: 700px; width: 100%;
+}
+.intro-new-keys { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
+.intro-key-badge {
+    font-family: 'Courier Prime', monospace; font-size: 1.6rem; font-weight: bold;
+    background: #111; border: 2px solid var(--carolina-blue); border-radius: 6px;
+    padding: 6px 18px; color: var(--carolina-blue); min-width: 54px; text-align: center;
+}
+.intro-title { font-size: 1.1rem; font-weight: bold; color: #eee; text-align: center; margin-bottom: 8px; }
+.intro-text  { color: #aaa; font-size: 0.9rem; line-height: 1.6; text-align: center; margin-bottom: 20px; }
+
+/* Intro keyboard — no transform:scale (breaks SVG coordinate math) */
+#intro-keyboard-wrap { width: 100%; overflow-x: auto; margin: 0 auto 20px; }
+#intro-keyboard {
+    height: 305px; background: var(--accent-grey);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 5px; border-top: 4px solid var(--black); padding: 10px 0; min-width: 600px;
+}
+
+.intro-start-btn {
+    display: block; width: 100%; padding: 12px;
+    background: var(--carolina-blue); color: white; border: none;
+    border-radius: 4px; font-size: 1rem; font-weight: bold;
+    font-family: 'Courier Prime', monospace; cursor: pointer;
+    letter-spacing: 1px; transition: background 0.2s; margin-top: 8px;
+}
+.intro-start-btn:hover { background: #3a8ec0; }
+
+/* Active drill */
+#active-drill { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+#active-drill.hidden { display: none; }
+
+/* Step progress pips */
+#step-progress-bar { display: flex; gap: 6px; padding: 10px 16px; background: #111; border-bottom: 1px solid #222; flex-shrink: 0; }
+.step-pip { flex: 1; height: 4px; border-radius: 2px; background: #333; transition: background 0.3s; }
+.step-pip.done   { background: var(--carolina-blue); }
+.step-pip.active { background: #888; }
+
+/* Step label */
+#step-label {
+    text-align: center; font-size: 0.75rem; color: #555;
+    font-family: 'Courier Prime', monospace; padding: 4px 0;
+    flex-shrink: 0; letter-spacing: 1px; text-transform: uppercase;
+}
+
+/* Drill text */
+#drill-text-area { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px 24px; overflow: hidden; }
+#drill-text {
+    font-family: 'Courier Prime', monospace; font-size: 1.4rem; line-height: 1.8;
+    max-width: 700px; width: 100%; word-break: break-word; text-align: left;
+}
+.dt-done    { color: #4CAF50; }
+.dt-current { color: #1a1a1a; background: var(--carolina-blue); border-radius: 2px; }
+.dt-error   { color: #fff; background: #c62828; border-radius: 2px; }
+.dt-upcoming{ color: #888; }
+.dt-space-gap { display: inline-block; width: 0.5em; } /* visual gap — not a typed character */
+
+/* Drill keyboard wrap */
+#drill-keyboard-wrap { flex-shrink: 0; }
+
+/* Drill modal */
+#drill-modal {
+    background: white; border-top: 4px solid var(--carolina-blue);
+    flex-shrink: 0; display: flex; flex-direction: column;
+    box-sizing: border-box; height: 329px;
+    padding: 20px 30px; animation: slideUp 0.2s ease-out;
+}
+#drill-modal.hidden { display: none; }
+.dm-title  { font-size: 1.1rem; font-weight: bold; text-align: center; margin-bottom: 8px; }
+.dm-stats  { display: flex; justify-content: center; align-items: center; gap: 30px; margin: 12px 0; }
+.dm-stat   { text-align: center; }
+.dm-val    { font-size: 1.8rem; font-weight: bold; color: var(--carolina-blue); font-family: 'Courier Prime', monospace; }
+.dm-label  { font-size: 0.7rem; color: #999; text-transform: uppercase; letter-spacing: 1px; }
+.dm-stars  { font-size: 1.6rem; text-align: center; margin: 8px 0; }
+.dm-msg    { text-align: center; color: #555; font-size: 0.85rem; margin: 6px 0; }
+.dm-btns   { display: flex; gap: 12px; margin-top: auto; }
+.dm-btns button   { flex: 1; padding: 12px; border: none; border-radius: 4px; font-family: inherit; font-weight: bold; cursor: pointer; font-size: 0.9rem; }
+.dm-btn-primary   { background: var(--carolina-blue); color: white; }
+.dm-btn-secondary { background: #eee; color: #555; }
+.dm-btn-primary:hover   { background: #3a8ec0; }
+.dm-btn-secondary:hover { background: #ddd; }
+.dm-remediation { font-size: 0.78rem; color: #e65100; text-align: center; margin-top: 6px; }
+.dm-remediation a { color: #e65100; }
+.dm-graduation  { font-size: 2rem; text-align: center; margin: 8px 0; }
