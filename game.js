@@ -22,7 +22,7 @@ import {
     highlightKey as kbHighlightKey,
 } from "./keyboard.js";
 
-const VERSION = "3.0.3";
+const VERSION = "3.0.4";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -1147,8 +1147,11 @@ function triggerHardStop(targetChar, isAfk) {
         if (statsData.secondsToday > 0 || statsData.secondsWeek > 0) {
             statsHtml = `
                 <div class="cumulative-row" style="margin-top:10px;">
+                    ${(goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds) ? '<span class="goal-badge goal-blue" title="Daily goal!">✓</span>' : ''}
                     <span>Today: ${formatTime(statsData.secondsToday)} (${todayWPM} WPM | ${todayAcc}%)</span>
-                    <span>Week: ${formatTime(statsData.secondsWeek)} (${weekWPM} WPM | ${weekAcc}%)</span>
+                    <span class="cumulative-sep">|</span>
+                    <span>This week: ${formatTime(statsData.secondsWeek)} (${weekWPM} WPM | ${weekAcc}%)</span>
+                    ${(goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) ? '<span class="goal-badge goal-blue" title="Weekly goal!">✓</span>' : ''}
                 </div>
                 ${getGoalProgressHTML()}
             `;
@@ -1589,7 +1592,11 @@ async function finishChapter() {
                         <span class="si-val">${formatTime(sprintSeconds)}</span>
                     </div>
                     <div class="cumulative-row">
+                        ${(goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds) ? '<span class="goal-badge goal-blue" title="Daily goal!">✓</span>' : ''}
                         <span>Today: ${formatTime(statsData.secondsToday)} (${todayWPM} WPM | ${todayAcc}%)</span>
+                        <span class="cumulative-sep">|</span>
+                        <span>This week: ${formatTime(statsData.secondsWeek)} (${weekWPM} WPM | ${weekAcc}%)</span>
+                        ${(goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) ? '<span class="goal-badge goal-blue" title="Weekly goal!">✓</span>' : ''}
                     </div>
                     <div class="start-hint" style="margin-top:6px;">Press Enter to return</div>
                 </div>
@@ -1752,7 +1759,11 @@ function showStartModal(btnText) {
     const hasStats = statsData.secondsToday > 0 || statsData.secondsWeek > 0;
     const statsSection = hasStats ? `
         <div class="cumulative-row">
+            ${(goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds) ? '<span class="goal-badge goal-blue" title="Daily goal!">✓</span>' : ''}
             <span>Today: ${formatTime(statsData.secondsToday)} (${todayWPM} WPM | ${todayAcc}%)</span>
+            <span class="cumulative-sep">|</span>
+            <span>This week: ${formatTime(statsData.secondsWeek)} (${weekWPM} WPM | ${weekAcc}%)</span>
+            ${(goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) ? '<span class="goal-badge goal-blue" title="Weekly goal!">✓</span>' : ''}
         </div>
         ${getGoalProgressHTML()}
     ` : (goals.dailySeconds > 0 || goals.weeklySeconds > 0) ? getGoalProgressHTML() : '';
@@ -1821,11 +1832,11 @@ function showStatsModal(title, stats, btnText, callback, hint, instant) {
                     ${bestStreak > 0 ? `<span class="si-dot">·</span><span class="si-val">🔥${bestStreak}</span>` : ''}
                 </div>
                 <div class="cumulative-row">
-                    <span>
-                        ${(goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds) ? '<span class="goal-badge goal-blue" title="Daily goal reached!">✓</span> ' : ''}
-                        Today: ${stats.today}
-                        ${(goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) ? ' <span class="goal-badge goal-blue" title="Weekly goal reached!">✓</span>' : ''}
-                    </span>
+                    ${(goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds) ? '<span class="goal-badge goal-blue" title="Daily goal!">✓</span>' : ''}
+                    <span>Today: ${stats.today}</span>
+                    <span class="cumulative-sep">|</span>
+                    <span>This week: ${stats.week}</span>
+                    ${(goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) ? '<span class="goal-badge goal-blue" title="Weekly goal!">✓</span>' : ''}
                 </div>
                 ${getGoalProgressHTML()}
                 ${getSprintHistoryHTML()}
