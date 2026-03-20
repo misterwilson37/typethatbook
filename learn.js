@@ -15,10 +15,8 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const VERSION = "1.0.1";
-const LEARN_VERSION = "1.1.1";
+const LEARN_VERSION = "1.1.2";
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
-const ANCHOR_FLASH_MS = 1800;   // how long the anchor warning stays visible
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -40,7 +38,6 @@ let timerInterval  = null;
 let introAnimTimer = null;
 let introAnimFrame = 0;   // 0 = home, 1 = reach
 let fingerMap      = buildFingerMap(LAYOUT);
-let anchorLiftWarningActive = false;
 let missedChars    = {};  // char → count for this lesson
 
 // ─── DOM ─────────────────────────────────────────────────────────────────────
@@ -61,7 +58,6 @@ const drillModal     = document.getElementById('drill-modal');
 const drillKeyboard  = document.getElementById('virtual-keyboard');
 const wpmDisplay     = document.getElementById('wpm-display');
 const accDisplay     = document.getElementById('acc-display');
-const anchorWarning  = document.getElementById('anchor-warning');
 const mapProgressEl  = document.getElementById('map-progress-summary');
 const graduateLink   = document.getElementById('graduate-link');
 const backBtn        = document.getElementById('back-btn');
@@ -253,8 +249,20 @@ function showIntro(lesson) {
 
     introStartBtn.onclick = () => {
         stopIntroAnim();
+        document.removeEventListener('keydown', introEnterHandler);
         beginStep(0);
     };
+
+    // Enter key activates Start Lesson from the intro screen
+    function introEnterHandler(e) {
+        if (e.key === 'Enter' && !introPanel.classList.contains('hidden')) {
+            e.preventDefault();
+            document.removeEventListener('keydown', introEnterHandler);
+            stopIntroAnim();
+            beginStep(0);
+        }
+    }
+    document.addEventListener('keydown', introEnterHandler);
 }
 
 // ─── Intro Animation ──────────────────────────────────────────────────────────
@@ -331,6 +339,18 @@ function beginStep(stepIdx) {
     // Set up keypress handling
     drillKeyboard.onkeydown = handleDrillKey;
     drillKeyboard.focus();
+
+    // Show a static anchor hint below the step label when anchorEnforced is true.
+    // This replaces the reactive popup — it informs without alarming.
+    const anchorHint = document.getElementById('anchor-hint');
+    if (anchorHint) {
+        if (currentStep.anchorEnforced && (currentLesson.anchorKeys || []).length) {
+            anchorHint.textContent = '💡 Rest your other fingers lightly on the home keys between strokes.';
+            anchorHint.style.display = 'block';
+        } else {
+            anchorHint.style.display = 'none';
+        }
+    }
 }
 
 function buildSequence(step) {
@@ -377,11 +397,7 @@ function handleDrillKey(e) {
         return;
     }
 
-    // Check that anchor keys are being held when typing a non-anchor key
-    if (anchors.length) {
-        const missing = anchors.filter(k => !heldKeys.has(k));
-        if (missing.length > 0) flashAnchorWarning(missing);
-    }
+    // Anchor key reminder is shown as a static hint (not reactive) — see beginStep()
 
     if (drillPos >= drillSequence.length) return;
     const expected = drillSequence[drillPos];
@@ -427,16 +443,7 @@ const heldKeys = new Set();
 window.addEventListener('keydown', e => { if (e.key.length === 1) heldKeys.add(e.key.toLowerCase()); });
 window.addEventListener('keyup',   e => { if (e.key.length === 1) heldKeys.delete(e.key.toLowerCase()); });
 
-function flashAnchorWarning(missingKeys) {
-    if (anchorLiftWarningActive) return;
-    anchorLiftWarningActive = true;
-    anchorWarning.textContent = `⚠ Keep ${missingKeys.map(k => k.toUpperCase()).join(', ')} on the home row!`;
-    anchorWarning.classList.add('visible');
-    setTimeout(() => {
-        anchorWarning.classList.remove('visible');
-        anchorLiftWarningActive = false;
-    }, ANCHOR_FLASH_MS);
-}
+
 
 function flashTargetKey() {
     const expected = drillSequence[drillPos];
@@ -475,19 +482,24 @@ function advanceHandGuide() {
     if (drillPos >= drillSequence.length) return;
     const ch = drillSequence[drillPos];
     setHandGuideToChar(drillKeyboard, fingerMap, LAYOUT, ch);
-    // Show shift state on keyboard
     const info = getFingerInfo(fingerMap, ch);
     toggleKeyboardCase(drillKeyboard, info?.shift || false);
-    // Highlight the target key
+
+    // Highlight target key (scoped querySelector, not getElementById)
     drillKeyboard.querySelectorAll('.key').forEach(k => k.classList.remove('target'));
-    const info2 = getFingerInfo(fingerMap, ch);
-    if (info2) {
-        const el = document.getElementById(`key-${info2.keyChar}`);
-        if (el) el.classList.add('target');
-    } else if (ch === ' ') {
-        const sp = document.getElementById('key- ');
+    if (ch === ' ') {
+        const sp = drillKeyboard.querySelector('.key.space');
         if (sp) sp.classList.add('target');
+    } else if (info) {
+        // Find by data-char
+        const el = Array.from(drillKeyboard.querySelectorAll('[data-char]'))
+            .find(k => k.dataset.char === info.keyChar);
+        if (el) el.classList.add('target');
     }
+
+    // Space bar cue: show a small hint so students don't wonder what to press
+    const spaceHint = document.getElementById('space-hint');
+    if (spaceHint) spaceHint.style.display = (ch === ' ') ? 'block' : 'none';
 }
 
 // ─── HUD ─────────────────────────────────────────────────────────────────────
@@ -502,6 +514,10 @@ function updateHUD() {
 function finishStep() {
     clearInterval(timerInterval);
     drillKeyboard.onkeydown = null;
+    const spaceHint = document.getElementById('space-hint');
+    if (spaceHint) spaceHint.style.display = 'none';
+    const anchorHint = document.getElementById('anchor-hint');
+    if (anchorHint) anchorHint.style.display = 'none';
 
     const wpm = stepSeconds > 0 ? Math.round((chars / 5) / (stepSeconds / 60)) : 0;
     const acc = chars > 0 ? Math.round(((chars - mistakes) / chars) * 100) : 100;
