@@ -15,8 +15,8 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const VERSION = "1.0.0";
-const LEARN_VERSION = "1.1.0";
+const VERSION = "1.0.1";
+const LEARN_VERSION = "1.1.1";
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const ANCHOR_FLASH_MS = 1800;   // how long the anchor warning stays visible
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
@@ -526,7 +526,7 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     document.getElementById('dm-stats').innerHTML =
         '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
         '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>';
-    document.getElementById('dm-msg').innerHTML = '<span style="color:#888; font-size:0.8rem; font-family:'Courier Prime',monospace;">press Enter to continue</span>';
+    document.getElementById('dm-msg').innerHTML = '<span style="color:#888; font-size:0.8rem; font-family:monospace;">press Enter to continue</span>';
     document.getElementById('dm-remediation').innerHTML = '';
     const btns = document.getElementById('dm-btns');
     btns.innerHTML = '';
