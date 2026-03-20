@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeThatBook — Library 2.3.1</title>
+    <title>TypeThatBook — Library 2.3.2</title>
     <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Bitter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -248,7 +248,10 @@
     <div id="library-view" class="hidden">
         <div class="hero">
             <h1>Choose Your Book</h1>
-            <p>Pick a story and start typing — <a href="#" id="back-to-landing" style="color:var(--text-muted);">← back</a></p>
+            <p>
+                <a href="#" id="back-to-landing" style="color:var(--text-muted); margin-right:16px;">← Landing</a>
+                <a href="learn.html" style="color:var(--text-muted);">⌨ Go to School</a>
+            </p>
         </div>
         <div class="filter-bar" id="filter-bar">
             <button class="filter-pill active" data-genre="all">All</button>
@@ -267,22 +270,17 @@
         const landingView  = document.getElementById('landing-view');
         const libraryView  = document.getElementById('library-view');
 
-        // Remember last choice in sessionStorage so refresh stays in place
-        const lastMode = sessionStorage.getItem('ttb_mode');
-        if (lastMode === 'library') { showLibrary(); }
-        // else stay on landing
+        // Don't auto-redirect on load — always show the landing first.
+        // Students can navigate freely between landing/library/school.
 
         document.getElementById('go-school').addEventListener('click', () => {
-            sessionStorage.setItem('ttb_mode', 'school');
             window.location.href = 'learn.html';
         });
         document.getElementById('go-library').addEventListener('click', () => {
-            sessionStorage.setItem('ttb_mode', 'library');
             showLibrary();
         });
         document.getElementById('back-to-landing').addEventListener('click', e => {
             e.preventDefault();
-            sessionStorage.removeItem('ttb_mode');
             libraryView.classList.add('hidden');
             landingView.classList.remove('hidden');
         });
