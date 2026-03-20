@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.1.7"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.1.9"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -555,21 +555,37 @@ function renderDrillText(showError = false) {
 
     // Build word-groups so CSS never splits a group across lines.
     // Each space-separated run of chars is wrapped in a nowrap span.
-    // Spaces between groups are rendered as a small gap span (not a required keystroke).
+    // Spaces are rendered differently by state:
+    //   upcoming  → thin gap (no clutter)
+    //   current   → blue-highlighted · dot (clearly shows "type a space here")
+    //   done      → small dim · dot (shows it was typed, doesn't dominate)
     const groups = [];
     let cur = [];
-    seq.forEach((ch, i) => { if (ch === ' ') { if (cur.length) { groups.push(cur); cur = []; } groups.push([{ch:' ', i}]); } else { cur.push({ch, i}); } });
+    seq.forEach((ch, i) => {
+        if (ch === ' ') { if (cur.length) { groups.push(cur); cur = []; } groups.push([{ch:' ', i}]); }
+        else { cur.push({ch, i}); }
+    });
     if (cur.length) groups.push(cur);
 
     let html = '';
     groups.forEach(group => {
         const isSpace = group.length === 1 && group[0].ch === ' ';
         if (isSpace) {
-            // Render space as a thin gap — not highlighted, not a required keystroke
-            html += '<span class="dt-space-gap"> </span>';
+            const {i} = group[0];
+            if (i < drillPos) {
+                // Done space: tiny dim dot, inline so it takes almost no room
+                html += '<span class="dt-space-done">·</span>';
+            } else if (i === drillPos) {
+                // Current space: visible highlighted dot — student clearly sees something to type
+                const cls = showError ? 'dt-error' : 'dt-current';
+                html += '<span class="' + cls + ' dt-space-current" id="dt-cursor">·</span>';
+            } else {
+                // Upcoming space: thin gap only
+                html += '<span class="dt-space-gap"> </span>';
+            }
             return;
         }
-        // Wrap non-space group in nowrap container
+        // Wrap non-space group in nowrap container so it never splits across lines
         html += '<span style="display:inline-block;white-space:nowrap;">';
         group.forEach(({ch, i}) => {
             const disp = ch === '\n' ? '↵' : escHtml(ch);
@@ -601,13 +617,11 @@ function advanceHandGuide() {
     const info = getFingerInfo(fingerMap, ch);
     toggleKeyboardCase(drillKeyboard, info?.shift || false);
 
-    // Highlight target key (scoped querySelector, not getElementById)
+    // Highlight target key. For space, setHandGuideToChar already adds space-active
+    // (which shows the thumb circles via CSS ::before/::after). Don't also add 'target'
+    // since that applies a solid blue background that hides the thumb indicators.
     drillKeyboard.querySelectorAll('.key').forEach(k => k.classList.remove('target'));
-    if (ch === ' ') {
-        const sp = drillKeyboard.querySelector('.key.space');
-        if (sp) sp.classList.add('target');
-    } else if (info) {
-        // Find by data-char
+    if (ch !== ' ' && info) {
         const el = Array.from(drillKeyboard.querySelectorAll('[data-char]'))
             .find(k => k.dataset.char === info.keyChar);
         if (el) el.classList.add('target');
