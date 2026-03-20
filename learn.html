@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeThatBook — School v1.1.0</title>
+    <title>TypeThatBook — School v1.1.1</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
     <style>
@@ -150,15 +150,7 @@
         .dt-error   { color: #fff; background: #c62828; border-radius: 2px; }
         .dt-upcoming{ color: #888; }
 
-        /* Anchor warning */
-        #anchor-warning {
-            display: none; position: fixed; top: 56px; left: 50%; transform: translateX(-50%);
-            background: #e65100; color: white; padding: 6px 16px;
-            border-radius: 20px; font-size: 0.8rem; z-index: 50;
-            font-family: 'Courier Prime', monospace; letter-spacing: 0.5px;
-            pointer-events: none;
-        }
-        #anchor-warning.visible { display: block; }
+        /* anchor-hint and space-hint are inline elements in active-drill */
 
         /* Step label */
         #step-label {
@@ -221,7 +213,6 @@
         </div>
     </div>
 
-    <div id="anchor-warning">⚠ Keep your fingers on the home keys!</div>
     <div id="caps-warning" class="hidden">⚠ CAPS LOCK IS ON</div>
 
     <div id="learn-container">
@@ -256,6 +247,8 @@
             <div id="active-drill" class="hidden">
                 <div id="step-progress-bar"></div>
                 <div id="step-label"></div>
+                <div id="anchor-hint" style="display:none; text-align:center; font-size:0.78rem; color:#888; padding:4px 16px; font-family:'Courier Prime',monospace;"></div>
+                <div id="space-hint"  style="display:none; text-align:center; font-size:0.78rem; color:#888; padding:2px 16px; font-family:'Courier Prime',monospace;">👍 Press the space bar with either thumb</div>
                 <div id="drill-text-area">
                     <div id="drill-text"></div>
                 </div>
