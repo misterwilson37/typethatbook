@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.1.6"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.1.7"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -667,8 +667,12 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
         '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
         '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>';
     document.getElementById('dm-msg').innerHTML =
-        '<div style="color:#888;font-size:0.78rem;margin-bottom:4px;">' +
-        dailyBadge + ' Today: ' + formatTime(statsData.secondsToday) + ' typed ' + weeklyBadge +
+        '<div class="cumulative-row" style="font-size:0.78rem;margin-bottom:4px;">' +
+        dailyBadge +
+        '<span>Today: ' + formatTime(statsData.secondsToday) + '</span>' +
+        '<span class="cumulative-sep">|</span>' +
+        '<span>This week: ' + formatTime(statsData.secondsWeek) + '</span>' +
+        weeklyBadge +
         '</div>' +
         '<span style="color:#888;font-size:0.8rem;font-family:monospace;">press Enter to continue</span>';
     document.getElementById('dm-remediation').innerHTML = '';
@@ -737,9 +741,14 @@ function showLessonResultModal(wpm, acc) {
         ? `You hit ${wpm} WPM at ${acc}% accuracy. Gates: ${minWPM} WPM / ${minAcc}% accuracy.`
         : `You need ${minWPM} WPM and ${minAcc}% accuracy. You got ${wpm} WPM and ${acc}%. Try again!`;
     document.getElementById('dm-msg').innerHTML =
-        escHtml(msg) + '<br><span style="color:#888;font-size:0.78rem;">' +
-        rdBadge + ' Today: ' + formatTime(statsData.secondsToday) + ' typed ' + rwBadge +
-        '</span>';
+        escHtml(msg) +
+        '<div class="cumulative-row" style="font-size:0.78rem;margin-top:4px;">' +
+        rdBadge +
+        '<span>Today: ' + formatTime(statsData.secondsToday) + '</span>' +
+        '<span class="cumulative-sep">|</span>' +
+        '<span>This week: ' + formatTime(statsData.secondsWeek) + '</span>' +
+        rwBadge +
+        '</div>';
 
     // Remediation links for missed chars
     const remText = buildRemediationLinks();
