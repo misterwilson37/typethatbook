@@ -22,7 +22,7 @@ import {
     highlightKey as kbHighlightKey,
 } from "./keyboard.js";
 
-const VERSION = "3.0.1.1";
+const VERSION = "3.0.3";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -1813,17 +1813,19 @@ function showStatsModal(title, stats, btnText, callback, hint, instant) {
             <div class="${hasTrophies ? 'stats-main' : ''}">
                 <div class="stats-title">${title}</div>
                 <div class="stats-inline" style="position:relative;">
-                    ${(goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds) ? '<span class="goal-badge goal-daily" title="Daily goal reached!">✓</span>' : ''}
                     <span class="si-val">${stats.wpm} <small>WPM</small></span>
                     <span class="si-dot">·</span>
                     <span class="si-val">${stats.acc}% <small>Acc</small></span>
                     <span class="si-dot">·</span>
                     <span class="si-val">${formatTime(stats.time)}</span>
                     ${bestStreak > 0 ? `<span class="si-dot">·</span><span class="si-val">🔥${bestStreak}</span>` : ''}
-                    ${(goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) ? '<span class="goal-badge goal-weekly" title="Weekly goal reached!">✓</span>' : ''}
                 </div>
                 <div class="cumulative-row">
-                    <span>Today: ${stats.today}</span>
+                    <span>
+                        ${(goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds) ? '<span class="goal-badge goal-blue" title="Daily goal reached!">✓</span> ' : ''}
+                        Today: ${stats.today}
+                        ${(goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) ? ' <span class="goal-badge goal-blue" title="Weekly goal reached!">✓</span>' : ''}
+                    </span>
                 </div>
                 ${getGoalProgressHTML()}
                 ${getSprintHistoryHTML()}
@@ -3632,6 +3634,17 @@ async function logPracticeSession(wpm, acc, seconds, chars, mistakes) {
         });
     } catch(e) { console.warn("Practice session log failed:", e); }
 }
+
+// Save stats when student navigates away mid-sprint so School picks up correct totals.
+window.addEventListener('beforeunload', () => {
+    if (currentUser && !currentUser.isAnonymous && isGameActive) {
+        // Best-effort async save — completes on desktop, fire-and-forget on mobile
+        isGameActive = false;
+        clearInterval(timerInterval);
+        setDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'),
+            statsData, { merge: true }).catch(() => {});
+    }
+});
 
 // ES modules are deferred — DOM is always ready by the time this runs.
 // Calling init() directly is safer than window.onload which can race on some browsers.
