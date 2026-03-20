@@ -22,7 +22,7 @@ import {
     highlightKey as kbHighlightKey,
 } from "./keyboard.js";
 
-const VERSION = "3.0.1";
+const VERSION = "3.0.1.1";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -94,6 +94,7 @@ let mistakes = 0; let sprintMistakes = 0;
 let consecutiveMistakes = 0;
 let activeSeconds = 0; let sprintSeconds = 0;
 let sprintCharStart = 0; let timerInterval = null;
+let _currentSprintStartTime = null;
 let isGameActive = false; let isOvertime = false;
 let isModalOpen = false; let isInputBlocked = false;
 let modalGeneration = 0;
@@ -765,6 +766,7 @@ function startGame() {
     }
 
     sprintSeconds = 0; sprintMistakes = 0; sprintCharStart = currentCharIndex;
+    _currentSprintStartTime = new Date();
     activeSeconds = 0; timeAccumulator = 0; lastInputTime = Date.now();
     consecutiveMistakes = 0; backspaceOrigin = -1;
     currentStreak = 0; streakMilestone = 0;
@@ -1400,7 +1402,7 @@ async function pauseGameForBreak() {
     anonTotalSeconds += sprintSeconds;
 
     // Record sprint in history
-    sprintHistory.push({ wpm: sprintWPM, acc: sprintAcc, time: sprintSeconds });
+    sprintHistory.push({ wpm: sprintWPM, acc: sprintAcc, time: sprintSeconds, startedAt: _currentSprintStartTime || null });
 
     // Update leaderboard and get placements
     const placements = await updateLeaderboard();
@@ -1535,10 +1537,20 @@ function getPlacementsHTML(placements) {
 function getSprintHistoryHTML() {
     if (sprintHistory.length <= 1) return '';
     const rows = sprintHistory.map((s, i) => {
-        const label = i === sprintHistory.length - 1 ? '<b>→</b>' : `${i + 1}`;
-        return `<span style="color:#999;">${label}</span> ${s.wpm}<small>wpm</small> ${s.acc}<small>%</small>`;
+        const isCurrent = i === sprintHistory.length - 1;
+        let timeLabel = '';
+        if (s.startedAt) {
+            const h = s.startedAt.getHours();
+            const m = String(s.startedAt.getMinutes()).padStart(2, '0');
+            const ampm = h >= 12 ? 'pm' : 'am';
+            timeLabel = `${h % 12 || 12}:${m}${ampm}`;
+        } else {
+            timeLabel = String(i + 1);
+        }
+        const label = isCurrent ? `<b>${timeLabel}</b>` : `<span style="color:#999;">${timeLabel}</span>`;
+        return `${label} ${s.wpm}<small>wpm</small> ${s.acc}<small>%</small>`;
     }).join(' · ');
-    return `<div style="font-size:0.75em; color:#777; margin:4px 0; line-height:1.6;">Sprints: ${rows}</div>`;
+    return `<div style="font-size:0.75em; color:#777; margin:4px 0; line-height:1.6;">${rows}</div>`;
 }
 
 async function finishChapter() {
@@ -1578,7 +1590,6 @@ async function finishChapter() {
                     </div>
                     <div class="cumulative-row">
                         <span>Today: ${formatTime(statsData.secondsToday)} (${todayWPM} WPM | ${todayAcc}%)</span>
-                        <span>Week: ${formatTime(statsData.secondsWeek)} (${weekWPM} WPM | ${weekAcc}%)</span>
                     </div>
                     <div class="start-hint" style="margin-top:6px;">Press Enter to return</div>
                 </div>
@@ -1742,7 +1753,6 @@ function showStartModal(btnText) {
     const statsSection = hasStats ? `
         <div class="cumulative-row">
             <span>Today: ${formatTime(statsData.secondsToday)} (${todayWPM} WPM | ${todayAcc}%)</span>
-            <span>Week: ${formatTime(statsData.secondsWeek)} (${weekWPM} WPM | ${weekAcc}%)</span>
         </div>
         ${getGoalProgressHTML()}
     ` : (goals.dailySeconds > 0 || goals.weeklySeconds > 0) ? getGoalProgressHTML() : '';
@@ -1802,17 +1812,18 @@ function showStatsModal(title, stats, btnText, callback, hint, instant) {
             ${hasTrophies ? '<div class="stats-balance"></div>' : ''}
             <div class="${hasTrophies ? 'stats-main' : ''}">
                 <div class="stats-title">${title}</div>
-                <div class="stats-inline">
+                <div class="stats-inline" style="position:relative;">
+                    ${(goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds) ? '<span class="goal-badge goal-daily" title="Daily goal reached!">✓</span>' : ''}
                     <span class="si-val">${stats.wpm} <small>WPM</small></span>
                     <span class="si-dot">·</span>
                     <span class="si-val">${stats.acc}% <small>Acc</small></span>
                     <span class="si-dot">·</span>
                     <span class="si-val">${formatTime(stats.time)}</span>
                     ${bestStreak > 0 ? `<span class="si-dot">·</span><span class="si-val">🔥${bestStreak}</span>` : ''}
+                    ${(goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) ? '<span class="goal-badge goal-weekly" title="Weekly goal reached!">✓</span>' : ''}
                 </div>
                 <div class="cumulative-row">
                     <span>Today: ${stats.today}</span>
-                    <span>Week: ${stats.week}</span>
                 </div>
                 ${getGoalProgressHTML()}
                 ${getSprintHistoryHTML()}
@@ -3622,4 +3633,10 @@ async function logPracticeSession(wpm, acc, seconds, chars, mistakes) {
     } catch(e) { console.warn("Practice session log failed:", e); }
 }
 
-window.onload = init;
+// ES modules are deferred — DOM is always ready by the time this runs.
+// Calling init() directly is safer than window.onload which can race on some browsers.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
