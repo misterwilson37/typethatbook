@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.1.9"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.2.0"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -573,12 +573,12 @@ function renderDrillText(showError = false) {
         if (isSpace) {
             const {i} = group[0];
             if (i < drillPos) {
-                // Done space: tiny dim dot, inline so it takes almost no room
-                html += '<span class="dt-space-done">·</span>';
+                // Done space: invisible, same as book
+                html += '<span class="dt-space-gap"> </span>';
             } else if (i === drillPos) {
-                // Current space: visible highlighted dot — student clearly sees something to type
+                // Current space: plain blue box over blank — identical to book/game appearance
                 const cls = showError ? 'dt-error' : 'dt-current';
-                html += '<span class="' + cls + ' dt-space-current" id="dt-cursor">·</span>';
+                html += '<span class="' + cls + '" id="dt-cursor">&nbsp;</span>';
             } else {
                 // Upcoming space: thin gap only
                 html += '<span class="dt-space-gap"> </span>';
