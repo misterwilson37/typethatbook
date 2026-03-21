@@ -1,4 +1,4 @@
-/* TypeThatBook style.css v3.0.3 */
+/* TypeThatBook style.css v3.0.4 */
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -868,7 +868,7 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
 /* Done: solid black like book (.letter.done-perfect = var(--black)) */
 .dt-done     { color: var(--black); }
 /* Current: blue highlight, 3px radius, dark text — matches .letter.active */
-.dt-current  { color: #1a1a1a; background: var(--carolina-blue); border-radius: 3px; }
+.dt-current  { color: #1a1a1a; background: var(--carolina-blue); border-radius: 3px; display: inline-block; }
 /* Error: light pink bg + black text — matches book's .letter.active.error-state */
 .dt-error    { color: var(--black); background: var(--error-bg); border-radius: 3px; }
 /* Space gap between groups — visual only */
