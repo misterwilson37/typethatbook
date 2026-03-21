@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.2.2"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.2.4"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -588,7 +588,8 @@ function renderDrillText(showError = false) {
                     html += '<span class="dt-space-gap"> </span>';
                 } else if (i === drillPos) {
                     const cls = showError ? 'dt-error' : 'dt-current';
-                    html += '<span class="' + cls + '" id="dt-cursor">&nbsp;</span>';
+                    // dt-space-current constrains width to match dt-space-gap (0.5em, no padding)
+                    html += '<span class="' + cls + ' dt-space-current" id="dt-cursor"></span>';
                 } else {
                     html += '<span class="dt-space-gap"> </span>';
                 }
