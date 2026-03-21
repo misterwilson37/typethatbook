@@ -1,6 +1,7 @@
-/* TypeThatBook style.css v3.0.2 */
+/* TypeThatBook style.css v3.0.3 */
 :root {
     --bg-color: #ffffff;
+    --bg: #ffffff;           /* alias used by learn.html */
     --text-color: #333333;
     --carolina-blue: #4B9CD3; 
     --corrected-color: #0047AB; 
@@ -852,17 +853,26 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
 /* Drill text */
 #drill-text-area { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px 24px; overflow: hidden; }
 #drill-text {
-    font-family: 'Courier Prime', monospace; font-size: 1.4rem; line-height: 1.8;
-    max-width: 700px; width: 100%; word-break: break-word; text-align: left;
+    font-family: 'Courier Prime', monospace; font-size: 1.4rem;
+    /* line-height matches book's .letter (2.0em); width gives breathing room */
+    line-height: 2.0em;
+    max-width: 700px; width: 100%;
+    /* word-break removed — white-space:nowrap groups handle wrapping correctly */
+    text-align: left;
 }
-/* Drill text character states — mirrors game.js book feel */
-.dt-done    { color: #aaa; }           /* muted: already typed, move on */
-.dt-current { color: #1a1a1a; background: var(--carolina-blue); border-radius: 2px; } /* next key: blue highlight */
-.dt-error   { color: #fff; background: #c62828; border-radius: 2px; }
-.dt-upcoming{ color: #444; }           /* upcoming: readable but not distracting */
-
-/* Space character states */
-.dt-space-gap { display: inline-block; width: 0.5em; } /* space between groups */
+/* Per-character padding and min-width match book's .letter (14.4px / padding 0 1px) */
+#drill-text span { padding: 0 1px; display: inline; }
+/* Drill text character states — matched to book/game .letter styles */
+/* Upcoming: same light grey as book (.letter default #ccc) */
+.dt-upcoming { color: #ccc; }
+/* Done: solid black like book (.letter.done-perfect = var(--black)) */
+.dt-done     { color: var(--black); }
+/* Current: blue highlight, 3px radius, dark text — matches .letter.active */
+.dt-current  { color: #1a1a1a; background: var(--carolina-blue); border-radius: 3px; }
+/* Error: light pink bg + black text — matches book's .letter.active.error-state */
+.dt-error    { color: var(--black); background: var(--error-bg); border-radius: 3px; }
+/* Space gap between groups — visual only */
+.dt-space-gap { display: inline-block; width: 0.5em; }
 
 /* Drill keyboard wrap */
 #drill-keyboard-wrap { flex-shrink: 0; }
