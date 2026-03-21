@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.2.4"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.2.5"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -553,57 +553,44 @@ function flashTargetKey() {
 function renderDrillText(showError = false) {
     const seq = drillSequence;
 
-    // Build word-groups so CSS never splits a group across lines.
-    // Key insight: spaces are attached to the END of their preceding group
-    // inside the same nowrap wrapper. This matches how browsers handle normal
-    // text wrapping — a line never starts with a space, so the space can't
-    // drag the next group to the beginning of a new line.
-    // Each group: [{ch, i}, ...chars, optionally {ch:' ', i:spaceIdx}]
+    // Render exactly like the book: every character (including space) is the same
+    // .dt-char inline-block span with identical min-width and padding.
+    // State classes change color only — never dimensions.
+    // Groups of non-space chars are wrapped in a nowrap container so CSS
+    // line-wrapping never splits a group mid-character. Each trailing space
+    // is attached to the end of its preceding group so lines never start
+    // with a bare space.
+
+    // Build groups: each group is a run of chars ending with optional space
     const groups = [];
     let cur = [];
     seq.forEach((ch, i) => {
+        cur.push({ch, i});
         if (ch === ' ') {
-            // Attach space to end of current group (or make orphan group if nothing before it)
-            if (cur.length) {
-                cur.push({ch:' ', i});
-                groups.push(cur);
-                cur = [];
-            }
-            // Space with nothing before it (start of sequence) — standalone gap
-            // This shouldn't happen in practice but handle gracefully
-        } else {
-            cur.push({ch, i});
+            groups.push(cur);
+            cur = [];
         }
     });
     if (cur.length) groups.push(cur);
 
     let html = '';
     groups.forEach(group => {
-        // Wrap entire group (including trailing space if present) in nowrap container
+        // Wrap group in nowrap so it never splits across lines
         html += '<span style="display:inline-block;white-space:nowrap;">';
         group.forEach(({ch, i}) => {
-            if (ch === ' ') {
-                // Space at end of group — render by state but stays attached to preceding chars
-                if (i < drillPos) {
-                    html += '<span class="dt-space-gap"> </span>';
-                } else if (i === drillPos) {
-                    const cls = showError ? 'dt-error' : 'dt-current';
-                    // dt-space-current constrains width to match dt-space-gap (0.5em, no padding)
-                    html += '<span class="' + cls + ' dt-space-current" id="dt-cursor"></span>';
-                } else {
-                    html += '<span class="dt-space-gap"> </span>';
-                }
+            // Space displays as &nbsp; — invisible but identical width to any letter
+            const disp = (ch === ' ') ? '&nbsp;' : (ch === '\n' ? '↵' : escHtml(ch));
+            let cls;
+            if (i < drillPos) {
+                cls = 'dt-char dt-done';
+            } else if (i === drillPos) {
+                cls = showError ? 'dt-char dt-error' : 'dt-char dt-current';
+                html += '<span class="' + cls + '" id="dt-cursor">' + disp + '</span>';
+                return; // skip the default append below
             } else {
-                const disp = ch === '\n' ? '↵' : escHtml(ch);
-                if (i < drillPos) {
-                    html += '<span class="dt-done">' + disp + '</span>';
-                } else if (i === drillPos) {
-                    const cls = showError ? 'dt-error' : 'dt-current';
-                    html += '<span class="' + cls + '" id="dt-cursor">' + disp + '</span>';
-                } else {
-                    html += '<span class="dt-upcoming">' + disp + '</span>';
-                }
+                cls = 'dt-char dt-upcoming';
             }
+            html += '<span class="' + cls + '">' + disp + '</span>';
         });
         html += '</span>';
     });
