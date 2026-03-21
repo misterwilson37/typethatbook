@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.2.0"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.2.2"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -554,48 +554,54 @@ function renderDrillText(showError = false) {
     const seq = drillSequence;
 
     // Build word-groups so CSS never splits a group across lines.
-    // Each space-separated run of chars is wrapped in a nowrap span.
-    // Spaces are rendered differently by state:
-    //   upcoming  → thin gap (no clutter)
-    //   current   → blue-highlighted · dot (clearly shows "type a space here")
-    //   done      → small dim · dot (shows it was typed, doesn't dominate)
+    // Key insight: spaces are attached to the END of their preceding group
+    // inside the same nowrap wrapper. This matches how browsers handle normal
+    // text wrapping — a line never starts with a space, so the space can't
+    // drag the next group to the beginning of a new line.
+    // Each group: [{ch, i}, ...chars, optionally {ch:' ', i:spaceIdx}]
     const groups = [];
     let cur = [];
     seq.forEach((ch, i) => {
-        if (ch === ' ') { if (cur.length) { groups.push(cur); cur = []; } groups.push([{ch:' ', i}]); }
-        else { cur.push({ch, i}); }
+        if (ch === ' ') {
+            // Attach space to end of current group (or make orphan group if nothing before it)
+            if (cur.length) {
+                cur.push({ch:' ', i});
+                groups.push(cur);
+                cur = [];
+            }
+            // Space with nothing before it (start of sequence) — standalone gap
+            // This shouldn't happen in practice but handle gracefully
+        } else {
+            cur.push({ch, i});
+        }
     });
     if (cur.length) groups.push(cur);
 
     let html = '';
     groups.forEach(group => {
-        const isSpace = group.length === 1 && group[0].ch === ' ';
-        if (isSpace) {
-            const {i} = group[0];
-            if (i < drillPos) {
-                // Done space: invisible, same as book
-                html += '<span class="dt-space-gap"> </span>';
-            } else if (i === drillPos) {
-                // Current space: plain blue box over blank — identical to book/game appearance
-                const cls = showError ? 'dt-error' : 'dt-current';
-                html += '<span class="' + cls + '" id="dt-cursor">&nbsp;</span>';
-            } else {
-                // Upcoming space: thin gap only
-                html += '<span class="dt-space-gap"> </span>';
-            }
-            return;
-        }
-        // Wrap non-space group in nowrap container so it never splits across lines
+        // Wrap entire group (including trailing space if present) in nowrap container
         html += '<span style="display:inline-block;white-space:nowrap;">';
         group.forEach(({ch, i}) => {
-            const disp = ch === '\n' ? '↵' : escHtml(ch);
-            if (i < drillPos) {
-                html += '<span class="dt-done">' + disp + '</span>';
-            } else if (i === drillPos) {
-                const cls = showError ? 'dt-error' : 'dt-current';
-                html += '<span class="' + cls + '" id="dt-cursor">' + disp + '</span>';
+            if (ch === ' ') {
+                // Space at end of group — render by state but stays attached to preceding chars
+                if (i < drillPos) {
+                    html += '<span class="dt-space-gap"> </span>';
+                } else if (i === drillPos) {
+                    const cls = showError ? 'dt-error' : 'dt-current';
+                    html += '<span class="' + cls + '" id="dt-cursor">&nbsp;</span>';
+                } else {
+                    html += '<span class="dt-space-gap"> </span>';
+                }
             } else {
-                html += '<span class="dt-upcoming">' + disp + '</span>';
+                const disp = ch === '\n' ? '↵' : escHtml(ch);
+                if (i < drillPos) {
+                    html += '<span class="dt-done">' + disp + '</span>';
+                } else if (i === drillPos) {
+                    const cls = showError ? 'dt-error' : 'dt-current';
+                    html += '<span class="' + cls + '" id="dt-cursor">' + disp + '</span>';
+                } else {
+                    html += '<span class="dt-upcoming">' + disp + '</span>';
+                }
             }
         });
         html += '</span>';
@@ -1139,8 +1145,8 @@ function launchFireworks() {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
-    // Stamp version into title bar and footer
-    document.title = 'TypeThatBook — School v' + LEARN_VERSION;
+    // Version in footer only — HTML title already stamped in learn.html
+    // (JS overwriting document.title was making it hard to confirm cache cleared)
     const footer = document.querySelector('footer');
     if (footer) footer.textContent = 'School v' + LEARN_VERSION + ' / keyboard.js v' + KB_VERSION;
 
