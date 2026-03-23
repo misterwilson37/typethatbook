@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.2.6"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.2.8"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -422,10 +422,30 @@ function beginStep(stepIdx) {
 
     // Set up keypress handling
     drillKeyboard.onkeydown = handleDrillKey;
-    // Defer focus until after the browser has painted the keyboard
+    // Defer focus until after the browser has painted the keyboard.
+    // Then immediately verify it rendered — if not, rebuild right away
+    // rather than waiting for the 2-second periodic check.
     requestAnimationFrame(() => {
-        requestAnimationFrame(() => { drillKeyboard.focus(); });
+        requestAnimationFrame(() => {
+            drillKeyboard.focus();
+            // Fast initial health check — catches the Safari race condition
+            // at step-start rather than waiting up to 2s for the interval
+            if (drillKeyboard.querySelectorAll('.key').length === 0) {
+                console.warn('[TTB] Keyboard empty on step start — rebuilding immediately');
+                _rebuildKeyboard();
+            } else {
+                _hideKeyboardRecovery();
+            }
+        });
     });
+    // Also check after 600ms in case the first rAF was still too early
+    setTimeout(() => {
+        if (!activeDrill.classList.contains('hidden') &&
+            drillKeyboard.querySelectorAll('.key').length === 0) {
+            console.warn('[TTB] Keyboard still empty at 600ms — rebuilding');
+            _rebuildKeyboard();
+        }
+    }, 600);
 
     // Show a static anchor hint below the step label when anchorEnforced is true.
     // This replaces the reactive popup — it informs without alarming.
@@ -761,13 +781,23 @@ function showLessonResultModal(wpm, acc) {
     const minAcc = gates.minAccuracy || 85;
     const passed = wpm >= minWPM && acc >= minAcc;
 
-    // Star rating
-    const wpmRatio = wpm / minWPM;
-    const accRatio = acc / minAcc;
-    let stars = 1;
-    if (passed && wpmRatio >= 1.3 && accRatio >= 1.1) stars = 3;
-    else if (passed && (wpmRatio >= 1.2 || accRatio >= 1.05)) stars = 2;
-    if (!passed) stars = 0;
+    // Star rating — generous thresholds so early learners get rewarded
+    // 1 star = passed gates
+    // 2 stars = 10% over WPM gate OR 5% over acc gate
+    // 3 stars = 25% over WPM gate OR 10% over acc gate (either, not both)
+    let stars = 0;
+    if (passed) {
+        const wpmOver = wpm - minWPM;
+        const accOver = acc - minAcc;
+        if (wpmOver >= minWPM * 0.25 || accOver >= minAcc * 0.10) stars = 3;
+        else if (wpmOver >= minWPM * 0.10 || accOver >= minAcc * 0.05) stars = 2;
+        else stars = 1;
+    }
+    // What would the next star have needed?
+    const nextStarWPM  = stars < 3 ? Math.ceil(minWPM * (stars === 0 ? 1 : stars === 1 ? 1.10 : 1.25)) : null;
+    const nextStarNote = (passed && stars < 3)
+        ? `${nextStarWPM - wpm > 0 ? nextStarWPM - wpm + ' more WPM' : 'higher accuracy'} for ${'⭐'.repeat(stars + 1)}`
+        : null;
 
     // Save progress to Firestore
     if (currentUser) saveProgress(passed, wpm, acc, stars);
@@ -787,8 +817,8 @@ function showLessonResultModal(wpm, acc) {
         '<div class="dm-stat"><div class="dm-val">' + minWPM + '+</div><div class="dm-label">Target WPM</div></div>';
 
     const msg = passed
-        ? `You hit ${wpm} WPM at ${acc}% accuracy. Gates: ${minWPM} WPM / ${minAcc}% accuracy.`
-        : `You need ${minWPM} WPM and ${minAcc}% accuracy. You got ${wpm} WPM and ${acc}%. Try again!`;
+        ? 'You hit ' + wpm + ' WPM at ' + acc + '% accuracy.' + (nextStarNote ? ' (' + nextStarNote + ')' : '')
+        : 'You need ' + minWPM + ' WPM and ' + minAcc + '% accuracy. You got ' + wpm + ' WPM and ' + acc + '%. Try again!';
     document.getElementById('dm-msg').innerHTML =
         escHtml(msg) +
         '<div class="cumulative-row" style="font-size:0.78rem;margin-top:4px;">' +
@@ -864,16 +894,47 @@ function buildRemediationLinks() {
         .slice(0, 3);
     if (!top.length) return '';
 
+    const missedKeys = top.map(([ch]) => ch);
+
     const links = top.map(([ch]) => {
-        // Find the lesson that first introduced this key
         const introLesson = allLessons.find(l => (l.newKeys || []).includes(ch));
         if (!introLesson) return null;
-        return `<a href="#" onclick="window._gotoLesson('${introLesson.id}'); return false;">${ch.toUpperCase()} (Lesson: ${escHtml(introLesson.title)})</a>`;
+        return '<a href="#" onclick="window._gotoLesson('' + introLesson.id + ''); return false;">' + ch.toUpperCase() + ' (' + escHtml(introLesson.title) + ')</a>';
     }).filter(Boolean);
 
-    if (!links.length) return '';
-    return `You often missed: ${links.join(', ')} — revisit these?`;
+    const linkText = links.length
+        ? 'You often missed: ' + links.join(', ') + ' — revisit these?'
+        : '';
+
+    // Practice button — generates a random drill from the missed keys on the spot
+    const practiceBtn = '<button class="dm-btn-secondary" style="margin-top:6px;width:100%;font-size:0.8rem;padding:7px;" '
+        + 'onclick="window._practiceMissedKeys(' + JSON.stringify(missedKeys) + ')">🎲 Practice missed keys</button>';
+
+    return linkText + practiceBtn;
 }
+
+window._practiceMissedKeys = function(missedKeys) {
+    if (!missedKeys || !missedKeys.length) return;
+    // Build a synthetic key_random step from the missed keys
+    const syntheticStep = {
+        id: 'remediation',
+        label: 'Practice: ' + missedKeys.map(k => k.toUpperCase()).join(' '),
+        type: 'key_random',
+        keySet: missedKeys,
+        groupSize: 5,
+        groupCount: 14,
+        anchorEnforced: false,
+    };
+    // Inject as current step and run it
+    drillModal.classList.add('hidden');
+    document.getElementById('drill-keyboard-wrap').style.display = '';
+    // Temporarily replace steps with just this remediation step
+    const origSteps = currentLesson.steps;
+    currentLesson.steps = [syntheticStep];
+    beginStep(0);
+    // Restore original steps after the step is set up so finishStep works correctly
+    currentLesson.steps = origSteps;
+};
 
 window._gotoLesson = function(id) {
     const lesson = allLessons.find(l => l.id === id);
@@ -985,27 +1046,65 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
+function _rebuildKeyboard() {
+    console.warn('[TTB] Rebuilding keyboard — layout:', LAYOUT, 'step:', currentStepIdx);
+    createKeyboard(drillKeyboard, LAYOUT);
+    createHandGuide(drillKeyboard, fingerMap, LAYOUT, true);
+    colorKeyboardKeys(drillKeyboard, fingerMap, true);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (currentStep) advanceHandGuide();
+        drillKeyboard.focus();
+        _hideKeyboardRecovery();
+        console.log('[TTB] Keyboard rebuilt OK — keys:', drillKeyboard.querySelectorAll('.key').length);
+    }));
+}
+
+function _showKeyboardRecovery() {
+    let el = document.getElementById('keyboard-recovery');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'keyboard-recovery';
+        el.style.cssText = [
+            'position:absolute', 'inset:0', 'display:flex',
+            'align-items:center', 'justify-content:center',
+            'background:rgba(0,0,0,0.55)', 'z-index:20',
+            'cursor:pointer', 'border-radius:4px'
+        ].join(';');
+        el.innerHTML = '<div style="background:#fff;padding:16px 24px;border-radius:6px;text-align:center;font-family:'Courier Prime',monospace;">'
+            + '<div style="font-size:1rem;font-weight:bold;margin-bottom:8px;">⌨ Keyboard didn't load</div>'
+            + '<div style="font-size:0.85rem;color:#555;margin-bottom:12px;">Tap to reload it</div>'
+            + '<button style="background:var(--carolina-blue);color:white;border:none;padding:8px 20px;border-radius:4px;font-family:inherit;cursor:pointer;font-size:0.9rem;">Reload Keyboard</button>'
+            + '</div>';
+        el.addEventListener('click', () => { _rebuildKeyboard(); });
+        // Wrap in position:relative container
+        const wrap = document.getElementById('drill-keyboard-wrap');
+        if (wrap) { wrap.style.position = 'relative'; wrap.appendChild(el); }
+    }
+    el.style.display = 'flex';
+}
+
+function _hideKeyboardRecovery() {
+    const el = document.getElementById('keyboard-recovery');
+    if (el) el.style.display = 'none';
+}
+
 function rebuildKeyboardIfNeeded() {
     if (activeDrill.classList.contains('hidden')) return;
+    if (drillModal && !drillModal.classList.contains('hidden')) return;
     if (drillKeyboard.querySelectorAll('.key').length === 0) {
-        console.warn('Keyboard empty — rebuilding');
-        createKeyboard(drillKeyboard, LAYOUT);
-        createHandGuide(drillKeyboard, fingerMap, LAYOUT, true);
-        colorKeyboardKeys(drillKeyboard, fingerMap, true);
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-            advanceHandGuide();
-            drillKeyboard.focus();
-        }));
+        console.warn('[TTB] Periodic check: keyboard empty — showing recovery UI');
+        _showKeyboardRecovery();
+        _rebuildKeyboard();
     }
 }
 
-// Periodic backstop — check every 2 seconds while a lesson is active
+// Periodic backstop — 1s interval (was 2s) for faster recovery
 setInterval(() => {
     if (!activeDrill.classList.contains('hidden') &&
         drillModal.classList.contains('hidden')) {
         rebuildKeyboardIfNeeded();
     }
-}, 2000);
+}, 1000);
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 function escHtml(s) {
