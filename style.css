@@ -1,4 +1,4 @@
-/* TypeThatBook style.css v3.0.7 */
+/* TypeThatBook style.css v3.0.8 */
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -793,7 +793,7 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
 .map-graduate-btn:hover { background: #3a8ec0; }
 
 /* ── Drill view ── */
-#drill-view { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+#drill-view { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
 #drill-view.hidden { display: none; }
 
 /* Intro panel */
