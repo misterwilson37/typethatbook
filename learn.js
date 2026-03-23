@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.3.7"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.3.8"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -500,13 +500,39 @@ function buildSequence(step) {
     }
 }
 
+// Home-key companions: for any reach key, the same finger's home-row key.
+// Using the same indices as keyboard.js getHomePositions (rows[1] positions 0-9).
+const REACH_HOME_COMPANION = {
+    'q':'a','z':'a',                     // left-pinky reaches → a
+    'w':'s','x':'s',                     // left-ring reaches → s
+    'e':'d','c':'d',                     // left-middle reaches → d
+    'r':'f','t':'f','g':'f','v':'f','b':'f', // left-index reaches → f
+    'y':'j','u':'j','h':'j','n':'j','m':'j', // right-index reaches → j
+    'i':'k',',':'k',                     // right-middle reaches → k
+    'o':'l','.':'l',                     // right-ring reaches → l
+    'p':';','[':';',']':';','\\':';','\'':';','/':';' // right-pinky reaches → ;
+};
+
+function expandKeySetWithHomeCompanions(keySet) {
+    // For each reach key in the set, automatically include its home-row companion
+    // so students must use correct finger placement and not cheat with index fingers.
+    const expanded = new Set(keySet);
+    keySet.forEach(k => {
+        const companion = REACH_HOME_COMPANION[k.toLowerCase()];
+        if (companion) expanded.add(companion);
+    });
+    return Array.from(expanded);
+}
+
 function generateRandom(keySet, groupSize, groupCount) {
     if (!keySet.length) return [];
+    // Always include home companions for reach keys
+    const effectiveKeySet = expandKeySetWithHomeCompanions(keySet);
     const chars = [];
     for (let g = 0; g < groupCount; g++) {
         if (g > 0) chars.push(' ');
         for (let i = 0; i < groupSize; i++) {
-            chars.push(keySet[Math.floor(Math.random() * keySet.length)]);
+            chars.push(effectiveKeySet[Math.floor(Math.random() * effectiveKeySet.length)]);
         }
     }
     return chars;
