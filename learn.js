@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.2.5"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.2.6"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -50,6 +50,11 @@ let introAnimTimer = null;
 let introAnimFrame = 0;   // 0 = home, 1 = reach
 let fingerMap      = buildFingerMap(LAYOUT);
 let missedChars    = {};  // char → count for this lesson
+
+// Per-character done states — mirrors game.js currentLetterStatus logic
+let drillCharStates      = [];      // 'upcoming' | 'perfect' | 'fixed' | 'dirty' per char
+let drillLetterStatus    = 'clean'; // 'clean' | 'error' | 'fixed'
+let drillBackspaceOrigin = -1;      // furthest pos reached during a backspace run
 
 // ─── DOM ─────────────────────────────────────────────────────────────────────
 const mapView        = document.getElementById('map-view');
@@ -362,6 +367,9 @@ function beginStep(stepIdx) {
     drillPos  = 0;
     mistakes  = 0;
     chars     = 0;
+    drillCharStates     = new Array(drillSequence.length).fill('upcoming');
+    drillLetterStatus   = 'clean';
+    drillBackspaceOrigin = -1;
     stepStartTime = Date.now();
     stepSeconds   = 0;
 
@@ -485,7 +493,20 @@ function handleDrillKey(e) {
     if (e.key === 'Enter')     typed = '\n';
     else if (e.key === 'Tab')  typed = '\t';
     else if (e.key === 'Backspace') {
-        if (drillPos > 0) { drillPos--; renderDrillText(); advanceHandGuide(); }
+        if (drillLetterStatus === 'error') {
+            // First backspace: clear current error, become 'fixed'
+            drillLetterStatus = 'fixed';
+            if (drillBackspaceOrigin < 0) drillBackspaceOrigin = drillPos;
+            renderDrillText(false);  // re-render without error highlight
+        } else if (drillPos > 0) {
+            // Additional backspaces: step back, mark status fixed
+            if (drillBackspaceOrigin < 0) drillBackspaceOrigin = drillPos;
+            drillPos--;
+            drillLetterStatus = 'fixed';
+            drillCharStates[drillPos] = 'upcoming'; // un-done the char we stepped back to
+            renderDrillText();
+            advanceHandGuide();
+        }
         e.preventDefault(); return;
     } else if (e.key.length === 1) {
         typed = e.key;
@@ -510,7 +531,22 @@ function handleDrillKey(e) {
         flashFingerPressed(drillKeyboard);
         learnLastInputTime = Date.now();
         statsData.charsToday++;  statsData.charsWeek++;
+
+        // Apply done state — same logic as game.js
+        if (drillLetterStatus === 'clean')       drillCharStates[drillPos] = 'perfect';
+        else if (drillLetterStatus === 'fixed')  drillCharStates[drillPos] = 'fixed';
+        else                                     drillCharStates[drillPos] = 'dirty';
+
         drillPos++;
+
+        // Keep 'fixed' status until we re-pass the backspace origin
+        if (drillBackspaceOrigin >= 0 && drillPos <= drillBackspaceOrigin) {
+            drillLetterStatus = 'fixed';
+        } else {
+            drillBackspaceOrigin = -1;
+            drillLetterStatus = 'clean';
+        }
+
         renderDrillText();
         if (drillPos >= drillSequence.length) {
             finishStep();
@@ -524,6 +560,8 @@ function handleDrillKey(e) {
         if (newExpected !== ' ') {
             missedChars[newExpected] = (missedChars[newExpected] || 0) + 1;
         }
+        // Mark as error (don't advance) — same as game.js
+        if (drillLetterStatus === 'clean') drillLetterStatus = 'error';
         flashTargetKey();
         renderDrillText(true);
     }
@@ -581,15 +619,18 @@ function renderDrillText(showError = false) {
             // Space displays as &nbsp; — invisible but identical width to any letter
             const disp = (ch === ' ') ? '&nbsp;' : (ch === '\n' ? '↵' : escHtml(ch));
             let cls;
-            if (i < drillPos) {
-                cls = 'dt-char dt-done';
-            } else if (i === drillPos) {
-                cls = showError ? 'dt-char dt-error' : 'dt-char dt-current';
+            if (i === drillPos) {
+                // Current character — error state if wrong key was pressed
+                const errClass = (showError || drillLetterStatus === 'error') ? 'dt-error' : 'dt-current';
+                cls = 'dt-char ' + errClass;
                 html += '<span class="' + cls + '" id="dt-cursor">' + disp + '</span>';
-                return; // skip the default append below
-            } else {
-                cls = 'dt-char dt-upcoming';
+                return;
             }
+            const state = drillCharStates[i] || 'upcoming';
+            if      (state === 'perfect')  cls = 'dt-char dt-done';
+            else if (state === 'fixed')    cls = 'dt-char dt-fixed';
+            else if (state === 'dirty')    cls = 'dt-char dt-dirty';
+            else                           cls = 'dt-char dt-upcoming';
             html += '<span class="' + cls + '">' + disp + '</span>';
         });
         html += '</span>';
