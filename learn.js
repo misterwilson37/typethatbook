@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.4.8"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.4.9"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -1029,25 +1029,7 @@ function showLessonResultModal(wpm, acc) {
     const countsAsTime = grade !== 'F'; // D and above = time credit
 
     // Hint toward next grade
-    let gradeHint = '';
-    if (grade === 'F' || grade === 'D') {
-        gradeHint = 'Need ' + minWPM + ' WPM and ' + minAcc + '% accuracy to pass (grade B).';
-    } else if (grade === 'C') {
-        const needWPM = !( wpm >= minWPM );
-        gradeHint = needWPM
-            ? (minWPM - wpm) + ' more WPM for a B.'
-            : 'Get accuracy to ' + minAcc + '% for a B.';
-    } else if (grade === 'B') {
-        gradeHint = (Math.ceil(minWPM * 1.15) - wpm) > 0
-            ? (Math.ceil(minWPM * 1.15) - wpm) + ' more WPM for an A.'
-            : 'Higher accuracy for an A.';
-    } else if (grade === 'A') {
-        gradeHint = (Math.ceil(minWPM * 1.30) - wpm) > 0
-            ? (Math.ceil(minWPM * 1.30) - wpm) + ' more WPM for A 🔥.'
-            : '';
-    }
-
-    // Save — always if time counts, i.e. grade D or better
+    const gradeHint = getGradeMessage(wpm, acc, minWPM, minAcc, grade);
     if (currentUser && countsAsTime) saveProgress(passed, wpm, acc, grade);
 
     drillModal.classList.remove('hidden');
