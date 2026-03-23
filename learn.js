@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.4.4";
+const LEARN_VERSION = "1.4.6"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -266,25 +266,21 @@ function isUnlocked(lesson) {
 }
 
 function calculateGrade(wpm, acc, minWPM, minAcc) {
-    // F  — clearly didn't meet either gate (below 70%)
-    // D  — tried but missed at least one gate (time counts, must retry)
-    // C  — met one gate but not both (time counts, must retry)
-    // B  — met both gates (passes, can advance)
-    // A  — exceeded both gates by 15%+ on each
-    // A🔥 — exceeded both gates by 30%+ on each
-    const wpmMet = wpm  >= minWPM;
-    const accMet = acc  >= minAcc;
+    const FIRE = 'A' + String.fromCodePoint(0x1F525); // A🔥
+    const wpmMet = wpm >= minWPM;
+    const accMet = acc >= minAcc;
 
     if (!wpmMet && !accMet) {
         if (wpm < minWPM * 0.70 || acc < minAcc * 0.70) return 'F';
         return 'D';
     }
     if (wpmMet && accMet) {
-        if (wpm >= minWPM * 1.30 && acc >= minAcc * 1.15) return 'A🔥';
-        if (wpm >= minWPM * 1.15 && acc >= minAcc * 1.05) return 'A';
+        // A🔥: 2x WPM gate AND 95%+ accuracy (speed AND quality)
+        if (wpm >= minWPM * 2.0 && acc >= 95) return FIRE;
+        // A: 15% over WPM gate AND 90%+ accuracy
+        if (wpm >= minWPM * 1.15 && acc >= 90) return 'A';
         return 'B';
     }
-    // Met one but not both
     return 'C';
 }
 
@@ -944,77 +940,56 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     drillModal.classList.remove('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = 'none';
 
-    const gates  = currentLesson.gates || {};
-    const minWPM = gates.minWPM || 15;
-    const minAcc = gates.minAccuracy || 85;
-    const grade  = calculateGrade(wpm, acc, minWPM, minAcc);
-    const canAdvance = (grade === 'B' || grade === 'A' || grade === 'A\u{1F525}' || grade === 'C');
-
     document.getElementById('dm-title').textContent = 'Step ' + nextIdx + ' of ' + totalSteps + ' done';
-    document.getElementById('dm-stars').innerHTML = gradeHTML(grade);
+    document.getElementById('dm-stars').textContent = '';
 
     const dailyBadge = (goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds)
-        ? '<span class="goal-badge goal-blue" title="Daily goal reached!">\u2713</span>' : '';
+        ? '<span class="goal-badge goal-blue" title="Daily goal reached!">✓</span>' : '';
     const weeklyBadge = (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds)
-        ? '<span class="goal-badge goal-blue" title="Weekly goal reached!">\u2713</span>' : '';
+        ? '<span class="goal-badge goal-blue" title="Weekly goal reached!">✓</span>' : '';
 
     document.getElementById('dm-stats').innerHTML =
         '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
         '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>';
-
-    const hint = canAdvance
-        ? '<span style="color:#888;font-size:0.8rem;font-family:monospace;">press Enter to continue</span>'
-        : '<span style="color:#e65100;font-size:0.82rem;">Need a C or better to continue — try again</span>';
     document.getElementById('dm-msg').innerHTML =
         '<div class="cumulative-row" style="font-size:0.78rem;margin-bottom:4px;">' +
-        dailyBadge + '<span>Today: ' + formatTime(statsData.secondsToday) + '</span>' +
+        dailyBadge +
+        '<span>Today: ' + formatTime(statsData.secondsToday) + '</span>' +
         '<span class="cumulative-sep">|</span>' +
         '<span>This week: ' + formatTime(statsData.secondsWeek) + '</span>' +
-        weeklyBadge + '</div>' + hint;
+        weeklyBadge +
+        '</div>' +
+        '<span style="color:#888;font-size:0.8rem;font-family:monospace;">press Enter to continue</span>';
     document.getElementById('dm-remediation').innerHTML = '';
-
     const btns = document.getElementById('dm-btns');
     btns.innerHTML = '';
 
     const mapBtn = document.createElement('button');
-    mapBtn.className = 'dm-btn-secondary'; mapBtn.textContent = '\u2190 Map';
+    mapBtn.className = 'dm-btn-secondary'; mapBtn.textContent = '← Map';
+    const next = document.createElement('button');
+    next.className = 'dm-btn-primary'; next.textContent = 'Next Step → (Enter)';
+
+    const advance = () => {
+        drillModal.classList.add('hidden');
+        document.getElementById('drill-keyboard-wrap').style.display = '';
+        document.removeEventListener('keydown', enterHandler);
+        beginStep(nextIdx);
+    };
+    next.onclick = advance;
     mapBtn.onclick = () => {
-        document.removeEventListener('keydown', stepKeyHandler);
+        document.removeEventListener('keydown', enterHandler);
         drillModal.classList.add('hidden');
         document.getElementById('drill-keyboard-wrap').style.display = '';
         stopLesson();
     };
-    btns.appendChild(mapBtn);
+    btns.appendChild(mapBtn);  // left = back
+    btns.appendChild(next);    // right = forward
 
-    if (canAdvance) {
-        const next = document.createElement('button');
-        next.className = 'dm-btn-primary'; next.textContent = 'Next Step \u2192 (Enter)';
-        const advance = () => {
-            drillModal.classList.add('hidden');
-            document.getElementById('drill-keyboard-wrap').style.display = '';
-            document.removeEventListener('keydown', stepKeyHandler);
-            beginStep(nextIdx);
-        };
-        next.onclick = advance;
-        btns.appendChild(next);
-        function stepKeyHandler(e) { if (e.key === 'Enter') { e.preventDefault(); advance(); } }
-        document.addEventListener('keydown', stepKeyHandler);
-    } else {
-        const retry = document.createElement('button');
-        retry.className = 'dm-btn-primary'; retry.textContent = 'Try Again (Enter)';
-        const doRetry = () => {
-            drillModal.classList.add('hidden');
-            document.getElementById('drill-keyboard-wrap').style.display = '';
-            document.removeEventListener('keydown', stepKeyHandler);
-            beginStep(nextIdx - 1);
-        };
-        retry.onclick = doRetry;
-        btns.appendChild(retry);
-        function stepKeyHandler(e) { if (e.key === 'Enter') { e.preventDefault(); doRetry(); } }
-        document.addEventListener('keydown', stepKeyHandler);
+    function enterHandler(e) {
+        if (e.key === 'Enter') { e.preventDefault(); advance(); }
     }
+    document.addEventListener('keydown', enterHandler);
 }
-
 
 function showLessonResultModal(wpm, acc) {
     const gates  = currentLesson.gates || {};
