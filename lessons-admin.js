@@ -114,7 +114,7 @@ function renderLessonCard(lesson) {
         ? `<span style="color:#b87ae8; font-size:0.7em; border:1px solid #5a2a8c; padding:1px 5px; margin-left:6px;">variant of ${escHtml(lesson.variantOf)}</span>`
         : '';
     const stepSummary = (lesson.steps || []).map(s => {
-        const icons = { key_pattern:'⌨', key_random:'🎲', word_list:'📝', sentence_list:'💬', passage:'📖' };
+        const icons = { key_pattern:'⌨', key_pattern_auto:'🎯', key_random:'🎲', word_list:'📝', sentence_list:'💬', passage:'📖' };
         return `<span style="color:#555;" title="${s.label || s.id}">${icons[s.type] || '?'}</span>`;
     }).join(' ');
     const newKeysBadge = (lesson.newKeys || []).length
@@ -215,7 +215,7 @@ function buildStepHTML(lessonId, step, idx) {
     const sid = escHtml(step.id || `s${idx+1}`);
     const type = step.type || 'key_pattern';
 
-    const typeOptions = ['key_pattern','key_random','word_list','sentence_list','passage']
+    const typeOptions = ['key_pattern','key_pattern_auto','key_random','word_list','sentence_list','passage']
         .map(t => `<option value="${t}" ${t === type ? 'selected' : ''}>${t}</option>`)
         .join('');
 
@@ -223,6 +223,17 @@ function buildStepHTML(lessonId, step, idx) {
     if (type === 'key_pattern') {
         contentHTML = `<label class="l-label">Pattern Text</label>
             <textarea class="l-field step-content" data-content="text" rows="2">${escHtml(step.text || '')}</textarea>`;
+    } else if (type === 'key_pattern_auto') {
+        contentHTML = `
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+                <div><label class="l-label">Keys (space-sep)</label>
+                    <input class="l-field step-content" data-content="keySet" type="text" value="${(step.keySet || []).join(' ')}" placeholder="e.g. g h"></div>
+                <div><label class="l-label">Group Size</label>
+                    <input class="l-field step-content" data-content="groupSize" type="number" value="${step.groupSize || 4}"></div>
+                <div><label class="l-label">Group Count</label>
+                    <input class="l-field step-content" data-content="groupCount" type="number" value="${step.groupCount || 10}"></div>
+            </div>
+            <div style="color:#888; font-size:0.75em; margin-top:4px;">🎯 Auto-generates reach→home pattern (e.g. gfgf jhjh fggf jhhj mixed…)</div>`;
     } else if (type === 'key_random') {
         contentHTML = `
             <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
@@ -319,6 +330,10 @@ window._lessonSave = async function(id) {
         // Type-specific fields
         if (stepType === 'key_pattern' || stepType === 'passage') {
             step.text = card.querySelector('[data-content="text"]')?.value?.trim() || '';
+        } else if (stepType === 'key_pattern_auto') {
+            step.keySet     = (card.querySelector('[data-content="keySet"]')?.value || '').trim().split(/[ ,]+/).filter(Boolean);
+            step.groupSize  = parseInt(card.querySelector('[data-content="groupSize"]')?.value) || 4;
+            step.groupCount = parseInt(card.querySelector('[data-content="groupCount"]')?.value) || 10;
         } else if (stepType === 'key_random') {
             step.keySet = (card.querySelector('[data-content="keySet"]')?.value || '').split(/\s+/).filter(Boolean);
             step.groupSize = parseInt(card.querySelector('[data-content="groupSize"]')?.value) || 4;
@@ -441,72 +456,125 @@ function openNewLessonEditor() {
 
 // ─── IMPORT JSON ─────────────────────────────────────────────────────────────
 function bindImportUI() {
-    const previewBtn = document.getElementById('lessons-import-preview');
-    const importBtn = document.getElementById('lessons-import-commit');
-    const textarea = document.getElementById('lessons-import-json');
+    const previewBtn  = document.getElementById('lessons-import-preview');
+    const importBtn   = document.getElementById('lessons-import-commit');
+    const textarea    = document.getElementById('lessons-import-json');
     const previewArea = document.getElementById('lessons-import-preview-area');
-    const fileInput = document.getElementById('lessons-import-file');
+    const errorArea   = document.getElementById('lessons-import-error');
+    const summaryEl   = document.getElementById('lessons-import-summary');
+    const breakdownEl = document.getElementById('lessons-import-breakdown');
+    const progressEl  = document.getElementById('lessons-import-progress');
+    const fileInput   = document.getElementById('lessons-import-file');
 
+    function showError(msg) {
+        previewArea.classList.add('hidden');
+        errorArea.classList.remove('hidden');
+        errorArea.textContent = '✗ ' + msg;
+        importBtn.disabled = true;
+        importBtn.style.opacity = '0.4';
+        importBtn._parsed = null;
+    }
+
+    function showPreview(parsed) {
+        errorArea.classList.add('hidden');
+        previewArea.classList.remove('hidden');
+
+        // Summary line
+        summaryEl.textContent = '✓ ' + parsed.length + ' lesson' + (parsed.length !== 1 ? 's' : '') + ' ready to upload';
+
+        // Breakdown by unit
+        const byUnit = {};
+        parsed.forEach(l => {
+            const u = 'Unit ' + (l.unit || '?');
+            byUnit[u] = (byUnit[u] || 0) + 1;
+        });
+        breakdownEl.innerHTML = Object.entries(byUnit)
+            .map(([u, n]) => '<span style="margin-right:16px;">' + escHtml(u) + ': ' + n + ' lesson' + (n !== 1 ? 's' : '') + '</span>')
+            .join('');
+
+        importBtn.disabled = false;
+        importBtn.style.opacity = '1';
+        importBtn._parsed = parsed;
+    }
+
+    function runPreview() {
+        const text = textarea.value.trim();
+        if (!text) { showError('Nothing to parse — upload a file or paste JSON.'); return; }
+        try {
+            showPreview(parseImportJSON(text));
+        } catch (e) {
+            showError(e.message);
+        }
+    }
+
+    // File upload → populate textarea → auto-preview
     if (fileInput) {
         fileInput.addEventListener('change', () => {
             const file = fileInput.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = e => { textarea.value = e.target.result; };
+            reader.onload = ev => { textarea.value = ev.target.result; runPreview(); };
             reader.readAsText(file);
         });
     }
 
-    if (previewBtn) {
-        previewBtn.addEventListener('click', () => {
-            try {
-                const parsed = parseImportJSON(textarea.value);
-                previewArea.innerHTML = `<span style="color:#00ff41;">✓ ${parsed.length} lesson(s) ready to import.</span> ` +
-                    parsed.slice(0, 5).map(l => `<span style="color:#888;">${escHtml(l.id)}</span>`).join(' ') +
-                    (parsed.length > 5 ? ` <span style="color:#555;">+${parsed.length - 5} more</span>` : '');
-                importBtn.disabled = false;
-                importBtn._parsed = parsed;
-            } catch (e) {
-                previewArea.innerHTML = `<span style="color:#ff3333;">Parse error: ${escHtml(e.message)}</span>`;
-                importBtn.disabled = true;
-            }
+    // Paste → requires clicking Check JSON (textarea doesn't know when paste is done)
+    if (previewBtn) previewBtn.addEventListener('click', runPreview);
+
+    // Also auto-preview on textarea input after a short pause
+    if (textarea) {
+        let debounce;
+        textarea.addEventListener('input', () => {
+            clearTimeout(debounce);
+            debounce = setTimeout(runPreview, 600);
         });
     }
 
+    // Commit
     if (importBtn) {
         importBtn.disabled = true;
+        importBtn.style.opacity = '0.4';
+
         importBtn.addEventListener('click', async () => {
             const lessons = importBtn._parsed;
-            if (!lessons || lessons.length === 0) return;
-            const overwrite = _lessonCache && Object.keys(_lessonCache).length > 0;
-            if (overwrite && !confirm(`This will overwrite existing lessons in Firestore. Continue?`)) return;
+            if (!lessons || !lessons.length) return;
 
             importBtn.disabled = true;
-            importBtn.textContent = 'Importing...';
-            let done = 0, failed = 0;
+            importBtn.style.opacity = '0.4';
+            progressEl.textContent = 'Starting…';
 
+            let done = 0, failed = 0;
             for (const lesson of lessons) {
                 try {
                     await setDoc(doc(_db, LESSON_COLLECTION, lesson.id), lesson);
                     done++;
-                    setLessonStatus(`Importing... ${done}/${lessons.length}`, "#888");
+                    const pct = Math.round((done / lessons.length) * 100);
+                    progressEl.textContent = 'Uploading… ' + done + ' / ' + lessons.length + '  (' + pct + '%)';
+                    setLessonStatus('Uploading… ' + done + ' / ' + lessons.length, '#888');
                 } catch (e) {
                     failed++;
-                    console.error(`Failed to import ${lesson.id}:`, e);
+                    console.error('Failed:', lesson.id, e);
                 }
             }
 
-            importBtn.textContent = 'Import All to Firestore';
+            const ok = failed === 0;
+            const msg = ok
+                ? ('✓ Done — ' + done + ' lesson' + (done !== 1 ? 's' : '') + ' uploaded.')
+                : ('⚠ ' + done + ' uploaded, ' + failed + ' failed — check console.');
+            progressEl.textContent = msg;
+            progressEl.style.color = ok ? '#00ff41' : '#ffaa00';
+            setLessonStatus(msg, ok ? '#00ff41' : '#ffaa00');
+
+            // Re-enable with updated count
             importBtn.disabled = false;
-            setLessonStatus(`Import complete: ${done} succeeded, ${failed} failed.`, done > 0 ? "#00ff41" : "#ff3333");
+            importBtn.style.opacity = '1';
+            importBtn.textContent = 'Upload to Firestore';
+
             await loadAndRenderLessons();
-            // Collapse import UI
-            document.getElementById('lessons-import-section').classList.add('hidden');
-            document.getElementById('lessons-import-toggle').textContent = '▶ Import JSON';
         });
     }
 
-    // Toggle import section visibility
+    // Toggle import panel
     const toggleBtn = document.getElementById('lessons-import-toggle');
     if (toggleBtn) {
         toggleBtn.addEventListener('click', () => {
