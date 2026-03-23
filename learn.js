@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.3.0"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.3.1"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -1088,7 +1088,7 @@ function _showKeyboardRecovery() {
             'background:rgba(0,0,0,0.55)', 'z-index:20',
             'cursor:pointer', 'border-radius:4px'
         ].join(';');
-        el.innerHTML = '<div style="background:#fff;padding:16px 24px;border-radius:6px;text-align:center;font-family:'Courier Prime',monospace;">'
+        el.innerHTML = '<div style="background:#fff;padding:16px 24px;border-radius:6px;text-align:center;font-family:monospace;">'
             + '<div style="font-size:1rem;font-weight:bold;margin-bottom:8px;">⌨ Keyboard didn't load</div>'
             + '<div style="font-size:0.85rem;color:#555;margin-bottom:12px;">Tap to reload it</div>'
             + '<button style="background:var(--carolina-blue);color:white;border:none;padding:8px 20px;border-radius:4px;font-family:inherit;cursor:pointer;font-size:0.9rem;">Reload Keyboard</button>'
