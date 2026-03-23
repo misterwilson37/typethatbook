@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.3.1"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.3.2"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -281,12 +281,22 @@ function startLesson(lesson) {
 
 function showIntro(lesson) {
     introPanel.classList.remove('hidden');
-    activeDrill.classList.add('hidden');
+    // Keep active-drill visible but collapse it so the drill keyboard
+    // gets laid out in the DOM with real pixel dimensions while the intro shows.
+    // This eliminates the race condition where beginStep() builds the keyboard
+    // on a zero-size element that Safari hasn't reflowed yet.
+    activeDrill.classList.remove('hidden');
+    activeDrill.style.visibility = 'hidden';
+    activeDrill.style.pointerEvents = 'none';
+    activeDrill.style.position = 'absolute';
+    activeDrill.style.zIndex = '-1';
+    drillModal.classList.add('hidden');
+    document.getElementById('drill-keyboard-wrap').style.display = '';
     stopIntroAnim();
 
     // Key badges
     introKeysEl.innerHTML = (lesson.newKeys || []).length
-        ? lesson.newKeys.map(k => `<div class="intro-key-badge">${escHtml(k.toUpperCase())}</div>`).join('')
+        ? lesson.newKeys.map(k => '<div class="intro-key-badge">' + escHtml(k.toUpperCase()) + '</div>').join('')
         : '<div class="intro-key-badge" style="font-size:1rem;">All Keys</div>';
 
     introTitleEl.textContent = lesson.title || '';
@@ -295,7 +305,14 @@ function showIntro(lesson) {
     // Build intro keyboard
     createKeyboard(introKeyboard, LAYOUT);
     createHandGuide(introKeyboard, fingerMap, LAYOUT, true);
+
+    // Pre-build the drill keyboard NOW while it has real dimensions in the DOM.
+    // By the time the student hits Start, the keyboard has been laid out for
+    // several seconds and beginStep() just needs to show and focus it.
     requestAnimationFrame(() => {
+        createKeyboard(drillKeyboard, LAYOUT);
+        createHandGuide(drillKeyboard, fingerMap, LAYOUT, true);
+        console.log('[TTB] Drill keyboard pre-built during intro — keys:', drillKeyboard.querySelectorAll('.key').length);
         startIntroAnim(lesson);
     });
 
@@ -355,12 +372,19 @@ function beginStep(stepIdx) {
     if (!currentStep) { finishLesson(); return; }
 
     introPanel.classList.add('hidden');
-    activeDrill.classList.remove('hidden');
+    // Restore active-drill to normal flow (was kept visible but hidden during intro)
+    activeDrill.style.visibility = '';
+    activeDrill.style.pointerEvents = '';
+    activeDrill.style.position = '';
+    activeDrill.style.zIndex = '';
     drillModal.classList.add('hidden');
 
-    // Build full keyboard for drilling
-    createKeyboard(drillKeyboard, LAYOUT);
-    createHandGuide(drillKeyboard, fingerMap, LAYOUT, true);
+    // Keyboard was pre-built during intro — only rebuild if it somehow ended up empty
+    if (drillKeyboard.querySelectorAll('.key').length === 0) {
+        console.warn('[TTB] beginStep: keyboard empty, rebuilding (pre-build failed)');
+        createKeyboard(drillKeyboard, LAYOUT);
+        createHandGuide(drillKeyboard, fingerMap, LAYOUT, true);
+    }
     drillKeyboard.focus();
 
     // Step progress pips
@@ -434,27 +458,11 @@ function beginStep(stepIdx) {
     // Defer focus until after the browser has painted the keyboard.
     // Then immediately verify it rendered — if not, rebuild right away
     // rather than waiting for the 2-second periodic check.
+    // Single rAF for focus — keyboard was pre-built during intro so no timing games needed
     requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            drillKeyboard.focus();
-            // Fast initial health check — catches the Safari race condition
-            // at step-start rather than waiting up to 2s for the interval
-            if (drillKeyboard.querySelectorAll('.key').length === 0) {
-                console.warn('[TTB] Keyboard empty on step start — rebuilding immediately');
-                _rebuildKeyboard();
-            } else {
-                _hideKeyboardRecovery();
-            }
-        });
+        drillKeyboard.focus();
+        _hideKeyboardRecovery();
     });
-    // Also check after 600ms in case the first rAF was still too early
-    setTimeout(() => {
-        if (!activeDrill.classList.contains('hidden') &&
-            drillKeyboard.querySelectorAll('.key').length === 0) {
-            console.warn('[TTB] Keyboard still empty at 600ms — rebuilding');
-            _rebuildKeyboard();
-        }
-    }, 600);
 
     // Show a static anchor hint below the step label when anchorEnforced is true.
     // This replaces the reactive popup — it informs without alarming.
