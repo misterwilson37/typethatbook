@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TypeThatBook Admin v3.0.0</title>
+    <title>TypeThatBook Admin v2.7.1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
@@ -291,17 +291,47 @@
             </div>
 
             <div id="lessons-import-section" class="hidden">
-                <h4 style="margin:0 0 10px; color:#4B9CD3;">Import Lessons JSON</h4>
-                <label class="l-label">Upload lessons.json file</label>
-                <input type="file" id="lessons-import-file" accept=".json" style="margin-bottom:10px;">
-                <label class="l-label">— or paste JSON directly —</label>
-                <textarea id="lessons-import-json" rows="6" class="l-field" style="margin-bottom:8px;" placeholder='{"lessons": [...]} or plain array'></textarea>
-                <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-                    <button id="lessons-import-preview" class="lbtn lbtn-secondary">Preview</button>
-                    <button id="lessons-import-commit" class="lbtn lbtn-primary" disabled>Import All to Firestore</button>
-                    <span id="lessons-import-preview-area" style="font-size:0.8em; color:#888;"></span>
+                <h4 style="margin:0 0 12px; color:#4B9CD3;">Import Lessons JSON</h4>
+
+                <!-- Step 1: Choose source -->
+                <div style="margin-bottom:12px;">
+                    <label class="l-label">1. Upload a lessons.json file</label>
+                    <input type="file" id="lessons-import-file" accept=".json" style="margin-bottom:8px;">
+                    <label class="l-label">— or paste JSON —</label>
+                    <textarea id="lessons-import-json" rows="4" class="l-field"
+                        style="margin-bottom:4px; font-size:0.8em;"
+                        placeholder='{"lessons": [...]}  or plain array'></textarea>
+                    <button id="lessons-import-preview" class="lbtn lbtn-secondary"
+                        style="width:auto; padding:6px 18px;">Check JSON</button>
                 </div>
-                <div style="font-size:0.75em; color:#555;">⚠ Importing will overwrite any existing lessons with matching IDs.</div>
+
+                <!-- Step 2: Preview — hidden until parse succeeds -->
+                <div id="lessons-import-preview-area" class="hidden"
+                    style="background:#0a1a0a; border:1px solid #1a4a1a; border-radius:4px;
+                           padding:12px; margin-bottom:12px;">
+                    <div id="lessons-import-summary" style="color:#00ff41; font-size:0.85em; margin-bottom:8px;"></div>
+                    <div id="lessons-import-breakdown" style="color:#888; font-size:0.78em; line-height:1.8;"></div>
+                </div>
+
+                <!-- Parse error -->
+                <div id="lessons-import-error" class="hidden"
+                    style="background:#1a0a0a; border:1px solid #4a1a1a; border-radius:4px;
+                           padding:10px; margin-bottom:12px; color:#ff6666; font-size:0.82em;">
+                </div>
+
+                <!-- Safety note — always visible once section is open -->
+                <div style="background:#111; border-left:3px solid #4B9CD3;
+                            padding:8px 12px; margin-bottom:12px; font-size:0.78em; color:#888;">
+                    ✓ Student progress is stored separately and will <strong style="color:#eee;">never</strong>
+                    be affected by lesson imports. Only lesson content is overwritten.
+                </div>
+
+                <!-- Step 3: Commit -->
+                <button id="lessons-import-commit" class="lbtn lbtn-primary" disabled
+                    style="opacity:0.4;">
+                    Upload to Firestore
+                </button>
+                <div id="lessons-import-progress" style="margin-top:8px; font-size:0.8em; color:#888; min-height:1.2em;"></div>
             </div>
 
             <div id="lesson-list"></div>
