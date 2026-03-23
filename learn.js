@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.2.9"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.3.0"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -839,8 +839,17 @@ function showLessonResultModal(wpm, acc) {
         '</div>';
 
     // Remediation links for missed chars
+    const remMissedKeys = Object.entries(missedChars)
+        .filter(([ch, n]) => n >= 3).sort((a,b) => b[1]-a[1]).slice(0,3).map(([ch]) => ch);
     const remText = buildRemediationLinks();
     document.getElementById('dm-remediation').innerHTML = remText;
+    // Wire all interactive elements after HTML is inserted
+    const pracBtn = document.getElementById('practice-missed-btn');
+    if (pracBtn) pracBtn.onclick = () => window._practiceMissedKeys(remMissedKeys);
+    document.querySelectorAll('#dm-remediation a[data-lesson-id]').forEach(a => {
+        a.href = '#';
+        a.onclick = e => { e.preventDefault(); window._gotoLesson(a.dataset.lessonId); };
+    });
 
     const btns = document.getElementById('dm-btns');
     btns.innerHTML = '';
@@ -908,16 +917,16 @@ function buildRemediationLinks() {
     const links = top.map(([ch]) => {
         const introLesson = allLessons.find(l => (l.newKeys || []).includes(ch));
         if (!introLesson) return null;
-        return '<a href="#" onclick="window._gotoLesson('' + introLesson.id + ''); return false;">' + ch.toUpperCase() + ' (' + escHtml(introLesson.title) + ')</a>';
+        return '<a href="#" data-lesson-id="' + introLesson.id + '">' + ch.toUpperCase() + ' (' + escHtml(introLesson.title) + ')</a>';
     }).filter(Boolean);
 
     const linkText = links.length
         ? 'You often missed: ' + links.join(', ') + ' — revisit these?'
         : '';
 
-    // Practice button — generates a random drill from the missed keys on the spot
+    // Practice button — store keys in data attribute to avoid quoting nightmares
     const practiceBtn = '<button class="dm-btn-secondary" style="margin-top:6px;width:100%;font-size:0.8rem;padding:7px;" '
-        + 'onclick="window._practiceMissedKeys(' + JSON.stringify(missedKeys) + ')">🎲 Practice missed keys</button>';
+        + 'id="practice-missed-btn">🎲 Practice missed keys</button>';
 
     return linkText + practiceBtn;
 }
