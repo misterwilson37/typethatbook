@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.4.0"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.4.2"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -55,6 +55,10 @@ let missedChars    = {};  // char → count for this lesson
 let drillCharStates      = [];      // 'upcoming' | 'perfect' | 'fixed' | 'dirty' per char
 let drillLetterStatus    = 'clean'; // 'clean' | 'error' | 'fixed'
 let drillBackspaceOrigin = -1;      // furthest pos reached during a backspace run
+let drillConsecutiveMistakes = 0;   // resets on any correct key
+let drillIsHardStop      = false;   // timer paused, waiting for correct key
+const DRILL_HARD_STOP_THRESHOLD = 3;  // wrong keys in a row before pausing
+const DRILL_SPAM_THRESHOLD      = 8;  // total consecutive to restart step
 
 // ─── DOM ─────────────────────────────────────────────────────────────────────
 const mapView        = document.getElementById('map-view');
@@ -215,7 +219,7 @@ function renderMap() {
         byUnit[unit].forEach(lesson => {
             const prog = userProgress[lesson.id];
             const isDone = prog?.passed;
-            const stars = prog?.stars || 0;
+            const grade = prog?.grade || (prog?.stars ? ['','B','A','A🔥'][Math.min(prog.stars,3)] : '');
             const isLocked = !isDone && !isUnlocked(lesson);
             const isNext = lesson.id === firstActiveId;
 
@@ -233,7 +237,7 @@ function renderMap() {
                 <div class="mlc-keys">${keysLabel}</div>
                 <div class="mlc-title">${escHtml(lesson.title || lesson.id)}</div>
                 <div class="mlc-meta">${(lesson.steps || []).length} steps · WPM ${(lesson.gates || {}).minWPM || '?'}+</div>
-                <div class="mlc-stars">${starsHTML(stars)}</div>
+                <div class="mlc-stars">${gradeOnMap(grade)}</div>
                 ${isLocked ? '<div class="mlc-lock">🔒</div>' : ''}
             `;
 
@@ -260,9 +264,48 @@ function isUnlocked(lesson) {
     return userProgress[prev.id]?.passed === true;
 }
 
-function starsHTML(count) {
-    if (count === 0) return '<span style="color:#333;">☆☆☆</span>';
-    return '⭐'.repeat(count) + '<span style="color:#333;">☆</span>'.repeat(3 - count);
+function calculateGrade(wpm, acc, minWPM, minAcc) {
+    // F  — clearly didn't meet either gate (below 70%)
+    // D  — tried but missed at least one gate (time counts, must retry)
+    // C  — met one gate but not both (time counts, must retry)
+    // B  — met both gates (passes, can advance)
+    // A  — exceeded both gates by 15%+ on each
+    // A🔥 — exceeded both gates by 30%+ on each
+    const wpmMet = wpm  >= minWPM;
+    const accMet = acc  >= minAcc;
+
+    if (!wpmMet && !accMet) {
+        if (wpm < minWPM * 0.70 || acc < minAcc * 0.70) return 'F';
+        return 'D';
+    }
+    if (wpmMet && accMet) {
+        if (wpm >= minWPM * 1.30 && acc >= minAcc * 1.15) return 'A🔥';
+        if (wpm >= minWPM * 1.15 && acc >= minAcc * 1.05) return 'A';
+        return 'B';
+    }
+    // Met one but not both
+    return 'C';
+}
+
+function gradeHTML(grade) {
+    const map = {
+        'A🔥': { color:'#ff6600', label:'A 🔥', bg:'rgba(255,100,0,0.12)' },
+        'A':   { color:'#22c55e', label:'A',    bg:'rgba(34,197,94,0.12)'  },
+        'B':   { color:'#4B9CD3', label:'B',    bg:'rgba(75,156,211,0.12)' },
+        'C':   { color:'#FFD700', label:'C',    bg:'rgba(255,215,0,0.12)'  },
+        'D':   { color:'#FF9800', label:'D',    bg:'rgba(255,152,0,0.12)'  },
+        'F':   { color:'#888',    label:'F',    bg:'rgba(128,128,128,0.08)'},
+    };
+    const g = map[grade] || map['F'];
+    return '<span class="grade-badge" style="color:' + g.color + ';background:' + g.bg + ';">' + g.label + '</span>';
+}
+
+function gradeOnMap(grade) {
+    // Compact version for the lesson map card
+    if (!grade) return '';
+    if (grade === 'A🔥') return '<span style="color:#ff6600;font-weight:bold;font-size:0.85rem;">A🔥</span>';
+    const colors = { A:'#22c55e', B:'#4B9CD3', C:'#FFD700', D:'#FF9800', F:'#888' };
+    return '<span style="color:' + (colors[grade] || '#888') + ';font-weight:bold;font-size:0.85rem;">' + grade + '</span>';
 }
 
 // ─── Start Lesson ─────────────────────────────────────────────────────────────
@@ -409,6 +452,8 @@ function beginStep(stepIdx) {
     drillCharStates     = new Array(drillSequence.length).fill('upcoming');
     drillLetterStatus   = 'clean';
     drillBackspaceOrigin = -1;
+    drillConsecutiveMistakes = 0;
+    drillIsHardStop = false;
     stepStartTime = Date.now();
     stepSeconds   = 0;
 
@@ -629,6 +674,36 @@ function handleDrillKey(e) {
     if (drillPos >= drillSequence.length) return;
     const expected = drillSequence[drillPos];
 
+    // If in hard stop, only the correct key resumes — anything else is ignored
+    if (drillIsHardStop) {
+        const expected = drillSequence[drillPos];
+        const typed = (e.key === 'Enter') ? '\n' : (e.key === 'Tab') ? '\t' : (e.key.length === 1 ? e.key : null);
+        if (typed === expected) {
+            drillIsHardStop = false;
+            drillConsecutiveMistakes = 0;
+            // Clear the hard stop overlay and re-enable timer
+            const hsEl = document.getElementById('drill-hardstop');
+            if (hsEl) hsEl.remove();
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => { if (drillPos > 0) stepSeconds++; updateHUD(); }, 1000);
+            learnLastInputTime = Date.now();
+            // Now process the correct key normally
+            flashFingerPressed(drillKeyboard);
+            if (drillLetterStatus === 'clean')      drillCharStates[drillPos] = 'perfect';
+            else if (drillLetterStatus === 'fixed') drillCharStates[drillPos] = 'fixed';
+            else                                     drillCharStates[drillPos] = 'dirty';
+            drillPos++;
+            if (drillBackspaceOrigin >= 0 && drillPos <= drillBackspaceOrigin) {
+                drillLetterStatus = 'fixed';
+            } else { drillBackspaceOrigin = -1; drillLetterStatus = 'clean'; }
+            renderDrillText();
+            if (drillPos >= drillSequence.length) { finishStep(); return; }
+            advanceHandGuide();
+            updateHUD();
+        }
+        e.preventDefault(); return;
+    }
+
     let typed = '';
     if (e.key === 'Enter')     typed = '\n';
     else if (e.key === 'Tab')  typed = '\t';
@@ -669,10 +744,10 @@ function handleDrillKey(e) {
     chars++;
     if (typed === newExpected) {
         flashFingerPressed(drillKeyboard);
+        drillConsecutiveMistakes = 0; // reset on any correct key
         learnLastInputTime = Date.now();
         statsData.charsToday++;  statsData.charsWeek++;
 
-        // Apply done state — same logic as game.js
         if (drillLetterStatus === 'clean')       drillCharStates[drillPos] = 'perfect';
         else if (drillLetterStatus === 'fixed')  drillCharStates[drillPos] = 'fixed';
         else                                     drillCharStates[drillPos] = 'dirty';
@@ -695,15 +770,32 @@ function handleDrillKey(e) {
         advanceHandGuide();
     } else {
         mistakes++;
+        drillConsecutiveMistakes++;
         learnLastInputTime = Date.now();
         statsData.mistakesToday++; statsData.mistakesWeek++;
         if (newExpected !== ' ') {
             missedChars[newExpected] = (missedChars[newExpected] || 0) + 1;
         }
-        // Mark as error (don't advance) — same as game.js
         if (drillLetterStatus === 'clean') drillLetterStatus = 'error';
         flashTargetKey();
         renderDrillText(true);
+
+        if (drillConsecutiveMistakes >= DRILL_SPAM_THRESHOLD) {
+            // Spam detected — restart the step with a fresh sequence
+            const stepIdx = currentStepIdx;
+            clearInterval(timerInterval);
+            clearInterval(learnTickInterval);
+            const hsEl = document.getElementById('drill-hardstop');
+            if (hsEl) hsEl.remove();
+            setTimeout(() => beginStep(stepIdx), 400);
+            return;
+        }
+        if (drillConsecutiveMistakes >= DRILL_HARD_STOP_THRESHOLD) {
+            // Hard stop — pause timer, show overlay, wait for correct key
+            drillIsHardStop = true;
+            clearInterval(timerInterval); // freeze time
+            _showHardStopOverlay(newExpected);
+        }
     }
     updateHUD();
 }
@@ -901,54 +993,57 @@ function showLessonResultModal(wpm, acc) {
     const gates  = currentLesson.gates || {};
     const minWPM = gates.minWPM || 15;
     const minAcc = gates.minAccuracy || 85;
-    const passed = wpm >= minWPM && acc >= minAcc;
 
-    // Star rating — generous thresholds so early learners get rewarded
-    // 1 star = passed gates
-    // 2 stars = 10% over WPM gate OR 5% over acc gate
-    // 3 stars = 25% over WPM gate OR 10% over acc gate (either, not both)
-    let stars = 0;
-    if (passed) {
-        const wpmOver = wpm - minWPM;
-        const accOver = acc - minAcc;
-        if (wpmOver >= minWPM * 0.25 || accOver >= minAcc * 0.10) stars = 3;
-        else if (wpmOver >= minWPM * 0.10 || accOver >= minAcc * 0.05) stars = 2;
-        else stars = 1;
+    const grade  = calculateGrade(wpm, acc, minWPM, minAcc);
+    const passed = grade === 'B' || grade === 'A' || grade === 'A🔥';
+    const countsAsTime = grade !== 'F'; // D and above = time credit
+
+    // Hint toward next grade
+    let gradeHint = '';
+    if (grade === 'F' || grade === 'D') {
+        gradeHint = 'Need ' + minWPM + ' WPM and ' + minAcc + '% accuracy to pass (grade B).';
+    } else if (grade === 'C') {
+        const needWPM = !( wpm >= minWPM );
+        gradeHint = needWPM
+            ? (minWPM - wpm) + ' more WPM for a B.'
+            : 'Get accuracy to ' + minAcc + '% for a B.';
+    } else if (grade === 'B') {
+        gradeHint = (Math.ceil(minWPM * 1.15) - wpm) > 0
+            ? (Math.ceil(minWPM * 1.15) - wpm) + ' more WPM for an A.'
+            : 'Higher accuracy for an A.';
+    } else if (grade === 'A') {
+        gradeHint = (Math.ceil(minWPM * 1.30) - wpm) > 0
+            ? (Math.ceil(minWPM * 1.30) - wpm) + ' more WPM for A 🔥.'
+            : '';
     }
-    // What would the next star have needed?
-    const nextStarWPM  = stars < 3 ? Math.ceil(minWPM * (stars === 0 ? 1 : stars === 1 ? 1.10 : 1.25)) : null;
-    const nextStarNote = (passed && stars < 3)
-        ? `${nextStarWPM - wpm > 0 ? nextStarWPM - wpm + ' more WPM' : 'higher accuracy'} for ${'⭐'.repeat(stars + 1)}`
-        : null;
 
-    // Save progress to Firestore
-    if (currentUser) saveProgress(passed, wpm, acc, stars);
+    // Save — always if time counts, i.e. grade D or better
+    if (currentUser && countsAsTime) saveProgress(passed, wpm, acc, grade);
 
     drillModal.classList.remove('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = 'none';
 
-    document.getElementById('dm-title').textContent = passed ? '🎉 Lesson Complete!' : 'Not quite yet…';
-    document.getElementById('dm-stars').textContent = passed ? '⭐'.repeat(stars) + '☆'.repeat(3 - stars) : '☆☆☆';
+    const titleMap = { 'A🔥':'🔥 On Fire!', A:'🎉 Excellent!', B:'✓ Lesson Complete!', C:'Almost…', D:'Keep Going', F:'Not Yet' };
+    document.getElementById('dm-title').textContent = titleMap[grade] || 'Done';
+    document.getElementById('dm-stars').innerHTML = gradeHTML(grade);
     const rdBadge = (goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds)
         ? '<span class="goal-badge goal-blue" title="Daily goal!">✓</span>' : '';
     const rwBadge = (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds)
         ? '<span class="goal-badge goal-blue" title="Weekly goal!">✓</span>' : '';
     document.getElementById('dm-stats').innerHTML =
+        rdBadge +
         '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
         '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>' +
-        '<div class="dm-stat"><div class="dm-val">' + minWPM + '+</div><div class="dm-label">Target WPM</div></div>';
+        '<div class="dm-stat"><div class="dm-val" style="font-size:1.4rem;">' + minWPM + '+</div><div class="dm-label">Target WPM</div></div>' +
+        rwBadge;
 
-    const msg = passed
-        ? 'You hit ' + wpm + ' WPM at ' + acc + '% accuracy.' + (nextStarNote ? ' (' + nextStarNote + ')' : '')
-        : 'You need ' + minWPM + ' WPM and ' + minAcc + '% accuracy. You got ' + wpm + ' WPM and ' + acc + '%. Try again!';
+    const msg = 'You got ' + wpm + ' WPM at ' + acc + '% accuracy.' + (gradeHint ? ' ' + gradeHint : '');
     document.getElementById('dm-msg').innerHTML =
         escHtml(msg) +
         '<div class="cumulative-row" style="font-size:0.78rem;margin-top:4px;">' +
-        rdBadge +
         '<span>Today: ' + formatTime(statsData.secondsToday) + '</span>' +
         '<span class="cumulative-sep">|</span>' +
         '<span>This week: ' + formatTime(statsData.secondsWeek) + '</span>' +
-        rwBadge +
         '</div>';
 
     // Remediation links for missed chars
@@ -1073,12 +1168,16 @@ window._gotoLesson = function(id) {
 };
 
 // ─── Progress Persistence ────────────────────────────────────────────────────
-async function saveProgress(passed, wpm, acc, stars) {
+async function saveProgress(passed, wpm, acc, grade) {
     if (!currentUser || !currentLesson) return;
     const prev = userProgress[currentLesson.id] || {};
-    const prevStars = prev.stars || 0;
     const attempts  = (prev.attempts || 0) + 1;
     const timeSpent = (prev.timeSpentSeconds || 0) + stepSeconds;
+
+    // Keep best grade seen — order: F D C B A A🔥
+    const GRADE_ORDER = ['F','D','C','B','A','A🔥'];
+    const prevGrade   = prev.grade || 'F';
+    const bestGrade   = GRADE_ORDER.indexOf(grade) > GRADE_ORDER.indexOf(prevGrade) ? grade : prevGrade;
 
     const record = {
         lessonId: currentLesson.id,
@@ -1088,7 +1187,9 @@ async function saveProgress(passed, wpm, acc, stars) {
         finalAccuracy: acc,
         timeSpentSeconds: timeSpent,
         passed: passed || prev.passed || false,
-        stars: Math.max(stars, prevStars),
+        grade: bestGrade,
+        // Keep stars field for backward compat with old progress records
+        stars: bestGrade === 'A🔥' ? 3 : bestGrade === 'A' ? 3 : bestGrade === 'B' ? 2 : bestGrade === 'C' ? 1 : 0,
     };
 
     // Leap detection flag
@@ -1176,6 +1277,33 @@ document.addEventListener('visibilitychange', () => {
         rebuildKeyboardIfNeeded();
     }
 });
+
+function _showHardStopOverlay(targetChar) {
+    // Remove any existing overlay first
+    const existing = document.getElementById('drill-hardstop');
+    if (existing) existing.remove();
+
+    let friendly = targetChar;
+    if (targetChar === ' ')  friendly = 'Space';
+    if (targetChar === '\n') friendly = 'Enter';
+    if (targetChar === '\t') friendly = 'Tab';
+
+    const el = document.createElement('div');
+    el.id = 'drill-hardstop';
+    el.style.cssText = [
+        'position:absolute','inset:0','z-index:30',
+        'display:flex','flex-direction:column','align-items:center','justify-content:center',
+        'background:rgba(255,255,255,0.92)','gap:12px'
+    ].join(';');
+    el.innerHTML =
+        '<div style="font-size:0.9rem;color:#555;font-family:'Courier Prime',monospace;">Too many errors — type the correct key to continue</div>' +
+        '<div style="font-size:2rem;font-weight:bold;color:#D32F2F;border:2px solid #D32F2F;border-radius:6px;padding:6px 20px;font-family:'Courier Prime',monospace;">' +
+        escHtml(friendly) + '</div>';
+
+    // Attach to drill-keyboard-wrap so it overlays the keyboard area
+    const wrap = document.getElementById('drill-keyboard-wrap');
+    if (wrap) { wrap.style.position = 'relative'; wrap.appendChild(el); }
+}
 
 function _rebuildKeyboard() {
     console.warn('[TTB] Rebuilding keyboard — layout:', LAYOUT, 'step:', currentStepIdx);
