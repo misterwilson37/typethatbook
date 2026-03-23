@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.3.2"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.3.3"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -286,10 +286,13 @@ function showIntro(lesson) {
     // This eliminates the race condition where beginStep() builds the keyboard
     // on a zero-size element that Safari hasn't reflowed yet.
     activeDrill.classList.remove('hidden');
-    activeDrill.style.visibility = 'hidden';
-    activeDrill.style.pointerEvents = 'none';
     activeDrill.style.position = 'absolute';
-    activeDrill.style.zIndex = '-1';
+    activeDrill.style.top = '0';
+    activeDrill.style.left = '0';
+    activeDrill.style.width = '100%';
+    activeDrill.style.height = '100%';
+    activeDrill.style.opacity = '0';
+    activeDrill.style.pointerEvents = 'none';
     drillModal.classList.add('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = '';
     stopIntroAnim();
@@ -373,10 +376,13 @@ function beginStep(stepIdx) {
 
     introPanel.classList.add('hidden');
     // Restore active-drill to normal flow (was kept visible but hidden during intro)
-    activeDrill.style.visibility = '';
-    activeDrill.style.pointerEvents = '';
     activeDrill.style.position = '';
-    activeDrill.style.zIndex = '';
+    activeDrill.style.top = '';
+    activeDrill.style.left = '';
+    activeDrill.style.width = '';
+    activeDrill.style.height = '';
+    activeDrill.style.opacity = '';
+    activeDrill.style.pointerEvents = '';
     drillModal.classList.add('hidden');
 
     // Keyboard was pre-built during intro — only rebuild if it somehow ended up empty
