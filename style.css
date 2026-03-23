@@ -1,4 +1,4 @@
-/* TypeThatBook style.css v3.1.1 */
+/* TypeThatBook style.css v3.1.2 */
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -868,6 +868,11 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
 .dt-dirty    { color: var(--brute-force-color); font-weight: bold; }
 .dt-current  { background-color: var(--carolina-blue); color: white !important; }
 .dt-error    { background-color: var(--error-bg); color: var(--black) !important; }
+/* Space-specific done states — text is invisible so we use background tints (mirrors book) */
+.dt-char.dt-done  + .dt-char:empty,  /* keep selectors simple — use data attribute instead */
+.dt-space-perfect { background: transparent; }
+.dt-space-fixed   { background-color: var(--fixed-bg); border-radius: 2px; }
+.dt-space-dirty   { background-color: var(--error-bg); border-radius: 2px; }
 
 /* Drill keyboard wrap — fixed height matches keyboard so swapping
    keyboard↔modal never changes the height of the slot, preventing text jump */
