@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.4.7"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.4.8"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -890,9 +890,11 @@ function advanceHandGuide() {
 
     // Highlight target key. Space bar uses space-active only (shows thumb circles).
     // 'target' is for letter keys only — adding it to space caused persistent dots.
-    // Always clear space-active first so thumb dots don't persist after a space is typed
-    const spaceKey = drillKeyboard.querySelector('.key.space');
-    if (spaceKey) spaceKey.classList.remove('space-active', 'space-pressed');
+    // Clear space-active only when moving away from a space, not when landing on one
+    if (ch !== ' ') {
+        const spaceKey = drillKeyboard.querySelector('.key.space');
+        if (spaceKey) spaceKey.classList.remove('space-active', 'space-pressed');
+    }
 
     drillKeyboard.querySelectorAll('.key').forEach(k => k.classList.remove('target'));
     if (ch !== ' ' && info) {
