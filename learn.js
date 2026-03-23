@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.3.8"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.3.9"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -487,6 +487,8 @@ function buildSequence(step) {
     switch (step.type) {
         case 'key_pattern':
             return step.text.split('');
+        case 'key_pattern_auto':
+            return generateReachPattern(step.keySet || [], step.groupSize || 4, step.groupCount || 10);
         case 'key_random':
             return generateRandom(step.keySet || [], step.groupSize || 4, step.groupCount || 12);
         case 'word_list':
@@ -498,6 +500,72 @@ function buildSequence(step) {
         default:
             return [];
     }
+}
+
+// Generates a reach pattern: reach→home→reach→home groups for each new key,
+// then mixed groups that interleave all keys together.
+// Example with g/h: gfgf jhjh fggf jhhj gfhj fgjh fhgj ...
+function generateReachPattern(keySet, groupSize, groupCount) {
+    if (!keySet.length) return [];
+    groupSize = groupSize || 4;
+    groupCount = groupCount || 10;
+
+    // Split into reach keys and home keys (some lessonsets may be pure home row)
+    const reachKeys = keySet.filter(k => REACH_HOME_COMPANION[k.toLowerCase()]);
+    const homeKeys  = keySet.filter(k => !REACH_HOME_COMPANION[k.toLowerCase()]);
+
+    // Build companion pairs: each reach key paired with its home companion
+    const pairs = reachKeys.map(k => ({
+        reach: k,
+        home: REACH_HOME_COMPANION[k.toLowerCase()]
+    }));
+
+    // If no reach keys, fall through to pure random
+    if (!pairs.length) return generateRandom(keySet, groupSize, groupCount);
+
+    const groups = [];
+
+    // Phase 1: isolated pairs — reach home reach home for each key separately
+    // e.g. gfgf, jhjh
+    pairs.forEach(({reach, home}) => {
+        const g = [];
+        for (let i = 0; i < groupSize; i++) g.push(i % 2 === 0 ? reach : home);
+        groups.push(g);
+    });
+
+    // Phase 2: reversed pairs — home reach reach home (tests finding the reach from home)
+    // e.g. fggf, jhhj
+    pairs.forEach(({reach, home}) => {
+        const g = [];
+        for (let i = 0; i < groupSize; i++) {
+            if (i === 0 || i === groupSize - 1) g.push(home);
+            else g.push(reach);
+        }
+        groups.push(g);
+    });
+
+    // Phase 3: cross pairs — mix all keys together
+    // e.g. gfhj fgjh hgfj
+    const allKeys = reachKeys.concat(pairs.map(p => p.home)).concat(homeKeys);
+    const uniqueKeys = [...new Set(allKeys)];
+    const remaining = groupCount - groups.length;
+    for (let i = 0; i < remaining; i++) {
+        const g = [];
+        // Shuffle-ish: pick keys ensuring reach keys appear often
+        for (let j = 0; j < groupSize; j++) {
+            const pool = j % 2 === 0 ? reachKeys : uniqueKeys;
+            g.push(pool[Math.floor(Math.random() * pool.length)]);
+        }
+        groups.push(g);
+    }
+
+    // Flatten with spaces between groups
+    const chars = [];
+    groups.forEach((g, i) => {
+        if (i > 0) chars.push(' ');
+        g.forEach(c => chars.push(c));
+    });
+    return chars;
 }
 
 // Home-key companions: for any reach key, the same finger's home-row key.
