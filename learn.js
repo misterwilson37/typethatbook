@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.3.9"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.4.0"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -571,14 +571,17 @@ function generateReachPattern(keySet, groupSize, groupCount) {
 // Home-key companions: for any reach key, the same finger's home-row key.
 // Using the same indices as keyboard.js getHomePositions (rows[1] positions 0-9).
 const REACH_HOME_COMPANION = {
-    'q':'a','z':'a',                     // left-pinky reaches → a
-    'w':'s','x':'s',                     // left-ring reaches → s
-    'e':'d','c':'d',                     // left-middle reaches → d
+    'q':'a','z':'a',                         // left-pinky reaches → a
+    'w':'s','x':'s',                         // left-ring reaches → s
+    'e':'d','c':'d',                         // left-middle reaches → d
     'r':'f','t':'f','g':'f','v':'f','b':'f', // left-index reaches → f
     'y':'j','u':'j','h':'j','n':'j','m':'j', // right-index reaches → j
-    'i':'k',',':'k',                     // right-middle reaches → k
-    'o':'l','.':'l',                     // right-ring reaches → l
-    'p':';','[':';',']':';','\\':';','\'':';','/':';' // right-pinky reaches → ;
+    'i':'k',',':'k',                         // right-middle reaches → k
+    'o':'l','.':'l',                         // right-ring reaches → l
+    'p':';','[':';',']':';','\\':';','\'':';','/':';', // right-pinky reaches → ;
+    // Number row — same finger as the letter below
+    '1':'a','2':'s','3':'d','4':'f','5':'f',
+    '6':'j','7':'j','8':'k','9':'l','0':';'
 };
 
 function expandKeySetWithHomeCompanions(keySet) {
