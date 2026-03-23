@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.3.3"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.3.6"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -695,11 +695,15 @@ function advanceHandGuide() {
     const info = getFingerInfo(fingerMap, ch);
     toggleKeyboardCase(drillKeyboard, info?.shift || false);
 
-    // Highlight target key. For space, setHandGuideToChar already adds space-active
-    // (which shows the thumb circles via CSS ::before/::after). Don't also add 'target'
-    // since that applies a solid blue background that hides the thumb indicators.
+    // Highlight target key. Space gets both 'target' (blue background) and
+    // 'space-active' (thumb circles via ::before/::after). The pseudo-elements
+    // render on top of the background so both are visible simultaneously —
+    // same behaviour as book/game.
     drillKeyboard.querySelectorAll('.key').forEach(k => k.classList.remove('target'));
-    if (ch !== ' ' && info) {
+    if (ch === ' ') {
+        const sp = drillKeyboard.querySelector('.key.space');
+        if (sp) sp.classList.add('target');
+    } else if (info) {
         const el = Array.from(drillKeyboard.querySelectorAll('[data-char]'))
             .find(k => k.dataset.char === info.keyChar);
         if (el) el.classList.add('target');
