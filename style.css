@@ -1,4 +1,4 @@
-/* TypeThatBook style.css v3.0.9 */
+/* TypeThatBook style.css v3.1.0 */
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -864,23 +864,22 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
                line-height: 2.0em; padding: 0 1px; position: relative; border-radius: 3px; }
 .dt-upcoming { color: #ccc; }
 .dt-done     { color: var(--black); }                /* typed cleanly — solid black, same as book done-perfect */
-.dt-fixed    { color: var(--corrected-color); font-weight: bold; } /* backspaced & retyped — blue, same as book done-fixed */
+.dt-fixed    { color: #1976d2; font-weight: bold; } /* lighter blue — corrected-color #0047AB is too dark at small size */ /* backspaced & retyped — blue, same as book done-fixed */
 .dt-dirty    { color: var(--brute-force-color); font-weight: bold; }
 .dt-current  { background-color: var(--carolina-blue); color: white !important; }
 .dt-error    { background-color: var(--error-bg); color: var(--black) !important; }
 
-/* Drill keyboard wrap */
-#drill-keyboard-wrap { flex-shrink: 0; }
+/* Drill keyboard wrap — fixed height matches keyboard so swapping
+   keyboard↔modal never changes the height of the slot, preventing text jump */
+#drill-keyboard-wrap { flex-shrink: 0; height: 309px; overflow: hidden; }
 
 /* Drill modal */
 #drill-modal {
     background: white; border-top: 4px solid var(--carolina-blue);
     flex-shrink: 0; display: flex; flex-direction: column;
     box-sizing: border-box;
-    /* No fixed height — sizes to content so stats never overflow.
-       Max matches keyboard height so the text area above doesn't jump. */
-    max-height: 329px;
-    overflow-y: auto;
+    /* Same height as keyboard wrap (309px) so swapping never shifts text area */
+    height: 309px; overflow-y: auto;
     padding: 16px 30px; animation: slideUp 0.2s ease-out;
 }
 #drill-modal.hidden { display: none; }
