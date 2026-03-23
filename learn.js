@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.2.8"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.2.9"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -94,12 +94,16 @@ onAuthStateChanged(auth, async user => {
     if (user) {
         document.getElementById('user-name').textContent = user.displayName || user.email;
         userInfo.classList.remove('hidden'); loginBtn.style.display = 'none';
+        // Load lessons first if they haven't arrived yet (race: auth can beat loadLessons)
+        if (allLessons.length === 0) await loadLessons();
         await loadUserProgress();
         await loadUserStats();
         await loadGoals();
     } else {
         userInfo.classList.add('hidden'); loginBtn.style.display = '';
         userProgress = {};
+        // Load lessons if needed for signed-out view
+        if (allLessons.length === 0) await loadLessons();
     }
     renderMap();
 });
@@ -114,6 +118,11 @@ async function loadLessons() {
             if (a.unit !== b.unit) return a.unit - b.unit;
             return a.lesson - b.lesson;
         });
+        // If the map is already visible but was rendered before lessons loaded, refresh it
+        if (!mapView.classList.contains('hidden') &&
+            lessonMapEl.querySelectorAll('.map-lesson-card').length === 0) {
+            renderMap();
+        }
     } catch(e) {
         lessonMapEl.innerHTML = '<div style="color:#888; text-align:center; padding:40px;">Could not load lessons. Check your connection.</div>';
         console.error(e);
@@ -1272,12 +1281,12 @@ function launchFireworks() {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-(async () => {
-    // Version in footer only — HTML title already stamped in learn.html
-    // (JS overwriting document.title was making it hard to confirm cache cleared)
-    const footer = document.querySelector('footer');
-    if (footer) footer.textContent = 'School v' + LEARN_VERSION + ' / keyboard.js v' + KB_VERSION;
+// loadLessons fires immediately (lessons collection is public, no auth needed).
+// onAuthStateChanged handles ALL rendering — it fires for both signed-in and
+// signed-out states, and is the only reliable moment to know auth is settled.
+// We must NOT call renderMap() here because auth.currentUser is null at module
+// load time even for a returning signed-in user.
+const footer = document.querySelector('footer');
+if (footer) footer.textContent = 'School v' + LEARN_VERSION + ' / keyboard.js v' + KB_VERSION;
 
-    await loadLessons();
-    if (!currentUser) renderMap();
-})();
+loadLessons(); // fire-and-forget; renderMap() in onAuthStateChanged will re-render when done
