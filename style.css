@@ -1,4 +1,4 @@
-/* TypeThatBook style.css v3.0.6 */
+/* TypeThatBook style.css v3.0.7 */
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -863,7 +863,9 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
 .dt-char     { display: inline-block; vertical-align: bottom; min-width: 14.4px;
                line-height: 2.0em; padding: 0 1px; position: relative; border-radius: 3px; }
 .dt-upcoming { color: #ccc; }
-.dt-done     { color: var(--black); }
+.dt-done     { color: var(--black); }                /* typed cleanly — solid black, same as book done-perfect */
+.dt-fixed    { color: var(--corrected-color); font-weight: bold; } /* backspaced & retyped — blue, same as book done-fixed */
+.dt-dirty    { color: var(--brute-force-color); }    /* had error but pushed through — red, same as book done-dirty */
 .dt-current  { background-color: var(--carolina-blue); color: white !important; }
 .dt-error    { background-color: var(--error-bg); color: var(--black) !important; }
 
