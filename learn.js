@@ -1089,7 +1089,7 @@ function _showKeyboardRecovery() {
             'cursor:pointer', 'border-radius:4px'
         ].join(';');
         el.innerHTML = '<div style="background:#fff;padding:16px 24px;border-radius:6px;text-align:center;font-family:monospace;">'
-            + '<div style="font-size:1rem;font-weight:bold;margin-bottom:8px;">⌨ Keyboard didn't load</div>'
+            + '<div style="font-size:1rem;font-weight:bold;margin-bottom:8px;">&#x2328; Keyboard did not load</div>'
             + '<div style="font-size:0.85rem;color:#555;margin-bottom:12px;">Tap to reload it</div>'
             + '<button style="background:var(--carolina-blue);color:white;border:none;padding:8px 20px;border-radius:4px;font-family:inherit;cursor:pointer;font-size:0.9rem;">Reload Keyboard</button>'
             + '</div>';
