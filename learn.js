@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.3.6"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.3.7"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -663,7 +663,6 @@ function renderDrillText(showError = false) {
             const disp = (ch === ' ') ? '&nbsp;' : (ch === '\n' ? '↵' : escHtml(ch));
             let cls;
             if (i === drillPos) {
-                // Current character — error state if wrong key was pressed
                 const errClass = (showError || drillLetterStatus === 'error') ? 'dt-error' : 'dt-current';
                 cls = 'dt-char ' + errClass;
                 html += '<span class="' + cls + '" id="dt-cursor">' + disp + '</span>';
@@ -674,6 +673,9 @@ function renderDrillText(showError = false) {
             else if (state === 'fixed')    cls = 'dt-char dt-fixed';
             else if (state === 'dirty')    cls = 'dt-char dt-dirty';
             else                           cls = 'dt-char dt-upcoming';
+            // Spaces: add background-tint class so the state is visible (text is invisible)
+            if (ch === ' ' && state === 'fixed') cls += ' dt-space-fixed';
+            if (ch === ' ' && state === 'dirty') cls += ' dt-space-dirty';
             html += '<span class="' + cls + '">' + disp + '</span>';
         });
         html += '</span>';
@@ -695,19 +697,15 @@ function advanceHandGuide() {
     const info = getFingerInfo(fingerMap, ch);
     toggleKeyboardCase(drillKeyboard, info?.shift || false);
 
-    // Highlight target key. Space gets both 'target' (blue background) and
-    // 'space-active' (thumb circles via ::before/::after). The pseudo-elements
-    // render on top of the background so both are visible simultaneously —
-    // same behaviour as book/game.
+    // Highlight target key. Space bar uses space-active only (shows thumb circles).
+    // 'target' is for letter keys only — adding it to space caused persistent dots.
     drillKeyboard.querySelectorAll('.key').forEach(k => k.classList.remove('target'));
-    if (ch === ' ') {
-        const sp = drillKeyboard.querySelector('.key.space');
-        if (sp) sp.classList.add('target');
-    } else if (info) {
+    if (ch !== ' ' && info) {
         const el = Array.from(drillKeyboard.querySelectorAll('[data-char]'))
             .find(k => k.dataset.char === info.keyChar);
         if (el) el.classList.add('target');
     }
+    // space-active is set by setHandGuideToChar (called above) — no extra work needed
 
     // Space bar cue: show a small hint so students don't wonder what to press
     const spaceHint = document.getElementById('space-hint');
