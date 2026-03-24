@@ -1,11 +1,11 @@
-// admin.js v2.7.1
+// admin.js v2.7.2
 import { db, auth, storage } from "./firebase-config.js";
 import { initLessonsPanel } from "./lessons-admin.js";
 import { doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "2.7.1";
+const ADMIN_VERSION = "2.7.2";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -1758,6 +1758,74 @@ if (langScanBtn) {
             }
             statusEl.innerText = "Language scan complete — no issues found.";
             statusEl.style.borderColor = "#00ff41";
+        }
+    };
+}
+
+// ─── Repair Chapter Order ─────────────────────────────────────────────────────
+const repairChapterOrderBtn = document.getElementById('repair-chapter-order-btn');
+if (repairChapterOrderBtn) {
+    repairChapterOrderBtn.onclick = async () => {
+        if (!activeBookId) return alert("No book loaded. Open a book first.");
+        const resultsEl = document.getElementById('repair-results');
+        resultsEl.classList.remove('hidden');
+        resultsEl.innerHTML = 'Reading chapter metadata from Firestore...';
+
+        try {
+            const metaSnap = await getDoc(doc(db, "books", activeBookId));
+            if (!metaSnap.exists()) { resultsEl.innerHTML = 'Book metadata not found.'; return; }
+
+            const meta = metaSnap.data();
+            const chapters = meta.chapters || [];
+            const before = chapters.map(c => c.id).join(', ');
+
+            // Deduplicate by id (keep first occurrence)
+            const seen = new Set();
+            const deduped = chapters.filter(c => {
+                if (seen.has(c.id)) return false;
+                seen.add(c.id); return true;
+            });
+
+            // Sort numerically by chapter number (handles "chapter_0", "chapter_1", "chapter_10")
+            deduped.sort((a, b) => {
+                const na = parseFloat(a.id.replace('chapter_', '')) || 0;
+                const nb = parseFloat(b.id.replace('chapter_', '')) || 0;
+                return na - nb;
+            });
+
+            const after = deduped.map(c => c.id).join(', ');
+            const dupCount = chapters.length - deduped.length;
+
+            if (before === after && dupCount === 0) {
+                resultsEl.innerHTML = '<span style="color:#00ff41;">✓ Chapter order is already clean — no changes needed.</span>';
+                return;
+            }
+
+            // Preview
+            resultsEl.innerHTML =
+                '<strong>Before (' + chapters.length + ' entries):</strong><br>' +
+                before.split(', ').map(id => '<span style="color:#888">' + id + '</span>').join(' ') +
+                '<br><br><strong>After (' + deduped.length + ' entries):</strong><br>' +
+                after.split(', ').map(id => '<span style="color:#66ccff">' + id + '</span>').join(' ') +
+                (dupCount > 0 ? '<br><br><span style="color:#ffaa00;">⚠ ' + dupCount + ' duplicate(s) will be removed.</span>' : '') +
+                '<br><br><button id="repair-confirm-btn" style="background:#004466;border:1px solid #006688;color:#66ccff;padding:8px 20px;cursor:pointer;border-radius:4px;">Write Repaired Order to Firestore</button>' +
+                ' <button id="repair-cancel-btn" style="background:#333;border:1px solid #555;color:#aaa;padding:8px 20px;cursor:pointer;border-radius:4px;">Cancel</button>';
+
+            document.getElementById('repair-cancel-btn').onclick = () => {
+                resultsEl.innerHTML = 'Cancelled.';
+                setTimeout(() => resultsEl.classList.add('hidden'), 2000);
+            };
+
+            document.getElementById('repair-confirm-btn').onclick = async () => {
+                resultsEl.innerHTML = 'Writing...';
+                await setDoc(doc(db, "books", activeBookId), { chapters: deduped }, { merge: true });
+                resultsEl.innerHTML = '<span style="color:#00ff41;">✓ Done — ' + deduped.length + ' chapters in correct order. Reload the book to confirm.</span>';
+                statusEl.innerText = 'Chapter order repaired.';
+                statusEl.style.borderColor = '#00ff41';
+            };
+
+        } catch (e) {
+            resultsEl.innerHTML = '<span style="color:#ff4444;">Error: ' + e.message + '</span>';
         }
     };
 }
