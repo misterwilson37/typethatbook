@@ -1,11 +1,11 @@
-// admin.js v2.7.2
+// admin.js v2.7.3
 import { db, auth, storage } from "./firebase-config.js";
 import { initLessonsPanel } from "./lessons-admin.js";
 import { doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "2.7.2";
+const ADMIN_VERSION = "2.7.3";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -1204,6 +1204,14 @@ uploadAllBtn.onclick = async () => {
     }
 
     try {
+        // Always sort chapter metadata numerically before writing —
+        // prevents a corrupt display order from propagating into Firestore
+        chapterMeta.sort((a, b) => {
+            const na = parseFloat(a.id.replace('chapter_', '')) || 0;
+            const nb = parseFloat(b.id.replace('chapter_', '')) || 0;
+            return na - nb;
+        });
+
         const bookData = {
             title: activeBookTitle.value.trim() || activeBookId,
             totalChapters: stagedChapters.length,
