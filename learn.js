@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.4.9"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.5.0"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -946,32 +946,32 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     drillModal.classList.remove('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = 'none';
 
-    // Grade the step — C or better advances, D/F must retry
     const gates    = currentLesson.gates || {};
     const minWPM   = gates.minWPM || 15;
     const minAcc   = gates.minAccuracy || 85;
     const grade    = calculateGrade(wpm, acc, minWPM, minAcc);
-    const canAdvance = (grade === 'B' || grade === 'A' || grade === (String.fromCodePoint(0x1F525)) || grade.startsWith('A'));
+    var FIRE_GRADE = 'A' + String.fromCodePoint(0x1F525);
+    const canAdvance = (grade === 'B' || grade === 'A' || grade === FIRE_GRADE);
 
     document.getElementById('dm-title').textContent = 'Step ' + nextIdx + ' of ' + totalSteps + ' done';
     document.getElementById('dm-stars').innerHTML = gradeHTML(grade);
 
     const dailyBadge = (goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds)
-        ? '<span class="goal-badge goal-blue" title="Daily goal reached!">✓</span>' : '';
+        ? '<span class="goal-badge goal-blue">\u2713</span>' : '';
     const weeklyBadge = (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds)
-        ? '<span class="goal-badge goal-blue" title="Weekly goal reached!">✓</span>' : '';
+        ? '<span class="goal-badge goal-blue">\u2713</span>' : '';
 
     document.getElementById('dm-stats').innerHTML =
         '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
         '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>';
 
+    const stepMsg = getGradeMessage(wpm, acc, minWPM, minAcc, grade);
     const hint = canAdvance
         ? '<span style="color:#888;font-size:0.8rem;font-family:monospace;">press Enter to continue</span>'
-        : '<span style="color:#e65100;font-size:0.82rem;">Need a C or better — press Enter to try again</span>';
+        : '<span style="color:#e65100;font-size:0.85rem;">' + escHtml(stepMsg) + ' (Enter to try again)</span>';
     document.getElementById('dm-msg').innerHTML =
         '<div class="cumulative-row" style="font-size:0.78rem;margin-bottom:4px;">' +
-        dailyBadge +
-        '<span>Today: ' + formatTime(statsData.secondsToday) + '</span>' +
+        dailyBadge + '<span>Today: ' + formatTime(statsData.secondsToday) + '</span>' +
         '<span class="cumulative-sep">|</span>' +
         '<span>This week: ' + formatTime(statsData.secondsWeek) + '</span>' +
         weeklyBadge + '</div>' + hint;
@@ -980,42 +980,37 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     const btns = document.getElementById('dm-btns');
     btns.innerHTML = '';
 
-    const mapBtn = document.createElement('button');
-    mapBtn.className = 'dm-btn-secondary'; mapBtn.textContent = '← Map';
-    mapBtn.onclick = () => {
+    // Define handler ONCE (not inside if/else) to avoid hoisting issues
+    // that cause stale listeners to accumulate across steps
+    var stepAction = null;
+    function stepKeyHandler(e) {
+        if (e.key === 'Enter') { e.preventDefault(); if (stepAction) stepAction(); }
+    }
+    document.addEventListener('keydown', stepKeyHandler);
+
+    function cleanup() {
         document.removeEventListener('keydown', stepKeyHandler);
         drillModal.classList.add('hidden');
         document.getElementById('drill-keyboard-wrap').style.display = '';
-        stopLesson();
-    };
+    }
+
+    const mapBtn = document.createElement('button');
+    mapBtn.className = 'dm-btn-secondary'; mapBtn.textContent = '\u2190 Map';
+    mapBtn.onclick = function() { cleanup(); stopLesson(); };
     btns.appendChild(mapBtn);
 
     if (canAdvance) {
         const next = document.createElement('button');
-        next.className = 'dm-btn-primary'; next.textContent = 'Next Step → (Enter)';
-        const advance = () => {
-            drillModal.classList.add('hidden');
-            document.getElementById('drill-keyboard-wrap').style.display = '';
-            document.removeEventListener('keydown', stepKeyHandler);
-            beginStep(nextIdx);
-        };
-        next.onclick = advance;
+        next.className = 'dm-btn-primary'; next.textContent = 'Next Step \u2192 (Enter)';
+        stepAction = function() { cleanup(); beginStep(nextIdx); };
+        next.onclick = stepAction;
         btns.appendChild(next);
-        function stepKeyHandler(e) { if (e.key === 'Enter') { e.preventDefault(); advance(); } }
-        document.addEventListener('keydown', stepKeyHandler);
     } else {
         const retry = document.createElement('button');
         retry.className = 'dm-btn-primary'; retry.textContent = 'Try Again (Enter)';
-        const doRetry = () => {
-            drillModal.classList.add('hidden');
-            document.getElementById('drill-keyboard-wrap').style.display = '';
-            document.removeEventListener('keydown', stepKeyHandler);
-            beginStep(nextIdx - 1);
-        };
-        retry.onclick = doRetry;
+        stepAction = function() { cleanup(); beginStep(nextIdx - 1); };
+        retry.onclick = stepAction;
         btns.appendChild(retry);
-        function stepKeyHandler(e) { if (e.key === 'Enter') { e.preventDefault(); doRetry(); } }
-        document.addEventListener('keydown', stepKeyHandler);
     }
 }
 
@@ -1025,7 +1020,8 @@ function showLessonResultModal(wpm, acc) {
     const minAcc = gates.minAccuracy || 85;
 
     const grade  = calculateGrade(wpm, acc, minWPM, minAcc);
-    const passed = grade === 'B' || grade === 'A' || grade === 'A🔥';
+    var FIRE_LESSON = 'A' + String.fromCodePoint(0x1F525);
+    const passed = grade === 'B' || grade === 'A' || grade === FIRE_LESSON;
     const countsAsTime = grade !== 'F'; // D and above = time credit
 
     // Hint toward next grade
@@ -1035,7 +1031,14 @@ function showLessonResultModal(wpm, acc) {
     drillModal.classList.remove('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = 'none';
 
-    const titleMap = { 'A🔥':'🔥 On Fire!', A:'🎉 Excellent!', B:'✓ Lesson Complete!', C:'Almost…', D:'Keep Going', F:'Not Yet' };
+    var FIRE_T = 'A' + String.fromCodePoint(0x1F525);
+    var titleMap = {};
+    titleMap[FIRE_T]  = String.fromCodePoint(0x1F525) + ' On Fire!';
+    titleMap['A']     = '\uD83C\uDF89 Excellent!';
+    titleMap['B']     = '\u2713 Lesson Complete!';
+    titleMap['C']     = 'Almost\u2026';
+    titleMap['D']     = 'Keep Going';
+    titleMap['F']     = 'Not Yet';
     document.getElementById('dm-title').textContent = titleMap[grade] || 'Done';
     document.getElementById('dm-stars').innerHTML = gradeHTML(grade);
     const rdBadge = (goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds)
