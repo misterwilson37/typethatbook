@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.5.0"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.5.1"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -283,6 +283,67 @@ function calculateGrade(wpm, acc, minWPM, minAcc) {
     }
     return 'C';
 }
+
+function getGradeMessage(wpm, acc, minWPM, minAcc, grade) {
+    var FIRE = 'A' + String.fromCodePoint(0x1F525);
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    var wpmShort = minWPM - wpm;
+    var accShort = minAcc - acc;
+
+    if (grade === FIRE) return pick([
+        'On fire! Perfect speed AND accuracy.',
+        'Outstanding! That’s as good as it gets.',
+        'Absolutely blazing. Keep it up!'
+    ]);
+    if (grade === 'A') return pick([
+        'Excellent work! Speed and accuracy are both looking great.',
+        'Really clean typing at a solid pace. Well done!',
+        'A-level work. Keep pushing for that fire next time!'
+    ]);
+    if (grade === 'B') return pick([
+        'Nice job — you passed!',
+        'Solid typing. Keep it up!',
+        'You’re through! On to the next one.'
+    ]);
+    if (grade === 'C') {
+        if (wpm >= minWPM && acc < minAcc) {
+            var diff = minAcc - acc;
+            return pick([
+                'Great speed! Accuracy is at ' + acc + '% — you need ' + minAcc + '%. Slow down a touch and focus on the right keys.',
+                'Only ' + diff + '% more accuracy to pass! You’ve got the speed — now trust your fingers.',
+                'Speed is there, accuracy isn’t quite. Try saying each key in your head before you press it.'
+            ]);
+        }
+        return pick([
+            'Accuracy looks great at ' + acc + '%! You’re only ' + Math.abs(wpmShort) + ' WPM short. Just a little faster!',
+            'Nice clean typing! Bump the pace up ' + Math.abs(wpmShort) + ' WPM and you’ve got it.',
+            'So close on speed! ' + Math.abs(wpmShort) + ' more WPM with that same accuracy and you pass.'
+        ]);
+    }
+    if (grade === 'D') {
+        if (acc < minAcc && wpm < minWPM) return pick([
+            'You need ' + Math.abs(wpmShort) + ' more WPM and ' + Math.abs(accShort) + '% more accuracy. Focus on accuracy first — speed will follow.',
+            'Both need work, but that’s okay — this is practice! Slow down and hit each key cleanly.',
+            'Keep at it! Accuracy first, then speed. You’re building the right habits.'
+        ]);
+        if (acc < minAcc) return pick([
+            'Speed is good, but accuracy dropped to ' + acc + '%. Focus on correct fingers, not fast fingers.',
+            'Hitting the right keys matters more than going fast. Aim for ' + minAcc + '% accuracy.',
+            'Slow it down and make sure each key is the right one. Accuracy first!'
+        ]);
+        return pick([
+            'Accuracy is solid at ' + acc + '%! You need ' + Math.abs(wpmShort) + ' more WPM. Try to pick up the pace.',
+            'Clean typing! Just need a little more speed — ' + Math.abs(wpmShort) + ' WPM to go.',
+            'Good accuracy! Work on building speed without losing those correct keystrokes.'
+        ]);
+    }
+    return pick([
+        'Accuracy was ' + acc + '% — let’s slow way down and focus on hitting the right keys. Speed comes later!',
+        'Take a breath and go slowly. Touch the right key, not the fast key. You’ve got this.',
+        'Every expert was once a beginner! Slow down, find the key, press it. Repeat.'
+    ]);
+}
+
 
 function gradeHTML(grade) {
     const map = {
