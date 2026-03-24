@@ -1,4 +1,4 @@
-// v2.7.0 - Practice Mode with Gemini AI
+// v2.9.6 - Retry button on chapter load error
 import { db, auth } from "./firebase-config.js";
 import { doc, getDoc, setDoc, getDocs, collection, addDoc, query, orderBy, limit, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
@@ -8,41 +8,31 @@ import {
     signOut
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
-import {
-    FINGER_COLORS, LAYOUTS,
-    createKeyboard as kbCreateKeyboard,
-    buildFingerMap as kbBuildFingerMap,
-    getFingerInfo as kbGetFingerInfo,
-    createHandGuide as kbCreateHandGuide,
-    colorKeyboardKeys as kbColorKeys,
-    setHandGuideToChar,
-    flashFingerPressed as kbFlashFinger,
-    getKeyCenterInKB as kbGetCenter,
-    toggleKeyboardCase as kbToggleCase,
-    highlightKey as kbHighlightKey,
-} from "./keyboard.js";
 
-const VERSION = "3.0.4";
+const VERSION = "2.9.6";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
 const SPRINT_COOLDOWN_MS = 1500;
 const SPAM_THRESHOLD = 5;
 
-// Local date string (YYYY-MM-DD) — uses browser timezone, not UTC
-function getLocalDateStr(date) {
-    const d = date || new Date();
-    return d.getFullYear() + '-' +
-        String(d.getMonth() + 1).padStart(2, '0') + '-' +
-        String(d.getDate()).padStart(2, '0');
-}
-
 // Hand Guide
 let handGuideEnabled = localStorage.getItem('ttb_handGuide') === 'true';
 let handGuideRainbow = localStorage.getItem('ttb_handGuideRainbow') !== 'false'; // default true
 let handGuideColor = localStorage.getItem('ttb_handGuideColor') || '#4FC3F7';
 let fingerMap = {};
-// FINGER_COLORS imported from keyboard.js
+const FINGER_COLORS = {
+    'left-pinky':   '#FF69B4', // pink
+    'left-ring':    '#E53935', // red
+    'left-middle':  '#FF9800', // orange
+    'left-index':   '#FDD835', // yellow
+    'right-index':  '#43A047', // green
+    'right-middle': '#1E88E5', // blue
+    'right-ring':   '#8E24AA', // purple
+    'right-pinky':  '#4FC3F7', // baby blue
+    'left-thumb':   '#FDD835', // yellow (same as index)
+    'right-thumb':  '#43A047', // green (same as index)
+};
 
 function getFingerColor(fingerName) {
     if (handGuideRainbow) return FINGER_COLORS[fingerName] || '#4FC3F7';
@@ -94,13 +84,10 @@ let mistakes = 0; let sprintMistakes = 0;
 let consecutiveMistakes = 0;
 let activeSeconds = 0; let sprintSeconds = 0;
 let sprintCharStart = 0; let timerInterval = null;
-let _currentSprintStartTime = null;
 let isGameActive = false; let isOvertime = false;
 let isModalOpen = false; let isInputBlocked = false;
 let modalGeneration = 0;
 let isHardStop = false;
-let scrollBackOffset = 0;  // positive = scrolled back (up), 0 = at typing position
-let centerViewHome = 0;    // cached home translateY for current char
 let backspaceOrigin = -1; // tracks where we were when backspacing started
 let bookSwitchPending = false;
 let anonSprintCount = 0;
@@ -139,7 +126,7 @@ function loadAnonReminderState() {
     if (saved) {
         try {
             const data = JSON.parse(saved);
-            if (data.date === getLocalDateStr()) {
+            if (data.date === new Date().toISOString().split('T')[0]) {
                 anonInfiniteReminders = data.count || 0;
             }
         } catch(e) {}
@@ -147,7 +134,7 @@ function loadAnonReminderState() {
 }
 function saveAnonReminderState() {
     localStorage.setItem('ttb_anonInfiniteReminders', JSON.stringify({
-        date: getLocalDateStr(),
+        date: new Date().toISOString().split('T')[0],
         count: anonInfiniteReminders
     }));
 }
@@ -335,7 +322,7 @@ async function loadUserStats() {
     if (!currentUser || currentUser.isAnonymous) return;
     try {
         const today = new Date();
-        const dateStr = getLocalDateStr(today);
+        const dateStr = today.toISOString().split('T')[0];
         const weekStart = getWeekStart(today);
         const docRef = doc(db, "users", currentUser.uid, "stats", "time_tracking");
         const docSnap = await getDoc(docRef);
@@ -440,31 +427,29 @@ async function loadChapter(chapterNum) {
             setupGame();
             getHeaderHTML(); // update book info bar
         } else {
-            // Chapter not found — try to fall back using metadata
-            let fallbackId = null;
-            if (bookMetadata && bookMetadata.chapters && bookMetadata.chapters.length > 0) {
-                fallbackId = bookMetadata.chapters[0].id.replace("chapter_", "");
-            }
-            
-            if (fallbackId && String(fallbackId) !== String(chapterNum)) {
-                console.warn(`Chapter "${chapterId}" not found. Falling back to first chapter: ${fallbackId}`);
-                alert(`Chapter ${chapterNum} not found (book may have been re-imported). Starting from Chapter ${fallbackId}.`);
-                currentChapterNum = fallbackId;
+            if(chapterNum !== 1 && chapterNum !== "1") {
+                alert(`Chapter ${chapterNum} not found. Returning to start.`);
+                currentChapterNum = 1;
                 savedCharIndex = 0;
-                // Update saved progress so this doesn't happen again
-                if (currentUser && !currentUser.isAnonymous) {
-                    await setDoc(doc(db, "users", currentUser.uid, "progress", currentBookId), {
-                        chapter: fallbackId, charIndex: 0
-                    }, { merge: true });
-                }
-                loadChapter(fallbackId);
+                loadChapter(1);
             } else {
                 textStream.innerText = "Book content not found.";
             }
         }
     } catch (e) {
-        console.error(e);
-        textStream.innerHTML = "Error loading content.";
+        console.error("loadChapter error:", e);
+        // Show retry button — don't leave students on a dead screen
+        textStream.innerHTML =
+            '<div style="text-align:center; padding:40px; font-family:monospace;">' +
+            '<div style="font-size:1.1rem; margin-bottom:16px;">Couldn\u2019t load this chapter.</div>' +
+            '<div style="font-size:0.85rem; color:#888; margin-bottom:20px;">' + (e.message || 'Network or permission error') + '</div>' +
+            '<button onclick="loadChapter(' + chapterNum + ')" ' +
+            'style="padding:10px 24px; background:var(--carolina-blue); color:white; border:none; ' +
+            'border-radius:4px; cursor:pointer; font-size:1rem; margin-right:10px;">Try Again</button>' +
+            '<button onclick="loadChapter(1)" ' +
+            'style="padding:10px 24px; background:#555; color:white; border:none; ' +
+            'border-radius:4px; cursor:pointer; font-size:1rem;">Go to Chapter 1</button>' +
+            '</div>';
     }
 }
 
@@ -609,116 +594,11 @@ function setupGame() {
     let btnLabel = "Resume";
     if (savedCharIndex === 0) btnLabel = "Start Reading";
 
-    buildBookProgressBar();
-    updateProgressBars();
-
     if (autoStartNext) {
         autoStartNext = false;
         startGame();
     } else if (!isGameActive) {
         showStartModal(btnLabel);
-    }
-}
-
-// === PROGRESS BARS ===
-function buildBookProgressBar() {
-    const track = document.getElementById('book-progress-track');
-    const barLabel = document.getElementById('book-progress-label');
-    if (!track || !bookMetadata || !bookMetadata.chapters) return;
-    
-    const chapters = bookMetadata.chapters;
-    const total = chapters.length;
-    if (total === 0) return;
-    
-    track.innerHTML = '';
-    // Clear old labels from parent (they're outside the track)
-    track.parentElement.querySelectorAll('.book-chap-label').forEach(el => el.remove());
-    
-    // Decide label frequency: show every Nth chapter number
-    const labelEvery = total <= 20 ? 1 : total <= 50 ? 5 : 10;
-    
-    const segHeight = 100 / total;
-    
-    chapters.forEach((chap, idx) => {
-        const chapNum = chap.id.replace('chapter_', '');
-        const topPct = idx * segHeight;
-        const isCurrent = String(chapNum) === String(currentChapterNum);
-        const isCompleted = completedChapters.has(String(chapNum));
-        
-        // Chapter segment
-        const seg = document.createElement('div');
-        seg.className = 'book-chap-seg ' + (isCurrent ? 'current' : isCompleted ? 'completed' : 'future');
-        seg.style.top = topPct + '%';
-        seg.style.height = segHeight + '%';
-        seg.id = `book-chap-${idx}`;
-        
-        if (isCurrent) {
-            const fill = document.createElement('div');
-            fill.className = 'chap-inner-fill';
-            fill.id = 'book-chap-current-fill';
-            fill.style.height = '0%';
-            seg.appendChild(fill);
-            
-            const marker = document.createElement('div');
-            marker.className = 'chap-inner-marker';
-            marker.id = 'book-chap-current-marker';
-            marker.style.top = '0%';
-            seg.appendChild(marker);
-        }
-        track.appendChild(seg);
-        
-        // Divider line between chapters
-        if (idx > 0) {
-            const divider = document.createElement('div');
-            divider.className = 'book-chap-divider';
-            divider.style.top = topPct + '%';
-            track.appendChild(divider);
-        }
-        
-        // Label
-        if ((idx + 1) % labelEvery === 0 || idx === 0 || isCurrent) {
-            const label = document.createElement('div');
-            label.className = 'book-chap-label' + (isCurrent ? ' active-label' : '');
-            label.style.top = (topPct + segHeight / 2) + '%';
-            label.textContent = chapNum;
-            // Only show if it won't overlap with a forced label (current or first)
-            track.parentElement.appendChild(label);
-        }
-    });
-    
-    if (barLabel) barLabel.textContent = `${total} ch`;
-}
-
-function updateProgressBars() {
-    // --- Left bar: chapter progress (black typed, blue marker, grey untyped) ---
-    const fill = document.getElementById('chapter-progress-fill');
-    const marker = document.getElementById('chapter-progress-marker');
-    const chapLabel = document.getElementById('chapter-progress-label');
-    if (fill && fullText.length > 0) {
-        const pct = Math.min(100, (currentCharIndex / fullText.length) * 100);
-        fill.style.height = pct + '%';
-        if (marker) marker.style.top = pct + '%';
-        if (chapLabel) {
-            const remaining = fullText.length - currentCharIndex;
-            if (remaining > 0) {
-                chapLabel.textContent = remaining.toLocaleString() + ' left';
-            } else {
-                chapLabel.textContent = 'Done!';
-            }
-        }
-    } else if (fill) {
-        fill.style.height = '0%';
-        if (marker) marker.style.top = '0%';
-        if (chapLabel) chapLabel.textContent = fullText.length > 0 ? fullText.length.toLocaleString() + ' chars' : '';
-    }
-    
-    // --- Right bar: current chapter fill + marker ---
-    const innerFill = document.getElementById('book-chap-current-fill');
-    const innerMarker = document.getElementById('book-chap-current-marker');
-    if (innerFill && fullText.length > 0) {
-        const pct = Math.min(100, (currentCharIndex / fullText.length) * 100);
-        innerFill.style.height = pct + '%';
-        if (innerMarker) innerMarker.style.top = pct + '%';
     }
 }
 
@@ -766,7 +646,6 @@ function startGame() {
     }
 
     sprintSeconds = 0; sprintMistakes = 0; sprintCharStart = currentCharIndex;
-    _currentSprintStartTime = new Date();
     activeSeconds = 0; timeAccumulator = 0; lastInputTime = Date.now();
     consecutiveMistakes = 0; backspaceOrigin = -1;
     currentStreak = 0; streakMilestone = 0;
@@ -800,7 +679,7 @@ function gameTick() {
             activeSeconds++; sprintSeconds++;
 
             // Midnight rollover check
-            const todayStr = getLocalDateStr();
+            const todayStr = new Date().toISOString().split('T')[0];
             if (statsData.lastDate && statsData.lastDate !== todayStr) {
                 console.log(`Day rolled over: ${statsData.lastDate} → ${todayStr}. Resetting daily stats.`);
                 statsData.secondsToday = 0;
@@ -1002,28 +881,10 @@ document.addEventListener('keydown', (e) => {
 function handleTyping(key) {
     lastInputTime = Date.now();
     timerDisplay.style.opacity = '1';
-    const wasScrolledBack = scrollBackOffset > 10;
-    scrollBackOffset = 0; // snap back to current position on any keystroke
 
     let inputChar = key;
     if (key === "Tab") inputChar = "\t";
     if (key === "Enter") inputChar = "\n";
-
-    // If returning from scroll-back and sitting on spaces, let the user type
-    // the first visible character to auto-skip past the spaces
-    if (wasScrolledBack && key !== "Backspace" && fullText[currentCharIndex] === ' ' && inputChar !== ' ') {
-        let peekIdx = currentCharIndex;
-        while (peekIdx < fullText.length && fullText[peekIdx] === ' ') peekIdx++;
-        if (peekIdx < fullText.length && fullText[peekIdx] === inputChar) {
-            // Auto-advance past the spaces silently
-            for (let i = currentCharIndex; i < peekIdx; i++) {
-                const spEl = document.getElementById(`char-${i}`);
-                if (spEl) { spEl.classList.remove('active'); spEl.classList.add('done-perfect'); }
-                currentCharIndex++;
-            }
-            currentLetterStatus = 'clean';
-        }
-    }
 
     const targetChar = fullText[currentCharIndex];
     const currentEl = document.getElementById(`char-${currentCharIndex}`);
@@ -1077,7 +938,6 @@ function handleTyping(key) {
         }
 
         updateRunningWPM(); updateRunningAccuracy(true); updateStreak(true);
-        updateProgressBars();
 
         if (currentCharIndex >= fullText.length) { finishChapter(); return; }
 
@@ -1147,11 +1007,8 @@ function triggerHardStop(targetChar, isAfk) {
         if (statsData.secondsToday > 0 || statsData.secondsWeek > 0) {
             statsHtml = `
                 <div class="cumulative-row" style="margin-top:10px;">
-                    ${(goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds) ? '<span class="goal-badge goal-blue" title="Daily goal!">✓</span>' : ''}
                     <span>Today: ${formatTime(statsData.secondsToday)} (${todayWPM} WPM | ${todayAcc}%)</span>
-                    <span class="cumulative-sep">|</span>
-                    <span>This week: ${formatTime(statsData.secondsWeek)} (${weekWPM} WPM | ${weekAcc}%)</span>
-                    ${(goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) ? '<span class="goal-badge goal-blue" title="Weekly goal!">✓</span>' : ''}
+                    <span>Week: ${formatTime(statsData.secondsWeek)} (${weekWPM} WPM | ${weekAcc}%)</span>
                 </div>
                 ${getGoalProgressHTML()}
             `;
@@ -1194,89 +1051,9 @@ function centerView() {
     const currentEl = document.getElementById(`char-${currentCharIndex}`);
     if (!currentEl) return;
     const container = document.getElementById('game-container');
-    centerViewHome = (container.clientHeight / 2) - currentEl.offsetTop - 25;
-    textStream.style.transform = `translateY(${centerViewHome + scrollBackOffset}px)`;
-    updateScrollIndicator();
+    const offset = (container.clientHeight / 2) - currentEl.offsetTop - 25;
+    textStream.style.transform = `translateY(${offset}px)`;
 }
-
-// --- SCROLL-BACK: review typed text ---
-function getNextTypePreview() {
-    if (!fullText || currentCharIndex >= fullText.length) return '';
-    // Skip leading spaces — they're invisible and confusing in a preview
-    let startIdx = currentCharIndex;
-    while (startIdx < fullText.length && fullText[startIdx] === ' ') startIdx++;
-    if (startIdx >= fullText.length) return '';
-    
-    let preview = '';
-    let count = 0;
-    for (let i = startIdx; i < fullText.length && count < 25; i++) {
-        const ch = fullText[i];
-        if (ch === '\t') { preview += '→'; count++; }
-        else if (ch === '\n') { preview += '↵'; count++; break; }
-        else { preview += ch; count++; }
-        if (count >= 10 && ch === ' ') break;
-    }
-    return preview.trim();
-}
-
-function updateScrollIndicator() {
-    let indicator = document.getElementById('scroll-back-indicator');
-    if (scrollBackOffset > 10) {
-        const preview = getNextTypePreview();
-        const displayText = preview ? `↓ Type <span style="background:rgba(255,255,255,0.2); padding:1px 6px; border-radius:4px; letter-spacing:0.5px;">${preview.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span> to return` : '↓ Type to return';
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.id = 'scroll-back-indicator';
-            indicator.innerHTML = displayText;
-            indicator.style.cssText = 'position:absolute; bottom:12px; left:50%; transform:translateX(-50%); ' +
-                'background:rgba(75,156,211,0.9); color:white; padding:6px 16px; border-radius:16px; ' +
-                'font-family:"Courier New",monospace; font-size:13px; font-weight:bold; z-index:10; ' +
-                'pointer-events:none; animation:scrollIndPulse 1.5s ease-in-out infinite; max-width:80%; ' +
-                'white-space:nowrap; overflow:hidden; text-overflow:ellipsis;';
-            document.getElementById('game-container').appendChild(indicator);
-            if (!document.getElementById('scroll-ind-style')) {
-                const style = document.createElement('style');
-                style.id = 'scroll-ind-style';
-                style.textContent = '@keyframes scrollIndPulse { 0%,100% { opacity:0.8; } 50% { opacity:1; } }';
-                document.head.appendChild(style);
-            }
-        } else {
-            indicator.innerHTML = displayText;
-        }
-    } else if (indicator) {
-        indicator.remove();
-    }
-}
-
-document.getElementById('game-container')?.addEventListener('wheel', (e) => {
-    if (!isGameActive && !isModalOpen) return;
-    const delta = -e.deltaY;
-    const maxBack = Math.max(0, -centerViewHome + 100);
-    scrollBackOffset = Math.max(0, Math.min(maxBack, scrollBackOffset + delta));
-    textStream.style.transform = `translateY(${centerViewHome + scrollBackOffset}px)`;
-    updateScrollIndicator();
-    e.preventDefault();
-}, { passive: false });
-
-let touchStartY = 0;
-let touchScrolling = false;
-
-document.getElementById('game-container')?.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 2) { touchStartY = e.touches[0].clientY; touchScrolling = true; }
-}, { passive: true });
-
-document.getElementById('game-container')?.addEventListener('touchmove', (e) => {
-    if (!touchScrolling || e.touches.length !== 2) return;
-    const deltaY = e.touches[0].clientY - touchStartY;
-    touchStartY = e.touches[0].clientY;
-    const maxBack = Math.max(0, -centerViewHome + 100);
-    scrollBackOffset = Math.max(0, Math.min(maxBack, scrollBackOffset + deltaY));
-    textStream.style.transform = `translateY(${centerViewHome + scrollBackOffset}px)`;
-    updateScrollIndicator();
-    e.preventDefault();
-}, { passive: false });
-
-document.getElementById('game-container')?.addEventListener('touchend', () => { touchScrolling = false; }, { passive: true });
 
 function highlightCurrentChar() {
     document.querySelectorAll('.letter.active').forEach(el => el.classList.remove('active'));
@@ -1321,7 +1098,7 @@ async function saveProgress(force = false) {
         await setDoc(doc(db, "users", currentUser.uid, "stats", "time_tracking"), statsData, { merge: true });
 
         // Daily log for admin reporting
-        const today = getLocalDateStr();
+        const today = new Date().toISOString().split('T')[0];
         const logId = `${currentUser.uid}_${today}`;
         await setDoc(doc(db, "typing_logs", logId), {
             uid: currentUser.uid,
@@ -1353,7 +1130,7 @@ async function logSession(seconds, chars, mistakes, wpm, accuracy) {
             uid: currentUser.uid,
             email: currentUser.email || "",
             displayName: currentUser.displayName || "Anonymous",
-            date: getLocalDateStr(),
+            date: new Date().toISOString().split('T')[0],
             timestamp: new Date(),
             seconds: seconds,
             chars: chars,
@@ -1405,7 +1182,7 @@ async function pauseGameForBreak() {
     anonTotalSeconds += sprintSeconds;
 
     // Record sprint in history
-    sprintHistory.push({ wpm: sprintWPM, acc: sprintAcc, time: sprintSeconds, startedAt: _currentSprintStartTime || null });
+    sprintHistory.push({ wpm: sprintWPM, acc: sprintAcc, time: sprintSeconds });
 
     // Update leaderboard and get placements
     const placements = await updateLeaderboard();
@@ -1540,20 +1317,10 @@ function getPlacementsHTML(placements) {
 function getSprintHistoryHTML() {
     if (sprintHistory.length <= 1) return '';
     const rows = sprintHistory.map((s, i) => {
-        const isCurrent = i === sprintHistory.length - 1;
-        let timeLabel = '';
-        if (s.startedAt) {
-            const h = s.startedAt.getHours();
-            const m = String(s.startedAt.getMinutes()).padStart(2, '0');
-            const ampm = h >= 12 ? 'pm' : 'am';
-            timeLabel = `${h % 12 || 12}:${m}${ampm}`;
-        } else {
-            timeLabel = String(i + 1);
-        }
-        const label = isCurrent ? `<b>${timeLabel}</b>` : `<span style="color:#999;">${timeLabel}</span>`;
-        return `${label} ${s.wpm}<small>wpm</small> ${s.acc}<small>%</small>`;
+        const label = i === sprintHistory.length - 1 ? '<b>→</b>' : `${i + 1}`;
+        return `<span style="color:#999;">${label}</span> ${s.wpm}<small>wpm</small> ${s.acc}<small>%</small>`;
     }).join(' · ');
-    return `<div style="font-size:0.75em; color:#777; margin:4px 0; line-height:1.6;">${rows}</div>`;
+    return `<div style="font-size:0.75em; color:#777; margin:4px 0; line-height:1.6;">Sprints: ${rows}</div>`;
 }
 
 async function finishChapter() {
@@ -1592,11 +1359,8 @@ async function finishChapter() {
                         <span class="si-val">${formatTime(sprintSeconds)}</span>
                     </div>
                     <div class="cumulative-row">
-                        ${(goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds) ? '<span class="goal-badge goal-blue" title="Daily goal!">✓</span>' : ''}
                         <span>Today: ${formatTime(statsData.secondsToday)} (${todayWPM} WPM | ${todayAcc}%)</span>
-                        <span class="cumulative-sep">|</span>
-                        <span>This week: ${formatTime(statsData.secondsWeek)} (${weekWPM} WPM | ${weekAcc}%)</span>
-                        ${(goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) ? '<span class="goal-badge goal-blue" title="Weekly goal!">✓</span>' : ''}
+                        <span>Week: ${formatTime(statsData.secondsWeek)} (${weekWPM} WPM | ${weekAcc}%)</span>
                     </div>
                     <div class="start-hint" style="margin-top:6px;">Press Enter to return</div>
                 </div>
@@ -1624,13 +1388,8 @@ async function finishChapter() {
     }
 
     if (!nextChapterId) {
-        if (bookMetadata && bookMetadata.chapters && bookMetadata.chapters.length > 0) {
-            nextChapterId = bookMetadata.chapters[0].id.replace("chapter_", "");
-        } else if (!isNaN(currentChapterNum)) {
-            nextChapterId = parseFloat(currentChapterNum) + 1;
-        } else {
-            nextChapterId = 1;
-        }
+        if (!isNaN(currentChapterNum)) nextChapterId = parseFloat(currentChapterNum) + 1;
+        else nextChapterId = 1;
     }
 
     const charsTyped = currentCharIndex - sprintCharStart;
@@ -1691,14 +1450,8 @@ async function advanceToNextChapter() {
         }
     }
     if (!nextChapterId) {
-        // No metadata match — this shouldn't happen, but if it does, go to first chapter
-        if (bookMetadata && bookMetadata.chapters && bookMetadata.chapters.length > 0) {
-            nextChapterId = bookMetadata.chapters[0].id.replace("chapter_", "");
-        } else if (!isNaN(currentChapterNum)) {
-            nextChapterId = parseFloat(currentChapterNum) + 1;
-        } else {
-            nextChapterId = 1;
-        }
+        if (!isNaN(currentChapterNum)) nextChapterId = parseFloat(currentChapterNum) + 1;
+        else nextChapterId = 1;
     }
     await saveProgress(true);
     currentChapterNum = nextChapterId;
@@ -1759,11 +1512,8 @@ function showStartModal(btnText) {
     const hasStats = statsData.secondsToday > 0 || statsData.secondsWeek > 0;
     const statsSection = hasStats ? `
         <div class="cumulative-row">
-            ${(goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds) ? '<span class="goal-badge goal-blue" title="Daily goal!">✓</span>' : ''}
             <span>Today: ${formatTime(statsData.secondsToday)} (${todayWPM} WPM | ${todayAcc}%)</span>
-            <span class="cumulative-sep">|</span>
-            <span>This week: ${formatTime(statsData.secondsWeek)} (${weekWPM} WPM | ${weekAcc}%)</span>
-            ${(goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) ? '<span class="goal-badge goal-blue" title="Weekly goal!">✓</span>' : ''}
+            <span>Week: ${formatTime(statsData.secondsWeek)} (${weekWPM} WPM | ${weekAcc}%)</span>
         </div>
         ${getGoalProgressHTML()}
     ` : (goals.dailySeconds > 0 || goals.weeklySeconds > 0) ? getGoalProgressHTML() : '';
@@ -1823,7 +1573,7 @@ function showStatsModal(title, stats, btnText, callback, hint, instant) {
             ${hasTrophies ? '<div class="stats-balance"></div>' : ''}
             <div class="${hasTrophies ? 'stats-main' : ''}">
                 <div class="stats-title">${title}</div>
-                <div class="stats-inline" style="position:relative;">
+                <div class="stats-inline">
                     <span class="si-val">${stats.wpm} <small>WPM</small></span>
                     <span class="si-dot">·</span>
                     <span class="si-val">${stats.acc}% <small>Acc</small></span>
@@ -1832,11 +1582,8 @@ function showStatsModal(title, stats, btnText, callback, hint, instant) {
                     ${bestStreak > 0 ? `<span class="si-dot">·</span><span class="si-val">🔥${bestStreak}</span>` : ''}
                 </div>
                 <div class="cumulative-row">
-                    ${(goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds) ? '<span class="goal-badge goal-blue" title="Daily goal!">✓</span>' : ''}
                     <span>Today: ${stats.today}</span>
-                    <span class="cumulative-sep">|</span>
-                    <span>This week: ${stats.week}</span>
-                    ${(goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) ? '<span class="goal-badge goal-blue" title="Weekly goal!">✓</span>' : ''}
+                    <span>Week: ${stats.week}</span>
                 </div>
                 ${getGoalProgressHTML()}
                 ${getSprintHistoryHTML()}
@@ -1942,7 +1689,7 @@ function showAnonLoginPrompt() {
             try {
                 // Apply anonymous typing stats to their account
                 const today = new Date();
-                const dateStr = getLocalDateStr(today);
+                const dateStr = today.toISOString().split('T')[0];
                 const weekStart = getWeekStart(today);
 
                 // Load existing stats first
@@ -2505,26 +2252,109 @@ async function switchChapterHot(newChapter) {
     closeModal(); textStream.innerHTML = "Switching..."; loadChapter(newChapter);
 }
 
-// LAYOUTS imported from keyboard.js
-let currentLayout = localStorage.getItem('keyboardLayout') || 'qwerty';
+// --- KEYBOARD LAYOUTS ---
+const LAYOUTS = {
+    qwerty: {
+        numRow:      ['`','1','2','3','4','5','6','7','8','9','0','-','='],
+        numShiftRow: ['~','!','@','#','$','%','^','&','*','(',')','_','+'],
+        rows:      [['q','w','e','r','t','y','u','i','o','p','[',']','\\'],['a','s','d','f','g','h','j','k','l',';',"'"],['z','x','c','v','b','n','m',',','.','/']],
+        shiftRows: [['Q','W','E','R','T','Y','U','I','O','P','{','}','|'],['A','S','D','F','G','H','J','K','L',':','"'],['Z','X','C','V','B','N','M','<','>','?']]
+    },
+    dvorak: {
+        numRow:      ['`','1','2','3','4','5','6','7','8','9','0','[',']'],
+        numShiftRow: ['~','!','@','#','$','%','^','&','*','(',')' ,'{','}'],
+        rows:      [["'",',','.','p','y','f','g','c','r','l','/','+','\\'],['a','o','e','u','i','d','h','t','n','s','-'],[';','q','j','k','x','b','m','w','v','z']],
+        shiftRows: [['"','<','>','P','Y','F','G','C','R','L','?','=','|'],['A','O','E','U','I','D','H','T','N','S','_'],[':', 'Q','J','K','X','B','M','W','V','Z']]
+    }
+};
 
-// ─── KEYBOARD WRAPPERS (delegating to keyboard.js) ──────────────────────────
+let currentLayout = localStorage.getItem('keyboardLayout') || 'qwerty';
+let numRow = LAYOUTS[currentLayout].numRow;
+let numShiftRow = LAYOUTS[currentLayout].numShiftRow;
+let rows = LAYOUTS[currentLayout].rows;
+let shiftRows = LAYOUTS[currentLayout].shiftRows;
 
 function setKeyboardLayout(layout) {
     if (!LAYOUTS[layout]) return;
     currentLayout = layout;
     localStorage.setItem('keyboardLayout', layout);
+    numRow = LAYOUTS[layout].numRow;
+    numShiftRow = LAYOUTS[layout].numShiftRow;
+    rows = LAYOUTS[layout].rows;
+    shiftRows = LAYOUTS[layout].shiftRows;
     createKeyboard();
-    fingerMap = kbBuildFingerMap(currentLayout);
+    buildFingerMap();
+    // Recreate hand guide overlay for new key positions
     const old = document.getElementById('hand-guide-overlay');
     if (old) old.remove();
     createHandGuide();
     highlightCurrentChar();
 }
 
-function createKeyboard()      { kbCreateKeyboard(keyboardDiv, currentLayout); }
-function toggleKeyboardCase(s) { kbToggleCase(keyboardDiv, s); }
-function highlightKey(char)    { kbHighlightKey(keyboardDiv, char); }
+function createKeyboard() {
+    keyboardDiv.innerHTML = '';
+
+    // Number row: dual-character keys + BACK
+    const numDiv = document.createElement('div'); numDiv.className = 'kb-row';
+    numRow.forEach((char, i) => {
+        const key = document.createElement('div');
+        key.className = 'key key-num';
+        key.dataset.char = char;
+        key.dataset.shift = numShiftRow[i];
+        key.id = `key-${char}`;
+        key.innerHTML = `<span class="num-symbol">${escapeHtml(numShiftRow[i])}</span><span class="num-digit">${escapeHtml(char)}</span>`;
+        numDiv.appendChild(key);
+    });
+    addSpecialKey(numDiv, "BACK", null, 53);
+    keyboardDiv.appendChild(numDiv);
+
+    // Letter rows
+    rows.forEach((rowChars, rIndex) => {
+        const rowDiv = document.createElement('div'); rowDiv.className = 'kb-row';
+        if (rIndex === 0) addSpecialKey(rowDiv, "TAB", null, 72);
+        if (rIndex === 1) addSpecialKey(rowDiv, "CAPS", null, 80);
+        if (rIndex === 2) addSpecialKey(rowDiv, "SHIFT", "key-SHIFT-L", 100);
+        rowChars.forEach((char, cIndex) => {
+            const key = document.createElement('div'); key.className = 'key'; key.innerText = char; key.dataset.char = char; key.dataset.shift = shiftRows[rIndex][cIndex]; key.id = `key-${char}`; rowDiv.appendChild(key);
+        });
+        if (rIndex === 1) addSpecialKey(rowDiv, "ENTER", null, 80);
+        if (rIndex === 2) addSpecialKey(rowDiv, "SHIFT", "key-SHIFT-R", 100);
+        keyboardDiv.appendChild(rowDiv);
+    });
+
+    // Space row
+    const spaceRow = document.createElement('div'); spaceRow.className = 'kb-row';
+    const space = document.createElement('div'); space.className = 'key space'; space.innerText = ""; space.id = "key- ";
+    spaceRow.appendChild(space); keyboardDiv.appendChild(spaceRow);
+}
+
+function addSpecialKey(parent, text, customId, width) {
+    const key = document.createElement('div'); key.className = 'key wide'; key.innerText = text;
+    key.id = customId || `key-${text}`;
+    if (width) key.style.width = width + 'px';
+    parent.appendChild(key);
+}
+
+function toggleKeyboardCase(isShift) {
+    document.querySelectorAll('.key').forEach(k => {
+        if (k.classList.contains('key-num')) return; // number keys always show both
+        if (k.dataset.char) k.innerText = isShift ? k.dataset.shift : k.dataset.char;
+        if (k.id === 'key-SHIFT-L' || k.id === 'key-SHIFT-R') isShift ? k.classList.add('shift-active') : k.classList.remove('shift-active');
+    });
+}
+
+function highlightKey(char) {
+    document.querySelectorAll('.key').forEach(k => k.classList.remove('target'));
+    let targetId = ''; let needsShift = false;
+    if (char === ' ') targetId = 'key- '; else if (char === '\t') targetId = 'key-TAB'; else if (char === '\n') targetId = 'key-ENTER';
+    else {
+        const keys = Array.from(document.querySelectorAll('.key'));
+        const found = keys.find(k => k.dataset.char === char || k.dataset.shift === char);
+        if (found) { targetId = found.id; if (found.dataset.shift === char) needsShift = true; }
+    }
+    const el = document.getElementById(targetId); if (el) el.classList.add('target');
+    toggleKeyboardCase(needsShift);
+}
 
 function flashKey(char) {
     let targetId = '';
@@ -2568,23 +2398,293 @@ function flashKey(char) {
 // HAND GUIDE (keyboard overlay - capsule fingers)
 // ========================
 
-function buildFingerMap() { fingerMap = kbBuildFingerMap(currentLayout); }
-function getFingerInfo(char) { return kbGetFingerInfo(fingerMap, char); }
-function getKeyCenterInKB(cid) { return kbGetCenter(keyboardDiv, cid); }
+function getHomeKeys() {
+    const r = rows[1]; // home row
+    return {
+        'left-pinky':  r[0],  'left-ring':   r[1],  'left-middle': r[2],  'left-index':  r[3],
+        'right-index': r[6],  'right-middle':r[7],  'right-ring':  r[8],  'right-pinky': r[9],
+    };
+}
+
+const FINGER_NAMES = ['left-pinky','left-ring','left-middle','left-index',
+                      'right-index','right-middle','right-ring','right-pinky'];
+
+function buildFingerMap() {
+    fingerMap = {};
+
+    // Number row finger assignments
+    const numAssign = ['left-pinky','left-pinky','left-ring','left-middle','left-index','left-index',
+                       'right-index','right-index','right-middle','right-ring','right-pinky','right-pinky','right-pinky'];
+    numRow.forEach((char, i) => {
+        if (i >= numAssign.length) return;
+        fingerMap[char] = { finger: numAssign[i], keyChar: char };
+        if (numShiftRow[i]) {
+            fingerMap[numShiftRow[i]] = { finger: numAssign[i], keyChar: char, shift: true };
+        }
+    });
+
+    // Letter row finger assignments
+    const assignments = [
+        // Row 0 (top): up to 13 keys
+        ['left-pinky','left-ring','left-middle','left-index','left-index',
+         'right-index','right-index','right-middle','right-ring','right-pinky',
+         'right-pinky','right-pinky','right-pinky'],
+        // Row 1 (home): up to 11 keys
+        ['left-pinky','left-ring','left-middle','left-index','left-index',
+         'right-index','right-index','right-middle','right-ring','right-pinky','right-pinky'],
+        // Row 2 (bottom): up to 10 keys
+        ['left-pinky','left-ring','left-middle','left-index','left-index',
+         'right-index','right-index','right-middle','right-ring','right-pinky'],
+    ];
+    rows.forEach((rowChars, rIndex) => {
+        const assign = assignments[rIndex];
+        if (!assign) return;
+        rowChars.forEach((char, cIndex) => {
+            if (cIndex >= assign.length) return;
+            fingerMap[char] = { finger: assign[cIndex], keyChar: char };
+            if (shiftRows[rIndex] && shiftRows[rIndex][cIndex]) {
+                fingerMap[shiftRows[rIndex][cIndex]] = { finger: assign[cIndex], keyChar: char, shift: true };
+            }
+        });
+    });
+    fingerMap[' '] = { finger: 'thumb', keyChar: ' ' };
+    fingerMap['\n'] = { finger: 'right-pinky', keyChar: 'ENTER' };
+    fingerMap['\t'] = { finger: 'left-pinky', keyChar: 'TAB' };
+}
+
+function getFingerInfo(char) {
+    if (fingerMap[char]) return fingerMap[char];
+    const lower = char.toLowerCase();
+    if (lower !== char && fingerMap[lower]) return { ...fingerMap[lower], shift: true };
+    return null;
+}
+
+function getKeyCenterInKB(charOrId) {
+    const kb = document.getElementById('virtual-keyboard');
+    if (!kb) return null;
+    let keyEl;
+    if (charOrId === ' ') keyEl = document.getElementById('key- ');
+    else if (charOrId === 'ENTER') keyEl = document.getElementById('key-ENTER');
+    else if (charOrId === 'SHIFT-L') keyEl = document.getElementById('key-SHIFT-L');
+    else if (charOrId === 'SHIFT-R') keyEl = document.getElementById('key-SHIFT-R');
+    else keyEl = document.getElementById(`key-${charOrId}`);
+    if (!keyEl) return null;
+    const kbRect = kb.getBoundingClientRect();
+    const keyRect = keyEl.getBoundingClientRect();
+    // Offset by border so SVG coords align with overlay (which sits inside border)
+    return {
+        x: keyRect.left - kbRect.left - kb.clientLeft + keyRect.width / 2,
+        y: keyRect.top - kbRect.top - kb.clientTop + keyRect.height / 2
+    };
+}
 
 function createHandGuide() {
-    kbCreateHandGuide(keyboardDiv, fingerMap, currentLayout, handGuideRainbow, handGuideColor);
-    if (!handGuideEnabled) {
-        const overlay = document.getElementById('hand-guide-overlay');
-        if (overlay) overlay.classList.add('hidden');
-    }
+    const old = document.getElementById('hand-guide-overlay');
+    if (old) old.remove();
+    const kb = document.getElementById('virtual-keyboard');
+    if (!kb) return;
+    kb.style.position = 'relative';
+
+    const overlay = document.createElement('div');
+    overlay.id = 'hand-guide-overlay';
+    if (!handGuideEnabled) overlay.classList.add('hidden');
+    overlay.innerHTML = `<svg id="hg-svg" xmlns="http://www.w3.org/2000/svg"></svg>`;
+    kb.appendChild(overlay);
+
+    colorKeyboardKeys();
+    requestAnimationFrame(() => buildFingerSVG());
 }
-function colorKeyboardKeys()  { kbColorKeys(keyboardDiv, fingerMap, handGuideRainbow, handGuideColor); }
-function flashFingerPressed() { kbFlashFinger(keyboardDiv); }
+
+function colorKeyboardKeys() {
+    // Reset all keys
+    document.querySelectorAll('.key').forEach(k => { k.style.backgroundColor = ''; });
+
+    // Color each key based on its finger assignment
+    Object.entries(fingerMap).forEach(([char, info]) => {
+        if (!info.finger || info.shift || info.finger === 'thumb') return;
+        const color = getFingerColor(info.finger);
+        if (!color) return;
+        let keyEl;
+        if (char === ' ') keyEl = document.getElementById('key- ');
+        else if (char === '\n') keyEl = document.getElementById('key-ENTER');
+        else if (char === '\t') keyEl = document.getElementById('key-TAB');
+        else keyEl = document.getElementById(`key-${char}`);
+        if (keyEl) keyEl.style.backgroundColor = color + '38';
+    });
+
+    // Space bar: grey for rainbow, user color tint for single color
+    const spaceEl = document.getElementById('key- ');
+    if (spaceEl) {
+        if (handGuideRainbow) {
+            spaceEl.style.backgroundColor = '#d0d0d0';
+        } else {
+            spaceEl.style.backgroundColor = handGuideColor + '38';
+        }
+    }
+
+    // Color special keys by their pinky finger
+    const lp = getFingerColor('left-pinky') + '38';
+    const rp = getFingerColor('right-pinky') + '38';
+    const el = id => document.getElementById(id);
+    if (el('key-TAB')) el('key-TAB').style.backgroundColor = lp;
+    if (el('key-CAPS')) el('key-CAPS').style.backgroundColor = lp;
+    if (el('key-SHIFT-L')) el('key-SHIFT-L').style.backgroundColor = lp;
+    if (el('key-SHIFT-R')) el('key-SHIFT-R').style.backgroundColor = rp;
+    if (el('key-ENTER')) el('key-ENTER').style.backgroundColor = rp;
+    if (el('key-BACK')) el('key-BACK').style.backgroundColor = rp;
+}
+
+function buildFingerSVG() {
+    const kb = document.getElementById('virtual-keyboard');
+    const svg = document.getElementById('hg-svg');
+    if (!kb || !svg) return;
+    svg.innerHTML = '';
+    svg.setAttribute('width', kb.clientWidth);
+    svg.setAttribute('height', kb.clientHeight);
+    svg.setAttribute('viewBox', `0 0 ${kb.clientWidth} ${kb.clientHeight}`);
+
+    const homeKeys = getHomeKeys();
+    const R = 11; // finger circle radius
+
+    // Create each finger group: home circle + reach body + reach tip
+    FINGER_NAMES.forEach(name => {
+        const pos = getKeyCenterInKB(homeKeys[name]);
+        if (!pos) return;
+        const fc = getFingerColor(name);
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.id = `hg-finger-${name}`;
+        g.classList.add('hg-finger-group');
+        g.style.setProperty('--fc', fc);
+
+        // Reach body (thick line with round caps = capsule connector)
+        const body = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        body.classList.add('hg-body');
+        body.setAttribute('x1', pos.x); body.setAttribute('y1', pos.y);
+        body.setAttribute('x2', pos.x); body.setAttribute('y2', pos.y);
+        body.setAttribute('stroke-width', R * 2);
+        body.setAttribute('stroke-linecap', 'round');
+        g.appendChild(body);
+
+        // Home circle (base of finger - always visible)
+        const home = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        home.classList.add('hg-home');
+        home.setAttribute('cx', pos.x); home.setAttribute('cy', pos.y);
+        home.setAttribute('r', R);
+        g.appendChild(home);
+
+        // Fingertip circle (target end - only visible when reaching)
+        const tip = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        tip.classList.add('hg-tip');
+        tip.setAttribute('cx', pos.x); tip.setAttribute('cy', pos.y);
+        tip.setAttribute('r', R);
+        g.appendChild(tip);
+
+        svg.appendChild(g);
+    });
+
+    updateHandGuide();
+}
+
 function updateHandGuide() {
     if (!handGuideEnabled) return;
-    if (!fullText || currentCharIndex >= fullText.length) return;
-    setHandGuideToChar(keyboardDiv, fingerMap, currentLayout, fullText[currentCharIndex]);
+    const svg = document.getElementById('hg-svg');
+    if (!svg || !fullText || currentCharIndex >= fullText.length) return;
+
+    const nextChar = fullText[currentCharIndex];
+    const info = getFingerInfo(nextChar);
+    const homeKeys = getHomeKeys();
+
+    // Clear space bar highlight
+    const spaceKeyReset = document.getElementById('key- ');
+    if (spaceKeyReset) spaceKeyReset.classList.remove('space-active');
+
+    // Reset all fingers to resting state
+    svg.querySelectorAll('.hg-finger-group').forEach(g => {
+        g.classList.remove('hg-active', 'hg-shift-active');
+        const body = g.querySelector('.hg-body');
+        const home = g.querySelector('.hg-home');
+        const tip = g.querySelector('.hg-tip');
+        const name = g.id.replace('hg-finger-', '');
+
+        // Reset position to home
+        const homePos = getKeyCenterInKB(homeKeys[name]);
+        if (!homePos) return;
+        if (body) {
+            body.setAttribute('x1', homePos.x); body.setAttribute('y1', homePos.y);
+            body.setAttribute('x2', homePos.x); body.setAttribute('y2', homePos.y);
+        }
+        if (tip) { tip.setAttribute('cx', homePos.x); tip.setAttribute('cy', homePos.y); }
+    });
+
+    if (!info) return;
+
+    // Space: just highlight the bar (CSS handles thumb circles via ::before/::after)
+    if (info.finger === 'thumb') {
+        const spaceBar = document.getElementById('key- ');
+        if (spaceBar) spaceBar.classList.add('space-active');
+        return;
+    }
+
+    const fingerName = info.finger;
+    const fingerG = document.getElementById(`hg-finger-${fingerName}`);
+    if (!fingerG) return;
+
+    // Find home and target positions
+    const homeChar = homeKeys[fingerName];
+    const homePos = homeChar ? getKeyCenterInKB(homeChar) : null;
+    const targetPos = getKeyCenterInKB(info.keyChar);
+
+    if (!homePos || !targetPos) return;
+
+    // Stretch the finger from home to target
+    const body = fingerG.querySelector('.hg-body');
+    const tip = fingerG.querySelector('.hg-tip');
+    if (body) {
+        body.setAttribute('x1', homePos.x); body.setAttribute('y1', homePos.y);
+        body.setAttribute('x2', targetPos.x); body.setAttribute('y2', targetPos.y);
+    }
+    if (tip) { tip.setAttribute('cx', targetPos.x); tip.setAttribute('cy', targetPos.y); }
+    fingerG.classList.add('hg-active');
+
+    // Shift: stretch opposite pinky to correct shift key
+    if (info.shift) {
+        const isLeftFinger = fingerName.startsWith('left');
+        const shiftHand = isLeftFinger ? 'right' : 'left';
+        const shiftKey = isLeftFinger ? 'SHIFT-R' : 'SHIFT-L';
+        const shiftFingerG = document.getElementById(`hg-finger-${shiftHand}-pinky`);
+        if (shiftFingerG) {
+            const shiftHome = homeKeys[`${shiftHand}-pinky`];
+            const shiftHomePos = shiftHome ? getKeyCenterInKB(shiftHome) : null;
+            const shiftTargetPos = getKeyCenterInKB(shiftKey);
+            if (shiftHomePos && shiftTargetPos) {
+                const sBody = shiftFingerG.querySelector('.hg-body');
+                const sTip = shiftFingerG.querySelector('.hg-tip');
+                if (sBody) {
+                    sBody.setAttribute('x1', shiftHomePos.x); sBody.setAttribute('y1', shiftHomePos.y);
+                    sBody.setAttribute('x2', shiftTargetPos.x); sBody.setAttribute('y2', shiftTargetPos.y);
+                }
+                if (sTip) { sTip.setAttribute('cx', shiftTargetPos.x); sTip.setAttribute('cy', shiftTargetPos.y); }
+            }
+            shiftFingerG.classList.add('hg-shift-active');
+        }
+    }
+}
+
+function flashFingerPressed() {
+    if (!handGuideEnabled) return;
+    const svg = document.getElementById('hg-svg');
+    if (!svg) return;
+    svg.querySelectorAll('.hg-active').forEach(g => {
+        g.classList.add('hg-pressed');
+        setTimeout(() => g.classList.remove('hg-pressed'), 120);
+    });
+    // Flash space bar on press
+    const spaceKey = document.getElementById('key- ');
+    if (spaceKey && spaceKey.classList.contains('space-active')) {
+        spaceKey.classList.add('space-pressed');
+        setTimeout(() => spaceKey.classList.remove('space-pressed'), 120);
+    }
 }
 
 let hgResizeTimer;
@@ -3249,7 +3349,7 @@ function showInitialsPrompt() {
 async function updateLeaderboard() {
     if (!currentUser || currentUser.isAnonymous || !userInitials) return [];
     try {
-        const today = getLocalDateStr();
+        const today = new Date().toISOString().split('T')[0];
         const weekStart = getWeekStart(new Date());
         
         // Read existing leaderboard entry
@@ -3627,7 +3727,7 @@ async function logPracticeSession(wpm, acc, seconds, chars, mistakes) {
             email: currentUser.email || '',
             displayName: currentUser.displayName || 'Anonymous',
             timestamp: new Date(),
-            date: getLocalDateStr(),
+            date: new Date().toISOString().split('T')[0],
             bookId: currentBookId,
             chapter: practiceRealChapterNum,
             problemChars: practiceProblemChars,
@@ -3646,21 +3746,4 @@ async function logPracticeSession(wpm, acc, seconds, chars, mistakes) {
     } catch(e) { console.warn("Practice session log failed:", e); }
 }
 
-// Save stats when student navigates away mid-sprint so School picks up correct totals.
-window.addEventListener('beforeunload', () => {
-    if (currentUser && !currentUser.isAnonymous && isGameActive) {
-        // Best-effort async save — completes on desktop, fire-and-forget on mobile
-        isGameActive = false;
-        clearInterval(timerInterval);
-        setDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'),
-            statsData, { merge: true }).catch(() => {});
-    }
-});
-
-// ES modules are deferred — DOM is always ready by the time this runs.
-// Calling init() directly is safer than window.onload which can race on some browsers.
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
+window.onload = init;
