@@ -320,6 +320,7 @@
                 loginBtn.style.display = 'none';
                 logoutBtn.style.display = '';
                 await loadUserProgress();
+                loadIndexStats();
             } else {
                 userNameEl.style.display = 'none';
                 loginBtn.style.display = '';
@@ -435,6 +436,34 @@
 
         // --- INIT ---
         loadBooks();
+
+        async function loadIndexStats() {
+            if (!currentUser) return;
+            try {
+                const snap = await getDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'));
+                if (!snap.exists()) return;
+                const data = snap.data();
+                const now = new Date();
+                const diff = (now.getDay() + 1) % 7;
+                const ws = new Date(now);
+                ws.setDate(ws.getDate() - diff);
+                const weekStartStr = ws.getFullYear() + '-' +
+                    String(ws.getMonth()+1).padStart(2,'0') + '-' +
+                    String(ws.getDate()).padStart(2,'0');
+                const todayStr = now.getFullYear() + '-' +
+                    String(now.getMonth()+1).padStart(2,'0') + '-' +
+                    String(now.getDate()).padStart(2,'0');
+                const secsToday = data.lastDate  === todayStr    ? (data.secondsToday || 0) : 0;
+                const secsWeek  = data.weekStart === weekStartStr ? (data.secondsWeek  || 0) : 0;
+                if (secsToday === 0 && secsWeek === 0) return;
+                function fmt(s) { const m=Math.floor(s/60),sec=s%60; return m+':'+String(sec).padStart(2,'0'); }
+                const bar = document.getElementById('index-stats-bar');
+                if (!bar) return;
+                bar.style.display = '';
+                bar.innerHTML = 'Today: <strong>' + fmt(secsToday) + '</strong>' +
+                    ' │ This week: <strong>' + fmt(secsWeek) + '</strong>';
+            } catch(e) { /* stats are non-critical */ }
+        }
     </script>
 </body>
 </html>
