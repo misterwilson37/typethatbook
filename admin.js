@@ -1,11 +1,11 @@
-// admin.js v2.7.3
+// admin.js v2.7.4
 import { db, auth, storage } from "./firebase-config.js";
 import { initLessonsPanel } from "./lessons-admin.js";
 import { doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "2.7.3";
+const ADMIN_VERSION = "2.7.4";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
