@@ -23,15 +23,17 @@ export function initLessonsPanel(db) {
 
 // ─── TAB SWITCHING ───────────────────────────────────────────────────────────
 function setupTabSwitching() {
-    document.getElementById('tab-books').addEventListener('click', () => switchTab('books'));
-    document.getElementById('tab-lessons').addEventListener('click', () => switchTab('lessons'));
+    document.getElementById('tab-books').addEventListener('click',    () => switchTab('books'));
+    document.getElementById('tab-lessons').addEventListener('click',  () => switchTab('lessons'));
+    document.getElementById('tab-students').addEventListener('click', () => switchTab('students'));
 }
 
 function switchTab(which) {
-    document.getElementById('tab-books').classList.toggle('tab-active', which === 'books');
-    document.getElementById('tab-lessons').classList.toggle('tab-active', which === 'lessons');
-    document.getElementById('books-panel').classList.toggle('hidden', which !== 'books');
-    document.getElementById('lessons-panel').classList.toggle('hidden', which !== 'lessons');
+    ['books','lessons','students'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('tab-active', which === t);
+        document.getElementById(t + '-panel').classList.toggle('hidden', which !== t);
+    });
+    if (which === 'students') initStudentsPanel();
 }
 
 // ─── LOAD ─────────────────────────────────────────────────────────────────────
@@ -596,6 +598,174 @@ function parseImportJSON(text) {
         if (!l.id) throw new Error(`Lesson at index ${i} has no id field`);
     });
     return arr;
+}
+
+
+// ─── STUDENTS PANEL ──────────────────────────────────────────────────────────
+let _studentsInited = false;
+let _allLessonIds   = [];  // ordered list from _lessonCache
+let _currentStudentUid = null;
+
+function initStudentsPanel() {
+    if (_studentsInited) return;
+    _studentsInited = true;
+
+    const searchBtn   = document.getElementById('student-search-btn');
+    const searchInput = document.getElementById('student-search-input');
+    if (searchBtn)   searchBtn.addEventListener('click',   runStudentSearch);
+    if (searchInput) searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') runStudentSearch(); });
+}
+
+async function runStudentSearch() {
+    const q      = (document.getElementById('student-search-input').value || '').trim().toLowerCase();
+    const resEl  = document.getElementById('student-search-results');
+    const secEl  = document.getElementById('student-progress-section');
+    if (!q) { resEl.textContent = 'Enter a name or email to search.'; return; }
+
+    resEl.innerHTML = '<span style="color:#888;">Searching…</span>';
+    secEl.classList.add('hidden');
+
+    try {
+        // typing_logs stores uid, email, displayName — query all and filter client-side
+        const snap = await getDocs(collection(_db, 'typing_logs'));
+        const seen = new Map(); // uid → {email, displayName}
+        snap.forEach(d => {
+            const data = d.data();
+            const uid  = data.uid || '';
+            if (!uid || seen.has(uid)) return;
+            const email = (data.email || '').toLowerCase();
+            const name  = (data.displayName || '').toLowerCase();
+            if (email.includes(q) || name.includes(q)) {
+                seen.set(uid, { email: data.email || '', name: data.displayName || uid });
+            }
+        });
+
+        if (seen.size === 0) {
+            resEl.innerHTML = '<span style="color:#ffaa00;">No students found matching "' + escHtml(q) + '".</span>';
+            return;
+        }
+
+        // Build result list
+        let html = '<div style="display:flex; flex-wrap:wrap; gap:6px;">';
+        seen.forEach(({email, name}, uid) => {
+            html += '<button class="lbtn lbtn-secondary student-result-btn" '
+                + 'style="font-size:0.8em; padding:5px 12px;" '
+                + 'data-uid="' + escHtml(uid) + '" '
+                + 'data-label="' + escHtml(name + ' (' + email + ')') + '">'
+                + escHtml(name) + '<br><span style="color:#555; font-size:0.85em;">' + escHtml(email) + '</span>'
+                + '</button>';
+        });
+        html += '</div>';
+        resEl.innerHTML = html;
+
+        resEl.querySelectorAll('.student-result-btn').forEach(btn => {
+            btn.addEventListener('click', () => loadStudentProgress(btn.dataset.uid, btn.dataset.label));
+        });
+
+    } catch (e) {
+        resEl.innerHTML = '<span style="color:#ff4444;">Search error: ' + escHtml(e.message) + '</span>';
+    }
+}
+
+async function loadStudentProgress(uid, label) {
+    _currentStudentUid = uid;
+    const secEl   = document.getElementById('student-progress-section');
+    const lblEl   = document.getElementById('student-selected-label');
+    const gridEl  = document.getElementById('student-lesson-grid');
+
+    lblEl.textContent = label;
+    gridEl.innerHTML  = '<span style="color:#888;">Loading…</span>';
+    secEl.classList.remove('hidden');
+
+    try {
+        // Load their progress sub-collection
+        const snap = await getDocs(collection(_db, 'users', uid, 'lessonProgress'));
+        const progress = {};
+        snap.forEach(d => { progress[d.id] = d.data(); });
+
+        // Get ordered lesson list from cache
+        const lessonList = Object.values(_lessonCache)
+            .sort((a, b) => (a.unit !== b.unit ? a.unit - b.unit : a.lesson - b.lesson));
+
+        gridEl.innerHTML = '';
+        lessonList.forEach(lesson => {
+            const prog   = progress[lesson.id];
+            const passed = prog?.passed || false;
+            const grade  = prog?.grade  || (prog?.stars ? ['','C','B','A'][Math.min(prog.stars,3)] : '');
+            const hasAny = !!prog;
+
+            const card = document.createElement('div');
+            card.style.cssText = [
+                'background:' + (passed ? '#0a220a' : hasAny ? '#1a1500' : '#1a1a1a'),
+                'border:1px solid ' + (passed ? '#1a4a1a' : hasAny ? '#443300' : '#333'),
+                'border-radius:4px',
+                'padding:8px 10px',
+                'font-size:0.78em',
+                'cursor:pointer',
+                'transition:border-color 0.15s'
+            ].join(';');
+
+            card.innerHTML =
+                '<div style="font-weight:bold; color:#aaa; margin-bottom:2px;">' + escHtml(lesson.id) + '</div>' +
+                '<div style="color:#666; font-size:0.9em; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + escHtml(lesson.title || '') + '</div>' +
+                '<div style="font-size:1.1em; font-weight:bold; color:' + (passed ? '#22c55e' : hasAny ? '#FFD700' : '#444') + ';">' +
+                (grade || (passed ? 'B' : hasAny ? '…' : '—')) + '</div>' +
+                '<div style="font-size:0.8em; color:#555; margin-top:2px;">' + (passed ? '✓ passed' : hasAny ? 'attempted' : 'not started') + '</div>';
+
+            card.title = passed ? 'Click to LOCK (remove progress)' : 'Click to UNLOCK (mark as passed)';
+
+            card.addEventListener('click', () => toggleStudentLesson(uid, lesson, prog, card, label));
+            gridEl.appendChild(card);
+        });
+
+    } catch (e) {
+        gridEl.innerHTML = '<span style="color:#ff4444;">Error: ' + escHtml(e.message) + '</span>';
+    }
+}
+
+async function toggleStudentLesson(uid, lesson, existingProg, card, label) {
+    const hasProg  = !!existingProg;
+    const isPassed = existingProg?.passed || false;
+    const docRef   = doc(_db, 'users', uid, 'lessonProgress', lesson.id);
+
+    if (isPassed) {
+        // Lock — remove progress entirely
+        if (!confirm('Remove ALL progress for "' + lesson.title + '" for this student?\n\nThis cannot be undone.')) return;
+        try {
+            await deleteDoc(docRef);
+            card.style.background = '#1a1a1a';
+            card.style.borderColor = '#333';
+            card.querySelector('div:nth-child(3)').textContent = '—';
+            card.querySelector('div:nth-child(3)').style.color = '#444';
+            card.querySelector('div:nth-child(4)').textContent = 'not started';
+            card.title = 'Click to UNLOCK (mark as passed)';
+        } catch (e) { alert('Failed: ' + e.message); }
+
+    } else {
+        // Unlock — write a passed record
+        const action = hasProg ? 'Mark as PASSED' : 'Unlock and mark as PASSED';
+        if (!confirm(action + ': "' + lesson.title + '" for this student?')) return;
+        try {
+            const record = {
+                lessonId: lesson.id,
+                completedAt: new Date().toISOString(),
+                passed: true,
+                grade: 'B',
+                adminOverride: true,
+                attempts: existingProg?.attempts || 1,
+                finalWPM: existingProg?.finalWPM || 0,
+                finalAccuracy: existingProg?.finalAccuracy || 0,
+                timeSpentSeconds: existingProg?.timeSpentSeconds || 0
+            };
+            await setDoc(docRef, record, { merge: true });
+            card.style.background = '#0a220a';
+            card.style.borderColor = '#1a4a1a';
+            card.querySelector('div:nth-child(3)').textContent = 'B';
+            card.querySelector('div:nth-child(3)').style.color = '#22c55e';
+            card.querySelector('div:nth-child(4)').textContent = '✓ passed';
+            card.title = 'Click to LOCK (remove progress)';
+        } catch (e) { alert('Failed: ' + e.message); }
+    }
 }
 
 // ─── PUBLIC RELOAD (for toolbar button) ──────────────────────────────────────
