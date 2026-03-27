@@ -15,7 +15,16 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.5.3"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.5.4";
+
+const ADMIN_EMAILS = [
+    "jacob.wilson@sumnerk12.net",
+    "jacob.v.wilson@gmail.com",
+];
+
+// Game Genie state (admin only, session-scoped)
+let ggAllowMistakes = false;
+let ggBypassIdle    = false; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -99,6 +108,23 @@ onAuthStateChanged(auth, async user => {
     if (user) {
         document.getElementById('user-name').textContent = user.displayName || user.email;
         userInfo.classList.remove('hidden'); loginBtn.style.display = 'none';
+        // Game Genie button — admin only
+        if (!document.getElementById('learn-genie-btn')) {
+            const gg = document.createElement('button');
+            gg.id = 'learn-genie-btn';
+            gg.innerHTML = '<span style="font-size:1.1em;">\uD83D\uDD25</span>' +
+                '<span class="gg-fire">G</span><span class="gg-fire gg-fire2">G</span>' +
+                '<span style="font-size:1.1em;">\uD83D\uDD25</span>';
+            gg.title = 'Game Genie (admin)';
+            gg.style.cssText = 'position:fixed;bottom:12px;left:12px;z-index:9999;' +
+                'background:#111;border:1px solid #ff6600;color:#ff6600;' +
+                'padding:4px 8px;cursor:pointer;border-radius:4px;font-family:monospace;' +
+                'font-size:0.85rem;font-weight:bold;';
+            gg.onclick = openLearnGenie;
+            document.body.appendChild(gg);
+        }
+        const ggBtn = document.getElementById('learn-genie-btn');
+        if (ggBtn) ggBtn.style.display = ADMIN_EMAILS.includes(user.email) ? '' : 'none';
         // Load lessons first if they haven't arrived yet (race: auth can beat loadLessons)
         if (allLessons.length === 0) await loadLessons();
         await loadUserProgress();
@@ -847,12 +873,11 @@ function handleDrillKey(e) {
         renderDrillText(true);
 
         // Stop counting time once errors hit threshold (but before hard stop)
-        if (drillConsecutiveMistakes >= DRILL_STOP_TIME_THRESHOLD) {
-            learnLastInputTime = 0; // idle = no time credit until they type correctly
+        if (!ggAllowMistakes && drillConsecutiveMistakes >= DRILL_STOP_TIME_THRESHOLD) {
+            learnLastInputTime = 0;
         }
 
-        if (drillConsecutiveMistakes >= DRILL_SPAM_THRESHOLD) {
-            // Spam detected — restart the step with a fresh sequence
+        if (!ggAllowMistakes && drillConsecutiveMistakes >= DRILL_SPAM_THRESHOLD) {
             const stepIdx = currentStepIdx;
             clearInterval(timerInterval);
             clearInterval(learnTickInterval);
@@ -861,10 +886,9 @@ function handleDrillKey(e) {
             setTimeout(() => beginStep(stepIdx), 400);
             return;
         }
-        if (drillConsecutiveMistakes >= DRILL_HARD_STOP_THRESHOLD) {
-            // Hard stop — pause timer, show overlay, wait for correct key
+        if (!ggAllowMistakes && drillConsecutiveMistakes >= DRILL_HARD_STOP_THRESHOLD) {
             drillIsHardStop = true;
-            clearInterval(timerInterval); // freeze time
+            clearInterval(timerInterval);
             _showHardStopOverlay(newExpected);
         }
     }
@@ -1322,6 +1346,182 @@ function getNextLesson() {
 // ─── Save stats on page unload ───────────────────────────────────────────────
 // Ensures time typed in School is persisted even if student navigates away
 // mid-lesson without completing a step (which is when saveStats() normally fires).
+
+// ─── LEARN GAME GENIE (admin only) ───────────────────────────────────────────
+function openLearnGenie() {
+    if (!currentUser || !ADMIN_EMAILS.includes(currentUser.email)) return;
+
+    // Pause the drill timer while panel is open
+    clearInterval(timerInterval);
+    clearInterval(learnTickInterval);
+    if (drillKeyboard) drillKeyboard.onkeydown = null;
+
+    const lesson    = currentLesson;
+    const stepIdx   = currentStepIdx;
+    const steps     = lesson ? (lesson.steps || []) : [];
+    const onDrill   = !drillView.classList.contains('hidden');
+
+    const ggS = 'background:#1a1a1a;color:#ff6600;border:1px solid #ff6600;' +
+                'padding:4px 10px;cursor:pointer;border-radius:3px;font-family:monospace;' +
+                'font-size:0.8em;font-weight:bold;margin:2px;';
+    const ggT = 'color:#888;font-size:0.7em;margin-bottom:3px;font-family:monospace;';
+
+    // Lesson dropdown
+    const lessonOpts = allLessons.map(l => {
+        const prog    = userProgress[l.id] || {};
+        const grade   = prog.grade || (prog.passed ? 'B' : '');
+        const sel     = lesson && l.id === lesson.id ? ' selected' : '';
+        return '<option value="' + l.id + '"' + sel + '>' +
+               'U' + l.unit + 'L' + l.lesson + ' ' + escHtml(l.title || l.id) +
+               (grade ? ' [' + grade + ']' : '') + '</option>';
+    }).join('');
+
+    // Step dropdown
+    const stepOpts = steps.map((s, i) =>
+        '<option value="' + i + '"' + (i === stepIdx ? ' selected' : '') + '>' +
+        'Step ' + (i+1) + ': ' + escHtml(s.label || s.id) + '</option>'
+    ).join('');
+
+    drillModal.classList.remove('hidden');
+    document.getElementById('drill-keyboard-wrap').style.display = 'none';
+    document.getElementById('dm-title').textContent = '\uD83D\uDD25 GAME GENIE \uD83D\uDD25';
+    document.getElementById('dm-stars').innerHTML = '';
+    document.getElementById('dm-remediation').innerHTML = '';
+
+    document.getElementById('dm-stats').innerHTML =
+        '<div style="font-size:0.75rem;color:#888;font-family:monospace;">' +
+        (lesson ? escHtml(lesson.title || lesson.id) : 'No lesson active') +
+        (onDrill ? ' — Step ' + (stepIdx+1) + '/' + steps.length : '') +
+        '</div>';
+
+    document.getElementById('dm-msg').innerHTML =
+        '<div style="font-family:monospace;font-size:0.82em;text-align:left;max-width:420px;margin:0 auto;">' +
+
+        // Lesson jump
+        '<div style="margin-bottom:10px;">' +
+        '<div style="' + ggT + '">WARP TO LESSON</div>' +
+        '<div style="display:flex;gap:4px;align-items:center;">' +
+        '<select id="gg-lesson-select" style="flex:1;background:#222;color:#eee;border:1px solid #555;padding:3px 4px;font-family:monospace;font-size:0.82em;border-radius:3px;">' + lessonOpts + '</select>' +
+        '<button id="gg-lesson-go" style="' + ggS + '">WARP</button>' +
+        '</div>' +
+        '</div>' +
+
+        // Step jump (only when on a drill)
+        (onDrill && steps.length > 1 ?
+        '<div style="margin-bottom:10px;">' +
+        '<div style="' + ggT + '">JUMP TO STEP</div>' +
+        '<div style="display:flex;gap:4px;align-items:center;">' +
+        '<select id="gg-step-select" style="flex:1;background:#222;color:#eee;border:1px solid #555;padding:3px 4px;font-family:monospace;font-size:0.82em;border-radius:3px;">' + stepOpts + '</select>' +
+        '<button id="gg-step-go" style="' + ggS + '">GO</button>' +
+        '</div>' +
+        '</div>' : '') +
+
+        // Lock / unlock current lesson
+        (lesson ?
+        '<div style="margin-bottom:10px;">' +
+        '<div style="' + ggT + '">CURRENT LESSON PROGRESS</div>' +
+        '<div style="display:flex;gap:4px;flex-wrap:wrap;">' +
+        '<button id="gg-unlock" style="' + ggS + '" title="Mark as passed (grade B)">\u2713 UNLOCK (mark passed)</button>' +
+        '<button id="gg-lock" style="' + ggS + 'color:#ff4444;border-color:#ff4444;" title="Delete progress record">\u2717 LOCK (remove progress)</button>' +
+        '</div>' +
+        '</div>' : '') +
+
+        // Toggles
+        '<div style="margin-bottom:10px;">' +
+        '<div style="' + ggT + '">TOGGLES</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+        '<label style="display:flex;align-items:center;gap:3px;font-size:0.78em;color:' + (ggAllowMistakes ? '#ff6600' : '#888') + ';cursor:pointer;">' +
+        '<input type="checkbox" id="gg-allow-mistakes"' + (ggAllowMistakes ? ' checked' : '') + '> Mistakes OK</label>' +
+        '<label style="display:flex;align-items:center;gap:3px;font-size:0.78em;color:' + (ggBypassIdle ? '#ff6600' : '#888') + ';cursor:pointer;">' +
+        '<input type="checkbox" id="gg-bypass-idle"' + (ggBypassIdle ? ' checked' : '') + '> No Idle</label>' +
+        '</div>' +
+        '</div>' +
+
+        '</div>';
+
+    const btns = document.getElementById('dm-btns');
+    btns.innerHTML = '';
+
+    function closeGenie() {
+        drillModal.classList.add('hidden');
+        document.getElementById('drill-keyboard-wrap').style.display = '';
+        // Resume if on a drill
+        if (onDrill && !drillView.classList.contains('hidden')) {
+            timerInterval = setInterval(() => { if (drillPos > 0) stepSeconds++; updateHUD(); }, 1000);
+            learnTickInterval = setInterval(() => {
+                if (!learnLastInputTime) return;
+                if (!ggBypassIdle && Date.now() - learnLastInputTime >= LEARN_IDLE_THRESHOLD) return;
+                learnActiveSeconds++;
+                statsData.secondsToday++; statsData.secondsWeek++;
+                if (hudTimer) {
+                    const m = Math.floor(statsData.secondsToday/60), s = statsData.secondsToday%60;
+                    hudTimer.textContent = m + ':' + String(s).padStart(2,'0');
+                }
+            }, 1000);
+            drillKeyboard.onkeydown = handleDrillKey;
+            drillKeyboard.focus();
+        }
+    }
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'dm-btn-secondary'; closeBtn.textContent = 'Close (Esc)';
+    closeBtn.onclick = closeGenie;
+    btns.appendChild(closeBtn);
+
+    function genieEscHandler(e) {
+        if (e.key === 'Escape') { document.removeEventListener('keydown', genieEscHandler); closeGenie(); }
+    }
+    document.addEventListener('keydown', genieEscHandler);
+
+    // Wire lesson warp
+    const lessonGoBtn = document.getElementById('gg-lesson-go');
+    if (lessonGoBtn) lessonGoBtn.onclick = () => {
+        const id = document.getElementById('gg-lesson-select').value;
+        const target = allLessons.find(l => l.id === id);
+        if (target) { document.removeEventListener('keydown', genieEscHandler); closeGenie(); startLesson(target); }
+    };
+
+    // Wire step jump
+    const stepGoBtn = document.getElementById('gg-step-go');
+    if (stepGoBtn) stepGoBtn.onclick = () => {
+        const idx = parseInt(document.getElementById('gg-step-select').value);
+        document.removeEventListener('keydown', genieEscHandler);
+        drillModal.classList.add('hidden');
+        document.getElementById('drill-keyboard-wrap').style.display = '';
+        beginStep(idx);
+    };
+
+    // Unlock
+    const unlockBtn = document.getElementById('gg-unlock');
+    if (unlockBtn) unlockBtn.onclick = async () => {
+        if (!currentUser || !lesson) return;
+        const record = { lessonId: lesson.id, completedAt: new Date().toISOString(),
+            passed: true, grade: 'B', adminOverride: true,
+            attempts: 1, finalWPM: 0, finalAccuracy: 0, timeSpentSeconds: 0 };
+        await setDoc(doc(db, 'users', currentUser.uid, 'lessonProgress', lesson.id), record, { merge: true });
+        userProgress[lesson.id] = record;
+        unlockBtn.textContent = '\u2713 UNLOCKED';
+        unlockBtn.style.color = '#22c55e'; unlockBtn.style.borderColor = '#22c55e';
+    };
+
+    // Lock
+    const lockBtn = document.getElementById('gg-lock');
+    if (lockBtn) lockBtn.onclick = async () => {
+        if (!currentUser || !lesson) return;
+        if (!confirm('Remove progress for "' + (lesson.title || lesson.id) + '"?')) return;
+        const { deleteDoc: dd, doc: ddoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+        await dd(ddoc(db, 'users', currentUser.uid, 'lessonProgress', lesson.id));
+        delete userProgress[lesson.id];
+        lockBtn.textContent = '\u2717 LOCKED'; lockBtn.style.color = '#888'; lockBtn.style.borderColor = '#888';
+    };
+
+    // Toggles
+    const mistakesBox = document.getElementById('gg-allow-mistakes');
+    if (mistakesBox) mistakesBox.onchange = () => { ggAllowMistakes = mistakesBox.checked; };
+    const idleBox = document.getElementById('gg-bypass-idle');
+    if (idleBox) idleBox.onchange = () => { ggBypassIdle = idleBox.checked; };
+}
+
 window.addEventListener('beforeunload', () => {
     if (currentUser && statsData.secondsToday > 0) {
         // Synchronous-style fire-and-forget — navigator.sendBeacon would be ideal
