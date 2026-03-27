@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.5.2"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.5.3"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -727,11 +727,12 @@ function handleDrillKey(e) {
 
     const anchors = (currentStep?.anchorEnforced && currentLesson?.anchorKeys) || [];
 
-    // Silently consume anchor key presses — holding F/J while drilling D/K
-    // would otherwise register as repeated wrong keypresses.
+    // Silently consume anchor key presses — but never block the key the drill
+    // is currently asking for. key_pattern_auto adds home companions (e.g. d for e,
+    // k for i) which appear in anchorKeys but must be typeable when required.
     if (anchors.length && e.key.length === 1 && anchors.includes(e.key.toLowerCase())) {
-        e.preventDefault();
-        return;
+        const expectedNow = drillSequence[drillPos];
+        if (e.key !== expectedNow) { e.preventDefault(); return; }
     }
 
     // Anchor key reminder is shown as a static hint (not reactive) — see beginStep()
