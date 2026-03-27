@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.5.1"; // bump z every deploy to confirm cache cleared
+const LEARN_VERSION = "1.5.2"; // bump z every deploy to confirm cache cleared
 const LAYOUT = localStorage.getItem('keyboardLayout') || 'qwerty';
 const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 
@@ -555,6 +555,13 @@ function beginStep(stepIdx) {
             if (hudTimer) {
                 const m = Math.floor(statsData.secondsToday / 60), s = statsData.secondsToday % 60;
                 hudTimer.textContent = m + ':' + String(s).padStart(2,'0');
+            }
+            const hudWeekEl = document.getElementById('hud-week');
+            if (hudWeekEl) {
+                const wm = Math.floor(statsData.secondsWeek / 60);
+                const ws = statsData.secondsWeek % 60;
+                const wDone = goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds;
+                hudWeekEl.textContent = 'Week ' + wm + ':' + String(ws).padStart(2,'0') + (wDone ? ' ✓' : '');
             }
         }
     }, 1000);
@@ -1329,6 +1336,63 @@ document.addEventListener('keydown', e => {
     if (capsEl) capsEl.classList.toggle('hidden', !e.getModifierState('CapsLock'));
 });
 
+// Escape: show quick stats overlay during a drill (mirrors game.js pause)
+document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (drillView.classList.contains('hidden')) return;
+    if (!drillModal.classList.contains('hidden')) return; // modal already showing
+    e.preventDefault();
+    showEscapeStats();
+});
+
+function showEscapeStats() {
+    const wpm = stepSeconds > 0 ? Math.round((chars / 5) / (stepSeconds / 60)) : 0;
+    const acc = chars > 0 ? Math.round(((chars - mistakes) / chars) * 100) : 100;
+    const todayWPM  = statsData.secondsToday > 0 ? Math.round((statsData.charsToday / 5) / (statsData.secondsToday / 60)) : 0;
+    const weekWPM   = statsData.secondsWeek  > 0 ? Math.round((statsData.charsWeek  / 5) / (statsData.secondsWeek  / 60)) : 0;
+    const dGoal = goals.dailySeconds  > 0;
+    const wGoal = goals.weeklySeconds > 0;
+    const dDone = dGoal && statsData.secondsToday >= goals.dailySeconds;
+    const wDone = wGoal && statsData.secondsWeek  >= goals.weeklySeconds;
+
+    drillModal.classList.remove('hidden');
+    document.getElementById('drill-keyboard-wrap').style.display = 'none';
+
+    document.getElementById('dm-title').textContent = 'Paused';
+    document.getElementById('dm-stars').innerHTML = '';
+    document.getElementById('dm-stats').innerHTML =
+        '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
+        '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>';
+
+    document.getElementById('dm-msg').innerHTML =
+        '<div class="cumulative-row" style="font-size:0.85rem;gap:16px;margin-bottom:6px;">' +
+        '<span>' + (dDone ? '✓ ' : '') + 'Today: <strong>' + formatTime(statsData.secondsToday) + '</strong>' +
+        (dGoal ? ' / ' + formatTime(goals.dailySeconds) : '') + '</span>' +
+        '<span>' + (wDone ? '✓ ' : '') + 'Week: <strong>' + formatTime(statsData.secondsWeek) + '</strong>' +
+        (wGoal ? ' / ' + formatTime(goals.weeklySeconds) : '') + '</span>' +
+        '</div>' +
+        '<span style="color:#aaa;font-size:0.78rem;">Press Escape or Enter to resume</span>';
+    document.getElementById('dm-remediation').innerHTML = '';
+
+    const btns = document.getElementById('dm-btns');
+    btns.innerHTML = '';
+    const resumeBtn = document.createElement('button');
+    resumeBtn.className = 'dm-btn-primary'; resumeBtn.textContent = 'Resume';
+
+    function resumeHandler() {
+        document.removeEventListener('keydown', escKeyHandler);
+        drillModal.classList.add('hidden');
+        document.getElementById('drill-keyboard-wrap').style.display = '';
+        drillKeyboard.focus();
+    }
+    function escKeyHandler(e) {
+        if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); resumeHandler(); }
+    }
+    resumeBtn.onclick = resumeHandler;
+    btns.appendChild(resumeBtn);
+    document.addEventListener('keydown', escKeyHandler);
+}
+
 // ─── Auto-refocus keyboard on click-back ─────────────────────────────────────
 function ensureKeyboardFocus() {
     if (!activeDrill.classList.contains('hidden') &&
@@ -1457,10 +1521,15 @@ function getLocalDateStr(date) {
 }
 
 function getWeekStart(date) {
+    // Returns "YYYY-MM-DD" for the Saturday starting this school week (Sat-Fri).
+    // String avoids DST timestamp bugs where the same Saturday midnight has
+    // different UTC ms before/after the spring/fall clock change.
     const d = new Date(date);
     const diff = (d.getDay() + 1) % 7;
-    d.setDate(d.getDate() - diff); d.setHours(0,0,0,0);
-    return d.getTime();
+    d.setDate(d.getDate() - diff);
+    return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
 }
 
 // ─── Stats loading (mirrors game.js) ─────────────────────────────────────────
