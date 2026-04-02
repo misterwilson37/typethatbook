@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.5.4";
+const LEARN_VERSION = "1.5.5";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -969,10 +969,22 @@ function renderDrillText(showError = false) {
 
     // Scroll cursor into view
     requestAnimationFrame(() => {
-        const cursor = document.getElementById('dt-cursor');
-        if (cursor) cursor.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        centerDrillView();
     });
 }
+
+// ─── Center current character vertically — mirrors game.js centerView() ───────
+function centerDrillView() {
+    const cursor  = document.getElementById('dt-cursor');
+    const textEl  = drillTextEl;
+    const areaEl  = document.getElementById('drill-text-area');
+    if (!cursor || !textEl || !areaEl) return;
+    const cursorTop  = cursor.offsetTop;
+    const areaHeight = areaEl.clientHeight;
+    const targetTop  = Math.round(areaHeight / 2 - cursorTop - cursor.offsetHeight / 2);
+    textEl.style.top = targetTop + 'px';
+}
+
 
 function advanceHandGuide() {
     if (drillPos >= drillSequence.length) return;
