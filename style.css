@@ -1,4 +1,4 @@
-/* TypeThatBook style.css v3.1.4 */
+/* TypeThatBook style.css v3.1.5 */
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -851,10 +851,14 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
 }
 
 /* Drill text */
-#drill-text-area { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px 24px; overflow: hidden; }
+#drill-text-area { flex: 1; position: relative; overflow: hidden; padding: 0; }
 #drill-text {
     font-family: 'Courier Prime', monospace; font-size: 1.4rem; line-height: 2.0em;
     max-width: 700px; width: 100%; text-align: left;
+    position: absolute;
+    left: 50%; transform: translateX(-50%);
+    padding: 0 24px; box-sizing: border-box;
+    transition: top 0.15s ease-out;
 }
 /* per-character sizing now on .dt-char — see below */
 /* Drill text — base character class mirrors .letter from book/game exactly.
