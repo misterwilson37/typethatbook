@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.5.5";
+const LEARN_VERSION = "1.5.6";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -32,6 +32,14 @@ const INTRO_ANIM_MS   = 1400;   // ms per animation frame (home ↔ reach)
 let currentUser = null;
 let allLessons   = [];   // sorted lesson objects from Firestore
 let userProgress = {};   // lessonId → progress doc
+
+// Anon session tracking — accumulates until sign-in
+let anonPromptShown       = false;
+let anonSecondsAccum      = 0;
+let anonLessonsCompleted  = 0;
+let anonLessonProgress    = {};
+const ANON_REMIND_AFTER_LESSONS = 2;
+const ANON_REMIND_AFTER_SECONDS = 120;
 
 // ─── Stats & Goals (mirrors game.js — writes to same Firestore path) ────────
 let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0,
@@ -127,6 +135,7 @@ onAuthStateChanged(auth, async user => {
         if (ggBtn) ggBtn.style.display = ADMIN_EMAILS.includes(user.email) ? '' : 'none';
         // Load lessons first if they haven't arrived yet (race: auth can beat loadLessons)
         if (allLessons.length === 0) await loadLessons();
+        await retroactiveSaveAnonSession(user);
         await loadUserProgress();
         await loadUserStats();
         await loadGoals();
@@ -138,6 +147,137 @@ onAuthStateChanged(auth, async user => {
     }
     renderMap();
 });
+
+
+// ─── Anon Login Reminder ──────────────────────────────────────────────────────
+function checkAnonLoginPrompt() {
+    if (anonPromptShown || currentUser) return;
+    if (anonLessonsCompleted >= ANON_REMIND_AFTER_LESSONS ||
+        anonSecondsAccum    >= ANON_REMIND_AFTER_SECONDS) {
+        anonPromptShown = true;
+        // Slight delay so the lesson result modal finishes first
+        setTimeout(showAnonLoginPrompt, 800);
+    }
+}
+
+function showAnonLoginPrompt() {
+    if (currentUser) return; // signed in while waiting
+
+    // Pause any active drill
+    clearInterval(timerInterval);
+    clearInterval(learnTickInterval);
+
+    const mins = Math.round(anonSecondsAccum / 60);
+    const timeStr = mins >= 1 ? mins + ' minute' + (mins !== 1 ? 's' : '') : 'a bit';
+
+    // Show over whatever is currently visible using a fixed overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'anon-login-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.55);' +
+        'display:flex;align-items:center;justify-content:center;';
+
+    overlay.innerHTML =
+        '<div style="background:#fff;border-radius:8px;padding:28px 32px;max-width:360px;' +
+        'text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.3);font-family:'Courier Prime',monospace;">' +
+        '<div style="font-size:1.5rem;margin-bottom:8px;">\uD83D\uDCAA Nice work!</div>' +
+        '<div style="color:#444;font-size:0.92rem;margin-bottom:16px;line-height:1.5;">' +
+        'You’ve been typing for ' + timeStr + '.' +
+        '<br>Sign in to <strong>save your progress</strong> and have it count toward your goals!' +
+        '</div>' +
+        '<button id="anon-signin-btn" style="width:100%;padding:12px;background:var(--carolina-blue);' +
+        'color:white;border:none;border-radius:5px;font-size:1rem;font-weight:bold;' +
+        'cursor:pointer;font-family:inherit;margin-bottom:8px;">Sign In with Google</button>' +
+        '<button id="anon-skip-btn" style="width:100%;padding:8px;background:none;border:none;' +
+        'color:#aaa;font-size:0.82rem;cursor:pointer;font-family:inherit;">Continue without signing in</button>' +
+        '</div>';
+
+    document.body.appendChild(overlay);
+
+    document.getElementById('anon-skip-btn').onclick = () => {
+        overlay.remove();
+        // Resume if mid-drill
+        if (!drillView.classList.contains('hidden') && !drillModal.classList.contains('hidden') === false) {
+            beginStep(currentStepIdx); // restarts current step fresh — acceptable
+        }
+    };
+
+    document.getElementById('anon-signin-btn').onclick = async () => {
+        const signinBtn = document.getElementById('anon-signin-btn');
+        signinBtn.textContent = 'Signing in…'; signinBtn.disabled = true;
+        try {
+            await signInWithPopup(auth, new GoogleAuthProvider());
+            // onAuthStateChanged fires — retroactive save handled there
+            overlay.remove();
+        } catch(e) {
+            signinBtn.textContent = 'Sign In with Google'; signinBtn.disabled = false;
+            if (e.code !== 'auth/popup-closed-by-user') console.warn('Sign-in failed:', e);
+        }
+    };
+}
+
+async function retroactiveSaveAnonSession(user) {
+    if (!user || user.isAnonymous) return;
+    if (!anonSecondsAccum && !Object.keys(anonLessonProgress).length) return;
+
+    try {
+        const today = new Date();
+        const dateStr = today.getFullYear() + '-' +
+            String(today.getMonth()+1).padStart(2,'0') + '-' +
+            String(today.getDate()).padStart(2,'0');
+        const weekStart = getWeekStart(today);
+
+        // Merge accumulated time into their stats
+        const statsRef = doc(db, 'users', user.uid, 'stats', 'time_tracking');
+        const statsSnap = await getDoc(statsRef);
+        if (statsSnap.exists()) {
+            const data = statsSnap.data();
+            if (data.lastDate === dateStr) {
+                statsData.secondsToday += data.secondsToday || 0;
+                statsData.charsToday   += data.charsToday   || 0;
+                statsData.mistakesToday+= data.mistakesToday|| 0;
+            }
+            if (data.weekStart === weekStart) {
+                statsData.secondsWeek  += data.secondsWeek  || 0;
+                statsData.charsWeek    += data.charsWeek    || 0;
+                statsData.mistakesWeek += data.mistakesWeek || 0;
+            }
+        }
+        statsData.lastDate  = dateStr;
+        statsData.weekStart = weekStart;
+        await setDoc(statsRef, statsData, { merge: true });
+
+        // Save lesson progress accumulated during anon session
+        const GRADE_ORDER = ['F','D','C','B','A', 'A' + String.fromCodePoint(0x1F525)];
+        for (const [lessonId, record] of Object.entries(anonLessonProgress)) {
+            const progRef  = doc(db, 'users', user.uid, 'lessonProgress', lessonId);
+            const progSnap = await getDoc(progRef);
+            if (progSnap.exists()) {
+                // Keep best grade between what was saved and this anon session
+                const existing = progSnap.data();
+                const existGrade  = existing.grade || 'F';
+                const anonGrade   = record.grade   || 'F';
+                const bestGrade   = GRADE_ORDER.indexOf(anonGrade) > GRADE_ORDER.indexOf(existGrade)
+                    ? anonGrade : existGrade;
+                await setDoc(progRef, {
+                    ...record,
+                    grade:   bestGrade,
+                    passed:  record.passed || existing.passed || false,
+                    attempts: (existing.attempts || 0) + (record.attempts || 1),
+                    timeSpentSeconds: (existing.timeSpentSeconds || 0) + (record.timeSpentSeconds || 0),
+                }, { merge: false });
+            } else {
+                await setDoc(progRef, record);
+            }
+            userProgress[lessonId] = record;
+        }
+
+        // Clear anon accumulators
+        anonSecondsAccum = 0;
+        anonLessonProgress = {};
+
+        console.log('[TTB] Retroactive anon session saved:', Object.keys(anonLessonProgress).length, 'lessons');
+    } catch(e) { console.warn('[TTB] Retroactive save failed:', e); }
+}
 
 // ─── Load Lessons ─────────────────────────────────────────────────────────────
 async function loadLessons() {
@@ -559,6 +699,10 @@ function beginStep(stepIdx) {
             learnActiveSeconds++;
             statsData.secondsToday++;
             statsData.secondsWeek++;
+            if (!currentUser) {
+                anonSecondsAccum++;
+                checkAnonLoginPrompt();
+            }
             // Midnight rollover
             const todayStr = getLocalDateStr();
             if (statsData.lastDate && statsData.lastDate !== todayStr) {
@@ -1131,7 +1275,28 @@ function showLessonResultModal(wpm, acc) {
 
     // Hint toward next grade
     const gradeHint = getGradeMessage(wpm, acc, minWPM, minAcc, grade);
-    if (currentUser && countsAsTime) saveProgress(passed, wpm, acc, grade);
+    if (currentUser && countsAsTime) {
+        saveProgress(passed, wpm, acc, grade);
+    } else if (!currentUser && countsAsTime) {
+        // Accumulate anon lesson progress for retroactive save on sign-in
+        anonLessonsCompleted++;
+        const FIRE = 'A' + String.fromCodePoint(0x1F525);
+        const GRADE_ORDER = ['F','D','C','B','A', FIRE];
+        const prev = anonLessonProgress[currentLesson.id];
+        const prevGrade = prev ? (prev.grade || 'F') : 'F';
+        const bestGrade = GRADE_ORDER.indexOf(grade) > GRADE_ORDER.indexOf(prevGrade) ? grade : prevGrade;
+        anonLessonProgress[currentLesson.id] = {
+            lessonId: currentLesson.id,
+            completedAt: new Date().toISOString(),
+            attempts: (prev ? prev.attempts || 0 : 0) + 1,
+            finalWPM: wpm, finalAccuracy: acc,
+            timeSpentSeconds: (prev ? prev.timeSpentSeconds || 0 : 0) + stepSeconds,
+            passed: passed || (prev ? prev.passed || false : false),
+            grade: bestGrade,
+            stars: bestGrade === FIRE || bestGrade === 'A' ? 3 : bestGrade === 'B' ? 2 : bestGrade === 'C' ? 1 : 0,
+        };
+        checkAnonLoginPrompt();
+    }
 
     drillModal.classList.remove('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = 'none';
