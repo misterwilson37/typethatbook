@@ -148,6 +148,7 @@
             <button class="tab-btn tab-active" id="tab-books">📚 Books</button>
             <button class="tab-btn" id="tab-lessons">⌨ Lessons</button>
             <button class="tab-btn" id="tab-students">👤 Students</button>
+            <button class="tab-btn" id="tab-classes">🏫 Classes</button>
         </div>
 
         <div id="books-panel">
@@ -352,6 +353,16 @@
             </div>
             <div id="student-search-results" style="margin-bottom:16px; font-size:0.82em; color:#888;"></div>
 
+            <!-- Class assignment (shown once student selected) -->
+            <div id="student-class-assign" class="hidden" style="margin-bottom:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <label class="l-label" style="margin:0; white-space:nowrap; font-size:0.78em;">Assign to class:</label>
+                <select id="student-class-select" class="l-field" style="flex:1; margin:0; min-width:160px;">
+                    <option value="">— No class (default goals) —</option>
+                </select>
+                <button id="student-class-save-btn" class="lbtn lbtn-primary" style="width:auto; padding:5px 14px; font-size:0.8em;">Save Assignment</button>
+                <span id="student-class-status" style="font-size:0.78em; color:#888;"></span>
+            </div>
+
             <!-- Lesson progress grid shown once a student is selected -->
             <div id="student-progress-section" class="hidden">
                 <div id="student-selected-label"
@@ -364,6 +375,38 @@
                 </div>
             </div>
         </div><!-- /students-panel -->
+
+        <div id="classes-panel" class="hidden">
+            <h3 style="margin:0 0 16px; color:#4B9CD3;">Class Manager</h3>
+
+            <!-- Create / Edit form -->
+            <div style="background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:16px; margin-bottom:20px;">
+                <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:10px;" id="class-form-title">New Class</div>
+                <input type="hidden" id="class-edit-id">
+                <div style="display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; margin-bottom:8px;">
+                    <div>
+                        <label class="l-label">Class Name</label>
+                        <input id="class-name-input" class="l-field" type="text" placeholder="e.g. Period 2 — 7th Grade">
+                    </div>
+                    <div>
+                        <label class="l-label">Daily Goal (min)</label>
+                        <input id="class-daily-input" class="l-field" type="number" value="10" min="0" step="1">
+                    </div>
+                    <div>
+                        <label class="l-label">Weekly Goal (min)</label>
+                        <input id="class-weekly-input" class="l-field" type="number" value="50" min="0" step="1">
+                    </div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button id="class-save-btn" class="lbtn lbtn-primary" style="width:auto; padding:6px 20px;">Save Class</button>
+                    <button id="class-cancel-btn" class="lbtn lbtn-secondary" style="width:auto; padding:6px 16px; display:none;">Cancel</button>
+                </div>
+                <div id="class-form-status" style="margin-top:8px; font-size:0.8em; color:#888;"></div>
+            </div>
+
+            <!-- Class list -->
+            <div id="class-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div><!-- /classes-panel -->
 
     </div><!-- /editor-section -->
 </div>
