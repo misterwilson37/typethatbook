@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.5.8";
+const LEARN_VERSION = "1.5.9";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -179,7 +179,7 @@ function showAnonLoginPrompt() {
 
     overlay.innerHTML =
         '<div style="background:#fff;border-radius:8px;padding:28px 32px;max-width:360px;' +
-        'text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.3);font-family:'Courier Prime',monospace;">' +
+        'text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.3);font-family:"Courier Prime",monospace;">' +
         '<div style="font-size:1.5rem;margin-bottom:8px;">\uD83D\uDCAA Nice work!</div>' +
         '<div style="color:#444;font-size:0.92rem;margin-bottom:16px;line-height:1.5;">' +
         'You’ve been typing for ' + timeStr + '.' +
