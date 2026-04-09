@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "2.9.7";
+const VERSION = "2.9.8";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -322,11 +322,7 @@ async function loadUserStats() {
     if (!currentUser || currentUser.isAnonymous) return;
     try {
         const today = new Date();
-        // Use local date string — toISOString() gives UTC which can be tomorrow
-        // in Central Time after ~6pm, causing daily stats to reset mid-afternoon
-        const dateStr = today.getFullYear() + '-' +
-            String(today.getMonth() + 1).padStart(2, '0') + '-' +
-            String(today.getDate()).padStart(2, '0');
+        const dateStr = today.toISOString().split('T')[0];
         const weekStart = getWeekStart(today);
         const docRef = doc(db, "users", currentUser.uid, "stats", "time_tracking");
         const docSnap = await getDoc(docRef);
@@ -353,40 +349,50 @@ async function loadUserStats() {
 }
 
 function getWeekStart(date) {
-    // Returns a local date string ("YYYY-MM-DD") for the Saturday that starts
-    // the current school week (Sat–Fri). Using a string avoids DST timestamp bugs
-    // where the same Saturday midnight has different UTC ms before/after DST.
     const d = new Date(date);
-    const diff = (d.getDay() + 1) % 7; // getDay(): 0=Sun…6=Sat; diff=0 on Sat
+    const day = d.getDay();
+    const diff = (day + 1) % 7;
     d.setDate(d.getDate() - diff);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return y + '-' + m + '-' + day;
+    d.setHours(0,0,0,0);
+    return d.getTime();
 }
 
 async function loadGoals() {
     try {
-        const goalsSnap = await getDoc(doc(db, "settings", "goals"));
-        if (goalsSnap.exists()) {
-            const data = goalsSnap.data();
-            goals.dailySeconds = data.dailySeconds || 0;
-            goals.weeklySeconds = data.weeklySeconds || 0;
-            console.log(`Goals loaded: daily=${goals.dailySeconds}s (${Math.round(goals.dailySeconds/60)}m), weekly=${goals.weeklySeconds}s (${Math.round(goals.weeklySeconds/60)}m)`);
-        } else {
-            console.log("No goals document found at settings/goals");
+        let resolved = false;
+        if (currentUser && !currentUser.isAnonymous) {
+            const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
+            if (userSnap.exists()) {
+                const ud = userSnap.data();
+                if (ud.classId) {
+                    const classSnap = await getDoc(doc(db, 'classes', ud.classId));
+                    if (classSnap.exists()) {
+                        const cd = classSnap.data();
+                        goals.dailySeconds  = cd.dailySeconds  || 0;
+                        goals.weeklySeconds = cd.weeklySeconds || 0;
+                        console.log(`Goals from class "${cd.name}": daily=${goals.dailySeconds}s, weekly=${goals.weeklySeconds}s`);
+                        resolved = true;
+                    }
+                }
+            }
         }
-        // If user already exceeded goals coming in, mark as celebrated so we don't fire again
-        if (goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds) {
+        if (!resolved) {
+            const goalsSnap = await getDoc(doc(db, "settings", "goals"));
+            if (goalsSnap.exists()) {
+                const data = goalsSnap.data();
+                goals.dailySeconds  = data.dailySeconds  || 0;
+                goals.weeklySeconds = data.weeklySeconds || 0;
+                console.log(`Goals from settings: daily=${goals.dailySeconds}s, weekly=${goals.weeklySeconds}s`);
+            }
+        }
+        if (goals.dailySeconds  > 0 && statsData.secondsToday >= goals.dailySeconds) {
             dailyGoalCelebrated = true;
-            console.log(`Daily goal already met (${statsData.secondsToday}s >= ${goals.dailySeconds}s)`);
         }
         if (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) {
             weeklyGoalCelebrated = true;
-            console.log(`Weekly goal already met (${statsData.secondsWeek}s >= ${goals.weeklySeconds}s)`);
         }
     } catch (e) {
-        console.error("Goals load FAILED — check Firestore rules for 'settings' collection:", e);
+        console.error("loadGoals failed:", e);
     }
 }
 
@@ -434,7 +440,6 @@ async function loadChapter(chapterNum) {
             currentChapterNum = chapterNum;
             setupGame();
             getHeaderHTML(); // update book info bar
-            initBookProgressBar();
         } else {
             if(chapterNum !== 1 && chapterNum !== "1") {
                 alert(`Chapter ${chapterNum} not found. Returning to start.`);
@@ -710,14 +715,6 @@ function gameTick() {
             statsData.secondsToday++; statsData.secondsWeek++;
             timeAccumulator -= 1000;
             updateTimerUI();
-            // Update weekly HUD display
-            const hudWeekEl = document.getElementById('hud-week');
-            if (hudWeekEl) {
-                const wm = Math.floor(statsData.secondsWeek / 60);
-                const ws = statsData.secondsWeek % 60;
-                const wDone = goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds;
-                hudWeekEl.textContent = 'Week ' + wm + ':' + String(ws).padStart(2,'0') + (wDone ? ' ✓' : '');
-            }
 
             // Goal celebrations
             if (goals.dailySeconds > 0 && !dailyGoalCelebrated && statsData.secondsToday >= goals.dailySeconds) {
@@ -1064,106 +1061,6 @@ function resumeGame() {
 document.addEventListener('keyup', (e) => { if (e.key === "Shift") toggleKeyboardCase(false); });
 
 // --- VIEW LOGIC ---
-
-// ─── Progress Bars ────────────────────────────────────────────────────────────
-function initBookProgressBar() {
-    const track = document.getElementById('book-progress-track');
-    if (!track || !bookMetadata || !bookMetadata.chapters) return;
-
-    const chapters = bookMetadata.chapters;
-    const total = chapters.length;
-    if (!total) return;
-
-    track.innerHTML = '';
-    // Each chapter gets an equal segment (we don't know relative lengths at init)
-    chapters.forEach((chap, i) => {
-        const seg = document.createElement('div');
-        seg.className = 'book-chap-seg future';
-        seg.id = 'bps-' + chap.id;
-        seg.style.position = 'absolute';
-        seg.style.left = '0'; seg.style.right = '0';
-        seg.style.top    = (i / total * 100) + '%';
-        seg.style.height = (1 / total * 100) + '%';
-
-        const innerFill = document.createElement('div');
-        innerFill.className = 'chap-inner-fill';
-        innerFill.id = 'bpf-' + chap.id;
-
-        const innerMarker = document.createElement('div');
-        innerMarker.className = 'chap-inner-marker';
-        innerMarker.id = 'bpm-' + chap.id;
-
-        const chapNum = parseInt(chap.id.replace('chapter_', '')) || 0;
-        if (i > 0 && i < total) {
-            const div = document.createElement('div');
-            div.className = 'book-chap-divider';
-            div.style.top = '0';
-            seg.appendChild(div);
-        }
-
-        // Chapter label on the right
-        if (i === 0 || i % Math.ceil(total / 8) === 0 || i === total - 1) {
-            const lbl = document.createElement('div');
-            lbl.className = 'book-chap-label';
-            lbl.textContent = chapNum;
-            lbl.style.top = '50%';
-            seg.appendChild(lbl);
-        }
-
-        seg.appendChild(innerFill);
-        seg.appendChild(innerMarker);
-        track.appendChild(seg);
-    });
-
-    const lbl = document.getElementById('book-progress-label');
-    if (lbl) lbl.textContent = total + ' ch';
-
-    updateProgressBars();
-}
-
-function updateProgressBars() {
-    if (!fullText || !fullText.length) return;
-
-    // ── Chapter progress bar (left vertical bar) ──────────────────────────────
-    const fill   = document.getElementById('chapter-progress-fill');
-    const marker = document.getElementById('chapter-progress-marker');
-    const clabel = document.getElementById('chapter-progress-label');
-    const pct = fullText.length > 0 ? (currentCharIndex / fullText.length) * 100 : 0;
-
-    if (fill)   fill.style.height = Math.min(100, pct) + '%';
-    if (marker) marker.style.top  = Math.min(100, pct) + '%';
-    if (clabel) {
-        const cp = Math.round(pct);
-        clabel.textContent = cp + '%';
-    }
-
-    // ── Book progress bar (right vertical bar) ────────────────────────────────
-    if (!bookMetadata || !bookMetadata.chapters) return;
-    const chapters = bookMetadata.chapters;
-    const total    = chapters.length;
-
-    chapters.forEach((chap, i) => {
-        const seg    = document.getElementById('bps-' + chap.id);
-        const bfill  = document.getElementById('bpf-' + chap.id);
-        const bmark  = document.getElementById('bpm-' + chap.id);
-        if (!seg) return;
-
-        const chapNum = parseInt(chap.id.replace('chapter_', '')) || 0;
-        const isCurrent = chapNum === currentChapterNum;
-        const isPast    = chapNum < currentChapterNum;
-
-        seg.className = 'book-chap-seg ' + (isPast ? 'completed' : isCurrent ? 'current' : 'future');
-
-        if (bfill) bfill.style.height   = isCurrent ? Math.min(100, pct) + '%' : isPast ? '100%' : '0%';
-        if (bmark) bmark.style.top      = isCurrent ? Math.min(100, pct) + '%' : '0%';
-        if (bmark) bmark.style.display  = isCurrent ? '' : 'none';
-
-        // Active chapter label
-        const lbl = seg.querySelector('.book-chap-label');
-        if (lbl) lbl.className = 'book-chap-label' + (isCurrent ? ' active-label' : '');
-    });
-}
-
 function centerView() {
     const currentEl = document.getElementById(`char-${currentCharIndex}`);
     if (!currentEl) return;
@@ -1177,7 +1074,6 @@ function highlightCurrentChar() {
     const el = document.getElementById(`char-${currentCharIndex}`);
     if (el) { el.classList.add('active'); highlightKey(fullText[currentCharIndex]); }
     updateHandGuide();
-    updateProgressBars();
 }
 
 function updateImageDisplay() {
@@ -2806,18 +2702,14 @@ function flashFingerPressed() {
 }
 
 let hgResizeTimer;
-function _rebuildHandGuideOnLayoutChange() {
+window.addEventListener('resize', () => {
     clearTimeout(hgResizeTimer);
     hgResizeTimer = setTimeout(() => {
         const old = document.getElementById('hand-guide-overlay');
         if (old) old.remove();
         createHandGuide();
     }, 200);
-}
-window.addEventListener('resize', _rebuildHandGuideOnLayoutChange);
-// fullscreenchange doesn't always fire resize — handle separately
-document.addEventListener('fullscreenchange', _rebuildHandGuideOnLayoutChange);
-document.addEventListener('webkitfullscreenchange', _rebuildHandGuideOnLayoutChange);
+});
 
 // --- CELEBRATIONS ---
 function createCelebrationCanvas() {
