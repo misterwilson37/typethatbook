@@ -26,14 +26,16 @@ function setupTabSwitching() {
     document.getElementById('tab-books').addEventListener('click',    () => switchTab('books'));
     document.getElementById('tab-lessons').addEventListener('click',  () => switchTab('lessons'));
     document.getElementById('tab-students').addEventListener('click', () => switchTab('students'));
+    document.getElementById('tab-classes').addEventListener('click',  () => switchTab('classes'));
 }
 
 function switchTab(which) {
-    ['books','lessons','students'].forEach(t => {
+    ['books','lessons','students','classes'].forEach(t => {
         document.getElementById('tab-' + t).classList.toggle('tab-active', which === t);
         document.getElementById(t + '-panel').classList.toggle('hidden', which !== t);
     });
     if (which === 'students') initStudentsPanel();
+    if (which === 'classes')  initClassesPanel();
 }
 
 // ─── LOAD ─────────────────────────────────────────────────────────────────────
@@ -669,13 +671,45 @@ async function runStudentSearch() {
 
 async function loadStudentProgress(uid, label) {
     _currentStudentUid = uid;
-    const secEl   = document.getElementById('student-progress-section');
-    const lblEl   = document.getElementById('student-selected-label');
-    const gridEl  = document.getElementById('student-lesson-grid');
+    const secEl    = document.getElementById('student-progress-section');
+    const lblEl    = document.getElementById('student-selected-label');
+    const gridEl   = document.getElementById('student-lesson-grid');
+    const assignEl = document.getElementById('student-class-assign');
+    const statusEl = document.getElementById('student-class-status');
 
     lblEl.textContent = label;
     gridEl.innerHTML  = '<span style="color:#888;">Loading…</span>';
     secEl.classList.remove('hidden');
+
+    // Show class assignment UI and populate dropdown
+    if (assignEl) {
+        assignEl.classList.remove('hidden');
+        refreshClassDropdownInStudents();
+
+        // Read current class assignment for this student
+        try {
+            const userSnap = await getDoc(doc(_db, 'users', uid));
+            const currentClassId = userSnap.exists() ? (userSnap.data().classId || '') : '';
+            const sel = document.getElementById('student-class-select');
+            if (sel) sel.value = currentClassId;
+        } catch(e) { /* non-critical */ }
+
+        // Wire save button
+        const saveBtn = document.getElementById('student-class-save-btn');
+        if (saveBtn) {
+            saveBtn.onclick = async () => {
+                const classId = document.getElementById('student-class-select').value;
+                if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.style.color = '#888'; }
+                try {
+                    await setDoc(doc(_db, 'users', uid),
+                        { classId: classId || null }, { merge: true });
+                    if (statusEl) { statusEl.textContent = classId ? 'Assigned.' : 'Removed.'; statusEl.style.color = '#00ff41'; }
+                } catch(e) {
+                    if (statusEl) { statusEl.textContent = 'Error: ' + e.message; statusEl.style.color = '#ff4444'; }
+                }
+            };
+        }
+    }
 
     try {
         // Load their progress sub-collection
@@ -766,6 +800,152 @@ async function toggleStudentLesson(uid, lesson, existingProg, card, label) {
             card.title = 'Click to LOCK (remove progress)';
         } catch (e) { alert('Failed: ' + e.message); }
     }
+}
+
+
+// ─── CLASSES PANEL ────────────────────────────────────────────────────────────
+let _classesPanelInited = false;
+let _classCache = {};  // classId → { name, dailySeconds, weeklySeconds }
+
+function initClassesPanel() {
+    if (_classesPanelInited) { renderClassList(); return; }
+    _classesPanelInited = true;
+
+    const saveBtn   = document.getElementById('class-save-btn');
+    const cancelBtn = document.getElementById('class-cancel-btn');
+    if (saveBtn)   saveBtn.onclick   = saveClass;
+    if (cancelBtn) cancelBtn.onclick = cancelClassEdit;
+
+    loadAndRenderClasses();
+}
+
+async function loadAndRenderClasses() {
+    try {
+        const snap = await getDocs(collection(_db, 'classes'));
+        _classCache = {};
+        snap.forEach(d => { _classCache[d.id] = { id: d.id, ...d.data() }; });
+        renderClassList();
+    } catch(e) {
+        document.getElementById('class-list').innerHTML =
+            '<span style="color:#ff4444;">Load failed: ' + escHtml(e.message) + '</span>';
+    }
+}
+
+function renderClassList() {
+    const listEl = document.getElementById('class-list');
+    const classes = Object.values(_classCache).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    if (!classes.length) {
+        listEl.innerHTML = '<div style="color:#555; font-size:0.82em;">No classes yet. Create one above.</div>';
+        return;
+    }
+
+    listEl.innerHTML = '';
+    classes.forEach(cls => {
+        const dm = Math.floor((cls.dailySeconds || 0) / 60);
+        const wm = Math.floor((cls.weeklySeconds || 0) / 60);
+        const card = document.createElement('div');
+        card.style.cssText = 'background:#1a1a1a;border:1px solid #333;border-radius:4px;padding:12px 16px;display:flex;align-items:center;gap:12px;';
+        card.innerHTML =
+            '<div style="flex:1;">' +
+            '<div style="font-weight:bold;color:#eee;margin-bottom:2px;">' + escHtml(cls.name || cls.id) + '</div>' +
+            '<div style="font-size:0.75em;color:#666;">' +
+            'Daily: ' + dm + 'min&nbsp;&nbsp;Weekly: ' + wm + 'min' +
+            '&nbsp;&nbsp;<span style="color:#444;">ID: ' + escHtml(cls.id) + '</span>' +
+            '</div>' +
+            '</div>' +
+            '<button class="lbtn lbtn-secondary class-edit-btn" style="width:auto;padding:4px 12px;font-size:0.78em;" data-id="' + escHtml(cls.id) + '">Edit</button>' +
+            '<button class="lbtn" style="width:auto;padding:4px 12px;font-size:0.78em;background:#500;border:1px solid #800;color:#fcc;" class="class-del-btn" data-id="' + escHtml(cls.id) + '">Delete</button>';
+
+        card.querySelector('.class-edit-btn').onclick = () => startClassEdit(cls.id);
+        card.querySelector('[data-id="' + cls.id + '"]:last-child').onclick = () => deleteClass(cls.id);
+        listEl.appendChild(card);
+    });
+
+    // Also refresh assign dropdown in students panel if it's visible
+    refreshClassDropdownInStudents();
+}
+
+async function saveClass() {
+    const nameVal   = (document.getElementById('class-name-input').value || '').trim();
+    const dailyMin  = parseInt(document.getElementById('class-daily-input').value) || 0;
+    const weeklyMin = parseInt(document.getElementById('class-weekly-input').value) || 0;
+    const editId    = document.getElementById('class-edit-id').value;
+    const statusEl  = document.getElementById('class-form-status');
+
+    if (!nameVal) { statusEl.textContent = 'Name is required.'; statusEl.style.color = '#ff6666'; return; }
+
+    const record = {
+        name: nameVal,
+        dailySeconds:  dailyMin  * 60,
+        weeklySeconds: weeklyMin * 60,
+        updatedAt: new Date().toISOString(),
+    };
+
+    try {
+        let classId = editId;
+        if (!classId) {
+            // Generate a slug-like ID from name
+            classId = nameVal.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') +
+                      '_' + Date.now().toString(36);
+            record.createdAt = new Date().toISOString();
+        }
+        await setDoc(doc(_db, 'classes', classId), record, { merge: true });
+        _classCache[classId] = { id: classId, ...record };
+        statusEl.textContent = editId ? 'Saved.' : 'Class created.';
+        statusEl.style.color = '#00ff41';
+        cancelClassEdit();
+        renderClassList();
+    } catch(e) {
+        statusEl.textContent = 'Error: ' + e.message;
+        statusEl.style.color = '#ff6666';
+    }
+}
+
+function startClassEdit(classId) {
+    const cls = _classCache[classId];
+    if (!cls) return;
+    document.getElementById('class-edit-id').value     = classId;
+    document.getElementById('class-name-input').value  = cls.name || '';
+    document.getElementById('class-daily-input').value = Math.floor((cls.dailySeconds || 0) / 60);
+    document.getElementById('class-weekly-input').value= Math.floor((cls.weeklySeconds || 0) / 60);
+    document.getElementById('class-form-title').textContent = 'Edit Class';
+    document.getElementById('class-cancel-btn').style.display = '';
+    document.getElementById('class-form-status').textContent = '';
+    document.getElementById('class-name-input').focus();
+}
+
+function cancelClassEdit() {
+    document.getElementById('class-edit-id').value     = '';
+    document.getElementById('class-name-input').value  = '';
+    document.getElementById('class-daily-input').value = 10;
+    document.getElementById('class-weekly-input').value= 50;
+    document.getElementById('class-form-title').textContent = 'New Class';
+    document.getElementById('class-cancel-btn').style.display = 'none';
+    document.getElementById('class-form-status').textContent = '';
+}
+
+async function deleteClass(classId) {
+    const cls = _classCache[classId];
+    if (!confirm('Delete class "' + (cls ? cls.name : classId) + '"?\n\nStudents in this class will revert to default goals.')) return;
+    try {
+        await deleteDoc(doc(_db, 'classes', classId));
+        delete _classCache[classId];
+        renderClassList();
+    } catch(e) { alert('Delete failed: ' + e.message); }
+}
+
+function refreshClassDropdownInStudents() {
+    const sel = document.getElementById('student-class-select');
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">— No class (default goals) —</option>';
+    Object.values(_classCache).sort((a,b) => (a.name||'').localeCompare(b.name||'')).forEach(cls => {
+        const opt = document.createElement('option');
+        opt.value = cls.id; opt.textContent = cls.name || cls.id;
+        if (cls.id === current) opt.selected = true;
+        sel.appendChild(opt);
+    });
 }
 
 // ─── PUBLIC RELOAD (for toolbar button) ──────────────────────────────────────
