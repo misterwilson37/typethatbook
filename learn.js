@@ -1,7 +1,7 @@
 // learn.js — TypeThatBook School v1.0.0
 import { db, auth } from "./firebase-config.js";
 import {
-    collection, getDocs, doc, getDoc, setDoc, addDoc
+    collection, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut
@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.5.7";
+const LEARN_VERSION = "1.5.8";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -1681,8 +1681,7 @@ function openLearnGenie() {
     if (lockBtn) lockBtn.onclick = async () => {
         if (!currentUser || !lesson) return;
         if (!confirm('Remove progress for "' + (lesson.title || lesson.id) + '"?')) return;
-        const { deleteDoc: dd, doc: ddoc } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
-        await dd(ddoc(db, 'users', currentUser.uid, 'lessonProgress', lesson.id));
+        await deleteDoc(doc(db, 'users', currentUser.uid, 'lessonProgress', lesson.id));
         delete userProgress[lesson.id];
         lockBtn.textContent = '\u2717 LOCKED'; lockBtn.style.color = '#888'; lockBtn.style.borderColor = '#888';
     };
