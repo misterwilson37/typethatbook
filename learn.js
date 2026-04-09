@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.5.6";
+const LEARN_VERSION = "1.5.7";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -44,7 +44,8 @@ const ANON_REMIND_AFTER_SECONDS = 120;
 // ─── Stats & Goals (mirrors game.js — writes to same Firestore path) ────────
 let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0,
                   mistakesToday:0, mistakesWeek:0, lastDate:'', weekStart:0 };
-let goals = { dailySeconds: 0, weeklySeconds: 0 };
+let goals     = { dailySeconds: 0, weeklySeconds: 0 };
+let classInfo = { id: '', name: '', dailySeconds: 0, weeklySeconds: 0 };
 let dailyGoalCelebrated  = false;
 let weeklyGoalCelebrated = false;
 let learnActiveSeconds   = 0;   // active seconds this step (for HUD display)
@@ -726,13 +727,7 @@ function beginStep(stepIdx) {
                 const m = Math.floor(statsData.secondsToday / 60), s = statsData.secondsToday % 60;
                 hudTimer.textContent = m + ':' + String(s).padStart(2,'0');
             }
-            const hudWeekEl = document.getElementById('hud-week');
-            if (hudWeekEl) {
-                const wm = Math.floor(statsData.secondsWeek / 60);
-                const ws = statsData.secondsWeek % 60;
-                const wDone = goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds;
-                hudWeekEl.textContent = 'Week ' + wm + ':' + String(ws).padStart(2,'0') + (wDone ? ' ✓' : '');
-            }
+            updateWeeklyHUD();
         }
     }, 1000);
 
@@ -1942,15 +1937,79 @@ async function loadUserStats() {
 
 async function loadGoals() {
     try {
-        const snap = await getDoc(doc(db, 'settings', 'goals'));
-        if (snap.exists()) {
-            const d = snap.data();
-            goals.dailySeconds  = d.dailySeconds  || 0;
-            goals.weeklySeconds = d.weeklySeconds || 0;
+        // Step 1: check if user belongs to a class
+        let resolved = false;
+        if (currentUser) {
+            const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
+            if (userSnap.exists()) {
+                const ud = userSnap.data();
+                if (ud.classId) {
+                    const classSnap = await getDoc(doc(db, 'classes', ud.classId));
+                    if (classSnap.exists()) {
+                        const cd = classSnap.data();
+                        goals.dailySeconds  = cd.dailySeconds  || 0;
+                        goals.weeklySeconds = cd.weeklySeconds || 0;
+                        classInfo = { id: ud.classId, name: cd.name || '',
+                                      dailySeconds: goals.dailySeconds,
+                                      weeklySeconds: goals.weeklySeconds };
+                        resolved = true;
+                        updateClassDisplay();
+                    }
+                }
+            }
+        }
+        // Step 2: fall back to settings/goals if no class
+        if (!resolved) {
+            const snap = await getDoc(doc(db, 'settings', 'goals'));
+            if (snap.exists()) {
+                const d = snap.data();
+                goals.dailySeconds  = d.dailySeconds  || 0;
+                goals.weeklySeconds = d.weeklySeconds || 0;
+            }
+            classInfo = { id: '', name: '', dailySeconds: goals.dailySeconds,
+                          weeklySeconds: goals.weeklySeconds };
+            updateClassDisplay();
         }
         if (goals.dailySeconds  > 0 && statsData.secondsToday >= goals.dailySeconds)  dailyGoalCelebrated  = true;
         if (goals.weeklySeconds > 0 && statsData.secondsWeek  >= goals.weeklySeconds) weeklyGoalCelebrated = true;
     } catch(e) { console.warn('loadGoals failed:', e); }
+}
+
+function updateClassDisplay() {
+    // Class name below username
+    const classEl = document.getElementById('user-class-name');
+    if (classEl) classEl.textContent = classInfo.name || '';
+
+    // Daily goal denominator in HUD
+    const dailyGoalEl = document.getElementById('hud-daily-goal');
+    if (dailyGoalEl) {
+        if (goals.dailySeconds > 0) {
+            const gm = Math.floor(goals.dailySeconds / 60);
+            const gs = goals.dailySeconds % 60;
+            dailyGoalEl.textContent = ' / ' + gm + ':' + String(gs).padStart(2,'0');
+        } else {
+            dailyGoalEl.textContent = '';
+        }
+    }
+
+    // Weekly goal denominator — update hud-week format
+    updateWeeklyHUD();
+}
+
+function updateWeeklyHUD() {
+    const weekEl = document.getElementById('hud-week');
+    if (!weekEl) return;
+    const wm = Math.floor(statsData.secondsWeek / 60);
+    const ws = statsData.secondsWeek % 60;
+    const wDone = goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds;
+    let txt = 'Week ' + wm + ':' + String(ws).padStart(2,'0');
+    if (goals.weeklySeconds > 0) {
+        const gm = Math.floor(goals.weeklySeconds / 60);
+        const gs = goals.weeklySeconds % 60;
+        txt += ' / ' + gm + ':' + String(gs).padStart(2,'0');
+    }
+    if (wDone) txt += ' ✓';
+    weekEl.textContent = txt;
 }
 
 async function saveStats() {
