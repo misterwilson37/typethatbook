@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "2.9.9";
+const VERSION = "2.9.10";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -262,6 +262,18 @@ async function init() {
                 await loadUserProgress();
                 await loadUserStats();
                 await loadGoals();
+                // Populate weekly HUD immediately (before first tick)
+                const _hudW = document.getElementById('hud-week');
+                if (_hudW) {
+                    const _wm = Math.floor(statsData.secondsWeek / 60);
+                    const _ws = statsData.secondsWeek % 60;
+                    let _txt = 'Week\u00a0' + _wm + ':' + String(_ws).padStart(2, '0');
+                    if (goals.weeklySeconds > 0) {
+                        _txt += '\u00a0/\u00a0' + Math.floor(goals.weeklySeconds/60) + ':' +
+                                String(goals.weeklySeconds % 60).padStart(2,'0');
+                    }
+                    _hudW.textContent = _txt;
+                }
                 await loadInitials();
             } catch(e) { console.error("Init Error:", e); }
             trophyBtn.classList.remove('hidden');
@@ -769,6 +781,19 @@ function updateTimerUI() {
     if (sessionLimit !== 'infinity' && sprintSeconds >= sessionLimit) {
         isOvertime = true;
         timerDisplay.style.color = '#FFA500';
+    }
+    const hudWeekEl = document.getElementById('hud-week');
+    if (hudWeekEl) {
+        const wm = Math.floor(statsData.secondsWeek / 60);
+        const ws = statsData.secondsWeek % 60;
+        let txt = 'Week\u00a0' + wm + ':' + String(ws).padStart(2, '0');
+        if (goals.weeklySeconds > 0) {
+            const gm = Math.floor(goals.weeklySeconds / 60);
+            const gs = goals.weeklySeconds % 60;
+            txt += '\u00a0/\u00a0' + gm + ':' + String(gs).padStart(2, '0');
+        }
+        if (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) txt += '\u00a0\u2713';
+        hudWeekEl.textContent = txt;
     }
 }
 
@@ -1715,7 +1740,9 @@ function showAnonLoginPrompt() {
             try {
                 // Apply anonymous typing stats to their account
                 const today = new Date();
-                const dateStr = today.toISOString().split('T')[0];
+                const dateStr = today.getFullYear() + '-' +
+                    String(today.getMonth()+1).padStart(2,'0') + '-' +
+                    String(today.getDate()).padStart(2,'0');
                 const weekStart = getWeekStart(today);
 
                 // Load existing stats first
@@ -1728,7 +1755,9 @@ function showAnonLoginPrompt() {
                         statsData.charsToday = (data.charsToday || 0) + statsData.charsToday;
                         statsData.mistakesToday = (data.mistakesToday || 0) + statsData.mistakesToday;
                     }
-                    if (data.weekStart === weekStart) {
+                    const storedWeekAnon = typeof data.weekStart === 'number'
+                        ? numericWeekStartToString(data.weekStart) : (data.weekStart || '');
+                    if (storedWeekAnon === weekStart) {
                         statsData.secondsWeek = (data.secondsWeek || 0) + statsData.secondsWeek;
                         statsData.charsWeek = (data.charsWeek || 0) + statsData.charsWeek;
                         statsData.mistakesWeek = (data.mistakesWeek || 0) + statsData.mistakesWeek;
@@ -3388,7 +3417,9 @@ async function updateLeaderboard() {
         const existingBestAcc = existing.bestAccuracy || 0;
         const existingBestStreak = existing.bestStreak || 0;
         const existingChapters = existing.chaptersCompleted || 0;
-        const existingTimeWeek = (existing.weekStart === weekStart) ? (existing.totalSecondsWeek || 0) : 0;
+        const storedWeekLB = typeof existing.weekStart === 'number'
+            ? numericWeekStartToString(existing.weekStart) : (existing.weekStart || '');
+        const existingTimeWeek = (storedWeekLB === weekStart) ? (existing.totalSecondsWeek || 0) : 0;
         
         // Compute current bests
         const lastSprintWPM = sprintHistory.length > 0 ? sprintHistory[sprintHistory.length - 1].wpm : 0;
@@ -3445,7 +3476,9 @@ async function fetchLeaderboard() {
             data.uid = d.id;
             // Reset weekly if stale
             const weekStart = getWeekStart(new Date());
-            if (data.weekStart !== weekStart) data.totalSecondsWeek = 0;
+            const storedWeekFetch = typeof data.weekStart === 'number'
+                ? numericWeekStartToString(data.weekStart) : (data.weekStart || '');
+            if (storedWeekFetch !== weekStart) data.totalSecondsWeek = 0;
             entries.push(data);
         });
         
