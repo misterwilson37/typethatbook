@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "2.9.10";
+const VERSION = "2.9.11";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -261,6 +261,10 @@ async function init() {
                 await loadBookMetadata();
                 await loadUserProgress();
                 await loadUserStats();
+                // Self-heal: if today > week, data was corrupted during transition
+                if (statsData.secondsToday > statsData.secondsWeek) {
+                    await repairWeeklyTotal();
+                }
                 await loadGoals();
                 // Populate weekly HUD immediately (before first tick)
                 const _hudW = document.getElementById('hud-week');
@@ -372,6 +376,38 @@ function getWeekStart(date) {
         String(d.getDate()).padStart(2, '0');
 }
 
+
+// Reconstruct secondsWeek from typing_logs when the stored value is clearly wrong
+// (today > week is impossible — indicates a transition-period corruption).
+// Queries at most 7 docs (one per day of the current week).
+async function repairWeeklyTotal() {
+    if (!currentUser || currentUser.isAnonymous) return;
+    try {
+        const today = new Date();
+        const weekStartStr = getWeekStart(today); // "YYYY-MM-DD"
+        const ws = new Date(weekStartStr + 'T00:00:00');
+        let totalSeconds = 0;
+        // Query each day from weekStart through today
+        const days = [];
+        for (let d = new Date(ws); d <= today; d.setDate(d.getDate() + 1)) {
+            days.push(d.getFullYear() + '-' +
+                String(d.getMonth()+1).padStart(2,'0') + '-' +
+                String(d.getDate()).padStart(2,'0'));
+        }
+        for (const dateStr of days) {
+            const logId = currentUser.uid + '_' + dateStr;
+            const snap = await getDoc(doc(db, 'typing_logs', logId));
+            if (snap.exists()) totalSeconds += snap.data().seconds || 0;
+        }
+        if (totalSeconds > statsData.secondsWeek) {
+            console.log('[TTB] Repaired secondsWeek:', statsData.secondsWeek, '→', totalSeconds);
+            statsData.secondsWeek = totalSeconds;
+            // Write the corrected value back
+            await setDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'),
+                { secondsWeek: totalSeconds, weekStart: weekStartStr }, { merge: true });
+        }
+    } catch(e) { console.warn('[TTB] repairWeeklyTotal failed:', e); }
+}
 function numericWeekStartToString(ts) {
     const d = new Date(ts);
     return d.getFullYear() + '-' +
