@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.5.9";
+const LEARN_VERSION = "1.6.0";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -237,7 +237,10 @@ async function retroactiveSaveAnonSession(user) {
                 statsData.charsToday   += data.charsToday   || 0;
                 statsData.mistakesToday+= data.mistakesToday|| 0;
             }
-            if (data.weekStart === weekStart) {
+            const storedWeek1 = typeof data.weekStart === 'number'
+                ? numericWeekStartToString(data.weekStart)
+                : (data.weekStart || '');
+            if (storedWeek1 === weekStart) {
                 statsData.secondsWeek  += data.secondsWeek  || 0;
                 statsData.charsWeek    += data.charsWeek    || 0;
                 statsData.mistakesWeek += data.mistakesWeek || 0;
@@ -710,7 +713,9 @@ function beginStep(stepIdx) {
                 statsData.secondsToday = 1; statsData.charsToday = 0; statsData.mistakesToday = 0;
                 statsData.lastDate = todayStr; dailyGoalCelebrated = false;
                 const ws = getWeekStart(new Date());
-                if (statsData.weekStart !== ws) {
+                const wsCompare = typeof statsData.weekStart === 'number'
+                    ? numericWeekStartToString(statsData.weekStart) : statsData.weekStart;
+                if (wsCompare !== ws) {
                     statsData.secondsWeek = 1; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
                     statsData.weekStart = ws; weeklyGoalCelebrated = false;
                 }
@@ -1894,11 +1899,17 @@ function getLocalDateStr(date) {
 
 function getWeekStart(date) {
     // Returns "YYYY-MM-DD" for the Saturday starting this school week (Sat-Fri).
-    // String avoids DST timestamp bugs where the same Saturday midnight has
-    // different UTC ms before/after the spring/fall clock change.
     const d = new Date(date);
     const diff = (d.getDay() + 1) % 7;
     d.setDate(d.getDate() - diff);
+    return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+}
+
+function numericWeekStartToString(ts) {
+    // Converts an old numeric weekStart timestamp to "YYYY-MM-DD" string
+    const d = new Date(ts);
     return d.getFullYear() + '-' +
         String(d.getMonth() + 1).padStart(2, '0') + '-' +
         String(d.getDate()).padStart(2, '0');
@@ -1921,7 +1932,10 @@ async function loadUserStats() {
             } else {
                 statsData.secondsToday = statsData.charsToday = statsData.mistakesToday = 0;
             }
-            if (data.weekStart === weekStart) {
+            const storedWeek2 = typeof data.weekStart === 'number'
+                ? numericWeekStartToString(data.weekStart)
+                : (data.weekStart || '');
+            if (storedWeek2 === weekStart) {
                 statsData.secondsWeek  = data.secondsWeek  || 0;
                 statsData.charsWeek    = data.charsWeek    || 0;
                 statsData.mistakesWeek = data.mistakesWeek || 0;
