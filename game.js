@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "2.9.8";
+const VERSION = "2.9.9";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -335,10 +335,12 @@ async function loadUserStats() {
             } else {
                 statsData.secondsToday = 0; statsData.charsToday = 0; statsData.mistakesToday = 0;
             }
-            if (data.weekStart === weekStart) {
+            const storedWeek = typeof data.weekStart === 'number'
+                ? numericWeekStartToString(data.weekStart) : (data.weekStart || '');
+            if (storedWeek === weekStart) {
                 statsData.secondsWeek = data.secondsWeek || 0;
-                statsData.charsWeek = data.charsWeek || 0;
-                statsData.mistakesWeek = data.mistakesWeek || 0;
+                statsData.charsWeek   = data.charsWeek   || 0;
+                statsData.mistakesWeek= data.mistakesWeek|| 0;
             } else {
                 statsData.secondsWeek = 0; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
             }
@@ -349,12 +351,20 @@ async function loadUserStats() {
 }
 
 function getWeekStart(date) {
+    // Returns "YYYY-MM-DD" string — consistent with learn.js, immune to DST bugs
     const d = new Date(date);
-    const day = d.getDay();
-    const diff = (day + 1) % 7;
+    const diff = (d.getDay() + 1) % 7;
     d.setDate(d.getDate() - diff);
-    d.setHours(0,0,0,0);
-    return d.getTime();
+    return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+}
+
+function numericWeekStartToString(ts) {
+    const d = new Date(ts);
+    return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
 }
 
 async function loadGoals() {
@@ -703,7 +713,9 @@ function gameTick() {
                 dailyGoalCelebrated = false; // eligible for today's goal
                 // Check week rollover too
                 const weekStart = getWeekStart(new Date());
-                if (statsData.weekStart !== weekStart) {
+                const wsStored = typeof statsData.weekStart === 'number'
+                    ? numericWeekStartToString(statsData.weekStart) : statsData.weekStart;
+                if (wsStored !== weekStart) {
                     statsData.secondsWeek = 0;
                     statsData.charsWeek = 0;
                     statsData.mistakesWeek = 0;
