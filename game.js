@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "2.9.11";
+const VERSION = "2.9.12";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -126,7 +126,7 @@ function loadAnonReminderState() {
     if (saved) {
         try {
             const data = JSON.parse(saved);
-            if (data.date === new Date().toISOString().split('T')[0]) {
+            if (data.date === getLocalDateStr()) {
                 anonInfiniteReminders = data.count || 0;
             }
         } catch(e) {}
@@ -134,7 +134,7 @@ function loadAnonReminderState() {
 }
 function saveAnonReminderState() {
     localStorage.setItem('ttb_anonInfiniteReminders', JSON.stringify({
-        date: new Date().toISOString().split('T')[0],
+        date: getLocalDateStr(),
         count: anonInfiniteReminders
     }));
 }
@@ -262,9 +262,6 @@ async function init() {
                 await loadUserProgress();
                 await loadUserStats();
                 // Self-heal: if today > week, data was corrupted during transition
-                if (statsData.secondsToday > statsData.secondsWeek) {
-                    await repairWeeklyTotal();
-                }
                 await loadGoals();
                 // Populate weekly HUD immediately (before first tick)
                 const _hudW = document.getElementById('hud-week');
@@ -338,7 +335,7 @@ async function loadUserStats() {
     if (!currentUser || currentUser.isAnonymous) return;
     try {
         const today = new Date();
-        const dateStr = today.toISOString().split('T')[0];
+        const dateStr = getLocalDateStr(today);
         const weekStart = getWeekStart(today);
         const docRef = doc(db, "users", currentUser.uid, "stats", "time_tracking");
         const docSnap = await getDoc(docRef);
@@ -351,9 +348,7 @@ async function loadUserStats() {
             } else {
                 statsData.secondsToday = 0; statsData.charsToday = 0; statsData.mistakesToday = 0;
             }
-            const storedWeek = typeof data.weekStart === 'number'
-                ? numericWeekStartToString(data.weekStart) : (data.weekStart || '');
-            if (storedWeek === weekStart) {
+            if ((data.weekStart || '') === weekStart) {
                 statsData.secondsWeek = data.secondsWeek || 0;
                 statsData.charsWeek   = data.charsWeek   || 0;
                 statsData.mistakesWeek= data.mistakesWeek|| 0;
@@ -364,6 +359,13 @@ async function loadUserStats() {
         statsData.lastDate = dateStr;
         statsData.weekStart = weekStart;
     } catch (e) {}
+}
+
+function getLocalDateStr(date) {
+    const d = date || new Date();
+    return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
 }
 
 function getWeekStart(date) {
@@ -377,43 +379,6 @@ function getWeekStart(date) {
 }
 
 
-// Reconstruct secondsWeek from typing_logs when the stored value is clearly wrong
-// (today > week is impossible — indicates a transition-period corruption).
-// Queries at most 7 docs (one per day of the current week).
-async function repairWeeklyTotal() {
-    if (!currentUser || currentUser.isAnonymous) return;
-    try {
-        const today = new Date();
-        const weekStartStr = getWeekStart(today); // "YYYY-MM-DD"
-        const ws = new Date(weekStartStr + 'T00:00:00');
-        let totalSeconds = 0;
-        // Query each day from weekStart through today
-        const days = [];
-        for (let d = new Date(ws); d <= today; d.setDate(d.getDate() + 1)) {
-            days.push(d.getFullYear() + '-' +
-                String(d.getMonth()+1).padStart(2,'0') + '-' +
-                String(d.getDate()).padStart(2,'0'));
-        }
-        for (const dateStr of days) {
-            const logId = currentUser.uid + '_' + dateStr;
-            const snap = await getDoc(doc(db, 'typing_logs', logId));
-            if (snap.exists()) totalSeconds += snap.data().seconds || 0;
-        }
-        if (totalSeconds > statsData.secondsWeek) {
-            console.log('[TTB] Repaired secondsWeek:', statsData.secondsWeek, '→', totalSeconds);
-            statsData.secondsWeek = totalSeconds;
-            // Write the corrected value back
-            await setDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'),
-                { secondsWeek: totalSeconds, weekStart: weekStartStr }, { merge: true });
-        }
-    } catch(e) { console.warn('[TTB] repairWeeklyTotal failed:', e); }
-}
-function numericWeekStartToString(ts) {
-    const d = new Date(ts);
-    return d.getFullYear() + '-' +
-        String(d.getMonth() + 1).padStart(2, '0') + '-' +
-        String(d.getDate()).padStart(2, '0');
-}
 
 async function loadGoals() {
     try {
@@ -751,7 +716,7 @@ function gameTick() {
             activeSeconds++; sprintSeconds++;
 
             // Midnight rollover check
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = getLocalDateStr();
             if (statsData.lastDate && statsData.lastDate !== todayStr) {
                 console.log(`Day rolled over: ${statsData.lastDate} → ${todayStr}. Resetting daily stats.`);
                 statsData.secondsToday = 0;
@@ -761,9 +726,7 @@ function gameTick() {
                 dailyGoalCelebrated = false; // eligible for today's goal
                 // Check week rollover too
                 const weekStart = getWeekStart(new Date());
-                const wsStored = typeof statsData.weekStart === 'number'
-                    ? numericWeekStartToString(statsData.weekStart) : statsData.weekStart;
-                if (wsStored !== weekStart) {
+                if (statsData.weekStart !== weekStart) {
                     statsData.secondsWeek = 0;
                     statsData.charsWeek = 0;
                     statsData.mistakesWeek = 0;
@@ -1185,7 +1148,7 @@ async function saveProgress(force = false) {
         await setDoc(doc(db, "users", currentUser.uid, "stats", "time_tracking"), statsData, { merge: true });
 
         // Daily log for admin reporting
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalDateStr();
         const logId = `${currentUser.uid}_${today}`;
         await setDoc(doc(db, "typing_logs", logId), {
             uid: currentUser.uid,
@@ -1217,7 +1180,7 @@ async function logSession(seconds, chars, mistakes, wpm, accuracy) {
             uid: currentUser.uid,
             email: currentUser.email || "",
             displayName: currentUser.displayName || "Anonymous",
-            date: new Date().toISOString().split('T')[0],
+            date: getLocalDateStr(),
             timestamp: new Date(),
             seconds: seconds,
             chars: chars,
@@ -1791,9 +1754,7 @@ function showAnonLoginPrompt() {
                         statsData.charsToday = (data.charsToday || 0) + statsData.charsToday;
                         statsData.mistakesToday = (data.mistakesToday || 0) + statsData.mistakesToday;
                     }
-                    const storedWeekAnon = typeof data.weekStart === 'number'
-                        ? numericWeekStartToString(data.weekStart) : (data.weekStart || '');
-                    if (storedWeekAnon === weekStart) {
+                                if ((data.weekStart || '') === weekStart) {
                         statsData.secondsWeek = (data.secondsWeek || 0) + statsData.secondsWeek;
                         statsData.charsWeek = (data.charsWeek || 0) + statsData.charsWeek;
                         statsData.mistakesWeek = (data.mistakesWeek || 0) + statsData.mistakesWeek;
@@ -3440,7 +3401,7 @@ function showInitialsPrompt() {
 async function updateLeaderboard() {
     if (!currentUser || currentUser.isAnonymous || !userInitials) return [];
     try {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalDateStr();
         const weekStart = getWeekStart(new Date());
         
         // Read existing leaderboard entry
@@ -3453,9 +3414,7 @@ async function updateLeaderboard() {
         const existingBestAcc = existing.bestAccuracy || 0;
         const existingBestStreak = existing.bestStreak || 0;
         const existingChapters = existing.chaptersCompleted || 0;
-        const storedWeekLB = typeof existing.weekStart === 'number'
-            ? numericWeekStartToString(existing.weekStart) : (existing.weekStart || '');
-        const existingTimeWeek = (storedWeekLB === weekStart) ? (existing.totalSecondsWeek || 0) : 0;
+        const existingTimeWeek = ((existing.weekStart || '') === weekStart) ? (existing.totalSecondsWeek || 0) : 0;
         
         // Compute current bests
         const lastSprintWPM = sprintHistory.length > 0 ? sprintHistory[sprintHistory.length - 1].wpm : 0;
@@ -3512,9 +3471,7 @@ async function fetchLeaderboard() {
             data.uid = d.id;
             // Reset weekly if stale
             const weekStart = getWeekStart(new Date());
-            const storedWeekFetch = typeof data.weekStart === 'number'
-                ? numericWeekStartToString(data.weekStart) : (data.weekStart || '');
-            if (storedWeekFetch !== weekStart) data.totalSecondsWeek = 0;
+            if ((data.weekStart || '') !== weekStart) data.totalSecondsWeek = 0;
             entries.push(data);
         });
         
@@ -3822,7 +3779,7 @@ async function logPracticeSession(wpm, acc, seconds, chars, mistakes) {
             email: currentUser.email || '',
             displayName: currentUser.displayName || 'Anonymous',
             timestamp: new Date(),
-            date: new Date().toISOString().split('T')[0],
+            date: getLocalDateStr(),
             bookId: currentBookId,
             chapter: practiceRealChapterNum,
             problemChars: practiceProblemChars,
