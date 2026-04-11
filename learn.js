@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.6.1";
+const LEARN_VERSION = "1.6.2";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -139,9 +139,6 @@ onAuthStateChanged(auth, async user => {
         await retroactiveSaveAnonSession(user);
         await loadUserProgress();
         await loadUserStats();
-        if (statsData.secondsToday > statsData.secondsWeek) {
-            await repairWeeklyTotal();
-        }
         await loadGoals();
     } else {
         userInfo.classList.add('hidden'); loginBtn.style.display = '';
@@ -240,10 +237,7 @@ async function retroactiveSaveAnonSession(user) {
                 statsData.charsToday   += data.charsToday   || 0;
                 statsData.mistakesToday+= data.mistakesToday|| 0;
             }
-            const storedWeek1 = typeof data.weekStart === 'number'
-                ? numericWeekStartToString(data.weekStart)
-                : (data.weekStart || '');
-            if (storedWeek1 === weekStart) {
+            if ((data.weekStart || '') === weekStart) {
                 statsData.secondsWeek  += data.secondsWeek  || 0;
                 statsData.charsWeek    += data.charsWeek    || 0;
                 statsData.mistakesWeek += data.mistakesWeek || 0;
@@ -716,9 +710,7 @@ function beginStep(stepIdx) {
                 statsData.secondsToday = 1; statsData.charsToday = 0; statsData.mistakesToday = 0;
                 statsData.lastDate = todayStr; dailyGoalCelebrated = false;
                 const ws = getWeekStart(new Date());
-                const wsCompare = typeof statsData.weekStart === 'number'
-                    ? numericWeekStartToString(statsData.weekStart) : statsData.weekStart;
-                if (wsCompare !== ws) {
+                if (statsData.weekStart !== ws) {
                     statsData.secondsWeek = 1; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
                     statsData.weekStart = ws; weeklyGoalCelebrated = false;
                 }
@@ -1911,45 +1903,6 @@ function getWeekStart(date) {
 }
 
 
-// Reconstruct secondsWeek from typing_logs when the stored value is clearly wrong
-// (today > week is impossible — indicates a transition-period corruption).
-// Queries at most 7 docs (one per day of the current week).
-async function repairWeeklyTotal() {
-    if (!currentUser || currentUser.isAnonymous) return;
-    try {
-        const today = new Date();
-        const weekStartStr = getWeekStart(today); // "YYYY-MM-DD"
-        const ws = new Date(weekStartStr + 'T00:00:00');
-        let totalSeconds = 0;
-        // Query each day from weekStart through today
-        const days = [];
-        for (let d = new Date(ws); d <= today; d.setDate(d.getDate() + 1)) {
-            days.push(d.getFullYear() + '-' +
-                String(d.getMonth()+1).padStart(2,'0') + '-' +
-                String(d.getDate()).padStart(2,'0'));
-        }
-        for (const dateStr of days) {
-            const logId = currentUser.uid + '_' + dateStr;
-            const snap = await getDoc(doc(db, 'typing_logs', logId));
-            if (snap.exists()) totalSeconds += snap.data().seconds || 0;
-        }
-        if (totalSeconds > statsData.secondsWeek) {
-            console.log('[TTB] Repaired secondsWeek:', statsData.secondsWeek, '→', totalSeconds);
-            statsData.secondsWeek = totalSeconds;
-            // Write the corrected value back
-            await setDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'),
-                { secondsWeek: totalSeconds, weekStart: weekStartStr }, { merge: true });
-        }
-    } catch(e) { console.warn('[TTB] repairWeeklyTotal failed:', e); }
-}
-
-function numericWeekStartToString(ts) {
-    // Converts an old numeric weekStart timestamp to "YYYY-MM-DD" string
-    const d = new Date(ts);
-    return d.getFullYear() + '-' +
-        String(d.getMonth() + 1).padStart(2, '0') + '-' +
-        String(d.getDate()).padStart(2, '0');
-}
 
 // ─── Stats loading (mirrors game.js) ─────────────────────────────────────────
 async function loadUserStats() {
@@ -1968,10 +1921,7 @@ async function loadUserStats() {
             } else {
                 statsData.secondsToday = statsData.charsToday = statsData.mistakesToday = 0;
             }
-            const storedWeek2 = typeof data.weekStart === 'number'
-                ? numericWeekStartToString(data.weekStart)
-                : (data.weekStart || '');
-            if (storedWeek2 === weekStart) {
+            if ((data.weekStart || '') === weekStart) {
                 statsData.secondsWeek  = data.secondsWeek  || 0;
                 statsData.charsWeek    = data.charsWeek    || 0;
                 statsData.mistakesWeek = data.mistakesWeek || 0;
