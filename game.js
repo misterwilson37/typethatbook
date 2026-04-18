@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "2.9.12";
+const VERSION = "2.9.13";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -463,6 +463,7 @@ async function loadChapter(chapterNum) {
             currentChapterNum = chapterNum;
             setupGame();
             getHeaderHTML(); // update book info bar
+            initBookProgressBar();
         } else {
             if(chapterNum !== 1 && chapterNum !== "1") {
                 alert(`Chapter ${chapterNum} not found. Returning to start.`);
@@ -1097,6 +1098,102 @@ function resumeGame() {
 document.addEventListener('keyup', (e) => { if (e.key === "Shift") toggleKeyboardCase(false); });
 
 // --- VIEW LOGIC ---
+
+// ─── Progress Bars ────────────────────────────────────────────────────────────
+function initBookProgressBar() {
+    const track = document.getElementById('book-progress-track');
+    if (!track || !bookMetadata || !bookMetadata.chapters) return;
+
+    const chapters = bookMetadata.chapters;
+    const total    = chapters.length;
+    if (!total) return;
+
+    track.innerHTML = '';
+
+    chapters.forEach((chap, i) => {
+        const seg = document.createElement('div');
+        seg.className  = 'book-chap-seg future';
+        seg.id         = 'bps-' + chap.id;
+        seg.style.cssText = 'position:absolute;left:0;right:0;' +
+            'top:'    + (i / total * 100) + '%;' +
+            'height:' + (1 / total * 100) + '%;';
+
+        // Divider line between chapters
+        if (i > 0) {
+            const div = document.createElement('div');
+            div.className = 'book-chap-divider';
+            div.style.top = '0';
+            seg.appendChild(div);
+        }
+
+        // Inner fill (progress within current chapter)
+        const innerFill = document.createElement('div');
+        innerFill.className = 'chap-inner-fill';
+        innerFill.id = 'bpf-' + chap.id;
+        seg.appendChild(innerFill);
+
+        // Inner marker (glowing line at current position)
+        const innerMarker = document.createElement('div');
+        innerMarker.className = 'chap-inner-marker';
+        innerMarker.id = 'bpm-' + chap.id;
+        seg.appendChild(innerMarker);
+
+        // Chapter number label (every chapter, shown on right side)
+        const chapNum = parseInt(chap.id.replace('chapter_', '')) || 0;
+        const lbl = document.createElement('div');
+        lbl.className = 'book-chap-label';
+        lbl.textContent = chapNum;
+        lbl.style.top = '50%';
+        seg.appendChild(lbl);
+
+        track.appendChild(seg);
+    });
+
+    const lbl = document.getElementById('book-progress-label');
+    if (lbl) lbl.textContent = total + ' ch';
+
+    updateProgressBars();
+}
+
+function updateProgressBars() {
+    if (!fullText || !fullText.length) return;
+    const pct = (currentCharIndex / fullText.length) * 100;
+
+    // ── Left bar: progress through current chapter ────────────────────────────
+    const fill   = document.getElementById('chapter-progress-fill');
+    const marker = document.getElementById('chapter-progress-marker');
+    const clabel = document.getElementById('chapter-progress-label');
+    if (fill)   fill.style.height   = Math.min(100, pct) + '%';
+    if (marker) marker.style.top    = Math.min(100, pct) + '%';
+    if (clabel) clabel.textContent  = Math.round(pct) + '%';
+
+    // ── Right bar: whole book, per-chapter segments ───────────────────────────
+    if (!bookMetadata || !bookMetadata.chapters) return;
+    bookMetadata.chapters.forEach((chap) => {
+        const chapNum  = parseInt(chap.id.replace('chapter_', '')) || 0;
+        const isCurrent = chapNum === parseInt(currentChapterNum);
+        const isPast    = chapNum <  parseInt(currentChapterNum);
+
+        const seg   = document.getElementById('bps-' + chap.id);
+        const bfill = document.getElementById('bpf-' + chap.id);
+        const bmark = document.getElementById('bpm-' + chap.id);
+        if (!seg) return;
+
+        seg.className = 'book-chap-seg ' +
+            (isPast ? 'completed' : isCurrent ? 'current' : 'future');
+
+        if (bfill) bfill.style.height = isPast ? '100%' : isCurrent ? Math.min(100, pct) + '%' : '0%';
+        if (bmark) {
+            bmark.style.display = isCurrent ? '' : 'none';
+            bmark.style.top     = Math.min(100, pct) + '%';
+        }
+
+        // Highlight active chapter label
+        const lbl = seg.querySelector('.book-chap-label');
+        if (lbl) lbl.className = 'book-chap-label' + (isCurrent ? ' active-label' : '');
+    });
+}
+
 function centerView() {
     const currentEl = document.getElementById(`char-${currentCharIndex}`);
     if (!currentEl) return;
@@ -1110,6 +1207,7 @@ function highlightCurrentChar() {
     const el = document.getElementById(`char-${currentCharIndex}`);
     if (el) { el.classList.add('active'); highlightKey(fullText[currentCharIndex]); }
     updateHandGuide();
+    updateProgressBars();
 }
 
 function updateImageDisplay() {
