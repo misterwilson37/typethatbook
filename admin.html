@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TypeThatBook Admin v2.7.1</title>
+    <title>TypeThatBook Admin v2.7.2</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
@@ -344,34 +344,87 @@
         </div><!-- /lessons-panel -->
 
         <div id="students-panel" class="hidden">
-            <h3 style="margin:0 0 16px; color:#4B9CD3;">Student Progress Manager</h3>
-
-            <div style="display:flex; gap:8px; margin-bottom:16px;">
-                <input id="student-search-input" type="text" placeholder="Search by email or display name…"
-                    style="flex:1; padding:10px; background:#222; border:1px solid #444; color:#eee; font-family:inherit;">
-                <button id="student-search-btn" class="lbtn lbtn-secondary" style="width:auto; padding:10px 20px;">Search</button>
-            </div>
-            <div id="student-search-results" style="margin-bottom:16px; font-size:0.82em; color:#888;"></div>
-
-            <!-- Class assignment (shown once student selected) -->
-            <div id="student-class-assign" class="hidden" style="margin-bottom:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                <label class="l-label" style="margin:0; white-space:nowrap; font-size:0.78em;">Assign to class:</label>
-                <select id="student-class-select" class="l-field" style="flex:1; margin:0; min-width:160px;">
-                    <option value="">— No class (default goals) —</option>
-                </select>
-                <button id="student-class-save-btn" class="lbtn lbtn-primary" style="width:auto; padding:5px 14px; font-size:0.8em;">Save Assignment</button>
-                <span id="student-class-status" style="font-size:0.78em; color:#888;"></span>
-            </div>
-
-            <!-- Lesson progress grid shown once a student is selected -->
-            <div id="student-progress-section" class="hidden">
-                <div id="student-selected-label"
-                    style="font-size:0.9rem; color:#4B9CD3; margin-bottom:12px; font-weight:bold;"></div>
-                <div id="student-lesson-grid"
-                    style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+                <h3 style="margin:0; color:#4B9CD3;">Students</h3>
+                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                    <!-- Time filter -->
+                    <select id="student-filter-time" class="l-field" style="margin:0; width:auto; font-size:0.8em; padding:5px 8px;">
+                        <option value="9weeks">Last 9 weeks</option>
+                        <option value="month">Last month</option>
+                        <option value="week">Last week</option>
+                        <option value="all">All time</option>
+                    </select>
+                    <!-- Class filter -->
+                    <select id="student-filter-class" class="l-field" style="margin:0; width:auto; font-size:0.8em; padding:5px 8px;">
+                        <option value="all">All classes</option>
+                        <option value="none">Unassigned</option>
+                    </select>
+                    <!-- Text search -->
+                    <input id="student-filter-text" type="text" placeholder="Filter by name or email…"
+                        style="padding:5px 8px; background:#222; border:1px solid #444; color:#eee; font-family:inherit; font-size:0.8em; border-radius:3px; width:180px;">
+                    <button id="student-refresh-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">↺ Refresh</button>
+                    <button id="student-csv-toggle-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">CSV Import</button>
                 </div>
-                <div style="margin-top:12px; font-size:0.75em; color:#555;">
-                    Click any lesson to lock (remove progress) or unlock (mark passed).
+            </div>
+
+            <!-- CSV Import section -->
+            <div id="student-csv-section" class="hidden" style="background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:14px; margin-bottom:14px;">
+                <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:8px;">Bulk Class Assignment via CSV</div>
+                <div style="font-size:0.75em; color:#666; margin-bottom:8px;">
+                    Two columns: <code style="color:#aaa;">email</code> and <code style="color:#aaa;">class_name</code> (header row optional).
+                    Class name is matched case-insensitively against existing classes.
+                </div>
+                <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+                    <input type="file" id="student-csv-file" accept=".csv,.txt" style="flex:1; font-size:0.8em;">
+                    <span style="color:#555; align-self:center; font-size:0.8em;">— or paste —</span>
+                </div>
+                <textarea id="student-csv-paste" class="l-field" rows="4"
+                    placeholder="email,class_name&#10;student@example.com,Period 2 — 7th Grade"
+                    style="font-size:0.78em; font-family:monospace; margin-bottom:8px;"></textarea>
+                <div style="display:flex; gap:8px;">
+                    <button id="student-csv-preview-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 14px; font-size:0.8em;">Preview</button>
+                    <button id="student-csv-commit-btn" class="lbtn lbtn-primary" style="width:auto; padding:5px 14px; font-size:0.8em;" disabled>Commit</button>
+                </div>
+                <div id="student-csv-preview-area" style="margin-top:10px; font-size:0.78em;"></div>
+            </div>
+
+            <!-- Status bar -->
+            <div id="student-list-status" style="font-size:0.8em; color:#666; margin-bottom:8px;">Loading students…</div>
+
+            <!-- Roster table -->
+            <div style="overflow-x:auto;">
+                <table id="student-roster-table" style="width:100%; border-collapse:collapse; font-size:0.8em; display:none;">
+                    <thead>
+                        <tr style="border-bottom:1px solid #333; color:#888; text-align:left;">
+                            <th class="roster-sort" data-col="name"   style="padding:6px 10px; cursor:pointer; white-space:nowrap;">Name ↕</th>
+                            <th class="roster-sort" data-col="email"  style="padding:6px 10px; cursor:pointer; white-space:nowrap;">Email ↕</th>
+                            <th class="roster-sort" data-col="last"   style="padding:6px 10px; cursor:pointer; white-space:nowrap;">Last Login ↕</th>
+                            <th class="roster-sort" data-col="week"   style="padding:6px 10px; cursor:pointer; white-space:nowrap;">This Week ↕</th>
+                            <th class="roster-sort" data-col="class"  style="padding:6px 10px; cursor:pointer; white-space:nowrap;">Class ↕</th>
+                        </tr>
+                    </thead>
+                    <tbody id="student-roster-body"></tbody>
+                </table>
+            </div>
+
+            <!-- Per-student detail (class assign + lesson grid) -->
+            <div id="student-class-assign" class="hidden" style="margin-top:16px; padding-top:14px; border-top:1px solid #333;">
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+                    <span id="student-selected-label" style="font-size:0.9rem; color:#4B9CD3; font-weight:bold; flex:1;"></span>
+                    <label class="l-label" style="margin:0; white-space:nowrap; font-size:0.78em;">Class:</label>
+                    <select id="student-class-select" class="l-field" style="margin:0; min-width:160px;">
+                        <option value="">— No class (default goals) —</option>
+                    </select>
+                    <button id="student-class-save-btn" class="lbtn lbtn-primary" style="width:auto; padding:5px 14px; font-size:0.8em;">Save</button>
+                    <span id="student-class-status" style="font-size:0.78em; color:#888;"></span>
+                </div>
+                <div id="student-progress-section">
+                    <div id="student-lesson-grid"
+                        style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px;">
+                    </div>
+                    <div style="margin-top:10px; font-size:0.75em; color:#555;">
+                        Click any lesson to lock (remove progress) or unlock (mark passed).
+                    </div>
                 </div>
             </div>
         </div><!-- /students-panel -->
