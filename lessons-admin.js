@@ -603,71 +603,7 @@ function parseImportJSON(text) {
 }
 
 
-// ─── STUDENTS PANEL ──────────────────────────────────────────────────────────
-let _studentsInited = false;
-let _allLessonIds   = [];  // ordered list from _lessonCache
-let _currentStudentUid = null;
 
-function initStudentsPanel() {
-    if (_studentsInited) return;
-    _studentsInited = true;
-
-    const searchBtn   = document.getElementById('student-search-btn');
-    const searchInput = document.getElementById('student-search-input');
-    if (searchBtn)   searchBtn.addEventListener('click',   runStudentSearch);
-    if (searchInput) searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') runStudentSearch(); });
-}
-
-async function runStudentSearch() {
-    const q      = (document.getElementById('student-search-input').value || '').trim().toLowerCase();
-    const resEl  = document.getElementById('student-search-results');
-    const secEl  = document.getElementById('student-progress-section');
-    if (!q) { resEl.textContent = 'Enter a name or email to search.'; return; }
-
-    resEl.innerHTML = '<span style="color:#888;">Searching…</span>';
-    secEl.classList.add('hidden');
-
-    try {
-        // typing_logs stores uid, email, displayName — query all and filter client-side
-        const snap = await getDocs(collection(_db, 'typing_logs'));
-        const seen = new Map(); // uid → {email, displayName}
-        snap.forEach(d => {
-            const data = d.data();
-            const uid  = data.uid || '';
-            if (!uid || seen.has(uid)) return;
-            const email = (data.email || '').toLowerCase();
-            const name  = (data.displayName || '').toLowerCase();
-            if (email.includes(q) || name.includes(q)) {
-                seen.set(uid, { email: data.email || '', name: data.displayName || uid });
-            }
-        });
-
-        if (seen.size === 0) {
-            resEl.innerHTML = '<span style="color:#ffaa00;">No students found matching "' + escHtml(q) + '".</span>';
-            return;
-        }
-
-        // Build result list
-        let html = '<div style="display:flex; flex-wrap:wrap; gap:6px;">';
-        seen.forEach(({email, name}, uid) => {
-            html += '<button class="lbtn lbtn-secondary student-result-btn" '
-                + 'style="font-size:0.8em; padding:5px 12px;" '
-                + 'data-uid="' + escHtml(uid) + '" '
-                + 'data-label="' + escHtml(name + ' (' + email + ')') + '">'
-                + escHtml(name) + '<br><span style="color:#555; font-size:0.85em;">' + escHtml(email) + '</span>'
-                + '</button>';
-        });
-        html += '</div>';
-        resEl.innerHTML = html;
-
-        resEl.querySelectorAll('.student-result-btn').forEach(btn => {
-            btn.addEventListener('click', () => loadStudentProgress(btn.dataset.uid, btn.dataset.label));
-        });
-
-    } catch (e) {
-        resEl.innerHTML = '<span style="color:#ff4444;">Search error: ' + escHtml(e.message) + '</span>';
-    }
-}
 
 async function loadStudentProgress(uid, label) {
     _currentStudentUid = uid;
@@ -936,16 +872,20 @@ async function deleteClass(classId) {
 }
 
 function refreshClassDropdownInStudents() {
+    // Refresh the per-student class assign dropdown
     const sel = document.getElementById('student-class-select');
-    if (!sel) return;
-    const current = sel.value;
-    sel.innerHTML = '<option value="">— No class (default goals) —</option>';
-    Object.values(_classCache).sort((a,b) => (a.name||'').localeCompare(b.name||'')).forEach(cls => {
-        const opt = document.createElement('option');
-        opt.value = cls.id; opt.textContent = cls.name || cls.id;
-        if (cls.id === current) opt.selected = true;
-        sel.appendChild(opt);
-    });
+    if (sel) {
+        const current = sel.value;
+        sel.innerHTML = '<option value="">— No class (default goals) —</option>';
+        Object.values(_classCache).sort((a,b) => (a.name||'').localeCompare(b.name||'')).forEach(cls => {
+            const opt = document.createElement('option');
+            opt.value = cls.id; opt.textContent = cls.name || cls.id;
+            if (cls.id === current) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    }
+    // Also refresh the roster filter dropdown
+    if (document.getElementById('student-filter-class')) _buildClassFilterDropdown();
 }
 
 // ─── PUBLIC RELOAD (for toolbar button) ──────────────────────────────────────
@@ -964,4 +904,312 @@ function escHtml(s) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+// ─── STUDENTS PANEL ──────────────────────────────────────────────────────────
+let _studentsInited    = false;
+let _currentStudentUid = null;
+let _rosterData        = [];   // [{uid, name, email, lastLogin, weekSeconds, classId}]
+let _rosterSort        = { col: 'last', dir: -1 }; // default: most recent first
+let _csvParsed         = [];   // preview rows from CSV
+
+function initStudentsPanel() {
+    if (_studentsInited) {
+        // Re-populate class filter in case classes were added
+        _buildClassFilterDropdown();
+        return;
+    }
+    _studentsInited = true;
+
+    document.getElementById('student-refresh-btn')
+        .addEventListener('click', () => { _rosterData = []; loadStudentRoster(); });
+    document.getElementById('student-filter-time')
+        .addEventListener('change', _renderRoster);
+    document.getElementById('student-filter-class')
+        .addEventListener('change', _renderRoster);
+    document.getElementById('student-filter-text')
+        .addEventListener('input', _renderRoster);
+
+    // Sort on header click
+    document.getElementById('student-roster-table')
+        .querySelectorAll('.roster-sort').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.dataset.col;
+                _rosterSort.dir = (_rosterSort.col === col) ? -_rosterSort.dir : -1;
+                _rosterSort.col = col;
+                _renderRoster();
+            });
+        });
+
+    // CSV toggle
+    document.getElementById('student-csv-toggle-btn')
+        .addEventListener('click', () => {
+            const sec = document.getElementById('student-csv-section');
+            sec.classList.toggle('hidden');
+        });
+    document.getElementById('student-csv-file')
+        .addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                document.getElementById('student-csv-paste').value = ev.target.result;
+            };
+            reader.readAsText(file);
+        });
+    document.getElementById('student-csv-preview-btn')
+        .addEventListener('click', _previewCSV);
+    document.getElementById('student-csv-commit-btn')
+        .addEventListener('click', _commitCSV);
+
+    loadStudentRoster();
+}
+
+// ── Roster loading ────────────────────────────────────────────────────────────
+async function loadStudentRoster() {
+    const statusEl = document.getElementById('student-list-status');
+    const tableEl  = document.getElementById('student-roster-table');
+    statusEl.textContent = 'Loading students\u2026';
+    tableEl.style.display = 'none';
+
+    try {
+        // 1. Scan typing_logs — aggregate by uid
+        const logSnap = await getDocs(collection(_db, 'typing_logs'));
+        const byUid   = new Map(); // uid → {name, email, lastLogin, weekSeconds}
+
+        const today      = new Date();
+        const weekStart  = _localDateStr(_weekStartDate(today));
+
+        logSnap.forEach(d => {
+            const data = d.data();
+            const uid  = data.uid || ''; if (!uid) return;
+            const date = data.date || '';
+            const secs = data.seconds || 0;
+
+            if (!byUid.has(uid)) {
+                byUid.set(uid, { name: data.displayName || '', email: data.email || '',
+                                 lastLogin: date, weekSeconds: 0, classId: '' });
+            }
+            const row = byUid.get(uid);
+            if (!row.name && data.displayName) row.name = data.displayName;
+            if (!row.email && data.email)       row.email = data.email;
+            if (date > row.lastLogin)            row.lastLogin = date;
+            if (date >= weekStart)               row.weekSeconds += secs;
+        });
+
+        // 2. Fetch classId for each uid (batched individually — no batch API in client SDK)
+        const uidList = [...byUid.keys()];
+        await Promise.all(uidList.map(async uid => {
+            try {
+                const snap = await getDoc(doc(_db, 'users', uid));
+                if (snap.exists()) byUid.get(uid).classId = snap.data().classId || '';
+            } catch(e) { /* user doc may not exist */ }
+        }));
+
+        _rosterData = uidList.map(uid => ({ uid, ...byUid.get(uid) }));
+
+        _buildClassFilterDropdown();
+        _renderRoster();
+        statusEl.textContent = _rosterData.length + ' students loaded.';
+        tableEl.style.display = '';
+    } catch(e) {
+        statusEl.textContent = 'Error loading students: ' + escHtml(e.message);
+    }
+}
+
+function _weekStartDate(date) {
+    const d    = new Date(date);
+    const diff = (d.getDay() + 1) % 7;
+    d.setDate(d.getDate() - diff);
+    return d;
+}
+
+function _localDateStr(d) {
+    return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+}
+
+function _buildClassFilterDropdown() {
+    const sel = document.getElementById('student-filter-class');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="all">All classes</option><option value="none">Unassigned</option>';
+    Object.values(_classCache).sort((a,b) => (a.name||'').localeCompare(b.name||'')).forEach(cls => {
+        const opt = document.createElement('option');
+        opt.value = cls.id; opt.textContent = cls.name || cls.id;
+        if (cls.id === cur) opt.selected = true;
+        sel.appendChild(opt);
+    });
+}
+
+// ── Render filtered/sorted roster ─────────────────────────────────────────────
+function _renderRoster() {
+    const timeFilter  = document.getElementById('student-filter-time').value;
+    const classFilter = document.getElementById('student-filter-class').value;
+    const textFilter  = (document.getElementById('student-filter-text').value || '').toLowerCase().trim();
+    const tbody       = document.getElementById('student-roster-body');
+
+    // Date cutoff
+    const today  = new Date();
+    let cutoff   = '';
+    if (timeFilter === 'week')    { const d = new Date(today); d.setDate(d.getDate()-7);   cutoff = _localDateStr(d); }
+    if (timeFilter === 'month')   { const d = new Date(today); d.setMonth(d.getMonth()-1); cutoff = _localDateStr(d); }
+    if (timeFilter === '9weeks')  { const d = new Date(today); d.setDate(d.getDate()-63);  cutoff = _localDateStr(d); }
+
+    // Filter
+    let rows = _rosterData.filter(r => {
+        if (cutoff && r.lastLogin < cutoff) return false;
+        if (classFilter === 'none' && r.classId) return false;
+        if (classFilter !== 'all' && classFilter !== 'none' && r.classId !== classFilter) return false;
+        if (textFilter && !r.name.toLowerCase().includes(textFilter) &&
+                          !r.email.toLowerCase().includes(textFilter)) return false;
+        return true;
+    });
+
+    // Sort
+    const col = _rosterSort.col, dir = _rosterSort.dir;
+    rows.sort((a, b) => {
+        let av, bv;
+        if (col === 'name')  { av = a.name;        bv = b.name; }
+        if (col === 'email') { av = a.email;        bv = b.email; }
+        if (col === 'last')  { av = a.lastLogin;    bv = b.lastLogin; }
+        if (col === 'week')  { av = a.weekSeconds;  bv = b.weekSeconds; }
+        if (col === 'class') { av = _classCache[a.classId]?.name || ''; bv = _classCache[b.classId]?.name || ''; }
+        if (av < bv) return dir;
+        if (av > bv) return -dir;
+        return 0;
+    });
+
+    // Update sort indicators on headers
+    document.querySelectorAll('.roster-sort').forEach(th => {
+        th.textContent = th.textContent.replace(/[ ↑↓↕]+$/, '');
+        if (th.dataset.col === col)
+            th.textContent += dir === -1 ? ' \u2193' : ' \u2191';
+        else
+            th.textContent += ' \u2195';
+    });
+
+    tbody.innerHTML = '';
+    const statusEl = document.getElementById('student-list-status');
+    statusEl.textContent = rows.length + ' student' + (rows.length !== 1 ? 's' : '') +
+        (rows.length !== _rosterData.length ? ' (filtered from ' + _rosterData.length + ')' : '') + '.';
+
+    rows.forEach(r => {
+        const wm   = Math.floor(r.weekSeconds / 60);
+        const ws   = r.weekSeconds % 60;
+        const cls  = _classCache[r.classId];
+        const clsName = cls ? cls.name : (r.classId ? r.classId : '\u2014');
+        const tr   = document.createElement('tr');
+        tr.style.cssText = 'border-bottom:1px solid #222; cursor:pointer;';
+        tr.innerHTML =
+            '<td style="padding:7px 10px; color:#ddd;">'  + escHtml(r.name || '\u2014')   + '</td>' +
+            '<td style="padding:7px 10px; color:#888;">'  + escHtml(r.email || '\u2014')  + '</td>' +
+            '<td style="padding:7px 10px; color:#888;">'  + escHtml(r.lastLogin || '\u2014') + '</td>' +
+            '<td style="padding:7px 10px; color:#aaa;">'  + wm + ':' + String(ws).padStart(2,'0') + '</td>' +
+            '<td style="padding:7px 10px; color:' + (cls ? '#4B9CD3' : '#555') + ';">' + escHtml(clsName) + '</td>';
+        tr.addEventListener('mouseenter', () => tr.style.background = '#1a1a1a');
+        tr.addEventListener('mouseleave', () => tr.style.background = '');
+        tr.addEventListener('click', () => {
+            // Highlight selected row
+            document.querySelectorAll('#student-roster-body tr').forEach(t => t.style.outline = '');
+            tr.style.outline = '1px solid #4B9CD3';
+            loadStudentProgress(r.uid, r.name + ' (' + r.email + ')');
+        });
+        tbody.appendChild(tr);
+    });
+
+    if (rows.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td colspan="5" style="padding:20px; text-align:center; color:#555;">No students match the current filters.</td>';
+        tbody.appendChild(tr);
+    }
+}
+
+// ── CSV Import ─────────────────────────────────────────────────────────────────
+function _previewCSV() {
+    const raw    = document.getElementById('student-csv-paste').value.trim();
+    const areaEl = document.getElementById('student-csv-preview-area');
+    const commitBtn = document.getElementById('student-csv-commit-btn');
+    _csvParsed   = [];
+    commitBtn.disabled = true;
+
+    if (!raw) { areaEl.innerHTML = '<span style="color:#ff6666;">No CSV data.</span>'; return; }
+
+    const lines  = raw.split(/\r?\n/).filter(l => l.trim());
+    const rows   = lines.map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
+
+    // Detect header
+    const hasHeader = rows[0][0].toLowerCase() === 'email' || rows[0][0].toLowerCase().includes('@') === false;
+    const dataRows  = hasHeader ? rows.slice(1) : rows;
+
+    // Build class name → id lookup (case-insensitive)
+    const classLookup = new Map();
+    Object.values(_classCache).forEach(cls => {
+        classLookup.set((cls.name || '').toLowerCase().trim(), cls.id);
+        classLookup.set(cls.id.toLowerCase().trim(), cls.id);
+    });
+
+    // Build email → uid lookup from roster data
+    const emailToUid = new Map();
+    _rosterData.forEach(r => { if (r.email) emailToUid.set(r.email.toLowerCase(), r.uid); });
+
+    let html = '<table style="width:100%; border-collapse:collapse; font-size:0.78em;">' +
+        '<tr style="color:#666; border-bottom:1px solid #333;">' +
+        '<th style="text-align:left; padding:4px 6px;">Email</th>' +
+        '<th style="text-align:left; padding:4px 6px;">Class</th>' +
+        '<th style="text-align:left; padding:4px 6px;">Status</th></tr>';
+
+    dataRows.forEach(cols => {
+        const email     = (cols[0] || '').toLowerCase().trim();
+        const clsRaw    = (cols[1] || '').trim();
+        const uid       = emailToUid.get(email);
+        const classId   = classLookup.get(clsRaw.toLowerCase()) || classLookup.get(clsRaw.toLowerCase().trim());
+        const clsName   = classId ? (_classCache[classId]?.name || classId) : null;
+
+        let status, ok = false;
+        if (!email) { status = '<span style="color:#888;">empty row</span>'; }
+        else if (!uid) { status = '<span style="color:#ffaa00;">student not found in logs</span>'; }
+        else if (!clsRaw) { status = '<span style="color:#888;">will clear class</span>'; ok = true; }
+        else if (!classId) { status = '<span style="color:#ff6666;">class "' + escHtml(clsRaw) + '" not found</span>'; }
+        else { status = '<span style="color:#22c55e;">\u2713 assign to ' + escHtml(clsName) + '</span>'; ok = true; }
+
+        if (ok) _csvParsed.push({ uid, email, classId: classId || '' });
+
+        html += '<tr style="border-bottom:1px solid #1a1a1a;">' +
+            '<td style="padding:3px 6px; color:#ccc;">' + escHtml(email) + '</td>' +
+            '<td style="padding:3px 6px; color:#aaa;">' + escHtml(clsRaw || '\u2014') + '</td>' +
+            '<td style="padding:3px 6px;">' + status + '</td></tr>';
+    });
+    html += '</table>';
+    areaEl.innerHTML = html;
+
+    if (_csvParsed.length > 0) {
+        commitBtn.disabled = false;
+        areaEl.innerHTML += '<div style="margin-top:6px; color:#22c55e; font-size:0.78em;">' +
+            _csvParsed.length + ' assignment' + (_csvParsed.length !== 1 ? 's' : '') + ' ready to commit.</div>';
+    }
+}
+
+async function _commitCSV() {
+    if (!_csvParsed.length) return;
+    const commitBtn = document.getElementById('student-csv-commit-btn');
+    const areaEl    = document.getElementById('student-csv-preview-area');
+    commitBtn.disabled = true;
+    areaEl.innerHTML += '<div style="color:#888; margin-top:4px;">Writing\u2026</div>';
+
+    let ok = 0, fail = 0;
+    for (const { uid, classId } of _csvParsed) {
+        try {
+            await setDoc(doc(_db, 'users', uid), { classId: classId || null }, { merge: true });
+            // Update local cache
+            const r = _rosterData.find(r => r.uid === uid);
+            if (r) r.classId = classId || '';
+            ok++;
+        } catch(e) { fail++; }
+    }
+
+    areaEl.innerHTML += '<div style="color:#22c55e; margin-top:4px;">' +
+        '\u2713 Done: ' + ok + ' assigned' + (fail ? ', ' + fail + ' failed.' : '.') + '</div>';
+    _csvParsed = [];
+    _renderRoster();
 }
