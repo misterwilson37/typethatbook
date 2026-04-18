@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TypeThatBook Admin v2.7.1</title>
+    <title>TypeThatBook Admin v2.7.3</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
@@ -104,7 +104,7 @@
         .lesson-card-title { font-weight:bold; color:#ddd; font-size:0.9em; }
         .lesson-editor { background: #0e0e0e; }
 
-        .lbtn { width:auto; padding:4px 10px; font-size:0.78em; margin:0; cursor:pointer; font-family:inherit; border-radius:2px; text-transform:uppercase; }
+        .lbtn { width:auto; padding:4px 10px; font-size:0.78em; margin:0; cursor:pointer; font-family:inherit; border-radius:2px; text-transform:uppercase; box-sizing:border-box; vertical-align:middle; }
         .lbtn-primary { background:#0047AB; border:none; color:white; }
         .lbtn-primary:hover { background:#4B9CD3; }
         .lbtn-secondary { background:#333; border:1px solid #555; color:#aaa; }
@@ -349,8 +349,9 @@
                 <h3 style="margin:0; color:#4B9CD3; flex-shrink:0;">Students</h3>
                 <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
                     <select id="student-filter-time" class="l-field" style="margin:0; width:auto; font-size:0.8em; padding:5px 8px;">
+                        <option value="thisweek" selected>This week (Sat–Fri)</option>
                         <option value="7days">Last 7 days</option>
-                        <option value="9weeks" selected>Last 9 weeks</option>
+                        <option value="9weeks">Last 9 weeks</option>
                         <option value="month">Last 30 days</option>
                         <option value="all">All time</option>
                     </select>
