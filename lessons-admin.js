@@ -1,4 +1,4 @@
-// lessons-admin.js — TypeThatBook Lesson Panel
+ // lessons-admin.js — TypeThatBook Lesson Panel
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 
 import {
