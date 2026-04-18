@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TypeThatBook Admin v2.7.2</title>
+    <title>TypeThatBook Admin v2.7.1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
@@ -344,72 +344,88 @@
         </div><!-- /lessons-panel -->
 
         <div id="students-panel" class="hidden">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
-                <h3 style="margin:0; color:#4B9CD3;">Students</h3>
+            <!-- Toolbar -->
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:6px;">
+                <h3 style="margin:0; color:#4B9CD3; flex-shrink:0;">Students</h3>
                 <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                    <!-- Time filter -->
                     <select id="student-filter-time" class="l-field" style="margin:0; width:auto; font-size:0.8em; padding:5px 8px;">
-                        <option value="9weeks">Last 9 weeks</option>
-                        <option value="month">Last month</option>
-                        <option value="week">Last week</option>
+                        <option value="7days">Last 7 days</option>
+                        <option value="9weeks" selected>Last 9 weeks</option>
+                        <option value="month">Last 30 days</option>
                         <option value="all">All time</option>
                     </select>
-                    <!-- Class filter -->
                     <select id="student-filter-class" class="l-field" style="margin:0; width:auto; font-size:0.8em; padding:5px 8px;">
                         <option value="all">All classes</option>
                         <option value="none">Unassigned</option>
                     </select>
-                    <!-- Text search -->
-                    <input id="student-filter-text" type="text" placeholder="Filter by name or email…"
-                        style="padding:5px 8px; background:#222; border:1px solid #444; color:#eee; font-family:inherit; font-size:0.8em; border-radius:3px; width:180px;">
-                    <button id="student-refresh-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">↺ Refresh</button>
+                    <input id="student-filter-text" type="text" placeholder="Filter name / email…"
+                        style="padding:5px 8px; background:#222; border:1px solid #444; color:#eee;
+                               font-family:inherit; font-size:0.8em; border-radius:3px; width:160px;">
+                    <button id="student-refresh-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">↺</button>
                     <button id="student-csv-toggle-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">CSV Import</button>
                 </div>
             </div>
 
+            <!-- Bulk action bar (shown when checkboxes checked) -->
+            <div id="student-bulk-bar" style="display:none; align-items:center; gap:8px; background:#1a1a1a;
+                 border:1px solid #333; border-radius:4px; padding:8px 12px; margin-bottom:10px; font-size:0.82em;">
+                <span id="student-bulk-count" style="color:#4B9CD3; font-weight:bold; flex-shrink:0;"></span>
+                <span style="color:#666; flex-shrink:0;">→ assign to:</span>
+                <select id="student-bulk-class" class="l-field" style="margin:0; flex:1; min-width:140px; font-size:0.82em; padding:4px 6px;">
+                    <option value="">— No class (clear) —</option>
+                </select>
+                <button id="student-bulk-assign-btn" class="lbtn lbtn-primary" style="width:auto; padding:4px 14px; font-size:0.82em;">Assign</button>
+                <button id="student-bulk-cancel-btn" class="lbtn lbtn-secondary" style="width:auto; padding:4px 10px; font-size:0.82em;">✕</button>
+            </div>
+
             <!-- CSV Import section -->
-            <div id="student-csv-section" class="hidden" style="background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:14px; margin-bottom:14px;">
+            <div id="student-csv-section" class="hidden" style="background:#1a1a1a; border:1px solid #333;
+                 border-radius:4px; padding:14px; margin-bottom:14px;">
                 <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:8px;">Bulk Class Assignment via CSV</div>
                 <div style="font-size:0.75em; color:#666; margin-bottom:8px;">
-                    Two columns: <code style="color:#aaa;">email</code> and <code style="color:#aaa;">class_name</code> (header row optional).
-                    Class name is matched case-insensitively against existing classes.
+                    Two columns: <code style="color:#aaa;">email</code> and <code style="color:#aaa;">class_name</code>
+                    (header row optional). Separate with comma. Class name matched case-insensitively.
                 </div>
-                <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+                <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
                     <input type="file" id="student-csv-file" accept=".csv,.txt" style="flex:1; font-size:0.8em;">
-                    <span style="color:#555; align-self:center; font-size:0.8em;">— or paste —</span>
                 </div>
                 <textarea id="student-csv-paste" class="l-field" rows="4"
-                    placeholder="email,class_name&#10;student@example.com,Period 2 — 7th Grade"
+                    placeholder="email,class_name&#10;1088461@sumnerk12.net,7th &amp; 8th Grade (Standard)"
                     style="font-size:0.78em; font-family:monospace; margin-bottom:8px;"></textarea>
-                <div style="display:flex; gap:8px;">
+                <div style="display:flex; gap:8px; align-items:center;">
                     <button id="student-csv-preview-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 14px; font-size:0.8em;">Preview</button>
                     <button id="student-csv-commit-btn" class="lbtn lbtn-primary" style="width:auto; padding:5px 14px; font-size:0.8em;" disabled>Commit</button>
+                    <span id="student-csv-loading" style="color:#888; font-size:0.78em; display:none;">Loading classes…</span>
                 </div>
-                <div id="student-csv-preview-area" style="margin-top:10px; font-size:0.78em;"></div>
+                <div id="student-csv-preview-area" style="margin-top:10px; font-size:0.78em; max-height:240px; overflow-y:auto;"></div>
             </div>
 
             <!-- Status bar -->
-            <div id="student-list-status" style="font-size:0.8em; color:#666; margin-bottom:8px;">Loading students…</div>
+            <div id="student-list-status" style="font-size:0.8em; color:#666; margin-bottom:6px;">Loading students…</div>
 
             <!-- Roster table -->
             <div style="overflow-x:auto;">
                 <table id="student-roster-table" style="width:100%; border-collapse:collapse; font-size:0.8em; display:none;">
                     <thead>
-                        <tr style="border-bottom:1px solid #333; color:#888; text-align:left;">
-                            <th class="roster-sort" data-col="name"   style="padding:6px 10px; cursor:pointer; white-space:nowrap;">Name ↕</th>
-                            <th class="roster-sort" data-col="email"  style="padding:6px 10px; cursor:pointer; white-space:nowrap;">Email ↕</th>
-                            <th class="roster-sort" data-col="last"   style="padding:6px 10px; cursor:pointer; white-space:nowrap;">Last Login ↕</th>
-                            <th class="roster-sort" data-col="week"   style="padding:6px 10px; cursor:pointer; white-space:nowrap;">This Week ↕</th>
-                            <th class="roster-sort" data-col="class"  style="padding:6px 10px; cursor:pointer; white-space:nowrap;">Class ↕</th>
+                        <tr style="border-bottom:1px solid #333; color:#888; text-align:left; background:#111;">
+                            <th style="padding:6px 8px; width:28px;">
+                                <input type="checkbox" id="student-select-all" title="Select all visible">
+                            </th>
+                            <th class="roster-sort" data-col="name"  style="padding:6px 8px; cursor:pointer; white-space:nowrap;">Name</th>
+                            <th class="roster-sort" data-col="email" style="padding:6px 8px; cursor:pointer; white-space:nowrap;">Email</th>
+                            <th class="roster-sort" data-col="last"  style="padding:6px 8px; cursor:pointer; white-space:nowrap;">Last Login</th>
+                            <th class="roster-sort" data-col="week"  style="padding:6px 8px; cursor:pointer; white-space:nowrap;">This Week</th>
+                            <th class="roster-sort" data-col="class" style="padding:6px 8px; cursor:pointer; white-space:nowrap;">Class</th>
                         </tr>
                     </thead>
                     <tbody id="student-roster-body"></tbody>
                 </table>
             </div>
 
-            <!-- Per-student detail (class assign + lesson grid) -->
+            <!-- Per-student detail panel -->
             <div id="student-class-assign" class="hidden" style="margin-top:16px; padding-top:14px; border-top:1px solid #333;">
-                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+                <!-- Header row: name + class assign -->
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
                     <span id="student-selected-label" style="font-size:0.9rem; color:#4B9CD3; font-weight:bold; flex:1;"></span>
                     <label class="l-label" style="margin:0; white-space:nowrap; font-size:0.78em;">Class:</label>
                     <select id="student-class-select" class="l-field" style="margin:0; min-width:160px;">
@@ -418,12 +434,32 @@
                     <button id="student-class-save-btn" class="lbtn lbtn-primary" style="width:auto; padding:5px 14px; font-size:0.8em;">Save</button>
                     <span id="student-class-status" style="font-size:0.78em; color:#888;"></span>
                 </div>
-                <div id="student-progress-section">
+                <!-- Progress view tabs -->
+                <div style="display:flex; gap:0; margin-bottom:12px; border-bottom:1px solid #333;">
+                    <button class="progress-tab-btn tab-active-detail" data-pane="lessons"
+                        style="background:none; border:none; border-bottom:2px solid #4B9CD3; color:#4B9CD3;
+                               padding:5px 16px; cursor:pointer; font-family:inherit; font-size:0.82em; font-weight:bold; margin-bottom:-1px;">
+                        Lessons
+                    </button>
+                    <button class="progress-tab-btn" data-pane="books"
+                        style="background:none; border:none; border-bottom:2px solid transparent; color:#666;
+                               padding:5px 16px; cursor:pointer; font-family:inherit; font-size:0.82em; margin-bottom:-1px;">
+                        Books
+                    </button>
+                </div>
+                <!-- Lessons pane -->
+                <div id="student-pane-lessons">
                     <div id="student-lesson-grid"
                         style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px;">
                     </div>
                     <div style="margin-top:10px; font-size:0.75em; color:#555;">
                         Click any lesson to lock (remove progress) or unlock (mark passed).
+                    </div>
+                </div>
+                <!-- Books pane -->
+                <div id="student-pane-books" style="display:none;">
+                    <div id="student-book-grid" style="font-size:0.82em; color:#888;">
+                        Select a student to see book progress.
                     </div>
                 </div>
             </div>
