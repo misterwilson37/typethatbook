@@ -614,6 +614,15 @@ async function loadStudentProgress(uid, label) {
     const statusEl = document.getElementById('student-class-status');
 
     lblEl.textContent = label;
+    // Reset to lessons pane on new student selection
+    document.querySelectorAll('.progress-tab-btn').forEach(b => {
+        const active = b.dataset.pane === 'lessons';
+        b.style.borderBottomColor = active ? '#4B9CD3' : 'transparent';
+        b.style.color = active ? '#4B9CD3' : '#666';
+    });
+    document.getElementById('student-pane-lessons').style.display = '';
+    document.getElementById('student-pane-books').style.display   = 'none';
+    document.getElementById('student-book-grid').innerHTML = '<span style="color:#555;">Click the Books tab to load.</span>';
     gridEl.innerHTML  = '<span style="color:#888;">Loading…</span>';
     secEl.classList.remove('hidden');
 
@@ -872,7 +881,6 @@ async function deleteClass(classId) {
 }
 
 function refreshClassDropdownInStudents() {
-    // Refresh the per-student class assign dropdown
     const sel = document.getElementById('student-class-select');
     if (sel) {
         const current = sel.value;
@@ -884,8 +892,8 @@ function refreshClassDropdownInStudents() {
             sel.appendChild(opt);
         });
     }
-    // Also refresh the roster filter dropdown
     if (document.getElementById('student-filter-class')) _buildClassFilterDropdown();
+    if (document.getElementById('student-bulk-class'))   _buildBulkClassDropdown();
 }
 
 // ─── PUBLIC RELOAD (for toolbar button) ──────────────────────────────────────
@@ -906,23 +914,33 @@ function escHtml(s) {
         .replace(/'/g, '&#39;');
 }
 
-// ─── STUDENTS PANEL ──────────────────────────────────────────────────────────
+// ─── STUDENTS PANEL ─────────────────────────────────────────────────────────
 let _studentsInited    = false;
 let _currentStudentUid = null;
 let _rosterData        = [];   // [{uid, name, email, lastLogin, weekSeconds, classId}]
-let _rosterSort        = { col: 'last', dir: -1 }; // default: most recent first
-let _csvParsed         = [];   // preview rows from CSV
+let _rosterSort        = { col: 'last', dir: -1 };
+let _csvParsed         = [];
+let _selectedUids      = new Set();
 
 function initStudentsPanel() {
     if (_studentsInited) {
-        // Re-populate class filter in case classes were added
         _buildClassFilterDropdown();
+        _buildBulkClassDropdown();
         return;
     }
     _studentsInited = true;
 
+    // Ensure _classCache is loaded (may not be if Classes tab never opened)
+    if (Object.keys(_classCache).length === 0) {
+        getDocs(collection(_db, 'classes')).then(snap => {
+            snap.forEach(d => { _classCache[d.id] = { id: d.id, ...d.data() }; });
+            _buildClassFilterDropdown();
+            _buildBulkClassDropdown();
+        }).catch(() => {});
+    }
+
     document.getElementById('student-refresh-btn')
-        .addEventListener('click', () => { _rosterData = []; loadStudentRoster(); });
+        .addEventListener('click', () => { _rosterData = []; _selectedUids.clear(); loadStudentRoster(); });
     document.getElementById('student-filter-time')
         .addEventListener('change', _renderRoster);
     document.getElementById('student-filter-class')
@@ -930,7 +948,7 @@ function initStudentsPanel() {
     document.getElementById('student-filter-text')
         .addEventListener('input', _renderRoster);
 
-    // Sort on header click
+    // Sort headers
     document.getElementById('student-roster-table')
         .querySelectorAll('.roster-sort').forEach(th => {
             th.addEventListener('click', () => {
@@ -941,86 +959,160 @@ function initStudentsPanel() {
             });
         });
 
-    // CSV toggle
+    // Select-all checkbox
+    document.getElementById('student-select-all').addEventListener('change', e => {
+        const checked = e.target.checked;
+        document.querySelectorAll('.student-row-cb').forEach(cb => {
+            cb.checked = checked;
+            const uid = cb.dataset.uid;
+            if (checked) _selectedUids.add(uid); else _selectedUids.delete(uid);
+        });
+        _updateBulkBar();
+    });
+
+    // Bulk bar buttons
+    document.getElementById('student-bulk-assign-btn').addEventListener('click', _bulkAssign);
+    document.getElementById('student-bulk-cancel-btn').addEventListener('click', () => {
+        _selectedUids.clear();
+        document.querySelectorAll('.student-row-cb').forEach(cb => cb.checked = false);
+        document.getElementById('student-select-all').checked = false;
+        _updateBulkBar();
+    });
+
+    // CSV
     document.getElementById('student-csv-toggle-btn')
         .addEventListener('click', () => {
-            const sec = document.getElementById('student-csv-section');
-            sec.classList.toggle('hidden');
+            document.getElementById('student-csv-section').classList.toggle('hidden');
         });
     document.getElementById('student-csv-file')
         .addEventListener('change', e => {
-            const file = e.target.files[0];
-            if (!file) return;
+            const file = e.target.files[0]; if (!file) return;
             const reader = new FileReader();
-            reader.onload = ev => {
-                document.getElementById('student-csv-paste').value = ev.target.result;
-            };
+            reader.onload = ev => { document.getElementById('student-csv-paste').value = ev.target.result; };
             reader.readAsText(file);
         });
-    document.getElementById('student-csv-preview-btn')
-        .addEventListener('click', _previewCSV);
-    document.getElementById('student-csv-commit-btn')
-        .addEventListener('click', _commitCSV);
+    document.getElementById('student-csv-preview-btn').addEventListener('click', _previewCSV);
+    document.getElementById('student-csv-commit-btn').addEventListener('click', _commitCSV);
+
+    // Progress tabs
+    document.querySelectorAll('.progress-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const pane = btn.dataset.pane;
+            document.querySelectorAll('.progress-tab-btn').forEach(b => {
+                const active = b.dataset.pane === pane;
+                b.style.borderBottomColor = active ? '#4B9CD3' : 'transparent';
+                b.style.color = active ? '#4B9CD3' : '#666';
+            });
+            document.getElementById('student-pane-lessons').style.display = pane === 'lessons' ? '' : 'none';
+            document.getElementById('student-pane-books').style.display   = pane === 'books'   ? '' : 'none';
+            if (pane === 'books' && _currentStudentUid) _loadStudentBooks(_currentStudentUid);
+        });
+    });
 
     loadStudentRoster();
 }
 
-// ── Roster loading ────────────────────────────────────────────────────────────
+// ── Bulk selection ─────────────────────────────────────────────────────────────
+function _updateBulkBar() {
+    const bar = document.getElementById('student-bulk-bar');
+    const cnt = document.getElementById('student-bulk-count');
+    const n   = _selectedUids.size;
+    if (n > 0) {
+        bar.style.display = 'flex';
+        cnt.textContent   = n + ' student' + (n !== 1 ? 's' : '') + ' selected';
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+function _buildBulkClassDropdown() {
+    const sel = document.getElementById('student-bulk-class');
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— No class (clear) —</option>';
+    Object.values(_classCache).sort((a,b) => (a.name||'').localeCompare(b.name||'')).forEach(cls => {
+        const opt = document.createElement('option');
+        opt.value = cls.id; opt.textContent = cls.name || cls.id;
+        if (cls.id === cur) opt.selected = true;
+        sel.appendChild(opt);
+    });
+}
+
+async function _bulkAssign() {
+    const classId = document.getElementById('student-bulk-class').value;
+    const btn     = document.getElementById('student-bulk-assign-btn');
+    const uids    = [..._selectedUids];
+    btn.disabled  = true; btn.textContent = 'Saving…';
+
+    let ok = 0;
+    for (const uid of uids) {
+        try {
+            await setDoc(doc(_db, 'users', uid), { classId: classId || null }, { merge: true });
+            const r = _rosterData.find(r => r.uid === uid);
+            if (r) r.classId = classId || '';
+            ok++;
+        } catch(e) { /* continue */ }
+    }
+
+    btn.disabled  = false; btn.textContent = 'Assign';
+    _selectedUids.clear();
+    document.querySelectorAll('.student-row-cb').forEach(cb => cb.checked = false);
+    document.getElementById('student-select-all').checked = false;
+    _updateBulkBar();
+    _renderRoster();
+}
+
+// ── Roster loading ─────────────────────────────────────────────────────────────
 async function loadStudentRoster() {
     const statusEl = document.getElementById('student-list-status');
     const tableEl  = document.getElementById('student-roster-table');
-    statusEl.textContent = 'Loading students\u2026';
+    statusEl.textContent = 'Loading students…';
     tableEl.style.display = 'none';
 
     try {
-        // 1. Scan typing_logs — aggregate by uid
-        const logSnap = await getDocs(collection(_db, 'typing_logs'));
-        const byUid   = new Map(); // uid → {name, email, lastLogin, weekSeconds}
-
-        const today      = new Date();
-        const weekStart  = _localDateStr(_weekStartDate(today));
+        const logSnap  = await getDocs(collection(_db, 'typing_logs'));
+        const byUid    = new Map();
+        const today    = new Date();
+        const weekStart = _localDateStr(_weekStartDate(today));
 
         logSnap.forEach(d => {
             const data = d.data();
             const uid  = data.uid || ''; if (!uid) return;
             const date = data.date || '';
             const secs = data.seconds || 0;
-
             if (!byUid.has(uid)) {
                 byUid.set(uid, { name: data.displayName || '', email: data.email || '',
                                  lastLogin: date, weekSeconds: 0, classId: '' });
             }
             const row = byUid.get(uid);
-            if (!row.name && data.displayName) row.name = data.displayName;
-            if (!row.email && data.email)       row.email = data.email;
-            if (date > row.lastLogin)            row.lastLogin = date;
-            if (date >= weekStart)               row.weekSeconds += secs;
+            if (!row.name  && data.displayName) row.name  = data.displayName;
+            if (!row.email && data.email)        row.email = data.email;
+            if (date > row.lastLogin)             row.lastLogin = date;
+            if (date >= weekStart)                row.weekSeconds += secs;
         });
 
-        // 2. Fetch classId for each uid (batched individually — no batch API in client SDK)
         const uidList = [...byUid.keys()];
         await Promise.all(uidList.map(async uid => {
             try {
                 const snap = await getDoc(doc(_db, 'users', uid));
                 if (snap.exists()) byUid.get(uid).classId = snap.data().classId || '';
-            } catch(e) { /* user doc may not exist */ }
+            } catch(e) {}
         }));
 
         _rosterData = uidList.map(uid => ({ uid, ...byUid.get(uid) }));
-
         _buildClassFilterDropdown();
+        _buildBulkClassDropdown();
         _renderRoster();
         statusEl.textContent = _rosterData.length + ' students loaded.';
         tableEl.style.display = '';
     } catch(e) {
-        statusEl.textContent = 'Error loading students: ' + escHtml(e.message);
+        statusEl.textContent = 'Error: ' + escHtml(e.message);
     }
 }
 
 function _weekStartDate(date) {
-    const d    = new Date(date);
-    const diff = (d.getDay() + 1) % 7;
-    d.setDate(d.getDate() - diff);
+    const d = new Date(date);
+    d.setDate(d.getDate() - ((d.getDay() + 1) % 7));
     return d;
 }
 
@@ -1032,6 +1124,7 @@ function _localDateStr(d) {
 
 function _buildClassFilterDropdown() {
     const sel = document.getElementById('student-filter-class');
+    if (!sel) return;
     const cur = sel.value;
     sel.innerHTML = '<option value="all">All classes</option><option value="none">Unassigned</option>';
     Object.values(_classCache).sort((a,b) => (a.name||'').localeCompare(b.name||'')).forEach(cls => {
@@ -1049,14 +1142,12 @@ function _renderRoster() {
     const textFilter  = (document.getElementById('student-filter-text').value || '').toLowerCase().trim();
     const tbody       = document.getElementById('student-roster-body');
 
-    // Date cutoff
-    const today  = new Date();
-    let cutoff   = '';
-    if (timeFilter === 'week')    { const d = new Date(today); d.setDate(d.getDate()-7);   cutoff = _localDateStr(d); }
-    if (timeFilter === 'month')   { const d = new Date(today); d.setMonth(d.getMonth()-1); cutoff = _localDateStr(d); }
-    if (timeFilter === '9weeks')  { const d = new Date(today); d.setDate(d.getDate()-63);  cutoff = _localDateStr(d); }
+    const today = new Date();
+    let cutoff  = '';
+    if (timeFilter === '7days')  { const d = new Date(today); d.setDate(d.getDate()-7);   cutoff = _localDateStr(d); }
+    if (timeFilter === 'month')  { const d = new Date(today); d.setDate(d.getDate()-30);  cutoff = _localDateStr(d); }
+    if (timeFilter === '9weeks') { const d = new Date(today); d.setDate(d.getDate()-63);  cutoff = _localDateStr(d); }
 
-    // Filter
     let rows = _rosterData.filter(r => {
         if (cutoff && r.lastLogin < cutoff) return false;
         if (classFilter === 'none' && r.classId) return false;
@@ -1066,127 +1157,160 @@ function _renderRoster() {
         return true;
     });
 
-    // Sort
     const col = _rosterSort.col, dir = _rosterSort.dir;
     rows.sort((a, b) => {
         let av, bv;
-        if (col === 'name')  { av = a.name;        bv = b.name; }
-        if (col === 'email') { av = a.email;        bv = b.email; }
-        if (col === 'last')  { av = a.lastLogin;    bv = b.lastLogin; }
-        if (col === 'week')  { av = a.weekSeconds;  bv = b.weekSeconds; }
+        if (col === 'name')  { av = a.name;       bv = b.name; }
+        if (col === 'email') { av = a.email;       bv = b.email; }
+        if (col === 'last')  { av = a.lastLogin;   bv = b.lastLogin; }
+        if (col === 'week')  { av = a.weekSeconds; bv = b.weekSeconds; }
         if (col === 'class') { av = _classCache[a.classId]?.name || ''; bv = _classCache[b.classId]?.name || ''; }
-        if (av < bv) return dir;
-        if (av > bv) return -dir;
-        return 0;
+        if (av < bv) return dir; if (av > bv) return -dir; return 0;
     });
 
-    // Update sort indicators on headers
+    // Update sort indicators
     document.querySelectorAll('.roster-sort').forEach(th => {
-        th.textContent = th.textContent.replace(/[ ↑↓↕]+$/, '');
-        if (th.dataset.col === col)
-            th.textContent += dir === -1 ? ' \u2193' : ' \u2191';
-        else
-            th.textContent += ' \u2195';
+        const base = th.dataset.col === 'name' ? 'Name' : th.dataset.col === 'email' ? 'Email' :
+                     th.dataset.col === 'last' ? 'Last Login' : th.dataset.col === 'week' ? 'This Week' : 'Class';
+        th.textContent = base + (th.dataset.col === col ? (dir === -1 ? ' ↓' : ' ↑') : ' ↕');
     });
 
-    tbody.innerHTML = '';
     const statusEl = document.getElementById('student-list-status');
     statusEl.textContent = rows.length + ' student' + (rows.length !== 1 ? 's' : '') +
         (rows.length !== _rosterData.length ? ' (filtered from ' + _rosterData.length + ')' : '') + '.';
 
+    tbody.innerHTML = '';
     rows.forEach(r => {
-        const wm   = Math.floor(r.weekSeconds / 60);
-        const ws   = r.weekSeconds % 60;
-        const cls  = _classCache[r.classId];
-        const clsName = cls ? cls.name : (r.classId ? r.classId : '\u2014');
-        const tr   = document.createElement('tr');
-        tr.style.cssText = 'border-bottom:1px solid #222; cursor:pointer;';
-        tr.innerHTML =
-            '<td style="padding:7px 10px; color:#ddd;">'  + escHtml(r.name || '\u2014')   + '</td>' +
-            '<td style="padding:7px 10px; color:#888;">'  + escHtml(r.email || '\u2014')  + '</td>' +
-            '<td style="padding:7px 10px; color:#888;">'  + escHtml(r.lastLogin || '\u2014') + '</td>' +
-            '<td style="padding:7px 10px; color:#aaa;">'  + wm + ':' + String(ws).padStart(2,'0') + '</td>' +
-            '<td style="padding:7px 10px; color:' + (cls ? '#4B9CD3' : '#555') + ';">' + escHtml(clsName) + '</td>';
-        tr.addEventListener('mouseenter', () => tr.style.background = '#1a1a1a');
-        tr.addEventListener('mouseleave', () => tr.style.background = '');
-        tr.addEventListener('click', () => {
-            // Highlight selected row
-            document.querySelectorAll('#student-roster-body tr').forEach(t => t.style.outline = '');
+        const wm     = Math.floor(r.weekSeconds / 60);
+        const ws     = r.weekSeconds % 60;
+        const cls    = _classCache[r.classId];
+        const clsName = cls ? cls.name : (r.classId ? r.classId : '—');
+        const isSelected = _selectedUids.has(r.uid);
+
+        const tr = document.createElement('tr');
+        tr.style.cssText = 'border-bottom:1px solid #222; cursor:pointer;' +
+            (isSelected ? 'background:#0d1e2e;' : '');
+
+        const cbCell = document.createElement('td');
+        cbCell.style.cssText = 'padding:6px 8px; width:28px;';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox'; cb.className = 'student-row-cb';
+        cb.dataset.uid = r.uid; cb.checked = isSelected;
+        cb.addEventListener('change', e => {
+            e.stopPropagation();
+            if (cb.checked) _selectedUids.add(r.uid); else _selectedUids.delete(r.uid);
+            tr.style.background = cb.checked ? '#0d1e2e' : '';
+            _updateBulkBar();
+        });
+        cbCell.appendChild(cb);
+        tr.appendChild(cbCell);
+
+        tr.innerHTML += '<td style="padding:6px 8px; color:#ddd;">'  + escHtml(r.name || '—')   + '</td>' +
+            '<td style="padding:6px 8px; color:#777;">'  + escHtml(r.email || '—')  + '</td>' +
+            '<td style="padding:6px 8px; color:#777;">'  + escHtml(r.lastLogin || '—') + '</td>' +
+            '<td style="padding:6px 8px; color:#aaa; font-family:monospace;">' +
+                wm + ':' + String(ws).padStart(2,'0') + '</td>' +
+            '<td style="padding:6px 8px; color:' + (cls ? '#4B9CD3' : '#444') + ';">' +
+                escHtml(clsName) + '</td>';
+
+        tr.addEventListener('mouseenter', () => { if (!cb.checked) tr.style.background = '#161616'; });
+        tr.addEventListener('mouseleave', () => { if (!cb.checked) tr.style.background = ''; });
+        tr.addEventListener('click', e => {
+            if (e.target === cb || e.target.type === 'checkbox') return;
+            document.querySelectorAll('#student-roster-body tr').forEach(t => {
+                if (!t.querySelector('.student-row-cb')?.checked) t.style.outline = '';
+            });
             tr.style.outline = '1px solid #4B9CD3';
-            loadStudentProgress(r.uid, r.name + ' (' + r.email + ')');
+            loadStudentProgress(r.uid, (r.name || r.email) + ' (' + r.email + ')');
         });
         tbody.appendChild(tr);
     });
 
     if (rows.length === 0) {
         const tr = document.createElement('tr');
-        tr.innerHTML = '<td colspan="5" style="padding:20px; text-align:center; color:#555;">No students match the current filters.</td>';
+        tr.innerHTML = '<td colspan="6" style="padding:20px; text-align:center; color:#555;">No students match the current filters.</td>';
         tbody.appendChild(tr);
     }
 }
 
 // ── CSV Import ─────────────────────────────────────────────────────────────────
-function _previewCSV() {
-    const raw    = document.getElementById('student-csv-paste').value.trim();
-    const areaEl = document.getElementById('student-csv-preview-area');
+async function _previewCSV() {
+    const raw       = document.getElementById('student-csv-paste').value.trim();
+    const areaEl    = document.getElementById('student-csv-preview-area');
     const commitBtn = document.getElementById('student-csv-commit-btn');
-    _csvParsed   = [];
+    const loadingEl = document.getElementById('student-csv-loading');
+    _csvParsed      = [];
     commitBtn.disabled = true;
 
     if (!raw) { areaEl.innerHTML = '<span style="color:#ff6666;">No CSV data.</span>'; return; }
 
-    const lines  = raw.split(/\r?\n/).filter(l => l.trim());
-    const rows   = lines.map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
+    // Ensure classes are loaded before previewing
+    if (Object.keys(_classCache).length === 0) {
+        if (loadingEl) { loadingEl.style.display = ''; loadingEl.textContent = 'Loading classes…'; }
+        try {
+            const snap = await getDocs(collection(_db, 'classes'));
+            snap.forEach(d => { _classCache[d.id] = { id: d.id, ...d.data() }; });
+            _buildClassFilterDropdown();
+            _buildBulkClassDropdown();
+        } catch(e) {}
+        if (loadingEl) loadingEl.style.display = 'none';
+    }
 
-    // Detect header
-    const hasHeader = rows[0][0].toLowerCase() === 'email' || rows[0][0].toLowerCase().includes('@') === false;
+    const lines    = raw.split(/\r?\n/).filter(l => l.trim());
+    // Split on first comma only to handle class names containing commas
+    const rows     = lines.map(l => {
+        const idx = l.indexOf(',');
+        return idx === -1 ? [l.trim(), ''] : [l.slice(0, idx).trim(), l.slice(idx+1).trim()];
+    }).map(cols => cols.map(c => c.replace(/^"|"$/g, '').trim()));
+
+    const hasHeader = rows[0][0].toLowerCase() === 'email' || !rows[0][0].includes('@');
     const dataRows  = hasHeader ? rows.slice(1) : rows;
 
-    // Build class name → id lookup (case-insensitive)
     const classLookup = new Map();
     Object.values(_classCache).forEach(cls => {
-        classLookup.set((cls.name || '').toLowerCase().trim(), cls.id);
-        classLookup.set(cls.id.toLowerCase().trim(), cls.id);
+        classLookup.set((cls.name || '').toLowerCase(), cls.id);
+        classLookup.set(cls.id.toLowerCase(), cls.id);
     });
 
-    // Build email → uid lookup from roster data
     const emailToUid = new Map();
     _rosterData.forEach(r => { if (r.email) emailToUid.set(r.email.toLowerCase(), r.uid); });
 
-    let html = '<table style="width:100%; border-collapse:collapse; font-size:0.78em;">' +
+    let html = '<table style="width:100%; border-collapse:collapse;">' +
         '<tr style="color:#666; border-bottom:1px solid #333;">' +
-        '<th style="text-align:left; padding:4px 6px;">Email</th>' +
-        '<th style="text-align:left; padding:4px 6px;">Class</th>' +
-        '<th style="text-align:left; padding:4px 6px;">Status</th></tr>';
+        '<th style="text-align:left; padding:3px 6px;">Email</th>' +
+        '<th style="text-align:left; padding:3px 6px;">Class</th>' +
+        '<th style="text-align:left; padding:3px 6px;">Status</th></tr>';
 
     dataRows.forEach(cols => {
-        const email     = (cols[0] || '').toLowerCase().trim();
-        const clsRaw    = (cols[1] || '').trim();
-        const uid       = emailToUid.get(email);
-        const classId   = classLookup.get(clsRaw.toLowerCase()) || classLookup.get(clsRaw.toLowerCase().trim());
-        const clsName   = classId ? (_classCache[classId]?.name || classId) : null;
+        const email   = (cols[0] || '').toLowerCase().trim();
+        const clsRaw  = (cols[1] || '').trim();
+        const uid     = emailToUid.get(email);
+        const classId = classLookup.get(clsRaw.toLowerCase());
+        const clsName = classId ? (_classCache[classId]?.name || classId) : null;
 
         let status, ok = false;
-        if (!email) { status = '<span style="color:#888;">empty row</span>'; }
-        else if (!uid) { status = '<span style="color:#ffaa00;">student not found in logs</span>'; }
+        if (!email)    { status = '<span style="color:#555;">empty</span>'; }
+        else if (!uid) { status = '<span style="color:#ffaa00;">not found in logs</span>'; }
         else if (!clsRaw) { status = '<span style="color:#888;">will clear class</span>'; ok = true; }
-        else if (!classId) { status = '<span style="color:#ff6666;">class "' + escHtml(clsRaw) + '" not found</span>'; }
-        else { status = '<span style="color:#22c55e;">\u2713 assign to ' + escHtml(clsName) + '</span>'; ok = true; }
+        else if (!classId) { status = '<span style="color:#ff6666;">class not found: ' + escHtml(clsRaw) + '</span>'; }
+        else { status = '<span style="color:#22c55e;">✓ → ' + escHtml(clsName) + '</span>'; ok = true; }
 
         if (ok) _csvParsed.push({ uid, email, classId: classId || '' });
 
-        html += '<tr style="border-bottom:1px solid #1a1a1a;">' +
-            '<td style="padding:3px 6px; color:#ccc;">' + escHtml(email) + '</td>' +
-            '<td style="padding:3px 6px; color:#aaa;">' + escHtml(clsRaw || '\u2014') + '</td>' +
-            '<td style="padding:3px 6px;">' + status + '</td></tr>';
+        html += '<tr style="border-bottom:1px solid #111;">' +
+            '<td style="padding:2px 6px; color:#ccc;">' + escHtml(email) + '</td>' +
+            '<td style="padding:2px 6px; color:#aaa;">' + escHtml(clsRaw || '—') + '</td>' +
+            '<td style="padding:2px 6px;">' + status + '</td></tr>';
     });
     html += '</table>';
     areaEl.innerHTML = html;
 
     if (_csvParsed.length > 0) {
         commitBtn.disabled = false;
-        areaEl.innerHTML += '<div style="margin-top:6px; color:#22c55e; font-size:0.78em;">' +
-            _csvParsed.length + ' assignment' + (_csvParsed.length !== 1 ? 's' : '') + ' ready to commit.</div>';
+        areaEl.innerHTML += '<div style="margin-top:6px; color:#22c55e;">' +
+            _csvParsed.length + ' row' + (_csvParsed.length !== 1 ? 's' : '') + ' ready to commit.</div>';
+    } else {
+        areaEl.innerHTML += '<div style="margin-top:6px; color:#ffaa00;">No valid rows found. Check that class names match exactly and that students have typing logs.</div>';
     }
 }
 
@@ -1195,21 +1319,62 @@ async function _commitCSV() {
     const commitBtn = document.getElementById('student-csv-commit-btn');
     const areaEl    = document.getElementById('student-csv-preview-area');
     commitBtn.disabled = true;
-    areaEl.innerHTML += '<div style="color:#888; margin-top:4px;">Writing\u2026</div>';
+    areaEl.innerHTML += '<div style="color:#888; margin-top:6px;">Writing…</div>';
 
     let ok = 0, fail = 0;
     for (const { uid, classId } of _csvParsed) {
         try {
             await setDoc(doc(_db, 'users', uid), { classId: classId || null }, { merge: true });
-            // Update local cache
             const r = _rosterData.find(r => r.uid === uid);
             if (r) r.classId = classId || '';
             ok++;
         } catch(e) { fail++; }
     }
 
-    areaEl.innerHTML += '<div style="color:#22c55e; margin-top:4px;">' +
-        '\u2713 Done: ' + ok + ' assigned' + (fail ? ', ' + fail + ' failed.' : '.') + '</div>';
+    areaEl.innerHTML += '<div style="color:#22c55e; margin-top:4px;">✓ Done: ' +
+        ok + ' assigned' + (fail ? ', ' + fail + ' failed.' : '.') + '</div>';
     _csvParsed = [];
     _renderRoster();
+}
+
+// ── Book progress (Books pane) ─────────────────────────────────────────────────
+async function _loadStudentBooks(uid) {
+    const el = document.getElementById('student-book-grid');
+    if (!el) return;
+    el.innerHTML = '<span style="color:#888;">Loading book progress…</span>';
+
+    try {
+        const snap = await getDocs(collection(_db, 'users', uid, 'progress'));
+        if (snap.empty) { el.innerHTML = '<span style="color:#555;">No book progress recorded.</span>'; return; }
+
+        const books = [];
+        snap.forEach(d => { books.push({ id: d.id, ...d.data() }); });
+
+        // Sort by lastUpdated desc
+        books.sort((a, b) => {
+            const at = a.lastUpdated?.seconds || 0;
+            const bt = b.lastUpdated?.seconds || 0;
+            return bt - at;
+        });
+
+        let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px;">';
+        books.forEach(b => {
+            const title   = b.id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const chap    = b.chapter || b.furthestChapter || '?';
+            const fChap   = b.furthestChapter || chap;
+            const updated = b.lastUpdated?.seconds
+                ? new Date(b.lastUpdated.seconds * 1000).toLocaleDateString()
+                : '—';
+            html += '<div style="background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:10px;">' +
+                '<div style="font-weight:bold; color:#ddd; margin-bottom:4px; font-size:0.82em;">' + escHtml(title) + '</div>' +
+                '<div style="font-size:0.75em; color:#666;">Current: Ch. ' + escHtml(String(chap)) + '</div>' +
+                '<div style="font-size:0.75em; color:#555;">Furthest: Ch. ' + escHtml(String(fChap)) + '</div>' +
+                '<div style="font-size:0.72em; color:#444; margin-top:4px;">' + escHtml(updated) + '</div>' +
+                '</div>';
+        });
+        html += '</div>';
+        el.innerHTML = html;
+    } catch(e) {
+        el.innerHTML = '<span style="color:#ff4444;">Error: ' + escHtml(e.message) + '</span>';
+    }
 }
