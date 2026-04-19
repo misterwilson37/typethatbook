@@ -1,5 +1,6 @@
- // lessons-admin.js — TypeThatBook Lesson Panel
+// lessons-admin.js — TypeThatBook Lesson Panel v1.0.0
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
+export const LESSONS_ADMIN_VERSION = '1.0.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy
@@ -607,24 +608,26 @@ function parseImportJSON(text) {
 
 async function loadStudentProgress(uid, label) {
     _currentStudentUid = uid;
-    const secEl    = document.getElementById('student-progress-section');
     const lblEl    = document.getElementById('student-selected-label');
     const gridEl   = document.getElementById('student-lesson-grid');
     const assignEl = document.getElementById('student-class-assign');
     const statusEl = document.getElementById('student-class-status');
 
     lblEl.textContent = label;
-    // Reset to lessons pane on new student selection
+    // Reveal detail panel and reset to lessons pane
+    if (assignEl) assignEl.classList.remove('hidden');
     document.querySelectorAll('.progress-tab-btn').forEach(b => {
         const active = b.dataset.pane === 'lessons';
         b.style.borderBottomColor = active ? '#4B9CD3' : 'transparent';
         b.style.color = active ? '#4B9CD3' : '#666';
     });
-    document.getElementById('student-pane-lessons').style.display = '';
-    document.getElementById('student-pane-books').style.display   = 'none';
-    document.getElementById('student-book-grid').innerHTML = '<span style="color:#555;">Click the Books tab to load.</span>';
-    gridEl.innerHTML  = '<span style="color:#888;">Loading…</span>';
-    secEl.classList.remove('hidden');
+    const lessonsPane = document.getElementById('student-pane-lessons');
+    const booksPane   = document.getElementById('student-pane-books');
+    const bookGrid    = document.getElementById('student-book-grid');
+    if (lessonsPane) lessonsPane.style.display = '';
+    if (booksPane)   booksPane.style.display   = 'none';
+    if (bookGrid)    bookGrid.innerHTML = '<span style="color:#555;">Click the Books tab to load.</span>';
+    gridEl.innerHTML = '<span style="color:#888;">Loading…</span>';
 
     // Show class assignment UI and populate dropdown
     if (assignEl) {
@@ -930,14 +933,13 @@ function initStudentsPanel() {
     }
     _studentsInited = true;
 
-    // Ensure _classCache is loaded (may not be if Classes tab never opened)
-    if (Object.keys(_classCache).length === 0) {
-        getDocs(collection(_db, 'classes')).then(snap => {
-            snap.forEach(d => { _classCache[d.id] = { id: d.id, ...d.data() }; });
-            _buildClassFilterDropdown();
-            _buildBulkClassDropdown();
-        }).catch(() => {});
-    }
+    // Always load classes (ensures dropdowns are populated even if Classes tab never opened)
+    getDocs(collection(_db, 'classes')).then(snap => {
+        _classCache = {};
+        snap.forEach(d => { _classCache[d.id] = { id: d.id, ...d.data() }; });
+        _buildClassFilterDropdown();
+        _buildBulkClassDropdown();
+    }).catch(() => {});
 
     document.getElementById('student-refresh-btn')
         .addEventListener('click', () => { _rosterData = []; _selectedUids.clear(); loadStudentRoster(); });
@@ -1144,9 +1146,10 @@ function _renderRoster() {
 
     const today = new Date();
     let cutoff  = '';
-    if (timeFilter === '7days')  { const d = new Date(today); d.setDate(d.getDate()-7);   cutoff = _localDateStr(d); }
-    if (timeFilter === 'month')  { const d = new Date(today); d.setDate(d.getDate()-30);  cutoff = _localDateStr(d); }
-    if (timeFilter === '9weeks') { const d = new Date(today); d.setDate(d.getDate()-63);  cutoff = _localDateStr(d); }
+    if (timeFilter === 'thisweek') { cutoff = _localDateStr(_weekStartDate(today)); }
+    if (timeFilter === '7days')    { const d = new Date(today); d.setDate(d.getDate()-7);  cutoff = _localDateStr(d); }
+    if (timeFilter === 'month')    { const d = new Date(today); d.setDate(d.getDate()-30); cutoff = _localDateStr(d); }
+    if (timeFilter === '9weeks')   { const d = new Date(today); d.setDate(d.getDate()-63); cutoff = _localDateStr(d); }
 
     let rows = _rosterData.filter(r => {
         if (cutoff && r.lastLogin < cutoff) return false;
@@ -1244,17 +1247,15 @@ async function _previewCSV() {
 
     if (!raw) { areaEl.innerHTML = '<span style="color:#ff6666;">No CSV data.</span>'; return; }
 
-    // Ensure classes are loaded before previewing
-    if (Object.keys(_classCache).length === 0) {
-        if (loadingEl) { loadingEl.style.display = ''; loadingEl.textContent = 'Loading classes…'; }
-        try {
-            const snap = await getDocs(collection(_db, 'classes'));
-            snap.forEach(d => { _classCache[d.id] = { id: d.id, ...d.data() }; });
-            _buildClassFilterDropdown();
-            _buildBulkClassDropdown();
-        } catch(e) {}
-        if (loadingEl) loadingEl.style.display = 'none';
-    }
+    // Always reload classes fresh before previewing so names are current
+    if (loadingEl) { loadingEl.style.display = ''; loadingEl.textContent = 'Loading classes…'; }
+    try {
+        const classSnap = await getDocs(collection(_db, 'classes'));
+        classSnap.forEach(d => { _classCache[d.id] = { id: d.id, ...d.data() }; });
+        _buildClassFilterDropdown();
+        _buildBulkClassDropdown();
+    } catch(e) { console.warn('Class load failed:', e); }
+    if (loadingEl) loadingEl.style.display = 'none';
 
     const lines    = raw.split(/\r?\n/).filter(l => l.trim());
     // Split on first comma only to handle class names containing commas
