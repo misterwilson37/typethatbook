@@ -1,6 +1,7 @@
 // lessons-admin.js — TypeThatBook Lesson Panel v1.0.0
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
-export const LESSONS_ADMIN_VERSION = '1.0.0';
+// Version exposed as a window global so admin.js can read it
+window.LESSONS_ADMIN_VERSION = '1.1.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy
@@ -1194,6 +1195,8 @@ function _renderRoster() {
         tr.style.cssText = 'border-bottom:1px solid #222; cursor:pointer;' +
             (isSelected ? 'background:#0d1e2e;' : '');
 
+        // Build all cells via DOM — never use innerHTML+= on a row that has
+        // event-listener children: it serialises/reparses and destroys them.
         const cbCell = document.createElement('td');
         cbCell.style.cssText = 'padding:6px 8px; width:28px;';
         const cb = document.createElement('input');
@@ -1208,13 +1211,19 @@ function _renderRoster() {
         cbCell.appendChild(cb);
         tr.appendChild(cbCell);
 
-        tr.innerHTML += '<td style="padding:6px 8px; color:#ddd;">'  + escHtml(r.name || '—')   + '</td>' +
-            '<td style="padding:6px 8px; color:#777;">'  + escHtml(r.email || '—')  + '</td>' +
-            '<td style="padding:6px 8px; color:#777;">'  + escHtml(r.lastLogin || '—') + '</td>' +
-            '<td style="padding:6px 8px; color:#aaa; font-family:monospace;">' +
-                wm + ':' + String(ws).padStart(2,'0') + '</td>' +
-            '<td style="padding:6px 8px; color:' + (cls ? '#4B9CD3' : '#444') + ';">' +
-                escHtml(clsName) + '</td>';
+        function _td(text, color) {
+            const td = document.createElement('td');
+            td.style.cssText = 'padding:6px 8px; color:' + color + ';';
+            td.textContent = text;
+            return td;
+        }
+        tr.appendChild(_td(r.name || '—',  '#ddd'));
+        tr.appendChild(_td(r.email || '—', '#777'));
+        tr.appendChild(_td(r.lastLogin || '—', '#777'));
+        const weekTd = _td(wm + ':' + String(ws).padStart(2,'0'), '#aaa');
+        weekTd.style.fontFamily = 'monospace';
+        tr.appendChild(weekTd);
+        tr.appendChild(_td(clsName, cls ? '#4B9CD3' : '#444'));
 
         tr.addEventListener('mouseenter', () => { if (!cb.checked) tr.style.background = '#161616'; });
         tr.addEventListener('mouseleave', () => { if (!cb.checked) tr.style.background = ''; });
@@ -1290,10 +1299,21 @@ async function _previewCSV() {
         const clsName = classId ? (_classCache[classId]?.name || classId) : null;
 
         let status, ok = false;
-        if (!email)    { status = '<span style="color:#555;">empty</span>'; }
-        else if (!uid) { status = '<span style="color:#ffaa00;">not found in logs</span>'; }
+        if (!email)    { status = '<span style="color:#555;">empty row</span>'; }
+        else if (!uid) {
+            // Show partial email match to help debug
+            const partials = _rosterData.filter(r => r.email && r.email.toLowerCase().includes(email.split('@')[0]));
+            status = '<span style="color:#ffaa00;">not in logs' +
+                (partials.length ? ' (similar: ' + escHtml(partials[0].email) + ')' : '') + '</span>';
+        }
         else if (!clsRaw) { status = '<span style="color:#888;">will clear class</span>'; ok = true; }
-        else if (!classId) { status = '<span style="color:#ff6666;">class not found: ' + escHtml(clsRaw) + '</span>'; }
+        else if (!classId) {
+            // Show available class names to help diagnose mismatch
+            const available = Object.values(_classCache).map(c => c.name).join(', ');
+            status = '<span style="color:#ff6666;">class not found: "' + escHtml(clsRaw) + '"' +
+                (available ? '<br><span style="color:#555;font-size:0.9em;">Available: ' + escHtml(available) + '</span>' : ' (no classes loaded)') +
+                '</span>';
+        }
         else { status = '<span style="color:#22c55e;">✓ → ' + escHtml(clsName) + '</span>'; ok = true; }
 
         if (ok) _csvParsed.push({ uid, email, classId: classId || '' });
