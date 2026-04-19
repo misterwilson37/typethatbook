@@ -1,7 +1,7 @@
 // lessons-admin.js — TypeThatBook Lesson Panel v1.0.0
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
-window.LESSONS_ADMIN_VERSION = '1.3.0';
+window.LESSONS_ADMIN_VERSION = '1.4.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy
@@ -1311,10 +1311,15 @@ async function _previewCSV() {
         let status, ok = false;
         if (!email)    { status = '<span style="color:#555;">empty row</span>'; }
         else if (!uid) {
-            // Show partial email match to help debug
-            const partials = _rosterData.filter(r => r.email && r.email.toLowerCase().includes(email.split('@')[0]));
-            status = '<span style="color:#ffaa00;">not in logs' +
-                (partials.length ? ' (similar: ' + escHtml(partials[0].email) + ')' : '') + '</span>';
+            // Student hasn't typed yet — can still pre-assign via pendingClassAssignments
+            if (classId) {
+                status = '<span style="color:#4B9CD3;">⏰ pre-assign to ' + escHtml(clsName) + ' (will apply on first login)</span>';
+                ok = true; // write to pending collection keyed by email
+                _csvParsed.push({ uid: null, email, classId: classId || '' });
+                return; // skip the push below
+            } else {
+                status = '<span style="color:#888;">not in logs, class unknown — skipped</span>';
+            }
         }
         else if (!clsRaw) { status = '<span style="color:#888;">will clear class</span>'; ok = true; }
         else if (!classId) {
@@ -1359,11 +1364,18 @@ async function _commitCSV() {
     areaEl.innerHTML += '<div style="color:#888; margin-top:6px;">Writing…</div>';
 
     let ok = 0, fail = 0;
-    for (const { uid, classId } of _csvParsed) {
+    for (const { uid, email, classId } of _csvParsed) {
         try {
-            await setDoc(doc(_db, 'users', uid), { classId: classId || null }, { merge: true });
-            const r = _rosterData.find(r => r.uid === uid);
-            if (r) r.classId = classId || '';
+            if (uid) {
+                // Student has typed — write directly to their user doc
+                await setDoc(doc(_db, 'users', uid), { classId: classId || null }, { merge: true });
+                const r = _rosterData.find(r => r.uid === uid);
+                if (r) r.classId = classId || '';
+            } else {
+                // Student hasn\'t typed yet — write to pending collection keyed by email
+                await setDoc(doc(_db, 'pendingClassAssignments', email.toLowerCase()),
+                    { classId: classId || null, assignedAt: new Date().toISOString() });
+            }
             ok++;
         } catch(e) { fail++; }
     }
