@@ -15,7 +15,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.6.2";
+const LEARN_VERSION = "1.6.3";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -140,6 +140,7 @@ onAuthStateChanged(auth, async user => {
         await loadUserProgress();
         await loadUserStats();
         await loadGoals();
+        await applyPendingClassAssignment(user);
     } else {
         userInfo.classList.add('hidden'); loginBtn.style.display = '';
         userProgress = {};
@@ -1932,6 +1933,34 @@ async function loadUserStats() {
         statsData.lastDate  = dateStr;
         statsData.weekStart = weekStart;
     } catch(e) { console.warn('loadUserStats failed:', e); }
+}
+
+
+// ─── Apply pending class assignment set by admin before student first typed ──
+async function applyPendingClassAssignment(user) {
+    if (!user || user.isAnonymous || !user.email) return;
+    try {
+        const email   = user.email.toLowerCase();
+        const pendRef = doc(db, 'pendingClassAssignments', email);
+        const pendSnap = await getDoc(pendRef);
+        if (!pendSnap.exists()) return;
+
+        const { classId } = pendSnap.data();
+        if (!classId) return;
+
+        // Check they don't already have a class assigned
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        if (userSnap.exists() && userSnap.data().classId) return; // already assigned
+
+        // Apply the pre-assignment
+        await setDoc(doc(db, 'users', user.uid), { classId }, { merge: true });
+
+        // Delete the pending record so it doesn't re-apply
+        await deleteDoc(pendRef);
+
+        // Reload goals with the new class
+        await loadGoals();
+    } catch(e) { /* non-critical — don't block login */ }
 }
 
 async function loadGoals() {
