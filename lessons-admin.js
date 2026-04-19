@@ -1,7 +1,7 @@
 // lessons-admin.js — TypeThatBook Lesson Panel v1.0.0
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
-window.LESSONS_ADMIN_VERSION = '1.1.0';
+window.LESSONS_ADMIN_VERSION = '1.3.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy
@@ -1250,25 +1250,35 @@ async function _previewCSV() {
     const raw       = document.getElementById('student-csv-paste').value.trim();
     const areaEl    = document.getElementById('student-csv-preview-area');
     const commitBtn = document.getElementById('student-csv-commit-btn');
+    const testBtn   = document.getElementById('student-csv-preview-btn');
     const loadingEl = document.getElementById('student-csv-loading');
     _csvParsed      = [];
     commitBtn.disabled = true;
+    commitBtn.style.opacity = '0.4';
+    commitBtn.style.cursor  = 'not-allowed';
+    areaEl.innerHTML = '';
 
-    if (!raw) { areaEl.innerHTML = '<span style="color:#ff6666;">No CSV data.</span>'; return; }
+    if (!raw) {
+        areaEl.innerHTML = '<span style="color:#ff6666;">No data — upload a file or paste CSV first.</span>';
+        return;
+    }
 
-    // Always reload classes fresh before previewing so names are current
     if (loadingEl) { loadingEl.style.display = ''; loadingEl.textContent = 'Loading classes…'; }
     try {
         const classSnap = await getDocs(collection(_db, 'classes'));
+        _classCache = {};
         classSnap.forEach(d => { _classCache[d.id] = { id: d.id, ...d.data() }; });
         _buildClassFilterDropdown();
         _buildBulkClassDropdown();
-    } catch(e) { console.warn('Class load failed:', e); }
+    } catch(e) {
+        areaEl.innerHTML = '<span style="color:#ff6666;">Failed to load classes: ' + escHtml(e.message) + '</span>';
+        if (loadingEl) loadingEl.style.display = 'none';
+        return;
+    }
     if (loadingEl) loadingEl.style.display = 'none';
 
-    const lines    = raw.split(/\r?\n/).filter(l => l.trim());
-    // Split on first comma only to handle class names containing commas
-    const rows     = lines.map(l => {
+    const lines = raw.split(/\r?\n/).filter(l => l.trim());
+    const rows  = lines.map(l => {
         const idx = l.indexOf(',');
         return idx === -1 ? [l.trim(), ''] : [l.slice(0, idx).trim(), l.slice(idx+1).trim()];
     }).map(cols => cols.map(c => c.replace(/^"|"$/g, '').trim()));
@@ -1327,11 +1337,17 @@ async function _previewCSV() {
     areaEl.innerHTML = html;
 
     if (_csvParsed.length > 0) {
+        // Enable Commit and make it the obvious next step
         commitBtn.disabled = false;
-        areaEl.innerHTML += '<div style="margin-top:6px; color:#22c55e;">' +
-            _csvParsed.length + ' row' + (_csvParsed.length !== 1 ? 's' : '') + ' ready to commit.</div>';
+        commitBtn.style.opacity = '1';
+        commitBtn.style.cursor  = 'pointer';
+        commitBtn.className = 'lbtn lbtn-primary';
+        if (testBtn) { testBtn.className = 'lbtn lbtn-secondary'; }
+        areaEl.innerHTML += '<div style="margin-top:6px; color:#22c55e; font-weight:bold;">' +
+            '✓ ' + _csvParsed.length + ' assignment' + (_csvParsed.length !== 1 ? 's' : '') +
+            ' ready — click Commit to apply.</div>';
     } else {
-        areaEl.innerHTML += '<div style="margin-top:6px; color:#ffaa00;">No valid rows found. Check that class names match exactly and that students have typing logs.</div>';
+        areaEl.innerHTML += '<div style="margin-top:6px; color:#ffaa00;">No valid rows — check class names match and students have typing logs.</div>';
     }
 }
 
@@ -1355,6 +1371,13 @@ async function _commitCSV() {
     areaEl.innerHTML += '<div style="color:#22c55e; margin-top:4px;">✓ Done: ' +
         ok + ' assigned' + (fail ? ', ' + fail + ' failed.' : '.') + '</div>';
     _csvParsed = [];
+    // Reset buttons to default state
+    commitBtn.disabled = true;
+    commitBtn.style.opacity = '0.4';
+    commitBtn.style.cursor  = 'not-allowed';
+    commitBtn.className = 'lbtn lbtn-secondary';
+    const testBtnR = document.getElementById('student-csv-preview-btn');
+    if (testBtnR) testBtnR.className = 'lbtn lbtn-primary';
     _renderRoster();
 }
 
