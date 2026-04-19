@@ -5,7 +5,7 @@ import { doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.co
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "2.7.4";
+const ADMIN_VERSION = "2.7.5";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -221,7 +221,7 @@ let currentErrorIdx = 0;
 let stagedCoverBlob = null;   // extracted or uploaded cover image
 let stagedCoverUrl = null;    // preview data URL
 
-if(footerEl) footerEl.innerText = `Admin JS: v${ADMIN_VERSION} | Lessons Admin: v${typeof LESSONS_ADMIN_VERSION !== 'undefined' ? LESSONS_ADMIN_VERSION : '?'}`;
+if(footerEl) footerEl.innerText = `Admin JS: v${ADMIN_VERSION} | Lessons Admin: v${window.LESSONS_ADMIN_VERSION || '?'}`;
 
 // Populate genre dropdown
 const genreSelect = document.getElementById('active-book-genre');
