@@ -2,6 +2,577 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <title>TypeThatBook Admin v2.7.6</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; padding-bottom: 80px; }
+        
+        input, textarea, button, select { 
+            width: 100%; padding: 12px; margin-bottom: 15px; background: #222; 
+            border: 1px solid #444; color: #fff; font-family: inherit; box-sizing: border-box;
+        }
+        
+        button { cursor: pointer; background: #0047AB; font-weight: bold; text-transform: uppercase; border: none; transition: background 0.2s; }
+        button:hover { background: #4B9CD3; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        
+        button.secondary-btn { background: #444; border: 1px solid #666; }
+        button.secondary-btn:hover { background: #666; }
+        button.danger-btn { background: #500; border: 1px solid #800; color: #fcc; }
+        button.danger-btn:hover { background: #800; }
+
+        label { display: block; margin-bottom: 5px; color: #888; text-transform: uppercase; font-size: 0.75rem; }
+        
+        .hidden { display: none !important; }
+        .status-bar { padding: 15px; margin-bottom: 20px; background: #222; border-left: 4px solid #555; }
+        .row { display: flex; gap: 20px; }
+        .col { flex: 1; }
+        a { color: #888; text-decoration: none; border-bottom: 1px dotted #888; }
+        a:hover { color: #fff; }
+
+        .import-box { background: #1a1a1a; border: 1px dashed #444; padding: 20px; margin-bottom: 30px; }
+        
+        #chapter-list { max-height: 400px; overflow-y: auto; background: #000; border: 1px solid #333; margin-bottom: 20px; }
+        .chapter-item { padding: 10px; border-bottom: 1px solid #222; display: flex; align-items: center; justify-content: space-between; background: #111; transition: background 0.2s; }
+        .chapter-item:hover { background: #151515; }
+        .chapter-item.uploaded { border-left: 4px solid #00ff41; background: #0a220a; }
+        .chapter-item.error { border-left: 4px solid #ff3333; background: #220a0a; }
+
+        .chap-info { flex-grow: 1; margin-right: 15px; }
+        .chap-title { font-weight: bold; color: #4B9CD3; font-size: 0.9em; }
+        .chap-meta { font-size: 0.8em; color: #666; }
+        .chap-status { font-size: 0.8em; color: #888; margin-left: 10px; }
+        .chap-status.ok { color: #00ff41; font-weight: bold; }
+
+        .chap-actions { display: flex; gap: 5px; }
+        .chap-actions button { width: auto; padding: 5px 10px; font-size: 0.7em; margin: 0; }
+        .split-btn { background: #1a3a5c; border: 1px solid #2a5a8c; color: #7ab8e8; }
+        .split-btn:hover { background: #2a5a8c; color: white; }
+        .merge-btn { background: #2a1a3c; border: 1px solid #5a2a8c; color: #b87ae8; }
+        .merge-btn:hover { background: #4a2a6c; color: white; }
+
+        .checkbox-wrapper { display: flex; align-items: center; margin-bottom: 15px; }
+        .checkbox-wrapper input { width: auto; margin: 0 10px 0 0; }
+        .checkbox-wrapper label { margin: 0; text-transform: none; color: #ddd; }
+
+        /* MODALS */
+        #warning-modal, #error-wizard-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 200;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .warning-content {
+            background: #220000; border: 2px solid #ff3333; padding: 30px;
+            max-width: 500px; text-align: center;
+        }
+        .error-wizard-content {
+            background: #151515; border: 2px solid #ffaa00; padding: 25px;
+            max-width: 800px; width: 90%; text-align: left;
+            max-height: 90vh; overflow-y: auto;
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.2);
+        }
+        .bad-char-highlight {
+            background-color: #ff0000;
+            color: white;
+            font-weight: bold;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+
+        footer { position: fixed; bottom: 5px; right: 10px; font-size: 0.7em; color: #666; background: rgba(255,255,255,0.8); z-index: 101; padding: 2px 5px; border-radius: 3px; }
+
+        /* ── TABS ── */
+        .tab-bar { display:flex; gap:0; margin-bottom:24px; border-bottom:2px solid #333; }
+        .tab-btn {
+            padding: 10px 24px; background: #1a1a1a; border: 1px solid #333;
+            border-bottom: none; color: #777; cursor: pointer; font-family: inherit;
+            font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px;
+            transition: all 0.15s; margin-right: 4px; border-radius: 4px 4px 0 0;
+        }
+        .tab-btn:hover { color: #ccc; background: #222; }
+        .tab-btn.tab-active { background: #222; color: #4B9CD3; border-color: #4B9CD3; border-bottom: 2px solid #222; margin-bottom: -2px; }
+
+        /* ── LESSONS PANEL ── */
+        .lesson-unit-header {
+            padding: 8px 12px; background: #1a1a2a; border-left: 3px solid #4B9CD3;
+            color: #4B9CD3; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;
+            margin: 16px 0 4px;
+        }
+        .lesson-card { background: #111; border: 1px solid #2a2a2a; margin-bottom: 3px; border-radius: 3px; overflow: hidden; }
+        .lesson-card-header { display:flex; align-items:center; padding:10px 12px; gap:8px; background:#141414; }
+        .lesson-card-title { font-weight:bold; color:#ddd; font-size:0.9em; }
+        .lesson-editor { background: #0e0e0e; }
+
+        .lbtn { width:auto; padding:4px 10px; font-size:0.78em; margin:0; cursor:pointer; font-family:inherit; border-radius:2px; text-transform:uppercase; box-sizing:border-box; vertical-align:middle; }
+        .lbtn-primary { background:#0047AB; border:none; color:white; }
+        .lbtn-primary:hover { background:#4B9CD3; }
+        .lbtn-secondary { background:#333; border:1px solid #555; color:#aaa; }
+        .lbtn-secondary:hover { background:#555; color:white; }
+        .lbtn-danger { background:#500; border:1px solid #800; color:#fcc; }
+        .lbtn-danger:hover { background:#800; }
+
+        .l-label { display:block; font-size:0.7em; color:#666; text-transform:uppercase; margin-bottom:3px; margin-top:6px; }
+        .l-field { width:100%; padding:7px 9px; background:#1a1a1a; border:1px solid #333; color:#ddd; font-family:inherit; font-size:0.85em; box-sizing:border-box; margin:0; }
+        .l-field:focus { border-color:#4B9CD3; outline:none; }
+        textarea.l-field { resize:vertical; }
+        .l-steps-header { display:flex; justify-content:space-between; align-items:center; color:#888; font-size:0.75em; text-transform:uppercase; letter-spacing:1px; padding:10px 0 6px; border-top:1px solid #222; margin-top:8px; }
+        .l-step-card { background:#0a0a0a; border:1px solid #222; border-radius:3px; padding:10px; margin-bottom:6px; }
+        #lessons-status { padding:10px 14px; margin-bottom:16px; background:#111; border-left:4px solid #555; font-size:0.85em; }
+        #lesson-list { max-height:70vh; overflow-y:auto; }
+        .lessons-toolbar { display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+        #lessons-import-section { background:#1a1a1a; border:1px dashed #444; padding:16px; margin-bottom:16px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <h1>ADMIN PANEL</h1>
+        <div style="display:flex; gap:20px;">
+            <a href="reports.html">Reports</a>
+            <a href="index.html">Back to Library</a>
+        </div>
+    </div>
+
+    <div class="status-bar" id="status">Initializing...</div>
+
+    <div id="login-section" class="hidden">
+        <p>You must log in to edit the database.</p>
+        <button id="login-btn">Log In with Google</button>
+    </div>
+
+    <div id="editor-section" class="hidden">
+
+        <div class="tab-bar">
+            <button class="tab-btn tab-active" id="tab-books">📚 Books</button>
+            <button class="tab-btn" id="tab-lessons">⌨ Lessons</button>
+            <button class="tab-btn" id="tab-students">👤 Students</button>
+            <button class="tab-btn" id="tab-classes">🏫 Classes</button>
+        </div>
+
+        <div id="books-panel">
+        
+        <div class="import-box" style="border-color: #4B9CD3;">
+            <h3 style="margin-top:0; color:#4B9CD3;">1. Database Manager</h3>
+            
+            <label>Select Book / Action</label>
+            <select id="book-select">
+                <option value="">Loading books...</option>
+            </select>
+
+            <div id="edit-existing-ui" class="hidden" style="margin-top:10px;">
+                <button id="open-book-btn">Open Book</button>
+            </div>
+
+            <div id="create-new-ui" class="hidden" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
+                <div class="row">
+                    <div class="col">
+                        <label>New Book ID (e.g. dracula)</label>
+                        <input type="text" id="new-book-id">
+                    </div>
+                    <div class="col">
+                        <label>Display Title (e.g. Dracula)</label>
+                        <input type="text" id="new-book-title">
+                    </div>
+                    <div class="col">
+                        <label>Author (e.g. Bram Stoker)</label>
+                        <input type="text" id="new-book-author" placeholder="Auto-extracted from EPUB">
+                    </div>
+                </div>
+                <label>Initial EPUB File (Required)</label>
+                <input type="file" id="new-epub-file" accept=".epub">
+                <button id="create-parse-btn" style="margin-top:10px;">Parse & Initialize Staging</button>
+            </div>
+        </div>
+
+        <div id="staging-area" class="hidden">
+            <h2>2. Content Staging</h2>
+            <div class="import-box">
+                
+                <div class="row" style="border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 10px;">
+                    <div class="col" style="flex:2;">
+                        <label>Book Display Title</label>
+                        <input type="text" id="active-book-title">
+                    </div>
+                    <div class="col">
+                        <label>Author</label>
+                        <input type="text" id="active-book-author" placeholder="e.g. Mark Twain">
+                    </div>
+                    <div class="col" style="display:flex; align-items:flex-end;">
+                        <button id="save-title-btn" class="secondary-btn" style="background:#224422; border-color:#336633;">Save Metadata</button>
+                    </div>
+                </div>
+                
+                <div class="row" style="border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 15px;">
+                    <div class="col">
+                        <label>Genre</label>
+                        <select id="active-book-genre" style="width:100%;">
+                            <option value="">— Select Genre —</option>
+                            <option value="__custom__">✏️ Custom...</option>
+                        </select>
+                        <input type="text" id="custom-genre-input" class="hidden" placeholder="Type custom genre..." style="margin-top:5px;">
+                    </div>
+                    <div class="col">
+                        <label>Cover Image</label>
+                        <input type="file" id="cover-upload" accept="image/*">
+                        <div style="font-size:0.75em; color:#888; margin-top:3px;">Auto-extracted from EPUB if available</div>
+                    </div>
+                    <div class="col" style="text-align:center;">
+                        <img id="cover-preview" class="hidden" style="max-height:100px; max-width:80px; border:1px solid #444; border-radius:3px;">
+                        <button id="cover-remove-btn" class="hidden danger-btn" style="font-size:0.7em; padding:3px 8px; margin-top:4px;">Remove</button>
+                    </div>
+                </div>
+
+                <div id="overwrite-section" class="hidden" style="border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 10px;">
+                    <label style="color:#ff9999;">Overwrite Data with New EPUB</label>
+                    <div class="row">
+                        <div class="col">
+                            <input type="file" id="overwrite-epub-file" accept=".epub">
+                        </div>
+                        <div class="col">
+                            <button id="overwrite-btn" class="danger-btn">Process Overwrite</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="clean-newlines" checked>
+                    <label for="clean-newlines">Aggressive Cleaning (Remove line breaks inside paragraphs)</label>
+                </div>
+                <div style="font-size: 0.8em; color: #888; margin-bottom: 10px;">* Auto-fixes: Smart quotes, dashes, ligatures (æ→ae), accents (é→e), ellipsis, special spaces, fractions, symbols. Remaining untypeable characters trigger the wizard.</div>
+
+                <div id="chapter-list"></div>
+                
+                <button id="upload-all-btn">Upload All Chapters to Database</button>
+                
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <button id="audit-book-btn" class="secondary-btn" style="flex:1; background:#332200; border-color:#664400; color:#ffcc66;">🔍 Audit Book for Untypeable Characters</button>
+                    <button id="language-scan-btn" class="secondary-btn" style="flex:1; background:#220022; border-color:#440044; color:#cc66cc;">🔍 Scan for Language Warnings</button>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <button id="repair-chapter-order-btn" class="secondary-btn" style="flex:1; background:#002233; border-color:#004466; color:#66ccff;">🔧 Fix Chapter Order &amp; Remove Duplicates</button>
+                </div>
+                <div id="repair-results" class="hidden" style="margin-top:10px; padding:10px; background:#001a2a; border:1px solid #004466; color:#66ccff; font-size:0.85em;"></div>
+                <div id="audit-results" class="hidden" style="margin-top:15px; background:#1a1a00; border:1px solid #444400; padding:15px; max-height:400px; overflow-y:auto;"></div>
+                <div id="language-results" class="hidden" style="margin-top:15px; background:#1a0011; border:1px solid #440022; padding:15px; max-height:400px; overflow-y:auto;"></div>
+            </div>
+
+            <hr style="border-color:#333; margin: 30px 0;">
+
+            <details id="manual-details">
+                <summary style="cursor:pointer; color:#4B9CD3; margin-bottom:10px;">Manual Chapter Editor</summary>
+                <div style="padding: 15px; border:1px solid #333; margin-bottom:20px;">
+                    <div class="row">
+                        <div class="col">
+                            <label>Chapter Number (Supports 0, 1.1)</label>
+                            <input type="number" id="manual-chap-num" value="1" step="any">
+                        </div>
+                        <div class="col">
+                            <label>Chapter Title (Optional)</label>
+                            <input type="text" id="manual-chap-title">
+                        </div>
+                    </div>
+                    <label>JSON Segments</label>
+                    <textarea id="json-content" rows="15"></textarea>
+                    
+                    <div style="display:flex; gap:10px;">
+                        <button id="update-staged-btn" class="hidden">Update Staged Chapter</button>
+                        <button id="save-btn">Save Directly to DB</button>
+                    </div>
+                </div>
+            </details>
+        </div>
+
+        </div><!-- /books-panel -->
+
+        <!-- ── LESSONS PANEL ─────────────────────────────────── -->
+        <div id="lessons-panel" class="hidden">
+            <div id="lessons-status">Loading lessons...</div>
+
+            <div class="lessons-toolbar">
+                <button id="lessons-new-btn" class="lbtn lbtn-primary">+ New Lesson</button>
+                <button id="lessons-import-toggle" class="lbtn lbtn-secondary">▶ Import JSON</button>
+                <button class="lbtn lbtn-secondary" onclick="window._lessonsReload()">↺ Reload</button>
+            </div>
+
+            <div id="lessons-import-section" class="hidden">
+                <h4 style="margin:0 0 12px; color:#4B9CD3;">Import Lessons JSON</h4>
+
+                <!-- Step 1: Choose source -->
+                <div style="margin-bottom:12px;">
+                    <label class="l-label">1. Upload a lessons.json file</label>
+                    <input type="file" id="lessons-import-file" accept=".json" style="margin-bottom:8px;">
+                    <label class="l-label">— or paste JSON —</label>
+                    <textarea id="lessons-import-json" rows="4" class="l-field"
+                        style="margin-bottom:4px; font-size:0.8em;"
+                        placeholder='{"lessons": [...]}  or plain array'></textarea>
+                    <button id="lessons-import-preview" class="lbtn lbtn-secondary"
+                        style="width:auto; padding:6px 18px;">Check JSON</button>
+                </div>
+
+                <!-- Step 2: Preview — hidden until parse succeeds -->
+                <div id="lessons-import-preview-area" class="hidden"
+                    style="background:#0a1a0a; border:1px solid #1a4a1a; border-radius:4px;
+                           padding:12px; margin-bottom:12px;">
+                    <div id="lessons-import-summary" style="color:#00ff41; font-size:0.85em; margin-bottom:8px;"></div>
+                    <div id="lessons-import-breakdown" style="color:#888; font-size:0.78em; line-height:1.8;"></div>
+                </div>
+
+                <!-- Parse error -->
+                <div id="lessons-import-error" class="hidden"
+                    style="background:#1a0a0a; border:1px solid #4a1a1a; border-radius:4px;
+                           padding:10px; margin-bottom:12px; color:#ff6666; font-size:0.82em;">
+                </div>
+
+                <!-- Safety note — always visible once section is open -->
+                <div style="background:#111; border-left:3px solid #4B9CD3;
+                            padding:8px 12px; margin-bottom:12px; font-size:0.78em; color:#888;">
+                    ✓ Student progress is stored separately and will <strong style="color:#eee;">never</strong>
+                    be affected by lesson imports. Only lesson content is overwritten.
+                </div>
+
+                <!-- Step 3: Commit -->
+                <button id="lessons-import-commit" class="lbtn lbtn-primary" disabled
+                    style="opacity:0.4;">
+                    Upload to Firestore
+                </button>
+                <div id="lessons-import-progress" style="margin-top:8px; font-size:0.8em; color:#888; min-height:1.2em;"></div>
+            </div>
+
+            <div id="lesson-list"></div>
+        </div><!-- /lessons-panel -->
+
+        <div id="students-panel" class="hidden">
+            <!-- Toolbar -->
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:6px;">
+                <h3 style="margin:0; color:#4B9CD3; flex-shrink:0;">Students</h3>
+                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                    <select id="student-filter-time" class="l-field" style="margin:0; width:auto; font-size:0.8em; padding:5px 8px;">
+                        <option value="thisweek" selected>This week (Sat–Fri)</option>
+                        <option value="7days">Last 7 days</option>
+                        <option value="9weeks">Last 9 weeks</option>
+                        <option value="month">Last 30 days</option>
+                        <option value="all">All time</option>
+                    </select>
+                    <select id="student-filter-class" class="l-field" style="margin:0; width:auto; font-size:0.8em; padding:5px 8px;">
+                        <option value="all">All classes</option>
+                        <option value="none">Unassigned</option>
+                    </select>
+                    <input id="student-filter-text" type="text" placeholder="Filter name / email…"
+                        style="padding:5px 8px; background:#222; border:1px solid #444; color:#eee;
+                               font-family:inherit; font-size:0.8em; border-radius:3px; width:160px;
+                               vertical-align:middle; box-sizing:border-box;">
+                    <button id="student-refresh-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">↺</button>
+                    <button id="student-csv-toggle-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">CSV Import</button>
+                </div>
+            </div>
+
+            <!-- Bulk action bar (shown when checkboxes checked) -->
+            <div id="student-bulk-bar" style="display:none; align-items:center; gap:8px; background:#1a1a1a;
+                 border:1px solid #333; border-radius:4px; padding:8px 12px; margin-bottom:10px; font-size:0.82em;">
+                <span id="student-bulk-count" style="color:#4B9CD3; font-weight:bold; flex-shrink:0;"></span>
+                <span style="color:#666; flex-shrink:0;">→ assign to:</span>
+                <select id="student-bulk-class" class="l-field" style="margin:0; flex:1; min-width:140px; font-size:0.82em; padding:4px 6px;">
+                    <option value="">— No class (clear) —</option>
+                </select>
+                <button id="student-bulk-assign-btn" class="lbtn lbtn-primary" style="width:auto; padding:4px 14px; font-size:0.82em;">Assign</button>
+                <button id="student-bulk-cancel-btn" class="lbtn lbtn-secondary" style="width:auto; padding:4px 10px; font-size:0.82em;">✕</button>
+            </div>
+
+            <!-- CSV Import section -->
+            <div id="student-csv-section" class="hidden" style="background:#1a1a1a; border:1px solid #333;
+                 border-radius:4px; padding:14px; margin-bottom:14px;">
+                <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:8px;">Bulk Class Assignment via CSV</div>
+                <div style="font-size:0.75em; color:#666; margin-bottom:8px;">
+                    Two columns: <code style="color:#aaa;">email</code> and <code style="color:#aaa;">class_name</code>
+                    (header row optional). Separate with comma. Class name matched case-insensitively.
+                </div>
+                <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
+                    <input type="file" id="student-csv-file" accept=".csv,.txt" style="flex:1; font-size:0.8em;">
+                </div>
+                <textarea id="student-csv-paste" class="l-field" rows="4"
+                    placeholder="email,class_name&#10;1088461@sumnerk12.net,7th &amp; 8th Grade (Standard)"
+                    style="font-size:0.78em; font-family:monospace; margin-bottom:8px;"></textarea>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button id="student-csv-preview-btn" class="lbtn lbtn-primary" style="width:auto; padding:5px 14px; font-size:0.8em;">1. Test File</button>
+                    <button id="student-csv-commit-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 14px; font-size:0.8em; opacity:0.4; cursor:not-allowed;" disabled>2. Commit</button>
+                    <span id="student-csv-loading" style="color:#888; font-size:0.78em; display:none;">Loading classes…</span>
+                </div>
+                <div id="student-csv-preview-area" style="margin-top:10px; font-size:0.78em; max-height:240px; overflow-y:auto;"></div>
+            </div>
+
+            <!-- Status bar -->
+            <div id="student-list-status" style="font-size:0.8em; color:#666; margin-bottom:6px;">Loading students…</div>
+
+            <!-- Roster table -->
+            <div style="overflow-x:auto;">
+                <table id="student-roster-table" style="width:100%; border-collapse:collapse; font-size:0.8em; display:none;">
+                    <thead>
+                        <tr style="border-bottom:1px solid #333; color:#888; text-align:left; background:#111;">
+                            <th style="padding:6px 8px; width:28px;">
+                                <input type="checkbox" id="student-select-all" title="Select all visible">
+                            </th>
+                            <th class="roster-sort" data-col="name"  style="padding:6px 8px; cursor:pointer; white-space:nowrap;">Name</th>
+                            <th class="roster-sort" data-col="email" style="padding:6px 8px; cursor:pointer; white-space:nowrap;">Email</th>
+                            <th class="roster-sort" data-col="last"  style="padding:6px 8px; cursor:pointer; white-space:nowrap;">Last Login</th>
+                            <th class="roster-sort" data-col="week"  style="padding:6px 8px; cursor:pointer; white-space:nowrap;">This Week</th>
+                            <th class="roster-sort" data-col="class" style="padding:6px 8px; cursor:pointer; white-space:nowrap;">Class</th>
+                        </tr>
+                    </thead>
+                    <tbody id="student-roster-body"></tbody>
+                </table>
+            </div>
+
+            <!-- Per-student detail panel -->
+            <div id="student-class-assign" class="hidden" style="margin-top:16px; padding-top:14px; border-top:1px solid #333;">
+                <!-- Header row: name + class assign -->
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+                    <span id="student-selected-label" style="font-size:0.9rem; color:#4B9CD3; font-weight:bold; flex:1;"></span>
+                    <label class="l-label" style="margin:0; white-space:nowrap; font-size:0.78em;">Class:</label>
+                    <select id="student-class-select" class="l-field" style="margin:0; min-width:160px;">
+                        <option value="">— No class (default goals) —</option>
+                    </select>
+                    <button id="student-class-save-btn" class="lbtn lbtn-primary" style="width:auto; padding:5px 14px; font-size:0.8em;">Save</button>
+                    <span id="student-class-status" style="font-size:0.78em; color:#888;"></span>
+                </div>
+                <!-- Progress view tabs -->
+                <div style="display:flex; gap:0; margin-bottom:12px; border-bottom:1px solid #333;">
+                    <button class="progress-tab-btn tab-active-detail" data-pane="lessons"
+                        style="background:none; border:none; border-bottom:2px solid #4B9CD3; color:#4B9CD3;
+                               padding:5px 16px; cursor:pointer; font-family:inherit; font-size:0.82em; font-weight:bold; margin-bottom:-1px;">
+                        Lessons
+                    </button>
+                    <button class="progress-tab-btn" data-pane="books"
+                        style="background:none; border:none; border-bottom:2px solid transparent; color:#666;
+                               padding:5px 16px; cursor:pointer; font-family:inherit; font-size:0.82em; margin-bottom:-1px;">
+                        Books
+                    </button>
+                </div>
+                <!-- Lessons pane -->
+                <div id="student-pane-lessons">
+                    <div id="student-lesson-grid"
+                        style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px;">
+                    </div>
+                    <div style="margin-top:10px; font-size:0.75em; color:#555;">
+                        Click any lesson to lock (remove progress) or unlock (mark passed).
+                    </div>
+                </div>
+                <!-- Books pane -->
+                <div id="student-pane-books" style="display:none;">
+                    <div id="student-book-grid" style="font-size:0.82em; color:#888;">
+                        Select a student to see book progress.
+                    </div>
+                </div>
+            </div>
+        </div><!-- /students-panel -->
+
+        <div id="classes-panel" class="hidden">
+            <h3 style="margin:0 0 16px; color:#4B9CD3;">Class Manager</h3>
+
+            <!-- Create / Edit form -->
+            <div style="background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:16px; margin-bottom:20px;">
+                <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:10px;" id="class-form-title">New Class</div>
+                <input type="hidden" id="class-edit-id">
+                <div style="display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; margin-bottom:8px;">
+                    <div>
+                        <label class="l-label">Class Name</label>
+                        <input id="class-name-input" class="l-field" type="text" placeholder="e.g. Period 2 — 7th Grade">
+                    </div>
+                    <div>
+                        <label class="l-label">Daily Goal (min)</label>
+                        <input id="class-daily-input" class="l-field" type="number" value="10" min="0" step="1">
+                    </div>
+                    <div>
+                        <label class="l-label">Weekly Goal (min)</label>
+                        <input id="class-weekly-input" class="l-field" type="number" value="50" min="0" step="1">
+                    </div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button id="class-save-btn" class="lbtn lbtn-primary" style="width:auto; padding:6px 20px;">Save Class</button>
+                    <button id="class-cancel-btn" class="lbtn lbtn-secondary" style="width:auto; padding:6px 16px; display:none;">Cancel</button>
+                </div>
+                <div id="class-form-status" style="margin-top:8px; font-size:0.8em; color:#888;"></div>
+            </div>
+
+            <!-- Class list -->
+            <div id="class-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div><!-- /classes-panel -->
+
+    </div><!-- /editor-section -->
+</div>
+
+<div id="warning-modal" class="hidden">
+    <div class="warning-content">
+        <h2 style="color:#ff3333; margin-top:0;">⚠️ WARNING</h2>
+        <p>This will replace all chapters currently in the Staging Area.</p>
+        <div class="row" style="margin-top:20px;">
+            <div class="col"><button id="confirm-overwrite-btn" class="danger-btn">Yes, Overwrite</button></div>
+            <div class="col"><button id="cancel-overwrite-btn" class="secondary-btn">Cancel</button></div>
+        </div>
+    </div>
+</div>
+
+<div id="error-wizard-modal" class="hidden">
+    <div class="error-wizard-content">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #444; padding-bottom:10px;">
+            <h3 style="margin:0; color:#ffaa00;">Import Issue Detected</h3>
+            <span id="wizard-step" style="color:#888;"></span>
+        </div>
+        
+        <div style="margin-bottom:15px;">
+            <span style="color:#ccc;">Problem Character:</span> 
+            <span id="wizard-char-display" style="font-weight:bold; color:#ff3333; border:1px solid #555; padding:2px 5px; margin-left:5px;"></span>
+        </div>
+        
+        <label>Context:</label>
+        <div style="background:#000; padding:15px; border:1px solid #444; margin-bottom:5px; border-radius:4px 4px 0 0; border-bottom:none;">
+            <div id="wizard-preview" style="font-family:'Courier New', monospace; white-space:pre-wrap; line-height:1.6; font-size:1.1em; color:#aaa;"></div>
+        </div>
+        
+        <label style="margin-top:0;">Edit Sentence to Fix:</label>
+        <textarea id="wizard-edit-input" rows="4" style="width:100%; background:#111; color:white; border:1px solid #555; padding:15px; font-family:'Courier New', monospace; font-size:1.1em; line-height:1.6; border-radius:0 0 4px 4px; margin-top:0;"></textarea>
+        
+        <div class="row" style="margin-top:20px;">
+            <div class="col"><button id="wizard-ignore-btn" class="secondary-btn">Ignore (Keep Char)</button></div>
+            <div class="col"><button id="wizard-save-btn" style="background:#0047AB;">Save & Check</button></div>
+            <div class="col"><button id="wizard-cancel-btn" class="danger-btn">Cancel Import</button></div>
+        </div>
+        
+        <div id="replace-all-section" style="margin-top:20px; padding-top:15px; border-top:1px solid #444;">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                <span style="color:#ccc; white-space:nowrap;">Replace all <span id="replace-all-count" style="color:#ffaa00; font-weight:bold;"></span> instances of</span>
+                <span id="replace-all-char" style="font-weight:bold; color:#ff3333; border:1px solid #555; padding:2px 5px; font-family:'Courier New', monospace;"></span>
+                <span style="color:#ccc;">with:</span>
+            </div>
+            <div class="row">
+                <div class="col" style="flex:2;"><input id="replace-all-input" type="text" style="margin:0;" placeholder="Replacement text" /></div>
+                <div class="col"><button id="replace-all-btn" style="background:#0047AB; margin:0;">Replace All (char)</button></div>
+            </div>
+            
+            <div id="replace-word-row" class="hidden" style="margin-top:12px; padding-top:12px; border-top:1px dashed #333;">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <span style="color:#ccc; white-space:nowrap;">Or replace word</span>
+                    <span id="replace-word-original" style="font-weight:bold; color:#ffaa00; border:1px solid #555; padding:2px 5px; font-family:'Courier New', monospace;"></span>
+                    <span style="color:#ccc;">(<span id="replace-word-count" style="color:#ffaa00;"></span> occurrences) with:</span>
+                </div>
+                <div class="row">
+                    <div class="col" style="flex:2;"><input id="replace-word-input" type="text" style="margin:0;" placeholder="Replacement word" /></div>
+                    <div class="col"><button id="replace-word-btn" style="background:#0047AB; margin:0;">Replace All (word)</button></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer id="admin-footer">Admin JS: Loading...</footer>
+
+<script type="module" src="admin.js"></script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
     <title>TypeThatBook Admin v2.7.5</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
