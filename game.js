@@ -16,6 +16,26 @@ const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
 const SPRINT_COOLDOWN_MS = 1500;
 const SPAM_THRESHOLD = 5;
 
+// ─── Adventure Mode integration ────────────────────────────────────────────
+// View toggle. 'classic' = original DOM-rendered text; 'adventure' = canvas
+// renderer. Persisted to localStorage. The classic view is wholly unchanged
+// when in adventure mode game.js still drives the text-stream DOM (so all
+// position/state logic remains valid) — that DOM is just hidden via CSS.
+const VIEW_MODE = localStorage.getItem('ttb_view') || 'classic';
+
+// Event bus to the adventure renderer. Each emit is fire-and-forget; if the
+// renderer isn't mounted nothing happens. Wrapped in try/catch so a buggy
+// listener can NEVER crash the typing engine.
+function _ttbEmit(type, detail) {
+    try {
+        document.dispatchEvent(new CustomEvent('ttb:' + type, { detail: detail || {} }));
+    } catch (e) {
+        // Old browsers without CustomEvent constructor — silently ignore.
+        // Adventure mode is opt-in; classic mode never reaches this code path.
+    }
+}
+// ───────────────────────────────────────────────────────────────────────────
+
 // Hand Guide
 let handGuideEnabled = localStorage.getItem('ttb_handGuide') === 'true';
 let handGuideRainbow = localStorage.getItem('ttb_handGuideRainbow') !== 'false'; // default true
@@ -222,6 +242,21 @@ async function init() {
     loadAnonReminderState();
     const footer = document.querySelector('footer');
     if(footer) footer.innerText = `JS: v${VERSION}`;
+
+    // ─── Adventure: apply view mode and mount renderer if active ───
+    document.body.classList.add('view-' + VIEW_MODE);
+    if (VIEW_MODE === 'adventure') {
+        try {
+            const mod = await import('./adventure-renderer.js');
+            mod.mountAdventureRenderer();
+        } catch (e) {
+            // If the renderer module fails to load, fall back to classic view
+            // by removing the class. The user sees normal TTB.
+            console.warn('Adventure renderer failed to load; using classic view.', e);
+            document.body.classList.remove('view-adventure');
+            document.body.classList.add('view-classic');
+        }
+    }
 
     if (!document.getElementById('menu-btn')) {
         const btn = document.createElement('button');
@@ -629,6 +664,17 @@ function setupGame() {
 
     accDisplay.innerText = "---"; wpmDisplay.innerText = "0"; timerDisplay.innerText = "00:00";
 
+    // ─── Adventure: notify renderer that a chapter is loaded ───
+    _ttbEmit('textLoaded', {
+        fullText: fullText,
+        position: currentCharIndex,
+        chapterNum: currentChapterNum,
+        chapterTitle: (bookMetadata && bookMetadata.chapters)
+            ? (bookMetadata.chapters.find(c => c.id === `chapter_${currentChapterNum}`) || {}).title
+            : null,
+        bookTitle: bookMetadata && bookMetadata.title,
+    });
+
     let btnLabel = "Resume";
     if (savedCharIndex === 0) btnLabel = "Start Reading";
 
@@ -739,6 +785,18 @@ function gameTick() {
             statsData.secondsToday++; statsData.secondsWeek++;
             timeAccumulator -= 1000;
             updateTimerUI();
+
+            // ─── Adventure: heartbeat stats ───
+            _ttbEmit('stats', {
+                wpm: parseInt(wpmDisplay.innerText) || 0,
+                accuracy: parseInt(accDisplay.innerText) || 100,
+                activeSeconds: activeSeconds,
+                sprintSeconds: sprintSeconds,
+                secondsToday: statsData.secondsToday,
+                secondsWeek: statsData.secondsWeek,
+                streak: currentStreak,
+                position: currentCharIndex,
+            });
 
             // Goal celebrations
             if (goals.dailySeconds > 0 && !dailyGoalCelebrated && statsData.secondsToday >= goals.dailySeconds) {
@@ -983,6 +1041,7 @@ function handleTyping(key) {
             // Un-highlight the char we just left
             if (currentEl) currentEl.classList.remove('active');
             highlightCurrentChar(); centerView();
+            _ttbEmit('positionSet', { position: currentCharIndex });
         }
         return;
     }
@@ -1005,6 +1064,12 @@ function handleTyping(key) {
             backspaceOrigin = -1;
             currentLetterStatus = 'clean';
         }
+
+        _ttbEmit('keystroke', {
+            correct: true,
+            char: inputChar,
+            position: currentCharIndex,
+        });
 
         if (['.', '!', '?', '\n'].includes(targetChar)) saveProgress();
         else if (['"', "'"].includes(targetChar) && currentCharIndex >= 2) {
@@ -1042,6 +1107,13 @@ function handleTyping(key) {
         const missKey = targetChar === ' ' ? 'Space' : targetChar === '\n' ? 'Enter' : targetChar;
         if (missKey) missedCharsMap[missKey] = (missedCharsMap[missKey] || 0) + 1;
 
+        _ttbEmit('keystroke', {
+            correct: false,
+            char: inputChar,
+            expected: targetChar,
+            position: currentCharIndex,
+        });
+
         if (consecutiveMistakes >= SPAM_THRESHOLD && !ggAllowMistakes) {
             triggerHardStop(targetChar, false);
         }
@@ -1057,6 +1129,12 @@ function triggerHardStop(targetChar, isAfk) {
     clearInterval(timerInterval);
     isHardStop = true;
     resetModalFooter();
+
+    _ttbEmit('fail', {
+        reason: isAfk ? 'afk' : 'spam',
+        position: currentCharIndex,
+        expected: targetChar,
+    });
 
     if (!targetChar) targetChar = '?';
     let friendlyKey = targetChar;
@@ -1114,6 +1192,8 @@ function resumeGame() {
     timerInterval = setInterval(gameTick, 100);
     consecutiveMistakes = 0;
     lastInputTime = Date.now();
+
+    _ttbEmit('respawn', { position: currentCharIndex });
 
     const keyboard = document.getElementById('virtual-keyboard');
     if(keyboard) keyboard.focus();
@@ -2229,6 +2309,11 @@ async function openMenuModal() {
                     <option value="qwerty" ${currentLayout === 'qwerty' ? 'selected' : ''}>QWERTY</option>
                     <option value="dvorak" ${currentLayout === 'dvorak' ? 'selected' : ''}>Dvorak</option>
                 </select>
+                <div class="menu-label" style="margin-top:8px;">View</div>
+                <select id="view-select" class="modal-select">
+                    <option value="classic" ${VIEW_MODE === 'classic' ? 'selected' : ''}>Classic</option>
+                    <option value="adventure" ${VIEW_MODE === 'adventure' ? 'selected' : ''}>Adventure (alpha)</option>
+                </select>
             </div>
             <div class="menu-col menu-col-guide">
                 <div class="menu-label">Hand Guide</div>
@@ -2252,6 +2337,18 @@ async function openMenuModal() {
 
     document.getElementById('layout-select').onchange = (e) => {
         setKeyboardLayout(e.target.value);
+    };
+
+    // ─── Adventure: view mode toggle ───
+    // Persist selection, save progress, reload page so the chosen view's
+    // initialization runs cleanly. (No hot-swap for v1 — keeps things simple
+    // and avoids state-sync edge cases.)
+    document.getElementById('view-select').onchange = async (e) => {
+        const newView = e.target.value;
+        if (newView === VIEW_MODE) return;
+        localStorage.setItem('ttb_view', newView);
+        try { await saveProgress(true); } catch (_) {}
+        window.location.reload();
     };
 
     document.getElementById('sprint-select').onchange = (e) => {
