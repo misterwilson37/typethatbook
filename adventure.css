@@ -1,0 +1,47 @@
+/* adventure.css — view-mode skin for Adventure Mode */
+/*                                                   */
+/* Every rule in this file is scoped under body.view-adventure. When a user
+   is in classic view (the default and the only mode existing users see),
+   none of these rules apply and #adventure-canvas remains hidden via the
+   .hidden class on the canvas element itself. */
+
+/* The canvas always exists in the DOM but is hidden in classic view. */
+#adventure-canvas.hidden {
+    display: none !important;
+}
+
+/* ─── Adventure view ───────────────────────────────────────────────────── */
+body.view-adventure #adventure-canvas {
+    display: block;
+    position: fixed;
+    top: 56px;          /* below the HUD */
+    left: 0;
+    right: 0;
+    bottom: 80px;       /* above the keyboard area */
+    width: 100%;
+    height: calc(100vh - 56px - 80px);
+    background: #f2e8d5;
+    z-index: 5;         /* below modals + HUD, above the (hidden) text-stream */
+}
+
+/* In adventure view, hide all the classic-view text/progress-bar surface.
+   They still exist and are still updated by game.js — kids just never see them.
+   This is essential: hiding via display:none is fine because game.js reads
+   classes/IDs on these elements (via getElementById) which works regardless of
+   display state. */
+body.view-adventure #text-stream,
+body.view-adventure #image-panel,
+body.view-adventure #chapter-progress-bar,
+body.view-adventure #book-progress-bar,
+body.view-adventure #book-info-bar {
+    display: none !important;
+}
+
+/* The HUD stays visible — it's the same WPM / Acc / streak / today / week
+   readouts whether you're in classic or adventure mode. */
+
+/* The virtual keyboard stays visible — kids may still want it for finger
+   guidance. */
+
+/* The modal stays as-is — same pause modal, same chapter-complete modal,
+   same settings modal. */
