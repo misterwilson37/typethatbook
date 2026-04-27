@@ -1,4 +1,4 @@
-// adventure-renderer.js — v0.2.11
+// adventure-renderer.js — v0.2.11 
 //
 // v0.2.11 — Keyboard label color robustness:
 //   - Bg-color matcher accepts rgba() form too (Safari normalizes
