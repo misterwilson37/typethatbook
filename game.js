@@ -1,3 +1,4 @@
+// v3.0.4 - Sentence-rollback on hard-stop only fires in adventure mode
 // v3.0.3 - Hard-stop modal asks for sentence-start letter; spam threshold = 3
 // v3.0.2 - Hard-stop rolls cursor back to start of current sentence
 // v3.0.1 - Adventure Mode integration; cross-file version banner
@@ -11,7 +12,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.0.3";
+const VERSION = "3.0.4";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -1172,36 +1173,44 @@ function triggerHardStop(targetChar, isAfk) {
     isHardStop = true;
     resetModalFooter();
 
-    // Roll back to the start of the current sentence. The user has to retype
-    // it from scratch — incentivizes nailing it. This also makes the visual
-    // recovery in adventure mode honest: ghost rises, terrain flattens,
-    // sentence reappears whole.
+    // Roll back to the start of the current sentence — but ONLY in adventure
+    // mode. Adventure has a visible figure that needs somewhere to respawn,
+    // and the rollback feels narratively right (death → restart sentence). In
+    // classic mode there's no figure, so the rollback would feel unfair —
+    // keep the original behavior (modal waits for the failed-letter to
+    // resume, no rollback).
     const failPos = currentCharIndex;
-    const sentenceStart = findSentenceStartFor(failPos);
+    let sentenceStart = failPos;
 
-    // Walk the per-letter DOM nodes and reset them to clean (re-typable)
-    // state. game.js uses id="char-N" with classes done-perfect/done-fixed/
-    // done-dirty/error-state/active.
-    for (let i = sentenceStart; i <= failPos; i++) {
-        const el = document.getElementById(`char-${i}`);
-        if (!el) continue;
-        el.classList.remove('done-perfect', 'done-fixed', 'done-dirty', 'error-state', 'active');
+    if (VIEW_MODE === 'adventure') {
+        sentenceStart = findSentenceStartFor(failPos);
+
+        // Walk the per-letter DOM nodes and reset them to clean (re-typable)
+        // state. game.js uses id="char-N" with classes done-perfect/done-fixed/
+        // done-dirty/error-state/active.
+        for (let i = sentenceStart; i <= failPos; i++) {
+            const el = document.getElementById(`char-${i}`);
+            if (!el) continue;
+            el.classList.remove('done-perfect', 'done-fixed', 'done-dirty', 'error-state', 'active');
+        }
+        currentCharIndex = sentenceStart;
+        highlightCurrentChar();
+        centerView();
     }
-    currentCharIndex = sentenceStart;
-    highlightCurrentChar();
-    centerView();
 
     _ttbEmit('fail', {
         reason: isAfk ? 'afk' : 'spam',
-        position: failPos,                  // where they died (for gravestone, falling letters)
-        sentenceStart: sentenceStart,       // where they'll respawn to
+        position: failPos,                  // where they died
+        sentenceStart: sentenceStart,       // where they'll respawn (== failPos in classic)
         expected: targetChar,                // the letter that killed them
     });
 
-    // The resume gate (handleTyping) checks fullText[currentCharIndex]. After
-    // the rollback that's the sentence-start letter, NOT the letter they
-    // failed on. Overwrite targetChar so the modal display matches the gate.
-    targetChar = fullText[sentenceStart] || '?';
+    // Modal display: in adventure the resume gate now wants the sentence-start
+    // letter (since we rolled back). In classic, we never rolled back, so the
+    // failed letter is still what they need to type.
+    if (VIEW_MODE === 'adventure') {
+        targetChar = fullText[sentenceStart] || '?';
+    }
 
     if (!targetChar) targetChar = '?';
     let friendlyKey = targetChar;
