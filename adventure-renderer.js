@@ -1,18 +1,25 @@
-// adventure-renderer.js — v0.2.3
+// adventure-renderer.js — v0.2.4
 //
-// v0.2.3 — Integration of Gemini's refined animation block:
-//   - New stumble (formerly "fall"): running-gait-based with sway, much more
-//     believable than the simple tumble-and-rotate.
-//   - New leap (paragraph crossing): full leg/arm keyframes instead of just a
-//     sin-arc translation. The figure actually leaps.
-//   - New hop (space): one leg locks straight during the arc, sells the jump.
-//   - Three ghost styles, randomized per death:
-//       'limp'  — short body, dangling arms, X-eyes
-//       'sheet' — classic sheet ghost with wavy hem
-//       'head'  — Y-frame body with a head that rolls left and right
-//   - X-eyes ONLY on actual ghosts. Not on the living-but-stumbling figure.
-//   - Walk/jog/run gait profiles updated to Gemini's tuning (better arm swing
-//     in jog/run especially).
+// v0.2.4 — Diagnostic overlay + structural fixes:
+//   - Diagnostic HUD (toggle with backtick key `): shows wordSegments count,
+//     segments per paraIdx, currentParaIdx, camera positions, recent event log.
+//     Press ` while focused on the page to toggle. Used to chase the
+//     5-duplicate detritus bug.
+//   - Stumble (mistake): brief trip animation, ~350ms, on every individual
+//     mistake. Interrupts back to gait. Replaces the stumble that previously
+//     fired only on hard-stop.
+//   - Plummet (hard-stop): figure falls off the BOTTOM of the screen, not the
+//     spot. Respawn drops the figure from above. Replaces the previous
+//     "fall and respawn from above" sequence with a more dramatic plummet.
+//   - Platform line moved BELOW the words (back to v0.1.x style). Word
+//     baseline at top of band, connector line at the bottom, gap pit drops
+//     below the connector line.
+//   - Leading curly-quote glyph fix: when an ASCII " is the first character
+//     of a word, render it as a horizontally-flipped trailing quote so it
+//     curls TOWARD the word instead of away. Font stays IM Fell English.
+//
+// v0.2.3 — Integration of Gemini's refined animation block (gait, hop, leap,
+//   stumble, respawn, three ghost styles). X-eyes only on actual ghosts.
 //
 // v0.2.2 bugfixes:
 //   - Respawn detritus: paragraph crossings now rebuild via
@@ -57,7 +64,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.3';
+export const RENDERER_VERSION = '0.2.4';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -108,6 +115,7 @@ class AdventureRenderer {
     this.walkPhase = 0;                    // gait progression
     this.figureAngle = 0;                  // smoothed platform tilt
     this.fallPhase = 0;
+    this.stumblePhase = 0;     // transient mistake stumble (no death)
     this.respawnPhase = 0;
     this.isJumping = false;
     this.jumpPhase = 0;
@@ -147,6 +155,13 @@ class AdventureRenderer {
     this._listeners = [];
     this._raf = null;
     this._resizeObserver = null;
+
+    // ---- Diagnostic (toggle with backtick key) ----
+    // Helps chase rendering bugs by showing live internal state on top of
+    // the canvas. Off by default; doesn't affect rendering when off.
+    this._debug = false;
+    this._eventLog = [];        // ring buffer of recent events for display
+    this._eventLogMax = 12;
   }
 
   // --------------------------------------------------------------------------
@@ -175,6 +190,13 @@ class AdventureRenderer {
     this._on('ttb:stats',       (d) => this._onStats(d));
     this._on('ttb:complete',    ()  => this._onComplete());
 
+    // Backtick toggles diagnostic overlay (shows internal state on canvas)
+    const onKey = (e) => {
+      if (e.key === '`') { this._debug = !this._debug; }
+    };
+    document.addEventListener('keydown', onKey);
+    this._listeners.push({ type: 'keydown', fn: onKey });
+
     this._raf = requestAnimationFrame((t) => this._loop(t));
   }
 
@@ -198,6 +220,11 @@ class AdventureRenderer {
     this._listeners.push({ type, fn: wrapped });
   }
 
+  _logEvent(label) {
+    this._eventLog.push({ t: performance.now(), label });
+    if (this._eventLog.length > this._eventLogMax) this._eventLog.shift();
+  }
+
   _resize() {
     if (!this.canvas) return;
     const parent = this.canvas.parentElement;
@@ -219,6 +246,7 @@ class AdventureRenderer {
   _onTextLoaded(d) {
     this.fullText = (d && d.fullText) || '';
     this.currentPos = (d && typeof d.position === 'number') ? d.position : 0;
+    this._logEvent(`textLoaded len=${this.fullText.length} pos=${this.currentPos}`);
 
     // Reset terrain progression on new chapter
     this.globalWordIdx = 0;
@@ -263,6 +291,7 @@ class AdventureRenderer {
 
   _onPositionSet(d) {
     if (typeof d.position !== 'number') return;
+    this._logEvent(`positionSet pos=${d.position}`);
     this.currentPos = d.position;
     this._setCurrentParaForPos(this.currentPos);
     this._relayoutCurrentWorld();
@@ -292,6 +321,7 @@ class AdventureRenderer {
       const newParaIdx = this._paragraphForPos(this.currentPos);
       if (newParaIdx !== this.currentParaIdx) {
         const goingUp = (newParaIdx % 2 === 1);  // alternating Y rule
+        this._logEvent(`paraCross ${this.currentParaIdx}→${newParaIdx}`);
         this.currentParaIdx = newParaIdx;
 
         // Full rebuild on every paragraph crossing. wordSegments only ever
@@ -314,14 +344,25 @@ class AdventureRenderer {
         }
       }
     } else {
-      // Mistake — flash the current position red briefly
+      // Mistake — flash the current position red briefly, plus trigger a
+      // transient stumble. Stumble interrupts the gait for ~350ms; the figure
+      // recovers automatically. If they trip 3 times in a row, game.js fires
+      // ttb:fail and we plummet.
       const pos = (typeof d.position === 'number') ? d.position : this.currentPos;
       this.mistakeFlash[pos] = performance.now();
+      // Don't restart stumble if already stumbling — let the existing one play
+      // out, then a new mistake can re-trigger.
+      if (this.state !== 'stumble' && this.state !== 'fall' && this.state !== 'respawning') {
+        this.state = 'stumble';
+        this.stumblePhase = 0;
+        this._logEvent(`stumble pos=${pos}`);
+      }
     }
   }
 
   _onFail(d) {
     if (this.state === 'fall' || this.state === 'respawning') return;
+    this._logEvent(`FAIL pos=${d && d.position} expected=${(d && d.expected) || '?'}`);
     this.state = 'fall';
     this.fallPhase = 0;
 
@@ -363,6 +404,7 @@ class AdventureRenderer {
   }
 
   _onRespawn(d) {
+    this._logEvent(`RESPAWN pos=${d && d.position}`);
     // Game tells us the new position. Reset terrain to flat (per Jake's design).
     this.state = 'respawning';
     this.respawnPhase = 0;
@@ -539,7 +581,9 @@ class AdventureRenderer {
     // _relayoutCurrentWorld idempotent (rebuilding always produces the same
     // terrain) and gives kids a breather after each paragraph.
     const INDENT = 80;
+    const before = this.wordSegments.length;
     this.wordSegments = [];
+    this._logEvent(`relayout para=${this.currentParaIdx} (was ${before} segs)`);
     if (!this.paragraphs[this.currentParaIdx]) return;
 
     this.globalWordIdx = 0;
@@ -656,7 +700,7 @@ class AdventureRenderer {
     // Animation state from idle/walk/jog/run based on WPM and recency
     const idleMs = now - this.lastKeystrokeTime;
     const recent = idleMs < 600 && this.lastKeystrokeTime > 0;
-    if (this.state !== 'fall' && this.state !== 'respawning') {
+    if (this.state !== 'fall' && this.state !== 'respawning' && this.state !== 'stumble') {
       if (!recent) {
         this.state = 'idle';
       } else if (this.wpm >= 50) {
@@ -699,9 +743,17 @@ class AdventureRenderer {
       this.respawnPhase = Math.min(1, this.respawnPhase + dt / 800);
       if (this.respawnPhase >= 1) { this.state = 'idle'; }
     }
+    if (this.state === 'stumble') {
+      this.stumblePhase = Math.min(1, this.stumblePhase + dt / 350);
+      if (this.stumblePhase >= 1) {
+        // Recover — back to gait, picked up next frame from WPM
+        this.state = 'idle';
+        this.stumblePhase = 0;
+      }
+    }
 
     // Smooth platform tilt the figure rests on
-    if (this.state !== 'fall' && this.state !== 'respawning') {
+    if (this.state !== 'fall' && this.state !== 'respawning' && this.state !== 'stumble') {
       const targetAngle = this._angleAtPosition(this.currentPos);
       this.figureAngle += (targetAngle - this.figureAngle) * 0.18;
     }
@@ -796,7 +848,9 @@ class AdventureRenderer {
       if (isPreview) {
         ctx.globalAlpha = (ctx.globalAlpha || 1) * 0.32;
       } else {
-        // Platform line — only on current paragraph
+        // Platform line — connector line at the BOTTOM of the words. The
+        // figure stands on this line. Words render above it; the gap pit
+        // drops below it.
         ctx.strokeStyle = 'rgba(43, 34, 26, 0.55)';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -813,6 +867,9 @@ class AdventureRenderer {
       //   fixed:         slightly more faded
       //   dirty:         even more faded — got there but with errors
       //   mistake-flash: orange-red for 250ms then fades back
+      // Letters sit ABOVE the platform line (negative y) — the line is the
+      // figure's ground. textBaseline='alphabetic' puts the bottom of letters
+      // at the y-coordinate; drawing at y=-2 keeps a small gap above the line.
       const isCursorOnThisWord = (seg.paraIdx === cursorParaIdx) &&
                                   (cursorLocalPos >= seg.startPos) &&
                                   (cursorLocalPos <= seg.endPos);
@@ -853,7 +910,23 @@ class AdventureRenderer {
           ctx.shadowColor = 'rgba(192, 57, 43, 0.4)';
           ctx.shadowBlur = 6;
         }
-        ctx.fillText(seg.text[k], offset, 26);
+
+        const ch = seg.text[k];
+        // Quote glyph fix: a leading " (k===0 within a word) should curl
+        // toward the word, but IM Fell English renders both " glyphs as
+        // right-curling (close-quote). Flip horizontally for the leading case.
+        if (ch === '"' && k === 0) {
+          ctx.save();
+          ctx.translate(offset, -2);
+          ctx.scale(-1, 1);
+          // After horizontal flip, drawing at x=0 puts the glyph to the left
+          // of the origin. Shift right by the glyph's measured width.
+          const qWidth = ctx.measureText('"').width;
+          ctx.fillText('"', -qWidth, 0);
+          ctx.restore();
+        } else {
+          ctx.fillText(ch, offset, -2);
+        }
         if (isActive) ctx.shadowBlur = 0;
       }
 
@@ -904,6 +977,56 @@ class AdventureRenderer {
     const charX = this._xAtPosition(this.currentPos) - this.cameraX;
     const charScreenY = baseY;
     this._drawStickFigure(charX, charScreenY, now);
+
+    // Diagnostic overlay (toggle with `)
+    if (this._debug) this._drawDebugOverlay(now);
+  }
+
+  // Diagnostic state HUD. Top-left corner of the canvas. Toggled with the
+  // backtick key. Shows internal state useful for chasing rendering bugs.
+  _drawDebugOverlay(now) {
+    const ctx = this.ctx;
+    ctx.save();
+    const lines = [];
+    lines.push(`v${RENDERER_VERSION} debug (\` to hide)`);
+    lines.push(`state=${this.state} fp=${this.fallPhase.toFixed(2)} rp=${this.respawnPhase.toFixed(2)}`);
+    lines.push(`currentPos=${this.currentPos}/${this.fullText.length}`);
+    lines.push(`currentParaIdx=${this.currentParaIdx} of ${this.paragraphs.length}`);
+    // Per-paragraph segment count
+    const perPara = {};
+    for (const seg of this.wordSegments) {
+      perPara[seg.paraIdx] = (perPara[seg.paraIdx] || 0) + 1;
+    }
+    const breakdown = Object.entries(perPara).map(([k, v]) => `p${k}:${v}`).join(' ');
+    lines.push(`wordSegments=${this.wordSegments.length} [${breakdown}]`);
+    lines.push(`crumbleAt=${Object.keys(this.crumbleAt).length} keys`);
+    lines.push(`ghosts=${this.ghosts.length}  graves=${this.gravestones.length}`);
+    lines.push(`cam x=${this.cameraX.toFixed(0)} y=${this.cameraY.toFixed(0)} | ` +
+               `tgt x=${this.targetCameraX.toFixed(0)} y=${this.targetCameraY.toFixed(0)}`);
+    lines.push(`wpm=${this.wpm}  walkPhase=${this.walkPhase.toFixed(1)}`);
+    lines.push('— recent events —');
+    for (const ev of this._eventLog) {
+      const age = ((now - ev.t) / 1000).toFixed(1) + 's';
+      lines.push(`  ${age} ago: ${ev.label}`);
+    }
+
+    const padding = 8, lineH = 14;
+    const w = 380;
+    const h = padding * 2 + lines.length * lineH;
+    ctx.fillStyle = 'rgba(20, 18, 14, 0.88)';
+    ctx.fillRect(8, 8, w, h);
+    ctx.strokeStyle = 'rgba(192, 57, 43, 0.6)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(8, 8, w, h);
+    ctx.font = '11px "Courier Prime", Menlo, monospace';
+    ctx.fillStyle = '#e8d8a0';
+    ctx.textBaseline = 'top';
+    let y = 8 + padding;
+    for (const line of lines) {
+      ctx.fillText(line, 8 + padding, y);
+      y += lineH;
+    }
+    ctx.restore();
   }
 
   // --------------------------------------------------------------------------
@@ -922,11 +1045,11 @@ class AdventureRenderer {
     // ONLY drawn on actual ghosts (in _drawGhost), never on a living figure
     // who's just tripped.
 
-    // ---- Stumble (fail/spam-error): running-gait-based stumble with sway ----
-    // Player is alive but tripping. Lasts ~900ms before game.js fires the
-    // respawn event which switches state to 'respawning'.
-    if (this.state === 'fall') {
-      const fp = this.fallPhase;
+    // ---- Stumble (transient mistake): running-gait-based stumble with sway ----
+    // Player tripped on a wrong key but is still going. ~350ms then back to
+    // gait. Doesn't translate position. Used for individual mistakes.
+    if (this.state === 'stumble') {
+      const fp = this.stumblePhase;
       const stumbleData = {
         legs: [{p:0,hip:30,knee:10},{p:0.2,hip:-20,knee:0},{p:0.5,hip:-40,knee:0},{p:0.8,hip:60,knee:0},{p:1,hip:30,knee:0}],
         arms: [{p:0,shoulder:-20,elbow:20},{p:0.2,shoulder:60,elbow:10},{p:0.5,shoulder:100,elbow:0},{p:0.8,shoulder:40,elbow:40},{p:1,shoulder:-20,elbow:10}],
@@ -937,17 +1060,60 @@ class AdventureRenderer {
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
-      const getA = this._getAngles;
-      const lLegA = getA(fp, stumbleData.legs);
-      const rLegA = getA((fp + 0.3) % 1, stumbleData.legs);
+      const lLegA = this._getAngles(fp, stumbleData.legs);
+      const rLegA = this._getAngles((fp + 0.3) % 1, stumbleData.legs);
       const lLeg = this._calcLeg(lLegA, limbLen);
       const rLeg = this._calcLeg(rLegA, limbLen);
-      const hipY = -16 + Math.sin(fp * Math.PI) * 6;
-      const lean = Math.sin(fp * Math.PI) * 0.9;
+      const hipY = -16 + Math.sin(fp * Math.PI) * 4;     // small dip
+      const lean = Math.sin(fp * Math.PI) * 0.6;          // less dramatic than fall
       const shoulderX = Math.sin(lean) * spineLen;
       const shoulderY = hipY - Math.cos(lean) * spineLen;
-      const lArm = this._calcArm(getA(fp, stumbleData.arms), shoulderX, shoulderY, armLen);
-      const rArm = this._calcArm(getA(fp, stumbleData.arms), shoulderX, shoulderY, armLen);
+      const lArm = this._calcArm(this._getAngles(fp, stumbleData.arms), shoulderX, shoulderY, armLen);
+      const rArm = this._calcArm(this._getAngles(fp, stumbleData.arms), shoulderX, shoulderY, armLen);
+
+      const drawLine = (x1,y1,x2,y2,x3,y3) => {
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.stroke();
+      };
+      drawLine(shoulderX, shoulderY, rArm.elbowX, rArm.elbowY, rArm.handX, rArm.handY);
+      drawLine(0, hipY, rLeg.kneeX, hipY + rLeg.kneeY, rLeg.footX, hipY + rLeg.footY);
+      ctx.beginPath(); ctx.moveTo(0, hipY); ctx.lineTo(shoulderX, shoulderY); ctx.stroke();
+      ctx.beginPath(); ctx.arc(shoulderX, shoulderY - 5, 5.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#2b221a'; ctx.fill();
+      drawLine(0, hipY, lLeg.kneeX, hipY + lLeg.kneeY, lLeg.footX, hipY + lLeg.footY);
+      drawLine(shoulderX, shoulderY, lArm.elbowX, lArm.elbowY, lArm.handX, lArm.handY);
+      ctx.restore();
+      return;
+    }
+
+    // ---- Plummet (hard-stop / 3-strikes-out): figure falls off the bottom ----
+    // Translates down accelerating, flailing limbs, off-screen by the time
+    // game.js fires ttb:respawn (~900ms after fail).
+    if (this.state === 'fall') {
+      const fp = this.fallPhase;
+      // Translate down with acceleration (gravity-like)
+      ctx.translate(0, fp * fp * 600);
+      // Slight rotation for drama
+      ctx.rotate(fp * Math.PI * 0.3);
+
+      const limbLen = 9, armLen = 7.5, spineLen = 14;
+      ctx.strokeStyle = '#2b221a';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // Flailing limbs: sin/cos based on `now` so they wave during the fall
+      const t = now / 50;
+      const hipY = -16; const lean = 0;
+      const lLegA = { primary: (-30 + Math.sin(t)*40) * Math.PI/180, secondary: 10 * Math.PI/180 };
+      const rLegA = { primary: ( 30 + Math.cos(t)*40) * Math.PI/180, secondary: 10 * Math.PI/180 };
+      const lArmA = { primary: -150 * Math.PI/180, secondary: (20 + Math.sin(t*0.8)*20) * Math.PI/180 };
+      const rArmA = { primary:  150 * Math.PI/180, secondary: (20 + Math.cos(t*0.8)*20) * Math.PI/180 };
+      const lLeg = this._calcLeg(lLegA, limbLen);
+      const rLeg = this._calcLeg(rLegA, limbLen);
+      const shoulderX = Math.sin(lean) * spineLen;
+      const shoulderY = hipY - Math.cos(lean) * spineLen;
+      const lArm = this._calcArm(lArmA, shoulderX, shoulderY, armLen);
+      const rArm = this._calcArm(rArmA, shoulderX, shoulderY, armLen);
 
       const drawLine = (x1,y1,x2,y2,x3,y3) => {
         ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.stroke();
