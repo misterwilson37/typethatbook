@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.0.1";
+const VERSION = "3.0.2";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -1167,9 +1167,31 @@ function triggerHardStop(targetChar, isAfk) {
     isHardStop = true;
     resetModalFooter();
 
+    // Roll back to the start of the current sentence. The user has to retype
+    // it from scratch — incentivizes nailing it. This also makes the visual
+    // recovery in adventure mode honest: ghost rises, terrain flattens,
+    // sentence reappears whole.
+    const failPos = currentCharIndex;
+    const sentenceStart = findSentenceStartFor(failPos);
+
+    // Walk the DOM and clear typed-letter classes from sentenceStart onward
+    // so classic-view retyping is fresh. fullText/charSpans access pattern
+    // matches the rest of the codebase.
+    const charSpans = document.querySelectorAll('#text-stream .char');
+    for (let i = sentenceStart; i < charSpans.length && i <= failPos; i++) {
+        const sp = charSpans[i];
+        if (!sp) continue;
+        sp.classList.remove('done-perfect', 'done-fixed', 'done-dirty', 'error', 'current');
+        sp.classList.add('clean');
+    }
+    if (charSpans[sentenceStart]) charSpans[sentenceStart].classList.add('current');
+
+    currentCharIndex = sentenceStart;
+
     _ttbEmit('fail', {
         reason: isAfk ? 'afk' : 'spam',
-        position: currentCharIndex,
+        position: failPos,                  // where they died (for gravestone, falling letters)
+        sentenceStart: sentenceStart,       // where they'll respawn to
         expected: targetChar,
     });
 
@@ -3182,6 +3204,34 @@ function showGoalToast(message, color) {
         toast.style.animation = 'toastOut 0.5s ease-in forwards';
         setTimeout(() => toast.remove(), 500);
     }, 3000);
+}
+
+// Find the start position of the sentence containing pos. Used by hard-stop
+// to roll the cursor back to the start of the failed sentence — user retypes.
+// Mirrors the boundary logic in getSentenceMap.
+function findSentenceStartFor(pos) {
+    if (!fullText || pos <= 0) return 0;
+    let i = Math.min(pos, fullText.length - 1);
+    while (i > 0) {
+        const ch = fullText[i - 1];
+        const next = fullText[i];
+        if (ch === '\n') return i;
+        if ((ch === '.' || ch === '!' || ch === '?') &&
+            (next === ' ' || next === '\n')) {
+            // Skip past whitespace and any closing quote to land on the
+            // next sentence's first real character.
+            let j = i;
+            while (j < fullText.length &&
+                   (fullText[j] === ' ' || fullText[j] === '\n' ||
+                    fullText[j] === '\t' || fullText[j] === '"' ||
+                    fullText[j] === "'")) {
+                j++;
+            }
+            return j;
+        }
+        i--;
+    }
+    return 0;
 }
 
 // --- GAME GENIE (Admin Debug Tool) ---
