@@ -1,4 +1,13 @@
-// adventure-renderer.js — v0.2.7
+// adventure-renderer.js — v0.2.8
+//
+// v0.2.8 — Persistent tilts + backspace recovery:
+//   - Tilted (mistyped) letters STAY askew after correct typing instead of
+//     popping back upright. Permanent record of what almost killed you on
+//     the way past — until you die or load a new chapter.
+//   - Backspacing over a tilted letter halves the tilt angle and recolors
+//     the letter blue ('recovered'). Imperfect fix; you can see it was
+//     wrong but you've made it more right.
+//   - Listens to ttb:positionSet to detect backspace (position decreased).
 //
 // v0.2.7 — Underscore-style cursor gap + keyboard skin shim:
 //   - Cursor-gap red bridge line drops to LETTER BASELINE (like an underscore).
@@ -62,7 +71,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.7';
+export const RENDERER_VERSION = '0.2.8';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -383,8 +392,26 @@ class AdventureRenderer {
 
   _onPositionSet(d) {
     if (typeof d.position !== 'number') return;
-    this._logEvent(`positionSet pos=${d.position}`);
-    this.currentPos = d.position;
+    const oldPos = this.currentPos;
+    const newPos = d.position;
+    this._logEvent(`positionSet pos=${newPos}` + (newPos < oldPos ? ' (backspace)' : ''));
+
+    // Backspace recovery: if cursor moved backward over a tilted letter,
+    // halve the angle and recolor the letter blue. They've recovered, but
+    // imperfectly — you can still see it almost killed them.
+    if (newPos < oldPos) {
+      const tilt = this.letterTilts[newPos];
+      if (tilt) {
+        tilt.angleRad = tilt.angleRad * 0.5;
+        tilt.recovered = true;     // marks for blue color in render
+      }
+      // Clear letterStatus from newPos onward — they're going to retype.
+      for (const k of Object.keys(this.letterStatus)) {
+        if (parseInt(k) >= newPos) delete this.letterStatus[k];
+      }
+    }
+
+    this.currentPos = newPos;
     this._setCurrentParaForPos(this.currentPos);
     this._relayoutCurrentWorld();
     this.cameraY = this._paragraphYOffset(this.currentParaIdx);
@@ -403,9 +430,9 @@ class AdventureRenderer {
         this.letterStatus[d.completedPos] = d.statusAtCompleted;
         // Clear any error flash on this position
         delete this.mistakeFlash[d.completedPos];
-        // Clear any "kicked rock" tilt — they made it past the letter that
-        // had been askew.
-        delete this.letterTilts[d.completedPos];
+        // NOTE: Tilts persist intentionally. A letter that was mistyped stays
+        // tilted as a war wound, even after correct re-typing. Only respawn
+        // or new-chapter clears them.
       }
 
       const oldPos = this.currentPos;
@@ -1065,10 +1092,15 @@ class AdventureRenderer {
           }
         }
 
-        // Letter tilt — kicked-rock pose. Holds at full angle until the
-        // letter is correctly typed (which clears it via _onKeystroke).
+        // Letter tilt — kicked-rock pose. Persists permanently after a
+        // mistake. If the user backspaced over and re-typed (recovered), the
+        // angle is halved and the letter is rendered blue: a visible record
+        // of the close call.
         const tilt = this.letterTilts[globalPos];
         const tiltAngle = tilt ? tilt.angleRad : 0;
+        if (tilt && tilt.recovered) {
+          color = 'rgba(60, 100, 160, 0.85)';   // dusty blue — recovered
+        }
 
         ctx.fillStyle = color;
         if (isActive) {
