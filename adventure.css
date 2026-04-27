@@ -1,36 +1,30 @@
-/* adventure.css v0.0.2 — view-mode skin for Adventure Mode */
-/* v0.0.2: bumped for v3.0.1 release; machine-readable version stamp */
-body::after { content: "v0.0.2"; display: none; }
+/* adventure.css v0.0.3 — view-mode skin for Adventure Mode */
+/* v0.0.3: keyboard + modal skin (round typewriter keys, parchment modals) */
+/* v0.0.2: bumped for v3.0.1 release; machine-readable version stamp       */
+body::after { content: "v0.0.3"; display: none; }
 
-/* Every rule in this file is scoped under body.view-adventure. When a user
-   is in classic view (the default and the only mode existing users see),
-   none of these rules apply and #adventure-canvas remains hidden via the
-   .hidden class on the canvas element itself. */
+/* Every rule in this file is scoped under body.view-adventure. Classic view
+   never sees any of this. */
 
 /* The canvas always exists in the DOM but is hidden in classic view. */
 #adventure-canvas.hidden {
     display: none !important;
 }
 
-/* ─── Adventure view ───────────────────────────────────────────────────── */
+/* ─── Adventure view: canvas ─────────────────────────────────────────── */
 body.view-adventure #adventure-canvas {
     display: block;
     position: fixed;
-    top: 56px;          /* below the HUD */
+    top: 56px;
     left: 0;
     right: 0;
-    bottom: 80px;       /* above the keyboard area */
+    bottom: 80px;
     width: 100%;
     height: calc(100vh - 56px - 80px);
     background: #f2e8d5;
-    z-index: 5;         /* below modals + HUD, above the (hidden) text-stream */
+    z-index: 5;
 }
 
-/* In adventure view, hide all the classic-view text/progress-bar surface.
-   They still exist and are still updated by game.js — kids just never see them.
-   This is essential: hiding via display:none is fine because game.js reads
-   classes/IDs on these elements (via getElementById) which works regardless of
-   display state. */
 body.view-adventure #text-stream,
 body.view-adventure #image-panel,
 body.view-adventure #chapter-progress-bar,
@@ -39,19 +33,211 @@ body.view-adventure #book-info-bar {
     display: none !important;
 }
 
-/* The HUD stays visible — it's the same WPM / Acc / streak / today / week
-   readouts whether you're in classic or adventure mode. */
-
-/* The virtual keyboard stays visible — kids may still want it for finger
-   guidance. */
-
-/* The modal stays as-is — same pause modal, same chapter-complete modal,
-   same settings modal. */
-
-/* Footer version banner styling — overrides the basic footer in style.css */
+/* Footer version banner */
 body footer {
     font-family: 'Courier Prime', monospace;
     font-size: 11px;
     opacity: 0.55;
     padding: 4px 12px;
+}
+
+/* ─── Adventure view: keyboard ───────────────────────────────────────── */
+/* Round typewriter keys with parchment base. Per-key finger tints are
+   re-applied at runtime by adventure-renderer.js's MutationObserver shim
+   (vintage palette mapped from the rainbow). */
+
+body.view-adventure #virtual-keyboard {
+    background: #ede0c4;
+    border-top: 1px solid rgba(43, 34, 26, 0.18);
+    padding: 8px 12px;
+}
+
+body.view-adventure .key {
+    background-color: #f2e8d5;       /* parchment base; finger tints applied via JS */
+    border: 1px solid rgba(43, 34, 26, 0.22);
+    border-radius: 50%;              /* round typewriter keys */
+    color: #2b221a;
+    font-family: 'IM Fell English', Georgia, serif;
+    font-size: 14px;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.5),
+        inset 0 -2px 0 rgba(43, 34, 26, 0.08),
+        0 1px 0 rgba(43, 34, 26, 0.18);
+    aspect-ratio: 1;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
+
+/* Wide keys (Shift, Tab, Caps, Enter, Backspace): pill shape */
+body.view-adventure .key.wide {
+    border-radius: 22px;
+    aspect-ratio: auto;
+    width: auto;
+    min-width: 64px;
+    padding: 0 10px;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+}
+
+/* Spacebar: long pill */
+body.view-adventure .key.space {
+    border-radius: 22px;
+    aspect-ratio: auto;
+    width: 280px;
+}
+
+/* Target / shift-active states */
+body.view-adventure .key.target {
+    background-color: #c0392b !important;
+    color: #f2e8d5;
+    transform: translateY(2px);
+    box-shadow:
+        inset 0 1px 0 rgba(0, 0, 0, 0.15),
+        0 0 0 2px rgba(192, 57, 43, 0.30);
+}
+
+body.view-adventure .key.shift-active {
+    background-color: #d4a82c !important;
+    color: #2b221a;
+}
+
+body.view-adventure .key.key-num {
+    font-size: 12px;
+}
+
+body.view-adventure #caps-warning {
+    background: #c0392b;
+    color: #f2e8d5;
+    font-family: 'IM Fell English', serif;
+    border-radius: 4px;
+}
+
+/* ─── Adventure view: modal ──────────────────────────────────────────── */
+
+body.view-adventure #modal {
+    background: #f2e8d5;
+    color: #2b221a;
+    border: 1px solid rgba(43, 34, 26, 0.30);
+    border-radius: 8px;
+    box-shadow:
+        0 12px 40px rgba(43, 34, 26, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    font-family: 'IM Fell English', Georgia, serif;
+}
+
+/* Subtle parchment grain inside the modal */
+body.view-adventure #modal::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        repeating-linear-gradient(
+            0deg,
+            transparent 0,
+            transparent 27px,
+            rgba(120, 100, 70, 0.04) 27px,
+            rgba(120, 100, 70, 0.04) 28px
+        );
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+body.view-adventure #modal-title-bar {
+    color: #2b221a;
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    font-size: 1.15rem;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(43, 34, 26, 0.18);
+    margin-bottom: 12px;
+}
+
+body.view-adventure #modal-body {
+    color: #2b221a;
+    font-family: 'IM Fell English', Georgia, serif;
+}
+
+/* Modal buttons — leather-bound */
+body.view-adventure .modal-btn,
+body.view-adventure .action-btn {
+    background: #2b221a;
+    color: #f2e8d5;
+    border: 1px solid rgba(43, 34, 26, 0.6);
+    border-radius: 4px;
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    font-size: 1rem;
+    padding: 8px 22px;
+    box-shadow: 0 2px 0 rgba(43, 34, 26, 0.4);
+    cursor: pointer;
+    transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
+
+body.view-adventure .modal-btn:hover,
+body.view-adventure .action-btn:hover {
+    background: #3d3024;
+}
+
+body.view-adventure .modal-btn:active,
+body.view-adventure .action-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 0 0 rgba(43, 34, 26, 0.4);
+}
+
+body.view-adventure .modal-btn:disabled {
+    background: #b8a98c;
+    color: rgba(43, 34, 26, 0.4);
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+body.view-adventure .text-btn {
+    color: rgba(43, 34, 26, 0.6);
+}
+
+/* Modal selects (Sprint, Keyboard, View dropdowns) */
+body.view-adventure select.modal-select,
+body.view-adventure .modal-select-sm {
+    background: #ede0c4;
+    color: #2b221a;
+    border: 1px solid rgba(43, 34, 26, 0.30);
+    border-radius: 4px;
+    font-family: 'IM Fell English', serif;
+    padding: 6px 10px;
+}
+
+body.view-adventure .menu-label {
+    color: rgba(43, 34, 26, 0.65);
+    font-family: 'IM Fell English', serif;
+    font-style: italic;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* Streak when cold (count is 0) — muted vintage instead of cool grey */
+body.view-adventure #streak-display.streak-cold {
+    color: rgba(43, 34, 26, 0.40);
+}
+
+body.view-adventure #modal-body h1,
+body.view-adventure #modal-body h2 {
+    font-family: 'IM Fell English', serif;
+    color: #2b221a;
+    font-style: italic;
+}
+
+body.view-adventure .miss-pill,
+body.view-adventure .practice-pill {
+    background: rgba(192, 57, 43, 0.12);
+    border: 1px solid rgba(192, 57, 43, 0.4);
+    color: #2b221a;
+    border-radius: 4px;
+    font-family: 'IM Fell English', serif;
 }
