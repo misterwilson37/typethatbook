@@ -1,4 +1,4 @@
-/* adventure.css v0.0.3 — view-mode skin for Adventure Mode */
+/* adventure.css v0.0.3 — view-mode skin for Adventure Mode */ 
 /* v0.0.3: keyboard + modal skin (round typewriter keys, parchment modals) */
 /* v0.0.2: bumped for v3.0.1 release; machine-readable version stamp       */
 body::after { content: "v0.0.3"; display: none; }
