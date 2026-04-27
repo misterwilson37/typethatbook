@@ -1,4 +1,13 @@
-// adventure-renderer.js — v0.2.0
+// adventure-renderer.js — v0.2.1
+//
+// v0.2.1 bugfixes:
+//   - Per-letter rendering with active-cursor highlight (red), completed-faded,
+//     mistake-flash. The old version painted whole words in a single color.
+//   - Bigger text (32px) for readability.
+//   - "space" italic label restored under the cursor when on a gap, in addition
+//     to the red underline.
+//   - Curly-quote fix: ctx.fontKerning = 'none' to disable IM Fell English's
+//     auto-curling of straight quotes.
 //
 // Observer of TTB events. Listens to ttb:* CustomEvents on document and renders
 // the typing experience as a stick figure walking across word-platforms with
@@ -29,7 +38,10 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-const TEXT_FONT = '26px "IM Fell English", Georgia, serif';
+export const RENDERER_VERSION = '0.2.1';
+
+const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
+const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
 
 // ============================================================================
 // Public API
@@ -100,6 +112,13 @@ class AdventureRenderer {
 
     // ---- Crumbling words (key: `${paraIdx}:${startPos}`) ----
     this.crumbleAt = {};
+
+    // ---- Per-letter status (mirrors game.js classes done-perfect/fixed/dirty) ----
+    // Keyed by global char position. Populated as the user types; cleared on
+    // textLoaded and respawn.
+    this.letterStatus = {};
+    // Last-mistake flash: position -> birthtime, fades out
+    this.mistakeFlash = {};
 
     // ---- Background decorations ----
     this.ghosts = [];
@@ -187,6 +206,8 @@ class AdventureRenderer {
     this.prevSign = 0;
     this.runLen = 0;
     this.crumbleAt = {};
+    this.letterStatus = {};
+    this.mistakeFlash = {};
     this.ghosts = [];
     this.gravestones = [];
     this.currentParaIdx = 0;
@@ -195,6 +216,12 @@ class AdventureRenderer {
     this.cameraY = 0;
     this.targetCameraY = 0;
     this.state = 'idle';
+
+    // If we're resuming mid-chapter, mark all preceding chars as 'perfect'
+    // so they render as completed (matches game.js's setupGame behavior).
+    for (let i = 0; i < this.currentPos; i++) {
+      this.letterStatus[i] = 'perfect';
+    }
 
     this._splitParagraphs();
     this._setCurrentParaForPos(this.currentPos);
@@ -231,6 +258,13 @@ class AdventureRenderer {
     this.lastKeystrokeTime = performance.now();
 
     if (d.correct) {
+      // Record the just-completed letter's quality
+      if (typeof d.completedPos === 'number' && d.statusAtCompleted) {
+        this.letterStatus[d.completedPos] = d.statusAtCompleted;
+        // Clear any error flash on this position
+        delete this.mistakeFlash[d.completedPos];
+      }
+
       const oldPos = this.currentPos;
       const newPos = (typeof d.position === 'number') ? d.position : oldPos + 1;
       this.currentPos = newPos;
@@ -251,8 +285,11 @@ class AdventureRenderer {
           this.hopPhase = 0;
         }
       }
+    } else {
+      // Mistake — flash the current position red briefly
+      const pos = (typeof d.position === 'number') ? d.position : this.currentPos;
+      this.mistakeFlash[pos] = performance.now();
     }
-    // Mistakes: no positional change. The character flickers via state.
   }
 
   _onFail(d) {
@@ -293,6 +330,12 @@ class AdventureRenderer {
     this.prevSign = 0;
     this.runLen = 0;
     this.crumbleAt = {};
+    this.mistakeFlash = {};
+    // Clear status for everything from the respawn point forward — the user
+    // must retype it. Keep prior characters as they were.
+    for (const k of Object.keys(this.letterStatus)) {
+      if (parseInt(k) >= this.currentPos) delete this.letterStatus[k];
+    }
     this._setCurrentParaForPos(this.currentPos);
     this._relayoutCurrentWorld();
     const charX = this._xAtPosition(this.currentPos);
@@ -366,6 +409,7 @@ class AdventureRenderer {
   _buildParagraphSegments(text, startX, paraIdx) {
     const ctx = this.ctx;
     ctx.font = TEXT_FONT;
+    if ('fontKerning' in ctx) ctx.fontKerning = 'none';
     const yOffset = this._paragraphYOffset(paraIdx);
     const charWidthCache = {};
     const measure = (s) => {
@@ -656,6 +700,15 @@ class AdventureRenderer {
     // Word platforms (each at its own paragraph Y)
     ctx.font = TEXT_FONT;
     ctx.textBaseline = 'alphabetic';
+    // Disable auto-curling of straight ASCII quotes — IM Fell English insists
+    // on rendering both " glyphs as right-curly otherwise.
+    if ('fontKerning' in ctx) ctx.fontKerning = 'none';
+    ctx.textRendering = 'geometricPrecision';
+
+    const cursorPos = this.currentPos;
+    const cursorParaIdx = this.currentParaIdx;
+    const cursorLocalPos = this._localPosWithinPara(cursorPos, cursorParaIdx);
+
     for (const seg of this.wordSegments) {
       if (seg.type !== 'word') continue;
       const angle = seg.angle || 0;
@@ -687,25 +740,85 @@ class AdventureRenderer {
       ctx.lineTo(seg.width, 0);
       ctx.stroke();
 
-      // Word label
-      ctx.fillStyle = '#2b221a';
-      ctx.fillText(seg.text, 0, 22);
+      // ─── Per-letter rendering ───────────────────────────────────────
+      // Each letter is painted in a color reflecting its state:
+      //   active cursor: bright red (cherry on top)
+      //   future:        ink (#2b221a)
+      //   perfect:       slightly faded ink
+      //   fixed:         slightly more faded
+      //   dirty:         even more faded — got there but with errors
+      //   mistake-flash: orange-red for 250ms then fades back
+      const isCursorOnThisWord = (seg.paraIdx === cursorParaIdx) &&
+                                  (cursorLocalPos >= seg.startPos) &&
+                                  (cursorLocalPos <= seg.endPos);
+
+      for (let k = 0; k < seg.text.length; k++) {
+        const localPos = seg.startPos + k;
+        const globalPos = this.paragraphStartPos[seg.paraIdx] + localPos;
+        const offset = (seg.letterOffsets && seg.letterOffsets[k]) || 0;
+
+        let color = '#2b221a';                // future text
+        let isActive = false;
+
+        if (isCursorOnThisWord && localPos === cursorLocalPos) {
+          color = '#c0392b';                  // bright red — current cursor
+          isActive = true;
+        } else if (this.letterStatus[globalPos] === 'perfect') {
+          color = 'rgba(43, 34, 26, 0.55)';
+        } else if (this.letterStatus[globalPos] === 'fixed') {
+          color = 'rgba(43, 34, 26, 0.40)';
+        } else if (this.letterStatus[globalPos] === 'dirty') {
+          color = 'rgba(150, 50, 50, 0.55)';  // reddish-faded
+        }
+
+        // Mistake flash overrides: 280ms of bright orange-red after a wrong key
+        const flashAt = this.mistakeFlash[globalPos];
+        if (flashAt) {
+          const age = now - flashAt;
+          if (age < 280) {
+            color = '#d04020';
+          } else {
+            delete this.mistakeFlash[globalPos];
+          }
+        }
+
+        ctx.fillStyle = color;
+        if (isActive) {
+          // Slight shadow to make the cursor letter pop
+          ctx.shadowColor = 'rgba(192, 57, 43, 0.4)';
+          ctx.shadowBlur = 6;
+        }
+        ctx.fillText(seg.text[k], offset, 26);
+        if (isActive) ctx.shadowBlur = 0;
+      }
 
       ctx.restore();
     }
 
-    // Space indicator (red underline) at current position if cursor is on a gap
-    const localPos = this._localPosWithinPara(this.currentPos, this.currentParaIdx);
+    // Space label + red underline at current position if cursor is on a gap
     for (const seg of this.wordSegments) {
-      if (seg.paraIdx !== this.currentParaIdx) continue;
-      if (seg.type === 'gap' && localPos >= seg.startPos && localPos <= seg.endPos) {
-        const segScreenY = baseY + seg.yOffset - this.cameraY + 28;
-        ctx.strokeStyle = 'rgba(180, 40, 40, 0.8)';
-        ctx.lineWidth = 1.5;
+      if (seg.paraIdx !== cursorParaIdx) continue;
+      if (seg.type === 'gap' && cursorLocalPos >= seg.startPos && cursorLocalPos <= seg.endPos) {
+        const segScreenY = baseY + seg.yOffset - this.cameraY;
+        const x0 = seg.x - this.cameraX;
+        const x1 = x0 + seg.width;
+
+        // Red underline (the platform-line equivalent for spaces)
+        ctx.strokeStyle = 'rgba(192, 57, 43, 0.85)';
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
-        ctx.moveTo(seg.x - this.cameraX, segScreenY);
-        ctx.lineTo(seg.x + seg.width - this.cameraX, segScreenY);
+        ctx.moveTo(x0, segScreenY);
+        ctx.lineTo(x1, segScreenY);
         ctx.stroke();
+
+        // "space" italic label below
+        ctx.fillStyle = 'rgba(192, 57, 43, 0.75)';
+        ctx.font = SPACE_LABEL_FONT;
+        ctx.textAlign = 'center';
+        ctx.fillText('space', (x0 + x1) / 2, segScreenY + 14);
+        ctx.textAlign = 'start';
+        ctx.font = TEXT_FONT;
+        if ('fontKerning' in ctx) ctx.fontKerning = 'none';
         break;
       }
     }
