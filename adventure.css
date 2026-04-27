@@ -1,8 +1,9 @@
-/* adventure.css v0.0.4 — view-mode skin for Adventure Mode */
-/* v0.0.4: number & symbol positioning fixed for round keys             */
-/* v0.0.3: keyboard + modal skin (round typewriter keys, parchment modals) */
-/* v0.0.2: bumped for v3.0.1 release; machine-readable version stamp       */
-body::after { content: "v0.0.4"; display: none; }
+/* adventure.css v0.0.5 — view-mode skin for Adventure Mode */
+/* v0.0.5: target key turns black, not red; HUD streak override removed       */
+/* v0.0.4: number & symbol positioning fixed for round keys                   */
+/* v0.0.3: keyboard + modal skin (round typewriter keys, parchment modals)    */
+/* v0.0.2: bumped for v3.0.1 release; machine-readable version stamp          */
+body::after { content: "v0.0.5"; display: none; }
 
 /* Every rule in this file is scoped under body.view-adventure. Classic view
    never sees any of this. */
@@ -94,13 +95,17 @@ body.view-adventure .key.space {
 }
 
 /* Target / shift-active states */
+/* Target key: solid black with cream label. The earlier red read as "you're
+   wrong" to the kids — now the contrast cue is just darkness. (Future bump
+   could tint the label in the finger color via a JS shim, but black/cream
+   is unambiguous and ships clean.) */
 body.view-adventure .key.target {
-    background-color: #c0392b !important;
-    color: #f2e8d5;
+    background-color: #2b221a !important;
+    color: #f2e8d5 !important;
     transform: translateY(2px);
     box-shadow:
-        inset 0 1px 0 rgba(0, 0, 0, 0.15),
-        0 0 0 2px rgba(192, 57, 43, 0.30);
+        inset 0 1px 0 rgba(0, 0, 0, 0.25),
+        0 0 0 2px rgba(43, 34, 26, 0.30);
 }
 
 body.view-adventure .key.shift-active {
@@ -236,10 +241,9 @@ body.view-adventure .menu-label {
     text-transform: uppercase;
 }
 
-/* Streak when cold (count is 0) — muted vintage instead of cool grey */
-body.view-adventure #streak-display.streak-cold {
-    color: rgba(43, 34, 26, 0.40);
-}
+/* HUD bar (top) is intentionally NOT skinned. The white-on-black look stays
+   in adventure mode — it doesn't clash and kids said the streak number was
+   missing when re-tinted. Keep it classic. */
 
 body.view-adventure #modal-body h1,
 body.view-adventure #modal-body h2 {
