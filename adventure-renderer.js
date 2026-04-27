@@ -1,28 +1,32 @@
-// adventure-renderer.js — v0.2.2
+// adventure-renderer.js — v0.2.3
+//
+// v0.2.3 — Integration of Gemini's refined animation block:
+//   - New stumble (formerly "fall"): running-gait-based with sway, much more
+//     believable than the simple tumble-and-rotate.
+//   - New leap (paragraph crossing): full leg/arm keyframes instead of just a
+//     sin-arc translation. The figure actually leaps.
+//   - New hop (space): one leg locks straight during the arc, sells the jump.
+//   - Three ghost styles, randomized per death:
+//       'limp'  — short body, dangling arms, X-eyes
+//       'sheet' — classic sheet ghost with wavy hem
+//       'head'  — Y-frame body with a head that rolls left and right
+//   - X-eyes ONLY on actual ghosts. Not on the living-but-stumbling figure.
+//   - Walk/jog/run gait profiles updated to Gemini's tuning (better arm swing
+//     in jog/run especially).
 //
 // v0.2.2 bugfixes:
 //   - Respawn detritus: paragraph crossings now rebuild via
-//     _relayoutCurrentWorld instead of appending forever. _appendNewPreviewParagraph
-//     is gone. Single canonical layout rule: wordSegments only ever holds the
-//     current paragraph + the next-paragraph preview, both starting from X=0
-//     in their own coord space. Camera resets to follow the figure on every
-//     rebuild.
-//   - Preview paragraph fades to ~30% alpha and loses its platform underline,
-//     so it reads as "next destination" not "competing line of words".
-//   - Tabs render distinctly: wider gap, italic "tab" label below the pit.
-//   - Gravestone inscription: each grave displays the letter that killed the
-//     player, sourced from the ttb:fail event's `expected` field.
-//   - Space pit drops below the platform line so the figure visibly hops over
-//     it. The "space" italic label sits inside the pit.
+//     _relayoutCurrentWorld instead of appending forever.
+//   - Preview paragraph fades to ~30% alpha and loses its platform underline.
+//   - Tabs render distinctly: wider gap, italic "tab" label.
+//   - Gravestone inscription: each grave displays the failed letter.
+//   - Space pit drops below the platform line so the figure visibly hops.
 //
 // v0.2.1 bugfixes:
-//   - Per-letter rendering with active-cursor highlight (red), completed-faded,
-//     mistake-flash. The old version painted whole words in a single color.
-//   - Bigger text (32px) for readability.
-//   - "space" italic label restored under the cursor when on a gap, in addition
-//     to the red underline.
-//   - Curly-quote fix: ctx.fontKerning = 'none' to disable IM Fell English's
-//     auto-curling of straight quotes.
+//   - Per-letter rendering with active-cursor highlight.
+//   - Bigger text (32px).
+//   - "space" italic label restored.
+//   - Curly-quote fix: ctx.fontKerning = 'none'.
 //
 // Observer of TTB events. Listens to ttb:* CustomEvents on document and renders
 // the typing experience as a stick figure walking across word-platforms with
@@ -53,7 +57,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.2';
+export const RENDERER_VERSION = '0.2.3';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -340,8 +344,13 @@ class AdventureRenderer {
       inscription,
     });
 
-    // Ghost rises slowly from that gravestone
+    // Ghost rises slowly from that gravestone. Style is randomized per death
+    // for visual variety: 'limp' (short body, dangling arms), 'sheet' (classic
+    // sheet ghost with wavy hem), or 'head' (Y-frame body with rolling head).
+    const ghostStyles = ['limp', 'sheet', 'head'];
+    const ghostStyle = ghostStyles[Math.floor(Math.random() * ghostStyles.length)];
     this.ghosts.push({
+      style: ghostStyle,
       originXPct: graveXPct,
       originYPct: Math.max(0, graveYPct - 0.02),
       destXPct: 0.05 + Math.random() * 0.9,
@@ -906,136 +915,264 @@ class AdventureRenderer {
     ctx.save();
     ctx.translate(x, y);
 
-    // World offsets (jumps, hops, respawns)
-    if (this.state === 'respawning') {
-      const dropT = Math.min(1, Math.max(0, (this.respawnPhase - 0.15) / 0.85));
-      ctx.translate(0, -380 * (1 - dropT * dropT));
-    } else {
-      if (this.isJumping) ctx.translate(0, -Math.sin(this.jumpPhase * Math.PI) * 80);
-      if (this.isHopping) ctx.translate(0, -Math.sin(this.hopPhase * Math.PI) * 22);
-      ctx.rotate(this.figureAngle);
+    // The figure has many states. World offsets (jump arc, hop arc, respawn
+    // drop) translate the whole body; gait state determines pose. For the
+    // stumble (state==='fall') we DON'T apply jump/hop offsets — the figure is
+    // tumbling on the spot before respawn animates them away. Note: X-eyes are
+    // ONLY drawn on actual ghosts (in _drawGhost), never on a living figure
+    // who's just tripped.
+
+    // ---- Stumble (fail/spam-error): running-gait-based stumble with sway ----
+    // Player is alive but tripping. Lasts ~900ms before game.js fires the
+    // respawn event which switches state to 'respawning'.
+    if (this.state === 'fall') {
+      const fp = this.fallPhase;
+      const stumbleData = {
+        legs: [{p:0,hip:30,knee:10},{p:0.2,hip:-20,knee:0},{p:0.5,hip:-40,knee:0},{p:0.8,hip:60,knee:0},{p:1,hip:30,knee:0}],
+        arms: [{p:0,shoulder:-20,elbow:20},{p:0.2,shoulder:60,elbow:10},{p:0.5,shoulder:100,elbow:0},{p:0.8,shoulder:40,elbow:40},{p:1,shoulder:-20,elbow:10}],
+      };
+      const limbLen = 9, armLen = 7.5, spineLen = 14;
+      ctx.strokeStyle = '#2b221a';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      const getA = this._getAngles;
+      const lLegA = getA(fp, stumbleData.legs);
+      const rLegA = getA((fp + 0.3) % 1, stumbleData.legs);
+      const lLeg = this._calcLeg(lLegA, limbLen);
+      const rLeg = this._calcLeg(rLegA, limbLen);
+      const hipY = -16 + Math.sin(fp * Math.PI) * 6;
+      const lean = Math.sin(fp * Math.PI) * 0.9;
+      const shoulderX = Math.sin(lean) * spineLen;
+      const shoulderY = hipY - Math.cos(lean) * spineLen;
+      const lArm = this._calcArm(getA(fp, stumbleData.arms), shoulderX, shoulderY, armLen);
+      const rArm = this._calcArm(getA(fp, stumbleData.arms), shoulderX, shoulderY, armLen);
+
+      const drawLine = (x1,y1,x2,y2,x3,y3) => {
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.stroke();
+      };
+      drawLine(shoulderX, shoulderY, rArm.elbowX, rArm.elbowY, rArm.handX, rArm.handY);
+      drawLine(0, hipY, rLeg.kneeX, hipY + rLeg.kneeY, rLeg.footX, hipY + rLeg.footY);
+      ctx.beginPath(); ctx.moveTo(0, hipY); ctx.lineTo(shoulderX, shoulderY); ctx.stroke();
+      ctx.beginPath(); ctx.arc(shoulderX, shoulderY - 5, 5.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#2b221a'; ctx.fill();
+      drawLine(0, hipY, lLeg.kneeX, hipY + lLeg.kneeY, lLeg.footX, hipY + lLeg.footY);
+      drawLine(shoulderX, shoulderY, lArm.elbowX, lArm.elbowY, lArm.handX, lArm.handY);
+      ctx.restore();
+      return;
     }
+
+    // ---- Respawning (drop from sky → landing crouch → stand) ----
+    if (this.state === 'respawning') {
+      const rp = this.respawnPhase;
+      const limbLen = 9, armLen = 7.5, spineLen = 14;
+      ctx.strokeStyle = '#2b221a';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      let lLegA, rLegA, hipY, lean, lArmA, rArmA;
+      if (rp < 0.5) {
+        // Falling phase: figure drops from above with arms wide
+        const fallT = rp / 0.5;
+        ctx.translate(0, -400 * (1 - Math.pow(fallT, 2)));
+        hipY = -16; lean = 0.2;
+        lLegA = { primary: -10 * Math.PI / 180, secondary: 20 * Math.PI / 180 };
+        rLegA = { primary: 20 * Math.PI / 180, secondary: 40 * Math.PI / 180 };
+        lArmA = { primary: -140 * Math.PI / 180, secondary: 40 * Math.PI / 180 };
+        rArmA = { primary: -110 * Math.PI / 180, secondary: 20 * Math.PI / 180 };
+      } else {
+        // Landing crouch → stand
+        const crouchT = (rp - 0.5) / 0.5;
+        hipY = -6 - Math.sin(crouchT * Math.PI / 2) * 10;
+        lean = 0.8 * (1 - Math.pow(crouchT, 2));
+        lLegA = { primary: -30 * Math.PI / 180, secondary: 100 * (1 - crouchT) * Math.PI / 180 };
+        rLegA = { primary:  30 * Math.PI / 180, secondary: 100 * (1 - crouchT) * Math.PI / 180 };
+        lArmA = { primary: -60 * Math.PI / 180, secondary:  80 * (1 - crouchT) * Math.PI / 180 };
+        rArmA = { primary: -40 * Math.PI / 180, secondary:  80 * (1 - crouchT) * Math.PI / 180 };
+      }
+
+      const lLeg = this._calcLeg(lLegA, limbLen);
+      const rLeg = this._calcLeg(rLegA, limbLen);
+      const shoulderX = Math.sin(lean) * spineLen;
+      const shoulderY = hipY - Math.cos(lean) * spineLen;
+      const lArm = this._calcArm(lArmA, shoulderX, shoulderY, armLen);
+      const rArm = this._calcArm(rArmA, shoulderX, shoulderY, armLen);
+
+      const drawLine = (x1,y1,x2,y2,x3,y3) => {
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.stroke();
+      };
+      drawLine(shoulderX, shoulderY, rArm.elbowX, rArm.elbowY, rArm.handX, rArm.handY);
+      drawLine(0, hipY, rLeg.kneeX, hipY + rLeg.kneeY, rLeg.footX, hipY + rLeg.footY);
+      ctx.beginPath(); ctx.moveTo(0, hipY); ctx.lineTo(shoulderX, shoulderY); ctx.stroke();
+      ctx.beginPath(); ctx.arc(shoulderX, shoulderY - 5, 5.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#2b221a'; ctx.fill();
+      drawLine(0, hipY, lLeg.kneeX, hipY + lLeg.kneeY, lLeg.footX, hipY + lLeg.footY);
+      drawLine(shoulderX, shoulderY, lArm.elbowX, lArm.elbowY, lArm.handX, lArm.handY);
+      ctx.restore();
+      return;
+    }
+
+    // ---- Leap (paragraph crossing): full leg/arm leap keyframes ----
+    if (this.isJumping) {
+      const limbLen = 9, armLen = 7.5, spineLen = 14;
+      ctx.translate(0, -Math.sin(this.jumpPhase * Math.PI) * 80);
+      ctx.strokeStyle = '#2b221a';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.rotate(this.figureAngle);
+
+      const leapData = {
+        legs: [{p:0,hip:-20,knee:60},{p:0.2,hip:-40,knee:0},{p:0.5,hip:20,knee:90},{p:0.8,hip:70,knee:0},{p:1,hip:20,knee:40}],
+        arms: [{p:0,shoulder:-60,elbow:10},{p:0.2,shoulder:45,elbow:10},{p:0.5,shoulder:90,elbow:40},{p:0.8,shoulder:20,elbow:10},{p:1,shoulder:-20,elbow:20}],
+      };
+      const getA = this._getAngles;
+      const legAng = getA(this.jumpPhase, leapData.legs);
+      const armAng = getA(this.jumpPhase, leapData.arms);
+      const lLeg = this._calcLeg(legAng, limbLen);
+      const rLeg = this._calcLeg(legAng, limbLen);
+      const hipY = -18, lean = 0.4;
+      const shoulderX = Math.sin(lean) * spineLen;
+      const shoulderY = hipY - Math.cos(lean) * spineLen;
+      const lArm = this._calcArm(armAng, shoulderX, shoulderY, armLen);
+      const rArm = this._calcArm(armAng, shoulderX, shoulderY, armLen);
+
+      const drawLine = (x1,y1,x2,y2,x3,y3) => {
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.stroke();
+      };
+      drawLine(shoulderX, shoulderY, rArm.elbowX, rArm.elbowY, rArm.handX, rArm.handY);
+      drawLine(0, hipY, rLeg.kneeX, hipY + rLeg.kneeY, rLeg.footX, hipY + rLeg.footY);
+      ctx.beginPath(); ctx.moveTo(0, hipY); ctx.lineTo(shoulderX, shoulderY); ctx.stroke();
+      ctx.beginPath(); ctx.arc(shoulderX, shoulderY - 5, 5.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#2b221a'; ctx.fill();
+      drawLine(0, hipY, lLeg.kneeX, hipY + lLeg.kneeY, lLeg.footX, hipY + lLeg.footY);
+      drawLine(shoulderX, shoulderY, lArm.elbowX, lArm.elbowY, lArm.handX, lArm.handY);
+      ctx.restore();
+      return;
+    }
+
+    // ---- Living: idle, walk, jog, run (with optional in-progress hop) ----
+    if (this.isHopping) ctx.translate(0, -Math.sin(this.hopPhase * Math.PI) * 22);
+    ctx.rotate(this.figureAngle);
 
     ctx.strokeStyle = '#2b221a';
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Fall pose
-    if (this.state === 'fall') {
-      ctx.translate(0, this.fallPhase * this.fallPhase * 500);
-      ctx.rotate(this.fallPhase * Math.PI * 1.8);
-      ctx.beginPath();
-      ctx.moveTo(0, -16); ctx.lineTo(-8, -8); ctx.lineTo(-10, 0);
-      ctx.moveTo(0, -16); ctx.lineTo(10, -10); ctx.lineTo(12, -4);
-      ctx.moveTo(0, -16); ctx.lineTo(10, -26);
-      ctx.arc(10, -32, 5, 0, Math.PI * 2);
-      ctx.moveTo(10, -26); ctx.lineTo(14, -18); ctx.lineTo(16, -10);
-      ctx.moveTo(10, -26); ctx.lineTo(6, -16); ctx.lineTo(8, -6);
-      ctx.stroke();
-      ctx.restore();
-      return;
-    }
-
-    // Gait profiles — clinical hip/knee/shoulder/elbow keyframes per state
     const profiles = {
       walk: {
-        speed: 1.0, lean: 0.05,
+        speed: 2.5, lean: 0.05,
         leg: [{p:0,hip:30,knee:0},{p:0.15,hip:15,knee:15},{p:0.3,hip:0,knee:0},{p:0.5,hip:-20,knee:10},{p:0.6,hip:0,knee:40},{p:0.75,hip:25,knee:60},{p:0.85,hip:30,knee:10},{p:1,hip:30,knee:0}],
         arm: [{p:0,shoulder:-25,elbow:10},{p:0.15,shoulder:-15,elbow:10},{p:0.3,shoulder:0,elbow:15},{p:0.5,shoulder:20,elbow:45},{p:0.6,shoulder:10,elbow:35},{p:0.75,shoulder:-10,elbow:20},{p:0.85,shoulder:-20,elbow:15},{p:1,shoulder:-25,elbow:10}],
       },
       jog: {
-        speed: 1.5, lean: 0.15,
+        speed: 3.5, lean: 0.15,
         leg: [{p:0,hip:35,knee:10},{p:0.15,hip:10,knee:30},{p:0.3,hip:-10,knee:15},{p:0.5,hip:-25,knee:20},{p:0.6,hip:-10,knee:70},{p:0.75,hip:35,knee:90},{p:0.85,hip:40,knee:30},{p:1,hip:35,knee:10}],
-        arm: [{p:0,shoulder:-30,elbow:70},{p:0.15,shoulder:-15,elbow:75},{p:0.3,shoulder:10,elbow:85},{p:0.5,shoulder:30,elbow:95},{p:0.6,shoulder:15,elbow:85},{p:0.75,shoulder:-15,elbow:70},{p:0.85,shoulder:-25,elbow:65},{p:1,shoulder:-30,elbow:70}],
+        arm: [{p:0,shoulder:-70,elbow:60},{p:0.15,shoulder:-30,elbow:70},{p:0.3,shoulder:20,elbow:80},{p:0.5,shoulder:30,elbow:85},{p:0.6,shoulder:15,elbow:80},{p:0.75,shoulder:-30,elbow:60},{p:0.85,shoulder:-60,elbow:50},{p:1,shoulder:-70,elbow:60}],
       },
       run: {
-        speed: 2.2, lean: 0.30,
+        speed: 5.5, lean: 0.30,
         leg: [{p:0,hip:45,knee:15},{p:0.15,hip:5,knee:40},{p:0.3,hip:-20,knee:20},{p:0.5,hip:-40,knee:25},{p:0.6,hip:-15,knee:90},{p:0.75,hip:40,knee:120},{p:0.85,hip:55,knee:40},{p:1,hip:45,knee:15}],
-        arm: [{p:0,shoulder:-45,elbow:60},{p:0.15,shoulder:-20,elbow:75},{p:0.3,shoulder:15,elbow:95},{p:0.5,shoulder:45,elbow:110},{p:0.6,shoulder:20,elbow:90},{p:0.75,shoulder:-20,elbow:60},{p:0.85,shoulder:-40,elbow:50},{p:1,shoulder:-45,elbow:60}],
+        arm: [{p:0,shoulder:-75,elbow:70},{p:0.15,shoulder:-30,elbow:80},{p:0.3,shoulder:20,elbow:100},{p:0.5,shoulder:45,elbow:110},{p:0.6,shoulder:20,elbow:90},{p:0.75,shoulder:-30,elbow:70},{p:0.85,shoulder:-60,elbow:60},{p:1,shoulder:-75,elbow:70}],
       },
     };
 
-    let activeProfile = profiles.walk;
-    if (this.state === 'jog') activeProfile = profiles.jog;
-    if (this.state === 'run') activeProfile = profiles.run;
-    if (this.state === 'idle') activeProfile = profiles.walk;
+    let active = profiles.walk;
+    if (this.state === 'jog') active = profiles.jog;
+    if (this.state === 'run') active = profiles.run;
+    // (idle uses walk profile, locked at phase=0)
 
-    const getAngles = (phase, dataSet) => {
-      let p1 = dataSet[0], p2 = dataSet[1];
-      for (let i = 0; i < dataSet.length - 1; i++) {
-        if (phase >= dataSet[i].p && phase <= dataSet[i + 1].p) {
-          p1 = dataSet[i]; p2 = dataSet[i + 1]; break;
-        }
-      }
-      const t = (phase - p1.p) / (p2.p - p1.p);
-      const val1 = p1.hip !== undefined ? p1.hip : p1.shoulder;
-      const val2 = p2.hip !== undefined ? p2.hip : p2.shoulder;
-      const joint1 = p1.knee !== undefined ? p1.knee : p1.elbow;
-      const joint2 = p2.knee !== undefined ? p2.knee : p2.elbow;
-      const primaryDeg = val1 + (val2 - val1) * t;
-      const secondaryDeg = joint1 + (joint2 - joint1) * t;
-      return { primary: primaryDeg * Math.PI / 180, secondary: secondaryDeg * Math.PI / 180 };
-    };
-
-    let phase = ((this.walkPhase * activeProfile.speed) / (Math.PI * 2)) % 1;
+    let phase = ((this.walkPhase * active.speed) / (Math.PI * 2)) % 1;
     if (phase < 0) phase += 1;
     if (this.state === 'idle') phase = 0;
 
-    const lLegAngles = getAngles(phase, activeProfile.leg);
-    const rLegAngles = getAngles((phase + 0.5) % 1, activeProfile.leg);
-    const lArmAngles = getAngles(phase, activeProfile.arm);
-    const rArmAngles = getAngles((phase + 0.5) % 1, activeProfile.arm);
+    const lLegA = this._getAngles(phase, active.leg);
+    const rLegA = this._getAngles((phase + 0.5) % 1, active.leg);
 
-    const limbLen = 9;
-    const armLen = 7.5;
+    // During a hop, lock the left leg straight to sell the leap pose. The
+    // gait's arm swing continues normally.
+    if (this.isHopping) { lLegA.primary = 45 * Math.PI / 180; lLegA.secondary = 0; }
 
-    const calcLeg = (angles) => {
-      const thighAngle = angles.primary;
-      const calfAngle = thighAngle - angles.secondary;
-      const kneeX = Math.sin(thighAngle) * limbLen;
-      const kneeY = Math.cos(thighAngle) * limbLen;
-      const footX = kneeX + Math.sin(calfAngle) * limbLen;
-      const footY = kneeY + Math.cos(calfAngle) * limbLen;
-      return { kneeX, kneeY, footX, footY };
-    };
-    const calcArm = (angles, shoulderX, shoulderY) => {
-      const upperAngle = angles.primary;
-      const lowerAngle = upperAngle + angles.secondary;
-      const elbowX = shoulderX + Math.sin(upperAngle) * armLen;
-      const elbowY = shoulderY + Math.cos(upperAngle) * armLen;
-      const handX = elbowX + Math.sin(lowerAngle) * armLen;
-      const handY = elbowY + Math.cos(lowerAngle) * armLen;
-      return { elbowX, elbowY, handX, handY };
-    };
+    const limbLen = 9, armLen = 7.5, spineLen = 14;
+    const lLeg = this._calcLeg(lLegA, limbLen);
+    const rLeg = this._calcLeg(rLegA, limbLen);
 
-    const lLeg = calcLeg(lLegAngles);
-    const rLeg = calcLeg(rLegAngles);
+    // Lock lowest foot to Y=0 to create dynamic body rise/fall during gait
     const maxFootY = Math.max(lLeg.footY, rLeg.footY);
     const hipY = this.state === 'idle' ? -16 : -maxFootY;
 
-    const lean = this.state === 'idle' ? 0 : activeProfile.lean;
-    const spineLen = 14;
+    const lean = this.state === 'idle' ? 0 : active.lean;
     const shoulderX = Math.sin(lean) * spineLen;
     const shoulderY = hipY - Math.cos(lean) * spineLen;
 
-    const lArm = calcArm(lArmAngles, shoulderX, shoulderY);
-    const rArm = calcArm(rArmAngles, shoulderX, shoulderY);
+    const lArm = this._calcArm(this._getAngles(phase, active.arm), shoulderX, shoulderY, armLen);
+    const rArm = this._calcArm(this._getAngles((phase + 0.5) % 1, active.arm), shoulderX, shoulderY, armLen);
 
-    const drawLine = (x1, y1, x2, y2, x3, y3) => {
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x3, y3); ctx.stroke();
+    const drawLine = (x1,y1,x2,y2,x3,y3) => {
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.stroke();
     };
 
+    // Background side first (right limbs)
     drawLine(shoulderX, shoulderY, rArm.elbowX, rArm.elbowY, rArm.handX, rArm.handY);
     drawLine(0, hipY, rLeg.kneeX, hipY + rLeg.kneeY, rLeg.footX, hipY + rLeg.footY);
 
+    // Spine + head
     ctx.beginPath(); ctx.moveTo(0, hipY); ctx.lineTo(shoulderX, shoulderY); ctx.stroke();
-    ctx.beginPath(); ctx.arc(shoulderX, shoulderY - 5, 5.5, 0, Math.PI * 2); ctx.fillStyle = '#2b221a'; ctx.fill();
+    ctx.beginPath(); ctx.arc(shoulderX, shoulderY - 5, 5.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#2b221a'; ctx.fill();
 
+    // Foreground side (left limbs)
     drawLine(0, hipY, lLeg.kneeX, hipY + lLeg.kneeY, lLeg.footX, hipY + lLeg.footY);
     drawLine(shoulderX, shoulderY, lArm.elbowX, lArm.elbowY, lArm.handX, lArm.handY);
 
     ctx.restore();
+  }
+
+  // Shared kinematic helpers — promoted out of _drawStickFigure so the various
+  // pose branches (walk/leap/stumble/respawn) can share them.
+  _getAngles(phase, dataSet) {
+    let p1 = dataSet[0], p2 = dataSet[1];
+    for (let i = 0; i < dataSet.length - 1; i++) {
+      if (phase >= dataSet[i].p && phase <= dataSet[i + 1].p) {
+        p1 = dataSet[i]; p2 = dataSet[i + 1]; break;
+      }
+    }
+    const t = (phase - p1.p) / (p2.p - p1.p);
+    const val1 = p1.hip !== undefined ? p1.hip : p1.shoulder;
+    const val2 = p2.hip !== undefined ? p2.hip : p2.shoulder;
+    const joint1 = p1.knee !== undefined ? p1.knee : p1.elbow;
+    const joint2 = p2.knee !== undefined ? p2.knee : p2.elbow;
+    return {
+      primary:   (val1 + (val2 - val1) * t) * Math.PI / 180,
+      secondary: (joint1 + (joint2 - joint1) * t) * Math.PI / 180,
+    };
+  }
+
+  _calcLeg(angles, limbLen) {
+    const thighAngle = angles.primary;
+    const calfAngle = thighAngle - angles.secondary;
+    const kneeX = Math.sin(thighAngle) * limbLen;
+    const kneeY = Math.cos(thighAngle) * limbLen;
+    return {
+      kneeX, kneeY,
+      footX: kneeX + Math.sin(calfAngle) * limbLen,
+      footY: kneeY + Math.cos(calfAngle) * limbLen,
+    };
+  }
+
+  _calcArm(angles, shoulderX, shoulderY, armLen) {
+    const upperAngle = angles.primary;
+    const lowerAngle = upperAngle + angles.secondary;
+    const elbowX = shoulderX + Math.sin(upperAngle) * armLen;
+    const elbowY = shoulderY + Math.cos(upperAngle) * armLen;
+    return {
+      elbowX, elbowY,
+      handX: elbowX + Math.sin(lowerAngle) * armLen,
+      handY: elbowY + Math.cos(lowerAngle) * armLen,
+    };
   }
 
   // --------------------------------------------------------------------------
@@ -1046,12 +1183,14 @@ class AdventureRenderer {
     const ctx = this.ctx;
     ctx.save();
 
+    // Rise animation: tween from origin (gravestone) to dest (haunting band)
+    // over riseMs. Bob and alpha both ease in. Style determines body shape.
     const ageMs = now - ghost.birthTime;
     const t = Math.max(0, Math.min(1, ageMs / ghost.riseMs));
     const eased = 1 - Math.pow(1 - t, 2);
     const xPct = ghost.originXPct + (ghost.destXPct - ghost.originXPct) * eased;
     const yPct = ghost.originYPct + (ghost.destYPct - ghost.originYPct) * eased;
-    ctx.globalAlpha = 0.30 * eased;
+    ctx.globalAlpha = 0.32 * eased;
 
     const phaseT = now * 0.001 + ghost.phase;
     const bob = Math.sin(phaseT) * 6 * eased;
@@ -1059,38 +1198,99 @@ class AdventureRenderer {
     ctx.scale(ghost.scale, ghost.scale);
 
     ctx.strokeStyle = '#2b221a';
-    ctx.fillStyle = '#2b221a';
     ctx.lineWidth = 2.0;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    const headR = 6, bodyTop = -26, bodyBot = -8;
-    ctx.beginPath(); ctx.arc(0, bodyTop - headR, headR, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, bodyTop); ctx.lineTo(0, bodyBot); ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, bodyBot);
-    ctx.quadraticCurveTo(-4, bodyBot + 6, -3, bodyBot + 8);
-    ctx.moveTo(0, bodyBot);
-    ctx.quadraticCurveTo(4, bodyBot + 6, 3, bodyBot + 8);
-    ctx.stroke();
+    if (ghost.style === 'sheet') {
+      // Classic sheet ghost — long flowing body, head bulge at top, wavy hem
+      ctx.fillStyle = '#f4ecd8';
+      const headY = -35;
+      ctx.beginPath();
+      ctx.moveTo(-15, 20);
+      ctx.bezierCurveTo(-20, headY - 15, 20, headY - 15, 15, 20);
+      // Wavy hem
+      for (let i = 15; i >= -15; i -= 2) {
+        ctx.lineTo(i, 20 + Math.sin(now / 150 + i * 0.4) * 4);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      this._drawGhostXEyes(0, headY + 12, 3.5);
+    } else if (ghost.style === 'head') {
+      // Y-frame body with a head that rolls left and right at the top
+      ctx.fillStyle = '#f4ecd8';
+      // Spine waves slightly
+      ctx.beginPath();
+      ctx.moveTo(0, -12);
+      for (let i = 0; i <= 30; i += 2) {
+        ctx.lineTo(Math.sin(now / 150 + i * 0.2) * 4, -12 + i);
+      }
+      ctx.stroke();
+      const shoulderY = -26;
+      ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(0, shoulderY); ctx.stroke();
+      // Y-shape arms going up from shoulder
+      const width = 18;
+      ctx.beginPath();
+      ctx.moveTo(0, shoulderY); ctx.lineTo(-width, shoulderY - 15);
+      ctx.moveTo(0, shoulderY); ctx.lineTo( width, shoulderY - 15);
+      ctx.stroke();
+      // Head rolling left-right, dropping deeper as it swings out
+      const rollX = Math.sin(now / 400) * 16;
+      const dropY = shoulderY - 13 - Math.pow(Math.abs(rollX / width), 2) * 6;
+      ctx.beginPath();
+      ctx.arc(rollX, dropY, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      this._drawGhostXEyes(rollX, dropY, 2.2);
+    } else {
+      // 'limp' (default) — short body, dangling arms, head hovering
+      ctx.fillStyle = '#f4ecd8';
+      // Wavy spine
+      ctx.beginPath();
+      ctx.moveTo(0, -12);
+      for (let i = 0; i <= 30; i += 2) {
+        ctx.lineTo(Math.sin(now / 150 + i * 0.2) * 4, -12 + i);
+      }
+      ctx.stroke();
+      const shoulderY = -26;
+      ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(0, shoulderY); ctx.stroke();
+      // Head
+      ctx.beginPath();
+      ctx.arc(0, shoulderY - 6, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      this._drawGhostXEyes(0, shoulderY - 6, 2.2);
+      // Dangling arms
+      ctx.beginPath();
+      ctx.moveTo(0, shoulderY); ctx.lineTo(-8, shoulderY + 10);
+      ctx.moveTo(0, shoulderY); ctx.lineTo( 8, shoulderY + 10);
+      ctx.stroke();
+    }
 
-    const armWaver = Math.sin(phaseT * 1.7) * 1.5;
-    ctx.beginPath();
-    ctx.moveTo(0, bodyTop + 3);
-    ctx.lineTo(-7 + armWaver, bodyTop - 4);
-    ctx.moveTo(0, bodyTop + 3);
-    ctx.lineTo(7 - armWaver, bodyTop - 4);
-    ctx.stroke();
+    ctx.restore();
+  }
 
-    ctx.lineWidth = 1.4;
-    const eyeY = bodyTop - headR - 1;
-    ctx.beginPath();
-    ctx.moveTo(-3.2, eyeY - 1.2); ctx.lineTo(-1.2, eyeY + 0.8);
-    ctx.moveTo(-1.2, eyeY - 1.2); ctx.lineTo(-3.2, eyeY + 0.8);
-    ctx.moveTo(1.2, eyeY - 1.2); ctx.lineTo(3.2, eyeY + 0.8);
-    ctx.moveTo(3.2, eyeY - 1.2); ctx.lineTo(1.2, eyeY + 0.8);
-    ctx.stroke();
-
+  // Draw a pair of X eyes — only ever called from _drawGhost. Not on the
+  // living figure even during stumbles. spacing is the gap from center to
+  // each eye.
+  _drawGhostXEyes(cx, cy, spacing) {
+    const ctx = this.ctx;
+    const size = 0.9;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = '#2b221a';
+    ctx.lineWidth = 1.5;
+    // Left X
+    ctx.save(); ctx.translate(-spacing, 0);
+    ctx.beginPath(); ctx.moveTo(-size, -size); ctx.lineTo(size, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(size, -size); ctx.lineTo(-size, size); ctx.stroke();
+    ctx.restore();
+    // Right X
+    ctx.save(); ctx.translate(spacing, 0);
+    ctx.beginPath(); ctx.moveTo(-size, -size); ctx.lineTo(size, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(size, -size); ctx.lineTo(-size, size); ctx.stroke();
+    ctx.restore();
     ctx.restore();
   }
 
