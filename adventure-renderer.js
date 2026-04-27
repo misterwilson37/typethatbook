@@ -1,4 +1,19 @@
-// adventure-renderer.js — v0.2.1
+// adventure-renderer.js — v0.2.2
+//
+// v0.2.2 bugfixes:
+//   - Respawn detritus: paragraph crossings now rebuild via
+//     _relayoutCurrentWorld instead of appending forever. _appendNewPreviewParagraph
+//     is gone. Single canonical layout rule: wordSegments only ever holds the
+//     current paragraph + the next-paragraph preview, both starting from X=0
+//     in their own coord space. Camera resets to follow the figure on every
+//     rebuild.
+//   - Preview paragraph fades to ~30% alpha and loses its platform underline,
+//     so it reads as "next destination" not "competing line of words".
+//   - Tabs render distinctly: wider gap, italic "tab" label below the pit.
+//   - Gravestone inscription: each grave displays the letter that killed the
+//     player, sourced from the ttb:fail event's `expected` field.
+//   - Space pit drops below the platform line so the figure visibly hops over
+//     it. The "space" italic label sits inside the pit.
 //
 // v0.2.1 bugfixes:
 //   - Per-letter rendering with active-cursor highlight (red), completed-faded,
@@ -38,7 +53,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.1';
+export const RENDERER_VERSION = '0.2.2';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -105,7 +120,7 @@ class AdventureRenderer {
     this.paragraphStartPos = [];           // global char index where each paragraph starts
     this.currentParaIdx = 0;
 
-    // ---- Terrain progression (resets on death; advances per-word) ----
+    // ---- Terrain progression (per-paragraph; resets at each paragraph break) ----
     this.globalWordIdx = 0;
     this.prevSign = 0;
     this.runLen = 0;
@@ -274,11 +289,20 @@ class AdventureRenderer {
       if (newParaIdx !== this.currentParaIdx) {
         const goingUp = (newParaIdx % 2 === 1);  // alternating Y rule
         this.currentParaIdx = newParaIdx;
-        this._appendNewPreviewParagraph();
+
+        // Full rebuild on every paragraph crossing. wordSegments only ever
+        // holds current + next-preview, both starting at X=0 in their own
+        // coord space. Camera resets to put the figure (now at the start of
+        // the new paragraph) into a comfortable spot on screen.
+        this._relayoutCurrentWorld();
+        const charX = this._xAtPosition(this.currentPos);
+        this.cameraX = charX - this.w * 0.35;
+        this.targetCameraX = this.cameraX;
+
         this.targetCameraY = this._paragraphYOffset(newParaIdx);
         this._triggerJump(goingUp);
       } else {
-        // Small hop on space crossing within a paragraph
+        // Small hop on whitespace crossing within a paragraph
         const charJustTyped = this.fullText[oldPos];
         if (charJustTyped === ' ' || charJustTyped === '\t') {
           this.isHopping = true;
@@ -297,7 +321,14 @@ class AdventureRenderer {
     this.state = 'fall';
     this.fallPhase = 0;
 
-    // Plant a gravestone at random in the lower band
+    // The letter the player failed on — sourced from the ttb:fail event.
+    // Engraved on the gravestone. Whitespace gets a glyph substitute.
+    const failedChar = (d && d.expected) || '?';
+    const inscription = (failedChar === ' ') ? '␣'
+                      : (failedChar === '\n') ? '↵'
+                      : (failedChar === '\t') ? '⇥'
+                      : failedChar;
+
     const graveXPct = 0.04 + Math.random() * 0.92;
     const graveYPct = 0.84 + Math.random() * 0.10;
     this.gravestones.push({
@@ -306,6 +337,7 @@ class AdventureRenderer {
       tilt: (Math.random() - 0.5) * 0.18,
       scale: 0.65 + Math.random() * 0.45,
       style: Math.random() < 0.55 ? 'rounded' : (Math.random() < 0.5 ? 'cross' : 'flat'),
+      inscription,
     });
 
     // Ghost rises slowly from that gravestone
@@ -427,12 +459,29 @@ class AdventureRenderer {
     const segs = [];
     let i = 0;
     let x = startX;
-    const GAP_WIDTH = 20;
 
     while (i < text.length) {
       if (/\s/.test(text[i])) {
-        segs.push({ type: 'gap', text: text[i], startPos: i, endPos: i, x, width: GAP_WIDTH, angle: 0, paraIdx, yOffset });
-        x += GAP_WIDTH;
+        const isTab = text[i] === '\t';
+        const isNewline = text[i] === '\n';
+        // Tabs are visually wider than spaces — they're meaningfully different
+        // keys and should look like it. Newlines are even wider as a beat
+        // before a paragraph, but newlines also END a paragraph in our split,
+        // so they shouldn't appear here.
+        const gapWidth = isTab ? 56 : isNewline ? 80 : 20;
+        segs.push({
+          type: 'gap',
+          subtype: isTab ? 'tab' : isNewline ? 'newline' : 'space',
+          text: text[i],
+          startPos: i,
+          endPos: i,
+          x,
+          width: gapWidth,
+          angle: 0,
+          paraIdx,
+          yOffset,
+        });
+        x += gapWidth;
         i++;
       } else {
         let j = i;
@@ -476,15 +525,28 @@ class AdventureRenderer {
   }
 
   _relayoutCurrentWorld() {
+    // Terrain progression is per-paragraph: each paragraph starts flat and
+    // ramps up internally. Resets at every paragraph break. This makes
+    // _relayoutCurrentWorld idempotent (rebuilding always produces the same
+    // terrain) and gives kids a breather after each paragraph.
     const INDENT = 80;
     this.wordSegments = [];
     if (!this.paragraphs[this.currentParaIdx]) return;
+
+    this.globalWordIdx = 0;
+    this.prevSign = 0;
+    this.runLen = 0;
 
     const cur = this._buildParagraphSegments(this.paragraphs[this.currentParaIdx], 0, this.currentParaIdx);
     this.wordSegments.push(...cur.segs);
     this.totalWidth = cur.endX;
 
     if (this.currentParaIdx + 1 < this.paragraphs.length) {
+      // Reset progression for preview paragraph too, so its terrain matches
+      // what it'll be when the user crosses into it.
+      this.globalWordIdx = 0;
+      this.prevSign = 0;
+      this.runLen = 0;
       const nxt = this._buildParagraphSegments(
         this.paragraphs[this.currentParaIdx + 1],
         cur.endX + INDENT,
@@ -492,21 +554,6 @@ class AdventureRenderer {
       );
       this.wordSegments.push(...nxt.segs);
     }
-  }
-
-  _appendNewPreviewParagraph() {
-    const INDENT = 80;
-    const newPreviewIdx = this.currentParaIdx + 1;
-    if (newPreviewIdx >= this.paragraphs.length) return;
-
-    let endX = 0;
-    for (const seg of this.wordSegments) {
-      if (seg.paraIdx === this.currentParaIdx) {
-        endX = Math.max(endX, seg.x + seg.width);
-      }
-    }
-    const result = this._buildParagraphSegments(this.paragraphs[newPreviewIdx], endX + INDENT, newPreviewIdx);
-    this.wordSegments.push(...result.segs);
   }
 
   _xAtPosition(globalPos) {
@@ -715,6 +762,11 @@ class AdventureRenderer {
       const crumbled = this.crumbleAt[`${seg.paraIdx}:${seg.startPos}`];
       const segPlatformY = baseY + seg.yOffset - this.cameraY;
 
+      // Future-paragraph preview reads as "next destination": fade alpha,
+      // skip the platform line. The character will physically jump to it
+      // when game.js advances the paragraph index.
+      const isPreview = (seg.paraIdx > this.currentParaIdx);
+
       ctx.save();
       ctx.translate(seg.x - this.cameraX, segPlatformY);
       ctx.rotate(angle);
@@ -732,13 +784,17 @@ class AdventureRenderer {
         ctx.rotate(crumbleRot);
       }
 
-      // Platform line
-      ctx.strokeStyle = 'rgba(43, 34, 26, 0.55)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(seg.width, 0);
-      ctx.stroke();
+      if (isPreview) {
+        ctx.globalAlpha = (ctx.globalAlpha || 1) * 0.32;
+      } else {
+        // Platform line — only on current paragraph
+        ctx.strokeStyle = 'rgba(43, 34, 26, 0.55)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(seg.width, 0);
+        ctx.stroke();
+      }
 
       // ─── Per-letter rendering ───────────────────────────────────────
       // Each letter is painted in a color reflecting its state:
@@ -795,31 +851,43 @@ class AdventureRenderer {
       ctx.restore();
     }
 
-    // Space label + red underline at current position if cursor is on a gap
+    // Gap pits: every gap (space, tab) in the CURRENT paragraph draws a
+    // visible drop below the platform line. The label sits inside the pit.
+    // The gap at the cursor position gets a red highlight so the typist
+    // knows what key to press.
     for (const seg of this.wordSegments) {
-      if (seg.paraIdx !== cursorParaIdx) continue;
-      if (seg.type === 'gap' && cursorLocalPos >= seg.startPos && cursorLocalPos <= seg.endPos) {
-        const segScreenY = baseY + seg.yOffset - this.cameraY;
-        const x0 = seg.x - this.cameraX;
-        const x1 = x0 + seg.width;
+      if (seg.type !== 'gap') continue;
+      if (seg.paraIdx !== cursorParaIdx) continue;     // only current paragraph
+      const isCursor = (cursorLocalPos >= seg.startPos && cursorLocalPos <= seg.endPos);
 
-        // Red underline (the platform-line equivalent for spaces)
-        ctx.strokeStyle = 'rgba(192, 57, 43, 0.85)';
-        ctx.lineWidth = 1.8;
-        ctx.beginPath();
-        ctx.moveTo(x0, segScreenY);
-        ctx.lineTo(x1, segScreenY);
-        ctx.stroke();
+      const segScreenY = baseY + seg.yOffset - this.cameraY;
+      const x0 = seg.x - this.cameraX;
+      const x1 = x0 + seg.width;
+      const pitDepth = 18;
+      const pitColor = isCursor ? 'rgba(192, 57, 43, 0.85)' : 'rgba(43, 34, 26, 0.32)';
+      const labelColor = isCursor ? 'rgba(192, 57, 43, 0.78)' : 'rgba(43, 34, 26, 0.42)';
 
-        // "space" italic label below
-        ctx.fillStyle = 'rgba(192, 57, 43, 0.75)';
+      // Pit walls — drop straight down from the platform line
+      ctx.strokeStyle = pitColor;
+      ctx.lineWidth = isCursor ? 1.8 : 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x0, segScreenY);
+      ctx.lineTo(x0, segScreenY + pitDepth);
+      ctx.lineTo(x1, segScreenY + pitDepth);
+      ctx.lineTo(x1, segScreenY);
+      ctx.stroke();
+
+      // Label inside the pit (italic), only on the current cursor or wider
+      // gaps where the label fits comfortably.
+      if (isCursor || seg.subtype === 'tab') {
+        ctx.fillStyle = labelColor;
         ctx.font = SPACE_LABEL_FONT;
         ctx.textAlign = 'center';
-        ctx.fillText('space', (x0 + x1) / 2, segScreenY + 14);
+        const label = seg.subtype === 'tab' ? 'tab' : seg.subtype === 'newline' ? 'enter' : 'space';
+        ctx.fillText(label, (x0 + x1) / 2, segScreenY + pitDepth - 4);
         ctx.textAlign = 'start';
         ctx.font = TEXT_FONT;
         if ('fontKerning' in ctx) ctx.fontKerning = 'none';
-        break;
       }
     }
 
@@ -1055,21 +1123,27 @@ class AdventureRenderer {
     ctx.fill();
     ctx.stroke();
 
-    ctx.strokeStyle = '#2b221a';
-    ctx.lineWidth = 1;
+    // Inscription — the letter that killed the player
+    if (g.inscription) {
+      ctx.fillStyle = '#2b221a';
+      ctx.font = 'bold 14px "IM Fell English", Georgia, serif';
+      if ('fontKerning' in ctx) ctx.fontKerning = 'none';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const inscY = (g.style === 'rounded') ? -10 : (g.style === 'cross') ? -8 : -7;
+      ctx.fillText(g.inscription, 0, inscY);
+      ctx.textAlign = 'start';
+      ctx.textBaseline = 'alphabetic';
+    }
+
+    // Cross-style: extra cross above the stone
     if (g.style === 'cross') {
+      ctx.strokeStyle = '#2b221a';
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(0, -28); ctx.lineTo(0, -18);
-      ctx.moveTo(-4, -24); ctx.lineTo(4, -24);
+      ctx.moveTo(0, -28); ctx.lineTo(0, -22);
+      ctx.moveTo(-3, -25); ctx.lineTo(3, -25);
       ctx.stroke();
-    } else if (g.style === 'rounded') {
-      ctx.beginPath();
-      ctx.moveTo(-5, -10); ctx.lineTo(-3, -10);
-      ctx.moveTo(-1, -10); ctx.lineTo(1, -10);
-      ctx.moveTo(3, -10); ctx.lineTo(5, -10);
-      ctx.stroke();
-    } else {
-      ctx.beginPath(); ctx.moveTo(-7, -8); ctx.lineTo(7, -8); ctx.stroke();
     }
 
     ctx.strokeStyle = 'rgba(43, 34, 26, 0.45)';
