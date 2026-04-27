@@ -1,9 +1,10 @@
-/* adventure.css v0.0.5 — view-mode skin for Adventure Mode */
+/* adventure.css v0.0.6 — view-mode skin for Adventure Mode */
+/* v0.0.6: target key label inherits inline finger color from observer       */
 /* v0.0.5: target key turns black, not red; HUD streak override removed       */
 /* v0.0.4: number & symbol positioning fixed for round keys                   */
 /* v0.0.3: keyboard + modal skin (round typewriter keys, parchment modals)    */
 /* v0.0.2: bumped for v3.0.1 release; machine-readable version stamp          */
-body::after { content: "v0.0.5"; display: none; }
+body::after { content: "v0.0.6"; display: none; }
 
 /* Every rule in this file is scoped under body.view-adventure. Classic view
    never sees any of this. */
@@ -95,13 +96,13 @@ body.view-adventure .key.space {
 }
 
 /* Target / shift-active states */
-/* Target key: solid black with cream label. The earlier red read as "you're
-   wrong" to the kids — now the contrast cue is just darkness. (Future bump
-   could tint the label in the finger color via a JS shim, but black/cream
-   is unambiguous and ships clean.) */
+/* Target key: solid black background. The label color is set INLINE by the
+   keyboard observer in adventure-renderer.js to a brightened version of the
+   key's finger color, giving kids a finger-cue as well as the position cue.
+   Falls back to cream if the observer hasn't tagged the key yet. */
 body.view-adventure .key.target {
     background-color: #2b221a !important;
-    color: #f2e8d5 !important;
+    color: #f2e8d5;     /* fallback only — observer's inline color overrides */
     transform: translateY(2px);
     box-shadow:
         inset 0 1px 0 rgba(0, 0, 0, 0.25),
