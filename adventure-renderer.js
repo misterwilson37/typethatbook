@@ -1,18 +1,16 @@
-// adventure-renderer.js — v0.2.10
+// adventure-renderer.js — v0.2.11
 //
-// v0.2.10 — Auto-respawn + forward tilts + keyboard label color:
-//   - On hard-stop, the figure now auto-respawns at sentence start as soon
-//     as the plummet finishes (~900ms), so the user can SEE where they're
-//     headed before they type the resume key. Before this, the modal asked
-//     them to press a key for a position with no visible figure.
-//   - Letter tilts always lean forward (clockwise / right) regardless of
-//     position parity. Reads as the figure tripping forward in the
-//     direction of travel.
-//   - Keyboard target keys now show their label in the (brightened) vintage
-//     finger color, against the black target background. Restores the
-//     finger-cue the kids needed.
+// v0.2.11 — Keyboard label color robustness:
+//   - Bg-color matcher accepts rgba() form too (Safari normalizes
+//     `el.style.backgroundColor = '#43A04738'` to rgba() in the inline
+//     attribute string, which my hex-only regex was missing — meaning
+//     dataset.advFingerLabel never got set, and target keys fell back to
+//     the cream label).
+//   - Label color now applied to direct child elements as well, so number
+//     keys (with .num-digit / .num-symbol child spans) get colored too.
 //
-// v0.2.9 — Tilt accumulation + recovery on retype.
+// v0.2.10 — Auto-respawn after plummet, tilts always forward, target-key
+//   labels in vintage finger color.
 //
 // v0.2.8 — Persistent tilts + (broken) backspace recovery via positionSet.
 //
@@ -78,7 +76,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.10';
+export const RENDERER_VERSION = '0.2.11';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -298,42 +296,66 @@ class AdventureRenderer {
       return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
     };
 
+    // Detect the inline bg as a hex prefix (#RRGGBB), parsing both hex and
+    // rgba forms. Safari normalizes `el.style.backgroundColor = '#43A04738'`
+    // to `rgba(67, 160, 71, 0.22)` in the inline attribute string, so the
+    // hex-only regex from earlier missed those.
+    const detectBgHex = (inline) => {
+      let m = inline.match(/background-color:\s*(#[0-9A-Fa-f]{6,8})/i);
+      if (m) return m[1].slice(0, 7).toUpperCase();
+      m = inline.match(/background-color:\s*rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+      if (m) {
+        const r = parseInt(m[1]), g = parseInt(m[2]), b = parseInt(m[3]);
+        return '#' + [r, g, b].map(n => n.toString(16).padStart(2, '0')).join('').toUpperCase();
+      }
+      return null;
+    };
+
+    // Set/unset color on a key AND its direct children. Number keys have
+    // .num-digit/.num-symbol child spans with their own color rules; setting
+    // only on the parent doesn't cascade. For letter keys (text content
+    // direct), the children loop is a no-op.
+    const applyLabelColor = (el, color) => {
+      if (color) {
+        el.style.color = color;
+        for (const child of el.children) {
+          child.style.color = color;
+        }
+      } else {
+        el.style.removeProperty('color');
+        for (const child of el.children) {
+          child.style.removeProperty('color');
+        }
+      }
+    };
+
     const reskin = (el) => {
       if (!el.classList) return;
 
-      // 1) Background tint: replace TTB rainbow with vintage. Only fires
-      //    once per element (gated by startsWith check) — avoids feedback
-      //    loop. Stash the recognized vintage hex on the element so step 2
-      //    can read it back without reparsing.
+      // 1) Background tint: rainbow → vintage. Stash vintage hex and a
+      //    brightened version (for use as label color on .target keys).
       const inline = el.getAttribute('style') || '';
-      const m = inline.match(/background-color:\s*(#[0-9A-Fa-f]{6,8})/);
-      if (m) {
-        const raw = m[1].toUpperCase();
-        const prefix = raw.slice(0, 7);
-        const replacement = map[prefix];
-        if (replacement && !raw.startsWith(replacement.toUpperCase())) {
+      const detectedHex = detectBgHex(inline);
+      if (detectedHex && map[detectedHex]) {
+        const replacement = map[detectedHex];
+        // Idempotent guard: if we've already applied this finger to this
+        // element, don't re-apply (avoids observer feedback loop).
+        if (el.dataset.advFinger !== replacement) {
           el.style.backgroundColor = replacement + ALPHA;
           el.dataset.advFinger = replacement;
           el.dataset.advFingerLabel = lighten(replacement, 0.45);
         }
       }
 
-      // 2) Label color: if the key is a .target key, use the brightened
-      //    finger color so kids can ID which finger goes there. Otherwise
-      //    fall back to CSS default (parchment-on-parchment-tint).
-      //    Guarded by lastColor cache (in dataset) to prevent observer
-      //    feedback loops.
+      // 2) Label color: target keys use the brightened finger color.
+      //    Everywhere else we leave color alone (CSS default applies).
       const isTarget = el.classList.contains('target');
       const labelHex = el.dataset.advFingerLabel || '#f2e8d5';   // cream fallback
       const desired = isTarget ? labelHex : '';
       const lastColor = el.dataset.advLastColor || '';
       if (lastColor !== desired) {
         el.dataset.advLastColor = desired;
-        if (desired) {
-          el.style.color = desired;
-        } else {
-          el.style.removeProperty('color');
-        }
+        applyLabelColor(el, desired);
       }
     };
 
