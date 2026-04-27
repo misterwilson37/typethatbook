@@ -1,13 +1,14 @@
-// adventure-renderer.js — v0.2.8
+// adventure-renderer.js — v0.2.9
 //
-// v0.2.8 — Persistent tilts + backspace recovery:
-//   - Tilted (mistyped) letters STAY askew after correct typing instead of
-//     popping back upright. Permanent record of what almost killed you on
-//     the way past — until you die or load a new chapter.
-//   - Backspacing over a tilted letter halves the tilt angle and recolors
-//     the letter blue ('recovered'). Imperfect fix; you can see it was
-//     wrong but you've made it more right.
-//   - Listens to ttb:positionSet to detect backspace (position decreased).
+// v0.2.9 — Tilt accumulation + recovery on retype:
+//   - Each mistake on the same letter accumulates tilt — a letter mistyped
+//     twice leans further than once, and so on.
+//   - Recovery (mistake → backspace → retype-correctly) now triggers on the
+//     correct keystroke with status='fixed', NOT on backward positionSet.
+//     This catches the actual TTB flow where a single backspace clears the
+//     error without moving the cursor.
+//
+// v0.2.8 — Persistent tilts + (broken) backspace recovery via positionSet.
 //
 // v0.2.7 — Underscore-style cursor gap + keyboard skin shim:
 //   - Cursor-gap red bridge line drops to LETTER BASELINE (like an underscore).
@@ -71,7 +72,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.8';
+export const RENDERER_VERSION = '0.2.9';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -430,6 +431,17 @@ class AdventureRenderer {
         this.letterStatus[d.completedPos] = d.statusAtCompleted;
         // Clear any error flash on this position
         delete this.mistakeFlash[d.completedPos];
+
+        // Recovery: if status === 'fixed', the user mistyped this letter and
+        // then corrected it. Mark the tilt recovered (renders blue) and halve
+        // the angle. They almost died here but pulled through.
+        if (d.statusAtCompleted === 'fixed') {
+          const tilt = this.letterTilts[d.completedPos];
+          if (tilt && !tilt.recovered) {
+            tilt.angleRad = tilt.angleRad * 0.5;
+            tilt.recovered = true;
+          }
+        }
         // NOTE: Tilts persist intentionally. A letter that was mistyped stays
         // tilted as a war wound, even after correct re-typing. Only respawn
         // or new-chapter clears them.
@@ -476,9 +488,18 @@ class AdventureRenderer {
       // position so it doesn't always lean the same way. Magnitude is 0.18
       // to 0.28 rad (~10-16 degrees) — enough to read as askew but not so
       // much it becomes hard to identify.
-      const sign = (pos % 2 === 0) ? 1 : -1;
-      const mag  = 0.18 + (((pos * 9301) % 100) / 1000);  // 0.18..0.28
-      this.letterTilts[pos] = { angleRad: sign * mag, setAt: performance.now() };
+      // Tilt accumulates on repeated mistakes. Each fresh mistake adds a
+      // new "kick" in the same direction as the previous tilt (or alternating
+      // if no previous), capped so the letter doesn't spin past 90°.
+      const existing = this.letterTilts[pos];
+      const sign = existing
+                 ? Math.sign(existing.angleRad) || (pos % 2 === 0 ? 1 : -1)
+                 : (pos % 2 === 0 ? 1 : -1);
+      const baseKick = 0.18 + (((pos * 9301) % 100) / 1000);   // 0.18..0.28
+      const newAngle = (existing ? existing.angleRad : 0) + sign * baseKick;
+      // Clamp magnitude to about 80° so the glyph stays legible.
+      const cappedAngle = Math.max(-1.4, Math.min(1.4, newAngle));
+      this.letterTilts[pos] = { angleRad: cappedAngle, setAt: performance.now() };
 
       // Don't restart stumble if already stumbling — let the existing one play
       // out, then a new mistake can re-trigger.
