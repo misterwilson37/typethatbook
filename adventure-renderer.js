@@ -1,22 +1,22 @@
-// adventure-renderer.js — v0.2.4
+// adventure-renderer.js — v0.2.6
 //
-// v0.2.4 — Diagnostic overlay + structural fixes:
-//   - Diagnostic HUD (toggle with backtick key `): shows wordSegments count,
-//     segments per paraIdx, currentParaIdx, camera positions, recent event log.
-//     Press ` while focused on the page to toggle. Used to chase the
-//     5-duplicate detritus bug.
-//   - Stumble (mistake): brief trip animation, ~350ms, on every individual
-//     mistake. Interrupts back to gait. Replaces the stumble that previously
-//     fired only on hard-stop.
-//   - Plummet (hard-stop): figure falls off the BOTTOM of the screen, not the
-//     spot. Respawn drops the figure from above. Replaces the previous
-//     "fall and respawn from above" sequence with a more dramatic plummet.
-//   - Platform line moved BELOW the words (back to v0.1.x style). Word
-//     baseline at top of band, connector line at the bottom, gap pit drops
-//     below the connector line.
-//   - Leading curly-quote glyph fix: when an ASCII " is the first character
-//     of a word, render it as a horizontally-flipped trailing quote so it
-//     curls TOWARD the word instead of away. Font stays IM Fell English.
+// v0.2.6 — Letters become walkable surface:
+//   - Letters render BELOW the figure's feet line (instead of above). The
+//     figure runs across the TOPS of letters as if they're a stone walkway.
+//     Tripping on a letter / letters falling out from under = literal.
+//   - Non-cursor gaps draw NOTHING. No connector line, no pit walls — just
+//     empty air the figure has to hop across.
+//   - Cursor gap (space): red line at the figure's feet level, "space" label
+//     centered BELOW the line.
+//   - Cursor gap (tab): red line at the feet level, "tab" label centered
+//     ABOVE the line. The inversion makes tab feel bigger/different at a
+//     glance.
+//
+// v0.2.5 — Connector line in gap only, letter tilt on stumble, letters fall
+//   on plummet, head-rolling ghost, leap arc clears next paragraph.
+//
+// v0.2.4 — Diagnostic overlay + stumble/plummet split + curly-quote flip +
+//   platform line below words.
 //
 // v0.2.3 — Integration of Gemini's refined animation block (gait, hop, leap,
 //   stumble, respawn, three ghost styles). X-eyes only on actual ghosts.
@@ -64,7 +64,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.4';
+export const RENDERER_VERSION = '0.2.6';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -120,6 +120,7 @@ class AdventureRenderer {
     this.isJumping = false;
     this.jumpPhase = 0;
     this.jumpDirection = 1;
+    this.jumpHeight = 80;             // dynamic per-leap, set in _triggerJump
     this.isHopping = false;
     this.hopPhase = 0;
 
@@ -146,6 +147,14 @@ class AdventureRenderer {
     this.letterStatus = {};
     // Last-mistake flash: position -> birthtime, fades out
     this.mistakeFlash = {};
+    // Per-letter "kicked rock" tilt — the letter that was just mistyped tilts
+    // a few degrees, like the figure tripped over it. Settles back to upright
+    // when correctly typed. Map: globalPos -> { angleRad, setAt }.
+    this.letterTilts = {};
+    // Per-letter "falling away" — when the figure plummets, the letter(s)
+    // they were stumbling on physically fall off-screen. Map: globalPos ->
+    // { startTime, vx, rot } animation state.
+    this.fallingLetters = {};
 
     // ---- Background decorations ----
     this.ghosts = [];
@@ -255,6 +264,8 @@ class AdventureRenderer {
     this.crumbleAt = {};
     this.letterStatus = {};
     this.mistakeFlash = {};
+    this.letterTilts = {};
+    this.fallingLetters = {};
     this.ghosts = [];
     this.gravestones = [];
     this.currentParaIdx = 0;
@@ -311,6 +322,9 @@ class AdventureRenderer {
         this.letterStatus[d.completedPos] = d.statusAtCompleted;
         // Clear any error flash on this position
         delete this.mistakeFlash[d.completedPos];
+        // Clear any "kicked rock" tilt — they made it past the letter that
+        // had been askew.
+        delete this.letterTilts[d.completedPos];
       }
 
       const oldPos = this.currentPos;
@@ -350,6 +364,14 @@ class AdventureRenderer {
       // ttb:fail and we plummet.
       const pos = (typeof d.position === 'number') ? d.position : this.currentPos;
       this.mistakeFlash[pos] = performance.now();
+      // Tilt the letter they tripped over. Direction alternates by hash of
+      // position so it doesn't always lean the same way. Magnitude is 0.18
+      // to 0.28 rad (~10-16 degrees) — enough to read as askew but not so
+      // much it becomes hard to identify.
+      const sign = (pos % 2 === 0) ? 1 : -1;
+      const mag  = 0.18 + (((pos * 9301) % 100) / 1000);  // 0.18..0.28
+      this.letterTilts[pos] = { angleRad: sign * mag, setAt: performance.now() };
+
       // Don't restart stumble if already stumbling — let the existing one play
       // out, then a new mistake can re-trigger.
       if (this.state !== 'stumble' && this.state !== 'fall' && this.state !== 'respawning') {
@@ -366,13 +388,51 @@ class AdventureRenderer {
     this.state = 'fall';
     this.fallPhase = 0;
 
-    // The letter the player failed on — sourced from the ttb:fail event.
-    // Engraved on the gravestone. Whitespace gets a glyph substitute.
-    const failedChar = (d && d.expected) || '?';
-    const inscription = (failedChar === ' ') ? '␣'
-                      : (failedChar === '\n') ? '↵'
-                      : (failedChar === '\t') ? '⇥'
-                      : failedChar;
+    // Letters fall away with the figure. Every letter currently tilted (the
+    // ones they were tripping on) gets converted to a falling letter — the
+    // visible cause of the plummet.
+    const fallStart = performance.now();
+    let lastFalling = null;
+    for (const k of Object.keys(this.letterTilts)) {
+      const pos = parseInt(k);
+      const tilt = this.letterTilts[pos];
+      this.fallingLetters[pos] = {
+        startTime: fallStart,
+        initialAngle: tilt.angleRad,
+        // Slight horizontal scatter, accelerating downward
+        vx: (Math.random() - 0.5) * 80,         // px/sec
+        rot: (Math.random() - 0.5) * 4,         // rad/sec
+      };
+      if (lastFalling === null || pos > lastFalling) lastFalling = pos;
+    }
+    // The current cursor position also falls (in case it wasn't tilted)
+    const failPos = (d && typeof d.position === 'number') ? d.position : this.currentPos;
+    if (this.fallingLetters[failPos] == null) {
+      this.fallingLetters[failPos] = {
+        startTime: fallStart,
+        initialAngle: 0,
+        vx: (Math.random() - 0.5) * 80,
+        rot: (Math.random() - 0.5) * 4,
+      };
+      if (lastFalling === null || failPos > lastFalling) lastFalling = failPos;
+    }
+    // Tilts are now expressed as falling animations, no longer separately tracked
+    this.letterTilts = {};
+
+    // Inscription: the last (rightmost) letter that fell — the one that
+    // killed them. Falls back to the fail event's `expected` if no letters
+    // were tracked as tilted.
+    let inscription;
+    if (lastFalling !== null && this.fullText[lastFalling]) {
+      const ch = this.fullText[lastFalling];
+      inscription = (ch === ' ') ? '␣' : (ch === '\n') ? '↵' : (ch === '\t') ? '⇥' : ch;
+    } else {
+      const failedChar = (d && d.expected) || '?';
+      inscription = (failedChar === ' ') ? '␣'
+                  : (failedChar === '\n') ? '↵'
+                  : (failedChar === '\t') ? '⇥'
+                  : failedChar;
+    }
 
     const graveXPct = 0.04 + Math.random() * 0.92;
     const graveYPct = 0.84 + Math.random() * 0.10;
@@ -414,6 +474,8 @@ class AdventureRenderer {
     this.runLen = 0;
     this.crumbleAt = {};
     this.mistakeFlash = {};
+    this.letterTilts = {};
+    this.fallingLetters = {};
     // Clear status for everything from the respawn point forward — the user
     // must retype it. Keep prior characters as they were.
     for (const k of Object.keys(this.letterStatus)) {
@@ -685,6 +747,11 @@ class AdventureRenderer {
     this.isJumping = true;
     this.jumpPhase = 0;
     this.jumpDirection = goingUp ? -1 : 1;
+    // Compute apex of the arc. Base height is 80 (a comfortable arc); add
+    // the absolute Y delta to the destination so going UP clears the next
+    // paragraph naturally, plus a 30px clearance margin.
+    const yDelta = Math.abs(this.targetCameraY - this.cameraY);
+    this.jumpHeight = 80 + yDelta + 30;
   }
 
   // --------------------------------------------------------------------------
@@ -847,17 +914,11 @@ class AdventureRenderer {
 
       if (isPreview) {
         ctx.globalAlpha = (ctx.globalAlpha || 1) * 0.32;
-      } else {
-        // Platform line — connector line at the BOTTOM of the words. The
-        // figure stands on this line. Words render above it; the gap pit
-        // drops below it.
-        ctx.strokeStyle = 'rgba(43, 34, 26, 0.55)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(seg.width, 0);
-        ctx.stroke();
       }
+      // No platform line under the word itself — the figure runs ON the
+      // letters. Only the gap between words gets a connector line (drawn
+      // separately in the gap-pit pass below). Tripping on a missing letter
+      // is what makes them stumble.
 
       // ─── Per-letter rendering ───────────────────────────────────────
       // Each letter is painted in a color reflecting its state:
@@ -878,6 +939,25 @@ class AdventureRenderer {
         const localPos = seg.startPos + k;
         const globalPos = this.paragraphStartPos[seg.paraIdx] + localPos;
         const offset = (seg.letterOffsets && seg.letterOffsets[k]) || 0;
+
+        // Falling letter? Render with translation and rotation, then move on.
+        // Skipped from normal layout — they're physically off the platform.
+        const falling = this.fallingLetters[globalPos];
+        if (falling) {
+          const ageS = (now - falling.startTime) / 1000;
+          // Gravity: y = vy0*t + 0.5*g*t^2, with vy0=0 and g~1400 px/s²
+          const dy = 0.5 * 1400 * ageS * ageS;
+          const dx = falling.vx * ageS;
+          const angle = falling.initialAngle + falling.rot * ageS;
+          if (dy > 800) continue;  // out of frame, skip rendering
+          ctx.save();
+          ctx.translate(offset + dx, dy + 26);
+          ctx.rotate(angle);
+          ctx.fillStyle = 'rgba(150, 50, 50, 0.85)';
+          ctx.fillText(seg.text[k], 0, 0);
+          ctx.restore();
+          continue;
+        }
 
         let color = '#2b221a';                // future text
         let isActive = false;
@@ -904,28 +984,43 @@ class AdventureRenderer {
           }
         }
 
+        // Letter tilt — kicked-rock pose. Holds at full angle until the
+        // letter is correctly typed (which clears it via _onKeystroke).
+        const tilt = this.letterTilts[globalPos];
+        const tiltAngle = tilt ? tilt.angleRad : 0;
+
         ctx.fillStyle = color;
         if (isActive) {
-          // Slight shadow to make the cursor letter pop
           ctx.shadowColor = 'rgba(192, 57, 43, 0.4)';
           ctx.shadowBlur = 6;
         }
 
         const ch = seg.text[k];
+        // Letters render BELOW the figure's feet line — the figure walks on
+        // their TOPS (the cap-line). With textBaseline='alphabetic', drawing
+        // at y=26 puts the baseline 26px below the feet line; cap-height-tall
+        // letters then occupy y=0..26 with descenders extending a bit below.
+        const letterY = 26;
         // Quote glyph fix: a leading " (k===0 within a word) should curl
         // toward the word, but IM Fell English renders both " glyphs as
         // right-curling (close-quote). Flip horizontally for the leading case.
         if (ch === '"' && k === 0) {
           ctx.save();
-          ctx.translate(offset, -2);
+          ctx.translate(offset, letterY);
+          if (tiltAngle) ctx.rotate(tiltAngle);
           ctx.scale(-1, 1);
-          // After horizontal flip, drawing at x=0 puts the glyph to the left
-          // of the origin. Shift right by the glyph's measured width.
           const qWidth = ctx.measureText('"').width;
           ctx.fillText('"', -qWidth, 0);
           ctx.restore();
+        } else if (tiltAngle) {
+          // Tilted letter — rotate around its own baseline-left
+          ctx.save();
+          ctx.translate(offset, letterY);
+          ctx.rotate(tiltAngle);
+          ctx.fillText(ch, 0, 0);
+          ctx.restore();
         } else {
-          ctx.fillText(ch, offset, -2);
+          ctx.fillText(ch, offset, letterY);
         }
         if (isActive) ctx.shadowBlur = 0;
       }
@@ -933,44 +1028,47 @@ class AdventureRenderer {
       ctx.restore();
     }
 
-    // Gap pits: every gap (space, tab) in the CURRENT paragraph draws a
-    // visible drop below the platform line. The label sits inside the pit.
-    // The gap at the cursor position gets a red highlight so the typist
-    // knows what key to press.
+    // Cursor-gap indicator: a red bridge line at the figure's feet level,
+    // appearing ONLY at the gap the user is currently on. Non-cursor gaps
+    // render nothing — they're empty air that the figure has to hop across.
+    // Label placement:
+    //   space → below the line (typed by thumb, downward)
+    //   tab   → above the line (a bigger reach, visually distinguished)
+    //   enter → above the line (also a reach)
     for (const seg of this.wordSegments) {
       if (seg.type !== 'gap') continue;
-      if (seg.paraIdx !== cursorParaIdx) continue;     // only current paragraph
+      if (seg.paraIdx !== cursorParaIdx) continue;
       const isCursor = (cursorLocalPos >= seg.startPos && cursorLocalPos <= seg.endPos);
+      if (!isCursor) continue;     // only draw the cursor's gap
 
       const segScreenY = baseY + seg.yOffset - this.cameraY;
       const x0 = seg.x - this.cameraX;
       const x1 = x0 + seg.width;
-      const pitDepth = 18;
-      const pitColor = isCursor ? 'rgba(192, 57, 43, 0.85)' : 'rgba(43, 34, 26, 0.32)';
-      const labelColor = isCursor ? 'rgba(192, 57, 43, 0.78)' : 'rgba(43, 34, 26, 0.42)';
 
-      // Pit walls — drop straight down from the platform line
-      ctx.strokeStyle = pitColor;
-      ctx.lineWidth = isCursor ? 1.8 : 1.2;
+      // Red bridge line at the figure's feet level — shows where they need
+      // to land/leap-from. No pit walls; the gap is just empty air.
+      ctx.strokeStyle = 'rgba(192, 57, 43, 0.85)';
+      ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.moveTo(x0, segScreenY);
-      ctx.lineTo(x0, segScreenY + pitDepth);
-      ctx.lineTo(x1, segScreenY + pitDepth);
       ctx.lineTo(x1, segScreenY);
       ctx.stroke();
 
-      // Label inside the pit (italic), only on the current cursor or wider
-      // gaps where the label fits comfortably.
-      if (isCursor || seg.subtype === 'tab') {
-        ctx.fillStyle = labelColor;
-        ctx.font = SPACE_LABEL_FONT;
-        ctx.textAlign = 'center';
-        const label = seg.subtype === 'tab' ? 'tab' : seg.subtype === 'newline' ? 'enter' : 'space';
-        ctx.fillText(label, (x0 + x1) / 2, segScreenY + pitDepth - 4);
-        ctx.textAlign = 'start';
-        ctx.font = TEXT_FONT;
-        if ('fontKerning' in ctx) ctx.fontKerning = 'none';
-      }
+      // Italic label, position depends on key type
+      ctx.fillStyle = 'rgba(192, 57, 43, 0.78)';
+      ctx.font = SPACE_LABEL_FONT;
+      ctx.textAlign = 'center';
+      const label = seg.subtype === 'tab' ? 'tab'
+                  : seg.subtype === 'newline' ? 'enter'
+                  : 'space';
+      // tab/enter sit ABOVE the line; space sits BELOW
+      const labelY = (seg.subtype === 'tab' || seg.subtype === 'newline')
+                   ? segScreenY - 4    // above
+                   : segScreenY + 14;  // below
+      ctx.fillText(label, (x0 + x1) / 2, labelY);
+      ctx.textAlign = 'start';
+      ctx.font = TEXT_FONT;
+      if ('fontKerning' in ctx) ctx.fontKerning = 'none';
     }
 
     // Stick figure
@@ -1183,7 +1281,7 @@ class AdventureRenderer {
     // ---- Leap (paragraph crossing): full leg/arm leap keyframes ----
     if (this.isJumping) {
       const limbLen = 9, armLen = 7.5, spineLen = 14;
-      ctx.translate(0, -Math.sin(this.jumpPhase * Math.PI) * 80);
+      ctx.translate(0, -Math.sin(this.jumpPhase * Math.PI) * this.jumpHeight);
       ctx.strokeStyle = '#2b221a';
       ctx.lineWidth = 2.5;
       ctx.lineCap = 'round';
@@ -1384,7 +1482,10 @@ class AdventureRenderer {
       ctx.stroke();
       this._drawGhostXEyes(0, headY + 12, 3.5);
     } else if (ghost.style === 'head') {
-      // Y-frame body with a head that rolls left and right at the top
+      // Y-frame body with a head that ROLLS between the arm tips. As the
+      // head swings, it tumbles — its rotation is proportional to lateral
+      // displacement. Eyes rotate with it. Drops slightly at extremes
+      // (suggests it's actually rolling along the arms).
       ctx.fillStyle = '#f4ecd8';
       // Spine waves slightly
       ctx.beginPath();
@@ -1401,14 +1502,22 @@ class AdventureRenderer {
       ctx.moveTo(0, shoulderY); ctx.lineTo(-width, shoulderY - 15);
       ctx.moveTo(0, shoulderY); ctx.lineTo( width, shoulderY - 15);
       ctx.stroke();
-      // Head rolling left-right, dropping deeper as it swings out
       const rollX = Math.sin(now / 400) * 16;
       const dropY = shoulderY - 13 - Math.pow(Math.abs(rollX / width), 2) * 6;
+      // Rotation = lateral position scaled to a tumble. Full π rotation
+      // across the swing means the eyes spin around as the head rolls
+      // along the arms — the original "head rolling between hands" effect.
+      const headRot = (rollX / width) * Math.PI;
+      ctx.save();
+      ctx.translate(rollX, dropY);
+      ctx.rotate(headRot);
       ctx.beginPath();
-      ctx.arc(rollX, dropY, 5.5, 0, Math.PI * 2);
+      ctx.arc(0, 0, 5.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-      this._drawGhostXEyes(rollX, dropY, 2.2);
+      // X-eyes inside the rotated frame so they tumble with the head
+      this._drawGhostXEyes(0, 0, 2.2);
+      ctx.restore();
     } else {
       // 'limp' (default) — short body, dangling arms, head hovering
       ctx.fillStyle = '#f4ecd8';
