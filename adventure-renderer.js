@@ -1,12 +1,18 @@
-// adventure-renderer.js — v0.2.9
+// adventure-renderer.js — v0.2.10
 //
-// v0.2.9 — Tilt accumulation + recovery on retype:
-//   - Each mistake on the same letter accumulates tilt — a letter mistyped
-//     twice leans further than once, and so on.
-//   - Recovery (mistake → backspace → retype-correctly) now triggers on the
-//     correct keystroke with status='fixed', NOT on backward positionSet.
-//     This catches the actual TTB flow where a single backspace clears the
-//     error without moving the cursor.
+// v0.2.10 — Auto-respawn + forward tilts + keyboard label color:
+//   - On hard-stop, the figure now auto-respawns at sentence start as soon
+//     as the plummet finishes (~900ms), so the user can SEE where they're
+//     headed before they type the resume key. Before this, the modal asked
+//     them to press a key for a position with no visible figure.
+//   - Letter tilts always lean forward (clockwise / right) regardless of
+//     position parity. Reads as the figure tripping forward in the
+//     direction of travel.
+//   - Keyboard target keys now show their label in the (brightened) vintage
+//     finger color, against the black target background. Restores the
+//     finger-cue the kids needed.
+//
+// v0.2.9 — Tilt accumulation + recovery on retype.
 //
 // v0.2.8 — Persistent tilts + (broken) backspace recovery via positionSet.
 //
@@ -72,7 +78,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.9';
+export const RENDERER_VERSION = '0.2.10';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -163,6 +169,13 @@ class AdventureRenderer {
     // they were stumbling on physically fall off-screen. Map: globalPos ->
     // { startTime, vx, rot } animation state.
     this.fallingLetters = {};
+
+    // ---- Auto-respawn queue ----
+    // When ttb:fail fires, we plant the gravestone and start the plummet.
+    // We also stash the destination (sentence start) here. The loop watches
+    // for fallPhase to complete, then auto-triggers the respawn drop so the
+    // user can SEE where they're headed before they type the resume key.
+    this.queuedRespawnPos = null;
 
     // ---- Background decorations ----
     this.ghosts = [];
@@ -270,33 +283,72 @@ class AdventureRenderer {
     const map = AdventureRenderer._KEY_COLOR_MAP;
     const ALPHA = '38';   // same alpha suffix keyboard.js uses
 
+    // Lighten a hex color toward cream (#f2e8d5) by `mix` factor (0..1).
+    // Used to brighten vintage finger colors so they read against black on
+    // .target keys. Without this, aubergine and dusty-blue label-on-black
+    // are nearly invisible.
+    const lighten = (hex, mix) => {
+      const r1 = parseInt(hex.slice(1, 3), 16);
+      const g1 = parseInt(hex.slice(3, 5), 16);
+      const b1 = parseInt(hex.slice(5, 7), 16);
+      const r2 = 0xf2, g2 = 0xe8, b2 = 0xd5;
+      const r = Math.round(r1 + (r2 - r1) * mix);
+      const g = Math.round(g1 + (g2 - g1) * mix);
+      const b = Math.round(b1 + (b2 - b1) * mix);
+      return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+    };
+
     const reskin = (el) => {
-      // keyboard.js sets style.backgroundColor like '#FF69B438' (8 hex digits).
-      // We pull it via the inline style attr (string form) since
-      // getComputedStyle/getAttribute returns rgba() form which is harder.
+      if (!el.classList) return;
+
+      // 1) Background tint: replace TTB rainbow with vintage. Only fires
+      //    once per element (gated by startsWith check) — avoids feedback
+      //    loop. Stash the recognized vintage hex on the element so step 2
+      //    can read it back without reparsing.
       const inline = el.getAttribute('style') || '';
       const m = inline.match(/background-color:\s*(#[0-9A-Fa-f]{6,8})/);
-      if (!m) return;
-      const raw = m[1].toUpperCase();
-      const prefix = raw.slice(0, 7);   // first 6 hex digits + #
-      const replacement = map[prefix];
-      if (!replacement) return;
-      // Only re-set if not already vintage (avoids observer feedback loop)
-      if (raw.startsWith(replacement.toUpperCase())) return;
-      el.style.backgroundColor = replacement + ALPHA;
+      if (m) {
+        const raw = m[1].toUpperCase();
+        const prefix = raw.slice(0, 7);
+        const replacement = map[prefix];
+        if (replacement && !raw.startsWith(replacement.toUpperCase())) {
+          el.style.backgroundColor = replacement + ALPHA;
+          el.dataset.advFinger = replacement;
+          el.dataset.advFingerLabel = lighten(replacement, 0.45);
+        }
+      }
+
+      // 2) Label color: if the key is a .target key, use the brightened
+      //    finger color so kids can ID which finger goes there. Otherwise
+      //    fall back to CSS default (parchment-on-parchment-tint).
+      //    Guarded by lastColor cache (in dataset) to prevent observer
+      //    feedback loops.
+      const isTarget = el.classList.contains('target');
+      const labelHex = el.dataset.advFingerLabel || '#f2e8d5';   // cream fallback
+      const desired = isTarget ? labelHex : '';
+      const lastColor = el.dataset.advLastColor || '';
+      if (lastColor !== desired) {
+        el.dataset.advLastColor = desired;
+        if (desired) {
+          el.style.color = desired;
+        } else {
+          el.style.removeProperty('color');
+        }
+      }
     };
 
     // Initial pass
     kb.querySelectorAll('.key').forEach(reskin);
 
-    // Observe for future color changes (TTB recolors on layout switch etc.)
+    // Observe future changes — both style (TTB recoloring) and class
+    // (TTB toggling .target / .shift-active).
     this._kbObserver = new MutationObserver((records) => {
       for (const r of records) {
-        if (r.type === 'attributes' && r.attributeName === 'style' &&
+        if (r.type === 'attributes' &&
+            (r.attributeName === 'style' || r.attributeName === 'class') &&
             r.target.classList && r.target.classList.contains('key')) {
           reskin(r.target);
         } else if (r.type === 'childList') {
-          // Keys might be re-rendered; pass over any new ones
           r.addedNodes.forEach((n) => {
             if (n.nodeType === 1) {
               if (n.classList && n.classList.contains('key')) reskin(n);
@@ -308,7 +360,7 @@ class AdventureRenderer {
     });
     this._kbObserver.observe(kb, {
       attributes: true,
-      attributeFilter: ['style'],
+      attributeFilter: ['style', 'class'],
       childList: true,
       subtree: true,
     });
@@ -357,6 +409,7 @@ class AdventureRenderer {
     this.mistakeFlash = {};
     this.letterTilts = {};
     this.fallingLetters = {};
+    this.queuedRespawnPos = null;
     this.ghosts = [];
     this.gravestones = [];
     this.currentParaIdx = 0;
@@ -484,21 +537,16 @@ class AdventureRenderer {
       // ttb:fail and we plummet.
       const pos = (typeof d.position === 'number') ? d.position : this.currentPos;
       this.mistakeFlash[pos] = performance.now();
-      // Tilt the letter they tripped over. Direction alternates by hash of
-      // position so it doesn't always lean the same way. Magnitude is 0.18
-      // to 0.28 rad (~10-16 degrees) — enough to read as askew but not so
-      // much it becomes hard to identify.
-      // Tilt accumulates on repeated mistakes. Each fresh mistake adds a
-      // new "kick" in the same direction as the previous tilt (or alternating
-      // if no previous), capped so the letter doesn't spin past 90°.
-      const existing = this.letterTilts[pos];
-      const sign = existing
-                 ? Math.sign(existing.angleRad) || (pos % 2 === 0 ? 1 : -1)
-                 : (pos % 2 === 0 ? 1 : -1);
+      // Tilt always leans FORWARD (clockwise = falling rightward, the
+      // direction the figure was running). Reads as the figure tripping
+      // over the letter and kicking it forward.
+      // Tilt accumulates on repeated mistakes — each fresh mistake adds
+      // another kick in the same forward direction.
       const baseKick = 0.18 + (((pos * 9301) % 100) / 1000);   // 0.18..0.28
-      const newAngle = (existing ? existing.angleRad : 0) + sign * baseKick;
-      // Clamp magnitude to about 80° so the glyph stays legible.
-      const cappedAngle = Math.max(-1.4, Math.min(1.4, newAngle));
+      const existing = this.letterTilts[pos];
+      const newAngle = (existing ? existing.angleRad : 0) + baseKick;
+      // Cap at ~80° so the glyph stays legible.
+      const cappedAngle = Math.min(1.4, newAngle);
       this.letterTilts[pos] = { angleRad: cappedAngle, setAt: performance.now() };
 
       // Don't restart stumble if already stumbling — let the existing one play
@@ -516,6 +564,15 @@ class AdventureRenderer {
     this._logEvent(`FAIL pos=${d && d.position} expected=${(d && d.expected) || '?'}`);
     this.state = 'fall';
     this.fallPhase = 0;
+
+    // Stash the respawn target so the loop can auto-trigger respawn after
+    // the plummet finishes. Falls back to the death position if game.js
+    // didn't include sentenceStart (older versions or non-spam fails).
+    if (typeof d.sentenceStart === 'number') {
+      this.queuedRespawnPos = d.sentenceStart;
+    } else if (typeof d.position === 'number') {
+      this.queuedRespawnPos = d.position;
+    }
 
     // Letters fall away with the figure. Every letter currently tilted (the
     // ones they were tripping on) gets converted to a falling letter — the
@@ -593,11 +650,25 @@ class AdventureRenderer {
   }
 
   _onRespawn(d) {
-    this._logEvent(`RESPAWN pos=${d && d.position}`);
-    // Game tells us the new position. Reset terrain to flat (per Jake's design).
+    const newPos = (typeof d.position === 'number') ? d.position : this.currentPos;
+    // Idempotency: if we're already at this exact position and either standing
+    // (idle) or in the middle of a respawn drop, ignore the event. This handles
+    // game.js's ttb:respawn arriving after we've already auto-respawned post-
+    // plummet.
+    if (this.state === 'respawning' && this.currentPos === newPos) {
+      this._logEvent(`RESPAWN ignored (already respawning here)`);
+      return;
+    }
+    if (this.state === 'idle' && this.currentPos === newPos) {
+      this._logEvent(`RESPAWN ignored (already idle here)`);
+      return;
+    }
+
+    this._logEvent(`RESPAWN pos=${newPos}` + (d && d.isAutoRespawn ? ' (auto)' : ''));
+    this.queuedRespawnPos = null;            // consumed
     this.state = 'respawning';
     this.respawnPhase = 0;
-    if (typeof d.position === 'number') this.currentPos = d.position;
+    this.currentPos = newPos;
     this.globalWordIdx = 0;
     this.prevSign = 0;
     this.runLen = 0;
@@ -932,8 +1003,15 @@ class AdventureRenderer {
 
     if (this.state === 'fall') {
       this.fallPhase = Math.min(1, this.fallPhase + dt / 900);
-      // Fall→respawning transition is driven by ttb:respawn from game.js; we
-      // don't auto-transition here because game.js owns the timing.
+      // When the plummet finishes, auto-trigger the respawn drop at the
+      // sentence-start position queued by _onFail. This makes the figure
+      // visible at the destination BEFORE the user types the resume key —
+      // so they see what they're aiming for.
+      if (this.fallPhase >= 1 && this.queuedRespawnPos !== null) {
+        const pos = this.queuedRespawnPos;
+        this.queuedRespawnPos = null;
+        this._onRespawn({ position: pos, isAutoRespawn: true });
+      }
     }
     if (this.state === 'respawning') {
       this.respawnPhase = Math.min(1, this.respawnPhase + dt / 800);
