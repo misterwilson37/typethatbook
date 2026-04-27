@@ -1,3 +1,5 @@
+// v3.0.3 - Hard-stop modal asks for sentence-start letter; spam threshold = 3
+// v3.0.2 - Hard-stop rolls cursor back to start of current sentence
 // v3.0.1 - Adventure Mode integration; cross-file version banner
 import { db, auth } from "./firebase-config.js";
 import { doc, getDoc, setDoc, getDocs, collection, addDoc, query, orderBy, limit, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -9,12 +11,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.0.2";
+const VERSION = "3.0.3";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
 const SPRINT_COOLDOWN_MS = 1500;
-const SPAM_THRESHOLD = 5;
+const SPAM_THRESHOLD = 3;
 
 // ─── Adventure Mode integration ────────────────────────────────────────────
 // View toggle. 'classic' = original DOM-rendered text; 'adventure' = canvas
@@ -41,8 +43,11 @@ function _ttbEmit(type, detail) {
 function _readCssVersion(selector) {
     try {
         const raw = getComputedStyle(document.body, selector).content;
-        // content comes back as "\"v1.2.3\"" — strip the quotes
-        return raw.replace(/^["']|["']$/g, '').replace(/\\/g, '') || '?';
+        // content comes back as "\"v1.2.3\"" — strip quotes, escapes, and the
+        // leading 'v' so the JS-side template can prepend its own consistently.
+        return raw.replace(/^["']|["']$/g, '')
+                  .replace(/\\/g, '')
+                  .replace(/^v/, '') || '?';
     } catch (e) {
         return '?';
     }
@@ -1174,26 +1179,29 @@ function triggerHardStop(targetChar, isAfk) {
     const failPos = currentCharIndex;
     const sentenceStart = findSentenceStartFor(failPos);
 
-    // Walk the DOM and clear typed-letter classes from sentenceStart onward
-    // so classic-view retyping is fresh. fullText/charSpans access pattern
-    // matches the rest of the codebase.
-    const charSpans = document.querySelectorAll('#text-stream .char');
-    for (let i = sentenceStart; i < charSpans.length && i <= failPos; i++) {
-        const sp = charSpans[i];
-        if (!sp) continue;
-        sp.classList.remove('done-perfect', 'done-fixed', 'done-dirty', 'error', 'current');
-        sp.classList.add('clean');
+    // Walk the per-letter DOM nodes and reset them to clean (re-typable)
+    // state. game.js uses id="char-N" with classes done-perfect/done-fixed/
+    // done-dirty/error-state/active.
+    for (let i = sentenceStart; i <= failPos; i++) {
+        const el = document.getElementById(`char-${i}`);
+        if (!el) continue;
+        el.classList.remove('done-perfect', 'done-fixed', 'done-dirty', 'error-state', 'active');
     }
-    if (charSpans[sentenceStart]) charSpans[sentenceStart].classList.add('current');
-
     currentCharIndex = sentenceStart;
+    highlightCurrentChar();
+    centerView();
 
     _ttbEmit('fail', {
         reason: isAfk ? 'afk' : 'spam',
         position: failPos,                  // where they died (for gravestone, falling letters)
         sentenceStart: sentenceStart,       // where they'll respawn to
-        expected: targetChar,
+        expected: targetChar,                // the letter that killed them
     });
+
+    // The resume gate (handleTyping) checks fullText[currentCharIndex]. After
+    // the rollback that's the sentence-start letter, NOT the letter they
+    // failed on. Overwrite targetChar so the modal display matches the gate.
+    targetChar = fullText[sentenceStart] || '?';
 
     if (!targetChar) targetChar = '?';
     let friendlyKey = targetChar;
