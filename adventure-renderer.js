@@ -1,16 +1,14 @@
-// adventure-renderer.js — v0.2.6
+// adventure-renderer.js — v0.2.7
 //
-// v0.2.6 — Letters become walkable surface:
-//   - Letters render BELOW the figure's feet line (instead of above). The
-//     figure runs across the TOPS of letters as if they're a stone walkway.
-//     Tripping on a letter / letters falling out from under = literal.
-//   - Non-cursor gaps draw NOTHING. No connector line, no pit walls — just
-//     empty air the figure has to hop across.
-//   - Cursor gap (space): red line at the figure's feet level, "space" label
-//     centered BELOW the line.
-//   - Cursor gap (tab): red line at the feet level, "tab" label centered
-//     ABOVE the line. The inversion makes tab feel bigger/different at a
-//     glance.
+// v0.2.7 — Underscore-style cursor gap + keyboard skin shim:
+//   - Cursor-gap red bridge line drops to LETTER BASELINE (like an underscore).
+//     Space label below the line; tab/enter labels above.
+//   - Keyboard re-tinted to muted vintage finger colors via MutationObserver
+//     shim. keyboard.js untouched; classic view bit-for-bit unchanged.
+//   - Death cleans falling-letter and tilt state so the respawn sentence
+//     displays cleanly. (Already mostly working in v0.2.5; locking it down.)
+//
+// v0.2.6 — Letters become walkable surface, gaps render only at cursor.
 //
 // v0.2.5 — Connector line in gap only, letter tilt on stumble, letters fall
 //   on plummet, head-rolling ghost, leap arc clears next paragraph.
@@ -64,7 +62,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.6';
+export const RENDERER_VERSION = '0.2.7';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -171,6 +169,28 @@ class AdventureRenderer {
     this._debug = false;
     this._eventLog = [];        // ring buffer of recent events for display
     this._eventLogMax = 12;
+
+    // ---- Keyboard skin shim ----
+    // TTB's keyboard.js sets per-key finger colors via inline backgroundColor
+    // (rainbow palette + '38' alpha). For the parchment aesthetic we re-tint
+    // to muted vintage tones via a MutationObserver. Done as a shim so we
+    // don't have to touch keyboard.js or game.js. Mounted with the renderer,
+    // disconnected on unmount.
+    this._kbObserver = null;
+  }
+
+  // Map of TTB rainbow hex (uppercase, no alpha) → vintage parchment tones.
+  static get _KEY_COLOR_MAP() {
+    return {
+      '#FF69B4': '#b86a78',  // left-pinky   pink   → dusty rose
+      '#E53935': '#a85040',  // left-ring    red    → brick
+      '#FF9800': '#c8932e',  // left-middle  orange → mustard
+      '#FDD835': '#c4a838',  // left-index   yellow → wheat
+      '#43A047': '#6a8a5e',  // right-index  green  → sage
+      '#1E88E5': '#607590',  // right-middle blue   → dusty blue
+      '#8E24AA': '#6e4866',  // right-ring   purple → aubergine
+      '#4FC3F7': '#6c9499',  // right-pinky  lblue  → faded teal
+    };
   }
 
   // --------------------------------------------------------------------------
@@ -206,6 +226,9 @@ class AdventureRenderer {
     document.addEventListener('keydown', onKey);
     this._listeners.push({ type: 'keydown', fn: onKey });
 
+    // Keyboard skin: re-tint inline finger colors to vintage palette
+    this._mountKeyboardSkin();
+
     this._raf = requestAnimationFrame((t) => this._loop(t));
   }
 
@@ -216,11 +239,69 @@ class AdventureRenderer {
       this._resizeObserver.disconnect();
       this._resizeObserver = null;
     }
+    if (this._kbObserver) {
+      this._kbObserver.disconnect();
+      this._kbObserver = null;
+    }
     for (const { type, fn } of this._listeners) {
       document.removeEventListener(type, fn);
     }
     this._listeners.length = 0;
     if (this.canvas) this.canvas.classList.add('hidden');
+  }
+
+  // ---- Keyboard skin shim ----
+  // Watches #virtual-keyboard for inline backgroundColor changes on .key
+  // elements and re-applies the vintage equivalent. The TTB rainbow palette
+  // gets re-mapped to a parchment-friendly muted palette.
+  _mountKeyboardSkin() {
+    const kb = document.getElementById('virtual-keyboard');
+    if (!kb) return;
+    const map = AdventureRenderer._KEY_COLOR_MAP;
+    const ALPHA = '38';   // same alpha suffix keyboard.js uses
+
+    const reskin = (el) => {
+      // keyboard.js sets style.backgroundColor like '#FF69B438' (8 hex digits).
+      // We pull it via the inline style attr (string form) since
+      // getComputedStyle/getAttribute returns rgba() form which is harder.
+      const inline = el.getAttribute('style') || '';
+      const m = inline.match(/background-color:\s*(#[0-9A-Fa-f]{6,8})/);
+      if (!m) return;
+      const raw = m[1].toUpperCase();
+      const prefix = raw.slice(0, 7);   // first 6 hex digits + #
+      const replacement = map[prefix];
+      if (!replacement) return;
+      // Only re-set if not already vintage (avoids observer feedback loop)
+      if (raw.startsWith(replacement.toUpperCase())) return;
+      el.style.backgroundColor = replacement + ALPHA;
+    };
+
+    // Initial pass
+    kb.querySelectorAll('.key').forEach(reskin);
+
+    // Observe for future color changes (TTB recolors on layout switch etc.)
+    this._kbObserver = new MutationObserver((records) => {
+      for (const r of records) {
+        if (r.type === 'attributes' && r.attributeName === 'style' &&
+            r.target.classList && r.target.classList.contains('key')) {
+          reskin(r.target);
+        } else if (r.type === 'childList') {
+          // Keys might be re-rendered; pass over any new ones
+          r.addedNodes.forEach((n) => {
+            if (n.nodeType === 1) {
+              if (n.classList && n.classList.contains('key')) reskin(n);
+              if (n.querySelectorAll) n.querySelectorAll('.key').forEach(reskin);
+            }
+          });
+        }
+      }
+    });
+    this._kbObserver.observe(kb, {
+      attributes: true,
+      attributeFilter: ['style'],
+      childList: true,
+      subtree: true,
+    });
   }
 
   _on(type, fn) {
@@ -1028,13 +1109,13 @@ class AdventureRenderer {
       ctx.restore();
     }
 
-    // Cursor-gap indicator: a red bridge line at the figure's feet level,
-    // appearing ONLY at the gap the user is currently on. Non-cursor gaps
-    // render nothing — they're empty air that the figure has to hop across.
+    // Cursor-gap indicator: a red bridge line at LETTER BASELINE (like an
+    // underscore), appearing ONLY at the gap the user is currently on.
+    // Non-cursor gaps render nothing — empty air the figure has to hop.
     // Label placement:
-    //   space → below the line (typed by thumb, downward)
-    //   tab   → above the line (a bigger reach, visually distinguished)
-    //   enter → above the line (also a reach)
+    //   space → below the line (under the underscore)
+    //   tab   → above the line (between letter caps and the underscore)
+    //   enter → above the line
     for (const seg of this.wordSegments) {
       if (seg.type !== 'gap') continue;
       if (seg.paraIdx !== cursorParaIdx) continue;
@@ -1044,27 +1125,28 @@ class AdventureRenderer {
       const segScreenY = baseY + seg.yOffset - this.cameraY;
       const x0 = seg.x - this.cameraX;
       const x1 = x0 + seg.width;
+      // Letters render with caps at segScreenY, baseline at +26.
+      // Bridge line lives at the baseline like an underscore under the gap.
+      const lineY = segScreenY + 26;
 
-      // Red bridge line at the figure's feet level — shows where they need
-      // to land/leap-from. No pit walls; the gap is just empty air.
       ctx.strokeStyle = 'rgba(192, 57, 43, 0.85)';
       ctx.lineWidth = 1.8;
       ctx.beginPath();
-      ctx.moveTo(x0, segScreenY);
-      ctx.lineTo(x1, segScreenY);
+      ctx.moveTo(x0, lineY);
+      ctx.lineTo(x1, lineY);
       ctx.stroke();
 
-      // Italic label, position depends on key type
       ctx.fillStyle = 'rgba(192, 57, 43, 0.78)';
       ctx.font = SPACE_LABEL_FONT;
       ctx.textAlign = 'center';
       const label = seg.subtype === 'tab' ? 'tab'
                   : seg.subtype === 'newline' ? 'enter'
                   : 'space';
-      // tab/enter sit ABOVE the line; space sits BELOW
+      // tab/enter ABOVE the line (between letter caps and underscore);
+      // space BELOW (under the underscore).
       const labelY = (seg.subtype === 'tab' || seg.subtype === 'newline')
-                   ? segScreenY - 4    // above
-                   : segScreenY + 14;  // below
+                   ? lineY - 4    // above the bridge line
+                   : lineY + 14;  // below the bridge line
       ctx.fillText(label, (x0 + x1) / 2, labelY);
       ctx.textAlign = 'start';
       ctx.font = TEXT_FONT;
