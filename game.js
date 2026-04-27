@@ -1,4 +1,4 @@
-// v2.9.6 - Retry button on chapter load error
+// v3.0.1 - Adventure Mode integration; cross-file version banner
 import { db, auth } from "./firebase-config.js";
 import { doc, getDoc, setDoc, getDocs, collection, addDoc, query, orderBy, limit, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
@@ -9,7 +9,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.0.0";
+const VERSION = "3.0.1";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -33,6 +33,32 @@ function _ttbEmit(type, detail) {
         // Old browsers without CustomEvent constructor — silently ignore.
         // Adventure mode is opt-in; classic mode never reaches this code path.
     }
+}
+
+// Pull the CSS version strings (set as ::before/::after content) and combine
+// with JS VERSION constants into a single banner. Async because the adventure
+// renderer's version is in a separately-loaded module.
+function _readCssVersion(selector) {
+    try {
+        const raw = getComputedStyle(document.body, selector).content;
+        // content comes back as "\"v1.2.3\"" — strip the quotes
+        return raw.replace(/^["']|["']$/g, '').replace(/\\/g, '') || '?';
+    } catch (e) {
+        return '?';
+    }
+}
+
+async function updateVersionBanner(advRendererVersion) {
+    const footer = document.querySelector('footer');
+    if (!footer) return;
+    const styleVer = _readCssVersion('::before');
+    const advCssVer = _readCssVersion('::after');
+    const advJsVer = advRendererVersion || '—';
+    footer.innerHTML =
+        `<span style="opacity:.7">game.js</span> v${VERSION}` +
+        ` &nbsp;·&nbsp; <span style="opacity:.7">style.css</span> v${styleVer}` +
+        ` &nbsp;·&nbsp; <span style="opacity:.7">adventure.css</span> v${advCssVer}` +
+        ` &nbsp;·&nbsp; <span style="opacity:.7">adventure-renderer.js</span> v${advJsVer}`;
 }
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -240,23 +266,27 @@ function escapeHtml(str) {
 async function init() {
     console.log("Initializing JS v" + VERSION);
     loadAnonReminderState();
-    const footer = document.querySelector('footer');
-    if(footer) footer.innerText = `JS: v${VERSION}`;
+    // Build a consolidated version banner showing every loaded file. Helps
+    // confirm GitHub Pages cache is serving fresh code (not a stale CSS or JS).
+    // CSS versions are exposed via the `content` property of body::before /
+    // body::after — see style.css and adventure.css for the values.
 
     // ─── Adventure: apply view mode and mount renderer if active ───
     document.body.classList.add('view-' + VIEW_MODE);
+    let rendererVersion = '—';
     if (VIEW_MODE === 'adventure') {
         try {
             const mod = await import('./adventure-renderer.js');
             mod.mountAdventureRenderer();
+            rendererVersion = mod.RENDERER_VERSION || '?';
         } catch (e) {
-            // If the renderer module fails to load, fall back to classic view
-            // by removing the class. The user sees normal TTB.
             console.warn('Adventure renderer failed to load; using classic view.', e);
             document.body.classList.remove('view-adventure');
             document.body.classList.add('view-classic');
+            rendererVersion = 'failed';
         }
     }
+    updateVersionBanner(rendererVersion);
 
     if (!document.getElementById('menu-btn')) {
         const btn = document.createElement('button');
@@ -1069,6 +1099,13 @@ function handleTyping(key) {
             correct: true,
             char: inputChar,
             position: currentCharIndex,
+            // status was just decided above for the just-completed char at
+            // currentCharIndex - 1. Tell the renderer so it can paint that
+            // letter in the appropriate color.
+            statusAtCompleted: (currentEl && currentEl.classList.contains('done-perfect')) ? 'perfect' :
+                                (currentEl && currentEl.classList.contains('done-fixed'))   ? 'fixed' :
+                                                                                             'dirty',
+            completedPos: currentCharIndex - 1,
         });
 
         if (['.', '!', '?', '\n'].includes(targetChar)) saveProgress();
