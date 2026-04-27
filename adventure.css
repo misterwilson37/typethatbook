@@ -1,7 +1,8 @@
-/* adventure.css v0.0.3 — view-mode skin for Adventure Mode */ 
+/* adventure.css v0.0.4 — view-mode skin for Adventure Mode */
+/* v0.0.4: number & symbol positioning fixed for round keys             */
 /* v0.0.3: keyboard + modal skin (round typewriter keys, parchment modals) */
 /* v0.0.2: bumped for v3.0.1 release; machine-readable version stamp       */
-body::after { content: "v0.0.3"; display: none; }
+body::after { content: "v0.0.4"; display: none; }
 
 /* Every rule in this file is scoped under body.view-adventure. Classic view
    never sees any of this. */
@@ -109,6 +110,20 @@ body.view-adventure .key.shift-active {
 
 body.view-adventure .key.key-num {
     font-size: 12px;
+}
+
+/* Number keys — pull digit and shifted symbol toward center so they stay
+   inside the circular key. Default classic positioning sits them at the
+   corners, which clips on a round key. */
+body.view-adventure .key.key-num .num-digit {
+    bottom: 8px;
+    left: 12px;
+    font-size: 14px;
+}
+body.view-adventure .key.key-num .num-symbol {
+    top: 7px;
+    right: 11px;
+    font-size: 11px;
 }
 
 body.view-adventure #caps-warning {
