@@ -1,15 +1,17 @@
-// adventure-renderer.js — v0.2.12
+// adventure-renderer.js — v0.2.13
 //
-// v0.2.12 — Continuous paragraph layout (no more leap teleport):
-//   - On paragraph crossing, segments are NOT rebuilt from scratch. The old
-//     current paragraph stays in place (becomes "previous"), the old preview
-//     becomes the new current at its existing X coords, and a new preview is
-//     appended at endX+INDENT. Camera lerps smoothly into the new position
-//     instead of snapping. The figure leaps in continuous coord space.
-//   - Stale "previous" paragraphs (paraIdx <= currentParaIdx - 2) are pruned
-//     from segments to prevent the v0.2.2 detritus accumulation bug.
+// v0.2.13 — Defensive transform reset + better diagnostics:
+//   - At the start of every _render(), reset the canvas transform to the
+//     dpr-scaled identity and force globalAlpha=1 BEFORE clearing. This is
+//     defense-in-depth against any code path leaving the context in a weird
+//     state — if a stale transform or alpha was leaking between frames
+//     (which is consistent with the "5 stacked paragraph rows" detritus
+//     bug some kids reported on v0.2.7), this kills it.
+//   - Diagnostic overlay now shows: render frame counter, fallingLetters
+//     count, and a one-line summary of segments per paragraph. Helps
+//     catch any future stacking bugs at a glance.
 //
-// v0.2.11 — Keyboard label color robustness (rgba detection + child walk).
+// v0.2.12 — Continuous paragraph layout (no more leap teleport).
 //
 // v0.2.8 — Persistent tilts + (broken) backspace recovery via positionSet.
 //
@@ -75,7 +77,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.12';
+export const RENDERER_VERSION = '0.2.13';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -138,6 +140,16 @@ class AdventureRenderer {
     this.jumpHeight = 80;             // dynamic per-leap, set in _triggerJump
     this.isHopping = false;
     this.hopPhase = 0;
+
+    // ---- Defensive render state ----
+    // Render frame counter; surfaced in the diagnostic so we can verify the
+    // loop is firing once per RAF and not somehow accumulating renders into
+    // the same frame (which would explain stacked detritus).
+    this._renderCount = 0;
+    // Stashed device pixel ratio. Keeping a reference here lets us reset the
+    // canvas transform deterministically at the start of every frame
+    // without re-querying window.devicePixelRatio.
+    this._dpr = window.devicePixelRatio || 1;
 
     // ---- World layout ----
     // wordSegments contains all paragraphs flattened into a single coord space.
@@ -407,6 +419,7 @@ class AdventureRenderer {
     const parent = this.canvas.parentElement;
     const rect = parent.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
+    this._dpr = dpr;
     this.canvas.width = Math.max(300, rect.width) * dpr;
     this.canvas.height = Math.max(300, rect.height) * dpr;
     this.canvas.style.width = rect.width + 'px';
@@ -1136,6 +1149,17 @@ class AdventureRenderer {
     const ctx = this.ctx;
     if (!ctx) return;
 
+    this._renderCount++;
+
+    // Defensive: reset transform to dpr-scaled identity and force globalAlpha
+    // to 1 BEFORE clearing. If any code path leaves the context in a weird
+    // state (a stale translate, a leaked alpha), this resets it. Without
+    // this, a semi-transparent clear would leave previous-frame content
+    // partially visible — exactly the symptom we saw with the v0.2.7
+    // "stacked detritus" bug.
+    ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+    ctx.globalAlpha = 1;
+
     // Parchment background
     ctx.fillStyle = '#f2e8d5';
     ctx.fillRect(0, 0, this.w, this.h);
@@ -1392,8 +1416,10 @@ class AdventureRenderer {
     }
     const breakdown = Object.entries(perPara).map(([k, v]) => `p${k}:${v}`).join(' ');
     lines.push(`wordSegments=${this.wordSegments.length} [${breakdown}]`);
-    lines.push(`crumbleAt=${Object.keys(this.crumbleAt).length} keys`);
-    lines.push(`ghosts=${this.ghosts.length}  graves=${this.gravestones.length}`);
+    lines.push(`crumbleAt=${Object.keys(this.crumbleAt).length} keys` +
+               `  fallingLetters=${Object.keys(this.fallingLetters).length} keys`);
+    lines.push(`ghosts=${this.ghosts.length}  graves=${this.gravestones.length}` +
+               `  renders=${this._renderCount}`);
     lines.push(`cam x=${this.cameraX.toFixed(0)} y=${this.cameraY.toFixed(0)} | ` +
                `tgt x=${this.targetCameraX.toFixed(0)} y=${this.targetCameraY.toFixed(0)}`);
     lines.push(`wpm=${this.wpm}  walkPhase=${this.walkPhase.toFixed(1)}`);
