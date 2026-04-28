@@ -1,17 +1,20 @@
-// adventure-renderer.js — v0.2.13
+// adventure-renderer.js — v0.2.14
 //
-// v0.2.13 — Defensive transform reset + better diagnostics:
-//   - At the start of every _render(), reset the canvas transform to the
-//     dpr-scaled identity and force globalAlpha=1 BEFORE clearing. This is
-//     defense-in-depth against any code path leaving the context in a weird
-//     state — if a stale transform or alpha was leaking between frames
-//     (which is consistent with the "5 stacked paragraph rows" detritus
-//     bug some kids reported on v0.2.7), this kills it.
-//   - Diagnostic overlay now shows: render frame counter, fallingLetters
-//     count, and a one-line summary of segments per paragraph. Helps
-//     catch any future stacking bugs at a glance.
+// v0.2.14 — Figure leap is no longer a teleport:
+//   - During a leap, the figure's coord X is interpolated from the OLD
+//     position (the period at the end of the previous paragraph) to the new
+//     position (the J at the start of the new paragraph) using the same
+//     smoothstep curve as the Y motion. CameraX is set directly off this
+//     interpolated value (no lerp during leap), keeping the figure perfectly
+//     anchored at 35% screen-X for the duration of the arc. Result: figure
+//     stays put visually while the world slides under it — the new
+//     paragraph "comes to meet" the figure as Jake described.
+//   - Before this, currentPos jumped to the new paragraph's start in one
+//     keystroke, which meant the figure rendered ~80px to the right of
+//     anchor for one frame, then lerped back over ~14 frames. Visible as
+//     a single-frame teleport in slow-motion video capture.
 //
-// v0.2.12 — Continuous paragraph layout (no more leap teleport).
+// v0.2.13 — Defensive transform reset + better diagnostics.
 //
 // v0.2.8 — Persistent tilts + (broken) backspace recovery via positionSet.
 //
@@ -77,7 +80,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.13';
+export const RENDERER_VERSION = '0.2.14';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -128,6 +131,14 @@ class AdventureRenderer {
     // Set to undefined when not jumping; the loop's lerp branch uses this
     // sentinel.
     this._leapStartCameraY = undefined;
+    // Leap X anchors (v0.2.14). When isJumping is true, the figure's coord X
+    // is interpolated from _leapFromCharX → _leapToCharX over jumpPhase, and
+    // cameraX is locked to (figureCharX - 0.35*w) so the figure stays at
+    // 35% screen anchor throughout the arc. This prevents the one-frame X
+    // teleport that happens when currentPos jumps from end-of-old-paragraph
+    // to start-of-new-paragraph in continuous coord space.
+    this._leapFromCharX = 0;
+    this._leapToCharX = 0;
     this.characterY = 0;                   // unused by gait but kept for API compat
     this.walkPhase = 0;                    // gait progression
     this.figureAngle = 0;                  // smoothed platform tilt
@@ -548,6 +559,12 @@ class AdventureRenderer {
         const goingUp = (newParaIdx % 2 === 1);  // alternating Y rule
         this._logEvent(`paraCross ${this.currentParaIdx}→${newParaIdx}`);
 
+        // Capture leap-from coord X (the period's X) BEFORE _advanceParagraph
+        // updates currentParaIdx. After the call, segments still include the
+        // old paragraph (it's now "previous"), so we could compute it again,
+        // but capturing it here is simpler and unambiguous.
+        this._leapFromCharX = this._xAtPosition(oldPos);
+
         // Continuous-layout crossing: keep the old paragraph in place, promote
         // the old preview to be the new current, append a fresh preview to
         // its right. No camera snap — both X and Y lerp smoothly toward the
@@ -555,8 +572,13 @@ class AdventureRenderer {
         // leaps across the indent gap in one continuous coord space.
         this._advanceParagraph(newParaIdx);
 
-        // Set Y target for the lerp; X target naturally flows from the figure
-        // position (computed each loop iteration in _loop).
+        // Capture leap-to coord X (start of new paragraph). Now that
+        // currentParaIdx is updated and segments have been adjusted, this
+        // resolves to the J's (or whatever) X in the new paragraph.
+        this._leapToCharX = this._xAtPosition(this.currentPos);
+
+        // Set Y target for the lerp; X is driven directly off the leap
+        // interpolation in _loop, not by the standard targetCameraX lerp.
         this.targetCameraY = this._paragraphYOffset(newParaIdx);
         this._triggerJump(goingUp);
       } else {
@@ -1064,11 +1086,24 @@ class AdventureRenderer {
     }
 
     // Camera follow
-    if (this.state !== 'fall') {
-      const charX = this._xAtPosition(this.currentPos);
-      this.targetCameraX = charX - this.w * 0.35;
+    if (this.isJumping) {
+      // During a leap, drive cameraX directly off the interpolated leap
+      // position. Figure stays anchored at 35% screen X throughout the arc
+      // (no one-frame teleport when currentPos jumps to the new paragraph
+      // start). targetCameraX is also kept in sync so the post-leap
+      // transition into normal lerp doesn't snap.
+      const t = this.jumpPhase;
+      const eased = t * t * (3 - 2 * t);    // smoothstep
+      const figureCoordX = this._leapFromCharX + (this._leapToCharX - this._leapFromCharX) * eased;
+      this.cameraX = figureCoordX - this.w * 0.35;
+      this.targetCameraX = this.cameraX;
+    } else {
+      if (this.state !== 'fall') {
+        const charX = this._xAtPosition(this.currentPos);
+        this.targetCameraX = charX - this.w * 0.35;
+      }
+      this.cameraX += (this.targetCameraX - this.cameraX) * 0.12;
     }
-    this.cameraX += (this.targetCameraX - this.cameraX) * 0.12;
     if (this.isJumping) {
       // During a leap, drive cameraY directly from jumpPhase so the world
       // shifts in lockstep with the figure's arc. Specifically: at jumpPhase
@@ -1391,7 +1426,18 @@ class AdventureRenderer {
     }
 
     // Stick figure
-    const charX = this._xAtPosition(this.currentPos) - this.cameraX;
+    // During a leap, the figure's coord X is interpolated between the leap
+    // anchors so it stays at the 35% screen anchor while the world slides
+    // beneath it. Outside a leap, currentPos drives it as normal.
+    let figureCoordX;
+    if (this.isJumping) {
+      const t = this.jumpPhase;
+      const eased = t * t * (3 - 2 * t);
+      figureCoordX = this._leapFromCharX + (this._leapToCharX - this._leapFromCharX) * eased;
+    } else {
+      figureCoordX = this._xAtPosition(this.currentPos);
+    }
+    const charX = figureCoordX - this.cameraX;
     const charScreenY = baseY;
     this._drawStickFigure(charX, charScreenY, now);
 
