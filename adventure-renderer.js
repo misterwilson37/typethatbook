@@ -1,16 +1,15 @@
-// adventure-renderer.js — v0.2.11 
+// adventure-renderer.js — v0.2.12
 //
-// v0.2.11 — Keyboard label color robustness:
-//   - Bg-color matcher accepts rgba() form too (Safari normalizes
-//     `el.style.backgroundColor = '#43A04738'` to rgba() in the inline
-//     attribute string, which my hex-only regex was missing — meaning
-//     dataset.advFingerLabel never got set, and target keys fell back to
-//     the cream label).
-//   - Label color now applied to direct child elements as well, so number
-//     keys (with .num-digit / .num-symbol child spans) get colored too.
+// v0.2.12 — Continuous paragraph layout (no more leap teleport):
+//   - On paragraph crossing, segments are NOT rebuilt from scratch. The old
+//     current paragraph stays in place (becomes "previous"), the old preview
+//     becomes the new current at its existing X coords, and a new preview is
+//     appended at endX+INDENT. Camera lerps smoothly into the new position
+//     instead of snapping. The figure leaps in continuous coord space.
+//   - Stale "previous" paragraphs (paraIdx <= currentParaIdx - 2) are pruned
+//     from segments to prevent the v0.2.2 detritus accumulation bug.
 //
-// v0.2.10 — Auto-respawn after plummet, tilts always forward, target-key
-//   labels in vintage finger color.
+// v0.2.11 — Keyboard label color robustness (rgba detection + child walk).
 //
 // v0.2.8 — Persistent tilts + (broken) backspace recovery via positionSet.
 //
@@ -76,7 +75,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.11';
+export const RENDERER_VERSION = '0.2.12';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -123,6 +122,10 @@ class AdventureRenderer {
     this.targetCameraX = 0;
     this.cameraY = 0;
     this.targetCameraY = 0;
+    // Captured at jump start so cameraY can be driven directly off jumpPhase.
+    // Set to undefined when not jumping; the loop's lerp branch uses this
+    // sentinel.
+    this._leapStartCameraY = undefined;
     this.characterY = 0;                   // unused by gait but kept for API compat
     this.walkPhase = 0;                    // gait progression
     this.figureAngle = 0;                  // smoothed platform tilt
@@ -531,17 +534,16 @@ class AdventureRenderer {
       if (newParaIdx !== this.currentParaIdx) {
         const goingUp = (newParaIdx % 2 === 1);  // alternating Y rule
         this._logEvent(`paraCross ${this.currentParaIdx}→${newParaIdx}`);
-        this.currentParaIdx = newParaIdx;
 
-        // Full rebuild on every paragraph crossing. wordSegments only ever
-        // holds current + next-preview, both starting at X=0 in their own
-        // coord space. Camera resets to put the figure (now at the start of
-        // the new paragraph) into a comfortable spot on screen.
-        this._relayoutCurrentWorld();
-        const charX = this._xAtPosition(this.currentPos);
-        this.cameraX = charX - this.w * 0.35;
-        this.targetCameraX = this.cameraX;
+        // Continuous-layout crossing: keep the old paragraph in place, promote
+        // the old preview to be the new current, append a fresh preview to
+        // its right. No camera snap — both X and Y lerp smoothly toward the
+        // new figure position so the world doesn't teleport. The figure
+        // leaps across the indent gap in one continuous coord space.
+        this._advanceParagraph(newParaIdx);
 
+        // Set Y target for the lerp; X target naturally flows from the figure
+        // position (computed each loop iteration in _loop).
         this.targetCameraY = this._paragraphYOffset(newParaIdx);
         this._triggerJump(goingUp);
       } else {
@@ -859,6 +861,48 @@ class AdventureRenderer {
     return { segs, endX: x };
   }
 
+  // Continuous-layout paragraph advance.
+  // Called when the user crosses from currentParaIdx → currentParaIdx + 1.
+  // Unlike _relayoutCurrentWorld this does NOT rebuild segments from scratch.
+  // The previous paragraph keeps its existing X coords; the old preview's
+  // segments stay where they were laid out (now they're current); a fresh
+  // preview is built and appended at endX + INDENT. Net effect: the figure
+  // crosses the paragraph boundary in one continuous coord space, the camera
+  // lerp catches up smoothly, no snap. Stale paragraphs (paraIdx <=
+  // currentParaIdx - 2) are pruned to prevent v0.2.2's detritus accumulation.
+  _advanceParagraph(newParaIdx) {
+    const INDENT = 80;
+    this.currentParaIdx = newParaIdx;
+
+    // Drop stale paragraphs (anything older than the just-finished one).
+    const cutoff = newParaIdx - 1;
+    this.wordSegments = this.wordSegments.filter(seg => seg.paraIdx >= cutoff);
+
+    // Find the rightmost X end of any existing segment to compute the new
+    // preview's start X.
+    let endX = 0;
+    for (const seg of this.wordSegments) {
+      const right = seg.x + seg.width;
+      if (right > endX) endX = right;
+    }
+
+    // Build a new preview paragraph (newParaIdx + 1), if one exists. Reset
+    // terrain progression at its start (per-paragraph rule).
+    const previewIdx = newParaIdx + 1;
+    if (previewIdx < this.paragraphs.length) {
+      this.globalWordIdx = 0;
+      this.prevSign = 0;
+      this.runLen = 0;
+      const nxt = this._buildParagraphSegments(
+        this.paragraphs[previewIdx],
+        endX + INDENT,
+        previewIdx
+      );
+      this.wordSegments.push(...nxt.segs);
+    }
+    this._logEvent(`advance → para ${newParaIdx}, segs=${this.wordSegments.length}`);
+  }
+
   _relayoutCurrentWorld() {
     // Terrain progression is per-paragraph: each paragraph starts flat and
     // ramps up internally. Resets at every paragraph break. This makes
@@ -1012,7 +1056,23 @@ class AdventureRenderer {
       this.targetCameraX = charX - this.w * 0.35;
     }
     this.cameraX += (this.targetCameraX - this.cameraX) * 0.12;
-    this.cameraY += (this.targetCameraY - this.cameraY) * 0.08;
+    if (this.isJumping) {
+      // During a leap, drive cameraY directly from jumpPhase so the world
+      // shifts in lockstep with the figure's arc. Specifically: at jumpPhase
+      // 0 cameraY is its pre-jump value; at jumpPhase 1 it's the target. We
+      // ease with smoothstep (3p²-2p³) so the descent feels weighted, like
+      // the figure is settling onto the new paragraph.
+      if (this._leapStartCameraY === undefined) {
+        this._leapStartCameraY = this.cameraY;
+      }
+      const t = this.jumpPhase;
+      const eased = t * t * (3 - 2 * t);    // smoothstep
+      this.cameraY = this._leapStartCameraY + (this.targetCameraY - this._leapStartCameraY) * eased;
+    } else {
+      // Normal flow: lerp toward target. Reset the leap-start anchor.
+      this._leapStartCameraY = undefined;
+      this.cameraY += (this.targetCameraY - this.cameraY) * 0.08;
+    }
 
     if (this.isJumping) {
       this.jumpPhase += dt / 600;
