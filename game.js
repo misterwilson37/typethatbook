@@ -1,3 +1,5 @@
+// v3.0.5 - Chapter-end modal accepts Enter/Space; Day timer shows secondsToday;
+//          drop redundant colon between timer label and value
 // v3.0.4 - Sentence-rollback on hard-stop only fires in adventure mode
 // v3.0.3 - Hard-stop modal asks for sentence-start letter; spam threshold = 3
 // v3.0.2 - Hard-stop rolls cursor back to start of current sentence
@@ -12,7 +14,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.0.4";
+const VERSION = "3.0.5";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -869,8 +871,22 @@ function gameTick() {
 }
 
 function updateTimerUI() {
-    const mins = Math.floor(activeSeconds / 60).toString().padStart(2, '0');
-    const secs = (activeSeconds % 60).toString().padStart(2, '0');
+    // Default: session "Active" time. When the user has a daily goal set, the
+    // top-bar timer should instead show their accumulated typing time for the
+    // day (statsData.secondsToday) — that's what the "/ 8:00" denominator
+    // refers to. Showing activeSeconds (which resets on every startGame) made
+    // the numerator wrong and confused kids whose Day display was lower than
+    // what the pause modal showed.
+    let displaySeconds;
+    if (sessionLimit !== 'infinity') {
+        displaySeconds = activeSeconds;          // sprint countdown — session time
+    } else if (goals.dailySeconds > 0) {
+        displaySeconds = statsData.secondsToday; // Day mode — total daily time
+    } else {
+        displaySeconds = activeSeconds;          // Active fallback — session time
+    }
+    const mins = Math.floor(displaySeconds / 60).toString().padStart(2, '0');
+    const secs = (displaySeconds % 60).toString().padStart(2, '0');
     timerDisplay.innerText = `${mins}:${secs}`;
     if (sessionLimit !== 'infinity' && sprintSeconds >= sessionLimit) {
         isOvertime = true;
@@ -1003,13 +1019,24 @@ document.addEventListener('keydown', (e) => {
 
         const targetChar = fullText[currentCharIndex];
 
-        // End of chapter — Enter triggers the modal action (next chapter)
-        if (currentCharIndex >= fullText.length && e.key === 'Enter' && modalActionCallback) {
-            e.preventDefault();
-            const cb = modalActionCallback;
-            modalActionCallback = null;
-            cb();
-            return;
+        // End-of-chapter modal: ANY of Enter, Space, or a printable key advances
+        // to the next chapter. Kids don't always read the "Press Enter" hint —
+        // making this lenient avoids the "I'm typing but nothing happens" bug
+        // where they sit on the last character thinking the modal is stuck.
+        // Tab and modifier keys are excluded so accidental Tab-to-focus or
+        // Shift-Caps doesn't fast-forward.
+        if (currentCharIndex >= fullText.length && modalActionCallback) {
+            const isContinueKey =
+                e.key === 'Enter' ||
+                e.key === ' ' ||
+                (e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey);
+            if (isContinueKey) {
+                e.preventDefault();
+                const cb = modalActionCallback;
+                modalActionCallback = null;
+                cb();
+                return;
+            }
         }
 
         if (e.key === targetChar) shouldStart = true;
@@ -1653,6 +1680,7 @@ function getSprintHistoryHTML() {
 
 async function finishChapter() {
     isGameActive = false; clearInterval(timerInterval);
+    _ttbEmit('complete', { chapter: currentChapterNum });
 
     // Practice mode: log session and offer to return
     if (isPracticeMode) {
