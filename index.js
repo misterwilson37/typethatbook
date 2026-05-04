@@ -1,438 +1,169 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeThatBook — Library 2.3.2</title>
-    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Bitter:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --carolina-blue: #4B9CD3;
-            --bg: #f5f0eb;
-            --card-bg: #fff;
-            --text: #1a1a1a;
-            --text-muted: #777;
-            --accent: #4B9CD3;
-            --shadow: rgba(0,0,0,0.08);
-            --shadow-hover: rgba(0,0,0,0.15);
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Bitter', Georgia, serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
+const admin = require("firebase-admin");
+
+admin.initializeApp();
+const db = admin.firestore();
+
+const geminiApiKey = defineSecret("GEMINI_API_KEY");
+
+const DAILY_LIMIT = 5;
+
+// Model fallback chain: aliases first (auto-upgrade), then pinned versions descending.
+// 2.0 models retire June 1 2026 — remove them after that.
+const GEMINI_MODEL = 'gemini-2.0-flash-lite';
+const GEMINI_FALLBACKS = [
+  'gemini-flash-lite-latest',
+  'gemini-flash-latest',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-2.0-flash',
+];
+
+exports.generatePractice = onCall(
+  {
+    secrets: [geminiApiKey],
+    maxInstances: 5,       // prevent runaway scaling
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    // 1. Auth check
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be signed in.");
+    }
+    const uid = request.auth.uid;
+
+    // 2. Rate limit: 5 per user per day
+    const today = new Date().toISOString().split("T")[0];
+    const limitRef = db.collection("practice_limits").doc(uid);
+    const limitSnap = await limitRef.get();
+    let count = 0;
+    if (limitSnap.exists) {
+      const data = limitSnap.data();
+      if (data.date === today) count = data.count || 0;
+    }
+    if (count >= DAILY_LIMIT) {
+      throw new HttpsError(
+        "resource-exhausted",
+        `You've used all ${DAILY_LIMIT} practice sessions for today. Try again tomorrow!`
+      );
+    }
+
+    // 3. Validate input
+    const { problemChars, bookTitle, chapterTitle, textSnippet } = request.data;
+    if (!problemChars || !Array.isArray(problemChars) || problemChars.length === 0) {
+      throw new HttpsError("invalid-argument", "No problem characters provided.");
+    }
+
+    // Sanitize inputs (prevent prompt injection)
+    const safeChars = problemChars.slice(0, 8).map(c => String(c).substring(0, 10));
+    const safeTitle = String(bookTitle || "a book").substring(0, 200);
+    const safeChapter = String(chapterTitle || "").substring(0, 200);
+    const safeSnippet = String(textSnippet || "").substring(0, 500);
+
+    // 4. Build prompt
+    const charList = safeChars.map(c => {
+      if (c === " " || c === "Space") return "the space bar";
+      if (c === "\n" || c === "Enter") return "line breaks / the Enter key";
+      return `the "${c}" character`;
+    }).join(", ");
+
+    const prompt = `Write a single paragraph of 100-150 words for a typing practice exercise for middle school students. Requirements:
+- Write in a style and tone similar to "${safeTitle}"${safeChapter ? ` (currently in a chapter called "${safeChapter}")` : ""}
+- The paragraph should naturally and frequently use ${charList}
+- Make it engaging, fun, and age-appropriate for 11-14 year olds
+- Use only standard English letters, numbers, and punctuation (periods, commas, semicolons, apostrophes, quotes, question marks, exclamation points)
+- Do NOT use special characters, emojis, or unusual formatting
+- Write ONLY the paragraph text with no introduction, title, or explanation
+
+${safeSnippet ? `Here is a brief excerpt from the book for style reference:\n"${safeSnippet}"` : ""}
+
+Remember: write ONLY the practice paragraph, nothing else.`;
+
+    // 5. Call Gemini API with fallback chain
+    const apiKey = geminiApiKey.value();
+    let generatedText;
+    const models = [GEMINI_MODEL, ...GEMINI_FALLBACKS];
+    const requestBody = JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.8,
+        maxOutputTokens: 500,
+      },
+      safetySettings: [
+        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
+        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
+        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_ONLY_HIGH" },
+        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
+      ],
+    });
+
+    let lastError = null;
+    for (const model of models) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: requestBody,
+          }
+        );
+
+        if (!response.ok) {
+          const errBody = await response.text();
+          const status = response.status;
+          console.warn(`Gemini model ${model} failed (${status}):`, errBody.substring(0, 200));
+          // Retry on rate limit, server error, or model not found
+          if (status === 429 || status >= 500 || status === 404) {
+            lastError = `${model}: HTTP ${status}`;
+            continue;
+          }
+          // Other errors (400 bad request, 403 forbidden) won't be fixed by switching models
+          throw new HttpsError("internal", "Practice text generation failed. Try again.");
         }
 
-        /* --- HEADER --- */
-        .site-header {
-            background: #1a1a1a;
-            color: white;
-            padding: 12px 24px;
-            display: flex; align-items: center; justify-content: space-between;
-            font-family: 'Courier Prime', monospace;
-            position: sticky; top: 0; z-index: 100;
-        }
-        .site-title {
-            font-size: 1.1rem; font-weight: bold; letter-spacing: 1px;
-            color: var(--carolina-blue);
-        }
-        .site-title span { color: #999; font-weight: 400; }
-        .header-links { display: flex; gap: 16px; align-items: center; font-size: 0.85rem; }
-        .header-links a { color: #999; text-decoration: none; }
-        .header-links a:hover { color: var(--carolina-blue); }
-        #auth-area { display: flex; align-items: center; gap: 10px; }
-        #user-name { color: #ccc; font-size: 0.85rem; }
-        .auth-btn {
-            background: var(--carolina-blue); color: white; border: none;
-            padding: 6px 14px; border-radius: 3px; cursor: pointer;
-            font-family: inherit; font-size: 0.8rem;
-        }
-        .auth-btn.subtle { background: transparent; border: 1px solid #555; color: #aaa; }
-        .auth-btn.subtle:hover { border-color: #999; color: #fff; }
+        const result = await response.json();
+        generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
 
-        /* --- HERO --- */
-        .hero { text-align: center; padding: 40px 24px 20px; }
-        .hero h1 {
-            font-size: 2.2rem; font-weight: 700; margin-bottom: 6px;
-            letter-spacing: -0.5px;
-        }
-        .hero p { color: var(--text-muted); font-size: 1rem; }
-
-        /* --- GENRE FILTER --- */
-        .filter-bar {
-            display: flex; justify-content: center; flex-wrap: wrap;
-            gap: 8px; padding: 0 24px 24px;
-            max-width: 900px; margin: 0 auto;
-        }
-        .filter-pill {
-            background: white; border: 1px solid #ddd; padding: 6px 16px;
-            border-radius: 20px; cursor: pointer; font-size: 0.85rem;
-            font-family: 'Bitter', serif; transition: all 0.2s;
-            color: var(--text-muted);
-        }
-        .filter-pill:hover { border-color: var(--accent); color: var(--accent); }
-        .filter-pill.active {
-            background: var(--accent); color: white; border-color: var(--accent);
+        if (!generatedText) {
+          console.warn(`Gemini model ${model} returned empty text, trying next...`);
+          lastError = `${model}: empty response`;
+          continue;
         }
 
-        /* --- BOOK GRID --- */
-        .library-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 24px;
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 0 24px 60px;
-        }
+        // Success — clean up and break
+        console.log(`Practice generated with model: ${model}`);
+        generatedText = generatedText
+          .replace(/[\u2018\u2019]/g, "'")
+          .replace(/[\u201C\u201D]/g, '"')
+          .replace(/\u2014/g, "--")
+          .replace(/\u2013/g, "-")
+          .trim();
+        break;
 
-        /* --- BOOK CARD --- */
-        .book-card {
-            background: var(--card-bg);
-            border-radius: 6px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px var(--shadow);
-            transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer;
-            text-decoration: none;
-            color: inherit;
-            display: flex; flex-direction: column;
-        }
-        .book-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 24px var(--shadow-hover);
-        }
-        .book-cover {
-            width: 100%; aspect-ratio: 2/3;
-            object-fit: cover; display: block;
-            background: #e0d8cf;
-        }
-        .book-cover-placeholder {
-            width: 100%; aspect-ratio: 2/3;
-            background: linear-gradient(135deg, #c9bfb0 0%, #a89880 100%);
-            display: flex; align-items: center; justify-content: center;
-            padding: 20px;
-            font-family: 'Courier Prime', monospace;
-            font-size: 0.9rem; color: #fff;
-            text-align: center; line-height: 1.3;
-            font-weight: bold;
-        }
-        .book-info {
-            padding: 12px 14px 14px;
-            flex: 1; display: flex; flex-direction: column;
-        }
-        .book-title {
-            font-size: 0.9rem; font-weight: 700;
-            line-height: 1.25; margin-bottom: 4px;
-        }
-        .book-author {
-            font-size: 0.78rem; color: var(--text-muted);
-            margin-bottom: 6px;
-        }
-        .book-genre-tag {
-            display: inline-block;
-            font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;
-            color: var(--accent); font-weight: 600;
-            margin-bottom: 6px;
-        }
-        .book-progress { margin-top: auto; padding-top: 8px; }
-        .progress-bar-bg {
-            height: 4px; background: #eee; border-radius: 2px; overflow: hidden;
-        }
-        .progress-bar-fill {
-            height: 100%; background: var(--accent); border-radius: 2px;
-            transition: width 0.4s;
-        }
-        .progress-label {
-            font-size: 0.7rem; color: var(--text-muted); margin-top: 3px;
-            font-family: 'Courier Prime', monospace;
-        }
+      } catch (e) {
+        if (e instanceof HttpsError) throw e;
+        console.warn(`Gemini model ${model} exception:`, e.message);
+        lastError = `${model}: ${e.message}`;
+        continue;
+      }
+    }
 
-        .empty-state {
-            grid-column: 1 / -1;
-            text-align: center; padding: 60px 20px;
-            color: var(--text-muted);
-        }
-        .loading-spinner {
-            grid-column: 1 / -1;
-            text-align: center; padding: 60px;
-            color: var(--text-muted); font-style: italic;
-        }
-        .site-footer {
-            text-align: center; padding: 20px;
-            font-size: 0.75rem; color: #aaa;
-            font-family: 'Courier Prime', monospace;
-        }
+    if (!generatedText) {
+      console.error("All Gemini models failed. Last error:", lastError);
+      throw new HttpsError("internal", "Could not generate practice text. Try again.");
+    }
 
-        /* --- LANDING --- */
-        .landing-hero {
-            text-align: center; padding: 48px 24px 28px;
-        }
-        .landing-hero h1 {
-            font-size: 2.4rem; font-weight: 700; margin-bottom: 6px;
-            letter-spacing: -0.5px;
-        }
-        .landing-hero p { color: var(--text-muted); font-size: 1rem; }
+    // 6. Increment rate limit
+    await limitRef.set({ date: today, count: count + 1 }, { merge: true });
 
-        .landing-cards {
-            display: flex; gap: 24px; justify-content: center;
-            padding: 0 24px 60px; flex-wrap: wrap;
-        }
-        .landing-card {
-            background: var(--card-bg);
-            border-radius: 10px;
-            box-shadow: 0 2px 12px var(--shadow);
-            padding: 36px 32px;
-            max-width: 280px; width: 100%;
-            cursor: pointer; text-align: center;
-            transition: transform 0.2s, box-shadow 0.2s;
-            border: 2px solid transparent;
-        }
-        .landing-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 28px var(--shadow-hover);
-            border-color: var(--accent);
-        }
-        .lc-icon  { font-size: 2.8rem; margin-bottom: 12px; line-height: 1; }
-        .lc-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 10px; }
-        .lc-desc  { font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 18px; }
-        .lc-action {
-            display: inline-block;
-            background: var(--accent); color: white;
-            padding: 8px 20px; border-radius: 20px;
-            font-size: 0.85rem; font-weight: 600;
-            font-family: 'Courier Prime', monospace;
-        }
-
-        .hidden { display: none !important; }
-    </style>
-</head>
-<body>
-
-    <header class="site-header">
-        <div class="site-title">TypeThatBook <span>Library</span></div>
-        <div class="header-links">
-            <a href="reports.html">Reports</a>
-            <a href="admin.html">Admin</a>
-            <div id="auth-area">
-                <span id="user-name" style="display:none;"></span>
-                <button id="login-btn" class="auth-btn">Sign In</button>
-                <button id="logout-btn" class="auth-btn subtle" style="display:none;">Logout</button>
-            </div>
-        </div>
-    </header>
-
-    <!-- LANDING: shown until a mode is chosen -->
-    <div id="landing-view">
-        <div class="landing-hero">
-            <h1>TypeThatBook</h1>
-            <p>What would you like to do today?</p>
-        </div>
-        <div class="landing-cards">
-            <div class="landing-card" id="go-school">
-                <div class="lc-icon">⌨</div>
-                <div class="lc-title">School</div>
-                <div class="lc-desc">Learn to type from scratch.<br>Structured lessons, finger guides,<br>and a story along the way.</div>
-                <div class="lc-action">Start Lessons →</div>
-            </div>
-            <div class="landing-card" id="go-library">
-                <div class="lc-icon">📚</div>
-                <div class="lc-title">Library</div>
-                <div class="lc-desc">Type through real books.<br>Track your speed and accuracy<br>chapter by chapter.</div>
-                <div class="lc-action">Browse Books →</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- LIBRARY VIEW: shown after Library is chosen -->
-    <div id="library-view" class="hidden">
-        <div class="hero">
-            <h1>Choose Your Book</h1>
-            <p>
-                <a href="#" id="back-to-landing" style="color:var(--text-muted); margin-right:16px;">← Landing</a>
-                <a href="learn.html" style="color:var(--text-muted);">⌨ Go to School</a>
-            </p>
-        </div>
-        <div class="filter-bar" id="filter-bar">
-            <button class="filter-pill active" data-genre="all">All</button>
-        </div>
-        <div class="library-grid" id="book-grid">
-            <div class="loading-spinner">Loading library...</div>
-        </div>
-    </div>
-
-    <footer class="site-footer">TypeThatBook — Library 2.3.1</footer>
-
-    <script type="module">
-        import { db, auth } from "./firebase-config.js";
-
-        // --- LANDING ---
-        const landingView  = document.getElementById('landing-view');
-        const libraryView  = document.getElementById('library-view');
-
-        // Don't auto-redirect on load — always show the landing first.
-        // Students can navigate freely between landing/library/school.
-
-        document.getElementById('go-school').addEventListener('click', () => {
-            window.location.href = 'learn.html';
-        });
-        document.getElementById('go-library').addEventListener('click', () => {
-            showLibrary();
-        });
-        document.getElementById('back-to-landing').addEventListener('click', e => {
-            e.preventDefault();
-            libraryView.classList.add('hidden');
-            landingView.classList.remove('hidden');
-        });
-
-        function showLibrary() {
-            landingView.classList.add('hidden');
-            libraryView.classList.remove('hidden');
-        }
-        import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-
-        let currentUser = null;
-        let allBooks = [];
-        let userProgress = {};
-        let activeGenre = "all";
-
-        // --- AUTH ---
-        const loginBtn = document.getElementById('login-btn');
-        const logoutBtn = document.getElementById('logout-btn');
-        const userNameEl = document.getElementById('user-name');
-
-        loginBtn.onclick = async () => {
-            try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-            catch(e) { console.error(e); }
-        };
-        logoutBtn.onclick = async () => {
-            try { await signOut(auth); } catch(e) { console.error(e); }
-        };
-
-        onAuthStateChanged(auth, async (user) => {
-            currentUser = user;
-            if (user) {
-                userNameEl.textContent = user.displayName || user.email;
-                userNameEl.style.display = '';
-                loginBtn.style.display = 'none';
-                logoutBtn.style.display = '';
-                await loadUserProgress();
-            } else {
-                userNameEl.style.display = 'none';
-                loginBtn.style.display = '';
-                logoutBtn.style.display = 'none';
-                userProgress = {};
-            }
-            renderBooks();
-        });
-
-        // --- LOAD BOOKS ---
-        async function loadBooks() {
-            try {
-                const snap = await getDocs(collection(db, "books"));
-                allBooks = [];
-                snap.forEach(d => {
-                    const data = d.data();
-                    allBooks.push({
-                        id: d.id,
-                        title: data.title || d.id,
-                        author: data.author || "",
-                        genre: data.genre || "",
-                        coverUrl: data.coverUrl || "",
-                        totalChapters: data.totalChapters || (data.chapters ? data.chapters.length : 0),
-                        chapters: data.chapters || []
-                    });
-                });
-                allBooks.sort((a, b) => a.title.localeCompare(b.title));
-                buildGenreFilters();
-                renderBooks();
-            } catch(e) {
-                document.getElementById('book-grid').innerHTML =
-                    '<div class="empty-state">Error loading library. Please refresh.</div>';
-                console.error(e);
-            }
-        }
-
-        // --- LOAD USER PROGRESS ---
-        async function loadUserProgress() {
-            if (!currentUser) return;
-            userProgress = {};
-            try {
-                const snap = await getDocs(collection(db, "users", currentUser.uid, "progress"));
-                snap.forEach(d => { userProgress[d.id] = d.data(); });
-            } catch(e) { console.warn("Could not load progress:", e); }
-        }
-
-        // --- GENRE FILTERS ---
-        function buildGenreFilters() {
-            const genres = [...new Set(allBooks.map(b => b.genre).filter(Boolean))].sort();
-            const bar = document.getElementById('filter-bar');
-            bar.innerHTML = '<button class="filter-pill active" data-genre="all">All</button>';
-            genres.forEach(g => {
-                const btn = document.createElement('button');
-                btn.className = 'filter-pill';
-                btn.dataset.genre = g;
-                btn.textContent = g;
-                bar.appendChild(btn);
-            });
-            bar.addEventListener('click', (e) => {
-                const pill = e.target.closest('.filter-pill');
-                if (!pill) return;
-                activeGenre = pill.dataset.genre;
-                bar.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
-                pill.classList.add('active');
-                renderBooks();
-            });
-        }
-
-        // --- RENDER ---
-        function renderBooks() {
-            const grid = document.getElementById('book-grid');
-            const filtered = activeGenre === "all"
-                ? allBooks
-                : allBooks.filter(b => b.genre === activeGenre);
-
-            if (filtered.length === 0) {
-                grid.innerHTML = '<div class="empty-state">No books found.</div>';
-                return;
-            }
-
-            grid.innerHTML = filtered.map(book => {
-                const progress = userProgress[book.id];
-                let progressHTML = '';
-                if (progress && book.totalChapters > 0) {
-                    const chapNum = parseInt(String(progress.chapter || "1").replace("chapter_", ""));
-                    const pct = Math.min(100, Math.round((chapNum / book.totalChapters) * 100));
-                    progressHTML = `
-                        <div class="book-progress">
-                            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
-                            <div class="progress-label">Ch. ${chapNum} / ${book.totalChapters}</div>
-                        </div>`;
-                }
-
-                const coverHTML = book.coverUrl
-                    ? `<img class="book-cover" src="${escapeAttr(book.coverUrl)}" alt="${escapeAttr(book.title)} cover" loading="lazy">`
-                    : `<div class="book-cover-placeholder">${escapeHtml(book.title)}</div>`;
-
-                return `
-                    <a class="book-card" href="game.html?book=${encodeURIComponent(book.id)}">
-                        ${coverHTML}
-                        <div class="book-info">
-                            ${book.genre ? `<span class="book-genre-tag">${escapeHtml(book.genre)}</span>` : ''}
-                            <div class="book-title">${escapeHtml(book.title)}</div>
-                            ${book.author ? `<div class="book-author">${escapeHtml(book.author)}</div>` : ''}
-                            ${progressHTML}
-                        </div>
-                    </a>`;
-            }).join('');
-        }
-
-        function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-        function escapeAttr(s) { return s.replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
-
-        // --- INIT ---
-        loadBooks();
-    </script>
-</body>
-</html>
+    // 7. Return
+    return {
+      text: generatedText,
+      prompt: prompt,
+      remaining: DAILY_LIMIT - count - 1,
+    };
+  }
+);
