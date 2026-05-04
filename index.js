@@ -9,16 +9,22 @@ const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
 const DAILY_LIMIT = 5;
 
-// Model fallback chain: aliases first (auto-upgrade), then pinned versions descending.
-// 2.0 models retire June 1 2026 — remove them after that.
-const GEMINI_MODEL = 'gemini-2.0-flash-lite';
+// v1.2 — Updated model chain for May 2026:
+//   - Drops gemini-2.0-* (retires June 1 2026)
+//   - Adds gemini-3-flash-preview as primary (3.x quota bucket separate from 2.5)
+//   - Adds gemini-3.1-flash-lite-preview (3.1 has its own quota bucket too)
+//   - Falls back through aliases (auto-upgrade) and stable 2.5 GA models
+//   - Practice mode pings infrequently (5/user/day hard cap) so we lead with
+//     stronger preview models — quota burn is minimal even worst-case
+//
+// v1.1 — Multi-model fallback chain.
+const GEMINI_MODEL = 'gemini-3-flash-preview';
 const GEMINI_FALLBACKS = [
-  'gemini-flash-lite-latest',
-  'gemini-flash-latest',
-  'gemini-2.5-flash-lite',
-  'gemini-2.5-flash',
-  'gemini-2.0-flash-lite',
-  'gemini-2.0-flash',
+  'gemini-flash-latest',              // alias — auto-upgrades to current best
+  'gemini-3.1-flash-lite-preview',    // separate 3.1 quota bucket
+  'gemini-2.5-flash',                 // stable GA, capable
+  'gemini-flash-lite-latest',         // alias — auto-upgrades to current cheapest
+  'gemini-2.5-flash-lite',            // stable GA, cheapest, last resort
 ];
 
 exports.generatePractice = onCall(
