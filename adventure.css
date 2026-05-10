@@ -1,10 +1,11 @@
-/* adventure.css v0.0.6 — view-mode skin for Adventure Mode */
+/* adventure.css v0.0.7 — view-mode skin for Adventure Mode */
+/* v0.0.7: book-info-bar visible in adventure mode (parchment strip)         */
 /* v0.0.6: target key label inherits inline finger color from observer       */
 /* v0.0.5: target key turns black, not red; HUD streak override removed       */
 /* v0.0.4: number & symbol positioning fixed for round keys                   */
 /* v0.0.3: keyboard + modal skin (round typewriter keys, parchment modals)    */
 /* v0.0.2: bumped for v3.0.1 release; machine-readable version stamp          */
-body::after { content: "v0.0.6"; display: none; }
+body::after { content: "v0.0.7"; display: none; }
 
 /* Every rule in this file is scoped under body.view-adventure. Classic view
    never sees any of this. */
@@ -31,9 +32,34 @@ body.view-adventure #adventure-canvas {
 body.view-adventure #text-stream,
 body.view-adventure #image-panel,
 body.view-adventure #chapter-progress-bar,
-body.view-adventure #book-progress-bar,
-body.view-adventure #book-info-bar {
+body.view-adventure #book-progress-bar {
     display: none !important;
+}
+
+/* Book info bar — visible in adventure mode, parchment-skinned. Same flex
+   placement as classic (thin strip between canvas and keyboard) so the kid
+   can always see what book/chapter they're on without breaking eye contact. */
+body.view-adventure #book-info-bar {
+    background: #ebe0c8 !important;          /* slightly darker than canvas parchment */
+    border-top: 1px solid #c8b89a !important;
+    border-bottom: 1px solid #c8b89a !important;
+    color: #5a4a36 !important;
+    font-family: 'IM Fell English', serif !important;
+    font-style: italic;
+    font-size: 0.95rem !important;
+    padding: 5px 16px !important;
+    letter-spacing: 0.02em;
+}
+body.view-adventure #book-info-bar .bib-title {
+    color: #2b221a !important;
+    font-weight: normal !important;          /* italic does the heavy lifting */
+}
+body.view-adventure #book-info-bar .bib-sep {
+    color: #8a7860 !important;
+    margin: 0 8px !important;
+}
+body.view-adventure #book-info-bar .bib-chap {
+    color: #5a4a36 !important;
 }
 
 /* Footer version banner */
