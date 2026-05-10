@@ -1,3 +1,4 @@
+// v3.0.6 - Daily timer renders correctly on page load (was stuck at 00:00 until first keystroke)
 // v3.0.5 - Chapter-end modal accepts Enter/Space; Day timer shows secondsToday;
 //          drop redundant colon between timer label and value
 // v3.0.4 - Sentence-rollback on hard-stop only fires in adventure mode
@@ -14,7 +15,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.0.5";
+const VERSION = "3.0.6";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -336,6 +337,12 @@ async function init() {
                 await loadUserStats();
                 // Self-heal: if today > week, data was corrupted during transition
                 await loadGoals();
+                // Refresh the top-bar timer now that stats AND goals are
+                // loaded — setupGame() ran before either, so its initial
+                // render showed 00:00 with no daily-goal denominator. This
+                // call paints the real "Day 4:32 / 8:00" state immediately,
+                // before the kid types a single character.
+                updateTimerUI();
                 // Populate weekly HUD immediately (before first tick)
                 const _hudW = document.getElementById('hud-week');
                 if (_hudW) {
@@ -700,7 +707,14 @@ function setupGame() {
     highlightCurrentChar();
     centerView();
 
-    accDisplay.innerText = "---"; wpmDisplay.innerText = "0"; timerDisplay.innerText = "00:00";
+    accDisplay.innerText = "---"; wpmDisplay.innerText = "0";
+    // Render the timer with its real value rather than a hardcoded "00:00".
+    // For a kid in Day-goal mode loading the page, this shows their accumulated
+    // daily time immediately instead of leaving them at 00:00 until they start
+    // typing. Note that on first call from the auth handler, statsData hasn't
+    // loaded yet, so this renders zero — but loadUserStats() in init() calls
+    // updateTimerUI() again after stats arrive, fixing the display.
+    updateTimerUI();
 
     // ─── Adventure: notify renderer that a chapter is loaded ───
     _ttbEmit('textLoaded', {
