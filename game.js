@@ -1,3 +1,5 @@
+// v3.0.7 - Game Genie warps emit positionSet (adventure canvas was desyncing);
+//          hard-stop modal escapes the resume key before innerHTML injection
 // v3.0.6 - Daily timer renders correctly on page load (was stuck at 00:00 until first keystroke)
 // v3.0.5 - Chapter-end modal accepts Enter/Space; Day timer shows secondsToday;
 //          drop redundant colon between timer label and value
@@ -15,7 +17,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.0.6";
+const VERSION = "3.0.7";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -1288,7 +1290,7 @@ function triggerHardStop(targetChar, isAfk) {
     document.getElementById('modal-body').innerHTML = `
         <div style="font-size: 1.1em;">
             ${msg}<br>
-            Please type <b style="color: #D32F2F; font-size: 1.5em; border: 1px solid #ccc; padding: 2px 8px; border-radius: 4px;">${friendlyKey}</b> to resume.
+            Please type <b style="color: #D32F2F; font-size: 1.5em; border: 1px solid #ccc; padding: 2px 8px; border-radius: 4px;">${escapeHtml(friendlyKey)}</b> to resume.
             ${hintHtml}
         </div>
         ${statsHtml}
@@ -3360,7 +3362,12 @@ function jumpToSentence(sentences, idx) {
     highlightCurrentChar();
     centerView();
     saveProgress();
-    
+
+    // Adventure mode: the renderer tracks position via events, so a Game
+    // Genie warp must announce itself or the canvas keeps showing the old
+    // spot while the (hidden) classic DOM moves.
+    _ttbEmit('positionSet', { position: currentCharIndex });
+
     // Show start modal for this position
     showStartModal("Resume");
 }
