@@ -1,4 +1,16 @@
-// adventure-renderer.js — v0.2.14
+// adventure-renderer.js — v0.2.15
+//
+// v0.2.15 — Leap state hygiene (found in code review):
+//   - isJumping and leap anchors are now cancelled on fail, respawn,
+//     textLoaded, and positionSet. Before this, dying / respawning /
+//     switching chapters / Game-Genie-warping mid-leap left the loop
+//     driving cameraX/cameraY from stale leap interpolation for up to
+//     600ms, stomping the respawn/warp camera placement.
+//   - Mid-leap paragraph retrigger (consecutive short paragraphs, e.g.
+//     dialogue) now starts the new leap from the figure's CURRENT
+//     interpolated position instead of snapping back to the previous
+//     paragraph's end. _leapStartCameraY is also re-anchored on every
+//     trigger instead of keeping the first leap's stale value.
 //
 // v0.2.14 — Figure leap is no longer a teleport:
 //   - During a leap, the figure's coord X is interpolated from the OLD
@@ -80,7 +92,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.14';
+export const RENDERER_VERSION = '0.2.15';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -445,6 +457,7 @@ class AdventureRenderer {
   // --------------------------------------------------------------------------
 
   _onTextLoaded(d) {
+    this._cancelLeap();
     this.fullText = (d && d.fullText) || '';
     this.currentPos = (d && typeof d.position === 'number') ? d.position : 0;
     this._logEvent(`textLoaded len=${this.fullText.length} pos=${this.currentPos}`);
@@ -495,6 +508,7 @@ class AdventureRenderer {
 
   _onPositionSet(d) {
     if (typeof d.position !== 'number') return;
+    this._cancelLeap();
     const oldPos = this.currentPos;
     const newPos = d.position;
     this._logEvent(`positionSet pos=${newPos}` + (newPos < oldPos ? ' (backspace)' : ''));
@@ -559,11 +573,22 @@ class AdventureRenderer {
         const goingUp = (newParaIdx % 2 === 1);  // alternating Y rule
         this._logEvent(`paraCross ${this.currentParaIdx}→${newParaIdx}`);
 
-        // Capture leap-from coord X (the period's X) BEFORE _advanceParagraph
-        // updates currentParaIdx. After the call, segments still include the
-        // old paragraph (it's now "previous"), so we could compute it again,
-        // but capturing it here is simpler and unambiguous.
-        this._leapFromCharX = this._xAtPosition(oldPos);
+        // Capture leap-from coord X BEFORE _advanceParagraph updates
+        // currentParaIdx. Two cases:
+        //   - Normal: the figure is standing on the last char of the old
+        //     paragraph — leap starts from that char's X.
+        //   - Mid-leap retrigger (consecutive short paragraphs, common in
+        //     dialogue): the figure is airborne between two paragraphs.
+        //     Start the new leap from its CURRENT interpolated X, not from
+        //     oldPos, or the figure visibly snaps backward for one frame.
+        if (this.isJumping) {
+          const t = this.jumpPhase;
+          const eased = t * t * (3 - 2 * t);
+          this._leapFromCharX = this._leapFromCharX +
+            (this._leapToCharX - this._leapFromCharX) * eased;
+        } else {
+          this._leapFromCharX = this._xAtPosition(oldPos);
+        }
 
         // Continuous-layout crossing: keep the old paragraph in place, promote
         // the old preview to be the new current, append a fresh preview to
@@ -620,6 +645,7 @@ class AdventureRenderer {
 
   _onFail(d) {
     if (this.state === 'fall' || this.state === 'respawning') return;
+    this._cancelLeap();
     this._logEvent(`FAIL pos=${d && d.position} expected=${(d && d.expected) || '?'}`);
     this.state = 'fall';
     this.fallPhase = 0;
@@ -724,6 +750,7 @@ class AdventureRenderer {
     }
 
     this._logEvent(`RESPAWN pos=${newPos}` + (d && d.isAutoRespawn ? ' (auto)' : ''));
+    this._cancelLeap();
     this.queuedRespawnPos = null;            // consumed
     this.state = 'respawning';
     this.respawnPhase = 0;
@@ -1048,11 +1075,25 @@ class AdventureRenderer {
     this.isJumping = true;
     this.jumpPhase = 0;
     this.jumpDirection = goingUp ? -1 : 1;
+    // Anchor the camera-Y interpolation at the CURRENT cameraY. On a
+    // mid-leap retrigger this must be re-set, or the smoothstep in _loop
+    // snaps cameraY back to the previous leap's stale start value.
+    this._leapStartCameraY = this.cameraY;
     // Compute apex of the arc. Base height is 80 (a comfortable arc); add
     // the absolute Y delta to the destination so going UP clears the next
     // paragraph naturally, plus a 30px clearance margin.
     const yDelta = Math.abs(this.targetCameraY - this.cameraY);
     this.jumpHeight = 80 + yDelta + 30;
+  }
+
+  // Abort any in-flight leap. Called when a fail, respawn, chapter load, or
+  // position warp interrupts the arc — without this, the loop's isJumping
+  // branch keeps driving cameraX/cameraY from stale leap anchors for up to
+  // 600ms, overriding whatever camera placement the interrupting event set.
+  _cancelLeap() {
+    this.isJumping = false;
+    this.jumpPhase = 0;
+    this._leapStartCameraY = undefined;
   }
 
   // --------------------------------------------------------------------------
