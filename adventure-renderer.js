@@ -1,4 +1,19 @@
-// adventure-renderer.js — v0.3.0
+// adventure-renderer.js — v0.4.0
+//
+// v0.4.0 — Tilt-back corrections + chapter close-up strip:
+//   - TILT-BACK: each backspace at the current letter undoes exactly one
+//     mistake's worth of tilt (driven by the new ttb:backspaceUndo event
+//     from game.js >= 3.2.0) and marks the letter recovered (blue). Two
+//     mistakes need two backspaces to fully straighten — like deleting
+//     real typed characters. Tilts are now count-based (angle = kick ×
+//     mistakes remaining) instead of additive, and a fresh mistake on a
+//     recovered letter un-blues it.
+//   - CLOSE-UP: a left-edge strip mirrors classic view's chapter progress
+//     bar in map style — the current chapter as a vertical route, tiny
+//     pilcrow ticks at paragraph starts (inked once passed), a pulsing
+//     gold marker at the current position, and the route inking downward
+//     as you type. Right-edge book map dots and line slightly enlarged
+//     for legibility.
 //
 // v0.3.0 — Chapter map + pilcrow landing marks (minor bump: new feature):
 //   - CHAPTER MAP: an always-visible strip on the right edge of the canvas,
@@ -120,7 +135,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.3.0';
+export const RENDERER_VERSION = '0.4.0';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -315,6 +330,7 @@ class AdventureRenderer {
     this._on('ttb:respawn',     (d) => this._onRespawn(d));
     this._on('ttb:stats',       (d) => this._onStats(d));
     this._on('ttb:complete',    (d) => this._onComplete(d));
+    this._on('ttb:backspaceUndo', (d) => this._onBackspaceUndo(d));
 
     // Backtick toggles diagnostic overlay (shows internal state on canvas)
     const onKey = (e) => {
@@ -673,16 +689,17 @@ class AdventureRenderer {
       const pos = (typeof d.position === 'number') ? d.position : this.currentPos;
       this.mistakeFlash[pos] = performance.now();
       // Tilt always leans FORWARD (clockwise = falling rightward, the
-      // direction the figure was running). Reads as the figure tripping
-      // over the letter and kicking it forward.
-      // Tilt accumulates on repeated mistakes — each fresh mistake adds
-      // another kick in the same forward direction.
-      const baseKick = 0.18 + (((pos * 9301) % 100) / 1000);   // 0.18..0.28
-      const existing = this.letterTilts[pos];
-      const newAngle = (existing ? existing.angleRad : 0) + baseKick;
-      // Cap at ~80° so the glyph stays legible.
-      const cappedAngle = Math.min(1.4, newAngle);
-      this.letterTilts[pos] = { angleRad: cappedAngle, setAt: performance.now() };
+      // direction the figure was running). Count-based: angle = kick ×
+      // uncorrected mistakes, capped ~80°. Each ttb:backspaceUndo removes
+      // one count (see _onBackspaceUndo). A fresh mistake on a recovered
+      // (blue) letter un-blues it — they broke it again.
+      const kick = this._kickFor(pos);
+      const t = this.letterTilts[pos] || { count: 0 };
+      t.count = (t.count || 0) + 1;
+      t.angleRad = Math.min(1.4, kick * t.count);
+      t.recovered = false;
+      t.setAt = performance.now();
+      this.letterTilts[pos] = t;
 
       // Don't restart stumble if already stumbling — let the existing one play
       // out, then a new mistake can re-trigger.
@@ -692,6 +709,26 @@ class AdventureRenderer {
         this._logEvent(`stumble pos=${pos}`);
       }
     }
+  }
+
+  // Deterministic per-position tilt kick (0.18..0.28 rad) — same value on
+  // every mistake at the same letter, so undo can subtract it exactly.
+  _kickFor(pos) {
+    return 0.18 + (((pos * 9301) % 100) / 1000);
+  }
+
+  // One backspace = one mistake undone at the current letter (game.js >=
+  // 3.2.0). The tilt steps back by exactly one kick and the letter turns
+  // blue (recovered) — even while still partially tilted, the blue says
+  // "being fixed." At zero remaining it stands upright and blue.
+  _onBackspaceUndo(d) {
+    if (!d || typeof d.position !== 'number') return;
+    const t = this.letterTilts[d.position];
+    if (!t) return;
+    t.count = Math.max(0, (t.count || 1) - 1);
+    t.angleRad = Math.min(1.4, this._kickFor(d.position) * t.count);
+    t.recovered = true;
+    this._logEvent(`undo pos=${d.position} remaining=${t.count}`);
   }
 
   _onFail(d) {
@@ -1579,7 +1616,8 @@ class AdventureRenderer {
     const charScreenY = baseY;
     this._drawStickFigure(charX, charScreenY, now);
 
-    // Chapter map strip (right edge, screen space)
+    // Chapter close-up strip (left edge) + book map strip (right edge)
+    this._drawChapterCloseup(now);
     this._drawChapterMap(now);
 
     // Diagnostic overlay (toggle with `)
@@ -1596,6 +1634,77 @@ class AdventureRenderer {
   // absent otherwise. Hand-drawn wobble via per-point sine offsets, 1937
   // adventure-serial style. A gold burst plays at the current dot when
   // ttb:complete fires.
+  // Chapter close-up — left-edge strip, the map's magnifying glass. The
+  // current chapter as a vertical route: tiny pilcrow ticks mark paragraph
+  // starts (rubric-inked once passed, faded ahead), the wobbly red line
+  // inks downward with typing, and a pulsing gold marker rides the current
+  // position. Mirrors classic view's chapter progress bar placement.
+  _drawChapterCloseup(now) {
+    if (!this.fullText || this.fullText.length === 0) return;
+    const ctx = this.ctx;
+    const cx = 26;
+    const top = 30;
+    const bottom = this.h - 34;
+    const span = bottom - top;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(120, 100, 70, 0.06)';
+    ctx.fillRect(0, 0, 48, this.h);
+    ctx.strokeStyle = 'rgba(120, 100, 70, 0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(48, 0); ctx.lineTo(48, this.h); ctx.stroke();
+
+    const progress = Math.min(1, this.currentPos / this.fullText.length);
+    const wob = (t) => Math.sin(t * 9.2 + 2.1) * 2.2 + Math.sin(t * 17.7) * 0.9;
+
+    // Route line, inked to progress
+    ctx.strokeStyle = 'rgba(168, 80, 64, 0.85)';
+    ctx.lineWidth = 2.8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    const steps = 40;
+    const upto = Math.max(1, Math.round(steps * progress));
+    for (let s = 0; s <= upto; s++) {
+      const t = s / steps;
+      const y = top + span * t;
+      const x = cx + wob(t);
+      if (s === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Paragraph ticks: tiny pilcrows at each paragraph's proportional spot
+    if (this.paragraphStartPos && this.paragraphStartPos.length > 1) {
+      ctx.font = "10px 'IM Fell English', serif";
+      ctx.textAlign = 'left';
+      for (let i = 0; i < this.paragraphStartPos.length; i++) {
+        const frac = this.paragraphStartPos[i] / this.fullText.length;
+        const y = top + span * frac;
+        const passed = this.currentPos >= this.paragraphStartPos[i];
+        ctx.fillStyle = passed ? 'rgba(168, 80, 64, 0.8)' : 'rgba(43, 34, 26, 0.28)';
+        ctx.fillText('\u00B6', cx + 8, y + 3);
+      }
+    }
+
+    // Current-position marker: pulsing gold, riding the route
+    const my = top + span * progress;
+    const mx = cx + wob(progress);
+    const pulse = 0.5 + 0.5 * Math.sin(now / 300);
+    ctx.fillStyle = `rgba(196, 168, 56, ${0.45 + 0.4 * pulse})`;
+    ctx.beginPath(); ctx.arc(mx, my, 3.2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(43, 34, 26, 0.85)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.arc(mx, my, 4.6, 0, Math.PI * 2); ctx.stroke();
+
+    // Label at top (only when we know the chapter — practice mode sends none)
+    if (this.chapterList && this.currentChapterNum != null) {
+      ctx.fillStyle = 'rgba(43, 34, 26, 0.75)';
+      ctx.font = "italic 12px 'IM Fell English', serif";
+      ctx.textAlign = 'left';
+      ctx.fillText(`Ch ${this.currentChapterNum}`, 8, 18);
+    }
+    ctx.restore();
+  }
+
   _drawChapterMap(now) {
     if (!this.chapterList || this.chapterList.length < 2) return;
     const ctx = this.ctx;
@@ -1634,7 +1743,7 @@ class AdventureRenderer {
       const y1 = dotY(i);
       const steps = 14;
       ctx.strokeStyle = 'rgba(168, 80, 64, 0.85)';
-      ctx.lineWidth = 2.4;
+      ctx.lineWidth = 2.8;
       ctx.lineCap = 'round';
       ctx.beginPath();
       const upto = Math.max(2, Math.round(steps * Math.min(1, frac)));
@@ -1667,23 +1776,23 @@ class AdventureRenderer {
       const isCur = (i === curIdx);
       if (done) {
         ctx.fillStyle = '#a85040';
-        ctx.beginPath(); ctx.arc(cx, y, 3.4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, y, 4.2, 0, Math.PI * 2); ctx.fill();
       } else if (isCur) {
         const pulse = 0.5 + 0.5 * Math.sin(now / 300);
         ctx.strokeStyle = 'rgba(43, 34, 26, 0.9)';
         ctx.lineWidth = 1.6;
-        ctx.beginPath(); ctx.arc(cx, y, 4.4, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, y, 5.2, 0, Math.PI * 2); ctx.stroke();
         ctx.fillStyle = `rgba(196, 168, 56, ${0.35 + 0.4 * pulse})`;  // wheat-gold pulse
-        ctx.beginPath(); ctx.arc(cx, y, 2.6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, y, 3.2, 0, Math.PI * 2); ctx.fill();
         // Current chapter label, left of the dot
         ctx.fillStyle = 'rgba(43, 34, 26, 0.75)';
-        ctx.font = "italic 11px 'IM Fell English', serif";
+        ctx.font = "italic 12px 'IM Fell English', serif";
         ctx.textAlign = 'right';
         ctx.fillText(`Ch ${num}`, cx - 9, y + 4);
       } else {
         ctx.strokeStyle = 'rgba(43, 34, 26, 0.30)';
         ctx.lineWidth = 1.2;
-        ctx.beginPath(); ctx.arc(cx, y, 3.0, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, y, 3.6, 0, Math.PI * 2); ctx.stroke();
       }
     }
 
