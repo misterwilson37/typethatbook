@@ -1,4 +1,20 @@
-// adventure-renderer.js — v0.2.16
+// adventure-renderer.js — v0.3.0
+//
+// v0.3.0 — Chapter map + pilcrow landing marks (minor bump: new feature):
+//   - CHAPTER MAP: an always-visible strip on the right edge of the canvas,
+//     Indiana-Jones style. Chapters are dots top-to-bottom; a wobbly
+//     hand-drawn red route line fills in as you type — the segment leading
+//     into the current chapter's dot creeps forward with currentPos, and
+//     completes with a gold burst on chapter finish (visible beside the
+//     stats modal). Completed dots are filled rubric red, the current dot
+//     glows with a pulsing ring and a "Ch N" label, upcoming dots are
+//     faded hollow rings. Requires game.js >= 3.1.1 (chapters +
+//     completedChapters in the textLoaded emit); hides itself otherwise.
+//   - PILCROW: every paragraph's leading tab gap now shows a faded rubric
+//     ¶ at letter height — the medieval manuscript paragraph mark, in the
+//     traditional red. The figure's big leap lands ON the pilcrow, then
+//     mini-hops onto the first word. Answers "what is he standing on?"
+//     with something period-correct.
 //
 // v0.2.16 — Indent mini-leap (no more tab teleport):
 //   - Typing across a wide within-paragraph gap (the tab indent) now
@@ -104,7 +120,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.16';
+export const RENDERER_VERSION = '0.3.0';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -174,6 +190,15 @@ class AdventureRenderer {
     this.jumpDirection = 1;
     this.jumpHeight = 80;             // dynamic per-leap, set in _triggerJump
     this.jumpDurationMs = 600;        // 600 for paragraph leaps, 250 for indent mini-leaps
+
+    // ---- Chapter map (v0.3.0) ----
+    // Populated from the textLoaded emit (game.js >= 3.1.1). chapterList is
+    // [{num, title}, ...] in book order; completedSet holds chapter numbers
+    // as strings. _mapBurst drives the gold completion flourish.
+    this.chapterList = null;
+    this.completedSet = new Set();
+    this.currentChapterNum = null;
+    this._mapBurst = null;
     this.isHopping = false;
     this.hopPhase = 0;
 
@@ -289,7 +314,7 @@ class AdventureRenderer {
     this._on('ttb:fail',        (d) => this._onFail(d));
     this._on('ttb:respawn',     (d) => this._onRespawn(d));
     this._on('ttb:stats',       (d) => this._onStats(d));
-    this._on('ttb:complete',    ()  => this._onComplete());
+    this._on('ttb:complete',    (d) => this._onComplete(d));
 
     // Backtick toggles diagnostic overlay (shows internal state on canvas)
     const onKey = (e) => {
@@ -473,6 +498,12 @@ class AdventureRenderer {
     this._cancelLeap();
     this.fullText = (d && d.fullText) || '';
     this.currentPos = (d && typeof d.position === 'number') ? d.position : 0;
+    // Chapter map data (absent on older game.js or in practice mode — the
+    // map simply doesn't draw without it)
+    this.chapterList = (d && Array.isArray(d.chapters)) ? d.chapters : null;
+    this.completedSet = new Set((d && d.completedChapters) || []);
+    this.currentChapterNum = (d && d.chapterNum != null) ? String(d.chapterNum) : null;
+    this._mapBurst = null;
     this._logEvent(`textLoaded len=${this.fullText.length} pos=${this.currentPos}`);
 
     // Reset terrain progression on new chapter
@@ -798,8 +829,13 @@ class AdventureRenderer {
     if (typeof d.wpm === 'number') this.wpm = d.wpm;
   }
 
-  _onComplete() {
+  _onComplete(d) {
     this.state = 'idle';
+    // Mark the chapter complete locally and fire the map's gold burst. The
+    // stats modal covers center screen but the map strip on the right edge
+    // stays visible — the celebration happens there.
+    if (d && d.chapter != null) this.completedSet.add(String(d.chapter));
+    this._mapBurst = { at: performance.now() };
   }
 
   // --------------------------------------------------------------------------
@@ -1467,6 +1503,22 @@ class AdventureRenderer {
       ctx.restore();
     }
 
+    // Pilcrows: every paragraph's leading tab gets a faded rubric ¶ at
+    // letter height — the medieval manuscript paragraph mark, in the
+    // traditional red. It's what the figure lands on after the big leap
+    // (the leap targets the tab position), before mini-hopping onto the
+    // first word. Drawn for all visible paragraphs, not just the cursor's.
+    ctx.font = TEXT_FONT;
+    ctx.textAlign = 'left';
+    for (const seg of this.wordSegments) {
+      if (seg.type !== 'gap' || seg.subtype !== 'tab' || seg.startPos !== 0) continue;
+      const py = baseY + seg.yOffset - this.cameraY + 26;   // letter baseline
+      const px = seg.x - this.cameraX + 10;
+      if (px < -40 || px > this.w + 40) continue;
+      ctx.fillStyle = 'rgba(168, 80, 64, 0.55)';            // faded rubrication
+      ctx.fillText('\u00B6', px, py);
+    }
+
     // Cursor-gap indicator: a red bridge line at LETTER BASELINE (like an
     // underscore), appearing ONLY at the gap the user is currently on.
     // Non-cursor gaps render nothing — empty air the figure has to hop.
@@ -1527,8 +1579,127 @@ class AdventureRenderer {
     const charScreenY = baseY;
     this._drawStickFigure(charX, charScreenY, now);
 
+    // Chapter map strip (right edge, screen space)
+    this._drawChapterMap(now);
+
     // Diagnostic overlay (toggle with `)
     if (this._debug) this._drawDebugOverlay(now);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Chapter map — Indiana Jones route strip (v0.3.0)
+  // ---------------------------------------------------------------------------
+  // Dots are chapters, top to bottom in book order. The red route line is
+  // drawn segment by segment: the segment INTO dot i represents typing
+  // chapter i — fully drawn once chapter i is complete, partially drawn
+  // (proportional to currentPos/fullText.length) while chapter i is current,
+  // absent otherwise. Hand-drawn wobble via per-point sine offsets, 1937
+  // adventure-serial style. A gold burst plays at the current dot when
+  // ttb:complete fires.
+  _drawChapterMap(now) {
+    if (!this.chapterList || this.chapterList.length < 2) return;
+    const ctx = this.ctx;
+    const n = this.chapterList.length;
+
+    const cx = this.w - 26;                  // dot column center
+    const top = 30;
+    const bottom = this.h - 34;
+    const span = bottom - top;
+    const dotY = (i) => top + (n === 1 ? 0 : (span * i) / (n - 1));
+
+    // Subtle parchment-margin wash so the strip reads as map, not clutter
+    ctx.save();
+    ctx.fillStyle = 'rgba(120, 100, 70, 0.06)';
+    ctx.fillRect(this.w - 48, 0, 48, this.h);
+    ctx.strokeStyle = 'rgba(120, 100, 70, 0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(this.w - 48, 0);
+    ctx.lineTo(this.w - 48, this.h);
+    ctx.stroke();
+
+    const curIdx = this.chapterList.findIndex(
+      c => String(c.num) === this.currentChapterNum);
+
+    // Hand-drawn wobble: deterministic per (segment, point) so the line
+    // doesn't shimmer frame to frame.
+    const wob = (segIdx, t) => Math.sin(t * 6.8 + segIdx * 3.7) * 2.2
+                             + Math.sin(t * 13.1 + segIdx * 1.3) * 0.9;
+
+    // Route segments: segment i runs dot[i-1] → dot[i] and represents
+    // typing chapter i. Chapter 0 gets a short lead-in stub from above.
+    const drawSegment = (i, frac) => {
+      if (frac <= 0) return;
+      const y0 = (i === 0) ? top - 14 : dotY(i - 1);
+      const y1 = dotY(i);
+      const steps = 14;
+      ctx.strokeStyle = 'rgba(168, 80, 64, 0.85)';
+      ctx.lineWidth = 2.4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      const upto = Math.max(2, Math.round(steps * Math.min(1, frac)));
+      for (let s = 0; s <= upto; s++) {
+        const t = s / steps;
+        const y = y0 + (y1 - y0) * t;
+        const x = cx + wob(i, t);
+        if (s === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    };
+
+    const progress = this.fullText.length > 0
+      ? Math.min(1, this.currentPos / this.fullText.length) : 0;
+
+    for (let i = 0; i < n; i++) {
+      const num = String(this.chapterList[i].num);
+      if (this.completedSet.has(num)) {
+        drawSegment(i, 1);
+      } else if (i === curIdx) {
+        drawSegment(i, progress);
+      }
+    }
+
+    // Dots on top of the line
+    for (let i = 0; i < n; i++) {
+      const num = String(this.chapterList[i].num);
+      const y = dotY(i);
+      const done = this.completedSet.has(num);
+      const isCur = (i === curIdx);
+      if (done) {
+        ctx.fillStyle = '#a85040';
+        ctx.beginPath(); ctx.arc(cx, y, 3.4, 0, Math.PI * 2); ctx.fill();
+      } else if (isCur) {
+        const pulse = 0.5 + 0.5 * Math.sin(now / 300);
+        ctx.strokeStyle = 'rgba(43, 34, 26, 0.9)';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.arc(cx, y, 4.4, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = `rgba(196, 168, 56, ${0.35 + 0.4 * pulse})`;  // wheat-gold pulse
+        ctx.beginPath(); ctx.arc(cx, y, 2.6, 0, Math.PI * 2); ctx.fill();
+        // Current chapter label, left of the dot
+        ctx.fillStyle = 'rgba(43, 34, 26, 0.75)';
+        ctx.font = "italic 11px 'IM Fell English', serif";
+        ctx.textAlign = 'right';
+        ctx.fillText(`Ch ${num}`, cx - 9, y + 4);
+      } else {
+        ctx.strokeStyle = 'rgba(43, 34, 26, 0.30)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(cx, y, 3.0, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
+    // Completion burst: expanding gold ring at the just-finished dot
+    if (this._mapBurst && curIdx >= 0) {
+      const age = (performance.now() - this._mapBurst.at) / 800;
+      if (age >= 1) {
+        this._mapBurst = null;
+      } else {
+        const y = dotY(curIdx);
+        ctx.strokeStyle = `rgba(196, 168, 56, ${1 - age})`;
+        ctx.lineWidth = 2.5 * (1 - age) + 0.5;
+        ctx.beginPath(); ctx.arc(cx, y, 4 + age * 16, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+    ctx.restore();
   }
 
   // Diagnostic state HUD. Top-left corner of the canvas. Toggled with the
