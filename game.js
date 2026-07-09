@@ -1,3 +1,8 @@
+// v3.1.0 - Leaderboard hardening: WPM sanity clamp (impossible speeds were being
+//          recorded), admin per-entry reset buttons, Accuracy category removed;
+//          400ms grace period on chapter-complete any-key advance; stale
+//          sprint/hard-stop state cleared on every chapter load; dead
+//          practice-restore variable removed
 // v3.0.7 - Game Genie warps emit positionSet (adventure canvas was desyncing);
 //          hard-stop modal escapes the resume key before innerHTML injection
 // v3.0.6 - Daily timer renders correctly on page load (was stuck at 00:00 until first keystroke)
@@ -17,7 +22,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.0.7";
+const VERSION = "3.1.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -152,6 +157,7 @@ let anonTotalSeconds = 0;
 let anonPromptShown = false;
 let anonLoginInProgress = false; // prevent auth handler from reloading during anon prompt
 let modalActionCallback = null;
+let chapterCompleteAt = 0;   // when the chapter-complete modal opened (any-key grace period)
 let lastInputTime = 0; let timeAccumulator = 0;
 let wpmHistory = []; let accuracyHistory = [];
 let currentLetterStatus = 'clean';
@@ -209,7 +215,6 @@ let isPracticeMode = false;
 let practiceRealBookData = null;    // saved real book state
 let practiceRealChapterNum = null;
 let practiceRealCharIndex = null;
-let practiceRealSavedCharIndex = null;
 let practiceRealLastSavedIndex = null;
 let practiceRealFurthestChapter = null;
 let practiceRealFurthestCharIndex = null;
@@ -693,6 +698,12 @@ function setupGame() {
 
     renderText();
     currentCharIndex = savedCharIndex;
+    // Every chapter/book/practice load re-anchors the sprint and clears any
+    // stale hard-stop flag. Position warps that skipped startGame() could
+    // otherwise leave sprintCharStart pointing into a different text — the
+    // root of the impossible leaderboard WPMs.
+    sprintCharStart = currentCharIndex;
+    isHardStop = false;
 
     if (currentCharIndex > 0) {
         for (let i = 0; i < currentCharIndex; i++) {
@@ -1041,7 +1052,11 @@ document.addEventListener('keydown', (e) => {
         // where they sit on the last character thinking the modal is stuck.
         // Tab and modifier keys are excluded so accidental Tab-to-focus or
         // Shift-Caps doesn't fast-forward.
-        if (currentCharIndex >= fullText.length && modalActionCallback) {
+        // 400ms grace period: a fast typist's in-flight keystrokes right after
+        // the last character would otherwise blow through the stats modal
+        // before they could read it.
+        if (currentCharIndex >= fullText.length && modalActionCallback &&
+            Date.now() - chapterCompleteAt >= 400) {
             const isContinueKey =
                 e.key === 'Enter' ||
                 e.key === ' ' ||
@@ -1521,6 +1536,19 @@ function formatTime(seconds) {
     return `${m}m ${s}s`;
 }
 
+// Sanity-clamp a computed sprint WPM before it can reach sprintHistory or the
+// leaderboard. Position warps with stale sprint state have produced absurd
+// values (268,848 WPM was live on the board); no human types over ~300.
+// Negative charsTyped (rollback/warp artifacts) also lands here.
+function sanitizeSprintWPM(wpm, charsTyped) {
+    if (!isFinite(wpm) || charsTyped < 0 || wpm < 0) return 0;
+    if (wpm > 300) {
+        console.warn(`Implausible sprint WPM ${wpm} (chars=${charsTyped}) — recording 0.`);
+        return 0;
+    }
+    return wpm;
+}
+
 function calculateAverageWPM(chars, seconds) {
     if(!seconds || seconds <= 0) return 0;
     const mins = seconds / 60;
@@ -1538,7 +1566,8 @@ async function pauseGameForBreak() {
     isGameActive = false; clearInterval(timerInterval); saveProgress();
     const charsTyped = currentCharIndex - sprintCharStart;
     const sprintMinutes = sprintSeconds / 60;
-    const sprintWPM = (sprintMinutes > 0) ? Math.round((charsTyped / 5) / sprintMinutes) : 0;
+    const sprintWPM = sanitizeSprintWPM(
+        (sprintMinutes > 0) ? Math.round((charsTyped / 5) / sprintMinutes) : 0, charsTyped);
     const sprintTotalEntries = charsTyped + sprintMistakes;
     const sprintAcc = (sprintTotalEntries > 0) ? Math.round((charsTyped / sprintTotalEntries) * 100) : 100;
 
@@ -1696,13 +1725,15 @@ function getSprintHistoryHTML() {
 
 async function finishChapter() {
     isGameActive = false; clearInterval(timerInterval);
+    chapterCompleteAt = Date.now();   // start the any-key grace period
     _ttbEmit('complete', { chapter: currentChapterNum });
 
     // Practice mode: log session and offer to return
     if (isPracticeMode) {
         const charsTyped = currentCharIndex - sprintCharStart;
         const sprintMinutes = sprintSeconds / 60;
-        const sprintWPM = (sprintMinutes > 0) ? Math.round((charsTyped / 5) / sprintMinutes) : 0;
+        const sprintWPM = sanitizeSprintWPM(
+        (sprintMinutes > 0) ? Math.round((charsTyped / 5) / sprintMinutes) : 0, charsTyped);
         const sprintTotalEntries = charsTyped + sprintMistakes;
         const sprintAcc = (sprintTotalEntries > 0) ? Math.round((charsTyped / sprintTotalEntries) * 100) : 100;
         logSession(sprintSeconds, charsTyped, sprintMistakes, sprintWPM, sprintAcc);
@@ -1766,7 +1797,8 @@ async function finishChapter() {
 
     const charsTyped = currentCharIndex - sprintCharStart;
     const sprintMinutes = sprintSeconds / 60;
-    const sprintWPM = (sprintMinutes > 0) ? Math.round((charsTyped / 5) / sprintMinutes) : 0;
+    const sprintWPM = sanitizeSprintWPM(
+        (sprintMinutes > 0) ? Math.round((charsTyped / 5) / sprintMinutes) : 0, charsTyped);
     const sprintTotalEntries = charsTyped + sprintMistakes;
     const sprintAcc = (sprintTotalEntries > 0) ? Math.round((charsTyped / sprintTotalEntries) * 100) : 100;
 
@@ -2179,7 +2211,8 @@ function showAnonInfiniteReminder() {
     // Log the sprint so far so typing time counts for stats
     const charsTyped = currentCharIndex - sprintCharStart;
     const sprintMinutes = sprintSeconds / 60;
-    const sprintWPM = (sprintMinutes > 0) ? Math.round((charsTyped / 5) / sprintMinutes) : 0;
+    const sprintWPM = sanitizeSprintWPM(
+        (sprintMinutes > 0) ? Math.round((charsTyped / 5) / sprintMinutes) : 0, charsTyped);
     const sprintTotalEntries = charsTyped + sprintMistakes;
     const sprintAcc = (sprintTotalEntries > 0) ? Math.round((charsTyped / sprintTotalEntries) * 100) : 100;
     if (sprintSeconds > 0) logSession(sprintSeconds, charsTyped, sprintMistakes, sprintWPM, sprintAcc);
@@ -3796,7 +3829,7 @@ async function updateLeaderboard() {
             initials: userInitials,
             displayName: currentUser.displayName || '',
             leaderboardOptOut: leaderboardOptOut,
-            bestWPM: Math.max(existingBestWPM, lastSprintWPM),
+            bestWPM: Math.max(existingBestWPM, sanitizeSprintWPM(lastSprintWPM, 1)),
             bestAccuracy: Math.max(existingBestAcc, lastSprintAcc),
             bestStreak: Math.max(existingBestStreak, bestStreak),
             chaptersCompleted: Math.max(existingChapters, completedChapters.size),
@@ -3824,7 +3857,6 @@ async function updateLeaderboard() {
 
 const LB_CATEGORIES = [
     { key: 'bestWPM', label: '⚡ Speed', unit: 'WPM' },
-    { key: 'bestAccuracy', label: '🎯 Accuracy', unit: '%' },
     { key: 'bestStreak', label: '🔥 Streak', unit: '' },
     { key: 'chaptersCompleted', label: '📚 Chapters', unit: '' },
     { key: 'totalSecondsWeek', label: '⏱️ Weekly', unit: '', format: 'time' }
@@ -3898,7 +3930,11 @@ async function openLeaderboard(activeTab) {
             let val = entry[activeCat] || 0;
             if (cat.format === 'time') val = formatTime(val);
             else val = val + (cat.unit || '');
-            return `<div class="lb-entry ${isMe ? 'lb-me' : ''}">${medal} <span class="lb-initials">${escapeHtml(entry.initials || '???')}</span> <span class="lb-val">${val}</span></div>`;
+            const isAdmin = currentUser && ADMIN_EMAILS.includes(currentUser.email);
+            const adminBtn = isAdmin
+                ? ` <button class="lb-admin-reset" data-uid="${escapeHtml(entry.uid)}" title="Admin: reset this entry to 0" style="background:none; border:1px solid #a33; color:#a33; border-radius:3px; font-size:0.7em; padding:0 5px; cursor:pointer; margin-left:6px; vertical-align:middle;">✕</button>`
+                : '';
+            return `<div class="lb-entry ${isMe ? 'lb-me' : ''}">${medal} <span class="lb-initials">${escapeHtml(entry.initials || '???')}</span> <span class="lb-val">${val}</span>${adminBtn}</div>`;
         }).join('');
     }
     
@@ -3912,6 +3948,26 @@ async function openLeaderboard(activeTab) {
     // Wire tab clicks
     document.querySelectorAll('.lb-tab').forEach(tab => {
         tab.onclick = () => openLeaderboard(tab.dataset.cat);
+    });
+
+    // Admin moderation: reset a single entry's stat for the ACTIVE category.
+    // Surgical — zeroes only that field on that user's leaderboard doc; their
+    // other categories and all their real progress/stats are untouched.
+    document.querySelectorAll('.lb-admin-reset').forEach(btn => {
+        btn.onclick = async (ev) => {
+            ev.stopPropagation();
+            const uid = btn.dataset.uid;
+            const catDef = LB_CATEGORIES.find(c => c.key === activeCat);
+            if (!confirm(`Reset this player's ${catDef ? catDef.label : activeCat} entry to 0?`)) return;
+            try {
+                await setDoc(doc(db, "leaderboard", uid), { [activeCat]: 0 }, { merge: true });
+                leaderboardCacheTime = 0;   // bust cache
+                openLeaderboard(activeCat); // re-render
+            } catch (e) {
+                alert("Reset failed — Firestore rules may not allow admin writes to other users' leaderboard docs. See console.");
+                console.error("Leaderboard admin reset failed:", e);
+            }
+        };
     });
 }
 
@@ -3930,7 +3986,6 @@ function startTestText(text, label) {
     practiceRealBookData = bookData;
     practiceRealChapterNum = currentChapterNum;
     practiceRealCharIndex = currentCharIndex;
-    practiceRealSavedCharIndex = savedCharIndex;
     practiceRealLastSavedIndex = lastSavedIndex;
     practiceRealFurthestChapter = furthestChapter;
     practiceRealFurthestCharIndex = furthestCharIndex;
@@ -4025,7 +4080,6 @@ async function startPracticeMode() {
         practiceRealBookData = bookData;
         practiceRealChapterNum = currentChapterNum;
         practiceRealCharIndex = currentCharIndex;
-        practiceRealSavedCharIndex = savedCharIndex;
         practiceRealLastSavedIndex = lastSavedIndex;
         practiceRealFurthestChapter = furthestChapter;
         practiceRealFurthestCharIndex = furthestCharIndex;
@@ -4117,7 +4171,6 @@ function exitPracticeMode() {
     practiceRealBookData = null;
     practiceRealChapterNum = null;
     practiceRealCharIndex = null;
-    practiceRealSavedCharIndex = null;
     practiceRealLastSavedIndex = null;
     practiceRealFurthestChapter = null;
     practiceRealFurthestCharIndex = null;
