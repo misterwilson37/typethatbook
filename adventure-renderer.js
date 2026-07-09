@@ -1,4 +1,16 @@
-// adventure-renderer.js — v0.2.15
+// adventure-renderer.js — v0.2.16
+//
+// v0.2.16 — Indent mini-leap (no more tab teleport):
+//   - Typing across a wide within-paragraph gap (the tab indent) now
+//     triggers a short, low leap (250ms, small arc) using the same
+//     interpolation machinery as paragraph leaps. Before this, the figure's
+//     X snapped across the indent in one frame while the camera lerped to
+//     catch up — visible as a forward teleport right after the big jump.
+//   - Jump duration is now a field (jumpDurationMs) instead of a hardcoded
+//     600 in the loop, so big leaps and mini-leaps share one code path.
+//   - Chaining works both directions: a mini-leap triggered mid-big-leap
+//     (or vice versa) starts from the figure's current interpolated
+//     position, same as the v0.2.15 retrigger rule.
 //
 // v0.2.15 — Leap state hygiene (found in code review):
 //   - isJumping and leap anchors are now cancelled on fail, respawn,
@@ -92,7 +104,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.2.15';
+export const RENDERER_VERSION = '0.2.16';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -161,6 +173,7 @@ class AdventureRenderer {
     this.jumpPhase = 0;
     this.jumpDirection = 1;
     this.jumpHeight = 80;             // dynamic per-leap, set in _triggerJump
+    this.jumpDurationMs = 600;        // 600 for paragraph leaps, 250 for indent mini-leaps
     this.isHopping = false;
     this.hopPhase = 0;
 
@@ -607,9 +620,16 @@ class AdventureRenderer {
         this.targetCameraY = this._paragraphYOffset(newParaIdx);
         this._triggerJump(goingUp);
       } else {
-        // Small hop on whitespace crossing within a paragraph
+        // Within-paragraph advance. If the X jump is wide (the tab indent —
+        // ordinary spaces are only a few px), carry the figure across with a
+        // mini-leap so it doesn't teleport. Narrow whitespace keeps the
+        // simple visual hop.
         const charJustTyped = this.fullText[oldPos];
-        if (charJustTyped === ' ' || charJustTyped === '\t') {
+        const fromX = this._xAtPosition(oldPos);
+        const toX = this._xAtPosition(this.currentPos);
+        if (toX - fromX > 30) {
+          this._triggerIndentLeap(fromX, toX);
+        } else if (charJustTyped === ' ' || charJustTyped === '\t') {
           this.isHopping = true;
           this.hopPhase = 0;
         }
@@ -1084,6 +1104,31 @@ class AdventureRenderer {
     // paragraph naturally, plus a 30px clearance margin.
     const yDelta = Math.abs(this.targetCameraY - this.cameraY);
     this.jumpHeight = 80 + yDelta + 30;
+    this.jumpDurationMs = 600;
+  }
+
+  // Short, low leap across a wide within-paragraph gap (the tab indent).
+  // Same interpolation machinery as the paragraph leap — the figure stays
+  // anchored at 35% screen X while the world slides — but a quarter-second
+  // hop instead of a full arc. If a leap is already in flight (Enter then
+  // Tab in quick succession is the normal case), the mini-leap starts from
+  // the figure's current interpolated position so the motions chain.
+  _triggerIndentLeap(fromX, toX) {
+    if (this.isJumping) {
+      const t = this.jumpPhase;
+      const eased = t * t * (3 - 2 * t);
+      this._leapFromCharX = this._leapFromCharX +
+        (this._leapToCharX - this._leapFromCharX) * eased;
+    } else {
+      this._leapFromCharX = fromX;
+    }
+    this._leapToCharX = toX;
+    this.isJumping = true;
+    this.jumpPhase = 0;
+    this.jumpDirection = 1;
+    this.jumpHeight = 26;
+    this.jumpDurationMs = 250;
+    this._leapStartCameraY = this.cameraY;   // Y is a no-op unless a big leap was interrupted
   }
 
   // Abort any in-flight leap. Called when a fail, respawn, chapter load, or
@@ -1164,7 +1209,7 @@ class AdventureRenderer {
     }
 
     if (this.isJumping) {
-      this.jumpPhase += dt / 600;
+      this.jumpPhase += dt / this.jumpDurationMs;
       if (this.jumpPhase >= 1) { this.isJumping = false; this.jumpPhase = 0; }
     }
     if (this.isHopping) {
