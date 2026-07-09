@@ -1,3 +1,8 @@
+// v3.2.0 - Per-mistake corrections: mistakes at the current letter accumulate
+//          (deepening red shade in classic view) and each backspace undoes
+//          exactly one — the cursor doesn't move back until all mistakes at
+//          the letter are undone, just like deleting real typed characters.
+//          New ttb:backspaceUndo event drives the adventure tilt-back.
 // v3.1.1 - textLoaded emit carries chapters + completedChapters for the
 //          adventure chapter map (null chapters in practice mode)
 // v3.1.0 - Leaderboard hardening: WPM sanity clamp (impossible speeds were being
@@ -24,7 +29,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.1.1";
+const VERSION = "3.2.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -163,6 +168,16 @@ let chapterCompleteAt = 0;   // when the chapter-complete modal opened (any-key 
 let lastInputTime = 0; let timeAccumulator = 0;
 let wpmHistory = []; let accuracyHistory = [];
 let currentLetterStatus = 'clean';
+let mistakesAtCurrent = 0;   // uncorrected mistakes at the current letter (one backspace undoes one)
+
+// Classic-view shade for repeated mistakes at the same letter: the letter's
+// background reddens a step per mistake and lightens a step per backspace.
+function applyMissShade(el, n) {
+    if (!el) return;
+    if (n <= 0) { el.style.removeProperty('background-color'); return; }
+    const alpha = Math.min(0.10 + 0.16 * (n - 1), 0.70);
+    el.style.backgroundColor = `rgba(211, 47, 47, ${alpha.toFixed(2)})`;
+}
 
 // Streak tracking
 let currentStreak = 0;
@@ -807,7 +822,7 @@ function startGame() {
 
     sprintSeconds = 0; sprintMistakes = 0; sprintCharStart = currentCharIndex;
     activeSeconds = 0; timeAccumulator = 0; lastInputTime = Date.now();
-    consecutiveMistakes = 0; backspaceOrigin = -1;
+    consecutiveMistakes = 0; backspaceOrigin = -1; mistakesAtCurrent = 0;
     currentStreak = 0; streakMilestone = 0;
     updateStreak(false); // reset display
     wpmHistory = []; accuracyHistory = [];
@@ -1128,11 +1143,16 @@ function handleTyping(key) {
     const currentEl = document.getElementById(`char-${currentCharIndex}`);
 
     if (key === "Backspace") {
-        if (currentLetterStatus === 'error') {
-            // First backspace: clear the error on current char
+        if (mistakesAtCurrent > 0) {
+            // Undo ONE mistake at the current letter. The cursor stays put
+            // until every mistake here has been backspaced away — like
+            // deleting real mistyped characters one by one.
+            mistakesAtCurrent--;
             currentLetterStatus = 'fixed';
             if (backspaceOrigin < 0) backspaceOrigin = currentCharIndex;
-            currentEl.classList.remove('error-state');
+            applyMissShade(currentEl, mistakesAtCurrent);
+            if (mistakesAtCurrent === 0 && currentEl) currentEl.classList.remove('error-state');
+            _ttbEmit('backspaceUndo', { position: currentCharIndex, remaining: mistakesAtCurrent });
         } else if (currentCharIndex > sprintCharStart) {
             // Additional backspaces: move back to previous char
             if (backspaceOrigin < 0) backspaceOrigin = currentCharIndex;
@@ -1157,6 +1177,8 @@ function handleTyping(key) {
         consecutiveMistakes = 0;
 
         currentEl.classList.remove('active'); currentEl.classList.remove('error-state');
+        currentEl.style.removeProperty('background-color');
+        mistakesAtCurrent = 0;
         if (currentLetterStatus === 'clean') currentEl.classList.add('done-perfect');
         else if (currentLetterStatus === 'fixed') currentEl.classList.add('done-fixed');
         else currentEl.classList.add('done-dirty');
@@ -1211,8 +1233,9 @@ function handleTyping(key) {
 
         statsData.mistakesToday++; statsData.mistakesWeek++;
         if (currentLetterStatus === 'clean') currentLetterStatus = 'error';
+        mistakesAtCurrent++;
         const errEl = document.getElementById(`char-${currentCharIndex}`);
-        if(errEl) errEl.classList.add('error-state');
+        if(errEl) { errEl.classList.add('error-state'); applyMissShade(errEl, mistakesAtCurrent); }
         flashKey(key); updateRunningAccuracy(false); updateStreak(false);
 
         // Track missed characters
@@ -1261,7 +1284,9 @@ function triggerHardStop(targetChar, isAfk) {
             const el = document.getElementById(`char-${i}`);
             if (!el) continue;
             el.classList.remove('done-perfect', 'done-fixed', 'done-dirty', 'error-state', 'active');
+            el.style.removeProperty('background-color');
         }
+        mistakesAtCurrent = 0;
         currentCharIndex = sentenceStart;
         highlightCurrentChar();
         centerView();
@@ -1336,6 +1361,7 @@ function resumeGame() {
     isGameActive = true;
     timerInterval = setInterval(gameTick, 100);
     consecutiveMistakes = 0;
+    mistakesAtCurrent = 0;
     lastInputTime = Date.now();
 
     _ttbEmit('respawn', { position: currentCharIndex });
