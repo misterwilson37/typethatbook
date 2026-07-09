@@ -1,3 +1,5 @@
+// v3.1.1 - textLoaded emit carries chapters + completedChapters for the
+//          adventure chapter map (null chapters in practice mode)
 // v3.1.0 - Leaderboard hardening: WPM sanity clamp (impossible speeds were being
 //          recorded), admin per-entry reset buttons, Accuracy category removed;
 //          400ms grace period on chapter-complete any-key advance; stale
@@ -22,7 +24,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.1.0";
+const VERSION = "3.1.1";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -738,6 +740,15 @@ function setupGame() {
             ? (bookMetadata.chapters.find(c => c.id === `chapter_${currentChapterNum}`) || {}).title
             : null,
         bookTitle: bookMetadata && bookMetadata.title,
+        // Chapter map data (renderer v0.3.0+). Practice mode sends null so
+        // the map hides — an AI drill isn't part of the book's journey.
+        chapters: (!isPracticeMode && bookMetadata && bookMetadata.chapters)
+            ? bookMetadata.chapters.map(c => ({
+                num: c.id.replace('chapter_', ''),
+                title: c.title || ''
+              }))
+            : null,
+        completedChapters: Array.from(completedChapters),
     });
 
     let btnLabel = "Resume";
