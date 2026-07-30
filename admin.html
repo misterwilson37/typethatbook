@@ -149,6 +149,7 @@
             <button class="tab-btn" id="tab-lessons">⌨ Lessons</button>
             <button class="tab-btn" id="tab-students">👤 Students</button>
             <button class="tab-btn" id="tab-classes">🏫 Classes</button>
+            <button class="tab-btn" id="tab-staff" style="display:none">🎓 Staff</button>
         </div>
 
         <div id="books-panel">
@@ -467,6 +468,62 @@
             </div>
         </div><!-- /students-panel -->
 
+        <div id="staff-panel" class="hidden">
+            <h3 style="margin:0 0 4px; color:#4B9CD3;">Staff Manager</h3>
+            <div style="font-size:.8em; color:#888; margin-bottom:16px;">
+                A person who signs in is a student by default. Give them a role here.
+                Super admin is granted from the Firebase console only.
+            </div>
+
+            <!-- Find a person -->
+            <div style="background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:16px; margin-bottom:16px;">
+                <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:10px;">Find a person</div>
+                <div style="display:flex; gap:8px; align-items:flex-end;">
+                    <div style="flex:1">
+                        <label class="l-label">Email address</label>
+                        <input id="staff-email-input" class="l-field" type="email"
+                               placeholder="jane.doe@sumnerk12.net" autocomplete="off">
+                    </div>
+                    <button id="staff-lookup-btn" class="lbtn lbtn-primary"
+                            style="width:auto; padding:6px 20px;">Search</button>
+                </div>
+                <div style="font-size:.75em; color:#666; margin-top:6px;">
+                    They must have signed in to TypeThatBook at least once.
+                </div>
+                <div id="staff-status" style="margin-top:8px; font-size:0.8em; color:#888;"></div>
+            </div>
+
+            <!-- Grant -->
+            <div id="staff-candidate" style="display:none; background:#1a1a1a; border:1px solid #4B9CD3; border-radius:4px; padding:16px; margin-bottom:20px;">
+                <div id="staff-candidate-info" style="margin-bottom:14px;"></div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
+                    <div>
+                        <label class="l-label">Role</label>
+                        <select id="staff-role-select" class="l-field"></select>
+                    </div>
+                    <div>
+                        <label class="l-label">Can see</label>
+                        <select id="staff-scope-select" class="l-field"></select>
+                    </div>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label class="l-label">School(s)</label>
+                    <div id="staff-schools-box" style="padding:4px 0;"></div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button id="staff-grant-btn" class="lbtn lbtn-primary" style="width:auto; padding:6px 20px;">Save Role</button>
+                    <button id="staff-revoke-btn" class="lbtn lbtn-secondary" style="width:auto; padding:6px 16px; display:none;">Remove Access</button>
+                </div>
+            </div>
+
+            <!-- Existing staff -->
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold;">Current staff</div>
+                <button id="staff-refresh-btn" class="lbtn lbtn-secondary" style="width:auto; padding:3px 12px; font-size:.8em;">Refresh</button>
+            </div>
+            <div id="staff-list"></div>
+        </div>
+
         <div id="classes-panel" class="hidden">
             <h3 style="margin:0 0 16px; color:#4B9CD3;">Class Manager</h3>
 
@@ -474,10 +531,14 @@
             <div style="background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:16px; margin-bottom:20px;">
                 <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:10px;" id="class-form-title">New Class</div>
                 <input type="hidden" id="class-edit-id">
-                <div style="display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; margin-bottom:8px;">
+                <div style="display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:8px; margin-bottom:8px;">
                     <div>
                         <label class="l-label">Class Name</label>
                         <input id="class-name-input" class="l-field" type="text" placeholder="e.g. Period 2 — 7th Grade">
+                    </div>
+                    <div>
+                        <label class="l-label">School</label>
+                        <select id="class-school-select" class="l-field"></select>
                     </div>
                     <div>
                         <label class="l-label">Daily Goal (min)</label>
