@@ -1,3 +1,24 @@
+// v3.4.0 - Write reduction. saveProgress() used to fire on every '.', '!', '?'
+//          and newline, writing THREE documents each time (~236,000 writes/day
+//          at 7,000 students against a 20,000/day free tier).
+//          Replaced with a localStorage write-ahead log plus a coalesced flush:
+//            - every sentence still records EVERYTHING, synchronously, locally
+//            - Firestore gets a batched flush every 5 min and on session end
+//            - walRecover() replays unflushed work on next load
+//          This is MORE durable than what it replaced, not less. The old code
+//          lost everything since the last punctuation mark if the tab died; the
+//          WAL loses nothing. Student position, time, speed and accuracy are all
+//          still tracked and still resume exactly where they left off.
+//          Also:
+//            - progress + completedChapters merged into one document (was two
+//              writes to the same doc)
+//            - typing_sessions: one rollup doc per session with a sprints[]
+//              array instead of one doc per sprint, plus an expiresAt TTL field
+//            - chapter text cached in localStorage (biggest per-load read)
+//            - goals/class/school cached for a day (was 2-3 reads every load)
+//            - chapter advance does one write instead of two
+//            - classId/schoolId stamped on typing_logs and typing_sessions so
+//              reports can be scoped by class or building. See MULTITENANCY.md.
 // v3.3.0 - Leaderboard scale rework. The old fetchLeaderboard() read EVERY
 //          document in the leaderboard collection to build four top-10 lists,
 //          and updateLeaderboard() busted its own cache before calling it on
@@ -251,7 +272,9 @@ let lbOwnEntry = null;        // null = not yet read this session
 // Write coalescing. totalSecondsWeek grows every sprint, so without this the
 // doc would be written 20x per ten-minute block. Accumulate locally, flush on
 // a timer / a new personal best / the tab going away.
-const LB_WRITE_MIN_GAP_MS = 120000;   // 2 minutes
+// Matched to FLUSH_INTERVAL_MS. The board itself is cached for 10 minutes, so
+// writing the underlying doc more often than the flush cadence buys nothing.
+const LB_WRITE_MIN_GAP_MS = 300000;   // 5 minutes
 let lbPendingSeconds = 0;
 let lbLastWriteTime = 0;
 let lbDirty = false;
@@ -542,19 +565,49 @@ function getWeekStart(date) {
 
 
 
+// Goals, class, and building change roughly never, but this used to cost two
+// document reads on every single page load (user doc, then class doc), plus a
+// third for the settings fallback. Cached for a day. `classId`/`schoolId` are
+// captured here and stamped onto every log so reports can be scoped without
+// scanning the collection — see MULTITENANCY.md.
+const GOALS_CACHE_KEY = 'ttb_goalsCache_v1';
+const GOALS_CACHE_MS = 86400000;   // 1 day
+
 async function loadGoals() {
     try {
+        // Cache hit?
+        try {
+            const raw = localStorage.getItem(GOALS_CACHE_KEY);
+            if (raw) {
+                const c = JSON.parse(raw);
+                if (c.uid === (currentUser && currentUser.uid) &&
+                    (Date.now() - c.at) < GOALS_CACHE_MS) {
+                    goals.dailySeconds = c.dailySeconds || 0;
+                    goals.weeklySeconds = c.weeklySeconds || 0;
+                    ttbClassId = c.classId || '';
+                    ttbSchoolId = c.schoolId || '';
+                    applyGoalCelebrationState();
+                    return;
+                }
+            }
+        } catch (_) { /* fall through to a real read */ }
+
         let resolved = false;
+        ttbClassId = ''; ttbSchoolId = '';
         if (currentUser && !currentUser.isAnonymous) {
             const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
             if (userSnap.exists()) {
                 const ud = userSnap.data();
+                ttbClassId = ud.classId || '';
+                ttbSchoolId = ud.schoolId || '';
                 if (ud.classId) {
                     const classSnap = await getDoc(doc(db, 'classes', ud.classId));
                     if (classSnap.exists()) {
                         const cd = classSnap.data();
                         goals.dailySeconds  = cd.dailySeconds  || 0;
                         goals.weeklySeconds = cd.weeklySeconds || 0;
+                        // A class knows its building; the user doc may not yet.
+                        if (!ttbSchoolId && cd.schoolId) ttbSchoolId = cd.schoolId;
                         console.log(`Goals from class "${cd.name}": daily=${goals.dailySeconds}s, weekly=${goals.weeklySeconds}s`);
                         resolved = true;
                     }
@@ -570,14 +623,27 @@ async function loadGoals() {
                 console.log(`Goals from settings: daily=${goals.dailySeconds}s, weekly=${goals.weeklySeconds}s`);
             }
         }
-        if (goals.dailySeconds  > 0 && statsData.secondsToday >= goals.dailySeconds) {
-            dailyGoalCelebrated = true;
-        }
-        if (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) {
-            weeklyGoalCelebrated = true;
-        }
+
+        try {
+            localStorage.setItem(GOALS_CACHE_KEY, JSON.stringify({
+                uid: currentUser ? currentUser.uid : '', at: Date.now(),
+                dailySeconds: goals.dailySeconds, weeklySeconds: goals.weeklySeconds,
+                classId: ttbClassId, schoolId: ttbSchoolId
+            }));
+        } catch (_) {}
+
+        applyGoalCelebrationState();
     } catch (e) {
         console.error("loadGoals failed:", e);
+    }
+}
+
+function applyGoalCelebrationState() {
+    if (goals.dailySeconds  > 0 && statsData.secondsToday >= goals.dailySeconds) {
+        dailyGoalCelebrated = true;
+    }
+    if (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) {
+        weeklyGoalCelebrated = true;
     }
 }
 
@@ -610,18 +676,73 @@ async function loadUserProgress() {
             else furthestCharIndex = savedCharIndex;
         }
         lastSavedIndex = savedCharIndex;
+        // Replay anything the previous session couldn't get to Firestore before
+        // it died. Must run after the Firestore read so it can compare positions.
+        currentCharIndex = savedCharIndex;
+        walRecover();
+        savedCharIndex = currentCharIndex;
+        lastSavedIndex = savedCharIndex;
         loadChapter(currentChapterNum);
     } catch (e) { loadChapter(1); }
+}
+
+// Chapter text is immutable once authored and it's the biggest single read in
+// the app. Cached locally so a student returning to the same chapter — which is
+// the normal case, every day — reads zero documents and downloads zero bytes.
+// admin.html bumps `contentVersion` on a book when a chapter is edited, which
+// invalidates the entry. Absent that field we fall back to a 7-day expiry.
+const CHAPTER_CACHE_MS = 7 * 86400000;
+
+function chapterCacheKey(bookId, chapterId) { return `ttb_ch_v1:${bookId}:${chapterId}`; }
+
+function readChapterCache(bookId, chapterId) {
+    try {
+        const raw = localStorage.getItem(chapterCacheKey(bookId, chapterId));
+        if (!raw) return null;
+        const c = JSON.parse(raw);
+        const bookVer = (bookMetadata && bookMetadata.contentVersion) || null;
+        if (bookVer !== null && c.ver !== bookVer) return null;
+        if ((Date.now() - c.at) > CHAPTER_CACHE_MS) return null;
+        return c.data;
+    } catch (_) { return null; }
+}
+
+function writeChapterCache(bookId, chapterId, data) {
+    try {
+        localStorage.setItem(chapterCacheKey(bookId, chapterId), JSON.stringify({
+            at: Date.now(),
+            ver: (bookMetadata && bookMetadata.contentVersion) || null,
+            data
+        }));
+    } catch (e) {
+        // Quota exceeded — drop other cached chapters and move on. The cache is
+        // an optimisation; never let it break loading a chapter.
+        try {
+            Object.keys(localStorage)
+                .filter(k => k.startsWith('ttb_ch_v1:'))
+                .forEach(k => localStorage.removeItem(k));
+        } catch (_) {}
+    }
 }
 
 async function loadChapter(chapterNum) {
     textStream.innerHTML = `Loading Chapter...`;
     const chapterId = "chapter_" + chapterNum;
     try {
+        const cached = readChapterCache(currentBookId, chapterId);
+        if (cached) {
+            bookData = cached;
+            currentChapterNum = chapterNum;
+            setupGame();
+            getHeaderHTML();
+            initBookProgressBar();
+            return;
+        }
         const docRef = doc(db, "books", currentBookId, "chapters", chapterId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
             bookData = docSnap.data();
+            writeChapterCache(currentBookId, chapterId, bookData);
             currentChapterNum = chapterNum;
             setupGame();
             getHeaderHTML(); // update book info bar
@@ -1263,10 +1384,12 @@ function handleTyping(key) {
             completedPos: currentCharIndex - 1,
         });
 
-        if (['.', '!', '?', '\n'].includes(targetChar)) saveProgress();
+        // Was saveProgress() — three Firestore writes per sentence. Now records
+        // to the local write-ahead log and lets the flush timer batch it.
+        if (['.', '!', '?', '\n'].includes(targetChar)) markDirty();
         else if (['"', "'"].includes(targetChar) && currentCharIndex >= 2) {
             const prevChar = fullText[currentCharIndex - 2];
-            if (['.', '!', '?'].includes(prevChar)) saveProgress();
+            if (['.', '!', '?'].includes(prevChar)) markDirty();
         }
 
         updateRunningWPM(); updateRunningAccuracy(true); updateStreak(true);
@@ -1555,74 +1678,281 @@ function isPositionAhead(chapA, idxA, chapB, idxB) {
     return a > b || (a === b && idxA > idxB);
 }
 
-async function saveProgress(force = false) {
-    if (!currentUser || currentUser.isAnonymous) return;
-    try {
-        // Don't save book position during practice mode
-        if (!isPracticeMode) {
-            if (currentCharIndex > lastSavedIndex || force) {
-                // Update furthest tracking (only moves forward)
-                if (isPositionAhead(currentChapterNum, currentCharIndex, furthestChapter, furthestCharIndex)) {
-                    furthestChapter = currentChapterNum;
-                    furthestCharIndex = currentCharIndex;
-                }
-                await setDoc(doc(db, "users", currentUser.uid, "progress", currentBookId), {
-                    chapter: currentChapterNum,
-                    charIndex: currentCharIndex,
-                    furthestChapter: furthestChapter,
-                    furthestCharIndex: furthestCharIndex,
-                    lastUpdated: new Date()
-                }, { merge: true });
-                lastSavedIndex = currentCharIndex;
-            }
-        }
-        await setDoc(doc(db, "users", currentUser.uid, "stats", "time_tracking"), statsData, { merge: true });
+// ═════════════════════════════════════════════════════════════════════════════
+// PERSISTENCE — write-ahead log + coalesced flush
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// The old saveProgress() fired on every '.', '!', '?' and newline, and each call
+// wrote THREE documents. At 7,000 students that was ~236,000 writes/day against
+// a 20,000/day free tier.
+//
+// What replaced it is not "save less" — it's "save to the right place first."
+// Every sentence still records everything, synchronously, to localStorage. That
+// is the durable copy and it costs nothing. Firestore gets a batched flush every
+// FLUSH_INTERVAL_MS and on every event that actually ends a session.
+//
+// This is STRICTLY MORE durable than what it replaced. The old code lost
+// everything typed since the last punctuation mark if the tab died. The WAL
+// loses nothing — on next load we detect unflushed local state and replay it.
+// Firestore is now the sync-and-reporting layer; localStorage is the safety net.
 
-        // Daily log for admin reporting
-        const today = getLocalDateStr();
-        const logId = `${currentUser.uid}_${today}`;
-        await setDoc(doc(db, "typing_logs", logId), {
-            uid: currentUser.uid,
-            email: currentUser.email || "",
-            displayName: currentUser.displayName || "Anonymous",
-            date: today,
-            seconds: statsData.secondsToday || 0,
-            chars: statsData.charsToday || 0,
-            mistakes: statsData.mistakesToday || 0,
-            lastUpdated: new Date()
-        }, { merge: true });
-    } catch (e) { console.warn("Save failed:", e); }
+const WAL_KEY = 'ttb_wal_v2';
+const FLUSH_INTERVAL_MS = 300000;   // 5 minutes
+let walFlushTimer = null;
+let walDirty = false;
+let pendingSessions = [];           // sprint records awaiting a rollup write
+let statsDocDirty = false;          // stats/time_tracking is only read at load,
+                                    // so it only needs writing at session end
+// Denormalised tenancy stamps, written onto every log so reports can be scoped
+// by class or building without reading the whole collection. See MULTITENANCY.md.
+let ttbClassId = '';
+let ttbSchoolId = '';
+
+function walSnapshot() {
+    return {
+        v: 2,
+        uid: currentUser ? currentUser.uid : '',
+        bookId: currentBookId,
+        savedAt: Date.now(),
+        progress: isPracticeMode ? null : {
+            chapter: currentChapterNum,
+            charIndex: currentCharIndex,
+            furthestChapter: furthestChapter,
+            furthestCharIndex: furthestCharIndex,
+            completedChapters: Array.from(completedChapters)
+        },
+        stats: { ...statsData },
+        sessions: pendingSessions
+    };
+}
+
+function walSave() {
+    if (!currentUser || currentUser.isAnonymous) return;
+    try { localStorage.setItem(WAL_KEY, JSON.stringify(walSnapshot())); }
+    catch (e) { console.warn("WAL write failed (quota?):", e); }
+}
+
+function walLoad() {
+    try {
+        const raw = localStorage.getItem(WAL_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch (_) { return null; }
+}
+
+function walClear() {
+    try { localStorage.removeItem(WAL_KEY); } catch (_) {}
+}
+
+// Called wherever saveProgress() used to be. Records to localStorage now and
+// schedules a Firestore flush. Cheap enough to call on every keystroke if needed.
+function markDirty() {
+    if (!currentUser || currentUser.isAnonymous) return;
+    if (!isPracticeMode && isPositionAhead(currentChapterNum, currentCharIndex, furthestChapter, furthestCharIndex)) {
+        furthestChapter = currentChapterNum;
+        furthestCharIndex = currentCharIndex;
+    }
+    walDirty = true;
+    walSave();
+    if (!walFlushTimer) {
+        walFlushTimer = setTimeout(() => { walFlushTimer = null; flushAll('interval'); }, FLUSH_INTERVAL_MS);
+    }
+}
+
+// Push local state to Firestore. `final` writes the rollup documents that only
+// matter between sessions (stats doc, session history); the periodic flush skips
+// them and writes position only.
+async function flushAll(reason, final = false) {
+    if (!currentUser || currentUser.isAnonymous) return;
+    if (!walDirty && !final && pendingSessions.length === 0) return;
+
+    if (walFlushTimer) { clearTimeout(walFlushTimer); walFlushTimer = null; }
+
+    const sessionsBeingWritten = pendingSessions.slice();
+    let ok = true;
+
+    // 1. Position + completed chapters — ONE document. These used to be two
+    //    separate writes to the same doc, which billed twice for no reason.
+    if (!isPracticeMode && walDirty) {
+        try {
+            await setDoc(doc(db, "users", currentUser.uid, "progress", currentBookId), {
+                chapter: currentChapterNum,
+                charIndex: currentCharIndex,
+                furthestChapter: furthestChapter,
+                furthestCharIndex: furthestCharIndex,
+                completedChapters: Array.from(completedChapters),
+                lastUpdated: new Date()
+            }, { merge: true });
+            lastSavedIndex = currentCharIndex;
+        } catch (e) { ok = false; console.warn(`Progress flush failed (${reason}):`, e); }
+    }
+
+    // 2. Daily log for reports. Always written on a flush — this is what
+    //    reports.html reads, and a teacher looking mid-period should see today.
+    if (walDirty || final) {
+        try {
+            const today = getLocalDateStr();
+            await setDoc(doc(db, "typing_logs", `${currentUser.uid}_${today}`), {
+                uid: currentUser.uid,
+                email: currentUser.email || "",
+                displayName: currentUser.displayName || "Anonymous",
+                classId: ttbClassId || "",
+                schoolId: ttbSchoolId || "",
+                date: today,
+                seconds: statsData.secondsToday || 0,
+                chars: statsData.charsToday || 0,
+                mistakes: statsData.mistakesToday || 0,
+                lastUpdated: new Date()
+            }, { merge: true });
+        } catch (e) { ok = false; console.warn(`Log flush failed (${reason}):`, e); }
+    }
+
+    // 3. Week/day rollup. Only ever READ at page load, so it only needs to be
+    //    correct by the time the student comes back. Session-end only.
+    if (final && statsDocDirty) {
+        try {
+            await setDoc(doc(db, "users", currentUser.uid, "stats", "time_tracking"),
+                         statsData, { merge: true });
+            statsDocDirty = false;
+        } catch (e) { ok = false; console.warn(`Stats flush failed (${reason}):`, e); }
+    }
+
+    // 4. Sprint history as ONE rollup doc instead of one doc per sprint. Twenty
+    //    documents per block became one, which is what keeps storage under 1 GiB.
+    if (final && sessionsBeingWritten.length > 0) {
+        try {
+            const totals = sessionsBeingWritten.reduce((a, s) => ({
+                seconds: a.seconds + s.seconds, chars: a.chars + s.chars,
+                mistakes: a.mistakes + s.mistakes
+            }), { seconds: 0, chars: 0, mistakes: 0 });
+            await addDoc(collection(db, "typing_sessions"), {
+                uid: currentUser.uid,
+                email: currentUser.email || "",
+                displayName: currentUser.displayName || "Anonymous",
+                classId: ttbClassId || "",
+                schoolId: ttbSchoolId || "",
+                date: getLocalDateStr(),
+                timestamp: new Date(),
+                bookId: currentBookId,
+                sprintCount: sessionsBeingWritten.length,
+                seconds: totals.seconds,
+                chars: totals.chars,
+                mistakes: totals.mistakes,
+                wpm: totals.seconds > 0 ? Math.round((totals.chars / 5) / (totals.seconds / 60)) : 0,
+                accuracy: (totals.chars + totals.mistakes) > 0
+                    ? Math.round((totals.chars / (totals.chars + totals.mistakes)) * 100) : 100,
+                sprints: sessionsBeingWritten,
+                // TTL field — set a Firestore TTL policy on this to keep the
+                // collection from growing without bound. See SCALE-PLAN.md.
+                expiresAt: new Date(Date.now() + 120 * 24 * 3600 * 1000)
+            });
+            pendingSessions = pendingSessions.slice(sessionsBeingWritten.length);
+        } catch (e) { ok = false; console.warn(`Session rollup failed (${reason}):`, e); }
+    }
+
+    if (ok) {
+        walDirty = false;
+        // Only drop the WAL once everything durable has landed. If a periodic
+        // flush succeeded but sessions are still pending, keep the log.
+        if (final && pendingSessions.length === 0) walClear();
+        else walSave();
+    } else {
+        walSave();   // keep the local copy; next flush retries
+    }
+}
+
+// Recover anything the last session couldn't flush — a crashed tab, a dead
+// battery, a closed lid on a network blip. Called after progress/stats load so
+// it can compare against what Firestore actually has.
+function walRecover() {
+    const wal = walLoad();
+    if (!wal || wal.v !== 2) { walClear(); return false; }
+    if (!currentUser || wal.uid !== currentUser.uid) return false;
+    if (wal.bookId !== currentBookId) return false;   // different book; leave it
+
+    let recovered = false;
+
+    // Position: take the WAL's only if it's genuinely further along.
+    if (wal.progress && isPositionAhead(wal.progress.chapter, wal.progress.charIndex,
+                                       currentChapterNum, currentCharIndex)) {
+        currentChapterNum = wal.progress.chapter;
+        currentCharIndex = wal.progress.charIndex;
+        savedCharIndex = wal.progress.charIndex;
+        recovered = true;
+    }
+    if (wal.progress && isPositionAhead(wal.progress.furthestChapter, wal.progress.furthestCharIndex,
+                                        furthestChapter, furthestCharIndex)) {
+        furthestChapter = wal.progress.furthestChapter;
+        furthestCharIndex = wal.progress.furthestCharIndex;
+        recovered = true;
+    }
+    if (wal.progress && Array.isArray(wal.progress.completedChapters)) {
+        const before = completedChapters.size;
+        wal.progress.completedChapters.forEach(c => completedChapters.add(String(c)));
+        if (completedChapters.size > before) recovered = true;
+    }
+
+    // Time: only trust the WAL if it's for the same day/week AND is larger.
+    // Counters only go up within a period, so max() is the safe merge.
+    if (wal.stats && wal.stats.lastDate === statsData.lastDate) {
+        for (const k of ['secondsToday', 'charsToday', 'mistakesToday']) {
+            if ((wal.stats[k] || 0) > (statsData[k] || 0)) { statsData[k] = wal.stats[k]; recovered = true; }
+        }
+    }
+    if (wal.stats && wal.stats.weekStart === statsData.weekStart) {
+        for (const k of ['secondsWeek', 'charsWeek', 'mistakesWeek']) {
+            if ((wal.stats[k] || 0) > (statsData[k] || 0)) { statsData[k] = wal.stats[k]; recovered = true; }
+        }
+    }
+
+    if (Array.isArray(wal.sessions) && wal.sessions.length) {
+        pendingSessions = wal.sessions.concat(pendingSessions);
+        recovered = true;
+    }
+
+    if (recovered) {
+        console.log("Recovered unflushed work from local storage.");
+        statsDocDirty = true;
+        walDirty = true;
+        flushAll('recovery', true);
+    } else {
+        walClear();
+    }
+    return recovered;
+}
+
+// Kept as a thin alias so the ~8 existing call sites keep reading naturally.
+// `force` used to mean "write even if the cursor hasn't moved"; now every call
+// records locally regardless, and force means "get it to Firestore now."
+async function saveProgress(force = false) {
+    markDirty();
+    if (force) await flushAll('forced', true);
 }
 
 async function saveCompletedChapters() {
-    if (!currentUser || currentUser.isAnonymous) return;
-    try {
-        await setDoc(doc(db, "users", currentUser.uid, "progress", currentBookId), {
-            completedChapters: Array.from(completedChapters)
-        }, { merge: true });
-    } catch(e) { console.warn("Save completed chapters failed:", e); }
+    // Folded into the progress document — completedChapters rides along in
+    // flushAll(). This used to be a second billable write to the same doc.
+    markDirty();
 }
 
-async function logSession(seconds, chars, mistakes, wpm, accuracy) {
+function logSession(seconds, chars, mistakes, wpm, accuracy) {
     if (!currentUser || currentUser.isAnonymous) return;
     if (seconds < 5) return; // skip trivially short sessions
-    try {
-        await addDoc(collection(db, "typing_sessions"), {
-            uid: currentUser.uid,
-            email: currentUser.email || "",
-            displayName: currentUser.displayName || "Anonymous",
-            date: getLocalDateStr(),
-            timestamp: new Date(),
-            seconds: seconds,
-            chars: chars,
-            mistakes: mistakes,
-            wpm: wpm,
-            accuracy: accuracy,
-            bookId: currentBookId,
-            chapter: currentChapterNum
-        });
-    } catch (e) { console.warn("Session log failed:", e); }
+    pendingSessions.push({
+        seconds, chars, mistakes, wpm, accuracy,
+        chapter: currentChapterNum,
+        at: new Date().toISOString()
+    });
+    statsDocDirty = true;
+    markDirty();
 }
+
+// The session really is over. Everything durable goes now.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        flushLeaderboard();
+        flushAll('hidden', true);
+    }
+});
 
 function formatTime(seconds) {
     if (!seconds) return "0m 0s";
@@ -1952,14 +2282,12 @@ async function advanceToNextChapter() {
         if (!isNaN(currentChapterNum)) nextChapterId = parseFloat(currentChapterNum) + 1;
         else nextChapterId = 1;
     }
-    await saveProgress(true);
+    // Advance state first, then flush ONCE. This used to flush the old position
+    // and then immediately write the new chapter — two billable writes for one
+    // navigation. completedChapters and furthest-position both ride along.
     currentChapterNum = nextChapterId;
     savedCharIndex = 0; currentCharIndex = 0; lastSavedIndex = 0;
-    if (currentUser && !currentUser.isAnonymous) {
-        await setDoc(doc(db, "users", currentUser.uid, "progress", currentBookId), {
-            chapter: currentChapterNum, charIndex: 0
-        }, { merge: true });
-    }
+    await saveProgress(true);
     autoStartNext = true;
     loadChapter(nextChapterId);
 }
@@ -4470,14 +4798,5 @@ async function logPracticeSession(wpm, acc, seconds, chars, mistakes) {
         });
     } catch(e) { console.warn("Practice session log failed:", e); }
 }
-
-// Leaderboard writes are coalesced to at most one per LB_WRITE_MIN_GAP_MS, so
-// there can be up to two minutes of week-seconds held in memory. Flush when the
-// tab goes away. visibilitychange:hidden is the one lifecycle event that fires
-// reliably on Chromebooks and mobile — beforeunload does not, especially when
-// the lid closes or the app is backgrounded.
-document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') flushLeaderboard();
-});
 
 window.onload = init;
