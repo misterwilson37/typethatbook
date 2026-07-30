@@ -1,13 +1,16 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v1.3.0 -->
+<!-- HANDOFF.md v1.6.0 -->
 
 **Session:** Round 1 (first documented session on this project)
 **Claude instance:** **Underwood**
 **Date:** 2026-07-30
-**Shipped:** `game.js` **v3.4.0** · `learn.js` **v1.7.0** · `index.html` **v3.0.1** ·
-`versions.js` **v1.0.0** (new) · `firebase-config.js` **v1.1.1** · `README.md` v1.3.0 ·
-`SCALE-PLAN.md` v1.2.0 · `MULTITENANCY.md` v1.0.0 · `HANDOFF.md` v1.3.0
+**Shipped:** `game.js` **v3.4.2** · `learn.js` **v1.7.0** · `index.html` **v3.0.1** ·
+`reports.html` **v2.5.0** · `admin.js` **v2.8.0** · `lessons-admin.js` **v1.5.0** ·
+`functions/index.js` **v1.5** · `versions.js` **v1.1.0** · `firebase-config.js` **v1.1.1** ·
+`firestore.rules` **v1.1.0** · `staff-admin.js` **v1.0.0** (new) · `firestore.indexes.json` (new) ·
+`firestore-rules.test.mjs` (new) · `SETUP-MULTISCHOOL.md` v1.1.0 (new) · `TTL-GUIDE.md` v1.0.0 (new) ·
+`README.md` v1.3.0 · `SCALE-PLAN.md` v1.2.0 · `MULTITENANCY.md` v1.0.0 · `HANDOFF.md` v1.4.0
 
 > *On the name:* Underwood built the typewriter that taught America to touch-type —
 > the machine that made the home row a thing people learned instead of hunted for.
@@ -119,6 +122,127 @@ Both were scratch harnesses, **not committed** — this project still has no tes
 **Measured, one 10-minute block, one student:** leaderboard reads 140,020 → 9,
 leaderboard writes 20 → 6.
 
+## Staff tab + per-person read scope (latest round)
+
+Jake asked for a Staff tab so he never has to touch the console to onboard a
+colleague. His answer to "what should a teacher read?" was **"whatever the building
+admin allows them to see"** — which turns read scope into a per-person setting rather
+than a property of the role. That's a better model than either option offered.
+
+**Three roles now**, plus student-by-default (no claim):
+
+| role | reads | writes |
+|---|---|---|
+| `teacher` | per-person `readScope`: `own_classes` (default) or `building` | only classes they teach |
+| `building_admin` | their whole building | any class in it; manages its teachers + their readScope |
+| `super_admin` | everything | everything. **NOT grantable through the app** — bootstrap list or console only |
+
+**How scope stays free.** `building` reads `schoolId` off the document. `own_classes`
+checks `classId` against **claim.classIds**. Both zero reads. A classId is ~10 bytes
+against a ~1000-byte claim budget, so 60 classes fit — capped at that in
+`MAX_CLAIM_CLASS_IDS`.
+
+**All claim writes funnel through `pushClaims()`** in functions/index.js. Nothing else
+calls `setCustomUserClaims`. `staff/{uid}` is now `allow write: if false` in rules —
+only the Admin SDK writes it. That's what makes claim-vs-record drift impossible.
+
+### Three bugs this design created, all found and fixed before shipping
+
+1. **Self-escalation via class editing.** claim.classIds is derived from
+   `teacherUids`, so a teacher could add themselves to a colleague's class and read
+   it. Rules now let a plain teacher edit only classes they already teach;
+   building_admin edits any in their building. There's a test for it.
+2. **`saveClass()` wrote no `schoolId` and no `teacherUids`** — class creation would
+   have been rejected outright by the new rules. Now stamps both, and the school
+   picker is required. A teacher must put themselves on a class they create, or
+   they'd create something they can't read.
+3. **`practice_sessions` had no tenancy stamps**, so its read rule had to be
+   `if isStaff()` — any staff member, any district, on documents containing email,
+   displayName, and the full generated paragraph. game.js v3.4.2 adds
+   `classId`/`schoolId`; the rule is now scoped like every other activity
+   collection. Pre-v3.4.2 docs have no stamps and so are super_admin-only, which is
+   the right way round for a fallback.
+
+### The consequence to remember
+
+`claim.classIds` is derived, so **creating a class leaves the claim stale.**
+`saveClass()` calls `syncMyClaims()` then `getIdToken(true)` and reports whether it
+worked. **Any new class-creation path must do the same** or the teacher silently
+can't see their own class.
+
+### Deliberately not built
+
+- **No browsable user directory.** `lookupStaffCandidate` takes one email, calls
+  `getUserByEmail`, returns one person, stores nothing. A browsable list would mean
+  writing every student's name and email into a queryable collection — a
+  district-wide student directory — which runs into Jake's own rule about retaining
+  student-identifying data.
+- **Optional school for students** — Jake wants his son able to join without landing
+  in a building. `schoolId` empty is a valid permanent state; those users show as
+  *Unassigned*. Derive-from-CSV works today; a settings/sign-up picker is not built.
+
+## Multi-school support — earlier this round
+
+Colleagues at other schools in the district want in, so this jumped the queue.
+Jake's answers to the open MULTITENANCY questions:
+
+- **Other schools in the district** — `schools` is load-bearing, not ceremonial.
+- **Teachers see their whole building, filterable down to their own classes.**
+- **Teachers manage their own classes and rosters; Jake can do it for anyone.**
+
+That collapsed three roles into two. `building_admin` wasn't needed: if every
+teacher reads their whole building, `teacher` and `building_admin` differ only in
+write scope, and Jake covers the rest as `super_admin`.
+
+**Access model:** `role` + `schoolIds` live in Auth **custom claims** (signed,
+unforgeable, zero reads to check). `classIds` live in `staff/{uid}` because they
+change every trimester and claims have a ~1000-byte budget. **Rules enforce the
+building; the UI narrows to classes.** That split is deliberate — class-level checks
+in rules need a `get()` per access, which is billed.
+
+### The find that mattered
+
+`lessons-admin.js` `loadStudentRoster()` was doing
+`getDocs(collection(_db, 'typing_logs'))` — the **entire** collection. ~1.2M docs a
+year at full enrollment, and as an unfiltered `list` it's **rejected outright by the
+new rules** for anyone who isn't super_admin. It would have worked fine for Jake and
+broken for every colleague on day one. Now scoped to 45 days + the caller's
+building(s).
+
+An audit of every other `getDocs(collection(...))` in the codebase came back clean —
+the rest are `books`, `lessons`, `classes`, `schools`, all small config collections
+the rules allow broad read on deliberately.
+
+Also found and fixed before shipping: my first rules draft broke `reports.html`'s
+admin time-correction feature, which **writes** to `users/{uid}/stats/time_tracking`.
+That path now pays a `get()` to scope by building — correct because it's a rare
+deliberate action, unlike typing_logs where the same check is free.
+
+### ⚠️ The rules are UNTESTED
+
+`firestore-rules.test.mjs` has ~40 cases. **I could not run them** — the Firestore
+emulator downloads its jar from `storage.googleapis.com`, which isn't in the sandbox
+network allowlist. The rules were verified by reading, not executing.
+
+This is the boundary between one teacher's students and another's. If you pick this
+up, running that suite is the highest-value thing you can do.
+
+`SETUP-MULTISCHOOL.md` has the ordered deploy: function → schools → bootstrap Jake's
+claim → rules+indexes → backfill → add colleagues. **Order matters** — deploying
+rules before Jake has a claim locks him out of his own admin pages. There's a
+rollback snippet at the end of that doc.
+
+### Not done
+
+- `admin.html`'s **Books** and **Lessons** tabs aren't hidden from teachers. Rules
+  block the writes, so nothing is at risk, but they'll see UI that errors on save.
+  Hiding those tabs for non-super users is the obvious next piece.
+- ~~No UI for granting staff roles~~ ✅ **Staff tab shipped.** Creating *schools* is
+  still console-only (`schools` collection, short readable ids like `ems`) — they're
+  created once and never change, so a UI would be overkill.
+- `ADMIN_EMAILS` / `BOOTSTRAP_EMAILS` / `BOOTSTRAP_SUPER_ADMINS` still exist as
+  fallbacks so nobody gets locked out mid-migration. Remove once staff records exist.
+
 ## ⚠️ Read this before bumping any version
 
 **I got this wrong in this session. Don't repeat it.**
@@ -187,16 +311,18 @@ the real files.
 
 | file | version |
 |---|---|
-| `game.js` | **3.4.0** ← changed this session |
+| `game.js` | **3.4.2** ← changed this session |
 | `learn.js` | **1.7.0** ← changed this session |
-| `admin.js` | 2.7.5 |
-| `lessons-admin.js` | 1.4.0 |
+| `admin.js` | **2.9.0** ← changed this session |
+| `admin.html` | Staff tab added |
+| `staff-admin.js` | **1.0.0** ← NEW this session |
+| `lessons-admin.js` | **1.6.0** ← changed this session |
 | `adventure-renderer.js` | 0.4.0 |
 | `keyboard.js` | 1.1.1 |
 | `firebase-config.js` | **1.1.1** ← changed this session |
 | `style.css` | 3.1.6 |
 | `adventure.css` | 0.0.7 |
-| `index.js` (Cloud Function) | 1.2 |
+| `index.js` (Cloud Function) | **1.5** ← changed this session |
 
 Plus `versions.js` **1.0.0** (new this session).
 
@@ -212,17 +338,33 @@ Per `SCALE-PLAN.md` § Suggested order:
 
 1. **Budget alert in Google Cloud Console.** Not code. Jake's action.
    **Still outstanding** — ask about it.
-1b. **Enable the TTL policy** on `typing_sessions` (field `expiresAt`, console →
-   Firestore → Time-to-live). v3.4.0 writes the field; nothing deletes without the
-   policy. Also outstanding.
+1b. ~~Enable the TTL policy in the console~~ — **now a file.** TTL policies for
+   `typing_sessions` and `practice_sessions` are `fieldOverrides` in
+   `firestore.indexes.json` and deploy with `firebase deploy --only
+   firestore:indexes`.
+
+   I had told Jake to find this in the "Firestore console." **TTL is not in the
+   Firebase console at all** — it lives in the Google Cloud console, a different
+   site. He couldn't find it, correctly. Don't repeat that; see `TTL-GUIDE.md`.
+
+   Two related things: `practice_sessions` was never writing `expiresAt` at all
+   (fixed in v3.4.1 — the policy would have been inert), and documents written
+   before v3.4.0 have no `expiresAt` and will **never** be collected. Firestore
+   ignores documents whose TTL field is missing rather than deleting them. The
+   backlog needs a backfill or a manual purge; there's an unrun snippet in
+   `TTL-GUIDE.md` with honest caveats about its inefficiency.
 2. ~~Leaderboard rework~~ ✅ **done, v3.3.0.** Remaining task: create the weekly
    composite index when the console asks. The fallback covers it until then.
 3. ~~Flush-based saves~~ ✅ **done, v3.4.0 + learn.js v1.1.0.** The
    `stats/time_tracking` merge was skipped on purpose — see above.
-3b. **`reports.html` class filter + scope picker.** ← *now the top code item.*
-   `classId`/`schoolId` are already on every log doc, so this is pure query work.
-   Fixes SCALE-PLAN Problem 4 and delivers the "don't show me other people's kids"
-   requirement at the same time. No Cloud Function deploy needed.
+3b. ~~`reports.html` class filter + scope picker~~ ✅ **shipped, v2.5.0.** Also
+   fixed SCALE-PLAN Problem 4 in the process.
+3c. **Run `firestore-rules.test.mjs`.** ← *the top item now.* Untested security
+   rules guarding other people's students.
+3d. **Hide Books/Lessons tabs in admin.html from non-super users.** The Staff tab
+   is now role-gated (`display:none` unless building_admin/super_admin); Books and
+   Lessons still aren't. Rules block the writes, so it's cosmetic, but ugly.
+3e. **Student school picker** — settings + optional at sign-up, never forced.
 4. Session rollup + TTL policies.
 5. `reports.html` class filter.
 6. Practice-pool cache + `maxInstances` (needs Firebase CLI, not browser upload).
