@@ -1,3 +1,6 @@
+// firebase-config.js v1.1.1
+// v1.1.1 - added CONFIG_VERSION constant so index.html's build banner can read
+//          this file's version like every other file's. No functional change.
 // v1.1.0 - experimentalForceLongPolling for Safari WebChannel compatibility
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { initializeFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -17,6 +20,8 @@ const app = initializeApp(firebaseConfig);
 
 // experimentalForceLongPolling fixes Safari's CORS block on Firestore's
 // WebChannel streaming transport. Functionally identical for this app.
+export const CONFIG_VERSION = '1.1.1';
+
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
 });
