@@ -1,3 +1,20 @@
+// v3.3.0 - Leaderboard scale rework. The old fetchLeaderboard() read EVERY
+//          document in the leaderboard collection to build four top-10 lists,
+//          and updateLeaderboard() busted its own cache before calling it on
+//          every sprint end. At 7,000 students that projected to ~327M reads
+//          and ~82GB egress per day. Now:
+//            - four indexed orderBy+limit(10) queries: 40 reads, not 7,001
+//            - cache is 10 minutes and is NOT busted on the hot path
+//            - placements computed locally against cached threshold values,
+//              so a normal sprint costs zero reads
+//          - own leaderboard doc read once per session, not once per sprint
+//          - writes coalesced to >=120s apart (or immediately on a new PB),
+//            flushed on visibilitychange:hidden
+//          - displayName no longer stored on leaderboard docs. It was written
+//            but never read; the UI shows initials. Real names for the admin
+//            panel still live in typing_logs / typing_sessions, untouched.
+//          Needs ONE composite index (weekly board). Falls back gracefully
+//          while it builds — see fetchLeaderboard().
 // v3.2.0 - Per-mistake corrections: mistakes at the current letter accumulate
 //          (deepening red shade in classic view) and each backspace undoes
 //          exactly one — the cursor doesn't move back until all mistakes at
@@ -20,7 +37,7 @@
 // v3.0.2 - Hard-stop rolls cursor back to start of current sentence
 // v3.0.1 - Adventure Mode integration; cross-file version banner
 import { db, auth } from "./firebase-config.js";
-import { doc, getDoc, setDoc, getDocs, collection, addDoc, query, orderBy, limit, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { doc, getDoc, setDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     onAuthStateChanged,
     GoogleAuthProvider,
@@ -224,6 +241,47 @@ let userInitials = '';
 let leaderboardOptOut = false;
 let leaderboardCache = {}; // { category: [entries], ... }
 let leaderboardCacheTime = 0;
+const LB_CACHE_MS = 600000;   // 10 minutes (was 30s, and was being busted anyway)
+
+// The student's own leaderboard doc, read once per session instead of once per
+// sprint. We are the only writer for our own doc, so an in-memory copy stays
+// accurate. Admin resets bust it explicitly.
+let lbOwnEntry = null;        // null = not yet read this session
+
+// Write coalescing. totalSecondsWeek grows every sprint, so without this the
+// doc would be written 20x per ten-minute block. Accumulate locally, flush on
+// a timer / a new personal best / the tab going away.
+const LB_WRITE_MIN_GAP_MS = 120000;   // 2 minutes
+let lbPendingSeconds = 0;
+let lbLastWriteTime = 0;
+let lbDirty = false;
+
+// Top-10 cutoff memory, persisted so we can answer "could this student
+// plausibly be on the board?" without a network call. Thresholds only ever
+// drift upward as records improve, which makes a stale value CONSERVATIVE:
+// we may miss a placement celebration, but we never invent one.
+const LB_THRESHOLD_KEY = 'ttb_lbThresholds';
+let lbThresholds = null;      // { bestWPM: n, bestStreak: n, ... }
+
+function loadLbThresholds() {
+    if (lbThresholds) return lbThresholds;
+    try {
+        const raw = localStorage.getItem(LB_THRESHOLD_KEY);
+        lbThresholds = raw ? JSON.parse(raw) : {};
+    } catch (_) { lbThresholds = {}; }
+    return lbThresholds;
+}
+
+function saveLbThresholds(lists) {
+    const t = {};
+    for (const cat of LB_CATEGORIES) {
+        const list = lists[cat.key] || [];
+        // A board with room left has an effective cutoff of 0 — anyone qualifies.
+        t[cat.key] = list.length >= 10 ? (list[list.length - 1][cat.key] || 0) : 0;
+    }
+    lbThresholds = t;
+    try { localStorage.setItem(LB_THRESHOLD_KEY, JSON.stringify(t)); } catch (_) {}
+}
 
 // Practice Mode
 const functions = getFunctions();
@@ -2592,6 +2650,14 @@ async function openMenuModal() {
             leaderboardOptOut = optOutBox.checked;
             await saveInitials(userInitials);
             leaderboardCacheTime = 0; // bust cache
+            // Push the flag to the public leaderboard doc right now. Waiting for
+            // the next sprint-end flush would leave a student who opted out and
+            // closed the tab still listed.
+            if (lbOwnEntry) {
+                lbOwnEntry.leaderboardOptOut = leaderboardOptOut;
+                lbDirty = true;
+                await flushLeaderboard();
+            }
         };
     }
 
@@ -3840,57 +3906,154 @@ function showInitialsPrompt() {
     }, 100);
 }
 
+// Read the student's own leaderboard doc. Once per session — we are the only
+// writer for it, so the in-memory copy stays true. Returns {} if it's new.
+async function loadOwnLeaderboardEntry() {
+    if (lbOwnEntry) return lbOwnEntry;
+    try {
+        const lbSnap = await getDoc(doc(db, "leaderboard", currentUser.uid));
+        lbOwnEntry = lbSnap.exists() ? lbSnap.data() : {};
+    } catch (e) {
+        console.warn("Own leaderboard entry read failed:", e);
+        lbOwnEntry = {};
+    }
+    return lbOwnEntry;
+}
+
+// Push the in-memory entry to Firestore, including any week-seconds we've been
+// holding back. Called on a new PB, on the 2-minute gap, and on tab-hide.
+async function flushLeaderboard() {
+    if (!lbDirty || !currentUser || currentUser.isAnonymous || !userInitials) return;
+    if (!lbOwnEntry) return;
+    lbDirty = false;
+    const secondsToAdd = lbPendingSeconds;
+    const priorSeconds = lbOwnEntry.totalSecondsWeek || 0;
+    lbPendingSeconds = 0;
+    try {
+        lbOwnEntry.totalSecondsWeek = priorSeconds + secondsToAdd;
+        lbOwnEntry.lastUpdated = new Date();
+        await setDoc(doc(db, "leaderboard", currentUser.uid), lbOwnEntry, { merge: true });
+        lbLastWriteTime = Date.now();
+    } catch (e) {
+        // Roll the entry back AND return the seconds to the pending bucket.
+        // Rolling back only one of the two would double-count them on retry.
+        console.warn("Leaderboard flush failed:", e);
+        lbOwnEntry.totalSecondsWeek = priorSeconds;
+        lbPendingSeconds += secondsToAdd;
+        lbDirty = true;
+    }
+}
+
+// Is this student plausibly on the board? Answered from the persisted cutoffs,
+// so the common case (no, they're not top-10 in a school of thousands) costs
+// nothing. Thresholds only move up, so a stale one makes us miss a celebration
+// rather than fake one.
+function couldPlace(entry) {
+    if (leaderboardOptOut) return false;
+    const t = loadLbThresholds();
+    // No thresholds recorded yet — we have to look.
+    if (!t || Object.keys(t).length === 0) return true;
+    return LB_CATEGORIES.some(cat => {
+        const mine = entry[cat.key] || 0;
+        return mine > 0 && mine >= (t[cat.key] || 0);
+    });
+}
+
+// Rank the student against the cached top-10 lists. No network.
+//
+// Ties: a tie at the TOP goes to the student (tie the 100 WPM record, you're
+// told #1). A tie at the BOTTOM of a full board does not place, since you
+// haven't displaced anyone from the visible ten. The old implementation sorted
+// the whole collection and read back an index, so its tie order was whatever
+// Firestore happened to return — this is at least deterministic.
+function computePlacements(entry) {
+    const placements = [];
+    if (leaderboardOptOut) return placements;
+    for (const cat of LB_CATEGORIES) {
+        const mine = entry[cat.key] || 0;
+        if (mine <= 0) continue;
+        // Drop our own (possibly stale) row before comparing.
+        const others = (leaderboardCache[cat.key] || []).filter(e => e.uid !== currentUser.uid);
+        // Board full and we don't beat last place? Not on it.
+        if (others.length >= 10 && mine <= (others[others.length - 1][cat.key] || 0)) continue;
+        const rank = others.filter(e => (e[cat.key] || 0) > mine).length + 1;
+        if (rank <= 10) placements.push({ category: cat, rank });
+    }
+    return placements;
+}
+
 async function updateLeaderboard() {
     if (!currentUser || currentUser.isAnonymous || !userInitials) return [];
     try {
-        const today = getLocalDateStr();
         const weekStart = getWeekStart(new Date());
-        
-        // Read existing leaderboard entry
-        const lbRef = doc(db, "leaderboard", currentUser.uid);
-        const lbSnap = await getDoc(lbRef);
-        const existing = lbSnap.exists() ? lbSnap.data() : {};
-        
-        // Reset daily/weekly if dates don't match
-        const existingBestWPM = existing.bestWPM || 0;
-        const existingBestAcc = existing.bestAccuracy || 0;
-        const existingBestStreak = existing.bestStreak || 0;
-        const existingChapters = existing.chaptersCompleted || 0;
-        const existingTimeWeek = ((existing.weekStart || '') === weekStart) ? (existing.totalSecondsWeek || 0) : 0;
-        
-        // Compute current bests
+        const existing = await loadOwnLeaderboardEntry();
+
+        // Weekly total resets when the stored weekStart is stale.
+        const existingTimeWeek = ((existing.weekStart || '') === weekStart)
+            ? (existing.totalSecondsWeek || 0) : 0;
+        const weekRolledOver = (existing.weekStart || '') !== weekStart;
+
         const lastSprintWPM = sprintHistory.length > 0 ? sprintHistory[sprintHistory.length - 1].wpm : 0;
         const lastSprintAcc = sprintHistory.length > 0 ? sprintHistory[sprintHistory.length - 1].acc : 0;
-        
-        const entry = {
-            initials: userInitials,
-            displayName: currentUser.displayName || '',
-            leaderboardOptOut: leaderboardOptOut,
-            bestWPM: Math.max(existingBestWPM, sanitizeSprintWPM(lastSprintWPM, 1)),
-            bestAccuracy: Math.max(existingBestAcc, lastSprintAcc),
-            bestStreak: Math.max(existingBestStreak, bestStreak),
-            chaptersCompleted: Math.max(existingChapters, completedChapters.size),
-            totalSecondsWeek: existingTimeWeek + sprintSeconds,
-            weekStart: weekStart,
-            lastUpdated: new Date()
-        };
-        
-        await setDoc(lbRef, entry, { merge: true });
 
-        // Now fetch all entries to compute placements
-        leaderboardCacheTime = 0; // bust cache
-        const allData = await fetchLeaderboard();
-        const placements = [];
-        for (const cat of LB_CATEGORIES) {
-            const list = allData[cat.key] || [];
-            const idx = list.findIndex(e => e.uid === currentUser.uid);
-            if (idx >= 0 && idx < 10) {
-                placements.push({ category: cat, rank: idx + 1 });
-            }
+        const newBestWPM     = Math.max(existing.bestWPM || 0, sanitizeSprintWPM(lastSprintWPM, 1));
+        const newBestAcc     = Math.max(existing.bestAccuracy || 0, lastSprintAcc);
+        const newBestStreak  = Math.max(existing.bestStreak || 0, bestStreak);
+        const newChapters    = Math.max(existing.chaptersCompleted || 0, completedChapters.size);
+
+        const gotNewBest =
+            newBestWPM    > (existing.bestWPM || 0) ||
+            newBestAcc    > (existing.bestAccuracy || 0) ||
+            newBestStreak > (existing.bestStreak || 0) ||
+            newChapters   > (existing.chaptersCompleted || 0) ||
+            existing.initials !== userInitials ||
+            existing.leaderboardOptOut !== leaderboardOptOut ||
+            weekRolledOver;
+
+        // Update the in-memory entry. NOTE: displayName is deliberately absent.
+        // It was written here but never read — the UI shows initials — and this
+        // collection is readable by every student. Real names for reporting stay
+        // in typing_logs / typing_sessions.
+        lbOwnEntry = {
+            initials: userInitials,
+            leaderboardOptOut: leaderboardOptOut,
+            bestWPM: newBestWPM,
+            bestAccuracy: newBestAcc,
+            bestStreak: newBestStreak,
+            chaptersCompleted: newChapters,
+            totalSecondsWeek: existingTimeWeek,
+            weekStart: weekStart,
+            lastUpdated: existing.lastUpdated || new Date()
+        };
+
+        lbPendingSeconds += sprintSeconds;
+        lbDirty = true;
+
+        // Write now on a genuine record; otherwise wait out the coalescing gap.
+        if (gotNewBest || (Date.now() - lbLastWriteTime) >= LB_WRITE_MIN_GAP_MS) {
+            await flushLeaderboard();
         }
-        return placements;
+
+        // Placement check. The entry we compare with must include the seconds
+        // we're still holding locally, or the weekly board would lag.
+        const candidate = { ...lbOwnEntry, totalSecondsWeek: lbOwnEntry.totalSecondsWeek + lbPendingSeconds };
+
+        if (!couldPlace(candidate)) return [];
+
+        // Worth a look — this fetch is 40 reads and is cached for 10 minutes.
+        await fetchLeaderboard();
+        return computePlacements(candidate);
     } catch(e) { console.warn("Leaderboard update failed:", e); return []; }
 }
+
+// Fetch one category's top 10. Firestore does the sorting.
+//
+// We over-fetch (LB_FETCH_LIMIT) and then filter opt-outs and zeroes on the
+// client. That's deliberate: putting where('leaderboardOptOut','==',false) in
+// the query would silently drop any document where the field is missing, and
+// it would force a composite index on all four categories. Over-fetching a few
+// rows costs a few reads and needs no index at all for three of the four.
+const LB_FETCH_LIMIT = 15;
 
 const LB_CATEGORIES = [
     { key: 'bestWPM', label: '⚡ Speed', unit: 'WPM' },
@@ -3899,33 +4062,74 @@ const LB_CATEGORIES = [
     { key: 'totalSecondsWeek', label: '⏱️ Weekly', unit: '', format: 'time' }
 ];
 
+function lbRowsFromSnap(snap) {
+    const rows = [];
+    snap.forEach(d => {
+        const data = d.data();
+        data.uid = d.id;
+        rows.push(data);
+    });
+    return rows;
+}
+
+// The weekly board is the one category that needs a server-side filter: a
+// student who typed a lot last week still has a big totalSecondsWeek on their
+// doc until they type again, so ordering alone would surface stale rows.
+//
+// where('weekStart','==',x) + orderBy('totalSecondsWeek','desc') needs ONE
+// composite index. Firestore logs a console link for it the first time this
+// runs. Until it exists the query throws, so we fall back to a wider unfiltered
+// fetch — degraded (a quiet week can look sparse) but never broken mid-class.
+async function fetchWeeklyRows() {
+    const weekStart = getWeekStart(new Date());
+    const ref = collection(db, "leaderboard");
+    try {
+        const snap = await getDocs(query(ref,
+            where("weekStart", "==", weekStart),
+            orderBy("totalSecondsWeek", "desc"),
+            limit(LB_FETCH_LIMIT)));
+        return lbRowsFromSnap(snap);
+    } catch (e) {
+        console.warn(
+            "Weekly leaderboard query failed — the composite index " +
+            "(weekStart ASC, totalSecondsWeek DESC) is probably missing or still " +
+            "building. Check the console error above for a one-click create link. " +
+            "Falling back to a client-filtered fetch.", e);
+        const snap = await getDocs(query(ref,
+            orderBy("totalSecondsWeek", "desc"),
+            limit(LB_FETCH_LIMIT * 3)));
+        return lbRowsFromSnap(snap).filter(r => (r.weekStart || '') === weekStart);
+    }
+}
+
 async function fetchLeaderboard() {
-    // Cache for 30 seconds
-    if (Date.now() - leaderboardCacheTime < 30000 && Object.keys(leaderboardCache).length > 0) {
+    if (Date.now() - leaderboardCacheTime < LB_CACHE_MS && Object.keys(leaderboardCache).length > 0) {
         return leaderboardCache;
     }
     try {
-        const snap = await getDocs(collection(db, "leaderboard"));
-        const entries = [];
-        snap.forEach(d => {
-            const data = d.data();
-            data.uid = d.id;
-            // Reset weekly if stale
-            const weekStart = getWeekStart(new Date());
-            if ((data.weekStart || '') !== weekStart) data.totalSecondsWeek = 0;
-            entries.push(data);
-        });
-        
+        const ref = collection(db, "leaderboard");
         const result = {};
+
         for (const cat of LB_CATEGORIES) {
-            const sorted = [...entries]
+            let rows;
+            if (cat.key === 'totalSecondsWeek') {
+                rows = await fetchWeeklyRows();
+            } else {
+                // Single-field descending order — Firestore indexes every field
+                // automatically, so no console setup is required here.
+                const snap = await getDocs(query(ref,
+                    orderBy(cat.key, "desc"),
+                    limit(LB_FETCH_LIMIT)));
+                rows = lbRowsFromSnap(snap);
+            }
+            result[cat.key] = rows
                 .filter(e => (e[cat.key] || 0) > 0 && !e.leaderboardOptOut)
-                .sort((a, b) => (b[cat.key] || 0) - (a[cat.key] || 0))
                 .slice(0, 10);
-            result[cat.key] = sorted;
         }
+
         leaderboardCache = result;
         leaderboardCacheTime = Date.now();
+        saveLbThresholds(result);
         return result;
     } catch(e) { console.warn("Fetch leaderboard failed:", e); return {}; }
 }
@@ -3999,6 +4203,13 @@ async function openLeaderboard(activeTab) {
             try {
                 await setDoc(doc(db, "leaderboard", uid), { [activeCat]: 0 }, { merge: true });
                 leaderboardCacheTime = 0;   // bust cache
+                // A reset lowers the real top-10 cutoff, so the persisted
+                // thresholds are now too high and would suppress legitimate
+                // placements. Drop them; the re-render below rebuilds them.
+                lbThresholds = null;
+                try { localStorage.removeItem(LB_THRESHOLD_KEY); } catch (_) {}
+                // If the admin reset their own row, our in-memory copy is stale.
+                if (currentUser && uid === currentUser.uid) lbOwnEntry = null;
                 openLeaderboard(activeCat); // re-render
             } catch (e) {
                 alert("Reset failed — Firestore rules may not allow admin writes to other users' leaderboard docs. See console.");
@@ -4259,5 +4470,14 @@ async function logPracticeSession(wpm, acc, seconds, chars, mistakes) {
         });
     } catch(e) { console.warn("Practice session log failed:", e); }
 }
+
+// Leaderboard writes are coalesced to at most one per LB_WRITE_MIN_GAP_MS, so
+// there can be up to two minutes of week-seconds held in memory. Flush when the
+// tab goes away. visibilitychange:hidden is the one lifecycle event that fires
+// reliably on Chromebooks and mobile — beforeunload does not, especially when
+// the lid closes or the app is backgrounded.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushLeaderboard();
+});
 
 window.onload = init;
