@@ -1,10 +1,10 @@
 // lessons-admin.js — TypeThatBook Lesson Panel v1.0.0
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
-window.LESSONS_ADMIN_VERSION = '1.4.0';
+window.LESSONS_ADMIN_VERSION = '1.6.0';
 
 import {
-    collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy
+    collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const LESSON_COLLECTION = "lessons";
@@ -14,9 +14,33 @@ let _db = null;
 let _lessonCache = {};   // id → lesson object
 let _expandedId = null;  // which lesson card is open
 
+// Who's using this panel. Populated by admin.js from Auth custom claims.
+// Defaults to the most restrictive thing rather than the most permissive: with
+// no role and no schools, scoped queries return nothing instead of everything.
+let _scope = { uid: null, role: null, schoolIds: [], classIds: [] };
+const _isSuper = () => _scope.role === 'super_admin';
+
+// How far back the student roster looks. It's a "who's been active lately" list,
+// not an archive — it never needed the whole history.
+const ROSTER_DAYS = 45;
+
+// Set by admin.js. Called when the Staff tab is opened, and after any class
+// create/delete so a teacher's claim.classIds can be re-derived — otherwise they
+// can't read the class they just made.
+let _onStaffTab = null;
+let _onClassesChanged = null;
+export function setStaffHooks({ onStaffTab, onClassesChanged }) {
+    _onStaffTab = onStaffTab || null;
+    _onClassesChanged = onClassesChanged || null;
+}
+
 // ─── ENTRY POINT ─────────────────────────────────────────────────────────────
-export function initLessonsPanel(db) {
+export function initLessonsPanel(db, scope) {
     _db = db;
+    if (scope) _scope = { uid: scope.uid || null,
+                          role: scope.role || null,
+                          schoolIds: scope.schoolIds || [],
+                          classIds: scope.classIds || [] };
     setupTabSwitching();
     loadAndRenderLessons();
     bindImportUI();
@@ -28,16 +52,22 @@ function setupTabSwitching() {
     document.getElementById('tab-books').addEventListener('click',    () => switchTab('books'));
     document.getElementById('tab-lessons').addEventListener('click',  () => switchTab('lessons'));
     document.getElementById('tab-students').addEventListener('click', () => switchTab('students'));
+    const staffBtn = document.getElementById('tab-staff');
+    if (staffBtn) staffBtn.addEventListener('click', () => switchTab('staff'));
     document.getElementById('tab-classes').addEventListener('click',  () => switchTab('classes'));
 }
 
 function switchTab(which) {
-    ['books','lessons','students','classes'].forEach(t => {
-        document.getElementById('tab-' + t).classList.toggle('tab-active', which === t);
-        document.getElementById(t + '-panel').classList.toggle('hidden', which !== t);
+    ['books','lessons','students','classes','staff'].forEach(t => {
+        const btn = document.getElementById('tab-' + t);
+        if (!btn) return;
+        btn.classList.toggle('tab-active', which === t);
+        const panel = document.getElementById(t + '-panel');
+        if (panel) panel.classList.toggle('hidden', which !== t);
     });
     if (which === 'students') initStudentsPanel();
     if (which === 'classes')  initClassesPanel();
+    if (which === 'staff' && _onStaffTab) _onStaffTab();
 }
 
 // ─── LOAD ─────────────────────────────────────────────────────────────────────
@@ -760,6 +790,7 @@ function initClassesPanel() {
     if (_classesPanelInited) { renderClassList(); return; }
     _classesPanelInited = true;
 
+    populateClassSchools();
     const saveBtn   = document.getElementById('class-save-btn');
     const cancelBtn = document.getElementById('class-cancel-btn');
     if (saveBtn)   saveBtn.onclick   = saveClass;
@@ -824,8 +855,19 @@ async function saveClass() {
 
     if (!nameVal) { statusEl.textContent = 'Name is required.'; statusEl.style.color = '#ff6666'; return; }
 
+    // schoolId is REQUIRED by firestore.rules — a class with no building can't be
+    // scoped, so the write is rejected rather than silently creating an orphan.
+    const schoolSel = document.getElementById('class-school-select');
+    const schoolId = schoolSel ? schoolSel.value : '';
+    if (!schoolId) {
+        statusEl.textContent = 'Pick a school. A class has to belong to a building.';
+        statusEl.style.color = '#ff6666';
+        return;
+    }
+
     const record = {
         name: nameVal,
+        schoolId: schoolId,
         dailySeconds:  dailyMin  * 60,
         weeklySeconds: weeklyMin * 60,
         updatedAt: new Date().toISOString(),
@@ -833,16 +875,34 @@ async function saveClass() {
 
     try {
         let classId = editId;
+        let isNew = false;
         if (!classId) {
+            isNew = true;
             // Generate a slug-like ID from name
             classId = nameVal.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') +
                       '_' + Date.now().toString(36);
             record.createdAt = new Date().toISOString();
+            // The rules require the creator to put themselves on the class. That
+            // isn't red tape: claim.classIds is derived from teacherUids, so
+            // without this you'd create a class you can't read.
+            if (_scope.uid) record.teacherUids = [_scope.uid];
         }
         await setDoc(doc(_db, 'classes', classId), record, { merge: true });
-        _classCache[classId] = { id: classId, ...record };
-        statusEl.textContent = editId ? 'Saved.' : 'Class created.';
+        _classCache[classId] = { id: classId, ..._classCache[classId], ...record };
+        statusEl.textContent = isNew ? 'Class created.' : 'Saved.';
         statusEl.style.color = '#00ff41';
+
+        // Re-derive this teacher's claim.classIds and refresh their token, or the
+        // class they just made stays invisible to them until the token rolls over
+        // on its own (up to an hour).
+        if (isNew && _onClassesChanged) {
+            statusEl.textContent = 'Class created. Refreshing your access…';
+            const ok = await _onClassesChanged();
+            statusEl.textContent = ok
+                ? 'Class created.'
+                : 'Class created — sign out and back in to see its data.';
+            statusEl.style.color = ok ? '#00ff41' : '#ffaa00';
+        }
         cancelClassEdit();
         renderClassList();
     } catch(e) {
@@ -851,9 +911,40 @@ async function saveClass() {
     }
 }
 
+// Fill the school dropdown from the caller's own buildings.
+async function populateClassSchools() {
+    const sel = document.getElementById('class-school-select');
+    if (!sel) return;
+    try {
+        const snap = await getDocs(collection(_db, 'schools'));
+        const ids = [];
+        snap.forEach(d => {
+            if (_isSuper() || _scope.schoolIds.includes(d.id)) {
+                ids.push({ id: d.id, name: (d.data().name || d.id) });
+            }
+        });
+        sel.innerHTML = ids.length
+            ? ids.map(x => `<option value="${x.id}">${x.name}</option>`).join('')
+            : '<option value="">— no schools —</option>';
+        if (!ids.length) {
+            const st = document.getElementById('class-form-status');
+            if (st) {
+                st.textContent = 'No schools available. A super admin needs to create ' +
+                    'them first (Firestore console → schools).';
+                st.style.color = '#ffaa00';
+            }
+        }
+    } catch (e) {
+        console.warn('Could not load schools for class form:', e);
+        sel.innerHTML = '<option value="">— could not load —</option>';
+    }
+}
+
 function startClassEdit(classId) {
     const cls = _classCache[classId];
     if (!cls) return;
+    const sel = document.getElementById('class-school-select');
+    if (sel && cls.schoolId) sel.value = cls.schoolId;
     document.getElementById('class-edit-id').value     = classId;
     document.getElementById('class-name-input').value  = cls.name || '';
     document.getElementById('class-daily-input').value = Math.floor((cls.dailySeconds || 0) / 60);
@@ -1073,7 +1164,33 @@ async function loadStudentRoster() {
     tableEl.style.display = 'none';
 
     try {
-        const logSnap  = await getDocs(collection(_db, 'typing_logs'));
+        // WAS: getDocs(collection(_db, 'typing_logs')) — the ENTIRE collection.
+        // At 7,000 students over a school year that's ~1.2 MILLION documents per
+        // roster load. It is ALSO rejected outright by firestore.rules for anyone
+        // who isn't a super_admin: an unfiltered `list` can't be proven to return
+        // only documents the caller is allowed to read, so Firestore denies it.
+        //
+        // Now: recent activity only, scoped to the caller's building(s).
+        // Needs the same composite index as reports.html: schoolId ASC + date ASC.
+        const sinceDate = _localDateStr(new Date(Date.now() - ROSTER_DAYS * 86400000));
+        const logsRef = collection(_db, 'typing_logs');
+        let logSnap;
+        if (_isSuper()) {
+            logSnap = await getDocs(query(logsRef, where('date', '>=', sinceDate)));
+        } else if (_scope.schoolIds.length === 1) {
+            logSnap = await getDocs(query(logsRef,
+                where('schoolId', '==', _scope.schoolIds[0]),
+                where('date', '>=', sinceDate)));
+        } else if (_scope.schoolIds.length > 1) {
+            // `in` caps at 30 values — far more buildings than anyone teaches at.
+            logSnap = await getDocs(query(logsRef,
+                where('schoolId', 'in', _scope.schoolIds.slice(0, 30)),
+                where('date', '>=', sinceDate)));
+        } else {
+            statusEl.textContent = 'No school assigned to your account — ask an ' +
+                'administrator to set your staff record.';
+            return;
+        }
         const byUid    = new Map();
         const today    = new Date();
         const weekStart = _localDateStr(_weekStartDate(today));
