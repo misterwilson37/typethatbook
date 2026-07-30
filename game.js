@@ -1,3 +1,11 @@
+// v3.4.2 - practice_sessions now also carries classId/schoolId. Without them the
+//          collection was unscopeable in security rules, so its read rule had to
+//          be "any staff member, any district" — and those documents contain
+//          email, displayName, and the full generated paragraph.
+// v3.4.1 - practice_sessions now writes an expiresAt TTL field. It was the one
+//          append-only collection still growing without bound; typing_sessions
+//          got one in v3.4.0 and this was missed. TTL policies for both are in
+//          firestore.indexes.json fieldOverrides.
 // v3.4.0 - Write reduction. saveProgress() used to fire on every '.', '!', '?'
 //          and newline, writing THREE documents each time (~236,000 writes/day
 //          at 7,000 students against a 20,000/day free tier).
@@ -67,7 +75,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.4.0";
+const VERSION = "3.4.2";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -4781,6 +4789,15 @@ async function logPracticeSession(wpm, acc, seconds, chars, mistakes) {
             displayName: currentUser.displayName || 'Anonymous',
             timestamp: new Date(),
             date: getLocalDateStr(),
+            // TTL field — practice docs carry the full generated paragraph AND
+            // the prompt, so they're the heaviest per-document payload in the
+            // database. See firestore.indexes.json fieldOverrides.
+            expiresAt: new Date(Date.now() + 120 * 24 * 3600 * 1000),
+            // Tenancy stamps. Without these the collection can't be scoped in
+            // security rules at all, and its read rule had to be "any staff,
+            // anywhere" — a district-wide leak of names and generated text.
+            classId: ttbClassId || "",
+            schoolId: ttbSchoolId || "",
             bookId: currentBookId,
             chapter: practiceRealChapterNum,
             problemChars: practiceProblemChars,
