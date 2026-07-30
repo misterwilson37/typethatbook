@@ -1,0 +1,312 @@
+# HANDOFF — TypeThatBook
+
+<!-- HANDOFF.md v1.3.0 -->
+
+**Session:** Round 1 (first documented session on this project)
+**Claude instance:** **Underwood**
+**Date:** 2026-07-30
+**Shipped:** `game.js` **v3.4.0** · `learn.js` **v1.7.0** · `index.html` **v3.0.1** ·
+`versions.js` **v1.0.0** (new) · `firebase-config.js` **v1.1.1** · `README.md` v1.3.0 ·
+`SCALE-PLAN.md` v1.2.0 · `MULTITENANCY.md` v1.0.0 · `HANDOFF.md` v1.3.0
+
+> *On the name:* Underwood built the typewriter that taught America to touch-type —
+> the machine that made the home row a thing people learned instead of hunted for.
+> Seemed right for a typing tutor. Also sounds like someone who'd be very calm about
+> a $34,000 Firestore bill, which was the mood required.
+> (Predecessors on Ellis Web Bell: Stedman, Fable. Not reusing either.)
+
+---
+
+## What happened this session
+
+Jake uploaded `typethatbook-main.zip` — no handoff, no README — and asked whether the
+app could be optimized to serve 7,000 students over a school year (peak ~467
+simultaneous) without costing money.
+
+I read the codebase, mapped every Firestore access path, modeled the load, wrote the
+three documents, then Jake greenlit the leaderboard fix and I shipped it.
+
+Then two more rounds in the same session. Net result across all of it:
+
+**$34,404/yr → about 30 cents/yr.** Reads at 58% of the Firestore free tier, writes
+at 105%, `typing_sessions` from 8.17M docs/year to ~409k.
+
+- **v3.3.0** — leaderboard rework (SCALE-PLAN Problem 1)
+- **v3.4.0** + `learn.js` v1.1.0 — write-ahead log and coalesced flush (Problems 2
+  and 3), plus `classId`/`schoolId` stamped on every log
+- **`MULTITENANCY.md`** — schools/classes/roles design. **Not built.** Needs Jake's
+  answers to five questions at the end of it.
+
+**Two things Jake has now confirmed in production:**
+
+1. The WAL works. He typed for a while, closed the tab, opened a new one, and
+   resumed exactly where he left off. That was the test that mattered most.
+2. The footer banner picked up v3.4.0 once the constant was fixed — so the
+   constant → banner wiring was live all along. There was no caching problem; the
+   stale 3.2.0 reading was entirely my missed constant bump.
+
+⚠️ Everything else remains modelled and simulated, never measured against live
+Firestore. Check the Usage tab after a real week.
+
+## The finding
+
+`fetchLeaderboard()` in `game.js` line 3902 reads the **entire** `leaderboard`
+collection to compute four top-10 lists. `updateLeaderboard()` explicitly busts its
+30-second cache on line 3880, and fires from `pauseGameForBreak()` — i.e. **every
+sprint end**, which at the default 30-second sprint is 20× per ten-minute block.
+
+At 7,000 students: ~327 million document reads per day, ~82 GB/day egress,
+**~$34,400 per school year** from that one call path.
+
+Full analysis and the five remaining problems are in **`SCALE-PLAN.md`** — read it
+before touching anything.
+
+## What v3.4.0 actually does
+
+The important thing to understand, because it looks like a durability regression
+and isn't:
+
+**Every sentence still records everything, synchronously, to localStorage.** That
+is now the durable copy. Firestore gets a batched flush every 5 minutes and on
+session end. `walRecover()` (game.js) and `walRecoverLearn()` (learn.js) replay
+unflushed state on next load by comparing against what Firestore has.
+
+The OLD code lost everything since the last punctuation mark when a tab died. The
+WAL loses nothing. Position, time, WPM, accuracy, streaks, completed chapters all
+still tracked; students still resume exactly where they left off. Verified with a
+15-case harness (hard crash, offline-then-reconnect, stale log from another book).
+
+Other changes: progress+completedChapters merged into one doc (was two writes to
+the same doc); chapter advance one write not two; `typing_sessions` one rollup doc
+per session with a `sprints[]` array and an `expiresAt` TTL field; chapter text
+cached in localStorage; goals/class/school cached for a day; leaderboard write gap
+raised to 5 min to match the flush interval.
+
+**Deliberately NOT done:** merging `stats/time_tracking` into `typing_logs`. Saves
+~1 write/student/day (105% → ~95% of free tier) but needs a migration over every
+existing student. Not worth real risk for a dollar a year. It's the lever if the
+headroom is ever needed.
+
+## What v3.3.0 does
+
+All inside `game.js`. New code sits at the leaderboard state block (~line 240) and
+the `updateLeaderboard` / `fetchLeaderboard` region (~lines 3900–4110).
+
+- `fetchLeaderboard()` — four `orderBy(cat, 'desc') + limit(15)` queries, filtered
+  and sliced to 10 client-side. Cache is 10 min and **is not busted on the hot path**.
+- `fetchWeeklyRows()` — the weekly board needs `where('weekStart','==',x) +
+  orderBy('totalSecondsWeek','desc')`, i.e. **one composite index**. Wrapped in
+  try/catch with a wider-fetch fallback so a missing or still-building index
+  degrades instead of breaking. Console warning names the index.
+- `couldPlace()` — checks the student's score against top-10 cutoffs persisted in
+  `localStorage` (`ttb_lbThresholds`). Most sprints skip the fetch entirely.
+  Thresholds only drift upward, so staleness costs a missed celebration, never a
+  false one. Cleared on admin reset, which lowers real cutoffs.
+- `computePlacements()` — ranks against the cached lists, no network. **Ties at the
+  top go to the student; ties at the bottom of a full board don't place.** The old
+  code sorted the whole collection and read back an index, so its tie order was
+  whatever Firestore returned — this is at least deterministic.
+- `loadOwnLeaderboardEntry()` — own doc read once per session, not per sprint.
+- `flushLeaderboard()` — coalesces writes to ≥120s apart, immediate on a new PB,
+  and on `visibilitychange: hidden` (the only lifecycle event that fires reliably
+  on Chromebooks; `beforeunload` does not).
+- `displayName` removed from leaderboard docs — written but never read.
+
+Verified with an 18-case harness on the rank/threshold logic and a 20-sprint block
+simulation including an injected write failure (no seconds lost or double-counted).
+Both were scratch harnesses, **not committed** — this project still has no test suite.
+
+**Measured, one 10-minute block, one student:** leaderboard reads 140,020 → 9,
+leaderboard writes 20 → 6.
+
+## ⚠️ Read this before bumping any version
+
+**I got this wrong in this session. Don't repeat it.**
+
+Every file has a **runtime version constant**. That constant is what renders on the
+page. The header comment at the top of the file is decoration.
+
+I bumped header comments and left the constants alone. Result: Jake deployed
+`game.js` v3.4.0 and the page still said **3.2.0**, because `const VERSION` on line
+70 was untouched. He had to fix it by hand. Then he asked, reasonably, how he was
+supposed to verify what was running.
+
+Worse: I invented a version number. `learn.js` had a header saying `v1.0.0` and a
+constant saying `1.6.3`. I read the comment, called my release `v1.1.0`, and
+documented that — a version that never existed in that file's lineage. The real
+sequence is 1.6.3 → **1.7.0**.
+
+**Where the constants live:**
+
+| file | constant |
+|---|---|
+| `game.js` | `const VERSION` (~line 70) |
+| `learn.js` | `const LEARN_VERSION` (~line 30) |
+| `keyboard.js` | `export const KB_VERSION` |
+| `adventure-renderer.js` | `export const RENDERER_VERSION` |
+| `admin.js` | `const ADMIN_VERSION` |
+| `lessons-admin.js` | `window.LESSONS_ADMIN_VERSION` |
+| `firebase-config.js` | `export const CONFIG_VERSION` |
+| `versions.js` | `export const VERSIONS_VERSION` |
+| `index.html` | `const INDEX_VERSION` |
+| `style.css` | `body::before { content: "v…" }` |
+| `adventure.css` | `body::after { content: "v…" }` |
+
+Bump the constant. Update the header comment too if you like, but the constant is
+the one that matters.
+
+## index.html now aggregates versions
+
+Jake's design intent was "a constant in each file, pulled into index so index
+doesn't need updating." `index.html` had **no version machinery at all** — its title
+said 3.0.0 and its own footer said 2.3.1, both hardcoded, silently disagreeing.
+
+Now: one `INDEX_VERSION` constant drives the title and footer, plus a **build info**
+button that lists every file's deployed version.
+
+`versions.js` **fetches and regex-parses** the deployed files rather than importing
+them. Two reasons, both in that file's header:
+
+1. `index.html` can't `import { VERSION } from './game.js'` — game.js is a page
+   controller with module-level side effects (`window.onload = init`, document
+   listeners). Importing it to read a string would try to boot the typing game on
+   the library page.
+2. **A shared version manifest was considered and rejected.** If game.js read its
+   version from a manifest, a stale cached game.js would report the NEW version
+   while running OLD code — lying in precisely the situation you'd use it to
+   diagnose. A constant living in the file it describes cannot lie about itself.
+
+It's lazy (nothing fetched until the panel opens — game.js is ~210KB), cached in
+sessionStorage per tab, and fetches with `cache: 'no-cache'` so it reports the
+server's copy rather than a stale one. All 10 parse patterns were verified against
+the real files.
+
+## State of the code
+
+`game.js` is at v3.3.0. Everything else is as Jake uploaded it. Current versions:
+
+| file | version |
+|---|---|
+| `game.js` | **3.4.0** ← changed this session |
+| `learn.js` | **1.7.0** ← changed this session |
+| `admin.js` | 2.7.5 |
+| `lessons-admin.js` | 1.4.0 |
+| `adventure-renderer.js` | 0.4.0 |
+| `keyboard.js` | 1.1.1 |
+| `firebase-config.js` | **1.1.1** ← changed this session |
+| `style.css` | 3.1.6 |
+| `adventure.css` | 0.0.7 |
+| `index.js` (Cloud Function) | 1.2 |
+
+Plus `versions.js` **1.0.0** (new this session).
+
+Page shells are versioned separately from the JS that drives them — don't confuse
+them. `index.html` is now driven by `INDEX_VERSION` (3.0.1) and `learn.html`'s title
+by `LEARN_VERSION`. **`game.html` (3.0.1.1), `admin.html` (2.7.6), and
+`reports.html` (2.4.1) still have hardcoded titles** and are the remaining
+inconsistency — worth converting to the same pattern.
+
+## Next steps
+
+Per `SCALE-PLAN.md` § Suggested order:
+
+1. **Budget alert in Google Cloud Console.** Not code. Jake's action.
+   **Still outstanding** — ask about it.
+1b. **Enable the TTL policy** on `typing_sessions` (field `expiresAt`, console →
+   Firestore → Time-to-live). v3.4.0 writes the field; nothing deletes without the
+   policy. Also outstanding.
+2. ~~Leaderboard rework~~ ✅ **done, v3.3.0.** Remaining task: create the weekly
+   composite index when the console asks. The fallback covers it until then.
+3. ~~Flush-based saves~~ ✅ **done, v3.4.0 + learn.js v1.1.0.** The
+   `stats/time_tracking` merge was skipped on purpose — see above.
+3b. **`reports.html` class filter + scope picker.** ← *now the top code item.*
+   `classId`/`schoolId` are already on every log doc, so this is pure query work.
+   Fixes SCALE-PLAN Problem 4 and delivers the "don't show me other people's kids"
+   requirement at the same time. No Cloud Function deploy needed.
+4. Session rollup + TTL policies.
+5. `reports.html` class filter.
+6. Practice-pool cache + `maxInstances` (needs Firebase CLI, not browser upload).
+7. Firestore security rules + admin custom claims.
+
+## Things that will bite you
+
+- **`experimentalForceLongPolling` in `firebase-config.js` is load-bearing.** It fixes
+  Safari's CORS block on Firestore's WebChannel transport. It is not leftover debug
+  code. Leave it.
+- **`ADMIN_EMAILS` is duplicated** — `admin.js` line 18 and `reports.html` line 306.
+  Two separate arrays. Change one, change both.
+- **Default sprint is 30 seconds** (`sessionValueStr = "30"`, line 141). Every
+  per-sprint cost multiplies by 20 in a ten-minute block. Any time you're reasoning
+  about load, start here.
+- **No Firestore security rules in the repo.** Possibly none deployed at all — worth
+  asking Jake to check the console. The admin email gate is client-side only.
+- **`game.js` is 4,263 lines with no tests.** Ellis Web Bell has a 51-test suite;
+  this project has nothing. Changes get verified by hand.
+- **`adventure-renderer.js` is coupled to `game.js` via `_ttbEmit('keystroke')`.** If
+  you touch the keystroke handler around line 1194, check Adventure Mode still paints.
+- **`index.js`/`package.json` are Cloud Functions**, not `index.html`. Deploy path is
+  completely different (CLI, not GitHub Pages).
+
+## Verification Jake still owes us
+
+**v3.3.0 and v3.4.0 were written, syntax-checked, and unit-tested in simulation, but
+never run against live Firestore.** Two releases of unverified persistence changes is
+a lot of exposure. Before 467 students touch it:
+
+For v3.4.0 specifically:
+
+1. Type a few sentences, **kill the tab**, reopen. Position and time should be intact
+   — this is the WAL doing its job and it's the single most important check.
+2. Type, close the lid, reopen later. Same.
+3. Devtools → Application → Local Storage: look for `ttb_wal_v2`, `ttb_ch_v1:*`,
+   `ttb_goalsCache_v1`, `ttb_lbThresholds`.
+4. Confirm `typing_logs/{uid}_{date}` gains `classId`/`schoolId` (empty until the
+   tenancy backfill, which is expected).
+5. Confirm a `typing_sessions` doc has `sprints[]` and `expiresAt`.
+6. Complete a chapter, reload, confirm it's still marked complete.
+7. Lesson mode (`learn.html`): finish a step, kill the tab, reopen, confirm time
+   survived.
+
+For v3.3.0:
+
+1. Trophy panel — all four tabs populate.
+2. Console — check for the weekly composite-index warning; create the index if so.
+3. Devtools Network, filtered to Firestore — sprint-ends should be near-silent.
+4. A genuine personal best still fires the placement celebration.
+5. Opt-out toggle removes the student from the board promptly (this now writes the
+   public doc immediately rather than waiting for the next sprint flush).
+
+## Open questions for Jake
+
+1. Are Firestore security rules deployed in the console right now, or is the database
+   on defaults? This changes the urgency of item 7 considerably.
+2. What does the Firestore Usage tab show at current enrollment? The leaderboard scan
+   is already costing something, and the real number beats my model.
+3. Is the practice-pool cache acceptable? Two students with the same weak keys would
+   sometimes get the same paragraph. Cheap and probably fine, but it's a product call.
+4. Is 7,000 firm? The write budget lands at 82% of free tier, which is comfortable but
+   not enormous. If it's really 9,000, item 3 stops being optional.
+
+## Workflow notes
+
+Jake deploys via **GitHub web uploads** — no CLI, no build pipeline. Deliver complete
+replacement files, never diffs. Items 2, 4, and 5 above fit that workflow; item 6
+does not and will need him at a machine with the Firebase CLI.
+
+He prefers explicit over magic, values session momentum, and wants version bumps on
+every shipped file (patch/minor automatic, **major requires his explicit sign-off**).
+
+He greenlit the leaderboard fix ("write away") and then the write reduction ("write
+what you need to write to get our reads and writes down"). Items 4–7 are **not**
+approved. `MULTITENANCY.md` is a design doc with five open questions — do not start
+building roles or deploying rules before he answers them.
+
+He also asked directly whether students would still have their typing tracked and
+still resume where they left off. The answer is yes, and it's now more robust than
+before. If he asks again, the WAL is the reason — don't hedge, but do point at the
+kill-the-tab test as the way to confirm it himself.
+
+One thing he was clear about: real names must stay reachable from the admin panel.
+They do — `typing_logs`, `typing_sessions`, and `practice_sessions` all still carry
+`displayName` and `email`. Only the student-readable `leaderboard` collection was
+stripped. Don't "helpfully" clean those up without asking.
