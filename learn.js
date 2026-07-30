@@ -1,5 +1,8 @@
-// learn.js — TypeThatBook School v1.1.0
-// v1.1.0 — Write reduction to match game.js v3.4.0. saveStats() fired on every
+// learn.js — TypeThatBook School v1.7.0
+// NOTE: the authoritative version is LEARN_VERSION below, not this comment. An
+//       earlier header claimed v1.0.0 while the constant read 1.6.3; the
+//       constant was right. This file's real lineage is 1.6.x → 1.7.0.
+// v1.7.0 — Write reduction to match game.js v3.4.0. saveStats() fired on every
 //          completed lesson step and wrote two documents each time (~20-40
 //          writes per student per block). Now backed by a localStorage
 //          write-ahead log with a coalesced flush every 5 min and on session
@@ -24,7 +27,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.6.3";
+const LEARN_VERSION = "1.7.0";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -2243,5 +2246,8 @@ function launchFireworks() {
 // load time even for a returning signed-in user.
 const footer = document.querySelector('footer');
 if (footer) footer.textContent = 'School v' + LEARN_VERSION + ' / keyboard.js v' + KB_VERSION;
+// Title was hardcoded in learn.html and drifted from the constant. Drive it from
+// the constant so there is only one number to change.
+document.title = 'TypeThatBook — School v' + LEARN_VERSION;
 
 loadLessons(); // fire-and-forget; renderMap() in onAuthStateChanged will re-render when done
