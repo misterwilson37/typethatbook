@@ -1,11 +1,13 @@
 // admin.js v2.7.5
 import { db, auth, storage } from "./firebase-config.js";
-import { initLessonsPanel } from "./lessons-admin.js";
+import { initLessonsPanel, setStaffHooks } from "./lessons-admin.js";
+import { initStaffPanel, initStaffPanelContent, syncOwnClaimsAfterClassChange }
+    from "./staff-admin.js";
 import { doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "2.7.5";
+const ADMIN_VERSION = "2.9.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -221,7 +223,7 @@ let currentErrorIdx = 0;
 let stagedCoverBlob = null;   // extracted or uploaded cover image
 let stagedCoverUrl = null;    // preview data URL
 
-if(footerEl) footerEl.innerText = `Admin JS: v${ADMIN_VERSION} | Lessons Admin: v${window.LESSONS_ADMIN_VERSION || '?'}`;
+if(footerEl) footerEl.innerText = `Admin JS: v${ADMIN_VERSION} | Lessons Admin: v${window.LESSONS_ADMIN_VERSION || '?'} | Staff Admin: v${window.STAFF_ADMIN_VERSION || '?'}`;
 
 // Populate genre dropdown
 const genreSelect = document.getElementById('active-book-genre');
@@ -254,9 +256,38 @@ if (genreSelect) {
 }
 
 // --- AUTH ---
+// Staff identity from Auth custom claims (see firestore.rules). ADMIN_EMAILS is
+// retained ONLY as a bootstrap fallback so nobody is locked out before claims
+// are assigned. Delete it once staff records exist.
+let _staffScope = { uid: null, role: null, schoolIds: [], classIds: [] };
+
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        if (!ADMIN_EMAILS.includes(user.email)) {
+        try {
+            const claims = (await user.getIdTokenResult(true)).claims || {};
+            _staffScope.uid = user.uid;
+            _staffScope.role = claims.role || null;
+            _staffScope.readScope = claims.readScope || 'own_classes';
+            _staffScope.classIds = Array.isArray(claims.classIds) ? claims.classIds : [];
+            _staffScope.schoolIds = Array.isArray(claims.schoolIds) ? claims.schoolIds : [];
+        } catch (e) { console.warn('Could not read claims:', e); }
+
+        if (!_staffScope.role && ADMIN_EMAILS.includes(user.email)) {
+            _staffScope.role = 'super_admin';   // bootstrap
+            console.warn('BOOTSTRAP MODE: no custom claim set. Run setStaffRole.');
+        }
+        try {
+            const staffSnap = await getDoc(doc(db, 'staff', user.uid));
+            if (staffSnap.exists()) {
+                const sd = staffSnap.data();
+                _staffScope.classIds = Array.isArray(sd.classIds) ? sd.classIds : [];
+                if (!_staffScope.schoolIds.length && Array.isArray(sd.schoolIds)) {
+                    _staffScope.schoolIds = sd.schoolIds;
+                }
+            }
+        } catch (e) { /* no staff record yet */ }
+
+        if (!_staffScope.role) {
             statusEl.innerText = "Access Denied — your account is not an admin.";
             statusEl.style.borderColor = "#ff3333";
             loginSec.classList.remove('hidden');
@@ -270,7 +301,18 @@ onAuthStateChanged(auth, async (user) => {
             // ── Init lessons panel (only once) ──
             if (!window._lessonsPanelInited) {
                 window._lessonsPanelInited = true;
-                initLessonsPanel(db);
+                initLessonsPanel(db, _staffScope);
+                initStaffPanel(db, auth, _staffScope);
+                setStaffHooks({
+                    onStaffTab: initStaffPanelContent,
+                    onClassesChanged: syncOwnClaimsAfterClassChange,
+                });
+            }
+            // The Staff tab only exists for people who can act on it.
+            const staffTabBtn = document.getElementById('tab-staff');
+            if (staffTabBtn) {
+                staffTabBtn.style.display =
+                    ['super_admin', 'building_admin'].includes(_staffScope.role) ? '' : 'none';
             }
         await loadBookList();
     } else {
