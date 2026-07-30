@@ -1,4 +1,13 @@
-// learn.js — TypeThatBook School v1.0.0
+// learn.js — TypeThatBook School v1.1.0
+// v1.1.0 — Write reduction to match game.js v3.4.0. saveStats() fired on every
+//          completed lesson step and wrote two documents each time (~20-40
+//          writes per student per block). Now backed by a localStorage
+//          write-ahead log with a coalesced flush every 5 min and on session
+//          end; walRecoverLearn() replays anything unflushed on next load, so
+//          this is more durable than the old fire-and-forget beforeunload path.
+//          Also stamps classId/schoolId onto typing_logs for scoped reporting,
+//          and adds a visibilitychange handler (beforeunload is unreliable on
+//          Chromebooks).
 import { db, auth } from "./firebase-config.js";
 import {
     collection, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc
@@ -139,6 +148,7 @@ onAuthStateChanged(auth, async user => {
         await retroactiveSaveAnonSession(user);
         await loadUserProgress();
         await loadUserStats();
+        walRecoverLearn();   // replay unflushed lesson time from a dead session
         await loadGoals();
         await applyPendingClassAssignment(user);
     } else {
@@ -1694,13 +1704,15 @@ function openLearnGenie() {
     if (idleBox) idleBox.onchange = () => { ggBypassIdle = idleBox.checked; };
 }
 
+// visibilitychange:hidden is the reliable one — it fires on tab switch, lid
+// close, and app backgrounding, where beforeunload often doesn't. Both are
+// wired; flushStats() is idempotent when nothing is dirty.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushStats('hidden', true);
+});
+
 window.addEventListener('beforeunload', () => {
-    if (currentUser && statsData.secondsToday > 0) {
-        // Synchronous-style fire-and-forget — navigator.sendBeacon would be ideal
-        // but Firestore SDK doesn't support it. setDoc is async; it will usually
-        // complete before the tab closes on desktop, and is a best-effort on mobile.
-        saveStats();
-    }
+    if (currentUser && statsData.secondsToday > 0) flushStats('beforeunload', true);
 });
 
 // ─── Caps Lock Warning ────────────────────────────────────────────────────────
@@ -1978,6 +1990,7 @@ async function loadGoals() {
                         goals.dailySeconds  = cd.dailySeconds  || 0;
                         goals.weeklySeconds = cd.weeklySeconds || 0;
                         classInfo = { id: ud.classId, name: cd.name || '',
+                                      schoolId: ud.schoolId || cd.schoolId || '',
                                       dailySeconds: goals.dailySeconds,
                                       weeklySeconds: goals.weeklySeconds };
                         resolved = true;
@@ -2040,21 +2053,103 @@ function updateWeeklyHUD() {
     weekEl.textContent = txt;
 }
 
-async function saveStats() {
+// Coalesced stats persistence, mirroring the pattern in game.js v3.4.0.
+//
+// saveStats() fired on every completed lesson step and wrote TWO documents each
+// time. Steps come every 30-60 seconds, so a ten-minute lesson block was ~20-40
+// writes per student. Now every call records to a local write-ahead log (free,
+// synchronous, instant) and Firestore gets a batched flush on a timer and at
+// session end. Nothing is lost — see walRecoverLearn() below.
+const LEARN_WAL_KEY = 'ttb_learnwal_v1';
+const LEARN_FLUSH_MS = 300000;   // 5 minutes
+let learnFlushTimer = null;
+let learnDirty = false;
+let learnStatsDocDirty = false;
+
+function learnWalSave() {
     if (!currentUser) return;
     try {
-        await setDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'), statsData, { merge: true });
-        // Daily log for admin reporting
+        localStorage.setItem(LEARN_WAL_KEY, JSON.stringify({
+            v: 1, uid: currentUser.uid, savedAt: Date.now(), stats: { ...statsData }
+        }));
+    } catch (e) { console.warn('learn WAL write failed:', e); }
+}
+
+// Replay whatever the last session couldn't flush. Counters only rise within a
+// day/week, so max() is the safe merge. Call after loadUserStats().
+function walRecoverLearn() {
+    try {
+        const raw = localStorage.getItem(LEARN_WAL_KEY);
+        if (!raw) return;
+        const wal = JSON.parse(raw);
+        if (wal.v !== 1 || !currentUser || wal.uid !== currentUser.uid || !wal.stats) return;
+        let recovered = false;
+        if (wal.stats.lastDate === statsData.lastDate) {
+            for (const k of ['secondsToday', 'charsToday', 'mistakesToday']) {
+                if ((wal.stats[k] || 0) > (statsData[k] || 0)) { statsData[k] = wal.stats[k]; recovered = true; }
+            }
+        }
+        if (wal.stats.weekStart === statsData.weekStart) {
+            for (const k of ['secondsWeek', 'charsWeek', 'mistakesWeek']) {
+                if ((wal.stats[k] || 0) > (statsData[k] || 0)) { statsData[k] = wal.stats[k]; recovered = true; }
+            }
+        }
+        if (recovered) {
+            console.log('Recovered unflushed lesson time from local storage.');
+            learnDirty = true; learnStatsDocDirty = true;
+            flushStats('recovery', true);
+        } else {
+            localStorage.removeItem(LEARN_WAL_KEY);
+        }
+    } catch (_) { /* corrupt WAL — ignore it */ }
+}
+
+// Record locally and schedule a flush. Replaces the old saveStats().
+function saveStats() {
+    if (!currentUser) return;
+    learnDirty = true;
+    learnStatsDocDirty = true;
+    learnWalSave();
+    if (!learnFlushTimer) {
+        learnFlushTimer = setTimeout(() => { learnFlushTimer = null; flushStats('interval'); }, LEARN_FLUSH_MS);
+    }
+}
+
+async function flushStats(reason, final = false) {
+    if (!currentUser || !learnDirty) return;
+    if (learnFlushTimer) { clearTimeout(learnFlushTimer); learnFlushTimer = null; }
+    let ok = true;
+
+    // Daily log — what reports.html reads. Written on every flush so a teacher
+    // checking mid-period sees today's numbers.
+    try {
         const today = getLocalDateStr();
-        const logId = currentUser.uid + '_' + today;
-        await setDoc(doc(db, 'typing_logs', logId), {
+        await setDoc(doc(db, 'typing_logs', currentUser.uid + '_' + today), {
             uid: currentUser.uid, email: currentUser.email || '',
             displayName: currentUser.displayName || 'Anonymous',
+            classId: (classInfo && classInfo.id) || '',
+            schoolId: (classInfo && classInfo.schoolId) || '',
             date: today, seconds: statsData.secondsToday || 0,
             chars: statsData.charsToday || 0, mistakes: statsData.mistakesToday || 0,
             lastUpdated: new Date(), source: 'school'
         }, { merge: true });
-    } catch(e) { console.warn('saveStats failed:', e); }
+    } catch (e) { ok = false; console.warn(`Log flush failed (${reason}):`, e); }
+
+    // Week/day rollup — only read at page load, so session-end is soon enough.
+    if (final && learnStatsDocDirty) {
+        try {
+            await setDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'),
+                         statsData, { merge: true });
+            learnStatsDocDirty = false;
+        } catch (e) { ok = false; console.warn(`Stats flush failed (${reason}):`, e); }
+    }
+
+    if (ok) {
+        learnDirty = false;
+        if (final) { try { localStorage.removeItem(LEARN_WAL_KEY); } catch (_) {} }
+    } else {
+        learnWalSave();   // keep the local copy; next flush retries
+    }
 }
 
 // ─── Celebration (copied from game.js) ───────────────────────────────────────
