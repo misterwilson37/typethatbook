@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeThatBook — Library 3.0.0</title>
+    <title>TypeThatBook — Library</title>  <!-- version appended at runtime from INDEX_VERSION -->
     <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Bitter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -258,10 +258,61 @@
         </div>
     </div>
 
-    <footer class="site-footer">TypeThatBook — Library 2.3.1</footer>
+    <footer class="site-footer">
+        <span id="footer-version">TypeThatBook — Library</span>
+        <button id="build-toggle" type="button"
+                style="margin-left:10px;font:inherit;font-size:.85em;background:none;
+                       border:1px solid currentColor;border-radius:4px;padding:1px 7px;
+                       color:inherit;opacity:.65;cursor:pointer">build info</button>
+        <div id="build-list" style="display:none;margin-top:8px;font-size:.8em;
+                                    line-height:1.55;text-align:left;max-width:520px;
+                                    margin-left:auto;margin-right:auto"></div>
+    </footer>
 
     <script type="module">
         import { db, auth } from "./firebase-config.js";
+        import { readDeployedVersions, renderBuildList } from "./versions.js";
+
+        // ─── Version ──────────────────────────────────────────────────────────
+        // This page's own version. The <title> and footer are both written from
+        // it, because they used to be hardcoded separately and had already
+        // drifted apart (title said 3.0.0, footer said 2.3.1).
+        //
+        // v3.0.1: single INDEX_VERSION constant drives title + footer; added the
+        //         build-info panel that reads every other file's version constant
+        //         out of the deployed files. See versions.js for why it fetches
+        //         rather than imports.
+        const INDEX_VERSION = "3.0.1";
+
+        document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
+        const _fv = document.getElementById('footer-version');
+        if (_fv) _fv.textContent = `TypeThatBook — Library v${INDEX_VERSION}`;
+
+        // Lazy: nothing is fetched until someone asks. game.js is ~210KB and no
+        // student needs it on the library page.
+        const _btn = document.getElementById('build-toggle');
+        const _list = document.getElementById('build-list');
+        if (_btn && _list) {
+            _btn.addEventListener('click', async () => {
+                if (_list.style.display !== 'none') {
+                    _list.style.display = 'none';
+                    _btn.textContent = 'build info';
+                    return;
+                }
+                _list.style.display = '';
+                _btn.textContent = 'hide';
+                _list.innerHTML = 'Reading deployed files…';
+                try {
+                    const results = await readDeployedVersions();
+                    _list.innerHTML =
+                        `<div style="opacity:.6;margin-bottom:4px">index.html v${INDEX_VERSION} (this page)</div>`
+                        + renderBuildList(results);
+                } catch (e) {
+                    _list.innerHTML = '<div style="color:#ff8a65">Could not read build info.</div>';
+                }
+            });
+        }
+        // ──────────────────────────────────────────────────────────────────────
 
         // --- LANDING ---
         const landingView  = document.getElementById('landing-view');
