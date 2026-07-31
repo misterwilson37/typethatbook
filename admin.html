@@ -366,6 +366,7 @@
                                vertical-align:middle; box-sizing:border-box;">
                     <button id="student-refresh-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">↺</button>
                     <button id="student-csv-toggle-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">CSV Import</button>
+                    <button id="student-one-toggle-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">Add One Student</button>
                 </div>
             </div>
 
@@ -382,6 +383,31 @@
             </div>
 
             <!-- CSV Import section -->
+            <!-- Add a single student. For the kid who transfers in mid-October and
+                 doesn't warrant a spreadsheet. -->
+            <div id="student-one-section" class="hidden" style="background:#1a1a1a; border:1px solid #333;
+                 border-radius:4px; padding:14px; margin-bottom:14px;">
+                <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:4px;">Add one student</div>
+                <div style="font-size:.75em; color:#666; margin-bottom:10px;">
+                    Works whether or not they've signed in yet. If they haven't, the
+                    assignment waits for them and applies on their first sign-in.
+                </div>
+                <div style="display:grid; grid-template-columns:2fr 1fr auto; gap:8px; align-items:end;">
+                    <div>
+                        <label class="l-label">Student email</label>
+                        <input id="student-one-email" class="l-field" type="email"
+                               placeholder="student@sumnerk12.net" autocomplete="off">
+                    </div>
+                    <div>
+                        <label class="l-label">Class</label>
+                        <select id="student-one-class" class="l-field"></select>
+                    </div>
+                    <button id="student-one-add-btn" class="lbtn lbtn-primary"
+                            style="width:auto; padding:6px 18px;">Add</button>
+                </div>
+                <div id="student-one-status" style="margin-top:8px; font-size:0.8em; color:#888;"></div>
+            </div>
+
             <div id="student-csv-section" class="hidden" style="background:#1a1a1a; border:1px solid #333;
                  border-radius:4px; padding:14px; margin-bottom:14px;">
                 <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:8px;">Bulk Class Assignment via CSV</div>
@@ -475,21 +501,104 @@
                 Super admin is granted from the Firebase console only.
             </div>
 
-            <!-- Find a person -->
-            <div style="background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:16px; margin-bottom:16px;">
-                <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:10px;">Find a person</div>
-                <div style="display:flex; gap:8px; align-items:flex-end;">
+            <!-- Help -->
+            <button id="staff-help-toggle" type="button" style="margin-bottom:12px;font:inherit;
+                    font-size:.8em;background:none;border:1px solid #4B9CD3;border-radius:4px;
+                    padding:3px 12px;color:#4B9CD3;cursor:pointer">How this works / setup notes</button>
+            <div id="staff-help" style="display:none;background:#111;border:1px solid #333;
+                 border-radius:4px;padding:14px;margin-bottom:16px;font-size:.85em;line-height:1.6;color:#bbb">
+                <div style="color:#4B9CD3;font-weight:bold;margin-bottom:6px">Getting people in</div>
+                <ul style="margin:0 0 12px;padding-left:20px">
+                    <li><b>They ask.</b> A colleague signs in, opens this page, and clicks
+                        “Request access”. Their request appears below.</li>
+                    <li><b>You grant it by email</b> — works whether or not they've ever
+                        signed in. If they have no account yet, the role waits for them and
+                        applies automatically on their first sign-in.</li>
+                    <li><b>Students</b> need no setup at all. Anyone who signs in is a
+                        student. Add them to classes by CSV or single email on the
+                        Classes tab.</li>
+                </ul>
+                <div style="color:#4B9CD3;font-weight:bold;margin-bottom:6px">Roles</div>
+                <ul style="margin:0 0 12px;padding-left:20px">
+                    <li><b>Teacher</b> — “Can see” is per person: their own classes
+                        (default) or the whole building. Their building admin decides.</li>
+                    <li><b>Building Admin</b> — whole building; can grant teacher roles
+                        inside it.</li>
+                    <li><b>Super Admin</b> — everything, including books, lessons and
+                        schools.</li>
+                </ul>
+                <div style="color:#ffaa00;font-weight:bold;margin-bottom:6px">The one thing that needs the Firebase console</div>
+                <p style="margin:0 0 8px">
+                    <b>The first super admin.</b> Nobody — including a super admin — can edit
+                    their own staff record, which is what stops an admin quietly widening
+                    their own access. So the very first one has to be created by hand.
+                </p>
+                <p style="margin:0 0 8px">
+                    Create a document in the <code>staff</code> collection whose <b>ID is that
+                    person's Auth UID</b> (Authentication → Users → “User UID”), with fields:
+                    <code>role</code> = <code>super_admin</code> (string),
+                    <code>schoolIds</code> = array of school IDs,
+                    <code>readScope</code> = <code>building</code> (string),
+                    <code>active</code> = <code>true</code> (boolean),
+                    plus <code>email</code> and <code>displayName</code>.
+                </p>
+                <p style="margin:0">
+                    <a href="https://console.firebase.google.com/" target="_blank" rel="noopener"
+                       style="color:#4B9CD3">Open the Firebase console →</a>
+                    &nbsp;·&nbsp; Everything else, including adding schools, is on this page.
+                </p>
+            </div>
+
+            <!-- Schools (super admin only) -->
+            <div id="schools-section" style="display:none;background:#1a1a1a;border:1px solid #333;
+                 border-radius:4px;padding:16px;margin-bottom:16px;">
+                <div style="font-size:0.8em;color:#4B9CD3;font-weight:bold;margin-bottom:4px;">Schools</div>
+                <div style="font-size:.75em;color:#666;margin-bottom:10px;">
+                    At least one is required before anyone can be assigned. The short ID is
+                    stored on every class and every log, so keep it brief and permanent.
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:end;">
+                    <div>
+                        <label class="l-label">Short ID</label>
+                        <input id="school-id-input" class="l-field" type="text" placeholder="ems">
+                    </div>
+                    <div>
+                        <label class="l-label">Full name</label>
+                        <input id="school-name-input" class="l-field" type="text" placeholder="Ellis Middle School">
+                    </div>
+                    <button id="school-add-btn" class="lbtn lbtn-primary"
+                            style="width:auto;padding:6px 18px;">Add</button>
+                </div>
+                <div id="school-status" style="margin-top:8px;font-size:0.8em;color:#888;"></div>
+                <div id="schools-list" style="margin-top:10px;"></div>
+            </div>
+
+            <!-- Grant by email -->
+            <div style="background:#1a1a1a;border:1px solid #333;border-radius:4px;padding:16px;margin-bottom:16px;">
+                <div style="font-size:0.8em;color:#4B9CD3;font-weight:bold;margin-bottom:4px;">Give someone a role</div>
+                <div style="font-size:.75em;color:#666;margin-bottom:10px;">
+                    Works whether or not they've signed in before. If they have no account
+                    yet, the role waits for them.
+                </div>
+                <div style="display:flex;gap:8px;align-items:flex-end;">
                     <div style="flex:1">
                         <label class="l-label">Email address</label>
-                        <input id="staff-email-input" class="l-field" type="email"
+                        <input id="staff-email-grant-input" class="l-field" type="email"
                                placeholder="jane.doe@sumnerk12.net" autocomplete="off">
                     </div>
-                    <button id="staff-lookup-btn" class="lbtn lbtn-primary"
-                            style="width:auto; padding:6px 20px;">Search</button>
+                    <button id="staff-email-grant-btn" class="lbtn lbtn-primary"
+                            style="width:auto;padding:6px 20px;">Continue</button>
                 </div>
-                <div style="font-size:.75em; color:#666; margin-top:6px;">
-                    They must have signed in to TypeThatBook at least once.
+                <div id="staff-pending-grants"></div>
+            </div>
+
+            <!-- Pending requests -->
+            <div style="background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:16px; margin-bottom:16px;">
+                <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:4px;">Access requests</div>
+                <div style="font-size:.75em; color:#666; margin-bottom:10px;">
+                    A colleague signs in, opens this page, and asks for access. They show up here.
                 </div>
+                <div id="staff-requests"></div>
                 <div id="staff-status" style="margin-top:8px; font-size:0.8em; color:#888;"></div>
             </div>
 
