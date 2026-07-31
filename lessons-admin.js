@@ -1,7 +1,7 @@
 // lessons-admin.js — TypeThatBook Lesson Panel v1.0.0
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
-window.LESSONS_ADMIN_VERSION = '1.6.0';
+window.LESSONS_ADMIN_VERSION = '1.8.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -14,10 +14,10 @@ let _db = null;
 let _lessonCache = {};   // id → lesson object
 let _expandedId = null;  // which lesson card is open
 
-// Who's using this panel. Populated by admin.js from Auth custom claims.
+// Who's using this panel. Populated by admin.js from the staff/{uid} document.
 // Defaults to the most restrictive thing rather than the most permissive: with
 // no role and no schools, scoped queries return nothing instead of everything.
-let _scope = { uid: null, role: null, schoolIds: [], classIds: [] };
+let _scope = { uid: null, role: null, schoolIds: [], readScope: 'own_classes' };
 const _isSuper = () => _scope.role === 'super_admin';
 
 // How far back the student roster looks. It's a "who's been active lately" list,
@@ -40,7 +40,7 @@ export function initLessonsPanel(db, scope) {
     if (scope) _scope = { uid: scope.uid || null,
                           role: scope.role || null,
                           schoolIds: scope.schoolIds || [],
-                          classIds: scope.classIds || [] };
+                          readScope: scope.readScope || 'own_classes' };
     setupTabSwitching();
     loadAndRenderLessons();
     bindImportUI();
@@ -1085,6 +1085,13 @@ function initStudentsPanel() {
             reader.onload = ev => { document.getElementById('student-csv-paste').value = ev.target.result; };
             reader.readAsText(file);
         });
+    document.getElementById('student-one-toggle-btn')
+        .addEventListener('click', async () => {
+            const sec = document.getElementById('student-one-section');
+            sec.classList.toggle('hidden');
+            if (!sec.classList.contains('hidden')) await _populateOneStudentClasses();
+        });
+    document.getElementById('student-one-add-btn').addEventListener('click', _addOneStudent);
     document.getElementById('student-csv-preview-btn').addEventListener('click', _previewCSV);
     document.getElementById('student-csv-commit-btn').addEventListener('click', _commitCSV);
 
@@ -1175,8 +1182,24 @@ async function loadStudentRoster() {
         const sinceDate = _localDateStr(new Date(Date.now() - ROSTER_DAYS * 86400000));
         const logsRef = collection(_db, 'typing_logs');
         let logSnap;
+        const seesBuilding = _isSuper() || _scope.role === 'building_admin'
+                             || _scope.readScope === 'building';
         if (_isSuper()) {
             logSnap = await getDocs(query(logsRef, where('date', '>=', sinceDate)));
+        } else if (!seesBuilding) {
+            // A class-scoped teacher can only read logs for classes they teach.
+            // firestore.rules would reject a building-wide query outright.
+            const myClasses = await getDocs(query(collection(_db, 'classes'),
+                where('teacherUids', 'array-contains', _scope.uid)));
+            const ids = myClasses.docs.map(d => d.id).slice(0, 30);
+            if (!ids.length) {
+                statusEl.textContent = 'You have no classes yet. Create one on the ' +
+                    'Classes tab, then import a roster.';
+                return;
+            }
+            logSnap = await getDocs(query(logsRef,
+                where('classId', 'in', ids),
+                where('date', '>=', sinceDate)));
         } else if (_scope.schoolIds.length === 1) {
             logSnap = await getDocs(query(logsRef,
                 where('schoolId', '==', _scope.schoolIds[0]),
