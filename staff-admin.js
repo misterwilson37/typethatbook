@@ -1,5 +1,5 @@
 // staff-admin.js — Staff tab for admin.html
-window.STAFF_ADMIN_VERSION = '2.1.0';
+window.STAFF_ADMIN_VERSION = '2.2.0';
 //
 // v2.0.0 — REBUILT to need no command line. v1.0.0 called Cloud Functions to set
 //          Auth custom claims, which requires `firebase deploy --only functions`.
@@ -47,7 +47,9 @@ const SCOPE_LABELS = {
 
 export function initStaffPanel(db, auth, scope) {
     _db = db; _auth = auth;
-    if (scope) _scope = { role: scope.role || null, schoolIds: scope.schoolIds || [] };
+    if (scope) _scope = { role: scope.role || null,
+                          schoolIds: scope.schoolIds || [],
+                          bootstrap: !!scope.bootstrap };
 }
 
 function canManageStaff() {
@@ -125,6 +127,20 @@ function bindUI() {
     const schoolsBox = document.getElementById('schools-section');
     if (schoolsBox) {
         schoolsBox.style.display = _scope.role === 'super_admin' ? '' : 'none';
+        // v2.2.0: in bootstrap mode the role is granted by JavaScript only and
+        // rules will reject every write. Say so rather than offering a form that
+        // fails — this is the exact confusion that cost an evening.
+        if (_scope.bootstrap) {
+            const st = document.getElementById('school-status');
+            if (st) {
+                st.innerHTML = 'Create your own <code>staff</code> document first — ' +
+                    'see the orange banner at the top of this page. Until then ' +
+                    'Firestore will reject this.';
+                st.style.color = '#ffaa00';
+            }
+            const addBtn0 = document.getElementById('school-add-btn');
+            if (addBtn0) addBtn0.disabled = true;
+        }
         const addBtn = document.getElementById('school-add-btn');
         if (addBtn) addBtn.addEventListener('click', addSchool);
     }
@@ -329,10 +345,17 @@ async function doRevoke(person) {
 function permissionHint(e) {
     const msg = e?.message || String(e);
     if (/permission|insufficient/i.test(msg)) {
-        return 'Permission denied. Either the rules aren\'t deployed yet, or you\'re ' +
-               'trying to do something your role doesn\'t allow (a building admin can ' +
-               'only create teachers, in their own building, and nobody can edit their ' +
-               'own record).';
+        if (_scope.bootstrap) {
+            return 'Denied because you have no staff document yet. The rules identify ' +
+                   'admins by a staff/{your-uid} document, not by email — see the ' +
+                   'orange banner at the top of this page.';
+        }
+        return 'Permission denied. Most likely causes, in order: role misspelled in ' +
+               'your staff document (must be exactly teacher / building_admin / ' +
+               'super_admin), active stored as the string "true" instead of the ' +
+               'boolean, or something your role disallows (a building admin can only ' +
+               'create teachers in their own building, and nobody — including a super ' +
+               'admin — can edit their own record).';
     }
     return msg;
 }
