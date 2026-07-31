@@ -1,15 +1,15 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v1.6.0 -->
+<!-- HANDOFF.md v2.1.0 -->
 
 **Session:** Round 1 (first documented session on this project)
 **Claude instance:** **Underwood**
 **Date:** 2026-07-30
 **Shipped:** `game.js` **v3.4.2** · `learn.js` **v1.7.0** · `index.html` **v3.0.1** ·
-`reports.html` **v2.5.0** · `admin.js` **v2.8.0** · `lessons-admin.js` **v1.5.0** ·
+`reports.html` **v2.7.0** · `admin.js` **v2.8.0** · `lessons-admin.js` **v1.5.0** ·
 `functions/index.js` **v1.5** · `versions.js` **v1.1.0** · `firebase-config.js` **v1.1.1** ·
-`firestore.rules` **v1.1.0** · `staff-admin.js` **v1.0.0** (new) · `firestore.indexes.json` (new) ·
-`firestore-rules.test.mjs` (new) · `SETUP-MULTISCHOOL.md` v1.1.0 (new) · `TTL-GUIDE.md` v1.0.0 (new) ·
+`firestore.rules` **v2.1.0** · `staff-admin.js` **v2.1.0** (new) · `firestore.indexes.json` (new) ·
+`firestore-rules.test.mjs` (new) · `SETUP-NO-CLI.md` v1.0.0 (new, SUPERSEDES SETUP-MULTISCHOOL.md) · `TTL-GUIDE.md` v1.0.0 ·
 `README.md` v1.3.0 · `SCALE-PLAN.md` v1.2.0 · `MULTITENANCY.md` v1.0.0 · `HANDOFF.md` v1.4.0
 
 > *On the name:* Underwood built the typewriter that taught America to touch-type —
@@ -122,7 +122,101 @@ Both were scratch harnesses, **not committed** — this project still has no tes
 **Measured, one 10-minute block, one student:** leaderboard reads 140,020 → 9,
 leaderboard writes 20 → 6.
 
-## Staff tab + per-person read scope (latest round)
+## Design review round — two gaps Jake found before deploying
+
+He read the design back before uploading anything, which caught two real problems.
+
+**1. Buildings were console-only for no reason.** `schools` requires super_admin to
+write, and a super_admin writes from the browser fine — I just hadn't built the
+form. Now a Schools panel on the Staff tab (super_admin only). The ONLY genuinely
+console-only thing in the whole system is the **first super_admin record**, because
+rules require an existing admin to create staff docs and nobody may edit their own.
+
+**2. You couldn't elevate someone who had never signed in.** `staff/{uid}` is keyed
+on a Firebase UID, and a person who's never authenticated has none. Fixed with
+`pendingStaffRoles/{email}` — an admin grants to an address, and the person's first
+sign-in copies it onto their UID. Rules allow that copy **only if it matches the
+pending document exactly**, so they can't invent a role, and no-self-edit still
+applies afterwards. Same shape as `pendingClassAssignments`, which already worked
+this way for student rosters.
+
+Also added: **Add One Student** (single email + class, beside CSV import) for the
+mid-year transfer, and a **help panel** on the Staff tab documenting the one console
+step with a link, since Jake reasonably won't remember it.
+
+The pending-role claim runs in `admin.js` and `reports.html` but **deliberately NOT
+in game.js/learn.js** — that would be an extra read per student per session for
+something only staff ever need.
+
+## 🔴 READ FIRST: Jake has no command line
+
+**Jake has never run a Firebase CLI command and does not have that tooling.** He
+can upload files to GitHub and click in the Firebase console. That's it.
+
+I built an entire claims-based role system across two rounds before finding this
+out, because I never asked. Auth custom claims can only be written by the Admin
+SDK → a Cloud Functions deploy → a terminal. **Every function I wrote was
+undeployable.** `generatePractice` exists from before and still works, but nothing
+new can be shipped that way.
+
+**Never assume a deploy path for this project.** Anything that isn't (a) a file
+uploaded to GitHub or (b) a click in the Firebase/Cloud console is not shippable.
+
+### What that changed — firestore.rules v2.0.0
+
+Roles moved from Auth custom claims into `staff/{uid}` documents that the rules
+read via `get()`. Two things got BETTER:
+
+- **Role changes are instant.** No token refresh, no "sign out and back in."
+- **Nothing to keep in sync.** Claims meant two copies of the truth. Now one.
+
+Cost: rules `get()` the caller's staff doc, billed as a read, cached per request.
+~1 extra read per request, admin pages only. Irrelevant.
+
+**Class membership is read from `classes/{id}.teacherUids`, not a list on the staff
+record.** That removed a whole bug class — there is nothing to sync, no cache, no
+stale claim. A teacher can only create a class with themselves on it, and can only
+edit a class they're already on, so `teacherUids` is self-maintaining and can't be
+used to widen their own scope. It also killed the "teacher creates a class and
+can't see it" problem entirely.
+
+### The request flow replaced email search
+
+`lookupStaffCandidate` needed the Admin SDK. Without it, finding a person by email
+would require a Firestore collection holding every user's name and email — a
+browsable district-wide student directory, which collides with Jake's rule about
+retaining student-identifying data.
+
+Instead: a signed-in non-staff user who opens `admin.html` gets a *"request
+access"* box (not "Access Denied") which writes `staffRequests/{uid}`. Admins see
+pending requests on the Staff tab and set them up. Only people who opted in ever
+appear. Matches what Jake described and needs no directory.
+
+### Also: nobody can edit their own staff record
+
+Rules block it for **all** roles including super_admin. That's what stops an admin
+widening their own reach, and it's why the first super_admin must be created by
+hand in the Firebase console. `SETUP-NO-CLI.md` step 3.
+
+### ⚠️ The tests are now WRONG, not just unrun
+
+`firestore-rules.test.mjs` (~52 cases) still tests the **v1.x claims model** —
+`authenticatedContext(uid, {role: ...})` injects claims, which v2.0.0 rules ignore
+entirely. It needs rewriting to seed `staff/{uid}` documents instead. And Jake
+can't run it regardless (needs the emulator, needs a CLI). `SETUP-NO-CLI.md` has a
+five-step manual check as the practical substitute.
+
+**Rewriting that suite against v2.0.0 is the highest-value task available.**
+
+### Dead code left in place
+
+`functions/index.js` v1.5 still has `setStaffRole`, `lookupStaffCandidate`,
+`listStaff`, `syncMyClaims`, `revokeStaffRole`, `setStaffReadScope`,
+`resyncStaffClaims`. **Nothing calls them; they were never deployed.** Left as a
+working claims implementation in case CLI access ever appears. Don't delete without
+asking, don't assume they run.
+
+## Staff tab + per-person read scope (earlier this round)
 
 Jake asked for a Staff tab so he never has to touch the console to onboard a
 colleague. His answer to "what should a teacher read?" was **"whatever the building
@@ -313,10 +407,10 @@ the real files.
 |---|---|
 | `game.js` | **3.4.2** ← changed this session |
 | `learn.js` | **1.7.0** ← changed this session |
-| `admin.js` | **2.9.0** ← changed this session |
+| `admin.js` | **3.1.0** ← changed this session |
 | `admin.html` | Staff tab added |
-| `staff-admin.js` | **1.0.0** ← NEW this session |
-| `lessons-admin.js` | **1.6.0** ← changed this session |
+| `staff-admin.js` | **2.1.0** ← NEW this session |
+| `lessons-admin.js` | **1.8.0** ← changed this session |
 | `adventure-renderer.js` | 0.4.0 |
 | `keyboard.js` | 1.1.1 |
 | `firebase-config.js` | **1.1.1** ← changed this session |
