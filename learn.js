@@ -1,4 +1,4 @@
-// learn.js — TypeThatBook School v1.7.0
+// learn.js — TypeThatBook School v1.7.1
 // NOTE: the authoritative version is LEARN_VERSION below, not this comment. An
 //       earlier header claimed v1.0.0 while the constant read 1.6.3; the
 //       constant was right. This file's real lineage is 1.6.x → 1.7.0.
