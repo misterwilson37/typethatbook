@@ -1,151 +1,158 @@
 rules_version = '2';
 
-// firestore.rules v1.1.0 — TypeThatBook
-// v1.1.0 — building_admin role; per-person readScope; class-scoped activity reads
-//          via claim.classIds; teachers can no longer edit a colleague's class
-//          (which under 'own_classes' scope was a self-service escalation).
+// firestore.rules v2.1.0 — TypeThatBook
+// v2.1.0 — pendingStaffRoles: grant a role to an email address before the person
+//          has ever signed in. Their first sign-in converts it to a staff record.
 //
-// ⚠️ THERE ARE CURRENTLY NO RULES DEPLOYED (or they're console-only and not in
-//    version control). Until this file is live, ANY signed-in user can read ANY
-//    student's data. That was a latent risk with one adult on the project. With
-//    colleagues in other buildings it is the thing holding the whole model up.
+// v2.0.0 — REBUILT to need no command line. v1.x put roles in Auth custom claims,
+//          which can only be written by the Admin SDK, which means deploying Cloud
+//          Functions. Roles now live in Firestore documents that rules read
+//          directly, so the whole system deploys by pasting this file into the
+//          Firebase console Rules editor and uploading .js files to GitHub.
+//
+//          Three things got BETTER in the process, not worse:
+//            1. Role changes take effect immediately. No "sign out and back in" —
+//               rules read the live document on every request.
+//            2. No claim/record drift to guard against; there's only a record.
+//            3. No stale-claim problem when a teacher creates a class.
+//
+//          The cost: rules now call get() on the caller's staff document, which is
+//          billed as a read. Firestore caches repeated get()s of the same document
+//          within one request, so it's roughly one extra read per request. Even at
+//          the pessimistic end (one per document returned) it's irrelevant — this
+//          path is only hit by admin pages a few times a day, never by students.
 //
 // ── MODEL ──
-// No claim at all = a student. That's the default for anyone who signs in, and
-// it needs no configuration.
+// No staff document = a student. That's the default for anyone who signs in.
 //
-//   teacher         — read scope is a PER-PERSON setting, not a property of the
-//                     role. `readScope: 'own_classes'` (the default) or
-//                     'building', chosen by their building_admin. Writes: only
-//                     classes they teach.
-//   building_admin  — reads their whole building. Writes any class in it, and
-//                     manages teachers in it (including their readScope).
-//   super_admin     — everything. NOT grantable through the app; use the
-//                     bootstrap list in functions/index.js or the console.
-//
-// ── HOW SCOPE IS ENFORCED FOR FREE ──
-// 'building' scope reads `schoolId` straight off the document — it's denormalised
-// onto every typing_logs and typing_sessions doc (game.js v3.4.0), so the check
-// costs nothing.
-//
-// 'own_classes' scope checks `classId` against a list carried IN THE CLAIM. Also
-// free. The alternative — get()-ing the class doc per access — would be billed as
-// a read every time. A classId is ~10 bytes against a ~1000 byte claim budget, so
-// a teacher with 60 classes still fits.
-//
-// ── THE CONSEQUENCE WORTH KNOWING ──
-// claim.classIds is derived from classes that list the person in `teacherUids`.
-// So when a teacher creates a class, their claim is STALE until they call
-// syncMyClaims() and refresh their token — otherwise they can't read the class
-// they just made. staff-admin.js and the CSV import path both do this
-// automatically; if you add another class-creation route, it must too.
-//
-// ── CLAIMS ──
-// role and schoolIds live in Firebase Auth CUSTOM CLAIMS, not in a Firestore
-// field the client reads. Claims are signed by Google, arrive inside the auth
-// token, and cost zero reads to check. A student editing devtools cannot grant
-// themselves anything.
-//
-//   { role: 'teacher' | 'super_admin', schoolIds: ['ems', 'hms'] }
-//
-// classIds are NOT in the claim — they change every trimester and claims have a
-// 1000-byte budget. They live in staff/{uid} and drive the UI's default scope.
-//
-// Claims are baked in at sign-in. After a role change the user needs
-// getIdToken(true) or a fresh sign-out/in. See setStaffRole in functions/index.js.
+//   teacher         — readScope is a PER-PERSON setting: 'own_classes' (default)
+//                     or 'building', chosen by their building_admin.
+//                     Writes: only classes whose teacherUids already include them.
+//   building_admin  — reads their whole building; edits any class in it; grants
+//                     and adjusts teachers in it.
+//   super_admin     — everything, including books, lessons, settings, and other
+//                     admins. Grantable only by editing staff/{uid} directly in
+//                     the Firebase console — see SETUP-NO-CLI.md.
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // ─────────────────────────── helpers ───────────────────────────
-    // NOTE: signedIn() is TRUE for Firebase Anonymous Auth users. That is
-    // intentional — game.js lets students play anonymously and they must be able
-    // to read books, chapters, and settings/goals. Anonymous users never write
-    // typing_logs (game.js flushAll() returns early for them), so nothing
-    // untracked gets recorded. Do not "tighten" this to require a non-anonymous
-    // provider without checking game.js first; it will break anonymous play.
-    function signedIn()  { return request.auth != null; }
-    function claims()    { return request.auth.token; }
-    function isStaff()   { return signedIn() && claims().role is string; }
-    function isSuper()   { return isStaff() && claims().role == 'super_admin'; }
-    function isBldgAdmin() { return isStaff() && claims().role == 'building_admin'; }
+    // NOTE: signedIn() is TRUE for Firebase Anonymous Auth users. Intentional —
+    // game.js lets students play anonymously and they must be able to read books,
+    // chapters, and settings/goals. Anonymous users never write typing_logs
+    // (game.js flushAll() returns early for them). Don't tighten this without
+    // checking game.js; it will break anonymous play.
+    function signedIn() { return request.auth != null; }
+
+    function staffDoc() {
+      return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data;
+    }
+    function hasStaffDoc() {
+      return signedIn() &&
+             exists(/databases/$(database)/documents/staff/$(request.auth.uid));
+    }
+    // Every staff check funnels through here so an inactive record is dead
+    // everywhere at once.
+    function isStaff() {
+      return hasStaffDoc() && staffDoc().active == true &&
+             staffDoc().role in ['teacher', 'building_admin', 'super_admin'];
+    }
+    function isSuper()     { return isStaff() && staffDoc().role == 'super_admin'; }
+    function isBldgAdmin() { return isStaff() && staffDoc().role == 'building_admin'; }
+    function isAdmin()     { return isSuper() || isBldgAdmin(); }
 
     function mySchools() {
-      return claims().schoolIds is list ? claims().schoolIds : [];
+      return staffDoc().schoolIds is list ? staffDoc().schoolIds : [];
     }
-    function myClasses() {
-      return claims().classIds is list ? claims().classIds : [];
+    // Class membership is read from the CLASS document, not from a list on the
+    // staff record. That's deliberate and it removes a whole category of bug:
+    // there is nothing to keep in sync. A teacher can only create a class with
+    // themselves on it, and can only edit a class they're already on, so
+    // teacherUids is self-maintaining and can't be used to widen their own scope.
+    //
+    // Costs a get() on the class document, cached per request. For a report scoped
+    // to one class that's a single extra read.
+    function teachesClass(classId) {
+      return classId is string
+             && exists(/databases/$(database)/documents/classes/$(classId))
+             && get(/databases/$(database)/documents/classes/$(classId))
+                  .data.teacherUids is list
+             && request.auth.uid in
+                get(/databases/$(database)/documents/classes/$(classId)).data.teacherUids;
     }
-    // Absent readScope means the tightest option, not the loosest.
+    // Absent readScope means the tightest option, never the loosest.
     function readsWholeBuilding() {
-      return isSuper() || isBldgAdmin() ||
-             (isStaff() && claims().readScope == 'building');
+      return isSuper() || isBldgAdmin() || staffDoc().readScope == 'building';
+    }
+    // ── Pre-authorisation by email ──
+    // A role can be granted to someone who has NEVER signed in. There's no UID to
+    // key a staff record on yet, so an admin writes pendingStaffRoles/{email}
+    // instead, and the person's own first sign-in converts it into their staff
+    // record. Same pattern as pendingClassAssignments, which already works this
+    // way for student rosters.
+    //
+    // The pending document IS the authorisation. A user may create their own staff
+    // record only if it matches one exactly — they cannot invent a role, and they
+    // cannot edit the record afterwards (no self-edit, see match /staff).
+    function pendingRolePath() {
+      return /databases/$(database)/documents/pendingStaffRoles/$(request.auth.token.email);
+    }
+    function hasPendingRole() {
+      return signedIn() && request.auth.token.email is string
+             && exists(pendingRolePath());
+    }
+    function pendingRole() { return get(pendingRolePath()).data; }
+
+    function matchesPendingRole() {
+      return hasPendingRole()
+             && request.resource.data.role == pendingRole().role
+             && request.resource.data.schoolIds == pendingRole().schoolIds
+             && request.resource.data.readScope == pendingRole().readScope
+             && request.resource.data.active == true;
     }
 
-    // Can the caller act on data belonging to this building?
     function inMySchool(sid) {
       return isSuper() || (isStaff() && sid is string && sid in mySchools());
     }
 
     // May the caller read this student-activity document? `d` is resource.data.
-    // Building scope checks the doc's schoolId; class scope checks its classId
-    // against the claim. Both are free — no get(), no billed reads.
     function canReadActivity(d) {
       return isSuper()
-          || (readsWholeBuilding() && d.schoolId is string && d.schoolId in mySchools())
-          || (isStaff() && d.classId is string && d.classId in myClasses());
-    }
-
-    // Does the caller teach this class? Used to stop a teacher from adding
-    // themselves to a colleague's class, which under 'own_classes' scope would
-    // otherwise be a way to widen their own access.
-    function teachesClass(classId, d) {
-      return isStaff() && (classId in myClasses() ||
-             (d.teacherUids is list && request.auth.uid in d.teacherUids));
+          || (isStaff() && readsWholeBuilding()
+                        && d.schoolId is string && d.schoolId in mySchools())
+          || (isStaff() && teachesClass(d.classId));
     }
 
     // ─────────────────────────── students ───────────────────────────
-    // A student owns their own subtree outright.
     match /users/{uid} {
       allow read, write: if request.auth.uid == uid;
-      // Building-scoped for ALL staff, including 'own_classes' teachers — not an
+      // Building-scoped for all staff, including 'own_classes' teachers — not an
       // oversight. This document holds only classId and schoolId, no identifying
-      // information, and a teacher needs to read it to build a roster (which
-      // class is this student in?). Narrowing it would break roster management to
-      // protect two non-identifying fields.
-      allow read: if isSuper() || (isStaff() && inMySchool(resource.data.schoolId));
+      // information, and a teacher needs it to build a roster (which class is this
+      // student in?). Narrowing it would break rosters to protect two
+      // non-identifying fields.
+      allow read: if isStaff() && inMySchool(resource.data.schoolId);
     }
 
-    // reports.html lets an admin CORRECT a student's recorded time (the
-    // "adjust seconds" control). That's a write to a student's stats doc, so
-    // staff need more than read here.
-    //
-    // Subcollection documents don't carry schoolId, so scoping needs a get() on
-    // the parent — which is billed as a read. Paying it here is fine: this is a
-    // deliberate admin correction performed a handful of times a day, not a hot
-    // path. Contrast typing_logs below, where the same check is free because
-    // schoolId is denormalised onto the document.
+    // reports.html lets staff CORRECT a student's recorded time. Only
+    // building-scoped staff may; a class-scoped teacher should route corrections
+    // through their building admin.
     match /users/{uid}/stats/{docId} {
       allow read, write: if request.auth.uid == uid;
-      // Only building-scoped staff may correct times. A teacher restricted to
-      // their own classes would need a class lookup here, and this path already
-      // pays for a get() — two would be worse. Corrections are an admin action;
-      // routing them through a building_admin is reasonable.
-      allow read, write: if isSuper() || (readsWholeBuilding() && inMySchool(
-        get(/databases/$(database)/documents/users/$(uid)).data.schoolId));
+      allow read, write: if isStaff() && readsWholeBuilding() && inMySchool(
+        get(/databases/$(database)/documents/users/$(uid)).data.schoolId);
     }
 
-    // Everything else under a student — progress, profile, lessonProgress.
-    // Read-only for staff, same get()-based scoping.
     match /users/{uid}/{collection}/{docId} {
       allow read, write: if request.auth.uid == uid;
-      allow read: if isSuper() || (isStaff() && inMySchool(
-        get(/databases/$(database)/documents/users/$(uid)).data.schoolId));
+      allow read: if isStaff() && inMySchool(
+        get(/databases/$(database)/documents/users/$(uid)).data.schoolId);
     }
 
     // ─────────────────────────── activity logs ───────────────────────────
-    // Doc ID is `{uid}_{YYYY-MM-DD}`, which is what enforces "students write
-    // only their own log" without needing to read the existing document.
+    // Doc ID is `{uid}_{YYYY-MM-DD}` — that's what enforces "students write only
+    // their own log" without reading the existing document.
     match /typing_logs/{docId} {
       allow create, update: if signedIn()
                             && docId.split('_')[0] == request.auth.uid
@@ -161,81 +168,131 @@ service cloud.firestore {
     }
 
     // These carry email, displayName, and the full generated paragraph, so they
-    // get the same scoping as any other activity data. game.js v3.4.2 added the
-    // classId/schoolId stamps that make that possible — before it, the only
-    // available rule was "any staff member anywhere", which was a leak.
-    //
-    // Documents written before v3.4.2 have no stamps and are therefore readable
-    // by nobody but a super_admin. That's the right way round for a fallback.
+    // get the same scoping as any other activity data (game.js v3.4.2 added the
+    // stamps that make that possible). Documents written before v3.4.2 have no
+    // stamps and are therefore super_admin-only — the right way round.
     match /practice_sessions/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
       allow read:   if canReadActivity(resource.data);
       allow update, delete: if isSuper();
     }
 
-    // Rate-limit counters are written by the Cloud Function using the Admin SDK,
-    // which bypasses rules entirely. No client should ever touch these.
+    // Written by the generatePractice Cloud Function via the Admin SDK, which
+    // bypasses rules. No client should ever touch these.
     match /practice_limits/{uid} {
       allow read, write: if false;
     }
 
     // ─────────────────────────── leaderboard ───────────────────────────
-    // Public to signed-in students by design. Contains initials only — real
-    // names were removed in game.js v3.3.0 precisely because of this rule.
+    // Public to signed-in students by design. Initials only — real names were
+    // removed in game.js v3.3.0 precisely because of this rule.
     match /leaderboard/{uid} {
       allow read:   if signedIn();
       allow create, update: if request.auth.uid == uid || isStaff();
       allow delete: if isSuper();
     }
 
+    // ─────────────────────────── staff ───────────────────────────
+    // THE SECURITY BOUNDARY OF THE WHOLE APP. Read the constraints carefully
+    // before editing: with roles in documents rather than claims, this rule is the
+    // only thing stopping someone writing themselves a role.
+    match /staff/{uid} {
+      allow read: if isStaff() || request.auth.uid == uid;
+
+      // Claiming a pre-authorised role on first sign-in. The pendingStaffRoles
+      // document was written by an admin; all this does is copy it onto the
+      // person's UID, unchanged. They can't alter it afterwards.
+      allow create, update: if request.auth.uid == uid && matchesPendingRole();
+
+      // Nobody otherwise edits their own record. Not even a super_admin — that's
+      // what stops an admin quietly widening their own reach, and it's why
+      // granting the FIRST super_admin has to happen in the Firebase console.
+      allow create, update: if isAdmin()
+        && request.auth.uid != uid
+        && request.resource.data.role in ['teacher', 'building_admin', 'super_admin']
+        && request.resource.data.schoolIds is list
+        && request.resource.data.schoolIds.size() > 0
+        && request.resource.data.readScope in ['own_classes', 'building']
+        // Only a super_admin may mint another admin. A building_admin makes
+        // teachers, and only inside their own building(s).
+        && (isSuper() || (
+             request.resource.data.role == 'teacher'
+             && request.resource.data.schoolIds.hasOnly(mySchools())
+             // ...and may not reassign someone out of their building.
+             && (!exists(/databases/$(database)/documents/staff/$(uid))
+                 || get(/databases/$(database)/documents/staff/$(uid)).data.role == 'teacher')
+           ));
+
+      allow delete: if isSuper() && request.auth.uid != uid;
+    }
+
+    // Roles granted to an email address, for people who may not have signed in
+    // yet. Written by admins; consumed by the person on their first sign-in.
+    match /pendingStaffRoles/{email} {
+      allow read: if isAdmin() || (signedIn() && request.auth.token.email == email);
+      // A building_admin may pre-authorise teachers, in their own building only.
+      allow create, update: if isSuper()
+        || (isBldgAdmin()
+            && request.resource.data.role == 'teacher'
+            && request.resource.data.schoolIds is list
+            && request.resource.data.schoolIds.size() > 0
+            && request.resource.data.schoolIds.hasOnly(mySchools())
+            && request.resource.data.readScope in ['own_classes', 'building']);
+      // The owner deletes it once claimed.
+      allow delete: if isAdmin() || (signedIn() && request.auth.token.email == email);
+    }
+
+    // A colleague asks for access by writing their own request. This is how the
+    // Staff tab finds people WITHOUT a browsable directory of every user: only
+    // people who opted in by asking ever appear.
+    match /staffRequests/{uid} {
+      allow create: if request.auth.uid == uid
+                    && request.resource.data.uid == request.auth.uid;
+      allow read, delete: if request.auth.uid == uid || isAdmin();
+      allow update: if request.auth.uid == uid;
+    }
+
     // ─────────────────────────── org structure ───────────────────────────
+    // Buildings. super_admin only, but that's a ROLE check, not a "console only"
+    // limitation — a super_admin can create these straight from the Schools panel
+    // on admin.html. The only genuinely console-only thing in this whole system is
+    // the FIRST super_admin record, because rules require an existing admin to
+    // create staff records and nobody may edit their own.
     match /schools/{schoolId} {
       allow read:  if signedIn();          // students need their building's name
       allow write: if isSuper();
     }
 
-    // Staff records are readable by staff (so reports can resolve names) and
-    // writable only by a super_admin. A teacher must NOT be able to grant
-    // themselves a school — that's the whole security boundary.
-    // Staff records are written ONLY by the Cloud Functions (Admin SDK bypasses
-    // rules), never by a client. That's what guarantees a claim can't disagree
-    // with its record: pushClaims() is the only writer of both.
-    match /staff/{uid} {
-      allow read:  if isStaff() || request.auth.uid == uid;
-      allow write: if false;
-    }
-
     match /classes/{classId} {
-      // Students read their own class for goals. Cheap and harmless — a class doc
-      // holds a name and two goal numbers.
-      allow read: if signedIn();
+      allow read: if signedIn();           // students read their own class goals
 
-      // Teachers create classes in their own building only. Checking
-      // request.resource on create and resource on update is the standard split:
-      // on create there's no existing doc to read a schoolId from.
-      // Creating: must be in your building, and you must put yourself on it.
-      // Without that second clause a teacher could create classes they can't
-      // then read, which is just confusing.
-      allow create: if isSuper() || isBldgAdmin() && inMySchool(request.resource.data.schoolId)
+      // Creating: in your building, and you must put yourself on it — otherwise
+      // you'd make a class you can't then read.
+      allow create: if (isSuper() && request.resource.data.schoolId is string)
+                    || (isBldgAdmin() && inMySchool(request.resource.data.schoolId))
                     || (isStaff()
                         && inMySchool(request.resource.data.schoolId)
                         && request.resource.data.teacherUids is list
                         && request.auth.uid in request.resource.data.teacherUids);
 
-      // Updating: a building_admin may edit any class in their building. A plain
-      // teacher may edit only classes they already teach — otherwise, under
-      // 'own_classes' read scope, adding yourself to a colleague's class would be
-      // a self-service way to widen your own access.
+      // Updating: a building_admin edits any class in their building. A plain
+      // teacher edits only classes already in their own classIds — otherwise
+      // adding yourself to a colleague's class would be a self-service way to
+      // widen your own read scope.
       allow update: if isSuper()
                     || (isBldgAdmin() && inMySchool(resource.data.schoolId)
                                       && inMySchool(request.resource.data.schoolId))
-                    || (isStaff() && teachesClass(classId, resource.data)
+                    // Already on the class. Since update REQUIRES being on it,
+                    // there's no way to add yourself to a colleague's class.
+                    || (isStaff() && resource.data.teacherUids is list
+                                  && request.auth.uid in resource.data.teacherUids
                                   && inMySchool(resource.data.schoolId)
                                   && inMySchool(request.resource.data.schoolId));
 
       allow delete: if isSuper()
                     || (isBldgAdmin() && inMySchool(resource.data.schoolId))
-                    || (isStaff() && teachesClass(classId, resource.data)
+                    || (isStaff() && resource.data.teacherUids is list
+                                  && request.auth.uid in resource.data.teacherUids
                                   && inMySchool(resource.data.schoolId));
     }
 
@@ -243,7 +300,8 @@ service cloud.firestore {
     // first sign-in (learn.js applyPendingClassAssignment deletes it as the
     // student, which is why delete is allowed to the owner).
     match /pendingClassAssignments/{email} {
-      allow read, delete: if isStaff() || (signedIn() && claims().email == email);
+      allow read, delete: if isStaff() ||
+                             (signedIn() && request.auth.token.email == email);
       allow create, update: if isStaff();
     }
 
@@ -268,10 +326,9 @@ service cloud.firestore {
     }
 
     // ─────────────────────────── default deny ───────────────────────────
-    // Firestore already denies anything no rule allows, so this block grants
-    // nothing new — rules are permissive-OR and a catch-all `if false` cannot
-    // override a more specific allow above. It's here as documentation: adding a
-    // collection means adding a rule, because the default is deny.
+    // Firestore already denies anything no rule allows, so this grants nothing
+    // new — rules are permissive-OR and a catch-all `if false` cannot override an
+    // allow above. It's documentation: adding a collection means adding a rule.
     match /{document=**} {
       allow read, write: if false;
     }
