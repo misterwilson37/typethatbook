@@ -3,11 +3,11 @@ import { db, auth, storage } from "./firebase-config.js";
 import { initLessonsPanel, setStaffHooks } from "./lessons-admin.js";
 import { initStaffPanel, initStaffPanelContent, syncOwnClaimsAfterClassChange }
     from "./staff-admin.js";
-import { doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "2.9.0";
+const ADMIN_VERSION = "3.1.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -257,41 +257,69 @@ if (genreSelect) {
 
 // --- AUTH ---
 // Staff identity from Auth custom claims (see firestore.rules). ADMIN_EMAILS is
-// retained ONLY as a bootstrap fallback so nobody is locked out before claims
-// are assigned. Delete it once staff records exist.
-let _staffScope = { uid: null, role: null, schoolIds: [], classIds: [] };
+// retained ONLY as a bootstrap fallback so the first staff document can be
+// created. Delete it once staff records exist.
+let _staffScope = { uid: null, role: null, schoolIds: [], readScope: 'own_classes' };
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        try {
-            const claims = (await user.getIdTokenResult(true)).claims || {};
-            _staffScope.uid = user.uid;
-            _staffScope.role = claims.role || null;
-            _staffScope.readScope = claims.readScope || 'own_classes';
-            _staffScope.classIds = Array.isArray(claims.classIds) ? claims.classIds : [];
-            _staffScope.schoolIds = Array.isArray(claims.schoolIds) ? claims.schoolIds : [];
-        } catch (e) { console.warn('Could not read claims:', e); }
+        // v3.0.0: the role comes from staff/{uid}, NOT from Auth custom claims.
+        // Claims need the Admin SDK, which needs a Cloud Functions deploy, which
+        // needs a command line. A document read needs none of that — and a role
+        // change takes effect immediately instead of on the user's next sign-in.
+        _staffScope.uid = user.uid;
 
-        if (!_staffScope.role && ADMIN_EMAILS.includes(user.email)) {
-            _staffScope.role = 'super_admin';   // bootstrap
-            console.warn('BOOTSTRAP MODE: no custom claim set. Run setStaffRole.');
-        }
+        // Claim a role that was pre-authorised by email before this person had an
+        // account. pendingStaffRoles/{email} is written by an admin; rules let the
+        // owner copy it onto their own UID unchanged, and nothing else.
         try {
-            const staffSnap = await getDoc(doc(db, 'staff', user.uid));
-            if (staffSnap.exists()) {
-                const sd = staffSnap.data();
-                _staffScope.classIds = Array.isArray(sd.classIds) ? sd.classIds : [];
-                if (!_staffScope.schoolIds.length && Array.isArray(sd.schoolIds)) {
-                    _staffScope.schoolIds = sd.schoolIds;
+            const email = (user.email || '').toLowerCase();
+            if (email) {
+                const pendSnap = await getDoc(doc(db, 'pendingStaffRoles', email));
+                if (pendSnap.exists()) {
+                    const p = pendSnap.data();
+                    await setDoc(doc(db, 'staff', user.uid), {
+                        email,
+                        displayName: user.displayName || '',
+                        role: p.role,
+                        schoolIds: p.schoolIds,
+                        readScope: p.readScope,
+                        active: true,
+                    }, { merge: true });
+                    await deleteDoc(doc(db, 'pendingStaffRoles', email));
+                    console.log('Claimed pre-authorised role:', p.role);
                 }
             }
-        } catch (e) { /* no staff record yet */ }
+        } catch (e) {
+            // Not fatal — they just stay a student and can request access.
+            console.warn('Could not claim a pre-authorised role:', e);
+        }
 
+        try {
+            const staffSnap = await getDoc(doc(db, 'staff', user.uid));
+            if (staffSnap.exists() && staffSnap.data().active !== false) {
+                const sd = staffSnap.data();
+                _staffScope.role = sd.role || null;
+                _staffScope.schoolIds = Array.isArray(sd.schoolIds) ? sd.schoolIds : [];
+                _staffScope.readScope = sd.readScope || 'own_classes';
+            }
+        } catch (e) { console.warn('Could not read staff record:', e); }
+
+        // Bootstrap: before any staff document exists, these two addresses get in
+        // so the first super_admin record can be created. Remove once set up.
+        if (!_staffScope.role && ADMIN_EMAILS.includes(user.email)) {
+            _staffScope.role = 'super_admin';
+            _staffScope.readScope = 'building';
+            console.warn('BOOTSTRAP MODE: no staff/' + user.uid + ' document yet. ' +
+                         'Create one in the Firebase console — see SETUP-NO-CLI.md.');
+        }
+
+        // Not staff? Not an error — they're a student. Offer to ask for access.
         if (!_staffScope.role) {
-            statusEl.innerText = "Access Denied — your account is not an admin.";
-            statusEl.style.borderColor = "#ff3333";
-            loginSec.classList.remove('hidden');
+            statusEl.innerText = "Signed in as a student account.";
+            statusEl.style.borderColor = "#666";
             editorSec.classList.add('hidden');
+            showRequestAccessPanel(user);
             return;
         }
         statusEl.innerText = "Logged in as: " + user.email;
@@ -1878,4 +1906,67 @@ if (repairChapterOrderBtn) {
             resultsEl.innerHTML = '<span style="color:#ff4444;">Error: ' + e.message + '</span>';
         }
     };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Request access — what a colleague sees instead of "Access Denied"
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// This is how people get found without a browsable user directory. Rather than
+// searching every account in the district for a name, the person who wants access
+// asks for it, and only requesters appear in the Staff tab. No student data at
+// rest, nothing to search, and it matches how it happens in real life — a
+// colleague mentions they're interested.
+function showRequestAccessPanel(user) {
+    const login = document.getElementById('login-section');
+    if (!login) return;
+    login.classList.remove('hidden');
+    const editor = document.getElementById('editor-section');
+    if (editor) editor.classList.add('hidden');
+
+    if (document.getElementById('request-access-box')) return;   // already shown
+
+    const box = document.createElement('div');
+    box.id = 'request-access-box';
+    box.style.cssText = 'max-width:520px;margin:18px auto;padding:18px;' +
+        'background:#1a1a1a;border:1px solid #333;border-radius:4px;text-align:left';
+    box.innerHTML = `
+        <div style="color:#4B9CD3;font-weight:bold;margin-bottom:6px">Not a staff account</div>
+        <div style="font-size:.9em;color:#aaa;line-height:1.5;margin-bottom:12px">
+            You're signed in as ${(user.email || '').replace(/[<>&"]/g, '')}, which is a
+            student account. If you're a teacher and need access, ask below and an
+            administrator will set you up.
+        </div>
+        <textarea id="request-note" placeholder="Which school and classes do you teach? (optional)"
+            style="width:100%;min-height:60px;background:#111;color:#eee;border:1px solid #333;
+                   border-radius:3px;padding:8px;font:inherit;font-size:.9em"></textarea>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+            <button id="request-send" style="padding:6px 18px;background:#4B9CD3;color:#000;
+                border:none;border-radius:3px;font:inherit;font-weight:bold;cursor:pointer">Request access</button>
+            <span id="request-status" style="font-size:.85em;color:#888"></span>
+        </div>`;
+    login.appendChild(box);
+
+    document.getElementById('request-send').addEventListener('click', async () => {
+        const statusEl = document.getElementById('request-status');
+        const note = (document.getElementById('request-note').value || '').trim().slice(0, 500);
+        statusEl.textContent = 'Sending…';
+        try {
+            await setDoc(doc(db, 'staffRequests', user.uid), {
+                uid: user.uid,
+                email: user.email || '',
+                displayName: user.displayName || '',
+                note,
+                requestedAt: serverTimestamp(),
+            });
+            statusEl.style.color = '#00ff41';
+            statusEl.textContent = 'Sent. An administrator will see it on their Staff tab.';
+            document.getElementById('request-send').disabled = true;
+        } catch (e) {
+            console.error(e);
+            statusEl.style.color = '#ff5252';
+            statusEl.textContent = 'Could not send: ' + (e.message || 'unknown error');
+        }
+    });
 }
