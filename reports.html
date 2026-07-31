@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeThatBook Reports v2.4.1</title>
+    <title>TypeThatBook Reports v2.7.0</title>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; margin: 0; }
         .container { max-width: 960px; margin: 0 auto; padding-bottom: 40px; }
@@ -249,6 +249,21 @@
             <div class="goal-status" id="goal-status"></div>
         </div>
 
+        <!-- SCOPE -->
+        <div class="controls" id="scope-controls">
+            <div class="control-group">
+                <label>School</label>
+                <select id="scope-school"></select>
+            </div>
+            <div class="control-group">
+                <label>Class</label>
+                <select id="scope-class"></select>
+            </div>
+            <div class="control-group" style="align-self:flex-end">
+                <span id="scope-note" style="font-size:.8em;opacity:.7"></span>
+            </div>
+        </div>
+
         <!-- REPORTS -->
         <div class="controls">
             <div class="control-group">
@@ -303,7 +318,13 @@
     import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-    const ADMIN_EMAILS = [
+    // v2.5.0 — Multi-school support.
+    //
+    // Access now comes from Auth CUSTOM CLAIMS (role + schoolIds), set by the
+    // setStaffRole Cloud Function and enforced by firestore.rules. The hardcoded
+    // ADMIN_EMAILS list below is kept ONLY as a bootstrap fallback so nobody is
+    // locked out before claims are assigned. Delete it once staff records exist.
+    const BOOTSTRAP_EMAILS = [
         "jacob.wilson@sumnerk12.net",
         "jacob.v.wilson@gmail.com",
     ];
@@ -313,19 +334,87 @@
     let sortCol = 'seconds';
     let sortAsc = false;
 
+    // Who's looking, and what are they allowed to see?
+    let me = { uid: null, email: '', role: null, schoolIds: [], classIds: [], readScope: 'own_classes' };
+    let schoolsById = {};     // schoolId -> { name }
+    let classesById = {};     // classId  -> { name, schoolId }
+
+    const isSuper = () => me.role === 'super_admin';
+
     // --- AUTH ---
     onAuthStateChanged(auth, async (user) => {
-        if (user && ADMIN_EMAILS.includes(user.email)) {
-            statusEl.innerText = "Logged in as: " + user.email;
-            statusEl.style.borderColor = "#00ff41";
+        if (user) {
+            // v2.6.0: the role comes from staff/{uid}, NOT Auth custom claims.
+            // Claims need the Admin SDK → a Cloud Functions deploy → a command
+            // line. A document read needs none of that, and a role change takes
+            // effect immediately rather than on the next sign-in.
+            me.uid = user.uid;
+            me.email = user.email || '';
+
+            // Claim a role pre-authorised by email, in case they came straight here
+            // rather than via admin.html. Deliberately NOT done in game.js/learn.js:
+            // that would add a read per student per session for something only staff
+            // ever need.
+            try {
+                const lower = me.email.toLowerCase();
+                if (lower) {
+                    const pendSnap = await getDoc(doc(db, 'pendingStaffRoles', lower));
+                    if (pendSnap.exists()) {
+                        const p = pendSnap.data();
+                        await setDoc(doc(db, 'staff', user.uid), {
+                            email: lower, displayName: user.displayName || '',
+                            role: p.role, schoolIds: p.schoolIds,
+                            readScope: p.readScope, active: true,
+                        }, { merge: true });
+                        await deleteDoc(doc(db, 'pendingStaffRoles', lower));
+                    }
+                }
+            } catch (e) { console.warn('Could not claim a pre-authorised role:', e); }
+
+            try {
+                const staffSnap = await getDoc(doc(db, 'staff', user.uid));
+                if (staffSnap.exists() && staffSnap.data().active !== false) {
+                    const sd = staffSnap.data();
+                    me.role = sd.role || null;
+                    me.schoolIds = Array.isArray(sd.schoolIds) ? sd.schoolIds : [];
+                    me.readScope = sd.readScope || 'own_classes';
+                }
+            } catch (e) { console.warn('Could not read staff record:', e); }
+
+            // Bootstrap: before any staff document exists.
+            if (!me.role && BOOTSTRAP_EMAILS.includes(me.email)) {
+                me.role = 'super_admin';
+                me.readScope = 'building';
+                statusEl.innerText = "Logged in as: " + me.email +
+                    " — BOOTSTRAP MODE (no staff document yet; see SETUP-NO-CLI.md)";
+                statusEl.style.borderColor = "#ffaa00";
+            }
+
+            if (!me.role) {
+                statusEl.innerText = "Access Denied — this account has no staff role. " +
+                    "Open the admin page to request access.";
+                statusEl.style.borderColor = "#ff3333";
+                document.getElementById('login-section').classList.remove('hidden');
+                return;
+            }
+
+            // Which classes do they teach? Read from the classes themselves, so
+            // there's no per-teacher list to keep in sync anywhere.
+            try {
+                const clsSnap = await getDocs(query(collection(db, 'classes'),
+                    where('teacherUids', 'array-contains', user.uid)));
+                me.classIds = clsSnap.docs.map(d => d.id);
+            } catch (e) { console.warn('Could not read own classes:', e); }
+
+            if (statusEl.style.borderColor !== "rgb(255, 170, 0)") {
+                statusEl.innerText = `Logged in as: ${me.email} (${me.role})`;
+                statusEl.style.borderColor = "#00ff41";
+            }
             document.getElementById('login-section').classList.add('hidden');
             document.getElementById('reports-section').classList.remove('hidden');
             setDefaultDates();
+            await loadScopeOptions();
             await loadGoals();
-        } else if (user) {
-            statusEl.innerText = "Access Denied — not an admin account.";
-            statusEl.style.borderColor = "#ff3333";
-            document.getElementById('login-section').classList.remove('hidden');
         } else {
             statusEl.innerText = "Not logged in.";
             statusEl.style.borderColor = "#ff3333";
@@ -337,6 +426,137 @@
         try { await signInWithPopup(auth, new GoogleAuthProvider()); }
         catch (e) { alert(e.message); }
     };
+
+    // --- SCOPE ---
+    // Populate the school and class pickers from what this staff member is
+    // allowed to see. A super_admin gets every school plus "All schools"; a
+    // teacher gets only their own building(s), enforced again by firestore.rules.
+    async function loadScopeOptions() {
+        const schoolSel = document.getElementById('scope-school');
+        const classSel  = document.getElementById('scope-class');
+        try {
+            const schoolSnap = await getDocs(collection(db, 'schools'));
+            schoolSnap.forEach(d => { schoolsById[d.id] = d.data(); });
+
+            const seesBuilding = isSuper() || me.role === 'building_admin' ||
+                                 me.readScope === 'building';
+            const visible = isSuper()
+                ? Object.keys(schoolsById)
+                : Object.keys(schoolsById).filter(id => me.schoolIds.includes(id));
+
+            schoolSel.innerHTML = '';
+            if (isSuper()) {
+                schoolSel.innerHTML += '<option value="__all__">All schools</option>';
+            }
+            visible.forEach(id => {
+                schoolSel.innerHTML += `<option value="${id}">${escapeHtml(schoolsById[id].name || id)}</option>`;
+            });
+            if (!visible.length && !isSuper()) {
+                schoolSel.innerHTML = '<option value="">— no school assigned —</option>';
+            }
+            // Default a teacher to their first building rather than "all".
+            if (!isSuper() && visible.length) schoolSel.value = visible[0];
+
+            await loadClassOptions();
+            schoolSel.addEventListener('change', loadClassOptions);
+        } catch (e) {
+            console.warn('Scope load failed:', e);
+            document.getElementById('scope-note').textContent = 'Could not load schools.';
+        }
+    }
+
+    async function loadClassOptions() {
+        const schoolId = document.getElementById('scope-school').value;
+        const classSel = document.getElementById('scope-class');
+        classSel.innerHTML = '';
+        try {
+            const snap = await getDocs(collection(db, 'classes'));
+            classesById = {};
+            snap.forEach(d => { classesById[d.id] = d.data(); });
+
+            // Classes in the selected building that this person may see.
+            let ids = Object.keys(classesById).filter(id => {
+                const c = classesById[id];
+                if (schoolId !== '__all__' && (c.schoolId || '') !== schoolId) return false;
+                if (isSuper()) return true;
+                return me.schoolIds.includes(c.schoolId || '');
+            });
+
+            // Jake's requirement: default to MY classes, but able to widen.
+            const mine = ids.filter(id => me.classIds.includes(id));
+            if (mine.length) classSel.innerHTML += '<option value="__mine__">My classes</option>';
+            // Only offer the building-wide option to people the rules will
+            // actually allow it for — otherwise the query just errors.
+            const seesBuilding = isSuper() || me.role === 'building_admin' ||
+                                 me.readScope === 'building';
+            if (seesBuilding) {
+                classSel.innerHTML += '<option value="__all__">All classes in this school</option>';
+            }
+            if (!seesBuilding) ids = ids.filter(id => me.classIds.includes(id));
+            ids.sort((a, b) => (classesById[a].period || 0) - (classesById[b].period || 0));
+            ids.forEach(id => {
+                const label = classesById[id].name || id;
+                const tag = me.classIds.includes(id) ? ' ★' : '';
+                classSel.innerHTML += `<option value="${id}">${escapeHtml(label)}${tag}</option>`;
+            });
+            classSel.value = mine.length ? '__mine__'
+                           : (seesBuilding ? '__all__' : (ids[0] || ''));
+            document.getElementById('scope-note').textContent =
+                mine.length ? '★ = your class' : '';
+        } catch (e) {
+            console.warn('Class load failed:', e);
+            classSel.innerHTML = '<option value="__all__">All classes</option>';
+        }
+    }
+
+    // Build the tightest query the selected scope allows. This is the read-cost
+    // fix as much as the permissions one: the old version queried typing_logs by
+    // date range with no other filter, which at full enrollment is ~47,000
+    // documents per report view.
+    //
+    // Needs two composite indexes on typing_logs:
+    //   classId  ASC + date ASC
+    //   schoolId ASC + date ASC
+    // Firestore logs a one-click create link the first time each runs.
+    function buildScopedQuery(logsRef, startDate, endDate) {
+        const schoolId = document.getElementById('scope-school').value;
+        const classId  = document.getElementById('scope-class').value;
+        const dateRange = [where("date", ">=", startDate), where("date", "<=", endDate)];
+
+        // A single named class is the cheapest possible query — one class-worth
+        // of documents instead of a whole building's.
+        if (classId && classId !== '__all__' && classId !== '__mine__') {
+            return { q: query(logsRef, where("classId", "==", classId), ...dateRange),
+                     clientFilter: null,
+                     label: `class “${classesById[classId]?.name || classId}”` };
+        }
+
+        // "My classes" spans several classIds. Firestore's `in` operator caps at
+        // 30 values and interacts awkwardly with range filters, so query the
+        // building and narrow on the client. Still far cheaper than unscoped.
+        if (classId === '__mine__') {
+            const allowed = new Set(me.classIds);
+            if (schoolId && schoolId !== '__all__') {
+                return { q: query(logsRef, where("schoolId", "==", schoolId), ...dateRange),
+                         clientFilter: d => allowed.has(d.classId || ''),
+                         label: 'your classes' };
+            }
+            return { q: query(logsRef, ...dateRange),
+                     clientFilter: d => allowed.has(d.classId || ''),
+                     label: 'your classes' };
+        }
+
+        // Whole building.
+        if (schoolId && schoolId !== '__all__') {
+            return { q: query(logsRef, where("schoolId", "==", schoolId), ...dateRange),
+                     clientFilter: null,
+                     label: `${schoolsById[schoolId]?.name || schoolId} (all classes)` };
+        }
+
+        // Every school. super_admin only, and the expensive one — this is the
+        // query the whole scoping effort exists to avoid running by accident.
+        return { q: query(logsRef, ...dateRange), clientFilter: null, label: 'ALL SCHOOLS' };
+    }
 
     // --- GOALS MANAGEMENT ---
     async function loadGoals() {
@@ -432,16 +652,26 @@
 
         try {
             const logsRef = collection(db, "typing_logs");
-            const q = query(logsRef,
-                where("date", ">=", startDate),
-                where("date", "<=", endDate)
-            );
-            const snap = await getDocs(q);
+            const scoped = buildScopedQuery(logsRef, startDate, endDate);
+            statusEl.innerText = `Querying ${scoped.label}...`;
+            let snap;
+            try {
+                snap = await getDocs(scoped.q);
+            } catch (e) {
+                // Almost always a missing composite index while it builds.
+                statusEl.innerText = "Query failed — see console. If this mentions " +
+                    "an index, click the link it logs and try again once it's built.";
+                statusEl.style.borderColor = "#ff3333";
+                console.error("Scoped report query failed:", e);
+                return;
+            }
 
             // Aggregate by user
             const userMap = {};
+            let skipped = 0;
             snap.forEach(d => {
                 const data = d.data();
+                if (scoped.clientFilter && !scoped.clientFilter(data)) { skipped++; return; }
                 const uid = data.uid;
                 if (!userMap[uid]) {
                     userMap[uid] = {
@@ -496,8 +726,10 @@
             const totalSecs = reportData.reduce((s, r) => s + r.seconds, 0);
             document.getElementById('total-line').innerHTML = 
                 `<strong>${reportData.length}</strong> students — <strong>${formatTime(totalSecs)}</strong> total typing time`;
-            document.getElementById('results-info').textContent = 
-                `${startDate} through ${endDate} — ${snap.size} daily log entries`;
+            document.getElementById('results-info').textContent =
+                `${scoped.label} · ${startDate} through ${endDate} — ` +
+                `${snap.size - skipped} daily log entries` +
+                (skipped ? ` (${snap.size} read, ${skipped} outside your classes)` : '');
 
             document.getElementById('results-container').classList.remove('hidden');
             statusEl.innerText = `Found ${reportData.length} students.`;
