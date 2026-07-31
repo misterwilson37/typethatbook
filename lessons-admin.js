@@ -1,7 +1,7 @@
 // lessons-admin.js — TypeThatBook Lesson Panel v1.0.0
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
-window.LESSONS_ADMIN_VERSION = '1.8.0';
+window.LESSONS_ADMIN_VERSION = '1.5.1';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -1508,13 +1508,21 @@ async function _commitCSV() {
         try {
             if (uid) {
                 // Student has typed — write directly to their user doc
-                await setDoc(doc(_db, 'users', uid), { classId: classId || null }, { merge: true });
+                // schoolId MUST ride along. If this student has no user document
+                // yet, the write is a CREATE, and firestore.rules requires the
+                // building on create — otherwise there's nothing to scope by.
+                await setDoc(doc(_db, 'users', uid), {
+                    classId: classId || null,
+                    schoolId: (_classCache[classId] && _classCache[classId].schoolId) || ''
+                }, { merge: true });
                 const r = _rosterData.find(r => r.uid === uid);
                 if (r) r.classId = classId || '';
             } else {
                 // Student hasn\'t typed yet — write to pending collection keyed by email
-                await setDoc(doc(_db, 'pendingClassAssignments', email.toLowerCase()),
-                    { classId: classId || null, assignedAt: new Date().toISOString() });
+                await setDoc(doc(_db, 'pendingClassAssignments', email.toLowerCase()), {
+                    classId: classId || null,
+                    schoolId: (_classCache[classId] && _classCache[classId].schoolId) || '',
+                    assignedAt: new Date().toISOString() });
             }
             ok++;
         } catch(e) { fail++; }
