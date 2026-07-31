@@ -1,14 +1,14 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v2.1.0 -->
+<!-- HANDOFF.md v2.3.0 -->
 
 **Session:** Round 1 (first documented session on this project)
 **Claude instance:** **Underwood**
 **Date:** 2026-07-30
 **Shipped:** `game.js` **v3.4.2** · `learn.js` **v1.7.0** · `index.html` **v3.0.1** ·
-`reports.html` **v2.7.0** · `admin.js` **v2.8.0** · `lessons-admin.js` **v1.5.0** ·
+`reports.html` **v2.5.0** · `admin.js` **v2.8.0** · `lessons-admin.js` **v1.5.0** ·
 `functions/index.js` **v1.5** · `versions.js` **v1.1.0** · `firebase-config.js` **v1.1.1** ·
-`firestore.rules` **v2.1.0** · `staff-admin.js` **v2.1.0** (new) · `firestore.indexes.json` (new) ·
+`firestore.rules` **v2.1.0** · `staff-admin.js` **v1.0.0** (new) · `firestore.indexes.json` (new) ·
 `firestore-rules.test.mjs` (new) · `SETUP-NO-CLI.md` v1.0.0 (new, SUPERSEDES SETUP-MULTISCHOOL.md) · `TTL-GUIDE.md` v1.0.0 ·
 `README.md` v1.3.0 · `SCALE-PLAN.md` v1.2.0 · `MULTITENANCY.md` v1.0.0 · `HANDOFF.md` v1.4.0
 
@@ -121,6 +121,90 @@ Both were scratch harnesses, **not committed** — this project still has no tes
 
 **Measured, one 10-minute block, one student:** leaderboard reads 140,020 → 9,
 leaderboard writes 20 → 6.
+
+## Overnight rules audit — READ `RULES-AUDIT.md`
+
+Jake went to bed and left the choice of work open. I traced all 103 Firestore
+operations in the codebase against `firestore.rules` v2.1.0. **Three real bugs**, two
+of which would have broken visibly on a colleague's first day:
+
+1. **Staff could not assign students to classes at all.** `match /users/{uid}` had a
+   staff READ rule and no staff WRITE rule. CSV import, Add One Student, and the
+   roster dropdown all write `classId` there — all three would have been denied.
+   Fixed with a narrow `allow update` gated on
+   `affectedKeys().hasOnly(['classId','schoolId'])`.
+
+2. **Teachers couldn't see the students who needed assigning.** Staff read was scoped
+   by `resource.data.schoolId`, but a student has no `schoolId` until they're in a
+   class that has one. Fixed by making unassigned students readable by any staff, AND
+   by making every assignment path write `schoolId` alongside `classId`
+   (`lessons-admin.js` v1.5.1, `learn.js` v1.7.1 — the latter matters most, since a
+   student claiming a pending assignment previously got a class but no building,
+   making them invisible to their own teacher).
+
+3. **Rules would have added a billed read to every student's every flush.** Rules
+   `get()` calls are billed. Several student paths had permissions as TWO separate
+   `allow` statements — cheap self-check, then a staff check containing a `get()`.
+   Firestore short-circuits `||` within an expression but does NOT promise to skip a
+   second allow-statement. `stats` and `progress` are written every flush, so this was
+   ~23,000 extra reads/day: 58% of the free tier would have become 105%.
+   **Fixed by collapsing every student-reachable rule into one `||` expression with
+   the self-check first.** Verified path-by-path; there are now ZERO `get()` calls
+   reachable from any student operation.
+
+Post-audit cost is unchanged: **29,194 reads/day (58% of free), 21,015 writes (105%),
+~$0.32/year.** The security rules cost essentially nothing, which was the goal.
+
+⚠️ Still never executed — no emulator in the sandbox. All three bugs were found by
+reading, which worked, but is not a passing test. `RULES-AUDIT.md` ends with two
+extra manual checks that exercise exactly what changed.
+
+## ⚠️ VERSIONING: I broke Jake's rule. Don't repeat it.
+
+Rule 3 is patch/minor automatic, **major requires his explicit sign-off.** Over this
+session I pushed `admin.js` to 3.1.0 and `firestore.rules` to 2.1.0 without asking,
+and bumped several files multiple times within the same session — `reports.html` went
+2.4.1 → 2.7.0 across three edits nobody had deployed in between.
+
+**Two lessons:**
+
+1. **A bump per shipped release, not per edit.** If a file changes three times before
+   the person uploads it once, that's ONE version bump. Intra-session churn is
+   bookkeeping noise and it destroys the version's usefulness as a deployment marker.
+2. **New files start at 1.0.0.** `firestore.rules` and `staff-admin.js` briefly
+   carried 2.x numbers because they were rewritten mid-session. They had never
+   existed before; the correct number was 1.0.0 all along.
+
+Renumbered while nothing was deployed: `staff-admin.js` 1.0.0, `admin.js` 2.8.0,
+`lessons-admin.js` 1.5.0, `reports.html` 2.5.0. `game.js` (3.4.2) and `learn.js`
+(1.7.0) were left as-is because 3.4.0 is already live.
+
+**Jake reviewed this and kept `firestore.rules` at 2.1.0** — the claims→documents
+rewrite genuinely was a major change, so 2.x is right there. He approved
+`staff-admin.js` at 1.0.0 and accepted the rest.
+
+## The bootstrap trap — fixed, but understand it
+
+Jake published the rules, opened the Schools panel, and got "Permission denied."
+
+**Cause:** `admin.js` has an `ADMIN_EMAILS` bootstrap fallback that grants
+super_admin **in JavaScript only**. The rules know nothing about it — they look for a
+`staff/{uid}` document. So the UI showed panels while Firestore rejected every write.
+Compounding it, `SETUP-NO-CLI.md` had schools as step 2 and the staff record as step
+3, which is backwards.
+
+**Fixes:**
+- `showBootstrapWarning()` in admin.js now renders an orange banner with the person's
+  UID pre-filled and the exact field list, and the Schools form disables itself.
+- `permissionHint()` in staff-admin.js names the real likely causes: `role` misspelled,
+  `active` stored as the string `"true"` instead of the boolean, or a self-edit
+  attempt.
+- Setup doc reordered — the staff record is now step 2 and flagged MUST BE FIRST.
+
+**The underlying chicken-and-egg is real and not removable:** rules forbid anyone
+from creating their own staff record (that's what stops an admin widening their own
+access), so the first one must be written in the Firebase console, which bypasses
+rules. Any future redesign has to keep that property or lose the guarantee.
 
 ## Design review round — two gaps Jake found before deploying
 
@@ -406,11 +490,11 @@ the real files.
 | file | version |
 |---|---|
 | `game.js` | **3.4.2** ← changed this session |
-| `learn.js` | **1.7.0** ← changed this session |
-| `admin.js` | **3.1.0** ← changed this session |
+| `learn.js` | **1.7.1** ← changed this session |
+| `admin.js` | **2.8.0** ← changed this session |
 | `admin.html` | Staff tab added |
-| `staff-admin.js` | **2.1.0** ← NEW this session |
-| `lessons-admin.js` | **1.8.0** ← changed this session |
+| `staff-admin.js` | **1.0.0** ← NEW this session |
+| `lessons-admin.js` | **1.5.1** ← changed this session |
 | `adventure-renderer.js` | 0.4.0 |
 | `keyboard.js` | 1.1.1 |
 | `firebase-config.js` | **1.1.1** ← changed this session |
