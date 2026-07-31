@@ -2,6 +2,9 @@
 // NOTE: the authoritative version is LEARN_VERSION below, not this comment. An
 //       earlier header claimed v1.0.0 while the constant read 1.6.3; the
 //       constant was right. This file's real lineage is 1.6.x → 1.7.0.
+// v1.7.1 — applyPendingClassAssignment now stamps schoolId alongside classId.
+//          Without it a student had a class but no building, which made them
+//          invisible to their own teacher under the new security rules.
 // v1.7.0 — Write reduction to match game.js v3.4.0. saveStats() fired on every
 //          completed lesson step and wrote two documents each time (~20-40
 //          writes per student per block). Now backed by a localStorage
@@ -27,7 +30,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.7.0";
+const LEARN_VERSION = "1.7.1";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -1960,7 +1963,7 @@ async function applyPendingClassAssignment(user) {
         const pendSnap = await getDoc(pendRef);
         if (!pendSnap.exists()) return;
 
-        const { classId } = pendSnap.data();
+        const { classId, schoolId } = pendSnap.data();
         if (!classId) return;
 
         // Check they don't already have a class assigned
@@ -1968,7 +1971,11 @@ async function applyPendingClassAssignment(user) {
         if (userSnap.exists() && userSnap.data().classId) return; // already assigned
 
         // Apply the pre-assignment
-        await setDoc(doc(db, 'users', user.uid), { classId }, { merge: true });
+        // Stamp schoolId at the same time. Everything downstream — report scoping,
+        // security rules, the roster — keys off the building, and a student with a
+        // class but no building is invisible to their own teacher.
+        await setDoc(doc(db, 'users', user.uid),
+                     { classId, schoolId: schoolId || '' }, { merge: true });
 
         // Delete the pending record so it doesn't re-apply
         await deleteDoc(pendRef);
