@@ -7,7 +7,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.1.0";
+const ADMIN_VERSION = "3.2.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -307,11 +307,18 @@ onAuthStateChanged(auth, async (user) => {
 
         // Bootstrap: before any staff document exists, these two addresses get in
         // so the first super_admin record can be created. Remove once set up.
+        // BOOTSTRAP. Grants access in JavaScript ONLY — firestore.rules knows
+        // nothing about ADMIN_EMAILS, so every WRITE is still rejected until a real
+        // staff document exists. That mismatch surfaced as a cryptic "Permission
+        // denied" from a panel that looked like it should work; it now announces
+        // itself with the exact fix and the UID already filled in.
         if (!_staffScope.role && ADMIN_EMAILS.includes(user.email)) {
             _staffScope.role = 'super_admin';
             _staffScope.readScope = 'building';
-            console.warn('BOOTSTRAP MODE: no staff/' + user.uid + ' document yet. ' +
-                         'Create one in the Firebase console — see SETUP-NO-CLI.md.');
+            _staffScope.bootstrap = true;
+            console.warn('BOOTSTRAP MODE: no staff/' + user.uid + ' document. ' +
+                         'Firestore will reject writes until you create one.');
+            showBootstrapWarning(user);
         }
 
         // Not staff? Not an error — they're a student. Offer to ask for access.
@@ -341,6 +348,27 @@ onAuthStateChanged(auth, async (user) => {
             if (staffTabBtn) {
                 staffTabBtn.style.display =
                     ['super_admin', 'building_admin'].includes(_staffScope.role) ? '' : 'none';
+            }
+            // Books and Lessons are global content — super_admin only. Rules already
+            // block the writes; this is so a colleague doesn't get a full editor that
+            // errors on save, which reads as "the app is broken" rather than "you
+            // lack permission."
+            const contentOnly = _staffScope.role === 'super_admin';
+            ['tab-books', 'tab-lessons'].forEach(id => {
+                const b = document.getElementById(id);
+                if (b) b.style.display = contentOnly ? '' : 'none';
+            });
+            // Books is the default tab. Send everyone else somewhere usable.
+            if (!contentOnly) {
+                const first = _staffScope.role === 'teacher' ? 'classes' : 'students';
+                ['books', 'lessons'].forEach(t => {
+                    const btn = document.getElementById('tab-' + t);
+                    const panel = document.getElementById(t + '-panel');
+                    if (btn) btn.classList.remove('tab-active');
+                    if (panel) panel.classList.add('hidden');
+                });
+                const target = document.getElementById('tab-' + first);
+                if (target) target.click();
             }
         await loadBookList();
     } else {
@@ -1968,5 +1996,71 @@ function showRequestAccessPanel(user) {
             statusEl.style.color = '#ff5252';
             statusEl.textContent = 'Could not send: ' + (e.message || 'unknown error');
         }
+    });
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Bootstrap warning  (v3.2.0)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The one genuine chicken-and-egg in the setup: rules identify admins by a
+// staff/{uid} document, and rules also forbid anyone from creating or editing
+// their own staff record — which is exactly what stops an admin quietly widening
+// their own access. So the FIRST staff document cannot come from the app. It has
+// to be written in the Firebase console, which bypasses rules.
+//
+// Until then the admin pages READ fine and every WRITE fails. Say so plainly,
+// with the UID pre-filled, instead of letting it surface as a permission error
+// halfway through adding a school.
+function showBootstrapWarning(user) {
+    if (document.getElementById('bootstrap-warning')) return;
+    const host = document.getElementById('editor-section') || document.body;
+    const div = document.createElement('div');
+    div.id = 'bootstrap-warning';
+    div.style.cssText = 'background:#2b1c00;border:1px solid #ffaa00;border-radius:4px;' +
+        'padding:14px;margin:12px 0;font-size:.85em;line-height:1.6;color:#ffd79a';
+    div.innerHTML = `
+        <div style="font-weight:bold;color:#ffaa00;margin-bottom:6px">
+            Setup incomplete — writes will fail</div>
+        <p style="margin:0 0 8px">
+            This page is treating you as a super admin, but the security rules
+            identify admins by a <code>staff</code> document and you don't have one.
+            Reading works; <b>saving anything will be denied.</b>
+        </p>
+        <p style="margin:0 0 8px">
+            Rules deliberately forbid creating your own staff record — that's what
+            prevents an admin widening their own access — so this first one has to be
+            written in the Firebase console, which bypasses rules.
+        </p>
+        <p style="margin:0 0 6px"><b>Firestore Database → Start collection →
+            <code>staff</code> → Document ID:</b></p>
+        <div style="display:flex;gap:6px;align-items:center;margin:0 0 8px">
+            <code id="bootstrap-uid" style="background:#000;padding:4px 8px;border-radius:3px;
+                  user-select:all;flex:1;overflow:auto">${user.uid}</code>
+            <button id="bootstrap-copy" style="padding:4px 12px;font:inherit;font-size:.95em;
+                background:#ffaa00;color:#000;border:none;border-radius:3px;cursor:pointer">Copy</button>
+        </div>
+        <p style="margin:0 0 8px">Fields — <code>active</code> is a
+            <b>boolean</b>, not the string "true":</p>
+        <pre style="margin:0 0 8px;background:#000;padding:8px;border-radius:3px;overflow:auto"
+>role        (string)   super_admin
+schoolIds   (array)    ["ems"]
+readScope   (string)   building
+active      (boolean)  true
+email       (string)   ${(user.email || '').replace(/[<>&"]/g, '')}
+displayName (string)   ${(user.displayName || '').replace(/[<>&"]/g, '')}</pre>
+        <p style="margin:0">
+            <a href="https://console.firebase.google.com/" target="_blank" rel="noopener"
+               style="color:#ffaa00">Open the Firebase console →</a>
+            &nbsp;Then reload. This banner disappears on its own.
+        </p>`;
+    host.insertBefore(div, host.firstChild);
+    host.classList.remove('hidden');
+
+    const btn = document.getElementById('bootstrap-copy');
+    if (btn) btn.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(user.uid); btn.textContent = 'Copied'; }
+        catch (e) { btn.textContent = 'Select it manually'; }
     });
 }
