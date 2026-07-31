@@ -1,26 +1,31 @@
 rules_version = '2';
 
 // firestore.rules v2.1.0 — TypeThatBook
-// v2.1.0 — pendingStaffRoles: grant a role to an email address before the person
+//
+// v2.1.0 — pendingStaffRoles: grant a role to an email address before that person
 //          has ever signed in. Their first sign-in converts it to a staff record.
+//          Also: all allow-statements collapsed into single || expressions with the
+//          cheapest condition first, so a student write can never evaluate a get().
+//          See "COST" below — this matters at 7,000 students.
+// v2.0.0 — Roles moved from Auth custom claims into Firestore documents, so the
+//          whole system deploys with no command line.
 //
-// v2.0.0 — REBUILT to need no command line. v1.x put roles in Auth custom claims,
-//          which can only be written by the Admin SDK, which means deploying Cloud
-//          Functions. Roles now live in Firestore documents that rules read
-//          directly, so the whole system deploys by pasting this file into the
-//          Firebase console Rules editor and uploading .js files to GitHub.
+// ⚠️ THERE ARE NO RULES DEPLOYED UNTIL YOU PASTE THIS IN. Without them, any signed
+//    in user can read any student's data.
 //
-//          Three things got BETTER in the process, not worse:
-//            1. Role changes take effect immediately. No "sign out and back in" —
-//               rules read the live document on every request.
-//            2. No claim/record drift to guard against; there's only a record.
-//            3. No stale-claim problem when a teacher creates a class.
+// Designed to need no command line. Roles live in Firestore documents that these
+// rules read directly. (Auth custom claims would have been marginally cheaper, but
+// claims can only be written by the Admin SDK, which means deploying Cloud
+// Functions, which means a terminal.)
 //
-//          The cost: rules now call get() on the caller's staff document, which is
-//          billed as a read. Firestore caches repeated get()s of the same document
-//          within one request, so it's roughly one extra read per request. Even at
-//          the pessimistic end (one per document returned) it's irrelevant — this
-//          path is only hit by admin pages a few times a day, never by students.
+// Two consequences, both good:
+//   1. Role changes take effect immediately — rules read the live document on every
+//      request. No "sign out and back in."
+//   2. One copy of the truth, so nothing can drift out of sync.
+//
+// The cost: rules get() the caller's staff document, which is billed as a read.
+// Firestore caches repeats within a request, so it's roughly one extra read per
+// request, and only on admin pages — never on a student's.
 //
 // ── MODEL ──
 // No staff document = a student. That's the default for anyone who signs in.
@@ -126,28 +131,73 @@ service cloud.firestore {
 
     // ─────────────────────────── students ───────────────────────────
     match /users/{uid} {
-      allow read, write: if request.auth.uid == uid;
-      // Building-scoped for all staff, including 'own_classes' teachers — not an
-      // oversight. This document holds only classId and schoolId, no identifying
-      // information, and a teacher needs it to build a roster (which class is this
-      // student in?). Narrowing it would break rosters to protect two
-      // non-identifying fields.
-      allow read: if isStaff() && inMySchool(resource.data.schoolId);
+      // Writes here are once-per-session at most, so this block is about
+      // correctness rather than read cost. The genuinely hot paths — stats and
+      // progress — are below and each use a single || expression so a student's
+      // flush can never trigger a billed get().
+      //
+      // update and create are split deliberately: diff() needs an existing
+      // `resource`, so using `allow write` here would error on create.
+      allow update: if request.auth.uid == uid
+        // Staff assign a student to a class (CSV import, Add One Student). THIS
+        // WAS MISSING and would have denied both outright — the audit's main find.
+        // Restricted to two fields; a teacher has no business rewriting anything
+        // else in a student's document, and hasOnly() is what enforces it.
+        || (isStaff()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['classId', 'schoolId'])
+            && (inMySchool(resource.data.schoolId)
+                || !('schoolId' in resource.data)
+                || resource.data.schoolId == ''));
+
+      // Assigning a student who exists in Auth but has never had a user document.
+      allow create: if request.auth.uid == uid
+        || (isStaff()
+            && request.resource.data.keys().hasOnly(['classId', 'schoolId'])
+            && inMySchool(request.resource.data.schoolId));
+
+      allow delete: if request.auth.uid == uid || isSuper();
+
+      // Holds only classId and schoolId — no identifying information — and a
+      // teacher needs it to build a roster.
+      //
+      // UNASSIGNED students (no schoolId yet) are readable by any staff. That's
+      // the second audit find: scoping strictly by schoolId meant nobody could see
+      // the students who most needed assigning, because a student has no schoolId
+      // until they're put in a class that has one. Chicken-and-egg.
+      allow read: if request.auth.uid == uid
+        || (isStaff() && (inMySchool(resource.data.schoolId)
+                          || !('schoolId' in resource.data)
+                          || resource.data.schoolId == ''));
     }
 
     // reports.html lets staff CORRECT a student's recorded time. Only
     // building-scoped staff may; a class-scoped teacher should route corrections
     // through their building admin.
+    // ⚠️ HOTTEST PATH IN THE APP. game.js and learn.js both write this on every
+    // flush. The self-check must be first AND in the same || expression: Firestore
+    // short-circuits ||, but does not promise to skip a second, separate
+    // allow-statement. As two statements this risked a get() on every student's
+    // every flush — thousands of reads a day, for nothing.
     match /users/{uid}/stats/{docId} {
-      allow read, write: if request.auth.uid == uid;
-      allow read, write: if isStaff() && readsWholeBuilding() && inMySchool(
-        get(/databases/$(database)/documents/users/$(uid)).data.schoolId);
+      allow read, write: if request.auth.uid == uid
+        // Only building-scoped staff may correct times (reports.html). A
+        // class-scoped teacher routes corrections through their building admin:
+        // subcollection docs carry no schoolId, so scoping needs a get(), and one
+        // is enough to pay for on a path this rare.
+        || isSuper()
+        || (isStaff() && readsWholeBuilding() && inMySchool(
+              get(/databases/$(database)/documents/users/$(uid)).data.schoolId));
     }
 
+    // progress, profile, lessonProgress. Also a hot student path — same
+    // single-expression, self-check-first discipline as stats above.
     match /users/{uid}/{collection}/{docId} {
-      allow read, write: if request.auth.uid == uid;
-      allow read: if isStaff() && inMySchool(
-        get(/databases/$(database)/documents/users/$(uid)).data.schoolId);
+      allow write: if request.auth.uid == uid;
+      allow read: if request.auth.uid == uid
+        || isSuper()
+        || (isStaff() && inMySchool(
+              get(/databases/$(database)/documents/users/$(uid)).data.schoolId));
     }
 
     // ─────────────────────────── activity logs ───────────────────────────
@@ -197,7 +247,9 @@ service cloud.firestore {
     // before editing: with roles in documents rather than claims, this rule is the
     // only thing stopping someone writing themselves a role.
     match /staff/{uid} {
-      allow read: if isStaff() || request.auth.uid == uid;
+      // Self first — reading your own record shouldn't cost a get() to prove
+      // you're staff when you might not be.
+      allow read: if request.auth.uid == uid || isStaff();
 
       // Claiming a pre-authorised role on first sign-in. The pendingStaffRoles
       // document was written by an admin; all this does is copy it onto the
@@ -300,8 +352,10 @@ service cloud.firestore {
     // first sign-in (learn.js applyPendingClassAssignment deletes it as the
     // student, which is why delete is allowed to the owner).
     match /pendingClassAssignments/{email} {
-      allow read, delete: if isStaff() ||
-                             (signedIn() && request.auth.token.email == email);
+      // Owner first: every student checks this on sign-in, and isStaff() would
+      // cost them a get() to establish they aren't staff.
+      allow read, delete: if (signedIn() && request.auth.token.email == email)
+                             || isStaff();
       allow create, update: if isStaff();
     }
 
