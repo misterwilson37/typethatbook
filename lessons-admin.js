@@ -1,7 +1,7 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.0.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.6.0
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
-window.LESSONS_ADMIN_VERSION = '1.5.1';
+window.LESSONS_ADMIN_VERSION = '1.6.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -44,6 +44,7 @@ export function initLessonsPanel(db, scope) {
     setupTabSwitching();
     loadAndRenderLessons();
     bindImportUI();
+    bindExportUI();
     document.getElementById('lessons-new-btn').addEventListener('click', openNewLessonEditor);
 }
 
@@ -635,6 +636,274 @@ function parseImportJSON(text) {
 }
 
 
+// ─── EXPORT JSON ─────────────────────────────────────────────────────────────
+// The curriculum lives only in Firestore. Until this existed there was no way to
+// back it up, diff it, or read it outside the admin UI — the same gap the README
+// flags for book content.
+//
+// Two deliberate choices:
+//
+// 1. It re-fetches from Firestore instead of dumping _lessonCache. A backup that
+//    silently captures a stale cache is worse than no backup. Note this means an
+//    expanded lesson card with unsaved field edits will NOT appear in the export
+//    — save first. The status line says so.
+//
+// 2. Output is import-compatible. parseImportJSON() takes either a bare array or
+//    an object with a .lessons array and ignores sibling keys, so the metadata
+//    below survives a round trip through Import with no special handling.
+
+// Key order in the emitted file. Cosmetic, but it makes the JSON readable and
+// makes diffs between two exports meaningful instead of noise.
+const EXPORT_KEY_ORDER = [
+    'id', 'unit', 'lesson', 'title', 'intro',
+    'newKeys', 'availableKeys', 'anchorKeys', 'gates', 'steps'
+];
+
+function normalizeLessonForExport(docId, data) {
+    const out = {};
+    // The document id is authoritative and Import requires the field, so it goes
+    // first and is always present even if the document body omitted it.
+    out.id = data.id || docId;
+    EXPORT_KEY_ORDER.forEach(k => {
+        if (k === 'id') return;
+        if (Object.prototype.hasOwnProperty.call(data, k)) out[k] = data[k];
+    });
+    // Anything this version of the panel doesn't know about gets carried through
+    // rather than silently dropped on the way out. An export that quietly loses
+    // fields is a data-loss bug wearing a backup costume.
+    Object.keys(data).sort().forEach(k => {
+        if (!Object.prototype.hasOwnProperty.call(out, k)) out[k] = data[k];
+    });
+    return out;
+}
+
+function sortLessonsForExport(a, b) {
+    const ua = Number(a.unit) || 0, ub = Number(b.unit) || 0;
+    if (ua !== ub) return ua - ub;
+    const la = Number(a.lesson) || 0, lb = Number(b.lesson) || 0;
+    if (la !== lb) return la - lb;
+    return String(a.id).localeCompare(String(b.id));
+}
+
+async function buildExportPayload() {
+    const snap = await getDocs(collection(_db, LESSON_COLLECTION));
+    const lessons = [];
+    snap.forEach(d => lessons.push(normalizeLessonForExport(d.id, d.data())));
+    lessons.sort(sortLessonsForExport);
+    return {
+        source: 'typethatbook/lessons',
+        exportedAt: new Date().toISOString(),
+        exporterVersion: window.LESSONS_ADMIN_VERSION,
+        lessonCount: lessons.length,
+        lessons
+    };
+}
+
+// The gate audit renders the whole curriculum's thresholds as one table. The
+// numbers that actually govern whether a student advances were previously only
+// visible one expanded card at a time, which is how a gate can sit wrong for a
+// whole rotation without anyone seeing it.
+function buildGateAudit(lessons) {
+    return lessons.map(l => {
+        const g     = l.gates || {};
+        const steps = Array.isArray(l.steps) ? l.steps : [];
+        const warn  = [];
+        // These two defaults are applied in learn.js at read time
+        // (showStepModal / showLessonResultModal), not written into the document,
+        // so a lesson with no gates object is silently graded at 15/85.
+        if (!l.gates) {
+            warn.push('no gates object → 15 WPM / 85% applied at runtime');
+        } else {
+            if (g.minWPM == null)      warn.push('minWPM unset → 15');
+            if (g.minAccuracy == null) warn.push('minAccuracy unset → 85');
+        }
+        if (!steps.length) warn.push('no steps');
+        return {
+            id:        l.id,
+            unit:      (l.unit == null ? '?' : l.unit),
+            lesson:    (l.lesson == null ? '?' : l.lesson),
+            title:     l.title || '',
+            newKeys:   Array.isArray(l.newKeys) ? l.newKeys : [],
+            stepCount: steps.length,
+            stepTypes: steps.map(s => (s && s.type) || '?'),
+            minWPM:    (g.minWPM == null ? 15 : g.minWPM),
+            minAcc:    (g.minAccuracy == null ? 85 : g.minAccuracy),
+            warn
+        };
+    });
+}
+
+function renderGateAudit(rows) {
+    if (!rows.length) return '<div style="color:#888;">No lessons.</div>';
+    const cell = 'padding:3px 8px; border-bottom:1px solid #262626; white-space:nowrap;';
+    let html =
+        '<table style="border-collapse:collapse; font-size:0.75em; width:100%;">' +
+        '<thead><tr style="color:#4B9CD3; text-align:left;">' +
+        ['Unit', 'Lesson id', 'New keys', 'Steps', 'Step types', 'minWPM', 'minAcc']
+            .map(h => '<th style="' + cell + '">' + h + '</th>').join('') +
+        '</tr></thead><tbody>';
+
+    let lastUnit = null;
+    rows.forEach(r => {
+        // A rule between units makes the shape of the progression visible at a glance.
+        const unitBreak = (lastUnit !== null && r.unit !== lastUnit);
+        lastUnit = r.unit;
+        const rowStyle = unitBreak ? ' style="border-top:2px solid #333;"' : '';
+        html += '<tr' + rowStyle + '>' +
+            '<td style="' + cell + ' color:#888;">' + escHtml(String(r.unit)) + '</td>' +
+            '<td style="' + cell + ' color:#ccc;">' + escHtml(r.id) + '</td>' +
+            '<td style="' + cell + ' color:#b87ae8;">' + escHtml(r.newKeys.join(' ')) + '</td>' +
+            '<td style="' + cell + ' color:#888; text-align:right;">' + r.stepCount + '</td>' +
+            '<td style="' + cell + ' color:#666;">' + escHtml(r.stepTypes.join(', ')) + '</td>' +
+            '<td style="' + cell + ' color:#FFD700; text-align:right;">' + escHtml(String(r.minWPM)) + '</td>' +
+            '<td style="' + cell + ' color:#22c55e; text-align:right;">' + escHtml(String(r.minAcc)) + '%</td>' +
+            '</tr>';
+        if (r.warn.length) {
+            html += '<tr><td colspan="7" style="padding:2px 8px 6px 8px; color:#ffaa00; font-size:0.9em;">' +
+                    '⚠ ' + escHtml(r.warn.join(' · ')) + '</td></tr>';
+        }
+    });
+    return html + '</tbody></table>';
+}
+
+function downloadTextFile(filename, text) {
+    const blob = new Blob([text], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Revoked on a timer rather than immediately: revoking in the same tick has
+    // cancelled in-flight downloads in Safari.
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+async function copyExportText(text) {
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch (e) { /* fall through to the legacy path */ }
+
+    // Fallback for contexts where the async clipboard API is unavailable or
+    // blocked by device policy — which includes some managed Chromebooks.
+    const ta = document.getElementById('lessons-export-json');
+    if (!ta) return false;
+    const wasReadOnly = ta.hasAttribute('readonly');
+    ta.removeAttribute('readonly');
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    if (wasReadOnly) ta.setAttribute('readonly', 'readonly');
+    return ok;
+}
+
+function localDateStamp() {
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+function bindExportUI() {
+    const toggleBtn = document.getElementById('lessons-export-toggle');
+    const sec       = document.getElementById('lessons-export-section');
+    const ta        = document.getElementById('lessons-export-json');
+    const summaryEl = document.getElementById('lessons-export-summary');
+    const auditEl   = document.getElementById('lessons-export-audit');
+    const statusEl  = document.getElementById('lessons-export-status');
+    const dlBtn     = document.getElementById('lessons-export-download');
+    const cpBtn     = document.getElementById('lessons-export-copy');
+    const refreshBtn = document.getElementById('lessons-export-refresh');
+    if (!toggleBtn || !sec) return;
+
+    let _json = '';
+
+    function setStatus(msg, color) {
+        if (!statusEl) return;
+        statusEl.textContent = msg;
+        statusEl.style.color = color || '#888';
+    }
+
+    function setButtonsEnabled(on) {
+        [dlBtn, cpBtn].forEach(b => {
+            if (!b) return;
+            b.disabled = !on;
+            b.style.opacity = on ? '1' : '0.4';
+        });
+    }
+
+    async function runExport() {
+        setButtonsEnabled(false);
+        setStatus('Reading lessons from Firestore…', '#888');
+        if (auditEl) auditEl.innerHTML = '';
+        try {
+            const payload = await buildExportPayload();
+            _json = JSON.stringify(payload, null, 2);
+            if (ta) ta.value = _json;
+
+            const rows = buildGateAudit(payload.lessons);
+            if (auditEl) auditEl.innerHTML = renderGateAudit(rows);
+
+            const byUnit = {};
+            payload.lessons.forEach(l => {
+                const u = (l.unit == null ? '?' : l.unit);
+                byUnit[u] = (byUnit[u] || 0) + 1;
+            });
+            const unitSummary = Object.keys(byUnit)
+                .sort((a, b) => (Number(a) || 0) - (Number(b) || 0))
+                .map(u => 'Unit ' + u + ': ' + byUnit[u]).join('  ·  ');
+            const stepTotal = rows.reduce((n, r) => n + r.stepCount, 0);
+            const flagged   = rows.filter(r => r.warn.length).length;
+
+            if (summaryEl) {
+                summaryEl.innerHTML =
+                    '✓ ' + payload.lessonCount + ' lesson' + (payload.lessonCount !== 1 ? 's' : '') +
+                    ', ' + stepTotal + ' steps, ' + (_json.length / 1024).toFixed(1) + ' KB' +
+                    (flagged ? '  <span style="color:#ffaa00;">· ' + flagged + ' with warnings</span>' : '') +
+                    '<div style="color:#888; font-size:0.9em; margin-top:4px;">' + escHtml(unitSummary) + '</div>';
+            }
+            setButtonsEnabled(payload.lessonCount > 0);
+            setStatus('Read at ' + new Date().toLocaleTimeString() +
+                      ' — reflects Firestore, not unsaved card edits.', '#00ff41');
+        } catch (e) {
+            _json = '';
+            if (ta) ta.value = '';
+            if (summaryEl) summaryEl.textContent = '';
+            setStatus('Export failed: ' + e.message, '#ff4444');
+            console.error('Lesson export failed:', e);
+        }
+    }
+
+    toggleBtn.addEventListener('click', async () => {
+        const isHidden = sec.classList.contains('hidden');
+        sec.classList.toggle('hidden', !isHidden);
+        toggleBtn.textContent = isHidden ? '▼ Export JSON' : '▶ Export JSON';
+        if (isHidden) await runExport();   // always fetch fresh on open
+    });
+
+    if (refreshBtn) refreshBtn.addEventListener('click', runExport);
+
+    if (dlBtn) dlBtn.addEventListener('click', () => {
+        if (!_json) return;
+        downloadTextFile('ttb-lessons-' + localDateStamp() + '.json', _json);
+        setStatus('Downloaded ttb-lessons-' + localDateStamp() + '.json', '#00ff41');
+    });
+
+    if (cpBtn) cpBtn.addEventListener('click', async () => {
+        if (!_json) return;
+        const ok = await copyExportText(_json);
+        setStatus(ok ? 'Copied ' + (_json.length / 1024).toFixed(1) + ' KB to clipboard.'
+                     : 'Copy failed — select the text below and copy manually.',
+                  ok ? '#00ff41' : '#ffaa00');
+    });
+
+    setButtonsEnabled(false);
+}
 
 
 async function loadStudentProgress(uid, label) {
