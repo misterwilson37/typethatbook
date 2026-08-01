@@ -1,6 +1,6 @@
 # TypeThatBook
 
-<!-- README.md v1.4.0 -->
+<!-- README.md v1.5.0 -->
 
 A browser-based typing tutor for middle school students. Students type their way
 through real books, chapter by chapter, while the app tracks speed, accuracy, and
@@ -101,6 +101,22 @@ package.json                      generate custom practice paragraphs targeting 
 Note: `index.js` and `package.json` are the **Cloud Functions** source and are
 unrelated to `index.html`. They deploy separately via the Firebase CLI, not
 GitHub Pages.
+
+### Also in the repo, not deployable from a browser
+
+```
+firestore.rules          v2.1.0   Published. Byte-identical to source.
+firestore.indexes.json            The ONLY written record of the three composite
+                                  indexes and both TTL field overrides. Needs the
+                                  CLI to deploy; the indexes can also be created
+                                  from the click-to-create links Firestore returns
+                                  on the first failing query.
+firestore-rules.test.mjs          ⚠️ KNOWN WRONG. Header says v1.1.0 and it seeds
+                                  roles as auth-token claims; rules v2.x reads
+                                  staff/{uid} documents and ignores the token.
+                                  Committed as a starting point for a rewrite, not
+                                  as a passing suite. Needs a CLI + emulator.
+```
 
 ## Firestore data model
 

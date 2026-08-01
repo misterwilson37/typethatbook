@@ -1,7 +1,8 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v3.1.0 — Round 2 (Dvorak) appended as §0 and §11. Underwood's
-     Round 1 accounting in §1–§10 and §12 is preserved verbatim; it is all still true. -->
+<!-- HANDOFF.md v3.2.0 — §2 corrected: the "one revision behind" table was stale
+     and has been removed; Round 1 is fully deployed, verified by diff 2026-08-01.
+     §0 and §11 are Round 2 (Dvorak). Underwood's §1, §3-§10, §12 are verbatim. -->
 
 **Claude instance:** **Dvorak** (Round 2) · **Underwood** (Round 1)
 **Session:** Round 2 — 2026-08-01 · Round 1 — 2026-07-30 → 2026-07-31
@@ -27,9 +28,16 @@ version is six mechanisms in `learn.js`, none of which are about student ability
    new-key `key_pattern_auto` drill is graded at the same WPM as a closing prose
    step. Random letters type far slower than prose, so **the lesson's hardest gate
    is its first step.** The difficulty curve runs backwards.
-2. **15 WPM on a 49-char drill is a 0.80 s/keystroke deadline** for a student who
-   met the key thirty seconds ago. Research puts 25 WPM as a *nine-week outcome on
-   real words*; this is the exit criterion used as an entry gate.
+2. **Step length, not gate height — this is the big one.** The authored gates are a
+   sensible per-unit ramp (10 WPM/90% at home row up to 25/90% at graduation); the
+   defaults in `learn.js` are barely used. But **six steps are longer than a
+   10-minute typing block.** `u6_l2` step 1 is 789 characters, which at its own
+   20 WPM gate is 10.5 minutes of flawless typing. And the lesson WAL persists
+   `statsData` only — **not** `drillPos` or `currentStepIdx` — so the bell erases
+   the whole step *and* any cleared-but-not-final steps. A student who reaches such
+   a step is in a closed loop: ten minutes, lost, same step from scratch tomorrow,
+   forever. Lowering `minWPM` does not help; they still run out of clock. Expected
+   stall point at realistic speeds: **unit 4**. Full table in `PEDAGOGY-AUDIT.md` §3.2.
 3. **Grade C fails.** Both gates must be met, so 14 WPM at 100% accuracy fails
    while 15 WPM at 85% passes. Worse: `chars++` fires *before* the correct/incorrect
    branch (~line 992), so **errors inflate the WPM numerator**. Three deliberate
@@ -90,14 +98,19 @@ super_admin document exists and works, confirmed by a report that returned data.
 `learn.js` is actually **ahead** of source: Jake fixed a header comment still reading
 v1.7.0 when the constant said 1.7.1.
 
-### ⚠️ One revision behind
+### ✅ Round 1 is fully deployed — verified again 2026-08-01 by diff
 
-Uploaded just before the last two edits landed. Both carry real fixes:
+**The "one revision behind" table that lived here was stale and is deleted.**
+It claimed `admin.js` 3.1.0 / `staff-admin.js` 2.1.0 were live with 3.2.0 / 2.2.0
+pending. Jake had already uploaded both. Diffing his live repo against Underwood's
+final batch: **byte-identical**, `ADMIN_VERSION = "3.2.0"`,
+`STAFF_ADMIN_VERSION = '2.2.0'`.
 
-| file | live | ship | what's missing |
-|---|---|---|---|
-| `admin.js` | 3.1.0 | **3.2.0** | bootstrap warning banner; Books/Lessons tabs hidden from non-super users |
-| `staff-admin.js` | 2.1.0 | **2.2.0** | Schools form disables itself in bootstrap mode; diagnostic permission errors |
+Dvorak repeated the stale claim without diffing the files Jake had provided in the
+same conversation — which is ball-drop #4 in §6, committed by the instance that had
+just read §6. The lesson generalises: **this section is a snapshot, not a fact.
+Diff before you assert anything about what's deployed.** Jake's uploads are the
+evidence; this table is hearsay.
 
 ### 🆕 Round 2 — ready to upload, not yet deployed
 
@@ -107,14 +120,23 @@ Uploaded just before the last two edits landed. Both carry real fixes:
 | `admin.html` | 2.7.6 | **2.8.0** | Export JSON button and panel; shared section CSS |
 
 `admin.js` needs no change — it already reads `window.LESSONS_ADMIN_VERSION` for
-the footer. Upload `admin.js` 3.2.0 and `staff-admin.js` 2.2.0 from Round 1 at the
-same time; they have been waiting.
+the footer.
 
-### 📄 Not in the repo
+### 📄 Now in the repo (added 2026-08-01)
 
 `firestore.indexes.json` and `firestore-rules.test.mjs`. Neither is deployable
-without a CLI, but the first is the **only written record** of the three composite
-index definitions and both TTL policies. Worth committing for the record.
+without a CLI. Committed because:
+
+- **`firestore.indexes.json` is the only written record** of the three composite
+  indexes (`typing_logs` × schoolId+date, `typing_logs` × classId+date,
+  `leaderboard` × weekStart+totalSecondsWeek) and both TTL field overrides
+  (`typing_sessions.expiresAt`, `practice_sessions.expiresAt`).
+- **`firestore-rules.test.mjs` is confirmed wrong, not merely unrun.** Its header
+  says v1.1.0 and it seeds roles as auth-token claims via
+  `authenticatedContext(uid, { role: 'super_admin', … })`. `firestore.rules` v2.1.0
+  reads `staff/{uid}` documents and ignores the token entirely, so every
+  authorization assertion in the file tests a mechanism that no longer exists.
+  It is committed as the starting point for a rewrite, not as a passing suite.
 
 ---
 
@@ -307,12 +329,14 @@ schools" only.
    once. The fix is the paragraph-pool cache in `SCALE-PLAN.md` Problem 5 — but
    that's a Cloud Function, so Jake can't deploy it. CLI-free options: throttle
    client-side in `game.js`, or disable practice mode. **Unresolved; his decision.**
-2. **Three composite indexes and two TTL policies not yet created.** Indexes give
+2. **Three composite indexes and two TTL policies not yet created.** Definitions
+   now live in `firestore.indexes.json` in the repo. Indexes give
    click-to-create links on the first failing query. TTL is in the **Google Cloud**
    console, not Firebase — `TTL-GUIDE.md`, including why pre-v3.4.0 documents will
    never be collected.
-3. **`firestore-rules.test.mjs` is wrong, not merely unrun.** It tests the v1.x claims
-   model that v2.x ignores entirely; needs rewriting to seed `staff/{uid}` documents.
+3. **`firestore-rules.test.mjs` is wrong, not merely unrun.** Now committed (§2) so
+   the rewrite has a starting point. It tests the v1.x claims model that v2.x ignores
+   entirely; needs rewriting to seed `staff/{uid}` documents.
    Jake can't run it either way. The manual sequence in §8 plus the two extra checks
    at the end of `RULES-AUDIT.md` is the practical substitute.
 4. Student school picker — optional, settings + sign-up, never forced. Jake wants his
@@ -348,6 +372,13 @@ depends on what the curriculum actually contains.
 
 Ordered as agreed. 1–2 are worth doing even if nothing else changes.
 
+0. **Chunk any step over ~150 chars into sub-runs, in the engine not the data.**
+   `buildSequence()` already returns a flat array; split on group/word/sentence
+   boundaries. Fixes all 47 existing lessons and everything authored later without
+   re-editing documents. 150 ≈ 30–60 s at these gates, matching the `game.js` sprint
+   length. Jake approved 150. **Nothing else matters until a step fits in a period.**
+0b. **Persist `drillPos` and `currentStepIdx` in the lesson WAL.** Required even with
+   chunking — see `PEDAGOGY-AUDIT.md` §3.2.
 1. **Instrument the failures.** Write a `lessonProgress` record on *every* finished
    step, pass or fail, including grade F. Add `furthestStepIdx`, a `stepAttempts`
    map, and `stepFailures`. Fix `timeSpentSeconds`, which currently adds only the
@@ -366,7 +397,8 @@ Ordered as agreed. 1–2 are worth doing even if nothing else changes.
 7. **Per-step gates in the schema.** Drill steps (`key_pattern*`, `key_random`)
    accuracy-only, no WPM. Only the closing prose step carries a speed number.
    This alone fixes the backwards difficulty curve.
-8. **Scale `minWPM` by unit, ramping toward 25 by the end of the curriculum.**
+8. ~~Scale `minWPM` by unit~~ — **already done in the authored curriculum**, and
+   done well. Only unit 4's 18 and unit 6's 20 are worth a second look.
    ⚠️ **Do NOT scale by grade level.** Jake rejected that explicitly and his
    reasoning is load-bearing: an 8th grader may have had him twice or never, so
    grade carries no information about skill. Unit scaling is grade-independent and
@@ -380,9 +412,14 @@ Ordered as agreed. 1–2 are worth doing even if nothing else changes.
    within the student's control, which is the whole point given the attribution
    problem; on speed-gated steps, 1.5× rather than 2×.
 
-**Also worth knowing:** students who have learned all the letters have a sanctioned
-exit from lesson mode into `game.html` (typing books), and Jake tracks them on both
-sides. Lesson mode does not have to carry every student to 25 WPM by itself.
+**The graduate link stays where it is.** It appears only when every unit 1–6 lesson
+is passed — eight lessons past where the letters are actually complete, and behind
+the two longest steps in the curriculum. Jake's call 2026-08-01: leave it. If the
+wall comes down the escape hatch is not needed. Do not "helpfully" loosen this to
+`unit < 5`; it was considered and declined.
+
+Students can still reach `game.html` through the library at any time, and Jake tracks
+both sides.
 
 ---
 
