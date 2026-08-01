@@ -1,6 +1,6 @@
 # TypeThatBook
 
-<!-- README.md v1.3.0 -->
+<!-- README.md v1.4.0 -->
 
 A browser-based typing tutor for middle school students. Students type their way
 through real books, chapter by chapter, while the app tracks speed, accuracy, and
@@ -18,7 +18,7 @@ time-on-task for teacher reporting.
 | `index.html` | 3.0.1 | students | Library — pick a book, see per-book progress and today's time |
 | `game.html` | 3.0.1.1 | students | **The main event.** Type a book chapter. Sprints, WPM, streaks, leaderboard, AI practice mode, Adventure Mode (`game.js` v3.4.0) |
 | `learn.html` | School 1.7.0 | students | Structured lessons (`learn.js` v1.7.0) — home row, finger drills, on-screen keyboard guidance |
-| `admin.html` | 2.7.6 | Jake | Book/chapter authoring (EPUB import via JSZip), lesson authoring, goals |
+| `admin.html` | 2.8.0 | Jake | Book/chapter authoring (EPUB import via JSZip), lesson authoring + JSON import/export, goals |
 | `reports.html` | 2.4.1 | Jake | Time-on-task and accuracy reports by student and date range |
 
 No build step. No bundler. Native ES modules loaded straight from the HTML with
@@ -85,7 +85,9 @@ learn.js                v1.7.0   Lesson-mode engine (separate from game.js).
 keyboard.js             v1.1.1   On-screen keyboard widget, used by learn.html.
 
 admin.js                v2.7.5   Book authoring, EPUB import, chapter editor.
-lessons-admin.js        v1.4.0   Lesson + class authoring, CSV roster import.
+lessons-admin.js        v1.6.0   Lesson + class authoring, CSV roster import,
+                                 lessons JSON import AND export (v1.6.0), gate
+                                 audit table.
                                  Version exposed as window.LESSONS_ADMIN_VERSION
                                  so admin.js can read it.
 
@@ -129,7 +131,12 @@ leaderboard/{uid}                        initials, bestWPM, bestAccuracy, bestSt
 
 classes/{classId}                        class metadata
 pendingClassAssignments/{...}            class-join handshake
-lessons/{lessonId}                       lesson definitions
+lessons/{lessonId}                       lesson definitions. The ONLY copy of the
+                                         curriculum — export it from admin.html
+                                         (Lessons → Export JSON) to back it up.
+                                         Export output is import-compatible, so a
+                                         downloaded file can be pasted straight
+                                         back into Import JSON to restore.
 settings/goals                           daily/weekly time goals (global)
 ```
 
@@ -192,6 +199,8 @@ at most one unflushed session; it is not destructive beyond that.
   fires twenty times in a ten-minute typing block.
 - No Firestore security rules in this repo.
 - No automated backup of book content. `admin.html` is the only way in or out.
+  Lesson content **can** now be exported (Lessons tab → Export JSON, v1.6.0);
+  book content still cannot.
 - Practice mode depends on Gemini free-tier quota, which Google has changed
   without notice more than once.
 
