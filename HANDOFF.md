@@ -1,18 +1,59 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v3.0.0 — reorganised. Earlier versions accreted section-by-section
-     across one long session and had become a changelog rather than a handoff. -->
+<!-- HANDOFF.md v3.1.0 — Round 2 (Dvorak) appended as §0 and §11. Underwood's
+     Round 1 accounting in §1–§10 and §12 is preserved verbatim; it is all still true. -->
 
-**Claude instance:** **Underwood**
-**Session:** Round 1 (first documented session on this project)
-**Dates:** 2026-07-30 → 2026-07-31
+**Claude instance:** **Dvorak** (Round 2) · **Underwood** (Round 1)
+**Session:** Round 2 — 2026-08-01 · Round 1 — 2026-07-30 → 2026-07-31
 
-> *On the name:* Underwood built the typewriter that taught America to touch-type.
-> Seemed right for a typing tutor. Predecessors on Ellis Web Bell: Stedman, Fable.
+> *On the names:* Underwood built the typewriter that taught America to touch-type.
+> Dvorak was an educational psychologist who studied typing instruction and finger
+> motion, which is what Round 2 was about. Predecessors on Ellis Web Bell: Stedman,
+> Fable. (Jake's wife types Dvorak. Unplanned, and welcome.)
 
 ---
 
-## 1. What this session was for
+## 0. Round 2 — read this first if you're picking up the lesson work
+
+Jake reported that his test students last year **never complained but never got
+far**, stalling out mid-curriculum and blaming their own typing. He was skeptical.
+He was right to be.
+
+The audit is written up in full in **`PEDAGOGY-AUDIT.md`** — research comparison,
+the gate arithmetic, and the agreed change list. Do not re-derive it. The short
+version is six mechanisms in `learn.js`, none of which are about student ability:
+
+1. **One gate applies to every step.** No per-step gates exist in the schema, so a
+   new-key `key_pattern_auto` drill is graded at the same WPM as a closing prose
+   step. Random letters type far slower than prose, so **the lesson's hardest gate
+   is its first step.** The difficulty curve runs backwards.
+2. **15 WPM on a 49-char drill is a 0.80 s/keystroke deadline** for a student who
+   met the key thirty seconds ago. Research puts 25 WPM as a *nine-week outcome on
+   real words*; this is the exit criterion used as an entry gate.
+3. **Grade C fails.** Both gates must be met, so 14 WPM at 100% accuracy fails
+   while 15 WPM at 85% passes. Worse: `chars++` fires *before* the correct/incorrect
+   branch (~line 992), so **errors inflate the WPM numerator**. Three deliberate
+   mistakes convert a failing perfect run into a pass. Verified arithmetically.
+4. **The graded timer never pauses.** `stepSeconds` increments whenever
+   `drillPos > 0`, unconditionally. `LEARN_IDLE_THRESHOLD` gates the time-on-task
+   counter but not the graded one, so a 15-second interruption makes the gate
+   unreachable and the app then says *"just a little faster!"*
+5. **Failing the last step replays the whole lesson** — `showLessonResultModal()`'s
+   failure path calls `startLesson()`, which resets `currentStepIdx = 0` and
+   re-shows the intro. Expected drills to clear a 5-step lesson at a 50% per-step
+   pass rate: **18** (floor is 5). At 30%: **48**.
+6. **All of it was invisible.** `saveProgress()` runs only from the final step's
+   result modal, and only when the grade isn't F. A student stuck on step 2 writes
+   **no `lessonProgress` record at all**, which renders in the admin per-student
+   grid as `not started` — identical to a student who never opened it.
+   `reports.html` never reads `lessonProgress`.
+
+**What shipped in Round 2:** the lessons JSON export only (below). The scoring
+changes are agreed but deliberately not written yet — see §11.
+
+---
+
+## 1. What Round 1 was for
 
 Jake asked whether TypeThatBook could serve **7,000 students a year** (~467
 simultaneous at peak) without costing money. It could not — one function projected to
@@ -57,6 +98,17 @@ Uploaded just before the last two edits landed. Both carry real fixes:
 |---|---|---|---|
 | `admin.js` | 3.1.0 | **3.2.0** | bootstrap warning banner; Books/Lessons tabs hidden from non-super users |
 | `staff-admin.js` | 2.1.0 | **2.2.0** | Schools form disables itself in bootstrap mode; diagnostic permission errors |
+
+### 🆕 Round 2 — ready to upload, not yet deployed
+
+| file | live | ship | what changed |
+|---|---|---|---|
+| `lessons-admin.js` | 1.5.1 | **1.6.0** | lessons JSON export + gate audit table |
+| `admin.html` | 2.7.6 | **2.8.0** | Export JSON button and panel; shared section CSS |
+
+`admin.js` needs no change — it already reads `window.LESSONS_ADMIN_VERSION` for
+the footer. Upload `admin.js` 3.2.0 and `staff-admin.js` 2.2.0 from Round 1 at the
+same time; they have been waiting.
 
 ### 📄 Not in the repo
 
@@ -276,6 +328,7 @@ schools" only.
 | doc | what it's for |
 |---|---|
 | `README.md` | what the project is; file map, data model, version table |
+| `PEDAGOGY-AUDIT.md` | **Round 2.** Why students stalled in `learn.js`. Research comparison, gate arithmetic, agreed change list |
 | `SETUP-NO-CLI.md` | **the setup runbook.** Ordered, console-only. Supersedes `SETUP-MULTISCHOOL.md` |
 | `SCALE-PLAN.md` | the 7,000-student cost analysis. Problems 1–3 fixed, 4–5 open |
 | `RULES-AUDIT.md` | the overnight audit: three bugs found by tracing 103 Firestore ops |
@@ -285,7 +338,55 @@ schools" only.
 
 ---
 
-## 11. Jake's working preferences
+## 11. Round 2 open work — the lesson scoring rewrite
+
+**Agreed with Jake, designed, not yet written.** Blocked on one thing only: he
+needs to run the new export and hand over the curriculum JSON, because the actual
+authored gates and step counts have never been visible outside the admin UI.
+Do not start editing `learn.js` before reading that file — every number below
+depends on what the curriculum actually contains.
+
+Ordered as agreed. 1–2 are worth doing even if nothing else changes.
+
+1. **Instrument the failures.** Write a `lessonProgress` record on *every* finished
+   step, pass or fail, including grade F. Add `furthestStepIdx`, a `stepAttempts`
+   map, and `stepFailures`. Fix `timeSpentSeconds`, which currently adds only the
+   final step's `stepSeconds` rather than the lesson's.
+2. **A "stuck" view in admin** — any student with ≥ N attempts on a step they
+   haven't cleared. This is the report that would have caught all of this in week two.
+3. **WPM from correct keystrokes, not total.** Kills the error exploit and makes
+   the number comparable to every other typing assessment.
+4. **Pause `stepSeconds` on idle > `LEARN_IDLE_THRESHOLD`.** The constant and the
+   timestamp already exist; the graded timer just doesn't consult them. Note the
+   related bug at `DRILL_STOP_TIME_THRESHOLD`: the comment says "stop counting
+   time" but the code sets `learnLastInputTime = 0`, which stops *time-on-task
+   credit* while the graded timer keeps running. Almost certainly inverted intent.
+5. **Failed final step retries that step**, not the whole lesson.
+6. **Grade C advances.** Accuracy gates progression; speed determines the badge.
+7. **Per-step gates in the schema.** Drill steps (`key_pattern*`, `key_random`)
+   accuracy-only, no WPM. Only the closing prose step carries a speed number.
+   This alone fixes the backwards difficulty curve.
+8. **Scale `minWPM` by unit, ramping toward 25 by the end of the curriculum.**
+   ⚠️ **Do NOT scale by grade level.** Jake rejected that explicitly and his
+   reasoning is load-bearing: an 8th grader may have had him twice or never, so
+   grade carries no information about skill. Unit scaling is grade-independent and
+   self-calibrating — a student's position in the curriculum *is* the level signal.
+   25 WPM stays the exit number for everyone.
+9. **Recalibrate `A🔥` to be reachable — Jake wants the award kept, not removed.**
+   Currently 2× gate + 95% accuracy, which on a 49-char drill means 30 WPM at
+   0.40 s/keystroke with at most two errors: an adult touch-typist number
+   permanently visible on the map and permanently out of reach. Proposal: on
+   accuracy-only drill steps make it a *clean run* (100%, no backspaces) — fully
+   within the student's control, which is the whole point given the attribution
+   problem; on speed-gated steps, 1.5× rather than 2×.
+
+**Also worth knowing:** students who have learned all the letters have a sanctioned
+exit from lesson mode into `game.html` (typing books), and Jake tracks them on both
+sides. Lesson mode does not have to carry every student to 25 WPM by itself.
+
+---
+
+## 12. Jake's working preferences
 
 GitHub web uploads, no build step, no CLI. Complete replacement files, never diffs.
 Explicit over magic. Values session momentum — but reviews designs carefully before
