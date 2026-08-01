@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TypeThatBook Admin v2.7.6</title>
+    <title>TypeThatBook Admin v2.8.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
@@ -121,7 +121,8 @@
         #lessons-status { padding:10px 14px; margin-bottom:16px; background:#111; border-left:4px solid #555; font-size:0.85em; }
         #lesson-list { max-height:70vh; overflow-y:auto; }
         .lessons-toolbar { display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
-        #lessons-import-section { background:#1a1a1a; border:1px dashed #444; padding:16px; margin-bottom:16px; }
+        #lessons-import-section,
+        #lessons-export-section { background:#1a1a1a; border:1px dashed #444; padding:16px; margin-bottom:16px; }
     </style>
 </head>
 <body>
@@ -294,6 +295,7 @@
             <div class="lessons-toolbar">
                 <button id="lessons-new-btn" class="lbtn lbtn-primary">+ New Lesson</button>
                 <button id="lessons-import-toggle" class="lbtn lbtn-secondary">▶ Import JSON</button>
+                <button id="lessons-export-toggle" class="lbtn lbtn-secondary">▶ Export JSON</button>
                 <button class="lbtn lbtn-secondary" onclick="window._lessonsReload()">↺ Reload</button>
             </div>
 
@@ -339,6 +341,42 @@
                     Upload to Firestore
                 </button>
                 <div id="lessons-import-progress" style="margin-top:8px; font-size:0.8em; color:#888; min-height:1.2em;"></div>
+            </div>
+
+            <div id="lessons-export-section" class="hidden">
+                <h4 style="margin:0 0 12px; color:#4B9CD3;">Export Lessons JSON</h4>
+
+                <div style="font-size:0.8em; color:#888; margin-bottom:12px; line-height:1.5;">
+                    Reads the <code style="color:#b87ae8;">lessons</code> collection straight from Firestore
+                    every time this panel opens. Unsaved edits in an expanded lesson card are
+                    <strong style="color:#ffaa00;">not</strong> included — save first.
+                    The file is import-compatible: it can be pasted back into Import JSON as-is.
+                </div>
+
+                <div id="lessons-export-summary" style="color:#00ff41; font-size:0.85em; margin-bottom:10px; min-height:1.2em;"></div>
+
+                <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+                    <button id="lessons-export-download" class="lbtn lbtn-primary" disabled style="opacity:0.4;">⭳ Download .json</button>
+                    <button id="lessons-export-copy" class="lbtn lbtn-secondary" disabled style="opacity:0.4;">⧉ Copy to clipboard</button>
+                    <button id="lessons-export-refresh" class="lbtn lbtn-secondary">↺ Re-read</button>
+                </div>
+
+                <div id="lessons-export-status" style="font-size:0.8em; color:#888; min-height:1.2em; margin-bottom:12px;"></div>
+
+                <!-- Gate audit: every threshold in the curriculum in one table. -->
+                <details style="margin-bottom:12px;">
+                    <summary style="cursor:pointer; color:#4B9CD3; font-size:0.85em; margin-bottom:8px;">
+                        Gate audit — every lesson's thresholds
+                    </summary>
+                    <div id="lessons-export-audit" style="margin-top:10px; overflow-x:auto;"></div>
+                </details>
+
+                <details>
+                    <summary style="cursor:pointer; color:#4B9CD3; font-size:0.85em;">Raw JSON</summary>
+                    <textarea id="lessons-export-json" rows="12" class="l-field" readonly
+                        style="font-family:monospace; font-size:0.72em; margin-top:8px;"
+                        placeholder="Nothing exported yet."></textarea>
+                </details>
             </div>
 
             <div id="lesson-list"></div>
