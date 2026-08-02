@@ -1,4 +1,32 @@
-// admin.js v3.9.0
+// admin.js v3.10.0
+// v3.10.0 — ONE PASS PER BOOK. Two divergent copies of "write the book document"
+//          had drifted apart, so every book had to be visited twice and you had
+//          to know which button wrote which field.
+//
+//          ROOT CAUSE of "Save Metadata loses the chapters": saveTitleBtn called
+//          loadBookList() to refresh the picker (added v3.6.0, well meant), and
+//          loadBookList ended with `selectedIndex = 1` + a synthetic change
+//          event. bookSelect.onchange hides the staging area AND reassigns
+//          activeBookId — to the FIRST book alphabetically, not the one being
+//          edited. So it didn't merely hide the chapters, it silently repointed
+//          the editor at a different book. loadBookList() now preserves the
+//          selection and takes an explicit flag before it fires onchange.
+//
+//          Upload All was missing minAge/maxAge/protagonistGender entirely (my
+//          miss in 3.7.0 — I added them to Save Metadata only), read genre via
+//          .value instead of readGenreField() so "Custom..." stored the literal
+//          "__custom__", and still had the `if (author)` guards that v3.6.0
+//          removed from the other path. That genre read is the FOURTH instance
+//          of the read-the-field-properly bug HANDOFF §11 warned to look for.
+//
+//          Both paths now share readBookMetadataForm(). One reader, one writer,
+//          no drift. Upload All writes chapters AND metadata, so a new book is
+//          finished in one pass.
+//
+//          Also: find & replace across a staged book, with case preservation and
+//          automatic a/an correction. Built after doing 169 of them by hand in
+//          Aesop's Fables.
+// v3.9.0
 // v3.9.0 — EPUB import: split multi-work spine files.
 //          The importer assumed one spine file == one chapter. Standard Ebooks
 //          (where most of this library comes from) puts every short work of a
@@ -41,7 +69,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.9.0";
+const ADMIN_VERSION = "3.10.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -631,7 +659,7 @@ onAuthStateChanged(auth, async (user) => {
                 const target = document.getElementById('tab-' + first);
                 if (target) target.click();
             }
-await loadBookList();
+await loadBookList(true);   // initial load: pick a book and open it
         // Safe now that auth has resolved — see the note by loadCustomWords().
         loadCustomWords();
     } else {
@@ -648,7 +676,13 @@ loginBtn.onclick = async () => {
 };
 
 // --- BOOK LIST ---
-async function loadBookList() {
+// selectFirst=false (the default) PRESERVES the current selection and does NOT
+// fire onchange. Refreshing the picker after a save must not disturb the editor:
+// onchange hides the staging area and reassigns activeBookId, which is how
+// "Save Metadata" came to throw away a book's staged chapters and silently
+// repoint at whichever book happened to sort first.
+async function loadBookList(selectFirst = false) {
+    const previous = bookSelect.value;
     bookSelect.innerHTML = "<option>Loading...</option>";
     bookTitlesMap = {};
     try {
@@ -677,8 +711,13 @@ async function loadBookList() {
             bookSelect.appendChild(option);
         });
         
-        if(querySnapshot.size > 0) bookSelect.selectedIndex = 1;
-        bookSelect.dispatchEvent(new Event('change'));
+        if (!selectFirst && previous &&
+            Array.from(bookSelect.options).some(o => o.value === previous)) {
+            bookSelect.value = previous;          // silent: no change event
+        } else if (querySnapshot.size > 0) {
+            bookSelect.selectedIndex = 1;
+            bookSelect.dispatchEvent(new Event('change'));
+        }
 
     } catch (e) { bookSelect.innerHTML = "<option>Error</option>"; }
 }
@@ -1651,6 +1690,34 @@ function readGenreField() {
     return sel.value;
 }
 
+// The single source of truth for "what is in the book metadata form".
+//
+// Save Metadata and Upload All both used to read these fields themselves and had
+// drifted: Upload All never learned about the v3.7.0 tag fields, read genre with
+// a raw .value so "Custom..." stored "__custom__", and kept the `if (author)`
+// guards that made a blanked field silently retain its old value. Two readers is
+// one reader too many.
+//
+// Returns { ok:false, msg } or { ok:true, data } where data is written verbatim
+// with merge:true. null is a real, storable value here — it means "untagged".
+function readBookMetadataForm(title) {
+    const t = String(title || '').trim();
+    if (!t) return { ok: false, msg: 'Title required.' };
+
+    const age = readAgeRange();
+    if (!age.ok) return { ok: false, msg: age.msg };
+
+    const val = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+    return { ok: true, data: {
+        title: t,
+        author: val('active-book-author'),
+        genre: readGenreField(),
+        minAge: age.minAge,
+        maxAge: age.maxAge,
+        protagonistGender: (document.getElementById('active-book-protagonist') || {}).value || '',
+    }};
+}
+
 // Reads and VALIDATES the age-range pair. Returns
 //   { ok: true,  minAge, maxAge }        both numbers, or both null
 //   { ok: false, msg }                   with a reason to show the user
@@ -1712,29 +1779,18 @@ saveTitleBtn.onclick = async () => {
     setInline('Saving\u2026', '#888');
 
     try {
-        const author = document.getElementById('active-book-author').value.trim();
-        const genre  = readGenreField();
-
-        const age = readAgeRange();
-        if (!age.ok) {
-            setInline('\u26a0 ' + age.msg, '#ff9800');
+        const form = readBookMetadataForm(newTitle);
+        if (!form.ok) {
+            setInline('\u26a0 ' + form.msg, '#ff9800');
             saveTitleBtn.textContent = original;
             saveTitleBtn.disabled = false;
             saveTitleBtn.style.opacity = '1';
             return;
         }
-        const protagonistGender =
-            (document.getElementById('active-book-protagonist') || {}).value || '';
-
-        // Written unconditionally. Previously these were guarded by `if (author)` /
-        // `if (genre)`, which meant a field could be changed but never CLEARED —
-        // blanking the author and saving silently kept the old one. The tag fields
-        // follow the same rule: null is a real, storable value meaning "untagged".
-        const updates = {
-            title: newTitle, author, genre,
-            minAge: age.minAge, maxAge: age.maxAge,
-            protagonistGender
-        };
+        const updates = form.data;
+        const genre = updates.genre;
+        const age = { minAge: updates.minAge, maxAge: updates.maxAge };
+        const protagonistGender = updates.protagonistGender;
 
         if (stagedCoverBlob) {
             setInline('Uploading cover\u2026', '#888');
@@ -1756,8 +1812,10 @@ saveTitleBtn.onclick = async () => {
         statusEl.style.borderColor = "#00ff41";
         saveTitleBtn.textContent = '\u2713 Saved';
         // Refresh the list so the change is visible where the book is listed, not
-        // just in the form you just typed into.
-        await loadBookList();
+        // just in the form you just typed into. selectFirst=false is LOAD-BEARING:
+        // the default used to jump the picker to the first book and fire onchange,
+        // which hid the staging area and threw away the staged chapters.
+        await loadBookList(false);
         setTimeout(() => { saveTitleBtn.textContent = original; }, 2000);
     } catch(e) {
         setInline('Save failed: ' + e.message, '#ff4444');
@@ -1810,16 +1868,21 @@ uploadAllBtn.onclick = async () => {
             return na - nb;
         });
 
-        const bookData = {
-            title: activeBookTitle.value.trim() || activeBookId,
+        // Same reader Save Metadata uses. Upload All previously wrote only
+        // title/author/genre — no age range, no protagonist — read genre with a
+        // raw .value (so "Custom..." stored "__custom__"), and guarded with
+        // `if (author)` so a cleared field kept its old value. A book uploaded
+        // here and never re-saved was silently untagged.
+        const form = readBookMetadataForm(activeBookTitle.value || activeBookId);
+        if (!form.ok) {
+            statusEl.innerText = '\u26a0 ' + form.msg + ' Chapters uploaded; metadata NOT saved.';
+            statusEl.style.borderColor = '#ffaa00';
+            return;
+        }
+        const bookData = Object.assign({}, form.data, {
             totalChapters: stagedChapters.length,
             chapters: chapterMeta
-        };
-        
-        const author = document.getElementById('active-book-author').value.trim();
-        const genre = document.getElementById('active-book-genre').value;
-        if (author) bookData.author = author;
-        if (genre) bookData.genre = genre;
+        });
         
         // Upload cover if staged
         if (stagedCoverBlob) {
@@ -1830,9 +1893,12 @@ uploadAllBtn.onclick = async () => {
         
         await setDoc(doc(db, "books", activeBookId), bookData, { merge: true });
         
-        statusEl.innerText = "Upload Complete!";
-        statusEl.style.borderColor = "#00ff41";
-        await loadBookList();
+        const tagged = (bookData.minAge !== null) ? `ages ${bookData.minAge}\u2013${bookData.maxAge}` : 'NO age range';
+        statusEl.innerText = `Upload complete \u2014 ${stagedChapters.length} chapters, ` +
+            `${bookData.genre || 'no genre'}, ${tagged}, ` +
+            `${bookData.protagonistGender || 'no protagonist tag'}. This book is done.`;
+        statusEl.style.borderColor = (bookData.minAge !== null && bookData.protagonistGender) ? "#00ff41" : "#ffaa00";
+        await loadBookList(false);
     } catch (e) { alert("Metadata Save Failed: " + e.message); }
 };
 
@@ -2510,6 +2576,170 @@ if (langScanBtn) {
         renderCustomWords();
         await saveCustomWords();
     }
+    // ── Find & replace across the staged book ───────────────────────────────
+    //
+    // Written after doing 169 of these by hand in Aesop's Fables (Ass→Donkey,
+    // Cock→Rooster). Three things made that job non-trivial, and a plain
+    // string replace gets all three wrong:
+    //
+    //   1. CAPITALISATION. "Ass"→"Donkey" and "ass"→"donkey" are one rule, not
+    //      two, and getting it wrong mid-sentence is worse than not replacing.
+    //   2. ARTICLES. "an Ass" must become "a Donkey". 21 of those 169.
+    //   3. WORD BOUNDARIES. "ass" must not touch grass, passed, compassion or
+    //      Grasshopper; "cock" must not touch Peacock or cocked.
+    //
+    // Operates on stagedChapters ONLY. Nothing reaches Firestore until upload,
+    // so a bad replace costs a re-parse, not a book.
+
+    // ALL CAPS → all caps, Capitalised → Capitalised, anything else → as typed.
+    function matchCase(replacement, matched) {
+        if (matched.length > 1 && matched === matched.toUpperCase() &&
+            matched !== matched.toLowerCase()) return replacement.toUpperCase();
+        if (matched[0] === matched[0].toUpperCase() && matched[0] !== matched[0].toLowerCase()) {
+            return replacement[0].toUpperCase() + replacement.slice(1);
+        }
+        return replacement.toLowerCase();
+    }
+
+    // Letter-based approximation of the a/an rule. Deliberately NOT clever: the
+    // real rule is about SOUND, so "an hour" and "a unicorn" are both wrong here.
+    // Those are rare enough in one book to fix by eye, and a wrong guess is
+    // visible in the preview before anything is committed.
+    function fixArticles(text) {
+        return text.replace(/\b([Aa])(n?)(\s+)([A-Za-z])/g, (m, a, n, sp, first) => {
+            const wantsAn = 'aeiouAEIOU'.includes(first);
+            if (wantsAn === (n === 'n')) return m;               // already right
+            return a + (wantsAn ? 'n' : '') + sp + first;
+        });
+    }
+
+    function buildFindRegex(find, wholeWord) {
+        if (isRegexTerm(find)) {
+            const v = validateFilterTerm(find);
+            if (!v.ok) return { error: v.msg };
+            return { rx: new RegExp('(?:' + regexTermSource(find) + ')', 'g') };
+        }
+        const body = escapeForRegex(find);
+        // \b is meaningless against a non-word edge, so only apply it where the
+        // term actually starts/ends with a word character. Without this, finding
+        // "—" or "!" with Whole words ticked silently matches nothing.
+        const lead  = /^\w/.test(find) ? '\\b' : '';
+        const trail = /\w$/.test(find) ? '\\b' : '';
+        return { rx: new RegExp(wholeWord ? lead + body + trail : body, 'gi') };
+    }
+
+    function runFindReplace(commit) {
+        const out = document.getElementById('fr-out');
+        if (!out) return;
+        out.classList.remove('hidden');
+
+        const find    = (document.getElementById('fr-find').value || '');
+        const replace = (document.getElementById('fr-replace').value || '');
+        const wholeWord    = document.getElementById('fr-wholeword').checked;
+        const preserveCase = document.getElementById('fr-preservecase').checked;
+        const doArticles   = document.getElementById('fr-fixarticles').checked;
+        const doTitles     = document.getElementById('fr-titles').checked;
+
+        if (!find) { out.innerHTML = '<span style="color:#ffaa00;">Nothing to find.</span>'; return; }
+        if (!stagedChapters.length) {
+            out.innerHTML = '<span style="color:#ffaa00;">No book staged. Parse or open one first.</span>';
+            return;
+        }
+
+        const built = buildFindRegex(find, wholeWord);
+        if (built.error) {
+            out.innerHTML = '<span style="color:#ff4444;">' + escapeHtmlSafe(built.error) + '</span>';
+            return;
+        }
+
+        const swap = (text) => {
+            built.rx.lastIndex = 0;
+            let n = 0;
+            let result = text.replace(built.rx, (m) => {
+                n++;
+                return preserveCase ? matchCase(replace, m) : replace;
+            });
+            if (n && doArticles) result = fixArticles(result);
+            return { result, n };
+        };
+
+        let total = 0, titlesHit = 0, chaptersHit = 0;
+        const samples = [];
+
+        for (const chap of stagedChapters) {
+            let touched = false;
+
+            if (doTitles) {
+                const r = swap(chap.title || '');
+                if (r.n) {
+                    titlesHit += r.n; total += r.n; touched = true;
+                    if (samples.length < 12)
+                        samples.push({ where: 'title', before: chap.title, after: r.result });
+                    if (commit) chap.title = r.result;
+                }
+            }
+            for (const seg of chap.segments) {
+                const r = swap(seg.text || '');
+                if (r.n) {
+                    total += r.n; touched = true;
+                    if (samples.length < 12) {
+                        const i = Math.max(0, (seg.text.search(built.rx) || 0) - 45);
+                        samples.push({ where: 'Ch ' + chap.id,
+                                       before: seg.text.substr(i, 130),
+                                       after:  r.result.substr(i, 130) });
+                    }
+                    if (commit) seg.text = r.result;
+                }
+            }
+            if (touched) chaptersHit++;
+        }
+
+        if (!total) {
+            out.innerHTML = '<span style="color:#ffaa00;">No matches for <code>' +
+                            escapeHtmlSafe(find) + '</code>.</span>';
+            return;
+        }
+
+        let html = '<div style="color:' + (commit ? '#00ff41' : '#4B9CD3') + '; margin-bottom:8px;"><b>' +
+            (commit ? '\u2713 Replaced ' : 'Would replace ') + total + '</b> occurrence' +
+            (total === 1 ? '' : 's') + ' across ' + chaptersHit + ' chapter' +
+            (chaptersHit === 1 ? '' : 's') + (titlesHit ? ' (' + titlesHit + ' in titles)' : '') + '.</div>';
+
+        if (!commit) {
+            html += '<div style="color:#888; margin-bottom:8px;">Nothing has changed yet. ' +
+                    'Check the samples, then commit.</div>';
+        }
+
+        html += samples.map(s =>
+            '<div style="margin-bottom:8px; border-left:2px solid #442233; padding-left:8px;">' +
+            '<div style="color:#886688; font-size:0.9em;">' + escapeHtmlSafe(s.where) + '</div>' +
+            '<div style="color:#997799;">\u2212 ' + escapeHtmlSafe(s.before) + '</div>' +
+            '<div style="color:#bbddbb;">+ ' + escapeHtmlSafe(s.after) + '</div></div>').join('');
+
+        if (samples.length >= 12) html += '<div style="color:#666;">\u2026 first 12 shown.</div>';
+
+        if (commit) {
+            renderChapterList();
+            html += '<div style="color:#ffaa00; margin-top:10px;">Staged only \u2014 ' +
+                    'upload to save.</div>';
+        } else {
+            html += '<div style="margin-top:10px;"><button id="fr-commit-btn" class="secondary-btn" ' +
+                    'style="width:auto; padding:5px 14px; font-size:0.9em; background:#442200; ' +
+                    'border-color:#885500;">Replace all ' + total + '</button></div>';
+        }
+        out.innerHTML = html;
+
+        const commitBtn = document.getElementById('fr-commit-btn');
+        if (commitBtn) commitBtn.onclick = () => runFindReplace(true);
+    }
+
+    const frBtn = document.getElementById('fr-preview-btn');
+    if (frBtn) frBtn.onclick = () => runFindReplace(false);
+    ['fr-find', 'fr-replace'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); runFindReplace(false); } };
+    });
+
     // ── Filter audit: show every term, and test a sentence against them ──────
     //
     // "There's no way for me to audit that list" was the actual problem. A filter
