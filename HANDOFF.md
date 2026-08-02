@@ -1,6 +1,6 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v3.5.0 — books/library fixes added. Batches A and B shipped (learn.js 2.1.0, lessons-admin 1.7.0). §2 corrected: the "one revision behind" table was stale
+<!-- HANDOFF.md v3.6.0 — bulk-upload workflow fixes. books/library fixes added. Batches A and B shipped (learn.js 2.1.0, lessons-admin 1.7.0). §2 corrected: the "one revision behind" table was stale
      and has been removed; Round 1 is fully deployed, verified by diff 2026-08-01.
      §0 and §11 are Round 2 (Dvorak). Underwood's §1, §3-§10, §12 are verbatim. -->
 
@@ -121,7 +121,8 @@ evidence; this table is hearsay.
 | file | live | ship | what changed |
 |---|---|---|---|
 | `admin.html` | 2.7.6 | **2.9.0** | Export JSON panel; "Find stuck" button; inline Save Metadata status |
-| `admin.js` | 3.2.0 | **3.4.0** | Save Metadata feedback, genre/author clearing, custom-genre wiring, audit works on staged books |
+| `admin.js` | 3.5.0 | **3.6.0** | chapter Update &amp; Next; editable word list + free-text search; third provenance fix |
+| `admin.html` | 2.9.0 | **3.0.0** | Update &amp; Next button; Word list &amp; search panel |
 | `index.html` | 3.0.1 | **3.1.0** | persistent School/Library toggle in the header |
 | `learn.js` | 1.7.1 | **2.1.0** | **Batches A+B.** Runs/chunking, position WAL, accuracy-gated advancement, net WPM, idle-aware clock, run-level progress records |
 | `lessons-admin.js` | 1.5.1 | **1.7.0** | export + gate audit (1.6.0), stuck-student scan (1.7.0) |
@@ -492,6 +493,40 @@ about what to do instead.
 ⚠️ Chapter ids for staged books fall back to `index + 1` when a chapter has a blank or
 missing `id`, matching what Upload All will write. If you change that rule in one
 place, change it in `runAudit` and the Fix All lookup too.
+
+### Bulk-upload workflow, 2026-08-02
+
+Found while Jake was uploading five books at once.
+
+**Chapter titles.** Filling in unparsed titles meant Edit → paste → Update → scroll
+back to the list, per chapter, times twenty-odd. Added **Update & Next →**, which
+commits and opens the following chapter without leaving the editor, plus an
+"Editing chapter N of M" readout and autofocus on the title field. The commit logic
+moved into `commitStagedEdit()` so both buttons share one code path and neither can
+advance past invalid JSON.
+
+**The word list was hardcoded and unsearchable.** `FLAGGED_WORDS` was a module-level
+const with `FLAGGED_REGEX` built once at load, so there was no way to flag a word the
+list didn't know (Jake hit "Land of the Boobies" in Pinocchio) or to look for one
+yourself. Now:
+
+- `buildFlaggedRegex()` is built per scan from `FLAGGED_WORDS` + `customFlaggedWords`.
+- Custom words live in **`settings/languageFilter`**, which the existing rules already
+  cover (`read: signedIn()`, `write: isSuper()`) — no rules change. They follow Jake
+  between machines rather than sitting in one browser's localStorage.
+- Free-text **search** reuses `scanForLanguageIssues` via a new `overrideRegex`
+  parameter, so a search hit gets the same context extraction and inline-edit
+  affordances as a flagged word. Whole-word by default, `/…/` for a regex.
+- All terms are regex-escaped, so `a.b` doesn't match `a?b`, and the `\b` guards are
+  conditional so a search for a non-word string like `?` still matches.
+
+⚠️ `loadCustomWords()` **must not** be called at module-eval time — `settings/{docId}`
+is gated behind `signedIn()`, so it would race auth and silently leave the list empty.
+It's called from `onAuthStateChanged`.
+
+**Third instance of the provenance bug.** `langScanBtn.onclick` passed a hardcoded
+`true` for `fromDB`, same class of error as the audit had. Now `stagedFromDB`.
+If a fourth read/write pair appears in this file, check it too.
 
 `index.html` gained a **School / Library toggle** in the header. A `back-to-landing`
 link already existed but lived inside the library view where nobody found it, so a
