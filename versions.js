@@ -1,4 +1,4 @@
-// versions.js v1.2.0 — reads every file's version constant out of the files as
+// versions.js v1.3.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
 //
 // WHY IT WORKS THIS WAY
@@ -45,9 +45,9 @@ const SOURCES = [
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
 ];
 
-export const VERSIONS_VERSION = '1.2.0';
+export const VERSIONS_VERSION = '1.3.0';
 
-const CACHE_KEY = 'ttb_buildVersions_v2';   // v2: entries gained a `header` field
+const CACHE_KEY = 'ttb_buildVersions_v3';   // v3: entries gained header budget fields
 
 // v1.2.0 — HEADER-COMMENT DRIFT DETECTION.
 //
@@ -66,6 +66,60 @@ const CACHE_KEY = 'ttb_buildVersions_v2';   // v2: entries gained a `header` fie
 // is `// admin.js v3.6.0` or a newest-first changelog like game.js's. Stylesheets
 // are exempt: their comment IS the source of truth, there's no second copy.
 const HEADER_EXEMPT = ['style.css', 'adventure.css'];
+
+// v1.3.0 — HEADER BUDGET.
+//
+// Headers grew unbounded: game.js reached 122 lines and 18 version entries, and
+// its entries had drifted OUT OF ORDER because each session's edit anchored on
+// the previous newest one and landed a slot too deep. Nobody catches either by
+// reading, because nobody reads a 122-line comment.
+//
+// Budget: 60 lines and 6 version entries per header, newest first. Everything
+// older lives in CHANGELOG.md. Violations are reported in index.html's build
+// panel, which is the only place a check can run without a CLI.
+const HEADER_MAX_LINES = 60;
+const HEADER_MAX_ENTRIES = 6;
+
+function cmpSemver(a, b) {
+    const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const d = (pa[i] || 0) - (pb[i] || 0);
+        if (d) return d;
+    }
+    return 0;
+}
+
+// Returns { lines, entries, ordered, problems[] } for the leading // block.
+function auditHeader(file, text) {
+    if (HEADER_EXEMPT.includes(file)) return null;
+    const lines = text.split('\n');
+    let n = 0;
+    for (const line of lines) {
+        const t = line.trim();
+        if (t === '' || t.startsWith('//')) n++; else break;
+    }
+    const block = lines.slice(0, n);
+
+    // A version ENTRY is a line that OPENS a changelog item. Version numbers
+    // mentioned inside an entry's prose must not count, or a well-written
+    // header reads as a violation.
+    const entries = block
+        .map(l => (l.trim().match(/^\/\/\s*v(\d+\.\d+(?:\.\d+)?)\s*[-\u2014]/) || [])[1])
+        .filter(Boolean);
+
+    const ordered = entries.every((v, i) => i === 0 || cmpSemver(entries[i - 1], v) >= 0);
+
+    const problems = [];
+    if (n > HEADER_MAX_LINES)
+        problems.push('header is ' + n + ' lines (budget ' + HEADER_MAX_LINES + ')');
+    if (entries.length > HEADER_MAX_ENTRIES)
+        problems.push(entries.length + ' version entries (budget ' + HEADER_MAX_ENTRIES +
+                      ') \u2014 move the rest to CHANGELOG.md');
+    if (!ordered)
+        problems.push('version entries out of order: ' + entries.join(' '));
+
+    return { lines: n, entries: entries.length, ordered, problems };
+}
 
 function readHeaderVersion(file, text) {
     if (HEADER_EXEMPT.includes(file)) return null;
@@ -92,7 +146,9 @@ async function readOne({ file, pattern }) {
         const text = await res.text();
         const m = text.match(pattern);
         if (!m) return { file, version: null, note: 'constant not found' };
-        return { file, version: m[1], header: readHeaderVersion(file, text) };
+        return { file, version: m[1],
+                 header: readHeaderVersion(file, text),
+                 audit: auditHeader(file, text) };
     } catch (e) {
         return { file, version: null, note: 'fetch failed' };
     }
@@ -132,6 +188,10 @@ export function renderBuildList(results) {
         let line = `<div><span style="opacity:.6">${r.file}</span> v${r.version}`;
         // Runtime constant vs header comment. The constant wins — it's what
         // renders — so the header is what's reported as wrong.
+        if (r.audit && r.audit.problems.length) {
+            line += r.audit.problems.map(p =>
+                ' <span style="color:#ff5252">\u26a0 ' + p + '</span>').join('');
+        }
         if (r.header && r.header !== r.version) {
             line += ` <span style="color:#ffb74d">⚠ header comment says v${r.header}` +
                     ` — one of the two is a lie</span>`;

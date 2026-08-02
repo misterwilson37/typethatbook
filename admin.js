@@ -1,66 +1,32 @@
 // admin.js v3.10.0
-// v3.10.0 — ONE PASS PER BOOK. Two divergent copies of "write the book document"
-//          had drifted apart, so every book had to be visited twice and you had
-//          to know which button wrote which field.
 //
-//          ROOT CAUSE of "Save Metadata loses the chapters": saveTitleBtn called
-//          loadBookList() to refresh the picker (added v3.6.0, well meant), and
-//          loadBookList ended with `selectedIndex = 1` + a synthetic change
-//          event. bookSelect.onchange hides the staging area AND reassigns
-//          activeBookId — to the FIRST book alphabetically, not the one being
-//          edited. So it didn't merely hide the chapters, it silently repointed
-//          the editor at a different book. loadBookList() now preserves the
-//          selection and takes an explicit flag before it fires onchange.
+// Book authoring: EPUB import, chapter editor, metadata and tags, language
+// filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
-//          Upload All was missing minAge/maxAge/protagonistGender entirely (my
-//          miss in 3.7.0 — I added them to Save Metadata only), read genre via
-//          .value instead of readGenreField() so "Custom..." stored the literal
-//          "__custom__", and still had the `if (author)` guards that v3.6.0
-//          removed from the other path. That genre read is the FOURTH instance
-//          of the read-the-field-properly bug HANDOFF §11 warned to look for.
+// ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
-//          Both paths now share readBookMetadataForm(). One reader, one writer,
-//          no drift. Upload All writes chapters AND metadata, so a new book is
-//          finished in one pass.
+// v3.10.0 — One pass per book. readBookMetadataForm() is now the only reader
+//           of the metadata form; Save Metadata and Upload All had drifted
+//           into two writers that disagreed on four fields. Plus find &
+//           replace across a staged book.
+// v3.9.0 — EPUB import splits multi-work spine files (Standard Ebooks puts a
+//          whole collection in one file — Aesop is 284 fables in one).
+// v3.8.0 — Language filter: regex terms, an audit view, and a word list
+//          regrouped by category and roughly doubled.
+// v3.7.0 — Book tags: minAge / maxAge / protagonistGender.
+// v3.6.0 — Chapter Update & Next; editable word list; free-text search.
+// v3.5.0 — Export JSON panel; Find stuck; inline Save Metadata status.
 //
-//          Also: find & replace across a staged book, with case preservation and
-//          automatic a/an correction. Built after doing 169 of them by hand in
-//          Aesop's Fables.
-// v3.9.0
-// v3.9.0 — EPUB import: split multi-work spine files.
-//          The importer assumed one spine file == one chapter. Standard Ebooks
-//          (where most of this library comes from) puts every short work of a
-//          COLLECTION in a single XHTML file as sibling <article>/<section>
-//          elements — Aesop's Fables is 284 fables in one file. That imported as
-//          one 238KB "chapter" with 284 titles run together, and the alternative
-//          was splitting and naming 284 chapters by hand.
-//          findChapterUnits() now detects that shape and splits on it. Novels are
-//          unaffected: one heading per file means no split, and the old path runs.
-//          Also fixes a latent bug — title extraction used hTag.innerText, which
-//          is undefined on a DOMParser document in Firefox because innerText
-//          needs layout. Every imported title would have been blank there.
-//          Also: the seven period words previously held back are now flagged, at
-//          Jake's request. See the note above FLAGGED_WORD_GROUPS.review.
-// v3.8.0
-// v3.8.0 — Language filter: regex + audit. The persistent "always flag these"
-//          list now accepts /…/ patterns like the free-text search already did,
-//          patterns are validated on entry AND defensively at scan time (one bad
-//          stored pattern used to be able to break every scan), and there is
-//          finally a way to SEE the effective list — built-in plus custom, with
-//          a live tester. FLAGGED_WORDS regrouped by category and substantially
-//          expanded for period literature; see the note above it.
-//          Also: book list CSV export + an on-page balance report, for checking
-//          the library's spread of genre / age / protagonist.
-// v3.7.0
-// v3.7.0 — Book tags: target age range (minAge/maxAge) and protagonistGender on
-//          books/{id}. Written unconditionally by Save Metadata, same as author
-//          and genre — see the v3.6.0 note on `if (author)` silently keeping the
-//          old value when a field is blanked. Age is validated as a RANGE, not
-//          two independent numbers: half a range is a data bug, and min > max is
-//          silently unmatchable by the library's overlap test.
-//          The book picker now marks untagged books with a bullet so the tagging
-//          backlog is visible while working through it.
-// v3.6.0
+// ── Load-bearing ──────────────────────────────────────────────────────────
+//
+//   * loadBookList(selectFirst) defaults to FALSE and preserves the current
+//     selection. Passing true fires onchange, which hides the staging area
+//     and reassigns activeBookId — that is how Save Metadata used to throw
+//     away a book's staged chapters.
+//   * loadCustomWords() must not run at module-eval time; settings/{docId}
+//     is gated behind signedIn() and it would race auth.
+//   * Never use innerText on a DOMParser document. It needs layout and
+//     returns undefined in Firefox.
 import { db, auth, storage } from "./firebase-config.js";
 import { initLessonsPanel, setStaffHooks } from "./lessons-admin.js";
 import { initStaffPanel, initStaffPanelContent, syncOwnClaimsAfterClassChange }

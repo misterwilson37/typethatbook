@@ -1,51 +1,30 @@
-// learn.js — TypeThatBook School v2.1.0
-// v2.1.0 — Batch B: run-level instrumentation. lessonProgress was written from one
-//          place (the final run's modal, grade != F), so a student stuck on run 2 of
-//          12 wrote nothing at all and showed in admin as "not started" — the exact
-//          failure the audit was about was the one the data couldn't show. Now every
-//          finished run records runAttempts/runFailures/furthestRunIdx/lastSeenAt.
-//          Writes are queued onto the existing coalesced flush rather than fired per
-//          run, so this costs no extra Firestore writes or reads. Also fixes
-//          timeSpentSeconds, which counted only the final run, and adds merge:true to
-//          saveProgress, which was replacing the whole document.
-// v2.0.0 — MAJOR (signed off by Jake 2026-08-01). Lesson mechanics rebuilt after an
-//          audit found students stalling mid-curriculum and blaming their own typing.
-//          Full analysis in PEDAGOGY-AUDIT.md. Seven changes:
-//            1. STEPS ARE CHUNKED INTO RUNS. Six authored steps were longer than a
-//               10-minute class period at the pace needed to pass them (u6_l2 step 1:
-//               789 chars at a 20 WPM gate = 10.5 min of flawless typing). Chunking
-//               happens in the engine, so all 47 lessons are fixed with no data change.
-//            2. RUN POSITION IS PERSISTED (ttb_learnpos_v1). The old WAL saved stats
-//               only, so the bell erased the whole run — making any run longer than
-//               the time left in the period permanently unfinishable.
-//            3. KEY DRILLS ARE GRADED ON ACCURACY ONLY. Speed on random letter groups
-//               is not a meaningful measure, and gating it made the new-key drill the
-//               hardest thing in its own lesson.
-//            4. WPM IS NET. chars++ ran before the correct/incorrect branch, so errors
-//               inflated reported speed — three deliberate mistakes could turn a
-//               failing 14 WPM perfect run into a passing 15 WPM one.
-//            5. THE GRADED CLOCK PAUSES ON IDLE. It previously ran regardless, so an
-//               interruption could put the gate out of reach and the app would then
-//               tell the student to type faster.
-//            6. C ADVANCES, AND A FAILED RUN RETRIES THAT RUN. Missing the gate on the
-//               last step used to replay the entire lesson including the intro.
-//            7. A🔥 IS REACHABLE — a clean run on drills, 1.5× (not 2×) on prose.
-//          Removed: DRILL_STOP_TIME_THRESHOLD, which did not do what it claimed.
-// NOTE: the authoritative version is LEARN_VERSION below, not this comment. An
-//       earlier header claimed v1.0.0 while the constant read 1.6.3; the
-//       constant was right. This file's real lineage is 1.6.x → 1.7.0.
-// v1.7.1 — applyPendingClassAssignment now stamps schoolId alongside classId.
-//          Without it a student had a class but no building, which made them
-//          invisible to their own teacher under the new security rules.
-// v1.7.0 — Write reduction to match game.js v3.4.0. saveStats() fired on every
-//          completed lesson step and wrote two documents each time (~20-40
-//          writes per student per block). Now backed by a localStorage
-//          write-ahead log with a coalesced flush every 5 min and on session
-//          end; walRecoverLearn() replays anything unflushed on next load, so
-//          this is more durable than the old fire-and-forget beforeunload path.
-//          Also stamps classId/schoolId onto typing_logs for scoped reporting,
-//          and adds a visibilitychange handler (beforeunload is unreliable on
-//          Chromebooks).
+// learn.js v2.1.0
+//
+// Lesson-mode engine, separate from game.js. Same write-ahead-log and
+// coalesced-flush persistence pattern.
+//
+// ── Full history: CHANGELOG.md § learn.js ─────────────────────────────────
+// ── Why it looks like this: PEDAGOGY-AUDIT.md ─────────────────────────────
+//
+// v2.1.0 — Batch B: every finished run writes runAttempts / runFailures /
+//          furthestRunIdx / lastSeenAt, queued onto the existing flush. A
+//          grade F now leaves a record; previously the students in the most
+//          trouble left no trace at all.
+// v2.0.0 — Batch A, the stall fix. Long steps chunked into runs under 150
+//          chars, run position persisted, net WPM, idle-aware graded clock,
+//          accuracy-gated advancement, per-step gates inferred from type.
+// v1.7.1 — Header/constant version mismatch corrected.
+// v1.7.0 — Write-ahead log + coalesced flush.
+//
+// ── Load-bearing ──────────────────────────────────────────────────────────
+//
+//   * saveProgress() uses merge:true. Without it, completing a lesson erases
+//     every run-level field.
+//   * ttb_learnwal_v1 and ttb_learnpos_v1 both carry an explicit `v`. Bump it
+//     rather than changing the payload shape, or a mid-run student on the old
+//     shape gets a corrupt resume.
+//   * Do NOT scale gates by grade level. An 8th grader may have had this
+//     teacher twice or never; unit position is the only honest signal.
 import { db, auth } from "./firebase-config.js";
 import {
     collection, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc

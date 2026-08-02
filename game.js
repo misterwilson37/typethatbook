@@ -1,111 +1,35 @@
-// v3.5.0 - Adventure Mode leaves alpha. Three changes, one feature:
-//          1. FIRST-RUN SPLASH. A student who has never chosen a view gets a
-//             full-screen picker with an animated preview of each mode before
-//             they type a character. Adventure was previously reachable only
-//             through Settings → View, which most students never opened, so the
-//             mode with the better engagement numbers was the hidden one.
-//          2. THE CHOICE FOLLOWS THE STUDENT. viewMode now lives in
-//             users/{uid}/profile/info alongside initials, and is read as part
-//             of the SAME getDoc() that already loads initials — no extra reads.
-//             localStorage stays as the pre-auth fast path so the correct view
-//             paints before Firestore answers, and is reconciled after.
-//          3. HOT SWAP, NO RELOAD. applyViewMode() mounts/unmounts the renderer
-//             and replays textLoaded + positionSet into it. The old settings
-//             toggle called location.reload(), which was acceptable for a
-//             deliberate settings change but not for "you sat down at a
-//             different Chromebook and we noticed".
-//          Also: document.title driven from VERSION (open work §9 item 5);
-//          "(alpha)" removed from the Settings label.
-// v3.7.0 - Chapter picker survives a 286-chapter book. A <select> with 286
-//          options and no search means finding "The Donkey and the Lapdog"
-//          is a scroll, not a lookup. Above CHAPTER_FILTER_MIN the picker gains
-//          a filter box matching chapter number or title, with Enter as Go.
-//          Also collapses THREE divergent copies of the chapter-option builder
-//          into buildChapterOptions(). They had already drifted — the settings
-//          list showed "✓ Ch. 4: Title" while the post-book-switch rebuild of
-//          the SAME dropdown showed "Chapter 4: Title" with no completion
-//          ticks, so switching books silently changed the labels.
-// v3.6.0 - Book progress bar survives a 286-chapter book. Aesop's Fables was the
-//          first book to exceed ~40 chapters and it broke the bar two ways:
-//          VISUALLY, each chapter got 1/286th of a ~280px strip — under one pixel,
-//          with a 1px divider inside it, so the whole bar rendered as a grey
-//          hairline smear (confirmed by screenshot).
-//          And far worse, PER KEYSTROKE: the bar built 5 DOM nodes per chapter
-//          (~1,430 for Aesop) and updateProgressBars() then did FOUR
-//          getElementById calls per chapter on every character typed — 1,144 DOM
-//          lookups per keystroke, on Chromebooks. That is a typing-latency bug
-//          wearing a cosmetic bug's clothing.
-//          Above BOOK_BAR_MAX_SEGMENTS the bar now renders condensed: one track,
-//          one fill, one marker, three nodes total and three lookups per
-//          keystroke regardless of chapter count. The label carries the
-//          information the segments used to ("Ch 12 / 286").
-// v3.4.2 - practice_sessions now also carries classId/schoolId. Without them the
-//          collection was unscopeable in security rules, so its read rule had to
-//          be "any staff member, any district" — and those documents contain
-//          email, displayName, and the full generated paragraph.
-// v3.4.1 - practice_sessions now writes an expiresAt TTL field. It was the one
-//          append-only collection still growing without bound; typing_sessions
-//          got one in v3.4.0 and this was missed. TTL policies for both are in
-//          firestore.indexes.json fieldOverrides.
-// v3.4.0 - Write reduction. saveProgress() used to fire on every '.', '!', '?'
-//          and newline, writing THREE documents each time (~236,000 writes/day
-//          at 7,000 students against a 20,000/day free tier).
-//          Replaced with a localStorage write-ahead log plus a coalesced flush:
-//            - every sentence still records EVERYTHING, synchronously, locally
-//            - Firestore gets a batched flush every 5 min and on session end
-//            - walRecover() replays unflushed work on next load
-//          This is MORE durable than what it replaced, not less. The old code
-//          lost everything since the last punctuation mark if the tab died; the
-//          WAL loses nothing. Student position, time, speed and accuracy are all
-//          still tracked and still resume exactly where they left off.
-//          Also:
-//            - progress + completedChapters merged into one document (was two
-//              writes to the same doc)
-//            - typing_sessions: one rollup doc per session with a sprints[]
-//              array instead of one doc per sprint, plus an expiresAt TTL field
-//            - chapter text cached in localStorage (biggest per-load read)
-//            - goals/class/school cached for a day (was 2-3 reads every load)
-//            - chapter advance does one write instead of two
-//            - classId/schoolId stamped on typing_logs and typing_sessions so
-//              reports can be scoped by class or building. See MULTITENANCY.md.
-// v3.3.0 - Leaderboard scale rework. The old fetchLeaderboard() read EVERY
-//          document in the leaderboard collection to build four top-10 lists,
-//          and updateLeaderboard() busted its own cache before calling it on
-//          every sprint end. At 7,000 students that projected to ~327M reads
-//          and ~82GB egress per day. Now:
-//            - four indexed orderBy+limit(10) queries: 40 reads, not 7,001
-//            - cache is 10 minutes and is NOT busted on the hot path
-//            - placements computed locally against cached threshold values,
-//              so a normal sprint costs zero reads
-//          - own leaderboard doc read once per session, not once per sprint
-//          - writes coalesced to >=120s apart (or immediately on a new PB),
-//            flushed on visibilitychange:hidden
-//          - displayName no longer stored on leaderboard docs. It was written
-//            but never read; the UI shows initials. Real names for the admin
-//            panel still live in typing_logs / typing_sessions, untouched.
-//          Needs ONE composite index (weekly board). Falls back gracefully
-//          while it builds — see fetchLeaderboard().
-// v3.2.0 - Per-mistake corrections: mistakes at the current letter accumulate
-//          (deepening red shade in classic view) and each backspace undoes
-//          exactly one — the cursor doesn't move back until all mistakes at
-//          the letter are undone, just like deleting real typed characters.
-//          New ttb:backspaceUndo event drives the adventure tilt-back.
-// v3.1.1 - textLoaded emit carries chapters + completedChapters for the
-//          adventure chapter map (null chapters in practice mode)
-// v3.1.0 - Leaderboard hardening: WPM sanity clamp (impossible speeds were being
-//          recorded), admin per-entry reset buttons, Accuracy category removed;
-//          400ms grace period on chapter-complete any-key advance; stale
-//          sprint/hard-stop state cleared on every chapter load; dead
-//          practice-restore variable removed
-// v3.0.7 - Game Genie warps emit positionSet (adventure canvas was desyncing);
-//          hard-stop modal escapes the resume key before innerHTML injection
-// v3.0.6 - Daily timer renders correctly on page load (was stuck at 00:00 until first keystroke)
-// v3.0.5 - Chapter-end modal accepts Enter/Space; Day timer shows secondsToday;
-//          drop redundant colon between timer label and value
-// v3.0.4 - Sentence-rollback on hard-stop only fires in adventure mode
-// v3.0.3 - Hard-stop modal asks for sentence-start letter; spam threshold = 3
-// v3.0.2 - Hard-stop rolls cursor back to start of current sentence
-// v3.0.1 - Adventure Mode integration; cross-file version banner
+// game.js v3.8.0
+//
+// Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
+// mode, chapter navigation, all modals, write-ahead-log persistence.
+//
+// ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
+//
+// v3.8.0 — Student school picker in Settings (read-only once a teacher has
+//          assigned a class). Practice gating says that TYPING is what
+//          unlocks it, and checks the daily cap before offering the button.
+// v3.7.0 — Chapter picker filter above 25 chapters. Collapsed three drifted
+//          chapter-option builders into buildChapterOptions().
+// v3.6.0 — Book progress bar condenses above 40 chapters. Was 5 DOM nodes per
+//          chapter and 4 getElementById calls per chapter PER KEYSTROKE —
+//          1,144 lookups per character on a 286-chapter book.
+// v3.5.0 — Adventure Mode out of alpha: first-run splash with previews,
+//          viewMode synced via users/{uid}/profile/info, hot swap instead of
+//          location.reload().
+// v3.4.2 — practice_sessions carries classId/schoolId so rules can scope it.
+// v3.4.1 — practice_sessions writes an expiresAt TTL field.
+//
+// ── Load-bearing. Do not "simplify" these ─────────────────────────────────
+//
+//   * The write-ahead log is MORE durable than the per-sentence writes it
+//     replaced. visibilitychange:hidden is the flush event that matters;
+//     beforeunload does not fire reliably on Chromebooks.
+//   * The leaderboard cache is deliberately NOT busted on the hot path.
+//     Doing so cost ~$34,300/year at 7,000 students.
+//   * VIEW_MODE is `let`. It changes at runtime three ways: Settings, the
+//     splash, and reconciliation against the student's Firestore profile.
+//   * applyViewMode() must replay textLoaded + positionSet. A renderer
+//     mounted mid-session missed those events and will draw nothing.
 import { db, auth } from "./firebase-config.js";
 import { doc, getDoc, setDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
@@ -116,7 +40,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.7.0";
+const VERSION = "3.8.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -805,6 +729,11 @@ let practiceText = '';              // the generated text
 let practiceMissedSnapshot = {};   // snapshot of missedCharsMap at practice start
 let practiceTypingAccumulator = 0;  // seconds typed since last practice (or session start)
 let hasDonePractice = false;        // whether practice has been used this session
+// Server-authoritative daily allowance, learned from the last successful
+// generatePractice() call (index.js DAILY_LIMIT = 5). null = not known yet.
+// Checked BEFORE offering the button so a student out of sessions doesn't click,
+// wait for a round-trip, and get an error for their trouble.
+let practiceRemainingToday = null;
 const PRACTICE_FIRST_UNLOCK = 150;  // 2.5 min before first practice
 const PRACTICE_COOLDOWN = 60;       // 1 min between subsequent practices
 
@@ -1059,6 +988,67 @@ function getWeekStart(date) {
 // captured here and stamped onto every log so reports can be scoped without
 // scanning the collection — see MULTITENANCY.md.
 const GOALS_CACHE_KEY = 'ttb_goalsCache_v1';
+
+// ─── Student school picker (v3.8.0) ───────────────────────────────────────
+//
+// Rules already allow this: `match /users/{uid}` has
+// `allow update: if request.auth.uid == uid`, and `schools` is
+// `allow read: if signedIn()`. No rules change, and none should be needed —
+// if a change looks necessary, the design is wrong.
+//
+// What a student can actually do by setting this: stamp their OWN future logs
+// with a building, which makes them visible to that building's staff. They
+// cannot read anything new. The worst case is a student picking a school they
+// don't attend, which puts their own name in that school's reports — visible,
+// traceable, and fixable by a teacher reassigning them. Weighed against the
+// status quo, where an unassigned student is invisible to everyone, that's the
+// better failure.
+const SCHOOLS_CACHE_KEY = 'ttb_schoolsCache_v1';
+const SCHOOLS_CACHE_MS = 24 * 3600 * 1000;
+let schoolsList = null;
+
+async function loadSchools() {
+    if (schoolsList) return schoolsList;
+    try {
+        const raw = localStorage.getItem(SCHOOLS_CACHE_KEY);
+        if (raw) {
+            const c = JSON.parse(raw);
+            if (c && Array.isArray(c.schools) && (Date.now() - c.at) < SCHOOLS_CACHE_MS) {
+                schoolsList = c.schools;
+                return schoolsList;
+            }
+        }
+    } catch (_) {}
+    try {
+        const snap = await getDocs(collection(db, "schools"));
+        schoolsList = [];
+        snap.forEach(d => schoolsList.push({ id: d.id, name: (d.data().name || d.id) }));
+        schoolsList.sort((x, y) => x.name.localeCompare(y.name));
+        try {
+            localStorage.setItem(SCHOOLS_CACHE_KEY,
+                JSON.stringify({ at: Date.now(), schools: schoolsList }));
+        } catch (_) {}
+    } catch (e) {
+        console.warn('School list unreadable:', e);
+        schoolsList = [];
+    }
+    return schoolsList;
+}
+
+async function saveStudentSchool(schoolId) {
+    if (!currentUser || currentUser.isAnonymous) return false;
+    try {
+        await setDoc(doc(db, "users", currentUser.uid), { schoolId: schoolId }, { merge: true });
+        ttbSchoolId = schoolId;
+        // The goals cache carries schoolId, so a stale copy would keep stamping
+        // the old building onto logs until it expired.
+        try { localStorage.removeItem(GOALS_CACHE_KEY); } catch (_) {}
+        return true;
+    } catch (e) {
+        console.warn('Save school failed:', e);
+        return false;
+    }
+}
 const GOALS_CACHE_MS = 86400000;   // 1 day
 
 async function loadGoals() {
@@ -2645,12 +2635,22 @@ function getMissedCharsHTML() {
     const canPractice = currentUser && !currentUser.isAnonymous && !isPracticeMode;
     const practiceThreshold = hasDonePractice ? PRACTICE_COOLDOWN : PRACTICE_FIRST_UNLOCK;
     const practiceReady = practiceTypingAccumulator >= practiceThreshold;
+    const outOfPractice = (practiceRemainingToday !== null && practiceRemainingToday <= 0);
     let practiceBtn = '';
-    if (canPractice && practiceReady) {
-        practiceBtn = ` <button id="practice-btn" class="practice-btn" title="AI-generated practice focusing on your weak spots">✨ Practice</button>`;
+    if (canPractice && outOfPractice) {
+        // Known-exhausted. Saying so here beats letting them click, wait, and
+        // read an error — and "comes back tomorrow" is the bit that matters.
+        practiceBtn = ` <span style="font-size:0.85em; color:#aaa;">\u2728 Practice comes back tomorrow</span>`;
+    } else if (canPractice && practiceReady) {
+        practiceBtn = ` <button id="practice-btn" class="practice-btn" title="AI-generated practice focusing on your weak spots">\u2728 Practice</button>`;
     } else if (canPractice && !practiceReady) {
-        const remaining = Math.ceil((practiceThreshold - practiceTypingAccumulator) / 60);
-        practiceBtn = ` <span style="font-size:0.85em; color:#aaa;" title="Keep typing to unlock practice mode">✨ Practice unlocks in ~${remaining}m</span>`;
+        // The counter only advances while keys are being pressed, so "keep
+        // typing" is literally the instruction — the old wording implied waiting
+        // would do it. Seconds below a minute, because ceil() turned 5 seconds
+        // into "~1m" and made the app look like it was stalling.
+        const left = Math.max(1, Math.round(practiceThreshold - practiceTypingAccumulator));
+        const pretty = left >= 60 ? `~${Math.ceil(left / 60)} more min` : `${left} more sec`;
+        practiceBtn = ` <span style="font-size:0.85em; color:#aaa;" title="The timer only counts while you're typing">\u2728 Practice unlocks after ${pretty} of typing</span>`;
     }
     return `<div style="font-size:0.8em; color:#888; margin:4px 0;">Watch out for: ${pills}${practiceBtn}</div>`;
 }
@@ -3437,6 +3437,25 @@ async function openMenuModal() {
         });
     } catch(e) { console.warn(e); }
 
+    // Schools are cached 24h, so this is one read per day per student at most.
+    const schools = (currentUser && !currentUser.isAnonymous) ? await loadSchools() : [];
+    const teacherAssigned = !!ttbClassId;
+    const mySchoolName = (schools.find(s => s.id === ttbSchoolId) || {}).name || '';
+    const schoolHTML = (currentUser && !currentUser.isAnonymous && (schools.length || ttbSchoolId)) ? `
+        <div class="menu-label" style="margin-top:8px;">School</div>
+        ${teacherAssigned ? `
+            <div style="font-size:0.75em; color:#666; margin-top:3px; text-align:center;">
+                ${escapeHtml(mySchoolName || 'Assigned')}<br>
+                <span style="color:#aaa; font-size:0.9em;">set by your teacher</span>
+            </div>`
+        : `
+            <select id="school-select" class="modal-select" style="margin:3px 0 0 0;">
+                <option value="" ${!ttbSchoolId ? 'selected' : ''}>— No school —</option>
+                ${schools.map(s => `<option value="${escapeHtml(s.id)}" ${s.id === ttbSchoolId ? 'selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}
+            </select>
+            <div id="school-status" style="font-size:0.7em; color:#888; min-height:1em; margin-top:2px;"></div>`}
+    ` : '';
+
     const initialsHTML = (currentUser && !currentUser.isAnonymous) ? `
         <div class="menu-col menu-col-initials">
             <div class="menu-label">Initials</div>
@@ -3447,6 +3466,7 @@ async function openMenuModal() {
                 <input type="checkbox" id="lb-optout" ${leaderboardOptOut ? 'checked' : ''}>
                 Hide me from leaderboards
             </label>
+            ${schoolHTML}
         </div>` : '';
 
     document.getElementById('modal-body').innerHTML = `
@@ -3645,6 +3665,23 @@ async function openMenuModal() {
         bookSwitchPending = true;
         isInputBlocked = true;
     };
+
+    // "No school" is a valid permanent state, not a prompt to fix something —
+    // never nag, never block, and never auto-select the first school.
+    const schoolSel = document.getElementById('school-select');
+    if (schoolSel) {
+        schoolSel.onchange = async (e) => {
+            const st = document.getElementById('school-status');
+            const val = e.target.value;
+            if (st) { st.textContent = 'Saving\u2026'; st.style.color = '#888'; }
+            const ok = await saveStudentSchool(val);
+            if (!st) return;
+            if (!ok) { st.textContent = "Couldn't save."; st.style.color = '#D32F2F'; return; }
+            st.textContent = val ? '\u2713 Saved' : '\u2713 No school';
+            st.style.color = '#2E7D32';
+            setTimeout(() => { if (st) st.textContent = ''; }, 2500);
+        };
+    }
 
     wireChapterFilter('chapter-filter', 'chapter-nav-select', 'chapter-filter-status', 'go-btn');
 
@@ -5264,6 +5301,7 @@ async function startPracticeMode() {
         practiceText = result.data.text;
         practicePrompt = result.data.prompt || '';
         const remaining = result.data.remaining;
+        if (typeof remaining === 'number') practiceRemainingToday = remaining;
 
         // Save real book state
         practiceRealBookData = bookData;
@@ -5322,11 +5360,15 @@ async function startPracticeMode() {
 
     } catch (e) {
         console.error("Practice generation failed:", e);
-        let errorMsg = 'Something went wrong. Please try again.';
+        let errorMsg = "The practice writer is busy. Keep typing your book \u2014 " +
+                       "it's the same practice, and you can try again in a minute.";
         if (e.code === 'functions/resource-exhausted') {
-            errorMsg = e.message || "You've used all your practice sessions for today.";
+            // Cache it so getMissedCharsHTML() stops offering the button at all.
+            practiceRemainingToday = 0;
+            errorMsg = "That's all five practice sessions for today \u2014 nice work. " +
+                       "They come back tomorrow. Your book is still right where you left it.";
         } else if (e.code === 'functions/unauthenticated') {
-            errorMsg = 'You must be signed in to use practice mode.';
+            errorMsg = 'Sign in to use practice mode.';
         }
         
         // Show error then go back to break modal

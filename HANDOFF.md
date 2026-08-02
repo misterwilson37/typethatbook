@@ -3,7 +3,10 @@
 <!-- HANDOFF.md v4.2.0 — Round 3 (Blick): Adventure Mode out of alpha, project-wide
      version alignment, book tags (age range + protagonist), language-filter regex
      + audit, book CSV export, multi-work EPUB splitting, one-pass book
-     workflow, find & replace, 284-chapter scale fixes. §9 item 1 CORRECTED —
+     workflow, find & replace, 284-chapter scale fixes,
+     chapter picker filter. Tiers 1-3 closed. Header budget imposed + CHANGELOG.md created.
+     §10 document map corrected —
+     six of its eight entries were files that do not exist. §9 item 1 CORRECTED —
      the practice-mode panic was wrong; see §A.10. New §A is Round 3 and is the first thing to read. §0 and §11
      are Round 2 (Dvorak). Underwood's §1, §3-§10, §12 are verbatim. -->
 
@@ -510,10 +513,148 @@ sloppy."* Correct on both counts. Redrawn against an actual screenshot:
 renderer source. That was enough to get the palette right and the layout wrong.
 Ask for a screenshot before drawing a picture of something that already exists.
 
-### A.19 Not done — queued
+### A.19 Chapter picker filter (game.js 3.7.0) — Tier 1 closed
 
-0. **Tier 3, greenlit but not started:** student school picker (§9 item 4) and a
-   nicer practice cool-down message (§A.10). Both live in `game.js`.
+The other half of the 284-chapter problem. A `<select>` with 286 options and no
+search means finding "The Donkey and the Lapdog" is a scroll, not a lookup.
+
+Above `CHAPTER_FILTER_MIN` (25) both chapter pickers — Settings and the Game
+Genie — gain a filter box. It matches the **visible label** (so it hits number
+and title together) or a bare chapter number exactly, reports "3 of 286" /
+"no matches", and Enter means Go.
+
+⚠️ When nothing matches, the option's value is `''` and both Go handlers bail on
+a falsy value. Without that guard, "No chapters match" is a selectable target and
+Go tries to load `chapter_`.
+
+#### The bug found on the way: three drifted copies
+
+There were **three** chapter-option builders. Two of them populate *the same
+`<select>`* — the initial Settings render and the rebuild that runs after a book
+switch — and they disagreed:
+
+| | initial render | after switching books |
+|---|---|---|
+| label | `✓ Ch. 4: Title` | `Chapter 4: Title` |
+| completion ticks | yes | **no** |
+
+So switching books silently relabelled the dropdown and dropped every ✓. The
+third copy lived in the Game Genie with yet another format.
+
+All three now call `buildChapterOptions()`. This is the same disease as the admin
+metadata form in A.16 — two writers for one thing, drifting quietly — and it is
+worth treating as a pattern in this codebase rather than two coincidences. **When
+you find a second copy of something, delete it; don't sync it.**
+
+Tested against the real 284-fable list: full render, title search, exact number
+match, no-match handling, completion ticks, and selection marking.
+
+### A.20 Tier 3 (game.js 3.8.0) — student school picker + practice gating
+
+#### The school picker
+
+Settings → School, in the same column as Initials. Until now a student's building
+was set only by staff, so a student nobody had added yet typed with `schoolId: ''`
+and was **invisible to every building-scoped report**, with no way to say where
+they were.
+
+⚠️ **It goes read-only the moment they have a `classId`** — it then shows the
+school name and "set by your teacher". A student must not be able to overrule a
+teacher's assignment, and making the teacher's value win means the picker
+self-corrects the instant an assignment happens. Do not "improve" this into an
+always-editable control.
+
+⚠️ **"No school" is a permanent valid state, not an unfinished one.** Never nag,
+never block, never auto-select the first school. That's the whole reason the
+feature was requested — Jake's son isn't in a building.
+
+**No rules change was needed and none should be.** `match /users/{uid}` already
+has `allow update: if request.auth.uid == uid`, and `schools` is
+`allow read: if signedIn()`. If a future change here looks like it needs a rules
+edit, the design is wrong.
+
+**What a student can actually do by setting this:** stamp their own *future* logs
+with a building, making themselves visible to that building's staff. They gain no
+read access. Worst case is picking a school they don't attend, which puts their
+own name in that school's report — visible, traceable, fixable by reassignment.
+Better than the status quo, where an unassigned student is invisible to everyone.
+
+⚠️ `saveStudentSchool()` clears `GOALS_CACHE_KEY`. That cache carries `schoolId`,
+so without the clear a student would keep stamping the old building onto logs
+until it expired. Schools themselves are cached 24h (`SCHOOLS_CACHE_KEY`) — one
+read per student per day at most.
+
+#### Practice gating (closes §A.10)
+
+Three fixes, all wording-adjacent but the first is a real lie removed:
+
+1. **"Practice unlocks in ~2m" never said what unlocks it.** The counter
+   (`practiceTypingAccumulator`) only advances *while keys are being pressed*, so
+   sitting still does nothing. Now: "Practice unlocks after 40 more sec of typing".
+2. **`Math.ceil(seconds/60)` turned 5 seconds into "~1m"**, which reads as a stall.
+   Now shows seconds under a minute.
+3. **The daily cap was only discovered by failing.** `index.js` enforces
+   `DAILY_LIMIT = 5` server-side, and the client offered the button regardless —
+   click, wait for a round trip, read an error. `practiceRemainingToday` is now
+   captured from each successful call and from a `resource-exhausted` failure, and
+   the button is replaced with "Practice comes back tomorrow" before it's offered.
+   `null` means not-yet-known and still offers the button, so a fresh session
+   never wrongly withholds it.
+
+### A.21 Header budget + CHANGELOG.md (2026-08-02)
+
+Jake: *"we're getting lost in the comments at the top... I notice that game.js is
+going 3.5, 3.8, 3.7, 3.6, 3.4.2."*
+
+Both true, and the ordering was **entirely self-inflicted this session**. Every
+`str_replace` that added a version entry anchored on the *previous* newest entry
+and therefore inserted one slot too deep. Four sessions, four misplacements,
+nobody noticed — because nobody reads a 122-line comment, which is precisely the
+problem.
+
+**The rule, adopted from Jake's other project: 60 lines and 6 version entries per
+header, newest first.** Everything older lives in `CHANGELOG.md`, per file.
+
+Before → after: `game.js` 122→32, `adventure-renderer.js` 156→33, `admin.js`
+63→29, `learn.js` 48→27. Nothing was lost; the old headers were moved
+programmatically, not retyped.
+
+⚠️ **A header now has one job beyond the changelog: the load-bearing
+invariants.** Each of the four carries a "do not simplify these" block — the WAL
+flush event, the leaderboard cache, `loadBookList(selectFirst)`, `merge:true` on
+`saveProgress`, never `innerText` on a parsed document. Those were previously
+scattered through 100+ lines of history where they were invisible. **If you trim
+a header further, trim changelog entries, never invariants.**
+
+**Enforced in `versions.js` 1.3.0.** `auditHeader()` reports over-budget,
+over-count and out-of-order to `index.html`'s build panel in red — the only place
+a check can run without a CLI. Sabotage-verified: fires on 7 entries, on 61
+lines, and on the exact scramble `game.js` had; does not count version numbers
+appearing inside an entry's prose. `CACHE_KEY` bumped to `_v3`.
+
+**Writing a new entry:** put it at the TOP, drop the oldest into `CHANGELOG.md`,
+and keep it to two or three lines. If it needs more room, it needs the changelog.
+
+### A.22 Not done — queued
+
+0. **Tiers 0-3 are all closed as of 2026-08-02.** The roadmap is done. What's
+   left below is hygiene, plus whatever the school year turns up.
+
+⚠️ **Do not "fix" the `authDomain` mismatch.** The app is served from
+`typethatbook.misterwilson.org` (GitHub Pages, see `CNAME`) while
+`firebase-config.js` sets `authDomain: "typethatbook.firebaseapp.com"`. Firefox
+logs a partitioned-storage notice about the cross-origin auth iframe on every
+load; it is informational, not an error. Changing `authDomain` to the custom
+domain looks like the fix and **breaks sign-in completely** — it requires serving
+Firebase's `/__/auth/*` handler paths, which GitHub Pages cannot do. `game.js`
+uses `signInWithPopup`, which is the variant that survives third-party cookie
+blocking; `signInWithRedirect` is the one that doesn't. Leave it alone.
+
+⚠️ **Firestore index errors appear a beat AFTER the click**, once the query
+round-trips. Checking the console immediately shows only the auth notice above.
+And `fetchLeaderboard()` catches its own failure — the weekly-board index link
+arrives as `console.warn("Fetch leaderboard failed:", e)`, a yellow warning, not
+a red error. Both of these cost Jake real time on 2026-08-02.
 1. **Age/protagonist tags have no backfill.** Every existing book needs both
    entered by hand. The ○/● markers in the admin book picker are the worklist,
    and the Balance Report counts what's still missing.
@@ -910,11 +1051,17 @@ If 2 or 3 misbehave, the suspects are `peekPendingRun` / `takePendingRun` in
    once. The fix is the paragraph-pool cache in `SCALE-PLAN.md` Problem 5 — but
    that's a Cloud Function, so Jake can't deploy it. CLI-free options: throttle
    client-side in `game.js`, or disable practice mode. **Unresolved; his decision.**
-2. **Three composite indexes and two TTL policies not yet created.** Definitions
-   now live in `firestore.indexes.json` in the repo. Indexes give
+2. ~~**Three composite indexes and two TTL policies not yet created.**~~
+   ✅ **DONE 2026-08-02.** Both TTL policies created (`typing_sessions.expiresAt`,
+   `practice_sessions.expiresAt`, offset 0), both single-field index exemptions
+   added, and all three composite indexes built — verified against
+   `firestore.indexes.json` field by field. `TTL-GUIDE.md` documents the whole
+   runbook including the console-label discrepancies that cost time.
+   Historical note for whoever reads the old text below: definitions
+   live in `firestore.indexes.json` in the repo. Indexes give
    click-to-create links on the first failing query. TTL is in the **Google Cloud**
-   console, not Firebase — `TTL-GUIDE.md`, including why pre-v3.4.0 documents will
-   never be collected.
+   console, not Firebase — see `TTL-GUIDE.md` (which now genuinely exists),
+   including why pre-v3.4.0 documents will never be collected.
 3. **`firestore-rules.test.mjs` is wrong, not merely unrun.** Now committed (§2) so
    the rewrite has a starting point. It tests the v1.x claims model that v2.x ignores
    entirely; needs rewriting to seed `staff/{uid}` documents.
@@ -930,16 +1077,35 @@ If 2 or 3 misbehave, the suspects are `peekPendingRun` / `takePendingRun` in
 
 ## 10. Document map
 
+⚠️ **This table used to list eight documents. Six of them did not exist.**
+Corrected 2026-08-02 after Jake went looking for `TTL-GUIDE.md` and couldn't find
+it — I had cited it twice in the same session without checking. They appear to
+have been written in earlier conversations and never committed; the repo is the
+only thing that survives a session, so an uncommitted document is a lost one.
+
+**In the repo:**
+
 | doc | what it's for |
 |---|---|
 | `README.md` | what the project is; file map, data model, version table |
+| `HANDOFF.md` | this file |
 | `PEDAGOGY-AUDIT.md` | **Round 2.** Why students stalled in `learn.js`. Research comparison, gate arithmetic, agreed change list |
-| `SETUP-NO-CLI.md` | **the setup runbook.** Ordered, console-only. Supersedes `SETUP-MULTISCHOOL.md` |
-| `SCALE-PLAN.md` | the 7,000-student cost analysis. Problems 1–3 fixed, 4–5 open |
-| `RULES-AUDIT.md` | the overnight audit: three bugs found by tracing 103 Firestore ops |
-| `TTL-GUIDE.md` | where TTL actually lives, and the pre-v3.4.0 gotcha |
-| `MULTITENANCY.md` | original design doc. **Partly superseded** — describes the claims model. Kept for the reasoning, not the mechanism |
-| `SETUP-MULTISCHOOL.md` | **obsolete.** Assumes a CLI throughout. Safe to delete |
+| `TTL-GUIDE.md` | ✅ **rewritten 2026-08-02.** TTL policy setup, the billing arithmetic, the pre-v3.4.0 gotcha, and the composite indexes |
+| `firestore.indexes.json` | the only machine-readable record of the three indexes and two TTL field overrides |
+
+**Referenced but MISSING — do not cite these as if a reader can open them:**
+
+| doc | what was in it | recoverable? |
+|---|---|---|
+| `SCALE-PLAN.md` | the 7,000-student cost analysis; "Problem 5" is the practice paragraph-pool design | partly — §1 of this file has the headline numbers |
+| `RULES-AUDIT.md` | the overnight audit, three bugs found tracing 103 Firestore ops | partly — the three fixes are described in §2 and are live in `firestore.rules` |
+| `SETUP-NO-CLI.md` | the ordered console-only setup runbook | §8 covers the same ground for testing; a fresh-project runbook would need rewriting |
+| `MULTITENANCY.md` | original design doc for the claims model | superseded anyway — §4 describes the document-based model that replaced it |
+| `SETUP-MULTISCHOOL.md` | obsolete, assumed a CLI | no loss |
+
+**Rule going forward:** if a session produces a document, it ships in the same
+batch as the code. Referencing a file that isn't in the repo is worse than not
+writing it — it sends the next person looking for something that was never there.
 
 ---
 

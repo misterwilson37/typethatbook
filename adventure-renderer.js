@@ -1,158 +1,35 @@
-// adventure-renderer.js — v1.1.0
+// adventure-renderer.js v1.1.0
 //
-// v1.1.0 — Chapter map survives a 284-chapter book.
-//   Aesop's Fables put 284 dots at 4.2px radius down a ~500px strip — roughly
-//   1.8px of room each — so the map rendered as a solid brown caterpillar
-//   (confirmed by screenshot). Above MAP_MAX_DOTS the map now draws the route
-//   as a continuous inked line with sparse tick marks and only three dots that
-//   matter: start, finish, and where you are. The journey still reads; the
-//   clutter doesn't. Small books are untouched.
+// Canvas renderer for Adventure Mode. Observes ttb:* CustomEvents on document
+// and draws the typing session as a figure walking across word-platforms in a
+// parchment aesthetic. Owns no game logic and reads no game state directly —
+// everything it knows arrives by event.
 //
-// v1.0.0 — OUT OF ALPHA. Adventure Mode is now offered to every student on a
-//   first-run splash (game.js >= 3.5.0) rather than hiding behind Settings →
-//   View, so the version number stops saying "prototype". No rendering changes.
-//   One behaviour change:
-//   - DIAGNOSTIC OVERLAY now needs Ctrl+Shift+` or Cmd+Shift+` instead of a
-//     bare backtick. Backtick is a real key in the virtual keyboard's numRow
-//     for both QWERTY and Dvorak, so any student could open the overlay by
-//     typing it — harmless (it's read-only, typing continues normally) but it
-//     covers part of the canvas and looks like a crash to a sixth grader.
-//     The modifier keeps it a one-keystroke teacher tool.
+// ── Full history: CHANGELOG.md § adventure-renderer.js ────────────────────
 //
-// v0.4.0 — Tilt-back corrections + chapter close-up strip:
-//   - TILT-BACK: each backspace at the current letter undoes exactly one
-//     mistake's worth of tilt (driven by the new ttb:backspaceUndo event
-//     from game.js >= 3.2.0) and marks the letter recovered (blue). Two
-//     mistakes need two backspaces to fully straighten — like deleting
-//     real typed characters. Tilts are now count-based (angle = kick ×
-//     mistakes remaining) instead of additive, and a fresh mistake on a
-//     recovered letter un-blues it.
-//   - CLOSE-UP: a left-edge strip mirrors classic view's chapter progress
-//     bar in map style — the current chapter as a vertical route, tiny
-//     pilcrow ticks at paragraph starts (inked once passed), a pulsing
-//     gold marker at the current position, and the route inking downward
-//     as you type. Right-edge book map dots and line slightly enlarged
-//     for legibility.
+// v1.1.0 — Chapter map condenses above MAP_MAX_DOTS. 284 dots down a 500px
+//          strip is 1.8px each and rendered as a solid caterpillar.
+// v1.0.0 — Out of alpha. Diagnostic overlay moved to Ctrl/Cmd+Shift+` — it
+//          was a bare backtick, which is a typeable key on the virtual
+//          keyboard, so students opened it by accident.
+// v0.4.0 — Backspace tilt-back corrections; left-edge chapter close-up strip.
+// v0.3.0 — Right-edge chapter map; pilcrow paragraph landing marks.
+// v0.2.16 — Indent mini-leap, so the tab gap is a hop and not a teleport.
+// v0.2.15 — Leap state cancelled on fail/respawn/textLoaded/positionSet.
 //
-// v0.3.0 — Chapter map + pilcrow landing marks (minor bump: new feature):
-//   - CHAPTER MAP: an always-visible strip on the right edge of the canvas,
-//     Indiana-Jones style. Chapters are dots top-to-bottom; a wobbly
-//     hand-drawn red route line fills in as you type — the segment leading
-//     into the current chapter's dot creeps forward with currentPos, and
-//     completes with a gold burst on chapter finish (visible beside the
-//     stats modal). Completed dots are filled rubric red, the current dot
-//     glows with a pulsing ring and a "Ch N" label, upcoming dots are
-//     faded hollow rings. Requires game.js >= 3.1.1 (chapters +
-//     completedChapters in the textLoaded emit); hides itself otherwise.
-//   - PILCROW: every paragraph's leading tab gap now shows a faded rubric
-//     ¶ at letter height — the medieval manuscript paragraph mark, in the
-//     traditional red. The figure's big leap lands ON the pilcrow, then
-//     mini-hops onto the first word. Answers "what is he standing on?"
-//     with something period-correct.
+// ── Events consumed ───────────────────────────────────────────────────────
 //
-// v0.2.16 — Indent mini-leap (no more tab teleport):
-//   - Typing across a wide within-paragraph gap (the tab indent) now
-//     triggers a short, low leap (250ms, small arc) using the same
-//     interpolation machinery as paragraph leaps. Before this, the figure's
-//     X snapped across the indent in one frame while the camera lerped to
-//     catch up — visible as a forward teleport right after the big jump.
-//   - Jump duration is now a field (jumpDurationMs) instead of a hardcoded
-//     600 in the loop, so big leaps and mini-leaps share one code path.
-//   - Chaining works both directions: a mini-leap triggered mid-big-leap
-//     (or vice versa) starts from the figure's current interpolated
-//     position, same as the v0.2.15 retrigger rule.
+//   ttb:textLoaded  { fullText, position, chapterNum, chapters, ... }
+//   ttb:textCleared / ttb:positionSet / ttb:keystroke / ttb:fail
+//   ttb:respawn / ttb:stats / ttb:complete / ttb:backspaceUndo
 //
-// v0.2.15 — Leap state hygiene (found in code review):
-//   - isJumping and leap anchors are now cancelled on fail, respawn,
-//     textLoaded, and positionSet. Before this, dying / respawning /
-//     switching chapters / Game-Genie-warping mid-leap left the loop
-//     driving cameraX/cameraY from stale leap interpolation for up to
-//     600ms, stomping the respawn/warp camera placement.
-//   - Mid-leap paragraph retrigger (consecutive short paragraphs, e.g.
-//     dialogue) now starts the new leap from the figure's CURRENT
-//     interpolated position instead of snapping back to the previous
-//     paragraph's end. _leapStartCameraY is also re-anchored on every
-//     trigger instead of keeping the first leap's stale value.
+// ── Design rules ──────────────────────────────────────────────────────────
 //
-// v0.2.14 — Figure leap is no longer a teleport:
-//   - During a leap, the figure's coord X is interpolated from the OLD
-//     position (the period at the end of the previous paragraph) to the new
-//     position (the J at the start of the new paragraph) using the same
-//     smoothstep curve as the Y motion. CameraX is set directly off this
-//     interpolated value (no lerp during leap), keeping the figure perfectly
-//     anchored at 35% screen-X for the duration of the arc. Result: figure
-//     stays put visually while the world slides under it — the new
-//     paragraph "comes to meet" the figure as Jake described.
-//   - Before this, currentPos jumped to the new paragraph's start in one
-//     keystroke, which meant the figure rendered ~80px to the right of
-//     anchor for one frame, then lerped back over ~14 frames. Visible as
-//     a single-frame teleport in slow-motion video capture.
-//
-// v0.2.13 — Defensive transform reset + better diagnostics.
-//
-// v0.2.8 — Persistent tilts + (broken) backspace recovery via positionSet.
-//
-// v0.2.7 — Underscore-style cursor gap + keyboard skin shim:
-//   - Cursor-gap red bridge line drops to LETTER BASELINE (like an underscore).
-//     Space label below the line; tab/enter labels above.
-//   - Keyboard re-tinted to muted vintage finger colors via MutationObserver
-//     shim. keyboard.js untouched; classic view bit-for-bit unchanged.
-//   - Death cleans falling-letter and tilt state so the respawn sentence
-//     displays cleanly. (Already mostly working in v0.2.5; locking it down.)
-//
-// v0.2.6 — Letters become walkable surface, gaps render only at cursor.
-//
-// v0.2.5 — Connector line in gap only, letter tilt on stumble, letters fall
-//   on plummet, head-rolling ghost, leap arc clears next paragraph.
-//
-// v0.2.4 — Diagnostic overlay + stumble/plummet split + curly-quote flip +
-//   platform line below words.
-//
-// v0.2.3 — Integration of Gemini's refined animation block (gait, hop, leap,
-//   stumble, respawn, three ghost styles). X-eyes only on actual ghosts.
-//
-// v0.2.2 bugfixes:
-//   - Respawn detritus: paragraph crossings now rebuild via
-//     _relayoutCurrentWorld instead of appending forever.
-//   - Preview paragraph fades to ~30% alpha and loses its platform underline.
-//   - Tabs render distinctly: wider gap, italic "tab" label.
-//   - Gravestone inscription: each grave displays the failed letter.
-//   - Space pit drops below the platform line so the figure visibly hops.
-//
-// v0.2.1 bugfixes:
-//   - Per-letter rendering with active-cursor highlight.
-//   - Bigger text (32px).
-//   - "space" italic label restored.
-//   - Curly-quote fix: ctx.fontKerning = 'none'.
-//
-// Observer of TTB events. Listens to ttb:* CustomEvents on document and renders
-// the typing experience as a stick figure walking across word-platforms with
-// a parchment aesthetic. Owns no game logic. Reads no game state directly.
-// All it knows is what game.js tells it via events.
-//
-// Mounted by game.js when the user has selected Adventure view. Unmounted
-// (canvas hidden, listeners removed) when they switch back to Classic.
-//
-// Events consumed:
-//   ttb:textLoaded   { fullText, chapterTitle }       — new chapter ready
-//   ttb:textCleared  {}                                — chapter unloading
-//   ttb:positionSet  { position, isResume }            — cursor jumped (resume, fail, etc)
-//   ttb:keystroke    { char, correct, position, expected, status }
-//   ttb:fail         { reason, position }              — hard stop / spam / afk
-//   ttb:respawn      { position }                      — resume after pause
-//   ttb:stats        { wpm, accuracy, ... }            — periodic stats update
-//   ttb:complete     {}                                — chapter finished
-//
-// Event source: document.addEventListener('ttb:keystroke', ...). The renderer
-// never reads from window.* / DOM ids it doesn't own / globals.
-//
-// Design rules:
-//   - Canvas-only DOM mutation. The renderer never touches #text-stream,
-//     #virtual-keyboard, the modal, or any classic-view element.
-//   - Idempotent mount/unmount. Calling mount twice is safe; unmount removes
-//     all listeners.
-//   - Survives missed events. If textLoaded was missed, the renderer just
-//     shows nothing until the next one arrives.
+//   * Canvas-only DOM mutation. Never touches #text-stream, the keyboard,
+//     the modal, or anything else it does not own.
+//   * Idempotent mount/unmount; mounting twice is safe.
+//   * Survives missed events — but draws NOTHING until the next textLoaded,
+//     which is why game.js replays it on a hot swap.
 
 export const RENDERER_VERSION = '1.1.0';
 

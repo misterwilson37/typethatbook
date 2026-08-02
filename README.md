@@ -81,7 +81,7 @@ versions.js             v1.2.0   Reads every file's version constant out of the
                                  v1.2.0 also parses header comments and flags
                                  drift. No imports, no side effects.
 
-game.js                 v3.6.0   ~5,100 lines. Typing engine, sprint timer,
+game.js                 v3.8.0   ~5,100 lines. Typing engine, sprint timer,
                                  WPM/accuracy math, streaks, mistake tracking,
                                  leaderboard, practice mode, chapter navigation,
                                  all modals. Write-ahead-log persistence.
@@ -129,6 +129,15 @@ firestore.indexes.json            The ONLY written record of the three composite
                                   CLI to deploy; the indexes can also be created
                                   from the click-to-create links Firestore returns
                                   on the first failing query.
+CHANGELOG.md                      Full per-file version history. Headers are
+                                  budgeted to 6 entries; the rest lives here.
+
+TTL-GUIDE.md                      Console runbook: the two TTL policies, the
+                                  billing arithmetic, why pre-v3.4.0 documents
+                                  are never collected, and the three composite
+                                  indexes. TTL lives in the GOOGLE CLOUD console,
+                                  not Firebase — that trips everyone.
+
 firestore-rules.test.mjs          ⚠️ KNOWN WRONG. Header says v1.1.0 and it seeds
                                   roles as auth-token claims; rules v2.x reads
                                   staff/{uid} documents and ignores the token.
@@ -203,6 +212,27 @@ the project that can't be shipped from a browser.
 doesn't appear, hard-reload. The version stamps in the page titles and the admin
 footer exist so you can confirm which build is actually loaded.
 
+## Header budget
+
+**60 lines and 6 version entries per file header, newest first.** Everything
+older goes to `CHANGELOG.md`, which is organised per file.
+
+A header should answer three questions and stop: what is this file, what changed
+recently, and what will bite me if I "simplify" it. That last part — the
+load-bearing invariants — is the reason a header exists at all, and it was
+getting buried. `game.js` had reached **122 lines and 18 entries**, with the
+entries silently **out of order**, because each session's edit anchored on the
+previous newest one and landed a slot too deep. Nobody catches that by reading,
+because nobody reads a 122-line comment.
+
+Enforced, not merely requested: `versions.js` v1.3.0 audits every header and
+reports over-budget, over-count, and out-of-order to **`index.html`'s build
+panel** in red. Stylesheets are exempt — their comment is their only version.
+
+The checker is sabotage-verified: it fires on 7 entries, on 61 lines, and on the
+exact scramble `game.js` had, while not counting version numbers that merely
+appear inside an entry's prose.
+
 ## Versioning rules
 
 - Every file that ships gets a version bump.
@@ -268,6 +298,16 @@ should pass `true`.
 written until upload. Case-preserving, fixes a/an, whole-word by default, `/…/`
 for regex. Preview before commit.
 
+## Student school picker
+
+Settings → School. A student with **no class** may set or clear their building;
+`schoolId: ''` is a permanent valid state and is never nagged about. A student
+**in a class** sees it read-only — the teacher's assignment wins, always.
+
+Uses existing rules (`users/{uid}` self-write, `schools` read-if-signed-in). No
+rules change was needed. Schools are cached 24h in `SCHOOLS_CACHE_KEY`; saving
+clears `GOALS_CACHE_KEY`, which also carries `schoolId`.
+
 ## Books with a lot of chapters
 
 Aesop's Fables is 286 chapters and was the first book to break the per-chapter
@@ -279,6 +319,12 @@ UI. Two thresholds now guard it, both set to **40**:
 - `MAP_MAX_DOTS` (`adventure-renderer.js`) — above it, the chapter map draws one
   continuous route instead of a dot per chapter. The branch returns *before* the
   per-chapter route loop; keep it that way or the frame cost stays.
+- `CHAPTER_FILTER_MIN` (`game.js`) — above it, chapter dropdowns get a filter box
+  matching number or title, with Enter as Go.
+
+Every chapter dropdown is built by `buildChapterOptions()`. There were three
+hand-rolled copies and they had drifted — two of them populated the *same*
+`<select>` with different labels. One builder; don't add a fourth.
 
 ## Language filter
 
