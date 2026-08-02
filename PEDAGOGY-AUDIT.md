@@ -1,7 +1,6 @@
 # PEDAGOGY-AUDIT.md — why students stalled in lesson mode
 
-<!-- v1.1.0 — Round 2 (Dvorak), 2026-08-01. Arguably a MAJOR bump (a headline
-     finding was reversed) but major needs Jake's sign-off, so: 1.1.0. §3.2 was wrong. It reasoned
+<!-- v2.0.0 — Round 2 (Dvorak), 2026-08-01. MAJOR, signed off by Jake. §3.2 was wrong. It reasoned
      from learn.js defaults because the curriculum had not been exported yet. The
      real gates are a sensible per-unit ramp; the actual wall is step LENGTH.
      Rewritten against ttb-lessons-2026-08-01.json (47 lessons, 105 steps). -->
@@ -266,8 +265,35 @@ gate.
 
 ## 4. Agreed changes
 
-Approved by Jake 2026-08-01. Implementation notes and ordering live in
-`HANDOFF.md` §11. Summary:
+Approved by Jake 2026-08-01. Ordering and implementation notes in `HANDOFF.md` §11.
+
+**Batch A shipped in `learn.js` v2.0.0** — items 0, 0b, 3, 4, 5, 6, 7, 9, plus the
+grade-F record from item 1. **Batch B is outstanding** — the rest of item 1
+(`furthestStepIdx`, `stepAttempts`, `stepFailures`, the `timeSpentSeconds` fix) and
+item 2 (the stuck-student view in `lessons-admin.js`).
+
+### Batch A, measured against the real curriculum
+
+```
+total runs: 176 (was 105 authored steps)
+runs over a 10-minute block: 0        <- was 6
+stub runs under 40 chars:    0
+longest run: 193 chars (~3.1 min at the slowest passing pace)
+character integrity across all 105 steps: PASS
+```
+
+`u5_l6` step 2 — 688 characters, 9.2 minutes at its 15 WPM gate — is now five runs
+of ~137 characters at 1.8 minutes each. `u6_l2` step 1 — 789 characters, 10.5
+minutes — is six runs of ~130. Chunks break only at spaces, no run opens on a space,
+and rejoining every chunk set reproduces its source exactly.
+
+Grade model, retested at an 18 WPM / 85% prose gate: 14 WPM at 100% accuracy now
+returns C and **advances** (it previously failed while 18 WPM at 85% passed). A🔥 at
+1.5× needs 27 WPM instead of 36. On accuracy-only drill runs, A🔥 is a zero-mistake
+run — measured from the mistake counter, not from rounded accuracy, because 99.6%
+rounds to 100 and should not earn a badge that says perfect.
+
+### Summary of the full list
 
 0. **Chunk any step over ~150 characters** into sub-runs, in the engine rather than
    the data, so all 47 existing lessons and everything authored later are fixed

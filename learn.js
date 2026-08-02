@@ -1,4 +1,27 @@
-// learn.js — TypeThatBook School v1.7.1
+// learn.js — TypeThatBook School v2.0.0
+// v2.0.0 — MAJOR (signed off by Jake 2026-08-01). Lesson mechanics rebuilt after an
+//          audit found students stalling mid-curriculum and blaming their own typing.
+//          Full analysis in PEDAGOGY-AUDIT.md. Seven changes:
+//            1. STEPS ARE CHUNKED INTO RUNS. Six authored steps were longer than a
+//               10-minute class period at the pace needed to pass them (u6_l2 step 1:
+//               789 chars at a 20 WPM gate = 10.5 min of flawless typing). Chunking
+//               happens in the engine, so all 47 lessons are fixed with no data change.
+//            2. RUN POSITION IS PERSISTED (ttb_learnpos_v1). The old WAL saved stats
+//               only, so the bell erased the whole run — making any run longer than
+//               the time left in the period permanently unfinishable.
+//            3. KEY DRILLS ARE GRADED ON ACCURACY ONLY. Speed on random letter groups
+//               is not a meaningful measure, and gating it made the new-key drill the
+//               hardest thing in its own lesson.
+//            4. WPM IS NET. chars++ ran before the correct/incorrect branch, so errors
+//               inflated reported speed — three deliberate mistakes could turn a
+//               failing 14 WPM perfect run into a passing 15 WPM one.
+//            5. THE GRADED CLOCK PAUSES ON IDLE. It previously ran regardless, so an
+//               interruption could put the gate out of reach and the app would then
+//               tell the student to type faster.
+//            6. C ADVANCES, AND A FAILED RUN RETRIES THAT RUN. Missing the gate on the
+//               last step used to replay the entire lesson including the intro.
+//            7. A🔥 IS REACHABLE — a clean run on drills, 1.5× (not 2×) on prose.
+//          Removed: DRILL_STOP_TIME_THRESHOLD, which did not do what it claimed.
 // NOTE: the authoritative version is LEARN_VERSION below, not this comment. An
 //       earlier header claimed v1.0.0 while the constant read 1.6.3; the
 //       constant was right. This file's real lineage is 1.6.x → 1.7.0.
@@ -30,7 +53,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "1.7.1";
+const LEARN_VERSION = "2.0.0";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -70,9 +93,25 @@ const LEARN_IDLE_THRESHOLD = 3000; // 3s idle = paused
 
 // ─── Drill session state ─────────────────────────────────────────────────────
 let currentLesson  = null;
-let currentStepIdx = 0;
-let currentStep    = null;
-let drillSequence  = [];  // array of chars to type for current step
+
+// ─── Runs, not steps (v2.0.0) ────────────────────────────────────────────────
+// A lesson's authored steps are expanded at lesson start into a flat list of
+// "runs". A short step becomes one run; a long one is split into several. Runs are
+// what the engine actually executes, grades, and counts pips for — currentStepIdx
+// indexes currentRuns, NOT currentLesson.steps.
+//
+// Why this exists: six authored steps were longer than a 10-minute class period at
+// the pace required to pass them (u6_l2 step 1 is 789 chars at a 20 WPM gate =
+// 10.5 minutes of flawless typing), and nothing survived the bell. Chunking in the
+// engine rather than the data fixes all 47 existing lessons without touching a
+// single Firestore document. See PEDAGOGY-AUDIT.md §3.2.
+const CHUNK_TARGET = 150;   // ≈30–60s at these gates; matches game.js sprint length
+const CHUNK_SLACK  = 1.30;  // a 180-char step stays whole rather than becoming 150+30
+
+let currentRuns    = [];  // expanded + chunked runs for the current lesson
+let currentStepIdx = 0;   // index into currentRuns
+let currentStep    = null;// currentRuns[currentStepIdx]
+let drillSequence  = [];  // array of chars to type for current run
 let drillPos       = 0;   // index into drillSequence
 let mistakes       = 0;
 let chars          = 0;
@@ -90,7 +129,8 @@ let drillLetterStatus    = 'clean'; // 'clean' | 'error' | 'fixed'
 let drillBackspaceOrigin = -1;      // furthest pos reached during a backspace run
 let drillConsecutiveMistakes = 0;   // resets on any correct key
 let drillIsHardStop      = false;   // timer paused, waiting for correct key
-const DRILL_STOP_TIME_THRESHOLD = 3;  // consecutive errors before timer stops counting
+// DRILL_STOP_TIME_THRESHOLD (was 3) removed in v2.0.0 — it did not do what its name
+// or comment claimed. See the note in handleDrillKey's error branch.
 const DRILL_HARD_STOP_THRESHOLD = 5;  // consecutive errors before hard stop overlay (matches game.js)
 const DRILL_SPAM_THRESHOLD      = 10; // consecutive errors to restart step entirely
 
@@ -421,7 +461,7 @@ function renderMap() {
             card.innerHTML = `
                 <div class="mlc-keys">${keysLabel}</div>
                 <div class="mlc-title">${escHtml(lesson.title || lesson.id)}</div>
-                <div class="mlc-meta">${(lesson.steps || []).length} steps · WPM ${(lesson.gates || {}).minWPM || '?'}+</div>
+                <div class="mlc-meta">${mapMeta(lesson)}</div>
                 <div class="mlc-stars">${gradeOnMap(grade)}</div>
                 ${isLocked ? '<div class="mlc-lock">🔒</div>' : ''}
             `;
@@ -440,6 +480,20 @@ function renderMap() {
     graduateLink.classList.toggle('hidden', !graduateable);
 }
 
+// Map card subtitle. Reports the number of runs a student will actually type — a
+// 2-step lesson can be 12 runs after chunking — and the accuracy target, which is
+// the gate that governs advancement everywhere. Speed is shown only where it's
+// graded, so the card can't advertise a WPM number the lesson won't enforce.
+function mapMeta(lesson) {
+    const runs = buildRunList(lesson).length;
+    const g    = lesson.gates || {};
+    const acc  = g.minAccuracy == null ? 85 : g.minAccuracy;
+    const prose = (lesson.steps || []).some(s => !DRILL_TYPES.has(s.type));
+    const wpm  = g.minWPM == null ? 15 : g.minWPM;
+    return runs + (runs === 1 ? ' run · ' : ' runs · ') + acc + '%' +
+           (prose ? ' · ' + wpm + ' WPM' : '');
+}
+
 function isUnlocked(lesson) {
     // A lesson is unlocked if it's the first in its unit, or the previous lesson is complete
     const idx = allLessons.findIndex(l => l.id === lesson.id);
@@ -449,82 +503,92 @@ function isUnlocked(lesson) {
     return userProgress[prev.id]?.passed === true;
 }
 
-function calculateGrade(wpm, acc, minWPM, minAcc) {
-    const FIRE = 'A' + String.fromCodePoint(0x1F525); // A🔥
-    const wpmMet = wpm >= minWPM;
-    const accMet = acc >= minAcc;
+const FIRE_GRADE = 'A' + String.fromCodePoint(0x1F525); // A🔥
 
-    if (!wpmMet && !accMet) {
-        if (wpm < minWPM * 0.70 || acc < minAcc * 0.70) return 'F';
-        return 'D';
+// v2.0.0 grade model.
+//
+// Accuracy is the gate. Speed sets the badge. Three things changed and each fixes a
+// specific way the old model punished the wrong student:
+//
+//   1. C now ADVANCES. Under the old model both gates had to be met, so 14 WPM at
+//      100% accuracy failed while 15 WPM at 85% passed — the more careful typist
+//      was the one held back. Accuracy met + speed short is a pass with a C.
+//   2. D/F depend on accuracy alone. Being slow is never failing.
+//   3. A🔥 is reachable. It was 2× the WPM gate at 95% accuracy, which on a 49-char
+//      drill meant 30 WPM at 0.40s/keystroke — an adult touch-typist number sitting
+//      permanently on the lesson map where every student could see it and none
+//      could earn it. On drill runs it is now a clean run (zero mistakes), fully
+//      inside the student's control. On prose runs it is 1.5× rather than 2×.
+//
+// `minWPM: null` (every key-drill run) means speed is measured and displayed but
+// not graded. `clean` is a true zero-mistake flag, not rounded accuracy — 99.6%
+// rounds to 100 and should not earn a badge that says perfect.
+function calculateGrade(wpm, acc, minWPM, minAcc, clean) {
+    if (acc < minAcc) return acc < minAcc * 0.80 ? 'F' : 'D';
+
+    // Accuracy-only run: the badge is about how clean it was.
+    if (minWPM == null) {
+        if (clean)     return FIRE_GRADE;
+        if (acc >= 95) return 'A';
+        return 'B';
     }
-    if (wpmMet && accMet) {
-        // A🔥: 2x WPM gate AND 95%+ accuracy (speed AND quality)
-        if (wpm >= minWPM * 2.0 && acc >= 95) return FIRE;
-        // A: 15% over WPM gate AND 90%+ accuracy
+
+    if (wpm >= minWPM) {
+        if (wpm >= minWPM * 1.5  && acc >= 95) return FIRE_GRADE;
         if (wpm >= minWPM * 1.15 && acc >= 90) return 'A';
         return 'B';
     }
-    return 'C';
+    return 'C';   // accuracy met, speed short — advances
 }
 
-function getGradeMessage(wpm, acc, minWPM, minAcc, grade) {
-    var FIRE = 'A' + String.fromCodePoint(0x1F525);
-    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-    var wpmShort = minWPM - wpm;
-    var accShort = minAcc - acc;
+// Advancement, in one place so the modals can't disagree about it.
+function gradeAdvances(grade, gates) {
+    if (grade === 'D' || grade === 'F') return false;
+    if (grade === 'C' && gates && gates.strictSpeed) return false;
+    return true;
+}
 
-    if (grade === FIRE) return pick([
-        'On fire! Perfect speed AND accuracy.',
-        'Outstanding! That’s as good as it gets.',
+// Feedback text. The old version's C and D branches told students to speed up, which
+// on a paused-clock or accuracy-only run was simply false information — and being
+// told to try harder at something you already did is how a student concludes the
+// problem is them. Every message below names a cause the student can act on, and no
+// message asks for speed on a run where speed isn't gated.
+function getGradeMessage(wpm, acc, minWPM, minAcc, grade) {
+    function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    const speedGated = (minWPM != null);
+    const accShort   = minAcc - acc;
+
+    if (grade === FIRE_GRADE) return pick([
+        speedGated ? 'On fire! Fast AND clean.' : 'A perfect run. Not one mistake.',
+        'Outstanding — that\u2019s as good as it gets.',
         'Absolutely blazing. Keep it up!'
     ]);
     if (grade === 'A') return pick([
-        'Excellent work! Speed and accuracy are both looking great.',
-        'Really clean typing at a solid pace. Well done!',
-        'A-level work. Keep pushing for that fire next time!'
+        'Excellent work \u2014 really clean typing.',
+        speedGated ? 'Strong pace and strong accuracy. Well done!'
+                   : 'Very nearly perfect. Go for a clean run next time!',
+        'A-level work. Keep pushing for that fire.'
     ]);
     if (grade === 'B') return pick([
-        'Nice job — you passed!',
-        'Solid typing. Keep it up!',
-        'You’re through! On to the next one.'
+        'Nice job \u2014 you passed!',
+        'Solid typing. On to the next one.',
+        'That\u2019s a pass. Keep it going!'
     ]);
-    if (grade === 'C') {
-        if (wpm >= minWPM && acc < minAcc) {
-            var diff = minAcc - acc;
-            return pick([
-                'Great speed! Accuracy is at ' + acc + '% — you need ' + minAcc + '%. Slow down a touch and focus on the right keys.',
-                'Only ' + diff + '% more accuracy to pass! You’ve got the speed — now trust your fingers.',
-                'Speed is there, accuracy isn’t quite. Try saying each key in your head before you press it.'
-            ]);
-        }
-        return pick([
-            'Accuracy looks great at ' + acc + '%! You’re only ' + Math.abs(wpmShort) + ' WPM short. Just a little faster!',
-            'Nice clean typing! Bump the pace up ' + Math.abs(wpmShort) + ' WPM and you’ve got it.',
-            'So close on speed! ' + Math.abs(wpmShort) + ' more WPM with that same accuracy and you pass.'
-        ]);
-    }
-    if (grade === 'D') {
-        if (acc < minAcc && wpm < minWPM) return pick([
-            'You need ' + Math.abs(wpmShort) + ' more WPM and ' + Math.abs(accShort) + '% more accuracy. Focus on accuracy first — speed will follow.',
-            'Both need work, but that’s okay — this is practice! Slow down and hit each key cleanly.',
-            'Keep at it! Accuracy first, then speed. You’re building the right habits.'
-        ]);
-        if (acc < minAcc) return pick([
-            'Speed is good, but accuracy dropped to ' + acc + '%. Focus on correct fingers, not fast fingers.',
-            'Hitting the right keys matters more than going fast. Aim for ' + minAcc + '% accuracy.',
-            'Slow it down and make sure each key is the right one. Accuracy first!'
-        ]);
-        return pick([
-            'Accuracy is solid at ' + acc + '%! You need ' + Math.abs(wpmShort) + ' more WPM. Try to pick up the pace.',
-            'Clean typing! Just need a little more speed — ' + Math.abs(wpmShort) + ' WPM to go.',
-            'Good accuracy! Work on building speed without losing those correct keystrokes.'
-        ]);
-    }
+    // C only happens on a speed-gated run: accuracy was fine, pace was short.
+    if (grade === 'C') return pick([
+        'Passed \u2014 accuracy is where it needs to be. Speed will come with practice.',
+        'Good, accurate typing. You\u2019re through; the pace builds on its own.',
+        'That counts. Accuracy first is exactly the right order.'
+    ]);
+    if (grade === 'D') return pick([
+        'So close \u2014 ' + accShort + '% more accuracy and this one is done.',
+        'Accuracy is at ' + acc + '%, and you need ' + minAcc + '%. Slow right down; there\u2019s no clock pressure here.',
+        'Nearly there. Find each key before you press it \u2014 going slower actually helps.'
+    ]);
     return pick([
-        'Accuracy was ' + acc + '% — let’s slow way down and focus on hitting the right keys. Speed comes later!',
-        'Take a breath and go slowly. Touch the right key, not the fast key. You’ve got this.',
-        'Every expert was once a beginner! Slow down, find the key, press it. Repeat.'
+        'Let\u2019s slow way down and focus on hitting the right keys. Take your time \u2014 the timer pauses when you pause.',
+        'Take a breath. Find the key, press the key, repeat. Speed is not the goal yet.',
+        'Every expert was once a beginner. Slow and correct beats fast and messy.'
     ]);
 }
 
@@ -553,6 +617,7 @@ function gradeOnMap(grade) {
 // ─── Start Lesson ─────────────────────────────────────────────────────────────
 function startLesson(lesson) {
     currentLesson  = lesson;
+    currentRuns    = buildRunList(lesson);
     currentStepIdx = 0;
     mistakes       = 0;
     chars          = 0;
@@ -561,6 +626,18 @@ function startLesson(lesson) {
     backBtn.href = '#'; backBtn.onclick = () => { stopLesson(); return false; };
 
     showView('drill');
+
+    // Resume mid-lesson if there's a saved position for this lesson: skip the intro
+    // and drop straight back where the bell interrupted them. The intro is a
+    // re-read they didn't ask for, and replaying it was part of what made an
+    // interrupted lesson feel like starting from zero.
+    const pending = peekPendingRun(lesson.id);
+    if (pending && pending.runIdx < currentRuns.length) {
+        introPanel.classList.add('hidden');
+        beginStep(pending.runIdx);
+        return;
+    }
+
     showIntro(lesson);
 }
 
@@ -654,9 +731,29 @@ function stopIntroAnim() {
 }
 
 // ─── Step Engine ──────────────────────────────────────────────────────────────
+
+// The graded clock. stepSeconds is the WPM denominator, so it must not run while
+// the student isn't typing — before v2.0.0 it incremented unconditionally, which
+// meant a teacher talking for fifteen seconds mid-drill could put the gate out of
+// arithmetic reach and the app would then tell the student to type faster.
+// LEARN_IDLE_THRESHOLD and learnLastInputTime already existed; the graded timer
+// simply never consulted them.
+function isDrillIdle() {
+    if (!learnLastInputTime) return true;   // nothing typed yet this run
+    return (Date.now() - learnLastInputTime) > LEARN_IDLE_THRESHOLD;
+}
+
+function startGradedTimer() {
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        if (drillPos > 0 && !isDrillIdle()) stepSeconds++;
+        updateHUD();
+    }, 1000);
+}
+
 function beginStep(stepIdx) {
     currentStepIdx = stepIdx;
-    currentStep = (currentLesson.steps || [])[stepIdx];
+    currentStep = currentRuns[stepIdx];
     if (!currentStep) { finishLesson(); return; }
 
     introPanel.classList.add('hidden');
@@ -678,36 +775,43 @@ function beginStep(stepIdx) {
     }
     drillKeyboard.focus();
 
-    // Step progress pips
-    const steps = currentLesson.steps || [];
-    stepProgressEl.innerHTML = steps.map((s, i) => {
+    // Progress pips — one per run, so a chunked step shows its parts
+    stepProgressEl.innerHTML = currentRuns.map((r, i) => {
         const cls = i < stepIdx ? 'done' : i === stepIdx ? 'active' : '';
         return `<div class="step-pip ${cls}"></div>`;
     }).join('');
     stepLabelEl.textContent = currentStep.label || `Step ${stepIdx + 1}`;
 
-    // Build drill sequence
-    drillSequence = buildSequence(currentStep);
+    // The run carries its own baked sequence (see buildRunList).
+    drillSequence = currentStep.sequence.slice();
     drillPos  = 0;
     mistakes  = 0;
     chars     = 0;
+
+    // Resume: a matching saved position restores mid-run progress rather than
+    // starting over. Consumed once, so a later retry of the same run starts clean.
+    const resume = takePendingRun(stepIdx);
+    if (resume) {
+        drillSequence = resume.seq.split('');
+        drillPos  = Math.min(resume.drillPos, drillSequence.length);
+        mistakes  = resume.mistakes || 0;
+        chars     = resume.chars || 0;
+    }
     drillCharStates     = new Array(drillSequence.length).fill('upcoming');
+    for (let i = 0; i < drillPos; i++) drillCharStates[i] = 'perfect';
     drillLetterStatus   = 'clean';
     drillBackspaceOrigin = -1;
     drillConsecutiveMistakes = 0;
     drillIsHardStop = false;
     stepStartTime = Date.now();
-    stepSeconds   = 0;
+    stepSeconds   = resume ? (resume.stepSeconds || 0) : 0;
 
     learnActiveSeconds = 0;
     learnLastInputTime = 0;
     clearInterval(timerInterval);
     clearInterval(learnTickInterval);
 
-    timerInterval = setInterval(() => {
-        if (drillPos > 0) stepSeconds++;
-        updateHUD();
-    }, 1000);
+    startGradedTimer();
 
     // Active-time tracking (same pattern as game.js gameTick)
     learnTickInterval = setInterval(() => {
@@ -792,6 +896,106 @@ function buildSequence(step) {
         default:
             return [];
     }
+}
+
+// ─── Chunking ────────────────────────────────────────────────────────────────
+// Split a character array into runs of roughly CHUNK_TARGET, breaking only at
+// spaces so no word or drill group is ever cut in half. Leading spaces are dropped
+// from each chunk after the first, so a chunk never opens by asking for a space.
+function chunkSequence(seq) {
+    if (seq.length <= CHUNK_TARGET * CHUNK_SLACK) return [seq];
+
+    // Aim for equal-sized chunks rather than filling to the brim and leaving a
+    // stub: 320 chars becomes 160+160, not 150+150+20.
+    const n      = Math.ceil(seq.length / CHUNK_TARGET);
+    const target = Math.ceil(seq.length / n);
+    const chunks = [];
+    let start = 0;
+
+    const STUB = Math.floor(target * 0.5);   // don't leave a fragment behind
+
+    while (start < seq.length) {
+        while (start < seq.length && seq[start] === ' ') start++;   // trim leading space
+        if (start >= seq.length) break;
+
+        let end = start + target;
+        if (end >= seq.length) { chunks.push(seq.slice(start)); break; }
+
+        // Walk back to the nearest space so the break lands between words/groups.
+        let cut = end;
+        while (cut > start && seq[cut] !== ' ') cut--;
+        // No space in range (one very long token) — fall forward instead of
+        // producing a zero-length chunk, which would loop forever.
+        if (cut === start) {
+            cut = end;
+            while (cut < seq.length && seq[cut] !== ' ') cut++;
+        }
+        // If what's left would be a stub, swallow it now. Otherwise the last run of
+        // a chunked step ends up being five characters with its own results modal,
+        // which reads as a bug even though the arithmetic is fine.
+        if (seq.length - cut <= STUB) { chunks.push(seq.slice(start)); break; }
+
+        chunks.push(seq.slice(start, cut));
+        start = cut;
+    }
+    return chunks.filter(c => c.length > 0);
+}
+
+// Which step types are pure key drills. These are graded on accuracy only — speed
+// on random letter groups is not a meaningful measure of anything, and gating it
+// made the new-key drill the hardest thing in its own lesson.
+const DRILL_TYPES = new Set(['key_pattern', 'key_pattern_auto', 'key_random']);
+
+// Effective gates for a run. Precedence: explicit step.gates > type default >
+// lesson gates. `minWPM: null` means speed is recorded but not gated.
+function gatesForRun(run) {
+    const lg  = currentLesson ? (currentLesson.gates || {}) : {};
+    const acc = lg.minAccuracy == null ? 85 : lg.minAccuracy;
+    const wpm = lg.minWPM     == null ? 15 : lg.minWPM;
+
+    // strictSpeed makes a short-on-speed result (grade C) block advancement again.
+    // Nothing sets it today. Add `"gates": { ..., "strictSpeed": true }` to the
+    // Unit 7 graduation lessons via Import JSON if you ever want 25 WPM enforced
+    // rather than advisory — the engine already honours it.
+    const strict = !!lg.strictSpeed;
+
+    if (run && run.gates) {
+        return { minAccuracy: run.gates.minAccuracy == null ? acc : run.gates.minAccuracy,
+                 minWPM:     run.gates.minWPM     === undefined ? wpm : run.gates.minWPM,
+                 strictSpeed: run.gates.strictSpeed == null ? strict : !!run.gates.strictSpeed };
+    }
+    if (run && DRILL_TYPES.has(run.type)) {
+        return { minAccuracy: acc, minWPM: null, strictSpeed: false };
+    }
+    return { minAccuracy: acc, minWPM: wpm, strictSpeed: strict };
+}
+
+// Expand authored steps into the run list the engine executes.
+function buildRunList(lesson) {
+    const runs = [];
+    (lesson.steps || []).forEach((step, stepIdx) => {
+        const chunks = chunkSequence(buildSequence(step));
+        chunks.forEach((seq, chunkIdx) => {
+            runs.push({
+                stepId:     step.id,
+                stepIdx,
+                chunkIdx,
+                chunkCount: chunks.length,
+                type:       step.type,
+                anchorEnforced: !!step.anchorEnforced,
+                gates:      step.gates || null,   // per-step override, optional
+                // Baked, not regenerated. key_random and key_pattern_auto produce a
+                // fresh random sequence every call, so a run has to carry its own
+                // characters — otherwise a resume would restore a position into a
+                // different sequence.
+                sequence:   seq,
+                label:      chunks.length > 1
+                    ? (step.label || `Step ${stepIdx + 1}`) + ` (${chunkIdx + 1}/${chunks.length})`
+                    : (step.label || `Step ${stepIdx + 1}`),
+            });
+        });
+    });
+    return runs;
 }
 
 // Generates a reach pattern: reach→home→reach→home groups for each new key,
@@ -933,7 +1137,7 @@ function handleDrillKey(e) {
             const hsEl = document.getElementById('drill-hardstop');
             if (hsEl) hsEl.remove();
             clearInterval(timerInterval);
-            timerInterval = setInterval(() => { if (drillPos > 0) stepSeconds++; updateHUD(); }, 1000);
+            startGradedTimer();
             learnLastInputTime = Date.now();
             // Now process the correct key normally
             flashFingerPressed(drillKeyboard);
@@ -1015,6 +1219,8 @@ function handleDrillKey(e) {
             finishStep();
             return;
         }
+        // Checkpoint the run every few characters so the bell can't erase it.
+        if (drillPos % 5 === 0) saveRunPosition();
         advanceHandGuide();
     } else {
         mistakes++;
@@ -1028,10 +1234,13 @@ function handleDrillKey(e) {
         flashTargetKey();
         renderDrillText(true);
 
-        // Stop counting time once errors hit threshold (but before hard stop)
-        if (!ggAllowMistakes && drillConsecutiveMistakes >= DRILL_STOP_TIME_THRESHOLD) {
-            learnLastInputTime = 0;
-        }
+        // v2.0.0 removed a `learnLastInputTime = 0` here. Its comment said it
+        // stopped the clock at DRILL_STOP_TIME_THRESHOLD to protect the score, but
+        // learnLastInputTime drives the *time-on-task* counter, not the graded one.
+        // The effect was that a struggling student stopped earning credit toward
+        // their daily goal while the graded clock kept running — penalised twice,
+        // protected never. The graded clock now pauses on idle (startGradedTimer)
+        // and the hard stop below stops it outright, so nothing is left to do here.
 
         if (!ggAllowMistakes && drillConsecutiveMistakes >= DRILL_SPAM_THRESHOLD) {
             const stepIdx = currentStepIdx;
@@ -1171,11 +1380,22 @@ function advanceHandGuide() {
 }
 
 // ─── HUD ─────────────────────────────────────────────────────────────────────
+// `chars` counts every keystroke including wrong ones, because that is the correct
+// denominator for accuracy. It was also the WPM numerator, which meant errors
+// *raised* reported speed: three deliberate mistakes could turn a failing 14 WPM
+// perfect run into a passing 15 WPM one. WPM is now net — correct keystrokes only.
+function netWPM() {
+    if (stepSeconds <= 0) return 0;
+    const correct = Math.max(0, chars - mistakes);
+    return Math.round((correct / 5) / (stepSeconds / 60));
+}
+function accuracyPct() {
+    return chars > 0 ? Math.round(((chars - mistakes) / chars) * 100) : 100;
+}
+
 function updateHUD() {
-    const wpm = stepSeconds > 0 ? Math.round((chars / 5) / (stepSeconds / 60)) : 0;
-    const acc = chars > 0 ? Math.round(((chars - mistakes) / chars) * 100) : 100;
-    wpmDisplay.textContent = wpm;
-    accDisplay.textContent = acc + '%';
+    wpmDisplay.textContent = netWPM();
+    accDisplay.textContent = accuracyPct() + '%';
 }
 
 // ─── Finish Step ─────────────────────────────────────────────────────────────
@@ -1189,17 +1409,15 @@ function finishStep() {
     if (anchorHint) anchorHint.style.display = 'none';
     saveStats(); // write time to Firestore
 
-    const wpm = stepSeconds > 0 ? Math.round((chars / 5) / (stepSeconds / 60)) : 0;
-    const acc = chars > 0 ? Math.round(((chars - mistakes) / chars) * 100) : 100;
+    const wpm = netWPM();
+    const acc = accuracyPct();
 
-    const steps = currentLesson.steps || [];
-    const isLastStep = currentStepIdx >= steps.length - 1;
+    const isLastRun = currentStepIdx >= currentRuns.length - 1;
 
-    if (isLastStep) {
+    if (isLastRun) {
         showLessonResultModal(wpm, acc);
     } else {
-        // Quick inter-step modal
-        showStepModal(wpm, acc, currentStepIdx + 1, steps.length);
+        showStepModal(wpm, acc, currentStepIdx + 1, currentRuns.length);
     }
 }
 
@@ -1207,12 +1425,15 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     drillModal.classList.remove('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = 'none';
 
-    const gates    = currentLesson.gates || {};
-    const minWPM   = gates.minWPM || 15;
-    const minAcc   = gates.minAccuracy || 85;
-    const grade    = calculateGrade(wpm, acc, minWPM, minAcc);
-    var FIRE_GRADE = 'A' + String.fromCodePoint(0x1F525);
-    const canAdvance = (grade === 'B' || grade === 'A' || grade === FIRE_GRADE);
+    const gates    = gatesForRun(currentStep);
+    const minWPM   = gates.minWPM;
+    const minAcc   = gates.minAccuracy;
+    const grade    = calculateGrade(wpm, acc, minWPM, minAcc, mistakes === 0);
+    const canAdvance = gradeAdvances(grade, gates);
+
+    // On a successful run the position checkpoint is stale — drop it so a resume
+    // never lands back inside a run the student already cleared.
+    if (canAdvance) clearRunPosition();
 
     document.getElementById('dm-title').textContent = 'Step ' + nextIdx + ' of ' + totalSteps + ' done';
     document.getElementById('dm-stars').innerHTML = gradeHTML(grade);
@@ -1222,9 +1443,18 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     const weeklyBadge = (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds)
         ? '<span class="goal-badge goal-blue">\u2713</span>' : '';
 
+    // The target shown is the one actually being enforced. On a key drill that is
+    // accuracy, and no WPM target is shown at all — displaying a number the run is
+    // not graded on is what taught students to chase the wrong thing.
     document.getElementById('dm-stats').innerHTML =
         '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
-        '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>';
+        '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>' +
+        '<div class="dm-stat"><div class="dm-val" style="font-size:1.4rem;">' + minAcc + '%+</div>' +
+        '<div class="dm-label">Target</div></div>' +
+        (minWPM != null
+            ? '<div class="dm-stat"><div class="dm-val" style="font-size:1.4rem;">' + minWPM + '+</div>' +
+              '<div class="dm-label">Target WPM</div></div>'
+            : '');
 
     const stepMsg = getGradeMessage(wpm, acc, minWPM, minAcc, grade);
     const hint = canAdvance
@@ -1276,14 +1506,17 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
 }
 
 function showLessonResultModal(wpm, acc) {
-    const gates  = currentLesson.gates || {};
-    const minWPM = gates.minWPM || 15;
-    const minAcc = gates.minAccuracy || 85;
+    const gates  = gatesForRun(currentStep);
+    const minWPM = gates.minWPM;
+    const minAcc = gates.minAccuracy;
 
-    const grade  = calculateGrade(wpm, acc, minWPM, minAcc);
-    var FIRE_LESSON = 'A' + String.fromCodePoint(0x1F525);
-    const passed = grade === 'B' || grade === 'A' || grade === FIRE_LESSON;
-    const countsAsTime = grade !== 'F'; // D and above = time credit
+    const grade  = calculateGrade(wpm, acc, minWPM, minAcc, mistakes === 0);
+    const passed = gradeAdvances(grade, gates);
+    if (passed) clearRunPosition();
+
+    // v2.0.0: an F now writes a record too. It previously wrote nothing, so the
+    // students in the most trouble were the ones who left no trace at all.
+    const countsAsTime = true;
 
     // Hint toward next grade
     const gradeHint = getGradeMessage(wpm, acc, minWPM, minAcc, grade);
@@ -1292,8 +1525,7 @@ function showLessonResultModal(wpm, acc) {
     } else if (!currentUser && countsAsTime) {
         // Accumulate anon lesson progress for retroactive save on sign-in
         anonLessonsCompleted++;
-        const FIRE = 'A' + String.fromCodePoint(0x1F525);
-        const GRADE_ORDER = ['F','D','C','B','A', FIRE];
+        const GRADE_ORDER = ['F','D','C','B','A', FIRE_GRADE];
         const prev = anonLessonProgress[currentLesson.id];
         const prevGrade = prev ? (prev.grade || 'F') : 'F';
         const bestGrade = GRADE_ORDER.indexOf(grade) > GRADE_ORDER.indexOf(prevGrade) ? grade : prevGrade;
@@ -1305,7 +1537,7 @@ function showLessonResultModal(wpm, acc) {
             timeSpentSeconds: (prev ? prev.timeSpentSeconds || 0 : 0) + stepSeconds,
             passed: passed || (prev ? prev.passed || false : false),
             grade: bestGrade,
-            stars: bestGrade === FIRE || bestGrade === 'A' ? 3 : bestGrade === 'B' ? 2 : bestGrade === 'C' ? 1 : 0,
+            stars: bestGrade === FIRE_GRADE || bestGrade === 'A' ? 3 : bestGrade === 'B' ? 2 : bestGrade === 'C' ? 1 : 0,
         };
         checkAnonLoginPrompt();
     }
@@ -1313,13 +1545,12 @@ function showLessonResultModal(wpm, acc) {
     drillModal.classList.remove('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = 'none';
 
-    var FIRE_T = 'A' + String.fromCodePoint(0x1F525);
     var titleMap = {};
-    titleMap[FIRE_T]  = String.fromCodePoint(0x1F525) + ' On Fire!';
+    titleMap[FIRE_GRADE] = String.fromCodePoint(0x1F525) + ' On Fire!';
     titleMap['A']     = '\uD83C\uDF89 Excellent!';
     titleMap['B']     = '\u2713 Lesson Complete!';
-    titleMap['C']     = 'Almost\u2026';
-    titleMap['D']     = 'Keep Going';
+    titleMap['C']     = '\u2713 Lesson Complete!';
+    titleMap['D']     = 'Almost \u2014 Try Once More';
     titleMap['F']     = 'Not Yet';
     document.getElementById('dm-title').textContent = titleMap[grade] || 'Done';
     document.getElementById('dm-stars').innerHTML = gradeHTML(grade);
@@ -1331,7 +1562,10 @@ function showLessonResultModal(wpm, acc) {
         rdBadge +
         '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
         '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>' +
-        '<div class="dm-stat"><div class="dm-val" style="font-size:1.4rem;">' + minWPM + '+</div><div class="dm-label">Target WPM</div></div>' +
+        '<div class="dm-stat"><div class="dm-val" style="font-size:1.4rem;">' + minAcc + '%+</div><div class="dm-label">Target</div></div>' +
+        (minWPM != null
+            ? '<div class="dm-stat"><div class="dm-val" style="font-size:1.4rem;">' + minWPM + '+</div><div class="dm-label">Target WPM</div></div>'
+            : '') +
         rwBadge;
 
     const msg = 'You got ' + wpm + ' WPM at ' + acc + '% accuracy.' + (gradeHint ? ' ' + gradeHint : '');
@@ -1390,11 +1624,16 @@ function showLessonResultModal(wpm, acc) {
         btns.appendChild(mapBtnP); // left
         btns.appendChild(nextBtn); // right
     } else {
+        // v2.0.0: retry THIS run. The old code called startLesson(), which reset
+        // currentStepIdx to 0 and replayed the intro \u2014 so missing the gate on the
+        // last step of a five-step lesson meant redoing all five. At a 50% per-run
+        // pass rate that turned a 5-run lesson into ~18 runs of work.
+        const retryIdx = currentStepIdx;
         primaryAction = () => {
             document.removeEventListener('keydown', enterResultHandler);
             drillModal.classList.add('hidden');
             document.getElementById('drill-keyboard-wrap').style.display = '';
-            startLesson(currentLesson);
+            beginStep(retryIdx);
         };
         const retryBtn = document.createElement('button');
         retryBtn.className = 'dm-btn-primary'; retryBtn.textContent = 'Try Again (Enter)';
@@ -1448,15 +1687,19 @@ window._practiceMissedKeys = function(missedKeys) {
         groupCount: 14,
         anchorEnforced: false,
     };
-    // Inject as current step and run it
     drillModal.classList.add('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = '';
-    // Temporarily replace steps with just this remediation step
-    const origSteps = currentLesson.steps;
-    currentLesson.steps = [syntheticStep];
+    // v2.0.0: replace the run list rather than mutating currentLesson.steps. The old
+    // swap-and-restore worked only because beginStep read steps synchronously; runs
+    // make the intent explicit and leave the lesson object alone. Chunked in case
+    // the missed-key set produces a long drill.
+    currentRuns = chunkSequence(buildSequence(syntheticStep)).map((seq, i, all) => ({
+        stepId: 'remediation', stepIdx: 0, chunkIdx: i, chunkCount: all.length,
+        type: syntheticStep.type, anchorEnforced: false, gates: null, sequence: seq,
+        label: syntheticStep.label + (all.length > 1 ? ` (${i + 1}/${all.length})` : ''),
+    }));
+    clearRunPosition();   // a remediation detour must not resurrect a lesson position
     beginStep(0);
-    // Restore original steps after the step is set up so finishStep works correctly
-    currentLesson.steps = origSteps;
 };
 
 window._gotoLesson = function(id) {
@@ -1547,7 +1790,10 @@ function openLearnGenie() {
 
     const lesson    = currentLesson;
     const stepIdx   = currentStepIdx;
-    const steps     = lesson ? (lesson.steps || []) : [];
+    // Runs, not authored steps — beginStep() indexes currentRuns, so the jump list
+    // has to match or the genie sends you to the wrong place in a chunked lesson.
+    const steps     = (lesson && currentRuns.length) ? currentRuns
+                    : (lesson ? buildRunList(lesson) : []);
     const onDrill   = !drillView.classList.contains('hidden');
 
     const ggS = 'background:#1a1a1a;color:#ff6600;border:1px solid #ff6600;' +
@@ -1568,7 +1814,7 @@ function openLearnGenie() {
     // Step dropdown
     const stepOpts = steps.map((s, i) =>
         '<option value="' + i + '"' + (i === stepIdx ? ' selected' : '') + '>' +
-        'Step ' + (i+1) + ': ' + escHtml(s.label || s.id) + '</option>'
+        'Run ' + (i+1) + ': ' + escHtml(s.label || s.stepId || '') + '</option>'
     ).join('');
 
     drillModal.classList.remove('hidden');
@@ -1636,7 +1882,7 @@ function openLearnGenie() {
         document.getElementById('drill-keyboard-wrap').style.display = '';
         // Resume if on a drill
         if (onDrill && !drillView.classList.contains('hidden')) {
-            timerInterval = setInterval(() => { if (drillPos > 0) stepSeconds++; updateHUD(); }, 1000);
+            startGradedTimer();
             learnTickInterval = setInterval(() => {
                 if (!learnLastInputTime) return;
                 if (!ggBypassIdle && Date.now() - learnLastInputTime >= LEARN_IDLE_THRESHOLD) return;
@@ -1714,10 +1960,16 @@ function openLearnGenie() {
 // close, and app backgrounding, where beforeunload often doesn't. Both are
 // wired; flushStats() is idempotent when nothing is dirty.
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') flushStats('hidden', true);
+    if (document.visibilityState === 'hidden') {
+        // Position first: it's a synchronous localStorage write and it's the thing
+        // whose loss actually costs the student their work.
+        if (currentStep && drillPos > 0) saveRunPosition();
+        flushStats('hidden', true);
+    }
 });
 
 window.addEventListener('beforeunload', () => {
+    if (currentStep && drillPos > 0) saveRunPosition();
     if (currentUser && statsData.secondsToday > 0) flushStats('beforeunload', true);
 });
 
@@ -2071,6 +2323,73 @@ function updateWeeklyHUD() {
 // synchronous, instant) and Firestore gets a batched flush on a timer and at
 // session end. Nothing is lost — see walRecoverLearn() below.
 const LEARN_WAL_KEY = 'ttb_learnwal_v1';
+
+// ─── Run position persistence (v2.0.0) ───────────────────────────────────────
+// Separate key from the stats WAL on purpose: stats are a merge-by-max recovery,
+// position is a single latest-wins snapshot with different lifetime rules, and
+// mixing them would mean one corrupt field losing both.
+//
+// Before this existed the WAL persisted statsData only — not drillPos, not
+// currentStepIdx — so the bell erased the whole run AND any earlier runs cleared in
+// that sitting, because lessonProgress is only written at the end of a lesson. Any
+// run longer than the time left in the period was therefore unfinishable, forever.
+//
+// The sequence is stored verbatim rather than regenerated: key_random and
+// key_pattern_auto build a fresh random sequence on every call, so restoring a
+// position into a regenerated sequence would put the student mid-word in text they
+// never saw.
+const LEARN_POS_KEY = 'ttb_learnpos_v1';
+
+function saveRunPosition() {
+    if (!currentLesson || !currentStep) return;
+    try {
+        localStorage.setItem(LEARN_POS_KEY, JSON.stringify({
+            v: 1,
+            uid: currentUser ? currentUser.uid : 'anon',
+            lessonId: currentLesson.id,
+            runIdx: currentStepIdx,
+            drillPos, chars, mistakes, stepSeconds,
+            seq: drillSequence.join(''),
+            savedAt: Date.now()
+        }));
+    } catch (e) { console.warn('run position write failed:', e); }
+}
+
+function readRunPosition() {
+    try {
+        const raw = localStorage.getItem(LEARN_POS_KEY);
+        if (!raw) return null;
+        const p = JSON.parse(raw);
+        if (p.v !== 1) return null;
+        // Don't hand one student's position to another on a shared Chromebook.
+        const who = currentUser ? currentUser.uid : 'anon';
+        if (p.uid !== who) return null;
+        // A run part-way through is worth restoring; a run barely started isn't
+        // worth the confusion of resuming into.
+        if (!p.seq || typeof p.drillPos !== 'number' || p.drillPos < 5) return null;
+        return p;
+    } catch (_) { return null; }
+}
+
+function clearRunPosition() {
+    try { localStorage.removeItem(LEARN_POS_KEY); } catch (_) {}
+}
+
+// Non-destructive read, for renderMap and startLesson.
+function peekPendingRun(lessonId) {
+    const p = readRunPosition();
+    return (p && p.lessonId === lessonId) ? p : null;
+}
+
+// Destructive read, for beginStep: a position is consumed the moment it's applied,
+// so a later retry of the same run starts clean instead of resurrecting old counters.
+function takePendingRun(runIdx) {
+    if (!currentLesson) return null;
+    const p = peekPendingRun(currentLesson.id);
+    if (!p || p.runIdx !== runIdx) return null;
+    clearRunPosition();
+    return p;
+}
 const LEARN_FLUSH_MS = 300000;   // 5 minutes
 let learnFlushTimer = null;
 let learnDirty = false;

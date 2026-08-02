@@ -1,6 +1,6 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v3.2.0 — §2 corrected: the "one revision behind" table was stale
+<!-- HANDOFF.md v3.3.0 — Batch A shipped (learn.js 2.0.0). §2 corrected: the "one revision behind" table was stale
      and has been removed; Round 1 is fully deployed, verified by diff 2026-08-01.
      §0 and §11 are Round 2 (Dvorak). Underwood's §1, §3-§10, §12 are verbatim. -->
 
@@ -56,8 +56,12 @@ version is six mechanisms in `learn.js`, none of which are about student ability
    grid as `not started` — identical to a student who never opened it.
    `reports.html` never reads `lessonProgress`.
 
-**What shipped in Round 2:** the lessons JSON export only (below). The scoring
-changes are agreed but deliberately not written yet — see §11.
+**What shipped in Round 2:** the lessons JSON export, then **Batch A in `learn.js`
+v2.0.0**, which fixes mechanisms 1–5 above. Mechanism 6 (invisibility) is Batch B and
+is still outstanding — see §11.
+
+⚠️ **Do not re-derive or re-fix mechanisms 1–5.** They are closed. The list above is
+kept as the record of *why* the code looks the way it does, not as a to-do.
 
 ---
 
@@ -118,6 +122,13 @@ evidence; this table is hearsay.
 |---|---|---|---|
 | `lessons-admin.js` | 1.5.1 | **1.6.0** | lessons JSON export + gate audit table |
 | `admin.html` | 2.7.6 | **2.8.0** | Export JSON button and panel; shared section CSS |
+| `learn.js` | 1.7.1 | **2.0.0** | **Batch A.** Runs/chunking, position WAL, accuracy-gated advancement, net WPM, idle-aware clock |
+| `learn.html` | — | **2.0.0** | pre-JS footer text only (learn.js overwrites it at runtime) |
+
+⚠️ **`learn.js` 2.0.0 has not been run in a browser.** Verified by parse, static
+identifier sweep, and executing the pure functions against the real 47-lesson export.
+Everything DOM-facing — resume-after-bell, the pip row at 10+ pips, modal button
+wiring — needs hand testing. §8 lists how to test each piece solo.
 
 `admin.js` needs no change — it already reads `window.LESSONS_ADMIN_VERSION` for
 the footer.
@@ -275,7 +286,7 @@ disables itself. **Any redesign must preserve the no-self-edit property.**
 | file | constant |
 |---|---|
 | `game.js` | `const VERSION` (~line 78) |
-| `learn.js` | `const LEARN_VERSION` (~line 30) |
+| `learn.js` | `const LEARN_VERSION` (~line 56 after the 2.0.0 header) |
 | `admin.js` | `const ADMIN_VERSION` (~line 10) |
 | `lessons-admin.js` | `window.LESSONS_ADMIN_VERSION` |
 | `staff-admin.js` | `window.STAFF_ADMIN_VERSION` |
@@ -291,7 +302,15 @@ files — deliberately not a shared manifest, because a stale cached `game.js` r
 its version from a manifest would report the new number while running old code.
 
 Still hardcoded in `<title>` and not driven by a constant: `game.html`, `admin.html`,
-`reports.html`.
+`reports.html`. `learn.html`'s `<footer>` is hardcoded too, but `learn.js` overwrites
+it at runtime from `LEARN_VERSION` — so it only shows during the pre-JS paint. Keep it
+in sync anyway; a stale number there is the first thing you see if the module fails
+to load.
+
+**localStorage keys** (not versioned, but breaking their shape breaks recovery):
+`ttb_learnwal_v1` (stats write-ahead log) and `ttb_learnpos_v1` (run position, added
+2.0.0). Both carry an explicit `v` field — bump it rather than silently changing the
+payload shape, or a mid-run student on the old shape gets a corrupt resume.
 
 ---
 
@@ -321,6 +340,43 @@ backfilled from the browser — `typing_logs` rules allow writing only your own
 schools" only.
 
 ---
+
+## 8b. Testing `learn.js` 2.0.0 solo — the paths that were never executed
+
+Everything below is DOM-facing and was verified only by reading. Roughly 15 minutes,
+no students required. Use the admin genie (backtick) to warp rather than grinding.
+
+1. **Chunking is visible.** Open `u6_l2`. The step label should read
+   `Capitalization Drill (1/6)` and the pip row should show **10 pips**, not 2.
+   Confirm the pips stay legible at that width — `.step-pip` is `flex: 1`, so they
+   thin out rather than wrap, but 10 is more than has ever rendered.
+2. **Resume after the bell — the whole point of the batch.** Start any long run,
+   type 20+ characters, then switch tabs (don't reload). Come back, go to the map,
+   re-enter the lesson. It should skip the intro and drop you back mid-run with your
+   WPM and accuracy carried over. Then repeat with a hard reload instead of a tab
+   switch. Then repeat having typed only 3 characters — that one should *not* resume
+   (below the 5-char floor), which is intended.
+3. **Position is uid-scoped.** Resume something, sign out, sign in as a different
+   test account, open the same lesson. It must start clean. This is the shared-cart
+   case and it is the one with a real privacy smell if it's wrong.
+4. **Accuracy-only drills.** On any `key_*` run, the results modal should show a
+   Target of `85%+` and **no Target WPM tile**. Type deliberately slowly and
+   accurately: it should pass. Type fast and sloppy: it should not.
+5. **C advances.** On a `word_list` or `sentence_list` run, type accurately but
+   slowly. Expect grade C, the title "✓ Lesson Complete!", and the next lesson
+   unlocking on the map.
+6. **A failed run retries the run.** Fail the *last* run of a multi-run lesson on
+   accuracy. "Try Again" must return you to that run — not to the intro animation.
+7. **The clock pauses.** Start a run, type a few characters, then sit for 20 seconds
+   without touching anything, then finish. The reported WPM should be roughly what
+   you actually typed at, not halved.
+8. **Net WPM.** Deliberately mash wrong keys for a while. WPM should *fall*. Under
+   1.7.1 it rose — that was the exploit.
+9. **Remediation still works.** Fail something badly enough to get the practice-missed
+   -keys button, then click it. It should run a drill and return cleanly.
+
+If 2 or 3 misbehave, the suspects are `peekPendingRun` / `takePendingRun` in
+`learn.js` and the `visibilitychange` handler near the bottom.
 
 ## 9. Open work, in priority order
 
@@ -370,41 +426,51 @@ authored gates and step counts have never been visible outside the admin UI.
 Do not start editing `learn.js` before reading that file — every number below
 depends on what the curriculum actually contains.
 
-Ordered as agreed. 1–2 are worth doing even if nothing else changes.
+**Batch A is done** — shipped as `learn.js` v2.0.0. Items 0, 0b, 3, 4, 5, 6, 7, 9
+below are closed, plus the grade-F record from item 1. Struck items are history.
 
-0. **Chunk any step over ~150 chars into sub-runs, in the engine not the data.**
+**Batch B is what remains: items 1 (rest) and 2.** Both are about making failure
+visible, which is the one mechanism Batch A did not touch.
+
+0. ~~Chunk long steps~~ ✅ **DONE (2.0.0).** 176 runs, none over a block, longest 193 chars.
    `buildSequence()` already returns a flat array; split on group/word/sentence
    boundaries. Fixes all 47 existing lessons and everything authored later without
    re-editing documents. 150 ≈ 30–60 s at these gates, matching the `game.js` sprint
    length. Jake approved 150. **Nothing else matters until a step fits in a period.**
-0b. **Persist `drillPos` and `currentStepIdx` in the lesson WAL.** Required even with
+0b. ~~Persist run position~~ ✅ **DONE (2.0.0)** — `ttb_learnpos_v1`, uid-keyed. Required even with
    chunking — see `PEDAGOGY-AUDIT.md` §3.2.
-1. **Instrument the failures.** Write a `lessonProgress` record on *every* finished
+1. **BATCH B — Instrument the failures.** Partially done: an F now writes a record
+   (previously it wrote nothing, so the students in the most trouble left no trace).
+   Still needed: write a record on *every* finished
    step, pass or fail, including grade F. Add `furthestStepIdx`, a `stepAttempts`
    map, and `stepFailures`. Fix `timeSpentSeconds`, which currently adds only the
    final step's `stepSeconds` rather than the lesson's.
-2. **A "stuck" view in admin** — any student with ≥ N attempts on a step they
+2. **BATCH B — A "stuck" view in admin** — any student with ≥ N attempts on a step they
    haven't cleared. This is the report that would have caught all of this in week two.
-3. **WPM from correct keystrokes, not total.** Kills the error exploit and makes
+3. ~~Net WPM~~ ✅ **DONE (2.0.0)** — `netWPM()`. Kills the error exploit and makes
    the number comparable to every other typing assessment.
-4. **Pause `stepSeconds` on idle > `LEARN_IDLE_THRESHOLD`.** The constant and the
+4. ~~Idle-aware graded clock~~ ✅ **DONE (2.0.0)** — `startGradedTimer()`; `DRILL_STOP_TIME_THRESHOLD` deleted. The constant and the
    timestamp already exist; the graded timer just doesn't consult them. Note the
    related bug at `DRILL_STOP_TIME_THRESHOLD`: the comment says "stop counting
    time" but the code sets `learnLastInputTime = 0`, which stops *time-on-task
    credit* while the graded timer keeps running. Almost certainly inverted intent.
-5. **Failed final step retries that step**, not the whole lesson.
-6. **Grade C advances.** Accuracy gates progression; speed determines the badge.
-7. **Per-step gates in the schema.** Drill steps (`key_pattern*`, `key_random`)
+5. ~~Retry the run~~ ✅ **DONE (2.0.0)**.
+6. ~~Grade C advances~~ ✅ **DONE (2.0.0)** — `gradeAdvances()`. Accuracy gates progression; speed determines the badge.
+7. ~~Per-step gates~~ ✅ **DONE (2.0.0)** — inferred from `step.type` via `DRILL_TYPES`; optional `step.gates` override. Drill steps (`key_pattern*`, `key_random`)
    accuracy-only, no WPM. Only the closing prose step carries a speed number.
    This alone fixes the backwards difficulty curve.
-8. ~~Scale `minWPM` by unit~~ — **already done in the authored curriculum**, and
-   done well. Only unit 4's 18 and unit 6's 20 are worth a second look.
+8. ~~Scale `minWPM` by unit~~ — **already done in the authored curriculum**, and done
+   well. Unit 4's 18 and unit 6's 20 now matter far less, since chunking removed the
+   long runs those gates were punishing. Leave them unless testing says otherwise.
+   New in 2.0.0: `gates.strictSpeed` exists and nothing sets it. Add
+   `"strictSpeed": true` to the Unit 7 lessons via Import JSON if 25 WPM should ever
+   be enforced rather than advisory — the engine already honours it.
    ⚠️ **Do NOT scale by grade level.** Jake rejected that explicitly and his
    reasoning is load-bearing: an 8th grader may have had him twice or never, so
    grade carries no information about skill. Unit scaling is grade-independent and
    self-calibrating — a student's position in the curriculum *is* the level signal.
    25 WPM stays the exit number for everyone.
-9. **Recalibrate `A🔥` to be reachable — Jake wants the award kept, not removed.**
+9. ~~Recalibrate A🔥~~ ✅ **DONE (2.0.0)** — clean run on drills, 1.5× on prose. Award kept.
    Currently 2× gate + 95% accuracy, which on a 49-char drill means 30 WPM at
    0.40 s/keystroke with at most two errors: an adult touch-typist number
    permanently visible on the map and permanently out of reach. Proposal: on
