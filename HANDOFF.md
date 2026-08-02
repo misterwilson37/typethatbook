@@ -1,7 +1,8 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v4.1.0 — Round 3 (Blick): Adventure Mode out of alpha, project-wide
-     version alignment, book tags (age range + protagonist). §9 item 1 CORRECTED —
+<!-- HANDOFF.md v4.2.0 — Round 3 (Blick): Adventure Mode out of alpha, project-wide
+     version alignment, book tags (age range + protagonist), language-filter regex
+     + audit, book CSV export. §9 item 1 CORRECTED —
      the practice-mode panic was wrong; see §A.10. New §A is Round 3 and is the first thing to read. §0 and §11
      are Round 2 (Dvorak). Underwood's §1, §3-§10, §12 are verbatim. -->
 
@@ -262,18 +263,77 @@ change a function's behaviour. **Right now we don't** — see §A.10; the fallba
 chain we wanted is already live. Treat `index.js` as a read-only record of what's
 running, and bump its version line if that ever stops being true.
 
-### A.12 Not done — queued
+### A.12 Language filter: regex + audit (admin.js 3.8.0)
 
-1. **Flagged-words list: regex support + an audit view.** Free-text search already
-   accepts `/…/` (see §11 "Bulk-upload workflow"); the persistent list in
-   `settings/languageFilter` does not, and there is no UI to see the effective
-   list at all — Jake is filtering with a list he cannot read. `FLAGGED_WORDS`
-   also needs a content review: it did not contain "boob", which Jake hit in
-   Pinocchio, suggesting it was written by pattern-matching modern profanity
-   rather than by thinking about 19th-century children's literature.
-2. **Age/protagonist tags have no backfill.** Every existing book needs both
-   entered by hand. The ○/● markers in the admin book picker are the worklist.
-3. A nicer practice-mode cool-down message (§A.10). Low priority.
+**The list is now readable.** "Show every term" renders the whole effective
+filter grouped by category, marks custom vs built-in and literal vs regex, and
+highlights whichever terms fired on a test sentence you paste in. A filter you
+can't read is a filter you can't trust — you can't tell a missing word from a
+broken pattern until a student reads it aloud.
+
+**Regex in the persistent list**, same `/…/` convention the free-text search
+already used. One rule, two places.
+
+⚠️ **Each term carries its own boundaries.** The old code wrapped the entire
+alternation in `\b(...)\b`; that cannot mix with raw patterns, because `\b`
+before `\w*` defeats the point of the pattern. `compileFilter()` now emits
+`\bliteral\b` per literal and `(?:pattern)` per regex.
+
+⚠️ **A bad pattern used to be able to break every scan.** One malformed entry in
+`settings/languageFilter` would throw inside `buildFlaggedRegex()` and take down
+the whole audit, not just its own term. Now: validated on entry, skipped
+defensively at compile time, and *reported* in the audit view rather than failing
+silently. `validateFilterTerm()` also rejects patterns matching the empty string
+(they'd match everywhere) and bare slashes (which fell below the `isRegexTerm`
+length floor and were being stored as literals that could never match).
+
+#### The word list was regrouped and roughly doubled — 150 terms
+
+`FLAGGED_WORD_GROUPS` = `slur` (34) · `profanity` (36) · `period` (62) ·
+`anatomy` (18). `FLAGGED_WORDS` is still a flat array so nothing downstream
+changed.
+
+The old list's gap was not "boob" — it was the entire **`period`** category, which
+is most of what a public-domain library actually contains. It had been written by
+pattern-matching modern profanity.
+
+⚠️ **DELIBERATELY OMITTED — do not "helpfully" add them:** `queer`, `gay`,
+`savage`, `cock`, `dwarf`, `guinea`, `negro`. Every one appears constantly in
+19th-century children's literature in an innocent sense ("a queer little man",
+"the cock crowed", "a guinea" as money). Flagging them fires on nearly every book
+and trains the reflex to click past warnings, which costs more than it saves. Put
+them in the *custom* list for a specific book if a specific book warrants it.
+There's a regression test for their absence.
+
+**This is a teacher-awareness tool, not a censor** — the scan surfaces a word in
+context and there's a per-book approve path. So a false positive costs one click
+and a false negative costs a 6th grader reading it aloud in class. That asymmetry
+is why the list is generous.
+
+### A.13 Book list CSV export + balance report (admin.js 3.8.0)
+
+Database Manager → **⤓ Export Book List (CSV)**. Columns: id, title, author,
+genre, min_age, max_age, protagonist_gender, chapters, has_cover. Intended to be
+handed to an LLM to check whether the library is lopsided.
+
+⚠️ `csvCell()` does RFC4180 quoting. Book titles contain commas constantly
+("Alice's Adventures in Wonderland, and Through the Looking-Glass") and a naive
+`join(',')` corrupts every row after the first one that has one. The file is
+written with a UTF-8 BOM so Excel doesn't mojibake curly quotes in author names.
+
+**📊 Balance Report** is the same data on-page: protagonist and genre
+distribution, plus **books available at each age from 5 to 16**, computed with the
+same overlap rule the library uses. A per-year breakdown rather than a range count
+because a library can look balanced by totals and still have nothing at all for
+the 13-year-olds — that row turns red when it's zero.
+
+### A.14 Not done — queued
+
+1. **Age/protagonist tags have no backfill.** Every existing book needs both
+   entered by hand. The ○/● markers in the admin book picker are the worklist,
+   and the Balance Report counts what's still missing.
+2. A nicer practice-mode cool-down message (§A.10). Low priority.
+3. `firestore-rules.test.mjs` still tests the v1.x claims model (§9 item 3).
 
 ---
 

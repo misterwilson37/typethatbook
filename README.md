@@ -96,8 +96,9 @@ learn.js                v2.1.0   Lesson-mode engine (separate from game.js).
                                  Same WAL/flush persistence pattern as game.js.
 keyboard.js             v1.1.1   On-screen keyboard widget, used by learn.html.
 
-admin.js                v3.7.0   Book authoring, EPUB import, chapter editor,
-                                 book tags (age range + protagonist).
+admin.js                v3.8.0   Book authoring, EPUB import, chapter editor,
+                                 book tags, language filter (regex + audit),
+                                 book list CSV export + balance report.
 lessons-admin.js        v1.7.0   Lesson + class authoring, CSV roster import,
                                  lessons JSON import AND export, gate audit
                                  table, stuck-student scan (1.7.0).
@@ -212,7 +213,7 @@ footer exist so you can confirm which build is actually loaded.
   disagreement in amber as of `versions.js` v1.2.0 — if you see amber there, one of
   the two numbers is a lie and the constant is the one telling the truth.
 
-## Book tags (v3.7.0 / index.html v3.2.0)
+## Book tags (admin.js v3.7.0 / index.html v3.2.0)
 
 `books/{id}` carries `minAge`, `maxAge` (numbers, or **`null` for untagged**) and
 `protagonistGender` (`''` untagged, or `female` / `male` / `multiple` / `ensemble`
@@ -228,6 +229,21 @@ The library filters by **overlap**, not containment:
 unbounded. A student asking for 9–12 gets a 7–11 book, which is the point.
 Untagged books are excluded from age-filtered results and counted in a note
 beneath the filter bar.
+
+## Language filter
+
+Built-in terms live in `FLAGGED_WORD_GROUPS` in `admin.js` (categories: `slur`,
+`profanity`, `period`, `anatomy`) and need a code change. Custom terms live in
+`settings/languageFilter` and apply to every book immediately.
+
+Both accept **`/…/` for a regular expression**; anything else is a whole-word
+literal. Patterns are validated on entry and skipped-with-a-report at compile
+time, so one bad entry can't break every scan. Admin → Language panel →
+**Show every term** renders the whole effective filter and will highlight which
+terms fire against a sentence you paste in.
+
+Some words are deliberately *not* flagged because they're innocent in period
+English — see the comment above `FLAGGED_WORD_GROUPS` before adding any.
 
 ## localStorage keys
 

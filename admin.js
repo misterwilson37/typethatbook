@@ -1,4 +1,14 @@
-// admin.js v3.7.0
+// admin.js v3.8.0
+// v3.8.0 — Language filter: regex + audit. The persistent "always flag these"
+//          list now accepts /…/ patterns like the free-text search already did,
+//          patterns are validated on entry AND defensively at scan time (one bad
+//          stored pattern used to be able to break every scan), and there is
+//          finally a way to SEE the effective list — built-in plus custom, with
+//          a live tester. FLAGGED_WORDS regrouped by category and substantially
+//          expanded for period literature; see the note above it.
+//          Also: book list CSV export + an on-page balance report, for checking
+//          the library's spread of genre / age / protagonist.
+// v3.7.0
 // v3.7.0 — Book tags: target age range (minAge/maxAge) and protagonistGender on
 //          books/{id}. Written unconditionally by Save Metadata, same as author
 //          and genre — see the v3.6.0 note on `if (author)` silently keeping the
@@ -16,7 +26,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.7.0";
+const ADMIN_VERSION = "3.8.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -160,22 +170,84 @@ function getSanitizedReplacement(ch) {
 }
 
 // === LANGUAGE CONTENT WARNINGS ===
-const FLAGGED_WORDS = [
-    'nigger', 'niggers', 'nigga', 'niggas',
-    'chink', 'chinks', 'spic', 'spics', 'spick', 'spicks',
-    'wetback', 'wetbacks', 'kike', 'kikes',
-    'gook', 'gooks', 'beaner', 'beaners',
-    'coon', 'coons', 'darkie', 'darkies', 'darky',
-    'redskin', 'redskins', 'injun', 'injuns',
-    'halfbreed', 'half-breed', 'pickaninny', 'pickaninnies',
-    'sambo', 'jap', 'japs',
-    'fuck', 'fucking', 'fucked', 'fucker', 'fucks',
-    'shit', 'shits', 'shitting', 'shitty',
-    'bitch', 'bitches', 'asshole', 'assholes',
-    'damn', 'damned', 'goddamn', 'goddamned',
-    'bastard', 'bastards', 'cunt', 'cunts',
-    'piss', 'pissed', 'pissing', 'whore', 'whores',
-];
+// Grouped by WHY a term is flagged, because "why" is the thing the audit view
+// needed to be able to show. FLAGGED_WORDS stays a flat array of strings so
+// nothing downstream had to change.
+//
+// ⚠️ THIS IS A TEACHER-AWARENESS TOOL, NOT A CENSOR. The scan surfaces a word in
+// context and Jake decides per book — there's an "approve" path that whitelists a
+// word for that book. So the cost asymmetry runs one way: a false positive is one
+// click, a false negative is a 6th grader hitting it live in front of the class.
+// That argues for a generous list, which is why `period` exists.
+//
+// The v3.7.0 list was written by pattern-matching modern profanity and missed
+// "boob" in Pinocchio ("Land of the Boobies"). The gap wasn't that word — it was
+// the whole category of period vocabulary, which is most of what these books are.
+//
+// ⚠️ DELIBERATELY OMITTED, do not "helpfully" add them: queer, gay, savage, cock,
+// dwarf, guinea, negro. Every one of them appears constantly in 19th-century
+// children's literature in its innocent sense — "a queer little man", "the cock
+// crowed", "a guinea" as currency. Flagging them would fire on nearly every book
+// and train the reflex to click past the warnings, which costs more than it
+// saves. Add them to the CUSTOM list for a specific book if a specific book
+// warrants it.
+const FLAGGED_WORD_GROUPS = {
+    // Racial and ethnic slurs. Not okay in any context.
+    slur: [
+        'nigger', 'niggers', 'nigga', 'niggas',
+        'chink', 'chinks', 'spic', 'spics', 'spick', 'spicks',
+        'wetback', 'wetbacks', 'kike', 'kikes',
+        'gook', 'gooks', 'beaner', 'beaners',
+        'coon', 'coons', 'darkie', 'darkies', 'darky',
+        'redskin', 'redskins', 'injun', 'injuns',
+        'halfbreed', 'half-breed', 'pickaninny', 'pickaninnies',
+        'sambo', 'jap', 'japs',
+    ],
+    // Modern profanity.
+    profanity: [
+        'fuck', 'fucking', 'fucked', 'fucker', 'fucks',
+        'shit', 'shits', 'shitting', 'shitty',
+        'bitch', 'bitches', 'asshole', 'assholes',
+        'damn', 'damned', 'goddamn', 'goddamned',
+        'bastard', 'bastards', 'cunt', 'cunts',
+        'piss', 'pissed', 'pissing', 'whore', 'whores',
+        'arse', 'arses', 'bugger', 'buggered', 'bollocks',
+        'prick', 'pricks', 'twat', 'twats', 'wanker',
+    ],
+    // Archaic terms that are slurs now. HIGH VALUE for this library — these are
+    // the ones that actually appear in the public-domain books being uploaded,
+    // and the ones a teacher most needs advance warning about.
+    period: [
+        'squaw', 'squaws', 'papoose', 'papooses',
+        'mulatto', 'mulattos', 'mulattoes', 'quadroon', 'quadroons',
+        'octoroon', 'octoroons', 'hottentot', 'hottentots',
+        'kaffir', 'kaffirs', 'dago', 'dagos', 'wop', 'wops',
+        'greaser', 'greasers', 'polack', 'polacks',
+        'yid', 'yids', 'hebe', 'hebes', 'sheeny', 'sheenies',
+        'chinaman', 'chinamen', 'coolie', 'coolies', 'oriental', 'orientals',
+        'gypsy', 'gypsies', 'gipsy', 'gipsies',
+        'heathen', 'heathens', 'negress', 'negresses',
+        'cripple', 'crippled', 'cripples',
+        'imbecile', 'imbeciles', 'moron', 'morons',
+        'lunatic', 'lunatics', 'feeble-minded', 'simpleton', 'simpletons',
+        'mongoloid', 'spastic', 'midget', 'midgets',
+        'retard', 'retards', 'retarded',
+    ],
+    // Anatomical / crude. The category that was missing entirely.
+    anatomy: [
+        'boob', 'boobs', 'boobies', 'booby',
+        'tit', 'tits', 'titty', 'titties',
+        'penis', 'penises', 'vagina', 'vaginas',
+        'testicle', 'testicles', 'scrotum',
+        'buttock', 'buttocks', 'anus',
+    ],
+};
+
+const FLAGGED_WORD_CATEGORY = {};
+for (const [cat, words] of Object.entries(FLAGGED_WORD_GROUPS)) {
+    for (const w of words) FLAGGED_WORD_CATEGORY[w] = cat;
+}
+const FLAGGED_WORDS = Object.values(FLAGGED_WORD_GROUPS).flat();
 // Words Jake adds himself, stored in settings/languageFilter so they follow him
 // between school and home rather than living in one browser. Rules already allow
 // read: signedIn / write: isSuper on settings/{docId}, so no rules change was needed.
@@ -183,14 +255,92 @@ let customFlaggedWords = [];
 
 function escapeForRegex(w) { return String(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
-// Built fresh each scan instead of once at load, because the word list is now
-// editable and a module-level const could never see an addition.
-function buildFlaggedRegex() {
-    const all = [...FLAGGED_WORDS, ...customFlaggedWords]
-        .map(w => String(w).trim().toLowerCase()).filter(Boolean);
-    const uniq = [...new Set(all)].sort((a, b) => b.length - a.length); // longest first
-    return new RegExp('\\b(' + uniq.map(escapeForRegex).join('|') + ')\\b', 'gi');
+// A term is a raw regex if it's wrapped in slashes — the same /…/ convention the
+// free-text search already used, so there's one rule to remember instead of two.
+function isRegexTerm(t) {
+    const s = String(t).trim();
+    return s.length > 2 && s.startsWith('/') && s.endsWith('/');
 }
+function regexTermSource(t) { return String(t).trim().slice(1, -1); }
+
+// Validate before storing. An invalid pattern that reaches the word list would
+// throw inside buildFlaggedRegex() and take down EVERY scan, not just its own
+// term — so it's rejected at the door, and skipped defensively at compile time
+// in case one is already in the document from a hand edit.
+function validateFilterTerm(t) {
+    const s = String(t).trim();
+    if (!s) return { ok: false, msg: 'Empty.' };
+    // '/' and '//' fall below the isRegexTerm length floor and would sail through
+    // as LITERALS — stored as a term that compiles to \b\/\/\b and matches
+    // nothing, ever, silently. Someone typing those slashes meant a pattern.
+    if (/^\/+$/.test(s)) {
+        return { ok: false, msg: 'Slashes with nothing between them. ' +
+                                 'Write the pattern inside, like /boob\\w*/.' };
+    }
+    if (!isRegexTerm(s)) return { ok: true, kind: 'literal' };
+    const src = regexTermSource(s);
+    if (!src) return { ok: false, msg: 'Empty pattern between the slashes.' };
+    try { new RegExp(src); } catch (e) {
+        return { ok: false, msg: 'Not a valid regular expression: ' + e.message };
+    }
+    // A pattern that can match nothing turns every scan into an infinite crawl.
+    if (new RegExp(src).test('')) {
+        return { ok: false, msg: 'That pattern matches an empty string — it would ' +
+                                 'match everywhere. Add something it must contain.' };
+    }
+    return { ok: true, kind: 'regex' };
+}
+
+// Returns { rx, terms, skipped }. `terms` is what the audit view renders;
+// `skipped` is any stored term that failed to compile.
+//
+// Each term carries its OWN boundaries rather than the whole alternation being
+// wrapped in \b(...)\b. That's what makes mixing literals and regexes work: a
+// literal still gets whole-word treatment, and a pattern like /boob\w*/ gets to
+// control its own edges (\b before \w* would defeat the point).
+function compileFilter() {
+    const seen = new Set();
+    const terms = [], skipped = [], parts = [];
+
+    const push = (raw, source) => {
+        const s = String(raw).trim();
+        if (!s) return;
+        const key = s.toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        const v = validateFilterTerm(s);
+        if (!v.ok) { skipped.push({ term: s, source, reason: v.msg }); return; }
+        if (v.kind === 'regex') {
+            parts.push('(?:' + regexTermSource(s) + ')');
+            terms.push({ term: s, source, kind: 'regex',
+                         category: source === 'custom' ? 'custom' : FLAGGED_WORD_CATEGORY[key] });
+        } else {
+            parts.push('\\b' + escapeForRegex(key) + '\\b');
+            terms.push({ term: key, source, kind: 'literal',
+                         category: source === 'custom' ? 'custom' : FLAGGED_WORD_CATEGORY[key] });
+        }
+    };
+
+    // Longest literals first so "goddamned" wins over "damn" at the same index.
+    // Regex terms keep author order — their precedence is the author's problem.
+    const builtin = [...FLAGGED_WORDS].sort((x, y) => y.length - x.length);
+    builtin.forEach(w => push(w, 'built-in'));
+    customFlaggedWords.forEach(w => push(w, 'custom'));
+
+    let rx;
+    try {
+        rx = new RegExp(parts.join('|'), 'gi');
+    } catch (e) {
+        // Belt and braces: fall back to literals only rather than failing the scan.
+        console.warn('Filter compile failed, falling back to literals:', e);
+        rx = new RegExp(FLAGGED_WORDS.map(w => '\\b' + escapeForRegex(w) + '\\b').join('|'), 'gi');
+    }
+    return { rx, terms, skipped };
+}
+
+// Built fresh each scan instead of once at load, because the word list is
+// editable and a module-level const could never see an addition.
+function buildFlaggedRegex() { return compileFilter().rx; }
 
 async function loadCustomWords() {
     try {
@@ -222,6 +372,7 @@ function renderCustomWords() {
     }
     el.innerHTML = customFlaggedWords.map((w, i) =>
         '<span style="background:#2a0022; border:1px solid #552244; border-radius:12px; padding:2px 8px; font-size:0.75em; color:#eebbee;">' +
+        (isRegexTerm(w) ? '<span style="color:#88ddaa; font-size:0.9em;" title="regular expression">.*&nbsp;</span>' : '') +
         escapeHtmlSafe(w) +
         ' <button data-widx="' + i + '" class="custom-word-del" title="Remove" ' +
         'style="background:none;border:0;color:#cc6688;cursor:pointer;padding:0 0 0 4px;font-size:1em;width:auto;">\u00d7</button></span>'
@@ -2243,10 +2394,20 @@ if (langScanBtn) {
     async function addCustomWord() {
         const inp = document.getElementById('custom-word-input');
         if (!inp) return;
-        const w = inp.value.trim().toLowerCase();
-        if (!w) return;
+        const st = document.getElementById('custom-word-status');
+        const raw = inp.value.trim();
+        if (!raw) return;
+        // Regex terms keep their case — /Boob/ and /boob/ are different patterns,
+        // even though the compiled filter runs case-insensitively. Literals are
+        // lowercased so the list can't hold "Boob" and "boob" separately.
+        const w = isRegexTerm(raw) ? raw : raw.toLowerCase();
+
+        const v = validateFilterTerm(w);
+        if (!v.ok) {
+            if (st) { st.textContent = v.msg; st.style.color = '#ff4444'; }
+            return;
+        }
         if (customFlaggedWords.includes(w) || FLAGGED_WORDS.includes(w)) {
-            const st = document.getElementById('custom-word-status');
             if (st) { st.textContent = '"' + w + '" is already flagged.'; st.style.color = '#ffaa00'; }
             inp.value = '';
             return;
@@ -2256,6 +2417,107 @@ if (langScanBtn) {
         renderCustomWords();
         await saveCustomWords();
     }
+    // ── Filter audit: show every term, and test a sentence against them ──────
+    //
+    // "There's no way for me to audit that list" was the actual problem. A filter
+    // you can't read is a filter you can't trust: you don't know what it catches,
+    // you can't tell a missing word from a broken pattern, and you find out which
+    // it was when a student reads it aloud.
+    function renderFilterAudit(testText) {
+        const out = document.getElementById('filter-audit-out');
+        if (!out) return;
+        out.classList.remove('hidden');
+
+        const { rx, terms, skipped } = compileFilter();
+
+        // Which terms actually fire on the test string. Each is tested on its
+        // own so the report can name the term, not just the match.
+        let hits = null;
+        if (testText) {
+            hits = [];
+            for (const t of terms) {
+                try {
+                    const one = t.kind === 'regex'
+                        ? new RegExp('(?:' + regexTermSource(t.term) + ')', 'gi')
+                        : new RegExp('\\b' + escapeForRegex(t.term) + '\\b', 'gi');
+                    const m = testText.match(one);
+                    if (m) hits.push({ term: t.term, source: t.source, found: [...new Set(m)] });
+                } catch (e) { /* already reported under skipped */ }
+            }
+        }
+
+        const LABEL = {
+            slur: 'Racial / ethnic slurs', profanity: 'Profanity',
+            period: 'Period terms (archaic, offensive today)',
+            anatomy: 'Anatomical / crude', custom: 'Your custom terms',
+        };
+        const COLOR = { slur:'#ff6b6b', profanity:'#ffa726', period:'#ba9ae0',
+                        anatomy:'#4fc3f7', custom:'#88ddaa' };
+
+        let html = '';
+
+        if (hits) {
+            html += hits.length
+                ? '<div style="color:#ffaa00; margin-bottom:10px;"><b>' + hits.length +
+                  ' term' + (hits.length === 1 ? '' : 's') + ' matched:</b> ' +
+                  hits.map(h => '<code style="color:#eebbee;">' + escapeHtmlSafe(h.term) +
+                                '</code> \u2192 ' + escapeHtmlSafe(h.found.join(', '))).join(' &nbsp;\u00b7&nbsp; ') +
+                  '</div>'
+                : '<div style="color:#00ff41; margin-bottom:10px;"><b>Nothing matched.</b> ' +
+                  'That sentence passes the filter as it stands.</div>';
+        }
+
+        if (skipped.length) {
+            html += '<div style="color:#ff4444; margin-bottom:10px; border:1px solid #661111; padding:8px;">' +
+                    '<b>\u26a0 ' + skipped.length + ' stored term' + (skipped.length===1?'':'s') +
+                    ' could not be compiled and ' + (skipped.length===1?'is':'are') + ' being IGNORED:</b><br>' +
+                    skipped.map(s => '<code>' + escapeHtmlSafe(s.term) + '</code> \u2014 ' +
+                                     escapeHtmlSafe(s.reason)).join('<br>') + '</div>';
+        }
+
+        const byCat = {};
+        for (const t of terms) (byCat[t.category || 'custom'] ||= []).push(t);
+
+        html += '<div style="margin-bottom:8px; color:#aaa;"><b>' + terms.length +
+                '</b> terms active \u00b7 ' +
+                terms.filter(t => t.source === 'custom').length + ' custom \u00b7 ' +
+                terms.filter(t => t.kind === 'regex').length + ' regex</div>';
+
+        for (const cat of ['custom', 'slur', 'period', 'profanity', 'anatomy']) {
+            const list = byCat[cat];
+            if (!list || !list.length) continue;
+            html += '<div style="margin-top:10px;"><div style="color:' + (COLOR[cat]||'#aaa') +
+                    '; font-weight:bold; margin-bottom:4px;">' + (LABEL[cat]||cat) +
+                    ' <span style="opacity:.6; font-weight:normal;">(' + list.length + ')</span></div>' +
+                    '<div style="display:flex; flex-wrap:wrap; gap:4px;">' +
+                    list.map(t => {
+                        const on = hits && hits.some(hh => hh.term === t.term);
+                        return '<span style="background:' + (on ? '#443300' : '#1c1c1c') +
+                               '; border:1px solid ' + (on ? '#ffaa00' : '#333') +
+                               '; border-radius:10px; padding:1px 7px; color:' +
+                               (on ? '#ffcc55' : '#bbb') + ';">' +
+                               (t.kind === 'regex' ? '<span style="color:#88ddaa;">.*</span> ' : '') +
+                               escapeHtmlSafe(t.term) + '</span>';
+                    }).join('') + '</div></div>';
+        }
+
+        html += '<div style="margin-top:12px; color:#666; font-size:0.95em; border-top:1px solid #330022; padding-top:8px;">' +
+                'Built-in terms live in <code>FLAGGED_WORD_GROUPS</code> in admin.js and need a ' +
+                'code change. Custom terms save to <code>settings/languageFilter</code> and apply ' +
+                'to every book immediately. Some words are deliberately NOT flagged because they ' +
+                'are innocent in period English \u2014 see the comment above the list.</div>';
+
+        out.innerHTML = html;
+    }
+
+    const auditBtn = document.getElementById('filter-audit-btn');
+    if (auditBtn) auditBtn.onclick = () => renderFilterAudit(null);
+    const testBtn = document.getElementById('filter-test-btn');
+    const testInp = document.getElementById('filter-test-input');
+    const runTest = () => renderFilterAudit((testInp && testInp.value) || '');
+    if (testBtn) testBtn.onclick = runTest;
+    if (testInp) testInp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); runTest(); } };
+
     const addWordBtn = document.getElementById('custom-word-add-btn');
     const wordInput  = document.getElementById('custom-word-input');
     if (addWordBtn) addWordBtn.onclick = addCustomWord;
@@ -2266,6 +2528,142 @@ if (langScanBtn) {
     // resolved, so the read would fail and leave the list silently empty. It's called
     // from onAuthStateChanged instead.
 }
+
+
+// ─── Book list export + balance report (v3.8.0) ───────────────────────────────
+//
+// Jake's use: hand the CSV to an LLM and ask whether the library is lopsided on
+// protagonist gender, genre, or reading age. That means the CSV is the product —
+// the on-page report is just so the obvious gaps don't need a round trip.
+
+// RFC4180: quote if the value contains a comma, quote, or newline; double any
+// internal quotes. Book titles contain commas constantly ("Alice's Adventures in
+// Wonderland, and Through the Looking-Glass") and a naive join would corrupt
+// every row after the first one that has one.
+function csvCell(v) {
+    if (v === null || v === undefined) return '';
+    const s = String(v);
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function csvRow(cells) { return cells.map(csvCell).join(','); }
+
+function downloadCsv(filename, text) {
+    // BOM so Excel opens UTF-8 correctly — without it, curly quotes and accents
+    // in author names come through as mojibake on Windows.
+    const blob = new Blob(['\ufeff' + text], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const el = document.createElement('a');
+    el.href = url; el.download = filename;
+    document.body.appendChild(el); el.click(); document.body.removeChild(el);
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+async function fetchAllBooksForExport() {
+    const snap = await getDocs(collection(db, "books"));
+    const rows = [];
+    snap.forEach(d => {
+        const b = d.data();
+        rows.push({
+            id: d.id,
+            title: b.title || d.id,
+            author: b.author || '',
+            genre: b.genre || '',
+            minAge: (typeof b.minAge === 'number') ? b.minAge : null,
+            maxAge: (typeof b.maxAge === 'number') ? b.maxAge : null,
+            protagonistGender: b.protagonistGender || '',
+            chapters: (b.chapters ? b.chapters.length : 0) || b.totalChapters || 0,
+            hasCover: b.coverUrl ? 'yes' : 'no',
+        });
+    });
+    rows.sort((x, y) => x.title.localeCompare(y.title));
+    return rows;
+}
+
+const exportBooksBtn = document.getElementById('export-books-csv-btn');
+if (exportBooksBtn) exportBooksBtn.onclick = async () => {
+    const st = document.getElementById('export-books-status');
+    const set = (m, c) => { if (st) { st.textContent = m; st.style.color = c || '#888'; } };
+    set('Reading books\u2026');
+    try {
+        const rows = await fetchAllBooksForExport();
+        const header = ['id','title','author','genre','min_age','max_age',
+                        'protagonist_gender','chapters','has_cover'];
+        const csv = [csvRow(header)].concat(rows.map(r => csvRow([
+            r.id, r.title, r.author, r.genre,
+            r.minAge === null ? '' : r.minAge,
+            r.maxAge === null ? '' : r.maxAge,
+            r.protagonistGender, r.chapters, r.hasCover
+        ]))).join('\r\n');
+        const stamp = new Date().toISOString().slice(0, 10);
+        downloadCsv('typethatbook-books-' + stamp + '.csv', csv);
+        set('\u2713 Exported ' + rows.length + ' books.', '#00ff41');
+    } catch (e) {
+        set('Export failed: ' + e.message, '#ff4444');
+    }
+};
+
+const balanceBtn = document.getElementById('library-balance-btn');
+if (balanceBtn) balanceBtn.onclick = async () => {
+    const out = document.getElementById('library-balance-out');
+    const st  = document.getElementById('export-books-status');
+    if (!out) return;
+    out.classList.remove('hidden');
+    out.innerHTML = 'Reading books\u2026';
+    try {
+        const rows = await fetchAllBooksForExport();
+        const n = rows.length;
+        if (!n) { out.innerHTML = 'No books yet.'; return; }
+
+        const tally = (key, fallback) => {
+            const m = {};
+            rows.forEach(r => { const k = r[key] || fallback; m[k] = (m[k] || 0) + 1; });
+            return Object.entries(m).sort((x, y) => y[1] - x[1]);
+        };
+        const bar = (count) => {
+            const pct = Math.round((count / n) * 100);
+            return '<span style="display:inline-block; width:120px; background:#222; ' +
+                   'vertical-align:middle; margin:0 6px;"><span style="display:inline-block; ' +
+                   'height:9px; width:' + pct + '%; background:#4B9CD3;"></span></span>' +
+                   count + ' <span style="color:#666;">(' + pct + '%)</span>';
+        };
+        const section = (title, entries) =>
+            '<div style="margin-bottom:14px;"><div style="color:#4B9CD3; font-weight:bold; ' +
+            'margin-bottom:4px;">' + title + '</div>' +
+            entries.map(([k, c]) =>
+                '<div><span style="display:inline-block; min-width:150px; color:#ccc;">' +
+                escapeHtmlSafe(k) + '</span>' + bar(c) + '</div>').join('') + '</div>';
+
+        // Age coverage per year, so a hole in the middle of the range is visible.
+        // A library can look balanced by count and still have nothing at all for
+        // the 13-year-olds.
+        const ageCounts = [];
+        for (let age = 5; age <= 16; age++) {
+            ageCounts.push([String(age), rows.filter(r =>
+                r.minAge !== null && r.maxAge !== null && r.minAge <= age && r.maxAge >= age).length]);
+        }
+        const untagged = rows.filter(r => r.minAge === null).length;
+        const noProt   = rows.filter(r => !r.protagonistGender).length;
+
+        out.innerHTML =
+            '<div style="color:#888; margin-bottom:10px;"><b>' + n + '</b> books total</div>' +
+            (untagged ? '<div style="color:#ffaa00; margin-bottom:10px;">\u26a0 ' + untagged +
+                        ' with no age range \u2014 invisible to any age filter.</div>' : '') +
+            (noProt ? '<div style="color:#ffaa00; margin-bottom:10px;">\u26a0 ' + noProt +
+                      ' with no protagonist tag.</div>' : '') +
+            section('Protagonist', tally('protagonistGender', '(untagged)')) +
+            section('Genre', tally('genre', '(none)')) +
+            '<div style="margin-bottom:6px;"><div style="color:#4B9CD3; font-weight:bold; ' +
+            'margin-bottom:4px;">Books available at each age</div>' +
+            ageCounts.map(([age, c]) =>
+                '<div><span style="display:inline-block; min-width:150px; color:' +
+                (c === 0 ? '#ff6b6b' : '#ccc') + ';">age ' + age +
+                (c === 0 ? '  \u2190 nothing here' : '') + '</span>' + bar(c) + '</div>').join('') +
+            '</div>';
+        if (st) { st.textContent = ''; }
+    } catch (e) {
+        out.innerHTML = '<span style="color:#ff4444;">Failed: ' + escapeHtmlSafe(e.message) + '</span>';
+    }
+};
 
 // ─── Repair Chapter Order ─────────────────────────────────────────────────────
 const repairChapterOrderBtn = document.getElementById('repair-chapter-order-btn');

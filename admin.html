@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TypeThatBook Admin v3.1.0</title>
+    <title>TypeThatBook Admin v3.2.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
@@ -167,6 +167,16 @@
                 <button id="open-book-btn">Open Book</button>
             </div>
 
+            <div style="margin-top:12px; border-top:1px solid #333; padding-top:10px;">
+                <button id="export-books-csv-btn" class="secondary-btn"
+                        style="width:auto; padding:5px 14px; font-size:0.85em;">⤓ Export Book List (CSV)</button>
+                <button id="library-balance-btn" class="secondary-btn"
+                        style="width:auto; padding:5px 14px; font-size:0.85em; margin-left:6px;">📊 Balance Report</button>
+                <div id="export-books-status" style="font-size:0.75em; color:#888; margin-top:5px; min-height:1.1em;"></div>
+                <div id="library-balance-out" class="hidden"
+                     style="margin-top:10px; background:#111; border:1px solid #333; padding:12px; font-size:0.8em; max-height:340px; overflow-y:auto;"></div>
+            </div>
+
             <div id="create-new-ui" class="hidden" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
                 <div class="row">
                     <div class="col">
@@ -311,8 +321,26 @@
                                 style="flex:1; padding:5px 8px; background:#222; border:1px solid #444; color:#eee; font-family:inherit; font-size:0.85em; border-radius:3px;">
                             <button id="custom-word-add-btn" class="secondary-btn" style="width:auto; padding:5px 14px; font-size:0.85em;">Add</button>
                         </div>
+                        <div style="font-size:0.72em; color:#886688; margin-top:3px;">
+                            Whole words by default. Wrap in <code>/…/</code> for a regular
+                            expression — <code>/boob\w*/</code> catches boob, boobs, boobies.
+                        </div>
                         <div id="custom-word-list" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;"></div>
                         <div id="custom-word-status" style="font-size:0.72em; color:#886688; margin-top:5px; min-height:1em;"></div>
+                    </div>
+
+                    <div style="margin-top:14px; border-top:1px solid #330022; padding-top:12px;">
+                        <label style="font-size:0.8em; color:#cc99cc;">Audit the filter</label>
+                        <div style="display:flex; gap:6px; margin-top:4px; flex-wrap:wrap;">
+                            <button id="filter-audit-btn" class="secondary-btn"
+                                    style="width:auto; padding:5px 14px; font-size:0.85em;">Show every term</button>
+                            <input type="text" id="filter-test-input" placeholder="paste a sentence to test…"
+                                style="flex:1; min-width:180px; padding:5px 8px; background:#222; border:1px solid #444; color:#eee; font-family:inherit; font-size:0.85em; border-radius:3px;">
+                            <button id="filter-test-btn" class="secondary-btn"
+                                    style="width:auto; padding:5px 14px; font-size:0.85em;">Test</button>
+                        </div>
+                        <div id="filter-audit-out" class="hidden"
+                             style="margin-top:10px; background:#12000c; border:1px solid #330022; padding:12px; font-size:0.78em; max-height:360px; overflow-y:auto;"></div>
                     </div>
                 </details>
 
