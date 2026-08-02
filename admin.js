@@ -7,7 +7,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.2.0";
+const ADMIN_VERSION = "3.5.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -215,6 +215,11 @@ function scanForLanguageIssues(chapters, approvedWords = []) {
 
 // State
 let stagedChapters = [];
+// Where stagedChapters came from. openBookBtn loads them FROM Firestore; parseEpubFile
+// creates them from a local file that Firestore has never seen. Fixes must write to
+// the database in the first case and stay in memory in the second, and
+// stagedChapters.length alone cannot tell them apart.
+let stagedFromDB = false;
 let editingIndex = -1;
 let bookTitlesMap = {};
 let activeBookId = ""; 
@@ -442,6 +447,7 @@ openBookBtn.onclick = async () => {
     statusEl.innerText = `Loading ${activeBookId}...`;
     chapterListEl.innerHTML = "Loading...";
     stagedChapters = [];
+    stagedFromDB = true;   // loaded from Firestore — fixes should write straight back
     stagedCoverBlob = null; stagedCoverUrl = null;
     
     try {
@@ -525,6 +531,7 @@ async function parseEpubFile(file) {
     statusEl.innerText = "Parsing...";
     chapterListEl.innerHTML = "Parsing...";
     stagedChapters = [];
+    stagedFromDB = false;  // local file; nothing in Firestore to write back to yet
     importErrors = []; 
     
     try {
@@ -834,6 +841,7 @@ wizardSaveBtn.onclick = () => {
 wizardCancelBtn.onclick = () => {
     if(confirm("Stop import?")) {
         stagedChapters = [];
+        stagedFromDB = false;
         wizardModal.classList.add('hidden');
         statusEl.innerText = "Cancelled.";
         statusEl.style.borderColor = "#ff3333";
@@ -1245,28 +1253,84 @@ updateStagedBtn.onclick = () => {
 };
 
 // --- SAVE TITLE ---
+// Reads the genre control, resolving the "Custom..." option to the text input.
+// customGenreInput was declared in v3.x and never used, so picking Custom stored the
+// literal string "__custom__" as the genre.
+function readGenreField() {
+    const sel = document.getElementById('active-book-genre');
+    if (!sel) return "";
+    if (sel.value === '__custom__') {
+        return (customGenreInput && customGenreInput.value.trim()) || "";
+    }
+    return sel.value;
+}
+
+// Show/hide the custom box when the dropdown changes.
+if (genreSelect) {
+    genreSelect.addEventListener('change', () => {
+        if (!customGenreInput) return;
+        const custom = genreSelect.value === '__custom__';
+        customGenreInput.classList.toggle('hidden', !custom);
+        if (custom) customGenreInput.focus();
+    });
+}
+
 saveTitleBtn.onclick = async () => {
     if (!activeBookId) return alert("No active book.");
     const newTitle = activeBookTitle.value.trim();
     if (!newTitle) return alert("Title required.");
+
+    // Feedback lives next to the button now. The write always worked; the only
+    // confirmation was the status bar at the top of the page, ~66 lines of markup
+    // above this button and usually scrolled out of view — so a successful save was
+    // indistinguishable from a dead button.
+    const inline = document.getElementById('save-title-status');
+    const setInline = (msg, color) => {
+        if (!inline) return;
+        inline.textContent = msg;
+        inline.style.color = color || '#888';
+    };
+    const original = saveTitleBtn.textContent;
+    saveTitleBtn.disabled = true;
+    saveTitleBtn.style.opacity = '0.6';
+    saveTitleBtn.textContent = 'Saving\u2026';
+    setInline('Saving\u2026', '#888');
+
     try {
-        const updates = { title: newTitle };
         const author = document.getElementById('active-book-author').value.trim();
-        const genre = document.getElementById('active-book-genre').value;
-        if (author) updates.author = author;
-        if (genre) updates.genre = genre;
-        
-        // Upload cover if staged
+        const genre  = readGenreField();
+
+        // Written unconditionally. Previously these were guarded by `if (author)` /
+        // `if (genre)`, which meant a field could be changed but never CLEARED —
+        // blanking the author and saving silently kept the old one.
+        const updates = { title: newTitle, author, genre };
+
         if (stagedCoverBlob) {
+            setInline('Uploading cover\u2026', '#888');
             const coverUrl = await uploadCover(activeBookId, stagedCoverBlob);
             if (coverUrl) updates.coverUrl = coverUrl;
         }
-        
+
         await setDoc(doc(db, "books", activeBookId), updates, { merge: true });
         bookTitlesMap[activeBookId] = newTitle;
+
+        const stamp = new Date().toLocaleTimeString();
+        setInline('\u2713 Saved at ' + stamp + (genre ? ' \u00b7 genre: ' + genre : ' \u00b7 genre cleared'), '#00ff41');
         statusEl.innerText = "Metadata Updated.";
         statusEl.style.borderColor = "#00ff41";
-    } catch(e) { alert(e.message); }
+        saveTitleBtn.textContent = '\u2713 Saved';
+        // Refresh the list so the change is visible where the book is listed, not
+        // just in the form you just typed into.
+        await loadBookList();
+        setTimeout(() => { saveTitleBtn.textContent = original; }, 2000);
+    } catch(e) {
+        setInline('Save failed: ' + e.message, '#ff4444');
+        saveTitleBtn.textContent = original;
+        alert("Metadata Save Failed: " + e.message);
+    } finally {
+        saveTitleBtn.disabled = false;
+        saveTitleBtn.style.opacity = '1';
+    }
 };
 
 // --- UPLOAD ALL ---
@@ -1624,6 +1688,9 @@ function rerunLanguageScan() {
 // === BOOK AUDIT TOOL ===
 const auditBtn = document.getElementById('audit-book-btn');
 const auditResults = document.getElementById('audit-results');
+// true = audited from Firestore, false = audited from stagedChapters. Mirrors
+// langIsFromDB, and decides whether a fix writes to the DB or edits memory.
+let auditIsFromDB = true;
 const langScanBtn = document.getElementById('language-scan-btn');
 let auditIssueData = [];
 
@@ -1643,17 +1710,50 @@ async function runAudit() {
     auditIssueData = [];
 
     try {
-        const metaSnap = await getDoc(doc(db, "books", activeBookId));
-        if (!metaSnap.exists()) { auditResults.innerHTML = '<div style="color:red;">Book metadata not found.</div>'; return; }
-        const meta = metaSnap.data();
-        const chapters = meta.chapters || [];
+        // The audit used to read only from Firestore, so auditing a freshly parsed
+        // EPUB before clicking "Upload All" always failed with "Book metadata not
+        // found" — createParseBtn sets activeBookId and stages chapters in memory but
+        // writes nothing to Firestore until upload. Checking for untypable characters
+        // BEFORE committing a book is the useful order, so staged chapters win.
+        // Was: (stagedChapters.length === 0), which was wrong — "Open Book" fills
+        // stagedChapters from Firestore, so that test would have classified a
+        // database-backed book as staged and quietly stopped writing its fixes.
+        auditIsFromDB = (stagedChapters.length === 0) || stagedFromDB;
+
+        let chapters;   // [{ id, title, segments }]
+        if (stagedChapters.length > 0) {
+            chapters = stagedChapters.map((c, i) => ({
+                id: (c.id !== undefined && c.id !== "") ? String(c.id) : String(i + 1),
+                title: c.title || ('Chapter ' + ((c.id !== undefined && c.id !== "") ? c.id : i + 1)),
+                segments: c.segments || []
+            }));
+            if (!chapters.length) {
+                auditResults.innerHTML = '<div style="color:red;">Nothing staged to audit.</div>';
+                return;
+            }
+        } else {
+            const metaSnap = await getDoc(doc(db, "books", activeBookId));
+            if (!metaSnap.exists()) {
+                auditResults.innerHTML = '<div style="color:#ffaa00;">' +
+                    'No saved copy of <strong>' + activeBookId + '</strong> in the database yet, ' +
+                    'and nothing staged to audit.<br><span style="color:#888;">' +
+                    'If you just parsed an EPUB, click <strong>Open Book</strong> to load it, ' +
+                    'or upload it first.</span></div>';
+                return;
+            }
+            const metaChapters = metaSnap.data().chapters || [];
+            chapters = [];
+            for (const chap of metaChapters) {
+                const chapSnap = await getDoc(doc(db, "books", activeBookId, "chapters", chap.id));
+                if (!chapSnap.exists()) continue;
+                chapters.push({ id: chap.id, title: chap.title || chap.id,
+                                segments: chapSnap.data().segments || [] });
+            }
+        }
 
         for (const chap of chapters) {
             const chapId = chap.id;
-            const chapSnap = await getDoc(doc(db, "books", activeBookId, "chapters", chapId));
-            if (!chapSnap.exists()) continue;
-            const data = chapSnap.data();
-            const segments = data.segments || [];
+            const segments = chap.segments;
 
             segments.forEach((seg, segIdx) => {
                 const text = seg.text || '';
@@ -1682,8 +1782,12 @@ async function runAudit() {
 
 function renderAuditResults(chapCount) {
     const totalIssues = auditIssueData.length;
+    const sourceBanner = auditIsFromDB
+        ? '<div style="color:#4B9CD3; font-size:0.8em; margin-bottom:8px;">Auditing the <strong>saved</strong> copy in the database. Fixes write immediately.</div>'
+        : '<div style="color:#ffaa00; font-size:0.8em; margin-bottom:8px;">Auditing <strong>staged</strong> chapters that are not uploaded yet. Fixes stay in memory until you click <strong>Upload All</strong>.</div>';
+
     if (totalIssues === 0) {
-        auditResults.innerHTML = `
+        auditResults.innerHTML = sourceBanner + `
             <div style="color:#00ff41; font-weight:bold; font-size:1.1em;">✅ Clean! No untypeable characters found.</div>
             <div style="color:#888; margin-top:5px;">Scanned ${chapCount} chapters.</div>
         `;
@@ -1752,7 +1856,7 @@ function renderAuditResults(chapCount) {
         html += `</div>`;
     });
 
-    auditResults.innerHTML = html;
+    auditResults.innerHTML = sourceBanner + html;
     wireAuditButtons();
 }
 
@@ -1765,6 +1869,21 @@ function wireAuditButtons() {
             fixAllBtn.disabled = true; fixAllBtn.innerText = '⏳ Fixing...';
             let fixed = 0;
             for (const chapId of chapIds) {
+                if (stagedChapters.length > 0 && !stagedFromDB) {
+                    // Staged book: mutate the in-memory segments. They get written by
+                    // Upload All. Writing to Firestore here would create chapters
+                    // under a book document that doesn't exist yet.
+                    const staged = stagedChapters.find((c, i) =>
+                        String((c.id !== undefined && c.id !== "") ? c.id : i + 1) === String(chapId));
+                    if (!staged) continue;
+                    let changed = false;
+                    (staged.segments || []).forEach(seg => {
+                        const o = seg.text; seg.text = sanitizeText(seg.text);
+                        if (seg.text !== o) changed = true;
+                    });
+                    if (changed) fixed++;
+                    continue;
+                }
                 const chapSnap = await getDoc(doc(db, "books", activeBookId, "chapters", chapId));
                 if (!chapSnap.exists()) continue;
                 const data = chapSnap.data();
@@ -1772,7 +1891,9 @@ function wireAuditButtons() {
                 data.segments.forEach(seg => { const o = seg.text; seg.text = sanitizeText(seg.text); if (seg.text !== o) changed = true; });
                 if (changed) { await setDoc(doc(db, "books", activeBookId, "chapters", chapId), { segments: data.segments }, { merge: true }); fixed++; }
             }
-            statusEl.innerText = `Audit fix complete: ${fixed} chapter(s) updated.`;
+            statusEl.innerText = auditIsFromDB
+                ? `Audit fix complete: ${fixed} chapter(s) updated in the database.`
+                : `Audit fix complete: ${fixed} staged chapter(s) cleaned \u2014 click Upload All to save.`;
             statusEl.style.borderColor = '#00ff41';
             runAudit();
         };
@@ -1819,6 +1940,15 @@ function wireAuditButtons() {
             }
             const seg = iss.segments[iss.segIdx];
             seg.text = seg.text.substring(0, textarea._ctxStart) + newSnippet + seg.text.substring(textarea._ctxEnd);
+            // iss.segments is the same array object as the staged chapter's segments,
+            // so the edit above has already landed in memory. Only persist when the
+            // audit came from the database.
+            if (!auditIsFromDB) {
+                statusEl.innerText = `Edited ${iss.chapTitle} (staged \u2014 click Upload All to save).`;
+                statusEl.style.borderColor = '#ffaa00';
+                runAudit();
+                return;
+            }
             try {
                 await setDoc(doc(db, "books", activeBookId, "chapters", iss.chapId), { segments: iss.segments }, { merge: true });
                 statusEl.innerText = `Saved edit to ${iss.chapTitle}.`;

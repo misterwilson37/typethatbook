@@ -25,6 +25,24 @@
         }
 
         /* --- HEADER --- */
+        .header-left { display:flex; align-items:center; gap:14px; min-width:0; }
+        .mode-toggle {
+            display:inline-flex; border:1px solid #3a3a3a; border-radius:999px;
+            overflow:hidden; background:#141414; flex-shrink:0;
+        }
+        .mode-btn {
+            font: inherit; font-size:0.78rem; letter-spacing:0.5px;
+            padding:5px 14px; border:0; background:transparent; color:#8a8a8a;
+            cursor:pointer; text-decoration:none; line-height:1.6; white-space:nowrap;
+            transition: background 0.15s, color 0.15s;
+        }
+        .mode-btn:hover { color:#e6e6e6; background:#1e1e1e; }
+        .mode-btn.active { background: var(--carolina-blue, #4B9CD3); color:#08121a; font-weight:700; }
+        .mode-btn.active:hover { background: var(--carolina-blue, #4B9CD3); color:#08121a; }
+        @media (max-width: 520px) {
+            .site-title span { display:none; }
+            .mode-btn { padding:5px 10px; font-size:0.72rem; }
+        }
         .site-header {
             background: #1a1a1a;
             color: white;
@@ -210,7 +228,16 @@
 <body>
 
     <header class="site-header">
-        <div class="site-title">TypeThatBook <span>Library</span></div>
+        <div class="header-left">
+            <div class="site-title">TypeThatBook <span>Library</span></div>
+            <!-- Mode toggle. There was a "back-to-landing" link, but it lived inside
+                 the library view where nobody found it; a student who picked Library
+                 had no visible route back to the school side. -->
+            <nav class="mode-toggle" aria-label="Switch mode">
+                <a href="learn.html" id="mode-school" class="mode-btn">School</a>
+                <button type="button" id="mode-library" class="mode-btn active">Library</button>
+            </nav>
+        </div>
         <div class="header-links">
             <a href="reports.html">Reports</a>
             <a href="admin.html">Admin</a>
@@ -282,7 +309,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.0.1";
+        const INDEX_VERSION = "3.1.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -336,6 +363,20 @@
             sessionStorage.removeItem('ttb_mode');
             libraryView.classList.add('hidden');
             landingView.classList.remove('hidden');
+        });
+
+        // Mode toggle wiring. School is a plain <a> so it works even if this script
+        // fails; it only needs JS to remember the choice.
+        const modeSchool  = document.getElementById('mode-school');
+        const modeLibrary = document.getElementById('mode-library');
+        if (modeSchool) modeSchool.addEventListener('click', () => {
+            sessionStorage.setItem('ttb_mode', 'school');
+        });
+        if (modeLibrary) modeLibrary.addEventListener('click', () => {
+            // Already in the library: send them to the shelf rather than doing
+            // nothing, which is the useful behaviour from inside a book.
+            sessionStorage.setItem('ttb_mode', 'library');
+            showLibrary();
         });
 
         function showLibrary() {

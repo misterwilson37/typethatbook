@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TypeThatBook Admin v2.8.0</title>
+    <title>TypeThatBook Admin v2.9.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
@@ -202,7 +202,10 @@
                         <input type="text" id="active-book-author" placeholder="e.g. Mark Twain">
                     </div>
                     <div class="col" style="display:flex; align-items:flex-end;">
-                        <button id="save-title-btn" class="secondary-btn" style="background:#224422; border-color:#336633;">Save Metadata</button>
+                        <div style="width:100%;">
+                            <button id="save-title-btn" class="secondary-btn" style="background:#224422; border-color:#336633;">Save Metadata</button>
+                            <div id="save-title-status" style="font-size:0.75em; color:#888; min-height:1.1em; margin-top:4px;"></div>
+                        </div>
                     </div>
                 </div>
                 

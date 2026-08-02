@@ -1,6 +1,6 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v3.4.0 — Batches A and B shipped (learn.js 2.1.0, lessons-admin 1.7.0). §2 corrected: the "one revision behind" table was stale
+<!-- HANDOFF.md v3.5.0 — books/library fixes added. Batches A and B shipped (learn.js 2.1.0, lessons-admin 1.7.0). §2 corrected: the "one revision behind" table was stale
      and has been removed; Round 1 is fully deployed, verified by diff 2026-08-01.
      §0 and §11 are Round 2 (Dvorak). Underwood's §1, §3-§10, §12 are verbatim. -->
 
@@ -120,7 +120,9 @@ evidence; this table is hearsay.
 
 | file | live | ship | what changed |
 |---|---|---|---|
-| `admin.html` | 2.7.6 | **2.8.0** | Export JSON panel; "Find stuck" button + results area |
+| `admin.html` | 2.7.6 | **2.9.0** | Export JSON panel; "Find stuck" button; inline Save Metadata status |
+| `admin.js` | 3.2.0 | **3.4.0** | Save Metadata feedback, genre/author clearing, custom-genre wiring, audit works on staged books |
+| `index.html` | 3.0.1 | **3.1.0** | persistent School/Library toggle in the header |
 | `learn.js` | 1.7.1 | **2.1.0** | **Batches A+B.** Runs/chunking, position WAL, accuracy-gated advancement, net WPM, idle-aware clock, run-level progress records |
 | `lessons-admin.js` | 1.5.1 | **1.7.0** | export + gate audit (1.6.0), stuck-student scan (1.7.0) |
 | `learn.html` | — | **2.0.0** | pre-JS footer text only (learn.js overwrites it at runtime) |
@@ -453,7 +455,48 @@ Two latent bugs fixed on the way: `saveProgress()` used `setDoc` **without merge
 completing a lesson would have erased every run-level field; and `timeSpentSeconds`
 counted only the final run, so it undercounted by most of the lesson.
 
-**Nothing on the audit list is now outstanding.** What remains is §9.
+**Nothing on the audit list is now outstanding.** What remains is §9, plus the
+books/library fixes below.
+
+### Books + library, 2026-08-02
+
+Three bugs in the book metadata form, all in `saveTitleBtn.onclick`:
+
+1. **"Save Metadata" looked dead.** It always worked — `setDoc(..., { merge: true })` —
+   but the only confirmation went to `#status`, a bar ~66 lines of markup above the
+   button and normally scrolled out of view. Now reports inline next to the button
+   with a timestamp, and refreshes the book list.
+2. **Author and genre could be changed but never cleared.** `if (author)` / `if (genre)`
+   meant blanking a field silently kept the old value. Both are now written
+   unconditionally.
+3. **The "✏️ Custom..." genre option was dead.** `customGenreInput` was declared and
+   never referenced, so choosing Custom stored the literal string `__custom__`.
+   Now wired via `readGenreField()`, with the text box revealed on selection.
+
+**"Audit Book for Untypeable Characters" said "Book metadata not found" on any newly
+created book.** Not a data problem. `createParseBtn` sets `activeBookId` and stages
+the parsed chapters *in memory*; nothing is written to Firestore until Upload All (or
+Save Metadata, whose `setDoc merge` creates the parent document as a side effect).
+The audit read only from Firestore, so auditing before uploading always failed — and
+checking for untypable characters *before* committing a book is the order you'd
+actually want.
+
+The audit now prefers `stagedChapters` when they exist and falls back to Firestore,
+mirroring the `langIsFromDB` pattern already used by the language scanner. A new
+`auditIsFromDB` flag routes fixes accordingly: database audits write immediately,
+staged audits mutate the in-memory segments and are persisted by Upload All. Both the
+per-issue save and Fix All honour it, and the results panel states which copy it is
+looking at — otherwise "fixed" is ambiguous. The old error message is now specific
+about what to do instead.
+
+⚠️ Chapter ids for staged books fall back to `index + 1` when a chapter has a blank or
+missing `id`, matching what Upload All will write. If you change that rule in one
+place, change it in `runAudit` and the Fix All lookup too.
+
+`index.html` gained a **School / Library toggle** in the header. A `back-to-landing`
+link already existed but lived inside the library view where nobody found it, so a
+student who chose Library had no visible route back. School is a plain `<a href>` so
+it survives a JS failure.
 
 0. ~~Chunk long steps~~ ✅ **DONE (2.0.0).** 176 runs, none over a block, longest 193 chars.
    `buildSequence()` already returns a flat array; split on group/word/sentence
