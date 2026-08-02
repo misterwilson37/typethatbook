@@ -7,7 +7,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.5.0";
+const ADMIN_VERSION = "3.6.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -167,7 +167,68 @@ const FLAGGED_WORDS = [
     'bastard', 'bastards', 'cunt', 'cunts',
     'piss', 'pissed', 'pissing', 'whore', 'whores',
 ];
-const FLAGGED_REGEX = new RegExp('\\b(' + FLAGGED_WORDS.join('|') + ')\\b', 'gi');
+// Words Jake adds himself, stored in settings/languageFilter so they follow him
+// between school and home rather than living in one browser. Rules already allow
+// read: signedIn / write: isSuper on settings/{docId}, so no rules change was needed.
+let customFlaggedWords = [];
+
+function escapeForRegex(w) { return String(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+// Built fresh each scan instead of once at load, because the word list is now
+// editable and a module-level const could never see an addition.
+function buildFlaggedRegex() {
+    const all = [...FLAGGED_WORDS, ...customFlaggedWords]
+        .map(w => String(w).trim().toLowerCase()).filter(Boolean);
+    const uniq = [...new Set(all)].sort((a, b) => b.length - a.length); // longest first
+    return new RegExp('\\b(' + uniq.map(escapeForRegex).join('|') + ')\\b', 'gi');
+}
+
+async function loadCustomWords() {
+    try {
+        const snap = await getDoc(doc(db, "settings", "languageFilter"));
+        customFlaggedWords = (snap.exists() && Array.isArray(snap.data().words))
+            ? snap.data().words : [];
+    } catch (e) { customFlaggedWords = []; console.warn('Custom word list unreadable:', e); }
+    renderCustomWords();
+}
+
+async function saveCustomWords() {
+    const statusEl2 = document.getElementById('custom-word-status');
+    try {
+        await setDoc(doc(db, "settings", "languageFilter"),
+                     { words: customFlaggedWords, updatedAt: new Date().toISOString() },
+                     { merge: true });
+        if (statusEl2) { statusEl2.textContent = 'Saved. Applies to every book.'; statusEl2.style.color = '#00ff41'; }
+    } catch (e) {
+        if (statusEl2) { statusEl2.textContent = 'Save failed: ' + e.message + ' (super admin only)'; statusEl2.style.color = '#ff4444'; }
+    }
+}
+
+function renderCustomWords() {
+    const el = document.getElementById('custom-word-list');
+    if (!el) return;
+    if (!customFlaggedWords.length) {
+        el.innerHTML = '<span style="color:#775577; font-size:0.75em;">None yet. The built-in list still applies.</span>';
+        return;
+    }
+    el.innerHTML = customFlaggedWords.map((w, i) =>
+        '<span style="background:#2a0022; border:1px solid #552244; border-radius:12px; padding:2px 8px; font-size:0.75em; color:#eebbee;">' +
+        escapeHtmlSafe(w) +
+        ' <button data-widx="' + i + '" class="custom-word-del" title="Remove" ' +
+        'style="background:none;border:0;color:#cc6688;cursor:pointer;padding:0 0 0 4px;font-size:1em;width:auto;">\u00d7</button></span>'
+    ).join('');
+    el.querySelectorAll('.custom-word-del').forEach(b => {
+        b.onclick = async () => {
+            customFlaggedWords.splice(parseInt(b.dataset.widx), 1);
+            renderCustomWords();
+            await saveCustomWords();
+        };
+    });
+}
+
+function escapeHtmlSafe(t) {
+    return String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
 function getApprovedWords(bookId) {
     try {
@@ -179,16 +240,20 @@ function saveApprovedWords(bookId, words) {
     localStorage.setItem(`ttb_approved_lang_${bookId}`, JSON.stringify(words));
 }
 
-function scanForLanguageIssues(chapters, approvedWords = []) {
+// overrideRegex lets the free-text search reuse this whole function — the context
+// extraction, the issue-card shape, the edit affordances — instead of duplicating it.
+function scanForLanguageIssues(chapters, approvedWords = [], overrideRegex = null) {
     const approvedSet = new Set(approvedWords.map(w => w.toLowerCase()));
+    const rx = overrideRegex || buildFlaggedRegex();
     const issues = [];
     chapters.forEach((chap, chapIdx) => {
         chap.segments.forEach((seg, segIdx) => {
             const text = seg.text || '';
             let match;
-            FLAGGED_REGEX.lastIndex = 0;
-            while ((match = FLAGGED_REGEX.exec(text)) !== null) {
-                if (approvedSet.has(match[0].toLowerCase())) continue;
+            rx.lastIndex = 0;
+            while ((match = rx.exec(text)) !== null) {
+                if (match[0].length === 0) { rx.lastIndex++; continue; }   // guard empty match
+                if (!overrideRegex && approvedSet.has(match[0].toLowerCase())) continue;
                 // Sentence-bounded context (~80 chars each direction)
                 let ctxStart = match.index;
                 for (let j = ctxStart - 1; j >= 0 && j > ctxStart - 80; j--) {
@@ -375,7 +440,9 @@ onAuthStateChanged(auth, async (user) => {
                 const target = document.getElementById('tab-' + first);
                 if (target) target.click();
             }
-        await loadBookList();
+await loadBookList();
+        // Safe now that auth has resolved — see the note by loadCustomWords().
+        loadCustomWords();
     } else {
         statusEl.innerText = "Access Restricted. Admin login required.";
         statusEl.style.borderColor = "#ff3333"; 
@@ -1226,6 +1293,7 @@ function openSplitUI(chapIndex) {
 }
 
 function editChapter(index) {
+    if (index < 0 || index >= stagedChapters.length) return;
     editingIndex = index;
     const chap = stagedChapters[index];
     manualTitle.value = chap.title;
@@ -1233,23 +1301,72 @@ function editChapter(index) {
     jsonContent.value = JSON.stringify({ segments: chap.segments }, null, 2);
     updateStagedBtn.classList.remove('hidden');
     saveDirectBtn.classList.add('hidden');
+
+    // Position readout + Next, so bulk title entry doesn't mean scrolling back to the
+    // list after every single chapter.
+    const posEl  = document.getElementById('chap-edit-position');
+    const nextBtn = document.getElementById('update-next-btn');
+    const isLast = index >= stagedChapters.length - 1;
+    if (posEl) {
+        posEl.classList.remove('hidden');
+        posEl.textContent = 'Editing chapter ' + (index + 1) + ' of ' + stagedChapters.length +
+                            (isLast ? ' (last)' : '');
+    }
+    if (nextBtn) {
+        nextBtn.classList.toggle('hidden', isLast);
+        nextBtn.disabled = isLast;
+    }
+
     manualDetails.open = true;
     manualDetails.scrollIntoView({ behavior: 'smooth' });
+    // Focus the title, which is the field being filled in 90% of these edits.
+    setTimeout(() => { try { manualTitle.focus(); manualTitle.select(); } catch (_) {} }, 250);
+}
+
+// Commit the open editor back into stagedChapters. Returns false if the JSON is bad,
+// so callers can decide whether to advance.
+function commitStagedEdit() {
+    if (editingIndex < 0) return false;
+    let data;
+    try { data = JSON.parse(jsonContent.value); }
+    catch (e) { alert("Invalid JSON — not saved."); return false; }
+    stagedChapters[editingIndex].title = manualTitle.value;
+    stagedChapters[editingIndex].id = manualNum.value.trim();
+    stagedChapters[editingIndex].segments = data.segments;
+    return true;
+}
+
+function closeChapterEditor() {
+    editingIndex = -1;
+    updateStagedBtn.classList.add('hidden');
+    const nextBtn = document.getElementById('update-next-btn');
+    const posEl   = document.getElementById('chap-edit-position');
+    if (nextBtn) nextBtn.classList.add('hidden');
+    if (posEl)   posEl.classList.add('hidden');
+    saveDirectBtn.classList.remove('hidden');
+    manualDetails.open = false;
 }
 
 updateStagedBtn.onclick = () => {
-    if (editingIndex < 0) return;
-    try {
-        const data = JSON.parse(jsonContent.value);
-        stagedChapters[editingIndex].title = manualTitle.value;
-        stagedChapters[editingIndex].id = manualNum.value.trim(); 
-        stagedChapters[editingIndex].segments = data.segments;
-        editingIndex = -1;
-        updateStagedBtn.classList.add('hidden');
-        saveDirectBtn.classList.remove('hidden');
-        manualDetails.open = false;
-        renderChapterList();
-    } catch (e) { alert("Invalid JSON"); }
+    if (!commitStagedEdit()) return;
+    closeChapterEditor();
+    renderChapterList();
+};
+
+// Commit and open the next chapter without leaving the editor. The whole point is
+// that adding 24 missing chapter titles shouldn't mean 24 round trips to the list.
+const updateNextBtn = document.getElementById('update-next-btn');
+if (updateNextBtn) updateNextBtn.onclick = () => {
+    const idx = editingIndex;
+    if (!commitStagedEdit()) return;
+    renderChapterList();   // keep the list honest as you go
+    if (idx + 1 < stagedChapters.length) {
+        editChapter(idx + 1);
+    } else {
+        closeChapterEditor();
+        statusEl.innerText = 'Last chapter updated.';
+        statusEl.style.borderColor = '#00ff41';
+    }
 };
 
 // --- SAVE TITLE ---
@@ -1983,7 +2100,10 @@ if (langScanBtn) {
         const approved = activeBookId ? getApprovedWords(activeBookId) : [];
         const issues = scanForLanguageIssues(stagedChapters, approved);
         if (issues.length > 0) {
-            showLanguageWarnings(issues, true);
+            // Was hardcoded `true`. Same bug the audit had: a freshly parsed book has
+            // no document behind it, so an edit saved from here would write chapters
+            // under a book that doesn't exist yet.
+            showLanguageWarnings(issues, stagedFromDB);
             statusEl.innerText = `⚠️ ${issues.length} language warning(s) found.`;
             statusEl.style.borderColor = "#ffaa00";
         } else {
@@ -1996,6 +2116,80 @@ if (langScanBtn) {
             statusEl.style.borderColor = "#00ff41";
         }
     };
+
+    // ── Free-text search ────────────────────────────────────────────────────
+    // Reuses scanForLanguageIssues via overrideRegex, so a search hit gets exactly
+    // the same context extraction and inline-edit affordances as a flagged word.
+    function runLanguageSearch() {
+        const input = document.getElementById('language-search-input');
+        if (!input) return;
+        const term = input.value.trim();
+        if (!term) return;
+        if (stagedChapters.length === 0) return alert("No book loaded. Open a book first.");
+
+        let rx;
+        try {
+            if (term.length > 2 && term.startsWith('/') && term.endsWith('/')) {
+                rx = new RegExp(term.slice(1, -1), 'gi');
+            } else {
+                // Whole-word by default, but only where the boundary makes sense —
+                // \b before a non-word character never matches, which would silently
+                // return nothing for a search like "?!".
+                const esc = escapeForRegex(term);
+                const lead  = /^\w/.test(term) ? '\\b' : '';
+                const trail = /\w$/.test(term) ? '\\b' : '';
+                rx = new RegExp(lead + esc + trail, 'gi');
+            }
+        } catch (e) { return alert('Bad search pattern: ' + e.message); }
+
+        const hits = scanForLanguageIssues(stagedChapters, [], rx);
+        const container = document.getElementById('language-results');
+        if (!hits.length) {
+            if (container) {
+                container.classList.remove('hidden');
+                container.innerHTML = '<div style="color:#00ff41;">No matches for <strong>' +
+                    escapeHtmlSafe(term) + '</strong> in this book.</div>';
+            }
+            statusEl.innerText = 'No matches for "' + term + '".';
+            statusEl.style.borderColor = '#00ff41';
+            return;
+        }
+        showLanguageWarnings(hits, stagedFromDB);
+        statusEl.innerText = hits.length + ' match(es) for "' + term + '".';
+        statusEl.style.borderColor = '#ffaa00';
+    }
+
+    const searchBtn = document.getElementById('language-search-btn');
+    const searchInput = document.getElementById('language-search-input');
+    if (searchBtn)   searchBtn.onclick = runLanguageSearch;
+    if (searchInput) searchInput.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); runLanguageSearch(); } };
+
+    // ── Custom always-flag words ────────────────────────────────────────────
+    async function addCustomWord() {
+        const inp = document.getElementById('custom-word-input');
+        if (!inp) return;
+        const w = inp.value.trim().toLowerCase();
+        if (!w) return;
+        if (customFlaggedWords.includes(w) || FLAGGED_WORDS.includes(w)) {
+            const st = document.getElementById('custom-word-status');
+            if (st) { st.textContent = '"' + w + '" is already flagged.'; st.style.color = '#ffaa00'; }
+            inp.value = '';
+            return;
+        }
+        customFlaggedWords.push(w);
+        inp.value = '';
+        renderCustomWords();
+        await saveCustomWords();
+    }
+    const addWordBtn = document.getElementById('custom-word-add-btn');
+    const wordInput  = document.getElementById('custom-word-input');
+    if (addWordBtn) addWordBtn.onclick = addCustomWord;
+    if (wordInput)  wordInput.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addCustomWord(); } };
+
+    // NOT called here: loadCustomWords() reads settings/languageFilter, and the rules
+    // gate settings/{docId} behind signedIn(). At module-eval time auth hasn't
+    // resolved, so the read would fail and leave the list silently empty. It's called
+    // from onAuthStateChanged instead.
 }
 
 // ─── Repair Chapter Order ─────────────────────────────────────────────────────
