@@ -16,6 +16,15 @@
 //             different Chromebook and we noticed".
 //          Also: document.title driven from VERSION (open work §9 item 5);
 //          "(alpha)" removed from the Settings label.
+// v3.7.0 - Chapter picker survives a 286-chapter book. A <select> with 286
+//          options and no search means finding "The Donkey and the Lapdog"
+//          is a scroll, not a lookup. Above CHAPTER_FILTER_MIN the picker gains
+//          a filter box matching chapter number or title, with Enter as Go.
+//          Also collapses THREE divergent copies of the chapter-option builder
+//          into buildChapterOptions(). They had already drifted — the settings
+//          list showed "✓ Ch. 4: Title" while the post-book-switch rebuild of
+//          the SAME dropdown showed "Chapter 4: Title" with no completion
+//          ticks, so switching books silently changed the labels.
 // v3.6.0 - Book progress bar survives a 286-chapter book. Aesop's Fables was the
 //          first book to exceed ~40 chapters and it broke the bar two ways:
 //          VISUALLY, each chapter got 1/286th of a ~280px strip — under one pixel,
@@ -107,7 +116,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.6.0";
+const VERSION = "3.7.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -2022,6 +2031,73 @@ document.addEventListener('keyup', (e) => { if (e.key === "Shift") toggleKeyboar
 
 // --- VIEW LOGIC ---
 
+// ─── Chapter picker ───────────────────────────────────────────────────────────
+
+// Below this many chapters a plain dropdown is faster than typing. Above it,
+// scrolling 286 options to find one fable is not navigation.
+const CHAPTER_FILTER_MIN = 25;
+
+// ONE builder for every chapter dropdown. There were three, and they had drifted:
+// the settings list rendered "✓ Ch. 4: Title" while the rebuild that runs after a
+// book switch — repopulating the very same <select> — rendered "Chapter 4: Title"
+// with no completion ticks. Switching books silently relabelled the list.
+//
+// `filter` matches the visible label (so it hits both number and title) or the
+// bare chapter number. Returns the html plus a count, because the caller needs to
+// tell the student "3 of 286" or "no matches".
+function buildChapterOptions(selectedNum, filter, withCheck) {
+    if (!bookMetadata || !bookMetadata.chapters || !bookMetadata.chapters.length) {
+        return { html: '<option value="">\u2014</option>', count: 0, total: 0 };
+    }
+    const q = String(filter || '').trim().toLowerCase();
+    const total = bookMetadata.chapters.length;
+    let html = '', count = 0;
+
+    bookMetadata.chapters.forEach((chap) => {
+        const num  = String(chap.id).replace('chapter_', '');
+        const tick = (withCheck !== false && completedChapters.has(num)) ? '\u2713 ' : '';
+        let label = `${tick}Ch. ${num}`;
+        if (chap.title && chap.title != num) {
+            label = String(chap.title).toLowerCase().startsWith('chapter')
+                ? `${tick}${chap.title}`
+                : `${tick}Ch. ${num}: ${chap.title}`;
+        }
+        if (q && num !== q && !label.toLowerCase().includes(q)) return;
+        count++;
+        const sel = (String(num) === String(selectedNum)) ? ' selected' : '';
+        html += `<option value="${escapeHtml(num)}"${sel}>${escapeHtml(label)}</option>`;
+    });
+
+    if (!count) html = '<option value="">No chapters match</option>';
+    return { html, count, total };
+}
+
+// Wires a filter box to a chapter <select>. Shared by Settings and the Game
+// Genie so the behaviour — including Enter meaning "go" — can't diverge.
+function wireChapterFilter(filterId, selectId, statusId, goId) {
+    const f = document.getElementById(filterId);
+    const s = document.getElementById(selectId);
+    if (!f || !s) return;
+    const status = statusId ? document.getElementById(statusId) : null;
+    f.oninput = () => {
+        const keep = s.value;
+        const r = buildChapterOptions(keep, f.value);
+        s.innerHTML = r.html;
+        if (status) {
+            status.textContent = !f.value.trim() ? ''
+                : r.count ? `${r.count} of ${r.total}`
+                          : 'no matches';
+            status.style.color = (f.value.trim() && !r.count) ? '#D32F2F' : '#888';
+        }
+    };
+    f.onkeydown = (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const go = goId && document.getElementById(goId);
+        if (go && s.value) go.click();
+    };
+}
+
 // ─── Progress Bars ────────────────────────────────────────────────────────────
 
 // Above this many chapters the per-chapter segment bar stops being either
@@ -3345,21 +3421,9 @@ async function openMenuModal() {
 
     setModalTitle('Settings');
 
-    let chapterOptions = "";
-    if (bookMetadata && bookMetadata.chapters) {
-        bookMetadata.chapters.forEach((chap) => {
-            const num = chap.id.replace("chapter_", "");
-            let sel = (num == currentChapterNum) ? "selected" : "";
-            const done = completedChapters.has(String(num)) ? "✓ " : "";
-
-            let label = `${done}Ch. ${escapeHtml(num)}`;
-            if(chap.title && chap.title != num) {
-                if(chap.title.toLowerCase().startsWith('chapter')) label = `${done}${escapeHtml(chap.title)}`;
-                else label = `${done}Ch. ${escapeHtml(num)}: ${escapeHtml(chap.title)}`;
-            }
-            chapterOptions += `<option value="${escapeHtml(num)}" ${sel}>${label}</option>`;
-        });
-    }
+    const chapBuild = buildChapterOptions(currentChapterNum, '');
+    const chapterOptions = chapBuild.html;
+    const showChapFilter = chapBuild.total > CHAPTER_FILTER_MIN;
 
     let bookOptions = "";
     try {
@@ -3391,6 +3455,13 @@ async function openMenuModal() {
                 <div class="menu-label">Book</div>
                 <select id="book-select" class="modal-select">${bookOptions}</select>
                 <div class="menu-label" style="margin-top:8px;">Chapter</div>
+                ${showChapFilter ? `
+                <div style="display:flex; gap:6px; align-items:center; margin-bottom:4px;">
+                    <input type="text" id="chapter-filter" class="modal-select"
+                           placeholder="Search ${chapBuild.total} chapters\u2026"
+                           autocomplete="off" style="margin:0; flex-grow:1;">
+                    <span id="chapter-filter-status" style="font-size:0.7em; color:#888; min-width:52px;"></span>
+                </div>` : ''}
                 <div style="display:flex; gap:6px;">
                     <select id="chapter-nav-select" class="modal-select" style="margin:0; flex-grow:1;">${chapterOptions}</select>
                     <button id="go-btn" class="modal-btn" style="width:auto; padding:0 12px; font-size:13px;">Go</button>
@@ -3548,23 +3619,21 @@ async function openMenuModal() {
             } catch (e) { console.warn("Progress peek error:", e); }
         }
 
-        // Rebuild chapter dropdown with new book's chapters
-        let newChapterOptions = "";
-        if (bookMetadata && bookMetadata.chapters) {
-            bookMetadata.chapters.forEach((chap) => {
-                const num = chap.id.replace("chapter_", "");
-                let sel = (num == resumeChapter) ? "selected" : "";
-                let label = `Chapter ${escapeHtml(num)}`;
-                if (chap.title && chap.title != num) {
-                    if (chap.title.toLowerCase().startsWith('chapter')) label = escapeHtml(chap.title);
-                    else label = `Chapter ${escapeHtml(num)}: ${escapeHtml(chap.title)}`;
-                }
-                newChapterOptions += `<option value="${escapeHtml(num)}" ${sel}>${label}</option>`;
-            });
-        }
-
+        // Rebuild the chapter dropdown for the new book. Same builder as the
+        // initial render — this used to be a second, drifted copy that dropped
+        // the ✓ ticks and relabelled "Ch." to "Chapter".
         const chapSelect = document.getElementById('chapter-nav-select');
-        if (chapSelect) chapSelect.innerHTML = newChapterOptions;
+        const rebuilt = buildChapterOptions(resumeChapter, '');
+        if (chapSelect) chapSelect.innerHTML = rebuilt.html;
+
+        // The filter belongs to the OLD book's chapter count, so re-decide it.
+        const cfWrap = document.getElementById('chapter-filter');
+        if (cfWrap) {
+            cfWrap.value = '';
+            cfWrap.placeholder = `Search ${rebuilt.total} chapters\u2026`;
+            const st = document.getElementById('chapter-filter-status');
+            if (st) st.textContent = '';
+        }
 
         // Update state but don't load chapter yet — user hits Go
         currentChapterNum = resumeChapter;
@@ -3577,8 +3646,11 @@ async function openMenuModal() {
         isInputBlocked = true;
     };
 
+    wireChapterFilter('chapter-filter', 'chapter-nav-select', 'chapter-filter-status', 'go-btn');
+
     document.getElementById('go-btn').onclick = () => {
         const val = document.getElementById('chapter-nav-select').value;
+        if (!val) return;                       // "No chapters match" is not a target
         if (bookSwitchPending) {
             // After a book switch, just load the chapter — no restart prompt
             bookSwitchPending = false;
@@ -4388,23 +4460,19 @@ function openGameGenie() {
     
     const ggBtn = 'background:#333; color:#ff6600; border:1px solid #ff6600; padding:4px 8px; cursor:pointer; font-family:inherit; border-radius:3px; font-size:0.8em;';
     
-    // Build chapter options
-    let chapOpts = '';
-    if (bookMetadata && bookMetadata.chapters) {
-        bookMetadata.chapters.forEach(chap => {
-            const num = chap.id.replace('chapter_', '');
-            const sel = (num == currentChapterNum) ? 'selected' : '';
-            let label = `Ch. ${num}`;
-            if (chap.title && chap.title != num) {
-                if (chap.title.toLowerCase().startsWith('chapter')) label = chap.title;
-                else label = `Ch. ${num}: ${chap.title}`;
-            }
-            chapOpts += `<option value="${num}" ${sel}>${escapeHtml(label)}</option>`;
-        });
-    }
+    // Build chapter options — third caller of the shared builder.
+    const ggBuild  = buildChapterOptions(currentChapterNum, '');
+    const chapOpts = ggBuild.html;
+    const ggFilter = ggBuild.total > CHAPTER_FILTER_MIN;
     
     document.getElementById('modal-body').innerHTML = `
         <div style="font-family: 'Courier Prime', monospace; text-align: left; width: 60%; margin: 0 auto; font-size: 0.8em;">
+            ${ggFilter ? `
+            <div style="display:flex; gap:6px; align-items:center; margin-bottom:4px;">
+                <input type="text" id="gg-chapter-filter" placeholder="Search ${ggBuild.total} chapters\u2026"
+                       autocomplete="off" style="flex:1; background:#f8f8f8; border:1px solid #ccc; padding:3px 4px; font-family:inherit; font-size:0.9em; border-radius:3px;">
+                <span id="gg-chapter-filter-status" style="font-size:0.85em; color:#888; min-width:56px;"></span>
+            </div>` : ''}
             <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
                 <select id="gg-chapter-select" style="flex:1; background:#f8f8f8; border:1px solid #ccc; padding:3px 4px; font-family:inherit; font-size:0.9em; border-radius:3px;">${chapOpts}</select>
                 <button id="gg-chapter-go" style="${ggBtn}">Jump Ch.</button>
@@ -4499,8 +4567,11 @@ function openGameGenie() {
     document.getElementById('gg-end').onclick = () => { jumpToSentence(s, s.length - 1); openGameGenie(); };
     
     // Chapter jump
+    wireChapterFilter('gg-chapter-filter', 'gg-chapter-select', 'gg-chapter-filter-status', 'gg-chapter-go');
+
     document.getElementById('gg-chapter-go').onclick = async () => {
         const targetChap = document.getElementById('gg-chapter-select').value;
+        if (!targetChap) return;
         if (targetChap == currentChapterNum) return; // same chapter, do nothing
         ggRealCharIndex = -1;
         currentChapterNum = targetChap;
