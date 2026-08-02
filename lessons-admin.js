@@ -1,7 +1,7 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.6.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.0.0
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
-window.LESSONS_ADMIN_VERSION = '1.6.0';
+window.LESSONS_ADMIN_VERSION = '1.7.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -1257,6 +1257,8 @@ function refreshClassDropdownInStudents() {
         });
     }
     if (document.getElementById('student-filter-class')) _buildClassFilterDropdown();
+    const stuckBtn = document.getElementById('stuck-scan-btn');
+    if (stuckBtn && !stuckBtn.dataset.wired) { stuckBtn.dataset.wired = '1'; stuckBtn.addEventListener('click', scanForStuck); }
     if (document.getElementById('student-bulk-class'))   _buildBulkClassDropdown();
 }
 
@@ -1545,6 +1547,103 @@ function _buildClassFilterDropdown() {
         if (cls.id === cur) opt.selected = true;
         sel.appendChild(opt);
     });
+}
+
+// ── Stuck-student scan (v1.7.0) ──────────────────────────────────────────────
+// The report that would have caught the whole problem in week two. A student
+// grinding on one run they can't clear used to be invisible: lessonProgress was only
+// written when a lesson was finished, so they rendered as "not started" — identical
+// to a student who never opened it. learn.js v2.1.0 records every finished run; this
+// reads those records back.
+//
+// Deliberately a button, not a live panel: it costs one subcollection read per
+// student in the current filter, so ~25 reads for a class and ~300 for the whole
+// school. Cheap on demand, wasteful on a timer.
+const STUCK_FAILURES = 3;   // failures on a single uncleared run before we flag it
+
+async function scanForStuck() {
+    const btn    = document.getElementById('stuck-scan-btn');
+    const outEl  = document.getElementById('stuck-results');
+    const statEl = document.getElementById('stuck-status');
+    if (!outEl) return;
+
+    // Same filter the roster is showing, so "scan" always means "scan what I see".
+    const classFilter = (document.getElementById('student-filter-class') || {}).value || 'all';
+    const roster = _rosterData.filter(r => {
+        if (classFilter === 'none') return !r.classId;
+        if (classFilter !== 'all')  return r.classId === classFilter;
+        return true;
+    });
+
+    if (!roster.length) { outEl.innerHTML = '<div style="color:#888;">No students in the current filter.</div>'; return; }
+
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+    outEl.innerHTML = '';
+    const setStat = (m, c) => { if (statEl) { statEl.textContent = m; statEl.style.color = c || '#888'; } };
+
+    const findings = [];
+    let done = 0, failed = 0;
+    for (const stu of roster) {
+        setStat(`Reading ${done + 1} of ${roster.length}\u2026`, '#888');
+        try {
+            const snap = await getDocs(collection(_db, 'users', stu.uid, 'lessonProgress'));
+            snap.forEach(d => {
+                const r = d.data();
+                if (r.passed === true) return;
+                const fails = r.runFailures || {};
+                let worstRun = null, worstN = 0;
+                for (const [idx, n] of Object.entries(fails)) {
+                    if (n > worstN) { worstN = n; worstRun = Number(idx); }
+                }
+                if (worstN >= STUCK_FAILURES) {
+                    findings.push({
+                        name: stu.name || stu.email || stu.uid,
+                        lessonId: d.id,
+                        run: worstRun,
+                        runCount: r.runCount || 0,
+                        fails: worstN,
+                        attempts: (r.runAttempts || {})[String(worstRun)] || worstN,
+                        lastSeen: r.lastSeenAt || '',
+                        grade: r.lastGrade || ''
+                    });
+                }
+            });
+        } catch (e) { failed++; console.warn('stuck scan failed for', stu.uid, e); }
+        done++;
+    }
+
+    findings.sort((a, b) => b.fails - a.fails);
+    setStat(`Scanned ${done} student${done === 1 ? '' : 's'}` +
+            (failed ? ` \u00b7 ${failed} unreadable` : '') +
+            ` \u00b7 ${findings.length} stuck point${findings.length === 1 ? '' : 's'}`,
+            findings.length ? '#ffaa00' : '#00ff41');
+
+    if (!findings.length) {
+        outEl.innerHTML = '<div style="color:#00ff41; font-size:0.85em;">' +
+            'Nobody is stuck by this measure (' + STUCK_FAILURES + '+ failures on a run they haven\u2019t cleared).</div>';
+    } else {
+        const cell = 'padding:4px 8px; border-bottom:1px solid #262626; white-space:nowrap;';
+        outEl.innerHTML =
+            '<table style="border-collapse:collapse; font-size:0.78em; width:100%;"><thead><tr style="color:#4B9CD3; text-align:left;">' +
+            ['Student', 'Lesson', 'Stuck on', 'Failures', 'Attempts', 'Last seen']
+                .map(h => '<th style="' + cell + '">' + h + '</th>').join('') +
+            '</tr></thead><tbody>' +
+            findings.map(f =>
+                '<tr>' +
+                '<td style="' + cell + ' color:#eee;">' + escHtml(f.name) + '</td>' +
+                '<td style="' + cell + ' color:#ccc;">' + escHtml(f.lessonId) + '</td>' +
+                '<td style="' + cell + ' color:#b87ae8;">run ' + (f.run + 1) +
+                    (f.runCount ? ' of ' + f.runCount : '') + '</td>' +
+                '<td style="' + cell + ' color:#ff6666; text-align:right;">' + f.fails + '</td>' +
+                '<td style="' + cell + ' color:#888; text-align:right;">' + f.attempts + '</td>' +
+                '<td style="' + cell + ' color:#666;">' + escHtml((f.lastSeen || '').slice(0, 10)) + '</td>' +
+                '</tr>').join('') +
+            '</tbody></table>' +
+            '<div style="color:#666; font-size:0.75em; margin-top:8px;">' +
+            'Run numbers come from how the lesson chunked at the time. Editing a lesson\u2019s ' +
+            'steps reshuffles them, so treat a stuck point from before an edit as approximate.</div>';
+    }
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
 }
 
 // ── Render filtered/sorted roster ─────────────────────────────────────────────

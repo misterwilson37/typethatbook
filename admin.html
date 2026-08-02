@@ -403,6 +403,7 @@
                                font-family:inherit; font-size:0.8em; border-radius:3px; width:160px;
                                vertical-align:middle; box-sizing:border-box;">
                     <button id="student-refresh-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">↺</button>
+                    <button id="stuck-scan-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;" title="Read every filtered student's lesson progress and list runs they can't clear">⚠ Find stuck</button>
                     <button id="student-csv-toggle-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">CSV Import</button>
                     <button id="student-one-toggle-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">Add One Student</button>
                 </div>
@@ -469,6 +470,10 @@
 
             <!-- Status bar -->
             <div id="student-list-status" style="font-size:0.8em; color:#666; margin-bottom:6px;">Loading students…</div>
+
+            <!-- Stuck-student scan results (lessons-admin.js scanForStuck) -->
+            <div id="stuck-status" style="font-size:0.8em; color:#888; min-height:1.2em; margin-bottom:6px;"></div>
+            <div id="stuck-results" style="margin-bottom:14px; overflow-x:auto;"></div>
 
             <!-- Roster table -->
             <div style="overflow-x:auto;">

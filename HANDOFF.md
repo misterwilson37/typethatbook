@@ -1,6 +1,6 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v3.3.0 — Batch A shipped (learn.js 2.0.0). §2 corrected: the "one revision behind" table was stale
+<!-- HANDOFF.md v3.4.0 — Batches A and B shipped (learn.js 2.1.0, lessons-admin 1.7.0). §2 corrected: the "one revision behind" table was stale
      and has been removed; Round 1 is fully deployed, verified by diff 2026-08-01.
      §0 and §11 are Round 2 (Dvorak). Underwood's §1, §3-§10, §12 are verbatim. -->
 
@@ -120,9 +120,9 @@ evidence; this table is hearsay.
 
 | file | live | ship | what changed |
 |---|---|---|---|
-| `lessons-admin.js` | 1.5.1 | **1.6.0** | lessons JSON export + gate audit table |
-| `admin.html` | 2.7.6 | **2.8.0** | Export JSON button and panel; shared section CSS |
-| `learn.js` | 1.7.1 | **2.0.0** | **Batch A.** Runs/chunking, position WAL, accuracy-gated advancement, net WPM, idle-aware clock |
+| `admin.html` | 2.7.6 | **2.8.0** | Export JSON panel; "Find stuck" button + results area |
+| `learn.js` | 1.7.1 | **2.1.0** | **Batches A+B.** Runs/chunking, position WAL, accuracy-gated advancement, net WPM, idle-aware clock, run-level progress records |
+| `lessons-admin.js` | 1.5.1 | **1.7.0** | export + gate audit (1.6.0), stuck-student scan (1.7.0) |
 | `learn.html` | — | **2.0.0** | pre-JS footer text only (learn.js overwrites it at runtime) |
 
 ⚠️ **`learn.js` 2.0.0 has not been run in a browser.** Verified by parse, static
@@ -372,6 +372,20 @@ no students required. Use the admin genie (backtick) to warp rather than grindin
    you actually typed at, not halved.
 8. **Net WPM.** Deliberately mash wrong keys for a while. WPM should *fall*. Under
    1.7.1 it rose — that was the exploit.
+10. **Run records appear.** Fail a run 3+ times without finishing the lesson, wait
+    ~5 min or switch tabs to force a flush, then Students → **⚠ Find stuck**. You
+    should appear, with the run number and failure count. Under 1.7.1 this produced
+    no record at all. Then finish that lesson and re-scan: you should drop off the
+    list, and the per-student grid should still show the run data (that's the
+    `merge: true` fix — without it, completing a lesson wiped it).
+11. **Pips.** Open `u4_l3` or `u6_l2` — the worst cases at **10 runs each**. The bar
+    is `#step-progress-bar` at the very top of the drill view, above the step label.
+    Expect ten thin segments filling the width, darkening left-to-right as you go.
+    It computes to ~27px per pip on a phone and ~68px on an iPad, so this should be
+    a non-event; I flagged it only because ten had never rendered. Failure would look
+    like a second row wrapping underneath or segments collapsing to invisible —
+    neither is possible with `flex: 1` and no `flex-wrap`, so if you see it, the CSS
+    changed underneath us.
 9. **Remediation still works.** Fail something badly enough to get the practice-missed
    -keys button, then click it. It should run a drill and return cleanly.
 
@@ -429,8 +443,17 @@ depends on what the curriculum actually contains.
 **Batch A is done** — shipped as `learn.js` v2.0.0. Items 0, 0b, 3, 4, 5, 6, 7, 9
 below are closed, plus the grade-F record from item 1. Struck items are history.
 
-**Batch B is what remains: items 1 (rest) and 2.** Both are about making failure
-visible, which is the one mechanism Batch A did not touch.
+**Batch B is also done** — `learn.js` 2.1.0 and `lessons-admin.js` 1.7.0. Every
+finished run now writes `runAttempts` / `runFailures` / `furthestRunIdx` /
+`lastSeenAt`, queued onto the existing coalesced flush so it costs no extra Firestore
+writes or reads. Students → **⚠ Find stuck** scans the current roster filter and
+lists runs nobody can clear.
+
+Two latent bugs fixed on the way: `saveProgress()` used `setDoc` **without merge**, so
+completing a lesson would have erased every run-level field; and `timeSpentSeconds`
+counted only the final run, so it undercounted by most of the lesson.
+
+**Nothing on the audit list is now outstanding.** What remains is §9.
 
 0. ~~Chunk long steps~~ ✅ **DONE (2.0.0).** 176 runs, none over a block, longest 193 chars.
    `buildSequence()` already returns a flat array; split on group/word/sentence
@@ -439,13 +462,13 @@ visible, which is the one mechanism Batch A did not touch.
    length. Jake approved 150. **Nothing else matters until a step fits in a period.**
 0b. ~~Persist run position~~ ✅ **DONE (2.0.0)** — `ttb_learnpos_v1`, uid-keyed. Required even with
    chunking — see `PEDAGOGY-AUDIT.md` §3.2.
-1. **BATCH B — Instrument the failures.** Partially done: an F now writes a record
+1. ~~Instrument the failures~~ ✅ **DONE (learn.js 2.1.0).** an F now writes a record
    (previously it wrote nothing, so the students in the most trouble left no trace).
    Still needed: write a record on *every* finished
    step, pass or fail, including grade F. Add `furthestStepIdx`, a `stepAttempts`
    map, and `stepFailures`. Fix `timeSpentSeconds`, which currently adds only the
    final step's `stepSeconds` rather than the lesson's.
-2. **BATCH B — A "stuck" view in admin** — any student with ≥ N attempts on a step they
+2. ~~A "stuck" view in admin~~ ✅ **DONE (lessons-admin.js 1.7.0)** — Students → ⚠ Find stuck. — any student with ≥ N attempts on a step they
    haven't cleared. This is the report that would have caught all of this in week two.
 3. ~~Net WPM~~ ✅ **DONE (2.0.0)** — `netWPM()`. Kills the error exploit and makes
    the number comparable to every other typing assessment.

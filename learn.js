@@ -1,4 +1,13 @@
-// learn.js — TypeThatBook School v2.0.0
+// learn.js — TypeThatBook School v2.1.0
+// v2.1.0 — Batch B: run-level instrumentation. lessonProgress was written from one
+//          place (the final run's modal, grade != F), so a student stuck on run 2 of
+//          12 wrote nothing at all and showed in admin as "not started" — the exact
+//          failure the audit was about was the one the data couldn't show. Now every
+//          finished run records runAttempts/runFailures/furthestRunIdx/lastSeenAt.
+//          Writes are queued onto the existing coalesced flush rather than fired per
+//          run, so this costs no extra Firestore writes or reads. Also fixes
+//          timeSpentSeconds, which counted only the final run, and adds merge:true to
+//          saveProgress, which was replacing the whole document.
 // v2.0.0 — MAJOR (signed off by Jake 2026-08-01). Lesson mechanics rebuilt after an
 //          audit found students stalling mid-curriculum and blaming their own typing.
 //          Full analysis in PEDAGOGY-AUDIT.md. Seven changes:
@@ -53,7 +62,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.0.0";
+const LEARN_VERSION = "2.1.0";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -1435,6 +1444,8 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     // never lands back inside a run the student already cleared.
     if (canAdvance) clearRunPosition();
 
+    recordRunOutcome(currentStepIdx, grade, canAdvance);
+
     document.getElementById('dm-title').textContent = 'Step ' + nextIdx + ' of ' + totalSteps + ' done';
     document.getElementById('dm-stars').innerHTML = gradeHTML(grade);
 
@@ -1513,6 +1524,10 @@ function showLessonResultModal(wpm, acc) {
     const grade  = calculateGrade(wpm, acc, minWPM, minAcc, mistakes === 0);
     const passed = gradeAdvances(grade, gates);
     if (passed) clearRunPosition();
+
+    // Record the run BEFORE saveProgress, so the cumulative time and run maps it
+    // spreads forward already include this run.
+    recordRunOutcome(currentStepIdx, grade, passed);
 
     // v2.0.0: an F now writes a record too. It previously wrote nothing, so the
     // students in the most trouble were the ones who left no trace at all.
@@ -1708,11 +1723,78 @@ window._gotoLesson = function(id) {
 };
 
 // ─── Progress Persistence ────────────────────────────────────────────────────
+// ─── Run-level instrumentation (v2.1.0, Batch B) ─────────────────────────────
+// Before this, lessonProgress was written from exactly one place: the final run's
+// result modal, and only when the grade wasn't F. A student stuck on run 2 of 12
+// therefore wrote NOTHING — and rendered in the admin per-student grid as
+// "not started", indistinguishable from a student who never opened the lesson. The
+// failure mode the whole audit was about was the one the data couldn't show.
+//
+// Writes are queued, not immediate. learn.js v1.7.0 was explicitly a write-reduction
+// release, and firing a document write on all 176 runs would undo it. These ride the
+// existing coalesced flush (5-min timer, visibilitychange, beforeunload), so the
+// added Firestore cost is zero writes per run and one merge per lesson per flush.
+//
+// Counters are computed from userProgress, which loadProgress() already populated at
+// page load, so no extra reads either. Two devices at once would clobber rather than
+// sum — same as the pre-existing attempts counter, and not worth a transaction.
+const pendingProgress = new Set();   // lessonIds with unflushed run data
+
+function recordRunOutcome(runIdx, grade, advanced) {
+    if (!currentLesson) return;
+    const id   = currentLesson.id;
+    const prev = userProgress[id] || {};
+    const key  = String(runIdx);
+
+    const runAttempts = Object.assign({}, prev.runAttempts);
+    const runFailures = Object.assign({}, prev.runFailures);
+    runAttempts[key] = (runAttempts[key] || 0) + 1;
+    if (!advanced) runFailures[key] = (runFailures[key] || 0) + 1;
+
+    userProgress[id] = Object.assign({}, prev, {
+        lessonId: id,
+        started: true,
+        runCount: currentRuns.length,
+        // runCount is stored so a stale map is detectable: editing a lesson changes
+        // how it chunks, which shifts every index in runAttempts/runFailures.
+        furthestRunIdx: Math.max(prev.furthestRunIdx || 0, runIdx),
+        lastRunIdx: runIdx,
+        lastGrade: grade,
+        lastSeenAt: new Date().toISOString(),
+        runAttempts,
+        runFailures,
+        // The real cumulative figure. timeSpentSeconds previously added only the
+        // final run's stepSeconds, so it undercounted by the whole rest of the lesson.
+        timeSpentSeconds: (prev.timeSpentSeconds || 0) + stepSeconds,
+    });
+
+    pendingProgress.add(id);
+    learnDirty = true;
+    learnWalSave();
+}
+
+async function flushLessonProgress() {
+    if (!currentUser || pendingProgress.size === 0) return true;
+    let ok = true;
+    for (const id of Array.from(pendingProgress)) {
+        const rec = userProgress[id];
+        if (!rec) { pendingProgress.delete(id); continue; }
+        try {
+            await setDoc(doc(db, 'users', currentUser.uid, 'lessonProgress', id),
+                         rec, { merge: true });
+            pendingProgress.delete(id);
+        } catch (e) { ok = false; console.warn('Lesson progress flush failed:', e); }
+    }
+    return ok;
+}
+
 async function saveProgress(passed, wpm, acc, grade) {
     if (!currentUser || !currentLesson) return;
     const prev = userProgress[currentLesson.id] || {};
     const attempts  = (prev.attempts || 0) + 1;
-    const timeSpent = (prev.timeSpentSeconds || 0) + stepSeconds;
+    // NOT prev + stepSeconds: recordRunOutcome already added this run's seconds to
+    // prev.timeSpentSeconds a moment ago. Adding again would double-count the final run.
+    const timeSpent = prev.timeSpentSeconds || 0;
 
     // Keep best grade seen — order: F D C B A A🔥
     const GRADE_ORDER = ['F','D','C','B','A','A🔥'];
@@ -1720,6 +1802,10 @@ async function saveProgress(passed, wpm, acc, grade) {
     const bestGrade   = GRADE_ORDER.indexOf(grade) > GRADE_ORDER.indexOf(prevGrade) ? grade : prevGrade;
 
     const record = {
+        // Spread prev first so the run-level fields written by recordRunOutcome
+        // survive. saveProgress used setDoc WITHOUT merge, so completing a lesson
+        // would otherwise wipe runAttempts/runFailures/furthestRunIdx on the way past.
+        ...prev,
         lessonId: currentLesson.id,
         completedAt: new Date().toISOString(),
         attempts,
@@ -1739,9 +1825,10 @@ async function saveProgress(passed, wpm, acc, grade) {
     try {
         await setDoc(
             doc(db, 'users', currentUser.uid, 'lessonProgress', currentLesson.id),
-            record
+            record, { merge: true }
         );
         userProgress[currentLesson.id] = record;
+        pendingProgress.delete(currentLesson.id);   // this write covered it
     } catch(e) { console.warn('Could not save lesson progress:', e); }
 }
 
@@ -2399,7 +2486,13 @@ function learnWalSave() {
     if (!currentUser) return;
     try {
         localStorage.setItem(LEARN_WAL_KEY, JSON.stringify({
-            v: 1, uid: currentUser.uid, savedAt: Date.now(), stats: { ...statsData }
+            v: 1, uid: currentUser.uid, savedAt: Date.now(), stats: { ...statsData },
+            // Queued run-level progress, so a crash between flushes doesn't lose the
+            // record of a student grinding on a run they can't clear.
+            progress: Array.from(pendingProgress).reduce((acc, id) => {
+                if (userProgress[id]) acc[id] = userProgress[id];
+                return acc;
+            }, {})
         }));
     } catch (e) { console.warn('learn WAL write failed:', e); }
 }
@@ -2423,8 +2516,27 @@ function walRecoverLearn() {
                 if ((wal.stats[k] || 0) > (statsData[k] || 0)) { statsData[k] = wal.stats[k]; recovered = true; }
             }
         }
+        // Replay queued run-level progress (v2.1.0). Merge rather than overwrite:
+        // loadProgress() has already read Firestore, and the WAL copy is only newer
+        // for the specific lessons that were mid-flight when the tab died.
+        if (wal.progress && typeof wal.progress === 'object') {
+            for (const [id, rec] of Object.entries(wal.progress)) {
+                const live = userProgress[id];
+                const walSeen  = Date.parse(rec.lastSeenAt || 0) || 0;
+                const liveSeen = Date.parse(live && live.lastSeenAt) || 0;
+                if (!live || walSeen > liveSeen) {
+                    userProgress[id] = Object.assign({}, live, rec);
+                    pendingProgress.add(id);
+                    recovered = true;
+                }
+            }
+            if (pendingProgress.size) {
+                console.log('Recovered unflushed run progress for', pendingProgress.size, 'lesson(s).');
+            }
+        }
+
         if (recovered) {
-            console.log('Recovered unflushed lesson time from local storage.');
+            console.log('Recovered unflushed lesson data from local storage.');
             learnDirty = true; learnStatsDocDirty = true;
             flushStats('recovery', true);
         } else {
@@ -2445,7 +2557,8 @@ function saveStats() {
 }
 
 async function flushStats(reason, final = false) {
-    if (!currentUser || !learnDirty) return;
+    if (!currentUser) return;
+    if (!learnDirty && pendingProgress.size === 0) return;
     if (learnFlushTimer) { clearTimeout(learnFlushTimer); learnFlushTimer = null; }
     let ok = true;
 
@@ -2472,6 +2585,8 @@ async function flushStats(reason, final = false) {
             learnStatsDocDirty = false;
         } catch (e) { ok = false; console.warn(`Stats flush failed (${reason}):`, e); }
     }
+
+    if (!(await flushLessonProgress())) ok = false;
 
     if (ok) {
         learnDirty = false;
