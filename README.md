@@ -96,9 +96,10 @@ learn.js                v2.1.0   Lesson-mode engine (separate from game.js).
                                  Same WAL/flush persistence pattern as game.js.
 keyboard.js             v1.1.1   On-screen keyboard widget, used by learn.html.
 
-admin.js                v3.8.0   Book authoring, EPUB import, chapter editor,
+admin.js                v3.9.0   Book authoring, EPUB import, chapter editor,
                                  book tags, language filter (regex + audit),
                                  book list CSV export + balance report.
+                                 v3.9.0 splits multi-work spine files.
 lessons-admin.js        v1.7.0   Lesson + class authoring, CSV roster import,
                                  lessons JSON import AND export, gate audit
                                  table, stuck-student scan (1.7.0).
@@ -229,6 +230,24 @@ The library filters by **overlap**, not containment:
 unbounded. A student asking for 9–12 gets a 7–11 book, which is the point.
 Untagged books are excluded from age-filtered results and counted in a note
 beneath the filter bar.
+
+## EPUB import: collections vs novels
+
+One spine file is normally one chapter. **Collections break that rule** —
+Standard Ebooks puts every short work of a collection in a single XHTML file as
+sibling `<article>` / `<section>` elements. Aesop's Fables is 284 fables in one
+file.
+
+`findChapterUnits()` in `admin.js` detects that shape and splits on it. A unit
+must have a heading *and* a paragraph; only leaf units count (so a
+parts-and-chapters book splits into chapters, not parts); and fewer than two
+units means no split, which is what keeps novels on the original code path.
+
+The parse status line reports when a file was split and into how many sections.
+If a split ever looks wrong, that number is the tell.
+
+⚠️ Never use `innerText` on a `DOMParser` document here — it needs layout and
+returns `undefined` in Firefox. Use `textContent`.
 
 ## Language filter
 
