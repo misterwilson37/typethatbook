@@ -2,7 +2,7 @@
 
 <!-- HANDOFF.md v4.2.0 — Round 3 (Blick): Adventure Mode out of alpha, project-wide
      version alignment, book tags (age range + protagonist), language-filter regex
-     + audit, book CSV export. §9 item 1 CORRECTED —
+     + audit, book CSV export, multi-work EPUB splitting. §9 item 1 CORRECTED —
      the practice-mode panic was wrong; see §A.10. New §A is Round 3 and is the first thing to read. §0 and §11
      are Round 2 (Dvorak). Underwood's §1, §3-§10, §12 are verbatim. -->
 
@@ -327,7 +327,70 @@ same overlap rule the library uses. A per-year breakdown rather than a range cou
 because a library can look balanced by totals and still have nothing at all for
 the 13-year-olds — that row turns red when it's zero.
 
-### A.14 Not done — queued
+### A.14 EPUB import: multi-work spine files (admin.js 3.9.0)
+
+**The importer assumed one spine file == one chapter.** That holds for novels and
+breaks for **collections**. Standard Ebooks — where most of this library comes
+from — puts every short work of a collection in a single XHTML file as sibling
+`<article>` / `<section>` elements, each with its own `<h2 epub:type="title">`.
+
+Aesop's Fables is **284 fables in one 238KB file**. Under the old rule it imported
+as ONE chapter with all 284 titles run together into the prose, and the only
+alternative was splitting and naming 284 chapters by hand.
+
+`findChapterUnits(doc)` returns units to split on, or `null` to keep the old
+whole-file path. Three rules, each load-bearing:
+
+1. **A unit needs both a heading and a `<p>`.** A heading with no prose is a part
+   divider; a `<section>` of pure markup is neither.
+2. **Only leaves count.** A unit containing another candidate is a container, not
+   a chapter. This is what makes a parts-and-chapters book split into its
+   *chapters* rather than its three *parts*.
+3. **Two or more, or no split.** A single `<article>` wrapping one chapter is the
+   normal case and must go down the untouched path.
+
+⚠️ **Novels are unaffected** — one heading per file yields at most one candidate,
+rule 3 declines, and the original code runs unchanged. Verified against four
+non-splitting shapes plus a nested parts/chapters document.
+
+Verified on the real file: **284 units, 284 chapters, 0 untitled, 0 empty**, all
+89 morals preserved as second paragraphs. Median chapter 598 characters — about
+five minutes at 25 WPM, which is a good block size by accident.
+
+The status line now reports `(split 1 file into 284 sections)`. 284 chapters
+appearing from a 7-item spine looks like a bug unless the importer says so — and
+if a split is ever *wrong*, that line is where you'd notice.
+
+⚠️ **Latent bug fixed on the way.** Title extraction used `hTag.innerText`.
+`innerText` is layout-dependent and returns `undefined` on a `DOMParser` document
+in Firefox, so `.trim()` would have thrown and killed the whole import there. Now
+`textContent`. If you touch DOM parsing in this file, **never use `innerText` on
+a parsed document.**
+
+### A.15 The `review` word group — Jake's override (admin.js 3.9.0)
+
+v3.8.0 deliberately withheld `queer`, `gay`, `savage`, `cock`, `dwarf`, `guinea`,
+`negro` on false-positive grounds. **Jake overruled that**, and the reasoning is
+worth keeping:
+
+> He is not censoring, he is **rewriting**. A flagged passage gets reworded before
+> students see it. The goal is "type without worrying about what they might read."
+> The ELA teacher wants to talk about it; the typing teacher just needs them to
+> type.
+
+Under that use the cost asymmetry flips: a false positive is one edit, a false
+negative is a student reading it aloud. So a term that fires often is still worth
+firing.
+
+⚠️ They live in their **own `review` group**, not folded into `period`, so the
+audit view can label them "expect false positives". **Do not merge them.**
+
+Real measurement — the full 284-fable text scans to **29 hits**: `cock` ×23,
+`cocks` ×2, `simpleton`, `gaily`, `lunatics`, `gay`. Every one a rooster or an
+archaic adverb. That's the tradeoff working as intended: a short review pass
+instead of a surprise.
+
+### A.16 Not done — queued
 
 1. **Age/protagonist tags have no backfill.** Every existing book needs both
    entered by hand. The ○/● markers in the admin book picker are the worklist,
