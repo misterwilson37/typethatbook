@@ -2,7 +2,8 @@
 
 <!-- HANDOFF.md v4.2.0 — Round 3 (Blick): Adventure Mode out of alpha, project-wide
      version alignment, book tags (age range + protagonist), language-filter regex
-     + audit, book CSV export, multi-work EPUB splitting. §9 item 1 CORRECTED —
+     + audit, book CSV export, multi-work EPUB splitting, one-pass book
+     workflow, find & replace, 284-chapter scale fixes. §9 item 1 CORRECTED —
      the practice-mode panic was wrong; see §A.10. New §A is Round 3 and is the first thing to read. §0 and §11
      are Round 2 (Dvorak). Underwood's §1, §3-§10, §12 are verbatim. -->
 
@@ -390,8 +391,129 @@ Real measurement — the full 284-fable text scans to **29 hits**: `cock` ×23,
 archaic adverb. That's the tradeoff working as intended: a short review pass
 instead of a surprise.
 
-### A.16 Not done — queued
+### A.16 One pass per book — the two-writer bug (admin.js 3.10.0)
 
+Jake: *"If I click save metadata, it loses the chapters. If I upload the chapters,
+it doesn't save the metadata. Every book has to be looked at twice."* Both halves
+confirmed by reading the code, and both were worse than reported.
+
+**Half one — Save Metadata destroyed editor state.** `saveTitleBtn` ended with
+`loadBookList()` (added v3.6.0, to make the change visible in the picker).
+`loadBookList()` ended with `bookSelect.selectedIndex = 1` plus a synthetic
+`change` event. `bookSelect.onchange` hides the staging area **and reassigns
+`activeBookId`** — to the first book *alphabetically*, not the one being edited.
+So it didn't merely hide the staged chapters; it silently repointed the editor at
+a different book.
+
+⚠️ `loadBookList()` now takes `selectFirst` (default **false**), preserves the
+current selection, and only fires `onchange` when it actually had to move.
+**Passing `true` from a post-save refresh will reintroduce the bug.** Only the
+boot call passes `true`.
+
+**Half two — Upload All wrote a different, smaller document.** It never learned
+about the v3.7.0 tag fields (my miss — I added them to Save Metadata only), read
+genre as a raw `.value` so "✏️ Custom…" stored the literal `__custom__`, and still
+carried the `if (author)` guards that v3.6.0 removed from the other path. A book
+uploaded and never re-saved was silently untagged.
+
+That genre read is the **fourth** instance of the read-the-field-properly bug
+§11 predicted. There are now no known others; the shared reader is what stops a
+fifth.
+
+**The fix is structural, not two patches.** `readBookMetadataForm()` is the single
+source of truth: it validates and returns the whole document, and both writers
+call it. Upload All writes chapters *and* metadata, so a new book is finished in
+one pass, and its status line names what it actually saved — going amber when the
+age range or protagonist tag is still missing.
+
+### A.17 Find & replace across a staged book (admin.js 3.10.0)
+
+Generalises the Aesop cleanup. Three things a plain string replace gets wrong,
+all three handled:
+
+1. **Capitalisation** — `matchCase()` maps ALL CAPS → ALL CAPS, Capitalised →
+   Capitalised, else lowercase. "Ass"→"Donkey" and "ass"→"donkey" are one rule.
+2. **Articles** — `fixArticles()` corrects "an Donkey" → "a Donkey" (21 of the 169
+   Aesop edits) and the reverse. ⚠️ It is letter-based, not sound-based, so it
+   gets "an hour" and "a unicorn" wrong. Deliberate: rare per book, and visible
+   in the preview before commit. Do not "fix" this with a pronunciation
+   dictionary without a reason.
+3. **Boundaries** — whole-word by default, `/…/` for regex. `\b` is only applied
+   where the term actually begins or ends with a word character, otherwise
+   searching for `—` with Whole words ticked matches nothing.
+
+Preview first, commit second, and it only ever touches `stagedChapters` — nothing
+reaches Firestore until upload, so a bad replace costs a re-parse, not a book.
+
+**Regression-tested against the real Aesop text**: 148 replacements, zero
+survivors, and all nine protected words (Grasshopper, passed, grass, compassion,
+assembly, brass, glass, Peacock, cocked) at identical counts. It reproduces the
+hand-run.
+
+### A.18 The 284-chapter problem — confirmed by screenshot (2026-08-02)
+
+Predicted in the last session, photographed in this one. Aesop's Fables (286
+chapters after front matter) is the first book to exceed ~40 and it broke **three**
+things. Jake's screenshots are the record.
+
+#### 1. Classic book progress bar — and it was a latency bug, not a cosmetic one
+
+`initBookProgressBar()` built **5 DOM nodes per chapter** (segment, divider, inner
+fill, inner marker, label) — ~1,430 nodes for Aesop, in a ~280px strip. Under one
+pixel each with a 1px divider inside it, so it rendered as a grey hairline smear.
+
+That was the visible half. The expensive half: `updateProgressBars()` does **four
+`getElementById` calls per chapter, on every keystroke**. 1,144 DOM lookups per
+character typed, on a Chromebook. ⚠️ **This is why the fix matters more than it
+looks** — a cosmetic bug was hiding a typing-latency bug.
+
+Above `BOOK_BAR_MAX_SEGMENTS` (40) the bar renders condensed: one track, one fill,
+one marker. Three nodes, three lookups per keystroke, flat regardless of chapter
+count. The label carries what the segments used to — `Ch 12 / 286`.
+
+`bookProgressFraction()` treats chapters as equal width. ⚠️ They aren't, and that's
+deliberate: per-chapter lengths aren't in the metadata document and reading 286
+chapter documents to find out would cost more than the honesty is worth. Position
+*within* the current chapter is interpolated from real characters, so the marker
+still moves as you type.
+
+#### 2. Adventure chapter map — same disease
+
+284 dots at 4.2px radius down a ~500px strip is 1.8px of room each. It rendered as
+a solid brown caterpillar. Above `MAP_MAX_DOTS` (40) the map draws a continuous
+route — faint for the untravelled remainder, inked for the walked part — with
+ticks every 10%, start/finish caps, the pulsing gold "you are here", and a
+`Ch 12 / 284` label.
+
+⚠️ The condensed branch **returns before the per-chapter segment loop**, not after.
+That loop draws 14 line steps per chapter — ~4,000 path segments per frame at
+60fps for Aesop — and the condensed route paints over all of it. Putting the
+branch after the loop would fix the picture and keep the whole cost. It was
+written that way first; don't undo it.
+
+#### 3. The splash preview was drawn from memory, and it showed
+
+Jake: *"Your runner is in the words rather than on them, and it's just a little
+sloppy."* Correct on both counts. Redrawn against an actual screenshot:
+
+- **The figure stands ON the letters.** Letters are the walkable surface
+  (renderer v0.2.6); the preview had the figure's legs overlapping the glyphs of
+  "great". Feet now sit at cap height above the text baseline.
+- **The strips were wrong.** LEFT is the chapter close-up (rubric route, pilcrow
+  ticks, gold marker); RIGHT is the book map. The preview had one map on the
+  right and nothing on the left.
+- The right-hand map is drawn **condensed**, since that's now what a real book of
+  any size looks like.
+- The gravestone sits on a ground line instead of floating mid-air.
+
+**Lesson for the next instance:** the previous preview was built from reading the
+renderer source. That was enough to get the palette right and the layout wrong.
+Ask for a screenshot before drawing a picture of something that already exists.
+
+### A.19 Not done — queued
+
+0. **Tier 3, greenlit but not started:** student school picker (§9 item 4) and a
+   nicer practice cool-down message (§A.10). Both live in `game.js`.
 1. **Age/protagonist tags have no backfill.** Every existing book needs both
    entered by hand. The ○/● markers in the admin book picker are the worklist,
    and the Balance Report counts what's still missing.

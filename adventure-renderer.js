@@ -1,4 +1,12 @@
-// adventure-renderer.js — v1.0.0
+// adventure-renderer.js — v1.1.0
+//
+// v1.1.0 — Chapter map survives a 284-chapter book.
+//   Aesop's Fables put 284 dots at 4.2px radius down a ~500px strip — roughly
+//   1.8px of room each — so the map rendered as a solid brown caterpillar
+//   (confirmed by screenshot). Above MAP_MAX_DOTS the map now draws the route
+//   as a continuous inked line with sparse tick marks and only three dots that
+//   matter: start, finish, and where you are. The journey still reads; the
+//   clutter doesn't. Small books are untouched.
 //
 // v1.0.0 — OUT OF ALPHA. Adventure Mode is now offered to every student on a
 //   first-run splash (game.js >= 3.5.0) rather than hiding behind Settings →
@@ -146,7 +154,12 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '1.0.0';
+export const RENDERER_VERSION = '1.1.0';
+
+// Above this many chapters, per-chapter dots overlap into an unreadable smear
+// and we switch to a continuous route with sparse ticks. 40 keeps every dot at
+// >= ~6px of vertical room on the shortest strip we render.
+const MAP_MAX_DOTS = 40;
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -1775,6 +1788,67 @@ class AdventureRenderer {
 
     const progress = this.fullText.length > 0
       ? Math.min(1, this.currentPos / this.fullText.length) : 0;
+
+    // ── Condensed map: too many chapters to dot individually ──────────────
+    // One continuous route instead of 284 overlapping circles. Ticks every
+    // ~10% give the strip a sense of scale without pretending each chapter is
+    // separately visible, which at 1.8px apart it is not.
+    if (n > MAP_MAX_DOTS) {
+      const doneCount = this.chapterList.filter(
+        c => this.completedSet.has(String(c.num))).length;
+      const frac = Math.min(1, (curIdx >= 0 ? curIdx : doneCount) / Math.max(1, n - 1));
+
+      // Un-walked remainder, faint.
+      ctx.strokeStyle = 'rgba(120, 100, 70, 0.30)';
+      ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(cx, top); ctx.lineTo(cx, bottom); ctx.stroke();
+
+      // Walked portion, inked.
+      ctx.strokeStyle = 'rgba(168, 80, 64, 0.85)';
+      ctx.lineWidth = 2.8;
+      ctx.beginPath();
+      const steps = 26, yEnd = top + span * frac;
+      for (let s = 0; s <= steps; s++) {
+        const t = s / steps, y = top + (yEnd - top) * t;
+        const x = cx + wob(0, t * frac * 4);
+        if (s === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Scale ticks every ~10%.
+      ctx.strokeStyle = 'rgba(120, 100, 70, 0.45)';
+      ctx.lineWidth = 1;
+      for (let k = 0; k <= 10; k++) {
+        const y = top + (span * k) / 10;
+        ctx.beginPath(); ctx.moveTo(cx - 4, y); ctx.lineTo(cx + 4, y); ctx.stroke();
+      }
+
+      // Start and finish caps.
+      ctx.fillStyle = 'rgba(168, 80, 64, 0.75)';
+      ctx.beginPath(); ctx.arc(cx, top, 3.4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(120, 100, 70, 0.5)';
+      ctx.beginPath(); ctx.arc(cx, bottom, 3.4, 0, Math.PI * 2); ctx.fill();
+
+      // You are here.
+      const yCur = top + span * frac;
+      const pulse = 0.5 + 0.5 * Math.sin(now / 300);
+      ctx.strokeStyle = 'rgba(43, 34, 26, 0.9)'; ctx.lineWidth = 1.6;
+      ctx.fillStyle = '#e8c86a';
+      ctx.beginPath(); ctx.arc(cx, yCur, 5.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = `rgba(232, 200, 106, ${0.5 * pulse})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, yCur, 5.2 + 4 * pulse, 0, Math.PI * 2); ctx.stroke();
+
+      // "Ch 12 / 284" — the count the dots used to imply.
+      ctx.font = 'italic 11px "IM Fell English", Georgia, serif';
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#a85040';
+      ctx.fillText(`Ch ${this.currentChapterNum || '?'} / ${n}`, cx - 9, yCur);
+      ctx.textAlign = 'left';
+      ctx.restore();
+      return;
+    }
+
 
     for (let i = 0; i < n; i++) {
       const num = String(this.chapterList[i].num);

@@ -81,13 +81,13 @@ versions.js             v1.2.0   Reads every file's version constant out of the
                                  v1.2.0 also parses header comments and flags
                                  drift. No imports, no side effects.
 
-game.js                 v3.5.0   ~5,100 lines. Typing engine, sprint timer,
+game.js                 v3.6.0   ~5,100 lines. Typing engine, sprint timer,
                                  WPM/accuracy math, streaks, mistake tracking,
                                  leaderboard, practice mode, chapter navigation,
                                  all modals. Write-ahead-log persistence.
                                  v3.5.0 owns the view-choice splash and
                                  applyViewMode() — the Classic/Adventure switch.
-adventure-renderer.js   v1.0.0   Adventure Mode — the illustrated/animated skin.
+adventure-renderer.js   v1.1.0   Adventure Mode — the illustrated/animated skin.
                                  Listens for _ttbEmit('keystroke') from game.js.
                                  Out of alpha as of 1.0.0.
 adventure.css           v1.0.0   Adventure Mode styling.
@@ -100,6 +100,7 @@ admin.js                v3.9.0   Book authoring, EPUB import, chapter editor,
                                  book tags, language filter (regex + audit),
                                  book list CSV export + balance report.
                                  v3.9.0 splits multi-work spine files.
+                                 v3.10.0 one-pass book workflow, find & replace.
 lessons-admin.js        v1.7.0   Lesson + class authoring, CSV roster import,
                                  lessons JSON import AND export, gate audit
                                  table, stuck-student scan (1.7.0).
@@ -107,7 +108,7 @@ lessons-admin.js        v1.7.0   Lesson + class authoring, CSV roster import,
                                  so admin.js can read it.
 staff-admin.js          v2.2.0   Staff tab: roles, schools, classes, grants.
 
-style.css               v3.2.0   Main stylesheet. v3.2.0 adds #view-splash.
+style.css               v3.3.0   Main stylesheet. #view-splash, condensed book bar.
 
 index.js                v1.0.0    Cloud Function: generatePractice. Calls Gemini to
 package.json                      generate custom practice paragraphs targeting a
@@ -248,6 +249,36 @@ If a split ever looks wrong, that number is the tell.
 
 ⚠️ Never use `innerText` on a `DOMParser` document here — it needs layout and
 returns `undefined` in Firefox. Use `textContent`.
+
+## Editing a book: one pass
+
+`readBookMetadataForm()` is the only place the book metadata form is read. **Save
+Metadata and Upload All both call it**, so they cannot drift — they did, for four
+releases, and that is what made every book need two visits.
+
+Upload All writes chapters *and* metadata. A new book is: create → parse → fill
+in genre / age / protagonist → Upload All. Done.
+
+⚠️ `loadBookList(selectFirst)` defaults to **false** and preserves the current
+selection. Passing `true` makes it jump to the first book and fire `onchange`,
+which hides the staging area and reassigns `activeBookId`. Only the boot call
+should pass `true`.
+
+**Find & replace** (Language panel) works on the staged copy only — nothing is
+written until upload. Case-preserving, fixes a/an, whole-word by default, `/…/`
+for regex. Preview before commit.
+
+## Books with a lot of chapters
+
+Aesop's Fables is 286 chapters and was the first book to break the per-chapter
+UI. Two thresholds now guard it, both set to **40**:
+
+- `BOOK_BAR_MAX_SEGMENTS` (`game.js`) — above it, the classic book progress bar
+  renders condensed. This is a **performance** guard as much as a visual one: the
+  segmented bar cost four `getElementById` calls per chapter *per keystroke*.
+- `MAP_MAX_DOTS` (`adventure-renderer.js`) — above it, the chapter map draws one
+  continuous route instead of a dot per chapter. The branch returns *before* the
+  per-chapter route loop; keep it that way or the frame cost stays.
 
 ## Language filter
 

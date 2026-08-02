@@ -1,7 +1,8 @@
-/* TypeThatBook style.css v3.2.0 */
+/* TypeThatBook style.css v3.3.0 */
+/* v3.3.0: condensed book progress bar for books over 40 chapters          */
 /* v3.2.0: view-choice splash (#view-splash) — see showViewSplash() in game.js  */
 /* v3.1.6: machine-readable version stamp via body::before for build banner */
-body::before { content: "v3.2.0"; display: none; }
+body::before { content: "v3.3.0"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -1012,7 +1013,7 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
 /* The figure breathes and the active key pulses. Motion is what sells the
    difference between the two cards at a glance — a still parchment rectangle
    reads as "greyed out" to a sixth grader. */
-.vs-figure { animation: vsBob 1.9s ease-in-out infinite; transform-origin: 96px 101px; }
+.vs-figure { animation: vsBob 1.9s ease-in-out infinite; transform-origin: 100px 89px; }
 @keyframes vsBob {
     0%,100% { transform: translateY(0)     rotate(-1.2deg); }
     50%     { transform: translateY(-2.5px) rotate(1.2deg); }
@@ -1031,4 +1032,21 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
     .vs-cards { flex-direction: column; }
     .vs-foot  { justify-content: center; }
     .vs-go    { width: 100%; }
+}
+
+/* ─── Condensed book progress bar (v3.3.0) ────────────────────────────────
+   Used above BOOK_BAR_MAX_SEGMENTS chapters. Aesop's Fables is 286: at one
+   sub-pixel segment each, the per-chapter bar rendered as a grey smear, and
+   updating it cost 1,144 getElementById calls per keystroke. Three nodes now,
+   flat cost, and the chapter count moves to the label where it's readable. */
+.book-condensed-fill {
+    position: absolute; left: 0; right: 0; top: 0;
+    background: #222; height: 0;
+    transition: height 0.15s linear;
+}
+.book-condensed-marker {
+    position: absolute; left: -2px; right: -2px; top: 0;
+    height: 2px; background: var(--carolina-blue);
+    box-shadow: 0 0 5px var(--carolina-blue);
+    transition: top 0.15s linear;
 }

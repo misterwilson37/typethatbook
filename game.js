@@ -16,6 +16,20 @@
 //             different Chromebook and we noticed".
 //          Also: document.title driven from VERSION (open work §9 item 5);
 //          "(alpha)" removed from the Settings label.
+// v3.6.0 - Book progress bar survives a 286-chapter book. Aesop's Fables was the
+//          first book to exceed ~40 chapters and it broke the bar two ways:
+//          VISUALLY, each chapter got 1/286th of a ~280px strip — under one pixel,
+//          with a 1px divider inside it, so the whole bar rendered as a grey
+//          hairline smear (confirmed by screenshot).
+//          And far worse, PER KEYSTROKE: the bar built 5 DOM nodes per chapter
+//          (~1,430 for Aesop) and updateProgressBars() then did FOUR
+//          getElementById calls per chapter on every character typed — 1,144 DOM
+//          lookups per keystroke, on Chromebooks. That is a typing-latency bug
+//          wearing a cosmetic bug's clothing.
+//          Above BOOK_BAR_MAX_SEGMENTS the bar now renders condensed: one track,
+//          one fill, one marker, three nodes total and three lookups per
+//          keystroke regardless of chapter count. The label carries the
+//          information the segments used to ("Ch 12 / 286").
 // v3.4.2 - practice_sessions now also carries classId/schoolId. Without them the
 //          collection was unscopeable in security rules, so its read rule had to
 //          be "any staff member, any district" — and those documents contain
@@ -93,7 +107,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.5.0";
+const VERSION = "3.6.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -384,68 +398,99 @@ function classicPreviewSVG() {
 }
 
 function adventurePreviewSVG() {
+    // Laid out against a real screenshot of the renderer, not from memory. The
+    // corrections that mattered:
+    //   - the figure stands ON TOP of the letters, not inside them. Letters are
+    //     the walkable surface (renderer v0.2.6), so its feet sit at cap-height
+    //     above the text baseline, never overlapping the glyphs.
+    //   - LEFT edge is the chapter close-up: wobbly rubric route, pilcrow ticks
+    //     at paragraph starts, gold marker at the current position.
+    //   - RIGHT edge is the book map. Drawn condensed (renderer v1.1.0) because
+    //     that is what a real book of any size now looks like.
+    //   - gravestones sit on the ground line at the bottom, not mid-air.
     return `
 <svg viewBox="0 0 300 170" xmlns="http://www.w3.org/2000/svg" class="vs-art" role="img" aria-label="Adventure view preview">
   <rect width="300" height="170" fill="#f2e8d5"/>
   <g fill="rgba(120,100,70,0.05)">
-    <rect y="26" width="300" height="1"/><rect y="57" width="300" height="1"/>
-    <rect y="88" width="300" height="1"/><rect y="119" width="300" height="1"/>
-    <rect y="150" width="300" height="1"/>
+    <rect y="34" width="300" height="1"/><rect y="58" width="300" height="1"/>
+    <rect y="82" width="300" height="1"/><rect y="106" width="300" height="1"/>
+    <rect y="130" width="300" height="1"/>
   </g>
   <rect width="300" height="18" fill="#000"/>
   <rect y="18" width="300" height="2" fill="#4B9CD3"/>
   <text x="150" y="13" font-family="'Courier Prime',monospace" font-size="7" fill="#fff" text-anchor="middle">WPM: 24 | Acc: 96%</text>
 
-  <text x="14" y="96" font-family="'IM Fell English',Georgia,serif" font-size="15" fill="rgba(168,80,64,0.55)">&#182;</text>
+  <!-- left: current-chapter close-up -->
+  <g>
+    <rect x="0" y="20" width="20" height="150" fill="rgba(120,100,70,0.06)"/>
+    <line x1="20" y1="20" x2="20" y2="170" stroke="rgba(120,100,70,0.18)" stroke-width="1"/>
+    <text x="3" y="30" font-family="'IM Fell English',Georgia,serif" font-size="7" fill="#a85040" font-style="italic">Ch 2</text>
+    <path d="M10 36 Q12 58 9 78 Q11 100 10 124" stroke="#a85040" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M10 124 Q9 142 10 156" stroke="rgba(120,100,70,0.3)" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <text x="13" y="40" font-family="'IM Fell English',Georgia,serif" font-size="7" fill="rgba(168,80,64,0.6)">&#182;</text>
+    <text x="13" y="96" font-family="'IM Fell English',Georgia,serif" font-size="7" fill="rgba(168,80,64,0.6)">&#182;</text>
+    <circle cx="10" cy="124" r="3.6" fill="#e8c86a" stroke="#2b221a" stroke-width="1.2"/>
+  </g>
 
+  <!-- words are the ground; baseline y=104, cap height ~15 -->
   <g font-family="'IM Fell English',Georgia,serif" font-size="21" fill="#2b221a">
-    <text x="34" y="96">the</text>
-    <text x="78" y="96">great</text>
-    <text x="146" y="96" opacity=".45">Kansas</text>
-    <text x="228" y="96" opacity=".25">prairie</text>
+    <text x="38" y="104">the</text>
+    <text x="80" y="104">great</text>
+    <text x="150" y="104" opacity=".45">Kansas</text>
+    <text x="232" y="104" opacity=".22">prairie</text>
   </g>
-  <g stroke="#2b221a" stroke-width="1.4" opacity=".55" stroke-linecap="round">
-    <line x1="34" y1="101" x2="66" y2="101"/>
-    <line x1="78" y1="101" x2="134" y2="101"/>
-    <line x1="146" y1="102.5" x2="212" y2="102.5"/>
+  <g stroke="#2b221a" stroke-width="1.3" opacity=".45" stroke-linecap="round">
+    <line x1="38" y1="108" x2="70" y2="108"/>
+    <line x1="80" y1="108" x2="137" y2="108"/>
+    <line x1="150" y1="108" x2="216" y2="108"/>
   </g>
-  <line x1="134" y1="101" x2="146" y2="101" stroke="#a85040" stroke-width="1.4" stroke-dasharray="2 2"/>
+  <line x1="137" y1="108" x2="150" y2="108" stroke="#a85040" stroke-width="1.3" stroke-dasharray="2 2"/>
 
-  <g class="vs-figure" stroke="#2b221a" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="96" cy="66" r="4.6" fill="#2b221a" stroke="none"/>
-    <line x1="96" y1="71" x2="96" y2="86"/>
-    <path d="M96 86 L91 93 L89 101"/>
-    <path d="M96 86 L102 93 L104 101"/>
-    <path d="M96 75 L89 81 L86 87"/>
-    <path d="M96 75 L104 80 L108 85"/>
+  <!-- figure stands on the letter tops (y=89), clear of the glyphs -->
+  <g class="vs-figure" stroke="#2b221a" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="100" cy="55" r="4.3" fill="#2b221a" stroke="none"/>
+    <line x1="100" y1="59" x2="100" y2="74"/>
+    <path d="M100 74 L95 81 L93 89"/>
+    <path d="M100 74 L106 81 L108 89"/>
+    <path d="M100 63 L93 69 L90 75"/>
+    <path d="M100 63 L108 68 L112 73"/>
   </g>
 
+  <!-- a ghost, and a gravestone on the ground line -->
+  <g opacity=".3" fill="none" stroke="#7a7266" stroke-width="1.3">
+    <path d="M186 46 a9 9 0 0 1 18 0 v15 l-4.5 -4 -4.5 4 -4.5 -4 -4.5 4 z"/>
+    <circle cx="192" cy="50" r="0.9" fill="#7a7266"/><circle cx="198" cy="50" r="0.9" fill="#7a7266"/>
+  </g>
+  <g opacity=".4">
+    <line x1="24" y1="150" x2="272" y2="150" stroke="#c9b99a" stroke-width="1"/>
+    <path d="M243 150 v-11 a5.5 5.5 0 0 1 11 0 v11 z" fill="#7a7266" stroke="#2b221a" stroke-width="0.9"/>
+    <text x="248.5" y="148" font-family="'IM Fell English',Georgia,serif" font-size="7" fill="#2b221a" text-anchor="middle">k</text>
+  </g>
+
+  <!-- right: condensed book map -->
   <g class="vs-map">
-    <line x1="286" y1="34" x2="286" y2="150" stroke="#c9b99a" stroke-width="1.2"/>
-    <path d="M286 34 L287 58 L285 76" stroke="#a85040" stroke-width="2" fill="none" stroke-linecap="round"/>
-    <circle cx="286" cy="34" r="3.4" fill="#a85040"/>
-    <circle cx="286" cy="58" r="3.4" fill="#a85040"/>
-    <circle cx="286" cy="82" r="4.4" fill="#e8c86a" stroke="#a85040" stroke-width="1.6"/>
-    <circle cx="286" cy="106" r="3.2" fill="none" stroke="#c9b99a" stroke-width="1.4"/>
-    <circle cx="286" cy="130" r="3.2" fill="none" stroke="#c9b99a" stroke-width="1.4"/>
-    <text x="278" y="86" font-family="'IM Fell English',Georgia,serif" font-size="8" fill="#a85040" text-anchor="end">Ch 3</text>
-  </g>
-
-  <g opacity=".35">
-    <path d="M198 118 h13 v11 a6.5 6.5 0 0 0 -13 0 z" fill="#7a7266" stroke="#2b221a" stroke-width="1"/>
-    <text x="204.5" y="127" font-family="'IM Fell English',Georgia,serif" font-size="7" fill="#2b221a" text-anchor="middle">k</text>
+    <rect x="280" y="20" width="20" height="150" fill="rgba(120,100,70,0.06)"/>
+    <line x1="280" y1="20" x2="280" y2="170" stroke="rgba(120,100,70,0.18)" stroke-width="1"/>
+    <line x1="290" y1="34" x2="290" y2="150" stroke="rgba(120,100,70,0.3)" stroke-width="2" stroke-linecap="round"/>
+    <path d="M290 34 Q292 48 289 62 Q291 72 290 78" stroke="#a85040" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+    <g stroke="rgba(120,100,70,0.45)" stroke-width="0.8">
+      <line x1="287" y1="46" x2="293" y2="46"/><line x1="287" y1="69" x2="293" y2="69"/>
+      <line x1="287" y1="92" x2="293" y2="92"/><line x1="287" y1="115" x2="293" y2="115"/>
+      <line x1="287" y1="138" x2="293" y2="138"/>
+    </g>
+    <circle cx="290" cy="34" r="2.6" fill="rgba(168,80,64,0.75)"/>
+    <circle cx="290" cy="150" r="2.6" fill="rgba(120,100,70,0.5)"/>
+    <circle cx="290" cy="78" r="4" fill="#e8c86a" stroke="#2b221a" stroke-width="1.2"/>
   </g>
 
   <g class="vs-keys">
-    <rect x="14" y="146" width="252" height="18" rx="3" fill="#e6d9bd" stroke="#c9b99a"/>
-    <rect x="20" y="149" width="11" height="11" rx="2" fill="#8d6b6b" opacity=".3"/>
-    <rect x="34" y="149" width="11" height="11" rx="2" fill="#6b7d8d" opacity=".3"/>
-    <rect x="48" y="149" width="11" height="11" rx="2" fill="#6f7d5f" opacity=".3"/>
-    <rect x="62" y="149" width="11" height="11" rx="2" fill="#a8895f" opacity=".3"/>
-    <rect class="vs-key-hot" x="180" y="149" width="11" height="11" rx="2" fill="#2b221a"/>
-    <rect x="194" y="149" width="11" height="11" rx="2" fill="#7d6b8d" opacity=".3"/>
-    <rect x="208" y="149" width="11" height="11" rx="2" fill="#6f7d5f" opacity=".3"/>
-    <rect x="222" y="149" width="11" height="11" rx="2" fill="#6b7d8d" opacity=".3"/>
+    <rect x="24" y="156" width="238" height="12" rx="2" fill="#e6d9bd" stroke="#c9b99a"/>
+    <rect x="29" y="158" width="9" height="8" rx="1.5" fill="#8d6b6b" opacity=".3"/>
+    <rect x="41" y="158" width="9" height="8" rx="1.5" fill="#6b7d8d" opacity=".3"/>
+    <rect x="53" y="158" width="9" height="8" rx="1.5" fill="#6f7d5f" opacity=".3"/>
+    <rect class="vs-key-hot" x="170" y="158" width="9" height="8" rx="1.5" fill="#2b221a"/>
+    <rect x="182" y="158" width="9" height="8" rx="1.5" fill="#7d6b8d" opacity=".3"/>
+    <rect x="194" y="158" width="9" height="8" rx="1.5" fill="#6b7d8d" opacity=".3"/>
   </g>
 </svg>`;
 }
@@ -1978,6 +2023,16 @@ document.addEventListener('keyup', (e) => { if (e.key === "Shift") toggleKeyboar
 // --- VIEW LOGIC ---
 
 // ─── Progress Bars ────────────────────────────────────────────────────────────
+
+// Above this many chapters the per-chapter segment bar stops being either
+// legible or affordable and we switch to a single condensed track.
+//
+// 40 is where a segment drops under ~7px on the shortest bar we render (a
+// ~280px strip on a 768px Chromebook), which is about the floor for a divider
+// plus fill to read as anything. Aesop is 286.
+const BOOK_BAR_MAX_SEGMENTS = 40;
+let bookBarCondensed = false;
+
 function initBookProgressBar() {
     const track = document.getElementById('book-progress-track');
     if (!track || !bookMetadata || !bookMetadata.chapters) return;
@@ -1987,6 +2042,19 @@ function initBookProgressBar() {
     if (!total) return;
 
     track.innerHTML = '';
+    bookBarCondensed = total > BOOK_BAR_MAX_SEGMENTS;
+
+    if (bookBarCondensed) {
+        // Three nodes, not 5×286. updateProgressBars() then costs three lookups
+        // per keystroke instead of 1,144.
+        track.innerHTML =
+            '<div id="book-condensed-fill" class="book-condensed-fill"></div>' +
+            '<div id="book-condensed-marker" class="book-condensed-marker"></div>';
+        const lbl0 = document.getElementById('book-progress-label');
+        if (lbl0) lbl0.textContent = total + ' ch';
+        updateProgressBars();
+        return;
+    }
 
     chapters.forEach((chap, i) => {
         const seg = document.createElement('div');
@@ -2033,6 +2101,22 @@ function initBookProgressBar() {
     updateProgressBars();
 }
 
+// Where we are through the whole book, 0..1. Chapters are treated as equal
+// width — they aren't, but the metadata document holds no per-chapter length and
+// reading 286 chapter documents to find out would cost more than the honesty is
+// worth. Within the current chapter we interpolate by real character position,
+// so the marker still moves smoothly as you type.
+function bookProgressFraction() {
+    if (!bookMetadata || !bookMetadata.chapters || !bookMetadata.chapters.length) return 0;
+    const chapters = bookMetadata.chapters;
+    const idx = chapters.findIndex(c =>
+        parseInt(String(c.id).replace('chapter_', '')) === parseInt(currentChapterNum));
+    if (idx < 0) return 0;
+    const within = (fullText && fullText.length)
+        ? Math.min(1, currentCharIndex / fullText.length) : 0;
+    return (idx + within) / chapters.length;
+}
+
 function updateProgressBars() {
     if (!fullText || !fullText.length) return;
     const pct = (currentCharIndex / fullText.length) * 100;
@@ -2045,8 +2129,21 @@ function updateProgressBars() {
     if (marker) marker.style.top    = Math.min(100, pct) + '%';
     if (clabel) clabel.textContent  = Math.round(pct) + '%';
 
-    // ── Right bar: whole book, per-chapter segments ───────────────────────────
+    // ── Right bar: whole book ─────────────────────────────────────────────────
     if (!bookMetadata || !bookMetadata.chapters) return;
+
+    if (bookBarCondensed) {
+        const bookPct = bookProgressFraction() * 100;
+        const cf = document.getElementById('book-condensed-fill');
+        const cm = document.getElementById('book-condensed-marker');
+        if (cf) cf.style.height = bookPct + '%';
+        if (cm) cm.style.top    = bookPct + '%';
+        const lbl2 = document.getElementById('book-progress-label');
+        if (lbl2) lbl2.textContent =
+            'Ch ' + currentChapterNum + ' / ' + bookMetadata.chapters.length;
+        return;
+    }
+
     bookMetadata.chapters.forEach((chap) => {
         const chapNum  = parseInt(chap.id.replace('chapter_', '')) || 0;
         const isCurrent = chapNum === parseInt(currentChapterNum);
