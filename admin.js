@@ -1,4 +1,13 @@
-// admin.js v3.6.0
+// admin.js v3.7.0
+// v3.7.0 — Book tags: target age range (minAge/maxAge) and protagonistGender on
+//          books/{id}. Written unconditionally by Save Metadata, same as author
+//          and genre — see the v3.6.0 note on `if (author)` silently keeping the
+//          old value when a field is blanked. Age is validated as a RANGE, not
+//          two independent numbers: half a range is a data bug, and min > max is
+//          silently unmatchable by the library's overlap test.
+//          The book picker now marks untagged books with a bullet so the tagging
+//          backlog is visible while working through it.
+// v3.6.0
 import { db, auth, storage } from "./firebase-config.js";
 import { initLessonsPanel, setStaffHooks } from "./lessons-admin.js";
 import { initStaffPanel, initStaffPanelContent, syncOwnClaimsAfterClassChange }
@@ -7,7 +16,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.6.0";
+const ADMIN_VERSION = "3.7.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -476,7 +485,13 @@ async function loadBookList() {
             const option = document.createElement("option");
             option.value = doc.id;
             bookTitlesMap[doc.id] = b.title || doc.id;
-            option.text = bookTitlesMap[doc.id] + ` (${doc.id})`;
+            // v3.7.0: flag the tagging backlog where the books actually are.
+            // Age is the one that changes what students can find, so it's the
+            // one that earns a marker.
+            const untagged = (b.minAge === null || b.minAge === undefined);
+            option.text = (untagged ? '\u25cb ' : '\u25cf ') +
+                          bookTitlesMap[doc.id] + ` (${doc.id})`;
+            if (untagged) option.style.color = '#ffb74d';
             bookSelect.appendChild(option);
         });
         
@@ -528,6 +543,16 @@ openBookBtn.onclick = async () => {
             const genreSelect = document.getElementById('active-book-genre');
             if (authorInput) authorInput.value = meta.author || "";
             if (genreSelect) genreSelect.value = meta.genre || "";
+
+            // Book tags (v3.7.0). Number inputs want '' not '0' for absent —
+            // a book tagged for age 0 is not a thing, but `meta.minAge || ''`
+            // would also blank a legitimate 0, so test for null/undefined.
+            const minAgeIn = document.getElementById('active-book-minage');
+            const maxAgeIn = document.getElementById('active-book-maxage');
+            const protSel  = document.getElementById('active-book-protagonist');
+            if (minAgeIn) minAgeIn.value = (meta.minAge ?? '') === '' ? '' : String(meta.minAge);
+            if (maxAgeIn) maxAgeIn.value = (meta.maxAge ?? '') === '' ? '' : String(meta.maxAge);
+            if (protSel)  protSel.value  = meta.protagonistGender || "";
             if (meta.coverUrl) {
                 stagedCoverUrl = meta.coverUrl;
                 updateCoverPreview();
@@ -1382,6 +1407,35 @@ function readGenreField() {
     return sel.value;
 }
 
+// Reads and VALIDATES the age-range pair. Returns
+//   { ok: true,  minAge, maxAge }        both numbers, or both null
+//   { ok: false, msg }                   with a reason to show the user
+//
+// Validating as a pair rather than per-field is deliberate. A book with a min
+// and no max is not "partly tagged" — it's unmatchable, because the library's
+// overlap test needs both ends. Same for min > max. Both would save silently
+// and then quietly never appear in a filtered search, which is the worst kind
+// of bug: no error, no result, no clue.
+function readAgeRange() {
+    const minEl = document.getElementById('active-book-minage');
+    const maxEl = document.getElementById('active-book-maxage');
+    const rawMin = minEl ? minEl.value.trim() : '';
+    const rawMax = maxEl ? maxEl.value.trim() : '';
+
+    if (rawMin === '' && rawMax === '') return { ok: true, minAge: null, maxAge: null };
+    if (rawMin === '' || rawMax === '') {
+        return { ok: false, msg: 'Age range needs BOTH ends, or neither. ' +
+                                 'A half-range can never match a search.' };
+    }
+    const min = parseInt(rawMin, 10), max = parseInt(rawMax, 10);
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+        return { ok: false, msg: 'Age range must be whole numbers.' };
+    }
+    if (min < 3 || max > 18) return { ok: false, msg: 'Ages must be between 3 and 18.' };
+    if (min > max) return { ok: false, msg: `Age range is backwards (${min} to ${max}).` };
+    return { ok: true, minAge: min, maxAge: max };
+}
+
 // Show/hide the custom box when the dropdown changes.
 if (genreSelect) {
     genreSelect.addEventListener('change', () => {
@@ -1417,10 +1471,26 @@ saveTitleBtn.onclick = async () => {
         const author = document.getElementById('active-book-author').value.trim();
         const genre  = readGenreField();
 
+        const age = readAgeRange();
+        if (!age.ok) {
+            setInline('\u26a0 ' + age.msg, '#ff9800');
+            saveTitleBtn.textContent = original;
+            saveTitleBtn.disabled = false;
+            saveTitleBtn.style.opacity = '1';
+            return;
+        }
+        const protagonistGender =
+            (document.getElementById('active-book-protagonist') || {}).value || '';
+
         // Written unconditionally. Previously these were guarded by `if (author)` /
         // `if (genre)`, which meant a field could be changed but never CLEARED —
-        // blanking the author and saving silently kept the old one.
-        const updates = { title: newTitle, author, genre };
+        // blanking the author and saving silently kept the old one. The tag fields
+        // follow the same rule: null is a real, storable value meaning "untagged".
+        const updates = {
+            title: newTitle, author, genre,
+            minAge: age.minAge, maxAge: age.maxAge,
+            protagonistGender
+        };
 
         if (stagedCoverBlob) {
             setInline('Uploading cover\u2026', '#888');
@@ -1432,7 +1502,12 @@ saveTitleBtn.onclick = async () => {
         bookTitlesMap[activeBookId] = newTitle;
 
         const stamp = new Date().toLocaleTimeString();
-        setInline('\u2713 Saved at ' + stamp + (genre ? ' \u00b7 genre: ' + genre : ' \u00b7 genre cleared'), '#00ff41');
+        const tagBits = [];
+        tagBits.push(genre ? 'genre: ' + genre : 'genre cleared');
+        tagBits.push(age.minAge === null ? 'no age range'
+                                         : 'ages ' + age.minAge + '\u2013' + age.maxAge);
+        if (protagonistGender) tagBits.push('lead: ' + protagonistGender);
+        setInline('\u2713 Saved at ' + stamp + ' \u00b7 ' + tagBits.join(' \u00b7 '), '#00ff41');
         statusEl.innerText = "Metadata Updated.";
         statusEl.style.borderColor = "#00ff41";
         saveTitleBtn.textContent = '\u2713 Saved';

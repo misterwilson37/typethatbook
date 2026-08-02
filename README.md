@@ -96,7 +96,8 @@ learn.js                v2.1.0   Lesson-mode engine (separate from game.js).
                                  Same WAL/flush persistence pattern as game.js.
 keyboard.js             v1.1.1   On-screen keyboard widget, used by learn.html.
 
-admin.js                v3.6.0   Book authoring, EPUB import, chapter editor.
+admin.js                v3.7.0   Book authoring, EPUB import, chapter editor,
+                                 book tags (age range + protagonist).
 lessons-admin.js        v1.7.0   Lesson + class authoring, CSV roster import,
                                  lessons JSON import AND export, gate audit
                                  table, stuck-student scan (1.7.0).
@@ -210,6 +211,23 @@ footer exist so you can confirm which build is actually loaded.
   are three copies of one fact. `index.html`'s build panel flags constant-vs-header
   disagreement in amber as of `versions.js` v1.2.0 — if you see amber there, one of
   the two numbers is a lie and the constant is the one telling the truth.
+
+## Book tags (v3.7.0 / index.html v3.2.0)
+
+`books/{id}` carries `minAge`, `maxAge` (numbers, or **`null` for untagged**) and
+`protagonistGender` (`''` untagged, or `female` / `male` / `multiple` / `ensemble`
+/ `nonhuman` / `unspecified`).
+
+`null` and `''` are meaningful values, not absences — read them with a type check,
+never `|| 0` or `|| ''`. `unspecified` means "somebody looked and the text doesn't
+say"; `''` means "nobody has looked yet". The admin book picker marks the latter
+with an amber ○.
+
+The library filters by **overlap**, not containment:
+`book.minAge <= filterMax && book.maxAge >= filterMin`, with an absent filter end
+unbounded. A student asking for 9–12 gets a 7–11 book, which is the point.
+Untagged books are excluded from age-filtered results and counted in a note
+beneath the filter bar.
 
 ## localStorage keys
 

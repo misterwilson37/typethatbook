@@ -1,7 +1,8 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v4.0.0 — Round 3 (Blick): Adventure Mode out of alpha, project-wide
-     version alignment. New §A is Round 3 and is the first thing to read. §0 and §11
+<!-- HANDOFF.md v4.1.0 — Round 3 (Blick): Adventure Mode out of alpha, project-wide
+     version alignment, book tags (age range + protagonist). §9 item 1 CORRECTED —
+     the practice-mode panic was wrong; see §A.10. New §A is Round 3 and is the first thing to read. §0 and §11
      are Round 2 (Dvorak). Underwood's §1, §3-§10, §12 are verbatim. -->
 
 **Claude instance:** **Blick** (Round 3) · **Dvorak** (Round 2) · **Underwood** (Round 1)
@@ -156,23 +157,123 @@ field. Don't reuse v1.
 9. **Build panel.** `index.html` → build info. Every file listed, no amber header
    warnings. Deliberately break one (edit a header comment) to confirm it flags.
 
-### A.9 Not done — queued, in Jake's priority order
+### A.9 Book tags — age range + protagonist (admin.js 3.7.0, index.html 3.2.0)
 
-1. **Practice mode at class scale** (§9 item 1). Discussed this session; see the
-   engine-fallback analysis in the conversation. **Blocked on the CLI question:**
-   `generatePractice` is a Cloud Function, and whether Jake can edit it from the
-   Google Cloud console's inline editor (Gen 2 / Cloud Run functions) has **not
-   been verified**. Verify before designing anything server-side. Client-side
-   throttling in `game.js` needs no deploy and is the fallback.
-2. **Flagged-words list: regex support + an audit view.** Free-text search already
+Three new fields on `books/{id}`:
+
+| field | type | meaning |
+|---|---|---|
+| `minAge` | number \| **null** | inclusive low end of the target reading age |
+| `maxAge` | number \| **null** | inclusive high end |
+| `protagonistGender` | string | `''` \| `female` \| `male` \| `multiple` \| `ensemble` \| `nonhuman` \| `unspecified` |
+
+`null` means untagged and is a real stored value — **do not `|| 0` or `|| ''`
+these on read.** `index.html` tests `typeof x === 'number'` for exactly this
+reason.
+
+**`unspecified` and `''` are different and both are needed.** `''` is "nobody has
+looked at this book yet"; `unspecified` is "somebody looked, and the text doesn't
+say". Collapsing them loses the distinction between a backlog item and a finished
+judgement.
+
+#### The overlap rule
+
+A student asking for ages 9–12 wants every book whose range *touches* theirs. A
+7–11 book is squarely relevant to a 9-year-old and a containment test would throw
+it away. So:
+
+```
+book.minAge <= filterMax  &&  book.maxAge >= filterMin
+```
+
+with an absent filter end treated as unbounded. Two ranges overlap iff each starts
+before the other ends. Verified against boundary cases (exact-match ranges,
+single-year books, open-ended filters, adjacent-but-not-touching).
+
+⚠️ **A book with no age range cannot participate in that test and is excluded
+whenever an age filter is active.** That is correct but looks like a bug during
+the tagging backlog, so `renderBooks()` counts what it hid and says so, with a
+"Show all ages" escape. **Do not "fix" this by including untagged books in
+filtered results** — that makes the filter meaningless, which was considered and
+rejected.
+
+#### Validation is on the PAIR, not the fields
+
+`readAgeRange()` in `admin.js` rejects a half-range (min with no max) and a
+backwards range. Both would save silently and then never match anything: no error,
+no result, no clue. The library's `onAge` handler does the same on the student
+side by pushing the other end along rather than rendering an empty grid.
+
+The book picker in admin now prefixes each title with ● (tagged) or ○ (no age
+range, shown amber) so the backlog is visible where the books are. There is **no
+backfill** — every existing book needs both fields entered by hand.
+
+### A.10 ⚠️ §9 item 1 (practice mode) was WRONG — corrected 2026-08-02
+
+Underwood's §9 item 1 says practice mode "will not survive a real class period".
+Blick repeated it without checking. Jake pushed back and was right on every point.
+**Reading the code instead of the handoff:**
+
+- **`index.js` already has the engine fallback chain.** `GEMINI_MODEL` +
+  `GEMINI_FALLBACKS` — six models across **three separate quota buckets** (3.x,
+  3.1, 2.5), looped with a catch. The "priority queue of engines" that got
+  proposed this session **already exists and shipped in index.js v1.1**.
+- **`DAILY_LIMIT = 5`**, enforced server-side in `practice_limits/{uid}`.
+- **A cooldown already exists.** `PRACTICE_FIRST_UNLOCK = 150` (2.5 min of typing
+  before the first practice) and `PRACTICE_COOLDOWN = 60` (1 min between
+  subsequent ones), gated client-side on `practiceTypingAccumulator`.
+
+And the observed load is nothing like the projection: ~20 students typing books
+daily, 3–4 on lessons, **nobody ever requested practice unprompted**. Requests
+self-stagger because a practice round takes 1–5 minutes to type.
+
+**The failure mode is also benign** — the student sees a cool-down message and
+keeps typing their book. No data loss, no cost. That is categorically unlike the
+leaderboard problem, which was automatic, per-keystroke, and $34,400/year.
+
+**§9 item 1 is downgraded from "will fail" to "worth a nicer error message
+someday."** Do not resurrect it as a blocker.
+
+**The generalisable lesson** — third time in three rounds: *this handoff is a
+snapshot, not a fact.* §2 already says "diff before you assert anything about
+what's deployed." Extend it: **read the code before repeating a risk claim.**
+
+### A.11 What actually requires `firebase deploy` — and what doesn't
+
+Recorded because it keeps getting re-litigated.
+
+**Nothing in the normal workflow needs a CLI:**
+
+| thing | how it ships |
+|---|---|
+| every `.js`, `.css`, `.html` | GitHub web upload → GitHub Pages |
+| `firestore.rules` | paste into Firebase console → Publish |
+| composite indexes | click the link in the failing query's console error |
+| TTL policies | Google Cloud console (not Firebase) |
+| book/lesson/roster data | the admin UI |
+
+**One thing does:** `index.js`, the Cloud Functions source. Those functions are
+**already deployed and running** — `generatePractice` and the staff-role helpers.
+Editing `index.js` in this repo changes nothing until someone runs
+`firebase deploy --only functions`.
+
+So the question "can Jake deploy functions?" only ever matters when we want to
+change a function's behaviour. **Right now we don't** — see §A.10; the fallback
+chain we wanted is already live. Treat `index.js` as a read-only record of what's
+running, and bump its version line if that ever stops being true.
+
+### A.12 Not done — queued
+
+1. **Flagged-words list: regex support + an audit view.** Free-text search already
    accepts `/…/` (see §11 "Bulk-upload workflow"); the persistent list in
    `settings/languageFilter` does not, and there is no UI to see the effective
-   list at all. `FLAGGED_WORDS` also needs a content review — it did not contain
-   "boob", which Jake hit in Pinocchio.
-3. **Two new book tags: target age range + protagonist gender**, with library
-   filtering by *overlapping* age range. Touches `admin.js` (metadata form),
-   `books/{id}` documents, and `index.html` / `index.js` (filter UI). Note there
-   is no backfill path for the ~existing books other than editing each one.
+   list at all — Jake is filtering with a list he cannot read. `FLAGGED_WORDS`
+   also needs a content review: it did not contain "boob", which Jake hit in
+   Pinocchio, suggesting it was written by pattern-matching modern profanity
+   rather than by thinking about 19th-century children's literature.
+2. **Age/protagonist tags have no backfill.** Every existing book needs both
+   entered by hand. The ○/● markers in the admin book picker are the worklist.
+3. A nicer practice-mode cool-down message (§A.10). Low priority.
 
 ---
 

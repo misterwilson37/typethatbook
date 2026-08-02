@@ -105,6 +105,27 @@
         }
 
         /* --- BOOK CARD --- */
+        .filter-group-label {
+            font-size: 0.8rem; color: #888; letter-spacing: .5px;
+            align-self: center; white-space: nowrap;
+        }
+        .filter-select {
+            background: #1c1c1c; color: #eee; border: 1px solid #444;
+            border-radius: 999px; padding: 5px 10px; font: inherit; font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .filter-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+        .filter-select.is-set { border-color: var(--accent); color: var(--accent); }
+        #filter-note {
+            font-size: 0.78rem; color: #8a8a8a; margin: 2px 0 10px; min-height: 1.1em;
+        }
+        #filter-note a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+        .book-age-tag {
+            display: inline-block; font-size: 0.68rem; color: #9ec9e6;
+            border: 1px solid #35566b; border-radius: 3px; padding: 1px 5px;
+            margin-left: 4px; vertical-align: middle;
+        }
+
         .book-card {
             background: var(--card-bg);
             border-radius: 6px;
@@ -280,6 +301,22 @@
         <div class="filter-bar" id="filter-bar">
             <button class="filter-pill active" data-genre="all">All</button>
         </div>
+
+        <div class="filter-bar" id="tag-filter-bar">
+            <span class="filter-group-label">Ages</span>
+            <select id="age-min" class="filter-select" aria-label="Minimum age"></select>
+            <span class="filter-group-label">to</span>
+            <select id="age-max" class="filter-select" aria-label="Maximum age"></select>
+            <span class="filter-group-label" style="margin-left:14px;">Lead</span>
+            <button class="filter-pill active" data-prot="all">Any</button>
+            <button class="filter-pill" data-prot="female">Female</button>
+            <button class="filter-pill" data-prot="male">Male</button>
+            <button class="filter-pill" data-prot="multiple">Multiple</button>
+            <button class="filter-pill" data-prot="ensemble">Ensemble</button>
+            <button class="filter-pill" data-prot="nonhuman">Animal</button>
+            <button class="filter-pill" id="tag-clear" style="margin-left:auto;">Clear</button>
+        </div>
+        <div id="filter-note"></div>
         <div class="library-grid" id="book-grid">
             <div class="loading-spinner">Loading library...</div>
         </div>
@@ -309,7 +346,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.1.0";
+        const INDEX_VERSION = "3.2.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -390,6 +427,11 @@
         let allBooks = [];
         let userProgress = {};
         let activeGenre = "all";
+        let activeProt  = "all";
+        // null = "Any". The pair is the filter; either end alone still filters,
+        // because an open end just means unbounded on that side.
+        let ageMin = null, ageMax = null;
+        const AGE_FLOOR = 3, AGE_CEIL = 18;
 
         // --- AUTH ---
         const loginBtn = document.getElementById('login-btn');
@@ -434,6 +476,11 @@
                         title: data.title || d.id,
                         author: data.author || "",
                         genre: data.genre || "",
+                        // null means untagged, and untagged is meaningfully
+                        // different from zero — don't coalesce with ||.
+                        minAge: (typeof data.minAge === 'number') ? data.minAge : null,
+                        maxAge: (typeof data.maxAge === 'number') ? data.maxAge : null,
+                        protagonistGender: data.protagonistGender || "",
                         coverUrl: data.coverUrl || "",
                         totalChapters: data.totalChapters || (data.chapters ? data.chapters.length : 0),
                         chapters: data.chapters || []
@@ -441,6 +488,7 @@
                 });
                 allBooks.sort((a, b) => a.title.localeCompare(b.title));
                 buildGenreFilters();
+                buildTagFilters();
                 renderBooks();
             } catch(e) {
                 document.getElementById('book-grid').innerHTML =
@@ -481,15 +529,117 @@
             });
         }
 
+        // --- AGE + PROTAGONIST FILTERS ---
+        //
+        // OVERLAP, not containment. A student asking for ages 9-12 wants every
+        // book whose range touches theirs — a 7-11 book is squarely relevant to a
+        // 9-year-old and would be thrown away by a containment test. The rule:
+        //
+        //     book.minAge <= filterMax  &&  book.maxAge >= filterMin
+        //
+        // with an absent filter end treated as unbounded. Two ranges overlap iff
+        // each one starts before the other ends.
+        //
+        // A book with no age range cannot participate in that test at all, so it
+        // is excluded whenever an age filter is active — and the count of what
+        // got hidden is reported, because a filter that silently empties a
+        // half-tagged library looks broken rather than accurate.
+        function matchesAge(book) {
+            if (ageMin === null && ageMax === null) return true;
+            if (book.minAge === null || book.maxAge === null) return false;
+            const lo = (ageMin === null) ? -Infinity : ageMin;
+            const hi = (ageMax === null) ?  Infinity : ageMax;
+            return book.minAge <= hi && book.maxAge >= lo;
+        }
+
+        function matchesProt(book) {
+            if (activeProt === "all") return true;
+            return book.protagonistGender === activeProt;
+        }
+
+        function buildTagFilters() {
+            const minSel = document.getElementById('age-min');
+            const maxSel = document.getElementById('age-max');
+            const opts = (sel, label) => {
+                sel.innerHTML = `<option value="">${label}</option>` +
+                    Array.from({ length: AGE_CEIL - AGE_FLOOR + 1 },
+                               (_, i) => AGE_FLOOR + i)
+                         .map(n => `<option value="${n}">${n}</option>`).join('');
+            };
+            opts(minSel, 'Any');
+            opts(maxSel, 'Any');
+
+            const onAge = () => {
+                ageMin = minSel.value === '' ? null : parseInt(minSel.value, 10);
+                ageMax = maxSel.value === '' ? null : parseInt(maxSel.value, 10);
+                // A backwards range matches nothing and reads as a broken page.
+                // Push the other end along instead of showing an empty grid.
+                if (ageMin !== null && ageMax !== null && ageMin > ageMax) {
+                    if (document.activeElement === minSel) { ageMax = ageMin; maxSel.value = String(ageMax); }
+                    else { ageMin = ageMax; minSel.value = String(ageMin); }
+                }
+                minSel.classList.toggle('is-set', ageMin !== null);
+                maxSel.classList.toggle('is-set', ageMax !== null);
+                renderBooks();
+            };
+            minSel.onchange = onAge;
+            maxSel.onchange = onAge;
+
+            const bar = document.getElementById('tag-filter-bar');
+            bar.addEventListener('click', (e) => {
+                const pill = e.target.closest('.filter-pill');
+                if (!pill) return;
+                if (pill.id === 'tag-clear') {
+                    activeProt = 'all'; ageMin = ageMax = null;
+                    minSel.value = ''; maxSel.value = '';
+                    minSel.classList.remove('is-set'); maxSel.classList.remove('is-set');
+                    bar.querySelectorAll('.filter-pill[data-prot]').forEach(p =>
+                        p.classList.toggle('active', p.dataset.prot === 'all'));
+                    renderBooks();
+                    return;
+                }
+                if (!pill.dataset.prot) return;
+                activeProt = pill.dataset.prot;
+                bar.querySelectorAll('.filter-pill[data-prot]').forEach(p => p.classList.remove('active'));
+                pill.classList.add('active');
+                renderBooks();
+            });
+        }
+
         // --- RENDER ---
         function renderBooks() {
             const grid = document.getElementById('book-grid');
-            const filtered = activeGenre === "all"
+            const byGenre = activeGenre === "all"
                 ? allBooks
                 : allBooks.filter(b => b.genre === activeGenre);
 
+            const filtered = byGenre.filter(b => matchesAge(b) && matchesProt(b));
+
+            // Say plainly how many books the age filter had to set aside for
+            // want of a tag. Without this, "no books found" during the tagging
+            // backlog is indistinguishable from a bug.
+            const note = document.getElementById('filter-note');
+            if (note) {
+                const ageOn = (ageMin !== null || ageMax !== null);
+                const hiddenUntagged = ageOn
+                    ? byGenre.filter(b => (b.minAge === null || b.maxAge === null) && matchesProt(b)).length
+                    : 0;
+                note.innerHTML = hiddenUntagged
+                    ? `${hiddenUntagged} book${hiddenUntagged === 1 ? '' : 's'} ` +
+                      `hidden — no age range set yet. <a id="note-clear">Show all ages</a>`
+                    : '';
+                const nc = document.getElementById('note-clear');
+                if (nc) nc.onclick = () => {
+                    ageMin = ageMax = null;
+                    const mn = document.getElementById('age-min'), mx = document.getElementById('age-max');
+                    mn.value = ''; mx.value = '';
+                    mn.classList.remove('is-set'); mx.classList.remove('is-set');
+                    renderBooks();
+                };
+            }
+
             if (filtered.length === 0) {
-                grid.innerHTML = '<div class="empty-state">No books found.</div>';
+                grid.innerHTML = '<div class="empty-state">No books match those filters.</div>';
                 return;
             }
 
@@ -515,6 +665,8 @@
                         ${coverHTML}
                         <div class="book-info">
                             ${book.genre ? `<span class="book-genre-tag">${escapeHtml(book.genre)}</span>` : ''}
+                            ${book.minAge !== null && book.maxAge !== null
+                                ? `<span class="book-age-tag">${book.minAge}\u2013${book.maxAge}</span>` : ''}
                             <div class="book-title">${escapeHtml(book.title)}</div>
                             ${book.author ? `<div class="book-author">${escapeHtml(book.author)}</div>` : ''}
                             ${progressHTML}
