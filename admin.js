@@ -1,4 +1,19 @@
-// admin.js v3.8.0
+// admin.js v3.9.0
+// v3.9.0 — EPUB import: split multi-work spine files.
+//          The importer assumed one spine file == one chapter. Standard Ebooks
+//          (where most of this library comes from) puts every short work of a
+//          COLLECTION in a single XHTML file as sibling <article>/<section>
+//          elements — Aesop's Fables is 284 fables in one file. That imported as
+//          one 238KB "chapter" with 284 titles run together, and the alternative
+//          was splitting and naming 284 chapters by hand.
+//          findChapterUnits() now detects that shape and splits on it. Novels are
+//          unaffected: one heading per file means no split, and the old path runs.
+//          Also fixes a latent bug — title extraction used hTag.innerText, which
+//          is undefined on a DOMParser document in Firefox because innerText
+//          needs layout. Every imported title would have been blank there.
+//          Also: the seven period words previously held back are now flagged, at
+//          Jake's request. See the note above FLAGGED_WORD_GROUPS.review.
+// v3.8.0
 // v3.8.0 — Language filter: regex + audit. The persistent "always flag these"
 //          list now accepts /…/ patterns like the free-text search already did,
 //          patterns are validated on entry AND defensively at scan time (one bad
@@ -26,7 +41,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.8.0";
+const ADMIN_VERSION = "3.9.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -184,13 +199,17 @@ function getSanitizedReplacement(ch) {
 // "boob" in Pinocchio ("Land of the Boobies"). The gap wasn't that word — it was
 // the whole category of period vocabulary, which is most of what these books are.
 //
-// ⚠️ DELIBERATELY OMITTED, do not "helpfully" add them: queer, gay, savage, cock,
-// dwarf, guinea, negro. Every one of them appears constantly in 19th-century
-// children's literature in its innocent sense — "a queer little man", "the cock
-// crowed", "a guinea" as currency. Flagging them would fire on nearly every book
-// and train the reflex to click past the warnings, which costs more than it
-// saves. Add them to the CUSTOM list for a specific book if a specific book
-// warrants it.
+// ⚠️ The `review` group (v3.9.0) was previously held back on false-positive
+// grounds. Jake overruled that, and his reasoning is load-bearing enough to
+// record: he is not censoring, he is REWRITING. A flagged passage gets reworded
+// before students ever see it, and the goal is "type without worrying about what
+// they might read". Under that use, a false positive costs one edit and a false
+// negative costs a 6th grader reading it aloud — so a term that fires often is
+// still worth firing. As he put it: the ELA teacher wants to talk about it, the
+// typing teacher just needs them to type.
+//
+// They are kept in their OWN group rather than folded into `period` so the audit
+// view can warn that they're expected to fire a lot. Do not merge them.
 const FLAGGED_WORD_GROUPS = {
     // Racial and ethnic slurs. Not okay in any context.
     slur: [
@@ -232,6 +251,18 @@ const FLAGGED_WORD_GROUPS = {
         'lunatic', 'lunatics', 'feeble-minded', 'simpleton', 'simpletons',
         'mongoloid', 'spastic', 'midget', 'midgets',
         'retard', 'retards', 'retarded',
+    ],
+    // Innocent in period English, flagged anyway — see the note above.
+    // "a queer little man", "the cock crowed", "a guinea" as money, and every
+    // fairy-tale dwarf will trip these. That is expected and accepted.
+    review: [
+        'queer', 'queerly', 'queerest',
+        'gay', 'gayly', 'gaily', 'gayest',
+        'savage', 'savages', 'savagely', 'savagery',
+        'cock', 'cocks',
+        'dwarf', 'dwarfs', 'dwarves',
+        'guinea', 'guineas',
+        'negro', 'negroes', 'negros',
     ],
     // Anatomical / crude. The category that was missing entirely.
     anatomy: [
@@ -856,6 +887,7 @@ async function parseEpubFile(file) {
 
         const spineItems = Array.from(spine.getElementsByTagName("itemref"));
         let counter = 1;
+        let splitFiles = 0, splitUnits = 0;
 
         for (let item of spineItems) {
             const href = idToHref[item.getAttribute("idref")];
@@ -864,13 +896,26 @@ async function parseEpubFile(file) {
             const fullPath = (basePath === "") ? href : basePath + href;
             const content = await zip.file(fullPath).async("string");
             const doc = parser.parseFromString(content, "application/xhtml+xml");
-            
+
+            // One spine file is USUALLY one chapter, but not always — see
+            // findChapterUnits(). When it isn't, each unit becomes its own chapter.
+            const units = findChapterUnits(doc);
+            if (units) { splitFiles++; splitUnits += units.length; }
+            const roots = units || [doc.body];
+
+          for (const root of roots) {
             let title = `Chapter ${counter}`;
-            const hTag = doc.body.querySelector('h1, h2, h3');
-            if(hTag) title = hTag.innerText.trim().substring(0, 60);
+            const hTag = root.querySelector('h1, h2, h3, h4, h5, h6');
+            // textContent, NOT innerText. innerText is layout-dependent and comes
+            // back undefined on a DOMParser document in Firefox, which would have
+            // made `.trim()` throw and killed the whole import.
+            if (hTag) {
+                const t = (hTag.textContent || '').replace(/\s+/g, ' ').trim();
+                if (t) title = t.substring(0, 60);
+            }
 
             const segments = [];
-            const pTags = Array.from(doc.body.querySelectorAll("p"));
+            const pTags = Array.from(root.querySelectorAll("p"));
             
             pTags.forEach((el) => {
                 let text = el.textContent;
@@ -905,6 +950,7 @@ async function parseEpubFile(file) {
                 });
                 counter++;
             }
+          }
         }
         
         if (importErrors.length > 0) {
@@ -915,12 +961,18 @@ async function parseEpubFile(file) {
             // Scan for language issues
             const approved = activeBookId ? getApprovedWords(activeBookId) : [];
             const langIssues = scanForLanguageIssues(stagedChapters, approved);
+            // Say when a file was split, and into how many. 284 chapters appearing
+            // from a 7-item spine looks like a bug unless the importer explains
+            // itself — and if the split is WRONG, this is where you notice.
+            const splitNote = splitFiles
+                ? ` (split ${splitFiles} file${splitFiles === 1 ? '' : 's'} into ${splitUnits} sections)`
+                : '';
             if (langIssues.length > 0) {
                 showLanguageWarnings(langIssues, false);
-                statusEl.innerText = `Parsed ${stagedChapters.length} chapters. ⚠️ ${langIssues.length} language warning(s).`;
+                statusEl.innerText = `Parsed ${stagedChapters.length} chapters${splitNote}. ⚠️ ${langIssues.length} language warning(s).`;
                 statusEl.style.borderColor = "#ffaa00";
             } else {
-                statusEl.innerText = `✅ Parsed ${stagedChapters.length} chapters. No character issues or language warnings found.`;
+                statusEl.innerText = `✅ Parsed ${stagedChapters.length} chapters${splitNote}. No character issues or language warnings found.`;
                 statusEl.style.borderColor = "#00ff41";
             }
         }
@@ -930,6 +982,47 @@ async function parseEpubFile(file) {
         statusEl.innerText = "Parse Error: " + e.message;
         statusEl.style.borderColor = "#ff3333";
     }
+}
+
+// ─── Multi-work spine files (v3.9.0) ─────────────────────────────────────────
+//
+// The importer's founding assumption was "one spine file, one chapter". That
+// holds for novels and breaks for COLLECTIONS. Standard Ebooks — the source of
+// most of this library — puts every short work of a collection in a single XHTML
+// file as sibling <article> or <section> elements, each with its own heading.
+// Aesop's Fables is 284 fables in one 238KB file. Under the old rule that
+// imported as ONE chapter with 284 titles run together into the prose.
+//
+// Returns an array of unit elements to treat as chapters, or null to keep the
+// old whole-file behaviour.
+//
+// Rules, and why each one is there:
+//
+//   1. A unit must have BOTH a heading and a <p>. A wrapper with a heading and no
+//      prose is a part divider, not a chapter; a <section> of pure markup is
+//      neither.
+//   2. Only LEAVES count — a unit containing another candidate unit is a
+//      container, not a chapter. This is what makes a parts-and-chapters book
+//      split into its chapters rather than its three parts.
+//   3. Two or more, or no split. A single <article> wrapping a whole chapter is
+//      the normal case and must go down the untouched path.
+//
+// Novels are therefore unaffected: one heading per file yields at most one
+// candidate, rule 3 declines, and the original code runs byte-for-byte.
+function findChapterUnits(doc) {
+    if (!doc || !doc.body) return null;
+    const UNIT = 'article, section';
+    const HEADING = 'h1, h2, h3, h4, h5, h6';
+
+    const candidates = Array.from(doc.body.querySelectorAll(UNIT))
+        .filter(el => el.querySelector(HEADING) && el.querySelector('p'));
+    if (candidates.length < 2) return null;
+
+    const candidateSet = new Set(candidates);
+    const leaves = candidates.filter(el =>
+        !Array.from(el.querySelectorAll(UNIT)).some(d => candidateSet.has(d)));
+
+    return leaves.length >= 2 ? leaves : null;
 }
 
 // --- WIZARD LOGIC ---
@@ -2449,10 +2542,11 @@ if (langScanBtn) {
         const LABEL = {
             slur: 'Racial / ethnic slurs', profanity: 'Profanity',
             period: 'Period terms (archaic, offensive today)',
+            review: 'Review — innocent in period English, expect false positives',
             anatomy: 'Anatomical / crude', custom: 'Your custom terms',
         };
         const COLOR = { slur:'#ff6b6b', profanity:'#ffa726', period:'#ba9ae0',
-                        anatomy:'#4fc3f7', custom:'#88ddaa' };
+                        review:'#c0b060', anatomy:'#4fc3f7', custom:'#88ddaa' };
 
         let html = '';
 
@@ -2483,7 +2577,7 @@ if (langScanBtn) {
                 terms.filter(t => t.source === 'custom').length + ' custom \u00b7 ' +
                 terms.filter(t => t.kind === 'regex').length + ' regex</div>';
 
-        for (const cat of ['custom', 'slur', 'period', 'profanity', 'anatomy']) {
+        for (const cat of ['custom', 'slur', 'period', 'profanity', 'anatomy', 'review']) {
             const list = byCat[cat];
             if (!list || !list.length) continue;
             html += '<div style="margin-top:10px;"><div style="color:' + (COLOR[cat]||'#aaa') +
@@ -2504,8 +2598,9 @@ if (langScanBtn) {
         html += '<div style="margin-top:12px; color:#666; font-size:0.95em; border-top:1px solid #330022; padding-top:8px;">' +
                 'Built-in terms live in <code>FLAGGED_WORD_GROUPS</code> in admin.js and need a ' +
                 'code change. Custom terms save to <code>settings/languageFilter</code> and apply ' +
-                'to every book immediately. Some words are deliberately NOT flagged because they ' +
-                'are innocent in period English \u2014 see the comment above the list.</div>';
+                'to every book immediately. The <b>Review</b> group is expected to fire often \u2014 ' +
+                'those words are innocent in period English and are flagged so they can be ' +
+                'reworded, not because they are wrong.</div>';
 
         out.innerHTML = html;
     }
