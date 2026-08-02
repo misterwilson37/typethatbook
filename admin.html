@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TypeThatBook Admin v2.9.0</title>
+    <title>TypeThatBook Admin v3.0.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
@@ -260,6 +260,36 @@
                 </div>
                 <div id="repair-results" class="hidden" style="margin-top:10px; padding:10px; background:#001a2a; border:1px solid #004466; color:#66ccff; font-size:0.85em;"></div>
                 <div id="audit-results" class="hidden" style="margin-top:15px; background:#1a1a00; border:1px solid #444400; padding:15px; max-height:400px; overflow-y:auto;"></div>
+                <!-- Custom wordlist + free-text search. The built-in FLAGGED_WORDS list
+                     is hardcoded, so before this there was no way to flag a word it
+                     didn't know about, or to look for one yourself. -->
+                <details id="language-tools" style="margin-top:10px; background:#150011; border:1px solid #330022; padding:10px;">
+                    <summary style="cursor:pointer; color:#cc66cc; font-size:0.85em;">Word list &amp; search</summary>
+
+                    <div style="margin-top:12px;">
+                        <label style="font-size:0.8em; color:#cc99cc;">Find any word or phrase in this book</label>
+                        <div style="display:flex; gap:6px; margin-top:4px;">
+                            <input type="text" id="language-search-input" placeholder="e.g. boobies"
+                                style="flex:1; padding:5px 8px; background:#222; border:1px solid #444; color:#eee; font-family:inherit; font-size:0.85em; border-radius:3px;">
+                            <button id="language-search-btn" class="secondary-btn" style="width:auto; padding:5px 14px; font-size:0.85em;">Search</button>
+                        </div>
+                        <div style="font-size:0.72em; color:#886688; margin-top:3px;">
+                            Whole words by default. Wrap in <code>/…/</code> for a regular expression.
+                        </div>
+                    </div>
+
+                    <div style="margin-top:14px; border-top:1px solid #330022; padding-top:12px;">
+                        <label style="font-size:0.8em; color:#cc99cc;">Always flag these words (saved for every book)</label>
+                        <div style="display:flex; gap:6px; margin-top:4px;">
+                            <input type="text" id="custom-word-input" placeholder="add a word…"
+                                style="flex:1; padding:5px 8px; background:#222; border:1px solid #444; color:#eee; font-family:inherit; font-size:0.85em; border-radius:3px;">
+                            <button id="custom-word-add-btn" class="secondary-btn" style="width:auto; padding:5px 14px; font-size:0.85em;">Add</button>
+                        </div>
+                        <div id="custom-word-list" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;"></div>
+                        <div id="custom-word-status" style="font-size:0.72em; color:#886688; margin-top:5px; min-height:1em;"></div>
+                    </div>
+                </details>
+
                 <div id="language-results" class="hidden" style="margin-top:15px; background:#1a0011; border:1px solid #440022; padding:15px; max-height:400px; overflow-y:auto;"></div>
             </div>
 
@@ -281,8 +311,10 @@
                     <label>JSON Segments</label>
                     <textarea id="json-content" rows="15"></textarea>
                     
-                    <div style="display:flex; gap:10px;">
+                    <div id="chap-edit-position" class="hidden" style="font-size:0.8em; color:#4B9CD3; margin-bottom:6px;"></div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
                         <button id="update-staged-btn" class="hidden">Update Staged Chapter</button>
+                        <button id="update-next-btn" class="hidden" style="background:#224422; border-color:#336633;">Update &amp; Next →</button>
                         <button id="save-btn">Save Directly to DB</button>
                     </div>
                 </div>
