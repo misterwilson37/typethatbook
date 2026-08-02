@@ -1,4 +1,4 @@
-// staff-admin.js — Staff tab for admin.html
+// staff-admin.js v2.2.0 — Staff tab for admin.html
 window.STAFF_ADMIN_VERSION = '2.2.0';
 //
 // v2.0.0 — REBUILT to need no command line. v1.0.0 called Cloud Functions to set

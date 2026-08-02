@@ -1,16 +1,178 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v3.6.0 — bulk-upload workflow fixes. books/library fixes added. Batches A and B shipped (learn.js 2.1.0, lessons-admin 1.7.0). §2 corrected: the "one revision behind" table was stale
-     and has been removed; Round 1 is fully deployed, verified by diff 2026-08-01.
-     §0 and §11 are Round 2 (Dvorak). Underwood's §1, §3-§10, §12 are verbatim. -->
+<!-- HANDOFF.md v4.0.0 — Round 3 (Blick): Adventure Mode out of alpha, project-wide
+     version alignment. New §A is Round 3 and is the first thing to read. §0 and §11
+     are Round 2 (Dvorak). Underwood's §1, §3-§10, §12 are verbatim. -->
 
-**Claude instance:** **Dvorak** (Round 2) · **Underwood** (Round 1)
-**Session:** Round 2 — 2026-08-01 · Round 1 — 2026-07-30 → 2026-07-31
+**Claude instance:** **Blick** (Round 3) · **Dvorak** (Round 2) · **Underwood** (Round 1)
+**Session:** Round 3 — 2026-08-02 · Round 2 — 2026-08-01 · Round 1 — 2026-07-30 → 2026-07-31
 
 > *On the names:* Underwood built the typewriter that taught America to touch-type.
 > Dvorak was an educational psychologist who studied typing instruction and finger
-> motion, which is what Round 2 was about. Predecessors on Ellis Web Bell: Stedman,
-> Fable. (Jake's wife types Dvorak. Unplanned, and welcome.)
+> motion, which is what Round 2 was about. Blick is the Blickensderfer 5 (1893),
+> whose trick was a swappable typewheel — one machine, pull one cylinder, drop in
+> another, same keystrokes come out looking completely different. Round 3 was the
+> view switcher. Predecessors on Ellis Web Bell: Stedman, Fable. (Jake's wife types
+> Dvorak. Unplanned, and welcome.)
+
+---
+
+## A. Round 3 — Adventure Mode out of alpha (2026-08-02)
+
+**Shipped:** `game.js` 3.5.0 · `style.css` 3.2.0 · `adventure-renderer.js` **1.0.0** ·
+`adventure.css` **1.0.0** · `versions.js` 1.2.0 · header-comment corrections to
+`admin.js`, `lessons-admin.js`, `keyboard.js`, `staff-admin.js`, `index.js`,
+`game.html`, `learn.html`.
+
+### A.1 What the feature is
+
+Adventure Mode existed since `game.js` 3.0.1 but was reachable only through
+Settings → View, labelled "(alpha)". Jake's read after a term of use: it gets more
+kid-attention than Classic does, so the better mode was the hidden one.
+
+Now: **a full-screen splash on every new book**, two cards, each with an animated
+SVG mock of the mode it selects. The choice is stored on the student's account and
+follows them between machines.
+
+### A.2 The three storage keys, and why each exists
+
+| key | where | what it answers |
+|---|---|---|
+| `viewMode` | `users/{uid}/profile/info` + `localStorage.ttb_view` | which view |
+| `viewRemember` | same document + `localStorage.ttb_viewRemember` | "stop asking me" |
+| `ttb_splashBook` | **sessionStorage** | "already asked about this book, this tab" |
+
+`viewMode` and `viewRemember` went into `profile/info` — the document
+`loadInitials()` already read — so **the feature costs zero extra reads.** That
+required splitting the read out into `loadProfileInfo()`, because the view has to
+be known *before* `loadUserProgress()` while initials are wanted at the end of the
+chain. Two consumers, one read. ⚠️ **Do not add a second profile document.**
+
+Per-book suppression is sessionStorage on purpose: it's a tab-lifetime question,
+costs nothing, survives a reload, and resets on a new tab. Firestore would be
+paying to store an answer nobody needs tomorrow.
+
+### A.3 Hot swap replaced `location.reload()`
+
+The 3.4.x settings toggle persisted the choice and reloaded the page. Fine for a
+deliberate settings change; **not** fine for the case the feature is actually for —
+a student sits at a Chromebook they've never used, localStorage is empty or holds
+whatever the last kid picked, and Firestore has the real answer. Reloading on every
+new machine is not acceptable.
+
+`applyViewMode(mode, { replay, persist, remember })` now mounts or unmounts the
+renderer in place. Two things it has to do that aren't obvious:
+
+- **Replay.** A renderer mounted mid-session missed `textLoaded` and draws
+  *nothing* — that's its documented behaviour, not a bug. So the swap re-emits
+  `textLoaded` + `positionSet`. The emit block was extracted out of `loadChapter()`
+  into `emitTextLoaded()` so both callers share one copy.
+- **Repaint the keyboard.** The renderer's keyboard skin rewrites `.key` inline
+  backgrounds via MutationObserver. `unmount()` disconnects the observer but leaves
+  the colours it already applied, so returning to Classic calls
+  `colorKeyboardKeys()`.
+
+⚠️ Failure is one-directional by design: if the module won't load we fall back to
+Classic and **do not persist**. A student on a flaky connection must not end up
+with a stored preference for a view that didn't load.
+
+### A.4 Ordering in the auth handler — this is load-bearing
+
+```
+loadBookMetadata()  →  loadProfileInfo()  →  resolveViewMode()  →  loadUserProgress()
+```
+
+`loadUserProgress()` calls `loadChapter()`, which emits `textLoaded`. Resolving the
+view first means the correct renderer is already listening and **no replay is
+needed at boot**. Move `resolveViewMode()` after it and adventure boots to a blank
+canvas until the next chapter.
+
+### A.5 The splash does not touch `isModalOpen` / `isInputBlocked`
+
+It's an overlay at `z-index: 200`, above `#modal`. Whatever the modal chain put
+underneath it — the start modal, or the initials prompt if `loadInitials()` got
+there first — is simply revealed when the splash closes. **No chain surgery was
+needed and none should be added.** Keystrokes are swallowed by a capture-phase
+listener with `stopPropagation()`, which cannot corrupt modal state the way
+borrowing the flags could. Arrow keys move the selection, Enter commits.
+
+`maybeShowViewSplash()` is called from the tail of `loadChapter()`, fire-and-forget.
+That single insertion point covers every entry path — boot, the Settings book
+picker, a library link — because the sessionStorage check is what makes it
+once-per-book rather than once-per-chapter. It skips practice mode: an AI drill
+isn't a book.
+
+### A.6 Renderer 1.0.0
+
+No rendering changes. One behaviour change: **the diagnostic overlay now needs
+Ctrl+Shift+` or Cmd+Shift+`**. It was a bare backtick, which is a real key in the
+virtual keyboard's `numRow` for both QWERTY and Dvorak — any student could open it
+by typing. Harmless (read-only, typing continues) but it covers the canvas and
+reads as a crash. Jake's call was that the information itself is fine to expose;
+the modifier just stops it happening by accident.
+
+### A.7 Version alignment — and the mechanism that keeps it
+
+Every file carries its version twice: a runtime constant (what renders) and a
+header comment (what a human reads). They kept drifting. `admin.js` was at header
+v2.7.5 with constant 3.6.0 — **nine minor versions adrift**. That's ball-drop 5 in
+§6, still happening.
+
+Corrected everywhere. But the durable fix is **`versions.js` 1.2.0**, which now
+parses the leading comment block of every JS file and flags a mismatch in
+`index.html`'s build panel in amber. Discipline became detection.
+
+Convention it relies on: **the first `v<semver>` in the leading `//` block is the
+file's current version.** True for `// admin.js v3.6.0` and for a newest-first
+changelog like `game.js`'s. Stylesheets are exempt — their comment *is* the source.
+If you add a file, keep that shape or teach `readHeaderVersion()` about it.
+
+⚠️ `CACHE_KEY` went to `ttb_buildVersions_v2` because entries gained a `header`
+field. Don't reuse v1.
+
+### A.8 Testing this solo — ~10 minutes, no students
+
+1. **The splash appears.** Open any book. Two cards, Classic pre-selected (or
+   whichever you last used). Arrow keys should move the selection; Enter commits.
+2. **It's per book, not per load.** Reload the same book — no splash. Switch books
+   in Settings — splash. Open a new tab — splash.
+3. **Remember works.** Tick "Use this for every book", pick one, then switch books.
+   No splash. Settings → untick "Ask me for each new book" → switch books → splash
+   returns.
+4. **Hot swap, no reload.** Type into the middle of a chapter, open Settings, flip
+   View. The page must **not** reload and you must land in the same place, same
+   position, with the world drawn. This is the whole point of A.3 — if the canvas
+   is blank, `emitTextLoaded()` isn't firing on the swap.
+5. **Classic keyboard un-tints.** Switch adventure → classic and check the virtual
+   keyboard is back to bright finger colours, not parchment tones.
+6. **The choice follows you.** Pick Adventure, then open the app in a private
+   window / another machine and sign in as the same account. It should boot into
+   Adventure with no reload and no flash.
+7. **Different student, same seat.** Sign out, sign in as a second test account.
+   Their preference must win over the localStorage left behind. Same shared-cart
+   case as the `learn.js` position WAL.
+8. **Backtick is safe.** Type a backtick in Adventure — nothing. Ctrl+Shift+`
+   should still open the diagnostic.
+9. **Build panel.** `index.html` → build info. Every file listed, no amber header
+   warnings. Deliberately break one (edit a header comment) to confirm it flags.
+
+### A.9 Not done — queued, in Jake's priority order
+
+1. **Practice mode at class scale** (§9 item 1). Discussed this session; see the
+   engine-fallback analysis in the conversation. **Blocked on the CLI question:**
+   `generatePractice` is a Cloud Function, and whether Jake can edit it from the
+   Google Cloud console's inline editor (Gen 2 / Cloud Run functions) has **not
+   been verified**. Verify before designing anything server-side. Client-side
+   throttling in `game.js` needs no deploy and is the fallback.
+2. **Flagged-words list: regex support + an audit view.** Free-text search already
+   accepts `/…/` (see §11 "Bulk-upload workflow"); the persistent list in
+   `settings/languageFilter` does not, and there is no UI to see the effective
+   list at all. `FLAGGED_WORDS` also needs a content review — it did not contain
+   "boob", which Jake hit in Pinocchio.
+3. **Two new book tags: target age range + protagonist gender**, with library
+   filtering by *overlapping* age range. Touches `admin.js` (metadata form),
+   `books/{id}` documents, and `index.html` / `index.js` (filter UI). Note there
+   is no backfill path for the ~existing books other than editing each one.
 
 ---
 

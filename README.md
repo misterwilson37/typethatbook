@@ -55,9 +55,17 @@ nothing is fetched until the panel is opened. See the header of `versions.js` fo
 why a shared version *manifest* was rejected (a stale cached file would report the
 new version while running old code — it would lie exactly when you need the truth).
 
-`game.html`, `admin.html`, and `reports.html` still carry hardcoded versions in
-their `<title>`. Those are page-shell versions, independent of the JS that drives
-them, and they are NOT yet driven from a constant. Remaining inconsistency.
+As of `versions.js` **v1.2.0** the build panel also compares each JS file's
+**runtime constant against its header comment** and flags a mismatch in amber.
+Both numbers exist in every file, both kept drifting (`admin.js` was nine minor
+versions adrift), and keeping them aligned was a discipline problem until it
+became a detected one. The convention: **the first `v<semver>` in a file's leading
+`//` comment block is its current version.** Stylesheets are exempt — their comment
+is the source of truth.
+
+`game.js` now sets `document.title` from `VERSION` at runtime. `admin.html` and
+`reports.html` still carry hardcoded page-shell versions in their `<title>` and are
+NOT yet driven from a constant. Remaining inconsistency.
 
 ### Layout
 
@@ -68,34 +76,40 @@ firebase-config.js      v1.1.1   Firebase init. Exports db, auth, storage, and
                                  it fixes Safari's CORS block on Firestore's
                                  WebChannel transport. Do not remove.
 
-versions.js             v1.0.0   Reads every file's version constant out of the
+versions.js             v1.2.0   Reads every file's version constant out of the
                                  deployed files, for index.html's build panel.
-                                 No imports, no side effects, safe anywhere.
+                                 v1.2.0 also parses header comments and flags
+                                 drift. No imports, no side effects.
 
-game.js                 v3.4.0   4,802 lines. Typing engine, sprint timer,
+game.js                 v3.5.0   ~5,100 lines. Typing engine, sprint timer,
                                  WPM/accuracy math, streaks, mistake tracking,
                                  leaderboard, practice mode, chapter navigation,
                                  all modals. Write-ahead-log persistence.
-adventure-renderer.js   v0.4.0   Adventure Mode — the illustrated/animated skin.
+                                 v3.5.0 owns the view-choice splash and
+                                 applyViewMode() — the Classic/Adventure switch.
+adventure-renderer.js   v1.0.0   Adventure Mode — the illustrated/animated skin.
                                  Listens for _ttbEmit('keystroke') from game.js.
-adventure.css           v0.0.7   Adventure Mode styling.
+                                 Out of alpha as of 1.0.0.
+adventure.css           v1.0.0   Adventure Mode styling.
 
-learn.js                v1.7.0   Lesson-mode engine (separate from game.js).
+learn.js                v2.1.0   Lesson-mode engine (separate from game.js).
                                  Same WAL/flush persistence pattern as game.js.
 keyboard.js             v1.1.1   On-screen keyboard widget, used by learn.html.
 
-admin.js                v2.7.5   Book authoring, EPUB import, chapter editor.
-lessons-admin.js        v1.6.0   Lesson + class authoring, CSV roster import,
-                                 lessons JSON import AND export (v1.6.0), gate
-                                 audit table.
+admin.js                v3.6.0   Book authoring, EPUB import, chapter editor.
+lessons-admin.js        v1.7.0   Lesson + class authoring, CSV roster import,
+                                 lessons JSON import AND export, gate audit
+                                 table, stuck-student scan (1.7.0).
                                  Version exposed as window.LESSONS_ADMIN_VERSION
                                  so admin.js can read it.
+staff-admin.js          v2.2.0   Staff tab: roles, schools, classes, grants.
 
-style.css               v3.1.6   Main stylesheet.
+style.css               v3.2.0   Main stylesheet. v3.2.0 adds #view-splash.
 
-index.js                v1.2      Cloud Function: generatePractice. Calls Gemini to
+index.js                v1.0.0    Cloud Function: generatePractice. Calls Gemini to
 package.json                      generate custom practice paragraphs targeting a
                                   student's problem characters. 5/user/day cap.
+                                  NOT deployable from this repo — needs a CLI.
 ```
 
 Note: `index.js` and `package.json` are the **Cloud Functions** source and are
@@ -192,11 +206,22 @@ footer exist so you can confirm which build is actually loaded.
 - **Bump the runtime constant, not just the header comment.** The constant is what
   renders on the page; a header-only bump is invisible and actively misleading.
   See the version table above for where each file's constant lives.
+- **Bump both, and they must agree.** Constant, header comment, and any `<title>`
+  are three copies of one fact. `index.html`'s build panel flags constant-vs-header
+  disagreement in amber as of `versions.js` v1.2.0 — if you see amber there, one of
+  the two numbers is a lie and the constant is the one telling the truth.
 
 ## localStorage keys
 
 As of `game.js` v3.4.0 the app keeps real state locally. Clearing site data loses
 at most one unflushed session; it is not destructive beyond that.
+
+View-mode keys added in v3.5.0: `ttb_view` (`classic` | `adventure`) and
+`ttb_viewRemember` (`'1'` | `'0'`). Both are a **cache** — the durable copies live
+in `users/{uid}/profile/info` as `viewMode` / `viewRemember` and win on conflict,
+which is what makes the choice follow a student between machines. There is also a
+**sessionStorage** key, `ttb_splashBook`, holding the book id the splash last asked
+about in this tab; that one is deliberately not durable.
 
 | key | what |
 |---|---|

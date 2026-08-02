@@ -1,5 +1,7 @@
 // keyboard.js — Shared keyboard renderer + hand guide
 // Imported by both game.js and learn.js.
+// keyboard.js v1.1.1
+// v1.1.1 — patch release; see KB_VERSION.
 // v1.1.0 — fixes duplicate-ID bug (two keyboards in learn.html DOM),
 //           all lookups now scoped to containerEl rather than document.
 export const KB_VERSION = '1.1.1';

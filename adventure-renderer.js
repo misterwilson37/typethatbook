@@ -1,4 +1,15 @@
-// adventure-renderer.js — v0.4.0
+// adventure-renderer.js — v1.0.0
+//
+// v1.0.0 — OUT OF ALPHA. Adventure Mode is now offered to every student on a
+//   first-run splash (game.js >= 3.5.0) rather than hiding behind Settings →
+//   View, so the version number stops saying "prototype". No rendering changes.
+//   One behaviour change:
+//   - DIAGNOSTIC OVERLAY now needs Ctrl+Shift+` or Cmd+Shift+` instead of a
+//     bare backtick. Backtick is a real key in the virtual keyboard's numRow
+//     for both QWERTY and Dvorak, so any student could open the overlay by
+//     typing it — harmless (it's read-only, typing continues normally) but it
+//     covers part of the canvas and looks like a crash to a sixth grader.
+//     The modifier keeps it a one-keystroke teacher tool.
 //
 // v0.4.0 — Tilt-back corrections + chapter close-up strip:
 //   - TILT-BACK: each backspace at the current letter undoes exactly one
@@ -135,7 +146,7 @@
 //   - Survives missed events. If textLoaded was missed, the renderer just
 //     shows nothing until the next one arrives.
 
-export const RENDERER_VERSION = '0.4.0';
+export const RENDERER_VERSION = '1.0.0';
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -332,9 +343,15 @@ class AdventureRenderer {
     this._on('ttb:complete',    (d) => this._onComplete(d));
     this._on('ttb:backspaceUndo', (d) => this._onBackspaceUndo(d));
 
-    // Backtick toggles diagnostic overlay (shows internal state on canvas)
+    // Ctrl+Shift+` (or Cmd+Shift+` on a Mac) toggles the diagnostic overlay.
+    // v1.0.0: was a bare backtick, which is a typeable key in the book text
+    // AND on the virtual keyboard, so students opened it by accident.
     const onKey = (e) => {
-      if (e.key === '`') { this._debug = !this._debug; }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey &&
+          (e.key === '`' || e.key === '~' || e.code === 'Backquote')) {
+        e.preventDefault();
+        this._debug = !this._debug;
+      }
     };
     document.addEventListener('keydown', onKey);
     this._listeners.push({ type: 'keydown', fn: onKey });

@@ -1,11 +1,13 @@
-/* adventure.css v0.0.7 — view-mode skin for Adventure Mode */
+/* adventure.css v1.0.0 — view-mode skin for Adventure Mode */
+/* v1.0.0: out of alpha. No rule changes; version aligned with              */
+/*         adventure-renderer.js 1.0.0 and the game.js 3.5.0 splash.        */
 /* v0.0.7: book-info-bar visible in adventure mode (parchment strip)         */
 /* v0.0.6: target key label inherits inline finger color from observer       */
 /* v0.0.5: target key turns black, not red; HUD streak override removed       */
 /* v0.0.4: number & symbol positioning fixed for round keys                   */
 /* v0.0.3: keyboard + modal skin (round typewriter keys, parchment modals)    */
 /* v0.0.2: bumped for v3.0.1 release; machine-readable version stamp          */
-body::after { content: "v0.0.7"; display: none; }
+body::after { content: "v1.0.0"; display: none; }
 
 /* Every rule in this file is scoped under body.view-adventure. Classic view
    never sees any of this. */

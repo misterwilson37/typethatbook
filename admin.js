@@ -1,4 +1,4 @@
-// admin.js v2.7.5
+// admin.js v3.6.0
 import { db, auth, storage } from "./firebase-config.js";
 import { initLessonsPanel, setStaffHooks } from "./lessons-admin.js";
 import { initStaffPanel, initStaffPanelContent, syncOwnClaimsAfterClassChange }

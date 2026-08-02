@@ -1,3 +1,7 @@
+// index.js v1.0.0 — Cloud Functions source. Only generatePractice() is
+// deployed. NOT deployable from this repo: it needs `firebase deploy`, and
+// Jake has no CLI. Treat this file as the record of what is running, and
+// bump this line whenever the deployed function is changed.
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");

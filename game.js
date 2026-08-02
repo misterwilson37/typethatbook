@@ -1,3 +1,21 @@
+// v3.5.0 - Adventure Mode leaves alpha. Three changes, one feature:
+//          1. FIRST-RUN SPLASH. A student who has never chosen a view gets a
+//             full-screen picker with an animated preview of each mode before
+//             they type a character. Adventure was previously reachable only
+//             through Settings → View, which most students never opened, so the
+//             mode with the better engagement numbers was the hidden one.
+//          2. THE CHOICE FOLLOWS THE STUDENT. viewMode now lives in
+//             users/{uid}/profile/info alongside initials, and is read as part
+//             of the SAME getDoc() that already loads initials — no extra reads.
+//             localStorage stays as the pre-auth fast path so the correct view
+//             paints before Firestore answers, and is reconciled after.
+//          3. HOT SWAP, NO RELOAD. applyViewMode() mounts/unmounts the renderer
+//             and replays textLoaded + positionSet into it. The old settings
+//             toggle called location.reload(), which was acceptable for a
+//             deliberate settings change but not for "you sat down at a
+//             different Chromebook and we noticed".
+//          Also: document.title driven from VERSION (open work §9 item 5);
+//          "(alpha)" removed from the Settings label.
 // v3.4.2 - practice_sessions now also carries classId/schoolId. Without them the
 //          collection was unscopeable in security rules, so its read rule had to
 //          be "any staff member, any district" — and those documents contain
@@ -75,7 +93,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.4.2";
+const VERSION = "3.5.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -84,10 +102,49 @@ const SPAM_THRESHOLD = 3;
 
 // ─── Adventure Mode integration ────────────────────────────────────────────
 // View toggle. 'classic' = original DOM-rendered text; 'adventure' = canvas
-// renderer. Persisted to localStorage. The classic view is wholly unchanged
-// when in adventure mode game.js still drives the text-stream DOM (so all
-// position/state logic remains valid) — that DOM is just hidden via CSS.
-const VIEW_MODE = localStorage.getItem('ttb_view') || 'classic';
+// renderer. The classic view is wholly unchanged: when in adventure mode
+// game.js still drives the text-stream DOM (so all position/state logic
+// remains valid) — that DOM is just hidden via CSS.
+//
+// v3.5.0 — VIEW_MODE is `let`, not `const`. It can now change mid-session
+// three ways: the settings dropdown, the first-run splash, and reconciliation
+// against the student's Firestore profile when they sit down at a machine
+// they've never used. Every read site (triggerHardStop, the settings modal)
+// reads the live value, so nothing needs to know a swap happened.
+//
+// Storage, in priority order:
+//   localStorage 'ttb_view'                — pre-auth fast path, paints the
+//                                            right view before Firestore answers
+//   users/{uid}/profile/info.viewMode      — the durable copy, follows the
+//                                            student between machines
+// The PRESENCE of a valid 'ttb_view' key is also what "has chosen" means
+// locally; absence in both places is what triggers the splash. Students who
+// already found the Settings toggle are grandfathered in and never see it.
+const VALID_VIEWS = ['classic', 'adventure'];
+const _storedView = localStorage.getItem('ttb_view');
+let VIEW_MODE = VALID_VIEWS.includes(_storedView) ? _storedView : 'classic';
+
+// v3.5.0 — the splash asks on every NEW BOOK by default, because the answer
+// can legitimately differ per book: Adventure suits a romp, Classic suits
+// something you're reading for content. `viewRemember` is the student's
+// "stop asking, just use my pick" opt-out. Default false, so every student
+// sees the picker at least once — Jake's call, and correct: the previews are
+// the advertisement.
+//
+// Per-book suppression is sessionStorage, not Firestore. It answers "have I
+// already asked about THIS book in THIS sitting", which is a tab-lifetime
+// question, costs nothing, and survives a reload (sessionStorage does) while
+// resetting cleanly on a new tab or a new day.
+let viewRemember = localStorage.getItem('ttb_viewRemember') === '1';
+const SPLASH_BOOK_KEY = 'ttb_splashBook';
+
+// Live renderer handles. `adventureModule` caches the dynamic import so a
+// student toggling back and forth doesn't re-fetch a 2,400-line module each
+// time; `rendererMounted` is the truth about whether listeners are attached
+// (VIEW_MODE alone isn't — the import can fail).
+let adventureModule = null;
+let rendererMounted = false;
+let rendererVersionStr = '—';
 
 // Event bus to the adventure renderer. Each emit is fire-and-forget; if the
 // renderer isn't mounted nothing happens. Wrapped in try/catch so a buggy
@@ -128,6 +185,360 @@ async function updateVersionBanner(advRendererVersion) {
         ` &nbsp;·&nbsp; <span style="opacity:.7">style.css</span> v${styleVer}` +
         ` &nbsp;·&nbsp; <span style="opacity:.7">adventure.css</span> v${advCssVer}` +
         ` &nbsp;·&nbsp; <span style="opacity:.7">adventure-renderer.js</span> v${advJsVer}`;
+}
+
+// Everything the renderer needs to reconstruct the current chapter from
+// scratch. Called on every chapter load AND whenever the renderer is mounted
+// mid-session — a renderer that missed textLoaded draws nothing at all (that's
+// its documented behaviour), so a hot swap has to hand it the world again.
+function emitTextLoaded() {
+    _ttbEmit('textLoaded', {
+        fullText: fullText,
+        position: currentCharIndex,
+        chapterNum: currentChapterNum,
+        chapterTitle: (bookMetadata && bookMetadata.chapters)
+            ? (bookMetadata.chapters.find(c => c.id === `chapter_${currentChapterNum}`) || {}).title
+            : null,
+        bookTitle: bookMetadata && bookMetadata.title,
+        // Chapter map data (renderer v0.3.0+). Practice mode sends null so
+        // the map hides — an AI drill isn't part of the book's journey.
+        chapters: (!isPracticeMode && bookMetadata && bookMetadata.chapters)
+            ? bookMetadata.chapters.map(c => ({
+                num: c.id.replace('chapter_', ''),
+                title: c.title || ''
+              }))
+            : null,
+        completedChapters: Array.from(completedChapters),
+    });
+}
+
+// ─── View mode: apply, persist, reconcile ──────────────────────────────────
+
+// Switch views in place. Replaces the v3.4.x location.reload().
+//
+// `replay` re-hands the current chapter to a freshly mounted renderer. It's
+// false at boot (loadChapter hasn't run yet and will emit on its own) and true
+// for every mid-session swap.
+//
+// Failure mode is deliberately one-directional: if the renderer module won't
+// load, we fall back to classic and DON'T persist adventure. A student on a
+// flaky connection should not end up with a stored preference for a view that
+// didn't load.
+async function applyViewMode(mode, opts) {
+    const o = opts || {};
+    if (!VALID_VIEWS.includes(mode)) mode = 'classic';
+
+    const wantRenderer = (mode === 'adventure');
+    // Nothing to do if we're already in this state. The rendererMounted check
+    // matters at boot: VIEW_MODE can read 'adventure' from localStorage before
+    // init() has mounted anything.
+    if (mode === VIEW_MODE && wantRenderer === rendererMounted) {
+        if (o.persist) await saveViewMode(mode, o.remember);
+        return true;
+    }
+
+    let ok = true;
+
+    if (wantRenderer && !rendererMounted) {
+        try {
+            if (!adventureModule) adventureModule = await import('./adventure-renderer.js');
+            adventureModule.mountAdventureRenderer();
+            rendererMounted = true;
+            rendererVersionStr = adventureModule.RENDERER_VERSION || '?';
+        } catch (e) {
+            console.warn('Adventure renderer failed to load; staying in classic view.', e);
+            rendererVersionStr = 'failed';
+            mode = 'classic';
+            ok = false;
+        }
+    } else if (!wantRenderer && rendererMounted) {
+        try { adventureModule.unmountAdventureRenderer(); } catch (e) { console.warn(e); }
+        rendererMounted = false;
+    }
+
+    VIEW_MODE = mode;
+    document.body.classList.toggle('view-adventure', mode === 'adventure');
+    document.body.classList.toggle('view-classic',   mode === 'classic');
+
+    if (mode === 'classic') {
+        // The renderer's keyboard skin repaints .key inline backgrounds to a
+        // vintage palette via MutationObserver. unmount() disconnects the
+        // observer but leaves the colours it already applied, so the keyboard
+        // would stay parchment-toned in classic view. Repaint it.
+        colorKeyboardKeys();
+        // The classic text stream was transform-positioned while hidden;
+        // re-run the layout so it isn't scrolled to a stale offset.
+        highlightCurrentChar();
+        centerView();
+    } else if (o.replay && fullText) {
+        emitTextLoaded();
+        _ttbEmit('positionSet', { position: currentCharIndex, isResume: true });
+    }
+
+    updateVersionBanner(rendererVersionStr);
+
+    if (ok && o.persist) await saveViewMode(mode, o.remember);
+    return ok;
+}
+
+// Writes both copies. localStorage first and unconditionally, so the choice
+// survives even for signed-out / anonymous students; Firestore only when
+// there's a real account to hang it on.
+//
+// Cost: one write, only when a student actually changes views. Folded into the
+// same document as initials so it never adds a read — loadProfileInfo() reads
+// profile/info once per session and both consumers share it.
+async function saveViewMode(mode, remember) {
+    if (remember !== undefined) viewRemember = !!remember;
+    try {
+        localStorage.setItem('ttb_view', mode);
+        localStorage.setItem('ttb_viewRemember', viewRemember ? '1' : '0');
+    } catch (e) { /* private browsing */ }
+    if (profileInfo) {
+        profileInfo.viewMode = mode;
+        profileInfo.viewRemember = viewRemember;
+    }
+    if (!currentUser || currentUser.isAnonymous) return;
+    try {
+        await setDoc(doc(db, "users", currentUser.uid, "profile", "info"),
+                     { viewMode: mode, viewRemember: viewRemember }, { merge: true });
+    } catch (e) { console.warn("Save view mode failed:", e); }
+}
+
+// Called once, after profile/info is loaded and BEFORE loadUserProgress().
+// Placement matters: loadChapter() emits textLoaded, so resolving the view
+// first means the correct renderer is already listening and no replay is
+// needed at boot.
+//
+// Firestore is authoritative when it has an answer — this is the "different
+// Chromebook" path: local had nothing, or had whatever the last kid in that
+// seat picked, and the account knows better.
+async function resolveViewMode() {
+    if (!profileInfo) return;
+
+    if (typeof profileInfo.viewRemember === 'boolean') {
+        viewRemember = profileInfo.viewRemember;
+        try { localStorage.setItem('ttb_viewRemember', viewRemember ? '1' : '0'); } catch (e) {}
+    }
+
+    const remote = profileInfo.viewMode;
+    if (!VALID_VIEWS.includes(remote)) return;
+
+    try { localStorage.setItem('ttb_view', remote); } catch (e) {}
+    if (remote !== VIEW_MODE || (remote === 'adventure') !== rendererMounted) {
+        // replay:true because loadUserProgress() hasn't run yet at boot, but
+        // this same function is safe to call later — an empty fullText makes
+        // the replay a no-op.
+        await applyViewMode(remote, { replay: true });
+    }
+}
+
+// ─── The view-choice splash ────────────────────────────────────────────────
+//
+// Two cards, each showing a live-ish mock of the mode it selects. Both mocks
+// are hand-built SVG rather than a scaled-down real render: the adventure
+// renderer needs a mounted canvas, a chapter, and a RAF loop to show anything,
+// and spinning one up inside a chooser to advertise itself is a lot of moving
+// parts for a picture. The palettes are lifted verbatim from the real thing
+// (#f2e8d5 parchment, #2b221a ink, #a85040 rubric, --carolina-blue) so the
+// mock and the mode agree.
+//
+// The overlay owns a capture-phase keydown listener instead of touching
+// isModalOpen / isInputBlocked. Those flags belong to the modal chain
+// underneath — the start modal, or the initials prompt if loadInitials() got
+// there first — and the splash's job is to sit on top of whatever that is and
+// hand it back untouched.
+
+function classicPreviewSVG() {
+    return `
+<svg viewBox="0 0 300 170" xmlns="http://www.w3.org/2000/svg" class="vs-art" role="img" aria-label="Classic view preview">
+  <rect width="300" height="170" fill="#ffffff"/>
+  <rect width="300" height="20" fill="#000000"/>
+  <rect y="20" width="300" height="2.5" fill="#4B9CD3"/>
+  <text x="8" y="14" font-family="'Courier Prime',monospace" font-size="7.5" fill="#aaa">Active 04:12</text>
+  <text x="150" y="14" font-family="'Courier Prime',monospace" font-size="7.5" fill="#fff" text-anchor="middle">WPM: 24 | Acc: 96%</text>
+  <text x="292" y="14" font-family="'Courier Prime',monospace" font-size="7.5" fill="#aaa" text-anchor="end">Week 12:40</text>
+  <g font-family="'Courier Prime','Courier New',monospace" font-size="13">
+    <text x="20" y="58" fill="#000">Dorothy lived in the</text>
+    <text x="20" y="82" fill="#000">midst of the great</text>
+    <text x="20" y="106" fill="#000">Kansas</text>
+    <rect x="76" y="94" width="9.5" height="16" rx="2" fill="#4B9CD3"/>
+    <text x="77" y="106" fill="#fff">p</text>
+    <text x="86" y="106" fill="#ccc">rairies, with</text>
+    <text x="20" y="130" fill="#ccc">Uncle Henry, who was a</text>
+  </g>
+  <g class="vs-keys">
+    <rect x="20" y="142" width="260" height="20" rx="3" fill="#f4f4f4" stroke="#e0e0e0"/>
+    <rect x="26" y="146" width="12" height="12" rx="2" fill="#FF69B4" opacity=".22"/>
+    <rect x="41" y="146" width="12" height="12" rx="2" fill="#4FC3F7" opacity=".22"/>
+    <rect x="56" y="146" width="12" height="12" rx="2" fill="#66BB6A" opacity=".22"/>
+    <rect x="71" y="146" width="12" height="12" rx="2" fill="#FFA726" opacity=".22"/>
+    <rect x="86" y="146" width="12" height="12" rx="2" fill="#FFA726" opacity=".22"/>
+    <rect class="vs-key-hot" x="188" y="146" width="12" height="12" rx="2" fill="#4B9CD3"/>
+    <rect x="203" y="146" width="12" height="12" rx="2" fill="#AB47BC" opacity=".22"/>
+    <rect x="218" y="146" width="12" height="12" rx="2" fill="#66BB6A" opacity=".22"/>
+    <rect x="233" y="146" width="12" height="12" rx="2" fill="#4FC3F7" opacity=".22"/>
+    <rect x="248" y="146" width="12" height="12" rx="2" fill="#FF69B4" opacity=".22"/>
+  </g>
+</svg>`;
+}
+
+function adventurePreviewSVG() {
+    return `
+<svg viewBox="0 0 300 170" xmlns="http://www.w3.org/2000/svg" class="vs-art" role="img" aria-label="Adventure view preview">
+  <rect width="300" height="170" fill="#f2e8d5"/>
+  <g fill="rgba(120,100,70,0.05)">
+    <rect y="26" width="300" height="1"/><rect y="57" width="300" height="1"/>
+    <rect y="88" width="300" height="1"/><rect y="119" width="300" height="1"/>
+    <rect y="150" width="300" height="1"/>
+  </g>
+  <rect width="300" height="18" fill="#000"/>
+  <rect y="18" width="300" height="2" fill="#4B9CD3"/>
+  <text x="150" y="13" font-family="'Courier Prime',monospace" font-size="7" fill="#fff" text-anchor="middle">WPM: 24 | Acc: 96%</text>
+
+  <text x="14" y="96" font-family="'IM Fell English',Georgia,serif" font-size="15" fill="rgba(168,80,64,0.55)">&#182;</text>
+
+  <g font-family="'IM Fell English',Georgia,serif" font-size="21" fill="#2b221a">
+    <text x="34" y="96">the</text>
+    <text x="78" y="96">great</text>
+    <text x="146" y="96" opacity=".45">Kansas</text>
+    <text x="228" y="96" opacity=".25">prairie</text>
+  </g>
+  <g stroke="#2b221a" stroke-width="1.4" opacity=".55" stroke-linecap="round">
+    <line x1="34" y1="101" x2="66" y2="101"/>
+    <line x1="78" y1="101" x2="134" y2="101"/>
+    <line x1="146" y1="102.5" x2="212" y2="102.5"/>
+  </g>
+  <line x1="134" y1="101" x2="146" y2="101" stroke="#a85040" stroke-width="1.4" stroke-dasharray="2 2"/>
+
+  <g class="vs-figure" stroke="#2b221a" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="96" cy="66" r="4.6" fill="#2b221a" stroke="none"/>
+    <line x1="96" y1="71" x2="96" y2="86"/>
+    <path d="M96 86 L91 93 L89 101"/>
+    <path d="M96 86 L102 93 L104 101"/>
+    <path d="M96 75 L89 81 L86 87"/>
+    <path d="M96 75 L104 80 L108 85"/>
+  </g>
+
+  <g class="vs-map">
+    <line x1="286" y1="34" x2="286" y2="150" stroke="#c9b99a" stroke-width="1.2"/>
+    <path d="M286 34 L287 58 L285 76" stroke="#a85040" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <circle cx="286" cy="34" r="3.4" fill="#a85040"/>
+    <circle cx="286" cy="58" r="3.4" fill="#a85040"/>
+    <circle cx="286" cy="82" r="4.4" fill="#e8c86a" stroke="#a85040" stroke-width="1.6"/>
+    <circle cx="286" cy="106" r="3.2" fill="none" stroke="#c9b99a" stroke-width="1.4"/>
+    <circle cx="286" cy="130" r="3.2" fill="none" stroke="#c9b99a" stroke-width="1.4"/>
+    <text x="278" y="86" font-family="'IM Fell English',Georgia,serif" font-size="8" fill="#a85040" text-anchor="end">Ch 3</text>
+  </g>
+
+  <g opacity=".35">
+    <path d="M198 118 h13 v11 a6.5 6.5 0 0 0 -13 0 z" fill="#7a7266" stroke="#2b221a" stroke-width="1"/>
+    <text x="204.5" y="127" font-family="'IM Fell English',Georgia,serif" font-size="7" fill="#2b221a" text-anchor="middle">k</text>
+  </g>
+
+  <g class="vs-keys">
+    <rect x="14" y="146" width="252" height="18" rx="3" fill="#e6d9bd" stroke="#c9b99a"/>
+    <rect x="20" y="149" width="11" height="11" rx="2" fill="#8d6b6b" opacity=".3"/>
+    <rect x="34" y="149" width="11" height="11" rx="2" fill="#6b7d8d" opacity=".3"/>
+    <rect x="48" y="149" width="11" height="11" rx="2" fill="#6f7d5f" opacity=".3"/>
+    <rect x="62" y="149" width="11" height="11" rx="2" fill="#a8895f" opacity=".3"/>
+    <rect class="vs-key-hot" x="180" y="149" width="11" height="11" rx="2" fill="#2b221a"/>
+    <rect x="194" y="149" width="11" height="11" rx="2" fill="#7d6b8d" opacity=".3"/>
+    <rect x="208" y="149" width="11" height="11" rx="2" fill="#6f7d5f" opacity=".3"/>
+    <rect x="222" y="149" width="11" height="11" rx="2" fill="#6b7d8d" opacity=".3"/>
+  </g>
+</svg>`;
+}
+
+// Resolves once the student has picked. Never rejects.
+function showViewSplash(opts) {
+    const o = opts || {};
+    return new Promise((resolve) => {
+        const existing = document.getElementById('view-splash');
+        if (existing) existing.remove();
+
+        let picked = VALID_VIEWS.includes(VIEW_MODE) ? VIEW_MODE : 'classic';
+
+        const el = document.createElement('div');
+        el.id = 'view-splash';
+        el.innerHTML = `
+          <div class="vs-panel" role="dialog" aria-label="Choose how you want to read">
+            <div class="vs-head">
+              <div class="vs-title">How do you want to read this book?</div>
+              <div class="vs-sub">Both modes type the same words and count the same. Pick whichever you like — you can change it any time in Settings.</div>
+            </div>
+            <div class="vs-cards">
+              <button class="vs-card" data-view="classic" type="button">
+                <div class="vs-art-wrap">${classicPreviewSVG()}</div>
+                <div class="vs-name">Classic</div>
+                <div class="vs-desc">The book, plainly. Clean text, colour-coded keyboard, nothing between you and the page.</div>
+                <div class="vs-badge">Selected</div>
+              </button>
+              <button class="vs-card" data-view="adventure" type="button">
+                <div class="vs-art-wrap">${adventurePreviewSVG()}</div>
+                <div class="vs-name">Adventure</div>
+                <div class="vs-desc">Walk the story. Words become ground, mistakes trip you up, and a map tracks how far you've come.</div>
+                <div class="vs-badge">Selected</div>
+              </button>
+            </div>
+            <div class="vs-foot">
+              <label class="vs-remember">
+                <input type="checkbox" id="vs-remember-box" ${viewRemember ? 'checked' : ''}>
+                <span>Use this for every book — stop asking me</span>
+              </label>
+              <button id="vs-go" class="vs-go" type="button">Start Reading &rarr;</button>
+            </div>
+          </div>`;
+        document.body.appendChild(el);
+
+        const cards = el.querySelectorAll('.vs-card');
+        const paint = () => cards.forEach(c =>
+            c.classList.toggle('is-picked', c.dataset.view === picked));
+        cards.forEach(c => {
+            c.onclick = () => { picked = c.dataset.view; paint(); };
+        });
+        paint();
+
+        // Capture phase + stopPropagation: the game's own document keydown
+        // listener must not see a single one of these. Left/Right move the
+        // selection, Enter commits — a kid who never touches the trackpad can
+        // still get through it.
+        const onKey = (e) => {
+            if (e.key === 'ArrowLeft')  { picked = 'classic';   paint(); }
+            else if (e.key === 'ArrowRight') { picked = 'adventure'; paint(); }
+            else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); commit(); }
+            e.stopPropagation();
+        };
+        document.addEventListener('keydown', onKey, true);
+
+        let done = false;
+        async function commit() {
+            if (done) return;
+            done = true;
+            const remember = !!document.getElementById('vs-remember-box').checked;
+            document.removeEventListener('keydown', onKey, true);
+            el.classList.add('vs-closing');
+            try {
+                if (o.bookId) sessionStorage.setItem(SPLASH_BOOK_KEY, o.bookId);
+            } catch (err) { /* private browsing */ }
+            await applyViewMode(picked, { replay: true, persist: true, remember: remember });
+            setTimeout(() => { el.remove(); resolve(picked); }, 180);
+        }
+        el.querySelector('#vs-go').onclick = commit;
+    });
+}
+
+// Called from loadChapter(). The sessionStorage check makes this fire exactly
+// once per book per tab, which is what "ask again when they pick a new book"
+// means in practice — a chapter advance or a reload mid-book doesn't re-ask.
+function maybeShowViewSplash() {
+    if (isPracticeMode) return;              // an AI drill isn't "a book"
+    if (viewRemember) return;
+    if (document.getElementById('view-splash')) return;
+    let seen = null;
+    try { seen = sessionStorage.getItem(SPLASH_BOOK_KEY); } catch (e) {}
+    if (seen === currentBookId) return;
+    showViewSplash({ bookId: currentBookId });
 }
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -265,6 +676,16 @@ function saveAnonReminderState() {
     }));
 }
 
+// users/{uid}/profile/info, read exactly once per session. Holds initials,
+// leaderboardOptOut and (v3.5.0) viewMode. Three consumers, one read — adding
+// a field here is free, adding a document is not.
+let profileInfo = null;
+
+// The button label loadChapter() computed for the start modal ("Start Reading"
+// / "Resume"). Stashed so the splash can restore the start modal it covered
+// without guessing at the label.
+let lastStartBtnLabel = "Start Reading";
+
 // Leaderboard
 let userInitials = '';
 let leaderboardOptOut = false;
@@ -393,22 +814,20 @@ async function init() {
     // CSS versions are exposed via the `content` property of body::before /
     // body::after — see style.css and adventure.css for the values.
 
-    // ─── Adventure: apply view mode and mount renderer if active ───
-    document.body.classList.add('view-' + VIEW_MODE);
-    let rendererVersion = '—';
-    if (VIEW_MODE === 'adventure') {
-        try {
-            const mod = await import('./adventure-renderer.js');
-            mod.mountAdventureRenderer();
-            rendererVersion = mod.RENDERER_VERSION || '?';
-        } catch (e) {
-            console.warn('Adventure renderer failed to load; using classic view.', e);
-            document.body.classList.remove('view-adventure');
-            document.body.classList.add('view-classic');
-            rendererVersion = 'failed';
-        }
-    }
-    updateVersionBanner(rendererVersion);
+    // Open work §9 item 5: title was hardcoded to "TypeThatBook v3.0.1.1" in
+    // game.html and had been wrong for four releases.
+    document.title = "TypeThatBook v" + VERSION;
+
+    // ─── Adventure: apply the locally cached view mode ───
+    // This is the pre-auth paint. It uses localStorage only, so it's instant
+    // and can be wrong — resolveViewMode() corrects it against the student's
+    // profile a moment later, without a reload. `replay` is false: loadChapter
+    // hasn't run, so there is no world to hand the renderer yet.
+    document.body.classList.add('view-classic');
+    await applyViewMode(VIEW_MODE, { replay: false });
+    // applyViewMode paints the banner on every path that actually changes
+    // something; a boot straight into classic changes nothing, so call it here.
+    updateVersionBanner(rendererVersionStr);
 
     if (!document.getElementById('menu-btn')) {
         const btn = document.createElement('button');
@@ -446,6 +865,13 @@ async function init() {
             if (anonLoginInProgress) return;
             try {
                 await loadBookMetadata();
+                // Order matters. loadProfileInfo() is the session's single read
+                // of profile/info; resolveViewMode() consumes it and settles
+                // which renderer is mounted BEFORE loadUserProgress() calls
+                // loadChapter(), whose textLoaded emit then lands correctly
+                // with no replay needed.
+                await loadProfileInfo();
+                await resolveViewMode();
                 await loadUserProgress();
                 await loadUserStats();
                 // Self-heal: if today > week, data was corrupted during transition
@@ -934,33 +1360,21 @@ function setupGame() {
     updateTimerUI();
 
     // ─── Adventure: notify renderer that a chapter is loaded ───
-    _ttbEmit('textLoaded', {
-        fullText: fullText,
-        position: currentCharIndex,
-        chapterNum: currentChapterNum,
-        chapterTitle: (bookMetadata && bookMetadata.chapters)
-            ? (bookMetadata.chapters.find(c => c.id === `chapter_${currentChapterNum}`) || {}).title
-            : null,
-        bookTitle: bookMetadata && bookMetadata.title,
-        // Chapter map data (renderer v0.3.0+). Practice mode sends null so
-        // the map hides — an AI drill isn't part of the book's journey.
-        chapters: (!isPracticeMode && bookMetadata && bookMetadata.chapters)
-            ? bookMetadata.chapters.map(c => ({
-                num: c.id.replace('chapter_', ''),
-                title: c.title || ''
-              }))
-            : null,
-        completedChapters: Array.from(completedChapters),
-    });
+    emitTextLoaded();
 
     let btnLabel = "Resume";
     if (savedCharIndex === 0) btnLabel = "Start Reading";
+    lastStartBtnLabel = btnLabel;
 
     if (autoStartNext) {
         autoStartNext = false;
         startGame();
     } else if (!isGameActive) {
         showStartModal(btnLabel);
+        // Fire-and-forget. The splash is an overlay above the modal, so it
+        // doesn't matter whether the start modal or the initials prompt ends
+        // up underneath it — whichever wins is revealed when the splash closes.
+        maybeShowViewSplash();
     }
 }
 
@@ -2896,8 +3310,12 @@ async function openMenuModal() {
                 <div class="menu-label" style="margin-top:8px;">View</div>
                 <select id="view-select" class="modal-select">
                     <option value="classic" ${VIEW_MODE === 'classic' ? 'selected' : ''}>Classic</option>
-                    <option value="adventure" ${VIEW_MODE === 'adventure' ? 'selected' : ''}>Adventure (alpha)</option>
+                    <option value="adventure" ${VIEW_MODE === 'adventure' ? 'selected' : ''}>Adventure</option>
                 </select>
+                <label style="display:flex; align-items:center; gap:5px; font-size:0.7em; color:#888; margin-top:4px; cursor:pointer;">
+                    <input type="checkbox" id="view-ask-each" ${viewRemember ? '' : 'checked'}>
+                    Ask me for each new book
+                </label>
             </div>
             <div class="menu-col menu-col-guide">
                 <div class="menu-label">Hand Guide</div>
@@ -2924,15 +3342,21 @@ async function openMenuModal() {
     };
 
     // ─── Adventure: view mode toggle ───
-    // Persist selection, save progress, reload page so the chosen view's
-    // initialization runs cleanly. (No hot-swap for v1 — keeps things simple
-    // and avoids state-sync edge cases.)
+    // v3.5.0: swaps in place. This used to save progress and call
+    // location.reload(), which was tolerable for a deliberate settings change
+    // but not for the boot-time reconciliation that now shares this code path.
+    // applyViewMode() replays textLoaded + positionSet into a freshly mounted
+    // renderer, so the student stays exactly where they were.
     document.getElementById('view-select').onchange = async (e) => {
-        const newView = e.target.value;
-        if (newView === VIEW_MODE) return;
-        localStorage.setItem('ttb_view', newView);
-        try { await saveProgress(true); } catch (_) {}
-        window.location.reload();
+        const ok = await applyViewMode(e.target.value, { replay: true, persist: true });
+        if (!ok) e.target.value = 'classic';   // module failed to load
+    };
+
+    document.getElementById('view-ask-each').onchange = async (e) => {
+        await saveViewMode(VIEW_MODE, !e.target.checked);
+        // Re-arm the per-book prompt for the book they're in right now,
+        // otherwise ticking the box appears to do nothing until they switch.
+        if (!viewRemember) { try { sessionStorage.removeItem(SPLASH_BOOK_KEY); } catch (_) {} }
     };
 
     document.getElementById('sprint-select').onchange = (e) => {
@@ -4141,20 +4565,33 @@ function openGameGenie() {
 
 // === LEADERBOARD SYSTEM ===
 
-async function loadInitials() {
-    if (!currentUser || currentUser.isAnonymous) return false;
+// ONE read of users/{uid}/profile/info per session, shared by loadInitials()
+// and resolveViewMode(). Split out in v3.5.0 because the view mode has to be
+// known BEFORE loadUserProgress() — loadChapter() emits textLoaded, and that
+// emit needs the right renderer already listening — whereas initials are
+// wanted at the end of the chain. Two consumers, still one read.
+async function loadProfileInfo() {
+    if (!currentUser || currentUser.isAnonymous) { profileInfo = null; return null; }
     try {
         const snap = await getDoc(doc(db, "users", currentUser.uid, "profile", "info"));
-        if (snap.exists()) {
-            const data = snap.data();
-            if (data.initials) userInitials = data.initials;
-            if (data.leaderboardOptOut !== undefined) leaderboardOptOut = data.leaderboardOptOut;
-            if (userInitials) return false;
-        }
-        // No initials yet — prompt
-        showInitialsPrompt();
-        return true;
-    } catch(e) { console.warn("Load initials failed:", e); return false; }
+        profileInfo = snap.exists() ? snap.data() : {};
+    } catch(e) {
+        console.warn("Load profile failed:", e);
+        profileInfo = {};
+    }
+    return profileInfo;
+}
+
+async function loadInitials() {
+    if (!currentUser || currentUser.isAnonymous) return false;
+    if (!profileInfo) await loadProfileInfo();
+    const data = profileInfo || {};
+    if (data.initials) userInitials = data.initials;
+    if (data.leaderboardOptOut !== undefined) leaderboardOptOut = data.leaderboardOptOut;
+    if (userInitials) return false;
+    // No initials yet — prompt
+    showInitialsPrompt();
+    return true;
 }
 
 async function saveInitials(initials) {

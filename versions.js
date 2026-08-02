@@ -1,4 +1,4 @@
-// versions.js v1.0.0 — reads every file's version constant out of the files as
+// versions.js v1.2.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
 //
 // WHY IT WORKS THIS WAY
@@ -45,9 +45,42 @@ const SOURCES = [
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
 ];
 
-export const VERSIONS_VERSION = '1.1.0';
+export const VERSIONS_VERSION = '1.2.0';
 
-const CACHE_KEY = 'ttb_buildVersions_v1';
+const CACHE_KEY = 'ttb_buildVersions_v2';   // v2: entries gained a `header` field
+
+// v1.2.0 — HEADER-COMMENT DRIFT DETECTION.
+//
+// Every JS file carries its version twice: a runtime constant (which is what
+// actually renders) and a version in the header comment block (which is what a
+// human reads first). They are supposed to agree and they kept not agreeing —
+// admin.js sat at header v2.7.5 while the constant said 3.6.0, nine minor
+// versions adrift, and that is exactly the class of mistake that made a deploy
+// silently report the wrong number (HANDOFF §6, ball-drop 5).
+//
+// Keeping them in sync was previously a discipline problem. Now it's a detected
+// one: the build panel says so.
+//
+// The convention this relies on is that the FIRST v<semver> appearing inside the
+// leading comment block is the file's current version — true whether the header
+// is `// admin.js v3.6.0` or a newest-first changelog like game.js's. Stylesheets
+// are exempt: their comment IS the source of truth, there's no second copy.
+const HEADER_EXEMPT = ['style.css', 'adventure.css'];
+
+function readHeaderVersion(file, text) {
+    if (HEADER_EXEMPT.includes(file)) return null;
+    // Only look at the leading run of // comment lines, so a version number
+    // mentioned in code or in a mid-file comment can't be mistaken for it.
+    const lines = text.split('\n');
+    let block = '';
+    for (const line of lines) {
+        const t = line.trim();
+        if (t === '' || t.startsWith('//')) { block += t + '\n'; continue; }
+        break;
+    }
+    const m = block.match(/\bv(\d+\.\d+\.\d+)\b/);
+    return m ? m[1] : null;
+}
 
 // Fetch one file and pull its version out. Never throws.
 async function readOne({ file, pattern }) {
@@ -58,8 +91,8 @@ async function readOne({ file, pattern }) {
         if (!res.ok) return { file, version: null, note: 'HTTP ' + res.status };
         const text = await res.text();
         const m = text.match(pattern);
-        return m ? { file, version: m[1] }
-                 : { file, version: null, note: 'constant not found' };
+        if (!m) return { file, version: null, note: 'constant not found' };
+        return { file, version: m[1], header: readHeaderVersion(file, text) };
     } catch (e) {
         return { file, version: null, note: 'fetch failed' };
     }
@@ -97,6 +130,12 @@ export function renderBuildList(results) {
             return `<div style="color:#ff8a65">${r.file} — could not read (${r.note})</div>`;
         }
         let line = `<div><span style="opacity:.6">${r.file}</span> v${r.version}`;
+        // Runtime constant vs header comment. The constant wins — it's what
+        // renders — so the header is what's reported as wrong.
+        if (r.header && r.header !== r.version) {
+            line += ` <span style="color:#ffb74d">⚠ header comment says v${r.header}` +
+                    ` — one of the two is a lie</span>`;
+        }
         const pseudo = r.file === 'style.css' ? '::before'
                      : r.file === 'adventure.css' ? '::after' : null;
         if (pseudo) {

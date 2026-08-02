@@ -1,4 +1,4 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.0.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.7.0
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
 window.LESSONS_ADMIN_VERSION = '1.7.0';
