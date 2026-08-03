@@ -1,713 +1,1031 @@
 <!DOCTYPE html>
-<html lang="en">
+<!-- ============================================================
+     Tentacalendar — index.html
+     Version 0.51.19
+
+     The whole UI. One page, no templating.
+
+     RECENT:
+     0.51.19 — no markup change; pin moves to app.js 2.1.0 (outriders, §0h).
+     0.51.18 — no markup change; pin moves to app.js 2.0.0. ⚠️ THIS FILE
+        DELIBERATELY STAYED 0.y.z while app went to 2.0.0 and store/queue to
+        1.0.0 (2026-08-02 audit). The only change here is a repoint, and a
+        major bump is Jake's to sign off, not an instance's to infer. If you
+        want the shell to carry 1.0.0 too, that is a one-line decision — see
+        HANDOFF §0r.
+     0.51.11–0.51.17 — see CHANGELOG.md. ⚠️ They were never written into this
+        RECENT block; it jumped 0.51.10 → the banner for seven versions.
+     0.51.10 — no markup change; pin moves to app.js 1.41.0.
+     0.51.9 — Later wording follows app 1.40.0: the horizon is measured from
+        the pipeline window, not the start date.
+     0.51.8 — #cfg-later-days in Settings ▸ Timing (app 1.39.0's Later group).
+     0.51.7 — no markup change; pin moves to app.js 1.38.0.
+     0.51.6 — no markup change; pin moves to app.js 1.37.0.
+     0.51.5 — no markup change; pins move to app.js 1.36.0 and css 0.57.0.
+     0.51.4 — no markup change; pin moves to app.js 1.35.1.
+     0.51.3 — no markup change; pin moves to app.js 1.35.0 (store 0.26.0
+        rides in via app's import).
+     0.51.2 — no markup change; pins repointed to app.js 1.34.2 / css 0.56.1.
+        The css pin had been left at 0.56.0 against a 0.56.1 file, which is
+        the fault the E41 repair already paid for once (defect 8).
+     0.51.1 — Jake's marker bump after the headers were shortened. NO CHANGE.
+     0.51.0 — no markup change; pins move to app.js 1.34.0 / css 0.56.0.
+     0.50.0 — no markup change; pins move to app.js 1.33.0 / store 0.24.0.
+
+     WARNING  Full history is in CHANGELOG.md. This banner and the
+        data-html-version on <body> move together, ALWAYS - that attribute is
+        the update signal D130 polls, and a ?v= on one tag does not bust
+        another file (D49). Verify with `node version-check.mjs`.
+
+     WARNING  EVERY PATH MUST BE RELATIVE (./store.js, never /store.js).
+        Served from a subpath in dev and a domain root in production; an
+        absolute path works in one and 404s in the other, which makes it
+        broken only in between.
+     ============================================================ -->
+<html lang="en-US">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeThatBook — Library</title>  <!-- version appended at runtime from INDEX_VERSION -->
-    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Bitter:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --carolina-blue: #4B9CD3;
-            --bg: #f5f0eb;
-            --card-bg: #fff;
-            --text: #1a1a1a;
-            --text-muted: #777;
-            --accent: #4B9CD3;
-            --shadow: rgba(0,0,0,0.08);
-            --shadow-hover: rgba(0,0,0,0.15);
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Bitter', Georgia, serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-        }
-
-        /* --- HEADER --- */
-        .header-left { display:flex; align-items:center; gap:14px; min-width:0; }
-        .mode-toggle {
-            display:inline-flex; border:1px solid #3a3a3a; border-radius:999px;
-            overflow:hidden; background:#141414; flex-shrink:0;
-        }
-        .mode-btn {
-            font: inherit; font-size:0.78rem; letter-spacing:0.5px;
-            padding:5px 14px; border:0; background:transparent; color:#8a8a8a;
-            cursor:pointer; text-decoration:none; line-height:1.6; white-space:nowrap;
-            transition: background 0.15s, color 0.15s;
-        }
-        .mode-btn:hover { color:#e6e6e6; background:#1e1e1e; }
-        .mode-btn.active { background: var(--carolina-blue, #4B9CD3); color:#08121a; font-weight:700; }
-        .mode-btn.active:hover { background: var(--carolina-blue, #4B9CD3); color:#08121a; }
-        @media (max-width: 520px) {
-            .site-title span { display:none; }
-            .mode-btn { padding:5px 10px; font-size:0.72rem; }
-        }
-        .site-header {
-            background: #1a1a1a;
-            color: white;
-            padding: 12px 24px;
-            display: flex; align-items: center; justify-content: space-between;
-            font-family: 'Courier Prime', monospace;
-            position: sticky; top: 0; z-index: 100;
-        }
-        .site-title {
-            font-size: 1.1rem; font-weight: bold; letter-spacing: 1px;
-            color: var(--carolina-blue);
-        }
-        .site-title span { color: #999; font-weight: 400; }
-        .header-links { display: flex; gap: 16px; align-items: center; font-size: 0.85rem; }
-        .header-links a { color: #999; text-decoration: none; }
-        .header-links a:hover { color: var(--carolina-blue); }
-        #auth-area { display: flex; align-items: center; gap: 10px; }
-        #user-name { color: #ccc; font-size: 0.85rem; }
-        .auth-btn {
-            background: var(--carolina-blue); color: white; border: none;
-            padding: 6px 14px; border-radius: 3px; cursor: pointer;
-            font-family: inherit; font-size: 0.8rem;
-        }
-        .auth-btn.subtle { background: transparent; border: 1px solid #555; color: #aaa; }
-        .auth-btn.subtle:hover { border-color: #999; color: #fff; }
-
-        /* --- HERO --- */
-        .hero { text-align: center; padding: 40px 24px 20px; }
-        .hero h1 {
-            font-size: 2.2rem; font-weight: 700; margin-bottom: 6px;
-            letter-spacing: -0.5px;
-        }
-        .hero p { color: var(--text-muted); font-size: 1rem; }
-
-        /* --- GENRE FILTER --- */
-        .filter-bar {
-            display: flex; justify-content: center; flex-wrap: wrap;
-            gap: 8px; padding: 0 24px 24px;
-            max-width: 900px; margin: 0 auto;
-        }
-        .filter-pill {
-            background: white; border: 1px solid #ddd; padding: 6px 16px;
-            border-radius: 20px; cursor: pointer; font-size: 0.85rem;
-            font-family: 'Bitter', serif; transition: all 0.2s;
-            color: var(--text-muted);
-        }
-        .filter-pill:hover { border-color: var(--accent); color: var(--accent); }
-        .filter-pill.active {
-            background: var(--accent); color: white; border-color: var(--accent);
-        }
-
-        /* --- BOOK GRID --- */
-        .library-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 24px;
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 0 24px 60px;
-        }
-
-        /* --- BOOK CARD --- */
-        .filter-group-label {
-            font-size: 0.8rem; color: #888; letter-spacing: .5px;
-            align-self: center; white-space: nowrap;
-        }
-        .filter-select {
-            background: #1c1c1c; color: #eee; border: 1px solid #444;
-            border-radius: 999px; padding: 5px 10px; font: inherit; font-size: 0.8rem;
-            cursor: pointer;
-        }
-        .filter-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-        .filter-select.is-set { border-color: var(--accent); color: var(--accent); }
-        #filter-note {
-            font-size: 0.78rem; color: #8a8a8a; margin: 2px 0 10px; min-height: 1.1em;
-        }
-        #filter-note a { color: var(--accent); cursor: pointer; text-decoration: underline; }
-        .book-age-tag {
-            display: inline-block; font-size: 0.68rem; color: #9ec9e6;
-            border: 1px solid #35566b; border-radius: 3px; padding: 1px 5px;
-            margin-left: 4px; vertical-align: middle;
-        }
-
-        .book-card {
-            background: var(--card-bg);
-            border-radius: 6px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px var(--shadow);
-            transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer;
-            text-decoration: none;
-            color: inherit;
-            display: flex; flex-direction: column;
-        }
-        .book-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 24px var(--shadow-hover);
-        }
-        .book-cover {
-            width: 100%; aspect-ratio: 2/3;
-            object-fit: cover; display: block;
-            background: #e0d8cf;
-        }
-        .book-cover-placeholder {
-            width: 100%; aspect-ratio: 2/3;
-            background: linear-gradient(135deg, #c9bfb0 0%, #a89880 100%);
-            display: flex; align-items: center; justify-content: center;
-            padding: 20px;
-            font-family: 'Courier Prime', monospace;
-            font-size: 0.9rem; color: #fff;
-            text-align: center; line-height: 1.3;
-            font-weight: bold;
-        }
-        .book-info {
-            padding: 12px 14px 14px;
-            flex: 1; display: flex; flex-direction: column;
-        }
-        .book-title {
-            font-size: 0.9rem; font-weight: 700;
-            line-height: 1.25; margin-bottom: 4px;
-        }
-        .book-author {
-            font-size: 0.78rem; color: var(--text-muted);
-            margin-bottom: 6px;
-        }
-        .book-genre-tag {
-            display: inline-block;
-            font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;
-            color: var(--accent); font-weight: 600;
-            margin-bottom: 6px;
-        }
-        .book-progress { margin-top: auto; padding-top: 8px; }
-        .progress-bar-bg {
-            height: 4px; background: #eee; border-radius: 2px; overflow: hidden;
-        }
-        .progress-bar-fill {
-            height: 100%; background: var(--accent); border-radius: 2px;
-            transition: width 0.4s;
-        }
-        .progress-label {
-            font-size: 0.7rem; color: var(--text-muted); margin-top: 3px;
-            font-family: 'Courier Prime', monospace;
-        }
-
-        .empty-state {
-            grid-column: 1 / -1;
-            text-align: center; padding: 60px 20px;
-            color: var(--text-muted);
-        }
-        .loading-spinner {
-            grid-column: 1 / -1;
-            text-align: center; padding: 60px;
-            color: var(--text-muted); font-style: italic;
-        }
-        .site-footer {
-            text-align: center; padding: 20px;
-            font-size: 0.75rem; color: #aaa;
-            font-family: 'Courier Prime', monospace;
-        }
-
-        /* --- LANDING --- */
-        .landing-hero {
-            text-align: center; padding: 48px 24px 28px;
-        }
-        .landing-hero h1 {
-            font-size: 2.4rem; font-weight: 700; margin-bottom: 6px;
-            letter-spacing: -0.5px;
-        }
-        .landing-hero p { color: var(--text-muted); font-size: 1rem; }
-
-        .landing-cards {
-            display: flex; gap: 24px; justify-content: center;
-            padding: 0 24px 60px; flex-wrap: wrap;
-        }
-        .landing-card {
-            background: var(--card-bg);
-            border-radius: 10px;
-            box-shadow: 0 2px 12px var(--shadow);
-            padding: 36px 32px;
-            max-width: 280px; width: 100%;
-            cursor: pointer; text-align: center;
-            transition: transform 0.2s, box-shadow 0.2s;
-            border: 2px solid transparent;
-        }
-        .landing-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 28px var(--shadow-hover);
-            border-color: var(--accent);
-        }
-        .lc-icon  { font-size: 2.8rem; margin-bottom: 12px; line-height: 1; }
-        .lc-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 10px; }
-        .lc-desc  { font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 18px; }
-        .lc-action {
-            display: inline-block;
-            background: var(--accent); color: white;
-            padding: 8px 20px; border-radius: 20px;
-            font-size: 0.85rem; font-weight: 600;
-            font-family: 'Courier Prime', monospace;
-        }
-
-        .hidden { display: none !important; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tentacalendar</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐙</text></svg>">
+  <!-- D96 — installable. Add to Home Screen then launch from the icon and
+       the address bar is gone; display_override asks for true fullscreen
+       first and quietly falls back to standalone on older Android, which
+       is where the tablet lives. The ⛶ button is still there either way. -->
+  <link rel="manifest" href="manifest.json?v=0.2.0">
+  <meta name="theme-color" content="#0a0f14">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tentacalendar">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="tentacalendar.css?v=0.59.4">
 </head>
-<body>
+<body data-html-version="0.51.19">
 
-    <header class="site-header">
-        <div class="header-left">
-            <div class="site-title">TypeThatBook <span>Library</span></div>
-            <!-- Mode toggle. There was a "back-to-landing" link, but it lived inside
-                 the library view where nobody found it; a student who picked Library
-                 had no visible route back to the school side. -->
-            <nav class="mode-toggle" aria-label="Switch mode">
-                <a href="learn.html" id="mode-school" class="mode-btn">School</a>
-                <button type="button" id="mode-library" class="mode-btn active">Library</button>
-            </nav>
+  <!-- D37: pixel drift transforms THIS wrapper, never <body> — a transformed
+       ancestor becomes the containing block for position:fixed descendants,
+       which broke the settings modal's viewport centering. The modal and the
+       confetti canvas must stay OUTSIDE this div. -->
+  <div id="drift-wrap">
+
+  <!-- ============ AUTH SCREEN ============ -->
+  <div id="auth-screen">
+    <div class="auth-card">
+      <div class="logo">🐙</div>
+      <h1>Tentacalendar</h1>
+      <p class="tagline">The to-do list that refuses to let go.</p>
+      <button id="signin-btn" class="primary">Sign in with Google</button>
+    </div>
+  </div>
+
+  <!-- ============ E17: SIGNED IN, NOWHERE TO GO ============ -->
+  <!-- Every state that can strand a signed-in user lands here with a
+       sentence: an unverified account, a bootstrap that failed, and later a
+       revoked share or a removed member. The one thing it must never do is
+       what 1.x did to Nico — drop him back on the sign-in screen as though
+       he had simply not signed in. -->
+  <div id="blocked-screen" hidden>
+    <div class="auth-card">
+      <div class="logo">🐙</div>
+      <h1 id="blocked-title">Hold on a moment</h1>
+      <p class="tagline" id="blocked-body"></p>
+      <p class="blocked-who" id="blocked-who"></p>
+      <button id="blocked-signout" class="primary">Sign out and try again</button>
+      <p class="blocked-detail" id="blocked-detail" hidden></p>
+    </div>
+  </div>
+
+  <!-- ============ APP ============ -->
+  <div id="app-screen" hidden>
+    <header>
+      <div class="brand">🐙 Tentacalendar <span id="version" class="version"></span></div>
+      <div class="header-right">
+        <!-- E34 — which house am I standing in? Hidden until you hold more
+             than one key, because a switcher with one entry is furniture. -->
+        <div id="board-switch" class="board-switch" hidden>
+          <button id="board-current" class="board-chip" title="The board you are looking at. Click to switch.">
+            <span id="board-dot" class="board-dot"></span>
+            <span id="board-name">…</span>
+            <span class="board-caret">▾</span>
+          </button>
+          <div id="board-menu" class="board-menu" hidden></div>
         </div>
-        <div class="header-links">
-            <a href="reports.html">Reports</a>
-            <a href="admin.html">Admin</a>
-            <div id="auth-area">
-                <span id="user-name" style="display:none;"></span>
-                <button id="login-btn" class="auth-btn">Sign In</button>
-                <button id="logout-btn" class="auth-btn subtle" style="display:none;">Logout</button>
-            </div>
+        <span id="user-label" class="user"></span>
+        <div class="view-switch" id="view-switch" title="Today = the queue. Week = the planning board. Year = the whole map. Dashboard = all of it on one wall (big screens only).">
+          <button data-view="day" class="mini">📋 Today</button>
+          <button data-view="week" class="mini">🗓️ Week</button>
+          <button data-view="year" class="mini">📅 Year</button>
+          <button data-view="dash" class="mini">🐙 Dashboard</button>
         </div>
+        <button id="hdr-fullscreen" class="icon-btn" title="Fullscreen — the wall without the browser" hidden>⛶</button><!-- D108: the dashboard's ⛶. It has no nav row of its own, so the header IS its chrome; hidden on every other view (they carry their own). -->
+        <button id="settings-btn" class="icon-btn" title="Settings">⚙️</button>
+        <button id="jump-add" class="icon-btn" title="Jump to Add a task">＋</button>
+        <button id="signout-btn" class="icon-btn" title="Sign out">⏻</button>
+      </div>
     </header>
 
-    <!-- LANDING: shown until a mode is chosen -->
-    <div id="landing-view">
-        <div class="landing-hero">
-            <h1>TypeThatBook</h1>
-            <p>What would you like to do today?</p>
+    <main>
+      <!-- ===== Queue column ===== -->
+      <section id="queue-panel">
+        <!-- D126 — have-tos / want-tos. Always visible; picks which panel
+             below is live. Katie's own household words, used verbatim. -->
+        <div class="tab-bar todo-mode-bar">
+          <button type="button" class="tab-btn active" id="mode-have" data-mode="have">Have-tos</button>
+          <button type="button" class="tab-btn" id="mode-want" data-mode="want">Want-tos</button>
         </div>
-        <div class="landing-cards">
-            <div class="landing-card" id="go-school">
-                <div class="lc-icon">⌨</div>
-                <div class="lc-title">School</div>
-                <div class="lc-desc">Learn to type from scratch.<br>Structured lessons, finger guides,<br>and a story along the way.</div>
-                <div class="lc-action">Start Lessons →</div>
+
+        <div id="havetos-panel">
+          <div class="day-nav">
+            <button id="day-prev" class="icon-btn" title="Previous day">◀</button>
+            <span class="nav-slot" id="day-slot-back"></span>
+            <h2 id="day-label">Today</h2>
+            <span class="nav-slot" id="day-slot-fwd"><button id="day-today" class="mini" hidden>back to today</button></span>
+            <button id="day-next" class="icon-btn" title="Next day">▶</button>
+            <button id="day-fullscreen" class="icon-btn" title="Fullscreen — reclaim the browser chrome">⛶</button>
+          </div>
+
+          <div id="tier-filters" title="Tap a tier to hide/show it in this device's queue"></div>
+
+          <div id="pinned" hidden></div>
+          <div id="allday-strip" hidden></div>
+          <div id="queue"></div>
+
+          <div id="waiting" hidden>
+            <h3>Waiting on…</h3>
+            <div id="waiting-list"></div>
+          </div>
+
+          <div id="earlier" hidden>
+            <h3>Earlier today</h3>
+            <div id="earlier-list"></div>
+          </div>
+
+          <div id="done" hidden>
+            <h3>Done today <span id="done-count" class="badge-done"></span></h3>
+            <div id="done-list"></div>
+          </div>
+        </div>
+
+        <!-- D126 — want-tos: dateless someday-projects, browsed for ideas.
+             No day-nav — there's no day to nav. -->
+        <div id="wanttos-panel" hidden>
+          <div class="day-nav wanttos-nav">
+            <h2>Want-tos — someday, for fun</h2>
+            <button id="wanttos-shuffle" class="icon-btn" title="Give me an idea — jump to a random someday project">🎲</button>
+            <button id="wanttos-fullscreen" class="icon-btn" title="Fullscreen — reclaim the browser chrome">⛶</button>
+          </div>
+          <p id="wanttos-hint" class="hint" hidden></p>
+          <div id="wanttos-list"></div>
+        </div>
+      </section>
+
+      <!-- ===== Projects column (Katie's pipeline) ===== -->
+      <section id="projects-panel">
+        <h3>Projects <button id="report-btn" class="icon-btn" title="Time Report — hours by project, any date range and granularity (D120)">📊</button></h3>
+        <p id="projects-empty" class="hint">No projects yet. Create one on the right — its whole pipeline comes with it.</p>
+        <div id="projects-list"></div>
+      </section>
+
+      <!-- ===== Forms column ===== -->
+      <section id="form-panel">
+        <p class="hint locked-note">Your key to this board is <b>Can view</b> — you can read everything and send a 👏, but not add or change things. Ask for <b>Can help</b> if you need to pitch in.</p>
+        <h3 id="task-form-title">New task</h3>
+        <form id="task-form">
+          <input id="task-title" type="text" placeholder="What needs doing?" required>
+          <textarea id="task-notes" rows="2" placeholder="Details (optional — tucked behind a ▸ under the task)"></textarea>
+          <label>Tier
+            <select id="task-tier"></select>
+          </label>
+          <!-- D142 — two across, not three. A native date input and a native
+               time input each refuse to shrink below roughly 120px, so at
+               three-to-a-row in a 340px panel both were squeezed to the point
+               of hiding their own text. Est. min moved out, below. -->
+          <div class="form-row">
+            <label>Due date <input id="task-date" type="date" required><button id="task-date-today" class="mini" type="button" title="Snap the due date back to today (the native calendar has no 'today' button — Chrome draws that picker, not us)">Today</button></label>
+            <label>Time <input id="task-time" type="time" value="09:00"><button id="task-time-now" class="mini" type="button" title="Snap the time to right now (the native clock has no 'now' button either)">Now</button></label>
+          </div>
+          <!-- D142 — label left, field right, on one line. The three-across row
+               stacked it above a full-width box, which read as an unfinished
+               third column rather than a deliberate field. -->
+          <label class="est-label" title="How long it takes — NOT when to start. The due time is a deadline, so this is the runway BEFORE it (D93). Leave blank if you don't know; the clock grid draws those dashed at 30 min and doesn't pretend otherwise. You can also just drag a block's top edge in the Clock layout.">Est. min <input id="task-estimate" type="number" min="5" max="720" step="5" placeholder="—"></label>
+          <label class="esc-label">If ignored, nag again every
+            <span class="esc-inputs">
+              <input id="task-esc-n" type="number" min="1" value="1">
+              <select id="task-esc-unit">
+                <option value="minutes">minutes</option>
+                <option value="hours" selected>hours</option>
+                <option value="days">days</option>
+                <option value="weeks">weeks</option>
+                <option value="months">months</option>
+                <option value="years">years</option>
+                <option value="decades">decades</option>
+                <option value="centuries">centuries</option>
+              </select>
+            </span>
+          </label>
+          <!-- D111: the Christmas cactus. Blank = not recurring (silence
+               isn't a number, D100). Anchor default = completion. -->
+          <label class="esc-label">↻ Repeats every
+            <span class="esc-inputs">
+              <input id="task-rec-n" type="number" min="1" max="999" placeholder="—">
+              <select id="task-rec-unit">
+                <option value="minutes">minutes</option>
+                <option value="hours">hours</option>
+                <option value="days">days</option>
+                <option value="weeks" selected>weeks</option>
+                <option value="months">months</option>
+                <option value="years">years</option>
+                <option value="decades">decades</option>
+                <option value="centuries">centuries</option>
+              </select>
+              <select id="task-rec-anchor" title="When does the next one count from? 'after completion' = you just watered it, so the clock starts now. 'after scheduled due' = the schedule is the schedule, even if you were late — the next one can be born already overdue, which is honesty, not a bug.">
+                <option value="done" selected>after completion</option>
+                <option value="due">after scheduled due</option>
+              </select>
+            </span>
+          </label>
+          <!-- D132: chained follow-ups, authored up front. TASK-PLUS-N —
+               the task above is the root and every row hangs off either it
+               or the row above ("and then, and then"). Empty by default: a
+               blank list is not a list (D100/D111's silence rule). Rows are
+               built in JS so add/remove keeps typed values. CREATE ONLY —
+               hidden while editing, because ↳ on an existing task is the
+               path for that and two doors to one room is how drift starts. -->
+          <div id="fu-chain-block">
+            <div class="fu-chain-head">
+              <span class="hint-inline">↳ And then…</span>
+              <button type="button" id="fu-chain-add" class="mini">+ Add follow-up</button>
             </div>
-            <div class="landing-card" id="go-library">
-                <div class="lc-icon">📚</div>
-                <div class="lc-title">Library</div>
-                <div class="lc-desc">Type through real books.<br>Track your speed and accuracy<br>chapter by chapter.</div>
-                <div class="lc-action">Browse Books →</div>
+            <div id="fu-chain-rows"></div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" id="task-submit" class="primary">Add to the tentacles</button>
+            <button type="button" id="task-cancel" class="mini" hidden>Cancel edit</button>
+          </div>
+        </form>
+        <p class="hint">✎ edits a task in place. ↳ adds a follow-up that schedules itself relative to when you actually finish. Chained follow-ups wait their turn — each one gets its date only when the step it hangs off is checked.</p>
+
+        <h3 id="project-form-title">New project</h3>
+        <form id="project-form">
+          <input id="project-name" type="text" placeholder="Project name (e.g. Alabama Farmers)" required>
+          <div class="form-row">
+            <label>Color <input id="project-color" type="color" value="#4dabf7"></label>
+            <label>Stage tier <select id="project-tier"></select></label>
+          </div>
+          <label id="project-type-label">Project type
+            <select id="project-type" title="Which pipeline to copy into this new project. 'Default' is your standard template; others are types you've built in Settings ▸ Pipeline. Existing projects keep whatever they already have.">
+              <option value="">Default template</option>
+            </select>
+          </label>
+          <div class="form-row" id="project-dates-row">
+            <label>Starts <input id="project-start" type="date" required></label>
+            <label>Ends <input id="project-end" type="date" required></label>
+          </div>
+          <label><span class="label-line">Workload <span class="info-dot" title="How heavy is this project overall? Ties in the queue break toward heavier projects with more pipeline remaining. (Tap for details.)" data-info="How heavy is this project overall? A 10-million project and a 30k project can share a pipeline but not a calendar. Ties in the queue break toward heavier projects with more pipeline remaining.">i</span></span>
+            <select id="project-workload">
+              <option value="1">Light (1)</option>
+              <option value="2" selected>Standard (2)</option>
+              <option value="3">Heavy (3)</option>
+            </select>
+          </label>
+          <p class="hint warn" id="project-color-hint"></p>
+          <div class="form-actions">
+            <button type="submit" id="project-submit" class="primary">Launch pipeline</button>
+            <button type="button" id="project-cancel" class="mini" hidden>Cancel edit</button>
+          </div>
+        </form>
+        <p class="hint">New projects copy the stage template (⚙️ Settings). Each project's stages are then independently editable — check any stage early; the queue only ever nags about the earliest unchecked one.</p>
+        <p class="hint">Pick a tier marked ⏳ timeless (Settings ▸ Tiers) and the date fields disappear — it becomes a want-to, browsed under that tab instead of nagging in Have-tos.</p>
+      </section>
+    </main>
+
+    <!-- ============ YEAR VIEW (Phase 2, D65) ============
+         Toggled with the header 📅; quarter-aligned 4 rows × 3 months
+         (D31 modes), progress ghost-fill bars (D30a), drag to move /
+         edge-drag to stretch (D32), month-tap zoom (D18), legend +
+         tap-for-details (D27). -->
+    <section id="week-view" hidden>
+      <!-- D104: ONE control grammar for week and year — a .view-nav row
+           (arrows · slots · label · ⛶) followed by .view-ctls holding the
+           canonical groups in ONE order: Layout · Window · Bars. Same
+           labels grammar, same data attributes (data-layout / data-window /
+           data-size), same CSS family. View-specific extras (🏆 Reflection
+           here, ◱ whole year there) stay with their views. -->
+      <div class="view-nav">
+        <button id="wv-prev" class="icon-btn" title="Back one week">◀</button>
+        <span class="nav-slot" id="wv-slot-back"></span>
+        <h2 id="wv-label">Week</h2>
+        <span class="nav-slot" id="wv-slot-fwd"><button id="wv-today" class="mini" hidden>back to now</button></span>
+        <button id="wv-next" class="icon-btn" title="Forward one week">▶</button>
+        <button id="wv-fullscreen" class="icon-btn" title="Fullscreen — reclaim the browser chrome">⛶</button>
+        <div class="view-ctls">
+          <div class="ctl-group" id="wv-layouts" title="Three ways to read the same week. Gantesque: one honest queue per day, everything interleaved in time order. Tidal: fixed time (events) shelved above the work that's yours to move, and past days become a reflection on what actually happened. Clock: the day as time.">
+            <span class="ctl-label">Layout</span>
+            <button data-layout="columns" class="mini">Gantesque</button>
+            <button data-layout="tidal" class="mini">Tidal</button>
+            <button data-layout="clock" class="mini" title="The day as a clock. An event at 6 PM sits at 6 PM. A task DUE at 6 PM is the block ENDING at 6 — its runway trails backward, because you can do it any time before the deadline (Katie, D93). Drag a task's top edge to say how long it takes; that's the only way a week can answer 'can I fit this on Tuesday?'">Clock</button>
+            <button id="wv-cards-toggle" class="mini" title="Show what each past day actually did: what got finished, and what got put off — and whether it was moved, shelved, or nobody touched it. Works in BOTH layouts: Gantesque hangs the cards under its day list, Tidal turns the whole past column into them. Off = just the headline numbers (and in Tidal, past days shrink to give the live days more room).">🏆 Reflection</button>
+          </div>
+          <div class="ctl-group" id="wv-modes" title="Where the week's window anchors. Rolling wastes no columns on a kiosk; Sun–Sat / Mon–Sun keep the days you just had, because reflecting on them is how you plan the next ones.">
+            <span class="ctl-label">Week</span>
+            <button data-window="rolling" class="mini">Today +6</button>
+            <button data-window="sunday" class="mini">Sun–Sat</button>
+            <button data-window="monday" class="mini">Mon–Sun</button>
+          </div>
+          <div class="ctl-group" id="wv-sizes" title="Project bar height. Auto thins them out as the list grows so the day columns always get room; ▮ full (name + next step + %), ▪ medium, ▁ thin, 🧵 colour threads only (hover for names).">
+            <span class="ctl-label">Bars</span>
+            <button data-size="auto" class="mini">Auto</button>
+            <button data-size="full" class="mini">▮</button>
+            <button data-size="half" class="mini">▪</button>
+            <button data-size="quarter" class="mini">▁</button>
+            <button data-size="hair" class="mini">🧵</button>
+          </div>
+          <div class="ctl-group" id="wv-overlays" title="Overlays drawn on the days themselves — reference marks, not tasks.">
+            <span class="ctl-label">Overlay</span>
+            <button id="wv-holidays" class="mini" title="Show US federal holidays on the day headings. A reference overlay — nothing to check off.">★ Holidays</button>
+          </div>
+        </div>
+      </div>
+      <div class="wv-strip" id="wv-days"></div>
+      <div id="wv-strips">
+        <div class="wv-strip" id="wv-banners" hidden></div>
+        <div class="wv-strip" id="wv-projects" hidden></div>
+      </div>
+      <div class="wv-split" id="wv-split" title="Drag to give the projects more or less of the board. Auto refits the bars to whatever you choose."></div>
+      <div id="wv-grid"></div>
+      <div id="tidal-horizon" hidden></div>
+      <p class="hint" id="wv-empty" hidden>Nothing scheduled this week. Suspicious.</p>
+    </section>
+
+    <section id="year-view" hidden>
+      <div class="view-nav">
+        <button id="yv-prev" class="icon-btn" title="Back one year (one month while zoomed)">◀</button>
+        <span class="nav-slot" id="yv-slot-back"></span>
+        <h2 id="yv-label">Year</h2>
+        <span class="nav-slot" id="yv-slot-fwd"><button id="yv-today" class="mini" hidden>back to now</button></span>
+        <button id="yv-next" class="icon-btn" title="Forward one year (one month while zoomed)">▶</button>
+        <button id="yv-unzoom" class="mini" hidden>◱ whole year</button>
+        <button id="yv-fullscreen" class="icon-btn" title="Fullscreen — reclaim the browser chrome">⛶</button>
+        <div class="view-ctls">
+          <div class="ctl-group" id="yv-layouts" title="Three ways to read the same year. Annual: the whole year as a wall of month calendars. Months: they stack, weeks as rows, Sun–Sat. Timeline: days in one long row per quarter (a Gantt chart).">
+            <span class="ctl-label">Layout</span>
+            <button data-layout="wall" class="mini">▦▦ Annual</button>
+            <button data-layout="grid" class="mini">▦ Months</button>
+            <button data-layout="timeline" class="mini">▬ Timeline</button>
+          </div>
+          <div class="ctl-group" id="yv-modes" title="Where the year's window anchors: January, the current quarter, or the current month top-left (rolling 12 months either way)">
+            <span class="ctl-label">Year</span>
+            <button data-window="calendar" class="mini">Jan–Dec</button>
+            <button data-window="quarter" class="mini">Quarter first</button>
+            <button data-window="month" class="mini">Month first</button>
+          </div>
+          <div class="ctl-group" id="yv-sizes" title="Bar thickness: Auto fits the layout (and your window); ▮ pins thick 20px, ▪ medium 10px, ▁ thin 5px.">
+            <span class="ctl-label">Bars</span>
+            <button data-size="auto" class="mini">Auto</button>
+            <button data-size="full" class="mini">▮</button>
+            <button data-size="half" class="mini">▪</button>
+            <button data-size="quarter" class="mini">▁</button>
+            <button data-size="hair" class="mini" title="Hairline: 2px color threads — see the year, tap for details, edit elsewhere">🧵</button>
+          </div>
+          <div class="ctl-group" id="yv-overlays" title="Overlays drawn on the calendar itself — reference marks, not projects.">
+            <span class="ctl-label">Overlay</span>
+            <button id="yv-holidays" class="mini" title="Show US federal holidays on the month calendars and timeline. A reference overlay — hover a marked day for its name.">★ Holidays</button>
+          </div>
+        </div>
+      </div>
+      <div id="yv-grid"></div>
+      <p id="yv-empty" class="hint" hidden>No projects land in this window. Create one in Today view — its bar shows up here.</p>
+      <div id="yv-legend"></div>
+      <p class="hint">Drag a bar to move a project — across weeks, months, and rows · drag either end to stretch or shrink it · tap a bar for details · tap a month name to zoom in. Dates keep to the project tier's working days.</p>
+      <button id="yv-add-project" class="primary" title="New project">＋ New project</button>
+    </section>
+
+    <!-- ===== D105: THE DASHBOARD (Phase 4 — this is 1.0) =====
+         Empty shells ON PURPOSE: entering the dashboard REPARENTS the real
+         #year-view / #week-view / #queue-panel (and #projects-panel behind
+         the 🗂 toggle) into these panes — the D68 modal trick at kiosk
+         scale. Comment markers hold each panel's seat at home, so leaving
+         puts everything back exactly where it came from. Elements MOVE,
+         nothing is cloned, so nothing can drift (D98). -->
+    <section id="dashboard-view" hidden>
+      <div class="dash-pane" id="dash-left"></div>
+      <div class="dash-split dash-split-v" id="dash-vsplit" title="Drag to resize · double-click to reset"></div>
+      <div id="dash-right">
+        <div class="dash-pane" id="dash-week"></div>
+        <div class="dash-split dash-split-h" id="dash-hsplit" title="Drag to resize · double-click to reset"></div>
+        <div class="dash-pane" id="dash-bottom">
+          <button id="dash-projects-toggle" class="mini" title="Split this pane: agenda + project pipeline side by side. Adding projects lives on the other screens — this is the glance wall.">🗂 Projects</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 0.51.14 — THE PHONE TRAY. On a phone the sign-out button moves out
+         of the header and lands here, at the bottom of everything, as 1.x
+         did. Two reasons, and the second is the real one: the header row's
+         min-content is what pushes the page wider than the glass (FIT-1),
+         and ⏻ is the one control in it nobody wants within a thumb's reach
+         of ✎ and ✕ all day.
+         ⚠️ EMPTY BY DESIGN. app.js MOVES the existing #signout-btn node in
+         and out of here on a matchMedia change — it is not a second copy.
+         A duplicate would mean two ids, or one live listener and one dead
+         button, which is worse than the bug it would be fixing. -->
+    <div id="phone-tray" hidden></div>
+
+    <!-- D118: the clock/followup/yv-project modals used to live HERE,
+         inside #drift-wrap — whose transform re-roots position:fixed to
+         the page box, so a "centered" modal floated above the viewport
+         when scrolled (Jake's clock-out bug). They now live with the
+         other six modals below, outside the wrap, where D37's rule
+         always said overlays belong. -->
+  </div>
+  </div><!-- /drift-wrap — D127: THIS is the real close. D118's refactor
+       left the actual closing tag stranded 150 lines down (see the note
+       by #yv-project-modal) disguised as one of ITS closing divs, so by
+       true tag-nesting every "moved outside the wrap" modal — screen-rest,
+       settings, weekend, decision, dup, stages, clock, followup, and
+       yv-project itself — was still genuinely INSIDE #drift-wrap the
+       whole time. D37's transform-reroot bug, structurally unfixed since
+       D118, just quiet: small drift amounts (±2-8px) rarely mispositioned
+       a SHORT modal enough to notice. Settings is the tallest modal in
+       the app, so it was the one that finally showed it plainly. -->
+
+  <!-- D130: update banner — OUTSIDE #drift-wrap (D127's lesson: a fixed
+       overlay inside the transformed wrapper mispositions). Hourly, the app
+       re-fetches index.html and compares its data-html-version; a newer one
+       shows this with a countdown auto-refresh. -->
+  <div id="update-banner" hidden>
+    <span id="update-msg"></span>
+    <button id="update-now" class="primary">Refresh now</button>
+    <button id="update-later" class="mini">Later</button>
+  </div>
+
+  <!-- D137: the alert toast — OUTSIDE #drift-wrap for the same reason as
+       the banner above, and z-index 141 so it clears the update banner.
+       This is the channel that matters on the WALL: a fullscreen kiosk may
+       never paint an OS notification, but it always paints its own page. -->
+  <div id="alert-toast" hidden>
+    <span id="alert-toast-level"></span>
+    <div class="at-text">
+      <strong id="alert-toast-title"></strong>
+      <span id="alert-toast-body"></span>
+    </div>
+  </div>
+
+  <!-- D107: the screen rest — OUTSIDE #drift-wrap on purpose (D37's rule:
+       a fixed overlay inside a transformed ancestor re-roots and shows the
+       drift as edge gaps). z-index 98: above everything but the confetti —
+       a midnight completion still gets its fireworks. -->
+  <div id="screen-rest" hidden>
+    <div id="rest-face">
+      <div id="rest-clock"></div>
+      <div id="rest-date"></div>
+      <div id="rest-hint">🐙 resting — tap to peek</div>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS MODAL (tabbed, D52) ============ -->
+  <div id="settings-modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>⚙️ Settings</h2>
+        <button id="settings-close" class="icon-btn">✕</button>
+      </div>
+
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="tiers">Tiers</button>
+        <button class="tab-btn" data-tab="pipeline">Pipeline</button>
+        <button class="tab-btn" data-tab="timing">Timing</button>
+        <button class="tab-btn" data-tab="people">People</button>
+      </div>
+
+      <!-- E5/E32 — houses and keys. Two words do all the work here. -->
+      <div class="tab-pane" data-pane="people" hidden>
+        <h3>This board</h3>
+        <div class="form-row" id="ws-rename-row">
+          <label>Board name <input id="ws-name" type="text" autocomplete="off"></label>
+          <button id="ws-rename" class="mini">Rename</button>
+        </div>
+
+        <h3>Who holds a key to this board</h3>
+        <p class="hint">A shared board is <b>one set of lists, not a copy</b> — everyone with a key is looking at the same thing, so a task checked off here disappears from their screen too. Only an owner sees these controls.</p>
+        <!-- Four roles is one more than a tooltip can hold, so it is a table.
+             Every row here is a clause in firestore.rules 1.2.1: if you change
+             one, change both, or this becomes a promise the server breaks. -->
+        <table class="role-matrix">
+          <thead><tr><th></th><th>Can&nbsp;view</th><th>Can&nbsp;help</th><th>Can&nbsp;edit</th><th>Co-owner</th></tr></thead>
+          <tbody>
+            <tr><td>See everything on this board</td><td>●</td><td>●</td><td>●</td><td>●</td></tr>
+            <tr><td>Send a 👏</td><td>●</td><td>●</td><td>●</td><td>●</td></tr>
+            <tr><td>Add and check off tasks and projects</td><td>·</td><td>●</td><td>●</td><td>●</td></tr>
+            <tr><td>Delete things they added themselves</td><td>·</td><td>●</td><td>●</td><td>●</td></tr>
+            <tr><td>Delete anything on the board</td><td>·</td><td>·</td><td>●</td><td>●</td></tr>
+            <tr><td>Change tiers, pipelines, timing, calendars</td><td>·</td><td>·</td><td>●</td><td>●</td></tr>
+            <tr><td>Rename the board, hand out and take back keys</td><td>·</td><td>·</td><td>·</td><td>●</td></tr>
+          </tbody>
+        </table>
+        <p class="hint"><b>Can help</b> is the one to reach for when someone is pitching in rather than running the place — they can work the list and tidy up after themselves, and cannot repoint your calendars or empty a tier.</p>
+        <div id="people-list"></div>
+        <div class="form-row">
+          <label>Invite by email <input id="people-email" type="email" placeholder="name@gmail.com" autocomplete="off"></label>
+          <label>Access
+            <select id="people-role">
+              <option value="editor">Can edit</option>
+              <option value="helper">Can help</option>
+              <option value="viewer">Can view</option>
+              <option value="owner">Co-owner</option>
+            </select>
+          </label>
+        </div>
+        <button id="people-add" class="mini">+ Give them a key</button>
+
+        <!-- E38 — one block, so hiding it from a dependent is one line. -->
+        <div id="dep-block">
+        <h3 style="margin-top:1.6rem">A board for someone who doesn't own it</h3>
+        <p class="hint">For a child, or anyone whose list you're responsible for. <b>You keep the deed</b> — they can use their board fully but cannot remove you from it or delete it, and they can't hand their own key back. Add a co-owner and you both get in independently. This creates a <i>new</i> board; it doesn't change this one.</p>
+        <div class="form-row">
+          <label>Board name <input id="dep-name" type="text" placeholder="fills in from their email" autocomplete="off"></label>
+          <label>Their email <input id="dep-email" type="email" placeholder="their.address@gmail.com" autocomplete="off"></label>
+        </div>
+        <div class="form-row">
+          <label>Co-owner, optional <input id="dep-coowner" type="email" placeholder="other.parent@gmail.com" autocomplete="off"></label>
+        </div>
+        <button id="dep-create" class="mini">Create their board</button>
+        </div>
+        <p class="hint" id="people-msg"></p>
+      </div>
+
+      <div class="tab-pane" data-pane="tiers">
+        <p class="hint locked-note">Tiers are part of this board's setup, and your access here is <b>Can help</b> or <b>Can view</b>. You can read all of it; changing it needs <b>Can edit</b>. Ask whoever gave you the key.</p>
+        <h3>Tiers (priority queue)</h3>
+        <p class="hint">Rank 1 sorts first. Setting a tier to "Calendar" reveals a Calendar ID field — that tier then holds appointments pulled from that Google Calendar. The day toggles are the tier's working days: reschedules land on them, project dates outside them get flagged, and pipeline offsets only count them (weekend jobs → check Sa/Su). Hover anything in a row for an explanation.</p>
+        <!-- E41 — help panels for progressive disclosure -->
+        <div class="help-panel" data-help-id="tiers-what">
+          <div class="help-panel-toggle">💡 What are tiers?</div>
+          <div class="help-panel-content">
+            <p>A <b>tier</b> is a bucket for parts of your life — Home, Work, Personal, a class, a project, whatever matches how you think about your day.</p>
+            <p>Rank #1 sorts first when nothing else decides the order. Use the ▲▼ arrows to move tiers around — the list immediately re-numbers.</p>
+            <p>You can hide tiers with the checkbox — useful on Saturday when Work is just noise. You can also set which days the tier is active (Mon–Fri, weekends only, every day).</p>
+          </div>
+        </div>
+        <div class="help-panel" data-help-id="tiers-calendar">
+          <div class="help-panel-toggle">📅 Calendar tiers</div>
+          <div class="help-panel-content">
+            <p>Set a tier's type to <b>Calendar</b> and it pulls appointments from your Google Calendar instead of tasks you create. The Calendar ID field appears, and you paste your calendar's ID there.</p>
+            <p>Your events show up in the queue near their start times, never nag, and disappear once they pass — they're read-only.</p>
+          </div>
+        </div>
+        <!-- E39 — the six clicks, next to the field they fill. -->
+        <details id="cal-connect">
+          <summary>📅 How do I show my Google Calendar here?</summary>
+          <div class="cal-steps">
+            <p class="hint">Your appointments live in Google Calendar and this app only <b>reads</b> them. To let it, you give one robot account permission to look — the same way you'd share a calendar with a person.</p>
+            <p><b>1.</b> Copy this address:</p>
+            <div class="robot-row">
+              <code id="cal-robot">—</code>
+              <button id="cal-robot-copy" class="mini" type="button">Copy</button>
             </div>
+            <p class="hint" id="cal-robot-warn" hidden></p>
+            <p><b>2.</b> Open <b>Google Calendar</b> on a computer. In the left column, hover the calendar you want, click <b>⋮ → Settings and sharing</b>.</p>
+            <p><b>3.</b> Scroll to <b>Share with specific people or groups → Add people</b>. Paste the address, set permission to <b>See all event details</b>, and Send.</p>
+            <p><b>4.</b> On that same settings page, scroll to <b>Integrate calendar</b> and copy the <b>Calendar ID</b>. For your main calendar that is simply your own email address.</p>
+            <p><b>5.</b> Back here: pick a tier below, set its type to <b>Calendar</b>, and paste the Calendar ID into the field that appears.</p>
+            <p class="hint">Appointments appear within the hour. You can revoke this at any time from that same Google Calendar sharing page — the app has no access except what you just granted, and nobody else's calendar is visible to you.</p>
+            <p class="hint"><b>On a school or work account?</b> Some Google Workspace administrators block sharing calendars outside the organisation. If the address is refused, that is the reason — use a personal calendar, or ask your admin.</p>
+          </div>
+        </details>
+
+        <div id="tier-editor"></div>
+        <p class="hint" id="tier-color-hint"></p>
+        <button id="tier-add" class="mini">+ Add tier</button>
+      </div>
+
+      <div class="tab-pane" data-pane="pipeline" hidden>
+        <p class="hint locked-note">Pipelines are part of this board's setup. Yours is a working key, not a setup one — you can read this, and <b>Can edit</b> is needed to change it. Adding or removing stages on an <i>individual</i> project still works.</p>
+        <h3>Project pipelines</h3>
+        <p class="hint">Build a LIBRARY of pipelines and pick one when you create a project (e.g. an actuarial default, a "Holiday Card", a "Taiko Performance"). <em>Default</em> is the standard template copied into a new project when you don't choose another. Existing projects keep their own copy whatever you change here.</p>
+        <!-- E41 — help panels for progressive disclosure -->
+        <div class="help-panel" data-help-id="pipeline-what">
+          <div class="help-panel-toggle">💡 What are project pipelines?</div>
+          <div class="help-panel-content">
+            <p>A <b>pipeline</b> is a template of stages — the steps you always take for a certain kind of project.</p>
+            <p>When you create a project and pick a pipeline, it copies all the stages into that project. Then you can adjust dates and details for this specific run.</p>
+            <p>Your <b>Default</b> pipeline is copied into every new project that doesn't pick a different type.</p>
+          </div>
         </div>
+        <div class="form-row" id="pipeline-picker-row">
+          <label>Editing <select id="pipeline-target"></select></label>
+          <button id="pipeline-new" class="mini" type="button" title="Create a new project type">+ New type</button>
+          <button id="pipeline-rename" class="mini" type="button" title="Rename this type">Rename</button>
+          <button id="pipeline-delete" class="mini" type="button" title="Delete this type (the Default can't be deleted)">Delete</button>
+        </div>
+        <div id="stage-template-editor"></div>
+        <button id="stage-add" class="mini">+ Add stage</button>
+        <p class="hint"><em>No date</em> = the stage is pipeline weight — it just has to happen before the next dated thing. <em>Before/After</em> = a real target date, offset in working days from project start or end. A stage never surfaces before its predecessors are checked, whatever its date. 🎆 marks the stage whose completion throws the big celebration (D109).</p>
+        <div class="form-row">
+          <label>Clear the deck at <input id="cfg-cleardeck" type="number" min="0" max="100"> % complete</label>
+        </div>
+        <p class="hint">Two piles. Projects at or past this mark are in the <em>finish it</em> pile and sort <em>most</em>-done first — they sit above everything still catching up, however heavy. Below the mark, the <em>least</em>-done leads, so nothing gets abandoned. Workload only breaks a tie between two projects at the same %, heavier first. Tiebreaker only — anything due sooner still comes first.</p>
+      </div>
+
+      <div class="tab-pane" data-pane="timing" hidden>
+        <p class="hint locked-note">Timing settings belong to the board rather than to you, so changing them needs <b>Can edit</b>. What you see here is what the board is doing.</p>
+        <h3>Timing</h3>
+        <!-- ⚠️ 0.51.15 — THE <p> USED TO BE INSIDE THE .form-row, AND THAT WAS
+             THE WHOLE BUG. `.form-row` is `display: flex` and
+             `.form-row label` is `flex: 1; min-width: 0` — that min-width is
+             load-bearing elsewhere (D66: two date inputs out-minimum a 340px
+             panel), and it means a label will happily shrink to nothing. Add
+             a paragraph of prose as a THIRD flex child and it takes the
+             width, both labels starve into narrow columns, and their text
+             word-stacks one word per line into what Jake photographed as
+             overlapping. The paragraph was never meant to be in the row.
+             ⚠️ A HINT IS A SIBLING OF ITS ROW, NEVER A CHILD OF IT — every
+             other hint in this pane already sits outside. -->
+        <div class="form-row">
+          <label>Computed stage deadlines count as due by <input id="cfg-deadline-hour" type="number" min="0" max="23"> :00 <span class="hint-inline">(24-hr)</span></label>
+          <label>Fold projects into <b>Later</b> until <input id="cfg-later-days" type="number" min="0" max="3650"> days before their window opens <span class="hint-inline">(0 = never fold)</span></label>
+        </div>
+        <p class="hint">Duplicating a finished project for next year is supposed to clear your plate, not refill it. Anything starting past this horizon collapses into a <b>Later</b> group in the projects panel — still there, still editable, just not in the way. Undated projects are never folded; undated means someday, which is what the Want-tos tab is for.</p>
+        <p class="hint">Stages dated by pipeline math (not hard ⏰ dues) are "due by this hour" on their day — so a 9 AM task outranks them, and midnight doesn't flip them red.</p>
+        <div class="form-row">
+          <label>🐙 Decision time opens after <input id="cfg-decision-days" type="number" min="1" max="30"> day(s) overdue</label>
+        </div>
+        <div class="form-row">
+          <label>❗ carryover events land at <input id="cfg-carryover" type="number" min="0" max="23"> :00 <span class="hint-inline">(24-hr clock: 9 = 9 AM, 21 = 9 PM)</span></label>
+        </div>
+        <div class="form-row">
+          <label>Screen sleeps from <input id="cfg-sleep-start" type="number" min="0" max="23"> :00 <span class="hint-inline">(24-hr)</span></label>
+          <label>until <input id="cfg-sleep-end" type="number" min="0" max="23"> :00</label>
+        </div>
+        <div class="form-row">
+          <label>Check Google Calendar every <input id="cfg-poll" type="number" min="5" max="1440"> minutes</label>
+        </div>
+        <!-- D107: burn-in care. PER-DEVICE (localStorage, not workspace
+             config) — set these ON THE TV. Dashboard-only at runtime. -->
+        <div class="form-row">
+          <label><input id="cfg-rest" type="checkbox"> 🌙 Screen rest during sleep hours <span class="hint-inline">(dashboard · this device)</span></label>
+        </div>
+        <div class="form-row">
+          <label><input id="cfg-idle-dim" type="checkbox"> 🕯️ Dim chrome when idle <span class="hint-inline">(dashboard · this device)</span></label>
+        </div>
+        <p class="hint">Burn-in care for a TV that lives on the dashboard: during sleep hours the screen goes near-black with a wandering clock (tap it to peek for 5 minutes), and after 5 idle minutes the header and dividers fade. The whole app already drifts a few pixels (D37); the dashboard rides a second, wider orbit. These two switches are per-device — flip them on the TV itself.</p>
+        <!-- D137: alerts. PER-DEVICE like the two above — turn these ON at
+             the wall and the tablet, leave them off on a phone. -->
+        <div class="form-row">
+          <label><input id="cfg-alerts" type="checkbox"> 🔔 Alert me when things come due <span class="hint-inline">(this device)</span></label>
+        </div>
+        <div class="form-row">
+          <label><input id="cfg-alert-sound" type="checkbox"> 🔊 Play a sound</label>
+          <label><input id="cfg-alert-notify" type="checkbox"> 💬 System notifications</label>
+        </div>
+        <div class="form-row">
+          <label>Volume <input id="cfg-alert-vol" type="range" min="0" max="100" step="5"></label>
+          <button id="alert-test" class="mini" type="button">▶ Test</button>
+        </div>
+        <p class="hint" id="alert-status"></p>
+        <p class="hint">A task speaks when it comes due and again on every step of <em>its own</em> escalation — the same schedule that turns it red, so a task set to nag hourly now chimes hourly. Project stages speak once when their deadline passes. Calendar events speak when they enter their lead window. Nothing makes a sound during sleep hours, and hidden tiers stay silent. An on-screen banner always appears; the sound and the system notification are the two switches above.</p>
+        <label>Mirror tasks to calendar ID <input id="cfg-mirror-cal" type="text" placeholder="abc123…@group.calendar.google.com" spellcheck="false"></label>
+        <p class="hint">A DEDICATED calendar the robot can write to ("Make changes to events") — never one a tier polls, or every task boomerangs back as its own event. Blank = mirroring off.</p>
+        <!-- E40 — the outbound half. This is the one that makes phones buzz. -->
+        <details id="mirror-connect">
+          <summary>🔔 How do I get reminders on my phone?</summary>
+          <div class="cal-steps">
+            <p class="hint">This app doesn't send notifications itself. Instead it <b>writes your dated tasks onto a Google Calendar you own</b> — and your phone already knows how to nag you about those. Your calendar becomes the alarm clock.</p>
+            <p><b>1.</b> In <b>Google Calendar</b>, left column, click <b>+</b> next to "Other calendars" → <b>Create new calendar</b>. Call it something like "Octodo". <b>Make a NEW one</b> — don't reuse a calendar you already keep appointments in.</p>
+            <p><b>2.</b> Open its <b>Settings and sharing</b> → <b>Share with specific people or groups → Add people</b> → paste this address, and set permission to <b>Make changes to events</b> (it has to write, not just read):</p>
+            <div class="robot-row">
+              <code id="mirror-robot">—</code>
+              <button id="mirror-robot-copy" class="mini" type="button">Copy</button>
+            </div>
+            <p><b>3.</b> Same page, scroll to <b>Integrate calendar</b>, copy the <b>Calendar ID</b>, and paste it in the box above.</p>
+            <p><b>4.</b> On your phone, make sure that calendar is switched on and has notifications enabled.</p>
+            <p class="hint">Your tasks appear there within the hour, at their real due times, and disappear when you check them off. Missed tasks in a ❗ tier also land on tomorrow morning at 9. <b>It is your calendar</b> — delete it and the mirroring simply stops.</p>
+            <p class="hint">Everyone gets their own. Two people <em>can</em> point at the same calendar if they want to see each other's work — each only ever adds and removes their own entries.</p>
+          </div>
+        </details>
+        <p class="hint" id="poll-cost-hint"></p>
+      </div>
+
+      <!-- ⚠️ 0.51.16 — TOUR REPLAY. It lives in the modal FOOT, not in a tab,
+           because it is reachable from all four and none of them owns it.
+           Filed as cosmetic since the first roadmap; it stopped being
+           cosmetic the moment Katie finished the old tour, because
+           markTourCompleted is permanent and a rewritten tour reaches
+           nobody who already saw the old one. -->
+      <div class="settings-tours">
+        <span class="hint-inline">Show me around:</span>
+        <button type="button" class="mini tour-replay" data-tour="firstTask">📋 Tasks &amp; projects</button>
+        <button type="button" class="mini tour-replay" data-tour="firstTier">🎨 Tiers</button>
+        <button type="button" class="mini tour-replay" data-tour="sharing">🤝 Sharing</button>
+      </div>
+
+      <div class="modal-foot">
+        <span id="versions-line" class="hint-inline"></span>
+        <button id="settings-save" class="primary">Save settings</button>
+      </div>
     </div>
+  </div>
 
-    <!-- LIBRARY VIEW: shown after Library is chosen -->
-    <div id="library-view" class="hidden">
-        <div class="hero">
-            <h1>Choose Your Book</h1>
-            <p>Pick a story and start typing — <a href="#" id="back-to-landing" style="color:var(--text-muted);">← back</a></p>
-        </div>
-        <div class="filter-bar" id="filter-bar">
-            <button class="filter-pill active" data-genre="all">All</button>
-        </div>
-
-        <div class="filter-bar" id="tag-filter-bar">
-            <span class="filter-group-label">Ages</span>
-            <select id="age-min" class="filter-select" aria-label="Minimum age"></select>
-            <span class="filter-group-label">to</span>
-            <select id="age-max" class="filter-select" aria-label="Maximum age"></select>
-            <span class="filter-group-label" style="margin-left:14px;">Lead</span>
-            <button class="filter-pill active" data-prot="all">Any</button>
-            <button class="filter-pill" data-prot="female">Female</button>
-            <button class="filter-pill" data-prot="male">Male</button>
-            <button class="filter-pill" data-prot="multiple">Multiple</button>
-            <button class="filter-pill" data-prot="ensemble">Ensemble</button>
-            <button class="filter-pill" data-prot="nonhuman">Animal</button>
-            <button class="filter-pill" id="tag-clear" style="margin-left:auto;">Clear</button>
-        </div>
-        <div id="filter-note"></div>
-        <div class="library-grid" id="book-grid">
-            <div class="loading-spinner">Loading library...</div>
-        </div>
+  <!-- ============ DUE-DATE DIALOG ============ -->
+  <!-- D118: relocated from inside #drift-wrap (see the note there). -->
+    <!-- D112: the clock dialog — clock-out (editable end + cancel = Jake's
+       "transition time or cancel the click") and 🕰 manual log share it. -->
+  <div id="clock-modal" class="modal-shell" hidden>
+    <div class="modal-card">
+      <h3 id="clock-heading">Clock out</h3>
+      <p id="clock-sub" class="hint"></p>
+      <!-- D113: datetime-local, not time — the dialog ASKS which day.
+           All-nighters and multi-day forgets are one honest field. -->
+      <label id="clock-start-row" hidden>Started at <input id="clock-start" type="datetime-local"></label>
+      <label id="clock-end-row">Ended at <input id="clock-end" type="datetime-local"></label>
+      <div class="modal-actions">
+        <button id="clock-save" class="primary">Save</button>
+        <button id="clock-cancel" class="mini">Cancel</button>
+      </div>
     </div>
+  </div>
 
-    <footer class="site-footer">
-        <span id="footer-version">TypeThatBook — Library</span>
-        <button id="build-toggle" type="button"
-                style="margin-left:10px;font:inherit;font-size:.85em;background:none;
-                       border:1px solid currentColor;border-radius:4px;padding:1px 7px;
-                       color:inherit;opacity:.65;cursor:pointer">build info</button>
-        <div id="build-list" style="display:none;margin-top:8px;font-size:.8em;
-                                    line-height:1.55;text-align:left;max-width:520px;
-                                    margin-left:auto;margin-right:auto"></div>
-    </footer>
+  <!-- D120: THE TIME REPORT — an arbitrary date range, not a fiscal-vs-
+       calendar setting; month/quarter/year buckets step from wherever
+       "Starts" is set, so either kind of year falls out for free. -->
+  <div id="report-modal" class="modal-shell" hidden>
+    <div class="modal-card report-card">
+      <div class="modal-head">
+        <h2>📊 Time Report</h2>
+        <button id="report-close" class="icon-btn">✕</button>
+      </div>
+      <p id="report-project-filter" class="hint" hidden></p>
+      <div class="report-controls">
+        <label>Starts <input id="report-start" type="date"></label>
+        <label>Ends <input id="report-end" type="date"></label>
+        <label>By
+          <select id="report-granularity">
+            <option value="day">Day</option>
+            <option value="week">Week</option>
+            <option value="month" selected>Month</option>
+            <option value="quarter">Quarter</option>
+            <option value="year">Year</option>
+          </select>
+        </label>
+      </div>
+      <p id="report-warn" class="hint warn" hidden></p>
+      <div id="report-table-wrap">
+        <table id="report-table"></table>
+      </div>
+      <p id="report-empty" class="hint" hidden>No sessions logged in this range.</p>
+      <div class="modal-actions">
+        <button id="report-export-rollup" class="mini">⬇ Export rollup CSV</button>
+        <button id="report-export-raw" class="mini">⬇ Export raw sessions CSV</button>
+      </div>
+      <p class="hint">The rollup export is spreadsheet-ready hours per project per period. The raw export is every logged session, un-split, exactly as recorded — build your own model on it.</p>
+    </div>
+  </div>
 
-    <script type="module">
-        import { db, auth } from "./firebase-config.js";
-        import { readDeployedVersions, renderBuildList } from "./versions.js";
+  <!-- D82: follow-up create/edit — retires the prompt() pair -->
+  <div id="followup-modal" class="modal-shell" hidden>
+    <div class="modal-card">
+      <h3 id="fu-heading">Follow-up</h3>
+      <label>Title <input id="fu-title" type="text"></label>
+      <label>Materializes
+        <input id="fu-n" type="number" min="1" step="1" value="3" style="width:4.5rem">
+        <select id="fu-unit">
+          <option value="minutes">minutes</option>
+          <option value="hours">hours</option>
+          <option value="days" selected>days</option>
+          <option value="weeks">weeks</option>
+          <option value="months">months</option>
+          <option value="years">years</option>
+          <option value="decades">decades</option>
+          <option value="centuries">centuries</option>
+        </select>
+        after completion</label>
+      <div class="modal-actions">
+        <button id="fu-save" class="primary">Save</button>
+        <button id="fu-cancel">Cancel</button>
+      </div>
+    </div>
+  </div>
 
-        // ─── Version ──────────────────────────────────────────────────────────
-        // This page's own version. The <title> and footer are both written from
-        // it, because they used to be hardcoded separately and had already
-        // drifted apart (title said 3.0.0, footer said 2.3.1).
-        //
-        // v3.0.1: single INDEX_VERSION constant drives title + footer; added the
-        //         build-info panel that reads every other file's version constant
-        //         out of the deployed files. See versions.js for why it fetches
-        //         rather than imports.
-        const INDEX_VERSION = "3.2.0";
+  <!-- D78: phone-only, in words, at the very bottom — where a
+       logout belongs on a device you rarely log out of. -->
+  <button id="signout-bottom">Log out</button>
 
-        document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
-        const _fv = document.getElementById('footer-version');
-        if (_fv) _fv.textContent = `TypeThatBook — Library v${INDEX_VERSION}`;
+  <!-- D68: the REAL project form is reparented in here from the form
+       panel while this is open — listeners, color assistant, and the
+       working-day interception all come along for free. -->
+  <div id="yv-project-modal" class="modal-shell" hidden>
+    <div class="modal-card yv-project-card">
+      <button id="yv-project-close" class="icon-btn yv-modal-close" title="Close">✕</button>
+    <div id="yv-project-slot"></div>
+    </div>
+  </div>
+  <!-- D127: a stray extra closing div used to sit HERE — a leftover from
+       D118's modal-relocation edit that never got cleaned up. It wasn't
+       harmless: by simple tag counting it was the ACTUAL closing tag for
+       #drift-wrap (see the real fix, ~150 lines up), meaning every modal
+       from #screen-rest through this one was still structurally INSIDE
+       #drift-wrap the whole time, D118's own comments notwithstanding.
+       Moved to where #drift-wrap is genuinely supposed to close. -->
 
-        // Lazy: nothing is fetched until someone asks. game.js is ~210KB and no
-        // student needs it on the library page.
-        const _btn = document.getElementById('build-toggle');
-        const _list = document.getElementById('build-list');
-        if (_btn && _list) {
-            _btn.addEventListener('click', async () => {
-                if (_list.style.display !== 'none') {
-                    _list.style.display = 'none';
-                    _btn.textContent = 'build info';
-                    return;
-                }
-                _list.style.display = '';
-                _btn.textContent = 'hide';
-                _list.innerHTML = 'Reading deployed files…';
-                try {
-                    const results = await readDeployedVersions();
-                    _list.innerHTML =
-                        `<div style="opacity:.6;margin-bottom:4px">index.html v${INDEX_VERSION} (this page)</div>`
-                        + renderBuildList(results);
-                } catch (e) {
-                    _list.innerHTML = '<div style="color:#ff8a65">Could not read build info.</div>';
-                }
-            });
-        }
-        // ──────────────────────────────────────────────────────────────────────
 
-        // --- LANDING ---
-        const landingView  = document.getElementById('landing-view');
-        const libraryView  = document.getElementById('library-view');
+  <div id="due-modal" class="modal-shell" hidden>
+    <div class="modal-card modal-sm">
+      <h3 id="due-title">Hard due date</h3>
+      <div class="form-row">
+        <label>Date <input id="due-date" type="date"></label>
+        <label>Time <input id="due-time" type="time" value="17:00"></label>
+      </div>
+      <div class="modal-foot">
+        <button id="due-clear" class="mini">Clear due date</button>
+        <span class="flex-spring"></span>
+        <button id="due-cancel" class="mini">Cancel</button>
+        <button id="due-save" class="primary">Save</button>
+      </div>
+    </div>
+  </div>
 
-        // Remember last choice in sessionStorage so refresh stays in place
-        const lastMode = sessionStorage.getItem('ttb_mode');
-        if (lastMode === 'library') { showLibrary(); }
-        // else stay on landing
+  <!-- ============ PER-PROJECT STAGE EDITOR ============ -->
+  <div id="stages-modal" class="modal-shell" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="stages-title">✎ Stages</h2>
+        <button id="stages-cancel" class="icon-btn">✕</button>
+      </div>
+      <p class="hint">This edits THIS project only — the template in ⚙️ Settings is untouched. ✓ = already completed, ⏰ = has a hard due date; both survive renames and reordering. Offsets count this tier's working days.</p>
+      <div id="stage-proj-editor"></div>
+      <button id="stage-proj-add" class="mini">+ Add stage</button>
+      <button id="stage-proj-undate" class="mini" title="Early experiments and the old editors saved stages as 'After + 0wd' (from start OR end), silently dating them. This flips every such row to No date — review, then Save.">Un-date all "+0wd" stages</button>
+      <div class="modal-foot">
+        <span></span>
+        <button id="stages-save" class="primary">Save stages</button>
+      </div>
+    </div>
+  </div>
 
-        document.getElementById('go-school').addEventListener('click', () => {
-            sessionStorage.setItem('ttb_mode', 'school');
-            window.location.href = 'learn.html';
-        });
-        document.getElementById('go-library').addEventListener('click', () => {
-            sessionStorage.setItem('ttb_mode', 'library');
-            showLibrary();
-        });
-        document.getElementById('back-to-landing').addEventListener('click', e => {
-            e.preventDefault();
-            sessionStorage.removeItem('ttb_mode');
-            libraryView.classList.add('hidden');
-            landingView.classList.remove('hidden');
-        });
+  <!-- ============ WORKING-DAY DATE CHECK (D45→D60) ============ -->
+  <div id="weekend-modal" class="modal-shell" hidden>
+    <div class="modal-card modal-sm">
+      <h3>🗓️ Working-day check</h3>
+      <p id="weekend-text"></p>
+      <div class="weekend-choices">
+        <button id="weekend-yes" class="mini">Yes, keep it</button>
+        <button id="weekend-fri" class="primary"></button>
+        <button id="weekend-mon" class="primary"></button>
+        <button id="weekend-back" class="mini">Go back</button>
+      </div>
+    </div>
+  </div>
 
-        // Mode toggle wiring. School is a plain <a> so it works even if this script
-        // fails; it only needs JS to remember the choice.
-        const modeSchool  = document.getElementById('mode-school');
-        const modeLibrary = document.getElementById('mode-library');
-        if (modeSchool) modeSchool.addEventListener('click', () => {
-            sessionStorage.setItem('ttb_mode', 'school');
-        });
-        if (modeLibrary) modeLibrary.addEventListener('click', () => {
-            // Already in the library: send them to the shelf rather than doing
-            // nothing, which is the useful behaviour from inside a book.
-            sessionStorage.setItem('ttb_mode', 'library');
-            showLibrary();
-        });
+  <!-- ============ OVERDUE DECISION TIME (D46/D57) ============ -->
+  <div id="decision-modal" class="modal-shell" hidden>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>🐙 Decision time</h2>
+        <button id="decision-close" class="icon-btn">✕</button>
+      </div>
+      <p class="hint">These have been overdue past your check-in threshold (⚙️ Timing). ✓ completes the next step, 🕐 pushes the deadline to the next working day at 9 AM — or close this and live dangerously; it won't ask again until tomorrow.</p>
+      <div id="decision-list"></div>
+    </div>
+  </div>
 
-        function showLibrary() {
-            landingView.classList.add('hidden');
-            libraryView.classList.remove('hidden');
-        }
-        import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  <!-- ============ UN-COMPLETE REWIND (D53) ============ -->
+  <div id="uncheck-modal" class="modal-shell" hidden>
+    <div class="modal-card modal-sm">
+      <h3 id="uncheck-title">↩️ Un-complete?</h3>
+      <p id="uncheck-text" class="hint"></p>
+      <div class="weekend-choices">
+        <button id="uncheck-oops" class="primary">Oops — keep it done</button>
+        <button id="uncheck-rewind" class="primary">Un-complete & pull follow-ups back to "Waiting on…"</button>
+        <button id="uncheck-keep" class="mini">Un-complete, but follow-ups keep their dates</button>
+      </div>
+    </div>
+  </div>
 
-        let currentUser = null;
-        let allBooks = [];
-        let userProgress = {};
-        let activeGenre = "all";
-        let activeProt  = "all";
-        // null = "Any". The pair is the filter; either end alone still filters,
-        // because an open end just means unbounded on that side.
-        let ageMin = null, ageMax = null;
-        const AGE_FLOOR = 3, AGE_CEIL = 18;
+  <!-- ============ DUPLICATE FOR NEXT YEAR (D59/D62) ============ -->
+  <div id="dup-modal" class="modal-shell" hidden>
+    <div class="modal-card modal-sm">
+      <h3>🔁 Same time next year?</h3>
+      <p id="dup-text" class="hint"></p>
+      <div class="form-row">
+        <label class="dup-wide">Name <input id="dup-name" type="text"></label>
+      </div>
+      <div class="form-row">
+        <label>Start <input id="dup-start" type="date"></label>
+        <label>End <input id="dup-end" type="date"></label>
+      </div>
+      <div class="form-row">
+        <label>Color <input id="dup-color" type="color"></label>
+        <label>Tier <select id="dup-tier"></select></label>
+        <label>Workload
+          <select id="dup-workload">
+            <option value="1">1 — light</option>
+            <option value="2">2 — standard</option>
+            <option value="3">3 — heavy</option>
+          </select>
+        </label>
+      </div>
+      <p class="hint">✎⋮ below edits next year's pipeline before anything is created (split "Excel setup" into five steps, add offsets) — nothing writes until you hit Create. The new card also opens expanded for a final look.</p>
 
-        // --- AUTH ---
-        const loginBtn = document.getElementById('login-btn');
-        const logoutBtn = document.getElementById('logout-btn');
-        const userNameEl = document.getElementById('user-name');
+      <!-- ⚠️ 0.51.17 — THE FOLLOW-UP OFFER, AND IT IS DELIBERATELY INDEPENDENT.
+           Katie, via Jake: *"That 'Do you want to duplicate for next year?'
+           modal should have a 'Do you want to add a follow-up task?' as
+           well… Katie wants the option of creating a follow-up task
+           immediately after completing the project as well as the option of
+           duping the whole project."*
 
-        loginBtn.onclick = async () => {
-            try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-            catch(e) { console.error(e); }
-        };
-        logoutBtn.onclick = async () => {
-            try { await signOut(auth); } catch(e) { console.error(e); }
-        };
+           ⚠️ "AS WELL AS", NOT "INSTEAD OF". It has its OWN button on
+           purpose: she can add a follow-up and still duplicate, add one and
+           snooze the duplicate, or add one and say No thanks. Wiring it to
+           Create would have made the common case — a follow-up on a project
+           that does NOT repeat next year — unreachable.
 
-        onAuthStateChanged(auth, async (user) => {
-            currentUser = user;
-            if (user) {
-                userNameEl.textContent = user.displayName || user.email;
-                userNameEl.style.display = '';
-                loginBtn.style.display = 'none';
-                logoutBtn.style.display = '';
-                await loadUserProgress();
-                loadIndexStats();
-            } else {
-                userNameEl.style.display = 'none';
-                loginBtn.style.display = '';
-                logoutBtn.style.display = 'none';
-                userProgress = {};
-            }
-            renderBooks();
-        });
+           ⚠️ This does NOT replace the pipeline's `↳ +Nd` field. Jake: *"the
+           old layout of adding offsets for projects in the pipeline was fine
+           — I'm sure the new one is fine, too."* Same idiom, two entry
+           points: the pipeline for a follow-up you knew about when you built
+           the project, this for one you only discover on finishing it. -->
+      <div class="dup-followup">
+        <div class="dup-fu-head">↳ Also add a follow-up task?</div>
+        <div class="form-row">
+          <label class="dup-wide">Task <input id="dup-fu-title" type="text" placeholder="e.g. Send the invoice"></label>
+          <label>in <input id="dup-fu-days" type="number" min="0" max="365" value="14"> days</label>
+          <button id="dup-fu-add" class="mini" type="button">＋ Add it</button>
+        </div>
+        <p class="hint" id="dup-fu-note">It lands on this project's tier, dated from today, and lives its own life — the project stays finished either way.</p>
+      </div>
+      <div class="weekend-choices">
+        <button id="dup-stages" class="mini">✎⋮ Review the pipeline first…</button>
+        <button id="dup-yes" class="primary">Create next year's run</button>
+        <div class="snooze-row"><span class="hint-inline">🕐 Remind me in</span>
+          <button id="dup-snooze-1" class="mini">a day</button>
+          <button id="dup-snooze-7" class="mini">a week</button>
+          <button id="dup-snooze-30" class="mini">a month</button>
+        </div>
+        <button id="dup-no" class="mini">No thanks</button>
+      </div>
+    </div>
+  </div>
 
-        // --- LOAD BOOKS ---
-        async function loadBooks() {
-            try {
-                const snap = await getDocs(collection(db, "books"));
-                allBooks = [];
-                snap.forEach(d => {
-                    const data = d.data();
-                    allBooks.push({
-                        id: d.id,
-                        title: data.title || d.id,
-                        author: data.author || "",
-                        genre: data.genre || "",
-                        // null means untagged, and untagged is meaningfully
-                        // different from zero — don't coalesce with ||.
-                        minAge: (typeof data.minAge === 'number') ? data.minAge : null,
-                        maxAge: (typeof data.maxAge === 'number') ? data.maxAge : null,
-                        protagonistGender: data.protagonistGender || "",
-                        coverUrl: data.coverUrl || "",
-                        totalChapters: data.totalChapters || (data.chapters ? data.chapters.length : 0),
-                        chapters: data.chapters || []
-                    });
-                });
-                allBooks.sort((a, b) => a.title.localeCompare(b.title));
-                buildGenreFilters();
-                buildTagFilters();
-                renderBooks();
-            } catch(e) {
-                document.getElementById('book-grid').innerHTML =
-                    '<div class="empty-state">Error loading library. Please refresh.</div>';
-                console.error(e);
-            }
-        }
+  <!-- Shared tap-popover for ⓘ dots -->
+  <div id="popover" hidden></div>
 
-        // --- LOAD USER PROGRESS ---
-        async function loadUserProgress() {
-            if (!currentUser) return;
-            userProgress = {};
-            try {
-                const snap = await getDocs(collection(db, "users", currentUser.uid, "progress"));
-                snap.forEach(d => { userProgress[d.id] = d.data(); });
-            } catch(e) { console.warn("Could not load progress:", e); }
-        }
+  <!-- ============ E41 — ONBOARDING: WELCOME SPLASH ============ -->
+  <!-- Shows once per workspace on first visit. Outside #drift-wrap (D37). -->
+  <div id="welcome-splash" class="modal-shell onboarding-overlay" hidden>
+    <div class="modal-card onboarding-card welcome-splash-card">
+      <div class="modal-head">
+        <h2>🐙 Welcome to Tentacalendar</h2>
+      </div>
+      <div class="onboarding-body">
+        <!-- ⚠️ 0.51.15 — TONE. This read "a planning board that decides what
+             you should do next — INSTEAD OF LETTING YOU." Jake and Katie,
+             first run after the flip: *"help you pick the next thing because
+             you're incapable isn't really the vibe we're going for. Help you
+             pick the next thing so you don't have to is better."* They are
+             right, and the difference is the whole product: this app takes
+             over the SORTING, not the deciding. Keep it that way. -->
+        <p>A planning board that works out <b>what's next</b>, so you don't have to.</p>
+        <p class="hint">It reads your deadlines and builds your day from them, so the order is one less thing to hold in your head. If something is late it climbs; late enough, it speaks up.</p>
+        <p class="hint">Tasks are the small stuff. <b>Projects</b> are the real work — they break into stages and feed the same day you're already looking at.</p>
+        <p class="hint">Two minutes, and you can leave any time. Click <b>Let's go</b>, or skip if you would rather poke at it.</p>
+      </div>
+      <div class="onboarding-buttons">
+        <button id="splash-skip" class="mini">Skip</button>
+        <button id="splash-tour" class="primary">Let's go →</button>
+      </div>
+    </div>
+  </div>
 
-        // --- GENRE FILTERS ---
-        function buildGenreFilters() {
-            const genres = [...new Set(allBooks.map(b => b.genre).filter(Boolean))].sort();
-            const bar = document.getElementById('filter-bar');
-            bar.innerHTML = '<button class="filter-pill active" data-genre="all">All</button>';
-            genres.forEach(g => {
-                const btn = document.createElement('button');
-                btn.className = 'filter-pill';
-                btn.dataset.genre = g;
-                btn.textContent = g;
-                bar.appendChild(btn);
-            });
-            bar.addEventListener('click', (e) => {
-                const pill = e.target.closest('.filter-pill');
-                if (!pill) return;
-                activeGenre = pill.dataset.genre;
-                bar.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
-                pill.classList.add('active');
-                renderBooks();
-            });
-        }
+  <!-- ============ E41 — ONBOARDING: TOUR OVERLAY ============ -->
+  <!-- Tour step display, highlight overlay, and navigation. -->
+  <div id="tour-backdrop" class="onboarding-overlay" hidden></div>
+  <div id="tour-highlight" class="tour-highlight" hidden></div>
+  <div id="tour-popover" class="tour-popover" hidden>
+    <div id="tour-step-indicator">Step <span id="tour-step-num">1</span> of <span id="tour-step-total">5</span></div>
+    <h3 id="tour-title">Tour Step</h3>
+    <p id="tour-text">Tour instruction text.</p>
+    <div class="tour-buttons">
+      <button id="tour-exit" class="mini" title="Exit tour">✕ Exit</button>
+      <button id="tour-prev" class="mini" hidden>← Back</button>
+      <button id="tour-next" class="primary">Next →</button>
+    </div>
+  </div>
 
-        // --- AGE + PROTAGONIST FILTERS ---
-        //
-        // OVERLAP, not containment. A student asking for ages 9-12 wants every
-        // book whose range touches theirs — a 7-11 book is squarely relevant to a
-        // 9-year-old and would be thrown away by a containment test. The rule:
-        //
-        //     book.minAge <= filterMax  &&  book.maxAge >= filterMin
-        //
-        // with an absent filter end treated as unbounded. Two ranges overlap iff
-        // each one starts before the other ends.
-        //
-        // A book with no age range cannot participate in that test at all, so it
-        // is excluded whenever an age filter is active — and the count of what
-        // got hidden is reported, because a filter that silently empties a
-        // half-tagged library looks broken rather than accurate.
-        function matchesAge(book) {
-            if (ageMin === null && ageMax === null) return true;
-            if (book.minAge === null || book.maxAge === null) return false;
-            const lo = (ageMin === null) ? -Infinity : ageMin;
-            const hi = (ageMax === null) ?  Infinity : ageMax;
-            return book.minAge <= hi && book.maxAge >= lo;
-        }
+  <!-- ============ E41 — ONBOARDING: CONTEXTUAL POPOVERS ============ -->
+  <!-- Dismissible hints for first-time interactions at key UI points.
+       Built dynamically by app.js; markup is structural only. -->
+  <div id="popover-hint" class="popover-hint" hidden>
+    <div class="popover-hint-arrow"></div>
+    <p id="popover-hint-text"></p>
+    <button class="mini popover-hint-close" title="Dismiss">✕</button>
+  </div>
 
-        function matchesProt(book) {
-            if (activeProt === "all") return true;
-            return book.protagonistGender === activeProt;
-        }
+  <!-- ============ E41 — ONBOARDING: HELP PANELS ============ -->
+  <!-- Inline expandable help sections in various parts of the UI.
+       The .help-toggle class marks sections that become collapsible on first visit. -->
+  <!-- These will be populated by app.js based on help definitions. -->
 
-        function buildTagFilters() {
-            const minSel = document.getElementById('age-min');
-            const maxSel = document.getElementById('age-max');
-            const opts = (sel, label) => {
-                sel.innerHTML = `<option value="">${label}</option>` +
-                    Array.from({ length: AGE_CEIL - AGE_FLOOR + 1 },
-                               (_, i) => AGE_FLOOR + i)
-                         .map(n => `<option value="${n}">${n}</option>`).join('');
-            };
-            opts(minSel, 'Any');
-            opts(maxSel, 'Any');
-
-            const onAge = () => {
-                ageMin = minSel.value === '' ? null : parseInt(minSel.value, 10);
-                ageMax = maxSel.value === '' ? null : parseInt(maxSel.value, 10);
-                // A backwards range matches nothing and reads as a broken page.
-                // Push the other end along instead of showing an empty grid.
-                if (ageMin !== null && ageMax !== null && ageMin > ageMax) {
-                    if (document.activeElement === minSel) { ageMax = ageMin; maxSel.value = String(ageMax); }
-                    else { ageMin = ageMax; minSel.value = String(ageMin); }
-                }
-                minSel.classList.toggle('is-set', ageMin !== null);
-                maxSel.classList.toggle('is-set', ageMax !== null);
-                renderBooks();
-            };
-            minSel.onchange = onAge;
-            maxSel.onchange = onAge;
-
-            const bar = document.getElementById('tag-filter-bar');
-            bar.addEventListener('click', (e) => {
-                const pill = e.target.closest('.filter-pill');
-                if (!pill) return;
-                if (pill.id === 'tag-clear') {
-                    activeProt = 'all'; ageMin = ageMax = null;
-                    minSel.value = ''; maxSel.value = '';
-                    minSel.classList.remove('is-set'); maxSel.classList.remove('is-set');
-                    bar.querySelectorAll('.filter-pill[data-prot]').forEach(p =>
-                        p.classList.toggle('active', p.dataset.prot === 'all'));
-                    renderBooks();
-                    return;
-                }
-                if (!pill.dataset.prot) return;
-                activeProt = pill.dataset.prot;
-                bar.querySelectorAll('.filter-pill[data-prot]').forEach(p => p.classList.remove('active'));
-                pill.classList.add('active');
-                renderBooks();
-            });
-        }
-
-        // --- RENDER ---
-        function renderBooks() {
-            const grid = document.getElementById('book-grid');
-            const byGenre = activeGenre === "all"
-                ? allBooks
-                : allBooks.filter(b => b.genre === activeGenre);
-
-            const filtered = byGenre.filter(b => matchesAge(b) && matchesProt(b));
-
-            // Say plainly how many books the age filter had to set aside for
-            // want of a tag. Without this, "no books found" during the tagging
-            // backlog is indistinguishable from a bug.
-            const note = document.getElementById('filter-note');
-            if (note) {
-                const ageOn = (ageMin !== null || ageMax !== null);
-                const hiddenUntagged = ageOn
-                    ? byGenre.filter(b => (b.minAge === null || b.maxAge === null) && matchesProt(b)).length
-                    : 0;
-                note.innerHTML = hiddenUntagged
-                    ? `${hiddenUntagged} book${hiddenUntagged === 1 ? '' : 's'} ` +
-                      `hidden — no age range set yet. <a id="note-clear">Show all ages</a>`
-                    : '';
-                const nc = document.getElementById('note-clear');
-                if (nc) nc.onclick = () => {
-                    ageMin = ageMax = null;
-                    const mn = document.getElementById('age-min'), mx = document.getElementById('age-max');
-                    mn.value = ''; mx.value = '';
-                    mn.classList.remove('is-set'); mx.classList.remove('is-set');
-                    renderBooks();
-                };
-            }
-
-            if (filtered.length === 0) {
-                grid.innerHTML = '<div class="empty-state">No books match those filters.</div>';
-                return;
-            }
-
-            grid.innerHTML = filtered.map(book => {
-                const progress = userProgress[book.id];
-                let progressHTML = '';
-                if (progress && book.totalChapters > 0) {
-                    const chapNum = parseInt(String(progress.chapter || "1").replace("chapter_", ""));
-                    const pct = Math.min(100, Math.round((chapNum / book.totalChapters) * 100));
-                    progressHTML = `
-                        <div class="book-progress">
-                            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
-                            <div class="progress-label">Ch. ${chapNum} / ${book.totalChapters}</div>
-                        </div>`;
-                }
-
-                const coverHTML = book.coverUrl
-                    ? `<img class="book-cover" src="${escapeAttr(book.coverUrl)}" alt="${escapeAttr(book.title)} cover" loading="lazy">`
-                    : `<div class="book-cover-placeholder">${escapeHtml(book.title)}</div>`;
-
-                return `
-                    <a class="book-card" href="game.html?book=${encodeURIComponent(book.id)}">
-                        ${coverHTML}
-                        <div class="book-info">
-                            ${book.genre ? `<span class="book-genre-tag">${escapeHtml(book.genre)}</span>` : ''}
-                            ${book.minAge !== null && book.maxAge !== null
-                                ? `<span class="book-age-tag">${book.minAge}\u2013${book.maxAge}</span>` : ''}
-                            <div class="book-title">${escapeHtml(book.title)}</div>
-                            ${book.author ? `<div class="book-author">${escapeHtml(book.author)}</div>` : ''}
-                            ${progressHTML}
-                        </div>
-                    </a>`;
-            }).join('');
-        }
-
-        function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-        function escapeAttr(s) { return s.replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
-
-        // --- INIT ---
-        loadBooks();
-
-        async function loadIndexStats() {
-            if (!currentUser) return;
-            try {
-                const snap = await getDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'));
-                if (!snap.exists()) return;
-                const data = snap.data();
-                const now = new Date();
-                const diff = (now.getDay() + 1) % 7;
-                const ws = new Date(now);
-                ws.setDate(ws.getDate() - diff);
-                const weekStartStr = ws.getFullYear() + '-' +
-                    String(ws.getMonth()+1).padStart(2,'0') + '-' +
-                    String(ws.getDate()).padStart(2,'0');
-                const todayStr = now.getFullYear() + '-' +
-                    String(now.getMonth()+1).padStart(2,'0') + '-' +
-                    String(now.getDate()).padStart(2,'0');
-                const secsToday = data.lastDate  === todayStr    ? (data.secondsToday || 0) : 0;
-                const secsWeek  = data.weekStart === weekStartStr ? (data.secondsWeek  || 0) : 0;
-                if (secsToday === 0 && secsWeek === 0) return;
-                function fmt(s) { const m=Math.floor(s/60),sec=s%60; return m+':'+String(sec).padStart(2,'0'); }
-                const bar = document.getElementById('index-stats-bar');
-                if (!bar) return;
-                bar.style.display = '';
-                bar.innerHTML = 'Today: <strong>' + fmt(secsToday) + '</strong>' +
-                    ' │ This week: <strong>' + fmt(secsWeek) + '</strong>';
-            } catch(e) { /* stats are non-critical */ }
-        }
-    </script>
+  <script type="module" src="app.js?v=2.1.0"></script>
 </body>
 </html>
