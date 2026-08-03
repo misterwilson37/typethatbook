@@ -1,12 +1,17 @@
 {
   "name": "typethatbook-functions",
-  "description": "Cloud Functions for TypeThatBook practice mode",
+  "description": "Cloud Functions for TypeThatBook practice mode. One export: generatePractice.",
+  "//engines": [
+    "Node 18 was decommissioned for Cloud Functions deploys, so the previous pin",
+    "would have failed at the worst possible moment: the first time anyone tried",
+    "to deploy, probably while debugging something else. 22 is the current LTS."
+  ],
   "engines": {
-    "node": "18"
+    "node": "22"
   },
   "main": "index.js",
   "dependencies": {
-    "firebase-admin": "^12.0.0",
-    "firebase-functions": "^5.0.0"
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.0"
   }
 }
