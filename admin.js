@@ -1,10 +1,23 @@
-// admin.js v3.11.0
+// admin.js v3.13.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.13.0 — Front/back matter is no longer imported as numbered chapters, and
+//           chapter TITLES are finally read. Standard Ebooks puts a chapter's
+//           name in a <p epub:type="title"> inside an <hgroup>, so the old
+//           heading-only extractor returned the bare ordinal AND left the title
+//           in the prose as segment zero. Twelve of twenty test books affected.
+//           Counts now match the real books: P&P 61 (was 65), Gatsby 9 (was 15),
+//           Alice 12 (was 18), Aesop 284 (was 289).
+// v3.12.0 — Writes `contentVersion` on every chapter save. game.js has read
+//           that field to invalidate its chapter cache since v3.4.0 and NOTHING
+//           has ever written it, so an edited chapter took up to a week to
+//           reach students. Also: the TOC importer no longer drops paragraphs
+//           that sit before the first TOC anchor, and every import now
+//           reconciles paragraphs seen against paragraphs placed.
 // v3.11.0 — EPUB import asks the BOOK where its chapters are. The table of
 //           contents is authoritative; v3.9.0's container heuristic only
 //           worked when a publisher used <article>/<section>, which Project
@@ -38,7 +51,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.11.0";
+const ADMIN_VERSION = "3.13.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -473,6 +486,11 @@ let stagedChapters = [];
 // the database in the first case and stay in memory in the second, and
 // stagedChapters.length alone cannot tell them apart.
 let stagedFromDB = false;
+// Body chapters only — excludes front and back matter. Written to the book
+// document so "finished the book" can be judged on the story rather than the file
+// count. Without it, a student who types the last chapter still has the colophon
+// between them and the celebration.
+let stagedBodyChapters = 0;
 let editingIndex = -1;
 let bookTitlesMap = {};
 let activeBookId = ""; 
@@ -913,6 +931,13 @@ async function parseEpubFile(file) {
         let counter = 1;
         let splitFiles = 0, splitUnits = 0, skippedBoiler = 0;
         let viaToc = 0, viaStructure = 0;
+        // ⚠️ PARAGRAPH RECONCILIATION (v3.12.0). Count every <p> the document has
+        // after boilerplate removal, and count every <p> the grouping actually
+        // handed to a chapter. If those two numbers disagree, the importer lost
+        // text — and BEFORE this existed, it could do that in complete silence.
+        // Reported unconditionally at the end of the parse.
+        let pSeen = 0, pGrouped = 0, orphansRescued = 0;
+        let matterFront = 0, matterBack = 0, titleSegmentsRemoved = 0;
 
         for (let item of spineItems) {
             const href = idToHref[item.getAttribute("idref")];
@@ -928,26 +953,62 @@ async function parseEpubFile(file) {
             // One spine file is USUALLY one chapter, but not always. Ask the
             // book's own TOC first; fall back to the container heuristic; fall
             // back to the whole file.
+            pSeen += doc.body.querySelectorAll('p').length;
+
             const fileKey = href.split('/').pop();
+
+            // What IS this file? Front matter must not consume chapter numbers.
+            const kind = classifyDocument(doc, fileKey);
+            if (kind.cls === 'front') matterFront++;
+            else if (kind.cls === 'back') matterBack++;
+
             let units = chapterUnitsFromToc(doc, tocIndex[fileKey]);
-            if (units) viaToc++; else { units = findChapterUnits(doc); if (units) viaStructure++; }
+            if (units) { viaToc++; orphansRescued += (units.orphanCount || 0); }
+            else { units = findChapterUnits(doc); if (units) viaStructure++; }
             if (units) { splitFiles++; splitUnits += units.length; }
 
-            const groups = units || [{
-                title: headingTextOf(doc.body),
-                pEls: Array.from(doc.body.querySelectorAll('p'))
-            }];
+            let groups;
+            if (units) {
+                // Split file: each unit has its own heading. Re-read it with the
+                // richer extractor so an <hgroup> title is found and its <p> can
+                // be excluded from the prose.
+                groups = units.map(u => {
+                    const info = headingInfoOf(u.root || doc.body);
+                    return { title: u.title || info.title || info.ordinal,
+                             info, pEls: u.pEls };
+                });
+            } else {
+                const info = headingInfoOf(doc.body);
+                groups = [{ title: '', info,
+                            pEls: Array.from(doc.body.querySelectorAll('p')) }];
+            }
+
+            // ⚠️ THE TITLE IS NOT PROSE. Standard Ebooks puts a chapter's name in
+            // a <p epub:type="title">, so querySelectorAll('p') collected it as
+            // segment zero and students typed the chapter title as the first line
+            // of the chapter. Excise those elements from every group.
+            for (const g of groups) {
+                const drop = (g.info && g.info.titleEls) || [];
+                if (!drop.length) continue;
+                const before = g.pEls.length;
+                g.pEls = g.pEls.filter(el => drop.indexOf(el) === -1);
+                titleSegmentsRemoved += (before - g.pEls.length);
+            }
 
           for (const group of groups) {
             // textContent, NOT innerText — innerText is layout-dependent and
             // returns undefined on a DOMParser document in Firefox, which would
             // make .trim() throw and kill the whole import.
+            // Real name first; bare ordinal only when the book has no chapter
+            // names at all (Pride and Prejudice, Gatsby). The number already
+            // lives in the id, so repeating it in the title earns nothing.
             const title = (group.title && group.title.trim())
                 ? group.title.trim().substring(0, 60)
-                : `Chapter ${counter}`;
+                : composeChapterTitle(group.info, counter);
 
             const segments = [];
             const pTags = group.pEls;
+            pGrouped += pTags.length;
             
             pTags.forEach((el) => {
                 let text = el.textContent;
@@ -975,16 +1036,23 @@ async function parseEpubFile(file) {
             });
 
             if (segments.length > 0) {
-                stagedChapters.push({ 
-                    id: counter, 
-                    title: title, 
-                    segments: segments 
+                stagedChapters.push({
+                    id: counter,          // replaced by assignChapterIds() below
+                    title: title,
+                    matter: kind.cls,     // 'front' | 'body' | 'back'
+                    matterWhy: kind.why,
+                    segments: segments
                 });
                 counter++;
             }
           }
         }
         
+        // Numbering happens AFTER the whole spine is read, because it depends on
+        // each chapter's class and front matter must not consume chapter numbers.
+        const numbering = assignChapterIds(stagedChapters);
+        stagedBodyChapters = numbering.bodyChapters;
+
         if (importErrors.length > 0) {
             currentErrorIdx = 0;
             showErrorWizard();
@@ -1002,14 +1070,30 @@ async function parseEpubFile(file) {
                       : viaToc ? 'table of contents' : 'structure';
             const splitNote = (splitFiles
                 ? ` (split ${splitFiles} file${splitFiles === 1 ? '' : 's'} into ${splitUnits} sections via ${how})`
-                : '') + (skippedBoiler ? ` · removed ${skippedBoiler} boilerplate block${skippedBoiler === 1 ? '' : 's'}` : '');
+                : '') + (skippedBoiler ? ` · removed ${skippedBoiler} boilerplate block${skippedBoiler === 1 ? '' : 's'}` : '')
+                + (orphansRescued ? ` · kept ${orphansRescued} paragraph${orphansRescued === 1 ? '' : 's'} that sat outside the table of contents` : '')
+                + ` · ${numbering.bodyChapters} chapter${numbering.bodyChapters === 1 ? '' : 's'}`
+                + (matterFront ? `, ${matterFront} front matter` : '')
+                + (matterBack ? `, ${matterBack} back matter` : '')
+                + (titleSegmentsRemoved ? ` · removed ${titleSegmentsRemoved} chapter title${titleSegmentsRemoved === 1 ? '' : 's'} from the text students type` : '');
+            // The reconciliation. A shortfall means the grouping dropped text and
+            // is the single most important thing on this screen — say it loudly
+            // and say what to do. An excess means a <p> was counted twice, which
+            // is odd but not lossy.
+            // ⚠ Subtract the title elements we removed ON PURPOSE, or the
+            // reconciliation reports its own fix as data loss and warns in amber
+            // on every single import.
+            const pDelta = pSeen - pGrouped - titleSegmentsRemoved;
+            const pNote = pDelta > 0
+                ? ` ⚠ ${pDelta} paragraph${pDelta === 1 ? '' : 's'} in the EPUB did not reach any chapter — check the chapter list before uploading.`
+                : (pDelta < 0 ? ` (note: ${-pDelta} paragraph${pDelta === -1 ? '' : 's'} counted more than once)` : '');
             if (langIssues.length > 0) {
                 showLanguageWarnings(langIssues, false);
-                statusEl.innerText = `Parsed ${stagedChapters.length} chapters${splitNote}. ⚠️ ${langIssues.length} language warning(s).`;
+                statusEl.innerText = `Parsed ${stagedChapters.length} chapters${splitNote}.${pNote} ⚠️ ${langIssues.length} language warning(s).`;
                 statusEl.style.borderColor = "#ffaa00";
             } else {
-                statusEl.innerText = `✅ Parsed ${stagedChapters.length} chapters${splitNote}. No character issues or language warnings found.`;
-                statusEl.style.borderColor = "#00ff41";
+                statusEl.innerText = `✅ Parsed ${stagedChapters.length} chapters${splitNote}.${pNote} No character issues or language warnings found.`;
+                statusEl.style.borderColor = pDelta > 0 ? "#ffaa00" : "#00ff41";
             }
         }
 
@@ -1063,12 +1147,6 @@ function findChapterUnits(doc) {
         title: headingTextOf(el),
         pEls: Array.from(el.querySelectorAll('p'))
     }));
-}
-
-function headingTextOf(root) {
-    const h = root.querySelector('h1, h2, h3, h4, h5, h6');
-    if (!h) return '';
-    return (h.textContent || '').replace(/\s+/g, ' ').trim();
 }
 
 // ─── Strategy 1: ask the book (v3.11.0) ───────────────────────────────────
@@ -1149,18 +1227,55 @@ function chapterUnitsFromToc(doc, anchors) {
     }
     if (ordered.length < 2) return null;
 
+    // ⚠️ v3.12.0 — THIS LOOP USED TO LOSE TEXT, SILENTLY.
+    //
+    // `current` starts null, so every <p> encountered BEFORE the first TOC
+    // anchor was skipped and never reached any chapter. Content between anchors
+    // was always fine (it attaches to the preceding unit — merged, not lost) and
+    // content after the last anchor was fine too. The single loss case was the
+    // run-up to the first anchor: a dedication, an epigraph, a Gutenberg
+    // transcriber's note sharing a file with chapter one.
+    //
+    // Two rules now, and neither can lose a paragraph:
+    //
+    //   ORPHANS ARE KEPT, not dropped. Anything before the first anchor is
+    //   prepended to the first unit. It might land in the wrong chapter — but a
+    //   stray paragraph at the top of chapter one is VISIBLE in the staging list
+    //   and deletable in two clicks, whereas a missing one is invisible forever.
+    //   Wrong-and-visible beats absent-and-silent every time.
+    //
+    //   IF MOST OF THE FILE IS ORPHANED, THE TOC IS NOT A MAP OF THIS FILE.
+    //   Bail out and let findChapterUnits() or the whole-file path handle it,
+    //   both of which keep everything by construction. A table of contents that
+    //   accounts for less than half a document is describing something else.
     let current = null;
+    let orphans = [];
+    let totalP = 0;
     const walk = doc.body.getElementsByTagName('*');
     for (let i = 0; i < walk.length; i++) {
         const el = walk[i];
-        if (byEl.has(el)) current = byEl.get(el);
-        else if (current && el.tagName && el.tagName.toLowerCase() === 'p') current.pEls.push(el);
+        if (byEl.has(el)) { current = byEl.get(el); continue; }
+        if (!el.tagName || el.tagName.toLowerCase() !== 'p') continue;
+        totalP++;
+        if (current) current.pEls.push(el);
+        else orphans.push(el);
+    }
+
+    if (totalP > 0 && orphans.length > totalP / 2) {
+        console.warn('TOC accounts for less than half of this file (' +
+                     orphans.length + ' of ' + totalP + ' paragraphs fall outside ' +
+                     'it) — falling back to structure.');
+        return null;
     }
 
     // Front matter that happens to be in the TOC — a title page, a Contents
     // list — carries no paragraphs and drops out here without special-casing.
     const kept = ordered.filter(u => u.pEls.length);
-    return kept.length >= 2 ? kept : null;
+    if (kept.length < 2) return null;
+    if (orphans.length) kept[0].pEls = orphans.concat(kept[0].pEls);
+    // Reported by parseEpubFile so a rescue is a number on screen, not a secret.
+    kept.orphanCount = orphans.length;
+    return kept;
 }
 
 // Project Gutenberg wraps its licence and machine header in marked-up
@@ -1177,6 +1292,183 @@ function stripBoilerplate(doc) {
     const junk = doc.body.querySelectorAll('.pg-boilerplate, #pg-header, #pg-footer');
     junk.forEach(el => el.parentNode && el.parentNode.removeChild(el));
     return junk.length;
+}
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ASK THE BOOK WHAT EACH FILE IS  (v3.13.0)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Before this, EVERY spine document became a numbered chapter. So Standard
+// Ebooks' `imprint.xhtml` — their publishing boilerplate — was chapter 2 of
+// every book in the library, `titlepage.xhtml` was chapter 1, and a student
+// could be assigned to type the colophon. Worse, it shifted the real chapters:
+// Pride and Prejudice's Chapter I sat at position 3, Gatsby's at position 5,
+// Douglass's at position 6 — a different offset per book. Aesop reported 289
+// fables instead of 284 for exactly this reason.
+//
+// EPUB3 already answers this. The root <section>/<body> carries
+// epub:type="frontmatter" | "bodymatter" | "backmatter". Standard Ebooks is
+// meticulous about it — verified across 18 of Jake's 20 books. Same principle
+// that fixed the chapter splitting in v3.11.0: the book states its own
+// structure, so read it instead of guessing.
+//
+// ⚠️ Nothing is DISCARDED. Front and back matter still import; they are just
+// numbered outside the chapter sequence (see assignChapterId) and labelled in
+// the staging list. Some front matter is real prose worth typing — Aesop's
+// Introduction, Douglass's Preface and the Wendell Phillips letter. Dropping
+// those would be its own bug.
+const FRONT_MATTER_FILE = /\b(frontmatter|titlepage|halftitle|halftitlepage|imprint|dedication|epigraph|toc|contents|landmarks|loi|cover)\b/;
+const BACK_MATTER_FILE  = /\b(backmatter|colophon|copyright|uncopyright|appendix|endnotes|index)\b/;
+
+function classifyDocument(doc, fileKey) {
+    if (!doc || !doc.body) return { cls: 'body', why: 'unparseable' };
+
+    // Strategy 1: epub:type, which is authoritative when present.
+    const roots = [doc.body].concat(Array.from(doc.body.querySelectorAll('section, article')));
+    for (const el of roots) {
+        const t = (el.getAttribute && (el.getAttribute('epub:type') || el.getAttribute('type'))) || '';
+        if (!t) continue;
+        if (/\bbodymatter\b/.test(t))  return { cls: 'body',  why: 'epub:type bodymatter' };
+        if (/\bbackmatter\b/.test(t))  return { cls: 'back',  why: 'epub:type backmatter' };
+        if (/\bfrontmatter\b/.test(t)) return { cls: 'front', why: 'epub:type frontmatter' };
+    }
+
+    // Strategy 2: EPUB2 has no semantics at all (Project Gutenberg). Filename,
+    // then shape. A document with no heading and almost no prose is not a
+    // chapter of a novel — it is a dedication or a transcriber's note.
+    const f = String(fileKey || '').toLowerCase();
+    if (FRONT_MATTER_FILE.test(f)) return { cls: 'front', why: 'filename' };
+    if (BACK_MATTER_FILE.test(f))  return { cls: 'back',  why: 'filename' };
+
+    const lead = (doc.body.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (/^(contents|table of contents)\b/i.test(lead)) {
+        return { cls: 'front', why: 'reads like a contents page' };
+    }
+    const chars = Array.from(doc.body.querySelectorAll('p'))
+                       .map(x => x.textContent.trim()).join(' ').length;
+    if (!doc.body.querySelector('h1,h2,h3,h4,h5,h6') && chars < 600) {
+        return { cls: 'front', why: 'no heading, only ' + chars + ' characters' };
+    }
+    return { cls: 'body', why: 'default' };
+}
+
+// ─── Heading extraction: the title AND the ordinal, separately ───────────────
+//
+// ⚠️ THIS IS THE BUG THAT COST JAKE THE MOST TYPING, AND IT WAS TWO BUGS.
+//
+// headingTextOf() only ever queried h1-h6. Standard Ebooks marks a titled
+// chapter like this:
+//
+//     <hgroup>
+//       <h2 epub:type="z3998:ordinal z3998:roman">II</h2>
+//       <p  epub:type="title">Old Tom and Nancy</p>
+//     </hgroup>
+//
+// The ordinal is the heading. THE TITLE IS A <p>. So the old function returned
+// "II" and never saw the name — twelve of Jake's twenty books, every one of
+// which he then re-typed by hand.
+//
+// And because the title is a <p>, querySelectorAll('p') swept it into the body
+// text, making the chapter title SEGMENT ZERO of what students type. He was
+// typing names into the admin form that were simultaneously being served to
+// kids as the first line of prose.
+//
+// Returns { title, ordinal, titleEls }. `titleEls` is the <p> elements to
+// exclude from the typing segments — the caller MUST honour that or the title
+// stays in the prose.
+function headingInfoOf(root) {
+    const HEADING = 'h1, h2, h3, h4, h5, h6';
+    const txt = el => ((el && el.textContent) || '').replace(/\s+/g, ' ').trim();
+    const typeOf = el => (el && el.getAttribute &&
+                         (el.getAttribute('epub:type') || el.getAttribute('type'))) || '';
+
+    if (!root || !root.querySelector) return { title: '', ordinal: '', titleEls: [] };
+    const first = root.querySelector(HEADING);
+    if (!first) return { title: '', ordinal: '', titleEls: [] };
+
+    // An <hgroup> wraps the ordinal and the title together. Without one, the
+    // heading is the whole story (Beatrix Potter: <h2 epub:type="title">).
+    let scope = first;
+    try { const hg = first.closest && first.closest('hgroup'); if (hg) scope = hg; } catch (_) {}
+    const candidates = (scope.tagName || '').toLowerCase() === 'hgroup'
+        ? Array.from(scope.children) : [scope];
+
+    let title = '', ordinal = '';
+    const titleEls = [];
+    for (const el of candidates) {
+        const t = typeOf(el);
+        // 'fulltitle' is the book's own name on a half-title page, not a chapter's.
+        if (/\bfulltitle\b/.test(t)) continue;
+        if (/\bordinal\b/.test(t)) { if (!ordinal) ordinal = txt(el); continue; }
+        if (/\b(title|subtitle)\b/.test(t)) {
+            const v = txt(el);
+            if (!v) continue;
+            title = title ? (title + ': ' + v) : v;   // title + subtitle, in order
+            // Only a <p> needs excluding. A heading was never in the prose.
+            if ((el.tagName || '').toLowerCase() === 'p') titleEls.push(el);
+            continue;
+        }
+        // Untyped element inside an hgroup — treat a non-ordinal one as a title.
+        if (!ordinal && !title && (el.tagName || '').toLowerCase() !== 'p') {
+            const v = txt(el);
+            if (v) title = v;
+        }
+    }
+
+    // No semantic title: use the heading's own text, unless it IS just the
+    // ordinal. Pride and Prejudice and Gatsby genuinely have unnamed chapters
+    // and must fall through to the numeral — that was Jake's explicit rule.
+    if (!title) {
+        const h = txt(first);
+        if (h && h !== ordinal) title = h;
+    }
+    return { title, ordinal, titleEls };
+}
+
+// Backwards compatibility: findChapterUnits() and chapterUnitsFromToc() still
+// call headingTextOf(). Now routed through the richer extractor so a titled
+// chapter comes back named rather than numbered.
+function headingTextOf(root) {
+    const info = headingInfoOf(root);
+    return info.title || info.ordinal || '';
+}
+
+// Final display title. The chapter NUMBER already lives in the id, so a bare
+// ordinal is only used when the book genuinely has no chapter name.
+function composeChapterTitle(info, fallbackIndex) {
+    if (info && info.title)   return info.title.substring(0, 60);
+    if (info && info.ordinal) return info.ordinal.substring(0, 60);
+    return 'Chapter ' + fallbackIndex;
+}
+
+// ─── Numbering ───────────────────────────────────────────────────────────────
+//
+// Jake's scheme, and the reason it matters beyond tidiness: front matter used
+// to consume chapter numbers, so "chapter 1" was never chapter 1.
+//
+//   body   1, 2, 3 …          chapter 1 IS chapter 1
+//   front  0.1, 0.2, 0.3 …    sorts ahead of chapter 1
+//   back   900.1, 900.2 …     sorts last, unmistakably not a chapter
+//
+// 900 rather than "last chapter + 0.1" so it never collides with the 1.1 / 2.1
+// convention Jake uses for books with internal parts. Chapter ids are compared
+// with parseFloat throughout, so decimals sort correctly.
+//
+// ⚠️ WHY BACK MATTER MUST NOT COUNT AS A CHAPTER — Jake's own catch. He keeps
+// the colophon because why not, and the why-not is that a student who finishes
+// the story never gets the completion celebration, because three files of
+// publishing boilerplate still sit between them and the end. The book document
+// therefore records `bodyChapters` separately from `totalChapters`, so
+// completion can be judged on the story rather than on the file count.
+function assignChapterIds(chapters) {
+    let body = 0, front = 0, back = 0;
+    for (const c of chapters) {
+        if (c.matter === 'front')     c.id = '0.' + (++front);
+        else if (c.matter === 'back') c.id = '900.' + (++back);
+        else                          c.id = String(++body);
+    }
+    return { bodyChapters: body, frontCount: front, backCount: back };
 }
 
 // --- WIZARD LOGIC ---
@@ -1439,6 +1731,18 @@ function escapeHtml(str) {
     return d.innerHTML;
 }
 
+// Front and back matter are labelled, not hidden. Jake keeps the colophon; the
+// point is that it is visibly NOT chapter 3.
+function matterTag(chap) {
+    const m = chap.matter || 'body';
+    if (m === 'body') return '';
+    const label = m === 'front' ? 'FRONT MATTER' : 'BACK MATTER';
+    const colour = m === 'front' ? '#ba9ae0' : '#c0b060';
+    return '<span title="' + escapeHtml(chap.matterWhy || '') + '" style="background:#1c1c1c;' +
+           'border:1px solid ' + colour + ';color:' + colour + ';border-radius:9px;' +
+           'padding:0 6px;font-size:0.72em;margin-right:6px;">' + label + '</span>';
+}
+
 // --- RENDER LIST ---
 function renderChapterList() {
     chapterListEl.innerHTML = "";
@@ -1449,7 +1753,7 @@ function renderChapterList() {
         const canMerge = index < stagedChapters.length - 1;
         div.innerHTML = `
             <div class="chap-info">
-                <div class="chap-title">ID: ${escapeHtml(chap.id)} | ${escapeHtml(chap.title)}</div>
+                <div class="chap-title">${matterTag(chap)}ID: ${escapeHtml(chap.id)} | ${escapeHtml(chap.title)}</div>
                 <div class="chap-meta">${chap.segments.length} segments <span class="chap-status"></span></div>
             </div>
             <div class="chap-actions">
@@ -1996,7 +2300,14 @@ uploadAllBtn.onclick = async () => {
         }
         const bookData = Object.assign({}, form.data, {
             totalChapters: stagedChapters.length,
-            chapters: chapterMeta
+            // ⚠ Completion should be measured against this, not totalChapters.
+            bodyChapters: stagedBodyChapters ||
+                          stagedChapters.filter(c => (c.matter || 'body') === 'body').length,
+            chapters: chapterMeta,
+            // Every chapter was just rewritten. Invalidate every student's
+            // cached copy of this book. Set inline rather than via
+            // bumpContentVersion() because this write is happening anyway.
+            contentVersion: Date.now()
         });
         
         // Upload cover if staged
@@ -2026,6 +2337,7 @@ saveDirectBtn.onclick = async () => {
     try {
         const data = JSON.parse(jsonContent.value);
         await setDoc(doc(db, "books", activeBookId, "chapters", "chapter_" + chapNum), data);
+        await bumpContentVersion(activeBookId);
         statusEl.innerText = `Saved Chapter ${chapNum}`;
         statusEl.style.borderColor = "#00ff41";
     } catch(e) { alert(e.message); }
@@ -2042,6 +2354,33 @@ function resolvePath(base, relative) {
         else stack.push(parts[i]);
     }
     return stack.join("/");
+}
+
+// ─── contentVersion: the cache key game.js has always read (v3.12.0) ─────────
+//
+// game.js readChapterCache()/writeChapterCache() invalidate a student's cached
+// chapter text by comparing `books/{id}.contentVersion`. A comment in game.js
+// said "admin.html bumps contentVersion on a book when a chapter is edited."
+// IT NEVER DID. No version of this file has ever written that field, so the
+// chapter cache's only invalidation was its expiry — which was seven days.
+// Fix a typo, and a student holding a cached copy read the typo for a week.
+//
+// So: every path that changes chapter TEXT calls this. It is one small write to
+// a document this page is already touching, and it is what makes editing a book
+// mid-term actually reach the students.
+//
+// ⚠️ Failure is non-fatal ON PURPOSE. If the bump fails, the chapter save that
+// preceded it still happened and is still correct; students just see the change
+// a bit later, at expiry. Throwing here would turn a cache-freshness miss into
+// a failed save, which is strictly worse.
+async function bumpContentVersion(bookId) {
+    if (!bookId) return;
+    try {
+        await setDoc(doc(db, "books", bookId), { contentVersion: Date.now() }, { merge: true });
+    } catch (e) {
+        console.warn('contentVersion bump failed (chapter saved fine; students ' +
+                     'will pick the change up at cache expiry):', e);
+    }
 }
 
 // --- COVER IMAGE ---
@@ -2280,6 +2619,7 @@ function wireLangButtons() {
                     const chapData = stagedChapters[iss.chapIdx];
                     const chapId = chapData.id;
                     await setDoc(doc(db, "books", activeBookId, "chapters", "chapter_" + chapId), { segments: chapData.segments }, { merge: true });
+                    await bumpContentVersion(activeBookId);
                     statusEl.innerText = `Saved edit to ${iss.chapTitle}.`;
                     statusEl.style.borderColor = '#00ff41';
                 } catch (e) { alert('Save failed: ' + e.message); return; }
@@ -2508,6 +2848,9 @@ function wireAuditButtons() {
                 data.segments.forEach(seg => { const o = seg.text; seg.text = sanitizeText(seg.text); if (seg.text !== o) changed = true; });
                 if (changed) { await setDoc(doc(db, "books", activeBookId, "chapters", chapId), { segments: data.segments }, { merge: true }); fixed++; }
             }
+            // One bump for the whole batch, after the loop. Bumping per chapter
+            // would be N extra writes for an identical result.
+            if (fixed && auditIsFromDB) await bumpContentVersion(activeBookId);
             statusEl.innerText = auditIsFromDB
                 ? `Audit fix complete: ${fixed} chapter(s) updated in the database.`
                 : `Audit fix complete: ${fixed} staged chapter(s) cleaned \u2014 click Upload All to save.`;
@@ -2568,6 +2911,7 @@ function wireAuditButtons() {
             }
             try {
                 await setDoc(doc(db, "books", activeBookId, "chapters", iss.chapId), { segments: iss.segments }, { merge: true });
+                await bumpContentVersion(activeBookId);
                 statusEl.innerText = `Saved edit to ${iss.chapTitle}.`;
                 statusEl.style.borderColor = '#00ff41';
                 runAudit();
@@ -2582,6 +2926,7 @@ function wireAuditButtons() {
             iss.segments[iss.segIdx].text = sanitizeText(iss.segments[iss.segIdx].text);
             try {
                 await setDoc(doc(db, "books", activeBookId, "chapters", iss.chapId), { segments: iss.segments }, { merge: true });
+                await bumpContentVersion(activeBookId);
                 const el = document.getElementById(`audit-issue-${idx}`);
                 if (el) { el.style.borderColor = '#336633'; el.style.background = '#0a220a'; el.innerHTML = '<div style="color:#00ff41; font-size:0.8em;">✅ Fixed</div>'; }
                 statusEl.innerText = `Fixed issue in ${iss.chapTitle}.`;
@@ -3161,7 +3506,8 @@ if (repairChapterOrderBtn) {
 
             document.getElementById('repair-confirm-btn').onclick = async () => {
                 resultsEl.innerHTML = 'Writing...';
-                await setDoc(doc(db, "books", activeBookId), { chapters: deduped }, { merge: true });
+                await setDoc(doc(db, "books", activeBookId),
+                             { chapters: deduped, contentVersion: Date.now() }, { merge: true });
                 resultsEl.innerHTML = '<span style="color:#00ff41;">✓ Done — ' + deduped.length + ' chapters in correct order. Reload the book to confirm.</span>';
                 statusEl.innerText = 'Chapter order repaired.';
                 statusEl.style.borderColor = '#00ff41';
