@@ -1,10 +1,14 @@
-// admin.js v3.10.0
+// admin.js v3.11.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.11.0 — EPUB import asks the BOOK where its chapters are. The table of
+//           contents is authoritative; v3.9.0's container heuristic only
+//           worked when a publisher used <article>/<section>, which Project
+//           Gutenberg does not. Verified to reproduce Aesop exactly (284).
 // v3.10.0 — One pass per book. readBookMetadataForm() is now the only reader
 //           of the metadata form; Save Metadata and Upload All had drifted
 //           into two writers that disagreed on four fields. Plus find &
@@ -15,7 +19,6 @@
 //          regrouped by category and roughly doubled.
 // v3.7.0 — Book tags: minAge / maxAge / protagonistGender.
 // v3.6.0 — Chapter Update & Next; editable word list; free-text search.
-// v3.5.0 — Export JSON panel; Find stuck; inline Save Metadata status.
 //
 // ── Load-bearing ──────────────────────────────────────────────────────────
 //
@@ -35,7 +38,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.10.0";
+const ADMIN_VERSION = "3.11.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -890,9 +893,26 @@ async function parseEpubFile(file) {
             } catch(e) { console.warn("Cover extraction failed:", e); }
         }
 
+        // Read the table of contents once. Failure here is non-fatal — we just
+        // fall back to the container heuristic, which is what v3.9.0 did.
+        let tocIndex = {};
+        try {
+            const navRef = findNavHref(opfDoc);
+            if (navRef && navRef.href) {
+                const navPath = (basePath === "") ? navRef.href : basePath + navRef.href;
+                const navFile = zip.file(navPath);
+                if (navFile) {
+                    const navDoc = parser.parseFromString(
+                        await navFile.async("string"), "application/xhtml+xml");
+                    tocIndex = buildTocIndex(navDoc, navRef.kind);
+                }
+            }
+        } catch (e) { console.warn("TOC unreadable, falling back to structure:", e); }
+
         const spineItems = Array.from(spine.getElementsByTagName("itemref"));
         let counter = 1;
-        let splitFiles = 0, splitUnits = 0;
+        let splitFiles = 0, splitUnits = 0, skippedBoiler = 0;
+        let viaToc = 0, viaStructure = 0;
 
         for (let item of spineItems) {
             const href = idToHref[item.getAttribute("idref")];
@@ -902,25 +922,32 @@ async function parseEpubFile(file) {
             const content = await zip.file(fullPath).async("string");
             const doc = parser.parseFromString(content, "application/xhtml+xml");
 
-            // One spine file is USUALLY one chapter, but not always — see
-            // findChapterUnits(). When it isn't, each unit becomes its own chapter.
-            const units = findChapterUnits(doc);
-            if (units) { splitFiles++; splitUnits += units.length; }
-            const roots = units || [doc.body];
+            // Gutenberg licence and machine-header regions. Not the book.
+            skippedBoiler += stripBoilerplate(doc);
 
-          for (const root of roots) {
-            let title = `Chapter ${counter}`;
-            const hTag = root.querySelector('h1, h2, h3, h4, h5, h6');
-            // textContent, NOT innerText. innerText is layout-dependent and comes
-            // back undefined on a DOMParser document in Firefox, which would have
-            // made `.trim()` throw and killed the whole import.
-            if (hTag) {
-                const t = (hTag.textContent || '').replace(/\s+/g, ' ').trim();
-                if (t) title = t.substring(0, 60);
-            }
+            // One spine file is USUALLY one chapter, but not always. Ask the
+            // book's own TOC first; fall back to the container heuristic; fall
+            // back to the whole file.
+            const fileKey = href.split('/').pop();
+            let units = chapterUnitsFromToc(doc, tocIndex[fileKey]);
+            if (units) viaToc++; else { units = findChapterUnits(doc); if (units) viaStructure++; }
+            if (units) { splitFiles++; splitUnits += units.length; }
+
+            const groups = units || [{
+                title: headingTextOf(doc.body),
+                pEls: Array.from(doc.body.querySelectorAll('p'))
+            }];
+
+          for (const group of groups) {
+            // textContent, NOT innerText — innerText is layout-dependent and
+            // returns undefined on a DOMParser document in Firefox, which would
+            // make .trim() throw and kill the whole import.
+            const title = (group.title && group.title.trim())
+                ? group.title.trim().substring(0, 60)
+                : `Chapter ${counter}`;
 
             const segments = [];
-            const pTags = Array.from(root.querySelectorAll("p"));
+            const pTags = group.pEls;
             
             pTags.forEach((el) => {
                 let text = el.textContent;
@@ -969,9 +996,13 @@ async function parseEpubFile(file) {
             // Say when a file was split, and into how many. 284 chapters appearing
             // from a 7-item spine looks like a bug unless the importer explains
             // itself — and if the split is WRONG, this is where you notice.
-            const splitNote = splitFiles
-                ? ` (split ${splitFiles} file${splitFiles === 1 ? '' : 's'} into ${splitUnits} sections)`
-                : '';
+            // Name the strategy. If a split is ever wrong, the first useful
+            // question is which route produced it.
+            const how = viaToc && viaStructure ? 'table of contents + structure'
+                      : viaToc ? 'table of contents' : 'structure';
+            const splitNote = (splitFiles
+                ? ` (split ${splitFiles} file${splitFiles === 1 ? '' : 's'} into ${splitUnits} sections via ${how})`
+                : '') + (skippedBoiler ? ` · removed ${skippedBoiler} boilerplate block${skippedBoiler === 1 ? '' : 's'}` : '');
             if (langIssues.length > 0) {
                 showLanguageWarnings(langIssues, false);
                 statusEl.innerText = `Parsed ${stagedChapters.length} chapters${splitNote}. ⚠️ ${langIssues.length} language warning(s).`;
@@ -998,8 +1029,8 @@ async function parseEpubFile(file) {
 // Aesop's Fables is 284 fables in one 238KB file. Under the old rule that
 // imported as ONE chapter with 284 titles run together into the prose.
 //
-// Returns an array of unit elements to treat as chapters, or null to keep the
-// old whole-file behaviour.
+// Returns an array of { title, pEls } to treat as chapters, or null to keep the
+// old whole-file behaviour. Strategy 2 of 2 — see chapterUnitsFromToc() first.
 //
 // Rules, and why each one is there:
 //
@@ -1027,7 +1058,125 @@ function findChapterUnits(doc) {
     const leaves = candidates.filter(el =>
         !Array.from(el.querySelectorAll(UNIT)).some(d => candidateSet.has(d)));
 
-    return leaves.length >= 2 ? leaves : null;
+    if (leaves.length < 2) return null;
+    return leaves.map(el => ({
+        title: headingTextOf(el),
+        pEls: Array.from(el.querySelectorAll('p'))
+    }));
+}
+
+function headingTextOf(root) {
+    const h = root.querySelector('h1, h2, h3, h4, h5, h6');
+    if (!h) return '';
+    return (h.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
+// ─── Strategy 1: ask the book (v3.11.0) ───────────────────────────────────
+//
+// v3.9.0 split on <article>/<section> containers, which is how Standard Ebooks
+// marks up a collection. Project Gutenberg uses none — Toby Tyler is 20
+// chapters as bare <h2> headings in two 150KB files, and the container
+// heuristic declines, so the whole thing imported as two enormous chapters.
+//
+// Rather than bolt on a second heuristic (split at headings) and inherit its
+// false positives — a chapter with subheadings would shatter — read the
+// table of contents. The book states where its chapters begin and what they
+// are called. That is not a guess.
+//
+// ⚠️ This runs BEFORE findChapterUnits(). Verified on Aesop's Fables: the TOC
+// route produces the identical 284 chapters the container route did, because
+// SE's TOC anchors point at exactly those <article> elements. If you change
+// the order of these strategies, re-check that number.
+
+// Locates the navigation document: EPUB3 properties="nav", else the EPUB2 NCX.
+function findNavHref(opfDoc) {
+    const items = Array.from(opfDoc.getElementsByTagName('item'));
+    const nav = items.find(i => (i.getAttribute('properties') || '').split(/\s+/).includes('nav'));
+    if (nav) return { href: nav.getAttribute('href'), kind: 'nav' };
+    const spine = opfDoc.getElementsByTagName('spine')[0];
+    const tocId = spine && spine.getAttribute('toc');
+    if (tocId) {
+        const ncx = items.find(i => i.getAttribute('id') === tocId);
+        if (ncx) return { href: ncx.getAttribute('href'), kind: 'ncx' };
+    }
+    const anyNcx = items.find(i => (i.getAttribute('href') || '').endsWith('.ncx'));
+    return anyNcx ? { href: anyNcx.getAttribute('href'), kind: 'ncx' } : null;
+}
+
+// filename -> [{ frag, label }] in TOC order. Entries without a #fragment are
+// skipped: they address a whole file, which tells us nothing about splitting it.
+function buildTocIndex(navDoc, kind) {
+    const map = {};
+    const add = (href, label) => {
+        if (!href || href.indexOf('#') < 0) return;
+        const parts = href.split('#');
+        const file = parts[0].split('/').pop();
+        (map[file] = map[file] || []).push({
+            frag: parts[1],
+            label: (label || '').replace(/\s+/g, ' ').trim()
+        });
+    };
+    if (kind === 'ncx') {
+        Array.from(navDoc.getElementsByTagName('navPoint')).forEach(np => {
+            const c = np.getElementsByTagName('content')[0];
+            const t = np.getElementsByTagName('text')[0];
+            if (c) add(c.getAttribute('src'), t && t.textContent);
+        });
+    } else {
+        Array.from(navDoc.getElementsByTagName('a')).forEach(el =>
+            add(el.getAttribute('href'), el.textContent));
+    }
+    return map;
+}
+
+// ONE document-order pass handles both shapes. When the anchor is a container
+// (Standard Ebooks) its paragraphs are inside it; when the anchor is a bare
+// heading (Gutenberg) its paragraphs are siblings that follow. Walking the
+// document and assigning each <p> to the most recent anchor seen is correct
+// either way, which is why there is one implementation and not two.
+function chapterUnitsFromToc(doc, anchors) {
+    if (!doc || !doc.body || !anchors || anchors.length < 2) return null;
+
+    const byEl = new Map();
+    const ordered = [];
+    for (const a of anchors) {
+        let el = null;
+        try { el = doc.getElementById(a.frag); } catch (e) { /* malformed id */ }
+        if (!el || byEl.has(el)) continue;
+        const unit = { title: a.label || headingTextOf(el), pEls: [] };
+        byEl.set(el, unit);
+        ordered.push(unit);
+    }
+    if (ordered.length < 2) return null;
+
+    let current = null;
+    const walk = doc.body.getElementsByTagName('*');
+    for (let i = 0; i < walk.length; i++) {
+        const el = walk[i];
+        if (byEl.has(el)) current = byEl.get(el);
+        else if (current && el.tagName && el.tagName.toLowerCase() === 'p') current.pEls.push(el);
+    }
+
+    // Front matter that happens to be in the TOC — a title page, a Contents
+    // list — carries no paragraphs and drops out here without special-casing.
+    const kept = ordered.filter(u => u.pEls.length);
+    return kept.length >= 2 ? kept : null;
+}
+
+// Project Gutenberg wraps its licence and machine header in marked-up
+// boilerplate. It is not part of the book and nobody wants to type it.
+//
+// ⚠️ REMOVE THE REGIONS, NEVER SKIP THE FILE. The first version of this skipped
+// any spine file containing boilerplate — and Gutenberg puts its header in the
+// SAME file as the opening chapters, so Toby Tyler silently imported chapters
+// XI-XX and lost I-X. Excising the marked-up regions leaves the chapters that
+// share the file, and a page that was nothing but boilerplate ends up with no
+// paragraphs and drops out on its own with no special case.
+function stripBoilerplate(doc) {
+    if (!doc || !doc.body) return 0;
+    const junk = doc.body.querySelectorAll('.pg-boilerplate, #pg-header, #pg-footer');
+    junk.forEach(el => el.parentNode && el.parentNode.removeChild(el));
+    return junk.length;
 }
 
 // --- WIZARD LOGIC ---
