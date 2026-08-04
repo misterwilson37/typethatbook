@@ -1,10 +1,20 @@
-// admin.js v3.13.0
+// admin.js v3.15.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.15.0 — Chapter ids are compared element-wise instead of with parseFloat,
+//           which could not tell 1.1 from 1.10 (both parse to 1.1) and sorted 1.2
+//           after both. Fixes books already numbered by hand, with no renumbering.
+//           New ids are also zero-padded per book. Plus a repair tool that strips
+//           a chapter title out of the prose for books imported before v3.13.0.
+// v3.14.0 — Part-aware numbering: chapter-1-1.xhtml becomes 1.1, so re-importing
+//           a two-part book like Heidi no longer flattens it to 1-23. Plus
+//           metadata auto-fill — title, book id, author and a genre guess are read
+//           from the EPUB the moment you pick the file, and only the file is
+//           required to parse.
 // v3.13.0 — Front/back matter is no longer imported as numbered chapters, and
 //           chapter TITLES are finally read. Standard Ebooks puts a chapter's
 //           name in a <p epub:type="title"> inside an <hgroup>, so the old
@@ -51,7 +61,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.13.0";
+const ADMIN_VERSION = "3.15.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -795,12 +805,135 @@ openBookBtn.onclick = async () => {
     } catch(e) { statusEl.innerText = "Error: " + e.message; }
 };
 
+// ═════════════════════════════════════════════════════════════════════════════
+// METADATA AUTO-FILL  (v3.14.0)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Every field the create form demanded is already in the EPUB. Book ID, title
+// and author were all typed by hand for twenty books, and the author was ALREADY
+// being extracted during parse — just too late to help, because the form
+// wouldn't let you press the button without filling it in first.
+//
+// Verified across Jake's 20 test books: <dc:title> present in 20/20,
+// <dc:creator> in 20/20, <dc:subject> in most. So: pick the file, everything
+// fills in, correct what's wrong. Age range is the only field that genuinely
+// cannot be derived and still needs a human.
+function slugifyBookId(title) {
+    return String(title || '')
+        .toLowerCase()
+        .replace(/[\u2018\u2019']/g, '')
+        .replace(/&/g, ' and ')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .replace(/^(the|a|an)-/, '')   // "the-great-gatsby" -> "great-gatsby"
+        .substring(0, 40);
+}
+
+// dc:subject is a loose vocabulary, so this maps keywords rather than exact
+// strings, and it only ever SUGGESTS — the dropdown is still yours to change.
+// Order matters: first match wins, so put the specific ahead of the general.
+const SUBJECT_TO_GENRE = [
+    [/\bfable|aesop\b/i,                    'Short Stories'],
+    [/\bfairy tale|folklore|mytholog/i,      'Mythology'],
+    [/\bdetective|murder|crime|mystery/i,    'Mystery'],
+    [/\bghost|horror|gothic/i,               'Horror'],
+    [/\bscience fiction\b/i,                 'Science Fiction'],
+    [/\bfantas|magic\b/i,                    'Fantasy'],
+    [/\badventure|voyages|survival/i,        'Adventure'],
+    [/\bhumor|humour|satire/i,               'Humor'],
+    [/\bwestern\b/i,                         'Western'],
+    [/\bpoetry|poems\b/i,                    'Poetry'],
+    [/\bautobiograph|biograph|slaves|history/i, 'Non-Fiction'],
+    [/\bromance|courtship|love stories/i,    'Romance'],
+    [/\bjuvenile|children/i,                 'Young Adult'],
+    [/\bbildungsroman|classic/i,             'Classic Literature'],
+];
+function guessGenre(subjects) {
+    const joined = (subjects || []).join(' ; ');
+    for (const [rx, genre] of SUBJECT_TO_GENRE) if (rx.test(joined)) return genre;
+    return '';
+}
+
+// Reads just the OPF. Cheap enough to run the instant a file is picked, and it
+// touches nothing else — a failure here leaves the form exactly as it was.
+async function readEpubMetadata(file) {
+    const zip = await JSZip.loadAsync(file);
+    const container = await zip.file('META-INF/container.xml')?.async('string');
+    let opfPath = null;
+    if (container) {
+        const d = new DOMParser().parseFromString(container, 'text/xml');
+        opfPath = d.querySelector('rootfile')?.getAttribute('full-path');
+    }
+    if (!opfPath) opfPath = Object.keys(zip.files).find(f => f.endsWith('.opf'));
+    if (!opfPath) throw new Error('No OPF found.');
+    const opf = new DOMParser().parseFromString(await zip.file(opfPath).async('string'), 'text/xml');
+    const DC = 'http://purl.org/dc/elements/1.1/';
+    const grab = tag => Array.from(opf.getElementsByTagNameNS(DC, tag))
+                             .map(el => (el.textContent || '').trim()).filter(Boolean);
+    const titles = grab('title');
+    return {
+        title: titles[0] || '',
+        author: grab('creator')[0] || '',
+        subjects: grab('subject'),
+        language: grab('language')[0] || '',
+    };
+}
+
+// Fires the moment a file is chosen. Never overwrites something already typed:
+// if you deliberately set an id, the file does not get to argue.
+async function autofillFromEpub(file) {
+    const st = document.getElementById('autofill-status');
+    const say = (m, c) => { if (st) { st.textContent = m; st.style.color = c || '#888'; }
+                            else if (statusEl) statusEl.innerText = m; };
+    if (!file) return;
+    say('Reading metadata\u2026');
+    try {
+        const meta = await readEpubMetadata(file);
+        const filled = [];
+        if (meta.title && newBookTitle && !newBookTitle.value.trim()) {
+            newBookTitle.value = meta.title; filled.push('title');
+        }
+        if (meta.title && newBookId && !newBookId.value.trim()) {
+            newBookId.value = slugifyBookId(meta.title); filled.push('id');
+        }
+        const authorEl = document.getElementById('new-book-author');
+        if (meta.author && authorEl && !authorEl.value.trim()) {
+            authorEl.value = meta.author; filled.push('author');
+        }
+        const genre = guessGenre(meta.subjects);
+        if (genre && genreSelect && !genreSelect.value) {
+            const opt = Array.from(genreSelect.options).find(o => o.value === genre);
+            if (opt) { genreSelect.value = genre; filled.push('genre (a guess)'); }
+        }
+        say(filled.length
+            ? '\u2713 Filled in ' + filled.join(', ') + '. Check it, then parse. ' +
+              '(Age range still needs you.)'
+            : 'Metadata read \u2014 nothing to fill, you had it all typed already.',
+            '#00ff41');
+    } catch (e) {
+        // Non-fatal by design: the manual path still works exactly as before.
+        say('Could not read metadata (' + e.message + ') \u2014 fill it in by hand.', '#ffaa00');
+    }
+}
+if (newEpubFile) newEpubFile.addEventListener('change', e => autofillFromEpub(e.target.files[0]));
+
 // --- CREATE NEW PARSE ---
 createParseBtn.onclick = async () => {
+    const file = newEpubFile.files[0];
+    if (!file) return alert("Choose an EPUB file.");
+
+    // ⚠️ ONLY THE FILE IS REQUIRED NOW. This used to demand id and title up front,
+    // which is why the author extraction that already existed inside parseEpubFile
+    // never saved anyone any typing — you had to type the metadata to earn the
+    // right to press the button that read the metadata. If autofill has not run
+    // (paste, drag-drop, or a browser that skipped the change event), do it now.
+    if (!newBookId.value.trim() || !newBookTitle.value.trim()) {
+        await autofillFromEpub(file);
+    }
     const id = newBookId.value.trim();
     const title = newBookTitle.value.trim();
-    const file = newEpubFile.files[0];
-    if(!id || !title || !file) return alert("Fill Book ID, Title, and EPUB file.");
+    if (!id || !title) return alert(
+        "Could not read a title from that EPUB \u2014 fill in Book ID and Title by hand.");
     
     activeBookId = id;
     activeBookTitle.value = title;
@@ -959,6 +1092,10 @@ async function parseEpubFile(file) {
 
             // What IS this file? Front matter must not consume chapter numbers.
             const kind = classifyDocument(doc, fileKey);
+            // A part divider (part-1.xhtml) is bodymatter with a heading and no
+            // paragraphs, so it produces zero segments and falls out below with no
+            // special case. Its NUMBER is what matters and that lives in the
+            // chapter filenames.
             if (kind.cls === 'front') matterFront++;
             else if (kind.cls === 'back') matterBack++;
 
@@ -1041,6 +1178,7 @@ async function parseEpubFile(file) {
                     title: title,
                     matter: kind.cls,     // 'front' | 'body' | 'back'
                     matterWhy: kind.why,
+                    srcFile: fileKey,     // assignChapterIds() reads the part from this
                     segments: segments
                 });
                 counter++;
@@ -1073,6 +1211,7 @@ async function parseEpubFile(file) {
                 : '') + (skippedBoiler ? ` · removed ${skippedBoiler} boilerplate block${skippedBoiler === 1 ? '' : 's'}` : '')
                 + (orphansRescued ? ` · kept ${orphansRescued} paragraph${orphansRescued === 1 ? '' : 's'} that sat outside the table of contents` : '')
                 + ` · ${numbering.bodyChapters} chapter${numbering.bodyChapters === 1 ? '' : 's'}`
+                + (numbering.parts ? ` in ${numbering.parts} parts` : '')
                 + (matterFront ? `, ${matterFront} front matter` : '')
                 + (matterBack ? `, ${matterBack} back matter` : '')
                 + (titleSegmentsRemoved ? ` · removed ${titleSegmentsRemoved} chapter title${titleSegmentsRemoved === 1 ? '' : 's'} from the text students type` : '');
@@ -1461,14 +1600,113 @@ function composeChapterTitle(info, fallbackIndex) {
 // publishing boilerplate still sit between them and the end. The book document
 // therefore records `bodyChapters` separately from `totalChapters`, so
 // completion can be judged on the story rather than on the file count.
-function assignChapterIds(chapters) {
-    let body = 0, front = 0, back = 0;
-    for (const c of chapters) {
-        if (c.matter === 'front')     c.id = '0.' + (++front);
-        else if (c.matter === 'back') c.id = '900.' + (++back);
-        else                          c.id = String(++body);
+// Part / book / volume detection.
+//
+// ⚠️ WRITTEN AFTER v3.13.0 FLATTENED HEIDI. Heidi is two parts — "Heidi's Years
+// of Wandering and Learning" and "Heidi Makes Use of Her Experience" — and Jake
+// had hand-numbered them 1.1-1.13 and 2.1-2.8. A re-import renumbered the lot
+// 1-23 and the structure was gone. Sequential numbering is correct for a novel
+// and actively destructive for a book with internal divisions.
+//
+// The signal is right there in the filename. Standard Ebooks names a chapter in
+// a multi-part book `chapter-{part}-{n}.xhtml` and drops `part-1.xhtml` /
+// `part-2.xhtml` in as dividers. Heidi: chapter-1-1 … chapter-1-14, then
+// chapter-2-1 … chapter-2-9. A single-part book is plain `chapter-7.xhtml`, so
+// the two cases are unambiguous.
+//
+// Position within the part is POSITIONAL, not the book's own ordinal. Heidi's
+// chapter-2-1 is headed "XV" because that edition numbers straight through, but
+// Jake wants it as 2.1 — which is also what he had by hand. Books that restart
+// their numbering come out the same way, so one rule covers both.
+// ⚠️ parseFloat CANNOT COMPARE PART NUMBERS, AND EVERYTHING USED TO USE IT.
+//
+// parseFloat("1.10") is 1.1 — the SAME VALUE as parseFloat("1.1"). So 1.1 and
+// 1.10 were not merely misordered, they were indistinguishable, and 1.2 sorted
+// after both of them. Every chapter sort in this file had that bug, which is why
+// a two-part book came out 1.1, 1.10, 1.11, 1.2.
+//
+// A dotted id is not a number, it is a sequence of numbers, so compare it as
+// one: split on the dot and compare element-wise as integers. This fixes books
+// ALREADY numbered by hand — 1.1 … 1.13 sorts correctly with no renumbering and
+// therefore no disruption to a student's stored chapter pointer. The padding
+// below is a separate, additive safety net.
+function chapterSortKey(id) {
+    return String(id == null ? '' : id)
+        .replace(/^chapter_/, '')
+        .split('.')
+        .map(x => { const n = parseInt(x, 10); return Number.isFinite(n) ? n : 0; });
+}
+function compareChapterIds(a, b) {
+    const x = chapterSortKey(a), y = chapterSortKey(b);
+    for (let i = 0; i < Math.max(x.length, y.length); i++) {
+        const d = (x[i] || 0) - (y[i] || 0);
+        if (d) return d;
     }
-    return { bodyChapters: body, frontCount: front, backCount: back };
+    return 0;
+}
+
+const SE_PART_CHAPTER = /^chapter-(\d+)-(\d+)\b/i;
+const PART_DIVIDER    = /^(part|book|volume)-(\d+)\b/i;
+
+function detectPart(chap) {
+    const f = String(chap.srcFile || '').toLowerCase();
+    const m = SE_PART_CHAPTER.exec(f);
+    return m ? parseInt(m[1], 10) : null;
+}
+
+function assignChapterIds(chapters) {
+    let front = 0, back = 0;
+
+    // Does this book have parts at all? If nothing declares one, every body
+    // chapter numbers 1..n exactly as before — novels are unaffected.
+    const parts = chapters.filter(c => (c.matter || 'body') === 'body')
+                          .map(detectPart).filter(x => x !== null);
+    const hasParts = new Set(parts).size >= 2;
+
+    // Zero-pad the within-part index to a fixed width across the WHOLE book, so
+    // a naive numeric sort anywhere else still gets the right answer. Width comes
+    // from the largest part, so every id in one book is the same shape: Heidi's
+    // 14-chapter part 1 makes it 1.01 … 1.14 and 2.01 … 2.09, not a mix.
+    //
+    // A book whose largest part is under 10 chapters stays unpadded (2.1 … 2.9),
+    // because there is nothing to disambiguate and the short form reads better.
+    let padWidth = 1;
+    if (hasParts) {
+        const tally = {};
+        for (const c of chapters) {
+            if ((c.matter || 'body') !== 'body') continue;
+            const pt = detectPart(c);
+            const k = pt === null ? '_' : pt;
+            tally[k] = (tally[k] || 0) + 1;
+        }
+        const biggest = Math.max(1, ...Object.values(tally));
+        padWidth = String(biggest).length;
+    }
+    const pad = n => String(n).padStart(padWidth, '0');
+
+    let body = 0;
+    const withinPart = {};
+    let lastPart = null;
+
+    for (const c of chapters) {
+        if (c.matter === 'front')     { c.id = '0.' + (++front); continue; }
+        if (c.matter === 'back')      { c.id = '900.' + (++back); continue; }
+
+        if (!hasParts) { c.id = String(++body); body === body; c.part = null; continue; }
+
+        // A chapter whose filename names no part inherits the part before it —
+        // that covers a stray file in an otherwise well-named book rather than
+        // silently sending it to part 1.
+        let pt = detectPart(c);
+        if (pt === null) pt = (lastPart === null ? 1 : lastPart);
+        lastPart = pt;
+        withinPart[pt] = (withinPart[pt] || 0) + 1;
+        c.part = pt;
+        c.id = pt + '.' + pad(withinPart[pt]);
+        body++;
+    }
+    return { bodyChapters: body, frontCount: front, backCount: back,
+             parts: hasParts ? new Set(parts).size : 0 };
 }
 
 // --- WIZARD LOGIC ---
@@ -2281,11 +2519,8 @@ uploadAllBtn.onclick = async () => {
     try {
         // Always sort chapter metadata numerically before writing —
         // prevents a corrupt display order from propagating into Firestore
-        chapterMeta.sort((a, b) => {
-            const na = parseFloat(a.id.replace('chapter_', '')) || 0;
-            const nb = parseFloat(b.id.replace('chapter_', '')) || 0;
-            return na - nb;
-        });
+        // compareChapterIds, NOT parseFloat — see the note by chapterSortKey().
+        chapterMeta.sort((a, b) => compareChapterIds(a.id, b.id));
 
         // Same reader Save Metadata uses. Upload All previously wrote only
         // title/author/genre — no age range, no protagonist — read genre with a
@@ -3475,11 +3710,10 @@ if (repairChapterOrderBtn) {
             });
 
             // Sort numerically by chapter number (handles "chapter_0", "chapter_1", "chapter_10")
-            deduped.sort((a, b) => {
-                const na = parseFloat(a.id.replace('chapter_', '')) || 0;
-                const nb = parseFloat(b.id.replace('chapter_', '')) || 0;
-                return na - nb;
-            });
+            // compareChapterIds fixes 1.1 / 1.10 / 1.2 on books already numbered
+            // by hand, WITHOUT renumbering them — so no student's stored chapter
+            // pointer moves. Run this button on any multi-part book.
+            deduped.sort((a, b) => compareChapterIds(a.id, b.id));
 
             const after = deduped.map(c => c.id).join(', ');
             const dupCount = chapters.length - deduped.length;
@@ -3519,6 +3753,137 @@ if (repairChapterOrderBtn) {
     };
 }
 
+
+// ═════════════════════════════════════════════════════════════════════════════
+// REPAIR: remove chapter titles from the text students type  (v3.15.0)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// For books already in Firestore. v3.13.0 stops the title getting into the prose
+// on IMPORT, but every book uploaded before it has the chapter name sitting in
+// segment zero — Standard Ebooks marks it <p epub:type="title">, so the old
+// querySelectorAll('p') swept it in.
+//
+// Re-importing would fix it and cost the chapter titles Jake typed by hand, plus
+// renumber everything and orphan any student's stored chapter pointer. This does
+// the one thing needed and nothing else: drop a first segment that merely repeats
+// the chapter's own title. Titles untouched, ids untouched, no re-import.
+//
+// ⚠️ PREVIEW THEN CONFIRM, ALWAYS. It edits book content in place. A false
+// positive would silently delete a real opening line, so the match is deliberately
+// strict — see titlesMatch() — and nothing is written until Jake has seen the list.
+
+// Compare on letters and digits only. "Old Tom and Nancy" must match
+// "\tOld Tom and Nancy" and "OLD TOM AND NANCY," but must NOT match a sentence
+// that merely begins with the title.
+function normalizeForTitleMatch(t) {
+    return String(t || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+function titlesMatch(segText, chapTitle) {
+    const a = normalizeForTitleMatch(segText), b = normalizeForTitleMatch(chapTitle);
+    if (!a || !b) return false;
+    if (a === b) return true;
+    // A title plus its subtitle joined by a colon, stored as one segment.
+    if (b.length > 6 && a === b.replace(/:/g, '')) return true;
+    return false;
+}
+
+function injectTitleRepairUI() {
+    const host = document.getElementById('repair-results');
+    if (!host || document.getElementById('repair-titles-btn')) return;
+    const btn = document.createElement('button');
+    btn.id = 'repair-titles-btn';
+    btn.textContent = '\u2702 Remove chapter titles from typed text';
+    btn.title = 'For books imported before admin.js v3.13.0, whose first segment ' +
+                'repeats the chapter title.';
+    btn.style.cssText = 'background:#3a2200;border:1px solid #886600;color:#ffcc66;' +
+        'padding:8px 16px;cursor:pointer;border-radius:4px;width:auto;margin-left:8px;';
+    const anchor = document.getElementById('repair-chapter-order-btn');
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(btn, anchor.nextSibling);
+    else host.parentNode.insertBefore(btn, host);
+    btn.onclick = runTitleRepair;
+}
+
+async function runTitleRepair() {
+    if (!activeBookId) return alert('Open a book first.');
+    const out = document.getElementById('repair-results');
+    out.classList.remove('hidden');
+    out.innerHTML = 'Reading chapters from Firestore\u2026';
+
+    try {
+        const metaSnap = await getDoc(doc(db, 'books', activeBookId));
+        if (!metaSnap.exists()) { out.innerHTML = 'Book metadata not found.'; return; }
+        const metaChapters = metaSnap.data().chapters || [];
+        if (!metaChapters.length) { out.innerHTML = 'This book has no chapters listed.'; return; }
+
+        const hits = [];
+        for (const ch of metaChapters) {
+            const snap = await getDoc(doc(db, 'books', activeBookId, 'chapters', ch.id));
+            if (!snap.exists()) continue;
+            const segs = snap.data().segments || [];
+            if (!segs.length) continue;
+            if (titlesMatch(segs[0].text, ch.title)) {
+                hits.push({ id: ch.id, title: ch.title,
+                            removing: String(segs[0].text || '').trim(),
+                            nextLine: String((segs[1] && segs[1].text) || '').trim().slice(0, 70),
+                            segments: segs });
+            }
+        }
+
+        if (!hits.length) {
+            out.innerHTML = '<span style="color:#00ff41;">\u2713 Nothing to remove \u2014 no ' +
+                'chapter in this book starts with its own title. Either it was imported ' +
+                'with v3.13.0 or later, or it never had the problem.</span>';
+            return;
+        }
+
+        out.innerHTML =
+            '<div style="color:#ffcc66;font-weight:bold;margin-bottom:8px;">' + hits.length +
+            ' of ' + metaChapters.length + ' chapters begin with their own title.</div>' +
+            '<div style="color:#888;margin-bottom:10px;">The first line goes; the second ' +
+            'line becomes the new opening. Chapter titles and ids are not touched.</div>' +
+            hits.slice(0, 40).map(h =>
+                '<div style="border-left:2px solid #886600;padding-left:8px;margin-bottom:8px;">' +
+                '<div style="color:#4B9CD3;">' + escapeHtml(h.id) + ' \u2014 ' +
+                escapeHtml(h.title) + '</div>' +
+                '<div style="color:#cc7777;">\u2212 ' + escapeHtml(h.removing) + '</div>' +
+                '<div style="color:#bbddbb;">new first line: ' + escapeHtml(h.nextLine) +
+                '\u2026</div></div>').join('') +
+            (hits.length > 40 ? '<div style="color:#666;">\u2026 first 40 shown.</div>' : '') +
+            '<div style="margin-top:10px;"><button id="repair-titles-go" ' +
+            'style="background:#664400;border:1px solid #996600;color:#ffcc66;padding:8px 18px;' +
+            'cursor:pointer;border-radius:4px;width:auto;">Remove all ' + hits.length +
+            '</button> <button id="repair-titles-cancel" class="secondary-btn" ' +
+            'style="width:auto;padding:8px 18px;">Cancel</button></div>';
+
+        document.getElementById('repair-titles-cancel').onclick = () => {
+            out.innerHTML = 'Cancelled. Nothing was changed.';
+        };
+        document.getElementById('repair-titles-go').onclick = async () => {
+            out.innerHTML = 'Writing\u2026';
+            let done = 0;
+            for (const h of hits) {
+                try {
+                    await setDoc(doc(db, 'books', activeBookId, 'chapters', h.id),
+                                 { segments: h.segments.slice(1) }, { merge: true });
+                    done++;
+                } catch (e) { console.error('Repair failed on ' + h.id, e); }
+            }
+            // Students hold cached chapter text; without this they keep the old
+            // copy until expiry. See bumpContentVersion().
+            if (done) await bumpContentVersion(activeBookId);
+            out.innerHTML = '<span style="color:#00ff41;">\u2713 Removed the title line from ' +
+                done + ' of ' + hits.length + ' chapters. Students see the change on next load.' +
+                '</span>' + (done < hits.length
+                    ? '<div style="color:#ff6666;">' + (hits.length - done) +
+                      ' failed \u2014 see the console.</div>' : '');
+            statusEl.innerText = 'Removed ' + done + ' chapter-title lines from typed text.';
+            statusEl.style.borderColor = '#00ff41';
+        };
+    } catch (e) {
+        out.innerHTML = '<span style="color:#ff4444;">Error: ' + escapeHtml(e.message) + '</span>';
+    }
+}
+injectTitleRepairUI();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Request access — what a colleague sees instead of "Access Denied"

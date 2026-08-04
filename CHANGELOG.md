@@ -14,7 +14,7 @@ there.
 
 - [`game.js`](#gamejs) — currently v3.9.1
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
-- [`admin.js`](#adminjs) — currently v3.13.0
+- [`admin.js`](#adminjs) — currently v3.15.0
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.0
 
@@ -470,7 +470,70 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.13.0**
+Current: **v3.15.0**
+
+#### v3.15.0
+
+         1. ⚠️ parseFloat CANNOT COMPARE PART NUMBERS, AND EVERY SORT USED IT.
+            parseFloat("1.10") is 1.1 — the SAME VALUE as parseFloat("1.1"). So
+            1.1 and 1.10 were not merely misordered, they were
+            indistinguishable, and 1.2 sorted after both: a two-part book came
+            out 1.1, 1.10, 1.11, 1.2. A dotted id is not a number, it is a
+            sequence of numbers, so chapterSortKey() splits on the dot and
+            compareChapterIds() compares element-wise as integers. Both sort
+            sites (Upload All, Repair Chapter Order) now use it.
+            ⚠️ This fixes books ALREADY numbered by hand with no renumbering,
+            so no student's stored chapter pointer moves. Running the existing
+            "Repair Chapter Order" button on a multi-part book is now enough.
+         2. New ids are also zero-padded, as a second line of defence for any
+            naive numeric sort elsewhere. Width is taken from the largest part
+            in the BOOK so every id in one book has the same shape — Heidi
+            becomes 1.01-1.14 and 2.01-2.09, not a mix. A book whose largest
+            part is under ten chapters stays unpadded (1.1-1.9), because there
+            is nothing to disambiguate and the short form reads better.
+         3. REPAIR TOOL: "Remove chapter titles from typed text". For books
+            uploaded before v3.13.0, whose segment zero repeats the chapter
+            title. Re-importing would fix it and cost the titles Jake typed by
+            hand, renumber everything, and orphan student chapter pointers —
+            this drops the duplicate first segment and nothing else. Titles and
+            ids untouched. Previews every change and waits for confirmation,
+            because a false positive would silently delete a real opening line;
+            titlesMatch() compares on letters and digits only, and requires a
+            whole-string match so a sentence that merely BEGINS with the title
+            is never touched. Bumps contentVersion so students see it at once.
+
+#### v3.14.0
+
+         1. PART-AWARE NUMBERING. v3.13.0 numbered every body chapter 1..n,
+            which is right for a novel and destructive for a book with internal
+            divisions — it flattened Heidi's two parts, which Jake had
+            hand-numbered 1.1-1.13 and 2.1-2.8, into a single run of 1-23.
+            The signal was in the filenames all along: Standard Ebooks names a
+            multi-part chapter `chapter-{part}-{n}.xhtml` and drops
+            `part-1.xhtml` / `part-2.xhtml` in as dividers. Heidi now imports
+            as 1.1-1.14 then 2.1-2.9; Pride and Prejudice, with no parts, is
+            unchanged at 1-61. A book needs two or more distinct parts before
+            the scheme engages, so single-part books cannot be affected.
+            Position within a part is POSITIONAL, not the book's own ordinal —
+            Heidi's chapter-2-1 is headed "XV" because that edition numbers
+            straight through, but 2.1 is what Jake wants and what he had. One
+            rule therefore covers both restart-at-1 and continue-from-14 books.
+            Part divider files carry a heading and no prose, so they yield zero
+            segments and drop out with no special case.
+         2. METADATA AUTO-FILL. Every field the create form demanded was
+            already in the EPUB. Confirmed across the 20 test books:
+            <dc:title> 20/20, <dc:creator> 20/20, <dc:subject> in most. Picking
+            a file now fills title, a slugified book id, author, and a genre
+            guess from dc:subject. Nothing already typed is ever overwritten,
+            and a metadata read that fails leaves the manual path untouched.
+            ⚠️ Only the FILE is required to parse now. The old gate demanded id
+            and title up front — which is why the author extraction that had
+            existed inside parseEpubFile for versions never saved anyone any
+            typing: you had to type the metadata to earn the right to press the
+            button that read the metadata.
+
+            Age range remains the one field that cannot be derived and still
+            needs a human.
 
 #### v3.13.0
 
