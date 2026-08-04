@@ -1,10 +1,21 @@
-// admin.js v3.16.0
+// admin.js v3.18.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.18.0 — Open Book has a re-entrancy guard. Clicking it twice ran two loads
+//           into one array, the second reset discarding the first's work and the
+//           loops interleaving: Tom Sawyer Abroad rendered 4,5,1,6,2,7,3,8, which
+//           is (4,5,6,7,8) interleaved with (1,2,3). The database was fine
+//           throughout. Third instance of this bug class after game.js flushAll()
+//           and learn.js flushStats().
+// v3.17.0 — stagedChapters is sorted by chapter id after load and after parse.
+//           Del / Merge / Split all work on array INDICES and renumber from
+//           position, so an out-of-order array meant one Del click would rewrite
+//           every id from the wrong places. Tom Sawyer Abroad rendered 4,5,1,6
+//           while its stored array was perfectly sequential.
 // v3.16.0 — Chapter titles are tidied on import: one leading ordinal removed
 //           (the number is already the id) and SHOUTED Gutenberg headings
 //           title-cased. "I. TOBY'S INTRODUCTION TO THE CIRCUS" becomes "Toby's
@@ -65,7 +76,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.16.0";
+const ADMIN_VERSION = "3.18.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -746,8 +757,35 @@ bookSelect.onchange = () => {
 };
 
 // --- LOAD FROM DB ---
+// ⚠️ RE-ENTRANCY GUARD. THIS IS WHAT SCRAMBLED TOM SAWYER ABROAD. (v3.18.0)
+//
+// Loading a book is one sequential round trip per chapter — thirteen for Tom
+// Sawyer Abroad, 284 for Aesop — so there is ample time to click the button
+// again while the first load is still running. Both handlers then reset
+// `stagedChapters = []` and push into the SAME array as their awaits resolve,
+// so the second reset discards whatever the first had collected and the two
+// loops interleave from wherever each had got to.
+//
+// The observed order was 4, 5, 1, 6, 2, 7, 3, 8 — which is not random, it is
+// (4,5,6,7,8) interleaved with (1,2,3): one run continuing while another started
+// over. The stored array was perfectly sequential the whole time.
+//
+// Third instance of this bug class in the project, after game.js flushAll() and
+// learn.js flushStats(). ⚠️ ANY async handler that resets shared module state
+// before its first await needs one of these. Look for `x = []` or `x = {}` at the
+// top of an async function and check what happens if it runs twice.
+let _openInFlight = false;
+
 openBookBtn.onclick = async () => {
     if(!activeBookId) return;
+    if (_openInFlight) {
+        statusEl.innerText = "Already loading \u2014 hang on.";
+        statusEl.style.borderColor = "#ffaa00";
+        return;
+    }
+    _openInFlight = true;
+    openBookBtn.disabled = true;
+    openBookBtn.style.opacity = '0.6';
     statusEl.innerText = `Loading ${activeBookId}...`;
     chapterListEl.innerHTML = "Loading...";
     stagedChapters = [];
@@ -798,15 +836,28 @@ openBookBtn.onclick = async () => {
                 }
             }
         }
+        // Order is load-bearing — see sortStagedChapters(). Say so when it fires,
+        // because a book that needed sorting on load is a book whose stored array
+        // and rendered list disagreed, and that is worth knowing about.
+        const wasUnsorted = sortStagedChapters();
         renderChapterList();
         stagingArea.classList.remove('hidden');
         overwriteSection.classList.remove('hidden');
-        statusEl.innerText = "Loaded.";
+        statusEl.innerText = wasUnsorted
+            ? "Loaded \u2014 chapters arrived out of order and were sorted. " +
+              "Your data is unchanged; Del/Merge/Split are now safe to use."
+            : "Loaded.";
         statusEl.style.borderColor = "#00ff41";
         
         // Auto-audit for character and language issues
         runAudit();
     } catch(e) { statusEl.innerText = "Error: " + e.message; }
+    finally {
+        // Released in a finally so a failed load cannot leave the button dead.
+        _openInFlight = false;
+        openBookBtn.disabled = false;
+        openBookBtn.style.opacity = '1';
+    }
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1194,6 +1245,10 @@ async function parseEpubFile(file) {
         // each chapter's class and front matter must not consume chapter numbers.
         const numbering = assignChapterIds(stagedChapters);
         stagedBodyChapters = numbering.bodyChapters;
+        // Ids were assigned in array order, so this is normally a no-op. It is here
+        // so that there is exactly one place where "the array is in chapter order"
+        // becomes true, rather than two paths that each have to remember.
+        sortStagedChapters();
 
         if (importErrors.length > 0) {
             currentErrorIdx = 0;
@@ -2041,6 +2096,37 @@ function escapeHtml(str) {
     const d = document.createElement('div');
     d.appendChild(document.createTextNode(String(str)));
     return d.innerHTML;
+}
+
+// ⚠️ stagedChapters ORDER IS LOAD-BEARING, not cosmetic. (v3.17.0)
+//
+// Three buttons in the staging list work on ARRAY INDICES, and all three end by
+// renumbering from position: `stagedChapters.forEach((ch, i) => ch.id = i + 1)`.
+//   · Del      — splices by index, then renumbers everything
+//   · Merge ↓  — merges index with index + 1
+//   · Split    — splices replacements in by index, then renumbers
+//
+// So an out-of-order array is not a display quirk: deleting one chapter rewrites
+// every id from the wrong positions, and "Merge with next" merges two chapters
+// that merely LOOK adjacent. Tom Sawyer Abroad rendered as 4, 5, 1, 6, 2, 7, 3,
+// 8 while its database array was perfectly sequential — the data was right and
+// one Del click would have destroyed it.
+//
+// Sorting here rather than in renderChapterList() is deliberate. Sorting only
+// the render would fix the appearance and leave the three index operations still
+// reaching for the wrong rows, which is strictly worse than the visible bug.
+// uploadAllBtn already sorts on write, so this makes the array, the display, and
+// the saved order all agree.
+//
+// ⚠️ SEPARATE BUG, STILL OPEN: that `ch.id = i + 1` renumber flattens part-aware
+// ids. Delete one chapter from Heidi and 1.01—2.09 becomes 1—22. Not fixed here
+// because it needs the part scheme threading through all three handlers. Avoid
+// Del / Merge / Split on a multi-part book until it is.
+function sortStagedChapters() {
+    if (!Array.isArray(stagedChapters) || stagedChapters.length < 2) return false;
+    const before = stagedChapters.map(c => c.id).join(',');
+    stagedChapters.sort((a, b) => compareChapterIds(a.id, b.id));
+    return stagedChapters.map(c => c.id).join(',') !== before;
 }
 
 // Front and back matter are labelled, not hidden. Jake keeps the colophon; the
