@@ -1,10 +1,20 @@
-// admin.js v3.18.0
+// admin.js v3.19.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.19.0 — Two ways back to an empty create form, because there were none.
+//           (a) "Start another book" clears the form AND the staging state — a
+//           blank form over a populated stagedChapters would let book B's chapters
+//           upload under book A's id. (b) After an upload the picker now points at
+//           the book that was just created, which is what makes re-picking "Create
+//           New Book..." fire a change event at all; it was silently restored to
+//           "__NEW__", so selecting it again changed nothing and its reset never
+//           ran. Also: onchange never cleared new-book-author.
+//           Paired with admin.html: the EPUB picker now sits ABOVE the fields it
+//           fills in.
 // v3.18.0 — Open Book has a re-entrancy guard. Clicking it twice ran two loads
 //           into one array, the second reset discarding the first's work and the
 //           loops interleaving: Tom Sawyer Abroad rendered 4,5,1,6,2,7,3,8, which
@@ -76,7 +86,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.18.0";
+const ADMIN_VERSION = "3.19.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -742,11 +752,17 @@ bookSelect.onchange = () => {
     if (bookSelect.value === "__NEW__") {
         createNewUI.classList.remove('hidden');
         editExistingUI.classList.add('hidden');
-        
-        // Reset fields
+
+        // ⚠️ new-book-author WAS MISSING FROM THIS RESET. It has been auto-filled
+        // from <dc:creator> since v3.14.0, so leaving it behind meant the previous
+        // book's author sat in the form for the next one.
         newBookId.value = "";
         newBookTitle.value = "";
         newEpubFile.value = "";
+        const a = document.getElementById('new-book-author');
+        if (a) a.value = "";
+        const af = document.getElementById('autofill-status');
+        if (af) af.textContent = "";
     } else {
         createNewUI.classList.add('hidden');
         editExistingUI.classList.remove('hidden');
@@ -1001,6 +1017,68 @@ createParseBtn.onclick = async () => {
     await parseEpubFile(file);
     stagingArea.classList.remove('hidden');
     overwriteSection.classList.add('hidden'); // No overwrite for new
+};
+
+// ─── Start another book ──────────────────────────────────────────────────────
+//
+// There was no way back to an empty form except reloading the page, which is a
+// silly thing to make someone do after they have just finished a book — and
+// reloading also throws away the book list and the sign-in round trip.
+//
+// ⚠️ CLEARS THE STAGING STATE TOO, NOT JUST THE VISIBLE FIELDS. Leaving
+// stagedChapters populated behind a blank form is the setup for the worst
+// possible bug here: parse book B, and an "Upload All" writes B's chapters under
+// A's id. Everything the previous book touched is reset in one place, on purpose.
+function resetCreateForm(announce) {
+    stagedChapters = [];
+    stagedFromDB = false;
+    stagedBodyChapters = 0;
+    importErrors = [];
+    currentErrorIdx = 0;
+    editingIndex = -1;
+    activeBookId = "";
+
+    if (stagedCoverUrl && stagedCoverUrl.startsWith('blob:')) {
+        try { URL.revokeObjectURL(stagedCoverUrl); } catch (_) {}
+    }
+    stagedCoverBlob = null;
+    stagedCoverUrl = null;
+    updateCoverPreview();
+
+    ['new-book-id', 'new-book-title', 'new-book-author', 'new-epub-file',
+     'active-book-title', 'active-book-author',
+     'active-book-minage', 'active-book-maxage'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    ['active-book-genre', 'active-book-protagonist'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    if (customGenreInput) { customGenreInput.value = ''; customGenreInput.classList.add('hidden'); }
+
+    const af = document.getElementById('autofill-status');
+    if (af) af.textContent = '';
+    if (chapterListEl) chapterListEl.innerHTML = '';
+    if (stagingArea) stagingArea.classList.add('hidden');
+    clearAuditResults();
+    closeChapterEditor();
+
+    if (announce) {
+        statusEl.innerText = 'Cleared. Choose the next EPUB.';
+        statusEl.style.borderColor = '#4B9CD3';
+    }
+    const f = document.getElementById('new-epub-file');
+    if (f) f.focus();
+}
+
+const createResetBtn = document.getElementById('create-reset-btn');
+if (createResetBtn) createResetBtn.onclick = () => {
+    // Only warn when there is something to lose. Confirming a no-op is noise.
+    if (stagedChapters.length && !stagedFromDB &&
+        !confirm('Discard the ' + stagedChapters.length +
+                 ' staged chapters that have not been uploaded?')) return;
+    resetCreateForm(true);
 };
 
 // --- OVERWRITE ---
@@ -2713,6 +2791,7 @@ uploadAllBtn.onclick = async () => {
         }
         
         await setDoc(doc(db, "books", activeBookId), bookData, { merge: true });
+        const uploadedId = activeBookId;
         
         const tagged = (bookData.minAge !== null) ? `ages ${bookData.minAge}\u2013${bookData.maxAge}` : 'NO age range';
         statusEl.innerText = `Upload complete \u2014 ${stagedChapters.length} chapters, ` +
@@ -2720,6 +2799,30 @@ uploadAllBtn.onclick = async () => {
             `${bookData.protagonistGender || 'no protagonist tag'}. This book is done.`;
         statusEl.style.borderColor = (bookData.minAge !== null && bookData.protagonistGender) ? "#00ff41" : "#ffaa00";
         await loadBookList(false);
+
+        // ⚠️ POINT THE PICKER AT THE BOOK THAT NOW EXISTS. This fixes a dead
+        // control, not just a cosmetic mismatch.
+        //
+        // loadBookList(false) silently restores whatever was selected before, and
+        // during a new-book upload that is "__NEW__". So after uploading, the
+        // dropdown was ALREADY on "Create New Book..." — and re-picking it fired no
+        // change event, because the value had not changed. The reset code in
+        // bookSelect.onchange therefore never ran, and there was no way back to an
+        // empty form except reloading the page.
+        //
+        // Selecting the real book makes the picker honest AND makes "Create New
+        // Book..." a genuine change next time, so its reset fires.
+        //
+        // ⚠️ SET SILENTLY. NEVER dispatchEvent('change') here. onchange hides the
+        // staging area and reassigns activeBookId, which would throw away the
+        // chapters that were just uploaded and are still worth auditing. That is
+        // the same trap documented on loadBookList's selectFirst parameter.
+        if (uploadedId &&
+            Array.from(bookSelect.options).some(o => o.value === uploadedId)) {
+            bookSelect.value = uploadedId;
+            createNewUI.classList.add('hidden');
+            editExistingUI.classList.remove('hidden');
+        }
     } catch (e) { alert("Metadata Save Failed: " + e.message); }
 };
 
