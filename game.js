@@ -1,23 +1,30 @@
-// game.js v3.8.0
+// game.js v3.9.2
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.9.2 — Two fixes to v3.9.0's own audit work, found before it shipped.
+//          1. flushAll()'s re-entrancy guard was `if`, which serialises two
+//             callers and lets three or more overlap — reintroducing the exact
+//             duplicate typing_sessions rollup it was written to prevent. Now
+//             `while`. Measured: 6 callers, 5 overlapping runs, before.
+//          2. The sprint rollup is CHUNKED at 200 sprints per document.
+//             firestore.rules v2.2.0 caps sprints at 200 and seconds at 86400;
+//             pendingSessions has no cap and walRecover() concatenates, so one
+//             failed write could grow the array past the ceiling and then be
+//             denied permanently and silently. Ship this WITH rules 2.2.0.
+// v3.9.1 — CHAPTER_CACHE_MS back to 7 days now that admin.js 3.12.0 writes
+//          contentVersion. ⚠️ Pairs with admin.js 3.12.0+.
+// v3.9.0 — Round 4 audit: flushAll() re-entrancy guard, hidden-tab flush
+//          debounced to once a minute, per-keystroke DOM work removed,
+//          classId/schoolId stamps on the leaderboard.
 // v3.8.0 — Student school picker in Settings (read-only once a teacher has
 //          assigned a class). Practice gating says that TYPING is what
 //          unlocks it, and checks the daily cap before offering the button.
 // v3.7.0 — Chapter picker filter above 25 chapters. Collapsed three drifted
 //          chapter-option builders into buildChapterOptions().
-// v3.6.0 — Book progress bar condenses above 40 chapters. Was 5 DOM nodes per
-//          chapter and 4 getElementById calls per chapter PER KEYSTROKE —
-//          1,144 lookups per character on a 286-chapter book.
-// v3.5.0 — Adventure Mode out of alpha: first-run splash with previews,
-//          viewMode synced via users/{uid}/profile/info, hot swap instead of
-//          location.reload().
-// v3.4.2 — practice_sessions carries classId/schoolId so rules can scope it.
-// v3.4.1 — practice_sessions writes an expiresAt TTL field.
 //
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
@@ -40,7 +47,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.8.0";
+const VERSION = "3.9.2";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -1167,8 +1174,26 @@ async function loadUserProgress() {
 // Chapter text is immutable once authored and it's the biggest single read in
 // the app. Cached locally so a student returning to the same chapter — which is
 // the normal case, every day — reads zero documents and downloads zero bytes.
-// admin.html bumps `contentVersion` on a book when a chapter is edited, which
-// invalidates the entry. Absent that field we fall back to a 7-day expiry.
+// Chapter text is immutable once authored and it's the biggest single read in
+// the app. Cached locally so a student returning to the same chapter — which is
+// the normal case, every day — reads zero documents and downloads zero bytes.
+//
+// ⚠️ THE INVALIDATION IS REAL NOW. IT WASN'T BEFORE.
+//
+// The comment that stood here for several versions said "admin.html bumps
+// `contentVersion` on a book when a chapter is edited, which invalidates the
+// entry." That was false. No version of admin.js up to and including 3.11.0
+// ever wrote that field, so the expiry below was the ONLY invalidation this
+// cache had — and it was seven days. Fix a typo, and a student holding a cached
+// copy read the typo for a week.
+//
+// admin.js **3.12.0** actually writes it, from all seven paths that change
+// chapter text. So seven days is now a genuine ceiling for a book nobody edits,
+// not a silent floor on how long a correction takes to land.
+//
+// ⚠️ IF YOU EVER SEE AN EDIT FAIL TO REACH STUDENTS, check that admin.js is
+// 3.12.0 or later before you touch anything here. Rolling admin.js back
+// reintroduces the week-long staleness with no other symptom.
 const CHAPTER_CACHE_MS = 7 * 86400000;
 
 function chapterCacheKey(bookId, chapterId) { return `ttb_ch_v1:${bookId}:${chapterId}`; }
@@ -1423,6 +1448,9 @@ function setupGame() {
 }
 
 function renderText() {
+    // Every span is about to be replaced, so the tracked .active element and the
+    // cached container height are both stale from this line onward.
+    resetActiveLetterTracking();
     textStream.innerHTML = '';
     const container = document.createDocumentFragment();
     let wordBuffer = document.createElement('span');
@@ -2235,20 +2263,66 @@ function updateProgressBars() {
     });
 }
 
+// ⚠️ PER-KEYSTROKE HOT PATH. Everything below runs on every single character a
+// student types, so a wasted DOM operation here is paid 300-400 times a minute
+// per student. Two things were costing real frames on low-end hardware:
+//
+//   1. highlightCurrentChar() ran document.querySelectorAll('.letter.active')
+//      — a full-document scan across ~8,000 spans — on every keystroke. Worse,
+//      handleTyping() had ALREADY removed .active from the current element three
+//      lines earlier, so the scan reliably walked eight thousand elements to
+//      find nothing. We know which element it was; track it.
+//
+//   2. centerView() read container.clientHeight and currentEl.offsetTop
+//      immediately after a class mutation, forcing a synchronous layout, then
+//      wrote a transform — which invalidates layout again for the next
+//      keystroke. Textbook layout thrash.
+//
+// The container height only changes on resize, so it's cached. offsetTop still
+// has to be read (it depends on where the character wrapped to), but the read
+// and the write are now batched into one rAF so a burst of fast keystrokes
+// collapses into a single layout pass per frame instead of one per character.
+
+let _activeLetterEl = null;         // the element currently wearing .active
+let _cachedContainerHeight = 0;
+let _centerRaf = 0;
+
+function invalidateContainerHeight() { _cachedContainerHeight = 0; }
+window.addEventListener('resize', invalidateContainerHeight);
+
 function centerView() {
-    const currentEl = document.getElementById(`char-${currentCharIndex}`);
-    if (!currentEl) return;
-    const container = document.getElementById('game-container');
-    const offset = (container.clientHeight / 2) - currentEl.offsetTop - 25;
-    textStream.style.transform = `translateY(${offset}px)`;
+    if (_centerRaf) return;         // one scroll update per frame, not per key
+    _centerRaf = requestAnimationFrame(() => {
+        _centerRaf = 0;
+        const currentEl = document.getElementById(`char-${currentCharIndex}`);
+        if (!currentEl) return;
+        if (!_cachedContainerHeight) {
+            const container = document.getElementById('game-container');
+            if (!container) return;
+            _cachedContainerHeight = container.clientHeight;
+        }
+        const offset = (_cachedContainerHeight / 2) - currentEl.offsetTop - 25;
+        textStream.style.transform = `translateY(${offset}px)`;
+    });
 }
 
 function highlightCurrentChar() {
-    document.querySelectorAll('.letter.active').forEach(el => el.classList.remove('active'));
+    // Was: querySelectorAll('.letter.active') — a full-document scan, every key.
+    if (_activeLetterEl) _activeLetterEl.classList.remove('active');
     const el = document.getElementById(`char-${currentCharIndex}`);
+    _activeLetterEl = el || null;
     if (el) { el.classList.add('active'); highlightKey(fullText[currentCharIndex]); }
     updateHandGuide();
     updateProgressBars();
+}
+
+// renderText() throws away every span, so the tracked element is now detached.
+// Anything that rebuilds the stream must call this or the next highlight will
+// try to clean up a node that is no longer in the document. Harmless, but it
+// would quietly leak the old chapter's DOM.
+function resetActiveLetterTracking() {
+    _activeLetterEl = null;
+    _cachedContainerHeight = 0;
 }
 
 function updateImageDisplay() {
@@ -2343,10 +2417,53 @@ function markDirty() {
     }
 }
 
+// ⚠️ RE-ENTRANCY GUARD — THIS ONE CORRUPTED TEACHER-FACING DATA.
+//
+// flushAll() is reachable from four places: the interval timer, the
+// visibilitychange handler, saveProgress(force), and walRecover(). It is async
+// with four sequential awaits, so two runs could overlap. When they did, both
+// captured the SAME `sessionsBeingWritten = pendingSessions.slice()`, both
+// addDoc()'d that rollup, and both then ran `pendingSessions.slice(n)`.
+//
+// Result: a duplicate typing_sessions document. The main report table reads
+// typing_logs, which is a merge and therefore immune — but the per-day sprint
+// drill-down a teacher opens to check a student's work reads typing_sessions,
+// and it was double-counting minutes and sprint totals.
+//
+// Serialising is enough. A caller arriving mid-flush waits for the running
+// flush to finish and then runs its own, so a late-arriving `final` still gets
+// its rollup written rather than being silently dropped.
+//
+// ⚠️ THE LOOP IS `while`, NOT `if`, AND THAT IS THE WHOLE GUARD. (v3.9.2)
+//
+// v3.9.1 wrote `if (_flushInFlight) await _flushInFlight`, which holds for two
+// callers and fails for three. With A running and B and C both parked on A's
+// promise: A resolves, A's finally nulls the slot, and B and C are BOTH already
+// past the `if` — so both assign `_flushInFlight` and both inner runs execute
+// concurrently, which is the exact duplicate-rollup bug the guard exists to
+// prevent. Measured, not reasoned: 6 simultaneous callers gave 5 overlapping
+// inner runs.
+//
+// `while` closes it because re-checking after the await is synchronous with the
+// assignment that follows — B leaves the loop and claims the slot in one
+// uninterrupted step, so C's re-check sees B's promise and parks on that
+// instead. There are four call sites (interval timer, visibilitychange,
+// saveProgress(force), walRecover()), so three-deep is reachable in normal use.
+let _flushInFlight = null;
+
+async function flushAll(reason, final = false) {
+    while (_flushInFlight) {
+        await _flushInFlight.catch(() => {});
+    }
+    _flushInFlight = _flushAllInner(reason, final);
+    try { await _flushInFlight; }
+    finally { _flushInFlight = null; }
+}
+
 // Push local state to Firestore. `final` writes the rollup documents that only
 // matter between sessions (stats doc, session history); the periodic flush skips
 // them and writes position only.
-async function flushAll(reason, final = false) {
+async function _flushAllInner(reason, final = false) {
     if (!currentUser || currentUser.isAnonymous) return;
     if (!walDirty && !final && pendingSessions.length === 0) return;
 
@@ -2404,34 +2521,73 @@ async function flushAll(reason, final = false) {
     // 4. Sprint history as ONE rollup doc instead of one doc per sprint. Twenty
     //    documents per block became one, which is what keeps storage under 1 GiB.
     if (final && sessionsBeingWritten.length > 0) {
+        // ⚠️ CHUNKED, BECAUSE firestore.rules v2.2.0 CAN NOW REJECT THIS. (v3.9.2)
+        //
+        // The new typing_sessions create rule requires `sprints.size() <= 200`
+        // and `seconds <= 86400`. Nothing on the client enforced either, and
+        // pendingSessions has no cap: walRecover() CONCATENATES a recovered log
+        // onto the live one (`wal.sessions.concat(pendingSessions)`), so a
+        // student whose rollup write fails once carries those sprints forward.
+        //
+        // Unchunked that is a poison pill. Once the array crosses 200, every
+        // future write is denied, denial sets ok = false, ok = false keeps the
+        // WAL, and the kept WAL is re-concatenated next session — so it fails
+        // permanently, silently, and grows while doing it. The tightening is
+        // right; it just needs a client that can satisfy it.
+        //
+        // 200 sprints per document also keeps `seconds` far under 86400 by
+        // construction (200 × a 30-second sprint is 100 minutes), so one cap
+        // handles both. Chunks are advanced out of pendingSessions ONE AT A TIME
+        // and only after their write lands, so a mid-run failure keeps exactly
+        // the sprints that have not been stored yet — no loss, no duplication.
+        const SPRINTS_PER_ROLLUP = 200;
+        let written = 0;
         try {
-            const totals = sessionsBeingWritten.reduce((a, s) => ({
-                seconds: a.seconds + s.seconds, chars: a.chars + s.chars,
-                mistakes: a.mistakes + s.mistakes
-            }), { seconds: 0, chars: 0, mistakes: 0 });
-            await addDoc(collection(db, "typing_sessions"), {
-                uid: currentUser.uid,
-                email: currentUser.email || "",
-                displayName: currentUser.displayName || "Anonymous",
-                classId: ttbClassId || "",
-                schoolId: ttbSchoolId || "",
-                date: getLocalDateStr(),
-                timestamp: new Date(),
-                bookId: currentBookId,
-                sprintCount: sessionsBeingWritten.length,
-                seconds: totals.seconds,
-                chars: totals.chars,
-                mistakes: totals.mistakes,
-                wpm: totals.seconds > 0 ? Math.round((totals.chars / 5) / (totals.seconds / 60)) : 0,
-                accuracy: (totals.chars + totals.mistakes) > 0
-                    ? Math.round((totals.chars / (totals.chars + totals.mistakes)) * 100) : 100,
-                sprints: sessionsBeingWritten,
-                // TTL field — set a Firestore TTL policy on this to keep the
-                // collection from growing without bound. See SCALE-PLAN.md.
-                expiresAt: new Date(Date.now() + 120 * 24 * 3600 * 1000)
-            });
-            pendingSessions = pendingSessions.slice(sessionsBeingWritten.length);
-        } catch (e) { ok = false; console.warn(`Session rollup failed (${reason}):`, e); }
+            for (let i = 0; i < sessionsBeingWritten.length; i += SPRINTS_PER_ROLLUP) {
+                const chunk = sessionsBeingWritten.slice(i, i + SPRINTS_PER_ROLLUP);
+                const totals = chunk.reduce((a, s) => ({
+                    seconds: a.seconds + s.seconds, chars: a.chars + s.chars,
+                    mistakes: a.mistakes + s.mistakes
+                }), { seconds: 0, chars: 0, mistakes: 0 });
+                await addDoc(collection(db, "typing_sessions"), {
+                    uid: currentUser.uid,
+                    email: currentUser.email || "",
+                    displayName: currentUser.displayName || "Anonymous",
+                    classId: ttbClassId || "",
+                    schoolId: ttbSchoolId || "",
+                    date: getLocalDateStr(),
+                    timestamp: new Date(),
+                    bookId: currentBookId,
+                    sprintCount: chunk.length,
+                    // Clamped only as a backstop against a corrupted local
+                    // total. If this ever actually clamps, the write survives
+                    // and the console says so, which beats a silent denial.
+                    seconds: Math.min(totals.seconds, 86400),
+                    chars: totals.chars,
+                    mistakes: totals.mistakes,
+                    wpm: totals.seconds > 0 ? Math.round((totals.chars / 5) / (totals.seconds / 60)) : 0,
+                    accuracy: (totals.chars + totals.mistakes) > 0
+                        ? Math.round((totals.chars / (totals.chars + totals.mistakes)) * 100) : 100,
+                    sprints: chunk,
+                    // TTL field — set a Firestore TTL policy on this to keep the
+                    // collection from growing without bound. See SCALE-PLAN.md.
+                    expiresAt: new Date(Date.now() + 120 * 24 * 3600 * 1000)
+                });
+                if (totals.seconds > 86400) {
+                    console.warn('Sprint rollup seconds clamped to 86400 — local ' +
+                                 'total was ' + totals.seconds + ', which should be ' +
+                                 'impossible in one day. Check the WAL.');
+                }
+                // Advance per chunk, not once at the end: whatever landed is gone
+                // from the queue even if a later chunk fails.
+                written += chunk.length;
+                pendingSessions = pendingSessions.slice(chunk.length);
+            }
+        } catch (e) {
+            ok = false;
+            console.warn(`Session rollup failed (${reason}) after ${written} of ` +
+                         `${sessionsBeingWritten.length} sprints:`, e);
+        }
     }
 
     if (ok) {
@@ -2531,11 +2687,28 @@ function logSession(seconds, chars, mistakes, wpm, accuracy) {
     markDirty();
 }
 
-// The session really is over. Everything durable goes now.
+// ⚠️ "The session really is over" WAS NOT TRUE. visibilitychange:hidden fires on
+// every tab switch, every lid close, every app background — not just at the end
+// of a period. A student bouncing to Google Classroom and back eight times fired
+// eight full `final` flushes, each worth up to four Firestore writes plus a
+// leaderboard write, and (before the guard above) each one racing the others.
+//
+// The localStorage WAL write is what actually protects the student's work, and
+// it is free, so it still happens on EVERY hide. The Firestore flush is
+// rate-limited to once a minute. Nothing in it is time-critical: the WAL is the
+// durable copy, walRecover() replays it, and typing_logs is a merge so a teacher
+// refreshing a report mid-period never sees a torn value.
+const HIDDEN_FLUSH_MIN_GAP_MS = 60000;
+let lastHiddenFlush = 0;
+
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
-        flushLeaderboard();
-        flushAll('hidden', true);
+        walSave();                        // free, synchronous, always
+        if (Date.now() - lastHiddenFlush >= HIDDEN_FLUSH_MIN_GAP_MS) {
+            lastHiddenFlush = Date.now();
+            flushLeaderboard();
+            flushAll('hidden', true);
+        }
     }
 });
 
@@ -4995,6 +5168,14 @@ async function updateLeaderboard() {
         lbOwnEntry = {
             initials: userInitials,
             leaderboardOptOut: leaderboardOptOut,
+            // Tenancy stamps for the queued "My class / My school / Everyone"
+            // toggle. Written NOW, ahead of the feature, purely so that the
+            // feature doesn't arrive needing a 7,000-document backfill on a
+            // collection students can read. Nothing queries these yet. They add
+            // no reads and no index requirement until something filters on them.
+            // Still initials-only — no name, no email. See the v3.3.0 note.
+            classId: ttbClassId || '',
+            schoolId: ttbSchoolId || '',
             bestWPM: newBestWPM,
             bestAccuracy: newBestAcc,
             bestStreak: newBestStreak,
@@ -5018,7 +5199,12 @@ async function updateLeaderboard() {
 
         if (!couldPlace(candidate)) return [];
 
-        // Worth a look — this fetch is 40 reads and is cached for 10 minutes.
+        // Worth a look. This is FOUR queries at LB_FETCH_LIMIT (15) each, so up
+        // to 60 document reads — 90 if the weekly board falls back to the wider
+        // unfiltered fetch. The comment here said 40 for several versions and it
+        // was never right. Cached for LB_CACHE_MS (10 minutes), and couldPlace()
+        // above is what stops the ~99% of students who aren't near a cutoff from
+        // ever reaching this line.
         await fetchLeaderboard();
         return computePlacements(candidate);
     } catch(e) { console.warn("Leaderboard update failed:", e); return []; }
