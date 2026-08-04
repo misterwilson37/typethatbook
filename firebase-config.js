@@ -1,4 +1,11 @@
-// firebase-config.js v1.1.1
+// firebase-config.js v1.2.0
+//
+// v1.2.0 - App Check with reCAPTCHA v3. Sign-up is open to any Google account
+//          on earth (deliberately - students self-serve), which made every
+//          `allow create` an authenticated, unmetered write target pointed at a
+//          personal credit card. firestore.rules v2.2.0 caps what one forged
+//          document can cost; App Check is what stops the flood arriving.
+//          ⚠️ NOT ENFORCED BY THIS FILE - see the block below.
 // v1.1.1 - added CONFIG_VERSION constant so index.html's build banner can read
 //          this file's version like every other file's. No functional change.
 // v1.1.0 - experimentalForceLongPolling for Safari WebChannel compatibility
@@ -6,6 +13,10 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebas
 import { initializeFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+import { initializeAppCheck, ReCaptchaV3Provider, getToken }
+    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
+
+export const CONFIG_VERSION = '1.2.0';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCV3RVWUwTLKoi_ze-FNCiam4lhggHKHR8",
@@ -18,10 +29,74 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
+// ═══════════════════════════════════════════════════════════════════════════
+// APP CHECK  (v1.2.0)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// This site key is PUBLIC BY DESIGN. It ships in client code and is visible in
+// devtools on every page - that is how reCAPTCHA works and it is not a leak.
+// The paired SECRET key lives only in the Firebase console and must never
+// appear in this repo.
+//
+// ⚠️ UPLOADING THIS FILE CHANGES NOTHING ON ITS OWN, AND THAT IS THE POINT.
+// App Check has two independent halves: the client mints tokens (this file) and
+// the backend decides whether to require them (Firebase console → App Check →
+// APIs → Enforce). Until you click Enforce, tokens are minted and counted and
+// ignored. That gap is the whole safety mechanism - it lets you watch the
+// verified-request percentage climb on real classroom traffic before anything
+// can be rejected. Do not enforce until it is at or near 100%.
+//
+// ⚠️ THE FAILURE MODE THAT MATTERS IN A SCHOOL: content filters.
+// reCAPTCHA needs www.google.com/recaptcha/* and www.gstatic.com/recaptcha/*.
+// District web filters block google.com paths more often than you would guess.
+// Before enforcement a block is harmless. AFTER enforcement it means every
+// Firestore request from that network is rejected - students type normally and
+// nothing saves. The write-ahead logs in game.js and learn.js mean the work is
+// not LOST (it replays when the block clears), but a period's data would not
+// reach a teacher's report that day. If the App Check metrics never reach ~100%
+// verified, suspect the filter before suspecting this code.
+//
+// Failure here is swallowed on purpose. If the reCAPTCHA script cannot load,
+// the app must keep working - a typing lesson should not white-screen because
+// an anti-abuse provider is unreachable. Once enforcement is on, Firestore will
+// reject the requests anyway; there is nothing gained by breaking the page too.
+const APPCHECK_SITE_KEY = '6LfzoHItAAAAANsaQMK1tbqmjyvrLcH4g3j-V3St';
+
+let _appCheck = null;
+try {
+    _appCheck = initializeAppCheck(app, {
+        provider: new ReCaptchaV3Provider(APPCHECK_SITE_KEY),
+        // Refreshes the token before it expires so a student mid-lesson never
+        // stalls on an expired one. Token lifetime itself is a CONSOLE setting
+        // (App Check → Apps → your app → TTL), not a code setting - set it to
+        // 7 days. Every refresh is a billable reCAPTCHA assessment, so a long
+        // TTL is what keeps this comfortably inside the free quota.
+        isTokenAutoRefreshEnabled: true
+    });
+} catch (e) {
+    console.warn('App Check init failed - continuing without it. If enforcement ' +
+                 'is ON, Firestore requests from this browser will be rejected.', e);
+}
+
+// Console helper, because there is no CLI here and the Firebase metrics page
+// lags by minutes. Sit at a school machine, open devtools, run
+// `await ttbAppCheckStatus()`. A token means the network can reach reCAPTCHA.
+// An error means it cannot, and that is your answer before you enforce anything.
+window.ttbAppCheckStatus = async function () {
+    if (!_appCheck) return { ok: false, reason: 'App Check did not initialize.' };
+    try {
+        const t = await getToken(_appCheck, /* forceRefresh */ false);
+        return { ok: true, tokenPreview: (t.token || '').slice(0, 12) + '…' };
+    } catch (e) {
+        return { ok: false, reason: e.message || String(e) };
+    }
+};
+
 // experimentalForceLongPolling fixes Safari's CORS block on Firestore's
 // WebChannel streaming transport. Functionally identical for this app.
-export const CONFIG_VERSION = '1.1.1';
-
+// ⚠️ Load-bearing. Round 4 considered experimentalAutoDetectLongPolling (faster
+// on Chrome and Mac) and rejected it: the upside is latency only, the downside
+// is Safari sign-in breaking on a day nobody can debug it. Leave it alone.
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
 });
