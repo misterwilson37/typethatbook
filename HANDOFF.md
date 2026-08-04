@@ -1,25 +1,510 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v4.2.0 — Round 3 (Blick): Adventure Mode out of alpha, project-wide
-     version alignment, book tags (age range + protagonist), language-filter regex
-     + audit, book CSV export, multi-work EPUB splitting, one-pass book
-     workflow, find & replace, 284-chapter scale fixes,
-     chapter picker filter. Tiers 1-3 closed. Header budget imposed + CHANGELOG.md created.
-     §10 document map corrected —
-     six of its eight entries were files that do not exist. §9 item 1 CORRECTED —
-     the practice-mode panic was wrong; see §A.10. New §A is Round 3 and is the first thing to read. §0 and §11
-     are Round 2 (Dvorak). Underwood's §1, §3-§10, §12 are verbatim. -->
+<!-- HANDOFF.md v5.0.0 — Round 4 (Oliver): cost / grades / stability audit.
+     No new features. Read §B first; it is the current round. §A is Round 3
+     (Blick) and is unchanged. Everything from §0 down is Rounds 1-2, verbatim. -->
 
-**Claude instance:** **Blick** (Round 3) · **Dvorak** (Round 2) · **Underwood** (Round 1)
-**Session:** Round 3 — 2026-08-02 · Round 2 — 2026-08-01 · Round 1 — 2026-07-30 → 2026-07-31
+**Claude instance:** **Oliver** (Round 4) · **Blick** (Round 3) · **Dvorak** (Round 2) · **Underwood** (Round 1)
+**Session:** Round 4 — 2026-08-02 · Round 3 — 2026-08-02 · Round 2 — 2026-08-01 · Round 1 — 2026-07-30 → 2026-07-31
 
 > *On the names:* Underwood built the typewriter that taught America to touch-type.
 > Dvorak was an educational psychologist who studied typing instruction and finger
 > motion, which is what Round 2 was about. Blick is the Blickensderfer 5 (1893),
 > whose trick was a swappable typewheel — one machine, pull one cylinder, drop in
 > another, same keystrokes come out looking completely different. Round 3 was the
-> view switcher. Predecessors on Ellis Web Bell: Stedman, Fable. (Jake's wife types
-> Dvorak. Unplanned, and welcome.)
+> view switcher. Oliver is the Oliver No. 1 (1894), the **visible writer**: every
+> machine before it printed on the underside of the platen, so you typed blind and
+> lifted the carriage to find out what you'd done. Round 4 was an audit — reading
+> the code for what it actually does rather than what its comments say it does,
+> which turned out to be the whole job. Predecessors on Ellis Web Bell: Stedman,
+> Fable. (Jake's wife types Dvorak. Unplanned, and welcome.)
+
+---
+
+## B. Round 4 — the cost / grades / stability audit (2026-08-02)
+
+**Shipped this round:** `learn.js` **2.2.0** · `game.js` **3.9.1** ·
+`index.html` **3.3.0** · `reports.html` **2.8.0** · `firestore.rules` **2.2.0** ·
+`firestore.indexes.json` **2.0.0** · `firebase-config.js` **1.2.0** ·
+`index.js` **1.6.0** · `package.json` · `admin.js` **3.18.2** ·
+`admin.html` · **new files:** `appcheck.html` **1.0.0**, `storage.rules` **2.0.0**,
+`ONBOARDING.md`
+
+⚠️ **READ §B.8 BEFORE ASSUMING ANY OF THAT IS LIVE.** This round produced more
+files than were deployed. Several are sitting in Jake's downloads, and the
+difference matters: `admin.js` and `admin.html` are a matched pair, and
+`game.js` 3.9.1 assumes `admin.js` 3.12.0+.
+
+**Queued, not started:** `ttb-shared.js` dedup, leaderboard scope toggle,
+per-school book visibility + book requests, and the part-id renumber bug — all in
+§B.13, in Jake's stated priority order.
+
+⚠️ **Deploy order matters in one place.** `admin.js` 3.12.0 and `game.js` 3.9.1
+are a pair: game.js only trusts its 7-day chapter cache because admin.js now
+writes `contentVersion`. Ship admin.js first, or ship both. Rolling admin.js
+back alone silently reintroduces week-long stale chapters.
+
+### B.0 Why this round happened, and the ordering that came out of it
+
+Jake asked for a fresh-eyes audit and then gave the priority order himself:
+**cost, then student grades, then stability, then everything else.** That order
+is not arbitrary and the next person should keep it. He is not paid to write
+this, he charges nobody for it, and at full district scale every student past
+about thirty is money out of his own paycheck for kids he does not teach. A
+change that saves reads outranks a change that feels tidier.
+
+The scale target, confirmed: **7,000 middle schoolers ÷ 3 trimesters ÷ 5
+periods ≈ 467 simultaneous**, and that is deliberately conservative — most
+districts run quarters and 6-8 periods, so the real number is lower.
+
+Hardware, also confirmed and it changes the analysis: **Jake's building is
+MacBooks running Chrome.** Other districts that adopt this may be Chromebooks,
+possibly in ephemeral mode where localStorage is wiped at every sign-out. So
+caching has to work AND the cold path has to be survivable. Every cache added
+this round degrades to a plain read, never to a broken page, and several fall
+back to an EXPIRED cache rather than an error screen.
+
+### B.1 ⚠️ The three things that were actually broken
+
+Not slow — **wrong**. Each was verified by reading both sides, not inferred.
+
+**1. `flushAll()` had no re-entrancy guard, and it corrupted teacher-facing data.**
+Reachable from the interval timer, `visibilitychange`, `saveProgress(force)` and
+`walRecover()`; async with four sequential awaits. Two overlapping runs both
+captured the same `sessionsBeingWritten` slice, both `addDoc()`'d it, and both
+advanced the queue past it — a **duplicate `typing_sessions` document**, double
+counting minutes in the per-day sprint drill-down. `typing_logs` was never
+affected because it is a merge. `learn.js` `flushStats()` had the identical
+shape and got the identical fix.
+
+**2. "My classes" was permission-denied for the default teacher.**
+`buildScopedQuery()` handled `__mine__` by querying the whole building on
+`schoolId` and narrowing on the client. **Rules are not filters.**
+`canReadActivity()` short-circuits to `teachesClass(d.classId)` for anyone whose
+`readScope` isn't `building`, and rules evaluate against every document the
+query returns, not the subset the client means to keep. So a teacher with the
+DEFAULT `own_classes` scope got denied on the scope option the UI defaults them
+to — and it would separately have blown Firestore's ceiling of 20
+`get()`/`exists()` calls per query. Now one equality query per class, unioned
+and de-duplicated. Fewer documents read than before, and every one of them is
+one the rules already agree the caller may see.
+
+**3. Teacher time corrections have NEVER worked.**
+`reports.html` has had a "correct a student's recorded time" button for several
+versions. It calls `updateDoc()` on `typing_logs`. The only update rule was
+`request.resource.data.uid == request.auth.uid` — but under an update
+`request.resource.data` is the **merged** document, so `uid` is the student's,
+never the teacher's. Every correction ever attempted was denied. Nobody noticed
+because it surfaces as a console error on a rarely-clicked button. Rules 2.2.0
+adds a staff branch, limited to building-scoped staff (matching the identical
+constraint already on `users/{uid}/stats`) with the identity fields pinned.
+
+### B.2 The cost work — and the one number that explains it
+
+`game.js` accumulated a caching layer over several versions. **`learn.js` never
+got any of it**, and `learn.js` is the page the 6th and 7th graders open every
+single day. Same ten minutes of typing: ~5 reads on one page, ~115 on the other.
+
+Backported: lessons cache, `lessonProgress` cache, goals cache (sharing game.js's
+exact key), and the pending-assignment read skipped when the student already has
+a class. `index.html` got the same treatment — it was re-reading every book
+document, including the embedded `chapters` array, on every load. One
+284-chapter book is ~11 KB of document, Firestore has no field projection, and
+that is billed **egress** — which does come out of Jake's pocket, unlike the SDK
+downloads from `gstatic.com` that Round 4 initially and wrongly flagged.
+
+⚠️ **`getCountFromServer()` is the trick that makes cache validation cheap.**
+Firestore bills an aggregation at **one read per up to 1000 matched index
+entries**. So "has the lesson list changed?" costs 1 read instead of 80. It
+catches additions and removals instantly. It does **not** catch an edit to an
+existing document — that is what the TTL is for, and that trade is written at
+every call site. Do not remove the TTL on the theory the count covers it.
+
+### B.3 ⚠️ Cache invalidation, honestly stated
+
+| cache | key | TTL | validated by | catches an edit? |
+|---|---|---|---|---|
+| lessons | `ttb_lessonsCache_v1` | 4h | count aggregation | within 4h |
+| lesson progress | `ttb_lessonProgCache_v1` | 8h | uid + write-through | this tab, instantly |
+| library books | `ttb_booksCache_v1` | 6h | count aggregation | within 6h |
+| library progress | `ttb_idxProgCache_v1` | 8h | uid | within 8h |
+| goals | `ttb_goalsCache_v1` | 24h | uid | within 24h |
+| chapter text | `ttb_ch_v1:{book}:{ch}` | **12h** | `contentVersion` — **which nothing writes**, see §B.6 | within 12h |
+
+Escape hatches, because a TTL is not a workflow: `window.ttbClearLearnCaches()`
+on the school page and `window.ttbClearLibraryCache()` on the library. Both are
+console-callable. After editing content, call one and reload rather than waiting.
+
+### B.4 App Check — where it actually stands
+
+Sign-up is open to any Google account on earth, deliberately: students self-serve
+and Jake's own son uses it. Combined with an unvalidated `allow create`, that was
+an authenticated, unmetered, uncapped write target pointed at a personal credit
+card. Rules 2.2.0 caps what one forged document can cost. App Check stops the
+flood arriving.
+
+⚠️ **Round 4 twice called App Check "entirely console-based". That was wrong** —
+it needs client SDK initialisation too, which is why `firebase-config.js` went to
+1.2.0. Provider is **classic reCAPTCHA v3, NOT Enterprise**, and that was a cost
+decision: Enterprise bills above 10,000 assessments/month and this app clears
+that in a week, while classic has a quota that simply stops evaluating. Token TTL
+is set to **7 days** in the console because every refresh is a billable
+assessment. If anyone re-keys this, keep it classic — the tell is that classic
+issues a secret key and Enterprise does not.
+
+**Verified working, 2026-08-04:**
+
+| layer | result |
+|---|---|
+| Client mints tokens (`firebase-config.js` 1.2.0 live) | ✅ `ok: true` |
+| District firewall / proxy | ✅ PASS on school network |
+| Chrome enterprise policy, teacher profile | ✅ PASS, enterprise Chrome 150 on a school Mac |
+| **Student profile in Chrome** | ⚠️ **NEVER TESTED** |
+| Firestore enforcement toggled ON | ⚠️ **UNCONFIRMED — check this first** |
+
+⚠️ **The remaining risk is filtering extensions.** GoGuardian, Securly and
+Lightspeed are force-installed **per profile**, so a teacher account passing does
+not prove a student account will, and Chrome policy does not apply to Safari.
+Hand any student `typethatbook.misterwilson.org/appcheck.html` and have them read
+the colour back — that page needs no devtools and no sign-in, which is the whole
+point of it existing (a managed Chromebook has no console).
+
+⚠️ **Confirm the enforcement state before trusting it.** The sequence on
+2026-08-04 was: enforced → discovered `0/2.6K` verified because the client half
+was not live yet → unenforced → uploaded 1.2.0 → confirmed tokens minting →
+advised to re-enforce. **Whether that last step happened was never confirmed.**
+Firebase console → App Check → APIs → Cloud Firestore. If it says *Unenforced*,
+the abuse net is not up.
+
+If enforcement is on and something breaks: **App Check → APIs → Cloud Firestore →
+Unenforce.** Know where that button is before you need it. A block after
+enforcement means students type normally and nothing saves — the WALs mean the
+work is not lost, but a period's data would not reach a report that day.
+
+### B.5 What rules 2.2.0 changed, and one thing it deliberately did NOT
+
+- `typing_logs` doc IDs are now bound to `uid + '_' + date`. The old
+  `docId.split('_')[0] == uid` proved you owned the document but said nothing
+  about how many you could own — `uid_1`, `uid_2`, `uid_3` were all legal.
+- Sanity clamps on `seconds` / `chars` / `mistakes`. A student could write
+  `seconds: 999999` into their own graded log from the browser console. Middle
+  schoolers absolutely do find this.
+- `typing_sessions` create validation with `sprints` capped at 200.
+- `practice_sessions` must carry `expiresAt` — a document without it would never
+  be TTL-collected and would sit in storage forever carrying the heaviest payload
+  in the database.
+- `users/{uid}/{collection}` restricted to a whitelist. The wildcard let any
+  signed-in account write unbounded documents into subcollections of its own user
+  doc.
+
+⚠️ **No `keys().hasOnly()` on `typing_logs`, on purpose.** Both writers use
+`setDoc(merge: true)`, and under a merge `request.resource.data` is the merged
+result, not the delta. A field written by any earlier version that wasn't in a
+whitelist would fail the rule on every flush forever — and the client catches
+that and logs a console warning, so a student's time would **silently stop
+recording**. Silent grade loss is far worse than a stray field's storage. The
+docId binding is what bounds the collection; a whitelist would only bound its
+width. Do not "tighten" this back.
+
+### B.6 ⚠️ `contentVersion` — fixed, and why it stayed broken so long
+
+`game.js` `readChapterCache()`/`writeChapterCache()` key on
+`books/{id}.contentVersion`, and a comment above them said admin.html bumps it
+when a chapter is edited. **It never did** — verified by grep against admin.js
+3.10.0, 3.11.0, and every version before. So the chapter cache's only
+invalidation was ever its expiry, which was seven days. Edit a chapter, and a
+student holding a cached copy read the old text for a week.
+
+This is the most instructive bug of the round. Nothing errored. Nothing logged.
+Both halves were individually reasonable and the comment asserting they were
+connected was the only evidence anyone had — and it was wrong. **A comment
+claiming another file does something is not evidence that it does.** Grep it.
+
+Fixed in `admin.js` **3.12.0** via `bumpContentVersion()`, called from all seven
+paths that change chapter text: Upload All (inline, since that write happens
+anyway), Direct Save, the language-editor save, the audit fix-all (once after
+the batch, not per chapter), the audit single save, the audit autofix, and
+Repair Chapter Order. The bump failing is deliberately non-fatal — the chapter
+save it follows already succeeded, and turning a cache-freshness miss into a
+failed save would be strictly worse. `game.js` 3.9.1 returns
+`CHAPTER_CACHE_MS` to seven days, where it now means something.
+
+### B.6b The EPUB importer was dropping paragraphs — Jake spotted this
+
+He asked whether the v3.11.0 TOC-driven importer would skip anything not in the
+table of contents. It would, and the line was `let current = null` in
+`chapterUnitsFromToc()`. Every `<p>` before the **first** TOC anchor was skipped
+and never reached a chapter. Content *between* anchors was always safe (it
+attaches to the preceding unit — merged, not lost) and content after the last
+anchor was safe too. The loss case was narrow and real: a dedication, an
+epigraph, or a Gutenberg transcriber's note sharing a file with chapter one.
+
+Two rules in 3.12.0, neither of which can lose a paragraph:
+
+1. **Orphans are kept**, prepended to the first unit. They may land in the wrong
+   chapter, but a stray paragraph at the top of chapter one is visible in the
+   staging list and deletable in two clicks. Wrong-and-visible beats
+   absent-and-silent.
+2. **If more than half a file's paragraphs fall outside the TOC, the TOC isn't a
+   map of that file** — bail out and let the structure heuristic or the
+   whole-file path handle it. Both keep everything by construction.
+
+And the general guard: **paragraph reconciliation.** Every import now counts the
+`<p>` elements each spine file has after boilerplate removal against the ones
+actually handed to a chapter, and reports any shortfall in amber on the status
+line. The importer will get cleverer over time; this is the thing that will say
+so when a clever change loses text.
+
+### B.7 The EPUB importer: what the 20-book harness found
+
+Jake handed over twenty real EPUBs and asked why chapter titles were sometimes
+blank. A Node harness (`jszip` + `jsdom`) that replays the SHIPPING functions
+against real files found something considerably worse than blank titles, and it
+is the single most productive thing this round did.
+
+⚠️ **The harness is not in the repo and should be rebuilt if the importer is
+touched again.** It extracted `findChapterUnits`, `headingInfoOf`,
+`classifyDocument`, `assignChapterIds` etc. straight out of `admin.js` by
+brace-matching, so it tested the real code rather than a copy. Twenty books
+verify in about thirty seconds. Do not change chapter detection without one.
+
+**1. Every spine document was becoming a numbered chapter.** Standard Ebooks'
+`imprint.xhtml` — their publishing boilerplate — was chapter 2 of every book in
+the library, `titlepage.xhtml` was chapter 1, and a student could be assigned to
+type the colophon. That shifted real chapters by a different amount per book:
+Pride and Prejudice's Chapter I sat at position 3, Gatsby's at 5, Douglass's at 6.
+Aesop reported 289 fables instead of 284. Fixed by reading `epub:type`
+(frontmatter / bodymatter / backmatter), authoritative in 18 of the 20 books; the
+two Gutenberg files fall back to filename then shape. Counts now match the actual
+books — P&P 61, Gatsby 9, Alice 12, Pinocchio 36, Douglass 11, Aesop 284.
+
+**2. Chapter titles were being typed instead of read.** Standard Ebooks marks a
+titled chapter as an `<hgroup>` holding the ordinal in the heading and **the
+title in a `<p epub:type="title">`**. The old extractor queried only `h1`–`h6`,
+so it returned "II" and never saw "Old Tom and Nancy" — twelve of twenty books,
+every one of which Jake retyped by hand. And because the title was a `<p>`,
+`querySelectorAll('p')` swept it into the prose, making the chapter title
+**segment zero of what students type**. He was typing names into the admin form
+that were simultaneously being served to kids as the first line of the chapter.
+
+**3. Numbering.** Body chapters `1..n` so chapter 1 is chapter 1; front matter
+`0.1`; back matter `900.1` — high enough never to collide with the part scheme.
+Front and back matter are labelled in the staging list, not hidden: some of it is
+real prose worth typing (Aesop's Introduction, Douglass's Preface). `bodyChapters`
+is written separately from `totalChapters` so "finished the book" is judged on the
+story — Jake's catch: keeping the colophon meant a student never got the
+completion celebration.
+
+**4. ⚠️ `parseFloat` cannot compare part numbers.** `parseFloat("1.10")` is 1.1 —
+the same value as `parseFloat("1.1")`. So `1.1` and `1.10` were indistinguishable
+and `1.2` sorted after both. `compareChapterIds()` splits on the dot and compares
+element-wise; new ids are also zero-padded per book. **The comparator is the
+important half** — it fixes books already numbered by hand with no renumbering,
+so no student's stored chapter pointer moves.
+
+**5. Metadata auto-fill.** Every field the create form demanded was already in the
+EPUB: `<dc:title>` 20/20, `<dc:creator>` 20/20, `<dc:subject>` in most. Only the
+file is required to parse now. The old gate demanded id and title up front, which
+is why the author extraction that had lived inside `parseEpubFile` for versions
+never saved anyone any typing — you had to type the metadata to earn the right to
+press the button that read the metadata.
+
+### B.8 ⚠️ Deployment state — DO NOT ASSUME
+
+Nothing here deploys itself and this round outran the uploads. Verify before
+debugging anything, because a bug that is already fixed in a file sitting in
+Jake's downloads is the most expensive kind to chase.
+
+| file | version | state as of 2026-08-04 |
+|---|---|---|
+| `firestore.rules` | 2.2.0 | ✅ pasted, confirmed by screenshot |
+| `firebase-config.js` | 1.2.0 | ✅ live, confirmed by `ttbAppCheckStatus()` |
+| `appcheck.html` | 1.0.0 | ✅ live, ran successfully at school |
+| `learn.js` | 2.2.0 | probably live — uploaded in the first batch |
+| `index.html` | 3.3.0 | probably live — same batch |
+| `reports.html` | 2.8.0 | probably live — same batch |
+| `game.js` | 3.9.1 | **unconfirmed** |
+| `admin.js` | 3.18.2 | ❌ **NOT uploaded** |
+| `admin.html` | — | ❌ **NOT uploaded, and never has been** |
+| `storage.rules` | 2.0.0 | ❌ not pasted |
+| `firestore.indexes.json` | 2.0.0 | documentation only — exemptions never created, and that is fine (§B.14) |
+| `index.js` / `package.json` | 1.6.0 | **cannot be deployed — no CLI.** The running function is the pre-1.6.0 one |
+
+⚠️ **`admin.js` and `admin.html` are a matched pair.** 3.18.1+ expects
+`create-reset-btn` and `autofill-status`, which exist only in the new HTML.
+⚠️ **`game.js` 3.9.1 assumes `admin.js` 3.12.0+.** It trusts a 7-day chapter
+cache because admin.js writes `contentVersion`. Older admin.js silently
+reintroduces week-long stale chapters with no other symptom.
+
+### B.9 ⚠️ Two bug classes that recurred — check for these first
+
+**Re-entrancy: an async handler that resets shared state before its first
+await.** Three instances this round:
+
+| where | what it did |
+|---|---|
+| `game.js` `flushAll()` | duplicate `typing_sessions` → double-counted minutes in the reports teachers grade from |
+| `learn.js` `flushStats()` | same shape, found by analogy |
+| `admin.js` Open Book | two clicks ran two loads into one array; the second reset discarded the first's work and the loops interleaved |
+
+The Open Book one is the best diagnostic story in the project. The rendered order
+was `4, 5, 1, 6, 2, 7, 3, 8`, which is not random — it is `(4,5,6,7,8)`
+interleaved with `(1,2,3)`. Reconstructing it step by step matched digit for
+digit, and the database was sequential the whole time. **Grep for `= []` or
+`= {}` at the top of an async function and ask what happens if it runs twice.**
+
+**Silent failure reported to the wrong place.** `uploadCover()` wrote its error to
+the status bar at the top of the page while the message beside the button said
+"✓ Saved" — so two books shipped with no cover and the screen claimed success.
+The metadata form had the identical defect fixed in v3.10.0 ("feedback lives next
+to the button now"); the cover path never got it. **When a save has more than one
+step, the success message must name every step or it will eventually lie.**
+
+### B.10 ⚠️ "No code references this" is not "nothing references this"
+
+The worst mistake of the round, and it caused a real outage.
+
+Firestore showed an `admins` collection. Grep across every `.js` and `.html`
+found no reference — a true finding — so it was called a dead fossil and Jake
+deleted it. **Firebase Storage rules required `admins/{email}`.** Cover uploads
+failed on every book afterwards; 31 books have covers, the two uploaded after the
+deletion do not. The one consumer lived in a file that had never been in the repo.
+
+On this project, several things consume Firestore data from outside the codebase:
+Storage rules, Firestore rules, TTL policies, index definitions, App Check
+settings, and reCAPTCHA keys. **Grep cannot see any of them.** `storage.rules`
+now exists in the repo for exactly this reason — it cannot be deployed from
+there, but it can be read there, which is what was missing.
+
+### B.11 Versioning discipline — corrected mid-round
+
+`admin.js` v3.12.0 through v3.18.0 were bumped as MINOR and most were straight
+bug fixes that should have been PATCH. Jake caught it: *"We haven't added any
+features in a couple of turns — just tweaked what's already there."* Then the
+very next release broke the rule again as v3.19.0, and he caught that too, one
+turn later; it was renumbered to v3.18.1.
+
+Past numbers are left alone because some of those files are deployed and
+rewriting history would make the CHANGELOG disagree with what is running. The
+standard, restated: **a bug fix is x.y.Z. A minor bump means a new capability
+actually arrived. A major needs Jake's explicit sign-off.**
+
+### B.12 Testing this solo — ~20 minutes, no students
+
+1. **Reads actually dropped.** Open the school page with the Network tab
+   filtered to `firestore`. First load is a real fetch. Reload — it should be
+   dramatically quieter. Then run `ttbClearLearnCaches()` in the console and
+   reload; the traffic should come back. That round trip is the whole feature.
+2. **Lessons still update.** Edit a lesson in admin, then
+   `ttbClearLearnCaches()` and reload the school page. The edit is there. Add a
+   whole new lesson and reload WITHOUT clearing — the count check should catch
+   it on its own.
+3. **The double-fire is gone.** Hard-reload the school page and count requests
+   to the `lessons` collection. One. It used to be two.
+4. **Two students, one machine.** Sign in as A, do a lesson, sign out, sign in
+   as B. B must not see A's progress. This is the uid namespace and it is the
+   thing most worth breaking on purpose to check.
+5. **No duplicate sprint rollups.** Type a couple of sprints, then alt-tab away
+   and back eight times in under a minute. Open the student's day in reports —
+   the drill-down should show one rollup, and the minutes should match the
+   summary row. Before this round they would diverge.
+6. **"My classes" works at all.** Log in as a teacher whose `readScope` is
+   `own_classes` (the default), pick "My classes", generate. It should return
+   data. It used to return permission-denied.
+7. **Teacher correction works.** As a building admin, correct a student's
+   recorded time in reports. It should save. It never has.
+8. **The report ceiling refuses politely.** As super_admin, pick ALL SCHOOLS
+   over a wide date range. Either it returns, or it says it stopped on purpose.
+   It must never show a partial table.
+9. **Typing still feels right.** Type a full sprint in Classic and in
+   Adventure. Scrolling should track the cursor as before — it is now one
+   update per frame instead of one per character, which should be smoother, not
+   different.
+10. **The importer accounts for itself.** Re-import a book you already have —
+    Aesop is the good one, it should still say 284. The status line now reports
+    paragraphs it rescued from outside the TOC and warns in amber if any
+    paragraph failed to reach a chapter. Green with no warning means nothing was
+    lost.
+11. **An edited chapter reaches a student.** Edit one word of a chapter in
+    admin, then open that chapter as a student who has already read it. The edit
+    should be there immediately. Before admin.js 3.12.0 it would have taken up
+    to a week.
+12. **App Check can reach reCAPTCHA from school.** On a school machine, open
+    devtools and run `await ttbAppCheckStatus()`. `{ok: true}` with a token
+    preview means the filter is not in the way. Do this on the actual district
+    network, not at home — home is not the environment that will break.
+13. **A cover actually uploads.** Open a book, pick any image under Cover Image,
+    Save Metadata. It must say `cover saved` in the confirmation line. If it goes
+    red naming Storage rules, §B.10 is why.
+14. **A student cannot forge time.** In the console as a student, try writing
+    `seconds: 999999` to your own `typing_logs` doc. Denied.
+
+### B.13 Not done — queued, in Jake's priority order
+
+Jake's stated ordering for the whole round was **cost, then student grades, then
+stability, then everything else.** Keep it.
+
+1. **⚠️ NOTHING FROM THIS ROUND HAS BEEN RUN.** Eight-plus files changed,
+   verified by reading both sides of every interaction and by syntax check, not
+   by execution. `game.js` has no test suite. §B.12 has the list; the three that
+   would embarrass us most if wrong are the duplicate sprint rollup, "My
+   classes", and a chapter edit reaching a student.
+2. **Student-profile App Check test** (§B.4) — the one layer never checked, and
+   the one that decides whether enforcement is safe.
+3. **`storage.rules` 2.0.0** — paste it, or recreate `admins/{email}` as the
+   quick restore. Cover uploads are broken until one of those happens.
+4. **The part-id renumber bug.** Del / Merge ↓ / Split all end with
+   `stagedChapters.forEach((ch, i) => ch.id = i + 1)`, which flattens part-aware
+   ids: delete one chapter from Heidi and `1.01–2.09` becomes `1–22`. Needs the
+   part scheme threaded through all three handlers. **Avoid those three buttons
+   on a multi-part book until it is done.**
+5. **Per-school book visibility + book requests.** Jake's design, agreed: a
+   `hiddenBookIds` array on the SCHOOL document rather than a field on each book,
+   so building admins get a narrow `allow update` on their own school and books
+   stay untouched — no per-book write permission handed out, which preserves his
+   line about not trusting anyone else to enter books correctly or legally. Plus a
+   `bookRequests` collection: any staff can create, only super_admin reads and
+   acts. Touches `firestore.rules`, `admin.js`, `index.html`, `game.js`.
+   ⚠️ Becomes urgent the moment a second teacher wants a book Jake does not.
+6. **Leaderboard scope toggle** — "My class / My school / Everyone". The
+   `classId`/`schoolId` stamps have been written since `game.js` 3.9.0 so there is
+   no backfill. Needs UI, two composite indexes, and a decision about what a
+   student with no class sees. Jake is fine with the board staying global
+   (initials only), so this is a nice-to-have.
+7. **`ttb-shared.js`.** Biggest quality win, biggest test burden, and Jake's
+   stated next big job. `getLocalDateStr`, `getWeekStart` and `formatTime` are
+   duplicated across two files each; five separate HTML-escape implementations;
+   three `loadGoals()` variants that disagreed about caching — which is exactly
+   the class of bug this round spent its time on. ⚠️ Start it in a FRESH session:
+   it touches every file, it is pure refactor with no functional change to verify
+   against, and it needs precisely the discipline that degrades late in a long
+   conversation.
+8. **`index.js` 1.6.0 cannot ship.** It removes ~360 lines of abandoned
+   custom-claims code, makes the practice rate limit a transaction, and stops a
+   429 fanning out across six models. All of it needs `firebase deploy`, which
+   needs a CLI. `package.json` also moves Node 18 → 22, since 18 is no longer
+   accepted for Cloud Functions deploys. Whoever first gets CLI access should
+   deploy this **before** anything else, because the pre-1.6.0 file exports seven
+   functions the security rules no longer consult.
+9. **`experimentalAutoDetectLongPolling`** — deliberately NOT done. Faster on
+   Chrome and Mac, but the upside is latency only and the downside is Safari
+   sign-in breaking on a day nobody can debug it. Wrong side of Jake's priority
+   order. Do not "fix" it without a better reason than tidiness.
+
+### B.14 Two corrections to Round 4's own first pass
+
+Recorded because the next person will read the audit before the fixes:
+
+1. **The SDK imports are not a cost.** The first pass flagged
+   `firebase-storage.js` and `firebase-functions.js` loading on every page as
+   billed egress. They come from `gstatic.com`. Google pays. It is a page-load
+   latency item and nothing more.
+2. **`typing_logs` has no TTL, and that is correct.** The first pass implied it
+   should. Jake confirmed the 120-day policies on `typing_sessions` and
+   `practice_sessions` are live. `typing_logs` deliberately has none — it is
+   what reports grade from and losing a year of it loses a year of records. The
+   26 single-field index exemptions in `firestore.indexes.json` 2.0.0 are what
+   keep its storage growth flat instead of linear in field count.
 
 ---
 
