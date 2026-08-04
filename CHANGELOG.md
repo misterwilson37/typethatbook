@@ -14,7 +14,7 @@ there.
 
 - [`game.js`](#gamejs) — currently v3.9.2
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
-- [`admin.js`](#adminjs) — currently v3.18.1
+- [`admin.js`](#adminjs) — currently v3.18.3
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.1
 
@@ -508,7 +508,7 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.18.1**
+Current: **v3.18.3**
 
 ⚠️ **Versioning note.** v3.12.0 through v3.18.0 were bumped as MINOR versions and
 most of them were straight bug fixes that should have been PATCH. Jake caught it:
@@ -529,6 +529,112 @@ reset that was supposed to work is a fix, not a feature. Jake caught that too,
 one turn after catching the first one. Renumbered to **v3.18.1**. Recorded here
 rather than quietly corrected, because stating a standard and then exempting
 yourself from it in the same message is the more instructive failure.
+
+#### v3.18.3
+
+Round 5 (Mignon). **The EPUB cover bug**, plus four defects found on the same
+path while proving it.
+
+         THE BUG. JSZip's `.async("blob")` builds its Blob with an EMPTY type —
+         `""`, hardcoded, jszip/lib/zipObject.js:65. Firebase's uploadBytes()
+         then falls through `metadata.contentType || blob.type ||
+         'application/octet-stream'` and stored every EPUB-extracted cover as
+         application/octet-stream. storage.rules v2.0.0 required
+         `contentType.matches('image/.*')`, which that never satisfies — so every
+         cover from an EPUB was denied with storage/unauthorized while every
+         cover chosen by hand sailed through, because the file picker hands over
+         a File carrying a real image/jpeg. That single difference is why this
+         presented as an EPUB problem rather than a permissions one. It had been
+         diagnosed once as an AVIF mapping issue, which was the wrong half: the
+         format is irrelevant, the type is gone before anyone looks at it.
+         Confirmed against Jake's Northanger Abbey failure and his report that
+         manual uploads worked — those two facts identify the failing clause by
+         elimination, since nothing about identity can tell the paths apart.
+
+         Fixed at the source: sniffImageType() reads magic bytes (JPEG, PNG,
+         GIF, WEBP, BMP, AVIF, HEIC, and SVG by tag), the Blob is rebuilt
+         carrying that type so the preview is honest too, and the type is passed
+         explicitly to uploadBytes. uploadCover() now REFUSES a blob with no
+         image type rather than uploading something that stores as octet-stream
+         and fails to render for reasons nobody connects back to it.
+
+         1. DETECTION DID NOT CHECK THE MEDIA TYPE. Methods 1 and 2 accepted
+            whatever the manifest pointed at. Standard Ebooks points
+            `properties="cover-image"` at `images/cover.svg` — a WRAPPER whose
+            only content is an <image> referencing the real raster. An SVG in an
+            <img> tag runs in secure static mode and cannot load external
+            resources, so that wrapper is a permanently blank cover. All three
+            methods are type-checked now, and when the chosen cover is an SVG the
+            raster inside it is read out of the wrapper and preferred; failing
+            that, a cover-ish raster sibling; failing that the SVG is kept and
+            flagged as probably blank.
+         2. PERCENT-ENCODED HREFS WERE NEVER DECODED. `decodeURIComponent`
+            appeared nowhere in the file, so `images/cover%20art.jpg` never
+            matched the zip entry `images/cover art.jpg`. New zipEntry() helper
+            tries the raw name first (a zip entry may legally contain a literal
+            %) then the decoded one, and is used for cover, spine and nav.
+         3. A MISSING SPINE FILE KILLED THE WHOLE IMPORT ANONYMOUSLY. It was
+            `zip.file(p).async(...)`, which throws on null with a TypeError
+            naming nothing. Now the file is named on screen, counted, and costs
+            one chapter instead of the book — partial-and-labelled beats nothing.
+         4. THE PARSE SUMMARY NEVER MENTIONED THE COVER. It reported chapters,
+            splits, paragraph reconciliation and language warnings and was silent
+            about the cover in both directions, so a silent extraction failure
+            looked exactly like success. The one message it did write was
+            overwritten unconditionally. The cover is now named in every outcome,
+            with its content type, and both save paths name it on success too —
+            §B.9's rule finally applied to the parse.
+         5. parseEpubFile() HAD NO RE-ENTRANCY GUARD, despite §B.9 stating the
+            rule that would have caught it. It opens with `stagedChapters = []`,
+            is reachable from two file inputs, and nulls stagedCoverBlob several
+            awaits in. Dropped rather than queued — the opposite of flushAll(),
+            because a second parse of a file picker is a double-click with no
+            work worth keeping. Released in a finally.
+         6. THE INLINE SAVE MESSAGE COULD NOT GO AWAY. `save-title-status` was
+            written in one place and cleared in none, so a green "✓ Saved ·
+            genre: Horror · cover saved" from one book sat beside the NEXT book's
+            form while the top of the page showed that book's COVER FAILED. The
+            message was accurate about the book it was written for — which is
+            §B.9 in mirror image, a success reported about the wrong SUBJECT
+            rather than a failure in the wrong PLACE, and it cost real trust in a
+            message that was telling the truth. Cleared on book change, Open
+            Book, EPUB parse and Upload All.
+
+         Verified by a rebuilt §B.7-style harness (cover-harness.mjs) that lifts
+         sniffImageType(), zipEntry() and resolvePath() out of this file by
+         brace-matching and replays them against ten synthetic EPUBs modelled on
+         the real structures: SE with an SVG wrapper over AVIF, SE with a dangling
+         wrapper reference, a wrapper with no raster at all, Gutenberg with a
+         percent-encoded href, EPUB 2 <meta name="cover">, a meta pointing at the
+         cover PAGE, a manifest that lies about the format, a declared cover
+         absent from the zip, non-image bytes, and no cover at all. Every case
+         resolves to the right file with the right type, and every warning fires
+         exactly when it should.
+
+#### v3.18.2
+
+⚠️ **This entry was reconstructed in Round 5.** v3.18.2 shipped, is the version in
+the repo, and is documented in the file header — but it was never added here, so
+the CHANGELOG jumped from v3.18.1 straight to v3.18.3 and this file's own
+"currently vX" line still said v3.18.1. Recorded from the header rather than left
+as a hole.
+
+         A failed cover upload is no longer invisible. uploadCover() reported its
+         errors to the status bar at the TOP of the page — roughly seventy lines of
+         markup above the button that triggered it, and reliably scrolled out of
+         view — while the inline message beside Save Metadata said "✓ Saved",
+         because the Firestore write DID succeed and only the cover did not. So a
+         failed cover looked exactly like a successful save, and two books went up
+         with no cover before anyone noticed. Save Metadata now refuses to write at
+         all if the cover fails, uploadCover() returns a result rather than a
+         URL-or-null so callers cannot swallow the error, and both paths name
+         Firebase STORAGE rules specifically — which are separate from
+         firestore.rules and had never existed anywhere in this repo.
+
+         ⚠️ This fix is what made Round 5's diagnosis possible: it is the error
+         message in Jake's Northanger Abbey screenshot. The defect it fixed was
+         real, but it was the REPORTING of the cover failure, not the cause — see
+         v3.18.3.
 
 #### v3.18.1
 

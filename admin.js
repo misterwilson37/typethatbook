@@ -1,10 +1,27 @@
-// admin.js v3.18.2
+// admin.js v3.18.3
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.18.3 — THE EPUB COVER BUG. JSZip's .async("blob") returns a Blob whose type
+//           is the empty string, so uploadBytes() stored every EPUB-extracted
+//           cover as application/octet-stream — which storage.rules v2.0.0 denied
+//           outright (contentType.matches('image/.*')) while hand-picked files,
+//           being Files with a real type, sailed through. That is the whole reason
+//           this looked like an EPUB problem instead of a permissions one. The
+//           type is now sniffed from magic bytes, the Blob rebuilt carrying it,
+//           and passed explicitly to uploadBytes. Also: cover detection filters on
+//           media type (methods 1 and 2 did not, so Standard Ebooks' SVG WRAPPER
+//           was uploaded instead of the raster it wraps — a permanently blank
+//           cover); the raster inside that wrapper is resolved and preferred;
+//           hrefs are percent-decoded (zipEntry) for cover, spine and nav; a
+//           missing spine file names itself and costs one chapter instead of
+//           killing the import; the cover is named in the parse summary in EVERY
+//           outcome; parseEpubFile has a re-entrancy guard; and the inline save
+//           message is cleared when the form changes book, so one book's
+//           "✓ cover saved" can no longer sit beside another book's failure.
 // v3.18.2 — A failed cover upload is no longer invisible. uploadCover() reported
 //           errors to the status bar at the top of the page while the message beside
 //           the button said "✓ Saved", so two books went up with no cover and the
@@ -32,47 +49,11 @@
 //           position, so an out-of-order array meant one Del click would rewrite
 //           every id from the wrong places. Tom Sawyer Abroad rendered 4,5,1,6
 //           while its stored array was perfectly sequential.
-// v3.16.0 — Chapter titles are tidied on import: one leading ordinal removed
-//           (the number is already the id) and SHOUTED Gutenberg headings
-//           title-cased. "I. TOBY'S INTRODUCTION TO THE CIRCUS" becomes "Toby's
-//           Introduction to the Circus".
-// v3.15.0 — Chapter ids are compared element-wise instead of with parseFloat,
-//           which could not tell 1.1 from 1.10 (both parse to 1.1) and sorted 1.2
-//           after both. Fixes books already numbered by hand, with no renumbering.
-//           New ids are also zero-padded per book. Plus a repair tool that strips
-//           a chapter title out of the prose for books imported before v3.13.0.
 // v3.14.0 — Part-aware numbering: chapter-1-1.xhtml becomes 1.1, so re-importing
 //           a two-part book like Heidi no longer flattens it to 1-23. Plus
 //           metadata auto-fill — title, book id, author and a genre guess are read
 //           from the EPUB the moment you pick the file, and only the file is
 //           required to parse.
-// v3.13.0 — Front/back matter is no longer imported as numbered chapters, and
-//           chapter TITLES are finally read. Standard Ebooks puts a chapter's
-//           name in a <p epub:type="title"> inside an <hgroup>, so the old
-//           heading-only extractor returned the bare ordinal AND left the title
-//           in the prose as segment zero. Twelve of twenty test books affected.
-//           Counts now match the real books: P&P 61 (was 65), Gatsby 9 (was 15),
-//           Alice 12 (was 18), Aesop 284 (was 289).
-// v3.12.0 — Writes `contentVersion` on every chapter save. game.js has read
-//           that field to invalidate its chapter cache since v3.4.0 and NOTHING
-//           has ever written it, so an edited chapter took up to a week to
-//           reach students. Also: the TOC importer no longer drops paragraphs
-//           that sit before the first TOC anchor, and every import now
-//           reconciles paragraphs seen against paragraphs placed.
-// v3.11.0 — EPUB import asks the BOOK where its chapters are. The table of
-//           contents is authoritative; v3.9.0's container heuristic only
-//           worked when a publisher used <article>/<section>, which Project
-//           Gutenberg does not. Verified to reproduce Aesop exactly (284).
-// v3.10.0 — One pass per book. readBookMetadataForm() is now the only reader
-//           of the metadata form; Save Metadata and Upload All had drifted
-//           into two writers that disagreed on four fields. Plus find &
-//           replace across a staged book.
-// v3.9.0 — EPUB import splits multi-work spine files (Standard Ebooks puts a
-//          whole collection in one file — Aesop is 284 fables in one).
-// v3.8.0 — Language filter: regex terms, an audit view, and a word list
-//          regrouped by category and roughly doubled.
-// v3.7.0 — Book tags: minAge / maxAge / protagonistGender.
-// v3.6.0 — Chapter Update & Next; editable word list; free-text search.
 //
 // ── Load-bearing ──────────────────────────────────────────────────────────
 //
@@ -92,7 +73,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.18.2";
+const ADMIN_VERSION = "3.18.3";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -539,6 +520,11 @@ let importErrors = [];
 let currentErrorIdx = 0;
 let stagedCoverBlob = null;   // extracted or uploaded cover image
 let stagedCoverUrl = null;    // preview data URL
+// ⚠️ The image content type, tracked separately because JSZip strips it and the
+// Storage upload needs it explicitly. See sniffImageType(). Empty means "no
+// staged blob, or one whose type we could not establish" — uploadCover() refuses
+// rather than storing an octet-stream nobody can render.
+let stagedCoverType = '';
 
 if(footerEl) footerEl.innerText = `Admin JS: v${ADMIN_VERSION} | Lessons Admin: v${window.LESSONS_ADMIN_VERSION || '?'} | Staff Admin: v${window.STAFF_ADMIN_VERSION || '?'}`;
 
@@ -753,6 +739,8 @@ async function loadBookList(selectFirst = false) {
 bookSelect.onchange = () => {
     stagingArea.classList.add('hidden'); 
     clearAuditResults();
+    // The form is about a different book now; last book's save message is not.
+    clearSaveTitleStatus();
     
     // Toggle UI Containers
     if (bookSelect.value === "__NEW__") {
@@ -798,6 +786,26 @@ bookSelect.onchange = () => {
 // top of an async function and check what happens if it runs twice.
 let _openInFlight = false;
 
+// ─── The inline save message had no way to go away (v3.18.3) ─────────────────
+//
+// `save-title-status` was written in exactly ONE place — saveTitleBtn.onclick —
+// and cleared in NONE. Not on book change, not on Open Book, not on an EPUB
+// parse, not after Upload All. So a green "✓ Saved at 10:41:54 · genre: Horror ·
+// ages 14–18 · cover saved" from one book sat next to the NEXT book's form
+// indefinitely, and when that book's cover upload failed the screen showed a red
+// failure at the top and a green success beside the button, describing two
+// different books.
+//
+// Nothing was lying: the message was accurate about the book it was written for.
+// But §B.9's lesson has a mirror image — a success reported about the wrong
+// SUBJECT is as misleading as a failure reported in the wrong PLACE, and this one
+// cost real trust in a message that was telling the truth. Any handler that
+// changes which book the form is about clears it.
+function clearSaveTitleStatus() {
+    const el = document.getElementById('save-title-status');
+    if (el) { el.textContent = ''; el.style.color = '#888'; }
+}
+
 openBookBtn.onclick = async () => {
     if(!activeBookId) return;
     if (_openInFlight) {
@@ -812,8 +820,9 @@ openBookBtn.onclick = async () => {
     chapterListEl.innerHTML = "Loading...";
     stagedChapters = [];
     stagedFromDB = true;   // loaded from Firestore — fixes should write straight back
-    stagedCoverBlob = null; stagedCoverUrl = null;
-    
+    stagedCoverBlob = null; stagedCoverUrl = null; stagedCoverType = '';
+    clearSaveTitleStatus();
+
     try {
         const metaSnap = await getDoc(doc(db, "books", activeBookId));
         if(metaSnap.exists()) {
@@ -1049,6 +1058,8 @@ function resetCreateForm(announce) {
     }
     stagedCoverBlob = null;
     stagedCoverUrl = null;
+    stagedCoverType = '';
+    clearSaveTitleStatus();
     updateCoverPreview();
 
     ['new-book-id', 'new-book-title', 'new-book-author', 'new-epub-file',
@@ -1099,13 +1110,43 @@ confirmOverwriteBtn.onclick = async () => {
 };
 
 // --- EPUB PARSER & ERROR SCANNER ---
+//
+// ⚠️ RE-ENTRANCY GUARD (v3.18.3). §B.9 states the rule and then this function
+// was left out of it: "ANY async handler that resets shared module state before
+// its first await needs one of these. Look for `x = []` or `x = {}` at the top of
+// an async function." This opens with `stagedChapters = []` and `importErrors =
+// []`, is reachable from TWO separate file inputs, and nulls stagedCoverBlob
+// several awaits in — so two overlapping parses interleave stagedChapters exactly
+// like Open Book did (4,5,1,6,2,7,3,8), and the later run can null out the
+// earlier one's extracted cover after it was already staged.
+//
+// DROPPED, not queued — the opposite of flushAll(). A second flush carries work
+// that must not be lost; a second parse of a file picker is a double-click, and
+// running it twice has no value at all. A big EPUB takes seconds to unzip, which
+// is exactly long enough to click again.
+let _parseInFlight = false;
+
 async function parseEpubFile(file) {
+    if (_parseInFlight) {
+        statusEl.innerText = "Already parsing an EPUB \u2014 hang on.";
+        statusEl.style.borderColor = "#ffaa00";
+        return;
+    }
+    if (!file) {
+        statusEl.innerText = "No EPUB file selected.";
+        statusEl.style.borderColor = "#ffaa00";
+        return;
+    }
+    _parseInFlight = true;
     statusEl.innerText = "Parsing...";
     chapterListEl.innerHTML = "Parsing...";
     stagedChapters = [];
     stagedFromDB = false;  // local file; nothing in Firestore to write back to yet
-    importErrors = []; 
-    
+    importErrors = [];
+    // This parse is about to replace the form's contents, so the previous book's
+    // save message must not survive it.
+    clearSaveTitleStatus();
+
     try {
         const zip = await JSZip.loadAsync(file);
         
@@ -1142,45 +1183,172 @@ async function parseEpubFile(file) {
         const authorInput = document.getElementById('active-book-author');
         if (authorInput && !authorInput.value.trim()) authorInput.value = extractedAuthor;
 
-        // --- EXTRACT COVER IMAGE FROM EPUB ---
-        stagedCoverBlob = null; stagedCoverUrl = null;
-        let coverHref = null;
-        
-        // Method 1: <meta name="cover" content="imageId"> in metadata
-        const metas = opfDoc.querySelectorAll('meta[name="cover"]');
-        if (metas.length > 0) {
-            const coverId = metas[0].getAttribute("content");
-            if (coverId && idToHref[coverId]) coverHref = idToHref[coverId];
-        }
-        // Method 2: <item properties="cover-image"> in manifest
-        if (!coverHref) {
+        // ─── EXTRACT COVER IMAGE FROM EPUB (rewritten v3.18.3) ───────────────
+        //
+        // Three things were wrong here beyond the content type:
+        //
+        //  1. Methods 1 and 2 did not check the media type. Standard Ebooks
+        //     points `properties="cover-image"` at `images/cover.svg` — a WRAPPER
+        //     whose only content is an <image> referencing the real raster. An
+        //     SVG inside an <img> tag runs in secure static mode and cannot load
+        //     external resources, so uploading that wrapper yields a cover that
+        //     is blank everywhere, forever, with no error anywhere.
+        //  2. A zip miss was `if (coverFile)` with no else: no cover, no warning,
+        //     no console line, nothing.
+        //  3. The one status message it did write ("Cover image extracted") was
+        //     overwritten unconditionally by the end-of-parse summary, and that
+        //     summary never mentioned the cover either way. §B.9's own rule — a
+        //     multi-step operation must name every step or it will eventually
+        //     lie — was never applied to the parse.
+        //
+        // coverNote is reported in the final summary, whatever happened.
+        stagedCoverBlob = null; stagedCoverUrl = null; stagedCoverType = '';
+        let coverNote = 'NO COVER FOUND IN EPUB';
+        {
             const items = Array.from(manifest.getElementsByTagName("item"));
-            const coverItem = items.find(i => (i.getAttribute("properties") || "").includes("cover-image"));
-            if (coverItem) coverHref = coverItem.getAttribute("href");
-        }
-        // Method 3: manifest item with id containing "cover" and image media type
-        if (!coverHref) {
-            const items = Array.from(manifest.getElementsByTagName("item"));
-            const coverItem = items.find(i => {
-                const id = (i.getAttribute("id") || "").toLowerCase();
-                const mt = (i.getAttribute("media-type") || "");
-                return id.includes("cover") && mt.startsWith("image/");
-            });
-            if (coverItem) coverHref = coverItem.getAttribute("href");
-        }
-        
-        if (coverHref) {
-            try {
-                const coverPath = (basePath === "") ? coverHref : resolvePath(basePath + "dummy", coverHref);
-                const coverFile = zip.file(coverPath);
-                if (coverFile) {
-                    const blob = await coverFile.async("blob");
-                    stagedCoverBlob = blob;
-                    stagedCoverUrl = URL.createObjectURL(blob);
-                    updateCoverPreview();
-                    statusEl.innerText = "Cover image extracted from EPUB.";
+            const hrefOf = it => it && it.getAttribute("href");
+            const mtOf   = it => (it && it.getAttribute("media-type")) || "";
+            const isRaster = it => mtOf(it).startsWith("image/")
+                                && mtOf(it) !== "image/svg+xml";
+            const toPath = href => (basePath === "")
+                ? href : resolvePath(basePath + "dummy", href);
+
+            let coverItem = null;
+            let coverPathOverride = null;
+            // The media-type to compare the sniffed bytes against. Tracked apart
+            // from coverItem because an SVG-wrapper swap deliberately changes
+            // which FILE we take, so the wrapper's own type is no longer the
+            // relevant declaration and comparing against it cries mismatch on a
+            // swap that worked exactly as intended.
+            let coverDeclaredType = '';
+            let coverVia = '';
+
+            // Method 1: <meta name="cover" content="imageId">. Now type-checked —
+            // some books point this at the cover XHTML page, not the image.
+            const metas = opfDoc.querySelectorAll('meta[name="cover"]');
+            if (metas.length > 0) {
+                const coverId = metas[0].getAttribute("content");
+                const byId = items.find(i => i.getAttribute("id") === coverId);
+                if (byId && mtOf(byId).startsWith("image/")) coverItem = byId;
+            }
+            // Method 2: properties="cover-image", the EPUB 3 way. Also type-checked.
+            if (!coverItem) {
+                coverItem = items.find(i =>
+                    (i.getAttribute("properties") || "").includes("cover-image")
+                    && mtOf(i).startsWith("image/")) || null;
+            }
+            // Method 3: id or href mentions "cover" and it is an image.
+            if (!coverItem) {
+                coverItem = items.find(i => {
+                    const id = (i.getAttribute("id") || "").toLowerCase();
+                    const hr = (hrefOf(i) || "").toLowerCase();
+                    return (id.includes("cover") || hr.includes("cover"))
+                        && mtOf(i).startsWith("image/");
+                }) || null;
+            }
+
+            // ⚠️ PREFER A RASTER. If the declared cover is an SVG, the raster it
+            // wraps is what we actually want. Read the wrapper's own href first —
+            // it names the file — and only then fall back to guessing at a
+            // cover-ish raster in the manifest.
+            if (coverItem && mtOf(coverItem) === "image/svg+xml") {
+                const svgHref = hrefOf(coverItem);
+                const svgPath = toPath(svgHref);
+                let swapped = null;
+                try {
+                    const svgFile = zipEntry(zip, svgPath);
+                    if (svgFile) {
+                        const svgDoc = parser.parseFromString(
+                            await svgFile.async("string"), "image/svg+xml");
+                        const inner = svgDoc.querySelector('image');
+                        const innerHref = inner && (
+                            inner.getAttribute('href') ||
+                            inner.getAttributeNS('http://www.w3.org/1999/xlink', 'href'));
+                        if (innerHref) {
+                            // Relative to the SVG, not to the OPF.
+                            const rasterPath = resolvePath(svgPath, innerHref);
+                            if (zipEntry(zip, rasterPath)) swapped = rasterPath;
+                        }
+                    }
+                } catch (e) { console.warn("SVG cover wrapper unreadable:", e); }
+
+                if (!swapped) {
+                    const alt = items.find(i => isRaster(i) &&
+                        ((i.getAttribute("id") || "") + (hrefOf(i) || ""))
+                            .toLowerCase().includes("cover"));
+                    if (alt) swapped = toPath(hrefOf(alt));
                 }
-            } catch(e) { console.warn("Cover extraction failed:", e); }
+
+                if (swapped) {
+                    coverPathOverride = swapped;
+                    coverVia = ' \u00b7 raster from inside the SVG wrapper';
+                    const swappedItem = items.find(i => toPath(hrefOf(i)) === swapped);
+                    coverDeclaredType = swappedItem ? mtOf(swappedItem) : '';
+                } else {
+                    // Keep the SVG rather than nothing, but say so loudly: it will
+                    // very likely render blank, and that is worth knowing NOW.
+                    coverPathOverride = svgPath;
+                    coverDeclaredType = mtOf(coverItem);
+                    importErrors.push({ type: 'cover',
+                        msg: 'Cover is an SVG wrapper and no raster was found inside ' +
+                             'it. It will probably render blank — replace it with the ' +
+                             'Choose File picker.' });
+                }
+            } else if (coverItem) {
+                coverPathOverride = toPath(hrefOf(coverItem));
+                coverDeclaredType = mtOf(coverItem);
+            }
+
+            if (coverPathOverride) {
+                const coverPath = coverPathOverride;
+                try {
+                    const coverFile = zipEntry(zip, coverPath);
+                    if (!coverFile) {
+                        // Was silent. Now it is a sentence on screen naming the file.
+                        coverNote = 'COVER MISSING FROM EPUB (' + coverPath + ')';
+                        console.warn('Cover declared in the manifest but absent from ' +
+                                     'the zip:', coverPath);
+                    } else {
+                        // arraybuffer, not blob: JSZip's blob has an empty type, and
+                        // the whole bug was that nothing ever put one back.
+                        const buf = await coverFile.async("arraybuffer");
+                        const declared = coverDeclaredType;
+                        const sniffed = sniffImageType(buf);
+                        const type = sniffed || declared || '';
+                        if (!type.startsWith('image/')) {
+                            coverNote = 'COVER TYPE UNKNOWN — not uploaded (' + coverPath + ')';
+                            console.warn('Cover bytes were not a recognised image and ' +
+                                         'the manifest declared "' + declared + '":', coverPath);
+                        } else {
+                            stagedCoverType = type;
+                            stagedCoverBlob = new Blob([buf], { type });
+                            stagedCoverUrl = URL.createObjectURL(stagedCoverBlob);
+                            updateCoverPreview();
+                            // Three outcomes worth telling apart, because they need
+                            // different responses:
+                            //   · bytes recognised, manifest agrees → nothing to say
+                            //   · bytes recognised, manifest disagrees → we trust the
+                            //     bytes, but a book whose manifest lies is worth a look
+                            //   · bytes NOT recognised → we are taking the manifest's
+                            //     word. Deliberately not a refusal: it could be a real
+                            //     format this sniffer predates (JPEG XL, JP2, TIFF).
+                            //     But it could equally be a corrupt file that uploads
+                            //     "successfully" and renders as a broken image, so it
+                            //     must not pass silently. Check the preview.
+                            const note = !sniffed
+                                ? ' ⚠ UNVERIFIED — bytes unrecognised, type taken from ' +
+                                  'the manifest. Check the preview actually shows art.'
+                                : (declared && declared !== sniffed
+                                    ? ' ⚠ manifest said ' + declared : '');
+                            coverNote = 'cover: ' + coverPath.split('/').pop() +
+                                        ' (' + type + ')' + coverVia + note;
+                        }
+                    }
+                } catch(e) {
+                    coverNote = 'COVER EXTRACTION FAILED (' + e.message + ')';
+                    console.warn("Cover extraction failed:", e);
+                }
+            }
         }
 
         // Read the table of contents once. Failure here is non-fatal — we just
@@ -1190,7 +1358,7 @@ async function parseEpubFile(file) {
             const navRef = findNavHref(opfDoc);
             if (navRef && navRef.href) {
                 const navPath = (basePath === "") ? navRef.href : basePath + navRef.href;
-                const navFile = zip.file(navPath);
+                const navFile = zipEntry(zip, navPath);
                 if (navFile) {
                     const navDoc = parser.parseFromString(
                         await navFile.async("string"), "application/xhtml+xml");
@@ -1210,13 +1378,31 @@ async function parseEpubFile(file) {
         // Reported unconditionally at the end of the parse.
         let pSeen = 0, pGrouped = 0, orphansRescued = 0;
         let matterFront = 0, matterBack = 0, titleSegmentsRemoved = 0;
+        // Spine files named by the manifest but absent from the zip. Each one is
+        // a chapter that will not exist, so this is reported in red, not amber.
+        const missingSpineFiles = [];
 
         for (let item of spineItems) {
             const href = idToHref[item.getAttribute("idref")];
             if (!href) continue;
 
+            // ⚠️ WAS `zip.file(fullPath).async(...)`, WHICH THREW ON NULL and
+            // killed the entire import with a TypeError that named no file.
+            // Encoded hrefs (a space or accent in a filename) are the common
+            // cause — see zipEntry(). A file we genuinely cannot find is a LOST
+            // CHAPTER, so it is counted, named on screen, and the rest of the
+            // book still imports: partial-and-labelled beats nothing at all.
             const fullPath = (basePath === "") ? href : basePath + href;
-            const content = await zip.file(fullPath).async("string");
+            const spineFile = zipEntry(zip, fullPath);
+            if (!spineFile) {
+                missingSpineFiles.push(fullPath);
+                importErrors.push({ type: 'spine',
+                    msg: 'Spine file listed in the manifest but not present in the ' +
+                         'EPUB: ' + fullPath + ' — its chapter is MISSING.' });
+                console.warn('Spine file missing from zip:', fullPath);
+                continue;
+            }
+            const content = await spineFile.async("string");
             const doc = parser.parseFromString(content, "application/xhtml+xml");
 
             // Gutenberg licence and machine-header regions. Not the book.
@@ -1369,13 +1555,26 @@ async function parseEpubFile(file) {
             const pNote = pDelta > 0
                 ? ` ⚠ ${pDelta} paragraph${pDelta === 1 ? '' : 's'} in the EPUB did not reach any chapter — check the chapter list before uploading.`
                 : (pDelta < 0 ? ` (note: ${-pDelta} paragraph${pDelta === -1 ? '' : 's'} counted more than once)` : '');
+            // ⚠️ THE COVER IS NAMED HERE, ALWAYS. (v3.18.3) The old summary
+            // reported chapters, splits, reconciliation and language warnings and
+            // said NOTHING about the cover, in either direction — so a cover that
+            // silently failed to extract looked exactly like one that worked. Same
+            // rule as §B.9: a multi-step operation names every step, or it lies.
+            const coverBad = !stagedCoverBlob;
+            const coverMsg = ` · ${coverNote}`;
+            // A spine file named by the manifest and absent from the zip is a
+            // missing chapter. Nothing else on this screen outranks that.
+            const missNote = missingSpineFiles.length
+                ? ` ⛔ ${missingSpineFiles.length} spine file${missingSpineFiles.length === 1 ? '' : 's'} MISSING from the EPUB (${missingSpineFiles.slice(0, 3).join(', ')}${missingSpineFiles.length > 3 ? ', …' : ''}) — those chapters do not exist. Do not upload until you know why.`
+                : '';
             if (langIssues.length > 0) {
                 showLanguageWarnings(langIssues, false);
-                statusEl.innerText = `Parsed ${stagedChapters.length} chapters${splitNote}.${pNote} ⚠️ ${langIssues.length} language warning(s).`;
-                statusEl.style.borderColor = "#ffaa00";
+                statusEl.innerText = `Parsed ${stagedChapters.length} chapters${splitNote}.${pNote}${coverMsg} ⚠️ ${langIssues.length} language warning(s).${missNote}`;
+                statusEl.style.borderColor = missingSpineFiles.length ? "#ff3333" : "#ffaa00";
             } else {
-                statusEl.innerText = `✅ Parsed ${stagedChapters.length} chapters${splitNote}.${pNote} No character issues or language warnings found.`;
-                statusEl.style.borderColor = pDelta > 0 ? "#ffaa00" : "#00ff41";
+                statusEl.innerText = `${missingSpineFiles.length ? '⛔' : (pDelta > 0 || coverBad ? '⚠️' : '✅')} Parsed ${stagedChapters.length} chapters${splitNote}.${pNote}${coverMsg} No character issues or language warnings found.${missNote}`;
+                statusEl.style.borderColor = missingSpineFiles.length ? "#ff3333"
+                    : ((pDelta > 0 || coverBad) ? "#ffaa00" : "#00ff41");
             }
         }
 
@@ -1383,6 +1582,10 @@ async function parseEpubFile(file) {
         console.error(e);
         statusEl.innerText = "Parse Error: " + e.message;
         statusEl.style.borderColor = "#ff3333";
+    } finally {
+        // In a finally, matching openBookBtn: a parse that throws must not leave
+        // the importer permanently refusing to run.
+        _parseInFlight = false;
     }
 }
 
@@ -2696,8 +2899,8 @@ saveTitleBtn.onclick = async () => {
         let coverNote = '';
         if (stagedCoverBlob) {
             setInline('Uploading cover\u2026', '#888');
-            const cover = await uploadCover(activeBookId, stagedCoverBlob);
-            if (cover.ok) { updates.coverUrl = cover.url; coverNote = 'cover saved'; }
+            const cover = await uploadCover(activeBookId, stagedCoverBlob, stagedCoverType);
+            if (cover.ok) { updates.coverUrl = cover.url; coverNote = 'cover saved (' + cover.contentType + ')'; }
             else {
                 // ⚠️ STOP. Do not write the metadata and report success when the
                 // cover failed — that is precisely how two books shipped with no
@@ -2754,6 +2957,10 @@ uploadAllBtn.onclick = async () => {
     if (!confirm(`Overwrite ${activeBookId}?`)) return;
 
     statusEl.innerText = "Uploading...";
+    // Upload All reports to the status bar at the top, so a leftover green
+    // "✓ Saved · cover saved" beside the button would sit there contradicting a
+    // red COVER FAILED — which is exactly what happened with Northanger Abbey.
+    clearSaveTitleStatus();
     const chapterMeta = [];
 
     for (let i = 0; i < stagedChapters.length; i++) {
@@ -2809,11 +3016,14 @@ uploadAllBtn.onclick = async () => {
         
         // Upload cover if staged
         let uploadCoverFailed = '';
+        let uploadCoverNote = stagedCoverUrl ? 'cover unchanged' : 'NO COVER';
         if (stagedCoverBlob) {
             statusEl.innerText = "Uploading cover image...";
-            const cover = await uploadCover(activeBookId, stagedCoverBlob);
-            if (cover.ok) bookData.coverUrl = cover.url;
-            else uploadCoverFailed = cover.error;
+            const cover = await uploadCover(activeBookId, stagedCoverBlob, stagedCoverType);
+            if (cover.ok) {
+                bookData.coverUrl = cover.url;
+                uploadCoverNote = 'cover saved (' + cover.contentType + ')';
+            } else uploadCoverFailed = cover.error;
             // Unlike Save Metadata this does NOT abort: the chapters are already
             // written, so refusing to save the book document would leave a book with
             // content and no metadata — strictly worse than a book with no cover.
@@ -2824,9 +3034,13 @@ uploadAllBtn.onclick = async () => {
         const uploadedId = activeBookId;
         
         const tagged = (bookData.minAge !== null) ? `ages ${bookData.minAge}\u2013${bookData.maxAge}` : 'NO age range';
+        // The cover is named on the SUCCESS path too, not only when it fails.
+        // "This book is done" was previously said without reference to it.
         statusEl.innerText = `Upload complete \u2014 ${stagedChapters.length} chapters, ` +
             `${bookData.genre || 'no genre'}, ${tagged}, ` +
-            `${bookData.protagonistGender || 'no protagonist tag'}. This book is done.`;
+            `${bookData.protagonistGender || 'no protagonist tag'}, ` +
+            `${uploadCoverFailed ? 'COVER FAILED' : uploadCoverNote}.` +
+            `${uploadCoverFailed ? '' : ' This book is done.'}`;
         if (uploadCoverFailed) {
             statusEl.innerText += ' ⚠ COVER FAILED: ' + uploadCoverFailed;
         }
@@ -2888,6 +3102,83 @@ function resolvePath(base, relative) {
     return stack.join("/");
 }
 
+// ─── EPUB hrefs are URL-ENCODED; zip entry names are not (v3.18.3) ───────────
+//
+// A manifest href of `images/cover%20art.jpg` refers to the zip entry
+// `images/cover art.jpg`. Nothing in this file decoded that, so any book with a
+// space, ampersand or accent in an internal filename failed to resolve — and
+// failed differently depending on the caller: the cover path was guarded by
+// `if (coverFile)` and vanished in total silence, while the spine path did
+// `zip.file(p).async(...)` and threw on null, killing the whole import with a
+// message that named nothing.
+//
+// Raw name is tried FIRST, because a zip entry is legally allowed to contain a
+// literal `%` and decoding such a name would break a book that currently works.
+function zipEntry(zip, path) {
+    if (!path) return null;
+    let f = zip.file(path);
+    if (f) return f;
+    try {
+        const decoded = decodeURIComponent(path);
+        if (decoded !== path) {
+            f = zip.file(decoded);
+            if (f) return f;
+        }
+    } catch (_) { /* malformed escape — the raw miss stands */ }
+    return null;
+}
+
+// ─── ⚠️ THE COVER BUG. READ THIS BEFORE TOUCHING uploadCover(). ──────────────
+//
+// JSZip's `.async("blob")` builds its Blob with an EMPTY type — `""`, hardcoded,
+// see jszip/lib/zipObject.js. Firebase's uploadBytes() then falls through
+// `metadata.contentType || blob.type || 'application/octet-stream'` and stores
+// the object as application/octet-stream.
+//
+// Storage rules v2.0.0 required `request.resource.contentType.matches('image/.*')`,
+// which that never satisfies. So EVERY cover extracted from an EPUB was denied
+// with storage/unauthorized, while every cover chosen by hand sailed through —
+// because the file picker hands over a File, which carries a real `image/jpeg`.
+// That is the entire difference between the two paths, and it is why this looked
+// like an EPUB problem rather than a permissions one. It was diagnosed once as an
+// AVIF mapping issue, which was the wrong half: the format is irrelevant, because
+// the type is gone before anyone looks at it.
+//
+// Dropping the rule (storage.rules v2.1.0) unblocks the upload but still stores
+// every cover as application/octet-stream, and that is not harmless: an SVG
+// served with the wrong type will not render in an <img> at all, and the download
+// URL prompts a file download instead of showing a picture. So the type gets
+// fixed HERE, at the source, and the Blob itself is rebuilt carrying it — which
+// makes the preview honest too, since createObjectURL uses the Blob's type.
+//
+// Sniffing beats the manifest on purpose. `media-type` is an authored string and
+// can be wrong; magic bytes are the file.
+function sniffImageType(buf) {
+    const b = new Uint8Array(buf);
+    const at = (i, ...sig) => sig.every((v, k) => b[i + k] === v);
+    const ascii = (i, s) => [...s].every((c, k) => b[i + k] === c.charCodeAt(0));
+
+    if (b.length < 12) return '';
+    if (at(0, 0xFF, 0xD8, 0xFF)) return 'image/jpeg';
+    if (at(0, 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)) return 'image/png';
+    if (ascii(0, 'GIF8')) return 'image/gif';
+    if (ascii(0, 'RIFF') && ascii(8, 'WEBP')) return 'image/webp';
+    if (ascii(0, 'BM')) return 'image/bmp';
+    // ISO-BMFF family: the brand at byte 8 is what separates AVIF from HEIC.
+    if (ascii(4, 'ftyp')) {
+        const brand = String.fromCharCode(b[8], b[9], b[10], b[11]);
+        if (brand === 'avif' || brand === 'avis') return 'image/avif';
+        if (['heic', 'heix', 'hevc', 'heim', 'heis', 'mif1', 'msf1'].includes(brand))
+            return 'image/heic';
+    }
+    // SVG is text and has no magic number, so look for the tag in the opening
+    // bytes — past a BOM, an XML declaration, a doctype, or a comment.
+    const head = new TextDecoder('utf-8', { fatal: false })
+        .decode(b.subarray(0, Math.min(b.length, 1024)));
+    if (/<svg[\s>]/i.test(head)) return 'image/svg+xml';
+    return '';
+}
+
 // ─── contentVersion: the cache key game.js has always read (v3.12.0) ─────────
 //
 // game.js readChapterCache()/writeChapterCache() invalidate a student's cached
@@ -2929,21 +3220,37 @@ async function bumpContentVersion(bookId) {
 // ("feedback lives next to the button now"). The cover path never got it.
 //
 // Callers MUST surface .error. Do not go back to swallowing it.
-async function uploadCover(bookId, blob) {
+//
+// ⚠️ contentType IS PASSED EXPLICITLY (v3.18.3). See the long note by
+// sniffImageType(). Without it, `uploadBytes` stores an EPUB-extracted cover as
+// application/octet-stream, which storage.rules v2.0.0 denied outright and which
+// v2.1.0 accepts but stores wrong. The blob handed in should already carry the
+// type; this pins it in the upload metadata as well so a future refactor that
+// loses the Blob's type cannot silently reintroduce the bug.
+async function uploadCover(bookId, blob, contentType) {
     try {
+        const type = contentType || (blob && blob.type) || '';
+        if (!type || !type.startsWith('image/')) {
+            // Refuse rather than upload something that will be stored as
+            // octet-stream and then fail to render for reasons nobody connects
+            // back to here.
+            return { ok: false, error:
+                'could not determine an image content type for this cover ' +
+                '(got "' + (type || 'none') + '"). Nothing was uploaded.' };
+        }
         const storageRef = ref(storage, `covers/${bookId}`);
-        await uploadBytes(storageRef, blob);
-        return { ok: true, url: await getDownloadURL(storageRef) };
+        await uploadBytes(storageRef, blob, { contentType: type });
+        return { ok: true, url: await getDownloadURL(storageRef), contentType: type };
     } catch(e) {
         console.error("Cover upload failed:", e);
         // Storage has its own security rules, entirely separate from
-        // firestore.rules, and this project has never had a storage.rules file.
-        // An unauthorized error here almost certainly means those rules, not
-        // anything about the image — so say that rather than making someone guess.
+        // firestore.rules. An unauthorized error here is almost always those
+        // rules — so say that rather than making someone guess.
         const code = (e && e.code) ? e.code : '';
         const hint = /unauthorized|permission/i.test(code + ' ' + (e.message || ''))
             ? ' — this is a Firebase STORAGE rules problem, not a Firestore one. ' +
-              'Storage has its own rules; check Firebase console → Storage → Rules.'
+              'Storage has its own rules; check Firebase console → Storage → Rules. ' +
+              'If they still contain a contentType check, paste storage.rules v2.1.0.'
             : '';
         return { ok: false, error: (e && e.message ? e.message : String(e)) + hint };
     }
@@ -2969,13 +3276,18 @@ document.getElementById('cover-upload')?.addEventListener('change', (e) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return; }
     stagedCoverBlob = file;
+    // A File from the picker carries its own type, which is exactly why the
+    // manual path never hit the bug the EPUB path did. Recorded anyway so both
+    // paths hand uploadCover() the same thing.
+    stagedCoverType = file.type || '';
     stagedCoverUrl = URL.createObjectURL(file);
     updateCoverPreview();
-    statusEl.innerText = "Cover image loaded from file.";
+    statusEl.innerText = `Cover image loaded from file (${stagedCoverType || 'unknown type'}).`;
 });
 
 document.getElementById('cover-remove-btn')?.addEventListener('click', () => {
     stagedCoverBlob = null;
+    stagedCoverType = '';
     if (stagedCoverUrl) URL.revokeObjectURL(stagedCoverUrl);
     stagedCoverUrl = null;
     updateCoverPreview();
