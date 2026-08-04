@@ -14,7 +14,7 @@ there.
 
 - [`game.js`](#gamejs) — currently v3.9.1
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
-- [`admin.js`](#adminjs) — currently v3.15.0
+- [`admin.js`](#adminjs) — currently v3.16.0
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.0
 
@@ -470,7 +470,34 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.15.0**
+Current: **v3.16.0**
+
+#### v3.16.0
+
+         Chapter titles are tidied on import. Project Gutenberg headings arrive
+         as "I. TOBY'S INTRODUCTION TO THE CIRCUS"; the number is already the
+         document id, and shouting is harder to scan than mixed case, which is
+         the one job a chapter list has.
+
+         stripLeadingOrdinal() removes exactly one leading ordinal, and only
+         when text remains behind. ⚠️ The trap is "I AM BORN": "I" is both a
+         Roman numeral and an English word, so a bare-numeral rule turns David
+         Copperfield's first chapter into "Am Born". A single-character numeral
+         is therefore stripped only when punctuation follows it — that is what
+         distinguishes an ordinal from a pronoun. "CHAPTER I. I AM BORN" strips
+         one ordinal and correctly yields "I Am Born".
+
+         toTitleCase() runs ONLY when a title is at least 90% uppercase. A
+         mixed-case title was set deliberately and is left byte-identical —
+         "The Tale of Peter Rabbit" needs no help. Capitalisation happens after
+         hyphens and slashes but never after an apostrophe, so TOBY'S becomes
+         Toby's rather than Toby'S; these titles are full of possessives and
+         that is the case a naive implementation always breaks.
+
+         A bare ordinal passes through untouched, because Pride and Prejudice
+         and Gatsby genuinely do not name their chapters and "II" is the best
+         available title. 14/14 on a fixture set covering both directions of
+         the "I Am Born" case.
 
 #### v3.15.0
 
