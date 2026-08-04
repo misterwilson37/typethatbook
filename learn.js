@@ -1,4 +1,4 @@
-// learn.js v2.1.0
+// learn.js v2.2.1
 //
 // Lesson-mode engine, separate from game.js. Same write-ahead-log and
 // coalesced-flush persistence pattern.
@@ -6,6 +6,16 @@
 // ── Full history: CHANGELOG.md § learn.js ─────────────────────────────────
 // ── Why it looks like this: PEDAGOGY-AUDIT.md ─────────────────────────────
 //
+// v2.2.1 — flushStats()'s re-entrancy guard was `if`, which serialises two
+//          callers and lets three or more overlap. Now `while`. v2.2.0 added
+//          the guard and got the shape wrong; this is the same one-word fix
+//          as game.js 3.9.2, which had the identical defect.
+// v2.2.0 — Read caching, backported from game.js. This page had NONE and was
+//          the most-used one: ~115 reads per load became ~3. Lessons cache is
+//          validated by a count aggregation (1 read, not 80); loadLessons()
+//          double-fired on most loads and now shares an in-flight promise;
+//          flushStats() got a re-entrancy guard and the hidden-tab flush a
+//          60s floor.
 // v2.1.0 — Batch B: every finished run writes runAttempts / runFailures /
 //          furthestRunIdx / lastSeenAt, queued onto the existing flush. A
 //          grade F now leaves a record; previously the students in the most
@@ -27,7 +37,11 @@
 //     teacher twice or never; unit position is the only honest signal.
 import { db, auth } from "./firebase-config.js";
 import {
-    collection, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc
+    collection, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc,
+    // Aggregation query. Firestore bills getCountFromServer at ONE read per up
+    // to 1000 matched index entries, which is what makes the lessons cache
+    // validation cost 1 read instead of ~80. Available since SDK v9.11.
+    getCountFromServer
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut
@@ -41,7 +55,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.1.0";
+const LEARN_VERSION = "2.2.1";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -177,14 +191,21 @@ onAuthStateChanged(auth, async user => {
         }
         const ggBtn = document.getElementById('learn-genie-btn');
         if (ggBtn) ggBtn.style.display = ADMIN_EMAILS.includes(user.email) ? '' : 'none';
-        // Load lessons first if they haven't arrived yet (race: auth can beat loadLessons)
-        if (allLessons.length === 0) await loadLessons();
+        // ⚠️ NO length check here any more. loadLessons() is idempotent and
+        // returns the in-flight promise if the module-load call is still
+        // running, so awaiting it unconditionally is both correct and cheaper
+        // than the guard it replaces. See the comment on _lessonsInFlight.
+        await loadLessons();
         await retroactiveSaveAnonSession(user);
         await loadUserProgress();
         await loadUserStats();
         walRecoverLearn();   // replay unflushed lesson time from a dead session
         await loadGoals();
-        await applyPendingClassAssignment(user);
+        // ⚠️ ORDER CHANGED: goals now runs FIRST so classInfo is populated, and
+        // the pending-assignment lookup is skipped entirely for the ~99% of
+        // students who already have a class. That read was firing on every
+        // single login, for every student, forever, to find nothing.
+        if (!(classInfo && classInfo.id)) await applyPendingClassAssignment(user);
     } else {
         userInfo.classList.add('hidden'); loginBtn.style.display = '';
         userProgress = {};
@@ -325,34 +346,170 @@ async function retroactiveSaveAnonSession(user) {
     } catch(e) { console.warn('[TTB] Retroactive save failed:', e); }
 }
 
-// ─── Load Lessons ─────────────────────────────────────────────────────────────
-async function loadLessons() {
+// ═════════════════════════════════════════════════════════════════════════════
+// READ CACHING  (v2.2.0)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Every fix in this block exists in game.js already and never got backported.
+// The result was that the MOST-USED page in the app was the only one with no
+// caching at all. A returning student cost ~5 reads in game.js and ~115 in
+// learn.js, for the same ten minutes of typing.
+//
+// What was read on EVERY learn.js load, uncached:
+//   the whole `lessons` collection        (~80 docs)
+//   the whole `lessonProgress` subcoll    (~30 docs mid-curriculum)
+//   users/{uid} + classes/{id}            (2 docs, for goals)
+//   pendingClassAssignments/{email}       (1 doc, almost always absent)
+//
+// ⚠️ Cache invalidation strategy differs per collection and the reasons matter:
+//
+//   lessons        — shared, edited rarely, by an adult. Validated with an
+//                    aggregation COUNT query, which Firestore bills as ONE read
+//                    per 1000 matched index entries. So the check costs 1 read
+//                    instead of 80. A count catches added/removed lessons
+//                    instantly; edits to an EXISTING lesson are caught by the
+//                    TTL below. That is the deliberate trade.
+//   lessonProgress — per-student, and this tab is normally the only writer, so
+//                    the local copy stays true. Shorter TTL because a student
+//                    on a second device is possible.
+//   goals          — verbatim port of game.js GOALS_CACHE_KEY.
+//
+// ⚠️ Every cache key is namespaced by uid. A shared cart Chromebook must never
+// hand one student's progress to the next one who sits down.
+
+const LESSONS_CACHE_KEY   = 'ttb_lessonsCache_v1';
+const LESSONS_CACHE_MS    = 4 * 3600 * 1000;    // content edits land within 4h
+const PROGRESS_CACHE_KEY  = 'ttb_lessonProgCache_v1';
+const PROGRESS_CACHE_MS   = 8 * 3600 * 1000;    // one school day
+const LEARN_GOALS_KEY     = 'ttb_goalsCache_v1'; // SAME key game.js uses — one
+                                                 // read serves both pages
+const LEARN_GOALS_MS      = 24 * 3600 * 1000;
+
+// Read a namespaced cache entry, or null. Never throws: a corrupt or absent
+// cache must degrade to a real read, never to a broken page.
+function cacheRead(key, maxAgeMs, uid) {
     try {
-        const snap = await getDocs(collection(db, 'lessons'));
-        allLessons = [];
-        snap.forEach(d => allLessons.push(d.data()));
-        allLessons.sort((a, b) => {
-            if (a.unit !== b.unit) return a.unit - b.unit;
-            return a.lesson - b.lesson;
-        });
-        // If the map is already visible but was rendered before lessons loaded, refresh it
-        if (!mapView.classList.contains('hidden') &&
-            lessonMapEl.querySelectorAll('.map-lesson-card').length === 0) {
-            renderMap();
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        const c = JSON.parse(raw);
+        if (uid !== undefined && c.uid !== uid) return null;
+        if ((Date.now() - c.at) > maxAgeMs) return null;
+        return c;
+    } catch (_) { return null; }
+}
+
+// Write a cache entry. A quota failure drops OUR keys and gives up quietly —
+// the cache is an optimisation and must never break a page load.
+function cacheWrite(key, payload) {
+    try {
+        localStorage.setItem(key, JSON.stringify({ at: Date.now(), ...payload }));
+    } catch (e) {
+        try {
+            Object.keys(localStorage)
+                .filter(k => k.startsWith('ttb_lessonsCache') ||
+                             k.startsWith('ttb_lessonProgCache'))
+                .forEach(k => localStorage.removeItem(k));
+        } catch (_) {}
+    }
+}
+
+// Admin escape hatch, wired into the Game Genie. After editing a lesson, Jake
+// can drop every cache and reload rather than waiting out the TTL.
+function ttbClearLearnCaches() {
+    [LESSONS_CACHE_KEY, PROGRESS_CACHE_KEY, LEARN_GOALS_KEY].forEach(k => {
+        try { localStorage.removeItem(k); } catch (_) {}
+    });
+}
+window.ttbClearLearnCaches = ttbClearLearnCaches;
+
+// ─── Load Lessons ─────────────────────────────────────────────────────────────
+//
+// ⚠️ IN-FLIGHT PROMISE, NOT A LENGTH CHECK. The old guard was
+// `if (allLessons.length === 0) await loadLessons()` in the auth handler, with a
+// fire-and-forget loadLessons() at module load. Auth settles in ~200ms; the
+// collection fetch takes ~300ms. So the guard tested a length that had not been
+// populated yet and ran the app's single biggest read A SECOND TIME, on most
+// loads. The comment on the old guard acknowledged the race; the guard did not
+// close it. A promise handle is the only thing that does.
+let _lessonsInFlight = null;
+
+async function loadLessons() {
+    if (_lessonsInFlight) return _lessonsInFlight;
+    _lessonsInFlight = (async () => {
+        try {
+            const cached = cacheRead(LESSONS_CACHE_KEY, LESSONS_CACHE_MS);
+            if (cached && Array.isArray(cached.lessons) && cached.lessons.length) {
+                // Validate with a count aggregation: 1 billed read instead of ~80.
+                let liveCount = null;
+                try {
+                    const agg = await getCountFromServer(collection(db, 'lessons'));
+                    liveCount = agg.data().count;
+                } catch (_) { /* aggregation unavailable — trust the TTL */ }
+                if (liveCount === null || liveCount === cached.lessons.length) {
+                    allLessons = cached.lessons;
+                    afterLessonsLoaded();
+                    return;
+                }
+            }
+
+            const snap = await getDocs(collection(db, 'lessons'));
+            allLessons = [];
+            snap.forEach(d => allLessons.push(d.data()));
+            allLessons.sort((a, b) => {
+                if (a.unit !== b.unit) return a.unit - b.unit;
+                return a.lesson - b.lesson;
+            });
+            cacheWrite(LESSONS_CACHE_KEY, { lessons: allLessons });
+            afterLessonsLoaded();
+        } catch(e) {
+            // Last resort: an expired cache beats an error screen. A student
+            // with no connection can still see the map they saw this morning.
+            const stale = cacheRead(LESSONS_CACHE_KEY, Infinity);
+            if (stale && Array.isArray(stale.lessons) && stale.lessons.length) {
+                allLessons = stale.lessons;
+                afterLessonsLoaded();
+                console.warn('Lessons fetch failed; serving expired cache.', e);
+                return;
+            }
+            lessonMapEl.innerHTML = '<div style="color:#888; text-align:center; padding:40px;">Could not load lessons. Check your connection.</div>';
+            console.error(e);
         }
-    } catch(e) {
-        lessonMapEl.innerHTML = '<div style="color:#888; text-align:center; padding:40px;">Could not load lessons. Check your connection.</div>';
-        console.error(e);
+    })();
+    try { await _lessonsInFlight; }
+    finally { _lessonsInFlight = null; }
+}
+
+function afterLessonsLoaded() {
+    // If the map is already visible but was rendered before lessons loaded, refresh it
+    if (!mapView.classList.contains('hidden') &&
+        lessonMapEl.querySelectorAll('.map-lesson-card').length === 0) {
+        renderMap();
     }
 }
 
 async function loadUserProgress() {
     if (!currentUser) return;
     userProgress = {};
+
+    const cached = cacheRead(PROGRESS_CACHE_KEY, PROGRESS_CACHE_MS, currentUser.uid);
+    if (cached && cached.progress && typeof cached.progress === 'object') {
+        userProgress = cached.progress;
+        return;
+    }
+
     try {
         const snap = await getDocs(collection(db, 'users', currentUser.uid, 'lessonProgress'));
         snap.forEach(d => { userProgress[d.id] = d.data(); });
+        cacheWrite(PROGRESS_CACHE_KEY, { uid: currentUser.uid, progress: userProgress });
     } catch(e) { console.warn('Could not load lesson progress:', e); }
+}
+
+// Called after every local progress write so the cache tracks what this tab
+// already knows. Without this the cache would go stale the instant a student
+// finished a lesson, and the next load would show them un-completing it.
+function refreshProgressCache() {
+    if (!currentUser) return;
+    cacheWrite(PROGRESS_CACHE_KEY, { uid: currentUser.uid, progress: userProgress });
 }
 
 // ─── Lesson Map ───────────────────────────────────────────────────────────────
@@ -2023,14 +2180,28 @@ function openLearnGenie() {
 }
 
 // visibilitychange:hidden is the reliable one — it fires on tab switch, lid
-// close, and app backgrounding, where beforeunload often doesn't. Both are
-// wired; flushStats() is idempotent when nothing is dirty.
+// close, and app backgrounding, where beforeunload often doesn't.
+//
+// ⚠️ BUT IT FIRES ON EVERY TAB SWITCH, not just at session end. A student
+// bouncing to Google Classroom and back eight times used to trigger eight full
+// final flushes. The localStorage position write is free and must still happen
+// every time — that's the part protecting their work. The Firestore flush is
+// rate-limited to once a minute, because nothing in it is time-critical: the WAL
+// already holds the durable copy, and a teacher reading a report mid-period is
+// looking at typing_logs, which is a merge and therefore idempotent.
+const HIDDEN_FLUSH_MIN_GAP_MS = 60000;
+let lastHiddenFlush = 0;
+
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
         // Position first: it's a synchronous localStorage write and it's the thing
-        // whose loss actually costs the student their work.
+        // whose loss actually costs the student their work. Never rate-limited.
         if (currentStep && drillPos > 0) saveRunPosition();
-        flushStats('hidden', true);
+        learnWalSave();
+        if (Date.now() - lastHiddenFlush >= HIDDEN_FLUSH_MIN_GAP_MS) {
+            lastHiddenFlush = Date.now();
+            flushStats('hidden', true);
+        }
     }
 });
 
@@ -2305,6 +2476,32 @@ async function applyPendingClassAssignment(user) {
 
 async function loadGoals() {
     try {
+        // Cache hit? game.js has had this for several versions; learn.js never
+        // got it, so every load paid two reads for values that change about once
+        // a year. Same key, same shape, same 24h window — a student who opens
+        // both pages in a day pays for one read, not two.
+        //
+        // ⚠️ game.js writes this same key WITHOUT `className` — it has no class
+        // banner to fill. If we accepted that entry we'd blank the class name in
+        // the header for up to 24h. So an entry that names a class but carries no
+        // className is treated as a miss: we pay two reads once, and the entry we
+        // write back has everything both pages need.
+        const c0 = cacheRead(LEARN_GOALS_KEY, LEARN_GOALS_MS,
+                             currentUser ? currentUser.uid : '');
+        const c = (c0 && c0.classId && !c0.className) ? null : c0;
+        if (c) {
+            goals.dailySeconds  = c.dailySeconds  || 0;
+            goals.weeklySeconds = c.weeklySeconds || 0;
+            classInfo = { id: c.classId || '', name: c.className || '',
+                          schoolId: c.schoolId || '',
+                          dailySeconds: goals.dailySeconds,
+                          weeklySeconds: goals.weeklySeconds };
+            updateClassDisplay();
+            if (goals.dailySeconds  > 0 && statsData.secondsToday >= goals.dailySeconds)  dailyGoalCelebrated  = true;
+            if (goals.weeklySeconds > 0 && statsData.secondsWeek  >= goals.weeklySeconds) weeklyGoalCelebrated = true;
+            return;
+        }
+
         // Step 1: check if user belongs to a class
         let resolved = false;
         if (currentUser) {
@@ -2339,6 +2536,16 @@ async function loadGoals() {
                           weeklySeconds: goals.weeklySeconds };
             updateClassDisplay();
         }
+
+        // Persist for 24h. `className` is extra over game.js's payload and is
+        // additive only — game.js reads the fields it knows and ignores this one.
+        cacheWrite(LEARN_GOALS_KEY, {
+            uid: currentUser ? currentUser.uid : '',
+            dailySeconds: goals.dailySeconds, weeklySeconds: goals.weeklySeconds,
+            classId: classInfo.id || '', className: classInfo.name || '',
+            schoolId: classInfo.schoolId || ''
+        });
+
         if (goals.dailySeconds  > 0 && statsData.secondsToday >= goals.dailySeconds)  dailyGoalCelebrated  = true;
         if (goals.weeklySeconds > 0 && statsData.secondsWeek  >= goals.weeklySeconds) weeklyGoalCelebrated = true;
     } catch(e) { console.warn('loadGoals failed:', e); }
@@ -2535,7 +2742,35 @@ function saveStats() {
     }
 }
 
+// ⚠️ RE-ENTRANCY GUARD. flushStats() is reachable from the interval timer,
+// visibilitychange, beforeunload, and walRecoverLearn(). It is async with
+// several sequential awaits, so two runs could overlap and both iterate
+// `pendingProgress` — writing the same lesson record twice and deleting entries
+// out from under each other's loop. Same class of bug as game.js flushAll().
+// A single in-flight promise serialises them: a caller that arrives mid-flush
+// waits for the running flush and then re-runs, so nothing is dropped.
+//
+// ⚠️ THE LOOP IS `while`, NOT `if`. (v2.2.1)
+//
+// v2.2.0 wrote `if`, which holds for two callers and fails for three or more:
+// once the running flush resolves and its finally nulls the slot, every caller
+// parked on that promise is ALREADY past the `if`, so they all claim the slot
+// and their inner runs overlap. `while` closes it, because re-checking after
+// the await is synchronous with the assignment that follows. Four call sites
+// means three-deep is reachable — a student alt-tabbing during an interval
+// flush is enough. Identical fix to game.js 3.9.2; both files had it.
+let _learnFlushInFlight = null;
+
 async function flushStats(reason, final = false) {
+    while (_learnFlushInFlight) {
+        await _learnFlushInFlight.catch(() => {});
+    }
+    _learnFlushInFlight = _flushStatsInner(reason, final);
+    try { await _learnFlushInFlight; }
+    finally { _learnFlushInFlight = null; }
+}
+
+async function _flushStatsInner(reason, final = false) {
     if (!currentUser) return;
     if (!learnDirty && pendingProgress.size === 0) return;
     if (learnFlushTimer) { clearTimeout(learnFlushTimer); learnFlushTimer = null; }
@@ -2566,6 +2801,11 @@ async function flushStats(reason, final = false) {
     }
 
     if (!(await flushLessonProgress())) ok = false;
+
+    // The local copy is now authoritative for this student — mirror it into the
+    // cache so the next page load doesn't have to re-read the subcollection to
+    // learn what this tab already did.
+    refreshProgressCache();
 
     if (ok) {
         learnDirty = false;
