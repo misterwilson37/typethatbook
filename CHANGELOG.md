@@ -14,7 +14,7 @@ there.
 
 - [`game.js`](#gamejs) — currently v3.9.1
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
-- [`admin.js`](#adminjs) — currently v3.18.0
+- [`admin.js`](#adminjs) — currently v3.19.0
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.0
 
@@ -470,7 +470,51 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.18.0**
+Current: **v3.19.0**
+
+⚠️ **Versioning note.** v3.12.0 through v3.18.0 were bumped as MINOR versions and
+most of them were straight bug fixes that should have been PATCH. Jake caught it:
+"We haven't added any features in a couple of turns — just tweaked what's already
+there." He's right, and six inflated versions in a row makes the number stop
+carrying information. Corrected going forward: a bug fix is x.y.**Z**; a minor
+bump means a new capability actually arrived. Past numbers are left alone because
+some of those files are already deployed and rewriting history would make the
+CHANGELOG disagree with what is running.
+
+By that standard: v3.17.0 (sort staged chapters) and v3.18.0 (re-entrancy guard)
+should have been v3.16.1 and v3.16.2.
+
+#### v3.19.0
+
+         Two ways back to an empty create form, because there were none. Also
+         paired with admin.html — the EPUB picker now sits ABOVE the three
+         fields it auto-fills, since asking for them first was asking a
+         question the next control answers.
+
+         1. "Start another book" clears the form AND the staging state. Not
+            just the visible inputs: stagedChapters, stagedFromDB, activeBookId,
+            the cover blob, the audit panels. A blank form sitting over a
+            populated stagedChapters is the setup for the worst bug available
+            in this panel — clear the fields, parse book B, and Upload All
+            writes B's chapters under book A's id.
+         2. ⚠️ THE DROPDOWN'S OWN RESET WAS DEAD CODE. bookSelect.onchange has
+            always cleared the new-book fields, and it never ran after an
+            upload. loadBookList(false) silently restores whatever was selected
+            before, and during a new-book upload that is "__NEW__" — so the
+            picker was ALREADY on "Create New Book...", re-picking it changed
+            no value, and no change event fired. Jake's screenshots showed
+            turn-of-the-screw / The Turn of the Screw / Henry James still in the
+            form while the file input held a different book.
+            After an upload the picker now points at the book that was just
+            created. That makes it honest about what exists, and makes "Create
+            New Book..." a genuine change next time so its reset fires.
+            ⚠️ Set SILENTLY — never dispatchEvent('change') there. onchange
+            hides the staging area and reassigns activeBookId, which would throw
+            away chapters that were just uploaded and are still worth auditing.
+            Same trap documented on loadBookList's selectFirst parameter.
+         3. onchange never cleared new-book-author, which has been auto-filled
+            from <dc:creator> since v3.14.0, so the previous book's author sat
+            in the form for the next one.
 
 #### v3.18.0
 
