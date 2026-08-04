@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeThatBook Reports v2.7.0</title>
+    <title>TypeThatBook Reports v2.8.0</title>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; margin: 0; }
         .container { max-width: 960px; margin: 0 auto; padding-bottom: 40px; }
@@ -311,7 +311,7 @@
     </div>
 </div>
 
-<footer>Reports v2.4.1</footer>
+<footer>Reports v2.8.0</footer>
 
 <script type="module">
     import { db, auth } from "./firebase-config.js";
@@ -526,36 +526,56 @@
         // A single named class is the cheapest possible query — one class-worth
         // of documents instead of a whole building's.
         if (classId && classId !== '__all__' && classId !== '__mine__') {
-            return { q: query(logsRef, where("classId", "==", classId), ...dateRange),
+            return { queries: [query(logsRef, where("classId", "==", classId), ...dateRange)],
                      clientFilter: null,
                      label: `class “${classesById[classId]?.name || classId}”` };
         }
 
-        // "My classes" spans several classIds. Firestore's `in` operator caps at
-        // 30 values and interacts awkwardly with range filters, so query the
-        // building and narrow on the client. Still far cheaper than unscoped.
+        // ⚠️ "My classes" USED TO BE BROKEN FOR THE DEFAULT TEACHER, and the
+        // reason is worth understanding before anyone "simplifies" this back.
+        //
+        // It used to query the whole BUILDING on schoolId and narrow on the
+        // client. That is fine for cost and completely wrong for security rules.
+        // canReadActivity() in firestore.rules short-circuits to
+        // teachesClass(d.classId) for anyone whose readScope isn't 'building' —
+        // and rules are evaluated against every document the query returns, not
+        // against the subset the client intends to keep. So a teacher with the
+        // DEFAULT readScope of 'own_classes' got permission-denied on the one
+        // scope option the UI defaults them to. Separately it would have blown
+        // Firestore's ceiling of 20 get()/exists() calls per query.
+        //
+        // Rules are not filters. If the client intends to read only its own
+        // classes, the QUERY has to say so. One equality query per class is a
+        // handful of round-trips, hits the existing classId+date index, reads
+        // strictly fewer documents than the building-wide version did, and every
+        // document it returns is one the rules already agree the caller may see.
+        //
+        // Returns an ARRAY of queries; generateReport() unions the results and
+        // de-duplicates by document id.
         if (classId === '__mine__') {
-            const allowed = new Set(me.classIds);
-            if (schoolId && schoolId !== '__all__') {
-                return { q: query(logsRef, where("schoolId", "==", schoolId), ...dateRange),
-                         clientFilter: d => allowed.has(d.classId || ''),
-                         label: 'your classes' };
+            const mine = (me.classIds || []).slice(0, 30);
+            if (!mine.length) {
+                return { queries: [], clientFilter: null,
+                         label: 'your classes (none assigned)' };
             }
-            return { q: query(logsRef, ...dateRange),
-                     clientFilter: d => allowed.has(d.classId || ''),
-                     label: 'your classes' };
+            return {
+                queries: mine.map(cid =>
+                    query(logsRef, where("classId", "==", cid), ...dateRange)),
+                clientFilter: null,
+                label: `your classes (${mine.length})`
+            };
         }
 
         // Whole building.
         if (schoolId && schoolId !== '__all__') {
-            return { q: query(logsRef, where("schoolId", "==", schoolId), ...dateRange),
+            return { queries: [query(logsRef, where("schoolId", "==", schoolId), ...dateRange)],
                      clientFilter: null,
                      label: `${schoolsById[schoolId]?.name || schoolId} (all classes)` };
         }
 
         // Every school. super_admin only, and the expensive one — this is the
         // query the whole scoping effort exists to avoid running by accident.
-        return { q: query(logsRef, ...dateRange), clientFilter: null, label: 'ALL SCHOOLS' };
+        return { queries: [query(logsRef, ...dateRange)], clientFilter: null, label: 'ALL SCHOOLS' };
     }
 
     // --- GOALS MANAGEMENT ---
@@ -654,9 +674,47 @@
             const logsRef = collection(db, "typing_logs");
             const scoped = buildScopedQuery(logsRef, startDate, endDate);
             statusEl.innerText = `Querying ${scoped.label}...`;
-            let snap;
+
+            if (!scoped.queries.length) {
+                statusEl.innerText = "No classes assigned to you yet — ask your " +
+                    "building admin to add you to a class, or pick a different scope.";
+                statusEl.style.borderColor = "#ffaa00";
+                return;
+            }
+
+            // ⚠️ READ CEILING. Every query on this page used to be unbounded. A
+            // building admin asking for a whole semester is roughly
+            // 1,400 students x 90 days = ~126,000 document reads ON ONE CLICK —
+            // two and a half times the entire daily free tier, out of Jake's
+            // pocket, for a table no human can read anyway. And the browser
+            // would sit frozen while it happened.
+            //
+            // The cap is deliberately a REFUSAL, not a truncation. A silently
+            // truncated report is worse than no report: a teacher grades from
+            // it and never learns it was incomplete. So we stop, say what
+            // happened, and tell them how to narrow it.
+            const MAX_REPORT_DOCS = 20000;
+
+            let docs = [];
+            const seen = new Set();
             try {
-                snap = await getDocs(scoped.q);
+                // Sequential, not Promise.all: if the ceiling is going to be hit
+                // we want to stop issuing reads, not fire them all and then
+                // discover the total. Costing less on the failure path matters
+                // more here than shaving a second off the success path.
+                for (const q of scoped.queries) {
+                    const snap = await getDocs(q);
+                    snap.forEach(d => {
+                        // De-duplicate: the "my classes" path issues one query
+                        // per class, and while a typing_logs doc belongs to
+                        // exactly one class today, a student reassigned
+                        // mid-range could legitimately appear under two.
+                        if (seen.has(d.id)) return;
+                        seen.add(d.id);
+                        docs.push(d);
+                    });
+                    if (docs.length > MAX_REPORT_DOCS) break;
+                }
             } catch (e) {
                 // Almost always a missing composite index while it builds.
                 statusEl.innerText = "Query failed — see console. If this mentions " +
@@ -666,10 +724,21 @@
                 return;
             }
 
+            if (docs.length > MAX_REPORT_DOCS) {
+                statusEl.innerText =
+                    `Too much data — ${scoped.label} over ${startDate} to ${endDate} ` +
+                    `is more than ${MAX_REPORT_DOCS.toLocaleString()} daily records. ` +
+                    `Narrow the date range or pick a single class. ` +
+                    `(Stopping here on purpose: a partial report you can't tell is ` +
+                    `partial is worse than none.)`;
+                statusEl.style.borderColor = "#ffaa00";
+                return;
+            }
+
             // Aggregate by user
             const userMap = {};
             let skipped = 0;
-            snap.forEach(d => {
+            docs.forEach(d => {
                 const data = d.data();
                 if (scoped.clientFilter && !scoped.clientFilter(data)) { skipped++; return; }
                 const uid = data.uid;
@@ -728,8 +797,9 @@
                 `<strong>${reportData.length}</strong> students — <strong>${formatTime(totalSecs)}</strong> total typing time`;
             document.getElementById('results-info').textContent =
                 `${scoped.label} · ${startDate} through ${endDate} — ` +
-                `${snap.size - skipped} daily log entries` +
-                (skipped ? ` (${snap.size} read, ${skipped} outside your classes)` : '');
+                `${docs.length - skipped} daily log entries` +
+                (skipped ? ` (${docs.length} read, ${skipped} outside your classes)` : '') +
+                ` \u00b7 ${scoped.queries.length} quer${scoped.queries.length === 1 ? 'y' : 'ies'}`;
 
             document.getElementById('results-container').classList.remove('hidden');
             statusEl.innerText = `Found ${reportData.length} students.`;
