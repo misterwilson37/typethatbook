@@ -14,7 +14,7 @@ there.
 
 - [`game.js`](#gamejs) — currently v3.9.2
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
-- [`admin.js`](#adminjs) — currently v3.18.3
+- [`admin.js`](#adminjs) — currently v3.18.4
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.1
 
@@ -508,7 +508,7 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.18.3**
+Current: **v3.18.4**
 
 ⚠️ **Versioning note.** v3.12.0 through v3.18.0 were bumped as MINOR versions and
 most of them were straight bug fixes that should have been PATCH. Jake caught it:
@@ -529,6 +529,44 @@ reset that was supposed to work is a fix, not a feature. Jake caught that too,
 one turn after catching the first one. Renumbered to **v3.18.1**. Recorded here
 rather than quietly corrected, because stating a standard and then exempting
 yourself from it in the same message is the more instructive failure.
+
+#### v3.18.4
+
+Round 5 (Mignon). Two importer fixes aimed at the non-Standard-Ebooks sources,
+each measured against all eight of Jake's real EPUBs BEFORE shipping. Combined
+they change 9 chapters — every one of them front or back matter — and move **no
+body chapter's id on any book**, which is the §B.7 invariant that keeps a
+student's stored chapter pointer where it is.
+
+         1. FRONT MATTER CANNOT FOLLOW BODY MATTER. Toby Tyler's final spine file
+            — the Gutenberg licence: zero paragraphs, no heading, no keyword in
+            its filename — classified as 'front', which gave it id 0.2 and
+            therefore SORTED IT TO POSITION 2 OF THE BOOK. A document that appears
+            after the story has started is not front matter by definition,
+            whatever its shape looks like, so `seenBodyMatter` reclassifies it as
+            back. Fires exactly once across the eight books: on the one file that
+            had the bug.
+         2. A NON-CHAPTER IS NEVER TITLED "Chapter N". composeChapterTitle() falls
+            back to the running counter for any document without a usable heading,
+            regardless of kind — so Gatsby's dedication.xhtml was "Chapter 3" and
+            Alice's frontispiece.xhtml was "Chapter 4", numbers that were not even
+            those items' ids, sitting in the staging list beside real chapters.
+            §B.7 keeps front matter visible and labelled rather than hidden, which
+            only works if the label is true. Named from the filename now
+            (dedication → Dedication, loi → List of Illustrations), falling back
+            to "Front matter N" / "Back matter N" for the opaque names Global Grey
+            and some Gutenberg builds use (index_split_001). Only consulted when
+            the old code produced a bare "Chapter N", so a real title is never
+            overwritten.
+
+         ⚠️ STILL OPEN, deliberately: Toby Tyler's title block and table of
+         contents become BODY chapters 1 and 2, pushing its 20 real chapters to
+         3–22. classifyDocument() classifies a whole spine FILE, and the TOC route
+         then splits that file into units which all inherit 'body' — so
+         front-matter units INSIDE a bodymatter file are invisible to the
+         classifier. Fixing it needs per-unit classification against a title
+         vocabulary, and tuning a vocabulary on two examples is how you overfit.
+         Waiting on the full corpus.
 
 #### v3.18.3
 

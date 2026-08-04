@@ -1,10 +1,19 @@
-// admin.js v3.18.3
+// admin.js v3.18.4
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.18.4 — Two importer fixes for non-Standard-Ebooks sources, measured against
+//           all eight of Jake's EPUBs before shipping: they change 9 chapters, all
+//           of them front/back matter, and move NO body chapter's id on any book.
+//           (a) Front matter cannot follow body matter. Toby Tyler's Gutenberg
+//           licence classified as 'front' and so got id 0.2, sorting it to
+//           position 2 of the book. (b) A non-chapter is never titled "Chapter N":
+//           Gatsby's dedication.xhtml was "Chapter 3", Alice's frontispiece.xhtml
+//           was "Chapter 4" — a number that was not even the item's id. Named from
+//           the filename now, falling back to "Front matter N".
 // v3.18.3 — THE EPUB COVER BUG. JSZip's .async("blob") returns a Blob whose type
 //           is the empty string, so uploadBytes() stored every EPUB-extracted
 //           cover as application/octet-stream — which storage.rules v2.0.0 denied
@@ -73,7 +82,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.18.3";
+const ADMIN_VERSION = "3.18.4";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -1381,6 +1390,8 @@ async function parseEpubFile(file) {
         // Spine files named by the manifest but absent from the zip. Each one is
         // a chapter that will not exist, so this is reported in red, not amber.
         const missingSpineFiles = [];
+        // Set once the first body chapter is emitted. See the front/back note below.
+        let seenBodyMatter = false;
 
         for (let item of spineItems) {
             const href = idToHref[item.getAttribute("idref")];
@@ -1417,6 +1428,18 @@ async function parseEpubFile(file) {
 
             // What IS this file? Front matter must not consume chapter numbers.
             const kind = classifyDocument(doc, fileKey);
+            // ⚠️ FRONT MATTER CANNOT FOLLOW BODY MATTER (v3.18.4).
+            //
+            // Toby Tyler's last spine file — the Gutenberg licence, zero
+            // paragraphs, no heading, no keyword in its name — classified as
+            // 'front', which gave it id 0.2 and therefore SORTED IT TO POSITION 2
+            // OF THE BOOK. A file that appears after the story has started is not
+            // front matter by definition, whatever its shape looks like.
+            //
+            // Verified against all eight of Jake's books: this fires exactly once,
+            // on the one file that had the bug, and moves no body chapter's id on
+            // any book — so no student's stored chapter pointer moves.
+            if (kind.cls === 'front' && seenBodyMatter) kind.cls = 'back';
             // A part divider (part-1.xhtml) is bodymatter with a heading and no
             // paragraphs, so it produces zero segments and falls out below with no
             // special case. Its NUMBER is what matters and that lives in the
@@ -1467,6 +1490,12 @@ async function parseEpubFile(file) {
             const title = (group.title && group.title.trim())
                 ? cleanChapterTitle(group.title).substring(0, 60)
                 : composeChapterTitle(group.info, counter);
+            // A generic "Chapter N" on something that is not a chapter gets a
+            // name that is actually true. Never touches a real title.
+            const honestTitle = (kind.cls !== 'body' && /^Chapter \d+$/.test(title))
+                ? matterTitleFrom(fileKey, kind.cls,
+                                  kind.cls === 'back' ? matterBack : matterFront)
+                : title;
 
             const segments = [];
             const pTags = group.pEls;
@@ -1500,13 +1529,15 @@ async function parseEpubFile(file) {
             if (segments.length > 0) {
                 stagedChapters.push({
                     id: counter,          // replaced by assignChapterIds() below
-                    title: title,
+                    title: honestTitle,
                     matter: kind.cls,     // 'front' | 'body' | 'back'
                     matterWhy: kind.why,
                     srcFile: fileKey,     // assignChapterIds() reads the part from this
                     segments: segments
                 });
                 counter++;
+                // Load-bearing for the front-after-body rule above.
+                if (kind.cls === 'body') seenBodyMatter = true;
             }
           }
         }
@@ -1989,6 +2020,36 @@ function cleanChapterTitle(t) {
 
 // Final display title. The chapter NUMBER already lives in the id, so a bare
 // ordinal is only used when the book genuinely has no chapter name.
+// ─── A NON-CHAPTER IS NEVER CALLED "Chapter N" (v3.18.4) ─────────────────────
+//
+// composeChapterTitle() falls back to the running counter whenever a document has
+// no usable heading, regardless of what KIND of document it is. So Gatsby's
+// dedication.xhtml was titled "Chapter 3" and Alice's frontispiece.xhtml was
+// "Chapter 4" — a number that is not even the item's id, sitting in the staging
+// list next to real chapters. Front matter is deliberately kept and labelled
+// rather than hidden (§B.7), which only works if the label is honest.
+//
+// Only ever consulted when the existing code produced a bare "Chapter N", so a
+// real title is never overwritten.
+const MATTER_FILE_NAMES = {
+    titlepage: 'Title Page', halftitlepage: 'Half Title', halftitle: 'Half Title',
+    imprint: 'Imprint', dedication: 'Dedication', epigraph: 'Epigraph',
+    frontispiece: 'Frontispiece', colophon: 'Colophon', uncopyright: 'Uncopyright',
+    copyright: 'Copyright', endnotes: 'Endnotes', loi: 'List of Illustrations',
+    toc: 'Table of Contents', contents: 'Table of Contents', index: 'Index',
+    appendix: 'Appendix', preface: 'Preface', introduction: 'Introduction',
+};
+function matterTitleFrom(fileKey, cls, n) {
+    const stem = String(fileKey || '').replace(/\.x?html?$/i, '').toLowerCase();
+    for (const k of Object.keys(MATTER_FILE_NAMES)) {
+        if (new RegExp('\\b' + k + '\\b').test(stem)) return MATTER_FILE_NAMES[k];
+    }
+    // Global Grey and some Gutenberg builds use opaque names (index_split_001),
+    // so there is nothing to read. "Front matter 2" is still true, which
+    // "Chapter 2" was not.
+    return (cls === 'back' ? 'Back matter ' : 'Front matter ') + n;
+}
+
 function composeChapterTitle(info, fallbackIndex) {
     if (info && info.title)   return cleanChapterTitle(info.title).substring(0, 60);
     // A bare ordinal is all some books have — Pride and Prejudice and Gatsby
