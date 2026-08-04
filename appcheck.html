@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TypeThatBook — Connection Check v1.0.0</title>
+<!--
+    appcheck.html v1.0.0
+
+    WHY THIS PAGE EXISTS.
+
+    App Check needs to reach www.google.com/recaptcha/* and
+    www.gstatic.com/recaptcha/*. If a district blocks those, then once Firestore
+    enforcement is ON, students type normally and nothing saves. The write-ahead
+    logs mean the work is not LOST — it replays when the block clears — but a
+    period's data would not reach a teacher's report that day.
+
+    The only reliable way to know is to test on the actual machine, the actual
+    network, and the actual browser profile the students use. `ttbAppCheckStatus()`
+    in devtools does that, but on a locked-down Chromebook or a managed Chrome
+    profile there IS no devtools. So the check lives on a page.
+
+    ⚠️ THREE LAYERS CAN BLOCK THIS AND THEY FAIL INDEPENDENTLY:
+      1. the district firewall / proxy   — affects every browser equally
+      2. Chrome enterprise policy         — Chrome only, set in Google Admin
+      3. a filtering extension            — GoGuardian, Securly, Lightspeed;
+                                            force-installed per PROFILE, so a
+                                            teacher profile can pass while a
+                                            student profile fails
+    Testing in Safari only clears layer 1. This page is safe to hand to a student
+    precisely so layers 2 and 3 get tested where they actually apply.
+
+    NO SIGN-IN. App Check is independent of authentication, so anyone can load
+    this — which is the point. Nothing here reads or writes student data.
+-->
+<style>
+  :root { color-scheme: dark; }
+  body { background:#111; color:#eee; font-family:'Courier New',monospace;
+         margin:0; padding:24px; line-height:1.55; }
+  .wrap { max-width:680px; margin:0 auto; }
+  h1 { font-size:1.15rem; color:#4B9CD3; margin:0 0 4px; }
+  .sub { color:#777; font-size:.8rem; margin-bottom:22px; }
+  #verdict { padding:22px; border-radius:6px; border:2px solid #444;
+             background:#1a1a1a; margin-bottom:18px; }
+  #headline { font-size:1.5rem; font-weight:bold; margin-bottom:6px; }
+  #explain { font-size:.9rem; color:#ccc; }
+  .ok    { border-color:#00ff41 !important; background:#0a220a !important; }
+  .ok    #headline { color:#00ff41; }
+  .bad   { border-color:#ff3333 !important; background:#220a0a !important; }
+  .bad   #headline { color:#ff6666; }
+  .wait  { border-color:#ffaa00 !important; background:#221a00 !important; }
+  .wait  #headline { color:#ffcc66; }
+  table { width:100%; border-collapse:collapse; font-size:.78rem; margin-top:8px; }
+  td { padding:4px 8px; border-bottom:1px solid #262626; vertical-align:top; }
+  td:first-child { color:#777; white-space:nowrap; width:34%; }
+  button { background:#0047AB; color:#fff; border:0; border-radius:4px;
+           padding:11px 20px; font-family:inherit; font-size:.85rem;
+           font-weight:bold; cursor:pointer; margin-right:8px; }
+  button:hover { background:#4B9CD3; }
+  button.sec { background:#333; border:1px solid #555; }
+  .note { font-size:.78rem; color:#777; margin-top:20px;
+          border-top:1px solid #282828; padding-top:14px; }
+  code { color:#b87ae8; }
+  a { color:#4B9CD3; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>TypeThatBook — Connection Check</h1>
+  <div class="sub">
+    Checks whether this device can reach the service that protects the database.
+    Nothing is saved and no sign-in is needed. Safe to run on any machine.
+  </div>
+
+  <div id="verdict" class="wait">
+    <div id="headline">Checking&hellip;</div>
+    <div id="explain">Give it a few seconds.</div>
+  </div>
+
+  <table id="detail"></table>
+
+  <div style="margin-top:18px;">
+    <button id="again">Run it again</button>
+    <button id="copy" class="sec">Copy result</button>
+  </div>
+
+  <div class="note">
+    <strong>If this says BLOCKED:</strong> the district filter is stopping
+    <code>www.google.com/recaptcha/*</code> or
+    <code>www.gstatic.com/recaptcha/*</code>. Those two need allowing before App
+    Check enforcement can be switched on. Send this whole result to whoever runs
+    the filter &mdash; tap <em>Copy result</em>.
+    <br><br>
+    <strong>Run it on the machines and profiles students really use.</strong> A
+    teacher account passing does not mean a student account will: filtering
+    extensions are installed per profile, and Chrome policy does not apply to
+    Safari.
+  </div>
+</div>
+
+<script type="module">
+// Importing firebase-config.js is the whole test: that module initialises App
+// Check, so if reCAPTCHA is unreachable the failure happens on load and
+// ttbAppCheckStatus() reports it. Deliberately the same code path the real app
+// uses — a bespoke check here could pass while the app still failed.
+import { CONFIG_VERSION } from './firebase-config.js';
+
+const verdict  = document.getElementById('verdict');
+const headline = document.getElementById('headline');
+const explain  = document.getElementById('explain');
+const detail   = document.getElementById('detail');
+let lastText = '';
+
+function row(k, v) {
+  const tr = document.createElement('tr');
+  const a = document.createElement('td'); a.textContent = k;
+  const b = document.createElement('td'); b.textContent = v;   // textContent: no injection
+  tr.append(a, b); detail.appendChild(tr);
+}
+
+function setVerdict(cls, head, why) {
+  verdict.className = cls;
+  headline.textContent = head;
+  explain.textContent = why;
+}
+
+async function run() {
+  detail.innerHTML = '';
+  setVerdict('wait', 'Checking\u2026', 'Give it a few seconds.');
+
+  // firebase-config.js swallows an App Check init failure on purpose so the real
+  // app never white-screens. That means the helper can be absent, which is
+  // itself a diagnosis worth naming precisely.
+  if (typeof window.ttbAppCheckStatus !== 'function') {
+    setVerdict('bad', 'Cannot check',
+      'The site is not running a version that supports this check ' +
+      '(needs firebase-config.js v1.2.0 or later). Hard-reload and try again.');
+    row('Config version', CONFIG_VERSION || 'unknown');
+    finish();
+    return;
+  }
+
+  let res;
+  try { res = await window.ttbAppCheckStatus(); }
+  catch (e) { res = { ok:false, reason: e && e.message ? e.message : String(e) }; }
+
+  if (res && res.ok) {
+    setVerdict('ok', '\u2713 All clear',
+      'This device can reach the protection service. Students on this machine, ' +
+      'network and browser profile will be able to save their work once ' +
+      'enforcement is on.');
+  } else {
+    setVerdict('bad', '\u2717 Blocked',
+      'This device cannot reach the protection service. If enforcement is turned ' +
+      'on, students here would type normally and nothing would save. Their work ' +
+      'is not lost, but it would not reach a report that day.');
+  }
+
+  row('Result', res && res.ok ? 'PASS' : 'BLOCKED');
+  if (res && res.reason) row('Reason', res.reason);
+  if (res && res.tokenPreview) row('Token', res.tokenPreview);
+  row('Config version', CONFIG_VERSION || 'unknown');
+  row('Browser', navigator.userAgent);
+  row('Page', location.href);
+  row('Checked at', new Date().toLocaleString());
+  finish();
+}
+
+// One plain-text blob so a result can be pasted to a network administrator
+// without anyone needing a screenshot or devtools.
+function finish() {
+  const lines = [...detail.querySelectorAll('tr')]
+    .map(tr => tr.children[0].textContent + ': ' + tr.children[1].textContent);
+  lastText = 'TypeThatBook connection check\n' + headline.textContent + '\n\n' +
+             lines.join('\n');
+}
+
+document.getElementById('again').onclick = run;
+document.getElementById('copy').onclick = async (e) => {
+  try {
+    await navigator.clipboard.writeText(lastText);
+    e.target.textContent = 'Copied';
+  } catch (_) {
+    // Clipboard access is often blocked on managed devices \u2014 fall back to
+    // something selectable rather than failing silently.
+    const ta = document.createElement('textarea');
+    ta.value = lastText;
+    ta.style.cssText = 'width:100%;height:150px;margin-top:10px;background:#000;' +
+                       'color:#ccc;font-family:inherit;font-size:.75rem;';
+    e.target.after(ta); ta.select();
+    e.target.textContent = 'Select and copy';
+  }
+};
+
+run();
+</script>
+</body>
+</html>
