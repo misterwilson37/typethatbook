@@ -12,11 +12,11 @@ there.
 
 ## Contents
 
-- [`game.js`](#gamejs) — currently v3.9.1
+- [`game.js`](#gamejs) — currently v3.9.2
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
-- [`admin.js`](#adminjs) — currently v3.19.0
+- [`admin.js`](#adminjs) — currently v3.18.1
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
-- [`learn.js`](#learnjs) — currently v2.2.0
+- [`learn.js`](#learnjs) — currently v2.2.1
 
 Files not listed here have short headers that fit the budget on their own:
 `lessons-admin.js`, `staff-admin.js`, `keyboard.js`, `versions.js`,
@@ -26,7 +26,45 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.9.1**
+Current: **v3.9.2**
+
+#### v3.9.2
+
+Round 5 (Mignon). Two defects in v3.9.0/v3.9.1's own audit work, both found
+before either shipped. Neither file had been uploaded, so nothing in production
+was ever affected.
+
+         1. THE RE-ENTRANCY GUARD WAS `if`, NOT `while`. v3.9.0 added a guard
+            to flushAll() to stop overlapping runs writing a duplicate
+            typing_sessions rollup. It serialises TWO callers correctly and
+            fails at three or more: when the running flush resolves, its
+            `finally` nulls the slot, and every caller parked on that promise
+            is already past the `if` — so they all claim the slot and their
+            inner runs execute concurrently. Measured by lifting the shipping
+            function into a harness: 6 simultaneous callers produced 5
+            overlapping runs. `while` fixes it because the re-check after the
+            await is synchronous with the assignment that follows, so the
+            caller that leaves the loop claims the slot before any other
+            caller can re-check. Four call sites (interval timer,
+            visibilitychange, saveProgress(force), walRecover()) make
+            three-deep reachable in ordinary use.
+         2. THE SPRINT ROLLUP IS CHUNKED AT 200 SPRINTS PER DOCUMENT.
+            firestore.rules v2.2.0 newly requires `sprints.size() <= 200` and
+            `seconds <= 86400` on typing_sessions. Nothing on the client
+            enforced either, and pendingSessions has no cap — walRecover()
+            CONCATENATES a recovered log onto the live one. So one failed
+            rollup could push the array past the ceiling, after which every
+            write is denied, denial keeps the WAL, and the kept WAL is
+            re-concatenated next session: a permanent, silent, self-feeding
+            failure. Chunks advance out of pendingSessions one at a time and
+            only after their write lands, so a mid-run failure keeps exactly
+            the sprints not yet stored — verified for loss, duplication and
+            cap compliance across eight scenarios including denial on the
+            first and second chunk. `seconds` is also clamped as a backstop,
+            with a console warning if it ever fires.
+         ⚠️ SHIP THIS WITH firestore.rules v2.2.0. Rules 2.2.0 without this
+         file introduces the poison pill described above; this file without
+         rules 2.2.0 is harmless.
 
 #### v3.9.1
 
@@ -470,7 +508,7 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.19.0**
+Current: **v3.18.1**
 
 ⚠️ **Versioning note.** v3.12.0 through v3.18.0 were bumped as MINOR versions and
 most of them were straight bug fixes that should have been PATCH. Jake caught it:
@@ -484,7 +522,15 @@ CHANGELOG disagree with what is running.
 By that standard: v3.17.0 (sort staged chapters) and v3.18.0 (re-entrancy guard)
 should have been v3.16.1 and v3.16.2.
 
-#### v3.19.0
+⚠️ And then the very next release broke the rule again. It shipped as v3.19.0 on
+the grounds that "Start another book" was a new control — but the whole release
+was fixing "there is no way to clear the create form," and a second path to a
+reset that was supposed to work is a fix, not a feature. Jake caught that too,
+one turn after catching the first one. Renumbered to **v3.18.1**. Recorded here
+rather than quietly corrected, because stating a standard and then exempting
+yourself from it in the same message is the more instructive failure.
+
+#### v3.18.1
 
          Two ways back to an empty create form, because there were none. Also
          paired with admin.html — the EPUB picker now sits ABOVE the three
@@ -840,7 +886,16 @@ Current: **v1.6.0**
 
 ## `learn.js`
 
-Current: **v2.2.0**
+Current: **v2.2.1**
+
+#### v2.2.1
+
+Round 5 (Mignon). flushStats()'s re-entrancy guard was `if`, which serialises
+two callers and lets three or more overlap — the identical defect as game.js
+v3.9.0, introduced in the same round by the same analogy that found the bug in
+the first place. Now `while`. Verified by lifting the shipping function into a
+harness at 2, 3, 6 and 12 concurrent callers: one inner run at a time, no
+caller dropped. learn.js was never uploaded, so production was unaffected.
 
 #### v2.2.0
 
