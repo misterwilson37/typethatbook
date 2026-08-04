@@ -14,7 +14,7 @@ there.
 
 - [`game.js`](#gamejs) — currently v3.9.1
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
-- [`admin.js`](#adminjs) — currently v3.16.0
+- [`admin.js`](#adminjs) — currently v3.18.0
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.0
 
@@ -470,7 +470,54 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.16.0**
+Current: **v3.18.0**
+
+#### v3.18.0
+
+         RE-ENTRANCY GUARD ON OPEN BOOK — the actual cause of the scrambled
+         staging list, found by taking the numbers seriously instead of
+         theorising about the code a fourth time.
+
+         Loading a book is one sequential round trip per chapter — 13 for Tom
+         Sawyer Abroad, 284 for Aesop — so there is plenty of time to click the
+         button again mid-load. Both handlers then reset `stagedChapters = []`
+         and push into the same array as their awaits resolve: the second reset
+         discards what the first had collected, and the two loops interleave
+         from wherever each had reached.
+
+         The reported order was 4, 5, 1, 6, 2, 7, 3, 8. That is not random —
+         it is (4,5,6,7,8) interleaved with (1,2,3), one run continuing while
+         another started over. Reconstructed step by step it matches digit for
+         digit. The stored `chapters` array was perfectly sequential the whole
+         time, which is why "Repair Chapter Order" correctly reported clean and
+         why no data was ever at risk.
+
+         ⚠️ Third instance of this bug class in the project, after game.js
+         flushAll() (duplicate typing_sessions, double-counted minutes in
+         teacher reports) and learn.js flushStats(). The shared shape: an async
+         handler that resets module state before its first await. Grep for
+         `= []` or `= {}` at the top of an async function and ask what happens
+         if it runs twice.
+
+         Guard released in a `finally` so a failed load cannot leave the button
+         permanently disabled.
+
+#### v3.17.0
+
+         stagedChapters is now sorted by chapter id after both load and parse.
+         Del, Merge ↓ and Split all operate on array INDICES and all three end
+         with `stagedChapters.forEach((ch, i) => ch.id = i + 1)`, so an
+         out-of-order array was not cosmetic: one Del click would have
+         rewritten every id from the wrong positions, and Merge would have
+         merged two chapters that only looked adjacent. Sorting the array
+         rather than the render is deliberate — sorting only the render would
+         have fixed the appearance and left the index operations still reaching
+         for the wrong rows.
+
+         ⚠️ STILL OPEN: that renumber flattens part-aware ids. Delete one
+         chapter from Heidi and 1.01-2.09 becomes 1-22. Needs the part scheme
+         threaded through all three handlers. Avoid Del/Merge/Split on a
+         multi-part book until then.
 
 #### v3.16.0
 
