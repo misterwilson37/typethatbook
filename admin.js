@@ -1,11 +1,17 @@
-// admin.js v3.19.0
+// admin.js v3.18.2
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
-// v3.19.0 — Two ways back to an empty create form, because there were none.
+// v3.18.2 — A failed cover upload is no longer invisible. uploadCover() reported
+//           errors to the status bar at the top of the page while the message beside
+//           the button said "✓ Saved", so two books went up with no cover and the
+//           screen claimed success. Save Metadata now refuses to write at all if the
+//           cover fails, and both paths name Firebase STORAGE rules — which are
+//           separate from firestore.rules and have never existed in this repo.
+// v3.18.1 — Two ways back to an empty create form, because there were none.
 //           (a) "Start another book" clears the form AND the staging state — a
 //           blank form over a populated stagedChapters would let book B's chapters
 //           upload under book A's id. (b) After an upload the picker now points at
@@ -86,7 +92,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.19.0";
+const ADMIN_VERSION = "3.18.2";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -2687,10 +2693,24 @@ saveTitleBtn.onclick = async () => {
         const age = { minAge: updates.minAge, maxAge: updates.maxAge };
         const protagonistGender = updates.protagonistGender;
 
+        let coverNote = '';
         if (stagedCoverBlob) {
             setInline('Uploading cover\u2026', '#888');
-            const coverUrl = await uploadCover(activeBookId, stagedCoverBlob);
-            if (coverUrl) updates.coverUrl = coverUrl;
+            const cover = await uploadCover(activeBookId, stagedCoverBlob);
+            if (cover.ok) { updates.coverUrl = cover.url; coverNote = 'cover saved'; }
+            else {
+                // ⚠️ STOP. Do not write the metadata and report success when the
+                // cover failed — that is precisely how two books shipped with no
+                // cover while the screen said "✓ Saved". Nothing is written, so
+                // fixing the cause and clicking again is all that is needed.
+                setInline('✗ Cover upload FAILED, nothing was saved: ' + cover.error, '#ff4444');
+                statusEl.innerText = 'Cover upload failed — metadata NOT saved.';
+                statusEl.style.borderColor = '#ff3333';
+                saveTitleBtn.textContent = original;
+                saveTitleBtn.disabled = false;
+                saveTitleBtn.style.opacity = '1';
+                return;
+            }
         }
 
         await setDoc(doc(db, "books", activeBookId), updates, { merge: true });
@@ -2702,6 +2722,10 @@ saveTitleBtn.onclick = async () => {
         tagBits.push(age.minAge === null ? 'no age range'
                                          : 'ages ' + age.minAge + '\u2013' + age.maxAge);
         if (protagonistGender) tagBits.push('lead: ' + protagonistGender);
+        // Say whether a cover was part of this save. Its silence is what let two
+        // books slip through: "Saved" listed genre, ages and lead, and simply did
+        // not mention the one thing that had failed.
+        tagBits.push(coverNote || (stagedCoverUrl ? 'cover unchanged' : 'NO COVER'));
         setInline('\u2713 Saved at ' + stamp + ' \u00b7 ' + tagBits.join(' \u00b7 '), '#00ff41');
         statusEl.innerText = "Metadata Updated.";
         statusEl.style.borderColor = "#00ff41";
@@ -2784,10 +2808,16 @@ uploadAllBtn.onclick = async () => {
         });
         
         // Upload cover if staged
+        let uploadCoverFailed = '';
         if (stagedCoverBlob) {
             statusEl.innerText = "Uploading cover image...";
-            const coverUrl = await uploadCover(activeBookId, stagedCoverBlob);
-            if (coverUrl) bookData.coverUrl = coverUrl;
+            const cover = await uploadCover(activeBookId, stagedCoverBlob);
+            if (cover.ok) bookData.coverUrl = cover.url;
+            else uploadCoverFailed = cover.error;
+            // Unlike Save Metadata this does NOT abort: the chapters are already
+            // written, so refusing to save the book document would leave a book with
+            // content and no metadata — strictly worse than a book with no cover.
+            // It is reported loudly at the end instead.
         }
         
         await setDoc(doc(db, "books", activeBookId), bookData, { merge: true });
@@ -2797,7 +2827,11 @@ uploadAllBtn.onclick = async () => {
         statusEl.innerText = `Upload complete \u2014 ${stagedChapters.length} chapters, ` +
             `${bookData.genre || 'no genre'}, ${tagged}, ` +
             `${bookData.protagonistGender || 'no protagonist tag'}. This book is done.`;
-        statusEl.style.borderColor = (bookData.minAge !== null && bookData.protagonistGender) ? "#00ff41" : "#ffaa00";
+        if (uploadCoverFailed) {
+            statusEl.innerText += ' ⚠ COVER FAILED: ' + uploadCoverFailed;
+        }
+        statusEl.style.borderColor = uploadCoverFailed ? "#ff3333"
+            : ((bookData.minAge !== null && bookData.protagonistGender) ? "#00ff41" : "#ffaa00");
         await loadBookList(false);
 
         // ⚠️ POINT THE PICKER AT THE BOOK THAT NOW EXISTS. This fixes a dead
@@ -2882,15 +2916,36 @@ async function bumpContentVersion(bookId) {
 }
 
 // --- COVER IMAGE ---
+// ⚠️ RETURNS A RESULT, NOT A URL-OR-NULL. (v3.18.2)
+//
+// This used to report failure by writing to statusEl — the status bar at the TOP
+// of the page, roughly seventy lines of markup above the button that triggered it
+// and reliably scrolled out of view. Meanwhile the inline message beside Save
+// Metadata said "✓ Saved", because the Firestore write DID succeed; only the
+// cover did not. So a failed cover looked exactly like a successful save, and two
+// books went up with no cover before anyone noticed.
+//
+// This is the same defect that was fixed for the metadata form in v3.10.0
+// ("feedback lives next to the button now"). The cover path never got it.
+//
+// Callers MUST surface .error. Do not go back to swallowing it.
 async function uploadCover(bookId, blob) {
     try {
         const storageRef = ref(storage, `covers/${bookId}`);
         await uploadBytes(storageRef, blob);
-        return await getDownloadURL(storageRef);
+        return { ok: true, url: await getDownloadURL(storageRef) };
     } catch(e) {
         console.error("Cover upload failed:", e);
-        statusEl.innerText = "Cover upload failed: " + e.message;
-        return null;
+        // Storage has its own security rules, entirely separate from
+        // firestore.rules, and this project has never had a storage.rules file.
+        // An unauthorized error here almost certainly means those rules, not
+        // anything about the image — so say that rather than making someone guess.
+        const code = (e && e.code) ? e.code : '';
+        const hint = /unauthorized|permission/i.test(code + ' ' + (e.message || ''))
+            ? ' — this is a Firebase STORAGE rules problem, not a Firestore one. ' +
+              'Storage has its own rules; check Firebase console → Storage → Rules.'
+            : '';
+        return { ok: false, error: (e && e.message ? e.message : String(e)) + hint };
     }
 }
 
