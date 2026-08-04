@@ -177,24 +177,36 @@
                      style="margin-top:10px; background:#111; border:1px solid #333; padding:12px; font-size:0.8em; max-height:340px; overflow-y:auto;"></div>
             </div>
 
+            <!-- ⚠️ THE FILE PICKER COMES FIRST, AND THE ORDER IS THE POINT.
+                 Since admin.js v3.14.0 the EPUB fills in the three fields below
+                 it, so asking for them first was asking a question the next
+                 control answers. Do not "tidy" the file input back down under the
+                 text fields — top-to-bottom is now the actual workflow. -->
             <div id="create-new-ui" class="hidden" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
+                <label>1. Choose the EPUB &mdash; everything below fills itself in</label>
+                <input type="file" id="new-epub-file" accept=".epub">
+                <div id="autofill-status" style="font-size:0.8em; color:#888; min-height:1.15em; margin:6px 0 12px;"></div>
+
+                <label style="color:#777; font-size:0.85em; text-transform:uppercase; letter-spacing:0.05em;">2. Check what it read</label>
                 <div class="row">
                     <div class="col">
-                        <label>New Book ID (e.g. dracula)</label>
-                        <input type="text" id="new-book-id">
+                        <label>Book ID (e.g. dracula)</label>
+                        <input type="text" id="new-book-id" placeholder="From the title">
                     </div>
                     <div class="col">
                         <label>Display Title (e.g. Dracula)</label>
-                        <input type="text" id="new-book-title">
+                        <input type="text" id="new-book-title" placeholder="From &lt;dc:title&gt;">
                     </div>
                     <div class="col">
                         <label>Author (e.g. Bram Stoker)</label>
-                        <input type="text" id="new-book-author" placeholder="Auto-extracted from EPUB">
+                        <input type="text" id="new-book-author" placeholder="From &lt;dc:creator&gt;">
                     </div>
                 </div>
-                <label>Initial EPUB File (Required)</label>
-                <input type="file" id="new-epub-file" accept=".epub">
-                <button id="create-parse-btn" style="margin-top:10px;">Parse & Initialize Staging</button>
+                <div style="display:flex; gap:8px; align-items:center; margin-top:10px;">
+                    <button id="create-parse-btn" style="margin:0;">Parse &amp; Initialize Staging</button>
+                    <button id="create-reset-btn" class="secondary-btn" style="width:auto; margin:0; padding:8px 16px;"
+                            title="Clear these fields so you can start another book without reloading.">Start another book</button>
+                </div>
             </div>
         </div>
 
