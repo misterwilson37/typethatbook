@@ -1,0 +1,105 @@
+rules_version = '2';
+
+// storage.rules v2.0.0 — TypeThatBook
+//
+// ⚠️ THIS FILE DID NOT EXIST UNTIL NOW, AND THAT ABSENCE CAUSED AN OUTAGE.
+//
+// Firebase Storage rules are completely separate from firestore.rules and live
+// only in the console. Because they were nowhere in this repo, nothing recorded
+// that they depended on a Firestore collection called `admins` — so on
+// 2026-08-04 that collection was identified as a dead fossil (no reference to it
+// anywhere in any .js or .html file, which was true) and deleted. Cover uploads
+// silently failed on every book after that. Two books went up with no cover
+// before anyone noticed, because admin.js reported the failure to a status bar
+// that was scrolled off screen (fixed in admin.js v3.18.2).
+//
+// The lesson worth keeping: "no code references this" is not the same as
+// "nothing references this." Security rules, console settings, TTL policies and
+// index definitions are all consumers that grep cannot see. That is why this
+// file now exists even though it cannot be deployed from here.
+//
+// ⚠️ NOT DEPLOYED BY UPLOADING IT. Paste into the Firebase console:
+//     Storage → Rules → paste → Publish
+//
+// ── What changed from v1 (the rules this replaces) ────────────────────────────
+//
+// v1 was:
+//     match /{allPaths=**} {
+//       allow read: if true;
+//       allow write: if request.auth != null
+//         && firestore.exists(/databases/(default)/documents/admins/$(request.auth.token.email));
+//     }
+//
+// Three problems with it:
+//   1. It keyed on `admins/{email}`, a collection the rest of the app abandoned
+//      when roles moved to `staff/{uid}` (admin.js v3.0.0). One orphaned
+//      dependency, invisible to every search.
+//   2. `allPaths=**` let an authorised account write ANY path in the bucket.
+//      Only cover art is stored here, so that breadth bought nothing.
+//   3. No size or content-type limit. Storage bytes and egress are billed, and
+//      this project is funded out of a teacher's own paycheck.
+//
+// ── Rollback ─────────────────────────────────────────────────────────────────
+//
+// If cover uploads fail after publishing this, paste v1 back (it is quoted
+// above verbatim) and create a Firestore document at
+// `admins/{your-email-address}` with any field in it. That is the exact state
+// this replaces, so it is a guaranteed working fallback.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── Cover art ────────────────────────────────────────────────────────────
+    //
+    // The only thing this bucket holds. Path is `covers/{bookId}`, written by
+    // admin.js uploadCover().
+    match /covers/{bookId} {
+
+      // Public read. Covers are shown on the library page to signed-out visitors
+      // as well as students, they contain nothing sensitive, and they are public
+      // domain artwork. Locking this down would break the library grid.
+      allow read: if true;
+
+      // ⚠️ KEYED ON staff/{uid}, MATCHING firestore.rules.
+      //
+      // Same identity model as everything else in the project: the role lives in
+      // a Firestore document, read live, so a role change takes effect at once.
+      // `exists()` is checked BEFORE `get()` because get() on a missing document
+      // yields null and `.data.role` on null aborts the whole evaluation — which
+      // denies, safely, but with an error that is far harder to read than a clean
+      // false.
+      //
+      // super_admin only, deliberately: books are global content, so uploading a
+      // cover is editing every school's library at once. Same restriction
+      // admin.js puts on the Books tab.
+      allow write: if request.auth != null
+                   && firestore.exists(/databases/(default)/documents/staff/$(request.auth.uid))
+                   && firestore.get(/databases/(default)/documents/staff/$(request.auth.uid)).data.role == 'super_admin'
+                   // 5 MB is generous for a book cover; the largest in the
+                   // library is well under 1 MB. This is a ceiling on what one
+                   // mistake or one misuse can cost, not a target.
+                   && request.resource.size < 5 * 1024 * 1024
+                   // Without this the bucket is a general-purpose file host that
+                   // happens to be called "covers".
+                   && request.resource.contentType.matches('image/.*');
+
+      allow delete: if request.auth != null
+                    && firestore.exists(/databases/(default)/documents/staff/$(request.auth.uid))
+                    && firestore.get(/databases/(default)/documents/staff/$(request.auth.uid)).data.role == 'super_admin';
+    }
+
+    // ── Everything else: readable, not writable ──────────────────────────────
+    //
+    // Read stays open so that any file already in the bucket from before these
+    // rules keeps serving — nothing breaks retroactively. Writes are closed,
+    // because the app only ever writes covers/ and an authenticated stranger
+    // should not be able to park files in a bucket that bills to a personal card.
+    //
+    // ⚠️ If a future feature stores something else here, add an explicit match
+    // block for it. Do not widen this one.
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
