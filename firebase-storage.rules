@@ -1,6 +1,14 @@
 rules_version = '2';
 
-// storage.rules v2.0.0 — TypeThatBook
+// storage.rules v2.1.0 — TypeThatBook
+//
+// v2.1.0 — Dropped the contentType check. `request.resource.contentType` is
+//          CLIENT-SUPPLIED metadata, not server-side inspection: an attacker sets
+//          it to "image/png" and uploads whatever they like. So it bought no
+//          security while being able to reject legitimate files whose type the
+//          browser did not map (Standard Ebooks ships AVIF covers). The size cap
+//          below IS enforced by Firebase and is the real protection. Security
+//          theatre that can break a real upload is worse than no check.
 //
 // ⚠️ THIS FILE DID NOT EXIST UNTIL NOW, AND THAT ABSENCE CAUSED AN OUTAGE.
 //
@@ -38,6 +46,32 @@ rules_version = '2';
 //      Only cover art is stored here, so that breadth bought nothing.
 //   3. No size or content-type limit. Storage bytes and egress are billed, and
 //      this project is funded out of a teacher's own paycheck.
+//
+// ── ⚠️ IF A WRITE IS DENIED, DO NOT GUESS. SIMULATE IT. ──────────────────────
+//
+// Firebase console → Storage → Rules → **Rules Playground**. It names the exact
+// line that failed, which no error message ever will: the client only ever sees
+// "User does not have permission (storage/unauthorized)" regardless of which
+// clause was false.
+//
+//   Simulation type : write
+//   Location        : covers/turn-of-the-screw
+//   Authenticated   : ON
+//   Provider        : Google, and paste the real Auth UID
+//   → Run
+//
+// ⚠️ TWO THINGS THAT LOOK LIKE THESE RULES AND ARE NOT:
+//
+//   1. UNPUBLISHED EDITS. Pasting into the rules editor changes nothing until
+//      Publish is clicked. The Playground simulates what is IN THE EDITOR, so it
+//      can pass while the live rules still deny. Check for an unpublished-changes
+//      banner above the editor.
+//   2. NO staff DOCUMENT. These rules require `staff/{your-uid}` to exist with
+//      `role` exactly `"super_admin"`. If you have been running on admin.js's
+//      ADMIN_EMAILS bootstrap fallback rather than a real staff record, every
+//      write here is denied. Firestore → staff → the document ID must be your
+//      Auth UID (Authentication → Users → User UID), NOT your email address.
+//      This is the single most likely cause.
 //
 // ── Rollback ─────────────────────────────────────────────────────────────────
 //
@@ -78,10 +112,12 @@ service firebase.storage {
                    // 5 MB is generous for a book cover; the largest in the
                    // library is well under 1 MB. This is a ceiling on what one
                    // mistake or one misuse can cost, not a target.
-                   && request.resource.size < 5 * 1024 * 1024
-                   // Without this the bucket is a general-purpose file host that
-                   // happens to be called "covers".
-                   && request.resource.contentType.matches('image/.*');
+                   // ⚠️ SIZE ONLY. See the v2.1.0 note at the top: contentType is
+                   // client-supplied, so checking it is theatre — and it rejected
+                   // real AVIF covers. Firebase enforces size server-side, and a
+                   // 5 MB ceiling on a path only super_admin can write is the
+                   // protection that actually holds.
+                   && request.resource.size < 5 * 1024 * 1024;
 
       allow delete: if request.auth != null
                     && firestore.exists(/databases/(default)/documents/staff/$(request.auth.uid))
