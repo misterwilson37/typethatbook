@@ -1,10 +1,14 @@
-// admin.js v3.15.0
+// admin.js v3.16.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.16.0 — Chapter titles are tidied on import: one leading ordinal removed
+//           (the number is already the id) and SHOUTED Gutenberg headings
+//           title-cased. "I. TOBY'S INTRODUCTION TO THE CIRCUS" becomes "Toby's
+//           Introduction to the Circus".
 // v3.15.0 — Chapter ids are compared element-wise instead of with parseFloat,
 //           which could not tell 1.1 from 1.10 (both parse to 1.1) and sorted 1.2
 //           after both. Fixes books already numbered by hand, with no renumbering.
@@ -61,7 +65,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.15.0";
+const ADMIN_VERSION = "3.16.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -1140,7 +1144,7 @@ async function parseEpubFile(file) {
             // names at all (Pride and Prejudice, Gatsby). The number already
             // lives in the id, so repeating it in the title earns nothing.
             const title = (group.title && group.title.trim())
-                ? group.title.trim().substring(0, 60)
+                ? cleanChapterTitle(group.title).substring(0, 60)
                 : composeChapterTitle(group.info, counter);
 
             const segments = [];
@@ -1573,10 +1577,80 @@ function headingTextOf(root) {
     return info.title || info.ordinal || '';
 }
 
+// ─── Title tidying (v3.16.0) ─────────────────────────────────────────────────
+//
+// Project Gutenberg headings arrive as "I. TOBY'S INTRODUCTION TO THE CIRCUS".
+// The chapter number is already the document id, so repeating it in the title
+// buys nothing, and SHOUTING is worse than useless in a dropdown — it is harder
+// to scan than mixed case, which is the one job a chapter list has.
+//
+// Wanted: "Toby's Introduction to the Circus".
+
+// Kept lowercase unless first or last. Deliberately short: the more words on
+// this list, the more real titles get mangled.
+const TITLE_MINOR_WORDS = new Set([
+    'a','an','the','and','but','or','nor','for','yet','so',
+    'as','at','by','in','of','off','on','to','up','via','per',
+    'from','into','onto','over','with','without','than','that','upon'
+]);
+
+// Only rewrite case when the text really is shouted. A title that is already
+// mixed case was set deliberately and must be left exactly alone — Standard
+// Ebooks' "The Tale of Peter Rabbit" needs no help.
+function isShoutedTitle(t) {
+    const letters = String(t || '').replace(/[^A-Za-z]/g, '');
+    if (letters.length < 4) return false;                 // "II", "XV" — not shouting
+    const upper = String(t).replace(/[^A-Z]/g, '').length;
+    return (upper / letters.length) >= 0.9;
+}
+
+// Splits on spaces but capitalises inside hyphens and after apostrophes only
+// where it should: TENDER-HEARTED -> Tender-Hearted, but TOBY'S -> Toby's, not
+// Toby'S. That apostrophe case is the one a naive implementation always gets
+// wrong, and these titles are full of possessives.
+function toTitleCase(t) {
+    const words = String(t).toLowerCase().split(/(\s+)/);
+    const lastIdx = words.reduce((acc, w, i) => (/\S/.test(w) ? i : acc), 0);
+    return words.map((w, i) => {
+        if (!/\S/.test(w)) return w;
+        const bare = w.replace(/[^a-z']/g, '');
+        if (i !== 0 && i !== lastIdx && TITLE_MINOR_WORDS.has(bare)) return w;
+        // Capitalise the first letter of each hyphen-separated part, and the
+        // first letter overall — but never a letter that follows an apostrophe.
+        return w.replace(/(^|[-\u2014\/(])([a-z])/g, (m, pre, ch) => pre + ch.toUpperCase());
+    }).join('');
+}
+
+// Removes ONE leading ordinal, and only when something is left behind.
+//
+// ⚠️ THE TRAP IS "I AM BORN". "I" is both a Roman numeral and an English word,
+// so a bare-numeral rule would turn David Copperfield's first chapter into "Am
+// Born". A single-character numeral is therefore only stripped when punctuation
+// follows it, which is what marks it as an ordinal rather than a pronoun.
+// "CHAPTER I. I AM BORN" strips exactly one ordinal and correctly yields
+// "I Am Born"; "I AM BORN" alone is left untouched.
+function stripLeadingOrdinal(t) {
+    const raw = String(t || '').trim();
+    const m = /^(?:chapter|chap\.?|part|book|section|fable|story|letter)?\s*([IVXLCDM]+|\d{1,3})\s*([.:)\u2014-]?)\s+(\S.*)$/i.exec(raw);
+    if (!m) return raw;
+    const numeral = m[1], punct = m[2], rest = m[3].trim();
+    if (!rest) return raw;                                // nothing would remain
+    if (numeral.length < 2 && !punct) return raw;         // the "I Am Born" guard
+    return rest;
+}
+
+function cleanChapterTitle(t) {
+    let out = stripLeadingOrdinal(t);
+    if (isShoutedTitle(out)) out = toTitleCase(out);
+    return out.trim();
+}
+
 // Final display title. The chapter NUMBER already lives in the id, so a bare
 // ordinal is only used when the book genuinely has no chapter name.
 function composeChapterTitle(info, fallbackIndex) {
-    if (info && info.title)   return info.title.substring(0, 60);
+    if (info && info.title)   return cleanChapterTitle(info.title).substring(0, 60);
+    // A bare ordinal is all some books have — Pride and Prejudice and Gatsby
+    // genuinely do not name their chapters — so it passes through untidied.
     if (info && info.ordinal) return info.ordinal.substring(0, 60);
     return 'Chapter ' + fallbackIndex;
 }
