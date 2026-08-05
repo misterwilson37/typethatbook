@@ -12,12 +12,12 @@ there.
 
 ## Contents
 
-- [`game.js`](#gamejs) — currently v3.9.3
+- [`game.js`](#gamejs) — currently v3.10.0
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
 - [`admin.js`](#adminjs) — currently v3.19.1
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.2
-- [`index.html`](#indexhtml) — currently v3.3.1
+- [`index.html`](#indexhtml) — currently v3.3.2
 
 Files not listed here have short headers that fit the budget on their own:
 `lessons-admin.js`, `staff-admin.js`, `keyboard.js`, `versions.js`,
@@ -27,7 +27,54 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.9.3**
+Current: **v3.10.0**
+
+#### v3.10.0
+
+Round 5 (Mignon). **Stop doing arithmetic on chapter ids.** Requested as "the
+part-id renumber sites outside admin.js" — there were none of those, but there
+were four parseInt()-on-an-id sites in this file, which is the same disease.
+
+         An id is a LABEL. Part-numbered books use ids like "1.14" (Heidi,
+         Treasure Island, Little Women, The War of the Worlds) and
+         parseInt("1.14") is 1. Consequences, all on the book progress bar:
+
+         1. Every one of Heidi's fourteen part-one chapters was labelled "1" and
+            all nine part-two chapters "2".
+         2. bookProgressFraction() found the current chapter with
+            `parseInt(c.id) === parseInt(currentChapterNum)`. Since
+            parseInt("1.01") === parseInt("1.14"), findIndex() returned the FIRST
+            chapter of the part, so the position marker never left the start of
+            part one however far the student read.
+         3. isCurrent/isPast were computed the same way, so THE WHOLE PART
+            rendered as current simultaneously. Measured: reading chapter 1.14 lit
+            14 segments as current. Now 1.
+         4. The condensed-bar label counted every spine document, so Aesop
+            advertised "290 ch" including the colophon and the uncopyright page.
+
+         Position now comes from the chapter list by exact string match, via
+         bodyChapterList() / bodyOrdinalMap(). Two fallbacks, because the data is
+         not uniform: `matter` when admin.js v3.19.1+ wrote it, otherwise the ID
+         CONVENTION from assignChapterIds (front 0.x, back 900.x). ⚠️ THAT SECOND
+         FALLBACK IS LOAD-BEARING — without it a legacy document's front matter
+         would count as body chapter 1 and shift every ordinal, which is worse
+         than the bug being fixed. Verified: legacy and modern documents both
+         yield 23 body chapters for Heidi with identical ordinals.
+
+         The map is built once per render, not once per segment — Aesop has 284
+         chapters and this is the loop the v3.6.0 audit already had to rescue.
+
+         ALSO: the progress document now carries bodyIndex and bodyTotal. This is
+         the only place with the chapter list loaded, and index.html strips that
+         list before caching the grid, so those two integers are what let a CACHED
+         library card place a part-numbered book. Same write, no extra billing,
+         and neither field is written when the reader is in front matter — a
+         made-up position is worse than none. Closes the known limitation logged
+         against index.html v3.3.1.
+
+         Verified with ordinal-test.mjs, which lifts the three helpers out of this
+         file and runs them over a v3.19.1 document, a legacy document and a plain
+         novel.
 
 #### v3.9.3
 
@@ -1258,13 +1305,22 @@ Write reduction to match game.js v3.4.0. saveStats() fired on every
 
 ## `index.html`
 
-Current: **v3.3.1**
+Current: **v3.3.2**
 
 ⚠️ **This section was created in Round 5.** index.html had no CHANGELOG section at
 all, despite carrying the student-facing library grid, the age/genre filters and
 the progress bars — and despite being one of only two files that got the
 single-version-constant discipline right (INDEX_VERSION drives both the title and
 the footer, since v3.0.1). Entries before v3.3.1 live only in the file header.
+
+#### v3.3.2
+
+Round 5 (Mignon). Reads bodyIndex/bodyTotal off the progress document when
+game.js v3.10.0 has written them, which closes v3.3.1's known limitation: a
+part-numbered book on a CACHED grid can now be placed exactly, because those two
+integers survive the cache while the chapter list does not. Preference order is
+progress fields → chapter list → arithmetic, so every older combination still
+degrades the way v3.3.1 documented.
 
 #### v3.3.1
 

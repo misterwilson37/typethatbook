@@ -346,7 +346,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.3.1";
+        const INDEX_VERSION = "3.3.2";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -775,12 +775,19 @@
                 // caching because it is the largest field on the document — and old
                 // book documents have no `matter` on their entries at all. So this
                 // degrades in three steps rather than assuming the best case.
-                const denom = (typeof book.bodyChapters === 'number' && book.bodyChapters > 0)
-                    ? book.bodyChapters : book.totalChapters;
+                // game.js v3.10.0 writes bodyIndex/bodyTotal on the progress doc,
+                // which is the ONLY source that survives the grid cache — the chapter
+                // list is stripped before caching because it is the largest field on
+                // the book document. Prefer it, then the list, then arithmetic.
+                const denom = (typeof progress?.bodyTotal === 'number' && progress.bodyTotal > 0)
+                    ? progress.bodyTotal
+                    : ((typeof book.bodyChapters === 'number' && book.bodyChapters > 0)
+                        ? book.bodyChapters : book.totalChapters);
                 if (progress && denom > 0) {
                     const curId = String(progress.chapter || "chapter_1");
-                    let chapNum = null;
-                    if (book.chapters && book.chapters.length) {
+                    let chapNum = (typeof progress.bodyIndex === 'number' && progress.bodyIndex > 0)
+                        ? progress.bodyIndex : null;
+                    if (chapNum === null && book.chapters && book.chapters.length) {
                         const bodyOnly = book.chapters.filter(c => (c.matter || 'body') === 'body');
                         const list = bodyOnly.length ? bodyOnly : book.chapters;
                         const at = list.findIndex(c => String(c.id) === curId);

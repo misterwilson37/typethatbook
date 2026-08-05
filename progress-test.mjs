@@ -38,6 +38,8 @@ const cases = [
   ['Aesop finished, new document', aesop, { chapter: part(284) }, '284 / 284 = 100%'],
   ['Pre-v3.19.1 doc (no bodyChapters, no list)', { bodyChapters: null, totalChapters: 290, chapters: [] }, { chapter: part(284) }, 'old behaviour, 290 denom'],
   ['Garbage progress value', heidi, { chapter: 'chapter_wat' }, 'clamps to 1, no NaN'],
+  ['CACHED + game.js 3.10.0 bodyIndex', { ...heidi, chapters: [] }, { chapter: part('2.09'), bodyIndex: 23, bodyTotal: 23 }, '23 / 23 = 100% from cache'],
+  ['CACHED + bodyIndex mid-book', { ...heidi, chapters: [] }, { chapter: part('1.14'), bodyIndex: 14, bodyTotal: 23 }, '14 / 23 from cache'],
 ];
 
 console.log('case'.padEnd(44) + 'label shown'.padEnd(16) + 'pct'.padEnd(7) + 'expected');

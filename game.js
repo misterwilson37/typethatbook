@@ -1,10 +1,18 @@
-// game.js v3.9.3
+// game.js v3.10.0
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.10.0 — Stop doing arithmetic on chapter ids. Four sites called parseInt() on
+//           an id, and part-numbered books use ids like "1.14" — so Heidi's
+//           fourteen part-one chapters were all labelled "1", the position marker
+//           never left the start of a part (parseInt("1.01") === parseInt("1.14")),
+//           and the WHOLE PART rendered as current at once. Position now comes
+//           from the chapter list by exact match. Also writes bodyIndex/bodyTotal
+//           on the progress doc so a CACHED library card can place a part-numbered
+//           book, which index.html v3.3.1 could not.
 // v3.9.3 — Firefox's Quick Find no longer fires on every apostrophe. The typing
 //          listener is on `document` and cancelled the default for space, Tab and
 //          Enter only, so every other printable character was consumed here AND
@@ -53,7 +61,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.9.3";
+const VERSION = "3.10.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -2164,6 +2172,11 @@ function initBookProgressBar() {
     const total    = chapters.length;
     if (!total) return;
 
+    // Built ONCE for the whole render, not once per segment: Aesop has 284
+    // chapters and this used to be the hot loop the v3.6.0 audit went after.
+    const _bpOrdinals = bodyOrdinalMap();
+    const bodyTotal = bodyChapterList().length;
+
     track.innerHTML = '';
     bookBarCondensed = total > BOOK_BAR_MAX_SEGMENTS;
 
@@ -2174,7 +2187,9 @@ function initBookProgressBar() {
             '<div id="book-condensed-fill" class="book-condensed-fill"></div>' +
             '<div id="book-condensed-marker" class="book-condensed-marker"></div>';
         const lbl0 = document.getElementById('book-progress-label');
-        if (lbl0) lbl0.textContent = total + ' ch';
+        // Body chapters, not every document in the spine — "290 ch" for Aesop
+        // counted the colophon and the uncopyright page.
+        if (lbl0) lbl0.textContent = bodyTotal + ' ch';
         updateProgressBars();
         return;
     }
@@ -2208,10 +2223,13 @@ function initBookProgressBar() {
         seg.appendChild(innerMarker);
 
         // Chapter number label (every chapter, shown on right side)
-        const chapNum = parseInt(chap.id.replace('chapter_', '')) || 0;
+        // Ordinal among BODY chapters, so Heidi reads 1..23 instead of fourteen
+        // segments all labelled "1". Front and back matter get no number — they
+        // are not chapters and numbering them was how 0.1 became "0".
+        const ord = _bpOrdinals.get(chapterKey(chap.id));
         const lbl = document.createElement('div');
         lbl.className = 'book-chap-label';
-        lbl.textContent = chapNum;
+        lbl.textContent = (ord === undefined) ? '' : ord;
         lbl.style.top = '50%';
         seg.appendChild(lbl);
 
@@ -2229,11 +2247,66 @@ function initBookProgressBar() {
 // reading 286 chapter documents to find out would cost more than the honesty is
 // worth. Within the current chapter we interpolate by real character position,
 // so the marker still moves smoothly as you type.
+// ─── STOP DOING ARITHMETIC ON CHAPTER IDS (v3.10.0) ──────────────────────────
+//
+// Four places in this file did parseInt() on a chapter id. On the four
+// part-numbered books — Heidi, Treasure Island, Little Women, The War of the
+// Worlds — a chapter id looks like "1.14", and parseInt("1.14") is 1. So:
+//
+//   · every one of Heidi's fourteen part-one chapters was labelled "1" on the
+//     book progress bar, and all nine part-two chapters were labelled "2";
+//   · parseInt("1.01") === parseInt("1.14") is TRUE, so findIndex() matched the
+//     FIRST chapter in the part rather than the one being read — the position
+//     marker never left the start of part one;
+//   · isCurrent was computed the same way, so THE WHOLE PART lit up as current
+//     simultaneously, and isPast was wrong for the same reason.
+//
+// An id is a LABEL, not a number. Position comes from the chapter list, by exact
+// string match. Same defect class as index.html v3.3.1 and as the comparator
+// admin.js fixed in v3.17.0 — third appearance in the project.
+function chapterKey(id) {
+    return String(id === undefined || id === null ? '' : id).replace(/^chapter_/, '');
+}
+
+// The body chapters, in order. Two fallbacks, because the data is not uniform:
+//
+//   · admin.js v3.19.1+ writes `matter` on every chapter — use it;
+//   · older documents have no `matter` at all, so fall back to the ID CONVENTION
+//     that assignChapterIds() established: front matter is 0.x, back matter is
+//     900.x. Without this fallback an old book's front matter would count as
+//     body chapter 1 and shift every ordinal, which is worse than the bug;
+//   · a book with no body chapters at all (shouldn't happen) returns everything
+//     rather than an empty bar.
+function bodyChapterList() {
+    const all = (bookMetadata && bookMetadata.chapters) ? bookMetadata.chapters : [];
+    if (!all.length) return all;
+    let body;
+    if (all.some(c => c && c.matter)) {
+        body = all.filter(c => (c.matter || 'body') === 'body');
+    } else {
+        body = all.filter(c => {
+            const k = chapterKey(c.id);
+            return !/^0\./.test(k) && !/^900\./.test(k);
+        });
+    }
+    return body.length ? body : all;
+}
+
+// key -> 1-based ordinal among body chapters. Built once per caller, not once
+// per chapter: Aesop has 284 of them and this runs on every progress repaint.
+function bodyOrdinalMap() {
+    const m = new Map();
+    bodyChapterList().forEach((c, i) => m.set(chapterKey(c.id), i + 1));
+    return m;
+}
+
 function bookProgressFraction() {
-    if (!bookMetadata || !bookMetadata.chapters || !bookMetadata.chapters.length) return 0;
-    const chapters = bookMetadata.chapters;
-    const idx = chapters.findIndex(c =>
-        parseInt(String(c.id).replace('chapter_', '')) === parseInt(currentChapterNum));
+    const chapters = bodyChapterList();
+    if (!chapters.length) return 0;
+    const key = chapterKey(currentChapterNum);
+    const idx = chapters.findIndex(c => chapterKey(c.id) === key);
+    // Reading front or back matter: not on the body track, so report no movement
+    // rather than snapping the marker to the start.
     if (idx < 0) return 0;
     const within = (fullText && fullText.length)
         ? Math.min(1, currentCharIndex / fullText.length) : 0;
@@ -2262,15 +2335,25 @@ function updateProgressBars() {
         if (cf) cf.style.height = bookPct + '%';
         if (cm) cm.style.top    = bookPct + '%';
         const lbl2 = document.getElementById('book-progress-label');
-        if (lbl2) lbl2.textContent =
-            'Ch ' + currentChapterNum + ' / ' + bookMetadata.chapters.length;
+        if (lbl2) {
+            const o = bodyOrdinalMap().get(chapterKey(currentChapterNum));
+            const t = bodyChapterList().length;
+            // Falls back to the raw id when the reader is in front/back matter,
+            // which is honest: "Ch 0.1 / 23" beats inventing a position.
+            lbl2.textContent = 'Ch ' + (o === undefined ? currentChapterNum : o) + ' / ' + t;
+        }
         return;
     }
 
+    const ordinals = bodyOrdinalMap();
+    const curOrd = ordinals.get(chapterKey(currentChapterNum));
     bookMetadata.chapters.forEach((chap) => {
-        const chapNum  = parseInt(chap.id.replace('chapter_', '')) || 0;
-        const isCurrent = chapNum === parseInt(currentChapterNum);
-        const isPast    = chapNum <  parseInt(currentChapterNum);
+        const ord = ordinals.get(chapterKey(chap.id));
+        // Compared by POSITION, not by parsing the label. parseInt("1.01") and
+        // parseInt("1.14") are both 1, which is why an entire part used to render
+        // as current at once.
+        const isCurrent = ord !== undefined && curOrd !== undefined && ord === curOrd;
+        const isPast    = ord !== undefined && curOrd !== undefined && ord <  curOrd;
 
         const seg   = document.getElementById('bps-' + chap.id);
         const bfill = document.getElementById('bpf-' + chap.id);
@@ -2505,12 +2588,23 @@ async function _flushAllInner(reason, final = false) {
     //    separate writes to the same doc, which billed twice for no reason.
     if (!isPracticeMode && walDirty) {
         try {
+            // bodyIndex/bodyTotal are written HERE because this is the only place
+            // that has the chapter list loaded. index.html strips the list before
+            // caching the grid (largest field on the document), so without these
+            // two numbers a cached library card cannot place a part-numbered book
+            // and falls back to rounding the label. Two integers, same write, no
+            // extra billing. Undefined is never written — a reader in front matter
+            // has no body position and must not be given a made-up one.
+            const _ord = bodyOrdinalMap().get(chapterKey(currentChapterNum));
+            const _bodyTotal = bodyChapterList().length;
             await setDoc(doc(db, "users", currentUser.uid, "progress", currentBookId), {
                 chapter: currentChapterNum,
                 charIndex: currentCharIndex,
                 furthestChapter: furthestChapter,
                 furthestCharIndex: furthestCharIndex,
                 completedChapters: Array.from(completedChapters),
+                ...(_ord !== undefined ? { bodyIndex: _ord } : {}),
+                ...(_bodyTotal ? { bodyTotal: _bodyTotal } : {}),
                 lastUpdated: new Date()
             }, { merge: true });
             lastSavedIndex = currentCharIndex;
