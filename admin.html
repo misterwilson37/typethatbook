@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TypeThatBook Admin v3.3.0</title>
+    <title>TypeThatBook Admin v3.22.1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
@@ -51,6 +51,51 @@
         .split-btn:hover { background: #2a5a8c; color: white; }
         .merge-btn { background: #2a1a3c; border: 1px solid #5a2a8c; color: #b87ae8; }
         .merge-btn:hover { background: #4a2a6c; color: white; }
+
+        /* ⚠️ FRONT/BODY/BACK and EDIT were the SAME BLUE (v3.22.1) and they do very
+           different things: one reclassifies a page, the other opens its text for
+           editing. Adjacent, identically coloured, one destructive-ish. The matter
+           toggle is now amber — the same colour the untagged dot uses for "this is a
+           judgement call" — and About is green when on, matching the row. */
+        .matter-btn { background: #3a2f14; border: 1px solid #8a6a1e; color: #e8c46a; }
+        .matter-btn:hover { background: #5a4a20; color: #fff3d0; }
+        .about-btn { background: #16241c; border: 1px solid #35553f; color: #7fa88c; }
+        .about-btn:hover { background: #24382c; color: #b6e6c4; }
+
+        /* Hint tooltips. These replaced hint paragraphs printed under every field —
+           nine of them in one row, several of them taller than the input they
+           described, which squeezed the inputs to about six characters wide. */
+        .hint {
+            display: inline-block; width: 13px; height: 13px; line-height: 13px;
+            text-align: center; border-radius: 50%; border: 1px solid #666;
+            color: #999; font-size: 0.62rem; font-style: italic; cursor: help;
+            vertical-align: middle; margin-left: 4px; font-family: serif;
+        }
+        .hint:hover { border-color: #4B9CD3; color: #4B9CD3; }
+
+        /* Fields on the left, cover in its own fixed column on the right, so the
+           cover does not steal width from eight inputs and the inputs do not
+           squash the cover. Stacks on a narrow screen. */
+        .meta-block {
+            display: flex; gap: 22px; align-items: flex-start;
+            border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 15px;
+        }
+        .meta-fields { flex: 1 1 auto; min-width: 0; }
+        .meta-cover {
+            flex: 0 0 120px; text-align: center;
+            display: flex; flex-direction: column; align-items: center; gap: 6px;
+        }
+        .meta-cover label { display: block; width: 100%; text-align: left; }
+        .meta-cover img {
+            max-height: 132px; max-width: 100px;
+            border: 1px solid #444; border-radius: 3px;
+        }
+        .meta-cover input[type=file] { width: 116px; font-size: 0.68em; }
+        .meta-cover .danger-btn { font-size: 0.7em; padding: 3px 8px; margin: 0; }
+        @media (max-width: 900px) {
+            .meta-block { flex-direction: column; }
+            .meta-cover { flex: 1 1 auto; align-items: flex-start; }
+        }
 
         .checkbox-wrapper { display: flex; align-items: center; margin-bottom: 15px; }
         .checkbox-wrapper input { width: auto; margin: 0 10px 0 0; }
@@ -231,108 +276,100 @@
                     </div>
                 </div>
                 
-                <div class="row" style="border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 15px;">
-                    <div class="col">
-                        <label>Genre</label>
-                        <select id="active-book-genre" style="width:100%;">
-                            <option value="">— Select Genre —</option>
-                            <option value="__custom__">✏️ Custom...</option>
-                        </select>
-                        <input type="text" id="custom-genre-input" class="hidden" placeholder="Type custom genre..." style="margin-top:5px;">
-                    </div>
-                    <div class="col">
-                        <label>Target Age Range</label>
-                        <div style="display:flex; align-items:center; gap:6px;">
-                            <input type="number" id="active-book-minage" min="3" max="18" step="1"
-                                   placeholder="7" style="width:70px;">
-                            <span style="color:#888;">to</span>
-                            <input type="number" id="active-book-maxage" min="3" max="18" step="1"
-                                   placeholder="11" style="width:70px;">
+                <!-- ⚠️ TWO ROWS PLUS A COVER COLUMN (v3.22.1). This was ONE row of
+                     nine columns, each with a two-to-twelve-line hint printed
+                     underneath, so the hints were taller than the fields and the
+                     inputs were squeezed to about six characters wide. Layout only:
+                     every id, every option value and every handler is unchanged, so
+                     admin.js does not move.
+
+                     Hints are now title="" tooltips on a circled i. Same words,
+                     available on hover, taking no vertical space. -->
+                <div class="meta-block">
+                  <div class="meta-fields">
+                    <div class="row">
+                        <div class="col">
+                            <label>Genre</label>
+                            <select id="active-book-genre" style="width:100%;"></select>
+                            <input type="text" id="custom-genre-input" class="hidden"
+                                   placeholder="Type new genre" style="width:100%; margin-top:4px;">
                         </div>
-                        <div style="font-size:0.75em; color:#888; margin-top:3px;">
-                            Reading age, not grade. Leave both blank if unsure — an untagged
-                            book is hidden whenever a student filters by age.
+                        <div class="col" style="flex:1.4;">
+                            <label>Target Age Range <span class="hint" title="Reading age, not grade. Leave both blank if unsure — an untagged book is hidden whenever a student filters by age.">i</span></label>
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <input type="number" id="active-book-minage" min="3" max="18"
+                                       placeholder="7" style="width:100%;">
+                                <span style="color:#888;">to</span>
+                                <input type="number" id="active-book-maxage" min="3" max="18"
+                                       placeholder="11" style="width:100%;">
+                            </div>
                         </div>
-                    </div>
-                    <div class="col">
-                        <label>Protagonist</label>
-                        <select id="active-book-protagonist" style="width:100%;">
-                            <option value="">— Not tagged —</option>
-                            <option value="female">Female</option>
-                            <option value="male">Male</option>
-                            <option value="ensemble">Ensemble / group</option>
-                            <option value="nonhuman">Animal or non-human</option>
-                            <option value="unspecified">Unspecified in text</option>
-                        </select>
-                    </div>
-                    <div class="col">
-                        <label>Source</label>
-                        <select id="active-book-source" style="width:100%;">
-                            <option value="">— Not set —</option>
-                            <option value="Standard Ebooks">Standard Ebooks</option>
-                            <option value="Project Gutenberg">Project Gutenberg</option>
-                            <option value="Global Grey">Global Grey</option>
-                            <option value="Faded Page">Faded Page</option>
-                            <option value="Wikisource">Wikisource</option>
-                            <option value="Internet Archive">Internet Archive</option>
-                            <option value="Author or publisher direct">Author or publisher direct</option>
-                            <option value="__custom__">Custom…</option>
-                        </select>
-                        <input type="text" id="active-book-source-custom" class="hidden"
-                               style="width:100%; margin-top:4px;" placeholder="Who produced this edition">
-                        <div style="font-size:0.75em; color:#888; margin-top:4px;">
-                            Who produced this edition.
+                        <div class="col">
+                            <label>Protagonist</label>
+                            <select id="active-book-protagonist" style="width:100%;">
+                                <option value="">— Not tagged —</option>
+                                <option value="female">Female</option>
+                                <option value="male">Male</option>
+                                <option value="ensemble">Ensemble / group</option>
+                                <option value="nonhuman">Animal or non-human</option>
+                                <option value="unspecified">Unspecified in text</option>
+                            </select>
                         </div>
                     </div>
-                    <div class="col">
-                        <label>Licence / rights</label>
-                        <select id="active-book-rights" style="width:100%;">
-                            <option value="">— Not set —</option>
-                            <option value="Public domain (United States)">Public domain (United States)</option>
-                            <option value="CC0 1.0 Public Domain Dedication https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0 (public domain dedication)</option>
-                            <option value="CC BY 4.0 https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</option>
-                            <option value="CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</option>
-                            <option value="CC BY-NC 4.0 https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</option>
-                            <option value="CC BY-NC 3.0 https://creativecommons.org/licenses/by-nc/3.0/">CC BY-NC 3.0</option>
-                            <option value="CC BY-NC-SA 4.0 https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</option>
-                            <option value="CC BY-NC-SA 3.0 https://creativecommons.org/licenses/by-nc-sa/3.0/">CC BY-NC-SA 3.0</option>
-                            <option value="__custom__">Custom…</option>
-                        </select>
-                        <input type="text" id="active-book-rights-custom" class="hidden"
-                               style="width:100%; margin-top:4px;" placeholder="Licence name and URL">
-                        <div style="font-size:0.75em; color:#888; margin-top:4px;">
-                            The URL is part of the value on purpose — a licence URI is what CC
-                            actually asks for, and the library card turns it into a link.
-                            Auto-filled from the EPUB's dc:rights when it declares one.
+
+                    <div class="row" style="margin-top:12px;">
+                        <div class="col">
+                            <label>Source <span class="hint" title="Who produced this edition — Standard Ebooks, Project Gutenberg, and so on. Auto-filled from the EPUB's dc:source or dc:publisher.">i</span></label>
+                            <select id="active-book-source" style="width:100%;">
+                                <option value="">— Not set —</option>
+                                <option value="Standard Ebooks">Standard Ebooks</option>
+                                <option value="Project Gutenberg">Project Gutenberg</option>
+                                <option value="Global Grey">Global Grey</option>
+                                <option value="Faded Page">Faded Page</option>
+                                <option value="Wikisource">Wikisource</option>
+                                <option value="Internet Archive">Internet Archive</option>
+                                <option value="Author or publisher direct">Author or publisher direct</option>
+                                <option value="__custom__">Custom…</option>
+                            </select>
+                            <input type="text" id="active-book-source-custom" class="hidden"
+                                   style="width:100%; margin-top:4px;" placeholder="Who produced this edition">
+                        </div>
+                        <div class="col" style="flex:1.4;">
+                            <label>Licence / rights <span class="hint" title="Required for Creative Commons books; shown on the library card. The URL is part of the value on purpose — a licence URI is what CC actually asks for, and the card turns it into a link. Auto-filled from the EPUB's dc:rights when it declares one.">i</span></label>
+                            <select id="active-book-rights" style="width:100%;">
+                                <option value="">— Not set —</option>
+                                <option value="Public domain (United States)">Public domain (United States)</option>
+                                <option value="CC0 1.0 Public Domain Dedication https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0 (public domain dedication)</option>
+                                <option value="CC BY 4.0 https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</option>
+                                <option value="CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</option>
+                                <option value="CC BY-NC 4.0 https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</option>
+                                <option value="CC BY-NC 3.0 https://creativecommons.org/licenses/by-nc/3.0/">CC BY-NC 3.0</option>
+                                <option value="CC BY-NC-SA 4.0 https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</option>
+                                <option value="CC BY-NC-SA 3.0 https://creativecommons.org/licenses/by-nc-sa/3.0/">CC BY-NC-SA 3.0</option>
+                                <option value="__custom__">Custom…</option>
+                            </select>
+                            <input type="text" id="active-book-rights-custom" class="hidden"
+                                   style="width:100%; margin-top:4px;" placeholder="Licence name and URL">
+                        </div>
+                        <div class="col">
+                            <label>Archive URL <span class="hint" title="Link to the EPUB this was built from. Provenance, not compliance — it lets anyone check your edition against the original.">i</span></label>
+                            <input type="text" id="active-book-archive" style="width:100%;"
+                                   placeholder="https://github.com/…/name.epub">
+                        </div>
+                        <div class="col">
+                            <label>Cleaned up with <span class="hint" title="Who did the text pass — you, Claude, Gemini. Free text for now; what it means can be decided later, but recording it is cheap and unrecoverable afterwards.">i</span></label>
+                            <input type="text" id="active-book-cleanedby" style="width:100%;"
+                                   placeholder="e.g. Jake, Claude, Gemini">
                         </div>
                     </div>
-                    <div class="col">
-                        <label>Archive URL</label>
-                        <input type="text" id="active-book-archive" style="width:100%;"
-                               placeholder="https://github.com/…/books/name.epub">
-                        <div style="font-size:0.75em; color:#888; margin-top:4px;">
-                            Link to the EPUB this was built from. Provenance, not compliance —
-                            it lets anyone check your edition against the original.
-                        </div>
-                    </div>
-                    <div class="col">
-                        <label>Cleaned up with</label>
-                        <input type="text" id="active-book-cleanedby" style="width:100%;"
-                               placeholder="e.g. Jake, Claude, Gemini">
-                        <div style="font-size:0.75em; color:#888; margin-top:4px;">
-                            Who did the text pass. Free text for now — what it means can be
-                            decided later, but recording it is cheap and unrecoverable afterwards.
-                        </div>
-                    </div>
-                    <div class="col">
-                        <label>Cover Image</label>
-                        <input type="file" id="cover-upload" accept="image/*">
-                        <div style="font-size:0.75em; color:#888; margin-top:3px;">Auto-extracted from EPUB if available</div>
-                    </div>
-                    <div class="col" style="text-align:center;">
-                        <img id="cover-preview" class="hidden" style="max-height:100px; max-width:80px; border:1px solid #444; border-radius:3px;">
-                        <button id="cover-remove-btn" class="hidden danger-btn" style="font-size:0.7em; padding:3px 8px; margin-top:4px;">Remove</button>
-                    </div>
+                  </div>
+
+                  <div class="meta-cover">
+                    <label>Cover <span class="hint" title="Auto-extracted from the EPUB when it has one. Choose a file to override it.">i</span></label>
+                    <img id="cover-preview" class="hidden">
+                    <input type="file" id="cover-upload" accept="image/*">
+                    <button id="cover-remove-btn" class="hidden danger-btn">Remove</button>
+                  </div>
                 </div>
 
                 <div id="overwrite-section" class="hidden" style="border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 10px;">
