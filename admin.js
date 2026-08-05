@@ -1,4 +1,4 @@
-// admin.js v3.19.2
+// admin.js v3.20.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
@@ -82,7 +82,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.19.2";
+const ADMIN_VERSION = "3.20.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -853,6 +853,12 @@ openBookBtn.onclick = async () => {
             if (minAgeIn) minAgeIn.value = (meta.minAge ?? '') === '' ? '' : String(meta.minAge);
             if (maxAgeIn) maxAgeIn.value = (meta.maxAge ?? '') === '' ? '' : String(meta.maxAge);
             if (protSel)  protSel.value  = meta.protagonistGender || "";
+            // Attribution (v3.20.0). Plain || is correct here — these are strings
+            // and '' is exactly what an untagged book should show.
+            const srcIn = document.getElementById('active-book-source');
+            const rgtIn = document.getElementById('active-book-rights');
+            if (srcIn) srcIn.value = meta.source || "";
+            if (rgtIn) rgtIn.value = meta.rights || "";
             if (meta.coverUrl) {
                 stagedCoverUrl = meta.coverUrl;
                 updateCoverPreview();
@@ -971,6 +977,15 @@ async function readEpubMetadata(file) {
         author: grab('creator')[0] || '',
         subjects: grab('subject'),
         language: grab('language')[0] || '',
+        // ⚠️ ATTRIBUTION (v3.20.0). Public domain books need none of this, but a
+        // Creative Commons licence REQUIRES credit, and the EPUB already carries
+        // it: dc:rights holds the licence statement, dc:source and dc:publisher
+        // say where the edition came from. Reading them here means the one legal
+        // obligation attached to a CC book is filled in before Jake types
+        // anything, rather than depending on him remembering.
+        rights: grab('rights')[0] || '',
+        source: grab('source')[0] || '',
+        publisher: grab('publisher')[0] || '',
     };
 }
 
@@ -999,6 +1014,26 @@ async function autofillFromEpub(file) {
         if (genre && genreSelect && !genreSelect.value) {
             const opt = Array.from(genreSelect.options).find(o => o.value === genre);
             if (opt) { genreSelect.value = genre; filled.push('genre (a guess)'); }
+        }
+        // ⚠️ Attribution, filled from the EPUB (v3.20.0). A Creative Commons book
+        // carries a LEGAL OBLIGATION to credit, and it is the one field where
+        // "I'll do it later" is not merely untidy. dc:rights is the licence
+        // statement; dc:source then dc:publisher for where the edition came from.
+        const rightsEl = document.getElementById('active-book-rights');
+        const sourceEl = document.getElementById('active-book-source');
+        if (meta.rights && rightsEl && !rightsEl.value.trim()) {
+            rightsEl.value = meta.rights; filled.push('licence');
+        }
+        const src = meta.source || meta.publisher;
+        if (src && sourceEl && !sourceEl.value.trim()) {
+            sourceEl.value = src; filled.push('source');
+        }
+        // Say so out loud when a licence turned up, because it changes what has
+        // to appear on the library card and it is easy to scroll past.
+        if (meta.rights) {
+            say('\u26a0 This EPUB declares a licence \u2014 filled into Licence/rights, and it ' +
+                'will show on the library card. Do not clear it unless the book is public domain.',
+                '#ffaa00');
         }
         say(filled.length
             ? '\u2713 Filled in ' + filled.join(', ') + '. Check it, then parse. ' +
@@ -1073,6 +1108,7 @@ function resetCreateForm(announce) {
 
     ['new-book-id', 'new-book-title', 'new-book-author', 'new-epub-file',
      'active-book-title', 'active-book-author',
+     'active-book-source', 'active-book-rights',
      'active-book-minage', 'active-book-maxage'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -3009,6 +3045,10 @@ function readBookMetadataForm(title) {
         minAge: age.minAge,
         maxAge: age.maxAge,
         protagonistGender: (document.getElementById('active-book-protagonist') || {}).value || '',
+        // Empty string, not omitted: a blank field must be able to CLEAR a value
+        // that was set before. §A.14's lesson about || guards on metadata.
+        source: val('active-book-source'),
+        rights: val('active-book-rights'),
     }};
 }
 

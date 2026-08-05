@@ -164,6 +164,18 @@
             font-size: 0.9rem; font-weight: 700;
             line-height: 1.25; margin-bottom: 4px;
         }
+        /* Attribution line. Deliberately quiet — it is a legal requirement, not
+           something a student needs to read, and it must not compete with the
+           title for a ten-year-old's attention. Still selectable and still
+           clickable, which is what "reasonable to the medium" asks for. */
+        .book-credit {
+            font-size: 0.7rem;
+            line-height: 1.3;
+            color: #8a8378;
+            margin-top: 6px;
+            word-break: break-word;
+        }
+        .book-credit a { color: #6b7f96; text-decoration: underline; }
         .book-author {
             font-size: 0.78rem; color: var(--text-muted);
             margin-bottom: 6px;
@@ -346,7 +358,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.3.2";
+        const INDEX_VERSION = "3.4.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -560,6 +572,10 @@
                         // an old document that never had it must fall back to
                         // totalChapters rather than report a book with no chapters.
                         bodyChapters: (typeof data.bodyChapters === 'number') ? data.bodyChapters : null,
+                        // Attribution (v3.4.0). Empty for public domain, which is
+                        // most of the library — the credit line simply does not render.
+                        source: data.source || "",
+                        rights: data.rights || "",
                         chapters: data.chapters || []
                     });
                 });
@@ -808,6 +824,43 @@
                         </div>`;
                 }
 
+                // ─── ATTRIBUTION ON THE CARD (v3.4.0) ───────────────────────
+                //
+                // A Creative Commons licence requires credit "in a manner
+                // reasonable to the medium". The card is where a student meets the
+                // book and chooses it, so this is the place — NOT the typing
+                // stream, where it would become text a kid has to type and would
+                // corrupt the very work being credited.
+                //
+                // Creative Commons' own formula is TASL: Title, Author, Source,
+                // Licence. Title and author are already on the card in larger
+                // type, so this line supplies the missing two. Any URL becomes a
+                // link, with rel="noopener" and target="_blank" so a student
+                // clicking a licence does not lose their place in the book.
+                //
+                // Renders nothing at all when both fields are empty, which is the
+                // case for every public domain book in the library.
+                // ⚠️ THE CHARACTER CLASS AND THE ATTRIBUTE ESCAPE ARE BOTH
+                // SECURITY, NOT TIDINESS. This string is admin free text going
+                // into innerHTML. escapeHtml() here is DOM-based (textContent ->
+                // innerHTML), which neutralises < > &, but NOT quotes — quotes do
+                // not need escaping in element content. They very much do inside
+                // an href. A first draft of this used [^\s<]+, so a "URL" of
+                //     https://x.test/"onmouseover="alert(1)
+                // survived escaping, matched as one URL, and closed the href early
+                // to inject an event handler. Excluding quotes from the class AND
+                // escaping them in the attribute are belt and braces; keep both.
+                const linkify = (txt) => escapeHtml(txt).replace(
+                    /(https?:\/\/[^\s<>"']+)/g,
+                    (m) => '<a href="' + m.replace(/"/g, '&quot;').replace(/'/g, '&#39;') +
+                           '" target="_blank" rel="noopener noreferrer">' + m + '</a>');
+                const creditBits = [];
+                if (book.source) creditBits.push(linkify(book.source));
+                if (book.rights) creditBits.push(linkify(book.rights));
+                const creditHTML = creditBits.length
+                    ? `<div class="book-credit">${creditBits.join(' \u00b7 ')}</div>`
+                    : '';
+
                 const coverHTML = book.coverUrl
                     ? `<img class="book-cover" src="${escapeAttr(book.coverUrl)}" alt="${escapeAttr(book.title)} cover" loading="lazy">`
                     : `<div class="book-cover-placeholder">${escapeHtml(book.title)}</div>`;
@@ -821,6 +874,7 @@
                                 ? `<span class="book-age-tag">${book.minAge}\u2013${book.maxAge}</span>` : ''}
                             <div class="book-title">${escapeHtml(book.title)}</div>
                             ${book.author ? `<div class="book-author">${escapeHtml(book.author)}</div>` : ''}
+                            ${creditHTML}
                             ${progressHTML}
                         </div>
                     </a>`;

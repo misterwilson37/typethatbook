@@ -260,11 +260,28 @@
                             <option value="">— Not tagged —</option>
                             <option value="female">Female</option>
                             <option value="male">Male</option>
-                            <option value="multiple">Multiple (mixed leads)</option>
                             <option value="ensemble">Ensemble / group</option>
                             <option value="nonhuman">Animal or non-human</option>
                             <option value="unspecified">Unspecified in text</option>
                         </select>
+                    </div>
+                    <div class="col">
+                        <label>Source</label>
+                        <input type="text" id="active-book-source" style="width:100%;"
+                               placeholder="e.g. Standard Ebooks">
+                        <div style="font-size:0.75em; color:#888; margin-top:4px;">
+                            Who produced this edition. Blank is fine for public domain.
+                        </div>
+                    </div>
+                    <div class="col">
+                        <label>Licence / rights</label>
+                        <input type="text" id="active-book-rights" style="width:100%;"
+                               placeholder="e.g. CC BY-NC 3.0 https://creativecommons.org/licenses/by-nc/3.0/">
+                        <div style="font-size:0.75em; color:#888; margin-top:4px;">
+                            Required for Creative Commons books — shown on the library card.
+                            Auto-filled from the EPUB's dc:rights when present. Any URL in here
+                            becomes a link. Leave blank for public domain.
+                        </div>
                     </div>
                     <div class="col">
                         <label>Cover Image</label>

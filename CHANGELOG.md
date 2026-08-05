@@ -14,10 +14,10 @@ there.
 
 - [`game.js`](#gamejs) — currently v3.10.0
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
-- [`admin.js`](#adminjs) — currently v3.19.1
+- [`admin.js`](#adminjs) — currently v3.20.0
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.2
-- [`index.html`](#indexhtml) — currently v3.3.2
+- [`index.html`](#indexhtml) — currently v3.4.0
 
 Files not listed here have short headers that fit the budget on their own:
 `lessons-admin.js`, `staff-admin.js`, `keyboard.js`, `versions.js`,
@@ -578,7 +578,7 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.19.1**
+Current: **v3.20.0**
 
 ⚠️ **Versioning note.** v3.12.0 through v3.18.0 were bumped as MINOR versions and
 most of them were straight bug fixes that should have been PATCH. Jake caught it:
@@ -599,6 +599,40 @@ reset that was supposed to work is a fix, not a feature. Jake caught that too,
 one turn after catching the first one. Renumbered to **v3.18.1**. Recorded here
 rather than quietly corrected, because stating a standard and then exempting
 yourself from it in the same message is the more instructive failure.
+
+#### v3.20.0
+
+Round 5 (Mignon). **Attribution fields.** Prompted by Jake asking where the credit
+for a Creative Commons book is supposed to go. Forty public domain books needed
+none of this; the first CC book needs it as a condition of use, and the schema had
+nowhere to put it.
+
+         Two fields, Source and Licence/rights, because Creative Commons' own TASL
+         formula is Title-Author-Source-Licence and the first two are already on
+         the card. Both auto-fill from the EPUB — dc:rights for the licence,
+         dc:source then dc:publisher for the edition — so the one field with a legal
+         obligation attached is populated before Jake types anything. When a licence
+         IS found the autofill status goes amber and says so, because it changes what
+         has to appear on the library card and is easy to scroll past.
+         Blank is written as '' rather than omitted, so clearing a field can clear a
+         stored value (§A.14).
+
+         ⚠️ Attribution belongs on the CARD, NOT IN THE TYPED TEXT. A student meets
+         and chooses the book on the card, which is what "a manner reasonable to the
+         medium" asks for. Putting it in the typing stream would make a child type
+         the credit as prose and corrupt the very work being credited.
+
+         Also retired the "multiple" protagonist option. It was a synonym for
+         "ensemble" and having both split the student age/gender filter's results
+         across two values for one concept.
+
+#### v3.19.2
+
+Round 5 (Mignon). Eleven more names in MATTER_FILE_NAMES, found by importing a real
+book rather than by reading code: Augie and the Green Knight ships an
+acknowledgements page, and v3.18.4's filename rescue had no entry for it, so it
+displayed as "Front matter 1". Added acknowledgements/acknowledgments, foreword,
+afterword, prologue, epilogue, glossary, bibliography, notes, errata, imprimatur.
 
 #### v3.19.1
 
@@ -1305,13 +1339,39 @@ Write reduction to match game.js v3.4.0. saveStats() fired on every
 
 ## `index.html`
 
-Current: **v3.3.2**
+Current: **v3.4.0**
 
 ⚠️ **This section was created in Round 5.** index.html had no CHANGELOG section at
 all, despite carrying the student-facing library grid, the age/genre filters and
 the progress bars — and despite being one of only two files that got the
 single-version-constant discipline right (INDEX_VERSION drives both the title and
 the footer, since v3.0.1). Entries before v3.3.1 live only in the file header.
+
+#### v3.4.0
+
+Round 5 (Mignon). Renders the attribution line on the library card, under the
+author, in deliberately quiet type — it is a legal requirement rather than
+something a ten-year-old needs to read, and it must not compete with the title.
+Renders NOTHING when both fields are empty, which is every public domain book in
+the library. URLs become links with target="_blank" and rel="noopener noreferrer",
+so a student clicking a licence does not lose their place in a book.
+
+         ⚠️ SECURITY. This string is admin free text going into innerHTML.
+         index.html's escapeHtml() is DOM-based (textContent -> innerHTML), which
+         neutralises < > & but NOT quotes — quotes need no escaping in element
+         content, and very much do inside an href. The first draft matched URLs with
+         [^\s<]+, so a "URL" of
+             https://x.test/"onmouseover="alert(1)
+         survived escaping, matched as a single URL, and closed the href early to
+         inject an event handler. Fixed by excluding quotes from the URL character
+         class AND escaping them in the attribute — both, deliberately.
+
+         Verified with credit-test.mjs across a CC book, a public domain book,
+         partially-tagged books, two XSS attempts and a two-URL field. The test
+         PARSES the output as a DOM rather than regexing it, because an earlier
+         version flagged correctly-escaped "&lt;img onerror=...&gt;" as unsafe on the
+         strength of the literal text — the only way to tell an attribute from text
+         that resembles one is to build the DOM and ask.
 
 #### v3.3.2
 
