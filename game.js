@@ -1,10 +1,25 @@
-// game.js v3.12.2
+// game.js v3.12.4
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.12.4 — Two things the overwrite test surfaced. (a) furthestChapter was never
+//           validated — v3.12.1 checked the CURRENT chapter and left this one alone,
+//           so after a renumber the start screen offered "Jump to furthest point
+//           (Ch. 2)" and clicking it hit "Chapter 2 not found". Forgotten rather than
+//           clamped: an id that no longer exists is not evidence of how far anyone got.
+//           (b) A part-numbered book restarts its chapter numbers and the picker
+//           preferred the title over the id, so Heidi listed "Chapter 1" fourteen
+//           times and then "Chapter 1" nine more. Prefixed "Pt N \u00b7" when and only
+//           when the book has parts.
+// v3.12.3 — The chapter-count label had TWO sites and v3.10.0 fixed one. The
+//           uncondensed path still printed every spine document, so a two-chapter
+//           book advertised "10 ch". ⚠️ Shipped without bumping the constant \u2014 the
+//           CHANGELOG said 3.12.3 while the file said 3.12.2. Recorded rather than
+//           quietly folded in, because that is the exact drift this round has spent
+//           its time catching in other people's work.
 // v3.12.2 — The Adventure map drew a dot per SPINE DOCUMENT, so the title page,
 //           imprint, dedication, appendix, endnotes, colophon and uncopyright page
 //           all appeared as stops on the journey — ten dots for a two-chapter book,
@@ -38,40 +53,6 @@
 //           default was setting a legal constraint. Front/back matter now stays in
 //           the book and never reaches a student; flip anything worth typing to
 //           Body in admin staging instead.
-// v3.10.0 — Stop doing arithmetic on chapter ids. Four sites called parseInt() on
-//           an id, and part-numbered books use ids like "1.14" — so Heidi's
-//           fourteen part-one chapters were all labelled "1", the position marker
-//           never left the start of a part (parseInt("1.01") === parseInt("1.14")),
-//           and the WHOLE PART rendered as current at once. Position now comes
-//           from the chapter list by exact match. Also writes bodyIndex/bodyTotal
-//           on the progress doc so a CACHED library card can place a part-numbered
-//           book, which index.html v3.3.1 could not.
-// v3.9.3 — Firefox's Quick Find no longer fires on every apostrophe. The typing
-//          listener is on `document` and cancelled the default for space, Tab and
-//          Enter only, so every other printable character was consumed here AND
-//          passed to the browser. Firefox binds `'` to Quick Find (links only) and
-//          `/` to Quick Find, so "don't" and "Toby's" popped the find bar several
-//          times per paragraph — invisible at school (Chrome), broken at home.
-// v3.9.2 — Two fixes to v3.9.0's own audit work, found before it shipped.
-//          1. flushAll()'s re-entrancy guard was `if`, which serialises two
-//             callers and lets three or more overlap — reintroducing the exact
-//             duplicate typing_sessions rollup it was written to prevent. Now
-//             `while`. Measured: 6 callers, 5 overlapping runs, before.
-//          2. The sprint rollup is CHUNKED at 200 sprints per document.
-//             firestore.rules v2.2.0 caps sprints at 200 and seconds at 86400;
-//             pendingSessions has no cap and walRecover() concatenates, so one
-//             failed write could grow the array past the ceiling and then be
-//             denied permanently and silently. Ship this WITH rules 2.2.0.
-// v3.9.1 — CHAPTER_CACHE_MS back to 7 days now that admin.js 3.12.0 writes
-//          contentVersion. ⚠️ Pairs with admin.js 3.12.0+.
-// v3.9.0 — Round 4 audit: flushAll() re-entrancy guard, hidden-tab flush
-//          debounced to once a minute, per-keystroke DOM work removed,
-//          classId/schoolId stamps on the leaderboard.
-// v3.8.0 — Student school picker in Settings (read-only once a teacher has
-//          assigned a class). Practice gating says that TYPING is what
-//          unlocks it, and checks the daily cap before offering the button.
-// v3.7.0 — Chapter picker filter above 25 chapters. Collapsed three drifted
-//          chapter-option builders into buildChapterOptions().
 //
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
@@ -94,7 +75,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.12.2";
+const VERSION = "3.12.4";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -1237,6 +1218,22 @@ async function loadUserProgress() {
             currentChapterNum = fallback;
             savedCharIndex = 0; currentCharIndex = 0; lastSavedIndex = 0;
         }
+        // ⚠️ furthestChapter NEEDS THE SAME CHECK (v3.12.4). v3.12.1 validated the
+        // CURRENT chapter and left the furthest one alone, so after a renumber the
+        // start screen still offered "Jump to furthest point (Ch. 2)" against a book
+        // whose chapters are now 1.01 and 2.01 — and clicking it produced "Chapter 2
+        // not found. Returning to the start of the book." Exactly the dead end the
+        // v3.12.1 note said it was there to prevent, one variable over.
+        //
+        // Forgotten rather than clamped: an id that no longer exists is not evidence
+        // of how far anyone got, and inventing a nearest match would silently move a
+        // student's furthest point.
+        if (bodyChapterList().length && !isKnownBodyChapter(furthestChapter)) {
+            console.warn('Furthest chapter "' + furthestChapter + '" is not in this ' +
+                         'book any more (renumbered?). Forgetting it.');
+            furthestChapter = currentChapterNum;
+            furthestCharIndex = 0;
+        }
         loadChapter(currentChapterNum);
     } catch (e) { loadChapter(firstBodyChapterId() || 1); }
 }
@@ -2186,14 +2183,34 @@ function buildChapterOptions(selectedNum, filter, withCheck) {
     const total = offer.length;
     let html = '', count = 0;
 
+    // ⚠️ A PART-NUMBERED BOOK RESTARTS ITS CHAPTER NUMBERS (v3.12.4), and the label
+    // logic below prefers the title whenever it begins with "chapter" — which
+    // discards the id. So Heidi listed "Chapter 1" through "Chapter 14" and then
+    // "Chapter 1" through "Chapter 9" again: twenty-three entries, fourteen of them
+    // ambiguous. Treasure Island, Little Women and The War of the Worlds are all the
+    // same shape. Jake hit it on the two-chapter fixture, where the picker showed
+    // "Chapter 1" twice and there was no way to tell which was which.
+    //
+    // Only prefixed when the book actually HAS parts, so a novel's picker is
+    // untouched. 0.x and 900.x are matter ids, not parts.
+    const partOf = (id) => {
+        const m = /^(\d+)\.\d+$/.exec(String(id).replace('chapter_', ''));
+        if (!m) return null;
+        const n = parseInt(m[1], 10);
+        return (n === 0 || n === 900) ? null : n;
+    };
+    const partedBook = new Set(offer.map(c => partOf(c.id)).filter(x => x !== null)).size >= 2;
+
     offer.forEach((chap) => {
         const num  = String(chap.id).replace('chapter_', '');
         const tick = (withCheck !== false && completedChapters.has(num)) ? '\u2713 ' : '';
-        let label = `${tick}Ch. ${num}`;
+        const pt   = partedBook && partOf(chap.id) !== null
+            ? `Pt ${partOf(chap.id)} \u00b7 ` : '';
+        let label = `${tick}${pt}Ch. ${num}`;
         if (chap.title && chap.title != num) {
             label = String(chap.title).toLowerCase().startsWith('chapter')
-                ? `${tick}${chap.title}`
-                : `${tick}Ch. ${num}: ${chap.title}`;
+                ? `${tick}${pt}${chap.title}`
+                : `${tick}${pt}Ch. ${num}: ${chap.title}`;
         }
         if (q && num !== q && !label.toLowerCase().includes(q)) return;
         count++;

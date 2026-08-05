@@ -1,4 +1,7 @@
-/* TypeThatBook style.css v3.4.0 */
+/* TypeThatBook style.css v3.5.0 */
+/* v3.5.0: #modal-body no longer uses justify-content:center, which CLIPS SCROLL
+           OVERFLOW AT THE TOP and made the Game Genie's upper controls
+           unreachable. flex-start + auto margins on first/last child instead.  */
 /* v3.4.0: Classic view contrast INVERTED. Upcoming text is black, typed text is
            grey (--ink-spent). It was #ccc for upcoming and black for typed, which
            is backwards: the words a student is reading ahead of the cursor are the
@@ -359,7 +362,28 @@ body {
 }
 #modal-title-bar { text-align: center; font-weight: bold; font-size: 0.95rem; color: var(--black); padding-bottom: 8px; }
 #modal-title-bar.no-title { display: none; }
-#modal-body { flex: 1; display: flex; flex-direction: column; justify-content: center; text-align: center; overflow-y: auto; overflow-x: hidden; min-height: 0; scrollbar-width: thin; }
+/* ⚠️ NOT justify-content: center. THAT IS WHY THE GAME GENIE'S TOP WAS
+   UNREACHABLE. (v3.5.0)
+
+   `justify-content: center` on a scrollable flex container clips the overflow at
+   the START, and the clipped part cannot be scrolled to. The scrollbar appears and
+   works, but the region above the scroll origin is simply gone — which is exactly
+   what Jake hit: "scroll is there, but not there enough to utilize", with the
+   Game Genie title appearing to cover the chapter picker it was actually sitting
+   above. The Genie panel is the tallest thing that ever goes in this modal, so it
+   is the only one that overflows far enough to lose content.
+
+   flex-start plus auto margins on the first and last child gives both behaviours
+   with no @supports and no browser caveats: short content still centres, tall
+   content pins to the top and every pixel stays reachable. */
+#modal-body {
+    flex: 1; display: flex; flex-direction: column;
+    justify-content: flex-start;
+    text-align: center; overflow-y: auto; overflow-x: hidden;
+    min-height: 0; scrollbar-width: thin;
+}
+#modal-body > :first-child { margin-top: auto; }
+#modal-body > :last-child  { margin-bottom: auto; }
 #modal-footer { text-align: center; padding-top: 8px; flex-shrink: 0; }
 
 /* Keep overlay behavior for admin wizard only */

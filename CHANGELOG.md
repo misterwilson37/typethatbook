@@ -12,13 +12,13 @@ there.
 
 ## Contents
 
-- [`game.js`](#gamejs) — currently v3.12.3
+- [`game.js`](#gamejs) — currently v3.12.4
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
-- [`admin.js`](#adminjs) — currently v3.23.0
+- [`admin.js`](#adminjs) — currently v3.23.1
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.2
 - [`index.html`](#indexhtml) — currently v3.6.1
-- [`style.css`](#stylecss) — currently v3.4.0
+- [`style.css`](#stylecss) — currently v3.5.0
 
 Files not listed here have short headers that fit the budget on their own:
 `lessons-admin.js`, `staff-admin.js`, `keyboard.js`, `versions.js`,
@@ -28,7 +28,37 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.12.3**
+Current: **v3.12.4**
+
+#### v3.12.4
+
+Round 5 (Mignon). Both found by the overwrite test — which is the whole argument for
+running it.
+
+         1. furthestChapter WAS NEVER VALIDATED. v3.12.1 checked the CURRENT chapter
+            against the book and left the furthest one alone, so after the fixture
+            was re-imported with part numbering the start screen still offered
+            "Jump to furthest point (Ch. 2)" against a book whose chapters are 1.01
+            and 2.01 — and clicking it produced "Chapter 2 not found. Returning to
+            the start of the book." Precisely the dead end v3.12.1's own note said it
+            existed to prevent, one variable over. FORGOTTEN rather than clamped: an
+            id that no longer exists is not evidence of how far anyone got, and
+            snapping to a nearest match would silently move a student's record.
+         2. A PART-NUMBERED BOOK RESTARTS ITS CHAPTER NUMBERS, and the picker's label
+            logic prefers the title whenever it begins with "chapter" — discarding
+            the id that would have told them apart. Heidi listed "Chapter 1" through
+            "Chapter 14" and then "Chapter 1" through "Chapter 9" again. Treasure
+            Island, Little Women and The War of the Worlds are the same shape. Jake
+            hit it on the two-chapter fixture, where the Game Genie showed
+            "Chapter 1" twice with no way to tell which was which. Now prefixed
+            "Pt N ·", when and only when the book actually has parts, so a novel's
+            picker is untouched.
+
+         ⚠️ v3.12.3 shipped WITHOUT ITS VERSION BUMP — the CHANGELOG said 3.12.3
+         while the file still said 3.12.2. Recorded here rather than quietly folded
+         in, because that exact drift is what this round has spent most of its time
+         catching in other people's work, and exempting myself would be worse than
+         the mistake.
 
 #### v3.12.3
 
@@ -474,6 +504,22 @@ what deleting front matter was destroying.
          is the correct thing for the test to have done. Now nine cases including a
          hostile book id in the button's data attribute.
 
+#### v3.5.0
+
+Round 5 (Mignon). **`#modal-body` no longer uses `justify-content: center`.**
+
+         That property on a scrollable flex container CLIPS THE OVERFLOW AT THE
+         START, and the clipped region cannot be scrolled to — the scrollbar appears
+         and works, but everything above the scroll origin is unreachable. Which is
+         what Jake hit: "scroll is there, but not there enough to utilize", with the
+         Game Genie title appearing to cover the chapter picker it was in fact
+         sitting above. The Genie panel is the tallest thing that ever goes in this
+         modal, so it is the only one that overflowed far enough to lose content.
+
+         `flex-start` plus auto margins on the first and last child gives both
+         behaviours with no @supports and no browser caveats: short content still
+         centres, tall content pins to the top and every pixel stays reachable.
+
 #### v3.4.0
 
 Write reduction. saveProgress() used to fire on every '.', '!', '?'
@@ -781,7 +827,7 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.23.0**
+Current: **v3.23.1**
 
 ⚠️ **Versioning note.** v3.12.0 through v3.18.0 were bumped as MINOR versions and
 most of them were straight bug fixes that should have been PATCH. Jake caught it:
@@ -834,6 +880,12 @@ licence hint ran to fourteen lines.
          Also set the hardcoded page title to v3.22.1. It had said v3.3.0 since
          admin.js was at 3.3.0 — nineteen minor versions ago. admin.html still has no
          version constant of its own; that is a separate job.
+
+#### v3.23.1
+
+Round 5 (Mignon). "Cleaned up with" → **"Cleaned up by"**. Jake's suggestion, and
+the right one: the shorter label stops the circled-i hint wrapping to a second line,
+and "by" is what the field actually means.
 
 #### v3.23.0
 
@@ -1749,7 +1801,7 @@ Round 5 (Mignon). Two bugs in the library progress bar, one of them ugly.
 
 ## `style.css`
 
-Current: **v3.4.0**
+Current: **v3.5.0**
 
 ⚠️ **Section created in Round 5.** style.css had no CHANGELOG section despite owning
 every colour a student reads. Entries before v3.4.0 live only in the file header.
