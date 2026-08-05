@@ -141,6 +141,17 @@
             transform: translateY(-4px);
             box-shadow: 0 8px 24px var(--shadow-hover);
         }
+        /* The link is the cover + metadata. Credit and About are siblings, because
+           an <a> may not contain an <a> or a <button>. See renderBooks(). */
+        .book-card-link {
+            display: flex; flex-direction: column; flex: 1;
+            text-decoration: none; color: inherit;
+        }
+        .book-extra {
+            padding: 0 14px 12px;
+            border-top: 1px solid rgba(0,0,0,0.06);
+            margin-top: 2px; padding-top: 10px;
+        }
         .book-cover {
             width: 100%; aspect-ratio: 2/3;
             object-fit: cover; display: block;
@@ -391,7 +402,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.5.1";
+        const INDEX_VERSION = "3.6.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -538,7 +549,13 @@
         // ⚠️ Age tags: `null` means untagged and is meaningfully different from
         // zero, so the JSON round-trip must preserve it. JSON.stringify keeps
         // null. Do not "tidy" these into 0 or '' on the way in or out.
-        const BOOKS_CACHE_KEY   = 'ttb_booksCache_v1';
+        // ⚠️ BUMPED TO v2 (index.html v3.5.2). The cached payload is a snapshot of
+        // the book objects, so adding fields to them does not reach a browser that
+        // already has a cache — for up to six hours. That is why Jake still saw
+        // "NOTICE" on every About section after v3.5.1 shipped aboutTitles: the fix
+        // was live and the data feeding it was stale. Any future change to what is
+        // cached needs this number bumped, or the change silently does nothing.
+        const BOOKS_CACHE_KEY   = 'ttb_booksCache_v2';
         const BOOKS_CACHE_MS    = 6 * 3600 * 1000;
         const IDXPROG_CACHE_KEY = 'ttb_idxProgCache_v1';
         const IDXPROG_CACHE_MS  = 8 * 3600 * 1000;
@@ -581,6 +598,7 @@
                         buildGenreFilters();
                         buildTagFilters();
                         renderBooks();
+                        openAboutFromHash();
                         return;
                     }
                 }
@@ -641,6 +659,10 @@
                 buildGenreFilters();
                 buildTagFilters();
                 renderBooks();
+                // Hooked on EVERY path that populates allBooks — fresh, cached and
+                // stale-cache — because a reader landing here from the completion
+                // screen must get the panel regardless of which one served them.
+                openAboutFromHash();
             } catch(e) {
                 // An expired cache beats an error screen — a student on a flaky
                 // school network can still pick a book they saw this morning.
@@ -650,6 +672,7 @@
                     buildGenreFilters();
                     buildTagFilters();
                     renderBooks();
+                    openAboutFromHash();
                     console.warn('Book fetch failed; serving expired cache.', e);
                     return;
                 }
@@ -912,20 +935,38 @@
                     ? `<img class="book-cover" src="${escapeAttr(book.coverUrl)}" alt="${escapeAttr(book.title)} cover" loading="lazy">`
                     : `<div class="book-cover-placeholder">${escapeHtml(book.title)}</div>`;
 
+                // ⚠️ THE <a> WRAPS ONLY THE LINK PART. THIS IS WHY (v3.5.2).
+                //
+                // The whole card used to be one <a>. v3.5.0 then put a licence <a>
+                // and an About <button> INSIDE it — and HTML forbids both: an anchor
+                // cannot contain another anchor or a button. Browsers do not ignore
+                // that, they RECOVER from it, and the recovery closes the outer </a>
+                // early and reparents everything after the offending tag. Which is
+                // exactly what Jake saw: the credit line splitting mid-sentence, half
+                // of it and the About button sitting on the page background outside
+                // the card, and the card's own white background stopping short.
+                //
+                // Not a styling bug and not fixable in CSS. The markup was invalid.
+                // Cover and metadata stay inside the link; the credit and the About
+                // control are SIBLINGS of it inside a plain <div> card. As a bonus
+                // the About button no longer needs stopPropagation to avoid
+                // navigating, though the handler keeps it for safety.
                 return `
-                    <a class="book-card" href="game.html?book=${encodeURIComponent(book.id)}">
-                        ${coverHTML}
-                        <div class="book-info">
-                            ${book.genre ? `<span class="book-genre-tag">${escapeHtml(book.genre)}</span>` : ''}
-                            ${book.minAge !== null && book.maxAge !== null
-                                ? `<span class="book-age-tag">${book.minAge}\u2013${book.maxAge}</span>` : ''}
-                            <div class="book-title">${escapeHtml(book.title)}</div>
-                            ${book.author ? `<div class="book-author">${escapeHtml(book.author)}</div>` : ''}
-                            ${creditHTML}
-                            ${aboutHTML}
-                            ${progressHTML}
-                        </div>
-                    </a>`;
+                    <div class="book-card">
+                        <a class="book-card-link" href="game.html?book=${encodeURIComponent(book.id)}">
+                            ${coverHTML}
+                            <div class="book-info">
+                                ${book.genre ? `<span class="book-genre-tag">${escapeHtml(book.genre)}</span>` : ''}
+                                ${book.minAge !== null && book.maxAge !== null
+                                    ? `<span class="book-age-tag">${book.minAge}\u2013${book.maxAge}</span>` : ''}
+                                <div class="book-title">${escapeHtml(book.title)}</div>
+                                ${book.author ? `<div class="book-author">${escapeHtml(book.author)}</div>` : ''}
+                                ${progressHTML}
+                            </div>
+                        </a>
+                        ${creditHTML || aboutHTML
+                            ? `<div class="book-extra">${creditHTML}${aboutHTML}</div>` : ''}
+                    </div>`;
             }).join('');
         }
 
@@ -996,8 +1037,22 @@
             const metaRows = [];
             if (book.source) metaRows.push(['Source', creditLinkFor(book.source)]);
             if (book.rights) metaRows.push(['Licence', creditLinkFor(book.rights)]);
-            if (book.archiveUrl) metaRows.push(['Archived copy',
-                `<a href="${escapeAttr(book.archiveUrl)}" target="_blank" rel="noopener noreferrer">the EPUB this was built from</a>`]);
+            // ⚠️ A URL WITHOUT A SCHEME IS A RELATIVE PATH (v3.5.2). Jake entered
+            // "typethatbook.misterwilson.org/library/x.epub" and the browser
+            // resolved it against the current page, producing
+            // "…misterwilson.org/typethatbook.misterwilson.org/library/x.epub".
+            // Prepend https:// when there is no scheme, and refuse anything that
+            // is not http(s) rather than rendering a javascript: link.
+            const absUrl = (u) => {
+                const v = String(u || '').trim();
+                if (!v) return '';
+                if (/^https?:\/\//i.test(v)) return v;
+                if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return '';   // some other scheme: refuse
+                return 'https://' + v.replace(/^\/+/, '');
+            };
+            const arc = absUrl(book.archiveUrl);
+            if (arc) metaRows.push(['Archived copy',
+                `<a href="${escapeAttr(arc)}" target="_blank" rel="noopener noreferrer">the EPUB this was built from</a>`]);
             if (book.cleanedBy) metaRows.push(['Text prepared by', escapeHtml(book.cleanedBy)]);
             const metaHTML = metaRows.length
                 ? '<h3>Credits</h3><p class="about-meta">' +
@@ -1075,6 +1130,23 @@
             if (e.target.id === 'about-close' || e.target.id === 'about-overlay') closeAbout();
         });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAbout(); });
+
+        // ⚠️ Arriving from game.js's book-completion screen (v3.12.2), which links to
+        // index.html#about=<bookId>. Waits for allBooks to be populated — the hash is
+        // read on arrival but the panel cannot open until the grid data exists, and on
+        // a cold load that is a Firestore round trip away.
+        function openAboutFromHash() {
+            const m = /^#about=(.+)$/.exec(location.hash || '');
+            if (!m) return false;
+            const id = decodeURIComponent(m[1]);
+            const book = allBooks.find(b => b.id === id);
+            if (!book) return false;
+            // Clear the hash so a refresh does not reopen it, and so the back button
+            // behaves the way a reader expects.
+            history.replaceState(null, '', location.pathname + location.search);
+            openAbout(id);
+            return true;
+        }
 
         // --- INIT ---
         loadBooks();

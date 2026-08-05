@@ -12,12 +12,12 @@ there.
 
 ## Contents
 
-- [`game.js`](#gamejs) — currently v3.12.1
+- [`game.js`](#gamejs) — currently v3.12.2
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
 - [`admin.js`](#adminjs) — currently v3.22.0
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.2
-- [`index.html`](#indexhtml) — currently v3.5.1
+- [`index.html`](#indexhtml) — currently v3.6.0
 
 Files not listed here have short headers that fit the budget on their own:
 `lessons-admin.js`, `staff-admin.js`, `keyboard.js`, `versions.js`,
@@ -27,7 +27,33 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.12.1**
+Current: **v3.12.2**
+
+#### v3.12.2
+
+Round 5 (Mignon). Two things, both from Jake testing on a real screen.
+
+         1. THE ADVENTURE MAP DREW A DOT PER SPINE DOCUMENT. It was handed
+            bookMetadata.chapters, so the title page, imprint, dedication, appendix,
+            endnotes, colophon and uncopyright page were all stops on the journey.
+            On the two-chapter fixture that is TEN dots for TWO chapters with the
+            real ones fourth and fifth — the "funky map on the right". On a Standard
+            Ebook it means every journey ends several dots past the end of the story.
+            Body list only. `num` stays the real chapter id, not an ordinal, because
+            the renderer matches completedChapters against it.
+         2. FINISHING A BOOK NOW LOOKS LIKE FINISHING A BOOK. v3.12.0 made the event
+            exist; this makes it feel like one. Names the book, and links to its
+            credits at index.html#about=<bookId> — which is the honest place for
+            them: someone who has just typed every word of a book is precisely who
+            should get to see who made it. showStatsModal() gained an optional
+            seventh parameter for the block, rather than abusing the hint slot, which
+            starts display:none and is revealed conditionally. Optional and
+            defaulted, so the five existing callers are untouched.
+
+         ⚠️ Investigated and NOT a bug: Jake was signed out mid-chapter. signOut() is
+         called from exactly one place in this file — the logout button's click
+         handler. Nothing in any error path touches it. The WAL did its job: signing
+         back in restored his position. Most likely a Google session expiry.
 
 #### v3.12.1
 
@@ -258,6 +284,43 @@ Round 4 audit pass. Five changes, no new features.
          Also: the comment claiming fetchLeaderboard() costs 40 reads was
          corrected to 60 (four categories at LB_FETCH_LIMIT 15), or 90 on the
          weekly fallback path.
+
+#### v3.6.0
+
+Round 5 (Mignon). **"The index page is ugly" was not a styling problem. The markup
+was invalid.**
+
+         v3.5.0 put a licence `<a>` and an About `<button>` INSIDE the card, which
+         was itself an `<a>`. HTML forbids both: an anchor may not contain another
+         anchor or a button. Browsers do not ignore that — they RECOVER from it, and
+         the recovery closes the outer `</a>` early and reparents everything after
+         the offending tag. Which is exactly what Jake saw: the credit line splitting
+         mid-sentence, half of it and the About button sitting on the page background
+         outside the card, the card's white background stopping short.
+
+         Measured with card-markup-test.mjs, which parses the output as a real DOM:
+         the v3.5.0 structure yields TWO grid children instead of one, with both the
+         credit and the About button outside the card. The `<a>` now wraps only the
+         cover and metadata; credit and About are siblings inside a plain `<div>`
+         card. Nine structural assertions across three book shapes.
+
+         ALSO:
+         · CACHE KEY BUMPED to ttb_booksCache_v2. The cache stores a snapshot of the
+           book objects, so v3.5.1's aboutTitles never reached a browser that already
+           had a cache — for up to six hours. That is why Jake still saw "NOTICE" on
+           every About section AFTER the fix shipped: the code was live and the data
+           feeding it was stale. ⚠️ Any future change to what is cached needs this
+           number bumped or the change silently does nothing.
+         · ARCHIVE URL WITHOUT A SCHEME is a relative path.
+           "typethatbook.misterwilson.org/library/x.epub" resolved against the
+           current page and produced ".../typethatbook.misterwilson.org/library/x.epub".
+           Now prefixed with https:// when no scheme is present, and any non-http(s)
+           scheme is refused rather than rendered as a link.
+         · Opens the About panel on arrival at index.html#about=<bookId>, from
+           game.js v3.12.2's completion screen. Hooked into all THREE paths that
+           populate allBooks — fresh, cached and stale-cache — because a reader
+           arriving from the completion screen must get the panel regardless of which
+           one served them.
 
 #### v3.5.1
 
@@ -1562,7 +1625,7 @@ Write reduction to match game.js v3.4.0. saveStats() fired on every
 
 ## `index.html`
 
-Current: **v3.5.1**
+Current: **v3.6.0**
 
 ⚠️ **This section was created in Round 5.** index.html had no CHANGELOG section at
 all, despite carrying the student-facing library grid, the age/genre filters and

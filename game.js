@@ -1,10 +1,16 @@
-// game.js v3.12.1
+// game.js v3.12.2
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.12.2 — The Adventure map drew a dot per SPINE DOCUMENT, so the title page,
+//           imprint, dedication, appendix, endnotes, colophon and uncopyright page
+//           all appeared as stops on the journey — ten dots for a two-chapter book,
+//           with the real chapters fourth and fifth. Body list only now. Also: the
+//           book-completion screen actually celebrates, names the book, and links to
+//           its credits via index.html#about=<bookId>.
 // v3.12.1 — THE FIRST CHAPTER IS NOT ALWAYS CALLED "1". Opening a book with no
 //           saved progress hardcoded chapter 1, so a PART-NUMBERED book — whose
 //           first chapter is "1.01" — showed a blank page. Live for Heidi, Treasure
@@ -88,7 +94,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.12.1";
+const VERSION = "3.12.2";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -197,9 +203,20 @@ function emitTextLoaded() {
         bookTitle: bookMetadata && bookMetadata.title,
         // Chapter map data (renderer v0.3.0+). Practice mode sends null so
         // the map hides — an AI drill isn't part of the book's journey.
+        // ⚠️ BODY CHAPTERS ONLY (v3.12.2). This sent bookMetadata.chapters — the
+        // whole spine — so the Adventure map drew a dot for the title page, the
+        // imprint, the dedication, the appendix, the endnotes, the colophon and the
+        // uncopyright page alongside the actual chapters. On the two-chapter test
+        // fixture that is ten dots for two chapters, with the real ones sitting
+        // fourth and fifth: exactly the "funky map on the right" Jake saw. On
+        // Standard Ebooks it means every book's journey ends several dots past the
+        // end of the story.
+        //
+        // `num` stays the real chapter id, NOT an ordinal, because the renderer
+        // matches completedChapters against it.
         chapters: (!isPracticeMode && bookMetadata && bookMetadata.chapters)
-            ? bookMetadata.chapters.map(c => ({
-                num: c.id.replace('chapter_', ''),
+            ? bodyChapterList().map(c => ({
+                num: String(c.id).replace('chapter_', ''),
                 title: c.title || ''
               }))
             : null,
@@ -3260,10 +3277,34 @@ async function finishChapter() {
     // Judged on the BODY list, so an appendix, endnotes, a colophon or an
     // uncopyright page no longer stand between a kid and the end of the story.
     if (!nextChapterId) {
+        // The book is over. Say so loudly, name it, and put the credits one click
+        // away — which is also the honest place for them: a reader who has just
+        // typed every word of a book is exactly who should see who made it.
+        //
+        // index.html opens the About panel when it sees #about=<bookId>, so this is
+        // a link rather than a duplicate renderer.
+        const bookName = (bookMetadata && bookMetadata.title) ? bookMetadata.title : 'this book';
+        // Styled inline rather than in style.css on purpose: this is the only place
+        // it is used, and a rule in a shared stylesheet is a rule someone has to
+        // find later. If it ever gets reused, move it.
+        const extra =
+            '<div style="margin:14px 0 4px; padding:14px 16px; border-radius:8px; ' +
+                 'background:linear-gradient(135deg, rgba(196,158,86,0.16), rgba(196,158,86,0.05)); ' +
+                 'border:1px solid rgba(196,158,86,0.45); text-align:center;">' +
+              '<div style="font-size:1.05rem; font-weight:700; letter-spacing:0.01em;">' +
+                 '\u2728 You finished ' + escapeHtmlG(bookName) + ' \u2728</div>' +
+              '<div style="font-size:0.8rem; opacity:0.75; margin-top:3px;">' +
+                 'Every chapter, every word.</div>' +
+              '<a href="index.html#about=' + encodeURIComponent(currentBookId) + '" ' +
+                 'style="display:inline-block; margin-top:9px; font-size:0.78rem; ' +
+                 'color:var(--carolina-blue); text-decoration:underline;">' +
+                 '\u2139 Who made this book</a>' +
+            '</div>';
         showStatsModal(
             title, stats, 'Back to the library',
             async () => { window.location.href = 'index.html'; },
-            'That was the last chapter \u2014 you finished the book.', true);
+            '', true, extra);
+        _ttbEmit('bookComplete', { bookId: currentBookId, chapters: bodyChapterList().length });
         return;
     }
 
@@ -3408,7 +3449,19 @@ function showStartModal(btnText) {
     showModalPanel();
 }
 
-function showStatsModal(title, stats, btnText, callback, hint, instant) {
+// extraHTML (v3.12.2) is an optional block rendered below the stats and above the
+// hint. Added so the book-completion screen can offer "About this book" without
+// abusing the hint slot, which starts display:none and is revealed conditionally.
+// Optional and defaulted, so the five existing callers are untouched.
+// game.js has no HTML escaper of its own and this string is a book title from
+// Firestore, rendered into innerHTML.
+function escapeHtmlG(str) {
+    const d = document.createElement('div');
+    d.textContent = String(str == null ? '' : str);
+    return d.innerHTML;
+}
+
+function showStatsModal(title, stats, btnText, callback, hint, instant, extraHTML) {
     isModalOpen = true; isInputBlocked = true;
     modalActionCallback = () => { closeModal(); if(callback) callback(); };
     setModalTitle('');
@@ -3436,6 +3489,7 @@ function showStatsModal(title, stats, btnText, callback, hint, instant) {
                 ${getGoalProgressHTML()}
                 ${getSprintHistoryHTML()}
                 ${getMissedCharsHTML()}
+                ${extraHTML || ''}
                 ${hint ? `<div class="start-hint" id="modal-hint" style="display:none;">${hint}</div>` : ''}
             </div>
             ${trophyHTML}
