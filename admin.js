@@ -1,4 +1,4 @@
-// admin.js v3.19.0
+// admin.js v3.19.1
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
@@ -82,7 +82,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.19.0";
+const ADMIN_VERSION = "3.19.1";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -3156,7 +3156,14 @@ uploadAllBtn.onclick = async () => {
             await setDoc(doc(db, "books", activeBookId, "chapters", "chapter_" + chapId), {
                 segments: chapData.segments
             });
-            chapterMeta.push({ id: "chapter_" + chapId, title: chapData.title });
+            // ⚠️ `matter` IS LOAD-BEARING DOWNSTREAM (v3.19.1). Without it the book
+            // document says nothing about which entries are front or back matter,
+            // so index.html and game.js have to guess from the id shape — and
+            // bodyChapters, written since v3.18.x, had no consumer for exactly
+            // this reason. Old book documents lack the field, so both readers must
+            // fall back; re-upload a book to give it one.
+            chapterMeta.push({ id: "chapter_" + chapId, title: chapData.title,
+                               matter: chapData.matter || 'body' });
             if(uiStatus) { uiStatus.innerText = "✔ OK"; uiStatus.className = "chap-status ok"; }
             const row = document.getElementById(`ui-chap-${i}`);
             if(row) row.classList.add('uploaded');

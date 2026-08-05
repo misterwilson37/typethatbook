@@ -1,4 +1,4 @@
-// learn.js v2.2.1
+// learn.js v2.2.2
 //
 // Lesson-mode engine, separate from game.js. Same write-ahead-log and
 // coalesced-flush persistence pattern.
@@ -6,6 +6,8 @@
 // ── Full history: CHANGELOG.md § learn.js ─────────────────────────────────
 // ── Why it looks like this: PEDAGOGY-AUDIT.md ─────────────────────────────
 //
+// v2.2.2 — Firefox Quick Find fix, matching game.js 3.9.3. #drill-keyboard is a
+//          div, so it absorbs nothing, and lessons drill punctuation on purpose.
 // v2.2.1 — flushStats()'s re-entrancy guard was `if`, which serialises two
 //          callers and lets three or more overlap. Now `while`. v2.2.0 added
 //          the guard and got the shape wrong; this is the same one-word fix
@@ -55,7 +57,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.2.1";
+const LEARN_VERSION = "2.2.2";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -1255,6 +1257,18 @@ function handleDrillKey(e) {
     // Ignore modifier keys
     if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
     if (e.key === 'CapsLock') return;
+
+    // ⚠️ SAME FIREFOX QUICK FIND FIX AS game.js 3.9.3. This handler is bound to
+    // #drill-keyboard, which is a DIV — a div does not absorb keystrokes the way an
+    // <input> does, so Firefox is still free to act on anything we do not cancel.
+    // `'` opens Quick Find (links only) and `/` opens Quick Find, and lessons drill
+    // punctuation deliberately. Cancel everything we consume; never cancel a
+    // modifier combo, or Ctrl+R and Cmd+Tab stop working.
+    if (!e.ctrlKey && !e.metaKey && !e.altKey &&
+        (e.key.length === 1 || e.key === 'Tab' || e.key === 'Enter' ||
+         e.key === 'Backspace')) {
+        e.preventDefault();
+    }
 
     const anchors = (currentStep?.anchorEnforced && currentLesson?.anchorKeys) || [];
 

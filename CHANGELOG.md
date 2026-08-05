@@ -12,11 +12,12 @@ there.
 
 ## Contents
 
-- [`game.js`](#gamejs) — currently v3.9.2
+- [`game.js`](#gamejs) — currently v3.9.3
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
-- [`admin.js`](#adminjs) — currently v3.19.0
+- [`admin.js`](#adminjs) — currently v3.19.1
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
-- [`learn.js`](#learnjs) — currently v2.2.1
+- [`learn.js`](#learnjs) — currently v2.2.2
+- [`index.html`](#indexhtml) — currently v3.3.1
 
 Files not listed here have short headers that fit the budget on their own:
 `lessons-admin.js`, `staff-admin.js`, `keyboard.js`, `versions.js`,
@@ -26,7 +27,29 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.9.2**
+Current: **v3.9.3**
+
+#### v3.9.3
+
+Round 5 (Mignon). **Firefox's Quick Find no longer fires on every apostrophe.**
+
+         The typing listener is bound to `document`, not to an input, so nothing
+         absorbs a keystroke on our behalf — and only space, Tab and Enter were
+         cancelled. Every other printable character was consumed by handleTyping()
+         AND handed to the browser.
+
+         Firefox still ships Quick Find, the type-ahead-find feature it inherited
+         from Netscape: `/` opens Quick Find and `'` opens Quick Find (links only).
+         Apostrophes are in every contraction and possessive, so a student typing
+         "don't" or "Toby's" popped the find bar several times per paragraph.
+         Chrome never implemented type-ahead find, which is exactly why this was
+         invisible at school and broken on a home machine.
+
+         `e.key.length === 1` catches every printable character while leaving named
+         keys alone. ⚠️ The modifier guard is load-bearing — without it Ctrl+R,
+         Ctrl+T and Cmd+Tab get swallowed and the kid is trapped in the tab.
+         Backspace is included because handleTyping() consumes it and Firefox
+         historically navigated BACK on it outside a text field.
 
 #### v3.9.2
 
@@ -508,7 +531,7 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.19.0**
+Current: **v3.19.1**
 
 ⚠️ **Versioning note.** v3.12.0 through v3.18.0 were bumped as MINOR versions and
 most of them were straight bug fixes that should have been PATCH. Jake caught it:
@@ -529,6 +552,16 @@ reset that was supposed to work is a fix, not a feature. Jake caught that too,
 one turn after catching the first one. Renumbered to **v3.18.1**. Recorded here
 rather than quietly corrected, because stating a standard and then exempting
 yourself from it in the same message is the more instructive failure.
+
+#### v3.19.1
+
+Round 5 (Mignon). Each chapter in the book document now carries its `matter`
+class. bodyChapters has been written since v3.18.x with **no consumer**, and this
+is why: a reader could see how many body chapters there were but not WHICH ones,
+so it could not turn that number into a position. chapterMeta was `{id, title}`.
+
+         ⚠️ Old book documents lack the field. index.html v3.3.1 falls back
+         accordingly; re-upload a book to populate it.
 
 #### v3.19.0
 
@@ -1096,7 +1129,14 @@ Current: **v1.6.0**
 
 ## `learn.js`
 
-Current: **v2.2.1**
+Current: **v2.2.2**
+
+#### v2.2.2
+
+Round 5 (Mignon). Same Firefox Quick Find fix as game.js v3.9.3. handleDrillKey
+is bound to #drill-keyboard, which is a **div** — a div absorbs nothing, so
+Firefox was free to act on anything not cancelled, and lessons drill punctuation
+on purpose.
 
 #### v2.2.1
 
@@ -1213,3 +1253,48 @@ Write reduction to match game.js v3.4.0. saveStats() fired on every
          Chromebooks).
 
 ---
+
+---
+
+## `index.html`
+
+Current: **v3.3.1**
+
+⚠️ **This section was created in Round 5.** index.html had no CHANGELOG section at
+all, despite carrying the student-facing library grid, the age/genre filters and
+the progress bars — and despite being one of only two files that got the
+single-version-constant discipline right (INDEX_VERSION drives both the title and
+the footer, since v3.0.1). Entries before v3.3.1 live only in the file header.
+
+#### v3.3.1
+
+Round 5 (Mignon). Two bugs in the library progress bar, one of them ugly.
+
+         1. THE DENOMINATOR COUNTED FRONT AND BACK MATTER. totalChapters includes
+            the imprint, the colophon and the uncopyright page, so finishing every
+            fable in Aesop still left three pages between the reader and 100% and
+            the bar never filled. This is bodyChapters' first consumer — the field
+            has been written since v3.18.x with nothing reading it.
+         2. parseInt() ON A CHAPTER ID. Part-numbered books use ids like 1.01 and
+            2.09 — Heidi, Treasure Island, Little Women, The War of the Worlds.
+            parseInt("2.09") is 2. **A student who had finished all 23 chapters of
+            Heidi saw "Ch. 2 / 27" and a bar at 7%**; one fourteen chapters in saw
+            "Ch. 1 / 27" at 4%. For a project whose open question is why students
+            stall without generating progress data, a progress bar that does not
+            move is not a cosmetic defect. The ordinal now comes from the chapter
+            LIST rather than from arithmetic on the label.
+
+         Degrades in three steps, because the data is not always present: chapter
+         list available → exact ordinal among body chapters; list stripped (the grid
+         strips it before caching, it being the largest field on the document) or
+         document older than admin.js v3.19.1 → parseFloat rather than parseInt, so
+         2.09 rounds to 2 instead of truncating silently; no bodyChapters at all →
+         previous behaviour exactly.
+
+         Verified with progress-test.mjs, which lifts the patched block out of the
+         file and runs it over a part-numbered book, a cache-stripped document, a
+         pre-v3.19.1 document and a garbage progress value.
+
+         ⚠️ KNOWN LIMITATION: from a CACHED grid a part-numbered book still reads
+         low, because the exact ordinal needs the chapter list. The proper fix is for
+         game.js to write the body ordinal alongside progress. Queued, not done.

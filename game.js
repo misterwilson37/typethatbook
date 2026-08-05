@@ -1,10 +1,16 @@
-// game.js v3.9.2
+// game.js v3.9.3
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.9.3 — Firefox's Quick Find no longer fires on every apostrophe. The typing
+//          listener is on `document` and cancelled the default for space, Tab and
+//          Enter only, so every other printable character was consumed here AND
+//          passed to the browser. Firefox binds `'` to Quick Find (links only) and
+//          `/` to Quick Find, so "don't" and "Toby's" popped the find bar several
+//          times per paragraph — invisible at school (Chrome), broken at home.
 // v3.9.2 — Two fixes to v3.9.0's own audit work, found before it shipped.
 //          1. flushAll()'s re-entrancy guard was `if`, which serialises two
 //             callers and lets three or more overlap — reintroducing the exact
@@ -47,7 +53,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.9.2";
+const VERSION = "3.9.3";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -1800,7 +1806,30 @@ document.addEventListener('keydown', (e) => {
     if (e.key === "Shift") toggleKeyboardCase(true);
     if (!isGameActive) return;
     if (["Shift", "Control", "Alt", "Meta", "CapsLock"].includes(e.key)) return;
-    if (e.key === " " || e.key === "Tab" || e.key === "Enter") e.preventDefault();
+    // ⚠️ CANCEL THE DEFAULT FOR EVERY KEY WE CONSUME. (v3.9.3)
+    //
+    // This listener is on `document`, not on an input, so nothing absorbs the
+    // keystroke for us — and only space, Tab and Enter used to be cancelled.
+    // Every other printable character was handled here AND handed to the browser.
+    //
+    // On FIREFOX that is not cosmetic. Firefox still ships Quick Find, the
+    // type-ahead-find feature it inherited from Netscape: `/` opens Quick Find and
+    // `'` opens Quick Find (links only). Apostrophes are in every contraction and
+    // possessive, so a student typing "don't" or "Toby's" popped the find bar
+    // several times per paragraph. Chrome never implemented type-ahead find, which
+    // is why this was invisible at school and broken at home.
+    //
+    // e.key.length === 1 catches every printable character while leaving named
+    // keys (F5, ArrowLeft, Escape) alone. The modifier guard is load-bearing:
+    // without it we would swallow Ctrl+R, Ctrl+T and Cmd+Tab and trap the kid in
+    // the tab. Backspace is included because handleTyping() consumes it and
+    // Firefox historically navigated BACK on it outside a text field — that pref
+    // ships off now, but a school image can flip it and cancelling costs nothing.
+    if (!e.ctrlKey && !e.metaKey && !e.altKey &&
+        (e.key.length === 1 || e.key === "Tab" || e.key === "Enter" ||
+         e.key === "Backspace")) {
+        e.preventDefault();
+    }
     handleTyping(e.key);
 });
 

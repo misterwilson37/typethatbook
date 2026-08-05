@@ -346,7 +346,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.3.0";
+        const INDEX_VERSION = "3.3.1";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -556,6 +556,10 @@
                         protagonistGender: data.protagonistGender || "",
                         coverUrl: data.coverUrl || "",
                         totalChapters: data.totalChapters || (data.chapters ? data.chapters.length : 0),
+                        // Written by admin.js since v3.18.x. null, not 0, when absent —
+                        // an old document that never had it must fall back to
+                        // totalChapters rather than report a book with no chapters.
+                        bodyChapters: (typeof data.bodyChapters === 'number') ? data.bodyChapters : null,
                         chapters: data.chapters || []
                     });
                 });
@@ -753,13 +757,47 @@
             grid.innerHTML = filtered.map(book => {
                 const progress = userProgress[book.id];
                 let progressHTML = '';
-                if (progress && book.totalChapters > 0) {
-                    const chapNum = parseInt(String(progress.chapter || "1").replace("chapter_", ""));
-                    const pct = Math.min(100, Math.round((chapNum / book.totalChapters) * 100));
+                // ⚠️ TWO BUGS LIVED HERE (v3.3.1).
+                //
+                // 1. The denominator was totalChapters, which COUNTS FRONT AND BACK
+                //    MATTER. Finishing Aesop's 284 fables still left a colophon and
+                //    an uncopyright page between the reader and 100%, so the bar
+                //    never filled. admin.js has written bodyChapters since v3.18.x
+                //    and nothing ever read it — this is that consumer.
+                // 2. parseInt() ON A CHAPTER ID. Part-numbered books use ids like
+                //    1.01 and 2.09 (Heidi, Treasure Island, Little Women, The War of
+                //    the Worlds). parseInt("2.09") is 2, so a student sixteen
+                //    chapters into Heidi saw "Ch. 2". Front matter's 0.x parsed to
+                //    zero. The ordinal has to come from the chapter LIST, not from
+                //    arithmetic on the label.
+                //
+                // The list is only present on a cold load — it is stripped before
+                // caching because it is the largest field on the document — and old
+                // book documents have no `matter` on their entries at all. So this
+                // degrades in three steps rather than assuming the best case.
+                const denom = (typeof book.bodyChapters === 'number' && book.bodyChapters > 0)
+                    ? book.bodyChapters : book.totalChapters;
+                if (progress && denom > 0) {
+                    const curId = String(progress.chapter || "chapter_1");
+                    let chapNum = null;
+                    if (book.chapters && book.chapters.length) {
+                        const bodyOnly = book.chapters.filter(c => (c.matter || 'body') === 'body');
+                        const list = bodyOnly.length ? bodyOnly : book.chapters;
+                        const at = list.findIndex(c => String(c.id) === curId);
+                        if (at !== -1) chapNum = at + 1;
+                    }
+                    // Fallback for a cached grid or a pre-v3.19.1 document. parseFloat,
+                    // not parseInt, so 2.09 does not silently become 2 — and it is
+                    // floored back to a whole number for display.
+                    if (chapNum === null) {
+                        const raw = parseFloat(curId.replace("chapter_", ""));
+                        chapNum = Number.isFinite(raw) ? Math.max(1, Math.round(raw)) : 1;
+                    }
+                    const pct = Math.min(100, Math.round((chapNum / denom) * 100));
                     progressHTML = `
                         <div class="book-progress">
                             <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
-                            <div class="progress-label">Ch. ${chapNum} / ${book.totalChapters}</div>
+                            <div class="progress-label">Ch. ${chapNum} / ${denom}</div>
                         </div>`;
                 }
 
