@@ -1,10 +1,16 @@
-// game.js v3.12.4
+// game.js v3.13.0
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.13.0 — The book progress bar's SEGMENTS are body chapters. The labels and the
+//           fill fraction were switched in v3.10.0 and v3.12.3; the geometry never
+//           was, so the bar was drawn against one denominator and filled against
+//           another — ten stripes for a two-chapter book. Sixth place in this file
+//           where the fix was "use the body list". The updater walks the same list
+//           now instead of relying on half its lookups finding nothing.
 // v3.12.4 — Two things the overwrite test surfaced. (a) furthestChapter was never
 //           validated — v3.12.1 checked the CURRENT chapter and left this one alone,
 //           so after a renumber the start screen offered "Jump to furthest point
@@ -75,7 +81,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.12.4";
+const VERSION = "3.13.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -2263,14 +2269,22 @@ function initBookProgressBar() {
     const track = document.getElementById('book-progress-track');
     if (!track || !bookMetadata || !bookMetadata.chapters) return;
 
-    const chapters = bookMetadata.chapters;
+    // ⚠️ SEGMENTS ARE BODY CHAPTERS (v3.13.0). This iterated
+    // bookMetadata.chapters, so the bar drew a stripe for the title page, imprint,
+    // dedication, appendix, endnotes, colophon and uncopyright page. On the
+    // two-chapter fixture that is ten stripes for two chapters — the last of the
+    // "map still loads all the chapters" reports, and the sixth place in this file
+    // where the fix was "use the body list". The labels and the fraction were
+    // switched in v3.10.0 and v3.12.3; the geometry itself never was, so the bar
+    // was drawn against one denominator and filled against another.
+    const chapters = bodyChapterList();
     const total    = chapters.length;
     if (!total) return;
 
     // Built ONCE for the whole render, not once per segment: Aesop has 284
     // chapters and this used to be the hot loop the v3.6.0 audit went after.
     const _bpOrdinals = bodyOrdinalMap();
-    const bodyTotal = bodyChapterList().length;
+    const bodyTotal = total;
 
     track.innerHTML = '';
     bookBarCondensed = total > BOOK_BAR_MAX_SEGMENTS;
@@ -2475,7 +2489,11 @@ function updateProgressBars() {
 
     const ordinals = bodyOrdinalMap();
     const curOrd = ordinals.get(chapterKey(currentChapterNum));
-    bookMetadata.chapters.forEach((chap) => {
+    // Same list the builder used (v3.13.0). Walking the full spine here still
+    // "worked" — the missing front/back matter nodes just failed their lookup and
+    // hit `if (!seg) return` — but a loop that relies on half its iterations
+    // silently finding nothing is a loop nobody can reason about later.
+    bodyChapterList().forEach((chap) => {
         const ord = ordinals.get(chapterKey(chap.id));
         // Compared by POSITION, not by parsing the label. parseInt("1.01") and
         // parseInt("1.14") are both 1, which is why an entire part used to render
@@ -3324,7 +3342,19 @@ async function finishChapter() {
             title, stats, 'Back to the library',
             async () => { window.location.href = 'index.html'; },
             '', true, extra);
-        _ttbEmit('bookComplete', { bookId: currentBookId, chapters: bodyChapterList().length });
+        // Classic gets the credits in the text area. Adventure gets the same event
+        // and will scroll its own version over the canvas — the renderer owns that
+        // surface and already animates, so duplicating it in the DOM would fight it.
+        if (VIEW_MODE !== 'adventure') renderClassicCredits();
+        _ttbEmit('bookComplete', {
+            bookId:     currentBookId,
+            title:      bookMetadata ? bookMetadata.title : '',
+            author:     bookMetadata ? bookMetadata.author : '',
+            source:     bookMetadata ? bookMetadata.source : '',
+            rights:     bookMetadata ? bookMetadata.rights : '',
+            cleanedBy:  bookMetadata ? bookMetadata.cleanedBy : '',
+            chapters:   bodyChapterList().length
+        });
         return;
     }
 
@@ -3473,6 +3503,73 @@ function showStartModal(btnText) {
 // hint. Added so the book-completion screen can offer "About this book" without
 // abusing the hint slot, which starts display:none and is revealed conditionally.
 // Optional and defaulted, so the five existing callers are untouched.
+// ─── END CREDITS, CLASSIC VIEW (v3.13.0) ─────────────────────────────────────
+//
+// Jake's note: credits belong "on the main screen in standard fashion" for Classic
+// and scrolling like a movie for Adventure. v3.12.2 put a link in the stats modal,
+// which is the wrong surface — the modal is a stats card that lives in the keyboard
+// area. The credits belong where the BOOK was, because that is what just ended.
+//
+// So Classic replaces the text stream. The reader has just typed the last word in
+// that space; the next thing in that space should be who wrote it.
+//
+// ⚠️ NOT A DUPLICATE OF index.html's About PANEL. That panel renders the stored
+// notice PAGES, which is a subcollection read per page. This is the one-line
+// attribution already on the book document, which game.js has in bookMetadata and
+// costs nothing. Anyone wanting the full notices follows the link.
+function renderClassicCredits() {
+    if (!textStream || !bookMetadata) return;
+    const m = bookMetadata;
+    const bits = [];
+    if (m.author)     bits.push(['By',                escapeHtmlG(m.author)]);
+    if (m.source)     bits.push(['Source',            escapeHtmlG(m.source)]);
+    if (m.rights)     bits.push(['Licence',           creditLine(m.rights)]);
+    if (m.cleanedBy)  bits.push(['Text prepared by',  escapeHtmlG(m.cleanedBy)]);
+
+    const rows = bits.map(b =>
+        '<div style="margin:3px 0;"><span style="opacity:0.55;">' + b[0] +
+        '</span> &nbsp;' + b[1] + '</div>').join('');
+
+    textStream.innerHTML =
+        '<div style="max-width:620px; margin:0 auto; padding:8vh 24px 0; text-align:center;">' +
+          '<div style="font-size:0.72rem; letter-spacing:0.22em; text-transform:uppercase; ' +
+               'opacity:0.5; margin-bottom:18px;">The End</div>' +
+          '<div style="font-size:1.5rem; font-weight:700; line-height:1.25;">' +
+               escapeHtmlG(m.title || 'This book') + '</div>' +
+          '<div style="margin-top:26px; font-size:0.92rem; line-height:1.7;">' + rows + '</div>' +
+          (bits.length ? '' : '<div style="opacity:0.55; font-size:0.9rem;">' +
+               'No credits were recorded for this edition.</div>') +
+          '<div style="margin-top:30px; font-size:0.85rem;">' +
+            '<a href="index.html#about=' + encodeURIComponent(currentBookId) + '" ' +
+               'style="color:var(--carolina-blue);">Read this book\u2019s own notices</a>' +
+            '<span style="opacity:0.4;"> \u00b7 </span>' +
+            '<a href="index.html" style="color:var(--carolina-blue);">Back to the library</a>' +
+          '</div>' +
+        '</div>';
+}
+
+// A licence value carries its URI on purpose (a URI is what CC asks for), so show
+// the label and hide the URL behind it — the same rule index.html uses on the card.
+// ⚠️ THE CHARACTER CLASS AND THE ATTRIBUTE ESCAPE ARE BOTH SECURITY.
+//
+// escapeHtmlG() is DOM-based (textContent -> innerHTML). It neutralises < > & and
+// NOT quotes, because quotes need no escaping in element content — and very much do
+// inside an href. A first draft of this used \S+ for the URL, so a licence value of
+//     Evil" onclick="alert(2) https://x.test/"onmouseover="alert(3)
+// matched through the quotes and closed the href early to inject a handler.
+//
+// index.html's linkifyText() already had exactly this fix and I did not carry it
+// over — the second time in one round, which is the argument for the test that
+// caught it rather than for trying harder to remember.
+function creditLine(val) {
+    const m = /^(.*?)\s*(https?:\/\/[^\s<>"']+)\s*$/.exec(String(val || ''));
+    if (!m) return escapeHtmlG(val);
+    const label = m[1].trim() || m[2];
+    const href = m[2].replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" ' +
+           'style="color:var(--carolina-blue);">' + escapeHtmlG(label) + '</a>';
+}
+
 // game.js has no HTML escaper of its own and this string is a book title from
 // Firestore, rendered into innerHTML.
 function escapeHtmlG(str) {

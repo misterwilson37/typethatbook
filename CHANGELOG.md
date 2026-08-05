@@ -12,8 +12,8 @@ there.
 
 ## Contents
 
-- [`game.js`](#gamejs) — currently v3.12.4
-- [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
+- [`game.js`](#gamejs) — currently v3.13.0
+- [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.2.0
 - [`admin.js`](#adminjs) — currently v3.23.1
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.2
@@ -28,7 +28,39 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.12.4**
+Current: **v3.13.0**
+
+#### v3.13.0
+
+Round 5 (Mignon). The last of the body-list fixes, and the Classic end credits.
+
+         1. THE PROGRESS BAR'S SEGMENTS were built from bookMetadata.chapters, so
+            the bar drew a stripe for the title page, imprint, dedication, appendix,
+            endnotes, colophon and uncopyright page — ten stripes for a two-chapter
+            book. The labels went to the body list in v3.10.0 and the second label
+            in v3.12.3; the GEOMETRY never did, so the bar was drawn against one
+            denominator and filled against another. Sixth site in this file. The
+            updater walks the same list now instead of relying on half its lookups
+            silently finding nothing.
+         2. END CREDITS IN CLASSIC VIEW, in the text stream — where the book was,
+            because that is what just ended. v3.12.2 put a link in the stats modal,
+            which is the wrong surface: the modal is a stats card that lives in the
+            keyboard area. Title, author, source, licence, who prepared the text,
+            then links to the book's own notice pages and back to the library.
+            ⚠️ NOT a duplicate of index.html's About panel: that renders the stored
+            notice PAGES (a subcollection read each), this is the one-line
+            attribution already on the book document, which costs nothing.
+         3. bookComplete now carries the credit fields, so the renderer can scroll
+            its own version over the canvas without a second Firestore read.
+            Adventure's scrolling credits are NOT built — that is canvas animation
+            and it needs eyes on it running.
+
+         ⚠️ creditLine() shipped with the SAME injection hole index.html's
+         linkifyText() had already been fixed for: \S+ for the URL, and
+         escapeHtmlG() is DOM-based so it does not escape quotes. A licence value
+         carrying `https://x.test/"onmouseover="alert(1)` closed the href early. The
+         second time in one round, which is the argument for the test that caught it
+         rather than for trying harder to remember.
 
 #### v3.12.4
 
@@ -626,9 +658,33 @@ Adventure Mode integration; cross-file version banner
 
 ## `adventure-renderer.js`
 
-Current: **v1.1.0**
+Current: **v1.2.0**
 
 adventure-renderer.js — v1.1.0
+
+#### v1.2.0
+
+Round 5 (Mignon). **A dot marks the END of a chapter, not its start.**
+
+         dotY was `top + span * i / (n - 1)`, which puts dot 0 at the very top. But
+         segment i runs dot[i-1] → dot[i] and represents TYPING chapter i, so
+         segment 0 had nowhere to go: from a 14-pixel stub above the top down to dot
+         0, also at the top. Finishing the first chapter of a two-chapter book drew a
+         14-pixel squiggle; finishing the second drew the entire height in one
+         stroke. Jake's report was exact — "the squiggle at the top is all that the
+         first chapter did, and the long straight line is from writing an entire tab
+         key."
+
+         `(i + 1) / n` gives every chapter an equal 1/n slice and puts the dots where
+         a reader expects: finish 1 of 2 and you are halfway down. Measured across the
+         real book sizes — 2, 12, 23, 34 and 284 chapters — first chapter lands at
+         1/n and the last at 100% in every one.
+
+         The condensed path (over MAP_MAX_DOTS chapters) divided by n-1 for the same
+         reason; also fixed. Invisible on Aesop's 284, a whole chapter out on twelve.
+
+         The `length < 2` guard became `< 1`: it only existed because the old formula
+         divided by zero on a single chapter, and a one-chapter book deserves a route.
 
 #### v1.1.0
 

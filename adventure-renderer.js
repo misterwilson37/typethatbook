@@ -1,4 +1,4 @@
-// adventure-renderer.js v1.1.0
+// adventure-renderer.js v1.2.0
 //
 // Canvas renderer for Adventure Mode. Observes ttb:* CustomEvents on document
 // and draws the typing session as a figure walking across word-platforms in a
@@ -1613,7 +1613,9 @@ class AdventureRenderer {
   }
 
   _drawChapterMap(now) {
-    if (!this.chapterList || this.chapterList.length < 2) return;
+    // Was `< 2`, because the old formula divided by (n - 1) and blew up on one
+    // chapter. It no longer does, and a single-chapter book deserves a route too.
+    if (!this.chapterList || this.chapterList.length < 1) return;
     const ctx = this.ctx;
     const n = this.chapterList.length;
 
@@ -1621,7 +1623,21 @@ class AdventureRenderer {
     const top = 30;
     const bottom = this.h - 34;
     const span = bottom - top;
-    const dotY = (i) => top + (n === 1 ? 0 : (span * i) / (n - 1));
+    // ⚠️ A DOT MARKS THE END OF A CHAPTER, NOT ITS START. (v1.2.0)
+    //
+    // This was `span * i / (n - 1)`, which puts dot 0 at the very top. Segment i
+    // runs dot[i-1] → dot[i] and represents typing chapter i, so segment 0 had
+    // nowhere to go: it ran from a 14px stub above the top down to dot 0, also at
+    // the top. Finishing the FIRST chapter of a two-chapter book therefore drew a
+    // 14-pixel squiggle, and finishing the second drew the entire height. Jake
+    // reported exactly that: "the squiggle at the top is all that the first
+    // chapter did, and the long straight line is from writing an entire tab key."
+    //
+    // With (i + 1) / n every chapter owns an equal 1/n slice of the span and the
+    // dots land where a reader expects them: finish 1 of 2 and you are halfway
+    // down. Also removes the n === 1 special case, which only existed because the
+    // old formula divided by zero there.
+    const dotY = (i) => top + (span * (i + 1)) / n;
 
     // Subtle parchment-margin wash so the strip reads as map, not clutter
     ctx.save();
@@ -1646,7 +1662,9 @@ class AdventureRenderer {
     // typing chapter i. Chapter 0 gets a short lead-in stub from above.
     const drawSegment = (i, frac) => {
       if (frac <= 0) return;
-      const y0 = (i === 0) ? top - 14 : dotY(i - 1);
+      // The first chapter starts at the TOP OF THE ROUTE, not at a stub floating
+      // above it. `top - 14` was compensating for dot 0 already being at `top`.
+      const y0 = (i === 0) ? top : dotY(i - 1);
       const y1 = dotY(i);
       const steps = 14;
       ctx.strokeStyle = 'rgba(168, 80, 64, 0.85)';
@@ -1673,7 +1691,10 @@ class AdventureRenderer {
     if (n > MAP_MAX_DOTS) {
       const doneCount = this.chapterList.filter(
         c => this.completedSet.has(String(c.num))).length;
-      const frac = Math.min(1, (curIdx >= 0 ? curIdx : doneCount) / Math.max(1, n - 1));
+      // Same off-by-one as dotY: with n chapters, having finished `doneCount` of
+      // them is doneCount/n of the way through, not doneCount/(n-1). On Aesop's 284
+      // that difference is invisible; on a 12-chapter book it is a whole chapter.
+      const frac = Math.min(1, (curIdx >= 0 ? curIdx : doneCount) / Math.max(1, n));
 
       // Un-walked remainder, faint.
       ctx.strokeStyle = 'rgba(120, 100, 70, 0.30)';
