@@ -1,6 +1,11 @@
 # CHANGELOG
 
-<!-- CHANGELOG.md v1.1.0 — created 2026-08-02 by Blick.
+<!-- CHANGELOG.md v1.2.0 — created 2026-08-02 by Blick.
+     v1.2.0 — Round 6 (Noiseless): four entry blocks were filed under ## `game.js`
+              that describe index.html and style.css, and every section's entries
+              were re-sorted newest-first. The ordering claim below was aspirational
+              until now; game.js, admin.js and index.html were all out of order.
+              Nothing was deleted — the move was line-accounted both ways.
      v1.1.0 — Round 4 (Oliver): the cost/grades/stability audit pass. -->
 
 The full per-file history. **File headers carry only the last six entries** — see
@@ -12,23 +17,34 @@ there.
 
 ## Contents
 
-- [`game.js`](#gamejs) — currently v3.13.0
+- [`game.js`](#gamejs) — currently v3.13.1
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.2.0
-- [`admin.js`](#adminjs) — currently v3.23.1
+- [`admin.js`](#adminjs) — currently v3.23.2
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
-- [`learn.js`](#learnjs) — currently v2.2.2
+- [`learn.js`](#learnjs) — currently v2.2.3
 - [`index.html`](#indexhtml) — currently v3.6.1
 - [`style.css`](#stylecss) — currently v3.5.0
 
+- [`lessons-admin.js`](#lessons-adminjs) — currently v1.7.1
+
 Files not listed here have short headers that fit the budget on their own:
-`lessons-admin.js`, `staff-admin.js`, `keyboard.js`, `versions.js`,
-`firebase-config.js`, `index.js`, `style.css`, `adventure.css`.
+`staff-admin.js`, `keyboard.js`, `versions.js`, `firebase-config.js`,
+`adventure.css`.
 
 ---
 
 ## `game.js`
 
-Current: **v3.13.0**
+Current: **v3.13.1**
+
+#### v3.13.1
+
+Round 6 (Noiseless). **Header only — no code changed in this release.** The header
+was 73 lines with 7 version entries against this project's own 60-line / 6-entry
+budget, which versions.js reports in index.html's build panel. v3.12.0 and v3.11.0
+moved out; both were already here in full. Uploading this file is optional and can
+be batched with the next real change.
+
 
 #### v3.13.0
 
@@ -354,93 +370,6 @@ Round 4 audit pass. Five changes, no new features.
          corrected to 60 (four categories at LB_FETCH_LIMIT 15), or 90 on the
          weekly fallback path.
 
-#### v3.6.0
-
-Round 5 (Mignon). **"The index page is ugly" was not a styling problem. The markup
-was invalid.**
-
-         v3.5.0 put a licence `<a>` and an About `<button>` INSIDE the card, which
-         was itself an `<a>`. HTML forbids both: an anchor may not contain another
-         anchor or a button. Browsers do not ignore that — they RECOVER from it, and
-         the recovery closes the outer `</a>` early and reparents everything after
-         the offending tag. Which is exactly what Jake saw: the credit line splitting
-         mid-sentence, half of it and the About button sitting on the page background
-         outside the card, the card's white background stopping short.
-
-         Measured with card-markup-test.mjs, which parses the output as a real DOM:
-         the v3.5.0 structure yields TWO grid children instead of one, with both the
-         credit and the About button outside the card. The `<a>` now wraps only the
-         cover and metadata; credit and About are siblings inside a plain `<div>`
-         card. Nine structural assertions across three book shapes.
-
-         ALSO:
-         · CACHE KEY BUMPED to ttb_booksCache_v2. The cache stores a snapshot of the
-           book objects, so v3.5.1's aboutTitles never reached a browser that already
-           had a cache — for up to six hours. That is why Jake still saw "NOTICE" on
-           every About section AFTER the fix shipped: the code was live and the data
-           feeding it was stale. ⚠️ Any future change to what is cached needs this
-           number bumped or the change silently does nothing.
-         · ARCHIVE URL WITHOUT A SCHEME is a relative path.
-           "typethatbook.misterwilson.org/library/x.epub" resolved against the
-           current page and produced ".../typethatbook.misterwilson.org/library/x.epub".
-           Now prefixed with https:// when no scheme is present, and any non-http(s)
-           scheme is refused rather than rendered as a link.
-         · Opens the About panel on arrival at index.html#about=<bookId>, from
-           game.js v3.12.2's completion screen. Hooked into all THREE paths that
-           populate allBooks — fresh, cached and stale-cache — because a reader
-           arriving from the completion screen must get the panel regardless of which
-           one served them.
-
-#### v3.5.1
-
-Round 5 (Mignon). Three rendering bugs, all found by Jake's screenshots rather
-than by me reading the code.
-
-         1. `[object Object]`, once per paragraph, where the copyright notice
-            should have been. **A segment is `{ text: "…" }`, not a string** —
-            admin.js has always stored it that way — and String({}) is
-            "[object Object]". I wrote `escapeHtml(String(t))` without ever
-            checking the shape. Also strips the leading tab admin.js prepends for
-            paragraph indentation: meaningful when typing, just a gap when reading.
-         2. Every section headed **"Notice"**. The lookup used `book.chapters`,
-            which the grid STRIPS before caching — the same fact that made
-            `aboutIds` necessary in v3.5.0, applied to the ids and not to their
-            titles. `aboutTitles` is now captured at load time alongside them.
-         3. The card credit printed a **raw URL as its own link text**, so "CC0 1.0
-            Public Domain Dedication https://creativecommons.org/publicdomain/zero/1.0/"
-            became four wrapped underlined lines that dwarfed the book's title. The
-            licence VALUE containing its URI is correct and deliberate — a licence
-            URI is what CC asks for — so the fix belongs in the rendering. New
-            creditLinkFor() uses the label as the link text and keeps the URI in the
-            href, shared by the card and the panel.
-
-         Verified with about-render-test.mjs: eight segment shapes including {} and
-         undefined, three headings from a cache-stripped book, and six credit values
-         including one carrying an event-handler injection in both the label and the
-         URL.
-
-#### v3.5.0
-
-Adventure Mode leaves alpha. Three changes, one feature:
-
-         1. FIRST-RUN SPLASH. A student who has never chosen a view gets a
-            full-screen picker with an animated preview of each mode before
-            they type a character. Adventure was previously reachable only
-            through Settings → View, which most students never opened, so the
-            mode with the better engagement numbers was the hidden one.
-         2. THE CHOICE FOLLOWS THE STUDENT. viewMode now lives in
-            users/{uid}/profile/info alongside initials, and is read as part
-            of the SAME getDoc() that already loads initials — no extra reads.
-            localStorage stays as the pre-auth fast path so the correct view
-            paints before Firestore answers, and is reconciled after.
-         3. HOT SWAP, NO RELOAD. applyViewMode() mounts/unmounts the renderer
-            and replays textLoaded + positionSet into it. The old settings
-            toggle called location.reload(), which was acceptable for a
-            deliberate settings change but not for "you sat down at a
-            different Chromebook and we noticed".
-         Also: document.title driven from VERSION (open work §9 item 5);
-         "(alpha)" removed from the Settings label.
-
 #### v3.8.0
 
 Tier 3. Two things, both small:
@@ -490,6 +419,28 @@ Book progress bar survives a 286-chapter book. Aesop's Fables was the
          keystroke regardless of chapter count. The label carries the
          information the segments used to ("Ch 12 / 286").
 
+#### v3.5.0
+
+Adventure Mode leaves alpha. Three changes, one feature:
+
+         1. FIRST-RUN SPLASH. A student who has never chosen a view gets a
+            full-screen picker with an animated preview of each mode before
+            they type a character. Adventure was previously reachable only
+            through Settings → View, which most students never opened, so the
+            mode with the better engagement numbers was the hidden one.
+         2. THE CHOICE FOLLOWS THE STUDENT. viewMode now lives in
+            users/{uid}/profile/info alongside initials, and is read as part
+            of the SAME getDoc() that already loads initials — no extra reads.
+            localStorage stays as the pre-auth fast path so the correct view
+            paints before Firestore answers, and is reconciled after.
+         3. HOT SWAP, NO RELOAD. applyViewMode() mounts/unmounts the renderer
+            and replays textLoaded + positionSet into it. The old settings
+            toggle called location.reload(), which was acceptable for a
+            deliberate settings change but not for "you sat down at a
+            different Chromebook and we noticed".
+         Also: document.title driven from VERSION (open work §9 item 5);
+         "(alpha)" removed from the Settings label.
+
 #### v3.4.2
 
 practice_sessions now also carries classId/schoolId. Without them the
@@ -505,52 +456,6 @@ practice_sessions now writes an expiresAt TTL field. It was the one
          append-only collection still growing without bound; typing_sessions
          got one in v3.4.0 and this was missed. TTL policies for both are in
          firestore.indexes.json fieldOverrides.
-
-#### v3.5.0
-
-Round 5 (Mignon). The **About this book** panel. Renders the pages flagged
-about:true — imprint, colophon, licence, uncopyright — VERBATIM, from the
-document actually being served. Not a paraphrase on a card, not a link to a copy
-hosted somewhere else. That is what a Creative Commons notice asks for, and it is
-what deleting front matter was destroying.
-
-         ⚠️ COST. The credits TEXT is a chapters-subcollection read, one document
-         per page, and is NOT fetched on page load — only when someone opens the
-         panel, then cached for the session. A book nobody asks about costs nothing.
-         `aboutIds` is extracted from the chapter array at LOAD time precisely
-         because that array is stripped before caching, so the ℹ button survives a
-         cached grid while the text does not need to.
-
-         The ℓ button renders only when a book HAS credits pages, so a book whose
-         front matter was deleted shows nothing rather than an empty box. A failed
-         subcollection read leaves the credits block standing, since that block is
-         what carries the licence URI.
-
-         ⚠️ The card is itself an <a>, so the ℹ handler needs preventDefault AND
-         stopPropagation or clicking it navigates into the book. Delegated once at
-         init rather than rebound per render.
-
-         linkifyText() was hoisted to module scope and is now shared by the card and
-         the panel — two copies of an escaping rule is one copy too many. This broke
-         credit-test.mjs, which was extracting it by matching source text, and that
-         is the correct thing for the test to have done. Now nine cases including a
-         hostile book id in the button's data attribute.
-
-#### v3.5.0
-
-Round 5 (Mignon). **`#modal-body` no longer uses `justify-content: center`.**
-
-         That property on a scrollable flex container CLIPS THE OVERFLOW AT THE
-         START, and the clipped region cannot be scrolled to — the scrollbar appears
-         and works, but everything above the scroll origin is unreachable. Which is
-         what Jake hit: "scroll is there, but not there enough to utilize", with the
-         Game Genie title appearing to cover the chapter picker it was in fact
-         sitting above. The Genie panel is the tallest thing that ever goes in this
-         modal, so it is the only one that overflowed far enough to lose content.
-
-         `flex-start` plus auto margins on the first and last child gives both
-         behaviours with no @supports and no browser caveats: short content still
-         centres, tall content pins to the top and every pixel stays reachable.
 
 #### v3.4.0
 
@@ -660,11 +565,18 @@ Adventure Mode integration; cross-file version banner
 
 Current: **v1.2.0**
 
-adventure-renderer.js — v1.1.0
-
 #### v1.2.0
 
-Round 5 (Mignon). **A dot marks the END of a chapter, not its start.**
+Round 5 (Mignon), with a correction in Round 6 (Noiseless).
+
+⚠️ **This version shipped with RENDERER_VERSION still reading `'1.1.0'`.** The
+code, this entry and the file's header comment were all v1.2.0; only the runtime
+constant disagreed — and that constant is the one copy versions.js reads, so the
+build panel would have reported 1.1.0 for a correct deploy. Corrected in Round 6
+with no change to the code; map-geometry-test.mjs passing against the v1.2.0
+geometry is what established which of the two was lying.
+
+**A dot marks the END of a chapter, not its start.**
 
          dotY was `top + span * i / (n - 1)`, which puts dot 0 at the very top. But
          segment i runs dot[i-1] → dot[i] and represents TYPING chapter i, so
@@ -883,7 +795,27 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.23.1**
+Current: **v3.23.2**
+
+#### v3.23.2
+
+Round 6 (Noiseless). **Header refresh and the admin.html title. No behaviour
+change beyond one line.**
+
+         The header's entry list stopped at v3.18.4 while ADMIN_VERSION read
+         3.23.1 — NINE releases absent from the file that implements them,
+         including Delete Book, Upload All's orphan pruning, the attribution
+         fields and the entire About system. versions.js's drift check compares the
+         first v<semver> in the leading comment against the constant, and the top
+         line was right, so the check passed while the history below it was nine
+         versions out of date. Refreshed from this document and trimmed to budget.
+
+         admin.html's `<title>` was hardcoded — HANDOFF §4.1's first open item, and
+         the field that read v3.3.0 for nineteen minor versions. admin.js now sets
+         document.title from ADMIN_VERSION on load, so the tab title cannot drift
+         again; the static title in the HTML is reduced to a labelled pre-JS
+         fallback rather than a second source of truth.
+
 
 ⚠️ **Versioning note.** v3.12.0 through v3.18.0 were bumped as MINOR versions and
 most of them were straight bug fixes that should have been PATCH. Jake caught it:
@@ -904,38 +836,6 @@ reset that was supposed to work is a fix, not a feature. Jake caught that too,
 one turn after catching the first one. Renumbered to **v3.18.1**. Recorded here
 rather than quietly corrected, because stating a standard and then exempting
 yourself from it in the same message is the more instructive failure.
-
-#### v3.22.1 (admin.html only)
-
-Round 5 (Mignon). **Layout, no functionality.** Jake's screenshot made the case
-better than any argument: the metadata block had become ONE row of nine columns,
-each with a hint paragraph printed underneath, several of them taller than the input
-they described. The inputs were squeezed to roughly six characters wide and the
-licence hint ran to fourteen lines.
-
-         Two rows now — identity/tagging on the first, provenance on the second —
-         with the cover in its own fixed 120px column to the right of both, so the
-         cover cannot steal width from eight inputs and eight inputs cannot squash
-         the cover. Stacks below 900px.
-
-         Hints became title="" tooltips on a circled i. Same words, on hover, zero
-         vertical space.
-
-         FRONT/BODY/BACK and EDIT were the SAME BLUE, sitting adjacent, doing very
-         different things — one reclassifies a page, the other opens its text. The
-         matter toggle is amber now (the colour the untagged dot already uses for "a
-         judgement call") and About is green when on.
-
-         ⚠️ admin.js IS UNCHANGED, which was the point — Jake needed to run the
-         import test while this was being written. Verified: all 14 metadata element
-         ids present, no duplicates, HTML balanced, and the set of ids admin.js
-         expects but admin.html lacks went from 27 to 23 with NO new entries. The
-         four that disappeared are the fields v3.20.0 and v3.21.0 added, which is
-         the first time the panel has actually contained them.
-
-         Also set the hardcoded page title to v3.22.1. It had said v3.3.0 since
-         admin.js was at 3.3.0 — nineteen minor versions ago. admin.html still has no
-         version constant of its own; that is a separate job.
 
 #### v3.23.1
 
@@ -979,6 +879,38 @@ Round 5 (Mignon). Four things, all from Jake using the panel rather than reading
             is upstream. Both, because the provenance should survive whichever host
             disappears first — and because with several instances doing text passes,
             knowing which edition was cleaned matters as much as who cleaned it.
+
+#### v3.22.1 (admin.html only)
+
+Round 5 (Mignon). **Layout, no functionality.** Jake's screenshot made the case
+better than any argument: the metadata block had become ONE row of nine columns,
+each with a hint paragraph printed underneath, several of them taller than the input
+they described. The inputs were squeezed to roughly six characters wide and the
+licence hint ran to fourteen lines.
+
+         Two rows now — identity/tagging on the first, provenance on the second —
+         with the cover in its own fixed 120px column to the right of both, so the
+         cover cannot steal width from eight inputs and eight inputs cannot squash
+         the cover. Stacks below 900px.
+
+         Hints became title="" tooltips on a circled i. Same words, on hover, zero
+         vertical space.
+
+         FRONT/BODY/BACK and EDIT were the SAME BLUE, sitting adjacent, doing very
+         different things — one reclassifies a page, the other opens its text. The
+         matter toggle is amber now (the colour the untagged dot already uses for "a
+         judgement call") and About is green when on.
+
+         ⚠️ admin.js IS UNCHANGED, which was the point — Jake needed to run the
+         import test while this was being written. Verified: all 14 metadata element
+         ids present, no duplicates, HTML balanced, and the set of ids admin.js
+         expects but admin.html lacks went from 27 to 23 with NO new entries. The
+         four that disappeared are the fields v3.20.0 and v3.21.0 added, which is
+         the first time the panel has actually contained them.
+
+         Also set the hardcoded page title to v3.22.1. It had said v3.3.0 since
+         admin.js was at 3.3.0 — nineteen minor versions ago. admin.html still has no
+         version constant of its own; that is a separate job.
 
 #### v3.22.0
 
@@ -1648,7 +1580,43 @@ Current: **v1.6.0**
 
 ## `learn.js`
 
-Current: **v2.2.2**
+Current: **v2.2.3**
+
+#### v2.2.3
+
+Round 6 (Noiseless). **`beginStep()` called a function that does not exist.**
+
+         `if (!currentStep) { finishLesson(); return; }` — and there is no
+         finishLesson() in learn.js, or in any other file in this repo. The
+         completion path has always been finishStep() -> showLessonResultModal().
+
+         The guard exists to catch currentStepIdx landing outside currentRuns, so
+         it fired only in the situation it was written to rescue, and when it fired
+         it threw a ReferenceError. The throw abandons beginStep() BEFORE the intro
+         panel is hidden or the keyboard is wired, so the student is left on a dead
+         drill screen with no modal, no error and no route back but the browser's
+         Back button. Nothing is written, which means it is also invisible from the
+         teacher side — the exact failure mode the Batch A/B instrumentation exists
+         to eliminate.
+
+         Reachable two ways, both real. The Game Genie's step jump calls
+         beginStep(parseInt(select.value)) with no bounds check. And a saved run
+         checkpoint outlives a lesson edit: re-chunking a five-run step into three
+         leaves a resume pointing at run 4 of 3. startLesson() bounds-checks the
+         resume it reads, but the checkpoint itself survives.
+
+         Recovery is stopLesson(), not completion. `!currentStep` means the run list
+         and the index disagree; grading a run that does not exist would write a
+         score for work nobody did. clearRunPosition() goes with it so a stale
+         checkpoint cannot bounce the student straight back out.
+
+         Also in this release: the mid-drill resume condition read
+         `!drillModal.classList.contains('hidden') === false`. That is CORRECT —
+         unary ! binds tighter than ===, so it reduces to "the modal is hidden" —
+         but it is shaped exactly like a typo, and the next person to touch it will
+         "fix" it into its own negation. Rewritten as two named booleans, with
+         equivalence checked across all four input combinations first.
+
 
 #### v2.2.2
 
@@ -1775,6 +1743,46 @@ Write reduction to match game.js v3.4.0. saveStats() fired on every
 
 ---
 
+## `lessons-admin.js`
+
+Current: **v1.7.1**
+
+#### v1.7.1
+
+Round 6 (Noiseless). **Two functions were wired into the UI and never written.**
+
+         admin.html has the whole "Add one student" form — #student-one-section,
+         #student-one-email, #student-one-class, #student-one-add-btn — and
+         initStudentsPanel() attached listeners for both `_populateOneStudentClasses`
+         and `_addOneStudent`. Neither was declared anywhere in the repo.
+
+         That is not a dormant feature. `addEventListener('click', _addOneStudent)`
+         EVALUATES the identifier, so initStudentsPanel() threw a ReferenceError at
+         that line and never reached anything after it:
+
+         · Preview CSV and Commit CSV were never wired, so the roster import
+           buttons did nothing at all;
+         · the Lessons/Books progress tabs were never wired;
+         · loadStudentRoster() is the last statement in the function, so the roster
+           never loaded — an empty student table was the only visible symptom;
+         · and `_studentsInited = true` is set BEFORE the throw, so reopening the
+           tab took the early-return path and rebuilt two dropdowns instead of
+           recovering. Broken for the rest of the session.
+
+         Both functions were written from _commitCSV() and _bulkAssign() rather than
+         from scratch, because the single-student case is exactly one iteration of
+         the bulk loop: same users/{uid} vs pendingClassAssignments/{email} split,
+         same rule that schoolId must ride along on a create, same roster-cache
+         update. admin.html's own help text ("If they haven't, the assignment waits
+         for them and applies on their first sign-in") describes the pending path,
+         which is how the intent was confirmed rather than guessed.
+
+         Found by undefined-calls-test.mjs, which is new this round and exists
+         because of this class of defect. Grep finds one hit for `_addOneStudent`
+         and it looks like a reference to something real.
+
+---
+
 ## `index.html`
 
 Current: **v3.6.1**
@@ -1784,6 +1792,107 @@ all, despite carrying the student-facing library grid, the age/genre filters and
 the progress bars — and despite being one of only two files that got the
 single-version-constant discipline right (INDEX_VERSION drives both the title and
 the footer, since v3.0.1). Entries before v3.3.1 live only in the file header.
+
+<!-- Relocated here in Round 6 (Noiseless). This block was filed under
+     ## `game.js`, which never contained the code it describes. -->
+#### v3.6.0
+
+Round 5 (Mignon). **"The index page is ugly" was not a styling problem. The markup
+was invalid.**
+
+         v3.5.0 put a licence `<a>` and an About `<button>` INSIDE the card, which
+         was itself an `<a>`. HTML forbids both: an anchor may not contain another
+         anchor or a button. Browsers do not ignore that — they RECOVER from it, and
+         the recovery closes the outer `</a>` early and reparents everything after
+         the offending tag. Which is exactly what Jake saw: the credit line splitting
+         mid-sentence, half of it and the About button sitting on the page background
+         outside the card, the card's white background stopping short.
+
+         Measured with card-markup-test.mjs, which parses the output as a real DOM:
+         the v3.5.0 structure yields TWO grid children instead of one, with both the
+         credit and the About button outside the card. The `<a>` now wraps only the
+         cover and metadata; credit and About are siblings inside a plain `<div>`
+         card. Nine structural assertions across three book shapes.
+
+         ALSO:
+         · CACHE KEY BUMPED to ttb_booksCache_v2. The cache stores a snapshot of the
+           book objects, so v3.5.1's aboutTitles never reached a browser that already
+           had a cache — for up to six hours. That is why Jake still saw "NOTICE" on
+           every About section AFTER the fix shipped: the code was live and the data
+           feeding it was stale. ⚠️ Any future change to what is cached needs this
+           number bumped or the change silently does nothing.
+         · ARCHIVE URL WITHOUT A SCHEME is a relative path.
+           "typethatbook.misterwilson.org/library/x.epub" resolved against the
+           current page and produced ".../typethatbook.misterwilson.org/library/x.epub".
+           Now prefixed with https:// when no scheme is present, and any non-http(s)
+           scheme is refused rather than rendered as a link.
+         · Opens the About panel on arrival at index.html#about=<bookId>, from
+           game.js v3.12.2's completion screen. Hooked into all THREE paths that
+           populate allBooks — fresh, cached and stale-cache — because a reader
+           arriving from the completion screen must get the panel regardless of which
+           one served them.
+
+<!-- Relocated here in Round 6 (Noiseless). Filed under ## `game.js`, which
+     does not render the About panel. HANDOFF §7 records the bug as index.html’s. -->
+#### v3.5.1
+
+Round 5 (Mignon). Three rendering bugs, all found by Jake's screenshots rather
+than by me reading the code.
+
+         1. `[object Object]`, once per paragraph, where the copyright notice
+            should have been. **A segment is `{ text: "…" }`, not a string** —
+            admin.js has always stored it that way — and String({}) is
+            "[object Object]". I wrote `escapeHtml(String(t))` without ever
+            checking the shape. Also strips the leading tab admin.js prepends for
+            paragraph indentation: meaningful when typing, just a gap when reading.
+         2. Every section headed **"Notice"**. The lookup used `book.chapters`,
+            which the grid STRIPS before caching — the same fact that made
+            `aboutIds` necessary in v3.5.0, applied to the ids and not to their
+            titles. `aboutTitles` is now captured at load time alongside them.
+         3. The card credit printed a **raw URL as its own link text**, so "CC0 1.0
+            Public Domain Dedication https://creativecommons.org/publicdomain/zero/1.0/"
+            became four wrapped underlined lines that dwarfed the book's title. The
+            licence VALUE containing its URI is correct and deliberate — a licence
+            URI is what CC asks for — so the fix belongs in the rendering. New
+            creditLinkFor() uses the label as the link text and keeps the URI in the
+            href, shared by the card and the panel.
+
+         Verified with about-render-test.mjs: eight segment shapes including {} and
+         undefined, three headings from a cache-stripped book, and six credit values
+         including one carrying an event-handler injection in both the label and the
+         URL.
+
+<!-- Relocated here in Round 6 (Noiseless). This block was filed under
+     ## `game.js`, which never contained the code it describes. -->
+#### v3.5.0
+
+Round 5 (Mignon). The **About this book** panel. Renders the pages flagged
+about:true — imprint, colophon, licence, uncopyright — VERBATIM, from the
+document actually being served. Not a paraphrase on a card, not a link to a copy
+hosted somewhere else. That is what a Creative Commons notice asks for, and it is
+what deleting front matter was destroying.
+
+         ⚠️ COST. The credits TEXT is a chapters-subcollection read, one document
+         per page, and is NOT fetched on page load — only when someone opens the
+         panel, then cached for the session. A book nobody asks about costs nothing.
+         `aboutIds` is extracted from the chapter array at LOAD time precisely
+         because that array is stripped before caching, so the ℹ button survives a
+         cached grid while the text does not need to.
+
+         The ℓ button renders only when a book HAS credits pages, so a book whose
+         front matter was deleted shows nothing rather than an empty box. A failed
+         subcollection read leaves the credits block standing, since that block is
+         what carries the licence URI.
+
+         ⚠️ The card is itself an <a>, so the ℹ handler needs preventDefault AND
+         stopPropagation or clicking it navigates into the book. Delegated once at
+         init rather than rebound per render.
+
+         linkifyText() was hoisted to module scope and is now shared by the card and
+         the panel — two copies of an escaping rule is one copy too many. This broke
+         credit-test.mjs, which was extracting it by matching source text, and that
+         is the correct thing for the test to have done. Now nine cases including a
+         hostile book id in the button's data attribute.
 
 #### v3.4.0
 
@@ -1861,6 +1970,24 @@ Current: **v3.5.0**
 
 ⚠️ **Section created in Round 5.** style.css had no CHANGELOG section despite owning
 every colour a student reads. Entries before v3.4.0 live only in the file header.
+
+<!-- Relocated here in Round 6 (Noiseless). This block was filed under
+     ## `game.js`, which never contained the code it describes. -->
+#### v3.5.0
+
+Round 5 (Mignon). **`#modal-body` no longer uses `justify-content: center`.**
+
+         That property on a scrollable flex container CLIPS THE OVERFLOW AT THE
+         START, and the clipped region cannot be scrolled to — the scrollbar appears
+         and works, but everything above the scroll origin is unreachable. Which is
+         what Jake hit: "scroll is there, but not there enough to utilize", with the
+         Game Genie title appearing to cover the chapter picker it was in fact
+         sitting above. The Genie panel is the tallest thing that ever goes in this
+         modal, so it is the only one that overflowed far enough to lose content.
+
+         `flex-start` plus auto margins on the first and last child gives both
+         behaviours with no @supports and no browser caveats: short content still
+         centres, tall content pins to the top and every pixel stays reachable.
 
 #### v3.4.0
 

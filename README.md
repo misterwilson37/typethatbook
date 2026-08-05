@@ -1,6 +1,10 @@
 # TypeThatBook
 
-<!-- README.md v1.5.0 -->
+<!-- README.md v1.6.0 — Round 6 (Noiseless).
+     v1.6.0 — Removed every hand-maintained version number (all of them were wrong,
+              one dangerously so), reconciled the references to four documents that
+              are not in the repo, and documented the test suite, which existed but
+              had never been written up and could not run. -->
 
 A browser-based typing tutor for middle school students. Students type their way
 through real books, chapter by chapter, while the app tracks speed, accuracy, and
@@ -13,13 +17,17 @@ time-on-task for teacher reporting.
 
 ## The five surfaces
 
-| Page | Version | Who | What it does |
-|---|---|---|---|
-| `index.html` | 3.3.0 | students | Library — pick a book, see per-book progress and today's time |
-| `game.html` | 3.0.1.1 | students | **The main event.** Type a book chapter. Sprints, WPM, streaks, leaderboard, AI practice mode, Adventure Mode (`game.js` v3.4.0) |
-| `learn.html` | 2.2.0 | students | Structured lessons (`learn.js` v2.2.0) — home row, finger drills, on-screen keyboard guidance |
-| `admin.html` | 3.3.0 (`admin.js` 3.18.2) | Jake | Book/chapter authoring (EPUB import via JSZip), lesson authoring + JSON import/export, goals |
-| `reports.html` | 2.8.0 | Jake | Time-on-task and accuracy reports by student and date range |
+Versions are deliberately not listed here — see the note under "Versions: where
+they actually live". Every number this column used to carry was stale, including an
+`admin.html` entry reading 3.3.0 against an `admin.js` nineteen minor versions ahead.
+
+| Page | Who | What it does |
+|---|---|---|
+| `index.html` | students | Library — pick a book, see per-book progress and today's time |
+| `game.html` | students | **The main event.** Type a book chapter. Sprints, WPM, streaks, leaderboard, AI practice mode, Adventure Mode |
+| `learn.html` | students | Structured lessons — home row, finger drills, on-screen keyboard guidance |
+| `admin.html` | Jake | Book/chapter authoring (EPUB import via JSZip), lesson authoring + JSON import/export, goals. Title is driven from `ADMIN_VERSION` |
+| `reports.html` | Jake | Time-on-task and accuracy reports by student and date range |
 
 No build step. No bundler. Native ES modules loaded straight from the HTML with
 `<script type="module">`, Firebase SDK 10.8.0 pulled from `gstatic.com`. Edit a
@@ -33,6 +41,16 @@ file, upload it to GitHub, it's live. Same workflow as Ellis Web Bell.
 hardcoded page titles are decoration and have drifted before — `learn.js` carried
 a header saying v1.0.0 while its constant read 1.6.3, and `index.html`'s title said
 3.0.0 while its own footer said 2.3.1.
+
+⚠️ **This document does not carry version numbers, on purpose (Round 6).** The
+layout listing below used to, and every single one of them was wrong: `game.js`
+read v3.8.0 against a constant of 3.13.x, `admin.js` v3.9.0 against 3.23.x,
+`learn.js` v2.1.0 against 2.2.x, `storage.rules` v2.0.0 — which is the version
+whose `image/*` requirement denied every EPUB cover. A hand-maintained list of
+versions in prose is a fourth copy of something that already has three, and it is
+the copy nobody updates. **Two places read themselves and cannot lie: the build
+panel in `index.html` (expand the version banner) and the Contents list at the top
+of `CHANGELOG.md`.** Use those.
 
 | file | constant | shown where |
 |---|---|---|
@@ -73,47 +91,54 @@ NOT yet driven from a constant. Remaining inconsistency.
 ### Layout
 
 ```
-firebase-config.js      v1.1.1   Firebase init. Exports db, auth, storage, and
+firebase-config.js               Firebase init. Exports db, auth, storage, and
                                  CONFIG_VERSION.
                                  experimentalForceLongPolling is load-bearing —
                                  it fixes Safari's CORS block on Firestore's
                                  WebChannel transport. Do not remove.
 
-versions.js             v1.2.0   Reads every file's version constant out of the
+versions.js                      Reads every file's version constant out of the
                                  deployed files, for index.html's build panel.
-                                 v1.2.0 also parses header comments and flags
-                                 drift. No imports, no side effects.
+                                 Also parses header comments and flags drift,
+                                 plus the header budget. No imports, no side
+                                 effects. Mirrored for CLI use by
+                                 audit-versions.mjs.
+                                 ⚠️ It cannot check itself against reality: it
+                                 reads what a file CLAIMS. Round 6 found
+                                 adventure-renderer.js shipped with its constant
+                                 a version behind its code, which this panel
+                                 reported as a clean 1.1.0.
 
-game.js                 v3.8.0   ~5,100 lines. Typing engine, sprint timer,
+game.js                          ~5,900 lines. Typing engine, sprint timer,
                                  WPM/accuracy math, streaks, mistake tracking,
                                  leaderboard, practice mode, chapter navigation,
                                  all modals. Write-ahead-log persistence.
-                                 v3.5.0 owns the view-choice splash and
-                                 applyViewMode() — the Classic/Adventure switch.
-adventure-renderer.js   v1.1.0   Adventure Mode — the illustrated/animated skin.
+                                 Owns the view-choice splash and applyViewMode()
+                                 — the Classic/Adventure switch.
+adventure-renderer.js            Adventure Mode — the illustrated/animated skin.
                                  Listens for _ttbEmit('keystroke') from game.js.
-                                 Out of alpha as of 1.0.0.
-adventure.css           v1.0.0   Adventure Mode styling.
+                                 Out of alpha as of v1.0.0.
+adventure.css                    Adventure Mode styling.
 
-learn.js                v2.1.0   Lesson-mode engine (separate from game.js).
+learn.js                         Lesson-mode engine (separate from game.js).
                                  Same WAL/flush persistence pattern as game.js.
-keyboard.js             v1.1.1   On-screen keyboard widget, used by learn.html.
+keyboard.js                      On-screen keyboard widget, used by learn.html.
 
-admin.js                v3.9.0   Book authoring, EPUB import, chapter editor,
+admin.js                         Book authoring, EPUB import, chapter editor,
                                  book tags, language filter (regex + audit),
                                  book list CSV export + balance report.
-                                 v3.9.0 splits multi-work spine files.
-                                 v3.10.0 one-pass book workflow, find & replace.
-lessons-admin.js        v1.7.0   Lesson + class authoring, CSV roster import,
+                                 Hosts the Lessons and Staff panels from their
+                                 own files.
+lessons-admin.js                 Lesson + class authoring, CSV roster import,
                                  lessons JSON import AND export, gate audit
-                                 table, stuck-student scan (1.7.0).
+                                 table, stuck-student scan, add-one-student.
                                  Version exposed as window.LESSONS_ADMIN_VERSION
                                  so admin.js can read it.
-staff-admin.js          v2.2.0   Staff tab: roles, schools, classes, grants.
+staff-admin.js                   Staff tab: roles, schools, classes, grants.
 
-style.css               v3.3.0   Main stylesheet. #view-splash, condensed book bar.
+style.css                        Main stylesheet. #view-splash, condensed book bar.
 
-index.js                v1.0.0    Cloud Function: generatePractice. Calls Gemini to
+index.js                          Cloud Function: generatePractice. Calls Gemini to
 package.json                      generate custom practice paragraphs targeting a
                                   student's problem characters. 5/user/day cap.
                                   NOT deployable from this repo — needs a CLI.
@@ -126,7 +151,9 @@ GitHub Pages.
 ### Also in the repo, not deployable from a browser
 
 ```
-firestore.rules          v2.1.0   Published. Byte-identical to source.
+firestore.rules                  Published; console-only. Version is in its own
+                                  header comment — see the note above about not
+                                  duplicating version numbers here.
 firestore.indexes.json            The ONLY written record of the three composite
                                   indexes and both TTL field overrides. Needs the
                                   CLI to deploy; the indexes can also be created
@@ -135,11 +162,16 @@ firestore.indexes.json            The ONLY written record of the three composite
 CHANGELOG.md                      Full per-file version history. Headers are
                                   budgeted to 6 entries; the rest lives here.
 
-TTL-GUIDE.md                      Console runbook: the two TTL policies, the
-                                  billing arithmetic, why pre-v3.4.0 documents
-                                  are never collected, and the three composite
-                                  indexes. TTL lives in the GOOGLE CLOUD console,
-                                  not Firebase — that trips everyone.
+TTL-GUIDE.md                      ⚠️ REFERENCED BUT NOT IN THE REPO (noted in
+                                  Round 6). It described the two TTL policies, the
+                                  billing arithmetic, why pre-v3.4.0 documents are
+                                  never collected, and the three composite indexes.
+                                  Either it was never committed or it was lost.
+                                  Whoever next touches TTL will have to rebuild it
+                                  from the GOOGLE CLOUD console — not the Firebase
+                                  console, which is the part that trips everyone.
+                                  `firestore.indexes.json` still holds the index
+                                  and TTL field-override definitions.
 
 firestore-rules.test.mjs          ⚠️ KNOWN WRONG. Header says v1.1.0 and it seeds
                                   roles as auth-token claims; rules v2.x reads
@@ -200,7 +232,66 @@ Admin pages gate on a hardcoded email list:
 
 ⚠️ **This gate is cosmetic.** It hides UI; it does not stop anyone from reading or
 writing the same data directly from the browser console. Real enforcement requires
-Firestore security rules. See `SCALE-PLAN.md` § Security.
+Firestore security rules — which exist: read `firestore.rules` directly. (This
+sentence used to point at `SCALE-PLAN.md`, which is not in the repo.)
+
+## Tests
+
+There are fifteen harnesses in the repo. They are for whoever is editing the code,
+not for Jake — running them needs Node, which is exactly what this project's
+deployment story does not have. Nothing in the app depends on them.
+
+```
+npm install --no-save jsdom jszip @xmldom/xmldom acorn acorn-walk
+node run-all-tests.mjs                 # the 11 fast ones, ~5 seconds
+node run-all-tests.mjs --with-epubs    # plus the 4 corpus harnesses, ~2 minutes
+node audit-versions.mjs                # versions.js's drift + budget checks, offline
+```
+
+⚠️ **Every harness had an absolute path from the sandbox that wrote it**
+(`/home/claude/work/game.js`) until Round 6, so **not one of them could run** in a
+fresh checkout. They now resolve their sources relative to their own location via
+`import.meta.url`, and the EPUB harnesses default to this repo's `library/` with an
+optional directory argument. The cost of that was not "the tests were stale" — it
+was that `credit-test.mjs` had been broken for a whole round and nobody could see
+the difference between broken and passing.
+
+**How they work, and why not to rebuild them.** They lift the *shipping* functions
+out of the real files by brace-matching rather than keeping a copy, so a rename
+breaks them. That is correct: it forces a human to notice. When one breaks, reanchor
+the markers; don't paste the logic in.
+
+| harness | what it proves |
+|---|---|
+| `undefined-calls-test.mjs` | every identifier reference in the 9 shipped JS files resolves |
+| `verify-guards.mjs` | flush re-entrancy guards hold at 2/3/6/12 concurrent callers |
+| `chunktest.mjs` | sprint rollup chunking: loss, duplication, the 200 cap |
+| `progress-test.mjs` | library progress bar, including its degradation paths |
+| `ordinal-test.mjs` | body ordinals on modern and legacy documents |
+| `map-geometry-test.mjs` | Adventure dot placement across real book sizes |
+| `credits-test.mjs` | Classic end credits: structure and HTML injection |
+| `credit-test.mjs` | library card attribution: structure and HTML injection |
+| `card-markup-test.mjs` | card markup survives the HTML parser intact |
+| `about-test.mjs` | `detectAbout()` and the completeness dot's gap list |
+| `about-render-test.mjs` | About panel segments, cached headings, credit injection |
+| `chapter-harness.mjs` | full chapter pipeline over a directory of EPUBs |
+| `real-epub-harness.mjs` | cover detection + old-vs-new spine resolution |
+| `scan2.mjs` | suspect body chapters (Fix C candidates) |
+| `fix-candidates.mjs` | **before/after differ** — collateral damage from any importer change |
+| `firestore-rules.test.mjs` | ⚠️ excluded from the runner. Needs the emulator, and is known wrong against rules v2.x |
+
+**`undefined-calls-test.mjs` is the one to run first**, because it is the only one
+that checks the whole codebase rather than one behaviour. It parses each file with
+acorn and asks whether every identifier reference resolves to a declaration, an
+import, or a known global. It was written in Round 6 after `learn.js` shipped a call
+to a `finishLesson()` that never existed; it immediately found a second instance in
+`lessons-admin.js` that had taken four admin features down with it. Both are the
+same shape of defect and neither is findable by reading — grep shows one hit and it
+looks like a reference to something real.
+
+**`fix-candidates.mjs` is the important one before touching the importer.** Point it
+at a corpus and it tells you exactly which chapters a change moves. That is how
+Fix A, B and C were shown to move no body chapter's id on any book before shipping.
 
 ## Deploying
 
@@ -425,9 +516,15 @@ with no other symptom.
 - Default sprint length is **30 seconds** (`sessionValueStr = "30"`). This is the
   single most important number for understanding load — a lot of per-sprint work
   fires twenty times in a ten-minute typing block.
-- `firestore.rules` v2.2.0 and `storage.rules` v2.0.0 are both in this repo and
-  both must be pasted into the Firebase console to take effect. Nothing here
-  deploys itself.
+- `firestore.rules` and `storage.rules` are both in this repo and both must be
+  pasted into the Firebase console to take effect. Nothing here deploys itself.
+  Their versions are in their own header comments; this file used to name them and
+  named `storage.rules` **v2.0.0**, which is the version whose `image/*` write
+  requirement silently denied every EPUB cover upload.
+  ⚠️ `firebase-storage.rules` was a second, contradictory copy of the Storage
+  rules and is the file that caused that outage. Deleted after Round 5. If it ever
+  reappears, delete it again — two copies of a security rule set is the defect,
+  even while they happen to agree.
 - ⚠️ `index.js` v1.6.0 and `package.json` **cannot be deployed at all** without a
   CLI. The Cloud Function actually running is the pre-1.6.0 one, which still
   exports seven abandoned custom-claims functions the security rules no longer
@@ -530,5 +627,15 @@ another district's numbers look wrong, check that setting in their Google Admin
 console before touching code.
 
 Schools, classes, and teacher roles are built and live — see `firestore.rules`
-and §4 of `HANDOFF.md`. `MULTITENANCY.md` and `SCALE-PLAN.md` are referenced in
-older notes but **do not exist in the repo**; don't send anyone looking.
+and §4 of `HANDOFF.md`.
+
+⚠️ **Documents referenced somewhere in this repo that are NOT in it.** Verified
+Round 6; don't send anyone looking, and don't assume the reference means the file
+was deleted rather than never written:
+
+| named in | file |
+|---|---|
+| this README, twice | `MULTITENANCY.md`, `SCALE-PLAN.md` |
+| this README's "not deployable from a browser" list | `TTL-GUIDE.md` |
+| `HANDOFF.md` §0, which asks that it be kept | `HANDOFF-round4.md` |
+| `PEDAGOGY-AUDIT.md` §4 (reference now removed) | `HANDOFF.md` §11 — superseded in Round 5 |

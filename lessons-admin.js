@@ -1,7 +1,16 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.7.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.7.1
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
-window.LESSONS_ADMIN_VERSION = '1.7.0';
+//
+// v1.7.1 — _addOneStudent() and _populateOneStudentClasses() were WIRED AND
+//          MISSING. initStudentsPanel() evaluated `_addOneStudent` while
+//          attaching a listener, threw a ReferenceError there, and so never
+//          reached the CSV preview/commit wiring, the progress tabs, or
+//          loadStudentRoster() — an empty roster and dead import buttons, with
+//          _studentsInited already true so reopening the tab could not recover.
+//          Both functions written from _commitCSV()/_bulkAssign().
+// v1.7.0 — Lesson + class authoring, CSV roster import, stuck-student scan.
+window.LESSONS_ADMIN_VERSION = '1.7.1';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -1382,6 +1391,132 @@ function initStudentsPanel() {
     });
 
     loadStudentRoster();
+}
+
+// ── Add One Student ────────────────────────────────────────────────────────────
+//
+// ⚠️ THESE TWO FUNCTIONS WERE MISSING (v1.7.1). The feature's markup existed in
+// admin.html (#student-one-section, #student-one-email, #student-one-class,
+// #student-one-add-btn) and initStudentsPanel() wired both of them, but neither
+// was ever declared in this file. That is not a dormant feature — it is fatal at
+// wiring time. `addEventListener('click', _addOneStudent)` EVALUATES the
+// identifier, so initStudentsPanel() threw a ReferenceError at that line and
+// abandoned everything after it:
+//
+//   * Preview CSV and Commit CSV were never wired — the roster import buttons
+//     did nothing at all;
+//   * the Lessons/Books progress tabs were never wired;
+//   * loadStudentRoster() at the end of the function never ran, so the roster
+//     came up empty;
+//   * and because _studentsInited = true is set BEFORE the throw, reopening the
+//     tab took the early-return path and only rebuilt two dropdowns. Broken for
+//     the rest of the session, with an empty table as the only symptom.
+//
+// Written from _commitCSV() and _bulkAssign() rather than from scratch: the
+// single-student case is exactly one iteration of the bulk loop, so the schema,
+// the schoolId rule and the pending-vs-existing split are copied from working
+// code rather than guessed at. See §"Add One Student" in HANDOFF.md.
+
+// Populates #student-one-class. Async because the toggle handler awaits it and
+// the class cache may not be warm yet — opening this section is a legitimate
+// first action after the tab loads.
+async function _populateOneStudentClasses() {
+    const sel = document.getElementById('student-one-class');
+    if (!sel) return;
+
+    if (!Object.keys(_classCache).length) {
+        sel.innerHTML = '<option value="">Loading classes…</option>';
+        try {
+            const snap = await getDocs(collection(_db, 'classes'));
+            _classCache = {};
+            snap.forEach(d => { _classCache[d.id] = { id: d.id, ...d.data() }; });
+        } catch (e) {
+            sel.innerHTML = '<option value="">Could not load classes</option>';
+            _setOneStudentStatus('Failed to load classes: ' + e.message, '#ff6666');
+            return;
+        }
+    }
+
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— No class —</option>';
+    Object.values(_classCache)
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        .forEach(cls => {
+            const opt = document.createElement('option');
+            opt.value = cls.id;
+            opt.textContent = cls.name || cls.id;
+            if (cls.id === cur) opt.selected = true;
+            sel.appendChild(opt);
+        });
+}
+
+function _setOneStudentStatus(msg, color = '#888') {
+    const el = document.getElementById('student-one-status');
+    if (el) { el.style.color = color; el.textContent = msg; }
+}
+
+// One student, one class. Two destinations, and which one is correct depends on
+// whether the student has ever typed:
+//
+//   * they appear on the roster (so a Firebase Auth uid exists) -> users/{uid};
+//   * they do not -> pendingClassAssignments/{email}, which game.js consumes on
+//     that student's first sign-in.
+//
+// Emailing the assignment ahead of the student's first login is the normal case
+// at the start of a rotation, so the pending path is not an edge case.
+async function _addOneStudent() {
+    const emailEl = document.getElementById('student-one-email');
+    const classEl = document.getElementById('student-one-class');
+    const btn     = document.getElementById('student-one-add-btn');
+    if (!emailEl || !classEl) return;
+
+    const email   = (emailEl.value || '').trim().toLowerCase();
+    const classId = classEl.value;
+
+    // Same shape of check _previewCSV applies to a CSV row: an address without an
+    // @ is a header line or a typo, and writing it creates a junk document keyed
+    // by garbage that nothing will ever match.
+    if (!email || !email.includes('@')) {
+        _setOneStudentStatus('Enter a valid email address.', '#ff6666');
+        return;
+    }
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    _setOneStudentStatus('Saving…');
+
+    // schoolId MUST ride along, exactly as in _commitCSV: if no user document
+    // exists yet the write is a CREATE, and firestore.rules requires the building
+    // on create — without it there is nothing to scope the document by and the
+    // write is denied.
+    const schoolId = (_classCache[classId] && _classCache[classId].schoolId) || '';
+
+    try {
+        const existing = _rosterData.find(r => (r.email || '').toLowerCase() === email);
+
+        if (existing && existing.uid) {
+            await setDoc(doc(_db, 'users', existing.uid), {
+                classId: classId || null,
+                schoolId
+            }, { merge: true });
+            existing.classId = classId || '';
+            _renderRoster();
+            _setOneStudentStatus('\u2713 ' + email + ' assigned to ' +
+                (classId ? (_classCache[classId]?.name || classId) : 'no class') + '.', '#22c55e');
+        } else {
+            await setDoc(doc(_db, 'pendingClassAssignments', email), {
+                classId: classId || null,
+                schoolId,
+                assignedAt: new Date().toISOString()
+            });
+            _setOneStudentStatus('\u2713 ' + email + ' queued — it will apply the first time ' +
+                'they sign in.', '#22c55e');
+        }
+        emailEl.value = '';
+    } catch (e) {
+        _setOneStudentStatus('Failed: ' + e.message, '#ff6666');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Add'; }
+    }
 }
 
 // ── Bulk selection ─────────────────────────────────────────────────────────────

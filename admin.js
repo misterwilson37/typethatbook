@@ -1,68 +1,32 @@
-// admin.js v3.23.1
+// admin.js v3.23.2
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
-// v3.18.4 — Two importer fixes for non-Standard-Ebooks sources, measured against
-//           all eight of Jake's EPUBs before shipping: they change 9 chapters, all
-//           of them front/back matter, and move NO body chapter's id on any book.
-//           (a) Front matter cannot follow body matter. Toby Tyler's Gutenberg
-//           licence classified as 'front' and so got id 0.2, sorting it to
-//           position 2 of the book. (b) A non-chapter is never titled "Chapter N":
-//           Gatsby's dedication.xhtml was "Chapter 3", Alice's frontispiece.xhtml
-//           was "Chapter 4" — a number that was not even the item's id. Named from
-//           the filename now, falling back to "Front matter N".
-// v3.18.3 — THE EPUB COVER BUG. JSZip's .async("blob") returns a Blob whose type
-//           is the empty string, so uploadBytes() stored every EPUB-extracted
-//           cover as application/octet-stream — which storage.rules v2.0.0 denied
-//           outright (contentType.matches('image/.*')) while hand-picked files,
-//           being Files with a real type, sailed through. That is the whole reason
-//           this looked like an EPUB problem instead of a permissions one. The
-//           type is now sniffed from magic bytes, the Blob rebuilt carrying it,
-//           and passed explicitly to uploadBytes. Also: cover detection filters on
-//           media type (methods 1 and 2 did not, so Standard Ebooks' SVG WRAPPER
-//           was uploaded instead of the raster it wraps — a permanently blank
-//           cover); the raster inside that wrapper is resolved and preferred;
-//           hrefs are percent-decoded (zipEntry) for cover, spine and nav; a
-//           missing spine file names itself and costs one chapter instead of
-//           killing the import; the cover is named in the parse summary in EVERY
-//           outcome; parseEpubFile has a re-entrancy guard; and the inline save
-//           message is cleared when the form changes book, so one book's
-//           "✓ cover saved" can no longer sit beside another book's failure.
-// v3.18.2 — A failed cover upload is no longer invisible. uploadCover() reported
-//           errors to the status bar at the top of the page while the message beside
-//           the button said "✓ Saved", so two books went up with no cover and the
-//           screen claimed success. Save Metadata now refuses to write at all if the
-//           cover fails, and both paths name Firebase STORAGE rules — which are
-//           separate from firestore.rules and have never existed in this repo.
-// v3.18.1 — Two ways back to an empty create form, because there were none.
-//           (a) "Start another book" clears the form AND the staging state — a
-//           blank form over a populated stagedChapters would let book B's chapters
-//           upload under book A's id. (b) After an upload the picker now points at
-//           the book that was just created, which is what makes re-picking "Create
-//           New Book..." fire a change event at all; it was silently restored to
-//           "__NEW__", so selecting it again changed nothing and its reset never
-//           ran. Also: onchange never cleared new-book-author.
-//           Paired with admin.html: the EPUB picker now sits ABOVE the fields it
-//           fills in.
-// v3.18.0 — Open Book has a re-entrancy guard. Clicking it twice ran two loads
-//           into one array, the second reset discarding the first's work and the
-//           loops interleaving: Tom Sawyer Abroad rendered 4,5,1,6,2,7,3,8, which
-//           is (4,5,6,7,8) interleaved with (1,2,3). The database was fine
-//           throughout. Third instance of this bug class after game.js flushAll()
-//           and learn.js flushStats().
-// v3.17.0 — stagedChapters is sorted by chapter id after load and after parse.
-//           Del / Merge / Split all work on array INDICES and renumber from
-//           position, so an out-of-order array meant one Del click would rewrite
-//           every id from the wrong places. Tom Sawyer Abroad rendered 4,5,1,6
-//           while its stored array was perfectly sequential.
-// v3.14.0 — Part-aware numbering: chapter-1-1.xhtml becomes 1.1, so re-importing
-//           a two-part book like Heidi no longer flattens it to 1-23. Plus
-//           metadata auto-fill — title, book id, author and a genre guess are read
-//           from the EPUB the moment you pick the file, and only the file is
-//           required to parse.
+// v3.23.2 — HEADER ONLY, no code change. The entries below had stopped at v3.18.4
+//           while the constant read v3.23.1 — NINE releases, including Delete Book
+//           and the whole attribution/About system, were absent from the file that
+//           implements them. Refreshed from CHANGELOG.md and trimmed to the
+//           6-entry budget.
+// v3.23.1 — "Cleaned up with" became "Cleaned up by": what the field means, and
+//           short enough to stop the circled-i hint wrapping.
+// v3.23.0 — DELETE BOOK, with typed confirmation rather than a confirm() one
+//           careless Return from gone. Counts chapters before asking, and deletes
+//           them before the book record so a half-failure is visible instead of an
+//           invisible pile of orphans. Plus three more panel fixes.
+// v3.22.1 — admin.html layout only: the metadata block had become one row of nine
+//           columns with hint paragraphs taller than the inputs they described.
+//           Two rows now, identity/tagging then provenance.
+// v3.22.0 — Upload All PRUNES orphaned chapter documents. Survivable while ids were
+//           stable; not once v3.18.5's Fix C renumbers the Gutenberg books, which
+//           would otherwise strand chapter_21 and chapter_22 forever — readable,
+//           billable, and loadable by any student whose progress still pointed there.
+// v3.21.0 — "About this book": `about`, a new boolean per chapter, ORTHOGONAL to
+//           `matter`. matter says typeable, about says credits. Collapsing them is
+//           what made deleting front matter the only workable import, which
+//           deleted the copyright notice a CC licence requires be kept intact.
 //
 // ── Load-bearing ──────────────────────────────────────────────────────────
 //
@@ -82,7 +46,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.23.1";
+const ADMIN_VERSION = "3.23.2";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -536,6 +500,14 @@ let stagedCoverUrl = null;    // preview data URL
 let stagedCoverType = '';
 
 if(footerEl) footerEl.innerText = `Admin JS: v${ADMIN_VERSION} | Lessons Admin: v${window.LESSONS_ADMIN_VERSION || '?'} | Staff Admin: v${window.STAFF_ADMIN_VERSION || '?'}`;
+
+// HANDOFF §4.1: admin.html's <title> was hardcoded and had no constant behind it,
+// so it read v3.3.0 for nineteen minor versions. The tab title is the first
+// version number anyone looks at, which makes it the worst one to maintain by
+// hand. Driven from ADMIN_VERSION now — the constant in the file that implements
+// the behaviour, which is the only copy that cannot lie about itself. The static
+// title in admin.html is left as a pre-JS fallback, not as a second source.
+document.title = `TypeThatBook Admin v${ADMIN_VERSION}`;
 
 // Populate genre dropdown
 const genreSelect = document.getElementById('active-book-genre');

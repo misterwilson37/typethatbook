@@ -1,10 +1,13 @@
-// game.js v3.13.0
+// game.js v3.13.1
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.13.1 — HEADER ONLY, no code change. Trimmed to the 6-entry / 60-line budget
+//           this project's own build panel enforces; v3.12.0 and v3.11.0 moved to
+//           CHANGELOG.md, where they already were.
 // v3.13.0 — The book progress bar's SEGMENTS are body chapters. The labels and the
 //           fill fraction were switched in v3.10.0 and v3.12.3; the geometry never
 //           was, so the bar was drawn against one denominator and filled against
@@ -41,24 +44,6 @@
 //           own recovery path, which also went to "1" and so was a dead end on the
 //           same books. Stored progress is now validated against the book, which is
 //           the protection Fix C's renumbering needs.
-// v3.12.0 — Auto-advance walks the BODY list too, and FINISHING A BOOK IS NOW A
-//           THING THAT HAPPENS. v3.11.0 filtered the chapter PICKER and left
-//           auto-advance walking the full spine — worse than not filtering, since
-//           the picker said the colophon was not a chapter and the Continue button
-//           then handed it over. Both "next chapter" sites now walk the body list.
-//           Removed the last two parseFloat-on-an-id fallbacks, which invented a
-//           chapter that did not exist ("2.14" from Heidi's "1.14") or one in the
-//           wrong part ("2.01" from "1.01"). With no next body chapter, null now
-//           MEANS something: the book is finished, and says so — the completion
-//           moment admin.js has written bodyChapters for since v3.18.x and which
-//           had never had a consumer.
-// v3.11.0 — The student chapter picker offers BODY chapters only. It used to list
-//           every spine document, so the imprint and colophon appeared as things
-//           to type — which forced deleting front matter on import, which deleted
-//           the copyright notice a CC licence requires be kept intact. A UI
-//           default was setting a legal constraint. Front/back matter now stays in
-//           the book and never reaches a student; flip anything worth typing to
-//           Body in admin staging instead.
 //
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
@@ -81,7 +66,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.13.0";
+const VERSION = "3.13.1";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause

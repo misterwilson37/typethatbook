@@ -1,309 +1,345 @@
-# HANDOFF — Round 5 (Mignon)
+# HANDOFF — Round 6 (Noiseless)
 
-<!-- HANDOFF.md v5.0.0 — Round 5, instance "Mignon", 2026-08-05.
-     ⚠️ THIS SUPERSEDES THE PREVIOUS HANDOFF. Rename the old one to
-     HANDOFF-round4.md and keep it: its §A history is still useful and its §B.8
-     deployment table is actively wrong. See §0. -->
+<!-- HANDOFF.md v6.0.0 — Round 6, instance "Noiseless", 2026-08-05.
+     ⚠️ SUPERSEDES the Round 5 handoff, which is archived in this repo as
+     HANDOFF-round5.md rather than left to Jake to rename. Round 5 asked Round 4's
+     to be kept and it was lost instead; §5 and §2 of the archived file are still
+     load-bearing and are NOT fully restated here. Go and read them. -->
 
-**Instance:** **Mignon** (5) · Oliver (4) · Blick (3) · Dvorak (2) · Underwood (1)
-· *other projects:* Stedman, Fable, Trilby, Vernier
+**Instance:** **Noiseless** (6) · Mignon (5) · Oliver (4) · Blick (3) · Dvorak (2)
+· Underwood (1) · *other projects:* Stedman, Fable, Trilby, Vernier
 
-> *On the name:* the Mignon (AEG, 1904) is an index typewriter — you point at a
-> character on a printed plate and press one key. The label you point at and the
-> type cylinder that strikes the paper are separate parts, and if they come apart
-> nothing tells you; you point at `a` and get `q`, confidently, forever. That was
-> Round 5 from the first hour to the last: a manifest saying `image/avif`, a blob
-> saying nothing, a Storage rule demanding `image/*`, a status bar saying `✓`.
-
----
-
-## §0. READ THIS BEFORE THE OLD HANDOFF
-
-**The Round 4 handoff's §B.8 deployment table was wrong in both directions**, and
-believing it cost the first hour of this session. It listed `admin.js` 3.18.2 as
-never uploaded (it was), and `game.js` 3.9.1 / `learn.js` 2.2.0 / `reports.html`
-2.8.0 as probably live (they were not in the repo at all). The CHANGELOG documented
-versions that existed in no file.
-
-**So: never trust a version claim in a handoff, including this one. Read the
-constant.** Every number in §1 was read out of the file, not remembered.
-
-Also, and this is not a criticism of Jake: **the repo he hands you may contain files
-from another project.** Round 4's zip had `store.js` and `queue.js` from
-Tentacalendar — 180 KB of foreign logic that nothing in TypeThatBook imports. If
-you treat those as TypeThatBook code you will produce confident nonsense. Grep for
-imports before believing a file belongs here. They should be gone now; check.
+> *On the name:* the Remington Noiseless muffled the typebar so you could not hear it
+> strike. Every defect this round failed silently. A `ReferenceError` on a blank drill
+> screen no student could describe. A test suite that could not run, so nothing ever
+> failed. A version constant lying quietly to the one panel built to catch it. An
+> admin panel that threw during setup and showed an empty table as its only symptom.
+> None of it was found by reading. All of it was found by making something audible.
 
 ---
 
-## §1. Version state — read from the files, 2026-08-05
+## §0. What this round actually was
 
-| file | version | uploaded? |
-|---|---|---|
-| `admin.js` | **3.23.1** | ask Jake — he was mid-upload |
-| `admin.html` | **3.23.1** (title only; no constant — see §4.1) | ask |
-| `game.js` | **3.13.0** | ask |
-| `learn.js` | **2.2.2** | ask |
-| `index.html` | **3.6.1** | ask |
-| `style.css` | **3.5.0** | ask |
-| `adventure-renderer.js` | **1.2.0** | ask |
-| `reports.html` | **2.8.0** | ⚠️ see §1.1 |
-| `firestore.rules` | 2.2.0 | pasted into console — verify |
-| `storage.rules` | 2.1.0 | ⚠️ see §1.2 |
+Jake's brief: *"Last guy started to hallucinate, so start with the handoff and then
+check his work. Make sure nothin' is hangin' or broken, and then you can work your
+way through the to do list."* Then: *"Prioritize cleaning up the previous mess."*
 
-### 1.1 ⚠️ reports.html 2.8.0 was Round 4's, and I nearly lost it
+Almost none of the to-do list got done, and that was the right outcome. Verifying
+Round 5 turned up **two live bugs, four misfiled document sections, and a test suite
+that could not execute at all.** §4 below is still §4, barely touched.
 
-Round 4 wrote `reports.html` 2.8.0 and it was never uploaded. Mid-session I copied
-the repo's older 2.7.0 over my working copy and did not notice for several turns.
-Restored from Round 4's zip and re-verified. **If reports.html in the repo says
-2.7.0 or its footer says 2.4.1, the "My classes" permission fix is missing** — that
-version queries the whole building and narrows on the client, which is
-permission-denied for any teacher on the default `own_classes` scope.
-
-### 1.2 ⚠️ storage.rules — the cover bug's other half
-
-`firebase-storage.rules` (v2.0.0) was a second, contradictory copy of the Storage
-rules sitting in the repo. Its write rule required
-`request.resource.contentType.matches('image/.*')`, and that was what denied every
-EPUB cover. **Delete it if it is still there**, and confirm the console has
-`storage.rules` v2.1.0.
+**Round 5's §0 was right and it applies to this file too:** never trust a version
+claim in a handoff. Every number in §1 was read out of a file by a script, not
+remembered. Two of Round 5's own claims turned out to be wrong.
 
 ---
 
-## §2. The one bug class that explains most of this round
+## §1. Version state — read by `audit-versions.mjs`, 2026-08-05
 
-**An id is a label, not a number.** Part-numbered books use ids like `1.14`, front
-matter is `0.x`, back matter is `900.x`. `parseInt("1.14")` is 1 and
-`parseInt("1.01") === parseInt("1.14")` is `true`.
+`node audit-versions.mjs` reports **0 problems**. Do not read that as proof of much:
+see §2.3 for why a version audit cannot catch a version lie.
 
-Found and fixed in **seven** places this round:
+| file | version | changed this round? | uploaded? |
+|---|---|---|---|
+| `lessons-admin.js` | **1.7.1** | ⚠️ **yes — real bug fix, upload first** | **ask Jake** |
+| `learn.js` | **2.2.3** | ⚠️ **yes — real bug fix** | **ask Jake** |
+| `adventure-renderer.js` | **1.2.0** | constant only; code untouched | **ask Jake** |
+| `admin.js` | **3.23.2** | header + one line (`document.title`) | ask |
+| `admin.html` | — (no constant; title driven from `admin.js`) | yes | ask |
+| `game.js` | **3.13.1** | header comment only | optional |
+| `index.html` | 3.6.1 | no | ask |
+| `style.css` | 3.5.0 | no | ask |
+| `keyboard.js` | 1.1.1 | no | — |
+| `staff-admin.js` | 2.2.0 | no | — |
+| `firebase-config.js` | 1.2.0 | no | — |
+| `versions.js` | 1.3.0 | no | — |
+| `reports.html` | 2.8.0 | no | ⚠️ verify — Round 5 nearly lost this file |
+| `firestore.rules` | 2.2.0 | no | console-only, verify |
+| `storage.rules` | 2.1.0 | no | console-only, verify |
 
-1. `index.html` progress bar — a student who finished all 23 chapters of Heidi saw
-   "Ch. 2 / 27" and a bar at 7%
-2. `game.js` per-segment label — Heidi's fourteen part-one chapters all read "1"
-3. `game.js` `bookProgressFraction()` — the marker never left the start of a part
-4. `game.js` `isCurrent`/`isPast` — **fourteen** segments rendered as current at once
-5. `game.js` `advanceToNextChapter` fallback — asked for "2.14", which does not exist
-6. `game.js` `finishChapter` fallback — offered "Ch. 3" of a two-chapter book
-7. `game.js` initial chapter — hardcoded `1`, so **every part-numbered book showed a
-   blank page to any student opening it for the first time.** Live since part
-   numbering shipped in admin.js 3.14.0. Heidi, Treasure Island, Little Women, The
-   War of the Worlds.
+**If only some get uploaded:** `lessons-admin.js` first — it un-breaks four admin
+features. Then `learn.js`. `game.js` and `admin.js` are comment-only apart from one
+line and can ride along with the next real change.
 
-**And the sibling class: "the spine is not the book."** `bookMetadata.chapters`
-includes front and back matter. Six sites: the chapter picker, auto-advance, the
-Adventure map, two `N ch` labels, and the progress bar's geometry. Use
-`bodyChapterList()`.
-
-⚠️ **If you find another id being parsed or another loop over
-`bookMetadata.chapters`, it is a bug.** Both helpers live in `game.js` next to
-`bookProgressFraction()`.
-
----
-
-## §3. What shipped, in one line each
-
-**The cover bug (admin.js 3.18.3).** JSZip's `.async("blob")` returns a Blob with an
-**empty** type; Firebase falls back to `application/octet-stream`; storage.rules
-v2.0.0 required `image/*`. So every EPUB cover was denied and every hand-picked one
-worked — which is why it looked like an EPUB problem. Now sniffed from magic bytes,
-the Blob rebuilt carrying the type, and passed explicitly. All 42 of Jake's books
-verified.
-
-**Round 4's guards were wrong (game.js 3.9.2, learn.js 2.2.1).** `if
-(_flushInFlight)` serialises two callers and lets three or more overlap. Measured: 6
-callers, 5 overlapping runs. `while`, not `if`.
-
-**Rules 2.2.0 needed a client (game.js 3.9.2).** The new `sprints.size() <= 200` cap
-plus an uncapped `pendingSessions` that `walRecover()` *concatenates* is a poison
-pill: one failure grows the array past the ceiling and every write is denied
-forever, silently. Chunked at 200.
-
-**Fix A/B/C, the importer (admin.js 3.18.4–3.18.5).** Front matter cannot follow body
-matter; a non-chapter is never titled "Chapter N"; and leading matter hiding inside a
-bodymatter file — which hit 9 of 11 Gutenberg books and pushed Toby Tyler's chapters
-to 3–22.
-
-**"About this book" (admin.js 3.21.0, index.html 3.5.0+).** A second boolean
-`about`, orthogonal to `matter`. Deleting front matter to keep it out of the typing
-picker was destroying the copyright notice a CC licence requires be kept intact — a
-UI default was setting a legal constraint.
-
-**Classic contrast (style.css 3.4.0).** `.letter` was `#ccc` and typed text was
-black. Backwards: the words being read ahead need the contrast.
-
-**Delete Book (admin.js 3.23.0).** Typed confirmation. Chapters before the book
-record, so a half-failure is visible rather than an invisible pile of orphans.
-
-Full detail is in `CHANGELOG.md`, which is current and was updated every release.
+`firebase-storage.rules` — Jake deleted it during this session, as Round 5 §1.2
+asked. It was byte-identical to `storage.rules` by then; the point stands that two
+copies of a security rule set is itself the defect.
 
 ---
 
-## §4. Open work, in the order I would take it
+## §2. What was broken, and what it teaches
 
-### 4.1 Small and certain
+### 2.1 `learn.js` called a function that does not exist
 
-- **`admin.html` has no version constant.** Its title is hardcoded and said v3.3.0
-  for nineteen minor versions. Give it one, driven from `admin.js`.
+```js
+if (!currentStep) { finishLesson(); return; }   // no finishLesson() anywhere in the repo
+```
+
+In `beginStep()`, in the branch that catches `currentStepIdx` landing outside
+`currentRuns`. It fired only in the situation it existed to rescue, and then threw —
+abandoning `beginStep()` before the intro panel was hidden or the keyboard wired. A
+dead drill screen, no modal, no error, no route back but the browser Back button,
+**and nothing written**, so invisible from the teacher side too. Reachable via the
+Game Genie's unbounded step jump, and via a saved checkpoint outliving a lesson edit
+(re-chunk a five-run step into three and a resume points at run 4 of 3).
+
+Now `clearRunPosition()` + `stopLesson()`. Recovery, not completion — grading a run
+that does not exist would write a score for work nobody did.
+
+### 2.2 `lessons-admin.js` — two functions wired into the UI and never written
+
+The worse of the two. `admin.html` has the entire "Add one student" form and
+`initStudentsPanel()` attached listeners for `_populateOneStudentClasses` and
+`_addOneStudent`. **Neither was declared anywhere in the repo.**
+
+`addEventListener('click', _addOneStudent)` *evaluates* the identifier, so the panel
+threw a `ReferenceError` at that line and never reached what came after it:
+
+- Preview CSV / Commit CSV never wired — **roster import buttons did nothing**
+- the Lessons/Books progress tabs never wired
+- `loadStudentRoster()` is the function's last statement — **the roster never loaded**
+- `_studentsInited = true` is set *before* the throw, so reopening the tab took the
+  early-return path and rebuilt two dropdowns instead of recovering
+
+⚠️ **Jake: worth clicking through in the app.** I am confident in the mechanism and
+the suite is green, but the only visible symptom was an empty student table — which
+is also what a permissions problem or an empty building looks like. If your roster
+has been loading fine all along then something in my model is wrong and that matters
+more than the fix.
+
+Both functions were written **from `_commitCSV()` and `_bulkAssign()`**, not invented:
+the single-student case is exactly one iteration of the bulk loop, so the
+`users/{uid}` vs `pendingClassAssignments/{email}` split, the rule that `schoolId`
+must ride along on a create, and the roster-cache update are all copied from working
+code. `admin.html`'s own help text describes the pending path, which is how the intent
+was confirmed rather than guessed at.
+
+### 2.3 `adventure-renderer.js` shipped with its constant a version behind its code
+
+Header said v1.2.0. CHANGELOG said v1.2.0. The code *was* v1.2.0. And
+`RENDERER_VERSION` said `'1.1.0'` — the one copy `versions.js` actually reads. So the
+build panel would report a stale version for a correct deploy.
+
+⚠️ **This is the limit of the drift checks.** `versions.js` and `audit-versions.mjs`
+compare what a file claims against what the same file claims elsewhere, and both
+passed this file cleanly. What caught it was `map-geometry-test.mjs` — a *behavioural*
+test agreeing with the v1.2.0 geometry. **When a version claim is in doubt, run the
+test, not the audit.**
+
+### 2.4 The suite could not run
+
+All thirteen harnesses had `/home/claude/work/...` hardcoded — the scratch directory
+of the session that wrote them. Round 5 §6 said "use them, do not rebuild them" while
+not one of them could execute. Three EPUB harnesses pointed at three different
+nonexistent corpus directories.
+
+Fixed: sources resolve through `import.meta.url`, corpora default to this repo's
+`library/` with an `argv[2]` override. `credit-test.mjs` also needed reanchoring — a
+marker it lifts by text was renamed in `index.html` v3.5.1, so it died with a
+`ReferenceError` that looked like a product bug and was not one. **Breaking on a
+rename is correct behaviour for these harnesses. Being unrunnable is what hid it for
+a whole round.**
+
+`fix-candidates.mjs` was reporting a fabricated denominator: banner said "all eight
+books", summary divided by a hardcoded `42`, whatever the corpus actually held. Both
+now come from `files.length`. It reads 23 books today.
+
+---
+
+## §3. `undefined-calls-test.mjs` — the new harness, and the one to run first
+
+It is the only harness that checks the whole codebase rather than one behaviour.
+
+It parses each of the nine shipped JS files with acorn and asks, for **every
+identifier reference**, whether anything declares it — a declaration, an import, or a
+known global. Scope-aware on purpose: a regex version threw ~20 false positives per
+file, and a check that cries wolf twenty times is the same as no check at all.
+
+**Verified against a pristine copy of Jake's zip: it flags all three defects there
+and passes clean on the fixed tree.**
+
+⚠️ **I wrote v1.0.0 checking only call expressions and that was not enough.** It found
+`finishLesson()` and walked straight past `_addOneStudent` — the worse of the two —
+because an undeclared identifier passed as an *argument* throws exactly as hard as one
+that is invoked. Widened to every reference position in v1.1.0, which is when §2.2
+surfaced. **The lesson generalises past this file: "where can this name appear" is
+almost always a bigger set than the obvious one.**
+
+Also new: `run-all-tests.mjs` (one command — 11 fast harnesses in ~5s, `--with-epubs`
+for the 4 corpus ones) and `audit-versions.mjs` (versions.js's checks, offline, with
+its own caveats in its header). Deps:
+
+```
+npm install --no-save jsdom jszip @xmldom/xmldom acorn acorn-walk
+```
+
+**Suite status: 11/11 fast harnesses pass. Corpus harnesses run clean over the 23
+books in `library/`, and `fix-candidates.mjs` shows only the front-matter relabels
+Round 5 documented — no body chapter moves on any book.**
+
+---
+
+## §4. Open work
+
+### 4.1 Documentation that is now *recorded* as missing rather than fixed
+
+These are referenced in the repo but absent from it. **Deleted, or never written? I
+could not tell, and guessing would have been worse than flagging.** Jake, if you
+know, say so and the references can be cleaned up properly rather than annotated:
+
+| named in | missing file |
+|---|---|
+| `README.md`, twice | `MULTITENANCY.md`, `SCALE-PLAN.md` |
+| `README.md`'s not-deployable-from-a-browser list | `TTL-GUIDE.md` |
+| Round 5's §0, which asks that it be kept | `HANDOFF-round4.md` |
+
+`TTL-GUIDE.md` is the one that matters. `firestore.indexes.json` still holds the index
+and TTL field-override definitions, but the billing arithmetic and the "pre-v3.4.0
+documents are never collected" reasoning existed nowhere else.
+
+### 4.2 Still small and certain
+
 - **Archive URL auto-fill.** Jake wants a configurable base directory with the
-  filename filled from the import. `originUrl` exists; the base does not.
+  filename filled in from the import. `originUrl` exists; the base does not.
 - **A `/credits` page** listing every book, source and licence. Conventional, cheap,
   and what a copyright holder would actually look for.
+- ~~`admin.html` has no version constant~~ — **done.** `document.title` is driven from
+  `ADMIN_VERSION`, so the field that once read v3.3.0 for nineteen minor versions
+  cannot drift again.
 
-### 4.2 Adventure scrolling credits — the next real piece
+### 4.3 Adventure scrolling credits — still the next real piece, still not built
 
-`game.js` 3.13.0 emits `ttb:bookComplete` **carrying the credit fields**
+`game.js` 3.13.x emits `ttb:bookComplete` carrying the credit fields
 (`title/author/source/rights/cleanedBy/chapters`), so the renderer needs no extra
 Firestore read. Classic already renders its credits into the text stream. Adventure
-should scroll them up the canvas — the renderer owns that surface and already
-animates. ⚠️ I did not build it because it is canvas animation and I could not watch
-it run; do not ship motion you cannot see.
+should scroll them up the canvas — the renderer owns that surface and already animates.
 
-### 4.3 The text-cleanup pass (designed, not built)
+⚠️ **Not built, for the same reason Mignon did not build it: it is canvas animation
+and I cannot watch it run.** Do not ship motion you cannot see. Jake was offered this
+explicitly and chose the cleanup instead. If a future session can actually observe the
+canvas, this is the piece to take.
 
-Jake's three-way split, which is the useful framing:
+### 4.4 The text-cleanup pass (designed, not built)
 
-1. **False positives** — "guinea" as money, "New Guinea", guinea fowl. Context
-   regexes, free, permanent.
-2. **True positives he is choosing to accept** — "gay"/"gaily", hundreds of times.
-   He needs *acknowledge and mute*, per word, stored on the book. Not a rewrite. The
-   tool is failing him by asking again.
-3. **True positives needing a rewrite** — the only expensive part. ⚠️ **Send flagged
-   PASSAGES, not books.** The existing scanner finds them locally for free; that is
-   ~50–200 excerpts instead of 60,000 words. Two orders of magnitude cheaper, and
-   cost is Jake's stated top priority. If it goes in `admin.js` it must route through
-   a Cloud Function — an API key in static GitHub Pages JS is a published key.
+Unchanged from Round 5 §4.3 and still correct — **read it there.** In brief: false
+positives get context regexes (free, permanent); true positives Jake accepts need
+*acknowledge and mute*, per word, stored on the book (the tool is failing him by
+asking again); true positives needing a rewrite are the only expensive part, and
+⚠️ **send flagged PASSAGES, not books** — ~50–200 excerpts instead of 60,000 words,
+and cost is Jake's stated top priority. If it lands in `admin.js` it must route
+through a Cloud Function; an API key in static GitHub Pages JS is a published key.
 
-⚠️ **The bigger issue a word list will miss:** his Nancy Drew and Hardy Boys are the
-**1930 originals** — which is *why* they are public domain. The 1959–60 revisions
-exist substantially because the originals contain racial caricature, and those
-revised texts are still in copyright. A word list catches "gay" and sails past a page
-of dialect caricature. Same class of risk: disability language used clinically, and
-"ejaculated" as a dialogue verb. **Those need reading, not scanning.**
+⚠️ **The thing a word list will miss:** the Nancy Drew and Hardy Boys are the **1930
+originals** — which is *why* they are public domain. The 1959–60 revisions exist
+substantially because the originals contain racial caricature, and those revised texts
+are still in copyright. A word list catches "gay" and sails past a page of dialect
+caricature. Same class: disability language used clinically, and "ejaculated" as a
+dialogue verb. **Those need reading, not scanning.**
 
-### 4.4 Library additions Jake has agreed to
+### 4.5 Library additions Jake has agreed to
 
-Metadata in his exact schema. His goals: every kid of both sexes has choices, spread
-of genres, focus on adventure/humour/sports, most worried about ages 7–14.
+Unchanged from Round 5 §4.4 — the eight-book table (Augie, Anne of Green Gables, Black
+Beauty, Girls of Central High 01, Sherlock, The Lost World, Five Children and It, The
+Peterkin Papers), the measured coverage gaps (sports is male-only and 10–14; humour
+collapses to one book at age 12; a 14-year-old has zero fantasy), and the built
+`augie-and-the-green-knight.epub` awaiting import. **That section is not restated
+here; go and read it.** Note the built Augie EPUB is not in the zip I received.
 
-| id | title | author | genre | min | max | protagonist |
-|---|---|---|---|---|---|---|
-| `augie_green_knight` | Augie and the Green Knight | Zach Weinersmith | Fantasy | 8 | 13 | female |
-| `anne_of_green_gables` | Anne of Green Gables | L. M. Montgomery | Humor | 9 | 14 | female |
-| `black_beauty` | Black Beauty | Anna Sewell | Adventure | 9 | 14 | nonhuman |
-| `central_high01` | The Girls of Central High 01 | Gertrude W. Morrison | Sports | 10 | 14 | female |
-| `sherlock_adventures` | The Adventures of Sherlock Holmes | Arthur Conan Doyle | Mystery | 11 | 16 | male |
-| `lost_world` | The Lost World | Arthur Conan Doyle | Science Fiction | 11 | 16 | ensemble |
-| `five_children_and_it` | Five Children and It | E. Nesbit | Fantasy | 8 | 13 | ensemble |
-| `peterkin_papers` | The Peterkin Papers | Lucretia P. Hale | Humor | 8 | 12 | ensemble |
+### 4.6 Not now
 
-**A built EPUB of Augie already exists** — `augie-and-the-green-knight.epub`, built
-from Jake's KF8 with `build-augie-epub.py`, 19 chapters, CC BY-NC 3.0 preserved
-verbatim as the imprint. Not yet imported.
-
-**Coverage gaps, measured:** sports is male-only and 10–14; humour collapses to one
-book at age 12; a 14-year-old has zero fantasy. And **Aesop (5–9) and the Potter
-collection (5–7) were age-gated below Jake's entire student population** — the two
-books whose short units are ideal for a 44-minute period. He has widened them.
-
-### 4.5 Not now
-
-- `ttb-shared.js`. Pure refactor across every file, nothing to verify against, and
-  it needs discipline that degrades late in a long session. Round 4 was right.
+- `ttb-shared.js`. Pure refactor across every file, nothing to verify against. Rounds
+  4 and 5 both declined it and both were right.
 - `experimentalAutoDetectLongPolling`. Still the wrong side of the cost priority.
+- **Rewriting `firestore-rules.test.mjs`.** It seeds roles as auth-token claims; rules
+  v2.x reads `staff/{uid}` documents and ignores the token. It needs a CLI and a JVM
+  emulator, so it cannot be verified from a session like this one, and writing it
+  blind would produce a suite that passes for the wrong reasons.
 
 ---
 
-## §5. Invariants discovered this round
+## §5. Invariants — additions to Round 5 §5, which still applies in full
 
-Add these to the ones you inherit.
+Round 5's ten are **not repeated here.** Read `HANDOFF-round5.md` §5, especially the
+id-is-a-label rule and the `ttb_booksCache_v*` bump rule. Adding:
 
-1. **An id is a label.** §2. Never `parseInt` one.
-2. **`bookMetadata.chapters` is the spine, not the book.** Use `bodyChapterList()`.
-3. **`matter` says typeable; `about` says credits.** Orthogonal. Collapsing them is
-   the mistake.
-4. **Front matter must survive import.** The notice is a licence condition.
-   `game.js` filters the picker so it can.
-5. **`ttb_booksCache_v*` must be bumped whenever the cached book shape changes**, or
-   the change silently does nothing for six hours. This bit us: `aboutTitles` shipped
-   and every About heading still read "NOTICE" because the data feeding it was stale.
-6. **An `<a>` may not contain an `<a>` or a `<button>`.** Browsers *recover* by
-   closing the anchor early and reparenting the rest, which is what made the library
-   cards fall apart. Not a styling bug. Not fixable in CSS.
-7. **`justify-content: center` + `overflow: auto` clips the overflow at the START**
-   and the clipped part cannot be scrolled to. That is what made the Game Genie's top
-   controls unreachable.
-8. **`escapeHtml`-by-DOM does not escape quotes**, because quotes need no escaping in
-   element content — and very much do inside an `href`. I shipped this hole **twice**
-   in one round. Use a URL character class that excludes quotes *and* escape the
-   attribute.
-9. **Upload All prunes orphaned chapter documents.** It must, because Fix C
-   renumbers books.
-10. **Open Book must restore `matter` and `about`.** It did not, so any re-upload
-    silently reset every non-body page to `body` — the classification was only ever
-    correct on the first import.
+11. **An undeclared identifier throws in *every* expression position, not only when
+    called.** Passing one to `addEventListener` is as fatal as invoking it, and it
+    takes down every statement after it in the same function.
+12. **A `_inited = true` flag set before the risky work is a trap.** It converts a
+    one-time failure into a permanent one by making the retry path skip the repair.
+    Set it last, or in a `finally`.
+13. **A version audit cannot catch a version lie.** It compares a file's claims
+    against the same file's other claims. Only a behavioural test knows what the code
+    actually does.
+14. **A harness with an absolute path is not a harness.** If it cannot run in a fresh
+    checkout it is a comment, and nobody can tell broken from passing.
+15. **A hardcoded denominator in a diagnostic is worse than no diagnostic.**
+    `fix-candidates.mjs` reported "2 of 42" while reading 23 books.
+16. **Documents drift exactly like code, and nothing checks them.** Four entry blocks
+    sat under the wrong file in `CHANGELOG.md` for a whole round, and
+    `PEDAGOGY-AUDIT.md` advertised finished work as outstanding for three releases.
 
 ---
 
-## §6. Test harnesses — use them, do not rebuild them
+## §6. Documents corrected this round
 
-Round 4's warning was that the harness was not in the repo. There are now eight, and
-they lift the **shipping functions** out of the files by brace-matching rather than
-copying logic, so they break when the code moves — which is correct behaviour.
-
-| file | what it proves |
-|---|---|
-| `chapter-harness.mjs` | full chapter pipeline over a directory of EPUBs |
-| `real-epub-harness.mjs` | cover detection + old-vs-new spine resolution |
-| `fix-candidates.mjs` | **before/after differ** — collateral damage from any importer change |
-| `scan2.mjs` | suspect body chapters (Fix C candidates) |
-| `card-markup-test.mjs` | card markup survives the HTML parser intact |
-| `about-render-test.mjs` | segment shapes, cached headings, credit injection |
-| `about-test.mjs` | `detectAbout()` + the dot's gap list |
-| `ordinal-test.mjs` | body ordinals, modern and legacy documents |
-| `map-geometry-test.mjs` | Adventure dot placement across real book sizes |
-| `credits-test.mjs` | Classic credits, structure and injection |
-| `verify-guards.mjs` | flush guards at 2/3/6/12 concurrent callers |
-| `chunktest.mjs` | sprint rollup chunking, loss and duplication |
-| `progress-test.mjs` | library progress bar degradation paths |
-
-**`fix-candidates.mjs` is the important one.** Point it at Jake's library directory
-and it tells you exactly which chapters a change moves. That is how Fix A, B and C
-were shown to move **no body chapter's id on any of 42 books** before shipping.
-
-Jake keeps the corpus in a GitHub directory. Point the harnesses at it.
+- **`CHANGELOG.md` → v1.2.0.** Four entry blocks were filed under ``## `game.js` ``
+  that describe other files: `index.html` v3.6.0 (invalid card markup), v3.5.1
+  (`[object Object]` in the About panel), v3.5.0 (the About panel itself), and
+  `style.css` v3.5.0 (`#modal-body`'s `justify-content` overflow clip). Which is why
+  `index.html`'s history appeared to stop at v3.4.0. Moved — and **every section
+  re-sorted newest-first**, because `game.js`, `admin.js` and `index.html` were all
+  out of order, making the file's own stated ordering convention aspirational. The
+  move was line-accounted in both directions; nothing was lost.
+- **`PEDAGOGY-AUDIT.md` → v2.0.1.** §4 said "Batch B is outstanding". It shipped in
+  `learn.js` v2.1.0, three releases earlier, under different field names —
+  `furthestRunIdx`/`runAttempts`/`runFailures`/`lastSeenAt`, because the engine
+  instruments *runs*, not authored steps — and item 2's stuck-student view is live in
+  `lessons-admin.js`. **Nothing in §4's list is outstanding; the next pedagogy work is
+  new work.** No finding, recommendation or measurement changed. Its pointer to
+  `HANDOFF.md` §11 was also dangling and is gone.
+- **`README.md` → v1.6.0.** Removed **every** hand-maintained version number. All of
+  them were wrong and one was dangerous: `storage.rules v2.0.0`, the version whose
+  `image/*` write requirement silently denied every EPUB cover. Two places read
+  themselves and cannot lie — the build panel in `index.html` and `CHANGELOG.md`'s
+  Contents. Also documented the test suite for the first time and reconciled the
+  missing-document references in §4.1.
+- **`HANDOFF-round5.md`** now exists in the repo, annotated with what in it is still
+  live and what has gone stale.
 
 ---
 
 ## §7. Things I got wrong, recorded on purpose
 
-- **`creditLine()` shipped with an injection hole I had already fixed in
-  `index.html`** two turns earlier. Second time in one round. The lesson is not "try
-  harder to remember" — the test caught it in eight seconds and my memory did not.
-- **`game.js` 3.12.3 shipped without its version bump.** The CHANGELOG said 3.12.3
-  while the file said 3.12.2. That is the exact drift this round spent its time
-  catching in Round 4's work, and I am not exempt from it.
-- **I told Jake the imprint page survives inside the book** and would satisfy the
-  notice requirement. It does not, because he deletes front matter. He caught it.
-  That is what produced §4.2's whole design.
-- **I told him to expect genre "Humor" on an overwrite.** Overwrite deliberately
-  preserves stored metadata — it must, or re-uploading would wipe 42 books' tags.
-- **The `[object Object]` in the About panel was mine.** A segment is `{ text: … }`
-  and always has been; I wrote `String(t)` without checking the shape.
+- **`undefined-calls-test.mjs` v1.0.0 was too narrow and I shipped it that way.** It
+  found the smaller bug and missed the bigger one, and I only widened it because I went
+  reading the surrounding code by hand afterwards. A tool that is right and incomplete
+  is more dangerous than no tool, because it buys false confidence.
+- **I broke `verify-guards.mjs` while fixing it.** Swapped its path for a `URL` object
+  and left a `file.split('/')` downstream. Caught on the next run — which only
+  happened because I ran the suite instead of trusting the edit.
+- **I nearly corrected the README's version table instead of deleting it.** Fixing
+  four wrong numbers would have left the fifth to rot and guaranteed the same finding
+  next round. Removing the column removes the category.
+- **I did not verify §2.2 in a browser and cannot.** The reasoning is sound and the
+  parser agrees, but this is the one item in this handoff that wants a human click
+  before it is believed.
 
 ---
 
 ## §8. Jake — working with him
 
-Everything in Round 4's §12 still holds. Additions from this round:
+Round 5's §8 and Round 4's §12 both still hold. Additions from this round:
 
-- **He tests properly and reports precisely.** "Scroll is there, but not there enough
-  to utilize" was an exact description of a flex-overflow clip. "The squiggle at the
-  top is all that the first chapter did" located an off-by-one in canvas geometry.
-  **Take his descriptions literally; they are usually the diagnosis.**
-- **He will ask "are you sure?" and he is usually right to.** "But we delete the
-  front matter, don't we?" and "shouldn't it be 2.2.1?" both caught real errors.
-  Check before answering, every time.
-- **He would rather know a thing is unbuilt than receive it half-built.** Saying "I
-  won't ship motion I can't watch run" landed better than shipping it would have.
-- **Don't burn the session and skip the handoff.** He had to say "ahem".
+- **When he says prioritise, he means go deep rather than wide.** "Prioritize cleaning
+  up the previous mess and then I trust you to decide what all you can handle" was
+  permission to spend the whole session on the audit, and the audit is where the two
+  live bugs were. Do not read a broad to-do list as permission to skip it.
+- **He acts on findings immediately.** Told about `firebase-storage.rules` he replied
+  "I'll delete it right now." Report things as you find them; don't batch them to the
+  end.
+- **He is fine with "I won't ship what I can't watch run."** Said twice now, two rounds
+  running, about the same feature. It has never landed badly.
+- **Telling him which uploads matter beats listing what changed.** Six files changed
+  this round; two of them fix anything.
+- **Don't burn the session and skip the handoff.** Round 5 had to be told "ahem".

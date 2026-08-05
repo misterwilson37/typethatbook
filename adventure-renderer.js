@@ -7,6 +7,12 @@
 //
 // ── Full history: CHANGELOG.md § adventure-renderer.js ────────────────────
 //
+// v1.2.0 — A dot marks the END of a chapter, not its start: dotY divides by n,
+//          not n-1, so finishing 1 of 2 chapters reaches halfway instead of
+//          drawing a 14-pixel stub. ⚠️ Shipped with RENDERER_VERSION still
+//          reading '1.1.0' — the header, the CHANGELOG and the code were all
+//          1.2.0 and only the runtime constant disagreed, which is the one copy
+//          the build panel reads. Corrected in Round 6, code untouched.
 // v1.1.0 — Chapter map condenses above MAP_MAX_DOTS. 284 dots down a 500px
 //          strip is 1.8px each and rendered as a solid caterpillar.
 // v1.0.0 — Out of alpha. Diagnostic overlay moved to Ctrl/Cmd+Shift+` — it
@@ -15,7 +21,6 @@
 // v0.4.0 — Backspace tilt-back corrections; left-edge chapter close-up strip.
 // v0.3.0 — Right-edge chapter map; pilcrow paragraph landing marks.
 // v0.2.16 — Indent mini-leap, so the tab gap is a hop and not a teleport.
-// v0.2.15 — Leap state cancelled on fail/respawn/textLoaded/positionSet.
 //
 // ── Events consumed ───────────────────────────────────────────────────────
 //
@@ -31,7 +36,7 @@
 //   * Survives missed events — but draws NOTHING until the next textLoaded,
 //     which is why game.js replays it on a hot swap.
 
-export const RENDERER_VERSION = '1.1.0';
+export const RENDERER_VERSION = '1.2.0';
 
 // Above this many chapters, per-chapter dots overlap into an unreadable smear
 // and we switch to a continuous route with sparse ticks. 40 keeps every dot at

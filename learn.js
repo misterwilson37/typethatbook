@@ -1,4 +1,4 @@
-// learn.js v2.2.2
+// learn.js v2.2.3
 //
 // Lesson-mode engine, separate from game.js. Same write-ahead-log and
 // coalesced-flush persistence pattern.
@@ -6,6 +6,13 @@
 // ── Full history: CHANGELOG.md § learn.js ─────────────────────────────────
 // ── Why it looks like this: PEDAGOGY-AUDIT.md ─────────────────────────────
 //
+// v2.2.3 — beginStep()'s out-of-range guard called finishLesson(), which does not
+//          exist in this file or anywhere in the repo. It threw a ReferenceError
+//          from the one branch written to rescue the situation, abandoning
+//          beginStep() before the intro was hidden or the keyboard wired: a dead
+//          drill screen, no record written, nothing for a student to report. Now
+//          clears the stale checkpoint and returns to the map. Also untangled the
+//          `!x === false` resume condition, which was correct and unreadable.
 // v2.2.2 — Firefox Quick Find fix, matching game.js 3.9.3. #drill-keyboard is a
 //          div, so it absorbs nothing, and lessons drill punctuation on purpose.
 // v2.2.1 — flushStats()'s re-entrancy guard was `if`, which serialises two
@@ -25,8 +32,6 @@
 // v2.0.0 — Batch A, the stall fix. Long steps chunked into runs under 150
 //          chars, run position persisted, net WPM, idle-aware graded clock,
 //          accuracy-gated advancement, per-step gates inferred from type.
-// v1.7.1 — Header/constant version mismatch corrected.
-// v1.7.0 — Write-ahead log + coalesced flush.
 //
 // ── Load-bearing ──────────────────────────────────────────────────────────
 //
@@ -57,7 +62,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.2.2";
+const LEARN_VERSION = "2.2.3";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -264,8 +269,16 @@ function showAnonLoginPrompt() {
 
     document.getElementById('anon-skip-btn').onclick = () => {
         overlay.remove();
-        // Resume if mid-drill
-        if (!drillView.classList.contains('hidden') && !drillModal.classList.contains('hidden') === false) {
+        // Resume if mid-drill: the drill view is showing and no modal is over it.
+        //
+        // v2.2.3 rewrote the second half from `!drillModal.classList.contains(
+        // 'hidden') === false`. That is EQUIVALENT — unary ! binds tighter than
+        // ===, so (!contains) === false reduces to contains === true, i.e. the
+        // modal is hidden — but it is shaped exactly like a typo, and the next
+        // person to touch it will "fix" it into its own negation.
+        const onDrill    = !drillView.classList.contains('hidden');
+        const modalIsUp  = !drillModal.classList.contains('hidden');
+        if (onDrill && !modalIsUp) {
             beginStep(currentStepIdx); // restarts current step fresh — acceptable
         }
     };
@@ -898,10 +911,42 @@ function startGradedTimer() {
     }, 1000);
 }
 
+// ⚠️ THE OUT-OF-RANGE GUARD CALLED A FUNCTION THAT DOES NOT EXIST (v2.2.3).
+//
+// This read `if (!currentStep) { finishLesson(); return; }` and there has never
+// been a finishLesson() in this file — the completion path is finishStep() ->
+// showLessonResultModal(). So the guard threw a ReferenceError, which is worse
+// than no guard at all: the throw abandons beginStep() before the intro panel is
+// hidden or the keyboard is wired, leaving the student on a dead drill screen
+// with no modal, no error and no way back except the browser Back button. Nothing
+// is written, so it is also invisible from the teacher side — the failure mode
+// this whole round of instrumentation exists to eliminate.
+//
+// Reachable two ways, both real:
+//   * the Game Genie's step jump calls beginStep(parseInt(select.value)) with no
+//     bounds check;
+//   * a saved run checkpoint can outlive a lesson edit. Re-chunking a five-run
+//     step into three leaves a resume pointing at run 4 of 3. startLesson()
+//     bounds-checks the resume, but the checkpoint itself survives, and
+//     recordRunOutcome/renderMap both index by run.
+//
+// Recovery is stopLesson(), not completion. `!currentStep` means the run list and
+// the index disagree, and grading a run that does not exist would write a score
+// for work nobody did. stopLesson() clears the timers, reloads progress and puts
+// the student back on the map, which is where the ← Map button sends them anyway.
+// clearRunPosition() goes with it so a stale checkpoint cannot bounce them
+// straight back out again.
 function beginStep(stepIdx) {
     currentStepIdx = stepIdx;
     currentStep = currentRuns[stepIdx];
-    if (!currentStep) { finishLesson(); return; }
+    if (!currentStep) {
+        console.warn('[TTB] beginStep: run ' + stepIdx + ' does not exist in a ' +
+                     currentRuns.length + '-run lesson — clearing the checkpoint ' +
+                     'and returning to the map.');
+        clearRunPosition();
+        stopLesson();
+        return;
+    }
 
     introPanel.classList.add('hidden');
     // Restore active-drill to normal flow (was kept visible but hidden during intro)

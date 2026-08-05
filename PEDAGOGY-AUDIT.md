@@ -1,6 +1,11 @@
 # PEDAGOGY-AUDIT.md — why students stalled in lesson mode
 
-<!-- v2.0.0 — Round 2 (Dvorak), 2026-08-01. MAJOR, signed off by Jake. §3.2 was wrong. It reasoned
+<!-- v2.0.1 — Round 6 (Noiseless), 2026-08-05. §4 said "Batch B is outstanding". It is not:
+     learn.js v2.1.0 shipped it and lessons-admin.js has the stuck-student view. The
+     line would have sent the next instance rebuilding shipped work, so it is
+     corrected below with the field names as they were actually implemented. No
+     finding, recommendation or measurement in this document changed.
+     v2.0.0 — Round 2 (Dvorak), 2026-08-01. MAJOR, signed off by Jake. §3.2 was wrong. It reasoned
      from learn.js defaults because the curriculum had not been exported yet. The
      real gates are a sensible per-unit ramp; the actual wall is step LENGTH.
      Rewritten against ttb-lessons-2026-08-01.json (47 lessons, 105 steps). -->
@@ -265,12 +270,33 @@ gate.
 
 ## 4. Agreed changes
 
-Approved by Jake 2026-08-01. Ordering and implementation notes in `HANDOFF.md` §11.
+Approved by Jake 2026-08-01. ⚠️ The ordering notes this line used to point at lived
+in `HANDOFF.md` §11, which was superseded in Round 5 and is no longer in the repo.
+Read §4's numbered list below as the record instead; it is complete on its own.
 
 **Batch A shipped in `learn.js` v2.0.0** — items 0, 0b, 3, 4, 5, 6, 7, 9, plus the
-grade-F record from item 1. **Batch B is outstanding** — the rest of item 1
-(`furthestStepIdx`, `stepAttempts`, `stepFailures`, the `timeSpentSeconds` fix) and
-item 2 (the stuck-student view in `lessons-admin.js`).
+grade-F record from item 1.
+
+**Batch B shipped in `learn.js` v2.1.0.** ⚠️ This paragraph read "Batch B is
+outstanding" until Round 6, three releases after it landed — long enough that the
+next instance to read this document would have rebuilt it. The implemented field
+names differ from the ones proposed here, because the engine chunks a step into
+RUNS and instruments what it actually executes:
+
+| proposed in this document | shipped in `learn.js` v2.1.0 |
+|---|---|
+| `furthestStepIdx` | `furthestRunIdx` |
+| `stepAttempts`    | `runAttempts` |
+| `stepFailures`    | `runFailures` |
+| —                 | `lastSeenAt` (added; it is what the stuck scan sorts on) |
+
+`timeSpentSeconds` accumulates correctly, and a grade of F leaves a record.
+**Item 2 also shipped** — `lessons-admin.js` has the stuck-student scan, keyed on
+`STUCK_FAILURES`+ failures on a run the student has not cleared, with the caveat
+surfaced in its own UI that editing a lesson reshuffles runs and so makes a stuck
+point from before the edit approximate.
+
+Nothing in §4's list is outstanding. The next pedagogy work is new work.
 
 ### Batch A, measured against the real curriculum
 
