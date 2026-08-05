@@ -1,6 +1,13 @@
 rules_version = '2';
 
-// firestore.rules v2.1.0 — TypeThatBook
+// firestore.rules v2.2.0 — TypeThatBook
+//
+// v2.2.0 — Write validation on the three activity collections, and the
+//          users/{uid}/{collection} wildcard restricted to a whitelist.
+//          Before this, any signed-in Google account could write unbounded
+//          documents into the database and any student could forge their own
+//          graded minutes. Neither required an exploit — just the console.
+//          See the block comments at each match; the reasoning is the point.
 //
 // v2.1.0 — pendingStaffRoles: grant a role to an email address before that person
 //          has ever signed in. Their first sign-in converts it to a staff record.
@@ -192,8 +199,23 @@ service cloud.firestore {
 
     // progress, profile, lessonProgress. Also a hot student path — same
     // single-expression, self-check-first discipline as stats above.
+    //
+    // ⚠️ v2.2.0 — THE COLLECTION NAME IS NOW WHITELISTED. `{collection}` is a
+    // wildcard, so `allow write: if request.auth.uid == uid` previously let any
+    // signed-in account write unlimited documents into
+    // users/{their-own-uid}/anything-at-all/. Since sign-up is open to any
+    // Google account, that was a free, authenticated, unmetered write target
+    // pointed at Jake's Blaze card. Whitelisting the four names the app
+    // actually uses costs nothing and removes the collection entirely.
+    //
+    // Verified against every users/{uid}/... path in game.js, learn.js,
+    // index.html, lessons-admin.js and reports.html as of 2026-08-02. If you
+    // add a subcollection, add it here or its writes will silently fail.
+    // ('stats' is matched by the more specific rule above and never reaches
+    // this block, but it is listed for completeness and costs nothing.)
     match /users/{uid}/{collection}/{docId} {
-      allow write: if request.auth.uid == uid;
+      allow write: if request.auth.uid == uid
+                   && collection in ['progress', 'profile', 'lessonProgress', 'stats'];
       allow read: if request.auth.uid == uid
         || isSuper()
         || (isStaff() && inMySchool(
@@ -201,18 +223,106 @@ service cloud.firestore {
     }
 
     // ─────────────────────────── activity logs ───────────────────────────
-    // Doc ID is `{uid}_{YYYY-MM-DD}` — that's what enforces "students write only
-    // their own log" without reading the existing document.
+    //
+    // ⚠️ v2.2.0 — WRITE VALIDATION. Everything below used to accept any payload
+    // from any signed-in user. Two separate problems, and neither needed an
+    // attacker to be clever:
+    //
+    //   MONEY. Sign-up is open to any Google account on earth (deliberately —
+    //   students self-serve and Jake's own son uses it). Combined with an
+    //   unvalidated `allow create`, a script could write documents into
+    //   typing_sessions until the Blaze bill became somebody's problem. That
+    //   somebody is Jake personally. Size limits and field whitelists don't stop
+    //   a determined attacker — App Check does, and it is console-only, see
+    //   HANDOFF §B.4 — but they cap the damage per document and they cost
+    //   nothing.
+    //
+    //   GRADES. typing_logs is what reports.html grades from, and a student
+    //   could write `seconds: 999999` into their own log with two lines in the
+    //   console. Middle schoolers absolutely do find this. The clamps below are
+    //   generous enough that no honest session can hit them: 86,400 seconds is a
+    //   full day, and nobody types 5,000,000 characters.
+
+    // A daily log is bounded by the day it describes. These ceilings are sanity
+    // limits, not targets — they exist to make a forged value obviously absurd
+    // rather than plausibly high. 86,400 seconds is a full 24 hours.
+    //
+    // ⚠️ NO keys().hasOnly() HERE, ON PURPOSE. Both writers use setDoc(merge:true),
+    // and under a merge `request.resource.data` is the MERGED result, not the
+    // delta. A field written by any earlier version of the app that isn't in a
+    // whitelist would fail the rule, every flush, forever — and the client
+    // catches that failure and logs a console warning, so a student's time would
+    // silently stop recording. Silent grade loss is a far worse outcome than the
+    // storage a stray field costs. The docId binding below is what actually
+    // bounds this collection; a whitelist would only have bounded its width.
+    function validDailyLog(d) {
+      return d.uid is string
+          && d.date is string && d.date.size() == 10
+          && d.seconds   is number && d.seconds   >= 0 && d.seconds   <= 86400
+          && d.chars     is number && d.chars     >= 0 && d.chars     <= 5000000
+          && d.mistakes  is number && d.mistakes  >= 0 && d.mistakes  <= 5000000;
+    }
+
+    // ⚠️ THE DOC ID IS NOW BOUND TO THE DATE FIELD, not merely prefixed by the
+    // uid. `docId.split('_')[0] == uid` proved you owned the document but said
+    // nothing about how many you could own: `uid_1`, `uid_2`, `uid_3`... were all
+    // legal, so this was an unbounded authenticated write target. Requiring
+    // docId == uid + '_' + date caps the collection at exactly one document per
+    // student per calendar day, which is what the design always assumed.
+    //
+    // Both writers already build the id this way — game.js flushAll() and
+    // learn.js flushStats() — so this is a tightening, not a change.
     match /typing_logs/{docId} {
-      allow create, update: if signedIn()
-                            && docId.split('_')[0] == request.auth.uid
-                            && request.resource.data.uid == request.auth.uid;
+      // The student, writing their own log.
+      allow create: if signedIn()
+                    && request.resource.data.uid == request.auth.uid
+                    && validDailyLog(request.resource.data)
+                    && docId == request.auth.uid + '_' + request.resource.data.date;
+
+      // ⚠️ FOUND DURING THE v2.2.0 AUDIT — THIS WAS ALREADY BROKEN.
+      //
+      // reports.html has had a "correct a student's recorded time" feature for
+      // several versions. It calls updateDoc() on typing_logs. But the only
+      // update rule was `request.resource.data.uid == request.auth.uid`, and
+      // under an update `request.resource.data` is the MERGED document — so
+      // `uid` is the STUDENT's, never the teacher's. Every correction a teacher
+      // ever attempted was denied. Nobody noticed because the failure surfaces
+      // as a console error on a rarely-used button.
+      //
+      // Corrections are limited to building-scoped staff, matching the identical
+      // constraint on users/{uid}/stats above: a class-scoped teacher routes
+      // corrections through their building admin. The identity fields are pinned
+      // — a correction may change the numbers, never whose log it is or which
+      // day it describes, which also keeps the docId binding true.
+      allow update: if (signedIn()
+                        && request.resource.data.uid == request.auth.uid
+                        && validDailyLog(request.resource.data)
+                        && docId == request.auth.uid + '_' + request.resource.data.date)
+                    || (isStaff()
+                        && readsWholeBuilding()
+                        && canReadActivity(resource.data)
+                        && validDailyLog(request.resource.data)
+                        && request.resource.data.uid  == resource.data.uid
+                        && request.resource.data.date == resource.data.date);
+
       allow read:   if canReadActivity(resource.data);
       allow delete: if isSuper();
     }
 
+    // ⚠️ The sprint rollup is the ONLY collection in the app where a client can
+    // create an unlimited number of documents. game.js writes at most one per
+    // session; nothing legitimate writes hundreds. The field whitelist caps what
+    // one forged document can cost in storage, and `sprints` is capped at 200
+    // entries — a 30-second sprint for a solid two hours.
     match /typing_sessions/{id} {
-      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if signedIn()
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.seconds is number
+                    && request.resource.data.seconds >= 0
+                    && request.resource.data.seconds <= 86400
+                    && request.resource.data.sprints is list
+                    && request.resource.data.sprints.size() <= 200
+                    && request.resource.data.expiresAt is timestamp;
       allow read:   if canReadActivity(resource.data);
       allow update, delete: if isSuper();
     }
@@ -221,8 +331,16 @@ service cloud.firestore {
     // get the same scoping as any other activity data (game.js v3.4.2 added the
     // stamps that make that possible). Documents written before v3.4.2 have no
     // stamps and are therefore super_admin-only — the right way round.
+    //
+    // The generated paragraph is the heaviest payload in the database, so the
+    // create rule requires the TTL field. A document without expiresAt would
+    // never be collected and would sit in storage forever.
     match /practice_sessions/{id} {
-      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if signedIn()
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.expiresAt is timestamp
+                    && request.resource.data.generatedText is string
+                    && request.resource.data.generatedText.size() <= 4000;
       allow read:   if canReadActivity(resource.data);
       allow update, delete: if isSuper();
     }
