@@ -1,4 +1,4 @@
-// admin.js v3.19.1
+// admin.js v3.19.2
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
@@ -82,7 +82,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.19.1";
+const ADMIN_VERSION = "3.19.2";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -2059,6 +2059,14 @@ const MATTER_FILE_NAMES = {
     copyright: 'Copyright', endnotes: 'Endnotes', loi: 'List of Illustrations',
     toc: 'Table of Contents', contents: 'Table of Contents', index: 'Index',
     appendix: 'Appendix', preface: 'Preface', introduction: 'Introduction',
+    // v3.19.2 — found by a real book. Augie and the Green Knight ships an
+    // acknowledgements page, which fell through to "Front matter 1" because this
+    // table had no entry for it. Every one of these is a name a producer actually
+    // uses for a file that is not a chapter.
+    acknowledgements: 'Acknowledgements', acknowledgments: 'Acknowledgments',
+    foreword: 'Foreword', afterword: 'Afterword', prologue: 'Prologue',
+    epilogue: 'Epilogue', glossary: 'Glossary', bibliography: 'Bibliography',
+    notes: 'Notes', errata: 'Errata', imprimatur: 'Imprimatur',
 };
 function matterTitleFrom(fileKey, cls, n) {
     const stem = String(fileKey || '').replace(/\.x?html?$/i, '').toLowerCase();
