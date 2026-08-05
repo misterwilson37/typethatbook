@@ -12,12 +12,12 @@ there.
 
 ## Contents
 
-- [`game.js`](#gamejs) — currently v3.12.0
+- [`game.js`](#gamejs) — currently v3.12.1
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
 - [`admin.js`](#adminjs) — currently v3.22.0
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.2
-- [`index.html`](#indexhtml) — currently v3.5.0
+- [`index.html`](#indexhtml) — currently v3.5.1
 
 Files not listed here have short headers that fit the budget on their own:
 `lessons-admin.js`, `staff-admin.js`, `keyboard.js`, `versions.js`,
@@ -27,7 +27,36 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.12.0**
+Current: **v3.12.1**
+
+#### v3.12.1
+
+Round 5 (Mignon). **The first chapter is not always called "1."** Found by Jake's
+blank typing page on the parts test fixture, and it is far older and wider than
+that fixture.
+
+         Opening a book with no saved progress hardcoded `currentChapterNum = 1`
+         and called `loadChapter(1)`. A part-numbered book's first chapter is
+         "1.01", so chapter_1 does not exist: "Book content not found", or in
+         Adventure mode a blank page with a stick figure and no text.
+
+         ⚠️ NOT INTRODUCED BY THE FIXTURE. This has been true for **Heidi, Treasure
+         Island, Little Women and The War of the Worlds** since part numbering
+         shipped in admin.js v3.14.0. Any student opening one of those four for the
+         first time got a blank book. It stayed invisible because those four were
+         only ever opened by an account that already had progress stored, which
+         supplied a real id and bypassed the default.
+
+         Sixth appearance of "the id is not a number" in this project. Five sites,
+         plus loadChapter()'s own not-found recovery, which ALSO went to "1" and was
+         therefore a dead end on exactly the books that needed it — reporting "Book
+         content not found" about a book whose content was fine. And the error
+         screen's "Go to Chapter 1" button, same assumption.
+
+         Stored progress is now VALIDATED against the book's body list, and falls
+         back to the first real chapter with a console warning if the id has gone.
+         That is the protection Fix C's renumbering needs: a student whose progress
+         points at Toby Tyler's old chapter_22 lands at the start instead of nowhere.
 
 #### v3.12.0
 
@@ -229,6 +258,34 @@ Round 4 audit pass. Five changes, no new features.
          Also: the comment claiming fetchLeaderboard() costs 40 reads was
          corrected to 60 (four categories at LB_FETCH_LIMIT 15), or 90 on the
          weekly fallback path.
+
+#### v3.5.1
+
+Round 5 (Mignon). Three rendering bugs, all found by Jake's screenshots rather
+than by me reading the code.
+
+         1. `[object Object]`, once per paragraph, where the copyright notice
+            should have been. **A segment is `{ text: "…" }`, not a string** —
+            admin.js has always stored it that way — and String({}) is
+            "[object Object]". I wrote `escapeHtml(String(t))` without ever
+            checking the shape. Also strips the leading tab admin.js prepends for
+            paragraph indentation: meaningful when typing, just a gap when reading.
+         2. Every section headed **"Notice"**. The lookup used `book.chapters`,
+            which the grid STRIPS before caching — the same fact that made
+            `aboutIds` necessary in v3.5.0, applied to the ids and not to their
+            titles. `aboutTitles` is now captured at load time alongside them.
+         3. The card credit printed a **raw URL as its own link text**, so "CC0 1.0
+            Public Domain Dedication https://creativecommons.org/publicdomain/zero/1.0/"
+            became four wrapped underlined lines that dwarfed the book's title. The
+            licence VALUE containing its URI is correct and deliberate — a licence
+            URI is what CC asks for — so the fix belongs in the rendering. New
+            creditLinkFor() uses the label as the link text and keeps the URI in the
+            href, shared by the card and the panel.
+
+         Verified with about-render-test.mjs: eight segment shapes including {} and
+         undefined, three headings from a cache-stripped book, and six credit values
+         including one carrying an event-handler injection in both the label and the
+         URL.
 
 #### v3.5.0
 
@@ -675,6 +732,38 @@ reset that was supposed to work is a fix, not a feature. Jake caught that too,
 one turn after catching the first one. Renumbered to **v3.18.1**. Recorded here
 rather than quietly corrected, because stating a standard and then exempting
 yourself from it in the same message is the more instructive failure.
+
+#### v3.22.1 (admin.html only)
+
+Round 5 (Mignon). **Layout, no functionality.** Jake's screenshot made the case
+better than any argument: the metadata block had become ONE row of nine columns,
+each with a hint paragraph printed underneath, several of them taller than the input
+they described. The inputs were squeezed to roughly six characters wide and the
+licence hint ran to fourteen lines.
+
+         Two rows now — identity/tagging on the first, provenance on the second —
+         with the cover in its own fixed 120px column to the right of both, so the
+         cover cannot steal width from eight inputs and eight inputs cannot squash
+         the cover. Stacks below 900px.
+
+         Hints became title="" tooltips on a circled i. Same words, on hover, zero
+         vertical space.
+
+         FRONT/BODY/BACK and EDIT were the SAME BLUE, sitting adjacent, doing very
+         different things — one reclassifies a page, the other opens its text. The
+         matter toggle is amber now (the colour the untagged dot already uses for "a
+         judgement call") and About is green when on.
+
+         ⚠️ admin.js IS UNCHANGED, which was the point — Jake needed to run the
+         import test while this was being written. Verified: all 14 metadata element
+         ids present, no duplicates, HTML balanced, and the set of ids admin.js
+         expects but admin.html lacks went from 27 to 23 with NO new entries. The
+         four that disappeared are the fields v3.20.0 and v3.21.0 added, which is
+         the first time the panel has actually contained them.
+
+         Also set the hardcoded page title to v3.22.1. It had said v3.3.0 since
+         admin.js was at 3.3.0 — nineteen minor versions ago. admin.html still has no
+         version constant of its own; that is a separate job.
 
 #### v3.22.0
 
@@ -1473,7 +1562,7 @@ Write reduction to match game.js v3.4.0. saveStats() fired on every
 
 ## `index.html`
 
-Current: **v3.5.0**
+Current: **v3.5.1**
 
 ⚠️ **This section was created in Round 5.** index.html had no CHANGELOG section at
 all, despite carrying the student-facing library grid, the age/genre filters and

@@ -391,7 +391,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.5.0";
+        const INDEX_VERSION = "3.5.1";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -618,6 +618,11 @@
                         aboutIds: Array.isArray(data.chapters)
                             ? data.chapters.filter(c => c && c.about === true).map(c => c.id)
                             : [],
+                        aboutTitles: Array.isArray(data.chapters)
+                            ? Object.fromEntries(data.chapters
+                                .filter(c => c && c.about === true)
+                                .map(c => [c.id, c.title || 'Notice']))
+                            : {},
                         chapters: data.chapters || []
                     });
                 });
@@ -882,10 +887,16 @@
                 //
                 // Renders nothing at all when both fields are empty, which is the
                 // case for every public domain book in the library.
-                const linkify = linkifyText;
+                // ⚠️ THE RAW URL WAS THE PROBLEM (v3.5.1). linkifyText renders a URL
+                // as its own link TEXT, so "CC0 1.0 Public Domain Dedication
+                // https://creativecommons.org/publicdomain/zero/1.0/" printed as four
+                // wrapped underlined lines and dwarfed the title of the book. The
+                // licence VALUE deliberately contains its URI — that is what CC asks
+                // for — so the fix belongs in the rendering: label as the link text,
+                // URI in the href where it was always supposed to live.
                 const creditBits = [];
-                if (book.source) creditBits.push(linkify(book.source));
-                if (book.rights) creditBits.push(linkify(book.rights));
+                if (book.source) creditBits.push(creditLinkFor(book.source));
+                if (book.rights) creditBits.push(creditLinkFor(book.rights));
                 const creditHTML = creditBits.length
                     ? `<div class="book-credit">${creditBits.join(' \u00b7 ')}</div>`
                     : '';
@@ -961,6 +972,16 @@
         // opens the panel, and then cached for the session. A book nobody asks
         // about costs nothing. aboutIds is extracted from the chapter array at
         // load time precisely because that array is stripped before caching.
+        // Shared by the card and the panel. linkifyText() is still used where the
+        // whole string IS a URL; this is for "Label https://uri" values.
+        function creditLinkFor(val) {
+            const m = String(val).match(/^(.*?)\s*(https?:\/\/\S+)\s*$/);
+            if (!m) return escapeHtml(val);
+            const label = m[1].trim() || m[2];
+            return '<a href="' + escapeAttr(m[2]) + '" target="_blank" ' +
+                   'rel="noopener noreferrer">' + escapeHtml(label) + '</a>';
+        }
+
         const aboutTextCache = new Map();
 
         async function openAbout(bookId) {
@@ -973,8 +994,8 @@
                 `<h2 id="about-title">${escapeHtml(book.title)}</h2>` +
                 (book.author ? `<p class="about-meta">${escapeHtml(book.author)}</p>` : '');
             const metaRows = [];
-            if (book.source) metaRows.push(['Source', linkifyText(book.source)]);
-            if (book.rights) metaRows.push(['Licence', linkifyText(book.rights)]);
+            if (book.source) metaRows.push(['Source', creditLinkFor(book.source)]);
+            if (book.rights) metaRows.push(['Licence', creditLinkFor(book.rights)]);
             if (book.archiveUrl) metaRows.push(['Archived copy',
                 `<a href="${escapeAttr(book.archiveUrl)}" target="_blank" rel="noopener noreferrer">the EPUB this was built from</a>`]);
             if (book.cleanedBy) metaRows.push(['Text prepared by', escapeHtml(book.cleanedBy)]);
@@ -1008,13 +1029,26 @@
                 aboutTextCache.set(bookId, pages);
             }
 
-            const titleOf = id => {
-                const c = (book.chapters || []).find(x => x.id === id);
-                return c && c.title ? c.title : 'Notice';
+            // ⚠️ book.chapters is STRIPPED before the grid is cached, so this lookup
+            // found nothing on a cached load and every section was headed "Notice" —
+            // three identical headings, which is what Jake saw. aboutTitles is
+            // captured at load time for the same reason aboutIds is.
+            const titleOf = id => (book.aboutTitles && book.aboutTitles[id]) ||
+                ((book.chapters || []).find(x => x.id === id) || {}).title || 'Notice';
+            // ⚠️ A SEGMENT IS AN OBJECT, NOT A STRING (v3.5.1). admin.js stores
+            // `{ text: "…" }` per paragraph, and String({}) is "[object Object]" —
+            // which is exactly what the panel printed, once per paragraph, in place
+            // of the copyright notice it exists to display. The text also carries a
+            // leading tab, prepended at import for paragraph indentation, which is
+            // meaningful when typing and just a gap when reading.
+            const segText = (seg) => {
+                const raw = (seg && typeof seg === 'object') ? (seg.text ?? '') : seg;
+                return String(raw ?? '').replace(/^\t+/, '').trim();
             };
             const pagesHTML = pages.map(pg =>
                 `<h3>${escapeHtml(titleOf(pg.id))}</h3>` +
-                pg.segments.map(t => `<p>${escapeHtml(String(t))}</p>`).join('')
+                pg.segments.map(segText).filter(Boolean)
+                    .map(t => `<p>${escapeHtml(t)}</p>`).join('')
             ).join('');
 
             bodyEl.innerHTML = head + metaHTML + (pagesHTML ||

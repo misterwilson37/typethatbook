@@ -1,10 +1,19 @@
-// game.js v3.12.0
+// game.js v3.12.1
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.12.1 — THE FIRST CHAPTER IS NOT ALWAYS CALLED "1". Opening a book with no
+//           saved progress hardcoded chapter 1, so a PART-NUMBERED book — whose
+//           first chapter is "1.01" — showed a blank page. Live for Heidi, Treasure
+//           Island, Little Women and The War of the Worlds since part numbering
+//           shipped, and invisible because those four were only ever opened by
+//           someone who already had progress. Five sites fixed, plus loadChapter's
+//           own recovery path, which also went to "1" and so was a dead end on the
+//           same books. Stored progress is now validated against the book, which is
+//           the protection Fix C's renumbering needs.
 // v3.12.0 — Auto-advance walks the BODY list too, and FINISHING A BOOK IS NOW A
 //           THING THAT HAPPENS. v3.11.0 filtered the chapter PICKER and left
 //           auto-advance walking the full spine — worse than not filtering, since
@@ -79,7 +88,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.12.0";
+const VERSION = "3.12.1";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -928,7 +937,7 @@ async function init() {
             trophyBtn.classList.add('hidden');
             try {
                 await loadBookMetadata();
-                loadChapter(1);
+                loadChapter(firstBodyChapterId() || 1);
             } catch(e) { console.error("Init Error:", e); }
         }
     });
@@ -1168,16 +1177,18 @@ async function loadUserProgress() {
     textStream.innerHTML = "Loading progress...";
     try {
         if (!currentUser || currentUser.isAnonymous) {
-            // No user — start from beginning, no saved progress
-            currentChapterNum = 1;
+            // No user — start from the beginning, which is the first BODY chapter
+            // and is not always called "1".
+            const start = firstBodyChapterId() || 1;
+            currentChapterNum = start;
             savedCharIndex = 0;
             lastSavedIndex = 0;
-            loadChapter(1);
+            loadChapter(start);
             return;
         }
         const docRef = doc(db, "users", currentUser.uid, "progress", currentBookId);
         const docSnap = await getDoc(docRef);
-        currentChapterNum = 1;
+        currentChapterNum = firstBodyChapterId() || 1;
         savedCharIndex = 0;
         if (docSnap.exists()) {
             const data = docSnap.data();
@@ -1199,8 +1210,18 @@ async function loadUserProgress() {
         walRecover();
         savedCharIndex = currentCharIndex;
         lastSavedIndex = savedCharIndex;
+
+        // ⚠️ The stored chapter may no longer exist — see isKnownBodyChapter().
+        // Checked AFTER walRecover(), because the WAL can also carry a stale id.
+        if (bodyChapterList().length && !isKnownBodyChapter(currentChapterNum)) {
+            const fallback = firstBodyChapterId();
+            console.warn('Stored chapter "' + currentChapterNum + '" is not in this ' +
+                         'book any more (renumbered?). Starting at "' + fallback + '".');
+            currentChapterNum = fallback;
+            savedCharIndex = 0; currentCharIndex = 0; lastSavedIndex = 0;
+        }
         loadChapter(currentChapterNum);
-    } catch (e) { loadChapter(1); }
+    } catch (e) { loadChapter(firstBodyChapterId() || 1); }
 }
 
 // Chapter text is immutable once authored and it's the biggest single read in
@@ -1283,11 +1304,16 @@ async function loadChapter(chapterNum) {
             getHeaderHTML(); // update book info bar
             initBookProgressBar();
         } else {
-            if(chapterNum !== 1 && chapterNum !== "1") {
-                alert(`Chapter ${chapterNum} not found. Returning to start.`);
-                currentChapterNum = 1;
+            // Recovery goes to the first BODY chapter, not to the literal "1" —
+            // which on a part-numbered book does not exist, so the old code's
+            // recovery path was itself a dead end and reported "Book content not
+            // found" for a book whose content was fine.
+            const first = firstBodyChapterId();
+            if (first !== null && chapterKey(chapterNum) !== chapterKey(first)) {
+                alert(`Chapter ${chapterNum} not found. Returning to the start of the book.`);
+                currentChapterNum = first;
                 savedCharIndex = 0;
-                loadChapter(1);
+                loadChapter(first);
             } else {
                 textStream.innerText = "Book content not found.";
             }
@@ -1302,9 +1328,10 @@ async function loadChapter(chapterNum) {
             '<button onclick="loadChapter(' + chapterNum + ')" ' +
             'style="padding:10px 24px; background:var(--carolina-blue); color:white; border:none; ' +
             'border-radius:4px; cursor:pointer; font-size:1rem; margin-right:10px;">Try Again</button>' +
-            '<button onclick="loadChapter(1)" ' +
+            // Same fix as everywhere else: the start of the book, not the literal 1.
+            '<button onclick="loadChapter(\'' + (firstBodyChapterId() || 1) + '\')" ' +
             'style="padding:10px 24px; background:#555; color:white; border:none; ' +
-            'border-radius:4px; cursor:pointer; font-size:1rem;">Go to Chapter 1</button>' +
+            'border-radius:4px; cursor:pointer; font-size:1rem;">Go to the start</button>' +
             '</div>';
     }
 }
@@ -2324,6 +2351,36 @@ function bodyChapterList() {
         });
     }
     return body.length ? body : all;
+}
+
+// ─── THE FIRST CHAPTER IS NOT NECESSARILY CALLED "1" (v3.12.1) ───────────────
+//
+// Opening a book with no saved progress hardcoded currentChapterNum = 1 and
+// called loadChapter(1). On a PART-NUMBERED book the first chapter is "1.01", so
+// chapter_1 does not exist and the reader gets "Book content not found." or, in
+// Adventure mode, a blank page with a stick figure and no text.
+//
+// ⚠️ THIS WAS NOT INTRODUCED BY THE TEST FIXTURE. It has been true for Heidi,
+// Treasure Island, Little Women and The War of the Worlds since part numbering
+// shipped in admin.js v3.14.0 — any student opening one of those four for the
+// FIRST time got a blank book. It went unnoticed because the four were only ever
+// opened by someone who already had progress stored.
+//
+// Sixth appearance of "the id is not a number" in this project.
+function firstBodyChapterId() {
+    const list = bodyChapterList();
+    if (!list.length) return null;
+    return String(list[0].id).replace(/^chapter_/, '');
+}
+
+// ⚠️ RENUMBER PROTECTION. Fix C (admin.js v3.18.5) changes chapter ids on the
+// Gutenberg books — Toby Tyler goes from 3-22 to 1-20. A student whose stored
+// progress points at chapter_22 would ask for a chapter the re-imported book no
+// longer has. Validating the stored id against the book turns that from a dead
+// end into a nudge back to the start.
+function isKnownBodyChapter(id) {
+    const k = chapterKey(id);
+    return bodyChapterList().some(c => chapterKey(c.id) === k);
 }
 
 // key -> 1-based ordinal among body chapters. Built once per caller, not once
