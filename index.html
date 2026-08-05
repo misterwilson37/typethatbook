@@ -176,6 +176,39 @@
             word-break: break-word;
         }
         .book-credit a { color: #6b7f96; text-decoration: underline; }
+        /* The ⓘ sits inside a card that is itself an <a>, so its handler has to
+           stop propagation — see the listener. Styled as a quiet text button, not
+           a call to action: this is for the person who goes looking. */
+        .book-about-btn {
+            background: none; border: none; padding: 0; margin-top: 6px;
+            font: inherit; font-size: 0.7rem; color: #6b7f96;
+            text-decoration: underline; cursor: pointer; display: block;
+        }
+        .book-about-btn:hover { color: #3d5a78; }
+        #about-overlay {
+            position: fixed; inset: 0; background: rgba(20,18,15,0.72);
+            display: none; align-items: flex-start; justify-content: center;
+            z-index: 900; padding: 24px 16px; overflow-y: auto;
+        }
+        #about-overlay.open { display: flex; }
+        #about-panel {
+            background: #fdfbf7; color: #2b2823; max-width: 680px; width: 100%;
+            border-radius: 10px; padding: 28px 30px 34px; position: relative;
+            box-shadow: 0 18px 50px rgba(0,0,0,0.35); line-height: 1.55;
+        }
+        #about-panel h2 { margin: 0 0 4px; font-size: 1.15rem; }
+        #about-panel h3 {
+            margin: 24px 0 6px; font-size: 0.82rem; letter-spacing: 0.06em;
+            text-transform: uppercase; color: #7a7268;
+        }
+        #about-panel p { margin: 0 0 10px; font-size: 0.9rem; }
+        #about-panel .about-meta { font-size: 0.8rem; color: #5c554c; }
+        #about-panel .about-meta a { color: #3d5a78; }
+        #about-close {
+            position: absolute; top: 10px; right: 14px; background: none;
+            border: none; font-size: 1.5rem; line-height: 1; cursor: pointer;
+            color: #8a8378;
+        }
         .book-author {
             font-size: 0.78rem; color: var(--text-muted);
             margin-bottom: 6px;
@@ -358,7 +391,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.4.0";
+        const INDEX_VERSION = "3.5.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -435,7 +468,7 @@
         // getCountFromServer is billed at ONE read per up to 1000 matched index
         // entries, which is what makes validating the cached book list cost a
         // single read instead of re-fetching the whole collection.
-        import { collection, getDocs, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { collection, getDocs, getCountFromServer, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
         let currentUser = null;
@@ -576,6 +609,15 @@
                         // most of the library — the credit line simply does not render.
                         source: data.source || "",
                         rights: data.rights || "",
+                        archiveUrl: data.archiveUrl || "",
+                        cleanedBy: data.cleanedBy || "",
+                        // Just the IDS of the credits pages, not their text. The
+                        // text is a subcollection read and only happens if someone
+                        // actually opens the panel — one or two reads on a click,
+                        // never on a page load.
+                        aboutIds: Array.isArray(data.chapters)
+                            ? data.chapters.filter(c => c && c.about === true).map(c => c.id)
+                            : [],
                         chapters: data.chapters || []
                     });
                 });
@@ -840,25 +882,19 @@
                 //
                 // Renders nothing at all when both fields are empty, which is the
                 // case for every public domain book in the library.
-                // ⚠️ THE CHARACTER CLASS AND THE ATTRIBUTE ESCAPE ARE BOTH
-                // SECURITY, NOT TIDINESS. This string is admin free text going
-                // into innerHTML. escapeHtml() here is DOM-based (textContent ->
-                // innerHTML), which neutralises < > &, but NOT quotes — quotes do
-                // not need escaping in element content. They very much do inside
-                // an href. A first draft of this used [^\s<]+, so a "URL" of
-                //     https://x.test/"onmouseover="alert(1)
-                // survived escaping, matched as one URL, and closed the href early
-                // to inject an event handler. Excluding quotes from the class AND
-                // escaping them in the attribute are belt and braces; keep both.
-                const linkify = (txt) => escapeHtml(txt).replace(
-                    /(https?:\/\/[^\s<>"']+)/g,
-                    (m) => '<a href="' + m.replace(/"/g, '&quot;').replace(/'/g, '&#39;') +
-                           '" target="_blank" rel="noopener noreferrer">' + m + '</a>');
+                const linkify = linkifyText;
                 const creditBits = [];
                 if (book.source) creditBits.push(linkify(book.source));
                 if (book.rights) creditBits.push(linkify(book.rights));
                 const creditHTML = creditBits.length
                     ? `<div class="book-credit">${creditBits.join(' \u00b7 ')}</div>`
+                    : '';
+
+                // ⓘ only when the book HAS credits pages to show. A book whose
+                // front matter was deleted, or which never had any, shows nothing
+                // rather than a button that opens an empty box.
+                const aboutHTML = book.aboutIds.length
+                    ? `<button class="book-about-btn" data-book="${escapeAttr(book.id)}">\u2139 About this book</button>`
                     : '';
 
                 const coverHTML = book.coverUrl
@@ -875,6 +911,7 @@
                             <div class="book-title">${escapeHtml(book.title)}</div>
                             ${book.author ? `<div class="book-author">${escapeHtml(book.author)}</div>` : ''}
                             ${creditHTML}
+                            ${aboutHTML}
                             ${progressHTML}
                         </div>
                     </a>`;
@@ -883,6 +920,127 @@
 
         function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
         function escapeAttr(s) { return s.replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+        // ⚠️ THE CHARACTER CLASS AND THE ATTRIBUTE ESCAPE ARE BOTH
+        // SECURITY, NOT TIDINESS. This string is admin free text going
+        // into innerHTML. escapeHtml() here is DOM-based (textContent ->
+        // innerHTML), which neutralises < > &, but NOT quotes — quotes do
+        // not need escaping in element content. They very much do inside
+        // an href. A first draft of this used [^\s<]+, so a "URL" of
+        //     https://x.test/"onmouseover="alert(1)
+        // survived escaping, matched as one URL, and closed the href early
+        // to inject an event handler. Excluding quotes from the class AND
+        // escaping them in the attribute are belt and braces; keep both.
+        // ⚠️ THE CHARACTER CLASS AND THE ATTRIBUTE ESCAPE ARE BOTH SECURITY, NOT
+        // TIDINESS. This string is admin free text going into innerHTML.
+        // escapeHtml() here is DOM-based (textContent -> innerHTML), which
+        // neutralises < > &, but NOT quotes — quotes do not need escaping in
+        // element content. They very much do inside an href. A first draft used
+        // [^\s<]+, so a "URL" of
+        //     https://x.test/"onmouseover="alert(1)
+        // survived escaping, matched as one URL, and closed the href early to
+        // inject an event handler. Excluding quotes from the class AND escaping
+        // them in the attribute are belt and braces; keep both.
+        //
+        // Shared by the library card and the About panel, deliberately — two
+        // copies of an escaping rule is one copy too many.
+        function linkifyText(txt) {
+            return escapeHtml(txt).replace(/(https?:\/\/[^\s<>"']+)/g, (m) =>
+                '<a href="' + m.replace(/"/g, '&quot;').replace(/'/g, '&#39;') +
+                '" target="_blank" rel="noopener noreferrer">' + m + '</a>');
+        }
+
+        // ─── "ABOUT THIS BOOK" ───────────────────────────────────────────────
+        //
+        // Renders the pages flagged about:true in the admin panel, verbatim, in id
+        // order — so Standard Ebooks' colophon AND uncopyright both appear, and a
+        // CC notice is preserved in the document served rather than summarised.
+        //
+        // ⚠️ COST. The credits TEXT lives in the chapters subcollection, one
+        // document per page, and is NOT fetched on page load — only when someone
+        // opens the panel, and then cached for the session. A book nobody asks
+        // about costs nothing. aboutIds is extracted from the chapter array at
+        // load time precisely because that array is stripped before caching.
+        const aboutTextCache = new Map();
+
+        async function openAbout(bookId) {
+            const book = allBooks.find(b => b.id === bookId);
+            const overlay = document.getElementById('about-overlay');
+            const bodyEl = document.getElementById('about-body');
+            if (!book || !overlay || !bodyEl) return;
+
+            const head =
+                `<h2 id="about-title">${escapeHtml(book.title)}</h2>` +
+                (book.author ? `<p class="about-meta">${escapeHtml(book.author)}</p>` : '');
+            const metaRows = [];
+            if (book.source) metaRows.push(['Source', linkifyText(book.source)]);
+            if (book.rights) metaRows.push(['Licence', linkifyText(book.rights)]);
+            if (book.archiveUrl) metaRows.push(['Archived copy',
+                `<a href="${escapeAttr(book.archiveUrl)}" target="_blank" rel="noopener noreferrer">the EPUB this was built from</a>`]);
+            if (book.cleanedBy) metaRows.push(['Text prepared by', escapeHtml(book.cleanedBy)]);
+            const metaHTML = metaRows.length
+                ? '<h3>Credits</h3><p class="about-meta">' +
+                  metaRows.map(r => `<strong>${r[0]}:</strong> ${r[1]}`).join('<br>') + '</p>'
+                : '';
+
+            bodyEl.innerHTML = head + metaHTML +
+                '<p class="about-meta" id="about-loading">Loading the book\u2019s own notices\u2026</p>';
+            overlay.classList.add('open');
+            document.getElementById('about-close').focus();
+
+            let pages = aboutTextCache.get(bookId);
+            if (!pages) {
+                pages = [];
+                for (const id of book.aboutIds) {
+                    try {
+                        const snap = await getDoc(doc(db, 'books', bookId, 'chapters', id));
+                        if (snap.exists()) {
+                            const d = snap.data();
+                            pages.push({ id, segments: Array.isArray(d.segments) ? d.segments : [] });
+                        }
+                    } catch (e) {
+                        // Never let a failed read take the panel down: the credits
+                        // block above is already rendered and is the part that
+                        // carries the licence URI.
+                        console.warn('About page unavailable:', id, e);
+                    }
+                }
+                aboutTextCache.set(bookId, pages);
+            }
+
+            const titleOf = id => {
+                const c = (book.chapters || []).find(x => x.id === id);
+                return c && c.title ? c.title : 'Notice';
+            };
+            const pagesHTML = pages.map(pg =>
+                `<h3>${escapeHtml(titleOf(pg.id))}</h3>` +
+                pg.segments.map(t => `<p>${escapeHtml(String(t))}</p>`).join('')
+            ).join('');
+
+            bodyEl.innerHTML = head + metaHTML + (pagesHTML ||
+                '<p class="about-meta">This edition\u2019s notice pages are not available. ' +
+                'The credits above are the attribution of record.</p>');
+        }
+
+        function closeAbout() {
+            const o = document.getElementById('about-overlay');
+            if (o) o.classList.remove('open');
+        }
+
+        // Delegated once, not per render. ⚠️ The card is itself an <a>, so both
+        // preventDefault AND stopPropagation are required or clicking ⓘ navigates
+        // into the book instead of opening the panel.
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest && e.target.closest('.book-about-btn');
+            if (btn) {
+                e.preventDefault();
+                e.stopPropagation();
+                openAbout(btn.dataset.book);
+                return;
+            }
+            if (e.target.id === 'about-close' || e.target.id === 'about-overlay') closeAbout();
+        });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAbout(); });
 
         // --- INIT ---
         loadBooks();
@@ -915,5 +1073,15 @@
             } catch(e) { /* stats are non-critical */ }
         }
     </script>
+    <!-- "About this book". Renders the credits pages STORED IN THE BOOK — the
+         imprint, colophon, licence or uncopyright — verbatim, which is what a
+         Creative Commons notice actually asks for. Not a paraphrase on a card and
+         not a link to a copy hosted elsewhere. -->
+    <div id="about-overlay" role="dialog" aria-modal="true" aria-labelledby="about-title">
+        <div id="about-panel">
+            <button id="about-close" aria-label="Close">&times;</button>
+            <div id="about-body"></div>
+        </div>
+    </div>
 </body>
 </html>

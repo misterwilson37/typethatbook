@@ -1,4 +1,4 @@
-// admin.js v3.20.0
+// admin.js v3.22.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
@@ -82,7 +82,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.20.0";
+const ADMIN_VERSION = "3.22.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -724,13 +724,34 @@ async function loadBookList(selectFirst = false) {
             const option = document.createElement("option");
             option.value = doc.id;
             bookTitlesMap[doc.id] = b.title || doc.id;
-            // v3.7.0: flag the tagging backlog where the books actually are.
-            // Age is the one that changes what students can find, so it's the
-            // one that earns a marker.
-            const untagged = (b.minAge === null || b.minAge === undefined);
-            option.text = (untagged ? '\u25cb ' : '\u25cf ') +
-                          bookTitlesMap[doc.id] + ` (${doc.id})`;
-            if (untagged) option.style.color = '#ffb74d';
+            // ─── THE DOT IS THE RE-UPLOAD CHECKLIST (v3.21.0) ────────────────
+            //
+            // v3.7.0 checked age alone, because age was the only thing that
+            // changed what students could find. Three more now matter enough to
+            // block a book from being called done, and naming WHICH is the whole
+            // value — a bare hollow dot on 40 books tells you there is work
+            // without telling you what, which is how the age backlog sat.
+            //
+            //   age      — an untagged book is hidden whenever a student filters
+            //   cover    — a blank tile in the grid, and the thing that sent this
+            //              whole round sideways
+            //   licence  — '' now means "not decided", because public domain is an
+            //              explicit choice in the dropdown rather than an absence.
+            //              A CC book without it is a compliance gap, not untidiness.
+            //   about    — a book with front/back matter but nothing in the About
+            //              view has credits that cannot be reached
+            const gaps = [];
+            if (b.minAge === null || b.minAge === undefined) gaps.push('age');
+            if (!b.coverUrl) gaps.push('cover');
+            if (!b.rights) gaps.push('licence');
+            const chapArr = Array.isArray(b.chapters) ? b.chapters : [];
+            const hasMatter = chapArr.some(c => c && c.matter && c.matter !== 'body');
+            const hasAbout  = chapArr.some(c => c && c.about === true);
+            if (hasMatter && !hasAbout) gaps.push('about');
+            option.text = (gaps.length ? '\u25cb ' : '\u25cf ') +
+                          bookTitlesMap[doc.id] + ` (${doc.id})` +
+                          (gaps.length ? '  \u00b7 needs: ' + gaps.join(', ') : '');
+            if (gaps.length) option.style.color = '#ffb74d';
             bookSelect.appendChild(option);
         });
         
@@ -853,12 +874,14 @@ openBookBtn.onclick = async () => {
             if (minAgeIn) minAgeIn.value = (meta.minAge ?? '') === '' ? '' : String(meta.minAge);
             if (maxAgeIn) maxAgeIn.value = (meta.maxAge ?? '') === '' ? '' : String(meta.maxAge);
             if (protSel)  protSel.value  = meta.protagonistGender || "";
+            const cleanIn = document.getElementById('active-book-cleanedby');
+            if (cleanIn) cleanIn.value = meta.cleanedBy || "";
             // Attribution (v3.20.0). Plain || is correct here — these are strings
             // and '' is exactly what an untagged book should show.
-            const srcIn = document.getElementById('active-book-source');
-            const rgtIn = document.getElementById('active-book-rights');
-            if (srcIn) srcIn.value = meta.source || "";
-            if (rgtIn) rgtIn.value = meta.rights || "";
+            writeSelectOrCustom('active-book-source', meta.source);
+            writeSelectOrCustom('active-book-rights', meta.rights);
+            const arcIn = document.getElementById('active-book-archive');
+            if (arcIn) arcIn.value = meta.archiveUrl || "";
             if (meta.coverUrl) {
                 stagedCoverUrl = meta.coverUrl;
                 updateCoverPreview();
@@ -877,6 +900,17 @@ openBookBtn.onclick = async () => {
                     stagedChapters.push({
                         id: chapNum, 
                         title: chapters[i].title,
+                        // ⚠️ RESTORED, NOT DEFAULTED (v3.21.0). This push never
+                        // carried `matter`, so opening a book and re-uploading it
+                        // silently reset every front and back matter document to
+                        // 'body' — the classification was only ever correct on the
+                        // FIRST import. Which also means the About flag would have
+                        // evaporated on the second. Both come back from the stored
+                        // chapter list; a pre-v3.19.1 document has neither, and
+                        // falls back exactly as before.
+                        matter: chapters[i].matter || 'body',
+                        about: chapters[i].about === true,
+                        srcFile: chapters[i].srcFile || '',
                         segments: contentSnap.data().segments || []
                     });
                 }
@@ -1021,12 +1055,12 @@ async function autofillFromEpub(file) {
         // statement; dc:source then dc:publisher for where the edition came from.
         const rightsEl = document.getElementById('active-book-rights');
         const sourceEl = document.getElementById('active-book-source');
-        if (meta.rights && rightsEl && !rightsEl.value.trim()) {
-            rightsEl.value = meta.rights; filled.push('licence');
+        if (meta.rights && rightsEl && !readSelectOrCustom('active-book-rights')) {
+            writeSelectOrCustom('active-book-rights', meta.rights); filled.push('licence');
         }
         const src = meta.source || meta.publisher;
-        if (src && sourceEl && !sourceEl.value.trim()) {
-            sourceEl.value = src; filled.push('source');
+        if (src && sourceEl && !readSelectOrCustom('active-book-source')) {
+            writeSelectOrCustom('active-book-source', src); filled.push('source');
         }
         // Say so out loud when a licence turned up, because it changes what has
         // to appear on the library card and it is easy to scroll past.
@@ -1108,7 +1142,7 @@ function resetCreateForm(announce) {
 
     ['new-book-id', 'new-book-title', 'new-book-author', 'new-epub-file',
      'active-book-title', 'active-book-author',
-     'active-book-source', 'active-book-rights',
+     'active-book-archive', 'active-book-cleanedby',
      'active-book-minage', 'active-book-maxage'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -1117,6 +1151,8 @@ function resetCreateForm(announce) {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
+    writeSelectOrCustom('active-book-source', '');
+    writeSelectOrCustom('active-book-rights', '');
     if (customGenreInput) { customGenreInput.value = ''; customGenreInput.classList.add('hidden'); }
 
     const af = document.getElementById('autofill-status');
@@ -1589,6 +1625,8 @@ async function parseEpubFile(file) {
                     title: honestTitle,
                     matter: unitCls,      // 'front' | 'body' | 'back'
                     matterWhy: kind.why,
+                    // Credits, not chapters. See detectAbout().
+                    about: detectAbout(doc, fileKey, unitCls),
                     srcFile: fileKey,     // assignChapterIds() reads the part from this
                     segments: segments
                 });
@@ -2104,6 +2142,44 @@ const MATTER_FILE_NAMES = {
     epilogue: 'Epilogue', glossary: 'Glossary', bibliography: 'Bibliography',
     notes: 'Notes', errata: 'Errata', imprimatur: 'Imprimatur',
 };
+// ─── "About this book" — ORTHOGONAL TO matter (v3.21.0) ──────────────────────
+//
+// `matter` answers "is this typeable?". `about` answers "is this part of the
+// credits?". They cross, and collapsing them into one field is the mistake:
+//
+//     chapter                        typeable, not credits
+//     imprint / colophon / licence   NOT typeable, IS credits
+//     an author's real preface       not typeable (unless flipped), NOT credits
+//     dedication                     not typeable, and honestly your call
+//
+// So `about` is a separate boolean, and the About view renders EVERY chapter
+// carrying it, in id order. That is how Standard Ebooks' colophon AND uncopyright
+// both appear without either being special-cased — and how a Creative Commons
+// notice can be PRESERVED VERBATIM in the document served rather than paraphrased
+// on a card or linked to a copy somewhere else.
+//
+// Nothing distinguishes "typed" from "about" beyond these two flags. game.js
+// v3.11.0 offers body chapters only; the About view reads about:true. Neither
+// consults the other, so a chapter cannot leak into the wrong one.
+const ABOUT_FILE = /\b(imprint|copyright|uncopyright|colophon|licen[cs]e|rights|attribution)\b/;
+const ABOUT_EPUB_TYPE = /\b(imprint|colophon|copyright-page|acknowledg)/i;
+
+// Auto-set on import so a Standard Ebook or my Augie build needs nothing ticked.
+// ⚠️ Only ever true for NON-body documents: a chapter is never credits, whatever
+// it happens to be called.
+function detectAbout(doc, fileKey, cls) {
+    if (cls === 'body') return false;
+    if (ABOUT_FILE.test(String(fileKey || '').toLowerCase())) return true;
+    try {
+        const roots = [doc.body].concat(Array.from(doc.body.querySelectorAll('section, article')));
+        for (const el of roots) {
+            const t = (el.getAttribute && (el.getAttribute('epub:type') || el.getAttribute('type'))) || '';
+            if (t && ABOUT_EPUB_TYPE.test(t)) return true;
+        }
+    } catch (_) { /* shape unknown; the filename verdict stands */ }
+    return false;
+}
+
 function matterTitleFrom(fileKey, cls, n) {
     const stem = String(fileKey || '').replace(/\.x?html?$/i, '').toLowerCase();
     for (const k of Object.keys(MATTER_FILE_NAMES)) {
@@ -2640,6 +2716,7 @@ function renderChapterList() {
                 <div class="chap-meta">${chap.segments.length} segments <span class="chap-status"></span></div>
             </div>
             <div class="chap-actions">
+                ${(chap.matter || 'body') !== 'body' ? `<button class="about-btn" data-index="${index}" title="${chap.about ? 'IN the About this book view. Click to remove.' : 'Not in About this book. Click to include \u2014 use this for the imprint, colophon, licence or uncopyright page.'}" style="${chap.about ? 'background:#2a4535;border:1px solid #58a06f;color:#8fd6a6;' : ''}">${chap.about ? '\u2139 About' : '\u2139'}</button>` : ''}
                 ${canMerge ? `<button class="merge-btn" data-index="${index}" title="Merge with next chapter">Merge ↓</button>` : ''}
                 <button class="split-btn" data-index="${index}" title="Split into multiple chapters">Split</button>
                 <button class="matter-btn" data-index="${index}" title="Cycle: body \u2192 front matter \u2192 back matter. Use this when the importer guessed wrong \u2014 it relabels, it does not delete.">${(chap.matter || 'body') === 'body' ? 'Body' : ((chap.matter === 'front') ? 'Front' : 'Back')}</button>
@@ -2670,6 +2747,22 @@ function renderChapterList() {
     // Cycles body → front → back → body, then re-derives every id, so promoting
     // Gutenberg's mislabelled chapter one renumbers the rest of the book to match
     // in one click.
+    // ⚠️ The About toggle only appears on NON-BODY rows, which keeps the row from
+    // growing on the 31 chapters of a novel — on a Standard Ebook it is 4 buttons
+    // out of 35 rows, and usually already correct from import.
+    document.querySelectorAll('.about-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            const i = parseInt(e.target.dataset.index);
+            const chap = stagedChapters[i];
+            chap.about = !chap.about;
+            renderChapterList();
+            const n = stagedChapters.filter(c => c.about).length;
+            statusEl.innerText = `"${chap.title}" ${chap.about ? 'added to' : 'removed from'} ` +
+                `About this book \u2014 ${n} page${n === 1 ? '' : 's'} in the credits. Re-upload to save.`;
+            statusEl.style.borderColor = "#ffaa00";
+        };
+    });
+
     document.querySelectorAll('.matter-btn').forEach(btn => {
         btn.onclick = (e) => {
             const i = parseInt(e.target.dataset.index);
@@ -3011,6 +3104,51 @@ if (updateNextBtn) updateNextBtn.onclick = () => {
 // Reads the genre control, resolving the "Custom..." option to the text input.
 // customGenreInput was declared in v3.x and never used, so picking Custom stored the
 // literal string "__custom__" as the genre.
+// ─── select + "Custom…" pairs (v3.21.0) ──────────────────────────────────────
+//
+// Generalised from readGenreField(), which existed because Upload All once read
+// genre with a raw .value and stored the literal string "__custom__" in Firestore.
+// Three fields now share the shape, so they share one reader and one writer
+// rather than three chances to make that same mistake again.
+function readSelectOrCustom(selectId) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return "";
+    if (sel.value === '__custom__') {
+        const inp = document.getElementById(selectId + '-custom');
+        return (inp && inp.value.trim()) || "";
+    }
+    return sel.value;
+}
+
+// Puts a stored value back: an exact option if one matches, otherwise Custom…
+// with the text filled in. Without this, opening a book whose licence came from
+// dc:rights would show "— Not set —" and re-saving would erase it.
+function writeSelectOrCustom(selectId, value) {
+    const sel = document.getElementById(selectId);
+    const inp = document.getElementById(selectId + '-custom');
+    if (!sel) return;
+    const v = String(value || '');
+    const exact = Array.from(sel.options).find(o => o.value === v && o.value !== '__custom__');
+    if (v && !exact) {
+        sel.value = '__custom__';
+        if (inp) { inp.value = v; inp.classList.remove('hidden'); }
+    } else {
+        sel.value = exact ? v : '';
+        if (inp) { inp.value = ''; inp.classList.add('hidden'); }
+    }
+}
+
+function wireCustomSelect(selectId) {
+    const sel = document.getElementById(selectId);
+    const inp = document.getElementById(selectId + '-custom');
+    if (!sel || !inp) return;
+    sel.addEventListener('change', () => {
+        if (sel.value === '__custom__') { inp.classList.remove('hidden'); inp.focus(); }
+        else { inp.classList.add('hidden'); inp.value = ''; }
+    });
+}
+['active-book-source', 'active-book-rights'].forEach(wireCustomSelect);
+
 function readGenreField() {
     const sel = document.getElementById('active-book-genre');
     if (!sel) return "";
@@ -3047,8 +3185,10 @@ function readBookMetadataForm(title) {
         protagonistGender: (document.getElementById('active-book-protagonist') || {}).value || '',
         // Empty string, not omitted: a blank field must be able to CLEAR a value
         // that was set before. §A.14's lesson about || guards on metadata.
-        source: val('active-book-source'),
-        rights: val('active-book-rights'),
+        source: readSelectOrCustom('active-book-source'),
+        rights: readSelectOrCustom('active-book-rights'),
+        archiveUrl: val('active-book-archive'),
+        cleanedBy: val('active-book-cleanedby'),
     }};
 }
 
@@ -3211,7 +3351,8 @@ uploadAllBtn.onclick = async () => {
             // this reason. Old book documents lack the field, so both readers must
             // fall back; re-upload a book to give it one.
             chapterMeta.push({ id: "chapter_" + chapId, title: chapData.title,
-                               matter: chapData.matter || 'body' });
+                               matter: chapData.matter || 'body',
+                               about: chapData.about === true });
             if(uiStatus) { uiStatus.innerText = "✔ OK"; uiStatus.className = "chap-status ok"; }
             const row = document.getElementById(`ui-chap-${i}`);
             if(row) row.classList.add('uploaded');
@@ -3270,13 +3411,49 @@ uploadAllBtn.onclick = async () => {
         await setDoc(doc(db, "books", activeBookId), bookData, { merge: true });
         const uploadedId = activeBookId;
         
+        // ─── PRUNE ORPHANED CHAPTER DOCUMENTS (v3.22.0) ──────────────────────
+        //
+        // Upload All writes the chapters it has and NEVER removed ones it does not.
+        // That was survivable while ids were stable. It is not survivable now:
+        // v3.18.5's Fix C renumbers the Gutenberg books — Toby Tyler's chapters go
+        // from 3-22 to 1-20 — so re-importing leaves the old chapter_21 and
+        // chapter_22 documents sitting in the subcollection forever. They are still
+        // readable, they still bill for storage, and a student whose stored progress
+        // points at chapter_22 would load one and be reading a chapter the book no
+        // longer lists.
+        //
+        // So: after the book document is written, delete every chapter document
+        // whose id is not in the list we just wrote. Deliberately AFTER, so a failed
+        // book write leaves the old chapters intact rather than deleting content the
+        // new list never replaced.
+        try {
+            const keep = new Set(chapterMeta.map(c => c.id));
+            const existing = await getDocs(collection(db, "books", activeBookId, "chapters"));
+            const orphans = existing.docs.map(d => d.id).filter(id => !keep.has(id));
+            for (const id of orphans) {
+                await deleteDoc(doc(db, "books", activeBookId, "chapters", id));
+            }
+            if (orphans.length) {
+                console.log('Pruned ' + orphans.length + ' orphaned chapter document(s): ' +
+                            orphans.join(', '));
+            }
+            window._ttbLastPrune = orphans.length;
+        } catch (e) {
+            // Non-fatal: the book is correct, there is just dead weight beside it.
+            // Say so rather than failing an upload that otherwise worked.
+            console.warn('Could not prune old chapters:', e);
+            window._ttbLastPrune = -1;
+        }
+
         const tagged = (bookData.minAge !== null) ? `ages ${bookData.minAge}\u2013${bookData.maxAge}` : 'NO age range';
         // The cover is named on the SUCCESS path too, not only when it fails.
         // "This book is done" was previously said without reference to it.
         statusEl.innerText = `Upload complete \u2014 ${stagedChapters.length} chapters, ` +
             `${bookData.genre || 'no genre'}, ${tagged}, ` +
             `${bookData.protagonistGender || 'no protagonist tag'}, ` +
-            `${uploadCoverFailed ? 'COVER FAILED' : uploadCoverNote}.` +
+            `${uploadCoverFailed ? 'COVER FAILED' : uploadCoverNote}` +
+            `${window._ttbLastPrune > 0 ? `, ${window._ttbLastPrune} old chapter doc(s) removed` : ''}` +
+            `${window._ttbLastPrune === -1 ? ', \u26a0 could not prune old chapters' : ''}.` +
             `${uploadCoverFailed ? '' : ' This book is done.'}`;
         if (uploadCoverFailed) {
             statusEl.innerText += ' ⚠ COVER FAILED: ' + uploadCoverFailed;

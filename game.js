@@ -1,10 +1,28 @@
-// game.js v3.10.0
+// game.js v3.12.0
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.12.0 — Auto-advance walks the BODY list too, and FINISHING A BOOK IS NOW A
+//           THING THAT HAPPENS. v3.11.0 filtered the chapter PICKER and left
+//           auto-advance walking the full spine — worse than not filtering, since
+//           the picker said the colophon was not a chapter and the Continue button
+//           then handed it over. Both "next chapter" sites now walk the body list.
+//           Removed the last two parseFloat-on-an-id fallbacks, which invented a
+//           chapter that did not exist ("2.14" from Heidi's "1.14") or one in the
+//           wrong part ("2.01" from "1.01"). With no next body chapter, null now
+//           MEANS something: the book is finished, and says so — the completion
+//           moment admin.js has written bodyChapters for since v3.18.x and which
+//           had never had a consumer.
+// v3.11.0 — The student chapter picker offers BODY chapters only. It used to list
+//           every spine document, so the imprint and colophon appeared as things
+//           to type — which forced deleting front matter on import, which deleted
+//           the copyright notice a CC licence requires be kept intact. A UI
+//           default was setting a legal constraint. Front/back matter now stays in
+//           the book and never reaches a student; flip anything worth typing to
+//           Body in admin staging instead.
 // v3.10.0 — Stop doing arithmetic on chapter ids. Four sites called parseInt() on
 //           an id, and part-numbered books use ids like "1.14" — so Heidi's
 //           fourteen part-one chapters were all labelled "1", the position marker
@@ -61,7 +79,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.10.0";
+const VERSION = "3.12.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -2105,10 +2123,26 @@ function buildChapterOptions(selectedNum, filter, withCheck) {
         return { html: '<option value="">\u2014</option>', count: 0, total: 0 };
     }
     const q = String(filter || '').trim().toLowerCase();
-    const total = bookMetadata.chapters.length;
+
+    // ⚠️ STUDENTS ARE OFFERED BODY CHAPTERS ONLY (v3.11.0).
+    //
+    // This used to list every document in the spine, so "Ch. 0.2" — the imprint,
+    // the copyright page, the colophon — sat in the picker as something to type.
+    // Which is why the only safe workflow was to DELETE front matter during
+    // import, and that in turn deleted the copyright notice a Creative Commons
+    // licence requires be kept intact. A UI default was quietly setting a legal
+    // constraint.
+    //
+    // Now the matter class decides. Front and back matter stay in the book, where
+    // the notice belongs, and never reach a student. If a preface or an author's
+    // introduction IS worth typing — §B.7's point, and Baum's introduction is a
+    // real example — flip it to Body with the button in admin staging (v3.19.0).
+    // One switch, one meaning: body means typeable.
+    const offer = bodyChapterList();
+    const total = offer.length;
     let html = '', count = 0;
 
-    bookMetadata.chapters.forEach((chap) => {
+    offer.forEach((chap) => {
         const num  = String(chap.id).replace('chapter_', '');
         const tick = (withCheck !== false && completedChapters.has(num)) ? '\u2713 ' : '';
         let label = `${tick}Ch. ${num}`;
@@ -3097,19 +3131,28 @@ async function finishChapter() {
 
     let nextChapterId = null;
     let nextChapterTitle = "";
-    if (bookMetadata && bookMetadata.chapters) {
-        const currentIdx = bookMetadata.chapters.findIndex(c => c.id == "chapter_" + currentChapterNum);
-        if (currentIdx !== -1 && currentIdx + 1 < bookMetadata.chapters.length) {
-            const nextChap = bookMetadata.chapters[currentIdx + 1];
+    // ⚠️ WALKS THE BODY LIST, NOT THE SPINE (v3.12.0). v3.11.0 filtered the chapter
+    // PICKER and left auto-advance walking the full list, which is worse than not
+    // filtering at all: a student finishing the last chapter of a Standard Ebook was
+    // offered the colophon as "next", then the uncopyright page. The picker said
+    // those were not chapters and the Continue button then handed one over.
+    {
+        const list = bodyChapterList();
+        const currentIdx = list.findIndex(c => chapterKey(c.id) === chapterKey(currentChapterNum));
+        if (currentIdx !== -1 && currentIdx + 1 < list.length) {
+            const nextChap = list[currentIdx + 1];
             nextChapterId = nextChap.id.replace("chapter_", "");
             nextChapterTitle = nextChap.title || "";
         }
     }
 
-    if (!nextChapterId) {
-        if (!isNaN(currentChapterNum)) nextChapterId = parseFloat(currentChapterNum) + 1;
-        else nextChapterId = 1;
-    }
+    // ⚠️ NO INVENTED NEXT CHAPTER (v3.12.0). This used to do
+    // parseFloat(currentChapterNum) + 1, so finishing Augie's chapter 19 offered
+    // "Ch. 20" — which does not exist — and finishing Heidi's "1.14" offered
+    // "2.14", also nonexistent, while "1.01" would have offered "2.01": a real
+    // chapter in the WRONG PART. nextChapterId now stays null, and null has a
+    // meaning: there is no next body chapter, so the book is FINISHED. Handled
+    // below, once the stats for this chapter exist to show alongside it.
 
     const charsTyped = currentCharIndex - sprintCharStart;
     const sprintMinutes = sprintSeconds / 60;
@@ -3149,6 +3192,24 @@ async function finishChapter() {
         title = `🎆 Chapter ${currentChapterNum} Complete + Weekly Goal!`;
     }
 
+    // ─── THE BOOK IS FINISHED (v3.12.0) ──────────────────────────────────────
+    //
+    // No next BODY chapter. This is the completion moment bodyChapters was written
+    // for back in admin.js v3.18.x and which never had a consumer — because the old
+    // code invented a chapter number instead of noticing, so a student who finished
+    // a book was offered a chapter that did not exist and got an error rather than a
+    // congratulation.
+    //
+    // Judged on the BODY list, so an appendix, endnotes, a colophon or an
+    // uncopyright page no longer stand between a kid and the end of the story.
+    if (!nextChapterId) {
+        showStatsModal(
+            title, stats, 'Back to the library',
+            async () => { window.location.href = 'index.html'; },
+            'That was the last chapter \u2014 you finished the book.', true);
+        return;
+    }
+
     // Format the next chapter label for the button
     let nextLabel = `Ch. ${nextChapterId}`;
     if (nextChapterTitle && nextChapterTitle != nextChapterId) {
@@ -3163,15 +3224,27 @@ async function finishChapter() {
 
 async function advanceToNextChapter() {
     let nextChapterId = null;
-    if (bookMetadata && bookMetadata.chapters) {
-        const currentIdx = bookMetadata.chapters.findIndex(c => c.id == "chapter_" + currentChapterNum);
-        if (currentIdx !== -1 && currentIdx + 1 < bookMetadata.chapters.length) {
-            nextChapterId = bookMetadata.chapters[currentIdx + 1].id.replace("chapter_", "");
+    {
+        const list = bodyChapterList();
+        const currentIdx = list.findIndex(c => chapterKey(c.id) === chapterKey(currentChapterNum));
+        if (currentIdx !== -1 && currentIdx + 1 < list.length) {
+            nextChapterId = list[currentIdx + 1].id.replace("chapter_", "");
         }
     }
     if (!nextChapterId) {
-        if (!isNaN(currentChapterNum)) nextChapterId = parseFloat(currentChapterNum) + 1;
-        else nextChapterId = 1;
+        // ⚠️ NO parseFloat ARITHMETIC (v3.12.0). This fallback used to do
+        // parseFloat(currentChapterNum) + 1, so on Heidi chapter "1.14" it asked for
+        // "2.14" — a chapter that does not exist — and on "1.01" it asked for "2.01",
+        // which does, and is in the WRONG PART. Fifth appearance of arithmetic-on-an-id
+        // in this project. If the chapter is not in the body list there is no next
+        // chapter, and saying so is better than guessing at one.
+        //
+        // First chapter of the body list is the only sane recovery: it is a real
+        // id that definitely exists, whereas "1" was an assumption about numbering
+        // that a part-numbered book breaks.
+        const list = bodyChapterList();
+        if (!list.length) return;
+        nextChapterId = String(list[0].id).replace("chapter_", "");
     }
     // Advance state first, then flush ONCE. This used to flush the old position
     // and then immediately write the new chapter — two billable writes for one

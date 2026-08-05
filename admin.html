@@ -267,20 +267,61 @@
                     </div>
                     <div class="col">
                         <label>Source</label>
-                        <input type="text" id="active-book-source" style="width:100%;"
-                               placeholder="e.g. Standard Ebooks">
+                        <select id="active-book-source" style="width:100%;">
+                            <option value="">— Not set —</option>
+                            <option value="Standard Ebooks">Standard Ebooks</option>
+                            <option value="Project Gutenberg">Project Gutenberg</option>
+                            <option value="Global Grey">Global Grey</option>
+                            <option value="Faded Page">Faded Page</option>
+                            <option value="Wikisource">Wikisource</option>
+                            <option value="Internet Archive">Internet Archive</option>
+                            <option value="Author or publisher direct">Author or publisher direct</option>
+                            <option value="__custom__">Custom…</option>
+                        </select>
+                        <input type="text" id="active-book-source-custom" class="hidden"
+                               style="width:100%; margin-top:4px;" placeholder="Who produced this edition">
                         <div style="font-size:0.75em; color:#888; margin-top:4px;">
-                            Who produced this edition. Blank is fine for public domain.
+                            Who produced this edition.
                         </div>
                     </div>
                     <div class="col">
                         <label>Licence / rights</label>
-                        <input type="text" id="active-book-rights" style="width:100%;"
-                               placeholder="e.g. CC BY-NC 3.0 https://creativecommons.org/licenses/by-nc/3.0/">
+                        <select id="active-book-rights" style="width:100%;">
+                            <option value="">— Not set —</option>
+                            <option value="Public domain (United States)">Public domain (United States)</option>
+                            <option value="CC0 1.0 Public Domain Dedication https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0 (public domain dedication)</option>
+                            <option value="CC BY 4.0 https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</option>
+                            <option value="CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</option>
+                            <option value="CC BY-NC 4.0 https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</option>
+                            <option value="CC BY-NC 3.0 https://creativecommons.org/licenses/by-nc/3.0/">CC BY-NC 3.0</option>
+                            <option value="CC BY-NC-SA 4.0 https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</option>
+                            <option value="CC BY-NC-SA 3.0 https://creativecommons.org/licenses/by-nc-sa/3.0/">CC BY-NC-SA 3.0</option>
+                            <option value="__custom__">Custom…</option>
+                        </select>
+                        <input type="text" id="active-book-rights-custom" class="hidden"
+                               style="width:100%; margin-top:4px;" placeholder="Licence name and URL">
                         <div style="font-size:0.75em; color:#888; margin-top:4px;">
-                            Required for Creative Commons books — shown on the library card.
-                            Auto-filled from the EPUB's dc:rights when present. Any URL in here
-                            becomes a link. Leave blank for public domain.
+                            The URL is part of the value on purpose — a licence URI is what CC
+                            actually asks for, and the library card turns it into a link.
+                            Auto-filled from the EPUB's dc:rights when it declares one.
+                        </div>
+                    </div>
+                    <div class="col">
+                        <label>Archive URL</label>
+                        <input type="text" id="active-book-archive" style="width:100%;"
+                               placeholder="https://github.com/…/books/name.epub">
+                        <div style="font-size:0.75em; color:#888; margin-top:4px;">
+                            Link to the EPUB this was built from. Provenance, not compliance —
+                            it lets anyone check your edition against the original.
+                        </div>
+                    </div>
+                    <div class="col">
+                        <label>Cleaned up with</label>
+                        <input type="text" id="active-book-cleanedby" style="width:100%;"
+                               placeholder="e.g. Jake, Claude, Gemini">
+                        <div style="font-size:0.75em; color:#888; margin-top:4px;">
+                            Who did the text pass. Free text for now — what it means can be
+                            decided later, but recording it is cheap and unrecoverable afterwards.
                         </div>
                     </div>
                     <div class="col">

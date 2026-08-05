@@ -12,12 +12,12 @@ there.
 
 ## Contents
 
-- [`game.js`](#gamejs) — currently v3.10.0
+- [`game.js`](#gamejs) — currently v3.12.0
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
-- [`admin.js`](#adminjs) — currently v3.20.0
+- [`admin.js`](#adminjs) — currently v3.22.0
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.2
-- [`index.html`](#indexhtml) — currently v3.4.0
+- [`index.html`](#indexhtml) — currently v3.5.0
 
 Files not listed here have short headers that fit the budget on their own:
 `lessons-admin.js`, `staff-admin.js`, `keyboard.js`, `versions.js`,
@@ -27,7 +27,53 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.10.0**
+Current: **v3.12.0**
+
+#### v3.12.0
+
+Round 5 (Mignon). Found because Jake asked whether he still has to delete front
+matter. He does not — but only after this, because v3.11.0 was half a fix.
+
+         1. AUTO-ADVANCE WALKED THE FULL SPINE. v3.11.0 filtered the chapter
+            PICKER and left both "next chapter" paths iterating
+            bookMetadata.chapters. That is worse than not filtering at all: the
+            picker told a student the colophon was not a chapter, and then the
+            Continue button handed it to them. Finishing the last chapter of a
+            Standard Ebook offered the colophon, then the uncopyright page. Both
+            sites now walk bodyChapterList().
+         2. TWO MORE parseFloat-ON-AN-ID FALLBACKS, the fourth and fifth instances
+            in the project. `parseFloat(currentChapterNum) + 1` turned Heidi's
+            "1.14" into a request for "2.14" — nonexistent — and "1.01" into
+            "2.01", which exists and is in the WRONG PART. Finishing Augie's
+            chapter 19 offered "Ch. 20". Gone; the recovery path uses the first
+            real id in the body list instead of assuming numbering.
+         3. FINISHING A BOOK IS NOW A THING THAT HAPPENS. With the arithmetic
+            removed, a null next-chapter MEANS something: there is no next body
+            chapter, so the story is over. Shows the chapter stats with "That was
+            the last chapter — you finished the book." This is the completion
+            moment admin.js has been writing bodyChapters for since v3.18.x and
+            which had never had a consumer — because the old code invented a
+            chapter number rather than noticing, so a student who finished a book
+            got an error instead of a congratulation. Judged on the BODY list, so
+            an appendix, endnotes, a colophon and an uncopyright page no longer
+            stand between a kid and the end of the story.
+
+#### v3.11.0
+
+Round 5 (Mignon). The student chapter picker offers **body chapters only**.
+
+         buildChapterOptions() listed every document in the spine, so "Ch. 0.2" —
+         the imprint, the copyright page, the colophon — sat in the picker as
+         something to type. Which made deleting front matter on import the only
+         safe workflow, and THAT deleted the copyright notice a Creative Commons
+         licence requires be kept intact. A UI default was quietly setting a legal
+         constraint.
+
+         Front and back matter now stay in the book, where the notice belongs, and
+         never reach a student. If a preface or an author's introduction IS worth
+         typing — §B.7's point, and Baum's introduction is a real instance — flip it
+         to Body with the button added in admin.js v3.19.0. One switch, one meaning:
+         body means typeable.
 
 #### v3.10.0
 
@@ -270,6 +316,36 @@ practice_sessions now writes an expiresAt TTL field. It was the one
          append-only collection still growing without bound; typing_sessions
          got one in v3.4.0 and this was missed. TTL policies for both are in
          firestore.indexes.json fieldOverrides.
+
+#### v3.5.0
+
+Round 5 (Mignon). The **About this book** panel. Renders the pages flagged
+about:true — imprint, colophon, licence, uncopyright — VERBATIM, from the
+document actually being served. Not a paraphrase on a card, not a link to a copy
+hosted somewhere else. That is what a Creative Commons notice asks for, and it is
+what deleting front matter was destroying.
+
+         ⚠️ COST. The credits TEXT is a chapters-subcollection read, one document
+         per page, and is NOT fetched on page load — only when someone opens the
+         panel, then cached for the session. A book nobody asks about costs nothing.
+         `aboutIds` is extracted from the chapter array at LOAD time precisely
+         because that array is stripped before caching, so the ℹ button survives a
+         cached grid while the text does not need to.
+
+         The ℓ button renders only when a book HAS credits pages, so a book whose
+         front matter was deleted shows nothing rather than an empty box. A failed
+         subcollection read leaves the credits block standing, since that block is
+         what carries the licence URI.
+
+         ⚠️ The card is itself an <a>, so the ℹ handler needs preventDefault AND
+         stopPropagation or clicking it navigates into the book. Delegated once at
+         init rather than rebound per render.
+
+         linkifyText() was hoisted to module scope and is now shared by the card and
+         the panel — two copies of an escaping rule is one copy too many. This broke
+         credit-test.mjs, which was extracting it by matching source text, and that
+         is the correct thing for the test to have done. Now nine cases including a
+         hostile book id in the button's data attribute.
 
 #### v3.4.0
 
@@ -578,7 +654,7 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.20.0**
+Current: **v3.22.0**
 
 ⚠️ **Versioning note.** v3.12.0 through v3.18.0 were bumped as MINOR versions and
 most of them were straight bug fixes that should have been PATCH. Jake caught it:
@@ -599,6 +675,64 @@ reset that was supposed to work is a fix, not a feature. Jake caught that too,
 one turn after catching the first one. Renumbered to **v3.18.1**. Recorded here
 rather than quietly corrected, because stating a standard and then exempting
 yourself from it in the same message is the more instructive failure.
+
+#### v3.22.0
+
+Round 5 (Mignon). Upload All PRUNES orphaned chapter documents. It wrote the
+chapters it had and never removed ones it did not, which was survivable while ids
+were stable and is not now that v3.18.5's Fix C renumbers the Gutenberg books.
+
+         Re-importing Toby Tyler, whose chapters move from 3–22 to 1–20, would have
+         left chapter_21 and chapter_22 in the subcollection permanently: readable,
+         billable, and loadable by any student whose stored progress still pointed at
+         them. Deliberately runs AFTER the book document is written, so a failed book
+         write leaves the old chapters intact rather than deleting content the new
+         list never replaced. Non-fatal on error and reported in the completion line.
+
+         ⚠️ There is still NO delete-a-whole-book function in this panel. Overwrite
+         is the supported path and is now safe; deleting a book means the Firebase
+         console.
+
+#### v3.21.0
+
+Round 5 (Mignon). **"About this book."** Jake's question — if nobody can SEE that
+the rules are followed, are they followed? — turned out to have a smaller answer
+than it felt: the standard is discoverable, not unavoidable, and a licence URI is
+sufficient. What was actually missing was the copyright notice, because the
+workflow deleted it.
+
+         `about` is a new boolean on each chapter, ORTHOGONAL to `matter`. matter
+         says whether a page is typeable; about says whether it is part of the
+         credits; those cross. A chapter is typeable and not credits. A colophon is
+         credits and not typeable. An author's real preface is neither. Collapsing
+         them into one field is the mistake — so this is a second flag, and the
+         About view renders EVERY chapter carrying it in id order. Standard Ebooks'
+         colophon AND uncopyright both appear with nothing special-cased.
+
+         Auto-set on import from filename and epub:type (imprint, copyright,
+         uncopyright, colophon, licence, rights), and only ever for non-body
+         documents — a chapter is never credits whatever it is called. Toggled per
+         row with an ℹ button that appears ONLY on non-body rows, so a 31-chapter
+         novel grows four buttons, not thirty-five.
+
+         ⚠️ ALSO FIXES A SILENT DATA LOSS. Open Book's chapter push never carried
+         `matter`, so opening a book and re-uploading it reset every front and back
+         matter document to 'body' — classification was only ever correct on the
+         FIRST import, and the About flag would have evaporated on the second. Both
+         now restore from the stored chapter list.
+
+         Source and Licence became dropdowns sharing readSelectOrCustom /
+         writeSelectOrCustom, generalised from readGenreField — which existed
+         because Upload All once stored the literal string "__custom__". Three
+         fields with that shape means one reader, not three chances to repeat it.
+         New Archive URL (provenance, not compliance) and "Cleaned up with" fields.
+
+         THE DOT NOW NAMES WHAT IS MISSING. v3.7.0 checked age alone; it now checks
+         age, cover, licence and about, and prints "· needs: cover, licence" beside
+         the title. A hollow dot on forty books says there is work without saying
+         what, which is how the age backlog sat. '' for licence now means "not
+         decided", because public domain is an explicit dropdown choice rather than
+         an absence.
 
 #### v3.20.0
 
@@ -1339,7 +1473,7 @@ Write reduction to match game.js v3.4.0. saveStats() fired on every
 
 ## `index.html`
 
-Current: **v3.4.0**
+Current: **v3.5.0**
 
 ⚠️ **This section was created in Round 5.** index.html had no CHANGELOG section at
 all, despite carrying the student-facing library grid, the age/genre filters and

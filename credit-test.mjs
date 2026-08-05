@@ -7,10 +7,34 @@ import { JSDOM } from 'jsdom';
 globalThis.document = new JSDOM().window.document;
 
 const s = readFileSync('/home/claude/work/index.html', 'utf8');
-const i = s.indexOf('const linkify = (txt) =>');
+// linkifyText() is now module-scoped in index.html and SHARED with the About
+// panel, so lift it separately and hand it to the credit block. This test broke
+// when it was hoisted, which is the correct thing for it to have done: it was
+// extracting by matching source text, and the source moved.
+function liftFn(name) {
+  const k = s.indexOf('function ' + name + '(');
+  if (k < 0) throw new Error(name + ' not found in index.html');
+  let d = 0;
+  for (let x = s.indexOf('{', k); x < s.length; x++) {
+    if (s[x] === '{') d++;
+    else if (s[x] === '}') { d--; if (!d) return s.slice(k, x + 1); }
+  }
+}
+const i = s.indexOf('const linkify = linkifyText;');
 const j = s.indexOf('const coverHTML = book.coverUrl', i);
-const body = s.slice(i, j) + '\n  return creditHTML;';
-const render = new Function('book', 'escapeHtml', body);
+const body = liftFn('linkifyText') + '\n' + s.slice(i, j) + '\n  return creditHTML + aboutHTML;';
+const render = new Function('book', 'escapeHtml', 'escapeAttr', body);
+
+// the real escapeAttr from index.html — this is what guards the data-book
+// attribute on the ⓘ button, and a book id is admin-supplied.
+const escAttr = new Function('s', (() => {
+  const k = s.indexOf('function escapeAttr');
+  let d = 0;
+  for (let x = s.indexOf('{', k); x < s.length; x++) {
+    if (s[x] === '{') d++;
+    else if (s[x] === '}') { d--; if (!d) return s.slice(s.indexOf('{', k) + 1, x); }
+  }
+})());
 
 // the real escapeHtml from index.html
 const esc = new Function('s', (() => {
@@ -35,11 +59,20 @@ const cases = [
     source: '', rights: 'https://x.test/"onmouseover="alert(1)' }],
   ['two URLs in one field', {
     source: '', rights: 'CC BY-NC https://a.test/l and https://b.test/m' }],
+  ['book WITH about pages (button renders)', {
+    source: 'SMBC, LLC / Breadpig', rights: 'CC BY-NC 3.0',
+    aboutIds: ['chapter_0.2'], id: 'augie_green_knight' }],
+  ['hostile book id in the button attribute', {
+    source: 'x', rights: '', aboutIds: ['chapter_0.2'],
+    id: 'evil" onclick="alert(1)' }],
 ];
 
 let fail = 0;
-for (const [name, book] of cases) {
-  const out = render(book, esc);
+for (const [name, book0] of cases) {
+  // aboutIds defaults to [] — the lifted slice now also renders the ⓘ button, and
+  // [] exercises the "no credits pages, so no button" path.
+  const book = { aboutIds: [], ...book0 };
+  const out = render(book, esc, escAttr);
   // ⚠️ PARSE IT, DON'T REGEX IT. A first version of this test flagged
   // "&lt;img src=x onerror=alert(1)&gt;" as unsafe because the literal string
   // "onerror=" appears in it — but that text is escaped and renders as words, not
@@ -48,7 +81,7 @@ for (const [name, book] of cases) {
   // carrying any on* handler, and no href with a script scheme.
   const frag = new JSDOM('<body>' + out + '</body>').window.document.body;
   const els = Array.from(frag.querySelectorAll('*'));
-  const badTag = els.filter(e => !['DIV', 'A'].includes(e.tagName));
+  const badTag = els.filter(e => !['DIV', 'A', 'BUTTON'].includes(e.tagName));
   const badAttr = els.filter(e => Array.from(e.attributes).some(a => /^on/i.test(a.name)));
   const badHref = els.filter(e => /^(javascript|data|vbscript):/i.test(e.getAttribute('href') || ''));
   const dangerous = badTag.length || badAttr.length || badHref.length;
