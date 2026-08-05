@@ -2314,8 +2314,11 @@ function initBookProgressBar() {
         track.appendChild(seg);
     });
 
+    // ⚠️ SECOND SITE, MISSED IN v3.10.0 (fixed v3.12.3). The condensed bar's label
+    // was switched to the body count and this one was not, so an uncondensed book
+    // still advertised every spine document — "10 ch" for a two-chapter book.
     const lbl = document.getElementById('book-progress-label');
-    if (lbl) lbl.textContent = total + ' ch';
+    if (lbl) lbl.textContent = bodyTotal + ' ch';
 
     updateProgressBars();
 }

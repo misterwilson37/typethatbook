@@ -1,4 +1,8 @@
-/* TypeThatBook style.css v3.3.0 */
+/* TypeThatBook style.css v3.4.0 */
+/* v3.4.0: Classic view contrast INVERTED. Upcoming text is black, typed text is
+           grey (--ink-spent). It was #ccc for upcoming and black for typed, which
+           is backwards: the words a student is reading ahead of the cursor are the
+           ones that need contrast. Adventure mode was fixed this way long ago.    */
 /* v3.3.0: condensed book progress bar for books over 40 chapters          */
 /* v3.2.0: view-choice splash (#view-splash) — see showViewSplash() in game.js  */
 /* v3.1.6: machine-readable version stamp via body::before for build banner */
@@ -14,6 +18,9 @@ body::before { content: "v3.3.0"; display: none; }
     --fixed-bg: #d1e7f7; 
     --accent-grey: #e0e0e0;
     --black: #000000;
+    /* Typed-and-correct text in Classic view. Dark enough to re-read, light
+       enough to stop competing with what comes next. */
+    --ink-spent: #9b968e;
 }
 
 body {
@@ -235,15 +242,24 @@ body {
 
 .word { display: inline-block; white-space: pre; line-height: 2.5em; font-size: 24px; color: #ccc; }
 
+/* ⚠️ UPCOMING TEXT IS BLACK; TYPED TEXT IS GREY. (v3.4.0)
+   It used to be the other way round: #ccc for what you are about to type and
+   black for what you had already typed. That is backwards for the only reader who
+   matters. The text a student is READING AHEAD of the cursor needs full contrast
+   — #ccc at reading size is close to invisible for a struggling eleven-year-old —
+   and the text behind the cursor has already done its job and should recede.
+   Adventure mode was fixed this way some time ago; Classic never was. */
 .letter {
     display: inline-block; vertical-align: bottom; min-width: 14.4px;
-    line-height: 2.0em; padding: 0 1px; position: relative; color: #ccc; border-radius: 3px;
+    line-height: 2.0em; padding: 0 1px; position: relative;
+    color: var(--black); border-radius: 3px;
 }
 
 .letter.space { min-width: 14.4px; border-bottom: none !important; text-decoration: none !important; }
 
 .letter.tab {
-    width: 50px; text-align: center; border-bottom: 1px dotted #ddd; color: transparent; 
+    /* Guide was #ddd, chosen to sit beside #ccc text. Against black it vanished. */
+    width: 50px; text-align: center; border-bottom: 1px dotted #b8b2a8; color: transparent; 
 }
 .letter.tab::before {
     content: '→'; font-size: 32px; font-weight: 800; color: #999; 
@@ -267,7 +283,9 @@ body {
 .letter.tab.active::before,
 .letter.enter.active::before { color: white; opacity: 1; }
 
-.letter.done-perfect { color: var(--black); } 
+/* Typed and correct: present, legible if you look back, but out of the way.
+   done-fixed (blue) and done-dirty stay loud on purpose — those are diagnostics. */
+.letter.done-perfect { color: var(--ink-spent); } 
 .letter.done-fixed { color: var(--corrected-color); font-weight: bold; } 
 .letter.done-dirty { color: var(--brute-force-color); } 
 .letter.space.done-perfect { background: transparent; }

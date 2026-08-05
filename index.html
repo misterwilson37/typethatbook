@@ -212,6 +212,11 @@
             margin: 24px 0 6px; font-size: 0.82rem; letter-spacing: 0.06em;
             text-transform: uppercase; color: #7a7268;
         }
+        /* The FIRST heading sits right under the author line, where 24px reads as a
+           gap rather than as separation. Later headings keep the full space because
+           they divide whole notice pages. */
+        #about-panel h3:first-of-type { margin-top: 14px; }
+        #about-panel > h2 + p { margin-bottom: 0; }
         #about-panel p { margin: 0 0 10px; font-size: 0.9rem; }
         #about-panel .about-meta { font-size: 0.8rem; color: #5c554c; }
         #about-panel .about-meta a { color: #3d5a78; }
@@ -402,7 +407,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.6.0";
+        const INDEX_VERSION = "3.6.1";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -628,6 +633,7 @@
                         source: data.source || "",
                         rights: data.rights || "",
                         archiveUrl: data.archiveUrl || "",
+                        originUrl: data.originUrl || "",
                         cleanedBy: data.cleanedBy || "",
                         // Just the IDS of the credits pages, not their text. The
                         // text is a subcollection read and only happens if someone
@@ -1053,6 +1059,11 @@
             const arc = absUrl(book.archiveUrl);
             if (arc) metaRows.push(['Archived copy',
                 `<a href="${escapeAttr(arc)}" target="_blank" rel="noopener noreferrer">the EPUB this was built from</a>`]);
+            // Upstream source, distinct from the archived copy: one is where it came
+            // from, the other is the copy that survives if that host goes away.
+            const org = absUrl(book.originUrl);
+            if (org) metaRows.push(['Originally from',
+                `<a href="${escapeAttr(org)}" target="_blank" rel="noopener noreferrer">the publisher's page</a>`]);
             if (book.cleanedBy) metaRows.push(['Text prepared by', escapeHtml(book.cleanedBy)]);
             const metaHTML = metaRows.length
                 ? '<h3>Credits</h3><p class="about-meta">' +

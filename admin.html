@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TypeThatBook Admin v3.22.1</title>
+    <title>TypeThatBook Admin v3.23.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
@@ -217,6 +217,11 @@
                         style="width:auto; padding:5px 14px; font-size:0.85em;">⤓ Export Book List (CSV)</button>
                 <button id="library-balance-btn" class="secondary-btn"
                         style="width:auto; padding:5px 14px; font-size:0.85em; margin-left:6px;">📊 Balance Report</button>
+                <!-- Deliberately last, deliberately red, deliberately NOT beside
+                     Open Book. This is the only control in this panel that destroys
+                     a student's reading position. -->
+                <button id="delete-book-btn" class="danger-btn"
+                        style="width:auto; padding:5px 14px; font-size:0.85em; margin-left:6px;">🗑 Delete Book…</button>
                 <div id="export-books-status" style="font-size:0.75em; color:#888; margin-top:5px; min-height:1.1em;"></div>
                 <div id="library-balance-out" class="hidden"
                      style="margin-top:10px; background:#111; border:1px solid #333; padding:12px; font-size:0.8em; max-height:340px; overflow-y:auto;"></div>
@@ -355,6 +360,11 @@
                             <label>Archive URL <span class="hint" title="Link to the EPUB this was built from. Provenance, not compliance — it lets anyone check your edition against the original.">i</span></label>
                             <input type="text" id="active-book-archive" style="width:100%;"
                                    placeholder="https://github.com/…/name.epub">
+                        </div>
+                        <div class="col">
+                            <label>Origin URL <span class="hint" title="Where this edition came from originally — the Standard Ebooks or Gutenberg page, the author's own download. Archive URL is YOUR copy; this is the upstream one. Having both means the provenance survives whichever host disappears first.">i</span></label>
+                            <input type="text" id="active-book-origin" style="width:100%;"
+                                   placeholder="https://standardebooks.org/ebooks/…">
                         </div>
                         <div class="col">
                             <label>Cleaned up with <span class="hint" title="Who did the text pass — you, Claude, Gemini. Free text for now; what it means can be decided later, but recording it is cheap and unrecoverable afterwards.">i</span></label>

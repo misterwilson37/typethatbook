@@ -1,4 +1,4 @@
-// admin.js v3.22.0
+// admin.js v3.23.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
@@ -82,7 +82,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.22.0";
+const ADMIN_VERSION = "3.23.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -882,6 +882,8 @@ openBookBtn.onclick = async () => {
             writeSelectOrCustom('active-book-rights', meta.rights);
             const arcIn = document.getElementById('active-book-archive');
             if (arcIn) arcIn.value = meta.archiveUrl || "";
+            const orgIn = document.getElementById('active-book-origin');
+            if (orgIn) orgIn.value = meta.originUrl || "";
             if (meta.coverUrl) {
                 stagedCoverUrl = meta.coverUrl;
                 updateCoverPreview();
@@ -1101,6 +1103,24 @@ createParseBtn.onclick = async () => {
     
     activeBookId = id;
     activeBookTitle.value = title;
+    // ⚠️ CLEAR THE PREVIOUS BOOK'S TAGS FIRST (v3.23.0). autofillFromEpub() only
+    // fills a field that is EMPTY — deliberately, so it cannot argue with something
+    // typed by hand. But nothing cleared these between books, so importing a second
+    // EPUB in the same session inherited the first one's genre, ages and protagonist
+    // and the autofill politely declined to correct them. That is why the Flat
+    // Edition came out tagged Adventure when its dc:subject says Humor: the value
+    // was left over from the book before it. Only the NEW-book path clears; the
+    // overwrite path must keep the stored metadata it is about to re-save.
+    ['active-book-genre', 'active-book-protagonist', 'active-book-minage',
+     'active-book-maxage', 'active-book-archive', 'active-book-cleanedby',
+     'active-book-origin'].forEach(fid => {
+        const el = document.getElementById(fid);
+        if (el) el.value = '';
+    });
+    writeSelectOrCustom('active-book-source', '');
+    writeSelectOrCustom('active-book-rights', '');
+    const cgi = document.getElementById('custom-genre-input');
+    if (cgi) { cgi.value = ''; cgi.classList.add('hidden'); }
     // Pre-fill author if user typed one
     const newAuthor = document.getElementById('new-book-author');
     const stagingAuthor = document.getElementById('active-book-author');
@@ -1142,7 +1162,7 @@ function resetCreateForm(announce) {
 
     ['new-book-id', 'new-book-title', 'new-book-author', 'new-epub-file',
      'active-book-title', 'active-book-author',
-     'active-book-archive', 'active-book-cleanedby',
+     'active-book-archive', 'active-book-origin', 'active-book-cleanedby',
      'active-book-minage', 'active-book-maxage'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -3188,6 +3208,7 @@ function readBookMetadataForm(title) {
         source: readSelectOrCustom('active-book-source'),
         rights: readSelectOrCustom('active-book-rights'),
         archiveUrl: val('active-book-archive'),
+        originUrl: val('active-book-origin'),
         cleanedBy: val('active-book-cleanedby'),
     }};
 }
@@ -3324,7 +3345,19 @@ uploadAllBtn.onclick = async () => {
     if (stagedChapters.length === 0) return alert("Nothing to upload.");
     if (!activeBookId) return alert("No active book.");
     
-    if (!confirm(`Overwrite ${activeBookId}?`)) return;
+    // ⚠️ ONLY ASK IF THERE IS SOMETHING TO OVERWRITE (v3.23.0). This said
+    // "Overwrite <id>?" on a brand new book, because the id exists as a variable
+    // long before it exists as a document. Confusing on the first upload of every
+    // single book, and it trains people to click through a warning that will one
+    // day be real.
+    const alreadyExists = Object.prototype.hasOwnProperty.call(bookTitlesMap, activeBookId);
+    if (alreadyExists) {
+        if (!confirm(`"${bookTitlesMap[activeBookId]}" already exists.\n\n` +
+                     `Overwrite it with these ${stagedChapters.length} chapters?`)) return;
+    } else {
+        if (!confirm(`Create "${val('active-book-title') || activeBookId}" with ` +
+                     `${stagedChapters.length} chapters?`)) return;
+    }
 
     statusEl.innerText = "Uploading...";
     // Upload All reports to the status bar at the top, so a leftover green
@@ -4642,6 +4675,87 @@ async function fetchAllBooksForExport() {
     rows.sort((x, y) => x.title.localeCompare(y.title));
     return rows;
 }
+
+// ─── DELETE A BOOK (v3.23.0) ─────────────────────────────────────────────────
+//
+// There was no way to remove a book from this panel at all — the only route was
+// the Firebase console. Which is fine until you have two copies of the same test
+// fixture and no reason for either.
+//
+// ⚠️ THIS IS THE ONLY CONTROL HERE THAT DESTROYS A STUDENT'S WORK. Deleting a book
+// does NOT delete users/{uid}/progress/{bookId}, deliberately: those documents live
+// under each student and this admin cannot enumerate them cheaply or safely. They
+// become orphans pointing at nothing, which is harmless — index.html only renders
+// progress for books it can see — and recoverable if the book is ever re-uploaded
+// under the same id. Deleting a book a class is mid-way through is not undoable and
+// the confirmation says so in those words.
+//
+// Typed confirmation, not an OK button. A confirm() dialog is one careless Return
+// away from gone, and this loops over every chapter document in the book.
+const deleteBookBtn = document.getElementById('delete-book-btn');
+if (deleteBookBtn) deleteBookBtn.onclick = async () => {
+    const id = bookSelect.value;
+    if (!id || id === '__NEW__') {
+        return alert('Pick a book from the dropdown first.');
+    }
+    const title = bookTitlesMap[id] || id;
+
+    // How much is actually at stake — read it BEFORE asking, so the number in the
+    // prompt is a fact rather than an estimate.
+    let chapCount = '?';
+    try {
+        const snap = await getDocs(collection(db, "books", id, "chapters"));
+        chapCount = snap.size;
+    } catch (e) { console.warn('Could not count chapters before delete:', e); }
+
+    const typed = prompt(
+        `DELETE "${title}"\n\n` +
+        `This removes the book and all ${chapCount} of its chapter documents.\n` +
+        `Any student part-way through it will lose their place in this book.\n` +
+        `Their typing history and totals are NOT affected.\n\n` +
+        `This cannot be undone.\n\n` +
+        `Type the book id to confirm:  ${id}`);
+    if (typed === null) return;
+    if (typed.trim() !== id) {
+        return alert('That did not match the book id. Nothing was deleted.');
+    }
+
+    statusEl.innerText = `Deleting "${title}"\u2026`;
+    statusEl.style.borderColor = '#ffaa00';
+    try {
+        // Chapters FIRST, then the book document. If this dies half way the book
+        // doc still exists and still lists chapters, so the state is visibly broken
+        // and fixable by re-uploading. Deleting the book doc first would leave an
+        // invisible pile of orphaned chapter documents nobody can find.
+        const snap = await getDocs(collection(db, "books", id, "chapters"));
+        let done = 0;
+        for (const d of snap.docs) {
+            await deleteDoc(doc(db, "books", id, "chapters", d.id));
+            done++;
+            if (done % 10 === 0) statusEl.innerText = `Deleting\u2026 ${done}/${snap.size} chapters`;
+        }
+        await deleteDoc(doc(db, "books", id));
+
+        // The cover is in Storage, not Firestore, and is not reachable from here
+        // without a Storage delete permission this panel may not have. Say so
+        // rather than pretending the book is entirely gone.
+        statusEl.innerText = `Deleted "${title}" \u2014 ${done} chapter document(s) and the book record. ` +
+            `\u26a0 The cover image is still in Storage at covers/${id}; remove it from the ` +
+            `Firebase console if you want it gone.`;
+        statusEl.style.borderColor = '#00ff41';
+
+        activeBookId = null;
+        stagedChapters = [];
+        stagingArea.classList.add('hidden');
+        clearSaveTitleStatus();
+        await loadBookList();
+    } catch (e) {
+        console.error('Delete failed:', e);
+        statusEl.innerText = `Delete FAILED: ${e.message}. The book may be partly deleted \u2014 ` +
+            `check the chapter list before re-uploading.`;
+        statusEl.style.borderColor = '#ff3333';
+    }
+};
 
 const exportBooksBtn = document.getElementById('export-books-csv-btn');
 if (exportBooksBtn) exportBooksBtn.onclick = async () => {

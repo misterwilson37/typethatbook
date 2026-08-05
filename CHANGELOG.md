@@ -12,12 +12,13 @@ there.
 
 ## Contents
 
-- [`game.js`](#gamejs) — currently v3.12.2
+- [`game.js`](#gamejs) — currently v3.12.3
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
-- [`admin.js`](#adminjs) — currently v3.22.0
+- [`admin.js`](#adminjs) — currently v3.23.0
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.2
-- [`index.html`](#indexhtml) — currently v3.6.0
+- [`index.html`](#indexhtml) — currently v3.6.1
+- [`style.css`](#stylecss) — currently v3.4.0
 
 Files not listed here have short headers that fit the budget on their own:
 `lessons-admin.js`, `staff-admin.js`, `keyboard.js`, `versions.js`,
@@ -27,7 +28,13 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.12.2**
+Current: **v3.12.3**
+
+#### v3.12.3
+
+Round 5 (Mignon). The chapter-count label had TWO sites and v3.10.0 only fixed one.
+The condensed bar was switched to the body count; the uncondensed path still printed
+every spine document, so a two-chapter book advertised "10 ch".
 
 #### v3.12.2
 
@@ -774,7 +781,7 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.22.0**
+Current: **v3.23.0**
 
 ⚠️ **Versioning note.** v3.12.0 through v3.18.0 were bumped as MINOR versions and
 most of them were straight bug fixes that should have been PATCH. Jake caught it:
@@ -827,6 +834,43 @@ licence hint ran to fourteen lines.
          Also set the hardcoded page title to v3.22.1. It had said v3.3.0 since
          admin.js was at 3.3.0 — nineteen minor versions ago. admin.html still has no
          version constant of its own; that is a separate job.
+
+#### v3.23.0
+
+Round 5 (Mignon). Four things, all from Jake using the panel rather than reading it.
+
+         1. DELETE BOOK. There was no way to remove a book from this panel at all;
+            the only route was the Firebase console. Typed confirmation rather than
+            an OK button, because confirm() is one careless Return from gone and this
+            loops over every chapter document. Counts the chapters BEFORE asking so
+            the number in the prompt is a fact. Chapters are deleted before the book
+            record: a half-failure then leaves a visibly broken book that re-uploading
+            fixes, where the other order leaves an invisible pile of orphans.
+            ⚠️ Does NOT delete users/{uid}/progress/{bookId} — those live under each
+            student and this panel cannot enumerate them safely. They become orphans
+            pointing at nothing, which is harmless and recoverable. The prompt says
+            plainly that a student mid-book loses their place and that their typing
+            history does not. The cover stays in Storage and the success message says
+            where it is.
+         2. A NEW BOOK NO LONGER INHERITS THE LAST ONE'S TAGS. autofillFromEpub()
+            only fills a field that is EMPTY — deliberately, so it cannot argue with
+            something typed by hand — but nothing cleared those fields between books.
+            So importing a second EPUB in one session kept the first one's genre,
+            ages and protagonist and the autofill politely declined to correct them.
+            That is why the Flat Edition arrived tagged **Adventure** when its
+            dc:subject says Humor: left over from the book before it. Only the
+            NEW-book path clears; the overwrite path must keep the metadata it is
+            about to re-save.
+         3. "Overwrite <id>?" ON A BOOK THAT DOES NOT EXIST YET. The id exists as a
+            variable long before it exists as a document, so the very first upload of
+            every book asked about overwriting nothing. Now asks "Create X with N
+            chapters?" or names the actual existing book it is about to replace.
+            Training someone to click through a warning is how the real one gets
+            clicked through too.
+         4. ORIGIN URL, beside Archive URL as Jake asked. Archive is his copy; Origin
+            is upstream. Both, because the provenance should survive whichever host
+            disappears first — and because with several instances doing text passes,
+            knowing which edition was cleaned matters as much as who cleaned it.
 
 #### v3.22.0
 
@@ -1625,7 +1669,7 @@ Write reduction to match game.js v3.4.0. saveStats() fired on every
 
 ## `index.html`
 
-Current: **v3.6.0**
+Current: **v3.6.1**
 
 ⚠️ **This section was created in Round 5.** index.html had no CHANGELOG section at
 all, despite carrying the student-facing library grid, the age/genre filters and
@@ -1700,3 +1744,27 @@ Round 5 (Mignon). Two bugs in the library progress bar, one of them ugly.
          ⚠️ KNOWN LIMITATION: from a CACHED grid a part-numbered book still reads
          low, because the exact ordinal needs the chapter list. The proper fix is for
          game.js to write the body ordinal alongside progress. Queued, not done.
+
+---
+
+## `style.css`
+
+Current: **v3.4.0**
+
+⚠️ **Section created in Round 5.** style.css had no CHANGELOG section despite owning
+every colour a student reads. Entries before v3.4.0 live only in the file header.
+
+#### v3.4.0
+
+Round 5 (Mignon). **Classic view contrast inverted.** `.letter` was `#ccc` and
+`.letter.done-perfect` was black — light grey for the words about to be typed, full
+black for the words already behind the cursor. That is backwards for the only reader
+who matters: the text a student is reading AHEAD needs the contrast, and #ccc at
+reading size is close to invisible for a struggling eleven-year-old. Typed-and-correct
+is now `--ink-spent` (#9b968e) — legible if you look back, out of the way if you
+don't. done-fixed (blue) and done-dirty stay loud, because those are diagnostics
+rather than prose. The tab guide moved from #ddd to #b8b2a8, having been chosen to
+sit beside light grey text and being invisible beside black.
+
+Adventure mode was fixed this way some time ago. Classic never was, and Classic is
+what a student sees by default.
