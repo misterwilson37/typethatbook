@@ -1,4 +1,4 @@
-// admin.js v3.18.4
+// admin.js v3.19.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
@@ -82,7 +82,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.18.4";
+const ADMIN_VERSION = "3.19.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -1392,6 +1392,17 @@ async function parseEpubFile(file) {
         const missingSpineFiles = [];
         // Set once the first body chapter is emitted. See the front/back note below.
         let seenBodyMatter = false;
+        // Fix C needs the book's own title and author to recognise a title page.
+        // Read off the OPF that is already parsed — no second zip load.
+        const DC_NS = 'http://purl.org/dc/elements/1.1/';
+        const dcFirst = tag => {
+            const els = opfDoc.getElementsByTagNameNS(DC_NS, tag);
+            return (els && els[0] && (els[0].textContent || '').trim()) || '';
+        };
+        const bookMetaTitle = dcFirst('title');
+        const bookMetaAuthor = dcFirst('creator');
+        // Flipped by the first body unit that is NOT leading matter.
+        let seenRealChapter = false;
 
         for (let item of spineItems) {
             const href = idToHref[item.getAttribute("idref")];
@@ -1492,9 +1503,19 @@ async function parseEpubFile(file) {
                 : composeChapterTitle(group.info, counter);
             // A generic "Chapter N" on something that is not a chapter gets a
             // name that is actually true. Never touches a real title.
-            const honestTitle = (kind.cls !== 'body' && /^Chapter \d+$/.test(title))
-                ? matterTitleFrom(fileKey, kind.cls,
-                                  kind.cls === 'back' ? matterBack : matterFront)
+            // ── FIX C: per-unit reclassification (v3.18.5) ──
+            let unitCls = kind.cls;
+            if (unitCls === 'body' && !seenRealChapter) {
+                if (looksLikeLeadingMatter(title, bookMetaTitle, bookMetaAuthor,
+                                           group.pEls ? group.pEls.length : 0)) {
+                    unitCls = 'front';
+                } else {
+                    seenRealChapter = true;
+                }
+            }
+            const honestTitle = (unitCls !== 'body' && /^Chapter \d+$/.test(title))
+                ? matterTitleFrom(fileKey, unitCls,
+                                  unitCls === 'back' ? matterBack : matterFront)
                 : title;
 
             const segments = [];
@@ -1530,14 +1551,14 @@ async function parseEpubFile(file) {
                 stagedChapters.push({
                     id: counter,          // replaced by assignChapterIds() below
                     title: honestTitle,
-                    matter: kind.cls,     // 'front' | 'body' | 'back'
+                    matter: unitCls,      // 'front' | 'body' | 'back'
                     matterWhy: kind.why,
                     srcFile: fileKey,     // assignChapterIds() reads the part from this
                     segments: segments
                 });
                 counter++;
                 // Load-bearing for the front-after-body rule above.
-                if (kind.cls === 'body') seenBodyMatter = true;
+                if (unitCls === 'body') seenBodyMatter = true;
             }
           }
         }
@@ -2050,6 +2071,78 @@ function matterTitleFrom(fileKey, cls, n) {
     return (cls === 'back' ? 'Back matter ' : 'Front matter ') + n;
 }
 
+// ─── FIX C: front matter hiding INSIDE a bodymatter file (v3.18.5) ───────────
+//
+// classifyDocument() classifies a whole spine FILE. The TOC route then splits
+// that file into units, and every unit inherits the file's class — so a title
+// page, a contents list, a dedication or an e-text credit sitting in the same
+// file as chapter one all became BODY chapters. Measured across Jake's 42-book
+// library, this hit 10 of the 11 Gutenberg books and pushed their real chapter
+// numbering out by 1 to 4:
+//
+//   Crimson Sweater   body 1-4 were "E-text prepared by David Edwards…",
+//                     "Ralph Henry Barbour", "With Illustrations By C.M.
+//                     Relyea", "List of Illustrations"  → real ch.1 was ch.5
+//   Toby Tyler        body 1-2 were "Toby Tyler", "Contents"
+//   Wizard of Oz      body 1-2 were "The Wonderful Wizard of Oz", "Introduction"
+//   Dracula           body 1-2 were "D R a C U L A", "Contents"
+//   Rebecca           body 1 was "To My Mother"
+//   Outdoor Girls     body 1 was "OR"   ← subtitle debris
+//   Scranton Chums    body 1 was "The World Syndicate Publishing Co."
+//   Camp Fire Girls   body 1 was the book's own title
+//   HS Left End       body 1 was "Contents"
+//
+// A kid told to type chapter 1 of The Crimson Sweater got the transcriber's
+// credit. Reclassified as FRONT, not deleted — §B.7 keeps front matter visible
+// and labelled, so Baum's real Introduction stays available, just not as ch.2.
+//
+// ⚠️ ONLY RUNS BEFORE THE FIRST REAL CHAPTER. The first body unit that does not
+// match switches the filter off for the rest of the book, so nothing downstream
+// of chapter one can be touched however it is titled.
+const LEADING_MATTER_TITLE = /^(contents?|table of contents|list of illustrations|illustrations?|transcriber'?s?\s*note|e-?text prepared|preface|introduction|foreword|dedication|half.?title|title.?page|frontispiece|advertisement|copyright|colophon)\b/i;
+const LEADING_MATTER_CREDIT = /\b(publishing\s+(co|company)\b|printed by|with illustrations by|illustrated by|engraved by|all rights reserved)/i;
+
+function normaliseTitleForCompare(t) {
+    return String(t || '').toLowerCase()
+        .replace(/[\u2018\u2019']/g, '')
+        .replace(/[^a-z0-9]+/g, '');
+}
+
+function looksLikeLeadingMatter(title, bookTitle, bookAuthor, pCount) {
+    const t = String(title || '').trim();
+    if (!t) return false;
+    if (LEADING_MATTER_TITLE.test(t)) return true;
+    if (LEADING_MATTER_CREDIT.test(t)) return true;
+
+    const n = normaliseTitleForCompare(t);
+    if (!n) return false;
+    const bt = normaliseTitleForCompare(bookTitle);
+    const ba = normaliseTitleForCompare(bookAuthor);
+
+    // Title page: the heading IS the book's title, or the title's leading words
+    // (Gutenberg splits "Toby Tyler; Or, Ten Weeks with a Circus" across lines).
+    //
+    // ⚠️ ONE-DIRECTIONAL ON PURPOSE. Testing n.startsWith(bt) as well would fire
+    // on any book whose dc:title is a short name that its chapters also use —
+    // dc:title "Heidi" would swallow a chapter called "Heidi Goes to the
+    // Mountain". Only the title-is-a-prefix-of-dc:title direction is safe, and
+    // the length floor keeps a two-word chapter from matching by accident.
+    if (bt && (bt === n || (n.length >= 6 && bt.startsWith(n)))) return true;
+
+    // A page whose only heading is the author's name.
+    if (ba && ba === n) return true;
+
+    // Subtitle debris: Gutenberg leaves the "OR" between title and subtitle
+    // stranded as its own heading.
+    if (pCount <= 2 && n.length <= 3) return true;
+
+    // Dedications rarely say "dedication". ⚠️ The loosest rule here, held in
+    // check by the paragraph ceiling and by only running before chapter one.
+    if (pCount <= 3 && /^(to|for)\s+(my|his|her|our|the)\b/i.test(t)) return true;
+
+    return false;
+}
+
 function composeChapterTitle(info, fallbackIndex) {
     if (info && info.title)   return cleanChapterTitle(info.title).substring(0, 60);
     // A bare ordinal is all some books have — Pride and Prejudice and Gatsby
@@ -2505,6 +2598,7 @@ function renderChapterList() {
             <div class="chap-actions">
                 ${canMerge ? `<button class="merge-btn" data-index="${index}" title="Merge with next chapter">Merge ↓</button>` : ''}
                 <button class="split-btn" data-index="${index}" title="Split into multiple chapters">Split</button>
+                <button class="matter-btn" data-index="${index}" title="Cycle: body \u2192 front matter \u2192 back matter. Use this when the importer guessed wrong \u2014 it relabels, it does not delete.">${(chap.matter || 'body') === 'body' ? 'Body' : ((chap.matter === 'front') ? 'Front' : 'Back')}</button>
                 <button class="edit-btn" data-index="${index}">Edit</button>
                 <button class="danger-btn delete-btn" data-index="${index}">Del</button>
             </div>
@@ -2515,8 +2609,35 @@ function renderChapterList() {
     document.querySelectorAll('.delete-btn').forEach(btn => {
         btn.onclick = (e) => {
             stagedChapters.splice(parseInt(e.target.dataset.index), 1);
-            stagedChapters.forEach((ch, i) => { ch.id = i + 1; });
+            assignChapterIds(stagedChapters);   // NOT i+1 — see the note by assignChapterIds
             renderChapterList();
+        };
+    });
+
+    // ─── RELABEL, DON'T DELETE (v3.19.0) ───────────────────────────────────
+    //
+    // Every matter class in this file is a GUESS — from a filename pattern, an
+    // epub:type, a heading, or Fix C's leading-matter test. Guesses are wrong
+    // sometimes, and until now the staging row offered Merge, Split, Edit and Del
+    // but no way to say "that IS a chapter". So the only remedy for a
+    // misclassified chapter one was to delete it, which is the opposite of what
+    // was wanted.
+    //
+    // Cycles body → front → back → body, then re-derives every id, so promoting
+    // Gutenberg's mislabelled chapter one renumbers the rest of the book to match
+    // in one click.
+    document.querySelectorAll('.matter-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            const i = parseInt(e.target.dataset.index);
+            const chap = stagedChapters[i];
+            const now = chap.matter || 'body';
+            chap.matter = (now === 'body') ? 'front' : (now === 'front' ? 'back' : 'body');
+            chap.matterWhy = 'set by hand';
+            const n = assignChapterIds(stagedChapters);
+            renderChapterList();
+            statusEl.innerText = `"${chap.title}" is now ${chap.matter === 'body' ? 'a BODY chapter' : chap.matter.toUpperCase() + ' MATTER'} \u2014 ` +
+                `${n.bodyChapters} body chapter${n.bodyChapters === 1 ? '' : 's'}. Re-upload to save.`;
+            statusEl.style.borderColor = "#ffaa00";
         };
     });
 
@@ -2543,7 +2664,7 @@ function mergeWithNext(index) {
     
     current.segments = current.segments.concat(next.segments);
     stagedChapters.splice(index + 1, 1);
-    stagedChapters.forEach((ch, i) => { ch.id = i + 1; });
+    assignChapterIds(stagedChapters);   // NOT i+1 — see the note by assignChapterIds
     renderChapterList();
     statusEl.innerText = `Merged → "${current.title}" now has ${current.segments.length} segments. ${stagedChapters.length} chapters total.`;
     statusEl.style.borderColor = "#00ff41";
@@ -2756,7 +2877,7 @@ function openSplitUI(chapIndex) {
         stagedChapters.splice(chapIndex, 1, ...newChapters);
         
         // Re-number all chapters
-        stagedChapters.forEach((ch, i) => { ch.id = i + 1; });
+        assignChapterIds(stagedChapters);   // NOT i+1 — see the note by assignChapterIds
         
         modal.classList.add('hidden');
         renderChapterList();

@@ -44,7 +44,7 @@ function liftAny(n) {
 const NAMES = ['zipEntry','resolvePath','findChapterUnits','findNavHref','buildTocIndex',
   'chapterUnitsFromToc','stripBoilerplate','classifyDocument','headingInfoOf',
   'cleanChapterTitle','composeChapterTitle','chapterSortKey','compareChapterIds',
-  'assignChapterIds','detectPart'];
+  'assignChapterIds','detectPart','looksLikeLeadingMatter','normaliseTitleForCompare'];
 let extra = [], F;
 function build() {
   F = new Function('Node','NodeFilter','TextDecoder',
@@ -76,7 +76,7 @@ function matterTitleFrom(fileKey, cls, n) {
   return (cls === 'back' ? 'Back matter ' : 'Front matter ') + n;
 }
 
-async function parseBook(file, { fixA, fixB }) {
+async function parseBook(file, { fixA, fixB, fixC }) {
   const zip = await JSZip.loadAsync(readFileSync(file));
   let opfPath;
   const c = await zip.file('META-INF/container.xml')?.async('string');
@@ -103,7 +103,11 @@ async function parseBook(file, { fixA, fixB }) {
   } catch (_) {}
 
   const chapters = [];
-  let seenBody = false, fCount = 0, bCount = 0;
+  let seenBody = false, fCount = 0, bCount = 0, seenReal = false;
+  const DC = 'http://purl.org/dc/elements/1.1/';
+  const dc1 = t => { const e = opfDoc.getElementsByTagNameNS(DC, t);
+                     return (e && e[0] && (e[0].textContent || '').trim()) || ''; };
+  const bTitle = dc1('title'), bAuthor = dc1('creator');
   for (const ref of Array.from(spine.getElementsByTagName('itemref'))) {
     const href = idToHref[ref.getAttribute('idref')];
     if (!href) continue;
@@ -132,27 +136,40 @@ async function parseBook(file, { fixA, fixB }) {
       let title = (g.title && g.title.trim())
         ? F.cleanChapterTitle(g.title).substring(0, 60)
         : F.composeChapterTitle(g.info, chapters.length + 1);
+      // ⚠️ ucls is PER UNIT. Assigning back to `cls` here (as an earlier draft of
+      // this harness did) leaks the reclassification to every later unit in the
+      // same file — it turned 15 real chapters of Outdoor Girls into front matter.
+      let ucls = cls;
+      if (fixC && ucls === 'body' && !seenReal) {
+        if (F.looksLikeLeadingMatter(title, bTitle, bAuthor, g.pEls.length)) ucls = 'front';
+        else seenReal = true;
+      }
       // ── FIX B ──
       if (fixB && cls !== 'body' && /^Chapter \d+$/.test(title)) {
         title = matterTitleFrom(fileKey, cls, cls === 'back' ? ++bCount : ++fCount);
       }
-      chapters.push({ title, matter: cls, srcFile: fileKey, segments: g.pEls.length });
-      if (cls === 'body') seenBody = true;
+      if (g.pEls.length === 0) continue;  // real code guards on segments.length > 0
+      chapters.push({ title, matter: ucls, srcFile: fileKey, segments: g.pEls.length });
+      if (ucls === 'body') seenBody = true;
     }
   }
   F.assignChapterIds(chapters);
   return chapters;
 }
 
-const files = readdirSync('/mnt/user-data/uploads').filter(f => f.endsWith('.epub')).sort();
+const files = readdirSync('/home/claude/lib/library').filter(f => f.endsWith('.epub') && !f.startsWith('._')).sort();
 console.log('Comparing CURRENT vs CURRENT+FIX A+FIX B on all eight books.\n');
-let totalChanged = 0;
+let totalChanged = 0; const COUNTS = [];
 for (const fn of files) {
-  const path = '/mnt/user-data/uploads/' + fn;
+  const path = '/home/claude/lib/library/' + fn;
   let base = null, next = null;
   for (let a = 0; a < 40; a++) { try { base = await parseBook(path, {}); break; } catch (e) { if (!retry(e)) throw e; } }
-  for (let a = 0; a < 40; a++) { try { next = await parseBook(path, { fixA: true, fixB: true }); break; } catch (e) { if (!retry(e)) throw e; } }
+  for (let a = 0; a < 40; a++) { try { next = await parseBook(path, { fixA: true, fixB: true, fixC: true }); break; } catch (e) { if (!retry(e)) throw e; } }
 
+  const bb = base.filter(c=>c.matter==='body').length;
+  const nb = next.filter(c=>c.matter==='body').length;
+  if (bb !== nb) COUNTS.push([fn.replace(/\.epub$/,''), bb, nb,
+      base.filter(c=>c.matter==='body').slice(0, bb-nb).map(c=>'"'+c.title.slice(0,34)+'"').join(', ')]);
   const diffs = [];
   for (let i = 0; i < Math.max(base.length, next.length); i++) {
     const b = base[i], n = next[i];
@@ -164,7 +181,16 @@ for (const fn of files) {
   const name = fn.replace(/\.epub$/, '');
   if (!diffs.length) { console.log('✅ ' + name.slice(0, 56).padEnd(58) + 'NO CHANGE'); continue; }
   console.log('🔧 ' + name.slice(0, 56) + '  — ' + diffs.length + ' chapter(s) changed');
-  for (const [f, was, now] of diffs)
+  const shown = diffs.filter(([f, was, now]) =>
+    was.split(' ')[1] !== now.split(' ')[1] || /front|back/.test(now));
+  for (const [f, was, now] of shown.slice(0, 6))
     console.log('      ' + f.slice(0, 26).padEnd(28) + 'was ' + was.padEnd(34) + 'now ' + now);
+  const rest = diffs.length - shown.slice(0,6).length;
+  if (rest > 0) console.log('      (+ ' + rest + ' renumbered only \u2014 same title, same matter)');
 }
-console.log('\nTotal chapters changed across all eight: ' + totalChanged);
+console.log('\n═══ BODY CHAPTER COUNT: before → after Fix C ═══');
+console.log('book'.padEnd(46) + 'was'.padEnd(6) + 'now'.padEnd(6) + 'reclassified as front matter');
+console.log('-'.repeat(110));
+for (const [n, b, a, what] of COUNTS)
+  console.log(n.slice(0,44).padEnd(46) + String(b).padEnd(6) + String(a).padEnd(6) + what);
+console.log('\nBooks whose body count changed: ' + COUNTS.length + ' of 42');

@@ -14,7 +14,7 @@ there.
 
 - [`game.js`](#gamejs) — currently v3.9.2
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.1.0
-- [`admin.js`](#adminjs) — currently v3.18.4
+- [`admin.js`](#adminjs) — currently v3.19.0
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.1
 
@@ -508,7 +508,7 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.18.4**
+Current: **v3.19.0**
 
 ⚠️ **Versioning note.** v3.12.0 through v3.18.0 were bumped as MINOR versions and
 most of them were straight bug fixes that should have been PATCH. Jake caught it:
@@ -529,6 +529,72 @@ reset that was supposed to work is a fix, not a feature. Jake caught that too,
 one turn after catching the first one. Renumbered to **v3.18.1**. Recorded here
 rather than quietly corrected, because stating a standard and then exempting
 yourself from it in the same message is the more instructive failure.
+
+#### v3.19.0
+
+Round 5 (Mignon). Prompted by Jake asking whether the importer deletes anything.
+It does not — but checking the answer turned up the reason that mattered.
+
+         1. RELABEL, DON'T DELETE. Every matter class in this file is a GUESS: a
+            filename pattern, an epub:type, a heading shape, or v3.18.5's
+            leading-matter test. The staging row offered Merge, Split, Edit and
+            Del but NO WAY TO SAY "that IS a chapter" — so the only remedy for a
+            misclassified chapter one was to delete it, which is the opposite of
+            what anyone wanted. New Body/Front/Back button cycles the class,
+            re-derives every id, and reports the new body count. The badge tooltip
+            already showed matterWhy; now the verdict can be overruled.
+            This is what makes v3.18.5's three uncertain books (Oz_g, Scranton
+            Chums, Camp Fire Girls) a one-click correction rather than a reason to
+            distrust the whole fix.
+         2. DELETING A CHAPTER NO LONGER FLATTENS EVERY ID. §B.13 item 4, open
+            since v3.14.0. Three sites — Delete, Merge and Split — did
+            `stagedChapters.forEach((ch, i) => ch.id = i + 1)`, which turns Heidi's
+            1.01–2.09 into 1–22 and collapses front matter's 0.x and back matter's
+            900.x into body positions. All three now call assignChapterIds(), which
+            is the function that knows about parts and matter classes.
+            ⚠️ These two fixes had to ship together: the relabel button is only
+            useful if re-deriving ids is correct, and editing the staged list is
+            exactly the workflow that trips the flattening bug.
+
+#### v3.18.5
+
+Round 5 (Mignon). **Fix C — front matter hiding inside a bodymatter file.**
+Measured across Jake's full 42-book library, not two examples.
+
+         classifyDocument() classifies a whole spine FILE; the TOC route then
+         splits that file into units and every unit inherits the file's class. So
+         a title page, contents list, dedication or e-text credit sharing a file
+         with chapter one all became BODY chapters. This hit 9 of the 11 Gutenberg
+         books and pushed real chapter numbering out by 1 to 4 — a kid told to
+         type chapter 1 of The Crimson Sweater got "E-text prepared by David
+         Edwards, Graeme Mackreth…". Reclassified as FRONT, never deleted: §B.7
+         keeps front matter visible and labelled, so Baum's real Introduction
+         stays available, just not as chapter 2.
+
+         Signals, in order: a front-matter title vocabulary; a publisher/credit
+         pattern; the heading equalling dc:title or being its leading words; the
+         heading equalling dc:creator; stranded subtitle debris ("OR"); and a
+         narrow dedication pattern. ⚠️ ONLY RUNS BEFORE THE FIRST REAL CHAPTER —
+         the first body unit that does not match switches the filter off for the
+         rest of the book, so nothing after chapter one can be touched.
+
+         ⚠️ The dc:title test is ONE-DIRECTIONAL by design. Also testing
+         heading.startsWith(dc:title) would fire on any book whose title is a
+         short name its chapters reuse — dc:title "Heidi" would have swallowed a
+         chapter called "Heidi Goes to the Mountain".
+
+         RESULT: 33 of 42 books unchanged in body count. 9 changed, all Gutenberg.
+         Five land exactly on canonical — Dracula 27, Toby Tyler 20, Rebecca 31,
+         Outdoor Girls 25, HS Left End 25 — and Crimson Sweater's 27 matches
+         Jake's own corrected count.
+
+         ⚠️ THREE NEED A HUMAN EYE BEFORE THIS IS TRUSTED: Wizard of Oz_g lands on
+         23 against a canonical 24, Scranton Chums on 19 against Jake's 20, Camp
+         Fire Girls on 12 against Jake's 13. All three may be over-removing by one.
+         The suspected cause is the dc:title test: Gutenberg often repeats the book
+         title as an <h1> directly above chapter one IN THE SAME UNIT, so
+         reclassifying that heading can take chapter one's paragraphs with it.
+         Verify against those three before relying on Fix C.
 
 #### v3.18.4
 
