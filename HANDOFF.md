@@ -41,12 +41,16 @@ see §2.3 for why a version audit cannot catch a version lie.
 
 | file | version | changed this round? | uploaded? |
 |---|---|---|---|
-| `lessons-admin.js` | **1.7.1** | ⚠️ **yes — real bug fix, upload first** | **ask Jake** |
-| `learn.js` | **2.2.3** | ⚠️ **yes — real bug fix** | **ask Jake** |
-| `adventure-renderer.js` | **1.2.0** | constant only; code untouched | **ask Jake** |
-| `admin.js` | **3.23.2** | header + one line (`document.title`) | ask |
+| `lessons-admin.js` | **1.7.1** | ⚠️ **yes — real bug fix, upload first** | **yes** |
+| `learn.js` | **2.2.4** | ⚠️ **yes — two real bug fixes** | **yes** |
+| `adventure-renderer.js` | **1.3.0** | ⚠️ **yes — constant + condensed-map geometry** | **yes** |
+| `admin.js` | **3.23.3** | header, `document.title`, one corrected comment | ask |
 | `admin.html` | — (no constant; title driven from `admin.js`) | yes | ask |
-| `game.js` | **3.13.1** | header comment only | optional |
+| `TTL-GUIDE.md` | **1.4.1** | ✅ recovered — verified accurate | **yes, commit it** |
+| `SCALE-PLAN.md` | **1.3.0** | ✅ recovered + status corrections | yes, commit |
+| `MULTITENANCY.md` | **1.1.0** | ⚠️ recovered + superseded header | yes, commit |
+| `HANDOFF-round3.md` | — | ✅ recovered (Rounds 1–3) | yes, commit |
+| `game.js` | **3.14.0** | ⚠️ **yes — consumes pendingClassAssignments** | **yes** |
 | `index.html` | 3.6.1 | no | ask |
 | `style.css` | 3.5.0 | no | ask |
 | `keyboard.js` | 1.1.1 | no | — |
@@ -113,6 +117,41 @@ the single-student case is exactly one iteration of the bulk loop, so the
 must ride along on a create, and the roster-cache update are all copied from working
 code. `admin.html`'s own help text describes the pending path, which is how the intent
 was confirmed rather than guessed at.
+
+### 2.2b The rotation cold-start path — the one a student actually hits
+
+Found by tracing the flow Jake cannot rehearse (the Google accounts are a mess, so
+there is no way to walk a real student through it). **`game.js` never consumed
+`pendingClassAssignments`.** Only `learn.js` did, and `index.html` links students
+straight into `game.html`. A student who typed a book before opening Lessons was never
+assigned, so every log carried `classId: ''` — absent from every class-filtered report,
+no class goals. Silent, and on day one of a 9-week rotation it is every imported
+student at once.
+
+**And both pages defeated their own fix.** `loadGoals()` writes `ttb_goalsCache_v1`
+with a **24-hour** lifetime; for an unassigned student that entry says `classId: ''`.
+`applyPendingClassAssignment()` writes the real class then calls `loadGoals()` to pick
+it up — which hit the entry written 200ms earlier. `learn.js`'s guard rejects an entry
+with a classId but no className, and `''` is falsy, so it passed as a hit. **Both files
+share the key**, so the poisoned entry followed the student between pages.
+
+⚠️ **`student-flow-test.mjs` is new and is the harness to run before any auth, class,
+or goals change.** It lifts `applyPendingClassAssignment()` from both files and walks
+five scenarios against a fake Firestore: cold-start assignment, an already-placed
+student not being clobbered, anonymous skipped at zero cost, the 99% no-pending case
+staying cheap, and a malformed record. **It fails four assertions on the pre-fix code.**
+
+### 2.2c The condensed chapter map (>40 chapters)
+
+Two bugs, both invisible on the 284-chapter book they were tested against and obvious
+just past the threshold. `frac` was `curIdx / n`: it ignored within-chapter progress
+(marker frozen for a whole chapter, then a jump, while the dotted map creeps), and it
+sat a whole chapter behind the dotted map's `(i+1)/n`. Now `(curIdx + progress) / n`.
+
+⚠️ **Canvas geometry is arithmetic and therefore testable without watching it.** Rounds
+5 and 6 both declined canvas work on the grounds of not being able to see it run; that
+reasoning holds for *appearance* and not for *position*. `map-geometry-test.mjs` now
+asserts the condensed map at 41, 60 and 284 chapters.
 
 ### 2.3 `adventure-renderer.js` shipped with its constant a version behind its code
 
@@ -181,21 +220,44 @@ Round 5 documented — no body chapter moves on any book.**
 
 ## §4. Open work
 
-### 4.1 Documentation that is now *recorded* as missing rather than fixed
+### 4.1 The missing documents — MOSTLY RESOLVED. Read this before hunting for anything.
 
-These are referenced in the repo but absent from it. **Deleted, or never written? I
-could not tell, and guessing would have been worse than flagging.** Jake, if you
-know, say so and the references can be cleaned up properly rather than annotated:
+Jake burned an entire session recovering these and they are now committed. **The
+authoritative map is §10 of `HANDOFF-round3.md`**, written in Round 3 after Jake went
+looking for `TTL-GUIDE.md` and could not find it. It names seven documents, says what
+was in each, and rates each one's recoverability. Do not go looking for a document
+without reading it first.
 
-| named in | missing file |
-|---|---|
-| `README.md`, twice | `MULTITENANCY.md`, `SCALE-PLAN.md` |
-| `README.md`'s not-deployable-from-a-browser list | `TTL-GUIDE.md` |
-| Round 5's §0, which asks that it be kept | `HANDOFF-round4.md` |
+**Recovered and committed in Round 6:**
 
-`TTL-GUIDE.md` is the one that matters. `firestore.indexes.json` still holds the index
-and TTL field-override definitions, but the billing arithmetic and the "pre-v3.4.0
-documents are never collected" reasoning existed nowhere else.
+| doc | state | ⚠️ before you trust it |
+|---|---|---|
+| `TTL-GUIDE.md` v1.4.1 | ✅ **good as-is** | Verified on recovery: §5's three composite indexes and §1's two TTL field overrides match `firestore.indexes.json` exactly. Console steps were walked through with Jake against the live UI. Use it. |
+| `HANDOFF-round3.md` | ✅ **archive, still useful** | Rounds 1–3, verbatim. §10 is the document map. §11 is what `PEDAGOGY-AUDIT.md` used to point at. §3/§5/§7/§12 are Underwood's originals and are where several inherited conventions come from. Every version number in it is four rounds stale. |
+| `SCALE-PLAN.md` v1.3.0 | ⚠️ **read the header box first** | The load model and cost arithmetic are excellent and exist nowhere else. Status corrections only were applied — no number touched. Problem 4 has shipped; Problem 5 has not; **the Security section's premise was false** and is re-headed. |
+| `MULTITENANCY.md` v1.1.0 | ⚠️ **superseded — the header box is the point** | Its central recommendation (Auth custom claims) was built and deliberately reversed. Kept for the trimester/denormalisation argument and the FERPA flag, which are still load-bearing. **Committing it unmarked would have been worse than losing it.** |
+
+**Still missing. These are the ones to "ask around" about:**
+
+| doc | what was in it | recoverable? |
+|---|---|---|
+| `SETUP-NO-CLI.md` | The ordered console-only setup runbook. ⚠️ **`firestore.rules` cites it by name** for how to grant the first `super_admin`, so this is the operationally important one. | `HANDOFF-round3.md` §8 covers the same ground for *testing*; a fresh-project runbook would need rewriting |
+| `RULES-AUDIT.md` | The overnight rules audit that traced 103 Firestore operations and found three bugs | partly — the three fixes are described in `HANDOFF-round3.md` §2 and are live in `firestore.rules` |
+| `SETUP-MULTISCHOOL.md` | — | **no loss.** Round 3 assessed it as obsolete; it assumed a CLI |
+| `HANDOFF-round4.md` | — | **never existed.** Mignon confirmed he invented the reference. Round 4 (Oliver) survives only as summarised in `HANDOFF-round5.md` and `CHANGELOG.md`. Stop looking. |
+
+⚠️ **Blick's rule, from `HANDOFF-round3.md` §10, and the reason all of this happened:**
+*if a session produces a document, it ships in the same batch as the code.* Four
+documents were written across Rounds 1–3 and never committed. Referencing a file that
+is not in the repo is worse than not writing it.
+
+⚠️ **DO NOT UPLOAD four files from `Blick.zip`.** It also contained `game.js` v3.8.1,
+`reports.html` v2.7.1, `README.md` v1.5.0 and `CHANGELOG.md` v1.0.0 — all **older**
+than what is live. `game.js` v3.8.1 has zero references to `bodyChapterList` or
+`ttb:bookComplete`, so uploading it would erase the entire spine-vs-body chapter fix
+and the credits system; `reports.html` v2.7.1 would reintroduce the permission bug
+Round 5 fixed. Only `TTL-GUIDE.md` and `HANDOFF.md` were worth taking from that
+archive.
 
 ### 4.2 Still small and certain
 
@@ -207,7 +269,19 @@ documents are never collected" reasoning existed nowhere else.
   `ADMIN_VERSION`, so the field that once read v3.3.0 for nineteen minor versions
   cannot drift again.
 
-### 4.3 Adventure scrolling credits — still the next real piece, still not built
+### 4.3 Adventure end-of-book credits — a DANGLING EVENT, not just a missing feature
+
+⚠️ **Restated after checking, Round 6.** This is worse than "not built yet".
+`game.js` line ~3392 reads `if (VIEW_MODE !== 'adventure') renderClassicCredits();`
+then emits `bookComplete` for the renderer to handle — and **`bookComplete` has exactly
+one reference in the entire repo: the emit.** Nothing listens. So Classic shows credits
+and Adventure shows *nothing*, by a deliberate skip written in anticipation of a
+feature that never landed. The books are CC-licensed and attribution is a licence
+term, so this is not cosmetic.
+
+Partial mitigation, worth knowing: the completion modal's "\u2139 Who made this book"
+link into the About panel is unconditional and appears in **both** modes, so
+attribution is reachable — just not shown.
 
 `game.js` 3.13.x emits `ttb:bookComplete` carrying the credit fields
 (`title/author/source/rights/cleanedBy/chapters`), so the renderer needs no extra
@@ -278,6 +352,22 @@ id-is-a-label rule and the `ttb_booksCache_v*` bump rule. Adding:
 16. **Documents drift exactly like code, and nothing checks them.** Four entry blocks
     sat under the wrong file in `CHANGELOG.md` for a whole round, and
     `PEDAGOGY-AUDIT.md` advertised finished work as outstanding for three releases.
+17. **A document produced by a session ships in the same batch as the code, or it does
+    not exist.** Blick's rule, from `HANDOFF-round3.md` §10. Four documents written
+    across Rounds 1–3 were cited for four rounds and committed in none of them.
+18. **Committing a superseded design document unmarked is worse than losing it.**
+    `MULTITENANCY.md` specifies Auth custom claims; the rules use Firestore documents.
+    It reads as authoritative, and it is the probable reason
+    `firestore-rules.test.mjs` has never matched the rules it tests. Recovering a
+    document and *endorsing* it are separate decisions.
+19. **Claims are never coming back, and it is worth knowing why.** Auth custom claims
+    can only be written by the Admin SDK → a Cloud Functions deploy → a terminal. Jake
+    deploys by uploading files in a browser. Any design that needs a CLI is not a
+    design for this project. That single constraint explains `firestore.rules` v2.0.0,
+    the undeployable `index.js`, and half of `SETUP-NO-CLI.md`'s reason for existing.
+20. **An older copy of a file is a live hazard, not a harmless backup.** Four files in
+    the recovered archive were behind the repo, one by five versions of load-bearing
+    work. When someone hands you an archive, diff every file in it before touching any.
 
 ---
 
@@ -306,6 +396,14 @@ id-is-a-label rule and the `ttb_booksCache_v*` bump rule. Adding:
   missing-document references in §4.1.
 - **`HANDOFF-round5.md`** now exists in the repo, annotated with what in it is still
   live and what has gone stale.
+- **`TTL-GUIDE.md` → v1.4.1, `SCALE-PLAN.md` → v1.3.0, `MULTITENANCY.md` → v1.1.0,
+  `HANDOFF-round3.md` → new.** All four recovered from outside the repo — see §4.1 for
+  the per-file verdicts, which differ a lot and matter. `SCALE-PLAN`'s and
+  `MULTITENANCY`'s original text was left byte-identical; only headers were added.
+- **`admin.js` → 3.23.3.** Its AUTH block comment claimed staff identity came from Auth
+  custom claims while the comment four lines below it, and the code, correctly said
+  `staff/{uid}` documents. Recovering `MULTITENANCY.md` is what made that traceable
+  rather than mysterious: the wrong wording is a fossil of the reversed design.
 
 ---
 
@@ -321,6 +419,11 @@ id-is-a-label rule and the `ttb_booksCache_v*` bump rule. Adding:
 - **I nearly corrected the README's version table instead of deleting it.** Fixing
   four wrong numbers would have left the fifth to rot and guaranteed the same finding
   next round. Removing the column removes the category.
+- **I introduced the exact drift I spent the session removing.** Adding a `v3.23.3`
+  entry to `admin.js` left the top-line header reading `v3.23.2` and pushed the file to
+  seven entries. `audit-versions.mjs` caught both immediately, which is the argument for
+  having it — but I had just written the §2.3 warning about this class of mistake and
+  made it anyway, one file later.
 - **I did not verify §2.2 in a browser and cannot.** The reasoning is sound and the
   parser agrees, but this is the one item in this handoff that wants a human click
   before it is believed.

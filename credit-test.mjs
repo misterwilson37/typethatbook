@@ -6,7 +6,7 @@ import { JSDOM } from 'jsdom';
 // index.html's escapeHtml is DOM-based, so the test needs a DOM to run the real one.
 globalThis.document = new JSDOM().window.document;
 
-const s = readFileSync('/home/claude/work/index.html', 'utf8');
+const s = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 // linkifyText() is now module-scoped in index.html and SHARED with the About
 // panel, so lift it separately and hand it to the credit block. This test broke
 // when it was hoisted, which is the correct thing for it to have done: it was
@@ -20,9 +20,30 @@ function liftFn(name) {
     else if (s[x] === '}') { d--; if (!d) return s.slice(k, x + 1); }
   }
 }
-const i = s.indexOf('const linkify = linkifyText;');
-const j = s.indexOf('const coverHTML = book.coverUrl', i);
-const body = liftFn('linkifyText') + '\n' + s.slice(i, j) + '\n  return creditHTML + aboutHTML;';
+// ⚠️ REANCHORED in Round 6. The old start marker was `const linkify =
+// linkifyText;`, which index.html v3.5.1 replaced with a shared creditLinkFor()
+// when the raw-URL fix moved the label/href split out of the card. indexOf()
+// returned -1, s.slice(-1, j) produced an empty string, and the appended
+// `return creditHTML + aboutHTML;` then referenced two variables that had not
+// been lifted — so this suite died with a ReferenceError that looked like a
+// product bug and was not one.
+//
+// Breaking when the source moves IS this harness's correct behaviour (HANDOFF §6):
+// it extracts the SHIPPING code rather than a copy, so a rename must be noticed.
+// What was wrong is that nobody could run it to see the break, because every
+// harness had a dead absolute path. Both fixed together.
+const START = 'const creditBits = [];';
+const END   = 'const coverHTML = book.coverUrl';
+const i = s.indexOf(START);
+const j = s.indexOf(END, i);
+if (i < 0 || j < 0) {
+  throw new Error('credit-test: could not find the credit block in index.html — ' +
+    'looked for ' + JSON.stringify(START) + ' then ' + JSON.stringify(END) + '. ' +
+    'The card renderer moved again; reanchor these two markers rather than ' +
+    'silently testing nothing.');
+}
+const body = liftFn('linkifyText') + '\n' + liftFn('creditLinkFor') + '\n' +
+             s.slice(i, j) + '\n  return creditHTML + aboutHTML;';
 const render = new Function('book', 'escapeHtml', 'escapeAttr', body);
 
 // the real escapeAttr from index.html — this is what guards the data-book

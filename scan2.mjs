@@ -4,6 +4,7 @@
 // reconciliation. This is the §B.7 harness rebuilt.
 import JSZip from 'jszip';
 import { readFileSync, readdirSync } from 'fs';
+import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM();
@@ -12,7 +13,7 @@ globalThis.Node = Node;
 globalThis.NodeFilter = NodeFilter;
 const parser = new DOMParser();
 
-const SRC = readFileSync('/home/claude/work/admin.js', 'utf8');
+const SRC = readFileSync(new URL('./admin.js', import.meta.url), 'utf8');
 function lift(name) {
   const start = SRC.indexOf(`function ${name}(`);
   if (start < 0) throw new Error(name + ' not found');
@@ -158,7 +159,11 @@ async function parseBook(file) {
            orphansRescued, front, back, body, viaToc, viaStructure, missing };
 }
 
-const files = readdirSync('/home/claude/lib/library').filter(f => f.endsWith('.epub') && !f.startsWith('._')).sort();
+// EPUB corpus. Defaults to the repo's own library/; pass a directory as argv[2]
+// to point it at a bigger one. This was a hardcoded sandbox path, so the harness
+// could not run outside the session that wrote it.
+const LIB = process.argv[2] || fileURLToPath(new URL('./library', import.meta.url));
+const files = readdirSync(LIB).filter(f => f.endsWith('.epub') && !f.startsWith('._')).sort();
 console.log('book'.padEnd(34) + 'chaps'.padEnd(7) + 'body'.padEnd(6) + 'parts'.padEnd(7) +
             'front/back'.padEnd(12) + 'route'.padEnd(14) + 'p lost');
 console.log('-'.repeat(96));
@@ -166,7 +171,7 @@ const all = [];
 for (const f of files) {
   let r = null;
   for (let attempt = 0; attempt < 40; attempt++) {
-    try { r = await parseBook('/home/claude/lib/library/' + f); break; }
+    try { r = await parseBook(LIB + '/' + f); break; }
     catch (e) { if (!resolveAndRetry(e)) { console.log(f.slice(0,32).padEnd(34) + 'ERROR: ' + e.message); break; } }
   }
   if (!r) continue;

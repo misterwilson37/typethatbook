@@ -1,10 +1,19 @@
-// game.js v3.13.1
+// game.js v3.14.0
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.14.0 — CONSUMES pendingClassAssignments. This existed only in learn.js, yet
+//           index.html links students straight into game.html — so a student who
+//           typed a book chapter before ever opening Lessons was never assigned to
+//           their class. Every log they wrote was stamped classId: '', making them
+//           absent from every class-filtered report and denying them their class's
+//           goals. On day one of a 9-week rotation that is every new student at
+//           once. Also drops the goals cache before re-reading: loadGoals() had
+//           just written classId:'' with a 24h lifetime, so the re-read returned
+//           the empty value the fix had replaced.
 // v3.13.1 — HEADER ONLY, no code change. Trimmed to the 6-entry / 60-line budget
 //           this project's own build panel enforces; v3.12.0 and v3.11.0 moved to
 //           CHANGELOG.md, where they already were.
@@ -35,15 +44,6 @@
 //           with the real chapters fourth and fifth. Body list only now. Also: the
 //           book-completion screen actually celebrates, names the book, and links to
 //           its credits via index.html#about=<bookId>.
-// v3.12.1 — THE FIRST CHAPTER IS NOT ALWAYS CALLED "1". Opening a book with no
-//           saved progress hardcoded chapter 1, so a PART-NUMBERED book — whose
-//           first chapter is "1.01" — showed a blank page. Live for Heidi, Treasure
-//           Island, Little Women and The War of the Worlds since part numbering
-//           shipped, and invisible because those four were only ever opened by
-//           someone who already had progress. Five sites fixed, plus loadChapter's
-//           own recovery path, which also went to "1" and so was a dead end on the
-//           same books. Stored progress is now validated against the book, which is
-//           the protection Fix C's renumbering needs.
 //
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
@@ -57,7 +57,7 @@
 //   * applyViewMode() must replay textLoaded + positionSet. A renderer
 //     mounted mid-session missed those events and will draw nothing.
 import { db, auth } from "./firebase-config.js";
-import { doc, getDoc, setDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     onAuthStateChanged,
     GoogleAuthProvider,
@@ -66,7 +66,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.13.1";
+const VERSION = "3.14.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -896,6 +896,10 @@ async function init() {
                 await loadUserStats();
                 // Self-heal: if today > week, data was corrupted during transition
                 await loadGoals();
+                // Only fires when loadGoals() found no class, so the extra read never
+                // happens for a student already assigned. See the function's comment
+                // for what this being absent cost on day one of a rotation.
+                if (!ttbClassId) await applyPendingClassAssignment(currentUser);
                 // Refresh the top-bar timer now that stats AND goals are
                 // loaded — setupGame() ran before either, so its initial
                 // render showed 00:00 with no daily-goal denominator. This
@@ -1086,6 +1090,62 @@ async function saveStudentSchool(schoolId) {
         return false;
     }
 }
+// ─── Apply pending class assignment set by admin before student first typed ──
+//
+// ⚠️ ADDED v3.14.0. This existed only in learn.js, and game.html is the page a
+// student is far more likely to open first — index.html links straight into it.
+//
+// The consequence, on the first day of a 9-week rotation, for every new student at
+// once: Jake imports a roster, and students with no Firebase account yet land in
+// pendingClassAssignments/{email} rather than users/{uid} (see _commitCSV in
+// lessons-admin.js — it cannot write a user document for a uid that does not exist).
+// If that student then types a book chapter before ever opening the Lessons page,
+// nothing consumes the pending record. ttbClassId stays '', and every log document
+// this session writes is stamped classId: '' — so the student is absent from every
+// class-filtered report, and their class's daily/weekly goals never apply. It
+// self-heals the first time they happen to open learn.html, which could be days.
+//
+// Mirrors learn.js's implementation deliberately, including the cost-conscious call
+// ordering: loadGoals() runs first, and this only fires when it found no class, so
+// the extra read never happens for the ~99% of students already assigned.
+async function applyPendingClassAssignment(user) {
+    if (!user || user.isAnonymous || !user.email) return;
+    try {
+        const email    = user.email.toLowerCase();
+        const pendRef  = doc(db, 'pendingClassAssignments', email);
+        const pendSnap = await getDoc(pendRef);
+        if (!pendSnap.exists()) return;
+
+        const { classId, schoolId } = pendSnap.data();
+        if (!classId) return;
+
+        // Don't overwrite a real assignment. A pending record can outlive the
+        // student being placed directly, and the direct placement is the newer fact.
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        if (userSnap.exists() && userSnap.data().classId) return;
+
+        // schoolId rides along: report scoping, the security rules and the roster all
+        // key off the building, and a student with a class but no building is
+        // invisible to their own teacher.
+        await setDoc(doc(db, 'users', user.uid),
+                     { classId, schoolId: schoolId || '' }, { merge: true });
+        await deleteDoc(pendRef);
+
+        // ⚠️ DROP THE GOALS CACHE BEFORE RE-READING. loadGoals() ran moments ago and
+        // wrote ttb_goalsCache_v1 with classId: '' and a 24 HOUR lifetime. Without
+        // this removal the re-read below hits that entry and hands back the empty
+        // classId we just fixed — and because learn.js shares this exact key, the
+        // poisoned entry follows the student to the Lessons page too.
+        try { localStorage.removeItem(GOALS_CACHE_KEY); } catch (_) {}
+
+        await loadGoals();
+        console.log('[TTB] Applied pending class assignment:', classId);
+    } catch (e) {
+        // Non-critical: never block a student from typing over this.
+        console.warn('applyPendingClassAssignment failed:', e);
+    }
+}
+
 const GOALS_CACHE_MS = 86400000;   // 1 day
 
 async function loadGoals() {

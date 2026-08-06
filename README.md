@@ -1,6 +1,9 @@
 # TypeThatBook
 
-<!-- README.md v1.6.0 — Round 6 (Noiseless).
+<!-- README.md v1.7.0 — Round 6 (Noiseless).
+     v1.7.0 — Four recovered documents committed: TTL-GUIDE, SCALE-PLAN, MULTITENANCY,
+              HANDOFF-round3. Two of them need warning headers to be safe to read;
+              see the Documents section. Three documents remain genuinely missing.
      v1.6.0 — Removed every hand-maintained version number (all of them were wrong,
               one dangerously so), reconciled the references to four documents that
               are not in the repo, and documented the test suite, which existed but
@@ -162,16 +165,23 @@ firestore.indexes.json            The ONLY written record of the three composite
 CHANGELOG.md                      Full per-file version history. Headers are
                                   budgeted to 6 entries; the rest lives here.
 
-TTL-GUIDE.md                      ⚠️ REFERENCED BUT NOT IN THE REPO (noted in
-                                  Round 6). It described the two TTL policies, the
-                                  billing arithmetic, why pre-v3.4.0 documents are
-                                  never collected, and the three composite indexes.
-                                  Either it was never committed or it was lost.
-                                  Whoever next touches TTL will have to rebuild it
-                                  from the GOOGLE CLOUD console — not the Firebase
-                                  console, which is the part that trips everyone.
-                                  `firestore.indexes.json` still holds the index
-                                  and TTL field-override definitions.
+TTL-GUIDE.md                      ✅ RECOVERED in Round 6 and verified. Console
+                                  runbook: the two TTL policies, the billing
+                                  arithmetic, why pre-v3.4.0 documents are never
+                                  collected, and the three composite indexes. TTL
+                                  lives in the GOOGLE CLOUD console, not Firebase —
+                                  that trips everyone.
+
+SCALE-PLAN.md                     Recovered Round 6. The 7,000-student cost model.
+                                  ⚠️ Read its header box: statuses were corrected,
+                                  and its Security section's premise was false.
+
+MULTITENANCY.md                   Recovered Round 6. ⚠️ SUPERSEDED — recommends Auth
+                                  custom claims, which were reversed. Kept for the
+                                  trimester/denormalisation argument. Header box.
+
+HANDOFF-round3.md                 Rounds 1-3, archived. §10 is the document map.
+HANDOFF-round5.md                 Round 5, archived.
 
 firestore-rules.test.mjs          ⚠️ KNOWN WRONG. Header says v1.1.0 and it seeds
                                   roles as auth-token claims; rules v2.x reads
@@ -232,8 +242,9 @@ Admin pages gate on a hardcoded email list:
 
 ⚠️ **This gate is cosmetic.** It hides UI; it does not stop anyone from reading or
 writing the same data directly from the browser console. Real enforcement requires
-Firestore security rules — which exist: read `firestore.rules` directly. (This
-sentence used to point at `SCALE-PLAN.md`, which is not in the repo.)
+Firestore security rules — read `firestore.rules` directly. `SCALE-PLAN.md` § Security
+is now in the repo too, but ⚠️ its premise ("no rules in this repo") was true when
+written and is not now; read its header box.
 
 ## Tests
 
@@ -629,13 +640,31 @@ console before touching code.
 Schools, classes, and teacher roles are built and live — see `firestore.rules`
 and §4 of `HANDOFF.md`.
 
-⚠️ **Documents referenced somewhere in this repo that are NOT in it.** Verified
-Round 6; don't send anyone looking, and don't assume the reference means the file
-was deleted rather than never written:
+### Documents: what is here, and what is gone
 
-| named in | file |
+⚠️ **The authoritative map is `HANDOFF-round3.md` §10.** It was written after Jake
+went looking for `TTL-GUIDE.md` and could not find it, and it rates each document's
+recoverability. Read it before hunting for anything.
+
+**Recovered and committed in Round 6** — four documents had been cited for four rounds
+and committed in none of them. Two are safe to read straight; two are not:
+
+| doc | read it how |
 |---|---|
-| this README, twice | `MULTITENANCY.md`, `SCALE-PLAN.md` |
-| this README's "not deployable from a browser" list | `TTL-GUIDE.md` |
-| `HANDOFF.md` §0, which asks that it be kept | `HANDOFF-round4.md` |
-| `PEDAGOGY-AUDIT.md` §4 (reference now removed) | `HANDOFF.md` §11 — superseded in Round 5 |
+| `TTL-GUIDE.md` | ✅ **as-is.** Its index table was re-verified against `firestore.indexes.json` on recovery, and its console steps were walked through against the live UI with Jake. |
+| `HANDOFF-round3.md` | ✅ **as history.** Rounds 1–3 verbatim. §11 is what `PEDAGOGY-AUDIT.md` used to point at. Every version number in it is four rounds stale. |
+| `SCALE-PLAN.md` | ⚠️ **header box first.** Cost model excellent; Problem 4 has since shipped; its Security section's premise was false and is re-headed. |
+| `MULTITENANCY.md` | ⚠️ **header box first, and take it seriously.** It recommends Auth custom claims. The rules use Firestore documents. It is the probable origin of `firestore-rules.test.mjs` being wrong. |
+
+**Still missing:**
+
+| doc | why it matters |
+|---|---|
+| `SETUP-NO-CLI.md` | ⚠️ **`firestore.rules` cites it by name** for granting the first `super_admin`. The operationally important gap. |
+| `RULES-AUDIT.md` | The overnight audit that traced 103 Firestore ops. The three fixes it found are live and described in `HANDOFF-round3.md` §2. |
+| `SETUP-MULTISCHOOL.md` | No loss — assessed obsolete in Round 3; assumed a CLI. |
+| `HANDOFF-round4.md` | **Never existed.** The reference was invented. Round 4 survives only in `HANDOFF-round5.md` and `CHANGELOG.md`. Stop looking. |
+
+**The rule, from `HANDOFF-round3.md` §10:** if a session produces a document, it ships
+in the same batch as the code. Referencing a file that isn't in the repo is worse than
+not writing it.

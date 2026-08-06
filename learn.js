@@ -1,4 +1,4 @@
-// learn.js v2.2.3
+// learn.js v2.2.4
 //
 // Lesson-mode engine, separate from game.js. Same write-ahead-log and
 // coalesced-flush persistence pattern.
@@ -6,6 +6,12 @@
 // ── Full history: CHANGELOG.md § learn.js ─────────────────────────────────
 // ── Why it looks like this: PEDAGOGY-AUDIT.md ─────────────────────────────
 //
+// v2.2.4 — applyPendingClassAssignment() drops the goals cache before re-reading.
+//          loadGoals() had written ttb_goalsCache_v1 with classId:'' and a 24 HOUR
+//          lifetime moments earlier, so the re-read handed back the empty class the
+//          function had just fixed. game.js shares that key, so the poisoned entry
+//          followed the student between pages, and every log flushed in the window
+//          was stamped classId:''.
 // v2.2.3 — beginStep()'s out-of-range guard called finishLesson(), which does not
 //          exist in this file or anywhere in the repo. It threw a ReferenceError
 //          from the one branch written to rescue the situation, abandoning
@@ -25,13 +31,6 @@
 //          double-fired on most loads and now shares an in-flight promise;
 //          flushStats() got a re-entrancy guard and the hidden-tab flush a
 //          60s floor.
-// v2.1.0 — Batch B: every finished run writes runAttempts / runFailures /
-//          furthestRunIdx / lastSeenAt, queued onto the existing flush. A
-//          grade F now leaves a record; previously the students in the most
-//          trouble left no trace at all.
-// v2.0.0 — Batch A, the stall fix. Long steps chunked into runs under 150
-//          chars, run position persisted, net WPM, idle-aware graded clock,
-//          accuracy-gated advancement, per-step gates inferred from type.
 //
 // ── Load-bearing ──────────────────────────────────────────────────────────
 //
@@ -62,7 +61,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.2.3";
+const LEARN_VERSION = "2.2.4";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -2527,6 +2526,26 @@ async function applyPendingClassAssignment(user) {
 
         // Delete the pending record so it doesn't re-apply
         await deleteDoc(pendRef);
+
+        // ⚠️ DROP THE GOALS CACHE FIRST (v2.2.4). loadGoals() ran moments ago and
+        // wrote ttb_goalsCache_v1 with classId: '' — because at that point the
+        // student genuinely had no class — stamped with a 24 HOUR lifetime. Calling
+        // loadGoals() again without clearing it hits that entry and returns the
+        // empty classId we are here to replace.
+        //
+        // The cache-hit guard below does not save us: it rejects an entry that has
+        // a classId but no className, and '' is falsy, so an unassigned entry sails
+        // straight through as a hit.
+        //
+        // What that cost, before this line existed: the Firestore write above DID
+        // land, so the database was correct — but classInfo stayed empty in memory
+        // and in the cache, for up to a day and across page loads, because game.js
+        // and learn.js share this key. Every log flushed in that window was stamped
+        // classId: '' (see the flush payloads), which means the student's first day
+        // of typing does not appear in any class-filtered report and their class's
+        // daily/weekly goals never apply. On the first day of a 9-week rotation that
+        // is every student at once.
+        try { localStorage.removeItem(LEARN_GOALS_KEY); } catch (_) {}
 
         // Reload goals with the new class
         await loadGoals();

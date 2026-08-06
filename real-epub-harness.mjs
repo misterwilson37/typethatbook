@@ -7,13 +7,14 @@
 // identically both ways, chapter detection is provably untouched.
 import JSZip from 'jszip';
 import { readFileSync, readdirSync } from 'fs';
+import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM();
 const DOMParser = dom.window.DOMParser;
 const parser = new DOMParser();
 
-const SRC = readFileSync('/home/claude/work/admin.js', 'utf8');
+const SRC = readFileSync(new URL('./admin.js', import.meta.url), 'utf8');
 function lift(name) {
   const start = SRC.indexOf(`function ${name}(`);
   if (start < 0) throw new Error(name + ' not found');
@@ -140,9 +141,13 @@ async function analyse(file) {
            epubVersion: (opfDoc.documentElement.getAttribute('version') || '?') };
 }
 
-const files = readdirSync('/mnt/user-data/uploads').filter(f => f.endsWith('.epub')).sort();
+// EPUB corpus. Defaults to the repo's own library/; pass a directory as argv[2]
+// to point it at a bigger one. This was a hardcoded sandbox path, so the harness
+// could not run outside the session that wrote it.
+const LIB = process.argv[2] || fileURLToPath(new URL('./library', import.meta.url));
+const files = readdirSync(LIB).filter(f => f.endsWith('.epub')).sort();
 const rows = [];
-for (const f of files) rows.push(await analyse('/mnt/user-data/uploads/' + f));
+for (const f of files) rows.push(await analyse(LIB + '/' + f));
 
 console.log('═══ COVERS ═══\n');
 for (const r of rows) {

@@ -3,7 +3,7 @@
 // and a pre-v3.19.1 document with no `matter` on its chapters.
 import { readFileSync } from 'fs';
 
-const s = readFileSync('/home/claude/work/index.html', 'utf8');
+const s = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const i = s.indexOf('const denom = ');
 const j = s.indexOf('const pct = Math.min(100', i);
 // The slice opens `if (progress && denom > 0) {` and the closing brace is past

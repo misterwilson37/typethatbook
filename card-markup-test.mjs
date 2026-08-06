@@ -10,7 +10,7 @@ import { readFileSync } from 'fs';
 import { JSDOM } from 'jsdom';
 globalThis.document = new JSDOM().window.document;
 
-const src = readFileSync('/home/claude/work/index.html', 'utf8');
+const src = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 
 // Lift the card template and the helpers it needs.
 function liftFn(name) {

@@ -27,7 +27,8 @@ const HERE = fileURLToPath(new URL('./', import.meta.url));
 
 // Fast: no external corpus, each runs in well under a second.
 const FAST = [
-    ['undefined-calls-test.mjs', 'every identifier reference resolves in all 9 shipped files'],
+    ["undefined-calls-test.mjs", "every identifier reference resolves: 9 JS files + 3 inline HTML scripts"],
+    ["student-flow-test.mjs",     "a cold-start student gets assigned, stamped and reportable"],
     ['verify-guards.mjs',        'flush re-entrancy guards at 2/3/6/12 concurrent callers'],
     ['chunktest.mjs',            'sprint rollup chunking: loss, duplication, the 200 cap'],
     ['progress-test.mjs',        'library progress bar, including its degradation paths'],

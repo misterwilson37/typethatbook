@@ -1,4 +1,4 @@
-// adventure-renderer.js v1.2.0
+// adventure-renderer.js v1.3.0
 //
 // Canvas renderer for Adventure Mode. Observes ttb:* CustomEvents on document
 // and draws the typing session as a figure walking across word-platforms in a
@@ -7,6 +7,11 @@
 //
 // ── Full history: CHANGELOG.md § adventure-renderer.js ────────────────────
 //
+// v1.3.0 — Condensed map (>40 chapters) now tracks within-chapter progress and
+//          agrees with the dotted map. It used curIdx/n: the marker froze for a
+//          whole chapter then jumped, and sat one chapter BEHIND the dotted map's
+//          (i+1)/n. Invisible on Aesop's 284; 2.4% of the strip on a 41-chapter
+//          book. Now (curIdx + progress)/n. Asserted in map-geometry-test.mjs.
 // v1.2.0 — A dot marks the END of a chapter, not its start: dotY divides by n,
 //          not n-1, so finishing 1 of 2 chapters reaches halfway instead of
 //          drawing a 14-pixel stub. ⚠️ Shipped with RENDERER_VERSION still
@@ -20,7 +25,6 @@
 //          keyboard, so students opened it by accident.
 // v0.4.0 — Backspace tilt-back corrections; left-edge chapter close-up strip.
 // v0.3.0 — Right-edge chapter map; pilcrow paragraph landing marks.
-// v0.2.16 — Indent mini-leap, so the tab gap is a hop and not a teleport.
 //
 // ── Events consumed ───────────────────────────────────────────────────────
 //
@@ -36,7 +40,7 @@
 //   * Survives missed events — but draws NOTHING until the next textLoaded,
 //     which is why game.js replays it on a hot swap.
 
-export const RENDERER_VERSION = '1.2.0';
+export const RENDERER_VERSION = '1.3.0';
 
 // Above this many chapters, per-chapter dots overlap into an unreadable smear
 // and we switch to a continuous route with sparse ticks. 40 keeps every dot at
@@ -1696,10 +1700,30 @@ class AdventureRenderer {
     if (n > MAP_MAX_DOTS) {
       const doneCount = this.chapterList.filter(
         c => this.completedSet.has(String(c.num))).length;
-      // Same off-by-one as dotY: with n chapters, having finished `doneCount` of
-      // them is doneCount/n of the way through, not doneCount/(n-1). On Aesop's 284
-      // that difference is invisible; on a 12-chapter book it is a whole chapter.
-      const frac = Math.min(1, (curIdx >= 0 ? curIdx : doneCount) / Math.max(1, n));
+      // ⚠️ v1.3.0 — TWO BUGS HERE, both only visible above MAP_MAX_DOTS.
+      //
+      // This read `(curIdx >= 0 ? curIdx : doneCount) / max(1, n)`.
+      //
+      // 1. IT IGNORED WITHIN-CHAPTER PROGRESS. The dotted map inks the current
+      //    chapter's segment to `progress` (see drawSegment(i, progress) below), so
+      //    the marker creeps forward as the student types. The condensed map used
+      //    curIdx alone, so the marker sat frozen for an entire chapter and then
+      //    jumped. On Aesop's 284 fables a chapter is 1/284 of the strip and nobody
+      //    notices. On a 41-chapter book — one chapter past the condensing
+      //    threshold — it is 2.4% of a 500px strip, so the marker is stuck for
+      //    ~12px of travel and the map looks broken while the student is working.
+      //
+      // 2. IT DISAGREED WITH THE DOTTED MAP BY A WHOLE CHAPTER. v1.2.0 fixed the
+      //    DENOMINATOR here to n (matching dotY) but left the numerator at curIdx.
+      //    dotY(curIdx) = (curIdx + 1) / n — the END of the current chapter — while
+      //    this placed the marker at curIdx / n, its START. Crossing the 40-chapter
+      //    threshold therefore moved the marker backwards by a chapter.
+      //
+      // (curIdx + progress) / n fixes both at once and is exactly consistent: at
+      // progress = 1 it equals dotY(curIdx). Asserted in map-geometry-test.mjs.
+      const frac = curIdx >= 0
+        ? Math.min(1, (curIdx + progress) / Math.max(1, n))
+        : Math.min(1, doneCount / Math.max(1, n));
 
       // Un-walked remainder, faint.
       ctx.strokeStyle = 'rgba(120, 100, 70, 0.30)';

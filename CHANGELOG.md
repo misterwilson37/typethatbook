@@ -1,6 +1,13 @@
 # CHANGELOG
 
-<!-- CHANGELOG.md v1.2.0 — created 2026-08-02 by Blick.
+<!-- CHANGELOG.md v1.3.0 — created 2026-08-02 by Blick.
+     v1.3.0 — Round 6 (Noiseless), second pass: four documents recovered from outside
+              the repo and committed — TTL-GUIDE.md v1.4.1 (verified accurate),
+              HANDOFF-round3.md (Rounds 1-3, contains the definitive document map at
+              its §10), SCALE-PLAN.md v1.3.0 (status corrections only, arithmetic
+              untouched) and MULTITENANCY.md v1.1.0 (⚠️ superseded; committed only
+              because a warning header makes it safe to read). Three documents remain
+              missing; HANDOFF-round4.md never existed at all.
      v1.2.0 — Round 6 (Noiseless): four entry blocks were filed under ## `game.js`
               that describe index.html and style.css, and every section's entries
               were re-sorted newest-first. The ordering claim below was aspirational
@@ -17,11 +24,11 @@ there.
 
 ## Contents
 
-- [`game.js`](#gamejs) — currently v3.13.1
-- [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.2.0
-- [`admin.js`](#adminjs) — currently v3.23.2
+- [`game.js`](#gamejs) — currently v3.14.0
+- [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.3.0
+- [`admin.js`](#adminjs) — currently v3.23.3
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
-- [`learn.js`](#learnjs) — currently v2.2.3
+- [`learn.js`](#learnjs) — currently v2.2.4
 - [`index.html`](#indexhtml) — currently v3.6.1
 - [`style.css`](#stylecss) — currently v3.5.0
 
@@ -35,7 +42,34 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.13.1**
+Current: **v3.14.0**
+
+#### v3.14.0
+
+Round 6 (Noiseless). **game.js never consumed `pendingClassAssignments`.**
+
+         Only learn.js did — and index.html links students straight into game.html,
+         so a student who typed a book chapter before ever opening the Lessons page
+         was never assigned to their class. ttbClassId stayed '', so every log
+         document written that session carried classId: '', making the student absent
+         from every class-filtered report and denying them their class's daily and
+         weekly goals. It self-healed whenever they happened to open learn.html,
+         which could be days. On day one of a 9-week rotation it is every newly
+         imported student at once, and it is silent.
+
+         Also: **the goals cache defeated the fix in both files.** loadGoals() writes
+         ttb_goalsCache_v1 with a 24 HOUR lifetime, so an unassigned student's cache
+         entry says classId: ''. applyPendingClassAssignment() writes the real class
+         and then calls loadGoals() to pick it up — which hit the entry written 200ms
+         earlier and returned the empty value again. learn.js's cache guard rejects an
+         entry with a classId but no className, and '' is falsy, so it sailed through
+         as a hit. Both pages share the key, so the poisoned entry followed the
+         student between them. Both now clear it before re-reading.
+
+         Verified by student-flow-test.mjs, which is new and walks a cold-start
+         student's first sign-in against the shipping functions. It fails four
+         assertions on the pre-fix code.
+
 
 #### v3.13.1
 
@@ -563,7 +597,29 @@ Adventure Mode integration; cross-file version banner
 
 ## `adventure-renderer.js`
 
-Current: **v1.2.0**
+Current: **v1.3.0**
+
+#### v1.3.0
+
+Round 6 (Noiseless). **Condensed map (>40 chapters): two bugs, both invisible on the
+book they were tested against.**
+
+         `frac` read `curIdx / n`. First, it ignored within-chapter progress, so the
+         "you are here" marker froze for an entire chapter and then jumped — while
+         the DOTTED map inks the current chapter to `progress` and creeps smoothly.
+         Second, it disagreed with the dotted map by a whole chapter: v1.2.0 fixed
+         the denominator to n but left the numerator alone, so dotY placed the marker
+         at (i+1)/n (the END of the current chapter) and this placed it at i/n (the
+         START). Crossing the 40-chapter threshold moved the marker backwards.
+
+         On Aesop's 284 fables a chapter is 0.35% of the strip and neither is
+         noticeable. On a 41-chapter book — one past the condensing threshold — it is
+         2.4% of a 500px strip, so the marker is stuck for ~12px of travel while the
+         student works. Now `(curIdx + progress) / n`, which at progress = 1 equals
+         dotY(curIdx) exactly. Asserted numerically in map-geometry-test.mjs at 41,
+         60 and 284 chapters — canvas geometry is arithmetic, so it is testable
+         without watching it run.
+
 
 #### v1.2.0
 
@@ -795,7 +851,30 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.23.2**
+Current: **v3.23.3**
+
+#### v3.23.3
+
+Round 6 (Noiseless). **One comment, corrected — but the comment was load-bearing
+misinformation.**
+
+         The AUTH block opened with "Staff identity from Auth custom claims (see
+         firestore.rules)". Four lines below it, the code's own comment said the
+         opposite: "the role comes from staff/{uid}, NOT from Auth custom claims."
+         The code does the latter. Two comments, four lines apart, in direct
+         contradiction.
+
+         Claims were the Round 1 design. `firestore.rules` v2.0.0 reversed it, and
+         the reversal is permanent for a structural reason: claims can only be
+         written by the Admin SDK, which needs a Cloud Functions deploy, which needs
+         a terminal — and this project deploys by uploading files in a browser.
+
+         Worth naming rather than silently deleting, because the same confusion is
+         why `firestore-rules.test.mjs` seeds roles as token claims and has never
+         matched the rules it tests. Round 6 recovered `MULTITENANCY.md`, the
+         document that specifies the claims model, which makes the stale wording
+         traceable to a source instead of mysterious. See that file's header box.
+
 
 #### v3.23.2
 
@@ -1580,7 +1659,13 @@ Current: **v1.6.0**
 
 ## `learn.js`
 
-Current: **v2.2.3**
+Current: **v2.2.4**
+
+#### v2.2.4
+
+Round 6 (Noiseless). Goals-cache half of the class-assignment bug — see game.js
+v3.14.0 for the full account, since the two files share the cache key and the defect.
+
 
 #### v2.2.3
 

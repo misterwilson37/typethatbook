@@ -1,10 +1,16 @@
-// admin.js v3.23.2
+// admin.js v3.23.3
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.23.3 — Comment fix, no behaviour change. The AUTH block's header comment said
+//           staff identity came from Auth custom claims; the comment four lines
+//           below it, and the code, correctly said staff/{uid} documents. Claims were
+//           reversed in firestore.rules v2.0.0 and are not coming back — they need a
+//           terminal. Round 6 recovered MULTITENANCY.md, which is where that idea
+//           came from, so the wrong wording is now traceable rather than mysterious.
 // v3.23.2 — HEADER ONLY, no code change. The entries below had stopped at v3.18.4
 //           while the constant read v3.23.1 — NINE releases, including Delete Book
 //           and the whole attribution/About system, were absent from the file that
@@ -23,10 +29,6 @@
 //           stable; not once v3.18.5's Fix C renumbers the Gutenberg books, which
 //           would otherwise strand chapter_21 and chapter_22 forever — readable,
 //           billable, and loadable by any student whose progress still pointed there.
-// v3.21.0 — "About this book": `about`, a new boolean per chapter, ORTHOGONAL to
-//           `matter`. matter says typeable, about says credits. Collapsing them is
-//           what made deleting front matter the only workable import, which
-//           deleted the copyright notice a CC licence requires be kept intact.
 //
 // ── Load-bearing ──────────────────────────────────────────────────────────
 //
@@ -46,7 +48,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.23.2";
+const ADMIN_VERSION = "3.23.3";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -540,9 +542,15 @@ if (genreSelect) {
 }
 
 // --- AUTH ---
-// Staff identity from Auth custom claims (see firestore.rules). ADMIN_EMAILS is
-// retained ONLY as a bootstrap fallback so the first staff document can be
-// created. Delete it once staff records exist.
+// Staff identity from the staff/{uid} DOCUMENT, not from Auth custom claims.
+// ⚠️ v3.23.3: this comment said "from Auth custom claims" while the comment four
+// lines below it, and the code, said the opposite. Claims were the Round 1 design
+// (MULTITENANCY.md) and firestore.rules v2.0.0 reversed it because claims need the
+// Admin SDK, which needs a terminal. The stale wording is worth naming rather than
+// just deleting: the same confusion is why firestore-rules.test.mjs seeds roles as
+// token claims and has never matched the rules it tests.
+// ADMIN_EMAILS is retained ONLY as a bootstrap fallback so the first staff document
+// can be created. Delete it once staff records exist.
 let _staffScope = { uid: null, role: null, schoolIds: [], readScope: 'own_classes' };
 
 onAuthStateChanged(auth, async (user) => {

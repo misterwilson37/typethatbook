@@ -4,7 +4,7 @@
 // be worse than the original bug.
 import { readFileSync } from 'fs';
 
-const SRC = readFileSync('/home/claude/work/game.js', 'utf8');
+const SRC = readFileSync(new URL('./game.js', import.meta.url), 'utf8');
 function lift(name) {
   const start = SRC.indexOf(`function ${name}(`);
   if (start < 0) throw new Error(name + ' not found');

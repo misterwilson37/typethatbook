@@ -18,13 +18,14 @@
 //   Waiting on the full corpus.
 import JSZip from 'jszip';
 import { readFileSync, readdirSync } from 'fs';
+import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM();
 const { DOMParser, Node, NodeFilter } = dom.window;
 globalThis.Node = Node; globalThis.NodeFilter = NodeFilter;
 const parser = new DOMParser();
-const SRC = readFileSync('/home/claude/work/admin.js', 'utf8');
+const SRC = readFileSync(new URL('./admin.js', import.meta.url), 'utf8');
 
 function lift(name) {
   const start = SRC.indexOf(`function ${name}(`);
@@ -157,11 +158,20 @@ async function parseBook(file, { fixA, fixB, fixC }) {
   return chapters;
 }
 
-const files = readdirSync('/home/claude/lib/library').filter(f => f.endsWith('.epub') && !f.startsWith('._')).sort();
-console.log('Comparing CURRENT vs CURRENT+FIX A+FIX B on all eight books.\n');
+// EPUB corpus. Defaults to the repo's own library/; pass a directory as argv[2]
+// to point it at a bigger one. This was a hardcoded sandbox path, so the harness
+// could not run outside the session that wrote it.
+const LIB = process.argv[2] || fileURLToPath(new URL('./library', import.meta.url));
+const files = readdirSync(LIB).filter(f => f.endsWith('.epub') && !f.startsWith('._')).sort();
+// Both counts were fabricated: the banner said "eight books" and the summary
+// divided by a hardcoded 42, whatever the corpus actually held. A differ that
+// reports a denominator no file backs up is the exact failure HANDOFF §0 is about,
+// so both now come from files.length.
+console.log('Comparing CURRENT vs CURRENT+FIX A+FIX B on ' + files.length +
+            ' book(s) in ' + LIB + '.\n');
 let totalChanged = 0; const COUNTS = [];
 for (const fn of files) {
-  const path = '/home/claude/lib/library/' + fn;
+  const path = LIB + '/' + fn;
   let base = null, next = null;
   for (let a = 0; a < 40; a++) { try { base = await parseBook(path, {}); break; } catch (e) { if (!retry(e)) throw e; } }
   for (let a = 0; a < 40; a++) { try { next = await parseBook(path, { fixA: true, fixB: true, fixC: true }); break; } catch (e) { if (!retry(e)) throw e; } }
@@ -193,4 +203,4 @@ console.log('book'.padEnd(46) + 'was'.padEnd(6) + 'now'.padEnd(6) + 'reclassifie
 console.log('-'.repeat(110));
 for (const [n, b, a, what] of COUNTS)
   console.log(n.slice(0,44).padEnd(46) + String(b).padEnd(6) + String(a).padEnd(6) + what);
-console.log('\nBooks whose body count changed: ' + COUNTS.length + ' of 42');
+console.log('\nBooks whose body count changed: ' + COUNTS.length + ' of ' + files.length);

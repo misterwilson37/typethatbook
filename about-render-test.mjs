@@ -6,7 +6,7 @@ import { readFileSync } from 'fs';
 import { JSDOM } from 'jsdom';
 globalThis.document = new JSDOM().window.document;
 
-const s = readFileSync('/home/claude/work/index.html', 'utf8');
+const s = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 function liftFn(name) {
   const k = s.indexOf('function ' + name + '(');
   if (k < 0) throw new Error(name + ' not found');

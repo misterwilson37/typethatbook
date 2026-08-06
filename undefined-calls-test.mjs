@@ -1,4 +1,8 @@
-// undefined-calls-test.mjs v1.1.0 — Round 6 (Noiseless).
+// undefined-calls-test.mjs v1.2.0 — Round 6 (Noiseless).
+//
+// v1.2.0 — Also checks inline <script> blocks in the HTML pages. v1.0.0/v1.1.0 read
+//          only the .js files and thereby skipped ~1,750 lines, 795 of them in
+//          index.html — the library, and the first page a student loads.
 //
 // v1.1.0 — Checks every identifier REFERENCE, not just call callees. v1.0.0 missed
 //          the one that mattered most. See the note above walk.ancestor below.
@@ -42,6 +46,32 @@ const FILES = [
     'keyboard.js', 'lessons-admin.js', 'staff-admin.js', 'versions.js',
     'firebase-config.js',
 ];
+
+// ⚠️ HTML PAGES TOO (v1.2.0). v1.0.0 and v1.1.0 checked only the .js files and so
+// skipped ~1,750 lines of inline module script — including 795 lines in index.html,
+// which is the library and the FIRST page a student loads. Two undeclared-identifier
+// bugs had already been found in the .js files; there was no reason to assume the
+// inline scripts were cleaner, and every reason to check the student-facing one.
+const HTML_FILES = [
+    'index.html', 'game.html', 'learn.html', 'admin.html', 'reports.html', 'appcheck.html',
+];
+
+// Pull every non-empty inline <script> body out of an HTML file, tracking the line
+// each block starts on so reported line numbers point into the real file.
+function inlineScripts(html) {
+    const out = [];
+    const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+    let m;
+    while ((m = re.exec(html)) !== null) {
+        const attrs = m[1] || '';
+        const body = m[2] || '';
+        if (/\bsrc\s*=/i.test(attrs)) continue;   // external file, checked elsewhere
+        if (!body.trim()) continue;
+        const before = html.slice(0, m.index + m[0].indexOf(body));
+        out.push({ body, startLine: before.split('\n').length });
+    }
+    return out;
+}
 
 // Globals the browser or the language provides. Deliberately explicit: an
 // allowlist that is easy to read is one whose additions get questioned.
@@ -135,20 +165,17 @@ function collectDeclared(ast) {
 let failures = 0;
 let checked = 0;
 
-for (const file of FILES) {
-    const path = fileURLToPath(new URL('./' + file, import.meta.url));
-    let src;
-    try { src = readFileSync(path, 'utf8'); }
-    catch { console.log(`  ??  ${file.padEnd(24)} not found — remove it from FILES or restore it`); failures++; continue; }
-
+// label is what gets printed; lineOffset shifts reported lines for inline blocks.
+function check(label, src, lineOffset = 0) {
     let ast;
     try {
         ast = acorn.parse(src, { ecmaVersion: 'latest', sourceType: 'module', locations: true });
     } catch (e) {
-        console.log(`  !!  ${file.padEnd(24)} PARSE ERROR ${e.message}`);
+        console.log(`  !!  ${label.padEnd(24)} PARSE ERROR ${e.message}`);
         failures++;
-        continue;
+        return;
     }
+    const file = label;
 
     const declared = collectDeclared(ast);
     const unresolved = new Map();
@@ -207,7 +234,7 @@ for (const file of FILES) {
                     break;
             }
 
-            if (!unresolved.has(name)) unresolved.set(name, node.loc.start.line);
+            if (!unresolved.has(name)) unresolved.set(name, node.loc.start.line + lineOffset);
         }
     });
 
@@ -220,6 +247,27 @@ for (const file of FILES) {
         for (const [name, line] of [...unresolved].sort((a, b) => a[1] - b[1]))
             console.log(`         ${file}:${line}  ${name}  is never declared, imported, or a known global`);
     }
+}
+
+function read(file) {
+    try { return readFileSync(fileURLToPath(new URL('./' + file, import.meta.url)), 'utf8'); }
+    catch { console.log(`  ??  ${file.padEnd(24)} not found — remove it from the list or restore it`); failures++; return null; }
+}
+
+for (const file of FILES) {
+    const src = read(file);
+    if (src !== null) check(file, src);
+}
+
+for (const file of HTML_FILES) {
+    const html = read(file);
+    if (html === null) continue;
+    const blocks = inlineScripts(html);
+    if (!blocks.length) { console.log(`  --  ${file.padEnd(24)} no inline script`); continue; }
+    blocks.forEach((b, k) => {
+        const label = blocks.length > 1 ? `${file}[${k}]` : file;
+        check(label, b.body, b.startLine - 1);
+    });
 }
 
 console.log('');

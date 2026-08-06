@@ -2,6 +2,7 @@
 // the shipping functions, not a copy — and runs them against a stub inner with
 // N callers arriving in the same tick. Same approach as the §B.7 harness.
 import { readFileSync } from 'fs';
+import { fileURLToPath } from 'node:url';
 
 function lift(file, fnName) {
   const src = readFileSync(file, 'utf8');
@@ -38,8 +39,9 @@ async function exercise(file, fnName, slotName, innerName, callers) {
 }
 
 const targets = [
-  ['/home/claude/work/game.js',  'flushAll',   '_flushInFlight',      '_flushAllInner'],
-  ['/home/claude/work/learn.js', 'flushStats', '_learnFlushInFlight', '_flushStatsInner'],
+  // Repo-relative, so this runs wherever the repo is checked out.
+  [fileURLToPath(new URL('./game.js', import.meta.url)),  'flushAll',   '_flushInFlight',      '_flushAllInner'],
+  [fileURLToPath(new URL('./learn.js', import.meta.url)), 'flushStats', '_learnFlushInFlight', '_flushStatsInner'],
 ];
 
 let allPass = true;

@@ -5,7 +5,7 @@ import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<div id="text-stream"></div>');
 globalThis.document = dom.window.document;
 
-const src = readFileSync('/home/claude/work/game.js', 'utf8');
+const src = readFileSync(new URL('./game.js', import.meta.url), 'utf8');
 function lift(n){const k=src.indexOf('function '+n+'(');let d=0;
   for(let x=src.indexOf('{',k);x<src.length;x++){if(src[x]==='{')d++;else if(src[x]==='}'){d--;if(!d)return src.slice(k,x+1);}}}
 const f = new Function('textStream','bookMetadata','currentBookId','document',

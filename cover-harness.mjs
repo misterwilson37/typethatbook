@@ -9,7 +9,7 @@ import { readFileSync } from 'fs';
 import { DOMParser } from '@xmldom/xmldom';
 
 // ── lift real functions ──────────────────────────────────────────────────────
-const SRC = readFileSync('/home/claude/work/admin.js', 'utf8');
+const SRC = readFileSync(new URL('./admin.js', import.meta.url), 'utf8');
 function lift(name) {
   const start = SRC.indexOf(`function ${name}(`);
   if (start < 0) throw new Error(`${name} not found`);
