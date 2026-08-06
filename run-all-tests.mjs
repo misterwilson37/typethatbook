@@ -28,6 +28,7 @@ const HERE = fileURLToPath(new URL('./', import.meta.url));
 // Fast: no external corpus, each runs in well under a second.
 const FAST = [
     ["undefined-calls-test.mjs", "every identifier reference resolves: 9 JS files + 3 inline HTML scripts"],
+    ["credits-scroll-test.mjs",  "end-of-book credits reel: rises into view, holds, shows every row"],
     ["student-flow-test.mjs",     "a cold-start student gets assigned, stamped and reportable"],
     ['verify-guards.mjs',        'flush re-entrancy guards at 2/3/6/12 concurrent callers'],
     ['chunktest.mjs',            'sprint rollup chunking: loss, duplication, the 200 cap'],
@@ -48,6 +49,26 @@ const EPUB = [
     ['scan2.mjs',             'suspect body chapters (Fix C candidates)'],
     ['fix-candidates.mjs',    'BEFORE/AFTER differ — collateral damage from importer changes'],
 ];
+
+// ⚠️ SYNTAX GATE. `node --check foo.js` parses a .js file as a SCRIPT, not a module,
+// and so accepts an ES module with an unclosed method — it did exactly that during
+// Round 6, and only an actual `import` surfaced it. Every shipped .js here is an ES
+// module, so they must be checked as modules. Cheap, and it fails loudly.
+import { readFileSync as _rf } from 'node:fs';
+const MODULES = ['game.js', 'learn.js', 'admin.js', 'adventure-renderer.js',
+                 'keyboard.js', 'lessons-admin.js', 'staff-admin.js', 'versions.js',
+                 'firebase-config.js'];
+let syntaxBad = 0;
+for (const f of MODULES) {
+    const r = spawnSync(process.execPath, ['--input-type=module', '--check'],
+                        { input: _rf(HERE + f, 'utf8'), encoding: 'utf8' });
+    if (r.status !== 0) {
+        syntaxBad++;
+        console.log(`  FAIL ${f.padEnd(26)} does not parse as an ES module`);
+        console.log((r.stderr || '').split('\n').slice(0, 4).map(l => '         ' + l).join('\n'));
+    }
+}
+if (!syntaxBad) console.log(`  ok   ${'(syntax)'.padEnd(26)} all ${MODULES.length} shipped modules parse as ES modules`);
 
 const withEpubs = process.argv.includes('--with-epubs');
 const suite = withEpubs ? [...FAST, ...EPUB] : FAST;
@@ -71,8 +92,8 @@ for (const [status, file, what, out] of results) {
 }
 
 console.log('');
-if (failed || missing) {
-    console.log(`${failed} failing, ${missing} missing, of ${suite.length} harnesses.`);
+if (failed || missing || syntaxBad) {
+    console.log(`${failed} failing, ${missing} missing, of ${suite.length} harnesses; ${syntaxBad} syntax failure(s).`);
     if (!withEpubs) console.log('(EPUB corpus harnesses not run — pass --with-epubs.)');
     process.exitCode = 1;
 } else {

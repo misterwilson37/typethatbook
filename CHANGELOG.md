@@ -25,7 +25,7 @@ there.
 ## Contents
 
 - [`game.js`](#gamejs) — currently v3.14.0
-- [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.3.0
+- [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.4.0
 - [`admin.js`](#adminjs) — currently v3.23.3
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.4
@@ -597,7 +597,52 @@ Adventure Mode integration; cross-file version banner
 
 ## `adventure-renderer.js`
 
-Current: **v1.3.0**
+Current: **v1.4.0**
+
+#### v1.4.0
+
+Round 6 (Noiseless). **End-of-book credits for Adventure — closing a dangling event,
+not adding a nicety.**
+
+         `game.js` has emitted `ttb:bookComplete` with the full credit payload since
+         v3.13.0, and nothing listened: one emit, zero listeners in the entire repo.
+         `game.js` also reads `if (VIEW_MODE !== 'adventure') renderClassicCredits()`
+         — so Adventure was deliberately opted out of the DOM credits in favour of a
+         canvas version that was never written. A student finishing a book in
+         Adventure saw no credits at all. The library is CC-licensed and attribution
+         is a licence term, so this was a compliance gap wearing the costume of a
+         missing feature.
+
+         Content mirrors `renderClassicCredits()` field for field — By / Source /
+         Licence / Text prepared by, in that order, plus the chapter count. Two views
+         of one book should not credit it differently, and an absent field is dropped
+         rather than credited blank. A book with no metadata says so in words instead
+         of scrolling an empty reel.
+
+         **The geometry is three pure exported functions, and it is tested.** Two
+         earlier rounds declined this work because canvas animation cannot be watched
+         from a session like this. That is true of APPEARANCE and false of POSITION
+         OVER TIME — the same distinction v1.3.0's condensed-map bug had been hiding
+         behind. `creditsContent()`, `layoutCredits()` and `creditsScroll()` take
+         injected text measurement and no canvas, and `credits-scroll-test.mjs`
+         asserts 3 viewport heights against 4 book shapes: nothing visible at t=0,
+         monotonic motion, every row fully visible at some point, the last row
+         resting on screen, no row exceeding the wrap width, and a watchable duration.
+         It **holds** at rest rather than scrolling away, so a student who looks up
+         late still finds the attribution.
+
+         The draw call is wrapped in try/catch and clears itself on failure. It runs
+         inside the requestAnimationFrame loop, where an exception would stop the loop
+         and freeze the whole canvas — figure, terrain, map — over a decorative
+         feature. Also cleared on `ttb:textLoaded`, so opening another book does not
+         leave the last one's credits pasted over live typing.
+
+         ⚠️ **What is NOT verified: how it looks.** Fonts, colours, and whether the
+         parchment wash sits well over the terrain need one human look. `#modal` is a
+         329px bottom panel rather than a full-screen overlay, so the reel is visible
+         behind the completion stats — the same relationship Classic's credits already
+         have with that modal.
+
 
 #### v1.3.0
 

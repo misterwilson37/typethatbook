@@ -1,4 +1,4 @@
-// adventure-renderer.js v1.3.0
+// adventure-renderer.js v1.4.0
 //
 // Canvas renderer for Adventure Mode. Observes ttb:* CustomEvents on document
 // and draws the typing session as a figure walking across word-platforms in a
@@ -7,6 +7,16 @@
 //
 // ── Full history: CHANGELOG.md § adventure-renderer.js ────────────────────
 //
+// v1.4.0 — END-OF-BOOK CREDITS. game.js has emitted ttb:bookComplete since 3.13.0
+//          and NOTHING listened — one emit, zero listeners repo-wide — while game.js
+//          also skipped renderClassicCredits() for Adventure. Finishing a book in
+//          Adventure therefore credited it nowhere, and these books are CC-licensed.
+//          Reel content mirrors renderClassicCredits() field for field. Geometry is
+//          three pure exported functions with text measurement injected, asserted by
+//          credits-scroll-test.mjs at 3 viewport heights x 4 book shapes: rises into
+//          view, moves monotonically, shows every row, and HOLDS rather than
+//          scrolling away. Draw call is wrapped — an exception inside the rAF loop
+//          would freeze the whole canvas over a decorative feature.
 // v1.3.0 — Condensed map (>40 chapters) now tracks within-chapter progress and
 //          agrees with the dotted map. It used curIdx/n: the marker froze for a
 //          whole chapter then jumped, and sat one chapter BEHIND the dotted map's
@@ -24,7 +34,6 @@
 //          was a bare backtick, which is a typeable key on the virtual
 //          keyboard, so students opened it by accident.
 // v0.4.0 — Backspace tilt-back corrections; left-edge chapter close-up strip.
-// v0.3.0 — Right-edge chapter map; pilcrow paragraph landing marks.
 //
 // ── Events consumed ───────────────────────────────────────────────────────
 //
@@ -40,12 +49,132 @@
 //   * Survives missed events — but draws NOTHING until the next textLoaded,
 //     which is why game.js replays it on a hot swap.
 
-export const RENDERER_VERSION = '1.3.0';
+export const RENDERER_VERSION = '1.4.0';
 
 // Above this many chapters, per-chapter dots overlap into an unreadable smear
 // and we switch to a continuous route with sparse ticks. 40 keeps every dot at
 // >= ~6px of vertical room on the shortest strip we render.
 const MAP_MAX_DOTS = 40;
+
+// ============================================================================
+// End-of-book credits — geometry (v1.4.0)
+// ============================================================================
+//
+// WHY THESE ARE PURE MODULE FUNCTIONS AND NOT METHODS
+//
+// Two rounds declined to build this on the grounds that it is canvas animation
+// nobody could watch run. That reasoning is half right: *appearance* cannot be
+// verified from a session like this, but *position over time* is arithmetic and
+// therefore testable — the same lesson the condensed map taught in v1.3.0. So all
+// the arithmetic lives here, out of the class, with text measurement injected, and
+// credits-scroll-test.mjs asserts it at several book sizes and viewport heights.
+// What is left inside the renderer is only the ctx calls.
+//
+// Content mirrors renderClassicCredits() in game.js deliberately — same fields,
+// same order, same labels. Two views of one book should not credit it differently.
+
+const CREDITS_SPEED_PX_S = 26;   // slow enough to read aloud
+const CREDITS_FADE_MS    = 900;  // opening fade so it does not snap in
+
+// Rows, top to bottom, with no measuring or wrapping yet. `kind` drives styling.
+export function creditsContent(d) {
+    const detail = d || {};
+    const rows = [{ kind: 'end', text: 'THE END' }];
+
+    // Classic falls back to 'This book'. An untitled book is a data problem, not a
+    // reason to render the word "undefined" at a student.
+    rows.push({ kind: 'title', text: String(detail.title || 'This book') });
+
+    const bits = [
+        ['By',               detail.author],
+        ['Source',           detail.source],
+        ['Licence',          detail.rights],
+        ['Text prepared by', detail.cleanedBy],
+    ].filter(([, v]) => v != null && String(v).trim() !== '');
+
+    for (const [label, value] of bits) {
+        rows.push({ kind: 'label', text: label.toUpperCase() });
+        rows.push({ kind: 'value', text: String(value).trim() });
+    }
+
+    if (!bits.length) {
+        rows.push({ kind: 'none', text: 'No credits were recorded for this edition.' });
+    }
+
+    // Chapter count is a fact about the student's effort, so it closes the reel.
+    const n = Number(detail.chapters);
+    if (Number.isFinite(n) && n > 0) {
+        rows.push({ kind: 'label', text: 'CHAPTERS TYPED' });
+        rows.push({ kind: 'value', text: String(n) });
+    }
+    return rows;
+}
+
+const CREDITS_STYLE = {
+    end:   { size: 13, gapBefore: 0,  gapAfter: 26, letterSpacing: 4 },
+    title: { size: 30, gapBefore: 0,  gapAfter: 34 },
+    label: { size: 11, gapBefore: 14, gapAfter: 6,  letterSpacing: 2 },
+    value: { size: 19, gapBefore: 0,  gapAfter: 0 },
+    none:  { size: 16, gapBefore: 0,  gapAfter: 0 },
+};
+
+// Wrap and stack. `measure(text, size)` returns a width in px; the renderer passes
+// one backed by ctx.measureText, the harness passes a deterministic stand-in.
+export function layoutCredits(rows, opts) {
+    const maxWidth = Math.max(80, opts.maxWidth);
+    const measure  = opts.measure;
+    const out = [];
+    let y = 0;
+
+    for (const row of rows) {
+        const st = CREDITS_STYLE[row.kind] || CREDITS_STYLE.value;
+        y += st.gapBefore;
+
+        // Greedy word wrap. A single word longer than maxWidth still gets its own
+        // line rather than looping forever — a URL in a licence field does this.
+        const words = String(row.text).split(/\s+/).filter(Boolean);
+        const lines = [];
+        let cur = '';
+        for (const word of words) {
+            const trial = cur ? cur + ' ' + word : word;
+            if (cur && measure(trial, st.size) > maxWidth) { lines.push(cur); cur = word; }
+            else cur = trial;
+        }
+        if (cur) lines.push(cur);
+        if (!lines.length) lines.push('');
+
+        for (const line of lines) {
+            out.push({ text: line, kind: row.kind, size: st.size,
+                       letterSpacing: st.letterSpacing || 0, y });
+            y += Math.round(st.size * 1.32);
+        }
+        y += st.gapAfter;
+    }
+    return { rows: out, contentH: y };
+}
+
+// Where the top of the content sits at `elapsedMs`, and whether it has settled.
+//
+// Starts at viewH — entirely below the bottom edge, so nothing pops into view at
+// t=0 — and rises at a constant rate until it reaches restY, then holds forever.
+// It must HOLD rather than scroll away: a student who looks up ten seconds late
+// should still find the book's attribution on screen, which is the whole point.
+export function creditsScroll(elapsedMs, contentH, viewH, speed) {
+    const v = speed || CREDITS_SPEED_PX_S;
+    // Rest with the content's last line a little above centre. For a reel taller
+    // than the viewport this is negative, i.e. the opening has scrolled off — normal.
+    // The min() stops SHORT content from settling in the lower half of the canvas.
+    const restY = Math.min(viewH * 0.15, viewH * 0.62 - contentH);
+    const raw = viewH - (Math.max(0, elapsedMs) / 1000) * v;
+    const y = Math.max(restY, raw);
+    return {
+        y,
+        restY,
+        done: y <= restY,
+        durationMs: ((viewH - restY) / v) * 1000,
+    };
+}
+
 
 const TEXT_FONT = '32px "IM Fell English", Georgia, serif';
 const SPACE_LABEL_FONT = 'italic 13px "IM Fell English", Georgia, serif';
@@ -189,6 +318,10 @@ class AdventureRenderer {
     // Helps chase rendering bugs by showing live internal state on top of
     // the canvas. Off by default; doesn't affect rendering when off.
     this._debug = false;
+    // End-of-book credits reel. null = not showing. Cleared on textLoaded so that
+    // navigating to another book, or replaying the last chapter, does not leave a
+    // finished book's credits pasted over live typing.
+    this._credits = null;
     this._eventLog = [];        // ring buffer of recent events for display
     this._eventLogMax = 12;
 
@@ -241,6 +374,13 @@ class AdventureRenderer {
     this._on('ttb:stats',       (d) => this._onStats(d));
     this._on('ttb:complete',    (d) => this._onComplete(d));
     this._on('ttb:backspaceUndo', (d) => this._onBackspaceUndo(d));
+    // ⚠️ v1.4.0. game.js has emitted this since 3.13.0 and NOTHING listened — one
+    // emit, zero listeners in the whole repo. game.js also does
+    // `if (VIEW_MODE !== 'adventure') renderClassicCredits()`, so Adventure was
+    // deliberately opted out of the DOM credits in favour of a canvas version that
+    // was never written. Net effect: finishing a book in Adventure credited it
+    // nowhere. The books are CC-licensed and attribution is a licence term.
+    this._on('ttb:bookComplete', (d) => this._onBookComplete(d));
 
     // Ctrl+Shift+` (or Cmd+Shift+` on a Mac) toggles the diagnostic overlay.
     // v1.0.0: was a bare backtick, which is a typeable key in the book text
@@ -428,6 +568,10 @@ class AdventureRenderer {
 
   _onTextLoaded(d) {
     this._cancelLeap();
+    // Any new text means the reel is over. Without this, finishing a book and then
+    // opening another one (or replaying the last chapter) would leave the previous
+    // book's credits pasted over live typing, with no way to dismiss them.
+    this._credits = null;
     this.fullText = (d && d.fullText) || '';
     this.currentPos = (d && typeof d.position === 'number') ? d.position : 0;
     // Chapter map data (absent on older game.js or in practice mode — the
@@ -1538,6 +1682,106 @@ class AdventureRenderer {
 
     // Diagnostic overlay (toggle with `)
     if (this._debug) this._drawDebugOverlay(now);
+
+    // End-of-book credits reel, on top of everything. try/catch because this runs
+    // inside the requestAnimationFrame loop: an exception here would stop the loop
+    // and freeze the entire canvas — the walking figure, the map, all of it — over
+    // a decorative feature. A book that fails to credit itself is a bug; a frozen
+    // screen at the moment a student finishes a book is worse.
+    if (this._credits) {
+      try { this._drawCredits(now); }
+      catch (e) {
+        console.warn('[TTB] credits reel failed, hiding it:', e);
+        this._credits = null;
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // End-of-book credits (v1.4.0)
+  // ---------------------------------------------------------------------------
+  _onBookComplete(d) {
+    this._logEvent('bookComplete');
+    // Re-laid out on each draw against the live width, so a rotate or a resize
+    // mid-reel rewraps instead of overflowing. Cheap: a couple of dozen rows.
+    this._credits = { detail: d || {}, startedAt: performance.now(), layout: null, layoutW: -1 };
+  }
+
+  _drawCredits(now) {
+    const ctx = this.ctx;
+    const c = this._credits;
+    const viewH = this.h;
+    const maxWidth = Math.min(560, this.w * 0.78);
+
+    if (!c.layout || c.layoutW !== maxWidth) {
+      const measure = (text, size) => {
+        ctx.font = size + 'px "IM Fell English", Georgia, serif';
+        return ctx.measureText(text).width;
+      };
+      c.layout = layoutCredits(creditsContent(c.detail), { maxWidth, measure });
+      c.layoutW = maxWidth;
+    }
+
+    const elapsed = now - c.startedAt;
+    const scroll = creditsScroll(elapsed, c.layout.contentH, viewH);
+    const cx = this.w / 2;
+
+    ctx.save();
+
+    // Parchment wash so ink-on-ink stays legible over the terrain and the figure.
+    const fadeIn = Math.min(1, elapsed / CREDITS_FADE_MS);
+    ctx.globalAlpha = 0.82 * fadeIn;
+    ctx.fillStyle = 'rgba(238, 228, 202, 1)';
+    ctx.fillRect(0, 0, this.w, viewH);
+
+    ctx.globalAlpha = fadeIn;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+
+    for (const row of c.layout.rows) {
+      const y = scroll.y + row.y;
+      // Skip rows off either edge. On a 284-chapter reel most rows are off-screen
+      // most of the time, and measureText on each of them every frame is waste.
+      if (y < -row.size * 2 || y > viewH + row.size) continue;
+
+      ctx.font = (row.kind === 'title' ? 'bold ' : '') +
+                 row.size + 'px "IM Fell English", Georgia, serif';
+      ctx.fillStyle = row.kind === 'label' ? 'rgba(43, 34, 26, 0.50)'
+                    : row.kind === 'end'   ? 'rgba(168, 80, 64, 0.85)'
+                    : 'rgba(43, 34, 26, 0.92)';
+
+      if (row.letterSpacing) {
+        // Letter-spacing by hand: ctx.letterSpacing is not in Safari, and these
+        // students are on iPads.
+        const chars = row.text.split('');
+        const total = chars.reduce((sum, ch) => sum + ctx.measureText(ch).width, 0)
+                      + row.letterSpacing * Math.max(0, chars.length - 1);
+        let x = cx - total / 2;
+        ctx.textAlign = 'left';
+        for (const ch of chars) {
+          ctx.fillText(ch, x, y);
+          x += ctx.measureText(ch).width + row.letterSpacing;
+        }
+        ctx.textAlign = 'center';
+      } else {
+        ctx.fillText(row.text, cx, y);
+      }
+    }
+
+    // A rule under the title, drawn only once the title is settled on screen.
+    const titleRow = c.layout.rows.find(r => r.kind === 'title');
+    if (titleRow) {
+      const ty = scroll.y + titleRow.y + titleRow.size * 1.32 + 8;
+      if (ty > 0 && ty < viewH) {
+        ctx.strokeStyle = 'rgba(168, 80, 64, 0.45)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(cx - 46, ty); ctx.lineTo(cx + 46, ty);
+        ctx.stroke();
+      }
+    }
+
+    ctx.restore();
   }
 
   // ---------------------------------------------------------------------------

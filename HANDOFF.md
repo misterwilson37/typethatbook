@@ -43,7 +43,7 @@ see §2.3 for why a version audit cannot catch a version lie.
 |---|---|---|---|
 | `lessons-admin.js` | **1.7.1** | ⚠️ **yes — real bug fix, upload first** | **yes** |
 | `learn.js` | **2.2.4** | ⚠️ **yes — two real bug fixes** | **yes** |
-| `adventure-renderer.js` | **1.3.0** | ⚠️ **yes — constant + condensed-map geometry** | **yes** |
+| `adventure-renderer.js` | **1.4.0** | ⚠️ **yes — condensed map + END CREDITS** | **yes** |
 | `admin.js` | **3.23.3** | header, `document.title`, one corrected comment | ask |
 | `admin.html` | — (no constant; title driven from `admin.js`) | yes | ask |
 | `TTL-GUIDE.md` | **1.4.1** | ✅ recovered — verified accurate | **yes, commit it** |
@@ -269,29 +269,25 @@ archive.
   `ADMIN_VERSION`, so the field that once read v3.3.0 for nineteen minor versions
   cannot drift again.
 
-### 4.3 Adventure end-of-book credits — a DANGLING EVENT, not just a missing feature
+### 4.3 Adventure end-of-book credits — BUILT in Round 6
 
-⚠️ **Restated after checking, Round 6.** This is worse than "not built yet".
-`game.js` line ~3392 reads `if (VIEW_MODE !== 'adventure') renderClassicCredits();`
-then emits `bookComplete` for the renderer to handle — and **`bookComplete` has exactly
-one reference in the entire repo: the emit.** Nothing listens. So Classic shows credits
-and Adventure shows *nothing*, by a deliberate skip written in anticipation of a
-feature that never landed. The books are CC-licensed and attribution is a licence
-term, so this is not cosmetic.
+Was a dangling event, now wired. `ttb:bookComplete` had one emit and zero listeners
+while `game.js` skipped `renderClassicCredits()` for Adventure, so finishing a book in
+Adventure credited it nowhere — a licence-compliance gap, not a missing nicety.
 
-Partial mitigation, worth knowing: the completion modal's "\u2139 Who made this book"
-link into the About panel is unconditional and appears in **both** modes, so
-attribution is reachable — just not shown.
+Content mirrors Classic field for field. Geometry lives in three pure exported
+functions (`creditsContent`, `layoutCredits`, `creditsScroll`) with text measurement
+injected, asserted by `credits-scroll-test.mjs` across 3 viewports x 4 book shapes.
 
-`game.js` 3.13.x emits `ttb:bookComplete` carrying the credit fields
-(`title/author/source/rights/cleanedBy/chapters`), so the renderer needs no extra
-Firestore read. Classic already renders its credits into the text stream. Adventure
-should scroll them up the canvas — the renderer owns that surface and already animates.
+⚠️ **The one thing outstanding is a human look.** Fonts, colours, and whether the
+parchment wash reads well over the terrain are not testable from here. Finish a short
+book in Adventure once. `#modal` is a 329px bottom panel, not a full-screen overlay,
+so the reel is visible behind the completion stats.
 
-⚠️ **Not built, for the same reason Mignon did not build it: it is canvas animation
-and I cannot watch it run.** Do not ship motion you cannot see. Jake was offered this
-explicitly and chose the cleanup instead. If a future session can actually observe the
-canvas, this is the piece to take.
+⚠️ **The transferable lesson, which cost two rounds:** "it's canvas, I can't watch it
+run" is a reason not to judge APPEARANCE. It is not a reason to skip POSITION OVER
+TIME, which is arithmetic. The condensed-map bug in v1.3.0 survived three rounds
+behind that excuse.
 
 ### 4.4 The text-cleanup pass (designed, not built)
 
@@ -345,6 +341,10 @@ id-is-a-label rule and the `ttb_booksCache_v*` bump rule. Adding:
 13. **A version audit cannot catch a version lie.** It compares a file's claims
     against the same file's other claims. Only a behavioural test knows what the code
     actually does.
+13b. **`node --check foo.js` does NOT check an ES module.** It parses a `.js` file as
+    a script and will happily accept a class with an unclosed method — it did exactly
+    that in Round 6, and only an actual `import` surfaced it. `run-all-tests.mjs` now
+    gates every shipped module with `node --input-type=module --check`.
 14. **A harness with an absolute path is not a harness.** If it cannot run in a fresh
     checkout it is a comment, and nobody can tell broken from passing.
 15. **A hardcoded denominator in a diagnostic is worse than no diagnostic.**
