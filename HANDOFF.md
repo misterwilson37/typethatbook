@@ -44,7 +44,7 @@ see §2.3 for why a version audit cannot catch a version lie.
 | `lessons-admin.js` | **1.7.1** | ⚠️ **yes — real bug fix, upload first** | **yes** |
 | `learn.js` | **2.2.4** | ⚠️ **yes — two real bug fixes** | **yes** |
 | `adventure-renderer.js` | **1.4.0** | ⚠️ **yes — condensed map + END CREDITS** | **yes** |
-| `admin.js` | **3.23.3** | header, `document.title`, one corrected comment | ask |
+| `admin.js` | **3.24.1** | ⚠️ **yes — new-book upload was impossible** | **YES, FIRST** |
 | `admin.html` | — (no constant; title driven from `admin.js`) | yes | ask |
 | `TTL-GUIDE.md` | **1.4.1** | ✅ recovered — verified accurate | **yes, commit it** |
 | `SCALE-PLAN.md` | **1.3.0** | ✅ recovered + status corrections | yes, commit |
@@ -152,6 +152,24 @@ sat a whole chapter behind the dotted map's `(i+1)/n`. Now `(curIdx + progress) 
 5 and 6 both declined canvas work on the grounds of not being able to see it run; that
 reasoning holds for *appearance* and not for *position*. `map-geometry-test.mjs` now
 asserts the condensed map at 41, 60 and 284 chapters.
+
+### 2.2d Adding a new book was impossible (admin.js v3.24.1)
+
+`uploadAllBtn.onclick` called `val()`, declared `const` inside a different function.
+ReferenceError — in the ELSE branch, the one that runs only for a book that does not
+exist yet. The `alreadyExists` branch reads `bookTitlesMap` and was fine, so
+**re-uploading worked and adding a new book died silently.** Broken since v3.23.0 and
+invisible against an already-imported library, where every upload is an overwrite.
+
+⚠️ **Found by Jake pasting a Safari console error, not by me.** Safari says "Can't
+find variable: val"; Chrome buries the same thing in an unhandled rejection. When a
+report is vague, ask which browser — the error text is not equally useful in both.
+
+Alongside it: the metadata autofill had been erased one click after running, because
+v3.23.0's tag clear wiped what the `change`-event autofill had just filled. Every
+new-book import since had lost genre, ages, protagonist, source, licence, archive,
+cleanedby and origin, keeping only title, author and cover — the three that live
+outside the cleared set.
 
 ### 2.3 `adventure-renderer.js` shipped with its constant a version behind its code
 
@@ -332,6 +350,15 @@ here; go and read it.** Note the built Augie EPUB is not in the zip I received.
 Round 5's ten are **not repeated here.** Read `HANDOFF-round5.md` §5, especially the
 id-is-a-label rule and the `ttb_booksCache_v*` bump rule. Adding:
 
+10b. **"Declared somewhere in the file" is not "in scope here".** `val` was a `const`
+    inside one function, called from another. `undefined-calls-test.mjs` v1.0-v1.2
+    matched names file-wide and reported admin.js clean; v1.3.0 builds real scopes
+    (var/function to the nearest function, let/const/class to the nearest block) and
+    catches it. **Three bugs of this one class shipped in this codebase.** It is the
+    single highest-yield thing to check.
+10c. **A bug that only fires on the path you never take is invisible indefinitely.**
+    New-book upload was dead for three versions because the library was already
+    imported. Ask "which branch has nobody run lately?"
 11. **An undeclared identifier throws in *every* expression position, not only when
     called.** Passing one to `addEventListener` is as fatal as invoking it, and it
     takes down every statement after it in the same function.

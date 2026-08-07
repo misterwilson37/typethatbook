@@ -1,4 +1,4 @@
-// undefined-calls-test.mjs v1.2.0 — Round 6 (Noiseless).
+// undefined-calls-test.mjs v1.3.0 — Round 6 (Noiseless).
 //
 // v1.2.0 — Also checks inline <script> blocks in the HTML pages. v1.0.0/v1.1.0 read
 //          only the .js files and thereby skipped ~1,750 lines, 795 of them in
@@ -108,58 +108,140 @@ const EXTRA_GLOBALS = new Set([
     'Tone',       // audio unlock; see the Firefox sign-in note in the README
 ]);
 
-// Collect every binding a scope can see. Params, declarations, imports,
-// function/class names, catch clauses, labels — anything that makes an identifier
-// resolvable without leaving the file.
-function collectDeclared(ast) {
-    const names = new Set();
-    const addPattern = (node) => {
-        if (!node) return;
-        switch (node.type) {
-            case 'Identifier': names.add(node.name); break;
-            case 'ObjectPattern':
-                for (const p of node.properties)
-                    addPattern(p.type === 'RestElement' ? p.argument : p.value);
-                break;
-            case 'ArrayPattern':
-                for (const e of node.elements) addPattern(e);
-                break;
-            case 'AssignmentPattern': addPattern(node.left); break;
-            case 'RestElement':      addPattern(node.argument); break;
-        }
-    };
+// ─── Scope analysis ──────────────────────────────────────────────────────────
+//
+// ⚠️ v1.3.0 MADE THIS SCOPE-AWARE, AND THAT IS THE WHOLE POINT OF THE FILE NOW.
+//
+// v1.0.0-v1.2.0 collected every declaration in a file into one flat set and asked
+// "is this name declared ANYWHERE in the file". That is not the question the
+// runtime asks. admin.js declared `const val = ...` inside readBookMetadataForm()
+// and called val() from inside uploadAllBtn.onclick — a different function, so a
+// ReferenceError at runtime — and this harness reported admin.js clean, because the
+// name did appear in the file. It was the third bug of this exact class in one
+// session and the only one the tool got wrong.
+//
+// So: build real scopes. `var` and function declarations belong to the nearest
+// FUNCTION; `let`, `const` and `class` belong to the nearest BLOCK. A reference
+// resolves only if some scope on its ancestor chain declares it.
 
-    walk.full(ast, (node) => {
-        switch (node.type) {
-            case 'VariableDeclarator': addPattern(node.id); break;
-            case 'FunctionDeclaration':
-            case 'FunctionExpression':
-            case 'ArrowFunctionExpression':
-                if (node.id) names.add(node.id.name);
-                for (const p of node.params) addPattern(p);
-                break;
-            case 'ClassDeclaration':
-            case 'ClassExpression':
-                if (node.id) names.add(node.id.name);
-                break;
-            case 'CatchClause': addPattern(node.param); break;
-            case 'ImportSpecifier':
-            case 'ImportDefaultSpecifier':
-            case 'ImportNamespaceSpecifier':
-                names.add(node.local.name);
-                break;
-            // `window.foo = ...` publishes a global the file may then call bare.
-            case 'AssignmentExpression':
-                if (node.left.type === 'MemberExpression' &&
-                    node.left.object.type === 'Identifier' &&
-                    (node.left.object.name === 'window' || node.left.object.name === 'globalThis') &&
-                    node.left.property.type === 'Identifier') {
-                    names.add(node.left.property.name);
+const FN_TYPES = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression']);
+const BLOCK_SCOPES = new Set(['BlockStatement', 'ForStatement', 'ForInStatement',
+                              'ForOfStatement', 'SwitchStatement', 'CatchClause',
+                              'StaticBlock', 'ClassBody']);
+
+function patternNames(node, out) {
+    if (!node) return out;
+    switch (node.type) {
+        case 'Identifier': out.add(node.name); break;
+        case 'ObjectPattern':
+            for (const p of node.properties)
+                patternNames(p.type === 'RestElement' ? p.argument : p.value, out);
+            break;
+        case 'ArrayPattern':      for (const e of node.elements) patternNames(e, out); break;
+        case 'AssignmentPattern': patternNames(node.left, out); break;
+        case 'RestElement':       patternNames(node.argument, out); break;
+    }
+    return out;
+}
+
+// Statements directly owned by a scope node, without descending into nested
+// functions (for var hoisting) or nested blocks (for let/const).
+function bodyOf(node) {
+    if (node.type === 'Program' || node.type === 'BlockStatement' || node.type === 'StaticBlock')
+        return node.body;
+    if (FN_TYPES.has(node.type)) return node.body && node.body.body ? node.body.body : [];
+    if (node.type === 'SwitchStatement') return node.cases.flatMap(c => c.consequent);
+    if (node.type === 'ClassBody') return node.body;
+    return [];
+}
+
+// Everything hoisted to a FUNCTION scope: params, `var`, function declarations —
+// found anywhere below, except inside another function.
+function functionScopeNames(fnNode) {
+    const out = new Set();
+    if (fnNode.id) out.add(fnNode.id.name);
+    if (fnNode.params) for (const p of fnNode.params) patternNames(p, out);
+    if (fnNode.type !== 'Program') out.add('arguments');
+
+    const root = fnNode.type === 'Program' ? fnNode
+               : (fnNode.body && fnNode.body.type === 'BlockStatement' ? fnNode.body : null);
+    if (!root) return out;
+
+    (function descend(node) {
+        for (const key of Object.keys(node)) {
+            const child = node[key];
+            if (!child || typeof child !== 'object') continue;
+            const kids = Array.isArray(child) ? child : [child];
+            for (const k of kids) {
+                if (!k || typeof k.type !== 'string') continue;
+                if (FN_TYPES.has(k.type)) {                 // stop: new function scope
+                    if (k.type === 'FunctionDeclaration' && k.id) out.add(k.id.name);
+                    continue;
                 }
-                break;
+                if ((k.type === 'ExportNamedDeclaration' || k.type === 'ExportDefaultDeclaration')
+                    && k.declaration && k.declaration.type === 'FunctionDeclaration'
+                    && k.declaration.id) out.add(k.declaration.id.name);
+                if (k.type === 'VariableDeclaration' && k.kind === 'var')
+                    for (const d of k.declarations) patternNames(d.id, out);
+                if (k.type === 'FunctionDeclaration' && k.id) out.add(k.id.name);
+                descend(k);
+            }
         }
-    });
+    })(root);
+    return out;
+}
+
+// let / const / class / function declared DIRECTLY in this block.
+function blockScopeNames(node) {
+    const out = new Set();
+    if (node.type === 'CatchClause') { patternNames(node.param, out); return out; }
+    if (node.type === 'ForStatement' && node.init &&
+        node.init.type === 'VariableDeclaration' && node.init.kind !== 'var')
+        for (const d of node.init.declarations) patternNames(d.id, out);
+    if ((node.type === 'ForInStatement' || node.type === 'ForOfStatement') &&
+        node.left && node.left.type === 'VariableDeclaration' && node.left.kind !== 'var')
+        for (const d of node.left.declarations) patternNames(d.id, out);
+    for (let st of bodyOf(node)) {
+        if (!st) continue;
+        // `export const X = ...` is an ExportNamedDeclaration WRAPPING the
+        // declaration. Missing this made every exported const look undeclared.
+        if ((st.type === 'ExportNamedDeclaration' || st.type === 'ExportDefaultDeclaration')
+            && st.declaration) st = st.declaration;
+        if (st.type === 'VariableDeclaration' && st.kind !== 'var')
+            for (const d of st.declarations) patternNames(d.id, out);
+        if (st.type === 'ClassDeclaration' && st.id) out.add(st.id.name);
+        if (st.type === 'FunctionDeclaration' && st.id) out.add(st.id.name);
+    }
+    return out;
+}
+
+const _cache = new WeakMap();
+function scopeNames(node) {
+    if (_cache.has(node)) return _cache.get(node);
+    let names;
+    if (node.type === 'Program' || FN_TYPES.has(node.type)) {
+        names = functionScopeNames(node);
+        for (const n of blockScopeNames(node)) names.add(n);
+    } else {
+        names = blockScopeNames(node);
+    }
+    _cache.set(node, names);
     return names;
+}
+
+// Module-level names an ES module gets from imports and from `window.x = ...`.
+function moduleLevelExtras(ast) {
+    const out = new Set();
+    walk.full(ast, (node) => {
+        if (node.type === 'ImportSpecifier' || node.type === 'ImportDefaultSpecifier' ||
+            node.type === 'ImportNamespaceSpecifier') out.add(node.local.name);
+        if (node.type === 'AssignmentExpression' &&
+            node.left.type === 'MemberExpression' &&
+            node.left.object.type === 'Identifier' &&
+            (node.left.object.name === 'window' || node.left.object.name === 'globalThis') &&
+            node.left.property.type === 'Identifier') out.add(node.left.property.name);
+    });
+    return out;
 }
 
 let failures = 0;
@@ -177,8 +259,18 @@ function check(label, src, lineOffset = 0) {
     }
     const file = label;
 
-    const declared = collectDeclared(ast);
+    const extras = moduleLevelExtras(ast);
     const unresolved = new Map();
+    const resolves = (name, ancestors) => {
+        if (extras.has(name) || GLOBALS.has(name) || EXTRA_GLOBALS.has(name)) return true;
+        for (let i = ancestors.length - 1; i >= 0; i--) {
+            const a = ancestors[i];
+            if (a.type === 'Program' || FN_TYPES.has(a.type) || BLOCK_SCOPES.has(a.type)) {
+                if (scopeNames(a).has(name)) return true;
+            }
+        }
+        return false;
+    };
 
     // ⚠️ REFERENCES, NOT JUST CALLS (v1.1.0). The first version of this file only
     // examined CallExpression callees. It found learn.js's finishLesson() and
@@ -191,8 +283,6 @@ function check(label, src, lineOffset = 0) {
     walk.ancestor(ast, {
         Identifier(node, _state, ancestors) {
             const name = node.name;
-            if (declared.has(name) || GLOBALS.has(name) || EXTRA_GLOBALS.has(name)) return;
-
             const parent = ancestors[ancestors.length - 2];
             if (!parent) return;
 
@@ -234,13 +324,14 @@ function check(label, src, lineOffset = 0) {
                     break;
             }
 
+            if (resolves(name, ancestors)) return;
             if (!unresolved.has(name)) unresolved.set(name, node.loc.start.line + lineOffset);
         }
     });
 
     checked++;
     if (!unresolved.size) {
-        console.log(`  ok  ${file.padEnd(24)} ${declared.size} bindings, every reference resolves`);
+        console.log(`  ok  ${file.padEnd(24)} every reference resolves in its own scope`);
     } else {
         failures += unresolved.size;
         console.log(`  FAIL ${file.padEnd(23)} ${unresolved.size} reference(s) to nothing:`);

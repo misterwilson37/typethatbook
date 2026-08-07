@@ -1,10 +1,17 @@
-// admin.js v3.24.0
+// admin.js v3.24.1
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.24.1 — ⚠️ ADDING A NEW BOOK WAS IMPOSSIBLE. uploadAllBtn.onclick called val()
+//           from outside the function that declared it, in the else branch that
+//           runs only for a book that does not exist yet: "Can't find variable:
+//           val", upload aborted, nothing written. Broken since v3.23.0 and hidden
+//           by an already-imported library, where every upload is an overwrite.
+//           val() hoisted to module scope. Also: ARCHIVE_BASE_DEFAULT corrected to
+//           https://www.misterwilson.org/library.
 // v3.24.0 — TWO IMPORT FIXES. (1) autofillFromEpub() now re-runs AFTER the new-book
 //           tag clear instead of only before it. v3.23.0 added a clear of genre /
 //           ages / protagonist / source / licence / archive / cleanedby / origin so
@@ -31,10 +38,6 @@
 //           careless Return from gone. Counts chapters before asking, and deletes
 //           them before the book record so a half-failure is visible instead of an
 //           invisible pile of orphans. Plus three more panel fixes.
-// v3.22.1 — admin.html layout only: the metadata block had become one row of nine
-//           columns with hint paragraphs taller than the inputs they described.
-//           Two rows now, identity/tagging then provenance.
-// ── Load-bearing ──────────────────────────────────────────────────────────
 //
 //   * loadBookList(selectFirst) defaults to FALSE and preserves the current
 //     selection. Passing true fires onchange, which hides the staging area
@@ -52,7 +55,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.24.0";
+const ADMIN_VERSION = "3.24.1";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -1014,8 +1017,7 @@ async function readEpubMetadata(file) {
 // Where your own copies of the source EPUBs live. Overridable at runtime by setting
 // window.TTB_ARCHIVE_BASE so the base can move without a code change; this constant
 // is only the fallback.
-const ARCHIVE_BASE_DEFAULT =
-    'https://github.com/misterwilson/typethatbook/raw/main/library';
+const ARCHIVE_BASE_DEFAULT = 'https://www.misterwilson.org/library';
 
 async function autofillFromEpub(file) {
     const st = document.getElementById('autofill-status');
@@ -3222,6 +3224,26 @@ function readGenreField() {
 //
 // Returns { ok:false, msg } or { ok:true, data } where data is written verbatim
 // with merge:true. null is a real, storable value here — it means "untagged".
+// ⚠️ MODULE SCOPE ON PURPOSE (v3.24.1). This was `const val = ...` INSIDE
+// readBookMetadataForm(), and uploadAllBtn.onclick called it from a different
+// function entirely:
+//
+//     } else {
+//         if (!confirm(`Create "${val('active-book-title') || activeBookId}" ...
+//
+// which is a ReferenceError, in the ELSE branch — the BRAND NEW BOOK path. The
+// `alreadyExists` branch reads bookTitlesMap instead and was fine, so re-uploading
+// an existing book worked and **adding any new book has been impossible since
+// v3.23.0**, when that confirm was introduced. A library that is already imported
+// hides this completely: every book you touch is an overwrite.
+//
+// Safari names it plainly ("Can't find variable: val"); Chrome buries it in an
+// unhandled rejection, which is why it sat unreported.
+function val(id) {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+}
+
 function readBookMetadataForm(title) {
     const t = String(title || '').trim();
     if (!t) return { ok: false, msg: 'Title required.' };
@@ -3229,7 +3251,6 @@ function readBookMetadataForm(title) {
     const age = readAgeRange();
     if (!age.ok) return { ok: false, msg: age.msg };
 
-    const val = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
     return { ok: true, data: {
         title: t,
         author: val('active-book-author'),

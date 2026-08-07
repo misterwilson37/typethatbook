@@ -26,7 +26,7 @@ there.
 
 - [`game.js`](#gamejs) — currently v3.14.0
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.4.0
-- [`admin.js`](#adminjs) — currently v3.23.3
+- [`admin.js`](#adminjs) — currently v3.24.1
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.4
 - [`index.html`](#indexhtml) — currently v3.6.1
@@ -896,7 +896,52 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.23.3**
+Current: **v3.24.1**
+
+#### v3.24.1
+
+Round 6 (Noiseless). **⚠️ ADDING A NEW BOOK WAS IMPOSSIBLE. Found by Jake's console,
+not by me.**
+
+         `uploadAllBtn.onclick` called `val('active-book-title')`. `val` was declared
+         `const` INSIDE `readBookMetadataForm()` — a different function — so the call
+         was a ReferenceError. It sits in the ELSE branch of the overwrite check, the
+         one that runs only for a book that does not exist yet; the `alreadyExists`
+         branch reads `bookTitlesMap` and was fine.
+
+         So re-uploading an existing book worked perfectly and adding a new one died
+         before writing a single document. Broken since v3.23.0, when that confirm
+         was introduced, and completely hidden by an already-imported library where
+         every upload is an overwrite. Safari names it ("Can't find variable: val");
+         Chrome buries it in an unhandled rejection, which is why it went unreported
+         for three versions.
+
+         `val()` hoisted to module scope. Also corrected ARCHIVE_BASE_DEFAULT to
+         `https://www.misterwilson.org/library`.
+
+#### v3.24.0
+
+Round 6 (Noiseless). **Two import fixes.**
+
+         **(1) The metadata autofill was being erased one click after it ran.**
+         `autofillFromEpub()` fires on the file input's `change` event, so the fields
+         are populated before Parse is ever clicked. v3.23.0 then added a clear of
+         genre, ages, protagonist, source, licence, archive, cleanedby and origin, so
+         a second import could not inherit the first book's tags — a correct fix in
+         the wrong order. It wiped exactly what autofill had just written. The
+         guarded re-fill higher up could not save it: that only fires when the id or
+         title is blank, and autofill had filled those too.
+
+         Since v3.23.0, every new-book import silently lost every field except title,
+         author and cover — which survive only because they live outside the cleared
+         set. It presents as "the importer never read the metadata", which is the
+         opposite of the truth. Autofill now re-runs after the clear; it is safe to
+         call twice because it only ever writes into an empty field.
+
+         **(2) Archive URL fills from the picked file's name** against
+         ARCHIVE_BASE_DEFAULT, overridable at runtime via `window.TTB_ARCHIVE_BASE`.
+         Jake asked for this and it was lost across a handoff.
+
 
 #### v3.23.3
 
