@@ -1,10 +1,19 @@
-// admin.js v3.23.3
+// admin.js v3.24.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.24.0 — TWO IMPORT FIXES. (1) autofillFromEpub() now re-runs AFTER the new-book
+//           tag clear instead of only before it. v3.23.0 added a clear of genre /
+//           ages / protagonist / source / licence / archive / cleanedby / origin so
+//           one book could not inherit the previous book's tags — correct, but
+//           autofill runs on the file input's `change` event, so the clear wiped
+//           everything it had just filled. Since v3.23.0 EVERY new-book import
+//           silently lost every field except title, author and cover, which survive
+//           only because they sit outside the cleared set. (2) Archive URL is filled
+//           from the picked file's own name against ARCHIVE_BASE_DEFAULT.
 // v3.23.3 — Comment fix, no behaviour change. The AUTH block's header comment said
 //           staff identity came from Auth custom claims; the comment four lines
 //           below it, and the code, correctly said staff/{uid} documents. Claims were
@@ -25,11 +34,6 @@
 // v3.22.1 — admin.html layout only: the metadata block had become one row of nine
 //           columns with hint paragraphs taller than the inputs they described.
 //           Two rows now, identity/tagging then provenance.
-// v3.22.0 — Upload All PRUNES orphaned chapter documents. Survivable while ids were
-//           stable; not once v3.18.5's Fix C renumbers the Gutenberg books, which
-//           would otherwise strand chapter_21 and chapter_22 forever — readable,
-//           billable, and loadable by any student whose progress still pointed there.
-//
 // ── Load-bearing ──────────────────────────────────────────────────────────
 //
 //   * loadBookList(selectFirst) defaults to FALSE and preserves the current
@@ -48,7 +52,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.23.3";
+const ADMIN_VERSION = "3.24.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -1007,6 +1011,12 @@ async function readEpubMetadata(file) {
 
 // Fires the moment a file is chosen. Never overwrites something already typed:
 // if you deliberately set an id, the file does not get to argue.
+// Where your own copies of the source EPUBs live. Overridable at runtime by setting
+// window.TTB_ARCHIVE_BASE so the base can move without a code change; this constant
+// is only the fallback.
+const ARCHIVE_BASE_DEFAULT =
+    'https://github.com/misterwilson/typethatbook/raw/main/library';
+
 async function autofillFromEpub(file) {
     const st = document.getElementById('autofill-status');
     const say = (m, c) => { if (st) { st.textContent = m; st.style.color = c || '#888'; }
@@ -1051,6 +1061,27 @@ async function autofillFromEpub(file) {
                 'will show on the library card. Do not clear it unless the book is public domain.',
                 '#ffaa00');
         }
+        // ── ARCHIVE URL from the picked file's own name (v3.24.0) ─────────────
+        //
+        // Jake asked for this and it went missing across a handoff. Archive URL is
+        // "your copy of the EPUB this was built from", and in practice that is
+        // always ARCHIVE_BASE + the exact filename sitting in the file picker —
+        // which the browser has already handed us. Typing it by hand is both
+        // tedious and the kind of thing that gets a character wrong once in forty
+        // books and is never noticed, because nothing ever fetches the URL.
+        //
+        // ARCHIVE_BASE lives in settings/config so it can be changed without a code
+        // edit; the constant below is only the fallback. Filled ONLY when the field
+        // is empty, like everything else here.
+        const archiveEl = document.getElementById('active-book-archive');
+        if (file.name && archiveEl && !archiveEl.value.trim()) {
+            const base = (window.TTB_ARCHIVE_BASE || ARCHIVE_BASE_DEFAULT).replace(/\/+$/, '');
+            // encodeURIComponent, not raw: apostrophes and spaces are legal in a
+            // filename and are not legal, unescaped, in a URL.
+            archiveEl.value = base + '/' + encodeURIComponent(file.name);
+            filled.push('archive URL');
+        }
+
         say(filled.length
             ? '\u2713 Filled in ' + filled.join(', ') + '. Check it, then parse. ' +
               '(Age range still needs you.)'
@@ -1101,6 +1132,29 @@ createParseBtn.onclick = async () => {
     writeSelectOrCustom('active-book-rights', '');
     const cgi = document.getElementById('custom-genre-input');
     if (cgi) { cgi.value = ''; cgi.classList.add('hidden'); }
+
+    // ⚠️ RE-FILL AFTER THE CLEAR, NOT BEFORE IT (v3.24.0).
+    //
+    // The clear immediately above was correct and the ORDER around it was not.
+    // autofillFromEpub() runs on the file input's `change` event, so by the time
+    // Parse is clicked the fields are already populated — and then this block wipes
+    // genre, ages, protagonist, source, licence, archive, cleanedby and origin. The
+    // conditional call further up cannot save them: it only fires when the id or
+    // title is blank, and autofill filled those on change too, so it is skipped in
+    // exactly the case where it was needed.
+    //
+    // Net effect since v3.23.0: EVERY new-book import silently lost every field
+    // except title, author and cover. Those three survive only because they live
+    // outside the cleared set. It looks like "the importer never read the metadata",
+    // which is the opposite of what happened — it read it, filled it, and then the
+    // next click threw it away.
+    //
+    // Safe to call twice: autofill only ever writes into a field it finds EMPTY, and
+    // everything it touches was just emptied. That is also why it must come after
+    // the author pre-fill below is NOT true — author is handled separately and
+    // deliberately, so this runs first and leaves a typed author alone.
+    await autofillFromEpub(file);
+
     // Pre-fill author if user typed one
     const newAuthor = document.getElementById('new-book-author');
     const stagingAuthor = document.getElementById('active-book-author');
