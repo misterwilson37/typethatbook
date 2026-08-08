@@ -25,6 +25,7 @@
 //   · no row exceeds the wrap width        — canvas does not clip, it overflows
 //   · a book with no metadata still works  — says so in words, renders no "undefined"
 import assert from 'assert';
+import { readFileSync } from 'node:fs';
 import { creditsContent, layoutCredits, creditsScroll } from './adventure-renderer.js';
 
 // Deterministic stand-in for ctx.measureText: 0.55em average glyph width. The real
@@ -171,3 +172,71 @@ if (fails) {
     console.log('and holds the attribution on screen at every book size and viewport tested.');
     console.log('NOT covered here: how it LOOKS. Someone has to finish a book and see it once.');
 }
+
+// ── Wash opacity (added v1.5.1) ───────────────────────────────────────────────
+// The wash must reach FULL opacity. At 0.82 the terrain and crumble detritus —
+// redrawn every frame beneath the reel — sat at a permanent 18% behind the
+// attribution text rather than fading out, and the reel silently depended on the
+// frame clear being perfect. In this file the clear has failed for two separate
+// reasons, so the reel must not rely on it.
+const { creditsWashAlpha } = await import('./adventure-renderer.js');
+console.log('\n### wash opacity');
+ok('starts fully transparent (no snap-in)', creditsWashAlpha(0) === 0);
+ok('ramps monotonically', [0,100,300,600,900,2000].every((t,i,a) =>
+    i === 0 || creditsWashAlpha(t) >= creditsWashAlpha(a[i-1])));
+ok('reaches FULLY opaque, so nothing ghosts through', creditsWashAlpha(900) === 1,
+   `alpha at 900ms = ${creditsWashAlpha(900)}`);
+ok('stays opaque afterwards', creditsWashAlpha(60000) === 1);
+ok('negative elapsed is clamped', creditsWashAlpha(-500) === 0);
+if (fails) process.exitCode = 1;
+
+// ── The reel must never outlive the moment (added v1.5.2) ─────────────────────
+// v1.4.0 dismissed the reel on ttb:textLoaded only. A Game Genie warp emits
+// ttb:positionSet, so warping back to finish a book left the credits drawing over
+// live typing — reported as "there were no words; when I typed they appeared, but
+// still faded out", which is an 82%-opaque wash repainted every frame. v1.5.1 made
+// that wash fully opaque for legibility, which would have turned a bad fade into a
+// blank screen. So this asserts the dismissal, not the drawing.
+console.log('\n### reel dismissal');
+{
+  const src = readFileSync(new URL('./adventure-renderer.js', import.meta.url), 'utf8');
+
+  // Every event that means "the student is back in the text" must route through
+  // _dismissCredits. A new event added without it reintroduces the bug.
+  for (const ev of ['textLoaded', 'textCleared', 'positionSet', 'keystroke']) {
+    const wired = new RegExp("ttb:" + ev + "'[^\\n]*_dismissCredits").test(src)
+               || new RegExp("_on\\('ttb:" + ev + "'[\\s\\S]{0,160}?_dismissCredits").test(src);
+    ok(`ttb:${ev} dismisses the reel`, wired,
+       `nothing on the ttb:${ev} path calls _dismissCredits — a warp or a keystroke ` +
+       `will leave an opaque reel on top of live typing`);
+  }
+
+  // Lift the real method and check the keystroke floor, which exists so a final
+  // keystroke in the same tick as bookComplete cannot kill the reel on arrival.
+  const k = src.indexOf('  _dismissCredits(');
+  let d = 0, body = '';
+  for (let x = src.indexOf('{', k); x < src.length; x++) {
+    if (src[x] === '{') d++;
+    else if (src[x] === '}') { d--; if (!d) { body = src.slice(k, x + 1); break; } }
+  }
+  const now0 = 10000;
+  const mk = (ageMs) => {
+    let t = now0;
+    const cls = new Function('performance', `return class R { ${body} }`)({ now: () => t });
+    const inst = Object.assign(Object.create(cls.prototype),
+                              { _credits: { startedAt: now0 - ageMs } });
+    return inst;
+  };
+  let r = mk(0);   r._dismissCredits('keystroke');
+  ok('a keystroke in the same tick as completion does NOT kill the reel', r._credits !== null);
+  r = mk(1500);    r._dismissCredits('keystroke');
+  ok('a keystroke 1.5s later DOES dismiss it', r._credits === null);
+  r = mk(0);       r._dismissCredits('positionSet');
+  ok('a warp dismisses it immediately, floor or not', r._credits === null);
+  r = mk(0);       r._dismissCredits('textLoaded');
+  ok('new text dismisses it immediately', r._credits === null);
+  r = Object.assign(Object.create(Object.getPrototypeOf(mk(0))), { _credits: null });
+  r._dismissCredits('keystroke');
+  ok('dismissing when nothing is showing is a no-op', r._credits === null);
+}
+if (fails) process.exitCode = 1;

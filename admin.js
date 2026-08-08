@@ -1,10 +1,13 @@
-// admin.js v3.24.2
+// admin.js v3.24.3
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.24.3 — The PARSE SUMMARY carried the same lie v3.24.2 fixed in the audit panel:
+//           "No character issues or language warnings found" when langIssues was
+//           already filtered by the approved list. Now names the hidden approvals.
 // v3.24.2 — The language audit reported "✅ No flagged language found" when the only
 //           reason it found nothing was that every match was on this book's APPROVED
 //           list. Two different claims, one message. Worse, the approved list and its
@@ -40,8 +43,6 @@
 //           and the whole attribution/About system, were absent from the file that
 //           implements them. Refreshed from CHANGELOG.md and trimmed to the
 //           6-entry budget.
-// v3.23.1 — "Cleaned up with" became "Cleaned up by": what the field means, and
-//           short enough to stop the circled-i hint wrapping.
 //   * loadBookList(selectFirst) defaults to FALSE and preserves the current
 //     selection. Passing true fires onchange, which hides the staging area
 //     and reassigns activeBookId — that is how Save Metadata used to throw
@@ -58,7 +59,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.24.2";
+const ADMIN_VERSION = "3.24.3";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -1757,7 +1758,17 @@ async function parseEpubFile(file) {
                 statusEl.innerText = `Parsed ${stagedChapters.length} chapters${splitNote}.${pNote}${coverMsg} ⚠️ ${langIssues.length} language warning(s).${missNote}`;
                 statusEl.style.borderColor = missingSpineFiles.length ? "#ff3333" : "#ffaa00";
             } else {
-                statusEl.innerText = `${missingSpineFiles.length ? '⛔' : (pDelta > 0 || coverBad ? '⚠️' : '✅')} Parsed ${stagedChapters.length} chapters${splitNote}.${pNote}${coverMsg} No character issues or language warnings found.${missNote}`;
+                // ⚠️ SAME LIE AS showLanguageWarnings() HAD (v3.24.3). langIssues is
+                // ALREADY filtered by this book's approved list, so "no language
+                // warnings found" is claiming the text is clean when it may only be
+                // fully approved. Jake hit exactly this: two words approved on a book
+                // whose upload then failed, and the next parse announced a clean bill
+                // of health on text he knew contained both.
+                const approvedHere = activeBookId ? getApprovedWords(activeBookId) : [];
+                const langNote = approvedHere.length
+                    ? ` No character issues. No UNAPPROVED language — ${approvedHere.length} approved word(s) hidden from this scan (${approvedHere.join(', ')}).`
+                    : ' No character issues or language warnings found.';
+                statusEl.innerText = `${missingSpineFiles.length ? '⛔' : (pDelta > 0 || coverBad ? '⚠️' : '✅')} Parsed ${stagedChapters.length} chapters${splitNote}.${pNote}${coverMsg}${langNote}${missNote}`;
                 statusEl.style.borderColor = missingSpineFiles.length ? "#ff3333"
                     : ((pDelta > 0 || coverBad) ? "#ffaa00" : "#00ff41");
             }

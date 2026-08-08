@@ -1,10 +1,16 @@
-// game.js v3.14.0
+// game.js v3.14.1
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.14.1 — Tab moved focus to the ADDRESS BAR on the first keystroke of a chapter.
+//           Every imported paragraph starts with a tab, so Tab is usually the first
+//           key pressed — and at that moment the pre-start branch runs, whose two
+//           returns never cancelled the default. Bit once per chapter, then the main
+//           path's v3.9.3 cancel took over, which is why it read as a small
+//           frustration instead of a bug.
 // v3.14.0 — CONSUMES pendingClassAssignments. This existed only in learn.js, yet
 //           index.html links students straight into game.html — so a student who
 //           typed a book chapter before ever opening Lessons was never assigned to
@@ -38,13 +44,6 @@
 //           CHANGELOG said 3.12.3 while the file said 3.12.2. Recorded rather than
 //           quietly folded in, because that is the exact drift this round has spent
 //           its time catching in other people's work.
-// v3.12.2 — The Adventure map drew a dot per SPINE DOCUMENT, so the title page,
-//           imprint, dedication, appendix, endnotes, colophon and uncopyright page
-//           all appeared as stops on the journey — ten dots for a two-chapter book,
-//           with the real chapters fourth and fifth. Body list only now. Also: the
-//           book-completion screen actually celebrates, names the book, and links to
-//           its credits via index.html#about=<bookId>.
-//
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * The write-ahead log is MORE durable than the per-sentence writes it
@@ -66,7 +65,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.14.0";
+const VERSION = "3.14.1";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -1863,6 +1862,27 @@ document.addEventListener('keydown', (e) => {
         // Skip if user is typing in an input/select (e.g. Game Genie fields)
         const activeTag = e.target && e.target.tagName;
         if (activeTag === 'INPUT' || activeTag === 'SELECT' || activeTag === 'TEXTAREA') return;
+
+        // ⚠️ TAB MOVED FOCUS TO THE ADDRESS BAR ON THE FIRST KEYSTROKE (v3.14.1).
+        //
+        // Every paragraph in an imported book starts with a tab, so Tab is very often
+        // the FIRST key a student presses — and at that moment the game has not
+        // started, so we are inside this pre-start branch, not the main path. The main
+        // path cancels the default for Tab (v3.9.3). This branch has two `return`s and
+        // neither did, so Safari did what Tab means to a browser: move focus out of the
+        // page. The student's next keystrokes went to the address bar.
+        //
+        // It only ever bit ONCE per chapter, which is exactly why it read as a small
+        // frustration rather than a bug: after clicking back into the page the game is
+        // running and the main path's cancel takes over.
+        //
+        // Same guard shape as v3.9.3's: modifiers are excluded so Cmd+T, Ctrl+R and
+        // Cmd+Tab still reach the browser and nobody gets trapped in the tab. The
+        // INPUT/SELECT/TEXTAREA check above has already let real form fields go.
+        if (!e.ctrlKey && !e.metaKey && !e.altKey &&
+            (e.key === 'Tab' || e.key === 'Enter' || e.key === 'Backspace' || e.key === ' ')) {
+            e.preventDefault();
+        }
 
         let shouldStart = false;
         let shouldSkip = false;

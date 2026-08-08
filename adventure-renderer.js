@@ -1,4 +1,4 @@
-// adventure-renderer.js v1.4.0
+// adventure-renderer.js v1.5.2
 //
 // Canvas renderer for Adventure Mode. Observes ttb:* CustomEvents on document
 // and draws the typing session as a figure walking across word-platforms in a
@@ -7,6 +7,26 @@
 //
 // ── Full history: CHANGELOG.md § adventure-renderer.js ────────────────────
 //
+// v1.5.2 — The credits reel is dismissed by textLoaded, textCleared, positionSet AND
+//          keystroke. v1.4.0 cleared it on textLoaded alone, and a Game Genie warp
+//          emits positionSet — so warping back to finish a book left the reel drawing
+//          over live typing ("no words; when I typed they appeared but faded out").
+//          v1.5.1's opaque wash would have made that a blank screen.
+// v1.5.1 — Credits wash ramps to FULLY OPAQUE. It was a constant 0.82, so the terrain
+//          and crumble detritus — redrawn every frame beneath the reel — sat at a
+//          permanent 18% behind the attribution text instead of fading. Also removes
+//          the reel's dependence on a perfect frame clear, which in this file has now
+//          failed for two separate reasons.
+// v1.5.0 — THE STACKED-DETRITUS BUG, second cause. _resize() clamped the backing
+//          store with Math.max(300, rect) but wrote the RAW rect into this.w/this.h,
+//          and _render() clears fillRect(0,0,this.w,this.h) — so whenever the two
+//          disagreed the clear stopped covering the canvas and text stamped over
+//          itself. A zero-sized parent set this.h to 0 and cleared NOTHING. It
+//          self-healed on any modal open or close, which is why it looked
+//          intermittent. Logical size now derives from the same clamp, a degenerate
+//          rect keeps the last good size, and a per-frame check repairs drift with a
+//          1px tolerance (canvas.width truncates; exact equality loops at dpr 1.5).
+//          Asserted in canvas-clear-test.mjs.
 // v1.4.0 — END-OF-BOOK CREDITS. game.js has emitted ttb:bookComplete since 3.13.0
 //          and NOTHING listened — one emit, zero listeners repo-wide — while game.js
 //          also skipped renderClassicCredits() for Adventure. Finishing a book in
@@ -22,19 +42,6 @@
 //          whole chapter then jumped, and sat one chapter BEHIND the dotted map's
 //          (i+1)/n. Invisible on Aesop's 284; 2.4% of the strip on a 41-chapter
 //          book. Now (curIdx + progress)/n. Asserted in map-geometry-test.mjs.
-// v1.2.0 — A dot marks the END of a chapter, not its start: dotY divides by n,
-//          not n-1, so finishing 1 of 2 chapters reaches halfway instead of
-//          drawing a 14-pixel stub. ⚠️ Shipped with RENDERER_VERSION still
-//          reading '1.1.0' — the header, the CHANGELOG and the code were all
-//          1.2.0 and only the runtime constant disagreed, which is the one copy
-//          the build panel reads. Corrected in Round 6, code untouched.
-// v1.1.0 — Chapter map condenses above MAP_MAX_DOTS. 284 dots down a 500px
-//          strip is 1.8px each and rendered as a solid caterpillar.
-// v1.0.0 — Out of alpha. Diagnostic overlay moved to Ctrl/Cmd+Shift+` — it
-//          was a bare backtick, which is a typeable key on the virtual
-//          keyboard, so students opened it by accident.
-// v0.4.0 — Backspace tilt-back corrections; left-edge chapter close-up strip.
-//
 // ── Events consumed ───────────────────────────────────────────────────────
 //
 //   ttb:textLoaded  { fullText, position, chapterNum, chapters, ... }
@@ -49,7 +56,7 @@
 //   * Survives missed events — but draws NOTHING until the next textLoaded,
 //     which is why game.js replays it on a hot swap.
 
-export const RENDERER_VERSION = '1.4.0';
+export const RENDERER_VERSION = '1.5.2';
 
 // Above this many chapters, per-chapter dots overlap into an unreadable smear
 // and we switch to a continuous route with sparse ticks. 40 keeps every dot at
@@ -75,6 +82,22 @@ const MAP_MAX_DOTS = 40;
 
 const CREDITS_SPEED_PX_S = 26;   // slow enough to read aloud
 const CREDITS_FADE_MS    = 900;  // opening fade so it does not snap in
+
+// Opacity of the parchment wash behind the reel, and of the reel's own text.
+//
+// ⚠️ REACHES 1.0, NOT 0.82 (v1.5.1). It was a constant 0.82, chosen so the terrain
+// would ghost through prettily. That is not what it did. The terrain and the crumble
+// detritus are REDRAWN EVERY FRAME beneath the credits, so 0.82 never faded them — it
+// held them at a permanent 18%, directly behind the text, as a heavy dark skyline.
+// Attribution has to be readable: these books are CC-licensed and this reel is the
+// licence term being satisfied.
+//
+// It also made the reel depend on the frame clear being perfect, which is a bad thing
+// to depend on in this file: the stacked-detritus bug has now had two separate causes
+// (v0.2.7, v1.5.0). An opaque wash is correct even when the clear is not.
+export function creditsWashAlpha(elapsedMs) {
+    return Math.max(0, Math.min(1, (elapsedMs || 0) / CREDITS_FADE_MS));
+}
 
 // Rows, top to bottom, with no measuring or wrapping yet. `kind` drives styling.
 export function creditsContent(d) {
@@ -366,9 +389,9 @@ class AdventureRenderer {
     this._resizeObserver.observe(this.canvas.parentElement);
 
     this._on('ttb:textLoaded',  (d) => this._onTextLoaded(d));
-    this._on('ttb:textCleared', ()  => this._onTextCleared());
-    this._on('ttb:positionSet', (d) => this._onPositionSet(d));
-    this._on('ttb:keystroke',   (d) => this._onKeystroke(d));
+    this._on('ttb:textCleared', ()  => { this._dismissCredits('textCleared'); this._onTextCleared(); });
+    this._on('ttb:positionSet', (d) => { this._dismissCredits('positionSet'); this._onPositionSet(d); });
+    this._on('ttb:keystroke',   (d) => { this._dismissCredits('keystroke'); this._onKeystroke(d); });
     this._on('ttb:fail',        (d) => this._onFail(d));
     this._on('ttb:respawn',     (d) => this._onRespawn(d));
     this._on('ttb:stats',       (d) => this._onStats(d));
@@ -550,16 +573,76 @@ class AdventureRenderer {
   _resize() {
     if (!this.canvas) return;
     const parent = this.canvas.parentElement;
+    if (!parent) return;
     const rect = parent.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
+
+    // ⚠️ THIS IS THE "STACKED DETRITUS" BUG, v1.5.0. It was fixed for one cause in
+    // v0.2.7 and came back through another, because the two numbers below had drifted
+    // apart from the two above them.
+    //
+    // The backing store is clamped: Math.max(300, rect.width). The LOGICAL size was
+    // not — it took the raw rect. _render() clears with
+    // fillRect(0, 0, this.w, this.h), so the moment the raw rect and the clamped
+    // canvas disagree, the clear stops covering the whole canvas and everything
+    // outside it accumulates frame on frame. That is precisely the symptom: crisp
+    // current text, and below it the same line stamped dozens of times at four-pixel
+    // intervals.
+    //
+    // Two ways they disagree, both reachable:
+    //   * a parent shorter than 300px -> canvas.height is 300*dpr but this.h is, say,
+    //     200, so the bottom 100px is NEVER cleared. A permanent dirty band.
+    //   * a parent measuring ZERO -> this.h becomes 0 and fillRect(0,0,0,0) clears
+    //     NOTHING while every other draw call carries on. A ResizeObserver fires
+    //     happily on a collapsed or momentarily hidden parent, which is what the
+    //     Classic/Adventure view picker and the accuracy-pause overlay do to it.
+    //
+    // It self-heals the instant any modal opens or closes, because that relays out
+    // the parent and re-runs this with a sane rect — which is exactly why it looked
+    // like a mysterious intermittent blur that "cleared when the pause came up".
+    //
+    // A degenerate rect now KEEPS THE LAST GOOD SIZE rather than writing nonsense,
+    // and this.w/this.h are derived from the same clamped values as the backing
+    // store so the two can never disagree again.
+    if (!(rect.width >= 1 && rect.height >= 1)) return;
+
+    const cssW = Math.max(300, rect.width);
+    const cssH = Math.max(300, rect.height);
+
+    this.canvas.width  = cssW * dpr;
+    this.canvas.height = cssH * dpr;
+    this.canvas.style.width  = cssW + 'px';
+    this.canvas.style.height = cssH + 'px';
     this._dpr = dpr;
-    this.canvas.width = Math.max(300, rect.width) * dpr;
-    this.canvas.height = Math.max(300, rect.height) * dpr;
-    this.canvas.style.width = rect.width + 'px';
-    this.canvas.style.height = rect.height + 'px';
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.w = rect.width;
-    this.h = rect.height;
+    this.w = cssW;
+    this.h = cssH;
+  }
+
+  // Per-frame safety net (v1.5.0). Even with _resize() correct, the clear is only as
+  // good as the last time something told us to re-measure. A missed ResizeObserver
+  // callback, a devicePixelRatio change from browser zoom or a window dragged to
+  // another display, all leave the backing store and the logical size disagreeing —
+  // and the failure mode is the dirty-band bug above, which is ugly and hard to
+  // report. Two float comparisons per frame is a fair price for making it
+  // structurally impossible.
+  _assertCanvasMatchesLogicalSize() {
+    if (!this.canvas) return;
+    // ⚠️ TOLERANCE OF 1 DEVICE PIXEL, NOT EXACT EQUALITY. The canvas.width setter
+    // coerces to an unsigned long, so a fractional devicePixelRatio (1.5, 2.25 — real
+    // values on Windows scaling and Safari page zoom) TRUNCATES: setting 916.875
+    // stores 916. An exact comparison would therefore disagree with itself on every
+    // frame and call _resize() forever, which is a worse bug than the one this guard
+    // exists to prevent. Caught by canvas-clear-test.mjs at dpr 1.5.
+    //
+    // Sub-pixel over-clear is harmless — the fill simply covers slightly more than the
+    // canvas. Only a real divergence matters, and a real one is never under 1px.
+    const dpr = window.devicePixelRatio || 1;
+    if (dpr !== this._dpr) { this._resize(); return; }
+    if (Math.abs(this.canvas.width  - this.w * dpr) > 1 ||
+        Math.abs(this.canvas.height - this.h * dpr) > 1) {
+      this._resize();
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -568,10 +651,10 @@ class AdventureRenderer {
 
   _onTextLoaded(d) {
     this._cancelLeap();
-    // Any new text means the reel is over. Without this, finishing a book and then
-    // opening another one (or replaying the last chapter) would leave the previous
-    // book's credits pasted over live typing, with no way to dismiss them.
-    this._credits = null;
+    // Any new text means the reel is over. See _dismissCredits: textLoaded is only
+    // ONE of the four signals that mean it, and relying on it alone is what let a
+    // Game Genie warp leave the credits pasted over live typing.
+    this._dismissCredits('textLoaded');
     this.fullText = (d && d.fullText) || '';
     this.currentPos = (d && typeof d.position === 'number') ? d.position : 0;
     // Chapter map data (absent on older game.js or in practice mode — the
@@ -1405,6 +1488,11 @@ class AdventureRenderer {
 
     this._renderCount++;
 
+    // Before touching anything: make sure the size we are about to clear is the size
+    // the canvas actually is. See _assertCanvasMatchesLogicalSize — a mismatch here is
+    // the stacked-detritus bug, and it is cheaper to check than to diagnose.
+    this._assertCanvasMatchesLogicalSize();
+
     // Defensive: reset transform to dpr-scaled identity and force globalAlpha
     // to 1 BEFORE clearing. If any code path leaves the context in a weird
     // state (a stale translate, a leaked alpha), this resets it. Without
@@ -1700,6 +1788,35 @@ class AdventureRenderer {
   // ---------------------------------------------------------------------------
   // End-of-book credits (v1.4.0)
   // ---------------------------------------------------------------------------
+  // ⚠️ THE REEL MUST NEVER OUTLIVE THE MOMENT (v1.5.2).
+  //
+  // v1.4.0 cleared it on ttb:textLoaded only. A Game Genie warp emits
+  // ttb:positionSet, not textLoaded (game.js ~5133), so warping back to finish a
+  // book left the reel drawing on top of live typing. The symptom Jake reported was
+  // "there were no words — when I typed they appeared, but still faded out", which is
+  // precisely what an 82%-opaque parchment wash repainted every frame looks like.
+  //
+  // v1.5.1 made that wash FULLY OPAQUE for legibility, which would have turned a
+  // frustrating fade into a completely blank screen. So the dismissal has to be
+  // driven by every signal that means "the student is in the text again", not just
+  // the one that happened to be noticed first:
+  //
+  //   textLoaded  — new chapter or new book
+  //   textCleared — text torn down
+  //   positionSet — resume, or a Game Genie warp
+  //   keystroke   — the bulletproof one. If a key is landing, the reel is over.
+  //
+  // The 400ms floor exists only so that a final keystroke arriving in the same tick
+  // as bookComplete cannot dismiss the reel before it is visible. Attribution stays
+  // reachable regardless: the completion modal's "Who made this book" link is
+  // unconditional and shows in both view modes.
+  _dismissCredits(reason) {
+    if (!this._credits) return;
+    if (reason === 'keystroke' &&
+        performance.now() - this._credits.startedAt < 400) return;
+    this._credits = null;
+  }
+
   _onBookComplete(d) {
     this._logEvent('bookComplete');
     // Re-laid out on each draw against the live width, so a rotate or a resize
@@ -1729,8 +1846,8 @@ class AdventureRenderer {
     ctx.save();
 
     // Parchment wash so ink-on-ink stays legible over the terrain and the figure.
-    const fadeIn = Math.min(1, elapsed / CREDITS_FADE_MS);
-    ctx.globalAlpha = 0.82 * fadeIn;
+    const fadeIn = creditsWashAlpha(elapsed);
+    ctx.globalAlpha = fadeIn;
     ctx.fillStyle = 'rgba(238, 228, 202, 1)';
     ctx.fillRect(0, 0, this.w, viewH);
 
