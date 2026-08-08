@@ -1,10 +1,16 @@
-// admin.js v3.25.1
+// admin.js v3.25.2
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.25.2 — ⚠️ DATA-LOSS GUARD. The overwrite file input and the mismatch panel both
+//           survived a change of book, so Jane Eyre could sit selected with a football
+//           book still loaded in "Overwrite Data with New EPUB" — and Process Overwrite
+//           reads the input, not the book. One click would have replaced Jane Eyre's
+//           chapters. The stale panel was the visible, harmless half; the loaded file
+//           was the dangerous half and predates the panel entirely.
 // v3.25.1 — Roman numerals survive title casing: "CHAPTER XIX" was becoming "Chapter
 //           Xix", mangling the whole contents of every Roman-numbered book.
 //           stripLeadingOrdinal() misses these because it needs text to REMAIN after
@@ -42,12 +48,6 @@
 //           by an already-imported library, where every upload is an overwrite.
 //           val() hoisted to module scope. Also: ARCHIVE_BASE_DEFAULT corrected to
 //           https://www.misterwilson.org/library.
-// v3.24.0 — TWO IMPORT FIXES. (1) autofillFromEpub() now re-runs AFTER the new-book
-//           tag clear instead of only before it. v3.23.0's clear wiped exactly what
-//           the change-event autofill had just filled, so EVERY new-book import since
-//           lost every field but title, author and cover. (2) Archive URL fills from
-//           the picked file's own name against ARCHIVE_BASE_DEFAULT.
-//
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * loadBookList(selectFirst) defaults to FALSE and preserves the current
@@ -66,7 +66,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.25.1";
+const ADMIN_VERSION = "3.25.2";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -769,6 +769,7 @@ bookSelect.onchange = () => {
     clearAuditResults();
     // The form is about a different book now; last book's save message is not.
     clearSaveTitleStatus();
+    clearOverwriteState();
     
     // Toggle UI Containers
     if (bookSelect.value === "__NEW__") {
@@ -793,6 +794,24 @@ bookSelect.onchange = () => {
         activeBookTitle.value = bookTitlesMap[activeBookId] || activeBookId;
     }
 };
+
+// ⚠️ THIS IS A DATA-LOSS GUARD, NOT TIDYING (v3.25.2).
+//
+// The overwrite file input and the mismatch panel both survived a change of book.
+// Jake opened Jane Eyre with a High School Boys football EPUB still sitting in
+// "Overwrite Data with New EPUB" and last book's mismatch report still on screen —
+// and Process Overwrite reads that input, not the book. One click would have
+// replaced Jane Eyre's chapters with Dick & Co.
+//
+// The stale panel was the visible half and the harmless half. The loaded file was the
+// dangerous half, and it had been that way since long before the panel existed.
+function clearOverwriteState() {
+    // .value = '' is the only reliable way to clear a file input; removing the
+    // attribute or setting .files does nothing in most browsers.
+    if (overwriteEpubFile) overwriteEpubFile.value = '';
+    const mm = document.getElementById('metadata-mismatch');
+    if (mm) { mm.innerHTML = ''; mm.classList.add('hidden'); }
+}
 
 // --- LOAD FROM DB ---
 // ⚠️ RE-ENTRANCY GUARD. THIS IS WHAT SCRAMBLED TOM SAWYER ABROAD. (v3.18.0)
@@ -1277,6 +1296,10 @@ confirmOverwriteBtn.onclick = async () => {
 
     await parseEpubFile(file);
 };
+
+// Opening a book from the DB is also a change of book, and openBookBtn does not go
+// through bookSelect.onchange.
+if (openBookBtn) openBookBtn.addEventListener('click', clearOverwriteState);
 
 // Compare the EPUB's own metadata against what is currently in the form and surface
 // any field where both are filled and they differ. One accept button per row: the
