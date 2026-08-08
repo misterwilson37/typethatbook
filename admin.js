@@ -1,10 +1,17 @@
-// admin.js v3.25.2
+// admin.js v3.25.3
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.25.3 — ⚠️ AN OVERWRITE REPLACED A HAND-SOURCED COVER WITH NO PROMPT. Jake found a
+//           real jacket photograph for a Hancock title, re-uploaded the Gutenberg EPUB
+//           for its metadata, and the parse staged Gutenberg's generic placeholder over
+//           it; Upload All then wrote that to Storage. The cover was the most hand-made
+//           field on the screen and the only one with no protection. A file's cover is
+//           now only staged when the book has NONE; otherwise it is offered in the
+//           mismatch panel with both images side by side.
 // v3.25.2 — ⚠️ DATA-LOSS GUARD. The overwrite file input and the mismatch panel both
 //           survived a change of book, so Jane Eyre could sit selected with a football
 //           book still loaded in "Overwrite Data with New EPUB" — and Process Overwrite
@@ -41,13 +48,6 @@
 //           "No UNAPPROVED language found", names the approved words, keeps Clear all
 //           reachable, and states plainly that approvals live in this browser only.
 //           ARCHIVE_BASE_DEFAULT → https://typethatbook.misterwilson.org/library.
-// v3.24.1 — ⚠️ ADDING A NEW BOOK WAS IMPOSSIBLE. uploadAllBtn.onclick called val()
-//           from outside the function that declared it, in the else branch that
-//           runs only for a book that does not exist yet: "Can't find variable:
-//           val", upload aborted, nothing written. Broken since v3.23.0 and hidden
-//           by an already-imported library, where every upload is an overwrite.
-//           val() hoisted to module scope. Also: ARCHIVE_BASE_DEFAULT corrected to
-//           https://www.misterwilson.org/library.
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * loadBookList(selectFirst) defaults to FALSE and preserves the current
@@ -66,7 +66,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.25.2";
+const ADMIN_VERSION = "3.25.3";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -513,6 +513,13 @@ let importErrors = [];
 let currentErrorIdx = 0;
 let stagedCoverBlob = null;   // extracted or uploaded cover image
 let stagedCoverUrl = null;    // preview data URL
+// The cover already saved on this book, as loaded from Firestore. Distinct from
+// stagedCoverUrl, which is whatever is currently PREVIEWED and may have come from a
+// freshly parsed EPUB. See the guard in parseEpubFile — v3.25.3.
+let savedCoverUrl = null;
+// A cover the EPUB offered but that we did NOT stage, because the book already had
+// one. Held so "Use the file's cover" can accept it without re-parsing.
+let offeredCover = null;
 // ⚠️ The image content type, tracked separately because JSZip strips it and the
 // Storage upload needs it explicitly. See sniffImageType(). Empty means "no
 // staged blob, or one whose type we could not establish" — uploadCover() refuses
@@ -806,6 +813,8 @@ bookSelect.onchange = () => {
 // The stale panel was the visible half and the harmless half. The loaded file was the
 // dangerous half, and it had been that way since long before the panel existed.
 function clearOverwriteState() {
+    offeredCover = null;
+    savedCoverUrl = null;
     // .value = '' is the only reliable way to clear a file input; removing the
     // attribute or setting .files does nothing in most browsers.
     if (overwriteEpubFile) overwriteEpubFile.value = '';
@@ -855,6 +864,11 @@ function clearSaveTitleStatus() {
 
 openBookBtn.onclick = async () => {
     if(!activeBookId) return;
+    // ⚠️ MUST be cleared per book (v3.25.3). savedCoverUrl gates whether a parsed EPUB's
+    // cover is staged automatically or merely offered. Left over from the previous book
+    // it would make a book that has NO cover refuse to take the one in its own file.
+    savedCoverUrl = null;
+    offeredCover = null;
     if (_openInFlight) {
         statusEl.innerText = "Already loading \u2014 hang on.";
         statusEl.style.borderColor = "#ffaa00";
@@ -903,6 +917,9 @@ openBookBtn.onclick = async () => {
             if (orgIn) orgIn.value = meta.originUrl || "";
             if (meta.coverUrl) {
                 stagedCoverUrl = meta.coverUrl;
+                // v3.25.3: remember the SAVED cover so a later overwrite can tell that
+                // this book already has one and must not silently replace it.
+                savedCoverUrl = meta.coverUrl;
                 updateCoverPreview();
             } else {
                 updateCoverPreview();
@@ -1301,6 +1318,44 @@ confirmOverwriteBtn.onclick = async () => {
 // through bookSelect.onchange.
 if (openBookBtn) openBookBtn.addEventListener('click', clearOverwriteState);
 
+// Renders the "the file has a different cover" offer into the mismatch panel, with both
+// images side by side — a filename tells you nothing, but two thumbnails tell you
+// instantly which is the real jacket and which is a generated placeholder.
+function showOfferedCover() {
+    const host = document.getElementById('metadata-mismatch');
+    if (!host || !offeredCover) return;
+    const fileUrl = URL.createObjectURL(offeredCover.blob);
+    host.classList.remove('hidden');
+    host.insertAdjacentHTML('beforeend',
+        '<div style="margin-top:10px; padding-top:10px; border-top:1px solid #553300;">' +
+        '<b>Cover</b><div style="font-size:0.8em; color:#aaa; margin:4px 0 8px;">' +
+        'This book already has a cover, so the one in the file was NOT used.</div>' +
+        '<div style="display:flex; gap:14px; align-items:flex-end;">' +
+        '<div style="text-align:center; font-size:0.75em; color:#888;">' +
+        '<img src="' + escapeAttrSafe(savedCoverUrl) + '" style="max-height:110px; display:block; margin-bottom:4px;">saved</div>' +
+        '<div style="text-align:center; font-size:0.75em; color:#66cc66;">' +
+        '<img src="' + escapeAttrSafe(fileUrl) + '" style="max-height:110px; display:block; margin-bottom:4px;">in the file</div>' +
+        '<button id="cover-accept-file" style="align-self:center;">Use the file\u2019s cover</button>' +
+        '</div></div>');
+    const btn = document.getElementById('cover-accept-file');
+    if (btn) btn.onclick = () => {
+        stagedCoverBlob = offeredCover.blob;
+        stagedCoverType = offeredCover.type;
+        stagedCoverUrl = URL.createObjectURL(offeredCover.blob);
+        updateCoverPreview();
+        btn.disabled = true;
+        btn.textContent = '\u2713 will replace on Upload All';
+    };
+}
+
+// Minimal attribute escape for the two URLs above. escapeHtml does not escape quotes,
+// which is the whole risk in an attribute — see index.html's escapeAttr and
+// creditLine()'s history.
+function escapeAttrSafe(u) {
+    return String(u || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+                          .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // Compare the EPUB's own metadata against what is currently in the form and surface
 // any field where both are filled and they differ. One accept button per row: the
 // file is often right (it came from Standard Ebooks or Gutenberg) but not always, so
@@ -1460,7 +1515,7 @@ async function parseEpubFile(file) {
         //     lie — was never applied to the parse.
         //
         // coverNote is reported in the final summary, whatever happened.
-        stagedCoverBlob = null; stagedCoverUrl = null; stagedCoverType = '';
+        stagedCoverBlob = null; stagedCoverUrl = null; stagedCoverType = ''; offeredCover = null;
         let coverNote = 'NO COVER FOUND IN EPUB';
         {
             const items = Array.from(manifest.getElementsByTagName("item"));
@@ -1577,6 +1632,21 @@ async function parseEpubFile(file) {
                             coverNote = 'COVER TYPE UNKNOWN — not uploaded (' + coverPath + ')';
                             console.warn('Cover bytes were not a recognised image and ' +
                                          'the manifest declared "' + declared + '":', coverPath);
+                        } else if (savedCoverUrl) {
+                            // ⚠️ DO NOT SILENTLY REPLACE A COVER THE BOOK ALREADY HAS
+                            // (v3.25.3). Jake sourced a real jacket photograph for a
+                            // Hancock title off eBay, re-uploaded the Gutenberg EPUB to
+                            // pick up the new metadata, and the parse staged Gutenberg's
+                            // generic magenta placeholder over it with no prompt. Upload
+                            // All then wrote it to Storage. The cover is the single most
+                            // hand-made field on this screen and it was the only one with
+                            // no protection at all.
+                            //
+                            // Same principle as the metadata mismatch panel: a blank is a
+                            // gap to fill, an existing value is a decision to respect.
+                            offeredCover = { blob: new Blob([buf], { type }), type, path: coverPath };
+                            coverNote = 'cover in file NOT used — this book already has one';
+                            showOfferedCover();
                         } else {
                             stagedCoverType = type;
                             stagedCoverBlob = new Blob([buf], { type });
