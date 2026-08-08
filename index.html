@@ -407,7 +407,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.6.2";
+        const INDEX_VERSION = "3.6.3";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -1043,6 +1043,13 @@
             const metaRows = [];
             if (book.source) metaRows.push(['Source', creditLinkFor(book.source)]);
             if (book.rights) metaRows.push(['License', creditLinkFor(book.rights)]);
+            // Two different sets of people, kept apart on purpose (v3.6.3). Prepared by
+            // is whoever produced the SOURCE text — Gutenberg's transcribers and
+            // proofreaders. Cleaned up by is whoever did our classroom pass. Nothing
+            // obliges either credit; both are the decent thing, and the second is also a
+            // disclosure that this text was modified.
+            if (book.preparedBy) metaRows.push(['Prepared by', escapeHtml(book.preparedBy)]);
+            if (book.cleanedBy) metaRows.push(['Cleaned up by', escapeHtml(book.cleanedBy)]);
             // ⚠️ A URL WITHOUT A SCHEME IS A RELATIVE PATH (v3.5.2). Jake entered
             // "typethatbook.misterwilson.org/library/x.epub" and the browser
             // resolved it against the current page, producing

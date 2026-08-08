@@ -296,9 +296,9 @@
                   <div class="meta-fields">
                     <div class="row">
                         <div class="col">
-                            <label>Genre</label>
+                            <label>Genre <span class="hint" title="Options are built in admin.js from the GENRES list. Custom… stores whatever you type, and a stored genre that is not in the list is preserved rather than silently dropped.">i</span></label>
                             <select id="active-book-genre" style="width:100%;"></select>
-                            <input type="text" id="custom-genre-input" class="hidden"
+                            <input type="text" id="active-book-genre-custom" class="hidden"
                                    placeholder="Type new genre" style="width:100%; margin-top:4px;">
                         </div>
                         <div class="col" style="flex:1.4;">
@@ -375,9 +375,20 @@
                                    placeholder="https://standardebooks.org/ebooks/…">
                         </div>
                         <div class="col">
-                            <label>Cleaned up by <span class="hint" title="Who did the text pass — you, Claude, Gemini. Free text for now; what it means can be decided later, but recording it is cheap and unrecoverable afterwards.">i</span></label>
-                            <input type="text" id="active-book-cleanedby" style="width:100%;"
-                                   placeholder="e.g. Jake, Claude, Gemini">
+                            <label>Prepared by <span class="hint" title="Who produced the SOURCE text — Project Gutenberg's transcribers and proofreaders, or Standard Ebooks' producer. Auto-filled from Gutenberg's machine header (its 'Credits' line). This is NOT the same as Cleaned up by: these are the volunteers who made the public-domain text exist, and crediting them is the decent thing even though nothing obliges it.">i</span></label>
+                            <input type="text" id="active-book-preparedby" style="width:100%;"
+                                   placeholder="filled from the EPUB where it says">
+                        </div>
+                        <div class="col">
+                            <label>Cleaned up by <span class="hint" title="Who did YOUR classroom text pass. Defaults to Claude, because in practice it always has been. Distinct from Prepared by, which is whoever produced the source text.">i</span></label>
+                            <select id="active-book-cleanedby" style="width:100%;">
+                                <option value="">— Not set —</option>
+                                <option value="Claude">Claude</option>
+                                <option value="Jake Wilson">Jake Wilson</option>
+                                <option value="__custom__">Custom…</option>
+                            </select>
+                            <input type="text" id="active-book-cleanedby-custom" class="hidden"
+                                   style="width:100%; margin-top:4px;" placeholder="Who did the text pass">
                         </div>
                     </div>
                   </div>

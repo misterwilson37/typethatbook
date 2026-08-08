@@ -1,4 +1,4 @@
-// metadata-map-test.mjs v1.0.0
+// metadata-map-test.mjs v1.2.0
 //
 // Lifts canonicalSourceFrom(), canonicalRightsFrom(), selectOptionValues() and
 // looksLikeBareUrl() out of admin.js and runs them two ways:
@@ -165,14 +165,86 @@ eq('looksLikeBareUrl: a URL',      F.looksLikeBareUrl('https://www.gutenberg.org
 eq('looksLikeBareUrl: a name',     F.looksLikeBareUrl('Standard Ebooks'),                    false);
 eq('looksLikeBareUrl: prose',      F.looksLikeBareUrl('Written for TypeThatBook'),           false);
 
+// ── genre round-trip (v1.2.0) ───────────────────────────────────────────────
+// ⚠️ THE REGRESSION: the genre select was built from GENRES with no blank option and
+// no Custom…, so a stored genre outside the list selected nothing, read back as '',
+// and was ERASED by the next Save Metadata. Sports was the real casualty. This walks
+// the shipped population code and asserts load -> save preserves the value.
+{
+    const GENRES = new Function('return ' + liftConst('GENRES')
+                       .replace(/^const GENRES\s*=\s*/, '').replace(/;$/, ''))();
+    const gdom = new JSDOM(HTML);
+    const gdoc = gdom.window.document;
+    const gsel = gdoc.getElementById('active-book-genre');
+    eq('genre: select exists in admin.html', !!gsel, true);
+    eq('genre: Sports is back in GENRES', GENRES.includes('Sports'), true);
+
+    // Build the options exactly as admin.js does.
+    const blank = gdoc.createElement('option');
+    blank.value = ''; blank.text = '\u2014 Not tagged \u2014';
+    gsel.appendChild(blank);
+    GENRES.forEach(g => { const o = gdoc.createElement('option'); o.value = g; o.text = g; gsel.appendChild(o); });
+    const co = gdoc.createElement('option'); co.value = '__custom__'; co.text = 'Custom\u2026';
+    gsel.appendChild(co);
+
+    eq('genre: Custom\u2026 option exists', !!gsel.querySelector('option[value="__custom__"]'), true);
+    eq('genre: blank option is first',      gsel.options[0].value, '');
+
+    const GF = new Function('document', 'Array',
+        lift('readSelectOrCustom') + '\n' + lift('writeSelectOrCustom') + '\n' +
+        'return { readSelectOrCustom, writeSelectOrCustom };')(gdoc, Array);
+
+    for (const stored of ['Adventure', 'Sports', 'Young Adult', 'Sword & Sorcery', 'Bildungsroman', '']) {
+        GF.writeSelectOrCustom('active-book-genre', stored);
+        eq(`genre: ${JSON.stringify(stored)} survives load \u2192 save`,
+           GF.readSelectOrCustom('active-book-genre'), stored);
+    }
+    // An off-list genre must route through Custom… with the box visible, not vanish.
+    GF.writeSelectOrCustom('active-book-genre', 'Sword & Sorcery');
+    eq('genre: off-list value selects Custom\u2026', gsel.value, '__custom__');
+    eq('genre: off-list custom box is shown',
+       gdoc.getElementById('active-book-genre-custom').classList.contains('hidden'), false);
+    // Clearing must hide it again and leave nothing behind.
+    GF.writeSelectOrCustom('active-book-genre', '');
+    eq('genre: clearing hides the custom box',
+       gdoc.getElementById('active-book-genre-custom').classList.contains('hidden'), true);
+    eq('genre: clearing leaves no residue', GF.readSelectOrCustom('active-book-genre'), '');
+}
+
+// ── the classroom-edition licence upgrade ───────────────────────────────────
+// ⚠️ Cleaning a book adds an editorial contribution, and a contribution needs a
+// licence. A raw Gutenberg book must MOVE from public-domain-only to the combined
+// value; a Standard Ebooks book is already there; and a CC BY book must NOT be
+// touched, because we cannot dedicate away someone else's terms.
+const CLASSROOM = { classroom: true };
+eq('classroom: Gutenberg PD-only is upgraded',
+   F.canonicalRightsFrom('Public domain in the USA.', RIGHTS_OPTS, CLASSROOM), PD_CC0);
+eq('classroom: SE paragraph already combined, unchanged',
+   F.canonicalRightsFrom(SE_PARAGRAPH, RIGHTS_OPTS, CLASSROOM), PD_CC0);
+eq('classroom: CC BY 4.0 is NOT relicensed',
+   F.canonicalRightsFrom('Licensed CC BY 4.0', RIGHTS_OPTS, CLASSROOM), BY4);
+eq('classroom: CC BY-NC-SA 3.0 is NOT relicensed',
+   F.canonicalRightsFrom('CC BY-NC-SA 3.0', RIGHTS_OPTS, CLASSROOM), BYNCSA3);
+eq('classroom: an unmappable licence still refuses',
+   F.canonicalRightsFrom('All rights reserved.', RIGHTS_OPTS, CLASSROOM), '');
+eq('no-classroom: Gutenberg PD-only stays PD-only',
+   F.canonicalRightsFrom('Public domain in the USA.', RIGHTS_OPTS), PD);
+// ⚠️ The already-canonical short-circuit must not defeat the upgrade for a book whose
+// stored licence is the plain PD option and which has since been cleaned.
+eq('classroom: the plain PD option itself is upgraded',
+   F.canonicalRightsFrom(PD, RIGHTS_OPTS, CLASSROOM), PD_CC0);
+
 // ── lift readGutenbergOrigin too, and run it on the real zips ───────────────
 // ⚠️ END-TO-END ON PURPOSE. This one is not string mapping — it opens a spine
 // document and walks markup Gutenberg controls, so a synthetic fixture would only
 // prove I can match my own fixture. The real books are the test.
 const G = new Function('DOMParser', 'zipEntry', 'Array',
     liftConst('GUTENBERG_EBOOK_URL') + '\n' +
-    lift('readGutenbergOrigin') + '\n' +
-    'return { readGutenbergOrigin };'
+    liftConst('SIGNAL_SPINE_LIMIT') + '\n' +
+    liftConst('CLASSROOM_NOTICE') + '\n' +
+    lift('cleanPreparedBy') + '\n' +
+    lift('readInBookSignals') + '\n' +
+    'return { readInBookSignals, cleanPreparedBy };'
 )(dom.window.DOMParser, liftedZipEntry, Array);
 
 // The real zipEntry, lifted, so the URL-decoding path is the shipped one.
@@ -258,9 +330,21 @@ for (const f of files) {
 
     // Origin URL. Gutenberg books must yield the canonical /ebooks/<id> form; every
     // other book must yield '' here and fall back to dc:identifier in the caller.
-    const gotOrigin = await G.readGutenbergOrigin(zip, opf, opfPath, meta);
-    eq(`${f} \u2192 origin`, gotOrigin, EXPECT_ORIGIN[f] || '');
-    if (EXPECT_ORIGIN[f]) gutCount++;
+    const sig = await G.readInBookSignals(zip, opf, opfPath, meta);
+    eq(`${f} \u2192 origin`, sig.originUrl, EXPECT_ORIGIN[f] || '');
+    if (EXPECT_ORIGIN[f]) {
+        gutCount++;
+        // Gutenberg names its transcribers in the machine header's Credits row. Not
+        // asserted verbatim — the names differ per book — but it must find SOMEBODY,
+        // and must not drag in the "Updated:" chatter that shares the line.
+        eq(`${f} \u2192 preparedBy found`, sig.preparedBy.length > 0, true);
+        eq(`${f} \u2192 preparedBy has no Updated: chatter`, /updated\s*:/i.test(sig.preparedBy), false);
+    } else {
+        eq(`${f} \u2192 preparedBy empty (non-Gutenberg)`, sig.preparedBy, '');
+    }
+    // None of the shipped library books have been cleaned yet, so every one must read
+    // false. A false positive here would silently relicense an untouched book.
+    eq(`${f} \u2192 not a classroom edition`, sig.classroom, false);
 }
 
 console.log(`\nmetadata-map-test: ${files.length} books read from ${LIB}` +

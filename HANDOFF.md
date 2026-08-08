@@ -47,12 +47,12 @@ and `node run-all-tests.mjs`.
 
 | file | version | changed this round? | upload? |
 |---|---|---|---|
-| `admin.js` | **3.26.0** | ⚠️ **yes — the whole round** | **YES, FIRST** |
-| `admin.html` | — (title driven from `ADMIN_VERSION`) | ⚠️ **yes — new option, required by admin.js** | **YES, WITH admin.js** |
-| `index.html` | **3.6.2** | yes — one label word | cosmetic, whenever |
+| `admin.js` | **3.28.0** | ⚠️ **yes — the whole round** | **YES, FIRST** |
+| `admin.html` | — (title driven from `ADMIN_VERSION`) | ⚠️ **yes — new option, two fields, genre input renamed** | **YES, WITH admin.js** |
+| `index.html` | **3.6.3** | yes — About rows + one label word | with the pair, ideally |
 | `game.js` | **3.14.2** | yes — one label word | cosmetic, whenever |
 | `adventure-renderer.js` | **1.5.4** | yes — one label word | cosmetic, whenever |
-| `metadata-map-test.mjs` | **1.0.0** | ⚠️ **new harness** | commit it |
+| `metadata-map-test.mjs` | **1.2.0** | ⚠️ **new harness, 193 assertions** | commit it |
 | `run-all-tests.mjs` | — | yes — registers the new harness | commit it |
 | `CHANGELOG.md` | — | yes — 4 entries + 2 gap notices | commit it |
 | `README.md` | — | yes — harness table + two warnings | commit it |
@@ -230,6 +230,108 @@ own page (`standardebooks.org/ebooks/…`, the Global Grey product page).
 
 ---
 
+## §4b. Classroom editions and the licence (v3.27.0)
+
+Another Claude instance is cleaning every book in the library, leaving a notice on the
+title page. Jake asked whether the licence needed updating for that, and whether it
+could be done programmatically.
+
+⚠️ **The reasoning is the load-bearing part, so do not "simplify" the outcome.** You
+cannot CC0 the public-domain source text — there is nothing there to license. What
+exists to license is **the editorial contribution**: the specific rewording choices.
+That is exactly why Standard Ebooks' rights statement has two halves, and why
+`Public domain (United States) & CC0 1.0` was already the correct value for a cleaned
+book. **No new licence option was added, and none should be.**
+
+The narrow consequence, which is easy to get backwards: **cleaning changes the correct
+licence only for some books.**
+
+| book | before cleaning | after cleaning |
+|---|---|---|
+| Standard Ebooks | PD & CC0 | **unchanged** — SE already dedicated its own contributions |
+| Gutenberg / plain PD | Public domain (United States) | **PD & CC0** — there are now contributions to dedicate |
+| CC BY anything | CC BY … | **never touched** — those terms are not ours to dedicate away |
+
+⚠️ **Jake declined a "classroom edition" badge on the library card, and he was right:**
+*"as it applies to literally every book."* Every book gets cleaned, so a badge on every
+card carries no information. Same argument as v3.26.0's cry-wolf warning and invariant
+22. The disclosure lives in the About panel, which now has `Prepared by` and
+`Cleaned up by` rows.
+
+**The boilerplate line, for whoever runs the cleaning sessions.** Jake asked for it and
+it is reproduced here so it does not have to be re-derived:
+
+> **Classroom edition.** This public-domain text has had a small number of period racial
+> slurs and dated terms reworded for classroom use by Claude, with human supervision by
+> Jake Wilson. Twain's story, characters, and dialect are otherwise unchanged.
+>
+> The source text is in the United States public domain. The editorial changes in this
+> edition are dedicated to the worldwide public domain via the
+> [CC0 1.0 Universal Public Domain Dedication](https://creativecommons.org/publicdomain/zero/1.0/).
+> You may reuse this edition freely, with or without credit.
+
+The last sentence is the one that achieves what Jake actually wants — a downstream
+teacher can tell they may use the work. Detection matches on *"classroom edition"* /
+*"reworded for classroom use"*, so the surrounding prose may vary per book, but **those
+phrases must survive** or the licence upgrade stops firing.
+
+⚠️ **What admin CANNOT do.** It reads EPUBs; it does not write them. The dedication
+sentence has to be added where the cleaning happens, or through the staging area's
+find-and-replace. The `dedication` dot-gap flag exists so the backlog is visible rather
+than hunted, and it is a **proxy** — see the comment in `loadBookList()` for why
+checking the title-page prose properly would cost real money on every dropdown render.
+
+### 4b.1 Still open
+
+- **`Prepared by` is blank for Standard Ebooks.** Their producer is named in the
+  colophon, not in the OPF, so it would need colophon parsing. Gutenberg autofills today.
+- **A count in the notice.** Standard Ebooks earns trust by being specific; *"eleven
+  instances across four chapters"* costs the cleaning session nothing and makes the claim
+  checkable. Raised with Jake, not yet decided.
+- **`/credits` page** (Round 6 §4.2) is still unbuilt and now has more to show.
+
+---
+
+## §4c. The genre dropdown (v3.28.0) — a latent bug that v3.27.0 was about to trigger
+
+Jake, with a screenshot: *"We lost custom genre — a category that so far has only
+included sports."*
+
+⚠️ **First thing done: diffed the block against Jake's original zip. Byte-identical.**
+Not a Round 7 regression. Establishing that took one command and changed what to look
+for — had it been mine, the question would have been "what else did that edit touch".
+
+The `__custom__` option **was never created**. The population loop appended `GENRES` and
+stopped, so three handlers testing for `__custom__` were all dead code: the population
+block's `onchange`, a **duplicate** `change` listener 3,000 lines below it, and
+`readGenreField()`. Sports, added by hand at some point, had no route back into the list.
+
+⚠️ **It was also erasing data, and this is the part that made it urgent.**
+`genreSelect.value = meta.genre` with no matching option sets `selectedIndex` to `-1`,
+which reads back as `''`, which Save Metadata then writes. **Opening a Sports book and
+pressing Save erased its genre.** And v3.27.0's whole purpose is to send Jake through
+every cleaned book pressing that button. A dormant bug from an earlier round was about to
+be triggered systematically, by a feature added the same day.
+
+**Generalise this:** when you add a workflow that walks every record and saves it, ask
+what that save path does to values it did not put there. A read-modify-write over a form
+only round-trips what the form can represent.
+
+Fix: genre is now the fourth field on the shared select+custom helpers. Sports restored.
+A leading blank option added — without it a fresh form defaults to *Adventure*, so the
+autofill's `!value` guard refused to write the genre it had just guessed. ⚠️ **That is
+the second, unnoticed half of the bug v3.23.0 thought it had fixed** ("the Flat Edition
+came out tagged Adventure when its dc:subject says Humor"); leftover state was real, but
+a fresh page produced the same wrong result by a different route, and the two look
+identical on screen.
+
+⚠️ **`protagonistGender` still uses a bare `.value =` on load** (line ~921). Its options
+are a closed set and the data comes from the same list, so there is no live bug — but it
+is the last field in this panel that cannot represent a value from outside its own list,
+and if anything ever writes one it will vanish the same way.
+
+---
+
 ## §5. Invariants — additions to Round 6 §5 and Round 5 §5, both of which still apply in full
 
 Round 6's 10b–20 are **not repeated here.** Adding:
@@ -253,6 +355,40 @@ Round 6's 10b–20 are **not repeated here.** Adding:
     upstream was right in `canonicalSourceFrom()` and wrong in `readGutenbergOrigin()`
     an hour later. **After fixing a confusion, grep for every other place those same two
     fields are read.**
+28. **You cannot license a public-domain text; you can only license your own edits.**
+    Any "we should CC0 this" instinct resolves to dedicating the *contribution*. This is
+    the whole reason Standard Ebooks' rights statement is two sentences.
+29. **A badge that applies to every item is not a badge.** Round 7 proposed showing
+    "classroom edition" on the library card; Jake pointed out every book is cleaned, so
+    it would appear everywhere and mean nothing. Same family as invariant 22 and the
+    cry-wolf warning. **Ask "what fraction of rows does this appear on" before adding a
+    flag.**
+30. **A `select` + Custom… pair cannot be cleared with `.value = ''`.** That picks the
+    blank option and leaves the custom input visible, still holding the previous value,
+    which then wins on save. There are TWO clear blocks in `admin.js` and both need the
+    `writeSelectOrCustom(id, '')` form. Converting a field to a select means auditing
+    every place it is read, written, or cleared.
+34. **A missing option in a `<select>` is a data-loss bug, not a UI gap.** Assigning an
+    unrepresentable value gives `selectedIndex = -1`, which reads back as `''` and then
+    gets saved. Any field that loads with `el.value = stored` and saves with `el.value`
+    silently deletes anything outside its option list.
+35. **Before assuming you broke it, diff the block against the last known-good copy.**
+    One command, and it redirects the entire investigation.
+36. **A feature that walks every record and re-saves it will trigger every latent
+    read-modify-write bug at once.** v3.27.0's dedication flag was about to erase the
+    genre of every Sports book. Ask what the save path does to values the form cannot
+    represent.
+32. **A parse check proves syntax, not survival.** `admin.js` parsed cleanly, passed the
+    version audit, and matched the original's line count with four top-level functions
+    deleted. Before shipping a file you edited with scripts, diff its declaration list
+    against the previous copy: `grep -o '^function [a-zA-Z_]*' | sort` then `comm`.
+33. **Never compute a deletion slice from a loose textual match.** `startswith('// v3.')`
+    matched a comment in the file body, not the header entry it was meant to find, and
+    took 370 lines with it. Anchor deletions to an asserted line index.
+31. **A short-circuit added for one case will block a later rule for another.**
+    v3.26.0's already-canonical fast path silently defeated v3.27.0's classroom upgrade,
+    in exactly the scenario that mattered most. **When you add a rule downstream of an
+    early return, test the early-return path against it.**
 27. **`Current:` lines in `CHANGELOG.md` are hand-maintained and every one I checked was
     stale.** `admin.js` said v3.24.2 against a shipped v3.25.3; `adventure-renderer.js`
     said v1.4.0 against v1.5.3; `game.js` said v3.14.0 against v3.14.1. Same category as
@@ -266,11 +402,15 @@ Round 6's 10b–20 are **not repeated here.** Adding:
 - **`CHANGELOG.md`** — full `admin.js` v3.26.0 entry (the header could not hold it; see
   §7), plus `game.js` v3.14.2, `adventure-renderer.js` v1.5.4, `index.html` v3.6.2. All
   four stale `Current:` lines corrected.
-  ⚠️ **Two GAP notices added, deliberately not reconstructed:** `admin.js` v3.24.3–
-  v3.25.3 and `adventure-renderer.js` v1.4.1–v1.5.3 have **no entries in this file**.
-  They are described in each file's own header comment. Writing full entries from those
-  abbreviations would produce a record that reads authoritative while containing detail
-  nobody verified — Round 6 invariant 18. **Whoever shipped them should transcribe them.**
+  ⚠️ **`admin.js` v3.24.3–v3.25.3 are now TRANSCRIBED** into `CHANGELOG.md`, verbatim
+  from the file header, clearly labelled as a transcription rather than a
+  reconstruction. This became necessary rather than optional: the header is
+  space-budgeted, v3.27.0's entry needed room, and the header was the **only** record of
+  those five versions. Trimming it would have destroyed them. ⚠️ **`adventure-renderer.js`
+  v1.4.1–v1.5.3 are still missing** and its GAP notice stands — that file's header was
+  not read this round, so there was nothing to transcribe from.
+  ⚠️ **The general lesson: a space-budgeted header is not an archive.** If the only copy
+  of something is in a place with a size cap, it is already being deleted.
 - **`README.md`** — sixteen harnesses, the new row, the ~3s caveat, the `lift()`/`async`
   trap.
 - **`HANDOFF-round6.md`** — Round 6, archived with a header saying what in it is still
@@ -298,6 +438,24 @@ Round 6's 10b–20 are **not repeated here.** Adding:
   is the actual defect and it will happen again.
 - **`node --check` is useless here**, as invariant 13b says. `node --input-type=module
   --check` after every edit is what I actually used.
+- ⚠️ **I DELETED 370 LINES OF `admin.js` AND THE LINE COUNT HID IT.** My header-trim
+  script picked "the oldest changelog entry" with `vs[-1]` over every line starting
+  `// v3.`, which matched a version comment **in the body of the file**, not in the
+  header — so the slice ran from there to the next `// ──` divider, taking `val()`,
+  `readAgeRange()`, `readBookMetadataForm()`, `resolvePath()` and ~360 more lines.
+  **`node --input-type=module --check` passed. `audit-versions.mjs` reported 0 problems.
+  `wc -l` was identical to the original**, because the code I had added elsewhere
+  happened to total 370 lines too. **Only `undefined-calls-test.mjs` caught it**, via a
+  single unresolved `resolvePath`, which is exactly the job Round 6 built it for.
+  Restored by splicing the region out of Jake's original zip and re-applying the one
+  edit that had been inside it.
+  **Three lessons.** (1) *Never compute a deletion slice from a loose textual match —
+  anchor it to a line index you have asserted.* Round 7 §7 already records me botching
+  this same header four separate times; this was the fifth and the worst. (2) *A parse
+  check proves syntax, not survival* — the file was valid JavaScript with four functions
+  missing. (3) *Diff against the original before shipping.* `wc -l` agreeing is not
+  evidence; `comm` over the top-level declaration list is. That check is two lines and
+  is now the last thing I do.
 - **I have not clicked any of this in a browser and cannot.** The mapping is asserted
   over the real corpus and the combined value was verified against both credit
   linkifiers' regexes, so I am confident. **But the thing to spot-check is one Standard

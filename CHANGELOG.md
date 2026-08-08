@@ -919,7 +919,135 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.26.0**
+Current: **v3.28.0**
+
+#### v3.28.0
+
+Round 7 (Hammond). **The genre dropdown had no "Custom…" option, and the missing option
+was quietly erasing data.**
+
+         Reported by Jake with a screenshot: *"We lost custom genre — a category that so
+         far has only included sports."* ⚠️ **Verified byte-identical to the original zip
+         before anything else — this was not introduced in Round 7.** The population block
+         appended `GENRES` and nothing else, so the `__custom__` value that **three
+         separate handlers** tested for could never occur:
+
+         1. the population block's own `genreSelect.onchange`
+         2. a **second, duplicate** `change` listener ~3,000 lines further down
+         3. `readGenreField()`
+
+         All three dead, and `custom-genre-input` unreachable. Which is why Sports —
+         entered once by hand, back when Custom presumably worked — had no way back into
+         the list.
+
+         **The data loss.** The load path was `genreSelect.value = meta.genre || ""`. A
+         stored genre with no matching option sets `selectedIndex` to `-1`; reading
+         `.value` back then returns `''`; `readGenreField()` returns that; and
+         `readBookMetadataForm()` writes `genre: ''`. **So opening a Sports book and
+         pressing Save Metadata erased its genre.** Proven in jsdom against the shipped
+         option list before any fix was written — `Sports` and `Sword & Sorcery` both read
+         back as `''`, `Adventure` survived.
+
+         ⚠️ **This was urgent rather than merely old.** v3.27.0's `dedication` flag exists
+         to send Jake through every already-cleaned book pressing exactly that button, so
+         a latent bug from an earlier round was about to be triggered deliberately, once
+         per Sports title.
+
+         **The fix.** Genre becomes the FOURTH field on
+         `readSelectOrCustom`/`writeSelectOrCustom`/`wireCustomSelect`, alongside source,
+         rights and cleanedBy. `readSelectOrCustom`'s own comment says it was *"generalised
+         from readGenreField()"* in v3.21.0 — this finishes that migration rather than
+         leaving the original behind as a fourth parallel implementation. Both duplicate
+         change listeners are gone, the custom input is renamed `active-book-genre-custom`
+         to match the shared convention, and both form-clear blocks use
+         `writeSelectOrCustom(id, '')` instead of `.value = ''`, which on a select+custom
+         pair leaves the custom box visible holding the previous book's text.
+
+         `Sports` restored to `GENRES`, between Short Stories and Thriller.
+
+         ⚠️ **A leading blank option ("— Not tagged —") is part of the fix, not tidiness.**
+         Without one, a fresh form defaults to `selectedIndex` 0 — *Adventure* — so the
+         autofill's `!genreSelect.value` guard saw a truthy value and declined to fill the
+         genre it had just guessed from `dc:subject`. That is the same symptom v3.23.0
+         attributed to leftover state from the previous book (*"the Flat Edition came out
+         tagged Adventure when its dc:subject says Humor"*). Leftover state was real and
+         was fixed; **a fresh page produced the identical result by a different route**,
+         and that half went unnoticed because the two are indistinguishable on screen.
+
+         `metadata-map-test.mjs` v1.2.0 walks the shipped population code and asserts
+         load → save round-trips for on-list genres, Sports, two off-list values and the
+         empty case, plus that an off-list value routes through Custom… with the box
+         visible and that clearing leaves no residue.
+
+#### v3.27.0
+
+Round 7 (Hammond). **A classroom edition is not a public-domain-only text, and the
+licence field was saying it was.**
+
+         Jake, on the cleaning passes another Claude instance is running across the whole
+         library: *"I probably need to license that with CC0 or whatever it is that
+         standard ebooks does."* Correct, and the reasoning matters more than the change.
+         You cannot CC0 the public-domain source text — there is nothing there to
+         license. What exists to license is **the editorial contribution**: the specific
+         rewording choices. That is precisely why Standard Ebooks' rights statement has
+         two halves, and it is why `Public domain (United States) & CC0 1.0` — the option
+         added in v3.26.0 — is already the correct value for a cleaned book. **No new
+         licence option was needed.**
+
+         The real consequence is narrower and easy to miss: **cleaning a book changes its
+         correct licence, but only for some books.** A Standard Ebooks book already
+         carries the combined value, because SE dedicated its own contributions. A raw
+         Gutenberg book carries `Public domain (United States)` — accurate until the
+         moment somebody rewords it, at which point there are contributions the value
+         does not account for, and nobody downstream can tell whether they may reuse the
+         reworded text. So a cleaned Gutenberg book must move to the combined value.
+
+         `canonicalRightsFrom()` takes an optional `{ classroom: true }` and upgrades a
+         public-domain-only result. ⚠️ **It never touches a CC BY licence** — those terms
+         belong to somebody else and cannot be dedicated away — and it still refuses to
+         map anything it cannot name.
+
+         **Detection.** `readGutenbergOrigin()` became `readInBookSignals()`: ONE spine
+         walk, capped at four entries, collecting three things — the classroom notice on
+         the title page, Gutenberg's canonical origin link, and Gutenberg's `Credits` row.
+         Previously the walk was gated to Gutenberg books to spare the 17 SE imports;
+         classroom detection applies to every book, so the walk now runs for all of them.
+         ⚠️ **Still a cap, not a search** — a 286-chapter book must never be walked for a
+         notice that lives in the front matter or nowhere. `CLASSROOM_NOTICE` matches on
+         the two phrases that carry the meaning rather than the whole sentence, which is
+         written fresh per book.
+
+         **New field: `Prepared by`**, autofilled from Gutenberg's `Credits` row (*"An
+         Anonymous Volunteer and David Widger"*, *"E-text prepared by …"*), scoped to the
+         machine header because the word "Credits" appears in plenty of book prose.
+         ⚠️ **Deliberately distinct from `Cleaned up by`.** Prepared by is whoever produced
+         the SOURCE text — Gutenberg's transcribers and proofreaders. Cleaned up by is
+         whoever did our classroom pass. Conflating them would credit volunteers for edits
+         they did not make and hide the edits behind their names.
+
+         **`Cleaned up by` is now a select** (`Claude` / `Jake Wilson` / Custom…) rather
+         than free text. It defaults to Claude rather than being parsed out of the notice
+         on the title page: Jake — *"the reality is that it's always been Claude"* — so
+         parsing prose to recover a value we already know is machinery that can only
+         sometimes be right. ⚠️ Both form-clear blocks had to move it out of the
+         `.value = ''` loop, because that picks the blank option and leaves the custom
+         input visible and still holding the previous book's text, which then wins on save.
+
+         **The book dropdown flags `dedication`**, at Jake's request, on any book with
+         `cleanedBy` set whose `rights` omits CC0 — which is exactly the backlog of
+         already-cleaned Gutenberg books. ⚠️ **This is a proxy and the code says so.**
+         What it would ideally check is whether the title page carries the dedication
+         sentence, and that text is not in the book record; checking it properly would
+         mean fetching chapter text for every book on every render of the dropdown, which
+         is real money against the project's first priority. The sentence and the licence
+         get fixed in the same pass, so the flag tracks the work.
+
+         ⚠️ **A third bug in Round 7's own code, caught by the harness again.** The
+         already-canonical short-circuit added in v3.26.0 returned before the classroom
+         upgrade could run — so a book already stored as `Public domain (United States)`
+         and since cleaned stayed unchanged. **That is Jake's entire backlog**, i.e. the
+         one case that had to work. `metadata-map-test.mjs` v1.1.0 asserts it, along with
+         the CC BY non-relicensing, and end-to-end against a purpose-built cleaned EPUB.
 
 #### v3.26.0
 
@@ -1005,17 +1133,53 @@ correct value, and three separate mechanisms were keeping it that way.**
          which is not a typo but is the wrong register for a Tennessee classroom.
          Comments are left alone deliberately.
 
-#### ⚠️ GAP: v3.24.3 — v3.25.3 are not recorded here
+#### v3.25.3 — v3.24.3 (transcribed from `admin.js`'s header, Round 7)
 
-         Five shipped versions have no entry in this file. They are described in
-         `admin.js`'s own header comment, which is the source of record for them, and
-         `CHANGELOG.md` said `Current: v3.24.2` while the shipped file was v3.25.3 —
-         four versions stale before Round 7 began. **Not reconstructed here on
-         purpose**: the header text is abbreviated, and writing full entries from it
-         would produce a record that reads authoritative while containing detail nobody
-         verified (invariant 18). Whoever shipped those versions should transcribe them,
-         or the `Current:` line should be made to read itself rather than be
-         hand-maintained, since nothing checks it.
+         ⚠️ **These five entries existed ONLY as the file's own header comment**, which
+         is space-budgeted and was about to lose the oldest of them to make room. Round 7
+         copied them here verbatim rather than let that happen. They are abbreviated
+         because the header is abbreviated — **the header was the only record, so this is
+         a transcription, not a reconstruction.** Nothing was inferred or filled in.
+
+         **v3.25.3** — ⚠️ An overwrite replaced a hand-sourced cover with no prompt. Jake
+         found a real jacket photograph for a Hancock title, re-uploaded the Gutenberg
+         EPUB for its metadata, and the parse staged Gutenberg's generic placeholder over
+         it; Upload All then wrote that to Storage. The cover was the most hand-made field
+         on the screen and the only one with no protection. A file's cover is now only
+         staged when the book has NONE; otherwise it is offered in the mismatch panel with
+         both images side by side.
+
+         **v3.25.2** — ⚠️ Data-loss guard. The overwrite file input and the mismatch panel
+         both survived a change of book, so Jane Eyre could sit selected with a football
+         book still loaded in "Overwrite Data with New EPUB" — and Process Overwrite reads
+         the input, not the book. One click would have replaced Jane Eyre's chapters. The
+         stale panel was the visible, harmless half; the loaded file was the dangerous
+         half and predates the panel entirely.
+
+         **v3.25.1** — Roman numerals survive title casing: "CHAPTER XIX" was becoming
+         "Chapter Xix", mangling the whole contents of every Roman-numbered book.
+         `stripLeadingOrdinal()` misses these because it needs text to REMAIN after the
+         numeral. Restored only when the title is structural or is nothing but a numeral,
+         so "THE MIX" and "I AM BORN" are untouched. Second bug found the same way:
+         `stripLeadingOrdinal`'s `[IVXLCDM]+` class matched WORDS built from numeral
+         letters, so "DID IT MATTER" lost its first word. Now validated. Also: the title
+         page now counts as About, because that is where Jake credits the classroom
+         edition and who prepared it.
+
+         **v3.25.0** — Overwrite now fills blank metadata from the new EPUB, and reports
+         disagreements. `autofillFromEpub()` only ran on the new-book path, so re-uploading
+         — the one moment the file is in hand — ignored it. For books imported before the
+         licence/source/archive/cleanedBy fields existed that meant typing all of it by
+         hand, once per book. Safe because autofill writes into EMPTY fields only. Where
+         BOTH are filled and they differ (an author spelled "Nesbitt" in the form and
+         "Nesbit" in the file), the difference is shown with a per-field accept button
+         rather than either value winning silently. Compared loosely, so case and
+         punctuation do not nag.
+
+         **v3.24.3** — The parse summary carried the same lie v3.24.2 fixed in the audit
+         panel: "No character issues or language warnings found" when `langIssues` was
+         already filtered by the approved list. Now names the hidden approvals.
+         `ARCHIVE_BASE_DEFAULT` → `https://typethatbook.misterwilson.org/library`.
 
 #### v3.24.2
 
@@ -2114,7 +2278,7 @@ Round 6 (Noiseless). **Two functions were wired into the UI and never written.**
 
 ## `index.html`
 
-Current: **v3.6.2**
+Current: **v3.6.3**
 
 ⚠️ **This section was created in Round 5.** index.html had no CHANGELOG section at
 all, despite carrying the student-facing library grid, the age/genre filters and
@@ -2124,6 +2288,18 @@ the footer, since v3.0.1). Entries before v3.3.1 live only in the file header.
 
 <!-- Relocated here in Round 6 (Noiseless). This block was filed under
      ## `game.js`, which never contained the code it describes. -->
+#### v3.6.3
+
+Round 7 (Hammond). The About panel now shows `Prepared by` and `Cleaned up by` rows.
+
+         Nothing obliges either credit — the source text is public domain and the
+         editorial changes are CC0 — but the first names the volunteers who made the text
+         exist, and the second is a plain disclosure that this edition was modified.
+         ⚠️ **About only, deliberately.** Jake: *"as it applies to literally every book"*
+         — every book in the library gets a cleaning pass, so a "classroom edition" badge
+         on the library card would appear on all of them and therefore mean nothing. Same
+         reasoning as v3.26.0's cry-wolf licence warning.
+
 #### v3.6.2
 
 Round 7 (Hammond). Library-card About panel row label `Licence` → `License`. Cosmetic
