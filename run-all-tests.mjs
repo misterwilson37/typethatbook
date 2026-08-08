@@ -30,6 +30,7 @@ const FAST = [
     ["undefined-calls-test.mjs", "every identifier reference resolves: 9 JS files + 3 inline HTML scripts"],
     ["credits-scroll-test.mjs",  "end-of-book credits reel: rises into view, holds, shows every row"],
     ["canvas-clear-test.mjs",     "the per-frame clear always covers the whole canvas"],
+    ["title-case-test.mjs",       "Roman numerals survive title casing; words are not mistaken for them"],
     ["student-flow-test.mjs",     "a cold-start student gets assigned, stamped and reportable"],
     ['verify-guards.mjs',        'flush re-entrancy guards at 2/3/6/12 concurrent callers'],
     ['chunktest.mjs',            'sprint rollup chunking: loss, duplication, the 200 cap'],

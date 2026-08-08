@@ -1,10 +1,20 @@
-// admin.js v3.25.0
+// admin.js v3.25.1
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.25.1 — Roman numerals survive title casing: "CHAPTER XIX" was becoming "Chapter
+//           Xix", mangling the whole contents of every Roman-numbered book.
+//           stripLeadingOrdinal() misses these because it needs text to REMAIN after
+//           the numeral. Restored only when the title is structural or is nothing but a
+//           numeral, so "THE MIX" and "I AM BORN" are untouched. Second bug found the
+//           same way: stripLeadingOrdinal's [IVXLCDM]+ class matched WORDS built from
+//           numeral letters, so "DID IT MATTER" lost its first word. Now validated.
+//           Also: the TITLE PAGE
+//           now counts as About, because that is where Jake credits the classroom
+//           edition and who prepared it.
 // v3.25.0 — OVERWRITE NOW FILLS BLANK METADATA from the new EPUB, and reports
 //           disagreements. autofillFromEpub() only ran on the new-book path, so
 //           re-uploading — the one moment the file is in hand — ignored it. For books
@@ -33,20 +43,13 @@
 //           val() hoisted to module scope. Also: ARCHIVE_BASE_DEFAULT corrected to
 //           https://www.misterwilson.org/library.
 // v3.24.0 — TWO IMPORT FIXES. (1) autofillFromEpub() now re-runs AFTER the new-book
-//           tag clear instead of only before it. v3.23.0 added a clear of genre /
-//           ages / protagonist / source / licence / archive / cleanedby / origin so
-//           one book could not inherit the previous book's tags — correct, but
-//           autofill runs on the file input's `change` event, so the clear wiped
-//           everything it had just filled. Since v3.23.0 EVERY new-book import
-//           silently lost every field except title, author and cover, which survive
-//           only because they sit outside the cleared set. (2) Archive URL is filled
-//           from the picked file's own name against ARCHIVE_BASE_DEFAULT.
-// v3.23.3 — Comment fix, no behaviour change. The AUTH block's header comment said
-//           staff identity came from Auth custom claims; the comment four lines
-//           below it, and the code, correctly said staff/{uid} documents. Claims were
-//           reversed in firestore.rules v2.0.0 and are not coming back — they need a
-//           terminal. Round 6 recovered MULTITENANCY.md, which is where that idea
-//           came from, so the wrong wording is now traceable rather than mysterious.
+//           tag clear instead of only before it. v3.23.0's clear wiped exactly what
+//           the change-event autofill had just filled, so EVERY new-book import since
+//           lost every field but title, author and cover. (2) Archive URL fills from
+//           the picked file's own name against ARCHIVE_BASE_DEFAULT.
+//
+// ── Load-bearing. Do not "simplify" these ─────────────────────────────────
+//
 //   * loadBookList(selectFirst) defaults to FALSE and preserves the current
 //     selection. Passing true fires onchange, which hides the staging area
 //     and reassigns activeBookId — that is how Save Metadata used to throw
@@ -63,7 +66,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.25.0";
+const ADMIN_VERSION = "3.25.1";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -2237,12 +2240,42 @@ function isShoutedTitle(t) {
 // where it should: TENDER-HEARTED -> Tender-Hearted, but TOBY'S -> Toby's, not
 // Toby'S. That apostrophe case is the one a naive implementation always gets
 // wrong, and these titles are full of possessives.
+// Strict, well-formed Roman numerals only. A loose /^[ivxlcdm]+$/ matches "did",
+// "dim", "mild" and "civil"; this rejects all four because they are not valid
+// numerals. It still accepts "mix" (M-I-X = 1009), which is why the blocklist below
+// exists — the regex cannot tell an English word from a number, only a valid numeral
+// from an invalid one.
+const ROMAN_STRICT = /^(?=[MDCLXVI])M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/i;
+const ROMAN_LOOKALIKE_WORDS = new Set(['mix', 'div', 'mi', 'di', 'ci', 'li', 'vi', 'xi']);
+const STRUCTURAL_TITLE_WORDS = new Set(['chapter', 'chap', 'part', 'book', 'section',
+    'volume', 'vol', 'act', 'scene', 'fable', 'story', 'letter', 'canto', 'stave']);
+
+function isRomanNumeral(w) {
+    return !!w && ROMAN_STRICT.test(w) && !ROMAN_LOOKALIKE_WORDS.has(w.toLowerCase());
+}
+
+// ⚠️ ROMAN NUMERALS SURVIVE TITLE CASING (v3.25.1). This lowercased the whole title
+// and then capitalised each word's first letter, so an EPUB shouting "CHAPTER XIX"
+// came out as "Chapter Xix" — and every book numbered in Roman numerals had its whole
+// table of contents mangled. stripLeadingOrdinal() does not catch these because it
+// requires text to REMAIN after the numeral, and "CHAPTER XIX" is nothing but the
+// numeral.
+//
+// The uppercasing is deliberately narrow. A numeral is only restored when the title is
+// structural — some word in it is "chapter", "part", "book" and so on — or when the
+// title is nothing BUT a numeral. So "CHAPTER XIX" and "XXII" are fixed while "THE MIX"
+// and "I AM BORN" are left alone, which matters because "I" is a numeral and a pronoun
+// and David Copperfield opens with the collision.
 function toTitleCase(t) {
     const words = String(t).toLowerCase().split(/(\s+)/);
     const lastIdx = words.reduce((acc, w, i) => (/\S/.test(w) ? i : acc), 0);
+    const bares = words.filter(w => /\S/.test(w)).map(w => w.replace(/[^a-z']/g, ''));
+    const structural = bares.some(b => STRUCTURAL_TITLE_WORDS.has(b));
+    const numeralOnly = bares.length === 1 && isRomanNumeral(bares[0]);
     return words.map((w, i) => {
         if (!/\S/.test(w)) return w;
         const bare = w.replace(/[^a-z']/g, '');
+        if ((structural || numeralOnly) && isRomanNumeral(bare)) return w.toUpperCase();
         if (i !== 0 && i !== lastIdx && TITLE_MINOR_WORDS.has(bare)) return w;
         // Capitalise the first letter of each hyphen-separated part, and the
         // first letter overall — but never a letter that follows an apostrophe.
@@ -2265,6 +2298,11 @@ function stripLeadingOrdinal(t) {
     const numeral = m[1], punct = m[2], rest = m[3].trim();
     if (!rest) return raw;                                // nothing would remain
     if (numeral.length < 2 && !punct) return raw;         // the "I Am Born" guard
+    // ⚠️ THE CHARACTER CLASS ABOVE IS NOT A NUMERAL TEST (v3.25.1). [IVXLCDM]+ matches
+    // "DID", "MILD", "LID", "DIM" and "CIVIL" — all ordinary words built only from
+    // numeral letters — so "DID IT MATTER" was silently becoming "It Matter", losing the
+    // first word of the title. Validate the strict form before stripping anything.
+    if (!/^\d+$/.test(numeral) && !isRomanNumeral(numeral)) return raw;
     return rest;
 }
 
@@ -2322,8 +2360,17 @@ const MATTER_FILE_NAMES = {
 // Nothing distinguishes "typed" from "about" beyond these two flags. game.js
 // v3.11.0 offers body chapters only; the About view reads about:true. Neither
 // consults the other, so a chapter cannot leak into the wrong one.
-const ABOUT_FILE = /\b(imprint|copyright|uncopyright|colophon|licen[cs]e|rights|attribution)\b/;
-const ABOUT_EPUB_TYPE = /\b(imprint|colophon|copyright-page|acknowledg)/i;
+// ⚠️ titlepage ADDED v3.25.1, at Jake's request. It was deliberately excluded before,
+// on the reasoning that a Standard Ebooks title page carries only the title and author
+// and is therefore not a credits notice. That reasoning does not hold for Jake's own
+// editions: the title page is exactly where he records that this is a classroom edition
+// updated for modern audiences, and who prepared it. Title and author are attribution
+// anyway, so including it is defensible even on an SE book.
+//
+// `about` stays editable per chapter in the staging list, so any book where the title
+// page is noise can have it unticked without touching this pattern.
+const ABOUT_FILE = /\b(imprint|copyright|uncopyright|colophon|licen[cs]e|rights|attribution|titlepage|title-page)\b/;
+const ABOUT_EPUB_TYPE = /\b(imprint|colophon|copyright-page|acknowledg|titlepage)/i;
 
 // Auto-set on import so a Standard Ebook or my Augie build needs nothing ticked.
 // ⚠️ Only ever true for NON-body documents: a chapter is never credits, whatever

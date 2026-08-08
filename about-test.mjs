@@ -37,7 +37,13 @@ const aboutCases = [
   ['Standard Ebooks uncopyright.xhtml', 'uncopyright.xhtml',   'back',  'backmatter',          true],
   ['my Augie imprint.xhtml',            'imprint.xhtml',       'front', 'frontmatter imprint', true],
   ['Augie acknowledgements.xhtml',      'acknowledgements.xhtml','front','frontmatter acknowledgements', true],
-  ['titlepage.xhtml',                   'titlepage.xhtml',     'front', 'frontmatter titlepage', false],
+  // ⚠️ FLIPPED false -> true IN ROUND 6, deliberately, at Jake's request. The original
+  // reasoning was sound for Standard Ebooks — an SE title page is just title and author,
+  // not a credits notice — but it is wrong for Jake's own editions, where the title page
+  // is exactly where he records that this is a classroom edition updated for modern
+  // audiences and who prepared it. Title and author are attribution anyway.
+  // `about` remains editable per chapter, so a book where this is noise can be unticked.
+  ['titlepage.xhtml',                   'titlepage.xhtml',     'front', 'frontmatter titlepage', true],
   ['dedication.xhtml',                  'dedication.xhtml',    'front', 'frontmatter dedication', false],
   ['a real chapter named copyright?!',  'copyright.xhtml',     'body',  'bodymatter',          false],
   ['Gutenberg part0001 (no signal)',    'part0001.xhtml',      'front', '',                    false],
