@@ -1,4 +1,4 @@
-// adventure-renderer.js v1.5.2
+// adventure-renderer.js v1.5.3
 //
 // Canvas renderer for Adventure Mode. Observes ttb:* CustomEvents on document
 // and draws the typing session as a figure walking across word-platforms in a
@@ -7,6 +7,14 @@
 //
 // ── Full history: CHANGELOG.md § adventure-renderer.js ────────────────────
 //
+// v1.5.3 — A GAME GENIE WARP IS NOT A BACKSPACE. _onPositionSet() was written for a
+//          one-character backspace and game.js's jumpToSentence() reuses the same
+//          event for a jump of thousands, so no per-word state was reset. crumbleAt
+//          still flagged every word between the new and old cursor as already
+//          crumbled — permanently — so the page rendered EMPTY and words only
+//          reappeared as they were retyped. Stray fragments at odd sizes were
+//          letterTilts and fallingLetters still mid-animation. A jump over 8 chars now
+//          resets the same word state textLoaded does, keeping the text and map.
 // v1.5.2 — The credits reel is dismissed by textLoaded, textCleared, positionSet AND
 //          keystroke. v1.4.0 cleared it on textLoaded alone, and a Game Genie warp
 //          emits positionSet — so warping back to finish a book left the reel drawing
@@ -35,13 +43,6 @@
 //          three pure exported functions with text measurement injected, asserted by
 //          credits-scroll-test.mjs at 3 viewport heights x 4 book shapes: rises into
 //          view, moves monotonically, shows every row, and HOLDS rather than
-//          scrolling away. Draw call is wrapped — an exception inside the rAF loop
-//          would freeze the whole canvas over a decorative feature.
-// v1.3.0 — Condensed map (>40 chapters) now tracks within-chapter progress and
-//          agrees with the dotted map. It used curIdx/n: the marker froze for a
-//          whole chapter then jumped, and sat one chapter BEHIND the dotted map's
-//          (i+1)/n. Invisible on Aesop's 284; 2.4% of the strip on a 41-chapter
-//          book. Now (curIdx + progress)/n. Asserted in map-geometry-test.mjs.
 // ── Events consumed ───────────────────────────────────────────────────────
 //
 //   ttb:textLoaded  { fullText, position, chapterNum, chapters, ... }
@@ -56,7 +57,7 @@
 //   * Survives missed events — but draws NOTHING until the next textLoaded,
 //     which is why game.js replays it on a hot swap.
 
-export const RENDERER_VERSION = '1.5.2';
+export const RENDERER_VERSION = '1.5.3';
 
 // Above this many chapters, per-chapter dots overlap into an unreadable smear
 // and we switch to a continuous route with sparse ticks. 40 keeps every dot at
@@ -715,6 +716,54 @@ class AdventureRenderer {
     const oldPos = this.currentPos;
     const newPos = d.position;
     this._logEvent(`positionSet pos=${newPos}` + (newPos < oldPos ? ' (backspace)' : ''));
+
+    // ⚠️ A WARP IS NOT A BACKSPACE (v1.5.3).
+    //
+    // Everything below this block was written for backspace: the cursor moves ONE
+    // character, so nudging a single letterTilt and trimming letterStatus is exactly
+    // right. game.js's jumpToSentence() then reused the same event to announce a Game
+    // Genie warp of possibly thousands of characters, and none of the per-word visual
+    // state got reset.
+    //
+    // `crumbleAt` is the one that shows. It records the moment each word crumbled away
+    // behind the walker, keyed paraIdx:startPos, and it is never revisited — a word
+    // marked crumbled is DONE, permanently. Warp backwards and every word between the
+    // new cursor and the old one is still flagged as crumbled, so the page renders
+    // empty and words only appear as the student retypes them. Which is precisely the
+    // report: "the words appear one at a time after not being there."
+    //
+    // The stray fragments at odd sizes and angles — "BETTER." large and grey, "isol"
+    // small and red — are letterTilts and fallingLetters from before the warp, still
+    // mid-animation over text that has moved on.
+    //
+    // So: a jump of more than a few characters resets the same per-word and per-letter
+    // state _onTextLoaded resets, while KEEPING fullText and the chapter map, because
+    // jumpToSentence stays inside one chapter. Threshold is deliberately loose — a
+    // real backspace is one character, and word-level undo is a handful.
+    if (Math.abs(newPos - oldPos) > 8) {
+      this._logEvent(`warp ${oldPos}->${newPos}: resetting word state`);
+      this.crumbleAt = {};
+      this.letterStatus = {};
+      this.mistakeFlash = {};
+      this.letterTilts = {};
+      this.fallingLetters = {};
+      this.queuedRespawnPos = null;
+      this.ghosts = [];
+      this.gravestones = [];
+      this.globalWordIdx = 0;
+      this.prevSign = 0;
+      this.runLen = 0;
+      this._mapBurst = null;
+      this.currentPos = newPos;
+      this._setCurrentParaForPos(this.currentPos);
+      this._relayoutCurrentWorld();
+      this.cameraY = this._paragraphYOffset(this.currentParaIdx);
+      this.targetCameraY = this.cameraY;
+      const cx = this._xAtPosition(this.currentPos);
+      this.cameraX = cx - this.w * 0.35;
+      this.targetCameraX = this.cameraX;
+      return;
+    }
 
     // Backspace recovery: if cursor moved backward over a tilted letter,
     // halve the angle and recolor the letter blue. They've recovered, but

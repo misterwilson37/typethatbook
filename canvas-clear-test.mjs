@@ -134,3 +134,63 @@ if (fails) {
     console.log('ALL PASS — the cleared rectangle equals the canvas at every size, clamp');
     console.log('boundary and dpr tested, and a degenerate parent cannot zero it out.');
 }
+
+// ── A warp is not a backspace (added v1.5.3) ─────────────────────────────────
+// _onPositionSet() was written for a one-character backspace. game.js's
+// jumpToSentence() reuses the same event for a Game Genie warp of thousands of
+// characters, and none of the per-word visual state was reset — so crumbleAt still
+// flagged every word between the new and old cursor as already crumbled, which is
+// permanent, and the page rendered empty until each word was retyped.
+//
+// This asserts the reset happens on a jump and does NOT happen on a backspace,
+// because the backspace path carries the tilt-recovery behaviour that makes a near
+// miss visible and wiping it would silently delete a feature.
+console.log('\n=== positionSet: warp resets word state, backspace does not ===');
+{
+    const src = readFileSync(fileURLToPath(new URL('./adventure-renderer.js', import.meta.url)), 'utf8');
+    const k = src.indexOf('  _onPositionSet(');
+    let d = 0, body = '';
+    for (let x = src.indexOf('{', k); x < src.length; x++) {
+        if (src[x] === '{') d++;
+        else if (src[x] === '}') { d--; if (!d) { body = src.slice(k, x + 1); break; } }
+    }
+    if (!body) { ok('could lift _onPositionSet', false, 'renamed? reanchor this harness'); }
+
+    const make = (curPos) => {
+        const cls = new Function('performance', `return class R { ${body} }`)({ now: () => 0 });
+        return Object.assign(Object.create(cls.prototype), {
+            currentPos: curPos, w: 1000,
+            crumbleAt: { '0:0': 1, '0:5': 2 }, letterStatus: { 3: 'bad' },
+            mistakeFlash: { 2: 1 }, letterTilts: { 4: { angleRad: 0.4 } },
+            fallingLetters: { 7: 1 }, ghosts: [{}], gravestones: [{}],
+            queuedRespawnPos: 9, globalWordIdx: 12, prevSign: 1, runLen: 3,
+            _mapBurst: {}, currentParaIdx: 2,
+            _cancelLeap() {}, _logEvent() {}, _setCurrentParaForPos() {},
+            _relayoutCurrentWorld() {}, _paragraphYOffset: () => 0, _xAtPosition: () => 0,
+        });
+    };
+
+    const warp = make(1200);
+    warp._onPositionSet({ position: 40 });
+    ok('warp clears crumbleAt (the one that blanks the page)',
+       Object.keys(warp.crumbleAt).length === 0,
+       'words behind the new cursor stay flagged crumbled and never draw again');
+    ok('warp clears letterTilts and fallingLetters (the stray fragments)',
+       Object.keys(warp.letterTilts).length === 0 && Object.keys(warp.fallingLetters).length === 0);
+    ok('warp clears ghosts and gravestones',
+       warp.ghosts.length === 0 && warp.gravestones.length === 0);
+    ok('warp moves the cursor', warp.currentPos === 40);
+
+    const bs = make(100);
+    bs._onPositionSet({ position: 99 });
+    ok('a 1-char backspace does NOT wipe crumbleAt',
+       Object.keys(bs.crumbleAt).length === 2,
+       'the backspace path must stay cheap and keep the tilt-recovery feature');
+    ok('a backspace still moves the cursor', bs.currentPos === 99);
+
+    const fwd = make(40);
+    fwd._onPositionSet({ position: 1200 });
+    ok('a large FORWARD jump also resets (skip-ahead warp)',
+       Object.keys(fwd.crumbleAt).length === 0);
+}
+if (fails) process.exitCode = 1;
