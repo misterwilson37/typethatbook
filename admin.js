@@ -1,10 +1,19 @@
-// admin.js v3.28.0
+// admin.js v3.30.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.30.0 — ⚠️ CLASSROOM-DEDICATION MACHINERY REMOVED AT JAKE'S REQUEST. v3.27.0 tied a
+//           licence change to a notice on the title page, and v3.29.0 added a button to
+//           write that notice. Two halves that looked like one feature and were not: the
+//           gap flag read the License FIELD while its name pointed at the title-page
+//           TEXT, so adding the line never cleared the dot and there was no way to tell
+//           that from a bug. Gone: runDedication(), CLASSROOM_NOTICE, DEDICATION_TEXT,
+//           the classroom argument to canonicalRightsFrom(), and the gap flag. KEPT: the
+//           v3.26.0 source/licence mapping, the combined PD & CC0 option (pick it by
+//           hand), Gutenberg origin, Prepared by, and the v3.28.0 genre data-loss fix.
 // v3.28.0 — ⚠️ THE GENRE DROPDOWN HAD NO "Custom…" OPTION AND WAS ERASING DATA. The
 //           population loop appended GENRES and nothing else, so the __custom__ value that
 //           THREE handlers tested for could never occur and Sports had no way back into the
@@ -18,7 +27,7 @@
 //           contribution and needs its own licence. readInBookSignals() does ONE spine walk
 //           (cap 4) for the classroom notice, Gutenberg's origin link and its Credits row; a
 //           cleaned PD-only book moves to combined PD+CC0, a CC BY book never does. New
-//           'Prepared by' field; 'Cleaned up by' is now a select. Dropdown flags 'dedication'.
+//           'Prepared by' field; 'Cleaned up by' is now a select.
 // v3.26.0 — ⚠️ THE SOURCE AND LICENSE AUTOFILLS HAD NEVER ONCE BEEN RIGHT. Of 24 books in
 //           library/, two ever matched an option: SE put a gutenberg.org URL in Source
 //           (dc:source is UPSTREAM, read before dc:publisher) and a 90-word paragraph in
@@ -38,16 +47,6 @@
 //           reads the input, not the book. One click would have replaced Jane Eyre's
 //           chapters. The stale panel was the visible, harmless half; the loaded file
 //           was the dangerous half and predates the panel entirely.
-// v3.25.1 — Roman numerals survive title casing: "CHAPTER XIX" was becoming "Chapter
-//           Xix", mangling the whole contents of every Roman-numbered book.
-//           stripLeadingOrdinal() misses these because it needs text to REMAIN after
-//           the numeral. Restored only when the title is structural or is nothing but a
-//           numeral, so "THE MIX" and "I AM BORN" are untouched. Second bug found the
-//           same way: stripLeadingOrdinal's [IVXLCDM]+ class matched WORDS built from
-//           numeral letters, so "DID IT MATTER" lost its first word. Now validated.
-//           Also: the TITLE PAGE
-//           now counts as About, because that is where Jake credits the classroom
-//           edition and who prepared it.
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * loadBookList(selectFirst) defaults to FALSE and preserves the current
@@ -66,7 +65,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.28.0";
+const ADMIN_VERSION = "3.30.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -548,7 +547,7 @@ document.title = `TypeThatBook Admin v${ADMIN_VERSION}`;
 // A stored genre with no matching option sets selectedIndex to -1, and reading .value
 // back then returns '' — so opening a Sports book and pressing Save Metadata wrote
 // `genre: ''`. Verified in jsdom before the fix. That mattered right now because the
-// v3.27.0 dedication pass sends Jake through every book pressing exactly that button.
+// licence pass sends Jake through every book pressing exactly that button.
 //
 // ⚠️ A LEADING BLANK OPTION IS PART OF THE FIX, not tidiness. Without it a fresh form
 // defaults to selectedIndex 0 — "Adventure" — so the autofill's `!genreSelect.value`
@@ -759,23 +758,6 @@ async function loadBookList(selectFirst = false) {
             if (b.minAge === null || b.minAge === undefined) gaps.push('age');
             if (!b.coverUrl) gaps.push('cover');
             if (!b.rights) gaps.push('license');
-            // ─── THE CLASSROOM DEDICATION GAP (v3.27.0) ──────────────────────
-            //
-            // A book that has had a classroom text pass has editorial changes of its
-            // own, and those changes need their own licence or nobody downstream can
-            // tell whether they may reuse the reworded text. Standard Ebooks books
-            // already carry the CC0 half; a raw Gutenberg book does not, so cleaning
-            // one leaves its licence incomplete until it moves to the combined value.
-            //
-            // ⚠️ THIS IS A PROXY, AND AN HONEST ONE. What Jake actually wants to find
-            // is books whose TITLE PAGE lacks the dedication sentence — and that text
-            // is not in the book record, so checking it properly would mean fetching
-            // chapter text for every book on every render of this dropdown. That is
-            // real money against the project's first priority. `cleanedBy` set with a
-            // licence that omits CC0 catches the same backlog, because the sentence and
-            // the licence get fixed in the same pass. The flag tracks the work, not the
-            // prose.
-            if (b.cleanedBy && b.rights && !/CC0/i.test(b.rights)) gaps.push('dedication');
             const chapArr = Array.isArray(b.chapters) ? b.chapters : [];
             const hasMatter = chapArr.some(c => c && c.matter && c.matter !== 'body');
             const hasAbout  = chapArr.some(c => c && c.about === true);
@@ -1092,14 +1074,14 @@ const GUTENBERG_EBOOK_URL = /^https?:\/\/(?:www\.)?gutenberg\.org\/ebooks\/(\d+)
 // notice that lives in the front matter or nowhere.
 const SIGNAL_SPINE_LIMIT = 4;
 
-// The classroom-edition notice a cleaning session leaves on the title page. Matched
-// loosely on the two phrases that carry the meaning, because the sentence around them
-// is written fresh per book and will vary.
-const CLASSROOM_NOTICE = /classroom edition|reworded for classroom use|for classroom use by/i;
-
 async function readInBookSignals(zip, opfDoc, opfPath, meta) {
-    const out = { originUrl: '', preparedBy: '', classroom: false };
-    const isGutenberg = /gutenberg/i.test([meta.publisher, meta.identifier].filter(Boolean).join(' '));
+    const out = { originUrl: '', preparedBy: '' };
+    // ⚠️ EDITION SIGNALS ONLY — dc:publisher and dc:identifier, NEVER dc:source.
+    // Standard Ebooks cites Gutenberg as its own upstream, so gating on dc:source gave
+    // all 17 SE books a gutenberg.org origin: the transcription their edition was BUILT
+    // FROM, not where their edition came from.
+    const edition = [meta.publisher, meta.identifier].filter(Boolean).join(' ');
+    if (!/gutenberg/i.test(edition)) return out;
     try {
         const base = opfPath.substring(0, opfPath.lastIndexOf('/') + 1);
         const idToHref = {};
@@ -1117,38 +1099,26 @@ async function readInBookSignals(zip, opfDoc, opfPath, meta) {
             // text/html, not text/xml: forgiving, and querySelector works on it.
             // textContent/getAttribute only — never innerText on a parsed document.
             const doc = new DOMParser().parseFromString(await entry.async('string'), 'text/html');
-            const body = doc.body ? (doc.body.textContent || '') : '';
-
-            // 1. The classroom-edition notice another Claude leaves on the title page.
-            if (!out.classroom && CLASSROOM_NOTICE.test(body)) out.classroom = true;
-
-            if (isGutenberg) {
-                const scope = doc.querySelector('#pg-machine-header') ||
-                              doc.querySelector('#pg-header');
-                // 2. The canonical ebook page.
-                if (!out.originUrl) {
-                    for (const a of Array.from((scope || doc).querySelectorAll('a[href]'))) {
-                        const m = GUTENBERG_EBOOK_URL.exec((a.getAttribute('href') || '').trim());
-                        if (m) { out.originUrl = 'https://www.gutenberg.org/ebooks/' + m[1]; break; }
-                    }
-                }
-                // 3. The transcribers, from the machine header's "Credits" row. Scoped to
-                //    that block on purpose: "Credits" appears in plenty of book prose.
-                if (!out.preparedBy && scope) {
-                    for (const el of Array.from(scope.querySelectorAll('p'))) {
-                        const txt = (el.textContent || '').replace(/\s+/g, ' ').trim();
-                        const m = /^Credits\s*:\s*(.+)$/i.exec(txt);
-                        if (m) { out.preparedBy = cleanPreparedBy(m[1]); break; }
-                    }
+            const scope = doc.querySelector('#pg-machine-header') || doc.querySelector('#pg-header');
+            if (!out.originUrl) {
+                for (const a of Array.from((scope || doc).querySelectorAll('a[href]'))) {
+                    const m = GUTENBERG_EBOOK_URL.exec((a.getAttribute('href') || '').trim());
+                    if (m) { out.originUrl = 'https://www.gutenberg.org/ebooks/' + m[1]; break; }
                 }
             }
-            if (out.classroom && (!isGutenberg || (out.originUrl && out.preparedBy))) break;
+            // The transcribers, from the machine header's "Credits" row. Scoped to that
+            // block on purpose: "Credits" appears in plenty of book prose.
+            if (!out.preparedBy && scope) {
+                for (const el of Array.from(scope.querySelectorAll('p'))) {
+                    const txt = (el.textContent || '').replace(/\s+/g, ' ').trim();
+                    const m = /^Credits\s*:\s*(.+)$/i.exec(txt);
+                    if (m) { out.preparedBy = cleanPreparedBy(m[1]); break; }
+                }
+            }
+            if (out.originUrl && out.preparedBy) break;
         }
     } catch (_) { /* a missing signal is never worth failing an import */ }
-
-    // Fallbacks that need no file read. The ebook number is in the identifier either
-    // way, and it is the one part of a Gutenberg URL that has never changed.
-    if (!out.originUrl && isGutenberg) {
+    if (!out.originUrl) {
         const idm = /gutenberg\.org\/(?:ebooks\/|files\/|cache\/epub\/)?(\d+)/i.exec(meta.identifier || '');
         if (idm) out.originUrl = 'https://www.gutenberg.org/ebooks/' + idm[1];
     }
@@ -1208,12 +1178,10 @@ async function readEpubMetadata(file) {
         // bare UUIDs rather than trying to read opf:scheme.
         identifier: grab('identifier').find(v => /^https?:\/\//i.test(v)) || '',
     };
-    // One spine walk, three signals: the Gutenberg origin link, Gutenberg's transcriber
-    // credits, and whether a cleaning session has stamped this as a classroom edition.
+    // Gutenberg only: the canonical origin link and the transcriber credits.
     const sig = await readInBookSignals(zip, opf, opfPath, meta);
     meta.originUrl = sig.originUrl;
     meta.preparedBy = sig.preparedBy;
-    meta.classroom = sig.classroom;
     return meta;
 }
 
@@ -1286,8 +1254,7 @@ function canonicalSourceFrom(meta, allowed) {
 }
 
 // Returns an exact option value, or '' meaning "I will not guess at this one".
-function canonicalRightsFrom(rightsText, allowed, opts) {
-    const classroom = !!(opts && opts.classroom);
+function canonicalRightsFrom(rightsText, allowed) {
     const t = String(rightsText || '').trim();
     if (!t) return '';
     const exact  = v => (allowed.indexOf(v) !== -1 ? v : '');
@@ -1297,18 +1264,7 @@ function canonicalRightsFrom(rightsText, allowed, opts) {
     //    no heuristic, and running one on it can only make things worse. Both test
     //    fixtures are this case and the compound rule in step 2 mis-mapped them until
     //    this short-circuit existed — found by metadata-map-test.mjs, not by reading.
-    if (allowed.indexOf(t) !== -1) {
-        // ⚠️ EXCEPT that naming an option does not make a licence final. Cleaning a
-        //    book invalidates exactly one value — plain public domain — because the
-        //    edit is a contribution the plain value does not account for. Missed on
-        //    the first pass: the short-circuit returned before the step-4 upgrade
-        //    could run, so a cleaned book already stored as PD stayed PD. That is
-        //    Jake's whole backlog, so it was the one case that had to work.
-        if (classroom && t === 'Public domain (United States)') {
-            return byPrefix('Public domain (United States) &') || t;
-        }
-        return t;
-    }
+    if (allowed.indexOf(t) !== -1) return t;
 
     // ⚠️ "PUBLIC DOMAIN DEDICATION" IS PART OF CC0'S OWN NAME. It is not a separate
     //    claim about the text, so it must not be counted as one: "CC0 1.0 Public
@@ -1340,22 +1296,7 @@ function canonicalRightsFrom(rightsText, allowed, opts) {
     // 3. CC0 on its own.
     if (hasCC0) return byPrefix('CC0 1.0');
     // 4. Public domain on its own — Gutenberg's terse "Public domain in the USA."
-    //
-    // ⚠️ A CLEANED BOOK IS NO LONGER PUBLIC-DOMAIN-ONLY. Rewording period slurs for
-    //    classroom use is an editorial contribution, and a contribution has a licence
-    //    of its own. Standard Ebooks books already carry the combined value because SE
-    //    dedicated theirs; a raw Gutenberg book does not, so cleaning it MOVES it from
-    //    "Public domain (United States)" to the combined value. That is not a
-    //    formality: without the dedication nobody downstream can tell whether they may
-    //    reuse the reworded text, which is the whole thing Jake wants to enable.
-    //
-    //    Only reached when the licence is public-domain-only. A CC BY book returns at
-    //    step 1 and is never touched — we cannot dedicate someone else's terms away.
-    if (hasPD) {
-        return classroom ? (byPrefix('Public domain (United States) &') ||
-                            exact('Public domain (United States)'))
-                         : exact('Public domain (United States)');
-    }
+    if (hasPD) return exact('Public domain (United States)');
     return '';
 }
 
@@ -1401,8 +1342,7 @@ async function autofillFromEpub(file) {
         const sourceEl = document.getElementById('active-book-source');
         let mappedRights = '';
         if (meta.rights && rightsEl && !readSelectOrCustom('active-book-rights')) {
-            mappedRights = canonicalRightsFrom(meta.rights, selectOptionValues('active-book-rights'),
-                                               { classroom: meta.classroom });
+            mappedRights = canonicalRightsFrom(meta.rights, selectOptionValues('active-book-rights'));
             // Unmapped falls back to the raw text in Custom… rather than nothing. A
             // licence we cannot name is precisely the one most likely to have terms,
             // so losing it is worse than showing Jake a paragraph.
@@ -1465,10 +1405,6 @@ async function autofillFromEpub(file) {
         if (!readSelectOrCustom('active-book-cleanedby')) {
             writeSelectOrCustom('active-book-cleanedby', 'Claude');
             filled.push('cleaned up by');
-        }
-        if (meta.classroom) {
-            notes.push('this EPUB carries a classroom-edition notice, so its editorial ' +
-                       'changes need the CC0 dedication \u2014 License set accordingly.');
         }
         // ── ARCHIVE URL from the picked file's own name (v3.24.0) ─────────────
         //
@@ -1754,8 +1690,8 @@ async function reportMetadataMismatches(file) {
     // the 90-word paragraph BACK — and the same for a Gutenberg URL over "Standard
     // Ebooks". The panel was arguing Jake into the wrong value, once per re-import,
     // in the one place designed to look authoritative.
-    const fileRights = canonicalRightsFrom(meta.rights, selectOptionValues('active-book-rights'),
-                                          { classroom: meta.classroom }) || meta.rights;
+    const fileRights = canonicalRightsFrom(meta.rights, selectOptionValues('active-book-rights'))
+                       || meta.rights;
     const fileSource = canonicalSourceFrom(meta, selectOptionValues('active-book-source'))
                        || meta.publisher
                        || (looksLikeBareUrl(meta.source) ? '' : meta.source);
