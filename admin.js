@@ -1,10 +1,19 @@
-// admin.js v3.24.3
+// admin.js v3.25.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.25.0 — OVERWRITE NOW FILLS BLANK METADATA from the new EPUB, and reports
+//           disagreements. autofillFromEpub() only ran on the new-book path, so
+//           re-uploading — the one moment the file is in hand — ignored it. For books
+//           imported before the licence/source/archive/cleanedBy fields existed that
+//           meant typing all of it by hand, once per book. Safe because autofill writes
+//           into EMPTY fields only. Where BOTH are filled and they differ (an author
+//           spelled "Nesbitt" in the form and "Nesbit" in the file), the difference is
+//           shown with a per-field accept button rather than either value winning
+//           silently. Compared loosely, so case and punctuation do not nag.
 // v3.24.3 — The PARSE SUMMARY carried the same lie v3.24.2 fixed in the audit panel:
 //           "No character issues or language warnings found" when langIssues was
 //           already filtered by the approved list. Now names the hidden approvals.
@@ -38,11 +47,6 @@
 //           reversed in firestore.rules v2.0.0 and are not coming back — they need a
 //           terminal. Round 6 recovered MULTITENANCY.md, which is where that idea
 //           came from, so the wrong wording is now traceable rather than mysterious.
-// v3.23.2 — HEADER ONLY, no code change. The entries below had stopped at v3.18.4
-//           while the constant read v3.23.1 — NINE releases, including Delete Book
-//           and the whole attribution/About system, were absent from the file that
-//           implements them. Refreshed from CHANGELOG.md and trimmed to the
-//           6-entry budget.
 //   * loadBookList(selectFirst) defaults to FALSE and preserves the current
 //     selection. Passing true fires onchange, which hides the staging area
 //     and reassigns activeBookId — that is how Save Metadata used to throw
@@ -59,7 +63,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.24.3";
+const ADMIN_VERSION = "3.25.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -1247,8 +1251,95 @@ overwriteBtn.onclick = () => {
 cancelOverwriteBtn.onclick = () => warningModal.classList.add('hidden');
 confirmOverwriteBtn.onclick = async () => {
     warningModal.classList.add('hidden');
-    await parseEpubFile(overwriteEpubFile.files[0]);
+    const file = overwriteEpubFile.files[0];
+
+    // ⚠️ FILL THE BLANKS ON OVERWRITE TOO (v3.25.0).
+    //
+    // autofillFromEpub() only ever ran on the NEW-book path, on the theory that a book
+    // being overwritten already has its metadata. For 23 books imported before the
+    // licence/source/archive/cleanedBy fields existed, that theory is exactly backwards:
+    // re-uploading is the ONLY moment the file is in hand, and it was the one moment
+    // that ignored it. The alternative was typing all of it by hand, 23 times.
+    //
+    // Safe because autofill writes into EMPTY fields only — it has always worked that
+    // way, which is what made v3.24.0's clear-then-refill fix possible. Nothing already
+    // entered can be clobbered.
+    await autofillFromEpub(file);
+
+    // ...and where the file DISAGREES with what is stored, say so rather than silently
+    // keeping either one. Jake's case: "E. Nesbitt" typed once by hand against the
+    // file's "E. Nesbit". A blank field is a gap; a mismatched field is a decision, and
+    // the person who knows which spelling is right is not this function.
+    await reportMetadataMismatches(file);
+
+    await parseEpubFile(file);
 };
+
+// Compare the EPUB's own metadata against what is currently in the form and surface
+// any field where both are filled and they differ. One accept button per row: the
+// file is often right (it came from Standard Ebooks or Gutenberg) but not always, so
+// nothing changes without a click.
+async function reportMetadataMismatches(file) {
+    const host = document.getElementById('metadata-mismatch');
+    if (!host) return;
+    host.innerHTML = '';
+    host.classList.add('hidden');
+    if (!file) return;
+
+    let meta;
+    try { meta = await readEpubMetadata(file); }
+    catch (e) { return; }                       // parse errors are reported elsewhere
+    if (!meta) return;
+
+    // Compare loosely: punctuation, case and spacing differences are not worth a
+    // prompt, but a different NAME is. "E. Nesbit" vs "E. Nesbitt" survives this.
+    const loose = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+    const rows = [
+        ['Author',  'active-book-author', meta.author,               'field'],
+        ['Licence', 'active-book-rights', meta.rights,               'select'],
+        ['Source',  'active-book-source', meta.source || meta.publisher, 'select'],
+        ['Title',   'active-book-title',  meta.title,                'field'],
+    ];
+
+    const diffs = [];
+    for (const [label, id, fileVal, kind] of rows) {
+        if (!fileVal) continue;
+        const current = kind === 'select' ? readSelectOrCustom(id) : (document.getElementById(id) || {}).value;
+        if (!current || !String(current).trim()) continue;       // blank: autofill's job
+        if (loose(current) === loose(fileVal)) continue;         // same thing, typed differently
+        diffs.push({ label, id, fileVal, current, kind });
+    }
+    if (!diffs.length) return;
+
+    host.classList.remove('hidden');
+    host.innerHTML =
+        '<div style="color:#ffaa00; font-weight:bold; margin-bottom:6px;">' +
+        '\u26a0\ufe0f The file disagrees with what is saved on ' + diffs.length +
+        ' field' + (diffs.length !== 1 ? 's' : '') + '</div>' +
+        '<div style="font-size:0.8em; color:#aaa; margin-bottom:8px;">Nothing changes ' +
+        'unless you click. The file is often right \u2014 but not always, so it is your call.</div>' +
+        diffs.map((d, i) =>
+            '<div style="margin-bottom:6px; font-size:0.85em;">' +
+            '<b>' + escapeHtml(d.label) + '</b><br>' +
+            '<span style="color:#888;">saved:</span> ' + escapeHtml(d.current) + '<br>' +
+            '<span style="color:#888;">file:&nbsp;</span> <span style="color:#66cc66;">' +
+            escapeHtml(d.fileVal) + '</span> ' +
+            '<button class="mismatch-accept" data-i="' + i + '" ' +
+            'style="margin-left:8px; font-size:0.9em;">Use the file\u2019s</button>' +
+            '</div>').join('');
+
+    host.querySelectorAll('.mismatch-accept').forEach(btn => {
+        btn.onclick = () => {
+            const d = diffs[Number(btn.dataset.i)];
+            if (!d) return;
+            if (d.kind === 'select') writeSelectOrCustom(d.id, d.fileVal);
+            else { const el = document.getElementById(d.id); if (el) el.value = d.fileVal; }
+            btn.disabled = true;
+            btn.textContent = '\u2713 applied \u2014 Save Metadata to keep it';
+        };
+    });
+}
 
 // --- EPUB PARSER & ERROR SCANNER ---
 //

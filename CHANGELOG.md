@@ -26,7 +26,7 @@ there.
 
 - [`game.js`](#gamejs) — currently v3.14.0
 - [`adventure-renderer.js`](#adventure-rendererjs) — currently v1.4.0
-- [`admin.js`](#adminjs) — currently v3.24.1
+- [`admin.js`](#adminjs) — currently v3.24.2
 - [`index.js`](#indexjs-cloud-functions) — currently v1.6.0
 - [`learn.js`](#learnjs) — currently v2.2.4
 - [`index.html`](#indexhtml) — currently v3.6.1
@@ -896,7 +896,42 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.24.1**
+Current: **v3.24.2**
+
+#### v3.24.2
+
+Round 6 (Noiseless). **"No flagged language found" was answering a different question
+than the one it appeared to answer.**
+
+         `scanForLanguageIssues()` silently drops any match on this book's approved
+         list, so a book with every flag approved reports zero issues — and the
+         zero-issues branch rendered a green tick reading "No flagged language found".
+         That reads as "this text is clean". It is not the same claim.
+
+         Found the honest way: Jake approved "queer" and "gaily" on a book whose upload
+         then failed for an unrelated reason (v3.24.1), re-ran the audit on the next
+         attempt, and got a clean bill of health on text he knew contained both. He
+         reasonably assumed the approvals had been forgotten. They had not — they were
+         in localStorage, doing precisely their job, invisibly.
+
+         Compounding it: the approved-word list and its "Clear all" link were rendered
+         ONLY in the has-issues branch. Once approvals suppressed every warning the
+         state was both invisible and unreachable from the UI, with no way back short
+         of devtools. `wireClearApprovals()` is now factored out and called from both
+         branches.
+
+         The message now reads "No UNAPPROVED language found", names the approved
+         words, keeps Clear all reachable, and states plainly that approvals are
+         per-browser and are not part of the book record.
+
+         ⚠️ **The underlying design issue is unchanged and is now recorded in HANDOFF
+         §4.2:** approvals live in `localStorage` under `ttb_approved_lang_{bookId}`,
+         not on the book document. They do not travel to another device, they are not
+         visible to anyone else, and a browser reset loses the entire review pass.
+
+         Also: ARCHIVE_BASE_DEFAULT corrected to
+         `https://typethatbook.misterwilson.org/library`.
+
 
 #### v3.24.1
 

@@ -394,6 +394,12 @@
                             <button id="overwrite-btn" class="danger-btn">Process Overwrite</button>
                         </div>
                     </div>
+                    <!-- v3.25.0: overwrite fills BLANK metadata from the new file, and
+                         reports any field where the file disagrees with what is saved.
+                         Populated by reportMetadataMismatches() in admin.js. -->
+                    <div id="metadata-mismatch" class="hidden"
+                         style="margin-top:10px; padding:10px; background:#1a1a1a;
+                                border:1px solid #553300; border-radius:4px;"></div>
                 </div>
                 
                 <div class="checkbox-wrapper">
