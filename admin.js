@@ -1,10 +1,18 @@
-// admin.js v3.24.1
+// admin.js v3.24.2
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.24.2 — The language audit reported "✅ No flagged language found" when the only
+//           reason it found nothing was that every match was on this book's APPROVED
+//           list. Two different claims, one message. Worse, the approved list and its
+//           "Clear all" link rendered ONLY in the has-issues branch, so once approvals
+//           suppressed everything the state was invisible AND unreachable. Now says
+//           "No UNAPPROVED language found", names the approved words, keeps Clear all
+//           reachable, and states plainly that approvals live in this browser only.
+//           ARCHIVE_BASE_DEFAULT → https://typethatbook.misterwilson.org/library.
 // v3.24.1 — ⚠️ ADDING A NEW BOOK WAS IMPOSSIBLE. uploadAllBtn.onclick called val()
 //           from outside the function that declared it, in the else branch that
 //           runs only for a book that does not exist yet: "Can't find variable:
@@ -34,11 +42,6 @@
 //           6-entry budget.
 // v3.23.1 — "Cleaned up with" became "Cleaned up by": what the field means, and
 //           short enough to stop the circled-i hint wrapping.
-// v3.23.0 — DELETE BOOK, with typed confirmation rather than a confirm() one
-//           careless Return from gone. Counts chapters before asking, and deletes
-//           them before the book record so a half-failure is visible instead of an
-//           invisible pile of orphans. Plus three more panel fixes.
-//
 //   * loadBookList(selectFirst) defaults to FALSE and preserves the current
 //     selection. Passing true fires onchange, which hides the staging area
 //     and reassigns activeBookId — that is how Save Metadata used to throw
@@ -55,7 +58,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.24.1";
+const ADMIN_VERSION = "3.24.2";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -1017,7 +1020,7 @@ async function readEpubMetadata(file) {
 // Where your own copies of the source EPUBs live. Overridable at runtime by setting
 // window.TTB_ARCHIVE_BASE so the base can move without a code change; this constant
 // is only the fallback.
-const ARCHIVE_BASE_DEFAULT = 'https://www.misterwilson.org/library';
+const ARCHIVE_BASE_DEFAULT = 'https://typethatbook.misterwilson.org/library';
 
 async function autofillFromEpub(file) {
     const st = document.getElementById('autofill-status');
@@ -3808,7 +3811,38 @@ function showLanguageWarnings(issues, fromDB = false) {
     langIsFromDB = fromDB;
 
     if (issues.length === 0) {
-        container.innerHTML = '<div style="color:#00ff41; font-weight:bold;">✅ No flagged language found.</div>';
+        // ⚠️ "No flagged language found" IS NOT THE SAME CLAIM AS "nothing was
+        // flagged" (v3.24.2). scanForLanguageIssues() silently drops any match whose
+        // word is in this book's approved list, so a book with two approved words
+        // reports zero issues — and this branch used to render a green tick that
+        // looked like the text had come up clean.
+        //
+        // That is actively misleading in the one situation where it matters most:
+        // Round 6 approved "queer" and "gaily" on a book whose upload then failed for
+        // an unrelated reason, and on the next attempt the audit reported clean. The
+        // approvals had survived in localStorage; the flags had not gone anywhere.
+        //
+        // Worse, the approved list and its "Clear all" link were rendered ONLY in the
+        // has-issues branch below, so once approvals suppressed everything the state
+        // became both invisible and unreachable from the UI.
+        const approvedNow = activeBookId ? getApprovedWords(activeBookId) : [];
+        if (approvedNow.length) {
+            container.innerHTML =
+                '<div style="color:#00ff41; font-weight:bold;">\u2705 No unapproved language found.</div>' +
+                '<div style="font-size:0.85em; color:#aaa; margin-top:6px;">' +
+                approvedNow.length + ' word' + (approvedNow.length !== 1 ? 's' : '') +
+                ' approved for this book and hidden from this scan: ' +
+                approvedNow.map(w => '<span style="color:#66cc66;">' + escapeHtml(w) +
+                                     '</span>').join(', ') +
+                ' <a href="#" id="lang-clear-approvals" style="color:#ff6666; margin-left:8px;">' +
+                'Clear all</a>' +
+                '<div style="margin-top:4px; color:#777;">Approvals are stored in this ' +
+                'browser only, per book \u2014 they do not travel to another device and ' +
+                'are not part of the book record.</div></div>';
+            wireClearApprovals();
+            return;
+        }
+        container.innerHTML = '<div style="color:#00ff41; font-weight:bold;">\u2705 No flagged language found.</div>';
         return;
     }
 
@@ -3874,17 +3908,22 @@ function showLanguageWarnings(issues, fromDB = false) {
     wireLangButtons();
 }
 
-function wireLangButtons() {
-    // Clear approvals link
+// Extracted from wireLangButtons() in v3.24.2 so the NO-unapproved-issues branch can
+// wire the same link. Previously the only way to reach "Clear all" was to have at
+// least one unapproved warning on screen, which is exactly the state approvals remove.
+function wireClearApprovals() {
     const clearLink = document.getElementById('lang-clear-approvals');
-    if (clearLink) {
-        clearLink.onclick = (e) => {
-            e.preventDefault();
-            if (!confirm('Clear all approved words for this book?')) return;
-            saveApprovedWords(activeBookId, []);
-            rerunLanguageScan();
-        };
-    }
+    if (!clearLink) return;
+    clearLink.onclick = (e) => {
+        e.preventDefault();
+        if (!confirm('Clear all approved words for this book?')) return;
+        saveApprovedWords(activeBookId, []);
+        rerunLanguageScan();
+    };
+}
+
+function wireLangButtons() {
+    wireClearApprovals();
 
     // Approve all instances of a word
     document.querySelectorAll('.lang-approve-word-btn').forEach(btn => {
