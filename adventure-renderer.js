@@ -1,4 +1,4 @@
-// adventure-renderer.js v1.5.3
+// adventure-renderer.js v1.5.4
 //
 // Canvas renderer for Adventure Mode. Observes ttb:* CustomEvents on document
 // and draws the typing session as a figure walking across word-platforms in a
@@ -57,7 +57,7 @@
 //   * Survives missed events — but draws NOTHING until the next textLoaded,
 //     which is why game.js replays it on a hot swap.
 
-export const RENDERER_VERSION = '1.5.3';
+export const RENDERER_VERSION = '1.5.4';
 
 // Above this many chapters, per-chapter dots overlap into an unreadable smear
 // and we switch to a continuous route with sparse ticks. 40 keeps every dot at
@@ -112,7 +112,7 @@ export function creditsContent(d) {
     const bits = [
         ['By',               detail.author],
         ['Source',           detail.source],
-        ['Licence',          detail.rights],
+        ['License',          detail.rights],
         ['Text prepared by', detail.cleanedBy],
     ].filter(([, v]) => v != null && String(v).trim() !== '');
 

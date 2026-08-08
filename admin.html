@@ -342,10 +342,16 @@
                                    style="width:100%; margin-top:4px;" placeholder="Who produced this edition">
                         </div>
                         <div class="col" style="flex:1.4;">
-                            <label>Licence / rights <span class="hint" title="Required for Creative Commons books; shown on the library card. The URL is part of the value on purpose — a licence URI is what CC actually asks for, and the card turns it into a link. Auto-filled from the EPUB's dc:rights when it declares one.">i</span></label>
+                            <label>License / rights <span class="hint" title="Required for Creative Commons books; shown on the library card. The URL is part of the value on purpose — a license URI is what CC actually asks for, and the card turns it into a link. Auto-filled from the EPUB's dc:rights when it declares one, mapped onto one of these options rather than pasted in raw.">i</span></label>
                             <select id="active-book-rights" style="width:100%;">
                                 <option value="">— Not set —</option>
                                 <option value="Public domain (United States)">Public domain (United States)</option>
+                                <!-- The Standard Ebooks case, and ~20 of the 23 books in the library.
+                                     SE's dc:rights asserts BOTH: the source text is believed US public
+                                     domain, AND SE's own editorial contributions are dedicated CC0.
+                                     Stated in that order because that is the order the rights arose.
+                                     Neither half requires attribution, so this is a credit, not a duty. -->
+                                <option value="Public domain (United States) &amp; CC0 1.0 https://creativecommons.org/publicdomain/zero/1.0/">Public domain (United States) &amp; CC0 1.0</option>
                                 <option value="CC0 1.0 Public Domain Dedication https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0 (public domain dedication)</option>
                                 <option value="CC BY 4.0 https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</option>
                                 <option value="CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</option>
@@ -356,7 +362,7 @@
                                 <option value="__custom__">Custom…</option>
                             </select>
                             <input type="text" id="active-book-rights-custom" class="hidden"
-                                   style="width:100%; margin-top:4px;" placeholder="Licence name and URL">
+                                   style="width:100%; margin-top:4px;" placeholder="License name and URL">
                         </div>
                         <div class="col">
                             <label>Archive URL <span class="hint" title="Link to the EPUB this was built from. Provenance, not compliance — it lets anyone check your edition against the original.">i</span></label>

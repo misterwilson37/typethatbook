@@ -248,13 +248,13 @@ written and is not now; read its header box.
 
 ## Tests
 
-There are fifteen harnesses in the repo. They are for whoever is editing the code,
+There are sixteen harnesses in the repo. They are for whoever is editing the code,
 not for Jake — running them needs Node, which is exactly what this project's
 deployment story does not have. Nothing in the app depends on them.
 
 ```
 npm install --no-save jsdom jszip @xmldom/xmldom acorn acorn-walk
-node run-all-tests.mjs                 # the 11 fast ones, ~5 seconds
+node run-all-tests.mjs                 # the 16 fast ones, ~8 seconds
 node run-all-tests.mjs --with-epubs    # plus the 4 corpus harnesses, ~2 minutes
 node audit-versions.mjs                # versions.js's drift + budget checks, offline
 ```
@@ -267,6 +267,18 @@ optional directory argument. The cost of that was not "the tests were stale" —
 was that `credit-test.mjs` had been broken for a whole round and nobody could see
 the difference between broken and passing.
 
+⚠️ **`metadata-map-test.mjs` takes ~3 seconds**, not the "well under a second" the
+fast list otherwise promises, because it unzips all 24 books in `library/`. It is in
+the fast list anyway, and `run-all-tests.mjs` says so: it guards a regression that
+shipped for six versions unnoticed, and a guard that only runs behind a flag is a
+guard nobody runs. Its synthetic half still passes with `library/` absent.
+
+⚠️ **`lift()` as inherited silently strips `async`.** It searches for
+`function NAME(`, which begins the slice *after* an `async` keyword, producing a
+non-async function whose `await` is a `SyntaxError`. Every use before Round 7 happened
+to be synchronous, so nobody found out. `metadata-map-test.mjs` has the corrected
+version; copy that one.
+
 **How they work, and why not to rebuild them.** They lift the *shipping* functions
 out of the real files by brace-matching rather than keeping a copy, so a rename
 breaks them. That is correct: it forces a human to notice. When one breaks, reanchor
@@ -275,6 +287,7 @@ the markers; don't paste the logic in.
 | harness | what it proves |
 |---|---|
 | `undefined-calls-test.mjs` | every identifier reference in the 9 shipped JS files resolves |
+| `metadata-map-test.mjs` | EPUB `dc:` metadata maps onto real `admin.html` dropdown options, over all 24 books in `library/`; and Gutenberg's origin link is found in `#pg-machine-header` |
 | `verify-guards.mjs` | flush re-entrancy guards hold at 2/3/6/12 concurrent callers |
 | `chunktest.mjs` | sprint rollup chunking: loss, duplication, the 200 cap |
 | `progress-test.mjs` | library progress bar, including its degradation paths |

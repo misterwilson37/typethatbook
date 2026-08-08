@@ -42,7 +42,20 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.14.0**
+Current: **v3.14.2**
+
+#### v3.14.2
+
+Round 7 (Hammond). Classic end-credits row label `Licence` → `License`; the Firestore
+field is still `rights` and no data changed. Cosmetic only.
+
+         ⚠️ Its `VERSION` constant said `3.14.1` while the header comment said
+         `3.14.2` for a few minutes during this round, which `audit-versions.mjs`
+         caught immediately — the §2.3 failure mode, one file after reading the warning
+         about it. Both are now `3.14.2`.
+
+         `Current:` in this section read **v3.14.0** while the shipped file was
+         v3.14.1, so v3.14.1's entry is also missing from this file.
 
 #### v3.14.0
 
@@ -597,7 +610,17 @@ Adventure Mode integration; cross-file version banner
 
 ## `adventure-renderer.js`
 
-Current: **v1.4.0**
+Current: **v1.5.4**
+
+#### v1.5.4
+
+Round 7 (Hammond). Adventure end-credits row label `Licence` → `License`. Cosmetic
+only; `RENDERER_VERSION` bumped in step with the header, per §2.3 — that constant is
+the one copy `versions.js` actually reads.
+
+         ⚠️ **GAP: v1.4.1 — v1.5.3 are not recorded here.** `Current:` read **v1.4.0**
+         while the shipped file was v1.5.3. Not reconstructed, for the reason given in
+         the `admin.js` gap note.
 
 #### v1.4.0
 
@@ -896,7 +919,103 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.24.2**
+Current: **v3.26.0**
+
+#### v3.26.0
+
+Round 7 (Hammond). **The Source and License autofills had never once produced a
+correct value, and three separate mechanisms were keeping it that way.**
+
+         Reported by Jake: "every standard ebook fills in as a custom field
+         (gutenberg), as does gutenberg. License fills in with a whole paragraph
+         rather than just saying public domain." Measured before touching anything, by
+         dumping `dc:rights` / `dc:source` / `dc:publisher` / `dc:identifier` from all
+         24 EPUBs in `library/`: exactly **two** matched a dropdown option, and both
+         were the test fixtures written to match. Nothing was malfunctioning. The
+         mapping layer between EPUB metadata and the option lists was never written.
+
+         **Source — precedence backwards.** `meta.source || meta.publisher` read
+         `dc:source` first, but for Standard Ebooks `dc:source` is the *upstream
+         transcription* (`https://www.gutenberg.org/ebooks/345`) while `dc:publisher`
+         is `Standard Ebooks`. 17 of 23 books therefore put a Gutenberg URL into a
+         field labelled "who produced this edition". Raw Gutenberg books have no
+         `dc:publisher` at all and hit the same path. Global Grey missed on one word:
+         `dc:publisher` is `Global Grey ebooks`, the option is `Global Grey`.
+
+         **License — no normalisation.** Standard Ebooks' `dc:rights` is a 90-word
+         statement; Gutenberg's is `Public domain in the USA.`; the option reads
+         `Public domain (United States)`. Zero exact matches.
+
+         Both now route through `canonicalSourceFrom()` and `canonicalRightsFrom()`,
+         which take the select's **own option values** as `allowed` and can only return
+         something already in that list — so `admin.html` stays the single source of
+         truth and no mapping can outlive the option it names. Source uses a two-pass
+         split: pass 1 asks who produced *this* edition (`dc:publisher`,
+         `dc:identifier`), and only if that is silent does pass 2 fall back to
+         `dc:source`. Unrecognised licence text is preserved verbatim in Custom…
+         rather than guessed at, because a licence we cannot name is the one most
+         likely to carry terms. A CC BY licence whose version has no option (CC BY 3.0)
+         deliberately refuses to map rather than rounding to 4.0 and writing a false
+         claim into Firestore.
+
+         **New option, at Jake's direction:** `Public domain (United States) & CC0
+         1.0`. Standard Ebooks' statement asserts both — the source text is believed US
+         public domain, *and* SE's own editorial contributions are dedicated CC0 — in
+         that order, which is the order the rights arose. Neither half obliges anyone
+         to credit anybody, so this is a courtesy, not a duty.
+
+         **Two more defects in the same block.** `reportMetadataMismatches()` compared
+         the form's canonical value against the file's **raw** value, so on a book
+         already fixed by hand it reported a mismatch and offered a button that put the
+         paragraph *back* — the one panel designed to look authoritative was arguing the
+         wrong value in, once per re-import. And the v3.20.0 attribution warning had
+         **never been visible**: it wrote to `#autofill-status` and the summary `say()`
+         in the same synchronous block overwrote it microseconds later. Dead since the
+         day it shipped. It was also wrong to fire, triggering on any non-empty
+         `dc:rights` — which Standard Ebooks always populates, so ~20 public-domain
+         books. `CC BY*` is the only family that obliges credit. Status is now composed
+         once, at the end, from a `notes` list, so a warning cannot be swallowed.
+
+         **Origin URL, closing §4.2.** Jake: "gutenberg already includes its origin
+         link on its license page." It does, in a block Gutenberg marks up for machines
+         — `<div id="pg-machine-header">`, row `Other information and formats` — and
+         `stripBoilerplate()` has been **deleting it on every import**, because
+         `#pg-header` is on its removal list. The link was in the file, parsed into a
+         DOM, and discarded a few hundred milliseconds before Jake typed it by hand.
+         Now read before the strip, gated to Gutenberg books only (the 17 SE books pay
+         nothing) and capped at three spine entries, so a 286-chapter book is not walked
+         for something that lives in the front matter or nowhere. Verified identical in
+         structure across all three Gutenberg books including the `.txt`-derived one.
+         Falls back to deriving the ebook number from `dc:identifier`; both paths
+         normalise to `https://www.gutenberg.org/ebooks/<id>`. For non-Gutenberg books
+         Origin URL is filled from `dc:identifier`, which is the edition's own page.
+
+         **Two bugs in this change were found by its own harness, not by reading.**
+         `metadata-map-test.mjs` failed on first run: (1) all 17 Standard Ebooks were
+         getting a *Gutenberg* origin, because SE cites Gutenberg as its own upstream
+         and the gate matched `dc:source` — the identical edition-vs-upstream
+         distinction the source mapper gets right, got wrong in the origin reader in
+         the same sitting; (2) the two test fixtures mis-mapped to the combined SE
+         value, because `CC0 1.0 Public Domain Dedication` mentions both — but "Public
+         Domain Dedication" is *part of CC0's own name*, not a separate claim about the
+         text. Fixed by an already-canonical short-circuit and by stripping CC0's brand
+         phrase before testing for an independent public-domain assertion.
+
+         Also `licence` → `license` in every user-visible string. British noun spelling,
+         which is not a typo but is the wrong register for a Tennessee classroom.
+         Comments are left alone deliberately.
+
+#### ⚠️ GAP: v3.24.3 — v3.25.3 are not recorded here
+
+         Five shipped versions have no entry in this file. They are described in
+         `admin.js`'s own header comment, which is the source of record for them, and
+         `CHANGELOG.md` said `Current: v3.24.2` while the shipped file was v3.25.3 —
+         four versions stale before Round 7 began. **Not reconstructed here on
+         purpose**: the header text is abbreviated, and writing full entries from it
+         would produce a record that reads authoritative while containing detail nobody
+         verified (invariant 18). Whoever shipped those versions should transcribe them,
+         or the `Current:` line should be made to read itself rather than be
+         hand-maintained, since nothing checks it.
 
 #### v3.24.2
 
@@ -1995,7 +2114,7 @@ Round 6 (Noiseless). **Two functions were wired into the UI and never written.**
 
 ## `index.html`
 
-Current: **v3.6.1**
+Current: **v3.6.2**
 
 ⚠️ **This section was created in Round 5.** index.html had no CHANGELOG section at
 all, despite carrying the student-facing library grid, the age/genre filters and
@@ -2005,6 +2124,11 @@ the footer, since v3.0.1). Entries before v3.3.1 live only in the file header.
 
 <!-- Relocated here in Round 6 (Noiseless). This block was filed under
      ## `game.js`, which never contained the code it describes. -->
+#### v3.6.2
+
+Round 7 (Hammond). Library-card About panel row label `Licence` → `License`. Cosmetic
+only; `creditLinkFor()` and the `rights` field are untouched.
+
 #### v3.6.0
 
 Round 5 (Mignon). **"The index page is ugly" was not a styling problem. The markup

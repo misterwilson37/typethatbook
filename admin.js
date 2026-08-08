@@ -1,10 +1,18 @@
-// admin.js v3.25.3
+// admin.js v3.26.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
+// v3.26.0 — ⚠️ THE SOURCE AND LICENSE AUTOFILLS HAD NEVER ONCE BEEN RIGHT. Of 24 books
+//           in library/, two ever matched a dropdown option: Standard Ebooks put a
+//           gutenberg.org URL in Source (dc:source is UPSTREAM, read before dc:publisher)
+//           and a 90-word paragraph in License. Both now go through canonicalSourceFrom()
+//           and canonicalRightsFrom(), which can only return a value the dropdown holds;
+//           new combined option for the SE case. The mismatch panel argued the paragraph
+//           back in; the v3.20.0 warning was overwritten by its own summary say(). Origin
+//           URL now read from Gutenberg's #pg-header, which stripBoilerplate() deletes.
 // v3.25.3 — ⚠️ AN OVERWRITE REPLACED A HAND-SOURCED COVER WITH NO PROMPT. Jake found a
 //           real jacket photograph for a Hancock title, re-uploaded the Gutenberg EPUB
 //           for its metadata, and the parse staged Gutenberg's generic placeholder over
@@ -40,14 +48,6 @@
 // v3.24.3 — The PARSE SUMMARY carried the same lie v3.24.2 fixed in the audit panel:
 //           "No character issues or language warnings found" when langIssues was
 //           already filtered by the approved list. Now names the hidden approvals.
-// v3.24.2 — The language audit reported "✅ No flagged language found" when the only
-//           reason it found nothing was that every match was on this book's APPROVED
-//           list. Two different claims, one message. Worse, the approved list and its
-//           "Clear all" link rendered ONLY in the has-issues branch, so once approvals
-//           suppressed everything the state was invisible AND unreachable. Now says
-//           "No UNAPPROVED language found", names the approved words, keeps Clear all
-//           reachable, and states plainly that approvals live in this browser only.
-//           ARCHIVE_BASE_DEFAULT → https://typethatbook.misterwilson.org/library.
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * loadBookList(selectFirst) defaults to FALSE and preserves the current
@@ -66,7 +66,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.25.3";
+const ADMIN_VERSION = "3.26.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -748,7 +748,7 @@ async function loadBookList(selectFirst = false) {
             const gaps = [];
             if (b.minAge === null || b.minAge === undefined) gaps.push('age');
             if (!b.coverUrl) gaps.push('cover');
-            if (!b.rights) gaps.push('licence');
+            if (!b.rights) gaps.push('license');
             const chapArr = Array.isArray(b.chapters) ? b.chapters : [];
             const hasMatter = chapArr.some(c => c && c.matter && c.matter !== 'body');
             const hasAbout  = chapArr.some(c => c && c.about === true);
@@ -1027,6 +1027,76 @@ function guessGenre(subjects) {
 
 // Reads just the OPF. Cheap enough to run the instant a file is picked, and it
 // touches nothing else — a failure here leaves the form exactly as it was.
+// ─── THE GUTENBERG ORIGIN LINK (v3.26.0) ─────────────────────────────────────
+//
+// Jake: "gutenberg already includes its origin link on its license page." It does,
+// and in a block Gutenberg marks up for precisely this purpose:
+//
+//   <header class="pg-boilerplate pgheader" id="pg-header">
+//     <div class="container" id="pg-machine-header">
+//       <p><strong>Other information and formats</strong>:
+//          <a href="https://www.gutenberg.org/ebooks/91">www.gutenberg.org/ebooks/91</a>
+//
+// Verified byte-for-byte identical in structure across all three Gutenberg books in
+// library/, including the one built from a .txt source rather than HTML.
+//
+// ⚠️ AND stripBoilerplate() HAS BEEN DELETING IT ON EVERY IMPORT. `#pg-header` is on
+// its removal list — rightly, since nobody wants to type Gutenberg's legalese — so
+// the one field Jake has hand-typed every time was present in the file, parsed, and
+// discarded a few hundred milliseconds later. Read it here, before the strip.
+//
+// ⚠️ ONLY RUNS FOR A GUTENBERG BOOK, gated on OPF metadata already in hand. Standard
+// Ebooks is 20 of the 23 books and has no such block, so those imports pay nothing.
+// Reads at most THREE spine entries, never the whole spine: Gutenberg puts a cover
+// wrapper first, so the header is usually the second, and a 286-chapter book must not
+// be walked to find a URL that is in the front matter or nowhere.
+//
+// dc:identifier gives the old short form (http://www.gutenberg.org/91). The machine
+// header gives the current canonical one, so it wins and the identifier is fallback.
+// Both are normalised to the same shape rather than echoed verbatim.
+const GUTENBERG_EBOOK_URL = /^https?:\/\/(?:www\.)?gutenberg\.org\/ebooks\/(\d+)\/?$/i;
+
+async function readGutenbergOrigin(zip, opfDoc, opfPath, meta) {
+    // ⚠️ EDITION SIGNALS ONLY — dc:publisher and dc:identifier, NEVER dc:source.
+    // Caught by metadata-map-test.mjs on the first run: gating on dc:source gave all
+    // 17 Standard Ebooks books a gutenberg.org origin, because SE cites Gutenberg as
+    // its own upstream. That URL is the transcription their edition was BUILT FROM,
+    // not where their edition came from — and Origin URL means the latter. It is the
+    // identical edition-vs-upstream split canonicalSourceFrom() makes, and I got it
+    // right there and wrong here in the same sitting.
+    const edition = [meta.publisher, meta.identifier].filter(Boolean).join(' ');
+    if (!/gutenberg/i.test(edition)) return '';
+    try {
+        const base = opfPath.substring(0, opfPath.lastIndexOf('/') + 1);
+        const idToHref = {};
+        const manifest = opfDoc.getElementsByTagName('manifest')[0];
+        if (manifest) Array.from(manifest.getElementsByTagName('item')).forEach(it => {
+            idToHref[it.getAttribute('id')] = it.getAttribute('href');
+        });
+        const spine = opfDoc.getElementsByTagName('spine')[0];
+        const refs = spine ? Array.from(spine.getElementsByTagName('itemref')).slice(0, 3) : [];
+        for (const ref of refs) {
+            const href = idToHref[ref.getAttribute('idref')];
+            if (!href) continue;
+            const entry = zipEntry(zip, base + href);
+            if (!entry) continue;
+            // text/html, not text/xml: forgiving, and querySelector works on it.
+            // textContent/getAttribute only — never innerText on a parsed document.
+            const doc = new DOMParser().parseFromString(await entry.async('string'), 'text/html');
+            const scope = doc.querySelector('#pg-machine-header') ||
+                          doc.querySelector('#pg-header') || doc;
+            for (const a of Array.from(scope.querySelectorAll('a[href]'))) {
+                const m = GUTENBERG_EBOOK_URL.exec((a.getAttribute('href') || '').trim());
+                if (m) return 'https://www.gutenberg.org/ebooks/' + m[1];
+            }
+        }
+    } catch (_) { /* fall through — a missing origin is not worth failing an import */ }
+    // The ebook number is in the identifier either way, and it is the one part of a
+    // Gutenberg URL that has never changed. Identifier only, for the reason above.
+    const idm = /gutenberg\.org\/(?:ebooks\/|files\/|cache\/epub\/)?(\d+)/i.exec(meta.identifier || '');
+    return idm ? 'https://www.gutenberg.org/ebooks/' + idm[1] : '';
+}
+
 async function readEpubMetadata(file) {
     const zip = await JSZip.loadAsync(file);
     const container = await zip.file('META-INF/container.xml')?.async('string');
@@ -1042,7 +1112,7 @@ async function readEpubMetadata(file) {
     const grab = tag => Array.from(opf.getElementsByTagNameNS(DC, tag))
                              .map(el => (el.textContent || '').trim()).filter(Boolean);
     const titles = grab('title');
-    return {
+    const meta = {
         title: titles[0] || '',
         author: grab('creator')[0] || '',
         subjects: grab('subject'),
@@ -1055,8 +1125,137 @@ async function readEpubMetadata(file) {
         // anything, rather than depending on him remembering.
         rights: grab('rights')[0] || '',
         source: grab('source')[0] || '',
+        // ⚠️ ALL of them, not just [0] (v3.26.0). Standard Ebooks emits several
+        // dc:source elements and the FIRST IS A GUTENBERG URL — which is what sent
+        // every SE import into the Source dropdown's "Custom…" box for six versions.
+        // dc:source is upstream provenance, not "who produced this edition".
+        sources: grab('source'),
         publisher: grab('publisher')[0] || '',
+        // dc:identifier is THIS edition's own page: standardebooks.org/ebooks/…,
+        // gutenberg.org/91, globalgreyebooks.com/…. That is exactly what the Origin
+        // URL field is specified to hold. Calibre also writes uuid: and calibre:
+        // identifiers, so take the first one that is actually a URL and ignore the
+        // bare UUIDs rather than trying to read opf:scheme.
+        identifier: grab('identifier').find(v => /^https?:\/\//i.test(v)) || '',
     };
+    // Preferred over the identifier when it resolves; '' for everything non-Gutenberg.
+    meta.originUrl = await readGutenbergOrigin(zip, opf, opfPath, meta);
+    return meta;
+}
+
+// ─── CANONICAL SOURCE AND LICENSE (v3.26.0) ──────────────────────────────────
+//
+// ⚠️ WHAT WAS ACTUALLY WRONG. writeSelectOrCustom() matches an option by EXACT
+// string and nothing ever normalised the EPUB's raw text before handing it over.
+// Measured against all 24 EPUBs in library/, exactly TWO matched an option — the
+// two test fixtures, which were written to match. Everything else fell to Custom…:
+//
+//   Standard Ebooks (20)  dc:publisher "Standard Ebooks", dc:source a gutenberg.org
+//                         URL, dc:rights a 90-word paragraph
+//   Gutenberg direct (3)  no dc:publisher at all, dc:rights "Public domain in the USA."
+//   Global Grey (1)       dc:publisher "Global Grey ebooks" — one word off the
+//                         option value, which is all it takes
+//
+// So these dropdowns were not being ignored because they did not matter. They were
+// being ignored because they had never once been right.
+//
+// Both mappers take the select's OWN option values as `allowed` and can only return
+// something already in that list, so admin.html stays the single source of truth and
+// no mapping can outlive the option it names. The failure mode is deliberately "left
+// verbatim for a human", never "asserted a license the book does not carry".
+//
+// ⚠️ Pure and exported-by-lifting on purpose: metadata-map-test.mjs runs both against
+// the real dc: values of all 24 library books. String mapping is testable, so it is
+// tested — this is the same argument §2.2c made about canvas geometry.
+
+// Ordered, and the ORDER IS LOAD-BEARING in two directions. Standard Ebooks before
+// Gutenberg, because an SE book cites Gutenberg as its own upstream and matches both.
+const SOURCE_PATTERNS = [
+    [/standard\s*ebooks/i,               'Standard Ebooks'],
+    [/gutenberg/i,                       'Project Gutenberg'],
+    [/global\s*grey/i,                   'Global Grey'],
+    [/faded\s*page/i,                    'Faded Page'],
+    [/wikisource/i,                      'Wikisource'],
+    [/archive\.org|internet\s*archive/i, 'Internet Archive'],
+];
+
+// The option values a select can actually hold, minus the two sentinels. Reading
+// these from the DOM rather than restating them here is the whole reason a mapping
+// table cannot drift away from the dropdown it feeds.
+function selectOptionValues(selectId) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return [];
+    return Array.from(sel.options).map(o => o.value)
+                .filter(v => v && v !== '__custom__');
+}
+
+function looksLikeBareUrl(s) {
+    return /^https?:\/\/\S*$/i.test(String(s || '').trim());
+}
+
+// TWO PASSES, and the split is the fix for the Standard Ebooks case. Pass 1 asks who
+// produced THIS edition (dc:publisher, dc:identifier). Only if that says nothing does
+// pass 2 fall back to dc:source, which says what the edition was BUILT FROM. Without
+// the split, every Standard Ebook resolves to Project Gutenberg — accurately, and
+// uselessly, because the Source field means "whose edition is this".
+function canonicalSourceFrom(meta, allowed) {
+    const edition  = [meta.publisher, meta.identifier].filter(Boolean).join(' ');
+    const upstream = (Array.isArray(meta.sources) && meta.sources.length
+                        ? meta.sources : [meta.source]).filter(Boolean).join(' ');
+    for (const hay of [edition, upstream]) {
+        if (!hay) continue;
+        for (const [re, name] of SOURCE_PATTERNS) {
+            if (re.test(hay) && allowed.indexOf(name) !== -1) return name;
+        }
+    }
+    return '';
+}
+
+// Returns an exact option value, or '' meaning "I will not guess at this one".
+function canonicalRightsFrom(rightsText, allowed) {
+    const t = String(rightsText || '').trim();
+    if (!t) return '';
+    const exact  = v => (allowed.indexOf(v) !== -1 ? v : '');
+    const byPrefix = p => allowed.find(v => v.indexOf(p) === 0) || '';
+
+    // 0. ALREADY CANONICAL. A book whose dc:rights is verbatim an option value needs
+    //    no heuristic, and running one on it can only make things worse. Both test
+    //    fixtures are this case and the compound rule in step 2 mis-mapped them until
+    //    this short-circuit existed — found by metadata-map-test.mjs, not by reading.
+    if (allowed.indexOf(t) !== -1) return t;
+
+    // ⚠️ "PUBLIC DOMAIN DEDICATION" IS PART OF CC0'S OWN NAME. It is not a separate
+    //    claim about the text, so it must not be counted as one: "CC0 1.0 Public
+    //    Domain Dedication" otherwise reads as "asserts both" and lands on the
+    //    Standard Ebooks combined value. SE's paragraph survives the strip because it
+    //    asserts the source text is public domain in its own sentence.
+    const hasPD  = /public\s+domain/i.test(t.replace(/public\s+domain\s+dedication/ig, ''));
+    const hasCC0 = /\bcc0\b|publicdomain\/zero/i.test(t);
+
+    // 1. An explicit CC BY licence FIRST, because it is the only family that carries
+    //    a real obligation and it must not be flattened into "public domain" by a
+    //    later rule. Family and version are read out of the text, and the built value
+    //    is used ONLY if the dropdown can express it exactly. A CC BY 3.0 book has no
+    //    option here, and inventing 4.0 to make it fit would be a false legal claim
+    //    written into Firestore — so it falls through and a human decides.
+    const by = /\bCC[\s-]*BY(-?NC)?(-?SA)?[\s-]*([0-9](?:\.[0-9])?)?/i.exec(t);
+    if (by) {
+        if (!by[3]) return '';                 // a CC licence with no version is unnameable
+        const nc = by[1] ? '-NC' : '';
+        const sa = by[2] ? '-SA' : '';
+        const slug = ('by' + nc + sa).toLowerCase();
+        return exact('CC BY' + nc + sa + ' ' + by[3] +
+                     ' https://creativecommons.org/licenses/' + slug + '/' + by[3] + '/');
+    }
+    // 2. Standard Ebooks asserts BOTH — the source text is believed US public domain,
+    //    and SE's own contributions are dedicated CC0. Tested as a compound condition
+    //    rather than by matching SE's exact prose, which SE is free to reword.
+    if (hasPD && hasCC0) return byPrefix('Public domain (United States) &');
+    // 3. CC0 on its own.
+    if (hasCC0) return byPrefix('CC0 1.0');
+    // 4. Public domain on its own — Gutenberg's terse "Public domain in the USA."
+    if (hasPD) return exact('Public domain (United States)');
+    return '';
 }
 
 // Fires the moment a file is chosen. Never overwrites something already typed:
@@ -1075,6 +1274,9 @@ async function autofillFromEpub(file) {
     try {
         const meta = await readEpubMetadata(file);
         const filled = [];
+        // Anything worth an amber flag, said ONCE at the end. See the note by the
+        // licence block: a say() in the middle of this function is a say() nobody sees.
+        const notes = [];
         if (meta.title && newBookTitle && !newBookTitle.value.trim()) {
             newBookTitle.value = meta.title; filled.push('title');
         }
@@ -1096,19 +1298,53 @@ async function autofillFromEpub(file) {
         // statement; dc:source then dc:publisher for where the edition came from.
         const rightsEl = document.getElementById('active-book-rights');
         const sourceEl = document.getElementById('active-book-source');
+        let mappedRights = '';
         if (meta.rights && rightsEl && !readSelectOrCustom('active-book-rights')) {
-            writeSelectOrCustom('active-book-rights', meta.rights); filled.push('licence');
+            mappedRights = canonicalRightsFrom(meta.rights, selectOptionValues('active-book-rights'));
+            // Unmapped falls back to the raw text in Custom… rather than nothing. A
+            // licence we cannot name is precisely the one most likely to have terms,
+            // so losing it is worse than showing Jake a paragraph.
+            writeSelectOrCustom('active-book-rights', mappedRights || meta.rights);
+            filled.push('license');
         }
-        const src = meta.source || meta.publisher;
-        if (src && sourceEl && !readSelectOrCustom('active-book-source')) {
-            writeSelectOrCustom('active-book-source', src); filled.push('source');
+        if (sourceEl && !readSelectOrCustom('active-book-source')) {
+            const canon = canonicalSourceFrom(meta, selectOptionValues('active-book-source'));
+            // Fallback order matters. dc:publisher is a NAME; dc:source is usually a
+            // URL, and a URL is never a useful answer to "whose edition is this" —
+            // that is what Origin URL holds now, filled just below.
+            const val = canon || meta.publisher ||
+                        (looksLikeBareUrl(meta.source) ? '' : meta.source);
+            if (val) { writeSelectOrCustom('active-book-source', val); filled.push('source'); }
         }
-        // Say so out loud when a licence turned up, because it changes what has
-        // to appear on the library card and it is easy to scroll past.
-        if (meta.rights) {
-            say('\u26a0 This EPUB declares a licence \u2014 filled into Licence/rights, and it ' +
-                'will show on the library card. Do not clear it unless the book is public domain.',
-                '#ffaa00');
+        // ⚠️ NOTES, NOT AN IMMEDIATE say() (v3.26.0). v3.20.0 warned here and was
+        // never once seen: it wrote to #autofill-status and the summary say() at the
+        // end of this same synchronous block overwrote it microseconds later. The
+        // warning has been dead since the day it shipped.
+        //
+        // It was also wrong to fire at all. It triggered on ANY non-empty dc:rights,
+        // which Standard Ebooks always populates — so it would have cried wolf on ~20
+        // of 23 books, every one of them public domain. CC BY* is the only family that
+        // obliges us to credit anybody. Public domain and CC0 do not.
+        if (mappedRights && /^CC BY/.test(mappedRights)) {
+            notes.push('Creative Commons (' + mappedRights.split(' http')[0] + ') \u2014 ' +
+                       'ATTRIBUTION IS REQUIRED and shows on the library card. Do not clear License.');
+        } else if (meta.rights && !mappedRights) {
+            notes.push('the license in this EPUB matched no dropdown option, so it is in ' +
+                       'Custom\u2026 verbatim \u2014 worth reading before you save.');
+        } else if (!meta.rights) {
+            notes.push('this EPUB declares no license at all \u2014 set License by hand.');
+        }
+        // ── ORIGIN URL from dc:identifier (v3.26.0) ───────────────────────────
+        //
+        // Closes §4.2. dc:identifier is the edition's OWN page —
+        // standardebooks.org/ebooks/bram-stoker/dracula, gutenberg.org/91, the Global
+        // Grey product page — which is exactly what Origin URL is specified to hold:
+        // upstream, as opposed to Archive URL's "your copy". Free, since the file is
+        // already open and parsed.
+        const originEl = document.getElementById('active-book-origin');
+        const origin = meta.originUrl || meta.identifier;
+        if (origin && originEl && !originEl.value.trim()) {
+            originEl.value = origin; filled.push('origin URL');
         }
         // ── ARCHIVE URL from the picked file's own name (v3.24.0) ─────────────
         //
@@ -1131,11 +1367,14 @@ async function autofillFromEpub(file) {
             filled.push('archive URL');
         }
 
-        say(filled.length
+        // ONE say(), composed last, so a note can no longer be clobbered by the
+        // summary that used to follow it.
+        const summary = filled.length
             ? '\u2713 Filled in ' + filled.join(', ') + '. Check it, then parse. ' +
               '(Age range still needs you.)'
-            : 'Metadata read \u2014 nothing to fill, you had it all typed already.',
-            '#00ff41');
+            : 'Metadata read \u2014 nothing to fill, you had it all typed already.';
+        say(notes.length ? summary + '  \u26a0 ' + notes.join('  \u26a0 ') : summary,
+            notes.length ? '#ffaa00' : '#00ff41');
     } catch (e) {
         // Non-fatal by design: the manual path still works exactly as before.
         say('Could not read metadata (' + e.message + ') \u2014 fill it in by hand.', '#ffaa00');
@@ -1376,11 +1615,24 @@ async function reportMetadataMismatches(file) {
     // prompt, but a different NAME is. "E. Nesbit" vs "E. Nesbitt" survives this.
     const loose = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 
+    // ⚠️ COMPARE CANONICAL AGAINST CANONICAL (v3.26.0). This panel carried the same
+    // two defects as the autofill and they did more damage here. On a book whose
+    // License had already been fixed by hand to "Public domain (United States) & CC0
+    // 1.0", re-uploading the EPUB reported a mismatch and offered a button that put
+    // the 90-word paragraph BACK — and the same for a Gutenberg URL over "Standard
+    // Ebooks". The panel was arguing Jake into the wrong value, once per re-import,
+    // in the one place designed to look authoritative.
+    const fileRights = canonicalRightsFrom(meta.rights, selectOptionValues('active-book-rights'))
+                       || meta.rights;
+    const fileSource = canonicalSourceFrom(meta, selectOptionValues('active-book-source'))
+                       || meta.publisher
+                       || (looksLikeBareUrl(meta.source) ? '' : meta.source);
+
     const rows = [
-        ['Author',  'active-book-author', meta.author,               'field'],
-        ['Licence', 'active-book-rights', meta.rights,               'select'],
-        ['Source',  'active-book-source', meta.source || meta.publisher, 'select'],
-        ['Title',   'active-book-title',  meta.title,                'field'],
+        ['Author',  'active-book-author', meta.author, 'field'],
+        ['License', 'active-book-rights', fileRights,  'select'],
+        ['Source',  'active-book-source', fileSource,  'select'],
+        ['Title',   'active-book-title',  meta.title,  'field'],
     ];
 
     const diffs = [];
@@ -3017,7 +3269,7 @@ function renderChapterList() {
                 <div class="chap-meta">${chap.segments.length} segments <span class="chap-status"></span></div>
             </div>
             <div class="chap-actions">
-                ${(chap.matter || 'body') !== 'body' ? `<button class="about-btn" data-index="${index}" title="${chap.about ? 'IN the About this book view. Click to remove.' : 'Not in About this book. Click to include \u2014 use this for the imprint, colophon, licence or uncopyright page.'}" style="${chap.about ? 'background:#2a4535;border:1px solid #58a06f;color:#8fd6a6;' : ''}">${chap.about ? '\u2139 About' : '\u2139'}</button>` : ''}
+                ${(chap.matter || 'body') !== 'body' ? `<button class="about-btn" data-index="${index}" title="${chap.about ? 'IN the About this book view. Click to remove.' : 'Not in About this book. Click to include \u2014 use this for the imprint, colophon, license or uncopyright page.'}" style="${chap.about ? 'background:#2a4535;border:1px solid #58a06f;color:#8fd6a6;' : ''}">${chap.about ? '\u2139 About' : '\u2139'}</button>` : ''}
                 ${canMerge ? `<button class="merge-btn" data-index="${index}" title="Merge with next chapter">Merge ↓</button>` : ''}
                 <button class="split-btn" data-index="${index}" title="Split into multiple chapters">Split</button>
                 <button class="matter-btn" data-index="${index}" title="Cycle: body \u2192 front matter \u2192 back matter. Use this when the importer guessed wrong \u2014 it relabels, it does not delete.">${(chap.matter || 'body') === 'body' ? 'Body' : ((chap.matter === 'front') ? 'Front' : 'Back')}</button>

@@ -1,4 +1,4 @@
-// game.js v3.14.1
+// game.js v3.14.2
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
@@ -65,7 +65,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.14.1";
+const VERSION = "3.14.2";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -3588,7 +3588,7 @@ function renderClassicCredits() {
     const bits = [];
     if (m.author)     bits.push(['By',                escapeHtmlG(m.author)]);
     if (m.source)     bits.push(['Source',            escapeHtmlG(m.source)]);
-    if (m.rights)     bits.push(['Licence',           creditLine(m.rights)]);
+    if (m.rights)     bits.push(['License',           creditLine(m.rights)]);
     if (m.cleanedBy)  bits.push(['Text prepared by',  escapeHtmlG(m.cleanedBy)]);
 
     const rows = bits.map(b =>

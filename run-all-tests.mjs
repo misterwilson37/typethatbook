@@ -25,9 +25,15 @@ import { existsSync } from 'node:fs';
 
 const HERE = fileURLToPath(new URL('./', import.meta.url));
 
-// Fast: no external corpus, each runs in well under a second.
+// Fast: runs with no arguments in a fresh checkout, nothing external to fetch.
+// ⚠️ metadata-map-test.mjs is the one exception to "well under a second" — it unzips
+// the 24 books in library/ and takes ~3s. It is here rather than in EPUB below because
+// it guards a regression that shipped for six versions unnoticed, and a guard that
+// only runs behind a flag is a guard nobody runs. Its synthetic half still passes with
+// library/ absent.
 const FAST = [
     ["undefined-calls-test.mjs", "every identifier reference resolves: 9 JS files + 3 inline HTML scripts"],
+    ["metadata-map-test.mjs",     "EPUB source/license map onto real dropdown options; Gutenberg origin"],
     ["credits-scroll-test.mjs",  "end-of-book credits reel: rises into view, holds, shows every row"],
     ["canvas-clear-test.mjs",     "the per-frame clear always covers the whole canvas"],
     ["title-case-test.mjs",       "Roman numerals survive title casing; words are not mistaken for them"],

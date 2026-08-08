@@ -407,7 +407,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.6.1";
+        const INDEX_VERSION = "3.6.2";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -1042,7 +1042,7 @@
                 (book.author ? `<p class="about-meta">${escapeHtml(book.author)}</p>` : '');
             const metaRows = [];
             if (book.source) metaRows.push(['Source', creditLinkFor(book.source)]);
-            if (book.rights) metaRows.push(['Licence', creditLinkFor(book.rights)]);
+            if (book.rights) metaRows.push(['License', creditLinkFor(book.rights)]);
             // ⚠️ A URL WITHOUT A SCHEME IS A RELATIVE PATH (v3.5.2). Jake entered
             // "typethatbook.misterwilson.org/library/x.epub" and the browser
             // resolved it against the current page, producing
