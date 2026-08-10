@@ -1,6 +1,6 @@
 // run-all-tests.mjs v1.0.0 — Round 6 (Noiseless).
 //
-// There are fifteen harnesses. Before this file, knowing whether they passed meant
+// There are seventeen harnesses. Before this file, knowing whether they passed meant
 // running fifteen commands and reading fifteen different output formats, so in
 // practice nobody ran the ones they weren't already suspicious of — which is how
 // credit-test.mjs sat broken through a whole round without anyone noticing that it
@@ -34,6 +34,7 @@ const HERE = fileURLToPath(new URL('./', import.meta.url));
 const FAST = [
     ["undefined-calls-test.mjs", "every identifier reference resolves: 9 JS files + 3 inline HTML scripts"],
     ["metadata-map-test.mjs",     "EPUB source/license map onto real dropdown options; Gutenberg origin"],
+    ["reanchor-test.mjs",         "progress survives a re-upload: clamp, anchor search, staleness ladder"],
     ["credits-scroll-test.mjs",  "end-of-book credits reel: rises into view, holds, shows every row"],
     ["canvas-clear-test.mjs",     "the per-frame clear always covers the whole canvas"],
     ["title-case-test.mjs",       "Roman numerals survive title casing; words are not mistaken for them"],

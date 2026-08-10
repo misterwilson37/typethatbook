@@ -1,10 +1,19 @@
-// game.js v3.14.2
+// game.js v3.15.0
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.15.0 — PROGRESS SURVIVES A RE-UPLOAD. A bookmark is (chapter id, charIndex),
+//           both measured against one version of the text — and the progress document
+//           recorded no version, so re-uploading the library turned every stored offset
+//           into an index into a text that no longer existed. Silent: A Little Princess
+//           opened with ONE SENTENCE left in Ch. 2, then marked itself complete when that
+//           sentence was typed. setupGame() assigned savedCharIndex raw, never clamped to
+//           fullText.length, in every version to date. Writes now stamp contentVersion +
+//           chapterTitle + a 48-char anchor; a mismatch searches for the anchor and else
+//           degrades by staleness. Identity checked by TITLE, not just id existence.
 // v3.14.1 — Tab moved focus to the ADDRESS BAR on the first keystroke of a chapter.
 //           Every imported paragraph starts with a tab, so Tab is usually the first
 //           key pressed — and at that moment the pre-start branch runs, whose two
@@ -38,12 +47,6 @@
 //           preferred the title over the id, so Heidi listed "Chapter 1" fourteen
 //           times and then "Chapter 1" nine more. Prefixed "Pt N \u00b7" when and only
 //           when the book has parts.
-// v3.12.3 — The chapter-count label had TWO sites and v3.10.0 fixed one. The
-//           uncondensed path still printed every spine document, so a two-chapter
-//           book advertised "10 ch". ⚠️ Shipped without bumping the constant \u2014 the
-//           CHANGELOG said 3.12.3 while the file said 3.12.2. Recorded rather than
-//           quietly folded in, because that is the exact drift this round has spent
-//           its time catching in other people's work.
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * The write-ahead log is MORE durable than the per-sentence writes it
@@ -65,7 +68,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.14.2";
+const VERSION = "3.15.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -603,6 +606,13 @@ let currentChapterNum = 1;
 let furthestChapter = 1;
 let furthestCharIndex = 0;
 let autoStartNext = false; // skip start modal when advancing chapters
+// Set by loadUserProgress() when the book's contentVersion has moved since this
+// bookmark was written. Read by reconcilePosition() on EVERY chapter load for
+// the rest of the session — not just the first — so that jumping to the furthest
+// point gets the same treatment as resuming. Cleared by the first successful
+// flush, which is the write that stamps the new contentVersion.
+let reanchorJob = null;
+let reanchorNotice = '';   // one line for the start modal, or ''
 let ggRealCharIndex = -1;  // real position before Game Genie warps
 let ggAllowMistakes = false; // bypass mistake limit (session only, not persisted)
 let ggBypassIdle = false; // bypass AFK/idle timer (session only)
@@ -1259,6 +1269,57 @@ async function loadUserProgress() {
         savedCharIndex = currentCharIndex;
         lastSavedIndex = savedCharIndex;
 
+        // ─── Has the book moved under this bookmark? (v3.15.0) ───────────────
+        //
+        // A missing contentVersion on EITHER side counts as "moved". On the
+        // progress document it means the bookmark predates this feature; on the
+        // book it means an upload path that never stamped one. Both are exactly
+        // the case where the offset cannot be trusted, so the safe reading of
+        // "I don't know" is "assume it changed" — the ladder degrades
+        // gracefully, so a false positive costs at most one re-read.
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const bookVer   = (bookMetadata && bookMetadata.contentVersion) || null;
+            const storedVer = data.contentVersion || null;
+            if (!bookVer || !storedVer || bookVer !== storedVer) {
+                let ageMs = Infinity;
+                try {
+                    const t = data.lastUpdated && data.lastUpdated.toDate
+                            ? data.lastUpdated.toDate().getTime()
+                            : (data.lastUpdated ? new Date(data.lastUpdated).getTime() : NaN);
+                    if (!isNaN(t)) ageMs = Math.max(0, Date.now() - t);
+                } catch (_) { ageMs = Infinity; }
+                reanchorJob = {
+                    anchorText:  data.anchorText || '',
+                    storedIndex: savedCharIndex,
+                    ageMs
+                };
+                console.warn('Book content changed since this bookmark was written ' +
+                             '(age ' + Math.round(ageMs / 86400000) + 'd, anchor ' +
+                             (reanchorJob.anchorText ? 'present' : 'ABSENT') + ').');
+            }
+
+            // ⚠️ CHAPTER IDENTITY, NOT CHAPTER EXISTENCE. isKnownBodyChapter()
+            // below only asks whether the id resolves. After a renumber that
+            // shifted content between ids that ALL still exist — Toby Tyler's
+            // 3-22 → 1-20 is the precedent — every id resolves and the student
+            // is silently dropped into different content at the same offset.
+            // The stored title is the only thing that survives that, and it
+            // refuses rather than guesses when the title is ambiguous.
+            if (reanchorJob && data.chapterTitle) {
+                const nowTitled = chapterTitleFor(currentChapterNum);
+                if (nowTitled && nowTitled !== data.chapterTitle) {
+                    const remap = chapterIdForTitle(data.chapterTitle);
+                    if (remap !== null) {
+                        console.warn('Chapter "' + currentChapterNum + '" is now "' +
+                                     nowTitled + '"; the bookmark was in "' +
+                                     data.chapterTitle + '". Remapped to "' + remap + '".');
+                        currentChapterNum = remap;
+                    }
+                }
+            }
+        }
+
         // ⚠️ The stored chapter may no longer exist — see isKnownBodyChapter().
         // Checked AFTER walRecover(), because the WAL can also carry a stale id.
         if (bodyChapterList().length && !isKnownBodyChapter(currentChapterNum)) {
@@ -1267,6 +1328,24 @@ async function loadUserProgress() {
                          'book any more (renumbered?). Starting at "' + fallback + '".');
             currentChapterNum = fallback;
             savedCharIndex = 0; currentCharIndex = 0; lastSavedIndex = 0;
+            reanchorJob = null;   // nothing left to re-anchor against
+        }
+
+        // ⚠️ PHANTOM TICKS. completedChapters was never revalidated, so after a
+        // renumber a ✓ could sit on an id that now means a different chapter —
+        // and `chaptersCompleted` in the stats rollup takes its size. Filtered
+        // against the ids the book actually has now.
+        if (bookMetadata && bookMetadata.chapters && completedChapters.size) {
+            const live = new Set(bookMetadata.chapters
+                .map(c => chapterKey(c.id)));
+            const kept = new Set();
+            completedChapters.forEach(c => { if (live.has(chapterKey(c))) kept.add(c); });
+            if (kept.size !== completedChapters.size) {
+                console.warn('Dropped ' + (completedChapters.size - kept.size) +
+                             ' completed-chapter tick(s) for chapters this book no ' +
+                             'longer has.');
+                completedChapters = kept;
+            }
         }
         // ⚠️ furthestChapter NEEDS THE SAME CHECK (v3.12.4). v3.12.1 validated the
         // CURRENT chapter and left the furthest one alone, so after a renumber the
@@ -1519,7 +1598,13 @@ function setupGame() {
     fullText = sanitizeText(fullText);
 
     renderText();
+    // ⚠️ v3.15.0. This was `currentCharIndex = savedCharIndex` — a raw assignment
+    // of an offset measured against a DIFFERENT copy of this chapter, with no
+    // clamp against the text that just loaded. reconcilePosition() clamps always
+    // and re-anchors when the book has moved. See its comment block.
+    reconcilePosition();
     currentCharIndex = savedCharIndex;
+    lastSavedIndex = savedCharIndex;
     // Every chapter/book/practice load re-anchors the sprint and clears any
     // stale hard-stop flag. Position warps that skipped startGame() could
     // otherwise leave sprintCharStart pointing into a different text — the
@@ -2499,6 +2584,149 @@ function isKnownBodyChapter(id) {
     return bodyChapterList().some(c => chapterKey(c.id) === k);
 }
 
+// ─── PROGRESS RE-ANCHORING (v3.15.0) ────────────────────────────────────────
+//
+// A bookmark is (chapter id, charIndex). BOTH coordinates are measured against
+// one specific version of the book's text, and until now the progress document
+// recorded nothing about which version that was. Re-upload a book — which Jake
+// does, in bulk, whenever the cleaning pass finishes a round — and every stored
+// charIndex silently becomes an offset into a text that no longer exists.
+//
+// ⚠️ THE SYMPTOM IS NOT AN ERROR. It is a student opening A Little Princess and
+// finding one sentence left in a chapter they had barely started. Nothing throws,
+// nothing logs, and the chapter completes normally when they type that sentence —
+// so the book quietly marks itself read. Rounds 6 and 7 hardened the chapter *id*
+// (isKnownBodyChapter, the furthestChapter companion check, firstBodyChapterId).
+// Nobody ever hardened the character offset, and setupGame() assigned it raw.
+//
+// The fix has two halves:
+//
+//   PROOF — every write now stores `anchorText`, the ~48 characters immediately
+//   behind the cursor. On a version mismatch we look for that string in the new
+//   text. Finding it is not a guess about where the student was; it is where they
+//   were, and it survives both word-level edits elsewhere in the chapter and a
+//   renumber that moved the whole chapter somewhere else.
+//
+//   DEGRADATION — when there is no anchor (every document written before this
+//   version) or the edit landed on those exact words, fall back on a ladder keyed
+//   to how stale the bookmark is. Jake's rule, and it is a better one than mine:
+//   under a week, keep the exact spot, because they remember the sentence; under
+//   a month, the start of the sentence; beyond that, the start of the chapter,
+//   because they have forgotten the chapter anyway.
+//
+// ⚠️ THE LADDER NEEDS NO MIGRATION AND NO LEGACY BRANCH. `lastUpdated` has been
+// on the progress document all along, so the entire pre-fix cohort is simply
+// "stale" and lands on the chapter-start rung by the ordinary rule.
+const ANCHOR_LEN           = 48;
+const REANCHOR_EXACT_MS    =  7 * 86400000;  // under a week  → exact offset
+const REANCHOR_SENTENCE_MS = 30 * 86400000;  // under a month → sentence start
+                                             // beyond        → chapter start
+
+function chapterTitleFor(id) {
+    if (!bookMetadata || !bookMetadata.chapters) return '';
+    const k = chapterKey(id);
+    const c = bookMetadata.chapters.find(x => chapterKey(x.id) === k);
+    return (c && c.title) ? String(c.title) : '';
+}
+
+// Title -> chapter id, for recovering from a renumber. ⚠️ REFUSES ON AMBIGUITY
+// (invariant 24). A part-numbered book can carry the same title in two parts,
+// and Aesop has 284 chapters whose titles are not guaranteed unique. Returning
+// null hands the decision back to the staleness ladder, which is honest;
+// picking the first match would teleport a student into the wrong part.
+function chapterIdForTitle(title) {
+    const want = String(title || '').trim().toLowerCase();
+    if (!want) return null;
+    const hits = bodyChapterList()
+        .filter(c => String(c.title || '').trim().toLowerCase() === want);
+    if (hits.length !== 1) return null;
+    return String(hits[0].id).replace(/^chapter_/, '');
+}
+
+// The ~48 characters BEHIND the cursor, i.e. the last thing the student typed.
+// Behind rather than ahead on purpose: the text behind them is what they have
+// demonstrably read, and an anchor taken from ahead would re-anchor them to
+// content they have not seen if the edit inserted a paragraph.
+function anchorTextAt(text, idx) {
+    if (!text || idx <= 0) return '';
+    const end = Math.min(idx, text.length);
+    return text.slice(Math.max(0, end - ANCHOR_LEN), end);
+}
+
+// Nearest occurrence to `near`, not the first. A short anchor can legitimately
+// repeat ("said Sara. " and so on), and the student's old offset is the best
+// available tiebreak. Returns the index just PAST the match — where the cursor
+// belongs — or -1.
+function findAnchorEnd(text, anchor, near) {
+    if (!text || !anchor || anchor.length < 12) return -1;
+    let best = -1, bestDist = Infinity, from = 0, at;
+    while ((at = text.indexOf(anchor, from)) !== -1) {
+        const end = at + anchor.length;
+        const d = Math.abs(end - near);
+        if (d < bestDist) { bestDist = d; best = end; }
+        from = at + 1;
+    }
+    return best;
+}
+
+// Consumed by setupGame(), which is the first moment fullText exists. Sets
+// savedCharIndex and, when it moved someone, reanchorNotice.
+//
+// ⚠️ THE CLAMP RUNS EVEN WITH NO JOB. That single line is what stops a stored
+// index past the end of a shortened chapter from rendering a chapter with
+// nothing left to type — the original bug, independent of everything else here.
+function reconcilePosition() {
+    const len = fullText ? fullText.length : 0;
+    let idx = Math.max(0, Math.min(savedCharIndex, len));
+    reanchorNotice = '';
+
+    if (!reanchorJob) { savedCharIndex = idx; return; }
+    if (idx <= 0)     { savedCharIndex = 0;   return; }   // nothing to rescue
+
+    if (reanchorJob.anchorText) {
+        const hit = findAnchorEnd(fullText, reanchorJob.anchorText, idx);
+        if (hit >= 0) {
+            savedCharIndex = hit;
+            if (Math.abs(hit - idx) > 2) {
+                reanchorNotice = 'This book was updated — we found your exact spot.';
+            }
+            return;
+        }
+    }
+
+    const age = reanchorJob.ageMs;
+    if (age < REANCHOR_EXACT_MS) {
+        savedCharIndex = idx;
+        if (idx !== reanchorJob.storedIndex) {
+            reanchorNotice = 'This book was updated since you last read it.';
+        }
+    } else if (age < REANCHOR_SENTENCE_MS) {
+        savedCharIndex = findSentenceStartFor(idx);
+        reanchorNotice = 'This book was updated — restarting from the top of your sentence.';
+    } else {
+        savedCharIndex = 0;
+        reanchorNotice = 'This book was updated — restarting from the top of this chapter.';
+    }
+}
+
+// The four fields that make a bookmark self-describing. Spread into EVERY write
+// to the progress document — a write that omits them leaves a bookmark that the
+// next re-upload cannot rescue, and the omission is silent.
+//
+// `forChapter` is for the two navigation writes that record a destination before
+// its text has loaded (switchChapterHot, Game Genie's chapter jump). Those get
+// an empty anchor rather than the OUTGOING chapter's, which would be worse than
+// nothing: a confident fingerprint pointing at the wrong chapter entirely.
+function progressStamp(forChapter) {
+    const ahead = forChapter !== undefined && forChapter !== null;
+    return {
+        contentVersion: (bookMetadata && bookMetadata.contentVersion) || null,
+        chapterTitle:   chapterTitleFor(ahead ? forChapter : currentChapterNum),
+        chapterLen:     ahead ? 0 : (fullText ? fullText.length : 0),
+        anchorText:     ahead ? '' : anchorTextAt(fullText, currentCharIndex)
+    };
+}
+
 // key -> 1-based ordinal among body chapters. Built once per caller, not once
 // per chapter: Aesop has 284 of them and this runs on every progress repaint.
 function bodyOrdinalMap() {
@@ -2701,7 +2929,8 @@ function walSnapshot() {
             charIndex: currentCharIndex,
             furthestChapter: furthestChapter,
             furthestCharIndex: furthestCharIndex,
-            completedChapters: Array.from(completedChapters)
+            completedChapters: Array.from(completedChapters),
+            ...progressStamp()
         },
         stats: { ...statsData },
         sessions: pendingSessions
@@ -2816,9 +3045,13 @@ async function _flushAllInner(reason, final = false) {
                 completedChapters: Array.from(completedChapters),
                 ...(_ord !== undefined ? { bodyIndex: _ord } : {}),
                 ...(_bodyTotal ? { bodyTotal: _bodyTotal } : {}),
+                ...progressStamp(),
                 lastUpdated: new Date()
             }, { merge: true });
             lastSavedIndex = currentCharIndex;
+            // This write carried the current contentVersion, so the bookmark and
+            // the book agree again and the job is spent.
+            reanchorJob = null;
         } catch (e) { ok = false; console.warn(`Progress flush failed (${reason}):`, e); }
     }
 
@@ -3537,8 +3770,17 @@ function showStartModal(btnText) {
         jumpHtml = `<div style="margin:4px 0;"><a href="#" id="jump-furthest" style="color:var(--carolina-blue); font-size:0.85em;">📚 Jump to furthest point (${escapeHtml(chapLabel)})</a></div>`;
     }
 
+    // ⚠️ TELL THEM. A bookmark that moved on its own is exactly the kind of thing
+    // a student reads as "the computer lost my place" and a teacher hears about
+    // third-hand. One line, no dismissal needed, and it is absent on every
+    // ordinary load because reanchorNotice is cleared on each reconcile.
+    const noticeHtml = reanchorNotice
+        ? `<div style="margin:4px 0; font-size:0.85em; color:var(--carolina-blue);">📘 ${escapeHtml(reanchorNotice)}</div>`
+        : '';
+
     document.getElementById('modal-body').innerHTML = `
         ${statsSection}
+        ${noticeHtml}
         ${jumpHtml}
         <div class="start-controls">
             ${getDropdownHTML()}
@@ -3834,6 +4076,7 @@ function showAnonLoginPrompt() {
                     charIndex: currentCharIndex,
                     furthestChapter: furthestChapter,
                     furthestCharIndex: furthestCharIndex,
+                    ...progressStamp(),
                     lastUpdated: new Date()
                 }, { merge: true });
             } catch(e) { console.warn("Retroactive save failed:", e); }
@@ -4400,7 +4643,8 @@ function handleChapterSwitch(newChapter) {
 async function switchChapterHot(newChapter) {
     if (currentUser && !currentUser.isAnonymous) {
         await setDoc(doc(db, "users", currentUser.uid, "progress", currentBookId), {
-            chapter: newChapter, charIndex: 0
+            chapter: newChapter, charIndex: 0,
+            ...progressStamp(newChapter), lastUpdated: new Date()
         }, { merge: true });
     }
     currentChapterNum = newChapter; savedCharIndex = 0; currentCharIndex = 0; lastSavedIndex = 0;
@@ -5277,7 +5521,8 @@ function openGameGenie() {
         savedCharIndex = 0; currentCharIndex = 0; lastSavedIndex = 0;
         if (currentUser && !currentUser.isAnonymous) {
             await setDoc(doc(db, "users", currentUser.uid, "progress", currentBookId), {
-                chapter: currentChapterNum, charIndex: 0
+                chapter: currentChapterNum, charIndex: 0,
+                ...progressStamp(currentChapterNum), lastUpdated: new Date()
             }, { merge: true });
         }
         closeModal();

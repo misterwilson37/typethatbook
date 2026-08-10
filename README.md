@@ -198,7 +198,10 @@ books/{bookId}/chapters/{chapter_N}     the actual text students type
 
 users/{uid}                             classId
 users/{uid}/progress/{bookId}           chapter, charIndex, furthestChapter,
-                                        furthestCharIndex, completedChapters[]
+                                        furthestCharIndex, completedChapters[],
+                                        bodyIndex, bodyTotal, lastUpdated,
+                                        contentVersion, chapterTitle,
+                                        chapterLen, anchorText
 users/{uid}/stats/time_tracking         secondsToday, charsToday, mistakesToday,
                                         secondsWeek, charsWeek, mistakesWeek,
                                         lastDate, weekStart
@@ -227,6 +230,25 @@ lessons/{lessonId}                       lesson definitions. The ONLY copy of th
                                          back into Import JSON to restore.
 settings/goals                           daily/weekly time goals (global)
 ```
+
+⚠️ **`contentVersion` / `chapterTitle` / `chapterLen` / `anchorText` make a bookmark
+self-describing (game.js v3.15.0), and every write to this document must include them.**
+A bookmark is `(chapter, charIndex)`, both measured against one version of the book's
+text — so when a book is re-uploaded, a bookmark that does not record its version cannot
+be rescued, and the failure is silent: the student resumes at a meaningless offset,
+which near a chapter end means the chapter completes and marks itself read.
+
+`anchorText` is the ~48 characters *behind* the cursor. On a version mismatch `game.js`
+searches the new text for it and resumes at the match — proof, not a guess, and it
+survives both word-level edits and a renumber. When there is no anchor or it cannot be
+found, position degrades by the age of `lastUpdated`: under a week the exact offset,
+under a month the start of the sentence, beyond that the start of the chapter.
+
+**Books can therefore be re-uploaded freely.** No migration, no reset, no admin tool —
+each student's bookmark heals the next time they open that book. (An admin repair tool
+is not buildable anyway: `firestore.rules` permits staff to *read* any student's
+progress but restricts writes to the student themselves.)
+
 
 ## Auth and admin access
 
@@ -267,6 +289,16 @@ optional directory argument. The cost of that was not "the tests were stale" —
 was that `credit-test.mjs` had been broken for a whole round and nobody could see
 the difference between broken and passing.
 
+⚠️ **The harnesses need dev dependencies that are not in `package.json`:** `jsdom`,
+`acorn`, `acorn-walk`, `jszip`. On a clean checkout seven of them fail with
+`ERR_MODULE_NOT_FOUND`, which looks exactly like seven broken tests. Run
+`npm install jsdom acorn acorn-walk jszip` before believing any failure.
+
+⚠️ **`metadata-map-test.mjs` is currently RED and it is a stale harness, not a bug.**
+`admin.js` v3.30.0 deliberately removed `CLASSROOM_NOTICE`, `runDedication()` and
+`DEDICATION_TEXT`; the harness still lifts them. Fix the harness, and until someone does,
+do not let "1 failing" become the number everyone expects to see.
+
 ⚠️ **`metadata-map-test.mjs` takes ~3 seconds**, not the "well under a second" the
 fast list otherwise promises, because it unzips all 24 books in `library/`. It is in
 the fast list anyway, and `run-all-tests.mjs` says so: it guards a regression that
@@ -288,6 +320,7 @@ the markers; don't paste the logic in.
 |---|---|
 | `undefined-calls-test.mjs` | every identifier reference in the 9 shipped JS files resolves |
 | `metadata-map-test.mjs` | EPUB `dc:` metadata maps onto real `admin.html` dropdown options, over all 24 books in `library/`; and Gutenberg's origin link is found in `#pg-machine-header` |
+| `reanchor-test.mjs` | Progress survives a book being re-uploaded: the clamp, the anchor search, and the staleness ladder (exact → sentence → chapter) |
 | `verify-guards.mjs` | flush re-entrancy guards hold at 2/3/6/12 concurrent callers |
 | `chunktest.mjs` | sprint rollup chunking: loss, duplication, the 200 cap |
 | `progress-test.mjs` | library progress bar, including its degradation paths |

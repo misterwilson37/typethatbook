@@ -42,7 +42,60 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.14.2**
+Current: **v3.15.0**
+
+#### v3.15.0
+
+Round 8 (Yost). **A student's place in a book did not survive the book being re-uploaded.**
+
+         A bookmark is `(chapter, charIndex)`. Both coordinates are measured against one
+         specific version of the text, and the progress document recorded NOTHING about
+         which version that was. Jake re-uploaded the entire library after a cleaning
+         pass — edits ranging from a few reworded words to wholesale chapter renumbering
+         — and every stored `charIndex` silently became an offset into a text that no
+         longer existed.
+
+         ⚠️ **It threw nothing, logged nothing, and completed normally.** Jake opened
+         *A Little Princess* and found ONE SENTENCE left in Ch. 2. Typing that sentence
+         ran `finishChapter()`, which ticked the chapter off as read. A student would not
+         report this as an error; they would report it as "the computer says I finished
+         it". That is the entire reason this class of bug survives: the failure mode is a
+         plausible success.
+
+         `setupGame()` did `currentCharIndex = savedCharIndex` — a raw assignment with no
+         clamp against `fullText.length`, in every version of this file ever shipped.
+         Rounds 6 and 7 hardened the chapter *id* three separate times
+         (`isKnownBodyChapter`, the `furthestChapter` companion check,
+         `firstBodyChapterId`). Nobody ever looked at the other coordinate.
+
+         **The fix, in two halves.** Every progress write now stamps `contentVersion`,
+         `chapterTitle`, `chapterLen` and `anchorText` — the ~48 characters immediately
+         behind the cursor. A matching `contentVersion` on load is the fast path and
+         behaves exactly as before. A mismatch searches the new text for the anchor;
+         finding it is not a guess about where the student was, it is where they were,
+         and it survives both word-level edits elsewhere and a renumber that moved the
+         chapter. Failing that, a staleness ladder — Jake's rule — degrades by how old
+         the bookmark is: under a week keep the exact offset, under a month snap to the
+         start of the sentence, beyond that to the start of the chapter.
+
+         ⚠️ **The ladder needs no migration and no legacy branch.** `lastUpdated` has been
+         on the progress document all along, so every pre-fix bookmark is simply stale and
+         lands on the chapter-start rung by the ordinary rule. A one-off repair tool was
+         considered and is not buildable anyway: `firestore.rules` allows staff and super
+         to READ any student's progress but restricts `write` to `request.auth.uid == uid`.
+         Healing has to happen in the client, which is also where it is free.
+
+         Also: **chapter IDENTITY is now checked, not just chapter existence.** A renumber
+         that shifts content between ids that all still resolve (Toby Tyler's 3-22 → 1-20
+         is the precedent) passes `isKnownBodyChapter()` and drops the student into
+         different content at the same offset. The stored title survives that. It refuses
+         to remap when the title is ambiguous rather than guessing at a part.
+
+         Also: **`completedChapters` was never revalidated**, so a ✓ could sit on an id
+         that now means a different chapter — and `chaptersCompleted` in the stats rollup
+         takes its `.size`. Now filtered against the chapters the book actually has.
+
+         New harness `reanchor-test.mjs` (25 assertions).
 
 #### v3.14.2
 
