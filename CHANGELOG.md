@@ -70,7 +70,30 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.19.0**
+Current: **v3.19.1**
+
+#### v3.19.1
+
+Round 9 (Corona). **After a book switch, the only guidance was rendered behind the modal
+that was asking for the decision.**
+
+         `book-select.onchange` wrote *"Switched to X. Pick a chapter and hit Go."* into
+         `textStream` — the page **underneath the still-open Settings modal.** The message
+         was correct and completely invisible until after the choice had been made.
+
+         Reported by Jake, who hit **Close** instead of **Go**. Close is not wrong: its
+         handler carries a `bookSwitchPending` fallback that loads the chapter and starts
+         the new book. **Correct behaviour, dishonest label** — "Close" promises far less
+         than that handler delivers, so the safety net read as the main path.
+
+         Two changes, both cosmetic: the hint now renders in a `#book-switch-hint` slot
+         directly under the book picker, inside the modal; and the footer button relabels
+         itself to **"Start Reading"** while a switch is pending. The `textStream` line is
+         kept — it is useful the instant the modal closes — with a comment explaining why
+         it cannot be the only signal.
+
+         No behavioural change. `resetModalFooter()` rebuilds the button on every
+         `openMenuModal()`, so the label needs no manual reset.
 
 #### v3.19.0
 

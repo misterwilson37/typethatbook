@@ -1,9 +1,17 @@
-// game.js v3.19.0
+// game.js v3.19.1
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
+//
+// v3.19.1 — After switching books in Settings, the only guidance was written to
+//           textStream — which is BEHIND the open modal. Invisible exactly when it
+//           was needed. Reported by Jake: he hit "Close" rather than "Go", because
+//           "Close" does not sound like it will open a book. It does: its handler
+//           has a bookSwitchPending fallback that loads the chapter. Correct
+//           behaviour, dishonest label. The hint now renders inside the modal under
+//           the book picker, and the footer button relabels to "Start Reading".
 //
 // v3.19.0 — Settings dropdown stopped scanning the whole `books` collection.
 //           openMenuModal() did an uncached getDocs(collection(db,"books")) on every
@@ -73,7 +81,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.19.0";
+const VERSION = "3.19.1";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -4567,6 +4575,8 @@ async function openMenuModal() {
             <div class="menu-col">
                 <div class="menu-label">Book</div>
                 <select id="book-select" class="modal-select">${bookOptions}</select>
+                <div id="book-switch-hint" style="display:none; font-size:0.68em; line-height:1.35;
+                     color:#2E7D32; margin-top:4px;"></div>
                 <div class="menu-label" style="margin-top:8px;">Chapter</div>
                 ${showChapFilter ? `
                 <div style="display:flex; gap:6px; align-items:center; margin-bottom:4px;">
@@ -4754,9 +4764,31 @@ async function openMenuModal() {
         lastSavedIndex = resumeChar;
         currentCharIndex = 0;
 
+        // ⚠️ THE MODAL IS STILL OPEN, SO THIS MESSAGE IS BEHIND IT. (v3.19.1)
+        //
+        // This line is kept because it is correct and useful the moment the modal
+        // closes — but it was the ONLY guidance after a book switch, and a student
+        // choosing what to do next cannot read a page they cannot see. Jake hit
+        // "Close" instead of "Go" for exactly this reason. The in-modal hint below
+        // is the one that has to do the work.
         textStream.innerHTML = `<span style="color:#888;">Switched to <b>${escapeHtml(bookMetadata.title || currentBookId)}</b>. Pick a chapter and hit Go.</span>`;
         bookSwitchPending = true;
         isInputBlocked = true;
+
+        // Say it where they are actually looking.
+        const hint = document.getElementById('book-switch-hint');
+        if (hint) {
+            hint.innerHTML = `\u2713 Switched to <b>${escapeHtml(bookMetadata.title || currentBookId)}</b>.` +
+                             `<br>Pick a chapter, then hit <b>Go</b>.`;
+            hint.style.display = 'block';
+        }
+
+        // And make the footer button stop lying. "Close" is technically accurate —
+        // it does close the modal — but after a book switch its handler ALSO loads
+        // the chapter and starts the new book, which is a much bigger promise than
+        // the word "Close" makes. Both buttons now name their outcome.
+        const actionBtn = document.getElementById('action-btn');
+        if (actionBtn) actionBtn.innerText = "Start Reading";
     };
 
     // "No school" is a valid permanent state, not a prompt to fix something —
