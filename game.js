@@ -1,10 +1,18 @@
-// game.js v3.15.0
+// game.js v3.15.1
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.15.1 — v3.15.0's own fix reproduced the bug it fixed. An offset at or past the end
+//           of a chapter is a DEAD STATE, not a position: the renderer draws the tail,
+//           the student reads "one sentence left", and their first keystroke hits the
+//           >= fullText.length guard and completes the chapter in 0m 1s at 0 WPM.
+//           v3.15.0 reached it three ways — clamping to len; clamping then snapping to
+//           the sentence start, which lands on the LAST sentence of any chapter; and
+//           laundering the bad offset by stamping contentVersion onto it. Reconcile can
+//           no longer return a position with nothing left. ⚠️ Anchor proof runs FIRST.
 // v3.15.0 — PROGRESS SURVIVES A RE-UPLOAD. A bookmark is (chapter id, charIndex),
 //           both measured against one version of the text — and the progress document
 //           recorded no version, so re-uploading the library turned every stored offset
@@ -38,15 +46,6 @@
 //           another — ten stripes for a two-chapter book. Sixth place in this file
 //           where the fix was "use the body list". The updater walks the same list
 //           now instead of relying on half its lookups finding nothing.
-// v3.12.4 — Two things the overwrite test surfaced. (a) furthestChapter was never
-//           validated — v3.12.1 checked the CURRENT chapter and left this one alone,
-//           so after a renumber the start screen offered "Jump to furthest point
-//           (Ch. 2)" and clicking it hit "Chapter 2 not found". Forgotten rather than
-//           clamped: an id that no longer exists is not evidence of how far anyone got.
-//           (b) A part-numbered book restarts its chapter numbers and the picker
-//           preferred the title over the id, so Heidi listed "Chapter 1" fourteen
-//           times and then "Chapter 1" nine more. Prefixed "Pt N \u00b7" when and only
-//           when the book has parts.
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * The write-ahead log is MORE durable than the per-sentence writes it
@@ -68,7 +67,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.15.0";
+const VERSION = "3.15.1";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -2677,15 +2676,43 @@ function findAnchorEnd(text, anchor, near) {
 // nothing left to type — the original bug, independent of everything else here.
 function reconcilePosition() {
     const len = fullText ? fullText.length : 0;
-    let idx = Math.max(0, Math.min(savedCharIndex, len));
     reanchorNotice = '';
 
-    if (!reanchorJob) { savedCharIndex = idx; return; }
-    if (idx <= 0)     { savedCharIndex = 0;   return; }   // nothing to rescue
+    // ⚠️ v3.15.1. AN OFFSET AT OR PAST THE END IS NOT A POSITION — IT IS A DEAD
+    // STATE, and it must be caught before anything else in this function looks
+    // at it. There is no such thing as a useful resume point with zero characters
+    // left: the renderer draws the tail of the chapter, the student reads that as
+    // "one sentence to go", and their FIRST KEYSTROKE hits the
+    // `currentCharIndex >= fullText.length` guard in the keydown handler and runs
+    // finishChapter(). The chapter ticks itself off in 0m 1s at 0 WPM.
+    //
+    // ⚠️ v3.15.0 SHIPPED THIS AS A BUG AND I HAD THREE WAYS IN:
+    //   · clamping to `len` and calling it "keeping their exact spot" (recent rung)
+    //   · clamping to `len` and THEN snapping to the sentence start, which lands on
+    //     the final sentence of any chapter, every time (the 7–30 day rung)
+    //   · the recent rung LAUNDERING the bad offset: one keystroke finishes the
+    //     chapter, the flush stamps the current contentVersion onto the dead
+    //     position, and from then on the versions agree and no job ever fires again
+    //
+    // Recency cannot rescue an index that is provably invalid, so this check sits
+    // ABOVE the ladder and applies whether or not there is a job. Restarting the
+    // chapter is the only actionable state; `completedChapters` still holds the ✓,
+    // so nothing a student earned is lost by doing it.
+    const idx = Math.max(0, Math.min(savedCharIndex, len));
+    const deadState = len > 0 && savedCharIndex >= len;
 
-    if (reanchorJob.anchorText) {
+    // ⚠️ ORDER IS LOAD-BEARING: PROOF IS CONSULTED BEFORE THE DEAD-STATE GUARD.
+    // My first attempt at this fix put the guard first, and the harness caught it
+    // immediately: a chapter that SHRANK below a student's stored offset is both
+    // out of range AND perfectly rescuable, because the anchor still names the
+    // exact words they had reached. Bailing to the top of the chapter there
+    // throws away the one piece of hard evidence in the whole system.
+    if (reanchorJob && reanchorJob.anchorText && idx > 0) {
         const hit = findAnchorEnd(fullText, reanchorJob.anchorText, idx);
-        if (hit >= 0) {
+        // An anchor resolving to the very end is the dead state by another road.
+        // Proof that they finished is not a reason to seat them where there is
+        // nothing to do — fall through to the guard below.
+        if (hit >= 0 && hit < len) {
             savedCharIndex = hit;
             if (Math.abs(hit - idx) > 2) {
                 reanchorNotice = 'This book was updated — we found your exact spot.';
@@ -2693,6 +2720,17 @@ function reconcilePosition() {
             return;
         }
     }
+
+    if (deadState) {
+        savedCharIndex = 0;
+        if (reanchorJob) {
+            reanchorNotice = 'This book was updated — restarting from the top of this chapter.';
+        }
+        return;
+    }
+
+    if (!reanchorJob) { savedCharIndex = idx; return; }
+    if (idx <= 0)     { savedCharIndex = 0;   return; }   // nothing to rescue
 
     const age = reanchorJob.ageMs;
     if (age < REANCHOR_EXACT_MS) {
