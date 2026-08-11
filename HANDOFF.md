@@ -46,7 +46,7 @@ thing in the round.** See §2.2 and invariant 43.
 
 | file | version | changed? | upload? |
 |---|---|---|---|
-| `game.js` | **3.15.1** | ⚠️ **yes — the whole round** | **YES** |
+| `game.js` | **3.17.0** | ⚠️ **yes — the whole round** | **YES** |
 | `reanchor-test.mjs` | **1.1.0** | ⚠️ **new harness, 32 assertions** | commit it |
 | `run-all-tests.mjs` | — | yes — registers the new harness | commit it |
 | `CHANGELOG.md` | — | yes — `game.js` v3.15.0 | commit it |
@@ -220,6 +220,70 @@ against v3.15.0.
 
 ---
 
+## §3b. v3.16.0 — the only way back, and the one still missing
+
+Jake tested v3.15.1 across three books: Aesop advanced correctly, Nancy Drew landed at
+the right spot, and Little Princess *"felt new — I'm not sure I was that far forward."*
+
+⚠️ **That last one is residue, not a live bug, and the distinction matters.** Ch. 2 was
+falsely ticked complete back when the offset was dead; the student was then advanced
+perfectly legitimately as far as the data knew. **No later fix can un-write that.** When
+a bug has been corrupting stored state for a while, shipping the guard is only half the
+job — the other half is giving people a way to undo what was already written.
+
+So: `showStartModal()` now offers **"↩︎ Start this chapter over"** whenever
+`currentCharIndex > 0`.
+
+⚠️ **Until this shipped, every student-facing navigation ran FORWARD.** Jump-to-furthest
+was the only one; the chapter picker is Game Genie, which is admin-gated. A student ahead
+of where they had read had no move at all. **Look for that shape elsewhere — a system
+that can only advance is one that cannot recover.**
+
+Two design notes worth keeping:
+- **Not gated on a re-anchor having happened.** An affordance that appears only after a
+  rare fault is one nobody has learned to look for, and a kid who spaced out for a page
+  needs it just as much.
+- **No confirm dialog, on purpose.** It leaves `furthest*` untouched, so the jump link
+  directly above reverses it in one click. Nothing is destroyed. Confirming harmless
+  actions mainly trains children to click through warnings.
+
+### v3.17.0 — Flip Back closed the gap
+
+Jake's proposal, and he was right to push past the one-click restart: *"give students the
+aspect of Game Genie that jumps to any chapter and any sentence… but limit it to previous
+to where they are now."*
+
+⚠️ **One correction to his framing, and it is the whole design: the ceiling is `furthest`,
+not the current position.** Bounding by where a student stands collapses the instant the
+tool is used — flip back to Ch. 2 and Ch. 3 is now "ahead", so the thing that moved them
+cannot move them home. `furthest` gives free movement across earned ground with no route
+past the frontier. **Generalise: a bound computed from mutable state that the feature
+itself mutates is not a bound.**
+
+⚠️ **Cross-chapter is two-step and must stay so.** `getSentenceMap()` reads `fullText`,
+which exists only for the loaded chapter. One-screen navigation means prefetching all 284
+Aesop chapters.
+
+⚠️ **Sentence-level backjump makes WPM farming easier** — loop a memorised sentence. Not
+new (restart-chapter and practice mode already allow it) but tighter. Told Jake before
+shipping rather than after. **If the leaderboard ever looks wrong, start here.**
+
+`completedChapters` is deliberately untouched by a flip back: the ✓ records something the
+student did, and re-reading is not un-doing it. That is the question below, answered by
+default in the least destructive direction — **but Jake still has not ruled on it**, and
+if he wants re-reading to clear a tick, the place to do it is `flipBackTo()`.
+
+### ⚠️ The remaining open question, still Jake's call
+
+**Does re-reading a chapter un-tick its ✓?** v3.17.0 ships saying no, because that is the
+non-destructive default, not because the question is settled. `completedChapters`
+feeds `chaptersCompleted` in the stats rollup and the ✓ marks in Game Genie's picker.
+Silently clearing it edits a record of something the student did; silently keeping it
+means the picker shows chapters as done that they are actively redoing. Ask before
+building.
+
+---
+
 ## §4. Invariants — additions to Round 7 §5 and Round 6 §5, both of which still apply
 
 37. **When you harden one half of a composite key, state why the other half is safe.**
@@ -263,6 +327,12 @@ against v3.15.0.
     from the implementation.
 48. **Consult proof before applying a guard.** Order matters: a value can be both
     out-of-range and exactly recoverable. Guards that run first discard evidence.
+49. **A system that can only advance cannot recover.** Every student navigation in this
+    app ran forward until v3.16.0. When auditing a flow, list the moves available and
+    check whether any of them go backwards.
+50. **Shipping the guard is half the job when a bug has been writing bad state.** The
+    other half is an undo for what was already committed. Ask "what did this corrupt
+    that my fix cannot reach?"
 
 ---
 

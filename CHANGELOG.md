@@ -42,7 +42,77 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.15.1**
+Current: **v3.17.0**
+
+#### v3.17.0
+
+Round 8 (Yost). **Flip Back — Game Genie's chapter-and-sentence navigation, given to
+students and bounded so it can only go backwards.**
+
+         Jake: *"Why not give students the aspect of Game Genie that jumps to any chapter
+         and any sentence in the chapter, but limit it to previous to where they are now?
+         Would that be a terrible idea?"*
+
+         ⚠️ **The ceiling is `furthest`, not the current position, and the difference is
+         the whole feature.** Bounding by where a student is standing collapses the moment
+         it is used: flip back to Ch. 2 and Ch. 3 becomes "ahead", so the tool that just
+         moved them can no longer move them home. Bounding by `furthest` gives free
+         movement across everything already earned and still no route past the frontier —
+         more useful, exactly as permissive.
+
+         ⚠️ **Cross-chapter jumps are two-step by necessity.** The sentence map is built
+         from `fullText`, which only exists for the chapter that is loaded. Picking a
+         chapter loads it and reopens the modal at the sentence step. Collapsing that into
+         one screen means prefetching every chapter — 284 reads on Aesop's.
+
+         Sentences are listed as **text, not numbers**. A student choosing where to resume
+         is looking for a moment they remember, and "Sentence 84" is not a moment.
+
+         `buildChapterOptions()` and `wireChapterFilter()` take an optional `ceilingNum`;
+         the three existing callers are untouched. A ceiling that is not in the body list
+         yields *no* ceiling rather than an empty picker — a student locked out of their
+         own book is a worse failure than one offered a chapter too many. The target
+         sentence is clamped a second time in `flipBackTo()` rather than trusting the
+         `<select>`, because the filter box rebuilds that list on every keystroke.
+
+         Kept alongside v3.16.0's one-click restart rather than replacing it: restarting
+         the current chapter is the common case and stays one click.
+
+         ⚠️ **Known and accepted:** sentence-level backjump makes looping a memorised
+         sentence to inflate WPM easier. Not a new hole — restart-chapter and practice mode
+         both already allow it — but tighter. Flagged to Jake before shipping; if the
+         leaderboard ever looks wrong, start here.
+
+#### v3.16.0
+
+Round 8 (Yost). **"Start this chapter over" — a link in the start modal, shown whenever
+the student is partway into a chapter.**
+
+         Jake, after testing v3.15.1: *"Typed some of Little Princess, and it felt new —
+         which was both good and bad, as I'm not sure I was that far forward when I was
+         typing… Not sure if we can fine tune past that, other than letting kids skip back
+         to the beginning of the chapter."*
+
+         ⚠️ **Every navigation students had ran FORWARD.** Jump-to-furthest was the only
+         one, and there was no chapter picker outside Game Genie (admin-only). A student
+         sitting ahead of what they had actually read had no move available at all — which
+         is exactly the state v3.15.0's dead offsets left people in, and it is also the
+         residue those offsets left behind: a chapter falsely ticked complete advances the
+         student legitimately, and no later fix can un-write that. **The remedy for damage
+         already committed is a way back, not a better guard.**
+
+         Deliberately NOT gated on a re-anchor having occurred. A kid who lost the thread
+         for a page wants this as much as one the software misplaced, and an affordance
+         that surfaces only after a rare fault is one nobody has learned to look for.
+
+         Leaves `furthestChapter` / `furthestCharIndex` untouched, so the jump link above
+         it reverses the action in one click. That is what makes it safe without a confirm
+         dialog: nothing is destroyed, and confirming a harmless action mostly teaches
+         children to click through warnings.
+
+         ⚠️ Still no way back to a PREVIOUS chapter — see HANDOFF §3b. That needs the
+         `completedChapters` semantics decided first (does re-reading un-tick a ✓?) and is
+         Jake's call, not a mechanical extension of this.
 
 #### v3.15.1
 

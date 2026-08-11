@@ -1,10 +1,20 @@
-// game.js v3.15.1
+// game.js v3.17.0
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.17.0 — FLIP BACK. Game Genie's chapter+sentence navigation, for students, bounded.
+//           ⚠️ Ceiling is `furthest`, NOT where they stand — that bound collapses on first
+//           use, since flipping back makes their old place "ahead". Two-step cross-chapter.
+// v3.16.0 — "Start this chapter over" in the start modal. Every navigation students had
+//           ran FORWARD — jump-to-furthest and nothing else — so anyone sitting ahead of
+//           what they had actually read had no move at all, which is exactly where
+//           v3.15.0's dead offsets stranded people. Not gated on a re-anchor: a kid who
+//           spaced out for a page needs it too, and an affordance that appears only after
+//           a rare fault is one nobody looks for. Leaves furthest* untouched, so it is
+//           reversible in one click and needs no confirm dialog.
 // v3.15.1 — v3.15.0's own fix reproduced the bug it fixed. An offset at or past the end
 //           of a chapter is a DEAD STATE, not a position: the renderer draws the tail,
 //           the student reads "one sentence left", and their first keystroke hits the
@@ -37,15 +47,6 @@
 //           once. Also drops the goals cache before re-reading: loadGoals() had
 //           just written classId:'' with a 24h lifetime, so the re-read returned
 //           the empty value the fix had replaced.
-// v3.13.1 — HEADER ONLY, no code change. Trimmed to the 6-entry / 60-line budget
-//           this project's own build panel enforces; v3.12.0 and v3.11.0 moved to
-//           CHANGELOG.md, where they already were.
-// v3.13.0 — The book progress bar's SEGMENTS are body chapters. The labels and the
-//           fill fraction were switched in v3.10.0 and v3.12.3; the geometry never
-//           was, so the bar was drawn against one denominator and filled against
-//           another — ten stripes for a two-chapter book. Sixth place in this file
-//           where the fix was "use the body list". The updater walks the same list
-//           now instead of relying on half its lookups finding nothing.
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * The write-ahead log is MORE durable than the per-sentence writes it
@@ -67,7 +68,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.15.1";
+const VERSION = "3.17.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -2314,7 +2315,12 @@ const CHAPTER_FILTER_MIN = 25;
 // `filter` matches the visible label (so it hits both number and title) or the
 // bare chapter number. Returns the html plus a count, because the caller needs to
 // tell the student "3 of 286" or "no matches".
-function buildChapterOptions(selectedNum, filter, withCheck) {
+// `ceilingNum` (v3.17.0) limits the list to chapters at or before that one — the
+// Flip Back picker's whole safety property. Optional and defaulted, so the three
+// existing callers are untouched; passing a chapter that is not in the body list
+// yields NO ceiling rather than an empty picker, because a student locked out of
+// their own book is a worse failure than one offered a chapter too many.
+function buildChapterOptions(selectedNum, filter, withCheck, ceilingNum) {
     if (!bookMetadata || !bookMetadata.chapters || !bookMetadata.chapters.length) {
         return { html: '<option value="">\u2014</option>', count: 0, total: 0 };
     }
@@ -2334,7 +2340,12 @@ function buildChapterOptions(selectedNum, filter, withCheck) {
     // introduction IS worth typing — §B.7's point, and Baum's introduction is a
     // real example — flip it to Body with the button in admin staging (v3.19.0).
     // One switch, one meaning: body means typeable.
-    const offer = bodyChapterList();
+    let offer = bodyChapterList();
+    if (ceilingNum !== undefined && ceilingNum !== null) {
+        const ck = chapterKey(ceilingNum);
+        const cut = offer.findIndex(c => chapterKey(c.id) === ck);
+        if (cut >= 0) offer = offer.slice(0, cut + 1);
+    }
     const total = offer.length;
     let html = '', count = 0;
 
@@ -2379,14 +2390,14 @@ function buildChapterOptions(selectedNum, filter, withCheck) {
 
 // Wires a filter box to a chapter <select>. Shared by Settings and the Game
 // Genie so the behaviour — including Enter meaning "go" — can't diverge.
-function wireChapterFilter(filterId, selectId, statusId, goId) {
+function wireChapterFilter(filterId, selectId, statusId, goId, ceilingNum) {
     const f = document.getElementById(filterId);
     const s = document.getElementById(selectId);
     if (!f || !s) return;
     const status = statusId ? document.getElementById(statusId) : null;
     f.oninput = () => {
         const keep = s.value;
-        const r = buildChapterOptions(keep, f.value);
+        const r = buildChapterOptions(keep, f.value, undefined, ceilingNum);
         s.innerHTML = r.html;
         if (status) {
             status.textContent = !f.value.trim() ? ''
@@ -3816,15 +3827,64 @@ function showStartModal(btnText) {
         ? `<div style="margin:4px 0; font-size:0.85em; color:var(--carolina-blue);">📘 ${escapeHtml(reanchorNotice)}</div>`
         : '';
 
+    // ⚠️ THE ONLY WAY BACK (v3.16.0). Until now every navigation a student had ran
+    // FORWARD — "jump to furthest" and nothing else. A student who found themselves
+    // ahead of where they had actually read had no move available at all, which is
+    // exactly the state v3.15.0's dead offsets left people in: the chapter ticks
+    // itself complete, they advance, and the text is unfamiliar.
+    //
+    // Deliberately NOT gated on a re-anchor having happened. A kid who spaced out for
+    // a page wants this as much as one the software misplaced, and an affordance that
+    // appears only after a rare fault is one nobody has learned to look for.
+    //
+    // ⚠️ Does not touch furthestChapter / furthestCharIndex, so this is reversible in
+    // one click via the jump link above. That is what makes it safe to leave unguarded
+    // by a confirm dialog — nothing is destroyed, and a confirm on a harmless action
+    // teaches children to click through warnings.
+    let restartHtml = '';
+    if (currentCharIndex > 0) {
+        restartHtml = `<div style="margin:4px 0;"><a href="#" id="restart-chapter" style="color:var(--carolina-blue); font-size:0.85em;">↩︎ Start this chapter over</a></div>`;
+    }
+
+    // Kept alongside the one-click restart above rather than replacing it: restarting
+    // the current chapter is the common case and deserves to stay one click, while
+    // this is the tool for the rarer "I'm somewhere I don't recognise" problem.
+    let flipHtml = '';
+    if (canFlipBack()) {
+        flipHtml = `<div style="margin:4px 0;"><a href="#" id="flip-back" style="color:var(--carolina-blue); font-size:0.85em;">\u{1F4D6} Flip back to an earlier part\u2026</a></div>`;
+    }
+
     document.getElementById('modal-body').innerHTML = `
         ${statsSection}
         ${noticeHtml}
         ${jumpHtml}
+        ${restartHtml}
+        ${flipHtml}
         <div class="start-controls">
             ${getDropdownHTML()}
             <div class="start-hint">Type first character to start · ESC to pause</div>
         </div>
     `;
+
+    const flipLink = document.getElementById('flip-back');
+    if (flipLink) {
+        flipLink.onclick = (e) => { e.preventDefault(); closeModal(); openFlipBack(); };
+    }
+
+    const restartLink = document.getElementById('restart-chapter');
+    if (restartLink) {
+        restartLink.onclick = async (e) => {
+            e.preventDefault();
+            savedCharIndex = 0; currentCharIndex = 0; lastSavedIndex = 0;
+            // Persisted immediately: a student who restarts and then closes the tab
+            // must not be dropped back at the old position on their next visit.
+            // saveProgress() stamps the current contentVersion, which also settles
+            // any outstanding re-anchor for this book.
+            try { await saveProgress(true); } catch (_) { /* offline: WAL has it */ }
+            closeModal();
+            await loadChapter(currentChapterNum);
+        };
+    }
 
     // Wire jump link
     const jumpLink = document.getElementById('jump-furthest');
@@ -5339,6 +5399,164 @@ function findSentenceStartFor(pos) {
         i--;
     }
     return 0;
+}
+
+// ─── FLIP BACK (v3.17.0) — Game Genie's navigation, for students, bounded ────
+//
+// Jake: "Why not give students the aspect of Game Genie that jumps to any chapter
+// and any sentence in the chapter, but limit it to previous to where they are now?"
+//
+// ⚠️ THE CEILING IS `furthest`, NOT THE CURRENT POSITION, AND THE DIFFERENCE IS THE
+// WHOLE FEATURE. Bounding by where the student is standing collapses the moment they
+// use it: flip back to Ch. 2 and Ch. 3 is now "ahead", so the tool that just moved
+// them can no longer move them home. Bounding by furthest gives free movement across
+// everything they have already earned and still no way past the frontier. It is more
+// useful and exactly as permissive.
+//
+// ⚠️ Cross-chapter jumps are TWO-STEP by necessity: the sentence map is built from
+// `fullText`, which only exists for the chapter that is loaded. Picking a chapter
+// loads it and reopens this modal at the sentence step. Do not try to collapse that
+// into one screen without prefetching every chapter, which for Aesop is 284 reads.
+//
+// Known and accepted: sentence-level backjump makes it easy to loop a memorised
+// sentence and inflate WPM. Not a new hole — restart-chapter (v3.16.0) and practice
+// mode both already allow it — but tighter. Flagged to Jake before shipping.
+function flipBackCeiling() {
+    if (currentUser && !currentUser.isAnonymous && furthestChapter &&
+        isKnownBodyChapter(furthestChapter) &&
+        isPositionAhead(furthestChapter, furthestCharIndex, currentChapterNum, currentCharIndex)) {
+        return { chapter: furthestChapter, charIndex: furthestCharIndex };
+    }
+    return { chapter: currentChapterNum, charIndex: currentCharIndex };
+}
+
+// True when there is anywhere at all to go — an earlier chapter, or earlier text in
+// this one. Gates the link so it never appears as a button that does nothing.
+function canFlipBack() {
+    if (currentCharIndex > 0) return true;
+    const list = bodyChapterList();
+    if (!list.length) return false;
+    return chapterKey(list[0].id) !== chapterKey(currentChapterNum);
+}
+
+function openFlipBack() {
+    if (isGameActive) { isGameActive = false; clearInterval(timerInterval); }
+
+    const ceiling   = flipBackCeiling();
+    const sentences = getSentenceMap();
+    const here      = getCurrentSentence(sentences);
+
+    // On the frontier chapter the student may not pass their own furthest point;
+    // in any earlier chapter every sentence is by definition already behind it.
+    const onFrontier = chapterKey(ceiling.chapter) === chapterKey(currentChapterNum);
+    let lastAllowed  = sentences.length - 1;
+    if (onFrontier) {
+        for (let i = 0; i < sentences.length; i++) {
+            if (ceiling.charIndex < sentences[i].end) { lastAllowed = i; break; }
+        }
+    }
+
+    const build     = buildChapterOptions(currentChapterNum, '', true, ceiling.chapter);
+    const useFilter = build.total > CHAPTER_FILTER_MIN;
+
+    // Sentences are shown as TEXT, not numbers. A student choosing where to resume is
+    // looking for a moment they remember, and "Sentence 84" is not a moment.
+    let sentOpts = '';
+    for (let i = 0; i <= lastAllowed; i++) {
+        const raw = fullText.slice(sentences[i].start, sentences[i].end).replace(/\s+/g, ' ').trim();
+        const txt = raw.length > 72 ? raw.slice(0, 72) + '\u2026' : raw;
+        const sel = (i === here) ? ' selected' : '';
+        sentOpts += `<option value="${i}"${sel}>${escapeHtml(txt || '\u2014')}</option>`;
+    }
+
+    isModalOpen = true; isInputBlocked = false;
+    modalGeneration++;
+    setModalTitle('\u{1F4D6} Flip Back');
+
+    const btn = 'background:#f8f8f8; border:1px solid #bbb; padding:4px 10px; cursor:pointer; ' +
+                'font-family:inherit; border-radius:3px; font-size:0.85em;';
+    const field = 'flex:1; background:#fff; border:1px solid #ccc; padding:4px; ' +
+                  'font-family:inherit; font-size:0.9em; border-radius:3px; min-width:0;';
+
+    document.getElementById('modal-body').innerHTML = `
+        <div style="text-align:left; width:78%; margin:0 auto; font-size:0.85em;">
+            <div style="color:#777; margin-bottom:8px;">
+                Go back to anything you've already typed. You can't skip ahead.
+            </div>
+            ${useFilter ? `
+            <div style="display:flex; gap:6px; align-items:center; margin-bottom:4px;">
+                <input type="text" id="fb-chapter-filter" placeholder="Search ${build.total} chapters\u2026"
+                       autocomplete="off" style="${field}">
+                <span id="fb-chapter-filter-status" style="font-size:0.85em; color:#888; min-width:56px;"></span>
+            </div>` : ''}
+            <div style="display:flex; gap:6px; align-items:center; margin-bottom:10px;">
+                <select id="fb-chapter-select" style="${field}">${build.html}</select>
+                <button id="fb-chapter-go" style="${btn}">Go</button>
+            </div>
+            <div style="color:#777; margin-bottom:4px;">Start from:</div>
+            <div style="display:flex; gap:6px; align-items:center; margin-bottom:10px;">
+                <select id="fb-sentence-select" style="${field}">${sentOpts}</select>
+                <button id="fb-sentence-go" style="${btn}">Go</button>
+            </div>
+            <div style="display:flex; gap:8px; justify-content:center;">
+                <button id="fb-chapter-start" style="${btn}">\u21A9\uFE0E Top of this chapter</button>
+                <button id="fb-cancel" style="${btn}">Cancel</button>
+            </div>
+        </div>
+    `;
+
+    if (useFilter) {
+        wireChapterFilter('fb-chapter-filter', 'fb-chapter-select',
+                          'fb-chapter-filter-status', 'fb-chapter-go', ceiling.chapter);
+    }
+
+    // Land at the top of the chosen chapter, then reopen here so the student can
+    // pick a sentence inside it — the second half of the two-step.
+    document.getElementById('fb-chapter-go').onclick = async () => {
+        const target = document.getElementById('fb-chapter-select').value;
+        if (!target || chapterKey(target) === chapterKey(currentChapterNum)) {
+            await flipBackTo(0); return;
+        }
+        currentChapterNum = target;
+        savedCharIndex = 0; currentCharIndex = 0; lastSavedIndex = 0;
+        try { await saveProgress(true); } catch (_) { /* WAL has it */ }
+        closeModal();
+        await loadChapter(target);
+        openFlipBack();
+    };
+
+    document.getElementById('fb-sentence-go').onclick = async () => {
+        const idx = parseInt(document.getElementById('fb-sentence-select').value, 10);
+        await flipBackTo(isNaN(idx) ? 0 : idx);
+    };
+
+    document.getElementById('fb-chapter-start').onclick = async () => { await flipBackTo(0); };
+    document.getElementById('fb-cancel').onclick = () => { closeModal(); showStartModal('Start'); };
+
+    document.getElementById('modal-footer').innerHTML = '';
+    showModalPanel();
+}
+
+// ⚠️ Clamped against `lastAllowed` a SECOND time, here, rather than trusting the
+// select to only contain legal values. The picker is rebuilt by the filter box on
+// every keystroke and a stale option can survive a re-render.
+async function flipBackTo(sentIdx) {
+    const sentences = getSentenceMap();
+    if (!sentences.length) { closeModal(); showStartModal('Start'); return; }
+
+    const ceiling = flipBackCeiling();
+    let cap = sentences.length - 1;
+    if (chapterKey(ceiling.chapter) === chapterKey(currentChapterNum)) {
+        for (let i = 0; i < sentences.length; i++) {
+            if (ceiling.charIndex < sentences[i].end) { cap = i; break; }
+        }
+    }
+    jumpToSentence(sentences, Math.max(0, Math.min(sentIdx, cap)));
+    // jumpToSentence sets savedCharIndex but writes nothing; persist so closing the
+    // tab does not silently undo a move the student deliberately made.
+    try { await saveProgress(true); } catch (_) { /* WAL has it */ }
+    closeModal();
+    showStartModal('Start');
 }
 
 // --- GAME GENIE (Admin Debug Tool) ---
