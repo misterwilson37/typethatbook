@@ -1,10 +1,15 @@
-// game.js v3.17.0
+// game.js v3.18.0
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.18.0 — Flip Back reachable from the PAUSE/sprint stats screen too, in showStatsModal's
+//           extraHTML slot. That screen is where a student notices they are lost — they
+//           stop typing because the text stopped making sense — so requiring them to
+//           dismiss it and pause again was asking them to navigate out of the confusion
+//           the tool exists to fix. Hidden in practice mode: no book to flip back into.
 // v3.17.0 — FLIP BACK. Game Genie's chapter+sentence navigation, for students, bounded.
 //           ⚠️ Ceiling is `furthest`, NOT where they stand — that bound collapses on first
 //           use, since flipping back makes their old place "ahead". Two-step cross-chapter.
@@ -38,15 +43,6 @@
 //           returns never cancelled the default. Bit once per chapter, then the main
 //           path's v3.9.3 cancel took over, which is why it read as a small
 //           frustration instead of a bug.
-// v3.14.0 — CONSUMES pendingClassAssignments. This existed only in learn.js, yet
-//           index.html links students straight into game.html — so a student who
-//           typed a book chapter before ever opening Lessons was never assigned to
-//           their class. Every log they wrote was stamped classId: '', making them
-//           absent from every class-filtered report and denying them their class's
-//           goals. On day one of a 9-week rotation that is every new student at
-//           once. Also drops the goals cache before re-reading: loadGoals() had
-//           just written classId:'' with a 24h lifetime, so the re-read returned
-//           the empty value the fix had replaced.
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * The write-ahead log is MORE durable than the per-sentence writes it
@@ -68,7 +64,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.17.0";
+const VERSION = "3.18.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -4012,6 +4008,7 @@ function showStatsModal(title, stats, btnText, callback, hint, instant, extraHTM
                 ${getSprintHistoryHTML()}
                 ${getMissedCharsHTML()}
                 ${extraHTML || ''}
+                ${(!isPracticeMode && canFlipBack()) ? `<div style="margin:6px 0;"><a href="#" id="stats-flip-back" style="color:var(--carolina-blue); font-size:0.8em;">\u{1F4D6} Flip back to an earlier part\u2026</a></div>` : ''}
                 ${hint ? `<div class="start-hint" id="modal-hint" style="display:none;">${hint}</div>` : ''}
             </div>
             ${trophyHTML}
@@ -4027,6 +4024,23 @@ function showStatsModal(title, stats, btnText, callback, hint, instant, extraHTM
         </div>
         ${returnLink}
     `;
+
+    // ⚠️ Placed HERE, not only on the start modal (v3.18.0). The pause screen is where
+    // a student actually notices they are lost — they stop typing BECAUSE the text stopped
+    // making sense. Making them dismiss the stats, land back in the book and pause again
+    // to reach the tool is asking them to navigate out of the exact confusion it fixes.
+    //
+    // Suppressed in practice mode: that text is generated, not the book, so there is
+    // nowhere in it to flip back to.
+    const statsFlip = document.getElementById('stats-flip-back');
+    if (statsFlip) {
+        statsFlip.onclick = (e) => {
+            e.preventDefault();
+            modalActionCallback = null;   // don't resume the sprint we're leaving
+            closeModal();
+            openFlipBack();
+        };
+    }
 
     // Wire practice button if present
     const practiceBtn = document.getElementById('practice-btn');

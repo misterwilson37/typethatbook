@@ -46,7 +46,7 @@ thing in the round.** See §2.2 and invariant 43.
 
 | file | version | changed? | upload? |
 |---|---|---|---|
-| `game.js` | **3.17.0** | ⚠️ **yes — the whole round** | **YES** |
+| `game.js` | **3.18.0** | ⚠️ **yes — the whole round** | **YES** |
 | `reanchor-test.mjs` | **1.1.0** | ⚠️ **new harness, 32 assertions** | commit it |
 | `run-all-tests.mjs` | — | yes — registers the new harness | commit it |
 | `CHANGELOG.md` | — | yes — `game.js` v3.15.0 | commit it |
@@ -273,6 +273,22 @@ student did, and re-reading is not un-doing it. That is the question below, answ
 default in the least destructive direction — **but Jake still has not ruled on it**, and
 if he wants re-reading to clear a tick, the place to do it is `flipBackTo()`.
 
+### v3.18.0 — the same door, on the screen where people are standing
+
+Jake, immediately after testing v3.17.0: *"We probably need a flip back option on the
+pause screen that occurs when the user stops typing — between the stats and the buttons."*
+
+He is right and the reason generalises. ⚠️ **The pause screen is where a student notices
+they are lost** — they stop typing *because* the text stopped making sense. Reaching the
+tool only from the start modal meant dismissing the stats, landing back in the book, and
+pausing again: navigating out of the exact confusion the tool exists to fix. **An escape
+hatch belongs where people are when they need it, not only where the flow begins.**
+
+`showStatsModal()` already had an `extraHTML` slot in the right place (v3.12.2, added for
+the book-completion "About this book" link) so this cost one insertion and one handler.
+`modalActionCallback` is cleared first so the abandoned sprint does not resume underneath
+the picker.
+
 ### ⚠️ The remaining open question, still Jake's call
 
 **Does re-reading a chapter un-tick its ✓?** v3.17.0 ships saying no, because that is the
@@ -333,6 +349,10 @@ building.
 50. **Shipping the guard is half the job when a bug has been writing bad state.** The
     other half is an undo for what was already committed. Ask "what did this corrupt
     that my fix cannot reach?"
+51. **An escape hatch belongs where people are when they need it.** Flip Back on the
+    start modal alone required a lost student to navigate out of their confusion to
+    reach the tool for it. Ask of any recovery affordance: *what screen is someone
+    looking at at the moment they realise they need this?*
 
 ---
 

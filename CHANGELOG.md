@@ -42,7 +42,27 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.17.0**
+Current: **v3.18.0**
+
+#### v3.18.0
+
+Round 8 (Yost). **Flip Back reachable from the pause / sprint-stats screen**, in
+`showStatsModal()`'s `extraHTML` slot — between the cumulative stats and the footer
+buttons, where Jake asked for it.
+
+         ⚠️ **That screen is where a student actually notices they are lost.** They stop
+         typing *because* the text stopped making sense. Requiring them to dismiss the
+         stats, land back in the book and pause again to reach the tool was asking them to
+         navigate out of the exact confusion the tool exists to fix. **An escape hatch
+         belongs where people are when they need it, not only where the flow begins.**
+
+         `modalActionCallback` is cleared before opening, so the sprint being abandoned
+         does not resume underneath the picker. Suppressed in practice mode: that text is
+         generated rather than the book, so there is nowhere in it to flip back to.
+
+         Also reaches the chapter-complete screen, which shares `showStatsModal()`. That
+         is deliberate — "I finished that but don't remember reading it" is the exact
+         symptom v3.15.0's dead offsets produced.
 
 #### v3.17.0
 
