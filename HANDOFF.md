@@ -46,8 +46,8 @@ thing in the round.** See §2.2 and invariant 43.
 
 | file | version | changed? | upload? |
 |---|---|---|---|
-| `game.js` | **3.15.0** | ⚠️ **yes — the whole round** | **YES** |
-| `reanchor-test.mjs` | **1.0.0** | ⚠️ **new harness, 25 assertions** | commit it |
+| `game.js` | **3.15.1** | ⚠️ **yes — the whole round** | **YES** |
+| `reanchor-test.mjs` | **1.1.0** | ⚠️ **new harness, 32 assertions** | commit it |
 | `run-all-tests.mjs` | — | yes — registers the new harness | commit it |
 | `CHANGELOG.md` | — | yes — `game.js` v3.15.0 | commit it |
 | `README.md` | — | yes — harness table, progress schema | commit it |
@@ -162,6 +162,64 @@ needs no coordination with anyone.
 
 ---
 
+## §3a. ⚠️ v3.15.1 — MY OWN FIX REPRODUCED THE BUG, AND THE HARNESS BLESSED IT
+
+Jake deployed v3.15.0 and hit the identical symptom on Aesop's Fables inside minutes.
+**Read this section before touching `reconcilePosition()`.**
+
+### The tell was in the completion modal, not the readout
+
+`0 WPM · 100% Acc · 0m 1s`. Thirty characters in one second would read as ~360 WPM.
+Zero elapsed and zero WPM means **one keystroke**, which hit the
+`currentCharIndex >= fullText.length` guard in the keydown handler and ran
+`finishChapter()`. There was never a sentence to type; the renderer was drawing the tail
+of a chapter the student was already past the end of.
+
+⚠️ **Generalise this: "one sentence left" is what an out-of-range offset LOOKS like.**
+Aesop's chapters are ~500 characters, so almost any stale offset overshoots. The 284
+tiny fables are the best stress case in the library — use that book to test this code.
+
+### An offset at or past the end is a DEAD STATE, not a position
+
+v3.15.0 reached it three ways, all mine:
+
+1. The under-a-week rung clamped to `len` and called it "their exact spot". **Recency is
+   worthless when the content changed *after* the bookmark was written.** The ladder
+   silently assumed staleness and wrongness were the same axis. They are not.
+2. The week-to-month rung clamped to `len` and *then* snapped to the sentence start —
+   which lands on the **last sentence of any chapter, every time.** A machine for
+   manufacturing this symptom.
+3. ⚠️ **The recent rung LAUNDERED the bad offset.** One keystroke completed the chapter,
+   the flush stamped the current `contentVersion` onto the dead position, the versions
+   then agreed, and no reconcile ever fired again. **A self-healing system that can write
+   its own bad state back as verified is worse than no healing at all** — it converts a
+   recoverable fault into a permanent one and removes the evidence.
+
+`reconcilePosition()` can now never return a position with nothing left to type: any
+age, with or without a job.
+
+### ⚠️ Anchor proof runs BEFORE the dead-state guard, and the order is load-bearing
+
+My first attempt put the guard first. The harness caught it in one run: a chapter that
+**shrank** below a student's stored offset is both out of range *and* perfectly
+rescuable, because the anchor still names the exact words they had reached. Bailing to
+the top of the chapter there throws away the only hard evidence in the system. Proof,
+then guard, then ladder — in that order.
+
+### ⚠️ The harness asserted the bug as correct and passed
+
+`reanchor-test.mjs` v1.0.0 checked that an out-of-range index *"lands on a real sentence
+boundary"*. It did — the boundary of the **final** sentence. Twenty-five green checks,
+one of them expecting the wrong number.
+
+§6 of this handoff already said that a harness passing 25/25 first try in this project is
+suspicious rather than reassuring. I wrote that sentence and did not apply it to my own
+expected values. **A passing assertion is only as good as the number it expects, and the
+number is where the author's misconception lives.** v1.1.0's regression block fails
+against v3.15.0.
+
+---
+
 ## §4. Invariants — additions to Round 7 §5 and Round 6 §5, both of which still apply
 
 37. **When you harden one half of a composite key, state why the other half is safe.**
@@ -189,6 +247,22 @@ needs no coordination with anyone.
     `Char X / Y`. The ✓ beside the chapter in the same dropdown proved the chapter had
     been *completed* — which is what established §2.2, the part of this round that
     actually matters. **Read the whole image, not the field you requested.**
+44. **An offset at or past the end of its content is a dead state, not a position.**
+    Nothing can resume there. Guard the *shape* of the answer — "does this leave
+    anything to do?" — not just its range.
+45. **Recency is not validity.** A bookmark written an hour ago is still garbage if the
+    content changed after it was written. Never let an age threshold decide whether a
+    provably invalid value is acceptable.
+46. ⚠️ **A self-healing system must never write its own bad state back as verified.**
+    v3.15.0's recent rung stamped `contentVersion` onto a dead offset, converting a
+    recoverable fault into a permanent one and deleting the evidence that anything was
+    wrong. Before writing a "this is now correct" marker, check that it *is*.
+47. **The number an assertion expects is where the author's misconception lives.** A
+    green harness proves the code agrees with the author, not with reality. When a test
+    passes first try, re-derive the expected values from the requirement rather than
+    from the implementation.
+48. **Consult proof before applying a guard.** Order matters: a value can be both
+    out-of-range and exactly recoverable. Guards that run first discard evidence.
 
 ---
 
@@ -239,6 +313,10 @@ suite people stop running.
 
 ## §7. ⚠️ What to spot-check in a browser, in order
 
+0. ⚠️ **Aesop's Fables first, every time.** 284 chapters of ~500 characters each is the
+   library's best stress case for stale offsets — almost any overshoot lands past the
+   end there, which is precisely how v3.15.1 was caught. A fix that looks fine on a
+   novel can still be broken on Aesop's.
 1. **Open a book you have progress in.** It should land where it always did, with no
    notice. Your next keystroke stamps `contentVersion` and heals it permanently.
 2. **Then one you have NOT touched since the re-upload.** Expect the blue
@@ -246,7 +324,10 @@ suite people stop running.
    chapter — everything is months stale, so the ladder's bottom rung.
 3. **Console.** `Book content changed since this bookmark was written (age Nd, anchor
    ABSENT)` on the first load; silence on the second, after you have typed.
-4. **The real proof: re-upload a book you are mid-chapter in, then reopen it.** That
+4. ⚠️ **Never accept "the chapter completed" as a pass.** Check the completion modal:
+   `0 WPM` and `0m 1s` means nobody typed anything and the offset was dead. A real
+   completion has a real elapsed time.
+5. **The real proof: re-upload a book you are mid-chapter in, then reopen it.** That
    round-trips a stored anchor and is the only test of the *mechanism* rather than the
    fallback. It should put you back exactly where you were, silently.
 

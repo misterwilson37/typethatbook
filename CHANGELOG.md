@@ -42,7 +42,44 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.15.0**
+Current: **v3.15.1**
+
+#### v3.15.1
+
+Round 8 (Yost), same session. **v3.15.0's fix reproduced the bug it was written to fix.**
+Jake hit it on Aesop's Fables within minutes of deploying, on a 544-character chapter.
+
+         ⚠️ **An offset at or past the end of a chapter is a DEAD STATE, not a position.**
+         The renderer draws the tail of the text, the student reads it as "one sentence
+         left", and their first keystroke hits the `currentCharIndex >= fullText.length`
+         guard in the keydown handler and runs `finishChapter()`. The tell is in the
+         completion modal: **0 WPM, 100% accuracy, 0m 1s.** Nobody typed anything.
+
+         v3.15.0 reached that state three separate ways, all mine:
+         (a) the under-a-week rung clamped to `len` and called it "their exact spot" —
+         recency is worthless when the content changed *after* the bookmark was written;
+         (b) the week-to-month rung clamped to `len` and *then* snapped to the sentence
+         start, which lands on the **last sentence of any chapter, every time** — a
+         machine for manufacturing this exact symptom;
+         (c) worst, the recent rung **laundered** the bad offset: one keystroke completed
+         the chapter, the flush stamped the current `contentVersion` onto the dead
+         position, the versions then agreed, and no reconcile ever fired again.
+
+         `reconcilePosition()` can now never return a position with nothing left to type,
+         at any age, with or without a job.
+
+         ⚠️ **Anchor proof is consulted BEFORE the dead-state guard, and the order is
+         load-bearing.** The first attempt put the guard first and the harness caught it
+         in one run: a chapter that *shrank* below a student's stored offset is both out
+         of range and perfectly rescuable, because the anchor still names the words they
+         had reached. Bailing to the top of the chapter there discards the only hard
+         evidence in the system.
+
+         ⚠️ **`reanchor-test.mjs` v1.0.0 asserted the bug as correct and passed.** It
+         checked that an out-of-range index "lands on a real sentence boundary" — which
+         it did: the boundary of the final sentence. 25 green checks, one of them
+         expecting the wrong number. A passing assertion is only as good as the value it
+         expects. The regression block added in v1.1.0 fails against v3.15.0.
 
 #### v3.15.0
 

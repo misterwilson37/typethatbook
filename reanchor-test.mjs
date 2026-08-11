@@ -1,4 +1,4 @@
-// reanchor-test.mjs v1.0.0
+// reanchor-test.mjs v1.1.0
 //
 // Guards game.js v3.15.0's progress re-anchoring: the clamp, the anchor search,
 // and the staleness ladder (exact → sentence → chapter).
@@ -94,7 +94,10 @@ eq('repeated anchor picks the near copy',
 console.log('\nreconcilePosition — the clamp (runs with NO job)');
 M.set(TEXT, 9999, null);
 M.reconcilePosition();
-eq('index past the end is clamped to the text length', M.get().savedCharIndex, TEXT.length);
+// ⚠️ v3.15.0 asserted TEXT.length here and passed. Clamping to the end IS the
+// dead state — see the regression block below.
+eq('index past the end restarts the chapter, it is not clamped to the end',
+   M.get().savedCharIndex, 0);
 ok('clamping alone raises no notice', M.get().reanchorNotice === '');
 M.set(TEXT, -5, null);
 M.reconcilePosition();
@@ -144,14 +147,53 @@ M.reconcilePosition();
 eq('an unreadable timestamp falls to the safest rung, not the loosest',
    M.get().savedCharIndex, 0);
 
-console.log('\nreconcilePosition — the ladder never runs past the end');
-M.set(TEXT, 9999, { anchorText: '', storedIndex: 9999, ageMs: 14 * DAY });
+// ⚠️ v3.15.1 — THE REGRESSION BLOCK. Every assertion below failed in v3.15.0,
+// and one of them PASSED in v3.15.0 asserting the wrong answer: the old harness
+// checked that an out-of-range index "lands on a real sentence boundary", which
+// it did — the boundary of the LAST sentence, leaving exactly one sentence on
+// screen and a chapter that completed on the first keystroke. That was the bug,
+// written down as the expected result. A green assertion is only as good as the
+// value it expects.
+//
+// The invariant, stated so it cannot be re-broken: RECONCILE MUST NEVER RETURN
+// A POSITION WITH NOTHING LEFT TO TYPE. Not by clamping, not by laddering, not
+// by anchoring, and not at any age.
+console.log('\nreconcilePosition — an offset at or past the end is a DEAD STATE');
+
+for (const [label, idx, age] of [
+    ['past the end, recent',   9999, 2  * DAY],
+    ['past the end, a month',  9999, 14 * DAY],
+    ['past the end, ancient',  9999, 90 * DAY],
+    ['exactly at the end',     TEXT.length, 2 * DAY],
+]) {
+    M.set(TEXT, idx, { anchorText: '', storedIndex: idx, ageMs: age });
+    M.reconcilePosition();
+    eq(label + ' → top of the chapter, not the last sentence',
+       M.get().savedCharIndex, 0);
+}
+
+// ⚠️ The laundering path. Once a bad offset has been written back WITH a current
+// contentVersion, no job fires — so the guard has to hold with no job at all.
+M.set(TEXT, TEXT.length, null);
 M.reconcilePosition();
-ok('a stale out-of-range index is clamped BEFORE the ladder is applied',
-   M.get().savedCharIndex <= TEXT.length && M.get().savedCharIndex === M.get().savedCharIndex,
-   'got ' + M.get().savedCharIndex);
-eq('…and lands on a real sentence boundary',
-   M.get().savedCharIndex, TEXT.indexOf('The end came quickly.'));
+eq('at the end with NO job (already laundered) still restarts the chapter',
+   M.get().savedCharIndex, 0);
+ok('…and says nothing, because nothing was updated', M.get().reanchorNotice === '');
+
+// An anchor is proof of where they were, but if that place is the end of the
+// chapter it is still a dead state.
+const tailAnchor = TEXT.slice(TEXT.length - 20);
+M.set(TEXT, TEXT.length, { anchorText: tailAnchor, storedIndex: TEXT.length, ageMs: 2 * DAY });
+M.reconcilePosition();
+eq('an anchor resolving to the very end does not strand them there',
+   M.get().savedCharIndex, 0);
+
+// The ordinary in-range case must be untouched by all of the above.
+M.set(TEXT, TEXT.length - 30, { anchorText: '', storedIndex: TEXT.length - 30, ageMs: 2 * DAY });
+M.reconcilePosition();
+eq('an in-range recent index near the end is still honoured exactly',
+   M.get().savedCharIndex, TEXT.length - 30);
+ok('…and leaves real characters to type', M.get().savedCharIndex < TEXT.length);
 
 M.set(TEXT, 0, { anchorText: 'anything', storedIndex: 0, ageMs: 400 * DAY });
 M.reconcilePosition();
