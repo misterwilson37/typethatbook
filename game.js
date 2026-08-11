@@ -1,9 +1,18 @@
-// game.js v3.18.0
+// game.js v3.19.0
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
+//
+// v3.19.0 — Settings dropdown stopped scanning the whole `books` collection.
+//           openMenuModal() did an uncached getDocs(collection(db,"books")) on every
+//           open — the last read in the student path that ignored the caching
+//           discipline the rest of the file adopted in v3.4.0, and the only one that
+//           grew as the bookclean project added titles. Now cached in localStorage for
+//           an hour and validated by a COUNT aggregation (ONE billed read for the whole
+//           collection), which is the pattern index.html already uses for the library
+//           grid. Console escape hatch: ttbClearBookList().
 //
 // v3.18.0 — Flip Back reachable from the PAUSE/sprint stats screen too, in showStatsModal's
 //           extraHTML slot. That screen is where a student notices they are lost — they
@@ -55,7 +64,7 @@
 //   * applyViewMode() must replay textLoaded + positionSet. A renderer
 //     mounted mid-session missed those events and will draw nothing.
 import { db, auth } from "./firebase-config.js";
-import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     onAuthStateChanged,
     GoogleAuthProvider,
@@ -64,7 +73,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.18.0";
+const VERSION = "3.19.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -4427,6 +4436,77 @@ function setModalTitle(text) {
     else bar.classList.add('no-title');
 }
 
+// ─── Book list for the Settings dropdown ──────────────────────────────────────
+//
+// ⚠️ THIS USED TO BE AN UNCACHED `getDocs(collection(db,"books"))` — the whole
+// collection, every time a student opened Settings.
+//
+// It was the last read in the student path that did not follow the caching
+// discipline the rest of the file settled on in v3.4.0, and it was the only one
+// that got WORSE over time: the bookclean project adds titles continuously, so
+// the cost of opening a menu grew with the library. At ~42 books and a couple of
+// thousand students a day it was, on its own, roughly the size of the entire
+// rest of the read budget.
+//
+// The fix is the pattern index.html already uses for the library grid: cache the
+// list in localStorage, and validate it with a COUNT aggregation — ONE billed
+// read for the whole collection instead of one per document. A count is enough
+// because the failure this guards against is a book being added or removed;
+// a *renamed* book is caught by the TTL within the hour.
+//
+// ⚠️ Only id and title are cached. The dropdown renders nothing else, and the
+// `chapters` array on a book document is by far its largest field — index.html
+// learned that the expensive way (see its BOOKS_CACHE_KEY note). Do not be
+// tempted to cache the whole document "in case it's useful later."
+//
+// Shares no state with index.html's cache on purpose: different shape, different
+// TTL, and a stale read here is a dropdown, not a library.
+const BOOKLIST_CACHE_KEY = 'ttb_bookListCache_v1';
+const BOOKLIST_CACHE_MS  = 3600 * 1000;   // 1 hour
+let bookListMem = null;                   // per-tab, avoids re-touching localStorage
+
+async function loadBookList() {
+    if (bookListMem) return bookListMem;
+
+    let cached = null;
+    try {
+        const raw = localStorage.getItem(BOOKLIST_CACHE_KEY);
+        if (raw) {
+            const c = JSON.parse(raw);
+            if (Array.isArray(c.books) && c.books.length &&
+                (Date.now() - c.at) < BOOKLIST_CACHE_MS) cached = c;
+        }
+    } catch (_) { /* cache is an optimisation, never a dependency */ }
+
+    if (cached) {
+        let liveCount = null;
+        try {
+            liveCount = (await getCountFromServer(collection(db, "books"))).data().count;
+        } catch (_) { /* aggregation unavailable — trust the TTL */ }
+        if (liveCount === null || liveCount === cached.books.length) {
+            bookListMem = cached.books;
+            return bookListMem;
+        }
+    }
+
+    const snap = await getDocs(collection(db, "books"));
+    const books = [];
+    snap.forEach(d => books.push({ id: d.id, title: d.data().title || d.id }));
+    books.sort((a, b) => a.title.localeCompare(b.title));
+    bookListMem = books;
+    try {
+        localStorage.setItem(BOOKLIST_CACHE_KEY,
+                             JSON.stringify({ at: Date.now(), books }));
+    } catch (_) { /* quota — serve from memory for this tab and move on */ }
+    return books;
+}
+
+// Admin escape hatch, matching index.html's ttbClearLibraryCache().
+window.ttbClearBookList = function () {
+    bookListMem = null;
+    try { localStorage.removeItem(BOOKLIST_CACHE_KEY); } catch (_) {}
+};
+
 async function openMenuModal() {
     // Quietly pause without showing break modal
     const wasActive = isGameActive;
@@ -4444,14 +4524,10 @@ async function openMenuModal() {
 
     let bookOptions = "";
     try {
-        const querySnapshot = await getDocs(collection(db, "books"));
-        querySnapshot.forEach((doc) => {
-            const b = doc.data();
-            const id = doc.id;
-            const title = escapeHtml(b.title || id);
-            const sel = (id === currentBookId) ? "selected" : "";
-            bookOptions += `<option value="${escapeHtml(id)}" ${sel}>${title}</option>`;
-        });
+        for (const b of await loadBookList()) {
+            const sel = (b.id === currentBookId) ? "selected" : "";
+            bookOptions += `<option value="${escapeHtml(b.id)}" ${sel}>${escapeHtml(b.title)}</option>`;
+        }
     } catch(e) { console.warn(e); }
 
     // Schools are cached 24h, so this is one read per day per student at most.

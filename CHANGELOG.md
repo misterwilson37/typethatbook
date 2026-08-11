@@ -70,7 +70,34 @@ Files not listed here have short headers that fit the budget on their own:
 
 ## `game.js`
 
-Current: **v3.18.0**
+Current: **v3.19.0**
+
+#### v3.19.0
+
+Round 9 (Corona). **The Settings dropdown was scanning the whole `books` collection,
+uncached, on every open.**
+
+         `openMenuModal()` did a bare `getDocs(collection(db, "books"))`. It was the last
+         read in the student path that ignored the caching discipline the rest of the file
+         adopted in v3.4.0, and the only one that got **worse over time** — the bookclean
+         project adds titles continuously, so the cost of opening a menu grew with the
+         library. At ~42 books it was roughly the size of the entire rest of the read
+         budget; at 100 books it would have been double.
+
+         Replaced with `loadBookList()`, using the pattern `index.html` already had for
+         the library grid: `{id, title}` cached in `localStorage` for an hour, validated
+         by a **COUNT aggregation — one billed read for the whole collection** instead of
+         one per document. A count catches a book being added or removed, which is the
+         case that matters; a rename is caught by the TTL.
+
+         ⚠️ **Only `id` and `title` are cached.** The `chapters` array is by far the
+         largest field on a book document and the dropdown renders neither. `index.html`
+         learned this the expensive way — see its `BOOKS_CACHE_KEY` note.
+
+         Adds `getCountFromServer` to the Firestore imports. Console escape hatch:
+         `ttbClearBookList()`, matching `ttbClearLibraryCache()`.
+
+         See SCALE-PLAN.md v1.4.0 § Problem 7.
 
 #### v3.18.0
 
@@ -1127,7 +1154,59 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.28.0**
+Current: **v3.31.0**
+
+⚠️ **This section skips v3.29.0 and v3.30.0.** They shipped in the file (see the header
+comment in `admin.js`) but were never written up here. Round 9 did not reconstruct them
+— filing an invented summary of someone else's change is worse than an acknowledged gap.
+
+#### v3.31.0
+
+Round 9 (Corona). **Cover images were the single biggest cost in the project, and no
+round had ever looked at them.**
+
+         SCALE-PLAN.md spent three rounds on Firestore reads and writes — tens of dollars
+         a year at full district scale — while Cloud Storage egress, the only line that
+         could reach three figures, was not in the document at all.
+
+         Covers were uploaded **exactly as extracted from the EPUB** with **no
+         `Cache-Control` header**. Measured over the 24 EPUBs in `library/`: **mean 308 KB,
+         max 942 KB** (Heidi), Standard Ebooks emitting a uniform 1400×2100. The library
+         grid renders them into `minmax(180px, 1fr)` at `aspect-ratio: 2/3` — a ~360px
+         slot on a 2× display. Everything past ~500px wide was billed and then thrown away
+         by the browser's scaler.
+
+         New `downscaleCover()`: canvas re-encode to fit **500×800, JPEG q0.82**,
+         composited **onto white** so a transparent PNG source cannot flatten onto JPEG's
+         implicit black. `uploadCover()` now also sets **`cacheControl: 'public,
+         max-age=2592000'`**.
+
+         **Measured: 7.22 MB → 1.56 MB across all 24 covers, 4.6× smaller, −78%.** Mean
+         308 KB → 67 KB. That takes worst-case egress from ~206 GB/month to ~45 GB against
+         a 100 GB/month free allowance — **under the free tier on downscaling alone**,
+         with the cache header as margin on top.
+
+         ⚠️ **It never blocks an upload.** Every failure path — object URL, decode error,
+         10-second timeout, canvas exception, `toBlob` returning null — resolves with the
+         **original blob**. A full-size cover costs a fraction of a cent; a cover that
+         fails to upload costs Jake an afternoon. It also keeps the original when the
+         re-encode comes out larger, which already-optimised small PNGs sometimes do.
+
+         ⚠️ **30 days is safe despite the fixed path** (`covers/{bookId}`, overwritten in
+         place) because clients never request that path — they request the download URL,
+         and `uploadBytes` mints a **new download token on every upload**. A replaced cover
+         has a URL no cache can match.
+
+         `coverSizeNote()` puts the saving in the admin status line (`308 KB → 67 KB,
+         −78%`) at both call sites. **This is how you tell a working downscale from a
+         silent fallback** — covers uploading with no size note mean the canvas path is
+         failing.
+
+         ⚠️ **Applies to covers uploaded from now on.** Existing covers keep their size
+         and missing header until re-uploaded. No migration, and none needed — the library
+         grows continuously so the mix shifts on its own.
+
+         See SCALE-PLAN.md v1.4.0 § Problem 6.
 
 #### v3.28.0
 

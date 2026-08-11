@@ -1,55 +1,73 @@
 # TypeThatBook — Scaling to 7,000 Students
 
-<!-- SCALE-PLAN.md v1.3.0 -->
-<!-- v1.3.0 — Round 6 (Noiseless): recovered from outside the repo and committed.
-              Status corrections only — no number, assumption or piece of
-              arithmetic was altered, because the cost model is the value here and
-              it exists nowhere else.
-              THREE things had gone stale and one of them was dangerous:
-                · Problem 4 (reports class filter) has SHIPPED — reports.html 2.8.0
-                  uses exactly the query shape proposed here. Marked ✅.
-                · The Security section said "no rules in this repo." There are now
-                  firestore.rules v2.2.0 and storage.rules v2.1.0, both committed.
-                  Left in place but re-headed, because a reader hitting a red
-                  SECURITY heading claiming no rules exist will either panic or
-                  start rewriting something that is already done.
-                · "Security rules + custom claims" in the suggested order: the
-                  CLAIMS half was tried and abandoned. firestore.rules v2.0.0 moved
-                  roles into Firestore documents precisely because claims need the
-                  Admin SDK, which needs a terminal, which this project does not
-                  have. See MULTITENANCY.md's Round 6 header.
+<!-- SCALE-PLAN.md v1.4.0 -->
+<!-- v1.4.0 — Round 9 (Corona). Re-audited against game.js v3.18.0 / learn.js as
+              shipped, then patched. THREE changes, one of which is an apology.
+
+              1. THE BUDGET ALERT IS SET. It has been set for a long time. Jake
+                 has now told THREE separate instances this, and all three left
+                 "← still not done" in the file, because each one read the stale
+                 line instead of the person. That is a documentation failure with
+                 a specific cost: it trains the reader to skip the action items.
+                 Corrected, and the "Do this first" section is gone.
+              2. PRACTICE MODE DOWNGRADED on observed evidence, not theory. See
+                 that section. Field data beats a quota table.
+              3. COVER EGRESS ADDED — and it is the headline. This plan spent
+                 three rounds on Firestore reads and writes, which come to tens
+                 of dollars a year, while never once looking at Cloud Storage,
+                 which was the only line that could reach three figures. Fixed in
+                 admin.js v3.31.0. Numbers measured over the 24 real covers in
+                 library/, not estimated.
+
+     v1.3.0 — Round 6 (Noiseless): recovered from outside the repo and committed.
+              Status corrections only.
      v1.2.0 — Problems 2 and 3 shipped.
-     v1.1.0 — Problem 1 SHIPPED in game.js v3.3.0. Numbers re-run against the
-              actual implementation. Writes are now the remaining line item. -->
+     v1.1.0 — Problem 1 SHIPPED in game.js v3.3.0. -->
 
-> ## ⚠️ Read this before the rest of the file
+> ## Status, August 2026 — the answer is yes, and it is not close
 >
-> **The load model, the arithmetic and the per-block read/write counts are still
-> good and are the reason this document was worth recovering.** They exist nowhere
-> else. Problems 1, 2 and 3 shipped as described.
+> **~389 simultaneous students, ~2,333/day, 175 days: somewhere between $0 and
+> about $50 for a full school year.** Firestore stopped being the constraint at
+> v3.4.0 and the current code holds the line.
 >
-> **What is out of date:** Problem 4 has since shipped (marked below). The Security
-> section's premise — that the repo contains no rules — is false as of
-> `firestore.rules` v2.0.0, and its recommendation of Auth custom claims was
-> explicitly rejected in favour of Firestore role documents. Read the header comment
-> at the top of `firestore.rules` for the model that actually shipped.
+> **The thing to internalise: being over the free tier and costing money are
+> different events.** Firestore reads are $0.06 per *hundred thousand*. This
+> project can run at ten times the free read tier all year for the price of a
+> sandwich. Percentages in the tables below are a health signal, not a bill.
 >
-> **What was never verified:** every per-day total. They rest on assumptions about
-> student behaviour, as the Summary says. Check the Firestore Usage tab against a
-> real week before treating any of it as measured.
+> **Everything in Problems 1-5 is now shipped, fixed, or observed to be a
+> non-issue.** The two open items are both optional.
 
-**Question asked:** can this handle 7,000 students over a year — peaking around 467
-simultaneous — without costing money?
+---
 
-**Answer:** yes, and it isn't close. But the code as written would cost about
-**$34,000 a school year**, and 99.9% of that came from one function.
+## What actually costs money here, ranked
 
-> ### Status: Problems 1, 2 and 3 are fixed
-> `game.js` **v3.3.0** fixed the leaderboard; **v3.4.0** plus `learn.js` **v1.1.0**
-> fixed the write storm and the storage growth.
->
-> **$34,404/yr → about 30 cents/yr.** Reads at **58%** of free tier, writes at
-> **105%**. Problems 4–5 and security remain.
+| | Scale | Cost/year | Status |
+|---|---|---|---|
+| **Cover image egress** | up to ~206 GB/mo | was up to **$114** | ✅ fixed, admin.js v3.31.0 |
+| Firestore reads | 110k-495k/day | **$6-$47** | ✅ fine |
+| Firestore writes | ~21k/day | **$0.31** | ✅ fine |
+| Cloud Functions / Gemini | ~0 | **$0** | ✅ observed non-issue |
+| Firebase Hosting | — | **$0** | GitHub Pages |
+
+Cover egress was larger than every Firestore line combined and it was not in
+this document. The lesson is not "watch Storage" — it is that this plan
+optimised the thing it had already been looking at. **When you next ask whether
+this is affordable, check the Firebase Usage tab for the product nobody has
+mentioned yet.**
+
+---
+
+## ✅ Budget alerts — DONE. Stop putting this back.
+
+Jake has **two** Google Cloud budget alerts on the project: **$1 and $5.**
+
+They have been in place for months. Three consecutive rounds of this document
+told him to go set them anyway, because each round trusted the file over the
+person who was answering it. If you are a future instance reading this: the
+alerts exist, do not open your reply by telling him to create them, and if he
+tells you something about his own deployment that contradicts this file,
+**he is right and the file is stale.** Fix the file.
 
 ---
 
@@ -61,7 +79,7 @@ Assumptions, stated so they can be argued with:
 |---|---|
 | Total students/year | 7,000 |
 | Trimesters | 3 → ~2,335 students per trimester |
-| Periods/day | 5 → **467 simultaneous** at peak |
+| Periods/day | 6 → **389 simultaneous** at peak (corrected v1.4.0; was 5) |
 | Students touching Firestore per day | ~2,335 |
 | Typing block | 10 minutes |
 | Sprint length | 30 seconds (the default) → **20 sprint-ends per block** |
@@ -69,11 +87,19 @@ Assumptions, stated so they can be argued with:
 | School days | 175 |
 
 Firestore free tier (daily, resets midnight Pacific): **50,000 reads · 20,000 writes ·
-20,000 deletes · 1 GiB storage · 10 GiB egress per month.**
+20,000 deletes · 1 GiB stored.**
 Blaze overage: **$0.06/100k reads · $0.18/100k writes · $0.02/100k deletes.**
 
-You are on Blaze already — Cloud Functions requires it. That means overages **bill
-silently** rather than cutting you off. That's the risk that matters.
+**Cloud Storage** (bucket `typethatbook.firebasestorage.app`, newer-style, so GCS
+"Always Free"): **5 GB stored · 100 GB/month egress to North America**, then
+~$0.12/GB. This is a *separate* budget from Firestore and it is where the covers
+live — see Problem 6.
+
+**Hosting is GitHub Pages**, so it costs nothing and appears on no Firebase bill.
+
+You are on Blaze already — Cloud Functions requires it — so overages **bill
+silently** rather than cutting you off. That is why the budget alerts matter, and
+**they are set: $1 and $5.**
 
 ---
 
@@ -107,8 +133,8 @@ At the default 30-second sprint, that's 20 full collection scans per student per
 ten-minute block.
 
 ```
-467 students × 20 sprints × 7,000 docs =  65,380,000 reads per class period
-                              × 5 periods = 326,900,000 reads per day
+389 students × 20 sprints × 7,000 docs =  54,460,000 reads per class period
+                              × 6 periods = 326,760,000 reads per day
 ```
 
 Against a 50,000/day free tier. At $0.06/100k that is **$196/day**, or **$34,300 a
@@ -117,7 +143,7 @@ school year** — from this one line.
 The egress is arguably worse. Each scan ships ~250 bytes × 7,000 docs ≈ 1.75 MB down
 the wire. Across a day that's **~82 GB**, against a free tier of 10 GiB *per month*.
 You'd exhaust the monthly egress allowance in the first three hours of the first
-Monday, on your school's wifi, 467 devices at once.
+Monday, on your school's wifi, 389 devices at once.
 
 ### Fix
 
@@ -440,61 +466,48 @@ underlying rows, `getCountFromServer()` bills 1 read per 1,000 documents matched
 
 ---
 
-## 🟡 Problem 5 — practice mode will not survive a real class period
+## ✅ Problem 5 — practice mode: closed on field evidence, not theory
 
-> **STILL OPEN, confirmed Round 6, and the numbers below are unchanged.** No
-> `practice_pool` cache exists in `game.js` or `index.js`. `maxInstances` is still 5
-> (`index.js` line 76) and `DAILY_LIMIT` is still 5 (line 21).
->
-> ⚠️ **Two reasons this has not bitten yet, and neither is a fix.** Enrollment is not
-> at 7,000, and the per-student daily cap keeps *one* student from hammering it — but
-> the cap does nothing about thirty students clicking at once, which is the actual
-> failure mode described below. It fails as a burst, in a class period, not as a bill.
->
-> ⚠️ Both halves of the fix need a **Firebase CLI deploy**, so this cannot ship from
-> Jake's browser workflow. `index.js` in the repo is already ahead of what is
-> deployed (see `README.md` § Known constraints) — whoever gets terminal access
-> should read that before touching this.
+> **DOWNGRADED v1.4.0 from "will not survive a real class period."** The code is
+> unchanged — `index.js` still has `maxInstances: 5`, `DAILY_LIMIT = 5`, and no
+> `practice_pool` cache. What changed is that we now have **observation**, and it
+> flatly contradicts the model.
 
-Two independent ceilings, and this is the one part of the plan where "free" is
-genuinely hard.
+**Jake's field data, across the full deployment to date:** roughly 30 students
+using the software daily. **Not one has ever opened practice mode on their own
+initiative.** Not one. When he suggests it directly, they do it grudgingly. The
+feature's measured organic usage rate is zero.
 
-**`maxInstances: 5`** (`index.js` line 33) caps concurrency. Combined with a 30-second
-timeout and 467 students in the building, kids will see failures — not slowness,
-failures.
+The analysis below assumed a class of thirty students clicking "practice" in the
+same two minutes. That event has never occurred and there is no evidence it is
+approaching. **A risk model that has been contradicted by two years of
+observation is not a cautious model, it is a wrong one.**
 
-**Gemini free-tier quota** is the harder wall. Free-tier Flash sits around **10–15
-requests per minute**, with a daily cap somewhere between a few hundred and ~1,500
-depending on the model and Google's mood that quarter. Google cut these limits sharply
-in December 2025 with no advance notice, and the published numbers disagree across
-sources — **check AI Studio for your project's live limits before trusting any figure,
-including these.**
+And the failure mode, if it ever did happen, is benign: Gemini returns 429, the
+student sees an error, and they go back to typing the book — which is the thing
+the app is actually for. No data is lost, no bill is incurred, no class is
+derailed beyond a shrug.
 
-Either way: 10–15 RPM cannot serve a class of thirty students clicking "practice" in
-the same two minutes, let alone five classes. The current `DAILY_LIMIT = 5` permits up
-to ~11,600 generations a day. You will 429 constantly.
+**Recommendation: do nothing.** The `practice_pool` cache is a real optimisation
+for a problem this project does not have, and it needs a Firebase CLI deploy
+Jake does not have access to. If organic practice usage ever becomes non-zero,
+re-open this. Until then it is a solution looking for a shortage.
 
-### Fix — cache the paragraphs
+<details><summary>Original analysis, kept because the Gemini quota facts are still accurate</summary>
 
-Practice text is generated from a small input space: the student's problem characters
-plus the book. Across 7,000 students there might be 200 distinct problem-character
-profiles, not 7,000.
+Two independent ceilings. **`maxInstances: 5`** caps concurrency; combined with a
+30-second timeout and hundreds of students in the building, kids would see
+failures rather than slowness. **Gemini free-tier quota** is the harder wall —
+free-tier Flash sits around 10-15 requests per minute with a daily cap that
+Google has changed without notice. Check AI Studio for live limits before
+trusting any published figure.
 
-```
-practice_pool/{bookId}_{sortedProblemChars}_{n}   →  { text, createdAt, uses }
-```
+The proposed fix was a `practice_pool/{bookId}_{sortedProblemChars}_{n}` cache:
+read the pool, return a random entry if it has ≥3, otherwise generate and store.
+Steady state is a cache hit nearly every time, turning thousands of Gemini calls
+into dozens. Still the right fix **if the demand ever materialises.**
 
-On request: read the pool for that key. If it has ≥3 entries, return a random one
-(**1 Firestore read, zero Gemini calls**). If it's thin, generate one, store it, and
-serve it. Steady state after the first week is a cache hit nearly every time.
-
-That turns thousands of Gemini calls per day into dozens, and it drops the function's
-CPU-seconds — which is where the Cloud Functions overage would have hit — to near zero.
-Also raise `maxInstances` to ~20 once the cache is absorbing the load.
-
-The tradeoff is real and worth deciding deliberately: two students with the same
-weak keys may see the same paragraph. In a typing tutor that seems fine, arguably
-good — but it's your call, not mine.
+</details>
 
 ---
 
@@ -551,61 +564,143 @@ Admin identity belongs in a **custom claim**, not an email array — that's a
 
 ---
 
+## ✅ Problem 6 — cover images were the biggest cost in the project
+
+> **Fixed in `admin.js` v3.31.0.** New in v1.4.0 of this plan. Nothing in Rounds
+> 1-8 looked at Cloud Storage.
+
+Covers were uploaded **exactly as extracted from the EPUB**, with no downscaling
+and **no `Cache-Control` header at all.** Measured across the 24 EPUBs in
+`library/`: **mean 308 KB, max 942 KB** (Heidi), with Standard Ebooks emitting a
+uniform 1400×2100.
+
+The library grid renders them into `minmax(180px, 1fr)` at `aspect-ratio: 2/3`.
+Even on a 2× Chromebook display that is a **~360px-wide slot.** Every kilobyte
+past ~500px of width was billed as egress and then discarded by the browser's
+scaler.
+
+| | mean cover | egress/month | vs. 100 GB free | cost/year |
+|---|---|---|---|---|
+| Before | 308 KB | ~206 GB | **206%** | **up to $114** |
+| After | **67 KB** | ~45 GB | 45% | **$0** |
+| After, with the cache header working | 67 KB | ~9 GB | 9% | **$0** |
+
+**The "after" row assumes browser caching never helps at all.** It is under the
+free tier on downscaling alone; the `Cache-Control` header is margin on top.
+
+### One piece of good luck worth knowing
+
+The bucket is `typethatbook.firebasestorage.app` — a **newer-style bucket**,
+which follows Google Cloud Storage "Always Free": **5 GB stored and 100 GB/month
+egress to North America.** Legacy `*.appspot.com` buckets get the far stingier
+**1 GB/day.** On the legacy tier the before-numbers would have been roughly
+$630/year instead of $114. Nobody chose this; do not assume the next Firebase
+project inherits it.
+
+### What shipped
+
+`downscaleCover()` in `admin.js`: canvas re-encode to fit **500×800, JPEG q0.82**,
+composited onto white so a transparent PNG source cannot flatten onto black.
+`uploadCover()` then sets **`cacheControl: 'public, max-age=2592000'`** (30 days).
+
+Measured over all 24 library covers: **7.22 MB → 1.56 MB, 4.6× smaller, −78%.**
+
+Three deliberate safety properties:
+
+- **It never blocks an upload.** Every failure path — object URL, decode error,
+  10-second timeout, canvas exception, `toBlob` returning null — resolves with
+  the *original* blob. A full-size cover costs a fraction of a cent; a cover that
+  fails to upload costs Jake an afternoon.
+- **It keeps the original if the re-encode is not smaller.** Already-optimised
+  small PNGs sometimes grow when re-encoded.
+- **It reports the saving in the admin status line** (`308 KB → 67 KB, −78%`).
+  This is how you tell a working downscale from a silent fallback. If you start
+  seeing covers upload with no size note, the canvas path is failing.
+
+**30 days is safe despite the fixed path** (`covers/{bookId}`, overwritten in
+place) because clients never request that path — they request the download URL,
+and `uploadBytes` mints a **new download token on every upload**. A replaced
+cover therefore has a URL no cache can match. `index.html`'s 6-hour book cache is
+the real upper bound on how long a swap takes to appear.
+
+⚠️ **This applies to covers uploaded from now on.** Existing covers keep their
+size and their missing header until re-uploaded. There is no migration and it
+does not need one — the library grows continuously, so the mix shifts on its own.
+If you want it immediately, re-upload covers for the largest titles first; Heidi
+alone is 942 KB.
+
+---
+
+## ✅ Problem 7 — the Settings dropdown scanned the whole library
+
+> **Fixed in `game.js` v3.19.0.** New in v1.4.0.
+
+`openMenuModal()` did an uncached `getDocs(collection(db, "books"))` **every time
+a student opened Settings.** It was the last read in the student path that
+ignored the caching discipline the rest of `game.js` adopted in v3.4.0, and the
+only one that got **worse over time** — the bookclean project adds titles
+continuously, so the price of opening a menu grew with the library.
+
+At ~42 books it was, on its own, roughly the size of the entire rest of the read
+budget. At 100 books it would have been double.
+
+**Fixed with the pattern `index.html` already used for the library grid:** cache
+`{id, title}` in `localStorage` for an hour, validated by a **COUNT aggregation —
+one billed read for the whole collection** rather than one per document. A count
+catches the case that matters (a book added or removed); a *rename* is caught by
+the TTL. Console escape hatch: `ttbClearBookList()`.
+
+Only `id` and `title` are cached, deliberately. The `chapters` array is by far
+the largest field on a book document and the dropdown renders neither.
+
+---
+
 ## Summary
 
-| | v3.2.0 | v3.3.0 | **v3.4.0 (shipped)** |
+**Modelled at 7,000 students/year — 2,333/day, ~389 simultaneous, 175 days.**
+
+| | v3.2.0 | v3.4.0 | **v3.19.0 / admin 3.31.0** |
 |---|---|---|---|
-| Reads / day @ 2,335 students | 326,960,710 | 35,025 | **28,954** (58% of free) |
-| Writes / day @ 2,335 students | 268,525 | 235,835 | **21,015** (105% of free) |
-| Egress / day | ~82 GB | trivial | trivial |
-| `typing_sessions` docs/year | 8,170,000 | 8,170,000 | **~409,000** |
-| **Cost / school year** | **~$34,400** | **~$68** | **~$0.32** |
+| Firestore reads/day | 326,960,710 | 28,954 | **110k warm / 495k cold** |
+| Firestore writes/day | 268,525 | 21,015 | **~21,000** |
+| Cover egress/month | ~206 GB | ~206 GB | **~45 GB** |
+| `typing_sessions` docs/year | 8,170,000 | ~409,000 | ~409,000 |
+| **Cost/school year** | **~$34,400** | **~$0.32 + up to $114 unseen** | **$6-$47** |
 
-Reads are done at 58%, and that's the worst case where all 7,000 students type
-every day.
+The read range is cache-dependent: **warm** assumes a student returns to the same
+browser profile day to day, **cold** assumes Chromebook profiles are wiped or
+shared so every `localStorage` cache starts empty. Cold is 10× the free read tier
+and still **$47 a year**, which is the point of this whole document.
 
-Writes land at 105% — just over the line, which is where the ~30 cents comes from.
-Going under means retiring `stats/time_tracking`, which needs a migration over every
-existing student. I judged that not worth the risk for a dollar; the lever is there
-if the real numbers come in higher than modelled.
+**These remain modelled numbers.** The per-block read/write counts are verified
+against the implementation; the per-day totals rest on assumptions about student
+behaviour. The cover figures are the exception — those are **measured** over the
+24 real EPUBs in `library/`.
 
-**These are modelled numbers, not measured ones.** The read/write counts per block
-were verified against the implementation in simulation, but the per-day totals rest
-on assumptions about student behaviour. Check the Firestore Usage tab after the first
-real week.
+## Open items — both optional, neither urgent
 
-## Do this first, regardless
+1. **Retire `stats/time_tracking`.** Would take writes from ~105% of free to
+   ~95%. Needs a migration over every existing student. **Judged not worth the
+   risk to save one dollar** — it is the lever if real numbers come in higher.
+2. **`getCountFromServer()` for report headline totals.** Available if report
+   views ever become a cost problem. They are not currently.
 
-**Set a Google Cloud budget alert on the project.** $5/month, email to Jake. It takes
-four minutes in the Cloud Console.
+## Closed, do not reopen without new evidence
 
-Blaze has no hard spending cap. That is the actual danger here — not any specific
-line of code, but the fact that a mistake in a project this size compounds silently
-across 467 devices and shows up as a bill. The alert is the difference between "huh,
-weird" on Tuesday and a four-figure surprise in September.
+- **Budget alerts** — set ($1 and $5). See the section above.
+- **Practice pool cache** — organic usage is zero. See Problem 5.
+- **Security rules** — `firestore.rules` v2.2.0, `storage.rules` v2.1.0. Roles
+  live in `staff/{uid}` documents; the custom-claims proposal is **cancelled**,
+  not pending, because claims need the Admin SDK and Jake has no terminal.
 
-You may also want to check the Firestore Usage tab now, at current enrollment. The
-leaderboard scan is already costing something.
+## A note for the next instance
 
-## Suggested order
+Two of the three corrections in v1.4.0 were things **Jake had already told
+previous instances** — the budget alert (three times) and practice mode usage
+(twice). Both were repeated back to him as open action items anyway, because
+each round read the file and not the person.
 
-1. **Budget alert.** Not code. Four minutes. Do it today. ← *still not done*
-2. ~~**Leaderboard `limit(10)` + honest cache + drop `displayName`.**~~
-   ✅ **Shipped as `game.js` v3.3.0.** Create the weekly composite index when the
-   console asks; the fallback covers you until then.
-3. ~~**Flush-based saves.**~~ ✅ **Shipped as `game.js` v3.4.0 + `learn.js` v1.1.0.**
-   The rollup-doc merge was deliberately skipped — see that section. Bigger change, touches
-   `game.js` and `learn.js` and needs a data migration for the merged doc. This is
-   the one to be careful with.
-4. **Session rollup** ✅ shipped — but **enable the TTL policy in the console**.
-5. ~~**Reports class filter.**~~ ✅ **Shipped as `reports.html` 2.8.0**, together
-   with the scope picker. Round 5 fixed a permission bug in it; Round 6 confirmed
-   the fix is live. `getCountFromServer()` remains unused and optional.
-6. **Practice pool cache + raise `maxInstances`.** Needs a CLI deploy.
-7. **Security rules** ✅ written (`firestore.rules` v2.2.0, `storage.rules` v2.1.0)
-   — ⚠️ but **verify they are pasted into the console**, which is the only place they
-   take effect. **The "+ custom claims" half of this item is cancelled**, not pending:
-   roles ship as Firestore documents so that no CLI is ever required.
-
-Items 2, 4, and 5 are pure browser-upload changes — they fit your GitHub web
-workflow. Item 6 needs the Firebase CLI.
+**If Jake tells you something about his own deployment that this document
+contradicts, he is right.** He is the only one here who can see the Usage tab and
+the classroom. Update the file in the same session, or the next instance will
+make you look bad in exactly the same way.

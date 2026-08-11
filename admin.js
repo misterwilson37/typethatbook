@@ -1,9 +1,19 @@
-// admin.js v3.30.0
+// admin.js v3.31.0
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
+//
+// v3.31.0 — COVER EGRESS. Covers were stored exactly as extracted from the EPUB
+//           (measured 164-380 KB) and served with no Cache-Control, to a grid slot
+//           that is ~360px wide on a 2x display. Serving them was the largest real
+//           cost in the project and the one SCALE-PLAN.md never modelled. Covers are
+//           now downscaled to 500x800 JPEG on upload (~5-6x smaller) and uploaded
+//           with `public, max-age=2592000`. downscaleCover() falls back to the
+//           original blob on every failure path and keeps the original if the
+//           re-encode is not actually smaller. The admin status line now reports the
+//           saving, so a silent fallback is visible rather than assumed.
 //
 // v3.30.0 — ⚠️ CLASSROOM-DEDICATION MACHINERY REMOVED AT JAKE'S REQUEST. v3.27.0 tied a
 //           licence change to a notice on the title page, and v3.29.0 added a button to
@@ -65,7 +75,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.30.0";
+const ADMIN_VERSION = "3.31.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -3905,7 +3915,7 @@ saveTitleBtn.onclick = async () => {
         if (stagedCoverBlob) {
             setInline('Uploading cover\u2026', '#888');
             const cover = await uploadCover(activeBookId, stagedCoverBlob, stagedCoverType);
-            if (cover.ok) { updates.coverUrl = cover.url; coverNote = 'cover saved (' + cover.contentType + ')'; }
+            if (cover.ok) { updates.coverUrl = cover.url; coverNote = 'cover saved (' + cover.contentType + coverSizeNote(cover) + ')'; }
             else {
                 // ⚠️ STOP. Do not write the metadata and report success when the
                 // cover failed — that is precisely how two books shipped with no
@@ -4047,7 +4057,7 @@ uploadAllBtn.onclick = async () => {
             const cover = await uploadCover(activeBookId, stagedCoverBlob, stagedCoverType);
             if (cover.ok) {
                 bookData.coverUrl = cover.url;
-                uploadCoverNote = 'cover saved (' + cover.contentType + ')';
+                uploadCoverNote = 'cover saved (' + cover.contentType + coverSizeNote(cover) + ')';
             } else uploadCoverFailed = cover.error;
             // Unlike Save Metadata this does NOT abort: the chapters are already
             // written, so refusing to save the book document would leave a book with
@@ -4288,6 +4298,101 @@ async function bumpContentVersion(bookId) {
 // v2.1.0 accepts but stores wrong. The blob handed in should already carry the
 // type; this pins it in the upload metadata as well so a future refactor that
 // loses the Blob's type cannot silently reintroduce the bug.
+// ─── Cover downscaling ────────────────────────────────────────────────────────
+//
+// WHY THIS EXISTS: cover egress is the largest real cost in the project, and it
+// was the one nobody had modelled. SCALE-PLAN.md spent three rounds on Firestore
+// reads and writes — which together come to tens of dollars a year at full
+// district scale — while covers were quietly the only line that could reach
+// three figures.
+//
+// The covers were being stored exactly as extracted from the EPUB: measured at
+// 164–380 KB each (Pride and Prejudice is 380 KB). The library grid renders them
+// into a card with `minmax(180px, 1fr)` and `aspect-ratio: 2/3`. Even on a 2x
+// display that is a ~360px-wide slot, so every one of those kilobytes past ~500px
+// of width was paid for and then thrown away by the browser's scaler.
+//
+// 500px wide at 2:3 lands around 50–70 KB as JPEG — a 5-6x cut, which takes the
+// worst case from roughly 220 GB/month to about 40 GB against a 100 GB/month
+// free allowance. Combined with the cacheControl header in uploadCover(), this
+// is the difference between "might cost $130 a year" and "structurally free."
+//
+// ⚠️ NEVER BLOCKS AN UPLOAD. Every failure path returns the ORIGINAL blob. A
+// cover that uploads at full size costs a fraction of a cent; a cover that fails
+// to upload because the canvas misbehaved costs Jake an afternoon. If the
+// re-encode does not actually come out smaller — already-optimised small PNGs
+// sometimes don't — the original wins on size and is kept.
+//
+// ⚠️ OUTPUT IS ALWAYS JPEG, COMPOSITED ONTO WHITE. Transparent PNG cover art is
+// vanishingly rare, but a transparent source flattened onto JPEG's implicit
+// black would look like a printing error, and that is exactly the kind of bug
+// that gets noticed six books later. The white fill makes the flattening
+// deliberate rather than incidental.
+// Surfaces the downscale in the admin status line. Silent when nothing was
+// saved, so an already-small cover does not report a pointless "0% smaller" —
+// but LOUD when it works, because this is the one number that tells Jake the
+// egress fix is actually running and not quietly falling back.
+function coverSizeNote(cover) {
+    const a = cover && cover.bytesBefore, b = cover && cover.bytesAfter;
+    if (!a || !b || b >= a) return '';
+    const kb = n => Math.round(n / 1024) + ' KB';
+    return ', ' + kb(a) + ' → ' + kb(b) +
+           ', −' + Math.round((1 - b / a) * 100) + '%';
+}
+
+const COVER_MAX_W = 500;
+const COVER_MAX_H = 800;
+const COVER_QUALITY = 0.82;
+
+function downscaleCover(blob, type) {
+    return new Promise((resolve) => {
+        const keepOriginal = () => resolve({ blob, type });
+        let url;
+        try { url = URL.createObjectURL(blob); } catch (_) { return keepOriginal(); }
+
+        const img = new Image();
+        // Belt and braces: a decode that never settles must not hang the upload.
+        const bail = setTimeout(() => {
+            try { URL.revokeObjectURL(url); } catch (_) {}
+            keepOriginal();
+        }, 10000);
+
+        img.onerror = () => { clearTimeout(bail);
+                              try { URL.revokeObjectURL(url); } catch (_) {}
+                              keepOriginal(); };
+        img.onload = () => {
+            clearTimeout(bail);
+            try {
+                const scale = Math.min(COVER_MAX_W / img.width,
+                                       COVER_MAX_H / img.height, 1);
+                // Already small enough AND already cheap: leave it alone. A
+                // re-encode of an in-spec cover can only lose quality.
+                if (scale === 1 && blob.size <= 80 * 1024) {
+                    URL.revokeObjectURL(url);
+                    return keepOriginal();
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width  = Math.max(1, Math.round(img.width  * scale));
+                canvas.height = Math.max(1, Math.round(img.height * scale));
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                URL.revokeObjectURL(url);
+
+                canvas.toBlob((out) => {
+                    if (!out || out.size >= blob.size) return keepOriginal();
+                    resolve({ blob: out, type: 'image/jpeg' });
+                }, 'image/jpeg', COVER_QUALITY);
+            } catch (_) {
+                try { URL.revokeObjectURL(url); } catch (_) {}
+                keepOriginal();
+            }
+        };
+        img.src = url;
+    });
+}
+
 async function uploadCover(bookId, blob, contentType) {
     try {
         const type = contentType || (blob && blob.type) || '';
@@ -4300,8 +4405,29 @@ async function uploadCover(bookId, blob, contentType) {
                 '(got "' + (type || 'none') + '"). Nothing was uploaded.' };
         }
         const storageRef = ref(storage, `covers/${bookId}`);
-        await uploadBytes(storageRef, blob, { contentType: type });
-        return { ok: true, url: await getDownloadURL(storageRef), contentType: type };
+
+        // Downscale before upload. See downscaleCover() for why this is the
+        // single biggest cost line in the project.
+        const shrunk = await downscaleCover(blob, type);
+
+        await uploadBytes(storageRef, shrunk.blob, {
+            contentType: shrunk.type,
+            // ⚠️ EGRESS, NOT STORAGE. Storing covers is free forever — 200 books
+            // is well under a gigabyte. SERVING them is the billed line, and
+            // without this header every library page view re-downloads every
+            // cover it scrolls past.
+            //
+            // Thirty days is safe despite covers living at a FIXED path
+            // (`covers/{bookId}`, overwritten on re-upload) because the client
+            // never requests that path directly. It requests the download URL,
+            // and uploadBytes mints a NEW download token on every upload — so a
+            // replaced cover has a different URL, which no cache can match.
+            // The stored coverUrl is what changes, and index.html's own 6-hour
+            // book cache is the upper bound on how long a swap takes to appear.
+            cacheControl: 'public, max-age=2592000'
+        });
+        return { ok: true, url: await getDownloadURL(storageRef), contentType: shrunk.type,
+                 bytesBefore: blob.size, bytesAfter: shrunk.blob.size };
     } catch(e) {
         console.error("Cover upload failed:", e);
         // Storage has its own security rules, entirely separate from
