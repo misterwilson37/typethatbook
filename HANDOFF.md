@@ -353,30 +353,67 @@ building.
     start modal alone required a lost student to navigate out of their confusion to
     reach the tool for it. Ask of any recovery affordance: *what screen is someone
     looking at at the moment they realise they need this?*
+52. ⚠️ **A permanently red test is worse than a deleted one.** It trains everyone to read
+    "1 failing" as the expected number, and the next real failure hides behind it. If a
+    harness goes red and cannot be fixed the same day, delete it or skip it loudly.
+53. **When a feature is removed, its tests are not deleted — they are inverted.** The
+    guard `metadata-map-test.mjs` needed was not the old assertions minus an argument; it
+    was the opposite claim, that nothing can reach the combined licence on its own. **The
+    removal is itself a contract, and contracts want tests.**
+54. **Assert an exact key set, not the absence of one key.** `sig.classroom === undefined`
+    passes just as happily when the whole function has been renamed out from under you.
+55. **Verify your own complaints before writing them down.** I told Jake four packages
+    were missing from `package.json`; they were declared all along and merely uninstalled
+    in my container. That claim went into the README and the handoff before I checked it.
 
 ---
 
-## §5. ⚠️ A failure you will see that is NOT this round's
+## §5. The harness suite — now 17/17, and two corrections I owed
 
-`metadata-map-test.mjs` fails: `CLASSROOM_NOTICE not found in admin.js`.
+`node run-all-tests.mjs` → **ALL 17 HARNESSES PASS.** That was not true when this round
+started and it is worth keeping true.
 
-`admin.js` v3.30.0's own header records deliberately removing `runDedication()`,
-`CLASSROOM_NOTICE`, `DEDICATION_TEXT`, the classroom argument to
-`canonicalRightsFrom()`, and the dedication gap flag. **The harness was never updated to
-match**, so it has been red since that round shipped. I did not touch it — repairing a
-harness for a feature I did not remove, during a round about something else, is exactly
-how Round 7 §7's 370-line deletion started.
+### `metadata-map-test.mjs` had been RED and is repaired (v1.3.0)
 
-⚠️ **But it needs fixing soon.** A permanently red harness in the fast suite trains
-everyone to read "1 failing" as normal, and the next real failure hides behind it. That
-is invariant 22 pointed at the test suite.
+It died on `CLASSROOM_NOTICE not found in admin.js`. `admin.js` v3.30.0 deliberately
+removed `runDedication()`, `CLASSROOM_NOTICE`, `DEDICATION_TEXT` and the classroom
+argument to `canonicalRightsFrom()` — **the feature went away and the harness did not**,
+so it had been failing ever since.
 
-⚠️ **The harnesses need dev dependencies that are not installed.** `jsdom`, `acorn`,
-`acorn-walk`, `jszip`. Seven of sixteen fail with `ERR_MODULE_NOT_FOUND` on a clean
-checkout, which at a glance reads as seven broken tests. Run
-`npm install jsdom acorn acorn-walk jszip` first. **Consider adding them to
-`package.json` as devDependencies** — a suite that looks half-broken on checkout is a
-suite people stop running.
+⚠️ **The repair is not the old tests with the argument dropped.** It asserts the CURRENT
+contract, which is the inverse of the old one: the combined PD & CC0 option still exists
+in `admin.html` and must be chosen **by hand**, and nothing in the mapper may reach it on
+its own. Auto-relicensing a book is exactly the kind of wrong that is quiet. Added: an
+assertion that a leftover third argument does **nothing**, so if the parameter ever comes
+back it comes back deliberately; and an exact-key-set check on `readInBookSignals()`
+rather than `sig.classroom === undefined`, because an undefined check passes just as
+happily when the whole function has been renamed out from under you.
+
+⚠️ **A permanently red harness is invariant 22 pointed at the test suite.** It trains
+everyone to read "1 failing" as the normal number, and the next real failure hides behind
+it. If one goes red and cannot be fixed the same day, delete it or skip it loudly — do
+not leave it failing.
+
+⚠️ **The corpus half of that harness did not run here** (`library/` is not in the zip), so
+the new signals assertion is unexercised. It is exact-key-set on an object literal with
+two fixed keys, so it should hold, but it runs for real on Jake's machine first.
+
+### ⚠️ Two things earlier drafts of this handoff said that were WRONG
+
+1. **"The harnesses need dev dependencies that are not in `package.json`."** False.
+   `jsdom`, `acorn`, `acorn-walk` and `jszip` are all declared. They were simply not
+   installed in my container. **Run `npm install` first**; seven `ERR_MODULE_NOT_FOUND`
+   failures on a bare checkout are missing `node_modules`, not missing declarations.
+2. **The §1 table's `admin.js` version.** Still worth repeating: it is v3.30.0, not the
+   v3.28.0 Round 7 claimed. **Run `audit-versions.mjs`; believe no table, including this
+   one.**
+
+Genuinely open, and not touched: those four packages sit in `dependencies` rather than
+`devDependencies`, and `package.json` is the **Cloud Functions** package (`"main":
+"index.js"`). So `jsdom` ships to the functions deploy as dead weight on the bundle and on
+cold starts. Correct to move; touches the deploy; wants its own round and a real deploy to
+verify.
+
 
 ---
 

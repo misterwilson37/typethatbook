@@ -289,15 +289,15 @@ optional directory argument. The cost of that was not "the tests were stale" —
 was that `credit-test.mjs` had been broken for a whole round and nobody could see
 the difference between broken and passing.
 
-⚠️ **The harnesses need dev dependencies that are not in `package.json`:** `jsdom`,
-`acorn`, `acorn-walk`, `jszip`. On a clean checkout seven of them fail with
-`ERR_MODULE_NOT_FOUND`, which looks exactly like seven broken tests. Run
-`npm install jsdom acorn acorn-walk jszip` before believing any failure.
+⚠️ **Run `npm install` before running the suite.** `jsdom`, `acorn`, `acorn-walk` and
+`jszip` are all declared in `package.json` and the harnesses need them; on a checkout with
+no `node_modules`, seven of them fail with `ERR_MODULE_NOT_FOUND`. That looks exactly like
+seven broken tests and is not one.
 
-⚠️ **`metadata-map-test.mjs` is currently RED and it is a stale harness, not a bug.**
-`admin.js` v3.30.0 deliberately removed `CLASSROOM_NOTICE`, `runDedication()` and
-`DEDICATION_TEXT`; the harness still lifts them. Fix the harness, and until someone does,
-do not let "1 failing" become the number everyone expects to see.
+⚠️ **Those four sit in `dependencies`, not `devDependencies`, and `package.json` is the
+Cloud Functions package** (`"main": "index.js"`), so `jsdom` and friends ship to the
+functions deploy as dead weight on the bundle and on cold starts. Correct to move; touches
+the deploy, so it wants its own round and a real deploy to verify.
 
 ⚠️ **`metadata-map-test.mjs` takes ~3 seconds**, not the "well under a second" the
 fast list otherwise promises, because it unzips all 24 books in `library/`. It is in

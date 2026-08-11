@@ -1,4 +1,4 @@
-// metadata-map-test.mjs v1.2.0
+// metadata-map-test.mjs v1.3.0
 //
 // Lifts canonicalSourceFrom(), canonicalRightsFrom(), selectOptionValues() and
 // looksLikeBareUrl() out of admin.js and runs them two ways:
@@ -211,28 +211,42 @@ eq('looksLikeBareUrl: prose',      F.looksLikeBareUrl('Written for TypeThatBook'
     eq('genre: clearing leaves no residue', GF.readSelectOrCustom('active-book-genre'), '');
 }
 
-// ── the classroom-edition licence upgrade ───────────────────────────────────
-// ⚠️ Cleaning a book adds an editorial contribution, and a contribution needs a
-// licence. A raw Gutenberg book must MOVE from public-domain-only to the combined
-// value; a Standard Ebooks book is already there; and a CC BY book must NOT be
-// touched, because we cannot dedicate away someone else's terms.
-const CLASSROOM = { classroom: true };
-eq('classroom: Gutenberg PD-only is upgraded',
-   F.canonicalRightsFrom('Public domain in the USA.', RIGHTS_OPTS, CLASSROOM), PD_CC0);
-eq('classroom: SE paragraph already combined, unchanged',
-   F.canonicalRightsFrom(SE_PARAGRAPH, RIGHTS_OPTS, CLASSROOM), PD_CC0);
-eq('classroom: CC BY 4.0 is NOT relicensed',
-   F.canonicalRightsFrom('Licensed CC BY 4.0', RIGHTS_OPTS, CLASSROOM), BY4);
-eq('classroom: CC BY-NC-SA 3.0 is NOT relicensed',
-   F.canonicalRightsFrom('CC BY-NC-SA 3.0', RIGHTS_OPTS, CLASSROOM), BYNCSA3);
-eq('classroom: an unmappable licence still refuses',
-   F.canonicalRightsFrom('All rights reserved.', RIGHTS_OPTS, CLASSROOM), '');
-eq('no-classroom: Gutenberg PD-only stays PD-only',
+// ── the classroom-edition upgrade is GONE, and that is what is asserted ─────
+//
+// ⚠️ v3.30.0 REMOVED runDedication(), CLASSROOM_NOTICE, DEDICATION_TEXT and the
+// classroom argument to canonicalRightsFrom(). This harness still lifted
+// CLASSROOM_NOTICE and died on it — `CLASSROOM_NOTICE not found in admin.js` —
+// so it had been RED ever since, and a permanently red harness in the fast suite
+// teaches everyone to read "1 failing" as the normal number. The next real failure
+// hides behind it. Repaired in v1.3.0 rather than deleted.
+//
+// The tests below are NOT the old ones with the classroom argument dropped. They
+// assert the CURRENT contract, which is the exact inverse of the old one: the
+// combined PD & CC0 option still exists in admin.html and is chosen BY HAND, and
+// nothing in the mapper may reach it on its own. That is a real risk worth a guard —
+// auto-relicensing a book is the kind of thing that is quiet when wrong.
+eq('PD-only text maps to plain PD and is never auto-upgraded',
    F.canonicalRightsFrom('Public domain in the USA.', RIGHTS_OPTS), PD);
-// ⚠️ The already-canonical short-circuit must not defeat the upgrade for a book whose
-// stored licence is the plain PD option and which has since been cleaned.
-eq('classroom: the plain PD option itself is upgraded',
-   F.canonicalRightsFrom(PD, RIGHTS_OPTS, CLASSROOM), PD_CC0);
+eq('the plain PD option round-trips to itself',
+   F.canonicalRightsFrom(PD, RIGHTS_OPTS), PD);
+eq('CC BY 4.0 is never relicensed',
+   F.canonicalRightsFrom('Licensed CC BY 4.0', RIGHTS_OPTS), BY4);
+eq('CC BY-NC-SA 3.0 is never relicensed',
+   F.canonicalRightsFrom('CC BY-NC-SA 3.0', RIGHTS_OPTS), BYNCSA3);
+eq('an unmappable licence still refuses rather than guessing',
+   F.canonicalRightsFrom('All rights reserved.', RIGHTS_OPTS), '');
+
+// ⚠️ The combined option must still EXIST — v3.30.0 kept it deliberately, for hand
+// selection. If it disappears from admin.html, the licence a cleaned book needs is
+// no longer selectable at all, and that is silent: the dropdown just lacks a line.
+eq('the combined PD & CC0 option is still offered in admin.html',
+   typeof PD_CC0 === 'string' && PD_CC0.length > 0, true);
+
+// ⚠️ A THIRD ARGUMENT MUST DO NOTHING. The old signature took an options object and
+// three call sites passed one. If the parameter ever comes back, it should come back
+// deliberately and with its own tests, not by a stale caller quietly working again.
+eq('a leftover third argument cannot resurrect the upgrade',
+   F.canonicalRightsFrom('Public domain in the USA.', RIGHTS_OPTS, { classroom: true }), PD);
 
 // ── lift readGutenbergOrigin too, and run it on the real zips ───────────────
 // ⚠️ END-TO-END ON PURPOSE. This one is not string mapping — it opens a spine
@@ -241,7 +255,6 @@ eq('classroom: the plain PD option itself is upgraded',
 const G = new Function('DOMParser', 'zipEntry', 'Array',
     liftConst('GUTENBERG_EBOOK_URL') + '\n' +
     liftConst('SIGNAL_SPINE_LIMIT') + '\n' +
-    liftConst('CLASSROOM_NOTICE') + '\n' +
     lift('cleanPreparedBy') + '\n' +
     lift('readInBookSignals') + '\n' +
     'return { readInBookSignals, cleanPreparedBy };'
@@ -342,9 +355,11 @@ for (const f of files) {
     } else {
         eq(`${f} \u2192 preparedBy empty (non-Gutenberg)`, sig.preparedBy, '');
     }
-    // None of the shipped library books have been cleaned yet, so every one must read
-    // false. A false positive here would silently relicense an untouched book.
-    eq(`${f} \u2192 not a classroom edition`, sig.classroom, false);
+    // ⚠️ The signals object must expose ONLY what v3.30.0 left behind. Asserted as an
+    // exact key set, not `sig.classroom === undefined`: an undefined check passes
+    // just as happily when the whole function has been renamed out from under us.
+    eq(`${f} \u2192 signals expose exactly {originUrl, preparedBy}`,
+       Object.keys(sig).sort().join(','), 'originUrl,preparedBy');
 }
 
 console.log(`\nmetadata-map-test: ${files.length} books read from ${LIB}` +

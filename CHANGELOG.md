@@ -8,7 +8,35 @@
               untouched) and MULTITENANCY.md v1.1.0 (⚠️ superseded; committed only
               because a warning header makes it safe to read). Three documents remain
               missing; HANDOFF-round4.md never existed at all.
-     v1.2.0 — Round 6 (Noiseless): four entry blocks were filed under ## `game.js`
+     v1.2.0 — Round 6 (Noiseless): four entry blocks were filed under ## `metadata-map-test.mjs`
+
+Current: **v1.3.0**
+
+#### v1.3.0
+
+Round 8 (Yost). **Repaired a harness that had been red since `admin.js` v3.30.0.**
+
+         It lifted `CLASSROOM_NOTICE` and died on it. v3.30.0 deliberately removed
+         `runDedication()`, `CLASSROOM_NOTICE`, `DEDICATION_TEXT` and the classroom
+         argument to `canonicalRightsFrom()` — the feature went away and the harness did
+         not.
+
+         ⚠️ **Not the old tests with the argument dropped.** The replacements assert the
+         *current* contract, which is the inverse of the old one: the combined PD & CC0
+         option still exists in `admin.html` and is chosen **by hand**, and nothing in the
+         mapper may reach it on its own. Auto-relicensing a book is quiet when wrong.
+
+         Added: a leftover third argument must do **nothing**, so the parameter can only
+         come back deliberately; and `readInBookSignals()` is checked by exact key set
+         rather than `sig.classroom === undefined`, since an undefined check passes just
+         as happily when the function has been renamed out from under it.
+
+         ⚠️ **A permanently red harness trains everyone to read "1 failing" as normal**,
+         and the next real failure hides behind it. Suite is 17/17.
+
+---
+
+## `game.js`
               that describe index.html and style.css, and every section's entries
               were re-sorted newest-first. The ordering claim below was aspirational
               until now; game.js, admin.js and index.html were all out of order.
