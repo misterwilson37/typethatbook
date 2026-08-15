@@ -49,6 +49,7 @@ const FAST = [
     ['card-markup-test.mjs',     'card markup survives the HTML parser intact'],
     ['about-test.mjs',           'detectAbout() and the completeness dot'],
     ['about-render-test.mjs',    'About panel segments, headings, credit injection'],
+    ['anon-ladder-test.mjs',     'guest login ladder: rungs, the no-third-prompt rule, coalescing guards'],
 ];
 
 // Slow: need a directory of EPUBs. Default to the repo's library/.

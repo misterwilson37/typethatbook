@@ -1,9 +1,20 @@
-// game.js v3.19.1
+// game.js v3.20.0
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
+//
+// v3.20.0 — ONE guest login ladder, replacing two that did not know about each
+//           other: a one-shot prompt at 2 sprints/150s, and a separate two-rung
+//           150s/300s ladder that only armed in infinity mode. They disagreed
+//           about the thing that matters — the first retroactively saved the
+//           guest's minutes and position into the new account, the second called
+//           location.reload() and threw the session away — and the second was the
+//           one firing at five minutes, with the most to lose. Now: rungs at 60s
+//           and 300s of active typing, in EVERY session mode, always the
+//           retroactive-save path, never a third prompt.
+//           ⚠️ Fires at a SPRINT BOUNDARY, not mid-sprint. See anonNudgeDue().
 //
 // v3.19.1 — After switching books in Settings, the only guidance was written to
 //           textStream — which is BEHIND the open modal. Invisible exactly when it
@@ -14,52 +25,22 @@
 //           the book picker, and the footer button relabels to "Start Reading".
 //
 // v3.19.0 — Settings dropdown stopped scanning the whole `books` collection.
-//           openMenuModal() did an uncached getDocs(collection(db,"books")) on every
-//           open — the last read in the student path that ignored the caching
-//           discipline the rest of the file adopted in v3.4.0, and the only one that
-//           grew as the bookclean project added titles. Now cached in localStorage for
-//           an hour and validated by a COUNT aggregation (ONE billed read for the whole
-//           collection), which is the pattern index.html already uses for the library
-//           grid. Console escape hatch: ttbClearBookList().
+//           openMenuModal() did an uncached getDocs on every open — the last read in
+//           the student path ignoring the caching discipline the rest of the file
+//           adopted in v3.4.0. Now cached for an hour and validated by a COUNT
+//           aggregation. Console escape hatch: ttbClearBookList().
 //
-// v3.18.0 — Flip Back reachable from the PAUSE/sprint stats screen too, in showStatsModal's
-//           extraHTML slot. That screen is where a student notices they are lost — they
-//           stop typing because the text stopped making sense — so requiring them to
-//           dismiss it and pause again was asking them to navigate out of the confusion
-//           the tool exists to fix. Hidden in practice mode: no book to flip back into.
+// v3.18.0 — Flip Back reachable from the PAUSE/sprint stats screen too. That screen
+//           is where a student notices they are lost — they stop typing because the
+//           text stopped making sense — so requiring them to dismiss it and pause
+//           again asked them to navigate out of the confusion the tool exists to fix.
 // v3.17.0 — FLIP BACK. Game Genie's chapter+sentence navigation, for students, bounded.
 //           ⚠️ Ceiling is `furthest`, NOT where they stand — that bound collapses on first
 //           use, since flipping back makes their old place "ahead". Two-step cross-chapter.
-// v3.16.0 — "Start this chapter over" in the start modal. Every navigation students had
-//           ran FORWARD — jump-to-furthest and nothing else — so anyone sitting ahead of
-//           what they had actually read had no move at all, which is exactly where
-//           v3.15.0's dead offsets stranded people. Not gated on a re-anchor: a kid who
-//           spaced out for a page needs it too, and an affordance that appears only after
-//           a rare fault is one nobody looks for. Leaves furthest* untouched, so it is
-//           reversible in one click and needs no confirm dialog.
-// v3.15.1 — v3.15.0's own fix reproduced the bug it fixed. An offset at or past the end
-//           of a chapter is a DEAD STATE, not a position: the renderer draws the tail,
-//           the student reads "one sentence left", and their first keystroke hits the
-//           >= fullText.length guard and completes the chapter in 0m 1s at 0 WPM.
-//           v3.15.0 reached it three ways — clamping to len; clamping then snapping to
-//           the sentence start, which lands on the LAST sentence of any chapter; and
-//           laundering the bad offset by stamping contentVersion onto it. Reconcile can
-//           no longer return a position with nothing left. ⚠️ Anchor proof runs FIRST.
-// v3.15.0 — PROGRESS SURVIVES A RE-UPLOAD. A bookmark is (chapter id, charIndex),
-//           both measured against one version of the text — and the progress document
-//           recorded no version, so re-uploading the library turned every stored offset
-//           into an index into a text that no longer existed. Silent: A Little Princess
-//           opened with ONE SENTENCE left in Ch. 2, then marked itself complete when that
-//           sentence was typed. setupGame() assigned savedCharIndex raw, never clamped to
-//           fullText.length, in every version to date. Writes now stamp contentVersion +
-//           chapterTitle + a 48-char anchor; a mismatch searches for the anchor and else
-//           degrades by staleness. Identity checked by TITLE, not just id existence.
-// v3.14.1 — Tab moved focus to the ADDRESS BAR on the first keystroke of a chapter.
-//           Every imported paragraph starts with a tab, so Tab is usually the first
-//           key pressed — and at that moment the pre-start branch runs, whose two
-//           returns never cancelled the default. Bit once per chapter, then the main
-//           path's v3.9.3 cancel took over, which is why it read as a small
-//           frustration instead of a bug.
+// v3.15.1 — An offset at or past the end of a chapter is a DEAD STATE, not a position:
+//           the renderer draws the tail, the student reads "one sentence left", and their
+//           first keystroke completes the chapter in 0m 1s at 0 WPM. Reconcile can no
+//           longer return a position with nothing left. ⚠️ Anchor proof runs FIRST.
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * The write-ahead log is MORE durable than the per-sentence writes it
@@ -81,7 +62,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.19.1";
+const VERSION = "3.20.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -653,9 +634,7 @@ let modalGeneration = 0;
 let isHardStop = false;
 let backspaceOrigin = -1; // tracks where we were when backspacing started
 let bookSwitchPending = false;
-let anonSprintCount = 0;
 let anonTotalSeconds = 0;
-let anonPromptShown = false;
 let anonLoginInProgress = false; // prevent auth handler from reloading during anon prompt
 let modalActionCallback = null;
 let chapterCompleteAt = 0;   // when the chapter-complete modal opened (any-key grace period)
@@ -691,26 +670,71 @@ let completedChapters = new Set();
 let anonCharsTyped = 0;
 let anonMistakes = 0;
 
-// Anonymous infinite-mode login reminders (reset daily)
-let anonInfiniteReminders = 0; // 0 = none shown, 1 = first shown, 2 = both shown
-const ANON_INFINITE_REMINDER_1 = 150; // 2.5 min
-const ANON_INFINITE_REMINDER_2 = 300; // 5 min
-function loadAnonReminderState() {
-    const saved = localStorage.getItem('ttb_anonInfiniteReminders');
+// ─── The guest login ladder (v3.20.0) ──────────────────────────────────────
+//
+// ⚠️ THERE USED TO BE TWO OF THESE AND THEY DID NOT KNOW ABOUT EACH OTHER.
+//   - checkAnonLoginPrompt(): one-shot, at 2 sprints OR 150s, fired from
+//     pauseGameForBreak(). Its sign-in handler retroactively merged the guest's
+//     minutes, chars, mistakes and reading position into the new account.
+//   - showAnonInfiniteReminder(): two rungs at 150s/300s, persisted daily,
+//     fired from the tick — but ONLY when sessionLimit === 'infinity'. Its
+//     sign-in handler called location.reload(), which discarded the entire
+//     anonymous session.
+//
+// So the same student could get prompted twice by different code with different
+// copy, and — the part that actually cost something — WHICH ONE ANSWERED THE
+// CLICK decided whether their work survived. The five-minute rung, the one with
+// the most typing behind it, was the one that threw it away.
+//
+// Generalise: when two subsystems implement the same prompt, the duplication is
+// the visible defect and the divergence in what they DO is the expensive one.
+// Merging the copy without merging the behaviour would have fixed the symptom.
+//
+// Rungs are ACTIVE TYPING SECONDS, not wall clock. A guest who opens a book and
+// reads for four minutes without typing has produced nothing to save, and
+// interrupting them to offer to save it is noise. Two rungs, then silence
+// forever — a third prompt is nagging, and a child who has declined twice has
+// decided.
+let anonNudgeShown   = 0;   // 0 none, 1 first shown, 2 both shown. Persisted daily.
+let anonNudgePending = 0;   // a rung crossed mid-sprint, waiting for the boundary
+const ANON_NUDGE_1 = 60;    // 1 minute
+const ANON_NUDGE_2 = 300;   // 5 minutes
+
+// ⚠️ TAKES THE TOTAL AS AN ARGUMENT ON PURPOSE — do not have it read the
+// globals. pauseGameForBreak() folds sprintSeconds into anonTotalSeconds and
+// does NOT zero sprintSeconds (startGame() does that, later), so between those
+// two points `anonTotalSeconds + sprintSeconds` counts the same sprint twice.
+// A ladder that silently fires early is exactly the kind of wrong nobody
+// reports. Callers pass the live total; the function does no arithmetic of
+// its own.
+function anonNudgeDue(totalActiveSeconds) {
+    if (currentUser && !currentUser.isAnonymous) return 0;
+    if (anonNudgeShown === 0 && totalActiveSeconds >= ANON_NUDGE_1) return 1;
+    if (anonNudgeShown === 1 && totalActiveSeconds >= ANON_NUDGE_2) return 2;
+    return 0;
+}
+
+// Keyed to the date so the ladder resets each morning rather than each tab.
+// ⚠️ New localStorage key. The old one held a count under different rung
+// meanings, and reading it would have started some students partway up a
+// ladder whose rungs had moved.
+const ANON_NUDGE_KEY = 'ttb_anonNudge_v2';
+function loadAnonNudgeState() {
+    const saved = localStorage.getItem(ANON_NUDGE_KEY);
     if (saved) {
         try {
             const data = JSON.parse(saved);
-            if (data.date === getLocalDateStr()) {
-                anonInfiniteReminders = data.count || 0;
-            }
+            if (data.date === getLocalDateStr()) anonNudgeShown = data.count || 0;
         } catch(e) {}
     }
 }
-function saveAnonReminderState() {
-    localStorage.setItem('ttb_anonInfiniteReminders', JSON.stringify({
-        date: getLocalDateStr(),
-        count: anonInfiniteReminders
-    }));
+function saveAnonNudgeState() {
+    try {
+        localStorage.setItem(ANON_NUDGE_KEY, JSON.stringify({
+            date: getLocalDateStr(),
+            count: anonNudgeShown
+        }));
+    } catch(e) {}
 }
 
 // users/{uid}/profile/info, read exactly once per session. Holds initials,
@@ -850,7 +874,7 @@ function escapeHtml(str) {
 
 async function init() {
     console.log("Initializing JS v" + VERSION);
-    loadAnonReminderState();
+    loadAnonNudgeState();
     // Build a consolidated version banner showing every loaded file. Helps
     // confirm GitHub Pages cache is serving fresh code (not a stale CSS or JS).
     // CSS versions are exposed via the `content` property of body::before /
@@ -1793,20 +1817,27 @@ function gameTick() {
                 launchFireworks();
             }
 
-            // Anonymous infinite-mode login reminders (based on total typing time)
-            if (sessionLimit === 'infinity' && (!currentUser || currentUser.isAnonymous)) {
-                const totalTyped = anonTotalSeconds + sprintSeconds;
-                if (anonInfiniteReminders === 0 && totalTyped >= ANON_INFINITE_REMINDER_1) {
-                    anonInfiniteReminders = 1;
-                    saveAnonReminderState();
-                    showAnonInfiniteReminder();
-                    return;
-                }
-                if (anonInfiniteReminders === 1 && totalTyped >= ANON_INFINITE_REMINDER_2) {
-                    anonInfiniteReminders = 2;
-                    saveAnonReminderState();
-                    showAnonInfiniteReminder();
-                    return;
+            // ─── Guest login ladder ───
+            // ⚠️ NO LONGER GATED ON infinity MODE. It was, and that is why the
+            // 5-minute rung never fired for the default 30-second sprint — most
+            // students were on the one ladder that only ever prompted once.
+            //
+            // ⚠️ ARMS HERE, FIRES AT A SPRINT BOUNDARY. Yanking a child out of a
+            // sprint mid-sentence to ask them to log in interrupts the exact
+            // activity the prompt is praising, and it strands a partial sprint
+            // that then has to be hand-logged (which is what the old infinity
+            // path did, and why it needed its own copy of the sprint-end maths).
+            // In infinity mode no boundary is ever coming, so there the tick IS
+            // the boundary and it fires immediately.
+            if (!currentUser || currentUser.isAnonymous) {
+                const due = anonNudgeDue(anonTotalSeconds + sprintSeconds);
+                if (due) {
+                    if (sessionLimit === 'infinity') {
+                        anonNudgePending = 0;
+                        interruptForAnonNudge(due);
+                        return;
+                    }
+                    anonNudgePending = due;   // pauseGameForBreak() will show it
                 }
             }
         }
@@ -3389,8 +3420,10 @@ async function pauseGameForBreak() {
     // Accumulate typing time for practice unlock
     practiceTypingAccumulator += sprintSeconds;
 
-    // Track anonymous usage
-    anonSprintCount++;
+    // Track guest usage. anonSprintCount went with the old ladder — it was the
+    // "2 sprints" half of a trigger that no longer exists, and keeping an
+    // incrementing counter nobody reads is how lastSavedIndex got to eighteen
+    // assignments and two reads.
     anonTotalSeconds += sprintSeconds;
 
     // Record sprint in history
@@ -3399,9 +3432,15 @@ async function pauseGameForBreak() {
     // Update leaderboard and get placements
     const placements = await updateLeaderboard();
 
-    // Check if anon user should be prompted to log in
-    if (checkAnonLoginPrompt()) {
-        showAnonLoginPrompt();
+    // ─── Guest login ladder: this is the boundary the tick was waiting for ───
+    // ⚠️ anonTotalSeconds ALREADY includes this sprint (twelve lines up) and
+    // sprintSeconds is not zeroed until startGame(), so the live total here is
+    // anonTotalSeconds ALONE. Adding sprintSeconds would count it twice and
+    // move the 5-minute rung to roughly 4:30 for a 30-second sprint.
+    const anonDue = anonNudgePending || anonNudgeDue(anonTotalSeconds);
+    anonNudgePending = 0;
+    if (anonDue) {
+        showAnonLoginPrompt(anonDue);
         return;
     }
 
@@ -4100,28 +4139,57 @@ function showStatsModal(title, stats, btnText, callback, hint, instant, extraHTM
 }
 
 
-function checkAnonLoginPrompt() {
-    if (anonPromptShown) return false;
-    if (currentUser) return false; // already logged in
-    if (anonSprintCount >= 2 || anonTotalSeconds >= 150) {
-        anonPromptShown = true;
-        return true;
-    }
-    return false;
+// Mid-sprint entry point, used only in infinity mode where no sprint boundary
+// will ever arrive. Closes out the partial sprint the way pauseGameForBreak()
+// would — log it, bank the seconds — so the minutes shown in the prompt are the
+// minutes that get saved if they say yes.
+function interruptForAnonNudge(rung) {
+    isGameActive = false; clearInterval(timerInterval);
+
+    const charsTyped = currentCharIndex - sprintCharStart;
+    const sprintMinutes = sprintSeconds / 60;
+    const sprintWPM = sanitizeSprintWPM(
+        (sprintMinutes > 0) ? Math.round((charsTyped / 5) / sprintMinutes) : 0, charsTyped);
+    const sprintTotalEntries = charsTyped + sprintMistakes;
+    const sprintAcc = (sprintTotalEntries > 0) ? Math.round((charsTyped / sprintTotalEntries) * 100) : 100;
+    if (sprintSeconds > 0) logSession(sprintSeconds, charsTyped, sprintMistakes, sprintWPM, sprintAcc);
+    practiceTypingAccumulator += sprintSeconds;
+    anonTotalSeconds += sprintSeconds;
+
+    showAnonLoginPrompt(rung);
 }
 
-function showAnonLoginPrompt() {
+// ⚠️ ONE PROMPT, TWO RUNGS. `rung` is 1 (gentle, ~1 minute in) or 2 (blunt,
+// ~5 minutes in). The old pair had one of each and they were separate
+// functions, which is how they drifted into disagreeing about whether the
+// student's work survived saying yes. The copy varies; the sign-in path does
+// not, and that is the invariant worth protecting here.
+function showAnonLoginPrompt(rung) {
+    rung = (rung === 2) ? 2 : 1;
+    anonNudgeShown = rung;
+    saveAnonNudgeState();
+
+    const minutes = Math.max(1, Math.round(anonTotalSeconds / 60));
+
     isModalOpen = true; isInputBlocked = true;
     modalActionCallback = null;
     setModalTitle('');
     resetModalFooter();
 
-    document.getElementById('modal-body').innerHTML = `
+    document.getElementById('modal-body').innerHTML = rung === 1 ? `
         <div style="text-align:center;">
             <div class="stats-title">Nice work! 👏</div>
             <div style="font-size:0.95em; color:#555; margin: 8px 0;">
                 You're making real progress! Sign in to save your work so you can pick up right where you left off next time.
             </div>
+        </div>
+    ` : `
+        <div style="text-align:center;">
+            <div class="stats-title">⚠️ Your progress isn't being saved</div>
+            <div style="font-size:0.95em; color:#555; margin: 8px 0;">
+                That's <b>${minutes} minutes</b> of typing that will be lost if you close this tab. Signing in keeps all of it — including the minutes you've already done.
+            </div>
+            <div style="font-size:0.85em; color:#888; margin-top:6px;">Use your school Google account. This is the last time I'll ask.</div>
         </div>
     `;
 
@@ -4230,12 +4298,19 @@ function showAnonLoginPrompt() {
     };
     btn.onclick = signInAction;
 
-    // Add a skip link below (initially hidden)
+    // Skip link below, hidden until the cooldown expires. Wording escalates with
+    // the rung: at one minute nothing has been lost yet, at five minutes the
+    // honest label says what declining costs.
     const footer = document.getElementById('modal-footer');
-    const skip = document.createElement('div');
-    skip.innerHTML = `<a href="#" id="anon-skip" style="color:#999; font-size:0.8rem; margin-top:6px; display:none;">No thanks, keep typing</a>`;
-    footer.appendChild(skip);
-    document.getElementById('anon-skip').onclick = (e) => {
+    if (!document.getElementById('anon-skip')) {
+        const skip = document.createElement('div');
+        skip.innerHTML = `<a href="#" id="anon-skip" style="color:#999; font-size:0.8rem; margin-top:6px; display:none;"></a>`;
+        footer.appendChild(skip);
+    }
+    const skipEl0 = document.getElementById('anon-skip');
+    skipEl0.textContent = rung === 1 ? 'No thanks, keep typing'
+                                     : "I understand it won't be saved — keep typing";
+    skipEl0.onclick = (e) => {
         e.preventDefault();
         closeModal();
         showStartModal("Continue");
@@ -4255,82 +4330,6 @@ function showAnonLoginPrompt() {
         // Set modalActionCallback so smart-start typing skips to continue
         modalActionCallback = () => { closeModal(); showStartModal("Continue"); };
     }, SPRINT_COOLDOWN_MS * 2);
-}
-
-function showAnonInfiniteReminder() {
-    isGameActive = false; clearInterval(timerInterval);
-
-    // Log the sprint so far so typing time counts for stats
-    const charsTyped = currentCharIndex - sprintCharStart;
-    const sprintMinutes = sprintSeconds / 60;
-    const sprintWPM = sanitizeSprintWPM(
-        (sprintMinutes > 0) ? Math.round((charsTyped / 5) / sprintMinutes) : 0, charsTyped);
-    const sprintTotalEntries = charsTyped + sprintMistakes;
-    const sprintAcc = (sprintTotalEntries > 0) ? Math.round((charsTyped / sprintTotalEntries) * 100) : 100;
-    if (sprintSeconds > 0) logSession(sprintSeconds, charsTyped, sprintMistakes, sprintWPM, sprintAcc);
-    practiceTypingAccumulator += sprintSeconds;
-    anonTotalSeconds += sprintSeconds;
-
-    isModalOpen = true; isInputBlocked = true;
-    modalActionCallback = null;
-    setModalTitle('');
-    resetModalFooter();
-
-    const minutes = Math.round((anonTotalSeconds) / 60);
-    const isFirst = anonInfiniteReminders === 1;
-
-    document.getElementById('modal-body').innerHTML = `
-        <div style="text-align:center;">
-            <div class="stats-title">${isFirst ? '⚠️ Your progress isn\'t being saved!' : '🚨 Still not signed in!'}</div>
-            <div style="font-size:0.95em; color:#555; margin: 8px 0;">
-                ${isFirst
-                    ? `You've been typing for <b>${minutes} minutes</b> — great work! But none of this is being saved. If you close this tab, it's all gone.`
-                    : `That's <b>${minutes} minutes</b> of typing that will be <b>lost</b> if you close this tab. Please sign in to keep your progress!`
-                }
-            </div>
-            <div style="font-size:0.85em; color:#888; margin-top:6px;">Sign in with your school Google account to save your work.</div>
-        </div>
-    `;
-
-    const btn = document.getElementById('action-btn');
-    btn.innerText = 'Wait...'; btn.disabled = true; btn.style.opacity = '0.5'; btn.style.display = 'inline-block';
-
-    const signInAction = async () => {
-        try {
-            anonLoginInProgress = true;
-            await signInWithPopup(auth, new GoogleAuthProvider());
-            // Reload to properly initialize with signed-in user
-            anonLoginInProgress = false;
-            location.reload();
-        } catch (e) {
-            anonLoginInProgress = false;
-            closeModal();
-            startGame();
-            return;
-        }
-    };
-
-    const gen = ++modalGeneration;
-    setTimeout(() => {
-        if (modalGeneration !== gen) return;
-        isInputBlocked = false;
-        const b = document.getElementById('action-btn');
-        if (b) { b.innerText = '🔑 Sign In'; b.disabled = false; b.style.opacity = '1'; b.onclick = signInAction; }
-        // Smart-start typing dismisses the prompt (sign-in is via button only)
-        modalActionCallback = () => { closeModal(); startGame(); };
-        // Add skip link
-        const footer = document.getElementById('modal-footer');
-        if (footer && !document.getElementById('anon-infinite-skip')) {
-            const skip = document.createElement('a');
-            skip.id = 'anon-infinite-skip';
-            skip.href = '#';
-            skip.style.cssText = 'display:block; color:#999; font-size:0.75em; margin-top:4px;';
-            skip.innerText = isFirst ? 'Skip for now' : 'I understand the risk, continue';
-            skip.onclick = (e) => { e.preventDefault(); closeModal(); startGame(); };
-            footer.appendChild(skip);
-        }
-    }, SPRINT_COOLDOWN_MS);
-    showModalPanel();
 }
 
 function showJumpToProgressPrompt(savedChap, savedIdx) {

@@ -1,10 +1,25 @@
-// learn.js v2.2.4
+// learn.js v2.3.0
 //
 // Lesson-mode engine, separate from game.js. Same write-ahead-log and
 // coalesced-flush persistence pattern.
 //
 // ── Full history: CHANGELOG.md § learn.js ─────────────────────────────────
 // ── Why it looks like this: PEDAGOGY-AUDIT.md ─────────────────────────────
+//
+// v2.3.0 — GUEST MODE, three fixes. (1) loadLessons()'s in-flight promise shared
+//          a FAILED attempt with a caller that had different credentials: the
+//          module-load call fired before auth, was denied, swallowed the error in
+//          its own catch and resolved with an empty list — and the auth handler,
+//          arriving 200ms later with a token, awaited that same doomed promise and
+//          got a successful-looking empty map. Intermittent by construction: a race
+//          against how warm the student's session was. ⚠️ Request coalescing is only
+//          valid when the callers are interchangeable, and an unauthenticated caller
+//          and an authenticated one are not. Failures are no longer shared.
+//          (2) The comment above it claimed "lessons collection is public, no auth
+//          needed" — false until firestore.rules v2.3.0, and the whole reason for (1).
+//          (3) The resume checkpoint keyed guests on the literal string 'anon', so
+//          two guests on one machine matched each other. Per-browser guest id now.
+//          Login nudge rebuilt to two rungs at 60s/300s, matching game.js v3.20.0.
 //
 // v2.2.4 — applyPendingClassAssignment() drops the goals cache before re-reading.
 //          loadGoals() had written ttb_goalsCache_v1 with classId:'' and a 24 HOUR
@@ -17,20 +32,13 @@
 //          from the one branch written to rescue the situation, abandoning
 //          beginStep() before the intro was hidden or the keyboard wired: a dead
 //          drill screen, no record written, nothing for a student to report. Now
-//          clears the stale checkpoint and returns to the map. Also untangled the
-//          `!x === false` resume condition, which was correct and unreadable.
+//          clears the stale checkpoint and returns to the map.
 // v2.2.2 — Firefox Quick Find fix, matching game.js 3.9.3. #drill-keyboard is a
 //          div, so it absorbs nothing, and lessons drill punctuation on purpose.
 // v2.2.1 — flushStats()'s re-entrancy guard was `if`, which serialises two
-//          callers and lets three or more overlap. Now `while`. v2.2.0 added
-//          the guard and got the shape wrong; this is the same one-word fix
-//          as game.js 3.9.2, which had the identical defect.
+//          callers and lets three or more overlap. Now `while`.
 // v2.2.0 — Read caching, backported from game.js. This page had NONE and was
-//          the most-used one: ~115 reads per load became ~3. Lessons cache is
-//          validated by a count aggregation (1 read, not 80); loadLessons()
-//          double-fired on most loads and now shares an in-flight promise;
-//          flushStats() got a re-entrancy guard and the hidden-tab flush a
-//          60s floor.
+//          the most-used one: ~115 reads per load became ~3.
 //
 // ── Load-bearing ──────────────────────────────────────────────────────────
 //
@@ -61,7 +69,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.2.4";
+const LEARN_VERSION = "2.3.0";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -79,13 +87,47 @@ let currentUser = null;
 let allLessons   = [];   // sorted lesson objects from Firestore
 let userProgress = {};   // lessonId → progress doc
 
-// Anon session tracking — accumulates until sign-in
-let anonPromptShown       = false;
+// Guest session tracking — accumulates until sign-in
 let anonSecondsAccum      = 0;
-let anonLessonsCompleted  = 0;
 let anonLessonProgress    = {};
-const ANON_REMIND_AFTER_LESSONS = 2;
-const ANON_REMIND_AFTER_SECONDS = 120;
+
+// ─── The guest login ladder (v2.3.0) ──────────────────────────────────────────
+//
+// Same two rungs as game.js v3.20.0, and ⚠️ THE SAME localStorage KEY ON
+// PURPOSE. A student who declines in School and then opens a book is the same
+// child; two pages each running their own private ladder would prompt them
+// twice for the same rung. The accumulated SECONDS stay per-page (this file
+// counts drill time, game.js counts sprint time) but the rung they have
+// reached is shared, so the ladder only ever climbs.
+//
+// ⚠️ ARMS ON THE TICK, FIRES AT A RUN BOUNDARY. It used to fire from the tick
+// directly, mid-drill — and the "Continue without signing in" handler below
+// calls beginStep(currentStepIdx), which restarts the run from zero. So
+// declining the prompt threw away whatever the child had just typed, which is
+// a strange thing to do while telling them their typing matters. Waiting for
+// the end of the run costs at most a few seconds of delay and destroys nothing.
+let anonNudgeShown   = 0;   // 0 none, 1 first shown, 2 both shown. Persisted daily.
+let anonNudgePending = 0;   // a rung crossed mid-run, waiting for the boundary
+const ANON_NUDGE_1 = 60;    // 1 minute
+const ANON_NUDGE_2 = 300;   // 5 minutes
+const ANON_NUDGE_KEY = 'ttb_anonNudge_v2';   // shared with game.js
+
+function loadAnonNudgeState() {
+    try {
+        const saved = localStorage.getItem(ANON_NUDGE_KEY);
+        if (!saved) return;
+        const data = JSON.parse(saved);
+        if (data.date === getLocalDateStr()) anonNudgeShown = data.count || 0;
+    } catch (e) {}
+}
+function saveAnonNudgeState() {
+    try {
+        localStorage.setItem(ANON_NUDGE_KEY, JSON.stringify({
+            date: getLocalDateStr(),
+            count: anonNudgeShown
+        }));
+    } catch (e) {}
+}
 
 // ─── Stats & Goals (mirrors game.js — writes to same Firestore path) ────────
 let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0,
@@ -222,19 +264,33 @@ onAuthStateChanged(auth, async user => {
 });
 
 
-// ─── Anon Login Reminder ──────────────────────────────────────────────────────
-function checkAnonLoginPrompt() {
-    if (anonPromptShown || currentUser) return;
-    if (anonLessonsCompleted >= ANON_REMIND_AFTER_LESSONS ||
-        anonSecondsAccum    >= ANON_REMIND_AFTER_SECONDS) {
-        anonPromptShown = true;
-        // Slight delay so the lesson result modal finishes first
-        setTimeout(showAnonLoginPrompt, 800);
-    }
+// ─── Guest Login Ladder ───────────────────────────────────────────────────────
+// Called from the drill tick, once a second. Arms only; see the block comment
+// on anonNudgeShown for why this no longer fires mid-run.
+function armAnonLoginPrompt() {
+    if (currentUser && !currentUser.isAnonymous) return;
+    if (anonNudgePending) return;
+    if (anonNudgeShown === 0 && anonSecondsAccum >= ANON_NUDGE_1) anonNudgePending = 1;
+    else if (anonNudgeShown === 1 && anonSecondsAccum >= ANON_NUDGE_2) anonNudgePending = 2;
 }
 
-function showAnonLoginPrompt() {
-    if (currentUser) return; // signed in while waiting
+// Called at the end of a run, which is the boundary the tick was waiting for.
+function checkAnonLoginPrompt() {
+    if (currentUser && !currentUser.isAnonymous) return;
+    // A rung can come due exactly at the boundary without the tick seeing it.
+    armAnonLoginPrompt();
+    const rung = anonNudgePending;
+    anonNudgePending = 0;
+    if (!rung) return;
+    anonNudgeShown = rung;
+    saveAnonNudgeState();
+    // Slight delay so the lesson result modal finishes first
+    setTimeout(() => showAnonLoginPrompt(rung), 800);
+}
+
+function showAnonLoginPrompt(rung) {
+    if (currentUser && !currentUser.isAnonymous) return; // signed in while waiting
+    rung = (rung === 2) ? 2 : 1;
 
     // Pause any active drill
     clearInterval(timerInterval);
@@ -249,7 +305,7 @@ function showAnonLoginPrompt() {
     overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.55);' +
         'display:flex;align-items:center;justify-content:center;';
 
-    overlay.innerHTML =
+    overlay.innerHTML = rung === 1 ?
         '<div style="background:#fff;border-radius:8px;padding:28px 32px;max-width:360px;' +
         'text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.3);font-family:"Courier Prime",monospace;">' +
         '<div style="font-size:1.5rem;margin-bottom:8px;">\uD83D\uDCAA Nice work!</div>' +
@@ -262,6 +318,21 @@ function showAnonLoginPrompt() {
         'cursor:pointer;font-family:inherit;margin-bottom:8px;">Sign In with Google</button>' +
         '<button id="anon-skip-btn" style="width:100%;padding:8px;background:none;border:none;' +
         'color:#aaa;font-size:0.82rem;cursor:pointer;font-family:inherit;">Continue without signing in</button>' +
+        '</div>'
+        :
+        '<div style="background:#fff;border-radius:8px;padding:28px 32px;max-width:360px;' +
+        'text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.3);font-family:"Courier Prime",monospace;">' +
+        '<div style="font-size:1.4rem;margin-bottom:8px;">\u26A0\uFE0F Not being saved</div>' +
+        '<div style="color:#444;font-size:0.92rem;margin-bottom:16px;line-height:1.5;">' +
+        'That’s ' + timeStr + ' of typing that will be lost when you close this tab.' +
+        '<br>Signing in keeps <strong>all of it</strong> — including what you’ve already done.' +
+        '<br><span style="color:#888;font-size:0.85rem;">This is the last time I’ll ask.</span>' +
+        '</div>' +
+        '<button id="anon-signin-btn" style="width:100%;padding:12px;background:var(--carolina-blue);' +
+        'color:white;border:none;border-radius:5px;font-size:1rem;font-weight:bold;' +
+        'cursor:pointer;font-family:inherit;margin-bottom:8px;">Sign In with Google</button>' +
+        '<button id="anon-skip-btn" style="width:100%;padding:8px;background:none;border:none;' +
+        'color:#aaa;font-size:0.82rem;cursor:pointer;font-family:inherit;">Keep typing without saving</button>' +
         '</div>';
 
     document.body.appendChild(overlay);
@@ -445,10 +516,35 @@ window.ttbClearLearnCaches = ttbClearLearnCaches;
 // populated yet and ran the app's single biggest read A SECOND TIME, on most
 // loads. The comment on the old guard acknowledged the race; the guard did not
 // close it. A promise handle is the only thing that does.
+//
+// ⚠️ BUT COALESCING IS ONLY VALID WHEN THE CALLERS ARE INTERCHANGEABLE, AND
+// THESE TWO ARE NOT. Until firestore.rules v2.3.0 the module-load call went out
+// with no auth token and came back permission-denied; the catch below swallowed
+// it and resolved with an empty list. The auth handler then arrived holding a
+// token that WOULD have worked, found a promise in flight, awaited it, and
+// inherited a failure it was never subject to. Empty map, no error, no way for
+// a student to describe it beyond "it went white" — and intermittent, because
+// it turned on whether the denial landed before or after auth settled.
+//
+// So: success is shared, failure is not. `_lessonsOk` records whether the
+// in-flight attempt actually populated anything; a caller arriving after a
+// failed attempt starts a fresh one rather than adopting the corpse. The result
+// is at most one redundant read in the rare case, and never a silent empty map.
+//
+// This still matters with public read in place. It is now a network fault
+// rather than a permissions fault, which is rarer and no less real — a school
+// wifi hiccup during the first 300ms reproduces it exactly.
 let _lessonsInFlight = null;
+let _lessonsOk = false;
 
 async function loadLessons() {
-    if (_lessonsInFlight) return _lessonsInFlight;
+    if (_lessonsInFlight) {
+        await _lessonsInFlight;
+        if (_lessonsOk) return;
+        // The shared attempt failed. Fall through and try again on our own
+        // credentials rather than reporting its emptiness as our result.
+    }
+    _lessonsOk = false;
     _lessonsInFlight = (async () => {
         try {
             const cached = cacheRead(LESSONS_CACHE_KEY, LESSONS_CACHE_MS);
@@ -461,6 +557,7 @@ async function loadLessons() {
                 } catch (_) { /* aggregation unavailable — trust the TTL */ }
                 if (liveCount === null || liveCount === cached.lessons.length) {
                     allLessons = cached.lessons;
+                    _lessonsOk = true;
                     afterLessonsLoaded();
                     return;
                 }
@@ -474,6 +571,13 @@ async function loadLessons() {
                 return a.lesson - b.lesson;
             });
             cacheWrite(LESSONS_CACHE_KEY, { lessons: allLessons });
+            // ⚠️ An EMPTY collection is not a successful load for our purposes.
+            // A denied read and an empty `lessons` collection are indistinguishable
+            // downstream — both draw a blank map — so the one that a retry might
+            // fix is treated as a failure. The cost of being wrong is one extra
+            // read on a genuinely empty database, which only exists before Jake
+            // has authored a single lesson.
+            _lessonsOk = allLessons.length > 0;
             afterLessonsLoaded();
         } catch(e) {
             // Last resort: an expired cache beats an error screen. A student
@@ -481,6 +585,9 @@ async function loadLessons() {
             const stale = cacheRead(LESSONS_CACHE_KEY, Infinity);
             if (stale && Array.isArray(stale.lessons) && stale.lessons.length) {
                 allLessons = stale.lessons;
+                // Serving an expired cache IS a success: there are lessons on the
+                // screen and a retry would only fail the same way.
+                _lessonsOk = true;
                 afterLessonsLoaded();
                 console.warn('Lessons fetch failed; serving expired cache.', e);
                 return;
@@ -1012,9 +1119,9 @@ function beginStep(stepIdx) {
             learnActiveSeconds++;
             statsData.secondsToday++;
             statsData.secondsWeek++;
-            if (!currentUser) {
+            if (!currentUser || currentUser.isAnonymous) {
                 anonSecondsAccum++;
-                checkAnonLoginPrompt();
+                armAnonLoginPrompt();   // fires at the run boundary, not here
             }
             // Midnight rollover
             const todayStr = getLocalDateStr();
@@ -1732,8 +1839,10 @@ function showLessonResultModal(wpm, acc) {
     if (currentUser && countsAsTime) {
         saveProgress(passed, wpm, acc, grade);
     } else if (!currentUser && countsAsTime) {
-        // Accumulate anon lesson progress for retroactive save on sign-in
-        anonLessonsCompleted++;
+        // Accumulate guest lesson progress for retroactive save on sign-in.
+        // anonLessonsCompleted went with the old trigger — it was the "2 lessons"
+        // half of a condition that no longer exists, and an incrementing counter
+        // nobody reads is how dead state accumulates.
         const GRADE_ORDER = ['F','D','C','B','A', FIRE_GRADE];
         const prev = anonLessonProgress[currentLesson.id];
         const prevGrade = prev ? (prev.grade || 'F') : 'F';
@@ -2691,12 +2800,51 @@ const LEARN_WAL_KEY = 'ttb_learnwal_v1';
 // never saw.
 const LEARN_POS_KEY = 'ttb_learnpos_v1';
 
+// ─── Who owns a checkpoint (v2.3.0) ───────────────────────────────────────────
+//
+// ⚠️ THIS USED TO BE THE LITERAL STRING 'anon' AND THAT IS NOT AN IDENTITY.
+// The comment on readRunPosition() said "don't hand one student's position to
+// another on a shared Chromebook", and for signed-in students the uid did
+// exactly that. For guests every one of them was 'anon', so the check compared
+// a constant to itself and always passed: second kid at the machine sits down
+// and resumes the first kid's half-finished drill, inheriting their chars and
+// mistakes. Harmless until guest mode actually shipped; live the moment it did.
+//
+// ⚠️ A PER-BROWSER GUEST ID WOULD NOT HAVE FIXED IT — that was my first
+// instinct and it is the same bug with a longer string. Two guests on one
+// browser profile share localStorage, so they would share the id too. What
+// actually separates them is the TAB: sessionStorage dies with it, so the next
+// student to open the page is a different owner by construction.
+//
+// The cost, stated plainly: a guest who closes the tab loses their resume
+// point. That is the correct trade. We cannot tell whether the next person at
+// that machine is the same child, and we have already told them twice that
+// their work is not being saved — silently resuming someone else's drill is a
+// worse failure than starting clean. Signing in is what buys a durable
+// checkpoint, which is the same bargain the rest of the app offers.
+const GUEST_ID_KEY = 'ttb_guestId';
+// Last-resort identity for a browser with sessionStorage disabled. Generated
+// once per page load, so it never collides — it simply never resumes.
+const _guestIdFallback = 'guest_nostore_' + Math.random().toString(36).slice(2);
+
+function checkpointOwner() {
+    if (currentUser && !currentUser.isAnonymous) return currentUser.uid;
+    try {
+        let g = sessionStorage.getItem(GUEST_ID_KEY);
+        if (!g) {
+            g = 'guest_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+            sessionStorage.setItem(GUEST_ID_KEY, g);
+        }
+        return g;
+    } catch (_) { return _guestIdFallback; }
+}
+
 function saveRunPosition() {
     if (!currentLesson || !currentStep) return;
     try {
         localStorage.setItem(LEARN_POS_KEY, JSON.stringify({
             v: 1,
-            uid: currentUser ? currentUser.uid : 'anon',
+            uid: checkpointOwner(),
             lessonId: currentLesson.id,
             runIdx: currentStepIdx,
             drillPos, chars, mistakes, stepSeconds,
@@ -2712,9 +2860,12 @@ function readRunPosition() {
         if (!raw) return null;
         const p = JSON.parse(raw);
         if (p.v !== 1) return null;
-        // Don't hand one student's position to another on a shared Chromebook.
-        const who = currentUser ? currentUser.uid : 'anon';
-        if (p.uid !== who) return null;
+        // Don't hand one student's position to another on a shared machine.
+        // ⚠️ A pre-v2.3.0 checkpoint carries uid:'anon', which matches no owner
+        // this function can now produce, so it is discarded rather than handed
+        // to whoever opens the page next. That is the intended migration: there
+        // is no way to find out whose it was.
+        if (p.uid !== checkpointOwner()) return null;
         // A run part-way through is worth restoring; a run barely started isn't
         // worth the confusion of resuming into.
         if (!p.seq || typeof p.drillPos !== 'number' || p.drillPos < 5) return null;
@@ -2977,7 +3128,17 @@ function launchFireworks() {
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-// loadLessons fires immediately (lessons collection is public, no auth needed).
+// ⚠️ THIS COMMENT USED TO SAY "lessons collection is public, no auth needed"
+// AND IT WAS NOT TRUE. firestore.rules had `allow read: if signedIn()` on
+// /lessons, so this fire-and-forget call went out unauthenticated and came back
+// denied for anyone without a warm session — which is the whole of the v2.3.0
+// loadLessons() fix above. It is true NOW, as of firestore.rules v2.3.0, and it
+// is true because that file says so, not because this one does.
+//
+// Generalise: a comment asserting a permission is a claim about a DIFFERENT
+// file, and nothing checks it. When code depends on a rule, name the rule and
+// its version so the claim can be falsified by someone reading only this line.
+//
 // onAuthStateChanged handles ALL rendering — it fires for both signed-in and
 // signed-out states, and is the only reliable moment to know auth is settled.
 // We must NOT call renderMap() here because auth.currentUser is null at module
@@ -2988,4 +3149,5 @@ if (footer) footer.textContent = 'School v' + LEARN_VERSION + ' / keyboard.js v'
 // the constant so there is only one number to change.
 document.title = 'TypeThatBook — School v' + LEARN_VERSION;
 
+loadAnonNudgeState();   // shared daily ladder state; see ANON_NUDGE_KEY
 loadLessons(); // fire-and-forget; renderMap() in onAuthStateChanged will re-render when done

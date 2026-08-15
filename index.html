@@ -407,7 +407,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.6.3";
+        const INDEX_VERSION = "3.7.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -510,8 +510,33 @@
             try { await signOut(auth); } catch(e) { console.error(e); }
         };
 
+        // ⚠️ THIS HANDLER USED TO CALL renderBooks() AND NOTHING ELSE, AND THAT
+        // IS WHY EVERY STUDENT HAD TO REFRESH TO SEE A LIBRARY (v3.7.0).
+        //
+        // loadBooks() runs once at module load, before auth has resolved. Until
+        // firestore.rules v2.3.0 that first read went out with no token and came
+        // back permission-denied, leaving allBooks empty. Signing in then
+        // re-rendered that same empty array — a faithful drawing of nothing —
+        // and only a second page load, which had a persisted session by the time
+        // Firestore asked, ever showed a book.
+        //
+        // ⚠️ THE RULES FIX ALONE MAKES THIS WORK, WHICH IS EXACTLY WHY IT IS
+        // STILL WRONG. A page that loads its data once, before it knows who is
+        // asking, and never reloads it when the answer changes, is one
+        // permission change away from the same silent empty screen. The bug was
+        // the missing reload, not the denied read.
+        //
+        // uid is tracked rather than a boolean: sign-out then sign-in as someone
+        // else on a shared machine is also an identity change, and the progress
+        // pips must not survive it.
+        let lastAuthUid = undefined;   // undefined = auth has never reported
+
         onAuthStateChanged(auth, async (user) => {
             currentUser = user;
+            const uid = user ? user.uid : null;
+            const identityChanged = (uid !== lastAuthUid);
+            lastAuthUid = uid;
+
             if (user) {
                 userNameEl.textContent = user.displayName || user.email;
                 userNameEl.style.display = '';
@@ -524,6 +549,14 @@
                 loginBtn.style.display = '';
                 logoutBtn.style.display = 'none';
                 userProgress = {};
+            }
+
+            // Re-load the shelf if we have none, or if the person asking changed.
+            // loadBooks() is cache-first and validated by a COUNT aggregation, so
+            // the common case — auth resolving on a page that already loaded —
+            // costs one billed read, not a re-fetch of the collection.
+            if (identityChanged || !allBooks.length) {
+                await loadBooks();
             }
             renderBooks();
         });
@@ -589,7 +622,35 @@
         };
 
         // --- LOAD BOOKS ---
+        //
+        // ⚠️ IN-FLIGHT GUARD, AND FAILURES ARE NOT SHARED (v3.7.0). Making the
+        // auth handler re-load created two callers where there had been one: the
+        // module-load call, and the auth handler arriving ~200ms later while it
+        // is still running. Without this guard that is two full reads of the
+        // books collection on every single page load — the exact double-fetch
+        // learn.js removed in v2.2.0, reintroduced by the fix for the refresh bug.
+        //
+        // But a plain `if (inFlight) return inFlight` reintroduces a WORSE one,
+        // which is the learn.js v2.3.0 defect: the module-load call has no auth
+        // token and the auth handler does, so if the first one fails the second
+        // would adopt a failure it was never subject to and report an empty
+        // shelf. Coalescing is only valid between interchangeable callers.
+        // Success is shared; failure sends the second caller to try on its own.
+        let _booksInFlight = null;
+        let _booksOk = false;
+
         async function loadBooks() {
+            if (_booksInFlight) {
+                await _booksInFlight;
+                if (_booksOk) return;
+            }
+            _booksOk = false;
+            _booksInFlight = (async () => { await _loadBooksOnce(); })();
+            try { await _booksInFlight; }
+            finally { _booksInFlight = null; }
+        }
+
+        async function _loadBooksOnce() {
             try {
                 const cached = idxCacheRead(BOOKS_CACHE_KEY, BOOKS_CACHE_MS);
                 if (cached && Array.isArray(cached.books) && cached.books.length) {
@@ -600,6 +661,7 @@
                     } catch (_) { /* aggregation unavailable — trust the TTL */ }
                     if (liveCount === null || liveCount === cached.books.length) {
                         allBooks = cached.books;
+                        _booksOk = true;
                         buildGenreFilters();
                         buildTagFilters();
                         renderBooks();
@@ -662,6 +724,11 @@
                     books: allBooks.map(b => ({ ...b, chapters: [] }))
                 });
 
+                // An empty collection and a denied read look identical from here
+                // — both draw an empty shelf — so the one a retry might fix is
+                // treated as a failure. Costs one extra read on a genuinely
+                // empty library, which only exists before the first upload.
+                _booksOk = allBooks.length > 0;
                 buildGenreFilters();
                 buildTagFilters();
                 renderBooks();
@@ -675,6 +742,9 @@
                 const stale = idxCacheRead(BOOKS_CACHE_KEY, Infinity);
                 if (stale && Array.isArray(stale.books) && stale.books.length) {
                     allBooks = stale.books;
+                    // Serving an expired cache IS a success: there are covers on
+                    // the screen and a retry would fail the same way.
+                    _booksOk = true;
                     buildGenreFilters();
                     buildTagFilters();
                     renderBooks();
@@ -1167,6 +1237,11 @@
         }
 
         // --- INIT ---
+        // Fire-and-forget. onAuthStateChanged owns the re-load and every render;
+        // this call exists so a guest sees covers without waiting a round trip
+        // for auth to report nobody. ⚠️ Do NOT add a renderBooks() here — auth
+        // is unresolved at this point, so it would draw a shelf with no progress
+        // pips and then redraw it a moment later.
         loadBooks();
 
         async function loadIndexStats() {

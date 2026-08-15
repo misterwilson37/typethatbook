@@ -1,6 +1,12 @@
 # TypeThatBook
 
-<!-- README.md v1.7.0 — Round 6 (Noiseless).
+<!-- README.md v1.8.0 — Round 9 (Remington).
+     v1.8.0 — Guest mode. Rewrote the Auth section, whose claim that students
+              "may also play anonymously" was aspirational for the whole life of
+              this file: the client code existed, firestore.rules blocked it, and
+              nothing in the repo had ever called signInAnonymously. Added the
+              new harness and corrected the note on firestore-rules.test.mjs.
+     v1.7.0 — Round 6 (Noiseless).
      v1.7.0 — Four recovered documents committed: TTL-GUIDE, SCALE-PLAN, MULTITENANCY,
               HANDOFF-round3. Two of them need warning headers to be safe to read;
               see the Documents section. Three documents remain genuinely missing.
@@ -252,9 +258,29 @@ progress but restricts writes to the student themselves.)
 
 ## Auth and admin access
 
-Google sign-in via `signInWithPopup`. Students may also play anonymously; if they
-sign in mid-session, `game.js` retroactively merges the anonymous session's stats
-into their account (see the `signInAction` handler around line 2116).
+Google sign-in via `signInWithPopup`. **Signing in is optional**: a guest can
+browse the library, read and type a book, and work through the lessons. Nothing
+is tracked until they sign in, and the login nudge (see below) is the only thing
+that asks.
+
+⚠️ **THIS SECTION USED TO SAY "students may also play anonymously" AND IT WAS NOT
+TRUE UNTIL ROUND 9.** The client code was all there — a signed-out branch in
+`game.js`, another in `learn.js`, 29 `isAnonymous` write guards — but
+`firestore.rules` had `allow read: if signedIn()` on every content collection, so
+a guest could read nothing and every page drew an empty shelf. `firestore.rules`
+v2.3.0 is what switched it on. **Guest access is granted by `allow read: if true`
+on the content matches; it has nothing to do with Firebase Anonymous Auth, which
+is not enabled and which `signInAnonymously` is never called to start.** See the
+warning in `firestore.rules` before enabling it — it widens six unrelated grants.
+
+If a guest signs in mid-session, both `game.js` and `learn.js` retroactively
+merge the session's minutes, chars, mistakes and reading position into the
+account. ⚠️ **That merge is the load-bearing part of the login prompt.** Round 9
+found two competing prompts in `game.js`, one of which called `location.reload()`
+instead and discarded the session — so whichever fired decided whether the child's
+work survived saying yes. There is now one prompt, two rungs (60s and 300s of
+active typing), shared across both pages via `ttb_anonNudge_v2`, and never a
+third. `anon-ladder-test.mjs` guards it.
 
 Admin pages gate on a hardcoded email list:
 - `admin.js` line 18 — `ADMIN_EMAILS`
@@ -331,11 +357,12 @@ the markers; don't paste the logic in.
 | `card-markup-test.mjs` | card markup survives the HTML parser intact |
 | `about-test.mjs` | `detectAbout()` and the completeness dot's gap list |
 | `about-render-test.mjs` | About panel segments, cached headings, credit injection |
+| `anon-ladder-test.mjs` | guest login ladder: rungs, the no-third-prompt rule, both coalescing guards. ⚠️ Half its assertions are structural (they read source text) and say so — see its header |
 | `chapter-harness.mjs` | full chapter pipeline over a directory of EPUBs |
 | `real-epub-harness.mjs` | cover detection + old-vs-new spine resolution |
 | `scan2.mjs` | suspect body chapters (Fix C candidates) |
 | `fix-candidates.mjs` | **before/after differ** — collateral damage from any importer change |
-| `firestore-rules.test.mjs` | ⚠️ excluded from the runner. Needs the emulator, and is known wrong against rules v2.x |
+| `firestore-rules.test.mjs` | ⚠️ excluded from the runner — needs the emulator, and **has never once been executed**. Updated to v1.2.0 for rules v2.3.0: its old "a guest can read nothing" assertion passed while describing the bug, and is now inverted into where the guest boundary actually is |
 
 **`undefined-calls-test.mjs` is the one to run first**, because it is the only one
 that checks the whole codebase rather than one behaviour. It parses each file with

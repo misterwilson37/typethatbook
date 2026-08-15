@@ -1,6 +1,34 @@
 rules_version = '2';
 
-// firestore.rules v2.2.0 — TypeThatBook
+// firestore.rules v2.3.0 — TypeThatBook
+//
+// v2.3.0 — GUEST READ on content. books, books/*/chapters, lessons and
+//          settings/goals are now world-readable. Everything else is unchanged.
+//
+//          Why: every student-facing page was already written to work with no
+//          user. game.js has an explicit signed-out branch ("just load the book
+//          as read-only"), learn.js has a signed-out branch plus an anonymous
+//          nudge and a retroactive-save path, and there are 29 sites across the
+//          two files guarding writes with `!currentUser || currentUser.isAnonymous`.
+//          None of it ever ran, because THESE RULES were the only thing in the
+//          way: a guest is `request.auth == null`, `signedIn()` was false, and
+//          the content reads came back permission-denied. The feature was built
+//          and never switched on, and the switch was here.
+//
+//          ⚠️ Public read means unmetered reads billed to Jake's card. Two
+//          things hold that down and both already exist: the client-side caches
+//          in index.html / learn.js (a count aggregation validates a 6-hour
+//          book cache for ONE billed read), and App Check, which is wired in
+//          firebase-config.js v1.2.0 but NOT ENFORCED — that is a console click
+//          (App Check → APIs → Enforce). Read firebase-config.js's App Check
+//          block before clicking it; a district content filter that blocks
+//          recaptcha paths turns enforcement into a total outage.
+//
+//          ⚠️ settings is SPLIT rather than opened. settings/goals is the daily
+//          and weekly minute target and every student reads it. settings/
+//          languageFilter is Jake's curated list of flagged words. Opening the
+//          whole collection would publish that list to the internet for no
+//          reason, so the read is keyed on the document id.
 //
 // v2.2.0 — Write validation on the three activity collections, and the
 //          users/{uid}/{collection} wildcard restricted to a whitelist.
@@ -50,11 +78,34 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ─────────────────────────── helpers ───────────────────────────
-    // NOTE: signedIn() is TRUE for Firebase Anonymous Auth users. Intentional —
-    // game.js lets students play anonymously and they must be able to read books,
-    // chapters, and settings/goals. Anonymous users never write typing_logs
-    // (game.js flushAll() returns early for them). Don't tighten this without
-    // checking game.js; it will break anonymous play.
+    // ⚠️ THE OLD COMMENT HERE WAS FALSE AND IT COST A ROUND TO FIND OUT.
+    // It read: "signedIn() is TRUE for Firebase Anonymous Auth users.
+    // Intentional — game.js lets students play anonymously and they must be able
+    // to read books, chapters, and settings/goals." Every clause of that is true
+    // EXCEPT the premise. `signInAnonymously` is not called anywhere in this
+    // repo — not in game.js, not in learn.js, not in index.html, not in
+    // firebase-config.js. No user has ever been anonymous. A guest is
+    // `request.auth == null`, signedIn() was false, and guests could read
+    // nothing. Guest access is granted by the `allow read: if true` on the
+    // content matches below, not by this function.
+    //
+    // ⚠️ IF YOU EVER DO ENABLE ANONYMOUS AUTH, DO NOT DO IT WITHOUT AUDITING
+    // THIS FILE FIRST. Flipping that console toggle makes signedIn() true for
+    // the entire internet, which silently widens SIX grants that have nothing
+    // to do with reading a book:
+    //     leaderboard        read (student initials) AND create/update for own uid
+    //     typing_logs        create + update
+    //     typing_sessions    create
+    //     practice_sessions  create
+    //     schools            read
+    //     classes            read
+    //     staffRequests      create
+    // The client-side `isAnonymous` guards do not help — rules are the security
+    // boundary and the client is not. Anonymous auth is a strictly larger change
+    // than public content read, and it is the one that needs an isRealUser()
+    // helper (`request.auth.token.firebase.sign_in_provider != 'anonymous'`)
+    // threaded through all six. Public read on four content paths widens exactly
+    // what it says and nothing else.
     function signedIn() { return request.auth != null; }
 
     function staffDoc() {
@@ -478,22 +529,54 @@ service cloud.firestore {
     }
 
     // ─────────────────────────── content ───────────────────────────
+    //
+    // ⚠️ `if true` HERE IS THE WHOLE GUEST FEATURE (v2.3.0). A student who has
+    // not signed in can read the library, open a book, type a chapter, and work
+    // through the lessons. Nothing about writing changed: progress, typing_logs,
+    // stats and the leaderboard all still require `request.auth.uid == uid`, so
+    // a guest's work is genuinely untracked rather than tracked to a placeholder.
+    //
+    // ⚠️ THIS IS ALSO WHY THE LIBRARY NEEDED A REFRESH TO APPEAR. index.html
+    // calls loadBooks() at module load, before auth has resolved, and
+    // onAuthStateChanged only re-renders — it never re-loads. So the first read
+    // went out unauthenticated, was denied, and the empty grid it produced
+    // survived sign-in. A second page load had a persisted session by the time
+    // Firestore asked, so it worked. Same shape in learn.js, whose loadLessons()
+    // carries a comment claiming this collection is already public.
+    //
+    // Licence check, because this publishes the text: everything in the library
+    // is US public domain or Creative Commons (see admin.html's rights
+    // dropdown — PD, CC BY, CC BY-SA, CC BY-NC, CC BY-NC-SA). Every one of those
+    // permits public display. There is no classroom-only licensed text in here;
+    // the classroom-edition path was removed in admin.js v3.30.0. ⚠️ If a
+    // classroom-licensed or otherwise restricted title is ever added, THIS RULE
+    // is what has to change, and nothing in the app will remind you.
     match /books/{bookId} {
-      allow read:  if signedIn();
+      allow read:  if true;
       allow write: if isSuper();
       match /chapters/{chapterId} {
-        allow read:  if signedIn();
+        allow read:  if true;
         allow write: if isSuper();
       }
     }
 
     match /lessons/{lessonId} {
-      allow read:  if signedIn();
+      allow read:  if true;
       allow write: if isSuper();
     }
 
+    // ⚠️ KEYED ON THE DOCUMENT ID ON PURPOSE — do not collapse this back to a
+    // single condition. settings/goals is the class minute target and every
+    // student reads it, guest or not. settings/languageFilter is the curated
+    // flagged-word list; it stays behind auth because publishing a list of
+    // slurs and profanity to the open internet is a bad outcome with no upside,
+    // and admin.js is its only reader anyway.
+    //
+    // A new settings document defaults to signed-in-only, which is the right
+    // default: if a future document needs to be guest-readable, adding its id
+    // here is a deliberate act.
     match /settings/{docId} {
-      allow read:  if signedIn();
+      allow read:  if docId == 'goals' || signedIn();
       allow write: if isSuper();
     }
 

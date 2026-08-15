@@ -1,474 +1,328 @@
-# HANDOFF — Round 8 (Yost)
+# HANDOFF — Round 9 (Remington)
 
-<!-- HANDOFF.md v8.0.0 — Round 8, instance "Yost", 2026-08-10.
-     ⚠️ SUPERSEDES Round 7, archived as HANDOFF-round7.md rather than overwritten.
-     Round 7 §5 (invariants 21–36), §8 (working with Jake), and Round 6 §2/§4/§5/§8
-     are STILL LOAD-BEARING and are NOT restated here. Go and read them. -->
+<!-- HANDOFF.md v9.0.0 — Round 9, instance "Remington", 2026-08-15.
+     ⚠️ SUPERSEDES Round 8. Archive Round 8 as HANDOFF-round8.md rather than
+     overwriting it. Round 8 §4 (invariants 37–55), §7 (browser spot-checks) and
+     §8 (working with Jake), plus Round 7 §5 and §8, are STILL LOAD-BEARING and
+     are NOT restated here. Go and read them. -->
 
-**Instance:** **Yost** (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4)
-· Blick (3) · Dvorak (2) · Underwood (1) · *other projects:* Stedman, Fable, Trilby, Vernier
+**Instance:** **Remington** (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5)
+· Oliver (4) · Blick (3) · Dvorak (2) · Underwood (1)
+· *other projects:* Stedman, Fable, Trilby, Vernier
 
-> *On the name:* the Yost's whole reputation rested on its type-bar linkage, which
-> carried each letter down to an ink pad and then struck the platen at a mechanically
-> guaranteed point — characters landed exactly where they should, every time, and lines
-> never drifted out of alignment. This round was the opposite condition: a stored
-> position that no longer landed where it used to, because the paper had been changed
-> underneath it.
+> *On the name:* the Remington 2's innovation was the shift key. The capitals were
+> already on the type-bars — the double-keyboard machines it replaced gave every
+> capital its own key because nobody had worked out how to reach the ones already
+> there. One lever, and half the machine became usable. This round was the same
+> shape: the entire guest-mode feature was written, sitting in the codebase,
+> reachable by a single line in a file nobody had connected to it.
 
 ---
 
 ## §0. What this round was
 
-Jake's brief: *"I've now gone through and re-uploaded every single book in the library
-with editorial changes that range from a few words changed to new chapter numbering… I
-went into Little Princess and I only have one sentence to type. Nothing more, nothing
-less. Do we need to reset everyone's progress to zero? Or is there a better fix? Books
-may get updated again in the future, so we either need a policy or a tool."*
+Jake's brief: *"students have to log in to see anything, and they should be able
+to see stuff without logging in. It just shouldn't track their progress unless
+they log in… Also — every student has to refresh the page to see any books after
+logging in. Lessons sometimes don't load for some students — it just goes to
+white."*
 
-One defect, present in every version of `game.js` that has ever shipped, plus three
-smaller ones in the same blast radius. **The answer to his question was "no, don't
-reset" — because a reset fixes today and does nothing about the next re-upload, which
-he told me in the same breath was coming.**
+Three symptoms. **One root cause, and it was not in any of the three files that
+looked guilty.**
 
-⚠️ **THE MOST USEFUL THING I DID WAS ASK FOR ONE NUMBER BEFORE WRITING ANY CODE.** Two
-unrelated bugs produce "one sentence to type": a stale offset against a valid chapter,
-or a chapter document that genuinely contains one sentence — an `admin.js` upload
-defect and a completely different investigation. I asked Jake to open Game Genie and
-read out the `Char X / Y` line. **It resolved the branch in one exchange, and the
-screenshot carried a detail I had not asked for that turned out to be the most important
-thing in the round.** See §2.2 and invariant 43.
+⚠️ **THE FEATURE WAS ALREADY BUILT AND HAD NEVER ONCE EXECUTED.**
+- `game.js` had an explicit signed-out branch — the comment reads *"No anonymous
+  sign-in — just load the book as read-only"* — loading metadata and the first
+  body chapter with no user.
+- `learn.js` had a signed-out branch, a login nudge, and a
+  `retroactiveSaveAnonSession()` that folds a guest's minutes into their account.
+- **29 sites** across the two files guarded writes with
+  `!currentUser || currentUser.isAnonymous`.
+
+`firestore.rules` had `allow read: if signedIn()` on `books`, `books/*/chapters`,
+`lessons` and `settings`. A guest is `request.auth == null`. So every page began
+by reading content it was not allowed to read, got permission-denied, and drew an
+empty shelf. **No page in the app ever asked a student to log in. Firestore just
+returned nothing.**
 
 ---
 
-## §1. Version state — `audit-versions.mjs` 2026-08-10: **0 problems**
+## §1. Version state — `audit-versions.mjs`: 2 problems, both pre-existing
 
-`node run-all-tests.mjs` → **16 of 17 pass.** The one failure is NOT mine — see §5.
+`node run-all-tests.mjs` → **18 of 18 pass** (17 + one new).
 
 | file | version | changed? | upload? |
 |---|---|---|---|
-| `game.js` | **3.18.0** | ⚠️ **yes — the whole round** | **YES** |
-| `reanchor-test.mjs` | **1.1.0** | ⚠️ **new harness, 32 assertions** | commit it |
-| `run-all-tests.mjs` | — | yes — registers the new harness | commit it |
-| `CHANGELOG.md` | — | yes — `game.js` v3.15.0 | commit it |
-| `README.md` | — | yes — harness table, progress schema | commit it |
+| `firestore.rules` | **2.3.0** | ⚠️ yes — the actual fix | **CONSOLE PASTE** |
+| `game.js` | **3.20.0** | ⚠️ yes — ladders merged | **YES** |
+| `learn.js` | **2.3.0** | ⚠️ yes — three fixes | **YES** |
+| `index.html` | **3.7.0** | ⚠️ yes — load sequencing | **YES** |
+| `anon-ladder-test.mjs` | **1.0.0** | new harness, 34 assertions | commit it |
+| `firestore-rules.test.mjs` | **1.2.0** | guest boundary asserted | commit it |
+| `run-all-tests.mjs` | — | registers the new harness | commit it |
 | everything else | — | no | — |
 
-**`game.js` ships alone.** No companion file, no rules change, no Firestore console
-work, no migration, no batch job. The four new fields are additive and written with
-`merge: true`, so an old client and a new client can run side by side during a rollout —
-the old one simply ignores fields it does not read.
+The 2 audit problems are `admin.js` v3.31.0's header budget (69 lines / 7 entries
+against 60 / 6). **Not mine, not touched.** Round 8 left 4; game.js's two are
+now cleared.
 
-⚠️ **Jake's `admin.js` is v3.30.0, not the v3.28.0 Round 7's table claims.** Round 7 §0
-warned in bold never to trust a version claim in a handoff *including its own*, and its
-own table was stale within two rounds. **Run the audit. Do not trust this table either.**
+⚠️ **Round 8's table claimed `admin.js` was v3.30.0. It is v3.31.0.** That is
+three rounds running where the handoff's own version table was stale on this
+exact file. **Run the audit. Do not trust this table either.**
 
 ---
 
-## §2. What was broken
+## §2. The rules change, and the road not taken
 
-### 2.1 The character offset was never validated against anything — every version
+`books` / `chapters` / `lessons` → `allow read: if true`. `settings` **split by
+document id**: `settings/goals` public, `settings/languageFilter` still behind
+auth, because publishing a curated list of slurs has no upside.
+
+### ⚠️ 2.1 Anonymous Auth was the wrong answer and the rules file recommended it
+
+The comment on `signedIn()` read: *"signedIn() is TRUE for Firebase Anonymous
+Auth users. Intentional — game.js lets students play anonymously."* Every clause
+true except the premise. **`signInAnonymously` appears nowhere in the repo.** No
+user has ever been anonymous. `firestore-rules.test.mjs` carried the same belief
+in a comment, next to an assertion that guests can read nothing — which passed,
+and which was describing the bug.
+
+Enabling anonymous auth would make `signedIn()` true for the entire internet,
+silently widening **six** grants with nothing to do with reading a book:
+`leaderboard` read *and* write-your-own-uid, `typing_logs` create/update,
+`typing_sessions` create, `practice_sessions` create, `schools` read, `classes`
+read, `staffRequests` create. The client-side `isAnonymous` guards do not help —
+rules are the boundary and the client is not.
+
+⚠️ **A comment asserting a permission is a claim about a DIFFERENT file, and
+nothing checks it.** Three separate files carried the anonymous-auth belief. The
+new comments name the rule and its version so the claim can be falsified by
+someone reading one line. That is invariant 56.
+
+---
+
+## §3. The two coalescing bugs — the same defect, twice, one of them mine
+
+### 3.1 `learn.js` — this is the white screen
 
 ```js
-renderText();
-currentCharIndex = savedCharIndex;   // ← the entire bug
+if (_lessonsInFlight) return _lessonsInFlight;   // ← the bug
 ```
 
-A bookmark is `(chapter, charIndex)`. **Both coordinates are measured against one
-specific version of the text**, and the progress document recorded nothing about which
-version that was. Re-upload the library and every stored offset silently becomes an
-index into a text that no longer exists.
+The module-load `loadLessons()` fired before auth, was denied, **swallowed the
+error in its own catch** and resolved with an empty list. The auth handler
+arrived ~200ms later holding a token that would have worked, found a promise in
+flight, awaited it, and inherited a failure it was never subject to. Empty map.
+No error. Nothing for a child to describe beyond "it went white".
 
-⚠️ **Rounds 6 and 7 hardened the chapter id three separate times** —
-`isKnownBodyChapter()`, the `furthestChapter` companion check (v3.12.4),
-`firstBodyChapterId()` (v3.12.1) — each time writing a comment about renumbering.
-**Nobody ever looked at the other coordinate**, which sat one line away.
+⚠️ **Intermittent by construction.** It turned on whether the denial landed
+before or after auth settled — i.e. on how warm that student's session was.
+"Sometimes, for some students" was the literal shape of the race.
 
-### 2.2 ⚠️ THE FAILURE MODE IS A PLAUSIBLE SUCCESS — this is the part that matters
+⚠️ **REQUEST COALESCING IS ONLY VALID WHEN THE CALLERS ARE INTERCHANGEABLE, AND
+AN UNAUTHENTICATED CALLER AND AN AUTHENTICATED ONE ARE NOT.** Successes are
+shared; failures send the second caller to try on its own credentials.
 
-Nothing threw. Nothing logged. The student resumed inside the last sentence of a chapter
-they had barely started, typed that sentence, and `finishChapter()` **ticked the chapter
-off as read.**
+⚠️ **An empty result counts as a failure.** A denied read and a genuinely empty
+collection are indistinguishable downstream — both draw a blank map — so the one
+a retry might fix wins. Costs one extra read on an empty database, which only
+exists before the first lesson is authored.
 
-**A student would not report this as an error. They would report it as "I finished the
-chapter" — or not report it at all.** That is why it took an admin with Game Genie to
-notice, and why no amount of error monitoring would ever have surfaced it. This is Round
-7's invariant 22 with the sign flipped: not a feature so wrong it got reclassified as
-decoration, but a **failure so smooth it got reclassified as progress.**
+### 3.2 ⚠️ `index.html` — I INTRODUCED THIS ONE WHILE FIXING THE REFRESH BUG
 
-### 2.3 Chapter *existence* was checked; chapter *identity* was not
+`loadBooks()` ran once at module load and `onAuthStateChanged` only called
+`renderBooks()`, so signing in re-rendered the same empty array — a faithful
+drawing of nothing. The fix is obvious: re-load when the identity changes.
 
-`isKnownBodyChapter()` asks only whether the stored id resolves. After a renumber that
-shifts content between ids that **all still resolve** — Toby Tyler's 3-22 → 1-20, caused
-by `admin.js` Fix C, is the precedent already in this codebase — every id passes and the
-student is dropped into different content at the same offset. The stored chapter
-**title** is the only thing that survives that.
+**And that fix creates two callers where there was one, which is exactly the
+learn.js defect.** I had just written a 20-line comment about it in the other
+file and still reached for `if (inFlight) return inFlight` here. Caught it before
+shipping; it is worth writing down that having diagnosed a bug an hour earlier
+was not enough to stop me rebuilding it. Both now use the same guard shape, and
+`anon-ladder-test.mjs` asserts both.
 
-### 2.4 `completedChapters` was never revalidated
-
-A ✓ could sit on an id that now means a different chapter, and `chaptersCompleted` in
-the stats rollup takes its `.size`. Now filtered against the chapters the book has.
-
----
-
-## §3. The fix, and the two decisions inside it that are Jake's, not mine
-
-**Proof, then degradation.** Every write stamps `contentVersion`, `chapterTitle`,
-`chapterLen` and `anchorText` (the ~48 characters *behind* the cursor). A matching
-`contentVersion` on load is the fast path and behaves exactly as before, at zero added
-cost. A mismatch searches the new text for the anchor.
-
-⚠️ **`anchorText` is taken from BEHIND the cursor on purpose.** That text is what the
-student has demonstrably read. An anchor taken from ahead would re-anchor them onto
-content they have never seen if the edit inserted a paragraph.
-
-⚠️ **`findAnchorEnd()` returns the occurrence NEAREST the old offset, not the first.** A
-48-character anchor can legitimately repeat. Taking the first match drags a student
-backwards, potentially to the top of the chapter — which looks exactly like the bug.
-
-### 3.1 Jake's ladder — his design, and better than mine
-
-I offered three flat policies for the pre-fix cohort. He rejected the framing:
-
-> *"Moving forward, keeping this spot would be great, but if that's lost, current
-> sentence and if that's lost the chapter. I would love it to be time based — been less
-> than a week? Snap to the exact spot. Been more than a week? Snap to the sentence. A
-> month or more? Chapter."*
-
-⚠️ **This is load-bearing pedagogy, not a tuning constant. Do not "simplify" it.** The
-reasoning is about what a child remembers: within a week they know the sentence they
-were on and landing mid-paragraph helps; after a month they have lost the thread and
-landing mid-paragraph disorients, so re-reading a chapter costs less than confusion.
-
-⚠️ **AND IT NEEDED NO MIGRATION.** `lastUpdated` was already on every progress document,
-so the entire pre-fix cohort is simply "stale" and lands on the chapter-start rung by the
-ordinary rule. **The legacy code path I was one question away from building did not need
-to exist.** Round 7 §8 says Jake improves the answer when asked a scope question; he did
-it again, and the improvement was structural rather than cosmetic.
-
-**My one amendment, flagged rather than taken silently:** a *found anchor* wins
-regardless of age, because it is proof rather than a guess. Time governs only the
-fallback. **Jake has not ruled on this yet.** If he wants hard time caps that override
-even a confirmed anchor match, that is a change to `reconcilePosition()`'s first branch
-and nothing else.
-
-### 3.2 Why there is no admin repair tool
-
-⚠️ **One is not buildable as the rules stand, and knowing that is worth a round to
-someone.** `firestore.rules` (~line 216) lets staff and super **read** any student's
-progress but restricts `write` to `request.auth.uid == uid`. Repairing progress from
-`admin.html` means a Cloud Function or loosening that rule. Both are worse than healing
-in the client, which happens on next open, costs nothing for books nobody reopens, and
-needs no coordination with anyone.
+⚠️ **The rules fix alone makes index.html work, which is exactly why it was
+still wrong.** A page that loads its data once, before it knows who is asking,
+and never reloads when the answer changes, is one permission change from the
+same silent empty screen. **The bug was the missing reload, not the denied read.**
 
 ---
 
-## §3a. ⚠️ v3.15.1 — MY OWN FIX REPRODUCED THE BUG, AND THE HARNESS BLESSED IT
+## §4. game.js v3.20.0 — two ladders that disagreed about what "yes" means
 
-Jake deployed v3.15.0 and hit the identical symptom on Aesop's Fables inside minutes.
-**Read this section before touching `reconcilePosition()`.**
+There were **two guest login prompts** and they did not know about each other:
 
-### The tell was in the completion modal, not the readout
+| | old ladder A | old ladder B |
+|---|---|---|
+| trigger | 2 sprints **or** 150s | 150s, then 300s |
+| fired from | sprint end | the tick, **only if `sessionLimit === 'infinity'`** |
+| one-shot? | yes, session-scoped | two rungs, persisted daily |
+| **on sign-in** | **retroactively merged** minutes, chars, mistakes and reading position into the account | **`location.reload()`** — discarded the whole session |
 
-`0 WPM · 100% Acc · 0m 1s`. Thirty characters in one second would read as ~360 WPM.
-Zero elapsed and zero WPM means **one keystroke**, which hit the
-`currentCharIndex >= fullText.length` guard in the keydown handler and ran
-`finishChapter()`. There was never a sentence to type; the renderer was drawing the tail
-of a chapter the student was already past the end of.
+⚠️ **THE DUPLICATION IS THE VISIBLE DEFECT AND THE DIVERGENCE IS THE EXPENSIVE
+ONE.** Which function happened to answer the click decided whether the child's
+work survived — and the ladder that threw it away was the one firing at five
+minutes, with the most typing behind it. Merging the copy without merging the
+behaviour would have fixed the symptom and kept the loss.
 
-⚠️ **Generalise this: "one sentence left" is what an out-of-range offset LOOKS like.**
-Aesop's chapters are ~500 characters, so almost any stale offset overshoots. The 284
-tiny fables are the best stress case in the library — use that book to test this code.
+Also: because B was gated on infinity mode, **the 5-minute rung never fired for
+the default 30-second sprint at all.** Most students only ever had A's single
+prompt. Jake asked for "a minute, then five" believing neither existed; half of
+it existed and was unreachable.
 
-### An offset at or past the end is a DEAD STATE, not a position
+Now: one ladder, rungs at **60s and 300s of active typing**, every session mode,
+always the retroactive-save path, **never a third prompt**.
 
-v3.15.0 reached it three ways, all mine:
+### ⚠️ 4.1 The arithmetic trap, which would have shipped silently
 
-1. The under-a-week rung clamped to `len` and called it "their exact spot". **Recency is
-   worthless when the content changed *after* the bookmark was written.** The ladder
-   silently assumed staleness and wrongness were the same axis. They are not.
-2. The week-to-month rung clamped to `len` and *then* snapped to the sentence start —
-   which lands on the **last sentence of any chapter, every time.** A machine for
-   manufacturing this symptom.
-3. ⚠️ **The recent rung LAUNDERED the bad offset.** One keystroke completed the chapter,
-   the flush stamped the current `contentVersion` onto the dead position, the versions
-   then agreed, and no reconcile ever fired again. **A self-healing system that can write
-   its own bad state back as verified is worse than no healing at all** — it converts a
-   recoverable fault into a permanent one and removes the evidence.
+`pauseGameForBreak()` folds `sprintSeconds` into `anonTotalSeconds` and does
+**not** zero `sprintSeconds` — `startGame()` does, later. So at the boundary the
+live total is `anonTotalSeconds` **alone**, and the obvious
+`anonTotalSeconds + sprintSeconds` counts the sprint twice, moving rung 2 to
+roughly 4:30 on a 30-second sprint. **A ladder that fires early is not something
+a child reports.** `anonNudgeDue()` therefore takes the total as an argument and
+does no arithmetic of its own; the two call sites pass different expressions and
+the harness asserts both.
 
-`reconcilePosition()` can now never return a position with nothing left to type: any
-age, with or without a job.
+### 4.2 It arms on the tick and fires at a boundary
 
-### ⚠️ Anchor proof runs BEFORE the dead-state guard, and the order is load-bearing
+Same in both files, for different reasons. In `game.js`, yanking a child out
+mid-sentence strands a partial sprint that then needs hand-logging (which is why
+ladder B carried its own copy of the sprint-end maths). In `learn.js` it is
+worse: the dismiss handler calls `beginStep(currentStepIdx)`, which **restarts
+the run from zero** — so declining the prompt destroyed the typing the prompt was
+praising. Infinity mode fires immediately, because no boundary is ever coming.
 
-My first attempt put the guard first. The harness caught it in one run: a chapter that
-**shrank** below a student's stored offset is both out of range *and* perfectly
-rescuable, because the anchor still names the exact words they had reached. Bailing to
-the top of the chapter there throws away the only hard evidence in the system. Proof,
-then guard, then ladder — in that order.
+### 4.3 One key, shared between the pages
 
-### ⚠️ The harness asserted the bug as correct and passed
-
-`reanchor-test.mjs` v1.0.0 checked that an out-of-range index *"lands on a real sentence
-boundary"*. It did — the boundary of the **final** sentence. Twenty-five green checks,
-one of them expecting the wrong number.
-
-§6 of this handoff already said that a harness passing 25/25 first try in this project is
-suspicious rather than reassuring. I wrote that sentence and did not apply it to my own
-expected values. **A passing assertion is only as good as the number it expects, and the
-number is where the author's misconception lives.** v1.1.0's regression block fails
-against v3.15.0.
+`ttb_anonNudge_v2` is read and written by both files. A child who declines in
+School and then opens a book is the same child; two private ladders would prompt
+them twice for the same rung. Seconds stay per-page; the rung reached is shared,
+so the ladder only climbs. **New key on purpose** — the old one held counts under
+different rung meanings and reading it would have started students partway up a
+ladder whose rungs had moved.
 
 ---
 
-## §3b. v3.16.0 — the only way back, and the one still missing
+## §5. learn.js — the guest checkpoint identity
 
-Jake tested v3.15.1 across three books: Aesop advanced correctly, Nancy Drew landed at
-the right spot, and Little Princess *"felt new — I'm not sure I was that far forward."*
+`readRunPosition()` compared `currentUser ? currentUser.uid : 'anon'`. For
+signed-in students the uid did the job its comment claimed ("don't hand one
+student's position to another on a shared Chromebook"). **For guests it compared
+a constant to itself and always passed.**
 
-⚠️ **That last one is residue, not a live bug, and the distinction matters.** Ch. 2 was
-falsely ticked complete back when the offset was dead; the student was then advanced
-perfectly legitimately as far as the data knew. **No later fix can un-write that.** When
-a bug has been corrupting stored state for a while, shipping the guard is only half the
-job — the other half is giving people a way to undo what was already written.
+⚠️ **A PER-BROWSER GUEST ID WOULD NOT HAVE FIXED IT.** That was my first
+instinct and it is the same bug with a longer string: two guests on one browser
+profile share `localStorage`, so they would share the id. What separates them is
+the **tab** — `sessionStorage` dies with it, so the next student is a different
+owner by construction.
 
-So: `showStartModal()` now offers **"↩︎ Start this chapter over"** whenever
-`currentCharIndex > 0`.
+The cost, stated plainly: **a guest who closes the tab loses their resume point.**
+Correct trade. We cannot tell whether the next child at that machine is the same
+one, and we have told them twice that nothing is being saved. Signing in is what
+buys a durable checkpoint.
 
-⚠️ **Until this shipped, every student-facing navigation ran FORWARD.** Jump-to-furthest
-was the only one; the chapter picker is Game Genie, which is admin-gated. A student ahead
-of where they had read had no move at all. **Look for that shape elsewhere — a system
-that can only advance is one that cannot recover.**
-
-Two design notes worth keeping:
-- **Not gated on a re-anchor having happened.** An affordance that appears only after a
-  rare fault is one nobody has learned to look for, and a kid who spaced out for a page
-  needs it just as much.
-- **No confirm dialog, on purpose.** It leaves `furthest*` untouched, so the jump link
-  directly above reverses it in one click. Nothing is destroyed. Confirming harmless
-  actions mainly trains children to click through warnings.
-
-### v3.17.0 — Flip Back closed the gap
-
-Jake's proposal, and he was right to push past the one-click restart: *"give students the
-aspect of Game Genie that jumps to any chapter and any sentence… but limit it to previous
-to where they are now."*
-
-⚠️ **One correction to his framing, and it is the whole design: the ceiling is `furthest`,
-not the current position.** Bounding by where a student stands collapses the instant the
-tool is used — flip back to Ch. 2 and Ch. 3 is now "ahead", so the thing that moved them
-cannot move them home. `furthest` gives free movement across earned ground with no route
-past the frontier. **Generalise: a bound computed from mutable state that the feature
-itself mutates is not a bound.**
-
-⚠️ **Cross-chapter is two-step and must stay so.** `getSentenceMap()` reads `fullText`,
-which exists only for the loaded chapter. One-screen navigation means prefetching all 284
-Aesop chapters.
-
-⚠️ **Sentence-level backjump makes WPM farming easier** — loop a memorised sentence. Not
-new (restart-chapter and practice mode already allow it) but tighter. Told Jake before
-shipping rather than after. **If the leaderboard ever looks wrong, start here.**
-
-`completedChapters` is deliberately untouched by a flip back: the ✓ records something the
-student did, and re-reading is not un-doing it. That is the question below, answered by
-default in the least destructive direction — **but Jake still has not ruled on it**, and
-if he wants re-reading to clear a tick, the place to do it is `flipBackTo()`.
-
-### v3.18.0 — the same door, on the screen where people are standing
-
-Jake, immediately after testing v3.17.0: *"We probably need a flip back option on the
-pause screen that occurs when the user stops typing — between the stats and the buttons."*
-
-He is right and the reason generalises. ⚠️ **The pause screen is where a student notices
-they are lost** — they stop typing *because* the text stopped making sense. Reaching the
-tool only from the start modal meant dismissing the stats, landing back in the book, and
-pausing again: navigating out of the exact confusion the tool exists to fix. **An escape
-hatch belongs where people are when they need it, not only where the flow begins.**
-
-`showStatsModal()` already had an `extraHTML` slot in the right place (v3.12.2, added for
-the book-completion "About this book" link) so this cost one insertion and one handler.
-`modalActionCallback` is cleared first so the abandoned sprint does not resume underneath
-the picker.
-
-### ⚠️ The remaining open question, still Jake's call
-
-**Does re-reading a chapter un-tick its ✓?** v3.17.0 ships saying no, because that is the
-non-destructive default, not because the question is settled. `completedChapters`
-feeds `chaptersCompleted` in the stats rollup and the ✓ marks in Game Genie's picker.
-Silently clearing it edits a record of something the student did; silently keeping it
-means the picker shows chapters as done that they are actively redoing. Ask before
-building.
+Pre-v2.3.0 checkpoints carry `uid:'anon'`, which matches no owner the new
+function can produce, so they are discarded. That is the intended migration —
+there is no way to find out whose they were.
 
 ---
 
-## §4. Invariants — additions to Round 7 §5 and Round 6 §5, both of which still apply
+## §6. Invariants — additions to Round 8 §4 (37–55), which still applies
 
-37. **When you harden one half of a composite key, state why the other half is safe.**
-    Three rounds hardened the chapter id, each writing a comment about renumbering. The
-    character offset sat one line away, untouched, the whole time.
-38. **The dangerous bug is not the one that errors — it is the one that completes.** A
-    stale offset near a chapter end produces a chapter that finishes normally and marks
-    itself read. Ask of any restored state: *if this value were wrong, would the app
-    fail, or would it succeed at something else?*
-39. **Any stored offset into content is a foreign key into a version you did not
-    record.** Character indices, line numbers, scroll positions, timestamps into media.
-    Store what it was measured against, or a fingerprint of the content at that point,
-    or accept that it will rot silently.
-40. **Prefer proof to policy where proof is cheap.** 48 characters per write turns "we
-    think they were about here" into "they were exactly here". The staleness ladder is
-    the fallback, not the mechanism.
-41. **Refuse to remap on ambiguity, at the level of the whole operation.** Round 7's
-    invariant 24 was about not guessing a licence version; `chapterIdForTitle()` returns
-    null on a duplicate title for the same reason. A part-numbered book repeats titles
-    across parts, and guessing means teleporting a child into the wrong part.
-42. **Ask for one measured number before choosing which bug you are fixing.** "One
-    sentence to type" had two causes with no overlap in their fixes. One Game Genie
-    readout cost one exchange and eliminated an entire investigation.
-43. **A screenshot carries more than the number you asked for.** I asked for
-    `Char X / Y`. The ✓ beside the chapter in the same dropdown proved the chapter had
-    been *completed* — which is what established §2.2, the part of this round that
-    actually matters. **Read the whole image, not the field you requested.**
-44. **An offset at or past the end of its content is a dead state, not a position.**
-    Nothing can resume there. Guard the *shape* of the answer — "does this leave
-    anything to do?" — not just its range.
-45. **Recency is not validity.** A bookmark written an hour ago is still garbage if the
-    content changed after it was written. Never let an age threshold decide whether a
-    provably invalid value is acceptable.
-46. ⚠️ **A self-healing system must never write its own bad state back as verified.**
-    v3.15.0's recent rung stamped `contentVersion` onto a dead offset, converting a
-    recoverable fault into a permanent one and deleting the evidence that anything was
-    wrong. Before writing a "this is now correct" marker, check that it *is*.
-47. **The number an assertion expects is where the author's misconception lives.** A
-    green harness proves the code agrees with the author, not with reality. When a test
-    passes first try, re-derive the expected values from the requirement rather than
-    from the implementation.
-48. **Consult proof before applying a guard.** Order matters: a value can be both
-    out-of-range and exactly recoverable. Guards that run first discard evidence.
-49. **A system that can only advance cannot recover.** Every student navigation in this
-    app ran forward until v3.16.0. When auditing a flow, list the moves available and
-    check whether any of them go backwards.
-50. **Shipping the guard is half the job when a bug has been writing bad state.** The
-    other half is an undo for what was already committed. Ask "what did this corrupt
-    that my fix cannot reach?"
-51. **An escape hatch belongs where people are when they need it.** Flip Back on the
-    start modal alone required a lost student to navigate out of their confusion to
-    reach the tool for it. Ask of any recovery affordance: *what screen is someone
-    looking at at the moment they realise they need this?*
-52. ⚠️ **A permanently red test is worse than a deleted one.** It trains everyone to read
-    "1 failing" as the expected number, and the next real failure hides behind it. If a
-    harness goes red and cannot be fixed the same day, delete it or skip it loudly.
-53. **When a feature is removed, its tests are not deleted — they are inverted.** The
-    guard `metadata-map-test.mjs` needed was not the old assertions minus an argument; it
-    was the opposite claim, that nothing can reach the combined licence on its own. **The
-    removal is itself a contract, and contracts want tests.**
-54. **Assert an exact key set, not the absence of one key.** `sig.classroom === undefined`
-    passes just as happily when the whole function has been renamed out from under you.
-55. **Verify your own complaints before writing them down.** I told Jake four packages
-    were missing from `package.json`; they were declared all along and merely uninstalled
-    in my container. That claim went into the README and the handoff before I checked it.
+56. ⚠️ **A comment asserting a permission is a claim about a different file, and
+    nothing checks it.** Three files here carried "lessons are public" / "anon
+    auth lets students read books". All false, for years. When code depends on a
+    rule, name the rule **and its version**, so one line can be falsified.
+57. ⚠️ **Request coalescing is only valid between interchangeable callers.** An
+    unauthenticated caller and an authenticated one are not. Share successes;
+    never share a failure with someone who would have succeeded.
+58. **An empty result and a denied one are indistinguishable downstream.** If
+    both render the same blank screen, treat the ambiguous case as the one a
+    retry can fix.
+59. ⚠️ **When two subsystems implement the same prompt, the duplication is the
+    visible defect and the divergence in what they DO is the expensive one.**
+    Ask what each one does when the user says yes, before merging the copy.
+60. **A feature gated on a mode nobody uses has not shipped.** The 5-minute rung
+    existed for months behind `sessionLimit === 'infinity'`. Grep for the gate
+    before concluding a behaviour is absent — and before building it again.
+61. ⚠️ **Diagnosing a bug does not inoculate you against writing it.** I fixed
+    the shared-failure coalescing bug in `learn.js` and reached for the identical
+    broken shape in `index.html` within the hour.
+62. **The fix that makes a symptom disappear is not always the fix for the bug.**
+    Public read makes `index.html` work; the missing reload is still the defect.
+    Ask: *if the thing I just changed changed back, would this break again?*
+63. **A per-device id is not a per-person id.** Anything keyed to storage a
+    shared machine shares is keyed to the machine. Scope to the session when the
+    session is the only thing that distinguishes people.
+64. ⚠️ **A harness that crashes instead of reporting tells you less than one that
+    survives.** My first draft threw a ReferenceError against the pre-round file
+    — a failure, but it hid the other 33 assertions behind a stack trace, and
+    running it against old code is the whole point.
+65. **Say which assertions are behavioural and which are structural.** Half of
+    `anon-ladder-test.mjs` reads source text. Those catch invisible, expensive
+    defects and they also break on innocent refactors. A harness that does not
+    grade its own assertions invites them to be trusted equally.
 
 ---
 
-## §5. The harness suite — now 17/17, and two corrections I owed
+## §7. ⚠️ What to check in a browser, in order
 
-`node run-all-tests.mjs` → **ALL 17 HARNESSES PASS.** That was not true when this round
-started and it is worth keeping true.
+Jake walked the guest path after the rules paste and reported the library, a
+book, and a lesson all working, with a nudge at 2 minutes (the old learn.js
+`ANON_REMIND_AFTER_SECONDS = 120`). **That number is the regression test for
+this round: it must now be 1 minute.** If it is still 2, learn.js did not upload.
 
-### `metadata-map-test.mjs` had been RED and is repaired (v1.3.0)
+0. **Incognito, not signed in.** Library grid → open a book → type. Then School →
+   a lesson → a drill. Aesop's Fables for the book, per Round 8 §7.
+1. **The ladder.** Type for one minute as a guest → gentle prompt at a sprint
+   boundary. Decline. Keep going to five minutes → the blunt one, saying "last
+   time I'll ask". Keep going → **nothing, ever again.**
+2. ⚠️ **The part that actually matters: click SIGN IN on the five-minute
+   prompt.** The minutes shown must land in the account. Old ladder B reloaded
+   and lost them. This is the divergence in §4 and the only way to test it.
+3. **Cross-page.** Decline in School, open a book: the next prompt should be the
+   five-minute one, not the one-minute one again.
+4. **Two guests, one machine.** Guest drill halfway, close the tab, reopen: the
+   drill starts clean, not resumed. Signed in, same test: it resumes.
+5. **The refresh bug.** Sign in from a cold library page. Books appear **without
+   a refresh**. Then sign out and in as someone else: pips must change.
+6. **Console.** No `permission-denied` on any guest page.
 
-It died on `CLASSROOM_NOTICE not found in admin.js`. `admin.js` v3.30.0 deliberately
-removed `runDedication()`, `CLASSROOM_NOTICE`, `DEDICATION_TEXT` and the classroom
-argument to `canonicalRightsFrom()` — **the feature went away and the harness did not**,
-so it had been failing ever since.
-
-⚠️ **The repair is not the old tests with the argument dropped.** It asserts the CURRENT
-contract, which is the inverse of the old one: the combined PD & CC0 option still exists
-in `admin.html` and must be chosen **by hand**, and nothing in the mapper may reach it on
-its own. Auto-relicensing a book is exactly the kind of wrong that is quiet. Added: an
-assertion that a leftover third argument does **nothing**, so if the parameter ever comes
-back it comes back deliberately; and an exact-key-set check on `readInBookSignals()`
-rather than `sig.classroom === undefined`, because an undefined check passes just as
-happily when the whole function has been renamed out from under you.
-
-⚠️ **A permanently red harness is invariant 22 pointed at the test suite.** It trains
-everyone to read "1 failing" as the normal number, and the next real failure hides behind
-it. If one goes red and cannot be fixed the same day, delete it or skip it loudly — do
-not leave it failing.
-
-⚠️ **The corpus half of that harness did not run here** (`library/` is not in the zip), so
-the new signals assertion is unexercised. It is exact-key-set on an object literal with
-two fixed keys, so it should hold, but it runs for real on Jake's machine first.
-
-### ⚠️ Two things earlier drafts of this handoff said that were WRONG
-
-1. **"The harnesses need dev dependencies that are not in `package.json`."** False.
-   `jsdom`, `acorn`, `acorn-walk` and `jszip` are all declared. They were simply not
-   installed in my container. **Run `npm install` first**; seven `ERR_MODULE_NOT_FOUND`
-   failures on a bare checkout are missing `node_modules`, not missing declarations.
-2. **The §1 table's `admin.js` version.** Still worth repeating: it is v3.30.0, not the
-   v3.28.0 Round 7 claimed. **Run `audit-versions.mjs`; believe no table, including this
-   one.**
-
-Genuinely open, and not touched: those four packages sit in `dependencies` rather than
-`devDependencies`, and `package.json` is the **Cloud Functions** package (`"main":
-"index.js"`). So `jsdom` ships to the functions deploy as dead weight on the bundle and on
-cold starts. Correct to move; touches the deploy; wants its own round and a real deploy to
-verify.
-
+**I have clicked none of this.** The harness is 34 assertions against extracted
+functions and source text; it has never rendered a pixel.
 
 ---
 
-## §6. Things I got wrong, and one thing I nearly did
+## §8. Open, and not mine to close
 
-- **My first header-trim assertion failed and I am glad it did.** I calculated that my
-  new changelog entry had to be 9 lines, wrote 11, and asserted the count before
-  splicing. The assert fired; the file was untouched; I rewrote to 9. **Round 7 §7
-  records botching this exact header five times, twice destructively. Asserting the line
-  count before the splice is what turns it into a non-event** — invariant 33, working.
-- **I nearly built a legacy migration path that did not need to exist.** It was designed
-  and I was one question from writing it when Jake's time-based ladder made
-  `lastUpdated` do the work for free. **The question was cheaper than the code.**
-- **`lastSavedIndex` is dead state and I added to it anyway.** Assigned in eighteen
-  places, read in two, both of which only save and restore it around practice mode.
-  Nothing consumes it — `walDirty` drives flushing. I kept my assignment for consistency
-  rather than leave the one load path that fails to maintain it, **but the right fix is
-  to delete all eighteen.** Clean, self-contained job for whoever wants one.
-- **My harness passed 25/25 on its first run**, which in this project's history is
-  suspicious rather than reassuring; Round 7's caught two real bugs in its own author's
-  fix within minutes. **I have no browser and have clicked none of this.** See §7.
+- **Round 8's two unresolved rulings still stand.** Does re-reading a chapter
+  un-tick its ✓? Should a hard time cap override a confirmed anchor match? Both
+  answered by default rather than by decision.
+- **App Check enforcement.** Wired in `firebase-config.js` v1.2.0, never
+  enforced. This moved up in priority the moment content became world-readable —
+  it is now the only thing between Jake's card and a scraper. ⚠️ Run
+  `ttbAppCheckStatus()` on a real school MacBook on the school network first; a
+  district filter blocking recaptcha paths turns enforcement into a total outage.
+- **`firestore-rules.test.mjs` has still never been executed.** v1.1.0 said so;
+  so does v1.2.0. Its three new assertions are the only automated statement of
+  where the guest boundary is, which makes them worth the emulator setup more
+  than the rest of the file.
+- **`lastSavedIndex`** — eighteen assignments, two reads. Round 8 flagged it;
+  still there. I deleted `anonSprintCount` and `anonLessonsCompleted` for the
+  same reason, which is the smaller half of the same job.
+- **`package.json`** ships `jsdom`/`acorn`/`jszip` to the Cloud Functions deploy
+  as dead cold-start weight.
 
----
+## §9. Jake — working with him
 
-## §7. ⚠️ What to spot-check in a browser, in order
+Round 8 §8 and Round 7 §8 still hold. Adding:
 
-0. ⚠️ **Aesop's Fables first, every time.** 284 chapters of ~500 characters each is the
-   library's best stress case for stale offsets — almost any overshoot lands past the
-   end there, which is precisely how v3.15.1 was caught. A fix that looks fine on a
-   novel can still be broken on Aesop's.
-1. **Open a book you have progress in.** It should land where it always did, with no
-   notice. Your next keystroke stamps `contentVersion` and heals it permanently.
-2. **Then one you have NOT touched since the re-upload.** Expect the blue
-   `📘 This book was updated…` line in the start modal and a snap to the top of the
-   chapter — everything is months stale, so the ladder's bottom rung.
-3. **Console.** `Book content changed since this bookmark was written (age Nd, anchor
-   ABSENT)` on the first load; silence on the second, after you have typed.
-4. ⚠️ **Never accept "the chapter completed" as a pass.** Check the completion modal:
-   `0 WPM` and `0m 1s` means nobody typed anything and the offset was dead. A real
-   completion has a real elapsed time.
-5. **The real proof: re-upload a book you are mid-chapter in, then reopen it.** That
-   round-trips a stored anchor and is the only test of the *mechanism* rather than the
-   fallback. It should put you back exactly where you were, silently.
-
----
-
-## §8. Jake — working with him
-
-Round 7 §8, Round 6 §8, Round 5 §8 and Round 4 §12 all still hold. Adding:
-
-- **He answers a policy question with a better policy.** Given three flat options for
-  the legacy cohort, he returned a graded, time-keyed ladder — plus a throwaway
-  observation, *"it's been months, and no one will remember where they are"*, that was
-  itself the design constraint. §3.1.
-- **He reasons from what a child will experience, not from what is easy to build.** The
-  ladder's rungs are about memory. Take that seriously before retuning them.
-- **He sends screenshots that answer more than the question asked.** Invariant 43.
-- **Tell him what ships.** One file this round. Say so plainly.
+- **He tests immediately and reports the number, not the impression.** "Got a
+  reminder at 2 minutes" was a version fingerprint — it identified which of the
+  four ladders had fired, on which page, from which file, in one clause.
+- **He tells you when something is good enough.** *"Books did take a literal
+  second to load, but that's not horrible."* That is a decision, not a
+  complaint; do not go optimise it.
+- **"What's next in the roadmap?" means give an ordered list with reasons.** He
+  picked item 2 and skipped nothing.
