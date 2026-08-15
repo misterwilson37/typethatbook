@@ -49,7 +49,7 @@ returned nothing.**
 
 ## §1. Version state — `audit-versions.mjs`: 2 problems, both pre-existing
 
-`node run-all-tests.mjs` → **18 of 18 pass** (17 + one new).
+`node run-all-tests.mjs` → **19 of 19 pass** (17 + two new).
 
 | file | version | changed? | upload? |
 |---|---|---|---|
@@ -57,9 +57,11 @@ returned nothing.**
 | `game.js` | **3.20.0** | ⚠️ yes — ladders merged | **YES** |
 | `learn.js` | **2.3.0** | ⚠️ yes — three fixes | **YES** |
 | `index.html` | **3.7.0** | ⚠️ yes — load sequencing | **YES** |
+| `lessons-admin.js` | **1.8.0** | ⚠️ yes — CSV can create classes | **YES** |
 | `anon-ladder-test.mjs` | **1.0.0** | new harness, 34 assertions | commit it |
+| `class-create-test.mjs` | **1.0.0** | new harness, 26 assertions | commit it |
 | `firestore-rules.test.mjs` | **1.2.0** | guest boundary asserted | commit it |
-| `run-all-tests.mjs` | — | registers the new harness | commit it |
+| `run-all-tests.mjs` | — | registers both new harnesses | commit it |
 | everything else | — | no | — |
 
 The 2 audit problems are `admin.js` v3.31.0's header budget (69 lines / 7 entries
@@ -228,6 +230,80 @@ there is no way to find out whose they were.
 
 ---
 
+## §5a. `lessons-admin.js` v1.8.0 — CSV import can create the classes it names
+
+Jake, mid-rollout of the rest of this round: *"when I upload classes, I can't
+create classes on upload. It tells me the classes don't exist rather than saying
+they don't exist and asking if I'd like to make them."*
+
+The report matched the code on the first read — `_previewCSV()` printed
+`class not found` in red and stopped. The only route was the Classes tab, typing
+each name by hand, then re-running the import, **for a file that already listed
+every name needed.**
+
+### ⚠️ 5a.1 The lookup had to be fixed FIRST, or the feature makes things worse
+
+`classLookup` keyed on `name.toLowerCase()` and nothing else. A roster export
+writing `Period 3` against an existing class named `Period-3` was reported
+missing. Harmless while "missing" only produced a red message — **and actively
+destructive the moment "missing" produces a CREATE.** The obvious version of
+this feature, built on the old lookup, answers a punctuation mismatch by making
+a second class with the same name and splitting the roster across both. Nothing
+throws; the Classes list shows two entries that look identical; reports quietly
+disagree with the teacher's own count.
+
+**Generalise: before giving a "not found" branch the power to create, check what
+counts as found.** A tolerant matcher and a creating branch are the same
+feature; shipping the second without the first manufactures duplicates.
+
+`_classKey()` strips case and non-alphanumerics, so those four spellings are one
+class. `class-create-test.mjs` asserts both directions — that the variants
+collapse, and that `Period 3` / `Period 4`, `7th CS` / `8th CS` and
+`Mrs Smith AM` / `Mrs Smith PM` stay distinct.
+
+### ⚠️ 5a.2 The harness caught a real hazard in my own normaliser
+
+An assertion about `_newClassId('!!!')` failed. Chasing the cosmetic symptom
+(a leading underscore in the id) led to the actual defect: **a name that
+normalises to the empty string would be looked up as `''`, and would match any
+other class whose name also normalises to empty** — a lookup hit assigning
+students to a class nobody named. `_isUsableClassName()` now rejects those
+before lookup or creation, and `_newClassId()` falls back to a `class_` prefix.
+Invariant 47, working: the expected value is where the misconception lives.
+
+### 5a.3 Deliberate choices
+
+- **Creation is a button, never automatic.** A typo'd name in a CSV is
+  indistinguishable from a new class, and the resulting split roster looks
+  correct on the screen it was made on. The panel lists the names, says how many
+  students each would take, and tells the admin to read them first.
+- **`schoolId` is required and comes from a picker.** `firestore.rules` demands
+  it on create; there is no honest way to derive a building from a file of
+  emails. No schools → the panel says so instead of offering a doomed button.
+- **Goals are 0.** A class created from a roster file has no stated target, and
+  inventing one puts a number in a student's HUD that nobody chose.
+- **It re-runs `_previewCSV()` rather than patching the table.** `_csvParsed` is
+  built against `_classCache`; painting rows green after the cache changed would
+  leave the commit writing pre-creation values.
+- **Failures are named individually.** "3 of 5 failed" means redoing all five.
+- **`_newClassId()` / `_newClassRecord()` / `_loadSchoolOptions()` are now
+  shared** with `saveClass()` and `populateClassSchools()`. Two creation paths
+  with private copies of the id scheme is §4's divergence waiting to happen, and
+  the harness asserts the id scheme appears exactly once in the file.
+
+⚠️ **Stale comment corrected while in there.** `saveClass()` justified writing
+`teacherUids` with *"claim.classIds is derived from teacherUids"*. That
+mechanism was **deleted** in Cloud Functions `index.js` v1.6.0, which removed
+seven custom-claims functions no client called and no rule consulted. The line
+still earns its place — `firestore.rules` scopes teachers by `teacherUids` on
+the class document — but the stated reason had been wrong for rounds. Same shape
+as §2.1: a comment describing machinery that no longer exists.
+
+⚠️ **`_onClassesChanged()` is probably vestigial for the same reason** — it
+exists to refresh a custom-claims token. Called once per batch here to match
+existing behaviour. **Not investigated. Do not delete it without checking
+`admin.js`'s hook first.**
+
 ## §6. Invariants — additions to Round 8 §4 (37–55), which still applies
 
 56. ⚠️ **A comment asserting a permission is a claim about a different file, and
@@ -259,6 +335,17 @@ there is no way to find out whose they were.
     survives.** My first draft threw a ReferenceError against the pre-round file
     — a failure, but it hid the other 33 assertions behind a stack trace, and
     running it against old code is the whole point.
+66. ⚠️ **Before giving a "not found" branch the power to create, fix what counts
+    as found.** A tolerant matcher and a creating branch are one feature.
+    Shipping the create half against a strict matcher manufactures duplicates,
+    and duplicates of a container — a class, a folder, a tag — silently split
+    everything filed into them.
+67. **A normaliser that can return empty has an implicit wildcard in it.** Any
+    two inputs that normalise to nothing match each other. Reject the empty case
+    at the boundary rather than trusting that nobody types punctuation.
+68. **Say which one failed.** A batch reporting "3 of 5 failed" forces a retry of
+    all five; the per-item error usually names the one condition that differs.
+
 65. **Say which assertions are behavioural and which are structural.** Half of
     `anon-ladder-test.mjs` reads source text. Those catch invisible, expensive
     defects and they also break on innocent refactors. A harness that does not
@@ -288,6 +375,14 @@ this round: it must now be 1 minute.** If it is still 2, learn.js did not upload
 5. **The refresh bug.** Sign in from a cold library page. Books appear **without
    a refresh**. Then sign out and in as someone else: pips must change.
 6. **Console.** No `permission-denied` on any guest page.
+7. **Admin, CSV import.** Upload a roster naming a class that does not exist. The
+   panel should list it, say how many students it covers, and offer a building
+   picker. Create it, and the preview must **re-check itself** — amber rows turn
+   green and Commit lights up without re-picking the file.
+8. ⚠️ **The one that matters more:** a roster naming a class that DOES exist with
+   different punctuation (`Period 3` against `Period-3`). It must match silently
+   and offer to create nothing. If it offers, the normaliser is not reaching the
+   lookup and you are one click from a duplicate class.
 
 **I have clicked none of this.** The harness is 34 assertions against extracted
 functions and source text; it has never rendered a pixel.

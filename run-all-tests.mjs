@@ -50,6 +50,7 @@ const FAST = [
     ['about-test.mjs',           'detectAbout() and the completeness dot'],
     ['about-render-test.mjs',    'About panel segments, headings, credit injection'],
     ['anon-ladder-test.mjs',     'guest login ladder: rungs, the no-third-prompt rule, coalescing guards'],
+    ['class-create-test.mjs',    'class name matching and the shared CSV class-creation path'],
 ];
 
 // Slow: need a directory of EPUBs. Default to the repo's library/.

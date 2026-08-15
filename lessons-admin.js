@@ -1,6 +1,24 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.7.1
+// lessons-admin.js — TypeThatBook Lesson Panel v1.8.0
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
+//
+// v1.8.0 — CSV import can CREATE the classes it doesn't recognise. It used to
+//          print "class not found" in red and stop, which left the only route
+//          through the Classes tab, typing each name by hand, then re-running
+//          the import — for a file that already listed every name needed.
+//          Two halves:
+//            1. The lookup now normalises, so "Period 3", "period-3" and
+//               "Period  3" all match an existing class. A large share of what
+//               was reported as missing was a punctuation mismatch, and
+//               creating a duplicate class for it would have been the WORSE
+//               outcome — two classes, one roster split between them.
+//            2. Genuinely new names are listed with a school picker and a
+//               button. ⚠️ NEVER automatic: a typo'd name in a CSV is
+//               indistinguishable from a new class, and silently creating
+//               "Perod 3" splits a roster in a way that looks fine on the
+//               screen it was made on.
+//          Class id + record shape now come from _newClassId()/_newClassRecord(),
+//          shared with saveClass(), so the two creation paths cannot drift.
 //
 // v1.7.1 — _addOneStudent() and _populateOneStudentClasses() were WIRED AND
 //          MISSING. initStudentsPanel() evaluated `_addOneStudent` while
@@ -10,7 +28,7 @@
 //          _studentsInited already true so reopening the tab could not recover.
 //          Both functions written from _commitCSV()/_bulkAssign().
 // v1.7.0 — Lesson + class authoring, CSV roster import, stuck-student scan.
-window.LESSONS_ADMIN_VERSION = '1.7.1';
+window.LESSONS_ADMIN_VERSION = '1.8.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -1124,6 +1142,56 @@ function renderClassList() {
     refreshClassDropdownInStudents();
 }
 
+// ⚠️ SHARED BY saveClass() AND THE CSV IMPORTER (v1.8.0). Both create classes;
+// before this they would have carried two copies of the id scheme and the
+// record shape, and the failure mode of that is not a crash — it is two classes
+// that look identical in the list and are not the same document.
+function _newClassId(name) {
+    const slug = String(name || '').toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    // ⚠️ A name with no letters or digits slugs to the empty string, which used
+    // to yield an id starting with "_". Cosmetic on its own; the reason it is
+    // guarded is that the same emptiness is dangerous in _classKey() below.
+    return (slug || 'class') + '_' + Date.now().toString(36);
+}
+
+function _newClassRecord(name, schoolId, dailySeconds, weeklySeconds) {
+    const rec = {
+        name: name,
+        schoolId: schoolId,
+        dailySeconds:  dailySeconds  || 0,
+        weeklySeconds: weeklySeconds || 0,
+        updatedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+    };
+    // The rules require the creator to put themselves on the class. ⚠️ The
+    // comment that used to sit here said this was because "claim.classIds is
+    // derived from teacherUids" — that mechanism was DELETED in Cloud Functions
+    // index.js v1.6.0, which removed seven custom-claims functions no client
+    // called and no rule consulted. The line still earns its place for a
+    // teacher (firestore.rules scopes them by teacherUids on the class doc),
+    // but the stated reason had been wrong for a while.
+    if (_scope.uid) rec.teacherUids = [_scope.uid];
+    return rec;
+}
+
+// Normalised key for matching a class name typed into a CSV against one that
+// already exists. Case, punctuation and run-together spacing are exactly the
+// differences a roster export introduces and a human does not consider
+// meaningful: "Period 3", "period-3" and "Period  3" are one class.
+function _classKey(s) {
+    return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+// ⚠️ A name that normalises to nothing is NOT a class name, and treating it as
+// one is the sharp edge on the normaliser. `_classKey('-')` is '', and an empty
+// key would match any other class whose name also normalises to empty — a
+// lookup hit that assigns students to a class nobody named. Callers must reject
+// these before looking them up or offering to create them.
+function _isUsableClassName(s) {
+    return _classKey(s).length > 0;
+}
+
 async function saveClass() {
     const nameVal   = (document.getElementById('class-name-input').value || '').trim();
     const dailyMin  = parseInt(document.getElementById('class-daily-input').value) || 0;
@@ -1143,27 +1211,23 @@ async function saveClass() {
         return;
     }
 
-    const record = {
+    // An EDIT must not carry createdAt or teacherUids — _newClassRecord() is the
+    // create shape. Splitting it this way keeps merge:true from rewriting the
+    // creation date every time somebody adjusts a goal.
+    const record = editId ? {
         name: nameVal,
         schoolId: schoolId,
         dailySeconds:  dailyMin  * 60,
         weeklySeconds: weeklyMin * 60,
         updatedAt: new Date().toISOString(),
-    };
+    } : _newClassRecord(nameVal, schoolId, dailyMin * 60, weeklyMin * 60);
 
     try {
         let classId = editId;
         let isNew = false;
         if (!classId) {
             isNew = true;
-            // Generate a slug-like ID from name
-            classId = nameVal.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') +
-                      '_' + Date.now().toString(36);
-            record.createdAt = new Date().toISOString();
-            // The rules require the creator to put themselves on the class. That
-            // isn't red tape: claim.classIds is derived from teacherUids, so
-            // without this you'd create a class you can't read.
-            if (_scope.uid) record.teacherUids = [_scope.uid];
+            classId = _newClassId(nameVal);
         }
         await setDoc(doc(_db, 'classes', classId), record, { merge: true });
         _classCache[classId] = { id: classId, ..._classCache[classId], ...record };
@@ -1194,13 +1258,9 @@ async function populateClassSchools() {
     const sel = document.getElementById('class-school-select');
     if (!sel) return;
     try {
-        const snap = await getDocs(collection(_db, 'schools'));
-        const ids = [];
-        snap.forEach(d => {
-            if (_isSuper() || _scope.schoolIds.includes(d.id)) {
-                ids.push({ id: d.id, name: (d.data().name || d.id) });
-            }
-        });
+        // Shared with the CSV importer via _loadSchoolOptions(), so "which
+        // buildings may I put a class in" has one answer rather than two.
+        const ids = await _loadSchoolOptions();
         sel.innerHTML = ids.length
             ? ids.map(x => `<option value="${x.id}">${x.name}</option>`).join('')
             : '<option value="">— no schools —</option>';
@@ -1929,14 +1989,23 @@ async function _previewCSV() {
     const hasHeader = rows[0][0].toLowerCase() === 'email' || !rows[0][0].includes('@');
     const dataRows  = hasHeader ? rows.slice(1) : rows;
 
+    // ⚠️ NORMALISED KEYS (v1.8.0). This used to lowercase and nothing else, so a
+    // roster export writing "Period 3" against a class named "Period-3" was
+    // reported as missing. That mattered more once the importer could CREATE
+    // missing classes: the obvious feature, built on the old lookup, would have
+    // answered a punctuation mismatch by making a second class with the same
+    // name and splitting the roster across both.
     const classLookup = new Map();
     Object.values(_classCache).forEach(cls => {
-        classLookup.set((cls.name || '').toLowerCase(), cls.id);
-        classLookup.set(cls.id.toLowerCase(), cls.id);
+        classLookup.set(_classKey(cls.name), cls.id);
+        classLookup.set(_classKey(cls.id), cls.id);
     });
 
     const emailToUid = new Map();
     _rosterData.forEach(r => { if (r.email) emailToUid.set(r.email.toLowerCase(), r.uid); });
+
+    // normalised key → { name: first spelling seen in the file, rows: how many }
+    const missingClasses = new Map();
 
     let html = '<table style="width:100%; border-collapse:collapse;">' +
         '<tr style="color:#666; border-bottom:1px solid #333;">' +
@@ -1948,7 +2017,7 @@ async function _previewCSV() {
         const email   = (cols[0] || '').toLowerCase().trim();
         const clsRaw  = (cols[1] || '').trim();
         const uid     = emailToUid.get(email);
-        const classId = classLookup.get(clsRaw.toLowerCase());
+        const classId = classLookup.get(_classKey(clsRaw));
         const clsName = classId ? (_classCache[classId]?.name || classId) : null;
 
         let status, ok = false;
@@ -1965,12 +2034,20 @@ async function _previewCSV() {
             }
         }
         else if (!clsRaw) { status = '<span style="color:#888;">will clear class</span>'; ok = true; }
+        else if (!_isUsableClassName(clsRaw)) {
+            status = '<span style="color:#ff6666;">class name has no letters or numbers: "' +
+                escHtml(clsRaw) + '" — fix the file</span>';
+        }
         else if (!classId) {
-            // Show available class names to help diagnose mismatch
-            const available = Object.values(_classCache).map(c => c.name).join(', ');
-            status = '<span style="color:#ff6666;">class not found: "' + escHtml(clsRaw) + '"' +
-                (available ? '<br><span style="color:#555;font-size:0.9em;">Available: ' + escHtml(available) + '</span>' : ' (no classes loaded)') +
-                '</span>';
+            // ⚠️ Record it rather than only complaining about it. The file in
+            // front of us already names every class the import needs; sending
+            // an admin to another tab to retype them was the bug.
+            if (!missingClasses.has(_classKey(clsRaw))) {
+                missingClasses.set(_classKey(clsRaw), { name: clsRaw, rows: 0 });
+            }
+            missingClasses.get(_classKey(clsRaw)).rows++;
+            status = '<span style="color:#ffaa00;">no class named "' + escHtml(clsRaw) +
+                '" yet — see below</span>';
         }
         else { status = '<span style="color:#22c55e;">✓ → ' + escHtml(clsName) + '</span>'; ok = true; }
 
@@ -1984,6 +2061,57 @@ async function _previewCSV() {
     html += '</table>';
     areaEl.innerHTML = html;
 
+    // ── Offer to create the classes this file names and Firestore doesn't have ──
+    if (missingClasses.size) {
+        const schools = await _loadSchoolOptions();
+        const list = [...missingClasses.values()];
+        _csvMissingClasses = list;
+
+        const rowsWord = n => n + ' student' + (n === 1 ? '' : 's');
+        const names = list.map(m =>
+            '<li style="margin:2px 0;"><b style="color:#eee;">' + escHtml(m.name) + '</b>' +
+            ' <span style="color:#666;">— ' + rowsWord(m.rows) + '</span></li>').join('');
+
+        let picker;
+        if (!schools.length) {
+            // schoolId is REQUIRED by firestore.rules; a class with no building
+            // cannot be scoped, so there is nothing useful to offer here.
+            picker = '<div style="color:#ffaa00; margin-top:6px;">No schools available — ' +
+                     'a super admin has to create one first (Firestore console → schools). ' +
+                     'A class has to belong to a building.</div>';
+        } else {
+            picker =
+                '<div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">' +
+                '<label style="color:#888;">Building:</label>' +
+                '<select id="csv-newclass-school" class="l-field" style="width:auto; padding:3px 6px;">' +
+                schools.map(x => '<option value="' + escHtml(x.id) + '">' + escHtml(x.name) + '</option>').join('') +
+                '</select>' +
+                '<button id="csv-create-classes-btn" class="lbtn lbtn-primary" ' +
+                'style="width:auto; padding:5px 12px; font-size:0.85em;">' +
+                'Create ' + list.length + ' class' + (list.length === 1 ? '' : 'es') + '</button>' +
+                '<span id="csv-create-classes-status" style="color:#888;"></span>' +
+                '</div>';
+        }
+
+        areaEl.innerHTML +=
+            '<div style="margin-top:10px; padding:8px 10px; border:1px solid #444; background:#141414;">' +
+            '<div style="color:#ffaa00; font-weight:bold; margin-bottom:4px;">' +
+            list.length + ' class name' + (list.length === 1 ? '' : 's') + ' in this file ' +
+            (list.length === 1 ? 'does' : 'do') + " not exist yet</div>" +
+            '<ul style="margin:4px 0 0 18px; padding:0; color:#ccc;">' + names + '</ul>' +
+            // ⚠️ The read-before-write warning is the whole reason this is a
+            // button and not automatic. A typo is indistinguishable from a new
+            // class, and the resulting split roster looks correct here.
+            '<div style="color:#888; margin-top:6px; font-size:0.95em;">' +
+            'Read these before creating them — a misspelling here becomes a real class, ' +
+            'and the students in it stop showing up under the class you meant.' +
+            '</div>' + picker +
+            '</div>';
+
+        const createBtn = document.getElementById('csv-create-classes-btn');
+        if (createBtn) createBtn.addEventListener('click', _createMissingClasses);
+    }
+
     if (_csvParsed.length > 0) {
         // Enable Commit and make it the obvious next step
         commitBtn.disabled = false;
@@ -1995,8 +2123,101 @@ async function _previewCSV() {
             '✓ ' + _csvParsed.length + ' assignment' + (_csvParsed.length !== 1 ? 's' : '') +
             ' ready — click Commit to apply.</div>';
     } else {
-        areaEl.innerHTML += '<div style="margin-top:6px; color:#ffaa00;">No valid rows — check class names match and students have typing logs.</div>';
+        areaEl.innerHTML += missingClasses.size
+            ? '<div style="margin-top:6px; color:#888;">Nothing to commit yet — create the classes above, ' +
+              'then this re-checks itself.</div>'
+            : '<div style="margin-top:6px; color:#ffaa00;">No valid rows — check class names match and students have typing logs.</div>';
     }
+}
+
+let _csvMissingClasses = [];
+
+// Shared by the class form and the CSV importer. Returns [{id, name}] limited to
+// the caller's own buildings, or everything for a super admin.
+async function _loadSchoolOptions() {
+    try {
+        const snap = await getDocs(collection(_db, 'schools'));
+        const out = [];
+        snap.forEach(d => {
+            if (_isSuper() || _scope.schoolIds.includes(d.id)) {
+                out.push({ id: d.id, name: (d.data().name || d.id) });
+            }
+        });
+        return out;
+    } catch (e) {
+        console.warn('Could not load schools:', e);
+        return [];
+    }
+}
+
+// Create every class the CSV named that Firestore doesn't have, then re-run the
+// preview so the rows that were amber turn green and Commit lights up.
+//
+// ⚠️ RE-RUNS _previewCSV() RATHER THAN PATCHING THE TABLE IN PLACE. The preview
+// is derived from _classCache and the file; once the cache changes, the only
+// honest way to show the new state is to derive it again. Patching the rows
+// would leave _csvParsed built against the old cache — the table would say
+// green and the commit would write the old thing.
+async function _createMissingClasses() {
+    const btn      = document.getElementById('csv-create-classes-btn');
+    const statusEl = document.getElementById('csv-create-classes-status');
+    const schoolId = (document.getElementById('csv-newclass-school') || {}).value || '';
+    const pending  = _csvMissingClasses.slice();
+
+    if (!schoolId) {
+        if (statusEl) { statusEl.textContent = 'Pick a building first.'; statusEl.style.color = '#ff6666'; }
+        return;
+    }
+    if (!pending.length) return;
+
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; btn.style.cursor = 'not-allowed'; }
+    if (statusEl) { statusEl.textContent = 'Creating…'; statusEl.style.color = '#888'; }
+
+    let made = 0;
+    const failed = [];
+    for (const m of pending) {
+        try {
+            const id = _newClassId(m.name);
+            const rec = _newClassRecord(m.name, schoolId, 0, 0);
+            await setDoc(doc(_db, 'classes', id), rec);
+            _classCache[id] = { id, ...rec };
+            made++;
+        } catch (e) {
+            // ⚠️ Named individually. "3 of 5 failed" with no names means redoing
+            // all five and hoping, and a rules rejection here is usually about
+            // one specific building rather than the batch.
+            failed.push(m.name + ' (' + (e.message || e) + ')');
+        }
+    }
+
+    // Goals are deliberately 0 — a class created from a roster file has no
+    // stated daily or weekly target, and inventing one would be a number
+    // appearing in a student's HUD that nobody chose. Set them in Classes.
+    _buildClassFilterDropdown();
+    _buildBulkClassDropdown();
+    refreshClassDropdownInStudents();
+    renderClassList();
+    if (made && _onClassesChanged) { try { await _onClassesChanged(); } catch (_) {} }
+
+    _csvMissingClasses = [];
+
+    if (statusEl) {
+        statusEl.textContent = failed.length
+            ? made + ' created, ' + failed.length + ' failed'
+            : made + ' created. Re-checking the file…';
+        statusEl.style.color = failed.length ? '#ffaa00' : '#22c55e';
+    }
+    if (failed.length) {
+        const areaEl = document.getElementById('student-csv-preview-area');
+        if (areaEl) areaEl.innerHTML += '<div style="color:#ff6666; margin-top:6px;">Could not create: ' +
+            escHtml(failed.join('; ')) + '</div>';
+        if (!made) {
+            if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
+            return;
+        }
+    }
+
+    await _previewCSV();
 }
 
 async function _commitCSV() {
