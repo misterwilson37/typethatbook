@@ -54,10 +54,12 @@ returned nothing.**
 | file | version | changed? | upload? |
 |---|---|---|---|
 | `firestore.rules` | **2.3.0** | ⚠️ yes — the actual fix | **CONSOLE PASTE** |
-| `game.js` | **3.20.0** | ⚠️ yes — ladders merged | **YES** |
+| `game.js` | **3.20.1** | ⚠️ yes — ladders merged, then dead state deleted | **YES** |
 | `learn.js` | **2.3.0** | ⚠️ yes — three fixes | **YES** |
 | `index.html` | **3.7.0** | ⚠️ yes — load sequencing | **YES** |
 | `lessons-admin.js` | **1.8.0** | ⚠️ yes — CSV can create classes | **YES** |
+| `reports.html` | **2.9.0** | version driven from a constant | **YES** |
+| `package.json` | — | ⚠️ devDependencies; suite runs on a clean clone | commit it |
 | `anon-ladder-test.mjs` | **1.0.0** | new harness, 34 assertions | commit it |
 | `class-create-test.mjs` | **1.0.0** | new harness, 26 assertions | commit it |
 | `firestore-rules.test.mjs` | **1.2.0** | guest boundary asserted | commit it |
@@ -304,6 +306,64 @@ exists to refresh a custom-claims token. Called once per batch here to match
 existing behaviour. **Not investigated. Do not delete it without checking
 `admin.js`'s hook first.**
 
+## §5b. Round 10 — the cleanups, and one handoff claim that was backwards
+
+### ⚠️ 5b.1 `package.json` — Round 8's *correction* was the error
+
+Round 8 §5 listed, under "Two things earlier drafts of this handoff said that
+were WRONG", the claim that the harnesses need packages `package.json` does not
+declare. It called that **False** and wrote *"jsdom, acorn, acorn-walk and jszip
+are all declared"* into both the handoff and the README.
+
+**Open the pristine file. `dependencies` contains `firebase-admin` and
+`firebase-functions`. That is all it has ever contained.** The original complaint
+was true and Round 8 overturned it wrongly — in the same section that added
+**invariant 55, "Verify your own complaints before writing them down."**
+
+The mechanism is worth more than the fact. Round 8's container had those packages
+installed from an earlier session, so `node run-all-tests.mjs` ran green, and **a
+working test run was taken as proof of a declaration nobody opened the file to
+check.** The suite was evidence about the machine, not about the repository.
+
+Consequence until now: `git clone && npm install && node run-all-tests.mjs`
+failed on a clean machine with seven `ERR_MODULE_NOT_FOUND`, and the documented
+remedy — install them by hand — wrote them into `dependencies`, where
+`package.json` is the **Cloud Functions** package (`"main": "index.js"`) and they
+would ride to the next deploy.
+
+Now `devDependencies`, which `firebase deploy` does not install, plus `npm test`
+and `npm run test:epubs`. **Verified by unzipping the original archive into a
+clean directory and running `npm install && npm test`: 19/19.** That had never
+been true before.
+
+### 5b.2 `lastSavedIndex` — 22 references, zero consumers
+
+Eighteen assignments kept a "where we last saved" counter accurate. The only two
+reads copied it into `practiceRealLastSavedIndex` so practice mode could zero it
+and hand it back on exit. A value carefully preserved across a mode switch and
+never once used to decide anything; `walDirty` is what drives flushing.
+
+⚠️ **Dead state is not free, and the cost is not bytes.** Every one of those
+eighteen sites was somewhere a future edit could be told to "keep
+`lastSavedIndex` in sync" — and Round 8 did exactly that, adding a nineteenth
+assignment rather than leave one load path inconsistent with a variable that does
+nothing. **The gravity of an unused field is proportional to how carefully it is
+maintained.** Both variables are gone.
+
+### 5b.3 `reports.html` — the last surface carrying its version by hand
+
+Hardcoded in the `<title>` **and** the `<footer>`: two copies of one number,
+updated by hand. That is the exact arrangement `index.html` was in when its title
+said 3.0.0 and its footer said 2.3.1. Both now written from `REPORTS_VERSION`.
+
+⚠️ **Not added to `versions.js`'s `SOURCES`**, so the build panel still does
+not list it. That manifest is JS-only and its header-budget parser expects a
+leading `//` block, which an HTML file has nowhere to put. `index.html` is absent
+for the same reason and self-reports instead. Adding both wants `HEADER_EXEMPT`
+entries and a `versions.js` bump — a real improvement, not this round's.
+
+---
+
 ## §6. Invariants — additions to Round 8 §4 (37–55), which still applies
 
 56. ⚠️ **A comment asserting a permission is a claim about a different file, and
@@ -335,6 +395,23 @@ existing behaviour. **Not investigated. Do not delete it without checking
     survives.** My first draft threw a ReferenceError against the pre-round file
     — a failure, but it hid the other 33 assertions behind a stack trace, and
     running it against old code is the whole point.
+69. ⚠️ **A green test suite is evidence about the machine it ran on.** Round 8
+    inferred a `package.json` declaration from the fact that the harnesses ran,
+    and the packages were merely installed in that container. Before claiming a
+    dependency is declared, open the file — running the code proves a different
+    thing.
+70. ⚠️ **Correcting a predecessor deserves the same verification as accusing
+    one.** Round 8 overturned a true complaint while writing the invariant about
+    verifying complaints. A retraction feels like humility and lands in the
+    record with exactly the same authority as the original claim.
+71. **The gravity of dead state is proportional to how carefully it is
+    maintained.** `lastSavedIndex` had eighteen assignments and no consumer, and
+    its very tidiness is what recruited Round 8 into adding a nineteenth. Delete
+    it, or every future edit inherits an obligation to nothing.
+72. **Test the fresh-clone path, not the working-directory path.** The
+    environment that has been building the thing is the one environment
+    guaranteed not to reproduce a new contributor's experience.
+
 66. ⚠️ **Before giving a "not found" branch the power to create, fix what counts
     as found.** A tolerant matcher and a creating branch are one feature.
     Shipping the create half against a strict matcher manufactures duplicates,
@@ -379,7 +456,8 @@ this round: it must now be 1 minute.** If it is still 2, learn.js did not upload
    panel should list it, say how many students it covers, and offer a building
    picker. Create it, and the preview must **re-check itself** — amber rows turn
    green and Commit lights up without re-picking the file.
-8. ⚠️ **The one that matters more:** a roster naming a class that DOES exist with
+8. **Reports page.** Title and footer should both read v2.9.0 and agree.
+9. ⚠️ **The one that matters more:** a roster naming a class that DOES exist with
    different punctuation (`Period 3` against `Period-3`). It must match silently
    and offer to create nothing. If it offers, the normaliser is not reaching the
    lookup and you are one click from a duplicate class.

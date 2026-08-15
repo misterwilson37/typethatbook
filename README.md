@@ -1,6 +1,12 @@
 # TypeThatBook
 
-<!-- README.md v1.8.0 — Round 9 (Remington).
+<!-- README.md v1.9.0 — Round 10 (Remington, continued).
+     v1.9.0 — package.json corrected: the four harness packages were NOT declared,
+              contrary to what v1.7.x of this file said. They are devDependencies
+              now, `npm test` exists, and a fresh clone runs the suite. Also:
+              reports.html is finally driven from a constant, and the dead
+              lastSavedIndex note is retired.
+     v1.8.0 — Round 9 (Remington).
      v1.8.0 — Guest mode. Rewrote the Auth section, whose claim that students
               "may also play anonymously" was aspirational for the whole life of
               this file: the client code existed, firestore.rules blocked it, and
@@ -72,7 +78,7 @@ of `CHANGELOG.md`.** Use those.
 | `firebase-config.js` | `export const CONFIG_VERSION` | index.html build panel |
 | `versions.js` | `export const VERSIONS_VERSION` | index.html build panel |
 | `index.html` | `const INDEX_VERSION` | its own `document.title` + footer |
-| `reports.html` | *hardcoded* `<title>` + `<footer>` | still not driven from a constant — §9 item 5 |
+| `reports.html` | `const REPORTS_VERSION` | its own `<title>` + footer. ⚠️ Not in `versions.js`'s `SOURCES`, so the build panel does not list it — same as `index.html`, which self-reports too |
 | `appcheck.html` | *hardcoded* `<title>` | standalone diagnostic, no deps beyond firebase-config |
 | `storage.rules` | header comment | **console-only.** Storage rules are separate from firestore.rules |
 | `style.css` | `body::before { content }` | read via `getComputedStyle` |
@@ -296,14 +302,14 @@ written and is not now; read its header box.
 
 ## Tests
 
-There are sixteen harnesses in the repo. They are for whoever is editing the code,
+There are nineteen harnesses in the repo. They are for whoever is editing the code,
 not for Jake — running them needs Node, which is exactly what this project's
 deployment story does not have. Nothing in the app depends on them.
 
 ```
-npm install --no-save jsdom jszip @xmldom/xmldom acorn acorn-walk
-node run-all-tests.mjs                 # the 16 fast ones, ~8 seconds
-node run-all-tests.mjs --with-epubs    # plus the 4 corpus harnesses, ~2 minutes
+npm install                            # devDependencies only; nothing ships to Functions
+npm test                               # the 19 fast ones, ~8 seconds
+npm run test:epubs                     # plus the 4 corpus harnesses, ~2 minutes
 node audit-versions.mjs                # versions.js's drift + budget checks, offline
 ```
 
@@ -315,15 +321,20 @@ optional directory argument. The cost of that was not "the tests were stale" —
 was that `credit-test.mjs` had been broken for a whole round and nobody could see
 the difference between broken and passing.
 
-⚠️ **Run `npm install` before running the suite.** `jsdom`, `acorn`, `acorn-walk` and
-`jszip` are all declared in `package.json` and the harnesses need them; on a checkout with
-no `node_modules`, seven of them fail with `ERR_MODULE_NOT_FOUND`. That looks exactly like
-seven broken tests and is not one.
+⚠️ **Run `npm install` before running the suite.** Without `node_modules`, seven
+harnesses fail with `ERR_MODULE_NOT_FOUND`, which looks exactly like seven broken tests
+and is not one.
 
-⚠️ **Those four sit in `dependencies`, not `devDependencies`, and `package.json` is the
-Cloud Functions package** (`"main": "index.js"`), so `jsdom` and friends ship to the
-functions deploy as dead weight on the bundle and on cold starts. Correct to move; touches
-the deploy, so it wants its own round and a real deploy to verify.
+⚠️ **THIS SECTION USED TO SAY THOSE FOUR PACKAGES WERE "all declared in `package.json`"
+AND THEY WERE NOT.** Round 7 reported them missing; Round 8 called that false and wrote
+the correction into this file and the handoff — in the same section that added the
+invariant *"verify your own complaints before writing them down."* Round 8's container
+had them installed from an earlier session, so the suite ran, and a working test run was
+read as proof of a declaration nobody opened the file to check. **A green suite is
+evidence about the machine it ran on.** Fixed in Round 10: `acorn`, `acorn-walk`, `jsdom`
+and `jszip` are `devDependencies`, so `firebase deploy` — which installs production
+dependencies only — does not carry them to the functions bundle or its cold starts.
+`git clone && npm install && npm test` now works on a clean machine, which it never had.
 
 ⚠️ **`metadata-map-test.mjs` takes ~3 seconds**, not the "well under a second" the
 fast list otherwise promises, because it unzips all 24 books in `library/`. It is in

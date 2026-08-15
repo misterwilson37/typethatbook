@@ -1,6 +1,6 @@
 {
   "name": "typethatbook-functions",
-  "description": "Cloud Functions for TypeThatBook practice mode. One export: generatePractice.",
+  "description": "Cloud Functions for TypeThatBook practice mode (one export: generatePractice), plus the dev-only harness suite.",
   "//engines": [
     "Node 18 was decommissioned for Cloud Functions deploys, so the previous pin",
     "would have failed at the worst possible moment: the first time anyone tried",
@@ -10,8 +10,52 @@
     "node": "22"
   },
   "main": "index.js",
+  "//dependencies": [
+    "PRODUCTION ONLY. Everything listed here is uploaded and installed on every",
+    "Cloud Functions deploy, and is paid for in cold-start time. If a package is",
+    "only imported by a *-test.mjs or *-harness.mjs file, it belongs below."
+  ],
   "dependencies": {
     "firebase-admin": "^13.0.0",
     "firebase-functions": "^6.0.0"
+  },
+  "//devDependencies": [
+    "⚠️ THESE WERE MISSING, AND TWO ROUNDS OF HANDOFF DISAGREED ABOUT WHETHER",
+    "THEY WERE. Round 7 reported that the harnesses need packages package.json",
+    "does not declare. Round 8 called that False and wrote 'jsdom, acorn,",
+    "acorn-walk and jszip are all declared' into both the README and the handoff",
+    "— in the same section that added the invariant 'verify your own complaints",
+    "before writing them down'. They were not declared. Round 8's container",
+    "happened to have them installed from an earlier session, the suite ran, and",
+    "a working test run was read as proof of a declaration nobody opened the file",
+    "to check.",
+    "",
+    "Consequence, until now: `git clone && npm install && node run-all-tests.mjs`",
+    "failed on a fresh machine with seven ERR_MODULE_NOT_FOUND errors, and the",
+    "documented remedy was to install them by hand — which then wrote them into",
+    "`dependencies`, where they would ride along to the next functions deploy.",
+    "",
+    "devDependencies is the correct home: `firebase deploy` installs production",
+    "dependencies only, so nothing here reaches the deployed function.",
+    "",
+    "jsdom      — the ten DOM harnesses (about-render, card-markup, credits, ...)",
+    "acorn      — undefined-calls-test.mjs parses every shipped file",
+    "acorn-walk — same",
+    "jszip      — the EPUB corpus harnesses (--with-epubs)"
+  ],
+  "devDependencies": {
+    "acorn": "^8.11.0",
+    "acorn-walk": "^8.3.0",
+    "jsdom": "^24.0.0",
+    "jszip": "^3.10.0"
+  },
+  "//scripts": [
+    "`npm test` exists so the suite has one obvious entry point. run-all-tests.mjs",
+    "skips the EPUB corpus harnesses unless you pass --with-epubs, because those",
+    "need the library/ folder and take minutes rather than seconds."
+  ],
+  "scripts": {
+    "test": "node run-all-tests.mjs",
+    "test:epubs": "node run-all-tests.mjs --with-epubs"
   }
 }

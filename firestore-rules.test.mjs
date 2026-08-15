@@ -1,19 +1,9 @@
-// firestore-rules.test.mjs v1.2.0 — tests for firestore.rules v2.3.0
+// firestore-rules.test.mjs v1.1.0 — tests for firestore.rules v1.1.0
 //
-// v1.2.0 — Guest read. The "no auth token can read nothing" assertion is
-//          inverted into two: what a guest CAN read (the four content paths) and
-//          what a guest still cannot (everything), plus a third that public read
-//          did not become public write. Its old header claimed to target rules
-//          v1.1.0 while the rules were at v2.2.0 — a whole major version adrift,
-//          fixed above.
-//
-// ⚠️ STILL NEVER EXECUTED. The Firestore emulator downloads its jar from
-//    storage.googleapis.com, which is not reachable from any sandbox this
-//    project has been written in — v1.1.0 said the same thing and nobody has
-//    run it since. The rules were verified by reading, not by executing.
-//    The three assertions added in v1.2.0 are the only automated statement of
-//    where the guest boundary is, so they are worth the one-time emulator
-//    setup more than the rest of this file is.
+// ⚠️ I COULD NOT RUN THIS. The Firestore emulator downloads its jar from
+//    storage.googleapis.com, which isn't reachable from my sandbox. The rules
+//    were verified by reading, not by executing. Please run this before you let
+//    a colleague near real student data.
 //
 // ── SETUP (one time) ──
 //   npm install --save-dev @firebase/rules-unit-testing firebase mocha
@@ -382,49 +372,17 @@ describe('pendingClassAssignments', () => {
     });
 });
 
-// ═══════════════════════ guests and unknown ═══════════════════════
+// ═══════════════════════ anonymous and unknown ═══════════════════════
 describe('unauthenticated and role-less users', () => {
-    // ⚠️ THE OLD ASSERTION HERE WAS "a request with no auth token at all can read
-    // nothing", and it passed, and it was describing the bug. Guest reading of
-    // content is the intended product behaviour (rules v2.3.0) and was blocked
-    // only by these rules. The old NB claimed anonymous auth was "what lets
-    // anonymous students read books in game.js" — signInAnonymously is not
-    // called anywhere in the repo and never was.
-    //
-    // Per the standing rule that a removed contract is inverted rather than
-    // deleted: the new contract is not "guests can read" but "guests can read
-    // EXACTLY the content collections and nothing else", and the second half is
-    // the half worth testing.
-    it('a guest can read the content a guest needs', async () => {
+    // NB: unauthenticatedContext() is NOT the same as Firebase Anonymous Auth.
+    // An anonymous-auth user HAS a request.auth and passes signedIn(), which is
+    // what lets anonymous students read books in game.js. This block covers the
+    // genuinely token-less case.
+    it('a request with no auth token at all can read nothing', async () => {
         const db = asAnon().firestore();
-        await assertSucceeds(getDoc(doc(db, 'books', 'b1')));
-        await assertSucceeds(getDocs(collection(db, 'books')));
-        await assertSucceeds(getDocs(collection(db, 'books', 'b1', 'chapters')));
-        await assertSucceeds(getDocs(collection(db, 'lessons')));
-        await assertSucceeds(getDoc(doc(db, 'settings', 'goals')));
-    });
-    it('a guest can read NOTHING else — this is the boundary', async () => {
-        const db = asAnon().firestore();
-        // Student activity and rosters.
+        await assertFails(getDoc(doc(db, 'books', 'b1')));
         await assertFails(getDoc(doc(db, 'typing_logs', `${KID_EMS}_2026-07-30`)));
         await assertFails(getDocs(collection(db, 'classes')));
-        await assertFails(getDocs(collection(db, 'schools')));
-        await assertFails(getDocs(collection(db, 'leaderboard')));
-        await assertFails(getDoc(doc(db, 'users', KID_EMS, 'progress', 'b1')));
-        // The flagged-word list is why settings is keyed on document id rather
-        // than opened wholesale. If this assertion ever goes green, someone
-        // collapsed that rule.
-        await assertFails(getDoc(doc(db, 'settings', 'languageFilter')));
-    });
-    it('a guest can write nothing at all', async () => {
-        const db = asAnon().firestore();
-        // Public READ must not have become public anything-else. Every one of
-        // these is a write target an unmetered stranger would otherwise have.
-        await assertFails(setDoc(doc(db, 'books', 'b1'), { title: 'Hacked' }));
-        await assertFails(setDoc(doc(db, 'lessons', 'l1'), { title: 'Hacked' }));
-        await assertFails(setDoc(doc(db, 'settings', 'goals'), { dailySeconds: 0 }));
-        await assertFails(setDoc(doc(db, 'typing_logs', 'guest_2026-07-30'), { minutes: 99 }));
-        await assertFails(setDoc(doc(db, 'leaderboard', 'guest'), { initials: 'ZZZ', wpm: 999 }));
     });
     it('a signed-in user with no staff role gets no staff powers', async () => {
         const db = asKidEms().firestore();

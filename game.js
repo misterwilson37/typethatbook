@@ -1,9 +1,20 @@
-// game.js v3.20.0
+// game.js v3.20.1
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
+//
+// v3.20.1 — Deleted lastSavedIndex and practiceRealLastSavedIndex: 22 references,
+//           ZERO consumers. Eighteen assignments kept a "where we last saved"
+//           counter accurate, and the only two reads copied it into a shadow so
+//           practice mode could zero it and put it back afterwards — a value
+//           carefully preserved across a mode switch and never once used to
+//           decide anything. walDirty is what actually drives flushing.
+//           ⚠️ Dead state is not free: every one of those eighteen sites was a
+//           place a future edit could be told to "keep lastSavedIndex in sync",
+//           and Round 8 nearly did exactly that rather than leave one load path
+//           inconsistent. Flagged in Round 8 §6; removed here.
 //
 // v3.20.0 — ONE guest login ladder, replacing two that did not know about each
 //           other: a one-shot prompt at 2 sprints/150s, and a separate two-rung
@@ -16,13 +27,10 @@
 //           retroactive-save path, never a third prompt.
 //           ⚠️ Fires at a SPRINT BOUNDARY, not mid-sprint. See anonNudgeDue().
 //
-// v3.19.1 — After switching books in Settings, the only guidance was written to
-//           textStream — which is BEHIND the open modal. Invisible exactly when it
-//           was needed. Reported by Jake: he hit "Close" rather than "Go", because
-//           "Close" does not sound like it will open a book. It does: its handler
-//           has a bookSwitchPending fallback that loads the chapter. Correct
-//           behaviour, dishonest label. The hint now renders inside the modal under
-//           the book picker, and the footer button relabels to "Start Reading".
+// v3.19.1 — Book-switch guidance was written to textStream, which sits BEHIND the
+//           open modal — invisible exactly when needed. "Close" also loaded the
+//           book (correct behaviour, dishonest label). Hint now renders in the
+//           modal; the footer button relabels to "Start Reading".
 //
 // v3.19.0 — Settings dropdown stopped scanning the whole `books` collection.
 //           openMenuModal() did an uncached getDocs on every open — the last read in
@@ -37,10 +45,6 @@
 // v3.17.0 — FLIP BACK. Game Genie's chapter+sentence navigation, for students, bounded.
 //           ⚠️ Ceiling is `furthest`, NOT where they stand — that bound collapses on first
 //           use, since flipping back makes their old place "ahead". Two-step cross-chapter.
-// v3.15.1 — An offset at or past the end of a chapter is a DEAD STATE, not a position:
-//           the renderer draws the tail, the student reads "one sentence left", and their
-//           first keystroke completes the chapter in 0m 1s at 0 WPM. Reconcile can no
-//           longer return a position with nothing left. ⚠️ Anchor proof runs FIRST.
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * The write-ahead log is MORE durable than the per-sentence writes it
@@ -62,7 +66,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.20.0";
+const VERSION = "3.20.1";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -595,7 +599,6 @@ let bookMetadata = null;
 let fullText = "";
 let currentCharIndex = 0;
 let savedCharIndex = 0;
-let lastSavedIndex = 0;
 let currentChapterNum = 1;
 let furthestChapter = 1;
 let furthestCharIndex = 0;
@@ -803,7 +806,6 @@ let isPracticeMode = false;
 let practiceRealBookData = null;    // saved real book state
 let practiceRealChapterNum = null;
 let practiceRealCharIndex = null;
-let practiceRealLastSavedIndex = null;
 let practiceRealFurthestChapter = null;
 let practiceRealFurthestCharIndex = null;
 let practiceProblemChars = [];      // the chars that triggered this practice
@@ -1277,7 +1279,7 @@ async function loadUserProgress() {
             const start = firstBodyChapterId() || 1;
             currentChapterNum = start;
             savedCharIndex = 0;
-            lastSavedIndex = 0;
+
             loadChapter(start);
             return;
         }
@@ -1298,13 +1300,11 @@ async function loadUserProgress() {
             if (data.furthestCharIndex !== undefined) furthestCharIndex = data.furthestCharIndex;
             else furthestCharIndex = savedCharIndex;
         }
-        lastSavedIndex = savedCharIndex;
         // Replay anything the previous session couldn't get to Firestore before
         // it died. Must run after the Firestore read so it can compare positions.
         currentCharIndex = savedCharIndex;
         walRecover();
         savedCharIndex = currentCharIndex;
-        lastSavedIndex = savedCharIndex;
 
         // ─── Has the book moved under this bookmark? (v3.15.0) ───────────────
         //
@@ -1364,7 +1364,7 @@ async function loadUserProgress() {
             console.warn('Stored chapter "' + currentChapterNum + '" is not in this ' +
                          'book any more (renumbered?). Starting at "' + fallback + '".');
             currentChapterNum = fallback;
-            savedCharIndex = 0; currentCharIndex = 0; lastSavedIndex = 0;
+            savedCharIndex = 0; currentCharIndex = 0;
             reanchorJob = null;   // nothing left to re-anchor against
         }
 
@@ -1641,7 +1641,6 @@ function setupGame() {
     // and re-anchors when the book has moved. See its comment block.
     reconcilePosition();
     currentCharIndex = savedCharIndex;
-    lastSavedIndex = savedCharIndex;
     // Every chapter/book/practice load re-anchors the sprint and clears any
     // stale hard-stop flag. Position warps that skipped startGame() could
     // otherwise leave sprintCharStart pointing into a different text — the
@@ -3141,7 +3140,6 @@ async function _flushAllInner(reason, final = false) {
                 ...progressStamp(),
                 lastUpdated: new Date()
             }, { merge: true });
-            lastSavedIndex = currentCharIndex;
             // This write carried the current contentVersion, so the bookmark and
             // the book agree again and the job is spent.
             reanchorJob = null;
@@ -3797,7 +3795,7 @@ async function advanceToNextChapter() {
     // and then immediately write the new chapter — two billable writes for one
     // navigation. completedChapters and furthest-position both ride along.
     currentChapterNum = nextChapterId;
-    savedCharIndex = 0; currentCharIndex = 0; lastSavedIndex = 0;
+    savedCharIndex = 0; currentCharIndex = 0;
     await saveProgress(true);
     autoStartNext = true;
     loadChapter(nextChapterId);
@@ -3927,7 +3925,7 @@ function showStartModal(btnText) {
     if (restartLink) {
         restartLink.onclick = async (e) => {
             e.preventDefault();
-            savedCharIndex = 0; currentCharIndex = 0; lastSavedIndex = 0;
+            savedCharIndex = 0; currentCharIndex = 0;
             // Persisted immediately: a student who restarts and then closes the tab
             // must not be dropped back at the old position on their next visit.
             // saveProgress() stamps the current contentVersion, which also settles
@@ -3945,7 +3943,6 @@ function showStartModal(btnText) {
             e.preventDefault();
             currentChapterNum = furthestChapter;
             savedCharIndex = furthestCharIndex;
-            lastSavedIndex = furthestCharIndex;
             closeModal();
             await loadChapter(furthestChapter);
         };
@@ -4361,7 +4358,6 @@ function showJumpToProgressPrompt(savedChap, savedIdx) {
     btn.onclick = async () => {
         currentChapterNum = savedChap;
         savedCharIndex = savedIdx;
-        lastSavedIndex = savedIdx;
         closeModal();
         await loadChapter(savedChap);
     };
@@ -4383,9 +4379,9 @@ function showJumpToProgressPrompt(savedChap, savedIdx) {
 
 function getGoalProgressHTML() {
     if (goals.dailySeconds <= 0 && goals.weeklySeconds <= 0) return '';
-    
+
     let html = '<div class="goal-progress-row">';
-    
+
     if (goals.dailySeconds > 0) {
         const dailyPct = Math.min(100, Math.round((statsData.secondsToday / goals.dailySeconds) * 100));
         const met = statsData.secondsToday >= goals.dailySeconds;
@@ -4395,7 +4391,7 @@ function getGoalProgressHTML() {
             <span class="goal-pct" style="color:${met ? '#22c55e' : '#888'};">${dailyPct}%${met ? ' ✓' : ''}</span>
         </div>`;
     }
-    
+
     if (goals.weeklySeconds > 0) {
         const weeklyPct = Math.min(100, Math.round((statsData.secondsWeek / goals.weeklySeconds) * 100));
         const met = statsData.secondsWeek >= goals.weeklySeconds;
@@ -4405,7 +4401,7 @@ function getGoalProgressHTML() {
             <span class="goal-pct" style="color:${met ? '#FFD700' : '#888'};">${weeklyPct}%${met ? ' ✓' : ''}</span>
         </div>`;
     }
-    
+
     html += '</div>';
     return html;
 }
@@ -4760,7 +4756,6 @@ async function openMenuModal() {
         // Update state but don't load chapter yet — user hits Go
         currentChapterNum = resumeChapter;
         savedCharIndex = resumeChar;
-        lastSavedIndex = resumeChar;
         currentCharIndex = 0;
 
         // ⚠️ THE MODAL IS STILL OPEN, SO THIS MESSAGE IS BEHIND IT. (v3.19.1)
@@ -4821,7 +4816,7 @@ async function openMenuModal() {
             }
             currentChapterNum = val;
             currentCharIndex = 0;
-            lastSavedIndex = 0;
+
             closeModal();
             textStream.innerHTML = "Loading...";
             loadChapter(val);
@@ -4841,7 +4836,7 @@ async function openMenuModal() {
             const val = document.getElementById('chapter-nav-select').value;
             currentChapterNum = val;
             currentCharIndex = 0;
-            lastSavedIndex = 0;
+
             closeModal();
             loadChapter(val);
         } else {
@@ -4866,7 +4861,7 @@ async function switchChapterHot(newChapter) {
             ...progressStamp(newChapter), lastUpdated: new Date()
         }, { merge: true });
     }
-    currentChapterNum = newChapter; savedCharIndex = 0; currentCharIndex = 0; lastSavedIndex = 0;
+    currentChapterNum = newChapter; savedCharIndex = 0; currentCharIndex = 0;
     closeModal(); textStream.innerHTML = "Switching..."; loadChapter(newChapter);
 }
 
@@ -5639,7 +5634,7 @@ function openFlipBack() {
             await flipBackTo(0); return;
         }
         currentChapterNum = target;
-        savedCharIndex = 0; currentCharIndex = 0; lastSavedIndex = 0;
+        savedCharIndex = 0; currentCharIndex = 0;
         try { await saveProgress(true); } catch (_) { /* WAL has it */ }
         closeModal();
         await loadChapter(target);
@@ -5724,15 +5719,15 @@ function getCurrentSentence(sentences) {
 function jumpToSentence(sentences, idx) {
     idx = Math.max(0, Math.min(idx, sentences.length - 1));
     const target = sentences[idx].start;
-    
+
     // Reset game state
     if (isGameActive) { isGameActive = false; clearInterval(timerInterval); }
-    
+
     currentCharIndex = target;
     savedCharIndex = target;
     sprintCharStart = target;
     sprintSeconds = 0; sprintMistakes = 0;
-    
+
     // Re-render and mark everything before current as done
     renderText();
     for (let i = 0; i < currentCharIndex; i++) {
@@ -5760,10 +5755,10 @@ function jumpToSentence(sentences, idx) {
 function openGameGenie() {
     if (!currentUser || !ADMIN_EMAILS.includes(currentUser.email)) return;
     if (isGameActive) { isGameActive = false; clearInterval(timerInterval); }
-    
+
     // Save real position on first open (before any warps)
     if (ggRealCharIndex < 0) ggRealCharIndex = currentCharIndex;
-    
+
     const sentences = getSentenceMap();
     const currentSent = getCurrentSentence(sentences);
     const pct = fullText.length > 0 ? Math.round((currentCharIndex / fullText.length) * 100) : 0;
@@ -5773,18 +5768,18 @@ function openGameGenie() {
     const estMinutes = Math.round(wordCount / 40); // ~40 WPM typing speed estimate
     const segCount = bookData ? bookData.segments.length : 0;
     const isInfinite = sessionValueStr === 'infinity';
-    
+
     isModalOpen = true; isInputBlocked = false;
     modalGeneration++;
     setModalTitle('🔥 GAME GENIE 🔥');
-    
+
     const ggBtn = 'background:#333; color:#ff6600; border:1px solid #ff6600; padding:4px 8px; cursor:pointer; font-family:inherit; border-radius:3px; font-size:0.8em;';
-    
+
     // Build chapter options — third caller of the shared builder.
     const ggBuild  = buildChapterOptions(currentChapterNum, '');
     const chapOpts = ggBuild.html;
     const ggFilter = ggBuild.total > CHAPTER_FILTER_MIN;
-    
+
     document.getElementById('modal-body').innerHTML = `
         <div style="font-family: 'Courier Prime', monospace; text-align: left; width: 60%; margin: 0 auto; font-size: 0.8em;">
             ${ggFilter ? `
@@ -5798,7 +5793,7 @@ function openGameGenie() {
                 <button id="gg-chapter-go" style="${ggBtn}">Jump Ch.</button>
                 <button id="gg-reset-ch" style="${ggBtn}" title="Reset to start of chapter">⟲ Reset</button>
             </div>
-            
+
             <div style="display:flex; justify-content:space-between; margin-bottom:2px; font-size:0.85em; color:#888;">
                 <span>Char ${currentCharIndex.toLocaleString()} / ${fullText.length.toLocaleString()} · ${wordCount.toLocaleString()} words · ${segCount} segs · ~${estMinutes}min</span>
                 <span>${pct}%</span>
@@ -5807,7 +5802,7 @@ function openGameGenie() {
                 <div id="gg-slider-fill" style="height:100%; width:${pct}%; background: linear-gradient(90deg, #ff6600, #ff0000, #ff6600); border-radius:6px; pointer-events:none;"></div>
                 <div id="gg-slider-thumb" style="position:absolute; top:-2px; left:${pct}%; width:16px; height:16px; background:#ff6600; border:2px solid #fff; border-radius:50%; transform:translateX(-50%); cursor:grab; box-shadow:0 0 6px rgba(255,102,0,0.5);"></div>
             </div>
-            
+
             <div style="display:flex; align-items:center; gap:4px; margin-bottom:6px;">
                 <button id="gg-start" style="${ggBtn}">Start</button>
                 <button id="gg-back10" style="${ggBtn}">-10</button>
@@ -5819,7 +5814,7 @@ function openGameGenie() {
                 <button id="gg-fwd10" style="${ggBtn}">+10</button>
                 <button id="gg-end" style="${ggBtn}">End</button>
             </div>
-            
+
             <div style="display:flex; justify-content:center; gap:6px; align-items:center; margin-bottom:6px;">
                 <label style="font-size:0.85em;">Warp #</label>
                 <input id="gg-jump-input" type="number" min="1" max="${sentences.length}" value="${currentSent + 1}" 
@@ -5827,15 +5822,15 @@ function openGameGenie() {
                 <button id="gg-jump-btn" style="background:#ff6600; color:#fff; border:none; padding:4px 10px; cursor:pointer; font-family:inherit; font-weight:bold; border-radius:3px; font-size:0.85em;">WARP</button>
                 ${hasWarped ? `<button id="gg-return-btn" style="background:#224422; color:#88ff88; border:1px solid #44aa44; padding:4px 8px; cursor:pointer; font-family:inherit; border-radius:3px; font-size:0.75em;" title="Return to sentence ${realSent + 1}">↩ Return</button>` : ''}
             </div>
-            
+
             <div id="gg-preview" style="font-size:0.8em; color:#888; background:#f5f5f5; padding:4px 6px; border-radius:3px; max-height:32px; overflow:hidden; line-height:1.3; margin-bottom:6px;">
                 ${escapeHtml(fullText.substring(sentences[currentSent].start, sentences[currentSent].start + 120))}${sentences[currentSent].end - sentences[currentSent].start > 120 ? '...' : ''}
             </div>
-            
+
             <div style="display:flex; justify-content:center; gap:6px; align-items:center;">
                 <button id="gg-infinite" style="${isInfinite ? 'background:#ff6600; color:#fff;' : 'background:#333; color:#ff6600;'} border:1px solid #ff6600; padding:4px 12px; cursor:pointer; font-family:inherit; border-radius:3px; font-size:0.85em; font-weight:bold;" title="Toggle infinite session (no sprint timer)">${isInfinite ? '∞ INFINITE ON' : '∞ Infinite Mode'}</button>
             </div>
-            
+
             <div style="margin-top:8px; padding-top:6px; border-top:1px solid #ddd;">
                 <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start;">
                     <div>
@@ -5865,7 +5860,7 @@ function openGameGenie() {
             </div>
         </div>
     `;
-    
+
     resetModalFooter();
     const btn = document.getElementById('action-btn');
     btn.innerText = 'Close'; btn.disabled = false; btn.style.opacity = '1'; btn.style.display = 'inline-block';
@@ -5874,18 +5869,18 @@ function openGameGenie() {
     // Allow smart-start typing to close GG and begin typing
     modalActionCallback = ggClose;
     showModalPanel();
-    
+
     // Wire up
     const s = sentences;
     const cur = currentSent;
-    
+
     document.getElementById('gg-start').onclick = () => { jumpToSentence(s, 0); openGameGenie(); };
     document.getElementById('gg-back10').onclick = () => { jumpToSentence(s, cur - 10); openGameGenie(); };
     document.getElementById('gg-back1').onclick = () => { jumpToSentence(s, cur - 1); openGameGenie(); };
     document.getElementById('gg-fwd1').onclick = () => { jumpToSentence(s, cur + 1); openGameGenie(); };
     document.getElementById('gg-fwd10').onclick = () => { jumpToSentence(s, cur + 10); openGameGenie(); };
     document.getElementById('gg-end').onclick = () => { jumpToSentence(s, s.length - 1); openGameGenie(); };
-    
+
     // Chapter jump
     wireChapterFilter('gg-chapter-filter', 'gg-chapter-select', 'gg-chapter-filter-status', 'gg-chapter-go');
 
@@ -5895,7 +5890,7 @@ function openGameGenie() {
         if (targetChap == currentChapterNum) return; // same chapter, do nothing
         ggRealCharIndex = -1;
         currentChapterNum = targetChap;
-        savedCharIndex = 0; currentCharIndex = 0; lastSavedIndex = 0;
+        savedCharIndex = 0; currentCharIndex = 0;
         if (currentUser && !currentUser.isAnonymous) {
             await setDoc(doc(db, "users", currentUser.uid, "progress", currentBookId), {
                 chapter: currentChapterNum, charIndex: 0,
@@ -5906,14 +5901,14 @@ function openGameGenie() {
         await loadChapter(targetChap);
         openGameGenie();
     };
-    
+
     // Reset chapter
     document.getElementById('gg-reset-ch').onclick = () => {
         ggRealCharIndex = -1;
         jumpToSentence(s, 0);
         openGameGenie();
     };
-    
+
     // Infinite mode toggle
     document.getElementById('gg-infinite').onclick = () => {
         if (sessionValueStr === 'infinity') {
@@ -5924,7 +5919,7 @@ function openGameGenie() {
         localStorage.setItem('ttb_sessionLength', sessionValueStr);
         openGameGenie(); // refresh UI
     };
-    
+
     // Test text buttons
     document.getElementById('gg-test-pangram').onclick = () => {
         ggRealCharIndex = -1;
@@ -5951,7 +5946,7 @@ function openGameGenie() {
         missedCharsMap = {};
         alert('Missed characters cleared.');
     };
-    
+
     // Return button
     if (document.getElementById('gg-return-btn')) {
         document.getElementById('gg-return-btn').onclick = () => {
@@ -5969,7 +5964,7 @@ function openGameGenie() {
             openGameGenie();
         };
     }
-    
+
     // Warp input
     document.getElementById('gg-jump-btn').onclick = () => {
         const target = parseInt(document.getElementById('gg-jump-input').value) - 1;
@@ -5987,12 +5982,12 @@ function openGameGenie() {
     document.getElementById('gg-jump-input').onkeydown = (ev) => {
         if (ev.key === 'Enter') { ev.preventDefault(); document.getElementById('gg-jump-btn').click(); }
     };
-    
+
     // Draggable slider
     const track = document.getElementById('gg-slider-track');
     const thumb = document.getElementById('gg-slider-thumb');
     const fill = document.getElementById('gg-slider-fill');
-    
+
     function sliderJump(clientX) {
         const rect = track.getBoundingClientRect();
         const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
@@ -6007,17 +6002,17 @@ function openGameGenie() {
         fill.style.width = newPct + '%';
         return nearest;
     }
-    
+
     let dragging = false;
     let dragTarget = 0;
-    
+
     const onMove = (clientX) => {
         if (!dragging) return;
         dragTarget = sliderJump(clientX);
         const preview = document.getElementById('gg-preview');
         if (preview) preview.textContent = fullText.substring(s[dragTarget].start, s[dragTarget].start + 120) + (s[dragTarget].end - s[dragTarget].start > 120 ? '...' : '');
     };
-    
+
     const onUp = () => {
         if (!dragging) return;
         dragging = false;
@@ -6029,10 +6024,10 @@ function openGameGenie() {
         jumpToSentence(s, dragTarget);
         openGameGenie();
     };
-    
+
     const mouseMove = (ev) => onMove(ev.clientX);
     const touchMove = (ev) => { ev.preventDefault(); onMove(ev.touches[0].clientX); };
-    
+
     const startDrag = (clientX) => {
         dragging = true;
         thumb.style.cursor = 'grabbing';
@@ -6042,7 +6037,7 @@ function openGameGenie() {
         document.addEventListener('touchend', onUp);
         onMove(clientX);
     };
-    
+
     thumb.onmousedown = (ev) => { ev.preventDefault(); startDrag(ev.clientX); };
     thumb.ontouchstart = (ev) => { ev.preventDefault(); startDrag(ev.touches[0].clientX); };
     track.onclick = (ev) => {
@@ -6415,24 +6410,24 @@ async function openLeaderboard(activeTab) {
     modalGeneration++;
     setModalTitle('🏆 Leaderboard');
     resetModalFooter();
-    
+
     document.getElementById('modal-body').innerHTML = `<div style="text-align:center; color:#888; padding:20px;">Loading...</div>`;
     showModalPanel();
-    
+
     const btn = document.getElementById('action-btn');
     btn.innerText = 'Close'; btn.disabled = false; btn.style.opacity = '1'; btn.style.display = 'inline-block';
     btn.onclick = () => { closeModal(); showStartModal("Resume"); };
     modalActionCallback = () => { closeModal(); showStartModal("Resume"); };
-    
+
     const data = await fetchLeaderboard();
     const activeCat = activeTab || LB_CATEGORIES[0].key;
-    
+
     // Build tabs
     const tabs = LB_CATEGORIES.map(cat => {
         const active = cat.key === activeCat ? 'lb-tab-active' : '';
         return `<button class="lb-tab ${active}" data-cat="${cat.key}">${cat.label}</button>`;
     }).join('');
-    
+
     // Build active list
     const entries = data[activeCat] || [];
     let listHTML = '';
@@ -6453,14 +6448,14 @@ async function openLeaderboard(activeTab) {
             return `<div class="lb-entry ${isMe ? 'lb-me' : ''}">${medal} <span class="lb-initials">${escapeHtml(entry.initials || '???')}</span> <span class="lb-val">${val}</span>${adminBtn}</div>`;
         }).join('');
     }
-    
+
     document.getElementById('modal-body').innerHTML = `
         <div class="lb-container">
             <div class="lb-tabs">${tabs}</div>
             <div class="lb-list">${listHTML}</div>
         </div>
     `;
-    
+
     // Wire tab clicks
     document.querySelectorAll('.lb-tab').forEach(tab => {
         tab.onclick = () => openLeaderboard(tab.dataset.cat);
@@ -6509,7 +6504,6 @@ function startTestText(text, label) {
     practiceRealBookData = bookData;
     practiceRealChapterNum = currentChapterNum;
     practiceRealCharIndex = currentCharIndex;
-    practiceRealLastSavedIndex = lastSavedIndex;
     practiceRealFurthestChapter = furthestChapter;
     practiceRealFurthestCharIndex = furthestCharIndex;
 
@@ -6520,7 +6514,7 @@ function startTestText(text, label) {
     bookData = { segments: [{ text: text }] };
     savedCharIndex = 0;
     currentCharIndex = 0;
-    lastSavedIndex = 0;
+
     sprintSeconds = 0;
     sprintMistakes = 0;
     sprintCharStart = 0;
@@ -6552,15 +6546,15 @@ function startTestText(text, label) {
 
 async function startPracticeMode() {
     if (isPracticeMode) return;
-    
+
     // Get the problem characters from the current session
     const entries = Object.entries(missedCharsMap).sort((a,b) => b[1] - a[1]).slice(0, 5);
     if (entries.length === 0) return;
     practiceProblemChars = entries.map(([ch]) => ch);
-    
+
     // Get a text snippet for style reference (first 500 chars of current chapter)
     const textSnippet = (fullText || '').substring(0, 500);
-    
+
     // Get book/chapter info
     let chapterTitle = '';
     if (bookMetadata && bookMetadata.chapters) {
@@ -6604,8 +6598,7 @@ async function startPracticeMode() {
         practiceRealBookData = bookData;
         practiceRealChapterNum = currentChapterNum;
         practiceRealCharIndex = currentCharIndex;
-        practiceRealLastSavedIndex = lastSavedIndex;
-        practiceRealFurthestChapter = furthestChapter;
+            practiceRealFurthestChapter = furthestChapter;
         practiceRealFurthestCharIndex = furthestCharIndex;
 
         // Enter practice mode
@@ -6613,12 +6606,12 @@ async function startPracticeMode() {
         hasDonePractice = true;
         practiceTypingAccumulator = 0;
         practiceMissedSnapshot = { ...missedCharsMap };
-        
+
         // Inject practice text as a fake chapter
         bookData = { segments: [{ text: practiceText }] };
         savedCharIndex = 0;
         currentCharIndex = 0;
-        lastSavedIndex = 0;
+
 
         // Reset sprint tracking for practice
         sprintSeconds = 0;
@@ -6628,13 +6621,13 @@ async function startPracticeMode() {
         // Set up the display
         setupGame();
         getHeaderHTML();
-        
+
         // Add practice visual indicator
         const bar = document.getElementById('book-info-bar');
         if (bar) bar.classList.add('practice-active');
-        
+
         closeModal();
-        
+
         // Show practice start modal
         isModalOpen = true; isInputBlocked = false;
         modalActionCallback = startGame;
@@ -6667,7 +6660,7 @@ async function startPracticeMode() {
         } else if (e.code === 'functions/unauthenticated') {
             errorMsg = 'Sign in to use practice mode.';
         }
-        
+
         // Show error then go back to break modal
         document.getElementById('modal-body').innerHTML = `
             <div style="text-align:center; padding:12px;">
@@ -6684,14 +6677,13 @@ async function startPracticeMode() {
 
 function exitPracticeMode() {
     if (!isPracticeMode) return;
-    
+
     // Restore real book state
     isPracticeMode = false;
     bookData = practiceRealBookData;
     currentChapterNum = practiceRealChapterNum;
     savedCharIndex = practiceRealCharIndex;
     currentCharIndex = practiceRealCharIndex;
-    lastSavedIndex = practiceRealLastSavedIndex;
     furthestChapter = practiceRealFurthestChapter;
     furthestCharIndex = practiceRealFurthestCharIndex;
 
@@ -6699,7 +6691,6 @@ function exitPracticeMode() {
     practiceRealBookData = null;
     practiceRealChapterNum = null;
     practiceRealCharIndex = null;
-    practiceRealLastSavedIndex = null;
     practiceRealFurthestChapter = null;
     practiceRealFurthestCharIndex = null;
     practiceText = '';

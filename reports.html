@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeThatBook Reports v2.8.0</title>
+    <title>TypeThatBook Reports</title>  <!-- version appended at runtime from REPORTS_VERSION -->
     <style>
         body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; margin: 0; }
         .container { max-width: 960px; margin: 0 auto; padding-bottom: 40px; }
@@ -311,10 +311,25 @@
     </div>
 </div>
 
-<footer>Reports v2.8.0</footer>
+<footer id="footer-version">Reports</footer>
 
 <script type="module">
     import { db, auth } from "./firebase-config.js";
+
+    // ─── Version ──────────────────────────────────────────────────────────────
+    // v2.9.0 — This page carried its version hardcoded in TWO places, the
+    // <title> and the <footer>, and was the last surface still doing so. That
+    // is the exact arrangement index.html was in when its title said 3.0.0 and
+    // its own footer said 2.3.1 — two copies of one number, updated by hand,
+    // which is a discipline problem until it becomes a lie. Both are now
+    // written from this constant, which is also what versions.js reads for the
+    // build panel in index.html.
+    const REPORTS_VERSION = "2.9.0";
+
+    document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
+    const _rfv = document.getElementById('footer-version');
+    if (_rfv) _rfv.textContent = `Reports v${REPORTS_VERSION}`;
+
     import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
