@@ -1,6 +1,18 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.8.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.8.1
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
+//
+// v1.8.1 — The Students list said "31 students loaded." above a table showing one
+//          row. loadStudentRoster() wrote that string AFTER _renderRoster() had
+//          already written the true one — "1 student (filtered from 31)" — into the
+//          same element. Two writers, one status line, and the one that ran last
+//          knew less. The sentence explaining the screen existed and was destroyed
+//          a line later. _renderRoster() now owns it outright, and says both
+//          numbers plus which range is filtering, because the gap between them is
+//          the diagnosis. Also relabelled: this panel is built from typing_logs, so
+//          an imported student who has never typed cannot appear under any filter,
+//          and a bare count read like enrollment.
+//          (The Sat–Fri default that caused it lives in admin.html.)
 //
 // v1.8.0 — CSV import can CREATE the classes it doesn't recognise. It used to
 //          print "class not found" in red and stop, which left the only route
@@ -28,7 +40,7 @@
 //          _studentsInited already true so reopening the tab could not recover.
 //          Both functions written from _commitCSV()/_bulkAssign().
 // v1.7.0 — Lesson + class authoring, CSV roster import, stuck-student scan.
-window.LESSONS_ADMIN_VERSION = '1.8.0';
+window.LESSONS_ADMIN_VERSION = '1.8.1';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -1711,8 +1723,19 @@ async function loadStudentRoster() {
         _rosterData = uidList.map(uid => ({ uid, ...byUid.get(uid) }));
         _buildClassFilterDropdown();
         _buildBulkClassDropdown();
+        // ⚠️ _renderRoster() OWNS THIS STATUS LINE AND MUST HAVE THE LAST WORD.
+        // There used to be a `statusEl.textContent = N + ' students loaded.'`
+        // on the next line, which ran AFTER the render and overwrote the only
+        // honest string on the screen. The render writes "1 student (filtered
+        // from 31)"; the loader replaced it with "31 students loaded." while a
+        // single row sat in the table.
+        //
+        // That is how Jake's Saturday-morning report became unreadable: the
+        // count and the table contradicted each other, the contradiction was
+        // the only visible symptom, and the sentence that would have explained
+        // it had been written and then destroyed a line later. Two writers on
+        // one element, and the one that ran last knew less.
         _renderRoster();
-        statusEl.textContent = _rosterData.length + ' students loaded.';
         tableEl.style.display = '';
     } catch(e) {
         statusEl.textContent = 'Error: ' + escHtml(e.message);
@@ -1882,9 +1905,38 @@ function _renderRoster() {
         th.textContent = base + (th.dataset.col === col ? (dir === -1 ? ' ↓' : ' ↑') : ' ↕');
     });
 
+    // ⚠️ THIS PANEL IS "WHO HAS BEEN ACTIVE", NOT "WHO IS ENROLLED", AND THE
+    // LABEL HAS TO SAY SO. _rosterData is built from typing_logs over the last
+    // ROSTER_DAYS days — a student imported from a roster who has never typed
+    // does not appear here under ANY filter, and no amount of widening the date
+    // range will summon them. A bare count reads like enrollment, which sent
+    // Jake looking for 80 students in a list that structurally cannot contain
+    // anyone who has not typed.
+    //
+    // Both numbers are always shown when they differ, because the gap between
+    // them IS the diagnosis: "1 of 31 active" says the filter is hiding people,
+    // where "1 student" says nobody is there.
     const statusEl = document.getElementById('student-list-status');
-    statusEl.textContent = rows.length + ' student' + (rows.length !== 1 ? 's' : '') +
-        (rows.length !== _rosterData.length ? ' (filtered from ' + _rosterData.length + ')' : '') + '.';
+    const rangeLabel = {
+        '7days':    'last 7 days',
+        'thisweek': 'this week (Sat–Fri)',
+        'month':    'last 30 days',
+        '9weeks':   'last 9 weeks',
+        'all':      'last ' + ROSTER_DAYS + ' days'
+    }[timeFilter] || 'the selected range';
+
+    if (!_rosterData.length) {
+        statusEl.textContent = 'No students have typed in the last ' + ROSTER_DAYS +
+            ' days. This list is built from typing activity, not from your roster ' +
+            'import — students who have not typed yet never appear here.';
+    } else if (rows.length === _rosterData.length) {
+        statusEl.textContent = rows.length + ' student' + (rows.length !== 1 ? 's' : '') +
+            ' active in the ' + rangeLabel + '.';
+    } else {
+        statusEl.textContent = rows.length + ' of ' + _rosterData.length +
+            ' active students shown — ' + (_rosterData.length - rows.length) +
+            ' hidden by the current filters (' + rangeLabel + ').';
+    }
 
     tbody.innerHTML = '';
     rows.forEach(r => {

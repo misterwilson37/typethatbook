@@ -302,13 +302,13 @@ written and is not now; read its header box.
 
 ## Tests
 
-There are nineteen harnesses in the repo. They are for whoever is editing the code,
+There are twenty harnesses in the repo. They are for whoever is editing the code,
 not for Jake — running them needs Node, which is exactly what this project's
 deployment story does not have. Nothing in the app depends on them.
 
 ```
 npm install                            # devDependencies only; nothing ships to Functions
-npm test                               # the 19 fast ones, ~8 seconds
+npm test                               # the 20 fast ones, ~8 seconds
 npm run test:epubs                     # plus the 4 corpus harnesses, ~2 minutes
 node audit-versions.mjs                # versions.js's drift + budget checks, offline
 ```
@@ -369,6 +369,8 @@ the markers; don't paste the logic in.
 | `about-test.mjs` | `detectAbout()` and the completeness dot's gap list |
 | `about-render-test.mjs` | About panel segments, cached headings, credit injection |
 | `anon-ladder-test.mjs` | guest login ladder: rungs, the no-third-prompt rule, both coalescing guards. ⚠️ Half its assertions are structural (they read source text) and say so — see its header |
+| `class-create-test.mjs` | class-name matching and the shared CSV class-creation path. ⚠️ Asserts that name variants collapse to one class AND that `Period 3`/`Period 4` stay apart — a matcher this feature can now *create* against |
+| `roster-filter-test.mjs` | Students-tab date range and status line. ⚠️ Pins the property that makes the Saturday week start correct — Mon–Fri in one bucket — so nobody "fixes" the boundary and silently breaks weekly goals |
 | `chapter-harness.mjs` | full chapter pipeline over a directory of EPUBs |
 | `real-epub-harness.mjs` | cover detection + old-vs-new spine resolution |
 | `scan2.mjs` | suspect body chapters (Fix C candidates) |

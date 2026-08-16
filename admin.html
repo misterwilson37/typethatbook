@@ -647,8 +647,20 @@
                 <h3 style="margin:0; color:#4B9CD3; flex-shrink:0;">Students</h3>
                 <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
                     <select id="student-filter-time" class="l-field" style="margin:0; width:auto; font-size:0.8em; padding:5px 8px;">
-                        <option value="thisweek" selected>This week (Sat–Fri)</option>
-                        <option value="7days">Last 7 days</option>
+                        <!-- ⚠️ DEFAULT IS "Last 7 days", NOT "This week". The week here
+                             starts on SATURDAY (see _weekStartDate in lessons-admin.js:
+                             (getDay()+1)%7 is 0 on a Saturday), which is right for weekly
+                             goals — it keeps Mon–Fri whole in one bucket so a student's
+                             week cannot reset mid-week. It is wrong as a default for THIS
+                             filter: a teacher reviewing the week does it on a Saturday or
+                             Sunday, and on those two days "this week" excludes the entire
+                             school week that just ended. Jake hit exactly that — 31
+                             students with logs, one row on screen, and the one row was
+                             himself because he was the only person who had typed that
+                             morning. A rolling 7 days always contains the last school day.
+                             The Sat–Fri option is kept; it is just no longer the default. -->
+                        <option value="7days" selected>Last 7 days</option>
+                        <option value="thisweek">This week (Sat–Fri)</option>
                         <option value="9weeks">Last 9 weeks</option>
                         <option value="month">Last 30 days</option>
                         <option value="all">All time</option>

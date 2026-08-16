@@ -49,7 +49,7 @@ returned nothing.**
 
 ## §1. Version state — `audit-versions.mjs`: 2 problems, both pre-existing
 
-`node run-all-tests.mjs` → **19 of 19 pass** (17 + two new).
+`npm test` → **20 of 20 pass** (17 + three new).
 
 | file | version | changed? | upload? |
 |---|---|---|---|
@@ -57,11 +57,13 @@ returned nothing.**
 | `game.js` | **3.20.1** | ⚠️ yes — ladders merged, then dead state deleted | **YES** |
 | `learn.js` | **2.3.0** | ⚠️ yes — three fixes | **YES** |
 | `index.html` | **3.7.0** | ⚠️ yes — load sequencing | **YES** |
-| `lessons-admin.js` | **1.8.0** | ⚠️ yes — CSV can create classes | **YES** |
+| `lessons-admin.js` | **1.8.1** | ⚠️ yes — CSV classes, then the roster status line | **YES** |
+| `admin.html` | — | range default → Last 7 days | **YES** |
 | `reports.html` | **2.9.0** | version driven from a constant | **YES** |
 | `package.json` | — | ⚠️ devDependencies; suite runs on a clean clone | commit it |
 | `anon-ladder-test.mjs` | **1.0.0** | new harness, 34 assertions | commit it |
 | `class-create-test.mjs` | **1.0.0** | new harness, 26 assertions | commit it |
+| `roster-filter-test.mjs` | **1.0.0** | new harness, 23 assertions | commit it |
 | `firestore-rules.test.mjs` | **1.2.0** | guest boundary asserted | commit it |
 | `run-all-tests.mjs` | — | registers both new harnesses | commit it |
 | everything else | — | no | — |
@@ -364,6 +366,71 @@ entries and a `versions.js` bump — a real improvement, not this round's.
 
 ---
 
+## §5c. The Saturday-morning report — two bugs behind one screenshot
+
+Jake, with a screenshot: *"31 students loaded"* above a table containing exactly
+one row, and the one row was himself. *"Is that acting the way it should?"*
+
+His data was fine. 31 students had typing logs. The panel found them and hid 30.
+
+### 5c.1 The week starts on SATURDAY, so Friday's class work was already "last week"
+
+`_weekStartDate()` is `d.getDate() - ((d.getDay() + 1) % 7)`. On a Saturday
+`getDay()` is 6 and `(6+1) % 7` is **0** — the week begins that morning. His
+students typed Friday the 14th; `_renderRoster()`'s `r.lastLogin < cutoff` made
+that `'2026-08-14' < '2026-08-15'`, true, excluded. He was the only row because
+he was the only person who had typed since midnight.
+
+⚠️ **The boundary is CORRECT and was left alone.** A Saturday start is what keeps
+Mon–Fri whole inside one bucket, so a student's weekly goal cannot reset
+mid-week. `roster-filter-test.mjs` asserts that property explicitly, so nobody
+"fixes" the boundary later and breaks goals.
+
+The defect was using it as the **default for a review filter**. A teacher reviews
+the week on a Saturday or Sunday — and on exactly those two days "this week"
+excludes the entire school week that just ended. **Generalise: a period boundary
+that is right for ACCUMULATING is not automatically right for LOOKING BACK. Ask
+what day of the week the person is standing on when they open the screen.**
+Default is now Last 7 days, in `admin.html`; the Sat–Fri option remains.
+
+### 5c.2 ⚠️ The status line was overwritten by a less-informed writer
+
+`_renderRoster()` wrote the one honest string on the screen —
+`"1 student (filtered from 31)"`. `loadStudentRoster()` then wrote
+`"31 students loaded."` into the same element **on the next line**.
+
+**The sentence that explained the whole screen was composed and then destroyed
+one line later.** Had it survived, Jake would have read "filtered from 31" and
+diagnosed it himself in a second. Instead the count and the table contradicted
+each other, and the contradiction was the only visible symptom.
+
+**Two writers on one element, and the one that ran last knew less.** When a
+render function and its caller both report state, the render is the one holding
+the filters. `roster-filter-test.mjs` asserts nothing writes that element after
+`_renderRoster()` **on the success path** — the catch block still must.
+
+### 5c.3 The panel is activity, not enrollment, and never said so
+
+`loadStudentRoster()` queries `typing_logs` over `ROSTER_DAYS` (45). **A student
+imported from a roster who has never typed cannot appear here under any filter**,
+and widening the date range will never summon them. A bare count reads like
+enrollment, which is what sent Jake looking for 80 students in a list that
+structurally cannot hold anyone who has not typed. The status now names the
+range, shows both numbers whenever filtering hides people, and says outright
+where the list comes from when it is empty.
+
+### 5c.4 An assertion I wrote that was measuring the wrong population
+
+My first version of the status-ownership check counted `statusEl.textContent =`
+across the whole file against a guessed ceiling of 8. There are 21 — a dozen
+unrelated functions each have their own `statusEl`. It failed on correct code.
+Invariant 47 again, from the other side: **the number an assertion expects is
+where the author's misconception lives, and mine was about which population I
+was counting.** Replaced with the exact claim: within `loadStudentRoster()`, on
+the success path, nothing writes the status after the render.
+
+---
+
 ## §6. Invariants — additions to Round 8 §4 (37–55), which still applies
 
 56. ⚠️ **A comment asserting a permission is a claim about a different file, and
@@ -395,6 +462,21 @@ entries and a `versions.js` bump — a real improvement, not this round's.
     survives.** My first draft threw a ReferenceError against the pre-round file
     — a failure, but it hid the other 33 assertions behind a stack trace, and
     running it against old code is the whole point.
+73. ⚠️ **A period boundary that is right for accumulating is not automatically
+    right for looking back.** The Saturday week start is correct for weekly
+    goals and wrong as a review default, because reviewing happens on Saturday.
+    Ask what day the person is standing on when they open the screen.
+74. ⚠️ **When a render function and its caller both report state, the render
+    wins.** It is the one holding the filters. A caller writing a summary after
+    the render replaces a specific truth with a vaguer one, and does it too late
+    to be noticed.
+75. **A count that contradicts the list below it is worse than no count.** Each
+    alone is legible; together they make the screen unreadable and send the
+    reader looking for a bug in their data.
+76. **Say what a list is made of when it is not made of the obvious thing.** A
+    roster built from activity logs cannot show an enrolled student who has not
+    acted, and no filter will reveal them.
+
 69. ⚠️ **A green test suite is evidence about the machine it ran on.** Round 8
     inferred a `package.json` declaration from the fact that the harnesses ran,
     and the packages were merely installed in that container. Before claiming a
