@@ -49,14 +49,14 @@ returned nothing.**
 
 ## §1. Version state — `audit-versions.mjs`: 2 problems, both pre-existing
 
-`npm test` → **20 of 20 pass** (17 + three new).
+`npm test` → **20 of 20 pass**.
 
 | file | version | changed? | upload? |
 |---|---|---|---|
 | `firestore.rules` | **2.3.0** | ⚠️ yes — the actual fix | **CONSOLE PASTE** |
 | `game.js` | **3.20.1** | ⚠️ yes — ladders merged, then dead state deleted | **YES** |
 | `learn.js` | **2.3.0** | ⚠️ yes — three fixes | **YES** |
-| `index.html` | **3.7.0** | ⚠️ yes — load sequencing | **YES** |
+| `index.html` | **3.8.0** | ⚠️ yes — load sequencing, then library sorting | **YES** |
 | `lessons-admin.js` | **1.8.1** | ⚠️ yes — CSV classes, then the roster status line | **YES** |
 | `admin.html` | — | range default → Last 7 days | **YES** |
 | `reports.html` | **2.9.0** | version driven from a constant | **YES** |
@@ -64,6 +64,8 @@ returned nothing.**
 | `anon-ladder-test.mjs` | **1.0.0** | new harness, 34 assertions | commit it |
 | `class-create-test.mjs` | **1.0.0** | new harness, 26 assertions | commit it |
 | `roster-filter-test.mjs` | **1.0.0** | new harness, 23 assertions | commit it |
+| `sort-test.mjs` | **1.0.0** | new harness, 46 assertions | commit it |
+| `progress-test.mjs` | — | ⚠️ anchor hardened; see §5d.3 | commit it |
 | `firestore-rules.test.mjs` | **1.2.0** | guest boundary asserted | commit it |
 | `run-all-tests.mjs` | — | registers both new harnesses | commit it |
 | everything else | — | no | — |
@@ -431,6 +433,98 @@ the success path, nothing writes the status after the render.
 
 ---
 
+## §5d. `index.html` v3.8.0 — library sorting
+
+Jake: *"different sort options — title (sans 'A' and 'The'), author (last name),
+length… Popularity based on the number of sentences/words typed? That would be
+fun."*
+
+Shipped: Title, Author, Shortest, Longest, Recently updated, and My progress
+(added at runtime for signed-in students only — a guest would get a control that
+reorders nothing, which reads as broken rather than as inapplicable).
+
+⚠️ **The load-time `allBooks.sort(...)` is GONE.** It froze one order before any
+control could change it, and it was a raw `title.localeCompare`, which filed nine
+books under "The". `renderBooks()` owns ordering now.
+
+### 5d.1 What each sort is honestly made of
+
+- **Title** strips a leading `A`/`An`/`The`. ⚠️ **English articles only, and
+  whole-word only** — "Theodore" is not "The", and a list including `la`/`le`/`los`
+  would eat the first word of a legitimate title. Asserted both ways.
+- **Author** takes a surname. Diacritics are folded to NFD-minus-marks or
+  **Brontë files after Zola** — `localeCompare` handles `ë` fine on raw strings,
+  but the moment you sort on a derived key you are comparing plain strings.
+  Handles `Last, First`, generational suffixes, and nobiliary particles.
+  Unattributed sorts to `\uffff` so untagged books go last, not first.
+  ⚠️ **A wrong guess misfiles a book; it does not lose one.** That is why this is
+  a heuristic and not a required admin field. If it ever matters more, add an
+  `authorSort` field to the book document and let this be the fallback.
+- **Length is in CHAPTERS and chapters are a bad proxy.** Aesop's 284 fables sort
+  as the longest book in the library while being among the shortest to type. **No
+  word or character count exists anywhere in the schema** — not on the book
+  document, not in the chapter metadata `admin.js` writes (`id`, `title`,
+  `matter`, `about`). This sorts by the only number there is.
+- **Recently updated** rides on `contentVersion`, the `Date.now()` admin.js
+  stamps to bust student caches. ⚠️ **There is no `createdAt` or `addedAt` on a
+  book anywhere.** "Recently added" would be a lie; the option says updated.
+
+Every comparator falls back to title. `Array.prototype.sort` is stable only
+within one call, so ties would otherwise reshuffle the shelf under a child who
+toggled an unrelated filter, with no visible cause.
+
+### 5d.2 ⚠️ Popularity is NOT built, and it is not a small feature
+
+There is no source data. `typing_logs` carries no `bookId`. No counter exists on
+the book document. The three routes, costed:
+
+1. **Client-side counter on the book doc** — a write per student per flush. This
+   is the shape that cost $34,300/year in the leaderboard incident. **No.**
+2. **`getCountFromServer` on a collectionGroup query of `progress` per book** —
+   ~24 aggregation reads per library load. Cacheable, but it is a recurring bill
+   for a decoration.
+3. **A scheduled Cloud Function rolling up into one `stats/bookPopularity`
+   document** — one read per page load, cacheable for hours, effectively free.
+   Correct, and it needs a **functions deploy**, which is why it is Jake's call
+   and not mine.
+
+Route 3 also wants `bookId` on `typing_logs` going forward, or it can only count
+`users/*/progress` documents — which measures books *opened*, not sentences
+typed. **Those are different metrics and the difference is the interesting part
+of Jake's idea.** Decide which one before building either.
+
+### 5d.3 ⚠️ I broke `progress-test.mjs` by naming a variable
+
+It lifts the progress block out of `index.html` by searching for the FIRST
+`const denom = ` and slicing to the next `const pct =`. My new `progressOf()`
+used `denom` as a local, earlier in the file — so the harness silently sliced a
+region hundreds of lines wide and failed with a **SyntaxError naming
+`sortBooks()`, a function it does not test.**
+
+**A harness that locates code by a common substring is one unrelated edit away
+from testing something else and blaming the wrong author.** Fixed on both sides:
+the harness anchors on `const progress = userProgress[book.id];` and throws a
+named error if the shape changes, and my local is renamed with a comment saying
+why — because nothing in `index.html` announces that a variable name there is
+load-bearing for a file over here.
+
+⚠️ **Separately noticed: `progress-test.mjs` barely asserts anything.** It prints
+a table and only flags NaN, so `run-all-tests.mjs` reports it "ok" as long as it
+exits 0 — it would pass with every percentage wrong. It is a useful *display* of
+behaviour and a weak *test* of it. Not fixed here; worth knowing before leaning
+on it.
+
+### 5d.4 Three wrong expected values in a row, all mine
+
+`sort-test.mjs` asserted "Webster sorts last". It doesn't — `wiggin` does. I
+fixed it to "Wells second-to-last". Also wrong: `webster < wells < wiggin`.
+Three guesses at a fact that was sitting in the data. The block now **computes**
+the expected order from the corpus's declared surnames (each asserted
+individually above) instead of from my impression of the alphabet, and prints
+the first mismatching position on failure.
+
+---
+
 ## §6. Invariants — additions to Round 8 §4 (37–55), which still applies
 
 56. ⚠️ **A comment asserting a permission is a claim about a different file, and
@@ -462,6 +556,20 @@ the success path, nothing writes the status after the render.
     survives.** My first draft threw a ReferenceError against the pre-round file
     — a failure, but it hid the other 33 assertions behind a stack trace, and
     running it against old code is the whole point.
+77. ⚠️ **A harness that locates code by a common substring will one day test
+    a different function and blame the wrong author.** Anchor on something
+    unique to the block, and throw a named error when it is not found.
+78. **A test that only prints is not a test.** `progress-test.mjs` reports "ok"
+    while asserting nothing but the absence of NaN. Check what a harness would
+    have to see before it fails.
+79. ⚠️ **Do not hand-write an expected ordering. Compute it from data you
+    have already verified.** Three consecutive wrong guesses at an alphabet.
+80. **Sort on a derived key and you lose locale collation.** `localeCompare`
+    handles `ë` on raw strings; on a stripped surname you are comparing code
+    points and Brontë lands after Zola. Fold diacritics when you derive.
+81. **Name the metric before building the feature.** "Popularity" is books
+    opened or sentences typed, and the two need different data.
+
 73. ⚠️ **A period boundary that is right for accumulating is not automatically
     right for looking back.** The Saturday week start is correct for weekly
     goals and wrong as a review default, because reviewing happens on Saturday.

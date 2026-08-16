@@ -377,6 +377,19 @@
             <button class="filter-pill" data-prot="nonhuman">Animal</button>
             <button class="filter-pill" id="tag-clear" style="margin-left:auto;">Clear</button>
         </div>
+
+        <div class="filter-bar" id="sort-bar">
+            <span class="filter-group-label">Sort</span>
+            <select id="sort-select" class="filter-select" aria-label="Sort the library">
+                <option value="title" selected>Title (A–Z)</option>
+                <option value="author">Author (A–Z)</option>
+                <option value="short">Shortest first</option>
+                <option value="long">Longest first</option>
+                <option value="recent">Recently updated</option>
+                <!-- Inserted at runtime for signed-in students only; a guest has no
+                     progress, so the option would sort nothing. See renderBooks(). -->
+            </select>
+        </div>
         <div id="filter-note"></div>
         <div class="library-grid" id="book-grid">
             <div class="loading-spinner">Loading library...</div>
@@ -407,7 +420,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.7.0";
+        const INDEX_VERSION = "3.8.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -686,6 +699,12 @@
                         protagonistGender: data.protagonistGender || "",
                         coverUrl: data.coverUrl || "",
                         totalChapters: data.totalChapters || (data.chapters ? data.chapters.length : 0),
+                        // admin.js stamps this Date.now() on every book write, to bust
+                        // student chapter caches. Reused here as the ONLY timestamp any
+                        // book carries — there is no createdAt or addedAt anywhere in
+                        // the schema. ⚠️ That makes "Recently updated" honest and
+                        // "Recently added" a lie, which is why the option says updated.
+                        contentVersion: (typeof data.contentVersion === 'number') ? data.contentVersion : 0,
                         // Written by admin.js since v3.18.x. null, not 0, when absent —
                         // an old document that never had it must fall back to
                         // totalChapters rather than report a book with no chapters.
@@ -712,7 +731,11 @@
                         chapters: data.chapters || []
                     });
                 });
-                allBooks.sort((a, b) => a.title.localeCompare(b.title));
+                // ⚠️ NOT SORTED HERE ANY MORE. This used to be a raw
+                // title.localeCompare, which is where the shelf's order was decided
+                // once and for all — and it filed nine books under "The". renderBooks()
+                // owns ordering now, so the sort control has something to change and
+                // the cache is not written in one frozen order.
 
                 // Strip the chapter array before caching. It is the single
                 // largest field on a book document, this page never reads it,
@@ -880,13 +903,150 @@
         }
 
         // --- RENDER ---
+        // ─── Sorting (v3.8.0) ────────────────────────────────────────────────
+        //
+        // Two of these do real work and both can be wrong in ways nobody reports,
+        // so they are pure functions with a harness (sort-test.mjs) rather than
+        // inline comparators.
+
+        let activeSort = 'title';
+
+        // ⚠️ FOLD DIACRITICS OR BRONTË FILES AFTER ZOLA. 'ë'.localeCompare works,
+        // but only when the comparator gets the raw string — the moment we sort on
+        // a derived key (a stripped title, a surname) we are comparing plain
+        // strings and 'Brontë' > 'Zola' by code point. Normalising to NFD and
+        // dropping combining marks puts her under B where a child would look.
+        function sortKey(s) {
+            return String(s || '')
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase().trim();
+        }
+
+        // Leading articles are noise in a title sort: a child looking for
+        // "The Wind in the Willows" looks under W, and an English shelf that files
+        // nine books under T is not sorted, it is clustered.
+        //
+        // ⚠️ ENGLISH ARTICLES ONLY, DELIBERATELY. "Los Angeles" and "Le Guin" are
+        // not articles, and a list including 'la'/'le'/'los' would eat the first
+        // word of any title that legitimately starts with one. Every book in this
+        // library is an English translation or original; when that stops being
+        // true this is the line to revisit, not to quietly extend.
+        function titleSortKey(title) {
+            const t = String(title || '').trim();
+            const m = t.match(/^(a|an|the)\s+(.+)$/i);
+            return sortKey(m ? m[2] : t);
+        }
+
+        // Surname extraction. Gutenberg's dc:creator is inconsistent: most of this
+        // library is "First Last", but the catalogue also emits "Last, First", and
+        // admin.js passes whatever it is given straight through.
+        //
+        // ⚠️ A WRONG GUESS HERE MISFILES A BOOK; IT DOES NOT LOSE ONE. That is the
+        // whole reason this is a heuristic and not a required admin field — the
+        // cost of being wrong is a child scrolling one row further, and the cost of
+        // being right is Jake hand-entering a surname for every upload forever.
+        // If it ever matters more than that, add an `authorSort` field to the book
+        // document and let this be the fallback.
+        function authorSortKey(author) {
+            let a = String(author || '').trim();
+            if (!a) return '\uffff';          // unattributed sorts last, not first
+
+            // "Wiggin, Kate Douglas" — already filed. Take what is before the comma.
+            if (a.includes(',')) return sortKey(a.split(',')[0]);
+
+            // Drop generational suffixes so "Oliver Wendell Holmes Jr." is a Holmes.
+            a = a.replace(/[\s,]+(jr|sr|ii|iii|iv)\.?$/i, '').trim();
+
+            const parts = a.split(/\s+/);
+            if (parts.length === 1) return sortKey(parts[0]);   // Aesop, Homer, Claude
+
+            // Nobiliary particles belong to the surname: "Ludwig van Beethoven"
+            // files under V, not B. Checked against the token BEFORE the last one.
+            const particles = ['van', 'von', 'de', 'del', 'della', 'di', 'da',
+                               'du', 'la', 'le', 'ten', 'ter', 'st', 'saint', "o'"];
+            let i = parts.length - 1;
+            while (i > 0 && particles.includes(parts[i - 1].toLowerCase().replace(/\.$/, ''))) i--;
+
+            return sortKey(parts.slice(i).join(' '));
+        }
+
+        // ⚠️ LENGTH IS IN CHAPTERS, AND CHAPTERS ARE A BAD PROXY FOR LENGTH.
+        // Aesop's 284 fables would sort as the longest book in the library while
+        // being one of the shortest to type; Monte Cristo's 117 chapters really are
+        // long. No word or character count exists anywhere in the schema — not on
+        // the book document, not in the chapter metadata admin.js writes (id,
+        // title, matter, about). So this sorts by the only number there is, and the
+        // option is labelled in chapters on the card so nobody reads it as size.
+        // Fixing it properly means admin.js counting characters at upload plus a
+        // backfill of the existing library.
+        function lengthOf(b) {
+            return (typeof b.bodyChapters === 'number' && b.bodyChapters > 0)
+                ? b.bodyChapters : (b.totalChapters || 0);
+        }
+
+        // ⚠️ THE LOCAL IS NOT CALLED `denom`, AND THAT IS NOT STYLE. progress-test.mjs
+        // lifts the progress-bar block out of this file by searching for the FIRST
+        // `const denom = ` and slicing to the next `const pct =`. Naming this one
+        // `denom` put an earlier match in the file and the harness silently sliced
+        // a different, much larger region — it failed with a SyntaxError pointing
+        // at sortBooks(), a function it has nothing to do with. The harness anchor
+        // has been hardened too, but two defences are right for a coupling this
+        // invisible: nothing in index.html announces that a variable name here is
+        // load-bearing for a file over there.
+        function progressOf(b) {
+            const p = userProgress[b.id];
+            if (!p) return -1;
+            const chapterCount = lengthOf(b);
+            if (!chapterCount) return -1;
+            return (p.completedChapters ? p.completedChapters.length : 0) / chapterCount;
+        }
+
+        function sortBooks(list) {
+            const arr = list.slice();
+            const byTitle = (a, b) => titleSortKey(a.title).localeCompare(titleSortKey(b.title));
+            // ⚠️ EVERY COMPARATOR FALLS BACK TO TITLE. Array.prototype.sort is only
+            // guaranteed stable within one call, so ties in "shortest first" would
+            // otherwise land in whatever order the previous sort left them — the
+            // shelf would reshuffle under a child who toggled a filter, with no
+            // visible cause. Title as the tiebreak makes every ordering total.
+            switch (activeSort) {
+                case 'author':
+                    return arr.sort((a, b) =>
+                        authorSortKey(a.author).localeCompare(authorSortKey(b.author)) || byTitle(a, b));
+                case 'short':
+                    return arr.sort((a, b) => (lengthOf(a) - lengthOf(b)) || byTitle(a, b));
+                case 'long':
+                    return arr.sort((a, b) => (lengthOf(b) - lengthOf(a)) || byTitle(a, b));
+                case 'recent':
+                    return arr.sort((a, b) => (b.contentVersion - a.contentVersion) || byTitle(a, b));
+                case 'progress':
+                    return arr.sort((a, b) => (progressOf(b) - progressOf(a)) || byTitle(a, b));
+                default:
+                    return arr.sort(byTitle);
+            }
+        }
+
         function renderBooks() {
             const grid = document.getElementById('book-grid');
             const byGenre = activeGenre === "all"
                 ? allBooks
                 : allBooks.filter(b => b.genre === activeGenre);
 
-            const filtered = byGenre.filter(b => matchesAge(b) && matchesProt(b));
+            const filtered = sortBooks(byGenre.filter(b => matchesAge(b) && matchesProt(b)));
+
+            // The progress option only exists for someone who has progress. A guest
+            // would get a control that reorders nothing, which reads as broken
+            // rather than as inapplicable.
+            const sortSel = document.getElementById('sort-select');
+            const hasProgressOpt = !!sortSel.querySelector('option[value="progress"]');
+            if (currentUser && !hasProgressOpt) {
+                const o = document.createElement('option');
+                o.value = 'progress'; o.textContent = 'My progress';
+                sortSel.appendChild(o);
+            } else if (!currentUser && hasProgressOpt) {
+                sortSel.querySelector('option[value="progress"]').remove();
+                if (activeSort === 'progress') { activeSort = 'title'; sortSel.value = 'title'; }
+            }
 
             // Say plainly how many books the age filter had to set aside for
             // want of a tag. Without this, "no books found" during the tagging
@@ -1235,6 +1395,13 @@
             openAbout(id);
             return true;
         }
+
+        // --- SORT CONTROL ---
+        document.getElementById('sort-select').addEventListener('change', (e) => {
+            activeSort = e.target.value;
+            e.target.classList.toggle('is-set', activeSort !== 'title');
+            renderBooks();
+        });
 
         // --- INIT ---
         // Fire-and-forget. onAuthStateChanged owns the re-load and every render;

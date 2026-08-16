@@ -4,8 +4,18 @@
 import { readFileSync } from 'fs';
 
 const s = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
-const i = s.indexOf('const denom = ');
+// ⚠️ ANCHOR ON THE PROGRESS BLOCK, NOT ON `const denom`. This used to slice from
+// the first `const denom = ` in the whole file. index.html v3.8.0 added a sort
+// comparator with its own denominator earlier in the file, and this harness
+// silently sliced a region hundreds of lines wide, then failed with a
+// SyntaxError naming a function it does not test. A harness that locates code by
+// a common substring is one unrelated edit away from testing something else and
+// blaming the wrong author.
+const anchor = s.indexOf('const progress = userProgress[book.id];');
+if (anchor < 0) throw new Error('progress-test: could not find the progress block in index.html');
+const i = s.indexOf('const denom = ', anchor);
 const j = s.indexOf('const pct = Math.min(100', i);
+if (i < 0 || j < 0) throw new Error('progress-test: the progress block no longer has the expected shape');
 // The slice opens `if (progress && denom > 0) {` and the closing brace is past
 // our end point, so drop that guard — the test always supplies progress.
 const body = s.slice(i, j).replace('if (progress && denom > 0) {', '') +
