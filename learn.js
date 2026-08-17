@@ -1,10 +1,13 @@
-// learn.js v2.5.2
+// learn.js v2.5.3
 //
 // Lesson-mode engine, separate from game.js. Same write-ahead-log and
 // coalesced-flush persistence pattern.
 //
 // ── Full history: CHANGELOG.md § learn.js ─────────────────────────────────
 // ── Why it looks like this: PEDAGOGY-AUDIT.md ─────────────────────────────
+//
+// v2.5.3 — HUD lesson label carries a title attribute, because style.css v3.5.1
+//          ellipsises it. Cosmetic half of a layout fix that lives in the CSS.
 //
 // v2.5.2 — applyPendingClassAssignment() mirrors game.js v3.21.1: an explicit
 //          reassignment is honoured, every exit consumes the record, records
@@ -127,7 +130,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.5.2";
+const LEARN_VERSION = "2.5.3";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -1012,7 +1015,11 @@ function startLesson(lesson) {
     mistakes       = 0;
     chars          = 0;
     missedChars    = {};
+    // Title attribute as well as text: style.css v3.5.1 ellipsises this label
+    // (it is the only variable-length item in the HUD and the only one allowed to
+    // shrink), so the full lesson name has to stay reachable on hover.
     hudLessonLabel.textContent = lesson.title || '';
+    hudLessonLabel.title = lesson.title || '';
     backBtn.href = '#'; backBtn.onclick = () => { stopLesson(); return false; };
 
     showView('drill');
@@ -2391,6 +2398,7 @@ function stopLesson() {
     currentLesson = null;
     backBtn.href = 'index.html'; backBtn.onclick = null;
     hudLessonLabel.textContent = '';
+    hudLessonLabel.title = '';
     document.getElementById('drill-keyboard-wrap').style.display = '';
     drillModal.classList.add('hidden');
     wpmDisplay.textContent = '—';

@@ -1,4 +1,16 @@
-/* TypeThatBook style.css v3.5.0 */
+/* TypeThatBook style.css v3.5.1 */
+/* v3.5.1: THE HUD WRAPPED AND THEN CLIPPED ITSELF. `#hud` had a fixed
+           height:60px and each `.hud-section` was `flex: 1` — an exact third of
+           the bar no matter its contents. The left section carries the most, and
+           learn.js v2.5.0 added a ↺ Restart button to it; past ~1280px of window
+           the content no longer fit its third, the text wrapped to two lines, the
+           bar grew past 60px, and `align-items:center` split the overflow so the
+           TOP row was cut off. Visible result: "Today: 0:25 /" and "10:00" on
+           different lines, the lesson title broken mid-phrase, and the student's
+           name sliced in half above the class name. Fixed with min-height, nowrap
+           + overflow:hidden on the sections, and one designated shrinker
+           (#hud-lesson-label) so the squeeze lands on the only variable-length
+           text in the bar. See the block comments at #hud. */
 /* v3.5.0: #modal-body no longer uses justify-content:center, which CLIPS SCROLL
            OVERFLOW AT THE TOP and made the Game Genie's upper controls
            unreachable. flex-start + auto margins on first/last child instead.  */
@@ -9,7 +21,12 @@
 /* v3.3.0: condensed book progress bar for books over 40 chapters          */
 /* v3.2.0: view-choice splash (#view-splash) — see showViewSplash() in game.js  */
 /* v3.1.6: machine-readable version stamp via body::before for build banner */
-body::before { content: "v3.3.0"; display: none; }
+/* ⚠️ v3.5.1: THIS SAID v3.3.0 AND HAD SINCE v3.3.0 — two versions of drift in the
+   file's own second copy of its own number. versions.js parses the comment on
+   line 1, not this, so nothing caught it and the build banner was right by luck.
+   A file carrying its version twice has to have both updated or the redundancy is
+   worse than none: it gives a wrong answer confidently. Update BOTH. */
+body::before { content: "v3.5.1"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -41,7 +58,14 @@ body {
 
 /* --- HUD --- */
 #hud {
-    height: 60px;
+    /* ⚠️ min-height, NOT height (v3.5.1). A fixed 60px does not stop content
+       being taller than 60px — it only stops you SEEING that it is. With
+       `align-items: center` the overflow splits top and bottom, so the first line
+       of a two-line section is clipped by the top of the viewport: at Ellis the
+       student's name was sliced in half horizontally and the class name and
+       (Logout) sat where the name should be. min-height means a HUD that somehow
+       grows looks slightly tall instead of eating its own first row. */
+    min-height: 60px;
     padding: 0 20px;
     background: var(--black);
     color: white;
@@ -55,8 +79,44 @@ body {
     box-sizing: border-box;
 }
 
-.hud-section { flex: 1; display: flex; align-items: center; }
+/* ⚠️ WHY nowrap AND min-width:0 (v3.5.1).
+   Each section is `flex: 1`, which is `flex-grow:1 flex-shrink:1 flex-basis:0%`
+   — so all three get exactly one third of the bar REGARDLESS of what is in them.
+   The left section holds the most: ← Home, the timer, the daily goal, the lesson
+   name, and (since learn.js v2.5.0) the ↺ Restart button. On a 1280px window one
+   third is ~427px, the content needs more, and text inside a flex item wraps by
+   default — so "Today: 0:25 /" broke away from "10:00", the lesson title split
+   across two lines, and the whole bar grew past its own fixed height.
+
+   nowrap makes that impossible. overflow:hidden means the failure mode is a
+   clipped end-of-line rather than a horizontal scrollbar on the body. And the
+   lesson label below is the ONE item allowed to shrink, so the squeeze lands on
+   the only piece of variable-length text in the bar instead of scattering.
+
+   Thirds are kept on purpose: the centre section is genuinely centred, which is
+   what makes WPM/Acc readable at a glance from across a classroom. */
+.hud-section {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+}
 .hud-section.left { justify-content: flex-start; }
+/* Fixed-width furniture: these must never shrink, or the timer and the goal
+   start losing digits, which is worse than a truncated lesson title. */
+#back-btn, #hud-timer, #hud-daily-goal, #learn-restart-btn { flex: 0 0 auto; }
+/* The designated shrinker. Lesson titles are author-supplied and unbounded
+   ("G and H — Index Fingers Reach In"), so this is the right thing to ellipsis.
+   learn.js sets a title attribute alongside the text so the full name is still
+   available on hover. */
+#hud-lesson-label {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 .hud-section.center { justify-content: center; font-size: 1.1em; }
 #streak-display { transition: color 0.3s, text-shadow 0.3s; }
 .streak-cold { color: #666; }
