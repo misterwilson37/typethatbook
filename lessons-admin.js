@@ -1,6 +1,29 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.9.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.10.0
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
+//
+// v1.10.0 — THE ROLLOVER IMPORT. A returning student kept last year's class and
+//          nothing anywhere said so. Three parts:
+//            1. The preview no longer claims a student with no uid is new. A
+//               missing uid means only "no typing_logs in the last ROSTER_DAYS" —
+//               a student who last typed in the spring is indistinguishable from
+//               one who has never typed, and the old label promised "will apply
+//               on first login" for the case where nothing happened at all.
+//            2. A decision block, in the preview, asking what to do about
+//               students who already have a class. Commit stays LOCKED until it
+//               is answered. Not an overlay: it sits beside the table it is about
+//               and cannot be dismissed by a stray click.
+//            3. The answer travels with the record as `overwrite`, so the
+//               consumer (game.js / learn.js applyPendingClassAssignment) is told
+//               rather than left to guess which fact is newer. It governs BOTH
+//               write paths — visible students are skipped here, queued students
+//               are decided at sign-in — because an answer that applied to only
+//               half the file would reproduce the original defect.
+//          Also: the Create-classes button was losing its click listener to a
+//          later `innerHTML +=` whenever a file had both new classes and valid
+//          rows. All wiring in this panel now happens after the last write.
+//          Also: the commit summary reports queued and skipped counts, not just
+//          a bare "N assigned" that was true and misleading at the same time.
 //
 // v1.9.0 — Import JSON validates STEPS, not just lesson ids. parseImportJSON()
 //          checked one field — that each lesson had an `id` — and wrote whatever
@@ -51,7 +74,7 @@
 //          _studentsInited already true so reopening the tab could not recover.
 //          Both functions written from _commitCSV()/_bulkAssign().
 // v1.7.0 — Lesson + class authoring, CSV roster import, stuck-student scan.
-window.LESSONS_ADMIN_VERSION = '1.9.0';
+window.LESSONS_ADMIN_VERSION = '1.10.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -1463,6 +1486,10 @@ let _currentStudentUid = null;
 let _rosterData        = [];   // [{uid, name, email, lastLogin, weekSeconds, classId}]
 let _rosterSort        = { col: 'last', dir: -1 };
 let _csvParsed         = [];
+// null until the teacher answers the decision block in _previewCSV. 'move' or
+// 'newonly'. Deliberately NOT defaulted: the whole point of v1.10.0 is that an
+// import which reassigns students cannot proceed on an assumption nobody stated.
+let _csvOverwriteMode  = null;
 let _selectedUids      = new Set();
 
 function initStudentsPanel() {
@@ -1671,13 +1698,19 @@ async function _addOneStudent() {
             _setOneStudentStatus('\u2713 ' + email + ' assigned to ' +
                 (classId ? (_classCache[classId]?.name || classId) : 'no class') + '.', '#22c55e');
         } else {
+            // ⚠️ overwrite: true, AND UNLIKE THE CSV PATH IT IS NOT ASKED ABOUT.
+            // Typing one address and picking one class is about as explicit as an
+            // instruction gets — there is no ambiguity to resolve and no batch to
+            // get wrong. The CSV importer asks because a file can silently contain
+            // a hundred returning students; this cannot.
             await setDoc(doc(_db, 'pendingClassAssignments', email), {
                 classId: classId || null,
                 schoolId,
+                overwrite: true,
                 assignedAt: new Date().toISOString()
             });
-            _setOneStudentStatus('\u2713 ' + email + ' queued — it will apply the first time ' +
-                'they sign in.', '#22c55e');
+            _setOneStudentStatus('\u2713 ' + email + ' queued — it will apply the next time ' +
+                'they sign in, moving them out of any class they are already in.', '#22c55e');
         }
         emailEl.value = '';
     } catch (e) {
@@ -2104,6 +2137,9 @@ async function _previewCSV() {
     const testBtn   = document.getElementById('student-csv-preview-btn');
     const loadingEl = document.getElementById('student-csv-loading');
     _csvParsed      = [];
+    // ⚠️ Reset with the parse. A mode chosen for the PREVIOUS file must not
+    // survive into this one — paste a new roster, get asked again.
+    _csvOverwriteMode = null;
     commitBtn.disabled = true;
     commitBtn.style.opacity = '0.4';
     commitBtn.style.cursor  = 'not-allowed';
@@ -2150,10 +2186,22 @@ async function _previewCSV() {
     });
 
     const emailToUid = new Map();
-    _rosterData.forEach(r => { if (r.email) emailToUid.set(r.email.toLowerCase(), r.uid); });
+    const uidToClass = new Map();
+    _rosterData.forEach(r => {
+        if (r.email) emailToUid.set(r.email.toLowerCase(), r.uid);
+        uidToClass.set(r.uid, r.classId || '');
+    });
 
     // normalised key → { name: first spelling seen in the file, rows: how many }
     const missingClasses = new Map();
+
+    // ── The two counts the decision block is about (v1.10.0) ──
+    // queuedRows: no uid, so this becomes a pendingClassAssignments record and the
+    //   student's existing class — if they have one — is unknown from here.
+    // movedRows: has a uid AND is already in a DIFFERENT class, so committing
+    //   moves them. This was always what happened; it was just never said out loud.
+    let queuedRows = 0;
+    let movedRows  = 0;
 
     let html = '<table style="width:100%; border-collapse:collapse;">' +
         '<tr style="color:#666; border-bottom:1px solid #333;">' +
@@ -2171,10 +2219,24 @@ async function _previewCSV() {
         let status, ok = false;
         if (!email)    { status = '<span style="color:#555;">empty row</span>'; }
         else if (!uid) {
-            // Student hasn't typed yet — can still pre-assign via pendingClassAssignments
+            // ⚠️ THIS LABEL USED TO SAY "will apply on first login" AND IT WAS AN
+            // ASSERTION ABOUT A STUDENT THIS FUNCTION KNOWS NOTHING ABOUT.
+            //
+            // A missing uid means only one thing: no typing_logs in the last
+            // ROSTER_DAYS days. It does NOT mean the student is new. A returning
+            // student who last typed in the spring looks identical here, and they
+            // already have a classId from last year — which is exactly the case
+            // the consumer used to discard in silence. The old wording promised an
+            // outcome for the one case where the outcome was "nothing happens",
+            // in confident blue, with no error anywhere in the chain.
+            //
+            // Say what is actually known, and let the decision block below ask
+            // about what isn't.
             if (classId) {
-                status = '<span style="color:#4B9CD3;">⏰ pre-assign to ' + escHtml(clsName) + ' (will apply on first login)</span>';
+                status = '<span style="color:#4B9CD3;">⏰ not in the last ' + ROSTER_DAYS +
+                    ' days of logs — will queue for ' + escHtml(clsName) + '</span>';
                 ok = true; // write to pending collection keyed by email
+                queuedRows++;
                 _csvParsed.push({ uid: null, email, classId: classId || '' });
                 return; // skip the push below
             } else {
@@ -2198,6 +2260,19 @@ async function _previewCSV() {
                 '" yet — see below</span>';
         }
         else { status = '<span style="color:#22c55e;">✓ → ' + escHtml(clsName) + '</span>'; ok = true; }
+
+        // A visible student already in a different class is a MOVE, and the row
+        // should say so rather than showing the same green tick as a first
+        // placement. This is the case the roster can actually see; the queued rows
+        // above are the same question with the answer hidden.
+        if (ok && uid && classId) {
+            const cur = uidToClass.get(uid) || '';
+            if (cur && cur !== classId) {
+                movedRows++;
+                status = '<span style="color:#ffaa00;">↷ move from ' +
+                    escHtml(_classCache[cur]?.name || cur) + ' → ' + escHtml(clsName) + '</span>';
+            }
+        }
 
         if (ok) _csvParsed.push({ uid, email, classId: classId || '' });
 
@@ -2256,26 +2331,126 @@ async function _previewCSV() {
             '</div>' + picker +
             '</div>';
 
-        const createBtn = document.getElementById('csv-create-classes-btn');
-        if (createBtn) createBtn.addEventListener('click', _createMissingClasses);
+        // ⚠️ NO addEventListener HERE ANY MORE (v1.10.0), AND THIS WAS ALREADY A
+        // BUG BEFORE THIS VERSION EXISTED. The Create-classes button used to be
+        // wired right here — and then the `_csvParsed.length > 0` block below did
+        // `areaEl.innerHTML +=`, which re-parses this container and throws away
+        // every node in it, listener and all. So any file that named both a new
+        // class AND at least one valid row produced a Create-classes button that
+        // did nothing at all when clicked. Silently: a dead button looks exactly
+        // like a slow one.
+        //
+        // ⚠️ `innerHTML +=` IS NOT AN APPEND. It is a read, a concatenate, and a
+        // full re-parse of the whole subtree. Every listener bound to anything
+        // already inside is gone. All wiring for this panel now happens once, at
+        // the end of the function, after the last write. Do not bind above it.
     }
 
     if (_csvParsed.length > 0) {
-        // Enable Commit and make it the obvious next step
-        commitBtn.disabled = false;
-        commitBtn.style.opacity = '1';
-        commitBtn.style.cursor  = 'pointer';
-        commitBtn.className = 'lbtn lbtn-primary';
-        if (testBtn) { testBtn.className = 'lbtn lbtn-secondary'; }
+        // ── THE DECISION BLOCK (v1.10.0) ──────────────────────────────────────
+        //
+        // ⚠️ THIS IS THE POINT OF THE WHOLE VERSION. An import that reassigns
+        // students had exactly one behaviour and never named it: visible students
+        // were moved without being asked about, and queued students were silently
+        // dropped by the consumer if they already had a class. Two opposite
+        // outcomes, one button, no way to tell which you were getting.
+        //
+        // It is deliberately NOT an overlay modal. This file already has a pattern
+        // for a decision that changes what gets written — the "create the classes
+        // this file names" block — and it works because it sits in the preview,
+        // next to the table it is about, and cannot be dismissed by a stray click
+        // the way a modal can. Commit stays locked until a radio is chosen, so the
+        // answer is impossible to skip rather than merely easy to give.
+        //
+        // Asked only when it matters: a file with no returning students and no
+        // moves has nothing to decide, and a prompt with one sane answer trains
+        // people to click through prompts.
+        const needsDecision = (queuedRows > 0 || movedRows > 0);
+        if (needsDecision) {
+            const parts = [];
+            if (movedRows)  parts.push('<b style="color:#eee;">' + movedRows + '</b> ' +
+                (movedRows === 1 ? 'student is' : 'students are') +
+                ' already in a different class');
+            if (queuedRows) parts.push('<b style="color:#eee;">' + queuedRows + '</b> ' +
+                (queuedRows === 1 ? 'student has' : 'students have') +
+                ' not typed in ' + ROSTER_DAYS + ' days, so whether ' +
+                (queuedRows === 1 ? 'they already have' : 'they already have') +
+                ' a class is unknown from here');
+
+            areaEl.innerHTML +=
+                '<div style="margin-top:10px; padding:8px 10px; border:1px solid #4B9CD3; background:#0f1620;">' +
+                '<div style="color:#4B9CD3; font-weight:bold; margin-bottom:4px;">' +
+                'What should happen to students who already have a class?</div>' +
+                '<ul style="margin:4px 0 6px 18px; padding:0; color:#ccc;">' +
+                parts.map(p => '<li style="margin:2px 0;">' + p + '</li>').join('') +
+                '</ul>' +
+                '<div style="color:#888; font-size:0.95em; margin-bottom:6px;">' +
+                'Returning students carry last year&rsquo;s class until something moves them. ' +
+                'A queued assignment applies the next time that student signs in.' +
+                '</div>' +
+                '<label style="display:block; color:#ccc; margin:3px 0; cursor:pointer;">' +
+                '<input type="radio" name="csv-overwrite" value="move"> ' +
+                'Move them into the class named in this file' +
+                '<span style="color:#666;"> — use this for a new rotation</span></label>' +
+                '<label style="display:block; color:#ccc; margin:3px 0; cursor:pointer;">' +
+                '<input type="radio" name="csv-overwrite" value="newonly"> ' +
+                'Leave existing classes alone; only place students who have none' +
+                '<span style="color:#666;"> — use this to top up a roster mid-term</span></label>' +
+                '<div id="csv-overwrite-status" style="color:#ffaa00; margin-top:6px;">' +
+                'Choose one to unlock Commit.</div>' +
+                '</div>';
+        }
+
+        // Enable Commit and make it the obvious next step. When a decision is
+        // outstanding the button stays locked — see the radio handler below.
+        const unlockCommit = () => {
+            commitBtn.disabled = false;
+            commitBtn.style.opacity = '1';
+            commitBtn.style.cursor  = 'pointer';
+            commitBtn.className = 'lbtn lbtn-primary';
+            if (testBtn) { testBtn.className = 'lbtn lbtn-secondary'; }
+        };
+
         areaEl.innerHTML += '<div style="margin-top:6px; color:#22c55e; font-weight:bold;">' +
             '✓ ' + _csvParsed.length + ' assignment' + (_csvParsed.length !== 1 ? 's' : '') +
-            ' ready — click Commit to apply.</div>';
+            ' ready' + (needsDecision ? ' — answer the question above, then click Commit.'
+                                      : ' — click Commit to apply.') + '</div>';
+
+        // ── ALL WIRING HAPPENS HERE, AFTER THE LAST innerHTML WRITE ──────────
+        // See the note in the missing-classes block above. Nothing may be bound
+        // before this point, because any later `innerHTML +=` re-parses the whole
+        // container and silently discards every listener inside it.
+        if (needsDecision) {
+            areaEl.querySelectorAll('input[name="csv-overwrite"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    _csvOverwriteMode = radio.value;
+                    const st = document.getElementById('csv-overwrite-status');
+                    if (st) {
+                        st.style.color = '#22c55e';
+                        st.textContent = radio.value === 'move'
+                            ? '\u2713 Students already in a class will be moved.'
+                            : '\u2713 Students already in a class will be left where they are.';
+                    }
+                    unlockCommit();
+                });
+            });
+        } else {
+            // Nothing ambiguous in this file. 'move' is the correct mode for the
+            // rows that remain: a student with no class cannot be moved out of one,
+            // so the flag changes nothing and there is no question to ask.
+            _csvOverwriteMode = 'move';
+            unlockCommit();
+        }
     } else {
         areaEl.innerHTML += missingClasses.size
             ? '<div style="margin-top:6px; color:#888;">Nothing to commit yet — create the classes above, ' +
               'then this re-checks itself.</div>'
             : '<div style="margin-top:6px; color:#ffaa00;">No valid rows — check class names match and students have typing logs.</div>';
     }
+
+    // Create-classes button, wired last for the same reason as the radios.
+    const createBtn = document.getElementById('csv-create-classes-btn');
+    if (createBtn) createBtn.addEventListener('click', _createMissingClasses);
 }
 
 let _csvMissingClasses = [];
@@ -2375,10 +2550,24 @@ async function _commitCSV() {
     commitBtn.disabled = true;
     areaEl.innerHTML += '<div style="color:#888; margin-top:6px;">Writing…</div>';
 
-    let ok = 0, fail = 0;
+    // ⚠️ THE MODE MUST GOVERN BOTH PATHS OR IT IS A LIE (v1.10.0). "Leave existing
+    // classes alone" has to mean the same thing for a student the roster can see
+    // as for one it cannot — otherwise the answer applies to whichever half of the
+    // file the 45-day log window happened to put someone in, which is exactly the
+    // kind of split behaviour this version exists to remove. Visible students are
+    // skipped here; queued students carry the flag to the consumer in game.js and
+    // learn.js, which is the only code in a position to see their current class.
+    const overwrite = (_csvOverwriteMode !== 'newonly');
+
+    let ok = 0, fail = 0, skipped = 0, queued = 0;
     for (const { uid, email, classId } of _csvParsed) {
         try {
             if (uid) {
+                if (!overwrite) {
+                    const r = _rosterData.find(r => r.uid === uid);
+                    const cur = (r && r.classId) || '';
+                    if (cur && cur !== classId) { skipped++; continue; }
+                }
                 // Student has typed — write directly to their user doc
                 // schoolId MUST ride along. If this student has no user document
                 // yet, the write is a CREATE, and firestore.rules requires the
@@ -2389,20 +2578,37 @@ async function _commitCSV() {
                 }, { merge: true });
                 const r = _rosterData.find(r => r.uid === uid);
                 if (r) r.classId = classId || '';
+                ok++;
             } else {
-                // Student hasn\'t typed yet — write to pending collection keyed by email
+                // Not in the last ROSTER_DAYS of logs, so there is no uid to write
+                // to. Queue it by email; the student's own next sign-in applies it.
+                //
+                // ⚠️ `overwrite` IS THE WHOLE FIX. Without it the consumer had to
+                // guess whether a student's existing classId was last year's or
+                // this morning's, guessed "leave it", and discarded every rollover
+                // assignment in silence. The teacher answered that question on the
+                // preview screen; this carries the answer to where it is needed.
                 await setDoc(doc(_db, 'pendingClassAssignments', email.toLowerCase()), {
                     classId: classId || null,
                     schoolId: (_classCache[classId] && _classCache[classId].schoolId) || '',
+                    overwrite,
                     assignedAt: new Date().toISOString() });
+                queued++;
             }
-            ok++;
         } catch(e) { fail++; }
     }
 
-    areaEl.innerHTML += '<div style="color:#22c55e; margin-top:4px;">✓ Done: ' +
-        ok + ' assigned' + (fail ? ', ' + fail + ' failed.' : '.') + '</div>';
+    // Every number that is not zero gets said out loud. A bare "12 assigned" over
+    // a 14-row file is how the returning-student defect stayed invisible: the
+    // count was true and the sentence was still misleading.
+    const bits = [ok + ' assigned'];
+    if (queued)  bits.push(queued + ' queued for their next sign-in');
+    if (skipped) bits.push(skipped + ' left in their current class');
+    if (fail)    bits.push(fail + ' failed');
+    areaEl.innerHTML += '<div style="color:' + (fail ? '#ffaa00' : '#22c55e') +
+        '; margin-top:4px;">✓ Done: ' + bits.join(', ') + '.</div>';
     _csvParsed = [];
+    _csvOverwriteMode = null;
     // Reset buttons to default state
     commitBtn.disabled = true;
     commitBtn.style.opacity = '0.4';

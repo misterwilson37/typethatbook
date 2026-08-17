@@ -1,10 +1,16 @@
-// learn.js v2.5.1
+// learn.js v2.5.2
 //
 // Lesson-mode engine, separate from game.js. Same write-ahead-log and
 // coalesced-flush persistence pattern.
 //
 // ── Full history: CHANGELOG.md § learn.js ─────────────────────────────────
 // ── Why it looks like this: PEDAGOGY-AUDIT.md ─────────────────────────────
+//
+// v2.5.2 — applyPendingClassAssignment() mirrors game.js v3.21.1: an explicit
+//          reassignment is honoured, every exit consumes the record, records
+//          expire at 30 days, and the shared goals cache is dropped on a move.
+//          ⚠️ Two copies of this function exist on purpose (neither page
+//          controller can import the other). Change one, change both.
 //
 // v2.5.1 — ⚠️ HOTFIX. beginStep() threw a ReferenceError on `resume`, a variable
 //          v2.5.0 deleted with the checkpoint system while leaving one reader of
@@ -121,7 +127,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.5.1";
+const LEARN_VERSION = "2.5.2";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -2900,6 +2906,10 @@ async function loadUserStats() {
 
 
 // ─── Apply pending class assignment set by admin before student first typed ──
+// ⚠️ MIRRORS game.js's implementation. Two copies exist because neither page
+// controller can import the other — both have module-level side effects. If you
+// change one, change both: a student can reach either page first, and the entire
+// point of this function is that it does not matter which.
 async function applyPendingClassAssignment(user) {
     if (!user || user.isAnonymous || !user.email) return;
     try {
@@ -2908,12 +2918,66 @@ async function applyPendingClassAssignment(user) {
         const pendSnap = await getDoc(pendRef);
         if (!pendSnap.exists()) return;
 
-        const { classId, schoolId } = pendSnap.data();
-        if (!classId) return;
+        const pend     = pendSnap.data() || {};
+        const classId  = pend.classId;
+        const schoolId = pend.schoolId;
 
-        // Check they don't already have a class assigned
+        // ⚠️ EVERY EXIT FROM HERE ON DELETES THE RECORD (v2.5.2). A pending doc is
+        // a message from a teacher; reading it consumes it, whatever it said. The
+        // old version had three paths that returned without deleting, so a record
+        // that could not act was re-read and re-rejected on every sign-in forever.
+        if (!classId) { await deleteDoc(pendRef); return; }
+
+        // Age of the record, inlined ON PURPOSE. student-flow-test.mjs lifts this
+        // function out of the file by brace-matching and runs it standalone against
+        // fake Firestore and localStorage — so a top-level helper here is invisible
+        // to it and becomes a ReferenceError inside the sandbox, swallowed by the
+        // catch below. The harness's constraint is a real design constraint: this
+        // function must depend on nothing but its injected arguments.
+        // assignedAt is an ISO string from lessons-admin.js. An unparseable or
+        // absent stamp yields null — "unknown age", which must never read as
+        // "expired", or legacy records could never be consumed at all.
+        let ageMs = null;
+        const _rawAt = pend.assignedAt;
+        if (_rawAt) {
+            let _t = NaN;
+            if (typeof _rawAt === 'string') _t = Date.parse(_rawAt);
+            else if (typeof _rawAt.toDate === 'function') {
+                try { _t = _rawAt.toDate().getTime(); } catch (_) { _t = NaN; }
+            }
+            if (isFinite(_t)) ageMs = Date.now() - _t;
+        }
+        if (ageMs !== null && ageMs > 30 * 86400000) {
+            console.warn('[TTB] Discarding a class assignment queued ' +
+                Math.round(ageMs / 86400000) + ' days ago — too old to trust.');
+            await deleteDoc(pendRef);
+            return;
+        }
+
         const userSnap = await getDoc(doc(db, 'users', user.uid));
-        if (userSnap.exists() && userSnap.data().classId) return; // already assigned
+        const existing = (userSnap.exists() && userSnap.data().classId) || '';
+
+        if (existing === classId) { await deleteDoc(pendRef); return; }
+
+        // ⚠️ THIS GUARD USED TO READ `if (existing) return;` — see the long note
+        // in game.js. Short version: a RETURNING student is exactly the student
+        // the importer cannot see (email→uid comes out of typing_logs scoped to
+        // the last ROSTER_DAYS, and they last typed in the spring), so a rollover
+        // import writes a pending record for them — and this line then threw it
+        // away because they had last year's classId. Ten students, no error, all
+        // of them still on last year's roster.
+        //
+        // The teacher's intent now travels with the record as `overwrite`, set
+        // from the preview screen (lessons-admin.js v1.10.0). Absent means false,
+        // so pre-v1.10.0 records keep the old cautious reading — but are deleted
+        // instead of being ignored in perpetuity.
+        if (existing && pend.overwrite !== true) {
+            console.warn('[TTB] A class assignment was queued for this student, ' +
+                'but they are already in a class and the import was set to ' +
+                'leave existing placements alone. Discarding it.');
+            await deleteDoc(pendRef);
+            return;
+        }
 
         // Apply the pre-assignment
         // Stamp schoolId at the same time. Everything downstream — report scoping,
@@ -2943,10 +3007,18 @@ async function applyPendingClassAssignment(user) {
         // of typing does not appear in any class-filtered report and their class's
         // daily/weekly goals never apply. On the first day of a 9-week rotation that
         // is every student at once.
+        //
+        // ⚠️ v2.5.2 — AND NOW A SECOND REASON, WHICH IS WORSE. On a REASSIGNMENT the
+        // stale entry is not empty, it is last year's class with a valid className.
+        // It passes every check the cache-hit guard makes, because it is well-formed
+        // — just wrong. That is the case a validity check cannot catch, and it is why
+        // this removal is unconditional rather than guarded.
         try { localStorage.removeItem(LEARN_GOALS_KEY); } catch (_) {}
 
         // Reload goals with the new class
         await loadGoals();
+        console.log('[TTB] Applied pending class assignment:', classId,
+                    existing ? '(moved from ' + existing + ')' : '');
     } catch(e) { /* non-critical — don't block login */ }
 }
 

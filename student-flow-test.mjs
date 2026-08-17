@@ -1,4 +1,5 @@
-// student-flow-test.mjs v1.0.0 — Round 6 (Noiseless).
+// student-flow-test.mjs v1.1.0 — Round 6 (Noiseless); scenarios 6-9 added for
+// the returning-student reassignment defect (game.js v3.21.1 / learn.js v2.5.2).
 //
 // WHAT THIS IS FOR
 //
@@ -199,6 +200,111 @@ for (const [file, src] of SOURCES) {
         await fn({ uid: 'uid_kid', email: 'kid@school.org', isAnonymous: false });
         check('pending record without a classId writes nothing', () => {
             assert.ok(!w.store.has('users/uid_kid'), 'wrote a user doc from a malformed record');
+        });
+        // v3.21.1 / v2.5.2 — and it must not be left behind to be re-read forever.
+        check('a record that can do nothing is deleted, not left to rot', () => {
+            assert.ok(w.deleted.includes('pendingClassAssignments/kid@school.org'),
+                'The record survived. It can never act, so every future sign-in ' +
+                'pays a read to re-reject it, and it sits in the database looking live.');
+        });
+    }
+
+    // ── Scenario 6: THE RETURNING STUDENT (v3.21.1 / v2.5.2) ──────────────────
+    //
+    // The defect this scenario exists for: 10 students who used the app last year
+    // were imported into this year's classes, no error appeared anywhere, and all
+    // 10 still showed last year's class. The importer cannot see them (email→uid
+    // comes out of typing_logs scoped to ROSTER_DAYS, and they last typed in the
+    // spring), so it queued them — and the consumer discarded every record because
+    // they already had a classId. `overwrite` is the teacher's answer travelling
+    // with the record; honouring it is the fix.
+    {
+        const w = makeWorld();
+        w.store.set('pendingClassAssignments/kid@school.org', {
+            classId: 'cs_this_year', schoolId: 'ems',
+            overwrite: true, assignedAt: new Date().toISOString() });
+        w.store.set('users/uid_kid', { classId: 'cs_last_year', schoolId: 'ems' });
+        w.localStore.set(GOALS_KEY, JSON.stringify({
+            uid: 'uid_kid', at: Date.now(),
+            classId: 'cs_last_year', className: 'Period 2 (2025-26)' }));
+        let reloaded = 0;
+        const fn = bindLifted(code, w, async () => { reloaded++; });
+        await fn({ uid: 'uid_kid', email: 'kid@school.org', isAnonymous: false });
+
+        check('overwrite:true moves a student out of last year\'s class', () => {
+            assert.strictEqual(w.store.get('users/uid_kid').classId, 'cs_this_year',
+                'The student stayed in ' + w.store.get('users/uid_kid').classId +
+                '. This is the whole defect: a teacher asked for a move, the ' +
+                'importer said it would happen, and nothing did — silently.');
+        });
+        check('the consumed record is deleted after a move', () => {
+            assert.ok(w.deleted.includes('pendingClassAssignments/kid@school.org'));
+        });
+        check('a WELL-FORMED stale goals cache is still dropped', () => {
+            assert.strictEqual(w.localStore.get(GOALS_KEY), undefined,
+                'The cached entry holds last year\'s class WITH a valid className, ' +
+                'so it passes every check a cache-hit guard makes — it is simply ' +
+                'wrong. That is why the removal must be unconditional.');
+        });
+        check('goals reloaded after a move', () => {
+            assert.strictEqual(reloaded, 1, 'loadGoals() called ' + reloaded + ' times');
+        });
+    }
+
+    // ── Scenario 7: overwrite absent or false — leave them where they are ─────
+    // Two cases, one expectation. `overwrite: false` is the teacher choosing
+    // "top up the roster, don't move anyone"; a MISSING field is a record written
+    // before lessons-admin.js v1.10.0, which gets the same cautious reading.
+    for (const [label, pend] of [
+        ['overwrite:false leaves an existing class alone',
+         { classId: 'cs_this_year', schoolId: 'ems', overwrite: false,
+           assignedAt: new Date().toISOString() }],
+        ['a pre-v1.10.0 record (no overwrite field) leaves an existing class alone',
+         { classId: 'cs_this_year', schoolId: 'ems' }],
+    ]) {
+        const w = makeWorld();
+        w.store.set('pendingClassAssignments/kid@school.org', pend);
+        w.store.set('users/uid_kid', { classId: 'cs_current', schoolId: 'ems' });
+        const fn = bindLifted(code, w, async () => {});
+        await fn({ uid: 'uid_kid', email: 'kid@school.org', isAnonymous: false });
+        check(label, () => {
+            assert.strictEqual(w.store.get('users/uid_kid').classId, 'cs_current');
+        });
+        check(label + ' — and is consumed rather than re-read forever', () => {
+            assert.ok(w.deleted.includes('pendingClassAssignments/kid@school.org'));
+        });
+    }
+
+    // ── Scenario 8: an expired record is discarded even with overwrite ────────
+    // An instruction has a shelf life. Past 30 days a direct placement made in the
+    // meantime is far likelier to be current than a record nobody consumed.
+    {
+        const w = makeWorld();
+        const longAgo = new Date(Date.now() - 60 * 86400000).toISOString();
+        w.store.set('pendingClassAssignments/kid@school.org', {
+            classId: 'cs_last_term', schoolId: 'ems',
+            overwrite: true, assignedAt: longAgo });
+        w.store.set('users/uid_kid', { classId: 'cs_current', schoolId: 'ems' });
+        const fn = bindLifted(code, w, async () => {});
+        await fn({ uid: 'uid_kid', email: 'kid@school.org', isAnonymous: false });
+        check('a 60-day-old record does not reach into this rotation', () => {
+            assert.strictEqual(w.store.get('users/uid_kid').classId, 'cs_current');
+            assert.ok(w.deleted.includes('pendingClassAssignments/kid@school.org'));
+        });
+    }
+
+    // ── Scenario 9: an unparseable stamp is "unknown", never "expired" ────────
+    // Legacy records predate assignedAt entirely. Treating unknown as expired
+    // would make them permanently unusable, which is a silent failure of exactly
+    // the kind this whole file exists to catch.
+    {
+        const w = makeWorld();
+        w.store.set('pendingClassAssignments/kid@school.org', {
+            classId: 'cs_new', schoolId: 'ems', overwrite: true, assignedAt: 'garbage' });
+        const fn = bindLifted(code, w, async () => {});
+        await fn({ uid: 'uid_kid', email: 'kid@school.org', isAnonymous: false });
+        check('an unparseable assignedAt still applies', () => {
+            assert.strictEqual(w.store.get('users/uid_kid').classId, 'cs_new');
         });
     }
 }
