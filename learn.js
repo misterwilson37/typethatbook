@@ -1,10 +1,16 @@
-// learn.js v2.3.0
+// learn.js v2.5.1
 //
 // Lesson-mode engine, separate from game.js. Same write-ahead-log and
 // coalesced-flush persistence pattern.
 //
 // ── Full history: CHANGELOG.md § learn.js ─────────────────────────────────
 // ── Why it looks like this: PEDAGOGY-AUDIT.md ─────────────────────────────
+//
+// v2.5.1 — ⚠️ HOTFIX. beginStep() threw a ReferenceError on `resume`, a variable
+//          v2.5.0 deleted with the checkpoint system while leaving one reader of
+//          it in place. Every lesson start, every student, blank drill view. One
+//          line; see the block at the assignment. Also: line 1 of this header
+//          said v2.3.0 while the constant said 2.5.0 — corrected, both now 2.5.1.
 //
 // v2.5.0 — LESSONS ARE ATOMIC. Jake's ruling: a lesson not finished in one
 //          sitting restarts, it does not resume at the last word. The whole
@@ -115,7 +121,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.5.0";
+const LEARN_VERSION = "2.5.1";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -1298,7 +1304,26 @@ function beginStep(stepIdx) {
     drillConsecutiveMistakes = 0;
     drillIsHardStop = false;
     stepStartTime = Date.now();
-    stepSeconds   = resume ? (resume.stepSeconds || 0) : 0;
+    // ⚠️ v2.5.1 — THIS LINE WAS THE OUTAGE. v2.5.0 deleted the checkpoint system
+    // and the local `resume` object with it, but left this reference standing:
+    //     stepSeconds = resume ? (resume.stepSeconds || 0) : 0;
+    // learn.js is an ES module, so it is strict mode, so reading an undeclared
+    // identifier is a ReferenceError — not undefined. beginStep() therefore threw
+    // on EVERY lesson start, from all eight of its call sites, after the intro
+    // panel was hidden and #active-drill unhidden but BEFORE startGradedTimer()
+    // and the first renderDrill(). An empty drill view: no text, no timer, no
+    // error a student can report. Identical to the v2.4.0 symptom and strictly
+    // worse in reach, because v2.4.0 needed a saved checkpoint to trigger and
+    // this needed only a click.
+    //
+    // ⚠️ GENERALISE: deleting a system means deleting its READERS, not just its
+    // writers. `resume` had no declaration left to grep for — the only thing that
+    // could still see it was undefined-calls-test.mjs, which parses every shipped
+    // file for exactly this and reported it on the very next run. RUN THE SUITE.
+    // A round that deletes a subsystem is the round most likely to need it.
+    //
+    // A run always starts at zero seconds now. There is nothing to carry in.
+    stepSeconds   = 0;
 
     learnActiveSeconds = 0;
     learnLastInputTime = 0;
