@@ -6,6 +6,44 @@
 // ── Full history: CHANGELOG.md § learn.js ─────────────────────────────────
 // ── Why it looks like this: PEDAGOGY-AUDIT.md ─────────────────────────────
 //
+// v2.5.0 — LESSONS ARE ATOMIC. Jake's ruling: a lesson not finished in one
+//          sitting restarts, it does not resume at the last word. The whole
+//          `ttb_learnpos_v1` checkpoint system is deleted — 143 lines, six
+//          clearRunPosition() call sites, and the checkpointOwner() identity
+//          that existed only to decide whose half-finished drill a snapshot
+//          was. ⚠️ DO NOT REBUILD IT; read the block where it used to live.
+//          Time is unaffected and now better: stopLesson() calls saveStats(),
+//          so abandoning a lesson schedules its minutes for flush instead of
+//          leaving them in memory until a hide. Adds a ↺ Restart control in the
+//          HUD, which is the other half of "lessons can't be easily restarted"
+//          — clicking a lesson you were part-way through used to resume it
+//          silently, so there was no way to ask for a clean run at all.
+//
+// v2.4.0 — THE BLANK LESSON SCREEN, and progress that survives a closed tab.
+//          (1) ⚠️ beginStep() never removed `hidden` from #active-drill.
+//          learn.html ships that div hidden and showIntro() was the ONLY line
+//          in the file that unhid it — so startLesson()'s resume path, which
+//          skips the intro on purpose, showed #drill-view with BOTH children
+//          hidden. Blank screen, no error, and only for a student who had a
+//          checkpoint on the lesson they clicked, which is why it looked random.
+//          (2) Guest checkpoints moved from sessionStorage to localStorage.
+//          ⚠️ SUPERSEDED BY v2.5.0, WHICH DELETED CHECKPOINTS ENTIRELY. Kept in
+//          this list because the reasoning is still the reasoning — v2.3.0's
+//          shared-machine premise is false at Ellis and anything else keyed to
+//          it is wrong for the same reason.
+//          (3) Guest minutes and lesson results now persist across a tab close
+//          (stats-wal.js guest accumulator, date-guarded) so retroactive save
+//          on sign-in has something to credit.
+//          (4) Day/week counters move to stats-wal.js, shared with game.js.
+//          game.js's single WAL was book-scoped on recovery and overwritten
+//          unconditionally on save, so closing a tab in one book and opening
+//          another destroyed the first one's unflushed minutes. See that file.
+//          (5) The hide-flush 60s rate limit gains a delta escape hatch.
+//          (6) renderMap() builds into a fragment and swaps at the end, so a
+//          throw leaves the previous map standing instead of a blank div.
+//          (7) buildSequence()'s key_pattern case gets the `|| ''` every other
+//          case already had.
+//
 // v2.3.0 — GUEST MODE, three fixes. (1) loadLessons()'s in-flight promise shared
 //          a FAILED attempt with a caller that had different credentials: the
 //          module-load call fired before auth, was denied, swallowed the error in
@@ -50,6 +88,14 @@
 //   * Do NOT scale gates by grade level. An 8th grader may have had this
 //     teacher twice or never; unit position is the only honest signal.
 import { db, auth } from "./firebase-config.js";
+// The day/week counters' WAL, shared with game.js. It is a separate module
+// because the counters are the one piece of state that is true regardless of
+// which page or which book a student is on, and both previous copies of it were
+// scoped to something narrower than that. See stats-wal.js for the bug.
+import {
+    statsWalSave, statsWalRecover,
+    guestAccumSave, guestAccumLoad, guestAccumClear
+} from "./stats-wal.js";
 import {
     collection, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc,
     // Aggregation query. Firestore bills getCountFromServer at ONE read per up
@@ -69,7 +115,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.3.0";
+const LEARN_VERSION = "2.5.0";
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -87,9 +133,43 @@ let currentUser = null;
 let allLessons   = [];   // sorted lesson objects from Firestore
 let userProgress = {};   // lessonId → progress doc
 
-// Guest session tracking — accumulates until sign-in
+// Guest session tracking — accumulates until sign-in.
+//
+// ⚠️ v2.4.0: THIS SURVIVES THE TAB NOW. It used to be two plain module
+// variables that died on close, so a student who typed for twenty minutes
+// signed out, closed the tab, and signed in third period got credited nothing.
+// The login ladder told them their work wasn't being saved, which made it
+// honest but did not make it good — we could have kept it and chose not to.
+//
+// Restored from localStorage by restoreGuestAccum(), which runs at init and is
+// date-guarded: yesterday's guest minutes are dropped, never rolled into
+// today's count. A teacher's daily report is the one number that has to mean
+// exactly what it says.
 let anonSecondsAccum      = 0;
 let anonLessonProgress    = {};
+
+// Persist on a cadence, not on every tick — one localStorage write per second
+// per student is free-ish but pointless. The tick calls this; so do the
+// visibilitychange and beforeunload handlers, which are the moments that
+// actually matter.
+const GUEST_ACCUM_SAVE_EVERY = 10;   // seconds of active typing
+function persistGuestAccum() {
+    if (currentUser && !currentUser.isAnonymous) return;
+    guestAccumSave(getLocalDateStr(), anonSecondsAccum, anonLessonProgress);
+}
+function restoreGuestAccum() {
+    const g = guestAccumLoad(getLocalDateStr());
+    if (!g) return;
+    // max(), not +=. This runs once at init, but a second tab of the same
+    // browser would otherwise double-count a shared total on every reload.
+    if (g.seconds > anonSecondsAccum) anonSecondsAccum = g.seconds;
+    for (const [id, rec] of Object.entries(g.lessonProgress)) {
+        if (!anonLessonProgress[id]) anonLessonProgress[id] = rec;
+    }
+    if (anonSecondsAccum) {
+        console.log('[TTB] Restored ' + anonSecondsAccum + 's of guest typing from earlier today.');
+    }
+}
 
 // ─── The guest login ladder (v2.3.0) ──────────────────────────────────────────
 //
@@ -423,11 +503,21 @@ async function retroactiveSaveAnonSession(user) {
             userProgress[lessonId] = record;
         }
 
-        // Clear anon accumulators
+        // ⚠️ COUNT BEFORE CLEARING. The log line below used to read
+        // `Object.keys(anonLessonProgress).length` AFTER the two lines that
+        // empty it, so it reported 0 lessons every time, forever. Harmless, and
+        // exactly the kind of thing that makes a console message worthless as
+        // evidence when you finally need it.
+        const savedLessonCount = Object.keys(anonLessonProgress).length;
+
+        // Clear anon accumulators — in memory AND on disk. The persisted copy
+        // has now been credited to a real account; leaving it would re-apply
+        // the same minutes on the next sign-in of the day.
         anonSecondsAccum = 0;
         anonLessonProgress = {};
+        guestAccumClear();
 
-        console.log('[TTB] Retroactive anon session saved:', Object.keys(anonLessonProgress).length, 'lessons');
+        console.log('[TTB] Retroactive anon session saved:', savedLessonCount, 'lessons');
     } catch(e) { console.warn('[TTB] Retroactive save failed:', e); }
 }
 
@@ -634,12 +724,31 @@ function refreshProgressCache() {
 }
 
 // ─── Lesson Map ───────────────────────────────────────────────────────────────
+// ⚠️ BUILDS INTO A FRAGMENT AND SWAPS AT THE END. (v2.4.0)
+//
+// This function used to open with `lessonMapEl.innerHTML = ''` and then do all
+// its work — including calling mapMeta() → buildRunList() → buildSequence() for
+// every lesson in the corpus. Anything throwing anywhere after line 1 left the
+// container EMPTIED and unrefilled: a blank map, no console error a student can
+// report, and a page that stays blank on every subsequent render because the
+// same lesson throws again.
+//
+// It was not the cause of the blank screen Jake reported in Round 10 — that was
+// beginStep(), see the comment there — and the 47-lesson corpus was verified
+// clean across 3,000 renders before this was written, so nothing throws here
+// today. It is still the wrong shape. A render that destroys the old view
+// before it can build the new one has no failure mode except "nothing", and
+// lesson content is authored in an admin panel by a human and imported from
+// JSON that (before lessons-admin.js v1.9.0) validated only the lesson id.
+//
+// Build first, swap last: a throw now leaves the PREVIOUS map standing, which
+// is both a usable screen and a much better bug report.
 function renderMap() {
-    lessonMapEl.innerHTML = '';
     if (allLessons.length === 0) {
         lessonMapEl.innerHTML = '<div style="color:#888; text-align:center; padding:40px;">No lessons loaded.</div>';
         return;
     }
+    const mapFrag = document.createDocumentFragment();
 
     const completed = new Set(Object.keys(userProgress).filter(id => userProgress[id]?.passed));
     const totalLessons = allLessons.length;
@@ -702,7 +811,7 @@ function renderMap() {
         const header = document.createElement('div');
         header.className = 'map-unit-header';
         header.textContent = UNIT_LABELS[unit] || `Unit ${unit}`;
-        lessonMapEl.appendChild(header);
+        mapFrag.appendChild(header);
 
         const row = document.createElement('div');
         row.className = 'map-lesson-row';
@@ -738,8 +847,11 @@ function renderMap() {
             row.appendChild(card);
         });
 
-        lessonMapEl.appendChild(row);
+        mapFrag.appendChild(row);
     });
+
+    // Everything built without throwing — NOW replace what's on screen.
+    lessonMapEl.replaceChildren(mapFrag);
 
     // Graduate button: show if all non-Unit-7 lessons complete
     const graduateable = allLessons.filter(l => l.unit < 7).every(l => completed.has(l.id));
@@ -892,19 +1004,81 @@ function startLesson(lesson) {
     backBtn.href = '#'; backBtn.onclick = () => { stopLesson(); return false; };
 
     showView('drill');
+    showRestartButton(true);
 
-    // Resume mid-lesson if there's a saved position for this lesson: skip the intro
-    // and drop straight back where the bell interrupted them. The intro is a
-    // re-read they didn't ask for, and replaying it was part of what made an
-    // interrupted lesson feel like starting from zero.
-    const pending = peekPendingRun(lesson.id);
-    if (pending && pending.runIdx < currentRuns.length) {
-        introPanel.classList.add('hidden');
-        beginStep(pending.runIdx);
-        return;
-    }
-
+    // ⚠️ THERE IS NO MID-LESSON RESUME, AND THAT IS A RULING. (v2.5.0)
+    //
+    // Jake, 2026-08-17: *"If a kid doesn't finish a lesson one session, they
+    // should restart it — not start at the last word. The lesson should be
+    // taken as a whole (although it should track the time whether it finishes
+    // or not)."*
+    //
+    // This block used to read a saved checkpoint, skip the intro, and drop the
+    // student back into the exact character where the bell caught them. The
+    // reasoning was that replaying the intro made an interrupted lesson feel
+    // like starting from zero. Right about the feeling, wrong about the goal:
+    // a lesson is a pedagogical unit, not a queue of characters to get through.
+    // Resuming at word 340 of a fluency drill measures nothing, because the
+    // thing being trained is the whole run.
+    //
+    // ⚠️ IT WAS ALSO THE BLANK SCREEN. This branch is the path that reached
+    // beginStep() without ever unhiding #active-drill (see v2.4.0). Deleting it
+    // removes the defect rather than guarding it — the v2.4.0 guard stays
+    // anyway, because the invariant should hold for whatever calls beginStep()
+    // next, not just for the caller that exposed it.
+    //
+    // ⚠️ AND IT IS WHY LESSONS "COULDN'T BE RESTARTED". Clicking a lesson you
+    // had already been part-way through silently resumed it instead of starting
+    // it, so there was no way to ask for a clean run — including for a lesson
+    // already completed. That was the same code path, reported as a different
+    // complaint.
+    //
+    // TIME IS UNAFFECTED. statsData ticks once a second from the drill tick
+    // regardless of whether a lesson ever completes, and stopLesson() now calls
+    // saveStats() so an abandoned lesson's minutes are scheduled for flush
+    // rather than waiting on a hide. Abandoning is the normal way a partial
+    // lesson ends now, so that path had to stop being the unlucky one.
     showIntro(lesson);
+}
+
+// Restart the lesson in progress from its first run. Goes through the intro on
+// purpose: if the unit of work is the whole lesson, the intro is part of it, and
+// showIntro() is also what pre-builds the drill keyboard at real pixel size.
+function restartLesson() {
+    if (!currentLesson) return;
+    clearInterval(timerInterval);
+    clearInterval(learnTickInterval);
+    stopIntroAnim();
+    drillKeyboard.onkeydown = null;
+    // Bank whatever they typed before the restart — the time counts even though
+    // the attempt is being thrown away.
+    saveStats();
+    persistGuestAccum();
+    startLesson(currentLesson);
+}
+
+// The restart control. Built in JS rather than learn.html so this ships as one
+// file — same pattern as the Game Genie button.
+function showRestartButton(show) {
+    let btn = document.getElementById('learn-restart-btn');
+    if (!btn) {
+        btn = document.createElement('button');
+        btn.id = 'learn-restart-btn';
+        btn.type = 'button';
+        btn.textContent = '\u21BA Restart';
+        btn.title = 'Start this lesson over from the beginning';
+        btn.style.cssText = 'margin-left:10px;font:inherit;font-size:12px;' +
+            'background:none;border:1px solid #555;border-radius:4px;' +
+            'padding:1px 8px;color:#999;cursor:pointer;' +
+            'font-family:\'Courier Prime\',monospace;';
+        btn.onclick = restartLesson;
+        if (hudLessonLabel && hudLessonLabel.parentNode) {
+            hudLessonLabel.parentNode.insertBefore(btn, hudLessonLabel.nextSibling);
+        } else {
+            document.getElementById('hud').appendChild(btn);
+        }
+    }
+    btn.style.display = show ? '' : 'none';
 }
 
 function showIntro(lesson) {
@@ -1031,30 +1205,60 @@ function startGradedTimer() {
 // Reachable two ways, both real:
 //   * the Game Genie's step jump calls beginStep(parseInt(select.value)) with no
 //     bounds check;
-//   * a saved run checkpoint can outlive a lesson edit. Re-chunking a five-run
-//     step into three leaves a resume pointing at run 4 of 3. startLesson()
-//     bounds-checks the resume, but the checkpoint itself survives, and
-//     recordRunOutcome/renderMap both index by run.
+//   * the remediation detour rebuilds currentRuns from a synthetic step, so any
+//     index captured before it is stale afterwards.
+//
+// ⚠️ v2.5.0 REMOVED THE THIRD AND MOST COMMON WAY IN. A saved run checkpoint
+// could outlive a lesson edit: re-chunking a five-run step into three left a
+// resume pointing at run 4 of 3. Checkpoints are gone, so that route is closed
+// — but the Game Genie route is not, and a guard whose only remaining caller is
+// an admin tool is still worth its six lines.
 //
 // Recovery is stopLesson(), not completion. `!currentStep` means the run list and
 // the index disagree, and grading a run that does not exist would write a score
 // for work nobody did. stopLesson() clears the timers, reloads progress and puts
 // the student back on the map, which is where the ← Map button sends them anyway.
-// clearRunPosition() goes with it so a stale checkpoint cannot bounce them
-// straight back out again.
 function beginStep(stepIdx) {
     currentStepIdx = stepIdx;
     currentStep = currentRuns[stepIdx];
     if (!currentStep) {
         console.warn('[TTB] beginStep: run ' + stepIdx + ' does not exist in a ' +
-                     currentRuns.length + '-run lesson — clearing the checkpoint ' +
-                     'and returning to the map.');
-        clearRunPosition();
+                     currentRuns.length + '-run lesson — returning to the map.');
         stopLesson();
         return;
     }
 
     introPanel.classList.add('hidden');
+    // ⚠️ THIS LINE IS THE BLANK SCREEN. (v2.4.0)
+    //
+    // learn.html ships `<div id="active-drill" class="hidden">`, and until now
+    // the ONLY line in this file that removed that class was inside
+    // showIntro(). startLesson() has a resume path that deliberately skips the
+    // intro — it hides #intro-panel and calls beginStep() directly — so on that
+    // path #drill-view was shown with BOTH of its children hidden. A student
+    // clicked a lesson and got nothing: no error, no console warning, no
+    // keyboard, nothing to describe beyond "it went white".
+    //
+    // It fired only for a student who had a saved checkpoint for the lesson
+    // they clicked, which is why WHICH lesson you picked decided whether the
+    // app worked. Continue → a lesson they were mid-way through → blank.
+    // A different card → no checkpoint → intro → fine. That was the "luck".
+    //
+    // ⚠️ GENERALISE: A VIEW-STATE INVARIANT ENFORCED BY THE COMMON PATH IS NOT
+    // ENFORCED. showIntro() was the only writer, so it read as the owner of
+    // that class, and the second entry point inherited an obligation nothing
+    // stated. beginStep() now asserts the whole drill view for itself rather
+    // than trusting whatever ran before it. resume-path-test.mjs asserts that
+    // every path reaching beginStep() leaves both children resolved.
+    //
+    // ⚠️ v2.5.0 DELETED THE PATH THAT EXPOSED THIS, AND THE GUARD STAYS ANYWAY.
+    // Jake's whole-lesson ruling removed the resume branch in startLesson(), so
+    // nothing reaches beginStep() past showIntro() today except the Game Genie.
+    // The invariant is about what beginStep() owes its caller, not about which
+    // caller happened to catch it out — the next entry point added here should
+    // find the drill view already correct rather than inherit an unstated
+    // obligation, which is precisely how this defect was born.
+    activeDrill.classList.remove('hidden');
     // Restore active-drill to normal flow (was kept visible but hidden during intro)
     activeDrill.style.position = '';
     activeDrill.style.top = '';
@@ -1086,17 +1290,9 @@ function beginStep(stepIdx) {
     mistakes  = 0;
     chars     = 0;
 
-    // Resume: a matching saved position restores mid-run progress rather than
-    // starting over. Consumed once, so a later retry of the same run starts clean.
-    const resume = takePendingRun(stepIdx);
-    if (resume) {
-        drillSequence = resume.seq.split('');
-        drillPos  = Math.min(resume.drillPos, drillSequence.length);
-        mistakes  = resume.mistakes || 0;
-        chars     = resume.chars || 0;
-    }
+    // v2.5.0 — the mid-run resume that used to live here is gone; see
+    // startLesson(). A run always begins at character zero with clean counters.
     drillCharStates     = new Array(drillSequence.length).fill('upcoming');
-    for (let i = 0; i < drillPos; i++) drillCharStates[i] = 'perfect';
     drillLetterStatus   = 'clean';
     drillBackspaceOrigin = -1;
     drillConsecutiveMistakes = 0;
@@ -1121,6 +1317,7 @@ function beginStep(stepIdx) {
             statsData.secondsWeek++;
             if (!currentUser || currentUser.isAnonymous) {
                 anonSecondsAccum++;
+                if (anonSecondsAccum % GUEST_ACCUM_SAVE_EVERY === 0) persistGuestAccum();
                 armAnonLoginPrompt();   // fires at the run boundary, not here
             }
             // Midnight rollover
@@ -1179,8 +1376,15 @@ function beginStep(stepIdx) {
 
 function buildSequence(step) {
     switch (step.type) {
+        // ⚠️ `|| ''` ADDED v2.4.0. This was the one case in the switch without
+        // it — every sibling already had `step.text || ''` or `step.keySet ||
+        // []` — so a key_pattern step with no text threw a TypeError out of
+        // buildSequence, up through buildRunList, and out of renderMap, which
+        // had already blanked the container. The corpus is clean today and
+        // lessons-admin.js v1.9.0 now rejects the shape at import, but this is
+        // the last line of defence and it costs two characters.
         case 'key_pattern':
-            return step.text.split('');
+            return (step.text || '').split('');
         case 'key_pattern_auto':
             return generateReachPattern(step.keySet || [], step.groupSize || 4, step.groupCount || 10);
         case 'key_random':
@@ -1529,8 +1733,6 @@ function handleDrillKey(e) {
             finishStep();
             return;
         }
-        // Checkpoint the run every few characters so the bell can't erase it.
-        if (drillPos % 5 === 0) saveRunPosition();
         advanceHandGuide();
     } else {
         mistakes++;
@@ -1741,10 +1943,6 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     const grade    = calculateGrade(wpm, acc, minWPM, minAcc, mistakes === 0);
     const canAdvance = gradeAdvances(grade, gates);
 
-    // On a successful run the position checkpoint is stale — drop it so a resume
-    // never lands back inside a run the student already cleared.
-    if (canAdvance) clearRunPosition();
-
     recordRunOutcome(currentStepIdx, grade, canAdvance);
 
     document.getElementById('dm-title').textContent = 'Step ' + nextIdx + ' of ' + totalSteps + ' done';
@@ -1824,7 +2022,6 @@ function showLessonResultModal(wpm, acc) {
 
     const grade  = calculateGrade(wpm, acc, minWPM, minAcc, mistakes === 0);
     const passed = gradeAdvances(grade, gates);
-    if (passed) clearRunPosition();
 
     // Record the run BEFORE saveProgress, so the cumulative time and run maps it
     // spreads forward already include this run.
@@ -1857,6 +2054,7 @@ function showLessonResultModal(wpm, acc) {
             grade: bestGrade,
             stars: bestGrade === FIRE_GRADE || bestGrade === 'A' ? 3 : bestGrade === 'B' ? 2 : bestGrade === 'C' ? 1 : 0,
         };
+        persistGuestAccum();   // v2.4.0 — survives the tab; see anonLessonProgress
         checkAnonLoginPrompt();
     }
 
@@ -2016,7 +2214,6 @@ window._practiceMissedKeys = function(missedKeys) {
         type: syntheticStep.type, anchorEnforced: false, gates: null, sequence: seq,
         label: syntheticStep.label + (all.length > 1 ? ` (${i + 1}/${all.length})` : ''),
     }));
-    clearRunPosition();   // a remediation detour must not resurrect a lesson position
     beginStep(0);
 };
 
@@ -2146,6 +2343,20 @@ function stopLesson() {
     clearInterval(learnTickInterval);
     stopIntroAnim();
     drillKeyboard.onkeydown = null;
+    // ⚠️ v2.5.0 — BANK THE TIME ON THE WAY OUT. saveStats() used to be reached
+    // only from finishStep(), i.e. only when a run COMPLETED. That was survivable
+    // while an abandoned lesson left a position checkpoint behind; now that a
+    // partial attempt is discarded by design, walking away is the normal way a
+    // partial lesson ends, and the minutes still have to count. Jake was explicit:
+    // *"it should track the time whether it finishes or not."*
+    //
+    // The counters themselves were never at risk — the drill tick increments
+    // statsData once a second regardless. What was missing was anything to
+    // SCHEDULE those seconds for a flush, so they sat in memory until a hide or
+    // the 5-minute interval happened to catch them.
+    saveStats();
+    persistGuestAccum();
+    showRestartButton(false);
     currentLesson = null;
     backBtn.href = 'index.html'; backBtn.onclick = null;
     hudLessonLabel.textContent = '';
@@ -2357,23 +2568,62 @@ function openLearnGenie() {
 // already holds the durable copy, and a teacher reading a report mid-period is
 // looking at typing_logs, which is a merge and therefore idempotent.
 const HIDDEN_FLUSH_MIN_GAP_MS = 60000;
+// v2.4.0 — the delta that overrides the gap. ⚠️ SEE game.js v3.21.0 FOR THE FULL
+// REASONING, INCLUDING WHY IT IS 120 AND NOT 45. Short version: a `final` flush
+// writes two to three documents, and a 45-second threshold across the
+// SCALE-PLAN population has a ~$85/year ceiling. 120 seconds and a non-final
+// flush drops that to about a dollar, and once stats-wal.js exists the only
+// thing this gate still buys is a fresher number in a report a teacher happens
+// to be refreshing mid-period. Unflushed time is no longer lost either way.
+//
+// ⚠️ KEEP THESE TWO CONSTANTS EQUAL TO game.js's. They are the same policy
+// applied to the same student on two pages; a student who alt-tabs out of a
+// lesson and a student who alt-tabs out of a book should not be governed by
+// different numbers. Round 9 §4 is the standing warning about exactly this.
+const HIDDEN_FLUSH_DELTA_SECONDS = 120;
 let lastHiddenFlush = 0;
+// What secondsToday was the last time a flush actually reached Firestore.
+// Updated by flushStats() on success only — a failed flush must not make the
+// next hide think the work is safe.
+let lastFlushedSecondsToday = 0;
 
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
         // Position first: it's a synchronous localStorage write and it's the thing
         // whose loss actually costs the student their work. Never rate-limited.
-        if (currentStep && drillPos > 0) saveRunPosition();
         learnWalSave();
-        if (Date.now() - lastHiddenFlush >= HIDDEN_FLUSH_MIN_GAP_MS) {
+        persistGuestAccum();   // no-op when signed in; the whole point when not
+        // ⚠️ THE RATE LIMIT NOW HAS AN ESCAPE HATCH (v2.4.0).
+        //
+        // The 60-second gap is right for its stated purpose — a student
+        // bouncing to Google Classroom eight times should not fire eight full
+        // flushes. It is wrong when the tab is going away for good with four
+        // minutes of un-flushed typing behind it, and hidden-because-alt-tab
+        // and hidden-because-closing are indistinguishable from here.
+        //
+        // So the gap governs how OFTEN we flush, and the un-flushed delta
+        // governs whether we flush at all. A student who alt-tabs constantly
+        // still gets one flush a minute; a student who alt-tabs once and then
+        // closes at 4:30 does not lose four and a half minutes to a timer that
+        // was protecting Firestore from a problem they don't have.
+        const gapElapsed = Date.now() - lastHiddenFlush >= HIDDEN_FLUSH_MIN_GAP_MS;
+        const unflushed  = (statsData.secondsToday || 0) - lastFlushedSecondsToday;
+        if (gapElapsed || unflushed >= HIDDEN_FLUSH_DELTA_SECONDS) {
             lastHiddenFlush = Date.now();
-            flushStats('hidden', true);
+            // Only the gap-driven flush is `final`. The delta-driven one writes
+            // typing_logs and skips the stats/time_tracking rollup, which is
+            // read at page load only and which the shared WAL now covers.
+            flushStats('hidden', gapElapsed);
         }
     }
 });
 
 window.addEventListener('beforeunload', () => {
-    if (currentStep && drillPos > 0) saveRunPosition();
+    // ⚠️ Synchronous localStorage writes first, ALWAYS. The Firestore flush
+    // below is async and the browser is under no obligation to let it finish —
+    // it is a best effort, not the safety net. These two lines are the net.
+    learnWalSave();
+    persistGuestAccum();
     if (currentUser && statsData.secondsToday > 0) flushStats('beforeunload', true);
 });
 
@@ -2606,6 +2856,20 @@ async function loadUserStats() {
         }
         statsData.lastDate  = dateStr;
         statsData.weekStart = weekStart;
+
+        // ⚠️ CROSS-PAGE RECOVERY (v2.4.0). Fold in anything game.js could not
+        // get to Firestore before its tab died. Before this existed, minutes
+        // typed in a book and lost on tab-close only came back if the student
+        // happened to reopen THAT BOOK — learn.js and game.js each replayed
+        // their own WAL and neither replayed the other's. See stats-wal.js.
+        //
+        // Must run after the read above, not before: it compares against what
+        // the server already has.
+        if (statsWalRecover(currentUser.uid, statsData)) {
+            console.log('[TTB] Recovered unflushed time from another session.');
+            learnDirty = true; learnStatsDocDirty = true;
+            flushStats('stats-wal-recovery', true);
+        }
     } catch(e) { console.warn('loadUserStats failed:', e); }
 }
 
@@ -2784,114 +3048,54 @@ function updateWeeklyHUD() {
 // session end. Nothing is lost — see walRecoverLearn() below.
 const LEARN_WAL_KEY = 'ttb_learnwal_v1';
 
-// ─── Run position persistence (v2.0.0) ───────────────────────────────────────
-// Separate key from the stats WAL on purpose: stats are a merge-by-max recovery,
-// position is a single latest-wins snapshot with different lifetime rules, and
-// mixing them would mean one corrupt field losing both.
+// ─── Run position persistence — DELETED (v2.5.0) ─────────────────────────────
 //
-// Before this existed the WAL persisted statsData only — not drillPos, not
-// currentStepIdx — so the bell erased the whole run AND any earlier runs cleared in
-// that sitting, because lessonProgress is only written at the end of a lesson. Any
-// run longer than the time left in the period was therefore unfinishable, forever.
+// ⚠️ DO NOT REBUILD THIS. It is not missing; it was removed on a ruling, and the
+// argument for putting it back is the same argument that put it here.
 //
-// The sequence is stored verbatim rather than regenerated: key_random and
-// key_pattern_auto build a fresh random sequence on every call, so restoring a
-// position into a regenerated sequence would put the student mid-word in text they
-// never saw.
-const LEARN_POS_KEY = 'ttb_learnpos_v1';
-
-// ─── Who owns a checkpoint (v2.3.0) ───────────────────────────────────────────
+// What was here: `ttb_learnpos_v1`, a latest-wins snapshot of {lessonId, runIdx,
+// drillPos, chars, mistakes, stepSeconds, seq} written every five characters,
+// plus the checkpointOwner() identity that decided who a snapshot belonged to.
+// startLesson() read it, skipped the intro, and dropped the student back on the
+// exact character where the bell caught them.
 //
-// ⚠️ THIS USED TO BE THE LITERAL STRING 'anon' AND THAT IS NOT AN IDENTITY.
-// The comment on readRunPosition() said "don't hand one student's position to
-// another on a shared Chromebook", and for signed-in students the uid did
-// exactly that. For guests every one of them was 'anon', so the check compared
-// a constant to itself and always passed: second kid at the machine sits down
-// and resumes the first kid's half-finished drill, inheriting their chars and
-// mistakes. Harmless until guest mode actually shipped; live the moment it did.
+// The case FOR it, which was and is real: before it existed, an interrupted run
+// erased the whole run and every earlier run cleared in that sitting, because
+// lessonProgress is only written when a lesson completes. Any run longer than
+// the time left in the period was unfinishable, forever.
 //
-// ⚠️ A PER-BROWSER GUEST ID WOULD NOT HAVE FIXED IT — that was my first
-// instinct and it is the same bug with a longer string. Two guests on one
-// browser profile share localStorage, so they would share the id too. What
-// actually separates them is the TAB: sessionStorage dies with it, so the next
-// student to open the page is a different owner by construction.
+// Jake's ruling, 2026-08-17: *"If a kid doesn't finish a lesson one session,
+// they should restart it — not start at the last word. The lesson should be
+// taken as a whole (although it should track the time whether it finishes or
+// not)."*
 //
-// The cost, stated plainly: a guest who closes the tab loses their resume
-// point. That is the correct trade. We cannot tell whether the next person at
-// that machine is the same child, and we have already told them twice that
-// their work is not being saved — silently resuming someone else's drill is a
-// worse failure than starting clean. Signing in is what buys a durable
-// checkpoint, which is the same bargain the rest of the app offers.
-const GUEST_ID_KEY = 'ttb_guestId';
-// Last-resort identity for a browser with sessionStorage disabled. Generated
-// once per page load, so it never collides — it simply never resumes.
-const _guestIdFallback = 'guest_nostore_' + Math.random().toString(36).slice(2);
+// ⚠️ THE ORIGINAL PROBLEM WAS REAL AND THE DIAGNOSIS WAS WRONG. "The student
+// loses their work" and "the student loses their TIME" got treated as one
+// thing, and a position checkpoint only ever addressed the first. Time is
+// counted by the drill tick into statsData every second and persisted by the
+// WAL; it never depended on this file's position snapshot and never needed to.
+// What the checkpoint actually preserved was a partial attempt at a lesson —
+// and a partial attempt is not something the curriculum wants to keep, because
+// the unit being trained is the whole lesson.
+//
+// So the fix for "unfinishable runs" is chunking (CHUNK_TARGET, which exists and
+// keeps a run to 30–60 seconds), not resumption. If runs are ever long enough
+// that the bell reliably beats a student, shorten the runs.
+//
+// Three things went with it, and each was carrying its own weight before it:
+//   * checkpointOwner() / ttb_guestId — an identity that existed ONLY to decide
+//     whose half-finished drill a snapshot was. Nothing else asked.
+//   * The v2.4.0 sessionStorage→localStorage move, shipped hours earlier this
+//     same round. It was correct, and this ruling made the code it corrected
+//     unnecessary. Noted rather than hidden: see HANDOFF Round 10 §5.
+//   * Six clearRunPosition() calls scattered across run completion, lesson
+//     completion, the remediation detour and two unload handlers — every one of
+//     them existing to stop a stale snapshot doing something wrong.
+//
+// ⚠️ `ttb_learnpos_v1` and `ttb_guestId` / `ttb_guestId_v2` are dropped from
+// localStorage at init by purgeRetiredKeys(). A retired key left in place is a
+// trap for the next person who greps for it and finds data but no writer.
 
-function checkpointOwner() {
-    if (currentUser && !currentUser.isAnonymous) return currentUser.uid;
-    try {
-        let g = sessionStorage.getItem(GUEST_ID_KEY);
-        if (!g) {
-            g = 'guest_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
-            sessionStorage.setItem(GUEST_ID_KEY, g);
-        }
-        return g;
-    } catch (_) { return _guestIdFallback; }
-}
-
-function saveRunPosition() {
-    if (!currentLesson || !currentStep) return;
-    try {
-        localStorage.setItem(LEARN_POS_KEY, JSON.stringify({
-            v: 1,
-            uid: checkpointOwner(),
-            lessonId: currentLesson.id,
-            runIdx: currentStepIdx,
-            drillPos, chars, mistakes, stepSeconds,
-            seq: drillSequence.join(''),
-            savedAt: Date.now()
-        }));
-    } catch (e) { console.warn('run position write failed:', e); }
-}
-
-function readRunPosition() {
-    try {
-        const raw = localStorage.getItem(LEARN_POS_KEY);
-        if (!raw) return null;
-        const p = JSON.parse(raw);
-        if (p.v !== 1) return null;
-        // Don't hand one student's position to another on a shared machine.
-        // ⚠️ A pre-v2.3.0 checkpoint carries uid:'anon', which matches no owner
-        // this function can now produce, so it is discarded rather than handed
-        // to whoever opens the page next. That is the intended migration: there
-        // is no way to find out whose it was.
-        if (p.uid !== checkpointOwner()) return null;
-        // A run part-way through is worth restoring; a run barely started isn't
-        // worth the confusion of resuming into.
-        if (!p.seq || typeof p.drillPos !== 'number' || p.drillPos < 5) return null;
-        return p;
-    } catch (_) { return null; }
-}
-
-function clearRunPosition() {
-    try { localStorage.removeItem(LEARN_POS_KEY); } catch (_) {}
-}
-
-// Non-destructive read, for renderMap and startLesson.
-function peekPendingRun(lessonId) {
-    const p = readRunPosition();
-    return (p && p.lessonId === lessonId) ? p : null;
-}
-
-// Destructive read, for beginStep: a position is consumed the moment it's applied,
-// so a later retry of the same run starts clean instead of resurrecting old counters.
-function takePendingRun(runIdx) {
-    if (!currentLesson) return null;
-    const p = peekPendingRun(currentLesson.id);
-    if (!p || p.runIdx !== runIdx) return null;
-    clearRunPosition();
-    return p;
-}
 const LEARN_FLUSH_MS = 300000;   // 5 minutes
 let learnFlushTimer = null;
 let learnDirty = false;
@@ -2899,6 +3103,10 @@ let learnStatsDocDirty = false;
 
 function learnWalSave() {
     if (!currentUser) return;
+    // The page-agnostic half goes to the shared WAL so game.js can replay it.
+    // This one keeps the lesson-scoped half (queued run progress), which means
+    // nothing to the Library page.
+    statsWalSave(currentUser.uid, statsData);
     try {
         localStorage.setItem(LEARN_WAL_KEY, JSON.stringify({
             v: 1, uid: currentUser.uid, savedAt: Date.now(), stats: { ...statsData },
@@ -3038,7 +3246,18 @@ async function _flushStatsInner(reason, final = false) {
 
     if (ok) {
         learnDirty = false;
+        // The watermark the hide-handler's delta gate measures against. Only set
+        // on success: a failed flush must not convince the next hide that the
+        // work is already safe.
+        lastFlushedSecondsToday = statsData.secondsToday || 0;
         if (final) { try { localStorage.removeItem(LEARN_WAL_KEY); } catch (_) {} }
+        // ⚠️ The shared stats WAL is deliberately NOT cleared here. It is
+        // max-merged on both read and write, so an entry the server has already
+        // caught up with contributes nothing on the next recovery — it costs
+        // one comparison, not a wrong number. What it buys is that game.js can
+        // still replay this page's tail if THIS flush was the last thing that
+        // happened before a crash the browser never told us about. It ages out
+        // on its own the moment the day or the week rolls over.
     } else {
         learnWalSave();   // keep the local copy; next flush retries
     }
@@ -3149,5 +3368,18 @@ if (footer) footer.textContent = 'School v' + LEARN_VERSION + ' / keyboard.js v'
 // the constant so there is only one number to change.
 document.title = 'TypeThatBook — School v' + LEARN_VERSION;
 
+// ⚠️ Retired storage keys, dropped once per load. A key with data and no writer
+// is a trap: the next person to grep for `ttb_learnpos_v1` would find live-looking
+// JSON in a student's browser and no code that produced it. Cheap to keep;
+// remove this call once a school year has passed. (v2.5.0)
+function purgeRetiredKeys() {
+    ['ttb_learnpos_v1', 'ttb_guestId', 'ttb_guestId_v2'].forEach(k => {
+        try { localStorage.removeItem(k); } catch (_) {}
+    });
+}
+
+purgeRetiredKeys();     // v2.5.0 — checkpoints are gone; see the block above
 loadAnonNudgeState();   // shared daily ladder state; see ANON_NUDGE_KEY
+restoreGuestAccum();    // v2.4.0 — guest minutes now survive a closed tab
+
 loadLessons(); // fire-and-forget; renderMap() in onAuthStateChanged will re-render when done

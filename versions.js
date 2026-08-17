@@ -1,4 +1,4 @@
-// versions.js v1.3.0 — reads every file's version constant out of the files as
+// versions.js v1.4.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
 //
 // WHY IT WORKS THIS WAY
@@ -26,6 +26,11 @@
 // result is cached in sessionStorage for the tab's lifetime. A student who never
 // opens it pays nothing.
 
+// v1.4.0 — registers stats-wal.js, the second module game.js and learn.js both
+// import. ⚠️ A shared module that is not in this list is the worst kind to have
+// stale: a cached copy of it misbehaves on BOTH pages at once, and the build
+// panel would show two files at their correct versions and no sign of the third.
+//
 // Explicit patterns rather than one clever regex, so an unexpected match is
 // impossible and adding a file is obvious.
 const SOURCES = [
@@ -37,6 +42,7 @@ const SOURCES = [
     { file: 'lessons-admin.js',      pattern: /window\.LESSONS_ADMIN_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'staff-admin.js',        pattern: /window\.STAFF_ADMIN_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'firebase-config.js',    pattern: /\bexport\s+const\s+CONFIG_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'stats-wal.js',          pattern: /\bexport\s+const\s+STATS_WAL_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'versions.js',           pattern: /\bexport\s+const\s+VERSIONS_VERSION\s*=\s*["']([^"']+)["']/ },
     // Stylesheets carry theirs in a comment on line 1 as well as in a
     // body::before / body::after stamp. The comment is what we parse here,
@@ -45,7 +51,7 @@ const SOURCES = [
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
 ];
 
-export const VERSIONS_VERSION = '1.3.0';
+export const VERSIONS_VERSION = '1.4.0';
 
 const CACHE_KEY = 'ttb_buildVersions_v3';   // v3: entries gained header budget fields
 

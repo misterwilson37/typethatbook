@@ -1,6 +1,17 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.8.1
+// lessons-admin.js — TypeThatBook Lesson Panel v1.9.0
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
+//
+// v1.9.0 — Import JSON validates STEPS, not just lesson ids. parseImportJSON()
+//          checked one field — that each lesson had an `id` — and wrote whatever
+//          else the file held straight to Firestore. learn.js reads a different
+//          field per step type, so a step whose type and fields disagree yields
+//          either a throw out of renderMap() or a drill with no characters. Both
+//          look like a blank screen, in another file, to every student at once,
+//          and neither names the lesson. ⚠️ The validator belongs at import
+//          because that is the last moment a human is looking at the file.
+//          Rejects rather than repairs, reports every problem rather than the
+//          first, and names lessons by id rather than by array index.
 //
 // v1.8.1 — The Students list said "31 students loaded." above a table showing one
 //          row. loadStudentRoster() wrote that string AFTER _renderRoster() had
@@ -40,7 +51,7 @@
 //          _studentsInited already true so reopening the tab could not recover.
 //          Both functions written from _commitCSV()/_bulkAssign().
 // v1.7.0 — Lesson + class authoring, CSV roster import, stuck-student scan.
-window.LESSONS_ADMIN_VERSION = '1.8.1';
+window.LESSONS_ADMIN_VERSION = '1.9.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -662,15 +673,100 @@ function bindImportUI() {
     }
 }
 
+// ⚠️ STEP VALIDATION (v1.9.0). This function used to check ONE thing — that
+// every lesson had an `id` — and then wrote whatever else the file contained
+// straight into Firestore.
+//
+// The failure mode that bought this: learn.js's buildSequence() reads a
+// different field per step type, and a step whose type does not match its
+// fields produces either a throw or an empty drill. Both surface as a blank
+// screen, in a different file, hours later, for every student at once — and
+// neither names the lesson. renderMap() calls buildRunList() for every lesson
+// on every render just to print the run count on a card, so one bad step in one
+// lesson takes down the whole map, not just that lesson.
+//
+// ⚠️ GENERALISE: THE VALIDATOR BELONGS WHERE THE HUMAN IS. Import is the only
+// moment a person is looking at this data with the file still in front of them
+// and the ability to fix it. Everything downstream of here is a student.
+//
+// This is deliberately a REJECTION, not a repair. Silently defaulting a missing
+// `text` to '' would import a lesson that runs and teaches nothing, which is
+// worse than a red message naming the step.
+const STEP_TYPES = ['key_pattern', 'key_pattern_auto', 'key_random',
+                    'word_list', 'sentence_list', 'passage'];
+
+// The field each type actually needs, and what counts as present. Mirrors
+// learn.js buildSequence() — ⚠️ if a step type is added there, add it here.
+const STEP_REQUIREMENTS = {
+    key_pattern:      s => typeof s.text === 'string' && s.text.length > 0,
+    passage:          s => typeof s.text === 'string' && s.text.length > 0,
+    key_pattern_auto: s => Array.isArray(s.keySet) && s.keySet.length > 0,
+    key_random:       s => Array.isArray(s.keySet) && s.keySet.length > 0,
+    word_list:        s => Array.isArray(s.words) && s.words.length > 0,
+    sentence_list:    s => Array.isArray(s.sentences) && s.sentences.length > 0,
+};
+const STEP_FIELD_NAME = {
+    key_pattern: 'text', passage: 'text',
+    key_pattern_auto: 'keySet', key_random: 'keySet',
+    word_list: 'words', sentence_list: 'sentences',
+};
+
+function validateLessonSteps(lesson, where) {
+    const problems = [];
+    if (lesson.steps === undefined) return problems;   // a lesson with no steps
+    if (!Array.isArray(lesson.steps)) {
+        problems.push(`${where}: "steps" is ${typeof lesson.steps}, expected an array`);
+        return problems;
+    }
+    lesson.steps.forEach((step, i) => {
+        const at = `${where} step ${i + 1}`;
+        if (!step || typeof step !== 'object') {
+            problems.push(`${at}: not an object`);
+            return;
+        }
+        if (!step.type) {
+            // Not defaulted on purpose. learn.js's switch falls through to
+            // `return []` for an unknown type, which builds a drill with no
+            // characters — a screen a student cannot finish or escape.
+            problems.push(`${at}: no "type" field (expected one of ${STEP_TYPES.join(', ')})`);
+            return;
+        }
+        if (!STEP_TYPES.includes(step.type)) {
+            problems.push(`${at}: unknown type "${step.type}"`);
+            return;
+        }
+        if (!STEP_REQUIREMENTS[step.type](step)) {
+            problems.push(`${at}: type "${step.type}" needs a non-empty ` +
+                          `"${STEP_FIELD_NAME[step.type]}"`);
+        }
+    });
+    return problems;
+}
+
 function parseImportJSON(text) {
     const parsed = JSON.parse(text);
     // Accept either array of lessons or { lessons: [...] }
     const arr = Array.isArray(parsed) ? parsed : parsed.lessons;
     if (!Array.isArray(arr)) throw new Error('Expected an array of lessons or { lessons: [...] }');
     if (arr.length === 0) throw new Error('No lessons found in JSON');
+
+    const problems = [];
     arr.forEach((l, i) => {
-        if (!l.id) throw new Error(`Lesson at index ${i} has no id field`);
+        if (!l.id) { problems.push(`Lesson at index ${i} has no id field`); return; }
+        // ⚠️ Named by id, not by index. "Lesson at index 23" sends an admin
+        // counting brackets in a 47-lesson file; the id is searchable.
+        problems.push(...validateLessonSteps(l, `Lesson "${l.id}"`));
     });
+
+    if (problems.length) {
+        // ⚠️ ALL of them, not the first. A file generated by one bad template
+        // usually has the same defect in twenty places, and reporting one at a
+        // time turns a single fix into twenty round trips. Round 9 §6 invariant
+        // 68: say which one failed — plural.
+        const shown = problems.slice(0, 12);
+        const more  = problems.length > 12 ? `\n…and ${problems.length - 12} more` : '';
+        throw new Error(`${problems.length} problem(s) found:\n• ${shown.join('\n• ')}${more}`);
+    }
     return arr;
 }
 

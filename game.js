@@ -5,6 +5,19 @@
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
+// v3.21.0 — ⚠️ THE CLOSED-TAB DATA LOSS. `ttb_wal_v2` held reading position AND
+//           the day/week time counters in one record, overwritten wholesale on
+//           every visibilitychange. walRecover() bails on
+//           `wal.bookId !== currentBookId` — right for a position, wrong for a
+//           clock — so: type in Dracula, close the tab (up to 5 minutes lives
+//           only in the WAL), open Treasure Island, and the first hide
+//           overwrites the slot. Those minutes were gone, silently, and nothing
+//           reported it. Counters now live in stats-wal.js, keyed by uid and
+//           period rather than by book, written and recovered by BOTH pages.
+//           The hide-flush 60s rate limit also gains a delta escape hatch: the
+//           gap governs how often we flush, the un-flushed delta governs
+//           whether we flush at all.
+//
 // v3.20.1 — Deleted lastSavedIndex and practiceRealLastSavedIndex: 22 references,
 //           ZERO consumers. Eighteen assignments kept a "where we last saved"
 //           counter accurate, and the only two reads copied it into a shadow so
@@ -57,6 +70,11 @@
 //   * applyViewMode() must replay textLoaded + positionSet. A renderer
 //     mounted mid-session missed those events and will draw nothing.
 import { db, auth } from "./firebase-config.js";
+// The day/week counters' WAL, shared with learn.js. Extracted BECAUSE this
+// file's WAL was the bug: one key held reading position (book-scoped) and the
+// time counters (not book-scoped), and walRecover()'s correct bookId guard
+// meant the counters were declined on a book switch and then overwritten.
+import { statsWalSave, statsWalRecover } from "./stats-wal.js";
 import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     onAuthStateChanged,
@@ -66,7 +84,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.20.1";
+const VERSION = "3.21.0";
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -1049,6 +1067,22 @@ async function loadUserStats() {
         }
         statsData.lastDate = dateStr;
         statsData.weekStart = weekStart;
+
+        // ⚠️ RUNS UNCONDITIONALLY, AND THAT IS THE POINT (v3.21.0). walRecover()
+        // below is gated on the bookId and always will be. This is not — the
+        // counters belong to the student and the day, not to a book or a page,
+        // so a tail left behind by a different book, or by learn.js, lands here.
+        // Must run AFTER the read above: it compares against what the server has.
+        if (statsWalRecover(currentUser.uid, statsData)) {
+            console.log("Recovered unflushed time from another session.");
+            statsDocDirty = true;
+            // ⚠️ walDirty is deliberately NOT set. An earlier draft set it, on
+            // the reflex that a recovery should mark everything dirty. It costs
+            // a `users/{uid}/progress/{bookId}` write per recovery for a
+            // position that did not change — the recovered value is a CLOCK.
+            // flushAll() proceeds regardless because final=true.
+            flushAll('stats-wal-recovery', true);
+        }
     } catch (e) {}
 }
 
@@ -3031,6 +3065,19 @@ function walSnapshot() {
 
 function walSave() {
     if (!currentUser || currentUser.isAnonymous) return;
+    // ⚠️ THE COUNTERS GO SOMEWHERE ELSE NOW, AND THAT IS THE v3.21.0 FIX.
+    //
+    // This slot is book-scoped: walRecover() declines it when the bookId does
+    // not match, which is correct — one book's character offset is meaningless
+    // in another. But `stats` was riding in the same record, and the time a
+    // student spent typing is true regardless of which book they were in. So a
+    // book switch declined the whole record and the next hide overwrote it,
+    // taking up to five minutes of un-flushed typing with it.
+    //
+    // stats-wal.js is keyed by uid and period instead. It is written first so a
+    // quota failure on the (much larger) book record below cannot cost us the
+    // counters, which are the part a teacher's report actually reads.
+    statsWalSave(currentUser.uid, statsData);
     try { localStorage.setItem(WAL_KEY, JSON.stringify(walSnapshot())); }
     catch (e) { console.warn("WAL write failed (quota?):", e); }
 }
@@ -3250,6 +3297,10 @@ async function _flushAllInner(reason, final = false) {
 
     if (ok) {
         walDirty = false;
+        // The watermark the visibilitychange delta gate measures against. Set on
+        // the success path ONLY: a failed flush must not convince the next hide
+        // that this work already reached Firestore.
+        lastFlushedSecondsToday = statsData.secondsToday || 0;
         // Only drop the WAL once everything durable has landed. If a periodic
         // flush succeeded but sessions are still pending, keep the log.
         if (final && pendingSessions.length === 0) walClear();
@@ -3357,15 +3408,54 @@ function logSession(seconds, chars, mistakes, wpm, accuracy) {
 // durable copy, walRecover() replays it, and typing_logs is a merge so a teacher
 // refreshing a report mid-period never sees a torn value.
 const HIDDEN_FLUSH_MIN_GAP_MS = 60000;
+// v3.21.0 — the delta that overrides the gap, and ⚠️ IT IS DELIBERATELY DULL.
+//
+// The 60-second gap is right for what it was built for and blind to the case it
+// could not see: a tab going away for good with minutes of un-flushed typing
+// behind it. From here, hidden-because-alt-tab and hidden-because-closing are
+// indistinguishable, so the gap governs how OFTEN we flush and the delta
+// governs WHETHER we flush at all.
+//
+// ⚠️ THIS WAS 45 SECONDS AND A `final` FLUSH IN THE FIRST DRAFT, AND THAT WAS A
+// COST BUG WAITING FOR THE WRONG CLASSROOM. A `final` flush writes two to three
+// documents; at a 45-second threshold, a student alt-tabbing constantly for a
+// 35-minute block could trip it 46 times. Modelled across the SCALE-PLAN
+// population that is ~$85/year — the same order as the cover-egress line that
+// document calls the largest in the system. Not a forecast, but not a number to
+// leave lying in a constant either.
+//
+// Two changes make it cheap:
+//
+//   1. 120 seconds, not 45. The 5-minute interval flush already caps exposure;
+//      this only narrows the worst case from 5 minutes to 2.
+//   2. NOT `final`. A non-final flush writes `typing_logs` — the document
+//      reports.html actually reads — and skips the `stats/time_tracking`
+//      rollup, which is only ever read at page load and which the WAL now
+//      covers anyway. statsDocDirty stays true, so the next real `final` flush
+//      still writes it.
+//
+// ⚠️ AND BE CLEAR ABOUT WHAT IS LEFT TO BUY. Once stats-wal.js exists, unflushed
+// time is no longer LOST — it replays on the next load of either page. All this
+// gate purchases is that a teacher refreshing a report mid-period sees numbers
+// from two minutes ago instead of five. That is worth ~$1/year. It would not
+// have been worth $85.
+const HIDDEN_FLUSH_DELTA_SECONDS = 120;
 let lastHiddenFlush = 0;
+// What secondsToday was when a flush last actually reached Firestore. Set on
+// success only — a failed flush must not tell the next hide the work is safe.
+let lastFlushedSecondsToday = 0;
 
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
         walSave();                        // free, synchronous, always
-        if (Date.now() - lastHiddenFlush >= HIDDEN_FLUSH_MIN_GAP_MS) {
+        const gapElapsed = Date.now() - lastHiddenFlush >= HIDDEN_FLUSH_MIN_GAP_MS;
+        const unflushed  = (statsData.secondsToday || 0) - lastFlushedSecondsToday;
+        if (gapElapsed || unflushed >= HIDDEN_FLUSH_DELTA_SECONDS) {
             lastHiddenFlush = Date.now();
-            flushLeaderboard();
-            flushAll('hidden', true);
+            // Only the gap-driven flush is `final`. The delta-driven one is the
+            // cheap top-up described above.
+            if (gapElapsed) flushLeaderboard();
+            flushAll('hidden', gapElapsed);
         }
     }
 });
