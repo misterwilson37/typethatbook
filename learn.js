@@ -1,4 +1,4 @@
-// learn.js v2.5.1 
+// learn.js v2.5.1
 //
 // Lesson-mode engine, separate from game.js. Same write-ahead-log and
 // coalesced-flush persistence pattern.
