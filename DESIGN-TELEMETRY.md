@@ -1,6 +1,6 @@
 # DESIGN — Typing telemetry, one honest number
 
-**DESIGN-TELEMETRY.md v1.1.0** · drafted 2026-08-18 by Round 12 (Caligraph)
+**DESIGN-TELEMETRY.md v1.2.0** · drafted 2026-08-18 by Round 12 (Caligraph)
 · amended 2026-08-18 by Round 13 (Ludlow)
 
 **Status: PARTLY BUILT. §7 step 1 is SHIPPED. Steps 2-6 are still proposal.**
@@ -8,7 +8,8 @@
 | step | state |
 |---|---|
 | 1. `serverAt` | ✅ **SHIPPED** — Round 13. `session-log.js` v1.1.0, `game.js` v3.23.1, `learn.js` v2.7.1. See §6.3 and §7. |
-| 2. `typing_logs` derived | ⬜ next, and the one that matters |
+| 1.5. close the open unit | ✅ **SHIPPED** — Round 13. ⚠️ **NEW STEP, AND STEP 2 CANNOT BE BUILT WITHOUT IT.** `session-log.js` v1.2.0, `game.js` v3.24.0, `learn.js` v2.8.0. See §2.6 and §7. |
+| 2. `typing_logs` derived | ⬜ next, and the one that matters — ⚠️ read §2.6 and §2.7 first |
 | 3. `stats/time_tracking` as rebuildable cache | ⬜ |
 | 4. weekly archive + retention | ⬜ |
 | 5. retire the audit | ⬜ |
@@ -128,6 +129,61 @@ it.** Two open tabs produce the same collision faster.
 
 ⚠️ **THIS IS A LIVE DATA-LOSS PATH TODAY.** It is mode-crossing, so it violates
 R1 and R2 at once, and it is the strongest single argument for §4.
+
+### 2.6 ⚠️ SESSIONS ONLY EVER HELD *COMPLETED* UNITS — verified 2026-08-18
+
+**This was found by reading the writers, and it invalidates step 2 as originally
+specified.** Round 13 fixed it; the finding is recorded because the reasoning is
+what matters for step 2.
+
+A session record was created in exactly four places in `game.js` — chapter
+complete, practice complete, AFK auto-pause, guest nudge — and one in `learn.js`:
+`finishStep()`. **Not one of them fires when a student walks away from an
+unfinished unit.** `visibilitychange: hidden` flushed the *counters* and never
+touched the open sprint.
+
+So: a student types two sentences, switches books, types two more, toggles to
+School. The time is in `secondsToday` and in `typing_logs`, and there is **no
+session record for any of it.**
+
+⚠️ **DERIVING TOTALS FROM SESSIONS WOULD THEREFORE HAVE UNDERCOUNTED**, silently,
+and worst for the students who move around most — which is a large share of a
+middle-school period. It would have replaced an intermittent overwrite (§2.4) with
+a reliable undercount, and looked clean doing it.
+
+**Round 13's fix (step 1.5):** `logOpenSprint()` / `logOpenRun()` close the open
+unit on `visibilitychange: hidden` and `pagehide` *without ending it*, so the
+counters keep running and the student can come back and finish. Because one
+stretch of typing can now be reported two or three times, the writers emit
+**deltas against a watermark**, not totals.
+
+⚠️ **THE WATERMARK IS THE PART THAT BREAKS IF SOMEONE IS CARELESS.** Reset it
+wherever the sprint or run counters are zeroed, in the same place. A new sprint
+carrying a stale watermark records nothing until it grows past the old sprint's
+length — a silent loss, not a crash. `open-unit-test.mjs` counts the reset sites
+in both shipped files and fails if they disagree.
+
+### 2.7 ⚠️ SCHOOL HAS TWO CLOCKS AND SESSIONS RECORD THE OTHER ONE
+
+Also verified by reading source, also load-bearing for step 2, **not fixed.**
+
+| clock | gate | what it feeds |
+|---|---|---|
+| `stepSeconds` | `drillPos > 0 && !isDrillIdle()` | the graded clock: WPM denominator, and the `seconds` on a School session record |
+| `statsData.secondsToday` | `learnLastInputTime` set, `idle < 3000` | the daily counter, `typing_logs`, the HUD |
+
+They are not the same quantity. The graded clock does not start until the student
+has typed at least one character of the run; the daily counter is already running.
+
+⚠️ **CONSEQUENCE FOR STEP 2: even with step 1.5's complete coverage, the sum of a
+School day's sessions will be slightly LESS than that day's counter, and the
+difference is legitimate.** It is not drift and it is not corruption. Any step-2
+implementation that treats "sessions ≠ counter" as an error will flag every
+lesson-mode student every day.
+
+Decide deliberately which quantity is the one Jake grades — the graded clock or
+active time — and write it down. Library has no equivalent split: `sprintSeconds`
+and `secondsToday` are incremented on the same line under the same gate.
 
 ### 2.5 ⚠️ Deleting a session does nothing (R4 is currently false)
 
@@ -335,7 +391,17 @@ in one afternoon and got both wrong.
    page controller is not, and a required dep would write `serverAt: undefined`,
    which Firestore rejects, which loses a period of sprint detail. Omitting one
    field is the correct degradation. See `HANDOFF.md` §1.3.
-2. ⬜ **NEXT — make `typing_logs` derived.** Write it by summing the day's sessions rather
+1.5. ✅ **DONE — close the open unit.** Round 13 (Ludlow). ⚠️ **This step did not
+   exist in v1.0.0 of this document and step 2 was not buildable without it** —
+   see §2.6. `logOpenSprint()` / `logOpenRun()` on hide and pagehide; delta writes
+   against a watermark; `continuation` records exempt from the 5-second floor
+   (`session-log.js` v1.2.0). Adds records only: no total, counter, gate or
+   grading input changed. New harness: `open-unit-test.mjs`.
+
+2. ⬜ **NEXT — make `typing_logs` derived.** ⚠️ **Read §2.6 AND §2.7 first.**
+   §2.7 is the one that will bite: a School day's sessions legitimately sum to
+   slightly less than its counter, because the two sides measure with different
+   gates. Write it by summing the day's sessions rather
    than from the live counter. ⚠️ **This is the change that closes §2.4** and is
    the highest-value step in the list.
 3. **Make `stats/time_tracking` a rebuildable cache** and add a "rebuild from
@@ -360,6 +426,11 @@ in one afternoon and got both wrong.
 - ⚠️ **Do not answer the next divergence with a better audit.** See §3.
 - ⚠️ **Do not unify the 2s/3s idle thresholds.** They are fitted to two different
   populations on purpose (§2.2). Round 12 called this a defect and was wrong.
+- ⚠️ **Do not reset a sprint or run counter without resetting its log
+  watermark.** §2.6. The result is not a crash; it is a sprint that records
+  nothing until it outgrows the previous one. (Round 13.)
+- ⚠️ **Do not treat "session sum ≠ daily counter" as corruption in School.** §2.7.
+  The two clocks have different gates on purpose.
 - ⚠️ **Do not add a `clientAt` field.** §4's schema names one; `timestamp` already
   is it. Two names for one quantity in one document is the same mistake as two
   documents holding one quantity, at smaller scale. (Round 13.)

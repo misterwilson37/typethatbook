@@ -1,4 +1,15 @@
-// game.js v3.23.1
+// game.js v3.24.0
+//
+// v3.24.0 — ⚠️ THE OPEN SPRINT IS NOW RECORDED. Session records were only ever
+//           written when a sprint ENDED (chapter complete, AFK pause, guest
+//           nudge), so a student who switches books every few sentences produced
+//           counter time with NO session history behind it. Harmless today;
+//           an undercount the moment totals derive from sessions. logOpenSprint()
+//           closes the open sprint on visibilitychange:hidden and pagehide
+//           WITHOUT ending it, and logSession() therefore writes DELTAS against
+//           a watermark rather than sprint totals. DESIGN-TELEMETRY §7 step 1.5.
+//           ⚠️ Reset the watermark wherever sprintSeconds is reset — four sites,
+//           counted by open-unit-test.mjs.
 //
 // v3.23.1 — Hands `serverTimestamp` to session-log.js so sprint rollups carry
 //           `serverAt` — a clock a student cannot change — alongside the client
@@ -139,7 +150,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.23.1";
+const VERSION = "3.24.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -801,6 +812,29 @@ let weeklyGoalCelebrated = false;
 let mistakes = 0; let sprintMistakes = 0;
 let consecutiveMistakes = 0;
 let activeSeconds = 0; let sprintSeconds = 0;
+// ─── The open-sprint watermark (v3.24.0, DESIGN-TELEMETRY §7 step 1.5) ───────
+// How much of the CURRENT sprint has already been written to the session queue.
+//
+// ⚠️ WHY THIS EXISTS. Until now a session record was only created when a sprint
+// ENDED — chapter complete, AFK pause, or the guest nudge. A student who types
+// two sentences, switches books, types two more and toggles to School produced
+// counter time with NO session record behind it at all. That is invisible today
+// and becomes an UNDERCOUNT the moment totals are derived from sessions
+// (step 2), on exactly the students who move around most.
+//
+// So the open sprint is now closed on hide/switch/navigate. Which means one
+// stretch of typing can be reported twice — once as a partial, once when it
+// finishes — and logSession() must therefore write DELTAS, not totals. These
+// three variables are what a delta is measured from.
+//
+// ⚠️ RESET THEM WHEREVER `sprintSeconds` IS RESET, IN THE SAME PLACE.
+// A new sprint carrying a stale watermark logs nothing until it passes the old
+// sprint's length. There are four such sites and `open-unit-test.mjs` counts
+// them against this file, so adding a fifth without a reset fails the suite.
+let sprintLoggedSeconds = 0, sprintLoggedChars = 0, sprintLoggedMistakes = 0;
+function resetSprintLogWatermark() {
+    sprintLoggedSeconds = 0; sprintLoggedChars = 0; sprintLoggedMistakes = 0;
+}
 let sprintCharStart = 0; let timerInterval = null;
 let isGameActive = false; let isOvertime = false;
 let isModalOpen = false; let isInputBlocked = false;
@@ -2130,6 +2164,7 @@ function startGame() {
     }
 
     sprintSeconds = 0; sprintMistakes = 0; sprintCharStart = currentCharIndex;
+    resetSprintLogWatermark();          // new sprint: nothing logged yet
     activeSeconds = 0; timeAccumulator = 0; lastInputTime = Date.now();
     consecutiveMistakes = 0; backspaceOrigin = -1; mistakesAtCurrent = 0;
     currentStreak = 0; streakMilestone = 0;
@@ -3736,23 +3771,91 @@ async function saveCompletedChapters() {
 // A true guest is still skipped, and that is not the same call. A guest has no
 // account for the record to belong to, and stats-wal.js's guest accumulator is
 // where their time is held until they have one.
-function logSession(seconds, chars, mistakes, wpm, accuracy) {
+// ⚠️ THE ARGUMENTS ARE SPRINT TOTALS. WHAT GETS WRITTEN IS A DELTA. (v3.24.0)
+//
+// Every caller passes the running totals for the current sprint, because that is
+// what they have. But logOpenSprint() below may already have written part of this
+// same sprint when the student hid the tab or switched books, so writing the
+// totals again would file that stretch twice and inflate the very numbers this
+// project spent Round 12 deflating. The watermark holds what has already been
+// written; the difference is what is new.
+//
+// ⚠️ A ZERO OR NEGATIVE DELTA WRITES NOTHING AND IS NOT AN ERROR. It means the
+// sprint has not advanced since the last record — a student hiding the tab twice
+// in a row, or a rollback that moved `currentCharIndex` backwards.
+function logSession(seconds, chars, mistakes, wpm, accuracy, detailSuffix) {
     const uid = (currentUser && !currentUser.isAnonymous) ? currentUser.uid
               : (sessionExpired ? lastKnownUid : '');
     if (!uid) return;
-    if (seconds < 5) return; // skip trivially short sessions
+
+    const dSeconds  = Math.max(0, Math.round((seconds  || 0) - sprintLoggedSeconds));
+    const dChars    = Math.max(0, Math.round((chars    || 0) - sprintLoggedChars));
+    const dMistakes = Math.max(0, Math.round((mistakes || 0) - sprintLoggedMistakes));
+    if (dSeconds <= 0 && dChars <= 0) return;   // nothing new to record
+
+    const continuation = sprintLoggedSeconds > 0 || sprintLoggedChars > 0;
+    // The floor still applies to a record that STARTS a unit; a continuation is
+    // the rest of something already recorded and may legitimately be shorter.
+    // See session-log.js v1.2.0.
+    if (dSeconds < 5 && !continuation) return;
+
+    // ⚠️ RECOMPUTE WPM AND ACCURACY FOR A CONTINUATION. The caller's figures
+    // describe the whole sprint, and a per-run number on a per-delta record is a
+    // lie of exactly the kind the 🚩 fast-run marker reads. For a first record
+    // the delta IS the sprint, so the caller's values are used unchanged — they
+    // come out of sanitizeSprintWPM() and carry clamping this function should not
+    // second-guess.
+    let outWPM = wpm, outAcc = accuracy;
+    if (continuation) {
+        const mins = dSeconds / 60;
+        outWPM = sanitizeSprintWPM(mins > 0 ? Math.round((dChars / 5) / mins) : 0, dChars);
+        const entries = dChars + dMistakes;
+        outAcc = entries > 0 ? Math.round((dChars / entries) * 100) : 100;
+    }
+
     sessionLogPush(uid, {
         // ⚠️ STAMPED NOW, NOT AT FLUSH TIME. The whole point of session-log.js.
         date: getLocalDateStr(),
         at: new Date().toISOString(),
-        seconds, chars, mistakes, wpm, accuracy,
+        seconds: dSeconds, chars: dChars, mistakes: dMistakes,
+        wpm: outWPM, accuracy: outAcc,
         source: 'library',
         label: currentBookId,
-        detail: String(currentChapterNum),
+        detail: String(currentChapterNum) + (detailSuffix ? ' ' + detailSuffix : ''),
+        ...(continuation ? { continuation: true } : {}),
     });
+
+    // Advance the watermark to what the caller reported, not to what was written.
+    // A refused sub-5-second first record must NOT advance it, or the seconds it
+    // declined would never be written by anybody. That case returns above.
+    sprintLoggedSeconds  = Math.max(sprintLoggedSeconds,  Math.round(seconds  || 0));
+    sprintLoggedChars    = Math.max(sprintLoggedChars,    Math.round(chars    || 0));
+    sprintLoggedMistakes = Math.max(sprintLoggedMistakes, Math.round(mistakes || 0));
+
     if (!currentUser || currentUser.isAnonymous) return;   // nothing else to do yet
     statsDocDirty = true;
     markDirty();
+}
+
+// ⚠️ CLOSE THE OPEN SPRINT. (v3.24.0, DESIGN-TELEMETRY §7 step 1.5)
+//
+// Called when the page is going away or going to the background: tab switch,
+// lid close, navigating to the library index or to School. The sprint is NOT
+// ended — `sprintSeconds` and `sprintCharStart` are untouched, so if the student
+// comes back and finishes the chapter, logSession() files only the remainder.
+//
+// This is the whole fix for the students who switch books every few sentences.
+// Their time was always in the counters; now it is in the session history too.
+function logOpenSprint(reason) {
+    if (!isGameActive && sprintSeconds <= 0) return;
+    const charsTyped = currentCharIndex - sprintCharStart;
+    const sprintMinutes = sprintSeconds / 60;
+    const sprintWPM = sanitizeSprintWPM(
+        (sprintMinutes > 0) ? Math.round((charsTyped / 5) / sprintMinutes) : 0, charsTyped);
+    const entries = charsTyped + sprintMistakes;
+    const sprintAcc = (entries > 0) ? Math.round((charsTyped / entries) * 100) : 100;
+    logSession(sprintSeconds, charsTyped, sprintMistakes, sprintWPM, sprintAcc,
+               reason ? '(' + reason + ')' : '(interrupted)');
 }
 
 // Shown when a token expires mid-session. Deliberately NOT the guest ladder:
@@ -3874,6 +3977,13 @@ let lastFlushedSecondsToday = 0;
 
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
+        // ⚠️ FIRST, AND UNCONDITIONALLY. (v3.24.0) This is a localStorage write
+        // inside session-log.js, so it costs nothing, needs no network and needs
+        // no live token — and it is the only chance to record a sprint the
+        // student is walking away from. It is NOT rate-limited by the gap below:
+        // the gap exists to protect Firestore from repeated alt-tabs, and this
+        // writes no Firestore document. Deltas make repeat calls harmless.
+        logOpenSprint('hidden');
         walSave();                        // free, synchronous, always
         const gapElapsed = Date.now() - lastHiddenFlush >= HIDDEN_FLUSH_MIN_GAP_MS;
         const unflushed  = (statsData.secondsToday || 0) - lastFlushedSecondsToday;
@@ -3885,6 +3995,18 @@ document.addEventListener('visibilitychange', () => {
             flushAll('hidden', gapElapsed);
         }
     }
+});
+
+// ⚠️ pagehide IS THE NAVIGATION CASE, and it is not redundant with the handler
+// above. Chrome fires visibilitychange:hidden on most navigations but the spec
+// does not require it, and this file's own history says beforeunload cannot be
+// relied on Chromebooks. A student clicking through to the library index or to
+// School is the single most common way a sprint gets abandoned mid-way, so it
+// gets a listener of its own. Double-firing is safe: the second call sees a zero
+// delta and writes nothing.
+window.addEventListener('pagehide', () => {
+    logOpenSprint('left page');
+    walSave();
 });
 
 function formatTime(seconds) {
@@ -6236,6 +6358,7 @@ function jumpToSentence(sentences, idx) {
     savedCharIndex = target;
     sprintCharStart = target;
     sprintSeconds = 0; sprintMistakes = 0;
+    resetSprintLogWatermark();
 
     // Re-render and mark everything before current as done
     renderText();
@@ -7027,6 +7150,7 @@ function startTestText(text, label) {
     sprintSeconds = 0;
     sprintMistakes = 0;
     sprintCharStart = 0;
+    resetSprintLogWatermark();
 
     setupGame();
     getHeaderHTML();
@@ -7126,6 +7250,7 @@ async function startPracticeMode() {
         sprintSeconds = 0;
         sprintMistakes = 0;
         sprintCharStart = 0;
+        resetSprintLogWatermark();
 
         // Set up the display
         setupGame();

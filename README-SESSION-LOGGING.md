@@ -152,3 +152,31 @@ Two things worth knowing if it ever does come up:
   cached copy of the app when it sent it. That is a deploy state, not a student.
 
 **Cost: nothing.** One extra field on records that were already being written.
+
+---
+
+## 7. Why one sprint sometimes shows up as two rows (new, Round 13)
+
+A student who types for a while, switches books, and comes back to finish used to
+leave **one** record covering the whole stretch — or, if they never finished it,
+**none at all.** Time typed in an abandoned sprint or lesson run was counted in
+their minutes but had nothing behind it in the detail view.
+
+That is fixed. The app now closes the open sprint whenever a student leaves the
+page or hides the tab, without ending it. So in the drill-down you will now see:
+
+- **More rows than before**, and some stretches split into two or three.
+- A suffix on the pieces — `(hidden)` when they switched tabs or closed the lid,
+  `(left page)` when they navigated away.
+- **WPM and accuracy on each piece describe that piece**, not the whole stretch.
+  A 12-second fragment with a low WPM is usually someone getting started again.
+
+⚠️ **This is not double counting, and the totals did not change.** The minutes were
+always being counted; what changed is that the detail underneath them is now
+complete. A period of book-hopping renders as the shape it actually had.
+
+⚠️ **One thing to know if you compare School detail against School minutes.** The
+lesson side has two clocks: the graded clock that produces WPM only runs once a
+student has typed the first character of a run, while their minutes start slightly
+earlier. So a lesson day's session rows can sum to a little less than the day's
+minutes, and that gap is normal — not lost time.

@@ -28,16 +28,27 @@ Mignon (5) · Oliver (4) · Blick (3) · Dvorak (2) · Underwood (1) ·
 
 ## §0. What this round was
 
-**One step. `DESIGN-TELEMETRY.md` §7 step 1: add `serverAt`.** Jake asked for the
+**Two steps, deployed separately. §7 step 1 (`serverAt`), then a step 1.5 that did
+not exist in the design document until this round found it was mandatory.** Jake asked for the
 smallest possible change first so his deploy loop could be confirmed before
 anything structural moved. That instruction was followed literally, and the whole
 of the code delta is one field, one injected dependency, and the tests that hold
 them in place.
 
+Step 1 was one field: Jake asked for the smallest possible change first so his
+deploy loop could be confirmed before anything structural moved.
+
+⚠️ **Step 1.5 came out of reading the writers rather than the design document.**
+Session records were only ever created when a sprint or run *finished*, so a
+student who abandons units — switching books every few sentences, which Jake
+observed the same day — produced counter time with no session history at all. That
+makes step 2 (derive totals from sessions) an **undercount** rather than a fix.
+**§6.5 is the section to read**; `DESIGN-TELEMETRY.md` §2.6 and §2.7 carry the
+verified findings.
+
 Round 12 shipped a rewrite and a diagnostic in one afternoon and got both wrong
-(round 12 §7). This round is the opposite shape by design. **If you are the next
-instance and step 2 is in front of you, the fact that this round was boring is the
-argument that the staging works.**
+(round 12 §7). This round shipped two narrow things as two uploads, and step 1.5
+adds records without touching a single total, counter, gate or grading input.
 
 ---
 
@@ -108,18 +119,24 @@ including a non-function passed in the slot.
 
 ## §2. Version state
 
-`npm test` → **21 of 22 harnesses pass.** The one failure is the pre-existing
+`npm test` → **22 of 23 harnesses pass.** The one failure is the pre-existing
 `metadata-map-test.mjs`; see §5.
 
 ⚠️ **`npm install` first on a clean container.** The Round 10 `devDependencies`
 fix is correct and works, but the packages are not vendored.
 
+⚠️ **THIS ROUND SHIPPED TWICE.** Step 1 (`serverAt`) was uploaded first and
+verified live; step 1.5 (closing the open sprint/run) followed. The table below is
+the FINAL state — if you uploaded the step-1 files earlier, these supersede them.
+
 | file | version | changed? | upload? |
 |---|---|---|---|
-| `session-log.js` | **1.1.0** | ⚠️ yes — `serverAt`, injected `serverTimestamp` | **YES — 1st** |
-| `game.js` | **3.23.1** | yes — one import, one dependency. Nothing else. | **YES — 2nd** |
-| `learn.js` | **2.7.1** | yes — identical change to `game.js` | **YES — 3rd** |
-| `session-merge-test.mjs` | **1.1.0** | yes — `serverAt` assertions + new Part C | commit it |
+| `session-log.js` | **1.2.0** | ⚠️ yes — `serverAt` (1.1.0) + the `continuation` floor (1.2.0) | **YES — 1st** |
+| `game.js` | **3.24.0** | ⚠️ yes — `serverTimestamp`, plus delta session writes and the open-sprint closer | **YES — 2nd** |
+| `learn.js` | **2.8.0** | ⚠️ yes — same, plus `logRun()` replacing the inline push in `finishStep()` | **YES — 3rd** |
+| `open-unit-test.mjs` | **1.0.0** | ⚠️ **NEW HARNESS** — the delta/watermark logic | commit it |
+| `run-all-tests.mjs` | — | registers the new harness | commit it |
+| `session-merge-test.mjs` | **1.2.0** | yes — `serverAt` assertions, Part C, version pin to 1.2.0 | commit it |
 | `firestore.indexes.json` | **2.1.0** | documentation only — see §3 | no |
 | `firestore.rules` | 2.3.0 | **NO — verified unnecessary, see §3** | no |
 | `versions.js` | 1.5.0 | **NO** — it detects `SESSION_LOG_VERSION` by regex, so the bump is picked up with no change | no |
@@ -132,8 +149,8 @@ renders nothing at all. §1.3 explains why the ordering is now *safe* rather tha
 merely *ordered* — either half works alone — but first is still correct, because
 it is the half that carries the feature.
 
-**Deploy check:** Library footer reads `game.js v3.23.1`; Lessons footer reads
-`School v2.7.1`. The grey `ID xxxxxxxx` must still be bottom-left on both — if it
+**Deploy check:** Library footer reads `game.js v3.24.0`; Lessons footer reads
+`School v2.8.0`. The grey `ID xxxxxxxx` must still be bottom-left on both — if it
 is missing, the new code is not running and nothing below applies.
 
 **Then verify the field itself, which is the actual point of this round:** type at
@@ -196,6 +213,20 @@ index, which *is* a console change.
     has no value on the day it ships and full value a term later, so the correct
     time to start writing it is the boring round, not the round where a student is
     suspected. Shipping the write side alone is a complete deliverable.
+77. ⚠️ **A watermark must be reset wherever the thing it measures is reset.**
+    §6.5.1. Delta writing turns one careless `= 0` into silent under-recording,
+    and the harness has to count the reset sites in the source rather than trust
+    that they were all found.
+78. ⚠️ **A record is only complete when the unit it describes can end without
+    warning.** The old writers recorded completed units and assumed a unit would
+    complete. Anything that can be abandoned — a sprint, a run, a period, a class
+    — needs a path that records the part that happened. "It will finish" is an
+    assumption about a twelve-year-old with a lid and a bell.
+79. **A harness that lifts a function containing a template literal must build its
+    sandbox by concatenation.** `${...}` inside a lifted body is interpolated by
+    the *outer* template before Node parses anything, and the SyntaxError points at
+    the harness rather than the cause. Cost twenty minutes this round;
+    `open-unit-test.mjs` carries the note.
 
 ---
 
@@ -255,8 +286,90 @@ list nobody restates becomes a list nobody reads:
   defect fixed in the code and left standing in the teacher-facing document that
   tells you how to drive it. A doc that misdirects the range makes the audit
   report "unverifiable" rows and look broken.
-- **Cost of this round: zero.** One extra timestamp field per rollup document. No
-  additional writes, no additional reads.
+- **Cost of this round: effectively zero.** One extra timestamp field per rollup
+  document, plus more session records for students who switch around a lot. Those
+  records ride in the same rollup documents (grouped by date, source and label), so
+  the write count barely moves — a busy book-hopper might add one document a period.
+- ⚠️ **Expect more rows in the drill-down, some sprints split into two or three.**
+  See §6.5.2. That is step 1.5 working.
+
+---
+
+## §6.5. ⚠️ STEP 1.5 — THE OPEN SPRINT, AND WHY IT HAD TO COME FIRST
+
+A step that was not in `DESIGN-TELEMETRY.md` v1.0.0, added because reading the
+writers turned up the fact that **step 2 was not buildable as specified.**
+
+Session records were only ever created when a unit *finished*: chapter complete,
+practice complete, AFK pause, guest nudge, `finishStep()`. Nothing fired when a
+student abandoned an unfinished sprint or run. `visibilitychange: hidden` flushed
+the counters and never touched the open sprint.
+
+So a student who switches books every few sentences — Jake reports this is common
+and observed it the same day — produced counter time with **no session history
+behind it at all.** Harmless while totals come from counters. The moment totals
+derive from sessions, it is a **silent undercount, worst for the students who move
+around most.** Step 2 would have traded an intermittent overwrite for a reliable
+undercount and looked clean doing it.
+
+### 6.5.1 What was built
+
+`logOpenSprint()` (game.js) and `logOpenRun()` (learn.js) close the open unit on
+`visibilitychange: hidden` and `pagehide` **without ending it** — counters and
+`sprintCharStart` are untouched, so a student who comes back and finishes has only
+the remainder recorded.
+
+⚠️ **WHICH MEANS ONE STRETCH OF TYPING CAN NOW PRODUCE SEVERAL RECORDS, SO THE
+WRITERS EMIT DELTAS.** `logSession()` and `logRun()` take running unit totals (that
+is what their callers have) and write the difference against a watermark of what
+has already been logged. Then:
+
+* **A zero or negative delta writes nothing and is not an error.** Two hides in a
+  row, a hide followed immediately by completion, or a rollback that moves
+  `currentCharIndex` backwards.
+* **A continuation carries its own recomputed WPM and accuracy.** The caller's
+  figures describe the whole unit, and `reports.html` reads per-run numbers as
+  belonging to the row they sit on — the 🚩 fast-run marker especially.
+* **`continuation` records are exempt from the 5-second floor** (`session-log.js`
+  v1.2.0). A standalone 3-second run is noise; the 3-second tail of a recorded
+  40-second sprint is the rest of something real, and dropping it would make the
+  day's sessions sum to less than the day's clock. The floor still applies to any
+  record that *starts* a unit — and a refused first record deliberately does **not**
+  advance the watermark, or the seconds it declined would be orphaned.
+
+⚠️ **INVARIANT 77: RESET THE WATERMARK WHEREVER YOU RESET THE COUNTER, IN THE SAME
+PLACE.** A new sprint carrying a stale watermark records nothing until it grows
+past the previous sprint's length. That is a silent loss, not a crash. There are
+four such sites in `game.js` and three in `learn.js`, and `open-unit-test.mjs`
+counts them against the shipped sources — add a fifth without a reset and the
+suite fails.
+
+### 6.5.2 What Jake will SEE, because this one is visible
+
+⚠️ **The report drill-down will show more rows than before, and some sprints will
+appear as two or three.** They carry a suffix — `(hidden)`, `(left page)` — and the
+later pieces are marked as continuations. **That is the feature, not a bug:** a
+30-minute period of book-hopping used to render as one or two rollups and now
+renders as the shape it actually had. The per-run figures on a continuation row
+describe that piece only.
+
+### 6.5.3 ⚠️ AND ONE FINDING THAT IS NOT FIXED — School has two clocks
+
+`DESIGN-TELEMETRY.md` §2.7, and it is the thing most likely to derail step 2.
+
+`stepSeconds` (the graded clock, gated on `drillPos > 0 && !isDrillIdle()`) is what
+a School session record's `seconds` holds. `statsData.secondsToday` (gated only on
+idle) is what the counter, `typing_logs` and the HUD hold. **They are different
+quantities**, and the graded clock does not start until the first character of a
+run is typed.
+
+So even with step 1.5's coverage, **a School day's sessions sum to slightly less
+than that day's counter, legitimately.** Any step-2 implementation that reads
+"sessions ≠ counter" as drift will flag every lesson student every day. Library has
+no such split — `sprintSeconds` and `secondsToday` are incremented on the same line.
+
+**Decide which quantity is graded, and write the decision down** before deriving
+anything from either.
 
 ---
 
@@ -302,6 +415,8 @@ Round 12 guessed twice and was wrong both times (round 12 §7).
 
 | report | the one thing to ask for |
 |---|---|
+| "a sprint shows up twice in the report" | Does the second row carry `(hidden)` or `(left page)` and a continuation mark? If so it is step 1.5 working — one stretch of typing that was interrupted. If two rows carry the SAME seconds with no suffix, that is a watermark reset failure and §6.5.1 is the place to look. |
+| "the minutes went UP for a student" | This round writes no total. Compare the report's daily figure against the sum of the day's rollups — if the rollups now sum higher than before, the missing partials are what was added, and the daily figure has not moved. |
 | "sprint detail stopped appearing" | Firestore console: is there **any** new `typing_sessions` document since the deploy? If yes the writer is fine and the fault is in `reports.html`, which did not change. |
 | "`serverAt` is missing on some documents" | Which `source` — school or library? Present on one and absent on the other means one page controller was not uploaded (§1.3), which is a deploy state, not a bug. |
 | "permission denied on a rollup write" | The console error's full text. The rule requires `uid`, `seconds ≤ 86400`, `sprints` ≤ 200 and `expiresAt`; `serverAt` is not in the rule at all, so a denial mentioning it means the rules in the console are not the rules in the repo. |

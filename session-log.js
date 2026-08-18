@@ -1,5 +1,17 @@
-// session-log.js v1.1.0 — the sprint/run history queue, shared by game.js and
+// session-log.js v1.2.0 — the sprint/run history queue, shared by game.js and
 // learn.js. The third shared module, after firebase-config.js and stats-wal.js.
+//
+// v1.2.0 — `continuation` records may be shorter than the 5-second floor.
+//          DESIGN-TELEMETRY.md §7 step 1.5. game.js and learn.js now close the
+//          OPEN sprint/run when a student switches books, toggles to the other
+//          mode, or hides the tab, so one stretch of typing can arrive as two or
+//          three records: a partial, then the remainder when it finishes. The
+//          5-second floor exists to suppress trivial standalone runs, and a
+//          3-second remainder of an already-recorded 40-second sprint is not
+//          that. ⚠️ Dropping it would make the day's session total quietly
+//          smaller than the day's counter, which is precisely the undercount
+//          step 2 must not inherit. The floor still applies to any record that
+//          starts a unit.
 //
 // v1.1.0 — `serverAt: serverTimestamp()` on every rollup document.
 //          DESIGN-TELEMETRY.md §6.3 / §7 step 1. One field, no behaviour change,
@@ -114,7 +126,7 @@
 //     a tab close would then try to write an empty map into a timestamp field.
 //     Queued records carry `at` (a real ISO string) and nothing else time-like.
 
-export const SESSION_LOG_VERSION = '1.1.0';
+export const SESSION_LOG_VERSION = '1.2.0';
 
 const KEY = 'ttb_sessionq_v1';
 const RECORDS_PER_DOC = 200;   // firestore.rules: sprints.size() <= 200
@@ -199,7 +211,15 @@ function _prune(records) {
 export function sessionLogPush(uid, record) {
     if (!uid || !record || !record.date) return false;
     const seconds = Math.max(0, Math.round(record.seconds || 0));
-    if (seconds < 5) return false;          // trivially short; matches game.js
+    // ⚠️ THE FLOOR IS ABOUT UNITS, NOT ABOUT SECONDS. (v1.2.0) A standalone
+    // 3-second run is noise and is refused. The 3-second TAIL of a sprint that
+    // was interrupted and then finished is the rest of a real record, and
+    // refusing it would leave the day's sessions summing to less than the day's
+    // clock — an undercount that looks exactly like a clean read. The caller
+    // sets `continuation` only when it has already logged part of this same
+    // unit; see game.js logSession() and learn.js logRun().
+    if (seconds < 5 && !record.continuation) return false;
+    if (seconds <= 0) return false;         // nothing happened at all
     const records = _prune(_read(uid));
     records.push({
         date:     String(record.date),
@@ -212,6 +232,10 @@ export function sessionLogPush(uid, record) {
         source:   record.source || '',       // 'library' | 'school'
         label:    record.label  || '',       // bookId or lessonId
         detail:   record.detail || '',       // chapter number or step index
+        // Marks a record as the second-or-later piece of one stretch of typing.
+        // Kept on the record (not just used as a gate) because a teacher reading
+        // three rows for one sprint should be able to see that is what they are.
+        ...(record.continuation ? { continuation: true } : {}),
     });
     return _write(uid, records);
 }

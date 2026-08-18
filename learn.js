@@ -1,4 +1,13 @@
-// learn.js v2.7.1
+// learn.js v2.8.0
+//
+// v2.8.0 — ⚠️ THE OPEN RUN IS NOW RECORDED. Same change as game.js v3.24.0 and
+//          shipped with it: a run abandoned halfway (the bell, a lid, a toggle to
+//          Library) used to leave counter time with no session record. logRun()
+//          writes deltas against a watermark; logOpenRun() closes the open run
+//          without ending it, on visibilitychange:hidden, pagehide and
+//          beforeunload. The inline sessionLogPush() in finishStep() is gone —
+//          it wrote run totals, which after a partial would double-file.
+//          DESIGN-TELEMETRY §7 step 1.5.
 //
 // v2.7.1 — Hands `serverTimestamp` to session-log.js so lesson-run rollups carry
 //          `serverAt`. Identical to game.js v3.23.1 and shipped with it; if only
@@ -172,7 +181,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.7.1";
+const LEARN_VERSION = "2.8.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -395,6 +404,18 @@ let mistakes       = 0;
 let chars          = 0;
 let stepStartTime  = 0;
 let stepSeconds    = 0;
+// ─── The open-run watermark (v2.8.0, DESIGN-TELEMETRY §7 step 1.5) ───────────
+// How much of the CURRENT run has already been written to the session queue.
+// ⚠️ Same mechanism, same reasoning and the same reset rule as game.js's
+// sprintLoggedSeconds — read the block above that declaration. Until v2.8.0 this
+// file only wrote a session record in finishStep(), so a student who abandoned a
+// run halfway (toggled to Library, closed the lid, walked out at the bell) left
+// counter time with no record behind it. `open-unit-test.mjs` counts the reset
+// sites in this file against the sites where `stepSeconds` is zeroed.
+let stepLoggedSeconds = 0, stepLoggedChars = 0, stepLoggedMistakes = 0;
+function resetStepLogWatermark() {
+    stepLoggedSeconds = 0; stepLoggedChars = 0; stepLoggedMistakes = 0;
+}
 let timerInterval  = null;
 let introAnimTimer = null;
 let introAnimFrame = 0;   // 0 = home, 1 = reach
@@ -1264,6 +1285,7 @@ function startLesson(lesson) {
     currentStepIdx = 0;
     mistakes       = 0;
     chars          = 0;
+    resetStepLogWatermark();
     missedChars    = {};
     // Title attribute as well as text: style.css v3.5.1 ellipsises this label
     // (it is the only variable-length item in the HUD and the only one allowed to
@@ -1558,6 +1580,7 @@ function beginStep(stepIdx) {
     drillPos  = 0;
     mistakes  = 0;
     chars     = 0;
+    resetStepLogWatermark();            // new run: nothing logged yet
 
     // v2.5.0 — the mid-run resume that used to live here is gone; see
     // startLesson(). A run always begins at character zero with clean counters.
@@ -1587,6 +1610,7 @@ function beginStep(stepIdx) {
     //
     // A run always starts at zero seconds now. There is nothing to carry in.
     stepSeconds   = 0;
+    resetStepLogWatermark();
 
     learnActiveSeconds = 0;
     learnLastInputTime = 0;
@@ -2198,6 +2222,72 @@ function updateHUD() {
     accDisplay.textContent = accuracyPct() + '%';
 }
 
+// ─── Session records for a run ───────────────────────────────────────────────
+//
+// ⚠️ ONE RUN CAN PRODUCE SEVERAL RECORDS. (v2.8.0, DESIGN-TELEMETRY §7 step 1.5)
+// A run used to be recorded only when it finished, so a run abandoned halfway —
+// the bell, a lid, a toggle over to Library — left time in the counters with
+// nothing behind it. logOpenRun() closes the open run without ending it, and
+// this function writes only what has not been written yet.
+//
+// The counters are module-level and describe the current run: `stepSeconds` (the
+// graded clock, which only advances once a character has been typed and the
+// student is not idle), `chars` and `mistakes`.
+//
+// ⚠️ A ZERO DELTA IS NORMAL, NOT AN ERROR. Two hides in a row, or a hide
+// immediately followed by finishStep(), produce nothing the second time.
+function logRun(wpm, acc, detailSuffix) {
+    const sessionUid = currentUser ? currentUser.uid : (sessionExpired ? lastKnownUid : '');
+    if (!sessionUid) return;                     // a true guest has no account yet
+
+    const dSeconds  = Math.max(0, Math.round(stepSeconds - stepLoggedSeconds));
+    const dChars    = Math.max(0, Math.round(chars       - stepLoggedChars));
+    const dMistakes = Math.max(0, Math.round(mistakes    - stepLoggedMistakes));
+    if (dSeconds <= 0 && dChars <= 0) return;
+
+    const continuation = stepLoggedSeconds > 0 || stepLoggedChars > 0;
+    // The 5-second floor guards against trivial standalone records only; the tail
+    // of an already-recorded run is the rest of something real. session-log.js
+    // v1.2.0 enforces the same distinction.
+    if (dSeconds < 5 && !continuation) return;
+
+    // ⚠️ A CONTINUATION'S WPM MUST DESCRIBE THE CONTINUATION. The caller's
+    // figures describe the whole run, and the report's per-run 🚩 marker reads
+    // these numbers as belonging to the row they sit on.
+    let outWPM = wpm, outAcc = acc;
+    if (continuation) {
+        const correct = Math.max(0, dChars - dMistakes);
+        outWPM = dSeconds > 0 ? Math.round((correct / 5) / (dSeconds / 60)) : 0;
+        outAcc = dChars > 0 ? Math.round((correct / dChars) * 100) : 100;
+    }
+
+    sessionLogPush(sessionUid, {
+        // ⚠️ STAMPED NOW, NOT AT FLUSH TIME. See session-log.js.
+        date: getLocalDateStr(),
+        at: new Date().toISOString(),
+        seconds: dSeconds,
+        chars: dChars,
+        mistakes: dMistakes,
+        wpm: outWPM,
+        accuracy: outAcc,
+        source: 'school',
+        label: (currentLesson && currentLesson.id) || '',
+        detail: 'run ' + (currentStepIdx + 1) + (detailSuffix ? ' ' + detailSuffix : ''),
+        ...(continuation ? { continuation: true } : {}),
+    });
+
+    stepLoggedSeconds  = Math.max(stepLoggedSeconds,  Math.round(stepSeconds));
+    stepLoggedChars    = Math.max(stepLoggedChars,    Math.round(chars));
+    stepLoggedMistakes = Math.max(stepLoggedMistakes, Math.round(mistakes));
+}
+
+// Close the open run WITHOUT ending it. Counters are untouched, so a student who
+// comes back and finishes the run has only the remainder recorded.
+function logOpenRun(reason) {
+    if (stepSeconds <= 0 && chars <= 0) return;
+    logRun(netWPM(), accuracyPct(), reason ? '(' + reason + ')' : '(interrupted)');
+}
+
 // ─── Finish Step ─────────────────────────────────────────────────────────────
 function finishStep() {
     clearInterval(timerInterval);
@@ -2225,22 +2315,12 @@ function finishStep() {
     // the window a token happened to lapse in — which is precisely the window a
     // teacher most wants a record of. A true guest is still skipped; they have
     // no account for the record to belong to.
-    const sessionUid = currentUser ? currentUser.uid : (sessionExpired ? lastKnownUid : '');
-    if (sessionUid) {
-        sessionLogPush(sessionUid, {
-            // ⚠️ STAMPED NOW, NOT AT FLUSH TIME. See session-log.js.
-            date: getLocalDateStr(),
-            at: new Date().toISOString(),
-            seconds: stepSeconds,
-            chars: chars,
-            mistakes: mistakes,
-            wpm: wpm,
-            accuracy: acc,
-            source: 'school',
-            label: (currentLesson && currentLesson.id) || '',
-            detail: 'run ' + (currentStepIdx + 1),
-        });
-    }
+    // ⚠️ v2.8.0 — this used to be an inline sessionLogPush(). It is now logRun(),
+    // which writes a DELTA against the watermark, because logOpenRun() may already
+    // have recorded part of this same run when the student hid the tab or toggled
+    // to Library. Writing the run total here after a partial would file that
+    // stretch twice.
+    logRun(wpm, acc);
 
     const isLastRun = currentStepIdx >= currentRuns.length - 1;
 
@@ -2910,6 +2990,12 @@ document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
         // Position first: it's a synchronous localStorage write and it's the thing
         // whose loss actually costs the student their work. Never rate-limited.
+        // ⚠️ FIRST, AND UNCONDITIONALLY (v2.8.0). A localStorage write inside
+        // session-log.js: free, no network, no live token needed, and the only
+        // chance to record a run the student is walking away from. Deliberately
+        // outside the rate limit below — that gap protects Firestore, and this
+        // writes no Firestore document. Repeat calls write nothing.
+        logOpenRun('hidden');
         learnWalSave();
         persistGuestAccum();   // no-op when signed in; the whole point when not
         // ⚠️ THE RATE LIMIT NOW HAS AN ESCAPE HATCH (v2.4.0).
@@ -2937,10 +3023,22 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
+// ⚠️ pagehide, NOT ONLY beforeunload. A student clicking through to Library is
+// the most common way a run gets abandoned, and this file's own comments record
+// that beforeunload is unreliable on Chromebooks. pagehide fires on navigation
+// where beforeunload may not. Safe to double-fire: the delta is zero the second
+// time.
+window.addEventListener('pagehide', () => {
+    logOpenRun('left page');
+    learnWalSave();
+    persistGuestAccum();
+});
+
 window.addEventListener('beforeunload', () => {
     // ⚠️ Synchronous localStorage writes first, ALWAYS. The Firestore flush
     // below is async and the browser is under no obligation to let it finish —
     // it is a best effort, not the safety net. These two lines are the net.
+    logOpenRun('left page');
     learnWalSave();
     persistGuestAccum();
     if (currentUser && statsData.secondsToday > 0) flushStats('beforeunload', true);

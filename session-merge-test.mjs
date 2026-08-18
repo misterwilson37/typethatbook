@@ -1,5 +1,9 @@
-// session-merge-test.mjs v1.1.0 — the two things Round 12 changed, plus the one
+// session-merge-test.mjs v1.2.0 — the two things Round 12 changed, plus the one
 // thing Round 13 added, tested against the code that actually ships.
+//
+// v1.2.0 — version pin follows session-log.js to 1.2.0 (the continuation floor).
+//          ⚠️ The pin is deliberate: an out-of-order upload shows up here as a
+//          named failure instead of as behaviour nobody can explain.
 //
 // v1.1.0 — PART B gains the `serverAt` assertions (session-log.js v1.1.0), and
 //          PART C is new: it reads the sessionLogInit(...) call out of game.js
@@ -351,8 +355,8 @@ if (gameDeps && learnDeps) {
 
 // The module's own version, so a stale copy uploaded out of order is visible in
 // the test output rather than only in the footer.
-ok(mod.SESSION_LOG_VERSION === '1.1.0',
-   `session-log.js reports v1.1.0 (got ${mod.SESSION_LOG_VERSION})`);
+ok(mod.SESSION_LOG_VERSION === '1.2.0',
+   `session-log.js reports v1.2.0 (got ${mod.SESSION_LOG_VERSION})`);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
