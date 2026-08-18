@@ -1,10 +1,31 @@
-// learn.js v2.5.3
+// learn.js v2.6.0
 //
 // Lesson-mode engine, separate from game.js. Same write-ahead-log and
 // coalesced-flush persistence pattern.
 //
 // ── Full history: CHANGELOG.md § learn.js ─────────────────────────────────
 // ── Why it looks like this: PEDAGOGY-AUDIT.md ─────────────────────────────
+//
+// v2.6.0 — ⚠️ THE DOUBLED WEEK COUNTER, AND SCHOOL'S MISSING SESSION HISTORY.
+//          The defect a student reported on 2026-08-18 was in THIS file, not
+//          game.js — he was in lessons — and the report drill-down that would
+//          have diagnosed it had never existed here at all.
+//          (1) SESSION LOGGING, FIRST TIME EVER IN THIS FILE. Sprint rollups
+//          were built in game.js in v3.4.0 and never built here, so a student
+//          who spends the period in School leaves a daily total and no detail
+//          behind it: no per-run WPM, no timeline, nothing to check work or
+//          spot a suspicious jump against. It read as a regression from the
+//          cost work because as lesson mode grew, the share of the roster with
+//          any session detail fell toward zero. Now shared: session-log.js.
+//          (2) A SIGNED-OUT USER IS NOT A GUEST. Auth sessions expire at 24h
+//          and can expire mid-lesson. currentUser goes null, the drill tick
+//          keeps counting (it never checked auth), anonSecondsAccum starts
+//          climbing as though this were a visitor, and the guest ladder offers
+//          sign-in 60 seconds later. That sign-in ran retroactiveSaveAnonSession(),
+//          which ADDED the server's stored totals to counters that were seeded
+//          from the server at page load. 20 minutes became 40.
+//          (3) The merge is a BASELINE DIFF now — not a sum, and not a max().
+//          Both are wrong, in opposite directions. See mergeGuestStats().
 //
 // v2.5.3 — HUD lesson label carries a title attribute, because style.css v3.5.1
 //          ellipsises it. Cosmetic half of a layout fix that lives in the CSS.
@@ -111,6 +132,13 @@ import {
     statsWalSave, statsWalRecover,
     guestAccumSave, guestAccumLoad, guestAccumClear
 } from "./stats-wal.js";
+// The sprint/run history queue, shared with game.js. ⚠️ THIS FILE HAD NO SESSION
+// LOGGING OF ANY KIND BEFORE v2.6.0 — see the header. A run is the lesson-mode
+// equivalent of a sprint: a bounded stretch of typing with a duration, a
+// character count and a derived WPM, which is exactly what the module stores.
+import {
+    sessionLogInit, sessionLogPush, sessionLogFlush, sessionLogPending
+} from "./session-log.js";
 import {
     collection, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc,
     // Aggregation query. Firestore bills getCountFromServer at ONE read per up
@@ -130,7 +158,11 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.5.3";
+const LEARN_VERSION = "2.6.0";
+
+// Hand the shared session queue its Firestore surface, once, at module scope.
+// session-log.js imports no SDK of its own on purpose — see that file.
+sessionLogInit({ db, collection, addDoc });
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",
@@ -227,6 +259,87 @@ function saveAnonNudgeState() {
 // ─── Stats & Goals (mirrors game.js — writes to same Firestore path) ────────
 let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0,
                   mistakesToday:0, mistakesWeek:0, lastDate:'', weekStart:0 };
+
+// ⚠️ THE BASELINE — WHAT FIRESTORE HELD WHEN WE LAST READ IT. (v2.6.0)
+//
+// Mirrors game.js v3.22.0 and exists for the same reason: so that "how much of
+// statsData did this browser put there?" has an answer instead of a guess. The
+// guest merge on sign-in has to reconcile the live counters against the stored
+// ones, and both obvious ways of doing that are wrong in one direction each:
+//
+//   sum()  — right for a true guest (page opened signed out, counters started at
+//            zero, so all of statsData is new work), and WRONG for an expired
+//            session, where statsData was seeded from the server at page load
+//            and adding the server's copy back counts it twice. This is what
+//            shipped, and on 2026-08-18 it took a student's week from 20 minutes
+//            to 40 after three minutes of typing.
+//   max()  — right for the expired session, and WRONG for a guest who typed
+//            earlier in the day elsewhere: max(server 10, local 20) keeps 20
+//            instead of 30 and ten minutes of real work disappear.
+//
+//     this browser's contribution = statsData - baseline
+//     merged                      = server + contribution
+//
+// Correct in both, because a true guest's baseline is zero and the formula
+// collapses back into sum(). Set ONLY where Firestore is read (loadUserStats).
+let statsBaseline = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0,
+                      mistakesToday:0, mistakesWeek:0 };
+
+// ⚠️ TRUE WHEN A REAL USER BECAME NULL WITHOUT ASKING TO. (v2.6.0)
+//
+// Auth expires at 24 hours and that lands mid-period for somebody most days.
+// currentUser goes null; the drill tick keeps counting because it never checked
+// auth; and every `!currentUser || currentUser.isAnonymous` test in this file
+// starts reading a student twenty minutes into a lesson as a fresh visitor.
+// A guest and an expired session need opposite handling and were, until this
+// flag, indistinguishable.
+let sessionExpired = false;
+let lastKnownUid   = '';   // survives the null, so we know whose session lapsed
+
+const STAT_KEYS = ['secondsToday','charsToday','mistakesToday',
+                   'secondsWeek','charsWeek','mistakesWeek'];
+
+function captureStatsBaseline() {
+    for (const k of STAT_KEYS) statsBaseline[k] = statsData[k] || 0;
+}
+
+// ⚠️ THE FUNCTION THAT DOUBLED A STUDENT'S WEEK. Read the statsBaseline block
+// above before touching the arithmetic, and DO NOT "simplify" it to max() —
+// that trades one silent corruption for another. Kept structurally identical to
+// game.js mergeGuestStats(); ⚠️ CHANGE ONE, CHANGE BOTH. Neither page controller
+// can import the other, so this is the third pair of twins in the codebase
+// (applyPendingClassAssignment and getWeekStart are the others).
+//
+// The period guards are load-bearing and they are also the fingerprint of the
+// original bug: on 2026-08-18 the stats document still said lastDate = the day
+// before (it is only written on a `final` flush), so the DAY branch was skipped
+// and only the WEEK branch fired. Week doubled, day did not. That asymmetry is
+// how the defect was identified from a screenshot.
+function mergeGuestStats(serverData, dateStr, weekStart) {
+    const d = serverData || {};
+    const dayMatches  = d.lastDate === dateStr;
+    const weekMatches = (d.weekStart || '') === weekStart;
+
+    const fold = (key, matches) => {
+        const live = statsData[key] || 0;
+        const base = statsBaseline[key] || 0;
+        // Clamped at zero: a counter lower than its baseline means the day or
+        // week rolled over underneath us, and a negative contribution would
+        // subtract real stored work.
+        const mine = Math.max(0, live - base);
+        const server = matches ? (d[key] || 0) : 0;
+        // The outer max() is a FLOOR, not the merge. It guarantees the result
+        // can never land below what this browser already shows the student.
+        statsData[key] = Math.max(live, server + mine);
+    };
+
+    for (const k of ['secondsToday','charsToday','mistakesToday']) fold(k, dayMatches);
+    for (const k of ['secondsWeek','charsWeek','mistakesWeek'])    fold(k, weekMatches);
+
+    statsData.lastDate  = dateStr;
+    statsData.weekStart = weekStart;
+    captureStatsBaseline();
+}
 let goals     = { dailySeconds: 0, weeklySeconds: 0 };
 let classInfo = { id: '', name: '', dailySeconds: 0, weeklySeconds: 0 };
 let dailyGoalCelebrated  = false;
@@ -308,10 +421,20 @@ document.getElementById('login-btn').onclick = async () => {
     try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch(e) { console.error(e); }
 };
 document.getElementById('logout-btn').onclick = async () => {
+    // Clear the marker FIRST. A deliberate sign-out must not be mistaken for an
+    // expired session by the handler that is about to fire.
+    try { await flushStats('signout', true); } catch (_) {}
+    lastKnownUid = ''; sessionExpired = false;
     try { await signOut(auth); } catch(e) { console.error(e); }
 };
 onAuthStateChanged(auth, async user => {
+    // ⚠️ CAPTURED BEFORE currentUser IS OVERWRITTEN. (v2.6.0) `user === null`
+    // means either "nobody has signed in" or "the token that worked a minute ago
+    // expired". Those need opposite handling and were indistinguishable; this is
+    // the distinction. Deliberate sign-out clears lastKnownUid first, below.
+    const wasSignedIn = !!lastKnownUid;
     currentUser = user;
+    if (user && !user.isAnonymous) { lastKnownUid = user.uid; sessionExpired = false; }
     const userInfo = document.getElementById('user-info');
     const loginBtn = document.getElementById('login-btn');
     if (user) {
@@ -351,12 +474,115 @@ onAuthStateChanged(auth, async user => {
         if (!(classInfo && classInfo.id)) await applyPendingClassAssignment(user);
     } else {
         userInfo.classList.add('hidden'); loginBtn.style.display = '';
-        userProgress = {};
+        if (wasSignedIn) {
+            // ⚠️ AN EXPIRED SESSION, NOT A VISITOR. (v2.6.0)
+            //
+            // The old code cleared userProgress unconditionally, which wipes the
+            // map for a student who is mid-lesson and has done nothing wrong.
+            // Their progress is still perfectly valid; the only thing that
+            // stopped being true is that we can write. Counters keep climbing in
+            // memory and mergeGuestStats() reconciles them on re-auth, so the
+            // work is not lost — it is invisible until then, which is why the
+            // prompt below is not optional.
+            sessionExpired = true;
+            console.warn('[TTB] Auth session expired mid-session — pausing writes ' +
+                         'until re-authentication. Time continues to count locally.');
+            showReauthPrompt();
+        } else {
+            userProgress = {};
+        }
         // Load lessons if needed for signed-out view
         if (allLessons.length === 0) await loadLessons();
     }
+    renderIdStamp();
     renderMap();
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE ID STAMP — bottom left, mirroring the version stamp bottom right.
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️ WHY THIS EXISTS. On 2026-08-18 a student reported a doubled week counter,
+// and there was no way to get from "this child, at this machine" to a row in the
+// database. typing_logs carries an email and a display name, but nothing on the
+// STUDENT'S SCREEN carried anything at all, so a bug reported verbally could not
+// be tied to a record without asking the child to sign in again in front of you.
+//
+// It shows the FIRST EIGHT characters, not all twenty-eight. Eight hex-ish
+// characters are unambiguous across a building and can be read aloud across a
+// classroom without a mistake; twenty-eight cannot. The full value is in the
+// title attribute and on the clipboard when clicked, for when eight is not
+// enough. reports.html prints the same eight beside each student.
+//
+// Not PII, and it is the student's own id only — there is no lookup here, no
+// list, and nothing another student's browser could be made to show.
+//
+// ⚠️ THIS FUNCTION IS DUPLICATED IN game.js AND learn.js. CHANGE ONE, CHANGE
+// BOTH. Neither page controller can import the other, and it was not worth a
+// fourth shared module for fifteen lines — but that judgement is exactly the one
+// that produced the divergences this round spent its time on, so if it grows any
+// further, extract it.
+function renderIdStamp() {
+    let el = document.getElementById('ttb-id-stamp');
+    const uid = (currentUser && !currentUser.isAnonymous) ? currentUser.uid
+              : (sessionExpired ? lastKnownUid : '');
+    if (!uid) { if (el) el.remove(); return; }
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'ttb-id-stamp';
+        el.style.cssText = 'position:fixed;bottom:4px;left:8px;z-index:9998;' +
+            'font-family:monospace;font-size:0.7rem;opacity:0.45;cursor:pointer;' +
+            'user-select:all;';
+        el.onclick = () => {
+            const full = el.dataset.uid || '';
+            if (full && navigator.clipboard) navigator.clipboard.writeText(full).catch(() => {});
+        };
+        document.body.appendChild(el);
+    }
+    el.dataset.uid = uid;
+    el.title = 'Student ID: ' + uid + ' (click to copy)';
+    el.textContent = 'ID ' + uid.slice(0, 8);
+}
+
+// ─── Re-authentication ───────────────────────────────────────────────────────
+//
+// Deliberately NOT the guest ladder. The guest ladder says "sign in to save your
+// work", which is both alarming and untrue here, and the sign-in it offers is
+// what ran the merge that doubled a student's week. This one names what actually
+// happened and makes no claim about their work being at risk.
+function showReauthPrompt() {
+    if (document.getElementById('reauth-overlay')) return;
+    clearInterval(timerInterval);
+    clearInterval(learnTickInterval);
+
+    const overlay = document.createElement('div');
+    overlay.id = 'reauth-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.55);' +
+        'display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML =
+        '<div style="background:#fff;max-width:420px;padding:24px;border-radius:8px;text-align:center;">' +
+        '<div style="font-size:1.1rem;font-weight:bold;margin-bottom:8px;">Please sign in again</div>' +
+        '<div style="font-size:0.9rem;color:#555;margin-bottom:14px;">Your sign-in expired, which happens ' +
+        'about once a day. Your work is still here &mdash; it just can\u2019t save until you sign back in.</div>' +
+        '<button id="reauth-btn" style="padding:8px 18px;cursor:pointer;">Sign In Again</button>' +
+        '</div>';
+    document.body.appendChild(overlay);
+
+    // ⚠️ BOUND AFTER THE LAST innerHTML WRITE. (Round 11, invariant 61.)
+    document.getElementById('reauth-btn').onclick = async () => {
+        const btn = document.getElementById('reauth-btn');
+        btn.textContent = 'Signing in\u2026'; btn.disabled = true;
+        try {
+            await signInWithPopup(auth, new GoogleAuthProvider());
+            // onAuthStateChanged fires; retroactiveSaveAnonSession() runs the
+            // baseline-aware merge from there.
+            overlay.remove();
+        } catch (e) {
+            btn.textContent = 'Sign In Again'; btn.disabled = false;
+            if (e.code !== 'auth/popup-closed-by-user') console.warn('Re-auth failed:', e);
+        }
+    };
+}
 
 
 // ─── Guest Login Ladder ───────────────────────────────────────────────────────
@@ -364,6 +590,11 @@ onAuthStateChanged(auth, async user => {
 // on anonNudgeShown for why this no longer fires mid-run.
 function armAnonLoginPrompt() {
     if (currentUser && !currentUser.isAnonymous) return;
+    // ⚠️ AN EXPIRED SESSION IS NOT A GUEST. (v2.6.0) Without this line a student
+    // whose token lapsed mid-lesson is invited to "sign in to save your work"
+    // sixty seconds later — and that sign-in is what ran the merge that doubled
+    // their week. Someone who has already signed in gets showReauthPrompt().
+    if (sessionExpired) return;
     if (anonNudgePending) return;
     if (anonNudgeShown === 0 && anonSecondsAccum >= ANON_NUDGE_1) anonNudgePending = 1;
     else if (anonNudgeShown === 1 && anonSecondsAccum >= ANON_NUDGE_2) anonNudgePending = 2;
@@ -372,6 +603,7 @@ function armAnonLoginPrompt() {
 // Called at the end of a run, which is the boundary the tick was waiting for.
 function checkAnonLoginPrompt() {
     if (currentUser && !currentUser.isAnonymous) return;
+    if (sessionExpired) return;   // see armAnonLoginPrompt()
     // A rung can come due exactly at the boundary without the tick seeing it.
     armAnonLoginPrompt();
     const rung = anonNudgePending;
@@ -385,6 +617,7 @@ function checkAnonLoginPrompt() {
 
 function showAnonLoginPrompt(rung) {
     if (currentUser && !currentUser.isAnonymous) return; // signed in while waiting
+    if (sessionExpired) return;   // see armAnonLoginPrompt()
     rung = (rung === 2) ? 2 : 1;
 
     // Pause any active drill
@@ -464,33 +697,30 @@ function showAnonLoginPrompt(rung) {
 
 async function retroactiveSaveAnonSession(user) {
     if (!user || user.isAnonymous) return;
-    if (!anonSecondsAccum && !Object.keys(anonLessonProgress).length) return;
+    // ⚠️ THE `sessionExpired` TERM IS NOT OPTIONAL. (v2.6.0)
+    //
+    // anonSecondsAccum is incremented by the drill tick whenever currentUser is
+    // falsy — which includes a token that lapsed mid-lesson, not just a genuine
+    // guest. So this guard passed for an expired session, the merge below ran,
+    // and it ran against counters already seeded from the server. Now the merge
+    // is baseline-aware, so running it is harmless either way; the flag is here
+    // so the SUBSEQUENT lesson-progress replay knows the difference.
+    if (!anonSecondsAccum && !Object.keys(anonLessonProgress).length && !sessionExpired) return;
 
     try {
         const today = new Date();
-        const dateStr = today.getFullYear() + '-' +
-            String(today.getMonth()+1).padStart(2,'0') + '-' +
-            String(today.getDate()).padStart(2,'0');
+        const dateStr = getLocalDateStr(today);
         const weekStart = getWeekStart(today);
 
-        // Merge accumulated time into their stats
+        // Merge accumulated time into their stats.
+        // ⚠️ v2.6.0 — this used to be `statsData.x += server.x` inline, which was
+        // right for a guest and doubled the counters for an expired session. The
+        // arithmetic lives in mergeGuestStats() now; read the block above it
+        // before changing anything here.
         const statsRef = doc(db, 'users', user.uid, 'stats', 'time_tracking');
         const statsSnap = await getDoc(statsRef);
-        if (statsSnap.exists()) {
-            const data = statsSnap.data();
-            if (data.lastDate === dateStr) {
-                statsData.secondsToday += data.secondsToday || 0;
-                statsData.charsToday   += data.charsToday   || 0;
-                statsData.mistakesToday+= data.mistakesToday|| 0;
-            }
-            if ((data.weekStart || '') === weekStart) {
-                statsData.secondsWeek  += data.secondsWeek  || 0;
-                statsData.charsWeek    += data.charsWeek    || 0;
-                statsData.mistakesWeek += data.mistakesWeek || 0;
-            }
-        }
-        statsData.lastDate  = dateStr;
-        statsData.weekStart = weekStart;
+        mergeGuestStats(statsSnap.exists() ? statsSnap.data() : null, dateStr, weekStart);
+        sessionExpired = false;
         await setDoc(statsRef, statsData, { merge: true });
 
         // Save lesson progress accumulated during anon session
@@ -1962,6 +2192,36 @@ function finishStep() {
     const wpm = netWPM();
     const acc = accuracyPct();
 
+    // ⚠️ THE FIRST SESSION RECORD THIS FILE HAS EVER WRITTEN. (v2.6.0)
+    //
+    // game.js has logged sprint detail since v3.4.0; School logged none, so a
+    // student who spends the period in lessons leaves a daily minute total with
+    // nothing underneath it — no per-run WPM, no timeline, nothing to check work
+    // against or to notice a suspicious jump in. A run is the lesson-mode
+    // equivalent of a sprint and needs no new shape to store.
+    //
+    // Pushed for an EXPIRED SESSION too: session-log.js writes to localStorage
+    // and needs no live token, so there is no reason to discard a run typed in
+    // the window a token happened to lapse in — which is precisely the window a
+    // teacher most wants a record of. A true guest is still skipped; they have
+    // no account for the record to belong to.
+    const sessionUid = currentUser ? currentUser.uid : (sessionExpired ? lastKnownUid : '');
+    if (sessionUid) {
+        sessionLogPush(sessionUid, {
+            // ⚠️ STAMPED NOW, NOT AT FLUSH TIME. See session-log.js.
+            date: getLocalDateStr(),
+            at: new Date().toISOString(),
+            seconds: stepSeconds,
+            chars: chars,
+            mistakes: mistakes,
+            wpm: wpm,
+            accuracy: acc,
+            source: 'school',
+            label: (currentLesson && currentLesson.id) || '',
+            detail: 'run ' + (currentStepIdx + 1),
+        });
+    }
+
     const isLastRun = currentStepIdx >= currentRuns.length - 1;
 
     if (isLastRun) {
@@ -2896,6 +3156,16 @@ async function loadUserStats() {
         statsData.lastDate  = dateStr;
         statsData.weekStart = weekStart;
 
+        // ⚠️ THE BASELINE IS TAKEN HERE AND NOWHERE ELSE. (v2.6.0)
+        //
+        // At this exact line statsData is precisely what the server holds —
+        // nothing typed in this tab has been folded in yet. That is what makes
+        // it a baseline, and it is why this sits ABOVE statsWalRecover(): a
+        // recovered WAL tail is this browser's own unflushed work and belongs on
+        // the contribution side of the subtraction. Move it below the recovery
+        // and a re-auth silently discards whatever the WAL just replayed.
+        captureStatsBaseline();
+
         // ⚠️ CROSS-PAGE RECOVERY (v2.4.0). Fold in anything game.js could not
         // get to Firestore before its tab died. Before this existed, minutes
         // typed in a book and lost on tab-close only came back if the student
@@ -3343,6 +3613,19 @@ async function _flushStatsInner(reason, final = false) {
     }
 
     if (!(await flushLessonProgress())) ok = false;
+
+    // Run history rollup (v2.6.0). Session-end only, same cadence game.js uses:
+    // it is never read by the app, only by reports.html, so it needs to be
+    // correct by the time a teacher looks rather than by the next keystroke.
+    if (final && sessionLogPending(currentUser.uid) > 0) {
+        const sessionsOk = await sessionLogFlush(currentUser.uid, {
+            email: currentUser.email || '',
+            displayName: currentUser.displayName || 'Anonymous',
+            classId: (classInfo && classInfo.id) || '',
+            schoolId: (classInfo && classInfo.schoolId) || '',
+        });
+        if (!sessionsOk) ok = false;
+    }
 
     // The local copy is now authoritative for this student — mirror it into the
     // cache so the next page load doesn't have to re-read the subcollection to

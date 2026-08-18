@@ -1,4 +1,4 @@
-// anon-ladder-test.mjs v1.0.0 — the guest login ladder, and the two coalescing
+// anon-ladder-test.mjs v1.1.0 — the guest login ladder, and the two coalescing
 // guards that guest mode depends on.
 //
 // ⚠️ WHY THIS EXISTS. Round 9 merged two guest-login ladders in game.js and
@@ -63,11 +63,18 @@ ok(N1 === 60 && N2 === 300, `rungs are 60s and 300s as specified (got ${N1}, ${N
 // whole point of running it against old code is finding out which parts it
 // catches. A harness that cannot survive the thing it is testing being absent
 // tells you less than one that can.
-const makeDue = (shown, user) => {
+// ⚠️ `sessionExpired` IS INJECTED, AND ADDING IT HERE IS THE POINT (v1.1.0).
+// game.js v3.22.0 gave anonNudgeDue() a fourth dependency, and this harness
+// lifts the function by brace-matching and runs it in a bare sandbox — so a new
+// module-scope reference becomes a ReferenceError with no other symptom. That is
+// invariant 62 wearing a different hat, and it is why the suite caught this on
+// the first run rather than a student catching it in third period.
+const makeDue = (shown, user, expired = false) => {
     if (!dueSrc) return () => 'NO-SUCH-FUNCTION';
     const fn = new Function('currentUser', 'anonNudgeShown', 'ANON_NUDGE_1', 'ANON_NUDGE_2',
+        'sessionExpired',
         `${dueSrc}; return anonNudgeDue;`);
-    return fn(user, shown, N1, N2);
+    return fn(user, shown, N1, N2, expired);
 };
 
 // Rung 1
@@ -83,6 +90,16 @@ ok(makeDue(1, null)(N2)       === 2, 'rung 2 fires exactly at the threshold');
 
 // ⚠️ The point of the whole design: there is no third prompt, ever.
 ok(makeDue(2, null)(N2 * 10)  === 0, 'THERE IS NO THIRD PROMPT — a child who declined twice has decided');
+
+// ⚠️ AN EXPIRED SESSION IS NOT A GUEST (game.js v3.22.0 / learn.js v2.6.0).
+// This is the defect that doubled a student's week: a 24-hour token lapsed
+// mid-period, currentUser went null, the ladder read that as a brand-new visitor
+// and re-offered sign-in — and the sign-in ran the additive merge. The ladder
+// must stay silent for someone who has already signed in, at EVERY rung.
+ok(makeDue(0, null, true)(N1)      === 0, 'an expired session is not offered rung 1');
+ok(makeDue(1, null, true)(N2)      === 0, 'an expired session is not offered rung 2');
+ok(makeDue(0, null, true)(N2 * 10) === 0, 'an expired session is never laddered, however long they type');
+ok(makeDue(0, null, false)(N1)     === 1, 'a genuine guest is still prompted — the guard is not a blanket mute');
 
 // Signed-in students are never prompted; anonymous-auth users would be treated
 // as guests if that toggle is ever flipped.

@@ -1,9 +1,28 @@
-// game.js v3.21.1
+// game.js v3.22.0
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
+//
+// v3.22.0 — ⚠️ THE DOUBLED WEEK COUNTER, and the sprint history that was filed
+//           under the wrong day. Four changes; the first is the one that was
+//           actively corrupting a student's numbers.
+//           (1) A SIGNED-OUT USER IS NOT A GUEST. Sessions expire at 24h and can
+//           expire mid-period. onAuthStateChanged fires with null, and every
+//           `!currentUser || isAnonymous` test in the file then reads a student
+//           halfway through a lesson as a brand-new visitor — including the
+//           login ladder, which re-offered sign-in after 60 seconds. Signing
+//           back in ran the guest merge, which ADDS Firestore's stored totals to
+//           the live ones. But statsData was never reset by the sign-out: it
+//           still held everything loaded at page open. 20 minutes + 20 minutes
+//           = 40. See sessionExpired and mergeGuestStats().
+//           (2) The merge is a BASELINE DIFF now, not a sum and not a max().
+//           Both were wrong in opposite directions. See mergeGuestStats().
+//           (3) Sprint rollups move to session-log.js, shared with learn.js,
+//           which had no sprint logging whatsoever. Records carry the date they
+//           were TYPED; this file used to stamp them at flush time.
+//           (4) Typing while signed out is no longer discarded in silence.
 //
 // v3.21.1 — applyPendingClassAssignment() honours an explicit reassignment, and
 //          always consumes the record it read. The old `if (existing) return;`
@@ -85,6 +104,14 @@ import { db, auth } from "./firebase-config.js";
 // time counters (not book-scoped), and walRecover()'s correct bookId guard
 // meant the counters were declined on a book switch and then overwritten.
 import { statsWalSave, statsWalRecover } from "./stats-wal.js";
+// The sprint/run history queue, shared with learn.js. Extracted BECAUSE the
+// rollup writer lived here and nowhere else: lesson mode wrote no sprint detail
+// at all, and this file dated every rollup at flush time rather than at typing
+// time. See session-log.js for both defects.
+import {
+    sessionLogInit, sessionLogPush, sessionLogFlush,
+    sessionLogPending, sessionLogAdopt
+} from "./session-log.js";
 import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     onAuthStateChanged,
@@ -94,7 +121,13 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.21.1";
+const VERSION = "3.22.0";
+
+// Hand the shared session queue its Firestore surface. Done at module scope,
+// once, because session-log.js imports no SDK of its own on purpose — one page
+// controller's Firestore version is the only one that should ever be in play.
+sessionLogInit({ db, collection, addDoc });
+
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;
 const AFK_THRESHOLD = 5000; // 5 Seconds to Auto-Pause
@@ -173,6 +206,52 @@ function _readCssVersion(selector) {
     } catch (e) {
         return '?';
     }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE ID STAMP — bottom left, mirroring the version stamp bottom right.
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️ WHY THIS EXISTS. On 2026-08-18 a student reported a doubled week counter,
+// and there was no way to get from "this child, at this machine" to a row in the
+// database. typing_logs carries an email and a display name, but nothing on the
+// STUDENT'S SCREEN carried anything at all, so a bug reported verbally could not
+// be tied to a record without asking the child to sign in again in front of you.
+//
+// It shows the FIRST EIGHT characters, not all twenty-eight. Eight hex-ish
+// characters are unambiguous across a building and can be read aloud across a
+// classroom without a mistake; twenty-eight cannot. The full value is in the
+// title attribute and on the clipboard when clicked, for when eight is not
+// enough. reports.html prints the same eight beside each student.
+//
+// Not PII, and it is the student's own id only — there is no lookup here, no
+// list, and nothing another student's browser could be made to show.
+//
+// ⚠️ THIS FUNCTION IS DUPLICATED IN game.js AND learn.js. CHANGE ONE, CHANGE
+// BOTH. Neither page controller can import the other, and it was not worth a
+// fourth shared module for fifteen lines — but that judgement is exactly the one
+// that produced the divergences this round spent its time on, so if it grows any
+// further, extract it.
+function renderIdStamp() {
+    let el = document.getElementById('ttb-id-stamp');
+    const uid = (currentUser && !currentUser.isAnonymous) ? currentUser.uid
+              : (sessionExpired ? lastKnownUid : '');
+    if (!uid) { if (el) el.remove(); return; }
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'ttb-id-stamp';
+        el.style.cssText = 'position:fixed;bottom:4px;left:8px;z-index:9998;' +
+            'font-family:monospace;font-size:0.7rem;opacity:0.45;cursor:pointer;' +
+            'user-select:all;';
+        el.onclick = () => {
+            const full = el.dataset.uid || '';
+            if (full && navigator.clipboard) navigator.clipboard.writeText(full).catch(() => {});
+        };
+        document.body.appendChild(el);
+    }
+    el.dataset.uid = uid;
+    el.title = 'Student ID: ' + uid + ' (click to copy)';
+    el.textContent = 'ID ' + uid.slice(0, 8);
 }
 
 async function updateVersionBanner(advRendererVersion) {
@@ -649,6 +728,46 @@ const savedSession = localStorage.getItem('ttb_sessionLength');
 if (savedSession) { sessionValueStr = savedSession; sessionLimit = (savedSession === 'infinity') ? 'infinity' : parseInt(savedSession); }
 let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0, mistakesToday:0, mistakesWeek:0, lastDate:"", weekStart:0 };
 
+// ⚠️ THE BASELINE. WHAT FIRESTORE HAD WHEN WE LAST READ IT. (v3.22.0)
+//
+// This exists so that "how much of statsData did this browser put there?" has an
+// answer. Without it, the guest-merge on sign-in has to guess, and both available
+// guesses are wrong:
+//
+//   sum()  — correct for a true guest (fresh page, counters started at zero, so
+//            everything in statsData is new work) and WRONG for an expired
+//            session, where statsData was seeded from Firestore at page load and
+//            adding the server's copy back counts the same minutes twice. This is
+//            what shipped, and it is what doubled a student's week on 2026-08-18.
+//   max()  — correct for the expired session and WRONG for a true guest who had
+//            typed earlier in the day on another machine: their 20 guest minutes
+//            replace the server's 10 instead of adding to them, and 10 minutes of
+//            real work vanish.
+//
+// The baseline makes the question answerable instead of guessable:
+//
+//     this browser's contribution = statsData - baseline
+//     merged                      = server + contribution
+//
+// which is right in BOTH cases, because in the guest case the baseline is zero
+// and the formula degenerates to sum(). Set ONLY where Firestore is actually
+// read (loadUserStats), and reset to zero on a genuine sign-out.
+let statsBaseline = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0, mistakesToday:0, mistakesWeek:0 };
+
+// ⚠️ TRUE WHEN A REAL USER BECAME NULL WITHOUT ASKING TO. (v3.22.0)
+//
+// Auth sessions expire at 24 hours, which lands mid-period for somebody most
+// days. `currentUser` goes null and every `!currentUser || currentUser.isAnonymous`
+// test in this file — there are 29 — starts reading a student who has been typing
+// for twenty minutes as a visitor who just arrived. The counters keep climbing
+// (the tick doesn't check auth) while logSession, markDirty, walSave and flushAll
+// all silently early-return, so the work is neither recorded nor recorded as lost.
+//
+// A guest and an expired session need OPPOSITE handling and were indistinguishable.
+// This flag is the distinction. It is never set by signOut(), which reloads.
+let sessionExpired = false;
+let lastKnownUid = '';        // survives the null, so we can tell whose session it was
+
 // Goals
 let goals = { dailySeconds: 0, weeklySeconds: 0 };
 let dailyGoalCelebrated = false;
@@ -740,6 +859,15 @@ const ANON_NUDGE_2 = 300;   // 5 minutes
 // its own.
 function anonNudgeDue(totalActiveSeconds) {
     if (currentUser && !currentUser.isAnonymous) return 0;
+    // ⚠️ AN EXPIRED SESSION IS NOT A GUEST. (v3.22.0)
+    //
+    // Without this line a student whose 24-hour token lapsed mid-lesson is
+    // offered the guest ladder — "sign in to save your work!" — sixty seconds
+    // later, and the sign-in they are being invited to perform is the thing that
+    // ran the merge that doubled their week. The ladder is for people who have
+    // never signed in. Someone who HAS gets showReauthPrompt() instead, which
+    // says what actually happened and does not pretend their work is unsaved.
+    if (sessionExpired) return 0;
     if (anonNudgeShown === 0 && totalActiveSeconds >= ANON_NUDGE_1) return 1;
     if (anonNudgeShown === 1 && totalActiveSeconds >= ANON_NUDGE_2) return 2;
     return 0;
@@ -953,7 +1081,12 @@ async function init() {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             currentUser = user;
+            // Remembered across the null that a token expiry produces, so the
+            // else-branch can tell an expired session from a first visit.
+            if (!user.isAnonymous) lastKnownUid = user.uid;
+            sessionExpired = false;
             updateAuthUI(true);
+            renderIdStamp();
             // Show Game Genie for admins
             const ggBtn = document.getElementById('genie-btn');
             if (ggBtn) ggBtn.classList.toggle('hidden', !ADMIN_EMAILS.includes(user.email));
@@ -998,16 +1131,48 @@ async function init() {
             } catch(e) { console.error("Init Error:", e); }
             trophyBtn.classList.remove('hidden');
         } else {
-            // No anonymous sign-in — just load the book as read-only
+            // ⚠️ TWO DIFFERENT EVENTS ARRIVE HERE AND ONLY ONE OF THEM IS A
+            // PAGE LOAD. (v3.22.0)
+            //
+            // `user === null` means either "nobody has signed in" or "the token
+            // that was working sixty seconds ago has expired". The second is
+            // routine — sessions are capped at 24 hours and that cap lands
+            // mid-period for somebody most days — and the old code handled it by
+            // wiping the UI and calling loadChapter() on the first body chapter,
+            // which yanks a mid-lesson student back to chapter one and discards
+            // the session with no message. It then let the guest ladder re-offer
+            // sign-in, whose merge doubled the counters. All of it silent.
+            //
+            // lastKnownUid is what tells them apart, and it is set on the signed-in
+            // branch above rather than read from currentUser, which is about to be
+            // nulled.
+            const wasSignedIn = !!lastKnownUid;
             currentUser = null;
             updateAuthUI(false);
             const ggBtn = document.getElementById('genie-btn');
             if (ggBtn) ggBtn.classList.add('hidden');
             trophyBtn.classList.add('hidden');
-            try {
-                await loadBookMetadata();
-                loadChapter(firstBodyChapterId() || 1);
-            } catch(e) { console.error("Init Error:", e); }
+
+            if (wasSignedIn) {
+                sessionExpired = true;
+                renderIdStamp();
+                // Everything typed from here until they re-authenticate cannot
+                // reach Firestore — logSession(), markDirty(), walSave() and
+                // flushAll() all require a user. The counters keep climbing in
+                // memory and mergeGuestStats() will reconcile them on re-auth,
+                // so the work is not lost; it is just invisible until then.
+                // ⚠️ NO loadChapter() CALL. Their position is fine and reloading
+                // the book on top of a live drill is the visible half of this bug.
+                console.warn('[TTB] Auth session expired mid-session — pausing writes ' +
+                             'until re-authentication. Counters continue locally.');
+                showReauthPrompt();
+            } else {
+                // A genuine visitor. Load the book read-only, as before.
+                try {
+                    await loadBookMetadata();
+                    loadChapter(firstBodyChapterId() || 1);
+                } catch(e) { console.error("Init Error:", e); }
+            }
         }
     });
 }
@@ -1018,6 +1183,13 @@ function setupAuthListeners() {
         catch (e) { alert("Login failed: " + e.message); }
     });
     logoutBtn.addEventListener('click', async () => {
+        // A deliberate sign-out is the one case where the counters on screen
+        // stop belonging to anybody. Reset the baseline so that if the reload
+        // below is ever removed, a subsequent sign-in is treated as a fresh
+        // guest merge rather than measured against a stranger's numbers.
+        try { await flushAll('signout', true); } catch (_) {}
+        resetStatsBaseline();
+        lastKnownUid = ''; sessionExpired = false;
         try { await signOut(auth); location.reload(); }
         catch (e) { console.error(e); }
     });
@@ -1078,6 +1250,17 @@ async function loadUserStats() {
         statsData.lastDate = dateStr;
         statsData.weekStart = weekStart;
 
+        // ⚠️ THE BASELINE IS TAKEN HERE AND NOWHERE ELSE. (v3.22.0)
+        //
+        // Right here, and only right here, statsData is exactly what the server
+        // holds — nothing typed in this tab has been added yet. That is the
+        // definition of the baseline, and it is why this line sits ABOVE
+        // statsWalRecover() rather than below it: a recovered WAL tail is this
+        // browser's own unflushed work, so it belongs on the contribution side
+        // of the subtraction, not the server side. Move this below the recovery
+        // and a re-auth will silently drop whatever the WAL just replayed.
+        captureStatsBaseline();
+
         // ⚠️ RUNS UNCONDITIONALLY, AND THAT IS THE POINT (v3.21.0). walRecover()
         // below is gated on the bookId and always will be. This is not — the
         // counters belong to the student and the day, not to a book or a page,
@@ -1094,6 +1277,76 @@ async function loadUserStats() {
             flushAll('stats-wal-recovery', true);
         }
     } catch (e) {}
+}
+
+const STAT_KEYS = ['secondsToday','charsToday','mistakesToday',
+                   'secondsWeek','charsWeek','mistakesWeek'];
+
+// Snapshot statsData as "what the server had". See the statsBaseline block.
+function captureStatsBaseline() {
+    for (const k of STAT_KEYS) statsBaseline[k] = statsData[k] || 0;
+}
+
+function resetStatsBaseline() {
+    for (const k of STAT_KEYS) statsBaseline[k] = 0;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// mergeGuestStats(serverData) — THE FUNCTION THAT DOUBLED A STUDENT'S WEEK
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Called when a student signs in on a page that has already been counting time,
+// which happens two ways that look identical from here and are not:
+//
+//   A. A genuine guest. Page opened signed out, counters started at zero, and
+//      everything in statsData is work this browser did and nobody has stored.
+//   B. An EXPIRED SESSION. The student was signed in, the 24-hour token lapsed
+//      mid-period, and they signed back in. statsData was seeded from Firestore
+//      at page load and has been climbing ever since.
+//
+// v3.21.1 and earlier did `statsData.x = server.x + statsData.x` for both. In
+// case B that adds the server's copy to a number that already contains it. On
+// 2026-08-18 a student's week went from 20 minutes to 40 after three minutes of
+// typing, and the DAY counter was untouched, which is the fingerprint: the day
+// branch is guarded on `lastDate === today` and the stats document still said
+// yesterday (it is only written on a `final` flush), so only the week branch —
+// guarded on weekStart, which matched — actually fired.
+//
+// ⚠️ DO NOT "FIX" THIS BACK TO max(). It is the obvious repair and it trades one
+// silent corruption for another: a real guest who typed 10 minutes earlier in the
+// day on another machine loses those 10 minutes, because max(server 10, local 20)
+// keeps 20 instead of 30. The baseline subtraction is right in both cases and
+// degenerates to the old sum() in case A, where the baseline is zero.
+//
+// Period guards are kept from the original and matter for the same reason they
+// always did: a stored counter from another day or another week must contribute
+// nothing. The final clamp is a floor, not a merge — the merged value may never
+// come out BELOW what this browser already holds, so a bug in the arithmetic can
+// only ever fail toward the student's own observed number.
+function mergeGuestStats(serverData, dateStr, weekStart) {
+    const d = serverData || {};
+    const dayMatches  = d.lastDate === dateStr;
+    const weekMatches = (d.weekStart || '') === weekStart;
+
+    const fold = (key, matches) => {
+        const live = statsData[key] || 0;
+        const base = statsBaseline[key] || 0;
+        // This browser's own contribution. Clamped at zero: a counter that went
+        // DOWN since the baseline means the day or week rolled over underneath
+        // us, and a negative contribution would subtract real stored work.
+        const mine = Math.max(0, live - base);
+        const server = matches ? (d[key] || 0) : 0;
+        statsData[key] = Math.max(live, server + mine);
+    };
+
+    for (const k of ['secondsToday','charsToday','mistakesToday']) fold(k, dayMatches);
+    for (const k of ['secondsWeek','charsWeek','mistakesWeek'])    fold(k, weekMatches);
+
+    statsData.lastDate  = dateStr;
+    statsData.weekStart = weekStart;
+    // The merged value is now the authoritative figure and is about to be
+    // written. Anything typed AFTER this point is a new contribution.
+    captureStatsBaseline();
 }
 
 function getLocalDateStr(date) {
@@ -3117,7 +3370,11 @@ const WAL_KEY = 'ttb_wal_v2';
 const FLUSH_INTERVAL_MS = 300000;   // 5 minutes
 let walFlushTimer = null;
 let walDirty = false;
-let pendingSessions = [];           // sprint records awaiting a rollup write
+// ⚠️ pendingSessions IS GONE. (v3.22.0) The queue lives in session-log.js, which
+// persists it to its own localStorage key and stamps every record with the date
+// it was TYPED. It used to ride inside this WAL under `sessions`, which meant it
+// inherited the WAL's book scoping and the WAL's flush-time date. Legacy records
+// are adopted once, in walRecover().
 let statsDocDirty = false;          // stats/time_tracking is only read at load,
                                     // so it only needs writing at session end
 // Denormalised tenancy stamps, written onto every log so reports can be scoped
@@ -3140,7 +3397,6 @@ function walSnapshot() {
             ...progressStamp()
         },
         stats: { ...statsData },
-        sessions: pendingSessions
     };
 }
 
@@ -3237,11 +3493,11 @@ async function flushAll(reason, final = false) {
 // them and writes position only.
 async function _flushAllInner(reason, final = false) {
     if (!currentUser || currentUser.isAnonymous) return;
-    if (!walDirty && !final && pendingSessions.length === 0) return;
+    const queued = sessionLogPending(currentUser.uid);
+    if (!walDirty && !final && queued === 0) return;
 
     if (walFlushTimer) { clearTimeout(walFlushTimer); walFlushTimer = null; }
 
-    const sessionsBeingWritten = pendingSessions.slice();
     let ok = true;
 
     // 1. Position + completed chapters — ONE document. These used to be two
@@ -3304,76 +3560,21 @@ async function _flushAllInner(reason, final = false) {
         } catch (e) { ok = false; console.warn(`Stats flush failed (${reason}):`, e); }
     }
 
-    // 4. Sprint history as ONE rollup doc instead of one doc per sprint. Twenty
-    //    documents per block became one, which is what keeps storage under 1 GiB.
-    if (final && sessionsBeingWritten.length > 0) {
-        // ⚠️ CHUNKED, BECAUSE firestore.rules v2.2.0 CAN NOW REJECT THIS. (v3.9.2)
-        //
-        // The new typing_sessions create rule requires `sprints.size() <= 200`
-        // and `seconds <= 86400`. Nothing on the client enforced either, and
-        // pendingSessions has no cap: walRecover() CONCATENATES a recovered log
-        // onto the live one (`wal.sessions.concat(pendingSessions)`), so a
-        // student whose rollup write fails once carries those sprints forward.
-        //
-        // Unchunked that is a poison pill. Once the array crosses 200, every
-        // future write is denied, denial sets ok = false, ok = false keeps the
-        // WAL, and the kept WAL is re-concatenated next session — so it fails
-        // permanently, silently, and grows while doing it. The tightening is
-        // right; it just needs a client that can satisfy it.
-        //
-        // 200 sprints per document also keeps `seconds` far under 86400 by
-        // construction (200 × a 30-second sprint is 100 minutes), so one cap
-        // handles both. Chunks are advanced out of pendingSessions ONE AT A TIME
-        // and only after their write lands, so a mid-run failure keeps exactly
-        // the sprints that have not been stored yet — no loss, no duplication.
-        const SPRINTS_PER_ROLLUP = 200;
-        let written = 0;
-        try {
-            for (let i = 0; i < sessionsBeingWritten.length; i += SPRINTS_PER_ROLLUP) {
-                const chunk = sessionsBeingWritten.slice(i, i + SPRINTS_PER_ROLLUP);
-                const totals = chunk.reduce((a, s) => ({
-                    seconds: a.seconds + s.seconds, chars: a.chars + s.chars,
-                    mistakes: a.mistakes + s.mistakes
-                }), { seconds: 0, chars: 0, mistakes: 0 });
-                await addDoc(collection(db, "typing_sessions"), {
-                    uid: currentUser.uid,
-                    email: currentUser.email || "",
-                    displayName: currentUser.displayName || "Anonymous",
-                    classId: ttbClassId || "",
-                    schoolId: ttbSchoolId || "",
-                    date: getLocalDateStr(),
-                    timestamp: new Date(),
-                    bookId: currentBookId,
-                    sprintCount: chunk.length,
-                    // Clamped only as a backstop against a corrupted local
-                    // total. If this ever actually clamps, the write survives
-                    // and the console says so, which beats a silent denial.
-                    seconds: Math.min(totals.seconds, 86400),
-                    chars: totals.chars,
-                    mistakes: totals.mistakes,
-                    wpm: totals.seconds > 0 ? Math.round((totals.chars / 5) / (totals.seconds / 60)) : 0,
-                    accuracy: (totals.chars + totals.mistakes) > 0
-                        ? Math.round((totals.chars / (totals.chars + totals.mistakes)) * 100) : 100,
-                    sprints: chunk,
-                    // TTL field — set a Firestore TTL policy on this to keep the
-                    // collection from growing without bound. See SCALE-PLAN.md.
-                    expiresAt: new Date(Date.now() + 120 * 24 * 3600 * 1000)
-                });
-                if (totals.seconds > 86400) {
-                    console.warn('Sprint rollup seconds clamped to 86400 — local ' +
-                                 'total was ' + totals.seconds + ', which should be ' +
-                                 'impossible in one day. Check the WAL.');
-                }
-                // Advance per chunk, not once at the end: whatever landed is gone
-                // from the queue even if a later chunk fails.
-                written += chunk.length;
-                pendingSessions = pendingSessions.slice(chunk.length);
-            }
-        } catch (e) {
-            ok = false;
-            console.warn(`Session rollup failed (${reason}) after ${written} of ` +
-                         `${sessionsBeingWritten.length} sprints:`, e);
-        }
+    // 4. Sprint history — DELEGATED TO session-log.js (v3.22.0).
+    //
+    // The chunking, the 200-record cap and the per-chunk advance all moved into
+    // that module unchanged; what changed is that records are now GROUPED BY THE
+    // DATE THEY WERE TYPED rather than all stamped with the date of the flush.
+    // A queue that survived overnight used to collapse onto today, emptying
+    // yesterday's drill-down and padding today's. See session-log.js.
+    if (final && sessionLogPending(currentUser.uid) > 0) {
+        const sessionsOk = await sessionLogFlush(currentUser.uid, {
+            email: currentUser.email || "",
+            displayName: currentUser.displayName || "Anonymous",
+            classId: ttbClassId || "",
+            schoolId: ttbSchoolId || "",
+        });
+        if (!sessionsOk) ok = false;
     }
 
     if (ok) {
@@ -3382,9 +3583,9 @@ async function _flushAllInner(reason, final = false) {
         // the success path ONLY: a failed flush must not convince the next hide
         // that this work already reached Firestore.
         lastFlushedSecondsToday = statsData.secondsToday || 0;
-        // Only drop the WAL once everything durable has landed. If a periodic
-        // flush succeeded but sessions are still pending, keep the log.
-        if (final && pendingSessions.length === 0) walClear();
+        // Only drop the WAL once everything durable has landed. The session
+        // queue keeps its own storage now, so this no longer has to wait on it.
+        if (final) walClear();
         else walSave();
     } else {
         walSave();   // keep the local copy; next flush retries
@@ -3436,7 +3637,14 @@ function walRecover() {
     }
 
     if (Array.isArray(wal.sessions) && wal.sessions.length) {
-        pendingSessions = wal.sessions.concat(pendingSessions);
+        // ⚠️ ONE-TIME MIGRATION (v3.22.0). Sprints used to live in this record.
+        // A student mid-upgrade has a `ttb_wal_v2` written by v3.21.x holding
+        // sprints that were never flushed, and dropping them on the floor would
+        // be a data loss caused by the fix for a data loss. Each record carries
+        // its own ISO `at`, so the adopted copies get their true date; only a
+        // record with no `at` at all falls back to today.
+        const adopted = sessionLogAdopt(currentUser.uid, wal.sessions, getLocalDateStr());
+        if (adopted) console.log(`Adopted ${adopted} legacy sprint record(s) into the session queue.`);
         recovered = true;
     }
 
@@ -3465,16 +3673,102 @@ async function saveCompletedChapters() {
     markDirty();
 }
 
+// ⚠️ THE RECORD IS PUSHED FOR AN EXPIRED SESSION TOO. (v3.22.0)
+//
+// The old guard was `if (!currentUser || currentUser.isAnonymous) return`, which
+// threw away every sprint typed after a token lapse — the exact window in which a
+// teacher most wants to know what happened. session-log.js persists to
+// localStorage and needs no network and no live token, so there is no reason to
+// drop the record; it flushes when the student signs back in.
+//
+// A true guest is still skipped, and that is not the same call. A guest has no
+// account for the record to belong to, and stats-wal.js's guest accumulator is
+// where their time is held until they have one.
 function logSession(seconds, chars, mistakes, wpm, accuracy) {
-    if (!currentUser || currentUser.isAnonymous) return;
+    const uid = (currentUser && !currentUser.isAnonymous) ? currentUser.uid
+              : (sessionExpired ? lastKnownUid : '');
+    if (!uid) return;
     if (seconds < 5) return; // skip trivially short sessions
-    pendingSessions.push({
+    sessionLogPush(uid, {
+        // ⚠️ STAMPED NOW, NOT AT FLUSH TIME. The whole point of session-log.js.
+        date: getLocalDateStr(),
+        at: new Date().toISOString(),
         seconds, chars, mistakes, wpm, accuracy,
-        chapter: currentChapterNum,
-        at: new Date().toISOString()
+        source: 'library',
+        label: currentBookId,
+        detail: String(currentChapterNum),
     });
+    if (!currentUser || currentUser.isAnonymous) return;   // nothing else to do yet
     statsDocDirty = true;
     markDirty();
+}
+
+// Shown when a token expires mid-session. Deliberately NOT the guest ladder:
+// it names what happened, it does not claim their work is unsaved, and the
+// button re-authenticates rather than "signing up".
+function showReauthPrompt() {
+    if (isModalOpen) return;          // never stack on a live modal
+    isGameActive = false;
+    clearInterval(timerInterval);
+    isModalOpen = true; isInputBlocked = true;
+    modalActionCallback = null;
+    setModalTitle('');
+    resetModalFooter();
+
+    document.getElementById('modal-body').innerHTML = `
+        <div style="text-align:center;">
+            <div class="stats-title">Please sign in again</div>
+            <div style="font-size:0.95em; color:#555; margin: 8px 0;">
+                Your sign-in expired, which happens about once a day. Your typing is
+                still here &mdash; it just can't save until you sign back in.
+            </div>
+            <div style="font-size:0.85em; color:#888; margin-top:6px;">Use your school Google account.</div>
+        </div>
+    `;
+
+    modalActionCallback = async () => {
+        try {
+            // ⚠️ SAME FLAG THE GUEST PATH USES. It stops onAuthStateChanged
+            // running its full reload underneath us while the merge below is
+            // still deciding what the counters should be.
+            anonLoginInProgress = true;
+            await signInWithPopup(auth, new GoogleAuthProvider());
+        } catch (e) {
+            anonLoginInProgress = false;
+            return;   // leave the prompt up; they can try again
+        }
+        try {
+            if (currentUser && !currentUser.isAnonymous) {
+                const today = new Date();
+                const dateStr = getLocalDateStr(today);
+                const weekStart = getWeekStart(today);
+                const statsRef = doc(db, "users", currentUser.uid, "stats", "time_tracking");
+                const statsSnap = await getDoc(statsRef);
+                mergeGuestStats(statsSnap.exists() ? statsSnap.data() : null,
+                                dateStr, weekStart);
+                sessionExpired = false;
+                statsDocDirty = true;
+                await setDoc(statsRef, statsData, { merge: true });
+                await flushAll('reauth', true);
+                updateTimerUI();
+            }
+        } catch (e) {
+            console.warn('Re-auth merge failed:', e);
+        } finally {
+            anonLoginInProgress = false;
+        }
+        closeModal();
+        showStartModal("Continue");
+    };
+
+    const btn = document.getElementById('action-btn');
+    btn.innerText = 'Sign In Again';
+    btn.onclick = modalActionCallback;
+    btn.disabled = false; btn.style.opacity = '1'; btn.style.display = 'inline-block';
+    // ⚠️ resetModalFooter() above replaced the footer's innerHTML, so the button
+    // queried before that line is a detached node. Bind AFTER the last write to
+    // the container. (Round 11, invariant 61 — same shape, different panel.)
+    showModalPanel();
 }
 
 // ⚠️ "The session really is over" WAS NOT TRUE. visibilitychange:hidden fires on
@@ -4388,21 +4682,13 @@ function showAnonLoginPrompt(rung) {
                 // Load existing stats first
                 const statsRef = doc(db, "users", currentUser.uid, "stats", "time_tracking");
                 const statsSnap = await getDoc(statsRef);
-                if (statsSnap.exists()) {
-                    const data = statsSnap.data();
-                    if (data.lastDate === dateStr) {
-                        statsData.secondsToday = (data.secondsToday || 0) + statsData.secondsToday;
-                        statsData.charsToday = (data.charsToday || 0) + statsData.charsToday;
-                        statsData.mistakesToday = (data.mistakesToday || 0) + statsData.mistakesToday;
-                    }
-                                if ((data.weekStart || '') === weekStart) {
-                        statsData.secondsWeek = (data.secondsWeek || 0) + statsData.secondsWeek;
-                        statsData.charsWeek = (data.charsWeek || 0) + statsData.charsWeek;
-                        statsData.mistakesWeek = (data.mistakesWeek || 0) + statsData.mistakesWeek;
-                    }
-                }
-                statsData.lastDate = dateStr;
-                statsData.weekStart = weekStart;
+                // ⚠️ v3.22.0 — this block used to add the server's totals to the
+                // live ones inline, which was correct for a guest and doubled the
+                // counters for an expired session. The arithmetic now lives in
+                // mergeGuestStats(); read the block above it before changing this.
+                mergeGuestStats(statsSnap.exists() ? statsSnap.data() : null,
+                                dateStr, weekStart);
+                sessionExpired = false;
                 await setDoc(statsRef, statsData, { merge: true });
 
                 // Load goals since auth handler was skipped

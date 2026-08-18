@@ -1,4 +1,4 @@
-// versions.js v1.4.0 — reads every file's version constant out of the files as
+// versions.js v1.5.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
 //
 // WHY IT WORKS THIS WAY
@@ -26,6 +26,13 @@
 // result is cached in sessionStorage for the tab's lifetime. A student who never
 // opens it pays nothing.
 
+// v1.5.0 — registers session-log.js, the THIRD module game.js and learn.js both
+// import. The warning below applied to stats-wal.js and applies here twice over:
+// this one is the only writer of typing_sessions on either page, so a stale
+// cached copy takes out the teacher's entire drill-down — on both pages at once,
+// with the build panel showing three correct version numbers and no sign of the
+// fourth.
+//
 // v1.4.0 — registers stats-wal.js, the second module game.js and learn.js both
 // import. ⚠️ A shared module that is not in this list is the worst kind to have
 // stale: a cached copy of it misbehaves on BOTH pages at once, and the build
@@ -43,6 +50,7 @@ const SOURCES = [
     { file: 'staff-admin.js',        pattern: /window\.STAFF_ADMIN_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'firebase-config.js',    pattern: /\bexport\s+const\s+CONFIG_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'stats-wal.js',          pattern: /\bexport\s+const\s+STATS_WAL_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'session-log.js',        pattern: /\bexport\s+const\s+SESSION_LOG_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'versions.js',           pattern: /\bexport\s+const\s+VERSIONS_VERSION\s*=\s*["']([^"']+)["']/ },
     // Stylesheets carry theirs in a comment on line 1 as well as in a
     // body::before / body::after stamp. The comment is what we parse here,
@@ -51,7 +59,7 @@ const SOURCES = [
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
 ];
 
-export const VERSIONS_VERSION = '1.4.0';
+export const VERSIONS_VERSION = '1.5.0';
 
 const CACHE_KEY = 'ttb_buildVersions_v3';   // v3: entries gained header budget fields
 

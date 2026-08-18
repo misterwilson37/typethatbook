@@ -201,6 +201,16 @@
         .session-stat { width: 65px; text-align: right; }
         .session-book { color: #555; font-style: italic; font-size: 0.7rem; }
         .flag-icon { font-size: 0.85rem; }
+    .uid-chip { font-family: monospace; font-size: 0.68rem; opacity: 0.55; margin-left: 8px;
+                cursor: pointer; border: 1px solid #444; padding: 0 4px; border-radius: 3px; }
+    .uid-chip:hover { opacity: 1; }
+    .sprint-list { margin: 2px 0 8px 26px; border-left: 2px solid #333; padding-left: 8px; }
+    .sprint-row { display: flex; gap: 10px; align-items: center; font-size: 0.72rem;
+                  color: #aaa; padding: 1px 0; }
+    .sprint-row.suspicious { color: #ffb300; }
+    .sprint-idx { opacity: 0.5; min-width: 18px; }
+    .session-src { font-size: 0.7rem; opacity: 0.7; border: 1px solid #444; padding: 0 4px; }
+    #audit-weeks-btn { margin-left: 8px; }
     </style>
 </head>
 <body>
@@ -275,12 +285,15 @@
                 <input type="date" id="date-end">
             </div>
             <button id="generate-btn">Generate</button>
+            <button id="audit-weeks-btn" title="Compare each student's stored week counter against the sum of their daily logs">Audit Week Counters</button>
             <div class="quick-btns">
                 <button class="quick-btn" data-range="today">Today</button>
                 <button class="quick-btn" data-range="this-week">This Week</button>
                 <button class="quick-btn" data-range="last-week">Last Week</button>
             </div>
         </div>
+
+        <div id="audit-panel" class="hidden" style="border:1px solid #555; padding:12px; margin-bottom:14px;"></div>
 
         <div id="results-container" class="hidden">
             <div class="export-bar">
@@ -324,7 +337,7 @@
     // which is a discipline problem until it becomes a lie. Both are now
     // written from this constant, which is also what versions.js reads for the
     // build panel in index.html.
-    const REPORTS_VERSION = "2.9.0";
+    const REPORTS_VERSION = "2.10.0";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
@@ -827,6 +840,200 @@
         }
     }
 
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // WEEK-COUNTER AUDIT  (v2.10.0)
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // ⚠️ WHAT THIS FINDS, AND WHY IT CAN BE TRUSTED TO FIND IT.
+    //
+    // learn.js <= v2.5.3 and game.js <= v3.21.1 merged a student's stored totals
+    // into their live ones ADDITIVELY on sign-in. For a genuine guest that was
+    // right. For a student whose 24-hour auth session expired mid-period and who
+    // signed back in, it added the server's copy to counters that had been seeded
+    // FROM the server at page load, and the week doubled.
+    //
+    // The damage is asymmetric, and the asymmetry is what makes it detectable.
+    // The merge had two branches:
+    //
+    //     if (data.lastDate  === today)     -> day counters
+    //     if (data.weekStart === thisWeek)  -> week counters
+    //
+    // `stats/time_tracking` is only written on a FINAL flush, so on any morning
+    // before the first one it still carries YESTERDAY's lastDate — and the day
+    // branch is skipped while the week branch fires. So in the common case:
+    //
+    //     users/{uid}/stats/time_tracking.secondsWeek   is INFLATED
+    //     typing_logs/{uid}_{date}.seconds              is CLEAN
+    //
+    // typing_logs is therefore an independent, uncorrupted record of the same
+    // quantity, and the truth is simply its sum across the week. This is not an
+    // estimate or a heuristic repair: the correct value is COMPUTED, not guessed.
+    //
+    // ⚠️ THE CONVERSE SKEW IS NORMAL AND IS NOT A DEFECT. `secondsWeek` LOWER
+    // than the daily sum just means the stats document is stale — it lags by
+    // design, since it is only read at page load. Only an EXCESS is reported.
+    //
+    // ⚠️ WHAT THIS CANNOT SEE. If the student had already triggered a final flush
+    // earlier the same day, `lastDate` matched and the DAY counters doubled too —
+    // which means the inflated value was written into typing_logs, and typing_logs
+    // is the yardstick. Those days look self-consistent and this audit will pass
+    // them. The per-run detail in the drill-down is the check for that case: a
+    // day whose logged minutes exceed the sum of its session rollups by a wide
+    // margin is the signature. Reported below as "unverifiable" rather than
+    // silently omitted, because a clean bill of health this audit cannot actually
+    // issue is worse than no audit.
+    //
+    // COST: one read per student in the current report (the daily logs are
+    // already in memory from Generate). One write per student repaired. For a
+    // class of thirty that is thirty reads — well inside a day's free tier.
+    const TOLERANCE_SECONDS = 60;   // don't chase rounding or one stale flush
+
+    function mondayOf(dateStr) {
+        const d = new Date(dateStr + 'T12:00:00');
+        const day = (d.getDay() + 6) % 7;          // Mon = 0
+        d.setDate(d.getDate() - day);
+        return d.getFullYear() + '-' +
+               String(d.getMonth() + 1).padStart(2, '0') + '-' +
+               String(d.getDate()).padStart(2, '0');
+    }
+
+    let auditFindings = [];
+
+    async function auditWeekCounters() {
+        const panel = document.getElementById('audit-panel');
+        panel.classList.remove('hidden');
+        if (!reportData.length) {
+            panel.innerHTML = '<div style="color:#888;">Run Generate first — the audit reads the daily logs already on screen.</div>';
+            return;
+        }
+        panel.innerHTML = '<div style="color:#888;">Auditing ' + reportData.length + ' students…</div>';
+        auditFindings = [];
+        let errors = 0;
+
+        for (const r of reportData) {
+            try {
+                const snap = await getDoc(doc(db, 'users', r.uid, 'stats', 'time_tracking'));
+                if (!snap.exists()) continue;
+                const data = snap.data();
+                const ws = data.weekStart || '';
+                if (!ws) continue;
+
+                // Only the days belonging to the week the stats doc describes.
+                const inWeek = r.dailyLogs.filter(l => mondayOf(l.date) === ws);
+                // ⚠️ If the report window does not COVER that week, the sum is a
+                // partial and would produce a false positive. Skip rather than
+                // accuse. Requires the window to include the Monday itself or an
+                // earlier day, and the week to have at least one logged day.
+                if (!inWeek.length) continue;
+                const earliest = r.dailyLogs.map(l => l.date).sort()[0];
+                if (earliest > ws) {
+                    auditFindings.push({ r, status: 'partial', ws });
+                    continue;
+                }
+
+                const sumSeconds = inWeek.reduce((a, l) => a + l.seconds, 0);
+                const sumChars   = inWeek.reduce((a, l) => a + l.chars, 0);
+                const sumMist    = inWeek.reduce((a, l) => a + l.mistakes, 0);
+                const excess = (data.secondsWeek || 0) - sumSeconds;
+
+                if (excess > TOLERANCE_SECONDS) {
+                    auditFindings.push({
+                        r, status: 'inflated', ws, excess,
+                        stored: data.secondsWeek || 0,
+                        correct: { secondsWeek: sumSeconds, charsWeek: sumChars, mistakesWeek: sumMist },
+                        // A near-exact doubling is the signature of this specific
+                        // defect. Anything else inflated is worth a look but may
+                        // have another cause, so it is labelled differently.
+                        doubled: sumSeconds > 0 &&
+                                 Math.abs((data.secondsWeek || 0) - sumSeconds * 2) <= TOLERANCE_SECONDS
+                    });
+                }
+            } catch (e) { errors++; console.warn('audit read failed for', r.uid, e); }
+        }
+
+        renderAuditPanel(errors);
+    }
+
+    function renderAuditPanel(errors) {
+        const panel = document.getElementById('audit-panel');
+        const bad = auditFindings.filter(f => f.status === 'inflated');
+        const partial = auditFindings.filter(f => f.status === 'partial');
+
+        let html = '<div style="font-weight:bold; margin-bottom:8px;">Week-counter audit</div>';
+        if (!bad.length) {
+            html += '<div style="color:#00ff41;">No inflated week counters found in this report window.</div>';
+        } else {
+            html += '<div style="color:#ffb300; margin-bottom:8px;">' + bad.length +
+                    ' student(s) have a stored week total higher than the sum of their daily logs. ' +
+                    'The daily logs are the uncorrupted record; the fix rewrites the week counter to match them.</div>';
+            html += bad.map((f, i) => (
+                '<div class="audit-row" style="margin:4px 0; font-size:0.8rem;">' +
+                '<span style="display:inline-block;min-width:180px;">' + escapeHtml(f.r.name) + '</span>' +
+                '<span class="uid-chip" data-uid="' + f.r.uid + '" title="' + f.r.uid + '">' + f.r.uid.slice(0, 8) + '</span>' +
+                '<span style="margin-left:10px;">week of ' + f.ws + '</span>' +
+                '<span style="margin-left:10px;">stored ' + formatTime(f.stored) +
+                ' &rarr; correct ' + formatTime(f.correct.secondsWeek) + '</span>' +
+                (f.doubled ? '<span style="margin-left:10px;color:#ff6666;">exactly doubled</span>' : '') +
+                '<button class="audit-fix-btn" data-i="' + i + '" style="margin-left:10px;">Fix</button>' +
+                '</div>'
+            )).join('');
+            html += '<button id="audit-fix-all" style="margin-top:10px;">Fix all ' + bad.length + '</button>';
+        }
+        if (partial.length) {
+            html += '<div style="color:#888; margin-top:10px; font-size:0.78rem;">' + partial.length +
+                    ' student(s) could not be checked: the report window does not cover the whole week their ' +
+                    'counter describes, so the daily sum would be a partial and any excess meaningless. ' +
+                    'Widen the date range to include that Monday and re-run.</div>';
+        }
+        if (errors) {
+            html += '<div style="color:#ff6666; margin-top:6px;">' + errors + ' read(s) failed — see console.</div>';
+        }
+        panel.innerHTML = html;
+
+        // ⚠️ BOUND AFTER THE LAST innerHTML WRITE. Binding above it silently
+        // discards every listener in the container.
+        panel.querySelectorAll('.audit-fix-btn').forEach(b => {
+            b.onclick = () => repairWeekCounter(bad[parseInt(b.dataset.i, 10)], b);
+        });
+        const all = document.getElementById('audit-fix-all');
+        if (all) all.onclick = async () => {
+            all.disabled = true;
+            for (const f of bad) await repairWeekCounter(f, null);
+            all.textContent = 'Done — re-run the audit to confirm';
+        };
+    }
+
+    async function repairWeekCounter(f, btn) {
+        if (!f) return;
+        if (btn) { btn.disabled = true; btn.textContent = '…'; }
+        try {
+            // ⚠️ merge:true, AND ONLY THE THREE WEEK FIELDS. The day counters and
+            // lastDate are not ours to touch: this audit proves nothing about them
+            // and a repair that rewrites what it has not verified is a second bug.
+            await setDoc(doc(db, 'users', f.r.uid, 'stats', 'time_tracking'), {
+                secondsWeek:  f.correct.secondsWeek,
+                charsWeek:    f.correct.charsWeek,
+                mistakesWeek: f.correct.mistakesWeek,
+            }, { merge: true });
+            if (btn) btn.textContent = '✓ fixed';
+        } catch (e) {
+            console.error('repair failed', f.r.uid, e);
+            if (btn) { btn.textContent = 'failed'; btn.disabled = false; }
+            alert('Repair failed for ' + f.r.name + ': ' + e.message);
+        }
+    }
+
+    document.getElementById('audit-weeks-btn').onclick = auditWeekCounters;
+
+    // Click any short-id chip to copy the full uid.
+    document.addEventListener('click', (e) => {
+        if (e.target.classList && e.target.classList.contains('uid-chip')) {
+            const uid = e.target.dataset.uid || '';
+            if (uid && navigator.clipboard) navigator.clipboard.writeText(uid).catch(() => {});
+        }
+    });
+
     // --- TABLE RENDERING ---
     function renderTable() {
         reportData.sort((a, b) => {
@@ -841,7 +1048,7 @@
         const tbody = document.getElementById('report-body');
         tbody.innerHTML = reportData.map((r, idx) => `
             <tr class="summary-row" data-idx="${idx}">
-                <td>${escapeHtml(r.name)}</td>
+                <td>${escapeHtml(r.name)}<span class="uid-chip" title="Student ID: ${r.uid} (click to copy)" data-uid="${r.uid}">${String(r.uid).slice(0,8)}</span></td>
                 <td>${escapeHtml(r.email)}</td>
                 <td class="time-cell">${formatTime(r.seconds)}</td>
                 <td>${r.chars.toLocaleString()}</td>
@@ -955,21 +1162,69 @@
                 const avgWPM = Math.round(totalWPM / sessions.length);
                 const avgAcc = Math.round(totalAcc / sessions.length);
                 
+                // ⚠️ THE PER-SPRINT DETAIL WAS ALWAYS HERE AND WAS NEVER SHOWN.
+                //
+                // Every rollup carries a `sprints[]` array — one entry per sprint
+                // or per lesson run, each with its own seconds, chars, mistakes,
+                // WPM, accuracy and an ISO timestamp. Until v2.10.0 this view
+                // rendered only the rollup's TOTALS, which is the one thing that
+                // cannot show a sudden jump in speed: averaging a cheated run in
+                // with nine honest ones is exactly how it disappears. The data
+                // cost nothing extra to store and costs nothing extra to read —
+                // it is inside a document already being fetched.
+                //
+                // Per-sprint outlier detection uses the mean of the OTHER sprints
+                // in the same rollup, not the mean including the sprint being
+                // judged, so one very fast run cannot raise the bar it is being
+                // measured against and hide itself.
+                const allSprints = [];
+                sessions.forEach(s => (s.sprints || []).forEach(sp => allSprints.push(sp)));
+                const spWPMs = allSprints.map(sp => sp.wpm || 0);
+                const spMean = spWPMs.length ? spWPMs.reduce((a, b) => a + b, 0) / spWPMs.length : 0;
+
                 container.innerHTML = sessions.map(s => {
                     const time = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp);
                     const timeStr = time.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
                     const suspicious = (s.wpm > avgWPM * 1.5 && avgWPM > 10) || (s.accuracy > avgAcc + 15 && avgAcc < 90);
                     const flag = suspicious ? '<span class="flag-icon" title="Unusual stats">🚩</span>' : '';
+                    const src = s.source === 'school' ? 'School'
+                              : s.source === 'library' ? 'Library' : '';
+                    const sprints = Array.isArray(s.sprints) ? s.sprints : [];
+                    const sprintRows = sprints.map((sp, i) => {
+                        const spTime = sp.at ? new Date(sp.at) : null;
+                        const spTimeStr = (spTime && !isNaN(spTime))
+                            ? spTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                            : '\u2014';
+                        // Mean of the others, so a fast run can't inflate its own bar.
+                        const others = spWPMs.length > 1
+                            ? (spWPMs.reduce((a, b) => a + b, 0) - (sp.wpm || 0)) / (spWPMs.length - 1)
+                            : spMean;
+                        const spOdd = others > 10 && (sp.wpm || 0) > others * 1.6;
+                        return `
+                            <div class="sprint-row${spOdd ? ' suspicious' : ''}">
+                                <span class="sprint-idx">${i + 1}</span>
+                                <span class="session-time">${spTimeStr}</span>
+                                <span class="session-stat">${formatTime(sp.seconds || 0)}</span>
+                                <span class="session-stat">${sp.wpm || 0} WPM</span>
+                                <span class="session-stat">${sp.accuracy != null ? sp.accuracy : '\u2014'}%</span>
+                                <span class="session-stat">${(sp.chars || 0).toLocaleString()} ch</span>
+                                <span class="session-book">${escapeHtml(sp.detail || '')}</span>
+                                ${spOdd ? '<span class="flag-icon" title="Much faster than this student\u2019s other runs today">\uD83D\uDEA9</span>' : ''}
+                            </div>`;
+                    }).join('');
                     return `
                         <div class="session-entry${suspicious ? ' suspicious' : ''}" data-session-id="${s.id}">
                             <span class="session-time">${timeStr}</span>
                             <span class="session-stat">${formatTime(s.seconds)}</span>
                             <span class="session-stat">${s.wpm} WPM</span>
                             <span class="session-stat">${s.accuracy}%</span>
+                            <span class="session-stat">${s.sprintCount || sprints.length} runs</span>
+                            ${src ? `<span class="session-src">${src}</span>` : ''}
                             <span class="session-book">${escapeHtml((s.bookId || '').replace(/_/g, ' '))}</span>
                             ${flag}
                             <button class="delete-session-btn" data-session-id="${s.id}" title="Delete session">✕</button>
                         </div>
+                        ${sprintRows ? `<div class="sprint-list">${sprintRows}</div>` : ''}
                     `;
                 }).join('');
                 

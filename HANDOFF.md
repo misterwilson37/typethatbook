@@ -1,289 +1,244 @@
-# HANDOFF — Round 11 (Bar-Lock)
+# HANDOFF — Round 12 (Caligraph)
 
-<!-- HANDOFF.md v11.0.0 — Round 11, instance "Bar-Lock", 2026-08-17.
-     ⚠️ SUPERSEDES Round 9, which is archived as HANDOFF-round9.md. Remington's
-     handoff is NOT restated here. Round 8 §4 (invariants 37–55), §7, §8, and
-     Round 7 §5 and §8 remain LOAD-BEARING and are not restated either. Go and
-     read them.
+<!-- HANDOFF.md v12.0.0 — Round 12, instance "Caligraph", 2026-08-18.
+     ⚠️ SUPERSEDES Round 11, archived as HANDOFF-round11.md. Round 11's §3.3,
+     §4 (invariants 56–63) and §6 remain LOAD-BEARING and are not restated here.
+     Round 8 §4 (invariants 37–55), §7, §8, and Round 7 §5 and §8 are also still
+     live. Go and read them. -->
 
-     ⚠️ ROUND 10 LEFT NO HANDOFF. §1 below is a RECONSTRUCTION of what it did,
-     assembled from the version blocks in the files it shipped. Treat it as
-     evidence, not testimony. -->
+**Instance:** **Caligraph** (12) · Bar-Lock (11) · *(Round 10 — unnamed)* ·
+Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4)
+· Blick (3) · Dvorak (2) · Underwood (1) · *other projects:* Stedman, Fable,
+Trilby, Vernier
 
-**Instance:** **Bar-Lock** (11) · *(Round 10 — unnamed)* · Remington (9) · Yost (8)
-· Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) · Blick (3) · Dvorak (2)
-· Underwood (1) · *other projects:* Stedman, Fable, Trilby, Vernier
-
-> *On the name:* the Bar-Lock's innovation was a locking bar that caught every
-> type-bar in the same guide, so each one struck the identical point on the platen
-> no matter which key you pressed. Alignment by construction, rather than by hoping
-> forty separate arms had each been adjusted correctly. This round was that twice
-> over: a function whose every exit path must now land the same way, and two copies
-> of it in two files that must behave identically because a student can arrive at
-> either one first.
+> *On the name:* the Caligraph had no shift key. To type capitals it carried a
+> second complete set of keys — seventy-two of them, two full alphabets, one
+> machine. It worked, and it was the wrong answer: the Remington's shift did the
+> same job with one mechanism instead of two.
+>
+> This round was that shape twice. `game.js` had a sprint logger and `learn.js`
+> had none, so School wrote no session history at all — not two copies that
+> drifted, but one copy and an absence, which is the same failure with nothing to
+> grep for. And the additive stats merge existed in both files, identically wrong
+> in both. The fix in each case was one mechanism where there had been two: a
+> shared module, and a shared function name with a test asserting the copies agree.
 
 ---
 
 ## §0. What this round was
 
-Two unrelated things, on the same afternoon, during a GitHub Pages outage.
+One student, one report: *"his screen says 40 minutes for the week, the admin
+panel says 20."* That unwound into three defects and one missing capability.
 
-1. **A total outage of lesson mode**, caused by Round 10. One line.
-2. **The rollover import**: 10 returning students imported into this year's
-   classes, no error anywhere, all 10 still on last year's roster.
+1. **The doubled week counter.** A 24-hour auth session expiring mid-period, read
+   by the app as a guest arriving for the first time.
+2. **School has never logged session detail.** Not a regression. An absence,
+   since v3.4.0, that grew invisible as lesson mode grew.
+3. **Sprint rollups dated at flush time**, so a queue surviving overnight filed
+   yesterday's work under today.
+4. **Nothing on a student's screen identified them**, so a verbally reported bug
+   could not be tied to a database row.
 
-⚠️ **THE COMMON SHAPE, AND THE REASON TO READ THIS SECTION:** both defects were
-**a promise made by one file and quietly refused by another.** Round 10's importer
-said *"will apply on first login"*; the consumer said no, and said nothing. Round
-10's `beginStep()` was called by eight sites; it threw before rendering and told
-nobody. Neither produced an error a student or a teacher could report. Both were
-caught by harnesses that already existed and had not been run.
-
-**RUN `npm test` BEFORE YOU SHIP. Round 10 did not.** `undefined-calls-test.mjs`
-named the outage, by file and line number, on the first run.
+⚠️ **THE COMMON SHAPE:** every one is a place where the code answered a question
+it could not see the answer to. Is this a guest or an expired session? Which day
+did this sprint happen on? Which child is this? In each case something was
+*inferred* that should have been *carried* — and the fix is to carry it:
+`sessionExpired`, a per-record `date`, a visible uid.
 
 ---
 
-## §1. RECONSTRUCTION — what Round 10 did (no handoff exists)
+## §1. The defect in full, because the asymmetry is how it was found
 
-Assembled from version blocks. **Unverified against any statement of intent.**
+The screenshot showed 2026-08-17 at 20m06s and 2026-08-18 at 0m, while the HUD
+said 40 minutes for the week. He typed three minutes and it jumped.
 
-| file | left at | what its own header claims |
-|---|---|---|
-| `learn.js` | 2.5.0 | v2.4.0: fixed the blank-lesson screen (`beginStep()` never unhid `#active-drill`); guest checkpoints to localStorage; guest minutes survive a tab close; `renderMap()` builds into a fragment. v2.5.0: **LESSONS ARE ATOMIC** — Jake's ruling; the entire `ttb_learnpos_v1` checkpoint system deleted, 143 lines, six `clearRunPosition()` sites, `checkpointOwner()`; adds a ↺ Restart control |
-| `game.js` | 3.21.0 | a genre-field migration (referenced from a later block; not otherwise documented) |
-| `lessons-admin.js` | 1.9.0 | import JSON validates steps, not just lesson ids |
-| `learn.html` | — | still hardcodes `v2.1.0` in `<footer>`; overwritten at runtime, harmless, misleading |
-| `resume-path-test.mjs` | — | **DOES NOT EXIST.** `learn.js` asserts in a comment that it does |
+1. Page opens signed in. `loadUserStats()` seeds `secondsWeek = 1206`.
+2. The 24-hour token lapses mid-period. `onAuthStateChanged` fires with `null`.
+   **`statsData` is not reset by this** — it is module state, and a sign-out is
+   not a page load.
+3. The drill tick keeps incrementing; it never checked auth. Meanwhile
+   `logSession()`, `markDirty()`, `walSave()` and `flushStats()` all early-return
+   on a falsy user, so the work is neither saved nor reported as unsaved.
+4. `anonSecondsAccum` also increments on a falsy user, so the **guest ladder**
+   arms and fires at 60 seconds. The student signs back in.
+5. `retroactiveSaveAnonSession()` runs `statsData.secondsWeek += server.secondsWeek`.
+   1386 + 1206 = 2592. **40 minutes.**
 
-⚠️ **Round 10 left `audit-versions.mjs` at 8 problems.** Round 9 left 2. Two of
-those were header/constant drift it introduced: `learn.js` line 1 said v2.3.0 while
-the constant said 2.5.0, and `game.js` line 1 said v3.20.1 against 3.21.0. **Both
-are now corrected.** The remaining 7 are header budgets — see §5.
+⚠️ **WHY THE DAY COUNTER STAYED CORRECT, AND WHY THAT MATTERS MORE THAN THE BUG.**
+The merge has two branches, guarded on `lastDate === today` and
+`weekStart === thisWeek`. `stats/time_tracking` is written only on a **final**
+flush, so that morning it still carried *yesterday's* `lastDate` — the day branch
+was skipped, the week branch fired. Week doubled; day did not.
+
+That asymmetry is the fingerprint. It is also what makes the damage
+**repairable**: `typing_logs` is written on *every* flush from `secondsToday`,
+which was never doubled, so it is an independent, uncorrupted record of the same
+quantity. **The correct week total is the sum of the daily logs.** Computed, not
+guessed. That is what the new audit in `reports.html` does.
+
+### ⚠️ THE FIX IS NOT max(), AND THIS IS THE PARAGRAPH TO RE-READ
+
+The obvious repair is `max()` instead of `+`. It is wrong, and wrong *silently*,
+which is worse than the bug it replaces. `max()` is right for the expired session
+and destroys a true guest who typed earlier in the day on another machine:
+`max(server 10, local 20)` keeps 20 instead of 30.
+
+Sum is right in one case, max in the other, and **neither can tell the cases
+apart** — the missing information is not in either number. What was missing is
+*how much of the live counter came from the server in the first place*. So that
+is now recorded:
+
+```
+statsBaseline               = statsData at the moment Firestore was read
+this browser's contribution = statsData - baseline
+merged                      = server + contribution
+```
+
+Right in both cases, because a true guest's baseline is zero and the formula
+collapses back into the original sum. `session-merge-test.mjs` asserts both cases
+and the idempotence of merging twice.
+
+⚠️ **The baseline is captured in `loadUserStats()`, ABOVE `statsWalRecover()`.**
+A recovered WAL tail is this browser's own unflushed work and belongs on the
+contribution side. Move the capture below the recovery and a re-auth silently
+discards whatever the WAL just replayed.
 
 ---
 
 ## §2. Version state
 
-`npm test` → **19 of 20 harnesses pass.** The one failure is pre-existing; see §5.
+`npm test` → **20 of 21 harnesses pass.** The one failure is pre-existing; §5.
 
 | file | version | changed? | upload? |
 |---|---|---|---|
-| `learn.js` | **2.5.2** | ⚠️ yes — the outage hotfix, then the consumer rewrite | **YES — 2nd** |
-| `game.js` | **3.21.1** | ⚠️ yes — consumer rewrite, mirrored | **YES — 1st** |
-| `lessons-admin.js` | **1.10.0** | ⚠️ yes — the decision block, honest labels, a listener bug | **YES — 3rd** |
-| `student-flow-test.mjs` | **1.1.0** | scenarios 6–9 added, 11 new assertions | commit it |
-| `firestore.rules` | 2.3.0 | **NO — and that is a design decision, see §3.3** | no |
-| everything else | — | no | — |
+| `session-log.js` | **1.0.0** | ⚠️ **NEW FILE** | **YES — 1st** |
+| `game.js` | **3.22.0** | ⚠️ yes — merge, expired-session, rollups, id stamp | **YES — 2nd** |
+| `learn.js` | **2.6.0** | ⚠️ yes — same, plus session logging that never existed | **YES — 3rd** |
+| `versions.js` | **1.5.0** | registers `session-log.js` | **YES — 4th** |
+| `reports.html` | **2.10.0** | sprint detail, id chips, the week audit | **YES — 5th** |
+| `anon-ladder-test.mjs` | 1.1.0 | teaches the harness about `sessionExpired` | commit it |
+| `session-merge-test.mjs` | 1.0.0 | **NEW** | commit it |
+| `run-all-tests.mjs` | — | registers the new harness | commit it |
+| `firestore.rules` | 2.3.0 | **NO — verified unnecessary, see §3** | no |
+| `firestore.indexes.json` | — | **NO — verified unnecessary, see §3** | no |
 
-⚠️ **UPLOAD ORDER IS NOT ARBITRARY THIS TIME.** `game.js` and `learn.js` first,
-`lessons-admin.js` last. The new consumers understand both old records (no
-`overwrite` field) and new ones; the old consumers do **not** understand the new
-field and would discard a record carrying it. Ship the writer first and every
-assignment made in that window is silently thrown away — which is the exact defect
-being fixed.
+⚠️ **UPLOAD `session-log.js` FIRST.** `game.js` and `learn.js` both import it; a
+page loading either before the module exists throws on import and renders nothing
+at all. There is no graceful degradation for a missing module.
 
-⚠️ **Do not trust this table.** Three consecutive rounds had a stale version table
-on `admin.js`. Run `node audit-versions.mjs`.
-
----
-
-## §3. What changed and why
-
-### 3.1 `learn.js` v2.5.1 — THE OUTAGE (one line)
-
-`beginStep()` line 1301 read:
-
-```js
-stepSeconds = resume ? (resume.stepSeconds || 0) : 0;
-```
-
-v2.5.0 deleted the checkpoint system and the local `resume` object with it, and left
-this reader standing. `learn.js` is an ES module → strict mode → reading an
-undeclared identifier is a **ReferenceError**, not `undefined`. So `beginStep()`
-threw on **every** lesson start, from all eight call sites, *after* hiding the intro
-panel and unhiding `#active-drill` but *before* `startGradedTimer()` and the first
-`renderDrill()`. An empty drill view. No text, no timer, no error a student can
-describe. Now `stepSeconds = 0`, because a run always begins at zero.
-
-Symptom history worth keeping straight, because it is the same screen three times:
-v2.4.0 fixed a blank drill that needed a saved checkpoint to trigger (~1 student in
-10). v2.5.0 replaced it with one that needed only a click (~9 in 10). Jake's report
-— *"1 in 10 was blank, now 9 in 10 are"* — was precisely accurate, and the ratio was
-the diagnosis.
-
-⚠️ **GENERALISE: deleting a subsystem means deleting its READERS, not just its
-writers.** `resume` had no declaration left to grep for. The only thing in the repo
-that could still see it was `undefined-calls-test.mjs`, which parses every shipped
-file for exactly this class of defect. A round that deletes a subsystem is the round
-most likely to need that harness.
-
-### 3.2 The rollover import (`game.js` 3.21.1 / `learn.js` 2.5.2 / `lessons-admin.js` 1.10.0)
-
-**The chain, in full, because no single file was wrong:**
-
-1. The Students roster is built from `typing_logs` filtered to the last
-   `ROSTER_DAYS` (**45**). Over summer, last year's students have no logs in that
-   window, so they are absent from `_rosterData`.
-2. `_previewCSV()` resolves email→uid **only** out of `_rosterData`. No match, so it
-   treated them as new and printed, in confident blue: *"⏰ pre-assign to Period 3
-   (will apply on first login)."*
-3. `_commitCSV()` therefore wrote `pendingClassAssignments/{email}` rather than
-   touching their user document.
-4. On sign-in, `applyPendingClassAssignment()` in **both** `game.js` and `learn.js`
-   hit `if (userSnap.exists() && userSnap.data().classId) return;`. A returning
-   student has a classId — last year's. Silent return, **and no delete**, so the
-   record was re-read and re-rejected on every subsequent sign-in, forever.
-
-Nobody lied and nothing errored. Three files each did something locally defensible.
-
-**The fixes:**
-
-- **Intent travels with the record.** The pending document gains `overwrite`, set
-  from the teacher's answer on the preview screen. The consumer is *told* which fact
-  is newer instead of guessing. Absent field = `false`, so pre-v1.10.0 records keep
-  the old cautious reading.
-- **Every exit consumes the record.** All five return paths now `deleteDoc` first.
-  ⚠️ This is the half that is easy to skip and shouldn't be: a pending doc is a
-  *message*, and reading it consumes it whatever it said. A record that cannot act
-  must not survive to be re-read — it costs a billed read per sign-in and, far
-  worse, it sits in the database looking live.
-- **Records expire at 30 days.** Past that, a direct placement made in the interim
-  is likelier to be current than a record nobody consumed. An *unparseable or
-  absent* `assignedAt` is "unknown age", never "expired" — otherwise legacy records
-  become permanently unusable, silently.
-- **The goals cache is dropped on a move, not only a first placement.** ⚠️ THIS IS
-  THE SUBTLE ONE. On a reassignment the cached `ttb_goalsCache_v1` entry is not
-  empty — it holds **last year's class with a valid `className`**, so it satisfies
-  every check the cache-hit guard makes. It is well-formed and wrong, which is the
-  case a validity check structurally cannot catch. 24-hour lifetime, shared between
-  `game.js` and `learn.js`.
-- **`_previewCSV()` stops asserting what it cannot know.** A missing uid means only
-  *"no logs in the last 45 days"*. It now says that. Rows that are moves are shown
-  as moves (`↷ move from X → Y`), not as first placements with a green tick.
-- **The decision block.** Shown only when `queuedRows > 0 || movedRows > 0`, and
-  **Commit stays locked until it is answered.** Deliberately not an overlay modal:
-  it uses the same in-preview pattern as the existing "create the classes this file
-  names" block, sits next to the table it is about, and cannot be dismissed by a
-  stray click. A prompt with one sane answer trains people to click through
-  prompts, so a file with nothing ambiguous in it is not asked about at all.
-- **The mode governs BOTH write paths.** Visible students are skipped in
-  `_commitCSV`; queued students are decided at sign-in by the consumer, which is the
-  only code positioned to see their current class. ⚠️ An answer that applied to only
-  one path would make behaviour depend on which side of the 45-day log window a
-  student happened to fall on — which is the original defect wearing a hat.
-- **`_addOneStudent()` sets `overwrite: true` and is not asked.** One typed address
-  and one chosen class is unambiguous. The CSV importer asks because a file can
-  silently contain a hundred returning students; this cannot.
-- **The commit summary reports queued and skipped counts.** A bare *"12 assigned"*
-  over a 14-row file was true and misleading simultaneously, and that is how this
-  defect stayed invisible.
-
-### 3.3 ⚠️ WHY THERE IS NO `classAssignedAt` FIELD
-
-The obvious design is a timestamp on the user document, compared against the pending
-record's `assignedAt`. **`firestore.rules` forbids it, and the rules are right.**
-The staff grant on `users/{uid}` is
-`.affectedKeys().hasOnly(['classId', 'schoolId'])`, and create is
-`.keys().hasOnly(['classId', 'schoolId'])`. A third field is **denied**, so that
-design needs a console rules paste — and it would widen what a teacher may write
-into a student's document in order to store a fact the teacher already knows.
-
-Carrying the intent on the pending record needs no rules change at all
-(`pendingClassAssignments` has no field whitelist) and puts the decision where the
-human made it. **If you are tempted by the timestamp, read this paragraph again
-first.**
-
-### 3.4 A pre-existing bug found on the way
-
-The **Create-classes button lost its click listener** whenever a CSV contained both
-an unrecognised class name *and* at least one valid row. `_previewCSV` bound the
-listener, then a later `areaEl.innerHTML +=` re-parsed the container and discarded
-every node in it. Dead button, indistinguishable from a slow one.
-
-⚠️ **`innerHTML +=` IS NOT AN APPEND.** It is a read, a concatenate, and a full
-re-parse of the subtree. All wiring in that panel now happens once, after the last
-write. **Do not bind above it.**
+**Deploy check:** the Lessons footer reads `School v2.6.0`; the Library footer
+reads `game.js v3.22.0`. Both student pages show a small grey `ID xxxxxxxx` in
+the bottom-left once signed in — **if that is missing, the new code is not
+running**, and it is the fastest check available.
 
 ---
 
-## §4. Invariants added this round (continuing Round 8's numbering)
+## §3. Why there is no rules change and no index change
 
-56. **Deleting a subsystem means deleting its readers.** After removing one, run
-    `undefined-calls-test.mjs` before anything else. A deleted declaration leaves
-    its references grep-invisible.
-57. **A pending document is a message; reading it consumes it.** Every exit path
-    from `applyPendingClassAssignment()` deletes the record. A record that cannot
-    act must never survive to be re-read.
-58. **"Unknown" is not "expired."** An absent or unparseable timestamp must fall
-    back to the permissive reading, or legacy data becomes silently unusable.
-59. **A cache guard cannot catch a well-formed stale entry.** Drop the goals cache
-    unconditionally on any class change, not only when the cached value looks empty.
-60. **A choice must govern every path it appears to govern.** If a teacher's answer
-    applies to one write path and not the other, behaviour depends on which branch a
-    student fell into, and that is not a choice the teacher made.
-61. **`innerHTML +=` destroys listeners in the whole container.** Bind after the
-    final write, never before.
-62. **`applyPendingClassAssignment()` must depend on nothing but its injected
-    arguments.** `student-flow-test.mjs` lifts it by brace-matching and runs it
-    standalone; a top-level helper is invisible inside that sandbox and becomes a
-    ReferenceError swallowed by the function's own catch. Inline it. (This cost a
-    debug cycle *this round* — the age check started life as a helper.)
-63. **Two copies of `applyPendingClassAssignment()` exist on purpose** — neither
-    page controller can import the other. **Change one, change both.** A student can
-    reach `game.html` or `learn.html` first, and the point of the function is that
-    it does not matter which.
+Both were checked rather than assumed, because either needs a console paste and
+Jake has no CLI.
+
+- **`firestore.rules`.** The `typing_sessions` create rule requires `uid`,
+  `seconds` in range, `sprints` a list of ≤ 200, and `expiresAt` a timestamp.
+  `session-log.js` satisfies all four by construction — the 200 cap is where
+  `RECORDS_PER_DOC` comes from. The new `source` field needs no permission: that
+  match block has **no `keys().hasOnly()`**, deliberately (see the comment above
+  `validDailyLog`), so an added field is not denied.
+- **`firestore.indexes.json`.** The drill-down query is
+  `where('uid','==',…) && where('date','==',…)` — equality only, and neither
+  field is exempted from automatic single-field indexing in the overrides block.
+  Equality-only queries need no composite index.
+
+⚠️ **If you add an `orderBy` or a range filter to that query, this stops being
+true** and you will need a composite index, which is a console change.
+
+---
+
+## §4. Invariants added this round (continuing Round 11's numbering)
+
+64. **A merge needs a baseline, not a bigger hammer.** When reconciling a local
+    counter against a stored one, record what the stored one *was* at read time.
+    `sum()` and `max()` are both guesses at the same missing fact, and each is
+    silently wrong in the case the other handles.
+65. **`null` user means two different things.** "Never signed in" and "token
+    expired" need opposite handling everywhere they are tested — 29 such tests in
+    `game.js` alone. Carry the distinction; do not infer it.
+66. **A sign-out is not a page load.** Module state survives it. Any code assuming
+    an unauthenticated page has zeroed counters is wrong.
+67. **A record is dated when it happens, not when it is written.** Anything queued
+    for later delivery must carry its own timestamp, or a delayed flush relabels
+    history.
+68. **An absence is a divergence with nothing to grep for.** Two copies that
+    disagree can at least be diffed. One copy and a missing one cannot, and the
+    missing side stays invisible until somebody asks for the feature it never had.
+69. **A test that reimplements the code it tests passes after that code is
+    deleted.** `chunktest.mjs` did exactly this. A harness must *read the shipped
+    file* — lift it, import it, parse it — or it is testing a fossil.
+70. **Lifting a function into a sandbox makes every new module-scope reference a
+    ReferenceError.** Invariant 62 again, and it fired again the moment
+    `anonNudgeDue()` gained `sessionExpired`. Adding a dependency to a lifted
+    function means updating its harness in the same commit.
 
 ---
 
 ## §5. Known problems left standing
 
-1. ⚠️ **`audit-versions.mjs`: 7 problems, all header budgets** (60 lines / 6
-   entries). Header/constant **drift is now cleared** — that was the dangerous
-   class, since a stale cached file reporting a new version lies exactly when you
-   are using it to diagnose. What remains is length: `game.js` 81/8, `learn.js`
-   101/10, `lessons-admin.js` 76/6, `admin.js` 69/7.
-   **I made game.js and learn.js worse by one entry each and did not trim them,
-   because trimming means migrating entries into `CHANGELOG.md` and that file's
-   index is itself stale** (it claims game.js v3.14.0, learn.js v2.2.4,
-   lessons-admin.js v1.7.1). Doing it properly is a round's worth of work and the
-   room had students in it. **Next instance: this is the cheapest real task
-   available.**
-2. **`metadata-map-test.mjs` — 42 of 487 assertions fail.** Pre-existing, unrelated
-   to any code here: Gutenberg-sourced EPUBs in `library/` report
-   `source: "Project Gutenberg"` and a `gutenberg.org` origin where the harness
-   expects Standard Ebooks and a CC0 rights string. This is a **bookclean/import
-   metadata** question, not an app defect.
-3. **`resume-path-test.mjs` does not exist**, and `learn.js` ~line 1251 asserts in a
-   comment that it does and states what it proves. Either write it or delete the
-   claim. ⚠️ A comment asserting a test exists is worse than no comment: it stops
-   the next person looking.
-4. **`learn.html` still hardcodes `v2.1.0`** in `<footer>`. Overwritten at runtime by
-   `learn.js`, so harmless — but it is a stale number that will cost somebody twenty
-   minutes. Change it to `TypeThatBook School` with no version at all.
-5. **`ROSTER_DAYS = 45` is the reason the importer cannot see returning students**,
-   and that is now handled rather than fixed. There is no email→uid index outside
-   `typing_logs` (by design — `users/{uid}` holds no PII), so the pending path is the
-   correct mechanism and not a workaround. **Do not "fix" this by putting emails in
-   user documents.**
-6. **App Check is initialized but not enforced** (`firebase-config.js` v1.2.0).
-   Unchanged. A `401` on `recaptcha/api2/pat` is visible in the console at Ellis;
-   harmless while unenforced, an **outage** the day it is enforced. Read that file's
-   App Check block before clicking Enforce.
+1. ⚠️ **`chunktest.mjs` is testing deleted code.** It reimplements the v3.9.2
+   rollup loop inline rather than reading `game.js`, so it kept passing after the
+   logic moved into `session-log.js`. `session-merge-test.mjs` Part B is its real
+   replacement and drives the actual module. **Delete `chunktest.mjs` or rewrite
+   it to import — do not leave a green tick on a fossil.** Left standing this
+   round only because deleting a passing test on the same day as a student-facing
+   fix is how you lose an afternoon.
+2. ⚠️ **The day counters can be doubled too, and this round cannot detect it.**
+   If a student had already triggered a final flush earlier the same day,
+   `lastDate` matched and the day branch fired as well — so the inflated value
+   reached `typing_logs`, and `typing_logs` is the audit's yardstick. Those days
+   look self-consistent and the audit passes them. The per-run detail is the
+   check: a day whose logged minutes far exceed the sum of its session rollups is
+   the signature. **From v2.6.0 forward this cannot recur**, but historical days
+   may carry it.
+3. **`metadata-map-test.mjs` — 42 of 487 assertions fail.** Pre-existing and
+   unrelated: Gutenberg-sourced EPUBs report a `gutenberg.org` origin where the
+   harness expects Standard Ebooks. A bookclean/import metadata question.
+4. **`audit-versions.mjs` header budgets.** Unchanged from Round 11 and made
+   slightly worse: `game.js` and `learn.js` each gained a history entry. Round 11
+   called this the cheapest real task available; it still is, and it still needs
+   `CHANGELOG.md`'s stale index fixed first (it claims `game.js` v3.14.0,
+   `learn.js` v2.2.4, `lessons-admin.js` v1.7.1).
+5. **`resume-path-test.mjs` still does not exist** and `learn.js` still asserts in
+   a comment that it does. Round 11 flagged this; still true.
+6. **`renderIdStamp()` is duplicated in `game.js` and `learn.js`.** Fifteen lines,
+   marked *change one change both*. ⚠️ That is exactly the judgement that produced
+   defect 2 above. If it grows, extract it — this note is the tripwire.
+7. **App Check is initialized but not enforced.** Unchanged. Read the App Check
+   block in `firebase-config.js` before clicking Enforce.
 
 ---
 
 ## §6. For Jake, operationally
 
-- **Upload order: `game.js`, `learn.js`, `lessons-admin.js`.** See §2.
-- **Deploy check:** the Lessons footer reads `School v2.5.2 / keyboard.js v1.1.1`,
-  written from the constant at the bottom of the module. Still `2.5.0` → cached or
-  undeployed. Still `TypeThatBook School v2.1.0` → `learn.js` never executed at all.
-- **The 10 students from today** are fixed fastest through the UI, no deploy needed:
-  Students tab → Reload roster (they are inside the 45-day window now that they have
-  typed) → tick them → Bulk assign. Their browsers may still *display* last year's
-  class name for up to 24 hours (`ttb_goalsCache_v1`); the database will be right.
-- ⚠️ **`_bulkAssign()` writes `classId` but not `schoolId`.** Fine within one
-  building. Do not use it for a cross-building move.
-- **Their stale pending records** clean themselves up on next sign-in once §3.2
-  ships — every exit path now deletes.
+- **Upload order: `session-log.js`, `game.js`, `learn.js`, `versions.js`,
+  `reports.html`.** The first is not arbitrary ordering — see §2.
+- **Finding the student tomorrow: you should not need him.** Open Reports, set
+  the range to cover **Monday 2026-08-17 onward**, Generate, then
+  **Audit Week Counters**. It reads one `stats/time_tracking` doc per student
+  (~30 reads for a class), compares each stored week total against the sum of
+  that student's daily logs, and lists anyone whose stored value is higher.
+  Anything flagged **"exactly doubled"** is this defect with high confidence.
+  **Fix** rewrites only the three week fields to the computed correct value.
+- ⚠️ **The audit needs the window to cover the whole week.** If it does not, the
+  daily sum is a partial and any excess is meaningless — those students are listed
+  separately as unverifiable rather than accused. Widen the range and re-run.
+- **The id stamp** is bottom-left on both student pages, showing the first eight
+  characters of the uid. Click copies the full value. Reports shows the same eight
+  beside each name, so a child reading eight characters aloud is enough to find
+  their row.
+- **The drill-down now expands twice:** click a date for the rollups, and each
+  rollup lists its individual runs with per-run WPM, accuracy and clock time.
+  🚩 marks a run much faster than that student's *other* runs the same day —
+  measured against the mean of the others, so a fast run cannot raise the bar it
+  is judged against and hide itself. **This works retroactively on every rollup
+  already in the database**; the detail was always stored and never displayed.
+- **School session history starts from today.** There is nothing to recover for
+  earlier days because nothing was ever written. Library days are all there.
