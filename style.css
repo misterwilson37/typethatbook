@@ -1,4 +1,12 @@
-/* TypeThatBook style.css v3.5.1 */
+/* TypeThatBook style.css v3.5.2 */
+/* v3.5.2: #user-info had NO RULE IN THIS FILE, so it was a block div wrapping a
+           column div plus a button — three stacked lines, ~66px, taller than the
+           60px bar. That inflated the whole HUD, clipped the student's name
+           against the top edge, and left the single-line left and centre sections
+           looking top-aligned in a bar sized for content twice their height. Now
+           one row. Also pins #hud-week, #logout-btn and #login-btn against
+           shrinking, and makes the name/class column the only thing on the right
+           that may be truncated — see the block at #user-info. */
 /* v3.5.1: THE HUD WRAPPED AND THEN CLIPPED ITSELF. `#hud` had a fixed
            height:60px and each `.hud-section` was `flex: 1` — an exact third of
            the bar no matter its contents. The left section carries the most, and
@@ -26,7 +34,7 @@
    line 1, not this, so nothing caught it and the build banner was right by luck.
    A file carrying its version twice has to have both updated or the redundancy is
    worse than none: it gives a wrong answer confidently. Update BOTH. */
-body::before { content: "v3.5.1"; display: none; }
+body::before { content: "v3.5.2"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -126,6 +134,37 @@ body {
 .streak-pop { animation: streakPop 0.3s ease-out; }
 @keyframes streakPop { 0% { transform: scale(1); } 50% { transform: scale(1.4); } 100% { transform: scale(1); } }
 .hud-section.right { justify-content: flex-end; gap: 15px; font-size: 14px; }
+
+/* ⚠️ #user-info HAD NO RULE AT ALL (v3.5.2), so it was a plain block div — and in
+   learn.html it contains a COLUMN flex div (name over class name) followed by the
+   (Logout) button. A block-level first child forces the button onto its own line,
+   so the block came out THREE lines tall: name / class / Logout. At ~66px that is
+   taller than the 60px bar, which grew the whole HUD, pushed the top row above the
+   bar's top edge where it was clipped mid-glyph, and left the single-line left and
+   centre sections looking stranded high in a bar built for content twice their
+   height. game.html has no rule either but never showed it: its #user-info holds a
+   plain inline span, so it was one line by accident.
+
+   One row, name column beside the button, back to ~30px and a 60px bar. */
+#user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+/* ⚠️ THE CONTROL NEVER GIVES; THE DECORATION DOES. (Logout) is interactive and
+   the week total is information the student is working toward, so both are pinned.
+   The name/class column is the only thing here that may be truncated, because a
+   half-visible name is a cosmetic problem and a half-visible button is a broken
+   one. */
+#hud-week, #logout-btn, #login-btn { flex: 0 0 auto; }
+#user-info > div { min-width: 0; overflow: hidden; }
+#user-name, #user-class-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
 
 .action-btn {
     background: var(--carolina-blue);
