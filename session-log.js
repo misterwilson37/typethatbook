@@ -1,5 +1,17 @@
-// session-log.js v1.0.0 — the sprint/run history queue, shared by game.js and
+// session-log.js v1.1.0 — the sprint/run history queue, shared by game.js and
 // learn.js. The third shared module, after firebase-config.js and stats-wal.js.
+//
+// v1.1.0 — `serverAt: serverTimestamp()` on every rollup document.
+//          DESIGN-TELEMETRY.md §6.3 / §7 step 1. One field, no behaviour change,
+//          nothing else in this file moved. Every date and duration in this
+//          project is currently stamped by the student's own Chromebook clock;
+//          a child who changes it files work under the wrong day or fakes a WPM
+//          interval, and there is nothing to check that against. serverAt is a
+//          clock the student cannot set, written by Firestore at commit.
+//          ⚠️ IT IS DELIBERATELY NOT USED FOR ANYTHING YET. Nothing reads it,
+//          nothing grades on it, no total derives from it. It exists so that in
+//          120 days there is history to compare against — a signal added the day
+//          you need it has no past. See §7 of HANDOFF.md (Round 13).
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // WHY THIS FILE EXISTS
@@ -74,8 +86,35 @@
 //
 //   * Never throws. Storage quota, disabled storage, corrupt JSON — all degrade
 //     to "no queue", which costs the sprint detail and must never break a lesson.
+//
+//   * ⚠️ TWO CLOCKS, NAMED HONESTLY, AND NEITHER IS A COPY OF THE OTHER. (v1.1.0)
+//
+//       `timestamp` — the CLIENT clock. The first record in the document, i.e.
+//                     when the student typed. This is the field DESIGN-TELEMETRY
+//                     §4 calls `clientAt`; it keeps its existing name for the
+//                     same reason `bookId` did — reports.html, the rules and a
+//                     live single-field index exemption all already know it, and
+//                     a rename would cost Jake a console change for a word.
+//                     ⚠️ DO NOT ADD A `clientAt` FIELD. It would be a second
+//                     copy of this quantity in the same document, which is
+//                     invariant 71 rebuilt at field scope.
+//       `serverAt`  — the SERVER clock, from serverTimestamp(), resolved by
+//                     Firestore at commit. Cannot be influenced from a browser.
+//
+//     They are expected to differ by the queue's delivery lag — seconds usually,
+//     a day if a queue survived overnight, which is legitimate and is exactly
+//     what the dated-record design exists to preserve. What is NOT legitimate is
+//     `timestamp` landing in a different week from `serverAt`, or ahead of it by
+//     more than clock skew. That comparison is the cheat signal, and it only
+//     works while the two fields have genuinely different provenance.
+//
+//   * ⚠️ THE SENTINEL IS CREATED AT WRITE TIME, NEVER AT PUSH TIME, AND NEVER
+//     GOES INTO localStorage. serverTimestamp() returns a FieldValue sentinel,
+//     not a date; JSON.stringify() flattens it to `{}` and a queue that survived
+//     a tab close would then try to write an empty map into a timestamp field.
+//     Queued records carry `at` (a real ISO string) and nothing else time-like.
 
-export const SESSION_LOG_VERSION = '1.0.0';
+export const SESSION_LOG_VERSION = '1.1.0';
 
 const KEY = 'ttb_sessionq_v1';
 const RECORDS_PER_DOC = 200;   // firestore.rules: sprints.size() <= 200
@@ -85,16 +124,40 @@ const TTL_DAYS        = 120;   // matches the live TTL policy on typing_sessions
 const MAX_QUEUE       = 2000;  // a hard ceiling on what one browser can hoard
 
 // Injected by init(). Nothing in this file reaches for a global.
-let _db = null, _collection = null, _addDoc = null;
+let _db = null, _collection = null, _addDoc = null, _serverTimestamp = null;
 
 export function sessionLogInit(deps) {
     if (!deps) return;
     _db         = deps.db         || null;
     _collection = deps.collection || null;
     _addDoc     = deps.addDoc     || null;
+    // ⚠️ OPTIONAL, ON PURPOSE, AND IT IS NOT ONLY A COURTESY TO THE TESTS.
+    // Jake uploads one file at a time through the GitHub web portal, so there is
+    // a window — minutes, or an afternoon — where this module is new and a page
+    // controller is still the old one that does not pass this dependency. Making
+    // it required would turn that window into `serverAt: undefined`, which
+    // Firestore rejects outright, which fails the whole rollup write, which
+    // loses a period's sprint detail for every student who typed during it.
+    // A missing dependency omits ONE field. See _stampServer().
+    _serverTimestamp = typeof deps.serverTimestamp === 'function'
+        ? deps.serverTimestamp : null;
 }
 
 function _ready() { return !!(_db && _collection && _addDoc); }
+
+// ⚠️ THERE IS NO CLIENT-SIDE FALLBACK HERE, AND THERE MUST NEVER BE ONE.
+// `new Date()` would satisfy the field's type and destroy its only purpose: a
+// serverAt written by the browser agrees with `timestamp` by construction, so
+// the divergence that makes it a cheat signal becomes permanently zero and
+// permanently unfalsifiable — a field that reports "no clock tampering" whether
+// or not the clock was tampered with. Absent is honest; approximated is a lie
+// wearing the name of a trusted source. If serverAt is missing from a document,
+// that means "this browser was running code that could not stamp it", and a
+// reader can tell. (Round 13, invariant 74.)
+function _stampServer(payload) {
+    if (_serverTimestamp) payload.serverAt = _serverTimestamp();
+    return payload;
+}
 
 function _read(uid) {
     try {
@@ -228,7 +291,9 @@ export async function sessionLogFlush(uid, meta) {
             const stamp = isFinite(firstAt) ? new Date(firstAt) : new Date();
 
             try {
-                await _addDoc(_collection(_db, 'typing_sessions'), {
+                // _stampServer() adds `serverAt` here, at write time, and only
+                // here — see the sentinel note in SEMANTICS above.
+                await _addDoc(_collection(_db, 'typing_sessions'), _stampServer({
                     uid,
                     email:       meta.email       || '',
                     displayName: meta.displayName || 'Anonymous',
@@ -254,7 +319,7 @@ export async function sessionLogFlush(uid, meta) {
                         : 100,
                     sprints: chunk,
                     expiresAt: new Date(Date.now() + TTL_DAYS * 86400 * 1000),
-                });
+                }));
                 if (totals.seconds > MAX_SECONDS) {
                     console.warn('[session-log] rollup seconds clamped to ' + MAX_SECONDS +
                                  ' — local total was ' + totals.seconds + '. Check the queue.');

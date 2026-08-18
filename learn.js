@@ -1,4 +1,9 @@
-// learn.js v2.7.0
+// learn.js v2.7.1
+//
+// v2.7.1 — Hands `serverTimestamp` to session-log.js so lesson-run rollups carry
+//          `serverAt`. Identical to game.js v3.23.1 and shipped with it; if only
+//          one of the two is uploaded, one mode's documents carry the field and
+//          the other's do not. DESIGN-TELEMETRY.md §6.3 / §7 step 1.
 //
 // v2.7.0 — ⚠️ THE STATS ROLLUP NOW SHARES A WRITE TRIGGER WITH THE DAILY LOG.
 //          Same change as game.js v3.23.0; read the block above the write.
@@ -148,7 +153,12 @@ import {
     // Aggregation query. Firestore bills getCountFromServer at ONE read per up
     // to 1000 matched index entries, which is what makes the lessons cache
     // validation cost 1 read instead of ~80. Available since SDK v9.11.
-    getCountFromServer
+    getCountFromServer,
+    // v2.7.1 — for session-log.js's `serverAt` and nothing else. ⚠️ Do not reach
+    // for it in flushStats(): a sentinel inside the typing_logs or
+    // stats/time_tracking merge writes would be a second dating scheme on the
+    // two documents Round 12 spent a day getting to agree.
+    serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut
@@ -162,11 +172,17 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.7.0";
+const LEARN_VERSION = "2.7.1";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
-sessionLogInit({ db, collection, addDoc });
+//
+// ⚠️ THIS LINE MUST MATCH game.js's. Both page controllers configure the same
+// shared module, and a dependency passed on one side and not the other means
+// School and Library write differently shaped documents — which is the R2
+// symmetry failure DESIGN-TELEMETRY.md exists to prevent, in its smallest
+// possible form. session-merge-test.mjs Part C asserts the two calls agree.
+sessionLogInit({ db, collection, addDoc, serverTimestamp });
 
 const ADMIN_EMAILS = [
     "jacob.wilson@sumnerk12.net",

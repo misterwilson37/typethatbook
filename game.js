@@ -1,4 +1,10 @@
-// game.js v3.23.0
+// game.js v3.23.1
+//
+// v3.23.1 — Hands `serverTimestamp` to session-log.js so sprint rollups carry
+//           `serverAt` — a clock a student cannot change — alongside the client
+//           `timestamp` they can. DESIGN-TELEMETRY.md §6.3 / §7 step 1. One
+//           import, one dependency, no behaviour change in this file; nothing
+//           reads the new field yet, deliberately.
 //
 // v3.23.0 — ⚠️ THE STATS ROLLUP NOW SHARES A WRITE TRIGGER WITH THE DAILY LOG.
 //           They hold the same numbers and were written on different schedules,
@@ -119,7 +125,12 @@ import {
     sessionLogInit, sessionLogPush, sessionLogFlush,
     sessionLogPending, sessionLogAdopt
 } from "./session-log.js";
-import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+// serverTimestamp is imported for ONE purpose: to hand it to session-log.js so
+// rollups carry a clock the student cannot set. It is not used anywhere else in
+// this file, and ⚠️ it must not be: a serverTimestamp() sentinel inside a
+// setDoc(merge:true) on typing_logs or stats/time_tracking would be a second
+// dating scheme on the documents Round 12 spent a day reconciling.
+import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
     onAuthStateChanged,
     GoogleAuthProvider,
@@ -128,12 +139,18 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.23.0";
+const VERSION = "3.23.1";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
 // controller's Firestore version is the only one that should ever be in play.
-sessionLogInit({ db, collection, addDoc });
+//
+// v3.23.1 — `serverTimestamp` is new here and is the whole of this version.
+// session-log.js v1.1.0 stamps `serverAt` on every rollup if it is given this
+// function and omits the field if it is not, so old-page-controller/new-module
+// and new-page-controller/old-module both work during an upload window. Neither
+// combination throws; the only difference is whether the field appears.
+sessionLogInit({ db, collection, addDoc, serverTimestamp });
 
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;

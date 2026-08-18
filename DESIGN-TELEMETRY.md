@@ -1,10 +1,27 @@
 # DESIGN — Typing telemetry, one honest number
 
-**DESIGN-TELEMETRY.md v1.0.0** · drafted 2026-08-18 by Round 12 (Caligraph)
-**Status: PROPOSED. Not built. Nothing in this document has shipped.**
+**DESIGN-TELEMETRY.md v1.1.0** · drafted 2026-08-18 by Round 12 (Caligraph)
+· amended 2026-08-18 by Round 13 (Ludlow)
 
-Read `HANDOFF.md` §7 first — it explains the two defects that produced this
+**Status: PARTLY BUILT. §7 step 1 is SHIPPED. Steps 2-6 are still proposal.**
+
+| step | state |
+|---|---|
+| 1. `serverAt` | ✅ **SHIPPED** — Round 13. `session-log.js` v1.1.0, `game.js` v3.23.1, `learn.js` v2.7.1. See §6.3 and §7. |
+| 2. `typing_logs` derived | ⬜ next, and the one that matters |
+| 3. `stats/time_tracking` as rebuildable cache | ⬜ |
+| 4. weekly archive + retention | ⬜ |
+| 5. retire the audit | ⬜ |
+| 6. tick resolution | ⬜ optional |
+
+⚠️ **v1.1.0 CHANGED NOTHING IN §1-§5 EXCEPT §4's SCHEMA ANNOTATION.** The design
+was not revised on contact with the first step; only its status was. If a later
+round finds the design wrong, say so in a new version and say which part —
+do not edit the reasoning to match what got built.
+
+Read `HANDOFF-round12.md` §7 first — it explains the two defects that produced this
 document, including two that Round 12 itself shipped and then had to withdraw.
+(That file was `HANDOFF.md` when this document was written; Round 13 archived it.)
 
 ---
 
@@ -19,8 +36,9 @@ document, including two that Round 12 itself shipped and then had to withdraw.
 Four requirements, and they are the acceptance criteria for anything built here:
 
 - **R1 — Durable.** An interruption never costs recorded work.
-- **R2 — Symmetric.** School and Library measure the same thing the same way.
-  Time typed is a grade; a student must not be advantaged by which side they use.
+- **R2 — Symmetric.** School and Library measure honestly and comparably, and
+  record the same *shape* of data. ⚠️ **This does NOT mean identical thresholds** —
+  see §2.2, where the difference is deliberate.
 - **R3 — Granular.** Day, lesson/chapter, and individual sprint or run.
 - **R4 — Correctable.** A bad record can be found and deleted, and the totals
   must change when it is.
@@ -52,20 +70,33 @@ Jake's memory was right, and the behaviour survived every intervening round.
 `learn.js`'s tick only inside `if (idle < LEARN_IDLE_THRESHOLD)`. **A student
 cannot run out the clock by leaving the tab open on either side.**
 
-### 2.2 ⚠️ But the two sides do not measure the same thing (R2)
+### 2.2 ✅ The thresholds differ ON PURPOSE — 2s Library, 3s School
 
-The thresholds differ — **2 seconds in Library, 3 seconds in School.** A student
-who pauses 2.5 seconds between words banks the time in School and loses it in
-Library. Over a period of ordinary hesitation this is not a rounding error, and
-Jake grades on time typed.
+⚠️ **DO NOT UNIFY THESE. DECIDED BY JAKE, 2026-08-18.**
 
-The tick resolutions also differ. Library accumulates in 100 ms slices and is
-accurate to the tenth; School tests once per second, so a run of 2.9-second gaps
-is sampled differently. Two students doing identical work on opposite sides get
-different numbers.
+Round 12 first flagged the 2s/3s difference as an R2 violation. It is not. Jake's
+reasoning, which is better than the objection:
 
-⚠️ **R2 IS CURRENTLY FALSE AND NOBODY HAS NOTICED**, because until Round 12 there
-was no per-run detail on the School side to compare against.
+> *"I actually like the 2 and 3 second discrepancy, as the kids typing books know
+> how to type and are more likely to wander away."*
+
+The populations are genuinely different and the thresholds are fitted to them.
+Library is fluent readers typing prose they can already type — a two-second gap
+there is much more likely to be attention drifting than a key being hunted for.
+School is beginners locating keys, where three seconds is often the work itself.
+A single number would either steal time from the students the lessons exist for,
+or hand it to the students most able to idle.
+
+**The symmetry that R2 actually requires** is that both sides pause on idle at
+all, record the same shape of session, and be equally resistant to running out
+the clock. All three hold. §2.1 confirms the first.
+
+⚠️ One genuinely open (and minor) item: the **tick resolutions** differ — Library
+accumulates in 100 ms slices, School tests once per second — so School's sampling
+can mis-attribute up to about a second either way around a gap near its threshold.
+Worth aligning to the 100 ms accumulator eventually for measurement precision.
+That is a separate question from the threshold values and **does not change what
+counts as idle.**
 
 ### 2.3 ✅ The second `secondsToday` increment in learn.js is NOT a double count
 
@@ -148,7 +179,13 @@ typing_sessions/{autoId}
   seconds, chars, mistakes, wpm, accuracy
   sprints[]       the individual runs inside this rollup
   clientAt        ISO, from the browser
-  serverAt        serverTimestamp()          ⚠️ new — see §6.3
+                  ⚠️ SHIPPED AS `timestamp`, ITS EXISTING NAME. There is no
+                  `clientAt` field and adding one would put two copies of one
+                  quantity in one document (invariant 71 at field scope).
+                  `timestamp` keeps its name because reports.html and a live
+                  single-field index exemption already know it — the same trade
+                  `bookId` made below.
+  serverAt        serverTimestamp()          ✅ SHIPPED, Round 13 — see §6.3
   expiresAt       TTL
 ```
 
@@ -239,22 +276,11 @@ of the numbers above are in that conversation.
 
 ## §6. Decisions Jake needs to make
 
-### 6.1 ⚠️ Unify the idle thresholds — which number?
+### 6.1 ✅ CLOSED — idle thresholds stay as they are
 
-R2 cannot be satisfied while Library is 2s and School is 3s. **This changes
-recorded minutes**, so it is Jake's call, not the next instance's:
-
-- **2 seconds** — stricter. School totals will drop slightly. Matches the side
-  where students spend the most graded time.
-- **3 seconds** — more forgiving. Library totals rise slightly. Kinder to
-  beginners hunting for keys, which is most of School's population.
-- **A new number** — 2.5s splits it and makes both sides move.
-
-**Recommendation: 3 seconds, with the 100 ms tick from `game.js` on both sides.**
-A struggling typist looking for a key is doing the work; a 2-second cutoff
-penalises exactly the students the lessons exist for. ⚠️ **Whatever is chosen,
-announce it — every student's minutes shift slightly the day it ships**, and a
-grade that moves without explanation is worse than either threshold.
+2s Library / 3s School, deliberately. See §2.2. **Nothing to decide and nothing to
+build.** Recorded here only so the question is not reopened by someone who spots
+the difference and assumes it is a bug — which is exactly what Round 12 did.
 
 ### 6.2 Historical data
 
@@ -264,12 +290,25 @@ history in `typing_logs` and treat sessions as authoritative going forward
 from the daily logs so the schema is uniform (⚠️ **manufactures per-run detail
 that never existed** — do not do this).
 
-### 6.3 Clock trust
+### 6.3 ✅ CLOSED — clock trust. Jake said yes; Round 13 shipped it.
 
-Every date is currently client-stamped. A student who changes the Chromebook clock
-files work under the wrong day, or distorts a WPM interval. Adding
-`serverAt: serverTimestamp()` alongside `clientAt` costs nothing and makes a
-divergence between them **a cheat signal in its own right**. Recommend yes.
+Every date was client-stamped. A student who changes the Chromebook clock files
+work under the wrong day, or distorts a WPM interval. `serverAt: serverTimestamp()`
+now lands on every `typing_sessions` rollup alongside the client `timestamp`, and a
+divergence between them is **a cheat signal in its own right**.
+
+⚠️ **NOTHING READS IT YET, ON PURPOSE.** No total derives from it, no panel shows
+it. A comparison against history is worthless on the day it ships and valuable a
+term later, so the write side went in during the quiet round. The read side is
+step 3's business at the earliest.
+
+⚠️ **AND IT MUST NEVER ACQUIRE A CLIENT-SIDE FALLBACK.** A `serverAt` written from
+`new Date()` agrees with `timestamp` by construction, so the divergence is
+permanently zero and the field reports "no tampering" whether or not there was
+any. Absent is honest; approximated is a lie wearing the name of a trusted source.
+`session-log.js` omits the field when it has no injected `serverTimestamp`, and
+`session-merge-test.mjs` asserts the absence of a fallback against the source text.
+(Round 13, invariant 74.)
 
 ### 6.4 Retention
 
@@ -287,17 +326,25 @@ Staged so each step is separately deployable and separately revertible. ⚠️ *
 not collapse these into one round.** Round 12 shipped a rewrite and a diagnostic
 in one afternoon and got both wrong.
 
-1. **Unify the idle thresholds and tick resolution** (§6.1). Small, self-contained,
-   satisfies R2, and needs Jake's number first. Ship alone, watch one day of data.
-2. **Add `serverAt`** (§6.3). One field, no behaviour change.
-3. **Make `typing_logs` derived.** Write it by summing the day's sessions rather
+1. ✅ **DONE — `serverAt`** (§6.3). Round 13 (Ludlow), 2026-08-18.
+   `session-log.js` v1.1.0 stamps it at write time from an injected
+   `serverTimestamp`; `game.js` v3.23.1 and `learn.js` v2.7.1 inject it. No rules
+   change and no index change was required — both verified against source, see
+   `HANDOFF.md` §3. ⚠️ **The dependency is optional and must stay optional:** Jake
+   uploads one file at a time, so there is a window where the module is new and a
+   page controller is not, and a required dep would write `serverAt: undefined`,
+   which Firestore rejects, which loses a period of sprint detail. Omitting one
+   field is the correct degradation. See `HANDOFF.md` §1.3.
+2. ⬜ **NEXT — make `typing_logs` derived.** Write it by summing the day's sessions rather
    than from the live counter. ⚠️ **This is the change that closes §2.4** and is
    the highest-value step in the list.
-4. **Make `stats/time_tracking` a rebuildable cache** and add a "rebuild from
+3. **Make `stats/time_tracking` a rebuildable cache** and add a "rebuild from
    sessions" action to `reports.html`, replacing the §7.2 audit — an audit that
    detects drift becomes unnecessary once drift can simply be recomputed away.
-5. **Weekly archive + retention** (§6.4).
-6. **Retire the audit** once 3 and 4 have run clean for two weeks.
+4. **Weekly archive + retention** (§6.4).
+5. **Retire the audit** once 2 and 3 have run clean for two weeks.
+6. **Optional, low priority:** align tick resolution to 100 ms on both sides
+   (§2.2). Precision only — ⚠️ **not a licence to touch the threshold values.**
 
 ---
 
@@ -311,6 +358,13 @@ in one afternoon and got both wrong.
   needs a total, derive it or cache it explicitly as a rebuildable cache, and say
   so in the file header.
 - ⚠️ **Do not answer the next divergence with a better audit.** See §3.
+- ⚠️ **Do not unify the 2s/3s idle thresholds.** They are fitted to two different
+  populations on purpose (§2.2). Round 12 called this a defect and was wrong.
+- ⚠️ **Do not add a `clientAt` field.** §4's schema names one; `timestamp` already
+  is it. Two names for one quantity in one document is the same mistake as two
+  documents holding one quantity, at smaller scale. (Round 13.)
+- ⚠️ **Do not let `serverAt` fall back to a client clock.** §6.3. It would be a
+  field that certifies its own honesty.
 - ⚠️ **Do not build any of this without re-reading §2.** Every claim there was
   verified against source on 2026-08-18; every claim Round 12 made *without* doing
   that turned out to be wrong.

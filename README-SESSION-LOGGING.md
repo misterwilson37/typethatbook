@@ -1,9 +1,16 @@
 # Session history, the week-counter audit, and the ID stamp
 
-*Round 12 (Caligraph), 2026-08-18. Companion to `HANDOFF.md`.*
+*Round 12 (Caligraph), 2026-08-18. Amended Round 13 (Ludlow), 2026-08-18.
+Companion to `HANDOFF.md`.*
 
-This covers three things a teacher touches directly. For the engineering
-reasoning, read `HANDOFF.md`; for the cost model, `SCALE-PLAN.md`.
+This covers the things a teacher touches directly. For the engineering reasoning,
+read `HANDOFF.md`; for the cost model, `SCALE-PLAN.md`; for where the data model is
+going, `DESIGN-TELEMETRY.md`.
+
+⚠️ **Round 13 corrected one instruction in this file.** §3 used to tell you to set
+the audit range "starting Monday." The app and the audit both start the school week
+on **Saturday**, so a Monday range produced rows the audit declared unverifiable
+and looked like a broken button. Corrected below. Everything else in §3 stands.
 
 ---
 
@@ -59,10 +66,16 @@ What you will see:
   a look but may have another cause.
 - **"could not be checked"** means your date range does not cover the whole week
   that student's counter describes, so the comparison would be meaningless. Widen
-  the range to include that Monday and run it again.
+  the range back to that **Saturday** and run it again.
 
-⚠️ **Set the range to cover the whole week, starting Monday.** A partial week
-produces unverifiable rows rather than answers.
+⚠️ **Set the range to cover the whole week, and the school week starts on
+SATURDAY.** Not Monday — a week runs Saturday to Friday, so a counter that says
+"this week" includes the weekend before it. A range that starts on Monday leaves
+two days out and the audit will correctly refuse to judge those students, listing
+them as unverifiable rather than accusing them. Widen it and the rows resolve.
+(This is the same Saturday-versus-Monday mistake that made the first version of the
+audit report a false all-clear across ninety students; it survived in this
+paragraph two rounds longer than it did in the code.)
 
 ⚠️ **One case the audit cannot see.** If a student hit the bug *after* their time
 had already saved once that same day, the daily number was inflated too — and the
@@ -110,3 +123,32 @@ save until you sign back in."*
 Their typing keeps counting while they are signed out, their lesson map is not
 cleared, and the Library no longer jumps them back to chapter one. When they sign
 in, the time is reconciled correctly — added once, never twice.
+
+---
+
+## 6. Two clocks on every session record (new, Round 13)
+
+Every time and date in the app used to come from the Chromebook the student was
+sitting at. Chromebook clocks can be changed, and a changed clock files work under
+the wrong day or inflates a words-per-minute figure.
+
+From this deploy, each session record carries **two** timestamps: the one the
+student's browser reported, and one written by Google's servers at the moment the
+record arrives. The second cannot be altered from a Chromebook.
+
+**Nothing in Reports looks different, and nothing you grade on has changed.** This
+is groundwork on purpose. The two clocks are only useful when compared, and a
+comparison needs history behind it — so the recording starts now, quietly, and the
+first time it can answer a question is a term from now rather than the afternoon
+somebody is under suspicion.
+
+Two things worth knowing if it ever does come up:
+
+- **The two clocks are *supposed* to differ.** A Chromebook lid closed mid-sentence
+  keeps its records locally and delivers them on the next sign-in, sometimes the
+  next day. That gap is the app working correctly, not a red flag. What is not
+  normal is a browser time that lands in a different *week* from the server time.
+- **If a record shows no server time at all**, the browser was running an older
+  cached copy of the app when it sent it. That is a deploy state, not a student.
+
+**Cost: nothing.** One extra field on records that were already being written.

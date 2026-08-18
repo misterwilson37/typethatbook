@@ -1,362 +1,349 @@
-# HANDOFF — Round 12 (Caligraph)
+# HANDOFF — Round 13 (Ludlow)
 
-> ⚠️ **AMENDED 2026-08-18, same day.** The audit shipped in `reports.html`
-> v2.10.0 was wrong and gave a false all-clear across ninety students. The stats
-> flush gate was also wrong and is the root cause of the divergence. Both are
-> fixed in v2.11.0 / `game.js` v3.23.0 / `learn.js` v2.7.0. **Read §7 before §2.**
+<!-- HANDOFF.md v13.0.0 — Round 13, instance "Ludlow", 2026-08-18.
+     ⚠️ SUPERSEDES Round 12, archived as HANDOFF-round12.md. Round 12's §1
+     (the doubled week counter and why the fix is not max()), §5 (known problems)
+     and §7 (the two defects it shipped and withdrew) remain LOAD-BEARING and are
+     cited here, not restated. Round 11's §3.3, §4 (invariants 56-63) and §6 are
+     also still live, in HANDOFF-round11.md. §9 below says which archived rounds
+     exist as files and which do not — read it before you go looking. -->
 
-<!-- HANDOFF.md v12.0.0 — Round 12, instance "Caligraph", 2026-08-18.
-     ⚠️ SUPERSEDES Round 11, archived as HANDOFF-round11.md. Round 11's §3.3,
-     §4 (invariants 56–63) and §6 remain LOAD-BEARING and are not restated here.
-     Round 8 §4 (invariants 37–55), §7, §8, and Round 7 §5 and §8 are also still
-     live. Go and read them. -->
+**Instance:** **Ludlow** (13) · Caligraph (12) · Bar-Lock (11) ·
+*(Round 10 — unnamed)* · Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) ·
+Mignon (5) · Oliver (4) · Blick (3) · Dvorak (2) · Underwood (1) ·
+*other projects:* Stedman, Fable, Trilby, Vernier
 
-**Instance:** **Caligraph** (12) · Bar-Lock (11) · *(Round 10 — unnamed)* ·
-Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4)
-· Blick (3) · Dvorak (2) · Underwood (1) · *other projects:* Stedman, Fable,
-Trilby, Vernier
-
-> *On the name:* the Caligraph had no shift key. To type capitals it carried a
-> second complete set of keys — seventy-two of them, two full alphabets, one
-> machine. It worked, and it was the wrong answer: the Remington's shift did the
-> same job with one mechanism instead of two.
+> *On the name:* the Ludlow Typograph split typesetting in two on purpose. A
+> compositor set brass matrices by hand in a composing stick; the machine then
+> cast a line of type from them. The stick was the record and the slug was
+> derived from it, so a wrong letter meant pulling one matrix and recasting —
+> not correcting metal.
 >
-> This round was that shape twice. `game.js` had a sprint logger and `learn.js`
-> had none, so School wrote no session history at all — not two copies that
-> drifted, but one copy and an absence, which is the same failure with nothing to
-> grep for. And the additive stats merge existed in both files, identically wrong
-> in both. The fix in each case was one mechanism where there had been two: a
-> shared module, and a shared function name with a test asserting the copies agree.
+> That is `DESIGN-TELEMETRY.md` §4 in brass: sessions are the stick, totals are
+> the slug, and R4 ("delete a bad record and the totals change") is what recasting
+> means. This round sets one matrix — a server clock the student cannot reach —
+> and casts nothing. **Deliberately. See §1.**
 
 ---
 
 ## §0. What this round was
 
-One student, one report: *"his screen says 40 minutes for the week, the admin
-panel says 20."* That unwound into three defects and one missing capability.
+**One step. `DESIGN-TELEMETRY.md` §7 step 1: add `serverAt`.** Jake asked for the
+smallest possible change first so his deploy loop could be confirmed before
+anything structural moved. That instruction was followed literally, and the whole
+of the code delta is one field, one injected dependency, and the tests that hold
+them in place.
 
-1. **The doubled week counter.** A 24-hour auth session expiring mid-period, read
-   by the app as a guest arriving for the first time.
-2. **School has never logged session detail.** Not a regression. An absence,
-   since v3.4.0, that grew invisible as lesson mode grew.
-3. **Sprint rollups dated at flush time**, so a queue surviving overnight filed
-   yesterday's work under today.
-4. **Nothing on a student's screen identified them**, so a verbally reported bug
-   could not be tied to a database row.
-
-⚠️ **THE COMMON SHAPE:** every one is a place where the code answered a question
-it could not see the answer to. Is this a guest or an expired session? Which day
-did this sprint happen on? Which child is this? In each case something was
-*inferred* that should have been *carried* — and the fix is to carry it:
-`sessionExpired`, a per-record `date`, a visible uid.
+Round 12 shipped a rewrite and a diagnostic in one afternoon and got both wrong
+(round 12 §7). This round is the opposite shape by design. **If you are the next
+instance and step 2 is in front of you, the fact that this round was boring is the
+argument that the staging works.**
 
 ---
 
-## §1. The defect in full, because the asymmetry is how it was found
+## §1. What `serverAt` is, and why nothing reads it
 
-The screenshot showed 2026-08-17 at 20m06s and 2026-08-18 at 0m, while the HUD
-said 40 minutes for the week. He typed three minutes and it jumped.
+Every date, duration and WPM interval in this project is stamped by the student's
+own Chromebook clock. A child who changes it files work under the wrong day or
+manufactures a WPM interval, and there is no second opinion anywhere in the data.
 
-1. Page opens signed in. `loadUserStats()` seeds `secondsWeek = 1206`.
-2. The 24-hour token lapses mid-period. `onAuthStateChanged` fires with `null`.
-   **`statsData` is not reset by this** — it is module state, and a sign-out is
-   not a page load.
-3. The drill tick keeps incrementing; it never checked auth. Meanwhile
-   `logSession()`, `markDirty()`, `walSave()` and `flushStats()` all early-return
-   on a falsy user, so the work is neither saved nor reported as unsaved.
-4. `anonSecondsAccum` also increments on a falsy user, so the **guest ladder**
-   arms and fires at 60 seconds. The student signs back in.
-5. `retroactiveSaveAnonSession()` runs `statsData.secondsWeek += server.secondsWeek`.
-   1386 + 1206 = 2592. **40 minutes.**
+`serverAt: serverTimestamp()` is resolved by Firestore at commit. It cannot be
+influenced from a browser. It now lands on every `typing_sessions` rollup.
 
-⚠️ **WHY THE DAY COUNTER STAYED CORRECT, AND WHY THAT MATTERS MORE THAN THE BUG.**
-The merge has two branches, guarded on `lastDate === today` and
-`weekStart === thisWeek`. `stats/time_tracking` is written only on a **final**
-flush, so that morning it still carried *yesterday's* `lastDate` — the day branch
-was skipped, the week branch fired. Week doubled; day did not.
+⚠️ **NOTHING READS IT. NO TOTAL DERIVES FROM IT. NO PANEL DISPLAYS IT.** That is
+not an omission, it is the point of shipping it first: a cheat signal added on the
+day you need it has no history behind it. In 120 days (the TTL) there will be a
+term's worth of paired clocks to compare against; today there are none. The read
+side is step 3's business at the earliest.
 
-That asymmetry is the fingerprint. It is also what makes the damage
-**repairable**: `typing_logs` is written on *every* flush from `secondsToday`,
-which was never doubled, so it is an independent, uncorrupted record of the same
-quantity. **The correct week total is the sum of the daily logs.** Computed, not
-guessed. That is what the new audit in `reports.html` does.
-
-### ⚠️ THE FIX IS NOT max(), AND THIS IS THE PARAGRAPH TO RE-READ
-
-The obvious repair is `max()` instead of `+`. It is wrong, and wrong *silently*,
-which is worse than the bug it replaces. `max()` is right for the expired session
-and destroys a true guest who typed earlier in the day on another machine:
-`max(server 10, local 20)` keeps 20 instead of 30.
-
-Sum is right in one case, max in the other, and **neither can tell the cases
-apart** — the missing information is not in either number. What was missing is
-*how much of the live counter came from the server in the first place*. So that
-is now recorded:
+### 1.1 ⚠️ Two clocks, and the second one must never be faked
 
 ```
-statsBaseline               = statsData at the moment Firestore was read
-this browser's contribution = statsData - baseline
-merged                      = server + contribution
+timestamp   client clock — the first record in the document, i.e. when the
+            student typed. This IS what DESIGN-TELEMETRY §4 calls `clientAt`.
+serverAt    server clock — written by Firestore at commit.
 ```
 
-Right in both cases, because a true guest's baseline is zero and the formula
-collapses back into the original sum. `session-merge-test.mjs` asserts both cases
-and the idempotence of merging twice.
+They are *expected* to differ by the queue's delivery lag: seconds usually, a
+whole day when a queue survives overnight, which is legitimate and is precisely
+what the dated-record design exists to preserve. What is not legitimate is
+`timestamp` landing in a different week from `serverAt`, or ahead of it by more
+than clock skew.
 
-⚠️ **The baseline is captured in `loadUserStats()`, ABOVE `statsWalRecover()`.**
-A recovered WAL tail is this browser's own unflushed work and belongs on the
-contribution side. Move the capture below the recovery and a re-auth silently
-discards whatever the WAL just replayed.
+⚠️ **THAT COMPARISON ONLY WORKS WHILE THE TWO FIELDS HAVE DIFFERENT PROVENANCE.**
+`_stampServer()` has no client-side fallback and must never acquire one. A
+`serverAt` built from `new Date()` satisfies the field's type and destroys its only
+purpose: it agrees with `timestamp` by construction, so the divergence becomes
+permanently zero — a field that reports "no clock tampering" whether or not the
+clock was tampered with. Absent is honest. Approximated is a lie wearing the name
+of a trusted source. `session-merge-test.mjs` asserts this against the source text
+of `session-log.js`, not against anybody's reading of it.
+
+### 1.2 ⚠️ There is no `clientAt` field, and adding one would be a defect
+
+`DESIGN-TELEMETRY.md` §4's schema names `clientAt`. `timestamp` already holds
+exactly that value. Adding `clientAt` would put two copies of one quantity in one
+document — invariant 71 at field scope instead of document scope.
+
+`timestamp` keeps its existing name for the same reason `bookId` did: `reports.html`,
+and a live single-field index exemption in the Google Cloud console, already know
+it, and a rename would cost Jake a console change to buy a better word. This is
+written into `session-log.js`'s SEMANTICS block as well, because the schema in the
+design document is the thing a future instance will read first.
+
+### 1.3 ⚠️ Why the dependency is optional
+
+`sessionLogInit()` takes `serverTimestamp` and works without it, omitting the
+field. That is not test convenience — it is the GitHub-web-portal upload window.
+
+Jake uploads one file at a time. There is a window, minutes or an afternoon long,
+where `session-log.js` v1.1.0 is live and a browser still has `game.js` v3.23.0
+cached. A required dependency would make that window write `serverAt: undefined`,
+which Firestore rejects outright, which fails the entire rollup write, which loses
+the sprint detail for every student who typed during it. **A missing dependency
+costs one field. A required one costs a period.** Both mixed pairings are tested,
+including a non-function passed in the slot.
 
 ---
 
 ## §2. Version state
 
-`npm test` → **20 of 21 harnesses pass.** The one failure is pre-existing; §5.
+`npm test` → **21 of 22 harnesses pass.** The one failure is the pre-existing
+`metadata-map-test.mjs`; see §5.
+
+⚠️ **`npm install` first on a clean container.** The Round 10 `devDependencies`
+fix is correct and works, but the packages are not vendored.
 
 | file | version | changed? | upload? |
 |---|---|---|---|
-| `session-log.js` | **1.0.0** | ⚠️ **NEW FILE** | **YES — 1st** |
-| `game.js` | **3.23.0** | ⚠️ yes — merge, expired-session, rollups, id stamp | **YES — 2nd** |
-| `learn.js` | **2.7.0** | ⚠️ yes — same, plus session logging that never existed | **YES — 3rd** |
-| `versions.js` | **1.5.0** | registers `session-log.js` | **YES — 4th** |
-| `reports.html` | **2.11.0** | sprint detail, id chips, the week audit | **YES — 5th** |
-| `anon-ladder-test.mjs` | 1.1.0 | teaches the harness about `sessionExpired` | commit it |
-| `session-merge-test.mjs` | 1.0.0 | **NEW** | commit it |
-| `run-all-tests.mjs` | — | registers the new harness | commit it |
+| `session-log.js` | **1.1.0** | ⚠️ yes — `serverAt`, injected `serverTimestamp` | **YES — 1st** |
+| `game.js` | **3.23.1** | yes — one import, one dependency. Nothing else. | **YES — 2nd** |
+| `learn.js` | **2.7.1** | yes — identical change to `game.js` | **YES — 3rd** |
+| `session-merge-test.mjs` | **1.1.0** | yes — `serverAt` assertions + new Part C | commit it |
+| `firestore.indexes.json` | **2.1.0** | documentation only — see §3 | no |
 | `firestore.rules` | 2.3.0 | **NO — verified unnecessary, see §3** | no |
-| `firestore.indexes.json` | — | **NO — verified unnecessary, see §3** | no |
+| `versions.js` | 1.5.0 | **NO** — it detects `SESSION_LOG_VERSION` by regex, so the bump is picked up with no change | no |
+| `reports.html` | 2.11.0 | **NO** — nothing reads `serverAt` yet, on purpose (§1) | no |
+| `HANDOFF.md` / `HANDOFF-round12.md` / `DESIGN-TELEMETRY.md` / `README.md` / `README-SESSION-LOGGING.md` | — | yes | commit them |
 
-⚠️ **UPLOAD `session-log.js` FIRST.** `game.js` and `learn.js` both import it; a
-page loading either before the module exists throws on import and renders nothing
-at all. There is no graceful degradation for a missing module.
+⚠️ **UPLOAD `session-log.js` FIRST**, as in Round 12 and for the same reason:
+`game.js` and `learn.js` both import it and a missing module throws on import and
+renders nothing at all. §1.3 explains why the ordering is now *safe* rather than
+merely *ordered* — either half works alone — but first is still correct, because
+it is the half that carries the feature.
 
-**Deploy check:** (see also §7) the Lessons footer reads `School v2.7.0`; the Library footer
-reads `game.js v3.23.0`. Both student pages show a small grey `ID xxxxxxxx` in
-the bottom-left once signed in — **if that is missing, the new code is not
-running**, and it is the fastest check available.
+**Deploy check:** Library footer reads `game.js v3.23.1`; Lessons footer reads
+`School v2.7.1`. The grey `ID xxxxxxxx` must still be bottom-left on both — if it
+is missing, the new code is not running and nothing below applies.
+
+**Then verify the field itself, which is the actual point of this round:** type at
+least ten seconds in *each* mode, end a sprint and a lesson run, then open the
+Firestore console → `typing_sessions` → sort by newest. **`serverAt` must be
+present on one `source: "library"` document AND one `source: "school"` document.**
+Present on one and absent on the other means only one page controller uploaded.
 
 ---
 
 ## §3. Why there is no rules change and no index change
 
-Both were checked rather than assumed, because either needs a console paste and
-Jake has no CLI.
+Both checked against source, not assumed, because either costs Jake a console
+paste.
 
-- **`firestore.rules`.** The `typing_sessions` create rule requires `uid`,
-  `seconds` in range, `sprints` a list of ≤ 200, and `expiresAt` a timestamp.
-  `session-log.js` satisfies all four by construction — the 200 cap is where
-  `RECORDS_PER_DOC` comes from. The new `source` field needs no permission: that
-  match block has **no `keys().hasOnly()`**, deliberately (see the comment above
-  `validDailyLog`), so an added field is not denied.
-- **`firestore.indexes.json`.** The drill-down query is
-  `where('uid','==',…) && where('date','==',…)` — equality only, and neither
-  field is exempted from automatic single-field indexing in the overrides block.
-  Equality-only queries need no composite index.
+- **`firestore.rules` — no change needed.** The `typing_sessions` create rule
+  requires `uid == request.auth.uid`, `seconds` a number in `[0, 86400]`,
+  `sprints` a list of size ≤ 200, and `expiresAt` a timestamp. It has **no
+  `keys().hasOnly()`**, so an added field is not denied. `serverAt` satisfies
+  nothing and violates nothing. (Round 12 verified the same block for `source`;
+  this is the second field to ride in on that property, and the property is
+  deliberate — read the comment above `validDailyLog` before "tidying" it.)
+- **`firestore.indexes.json` — no change needed, and one decision recorded.**
+  Firestore will auto-index `serverAt` ascending and descending. Its sibling
+  `timestamp` is *exempted* from that in the console, so the obvious move is to
+  exempt this one too. **I deliberately did not.** The entire reason the field
+  exists is to be compared against `timestamp`, and the first thing anyone will
+  want from that comparison is a range query — *show me sessions where the clocks
+  disagree by more than a day*. An exemption would have to be removed again to
+  allow it, and removing one rebuilds the index across the collection. The cost of
+  being wrong in this direction is index storage on a collection TTL-capped at 120
+  days: ~160k documents standing at Ellis scale, two entries each, on a timestamp.
+  Pennies. **At district scale, re-decide.** The reasoning is in the file, which
+  is the only record of what the console holds.
 
-⚠️ **If you add an `orderBy` or a range filter to that query, this stops being
-true** and you will need a composite index, which is a console change.
+⚠️ Unchanged from Round 12 and still true: adding an `orderBy` or a range filter to
+the drill-down query (`where uid == … && where date == …`) *does* need a composite
+index, which *is* a console change.
 
 ---
 
-## §4. Invariants added this round (continuing Round 11's numbering)
+## §4. Invariants added this round
 
-64. **A merge needs a baseline, not a bigger hammer.** When reconciling a local
-    counter against a stored one, record what the stored one *was* at read time.
-    `sum()` and `max()` are both guesses at the same missing fact, and each is
-    silently wrong in the case the other handles.
-65. **`null` user means two different things.** "Never signed in" and "token
-    expired" need opposite handling everywhere they are tested — 29 such tests in
-    `game.js` alone. Carry the distinction; do not infer it.
-66. **A sign-out is not a page load.** Module state survives it. Any code assuming
-    an unauthenticated page has zeroed counters is wrong.
-67. **A record is dated when it happens, not when it is written.** Anything queued
-    for later delivery must carry its own timestamp, or a delayed flush relabels
-    history.
-68. **An absence is a divergence with nothing to grep for.** Two copies that
-    disagree can at least be diffed. One copy and a missing one cannot, and the
-    missing side stays invisible until somebody asks for the feature it never had.
-69. **A test that reimplements the code it tests passes after that code is
-    deleted.** `chunktest.mjs` did exactly this. A harness must *read the shipped
-    file* — lift it, import it, parse it — or it is testing a fossil.
-70. **Lifting a function into a sandbox makes every new module-scope reference a
-    ReferenceError.** Invariant 62 again, and it fired again the moment
-    `anonNudgeDue()` gained `sessionExpired`. Adding a dependency to a lifted
-    function means updating its harness in the same commit.
+74. ⚠️ **A field named for a trusted source must be absent rather than
+    approximated.** `serverAt` filled in by the client is worse than no `serverAt`:
+    it type-checks, it looks populated, and it silently guarantees agreement with
+    the field it exists to be compared against. The whole value of a second witness
+    is that it is a *different* witness. If the trusted source is unavailable, omit
+    the field and let the reader see that it is missing.
+75. ⚠️ **A shared module's dependency list is a contract between two files that
+    cannot see each other, so test it against both.** `game.js` and `learn.js`
+    each configure `session-log.js` at module scope. A dependency passed on one
+    side and not the other makes School and Library write differently shaped
+    documents — the R2 symmetry failure in its smallest possible form, and
+    invisible from inside either file, because each is internally consistent.
+    `session-merge-test.mjs` Part C reads both call sites out of the shipped
+    sources and asserts the dep sets are equal. This is invariant 73 applied to a
+    dependency list instead of a constant.
+76. **A signal must be planted before it is needed.** A comparison against history
+    has no value on the day it ships and full value a term later, so the correct
+    time to start writing it is the boring round, not the round where a student is
+    suspected. Shipping the write side alone is a complete deliverable.
 
 ---
 
 ## §5. Known problems left standing
 
-1. ⚠️ **`chunktest.mjs` is testing deleted code.** It reimplements the v3.9.2
-   rollup loop inline rather than reading `game.js`, so it kept passing after the
-   logic moved into `session-log.js`. `session-merge-test.mjs` Part B is its real
-   replacement and drives the actual module. **Delete `chunktest.mjs` or rewrite
-   it to import — do not leave a green tick on a fossil.** Left standing this
-   round only because deleting a passing test on the same day as a student-facing
-   fix is how you lose an afternoon.
-2. ⚠️ **The day counters can be doubled too, and this round cannot detect it.**
-   If a student had already triggered a final flush earlier the same day,
-   `lastDate` matched and the day branch fired as well — so the inflated value
-   reached `typing_logs`, and `typing_logs` is the audit's yardstick. Those days
-   look self-consistent and the audit passes them. The per-run detail is the
-   check: a day whose logged minutes far exceed the sum of its session rollups is
-   the signature. **From v2.6.0 forward this cannot recur**, but historical days
-   may carry it.
-3. **`metadata-map-test.mjs` — 42 of 487 assertions fail.** Pre-existing and
+Round 12's §5 list is unchanged except where noted. Restated in brief because a
+list nobody restates becomes a list nobody reads:
+
+1. ⚠️ **`chunktest.mjs` is still testing deleted code.** It reimplements the
+   v3.9.2 rollup loop inline instead of importing `session-log.js`, so it passes
+   green on a fossil. `session-merge-test.mjs` Part B is its real replacement.
+   **Delete it or rewrite it to import.** Left standing a second round; I touched
+   `session-merge-test.mjs` and could have, but deleting a green test is not a
+   change to make in the same commit as a live-data field.
+2. ⚠️ **Historical day counters may be doubled and no audit can detect it.**
+   Unchanged. Round 12 §5.2 and §7.3 bound the repair.
+3. **`metadata-map-test.mjs` — 42 of 487 assertions fail.** Pre-existing,
    unrelated: Gutenberg-sourced EPUBs report a `gutenberg.org` origin where the
-   harness expects Standard Ebooks. A bookclean/import metadata question.
-4. **`audit-versions.mjs` header budgets.** Unchanged from Round 11 and made
-   slightly worse: `game.js` and `learn.js` each gained a history entry. Round 11
-   called this the cheapest real task available; it still is, and it still needs
-   `CHANGELOG.md`'s stale index fixed first (it claims `game.js` v3.14.0,
-   `learn.js` v2.2.4, `lessons-admin.js` v1.7.1).
+   harness expects Standard Ebooks. A bookclean/import metadata question, not an
+   app defect. **Confirmed still 42 this round**, i.e. nothing here made it worse.
+4. **`audit-versions.mjs` header budgets.** Now slightly worse again: `game.js`
+   and `learn.js` each gained one more history entry. ⚠️ **The blocker is real and
+   was measured this round:** trimming means migrating entries into `CHANGELOG.md`,
+   whose own state is — `game.js` entries stop at **v3.19.1** (four versions
+   behind), `learn.js` at **v2.2.4** (five behind), the Contents index claims
+   `game.js` v3.14.0 and `learn.js` v2.2.4, and there is **no section at all** for
+   `session-log.js` or `stats-wal.js`. That is a multi-round backfill, not a
+   cheap task, and Round 11 §5.1's description of it as "the cheapest real task
+   available" was optimistic.
 5. **`resume-path-test.mjs` still does not exist** and `learn.js` still asserts in
-   a comment that it does. Round 11 flagged this; still true.
-6. **`renderIdStamp()` is duplicated in `game.js` and `learn.js`.** Fifteen lines,
-   marked *change one change both*. ⚠️ That is exactly the judgement that produced
-   defect 2 above. If it grows, extract it — this note is the tripwire.
+   a comment that it does. Flagged by Rounds 11 and 12; still true.
+6. **`renderIdStamp()` is duplicated in `game.js` and `learn.js`.** Unchanged
+   tripwire; it did not grow this round.
 7. **App Check is initialized but not enforced.** Unchanged. Read the App Check
    block in `firebase-config.js` before clicking Enforce.
+8. **`learn.html` hardcodes `v2.1.0`** in its footer (Round 11 §5.4). Overwritten
+   at runtime, harmless, and it will still cost somebody twenty minutes. Not fixed
+   here because it is an unrelated file in a round that is meant to prove one
+   deploy path.
 
 ---
 
 ## §6. For Jake, operationally
 
-- **Upload order: `session-log.js`, `game.js`, `learn.js`, `versions.js`,
-  `reports.html`.** The first is not arbitrary ordering — see §2.
-- **Finding the student tomorrow: you should not need him.** Open Reports, set
-  the range to cover **Monday 2026-08-17 onward**, Generate, then
-  **Audit Week Counters**. It reads one `stats/time_tracking` doc per student
-  (~30 reads for a class), compares each stored week total against the sum of
-  that student's daily logs, and lists anyone whose stored value is higher.
-  Anything flagged **"exactly doubled"** is this defect with high confidence.
-  **Fix** rewrites only the three week fields to the computed correct value.
-- ⚠️ **The audit needs the window to cover the whole week.** If it does not, the
-  daily sum is a partial and any excess is meaningless — those students are listed
-  separately as unverifiable rather than accused. Widen the range and re-run.
-- **The id stamp** is bottom-left on both student pages, showing the first eight
-  characters of the uid. Click copies the full value. Reports shows the same eight
-  beside each name, so a child reading eight characters aloud is enough to find
-  their row.
-- **The drill-down now expands twice:** click a date for the rollups, and each
-  rollup lists its individual runs with per-run WPM, accuracy and clock time.
-  🚩 marks a run much faster than that student's *other* runs the same day —
-  measured against the mean of the others, so a fast run cannot raise the bar it
-  is judged against and hide itself. **This works retroactively on every rollup
-  already in the database**; the detail was always stored and never displayed.
-- **School session history starts from today.** There is nothing to recover for
-  earlier days because nothing was ever written. Library days are all there.
-
+- **Upload order: `session-log.js`, `game.js`, `learn.js`.** Then commit the test
+  and the documents. No console work of any kind this round.
+- **The verification is in §2** and it is two footers, one ID stamp, and one look
+  at the newest two `typing_sessions` documents. If `serverAt` is on both a School
+  and a Library document, step 1 is done and the loop is proven.
+- **Nothing a student sees changes.** No new prompt, no new number, no shifted
+  minutes. If a child reports anything different about School or Library after this
+  deploy, it is not this change, and that is worth knowing precisely because it is
+  such a narrow deploy.
+- ⚠️ **`README-SESSION-LOGGING.md` §3 told you to set the audit range "starting
+  Monday." That was wrong and is fixed in this round's edit.** The app and the
+  v2.11.0 audit both anchor the week on **Saturday** — which is Round 12 §7.2, the
+  defect fixed in the code and left standing in the teacher-facing document that
+  tells you how to drive it. A doc that misdirects the range makes the audit
+  report "unverifiable" rows and look broken.
+- **Cost of this round: zero.** One extra timestamp field per rollup document. No
+  additional writes, no additional reads.
 
 ---
 
-## §8. ⚠️ NEXT ROUND STARTS HERE — read `DESIGN-TELEMETRY.md`
+## §7. ⚠️ NEXT ROUND STARTS AT `DESIGN-TELEMETRY.md` §7 STEP 2
 
-Jake asked for a telemetry design that survives interruption, measures School and
-Library identically, tracks by day/lesson/sprint, and lets him **delete a bad
-record and have the totals change**. That last requirement cannot be met by the
-current data model, so it is an architecture question, not a patch.
+Step 1 is shipped. `DESIGN-TELEMETRY.md` is at v1.1.0 and its §7 records which
+steps are done; §6.3 is now closed.
 
-`DESIGN-TELEMETRY.md` v1.0.0 is the proposal. **Nothing in it has been built.**
-Its §2 is verification-only — every claim read out of shipped source — and it
-contains two findings Round 12 did not previously know:
+**Step 2 is the one that matters: make `typing_logs` derived — written by summing
+the day's sessions rather than from a live in-memory counter.** That is what closes
+§2.4, which is a live data-loss path today: `typing_logs/{uid}_{date}` is ONE
+document written by both page controllers from their own counters, so ten minutes
+of School work can be overwritten by four minutes of Library work, silently, in
+the document this project grades from. It is worth more than everything Round 12
+and Round 13 shipped combined.
 
-* ⚠️ **`typing_logs/{uid}_{date}` is one document shared by BOTH page controllers**,
-  each writing its own in-memory counter over the other's. A student who does ten
-  minutes in School and then opens Library can have that work overwritten. **A live
-  data-loss path, today, independent of everything else this round fixed.**
-* ⚠️ **The idle thresholds differ — 2s in Library, 3s in School** — so the two
-  sides do not measure the same thing, and Jake grades on time typed.
+⚠️ **Before writing a line of it, re-read `DESIGN-TELEMETRY.md` §2 and §8.** §2 is
+verification-only and every claim in it was read out of source; every claim Round
+12 made *without* doing that turned out to be wrong. §8 is the list of things that
+must not happen, and two of them are specifically about step 2:
 
-Idle pause itself was verified **working on both sides**; Jake's memory of the
-original behaviour was correct, and it survived every intervening round.
+* **Do not write a daily or weekly total from a live in-memory counter once
+  sessions exist.** That is §2.4 rebuilt by hand.
+* **Do not re-gate the stats write on `final`.** Round 12 §7.1. The ~$85/year it
+  saves is the price of the entire week of 2026-08-18.
 
-⚠️ **§6 of that document needs Jake's decision before code is written** — chiefly
-which idle threshold both sides should adopt, since it moves every student's
-recorded minutes on the day it ships.
+And one that is about temperament rather than code: **do not answer the next
+divergence with a better audit.** An audit is a confession that the data model
+permits states you have to go looking for.
+
+⚠️ **The 2s/3s idle threshold difference between Library and School is DELIBERATE,
+decided by Jake, and closed.** `DESIGN-TELEMETRY.md` §2.2 and §6.1. Round 12
+flagged it as an R2 violation and was wrong. Do not unify it. Do not "align" it.
+The populations are different and the thresholds are fitted to them.
 
 ---
 
-## §7. ⚠️ AMENDMENT — the two things Round 12 got wrong on the first pass
+## §8. If a bug is reported against this round
 
-Both were found within hours of shipping, by Jake, from live data. Both are the
-same class of error: **a check that could not fail loudly.**
+The surface is one field, so the space of real failures is small and each has a
+different single datum that settles it. **Ask for the datum. Do not theorise** —
+Round 12 guessed twice and was wrong both times (round 12 §7).
 
-### 7.1 The stats rollup and the daily log had different write triggers
+| report | the one thing to ask for |
+|---|---|
+| "sprint detail stopped appearing" | Firestore console: is there **any** new `typing_sessions` document since the deploy? If yes the writer is fine and the fault is in `reports.html`, which did not change. |
+| "`serverAt` is missing on some documents" | Which `source` — school or library? Present on one and absent on the other means one page controller was not uploaded (§1.3), which is a deploy state, not a bug. |
+| "permission denied on a rollup write" | The console error's full text. The rule requires `uid`, `seconds ≤ 86400`, `sprints` ≤ 200 and `expiresAt`; `serverAt` is not in the rule at all, so a denial mentioning it means the rules in the console are not the rules in the repo. |
+| "the times all changed" | This round writes no total, no counter and no gate. Get the two footer versions before assuming it was this deploy. |
 
-`typing_logs` was gated on `walDirty || final`. `users/{uid}/stats/time_tracking`
-was gated on `final` alone. **The same numbers, on two schedules.** Round 11 made
-that trade deliberately to save ~$85/year, reasoning the rollup was "only ever
-read at page load and the WAL now covers it anyway."
+---
 
-The first half was true. The second half assumed a write-ahead log that always
-survives, on hardware shared between students. Observed consequences:
+## §9. ⚠️ WHICH ARCHIVED HANDOFFS EXIST — READ BEFORE HUNTING
 
-* **Roughly half of ninety students had no stats document at all.** A `final`
-  flush needs a page-hide gap or a deliberate exit; a child closing a Chromebook
-  lid mid-sentence produces neither. Those students' week counters were being
-  rebuilt from localStorage alone — which is why one showed 11:00, then 15:30,
-  then 26:23 across refreshes, matching nothing.
-* Students who *did* have the document held a value from whenever their last
-  final flush happened to land, so reports and the HUD disagreed even for
-  students with no corruption whatsoever.
+Several archived handoffs are cited by name across these documents and are not in
+the repo. **This section exists so the next instance stops looking after one
+paragraph instead of after twenty minutes.** Jake's statement, 2026-08-18:
 
-**Fixed:** the rollup now shares the daily log's trigger in both files. Cost is
-about one extra write per five minutes of active typing — ~900/day across Ellis,
-inside the free tier, ~$7/year even at the district population SCALE-PLAN models.
+> *Don't chase rounds 4, 8, 9 or 10 — they're only in GitHub commit history.
+> Rounds 3, 5, 6, 7 and 11 are real files you can read.*
 
-⚠️ **Invariant 71: two records of the same quantity must share a write trigger.**
-Not "be flushed often enough" — *share a trigger*. Any staleness budget you grant
-one and not the other is a divergence you have agreed to and will be debugged
-later by someone who does not know you agreed to it.
+| round | file | status |
+|---|---|---|
+| 1–3 | `HANDOFF-round3.md` | ✅ **in repo.** §10 is the document map. |
+| 4 | — | ❌ **not in repo.** See the note below. |
+| 5 | `HANDOFF-round5.md` | ✅ **in repo.** |
+| 6 | `HANDOFF-round6.md` | ✅ **in repo.** |
+| 7 | `HANDOFF-round7.md` | ✅ **in repo.** §5 and §8 still cited as live. |
+| 8 | — | ❌ **not in repo.** ⚠️ Round 12's header calls its §4 (invariants 37–55), §7 and §8 load-bearing. Those invariants are therefore **unreadable from the repo alone** — commit history or nothing. |
+| 9 | — | ❌ **not in repo.** Round 12 cites its §4. |
+| 10 | — | ❌ **never written.** Round 11 §1 is a reconstruction of Round 10 for exactly this reason, and Round 10's instance was never named. |
+| 11 | `HANDOFF-round11.md` | ✅ **in repo** (supplied by Jake this round; it had been missing). §3.3, §4 (invariants 56–63) and §6 are live. |
+| 12 | `HANDOFF-round12.md` | ✅ **in repo**, archived this round. §1, §5, §7 live. |
 
-### 7.2 The audit anchored the week on Monday; the app anchors on Saturday
+⚠️ **The two accounts of round 4 differ and neither is dismissible.** Jake places
+it in commit history; `README.md` and `HANDOFF-round3.md` §10 state flatly that
+`HANDOFF-round4.md` **never existed** and that the reference to it was invented.
+Recorded rather than resolved, because the practical instruction is identical
+either way — **it is not in the repo, do not look for it** — and because a
+document quietly picking one story is how the first invented reference happened.
 
-`getWeekStart()` in both page controllers returns **the Saturday** starting a
-Sat–Fri school week. There is a harness named for that boundary. The v2.10.0
-audit computed Mondays.
+⚠️ **Consequence worth stating plainly: invariants 37–55 are cited as load-bearing
+by a handoff whose source file is not present.** If you find yourself needing one,
+say so to Jake rather than inferring it. Three of them survive quoted in code
+comments (grep for `invariant` across `.js` and `.mjs`), which is not the same as
+having them.
 
-So every stored `weekStart` failed to match every computed one, no day ever fell
-inside the week, and the not-covered branch `continue`d — **silently**. The panel
-then printed "no inflated week counters found." Ninety students examined: zero.
-
-The confirmed case it missed, once read directly from Firestore:
-
-| field | stored | daily-log sum | excess |
-|---|---|---|---|
-| `secondsWeek` | 2868 | 1662 | **1206 — exactly 08-17's seconds, twice** |
-| `charsWeek` | 6816 | 4271 | **2545 — exactly 08-17's chars, twice** |
-| `mistakesWeek` | 561 | 353 | 208, solving cleanly to an integer |
-
-Three fields, one extra copy of one day, each independently confirming the
-additive merge in §1.
-
-**Fixed in v2.11.0:** Saturday anchor lifted verbatim from the app, plus
-`week-anchor-test.mjs`, which lifts *both* functions from the shipped sources and
-asserts they agree — the failure was invisible from inside either file, because
-each was internally consistent.
-
-⚠️ **Invariant 72: an audit may never have a silent skip.** Every subject lands in
-exactly one named bucket, every bucket is counted on screen, and the totals are
-printed so they can be checked by eye. "Could not be examined" and "passed" are
-opposite findings and must never render identically. The rewritten panel shows
-correct / inflated / under-counted / no-stats-doc / unverifiable / read-error /
-no-logged-days, and flags it in red if they fail to sum to the roster.
-
-⚠️ **Invariant 73: a constant copied from another file must be tested against that
-file, not against your reading of it.** The Monday anchor was not a typo — it was
-a confident assumption never checked against the source twelve feet away.
-
-### 7.3 What is still not verifiable
-
-Unchanged from §5.2 and worth restating because it now bounds the repair: if a
-student hit the additive merge on a day when their stats doc had **already** been
-written that day, the day counter doubled too, and that value went into
-`typing_logs` — which is the audit's yardstick. Those days look self-consistent
-and are counted as correct.
-
-Session rollups are the independent check where they exist: all Library days, and
-School only from 2026-08-18. **For School days before 2026-08-18 there is no
-second record and there never will be.** If those daily figures matter, they have
-to be judged against what a period can physically contain.
+**And the standing rule, from `HANDOFF-round3.md` §10:** if a session produces a
+document, it ships in the same batch as the code. Referencing a file that is not
+in the repo is worse than not writing it.

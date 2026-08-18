@@ -1,5 +1,13 @@
-// session-merge-test.mjs v1.0.0 — the two things Round 12 changed, tested
-// against the code that actually ships.
+// session-merge-test.mjs v1.1.0 — the two things Round 12 changed, plus the one
+// thing Round 13 added, tested against the code that actually ships.
+//
+// v1.1.0 — PART B gains the `serverAt` assertions (session-log.js v1.1.0), and
+//          PART C is new: it reads the sessionLogInit(...) call out of game.js
+//          and learn.js and asserts they hand the shared module the SAME
+//          dependencies. That is invariant 73 — a fact about another file must be
+//          tested against that file — applied to a dependency list instead of a
+//          constant, because a dep passed on one side and not the other makes
+//          School and Library write differently shaped documents.
 //
 // PART A — mergeGuestStats(), lifted from BOTH game.js and learn.js by
 // brace-matching and run in a bare sandbox. This is the function that doubled a
@@ -167,14 +175,20 @@ const mod = await import('./session-log.js');
 
 let writes = [];
 let failNext = 0;
-mod.sessionLogInit({
+// Stand-in for the real FieldValue sentinel. The point of the fake is that it is
+// NOT a date and NOT serializable to anything meaningful — which is why the
+// module may only create one at write time. A fresh object each call, so identity
+// tells us the module called the function rather than caching one value.
+const SENTINEL = () => ({ __sentinel: 'serverTimestamp' });
+const surface = {
     db: {}, collection: (_db, name) => name,
     addDoc: async (col, payload) => {
         if (failNext > 0) { failNext--; throw new Error('simulated denial'); }
         writes.push(payload);
         return { id: 'doc' + writes.length };
     },
-});
+};
+mod.sessionLogInit({ ...surface, serverTimestamp: SENTINEL });
 
 const UID = 'student-1';
 const rec = (date, at, seconds = 30) => ({
@@ -253,6 +267,92 @@ try { mod.sessionLogPush(UID, rec('2026-08-18', '2026-08-18T09:00:00.000Z')); }
 catch (_) { threw = true; }
 globalThis.localStorage.setItem = realSet;
 ok(!threw, 'a storage quota failure never throws into a live lesson');
+
+// ─── serverAt (v1.1.0, DESIGN-TELEMETRY §6.3) ───────────────────────────────
+// The field is written from an INJECTED serverTimestamp and from nothing else.
+
+store.clear(); writes = [];
+mod.sessionLogInit({ ...surface, serverTimestamp: SENTINEL });
+mod.sessionLogPush(UID, rec('2026-08-18', '2026-08-18T09:00:00.000Z'));
+mod.sessionLogPush(UID, rec('2026-08-19', '2026-08-19T09:00:00.000Z'));
+
+// ⚠️ The sentinel must never be persisted. JSON.stringify() flattens a FieldValue
+// to `{}`, and a queue that survived a tab close would then try to write an empty
+// map into a timestamp field — denied by the rules, retried forever.
+const rawQueue = globalThis.localStorage.getItem('ttb_sessionq_v1') || '';
+ok(!rawQueue.includes('serverAt') && !rawQueue.includes('__sentinel'),
+   'the serverTimestamp sentinel never reaches localStorage');
+
+await mod.sessionLogFlush(UID, {});
+ok(writes.length === 2, `two days, two documents (got ${writes.length})`);
+ok(writes.every(w => w.serverAt && w.serverAt.__sentinel === 'serverTimestamp'),
+   'every rollup document carries serverAt, taken from the injected function');
+ok(writes[0].serverAt !== writes[1].serverAt,
+   'serverAt is created per document at write time, not cached at init');
+// ⚠️ serverAt must not have quietly replaced the client stamp. Both clocks, or
+// the divergence between them means nothing.
+ok(writes.every(w => w.timestamp instanceof Date),
+   'the client `timestamp` survives alongside serverAt — two clocks, not one');
+ok(writes[0].timestamp.toISOString().startsWith('2026-08-18'),
+   'the client stamp still comes from the typing, unchanged by v1.1.0');
+
+// ⚠️ A page controller that does not pass serverTimestamp must still write. This
+// is the GitHub-web-portal upload window: new module, old game.js. Omitting one
+// field is the correct degradation; `serverAt: undefined` is a rejected write and
+// a lost period of sprint detail.
+store.clear(); writes = [];
+mod.sessionLogInit({ ...surface, serverTimestamp: undefined });
+mod.sessionLogPush(UID, rec('2026-08-18', '2026-08-18T09:00:00.000Z'));
+ok(await mod.sessionLogFlush(UID, {}) === true,
+   'a page controller with no serverTimestamp still flushes successfully');
+ok(writes.length === 1, 'the document is still written');
+ok(!('serverAt' in writes[0]),
+   'serverAt is ABSENT, not undefined — Firestore rejects undefined field values');
+
+// A non-function is the same case as a missing one.
+store.clear(); writes = [];
+mod.sessionLogInit({ ...surface, serverTimestamp: 'nonsense' });
+mod.sessionLogPush(UID, rec('2026-08-18', '2026-08-18T09:00:00.000Z'));
+await mod.sessionLogFlush(UID, {});
+ok(writes.length === 1 && !('serverAt' in writes[0]),
+   'a non-function serverTimestamp dep is ignored rather than called');
+
+// ⚠️ Invariant 74, asserted against the source: no client-side fallback. A
+// serverAt built from `new Date()` agrees with `timestamp` by construction and
+// makes the cheat signal permanently unfalsifiable.
+const sessionSrc = readFileSync(new URL('./session-log.js', import.meta.url), 'utf8');
+const stamper = lift(sessionSrc, '_stampServer');
+ok(!!stamper, '_stampServer() exists in session-log.js');
+ok(!!stamper && !/new Date|Date\.now/.test(stamper),
+   'serverAt has no client-clock fallback in session-log.js');
+
+// ─── C. the two page controllers configure the module identically ────────────
+console.log('\n─── C. sessionLogInit parity ───');
+
+// ⚠️ READ OUT OF THE SHIPPED FILES, not out of a memory of them. Invariant 73.
+function initDeps(src, label) {
+    const m = src.match(/sessionLogInit\(\{([^}]*)\}\)/);
+    ok(!!m, `${label}: a module-scope sessionLogInit({...}) call exists`);
+    if (!m) return null;
+    return m[1].split(',')
+        .map(s => s.trim().split(':')[0].trim())
+        .filter(Boolean)
+        .sort();
+}
+const gameDeps  = initDeps(gameSrc,  'game.js');
+const learnDeps = initDeps(learnSrc, 'learn.js');
+if (gameDeps && learnDeps) {
+    ok(gameDeps.join(',') === learnDeps.join(','),
+       `game.js and learn.js pass the same deps to session-log.js ` +
+       `(game: ${gameDeps.join('|')} / learn: ${learnDeps.join('|')})`);
+    ok(gameDeps.includes('serverTimestamp'),
+       'both page controllers pass serverTimestamp (v3.23.1 / v2.7.1)');
+}
+
+// The module's own version, so a stale copy uploaded out of order is visible in
+// the test output rather than only in the footer.
+ok(mod.SESSION_LOG_VERSION === '1.1.0',
+   `session-log.js reports v1.1.0 (got ${mod.SESSION_LOG_VERSION})`);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

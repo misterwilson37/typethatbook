@@ -1,6 +1,16 @@
 # TypeThatBook
 
-<!-- README.md v1.9.0 — Round 10 (Remington, continued).
+<!-- README.md v1.10.0 — Round 13 (Ludlow).
+     v1.10.0 — The document map corrected on two points, both of which cost real
+              time this round. (1) DESIGN-TELEMETRY.md was in the repo and in no
+              listing, so the file describing where the data model is going was
+              invisible to anyone reading this one. Listed now, with its status.
+              (2) The archived-handoff situation is stated once, plainly: rounds
+              3, 5, 6, 7, 11 and 12 are files; rounds 4, 8, 9 and 10 are not in
+              the repo at all, and rounds 8 and 9 are cited as load-bearing by a
+              handoff whose own source is one of the missing ones. HANDOFF.md §9
+              is the authority; this file points at it rather than restating it.
+     v1.9.0 — Round 10 (Remington, continued).
      v1.9.0 — package.json corrected: the four harness packages were NOT declared,
               contrary to what v1.7.x of this file said. They are devDependencies
               now, `npm test` exists, and a fresh clone runs the suite. Also:
@@ -192,8 +202,27 @@ MULTITENANCY.md                   Recovered Round 6. ⚠️ SUPERSEDED — recom
                                   custom claims, which were reversed. Kept for the
                                   trimester/denormalisation argument. Header box.
 
+DESIGN-TELEMETRY.md               ⚠️ THE FORWARD PLAN, and read it before touching
+                                  anything that counts time. Sessions become the
+                                  single append-only source of truth and all totals
+                                  derive from them. §2 is verification-only, every
+                                  claim read out of shipped source. §7 is the build
+                                  order — step 1 shipped in Round 13, step 2 is
+                                  next and closes a live data-loss path. §8 is the
+                                  list of things that must not happen.
+
 HANDOFF-round3.md                 Rounds 1-3, archived. §10 is the document map.
 HANDOFF-round5.md                 Round 5, archived.
+HANDOFF-round6.md                 Round 6, archived.
+HANDOFF-round7.md                 Round 7, archived. §5 and §8 still cited as live.
+HANDOFF-round11.md                Round 11, archived. §3.3, §4 (invariants 56-63)
+                                  and §6 still cited as live.
+HANDOFF-round12.md                Round 12, archived. §1, §5 and §7 still cited as
+                                  live; §7 is the two defects Round 12 shipped and
+                                  withdrew the same day.
+                                  ⚠️ Rounds 4, 8, 9 and 10 have NO file in this
+                                  repo. See HANDOFF.md §9 before you go looking —
+                                  it is the authority on which archives exist.
 
 firestore-rules.test.mjs          ⚠️ KNOWN WRONG. Header says v1.1.0 and it seeds
                                   roles as auth-token claims; rules v2.x reads
@@ -750,7 +779,10 @@ and committed in none of them. Two are safe to read straight; two are not:
 | `SETUP-NO-CLI.md` | ⚠️ **`firestore.rules` cites it by name** for granting the first `super_admin`. The operationally important gap. |
 | `RULES-AUDIT.md` | The overnight audit that traced 103 Firestore ops. The three fixes it found are live and described in `HANDOFF-round3.md` §2. |
 | `SETUP-MULTISCHOOL.md` | No loss — assessed obsolete in Round 3; assumed a CLI. |
-| `HANDOFF-round4.md` | **Never existed.** The reference was invented. Round 4 survives only in `HANDOFF-round5.md` and `CHANGELOG.md`. Stop looking. |
+| `HANDOFF-round4.md` | ⚠️ **Two accounts, and the practical answer is the same.** This file and `HANDOFF-round3.md` §10 have always said it never existed and the reference was invented; Jake places it in GitHub commit history (2026-08-18). Either way **it is not in the repo.** Round 4 survives here in `HANDOFF-round5.md` and `CHANGELOG.md`. Recorded rather than resolved — see `HANDOFF.md` §9. |
+| `HANDOFF-round8.md` | ⚠️ **Not in the repo, and cited as load-bearing.** Round 12's header calls its §4 (invariants 37–55), §7 and §8 live, which makes those invariants unreadable from a clone. Three survive quoted in code comments; grep `invariant` across `.js`/`.mjs`. Ask Jake rather than inferring one. |
+| `HANDOFF-round9.md` | **Not in the repo.** Round 12 cites its §4. Commit history only. |
+| `HANDOFF-round10.md` | **Never written at all.** Round 10's instance was never even named. `HANDOFF-round11.md` §1 is a reconstruction of what Round 10 did, written for exactly this reason. |
 
 **The rule, from `HANDOFF-round3.md` §10:** if a session produces a document, it ships
 in the same batch as the code. Referencing a file that isn't in the repo is worse than
