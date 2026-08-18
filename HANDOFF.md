@@ -1,5 +1,10 @@
 # HANDOFF — Round 12 (Caligraph)
 
+> ⚠️ **AMENDED 2026-08-18, same day.** The audit shipped in `reports.html`
+> v2.10.0 was wrong and gave a false all-clear across ninety students. The stats
+> flush gate was also wrong and is the root cause of the divergence. Both are
+> fixed in v2.11.0 / `game.js` v3.23.0 / `learn.js` v2.7.0. **Read §7 before §2.**
+
 <!-- HANDOFF.md v12.0.0 — Round 12, instance "Caligraph", 2026-08-18.
      ⚠️ SUPERSEDES Round 11, archived as HANDOFF-round11.md. Round 11's §3.3,
      §4 (invariants 56–63) and §6 remain LOAD-BEARING and are not restated here.
@@ -112,10 +117,10 @@ discards whatever the WAL just replayed.
 | file | version | changed? | upload? |
 |---|---|---|---|
 | `session-log.js` | **1.0.0** | ⚠️ **NEW FILE** | **YES — 1st** |
-| `game.js` | **3.22.0** | ⚠️ yes — merge, expired-session, rollups, id stamp | **YES — 2nd** |
-| `learn.js` | **2.6.0** | ⚠️ yes — same, plus session logging that never existed | **YES — 3rd** |
+| `game.js` | **3.23.0** | ⚠️ yes — merge, expired-session, rollups, id stamp | **YES — 2nd** |
+| `learn.js` | **2.7.0** | ⚠️ yes — same, plus session logging that never existed | **YES — 3rd** |
 | `versions.js` | **1.5.0** | registers `session-log.js` | **YES — 4th** |
-| `reports.html` | **2.10.0** | sprint detail, id chips, the week audit | **YES — 5th** |
+| `reports.html` | **2.11.0** | sprint detail, id chips, the week audit | **YES — 5th** |
 | `anon-ladder-test.mjs` | 1.1.0 | teaches the harness about `sessionExpired` | commit it |
 | `session-merge-test.mjs` | 1.0.0 | **NEW** | commit it |
 | `run-all-tests.mjs` | — | registers the new harness | commit it |
@@ -126,8 +131,8 @@ discards whatever the WAL just replayed.
 page loading either before the module exists throws on import and renders nothing
 at all. There is no graceful degradation for a missing module.
 
-**Deploy check:** the Lessons footer reads `School v2.6.0`; the Library footer
-reads `game.js v3.22.0`. Both student pages show a small grey `ID xxxxxxxx` in
+**Deploy check:** (see also §7) the Lessons footer reads `School v2.7.0`; the Library footer
+reads `game.js v3.23.0`. Both student pages show a small grey `ID xxxxxxxx` in
 the bottom-left once signed in — **if that is missing, the new code is not
 running**, and it is the fastest check available.
 
@@ -242,3 +247,116 @@ true** and you will need a composite index, which is a console change.
   already in the database**; the detail was always stored and never displayed.
 - **School session history starts from today.** There is nothing to recover for
   earlier days because nothing was ever written. Library days are all there.
+
+
+---
+
+## §8. ⚠️ NEXT ROUND STARTS HERE — read `DESIGN-TELEMETRY.md`
+
+Jake asked for a telemetry design that survives interruption, measures School and
+Library identically, tracks by day/lesson/sprint, and lets him **delete a bad
+record and have the totals change**. That last requirement cannot be met by the
+current data model, so it is an architecture question, not a patch.
+
+`DESIGN-TELEMETRY.md` v1.0.0 is the proposal. **Nothing in it has been built.**
+Its §2 is verification-only — every claim read out of shipped source — and it
+contains two findings Round 12 did not previously know:
+
+* ⚠️ **`typing_logs/{uid}_{date}` is one document shared by BOTH page controllers**,
+  each writing its own in-memory counter over the other's. A student who does ten
+  minutes in School and then opens Library can have that work overwritten. **A live
+  data-loss path, today, independent of everything else this round fixed.**
+* ⚠️ **The idle thresholds differ — 2s in Library, 3s in School** — so the two
+  sides do not measure the same thing, and Jake grades on time typed.
+
+Idle pause itself was verified **working on both sides**; Jake's memory of the
+original behaviour was correct, and it survived every intervening round.
+
+⚠️ **§6 of that document needs Jake's decision before code is written** — chiefly
+which idle threshold both sides should adopt, since it moves every student's
+recorded minutes on the day it ships.
+
+---
+
+## §7. ⚠️ AMENDMENT — the two things Round 12 got wrong on the first pass
+
+Both were found within hours of shipping, by Jake, from live data. Both are the
+same class of error: **a check that could not fail loudly.**
+
+### 7.1 The stats rollup and the daily log had different write triggers
+
+`typing_logs` was gated on `walDirty || final`. `users/{uid}/stats/time_tracking`
+was gated on `final` alone. **The same numbers, on two schedules.** Round 11 made
+that trade deliberately to save ~$85/year, reasoning the rollup was "only ever
+read at page load and the WAL now covers it anyway."
+
+The first half was true. The second half assumed a write-ahead log that always
+survives, on hardware shared between students. Observed consequences:
+
+* **Roughly half of ninety students had no stats document at all.** A `final`
+  flush needs a page-hide gap or a deliberate exit; a child closing a Chromebook
+  lid mid-sentence produces neither. Those students' week counters were being
+  rebuilt from localStorage alone — which is why one showed 11:00, then 15:30,
+  then 26:23 across refreshes, matching nothing.
+* Students who *did* have the document held a value from whenever their last
+  final flush happened to land, so reports and the HUD disagreed even for
+  students with no corruption whatsoever.
+
+**Fixed:** the rollup now shares the daily log's trigger in both files. Cost is
+about one extra write per five minutes of active typing — ~900/day across Ellis,
+inside the free tier, ~$7/year even at the district population SCALE-PLAN models.
+
+⚠️ **Invariant 71: two records of the same quantity must share a write trigger.**
+Not "be flushed often enough" — *share a trigger*. Any staleness budget you grant
+one and not the other is a divergence you have agreed to and will be debugged
+later by someone who does not know you agreed to it.
+
+### 7.2 The audit anchored the week on Monday; the app anchors on Saturday
+
+`getWeekStart()` in both page controllers returns **the Saturday** starting a
+Sat–Fri school week. There is a harness named for that boundary. The v2.10.0
+audit computed Mondays.
+
+So every stored `weekStart` failed to match every computed one, no day ever fell
+inside the week, and the not-covered branch `continue`d — **silently**. The panel
+then printed "no inflated week counters found." Ninety students examined: zero.
+
+The confirmed case it missed, once read directly from Firestore:
+
+| field | stored | daily-log sum | excess |
+|---|---|---|---|
+| `secondsWeek` | 2868 | 1662 | **1206 — exactly 08-17's seconds, twice** |
+| `charsWeek` | 6816 | 4271 | **2545 — exactly 08-17's chars, twice** |
+| `mistakesWeek` | 561 | 353 | 208, solving cleanly to an integer |
+
+Three fields, one extra copy of one day, each independently confirming the
+additive merge in §1.
+
+**Fixed in v2.11.0:** Saturday anchor lifted verbatim from the app, plus
+`week-anchor-test.mjs`, which lifts *both* functions from the shipped sources and
+asserts they agree — the failure was invisible from inside either file, because
+each was internally consistent.
+
+⚠️ **Invariant 72: an audit may never have a silent skip.** Every subject lands in
+exactly one named bucket, every bucket is counted on screen, and the totals are
+printed so they can be checked by eye. "Could not be examined" and "passed" are
+opposite findings and must never render identically. The rewritten panel shows
+correct / inflated / under-counted / no-stats-doc / unverifiable / read-error /
+no-logged-days, and flags it in red if they fail to sum to the roster.
+
+⚠️ **Invariant 73: a constant copied from another file must be tested against that
+file, not against your reading of it.** The Monday anchor was not a typo — it was
+a confident assumption never checked against the source twelve feet away.
+
+### 7.3 What is still not verifiable
+
+Unchanged from §5.2 and worth restating because it now bounds the repair: if a
+student hit the additive merge on a day when their stats doc had **already** been
+written that day, the day counter doubled too, and that value went into
+`typing_logs` — which is the audit's yardstick. Those days look self-consistent
+and are counted as correct.
+
+Session rollups are the independent check where they exist: all Library days, and
+School only from 2026-08-18. **For School days before 2026-08-18 there is no
+second record and there never will be.** If those daily figures matter, they have
+to be judged against what a period can physically contain.

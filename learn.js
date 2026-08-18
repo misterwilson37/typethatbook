@@ -1,4 +1,8 @@
-// learn.js v2.6.0
+// learn.js v2.7.0
+//
+// v2.7.0 — ⚠️ THE STATS ROLLUP NOW SHARES A WRITE TRIGGER WITH THE DAILY LOG.
+//          Same change as game.js v3.23.0; read the block above the write.
+//
 //
 // Lesson-mode engine, separate from game.js. Same write-ahead-log and
 // coalesced-flush persistence pattern.
@@ -158,7 +162,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.6.0";
+const LEARN_VERSION = "2.7.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -3603,8 +3607,37 @@ async function _flushStatsInner(reason, final = false) {
         }, { merge: true });
     } catch (e) { ok = false; console.warn(`Log flush failed (${reason}):`, e); }
 
-    // Week/day rollup — only read at page load, so session-end is soon enough.
-    if (final && learnStatsDocDirty) {
+    // Week/day rollup.
+    //
+    // ⚠️ WRITTEN ON THE SAME TRIGGER AS THE DAILY LOG ABOVE, DELIBERATELY, AND
+    // THIS IS NOT NEGOTIABLE. (v2.7.0)
+    //
+    // Until now this was gated on `final` while the daily log was gated on
+    // `walDirty || final`. Two documents holding THE SAME NUMBERS, written on
+    // DIFFERENT SCHEDULES. That is not a lag; it is a guarantee of divergence,
+    // and every symptom Jake saw on 2026-08-18 came out of it:
+    //
+    //   * Roughly half of ninety students had no stats document AT ALL, because
+    //     a `final` flush depends on a page-hide gap or a deliberate exit and a
+    //     child who closes a Chromebook lid mid-sentence produces neither. Their
+    //     week counter was being reconstructed from localStorage alone, so it
+    //     changed on every refresh and matched nothing.
+    //   * Those who did have one had a value from whenever their last final
+    //     flush happened to land, which is why reports and the HUD disagreed for
+    //     students with no corruption at all.
+    //
+    // ⚠️ DO NOT RE-GATE THIS ON `final` TO SAVE WRITES. The saving is about one
+    // write per five minutes of active typing — roughly +7/student/day, ~900/day
+    // across Ellis, comfortably inside the free tier, and about $7/year even at
+    // the full district population SCALE-PLAN models. Round 11 traded this away
+    // for ~$85/year on the reasoning that the rollup "is only ever read at page
+    // load and the WAL now covers it anyway". The first half was true. The second
+    // half assumed a WAL that always survives, on hardware shared between
+    // students, and it does not.
+    //
+    // The rule this encodes: TWO RECORDS OF THE SAME QUANTITY MUST SHARE A WRITE
+    // TRIGGER, or they will disagree and no amount of auditing will keep up.
+    {
         try {
             await setDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'),
                          statsData, { merge: true });

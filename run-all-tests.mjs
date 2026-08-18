@@ -51,6 +51,7 @@ const FAST = [
     ['about-render-test.mjs',    'About panel segments, headings, credit injection'],
     ['anon-ladder-test.mjs',     'guest login ladder: rungs, the no-third-prompt rule, coalescing guards'],
     ['session-merge-test.mjs',   'the guest/expired-session stats merge, and session-log rollup dating'],
+    ['week-anchor-test.mjs',     'the report audit and the app agree on where the school week starts'],
     ['class-create-test.mjs',    'class name matching and the shared CSV class-creation path'],
     ['roster-filter-test.mjs',   'Students-tab date range: the Saturday week boundary and the status line'],
 ];
