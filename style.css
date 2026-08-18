@@ -1,4 +1,12 @@
-/* TypeThatBook style.css v3.5.2 */
+/* TypeThatBook style.css v3.5.3 */
+/* v3.5.3: REVERTS v3.5.1's `min-height: 60px` on #hud back to `height`. On a
+           single-line flex container min-height leaves the cross size INDEFINITE,
+           so the line collapses to the tallest item (29px) and parks at the top
+           while the box stretches to 60px beneath it — align-items:center then
+           centres everything inside that 29px line, 14px high. Measured: section
+           tops 4.5 / 4.0 / -0.5 where 18.5 / 18.0 / 13.5 was expected. The
+           clipping min-height was guarding against is fixed at source by v3.5.1's
+           nowrap and v3.5.2's #user-info row instead. See the block at #hud. */
 /* v3.5.2: #user-info had NO RULE IN THIS FILE, so it was a block div wrapping a
            column div plus a button — three stacked lines, ~66px, taller than the
            60px bar. That inflated the whole HUD, clipped the student's name
@@ -34,7 +42,7 @@
    line 1, not this, so nothing caught it and the build banner was right by luck.
    A file carrying its version twice has to have both updated or the redundancy is
    worse than none: it gives a wrong answer confidently. Update BOTH. */
-body::before { content: "v3.5.2"; display: none; }
+body::before { content: "v3.5.3"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -66,14 +74,23 @@ body {
 
 /* --- HUD --- */
 #hud {
-    /* ⚠️ min-height, NOT height (v3.5.1). A fixed 60px does not stop content
-       being taller than 60px — it only stops you SEEING that it is. With
-       `align-items: center` the overflow splits top and bottom, so the first line
-       of a two-line section is clipped by the top of the viewport: at Ellis the
-       student's name was sliced in half horizontally and the class name and
-       (Logout) sat where the name should be. min-height means a HUD that somehow
-       grows looks slightly tall instead of eating its own first row. */
-    min-height: 60px;
+    /* ⚠️ height, NOT min-height — AND THIS IS NOT AN OVERSIGHT (v3.5.3).
+       v3.5.1 changed this to `min-height: 60px` as a guard against content ever
+       being clipped again. It introduced a worse bug. With `height: auto`, a
+       SINGLE-LINE flex container's cross size resolves to the tallest item — here
+       29px — and `min-height` then stretches the BOX to 60px afterwards. The line
+       does not stretch with it. So the line sat 29px tall at the top of a 56px
+       content box with 27px of dead space below, and `align-items: center`
+       faithfully centred every section inside that 29px line: measured tops of
+       4.5 / 4.0 / -0.5 against an expected 18.5 / 18.0 / 13.5. Everything looked
+       top-aligned because everything WAS, by 14px.
+       A definite height makes the cross size definite, which is the only reason
+       the line fills the box and centring works at all.
+       ⚠️ Do not "harden" this back to min-height. The clipping it was guarding
+       against is now fixed at its source instead: nowrap on the sections, one
+       designated shrinker, and #user-info laid out as a row (v3.5.2) so nothing
+       in here exceeds ~30px in the first place. */
+    height: 60px;
     padding: 0 20px;
     background: var(--black);
     color: white;
