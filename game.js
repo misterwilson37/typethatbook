@@ -1,4 +1,21 @@
-// game.js v3.27.0
+// game.js v3.27.1
+//
+// v3.27.1 — TWO STUDENT-REPORTED FIXES. (1) THE AI-PRACTICE VARIETY FLOOR:
+//           startPracticeMode()/getMissedCharsHTML() now require at least
+//           PRACTICE_MIN_QUALIFYING_CHARS (3) DIFFERENT characters, each missed
+//           at least PRACTICE_CHAR_MISS_THRESHOLD (3) times, before the ✨
+//           Practice button offers or the Gemini call fires. Before this, a
+//           single missed letter — Jake's example was "F" and "J", with only F
+//           really qualifying — could produce an AI paragraph "focused on" one
+//           dominant, common letter: fast and easy to type, free banked time,
+//           not remediation. Server-side floor is index.js v1.7.0, which also
+//           moved input validation ahead of the daily-limit reservation so a
+//           rejected request no longer burns one of the student's 5 slots.
+//           (2) THE HUD LONG-FORM CLIP: hud.js v1.2.0's new `long` flag drives
+//           a `.hud-time-long` class (smaller font) and a `title` attribute
+//           (full-string tooltip) on #hud-time, so the combined Sprint+Daily
+//           form — 40+ characters — ellipsises instead of silently hard-
+//           clipping past the section boundary. See style.css v3.5.5.
 //
 // v3.27.0 — VERSION FOOTER REDESIGN. #footer-primary always shows game.html /
 //           game.js / style.css — the three files most likely to explain what
@@ -233,7 +250,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.27.0";
+const VERSION = "3.27.1";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1189,6 +1206,27 @@ let hasDonePractice = false;        // whether practice has been used this sessi
 let practiceRemainingToday = null;
 const PRACTICE_FIRST_UNLOCK = 150;  // 2.5 min before first practice
 const PRACTICE_COOLDOWN = 60;       // 1 min between subsequent practices
+// ⚠️ THE VARIETY FLOOR (v3.27.1). Before this, ANY single missed character —
+// even one miss, one letter — could unlock the AI-generated paragraph once the
+// time gate passed. Jake reported students requesting practice after missing
+// only "F" and "J", and the generated paragraph came back weighted so heavily
+// toward "F" (the far commoner letter) that it was trivially fast and accurate
+// to type — free banked time for barely any real remediation. Mirrors the
+// per-character threshold learn.js's buildRemediationLinks() already uses
+// (`n >= 3`) for its own "Practice missed keys" button, now applied here too,
+// PLUS a minimum on how many DIFFERENT characters must clear that bar — a
+// single letter missed 20 times still is not "a few tricky letters," it's one.
+const PRACTICE_CHAR_MISS_THRESHOLD = 3;  // a char must be missed this many times to "count"
+const PRACTICE_MIN_QUALIFYING_CHARS = 3; // and at least this many different chars must qualify
+// Both gates are checked in TWO places, on purpose — getMissedCharsHTML() so
+// the button is never even shown before the pattern is real, and
+// startPracticeMode() so nothing that calls it directly (a bug, a stray event
+// handler, a bypassed UI) can skip the check the button itself enforces.
+function _qualifyingPracticeChars() {
+    return Object.entries(missedCharsMap)
+        .filter(([ch, count]) => count >= PRACTICE_CHAR_MISS_THRESHOLD)
+        .sort((a, b) => b[1] - a[1]);
+}
 
 // Profanity filter for initials (covers letter substitutions kids try)
 const BLOCKED_INITIALS = new Set([
@@ -2515,6 +2553,13 @@ function updateTimerUI() {
         // went long left the readout orange for the rest of the period.
         timerDisplay.style.color = hud.overtime ? '#FFA500'
                                  : (hud.dailyDone ? '#22c55e' : 'white');
+        // ⚠️ v3.27.1 — hud.long marks the combined Sprint+Daily form, which can
+        // run 40+ characters. .hud-time-long shrinks the font (style.css); the
+        // title attribute is the fallback for the rare window narrow enough
+        // that it still ellipsises even at the smaller size. See style.css's
+        // block at #hud-time for why this doesn't touch #hud's fixed height.
+        timerDisplay.classList.toggle('hud-time-long', !!hud.long);
+        timerDisplay.title = hud.left;
     }
     if (hud.overtime) isOvertime = true;
 
@@ -4340,17 +4385,25 @@ function getMissedCharsHTML() {
         `<span style="display:inline-block; background:#fff0f0; border:1px solid #ffcccc; border-radius:3px; padding:1px 6px; margin:0 2px; font-weight:bold; color:#D32F2F;">${ch} <small style="color:#999;">×${count}</small></span>`
     ).join('');
     const canPractice = currentUser && !currentUser.isAnonymous && !isPracticeMode;
+    // ⚠️ THE VARIETY FLOOR (v3.27.1) — see its definition above. Checked BEFORE
+    // the time-based readiness gate, and on a miss it shows NEITHER the button
+    // NOR the "unlocks after..." countdown: that countdown was true only of the
+    // time gate, and showing it while the variety gate is still unmet would
+    // read as "keep typing and it'll unlock," which isn't the whole truth and
+    // isn't something to spell out — the fix is missing fewer, different
+    // letters, not typing more.
+    const hasVariety = _qualifyingPracticeChars().length >= PRACTICE_MIN_QUALIFYING_CHARS;
     const practiceThreshold = hasDonePractice ? PRACTICE_COOLDOWN : PRACTICE_FIRST_UNLOCK;
     const practiceReady = practiceTypingAccumulator >= practiceThreshold;
     const outOfPractice = (practiceRemainingToday !== null && practiceRemainingToday <= 0);
     let practiceBtn = '';
-    if (canPractice && outOfPractice) {
+    if (canPractice && hasVariety && outOfPractice) {
         // Known-exhausted. Saying so here beats letting them click, wait, and
         // read an error — and "comes back tomorrow" is the bit that matters.
         practiceBtn = ` <span style="font-size:0.85em; color:#aaa;">\u2728 Practice comes back tomorrow</span>`;
-    } else if (canPractice && practiceReady) {
+    } else if (canPractice && hasVariety && practiceReady) {
         practiceBtn = ` <button id="practice-btn" class="practice-btn" title="AI-generated practice focusing on your weak spots">\u2728 Practice</button>`;
-    } else if (canPractice && !practiceReady) {
+    } else if (canPractice && hasVariety && !practiceReady) {
         // The counter only advances while keys are being pressed, so "keep
         // typing" is literally the instruction — the old wording implied waiting
         // would do it. Seconds below a minute, because ceil() turned 5 seconds
@@ -7409,9 +7462,15 @@ function startTestText(text, label) {
 async function startPracticeMode() {
     if (isPracticeMode) return;
 
-    // Get the problem characters from the current session
-    const entries = Object.entries(missedCharsMap).sort((a,b) => b[1] - a[1]).slice(0, 5);
-    if (entries.length === 0) return;
+    // Get the problem characters from the current session. ⚠️ VARIETY FLOOR
+    // (v3.27.1) — same gate getMissedCharsHTML() applies before ever showing
+    // the button, checked again here so nothing that reaches this function
+    // directly can skip it. practiceProblemChars is built from QUALIFYING
+    // characters only (each missed at least PRACTICE_CHAR_MISS_THRESHOLD
+    // times), not the top 5 regardless of count — a paragraph "focused on"
+    // one dominant letter and four barely-missed ones was the whole bug.
+    const entries = _qualifyingPracticeChars().slice(0, 5);
+    if (entries.length < PRACTICE_MIN_QUALIFYING_CHARS) return;
     practiceProblemChars = entries.map(([ch]) => ch);
 
     // Get a text snippet for style reference (first 500 chars of current chapter)

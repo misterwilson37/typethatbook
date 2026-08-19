@@ -63,6 +63,60 @@ Jake, watching the actual page, caught it.
    should never have had — `session-log.js`, `stats-wal.js` and `hud.js` were
    missing from its `SOURCES` mirror since the round each was added there.
    Found while adding the two new html entries. v1.1.0.
+4. **The AI-practice variety floor.** A student had missed "F" and "J" —
+   really just F, in any quantity that mattered — and the ✨ Practice button's
+   Gemini paragraph came back so F-heavy it was trivially fast and accurate to
+   type: free banked time, not remediation. `game.js`'s
+   `getMissedCharsHTML()`/`startPracticeMode()` now require
+   `PRACTICE_MIN_QUALIFYING_CHARS` (3) DIFFERENT characters, each missed at
+   least `PRACTICE_CHAR_MISS_THRESHOLD` (3) times, before the button offers or
+   the call fires — mirrors the `n >= 3` per-character convention
+   `learn.js`'s `buildRemediationLinks()` already used, adds the missing
+   distinct-count floor on top. **Enforced server-side too**, in
+   `index.js`'s `generatePractice()` — deduplicated exact-match count of
+   `problemChars` must clear the same floor, because the callable is reachable
+   directly from devtools regardless of what the button does. ⚠️ **While
+   fixing this, found and fixed a real ordering bug**: input validation used
+   to run *after* the daily-limit transaction reserved a slot, so a rejected
+   request burned one of the student's 5 daily sessions for nothing. Moved
+   validation first. `game.js` v3.27.1, `index.js` v1.7.0.
+   
+   **Not yet done, flagged for Jake:** School's own "🎲 Practice missed keys"
+   (`learn.js`'s `buildRemediationLinks()`) has the same shape of gap — it
+   already requires `n >= 3` per letter but not 3 *different* qualifying
+   letters, so a single-letter synthetic drill is still reachable there.
+   Different risk profile (a random-key drill, not an AI essay one common
+   letter can dominate), so left alone rather than changed without being
+   asked.
+5. **The HUD long-form clip.** `hud.js`'s combined Sprint+Daily form
+   ("Sprint 29:59 / 30:00 (Daily 119:55 / 120:00)") runs 40+ characters and
+   was silently hard-clipping at `.hud-section.left`'s boundary — no ellipsis,
+   no way to see what was cut, because `#hud-time` had no overflow handling of
+   its own. `hud.js` now returns `long: showSprint` (v1.2.0); `game.js` and
+   `learn.js` use it to toggle a `.hud-time-long` class (smaller font) and set
+   a `title` attribute (full-string tooltip) on `#hud-time`. `style.css`
+   (v3.5.5) makes `#hud-time` the designated shrinker, same pattern
+   `#hud-lesson-label` already used, and pins `#trophy-btn` /
+   the new `#hud-back-link` id against shrinking so they're never what gives.
+   ⚠️ **Considered and rejected: a real second line.** `style.css`'s own
+   header carries three rounds of hard-won bugs (v3.5.1–v3.5.3) from this
+   exact bar wrapping — reopening variable height for this felt like the
+   wrong trade against a safer fix that solves the actual complaint (silent,
+   invisible clipping) without touching `#hud`'s fixed 60px height at all.
+   `game.js` v3.27.1, `learn.js` v2.11.1, `hud.js` v1.2.0, `style.css` v3.5.5,
+   `game.html` v1.1.0. Pin update: `hud-test.mjs` v1.1.0, new B-section
+   assertions for the `long` flag.
+
+⚠️ **NEW LOGIC THIS ROUND HAS NO HARNESS COVERAGE.** Items 4 and 5's DOM-level
+wiring (`getMissedCharsHTML()`'s button gating, the `.hud-time-long` class
+toggle) live inside `game.js`/`learn.js`'s monolith and aren't extracted into
+a testable pure module the way `hud.js`/`session-log.js` are. `hud-test.mjs`
+covers the new `long` flag itself (it's pure, in `hud.js`), and
+`index.js`'s server-side variety floor is at least type-checked by
+`node --check`, but nothing exercises the actual gating logic end to end. If
+this becomes a pattern worth trusting, it's a candidate for extraction next
+round — not done here because it wasn't asked for and would have widened this
+round's diff considerably.
 
 ⚠️ **A LESSON FOR THE NEXT ROUND, NOT JUST A LOG LINE.** A comment describing
 what a function call does is not evidence the call exists. Both defects this
@@ -164,10 +218,10 @@ Run `node audit-versions.mjs`; do not trust this table either.
 
 | file | version |
 |---|---|
-| `game.js` | 3.27.0 |
-| `learn.js` | 2.11.0 |
+| `game.js` | 3.27.1 |
+| `learn.js` | 2.11.1 |
 | `session-log.js` | 1.2.1 |
-| `hud.js` | 1.1.0 |
+| `hud.js` | 1.2.0 |
 | `stats-wal.js` | shared module — check the constant |
 | `versions.js` | 1.7.0 |
 | `keyboard.js` | 1.1.1 |
@@ -178,9 +232,10 @@ Run `node audit-versions.mjs`; do not trust this table either.
 | `reports.html` | 2.11.0 |
 | `firebase-config.js` | 1.2.0 |
 | `firestore.rules` | 2.3.0 |
-| `style.css` | 3.5.4 |
-| `game.html` | 1.0.0 — new in Round 15, see §0.5 |
+| `style.css` | 3.5.5 |
+| `game.html` | 1.1.0 — new in Round 15, see §0.5 |
 | `learn.html` | 1.0.0 — new in Round 15, see §0.5 |
+| `index.js` | 1.7.0 — Cloud Function, NOT deployable from this repo; Jake mirrors it into the console by hand. See its own header. |
 
 `npm test` → **23 of 24 harnesses pass.** The only failure is `metadata-map-test.mjs`
 (42 of 487 assertions), pre-existing and unrelated — §6.

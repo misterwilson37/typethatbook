@@ -1,4 +1,16 @@
-// learn.js v2.11.0
+// learn.js v2.11.1
+//
+// v2.11.1 — HUD LONG-FORM WIRING. ⚠️ SAME AS game.js v3.27.1's HUD half: hud.js
+//           v1.2.0's new `long` flag now drives a `.hud-time-long` class and a
+//           `title` attribute on #hud-time here too, kept in lockstep even
+//           though School's sprintLimit is hardcoded to 0 (so `long` is always
+//           false today) — see the comment at renderTimeHUD()'s hudTimer block.
+//           No AI-practice equivalent needed here: School's "🎲 Practice missed
+//           keys" (buildRemediationLinks()) builds a synthetic key drill, not a
+//           Gemini paragraph, and already requires each letter to clear n >= 3
+//           — it does NOT yet require 3 DIFFERENT qualifying letters the way
+//           game.js's variety floor now does. Flagged for Jake, not changed
+//           here without being asked.
 //
 // v2.11.0 — VERSION FOOTER REDESIGN. ⚠️ SAME AS game.js v3.27.0: #footer-primary
 //           always shows learn.html/learn.js/style.css; #footer-full is the rest
@@ -236,7 +248,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.11.0";
+const LEARN_VERSION = "2.11.1";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -3662,6 +3674,14 @@ function renderTimeHUD() {
     if (hudTimer) {
         hudTimer.textContent = hud.left;
         hudTimer.style.color = hud.dailyDone ? '#22c55e' : '';
+        // ⚠️ v2.11.1 — SAME AS game.js's updateTimerUI(). hud.long is always
+        // false here today (sprintLimit is hardcoded to 0 above — School has no
+        // per-run time target), but kept in lockstep on purpose: hud.js's
+        // header is explicit that this readout must stay identical on both
+        // pages, and a future School sprint feature shouldn't silently reopen
+        // the truncation bug game.js just got fixed for.
+        hudTimer.classList.toggle('hud-time-long', !!hud.long);
+        hudTimer.title = hud.left;
     }
     const weekEl = document.getElementById('hud-week');
     if (weekEl) {

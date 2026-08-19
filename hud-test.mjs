@@ -1,5 +1,7 @@
-// hud-test.mjs v1.0.1
+// hud-test.mjs v1.1.0
 //
+// v1.1.0 — version pin follows hud.js to 1.2.0. Added B tests for the new
+//          `long` flag hudStrings() now returns.
 // v1.0.1 — version pin follows hud.js to 1.1.0. ⚠️ THIS IS THE THIRD PIN IN THE
 //          SUITE (the others are on session-log.js, in session-merge-test.mjs and
 //          open-unit-test.mjs Part D). Invariant 55: pins come in sets.
@@ -22,7 +24,7 @@ let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; } else { fail++; console.log('  FAIL: ' + msg); } };
 
 console.log('\n─── A. formatting ───');
-ok(HUD_VERSION === '1.1.0', `hud.js reports v1.1.0 (got ${HUD_VERSION})`);
+ok(HUD_VERSION === '1.2.0', `hud.js reports v1.2.0 (got ${HUD_VERSION})`);
 ok(fmt(0) === '0:00', 'zero is 0:00');
 ok(fmt(7) === '0:07', 'seconds are padded (0:07, never 0:7)');
 ok(fmt(562) === '9:22', '562 seconds is 9:22');
@@ -43,6 +45,27 @@ console.log('\n─── B. the two readouts ───');
     ok(h.left === 'Sprint 0:27 / 0:30 (Daily 9:22 / 10:00)',
        `the sprint layout is exact — got "${h.left}"`);
     ok(h.right === 'Weekly 9:22 / 50:00', `the week layout is exact — got "${h.right}"`);
+}
+
+// ⚠️ `long` (v1.2.0) — true only for the combined Sprint+Daily form, which is
+// the one that runs long enough to hit #hud-time's ellipsis in style.css.
+// Daily-alone is never `long`, no matter how big its own numbers get — it's
+// shorter than the combined form even at three-digit hours, and the bug this
+// flag exists for was specifically the sprint case's parenthetical getting
+// clipped.
+{
+    const withSprint = hudStrings({ sprintSeconds: 27, sprintLimit: 30,
+                           todaySeconds: 562, dailyGoal: 600, weekSeconds: 562, weeklyGoal: 3000 });
+    ok(withSprint.long === true, 'the combined Sprint+Daily form is `long`');
+
+    const noSprintLimit = hudStrings({ sprintSeconds: 0, sprintLimit: 'infinity',
+                           todaySeconds: 562, dailyGoal: 600, weekSeconds: 900, weeklyGoal: 3000 });
+    ok(noSprintLimit.long === false, 'Daily alone is never `long`, even with large totals');
+
+    const bigDailyAlone = hudStrings({ todaySeconds: 7195, dailyGoal: 7200,
+                           weekSeconds: 900, weeklyGoal: 3000 });
+    ok(bigDailyAlone.long === false,
+       `Daily alone stays \`long: false\` even at 119:55 / 120:00 — got ${bigDailyAlone.long}`);
 }
 
 // ⚠️ NO SPRINT LIMIT → DAILY ALONE, IN THE SAME POSITION. This is School's case

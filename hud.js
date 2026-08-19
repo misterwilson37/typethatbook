@@ -1,4 +1,12 @@
-// hud.js v1.1.0
+// hud.js v1.2.0
+//
+// v1.2.0 — hudStrings() now returns `long: showSprint` alongside the strings.
+//          `left` runs to 40+ characters in the combined Sprint+Daily form
+//          ("Sprint 29:59 / 30:00 (Daily 119:55 / 120:00)"), which was silently
+//          hard-clipping inside #hud-time's fixed-width, nowrap, overflow:hidden
+//          flex third — no ellipsis, no way to see what was cut. Callers use the
+//          flag to switch to a smaller font and add an ellipsis+title fallback;
+//          hud.js still touches no DOM and decides nothing about how it's shown.
 //
 // v1.1.0 — hudCacheSave()/hudCacheLoad(): the last-known readout, so a page does
 //          not open at 0:00 while Firestore is still being read. ⚠️ DISPLAY ONLY
@@ -61,7 +69,7 @@
 // returns text and flags; each page writes them where it keeps them. It is also
 // then a pure function, so `hud-test.mjs` drives the real code with no jsdom.
 
-export const HUD_VERSION = '1.1.0';
+export const HUD_VERSION = '1.2.0';
 
 // m:ss. Not padded on minutes — `9:22` reads faster than `09:22` and a student's
 // day does not reach three digits. Seconds ALWAYS padded, or 9:7 appears.
@@ -88,8 +96,13 @@ function pair(elapsed, goal) {
 //   weekSeconds    statsData.secondsWeek
 //   weeklyGoal     goals.weeklySeconds
 //
-// Returns { left, right, dailyDone, weeklyDone, overtime }. The flags are for
-// colour; the caller owns colour because the two pages theme differently.
+// Returns { left, right, dailyDone, weeklyDone, overtime, long }. The flags are
+// for colour; the caller owns colour because the two pages theme differently.
+// `long` (v1.2.0) is for layout, not colour: true whenever `left` is the
+// combined Sprint+Daily form, which can run to 40+ characters
+// ("Sprint 29:59 / 30:00 (Daily 119:55 / 120:00)") — noticeably longer than
+// Daily alone. See the callers for what they do with it; hud.js stays DOM-free
+// and never sizes anything itself.
 export function hudStrings(state) {
     const st = state || {};
     const today = Math.max(0, Math.round(st.todaySeconds || 0));
@@ -122,6 +135,8 @@ export function hudStrings(state) {
         // Past the sprint target. Library colours the readout for this; the
         // sprint is not stopped, and never has been.
         overtime: showSprint && sprint >= limit,
+        // v1.2.0 — see the header on hudStrings() above.
+        long: showSprint,
     };
 }
 

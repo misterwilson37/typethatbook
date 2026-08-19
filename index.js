@@ -1,8 +1,19 @@
-// index.js v1.6.0 — Cloud Functions source. generatePractice() is the ONLY
+// index.js v1.7.0 — Cloud Functions source. generatePractice() is the ONLY
 // export, and now that is enforced by the file rather than asserted by a comment.
 // NOT deployable from this repo: it needs `firebase deploy`, and Jake has no CLI.
 // Treat this file as the record of what is running, and bump this line whenever
 // the deployed function changes.
+//
+// v1.7.0 — THE VARIETY FLOOR. A session needs at least 3 DIFFERENT missed
+//          characters (each missed enough times to count, deduped exactly) before
+//          generatePractice() will run at all — previously any single missed
+//          character, even once, could produce a paragraph "focused on" one
+//          letter once the time gate passed. Also moved input validation ahead
+//          of the daily-limit reservation, so a rejected request no longer costs
+//          the student one of their 5 slots. Client-side half of the fix is in
+//          game.js's getMissedCharsHTML()/startPracticeMode() — this is the
+//          server-side floor under it, since this function is a direct callable
+//          reachable from devtools regardless of what the button does.
 //
 // v1.6.0 — Deleted ~360 lines: the seven abandoned custom-claims functions that
 //          no client called and no security rule consulted. See the block below
@@ -83,7 +94,49 @@ exports.generatePractice = onCall(
     }
     const uid = request.auth.uid;
 
-    // 2. Rate limit: 5 per user per day.
+    // 2. Validate input. ⚠️ MOVED AHEAD OF THE RATE-LIMIT RESERVATION (v1.7.0)
+    // — it used to run after step 2 reserved a daily slot, which meant a
+    // malformed or under-qualified request burned one of the student's 5 for
+    // nothing before ever reaching Gemini. Step 2's own comment explains why a
+    // GENERATION failure should still cost a slot (it's the only way to stop
+    // "trigger failures to dodge the cap" as an exploit against real spend);
+    // that reasoning doesn't apply here — this is free, synchronous, and
+    // happens before any Firestore write, so rejecting bad input costs the
+    // student nothing.
+    const { problemChars, bookTitle, chapterTitle, textSnippet } = request.data;
+    if (!problemChars || !Array.isArray(problemChars) || problemChars.length === 0) {
+      throw new HttpsError("invalid-argument", "No problem characters provided.");
+    }
+
+    // Sanitize inputs (prevent prompt injection)
+    const safeChars = problemChars.slice(0, 8).map(c => String(c).substring(0, 10));
+    const safeTitle = String(bookTitle || "a book").substring(0, 200);
+    const safeChapter = String(chapterTitle || "").substring(0, 200);
+    const safeSnippet = String(textSnippet || "").substring(0, 500);
+
+    // ⚠️ THE VARIETY FLOOR (v1.7.0). game.js's getMissedCharsHTML() and
+    // startPracticeMode() already hold the client to this — a session must
+    // have missed at least MIN_PROBLEM_CHARS DIFFERENT characters (each one
+    // deduped exactly, not case-folded — "F" and "f" are different keys to
+    // hit) before the button even offers to call this. But that check runs in
+    // a browser a student can open devtools on, and this function is exposed
+    // as a direct callable — nothing stops a request built by hand with
+    // `problemChars: ["f","f","f"]`, which is 3 elements and 1 real letter.
+    // Enforced here too, on the deduplicated set actually going into the
+    // prompt, so a single dominant letter can never again be the entire
+    // "focus" of a generated paragraph. Reported by Jake: a student who'd
+    // missed "F" and "J" got a paragraph so F-heavy it was free banked time
+    // for one letter, not remediation.
+    const MIN_PROBLEM_CHARS = 3;
+    const uniqueChars = new Set(safeChars);
+    if (uniqueChars.size < MIN_PROBLEM_CHARS) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Practice needs at least ${MIN_PROBLEM_CHARS} different tricky letters — keep typing and it'll unlock.`
+      );
+    }
+
+    // 3. Rate limit: 5 per user per day.
     //
     // ⚠️ READ AND WRITE IN ONE TRANSACTION. This used to read the count, generate
     // the paragraph, then write count + 1 — a read-modify-write with a multi-second
@@ -118,18 +171,6 @@ exports.generatePractice = onCall(
         `You've used all ${DAILY_LIMIT} practice sessions for today. Try again tomorrow!`
       );
     }
-
-    // 3. Validate input
-    const { problemChars, bookTitle, chapterTitle, textSnippet } = request.data;
-    if (!problemChars || !Array.isArray(problemChars) || problemChars.length === 0) {
-      throw new HttpsError("invalid-argument", "No problem characters provided.");
-    }
-
-    // Sanitize inputs (prevent prompt injection)
-    const safeChars = problemChars.slice(0, 8).map(c => String(c).substring(0, 10));
-    const safeTitle = String(bookTitle || "a book").substring(0, 200);
-    const safeChapter = String(chapterTitle || "").substring(0, 200);
-    const safeSnippet = String(textSnippet || "").substring(0, 500);
 
     // 4. Build prompt
     const charList = safeChars.map(c => {

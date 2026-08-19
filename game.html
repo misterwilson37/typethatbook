@@ -1,8 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- game.html v1.0.0 — versioned the same way style.css is: a comment near
-         the top, parsed by versions.js. Bump when this file's markup changes. -->
+    <!-- game.html v1.1.0 — versioned the same way style.css is: a comment near
+         the top, parsed by versions.js. Bump when this file's markup changes.
+         v1.1.0: gave the back link id="hud-back-link" so style.css can pin it
+         against shrinking without a fragile positional selector — needed for
+         the #hud-time long-form ellipsis fix (see style.css v3.5.5). -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TypeThatBook v3.5.0</title>
@@ -15,7 +18,7 @@
     
     <div id="hud">
         <div class="hud-section left">
-            <a href="index.html" style="color:#999; text-decoration:none; margin-right:12px; font-size:13px;" title="Back to Library">← Library</a>
+            <a id="hud-back-link" href="index.html" style="color:#999; text-decoration:none; margin-right:12px; font-size:13px;" title="Back to Library">← Library</a>
             <button id="trophy-btn" class="hidden" style="background:none; border:none; color:#FFD700; font-size:1.1em; cursor:pointer; margin-right:10px; padding:0;" title="Leaderboard">🏆</button>
             <!-- ⚠️ ONE SLOT, ONE MEANING. (v3.9.0) This used to be three elements
                  whose combined meaning changed with the session-length setting:

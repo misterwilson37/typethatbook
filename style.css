@@ -1,4 +1,8 @@
-/* TypeThatBook style.css v3.5.4 */
+/* TypeThatBook style.css v3.5.5 */
+/* v3.5.5: #hud-time ellipsises instead of hard-clipping when hud.js's combined
+           Sprint+Daily form runs long; .hud-time-long shrinks its font for that
+           same case. #trophy-btn and the new #hud-back-link id join the
+           never-shrink furniture list. See the block at #hud-time. */
 /* v3.5.4: #footer-full build-info panel — hover (mouse) or .pinned (touch) reveals
            it above the version footer on game.html/learn.html. See versions.js
            and the footer-render code in game.js/learn.js for the JS half. */
@@ -45,7 +49,7 @@
    line 1, not this, so nothing caught it and the build banner was right by luck.
    A file carrying its version twice has to have both updated or the redundancy is
    worse than none: it gives a wrong answer confidently. Update BOTH. */
-body::before { content: "v3.5.4"; display: none; }
+body::before { content: "v3.5.5"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -133,8 +137,14 @@ body {
 }
 .hud-section.left { justify-content: flex-start; }
 /* Fixed-width furniture: these must never shrink, or the timer and the goal
-   start losing digits, which is worse than a truncated lesson title. */
-#back-btn, #hud-timer, #hud-daily-goal, #learn-restart-btn { flex: 0 0 auto; }
+   start losing digits, which is worse than a truncated lesson title.
+   ⚠️ #hud-timer and #hud-daily-goal are DEAD IDS — no longer in either page's
+   markup since hud.js consolidated the readout (v3.25.0) — kept here rather
+   than removed because deleting a selector nobody's using is a one-line PR
+   nobody will ever prioritize; harmless either way. #trophy-btn and
+   #hud-back-link (v3.5.5) are the CURRENT furniture on game.html's left
+   section; #back-btn already covered learn.html's. */
+#back-btn, #hud-timer, #hud-daily-goal, #learn-restart-btn, #trophy-btn, #hud-back-link { flex: 0 0 auto; }
 /* The designated shrinker. Lesson titles are author-supplied and unbounded
    ("G and H — Index Fingers Reach In"), so this is the right thing to ellipsis.
    learn.js sets a title attribute alongside the text so the full name is still
@@ -145,6 +155,30 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+/* ⚠️ v3.5.5 — #hud-time NOW ELLIPSISES INSTEAD OF SILENTLY HARD-CLIPPING.
+   hud.js's combined Sprint+Daily form ("Sprint 29:59 / 30:00 (Daily 119:55 /
+   120:00)") runs 40+ characters, and until now #hud-time had no overflow
+   handling of its own — the whole .hud-section.left container clipped at ITS
+   boundary instead, so the tail of the string (which is always the Daily
+   figure, in parentheses) vanished with no ellipsis and no way to see it.
+   Reported by Jake. Fixed two ways, same as #hud-lesson-label's established
+   pattern: #hud-time is now the thing that shrinks and ellipsises, and
+   game.js/learn.js additionally shrink the FONT (.hud-time-long, below) for
+   the combined form specifically, so in most realistic window widths it never
+   needs to truncate at all. Both pages also set a `title` attribute to the
+   full string now, so a hover always shows what's cut, same as the lesson
+   label already did. ⚠️ STILL SINGLE-LINE, STILL A FIXED-HEIGHT #hud (v3.5.3)
+   — nothing here reintroduces wrapping. Ellipsis-with-nowrap is not the
+   two-line bug v3.5.1 was; it cannot grow the bar's height. */
+#hud-time {
+    flex: 0 1 auto;
+    min-width: 0;
+    display: inline-block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+}
+#hud-time.hud-time-long { font-size: 0.85em; }
 .hud-section.center { justify-content: center; font-size: 1.1em; }
 #streak-display { transition: color 0.3s, text-shadow 0.3s; }
 .streak-cold { color: #666; }
