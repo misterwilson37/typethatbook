@@ -119,7 +119,7 @@ including a non-function passed in the slot.
 
 ## §2. Version state
 
-`npm test` → **22 of 23 harnesses pass.** The one failure is the pre-existing
+`npm test` → **23 of 24 harnesses pass.** The one failure is the pre-existing
 `metadata-map-test.mjs`; see §5.
 
 ⚠️ **`npm install` first on a clean container.** The Round 10 `devDependencies`
@@ -132,8 +132,13 @@ the FINAL state — if you uploaded the step-1 files earlier, these supersede th
 | file | version | changed? | upload? |
 |---|---|---|---|
 | `session-log.js` | **1.2.0** | ⚠️ yes — `serverAt` (1.1.0) + the `continuation` floor (1.2.0) | **YES — 1st** |
-| `game.js` | **3.24.0** | ⚠️ yes — `serverTimestamp`, plus delta session writes and the open-sprint closer | **YES — 2nd** |
-| `learn.js` | **2.8.0** | ⚠️ yes — same, plus `logRun()` replacing the inline push in `finishStep()` | **YES — 3rd** |
+| `hud.js` | **1.0.0** | ⚠️ **NEW FILE** — the shared time readout | **YES — 2nd** |
+| `game.js` | **3.25.0** | ⚠️ yes — `serverTimestamp`, delta session writes, open-sprint closer, hud.js, `flushSessionsNow()` | **YES — 3rd** |
+| `learn.js` | **2.9.0** | ⚠️ yes — same, plus `logRun()` replacing the inline push in `finishStep()` | **YES — 4th** |
+| `game.html` | — | ⚠️ yes — one `#hud-time` slot replaces three elements | **YES — 5th** |
+| `learn.html` | — | ⚠️ yes — same slot; also drops the stale `v2.1.0` in title and footer | **YES — 6th** |
+| `versions.js` | **1.6.0** | registers `hud.js` | **YES — 7th** |
+| `hud-test.mjs` | **1.0.0** | ⚠️ **NEW HARNESS** | commit it |
 | `open-unit-test.mjs` | **1.0.0** | ⚠️ **NEW HARNESS** — the delta/watermark logic | commit it |
 | `run-all-tests.mjs` | — | registers the new harness | commit it |
 | `session-merge-test.mjs` | **1.2.0** | yes — `serverAt` assertions, Part C, version pin to 1.2.0 | commit it |
@@ -149,8 +154,14 @@ renders nothing at all. §1.3 explains why the ordering is now *safe* rather tha
 merely *ordered* — either half works alone — but first is still correct, because
 it is the half that carries the feature.
 
-**Deploy check:** Library footer reads `game.js v3.24.0`; Lessons footer reads
-`School v2.8.0`. The grey `ID xxxxxxxx` must still be bottom-left on both — if it
+**Deploy check:** Library footer reads `game.js v3.25.0`; Lessons footer reads
+`School v2.9.0`. ⚠️ **Upload `hud.js` BEFORE either page controller** — both import
+it, and a missing module throws on import and renders nothing at all. Same class of
+hazard as `session-log.js`, same remedy: the module first.
+⚠️ **The two HTML files must go with them.** A new `game.js` against an old
+`game.html` finds no `#hud-time` and renders no clock at all; an old `game.js`
+against a new `game.html` finds no `#timer-display`. Either way the readout goes
+blank, which is visible in one glance and fixed by finishing the upload. The grey `ID xxxxxxxx` must still be bottom-left on both — if it
 is missing, the new code is not running and nothing below applies.
 
 **Then verify the field itself, which is the actual point of this round:** type at

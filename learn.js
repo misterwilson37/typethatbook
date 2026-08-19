@@ -1,4 +1,13 @@
-// learn.js v2.8.0
+// learn.js v2.9.0
+//
+// v2.9.0 — (1) ⚠️ THE TOP-BAR READOUT MOVES TO hud.js AND IS IDENTICAL TO
+//          LIBRARY'S — same element id, same string, same position. School showed
+//          `Today: 9:22` and never showed the current run; Library showed one of
+//          three quantities in the same slot. Both now read
+//          `Daily 9:22 / 10:00` on the left and `Weekly …` on the right, and
+//          renderTimeHUD() is the single writer for both.
+//          (2) ⚠️ QUEUED SESSIONS UPLOAD ON HIDE AND ON pagehide, same as
+//          game.js v3.25.0. See flushSessionsNow().
 //
 // v2.8.0 — ⚠️ THE OPEN RUN IS NOW RECORDED. Same change as game.js v3.24.0 and
 //          shipped with it: a run abandoned halfway (the bell, a lid, a toggle to
@@ -157,6 +166,9 @@ import {
 import {
     sessionLogInit, sessionLogPush, sessionLogFlush, sessionLogPending
 } from "./session-log.js";
+// The time readout, shared with game.js. ⚠️ Both pages render the SAME string in
+// the SAME element id — see hud.js for why that is the whole point.
+import { hudStrings, HUD_VERSION } from "./hud.js";
 import {
     collection, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc,
     // Aggregation query. Firestore bills getCountFromServer at ONE read per up
@@ -181,7 +193,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.8.0";
+const LEARN_VERSION = "2.9.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -455,7 +467,7 @@ const mapProgressEl  = document.getElementById('map-progress-summary');
 const graduateLink   = document.getElementById('graduate-link');
 const backBtn        = document.getElementById('back-btn');
 const hudLessonLabel = document.getElementById('hud-lesson-label');
-const hudTimer       = document.getElementById('hud-timer');
+const hudTimer       = document.getElementById('hud-time');
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 document.getElementById('login-btn').onclick = async () => {
@@ -1650,12 +1662,11 @@ function beginStep(stepIdx) {
             if (goals.weeklySeconds > 0 && !weeklyGoalCelebrated && statsData.secondsWeek >= goals.weeklySeconds) {
                 weeklyGoalCelebrated = true; launchFireworks();
             }
-            // Update HUD timer
-            if (hudTimer) {
-                const m = Math.floor(statsData.secondsToday / 60), s = statsData.secondsToday % 60;
-                hudTimer.textContent = m + ':' + String(s).padStart(2,'0');
-            }
-            updateWeeklyHUD();
+            // ⚠️ ONE CALL DRAWS BOTH SLOTS (v2.9.0). This was two writers with two
+            // formats — a bare m:ss here and updateWeeklyHUD() for the week — which
+            // is how the left slot ended up meaning something different from the
+            // right one on the same bar.
+            renderTimeHUD();
         }
     }, 1000);
 
@@ -2281,6 +2292,21 @@ function logRun(wpm, acc, detailSuffix) {
     stepLoggedMistakes = Math.max(stepLoggedMistakes, Math.round(mistakes));
 }
 
+// ⚠️ UPLOAD QUEUED SESSION RECORDS NOW, WITHOUT A FULL FLUSH. (v2.9.0)
+// Identical to game.js flushSessionsNow() and shipped with it — read that
+// function's header for the defect (Reports showed n-1 sessions) and for why this
+// is deliberately outside the 60-second rate limit.
+function flushSessionsNow() {
+    if (!currentUser) return;
+    if (sessionLogPending(currentUser.uid) === 0) return;
+    sessionLogFlush(currentUser.uid, {
+        email: currentUser.email || '',
+        displayName: currentUser.displayName || 'Anonymous',
+        classId: (classInfo && classInfo.id) || '',
+        schoolId: (classInfo && classInfo.schoolId) || '',
+    }).catch(e => console.warn('[sessions] immediate flush failed:', e));
+}
+
 // Close the open run WITHOUT ending it. Counters are untouched, so a student who
 // comes back and finishes the run has only the remainder recorded.
 function logOpenRun(reason) {
@@ -2888,10 +2914,7 @@ function openLearnGenie() {
                 if (!ggBypassIdle && Date.now() - learnLastInputTime >= LEARN_IDLE_THRESHOLD) return;
                 learnActiveSeconds++;
                 statsData.secondsToday++; statsData.secondsWeek++;
-                if (hudTimer) {
-                    const m = Math.floor(statsData.secondsToday/60), s = statsData.secondsToday%60;
-                    hudTimer.textContent = m + ':' + String(s).padStart(2,'0');
-                }
+                renderTimeHUD();
             }, 1000);
             drillKeyboard.onkeydown = handleDrillKey;
             drillKeyboard.focus();
@@ -2996,6 +3019,7 @@ document.addEventListener('visibilitychange', () => {
         // outside the rate limit below — that gap protects Firestore, and this
         // writes no Firestore document. Repeat calls write nothing.
         logOpenRun('hidden');
+        flushSessionsNow();    // v2.9.0 — see that function's header
         learnWalSave();
         persistGuestAccum();   // no-op when signed in; the whole point when not
         // ⚠️ THE RATE LIMIT NOW HAS AN ESCAPE HATCH (v2.4.0).
@@ -3032,6 +3056,9 @@ window.addEventListener('pagehide', () => {
     logOpenRun('left page');
     learnWalSave();
     persistGuestAccum();
+    // ⚠️ AFTER the two synchronous writes, which cannot be cut off. This is the
+    // click-through-to-Library case that showed n-1 sessions in Reports.
+    flushSessionsNow();
 });
 
 window.addEventListener('beforeunload', () => {
@@ -3500,37 +3527,49 @@ function updateClassDisplay() {
     const classEl = document.getElementById('user-class-name');
     if (classEl) classEl.textContent = classInfo.name || '';
 
-    // Daily goal denominator in HUD
-    const dailyGoalEl = document.getElementById('hud-daily-goal');
-    if (dailyGoalEl) {
-        if (goals.dailySeconds > 0) {
-            const gm = Math.floor(goals.dailySeconds / 60);
-            const gs = goals.dailySeconds % 60;
-            dailyGoalEl.textContent = ' / ' + gm + ':' + String(gs).padStart(2,'0');
-        } else {
-            dailyGoalEl.textContent = '';
-        }
-    }
-
-    // Weekly goal denominator — update hud-week format
-    updateWeeklyHUD();
+    // ⚠️ hud-daily-goal IS GONE (v2.9.0). The denominator is part of the string
+    // hud.js builds, so there is no separate element to keep in step — writing one
+    // here would put half the readout under a second owner.
+    renderTimeHUD();
 }
 
-function updateWeeklyHUD() {
+// ⚠️ ONE FUNCTION WRITES BOTH SLOTS, AND IT IS THE SAME STRING BUILDER game.js
+// USES. (v2.9.0) There were three writers before: the word `Today:` was static
+// markup, hud-timer held a bare number, hud-daily-goal held the denominator, and
+// updateWeeklyHUD() owned the week — while Library's left slot held three
+// different quantities depending on a setting.
+//
+// School passes NO sprint limit, deliberately: a lesson run has no time target
+// (its gates are WPM and accuracy), so hud.js renders Daily alone, in the same
+// position Library renders it. That is the uniformity, not an omission.
+//
+// ⚠️ The old strings used non-breaking spaces to stop the readout wrapping.
+// hud.js uses ordinary spaces and style.css keeps the slot on one line; if a
+// narrow window ever wraps it, fix it in CSS, not by threading \u00a0 back
+// through a shared module.
+function renderTimeHUD() {
+    const hud = hudStrings({
+        sprintSeconds: stepSeconds,
+        sprintLimit:   0,
+        todaySeconds:  statsData.secondsToday,
+        dailyGoal:     goals.dailySeconds,
+        weekSeconds:   statsData.secondsWeek,
+        weeklyGoal:    goals.weeklySeconds,
+    });
+    if (hudTimer) {
+        hudTimer.textContent = hud.left;
+        hudTimer.style.color = hud.dailyDone ? '#22c55e' : '';
+    }
     const weekEl = document.getElementById('hud-week');
-    if (!weekEl) return;
-    const wm = Math.floor(statsData.secondsWeek / 60);
-    const ws = statsData.secondsWeek % 60;
-    const wDone = goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds;
-    let txt = 'Week ' + wm + ':' + String(ws).padStart(2,'0');
-    if (goals.weeklySeconds > 0) {
-        const gm = Math.floor(goals.weeklySeconds / 60);
-        const gs = goals.weeklySeconds % 60;
-        txt += ' / ' + gm + ':' + String(gs).padStart(2,'0');
+    if (weekEl) {
+        weekEl.textContent = hud.right;
+        weekEl.style.color = hud.weeklyDone ? '#22c55e' : '#aaa';
     }
-    if (wDone) txt += ' ✓';
-    weekEl.textContent = txt;
 }
+
+// Kept as an alias: several call sites read naturally as "the week changed,
+// redraw". Both slots come from one call now, so either name refreshes both.
+function updateWeeklyHUD() { renderTimeHUD(); }
 
 // Coalesced stats persistence, mirroring the pattern in game.js v3.4.0.
 //

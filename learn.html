@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeThatBook — School v2.1.0</title>
+    <title>TypeThatBook — School</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
 </head>
@@ -12,7 +12,10 @@
     <div id="hud">
         <div class="hud-section left">
             <a id="back-btn" href="index.html" style="color:#999; text-decoration:none; margin-right:12px; font-size:13px;">← Home</a>
-            Today: <span id="hud-timer" style="font-family:'Courier Prime',monospace;">0:00</span><span id="hud-daily-goal" style="font-family:'Courier Prime',monospace;color:#666;"></span>
+            <!-- ⚠️ IDENTICAL TO game.html's SLOT, ON PURPOSE. Same id, same
+                 position, same string built by hud.js. A student moving between
+                 School and Library should not have to relearn the top bar. -->
+            <span id="hud-time" style="font-family:'Courier Prime',monospace;">Daily 0:00</span>
             <span id="hud-lesson-label" style="color:#666; font-size:13px; margin-left:10px;"></span>
         </div>
         <div class="hud-section center">
@@ -91,7 +94,7 @@
 
     </div><!-- /learn-container -->
 
-    <footer>TypeThatBook School v2.1.0</footer>
+    <footer>TypeThatBook School</footer>
 
     <script type="module" src="learn.js"></script>
 </body>

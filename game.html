@@ -15,7 +15,13 @@
         <div class="hud-section left">
             <a href="index.html" style="color:#999; text-decoration:none; margin-right:12px; font-size:13px;" title="Back to Library">← Library</a>
             <button id="trophy-btn" class="hidden" style="background:none; border:none; color:#FFD700; font-size:1.1em; cursor:pointer; margin-right:10px; padding:0;" title="Leaderboard">🏆</button>
-            <span id="timer-label" style="color:#aaa; font-size:13px;">Active</span>&nbsp;<span id="timer-display">00:00</span><span id="timer-goal" style="color:#666; font-size:13px;"></span>
+            <!-- ⚠️ ONE SLOT, ONE MEANING. (v3.9.0) This used to be three elements
+                 whose combined meaning changed with the session-length setting:
+                 sprint seconds, or day seconds, or sprint seconds again labelled
+                 "Active". hud.js builds the whole string now and learn.html has
+                 the identical element, so the two pages cannot drift. Do not
+                 re-add a second number here. -->
+            <span id="hud-time" style="font-family:'Courier Prime',monospace;">Daily 0:00</span>
         </div>
     
         <div class="hud-section center">

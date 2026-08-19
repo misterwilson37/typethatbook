@@ -32,7 +32,7 @@ const HERE = fileURLToPath(new URL('./', import.meta.url));
 // only runs behind a flag is a guard nobody runs. Its synthetic half still passes with
 // library/ absent.
 const FAST = [
-    ["undefined-calls-test.mjs", "every identifier reference resolves: 9 JS files + 3 inline HTML scripts"],
+    ["undefined-calls-test.mjs", "every identifier reference resolves: 12 JS files + 3 inline HTML scripts"],
     ["metadata-map-test.mjs",     "EPUB source/license map onto real dropdown options; Gutenberg origin"],
     ["reanchor-test.mjs",         "progress survives a re-upload: clamp, anchor search, staleness ladder"],
     ["credits-scroll-test.mjs",  "end-of-book credits reel: rises into view, holds, shows every row"],
@@ -52,6 +52,7 @@ const FAST = [
     ['anon-ladder-test.mjs',     'guest login ladder: rungs, the no-third-prompt rule, coalescing guards'],
     ['session-merge-test.mjs',   'the guest/expired-session stats merge, and session-log rollup dating'],
     ['open-unit-test.mjs',       'the open sprint/run: deltas, watermarks, and the reset-site parity guard'],
+    ['hud-test.mjs',             'the shared time readout: layout, goal denominators, one formatter only'],
     ['week-anchor-test.mjs',     'the report audit and the app agree on where the school week starts'],
     ['class-create-test.mjs',    'class name matching and the shared CSV class-creation path'],
     ['roster-filter-test.mjs',   'Students-tab date range: the Saturday week boundary and the status line'],
@@ -70,9 +71,14 @@ const EPUB = [
 // Round 6, and only an actual `import` surfaced it. Every shipped .js here is an ES
 // module, so they must be checked as modules. Cheap, and it fails loudly.
 import { readFileSync as _rf } from 'node:fs';
+// ⚠️ THE THREE SHARED MODULES WERE MISSING FROM THIS LIST — stats-wal.js since
+// Round 11, session-log.js since Round 12 — so the files game.js and learn.js both
+// depend on were the only shipped JS nothing parsed. Found in Round 13 when hud.js
+// became the fourth. A shared module is the worst possible thing to leave
+// unchecked: a syntax error in one takes down BOTH student pages at import time.
 const MODULES = ['game.js', 'learn.js', 'admin.js', 'adventure-renderer.js',
                  'keyboard.js', 'lessons-admin.js', 'staff-admin.js', 'versions.js',
-                 'firebase-config.js'];
+                 'firebase-config.js', 'stats-wal.js', 'session-log.js', 'hud.js'];
 let syntaxBad = 0;
 for (const f of MODULES) {
     const r = spawnSync(process.execPath, ['--input-type=module', '--check'],

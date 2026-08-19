@@ -45,6 +45,10 @@ const FILES = [
     'game.js', 'learn.js', 'admin.js', 'adventure-renderer.js',
     'keyboard.js', 'lessons-admin.js', 'staff-admin.js', 'versions.js',
     'firebase-config.js',
+    // ⚠️ Added in Round 13. The shared modules were never in this list — see the
+    // note in run-all-tests.mjs. hud.js, session-log.js and stats-wal.js are
+    // imported by both page controllers.
+    'stats-wal.js', 'session-log.js', 'hud.js',
 ];
 
 // ⚠️ HTML PAGES TOO (v1.2.0). v1.0.0 and v1.1.0 checked only the .js files and so

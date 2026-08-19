@@ -1,4 +1,15 @@
-// game.js v3.24.0
+// game.js v3.25.0
+//
+// v3.25.0 — (1) ⚠️ THE TOP-BAR READOUT MOVES TO hud.js AND IS IDENTICAL TO
+//           SCHOOL'S. The left slot used to hold three different quantities
+//           depending on the session-length setting — sprint, or day, or sprint
+//           again labelled "Active" — in one position. It now always reads
+//           `Sprint 0:27 / 0:30 (Daily 9:22 / 10:00)`, or Daily alone with no
+//           sprint limit, and the right slot always reads Weekly.
+//           (2) ⚠️ QUEUED SESSIONS UPLOAD ON HIDE AND ON pagehide. Reports showed
+//           n-1 sessions: the queue was only drained by a `final` flush, so
+//           clicking Home recorded the sprint locally and uploaded nothing until
+//           the next visit. See flushSessionsNow().
 //
 // v3.24.0 — ⚠️ THE OPEN SPRINT IS NOW RECORDED. Session records were only ever
 //           written when a sprint ENDED (chapter complete, AFK pause, guest
@@ -136,6 +147,10 @@ import {
     sessionLogInit, sessionLogPush, sessionLogFlush,
     sessionLogPending, sessionLogAdopt
 } from "./session-log.js";
+// The time readout, shared with learn.js. Extracted BECAUSE this file's timer
+// slot held three different quantities depending on settings, and School's held a
+// fourth. DOM-free: it returns strings and this file writes them.
+import { hudStrings, HUD_VERSION } from "./hud.js";
 // serverTimestamp is imported for ONE purpose: to hand it to session-log.js so
 // rollups carry a clock the student cannot set. It is not used anywhere else in
 // this file, and ⚠️ it must not be: a serverTimestamp() sentinel inside a
@@ -150,7 +165,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.24.0";
+const VERSION = "3.25.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1071,7 +1086,7 @@ function getDefaultInitials() {
 // DOM
 const textStream = document.getElementById('text-stream');
 const keyboardDiv = document.getElementById('virtual-keyboard');
-const timerDisplay = document.getElementById('timer-display');
+const timerDisplay = document.getElementById('hud-time');
 const accDisplay = document.getElementById('acc-display');
 const wpmDisplay = document.getElementById('wpm-display');
 const streakDisplay = document.getElementById('streak-display');
@@ -1172,19 +1187,12 @@ async function init() {
                 // render showed 00:00 with no daily-goal denominator. This
                 // call paints the real "Day 4:32 / 8:00" state immediately,
                 // before the kid types a single character.
-                updateTimerUI();
-                // Populate weekly HUD immediately (before first tick)
-                const _hudW = document.getElementById('hud-week');
-                if (_hudW) {
-                    const _wm = Math.floor(statsData.secondsWeek / 60);
-                    const _ws = statsData.secondsWeek % 60;
-                    let _txt = 'Week\u00a0' + _wm + ':' + String(_ws).padStart(2, '0');
-                    if (goals.weeklySeconds > 0) {
-                        _txt += '\u00a0/\u00a0' + Math.floor(goals.weeklySeconds/60) + ':' +
-                                String(goals.weeklySeconds % 60).padStart(2,'0');
-                    }
-                    _hudW.textContent = _txt;
-                }
+                // ⚠️ ONE CALL PAINTS BOTH SLOTS (v3.25.0), so the block that used
+                // to hand-format the week readout right here is gone. It was a
+                // FIFTH copy of the time formatter — found by hud-test.mjs, not by
+                // reading — and it existed only because updateTimerUI() did not
+                // own the right-hand slot. Never format a clock next to a call
+                // that already renders one.
                 await loadInitials();
             } catch(e) { console.error("Init Error:", e); }
             trophyBtn.classList.remove('hidden');
@@ -2274,64 +2282,41 @@ function gameTick() {
     }
 }
 
+// ⚠️ THE READOUT IS BUILT BY hud.js AND IS IDENTICAL IN learn.js. (v3.25.0)
+//
+// What this function used to do, and must never do again: pick WHICH quantity to
+// show in the left slot based on the session-length setting. A student with a
+// 30-second sprint saw sprint seconds; a student with a daily goal saw the day;
+// a student with neither saw sprint seconds labelled "Active". One position,
+// three meanings, and the meaning changed when a child changed a setting.
+//
+// Now the left slot always shows Daily, and the sprint is shown ALONGSIDE it when
+// there is a limit to show it against. `Sprint 0:27 / 0:30 (Daily 9:22 / 10:00)`.
+// The right slot always shows Weekly. Nothing here decides what a word means.
 function updateTimerUI() {
-    // Default: session "Active" time. When the user has a daily goal set, the
-    // top-bar timer should instead show their accumulated typing time for the
-    // day (statsData.secondsToday) — that's what the "/ 8:00" denominator
-    // refers to. Showing activeSeconds (which resets on every startGame) made
-    // the numerator wrong and confused kids whose Day display was lower than
-    // what the pause modal showed.
-    let displaySeconds;
-    if (sessionLimit !== 'infinity') {
-        displaySeconds = activeSeconds;          // sprint countdown — session time
-    } else if (goals.dailySeconds > 0) {
-        displaySeconds = statsData.secondsToday; // Day mode — total daily time
-    } else {
-        displaySeconds = activeSeconds;          // Active fallback — session time
-    }
-    const mins = Math.floor(displaySeconds / 60).toString().padStart(2, '0');
-    const secs = (displaySeconds % 60).toString().padStart(2, '0');
-    timerDisplay.innerText = `${mins}:${secs}`;
-    if (sessionLimit !== 'infinity' && sprintSeconds >= sessionLimit) {
-        isOvertime = true;
-        timerDisplay.style.color = '#FFA500';
-    }
+    const hud = hudStrings({
+        sprintSeconds: sprintSeconds,
+        sprintLimit:   sessionLimit,
+        todaySeconds:  statsData.secondsToday,
+        dailyGoal:     goals.dailySeconds,
+        weekSeconds:   statsData.secondsWeek,
+        weeklyGoal:    goals.weeklySeconds,
+    });
 
-    // Label and goal denominator
-    const labelEl = document.getElementById('timer-label');
-    const goalEl  = document.getElementById('timer-goal');
-    if (labelEl && goalEl) {
-        if (sessionLimit !== 'infinity') {
-            const gm = Math.floor(sessionLimit / 60).toString().padStart(2, '0');
-            const gs = (sessionLimit % 60).toString().padStart(2, '0');
-            labelEl.textContent = 'Sprint';
-            labelEl.style.color = '';
-            goalEl.textContent  = '\u00a0/ ' + gm + ':' + gs;
-        } else if (goals.dailySeconds > 0) {
-            const gm = Math.floor(goals.dailySeconds / 60).toString().padStart(2, '0');
-            const gs = (goals.dailySeconds % 60).toString().padStart(2, '0');
-            const done = statsData.secondsToday >= goals.dailySeconds;
-            labelEl.textContent = done ? '\u2713\u00a0Day' : 'Day';
-            labelEl.style.color = done ? '#22c55e' : '';
-            goalEl.textContent  = '\u00a0/ ' + gm + ':' + gs;
-        } else {
-            labelEl.textContent = 'Active';
-            labelEl.style.color = '';
-            goalEl.textContent  = '';
-        }
+    if (timerDisplay) {
+        timerDisplay.textContent = hud.left;
+        // ⚠️ COLOUR IS THE CALLER'S JOB (hud.js is DOM-free) AND MUST BE RESET.
+        // An earlier draft only ever set the overtime colour, so a sprint that
+        // went long left the readout orange for the rest of the period.
+        timerDisplay.style.color = hud.overtime ? '#FFA500'
+                                 : (hud.dailyDone ? '#22c55e' : 'white');
     }
+    if (hud.overtime) isOvertime = true;
+
     const hudWeekEl = document.getElementById('hud-week');
     if (hudWeekEl) {
-        const wm = Math.floor(statsData.secondsWeek / 60);
-        const ws = statsData.secondsWeek % 60;
-        let txt = 'Week\u00a0' + wm + ':' + String(ws).padStart(2, '0');
-        if (goals.weeklySeconds > 0) {
-            const gm = Math.floor(goals.weeklySeconds / 60);
-            const gs = goals.weeklySeconds % 60;
-            txt += '\u00a0/\u00a0' + gm + ':' + String(gs).padStart(2, '0');
-        }
-        if (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) txt += '\u00a0\u2713';
-        hudWeekEl.textContent = txt;
+        hudWeekEl.textContent = hud.right;
+        hudWeekEl.style.color = hud.weeklyDone ? '#22c55e' : '#aaa';
     }
 }
 
@@ -3837,6 +3822,39 @@ function logSession(seconds, chars, mistakes, wpm, accuracy, detailSuffix) {
     markDirty();
 }
 
+// ⚠️ UPLOAD QUEUED SESSION RECORDS NOW, WITHOUT A FULL FLUSH. (v3.25.0)
+//
+// THE DEFECT THIS FIXES, reported by Jake from live use: type 30 seconds, hit
+// Home, open Reports — and the newest session is missing. Four sprints showed
+// three. Every record eventually arrived, correctly and without duplication, one
+// visit late.
+//
+// Cause: logOpenSprint() pushes to localStorage, and the QUEUE was only drained
+// by a `final` flush. Hiding the tab produces a final flush only when the
+// 60-second gap has elapsed, and clicking Home fired the pagehide handler, which
+// wrote the queue and uploaded nothing. So the record sat, durable and invisible,
+// until the next page's exit — which is exactly n-1.
+//
+// ⚠️ THIS IS NOT RATE-LIMITED AND DOES NOT NEED TO BE. It is self-limiting:
+// records are removed from the queue as they land, so a student alt-tabbing eight
+// times writes on the first hide and writes nothing on the other seven. The gap
+// gate exists to protect typing_logs and the stats rollup from repeated writes;
+// this touches neither.
+//
+// Best effort on navigation — the browser may not let an async write finish — and
+// that is acceptable precisely because the queue is the safety net. Worst case is
+// the behaviour Jake already observed: it arrives next time.
+function flushSessionsNow() {
+    if (!currentUser || currentUser.isAnonymous) return;
+    if (sessionLogPending(currentUser.uid) === 0) return;
+    sessionLogFlush(currentUser.uid, {
+        email: currentUser.email || "",
+        displayName: currentUser.displayName || "Anonymous",
+        classId: ttbClassId || "",
+        schoolId: ttbSchoolId || "",
+    }).catch(e => console.warn('[sessions] immediate flush failed:', e));
+}
+
 // ⚠️ CLOSE THE OPEN SPRINT. (v3.24.0, DESIGN-TELEMETRY §7 step 1.5)
 //
 // Called when the page is going away or going to the background: tab switch,
@@ -3984,6 +4002,7 @@ document.addEventListener('visibilitychange', () => {
         // the gap exists to protect Firestore from repeated alt-tabs, and this
         // writes no Firestore document. Deltas make repeat calls harmless.
         logOpenSprint('hidden');
+        flushSessionsNow();               // v3.25.0 — see that function's header
         walSave();                        // free, synchronous, always
         const gapElapsed = Date.now() - lastHiddenFlush >= HIDDEN_FLUSH_MIN_GAP_MS;
         const unflushed  = (statsData.secondsToday || 0) - lastFlushedSecondsToday;
@@ -4007,6 +4026,9 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => {
     logOpenSprint('left page');
     walSave();
+    // ⚠️ AFTER walSave(), because that one is synchronous and cannot be cut off.
+    // This is the click-Home case that showed n-1 sessions in Reports.
+    flushSessionsNow();
 });
 
 function formatTime(seconds) {
