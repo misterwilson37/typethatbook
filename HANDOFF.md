@@ -1,6 +1,6 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v14.2.0 — consolidated 2026-08-18 by Round 14 (Sholes).
+<!-- HANDOFF.md v14.3.0 — consolidated 2026-08-18 by Round 14 (Sholes).
 
      ⚠️ THIS IS THE ONLY HANDOFF DOCUMENT. It replaces every HANDOFF-roundN.md
      that ever existed. Rounds 3, 5, 6, 7, 8, 9, 11, 12 and 13 have all been read
@@ -109,8 +109,8 @@ Run `node audit-versions.mjs`; do not trust this table either.
 
 | file | version |
 |---|---|
-| `game.js` | 3.25.1 |
-| `learn.js` | 2.9.1 |
+| `game.js` | 3.26.0 |
+| `learn.js` | 2.10.0 |
 | `session-log.js` | 1.2.1 |
 | `hud.js` | 1.0.0 |
 | `stats-wal.js` | shared module — check the constant |
@@ -128,8 +128,8 @@ Run `node audit-versions.mjs`; do not trust this table either.
 `npm test` → **23 of 24 harnesses pass.** The only failure is `metadata-map-test.mjs`
 (42 of 487 assertions), pre-existing and unrelated — §6.
 
-**Deploy check, in one glance:** Library footer reads `game.js v3.25.1`; Lessons footer
-reads `School v2.9.1`; both student pages show a small grey `ID xxxxxxxx` bottom-left
+**Deploy check, in one glance:** Library footer reads `game.js v3.26.0`; Lessons footer
+reads `School v2.10.0`; both student pages show a small grey `ID xxxxxxxx` bottom-left
 once signed in. **If the ID stamp is missing, the new code is not running** and nothing
 else you check means anything.
 
@@ -229,18 +229,40 @@ required one costs a period.**
 holds that value and keeps its name because `reports.html` and a live single-field index
 exemption already know it.
 
-### 3.5 ⚠️ School has two clocks and sessions record the other one
+### 3.5 ✅ ONE CLOCK — School's two-clock split is CLOSED (Round 14)
 
-| clock | gate | feeds |
-|---|---|---|
-| `stepSeconds` | `drillPos > 0 && !isDrillIdle()` | WPM denominator; `seconds` on a School session record |
-| `statsData.secondsToday` | `learnLastInputTime` set, `idle < 3000` | the daily counter, `typing_logs`, the HUD |
+**Jake's ruling, 2026-08-18: time typed starts at the first CORRECT keystroke of a
+run.** `drillPos` advances only on an accepted character, so `drillPos > 0` is that
+moment exactly, and it is now the single gate on both pages.
 
-The graded clock does not start until the first character of a run is typed; the daily
-counter is already running. **A School day's sessions legitimately sum to slightly less
-than that day's counter.** Not drift, not corruption. Any code treating "sessions ≠
-counter" as an error will flag every lesson student every day. Library has no such split.
-**This is an open decision, not a bug — see §4.**
+`startGradedTimer()` in `learn.js` owns the **only** tick in that file, and
+`stepSeconds`, `learnActiveSeconds`, `secondsToday` and `secondsWeek` all advance on
+consecutive lines inside it. `gameTick()` in `game.js` gates on `lastInputTime` being
+set, so a sprint no longer counts the two free seconds it used to grant before the
+first keystroke. **Read `startGradedTimer()`'s header before adding anything to it.**
+
+⚠️ **THERE WERE THREE INCREMENT SITES, NOT TWO** — `stepSeconds` under the graded
+gate, `secondsToday` in a second interval under an idle-only gate, and a third copy of
+that second interval inside `closeGenie()` with `ggBypassIdle` wired differently from
+`game.js`. Collapsing them closed four things at once without any being fixed
+separately: the first-keypress/first-correct-keypress gap, a hard stop that stopped
+one clock and left the other running, the admin No-Idle flag meaning two different
+things on the two pages, and the 1s-versus-100ms sampling difference (which retires
+`DESIGN-TELEMETRY` step 6).
+
+⚠️ **`learnTickInterval` IS AN ALIAS FOR `timerInterval`, NOT A SECOND TIMER.** Nine
+call sites already clear it to stop the clock; aliasing keeps all nine correct rather
+than betting they were all found. **Do not "clean up" one of the names without
+checking every clear site.**
+
+⚠️ **`open-unit-test.mjs` PART E COUNTS THE INCREMENT SITES IN THE SHIPPED SOURCES**
+and fails if a second one appears on either page. That guard is the whole defence —
+a second timer counting a slightly different number is invisible from inside either
+file, because each stays internally consistent.
+
+⚠️ **Nothing stored was rewritten.** Jake's ruling was explicit: the seconds already
+banked were a gift and students keep them. This is a correction going forward only.
+**Do not "correct" historical figures.**
 
 ### 3.6 ⚠️ The idle thresholds differ ON PURPOSE — 2s Library, 3s School
 
@@ -421,7 +443,7 @@ existing graded gate — and it is now the definition of "time typed" on BOTH si
 Recorded here and in `DESIGN-TELEMETRY.md` §2.7 because the previous round scoped
 this work in conversation and never wrote it down, which cost it entirely.
 
-**What the ruling implies, which is the part to verify before building (§4.1).**
+✅ **SHIPPED in Round 14** — `game.js` v3.26.0 / `learn.js` v2.10.0. See §3.5.
 
 **Still open — where the sum comes from:**
    - **(a) Query the day's sessions at flush time.** Literally what the design says.
@@ -447,40 +469,19 @@ data model permits states you have to go looking for.
 2026-08-18 and never will; manufacturing per-run detail that never existed is worse than an
 honest gap.
 
-### 4.1 ⚠️ THE CLOCK UNIFICATION — scoped, ruled, NOT YET BUILT
+### 4.1 ✅ THE CLOCK UNIFICATION — SHIPPED, Round 14
 
-Jake's ruling (§4): **time typed starts at the first keystroke of a run, on both
-sides.** Round 13 scoped the work and it was never written down; it is written down
-here so it cannot be lost again. Two changes, and they are not symmetrical:
+Done. `game.js` v3.26.0, `learn.js` v2.10.0, guarded by `open-unit-test.mjs` Part E.
+Full detail in §3.5. **What remains of step 2 is below; this is no longer a blocker.**
 
-1. **School — collapse the two increment sites into one.** `stepSeconds` (gated on
-   `drillPos > 0 && !isDrillIdle()`) and `statsData.secondsToday` (gated on idle
-   alone) become one increment under one gate, the way Library already does it on a
-   single line. This removes §3.5's split, which is the thing that would otherwise
-   make every lesson student look like drift forever.
-2. **Library — gate the tick on the first keystroke.** Today `secondsToday` starts
-   accruing when the sprint starts, not when typing starts, which is the "two free
-   seconds per sprint" Round 13 identified.
-
-⚠️ **THE RULING SAYS "FIRST CORRECT STROKE" AND THE TWO SIDES MAY NOT AGREE ON WHAT
-THAT MEANS.** School's gate is `drillPos > 0` — a *position*, which advances only on
-accepted input. Library's natural equivalent is `currentCharIndex > sprintCharStart`,
-also a position. If either side advances its position on a wrong keystroke, or blocks
-on one, then "first correct stroke" and "first stroke" are different moments and the
-two sides will start their clocks differently — the exact asymmetry this change exists
-to remove. **Read both keydown handlers and confirm what advances the position before
-writing the gate.** Do not infer it from the variable names.
-
-⚠️ **THIS CHANGE MOVES EVERY STUDENT'S RECORDED MINUTES DOWNWARD ON THE DAY IT SHIPS**,
-Library more than School, because Library is losing seconds it was previously counting.
-It is a correction, not a regression, but a teacher looking at week-over-week numbers
-will see a step change with no explanation unless told. **Tell Jake the expected size
-before shipping, and put the date in `README-SESSION-LOGGING.md`** so a future
-comparison across that boundary is not read as a bug.
-
-⚠️ **Ship this BEFORE step 2, not with it.** It changes what the counters mean; step 2
-changes where the totals come from. Doing both at once means any discrepancy has two
-candidate causes and no way to tell them apart — which is Round 12's mistake exactly.
+⚠️ **What Jake should expect to see, and it is the only visible consequence:**
+recorded minutes drop slightly from the deploy forward — the two free seconds at the
+head of every Library sprint, and the seconds between a School student's first
+keypress and their first correct one. Small per run; a struggling typist on a ten-run
+lesson loses more than a fluent one. **It is a correction, not a regression**, but a
+week-over-week comparison across 2026-08-18 will show a step change with no other
+explanation. That date is the boundary; it is recorded here and in
+`README-SESSION-LOGGING.md` so nobody debugs it later as a defect.
 
 ### 4.2 ⚠️ Open rulings that have been waiting since Round 8
 

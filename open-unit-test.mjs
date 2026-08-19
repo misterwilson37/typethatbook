@@ -1,7 +1,10 @@
-// open-unit-test.mjs v1.0.1 — the open sprint / open run, and the watermark that
+// open-unit-test.mjs v1.1.0 — the open sprint / open run, and the watermark that
 // stops it being counted twice. Round 13 (Ludlow), DESIGN-TELEMETRY §7 step 1.5.
 //
-// v1.0.1 — Invariant citation renumbered against the consolidated HANDOFF.md §5,
+// v1.1.0 — PART E is new: one-increment-site guards for both page controllers
+//          (DESIGN-TELEMETRY §7 step 1.75). Same reasoning as Part C — the
+//          shipped sources are counted, not trusted.
+//          Invariant citation renumbered against the consolidated HANDOFF.md §5,
 //          and the Part D version pin follows session-log.js to 1.2.1.
 //          ⚠️ THERE ARE TWO PINS ON session-log.js — this one and
 //          session-merge-test.mjs's. Both must move together. Round 14 moved one
@@ -334,6 +337,46 @@ ok(mod.sessionLogPush('u1', { ...base, seconds: 3, continuation: true }) !== fal
    '⚠️ a 3-second CONTINUATION is accepted — refusing it undercounts the day');
 ok(mod.sessionLogPush('u1', { ...base, seconds: 0, continuation: true }) === false,
    'a zero-second continuation is still refused: nothing happened');
+
+
+// ─── E. ONE INCREMENT SITE PER PAGE ──────────────────────────────────────────
+//
+// ⚠️ [STRUCTURAL] These read the shipped sources. DESIGN-TELEMETRY §7 step 1.75:
+// every quantity that measures time advances on the same line under the same
+// gate. The failure this guards is not a crash — it is a second timer quietly
+// counting a different number for the same student, which is exactly the state
+// learn.js was in for months while both files looked internally consistent.
+console.log('\n─── E. one increment site per page ───');
+
+const learnSrc2 = readFileSync(new URL('./learn.js', import.meta.url), 'utf8');
+const gameSrc2  = readFileSync(new URL('./game.js',  import.meta.url), 'utf8');
+
+const learnIncs = (learnSrc2.match(/statsData\.secondsToday\+\+/g) || []).length;
+ok(learnIncs === 1,
+   `learn.js increments secondsToday in exactly ONE place (found ${learnIncs}) ` +
+   `— a second site rebuilds the two-clock split, the hard-stop divergence and ` +
+   `the ggBypassIdle asymmetry all at once`);
+
+const gameIncs = (gameSrc2.match(/statsData\.secondsToday\+\+/g) || []).length;
+ok(gameIncs === 1,
+   `game.js increments secondsToday in exactly ONE place (found ${gameIncs})`);
+
+ok(/if \(drillPos > 0 && !isDrillIdle\(\)\) \{[\s\S]{0,400}?statsData\.secondsToday\+\+/.test(learnSrc2),
+   '⚠️ learn.js: secondsToday advances INSIDE the graded gate (drillPos > 0), ' +
+   'i.e. not until the first CORRECT keystroke — Jake\'s ruling, 2026-08-18');
+
+ok(/if \(lastInputTime && now - lastInputTime < IDLE_THRESHOLD\)/.test(gameSrc2),
+   '⚠️ game.js: the tick is gated on lastInputTime being set — no free seconds ' +
+   'before the first keystroke of a sprint');
+
+ok(/if \(lastInputTime && now - lastInputTime > AFK_THRESHOLD/.test(gameSrc2),
+   '⚠️ game.js: the AFK check is guarded too — unguarded, `now - 0` auto-pauses ' +
+   'every sprint before a key is pressed');
+
+ok(!/learnTickInterval = setInterval/.test(learnSrc2),
+   '⚠️ learn.js declares no second interval — learnTickInterval is an ALIAS for ' +
+   'the one tick, so all nine existing clearInterval sites stay correct');
+
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

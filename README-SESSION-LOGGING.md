@@ -14,6 +14,24 @@ and looked like a broken button. Corrected below. Everything else in §3 stands.
 
 ---
 
+## 0. ⚠️ 2026-08-18 — the clock changed. Minutes before and after are not comparable.
+
+From this date, **time typed starts at the first keystroke** (in lessons, the first
+*correct* one). Before it, two smaller clocks were running that credited a little
+time nobody had earned: every Library sprint counted about two seconds from the moment
+a book opened, and a lesson's daily counter started on the first keypress of any kind
+while the graded clock waited for the first correct one.
+
+**Recorded minutes are slightly lower from here on. That is the fix, not a fault.** A
+student who struggles loses a bit more than a fluent one, because they spend longer
+between their first keypress and their first correct one.
+
+⚠️ **Nothing already recorded was changed.** Seconds banked before this date stay
+banked. But a week-over-week comparison that spans 2026-08-18 is comparing two
+different definitions — if a class looks like it dipped that week, this is why.
+
+---
+
 ## 1. What went wrong, in one paragraph
 
 Sign-ins expire after 24 hours, and that expiry lands mid-class for somebody most

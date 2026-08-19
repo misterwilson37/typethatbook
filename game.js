@@ -1,4 +1,17 @@
-// game.js v3.25.1
+// game.js v3.26.0
+//
+// v3.26.0 — ⚠️ NO CLOCK UNTIL THE FIRST KEYSTROKE. DESIGN-TELEMETRY §7 step 1.75,
+//           ruled by Jake 2026-08-18. gameTick() gated both its AFK check and its
+//           accumulator on `lastInputTime`, which startGame() stamped with
+//           Date.now() — so a sprint began counting the moment it opened and a
+//           student earned IDLE_THRESHOLD seconds for typing nothing. Two seconds
+//           a sprint, every sprint. `lastInputTime` now starts at 0 and both gates
+//           test it for truthiness first. ⚠️ THE AFK GUARD IS NOT OPTIONAL: an
+//           unguarded `now - 0` exceeds AFK_THRESHOLD immediately and would
+//           auto-pause every sprint into the break screen before a key was
+//           pressed. Recorded minutes drop slightly from this deploy forward;
+//           NOTHING STORED IS REWRITTEN — the seconds already banked stay banked,
+//           which is Jake's explicit ruling.
 //
 // v3.25.1 — COMMENTS ONLY. No code, no behaviour, no field, no gate changed.
 //           Invariant citations renumbered against the single consolidated
@@ -173,7 +186,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.25.1";
+const VERSION = "3.26.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -2181,7 +2194,11 @@ function startGame() {
 
     sprintSeconds = 0; sprintMistakes = 0; sprintCharStart = currentCharIndex;
     resetSprintLogWatermark();          // new sprint: nothing logged yet
-    activeSeconds = 0; timeAccumulator = 0; lastInputTime = Date.now();
+    activeSeconds = 0; timeAccumulator = 0;
+    // ⚠️ 0, NOT Date.now() (v3.26.0). A sprint does not start its clock; the
+    // first keystroke does. See gameTick(). Both gates there test this for
+    // truthiness before subtracting, so a zero means "not started", never 1970.
+    lastInputTime = 0;
     consecutiveMistakes = 0; backspaceOrigin = -1; mistakesAtCurrent = 0;
     currentStreak = 0; streakMilestone = 0;
     updateStreak(false); // reset display
@@ -2201,13 +2218,25 @@ function gameTick() {
     const now = Date.now();
 
     // AUTO PAUSE FOR INACTIVITY - treat as full break (logs time, shows stats, practice option)
-    if (now - lastInputTime > AFK_THRESHOLD && !isModalOpen && !ggBypassIdle) {
+    // ⚠️ NO CLOCK UNTIL THE FIRST KEYSTROKE. (v3.26.0, DESIGN-TELEMETRY §7 step 1.75)
+    //
+    // `lastInputTime` is 0 until the student types. It used to be stamped at
+    // startGame(), so the tick below ran from the moment a sprint opened and a
+    // child who opened a book and looked at it earned IDLE_THRESHOLD seconds —
+    // two of them, every sprint, for typing nothing. Jake's ruling: time typed
+    // starts at the first keystroke.
+    //
+    // ⚠️ THE AFK CHECK SHARES THIS VARIABLE AND MUST BE GUARDED TOO. Without the
+    // `lastInputTime &&`, a zero reads as 1970, `now - 0` exceeds AFK_THRESHOLD
+    // on the very first tick, and every sprint would auto-pause into the break
+    // screen before the student could type a character.
+    if (lastInputTime && now - lastInputTime > AFK_THRESHOLD && !isModalOpen && !ggBypassIdle) {
         if (currentCharIndex >= fullText.length) { finishChapter(); return; }
         pauseGameForBreak();
         return;
     }
 
-    if (now - lastInputTime < IDLE_THRESHOLD) {
+    if (lastInputTime && now - lastInputTime < IDLE_THRESHOLD) {
         timeAccumulator += 100;
         timerDisplay.style.opacity = '1';
         if (timeAccumulator >= 1000) {

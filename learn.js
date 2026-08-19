@@ -1,4 +1,17 @@
-// learn.js v2.9.1
+// learn.js v2.10.0
+//
+// v2.10.0 — ⚠️ ONE INCREMENT SITE. DESIGN-TELEMETRY §7 step 1.75, ruled by Jake
+//           2026-08-18: time typed starts at the first CORRECT keystroke. There
+//           were THREE sites — stepSeconds under the graded gate, secondsToday in
+//           a second interval under an idle-only gate, and a third copy of that
+//           second interval inside closeGenie() with ggBypassIdle wired
+//           differently from game.js. All three are now one increment on one line
+//           inside startGradedTimer(); read that function's header before adding
+//           anything to it. This also closes, without fixing any of them
+//           separately: the hard stop that stopped one clock and not the other,
+//           the admin No-Idle flag meaning two things, and the 1s/100ms sampling
+//           difference. Recorded minutes drop slightly from this deploy forward;
+//           NOTHING STORED IS REWRITTEN.
 //
 // v2.9.1 — COMMENTS ONLY. No code, no behaviour, no field, no gate changed.
 //          Invariant citations renumbered against the single consolidated
@@ -198,7 +211,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.9.1";
+const LEARN_VERSION = "2.10.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -1492,12 +1505,82 @@ function isDrillIdle() {
     return (Date.now() - learnLastInputTime) > LEARN_IDLE_THRESHOLD;
 }
 
+// ⚠️ THE ONE INCREMENT SITE. (v2.10.0, DESIGN-TELEMETRY §7 step 1.75)
+//
+// This function owns the ONLY tick in this file, and every quantity that measures
+// time advances on the same line under the same gate. Jake's ruling, 2026-08-18:
+// **time typed starts at the first CORRECT keystroke of a run.** `drillPos` only
+// advances on an accepted character, so `drillPos > 0` is that moment exactly.
+//
+// WHAT THIS REPLACED, AND WHY IT MATTERED
+//
+// There used to be THREE increment sites: `stepSeconds` here under the graded
+// gate, and `statsData.secondsToday` in a SECOND interval under an idle-only
+// gate — plus a third copy of that second interval inside closeGenie(). Two
+// timers, two gates, one student. That is invariant 1 living inside one file,
+// and it had four separate consequences:
+//
+//   1. The daily counter started on the first keypress of ANY kind; the graded
+//      clock waited for the first correct one. A student hunting for a key
+//      earned daily-goal time they had not earned graded time for. Bounded by
+//      the 3s idle gate, and by DRILL_HARD_STOP_THRESHOLD (5) before the drill
+//      stops them — so several seconds a run for exactly the students least able
+//      to afford a wrong number.
+//   2. A hard stop ran `clearInterval(timerInterval)`, which stopped the graded
+//      clock and left the other one running.
+//   3. `ggBypassIdle` defeated the idle gate on the School copy and not on
+//      Library's, so the same admin flag meant two things.
+//   4. The two sides sampled at different resolutions.
+//
+// ⚠️ ALL FOUR ARE GONE BECAUSE THERE IS ONE SITE, not because any of them was
+// fixed. Add a second increment site and all four come back at once.
+// `open-unit-test.mjs` counts the sites in the shipped source and fails if a
+// second one appears.
+//
+// ⚠️ `learnTickInterval` IS AN ALIAS FOR THIS INTERVAL, NOT A SECOND TIMER.
+// Nine call sites already do `clearInterval(learnTickInterval)` to stop the
+// clock — a hard stop, a modal, a step end. Aliasing keeps every one of them
+// correct rather than betting that all nine were found. Both names, one timer.
 function startGradedTimer() {
     clearInterval(timerInterval);
     timerInterval = setInterval(() => {
-        if (drillPos > 0 && !isDrillIdle()) stepSeconds++;
+        // The graded gate, and now the only gate. `drillPos > 0` means at least
+        // one correct character; isDrillIdle() is false only within
+        // LEARN_IDLE_THRESHOLD of the last input of any kind.
+        if (drillPos > 0 && !isDrillIdle()) {
+            stepSeconds++;
+            learnActiveSeconds++;
+            statsData.secondsToday++;
+            statsData.secondsWeek++;
+            if (!currentUser || currentUser.isAnonymous) {
+                anonSecondsAccum++;
+                if (anonSecondsAccum % GUEST_ACCUM_SAVE_EVERY === 0) persistGuestAccum();
+                armAnonLoginPrompt();   // fires at the run boundary, not here
+            }
+            // Midnight rollover
+            const todayStr = getLocalDateStr();
+            if (statsData.lastDate && statsData.lastDate !== todayStr) {
+                statsData.secondsToday = 1; statsData.charsToday = 0; statsData.mistakesToday = 0;
+                statsData.lastDate = todayStr; dailyGoalCelebrated = false;
+                const ws = getWeekStart(new Date());
+                if (statsData.weekStart !== ws) {
+                    statsData.secondsWeek = 1; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
+                    statsData.weekStart = ws; weeklyGoalCelebrated = false;
+                }
+            }
+            // Goal celebrations
+            if (goals.dailySeconds > 0 && !dailyGoalCelebrated && statsData.secondsToday >= goals.dailySeconds) {
+                dailyGoalCelebrated = true; launchConfetti();
+            }
+            if (goals.weeklySeconds > 0 && !weeklyGoalCelebrated && statsData.secondsWeek >= goals.weeklySeconds) {
+                weeklyGoalCelebrated = true; launchFireworks();
+            }
+            // ⚠️ ONE CALL DRAWS BOTH SLOTS (v2.9.0).
+            renderTimeHUD();
+        }
         updateHUD();
     }, 1000);
+    learnTickInterval = timerInterval;   // alias — see the header above
 }
 
 // ⚠️ THE OUT-OF-RANGE GUARD CALLED A FUNCTION THAT DOES NOT EXIST (v2.2.3).
@@ -1637,44 +1720,8 @@ function beginStep(stepIdx) {
 
     startGradedTimer();
 
-    // Active-time tracking (same pattern as game.js gameTick)
-    learnTickInterval = setInterval(() => {
-        if (!learnLastInputTime) return;
-        const idle = Date.now() - learnLastInputTime;
-        if (idle < LEARN_IDLE_THRESHOLD) {
-            learnActiveSeconds++;
-            statsData.secondsToday++;
-            statsData.secondsWeek++;
-            if (!currentUser || currentUser.isAnonymous) {
-                anonSecondsAccum++;
-                if (anonSecondsAccum % GUEST_ACCUM_SAVE_EVERY === 0) persistGuestAccum();
-                armAnonLoginPrompt();   // fires at the run boundary, not here
-            }
-            // Midnight rollover
-            const todayStr = getLocalDateStr();
-            if (statsData.lastDate && statsData.lastDate !== todayStr) {
-                statsData.secondsToday = 1; statsData.charsToday = 0; statsData.mistakesToday = 0;
-                statsData.lastDate = todayStr; dailyGoalCelebrated = false;
-                const ws = getWeekStart(new Date());
-                if (statsData.weekStart !== ws) {
-                    statsData.secondsWeek = 1; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
-                    statsData.weekStart = ws; weeklyGoalCelebrated = false;
-                }
-            }
-            // Goal celebrations
-            if (goals.dailySeconds > 0 && !dailyGoalCelebrated && statsData.secondsToday >= goals.dailySeconds) {
-                dailyGoalCelebrated = true; launchConfetti();
-            }
-            if (goals.weeklySeconds > 0 && !weeklyGoalCelebrated && statsData.secondsWeek >= goals.weeklySeconds) {
-                weeklyGoalCelebrated = true; launchFireworks();
-            }
-            // ⚠️ ONE CALL DRAWS BOTH SLOTS (v2.9.0). This was two writers with two
-            // formats — a bare m:ss here and updateWeeklyHUD() for the week — which
-            // is how the left slot ended up meaning something different from the
-            // right one on the same bar.
-            renderTimeHUD();
-        }
-    }, 1000);
+    // The second interval that used to live here is GONE (v2.10.0).
+    // startGradedTimer() above is now the only tick in this file.
 
     renderDrillText();
     advanceHandGuide();
@@ -2914,14 +2961,14 @@ function openLearnGenie() {
         document.getElementById('drill-keyboard-wrap').style.display = '';
         // Resume if on a drill
         if (onDrill && !drillView.classList.contains('hidden')) {
+            // ⚠️ THIS USED TO REBUILD ITS OWN COPY OF THE TICK (v2.10.0), with
+            // `ggBypassIdle` defeating the idle gate — which game.js's version of
+            // the same flag never did. Admin-only, so no student ever reached it,
+            // but it was a third increment site and the two sides disagreed about
+            // what one flag meant. startGradedTimer() is now the only tick, and
+            // the flag means the same thing on both pages: it suppresses the AFK
+            // auto-pause and never defeats the idle gate.
             startGradedTimer();
-            learnTickInterval = setInterval(() => {
-                if (!learnLastInputTime) return;
-                if (!ggBypassIdle && Date.now() - learnLastInputTime >= LEARN_IDLE_THRESHOLD) return;
-                learnActiveSeconds++;
-                statsData.secondsToday++; statsData.secondsWeek++;
-                renderTimeHUD();
-            }, 1000);
             drillKeyboard.onkeydown = handleDrillKey;
             drillKeyboard.focus();
         }

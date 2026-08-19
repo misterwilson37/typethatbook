@@ -1,9 +1,10 @@
 # DESIGN — Typing telemetry, one honest number
 
-**DESIGN-TELEMETRY.md v1.3.0** · drafted 2026-08-18 by Round 12 (Caligraph)
+**DESIGN-TELEMETRY.md v1.4.0** · drafted 2026-08-18 by Round 12 (Caligraph)
 · amended 2026-08-18 by Round 13 (Ludlow) and Round 14 (Sholes)
 
-**Status: PARTLY BUILT. §7 steps 1 and 1.5 are SHIPPED. Steps 2-6 are still proposal.**
+**Status: PARTLY BUILT. §7 steps 1, 1.5 and 1.75 are SHIPPED; step 6 is retired.
+Step 2 is next and steps 3-5 are still proposal.**
 
 ⚠️ **v1.3.0 — §2.7 IS DECIDED AND §6 GAINS NOTHING.** Jake ruled on the graded clock:
 it starts on the first keystroke of a run. That closes the last open question blocking
@@ -16,12 +17,12 @@ edit the reasoning to match what got built.
 |---|---|
 | 1. `serverAt` | ✅ **SHIPPED** — Round 13. `session-log.js` v1.1.0, `game.js` v3.23.1, `learn.js` v2.7.1. See §6.3 and §7. |
 | 1.5. close the open unit | ✅ **SHIPPED** — Round 13. ⚠️ **NEW STEP, AND STEP 2 CANNOT BE BUILT WITHOUT IT.** `session-log.js` v1.2.0, `game.js` v3.24.0, `learn.js` v2.8.0. See §2.6 and §7. |
-| 1.75. unify the clock | ⬜ **NEXT.** Ruled by Jake 2026-08-18: time typed starts at the first keystroke. Scoped in `HANDOFF.md` §4.1. ⚠️ **Ships BEFORE step 2 and separately from it.** |
-| 2. `typing_logs` derived | ⬜ the one that matters — ⚠️ read §2.6 and §2.7 first, and note the timeliness prerequisite in §7 |
+| 1.75. unify the clock | ✅ **SHIPPED** — Round 14. `game.js` v3.26.0, `learn.js` v2.10.0. Three increment sites became one; Library's two free seconds are gone. `HANDOFF.md` §3.5. |
+| 2. `typing_logs` derived | ⬜ **NEXT** — the one that matters — ⚠️ read §2.6 and §2.7 first, and note the timeliness prerequisite in §7 |
 | 3. `stats/time_tracking` as rebuildable cache | ⬜ |
 | 4. weekly archive + retention | ⬜ |
 | 5. retire the audit | ⬜ |
-| 6. tick resolution | ⬜ optional — ⚠️ **may be absorbed by 1.75;** re-read before doing it separately |
+| 6. tick resolution | ✅ **RETIRED** — absorbed by 1.75. One increment site, one resolution. Nothing to do. |
 
 ⚠️ **v1.1.0 CHANGED NOTHING IN §1-§5 EXCEPT §4's SCHEMA ANNOTATION.** The design
 was not revised on contact with the first step; only its status was. If a later
