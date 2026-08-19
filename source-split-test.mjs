@@ -147,6 +147,48 @@ if (splitSessionTotals) {
     fail += 5;
 }
 
+// ─── B2. duplicate rollups must not inflate a recalculated day ─────────────
+console.log('\n─── B2. sessionSignature ───');
+//
+// ⚠️ Jake's Pinocchio duplicate, 2026-08-19: session-log.js before v1.3.0 could
+// write the same queued sprint twice when clicking Home fired two flushes at
+// once. v1.3.0 stops new ones; the already-written ones still sit in
+// typing_sessions, and recalcDailyLog() grades from that collection. A
+// duplicate there inflates the very day Jake is trying to correct.
+const sigBody = lift(rep, 'sessionSignature');
+ok(!!sigBody, 'reports.html: sessionSignature() exists');
+const sessionSignature = sigBody ? new Function(sigBody + '; return sessionSignature;')() : null;
+
+if (sessionSignature) {
+    const dupA = { source: 'library', bookId: 'pinocchio',
+                   sprints: [{ at: '2026-08-19T16:55:00.000Z' }] };
+    const dupB = { source: 'library', bookId: 'pinocchio',
+                   sprints: [{ at: '2026-08-19T16:55:00.000Z' }] };
+    ok(sessionSignature(dupA, 'doc1') === sessionSignature(dupB, 'doc2'),
+       'two rollups of the same sprint share a signature even with different document ids');
+
+    // Two REAL sessions a minute apart must stay distinct, or deduping would
+    // start deleting legitimate work.
+    const realA = { source: 'library', bookId: 'pinocchio',
+                    sprints: [{ at: '2026-08-19T16:55:00.000Z' }] };
+    const realB = { source: 'library', bookId: 'pinocchio',
+                    sprints: [{ at: '2026-08-19T16:56:00.000Z' }] };
+    ok(sessionSignature(realA, 'd1') !== sessionSignature(realB, 'd2'),
+       'two genuine sessions a minute apart do NOT collide');
+
+    // Same instant, different mode: not a duplicate.
+    ok(sessionSignature({ source: 'school', bookId: 'u2l1', sprints: [{ at: 'X' }] }, 'd1')
+       !== sessionSignature({ source: 'library', bookId: 'u2l1', sprints: [{ at: 'X' }] }, 'd2'),
+       'the same instant in different modes is not treated as a duplicate');
+
+    // No sprints array at all (pre-v2.10.0 rollups): must fall back to
+    // something stable, and must never merge two documents on nothing.
+    const bare1 = sessionSignature({ source: 'library', bookId: 'b' }, 'docA');
+    const bare2 = sessionSignature({ source: 'library', bookId: 'b' }, 'docB');
+    ok(bare1 !== bare2,
+       'two sprintless rollups fall back to document id rather than merging on emptiness');
+}
+
 // ─── C. the split must not be fed from the SHARED counter ───────────────────
 console.log('\n─── C. per-source counters ───');
 //

@@ -1,4 +1,11 @@
-// session-merge-test.mjs v1.3.0 — the two things Round 12 changed, plus the one
+// session-merge-test.mjs v1.4.0
+//
+// v1.4.0 — PART E is new: flush serialization. Reproduces the duplicate-session
+//          race Jake hit on 2026-08-19 (one run, two identical documents) with a
+//          deliberately SLOW stub addDoc — the instant-resolving stub used
+//          elsewhere in this file cannot reproduce it, because the window only
+//          exists across a real await. Mutation-tested: defeating the promise
+//          chain in session-log.js makes Part E report `got 2`. — the two things Round 12 changed, plus the one
 // thing Round 13 added, plus Round 16's repair resync, tested against the code
 // that actually ships.
 //
@@ -373,8 +380,8 @@ if (gameDeps && learnDeps) {
 
 // The module's own version, so a stale copy uploaded out of order is visible in
 // the test output rather than only in the footer.
-ok(mod.SESSION_LOG_VERSION === '1.2.1',
-   `session-log.js reports v1.2.1 (got ${mod.SESSION_LOG_VERSION})`);
+ok(mod.SESSION_LOG_VERSION === '1.3.0',
+   `session-log.js reports v1.3.0 (got ${mod.SESSION_LOG_VERSION})`);
 
 // ─── D. checkForWeekRepair() — the fix for a repair that doesn't stick ───────
 console.log('\n─── D. checkForWeekRepair ───');
@@ -487,6 +494,65 @@ for (const [label, check] of checkers) {
     });
     ok(out.statsData.secondsWeek === 10,
        `${label}: an anonymous session is skipped without touching statsData`);
+}
+
+// ─── E. concurrent flushes must not duplicate ───────────────────────────────
+console.log('\n─── E. flush serialization ───');
+//
+// ⚠️ THE PINOCCHIO DUPLICATE, 2026-08-19. Jake typed one 23-second run, clicked
+// Home, and Reports showed TWO identical sessions. Clicking Home fires BOTH
+// visibilitychange:hidden and pagehide, and each calls flushSessionsNow()
+// fire-and-forget. The second ran while the first was still awaiting addDoc, so
+// it read a queue the first had not cleared yet and wrote the same record
+// again. session-log.js v1.3.0 serializes flushes to make that impossible.
+//
+// The stub addDoc everywhere else in this file resolves immediately, which
+// cannot reproduce a race — the window only exists across a real await. This
+// one is deliberately slow.
+{
+    mod.sessionLogClear(UID);
+    writes = [];
+    let inFlight = 0, maxConcurrent = 0;
+    mod.sessionLogInit({
+        ...surface,
+        serverTimestamp: SENTINEL,
+        addDoc: async (col, payload) => {
+            inFlight++;
+            maxConcurrent = Math.max(maxConcurrent, inFlight);
+            await new Promise(r => setTimeout(r, 15));
+            inFlight--;
+            writes.push(payload);
+            return { id: 'doc' + writes.length };
+        },
+    });
+
+    mod.sessionLogPush(UID, rec('2026-08-19', '2026-08-19T16:55:00.000Z', 23));
+
+    // Exactly the real failure: two unawaited calls back to back.
+    const a = mod.sessionLogFlush(UID, {});
+    const b = mod.sessionLogFlush(UID, {});
+    const [okA, okB] = await Promise.all([a, b]);
+
+    ok(writes.length === 1,
+       `one queued record flushed twice concurrently writes ONE document (got ${writes.length})`);
+    ok(maxConcurrent === 1,
+       `the two flushes never overlap inside addDoc (max concurrent was ${maxConcurrent})`);
+    ok(okA === true && okB === true,
+       'both concurrent callers still report success — the loser is a no-op, not a failure');
+    ok(mod.sessionLogPending(UID) === 0,
+       'the queue is empty afterwards, so nothing is left to be resent later');
+
+    // A record pushed while a flush is in flight must still land — serializing
+    // has to mean "wait your turn", never "drop the second caller".
+    writes = [];
+    mod.sessionLogPush(UID, rec('2026-08-19', '2026-08-19T16:56:00.000Z', 11));
+    const c = mod.sessionLogFlush(UID, {});
+    mod.sessionLogPush(UID, rec('2026-08-19', '2026-08-19T16:57:00.000Z', 12));
+    const d = mod.sessionLogFlush(UID, {});
+    await Promise.all([c, d]);
+    const flushedSeconds = writes.reduce((n, w) => n + (w.seconds || 0), 0);
+    ok(flushedSeconds === 23,
+       `a record queued mid-flush still lands (flushed ${flushedSeconds}s, want 23s across both)`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

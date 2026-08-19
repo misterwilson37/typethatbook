@@ -180,6 +180,10 @@
         }
         .recalc-btn:hover { border-color: #4B9CD3; color: #4B9CD3; }
         .recalc-btn:disabled { opacity: 0.4; cursor: default; }
+        .dupe-tag {
+            font-size: 0.65rem; color: #ffaa00; border: 1px solid #ffaa00;
+            border-radius: 3px; padding: 0 4px; margin-right: 4px; white-space: nowrap;
+        }
         .delete-session-btn {
             background: transparent; border: 1px solid transparent; color: #666;
             padding: 2px 6px; font-size: 0.75rem; cursor: pointer;
@@ -359,7 +363,25 @@
     // which is a discipline problem until it becomes a lie. Both are now
     // written from this constant, which is also what versions.js reads for the
     // build panel in index.html.
-    const REPORTS_VERSION = "2.13.1";
+    // v2.13.2 — DUPLICATE ROLLUPS. session-log.js before v1.3.0 could write one
+    //           queued sprint twice (clicking Home fires two flush handlers, and
+    //           the queue is only cleared AFTER the write lands); those documents
+    //           are still in the database. New sessionSignature() identifies them
+    //           by their sprint instants. recalcDailyLog() now ignores duplicates
+    //           when summing, so a repair can't inflate the very day it is
+    //           repairing — and since the post-delete recalc is automatic, that
+    //           mattered more than it looks. The drill-down MARKS them
+    //           "⧉ duplicate" rather than hiding them, so they can be seen and
+    //           deleted; a view that silently collapsed them would contradict the
+    //           run count beside it.
+    //
+    // v2.13.1 — readLogTotals() SUMS the legacy `seconds` field with the split
+    //           fields instead of letting a split supersede it. Jake watched a
+    //           morning's School time vanish from the report the moment that
+    //           afternoon's Library session wrote a split field. The two shapes
+    //           cover disjoint periods, so summing loses nothing.
+    //
+    const REPORTS_VERSION = "2.13.2";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
@@ -1337,6 +1359,21 @@
                 // in the same rollup, not the mean including the sprint being
                 // judged, so one very fast run cannot raise the bar it is being
                 // measured against and hide itself.
+                // ⚠️ MARK DUPLICATE ROLLUPS RATHER THAN HIDING THEM. (v2.13.2)
+                // recalcDailyLog() ignores duplicates arithmetically, but this
+                // view stays honest: Jake needs to SEE the extra document to
+                // delete it, and a drill-down that silently collapsed them
+                // would contradict the row count above it. See
+                // sessionSignature() for what counts as a duplicate and
+                // session-log.js v1.3.0 for the race that created them.
+                const _seenSig = new Set();
+                const _isDupe = new Map();
+                sessions.forEach(s => {
+                    const sig = sessionSignature(s, s.id);
+                    _isDupe.set(s.id, _seenSig.has(sig));
+                    _seenSig.add(sig);
+                });
+
                 const allSprints = [];
                 sessions.forEach(s => (s.sprints || []).forEach(sp => allSprints.push(sp)));
                 const spWPMs = allSprints.map(sp => sp.wpm || 0);
@@ -1382,6 +1419,7 @@
                             ${src ? `<span class="session-src">${src}</span>` : ''}
                             <span class="session-book">${escapeHtml((s.bookId || '').replace(/_/g, ' '))}</span>
                             ${flag}
+                            ${_isDupe.get(s.id) ? '<span class="dupe-tag" title="Identical to an earlier rollup today — almost certainly written twice by the pre-v1.3.0 flush race. Not counted by the &#8635; recalculate button. Safe to delete.">\u29c9 duplicate</span>' : ''}
                             <button class="delete-session-btn" data-session-id="${s.id}" title="Delete session">✕</button>
                         </div>
                         ${sprintRows ? `<div class="sprint-list">${sprintRows}</div>` : ''}
@@ -1546,6 +1584,32 @@
         return { schoolSec, schoolChars, schoolMist, librarySec, libraryChars, libraryMist };
     }
 
+    // ⚠️ DUPLICATE ROLLUPS EXIST IN THE DATABASE AND THIS FUNCTION MUST NOT
+    // TRUST A RAW COUNT. (v2.13.2) session-log.js before v1.3.0 could write the
+    // same queued sprint twice when a navigation fired two flushes at once —
+    // Jake hit it on 2026-08-19 and got two identical Pinocchio sessions.
+    // v1.3.0 stops NEW duplicates; the ones already written are still sitting
+    // in typing_sessions, and this function is what the ⟳ button and the
+    // automatic post-delete recalc both grade from. A duplicate here silently
+    // inflates a day Jake is trying to CORRECT, which is the worst possible
+    // place for it.
+    //
+    // The signature is the sprint timestamps, not the totals: two genuine
+    // sessions can coincidentally share seconds and characters, but two
+    // documents whose sprints carry the identical ISO instants are the same
+    // recorded work written twice. Falls back to the document's own timestamp
+    // when a rollup has no sprints array (pre-v2.10.0 records), and to the
+    // document id — never dedupable, but never wrongly merged either.
+    function sessionSignature(s, id) {
+        const sprints = Array.isArray(s.sprints) ? s.sprints : [];
+        const stamps = sprints.map(sp => sp && sp.at).filter(Boolean);
+        if (!stamps.length) {
+            const t = s.timestamp && s.timestamp.toDate ? s.timestamp.toDate().getTime() : null;
+            return t === null ? 'id\u0000' + id : `t\u0000${s.source || ''}\u0000${s.bookId || ''}\u0000${t}`;
+        }
+        return `s\u0000${s.source || ''}\u0000${s.bookId || ''}\u0000${stamps.join(',')}`;
+    }
+
     async function recalcDailyLog(idx, li, uid, date, { allowZero = false } = {}) {
         const r = reportData[idx];
         const log = r.dailyLogs[li];
@@ -1564,7 +1628,19 @@
             }
 
             const sessions = [];
-            snap.forEach(d => sessions.push(d.data()));
+            const seenSigs = new Set();
+            let dupes = 0;
+            snap.forEach(d => {
+                const data = d.data();
+                const sig = sessionSignature(data, d.id);
+                if (seenSigs.has(sig)) { dupes++; return; }
+                seenSigs.add(sig);
+                sessions.push(data);
+            });
+            if (dupes) {
+                console.warn(`[recalc] ignored ${dupes} duplicate session rollup(s) for ${uid} on ${date}` +
+                             ` — see session-log.js v1.3.0. Delete them from the drill-down to tidy up.`);
+            }
             const { schoolSec, schoolChars, schoolMist, librarySec, libraryChars, libraryMist } =
                 splitSessionTotals(sessions);
             const totalSec = schoolSec + librarySec;

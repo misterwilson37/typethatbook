@@ -136,7 +136,7 @@
 //     a tab close would then try to write an empty map into a timestamp field.
 //     Queued records carry `at` (a real ISO string) and nothing else time-like.
 
-export const SESSION_LOG_VERSION = '1.2.1';
+export const SESSION_LOG_VERSION = '1.3.0';
 
 const KEY = 'ttb_sessionq_v1';
 const RECORDS_PER_DOC = 200;   // firestore.rules: sprints.size() <= 200
@@ -300,7 +300,52 @@ function _group(records) {
 // Returns true only if EVERYTHING landed. A false return means the caller should
 // keep whatever durable state it was going to drop — records that failed are
 // still in the queue and will be retried.
-export async function sessionLogFlush(uid, meta) {
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️ SERIALIZED — DO NOT CALL _sessionLogFlushInner DIRECTLY. (v1.3.0)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// THE DUPLICATE-SESSION BUG, found 2026-08-19. Jake typed one 23-second run in
+// Pinocchio, clicked Home, and got TWO identical typing_sessions documents —
+// same timestamp, same 182 characters, same sprint, both labelled "left page".
+//
+// The cause is a race this module's own header used to argue was impossible.
+// The old comment on game.js's flushSessionsNow() said the flush "is
+// self-limiting: records are removed from the queue as they land." That is true
+// SEQUENTIALLY and false CONCURRENTLY: records are removed only AFTER the
+// `await _addDoc(...)` resolves, and that is a full network round trip. Clicking
+// Home fires visibilitychange:hidden AND pagehide, each of which calls
+// flushSessionsNow() fire-and-forget, unawaited. The second call ran while the
+// first was still in flight, called _read() on a queue nobody had cleared yet,
+// and wrote the same record a second time.
+//
+// This is fixed HERE rather than in the two callers on purpose. There are four
+// call sites across game.js and learn.js, two of them deliberately unawaited on
+// a navigation path where awaiting isn't reliable anyway, and any future caller
+// would inherit the same trap. A promise chain in the one module that owns the
+// queue makes the guarantee structural: a second flush starts only after the
+// first has finished and cleared what it wrote, so it finds an empty (or
+// only-newer) queue and writes nothing twice.
+//
+// Serializing rather than dropping the second call matters — a caller that
+// arrives mid-flush may be carrying records the in-flight run never saw, and
+// dropping it would lose them. It waits its turn instead.
+let _flushChain = Promise.resolve();
+
+export function sessionLogFlush(uid, meta) {
+    // Both handlers re-run the inner flush regardless of whether the previous
+    // one resolved or rejected — a failed flush leaves its records in the queue
+    // precisely so the next attempt retries them.
+    const run = _flushChain.then(
+        () => _sessionLogFlushInner(uid, meta),
+        () => _sessionLogFlushInner(uid, meta)
+    );
+    // The chain itself must never reject, or every later flush would inherit
+    // the rejection and skip straight to its own inner call.
+    _flushChain = run.then(() => {}, () => {});
+    return run;
+}
+
+async function _sessionLogFlushInner(uid, meta) {
     if (!uid || !_ready()) return false;
     let records = _prune(_read(uid));
     if (!records.length) { _write(uid, records); return true; }

@@ -289,6 +289,52 @@ rules file already warned about, now actually possible for a different reason.
    25 harnesses missed. **When a change touches a counter, trace where the
    number comes from, not just what is done to it.**
 
+8. **THE DUPLICATE SESSION — a race the code had explicitly argued was
+   impossible.** Jake typed one 23-second Pinocchio run, clicked Home, and
+   Reports showed TWO identical rollups: same timestamp, same 182 characters,
+   same sprint, both labelled "left page".
+   **The cause**: `sessionLogFlush()` removes records from the local queue only
+   AFTER `await _addDoc(...)` resolves — a full network round trip. Clicking
+   Home fires BOTH `visibilitychange:hidden` and `pagehide`, and each calls
+   `flushSessionsNow()` fire-and-forget, unawaited. The second call ran while
+   the first was still in flight, read a queue nobody had cleared yet, and
+   wrote the same record again.
+   ⚠️ **`flushSessionsNow()`'s own header asserted this could not happen** —
+   "it is self-limiting: records are removed from the queue as they land."
+   That is true sequentially and false concurrently, and it had been written
+   down confidently enough that nobody re-examined it. A comment claiming
+   safety is not a guard.
+   **The fix (`session-log.js` v1.3.0)**: flushes are serialized on a promise
+   chain inside the module that owns the queue — not in the callers, because
+   there are four call sites across two files, two of them deliberately
+   unawaited on navigation paths, and any future caller would inherit the same
+   trap. Callers wait their turn rather than being dropped: a caller arriving
+   mid-flush may carry records the in-flight run never saw.
+   **Mutation-tested.** `session-merge-test.mjs` Part E (v1.4.0) pushes one
+   record, fires two unawaited flushes exactly as the real handlers do, and
+   asserts one document is written. Defeating the serialization makes it report
+   `got 2` — Jake's duplicate, reproduced. The stub `addDoc` used elsewhere in
+   that file resolves instantly and CANNOT reproduce this; Part E's is
+   deliberately slow, because the window only exists across a real await.
+   **The already-written duplicates are still in the database**, and
+   `recalcDailyLog()` grades from `typing_sessions` — so a duplicate would
+   inflate the very day a repair is trying to correct, which matters more now
+   that the post-delete recalc fires automatically. `reports.html` v2.13.2 adds
+   `sessionSignature()` (sprint instants, not totals — two genuine sessions can
+   coincidentally share seconds and characters); the recalc ignores duplicates
+   arithmetically while the drill-down MARKS them "⧉ duplicate" rather than
+   hiding them, since Jake needs to see one to delete it and a silently
+   collapsed view would contradict the run count beside it.
+
+⚠️ **WHY THE WEEK-COUNTER AUDIT DID NOT CATCH THIS, AND WAS NEVER GOING TO.**
+The audit compares `typing_logs` daily sums against the week counter in
+`stats/time_tracking`. It never reads `typing_sessions` at all. The two
+collections are written on the same trigger but audited by nothing in common,
+so a duplicate rollup is invisible to every automated check in the project —
+it showed up only because a human looked at the drill-down. There is no
+sessions-vs-logs reconciliation anywhere. That is the largest remaining
+unaudited surface, and it is the thing to build next if numbers go wrong again.
+
 ⚠️ **KNOWN, ACCEPTED, NOT FIXED**: two tabs of the SAME mode open at once
 still race — both read the same base, and the last flush wins, losing the
 other's contribution. This is pre-existing (the shared-field code had it too),
@@ -497,7 +543,7 @@ Run `node audit-versions.mjs`; do not trust this table either.
 |---|---|
 | `game.js` | 3.29.1 |
 | `learn.js` | 2.14.1 |
-| `session-log.js` | 1.2.1 |
+| `session-log.js` | 1.3.0 |
 | `hud.js` | 1.2.0 |
 | `variety-floor.js` | 1.0.0 |
 | `stats-wal.js` | shared module — check the constant |
@@ -507,7 +553,7 @@ Run `node audit-versions.mjs`; do not trust this table either.
 | `admin.js` | 3.31.0 |
 | `lessons-admin.js` | 1.11.1 |
 | `staff-admin.js` | 2.2.0 |
-| `reports.html` | 2.13.1 |
+| `reports.html` | 2.13.2 |
 | `firebase-config.js` | 1.2.0 |
 | `firestore.rules` | 2.4.0 |
 | `style.css` | 3.5.5 |
