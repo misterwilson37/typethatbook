@@ -1,6 +1,17 @@
 # TypeThatBook
 
-<!-- README.md v1.11.0 — Round 14 (Sholes).
+<!-- README.md v1.12.0 — Round 17 (Linotype).
+     v1.12.0 — THE ROOT DIRECTORY WAS SEVENTY-NINE ENTRIES AND IS NOW THIRTY-THREE.
+              Nothing the browser loads moved: every HTML page, every shipped .js,
+              both stylesheets and library/ are exactly where GitHub Pages expects
+              them, and not one line of app code changed. What moved is everything
+              a human never opens — the harnesses into tests/, the reference docs
+              into docs/, the Firebase config into firebase/, the Cloud Function
+              into functions/, the two Python builders and the version auditor into
+              tools/. The "Layout" section below is rewritten around that, and this
+              file no longer claims MULTITENANCY.md was deleted, because it never
+              was; it is in docs/archive/ with its warning header intact.
+     v1.11.0 — Round 14 (Sholes).
      v1.11.0 — ⚠️ THE TWO DOCUMENT MAPS IN THIS FILE ARE GONE, REPLACED BY ONE
               SENTENCE POINTING AT HANDOFF.md §9. This file used to carry a
               file-map listing six archived handoffs AND a second table at the
@@ -144,6 +155,34 @@ is the source of truth.
 `reports.html` still carry hardcoded page-shell versions in their `<title>` and are
 NOT yet driven from a constant. Remaining inconsistency.
 
+### Where everything is
+
+⚠️ **The root directory is the deployment surface.** GitHub Pages serves this repo
+from its root, so every file the browser loads has to stay there and the five
+folders exist precisely because nothing in them is loaded by anything. Moving a
+`.js`, a `.css`, an `.html` or `library/` out of the root breaks the site; moving
+things *into* the five folders is free.
+
+```
+/                    THE SITE. Six HTML pages, thirteen shipped ES modules, two
+                     stylesheets, library/. Plus CNAME, README.md, HANDOFF.md,
+                     CHANGELOG.md, package.json, .gitignore.
+tests/               33 harnesses + run-all-tests.mjs. 31 registered (27 fast,
+                     4 corpus); 2 deliberately not. See tests/README.md.
+docs/                Reference material, and docs/archive/ for superseded designs.
+                     See docs/README.md.
+tools/               audit-versions.mjs and the two EPUB builders. See tools/README.md.
+firebase/            firestore.rules, firestore.indexes.json, storage.rules.
+                     Console-deployed; nothing reads them from here.
+functions/           index.js — the Cloud Function. Not deployable from this repo.
+library/             The book corpus, plus the two synthetic test EPUBs.
+```
+
+Root is thirty-three entries. It was seventy-nine before Round 17, and the reason
+that mattered was not tidiness: the harnesses were interleaved alphabetically with
+the code they test, so `game.js` sat between `firestore.rules` and `hud-test.mjs`
+and there was no way to see at a glance which files the site actually serves.
+
 ### Layout
 
 ```
@@ -194,23 +233,27 @@ staff-admin.js                   Staff tab: roles, schools, classes, grants.
 
 style.css                        Main stylesheet. #view-splash, condensed book bar.
 
-index.js                          Cloud Function: generatePractice. Calls Gemini to
-package.json                      generate custom practice paragraphs targeting a
+functions/index.js                Cloud Function: generatePractice. Calls Gemini to
+                                  generate custom practice paragraphs targeting a
                                   student's problem characters. 5/user/day cap.
                                   NOT deployable from this repo — needs a CLI.
+                                  ⚠️ It was `index.js`, in the root, directly above
+                                  `index.html`, and unrelated to it. Round 17 moved
+                                  it into functions/ for that reason alone.
+package.json                      Stays at the root, because npm requires it there.
+                                  It serves both the function (dependencies) and the
+                                  harness suite (devDependencies); the comment keys
+                                  inside it explain which is which and why the split
+                                  matters at deploy time.
 ```
 
-Note: `index.js` and `package.json` are the **Cloud Functions** source and are
-unrelated to `index.html`. They deploy separately via the Firebase CLI, not
-GitHub Pages.
-
-### Also in the repo, not deployable from a browser
+### Not served, not deployable from a browser
 
 ```
-firestore.rules                  Published; console-only. Version is in its own
+firebase/firestore.rules          Published; console-only. Version is in its own
                                   header comment — see the note above about not
                                   duplicating version numbers here.
-firestore.indexes.json            The ONLY written record of the three composite
+firebase/firestore.indexes.json   The ONLY written record of the three composite
                                   indexes and both TTL field overrides. Needs the
                                   CLI to deploy; the indexes can also be created
                                   from the click-to-create links Firestore returns
@@ -218,18 +261,18 @@ firestore.indexes.json            The ONLY written record of the three composite
 CHANGELOG.md                      Full per-file version history. Headers are
                                   budgeted to 6 entries; the rest lives here.
 
-TTL-GUIDE.md                      ✅ RECOVERED in Round 6 and verified. Console
+docs/TTL-GUIDE.md                 ✅ RECOVERED in Round 6 and verified. Console
                                   runbook: the two TTL policies, the billing
                                   arithmetic, why pre-v3.4.0 documents are never
                                   collected, and the three composite indexes. TTL
                                   lives in the GOOGLE CLOUD console, not Firebase —
                                   that trips everyone.
 
-SCALE-PLAN.md                     Recovered Round 6. The 7,000-student cost model.
+docs/SCALE-PLAN.md                Recovered Round 6. The 7,000-student cost model.
                                   ⚠️ Read its header box: statuses were corrected,
                                   and its Security section's premise was false.
 
-DESIGN-TELEMETRY.md               ⚠️ THE FORWARD PLAN, and read it before touching
+docs/DESIGN-TELEMETRY.md          ⚠️ THE FORWARD PLAN, and read it before touching
                                   anything that counts time. Sessions become the
                                   single append-only source of truth and all totals
                                   derive from them. §2 is verification-only, every
@@ -251,18 +294,30 @@ HANDOFF.md                        ⚠️ THE ONLY HANDOFF. There is no
                                   HANDOFF.md. Do not go looking, and do not send
                                   Jake looking.
 
-firestore-rules.test.mjs          ⚠️ KNOWN WRONG. Header says v1.1.0 and it seeds
+tests/firestore-rules.test.mjs    ⚠️ KNOWN WRONG. Header says v1.1.0 and it seeds
                                   roles as auth-token claims; rules v2.x reads
                                   staff/{uid} documents and ignores the token.
                                   Committed as a starting point for a rewrite, not
                                   as a passing suite. Needs a CLI + emulator.
+
+docs/README.md                    Index of the reference documents, with a line on
+tests/README.md                   when to read each. Written in Round 17 because
+tools/README.md                   three folders with thirty-odd files in them need
+                                  a door, and because the old single flat list had
+                                  twice sent readers after files that were not there.
 ```
 
 ### Deleted in Round 14, deliberately — do not restore them
 
-`MULTITENANCY.md` specified an Auth custom-claims model that was reversed years ago.
-It read as authoritative to anyone who opened it first, and it is the probable reason
-`firestore-rules.test.mjs` has never matched the rules it tests. `UPLOAD-ORDER.md`
+⚠️ **Corrected in Round 17: `MULTITENANCY.md` was never actually deleted.** Both this
+file and `HANDOFF.md` recorded it as gone for three rounds while it sat in the repo
+root the entire time — which is the worst of both, since anyone who trusted the note
+would not open the file and anyone who found the file would not know it was superseded.
+It is in `docs/archive/` now, with the warning header it was committed with. It
+specified an Auth custom-claims model that was reversed years ago, it read as
+authoritative to anyone who opened it first, and it is the probable reason
+`firestore-rules.test.mjs` has never matched the rules it tests. **Genuinely deleted,
+and still to be left deleted:** `UPLOAD-ORDER.md`
 described Round 6's upload batch and had been eight rounds stale.
 `typethatbook-round6-noiseless.zip` was a copy of the repo, inside the repo.
 `chunktest.mjs` passed green against a rollup loop that had moved into
@@ -372,18 +427,24 @@ written and is not now; read its header box.
 
 ## Tests
 
-There are twenty-three harnesses in the repo. They are for whoever is editing the code,
+There are thirty-three harnesses, in `tests/` — thirty-one of them registered in
+`run-all-tests.mjs` (27 fast + 4 corpus) and two deliberately not, for reasons
+`tests/README.md` gives. They are for whoever is editing the code,
 not for Jake — running them needs Node, which is exactly what this project's
 deployment story does not have. Nothing in the app depends on them.
 
 ```
 npm install                            # devDependencies only; nothing ships to Functions
-npm test                               # the 23 fast ones, ~8 seconds
+npm test                               # the 27 fast ones, ~10 seconds
 npm run test:epubs                     # plus the 4 corpus harnesses, ~2 minutes
-node audit-versions.mjs                # versions.js's drift + budget checks, offline
+npm run audit:versions                 # versions.js's drift + budget checks, offline
 ```
 
-⚠️ **`npm test` currently reports 23 of 24 with `metadata-map-test.mjs` failing** on 42
+All three run from the repo root. `tests/README.md` covers the suite in detail —
+including the two harnesses that are deliberately not registered, and the two that
+Round 17 found passing and unregistered and wired in.
+
+⚠️ **`npm test` currently reports 26 of 27 with `metadata-map-test.mjs` failing** on 42
 of 487 assertions — Gutenberg-sourced EPUBs report a `gutenberg.org` origin where the
 harness expects Standard Ebooks. It is a book-metadata question, not an app defect, and
 it has been the accepted "1 failing" for several rounds. **That is exactly the state
@@ -394,7 +455,8 @@ loudly; do not keep reading "1 failing" as the normal number.
 (`/home/claude/work/game.js`) until Round 6, so **not one of them could run** in a
 fresh checkout. They now resolve their sources relative to their own location via
 `import.meta.url`, and the EPUB harnesses default to this repo's `library/` with an
-optional directory argument. The cost of that was not "the tests were stale" — it
+optional directory argument. **That property is what made the Round 17 move cheap** —
+every source path became `../` instead of `./` and nothing else had to change. The cost of that was not "the tests were stale" — it
 was that `credit-test.mjs` had been broken for a whole round and nobody could see
 the difference between broken and passing.
 

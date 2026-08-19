@@ -363,6 +363,15 @@
     // which is a discipline problem until it becomes a lie. Both are now
     // written from this constant, which is also what versions.js reads for the
     // build panel in index.html.
+    // v2.14.0 — LEGACY-FIRST READ + FLAT RECALC, following the revert of the
+    //           source split in game.js v3.30.0 / learn.js v2.15.0. Summing the
+    //           two shapes (v2.13.1) would double-count any day still carrying
+    //           split fields from the window the split was deployed. ⟳ now
+    //           rewrites a day flat and clears the splits, which makes it the
+    //           one-click cleanup for those days. Everything else from this
+    //           round is KEPT: the delete→recalc cascade, duplicate detection
+    //           and marking, and the manual-save override.
+    //
     // v2.13.2 — DUPLICATE ROLLUPS. session-log.js before v1.3.0 could write one
     //           queued sprint twice (clicking Home fires two flush handlers, and
     //           the queue is only cleared AFTER the write lands); those documents
@@ -381,7 +390,7 @@
     //           afternoon's Library session wrote a split field. The two shapes
     //           cover disjoint periods, so summing loses nothing.
     //
-    const REPORTS_VERSION = "2.13.2";
+    const REPORTS_VERSION = "2.14.0";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
@@ -837,11 +846,29 @@
             // Both repair paths keep this true: recalcDailyLog() deletes the
             // legacy fields when it writes splits, and save-log-btn deletes the
             // splits when it writes a manual flat total.
+            // ⚠️ v2.14.0 — LEGACY-FIRST, because game.js v3.30.0 / learn.js
+            // v2.15.0 REVERTED the source split and write the flat triple
+            // again. Summing (v2.13.1) would now DOUBLE-COUNT any day that
+            // still carries split fields written during the brief window the
+            // split was deployed: the flat number is the full combined day
+            // total from the shared counter, so the splits beside it are the
+            // same time counted a second time.
+            //
+            // Legacy-first is correct in the reverted world: `seconds` is
+            // always authoritative when present, and the split fields are
+            // read ONLY for a day that has no flat number at all — i.e. the
+            // handful of documents written while the split was live, which
+            // would otherwise read as zero and lose a real day of typing.
+            // Those days heal themselves: the next flat write from either
+            // page supersedes them, and ⟳ rewrites them flat outright.
             function readLogTotals(data) {
+                if ('seconds' in data || 'chars' in data || 'mistakes' in data) {
+                    return { seconds: data.seconds || 0, chars: data.chars || 0, mistakes: data.mistakes || 0 };
+                }
                 return {
-                    seconds:  (data.seconds  || 0) + (data.secondsLibrary  || 0) + (data.secondsSchool  || 0),
-                    chars:    (data.chars    || 0) + (data.charsLibrary    || 0) + (data.charsSchool    || 0),
-                    mistakes: (data.mistakes || 0) + (data.mistakesLibrary || 0) + (data.mistakesSchool || 0),
+                    seconds:  (data.secondsLibrary  || 0) + (data.secondsSchool  || 0),
+                    chars:    (data.charsLibrary    || 0) + (data.charsSchool    || 0),
+                    mistakes: (data.mistakesLibrary || 0) + (data.mistakesSchool || 0),
                 };
             }
 
@@ -1647,10 +1674,15 @@
             const totalChars = schoolChars + libraryChars;
             const totalMistakes = schoolMist + libraryMist;
 
+            // ⚠️ v2.14.0 — WRITES FLAT AND CLEARS THE SPLITS. The split is
+            // reverted (see readLogTotals above), so a recalculated day must
+            // come back in the one shape the app still writes. Clearing the
+            // split fields is what makes ⟳ the reliable cleanup for any day
+            // touched while the split was live.
             await updateDoc(doc(db, "typing_logs", log.docId), {
-                secondsSchool: schoolSec, charsSchool: schoolChars, mistakesSchool: schoolMist,
-                secondsLibrary: librarySec, charsLibrary: libraryChars, mistakesLibrary: libraryMist,
-                seconds: deleteField(), chars: deleteField(), mistakes: deleteField(),
+                seconds: totalSec, chars: totalChars, mistakes: totalMistakes,
+                secondsLibrary: deleteField(), charsLibrary: deleteField(), mistakesLibrary: deleteField(),
+                secondsSchool: deleteField(), charsSchool: deleteField(), mistakesSchool: deleteField(),
                 lastUpdated: new Date()
             });
 

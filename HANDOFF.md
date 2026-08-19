@@ -1,7 +1,31 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v14.8.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     2026-08-19 by Round 15 (Densmore) and Round 16 (Royal).
+<!-- HANDOFF.md v14.12.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     2026-08-19 by Round 15 (Densmore), Round 16 (Royal) and Round 17 (Linotype).
+
+     v14.12.0 — Round 17, fourth pass: ⚠️ THE SOURCE SPLIT WAS REVERTED. game.js
+     3.30.0, learn.js 2.15.0, lessons-admin.js 1.12.0, reports.html 2.14.0 and
+     source-split-test.mjs v2.0.0 landed; §0.6 now carries item 9 and the revert
+     analysis. session-log.js STAYS at 1.3.0 — the flush serialization was kept.
+     Stale references to the deleted Part C corrected in §0.7 and in
+     run-all-tests.mjs's harness description.
+
+     v14.11.0 — Round 17, third pass: the concurrent round's APP CODE landed
+     (game.js 3.29.1, learn.js 2.14.1, lessons-admin.js 1.11.1, session-log.js 1.3.0,
+     reports.html 2.13.2). All three PENDING harnesses went green and are promoted
+     into FAST; PENDING is empty. Their §0.6 items 7 and 8 are merged in verbatim.
+     ⚠️ session-log.js arrived with a HEADER/CONSTANT MISMATCH, repaired here.
+
+     v14.10.0 — Round 17, second pass: three harnesses from a CONCURRENT round were
+     merged in. They are test-first and red on purpose; `run-all-tests.mjs` grew a
+     `PENDING` list so they do not corrupt the headline number. §0.7 and §6 updated.
+
+     v14.9.0 — Round 17 reorganised the repository. NO APP CODE CHANGED and nothing
+     the browser loads moved, so every version number in §2 is still correct — but
+     the harnesses are in tests/, the reference docs in docs/, the Firebase config
+     in firebase/, the Cloud Function in functions/, and audit-versions.mjs plus
+     the two Python builders in tools/. §2, §8 and §9 are updated. §9's claim that
+     MULTITENANCY.md was deleted is CORRECTED: it never was.
 
      ⚠️ THIS IS THE ONLY HANDOFF DOCUMENT. It replaces every HANDOFF-roundN.md
      that ever existed. Rounds 3, 5, 6, 7, 8, 9, 11, 12 and 13 have all been read
@@ -13,19 +37,203 @@
      an entire evening of hunting, and produced an invariant numbering collision
      that took seven file uploads to repair. -->
 
-**Round 16 — Royal.** Predecessors: Densmore (15) · Sholes (14) · Ludlow (13) ·
-Caligraph (12) · Bar-Lock (11) · Williams (10) · Remington (9) · Yost (8) ·
-Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) · Blick (3) · Dvorak (2) ·
-Underwood (1).
+**Round 17 — Linotype.** Predecessors: Royal (16) · Densmore (15) · Sholes (14) ·
+Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) · Remington (9) ·
+Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) · Blick (3) ·
+Dvorak (2) · Underwood (1).
 *Other projects, do not reuse:* Stedman, Fable, Trilby, Vernier.
 
-> *On the name:* the Royal Typewriter Co. didn't win by being the most clever
+> *On the name:* the Linotype's celebrated trick was not casting a line of type —
+> it was what happened afterwards. Every brass matrix carried a unique pattern of
+> teeth along its top edge, and the distributor bar at the end of the cycle would
+> carry each one along until its teeth matched its own channel in the magazine, and
+> drop it there. Nobody sorted the type. The machine put every piece back where it
+> belonged as a matter of course, which is the only reason the next line could be
+> set at speed. This round did no typesetting at all: it took seventy-nine loose
+> things out of the repo root and dropped each one into the channel it belonged in.
+> ⚠️ *Not to be confused with Ludlow (13)* — both are hot-metal machines and the
+> names sit close together in the list above. Ludlow shipped `hud.js`; Linotype
+> shipped no app code whatsoever.
+
+> *On the previous name:* the Royal Typewriter Co. didn't win by being the most clever
 > machine on the market — it won by being the one that didn't jam, round after
 > round, until "reliable" and "Royal" were the same word to the people who
 > bought them. This round closed a gap that was already fully written down
 > (Round 15 flagged it, in writing, rather than leaving it implicit) — the
 > boring, correct thing to do with a flagged item is close it exactly the way
 > it was flagged, not improvise a better version.
+
+---
+
+## §0.7. Round 17 — Linotype
+
+Jake asked for the repository to be organised: the root directory held seventy-nine
+entries, most of them files no human ever opens, and the harnesses were interleaved
+alphabetically with the code they test.
+
+**⚠️ THE ONE THING TO KNOW ABOUT THIS ROUND: no app code changed.** Not one line of
+`game.js`, `learn.js`, `admin.js`, any HTML page, either stylesheet, or anything else
+the browser loads. Every version number in §2 is unchanged and still correct. If you
+are debugging behaviour and the trail leads to Round 17, the trail is wrong.
+
+**What moved:**
+
+| to | what |
+|---|---|
+| `tests/` | all 33 harnesses (31 registered, 2 deliberately not), `run-all-tests.mjs`, `TESTING-ttb-test-epubs.md`, plus a new `tests/README.md` |
+| `docs/` | `DESIGN-TELEMETRY.md`, `SCALE-PLAN.md`, `TTL-GUIDE.md`, `README-SESSION-LOGGING.md`, `PEDAGOGY-AUDIT.md`, plus `docs/archive/MULTITENANCY.md` and a new `docs/README.md` |
+| `tools/` | `audit-versions.mjs`, `build-test-epubs.py`, `build-augie-epub.py`, plus a new `tools/README.md` |
+| `firebase/` | `firestore.rules`, `firestore.indexes.json`, `storage.rules` |
+| `functions/` | `index.js` — the Cloud Function, which had been sitting directly above `index.html` and is unrelated to it |
+
+**What stayed, and why it had to:** GitHub Pages serves this repo from its root, so
+the six HTML pages, the thirteen shipped ES modules, both stylesheets and `library/`
+are all exactly where they were. `package.json` stays because npm requires it there.
+`README.md`, `HANDOFF.md`, `CHANGELOG.md` and `CNAME` stay because they are the front
+door. **Moving any shipped file into a folder breaks the site**, and no amount of
+tidiness is worth that.
+
+**What else this turned up** — the useful part, and the reason a reorganisation is
+not just cosmetics:
+
+1. **Two harnesses were passing and unwatched.** `sort-test.mjs` and
+   `lesson-atomicity-test.mjs` were both green on demand and in neither list in
+   `run-all-tests.mjs`, so nothing would have reported the day they stopped. Both
+   registered. The suite is 27 fast harnesses now, not 25. This is invariant 39's
+   territory: **a test nobody runs is not coverage, and a test nobody *registers* is
+   the same thing with better camouflage.**
+2. **`@xmldom/xmldom` was never declared.** `cover-harness.mjs` needed it, the old
+   `run-all-tests.mjs` header told you to `npm install --no-save` it, and
+   `package.json` did not list it — the same class of defect Round 9 fixed for the
+   other four packages and this one survived. Declared in `devDependencies` now.
+   `cover-harness.mjs` is still not registered, deliberately: it prints a report for a
+   human to read and exits 0 regardless, so registering it would add a line that says
+   `ok` unconditionally. See `tests/README.md`.
+3. **There was no `.gitignore`.** Harmless while Jake deploys from a browser and
+   never runs npm — but every Claude session that runs `npm test` creates
+   `node_modules/`, and one commit through github.dev would have pushed twenty
+   thousand files into a repo GitHub Pages serves. Added.
+4. **`MULTITENANCY.md` was never deleted.** Both this file (§9) and `README.md`
+   recorded it as gone from Round 14 onward while it sat in the repo root the whole
+   time. That is the worst of both states: anyone trusting the note would not open
+   the file, and anyone finding the file would not know it was superseded. It is in
+   `docs/archive/` now with its original warning header intact. **Deleting it for
+   real is Jake's call, not a tidy-up's** — see §9.
+
+### ⚠️ Second pass — three harnesses from a concurrent round
+
+Jake handed over `open-unit-test.mjs`, `session-merge-test.mjs` and
+`source-split-test.mjs` from **another instance working on the pages at the same
+time**. All three were written test-first: they assert behaviour the shipped repo
+does not have. Merged, with three kinds of edit.
+
+**1. Paths.** All three read `./game.js` and friends; they are `../` now, and
+`source-split-test.mjs`'s three working-directory-relative reads were converted to
+`import.meta.url` like the rest of the folder.
+
+**2. Versions.** `open-unit-test.mjs` **arrived as v1.2.0 with its content already
+changed** — the concurrent round moved its `session-log.js` pin from 1.2.1 to 1.3.0
+and left the header alone, so two different files were both calling themselves
+v1.2.0. Since v1.2.1 was spent on the tests/ move, it is **v1.2.2**. The other two
+self-bumped correctly (v1.1.0 and v1.4.0) and both clear the reorg's patch numbers.
+
+**3. ⚠️ `PENDING`, a new third list in `run-all-tests.mjs` (v1.3.0).** Dropping these
+into `FAST` would have moved the headline from "1 failing" to "4 failing" — and
+invariant 54, plus `README.md`'s own warning, is that an accepted red is precisely
+how the next real failure hides. Pending harnesses run, their blockers are printed,
+and they **do not count toward `failed`**.
+
+| harness | blocked on |
+|---|---|
+| `open-unit-test.mjs` | `session-log.js` v1.3.0 — 1 assertion (the version pin) |
+| `session-merge-test.mjs` | `session-log.js` v1.3.0 flush serialization — 4 assertions. Part E reproduces the **duplicate-session race of 2026-08-19**: clicking Home fires both `visibilitychange:hidden` and `pagehide`, each calling `flushSessionsNow()` fire-and-forget, and the second read a queue the first had not cleared. |
+| `source-split-test.mjs` | `reports.html`'s summing merge + `sessionSignature()`, and `mySourceSeconds`/`logSourceBase` in `game.js`/`learn.js` — 11 assertions. ⚠️ **Historical: all of that was reverted hours later.** The harness is v2.0.0 now, Part C is deleted, and Part A asserts legacy-FIRST reading — the opposite of what this row describes. Kept as written because it records why `PENDING` existed, not what the harness currently checks. See §0.6 item 9. |
+
+**⚠️ THE LIST IS SELF-CLEARING, AND THAT IS THE ONLY THING THAT MAKES IT SAFE.** A
+pending harness that starts passing is reported as `LAND` with a capitalised notice,
+because passing means the code shipped. **Promote it into `FAST` and delete it from
+`PENDING` in the same commit that ships that code.** Verified by simulation, not
+assumed: setting `SESSION_LOG_VERSION` to `'1.3.0'` flips `open-unit-test.mjs` to
+`LAND` and fires the notice. A harness sitting quietly in `PENDING` is a disabled
+test with a nicer name — which is what `chunktest.mjs` was deleted for.
+
+**No app code was changed to make any of this pass.** The three harnesses are the
+specification for the concurrent round's work; making them green is that round's job.
+
+### ✅ Third pass — the app code landed, and PENDING emptied itself
+
+Jake delivered `game.js` v3.29.1, `learn.js` v2.14.1, `lessons-admin.js` v1.11.1,
+`session-log.js` v1.3.0 and `reports.html` v2.13.2 from the concurrent round. **All
+three pending harnesses went green in the same run.** The runner reported `LAND` on
+each and printed its notice; all three are promoted into `FAST` in this commit, which
+is what the mechanism demands. `PENDING` remains in `run-all-tests.mjs`, empty, as the
+documented home for the next test-first harness.
+
+`npm test` → **26 of 27, 0 missing, 0 pending.** Only `metadata-map-test.mjs`.
+
+**⚠️ ONE DEFECT IN THE DELIVERY, CAUGHT BY `audit-versions.mjs`.** `session-log.js`
+arrived with `SESSION_LOG_VERSION = '1.3.0'` and a header still reading v1.2.1 — the
+tool said *"header comment says v1.2.1 — one of the two is a lie"*, and the problem
+count went from the standing 11 to 12. **This is the exact defect class `versions.js`
+exists for**, and the same shape Round 6 found in `adventure-renderer.js`, only
+inverted: there the constant lagged the code, here the header lagged the constant. The
+v1.3.0 entry is written now, derived from the file's own `sessionLogFlush()` comment
+block and §0.6 item 8 rather than invented, and marked as a Round 17 repair.
+**Verified that nothing executable moved:** every non-comment line is byte-identical to
+what Jake uploaded. Back to 11 problems.
+
+**Part C was independently mutation-tested here, not taken on trust** — and the way
+that nearly went wrong outlived Part C itself, so it is kept. §0.6 item 7 claimed that
+re-introducing the v3.29.0 line makes `source-split-test.mjs` Part C fail. The first
+attempt did not fire: the substitution silently missed, because the real line is
+`secondsLibrary:  logSourceBase.seconds  + mySourceSeconds` with doubled spaces, and
+the string being grepped to confirm the hit already existed *in a comment* a thousand
+lines up. **So the confirmation confirmed the documentation, not the mutation, and an
+invalid mutation looked exactly like a passing guard.** Re-run against the real
+assignment, Part C failed on 2 assertions as claimed.
+
+⚠️ **Part C no longer exists** — the fourth pass reverted the counters it guarded and
+`source-split-test.mjs` v2.0.0 deleted it. The finding above is retained anyway,
+because it is about verifying a mutation actually applied, which is a technique, not a
+fact about that harness. It is the same shape as §0.6's closing lesson: a green result
+proves the check ran, not that it checked what you meant.
+
+### ⚠️ Fourth pass — the source split was reverted
+
+`game.js` v3.30.0, `learn.js` v2.15.0, `lessons-admin.js` v1.12.0, `reports.html`
+v2.14.0 and `source-split-test.mjs` **v2.0.0** landed. The full reasoning is §0.6 item
+9, written by the round that made the call; it is not restated here. What matters for
+this document:
+
+- **`session-log.js` stays at v1.3.0.** The flush serialization was explicitly kept —
+  it touches no counter. My header repair from the third pass stands, and the file was
+  not re-delivered, so nothing about it changed in this pass.
+- **`source-split-test.mjs` v2.0.0 is a MAJOR bump**, and it earns one: Part C is
+  deleted and Part A's central assertion is **inverted** — legacy-first, not summed.
+  A harness whose contract reverses is exactly the case the x-digit is for. It arrived
+  as a major from the round that wrote it, so it is not mine to sign off; recorded here
+  so it is not mistaken for drift.
+- **Three stale references were corrected**, all of them things a green suite would
+  never have caught: `run-all-tests.mjs`'s one-line description of the harness still
+  advertised "Part C: no split field is fed from the shared cross-mode counter" for a
+  Part C that no longer exists, and two passages in §0.7 above described the split as
+  landed. **A test description is documentation with no test behind it** — nothing
+  asserts it matches the harness, so it rots silently and reads as authoritative.
+- **`npm test` → 26 of 27, 0 missing.** `audit:versions` → the standing 11.
+
+**What did NOT get done, and is left flagged rather than improvised:**
+
+- `package.json` still serves two masters — `dependencies` are the Cloud Function's
+  (`firebase-admin`, `firebase-functions`) and `devDependencies` are the suite's. A
+  fresh `npm install` therefore pulls the whole `@google-cloud` tree to run harnesses
+  that never touch it. Splitting it into a root `package.json` and a
+  `functions/package.json` is the correct fix and was **deliberately not done**: it
+  changes what a deploy would install, and the function is mirrored into the console
+  by hand rather than deployed from here, so the blast radius is not verifiable from
+  inside the repo. Flagged for Jake.
+- `metadata-map-test.mjs` still fails on the same 42 assertions. Untouched — §6.
+- `firestore-rules.test.mjs` is still known-wrong. Moved, repointed at
+  `../firebase/firestore.rules`, not repaired.
 
 ---
 
@@ -326,6 +534,70 @@ rules file already warned about, now actually possible for a different reason.
    hiding them, since Jake needs to see one to delete it and a silently
    collapsed view would contradict the run count beside it.
 
+9. **⚠️ THE SOURCE SPLIT WAS REVERTED. READ THIS BEFORE RE-ATTEMPTING IT.**
+   Items 5 and 7 above describe a fix that was shipped, found broken in live
+   use, re-fixed, and then **backed out entirely** the same evening. Final
+   state: `game.js` v3.30.0 and `learn.js` v2.15.0 write the flat
+   `seconds`/`chars`/`mistakes` triple exactly as v3.28.1 / v2.13.1 did.
+   **DESIGN-TELEMETRY.md §2.4 is once again an OPEN, KNOWN defect** — two page
+   controllers still overwrite each other's daily total — rather than a
+   half-landed fix.
+   **Why reverted rather than fixed forward.** The v3.29.1 per-page counters
+   are, as far as I can tell, correct. But the round had by then produced two
+   student-visible defects in two days, every one found by Jake in live use
+   rather than by any harness, and he had one evening before students arrived.
+   Shipping a third counter change overnight, unverified in production, was
+   the same gamble that had already lost twice. Reverting to a defect he has
+   lived with for months was the lower-variance choice. **That reasoning is
+   about the calendar, not the code** — if you are reading this with time to
+   test properly, the v3.29.1 approach (per-page counters + a base read once at
+   load) is where to start, and it is in git history.
+   **Read side follows the write side**: `reports.html` v2.14.0 and
+   `lessons-admin.js` v1.12.0 read LEGACY-FIRST. Summing the two shapes
+   (v2.13.1) would now double-count any day still carrying split fields from
+   the hours the split was deployed, because the flat number is already the
+   whole combined day. Split fields are read only for a day with no flat
+   number at all — those exist, and would otherwise read as zero. They heal on
+   the next flat write, and ⟳ rewrites them flat outright.
+
+⚠️ **WHAT WAS KEPT, AND WHY IT IS SAFE.** The revert covers the counter/write
+path only. These all survive because none of them can corrupt a number — they
+only read or repair:
+   - **The delete → recalc cascade** (`reports.html`): deleting a cheated
+     session automatically rebuilds that day. This was the thing Jake actually
+     asked for, and it works.
+   - **Duplicate detection** (`sessionSignature()`): ⟳ ignores duplicate
+     rollups arithmetically, and the drill-down marks them `⧉ duplicate`.
+   - **The flush serialization** (`session-log.js` v1.3.0): correct in itself
+     and touches no counter. See the caveat below.
+   - **The week-repair resync** (`game.js` v3.28.0 / `learn.js` v2.13.0):
+     tested, and it fixes a repair that provably would not stick.
+   - **`variety-floor.js`** and the remediation floor: no data path at all.
+
+⚠️ **AN OPEN QUESTION THE REVERT DOES NOT ANSWER.** After `session-log.js`
+v1.3.0 was deployed, a THIRD identical 4:55 PM rollup appeared where there had
+been two. Serialization prevents two concurrent flushes writing the same
+record; it does NOT prevent a record being re-sent by a LATER page load if the
+queue-clearing `localStorage` write never persisted because the page was being
+torn down. That is the leading hypothesis and **it is not proven** — do not act
+on it without evidence. The durable fix, if it holds up, is a DETERMINISTIC
+document id derived from `(uid, date, source, label, first sprint instant)` and
+`setDoc` instead of `addDoc`, which makes a re-send overwrite rather than
+duplicate and makes n-1 self-healing. **That needs a `firestore.rules` change
+to allow owner update on `typing_sessions`, which today only allows create** —
+get that wrong and sessions stop recording silently.
+
+⚠️ **THE PATTERN ACROSS THIS WHOLE ROUND, FOR WHOEVER IS NEXT.** Three
+defects shipped green: the shared-counter split, the legacy-drop on read, and
+the flush race. Every harness written passed. Every one of them tested
+ARITHMETIC — does this function compute the right number from these inputs —
+and every defect was in CHOREOGRAPHY: which variable got handed in, which
+handler fired twice, what the browser does at page death. **There is still no
+end-to-end harness that simulates the exit sequence** (`visibilitychange` then
+`pagehide`, slow network) and asserts a record lands exactly once. That harness
+is worth more than the next feature. Until it exists, Jake is the integration
+test, and that is not an acceptable place to leave him.
+
 ⚠️ **WHY THE WEEK-COUNTER AUDIT DID NOT CATCH THIS, AND WAS NEVER GOING TO.**
 The audit compares `typing_logs` daily sums against the week counter in
 `stats/time_tracking`. It never reads `typing_sessions` at all. The two
@@ -342,9 +614,9 @@ it is not made worse here, and closing it means either a read per flush or
 Firestore `increment()` with the double-count-on-retry risk the WAL exists to
 avoid. The ⟳ recalc-from-sessions button rebuilds any day this damages.
 
-`npm test` → 25 of 25 harnesses, 24 passing — same pre-existing
-`metadata-map-test.mjs` failure, untouched. `source-split-test.mjs` is now 22
-assertions across three parts.
+`npm test` at the close of Round 16 → 25 of 25 harnesses, 24 passing, same
+pre-existing `metadata-map-test.mjs` failure. ⚠️ **That denominator is historical.**
+Round 17 reorganised the repo and re-counted; see §0.7 for the number to use now.
 
 ---
 
@@ -537,12 +809,13 @@ browsable user directory, by design. `users/{uid}` deliberately holds no PII, wh
 
 Shipped state after Round 16, 2026-08-19. **Verified against the repo, not copied from
 the previous table** — three consecutive rounds carried a stale version for `admin.js`.
-Run `node audit-versions.mjs`; do not trust this table either.
+Run `npm run audit:versions`; do not trust this table either. **Round 17 moved
+files but changed no code — every version below is unchanged by it.**
 
 | file | version |
 |---|---|
-| `game.js` | 3.29.1 |
-| `learn.js` | 2.14.1 |
+| `game.js` | 3.30.0 |
+| `learn.js` | 2.15.0 |
 | `session-log.js` | 1.3.0 |
 | `hud.js` | 1.2.0 |
 | `variety-floor.js` | 1.0.0 |
@@ -551,18 +824,21 @@ Run `node audit-versions.mjs`; do not trust this table either.
 | `keyboard.js` | 1.1.1 |
 | `adventure-renderer.js` | 1.5.4 |
 | `admin.js` | 3.31.0 |
-| `lessons-admin.js` | 1.11.1 |
+| `lessons-admin.js` | 1.12.0 |
 | `staff-admin.js` | 2.2.0 |
-| `reports.html` | 2.13.2 |
+| `reports.html` | 2.14.0 |
 | `firebase-config.js` | 1.2.0 |
-| `firestore.rules` | 2.4.0 |
+| `firebase/firestore.rules` | 2.4.0 |
 | `style.css` | 3.5.5 |
 | `game.html` | 1.1.0 — new in Round 15, see §0.5 |
 | `learn.html` | 1.0.0 — new in Round 15, see §0.5 |
-| `index.js` | 1.7.0 — Cloud Function, NOT deployable from this repo; Jake mirrors it into the console by hand. See its own header. |
+| `functions/index.js` | 1.7.0 — Cloud Function, NOT deployable from this repo; Jake mirrors it into the console by hand. See its own header. Moved out of the root in Round 17; the file is byte-identical. |
 
-`npm test` → **23 of 24 harnesses pass.** The only failure is `metadata-map-test.mjs`
-(42 of 487 assertions), pre-existing and unrelated — §6.
+`npm test` → **26 of 27 harnesses pass, 0 pending.** The only failure is `metadata-map-test.mjs`
+`metadata-map-test.mjs` fails on 42 of 487 assertions, pre-existing and unrelated — §6.
+(The denominator moved twice in Round 17: two green-but-unregistered harnesses were
+wired in, then three test-first ones moved to `PENDING`. The number to watch is
+**"1 failing, 0 missing"** — pending is reported separately and on purpose.)
 
 **Deploy check, in one glance:** Library footer reads `game.html vX · game.js vX ·
 style.css vX` (⚠️ CHANGED IN ROUND 15 — it used to read just `game.js v3.26.2`; if
@@ -1355,7 +1631,8 @@ a pointer to a file you should go and read.**
 | 13 | Ludlow | `serverAt` (write side only). Step 1.5: closing the open sprint/run, delta writes, the watermark. `hud.js`. |
 | 14 | Sholes | This consolidation: nine handoffs into one, the invariant renumbering repair, and the step-2 timeliness finding in §4. |
 | 15 | Densmore | Fixed Round 14's HUD fix, which shipped green and didn't work. Version footer redesign. AI-practice variety floor (game.js/index.js). HUD long-form clip fix. |
-| 16 | Royal | The remediation variety floor (School's practice-missed-keys gap Round 15 flagged). The repair resync — a real incident, fixed and given harness coverage: an audit-repaired week counter that kept getting silently overwritten by a MacBook that skipped its between-period restart. Extracted the two files' duplicated variety-floor filter into `variety-floor.js`, the fifth shared module, with its own harness. The source split (DESIGN-TELEMETRY.md §2.4) — game.js/learn.js write per-source typing_logs fields instead of a shared, clobberable triple; requires firestore.rules v2.4.0 deployed first. Connected delete → recalc on the reports.html session drill-down, so a cheating student's numbers get fixed with zero manual bookkeeping and zero added cost. |
+| 16 | Royal | ⚠️ MIXED — the source split shipped, broke twice in live use, and was REVERTED the same evening (see §0.6 item 9). Kept: delete→recalc, duplicate detection, flush serialization, week-repair resync, variety-floor extraction. The remediation variety floor (School's practice-missed-keys gap Round 15 flagged). The repair resync — a real incident, fixed and given harness coverage: an audit-repaired week counter that kept getting silently overwritten by a MacBook that skipped its between-period restart. Extracted the two files' duplicated variety-floor filter into `variety-floor.js`, the fifth shared module, with its own harness. The source split (DESIGN-TELEMETRY.md §2.4) — game.js/learn.js write per-source typing_logs fields instead of a shared, clobberable triple; requires firestore.rules v2.4.0 deployed first. Connected delete → recalc on the reports.html session drill-down, so a cheating student's numbers get fixed with zero manual bookkeeping and zero added cost. |
+| 17 | Linotype | Repository reorganisation — 79 root entries to 33. No app code changed and nothing the browser loads moved. Harnesses to `tests/`, docs to `docs/`, Firebase config to `firebase/`, the Cloud Function to `functions/`, `audit-versions.mjs` and the Python builders to `tools/`. Found and registered two green-but-unregistered harnesses (`sort-test`, `lesson-atomicity-test`), declared the missing `@xmldom/xmldom`, added the repo's first `.gitignore`, and corrected three rounds of notes claiming `MULTITENANCY.md` had been deleted when it had not. Second pass: merged three test-first harnesses from a concurrent round and added the `PENDING` list to `run-all-tests.mjs` so red-on-purpose harnesses cannot corrupt the headline number. Third pass: the concurrent round's app code landed, all three went green and were promoted, and `session-log.js`'s header/constant mismatch was repaired. |
 
 ---
 
@@ -1365,20 +1642,32 @@ a pointer to a file you should go and read.**
 
 | doc | what it is for |
 |---|---|
-| `HANDOFF.md` | this file — the only handoff |
-| `README.md` | what the project is; file map, data model |
-| `DESIGN-TELEMETRY.md` | ⚠️ the forward plan. §2 verification-only, §7 build order, §8 things that must not happen |
-| `SCALE-PLAN.md` | cost model. Read the header box; its Security section's premise was false and is re-headed |
-| `CHANGELOG.md` | kept, but its index is stale — §6.4. The file headers are the more reliable history |
-| `TTL-GUIDE.md` | TTL policy, billing arithmetic, composite indexes. Console steps walked through with Jake |
-| `README-SESSION-LOGGING.md` | teacher-facing: session history, the week audit, the ID stamp |
-| `PEDAGOGY-AUDIT.md` | Round 2 research. The only record of why the lesson gates are what they are |
-| `TESTING-ttb-test-epubs.md` | the synthetic EPUB test corpus |
+| `HANDOFF.md` | this file — the only handoff. **Root**, and it stays there |
+| `README.md` | what the project is; file map, data model. **Root** |
+| `CHANGELOG.md` | **Root.** Kept, but its index is stale — §6.4. The file headers are the more reliable history. ⚠️ Round 17 left it untouched on purpose: a changelog is a record of what happened, and rewriting old entries to use new paths would falsify it |
+| `docs/README.md` | 🆕 index of the folder below — one line per document on when to read it |
+| `docs/DESIGN-TELEMETRY.md` | ⚠️ the forward plan. §2 verification-only, §7 build order, §8 things that must not happen |
+| `docs/SCALE-PLAN.md` | cost model. Read the header box; its Security section's premise was false and is re-headed |
+| `docs/TTL-GUIDE.md` | TTL policy, billing arithmetic, composite indexes. Console steps walked through with Jake |
+| `docs/README-SESSION-LOGGING.md` | teacher-facing: session history, the week audit, the ID stamp |
+| `docs/PEDAGOGY-AUDIT.md` | Round 2 research. The only record of why the lesson gates are what they are |
+| `docs/archive/MULTITENANCY.md` | ⚠️ **SUPERSEDED, and see the correction below.** Kept for two arguments that appear nowhere else; its warning header is what makes keeping it safe |
+| `tests/README.md` | 🆕 the suite: what is registered, what is deliberately not, and the standing failure |
+| `tests/TESTING-ttb-test-epubs.md` | the synthetic EPUB test corpus |
+| `tools/README.md` | 🆕 `audit-versions.mjs` and the two EPUB builders, with their accepted problem count |
 | `library/gutCleaners/*` | the bookclean project's own docs. Separate concern, leave alone |
 
+**⚠️ CORRECTION, ROUND 17 — `MULTITENANCY.md` WAS NEVER DELETED.** This section said it was, from
+Round 14 through Round 16, while the file sat in the repo root the entire time. Three rounds of
+readers were told not to look for a file that was right there, and told nothing about the file they
+would find if they did. It is `docs/archive/MULTITENANCY.md` now, unchanged, with the warning header
+it was committed with in Round 6. Everything this section said *about* it remains true: it specified
+an Auth custom-claims model that was reversed, and it is the probable reason
+`firestore-rules.test.mjs` has never matched the rules it tests. **Whether to delete it for real is
+Jake's call.** A tidy-up may move a file; deleting a document three rounds of notes disagree about is
+a decision, not housekeeping.
+
 **⚠️ GONE, AND GONE MEANS GONE.** Every `HANDOFF-roundN.md` is deleted; their content is in §1–§8.
-`MULTITENANCY.md` is deleted — it specified an Auth custom-claims model that was reversed, and it is
-the probable reason `firestore-rules.test.mjs` has never matched the rules it tests.
 `UPLOAD-ORDER.md` is deleted; it described Round 6.
 
 `SETUP-NO-CLI.md` and `RULES-AUDIT.md` were lost long ago. `firestore.rules` cites `SETUP-NO-CLI.md`

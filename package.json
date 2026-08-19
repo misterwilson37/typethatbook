@@ -9,7 +9,12 @@
   "engines": {
     "node": "22"
   },
-  "main": "index.js",
+  "//main": [
+    "The Cloud Function source moved to functions/index.js in the Round 17 tidy,",
+    "so it stops sitting next to index.html looking like the site's entry point.",
+    "It is still not deployable from this repo — that needs `firebase deploy`."
+  ],
+  "main": "functions/index.js",
   "//dependencies": [
     "PRODUCTION ONLY. Everything listed here is uploaded and installed on every",
     "Cloud Functions deploy, and is paid for in cold-start time. If a package is",
@@ -41,9 +46,15 @@
     "jsdom      — the ten DOM harnesses (about-render, card-markup, credits, ...)",
     "acorn      — undefined-calls-test.mjs parses every shipped file",
     "acorn-walk — same",
-    "jszip      — the EPUB corpus harnesses (--with-epubs)"
+    "jszip      — the EPUB corpus harnesses (--with-epubs)",
+    "@xmldom/xmldom — tests/cover-harness.mjs, and ONLY that harness. It was the",
+    "             one package the old install line named that package.json did not",
+    "             declare, which is why cover-harness.mjs is the one harness in",
+    "             tests/ that a fresh clone could not run. Declared now. It is",
+    "             still not registered in run-all-tests.mjs — see tests/README.md."
   ],
   "devDependencies": {
+    "@xmldom/xmldom": "^0.9.0",
     "acorn": "^8.11.0",
     "acorn-walk": "^8.3.0",
     "jsdom": "^24.0.0",
@@ -52,10 +63,14 @@
   "//scripts": [
     "`npm test` exists so the suite has one obvious entry point. run-all-tests.mjs",
     "skips the EPUB corpus harnesses unless you pass --with-epubs, because those",
-    "need the library/ folder and take minutes rather than seconds."
+    "need the library/ folder and take minutes rather than seconds.",
+    "",
+    "Paths are repo-root relative — package.json is the only file at the root that",
+    "knows where the suite lives, which is the point of putting it here."
   ],
   "scripts": {
-    "test": "node run-all-tests.mjs",
-    "test:epubs": "node run-all-tests.mjs --with-epubs"
+    "test": "node tests/run-all-tests.mjs",
+    "test:epubs": "node tests/run-all-tests.mjs --with-epubs",
+    "audit:versions": "node tools/audit-versions.mjs"
   }
 }

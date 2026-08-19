@@ -1,0 +1,113 @@
+{
+  "__comment__": [
+    "TypeThatBook index + TTL definitions. v2.1.0 (2026-08-18).",
+    "",
+    "v2.1.0 — DOCUMENTATION ONLY. NO CONSOLE CHANGE IS REQUIRED BY THIS VERSION.",
+    "session-log.js v1.1.0 adds a `serverAt` timestamp to every typing_sessions",
+    "document (DESIGN-TELEMETRY.md §6.3). Firestore will therefore build the usual",
+    "automatic ascending + descending single-field indexes on it. That is LEFT IN",
+    "PLACE deliberately, unlike its sibling `timestamp` which is exempted below:",
+    "",
+    "  * Nothing queries serverAt today, so by the reasoning in the block below it",
+    "    is payload and could be exempted. But the reason it exists is to be",
+    "    compared against `timestamp`, and the first thing anyone will want from",
+    "    that comparison is a range query - 'show me sessions where the two clocks",
+    "    disagree by more than a day'. An exemption would have to be removed again",
+    "    to allow it, and removing one means rebuilding the index across the whole",
+    "    collection.",
+    "  * The cost of being wrong in this direction is index storage on a collection",
+    "    that is TTL-capped at 120 days. At Ellis (90 students, ~15 rollups each per",
+    "    day) that is roughly 160k documents standing at any time - two extra index",
+    "    entries each, on a timestamp. Pennies. At district scale it is worth",
+    "    re-deciding, which is what this note is for.",
+    "",
+    "⚠️ If a later round DOES exempt it, add the entry to fieldOverrides below AND",
+    "say so here, because this file is the only record of what the console holds.",
+    "",
+    "This file is the ONLY machine-readable record of what is configured in the",
+    "console. Jake has no CLI, so nothing here is applied by deploying it - it is",
+    "documentation that happens to be valid JSON. Every entry must be created by",
+    "hand: composite indexes in the Firebase console (Firestore > Indexes), TTL",
+    "policies and single-field exemptions in the GOOGLE CLOUD console.",
+    "",
+    "WHY THE EXEMPTIONS MATTER, since they are new in v2.0.0:",
+    "Firestore automatically builds an ascending AND a descending index for every",
+    "field of every document, and index storage is billed the same as document",
+    "storage. typing_logs is the collection that grows fastest - one document per",
+    "student per school day, so roughly 1.26 million documents a year at full",
+    "district scale - and most of its fields are never used in a where() or an",
+    "orderBy() anywhere in the codebase. They are payload, read back with the",
+    "document, and indexing them buys nothing and costs storage forever.",
+    "",
+    "Verified by grep across game.js, learn.js, reports.html and lessons-admin.js",
+    "on 2026-08-02: the ONLY typing_logs fields ever queried are classId, schoolId",
+    "and date. Everything else below is exempt.",
+    "",
+    "TTL NOTE: typing_sessions and practice_sessions carry expiresAt and are",
+    "collected at 120 days - Jake confirmed both policies are live. typing_logs",
+    "deliberately has NO TTL: it is the collection reports grade from, it is small",
+    "per document, and losing a year of it would lose a year of records. The",
+    "exemptions below are what keep its storage growth flat instead of linear in",
+    "field count. Revisit only if storage becomes the binding constraint."
+  ],
+
+  "indexes": [
+    {
+      "collectionGroup": "typing_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "schoolId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "typing_logs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "classId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "leaderboard",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "weekStart", "order": "ASCENDING" },
+        { "fieldPath": "totalSecondsWeek", "order": "DESCENDING" }
+      ]
+    }
+  ],
+
+  "fieldOverrides": [
+    { "collectionGroup": "typing_sessions",   "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+    { "collectionGroup": "practice_sessions", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
+
+    { "collectionGroup": "typing_logs", "fieldPath": "uid",         "indexes": [] },
+    { "collectionGroup": "typing_logs", "fieldPath": "email",       "indexes": [] },
+    { "collectionGroup": "typing_logs", "fieldPath": "displayName", "indexes": [] },
+    { "collectionGroup": "typing_logs", "fieldPath": "seconds",     "indexes": [] },
+    { "collectionGroup": "typing_logs", "fieldPath": "chars",       "indexes": [] },
+    { "collectionGroup": "typing_logs", "fieldPath": "mistakes",    "indexes": [] },
+    { "collectionGroup": "typing_logs", "fieldPath": "lastUpdated", "indexes": [] },
+    { "collectionGroup": "typing_logs", "fieldPath": "source",      "indexes": [] },
+
+    { "collectionGroup": "typing_sessions", "fieldPath": "email",       "indexes": [] },
+    { "collectionGroup": "typing_sessions", "fieldPath": "displayName", "indexes": [] },
+    { "collectionGroup": "typing_sessions", "fieldPath": "sprints",     "indexes": [] },
+    { "collectionGroup": "typing_sessions", "fieldPath": "wpm",         "indexes": [] },
+    { "collectionGroup": "typing_sessions", "fieldPath": "accuracy",    "indexes": [] },
+    { "collectionGroup": "typing_sessions", "fieldPath": "chars",       "indexes": [] },
+    { "collectionGroup": "typing_sessions", "fieldPath": "mistakes",    "indexes": [] },
+    { "collectionGroup": "typing_sessions", "fieldPath": "seconds",     "indexes": [] },
+    { "collectionGroup": "typing_sessions", "fieldPath": "sprintCount", "indexes": [] },
+    { "collectionGroup": "typing_sessions", "fieldPath": "timestamp",   "indexes": [] },
+    { "collectionGroup": "typing_sessions", "fieldPath": "bookId",      "indexes": [] },
+
+    { "collectionGroup": "practice_sessions", "fieldPath": "generatedText",  "indexes": [] },
+    { "collectionGroup": "practice_sessions", "fieldPath": "prompt",         "indexes": [] },
+    { "collectionGroup": "practice_sessions", "fieldPath": "problemChars",   "indexes": [] },
+    { "collectionGroup": "practice_sessions", "fieldPath": "practiceErrors", "indexes": [] },
+    { "collectionGroup": "practice_sessions", "fieldPath": "email",          "indexes": [] },
+    { "collectionGroup": "practice_sessions", "fieldPath": "displayName",    "indexes": [] }
+  ]
+}

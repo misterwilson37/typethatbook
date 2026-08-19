@@ -1,22 +1,10 @@
-// learn.js v2.14.1
+// learn.js v2.15.0
 //
-// v2.14.1 — ⚠️ FIXES v2.14.0, WHICH WAS WRONG. Mirrors game.js v3.29.1 exactly
-//           — see its header for the full defect. Short version: the split was
-//           fed from the shared cross-mode `statsData.secondsToday`, so
-//           `secondsSchool` carried the combined day total rather than School's
-//           own. Now uses per-page counters plus a School-only base read at
-//           load. CHANGE ONE, CHANGE BOTH.
-//
-//
-// v2.14.0 — THE SOURCE SPLIT. Mirrors game.js v3.29.0 exactly — see its header
-//           for the incident (DESIGN-TELEMETRY.md §2.4) and the reasoning for
-//           choosing this over full session-derivation (real ongoing dollar
-//           cost Jake pays personally, for zero added correctness benefit
-//           over this at the specific bug it closes). Writes
-//           secondsSchool/charsSchool/mistakesSchool now; the old flat
-//           `source: 'school'` field is dropped as no longer meaningful once
-//           a document can hold both modes' contributions at once. ⚠️
-//           REQUIRES firestore.rules v2.4.0+, deployed first.
+// v2.15.0 — ⚠️ THE SOURCE SPLIT IS REVERTED. Mirrors game.js v3.30.0 — see its
+//           header. This file's typing_logs write is what v2.13.1 shipped:
+//           the flat triple plus `source: 'school'`. DESIGN-TELEMETRY.md §2.4
+//           is once again an open, known defect. The week-repair resync and
+//           the remediation variety floor are untouched.
 //
 // v2.13.1 — EXTRACTED `_qualifyingRemediationChars()`'s FILTER into the new
 //           variety-floor.js, mirroring game.js v3.28.1 exactly — see that
@@ -299,7 +287,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.14.1";
+const LEARN_VERSION = "2.15.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -431,19 +419,6 @@ let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0,
 // collapses back into sum(). Set ONLY where Firestore is read (loadUserStats).
 let statsBaseline = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0,
                       mistakesToday:0, mistakesWeek:0 };
-
-// ═════════════════════════════════════════════════════════════════════════════
-// THIS PAGE'S OWN CONTRIBUTION TO TODAY. (v2.14.1)
-// ═════════════════════════════════════════════════════════════════════════════
-// ⚠️ Mirrors game.js v3.29.1 exactly — CHANGE ONE, CHANGE BOTH. See game.js's
-// copy of this comment for the full v3.29.0 bug: the source split was wired to
-// `statsData.secondsToday`, which BOTH page controllers share, so each mode's
-// "own" field was actually receiving the combined day total. These counters are
-// incremented only at the sites that increment statsData.*Today, so they count
-// only what THIS page typed since THIS page loaded.
-let mySourceSeconds = 0, mySourceChars = 0, mySourceMistakes = 0;
-let logSourceBase = { seconds: 0, chars: 0, mistakes: 0 };
-let logSourceBaseDate = '';
 
 // ⚠️ THE LAST REPAIR THIS SESSION HAS SEEN. (v2.13.0) Mirrors game.js exactly —
 // see checkForWeekRepair(), near flushStats() below. Set at load time from the
@@ -643,7 +618,6 @@ onAuthStateChanged(auth, async user => {
         await retroactiveSaveAnonSession(user);
         await loadUserProgress();
         await loadUserStats();
-        await loadLogSourceBase();   // ⚠️ travels with loadUserStats(), always
         walRecoverLearn();   // replay unflushed lesson time from a dead session
         await loadGoals();
         // ⚠️ ORDER CHANGED: goals now runs FIRST so classInfo is populated, and
@@ -1660,7 +1634,6 @@ function startGradedTimer() {
             learnActiveSeconds++;
             statsData.secondsToday++;
             statsData.secondsWeek++;
-            mySourceSeconds++;   // ⚠️ this page's own, never the shared counter
             if (!currentUser || currentUser.isAnonymous) {
                 anonSecondsAccum++;
                 if (anonSecondsAccum % GUEST_ACCUM_SAVE_EVERY === 0) persistGuestAccum();
@@ -1671,11 +1644,6 @@ function startGradedTimer() {
             if (statsData.lastDate && statsData.lastDate !== todayStr) {
                 statsData.secondsToday = 1; statsData.charsToday = 0; statsData.mistakesToday = 0;
                 statsData.lastDate = todayStr; dailyGoalCelebrated = false;
-                // Same shape as the line above: the ++ for this second already
-                // ran, so this page's own contribution to the NEW day is 1.
-                mySourceSeconds = 1; mySourceChars = 0; mySourceMistakes = 0;
-                logSourceBase = { seconds: 0, chars: 0, mistakes: 0 };
-                logSourceBaseDate = todayStr;
                 const ws = getWeekStart(new Date());
                 if (statsData.weekStart !== ws) {
                     statsData.secondsWeek = 1; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
@@ -2216,7 +2184,6 @@ function handleDrillKey(e) {
         drillConsecutiveMistakes = 0; // reset on any correct key
         learnLastInputTime = Date.now();
         statsData.charsToday++;  statsData.charsWeek++;
-        mySourceChars++;
 
         if (drillLetterStatus === 'clean')       drillCharStates[drillPos] = 'perfect';
         else if (drillLetterStatus === 'fixed')  drillCharStates[drillPos] = 'fixed';
@@ -2243,7 +2210,6 @@ function handleDrillKey(e) {
         drillConsecutiveMistakes++;
         learnLastInputTime = Date.now();
         statsData.mistakesToday++; statsData.mistakesWeek++;
-        mySourceMistakes++;
         if (newExpected !== ' ') {
             missedChars[newExpected] = (missedChars[newExpected] || 0) + 1;
         }
@@ -3485,27 +3451,6 @@ function getWeekStart(date) {
 
 
 // ─── Stats loading (mirrors game.js) ─────────────────────────────────────────
-// Read what School has already recorded for today, so this page's flush adds to
-// it instead of replacing it. One document read at load, not per flush.
-// Mirrors game.js's loadLogSourceBase(); reads the School fields, not Library.
-async function loadLogSourceBase() {
-    const today = getLocalDateStr();
-    logSourceBaseDate = today;
-    logSourceBase = { seconds: 0, chars: 0, mistakes: 0 };
-    if (!currentUser || currentUser.isAnonymous) return;
-    try {
-        const snap = await getDoc(doc(db, 'typing_logs', currentUser.uid + '_' + today));
-        if (snap.exists()) {
-            const d = snap.data();
-            logSourceBase = {
-                seconds:  d.secondsSchool  || 0,
-                chars:    d.charsSchool    || 0,
-                mistakes: d.mistakesSchool || 0,
-            };
-        }
-    } catch (e) { console.warn("Could not read today's School base:", e); }
-}
-
 async function loadUserStats() {
     if (!currentUser) return;
     try {
@@ -4053,20 +3998,14 @@ async function _flushStatsInner(reason, final = false) {
     // see game.js's comment — deploy the rule before this file.
     try {
         const today = getLocalDateStr();
-        if (logSourceBaseDate !== today) {
-            logSourceBase = { seconds: 0, chars: 0, mistakes: 0 };
-            logSourceBaseDate = today;
-        }
         await setDoc(doc(db, 'typing_logs', currentUser.uid + '_' + today), {
             uid: currentUser.uid, email: currentUser.email || '',
             displayName: currentUser.displayName || 'Anonymous',
             classId: (classInfo && classInfo.id) || '',
             schoolId: (classInfo && classInfo.schoolId) || '',
-            // ⚠️ base + THIS PAGE'S OWN, never statsData.secondsToday.
-            date: today, secondsSchool: logSourceBase.seconds + mySourceSeconds,
-            charsSchool: logSourceBase.chars + mySourceChars,
-            mistakesSchool: logSourceBase.mistakes + mySourceMistakes,
-            lastUpdated: new Date()
+            date: today, seconds: statsData.secondsToday || 0,
+            chars: statsData.charsToday || 0, mistakes: statsData.mistakesToday || 0,
+            lastUpdated: new Date(), source: 'school'
         }, { merge: true });
     } catch (e) { ok = false; console.warn(`Log flush failed (${reason}):`, e); }
 

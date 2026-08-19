@@ -1,45 +1,20 @@
-// game.js v3.29.1
+// game.js v3.30.0
 //
-// v3.29.1 — ⚠️ FIXES v3.29.0, WHICH WAS WRONG. The source split was wired to
-//           `statsData.secondsToday` — a counter BOTH page controllers read,
-//           increment and write back to users/{uid}/stats/time_tracking. It has
-//           never been per-mode, so `secondsLibrary` was receiving the COMBINED
-//           day total and learn.js was writing that same combined total into
-//           `secondsSchool`. Two disjoint field names fed from one shared
-//           number is not a split. Jake caught it in live testing the same day:
-//           his 4:50 PM School lesson time was sitting inside secondsLibrary,
-//           and once both new writers touched one day the read would have
-//           double-counted. New per-page counters (mySourceSeconds/Chars/
-//           Mistakes) increment ONLY at the sites that increment
-//           statsData.*Today, so they count only what THIS page typed since
-//           THIS page loaded; new loadLogSourceBase() reads what Library had
-//           already recorded today (one document read at page load, not per
-//           flush) so a student returning for a second Library session the same
-//           day doesn't erase the first. The flush writes base + mine, which is
-//           idempotent. Guarded structurally by source-split-test.mjs Part C.
-//
-//
-// v3.29.0 — THE SOURCE SPLIT (DESIGN-TELEMETRY.md §2.4, "the strongest single
-//           argument for §4"). `typing_logs` used to hold one shared seconds/
-//           chars/mistakes triple that BOTH page controllers wrote via
-//           setDoc(merge:true) from their own in-memory secondsToday — so
-//           School-then-Library in one day meant Library's smaller number
-//           silently overwrote School's, no error, real graded minutes gone.
-//           Now writes secondsLibrary/charsLibrary/mistakesLibrary — fields
-//           game.js is the only writer of — so a merge from here can never
-//           erase what learn.js wrote under secondsSchool on the same
-//           document. reports.html sums both triples on read
-//           (`readLogTotals()`) and falls back to the legacy triple for
-//           documents written before this shipped. Chose this over deriving
-//           `typing_logs` from `typing_sessions` (DESIGN-TELEMETRY.md's fuller
-//           proposal): that path needs session records to be timely, which
-//           they aren't yet (a student mid-chapter has zero session records),
-//           and costs a real, if small, ongoing per-read dollar amount Jake
-//           pays personally for a district he's not being paid to support.
-//           This closes the actual documented bug at zero added reads.
-//           ⚠️ REQUIRES firestore.rules v2.4.0 or later, deployed FIRST — the
-//           old rule required a legacy `seconds` field on every document and
-//           would reject a brand-new day's very first flush outright.
+// v3.30.0 — ⚠️ THE SOURCE SPLIT IS REVERTED. This file's typing_logs write is
+//           byte-for-byte what v3.28.1 shipped: the flat seconds/chars/
+//           mistakes triple, from statsData.*Today. v3.29.0 and v3.29.1 both
+//           tried to give Library its own fields and both were wrong in ways
+//           only live use caught (v3.29.0 fed both fields from the shared
+//           cross-mode counter; v3.29.1 fixed that but the round as a whole
+//           had by then produced two student-visible defects in two days).
+//           Reverted deliberately, on Jake's clock, rather than attempting a
+//           third counter change overnight with students arriving in the
+//           morning. The bug the split was meant to fix — DESIGN-TELEMETRY.md
+//           §2.4, two page controllers overwriting each other's daily total —
+//           IS STILL PRESENT and is once again a known, lived-with defect
+//           rather than a half-landed fix. See HANDOFF §0.6 item 9.
+//           Everything else from Round 16 stays: the week-repair resync
+//           (v3.28.0) and the variety floor (v3.28.1) are untouched.
 //
 // v3.28.1 — EXTRACTED `_qualifyingPracticeChars()`'s FILTER into the new
 //           variety-floor.js, the fifth shared module. No behavior change —
@@ -322,7 +297,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.29.1";
+const VERSION = "3.30.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1032,37 +1007,6 @@ let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0, mist
 // read (loadUserStats), and reset to zero on a genuine sign-out.
 let statsBaseline = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0, mistakesToday:0, mistakesWeek:0 };
 
-// ═════════════════════════════════════════════════════════════════════════════
-// THIS PAGE'S OWN CONTRIBUTION TO TODAY. (v3.29.1)
-// ═════════════════════════════════════════════════════════════════════════════
-//
-// ⚠️ READ THIS BEFORE TOUCHING THE typing_logs WRITE. v3.29.0 shipped the
-// source split (secondsLibrary vs secondsSchool) and wired BOTH fields to
-// `statsData.secondsToday` — which is read from users/{uid}/stats/time_tracking,
-// a counter BOTH page controllers share, increment and write back. It has never
-// been per-mode. So `secondsLibrary: statsData.secondsToday` wrote the COMBINED
-// day total into the Library field, and learn.js wrote the same combined total
-// into the School field. Jake caught it in live testing on 2026-08-19: his
-// 4:50 PM School lesson time was sitting inside secondsLibrary. Two disjoint
-// fields are worthless if both are fed from the same shared number — that isn't
-// a split, it's the same bug with more field names.
-//
-// These three counters are the fix. They are incremented at exactly the sites
-// that increment statsData.*Today, and NOWHERE else, so they count only what
-// THIS page has typed since THIS page loaded. They deliberately do NOT go
-// through statsBaseline or mergeGuestStats — those exist to reconcile a shared
-// counter across sessions, which is the very thing that went wrong.
-let mySourceSeconds = 0, mySourceChars = 0, mySourceMistakes = 0;
-
-// What Library had already recorded for today BEFORE this page loaded — a
-// student who used Library first period, closed the tab, and came back sixth
-// period must not lose first period. Read ONCE at load (one document read per
-// page load, not per flush) in loadLogSourceBase(); the flush writes
-// base + mine, which is idempotent: re-flushing the same numbers writes the
-// same value rather than accumulating.
-let logSourceBase = { seconds: 0, chars: 0, mistakes: 0 };
-let logSourceBaseDate = '';
-
 // ⚠️ THE LAST REPAIR THIS SESSION HAS SEEN. (v3.28.0) See checkForWeekRepair()
 // below, near flushAll(), for what this guards against. Set at load time from
 // the doc's own `repairedAt` (only when weekStart matches — a repair marker
@@ -1467,10 +1411,6 @@ async function init() {
                 await resolveViewMode();
                 await loadUserProgress();
                 await loadUserStats();
-                // ⚠️ TRAVELS WITH loadUserStats(), ALWAYS. This is what stops a
-                // student's earlier Library time today from being overwritten by
-                // a later Library session on the same day.
-                await loadLogSourceBase();
                 // Self-heal: if today > week, data was corrupted during transition
                 await loadGoals();
                 // Only fires when loadGoals() found no class, so the extra read never
@@ -1588,29 +1528,6 @@ async function loadBookMetadata() {
             }
         }
     } catch (e) { console.warn("Meta Error:", e); }
-}
-
-// Read what Library has already recorded for today, so this page's flush adds
-// to it instead of replacing it. One document read, at load, per page — see the
-// counters' declaration above for why this exists. Best-effort: if the read
-// fails the base stays 0, which under-reports rather than double-counts, and
-// the ⟳ recalc-from-sessions button in reports.html can rebuild the day exactly.
-async function loadLogSourceBase() {
-    const today = getLocalDateStr();
-    logSourceBaseDate = today;
-    logSourceBase = { seconds: 0, chars: 0, mistakes: 0 };
-    if (!currentUser || currentUser.isAnonymous) return;
-    try {
-        const snap = await getDoc(doc(db, "typing_logs", `${currentUser.uid}_${today}`));
-        if (snap.exists()) {
-            const d = snap.data();
-            logSourceBase = {
-                seconds:  d.secondsLibrary  || 0,
-                chars:    d.charsLibrary    || 0,
-                mistakes: d.mistakesLibrary || 0,
-            };
-        }
-    } catch (e) { console.warn("Could not read today's Library base:", e); }
 }
 
 async function loadUserStats() {
@@ -2579,11 +2496,6 @@ function gameTick() {
                 statsData.mistakesToday = 0;
                 statsData.lastDate = todayStr;
                 dailyGoalCelebrated = false; // eligible for today's goal
-                // This page's own contribution to the NEW day starts at zero,
-                // and yesterday's Library base belongs to yesterday's document.
-                mySourceSeconds = 0; mySourceChars = 0; mySourceMistakes = 0;
-                logSourceBase = { seconds: 0, chars: 0, mistakes: 0 };
-                logSourceBaseDate = todayStr;
                 // Check week rollover too
                 const weekStart = getWeekStart(new Date());
                 if (statsData.weekStart !== weekStart) {
@@ -2597,7 +2509,6 @@ function gameTick() {
             }
 
             statsData.secondsToday++; statsData.secondsWeek++;
-            mySourceSeconds++;   // ⚠️ this page's own, never the shared counter
             timeAccumulator -= 1000;
             updateTimerUI();
 
@@ -2953,7 +2864,6 @@ function handleTyping(key) {
 
     if (inputChar === targetChar) {
         statsData.charsToday++; statsData.charsWeek++;
-        mySourceChars++;
         anonCharsTyped++;
         consecutiveMistakes = 0;
 
@@ -3015,7 +2925,6 @@ function handleTyping(key) {
         anonMistakes++;
 
         statsData.mistakesToday++; statsData.mistakesWeek++;
-        mySourceMistakes++;
         if (currentLetterStatus === 'clean') currentLetterStatus = 'error';
         mistakesAtCurrent++;
         const errEl = document.getElementById(`char-${currentCharIndex}`);
@@ -4051,12 +3960,6 @@ async function _flushAllInner(reason, final = false) {
     if (walDirty || final) {
         try {
             const today = getLocalDateStr();
-            // If the clock crossed midnight since the base was read, the base
-            // belongs to yesterday's document, not this one.
-            if (logSourceBaseDate !== today) {
-                logSourceBase = { seconds: 0, chars: 0, mistakes: 0 };
-                logSourceBaseDate = today;
-            }
             await setDoc(doc(db, "typing_logs", `${currentUser.uid}_${today}`), {
                 uid: currentUser.uid,
                 email: currentUser.email || "",
@@ -4064,12 +3967,9 @@ async function _flushAllInner(reason, final = false) {
                 classId: ttbClassId || "",
                 schoolId: ttbSchoolId || "",
                 date: today,
-                // ⚠️ base + THIS PAGE'S OWN, never statsData.secondsToday — see
-                // the counters' declaration near the top of this file for the
-                // v3.29.0 bug that made this necessary.
-                secondsLibrary:  logSourceBase.seconds  + mySourceSeconds,
-                charsLibrary:    logSourceBase.chars    + mySourceChars,
-                mistakesLibrary: logSourceBase.mistakes + mySourceMistakes,
+                seconds: statsData.secondsToday || 0,
+                chars: statsData.charsToday || 0,
+                mistakes: statsData.mistakesToday || 0,
                 lastUpdated: new Date()
             }, { merge: true });
         } catch (e) { ok = false; console.warn(`Log flush failed (${reason}):`, e); }

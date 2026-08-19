@@ -1,4 +1,8 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.11.1
+// lessons-admin.js — TypeThatBook Lesson Panel v1.12.0
+//
+// v1.12.0 — legacy-first read, matching reports.html v2.14.0 after the source
+//          split was reverted in game.js v3.30.0 / learn.js v2.15.0.
+//
 //
 // v1.11.1 — follows reports.html v2.13.1: the legacy `seconds` field is now
 //          SUMMED with the split fields rather than superseded by them, so time
@@ -92,7 +96,7 @@
 //          _studentsInited already true so reopening the tab could not recover.
 //          Both functions written from _commitCSV()/_bulkAssign().
 // v1.7.0 — Lesson + class authoring, CSV roster import, stuck-student scan.
-window.LESSONS_ADMIN_VERSION = '1.11.1';
+window.LESSONS_ADMIN_VERSION = '1.12.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -1854,9 +1858,12 @@ async function loadStudentRoster() {
             // rather than imported because this file and reports.html are two
             // separate standalone pages, same reason getWeekStart() is a twin
             // in game.js/learn.js rather than a shared import.
-            const secs = (data.seconds || 0)
-                       + (data.secondsLibrary || 0)
-                       + (data.secondsSchool  || 0);
+            // ⚠️ v1.12.0 — legacy-first, matching reports.html v2.14.0 after the
+            // source split was reverted. Summing would double-count any day
+            // still carrying split fields from the window the split was live.
+            const secs = ('seconds' in data)
+                ? (data.seconds || 0)
+                : (data.secondsLibrary || 0) + (data.secondsSchool || 0);
             if (!byUid.has(uid)) {
                 byUid.set(uid, { name: data.displayName || '', email: data.email || '',
                                  lastLogin: date, weekSeconds: 0, classId: '' });

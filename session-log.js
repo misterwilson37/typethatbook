@@ -1,5 +1,24 @@
-// session-log.js v1.2.1 — the sprint/run history queue, shared by game.js and
+// session-log.js v1.3.0 — the sprint/run history queue, shared by game.js and
 // learn.js. The third shared module, after firebase-config.js and stats-wal.js.
+//
+// v1.3.0 — SERIALIZED FLUSHES. `sessionLogFlush()` is now a thin wrapper that
+//          chains onto `_flushChain` and calls `_sessionLogFlushInner()`; a second
+//          flush starts only after the first has resolved and cleared what it
+//          wrote. This closes the duplicate-session race of 2026-08-19: clicking
+//          Home fires BOTH visibilitychange:hidden and pagehide, each calling
+//          flushSessionsNow() unawaited, and the second read a queue the first had
+//          not cleared yet. Callers WAIT rather than being dropped — one arriving
+//          mid-flush may carry records the in-flight run never saw. Guarded by
+//          session-merge-test.mjs Part E, which is mutation-tested. The full
+//          reasoning is in the comment block above sessionLogFlush().
+//          ⚠️ HEADER REPAIR, Round 17 (Linotype): this file arrived with
+//          SESSION_LOG_VERSION already set to '1.3.0' and its header still saying
+//          v1.2.1 — `npm run audit:versions` reported "header comment says v1.2.1
+//          — one of the two is a lie", the twelfth problem in a repo whose
+//          standing count is eleven. The code was correct and complete; only the
+//          header was missing. This entry was written from the file's own
+//          sessionLogFlush() comment block and the concurrent round's HANDOFF §0.6
+//          item 8, not invented. NOTHING EXECUTABLE WAS CHANGED.
 //
 // v1.2.1 — COMMENTS ONLY. Invariant citations renumbered against the single
 //          consolidated HANDOFF.md §5. The old numbering was unusable: Round 9
