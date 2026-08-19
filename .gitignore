@@ -1,0 +1,19 @@
+# .gitignore v1.0.0 — added Round 17 (Linotype).
+#
+# There was no .gitignore before this one. That was survivable only because Jake
+# deploys from a browser and never runs npm in the working tree — but every
+# Claude session that runs `npm test` creates node_modules/, and a session that
+# then committed through github.dev would have pushed ~20,000 files into a repo
+# GitHub Pages serves. One line prevents that.
+
+node_modules/
+package-lock.json
+
+# macOS writes these into every folder Finder touches, including the one you are
+# about to drag into github.dev.
+.DS_Store
+._*
+
+# Scratch output from the corpus harnesses and the EPUB builders in tools/.
+*.log
+/tmp/
