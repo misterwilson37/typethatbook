@@ -1,4 +1,9 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.11.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.11.1
+//
+// v1.11.1 — follows reports.html v2.13.1: the legacy `seconds` field is now
+//          SUMMED with the split fields rather than superseded by them, so time
+//          recorded earlier the same day by pre-split code isn't dropped.
+//
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
 //
@@ -87,7 +92,7 @@
 //          _studentsInited already true so reopening the tab could not recover.
 //          Both functions written from _commitCSV()/_bulkAssign().
 // v1.7.0 — Lesson + class authoring, CSV roster import, stuck-student scan.
-window.LESSONS_ADMIN_VERSION = '1.11.0';
+window.LESSONS_ADMIN_VERSION = '1.11.1';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -1849,9 +1854,9 @@ async function loadStudentRoster() {
             // rather than imported because this file and reports.html are two
             // separate standalone pages, same reason getWeekStart() is a twin
             // in game.js/learn.js rather than a shared import.
-            const secs = ('secondsLibrary' in data) || ('secondsSchool' in data)
-                ? (data.secondsLibrary || 0) + (data.secondsSchool || 0)
-                : (data.seconds || 0);
+            const secs = (data.seconds || 0)
+                       + (data.secondsLibrary || 0)
+                       + (data.secondsSchool  || 0);
             if (!byUid.has(uid)) {
                 byUid.set(uid, { name: data.displayName || '', email: data.email || '',
                                  lastLogin: date, weekSeconds: 0, classId: '' });

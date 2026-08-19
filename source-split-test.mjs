@@ -1,4 +1,12 @@
-// source-split-test.mjs v1.0.0
+// source-split-test.mjs v1.1.0
+//
+// v1.1.0 — Part C added (the structural guard on the per-source counters), and
+//          Part A's legacy-vs-split assertion CORRECTED: it used to assert that
+//          a split field supersedes a legacy total, which was the v2.13.0
+//          behavior and was wrong — it silently dropped time recorded earlier
+//          the same day. They are summed now. Mutation-tested: re-introducing
+//          the v3.29.0 line fails Part C.
+//
 //
 // ⚠️ WHY THIS HARNESS EXISTS. DESIGN-TELEMETRY.md §2.4: game.js and learn.js
 // used to setDoc(merge:true) the SAME seconds/chars/mistakes fields on the SAME
@@ -63,22 +71,35 @@ if (readLogTotals) {
        === JSON.stringify({ seconds: 400, chars: 600, mistakes: 10 }),
        'a document with only ONE split triple present treats the absent side as 0, not missing');
 
-    // The case that actually matters: a document carries a stale legacy
-    // `seconds: 999` left over from before this shipped, AND a fresh split
-    // write of 0 (the student did nothing today via the new code yet). The
-    // split must win even though it's smaller — that's the whole point of
-    // "the split is authoritative once either half exists," not "whichever
-    // number is bigger."
     ok(JSON.stringify(readLogTotals({
-        seconds: 999, chars: 999, mistakes: 99,
-        secondsLibrary: 0, charsLibrary: 0, mistakesLibrary: 0,
-    })) === JSON.stringify({ seconds: 0, chars: 0, mistakes: 0 }),
-       'a present (even zero) split field outranks a stale legacy total, not the other way around');
+        secondsLibrary: 300, charsLibrary: 500, mistakesLibrary: 5,
+        secondsSchool: 200, charsSchool: 300, mistakesSchool: 3,
+    })).includes('500'),
+       'both-modes-one-day still sums both sides after the summing change');
+
+    // ⚠️ THE REGRESSION TEST FOR THE BUG JAKE CAUGHT IN LIVE TESTING.
+    // v2.13.0 returned the split sum ALONE whenever a split field existed,
+    // which silently dropped time recorded earlier the same day by pre-split
+    // code — he watched his morning School lesson disappear from the report the
+    // moment the afternoon's Library session wrote a split field. The two
+    // shapes describe disjoint periods (see readLogTotals()'s comment), so they
+    // must be SUMMED. If this assertion ever flips back, that morning's time is
+    // being thrown away again.
+    ok(JSON.stringify(readLogTotals({
+        seconds: 103, chars: 301, mistakes: 9,
+        secondsLibrary: 75, charsLibrary: 622, mistakesLibrary: 3,
+    })) === JSON.stringify({ seconds: 178, chars: 923, mistakes: 12 }),
+       'a legacy total and a split written the same day are summed, not superseded');
+
+    // A split of zero must not erase a legacy total either — same bug, the
+    // shape it took on a day where the new code loaded but nothing was typed.
+    ok(readLogTotals({ seconds: 999, secondsLibrary: 0 }).seconds === 999,
+       'a zero split field does not erase a legacy total');
 
     ok(JSON.stringify(readLogTotals({})) === JSON.stringify({ seconds: 0, chars: 0, mistakes: 0 }),
        'an empty document degrades to all zeros rather than throwing');
 } else {
-    fail += 5;
+    fail += 7;
 }
 
 console.log('\n─── B. splitSessionTotals ───');
@@ -124,6 +145,48 @@ if (splitSessionTotals) {
     }
 } else {
     fail += 5;
+}
+
+// ─── C. the split must not be fed from the SHARED counter ───────────────────
+console.log('\n─── C. per-source counters ───');
+//
+// ⚠️ THIS IS THE REGRESSION GUARD FOR THE v3.29.0 DEFECT. The split shipped
+// wired to `statsData.secondsToday` — a counter BOTH page controllers read,
+// increment and write back to users/{uid}/stats/time_tracking. Two disjoint
+// field names fed from one shared number is not a split; each mode's "own"
+// field was receiving the combined day total, and Jake found his School lesson
+// time sitting inside secondsLibrary.
+//
+// The arithmetic fix lives inside flushAll()/flushStats(), which are far too
+// entangled with Firestore and the DOM to lift the way Part A lifts
+// readLogTotals(). So this asserts the property structurally instead: the
+// shared counter must never appear on the right-hand side of a split field.
+// A structural check is weaker than an arithmetic one, and it is much better
+// than nothing on the specific mistake that actually got made.
+// ⚠️ COMMENTS STRIPPED FIRST. Both files carry long comments EXPLAINING the
+// v3.29.0 defect, and those comments necessarily quote the bad line verbatim.
+// Without this, the guard below fires on the documentation of the bug rather
+// than the bug — which it did, on the first run, exactly as written.
+const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const gameSrc  = stripComments(readFileSync('./game.js', 'utf8'));
+const learnSrc = stripComments(readFileSync('./learn.js', 'utf8'));
+
+for (const [label, src, ownField, ownCounter] of [
+    ['game.js',  gameSrc,  'secondsLibrary', 'mySourceSeconds'],
+    ['learn.js', learnSrc, 'secondsSchool',  'mySourceSeconds'],
+]) {
+    ok(!new RegExp(ownField + '\\s*:\\s*statsData\\.').test(src),
+       `${label}: ${ownField} is NOT assigned from statsData.* (the shared cross-mode counter)`);
+    ok(new RegExp(ownField + '\\s*:\\s*logSourceBase\\.seconds\\s*\\+\\s*' + ownCounter).test(src),
+       `${label}: ${ownField} is assigned from logSourceBase.seconds + ${ownCounter}`);
+    // The per-page counter has to actually be incremented, or it writes the
+    // base forever and every student's time silently stops accruing.
+    ok(src.includes(ownCounter + '++'),
+       `${label}: ${ownCounter} is incremented somewhere (not merely declared)`);
+    // ...and it must be incremented exactly where the shared counter is, which
+    // is the only place a typed second is actually counted.
+    ok(/statsData\.secondsToday\+\+;[\s\S]{0,120}?mySourceSeconds\+\+/.test(src),
+       `${label}: mySourceSeconds++ sits with statsData.secondsToday++, not somewhere else`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

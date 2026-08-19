@@ -232,8 +232,73 @@ change is live means every student's next new-day flush gets silently
 rejected — the exact failure mode the v2.3.0 "NO keys().hasOnly()" note in the
 rules file already warned about, now actually possible for a different reason.
 
-`npm test` → 25 of 25 harnesses now (source-split-test.mjs is new), 24 passing
-— same pre-existing `metadata-map-test.mjs` failure, untouched.
+7. **⚠️ ITEM 5 SHIPPED BROKEN AND WAS FIXED THE SAME DAY — READ THIS ONE.**
+   Jake deployed the source split, typed in School and then Library, and looked
+   at the report. It was wrong, and the way it was wrong is the most important
+   thing in this document.
+   **The defect**: `game.js` wrote `secondsLibrary: statsData.secondsToday`.
+   But `statsData.secondsToday` comes from `users/{uid}/stats/time_tracking` —
+   a counter BOTH page controllers read, increment, and write back. It has
+   never been per-mode. So the "Library" field was receiving the COMBINED day
+   total, and `learn.js` wrote that same combined total into the "School"
+   field. **Two disjoint field names fed from one shared number is not a
+   split.** It reads plausibly right up until both modes touch one day, at
+   which point `readLogTotals()` sums two overlapping numbers and inflates.
+   The whole point of the change was that the two sides can't contaminate each
+   other, and the wiring reintroduced exactly that.
+   **The fix (`game.js` v3.29.1 / `learn.js` v2.14.1)**: per-page counters
+   `mySourceSeconds`/`mySourceChars`/`mySourceMistakes`, incremented ONLY at
+   the three sites that increment `statsData.*Today`, counting only what THIS
+   page typed since THIS page loaded — deliberately NOT routed through
+   `statsBaseline` or `mergeGuestStats()`, which exist to reconcile a shared
+   counter and are the very machinery that went wrong. Plus
+   `loadLogSourceBase()`, which reads what this mode had already recorded today
+   (ONE document read at page load, not per flush) so a student returning for a
+   second Library session the same day doesn't erase the first. The flush
+   writes `base + mine`, which is idempotent — re-flushing writes the same
+   value rather than accumulating. Both reset on midnight rollover alongside
+   the counters they travel with.
+   **`readLogTotals()` also corrected (`reports.html` v2.13.1,
+   `lessons-admin.js` v1.11.1)**: v2.13.0 returned the split sum ALONE whenever
+   either split field existed. Jake watched his morning's School time vanish
+   from the report the moment the afternoon's Library session wrote a split
+   field — that morning had been recorded by pre-split code as flat `seconds`.
+   The legacy field is now SUMMED with the splits, which is correct because the
+   two shapes describe disjoint periods: `seconds` can only have been written
+   by pre-split code, and the per-page counters start at zero on page load so
+   the splits never re-include anything the old code already recorded. Both
+   repair paths preserve this: `recalcDailyLog()` deletes the legacy fields
+   when it writes splits, `save-log-btn` deletes the splits when it writes a
+   manual flat total.
+   **Guarded structurally** — `source-split-test.mjs` v1.1.0 Part C asserts the
+   shared counter never appears on the right-hand side of a split field, that
+   the per-page counter is actually incremented, and that it sits with
+   `statsData.secondsToday++` rather than somewhere else. This is weaker than
+   an arithmetic test (the flush is far too entangled with Firestore and the
+   DOM to lift the way Part A lifts `readLogTotals()`) but it was
+   **mutation-tested**: re-introducing the v3.29.0 line makes Part C fail. Note
+   the guard strips comments first — both files necessarily quote the bad line
+   verbatim while explaining it, and the guard fired on the documentation on
+   its first run.
+   **The lesson for whoever is next**: the round that shipped this also shipped
+   a harness, ran a clean suite, and reasoned carefully in a long comment — and
+   was still wrong, because every test written was a test of the *arithmetic*
+   and the defect was in *which variable was handed to it*. A green suite
+   proves the code does what its author thought; it cannot prove the author
+   understood the data. Jake's thirty-second manual check found in one try what
+   25 harnesses missed. **When a change touches a counter, trace where the
+   number comes from, not just what is done to it.**
+
+⚠️ **KNOWN, ACCEPTED, NOT FIXED**: two tabs of the SAME mode open at once
+still race — both read the same base, and the last flush wins, losing the
+other's contribution. This is pre-existing (the shared-field code had it too),
+it is not made worse here, and closing it means either a read per flush or
+Firestore `increment()` with the double-count-on-retry risk the WAL exists to
+avoid. The ⟳ recalc-from-sessions button rebuilds any day this damages.
+
+`npm test` → 25 of 25 harnesses, 24 passing — same pre-existing
+`metadata-map-test.mjs` failure, untouched. `source-split-test.mjs` is now 22
+assertions across three parts.
 
 ---
 
@@ -430,8 +495,8 @@ Run `node audit-versions.mjs`; do not trust this table either.
 
 | file | version |
 |---|---|
-| `game.js` | 3.29.0 |
-| `learn.js` | 2.14.0 |
+| `game.js` | 3.29.1 |
+| `learn.js` | 2.14.1 |
 | `session-log.js` | 1.2.1 |
 | `hud.js` | 1.2.0 |
 | `variety-floor.js` | 1.0.0 |
@@ -440,9 +505,9 @@ Run `node audit-versions.mjs`; do not trust this table either.
 | `keyboard.js` | 1.1.1 |
 | `adventure-renderer.js` | 1.5.4 |
 | `admin.js` | 3.31.0 |
-| `lessons-admin.js` | 1.11.0 |
+| `lessons-admin.js` | 1.11.1 |
 | `staff-admin.js` | 2.2.0 |
-| `reports.html` | 2.13.0 |
+| `reports.html` | 2.13.1 |
 | `firebase-config.js` | 1.2.0 |
 | `firestore.rules` | 2.4.0 |
 | `style.css` | 3.5.5 |

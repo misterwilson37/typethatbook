@@ -359,7 +359,7 @@
     // which is a discipline problem until it becomes a lie. Both are now
     // written from this constant, which is also what versions.js reads for the
     // build panel in index.html.
-    const REPORTS_VERSION = "2.13.0";
+    const REPORTS_VERSION = "2.13.1";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
@@ -798,16 +798,29 @@
             // function's own aggregation, the week-counter audit, the daily
             // log editor) keeps reading plain `seconds`/`chars`/`mistakes` off
             // whatever this returns.
+            // ⚠️ v2.13.1 — SUMS THE LEGACY FIELD IN, RATHER THAN LETTING A SPLIT
+            // FIELD SUPERSEDE IT. v2.13.0 returned the split sum alone whenever
+            // either split field existed, and Jake caught the consequence in
+            // live testing: on the day the split shipped, his morning's School
+            // time had been recorded by the OLD code as flat `seconds`, and the
+            // moment the new Library code wrote a split field that morning
+            // simply vanished from the report.
+            //
+            // Summing is correct because the two shapes describe DISJOINT
+            // periods. `seconds` can only have been written by pre-split code;
+            // the split fields only ever carry what post-split code counted
+            // itself (see game.js v3.29.1's per-page counters — they start at
+            // zero on page load and never include anything the old code already
+            // recorded). Nothing is double-counted and nothing is dropped.
+            // Both repair paths keep this true: recalcDailyLog() deletes the
+            // legacy fields when it writes splits, and save-log-btn deletes the
+            // splits when it writes a manual flat total.
             function readLogTotals(data) {
-                const hasSplit = ('secondsLibrary' in data) || ('secondsSchool' in data);
-                if (hasSplit) {
-                    return {
-                        seconds:  (data.secondsLibrary  || 0) + (data.secondsSchool  || 0),
-                        chars:    (data.charsLibrary    || 0) + (data.charsSchool    || 0),
-                        mistakes: (data.mistakesLibrary || 0) + (data.mistakesSchool || 0),
-                    };
-                }
-                return { seconds: data.seconds || 0, chars: data.chars || 0, mistakes: data.mistakes || 0 };
+                return {
+                    seconds:  (data.seconds  || 0) + (data.secondsLibrary  || 0) + (data.secondsSchool  || 0),
+                    chars:    (data.chars    || 0) + (data.charsLibrary    || 0) + (data.charsSchool    || 0),
+                    mistakes: (data.mistakes || 0) + (data.mistakesLibrary || 0) + (data.mistakesSchool || 0),
+                };
             }
 
             // Aggregate by user
