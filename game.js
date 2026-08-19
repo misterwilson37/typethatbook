@@ -1,4 +1,29 @@
-// game.js v3.26.2
+// game.js v3.27.0
+//
+// v3.27.0 — VERSION FOOTER REDESIGN. #footer-primary always shows game.html /
+//           game.js / style.css — the three files most likely to explain what
+//           a student is seeing. #footer-full is the rest of the deployed
+//           build (hud.js, session-log.js, stats-wal.js, firebase-config.js,
+//           etc.), fetched lazily on first hover via versions.js's existing
+//           readDeployedVersions()/renderBuildList() — the same mechanism
+//           index.html's build-info button already used. Built because Jake,
+//           debugging the HUD bug below, had no way to see which hud.js was
+//           actually deployed. Touch gets a tap-to-pin `.pinned` class since
+//           hover doesn't exist on a touchscreen. FEATURE, minor bump.
+//
+// v3.26.3 — ⚠️ THE 0:00-UNTIL-FIRST-KEYSTROKE BUG, FOR REAL THIS TIME. v3.26.2's
+//           cache seed in loadChapter() was overwritten on the very next line by
+//           an unconditional updateTimerUI() call, which repainted from statsData
+//           — still zero, since loadUserStats() hadn't resolved yet. Separately,
+//           the init handler carried a comment claiming a repaint happened after
+//           loadGoals() landed; the call it described did not exist in the code.
+//           Net effect: nothing painted real numbers until gameTick() started on
+//           the first keystroke. Fixed two ways: the cache fallback now lives
+//           INSIDE updateTimerUI() itself (same pattern as learn.js's
+//           renderTimeHUD(), which never had this bug), so every caller gets it
+//           for free; and the missing post-loadGoals() repaint is restored, so
+//           real numbers land the moment they're available. Reported by Jake,
+//           who noticed the predecessor's fix didn't actually fix it.
 //
 // v3.26.2 — ⚠️ THE READOUT NO LONGER OPENS AT 0:00 WHILE FIRESTORE IS READ.
 //           v3.26.1 fixed the paint; the NUMBER still was not there yet, because
@@ -188,6 +213,12 @@ import {
 // slot held three different quantities depending on settings, and School's held a
 // fourth. DOM-free: it returns strings and this file writes them.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
+// The version footer's three primary reads (this html file, this js file's own
+// VERSION, style.css) plus the lazy full-build panel on hover. See
+// updateVersionBanner() below and the header on readOneDeployedVersion() for
+// why this doesn't just re-fetch game.js from inside itself.
+import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
+         readAppliedCssVersion } from "./versions.js";
 // serverTimestamp is imported for ONE purpose: to hand it to session-log.js so
 // rollups carry a clock the student cannot set. It is not used anywhere else in
 // this file, and ⚠️ it must not be: a serverTimestamp() sentinel inside a
@@ -202,7 +233,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.26.2";
+const VERSION = "3.27.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -279,22 +310,6 @@ function _ttbEmit(type, detail) {
     }
 }
 
-// Pull the CSS version strings (set as ::before/::after content) and combine
-// with JS VERSION constants into a single banner. Async because the adventure
-// renderer's version is in a separately-loaded module.
-function _readCssVersion(selector) {
-    try {
-        const raw = getComputedStyle(document.body, selector).content;
-        // content comes back as "\"v1.2.3\"" — strip quotes, escapes, and the
-        // leading 'v' so the JS-side template can prepend its own consistently.
-        return raw.replace(/^["']|["']$/g, '')
-                  .replace(/\\/g, '')
-                  .replace(/^v/, '') || '?';
-    } catch (e) {
-        return '?';
-    }
-}
-
 // ═════════════════════════════════════════════════════════════════════════════
 // THE ID STAMP — bottom left, mirroring the version stamp bottom right.
 // ═════════════════════════════════════════════════════════════════════════════
@@ -341,18 +356,105 @@ function renderIdStamp() {
     el.textContent = 'ID ' + uid.slice(0, 8);
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// THE VERSION FOOTER — primary triad always visible, everything else on hover.
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// v3.26.3. The old banner showed exactly four files — game.js, style.css,
+// adventure.css, adventure-renderer.js — and NONE of hud.js, session-log.js,
+// stats-wal.js or firebase-config.js appeared anywhere on the page. Jake was
+// debugging the HUD's 0:00 bug above and had no way to confirm which hud.js
+// was actually deployed. index.html already solved this — its "build info"
+// button reads every file's version via versions.js's readDeployedVersions()/
+// renderBuildList() — so this reuses that mechanism rather than inventing a
+// second one. #footer-primary is the three files most likely to explain what a
+// student is seeing (this page, its controller, its stylesheet); #footer-full
+// is everything else, fetched lazily on first hover so nobody pays for it who
+// never opens it, same as index.html's button always has.
+//
+// ⚠️ THIS DOES NOT RE-FETCH game.js TO READ ITS OWN VERSION. VERSION is
+// already a constant in this running file's memory; fetching it back from the
+// network to parse out the same string would be a 210KB round trip for a
+// number already sitting in scope. Only game.html (markup, no constant of its
+// own to import) and style.css (a stylesheet, same reasoning) are read at all,
+// and both are small.
+let _mountedRendererVersion = null;
+
 async function updateVersionBanner(advRendererVersion) {
-    const footer = document.querySelector('footer');
-    if (!footer) return;
-    const styleVer = _readCssVersion('::before');
-    const advCssVer = _readCssVersion('::after');
-    const advJsVer = advRendererVersion || '—';
-    footer.innerHTML =
-        `<span style="opacity:.7">game.js</span> v${VERSION}` +
-        ` &nbsp;·&nbsp; <span style="opacity:.7">style.css</span> v${styleVer}` +
-        ` &nbsp;·&nbsp; <span style="opacity:.7">adventure.css</span> v${advCssVer}` +
-        ` &nbsp;·&nbsp; <span style="opacity:.7">adventure-renderer.js</span> v${advJsVer}`;
+    const primary = document.getElementById('footer-primary');
+    if (!primary) return;
+
+    const pageVer = await readOneDeployedVersion('game.html');
+    const styleVer = readAppliedCssVersion('::before');
+    const pageStr = (pageVer && pageVer.version) ? pageVer.version : '?';
+
+    primary.innerHTML =
+        `<span style="opacity:.7">game.html</span> v${pageStr}` +
+        ` &nbsp;·&nbsp; <span style="opacity:.7">game.js</span> v${VERSION}` +
+        ` &nbsp;·&nbsp; <span style="opacity:.7">style.css</span> v${styleVer || '?'}`;
+
+    // Kept for the hover panel, not the triad — see _renderFullBuildPanel().
+    _mountedRendererVersion = advRendererVersion || null;
+    const full = document.getElementById('footer-full');
+    if (full) full.dataset.loaded = 'false';
 }
+
+// Builds the hover panel's contents from a fresh readDeployedVersions() read.
+// Separate from _ensureFullBuildLoaded() so a repeat hover after the triad
+// updates (a new chapter, a view-mode switch) can re-render from the SAME
+// already-fetched results without a second network round trip.
+function _renderFullBuildPanel(results) {
+    const full = document.getElementById('footer-full');
+    if (!full) return;
+    let html = `<div style="opacity:.6;margin-bottom:4px">game.html (this page)</div>`
+             + renderBuildList(results);
+    // adventure-renderer.js is dynamically imported (§ applyViewMode), so its
+    // live, actually-running version can be compared against a fresh fetch of
+    // the file on disk — the same drift a stale-CSS check catches elsewhere.
+    if (_mountedRendererVersion && _mountedRendererVersion !== 'failed') {
+        const fetched = results.find(r => r.file === 'adventure-renderer.js');
+        if (fetched && fetched.version && fetched.version !== _mountedRendererVersion) {
+            html += `<div style="color:#ff5252">⚠ adventure-renderer.js mounted` +
+                    ` v${_mountedRendererVersion}, deployed file reads` +
+                    ` v${fetched.version} — stale module cache</div>`;
+        }
+    }
+    full.innerHTML = html;
+    full.dataset.loaded = 'true';
+}
+
+let _buildFetchPromise = null;
+function _ensureFullBuildLoaded() {
+    const full = document.getElementById('footer-full');
+    if (!full || full.dataset.loaded === 'true') return;
+    if (!_buildFetchPromise) {
+        full.innerHTML = '<div style="opacity:.6">Reading deployed files…</div>';
+        _buildFetchPromise = readDeployedVersions()
+            .then(results => { _renderFullBuildPanel(results); _buildFetchPromise = null; })
+            .catch(() => {
+                full.innerHTML = '<div style="color:#ff8a65">Could not read build info.</div>';
+                _buildFetchPromise = null;
+            });
+    }
+}
+
+// Hover opens it for a mouse. Touch has no hover event at all, so a tap
+// toggles `.pinned` (same CSS effect) and a tap anywhere else closes it —
+// without this a tablet user could never reach the panel. Keyboard focus gets
+// the same treatment as hover so the toggle is reachable without a mouse.
+function setupVersionFooter() {
+    const footer = document.getElementById('version-footer');
+    if (!footer) return;
+    footer.addEventListener('mouseenter', _ensureFullBuildLoaded);
+    footer.addEventListener('focus', _ensureFullBuildLoaded);
+    footer.addEventListener('click', (e) => {
+        _ensureFullBuildLoaded();
+        footer.classList.toggle('pinned');
+        e.stopPropagation();
+    });
+    document.addEventListener('click', () => footer.classList.remove('pinned'));
+}
+setupVersionFooter();
 
 // Everything the renderer needs to reconstruct the current chapter from
 // scratch. Called on every chapter load AND whenever the renderer is mounted
@@ -1220,16 +1322,23 @@ async function init() {
                 // for what this being absent cost on day one of a rotation.
                 if (!ttbClassId) await applyPendingClassAssignment(currentUser);
                 // Refresh the top-bar timer now that stats AND goals are
-                // loaded — setupGame() ran before either, so its initial
-                // render showed 00:00 with no daily-goal denominator. This
-                // call paints the real "Day 4:32 / 8:00" state immediately,
-                // before the kid types a single character.
+                // loaded — setupGame()/loadChapter() ran before either, so its
+                // initial render showed the cache-seeded (or zero) totals with
+                // no daily-goal denominator. This call paints the real
+                // "Day 4:32 / 8:00" state immediately, before the kid types a
+                // single character. ⚠️ RESTORED IN v3.26.3 — this call existed
+                // in comment only for at least one prior round; without it,
+                // nothing repainted the readout with real numbers until
+                // gameTick() started on the first keystroke, which is the
+                // "0:00 until I start typing" bug Jake reported. See
+                // updateTimerUI()'s header for the other half of the fix.
                 // ⚠️ ONE CALL PAINTS BOTH SLOTS (v3.25.0), so the block that used
                 // to hand-format the week readout right here is gone. It was a
                 // FIFTH copy of the time formatter — found by hud-test.mjs, not by
                 // reading — and it existed only because updateTimerUI() did not
                 // own the right-hand slot. Never format a clock next to a call
                 // that already renders one.
+                updateTimerUI();
                 await loadInitials();
             } catch(e) { console.error("Init Error:", e); }
             trophyBtn.classList.remove('hidden');
@@ -2143,28 +2252,10 @@ function setupGame() {
     // Render the timer with its real value rather than a hardcoded "00:00".
     // For a kid in Day-goal mode loading the page, this shows their accumulated
     // daily time immediately instead of leaving them at 00:00 until they start
-    // typing. Note that on first call from the auth handler, statsData hasn't
-    // loaded yet, so this renders zero — but loadUserStats() in init() calls
-    // updateTimerUI() again after stats arrive, fixing the display.
-    //
-    // ⚠️ AND UNTIL THEY ARRIVE, PAINT THE LAST KNOWN TOTALS (v3.26.2). Firestore
-    // is an async read; the comment above describes a real window in which a
-    // student with 17 minutes banked sees `Daily 0:00` and can do nothing about
-    // it. hudCacheLoad() returns null rather than stale numbers if the cache is
-    // from another day. ⚠️ IT PAINTS ONLY — statsData is NOT seeded from it, or
-    // the merge baseline in §3.7 would be computed from a number that never came
-    // from the server.
-    const _hudSeed = hudCacheLoad(getLocalDateStr(new Date()), getWeekStart(new Date()));
-    if (_hudSeed && !statsData.secondsToday && !statsData.secondsWeek) {
-        const _s = hudStrings({
-            sprintSeconds: sprintSeconds, sprintLimit: sessionLimit,
-            todaySeconds: _hudSeed.todaySeconds, dailyGoal: goals.dailySeconds,
-            weekSeconds:  _hudSeed.weekSeconds,  weeklyGoal: goals.weeklySeconds,
-        });
-        if (timerDisplay) timerDisplay.textContent = _s.left;
-        const _w = document.getElementById('hud-week');
-        if (_w) _w.textContent = _s.right;
-    }
+    // typing. On first call from the auth handler, statsData hasn't loaded yet
+    // — updateTimerUI() itself falls back to the last-known cached totals in
+    // that window (v3.26.3), and the init handler repaints for real the moment
+    // loadUserStats()/loadGoals() land. See updateTimerUI()'s header.
     updateTimerUI();
 
     // ─── Adventure: notify renderer that a chapter is loaded ───
@@ -2387,12 +2478,33 @@ function gameTick() {
 // there is a limit to show it against. `Sprint 0:27 / 0:30 (Daily 9:22 / 10:00)`.
 // The right slot always shows Weekly. Nothing here decides what a word means.
 function updateTimerUI() {
+    // ⚠️ FALL BACK TO THE LAST KNOWN TOTALS WHILE FIRESTORE IS STILL BEING READ
+    // (v3.26.3). SAME FIX AS learn.js's renderTimeHUD() — see the warning above
+    // HUD_CACHE_KEY in hud.js. statsData holds its initialised zeros until
+    // loadUserStats()'s async read lands, so a page that painted from statsData
+    // alone showed `Daily 0:00` to a student with time already banked, for
+    // exactly as long as that read took.
+    //
+    // This used to be a one-shot seed painted once in loadChapter() and then
+    // immediately overwritten by the unconditional updateTimerUI() call right
+    // after it, because statsData was still zero at that point too — the paint
+    // and the stomp were two lines apart in the same function. Folding the
+    // fallback in here instead means every caller gets it for free, and it
+    // stops being possible to call this function "before" the fallback applies.
+    // ⚠️ IT PAINTS ONLY — statsData is NOT seeded from it, or the merge
+    // baseline in §3.7 would be computed against a number that never came from
+    // the server. That is the doubled week counter, rebuilt.
+    let _today = statsData.secondsToday, _week = statsData.secondsWeek;
+    if (!_today && !_week) {
+        const _seed = hudCacheLoad(getLocalDateStr(new Date()), getWeekStart(new Date()));
+        if (_seed) { _today = _seed.todaySeconds; _week = _seed.weekSeconds; }
+    }
     const hud = hudStrings({
         sprintSeconds: sprintSeconds,
         sprintLimit:   sessionLimit,
-        todaySeconds:  statsData.secondsToday,
+        todaySeconds:  _today,
         dailyGoal:     goals.dailySeconds,
-        weekSeconds:   statsData.secondsWeek,
+        weekSeconds:   _week,
         weeklyGoal:    goals.weeklySeconds,
     });
 

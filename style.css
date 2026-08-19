@@ -1,4 +1,7 @@
-/* TypeThatBook style.css v3.5.3 */
+/* TypeThatBook style.css v3.5.4 */
+/* v3.5.4: #footer-full build-info panel — hover (mouse) or .pinned (touch) reveals
+           it above the version footer on game.html/learn.html. See versions.js
+           and the footer-render code in game.js/learn.js for the JS half. */
 /* v3.5.3: REVERTS v3.5.1's `min-height: 60px` on #hud back to `height`. On a
            single-line flex container min-height leaves the cross size INDEFINITE,
            so the line collapses to the tallest item (29px) and parks at the top
@@ -42,7 +45,7 @@
    line 1, not this, so nothing caught it and the build banner was right by luck.
    A file carrying its version twice has to have both updated or the redundancy is
    worse than none: it gives a wrong answer confidently. Update BOTH. */
-body::before { content: "v3.5.3"; display: none; }
+body::before { content: "v3.5.4"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -678,7 +681,32 @@ select.modal-select {
 .menu-section select.modal-select { margin: 0; flex-grow: 1; min-width: 0; }
 
 .hidden { display: none !important; }
-footer { position: fixed; bottom: 5px; right: 10px; font-size: 0.7em; color: #666; background: rgba(255,255,255,0.8); z-index: 101; padding: 2px 5px; border-radius: 3px; }
+/* ⚠️ v3.5.4 — #footer-full is the hover/tap-to-pin build-info panel. `footer`
+   keeps `position: fixed` (which is itself a containing block, same as
+   `relative` would be) so the panel can anchor to it with no extra wrapper. */
+footer { position: fixed; bottom: 5px; right: 10px; font-size: 0.7em; color: #666; background: rgba(255,255,255,0.8); z-index: 101; padding: 2px 5px; border-radius: 3px; cursor: default; }
+footer #footer-full.build-list {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 4px;
+    background: rgba(255,255,255,0.97);
+    color: #333;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 12px;
+    line-height: 1.55;
+    white-space: nowrap;
+    text-align: left;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+/* Hover, for a mouse. `.pinned` (toggled by a click/tap in JS) is the touch
+   equivalent — hover never fires on a touchscreen, so without it the panel
+   would be unreachable on a tablet. */
+footer:hover #footer-full.build-list,
+footer.pinned #footer-full.build-list { display: block; }
 
 .stat-subtext { margin-top: 15px; font-size: 0.9em; color: #666; text-align: center; line-height: 1.5; }
 .stat-subtext span.highlight { color: var(--carolina-blue); font-weight: bold; border-bottom: 1px solid #ccc; }

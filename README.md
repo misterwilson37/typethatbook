@@ -91,20 +91,39 @@ of `CHANGELOG.md`.** Use those.
 
 | file | constant | shown where |
 |---|---|---|
-| `game.js` | `const VERSION` | game.html footer banner, console on init |
-| `learn.js` | `const LEARN_VERSION` | learn.html footer + `document.title` |
-| `keyboard.js` | `export const KB_VERSION` | learn.html footer |
-| `adventure-renderer.js` | `export const RENDERER_VERSION` | game.html banner, adventure debug overlay |
+| `game.js` | `const VERSION` | game.html `#footer-primary`, console on init |
+| `learn.js` | `const LEARN_VERSION` | learn.html `#footer-primary` + `document.title` |
+| `game.html` | comment near top (Round 15) | game.html `#footer-primary` — html files carry it the same way the stylesheets do, since there's no runtime JS in a page shell to hold a constant |
+| `learn.html` | comment near top (Round 15) | learn.html `#footer-primary` |
+| `keyboard.js` | `export const KB_VERSION` | learn.html `#footer-full` (hover panel), no longer the primary line |
+| `adventure-renderer.js` | `export const RENDERER_VERSION` | game.html `#footer-full` (hover panel), adventure debug overlay |
+| `session-log.js` | `export const SESSION_LOG_VERSION` | `#footer-full` on both student pages (Round 15 — wasn't shown anywhere before) |
+| `stats-wal.js` | `export const STATS_WAL_VERSION` | `#footer-full` on both student pages (Round 15 — wasn't shown anywhere before) |
+| `hud.js` | `export const HUD_VERSION` | `#footer-full` on both student pages (Round 15 — wasn't shown anywhere before) |
 | `admin.js` | `const ADMIN_VERSION` | admin.html footer |
 | `lessons-admin.js` | `window.LESSONS_ADMIN_VERSION` | admin.html footer |
-| `firebase-config.js` | `export const CONFIG_VERSION` | index.html build panel |
-| `versions.js` | `export const VERSIONS_VERSION` | index.html build panel |
+| `firebase-config.js` | `export const CONFIG_VERSION` | index.html build panel, `#footer-full` on both student pages |
+| `versions.js` | `export const VERSIONS_VERSION` | index.html build panel, `#footer-full` on both student pages |
 | `index.html` | `const INDEX_VERSION` | its own `document.title` + footer |
 | `reports.html` | `const REPORTS_VERSION` | its own `<title>` + footer. ⚠️ Not in `versions.js`'s `SOURCES`, so the build panel does not list it — same as `index.html`, which self-reports too |
 | `appcheck.html` | *hardcoded* `<title>` | standalone diagnostic, no deps beyond firebase-config |
 | `storage.rules` | header comment | **console-only.** Storage rules are separate from firestore.rules |
-| `style.css` | `body::before { content }` | read via `getComputedStyle` |
-| `adventure.css` | `body::after { content }` | read via `getComputedStyle` |
+| `style.css` | `body::before { content }` | read via `getComputedStyle`; also `#footer-primary` on both student pages |
+| `adventure.css` | `body::after { content }` | read via `getComputedStyle`, `#footer-full` |
+
+**Round 15 — the student-page footers changed shape.** `game.html` and
+`learn.html` used to show a short hand-picked list (game.js/style.css/
+adventure.css/adventure-renderer.js on Library; a one-line `School vX /
+keyboard.js vY` string on School) with no way at all to see `hud.js`,
+`session-log.js`, `stats-wal.js` or `firebase-config.js` — which mattered,
+because that's exactly the blind spot Jake hit debugging the HUD bug in
+`HANDOFF.md` §0.5. Now `#footer-primary` shows the three files most likely to
+explain what a student is seeing (this page, its controller, its stylesheet),
+always, no click required; `#footer-full` shows everything else, fetched
+lazily on first hover (tap-to-pin on touch) via the SAME `readDeployedVersions()`
+/`renderBuildList()` index.html's build-info button already used — not a
+second mechanism. `game.html`/`learn.html` are versioned themselves now, the
+same way the stylesheets are.
 
 `index.html`'s **build info** panel reads every one of those out of the files as
 actually deployed — it fetches and parses them rather than importing, because

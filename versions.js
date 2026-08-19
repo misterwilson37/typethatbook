@@ -1,4 +1,4 @@
-// versions.js v1.6.0 — reads every file's version constant out of the files as
+// versions.js v1.7.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
 //
 // WHY IT WORKS THIS WAY
@@ -26,6 +26,18 @@
 // result is cached in sessionStorage for the tab's lifetime. A student who never
 // opens it pays nothing.
 
+// v1.7.0 — registers game.html and learn.html, and exports readOneDeployedVersion()
+// so a page can read its OWN entry (and only its own entry) without paying for
+// the full SOURCES fetch. Built for the game.html/learn.html footer redesign:
+// each page shows its own html/js/css triad immediately (three small, targeted
+// fetches — game.html is ~2KB, not the 210KB fetching game.js from outside it
+// would cost) and defers the full cross-file list to the SAME lazy
+// readDeployedVersions() index.html's build panel already uses, on first hover.
+// ⚠️ game.html and learn.html carry their version the same way style.css does —
+// a comment near the top, because they are markup shells with no runtime JS of
+// their own to hold a constant. HEADER_EXEMPT covers them for the same reason
+// it covers the stylesheets: there is no second (constant) copy to drift from.
+//
 // v1.6.0 — registers hud.js, the FOURTH shared module. Same reasoning as v1.5.0.
 //
 // v1.5.0 — registers session-log.js, the THIRD module game.js and learn.js both
@@ -60,9 +72,13 @@ const SOURCES = [
     // because a page that doesn't load the stylesheet can still report it.
     { file: 'style.css',             pattern: /style\.css\s+v([0-9][^\s*]*)/ },
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
+    // Markup shells, versioned the same way the stylesheets are: a comment near
+    // the top, because there is no runtime JS in either file to hold a constant.
+    { file: 'game.html',             pattern: /game\.html\s+v([0-9][^\s\->]*)/ },
+    { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
 ];
 
-export const VERSIONS_VERSION = '1.6.0';
+export const VERSIONS_VERSION = '1.7.0';
 
 const CACHE_KEY = 'ttb_buildVersions_v3';   // v3: entries gained header budget fields
 
@@ -82,7 +98,7 @@ const CACHE_KEY = 'ttb_buildVersions_v3';   // v3: entries gained header budget 
 // leading comment block is the file's current version — true whether the header
 // is `// admin.js v3.6.0` or a newest-first changelog like game.js's. Stylesheets
 // are exempt: their comment IS the source of truth, there's no second copy.
-const HEADER_EXEMPT = ['style.css', 'adventure.css'];
+const HEADER_EXEMPT = ['style.css', 'adventure.css', 'game.html', 'learn.html'];
 
 // v1.3.0 — HEADER BUDGET.
 //
@@ -169,6 +185,17 @@ async function readOne({ file, pattern }) {
     } catch (e) {
         return { file, version: null, note: 'fetch failed' };
     }
+}
+
+// Read ONE file's deployed version — for a page that only wants its own
+// html/js/css triad up front, without paying for every other file in SOURCES.
+// Same readOne(), same no-throw guarantee, just not fanned out over
+// Promise.all(). Not cached — callers hold three of these in module state for
+// the tab's lifetime, which is cheaper than a sessionStorage round trip.
+export async function readOneDeployedVersion(file) {
+    const entry = SOURCES.find(s => s.file === file);
+    if (!entry) return { file, version: null, note: 'not in SOURCES' };
+    return readOne(entry);
 }
 
 // Read every file's deployed version. Cached per tab.

@@ -1,4 +1,16 @@
-// learn.js v2.10.2
+// learn.js v2.11.0
+//
+// v2.11.0 — VERSION FOOTER REDESIGN. ⚠️ SAME AS game.js v3.27.0: #footer-primary
+//           always shows learn.html/learn.js/style.css; #footer-full is the rest
+//           of the deployed build (hud.js, session-log.js, stats-wal.js,
+//           firebase-config.js, keyboard.js, etc.), fetched lazily on first
+//           hover via versions.js's readDeployedVersions()/renderBuildList() —
+//           the same mechanism index.html's build-info button already used.
+//           Touch gets a tap-to-pin `.pinned` class. Replaces the old static
+//           one-line footer, which showed only 'School vX / keyboard.js vY' and
+//           left hud.js, session-log.js, stats-wal.js and firebase-config.js
+//           with no version visible anywhere on either student page. FEATURE,
+//           minor bump.
 //
 // v2.10.2 — ⚠️ SAME AS game.js v3.26.2: renderTimeHUD() falls back to hud.js's
 //           display cache while Firestore is still being read, and loadUserStats()
@@ -195,6 +207,11 @@ import {
 // The time readout, shared with game.js. ⚠️ Both pages render the SAME string in
 // the SAME element id — see hud.js for why that is the whole point.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
+// The version footer's three primary reads (this html file, this js file's own
+// LEARN_VERSION, style.css) plus the lazy full-build panel on hover. ⚠️ SAME
+// STRUCTURE AS game.js, ON PURPOSE — see updateVersionFooter() below.
+import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
+         readAppliedCssVersion } from "./versions.js";
 import {
     collection, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc,
     // Aggregation query. Firestore bills getCountFromServer at ONE read per up
@@ -219,7 +236,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.10.2";
+const LEARN_VERSION = "2.11.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -4022,8 +4039,81 @@ function launchFireworks() {
 // signed-out states, and is the only reliable moment to know auth is settled.
 // We must NOT call renderMap() here because auth.currentUser is null at module
 // load time even for a returning signed-in user.
-const footer = document.querySelector('footer');
-if (footer) footer.textContent = 'School v' + LEARN_VERSION + ' / keyboard.js v' + KB_VERSION;
+// ═════════════════════════════════════════════════════════════════════════════
+// THE VERSION FOOTER — primary triad always visible, everything else on hover.
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// v2.10.3. ⚠️ SAME STRUCTURE AS game.js, ON PURPOSE — see that file's comment
+// on updateVersionBanner() for the full reasoning. School's old footer was a
+// single static line ('School v2.10.2 / keyboard.js v1.1.1') with no way at
+// all to see hud.js, session-log.js, stats-wal.js or firebase-config.js — the
+// same blind spot game.js had, on the page where the HUD bug above actually
+// lives half the time. #footer-primary is this page/js/css triad; #footer-full
+// is everything else, fetched lazily on first hover via versions.js's existing
+// readDeployedVersions()/renderBuildList() (the same call index.html's build-info
+// button already makes — not a second mechanism).
+
+async function updateVersionFooter() {
+    const primary = document.getElementById('footer-primary');
+    if (!primary) return;
+
+    const pageVer = await readOneDeployedVersion('learn.html');
+    const styleVer = readAppliedCssVersion('::before');
+    const pageStr = (pageVer && pageVer.version) ? pageVer.version : '?';
+
+    primary.innerHTML =
+        `<span style="opacity:.7">learn.html</span> v${pageStr}` +
+        ` &nbsp;·&nbsp; <span style="opacity:.7">learn.js</span> v${LEARN_VERSION}` +
+        ` &nbsp;·&nbsp; <span style="opacity:.7">style.css</span> v${styleVer || '?'}`;
+
+    const full = document.getElementById('footer-full');
+    if (full) full.dataset.loaded = 'false';
+}
+
+function _renderFullBuildPanel(results) {
+    const full = document.getElementById('footer-full');
+    if (!full) return;
+    let html = `<div style="opacity:.6;margin-bottom:4px">learn.html (this page)</div>`
+             + renderBuildList(results);
+    // keyboard.js is imported statically (not dynamically like game.js's
+    // adventure-renderer.js), so KB_VERSION here IS the deployed constant —
+    // no separate drift check needed the way adventure-renderer.js gets one.
+    full.innerHTML = html;
+    full.dataset.loaded = 'true';
+}
+
+let _buildFetchPromise = null;
+function _ensureFullBuildLoaded() {
+    const full = document.getElementById('footer-full');
+    if (!full || full.dataset.loaded === 'true') return;
+    if (!_buildFetchPromise) {
+        full.innerHTML = '<div style="opacity:.6">Reading deployed files…</div>';
+        _buildFetchPromise = readDeployedVersions()
+            .then(results => { _renderFullBuildPanel(results); _buildFetchPromise = null; })
+            .catch(() => {
+                full.innerHTML = '<div style="color:#ff8a65">Could not read build info.</div>';
+                _buildFetchPromise = null;
+            });
+    }
+}
+
+// Hover for a mouse; `.pinned` (toggled by click/tap) for touch, which has no
+// hover event at all. ⚠️ SAME LISTENERS AS game.js's setupVersionFooter() —
+// keep the two in step if this ever changes.
+function setupVersionFooter() {
+    const footerEl = document.getElementById('version-footer');
+    if (!footerEl) return;
+    footerEl.addEventListener('mouseenter', _ensureFullBuildLoaded);
+    footerEl.addEventListener('focus', _ensureFullBuildLoaded);
+    footerEl.addEventListener('click', (e) => {
+        _ensureFullBuildLoaded();
+        footerEl.classList.toggle('pinned');
+        e.stopPropagation();
+    });
+    document.addEventListener('click', () => footerEl.classList.remove('pinned'));
+}
+setupVersionFooter();
+updateVersionFooter();
 // Title was hardcoded in learn.html and drifted from the constant. Drive it from
 // the constant so there is only one number to change.
 document.title = 'TypeThatBook — School v' + LEARN_VERSION;

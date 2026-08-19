@@ -1,6 +1,7 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v14.5.0 — consolidated 2026-08-18 by Round 14 (Sholes).
+<!-- HANDOFF.md v14.6.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     2026-08-19 by Round 15 (Densmore).
 
      ⚠️ THIS IS THE ONLY HANDOFF DOCUMENT. It replaces every HANDOFF-roundN.md
      that ever existed. Rounds 3, 5, 6, 7, 8, 9, 11, 12 and 13 have all been read
@@ -21,6 +22,59 @@ Mignon (5) · Oliver (4) · Blick (3) · Dvorak (2) · Underwood (1).
 > of the platen, so a typist wrote three or four lines blind and lifted the
 > carriage to find out whether any of it was right. Every defect in this project's
 > history is that machine: a number written where nobody could see it until later.
+
+---
+
+## §0.5. Round 15 — Densmore
+
+James Densmore financed Sholes's machine and, by every account, was the reason it
+ever worked at all: he kept sending prototypes back with the same demand — *does
+it actually do the thing, or does it just look like it does?* That's this round.
+Round 14's HUD fix (v3.26.2, the entry directly below) shipped with tests green
+and a HANDOFF paragraph explaining exactly why it worked. It didn't. The seed
+paint it introduced was overwritten one line later by the very call it was
+supposed to precede, and a second paint the init handler's own comment claimed
+existed had been deleted at some earlier point without the comment going with
+it. Both defects were invisible from inside `game.js` — each line was locally
+correct — and invisible in the test suite, because `open-unit-test.mjs` Part E
+checks for a second *increment* site, not a repaint that never fires. Only
+Jake, watching the actual page, caught it.
+
+**What shipped this round:**
+
+1. **The real HUD fix.** The cache-fallback that used to be a one-shot block in
+   `loadChapter()` now lives *inside* `updateTimerUI()` itself, so every caller
+   gets it — the same shape `learn.js`'s `renderTimeHUD()` already had, and the
+   reason School never had this bug. The missing post-`loadGoals()` repaint is
+   restored. `game.js` v3.26.3. See §3.5 amendment below.
+2. **The version footer redesign**, both student pages. `#footer-primary` shows
+   this page's html/js/css triad, always, no click required. `#footer-full` is
+   everything else — every file `versions.js`'s `SOURCES` knows about, hud.js
+   and session-log.js and stats-wal.js included — on hover, or tap-to-pin on
+   touch. Reuses `readDeployedVersions()`/`renderBuildList()` exactly as
+   `index.html`'s build-info button already did; nothing new was invented.
+   `game.js` v3.27.0, `learn.js` v2.11.0, `versions.js` v1.7.0, `style.css`
+   v3.5.4. `game.html` and `learn.html` are now versioned themselves (v1.0.0
+   each), the same way the stylesheets are — a comment near the top, parsed by
+   `versions.js`. Built because Jake, debugging the HUD bug, had no way to see
+   which `hud.js` was actually deployed — this is the fix for that blind spot,
+   not a cosmetic add-on.
+3. **`audit-versions.mjs` closed a three-module gap against `versions.js`** it
+   should never have had — `session-log.js`, `stats-wal.js` and `hud.js` were
+   missing from its `SOURCES` mirror since the round each was added there.
+   Found while adding the two new html entries. v1.1.0.
+
+⚠️ **A LESSON FOR THE NEXT ROUND, NOT JUST A LOG LINE.** A comment describing
+what a function call does is not evidence the call exists. Both defects this
+round fixed were paired with prose that correctly described the *intended*
+behaviour and shipped anyway, because nobody re-read the code next to the
+comment after editing one side of it. When a fix is "restore a call the
+comment says should be here," grep for the call before writing the comment
+that explains it — the grep is the whole test.
+
+`npm test` → still 23 of 24 harnesses pass; same pre-existing `metadata-map-test.mjs`
+failure as Round 14, untouched. `hud-test.mjs` and `open-unit-test.mjs` Part E
+both still pass — no second increment site, no formatter drift.
 
 ---
 
@@ -104,18 +158,18 @@ browsable user directory, by design. `users/{uid}` deliberately holds no PII, wh
 
 ## §2. Where the code is
 
-Shipped state after Round 14, 2026-08-18. **Verified against the repo, not copied from
+Shipped state after Round 15, 2026-08-19. **Verified against the repo, not copied from
 the previous table** — three consecutive rounds carried a stale version for `admin.js`.
 Run `node audit-versions.mjs`; do not trust this table either.
 
 | file | version |
 |---|---|
-| `game.js` | 3.26.2 |
-| `learn.js` | 2.10.2 |
+| `game.js` | 3.27.0 |
+| `learn.js` | 2.11.0 |
 | `session-log.js` | 1.2.1 |
 | `hud.js` | 1.1.0 |
 | `stats-wal.js` | shared module — check the constant |
-| `versions.js` | 1.6.0 |
+| `versions.js` | 1.7.0 |
 | `keyboard.js` | 1.1.1 |
 | `adventure-renderer.js` | 1.5.4 |
 | `admin.js` | 3.31.0 |
@@ -124,14 +178,21 @@ Run `node audit-versions.mjs`; do not trust this table either.
 | `reports.html` | 2.11.0 |
 | `firebase-config.js` | 1.2.0 |
 | `firestore.rules` | 2.3.0 |
-| `style.css` | 3.5.3 |
+| `style.css` | 3.5.4 |
+| `game.html` | 1.0.0 — new in Round 15, see §0.5 |
+| `learn.html` | 1.0.0 — new in Round 15, see §0.5 |
 
 `npm test` → **23 of 24 harnesses pass.** The only failure is `metadata-map-test.mjs`
 (42 of 487 assertions), pre-existing and unrelated — §6.
 
-**Deploy check, in one glance:** Library footer reads `game.js v3.26.2`; Lessons footer
-reads `School v2.10.2`; both student pages show a small grey `ID xxxxxxxx` bottom-left
-once signed in. **If the ID stamp is missing, the new code is not running** and nothing
+**Deploy check, in one glance:** Library footer reads `game.html vX · game.js vX ·
+style.css vX` (⚠️ CHANGED IN ROUND 15 — it used to read just `game.js v3.26.2`; if
+you see that old single-file format, Round 15's code is not running). Lessons footer
+reads the same three-file shape for `learn.html` / `learn.js` / `style.css`. Hover
+either footer (tap-to-pin on touch) for the full deployed build, `hud.js` and
+`session-log.js` and `stats-wal.js` included. Both student pages still show a small
+grey `ID xxxxxxxx` bottom-left once signed in. **If the ID stamp is missing, the new
+code is not running** and nothing
 else you check means anything.
 
 ---
@@ -272,6 +333,23 @@ if the cache is from another day. **It paints and nothing else.** Seed `statsDat
 from it and §3.7's merge baseline gets computed against a number that never came from
 the server, which is the doubled week counter rebuilt. Read the header above
 `HUD_CACHE_KEY`.
+
+⚠️ **ROUND 15: THE FALLBACK LIVES INSIDE `updateTimerUI()` / `renderTimeHUD()`
+NOW, NOT AT ONE CALL SITE.** Round 14 painted the cache seed once in
+`loadChapter()`, then called `updateTimerUI()` on the very next line — which
+repainted from `statsData`, still zero, stomping the seed it had just drawn.
+Separately, the init handler carried a comment claiming a repaint happened
+after `loadGoals()` resolved; the call it described had been deleted at some
+earlier point without the comment following it. Net effect: nothing painted
+real numbers until `gameTick()` started on the first keystroke — Round 14's
+fix genuinely did not fix it, and shipped with tests green because
+`open-unit-test.mjs` Part E checks for a second *increment* site, not a missing
+*repaint*. Fixed by folding the cache-fallback into `updateTimerUI()` itself —
+`learn.js`'s `renderTimeHUD()` already worked this way and never had the bug —
+so every caller gets it for free, and restoring the actual `updateTimerUI()`
+call after `loadGoals()`. **If you ever add a new place that paints the HUD,
+call `updateTimerUI()`/`renderTimeHUD()` — do not paint it by hand, and do not
+trust a comment that says a repaint happens without finding the call.**
 
 ⚠️ **`open-unit-test.mjs` PART E COUNTS THE INCREMENT SITES IN THE SHIPPED SOURCES**
 and fails if a second one appears on either page. That guard is the whole defence —

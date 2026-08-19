@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- learn.html v1.0.0 — versioned the same way style.css is: a comment near
+         the top, parsed by versions.js. Bump when this file's markup changes. -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TypeThatBook — School</title>
@@ -94,7 +96,14 @@
 
     </div><!-- /learn-container -->
 
-    <footer>TypeThatBook School</footer>
+    <!-- ⚠️ SAME STRUCTURE AS game.html, ON PURPOSE. (v1.0.0) #footer-primary is
+         always visible — this page's own html/js/css triad. #footer-full is
+         the rest of the deployed build, shown on hover or tap-to-pin. See
+         renderVersionFooter() in learn.js. -->
+    <footer id="version-footer" tabindex="0">
+        <span id="footer-primary">loading…</span>
+        <div id="footer-full" class="build-list"></div>
+    </footer>
 
     <script type="module" src="learn.js"></script>
 </body>

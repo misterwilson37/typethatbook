@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- game.html v1.0.0 — versioned the same way style.css is: a comment near
+         the top, parsed by versions.js. Bump when this file's markup changes. -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TypeThatBook v3.5.0</title>
@@ -69,7 +71,16 @@
         </div>
     </div>
 
-    <footer>loading…</footer>
+    <!-- ⚠️ TWO PARTS, ONE ELEMENT. (v1.0.0) #footer-primary is always visible —
+         this page's own html/js/css triad, the three files most likely to
+         explain what a student is actually seeing. #footer-full is the rest of
+         the deployed build, shown on hover (or tap-to-pin on touch); see
+         updateVersionBanner() in game.js for why it's fetched lazily rather
+         than at load. -->
+    <footer id="version-footer" tabindex="0">
+        <span id="footer-primary">loading…</span>
+        <div id="footer-full" class="build-list"></div>
+    </footer>
 
     <script type="module" src="game.js"></script>
 </body>

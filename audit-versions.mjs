@@ -1,4 +1,10 @@
-// audit-versions.mjs v1.0.0 — Round 6 (Noiseless).
+// audit-versions.mjs v1.1.0 — Round 15 (Sholes's successor).
+//
+// v1.1.0 — Added game.html, learn.html, session-log.js, stats-wal.js and hud.js
+// to SOURCES, closing a gap against versions.js that had existed since each of
+// those was added there — this file's own header says it's a mirror and must be
+// kept in sync, and it hadn't been for three modules. Caught while adding the
+// two new html entries for the version-footer redesign.
 //
 // Runs versions.js's OWN checks — runtime constant vs header comment, the 60-line
 // header budget, the 6-entry budget, and entry ordering — against the files on
@@ -32,11 +38,16 @@ const SOURCES = [
     { file: 'lessons-admin.js',      pattern: /window\.LESSONS_ADMIN_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'staff-admin.js',        pattern: /window\.STAFF_ADMIN_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'firebase-config.js',    pattern: /\bexport\s+const\s+CONFIG_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'stats-wal.js',          pattern: /\bexport\s+const\s+STATS_WAL_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'session-log.js',        pattern: /\bexport\s+const\s+SESSION_LOG_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'hud.js',                pattern: /\bexport\s+const\s+HUD_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'versions.js',           pattern: /\bexport\s+const\s+VERSIONS_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'style.css',             pattern: /style\.css\s+v([0-9][^\s*]*)/ },
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
+    { file: 'game.html',             pattern: /game\.html\s+v([0-9][^\s\->]*)/ },
+    { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
 ];
-const HEADER_EXEMPT = ['style.css', 'adventure.css'];
+const HEADER_EXEMPT = ['style.css', 'adventure.css', 'game.html', 'learn.html'];
 const HEADER_MAX_LINES = 60;
 const HEADER_MAX_ENTRIES = 6;
 
