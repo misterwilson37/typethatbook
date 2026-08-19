@@ -337,7 +337,7 @@
     // which is a discipline problem until it becomes a lie. Both are now
     // written from this constant, which is also what versions.js reads for the
     // build panel in index.html.
-    const REPORTS_VERSION = "2.11.0";
+    const REPORTS_VERSION = "2.12.0";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
@@ -842,8 +842,20 @@
 
 
     // ═════════════════════════════════════════════════════════════════════════
-    // WEEK-COUNTER AUDIT AND REPAIR  (v2.11.0 — rewritten)
+    // WEEK-COUNTER AUDIT AND REPAIR  (v2.11.0 — rewritten; v2.12.0 — repairedAt)
     // ═════════════════════════════════════════════════════════════════════════
+    //
+    // ⚠️ v2.12.0 — REPAIRS NOW SURVIVE A LINGERING SESSION. The repair below
+    // used to write only the three corrected fields. That was provably correct
+    // by itself and still got silently undone: a student whose browser tab
+    // survives across a "restart" that didn't happen is still holding the
+    // PRE-repair number in memory, and their very next flush (game.js/learn.js,
+    // every ~5 minutes) wrote that stale number straight back over the fix —
+    // happened twice to the same student before this existed. The repair now
+    // also stamps `repairedAt`; game.js v3.28.0 / learn.js v2.13.0 check it
+    // before every flush that would touch this doc and resync if it's newer
+    // than what their session saw at load. See repairWeekCounter() below for
+    // the client-side half of this, in their own checkForWeekRepair().
     //
     // ⚠️ v2.10.0 OF THIS AUDIT WAS WRONG AND REPORTED AN ALL-CLEAR IT HAD NOT
     // EARNED. Two stacked mistakes, both worth remembering:
@@ -1081,10 +1093,25 @@
             // BEING CREATED. The day counters and lastDate are not ours: this
             // audit proves nothing about them, and a repair that rewrites what it
             // has not verified is a second bug wearing a helpful face.
+            //
+            // ⚠️ repairedAt (v2.12.0) — a plain Date.now(), not serverTimestamp().
+            // This only ever needs to be self-consistent within one admin's own
+            // repair run; it doesn't need to agree with any client's clock, and
+            // serverTimestamp()'s write-then-resolve semantics would complicate
+            // comparing it for no benefit here. game.js/learn.js compare this
+            // against what their own session saw at load — see their
+            // checkForWeekRepair() — to tell "the number went down because it
+            // was corrected" from "the number went down because it was lost,"
+            // which is the one thing mergeGuestStats()'s data-loss floor can't
+            // tell on its own. Without this stamp, a student whose tab survives
+            // across a restart-that-didn't-happen can silently overwrite this
+            // exact repair on their next flush — which is precisely what
+            // happened, twice, before this existed.
             const payload = {
                 secondsWeek:  f.correct.secondsWeek,
                 charsWeek:    f.correct.charsWeek,
                 mistakesWeek: f.correct.mistakesWeek,
+                repairedAt:   Date.now(),
             };
             if (f.status === 'missing') payload.weekStart = f.ws;
             await setDoc(doc(db, 'users', f.r.uid, 'stats', 'time_tracking'), payload, { merge: true });

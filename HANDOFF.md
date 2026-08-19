@@ -1,6 +1,6 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v14.7.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v14.8.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      2026-08-19 by Round 15 (Densmore) and Round 16 (Royal).
 
      ⚠️ THIS IS THE ONLY HANDOFF DOCUMENT. It replaces every HANDOFF-roundN.md
@@ -62,8 +62,44 @@ just that one letter. Jake asked for it to be closed. It is now.
    source of truth between them. Both now call `_qualifyingRemediationChars()`,
    so the button (when it renders) and the keys it's wired to can't drift
    apart the way two independent copies of the same filter eventually do.
+3. **The repair resync — a real incident, not a hypothetical.** Jake's
+   week-counter audit (`reports.html`) repaired one student's inflated week
+   twice and it came back inflated both times. Root cause: a MacBook that's
+   supposed to restart between class periods but sometimes doesn't — the
+   browser tab (and its in-memory `statsData`) survives the "restart," still
+   holding the pre-repair number, and the very next periodic flush wrote that
+   stale number straight back over the fix. The exact mechanism that let this
+   happen: `mergeGuestStats()`'s data-loss floor (`Math.max`, never trust a
+   decrease — by design, see §3's write-up of the 2026-08-18 doubling bug)
+   cannot tell "the number went down because it was lost" from "the number
+   went down because it was corrected," so it defends against both, and a
+   repair IS a decrease.
+   New: `reports.html`'s `repairWeekCounter()` now stamps a plain
+   `repairedAt: Date.now()` alongside the corrected fields (not
+   `serverTimestamp()` — this only needs to be self-consistent within one
+   admin's own repair run, not agree with any client's clock).
+   `game.js`/`learn.js` each gained `lastKnownRepairedAt` (captured in
+   `loadUserStats()` when `weekStart` matches, reset to 0 on week rollover)
+   and `checkForWeekRepair()` — called from `flushAll()`/`flushStats()`,
+   *right before* the write that would otherwise clobber a repair. If the
+   doc's `repairedAt` is newer than what this session saw at load, it
+   resyncs: server's corrected value plus this browser's own contribution
+   since baseline, **no floor** — this is the one place the code is
+   deliberately allowed to trust a decrease, because the marker is what
+   proves it's a correction rather than a loss. One extra `getDoc()` per
+   flush that was already about to happen (every ~5 min of active typing, or
+   at session end), not one per second. `game.js` v3.28.0, `learn.js`
+   v2.13.0, `reports.html` v2.12.0.
+   **Has real harness coverage**, unlike items 1–2 above: `session-merge-test.mjs`
+   Part D (v1.3.0) lifts `checkForWeekRepair()` out of both files the same
+   way Part A already lifts `mergeGuestStats()`, and asserts: a newer repair
+   resyncs correctly (server value + this browser's own contribution, no
+   floor); the same `repairedAt` seen twice is a no-op, not a re-apply; no
+   `repairedAt` on the doc (the common, unaudited case) leaves `statsData`
+   untouched; a marker from a different week is ignored; an
+   anonymous/signed-out session is skipped without a read or a throw.
 
-⚠️ **STILL NO HARNESS COVERAGE**, same caveat Round 15 left for its own
+⚠️ **NO HARNESS COVERAGE FOR ITEMS 1–2** — same caveat Round 15 left for its own
 DOM-level wiring: `_qualifyingRemediationChars()` is a plain function and
 *could* be unit-tested the way `hud.js` is, but it isn't yet — it lives in the
 `learn.js` monolith, not an extracted pure module, and reaches into the
@@ -72,10 +108,21 @@ extracted this round for the same reason Round 15 gave: it wasn't asked for
 and would have widened the diff. Worth doing together with game.js's
 equivalent gap if that extraction pass ever happens.
 
+⚠️ **ONE THING THE REPAIR RESYNC DOES NOT COVER**: `mergeGuestStats()` itself
+(the re-auth path, on a 24-hour token expiry) does not check `repairedAt` — it
+doesn't need to, because `checkForWeekRepair()` runs independently on the very
+next qualifying flush regardless of which path got a session into a stale
+state, and re-running it against an already-correct `statsData` is a no-op
+(Part D's second case asserts exactly this). Not a gap, just worth knowing
+`mergeGuestStats()` and `checkForWeekRepair()` are two separate correctness
+paths that happen to compose safely rather than one calling the other.
+
 `npm test` → still 23 of 24 harnesses pass; same pre-existing
 `metadata-map-test.mjs` failure as Rounds 14–15, untouched.
 `undefined-calls-test.mjs` confirms every new identifier resolves (12 JS files
 + 3 inline HTML scripts, unchanged count — no new files added).
+`session-merge-test.mjs` Part D: 10 new assertions (5 scenarios × 2 files),
+all passing.
 
 ---
 
@@ -1085,7 +1132,7 @@ a pointer to a file you should go and read.**
 | 13 | Ludlow | `serverAt` (write side only). Step 1.5: closing the open sprint/run, delta writes, the watermark. `hud.js`. |
 | 14 | Sholes | This consolidation: nine handoffs into one, the invariant renumbering repair, and the step-2 timeliness finding in §4. |
 | 15 | Densmore | Fixed Round 14's HUD fix, which shipped green and didn't work. Version footer redesign. AI-practice variety floor (game.js/index.js). HUD long-form clip fix. |
-| 16 | Royal | The remediation variety floor — closed the gap Round 15 flagged in School's "🎲 Practice missed keys" button rather than fixing. |
+| 16 | Royal | The remediation variety floor (School's practice-missed-keys gap Round 15 flagged). The repair resync — a real incident, fixed and given harness coverage: an audit-repaired week counter that kept getting silently overwritten by a MacBook that skipped its between-period restart. |
 
 ---
 

@@ -1,4 +1,13 @@
-// learn.js v2.12.0
+// learn.js v2.13.0
+//
+// v2.13.0 — THE REPAIR RESYNC. Mirrors game.js v3.28.0 exactly — see its header
+//           for the incident and full mechanism. Short version: a week-counter
+//           audit repair (reports.html) was getting silently overwritten back
+//           to the inflated value by the next flush from a MacBook that's
+//           supposed to restart between periods but sometimes doesn't. New
+//           `lastKnownRepairedAt` + `checkForWeekRepair()`, called from
+//           flushStats() right before the write that would otherwise clobber
+//           a repair.
 //
 // v2.12.0 — THE REMEDIATION VARIETY FLOOR. Closes the gap flagged in v2.11.1
 //           below: "🎲 Practice missed keys" already required each letter to
@@ -265,7 +274,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.12.0";
+const LEARN_VERSION = "2.13.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -397,6 +406,12 @@ let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0,
 // collapses back into sum(). Set ONLY where Firestore is read (loadUserStats).
 let statsBaseline = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0,
                       mistakesToday:0, mistakesWeek:0 };
+
+// ⚠️ THE LAST REPAIR THIS SESSION HAS SEEN. (v2.13.0) Mirrors game.js exactly —
+// see checkForWeekRepair(), near flushStats() below. Set at load time from the
+// doc's own `repairedAt` (only when weekStart matches); reset to 0 on week
+// rollover, same as the counters it travels with.
+let lastKnownRepairedAt = 0;
 
 // ⚠️ TRUE WHEN A REAL USER BECAME NULL WITHOUT ASKING TO. (v2.6.0)
 //
@@ -1620,6 +1635,7 @@ function startGradedTimer() {
                 if (statsData.weekStart !== ws) {
                     statsData.secondsWeek = 1; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
                     statsData.weekStart = ws; weeklyGoalCelebrated = false;
+                    lastKnownRepairedAt = 0; // a repair marker from last week is moot now
                 }
             }
             // Goal celebrations
@@ -3440,8 +3456,10 @@ async function loadUserStats() {
                 statsData.secondsWeek  = data.secondsWeek  || 0;
                 statsData.charsWeek    = data.charsWeek    || 0;
                 statsData.mistakesWeek = data.mistakesWeek || 0;
+                lastKnownRepairedAt = data.repairedAt || 0;
             } else {
                 statsData.secondsWeek = statsData.charsWeek = statsData.mistakesWeek = 0;
+                lastKnownRepairedAt = 0;
             }
         }
         statsData.lastDate  = dateStr;
@@ -3897,6 +3915,43 @@ function saveStats() {
 // flush is enough. Identical fix to game.js 3.9.2; both files had it.
 let _learnFlushInFlight = null;
 
+// ═════════════════════════════════════════════════════════════════════════════
+// checkForWeekRepair() — THE FIX FOR A REPAIR THAT DOESN'T STICK. (v2.13.0)
+// ═════════════════════════════════════════════════════════════════════════════
+// Mirrors game.js v3.28.0 exactly — CHANGE ONE, CHANGE BOTH, same as
+// mergeGuestStats() above. Short version: mergeGuestStats()'s data-loss floor
+// (never trust a decrease) is exactly what let a week-counter audit repair in
+// reports.html get silently overwritten back to the inflated value by a
+// student's own next flush, on a MacBook that's supposed to restart between
+// periods but sometimes doesn't — the tab survives, statsData still holds the
+// pre-repair number. The audit repair now stamps `repairedAt` alongside the
+// corrected fields; if the doc holds one newer than what this session saw at
+// load, that's the signal a correction (not a loss) happened, and this session
+// resyncs to it — server's corrected value plus this browser's own
+// contribution since baseline, no floor. Called from flushStats(), right
+// before the write that would otherwise clobber a repair; one extra getDoc()
+// per flush that was already about to happen, not per second. Best-effort.
+async function checkForWeekRepair() {
+    if (!currentUser) return;
+    try {
+        const snap = await getDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'));
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const weekStart = getWeekStart(new Date());
+        if ((data.weekStart || '') !== weekStart) return; // not this week — moot
+        const serverRepairedAt = data.repairedAt || 0;
+        if (serverRepairedAt <= lastKnownRepairedAt) return; // nothing new to catch up on
+
+        for (const k of ['secondsWeek', 'charsWeek', 'mistakesWeek']) {
+            const mine = Math.max(0, (statsData[k] || 0) - (statsBaseline[k] || 0));
+            statsData[k] = (data[k] || 0) + mine;
+            statsBaseline[k] = data[k] || 0;
+        }
+        lastKnownRepairedAt = serverRepairedAt;
+        console.log('[TTB] Week counters resynced after an audit repair.');
+    } catch (e) { /* best-effort; next flush tries again */ }
+}
+
 async function flushStats(reason, final = false) {
     while (_learnFlushInFlight) {
         await _learnFlushInFlight.catch(() => {});
@@ -3958,6 +4013,9 @@ async function _flushStatsInner(reason, final = false) {
     // The rule this encodes: TWO RECORDS OF THE SAME QUANTITY MUST SHARE A WRITE
     // TRIGGER, or they will disagree and no amount of auditing will keep up.
     {
+        // ⚠️ v2.13.0 — check for an audit repair BEFORE writing. See
+        // checkForWeekRepair() above.
+        await checkForWeekRepair();
         try {
             await setDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'),
                          statsData, { merge: true });

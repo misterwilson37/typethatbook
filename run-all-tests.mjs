@@ -1,4 +1,8 @@
-// run-all-tests.mjs v1.1.0 — Round 6 (Noiseless), amended Round 14 (Sholes).
+// run-all-tests.mjs v1.1.1 — Round 6 (Noiseless), amended Round 14 (Sholes),
+// Round 16 (Royal).
+//
+// v1.1.1 — description string only: session-merge-test.mjs's entry now
+//          mentions the repair-resync coverage its new Part D added.
 //
 // v1.1.0 — ⚠️ `chunktest.mjs` DEREGISTERED AND DELETED. It reimplemented the
 //          v3.9.2 sprint-rollup loop inline instead of importing the module, so
@@ -59,7 +63,7 @@ const FAST = [
     ['about-test.mjs',           'detectAbout() and the completeness dot'],
     ['about-render-test.mjs',    'About panel segments, headings, credit injection'],
     ['anon-ladder-test.mjs',     'guest login ladder: rungs, the no-third-prompt rule, coalescing guards'],
-    ['session-merge-test.mjs',   'the guest/expired-session stats merge, and session-log rollup dating'],
+    ['session-merge-test.mjs',   'the guest/expired-session stats merge, session-log rollup dating, and the repair resync'],
     ['open-unit-test.mjs',       'the open sprint/run: deltas, watermarks, and the reset-site parity guard'],
     ['hud-test.mjs',             'the shared time readout: layout, goal denominators, one formatter only'],
     ['week-anchor-test.mjs',     'the report audit and the app agree on where the school week starts'],

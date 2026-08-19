@@ -1,4 +1,24 @@
-// game.js v3.27.1
+// game.js v3.28.0
+//
+// v3.28.0 — THE REPAIR RESYNC. Fixes a real incident: a student's week counter
+//           got audit-repaired in reports.html and came back inflated on the
+//           next check — twice. Root cause was a MacBook that's supposed to
+//           restart between class periods but sometimes doesn't; the tab (and
+//           its in-memory statsData) survives, still holding the pre-repair
+//           number, and the next 5-minute flush wrote that stale number
+//           straight back over the fix. mergeGuestStats()'s data-loss floor
+//           (Math.max, never trust a decrease) is what made the repair
+//           unwindable in the first place — it can't tell "the number went
+//           down because of a bug" from "the number went down because someone
+//           corrected it." reports.html's repair now stamps a `repairedAt`;
+//           new checkForWeekRepair() (called from flushAll(), right before the
+//           write that would otherwise clobber a repair) compares it against
+//           what this session saw at load and resyncs — server's corrected
+//           value plus this browser's own contribution since baseline, no
+//           floor — when it's newer. New `lastKnownRepairedAt`, set in
+//           loadUserStats() and reset on week rollover alongside the counters
+//           it travels with. See checkForWeekRepair()'s own comment, next to
+//           flushAll(), for the full mechanism.
 //
 // v3.27.1 — TWO STUDENT-REPORTED FIXES. (1) THE AI-PRACTICE VARIETY FLOOR:
 //           startPracticeMode()/getMissedCharsHTML() now require at least
@@ -250,7 +270,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.27.1";
+const VERSION = "3.28.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -960,6 +980,13 @@ let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0, mist
 // read (loadUserStats), and reset to zero on a genuine sign-out.
 let statsBaseline = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0, mistakesToday:0, mistakesWeek:0 };
 
+// ⚠️ THE LAST REPAIR THIS SESSION HAS SEEN. (v3.28.0) See checkForWeekRepair()
+// below, near flushAll(), for what this guards against. Set at load time from
+// the doc's own `repairedAt` (only when weekStart matches — a repair marker
+// from a past week is moot, the counters already reset); reset to 0 whenever
+// the week itself rolls over, same as the counters it travels with.
+let lastKnownRepairedAt = 0;
+
 // ⚠️ TRUE WHEN A REAL USER BECAME NULL WITHOUT ASKING TO. (v3.22.0)
 //
 // Auth sessions expire at 24 hours, which lands mid-period for somebody most
@@ -1493,8 +1520,10 @@ async function loadUserStats() {
                 statsData.secondsWeek = data.secondsWeek || 0;
                 statsData.charsWeek   = data.charsWeek   || 0;
                 statsData.mistakesWeek= data.mistakesWeek|| 0;
+                lastKnownRepairedAt = data.repairedAt || 0;
             } else {
                 statsData.secondsWeek = 0; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
+                lastKnownRepairedAt = 0;
             }
         }
         // ⚠️ SAVED ONLY HERE — after the authoritative read, never from the live
@@ -2444,6 +2473,7 @@ function gameTick() {
                     statsData.mistakesWeek = 0;
                     statsData.weekStart = weekStart;
                     weeklyGoalCelebrated = false;
+                    lastKnownRepairedAt = 0; // a repair marker from last week is moot now
                 }
             }
 
@@ -3774,6 +3804,59 @@ function markDirty() {
 // saveProgress(force), walRecover()), so three-deep is reachable in normal use.
 let _flushInFlight = null;
 
+// ═════════════════════════════════════════════════════════════════════════════
+// checkForWeekRepair() — THE FIX FOR A REPAIR THAT DOESN'T STICK. (v3.28.0)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// mergeGuestStats()'s outer Math.max() floor exists to protect against DATA
+// LOSS: this browser has no way to tell "the server number went down because
+// of a bug or a lost write" from "the server number went down because someone
+// fixed it," so it refuses to go down at all. That is correct for what it was
+// built for and it is exactly what let reports.html's week-counter audit repair
+// get silently overwritten back to the inflated value: a student's tab that
+// was never closed still holds the OLD secondsWeek in `statsData`, and the very
+// next periodic flush writes that live number straight back over the fix — see
+// HANDOFF §0.7 for the incident this closes.
+//
+// The piece the floor is missing is a way to tell the two cases apart. The
+// audit repair now writes `repairedAt` (a plain Date.now() timestamp, not
+// serverTimestamp() — this only ever needs to be self-consistent within one
+// admin's repair run, not agree with any client's clock) alongside the
+// corrected fields. If the doc holds a `repairedAt` newer than the one this
+// session captured at load, that IS the distinguishing signal: it wasn't lost,
+// it was corrected, and this session should trust the correction — while still
+// keeping whatever real typing has happened in THIS browser since its own
+// baseline was taken, the same "mine = live - baseline" logic mergeGuestStats
+// uses, just without the floor that exists to defend against the case this
+// isn't.
+//
+// Called from flushAll(), right before the write that would otherwise clobber
+// a repair, and ONLY then — this adds one getDoc() per flush that was already
+// about to happen (every ~5 minutes of active typing, or at session end), not
+// one per second. Best-effort: a failed or skipped check just means the next
+// flush tries again.
+async function checkForWeekRepair() {
+    if (!currentUser || currentUser.isAnonymous) return;
+    try {
+        const docRef = doc(db, "users", currentUser.uid, "stats", "time_tracking");
+        const snap = await getDoc(docRef);
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const weekStart = getWeekStart(new Date());
+        if ((data.weekStart || '') !== weekStart) return; // not this week — moot
+        const serverRepairedAt = data.repairedAt || 0;
+        if (serverRepairedAt <= lastKnownRepairedAt) return; // nothing new to catch up on
+
+        for (const k of ['secondsWeek', 'charsWeek', 'mistakesWeek']) {
+            const mine = Math.max(0, (statsData[k] || 0) - (statsBaseline[k] || 0));
+            statsData[k] = (data[k] || 0) + mine;
+            statsBaseline[k] = data[k] || 0;
+        }
+        lastKnownRepairedAt = serverRepairedAt;
+        console.log("Week counters resynced after an audit repair.");
+    } catch (e) { /* best-effort; next flush tries again */ }
+}
+
 async function flushAll(reason, final = false) {
     while (_flushInFlight) {
         await _flushInFlight.catch(() => {});
@@ -3876,6 +3959,12 @@ async function _flushAllInner(reason, final = false) {
     // The rule this encodes: TWO RECORDS OF THE SAME QUANTITY MUST SHARE A WRITE
     // TRIGGER, or they will disagree and no amount of auditing will keep up.
     if (walDirty || final || statsDocDirty) {
+        // ⚠️ v3.28.0 — check for an audit repair BEFORE writing, not after. See
+        // checkForWeekRepair() above. If this session's statsData is stale
+        // relative to a correction the audit already made, this resyncs it in
+        // place so the write below carries the corrected number forward
+        // instead of clobbering it right back.
+        await checkForWeekRepair();
         try {
             await setDoc(doc(db, "users", currentUser.uid, "stats", "time_tracking"),
                          statsData, { merge: true });
