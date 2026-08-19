@@ -1,16 +1,33 @@
-// learn.js v2.11.1
+// learn.js v2.12.0
+//
+// v2.12.0 — THE REMEDIATION VARIETY FLOOR. Closes the gap flagged in v2.11.1
+//           below: "🎲 Practice missed keys" already required each letter to
+//           clear n >= REMEDIATION_CHAR_MISS_THRESHOLD (3), but not that 3
+//           DIFFERENT letters clear it — a student who missed only "F" a
+//           dozen times could still get a synthetic key_random drill built
+//           from that one letter, which isn't remediation for a pattern, it's
+//           a drill on a single miss. Mirrors game.js v3.27.1's variety floor
+//           exactly: same threshold, same "count qualifying letters, don't
+//           just cap the display list" shape. New
+//           REMEDIATION_MIN_QUALIFYING_CHARS (3) and _qualifyingRemediationChars()
+//           helper (returns ALL letters clearing the per-letter threshold, not
+//           the top-3 display slice); buildRemediationLinks() now checks the
+//           floor before emitting the button's HTML at all — the "You often
+//           missed: ..." lesson links are unaffected, since those point at a
+//           real lesson per letter and were never the synthetic-drill risk.
+//           Defense-in-depth: window._practiceMissedKeys() re-derives the
+//           qualifying set from missedChars itself and bails if it's short,
+//           the same "checked again here so nothing that reaches this
+//           function directly can skip it" reasoning game.js's
+//           startPracticeMode() uses. Different risk profile than game.js's
+//           AI paragraph (a random-key drill, not Gemini prose one letter can
+//           dominate), same fix shape.
 //
 // v2.11.1 — HUD LONG-FORM WIRING. ⚠️ SAME AS game.js v3.27.1's HUD half: hud.js
 //           v1.2.0's new `long` flag now drives a `.hud-time-long` class and a
 //           `title` attribute on #hud-time here too, kept in lockstep even
 //           though School's sprintLimit is hardcoded to 0 (so `long` is always
 //           false today) — see the comment at renderTimeHUD()'s hudTimer block.
-//           No AI-practice equivalent needed here: School's "🎲 Practice missed
-//           keys" (buildRemediationLinks()) builds a synthetic key drill, not a
-//           Gemini paragraph, and already requires each letter to clear n >= 3
-//           — it does NOT yet require 3 DIFFERENT qualifying letters the way
-//           game.js's variety floor now does. Flagged for Jake, not changed
-//           here without being asked.
 //
 // v2.11.0 — VERSION FOOTER REDESIGN. ⚠️ SAME AS game.js v3.27.0: #footer-primary
 //           always shows learn.html/learn.js/style.css; #footer-full is the rest
@@ -248,7 +265,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.11.1";
+const LEARN_VERSION = "2.12.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -2619,9 +2636,9 @@ function showLessonResultModal(wpm, acc) {
         '<span>This week: ' + formatTime(statsData.secondsWeek) + '</span>' +
         '</div>';
 
-    // Remediation links for missed chars
-    const remMissedKeys = Object.entries(missedChars)
-        .filter(([ch, n]) => n >= 3).sort((a,b) => b[1]-a[1]).slice(0,3).map(([ch]) => ch);
+    // Remediation links for missed chars. Same qualifying set buildRemediationLinks()
+    // uses, so the button (when it renders) and the keys it's wired to always agree.
+    const remMissedKeys = _qualifyingRemediationChars().slice(0, 3).map(([ch]) => ch);
     const remText = buildRemediationLinks();
     document.getElementById('dm-remediation').innerHTML = remText;
     // Wire all interactive elements after HTML is inserted
@@ -2691,13 +2708,28 @@ function showLessonResultModal(wpm, acc) {
     }
 }
 
-function buildRemediationLinks() {
-    const top = Object.entries(missedChars)
-        .filter(([ch, n]) => n >= 3)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3);
-    if (!top.length) return '';
+// ⚠️ THE REMEDIATION VARIETY FLOOR (v2.12.0). Mirrors game.js's variety floor
+// (PRACTICE_CHAR_MISS_THRESHOLD / PRACTICE_MIN_QUALIFYING_CHARS) exactly, for
+// the same reason: a single letter missed enough times to clear the per-letter
+// threshold is not "a pattern of tricky letters," it's one letter, and the
+// "🎲 Practice missed keys" button built a synthetic key_random drill out of
+// just that one letter before this floor existed. Checked in TWO places, on
+// purpose — buildRemediationLinks() so the button is never even rendered
+// before the pattern is real, and window._practiceMissedKeys() so nothing that
+// calls it directly can skip the check the button itself enforces.
+const REMEDIATION_CHAR_MISS_THRESHOLD = 3;  // a letter must be missed this many times to "count"
+const REMEDIATION_MIN_QUALIFYING_CHARS = 3; // and at least this many different letters must qualify
+function _qualifyingRemediationChars() {
+    return Object.entries(missedChars)
+        .filter(([ch, n]) => n >= REMEDIATION_CHAR_MISS_THRESHOLD)
+        .sort((a, b) => b[1] - a[1]);
+}
 
+function buildRemediationLinks() {
+    const qualifying = _qualifyingRemediationChars();
+    if (!qualifying.length) return '';
+
+    const top = qualifying.slice(0, 3);
     const missedKeys = top.map(([ch]) => ch);
 
     const links = top.map(([ch]) => {
@@ -2710,15 +2742,27 @@ function buildRemediationLinks() {
         ? 'You often missed: ' + links.join(', ') + ' — revisit these?'
         : '';
 
-    // Practice button — store keys in data attribute to avoid quoting nightmares
-    const practiceBtn = '<button class="dm-btn-secondary" style="margin-top:6px;width:100%;font-size:0.8rem;padding:7px;" '
-        + 'id="practice-missed-btn">🎲 Practice missed keys</button>';
+    // Practice button — store keys in data attribute to avoid quoting nightmares.
+    // ⚠️ Gated behind the variety floor: a single dominant letter gets a lesson
+    // link above, but not a synthetic drill built from it alone.
+    const hasVariety = qualifying.length >= REMEDIATION_MIN_QUALIFYING_CHARS;
+    const practiceBtn = hasVariety
+        ? '<button class="dm-btn-secondary" style="margin-top:6px;width:100%;font-size:0.8rem;padding:7px;" '
+          + 'id="practice-missed-btn">🎲 Practice missed keys</button>'
+        : '';
 
     return linkText + practiceBtn;
 }
 
 window._practiceMissedKeys = function(missedKeys) {
     if (!missedKeys || !missedKeys.length) return;
+    // ⚠️ THE REMEDIATION VARIETY FLOOR (v2.12.0) — same gate buildRemediationLinks()
+    // applies before ever showing the button, checked again here so nothing that
+    // reaches this function directly (a bug, a stray event handler, a bypassed
+    // UI) can skip it. Re-derived from missedChars rather than trusting the
+    // missedKeys argument, so a caller can't route around the check by passing
+    // a short-but-valid-looking array.
+    if (_qualifyingRemediationChars().length < REMEDIATION_MIN_QUALIFYING_CHARS) return;
     // Build a synthetic key_random step from the missed keys
     const syntheticStep = {
         id: 'remediation',

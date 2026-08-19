@@ -1,7 +1,7 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v14.6.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     2026-08-19 by Round 15 (Densmore).
+<!-- HANDOFF.md v14.7.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     2026-08-19 by Round 15 (Densmore) and Round 16 (Royal).
 
      ⚠️ THIS IS THE ONLY HANDOFF DOCUMENT. It replaces every HANDOFF-roundN.md
      that ever existed. Rounds 3, 5, 6, 7, 8, 9, 11, 12 and 13 have all been read
@@ -13,15 +13,69 @@
      an entire evening of hunting, and produced an invariant numbering collision
      that took seven file uploads to repair. -->
 
-**Round 14 — Sholes.** Predecessors: Ludlow (13) · Caligraph (12) · Bar-Lock (11)
-· Williams (10) · Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) ·
-Mignon (5) · Oliver (4) · Blick (3) · Dvorak (2) · Underwood (1).
+**Round 16 — Royal.** Predecessors: Densmore (15) · Sholes (14) · Ludlow (13) ·
+Caligraph (12) · Bar-Lock (11) · Williams (10) · Remington (9) · Yost (8) ·
+Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) · Blick (3) · Dvorak (2) ·
+Underwood (1).
 *Other projects, do not reuse:* Stedman, Fable, Trilby, Vernier.
 
-> *On the name:* the Sholes & Glidden was an up-strike. The type hit the underside
-> of the platen, so a typist wrote three or four lines blind and lifted the
-> carriage to find out whether any of it was right. Every defect in this project's
-> history is that machine: a number written where nobody could see it until later.
+> *On the name:* the Royal Typewriter Co. didn't win by being the most clever
+> machine on the market — it won by being the one that didn't jam, round after
+> round, until "reliable" and "Royal" were the same word to the people who
+> bought them. This round closed a gap that was already fully written down
+> (Round 15 flagged it, in writing, rather than leaving it implicit) — the
+> boring, correct thing to do with a flagged item is close it exactly the way
+> it was flagged, not improvise a better version.
+
+---
+
+## §0.6. Round 16 — Royal
+
+Round 15 (Densmore) shipped the AI-practice variety floor for game.js's ✨
+Gemini-practice button and explicitly flagged, rather than fixed, the same gap
+in School's own "🎲 Practice missed keys" button (`learn.js`'s
+`buildRemediationLinks()`): it already required each letter to clear
+`n >= 3` misses, but not that 3 *different* letters clear it, so a single
+dominant letter could still produce a synthetic `key_random` drill built from
+just that one letter. Jake asked for it to be closed. It is now.
+
+**What shipped this round:**
+
+1. **The remediation variety floor.** New `REMEDIATION_CHAR_MISS_THRESHOLD`
+   (3) and `REMEDIATION_MIN_QUALIFYING_CHARS` (3) constants in `learn.js`,
+   plus a `_qualifyingRemediationChars()` helper that mirrors game.js's
+   `_qualifyingPracticeChars()` exactly — same shape, same numbers, different
+   file. `buildRemediationLinks()` now withholds the "🎲 Practice missed
+   keys" button's HTML entirely unless at least 3 different letters clear the
+   per-letter threshold; the "You often missed: ..." lesson links (which
+   point at a real lesson per letter, one link at a time) are untouched,
+   since those were never the synthetic-drill risk. **Defense-in-depth**, the
+   same shape game.js's `startPracticeMode()` uses: `window._practiceMissedKeys()`
+   re-derives the qualifying set from `missedChars` itself and bails if it's
+   short, rather than trusting its `missedKeys` argument — so nothing that
+   calls it directly, bypassing the button, can skip the check. `learn.js`
+   v2.12.0.
+2. **De-duplicated the qualifying-chars filter.** Before this round, the
+   `n >= 3` filter existed in two places in `learn.js` — once inline where
+   `remMissedKeys` was computed for wiring the button's click handler, once
+   inside `buildRemediationLinks()` for the display list — with no shared
+   source of truth between them. Both now call `_qualifyingRemediationChars()`,
+   so the button (when it renders) and the keys it's wired to can't drift
+   apart the way two independent copies of the same filter eventually do.
+
+⚠️ **STILL NO HARNESS COVERAGE**, same caveat Round 15 left for its own
+DOM-level wiring: `_qualifyingRemediationChars()` is a plain function and
+*could* be unit-tested the way `hud.js` is, but it isn't yet — it lives in the
+`learn.js` monolith, not an extracted pure module, and reaches into the
+module-scope `missedChars` object rather than taking it as a parameter. Not
+extracted this round for the same reason Round 15 gave: it wasn't asked for
+and would have widened the diff. Worth doing together with game.js's
+equivalent gap if that extraction pass ever happens.
+
+`npm test` → still 23 of 24 harnesses pass; same pre-existing
+`metadata-map-test.mjs` failure as Rounds 14–15, untouched.
+`undefined-calls-test.mjs` confirms every new identifier resolves (12 JS files
++ 3 inline HTML scripts, unchanged count — no new files added).
 
 ---
 
@@ -1030,6 +1084,8 @@ a pointer to a file you should go and read.**
 | 12 | Caligraph | The doubled week counter. School had never logged session detail. `session-log.js` created. Shipped an audit that gave a false all-clear across ninety students and withdrew it the same day. |
 | 13 | Ludlow | `serverAt` (write side only). Step 1.5: closing the open sprint/run, delta writes, the watermark. `hud.js`. |
 | 14 | Sholes | This consolidation: nine handoffs into one, the invariant renumbering repair, and the step-2 timeliness finding in §4. |
+| 15 | Densmore | Fixed Round 14's HUD fix, which shipped green and didn't work. Version footer redesign. AI-practice variety floor (game.js/index.js). HUD long-form clip fix. |
+| 16 | Royal | The remediation variety floor — closed the gap Round 15 flagged in School's "🎲 Practice missed keys" button rather than fixing. |
 
 ---
 
