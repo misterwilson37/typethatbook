@@ -1,4 +1,26 @@
-// game.js v3.28.1
+// game.js v3.29.0
+//
+// v3.29.0 — THE SOURCE SPLIT (DESIGN-TELEMETRY.md §2.4, "the strongest single
+//           argument for §4"). `typing_logs` used to hold one shared seconds/
+//           chars/mistakes triple that BOTH page controllers wrote via
+//           setDoc(merge:true) from their own in-memory secondsToday — so
+//           School-then-Library in one day meant Library's smaller number
+//           silently overwrote School's, no error, real graded minutes gone.
+//           Now writes secondsLibrary/charsLibrary/mistakesLibrary — fields
+//           game.js is the only writer of — so a merge from here can never
+//           erase what learn.js wrote under secondsSchool on the same
+//           document. reports.html sums both triples on read
+//           (`readLogTotals()`) and falls back to the legacy triple for
+//           documents written before this shipped. Chose this over deriving
+//           `typing_logs` from `typing_sessions` (DESIGN-TELEMETRY.md's fuller
+//           proposal): that path needs session records to be timely, which
+//           they aren't yet (a student mid-chapter has zero session records),
+//           and costs a real, if small, ongoing per-read dollar amount Jake
+//           pays personally for a district he's not being paid to support.
+//           This closes the actual documented bug at zero added reads.
+//           ⚠️ REQUIRES firestore.rules v2.4.0 or later, deployed FIRST — the
+//           old rule required a legacy `seconds` field on every document and
+//           would reject a brand-new day's very first flush outright.
 //
 // v3.28.1 — EXTRACTED `_qualifyingPracticeChars()`'s FILTER into the new
 //           variety-floor.js, the fifth shared module. No behavior change —
@@ -281,7 +303,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.28.1";
+const VERSION = "3.29.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -3925,6 +3947,22 @@ async function _flushAllInner(reason, final = false) {
 
     // 2. Daily log for reports. Always written on a flush — this is what
     //    reports.html reads, and a teacher looking mid-period should see today.
+    //
+    // ⚠️ v3.29.0 — SOURCE-SPLIT FIELDS, NOT A SHARED `seconds`/`chars`/`mistakes`
+    // TRIPLE. This is the fix for DESIGN-TELEMETRY.md §2.4: game.js and learn.js
+    // both used to setDoc(merge:true) their OWN in-memory secondsToday into the
+    // SAME field on the SAME document. A student who did School then Library
+    // the same day had Library's smaller number silently overwrite School's —
+    // real graded minutes gone, with no error, because a merge on a SHARED
+    // field is a last-write-wins race, not a merge of anything. Writing to
+    // secondsLibrary/charsLibrary/mistakesLibrary instead — a field ONLY this
+    // page ever touches — makes that collision structurally impossible rather
+    // than carefully avoided: whatever learn.js wrote under `secondsSchool` on
+    // the same document survives a merge from here untouched, because this
+    // write never mentions it. reports.html sums both triples on read; see its
+    // `readLogTotals()`. ⚠️ REQUIRES firestore.rules v2.4.0 or later — the old
+    // rule required a legacy `seconds` field on every document and would
+    // reject a brand-new day's first flush outright. Deploy the rule first.
     if (walDirty || final) {
         try {
             const today = getLocalDateStr();
@@ -3935,9 +3973,9 @@ async function _flushAllInner(reason, final = false) {
                 classId: ttbClassId || "",
                 schoolId: ttbSchoolId || "",
                 date: today,
-                seconds: statsData.secondsToday || 0,
-                chars: statsData.charsToday || 0,
-                mistakes: statsData.mistakesToday || 0,
+                secondsLibrary: statsData.secondsToday || 0,
+                charsLibrary: statsData.charsToday || 0,
+                mistakesLibrary: statsData.mistakesToday || 0,
                 lastUpdated: new Date()
             }, { merge: true });
         } catch (e) { ok = false; console.warn(`Log flush failed (${reason}):`, e); }

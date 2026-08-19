@@ -144,6 +144,97 @@ paths that happen to compose safely rather than one calling the other.
 `undefined-calls-test.mjs` now says 13 JS files (was 12) and confirms every
 identifier still resolves. `(syntax)` gate: 13 shipped modules, all parse.
 
+5. **THE SOURCE SPLIT — DESIGN-TELEMETRY.md §2.4, the actual bug behind the
+   week-counter incident this round started with.** Jake asked directly: "is
+   there a D that does what we want, or do I have to risk the cost I don't
+   want to?" — the choice was framed as A (full session-derivation: real,
+   checked cost, ~$28–150/year, out of Jake's own pocket for a district paying
+   him nothing) vs. B (per-source fields, zero added reads) vs. C (ruled out,
+   doesn't close the bug). **Landed on B.** `typing_logs` no longer holds one
+   shared `seconds`/`chars`/`mistakes` triple that BOTH page controllers wrote
+   via `setDoc(merge:true)` from their own independent counters — that's what
+   let School-then-Library the same day silently overwrite one mode's
+   contribution with the other's, no error, real graded minutes gone. Now:
+   `game.js` writes `secondsLibrary`/`charsLibrary`/`mistakesLibrary` (fields
+   ONLY it ever touches); `learn.js` writes `secondsSchool`/`charsSchool`/
+   `mistakesSchool`. Two independent fields on one document can't clobber each
+   other under a merge — the collision is now structurally impossible, not
+   carefully avoided. `game.js` v3.29.0, `learn.js` v2.14.0.
+   ⚠️ **REQUIRES `firestore.rules` v2.4.0, DEPLOYED FIRST.** The old
+   `validDailyLog()` required a legacy `seconds` field on every document — a
+   brand-new day's first-ever flush under the new code would be a document
+   with ONLY split fields, and the old rule would reject it outright, silently
+   (the client catches the failure and logs a console warning; the student's
+   time just stops recording that day, with nothing on screen to say so). The
+   updated rule accepts either shape, every field optional individually but at
+   least one recognized seconds field required, so an empty/garbage document
+   still can't pass.
+   **Read side**: `reports.html`'s new `readLogTotals(data)` sums both split
+   triples when either is present, falling back to the legacy flat fields only
+   for documents with neither — the split is authoritative once it exists,
+   even at 0, on purpose (a present split of 0 is real information: this mode
+   hasn't been used today yet, not "we don't know"). `reports.html` v2.13.0.
+   `lessons-admin.js`'s roster panel got the same read-side fix, inline rather
+   than shared (no module bridges two standalone pages) — v1.11.0.
+   **Not chosen and why**: the fuller §4 proposal (deriving `typing_logs` from
+   `typing_sessions` at flush time) closes the SAME bug and also delivers R4
+   (delete a session, totals update) — but session records aren't timely yet
+   (a student mid-chapter has zero session records for that period), and it
+   costs Jake real, ongoing money for a district he isn't paid to support.
+   Deferred, not abandoned — R4 is still owed whenever that migration happens.
+
+6. **CONNECTING THE BUTTONS — deletability, today, for $0.** Jake's actual
+   question wasn't really A/B/C at all: "I had a kid cheat today. How do I get
+   rid of that bad batch?" The tools already existed and cost nothing —
+   per-sprint outlier flagging (🚩, already shipped), a delete button on every
+   session record, and a "⟳ Recalculate from sessions" button on every day's
+   log — they just weren't CONNECTED, so deleting a session left `typing_logs`
+   telling the old, inflated story until someone remembered to click recalc by
+   hand. `delete-session-btn` now calls `recalcDailyLog()` automatically,
+   reading which day to recalculate off new `data-idx`/`data-li`/`data-uid`/
+   `data-date` attributes on the sessions-container element (added this
+   round). `recalcDailyLog()` itself now writes the source-split fields too —
+   computed from each remaining session's own `source` tag via new, PURE
+   `splitSessionTotals()` — so a recalculated day migrates to the new shape as
+   a side effect of being corrected.
+   `allowZero`: the manual ⟳ button keeps its long-standing refusal on an empty
+   result ("No sessions found") — usually a pre-v2.4.0 day with real time but
+   no session records at all, where zeroing would destroy legitimate old data.
+   The delete-cascade passes `allowZero: true`, because it knows for certain a
+   session existed a moment ago; an empty result there IS the corrected truth,
+   not a failed lookup.
+   `save-log-btn` (the fully-manual override) now clears the split fields on
+   save — otherwise a stale split sum would silently outrank Jake's hand-typed
+   number the next time anyone reads the doc, since the split is always
+   authoritative once present. chars/mistakes carry forward unchanged; only
+   seconds is the thing being overridden.
+   **Has real harness coverage**: new `source-split-test.mjs` (v1.0.0), 12
+   assertions lifted straight out of the shipped `reports.html` (same
+   technique `week-anchor-test.mjs` uses) — covers `readLogTotals()`'s four
+   document shapes (legacy-only, both-split, one-side-split, and the case that
+   actually matters: a present split of 0 must outrank a much larger stale
+   legacy number) and `splitSessionTotals()`'s session-to-fields arithmetic
+   (all-School, all-Library, an untagged session correctly folding into
+   Library, empty input, and a malformed session missing chars/mistakes not
+   poisoning the sum with NaN).
+
+⚠️ **NOT YET COVERED BY A HARNESS**: `recalcDailyLog()`'s and `save-log-btn`'s
+own Firestore read/write calls and DOM updates — only the pure arithmetic
+inside them (`splitSessionTotals()`) is tested. The delete → recalc cascade
+itself (the actual button-connecting) is UI wiring, same category as the
+practice-button gating Round 15/16 also left uncovered, for the same reason:
+not asked for, would have meant mocking Firestore and the DOM for a page that
+has neither today.
+
+⚠️ **DEPLOY ORDER FOR THIS ROUND MATTERS, FOR REAL, NOT JUST BY CONVENTION**:
+`firestore.rules` v2.4.0 FIRST. Uploading `game.js`/`learn.js` before the rule
+change is live means every student's next new-day flush gets silently
+rejected — the exact failure mode the v2.3.0 "NO keys().hasOnly()" note in the
+rules file already warned about, now actually possible for a different reason.
+
+`npm test` → 25 of 25 harnesses now (source-split-test.mjs is new), 24 passing
+— same pre-existing `metadata-map-test.mjs` failure, untouched.
+
 ---
 
 ## §0.5. Round 15 — Densmore
@@ -339,8 +430,8 @@ Run `node audit-versions.mjs`; do not trust this table either.
 
 | file | version |
 |---|---|
-| `game.js` | 3.28.1 |
-| `learn.js` | 2.13.1 |
+| `game.js` | 3.29.0 |
+| `learn.js` | 2.14.0 |
 | `session-log.js` | 1.2.1 |
 | `hud.js` | 1.2.0 |
 | `variety-floor.js` | 1.0.0 |
@@ -349,11 +440,11 @@ Run `node audit-versions.mjs`; do not trust this table either.
 | `keyboard.js` | 1.1.1 |
 | `adventure-renderer.js` | 1.5.4 |
 | `admin.js` | 3.31.0 |
-| `lessons-admin.js` | 1.10.0 |
+| `lessons-admin.js` | 1.11.0 |
 | `staff-admin.js` | 2.2.0 |
-| `reports.html` | 2.12.0 |
+| `reports.html` | 2.13.0 |
 | `firebase-config.js` | 1.2.0 |
-| `firestore.rules` | 2.3.0 |
+| `firestore.rules` | 2.4.0 |
 | `style.css` | 3.5.5 |
 | `game.html` | 1.1.0 — new in Round 15, see §0.5 |
 | `learn.html` | 1.0.0 — new in Round 15, see §0.5 |
@@ -1153,7 +1244,7 @@ a pointer to a file you should go and read.**
 | 13 | Ludlow | `serverAt` (write side only). Step 1.5: closing the open sprint/run, delta writes, the watermark. `hud.js`. |
 | 14 | Sholes | This consolidation: nine handoffs into one, the invariant renumbering repair, and the step-2 timeliness finding in §4. |
 | 15 | Densmore | Fixed Round 14's HUD fix, which shipped green and didn't work. Version footer redesign. AI-practice variety floor (game.js/index.js). HUD long-form clip fix. |
-| 16 | Royal | The remediation variety floor (School's practice-missed-keys gap Round 15 flagged). The repair resync — a real incident, fixed and given harness coverage: an audit-repaired week counter that kept getting silently overwritten by a MacBook that skipped its between-period restart. Extracted the two files' duplicated variety-floor filter into `variety-floor.js`, the fifth shared module, with its own harness. |
+| 16 | Royal | The remediation variety floor (School's practice-missed-keys gap Round 15 flagged). The repair resync — a real incident, fixed and given harness coverage: an audit-repaired week counter that kept getting silently overwritten by a MacBook that skipped its between-period restart. Extracted the two files' duplicated variety-floor filter into `variety-floor.js`, the fifth shared module, with its own harness. The source split (DESIGN-TELEMETRY.md §2.4) — game.js/learn.js write per-source typing_logs fields instead of a shared, clobberable triple; requires firestore.rules v2.4.0 deployed first. Connected delete → recalc on the reports.html session drill-down, so a cheating student's numbers get fixed with zero manual bookkeeping and zero added cost. |
 
 ---
 

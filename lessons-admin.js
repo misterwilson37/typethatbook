@@ -1,6 +1,19 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.10.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.11.0
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it
+//
+// v1.11.0 — READ-SIDE OF THE SOURCE SPLIT (DESIGN-TELEMETRY.md §2.4). Same
+//          incident as game.js v3.29.0 / learn.js v2.14.0 / reports.html
+//          v2.13.0: typing_logs now carries secondsLibrary/secondsSchool
+//          instead of a shared `seconds` field two page controllers used to
+//          silently overwrite on each other. The roster panel's weekSeconds
+//          tally now sums both split fields when either is present, falling
+//          back to the legacy flat field for documents written before this
+//          shipped — the same rule reports.html's readLogTotals() applies,
+//          duplicated inline rather than imported, because this file and
+//          reports.html are two separate standalone pages with no shared
+//          module between them (the same reason getWeekStart() is a
+//          hand-maintained twin in game.js/learn.js, not an import).
 //
 // v1.10.0 — THE ROLLOVER IMPORT. A returning student kept last year's class and
 //          nothing anywhere said so. Three parts:
@@ -74,7 +87,7 @@
 //          _studentsInited already true so reopening the tab could not recover.
 //          Both functions written from _commitCSV()/_bulkAssign().
 // v1.7.0 — Lesson + class authoring, CSV roster import, stuck-student scan.
-window.LESSONS_ADMIN_VERSION = '1.10.0';
+window.LESSONS_ADMIN_VERSION = '1.11.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -1829,7 +1842,16 @@ async function loadStudentRoster() {
             const data = d.data();
             const uid  = data.uid || ''; if (!uid) return;
             const date = data.date || '';
-            const secs = data.seconds || 0;
+            // ⚠️ v1.11.0 — READ-SIDE OF THE SOURCE SPLIT (DESIGN-TELEMETRY.md
+            // §2.4). game.js/learn.js now write secondsLibrary/secondsSchool
+            // instead of a shared `seconds` field — see reports.html's
+            // readLogTotals() for the canonical explanation, duplicated here
+            // rather than imported because this file and reports.html are two
+            // separate standalone pages, same reason getWeekStart() is a twin
+            // in game.js/learn.js rather than a shared import.
+            const secs = ('secondsLibrary' in data) || ('secondsSchool' in data)
+                ? (data.secondsLibrary || 0) + (data.secondsSchool || 0)
+                : (data.seconds || 0);
             if (!byUid.has(uid)) {
                 byUid.set(uid, { name: data.displayName || '', email: data.email || '',
                                  lastLogin: date, weekSeconds: 0, classId: '' });

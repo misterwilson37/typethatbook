@@ -68,6 +68,7 @@ const FAST = [
     ['hud-test.mjs',             'the shared time readout: layout, goal denominators, one formatter only'],
     ['variety-floor-test.mjs',   'the shared missed-character variety filter behind both practice buttons'],
     ['week-anchor-test.mjs',     'the report audit and the app agree on where the school week starts'],
+    ['source-split-test.mjs',    'the source-split read merge and the recalc tool\'s session-splitting arithmetic'],
     ['class-create-test.mjs',    'class name matching and the shared CSV class-creation path'],
     ['roster-filter-test.mjs',   'Students-tab date range: the Saturday week boundary and the status line'],
 ];

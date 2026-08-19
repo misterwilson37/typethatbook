@@ -1,6 +1,18 @@
 rules_version = '2';
 
-// firestore.rules v2.3.0 — TypeThatBook
+// firestore.rules v2.4.0 — TypeThatBook
+//
+// v2.4.0 — validDailyLog() accepts the new split-field shape (secondsLibrary/
+//          secondsSchool etc., alongside the legacy seconds/chars/mistakes)
+//          so game.js v3.29.0 / learn.js v2.14.0's per-source typing_logs
+//          fields validate. See that function's own comment. This is a
+//          MUST-DEPLOY-BEFORE change: without it, every student's very first
+//          flush of a new day is a brand-new document containing only the
+//          split fields, and the OLD rule required the legacy `seconds` field
+//          to exist — that write would be rejected outright, silently, the
+//          same failure mode the "NO keys().hasOnly()" note above already
+//          warned about. Deploy this rules change before uploading the new
+//          game.js/learn.js, not after.
 //
 // v2.3.0 — GUEST READ on content. books, books/*/chapters, lessons and
 //          settings/goals are now world-readable. Everything else is unchanged.
@@ -306,12 +318,36 @@ service cloud.firestore {
     // silently stop recording. Silent grade loss is a far worse outcome than the
     // storage a stray field costs. The docId binding below is what actually
     // bounds this collection; a whitelist would only have bounded its width.
+    // ⚠️ v2.4.0 — SPLIT-FIELD SHAPE. game.js/learn.js no longer write a shared
+    // seconds/chars/mistakes triple — see HANDOFF §0.7/§3: two page controllers
+    // writing the SAME field from the SAME document let one mode's flush
+    // silently overwrite the other's contribution for the same day. They now
+    // write secondsLibrary/charsLibrary/mistakesLibrary (game.js) and
+    // secondsSchool/charsSchool/mistakesSchool (learn.js) — disjoint fields, so
+    // a merge from either side can never erase the other's. A brand-new
+    // document therefore carries ONLY one split triple, not the legacy one; a
+    // document a student has used both modes on carries both split triples;
+    // and every document written before this shipped still carries the legacy
+    // triple, untouched, since a merge never removes a field it doesn't
+    // mention. Every one of the six fields, IF PRESENT, must still clear the
+    // same bounds as before — this widens what shape is accepted, not what
+    // values are.
     function validDailyLog(d) {
       return d.uid is string
           && d.date is string && d.date.size() == 10
-          && d.seconds   is number && d.seconds   >= 0 && d.seconds   <= 86400
-          && d.chars     is number && d.chars     >= 0 && d.chars     <= 5000000
-          && d.mistakes  is number && d.mistakes  >= 0 && d.mistakes  <= 5000000;
+          && (!('seconds' in d)         || (d.seconds         is number && d.seconds         >= 0 && d.seconds         <= 86400))
+          && (!('chars' in d)           || (d.chars           is number && d.chars           >= 0 && d.chars           <= 5000000))
+          && (!('mistakes' in d)        || (d.mistakes        is number && d.mistakes        >= 0 && d.mistakes        <= 5000000))
+          && (!('secondsLibrary' in d)  || (d.secondsLibrary  is number && d.secondsLibrary  >= 0 && d.secondsLibrary  <= 86400))
+          && (!('charsLibrary' in d)    || (d.charsLibrary    is number && d.charsLibrary    >= 0 && d.charsLibrary    <= 5000000))
+          && (!('mistakesLibrary' in d) || (d.mistakesLibrary is number && d.mistakesLibrary >= 0 && d.mistakesLibrary <= 5000000))
+          && (!('secondsSchool' in d)   || (d.secondsSchool   is number && d.secondsSchool   >= 0 && d.secondsSchool   <= 86400))
+          && (!('charsSchool' in d)     || (d.charsSchool     is number && d.charsSchool     >= 0 && d.charsSchool     <= 5000000))
+          && (!('mistakesSchool' in d)  || (d.mistakesSchool  is number && d.mistakesSchool  >= 0 && d.mistakesSchool  <= 5000000))
+          // ⚠️ At least one recognized seconds field must exist, or an empty /
+          // garbage document (uid + date and nothing else) would otherwise pass
+          // every check above by having nothing to violate.
+          && ('seconds' in d || 'secondsLibrary' in d || 'secondsSchool' in d);
     }
 
     // ⚠️ THE DOC ID IS NOW BOUND TO THE DATE FIELD, not merely prefixed by the

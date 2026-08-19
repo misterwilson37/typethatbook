@@ -1,4 +1,14 @@
-// learn.js v2.13.1
+// learn.js v2.14.0
+//
+// v2.14.0 — THE SOURCE SPLIT. Mirrors game.js v3.29.0 exactly — see its header
+//           for the incident (DESIGN-TELEMETRY.md §2.4) and the reasoning for
+//           choosing this over full session-derivation (real ongoing dollar
+//           cost Jake pays personally, for zero added correctness benefit
+//           over this at the specific bug it closes). Writes
+//           secondsSchool/charsSchool/mistakesSchool now; the old flat
+//           `source: 'school'` field is dropped as no longer meaningful once
+//           a document can hold both modes' contributions at once. ⚠️
+//           REQUIRES firestore.rules v2.4.0+, deployed first.
 //
 // v2.13.1 — EXTRACTED `_qualifyingRemediationChars()`'s FILTER into the new
 //           variety-floor.js, mirroring game.js v3.28.1 exactly — see that
@@ -281,7 +291,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.13.1";
+const LEARN_VERSION = "2.14.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -3978,6 +3988,18 @@ async function _flushStatsInner(reason, final = false) {
 
     // Daily log — what reports.html reads. Written on every flush so a teacher
     // checking mid-period sees today's numbers.
+    //
+    // ⚠️ v2.14.0 — SOURCE-SPLIT FIELDS. Mirrors game.js v3.29.0 exactly — see
+    // its comment for the full incident (DESIGN-TELEMETRY.md §2.4: two page
+    // controllers sharing one field on one document, each overwriting the
+    // other's contribution). Writes secondsSchool/charsSchool/mistakesSchool
+    // now, never the shared seconds/chars/mistakes triple. The old `source:
+    // 'school'` field is dropped — it was a single string tag on a document
+    // that can now legitimately hold contributions from both modes at once,
+    // which the field name itself now encodes precisely, so a separate tag
+    // saying which one "the" source was is no longer meaningful and would be
+    // actively misleading on a mixed day. ⚠️ REQUIRES firestore.rules v2.4.0+;
+    // see game.js's comment — deploy the rule before this file.
     try {
         const today = getLocalDateStr();
         await setDoc(doc(db, 'typing_logs', currentUser.uid + '_' + today), {
@@ -3985,9 +4007,9 @@ async function _flushStatsInner(reason, final = false) {
             displayName: currentUser.displayName || 'Anonymous',
             classId: (classInfo && classInfo.id) || '',
             schoolId: (classInfo && classInfo.schoolId) || '',
-            date: today, seconds: statsData.secondsToday || 0,
-            chars: statsData.charsToday || 0, mistakes: statsData.mistakesToday || 0,
-            lastUpdated: new Date(), source: 'school'
+            date: today, secondsSchool: statsData.secondsToday || 0,
+            charsSchool: statsData.charsToday || 0, mistakesSchool: statsData.mistakesToday || 0,
+            lastUpdated: new Date()
         }, { merge: true });
     } catch (e) { ok = false; console.warn(`Log flush failed (${reason}):`, e); }
 

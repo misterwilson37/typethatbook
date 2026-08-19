@@ -330,6 +330,28 @@
     import { db, auth } from "./firebase-config.js";
 
     // ─── Version ──────────────────────────────────────────────────────────────
+    // v2.13.0 — TWO THINGS, BOTH FROM DESIGN-TELEMETRY.md §2.4.
+    //   (1) THE SOURCE SPLIT, READ SIDE. game.js v3.29.0 / learn.js v2.14.0 now
+    //       write secondsLibrary/secondsSchool (etc.) instead of a shared
+    //       seconds/chars/mistakes triple that let one mode's flush silently
+    //       overwrite the other's contribution for the same day. New
+    //       readLogTotals() sums both split triples when present, falling back
+    //       to the legacy flat fields for documents written before this
+    //       shipped. ⚠️ REQUIRES firestore.rules v2.4.0+, deployed FIRST — see
+    //       either JS file's header.
+    //   (2) CONNECTING THE BUTTONS. Deleting a session used to leave
+    //       typing_logs telling the old story until someone remembered to
+    //       click ⟳ Recalculate by hand. delete-session-btn now calls the
+    //       extracted recalcDailyLog() automatically, reading which day to
+    //       recalculate off the sessions-container's own data-idx/data-li/
+    //       data-uid/data-date attributes (new on that element this version).
+    //       recalcDailyLog() itself now writes the split fields too — computed
+    //       from each remaining session's own `source` tag — so a recalculated
+    //       day migrates to the new shape as a side effect. save-log-btn
+    //       (the fully-manual override) clears the split fields on save, so a
+    //       hand-entered number can't be silently outranked by a stale split
+    //       sum the next time the doc is read.
+    //
     // v2.9.0 — This page carried its version hardcoded in TWO places, the
     // <title> and the <footer>, and was the last surface still doing so. That
     // is the exact arrangement index.html was in when its title said 3.0.0 and
@@ -337,13 +359,13 @@
     // which is a discipline problem until it becomes a lie. Both are now
     // written from this constant, which is also what versions.js reads for the
     // build panel in index.html.
-    const REPORTS_VERSION = "2.12.0";
+    const REPORTS_VERSION = "2.13.0";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
     if (_rfv) _rfv.textContent = `Reports v${REPORTS_VERSION}`;
 
-    import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
     // v2.5.0 — Multi-school support.
@@ -763,6 +785,31 @@
                 return;
             }
 
+            // ⚠️ v2.13.0 — READ-SIDE OF THE SOURCE SPLIT. game.js v3.29.0 /
+            // learn.js v2.14.0 write secondsLibrary/secondsSchool (etc.)
+            // instead of a shared seconds/chars/mistakes triple — see either
+            // file's header for the incident this closes. A document that has
+            // EITHER split field present is read as the sum of both (0 for
+            // whichever side never wrote); a document that has NEITHER
+            // — everything from before this shipped, or a day cleared back to
+            // the legacy shape by a manual Save (see save-log-btn below) —
+            // falls back to the flat fields. This is the only place that needs
+            // to know both shapes exist; everything downstream (this
+            // function's own aggregation, the week-counter audit, the daily
+            // log editor) keeps reading plain `seconds`/`chars`/`mistakes` off
+            // whatever this returns.
+            function readLogTotals(data) {
+                const hasSplit = ('secondsLibrary' in data) || ('secondsSchool' in data);
+                if (hasSplit) {
+                    return {
+                        seconds:  (data.secondsLibrary  || 0) + (data.secondsSchool  || 0),
+                        chars:    (data.charsLibrary    || 0) + (data.charsSchool    || 0),
+                        mistakes: (data.mistakesLibrary || 0) + (data.mistakesSchool || 0),
+                    };
+                }
+                return { seconds: data.seconds || 0, chars: data.chars || 0, mistakes: data.mistakes || 0 };
+            }
+
             // Aggregate by user
             const userMap = {};
             let skipped = 0;
@@ -782,16 +829,17 @@
                         dailyLogs: []
                     };
                 }
-                userMap[uid].seconds += (data.seconds || 0);
-                userMap[uid].chars += (data.chars || 0);
-                userMap[uid].mistakes += (data.mistakes || 0);
+                const t = readLogTotals(data);
+                userMap[uid].seconds += t.seconds;
+                userMap[uid].chars += t.chars;
+                userMap[uid].mistakes += t.mistakes;
                 userMap[uid].days.add(data.date);
                 userMap[uid].dailyLogs.push({
                     docId: d.id,
                     date: data.date,
-                    seconds: data.seconds || 0,
-                    chars: data.chars || 0,
-                    mistakes: data.mistakes || 0
+                    seconds: t.seconds,
+                    chars: t.chars,
+                    mistakes: t.mistakes
                 });
                 if (data.displayName) userMap[uid].name = data.displayName;
                 if (data.email) userMap[uid].email = data.email;
@@ -1174,7 +1222,7 @@
                                 <button class="recalc-btn" data-idx="${idx}" data-li="${li}" data-uid="${r.uid}" data-date="${log.date}" title="Recalculate from sessions">⟳</button>
                                 <span class="log-save-status" id="log-status-${idx}-${li}"></span>
                             </div>
-                            <div class="sessions-container hidden" id="sessions-${r.uid}-${log.date}"></div>
+                            <div class="sessions-container hidden" id="sessions-${r.uid}-${log.date}" data-idx="${idx}" data-li="${li}" data-uid="${r.uid}" data-date="${log.date}"></div>
                         `}).join('')}
                     </div>
                 </td>
@@ -1343,6 +1391,25 @@
                 await deleteDoc(doc(db, "typing_sessions", sessionId));
                 const row = e.target.closest('.session-entry');
                 if (row) row.remove();
+
+                // ⚠️ v2.13.0 — CONNECTING THE BUTTONS. Deleting the evidence used
+                // to leave typing_logs telling the old, inflated story until
+                // someone remembered to click ⟳ Recalculate by hand — Jake
+                // flagged this exact gap. The day this session belonged to is
+                // read straight off its own sessions-container's own data
+                // attributes, so the recalc targets the right day automatically.
+                // allowZero: true because we know for certain sessions existed
+                // here a moment ago — an empty result now IS the corrected truth
+                // for the day, not a lookup failure. See recalcDailyLog()'s own
+                // comment for why the manual ⟳ button can't make that same
+                // assumption.
+                const container = e.target.closest('.sessions-container');
+                if (container) {
+                    const idx = parseInt(container.dataset.idx, 10);
+                    const li  = parseInt(container.dataset.li, 10);
+                    await recalcDailyLog(idx, li, container.dataset.uid, container.dataset.date,
+                                          { allowZero: true });
+                }
             } catch (err) {
                 console.error("Delete session error:", err);
                 alert("Delete failed: " + err.message);
@@ -1370,8 +1437,21 @@
                 statusEl2.textContent = 'Saving...';
                 statusEl2.style.color = '#888';
 
+                // ⚠️ v2.13.0 — A MANUAL SAVE COLLAPSES THE DOC BACK TO THE LEGACY
+                // FLAT SHAPE. Jake is asserting one definitive number for the
+                // whole day; a split (secondsLibrary + secondsSchool) that still
+                // added up to the OLD total would silently outrank this edit the
+                // next time anyone reads the doc — readLogTotals() always prefers
+                // the split sum when either half is present. chars/mistakes carry
+                // forward unchanged (only seconds is the thing being overridden),
+                // so nothing is lost. The flat shape wins until the next automatic
+                // flush re-establishes a split for that day.
                 await updateDoc(doc(db, "typing_logs", log.docId), {
                     seconds: newSeconds,
+                    chars: log.chars,
+                    mistakes: log.mistakes,
+                    secondsLibrary: deleteField(), charsLibrary: deleteField(), mistakesLibrary: deleteField(),
+                    secondsSchool: deleteField(), charsSchool: deleteField(), mistakesSchool: deleteField(),
                     lastUpdated: new Date()
                 });
 
@@ -1407,76 +1487,124 @@
             const li = parseInt(e.target.dataset.li);
             const uid = e.target.dataset.uid;
             const date = e.target.dataset.date;
-            const r = reportData[idx];
-            const log = r.dailyLogs[li];
-            const statusEl2 = document.getElementById(`log-status-${idx}-${li}`);
-
-            try {
-                e.target.disabled = true;
-                statusEl2.textContent = 'Recalculating...';
-                statusEl2.style.color = '#888';
-
-                const q = query(collection(db, "typing_sessions"), where("uid", "==", uid), where("date", "==", date));
-                const snap = await getDocs(q);
-
-                if (snap.empty) {
-                    statusEl2.textContent = 'No sessions found';
-                    statusEl2.style.color = '#ff6b6b';
-                    e.target.disabled = false;
-                    return;
-                }
-
-                let totalSec = 0, totalChars = 0, totalMistakes = 0;
-                snap.forEach(d => {
-                    const s = d.data();
-                    totalSec += s.seconds || 0;
-                    totalChars += s.chars || 0;
-                    totalMistakes += s.mistakes || 0;
-                });
-
-                await updateDoc(doc(db, "typing_logs", log.docId), {
-                    seconds: totalSec, chars: totalChars, mistakes: totalMistakes,
-                    lastUpdated: new Date()
-                });
-
-                const today = new Date().toISOString().split('T')[0];
-                if (log.date === today) {
-                    try {
-                        await updateDoc(doc(db, "users", uid, "stats", "time_tracking"), {
-                            secondsToday: totalSec, charsToday: totalChars, mistakesToday: totalMistakes
-                        });
-                    } catch (e2) { console.warn("Live stats update skipped:", e2); }
-                }
-
-                const oldSeconds = log.seconds;
-                log.seconds = totalSec;
-                log.chars = totalChars;
-                log.mistakes = totalMistakes;
-                r.seconds = r.seconds - oldSeconds + totalSec;
-                r.chars = r.dailyLogs.reduce((s, l) => s + l.chars, 0);
-                r.mistakes = r.dailyLogs.reduce((s, l) => s + l.mistakes, 0);
-                r.wpm = r.seconds > 0 ? Math.round((r.chars / 5) / (r.seconds / 60)) : 0;
-                r.accuracy = (r.chars + r.mistakes) > 0 ? Math.round((r.chars / (r.chars + r.mistakes)) * 100) : 100;
-
-                const entry = e.target.closest('.daily-log-entry');
-                entry.querySelector('.log-min-input').value = Math.floor(totalSec / 60);
-                entry.querySelector('.log-sec-input').value = totalSec % 60;
-                entry.querySelector('.log-chars').textContent = totalChars.toLocaleString() + ' chars';
-                updateSummaryRow(idx, r);
-
-                statusEl2.textContent = `✓ ${formatTime(totalSec)} from ${snap.size} sessions`;
-                statusEl2.style.color = '#22c55e';
-                setTimeout(() => { statusEl2.textContent = ''; }, 3000);
-            } catch (err) {
-                console.error("Recalc error:", err);
-                statusEl2.textContent = '✗ ' + err.message;
-                statusEl2.style.color = '#ff3333';
-            } finally {
-                e.target.disabled = false;
-            }
+            e.target.disabled = true;
+            await recalcDailyLog(idx, li, uid, date);
+            e.target.disabled = false;
             return;
         }
     });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // recalcDailyLog() — recompute one day's log from its remaining session
+    // records. Shared by the manual ⟳ button and, as of v2.13.0, by session
+    // deletion — see the delete-session-btn handler above for why that
+    // connection exists.
+    //
+    // Writes the SOURCE-SPLIT fields (same shape as game.js/learn.js's live
+    // flush — see readLogTotals() above), computed from each session record's
+    // own `source` tag, and clears whichever legacy flat fields the document
+    // still carries — this is also how an old, pre-split document gets
+    // migrated to the new shape the first time anyone recalculates it.
+    //
+    // `allowZero`: the manual button's long-standing behavior is to refuse and
+    // report "No sessions found" when a day has none — usually because the day
+    // predates session logging (v2.4.0), where the day's total time is real,
+    // just never broken into session records, and zeroing it would silently
+    // destroy legitimate old data. The delete-cascade case is the opposite:
+    // sessions definitely existed a moment ago — the one just deleted was one
+    // of them — so an empty result now IS the corrected truth for that day,
+    // not a failed lookup. Callers pass allowZero to accept that.
+    // Split a day's session records by their own `source` tag. Pure — no
+    // reads, no writes, no DOM — which is what makes it the one piece of
+    // recalcDailyLog() a harness can test directly (source-split-test.mjs).
+    // Anything not explicitly tagged 'school' folds into Library, the
+    // original, untagged mode; every session game.js/learn.js write today
+    // carries a tag (session-log.js requires it).
+    function splitSessionTotals(sessions) {
+        let schoolSec = 0, schoolChars = 0, schoolMist = 0;
+        let librarySec = 0, libraryChars = 0, libraryMist = 0;
+        sessions.forEach(s => {
+            if (s.source === 'school') {
+                schoolSec += s.seconds || 0; schoolChars += s.chars || 0; schoolMist += s.mistakes || 0;
+            } else {
+                librarySec += s.seconds || 0; libraryChars += s.chars || 0; libraryMist += s.mistakes || 0;
+            }
+        });
+        return { schoolSec, schoolChars, schoolMist, librarySec, libraryChars, libraryMist };
+    }
+
+    async function recalcDailyLog(idx, li, uid, date, { allowZero = false } = {}) {
+        const r = reportData[idx];
+        const log = r.dailyLogs[li];
+        const statusEl2 = document.getElementById(`log-status-${idx}-${li}`);
+        const entry = document.querySelector(`.daily-log-entry[data-idx="${idx}"][data-li="${li}"]`);
+
+        if (statusEl2) { statusEl2.textContent = 'Recalculating...'; statusEl2.style.color = '#888'; }
+
+        try {
+            const q = query(collection(db, "typing_sessions"), where("uid", "==", uid), where("date", "==", date));
+            const snap = await getDocs(q);
+
+            if (snap.empty && !allowZero) {
+                if (statusEl2) { statusEl2.textContent = 'No sessions found'; statusEl2.style.color = '#ff6b6b'; }
+                return false;
+            }
+
+            const sessions = [];
+            snap.forEach(d => sessions.push(d.data()));
+            const { schoolSec, schoolChars, schoolMist, librarySec, libraryChars, libraryMist } =
+                splitSessionTotals(sessions);
+            const totalSec = schoolSec + librarySec;
+            const totalChars = schoolChars + libraryChars;
+            const totalMistakes = schoolMist + libraryMist;
+
+            await updateDoc(doc(db, "typing_logs", log.docId), {
+                secondsSchool: schoolSec, charsSchool: schoolChars, mistakesSchool: schoolMist,
+                secondsLibrary: librarySec, charsLibrary: libraryChars, mistakesLibrary: libraryMist,
+                seconds: deleteField(), chars: deleteField(), mistakes: deleteField(),
+                lastUpdated: new Date()
+            });
+
+            const today = new Date().toISOString().split('T')[0];
+            if (log.date === today) {
+                try {
+                    await updateDoc(doc(db, "users", uid, "stats", "time_tracking"), {
+                        secondsToday: totalSec, charsToday: totalChars, mistakesToday: totalMistakes
+                    });
+                } catch (e2) { console.warn("Live stats update skipped:", e2); }
+            }
+
+            const oldSeconds = log.seconds;
+            log.seconds = totalSec;
+            log.chars = totalChars;
+            log.mistakes = totalMistakes;
+            r.seconds = r.seconds - oldSeconds + totalSec;
+            r.chars = r.dailyLogs.reduce((s, l) => s + l.chars, 0);
+            r.mistakes = r.dailyLogs.reduce((s, l) => s + l.mistakes, 0);
+            r.wpm = r.seconds > 0 ? Math.round((r.chars / 5) / (r.seconds / 60)) : 0;
+            r.accuracy = (r.chars + r.mistakes) > 0 ? Math.round((r.chars / (r.chars + r.mistakes)) * 100) : 100;
+
+            if (entry) {
+                entry.querySelector('.log-min-input').value = Math.floor(totalSec / 60);
+                entry.querySelector('.log-sec-input').value = totalSec % 60;
+                entry.querySelector('.log-chars').textContent = totalChars.toLocaleString() + ' chars';
+            }
+            updateSummaryRow(idx, r);
+
+            if (statusEl2) {
+                statusEl2.textContent = snap.size
+                    ? `✓ ${formatTime(totalSec)} from ${snap.size} session${snap.size === 1 ? '' : 's'}`
+                    : '✓ 0:00 — no sessions remain for this day';
+                statusEl2.style.color = '#22c55e';
+                setTimeout(() => { statusEl2.textContent = ''; }, 3000);
+            }
+            return true;
+        } catch (err) {
+            console.error("Recalc error:", err);
+            if (statusEl2) { statusEl2.textContent = '✗ ' + err.message; statusEl2.style.color = '#ff3333'; }
+            return false;
+        }
+    }
 
     function updateSummaryRow(idx, r) {
         const summaryRow = document.querySelector(`.summary-row[data-idx="${idx}"]`);
