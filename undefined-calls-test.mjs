@@ -49,6 +49,8 @@ const FILES = [
     // note in run-all-tests.mjs. hud.js, session-log.js and stats-wal.js are
     // imported by both page controllers.
     'stats-wal.js', 'session-log.js', 'hud.js',
+    // ⚠️ Added Round 16. The fifth shared module — see variety-floor.js's header.
+    'variety-floor.js',
 ];
 
 // ⚠️ HTML PAGES TOO (v1.2.0). v1.0.0 and v1.1.0 checked only the .js files and so

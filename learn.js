@@ -1,4 +1,10 @@
-// learn.js v2.13.0
+// learn.js v2.13.1
+//
+// v2.13.1 — EXTRACTED `_qualifyingRemediationChars()`'s FILTER into the new
+//           variety-floor.js, mirroring game.js v3.28.1 exactly — see that
+//           file's header. No behavior change. Closes the "no harness
+//           coverage" flag Round 16 left on this logic in the previous
+//           entry below.
 //
 // v2.13.0 — THE REPAIR RESYNC. Mirrors game.js v3.28.0 exactly — see its header
 //           for the incident and full mechanism. Short version: a week-counter
@@ -245,6 +251,7 @@ import {
 // The time readout, shared with game.js. ⚠️ Both pages render the SAME string in
 // the SAME element id — see hud.js for why that is the whole point.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
+import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // The version footer's three primary reads (this html file, this js file's own
 // LEARN_VERSION, style.css) plus the lazy full-build panel on hover. ⚠️ SAME
 // STRUCTURE AS game.js, ON PURPOSE — see updateVersionFooter() below.
@@ -274,7 +281,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.13.0";
+const LEARN_VERSION = "2.13.1";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -2735,10 +2742,12 @@ function showLessonResultModal(wpm, acc) {
 // calls it directly can skip the check the button itself enforces.
 const REMEDIATION_CHAR_MISS_THRESHOLD = 3;  // a letter must be missed this many times to "count"
 const REMEDIATION_MIN_QUALIFYING_CHARS = 3; // and at least this many different letters must qualify
+// ⚠️ v2.13.1 — THE FILTER ITSELF MOVED TO variety-floor.js. Same numbers, same
+// behavior; this is now a one-line wrapper naming learn.js's own threshold
+// constants, kept so every existing call site is untouched. game.js's
+// `_qualifyingPracticeChars()` is its twin — see variety-floor.js.
 function _qualifyingRemediationChars() {
-    return Object.entries(missedChars)
-        .filter(([ch, n]) => n >= REMEDIATION_CHAR_MISS_THRESHOLD)
-        .sort((a, b) => b[1] - a[1]);
+    return qualifyingChars(missedChars, REMEDIATION_CHAR_MISS_THRESHOLD);
 }
 
 function buildRemediationLinks() {

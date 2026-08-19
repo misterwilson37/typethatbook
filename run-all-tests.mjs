@@ -46,7 +46,7 @@ const HERE = fileURLToPath(new URL('./', import.meta.url));
 // only runs behind a flag is a guard nobody runs. Its synthetic half still passes with
 // library/ absent.
 const FAST = [
-    ["undefined-calls-test.mjs", "every identifier reference resolves: 12 JS files + 3 inline HTML scripts"],
+    ["undefined-calls-test.mjs", "every identifier reference resolves: 13 JS files + 3 inline HTML scripts"],
     ["metadata-map-test.mjs",     "EPUB source/license map onto real dropdown options; Gutenberg origin"],
     ["reanchor-test.mjs",         "progress survives a re-upload: clamp, anchor search, staleness ladder"],
     ["credits-scroll-test.mjs",  "end-of-book credits reel: rises into view, holds, shows every row"],
@@ -66,6 +66,7 @@ const FAST = [
     ['session-merge-test.mjs',   'the guest/expired-session stats merge, session-log rollup dating, and the repair resync'],
     ['open-unit-test.mjs',       'the open sprint/run: deltas, watermarks, and the reset-site parity guard'],
     ['hud-test.mjs',             'the shared time readout: layout, goal denominators, one formatter only'],
+    ['variety-floor-test.mjs',   'the shared missed-character variety filter behind both practice buttons'],
     ['week-anchor-test.mjs',     'the report audit and the app agree on where the school week starts'],
     ['class-create-test.mjs',    'class name matching and the shared CSV class-creation path'],
     ['roster-filter-test.mjs',   'Students-tab date range: the Saturday week boundary and the status line'],
@@ -91,7 +92,8 @@ import { readFileSync as _rf } from 'node:fs';
 // unchecked: a syntax error in one takes down BOTH student pages at import time.
 const MODULES = ['game.js', 'learn.js', 'admin.js', 'adventure-renderer.js',
                  'keyboard.js', 'lessons-admin.js', 'staff-admin.js', 'versions.js',
-                 'firebase-config.js', 'stats-wal.js', 'session-log.js', 'hud.js'];
+                 'firebase-config.js', 'stats-wal.js', 'session-log.js', 'hud.js',
+                 'variety-floor.js'];
 let syntaxBad = 0;
 for (const f of MODULES) {
     const r = spawnSync(process.execPath, ['--input-type=module', '--check'],

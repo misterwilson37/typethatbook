@@ -1,4 +1,14 @@
-// game.js v3.28.0
+// game.js v3.28.1
+//
+// v3.28.1 — EXTRACTED `_qualifyingPracticeChars()`'s FILTER into the new
+//           variety-floor.js, the fifth shared module. No behavior change —
+//           see that file's header. Closes the "no harness coverage" flag
+//           Round 15/16 left on this logic: the filter itself is now a real,
+//           directly-imported, directly-tested pure function
+//           (variety-floor-test.mjs) rather than something only reachable by
+//           lifting it out of the monolith with brace-matching. The DOM-level
+//           wiring around it (button gating) still isn't extracted, and still
+//           isn't covered — that part is unchanged this round.
 //
 // v3.28.0 — THE REPAIR RESYNC. Fixes a real incident: a student's week counter
 //           got audit-repaired in reports.html and came back inflated on the
@@ -250,6 +260,7 @@ import {
 // slot held three different quantities depending on settings, and School's held a
 // fourth. DOM-free: it returns strings and this file writes them.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
+import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // The version footer's three primary reads (this html file, this js file's own
 // VERSION, style.css) plus the lazy full-build panel on hover. See
 // updateVersionBanner() below and the header on readOneDeployedVersion() for
@@ -270,7 +281,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.28.0";
+const VERSION = "3.28.1";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1249,10 +1260,14 @@ const PRACTICE_MIN_QUALIFYING_CHARS = 3; // and at least this many different cha
 // the button is never even shown before the pattern is real, and
 // startPracticeMode() so nothing that calls it directly (a bug, a stray event
 // handler, a bypassed UI) can skip the check the button itself enforces.
+//
+// ⚠️ v3.28.1 — THE FILTER ITSELF MOVED TO variety-floor.js. Same numbers, same
+// behavior; this is now a one-line wrapper naming game.js's own threshold
+// constants, kept so every existing call site (`.length`, `.slice(0, N)`,
+// `.map(([ch]) => ch)`) is untouched. See variety-floor.js for the extraction
+// note — learn.js's `_qualifyingRemediationChars()` is its twin.
 function _qualifyingPracticeChars() {
-    return Object.entries(missedCharsMap)
-        .filter(([ch, count]) => count >= PRACTICE_CHAR_MISS_THRESHOLD)
-        .sort((a, b) => b[1] - a[1]);
+    return qualifyingChars(missedCharsMap, PRACTICE_CHAR_MISS_THRESHOLD);
 }
 
 // Profanity filter for initials (covers letter substitutions kids try)

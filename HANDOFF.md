@@ -99,14 +99,10 @@ just that one letter. Jake asked for it to be closed. It is now.
    untouched; a marker from a different week is ignored; an
    anonymous/signed-out session is skipped without a read or a throw.
 
-⚠️ **NO HARNESS COVERAGE FOR ITEMS 1–2** — same caveat Round 15 left for its own
-DOM-level wiring: `_qualifyingRemediationChars()` is a plain function and
-*could* be unit-tested the way `hud.js` is, but it isn't yet — it lives in the
-`learn.js` monolith, not an extracted pure module, and reaches into the
-module-scope `missedChars` object rather than taking it as a parameter. Not
-extracted this round for the same reason Round 15 gave: it wasn't asked for
-and would have widened the diff. Worth doing together with game.js's
-equivalent gap if that extraction pass ever happens.
+⚠️ **NO HARNESS COVERAGE FOR ITEM 1's DOM WIRING** — same caveat Round 15 left:
+the button gating itself (`getMissedCharsHTML()`, `buildRemediationLinks()`)
+lives inside the `game.js`/`learn.js` monolith and isn't extracted. What IS now
+covered, as of item 4 below, is the filter both of them call.
 
 ⚠️ **ONE THING THE REPAIR RESYNC DOES NOT COVER**: `mergeGuestStats()` itself
 (the re-auth path, on a 24-hour token expiry) does not check `repairedAt` — it
@@ -117,12 +113,36 @@ state, and re-running it against an already-correct `statsData` is a no-op
 `mergeGuestStats()` and `checkForWeekRepair()` are two separate correctness
 paths that happen to compose safely rather than one calling the other.
 
-`npm test` → still 23 of 24 harnesses pass; same pre-existing
-`metadata-map-test.mjs` failure as Rounds 14–15, untouched.
-`undefined-calls-test.mjs` confirms every new identifier resolves (12 JS files
-+ 3 inline HTML scripts, unchanged count — no new files added).
-`session-merge-test.mjs` Part D: 10 new assertions (5 scenarios × 2 files),
-all passing.
+4. **`variety-floor.js` — the fifth shared module.** `_qualifyingPracticeChars()`
+   (game.js) and `_qualifyingRemediationChars()` (learn.js) were the same nine
+   lines with different names — filter a missed-character map to the ones
+   clearing a per-character threshold, sorted worst-first. Both files flagged
+   the duplication as worth closing "if this becomes a pattern"; it did, so it's
+   closed. `qualifyingChars(missedMap, threshold)` and the convenience wrapper
+   `hasVarietyFloor(missedMap, threshold, minQualifying)` now live in
+   `variety-floor.js` v1.0.0, imported for real by both files (not lifted —
+   it's DOM-free and pure, same reason `hud.js` is importable). Each file kept
+   its own threshold constants (`PRACTICE_*` / `REMEDIATION_*` — two separate
+   tuning knobs that happen to both be 3/3 today, not one shared constant) and
+   every existing call site untouched; `_qualifyingPracticeChars()` and
+   `_qualifyingRemediationChars()` are now one-line wrappers. No behavior
+   change. `game.js` v3.28.1, `learn.js` v2.13.1.
+   **Registered everywhere a shared module has to be**, so this doesn't
+   reproduce the exact gap Round 15 found and closed for `hud.js` /
+   `session-log.js` / `stats-wal.js`: `versions.js` and `audit-versions.mjs`'s
+   `SOURCES` mirrors, `undefined-calls-test.mjs`'s `FILES` list, and
+   `run-all-tests.mjs`'s syntax-gate `MODULES` list all now include it.
+   **Has real harness coverage**: new `variety-floor-test.mjs` (v1.0.0), 13
+   assertions against the real module — empty/null/undefined maps degrade to
+   "nothing qualifies" rather than throwing, exactly-at-threshold counts as
+   qualifying, worst-missed-first ordering, and `hasVarietyFloor` against
+   Jake's original F/J bug report specifically (one dominant qualifying
+   character never clears a floor of 3).
+
+`npm test` → 24 of 24 harnesses now (variety-floor-test.mjs is new), 23 passing
+— same pre-existing `metadata-map-test.mjs` failure as Rounds 14–15, untouched.
+`undefined-calls-test.mjs` now says 13 JS files (was 12) and confirms every
+identifier still resolves. `(syntax)` gate: 13 shipped modules, all parse.
 
 ---
 
@@ -313,16 +333,17 @@ browsable user directory, by design. `users/{uid}` deliberately holds no PII, wh
 
 ## §2. Where the code is
 
-Shipped state after Round 15, 2026-08-19. **Verified against the repo, not copied from
+Shipped state after Round 16, 2026-08-19. **Verified against the repo, not copied from
 the previous table** — three consecutive rounds carried a stale version for `admin.js`.
 Run `node audit-versions.mjs`; do not trust this table either.
 
 | file | version |
 |---|---|
-| `game.js` | 3.27.1 |
-| `learn.js` | 2.11.1 |
+| `game.js` | 3.28.1 |
+| `learn.js` | 2.13.1 |
 | `session-log.js` | 1.2.1 |
 | `hud.js` | 1.2.0 |
+| `variety-floor.js` | 1.0.0 |
 | `stats-wal.js` | shared module — check the constant |
 | `versions.js` | 1.7.0 |
 | `keyboard.js` | 1.1.1 |
@@ -330,7 +351,7 @@ Run `node audit-versions.mjs`; do not trust this table either.
 | `admin.js` | 3.31.0 |
 | `lessons-admin.js` | 1.10.0 |
 | `staff-admin.js` | 2.2.0 |
-| `reports.html` | 2.11.0 |
+| `reports.html` | 2.12.0 |
 | `firebase-config.js` | 1.2.0 |
 | `firestore.rules` | 2.3.0 |
 | `style.css` | 3.5.5 |
@@ -1132,7 +1153,7 @@ a pointer to a file you should go and read.**
 | 13 | Ludlow | `serverAt` (write side only). Step 1.5: closing the open sprint/run, delta writes, the watermark. `hud.js`. |
 | 14 | Sholes | This consolidation: nine handoffs into one, the invariant renumbering repair, and the step-2 timeliness finding in §4. |
 | 15 | Densmore | Fixed Round 14's HUD fix, which shipped green and didn't work. Version footer redesign. AI-practice variety floor (game.js/index.js). HUD long-form clip fix. |
-| 16 | Royal | The remediation variety floor (School's practice-missed-keys gap Round 15 flagged). The repair resync — a real incident, fixed and given harness coverage: an audit-repaired week counter that kept getting silently overwritten by a MacBook that skipped its between-period restart. |
+| 16 | Royal | The remediation variety floor (School's practice-missed-keys gap Round 15 flagged). The repair resync — a real incident, fixed and given harness coverage: an audit-repaired week counter that kept getting silently overwritten by a MacBook that skipped its between-period restart. Extracted the two files' duplicated variety-floor filter into `variety-floor.js`, the fifth shared module, with its own harness. |
 
 ---
 
