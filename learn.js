@@ -1,4 +1,8 @@
-// learn.js v2.10.0
+// learn.js v2.10.1
+//
+// v2.10.1 — ⚠️ SAME FIX AS game.js v3.26.1: renderTimeHUD() moved OUT of the
+//           gate, plus a paint at step start so there is no placeholder window
+//           at all. See startGradedTimer(). Counting was correct throughout.
 //
 // v2.10.0 — ⚠️ ONE INCREMENT SITE. DESIGN-TELEMETRY §7 step 1.75, ruled by Jake
 //           2026-08-18: time typed starts at the first CORRECT keystroke. There
@@ -211,7 +215,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.10.0";
+const LEARN_VERSION = "2.10.1";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -1576,8 +1580,15 @@ function startGradedTimer() {
                 weeklyGoalCelebrated = true; launchFireworks();
             }
             // ⚠️ ONE CALL DRAWS BOTH SLOTS (v2.9.0).
-            renderTimeHUD();
         }
+        // ⚠️ PAINTING IS NOT COUNTING, AND THE PAINT IS NOT GATED. (v2.10.1)
+        // renderTimeHUD() used to sit inside the gate above, so nothing drew the
+        // readout until the first CORRECT keystroke — until then learn.html's
+        // hardcoded `Daily 0:00` placeholder and an EMPTY `#hud-week` stood in for
+        // a student's real totals. The counters were right; the drawing was late.
+        // ⚠️ DO NOT MOVE THIS BACK INSIDE THE GATE. A gate answers "did time
+        // pass?"; drawing answers "what does the student see?".
+        renderTimeHUD();
         updateHUD();
     }, 1000);
     learnTickInterval = timerInterval;   // alias — see the header above
@@ -1722,6 +1733,11 @@ function beginStep(stepIdx) {
 
     // The second interval that used to live here is GONE (v2.10.0).
     // startGradedTimer() above is now the only tick in this file.
+    //
+    // ⚠️ PAINT ONCE NOW (v2.10.1). The tick draws every second, but a student
+    // opening a drill would otherwise stare at learn.html's placeholder for up to
+    // a full second before their real totals appeared.
+    renderTimeHUD();
 
     renderDrillText();
     advanceHandGuide();

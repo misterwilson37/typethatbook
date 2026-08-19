@@ -1,7 +1,7 @@
-// open-unit-test.mjs v1.1.0 — the open sprint / open run, and the watermark that
+// open-unit-test.mjs v1.2.0 — the open sprint / open run, and the watermark that
 // stops it being counted twice. Round 13 (Ludlow), DESIGN-TELEMETRY §7 step 1.5.
 //
-// v1.1.0 — PART E is new: one-increment-site guards for both page controllers
+// v1.2.0 — Part E also guards the PAINT, not just the increment: v3.26.0 gated\n//          both and shipped looking correct.\n// v1.1.0 — PART E is new: one-increment-site guards for both page controllers
 //          (DESIGN-TELEMETRY §7 step 1.75). Same reasoning as Part C — the
 //          shipped sources are counted, not trusted.
 //          Invariant citation renumbered against the consolidated HANDOFF.md §5,
@@ -372,6 +372,17 @@ ok(/if \(lastInputTime && now - lastInputTime < IDLE_THRESHOLD\)/.test(gameSrc2)
 ok(/if \(lastInputTime && now - lastInputTime > AFK_THRESHOLD/.test(gameSrc2),
    '⚠️ game.js: the AFK check is guarded too — unguarded, `now - 0` auto-pauses ' +
    'every sprint before a key is pressed');
+
+// ⚠️ [STRUCTURAL] The paint must NOT be gated. Part E above guards the counting
+// side; this guards the drawing side, because v3.26.0 got the first right and the
+// second wrong and shipped looking correct. A gate answers "did time pass?";
+// drawing answers "what does the student see?".
+ok(/\n    updateTimerUI\(\);\n\n    if \(lastInputTime && now - lastInputTime < IDLE_THRESHOLD\)/.test(gameSrc2),
+   '⚠️ game.js paints the readout ABOVE the idle gate — inside it, students see ' +
+   'game.html\'s hardcoded "Daily 0:00" placeholder until they type');
+
+ok(/\n        \}\n[\s\S]{0,600}?\n        renderTimeHUD\(\);\n        updateHUD\(\);/.test(learnSrc2),
+   '⚠️ learn.js paints the readout OUTSIDE the graded gate, not within it');
 
 ok(!/learnTickInterval = setInterval/.test(learnSrc2),
    '⚠️ learn.js declares no second interval — learnTickInterval is an ALIAS for ' +

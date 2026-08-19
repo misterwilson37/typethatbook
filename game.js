@@ -1,4 +1,13 @@
-// game.js v3.26.0
+// game.js v3.26.1
+//
+// v3.26.1 — ⚠️ THE TIME READOUT IS PAINTED EVERY TICK, NOT ONLY WHEN IT CHANGES.
+//           v3.26.0 correctly gated the ACCUMULATOR on the first keystroke and
+//           left updateTimerUI() inside that gate, so nothing drew the readout
+//           until a keystroke plus a full accumulator rollover. Students saw
+//           game.html's hardcoded `Daily 0:00` and an empty `#hud-week` instead of
+//           their real totals — reported by Jake within an hour of deploy. No
+//           number was ever wrong; the drawing was late. Painting now happens
+//           unconditionally, above the gate.
 //
 // v3.26.0 — ⚠️ NO CLOCK UNTIL THE FIRST KEYSTROKE. DESIGN-TELEMETRY §7 step 1.75,
 //           ruled by Jake 2026-08-18. gameTick() gated both its AFK check and its
@@ -186,7 +195,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.26.0";
+const VERSION = "3.26.1";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -2235,6 +2244,22 @@ function gameTick() {
         pauseGameForBreak();
         return;
     }
+
+    // ⚠️ PAINTING IS NOT COUNTING, AND THE PAINT IS NOT GATED. (v3.26.1)
+    //
+    // v3.26.0 gated the accumulator on `lastInputTime` — correctly — but
+    // updateTimerUI() lived INSIDE that gate, two levels down, so nothing drew
+    // the readout until the first keystroke plus a full accumulator rollover.
+    // Until then the page showed game.html's hardcoded `Daily 0:00` placeholder
+    // and an EMPTY `#hud-week`, so a student's real daily and weekly totals read
+    // as zero and missing at the exact moment they sat down to look at them.
+    // The counters were always right; only the drawing was late.
+    //
+    // ⚠️ DO NOT MOVE THIS BACK INSIDE A GATE. A gate answers "did time pass?".
+    // Drawing answers "what does the student see?", and the answer to the second
+    // is never "nothing" just because the answer to the first is no. It is two
+    // textContent writes and some string building — cheap enough to do always.
+    updateTimerUI();
 
     if (lastInputTime && now - lastInputTime < IDLE_THRESHOLD) {
         timeAccumulator += 100;

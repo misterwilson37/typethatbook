@@ -1,6 +1,6 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v14.3.0 — consolidated 2026-08-18 by Round 14 (Sholes).
+<!-- HANDOFF.md v14.4.0 — consolidated 2026-08-18 by Round 14 (Sholes).
 
      ⚠️ THIS IS THE ONLY HANDOFF DOCUMENT. It replaces every HANDOFF-roundN.md
      that ever existed. Rounds 3, 5, 6, 7, 8, 9, 11, 12 and 13 have all been read
@@ -109,8 +109,8 @@ Run `node audit-versions.mjs`; do not trust this table either.
 
 | file | version |
 |---|---|
-| `game.js` | 3.26.0 |
-| `learn.js` | 2.10.0 |
+| `game.js` | 3.26.1 |
+| `learn.js` | 2.10.1 |
 | `session-log.js` | 1.2.1 |
 | `hud.js` | 1.0.0 |
 | `stats-wal.js` | shared module — check the constant |
@@ -128,8 +128,8 @@ Run `node audit-versions.mjs`; do not trust this table either.
 `npm test` → **23 of 24 harnesses pass.** The only failure is `metadata-map-test.mjs`
 (42 of 487 assertions), pre-existing and unrelated — §6.
 
-**Deploy check, in one glance:** Library footer reads `game.js v3.26.0`; Lessons footer
-reads `School v2.10.0`; both student pages show a small grey `ID xxxxxxxx` bottom-left
+**Deploy check, in one glance:** Library footer reads `game.js v3.26.1`; Lessons footer
+reads `School v2.10.1`; both student pages show a small grey `ID xxxxxxxx` bottom-left
 once signed in. **If the ID stamp is missing, the new code is not running** and nothing
 else you check means anything.
 
@@ -254,6 +254,13 @@ things on the two pages, and the 1s-versus-100ms sampling difference (which reti
 call sites already clear it to stop the clock; aliasing keeps all nine correct rather
 than betting they were all found. **Do not "clean up" one of the names without
 checking every clear site.**
+
+⚠️ **PAINTING IS NOT COUNTING, AND THE PAINT MUST NEVER BE GATED.** v3.26.0 gated
+the accumulator correctly and left the *draw* call inside that gate, so students saw
+`game.html`'s hardcoded `Daily 0:00` and an empty `#hud-week` until they typed. Every
+number was right the whole time. A gate answers "did time pass?"; drawing answers
+"what does the student see?", and the second is never "nothing" because the first is
+no. Fixed in v3.26.1 / v2.10.1 and now asserted by Part E.
 
 ⚠️ **`open-unit-test.mjs` PART E COUNTS THE INCREMENT SITES IN THE SHIPPED SOURCES**
 and fails if a second one appears on either page. That guard is the whole defence —
@@ -764,6 +771,18 @@ a number that somehow drifts can still be resolved.
      page to `body`.
 104. **UPLOAD ALL PRUNES ORPHANED CHAPTER DOCUMENTS.** It must, because Fix C renumbers books.
 105. **YOU CANNOT LICENSE A PUBLIC-DOMAIN TEXT; YOU CAN ONLY LICENSE YOUR OWN EDITS.**
+
+### Later additions (106– )
+
+New invariants go here, at the next free number, and are folded into a group above
+at the next consolidation **without changing the number**.
+
+106. **PAINTING IS NOT COUNTING.** When you tighten a gate on a counter, check what
+     else lives inside that gate. A draw call trapped behind a counting gate shows
+     the student nothing — or worse, a hardcoded placeholder standing in for their
+     real total — while every number in the system is correct. It is invisible to
+     anyone reading the arithmetic, and it shipped in `game.js` v3.26.0 inside a
+     change whose counting half was right.
 
 ---
 
