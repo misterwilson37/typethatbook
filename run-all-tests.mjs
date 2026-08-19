@@ -1,4 +1,14 @@
-// run-all-tests.mjs v1.0.0 — Round 6 (Noiseless).
+// run-all-tests.mjs v1.1.0 — Round 6 (Noiseless), amended Round 14 (Sholes).
+//
+// v1.1.0 — ⚠️ `chunktest.mjs` DEREGISTERED AND DELETED. It reimplemented the
+//          v3.9.2 sprint-rollup loop inline instead of importing the module, so
+//          when that logic moved into session-log.js the harness kept passing
+//          against a copy of code that no longer existed anywhere. Three rounds
+//          flagged it and none removed it, because deleting a green test always
+//          looks like losing coverage. It was not coverage.
+//          ⚠️ ITS REAL REPLACEMENT IS `session-merge-test.mjs` PART B, which
+//          drives the actual module. If you are about to re-add chunktest.mjs
+//          from an old copy of the repo, read HANDOFF.md invariant 39 first.
 //
 // There are seventeen harnesses. Before this file, knowing whether they passed meant
 // running fifteen commands and reading fifteen different output formats, so in
@@ -40,7 +50,6 @@ const FAST = [
     ["title-case-test.mjs",       "Roman numerals survive title casing; words are not mistaken for them"],
     ["student-flow-test.mjs",     "a cold-start student gets assigned, stamped and reportable"],
     ['verify-guards.mjs',        'flush re-entrancy guards at 2/3/6/12 concurrent callers'],
-    ['chunktest.mjs',            'sprint rollup chunking: loss, duplication, the 200 cap'],
     ['progress-test.mjs',        'library progress bar, including its degradation paths'],
     ['ordinal-test.mjs',         'body ordinals on modern and legacy documents'],
     ['map-geometry-test.mjs',    'Adventure dot placement across real book sizes'],

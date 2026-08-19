@@ -1,4 +1,9 @@
-// learn.js v2.9.0
+// learn.js v2.9.1
+//
+// v2.9.1 — COMMENTS ONLY. No code, no behaviour, no field, no gate changed.
+//          Invariant citations renumbered against the single consolidated
+//          HANDOFF.md §5, whose numbers are APPEND-ONLY from now on. See
+//          game.js v3.25.1 for why the one-time repair was unavoidable.
 //
 // v2.9.0 — (1) ⚠️ THE TOP-BAR READOUT MOVES TO hud.js AND IS IDENTICAL TO
 //          LIBRARY'S — same element id, same string, same position. School showed
@@ -193,7 +198,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.9.0";
+const LEARN_VERSION = "2.9.1";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -621,7 +626,8 @@ function showReauthPrompt() {
         '</div>';
     document.body.appendChild(overlay);
 
-    // ⚠️ BOUND AFTER THE LAST innerHTML WRITE. (Round 11, invariant 61.)
+    // ⚠️ BOUND AFTER THE LAST innerHTML WRITE. (Invariant 64, "innerHTML +=
+    // destroys listeners".)
     document.getElementById('reauth-btn').onclick = async () => {
         const btn = document.getElementById('reauth-btn');
         btn.textContent = 'Signing in\u2026'; btn.disabled = true;

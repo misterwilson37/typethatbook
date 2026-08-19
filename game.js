@@ -1,4 +1,12 @@
-// game.js v3.25.0
+// game.js v3.25.1
+//
+// v3.25.1 — COMMENTS ONLY. No code, no behaviour, no field, no gate changed.
+//           Invariant citations renumbered against the single consolidated
+//           HANDOFF.md §5. ⚠️ The §5 numbers are APPEND-ONLY from now on: a new
+//           invariant takes the next free number and nothing is ever renumbered
+//           again. This one repair was unavoidable because the old sequence was
+//           genuinely ambiguous — Round 9 assigned 56-81 and Round 11, told to
+//           continue from Round 8's 55, also started at 56.
 //
 // v3.25.0 — (1) ⚠️ THE TOP-BAR READOUT MOVES TO hud.js AND IS IDENTICAL TO
 //           SCHOOL'S. The left slot used to hold three different quantities
@@ -165,7 +173,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.25.0";
+const VERSION = "3.25.1";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -3095,7 +3103,8 @@ function chapterTitleFor(id) {
 }
 
 // Title -> chapter id, for recovering from a renumber. ⚠️ REFUSES ON AMBIGUITY
-// (invariant 24). A part-numbered book can carry the same title in two parts,
+// (invariant 75, "refuse rather than approximate"). A part-numbered book can
+// carry the same title in two parts,
 // and Aesop has 284 chapters whose titles are not guaranteed unique. Returning
 // null hands the decision back to the staleness ladder, which is honest;
 // picking the first match would teleport a student into the wrong part.
@@ -3940,7 +3949,8 @@ function showReauthPrompt() {
     btn.disabled = false; btn.style.opacity = '1'; btn.style.display = 'inline-block';
     // ⚠️ resetModalFooter() above replaced the footer's innerHTML, so the button
     // queried before that line is a detached node. Bind AFTER the last write to
-    // the container. (Round 11, invariant 61 — same shape, different panel.)
+    // the container. (Invariant 64, "innerHTML += destroys listeners" — same
+    // shape, different panel.)
     showModalPanel();
 }
 

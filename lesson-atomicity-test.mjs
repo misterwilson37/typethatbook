@@ -1,8 +1,12 @@
-// lesson-atomicity-test.mjs v1.0.0 — Round 10 (Williams)
+// lesson-atomicity-test.mjs v1.0.1 — Round 10 (Williams)
+//
+// v1.0.1 — COMMENTS ONLY. Invariant citation renumbered against the consolidated
+//          HANDOFF.md §5. No assertion changed.
 //
 // Covers the three claims this round makes that nothing else checks.
 //
-// ⚠️ GRADED, per Round 9 invariant 65. Each assertion is tagged [BEHAVIOURAL] or
+// ⚠️ GRADED, per invariant 47 ("grade your own assertions"). Each assertion is
+// tagged [BEHAVIOURAL] or
 // [STRUCTURAL]. Behavioural ones execute real extracted code and survive any
 // refactor that preserves meaning. Structural ones read source text: they catch
 // invisible, expensive defects — a deleted system creeping back, a view-state

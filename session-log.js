@@ -1,5 +1,14 @@
-// session-log.js v1.2.0 — the sprint/run history queue, shared by game.js and
+// session-log.js v1.2.1 — the sprint/run history queue, shared by game.js and
 // learn.js. The third shared module, after firebase-config.js and stats-wal.js.
+//
+// v1.2.1 — COMMENTS ONLY. Invariant citations renumbered against the single
+//          consolidated HANDOFF.md §5. The old numbering was unusable: Round 9
+//          assigned 56-81 and Round 11, told to continue from Round 8's 55, also
+//          started at 56, so every number in that range meant two things and this
+//          file cited both. ⚠️ The numbers in §5 are now APPEND-ONLY — a new
+//          invariant takes the next free number and nothing is ever renumbered
+//          again. Citations carry the invariant's NAME as well, so a number that
+//          somehow drifts can still be resolved.
 //
 // v1.2.0 — `continuation` records may be shorter than the 5-second floor.
 //          DESIGN-TELEMETRY.md §7 step 1.5. game.js and learn.js now close the
@@ -109,7 +118,8 @@
 //                     a rename would cost Jake a console change for a word.
 //                     ⚠️ DO NOT ADD A `clientAt` FIELD. It would be a second
 //                     copy of this quantity in the same document, which is
-//                     invariant 71 rebuilt at field scope.
+//                     invariant 1 ("one quantity, one record") rebuilt at
+//                     field scope.
 //       `serverAt`  — the SERVER clock, from serverTimestamp(), resolved by
 //                     Firestore at commit. Cannot be influenced from a browser.
 //
@@ -126,7 +136,7 @@
 //     a tab close would then try to write an empty map into a timestamp field.
 //     Queued records carry `at` (a real ISO string) and nothing else time-like.
 
-export const SESSION_LOG_VERSION = '1.2.0';
+export const SESSION_LOG_VERSION = '1.2.1';
 
 const KEY = 'ttb_sessionq_v1';
 const RECORDS_PER_DOC = 200;   // firestore.rules: sprints.size() <= 200
@@ -165,7 +175,7 @@ function _ready() { return !!(_db && _collection && _addDoc); }
 // or not the clock was tampered with. Absent is honest; approximated is a lie
 // wearing the name of a trusted source. If serverAt is missing from a document,
 // that means "this browser was running code that could not stamp it", and a
-// reader can tell. (Round 13, invariant 74.)
+// reader can tell. (Invariant 7, "absent beats approximated".)
 function _stampServer(payload) {
     if (_serverTimestamp) payload.serverAt = _serverTimestamp();
     return payload;
@@ -194,7 +204,7 @@ function _write(uid, records) {
 
 // Drop anything too old to be worth writing. Records with no parseable `at`
 // are KEPT — "unknown age" is not "expired", and a record we cannot date is
-// still a record of work somebody did. (Round 11, invariant 58.)
+// still a record of work somebody did. (Invariant 9, "unknown is not expired".)
 function _prune(records) {
     const cutoff = Date.now() - STALE_DAYS * 86400 * 1000;
     const kept = records.filter(r => {

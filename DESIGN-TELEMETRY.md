@@ -1,19 +1,27 @@
 # DESIGN — Typing telemetry, one honest number
 
-**DESIGN-TELEMETRY.md v1.2.0** · drafted 2026-08-18 by Round 12 (Caligraph)
-· amended 2026-08-18 by Round 13 (Ludlow)
+**DESIGN-TELEMETRY.md v1.3.0** · drafted 2026-08-18 by Round 12 (Caligraph)
+· amended 2026-08-18 by Round 13 (Ludlow) and Round 14 (Sholes)
 
-**Status: PARTLY BUILT. §7 step 1 is SHIPPED. Steps 2-6 are still proposal.**
+**Status: PARTLY BUILT. §7 steps 1 and 1.5 are SHIPPED. Steps 2-6 are still proposal.**
+
+⚠️ **v1.3.0 — §2.7 IS DECIDED AND §6 GAINS NOTHING.** Jake ruled on the graded clock:
+it starts on the first keystroke of a run. That closes the last open question blocking
+step 2 and creates one piece of work that must ship before it — the clock unification,
+scoped in `HANDOFF.md` §4.1. **The reasoning in §1-§5 is otherwise unchanged.** If a
+later round finds the design wrong, say so in a new version and say which part — do not
+edit the reasoning to match what got built.
 
 | step | state |
 |---|---|
 | 1. `serverAt` | ✅ **SHIPPED** — Round 13. `session-log.js` v1.1.0, `game.js` v3.23.1, `learn.js` v2.7.1. See §6.3 and §7. |
 | 1.5. close the open unit | ✅ **SHIPPED** — Round 13. ⚠️ **NEW STEP, AND STEP 2 CANNOT BE BUILT WITHOUT IT.** `session-log.js` v1.2.0, `game.js` v3.24.0, `learn.js` v2.8.0. See §2.6 and §7. |
-| 2. `typing_logs` derived | ⬜ next, and the one that matters — ⚠️ read §2.6 and §2.7 first |
+| 1.75. unify the clock | ⬜ **NEXT.** Ruled by Jake 2026-08-18: time typed starts at the first keystroke. Scoped in `HANDOFF.md` §4.1. ⚠️ **Ships BEFORE step 2 and separately from it.** |
+| 2. `typing_logs` derived | ⬜ the one that matters — ⚠️ read §2.6 and §2.7 first, and note the timeliness prerequisite in §7 |
 | 3. `stats/time_tracking` as rebuildable cache | ⬜ |
 | 4. weekly archive + retention | ⬜ |
 | 5. retire the audit | ⬜ |
-| 6. tick resolution | ⬜ optional |
+| 6. tick resolution | ⬜ optional — ⚠️ **may be absorbed by 1.75;** re-read before doing it separately |
 
 ⚠️ **v1.1.0 CHANGED NOTHING IN §1-§5 EXCEPT §4's SCHEMA ANNOTATION.** The design
 was not revised on contact with the first step; only its status was. If a later
@@ -181,9 +189,29 @@ difference is legitimate.** It is not drift and it is not corruption. Any step-2
 implementation that treats "sessions ≠ counter" as an error will flag every
 lesson-mode student every day.
 
-Decide deliberately which quantity is the one Jake grades — the graded clock or
-active time — and write it down. Library has no equivalent split: `sprintSeconds`
-and `secondsToday` are incremented on the same line under the same gate.
+✅ **DECIDED — Jake, 2026-08-18: the graded quantity is the clock that starts on the
+FIRST KEYSTROKE of a run.** That is `stepSeconds` semantics, and it becomes the
+definition of "time typed" on both sides rather than School's local peculiarity.
+
+⚠️ **THIS CLOSES THE QUESTION AND OPENS A PIECE OF WORK THAT MUST SHIP FIRST.** The
+split above is not resolved by picking a side in a document; the two increment sites
+have to actually become one. `HANDOFF.md` §4.1 carries the scope: collapse School's
+two sites into a single gated increment, and gate Library's tick on the first
+keystroke so it stops counting the two free seconds at the head of every sprint.
+
+⚠️ **Ship the clock unification BEFORE step 2, not with it.** It changes what the
+counters *mean*; step 2 changes where the totals *come from*. Together, any
+discrepancy has two candidate causes and no way to tell them apart.
+
+⚠️ **And confirm what "first keystroke" means on each side before writing the gate.**
+School gates on `drillPos > 0`, a position that advances only on accepted input;
+Library's equivalent is `currentCharIndex > sprintCharStart`. If one side advances on
+a wrong keystroke and the other does not, the two clocks start at different moments
+and the asymmetry survives the fix that was supposed to remove it. Read both keydown
+handlers. Do not infer it from the variable names.
+
+Library has no equivalent split today: `sprintSeconds` and `secondsToday` are
+incremented on the same line under the same gate.
 
 ### 2.5 ⚠️ Deleting a session does nothing (R4 is currently false)
 
@@ -398,12 +426,29 @@ in one afternoon and got both wrong.
    (`session-log.js` v1.2.0). Adds records only: no total, counter, gate or
    grading input changed. New harness: `open-unit-test.mjs`.
 
-2. ⬜ **NEXT — make `typing_logs` derived.** ⚠️ **Read §2.6 AND §2.7 first.**
-   §2.7 is the one that will bite: a School day's sessions legitimately sum to
-   slightly less than its counter, because the two sides measure with different
-   gates. Write it by summing the day's sessions rather
+1.75. ⬜ **NEXT — UNIFY THE CLOCK. Ruled by Jake 2026-08-18; scoped in
+   `HANDOFF.md` §4.1; not yet built.** Time typed starts at the first keystroke of a
+   run, on both sides. Collapse School's two increment sites into one gated
+   increment; gate Library's tick on the first keystroke. ⚠️ **This must ship BEFORE
+   step 2 and separately from it** — it changes what the counters mean, step 2
+   changes where the totals come from, and together a discrepancy has two candidate
+   causes. ⚠️ **It moves every student's recorded minutes down on the day it ships**,
+   Library more than School. That is a correction, but tell Jake the size first and
+   record the date, or a week-over-week comparison across the boundary reads as a bug.
+
+2. ⬜ **THEN — make `typing_logs` derived.** ⚠️ **Read §2.6 AND §2.7 first.**
+   §2.7 is now decided but the split it describes is only closed once step 1.75 has
+   shipped — until then a School day's sessions legitimately sum to less than its
+   counter. Write it by summing the day's sessions rather
    than from the live counter. ⚠️ **This is the change that closes §2.4** and is
    the highest-value step in the list.
+   ⚠️ **AND IT HAS A SECOND PREREQUISITE NOBODY HAS BUILT: session records are not
+   TIMELY.** They are created only at unit boundaries and on hide/pagehide, while
+   `typing_logs` is rewritten from the live counter every five minutes so a teacher
+   can see mid-period. A student twenty minutes into an uninterrupted chapter has
+   twenty minutes in the counter and zero session records — so a derived
+   `typing_logs` would sit flat at their last completed unit for that whole period.
+   Found by Round 14 reading the writers. `HANDOFF.md` §4 carries it.
 3. **Make `stats/time_tracking` a rebuildable cache** and add a "rebuild from
    sessions" action to `reports.html`, replacing the §7.2 audit — an audit that
    detects drift becomes unnecessary once drift can simply be recomputed away.

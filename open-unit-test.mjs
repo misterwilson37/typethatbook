@@ -1,5 +1,12 @@
-// open-unit-test.mjs v1.0.0 — the open sprint / open run, and the watermark that
+// open-unit-test.mjs v1.0.1 — the open sprint / open run, and the watermark that
 // stops it being counted twice. Round 13 (Ludlow), DESIGN-TELEMETRY §7 step 1.5.
+//
+// v1.0.1 — Invariant citation renumbered against the consolidated HANDOFF.md §5,
+//          and the Part D version pin follows session-log.js to 1.2.1.
+//          ⚠️ THERE ARE TWO PINS ON session-log.js — this one and
+//          session-merge-test.mjs's. Both must move together. Round 14 moved one
+//          and not the other and the suite named the miss on the first run, which
+//          is the entire reason they are written as pins rather than as a comment.
 //
 // WHAT THIS PROTECTS
 //
@@ -19,7 +26,8 @@
 // and executed in a sandbox, with their module-scope dependencies passed in as
 // parameters — the pattern session-merge-test.mjs uses on mergeGuestStats().
 //
-// ⚠️ INVARIANT 62 APPLIES AND WILL BITE THE NEXT PERSON. Every module-scope name
+// ⚠️ INVARIANT 42 ("A LIFTED FUNCTION MUST BE SELF-CONTAINED") APPLIES AND WILL
+// BITE THE NEXT PERSON. Every module-scope name
 // these functions touch has to be supplied here. Add a dependency to either
 // function and this harness must be updated in the same commit, or it fails with
 // a ReferenceError that looks like a bug in the sandbox rather than in the change.
@@ -314,8 +322,8 @@ globalThis.localStorage = {
     removeItem: k => { store.delete(k); },
 };
 const mod = await import('./session-log.js');
-ok(mod.SESSION_LOG_VERSION === '1.2.0',
-   `session-log.js reports v1.2.0 (got ${mod.SESSION_LOG_VERSION})`);
+ok(mod.SESSION_LOG_VERSION === '1.2.1',
+   `session-log.js reports v1.2.1 (got ${mod.SESSION_LOG_VERSION})`);
 
 const base = { date: '2026-08-18', at: '2026-08-18T09:00:00.000Z', chars: 10,
                mistakes: 0, wpm: 30, accuracy: 100, source: 'library', label: 'oz' };

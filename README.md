@@ -1,6 +1,18 @@
 # TypeThatBook
 
-<!-- README.md v1.10.0 — Round 13 (Ludlow).
+<!-- README.md v1.11.0 — Round 14 (Sholes).
+     v1.11.0 — ⚠️ THE TWO DOCUMENT MAPS IN THIS FILE ARE GONE, REPLACED BY ONE
+              SENTENCE POINTING AT HANDOFF.md §9. This file used to carry a
+              file-map listing six archived handoffs AND a second table at the
+              bottom rating the recoverability of four missing ones. Between
+              them they sent Jake hunting for files that are not in the repo,
+              repeatedly, across at least six turns. Round 14 consolidated nine
+              handoffs into one HANDOFF.md and deleted the rest; both maps now
+              say so once and stop. Also: chunktest.mjs deregistered and removed
+              from the harness table, the harness count corrected to 23, and the
+              standing metadata-map failure written down as a KNOWN state rather
+              than left to be rediscovered.
+     v1.10.0 — Round 13 (Ludlow).
      v1.10.0 — The document map corrected on two points, both of which cost real
               time this round. (1) DESIGN-TELEMETRY.md was in the repo and in no
               listing, so the file describing where the data model is going was
@@ -198,31 +210,27 @@ SCALE-PLAN.md                     Recovered Round 6. The 7,000-student cost mode
                                   ⚠️ Read its header box: statuses were corrected,
                                   and its Security section's premise was false.
 
-MULTITENANCY.md                   Recovered Round 6. ⚠️ SUPERSEDED — recommends Auth
-                                  custom claims, which were reversed. Kept for the
-                                  trimester/denormalisation argument. Header box.
-
 DESIGN-TELEMETRY.md               ⚠️ THE FORWARD PLAN, and read it before touching
                                   anything that counts time. Sessions become the
                                   single append-only source of truth and all totals
                                   derive from them. §2 is verification-only, every
                                   claim read out of shipped source. §7 is the build
-                                  order — step 1 shipped in Round 13, step 2 is
-                                  next and closes a live data-loss path. §8 is the
-                                  list of things that must not happen.
+                                  order — steps 1 and 1.5 shipped in Round 13,
+                                  step 2 is next and closes a live data-loss path.
+                                  §8 is the list of things that must not happen.
 
-HANDOFF-round3.md                 Rounds 1-3, archived. §10 is the document map.
-HANDOFF-round5.md                 Round 5, archived.
-HANDOFF-round6.md                 Round 6, archived.
-HANDOFF-round7.md                 Round 7, archived. §5 and §8 still cited as live.
-HANDOFF-round11.md                Round 11, archived. §3.3, §4 (invariants 56-63)
-                                  and §6 still cited as live.
-HANDOFF-round12.md                Round 12, archived. §1, §5 and §7 still cited as
-                                  live; §7 is the two defects Round 12 shipped and
-                                  withdrew the same day.
-                                  ⚠️ Rounds 4, 8, 9 and 10 have NO file in this
-                                  repo. See HANDOFF.md §9 before you go looking —
-                                  it is the authority on which archives exist.
+HANDOFF.md                        ⚠️ THE ONLY HANDOFF. There is no
+                                  HANDOFF-roundN.md and there must never be one
+                                  again. Round 14 folded nine of them into this
+                                  single file and deleted the rest; §0 is the rule
+                                  set that keeps it that way, §5 is the invariant
+                                  list, and §8 is one line per round so a version
+                                  number in a comment can still be placed.
+                                  ⚠️ If a document you are reading cites
+                                  "HANDOFF-round8 §4" or similar, that file does
+                                  not exist and its content is already in
+                                  HANDOFF.md. Do not go looking, and do not send
+                                  Jake looking.
 
 firestore-rules.test.mjs          ⚠️ KNOWN WRONG. Header says v1.1.0 and it seeds
                                   roles as auth-token claims; rules v2.x reads
@@ -230,6 +238,20 @@ firestore-rules.test.mjs          ⚠️ KNOWN WRONG. Header says v1.1.0 and it 
                                   Committed as a starting point for a rewrite, not
                                   as a passing suite. Needs a CLI + emulator.
 ```
+
+### Deleted in Round 14, deliberately — do not restore them
+
+`MULTITENANCY.md` specified an Auth custom-claims model that was reversed years ago.
+It read as authoritative to anyone who opened it first, and it is the probable reason
+`firestore-rules.test.mjs` has never matched the rules it tests. `UPLOAD-ORDER.md`
+described Round 6's upload batch and had been eight rounds stale.
+`typethatbook-round6-noiseless.zip` was a copy of the repo, inside the repo.
+`chunktest.mjs` passed green against a rollup loop that had moved into
+`session-log.js` — `session-merge-test.mjs` Part B is its real replacement. Every
+`HANDOFF-roundN.md` is folded into `HANDOFF.md`.
+
+⚠️ **All of it is in GitHub commit history if it is ever genuinely wanted.** That is
+the archive. A second copy in the working tree is invariant 37, not a backup.
 
 ## Firestore data model
 
@@ -331,16 +353,23 @@ written and is not now; read its header box.
 
 ## Tests
 
-There are twenty-one harnesses in the repo. They are for whoever is editing the code,
+There are twenty-three harnesses in the repo. They are for whoever is editing the code,
 not for Jake — running them needs Node, which is exactly what this project's
 deployment story does not have. Nothing in the app depends on them.
 
 ```
 npm install                            # devDependencies only; nothing ships to Functions
-npm test                               # the 21 fast ones, ~8 seconds
+npm test                               # the 23 fast ones, ~8 seconds
 npm run test:epubs                     # plus the 4 corpus harnesses, ~2 minutes
 node audit-versions.mjs                # versions.js's drift + budget checks, offline
 ```
+
+⚠️ **`npm test` currently reports 23 of 24 with `metadata-map-test.mjs` failing** on 42
+of 487 assertions — Gutenberg-sourced EPUBs report a `gutenberg.org` origin where the
+harness expects Standard Ebooks. It is a book-metadata question, not an app defect, and
+it has been the accepted "1 failing" for several rounds. **That is exactly the state
+that hides the next real failure** (`HANDOFF.md` invariant 54). Fix the map or skip it
+loudly; do not keep reading "1 failing" as the normal number.
 
 ⚠️ **Every harness had an absolute path from the sandbox that wrote it**
 (`/home/claude/work/game.js`) until Round 6, so **not one of them could run** in a
@@ -388,7 +417,6 @@ the markers; don't paste the logic in.
 | `metadata-map-test.mjs` | EPUB `dc:` metadata maps onto real `admin.html` dropdown options, over all 24 books in `library/`; and Gutenberg's origin link is found in `#pg-machine-header` |
 | `reanchor-test.mjs` | Progress survives a book being re-uploaded: the clamp, the anchor search, and the staleness ladder (exact → sentence → chapter) |
 | `verify-guards.mjs` | flush re-entrancy guards hold at 2/3/6/12 concurrent callers |
-| `chunktest.mjs` | sprint rollup chunking: loss, duplication, the 200 cap |
 | `progress-test.mjs` | library progress bar, including its degradation paths |
 | `ordinal-test.mjs` | body ordinals on modern and legacy documents |
 | `map-geometry-test.mjs` | Adventure dot placement across real book sizes |
@@ -755,35 +783,32 @@ console before touching code.
 
 Schools, classes, and teacher roles are built and live — see `firestore.rules`
 and §4 of `HANDOFF.md`.
-
 ### Documents: what is here, and what is gone
 
-⚠️ **The authoritative map is `HANDOFF-round3.md` §10.** It was written after Jake
-went looking for `TTL-GUIDE.md` and could not find it, and it rates each document's
-recoverability. Read it before hunting for anything.
+⚠️ **The authoritative map is `HANDOFF.md` §9, and there is nothing to hunt for.**
+Round 14 consolidated nine handoff documents into one and deleted the rest. Anything
+citing `HANDOFF-round3.md` §10, `HANDOFF-round8.md` §4, or any other `-roundN` file is
+citing something that no longer exists in this repo — and everything those files
+contained that still matters is in `HANDOFF.md`.
 
-**Recovered and committed in Round 6** — four documents had been cited for four rounds
-and committed in none of them. Two are safe to read straight; two are not:
+**The rule that produced all of this, and it still stands:** if a session produces a
+document, it ships in the same commit as the code. **Referencing a file that is not in
+the repo is worse than not writing it** — it sends the next person, or Jake, looking for
+something that was never there. That rule was broken often enough to cost an entire
+evening of searching.
 
-| doc | read it how |
+**Genuinely lost, long ago, and not worth chasing:**
+
+| doc | what it was |
 |---|---|
-| `TTL-GUIDE.md` | ✅ **as-is.** Its index table was re-verified against `firestore.indexes.json` on recovery, and its console steps were walked through against the live UI with Jake. |
-| `HANDOFF-round3.md` | ✅ **as history.** Rounds 1–3 verbatim. §11 is what `PEDAGOGY-AUDIT.md` used to point at. Every version number in it is four rounds stale. |
-| `SCALE-PLAN.md` | ⚠️ **header box first.** Cost model excellent; Problem 4 has since shipped; its Security section's premise was false and is re-headed. |
-| `MULTITENANCY.md` | ⚠️ **header box first, and take it seriously.** It recommends Auth custom claims. The rules use Firestore documents. It is the probable origin of `firestore-rules.test.mjs` being wrong. |
+| `SETUP-NO-CLI.md` | ⚠️ **`firestore.rules` cites it by name** for granting the first `super_admin`. The one operationally real gap — and the fix is to write that paragraph into `firestore.rules`'s own header, not to go looking for the file. |
+| `RULES-AUDIT.md` | An overnight audit tracing 103 Firestore ops. The three fixes it found are live in `firestore.rules`. |
+| `SETUP-MULTISCHOOL.md` | No loss — obsolete, assumed a CLI. |
 
-**Still missing:**
+**Read with care:**
 
-| doc | why it matters |
+| doc | how |
 |---|---|
-| `SETUP-NO-CLI.md` | ⚠️ **`firestore.rules` cites it by name** for granting the first `super_admin`. The operationally important gap. |
-| `RULES-AUDIT.md` | The overnight audit that traced 103 Firestore ops. The three fixes it found are live and described in `HANDOFF-round3.md` §2. |
-| `SETUP-MULTISCHOOL.md` | No loss — assessed obsolete in Round 3; assumed a CLI. |
-| `HANDOFF-round4.md` | ⚠️ **Two accounts, and the practical answer is the same.** This file and `HANDOFF-round3.md` §10 have always said it never existed and the reference was invented; Jake places it in GitHub commit history (2026-08-18). Either way **it is not in the repo.** Round 4 survives here in `HANDOFF-round5.md` and `CHANGELOG.md`. Recorded rather than resolved — see `HANDOFF.md` §9. |
-| `HANDOFF-round8.md` | ⚠️ **Not in the repo, and cited as load-bearing.** Round 12's header calls its §4 (invariants 37–55), §7 and §8 live, which makes those invariants unreadable from a clone. Three survive quoted in code comments; grep `invariant` across `.js`/`.mjs`. Ask Jake rather than inferring one. |
-| `HANDOFF-round9.md` | **Not in the repo.** Round 12 cites its §4. Commit history only. |
-| `HANDOFF-round10.md` | **Never written at all.** Round 10's instance was never even named. `HANDOFF-round11.md` §1 is a reconstruction of what Round 10 did, written for exactly this reason. |
-
-**The rule, from `HANDOFF-round3.md` §10:** if a session produces a document, it ships
-in the same batch as the code. Referencing a file that isn't in the repo is worse than
-not writing it.
+| `TTL-GUIDE.md` | ✅ **as-is.** Its index table was verified against `firestore.indexes.json`, and its console steps were walked through against the live UI with Jake. |
+| `SCALE-PLAN.md` | ⚠️ **header box first.** Cost model is good; Problem 4 has since shipped; its Security section's premise was false and is re-headed. |
+| `CHANGELOG.md` | ⚠️ **its index is stale** — `game.js` entries stop at v3.19.1, `learn.js` at v2.2.4, and `session-log.js`, `stats-wal.js` and `hud.js` have no section at all. The file headers are the more reliable history. See `HANDOFF.md` §6. |

@@ -1,5 +1,8 @@
-// anon-ladder-test.mjs v1.1.0 — the guest login ladder, and the two coalescing
+// anon-ladder-test.mjs v1.1.1 — the guest login ladder, and the two coalescing
 // guards that guest mode depends on.
+//
+// v1.1.1 — COMMENTS ONLY. Invariant citation renumbered against the consolidated
+//          HANDOFF.md §5. No assertion changed.
 //
 // ⚠️ WHY THIS EXISTS. Round 9 merged two guest-login ladders in game.js and
 // rebuilt a third in learn.js, and the existing 17 harnesses cover none of it —
@@ -67,7 +70,8 @@ ok(N1 === 60 && N2 === 300, `rungs are 60s and 300s as specified (got ${N1}, ${N
 // game.js v3.22.0 gave anonNudgeDue() a fourth dependency, and this harness
 // lifts the function by brace-matching and runs it in a bare sandbox — so a new
 // module-scope reference becomes a ReferenceError with no other symptom. That is
-// invariant 62 wearing a different hat, and it is why the suite caught this on
+// invariant 42 ("a lifted function must be self-contained") wearing a different
+// hat, and it is why the suite caught this on
 // the first run rather than a student catching it in third period.
 const makeDue = (shown, user, expired = false) => {
     if (!dueSrc) return () => 'NO-SUCH-FUNCTION';

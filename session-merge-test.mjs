@@ -1,5 +1,14 @@
-// session-merge-test.mjs v1.2.0 — the two things Round 12 changed, plus the one
+// session-merge-test.mjs v1.2.1 — the two things Round 12 changed, plus the one
 // thing Round 13 added, tested against the code that actually ships.
+//
+// v1.2.1 — version pin follows session-log.js to 1.2.1, and the invariant
+//          citations are renumbered against the consolidated HANDOFF.md §5.
+//          ⚠️ session-log.js v1.2.1 is a COMMENT-ONLY change, so the pin below
+//          is the only thing in this harness that had to move. If you are
+//          reading this because the pin failed, check which of the two files
+//          uploaded — that is exactly what it exists to tell you.
+//          ⚠️ open-unit-test.mjs Part D CARRIES A SECOND PIN on the same module.
+//          Both move together or the suite goes red on the one you forgot.
 //
 // v1.2.0 — version pin follows session-log.js to 1.2.0 (the continuation floor).
 //          ⚠️ The pin is deliberate: an out-of-order upload shows up here as a
@@ -8,10 +17,10 @@
 // v1.1.0 — PART B gains the `serverAt` assertions (session-log.js v1.1.0), and
 //          PART C is new: it reads the sessionLogInit(...) call out of game.js
 //          and learn.js and asserts they hand the shared module the SAME
-//          dependencies. That is invariant 73 — a fact about another file must be
-//          tested against that file — applied to a dependency list instead of a
-//          constant, because a dep passed on one side and not the other makes
-//          School and Library write differently shaped documents.
+//          dependencies. That is invariant 50 — a fact about another file must
+//          be tested against that file — applied to a dependency list instead of
+//          a constant (invariant 51), because a dep passed on one side and not
+//          the other makes School and Library write differently shaped documents.
 //
 // PART A — mergeGuestStats(), lifted from BOTH game.js and learn.js by
 // brace-matching and run in a bare sandbox. This is the function that doubled a
@@ -321,7 +330,8 @@ await mod.sessionLogFlush(UID, {});
 ok(writes.length === 1 && !('serverAt' in writes[0]),
    'a non-function serverTimestamp dep is ignored rather than called');
 
-// ⚠️ Invariant 74, asserted against the source: no client-side fallback. A
+// ⚠️ Invariant 7 ("absent beats approximated"), asserted against the source:
+// no client-side fallback. A
 // serverAt built from `new Date()` agrees with `timestamp` by construction and
 // makes the cheat signal permanently unfalsifiable.
 const sessionSrc = readFileSync(new URL('./session-log.js', import.meta.url), 'utf8');
@@ -333,7 +343,7 @@ ok(!!stamper && !/new Date|Date\.now/.test(stamper),
 // ─── C. the two page controllers configure the module identically ────────────
 console.log('\n─── C. sessionLogInit parity ───');
 
-// ⚠️ READ OUT OF THE SHIPPED FILES, not out of a memory of them. Invariant 73.
+// ⚠️ READ OUT OF THE SHIPPED FILES, not out of a memory of them. Invariant 50.
 function initDeps(src, label) {
     const m = src.match(/sessionLogInit\(\{([^}]*)\}\)/);
     ok(!!m, `${label}: a module-scope sessionLogInit({...}) call exists`);
@@ -355,8 +365,8 @@ if (gameDeps && learnDeps) {
 
 // The module's own version, so a stale copy uploaded out of order is visible in
 // the test output rather than only in the footer.
-ok(mod.SESSION_LOG_VERSION === '1.2.0',
-   `session-log.js reports v1.2.0 (got ${mod.SESSION_LOG_VERSION})`);
+ok(mod.SESSION_LOG_VERSION === '1.2.1',
+   `session-log.js reports v1.2.1 (got ${mod.SESSION_LOG_VERSION})`);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
