@@ -1,4 +1,11 @@
-// game.js v3.26.1
+// game.js v3.26.2
+//
+// v3.26.2 — ⚠️ THE READOUT NO LONGER OPENS AT 0:00 WHILE FIRESTORE IS READ.
+//           v3.26.1 fixed the paint; the NUMBER still was not there yet, because
+//           statsData holds its initialised zeros until an async read lands.
+//           hud.js v1.1.0 caches the last known totals; this paints them once at
+//           load and lets the real read overwrite. ⚠️ DISPLAY ONLY — statsData is
+//           never seeded from the cache. Reported by Jake, twice, both times right.
 //
 // v3.26.1 — ⚠️ THE TIME READOUT IS PAINTED EVERY TICK, NOT ONLY WHEN IT CHANGES.
 //           v3.26.0 correctly gated the ACCUMULATOR on the first keystroke and
@@ -180,7 +187,7 @@ import {
 // The time readout, shared with learn.js. Extracted BECAUSE this file's timer
 // slot held three different quantities depending on settings, and School's held a
 // fourth. DOM-free: it returns strings and this file writes them.
-import { hudStrings, HUD_VERSION } from "./hud.js";
+import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
 // serverTimestamp is imported for ONE purpose: to hand it to session-log.js so
 // rollups carry a clock the student cannot set. It is not used anywhere else in
 // this file, and ⚠️ it must not be: a serverTimestamp() sentinel inside a
@@ -195,7 +202,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.26.1";
+const VERSION = "3.26.2";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1343,6 +1350,11 @@ async function loadUserStats() {
                 statsData.secondsWeek = 0; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
             }
         }
+        // ⚠️ SAVED ONLY HERE — after the authoritative read, never from the live
+        // counter and never from a merge. See the warning in hud.js.
+        hudCacheSave({ todaySeconds: statsData.secondsToday,
+                       weekSeconds:  statsData.secondsWeek,
+                       date: dateStr, weekStart });
         statsData.lastDate = dateStr;
         statsData.weekStart = weekStart;
 
@@ -2134,6 +2146,25 @@ function setupGame() {
     // typing. Note that on first call from the auth handler, statsData hasn't
     // loaded yet, so this renders zero — but loadUserStats() in init() calls
     // updateTimerUI() again after stats arrive, fixing the display.
+    //
+    // ⚠️ AND UNTIL THEY ARRIVE, PAINT THE LAST KNOWN TOTALS (v3.26.2). Firestore
+    // is an async read; the comment above describes a real window in which a
+    // student with 17 minutes banked sees `Daily 0:00` and can do nothing about
+    // it. hudCacheLoad() returns null rather than stale numbers if the cache is
+    // from another day. ⚠️ IT PAINTS ONLY — statsData is NOT seeded from it, or
+    // the merge baseline in §3.7 would be computed from a number that never came
+    // from the server.
+    const _hudSeed = hudCacheLoad(getLocalDateStr(new Date()), getWeekStart(new Date()));
+    if (_hudSeed && !statsData.secondsToday && !statsData.secondsWeek) {
+        const _s = hudStrings({
+            sprintSeconds: sprintSeconds, sprintLimit: sessionLimit,
+            todaySeconds: _hudSeed.todaySeconds, dailyGoal: goals.dailySeconds,
+            weekSeconds:  _hudSeed.weekSeconds,  weeklyGoal: goals.weeklySeconds,
+        });
+        if (timerDisplay) timerDisplay.textContent = _s.left;
+        const _w = document.getElementById('hud-week');
+        if (_w) _w.textContent = _s.right;
+    }
     updateTimerUI();
 
     // ─── Adventure: notify renderer that a chapter is loaded ───

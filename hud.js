@@ -1,4 +1,9 @@
-// hud.js v1.0.0 — the time readout, in words, for both page controllers.
+// hud.js v1.1.0
+//
+// v1.1.0 — hudCacheSave()/hudCacheLoad(): the last-known readout, so a page does
+//          not open at 0:00 while Firestore is still being read. ⚠️ DISPLAY ONLY
+//          — read the warning above HUD_CACHE_KEY before touching it.
+// — the time readout, in words, for both page controllers.
 // The fourth shared module, after firebase-config.js, stats-wal.js and
 // session-log.js.
 //
@@ -56,7 +61,7 @@
 // returns text and flags; each page writes them where it keeps them. It is also
 // then a pure function, so `hud-test.mjs` drives the real code with no jsdom.
 
-export const HUD_VERSION = '1.0.0';
+export const HUD_VERSION = '1.1.0';
 
 // m:ss. Not padded on minutes — `9:22` reads faster than `09:22` and a student's
 // day does not reach three digits. Seconds ALWAYS padded, or 9:7 appears.
@@ -118,4 +123,54 @@ export function hudStrings(state) {
         // sprint is not stopped, and never has been.
         overtime: showSprint && sprint >= limit,
     };
+}
+
+// ─── The last-known readout, so a page does not open at 0:00 ─────────────────
+//
+// ⚠️ THIS IS A DISPLAY CACHE AND NOTHING MAY EVER READ IT INTO `statsData`.
+// (v1.1.0) Firestore is an async read. Between a page painting and that read
+// landing, the only totals in memory are the zeros `statsData` is initialised
+// with — so a student who had 17 minutes opened their book, saw `Daily 0:00`,
+// and had to wait. Jake reported it twice, correctly, and the second time it was
+// still true after the paint itself was fixed: the paint was fine, the NUMBER
+// was not there yet.
+//
+// ⚠️ IT IS A CACHE OF A QUANTITY THAT LIVES ELSEWHERE, WHICH IS THE SHAPE THIS
+// PROJECT HAS BEEN BITTEN BY REPEATEDLY (invariant 1). It is legitimate ONLY
+// because it is:
+//   · write-only from the authoritative side — saved after Firestore is read,
+//     never from a live counter and never from a merge;
+//   · read exactly once, to paint, before the real value exists;
+//   · discarded the instant the real value lands, and stale-checked by date.
+// ⚠️ IF YOU EVER FEEL LIKE SEEDING `statsData` FROM THIS, DON'T. It would become
+// a second source of truth for the day total, and §3.7's merge baseline would be
+// computed against a number that never came from the server. That is the doubled
+// week counter, rebuilt.
+const HUD_CACHE_KEY = 'ttb_hudCache_v1';
+
+export function hudCacheSave({ todaySeconds, weekSeconds, date, weekStart }) {
+    try {
+        localStorage.setItem(HUD_CACHE_KEY, JSON.stringify({
+            todaySeconds: todaySeconds || 0,
+            weekSeconds:  weekSeconds  || 0,
+            date:         date  || '',
+            weekStart:    weekStart || 0,
+        }));
+    } catch { /* private mode, quota — the page just opens at 0:00 as before */ }
+}
+
+// Returns { todaySeconds, weekSeconds } or null. ⚠️ Returns null rather than
+// zeros when the cache is for another day or another week: showing a stale
+// total is worse than showing none, because the student cannot tell it is stale.
+export function hudCacheLoad(todayStr, weekStart) {
+    try {
+        const raw = localStorage.getItem(HUD_CACHE_KEY);
+        if (!raw) return null;
+        const c = JSON.parse(raw);
+        if (!c || c.date !== todayStr) return null;
+        return {
+            todaySeconds: c.todaySeconds || 0,
+            weekSeconds:  (c.weekStart === weekStart) ? (c.weekSeconds || 0) : 0,
+        };
+    } catch { return null; }
 }

@@ -1,6 +1,6 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v14.4.0 — consolidated 2026-08-18 by Round 14 (Sholes).
+<!-- HANDOFF.md v14.5.0 — consolidated 2026-08-18 by Round 14 (Sholes).
 
      ⚠️ THIS IS THE ONLY HANDOFF DOCUMENT. It replaces every HANDOFF-roundN.md
      that ever existed. Rounds 3, 5, 6, 7, 8, 9, 11, 12 and 13 have all been read
@@ -74,10 +74,11 @@ its own version. Bump the constant.
 - **Never walk a deployed version backwards.** Corrections go forward.
 - **Patch (z) for fixes, minor (y) for features, both automatic. Major (x) requires
   Jake's explicit sign-off** — flag it, don't decide it.
-- ⚠️ **Two harnesses PIN `session-log.js`'s version** — `session-merge-test.mjs` and
-  `open-unit-test.mjs` Part D. Bump that module and **both** pins move in the same
-  commit. Round 14 moved one and the suite named the miss on the first run, which is
-  exactly what pins are for.
+- ⚠️ **THREE VERSION PINS EXIST.** `session-merge-test.mjs` and `open-unit-test.mjs`
+  Part D both pin `session-log.js`; `hud-test.mjs` pins `hud.js`. Bump either module
+  and every pin on it moves in the same commit. Round 14 tripped over this twice in
+  one evening, and both times the suite named the miss on the first run. **Grep for
+  the version string before bumping a shared module.**
 
 **`npm install` first on a clean container**, then `npm test`. Dependencies are in
 `devDependencies` and are not vendored. **Round 10 shipped without running the suite
@@ -109,10 +110,10 @@ Run `node audit-versions.mjs`; do not trust this table either.
 
 | file | version |
 |---|---|
-| `game.js` | 3.26.1 |
-| `learn.js` | 2.10.1 |
+| `game.js` | 3.26.2 |
+| `learn.js` | 2.10.2 |
 | `session-log.js` | 1.2.1 |
-| `hud.js` | 1.0.0 |
+| `hud.js` | 1.1.0 |
 | `stats-wal.js` | shared module — check the constant |
 | `versions.js` | 1.6.0 |
 | `keyboard.js` | 1.1.1 |
@@ -128,8 +129,8 @@ Run `node audit-versions.mjs`; do not trust this table either.
 `npm test` → **23 of 24 harnesses pass.** The only failure is `metadata-map-test.mjs`
 (42 of 487 assertions), pre-existing and unrelated — §6.
 
-**Deploy check, in one glance:** Library footer reads `game.js v3.26.1`; Lessons footer
-reads `School v2.10.1`; both student pages show a small grey `ID xxxxxxxx` bottom-left
+**Deploy check, in one glance:** Library footer reads `game.js v3.26.2`; Lessons footer
+reads `School v2.10.2`; both student pages show a small grey `ID xxxxxxxx` bottom-left
 once signed in. **If the ID stamp is missing, the new code is not running** and nothing
 else you check means anything.
 
@@ -261,6 +262,16 @@ the accumulator correctly and left the *draw* call inside that gate, so students
 number was right the whole time. A gate answers "did time pass?"; drawing answers
 "what does the student see?", and the second is never "nothing" because the first is
 no. Fixed in v3.26.1 / v2.10.1 and now asserted by Part E.
+
+⚠️ **`hud.js` CARRIES A DISPLAY CACHE OF THE DAY AND WEEK TOTALS, AND NOTHING MAY
+SEED `statsData` FROM IT.** Firestore is an async read, so between a page painting
+and that read landing the only totals in memory are the initialised zeros — a student
+with time banked opened a book and saw `Daily 0:00`. `hudCacheSave()` writes **only**
+after the authoritative read; `hudCacheLoad()` returns null rather than stale numbers
+if the cache is from another day. **It paints and nothing else.** Seed `statsData`
+from it and §3.7's merge baseline gets computed against a number that never came from
+the server, which is the doubled week counter rebuilt. Read the header above
+`HUD_CACHE_KEY`.
 
 ⚠️ **`open-unit-test.mjs` PART E COUNTS THE INCREMENT SITES IN THE SHIPPED SOURCES**
 and fails if a second one appears on either page. That guard is the whole defence —

@@ -1,4 +1,8 @@
-// learn.js v2.10.1
+// learn.js v2.10.2
+//
+// v2.10.2 — ⚠️ SAME AS game.js v3.26.2: renderTimeHUD() falls back to hud.js's
+//           display cache while Firestore is still being read, and loadUserStats()
+//           saves to it after the authoritative read. DISPLAY ONLY.
 //
 // v2.10.1 — ⚠️ SAME FIX AS game.js v3.26.1: renderTimeHUD() moved OUT of the
 //           gate, plus a paint at step start so there is no placeholder window
@@ -190,7 +194,7 @@ import {
 } from "./session-log.js";
 // The time readout, shared with game.js. ⚠️ Both pages render the SAME string in
 // the SAME element id — see hud.js for why that is the whole point.
-import { hudStrings, HUD_VERSION } from "./hud.js";
+import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
 import {
     collection, getDocs, doc, getDoc, setDoc, addDoc, deleteDoc,
     // Aggregation query. Firestore bills getCountFromServer at ONE read per up
@@ -215,7 +219,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.10.1";
+const LEARN_VERSION = "2.10.2";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -3393,6 +3397,10 @@ async function loadUserStats() {
             learnDirty = true; learnStatsDocDirty = true;
             flushStats('stats-wal-recovery', true);
         }
+        // ⚠️ SAVED ONLY HERE — after the authoritative read. See hud.js.
+        hudCacheSave({ todaySeconds: statsData.secondsToday,
+                       weekSeconds:  statsData.secondsWeek,
+                       date: dateStr, weekStart });
     } catch(e) { console.warn('loadUserStats failed:', e); }
 }
 
@@ -3617,12 +3625,21 @@ function updateClassDisplay() {
 // narrow window ever wraps it, fix it in CSS, not by threading \u00a0 back
 // through a shared module.
 function renderTimeHUD() {
+    // ⚠️ FALL BACK TO THE LAST KNOWN TOTALS WHILE FIRESTORE IS STILL BEING READ
+    // (v2.10.2). statsData holds its initialised zeros until an async read lands,
+    // so a student with time banked opened a drill and saw `Daily 0:00`.
+    // ⚠️ PAINT ONLY — statsData is never seeded from this. See hud.js.
+    let _today = statsData.secondsToday, _week = statsData.secondsWeek;
+    if (!_today && !_week) {
+        const seed = hudCacheLoad(getLocalDateStr(new Date()), getWeekStart(new Date()));
+        if (seed) { _today = seed.todaySeconds; _week = seed.weekSeconds; }
+    }
     const hud = hudStrings({
         sprintSeconds: stepSeconds,
         sprintLimit:   0,
-        todaySeconds:  statsData.secondsToday,
+        todaySeconds:  _today,
         dailyGoal:     goals.dailySeconds,
-        weekSeconds:   statsData.secondsWeek,
+        weekSeconds:   _week,
         weeklyGoal:    goals.weeklySeconds,
     });
     if (hudTimer) {

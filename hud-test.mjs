@@ -1,4 +1,9 @@
-// hud-test.mjs v1.0.0 — the shared time readout. Round 13 (Ludlow).
+// hud-test.mjs v1.0.1
+//
+// v1.0.1 — version pin follows hud.js to 1.1.0. ⚠️ THIS IS THE THIRD PIN IN THE
+//          SUITE (the others are on session-log.js, in session-merge-test.mjs and
+//          open-unit-test.mjs Part D). Invariant 55: pins come in sets.
+// — the shared time readout. Round 13 (Ludlow).
 //
 // hud.js is imported for real, not lifted: it is DOM-free and pure, which is the
 // property that makes this harness five lines of setup instead of jsdom.
@@ -17,7 +22,7 @@ let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; } else { fail++; console.log('  FAIL: ' + msg); } };
 
 console.log('\n─── A. formatting ───');
-ok(HUD_VERSION === '1.0.0', `hud.js reports v1.0.0 (got ${HUD_VERSION})`);
+ok(HUD_VERSION === '1.1.0', `hud.js reports v1.1.0 (got ${HUD_VERSION})`);
 ok(fmt(0) === '0:00', 'zero is 0:00');
 ok(fmt(7) === '0:07', 'seconds are padded (0:07, never 0:7)');
 ok(fmt(562) === '9:22', '562 seconds is 9:22');
