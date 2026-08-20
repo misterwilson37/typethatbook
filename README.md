@@ -1,6 +1,15 @@
 # TypeThatBook
 
-<!-- README.md v1.12.0 — Round 17 (Linotype).
+<!-- README.md v1.13.0 — Round 18 (Salter).
+     v1.13.0 — RECONCILIATION. reports.html 2.15.0 adds a read-only view comparing
+              every student's daily-log total against the sum of their actual
+              session records, and a bulk rebuild that repairs the logs from the
+              sessions behind a preview. New section "Reconciliation: which number
+              is the record" below, which is the one to read before touching either
+              collection — it states the premise (sessions are the record, logs are
+              a cache) that the whole feature rests on. Test count 27 → 28. No other
+              app file changed.
+     v1.12.0 — Round 17 (Linotype).
      v1.12.0 — THE ROOT DIRECTORY WAS SEVENTY-NINE ENTRIES AND IS NOW THIRTY-THREE.
               Nothing the browser loads moved: every HTML page, every shipped .js,
               both stylesheets and library/ are exactly where GitHub Pages expects
@@ -387,6 +396,71 @@ is not buildable anyway: `firestore.rules` permits staff to *read* any student's
 progress but restricts writes to the student themselves.)
 
 
+## Reconciliation: which number is the record
+
+⚠️ **Read this before changing anything that writes to `typing_logs` or
+`typing_sessions`.** Two collections hold overlapping copies of the same
+quantity, and which one you treat as authoritative is the single most
+consequential decision in this part of the app.
+
+| collection | how it is written | trust |
+|---|---|---|
+| `typing_logs/{uid}_{date}` | a **live counter** accumulated in browser memory by `game.js` and `learn.js`, flushed on a timer and at page-death. Two page controllers share one document. | **This is a cache.** It depends on a tab surviving and on a write landing at exactly the wrong moment not happening. Every counter defect this project has had lived here. |
+| `typing_sessions/{auto}` | one document per (day, source, book/lesson) group, written from a durable `localStorage` queue at run/unit boundaries, each carrying the `sprints[]` it was built from. | **This is the record.** Verified 2026-08-19 by console dump: every document's stored `seconds`/`chars` matched the sum of its own sprints exactly. |
+
+Grades come from `typing_logs`. That is fine as long as somebody can check it
+against `typing_sessions`, which is what `reports.html` v2.15.0 exists to let
+you do.
+
+### Using it
+
+**Reconcile vs Sessions** (read-only, writes nothing) sweeps the sessions for
+every student-day in the current report and fills three sortable columns on the
+main table:
+
+* **Sessions** — the deduped sum of that student's session records.
+* **Δ** — daily log minus sessions, in time, with a characters delta beneath it.
+* **⧉** — duplicate session rollups found.
+
+Sort by **Δ** or by **⧉** and the problems come to the top. That is the whole
+workflow; you should not have to expand a student to discover a problem, only to
+confirm one.
+
+**Rebuild from sessions** recalculates each day's log from the sessions behind
+it — the same operation the per-day `⟳` button performs, applied across the
+report, behind a preview that separates the students whose numbers go **down**
+from those whose go **up**.
+
+### ⚠️ When a Δ is not a defect
+
+* **Sessions begin at v2.4.0 and carry a 120-day TTL.** Anything older
+  legitimately has a log total and no session records behind it.
+* **Sessions are written at run/unit boundaries.** A student who is mid-chapter
+  right now has real time in their log that has not reached sessions yet.
+  Reconciling during a period shows a positive Δ for every child currently
+  typing.
+
+**So: reconcile and rebuild at the end of a period or the end of a week, never
+mid-chapter.** Rows dated today are excluded from a rebuild by default for this
+reason, and the panel warns on weekdays between 07:00 and 15:00.
+
+### ⚠️ What a rebuild will not do
+
+It never zeroes a day that has no session records — that day's log total is
+probably the only copy left. It never creates a missing daily-log document
+(`firestore.rules` permits staff to *update* a log, never to *create* one), so
+days with sessions and no log are reported for you to handle by hand. It skips
+any day whose sessions changed between the preview and the write, rather than
+writing a number you did not approve. And the bulk write needs building-scoped
+staff — a class-scoped teacher gets the read-only half only.
+
+### Known blind spot
+
+A student with **no `typing_logs` document at all** in the range never appears in
+the report, so reconciliation cannot see them. A missing *day* is caught; a
+missing *student* is not. `HANDOFF.md` §6.9.
+
+
 ## Auth and admin access
 
 Google sign-in via `signInWithPopup`. **Signing in is optional**: a guest can
@@ -427,15 +501,15 @@ written and is not now; read its header box.
 
 ## Tests
 
-There are thirty-three harnesses, in `tests/` — thirty-one of them registered in
-`run-all-tests.mjs` (27 fast + 4 corpus) and two deliberately not, for reasons
+There are thirty-four harnesses, in `tests/` — thirty-two of them registered in
+`run-all-tests.mjs` (28 fast + 4 corpus) and two deliberately not, for reasons
 `tests/README.md` gives. They are for whoever is editing the code,
 not for Jake — running them needs Node, which is exactly what this project's
 deployment story does not have. Nothing in the app depends on them.
 
 ```
 npm install                            # devDependencies only; nothing ships to Functions
-npm test                               # the 27 fast ones, ~10 seconds
+npm test                               # the 28 fast ones, ~10 seconds
 npm run test:epubs                     # plus the 4 corpus harnesses, ~2 minutes
 npm run audit:versions                 # versions.js's drift + budget checks, offline
 ```
@@ -444,7 +518,7 @@ All three run from the repo root. `tests/README.md` covers the suite in detail �
 including the two harnesses that are deliberately not registered, and the two that
 Round 17 found passing and unregistered and wired in.
 
-⚠️ **`npm test` currently reports 26 of 27 with `metadata-map-test.mjs` failing** on 42
+⚠️ **`npm test` currently reports 27 of 28 with `metadata-map-test.mjs` failing** on 42
 of 487 assertions — Gutenberg-sourced EPUBs report a `gutenberg.org` origin where the
 harness expects Standard Ebooks. It is a book-metadata question, not an app defect, and
 it has been the accepted "1 failing" for several rounds. **That is exactly the state
