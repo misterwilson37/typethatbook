@@ -1,9 +1,17 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v14.15.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v14.24.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      2026-08-19 by Round 15 (Densmore), Round 16 (Royal) and Round 17 (Linotype);
      amended 2026-08-19 by Round 18 (Salter); amended 2026-08-19 by Round 19
-     (Hermes).
+     (Hermes); amended 2026-08-19 by Round 20 (Corona).
+
+     v14.24.0 — Round 20. ⚠️⚠️⚠️ §0.-1 IS NEW AND SITS ABOVE §0.0 BECAUSE IT
+     CORRECTS IT. The overlap §0.0 found is real and accounts for 1m 55s of a
+     19-minute gap. The other 17 minutes is typing_logs UNDERCOUNTING (§3.1, the
+     cross-mode overwrite). §0.0's refusals stand; its "grade from typing_logs,
+     it is conservative" advice does not. reports.html 2.19.0 disables the
+     rebuild write and adds the ⏱ Clock column (union of typing intervals).
+     tests/union-clock-test.mjs is the overlap harness §0.0.A asked for.
 
      v14.23.0 — Round 19, NINTH pass, LATE 2026-08-19. ⚠️⚠️⚠️ §0.0 IS REWRITTEN
      AND IS AN EMERGENCY BRIEFING. typing_sessions contains OVERLAPPING rollups
@@ -118,11 +126,21 @@
      an entire evening of hunting, and produced an invariant numbering collision
      that took seven file uploads to repair. -->
 
-**Round 19 — Hermes.** Predecessors: Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
+**Round 20 — Corona.** Predecessors: Hermes (19) · Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
 Sholes (14) · Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) ·
 Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) ·
 Blick (3) · Dvorak (2) · Underwood (1).
 *Other projects, do not reuse:* Stedman, Fable, Trilby, Vernier.
+
+> *On the name:* the Corona 3 folded. You unlatched the carriage and the whole
+> top of the machine hinged down over the keys, which is how it fitted in a
+> haversack and why it went to the Front. Folding is the trick, and folding is
+> what this round did: four session documents covering the same stretch of a
+> Tuesday morning, laid on top of one another instead of end to end, so the
+> minutes they share are counted once. ⚠️ It is also the round that had to fold
+> up its own predecessor's conclusion. §0.0 was written at 3am by an instance
+> that found something frightening and reported it accurately, and then drew the
+> wrong arrow from it. The evidence was sound. Nobody had weighed it.
 
 > *On the name:* Hermes was a Swiss typewriter — the Baby, the 3000, the ones
 > war correspondents carried. It is also the messenger, and that is the half
@@ -148,6 +166,115 @@ Blick (3) · Dvorak (2) · Underwood (1).
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-1. ⚠️⚠️⚠️ ROUND 20 (Corona) — §0.0's DIAGNOSIS IS HALF WRONG. READ THIS FIRST.
+
+**Written 2026-08-19, later still. §0.0 below is kept verbatim because its
+EVIDENCE is good and its instructions are still binding. Its CONCLUSION about
+which direction the error runs is wrong, and grading on it would have hurt
+students.**
+
+### 0.-1.A THE MEASUREMENT §0.0 DID NOT MAKE
+
+§0.0.A lists four rollup documents for one student on 2026-08-18 and observes
+correctly that their sprint windows overlap. It concludes that `typing_sessions`
+is inflated and that `typing_logs` — while imperfect — is the safer number to
+grade on. **Nobody measured how much of the gap the overlap actually accounts
+for.** Round 20 measured it. `tests/union-clock-test.mjs` Part E holds the
+figures against the real documents:
+
+| quantity | value |
+|---|---|
+| `typing_logs` (the graded number) | **807s — 13m 27s** |
+| sessions, SUMMED (the reconcile screen) | 1941s — 32m 21s |
+| sessions, UNIONED over wall-clock time | **1826s — 30m 26s** |
+| double-counting the overlap actually causes | **115s — 1m 55s** |
+| ⚠️ shortfall in the graded number | **1019s — 16m 59s** |
+
+⚠️ **THE OVERLAP IS REAL AND IT IS SMALL.** It is under two minutes of a
+nineteen-minute discrepancy. Remove every trace of double-counting and the
+session record still says this child typed **more than twice** what the document
+Jake grades on says they typed.
+
+⚠️ **SO THE DOMINANT DEFECT IS `typing_logs` UNDERCOUNTING, NOT
+`typing_sessions` OVERCOUNTING.** That is not a new bug. It is §3.1, the
+cross-mode overwrite — two page controllers each holding their own in-memory
+`statsData` and each `setDoc(merge:true)`-ing the day's total, last writer wins.
+It has been a known, lived-with defect since game.js v3.30.0 reverted the source
+split, and §0.0 was written in the small hours by an instance that had just
+found a scarier-looking problem and did not go back and weigh the two.
+
+**This matters because it inverts the advice.** §0.0.C's refusals are still
+right — the rebuild must stay disabled, because "sessions are inflated" was
+never the only reason not to bulk-write, and a tool that cannot tell a corrected
+log from a gap in the record must not run over 900 documents. But the SECOND
+half of §0.0's advice — grade from `typing_logs`, it is the conservative number
+— is advice to under-credit most of a roster by half.
+
+### 0.-1.B WHAT WAS BUILT
+
+`reports.html` v2.19.0. Read-only; it writes nothing and students load none of it.
+
+1. **The rebuild write is refused in two places** — the button attribute and the
+   first lines of `runRebuildAll()`. §0.0.C's "first job of Round 20", done.
+2. **New `⏱ Clock` column: the UNION of the typing intervals.** Every sprint
+   carries `at` (stamped when the record was filed, i.e. when that stretch of
+   typing ENDED) and `seconds`, so it describes the interval
+   `[at − seconds, at]`. The column is the measure of the union of those
+   intervals across every document for that student-day.
+
+⚠️ **WHY A UNION IS THE RIGHT OPERATION AND A SUM NEVER WAS.** A sum of
+durations is only correct if no two records describe the same minutes. §0.0.A
+proved they can. A union is correct either way — it needs no assumption about
+how many writers there were, and it does not need §0.0.D's cause to be found
+first. Feed it a document twice and the number does not move
+(`union-clock-test.mjs` Part B). **A child cannot type in two places at once,
+and this is the only figure on the page that encodes that fact.**
+
+⚠️ **WHAT IT CANNOT PLACE, IT REFUSES TO COUNT.** A sprint with an unparseable
+`at`, and any pre-v2.10.0 rollup with no `sprints[]`, are reported separately as
+`unplaced` and never folded in. A student showing a red `unplaced` figure has
+NOT been measured by this column; their Clock number is a floor. Invariant 7.
+
+3. **`tests/union-clock-test.mjs`** — the harness §0.0.A asked for and said
+   nobody had written. 35 assertions, all green. Part D is a mutation guard on
+   the interval direction; Part E pins the §0.-1.A figures so this finding
+   cannot be quietly lost again.
+
+### 0.-1.C ⚠️ WHAT THE CLOCK COLUMN IS *NOT*
+
+**It is not yet proven to be the truth, and it must not be written into
+`typing_logs`.** Two honest limits, neither of which a harness can close:
+
+* **`seconds` is graded time, not elapsed time.** The idle-aware clock excludes
+  pauses, so `[at − seconds, at]` is a *compressed* block anchored at the end of
+  the stretch, not the true wall-clock span. Intervals are therefore placed
+  slightly late. This makes the union **conservative** — it can only fail to
+  detect an overlap, never invent one — but it means the figure is a good
+  estimate, not a measurement.
+* **Two independent writers logging the same work at different instants** produce
+  intervals that only partially coincide, so the union collapses part of the
+  duplication and not all of it. It is strictly better than the sum. It is not
+  a proof.
+
+**Round 21's job is to decide which number becomes the grade, and that is a
+decision for Jake with evidence in front of him, not for an instance at 3am.**
+Until then: `Total Time` is what the app writes and what the student sees;
+`⏱ Clock` is the independent check; where they disagree, the drill-down is the
+adjudicator.
+
+### 0.-1.D ⚠️ THE `-29 ch` THREAD IS CLOSED — NO CURRENT WRITER CAN PRODUCE IT
+
+§0.0.A calls the negative character count "the cheapest thread." It was traced.
+`game.js logSession()`, `learn.js logRun()` and `session-log.js
+sessionLogPush()` all clamp with `Math.max(0, …)`, and those are the only three
+paths into a sprint record. **No code in the deployed build can write a negative
+character count.** It is residue from a pre-clamp build, it appears only on
+08-17, and it makes a total *smaller*, so it is not a contributor to any
+inflation. Per Jake's standing rule, no mechanism was invented to explain it.
+**Do not spend another round on it.**
 
 ---
 

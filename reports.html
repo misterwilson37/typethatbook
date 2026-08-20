@@ -389,6 +389,11 @@
                         <th data-col="sessSeconds" title="Sum of this student's session records over the range, with duplicate rollups excluded. This is the record; Total Time is a cache of it.">Sessions <span class="sort-arrow">▲</span></th>
                         <th data-col="delta" title="Total Time minus Sessions. Positive = the daily log reads HIGHER than the sessions behind it. Negative = the log reads LOWER. Not automatically a defect — see the notes under the panel above.">Δ <span class="sort-arrow">▲</span></th>
                         <th data-col="dupes" title="Duplicate session rollups found across the range. These are already excluded from the Sessions column and from any rebuild; the count is here so they can be found and deleted.">⧉ <span class="sort-arrow">▲</span></th>
+                        <!-- v2.19.0 — the union column. Sessions is a SUM and
+                             double-counts an overlap; this is the measure of the
+                             union of the typing intervals and cannot. When the
+                             two disagree, the difference is duplication. -->
+                        <th data-col="clockSeconds" title="Union of this student's typing intervals across the range — every sprint placed on a wall-clock timeline, overlaps counted once. Unlike Sessions this cannot double-count one stretch of typing recorded twice. A red 'unplaced' figure means some records could not be placed on a timeline and are NOT in this number.">⏱ Clock <span class="sort-arrow">▲</span></th>
                         <th style="width:50px;"></th>
                     </tr>
                 </thead>
@@ -463,6 +468,46 @@
     //           morning's School time vanish from the report the moment that
     //           afternoon's Library session wrote a split field. The two shapes
     //           cover disjoint periods, so summing loses nothing.
+    //
+    // v2.19.0 — ⚠️⚠️ THE REBUILD WRITE IS DISABLED, AND A THIRD NUMBER IS ADDED
+    //           THAT DOES NOT CARE WHETHER THE RECORDS OVERLAP.
+    //
+    //           (1) `Rebuild from sessions` NO LONGER WRITES, IN EITHER
+    //           DIRECTION. HANDOFF §0.0.C. typing_sessions was found on
+    //           2026-08-19 to contain rollups whose sprint windows OVERLAP in
+    //           wall-clock time — one stretch of typing recorded twice by two
+    //           writers, with different chunk boundaries, so sessionSignature()
+    //           sees two distinct documents and counts both in full. Every
+    //           argument for the up-move default rested on "sessions cannot
+    //           invent time." They can, and they did. The PREVIEW is kept —
+    //           it reads nothing into the database and it is evidence.
+    //
+    //           (2) NEW `⏱ Clock` COLUMN — THE UNION OF THE TYPING INTERVALS,
+    //           NOT THE SUM OF THE RECORDS. Every sprint carries `at` (the
+    //           instant it was logged) and `seconds`, so it describes the
+    //           half-open wall-clock interval [at − seconds, at]. A day's real
+    //           typing time is the MEASURE OF THE UNION of those intervals.
+    //
+    //           ⚠️ THIS IS THE WHOLE POINT: a sum double-counts an overlap and a
+    //           union cannot. If one stretch of typing was recorded twice — by
+    //           two tabs, by a re-sent queue, by anything — the two records
+    //           cover the same minutes, and the union counts those minutes
+    //           once. It is immune to the entire class of defect in §0.0, in
+    //           advance, without knowing which of the three candidate causes is
+    //           the real one. A child cannot type in two places at once, and
+    //           this is the only column on the page that knows that.
+    //
+    //           ⚠️ WHAT IT CANNOT PLACE, IT REFUSES TO COUNT, AND SAYS SO. A
+    //           sprint with no parseable `at`, and a pre-v2.10.0 rollup with no
+    //           `sprints[]` at all, cannot be put on a timeline. Their seconds
+    //           are reported SEPARATELY as `unplaced`, never folded in.
+    //           Invariant 7, "absent beats approximated" — and under Jake's
+    //           ruling that inflation is a lie told to a child, an unplaceable
+    //           record silently added to a union is exactly that lie.
+    //           ⚠️ A STUDENT WITH A LARGE `unplaced` HAS NOT BEEN MEASURED BY
+    //           THIS COLUMN. Do not grade them from it. Read Total Time.
+    //
+    //           NOTHING HERE WRITES. This whole version is read-only.
     //
     // v2.18.0 — ⚠️ TWO CORRECTIONS TO v2.17.0, BOTH FROM JAKE'S LIVE PREVIEW.
     //
@@ -599,7 +644,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.18.0";
+    const REPORTS_VERSION = "2.19.0";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
@@ -1263,11 +1308,13 @@
         if (r.sessSeconds === null || r.sessSeconds === undefined) {
             return `<td class="recon-cell recon-idle">—</td>` +
                    `<td class="recon-cell recon-idle">—</td>` +
+                   `<td class="recon-cell recon-idle">—</td>` +
                    `<td class="recon-cell recon-idle">—</td>`;
         }
         if (r.reconErrors) {
             return `<td class="recon-cell recon-err">unreadable</td>` +
                    `<td class="recon-cell recon-err" title="${r.reconErrors} day(s) could not be read — this student's comparison is incomplete and must not be read as clean.">? </td>` +
+                   `<td class="recon-cell recon-err">?</td>` +
                    `<td class="recon-cell recon-err">?</td>`;
         }
         const d = r.delta, dc = r.deltaChars;
@@ -1277,10 +1324,20 @@
         const charTxt = dc === 0 ? '' :
             `<span class="recon-sub">${dc > 0 ? '+' : '−'}${Math.abs(dc).toLocaleString()} ch</span>`;
         const dupeCls = r.dupes ? 'recon-dupes' : 'recon-dupes-zero';
+        // ⚠️ THE `unplaced` SUB-LINE IS NOT DECORATION. A student showing it has
+        // records this column could not put on a timeline, so the Clock figure
+        // above it is a FLOOR, not a measurement, and must not be graded from.
+        // Silence here would make an incomplete number look like a complete one,
+        // which is the single failure mode this whole page exists to prevent.
+        const clockTxt = formatTime(r.clockSeconds || 0);
+        const unplacedTxt = (r.unplacedSeconds || 0) > 0
+            ? `<span class="recon-sub recon-err" title="Seconds in records with no usable timestamp — a pre-v2.10.0 rollup with no sprints[], or a sprint with an unparseable 'at'. These are NOT included in the Clock figure. Read Total Time for this student instead.">+${formatTime(r.unplacedSeconds)} unplaced</span>`
+            : '';
         return `<td class="recon-cell">${formatTime(r.sessSeconds)}` +
                `<span class="recon-sub">${r.sessChars.toLocaleString()} ch</span></td>` +
                `<td class="recon-cell ${cls}">${deltaTxt}${charTxt}</td>` +
-               `<td class="recon-cell ${dupeCls}">${r.dupes || 0}</td>`;
+               `<td class="recon-cell ${dupeCls}">${r.dupes || 0}</td>` +
+               `<td class="recon-cell">${clockTxt}${unplacedTxt}</td>`;
     }
 
     // Every date in [start, end], as YYYY-MM-DD, built by string arithmetic on
@@ -1317,16 +1374,27 @@
                         where("uid", "==", uid), where("date", "==", date));
         const snap = await getDocs(q);
         const kept = [];
+        const all  = [];
         const seen = new Set();
         let dupes = 0;
         snap.forEach(d => {
             const data = d.data();
+            all.push(data);
             const sig = sessionSignature(data, d.id);
             if (seen.has(sig)) { dupes++; return; }
             seen.add(sig);
             kept.push(data);
         });
         const t = splitSessionTotals(kept);
+        // ⚠️ THE UNION IS COMPUTED OVER **ALL** DOCUMENTS, INCLUDING THE ONES
+        // sessionSignature() CALLED DUPLICATES. That is not an oversight and it
+        // is not inconsistent with the line above. The signature dedupe is a
+        // guess about document identity; the union is a fact about wall-clock
+        // time. Feeding it an exact duplicate costs nothing — the duplicate's
+        // intervals land on top of the original's and the union is unchanged —
+        // whereas EXCLUDING a document risks dropping intervals that only it
+        // covers. Over-feed a union, never under-feed it.
+        const clock = unionSprintSeconds(all);
         return {
             docCount: snap.size,
             keptCount: kept.length,
@@ -1334,7 +1402,76 @@
             seconds:  t.schoolSec   + t.librarySec,
             chars:    t.schoolChars + t.libraryChars,
             mistakes: t.schoolMist  + t.libraryMist,
+            clockSeconds:    clock.seconds,
+            unplacedSeconds: clock.unplaced,
         };
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // THE UNION OF THE TYPING INTERVALS  (v2.19.0)
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // Sum-of-records is the wrong operation the moment records can overlap, and
+    // HANDOFF §0.0 established that they can. Union-of-intervals is the right
+    // one, and it stays right no matter which of §0.0.D's three causes turns out
+    // to be real — it does not need to know.
+    //
+    // ⚠️ THE INTERVAL IS [at − seconds, at], NOT [at, at + seconds]. `at` is
+    // stamped by logSession()/logRun() at the moment the record is CREATED,
+    // which is when that stretch of typing ENDED. Reading it as a start time
+    // shifts every interval forward by its own duration, which would make two
+    // genuinely-overlapping records look adjacent and defeat the entire purpose
+    // of this function. game.js logSession() and learn.js logRun() both set
+    // `at: new Date().toISOString()` on the line that files the finished record.
+    //
+    // ⚠️ CONTINUATIONS ARE JUST INTERVALS. A sprint split into a partial and a
+    // remainder produces two records whose intervals are adjacent, not
+    // overlapping, so the union adds them — which is correct, because they are
+    // two different stretches of real typing. No special case is needed and
+    // none should be added.
+    //
+    // Pure, and deliberately so: it takes plain document data and returns
+    // numbers, with no Firestore, no DOM and no clock of its own.
+    function unionSprintSeconds(docs) {
+        const intervals = [];
+        let unplaced = 0;
+
+        for (const s of (docs || [])) {
+            const sprints = Array.isArray(s && s.sprints) ? s.sprints : null;
+            if (!sprints || !sprints.length) {
+                // A rollup with no sprint array (pre-v2.10.0) has no timeline at
+                // all. Its seconds are real and they are unmeasurable here.
+                unplaced += Math.max(0, Math.round((s && s.seconds) || 0));
+                continue;
+            }
+            for (const sp of sprints) {
+                const secs = Math.max(0, Math.round((sp && sp.seconds) || 0));
+                if (secs <= 0) continue;
+                const end = Date.parse(sp && sp.at);
+                if (!isFinite(end)) { unplaced += secs; continue; }
+                intervals.push([end - secs * 1000, end]);
+            }
+        }
+
+        if (!intervals.length) return { seconds: 0, unplaced, count: 0 };
+
+        intervals.sort((a, b) => a[0] - b[0]);
+        let total = 0;
+        let [curStart, curEnd] = intervals[0];
+        for (let i = 1; i < intervals.length; i++) {
+            const [s, e] = intervals[i];
+            if (s <= curEnd) {
+                // Overlapping or touching — extend, do not add. This one line is
+                // the whole defence against a stretch of typing recorded twice.
+                if (e > curEnd) curEnd = e;
+            } else {
+                total += curEnd - curStart;
+                curStart = s; curEnd = e;
+            }
+        }
+        total += curEnd - curStart;
+
+        return { seconds: Math.round(total / 1000), unplaced, count: intervals.length };
     }
 
     // A tiny worker pool. Sequential would take a minute on a week of ninety
@@ -1462,6 +1599,7 @@
             r.sessSeconds = 0; r.sessChars = 0; r.sessMistakes = 0;
             r.dupes = 0; r.reconErrors = 0; r.reconPairs = [];
             r.orphanDays = 0;
+            r.clockSeconds = 0; r.unplacedSeconds = 0;
         });
         // Keyed by uid, not by the sweep's captured index. This fold happens
         // before any re-sort today, so position would work — and it would keep
@@ -1479,11 +1617,18 @@
             r.sessChars    += res.sess.chars;
             r.sessMistakes += res.sess.mistakes;
             r.dupes        += res.sess.dupes;
+            // ⚠️ SUMMED ACROSS DAYS, UNIONED WITHIN ONE. Two different days
+            // cannot overlap each other, so adding day-unions is safe; two
+            // records inside one day can, which is why the union happens down in
+            // readPairSessions() and never up here.
+            r.clockSeconds    += res.sess.clockSeconds    || 0;
+            r.unplacedSeconds += res.sess.unplacedSeconds || 0;
             if (!res.hasLog && res.sess.docCount > 0) r.orphanDays++;
         });
         reportData.forEach(r => {
             r.delta      = r.seconds - r.sessSeconds;
             r.deltaChars = r.chars   - r.sessChars;
+            r.deltaClock = r.seconds - r.clockSeconds;
             r.reconPairs.sort((a, b) => a.date.localeCompare(b.date));
         });
 
@@ -1549,10 +1694,29 @@
                 sessions yet — they will show a positive Δ that is not a defect. Today's rows are excluded from the rebuild
                 below by default.</div>` : ''}
             <div class="recon-note">
+                <strong>⏱ Clock — read this column, not Δ.</strong>
+                <strong>Sessions</strong> adds up the session records. If one stretch of typing was written
+                twice — which is happening — it gets added twice, and the total reads higher than the
+                student ever typed. <strong>Clock</strong> does something different: it puts every sprint
+                on a wall-clock timeline and measures how much of the day is covered. Two records covering
+                10:49–10:51 cover it once. <em>A student cannot type in two places at once, and Clock is
+                the only column that knows that.</em>
+                <br><br>
+                So: <strong>Total Time</strong> is what you grade on today. <strong>Clock</strong> is the
+                independent check on it. Where those two roughly agree, that student's number is solid and
+                you can show it to a parent. Where they disagree badly, open the drill-down before you
+                decide anything. <strong>Ignore Δ and Sessions for grading</strong> — they are diagnostic
+                only until the overlap is fixed.
+                <br><br>
+                ⚠️ A red <em>unplaced</em> figure under a Clock number means some of that student's records
+                had no usable timestamp and could not be placed on the timeline. They are <strong>not</strong>
+                in the Clock figure, so it is a floor rather than a measurement. Grade those students from
+                Total Time.
+            </div>
+            <div class="recon-note">
                 Δ is (daily log − sessions). It is <strong>not automatically a defect</strong>:
                 session records begin at v2.4.0 and carry a 120-day TTL, so anything older than that,
                 or from before sessions existed, legitimately has a log and no sessions behind it.
-                Reconcile and rebuild at the end of a period or the end of a week, never mid-chapter.
                 This view has written nothing.
             </div>
             <div id="rebuild-preview"></div>
@@ -1792,10 +1956,24 @@
                     </div>`).join('')}</div>
                 ${plan.skipped.length > 200 ? `<div class="recon-note">…and ${plan.skipped.length - 200} more.</div>` : ''}
             </div>` : ''}
+            <div class="recon-bad"><strong>⚠️ The write is disabled in v2.19.0 and the button below does nothing.</strong>
+                HANDOFF §0.0.C. On 2026-08-19 <code>typing_sessions</code> was found to contain rollups whose
+                sprint windows OVERLAP in wall-clock time — one stretch of typing recorded twice, with different
+                chunk boundaries, so the duplicate check sees two distinct documents and counts both in full.
+                The up-moves-only default rested entirely on “sessions cannot invent time.” They can.
+                <strong>This preview is kept because it is evidence, not because it is a plan.</strong>
+                Read the <strong>⏱ Clock</strong> column instead — it unions the typing intervals rather than
+                summing the records, so an overlap counts once.</div>
             <div class="rebuild-actions">
                 <label><input type="checkbox" id="rebuild-include-today" /> include today (${localToday()})</label>
                 <label title="A DOWN move can be a corrected log OR a gap in the session record, and this tool cannot tell which. Off by default."><input type="checkbox" id="rebuild-include-down" /> <strong>also write the ${plan.down.length} DOWN move${plan.down.length === 1 ? '' : 's'}</strong> (off by default \u2014 read the warning above)</label>
-                <button id="rebuild-run-btn" ${(!canWrite || plan.up.length === 0) ? 'disabled' : ''}>Write ${plan.up.length} change${plan.up.length === 1 ? '' : 's'}</button>
+                <!-- v2.19.0 — UNCONDITIONALLY DISABLED. Kept in the DOM rather
+                     than deleted so that a future round re-enabling it has to
+                     read the banner above and delete this comment on purpose.
+                     runRebuildAll() refuses independently; see its first lines.
+                     Two locks, because one of them is a UI attribute and UI
+                     attributes get removed by accident. -->
+                <button id="rebuild-run-btn" disabled title="Disabled in reports.html v2.19.0 — HANDOFF §0.0.C. typing_sessions cannot decide a grade until the overlap cause is found and a harness exists that would have caught it.">Write ${plan.up.length} change${plan.up.length === 1 ? '' : 's'} — DISABLED</button>
                 <span id="rebuild-status" style="color:#888; font-size:0.75rem;"></span>
             </div>
         `;
@@ -1815,6 +1993,62 @@
     }
 
     async function runRebuildAll(plan, { includeDown = false } = {}) {
+        // ═════════════════════════════════════════════════════════════════════
+        // ⚠️⚠️ HARD REFUSAL — v2.19.0. HANDOFF §0.0.C.
+        // ═════════════════════════════════════════════════════════════════════
+        //
+        // The button that reaches here is also disabled, and that is not
+        // redundancy for its own sake. A `disabled` attribute is one word in a
+        // template string, it is invisible in a diff that touches the same line
+        // for another reason, and it can be cleared from the browser console by
+        // anyone who wants the button to work badly enough. This refusal is in
+        // the function that does the writing, which is the only place a lock
+        // cannot be walked around by accident.
+        //
+        // WHY, in one sentence: this function's entire safety argument was
+        // "sessions cannot invent time, so an UP move can only move a student
+        // toward the truth." typing_sessions was then found to contain rollups
+        // whose sprint windows OVERLAP in wall-clock time — one stretch of
+        // typing recorded twice by two writers, with different chunk
+        // boundaries, so sessionSignature() sees two distinct documents and
+        // sums both in full. Sessions CAN overstate. The argument is dead and
+        // every refusal built on top of it (SCHOOL_SESSIONS_FROM,
+        // MAX_DROP_FRACTION, the never-zero guard) was guarding the wrong end.
+        //
+        // ⚠️ RE-ENABLING THIS IS NOT A DECISION FOR THE ROUND THAT NEEDS IT.
+        // Two things must be true first, and a passing test suite is neither of
+        // them:
+        //   1. The overlap CAUSE is identified — not theorised. §0.0.D lists
+        //      three candidates and explicitly says do not pick one and build.
+        //   2. A harness exists that FAILS on the current production data.
+        //      Round 18 verified every document against its own sprints[] and
+        //      all four corrupt documents passed. Internal consistency says
+        //      nothing about whether two documents describe the same minutes.
+        //
+        // The ⟳ single-day button is untouched. One day, one student, in front
+        // of a human who can see the drill-down, is a different act from nine
+        // hundred writes behind a preview. This is a refusal to do it in bulk.
+        console.warn('[rebuild] refused — disabled in reports.html v2.19.0. HANDOFF §0.0.C.');
+        alert(
+            'Rebuild from sessions is disabled in reports.html v2.19.0.\n\n' +
+            'typing_sessions contains rollups whose sprint windows overlap in ' +
+            'wall-clock time, so the session total can read HIGHER than the ' +
+            'student actually typed. This tool would write that inflation into ' +
+            'the document you grade from.\n\n' +
+            'Use the ⏱ Clock column instead — it unions the typing intervals ' +
+            'rather than summing the records, so a stretch recorded twice ' +
+            'counts once. It is read-only and writes nothing.\n\n' +
+            'To correct a single day you have looked at yourself, the ⟳ button ' +
+            'beside that day still works.'
+        );
+        return;
+        // eslint-disable-next-line no-unreachable
+        /* ⚠️ EVERYTHING BELOW IS UNREACHABLE AND IS KEPT ON PURPOSE. Deleting it
+           would mean a future round re-implements the write from scratch and
+           loses the sequential ordering, the stale-row detection, the uid
+           re-resolution and the counted failure reporting — all of which are
+           correct and were expensive to get right. The defect is in the DATA
+           this reads, not in this code. */
         // ⚠️ UP MOVES ONLY UNLESS EXPLICITLY ASKED FOR. See buildRebuildPlan()'s
         // header. An UP move gives back work the log lost; a DOWN move might be
         // deleting work a child did.
@@ -1928,7 +2162,7 @@
                 <td><button class="details-row-btn" data-idx="${idx}">Details</button></td>
             </tr>
             <tr class="detail-row hidden" id="detail-${idx}">
-                <td colspan="11">
+                <td colspan="12">
                     <div class="daily-logs">
                         ${r.dailyLogs.map((log, li) => {
                             const mins = Math.floor(log.seconds / 60);
@@ -2425,12 +2659,16 @@
             // cached session numbers — which would be arithmetic dressed up as
             // observation — the three reconciliation cells go back to "—".
             // Re-run Reconcile to earn them back.
-            if (cells.length >= 10) {
+            // v2.19.0 — the Clock cell goes with them. It was measured against
+            // the same range and is now sitting beside a total it never saw.
+            if (cells.length >= 11) {
                 r.sessSeconds = null; r.sessChars = null; r.sessMistakes = null;
                 r.delta = null; r.deltaChars = null; r.dupes = null;
-                cells[7].className = 'recon-cell recon-idle'; cells[7].textContent = '—';
-                cells[8].className = 'recon-cell recon-idle'; cells[8].textContent = '—';
-                cells[9].className = 'recon-cell recon-idle'; cells[9].textContent = '—';
+                r.clockSeconds = null; r.unplacedSeconds = null; r.deltaClock = null;
+                cells[7].className  = 'recon-cell recon-idle'; cells[7].textContent  = '—';
+                cells[8].className  = 'recon-cell recon-idle'; cells[8].textContent  = '—';
+                cells[9].className  = 'recon-cell recon-idle'; cells[9].textContent  = '—';
+                cells[10].className = 'recon-cell recon-idle'; cells[10].textContent = '—';
             }
         }
         const totalSecs = reportData.reduce((s, rr) => s + rr.seconds, 0);
@@ -2451,7 +2689,12 @@
         const reconciled = reportData.some(r => r.sessSeconds !== null && r.sessSeconds !== undefined);
 
         const headers = ['Name', 'Email', 'Total Seconds', 'Total Time', 'Characters', 'Avg WPM', 'Accuracy %', 'Days Active']
-            .concat(reconciled ? ['Session Seconds', 'Session Characters', 'Delta Seconds', 'Delta Characters', 'Duplicate Rollups', 'Unreadable Days', 'Days With Sessions But No Log'] : []);
+            .concat(reconciled ? ['Session Seconds', 'Session Characters', 'Delta Seconds', 'Delta Characters', 'Duplicate Rollups', 'Unreadable Days', 'Days With Sessions But No Log',
+            // v2.19.0 — 'Unplaced Seconds' sits immediately after 'Clock
+            // Seconds' on purpose. In a spreadsheet the two will be read
+            // together or not at all, and a Clock figure read without its
+            // unplaced companion is a floor being mistaken for a measurement.
+                                   'Clock Seconds', 'Unplaced Seconds', 'Delta vs Clock'] : []);
         const rows = reportData.map(r => [
             r.name,
             r.email,
@@ -2468,7 +2711,10 @@
             r.deltaChars  === null || r.deltaChars  === undefined ? '' : r.deltaChars,
             r.dupes       === null || r.dupes       === undefined ? '' : r.dupes,
             r.reconErrors || 0,
-            r.orphanDays  || 0
+            r.orphanDays  || 0,
+            r.clockSeconds    === null || r.clockSeconds    === undefined ? '' : r.clockSeconds,
+            r.unplacedSeconds === null || r.unplacedSeconds === undefined ? '' : r.unplacedSeconds,
+            r.deltaClock      === null || r.deltaClock      === undefined ? '' : r.deltaClock
         ] : []));
 
         let csv = headers.join(',') + '\n';
