@@ -1,4 +1,10 @@
-// learn.js v2.21.0
+// learn.js v2.21.1
+//
+// v2.21.1 — YOU COULD NOT HARD-REFRESH IN SCHOOL. handleDrillKey() had a
+//           modifier guard on its preventDefault() and nowhere else, so Cmd+R
+//           (key `'r'`, length 1) walked past it into the printable-character
+//           path and was cancelled at the bottom — refresh eaten, `r` scored.
+//           One early return, no behaviour change to typing. See the comment.
 //
 // v2.21.0 — ⚠️ THREE FIXES ON THE GUEST PATH. (1) logRun() filed a guest's runs
 //           under the throwaway ANONYMOUS uid — its guard tested `currentUser`,
@@ -349,7 +355,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.21.0";
+const LEARN_VERSION = "2.21.1";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -2243,6 +2249,27 @@ function handleDrillKey(e) {
     // Ignore modifier keys
     if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
     if (e.key === 'CapsLock') return;
+
+    // ⚠️ A MODIFIER COMBO IS NOT A KEYSTROKE THIS DRILL GETS TO HAVE. (v2.21.1)
+    //
+    // THE DEFECT, reported by Jake: you cannot hard-refresh in School, and you
+    // can in Library. There is a modifier guard in front of the preventDefault()
+    // just below — and it is the ONLY one. Cmd+R arrives here as `e.key === 'r'`,
+    // length 1, so it walks straight past that guard, falls into the printable-
+    // character branch, and hits the UNCONDITIONAL `e.preventDefault()` at the
+    // bottom of the typing path. The refresh is cancelled AND an `r` is typed
+    // into the drill and scored against the student.
+    //
+    // game.js is not better written here, it is merely luckier: it cancels
+    // nothing for a modifier combo, so the page reloads before the stray `r`
+    // can matter. The reload is the reason its bug is invisible.
+    //
+    // ⚠️ THIS RETURNS RATHER THAN JUST SKIPPING THE CANCEL, and the difference
+    // is the scored character. Ctrl+R, Cmd+T, Cmd+Tab, Ctrl+Shift+I: none of
+    // them is the student typing, and none of them belongs in drillCharStates.
+    // Shift is deliberately NOT in this list — Shift+A is how you type a
+    // capital, and half the lessons drill exactly that.
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
 
     // ⚠️ SAME FIREFOX QUICK FIND FIX AS game.js 3.9.3. This handler is bound to
     // #drill-keyboard, which is a DIV — a div does not absorb keystrokes the way an

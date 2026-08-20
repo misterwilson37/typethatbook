@@ -1,4 +1,25 @@
-// session-log.js v1.5.0
+// session-log.js v1.6.0
+//
+// v1.6.0 — ⚠️ sessionLogAdopt() THREW AWAY A GOOD LOCAL DATE AND REPLACED IT
+//          WITH A UTC ONE. The date came from `at.slice(0, 10)`, and `at` is
+//          `toISOString()` — UTC. In Central time that is tomorrow's date from
+//          7:00 PM onward (6:00 PM in winter), so a guest typing at home in the
+//          evening had their adopted sprint filed under TOMORROW while the day
+//          total stayed correctly on today. The drill-down and the clock then
+//          disagree by exactly one sprint, in the shape ROADMAP item 1 is
+//          about, and sessionLogPendingSeconds() — which matches on `date` —
+//          stops seeing those seconds for the day they belong to.
+//
+//          ⚠️ THE RECORD ALREADY CARRIED THE RIGHT ANSWER. game.js logSession()
+//          and learn.js logRun() both stamp `date: getLocalDateStr()` at the
+//          moment the typing ends, which is this module's own stated rule (see
+//          _write's note: "`date` IS THE CALLER'S, NOT ours"). Adopt was the one
+//          path that overrode it. It now PREFERS `r.date` and falls back to the
+//          UTC slice only for the undated legacy records it was written for.
+//
+//          ⚠️ SCHOOL HOURS NEVER SAW THIS and that is why it survived: at Ellis
+//          the offset never crosses midnight. It is a Library-at-home defect.
+//          tests/adopt-date-test.mjs is the harness — 4 failing against v1.5.0.
 //
 // v1.5.0 — ⚠️⚠️ ONE BROWSER, TWO STUDENTS: A SECOND ACCOUNT DESTROYED THE
 //          FIRST'S UNFLUSHED QUEUE. The store is now one slot PER ACCOUNT.
@@ -180,7 +201,7 @@
 //     a tab close would then try to write an empty map into a timestamp field.
 //     Queued records carry `at` (a real ISO string) and nothing else time-like.
 
-export const SESSION_LOG_VERSION = '1.5.0';
+export const SESSION_LOG_VERSION = '1.6.0';
 
 const KEY = 'ttb_sessionq_v1';
 const RECORDS_PER_DOC = 200;   // firestore.rules: sprints.size() <= 200
@@ -463,18 +484,34 @@ export function sessionLogPendingSeconds(uid, dateStr) {
         (sum, r) => sum + (r && r.date === dateStr ? (r.seconds || 0) : 0), 0);
 }
 
-// Adopt records from somewhere else — used once, to migrate the sprint array
-// that used to ride inside game.js's ttb_wal_v2. Undated legacy records are
-// stamped with `fallbackDate` because there is nothing better available; that
-// is a one-time approximation for a queue that already exists, NOT a licence to
-// date new records at flush time.
+// Adopt records from somewhere else. Two callers now, and they want different
+// things from this function:
+//
+//   1. THE ONE-TIME LEGACY MIGRATION — the sprint array that used to ride
+//      inside game.js's ttb_wal_v2. Those records have no `date` at all, so
+//      one is derived, and any derivation is an approximation.
+//   2. THE GUEST HANDOVER (v1.5.0) — records this module itself queued, which
+//      DO have a date, stamped by the caller in the student's own timezone at
+//      the moment the typing ended.
+//
+// ⚠️ PREFER THE RECORD'S OWN `date`. (v1.6.0) `at` is `toISOString()`, so
+// `at.slice(0, 10)` is the UTC date — which in Central time is TOMORROW from
+// 7:00 PM onward. Deriving it there overwrote a correct local date with a wrong
+// one, and split a child's evening between two days: the clock on today, the
+// sprint record on tomorrow. The whole reason this module refuses to date a
+// record itself (see _write's note) is that the caller knows something this
+// module does not, and case 2 is the caller having already said so.
+//
+// The UTC slice survives as a fallback for case 1 ONLY, where there is nothing
+// better. `fallbackDate` is the last resort, in the caller's local terms.
 export function sessionLogAdopt(uid, legacyRecords, fallbackDate) {
     if (!uid || !Array.isArray(legacyRecords) || !legacyRecords.length) return 0;
     let n = 0;
     for (const r of legacyRecords) {
         if (!r) continue;
         const at = r.at || '';
-        const date = (at && at.length >= 10) ? at.slice(0, 10) : fallbackDate;
+        const own = (typeof r.date === 'string' && r.date.length === 10) ? r.date : '';
+        const date = own || ((at && at.length >= 10) ? at.slice(0, 10) : fallbackDate);
         if (!date) continue;
         if (sessionLogPush(uid, { ...r, date, at: at || undefined })) n++;
     }

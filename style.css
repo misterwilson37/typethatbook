@@ -1,4 +1,7 @@
-/* TypeThatBook style.css v3.5.5 */
+/* TypeThatBook style.css v3.5.6 */
+/* v3.5.6: .text-btn — the (Logout) control on game.html/learn.html was #999 at
+           12px on a black bar and could not be found. #ccc, 13px, a hover
+           background and a focus ring. Nothing else uses the class. */
 /* v3.5.5: #hud-time ellipsises instead of hard-clipping when hud.js's combined
            Sprint+Daily form runs long; .hud-time-long shrinks its font for that
            same case. #trophy-btn and the new #hud-back-link id join the
@@ -234,17 +237,30 @@ body {
 }
 .action-btn:hover { background: #4a90e2; }
 
+/* ⚠️ THE ONLY USER OF THIS CLASS IS (Logout), in game.html and learn.html, and
+   at #999/12px on the black HUD bar it was invisible in practice. Jake looked
+   for it during the v3.36.0 guest test, concluded there was no way to sign out
+   of the game page, and navigated to the library index to do it — with a
+   screenshot of the button he could not see in the same message. A control
+   nobody can find is a control that does not exist.
+
+   ⚠️ IT MUST STAY QUIETER THAN #user-name. This is furniture on a page where a
+   child is supposed to be reading, not a call to action, and the pinned-width
+   rule above already promises it never truncates. #ccc is legible; brighter
+   would compete with the name beside it. */
 .text-btn {
     background: none;
     border: none;
-    color: #999;
+    color: #ccc;
     text-decoration: underline;
     cursor: pointer;
     font-family: inherit;
-    font-size: 12px;
-    padding: 0;
+    font-size: 13px;
+    padding: 2px 4px;
+    border-radius: 3px;
 }
-.text-btn:hover { color: white; }
+.text-btn:hover { color: white; background: rgba(255,255,255,0.12); }
+.text-btn:focus-visible { outline: 2px solid var(--carolina-blue); outline-offset: 1px; }
 #user-name { color: white; margin-right: 5px; }
 
 /* --- GAME AREA --- */

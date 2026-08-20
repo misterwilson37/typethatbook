@@ -1,7 +1,22 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.0.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     through Round 22; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+<!-- HANDOFF.md v15.1.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     through Round 24; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.1.0 — Round 24 (Monotype). ⚠️⚠️ §0.-10 IS THE WRITE-UP AND IT OPENS
+     WITH A RETRACTION. ROADMAP item 1 and §0.-9.F both recorded records as
+     MISSING that were merely LATE: Jake re-generated the same day thirty
+     minutes on and found the 12:57 PM Library sprint present in the drill-down
+     and the day's log up from 11m 40s to 12m 40s. A report generated minutes
+     after a period is not yet the record, and this project has built work on
+     one at least twice. The round's own fix is THE EVENING GUEST:
+     sessionLogAdopt() recomputed each record's date from at.slice(0,10) — UTC —
+     discarding the local date the caller had already stamped, so a child typing
+     Library at home after 7:00 PM Central had their clock land on today and
+     their sprint record on tomorrow. Invisible during school hours by
+     construction. Also: Cmd+R was eaten in School (and typed as an `r`), and
+     the (Logout) button was styled invisible on a page whose test protocol had
+     been working around its absence. 36/36 harnesses.
 
      ⚠️⚠️ v15.0.0 IS A MAJOR AND JAKE SIGNED IT OFF ("Feel free to do a clean up
      of Handoff while you're at it. Clean out anything unnecessary that you no
@@ -29,11 +44,27 @@
      AND KILLED BY JAKE — see §0.-9.E, which is the most useful part of this
      section for a future instance. 35/35 harnesses. -->
 
-**Round 23 — Empire.** Predecessors: Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
+**Round 24 — Monotype.** Predecessors: Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
 Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
 Sholes (14) · Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) ·
 Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) ·
 Blick (3) · Dvorak (2) · Underwood (1).
+
+⚠️ **Linotype IS ROUND 17 AND MONOTYPE IS NOT IT.** They are different machines
+by different companies and both are now on the list; a future round reading the
+list quickly will see two similar words and must not conclude one is a typo for
+the other. **Check the list, and read the whole word.**
+
+> *On the name:* the Monotype was **two machines in two rooms**. A keyboard
+> operator punched a spool of paper tape; a caster in another room read that
+> tape, later, and cast the type from it. The record and the output were
+> separate objects, produced at separate times, and they could disagree — and
+> when they did, the tape was right and the type was merely not made yet.
+> That is this round exactly. Two rounds recorded a sprint as LOST because the
+> report did not show it thirty minutes on; pressing the button again showed it
+> had simply not been cast yet. ⚠️ And the round's own fix is the other half of
+> the same idea: a record must carry the date it was *punched*, in the operator's
+> own terms, because the machine that reads it may not run until tomorrow.
 
 ⚠️ **I nearly called this round Underwood No. 5 and got as far as writing it into
 a harness header.** Underwood is Round 1 and it is in the list above; Salter's
@@ -104,6 +135,163 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-10. ⚠️⚠️ ROUND 24 (Monotype) — LATE IS NOT LOST, AND THE EVENING GUEST
+
+**2026-08-20, late afternoon.** Three shipped files, one new harness, two pins.
+`npm test` → **36/36, 0 unregistered.** `audit:versions` → 15 problems (baseline
+15), zero "one of the two is a lie."
+
+### 0.-10.A ⚠️⚠️ THE MOST IMPORTANT THING IN THIS SECTION IS A RETRACTION
+
+**ROADMAP item 1 has been wrong for two rounds, and so was §0.-9.F.** Jake
+re-generated 2026-08-20 about thirty minutes after typing. Two things recorded
+as MISSING were present:
+
+| | Round 23 recorded | Round 24 observed |
+|---|---|---|
+| the 12:57 PM Library sprint | absent from the drill-down | **1m 8s · 89 WPM · 504 ch, present** |
+| the 2:05 PM sprint's daily log | 11m 40s / 2,781 ch | **12m 40s / 3,337 ch** |
+
+Both arrived on their own, one visit late. That is `game.js` v3.25.0's own
+documented behaviour — the queue drains on the next page that runs a flush — and
+it was written down in the file the whole time.
+
+⚠️ **A REPORT GENERATED MINUTES AFTER A PERIOD IS NOT YET THE RECORD.** Every
+conclusion this project has drawn from a freshly-generated report is suspect,
+and at least two rounds built work on one. **Before calling anything missing,
+look again later.** It is the cheapest rule in the repo and it would have saved
+a round.
+
+⚠️ **AND NOTE WHERE THE EVIDENCE CAME FROM.** Round 23 asked Jake to run a
+console command to split two candidates. He instead did the obvious human thing
+— pressed the button again — and that settled more than the console command
+would have. The instrument you reach for first is not always the cheap one.
+
+### 0.-10.B ✅ WHAT SHIPPED
+
+| File | Version | What |
+|---|---|---|
+| `session-log.js` | **v1.6.0** | `sessionLogAdopt()` prefers the record's own local `date`; the UTC slice survives only for the undated legacy migration |
+| `learn.js` | **v2.21.1** | one early return in `handleDrillKey()` — Cmd/Ctrl+R reaches the browser |
+| `style.css` | **v3.5.6** | `.text-btn` legible: #ccc, 13px, hover background, focus ring |
+| `tests/adopt-date-test.mjs` | **NEW** | 13 assertions, **4 failing against v1.5.0** |
+| `tests/run-all-tests.mjs` | v1.6.0 | registers it |
+| `tests/session-merge-test.mjs` | v1.6.1 | version pin only |
+| `tests/open-unit-test.mjs` | v1.2.3 | version pin only |
+
+⚠️ **UPLOAD `session-log.js` FIRST**, same as Round 23 — `game.js` and `learn.js`
+both import from it.
+
+### 0.-10.C ⚠️⚠️ THE EVENING GUEST — A UTC DATE ON A LOCAL RECORD
+
+`sessionLogAdopt()` recomputed each record's date from `at.slice(0, 10)`, and
+`at` is `new Date().toISOString()` — **UTC**. America/Chicago crosses UTC
+midnight at **7:00 PM** local (6:00 PM outside daylight saving). So a guest
+typing at home after dinner, then signing in, got:
+
+* their **daily log** on today, written by the merge in local terms — correct;
+* their **sprint record** on tomorrow — wrong.
+
+That is the drill-down-versus-total split this project has been chasing for
+three rounds, arriving from a direction nobody was looking. It also blinds
+`sessionLogPendingSeconds(uid, dateStr)`, which matches on `date`, so a flush
+between two unit boundaries writes a total short by that sprint.
+
+⚠️ **THE RECORD ALREADY CARRIED THE RIGHT ANSWER AND THE MODULE'S OWN HEADER
+SAID SO.** `_write()`'s note reads *"`date` IS THE CALLER'S, NOT ours… an undated
+record is refused outright rather than guessed at."* `sessionLogAdopt()` was the
+one path in the file that overrode a date the caller had supplied. It was written
+for the one-time `ttb_wal_v2` migration, where records genuinely had no date and
+deriving one was the only option; Round 23 then routed the **guest handover**
+through it, and the guest handover's records are dated. A function acquired a
+second caller with different needs and nobody re-read its contract.
+
+⚠️ **WHY NO CLASSROOM TEST COULD EVER HAVE CAUGHT IT.** Ellis runs 8am–3pm
+Central, where the local and UTC dates always agree. Every guest-handover test
+Jake has run passes on a build carrying this defect. **It is a Library-at-home
+defect and it exists only because children use TypeThatBook in the evening.**
+
+⚠️ **IT IS NOT THE CAUSE OF THE 2:03 PM CASE** in §0.-10.E. 2:03 PM Central is
+19:03 UTC on the same date. Two different faults on one path — Rule 10.
+
+### 0.-10.D ✅ TWO SMALL ONES, AND THE FIRST IS NOT WHAT IT LOOKS LIKE
+
+**You could not hard-refresh in School and you could in Library.**
+`handleDrillKey()` has a modifier guard in front of its `preventDefault()` and
+**nowhere else**. Cmd+R arrives as `e.key === 'r'`, length 1, walks past that
+guard into the printable-character branch, and hits the unconditional
+`e.preventDefault()` at the bottom of the typing path: **the refresh is
+cancelled AND an `r` is typed into the drill and scored.**
+
+⚠️ **`game.js` IS NOT BETTER WRITTEN HERE, IT IS LUCKIER.** It cancels nothing
+for a modifier combo, so the page reloads before its own stray `r` can matter.
+The reload is the only reason its version of this bug is invisible. The two
+handlers are near-duplicates that have drifted, and they disagree elsewhere too
+— ROADMAP item 9.
+
+⚠️ **THE FIX RETURNS RATHER THAN SKIPPING THE CANCEL**, and the difference is the
+scored character. Shift is deliberately not in the modifier list: Shift+A is how
+a child types a capital, and the lessons drill exactly that.
+
+**The Logout nobody could find.** Jake reported *"there's no logout in
+library/game, so I had to go back to the main page to sign out"* — and attached
+screenshots with `(Logout)` visible in three of them, at `#999` / 12px on a black
+bar beside a bold white name. `game.html` line 44 and `learn.html` line 37 are
+the only users of `.text-btn` in the repo. **A control nobody can find is a
+control that does not exist**, and this one had been there for rounds while a
+test protocol worked around it.
+
+### 0.-10.E ⚠️ STILL OPEN — THE GUEST SPRINT'S RECORD (ROADMAP item 2)
+
+The merge is **proven working**, from the header alone:
+
+| Time | Daily | |
+|---|---|---|
+| 2:02:10 | 10:34 | signed in, before signing out |
+| 2:02:59 | 0:01 | signed out, guest |
+| 2:04:24 | **11:40** | signed back in, **before typing anything** |
+
+10:34 + 1:06 = 11:40, and the modal put the guest stretch at exactly 1m 6s. Jake
+read the shortfall in the report as "we lost the guest minute"; the arithmetic
+says the guest minute landed and the *last* minute was merely late. **Two
+different absences that looked like one.**
+
+**But no ~2:03 PM row ever appeared in the drill-down**, and unlike the other two
+it has not turned up late. The 2:05 PM row reads `1 runs`, so it was not swept in
+with the following flush either.
+
+⚠️ **DO NOT GUESS BETWEEN THE CANDIDATES.** Type as a guest in Library for a
+minute and, **before signing in**, run:
+
+```js
+JSON.parse(localStorage.getItem('ttb_sessionq_v1') || '{}')
+```
+
+* an `owners` key of `"\u0000guest"` holding a record → it queued, and the loss is
+  in the handover (`sessionLogTake` → `sessionLogAdopt` → `flushAll('guest-retroactive', true)`).
+* no such key → `logSession()` never pushed, and the fix is in `game.js`: either
+  the sprint never closed or the five-second floor refused it.
+
+⚠️ Jake's own account of the test: he typed continuously and finished a fable
+each time but is **not sure a completion screen appeared**. The 2:02:59
+screenshot shows a guest "Sprint Complete" at **0m 1s**, which the floor
+certainly refused. Neither candidate is eliminated.
+
+### 0.-10.F WHAT WAS DELIBERATELY NOT DONE
+
+* **ROADMAP item 3** (`learn.js` flushes for anonymous users). Unchanged, and
+  still waiting on a round that can watch School run. ⚠️ v2.21.1 touched
+  `learn.js` anyway — but in the **keyboard handler**, not the write path.
+* **The header budget.** `learn.js` went 297 → 303 lines and 32 → 33 entries;
+  `session-log.js` is now over the entry budget as well as the line budget. Both
+  knowingly. ROADMAP item 9.
+* **Nothing was done about the late flush itself.** It is not obviously a defect
+  — the records arrive — and "flush more often" trades Firestore writes for a
+  teacher seeing numbers two minutes fresher. §0.-9's `HIDDEN_FLUSH_MIN_GAP_MS`
+  comment already priced that at about $1/year against $85. Measure item 5 first.
 
 ---
 
