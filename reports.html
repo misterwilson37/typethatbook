@@ -673,7 +673,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.22.0";
+    const REPORTS_VERSION = "2.23.0";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
@@ -2627,8 +2627,11 @@
                 if (container) {
                     const idx = parseInt(container.dataset.idx, 10);
                     const li  = parseInt(container.dataset.li, 10);
+                    // expectDrop: true — a deletion is SUPPOSED to shrink the
+                    // day, so the v2.23.0 drop guard would be asking the teacher
+                    // to confirm the thing they just did.
                     await recalcDailyLog(idx, li, container.dataset.uid, container.dataset.date,
-                                          { allowZero: true });
+                                          { allowZero: true, expectDrop: true });
                 }
             } catch (err) {
                 console.error("Delete session error:", err);
@@ -2793,7 +2796,32 @@
     //     bare boolean. Both pre-existing callers (the ⟳ button and the
     //     post-delete cascade) ignore the return entirely, and an object is
     //     truthy, so nothing that read it as a boolean changes meaning.
-    async function recalcDailyLog(idx, li, uid, date, { allowZero = false, expect = null } = {}) {
+    // ⚠️ v2.23.0 — THE DROP GUARD. A big down-move now has to be confirmed.
+    //
+    // This function rewrites a day's log to whatever the session records sum to,
+    // and until v2.23.0 there was NO limit on how far down that could move it.
+    // `allowZero` only ever blocked the EMPTY case. That is fine when the
+    // sessions are complete and destructive when they are not — and they are
+    // demonstrably not always complete: a real 2026-08-19 Library day reads
+    // 12m 4s / 1,890 chars in the log against a single 3m 47s / 521-char
+    // session rollup, and the log is the one that matches the student's actual
+    // work. One click there would have written 3m 47s over eight minutes of
+    // real typing, and the child's own screen would have changed with it,
+    // because the HUD reads this same document.
+    //
+    // ⚠️ THE SESSION RECORD IS NOT A SUPERSET OF THE DAY COUNTER AND MUST NOT BE
+    // TREATED AS ONE. Sprints below the 5-second floor never arrive, a sprint
+    // that never closes is never pushed, and a failed upload leaves the counter
+    // ahead of the record. `⟳` is only safe where the sessions happen to be
+    // complete, and nothing in this page can tell you whether they are.
+    //
+    // A small correction — the 6-second, sub-1% kind — still applies silently.
+    // Below DROP_GUARD_RATIO of the stored figure, the teacher is shown both
+    // numbers and has to say yes.
+    const DROP_GUARD_RATIO = 0.9;
+
+    async function recalcDailyLog(idx, li, uid, date,
+                                  { allowZero = false, expect = null, expectDrop = false } = {}) {
         const r = reportData[idx];
         const log = r.dailyLogs[li];
         const statusEl2 = document.getElementById(`log-status-${idx}-${li}`);
@@ -2841,6 +2869,38 @@
                 if (statusEl2) { statusEl2.textContent = 'changed — skipped'; statusEl2.style.color = '#ffaa00'; }
                 return { ok: false, reason: 'stale',
                          got: { seconds: totalSec, chars: totalChars, mistakes: totalMistakes } };
+            }
+
+            // ⚠️ v2.23.0 — THE DROP GUARD. See the note above the function.
+            //
+            // `expectDrop` is passed by the delete-session path, where a
+            // down-move is the WHOLE POINT: a rollup was just removed, so the
+            // day is supposed to shrink. Every other caller gets the guard.
+            const currentSec = log.seconds || 0;
+            if (!expectDrop && currentSec > 0 && totalSec < currentSec * DROP_GUARD_RATIO) {
+                const lost = currentSec - totalSec;
+                const pct  = Math.round((1 - totalSec / currentSec) * 100);
+                const okToDrop = confirm(
+                    `This would REDUCE the stored day by ${pct}%.\n\n` +
+                    `  stored now : ${formatTime(currentSec)}  (${log.chars || 0} chars)\n` +
+                    `  sessions   : ${formatTime(totalSec)}  (${totalChars} chars)\n` +
+                    `  difference : ${formatTime(lost)}\n\n` +
+                    `The session records are not always complete — sprints under ` +
+                    `five seconds are never written, a sprint that never closes ` +
+                    `is never pushed, and a failed upload leaves the day counter ` +
+                    `ahead of the record. If this student really did type ` +
+                    `${formatTime(currentSec)}, the stored figure is the correct ` +
+                    `one and this rewrite would destroy the difference.\n\n` +
+                    `The student sees this same number on their own screen.\n\n` +
+                    `Overwrite it anyway?`
+                );
+                if (!okToDrop) {
+                    if (statusEl2) { statusEl2.textContent = 'kept the stored figure'; statusEl2.style.color = '#888'; }
+                    return { ok: false, reason: 'drop-declined',
+                             got: { seconds: totalSec, chars: totalChars, mistakes: totalMistakes } };
+                }
+                console.warn(`[recalc] ${uid} ${date} overwritten DOWN by ${lost}s ` +
+                             `(${currentSec}s → ${totalSec}s) with confirmation.`);
             }
 
             // ⚠️ v2.14.0 — WRITES FLAT AND CLEARS THE SPLITS. The split is

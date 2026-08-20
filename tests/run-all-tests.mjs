@@ -161,6 +161,11 @@ const FAST = [
     // v1.1.0 — it could not even import. Green from v1.2.0. Its Part F LIFTS
     // readLogTotals() OUT OF reports.html and drives it against daylog.js's
     // totalsOf(), so the student's reader and the teacher's reader cannot drift.
+    // ⚠️ The ⟳ button is the only destructive control in reports.html reachable
+    // in one click. Until v2.23.0 it had no limit on how far down it could move
+    // a day, and the session record it rewrites from is NOT a superset of the
+    // day counter. Real 2026-08-19 evidence is in the harness header.
+    ['recalc-guard-test.mjs',    'the \u27f3 drop guard: small corrections stay silent, a big down-move needs a confirmed yes, and the delete path is exempt'],
     ['daylog-cutover-test.mjs',  'the per-source cutover: pre-cutover days read EXACTLY as before, post-cutover days sum flat + splits, and reports.html carries the identical gate'],
     ['tab-lifetime-test.mjs',    'THE MISSING AXIS: two controllers over one shared document across real tab orderings \u2014 sequential, concurrent, stale-tab-after-lunch, open across midnight'],
 ];
