@@ -1,4 +1,7 @@
-// guest-merge-test.mjs v1.0.0 — THE MINUTE A CHILD TYPES BEFORE SIGNING IN.
+// guest-merge-test.mjs v1.1.0 — THE MINUTE A CHILD TYPES BEFORE SIGNING IN.
+//
+// v1.1.0 — Part C4 asserts the HANDOVER rather than one spelling of it. See the
+//          comment at C4. No other assertion changed.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // THE DEFECT, MEASURED ON REAL DATA (Jake, 2026-08-20)
@@ -178,8 +181,20 @@ console.log('\n─── C. a guest\u2019s records are kept, and handed over ─
         ok(!/currentUser\s*\?\s*currentUser\.uid/.test(body),
            `C3 ${what}: an anonymous user is never treated as an account`);
     }
-    ok(/sessionLogAdopt\(\s*user\.uid,\s*sessionLogTake\(GUEST_QUEUE_UID\)/.test(game),
-       'C4 game.js hands the guest slot to the account at sign-in');
+    // ⚠️ v1.1.0 — ASSERTS THE HANDOVER, NOT ONE WAY OF SPELLING IT. This used to
+    // require the literal nested call `sessionLogAdopt(user.uid,
+    // sessionLogTake(GUEST_QUEUE_UID)`. Round 24 needed the taken array in a
+    // local so the overnight rescue could plan from it BEFORE the flush drains
+    // the queue — a correct change that turned this Part red for a purely
+    // textual reason. What matters is that the slot is TAKEN and the result is
+    // ADOPTED, in that order, inside the one function. Spell it however.
+    {
+        const body = lift(decomment(game), 'retroactiveSaveGuestSession') || '';
+        const iTake  = body.indexOf('sessionLogTake(GUEST_QUEUE_UID)');
+        const iAdopt = body.indexOf('sessionLogAdopt(user.uid');
+        ok(iTake >= 0 && iAdopt >= 0 && iTake < iAdopt,
+           'C4 game.js takes the guest slot and adopts it, in that order, at sign-in');
+    }
     ok(/sessionLogAdopt\(\s*user\.uid,\s*sessionLogTake\(GUEST_QUEUE_UID\)/.test(learn),
        'C5 learn.js does the same');
     // Jake: "As a flush so it's in the record, too."

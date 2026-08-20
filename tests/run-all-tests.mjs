@@ -1,5 +1,5 @@
-// run-all-tests.mjs v1.6.0 — Round 24 (Monotype): adopt-date-test.mjs
-// registered. Nothing else changed. 36 harnesses.
+// run-all-tests.mjs v1.7.0 — Round 24 (Monotype): adopt-date-test.mjs and
+// carryover-test.mjs registered. Nothing else changed. 37 harnesses.
 //
 // run-all-tests.mjs v1.5.0 — Round 23 (Empire): guest-merge-test.mjs and
 // queue-owner-test.mjs registered; reconcile-test.mjs and union-clock-test.mjs
@@ -202,6 +202,13 @@ const FAST = [
     // classroom test of the guest handover passed on a build with it.
     // 4 failing against session-log.js v1.5.0.
     ['adopt-date-test.mjs',      'THE EVENING GUEST: an adopted sprint keeps the local date the student typed it on, not the UTC one'],
+
+    // ⚠️ Round 24 (Monotype). THE OVERNIGHT RESCUE, on Jake's ruling: a child
+    // who typed as a guest and did not sign in until the next day keeps those
+    // minutes, credited TO THE DAY THEY TYPED THEM. Every Part is a different
+    // wrong day — today (the double-credit), the future (a bad device clock),
+    // and a pre-cutover day (which is §3.1 with an addition in front of it).
+    ['carryover-test.mjs',       'THE OVERNIGHT RESCUE: yesterday\u2019s guest minutes reach yesterday\u2019s document, and never today\u2019s'],
 ];
 
 // ⚠️ RULES — need the Firebase emulator (a JVM plus a jar download), so they are
