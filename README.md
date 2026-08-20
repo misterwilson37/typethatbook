@@ -396,6 +396,76 @@ is not buildable anyway: `firestore.rules` permits staff to *read* any student's
 progress but restricts writes to the student themselves.)
 
 
+## Grading a week — the procedure, start to finish
+
+⚠️ **This is the weekly routine. It is read-only until the CSV lands, it does
+not require the week-counter audit, and it does not depend on which version of
+`game.js` any student is running.** That last property is the whole reason it
+works — see "Reconciliation: which number is the record" below.
+
+1. Open `reports.html`. **Check the browser tab title reads `TypeThatBook
+   Reports v2.15.0` or higher.** If it says 2.14.0 you are on a cached copy and
+   nothing below will be there.
+2. Set the range to the Sat–Fri school week. The **This Week** button does it.
+3. **Generate.**
+4. **Reconcile vs Sessions.** Read-only — it issues no writes of any kind. It
+   fills three columns: `Sessions`, `Δ`, `⧉`.
+5. **Export CSV.** It now carries `Session Seconds` beside `Total Seconds`.
+6. **Grade off the larger of `Total Seconds` and `Session Seconds`.**
+
+⚠️ **Why the larger of the two, and not "the correct one".** The two numbers are
+written by independent paths. `typing_logs` can err in either direction;
+`typing_sessions` can only ever undercount, because a queue that never flushed
+loses real time and nothing invents time that was not typed. Taking the higher
+can therefore only err in a student's favour. And since the target is 10 minutes
+a day, **anything above target is already full credit — inflation above the line
+changes no grade at all.** Deflation is the only failure that costs a child
+points, and taking the higher number is precisely what catches it. Every known
+defect in this area is our code's fault, not a child's.
+
+**When to run it:** end of period or end of week, never mid-chapter. Sessions
+are written at run and unit boundaries, so a student typing right now has real
+time in their log that has not reached sessions yet. They will show a positive Δ
+that is not a defect, and the page warns you during school hours.
+
+**What Δ means, and what it does not.** Δ is (daily log − sessions). It is not
+automatically a defect: session records begin at v2.4.0 and carry a 120-day TTL,
+so anything older legitimately has a log and no sessions behind it. Sort by Δ to
+put the outliers on top; sort by ⧉ to find duplicate rollups.
+
+## Forcing an update — `update-gate.js`
+
+A Chromebook tab that is never closed never re-requests anything, and there is no
+service worker to swap. So a fix can sit deployed on the server for days while
+the classroom keeps running last week's arithmetic. `update-gate.js` v1.0.1
+closes that.
+
+**To reload every signed-in client in the building:** Firestore console →
+`settings` → `appVersion` → field `nonce` (number) → **increase it by one.**
+That is the entire operation. Optional `note` (string) is shown to the student on
+the overlay.
+
+Clients check at startup, every ten minutes, and whenever a hidden tab comes back
+to the foreground. A client that finds a higher nonce than the one it last acted
+on re-requests every asset with `{cache: 'reload'}` and then reloads itself.
+
+* **It waits for 8 seconds of no keystrokes** before reloading, so nobody is
+  interrupted mid-sprint. A tab that is already hidden reloads immediately.
+* **It preserves `?book=`**, so a student lands back in their own book.
+* ⚠️ **It cannot reach a tab that is already open running code from before this
+  file shipped.** Nothing can — a page that is not asking the server a question
+  cannot be told an answer. Those clear on the next reload or restart. What the
+  gate buys you is that this is the last time it happens.
+* ⚠️ **Guests are not gated.** `firestore.rules` allows `settings/{docId}` reads
+  to signed-in accounts only, and that was left alone on purpose — widening it is
+  a security decision, not a deploy convenience. Guests have no graded record.
+
+⚠️ **If a deploy does not seem to have reached a student, check the footer before
+theorising.** Both student pages stamp their own `html / js / css` triad into the
+footer, and hovering it (tap-to-pin on touch) expands the full deployed build
+including `update-gate.js`. **If `update-gate.js` is missing from that list, the
+gate is not running on that machine** and no nonce bump will move it.
+
 ## Reconciliation: which number is the record
 
 ⚠️ **Read this before changing anything that writes to `typing_logs` or
@@ -614,7 +684,18 @@ the project that can't be shipped from a browser.
 
 **Cache:** these files are served with default GitHub Pages caching. If a change
 doesn't appear, hard-reload. The version stamps in the page titles and the admin
-footer exist so you can confirm which build is actually loaded.
+footer exist so you can confirm which build is actually loaded. **To push a
+reload to the whole building rather than asking students to do it, see "Forcing
+an update" above.**
+
+⚠️ **UPLOAD ORDER WHEN A SHARED MODULE IS INVOLVED.** `game.js` and `learn.js`
+import `session-log.js`, `stats-wal.js` and `hud.js`; a missing module throws on
+import and renders **nothing at all**. Shared modules go up first, always.
+`update-gate.js` is the one exception in the repo — it loads from its own
+`<script>` tag in each shell, so its own module graph is separate and a 404 on it
+cannot take a page down. It still goes up before the two shells that reference
+it, because a shell pointing at a file that isn't there logs a console error on
+every student's machine for no reason.
 
 ## Header budget
 

@@ -1,8 +1,17 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v14.14.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v14.15.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      2026-08-19 by Round 15 (Densmore), Round 16 (Royal) and Round 17 (Linotype);
-     amended 2026-08-19 by Round 18 (Salter).
+     amended 2026-08-19 by Round 18 (Salter); amended 2026-08-19 by Round 19
+     (Hermes).
+
+     v14.15.0 — Round 19: §0.10 added ABOVE §0.9, because it answers a question
+     §0.9 does not — §0.9 makes JAKE's number trustworthy and says nothing about
+     the number the STUDENT is looking at, and Jake's stated requirement is that
+     the two line up. §0.10 also records the deploy-reach problem and the gate
+     built for it. ⚠️ NO COUNTING CODE CHANGED: game.js, learn.js, hud.js,
+     stats-wal.js, session-log.js, reports.html and firestore.rules are all
+     byte-identical to what Round 18 left.
 
      v14.14.0 — ⚠️ §0.9 ADDED AND IT IS THE TOP OF THIS FILE FOR A REASON. Jake
      ruled on 2026-08-19 that the grade moves off `typing_logs` and onto
@@ -51,11 +60,19 @@
      an entire evening of hunting, and produced an invariant numbering collision
      that took seven file uploads to repair. -->
 
-**Round 18 — Salter.** Predecessors: Linotype (17) · Royal (16) · Densmore (15) ·
+**Round 19 — Hermes.** Predecessors: Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
 Sholes (14) · Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) ·
 Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) ·
 Blick (3) · Dvorak (2) · Underwood (1).
 *Other projects, do not reuse:* Stedman, Fable, Trilby, Vernier.
+
+> *On the name:* Hermes was a Swiss typewriter — the Baby, the 3000, the ones
+> war correspondents carried. It is also the messenger, and that is the half
+> that earned it. This round wrote no arithmetic. It built the thing that gets
+> a message from Jake to ninety Chromebooks: one number in a console, and every
+> tab in the building comes and collects the new code. Everything this project
+> has ever fixed stayed broken in the classroom for as long as one tab stayed
+> open, and no round before this one had a way to say so.
 
 > *On the name:* George Salter & Co. of West Bromwich made typewriters, but that
 > was the sideline. What the name meant to anybody who bought one was **spring
@@ -73,6 +90,120 @@ Blick (3) · Dvorak (2) · Underwood (1).
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.10. ⚠️ ROUND 19 — READ WITH §0.9, NOT INSTEAD OF IT
+
+### 0.10.1 THE GAP IN §0.9, AND JAKE SAID IT OUT LOUD
+
+§0.9 is right about which record to grade from and **does not answer the
+question Jake actually asked.** His words, 2026-08-19: *"Kids see one time, but
+I see another. That time is their grade, so they need to line up."*
+
+§0.9 grades from `typing_sessions` and demotes `typing_logs` to "a live
+on-screen display, never graded from again." That makes **Jake's** number
+trustworthy. It leaves the student watching a *different* number and calls that
+acceptable. It is not: a child who sees 38 minutes and is graded on 44 cannot
+check their own work, and neither can Jake when a parent asks.
+
+**THREE documents still hold one quantity** (§3.1), and the split is exactly
+along the line of the complaint:
+
+| surface | reads |
+|---|---|
+| the student's HUD | `users/{uid}/stats/time_tracking` |
+| Jake's report | `typing_logs/{uid}_{date}` |
+| the independent record | `typing_sessions` |
+
+⚠️ **THE HUD AND THE REPORT ARE DIFFERENT DOCUMENTS ON DIFFERENT WRITE
+SCHEDULES. They drift by construction, and no amount of correcting the counter
+changes that.** Whatever number becomes the grade, the student has to be looking
+at that number. That is unfinished and it is the next real design decision —
+**it is a write-path change and must not ship on a school night.**
+
+### 0.10.2 THE GRADE DOES NOT DEPEND ON THE STALE-CLIENT PROBLEM
+
+The one genuinely good piece of news this round found, and it is what let Jake
+grade before anything else was fixed:
+
+**`typing_sessions` is written the same way by every client back to v2.4.0** —
+from a durable localStorage queue, dated when the typing happened. It does not
+care which version of `game.js` is in the tab. `typing_logs` is a live
+in-memory counter whose correctness depends entirely on which code is running.
+
+⚠️ **So "which version is this child running" and "what is this child's grade"
+are separable problems, and they were being fought as one.** The weekly
+procedure is in `README.md`: Generate → Reconcile vs Sessions (read-only) →
+Export CSV → grade off the larger of `Total Seconds` and `Session Seconds`.
+Since the target is 10 minutes a day, inflation above target changes no grade;
+deflation is the only thing that costs a child points, and taking the higher of
+two independently-written records catches exactly that.
+
+### 0.10.3 WHAT SHIPPED — `update-gate.js` v1.0.1
+
+**NEW FILE `update-gate.js`, plus one `<script>` line each in `game.html`
+(1.1.0 → 1.2.0) and `learn.html` (1.0.0 → 1.1.0). `versions.js` → 1.8.0 and its
+`tools/audit-versions.mjs` mirror register it.** Nothing else moved.
+
+To fire a building-wide reload: Firestore → `settings` → `appVersion` → field
+`nonce` (number), increase by one. Optional `note` (string) shows on the
+student's overlay.
+
+⚠️ **NO `firestore.rules` CHANGE IS NEEDED** — `match /settings/{docId}` already
+allows read to any signed-in account. **Guests are therefore never gated.**
+Deliberate: a guest has no graded record to keep consistent, and widening that
+rule is a security decision, not a deploy convenience.
+
+⚠️ **IT LOADS FROM ITS OWN SCRIPT TAG, NOT AS AN IMPORT.** Two reasons, both
+load-bearing. A separate module graph means a 404 on it cannot stop the typing
+page booting — §1's "a missing module renders nothing at all" does not cross
+script tags. And it meant this shipped without one line changing in `game.js` or
+`learn.js`, which is the standing rule while the counting code is under repair.
+
+⚠️ **IT CANNOT REACH A TAB ALREADY OPEN ON PRE-GATE CODE.** Nothing can — a page
+that is not asking the server a question cannot be told an answer. Those clear
+on the next reload or restart. What the gate buys is that it is the last time.
+**Do not let anyone write a release note claiming otherwise.**
+
+### 0.10.4 ⚠️ THE BUG THIS ROUND SHIPPED AND CAUGHT, v1.0.0 → v1.0.1
+
+v1.0.0 pre-fetched each asset as `fetch(a + "?u=" + nonce, {cache: "reload"})`.
+**An HTTP cache entry is keyed by the whole url.** That refreshed the entry for
+`game.js?u=7` — a url nothing ever requests — and left `game.js`, which is what
+`game.html`'s script tag actually asks for, exactly as stale as it was.
+
+**The gate would have reloaded the entire building into the identical old code,
+every ten minutes, and every observable sign would have said it worked.** The
+cache-busting is `{cache: 'reload'}` alone; the query string was not merely
+redundant, it defeated the mechanism. The `?u=` on the *page* url is a different
+thing and is still wanted — it forces the html document past the bfcache.
+
+Found by re-reading, not by running anything. **No harness in this repo could
+have caught it**, which is the same shape as Round 18's §0.8.4 near-miss and
+worth noticing as a pattern: the defects that survive this project's test suite
+are the ones about *identity* — which url, which student, which document — not
+about arithmetic.
+
+### 0.10.5 WHAT ROUND 19 DID NOT DO
+
+* **Did not touch `reports.html`.** Round 18's 2.15.0 is untouched at 2.15.0.
+* **Did not make the HUD and the grade agree.** §0.10.1. Still open, still the
+  most important thing left, still a write-path change.
+* **Did not write a harness for `update-gate.js`.** Everything it does is
+  `fetch`, `localStorage` and `location.replace` — the parts worth testing are
+  precisely the parts Node cannot see. A green harness here would be decoration.
+  **If you disagree, the assertion worth writing is that the pre-fetch url has
+  no query string** (§0.10.4), and that one is a text check against the source
+  in the same style as `open-unit-test.mjs` Part E.
+* **Did not resolve why the week-counter audit reports problems on every run.**
+  The hypothesis on the table, and it is only that: students holding pre-v3.28.0
+  code in an open tab do not have `checkForWeekRepair()` and write their stale
+  in-memory week counter back over each repair. Repair, overwrite, repair.
+  **If that is it, the gate is the fix and the audit was never broken.**
+  ⚠️ **Do not treat this as established.** Round 16 formed a theory in this area,
+  Jake's console output killed it, and §6 item 7 still says CAUSE UNKNOWN — DO
+  NOT GUESS.
 
 ---
 
@@ -1106,18 +1237,19 @@ Round 16.**
 | `hud.js` | 1.2.0 |
 | `variety-floor.js` | 1.0.0 |
 | `stats-wal.js` | shared module — check the constant |
-| `versions.js` | 1.7.0 |
+| `versions.js` | 1.8.0 — ⚠️ Round 19 |
 | `keyboard.js` | 1.1.1 |
 | `adventure-renderer.js` | 1.5.4 |
 | `admin.js` | 3.31.0 |
 | `lessons-admin.js` | 1.12.0 |
 | `staff-admin.js` | 2.2.0 |
-| `reports.html` | 2.15.0 — ⚠️ Round 18. The only app file that round touched |
+| `reports.html` | 2.15.0 — Round 18. ⚠️ Round 19 did NOT touch it |
+| `update-gate.js` | 1.0.1 — ⚠️ NEW in Round 19. Loaded by its own script tag in both shells, NOT imported. See §0.10 |
 | `firebase-config.js` | 1.2.0 |
 | `firebase/firestore.rules` | 2.4.0 |
 | `style.css` | 3.5.5 |
-| `game.html` | 1.1.0 — new in Round 15, see §0.5 |
-| `learn.html` | 1.0.0 — new in Round 15, see §0.5 |
+| `game.html` | 1.2.0 — ⚠️ Round 19 added the update-gate script tag |
+| `learn.html` | 1.1.0 — ⚠️ Round 19 added the update-gate script tag |
 | `functions/index.js` | 1.7.0 — Cloud Function, NOT deployable from this repo; Jake mirrors it into the console by hand. See its own header. Moved out of the root in Round 17; the file is byte-identical. |
 
 `npm test` → **27 of 28 harnesses pass, 0 pending** (Round 18 added
