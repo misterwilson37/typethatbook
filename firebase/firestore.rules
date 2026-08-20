@@ -1,6 +1,25 @@
 rules_version = '2';
 
-// firestore.rules v2.5.0 — TypeThatBook
+// firestore.rules v2.6.0 — TypeThatBook
+//
+// v2.6.0 — ⚠️⚠️⚠️ A READ OF A DAY THE STUDENT DID NOT TYPE WAS BEING DENIED, AND
+//          IT BROKE EVERY STUDENT'S WEEK. `resource` is null on a get() of a
+//          document that does not exist; v2.5.0's owner clause dereferenced it;
+//          an error denies. daylog.js reads seven days and gives up if any one
+//          fails, and every week contains a weekend. So the owner-read that
+//          v2.5.0 shipped to END the two-number problem never once succeeded.
+//
+//          ⚠️ IT WAS NOT VISIBLE AS AN ERROR. The student's page falls back to
+//          a live counter, so the number on screen looked plausible — it was
+//          just their current tab instead of their week. Found on 2026-08-20
+//          only because Jake asked why a child's week equalled her day.
+//
+//          ⚠️ DEPLOY THIS BEFORE ANY FURTHER APP CODE. It needs no code deploy
+//          of its own, it is a Rules-editor paste, and it fixes the visible
+//          symptom for every student the moment it publishes. The game.js and
+//          learn.js work for §3.1 assumes a week read that WORKS; shipping that
+//          onto this rule would only move where the wrongness lives.
+//          See the block comment at match /typing_logs for the full account.
 //
 // v2.5.0 — ⚠️ THE OWNER MAY NOW READ THEIR OWN typing_logs AND typing_sessions.
 //          This is a PREREQUISITE, not a feature. It is deployed ahead of the
@@ -420,11 +439,61 @@ service cloud.firestore {
                         && request.resource.data.uid  == resource.data.uid
                         && request.resource.data.date == resource.data.date);
 
+      // ⚠️⚠️⚠️ v2.6.0 — `resource == null` IS FIRST AND IT IS NOT A TIDY-UP.
+      // IT IS THE FIX FOR A LIVE, CLASSROOM-WIDE DEFECT. READ THIS BEFORE
+      // TOUCHING THE CLAUSE ORDER.
+      //
+      // On a get() of a document that DOES NOT EXIST, `resource` is null. Both
+      // clauses below dereference `resource.data`. Dereferencing null in rules
+      // is an evaluation error, an error denies, and so A READ OF A DAY THE
+      // STUDENT DID NOT TYPE CAME BACK PERMISSION_DENIED rather than "no
+      // document".
+      //
+      // Why that was catastrophic rather than cosmetic: daylog.js readWeek()
+      // reads SEVEN days by id and returns ok:false if ANY of them fails. Every
+      // school week contains a Saturday, a Sunday and at least one day that has
+      // not happened yet, so EVERY read of EVERY student's week failed, EVERY
+      // TIME, from the moment v2.5.0's owner-read shipped. Observed 2026-08-20
+      // in a student's console:
+      //
+      //     [daylog] read failed 2026-08-15 Missing or insufficient permissions.
+      //     [daylog] read failed 2026-08-16 Missing or insufficient permissions.
+      //     [daylog] read failed 2026-08-21 Missing or insufficient permissions.
+      //
+      // Two consequences, and the second is the expensive one:
+      //
+      //   1. loadUserStats() returns early rather than paint a zero, so the HUD
+      //      ticks up from zero and a child sees only what they typed in THIS
+      //      tab. More than half of one class reported a week equal to their
+      //      day. Their real week was in this collection the whole time.
+      //   2. ⚠️ THE COUNTER THAT STARTED AT ZERO IS THEN WRITTEN BACK AS THE
+      //      ABSOLUTE DAY TOTAL. A student's second page load of a day
+      //      overwrote the first. That is data loss, it is not §3.1, and it is
+      //      also why "seeding the day total at page load makes sequential use
+      //      safe" was never true in production — the seed never arrived.
+      //
+      // ⚠️ THE ORDER IS COST, NOT STYLE. Both surviving clauses are cheap for a
+      // student; canReadActivity() carries a billed get() and stays last. The
+      // null test is free and must come FIRST, because the whole point is that
+      // nothing after it ever evaluates against a null resource.
+      //
+      // ⚠️ WHAT `resource == null && signedIn()` DISCLOSES: that a document id
+      // does not exist. Ids are `{uid}_{date}` and Firebase uids are unguessable
+      // random strings, so a signed-in user learns nothing about a student whose
+      // uid they do not already have, and NOTHING WHATEVER about a document that
+      // does exist. The alternative — matching the uid out of the doc id — costs
+      // a string split in a rule, and clever string handling in this file is how
+      // the update rule above stayed silently broken for several versions.
+      //
+      // ⚠️ QUERIES ARE UNAFFECTED. In a query, `resource` stands for a
+      // hypothetical matched document and is never null, so this clause is
+      // always false there and reports.html's class queries evaluate exactly as
+      // they did in v2.5.0.
+      //
       // ⚠️ v2.5.0 — THE OWNER READS THEIR OWN. See this file's header for why
       // this one clause is the hinge the whole two-number problem turns on.
-      // Owner-first in the || so a student's read never pays for the get()
-      // inside canReadActivity() — same discipline as the stats block above.
-      allow read:   if (signedIn() && resource.data.uid == request.auth.uid)
+      allow read:   if (signedIn() && resource == null)
+                    || (signedIn() && resource.data.uid == request.auth.uid)
                     || canReadActivity(resource.data);
       allow delete: if isSuper();
     }
@@ -443,11 +512,27 @@ service cloud.firestore {
                     && request.resource.data.sprints is list
                     && request.resource.data.sprints.size() <= 200
                     && request.resource.data.expiresAt is timestamp;
+      // ⚠️ v2.6.0 — the same null-resource clause as typing_logs above, and it
+      // is here PRE-EMPTIVELY: nothing shipped reads this collection by document
+      // id today (every reader queries by uid+date, and a query's `resource` is
+      // never null), so this collection was not part of the 2026-08-20 incident.
+      // It is armed with the identical trap, one getDoc() away from firing, and
+      // the two collections are read by the same code on the same page. Leaving
+      // the loaded one next to the fixed one is how a known blocker sits in a
+      // repository unread for a session. Read typing_logs' note for the full
+      // account.
+      //
+      // ⚠️ practice_sessions below is the third instance of this shape and is
+      // deliberately NOT changed: it is staff-query-only, has no by-id reader
+      // and no owner-read clause to be broken. If one is ever added, this note
+      // is the reason to fix that rule in the same commit.
+      //
       // ⚠️ v2.5.0 — THE OWNER READS THEIR OWN, for the same reason as
       // typing_logs above: a client that cannot read the record cannot derive
       // its display from it, and is forced into keeping a second copy. Owner
       // first, so a student's read never triggers a billed get().
-      allow read:   if (signedIn() && resource.data.uid == request.auth.uid)
+      allow read:   if (signedIn() && resource == null)
+                    || (signedIn() && resource.data.uid == request.auth.uid)
                     || canReadActivity(resource.data);
       allow update, delete: if isSuper();
     }
