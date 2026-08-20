@@ -1,4 +1,40 @@
-// session-log.js v1.4.0
+// session-log.js v1.5.0
+//
+// v1.5.0 — ⚠️⚠️ ONE BROWSER, TWO STUDENTS: A SECOND ACCOUNT DESTROYED THE
+//          FIRST'S UNFLUSHED QUEUE. The store is now one slot PER ACCOUNT.
+//
+//          Every READ in v1.4.0 was correctly uid-scoped, and sessionLogClear()
+//          refused to delete a queue it did not own. ⚠️ `_write()` HAD NO SUCH
+//          GUARD, and `_write()` is where both live paths end:
+//
+//              sessionLogPush(B, …) → _read(B) is [] → _write(B, [one record])
+//
+//          …and student A's entire unflushed queue is gone. Permanently,
+//          silently, at student B's first five seconds of typing. The flush
+//          path was worse in shape: `_read(B)` is `[]`, the empty branch called
+//          `_write(B, [])` → `removeItem()` → and then RETURNED `true`, meaning
+//          "everything landed", having landed nothing and destroyed the records
+//          on the way past. All four call sites in game.js and learn.js happen
+//          to guard that with `sessionLogPending(uid) > 0`, which reads 0 for a
+//          foreign queue, so it was latent rather than live. ⚠️ THAT WAS A
+//          PROPERTY OF THE CALLERS, NOT OF THIS MODULE.
+//
+//          ⚠️ THE GRADE WAS NEVER AT RISK — `typing_logs` is written directly
+//          and stats-wal.js has had the ownership guard since v1.0.0. What was
+//          lost is the EVIDENCE behind the grade: the drill-down, the ⟳
+//          button's input, and every measurement ROADMAP items 4, 5 and 6 need.
+//          It is a fourth mechanism for ROADMAP item 1, beside the five-second
+//          floor, the sprint that never closes and the failed upload — and the
+//          only one of the four that can lose many minutes at once.
+//
+//          ⚠️ THE FIX IS NOT A REFUSAL, AND THE DIFFERENCE MATTERS. Making
+//          `_write()` decline when the key belongs to somebody else would have
+//          traded one silent loss for another: the student at the keyboard
+//          would then be the one whose records never persisted. Both queues have
+//          to fit, so both queues get a slot. See _readStore().
+//
+//          New export MAX_QUEUE_OWNERS. tests/queue-owner-test.mjs is the
+//          harness — mutation-verified, 8 failing against v1.4.0.
 //
 // v1.4.0 — ADDS sessionLogPendingSeconds(uid, date). Nothing else changed; the
 //          flush serialization and every existing export behave identically.
@@ -21,45 +57,20 @@
 //          reasoning is in the comment block above sessionLogFlush().
 //          ⚠️ HEADER REPAIR, Round 17 (Linotype): this file arrived with
 //          SESSION_LOG_VERSION already set to '1.3.0' and its header still saying
-//          v1.2.1 — `npm run audit:versions` reported "header comment says v1.2.1
-//          — one of the two is a lie", the twelfth problem in a repo whose
+//          1.2.1, so `npm run audit:versions` reported "header comment says
+//          v1.2.1 — one of the two is a lie", the twelfth problem in a repo whose
 //          standing count is eleven. The code was correct and complete; only the
 //          header was missing. This entry was written from the file's own
 //          sessionLogFlush() comment block and the concurrent round's HANDOFF §0.6
 //          item 8, not invented. NOTHING EXECUTABLE WAS CHANGED.
 //
-// v1.2.1 — COMMENTS ONLY. Invariant citations renumbered against the single
-//          consolidated HANDOFF.md §5. The old numbering was unusable: Round 9
-//          assigned 56-81 and Round 11, told to continue from Round 8's 55, also
-//          started at 56, so every number in that range meant two things and this
-//          file cited both. ⚠️ The numbers in §5 are now APPEND-ONLY — a new
-//          invariant takes the next free number and nothing is ever renumbered
-//          again. Citations carry the invariant's NAME as well, so a number that
-//          somehow drifts can still be resolved.
-//
-// v1.2.0 — `continuation` records may be shorter than the 5-second floor.
-//          DESIGN-TELEMETRY.md §7 step 1.5. game.js and learn.js now close the
-//          OPEN sprint/run when a student switches books, toggles to the other
-//          mode, or hides the tab, so one stretch of typing can arrive as two or
-//          three records: a partial, then the remainder when it finishes. The
-//          5-second floor exists to suppress trivial standalone runs, and a
-//          3-second remainder of an already-recorded 40-second sprint is not
-//          that. ⚠️ Dropping it would make the day's session total quietly
-//          smaller than the day's counter, which is precisely the undercount
-//          step 2 must not inherit. The floor still applies to any record that
-//          starts a unit.
-//
-// v1.1.0 — `serverAt: serverTimestamp()` on every rollup document.
-//          DESIGN-TELEMETRY.md §6.3 / §7 step 1. One field, no behaviour change,
-//          nothing else in this file moved. Every date and duration in this
-//          project is currently stamped by the student's own Chromebook clock;
-//          a child who changes it files work under the wrong day or fakes a WPM
-//          interval, and there is nothing to check that against. serverAt is a
-//          clock the student cannot set, written by Firestore at commit.
-//          ⚠️ IT IS DELIBERATELY NOT USED FOR ANYTHING YET. Nothing reads it,
-//          nothing grades on it, no total derives from it. It exists so that in
-//          120 days there is history to compare against — a signal added the day
-//          you need it has no past. See §7 of HANDOFF.md (Round 13).
+// v1.2.1, v1.2.0, v1.1.0 — invariant-citation renumbering; the `continuation`
+//          exemption from the 5-second floor; and `serverAt`. ⚠️ The two of
+//          those that are BEHAVIOUR, and the reasoning behind them, are in
+//          SEMANTICS below and above sessionLogPush() — they are not history
+//          and they did not move. The round-by-round narrative is in
+//          CHANGELOG.md. Trimmed here in v1.5.0 to hold the 6-entry header
+//          budget (ROADMAP item 7), which this file's own audit enforces.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // WHY THIS FILE EXISTS
@@ -120,6 +131,12 @@
 //   * Persisted to localStorage, uid-scoped, so a queue survives the tab close
 //     that stopped it being flushed. Another student's queue is never read,
 //     never written over, and never deleted by an account that does not own it.
+//     ⚠️ THAT LAST CLAUSE WAS FALSE FROM v1.0.0 TO v1.4.0 AND IS TRUE FROM
+//     v1.5.0. It described a guarantee only `sessionLogClear()` actually made;
+//     `_write()` overwrote the single slot regardless of who owned it. The
+//     sentence is unchanged because it was always the right sentence — what
+//     changed is that the code now keeps it. ⚠️ A comment asserting a property
+//     is not a test of it, and this one read as authoritative for five versions.
 //
 //   * Chunked at 200 records per document, because firestore.rules v2.2.0
 //     requires `sprints.size() <= 200`. Unchunked this is a poison pill: once a
@@ -163,7 +180,7 @@
 //     a tab close would then try to write an empty map into a timestamp field.
 //     Queued records carry `at` (a real ISO string) and nothing else time-like.
 
-export const SESSION_LOG_VERSION = '1.4.0';
+export const SESSION_LOG_VERSION = '1.5.0';
 
 const KEY = 'ttb_sessionq_v1';
 const RECORDS_PER_DOC = 200;   // firestore.rules: sprints.size() <= 200
@@ -171,6 +188,31 @@ const MAX_SECONDS     = 86400; // firestore.rules: seconds <= 86400
 const STALE_DAYS      = 21;
 const TTL_DAYS        = 120;   // matches the live TTL policy on typing_sessions
 const MAX_QUEUE       = 2000;  // a hard ceiling on what one browser can hoard
+
+// How many accounts may hold an unflushed queue on one browser at once.
+// Exported so a harness asserts the real number rather than a copy of it.
+//
+// Eight is a school day: a cart Chromebook sees one class per period and the
+// queues that matter are hours old, not weeks. Slots beyond this are evicted
+// oldest-first, and the account currently typing is never the one evicted.
+export const MAX_QUEUE_OWNERS = 8;
+
+// ⚠️ THE SLOT A SIGNED-OUT STUDENT'S SPRINTS GO IN. (v1.5.0)
+//
+// A guest has no account for a record to belong to YET, and both page
+// controllers used to conclude from that they should throw the record away —
+// game.js dropped it outright, learn.js filed it under the throwaway anonymous
+// uid. Either way a child who typed before signing in left the day's total
+// carrying minutes with no evidence behind them.
+//
+// They go here instead, and the two pages hand them to the real account at
+// sign-in with sessionLogTake() + sessionLogAdopt(). ⚠️ THIS IS THE WHOLE
+// REASON THE STORE IS PER-OWNER: the guest slot and the account slot have to
+// exist at the same moment for the handover to be possible at all.
+//
+// The NUL byte makes it a string no Firebase uid can ever be, so a real
+// account can never collide with it.
+export const GUEST_QUEUE_UID = '\u0000guest';
 
 // Injected by init(). Nothing in this file reaches for a global.
 let _db = null, _collection = null, _addDoc = null, _serverTimestamp = null;
@@ -208,25 +250,121 @@ function _stampServer(payload) {
     return payload;
 }
 
-function _read(uid) {
+// ═══════════════════════════════════════════════════════════════════════════
+// THE STORE  (v1.5.0)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// One localStorage key, holding one slot PER ACCOUNT:
+//
+//     { v: 2, owners: { <uid>: { savedAt, records: [...] }, ... } }
+//
+// ⚠️ THE KEY IS UNCHANGED ON PURPOSE, exactly as stats-wal.js v1.1.0 left its
+// own. A v1 record is migrated in place by _readStore() below. Bumping the key
+// would have thrown away every unflushed queue in the building on deploy day to
+// avoid a case that costs nothing.
+//
+// ⚠️ THE UPLOAD WINDOW, STATED SO NOBODY IS SURPRISED BY IT. Jake uploads one
+// file at a time, so a browser can hold a v2 store and then load a CACHED
+// v1.4.0 module, which does not recognise `v: 2` and will overwrite the whole
+// key with a single-owner v1 record. That loses the other slots — which is
+// precisely what v1.4.0 did every time anyway, so the window is no worse than
+// today and it closes the moment the tab reloads. It is bounded by one deploy;
+// v1.4.0's version of it was bounded by nothing.
+function _readStore() {
+    const empty = { v: 2, owners: {} };
     try {
         const raw = localStorage.getItem(KEY);
-        if (!raw) return [];
+        if (!raw) return empty;
         const q = JSON.parse(raw);
-        if (!q || q.v !== 1 || !Array.isArray(q.records)) return [];
-        if (uid && q.uid !== uid) return [];   // someone else's — invisible to us
-        return q.records;
-    } catch (_) { return []; }
+        if (!q) return empty;
+        if (q.v === 2 && q.owners && typeof q.owners === 'object') {
+            return { v: 2, owners: { ...q.owners } };
+        }
+        // ⚠️ THE v1 MIGRATION. One uid, one array, straight into its own slot.
+        // A malformed record migrates to nothing, which is what v1.4.0's own
+        // reader did with it.
+        if (q.v === 1 && q.uid && Array.isArray(q.records) && q.records.length) {
+            return { v: 2, owners: { [q.uid]: { savedAt: q.savedAt || Date.now(),
+                                                records: q.records } } };
+        }
+        return empty;
+    } catch (_) { return empty; }
 }
 
-function _write(uid, records) {
+// Persist the store, having first made it small enough to be worth persisting.
+//
+// `protectUid` is the account whose write this is, and it is NEVER the one
+// evicted. Dropping the queue of the student who is typing to make room for the
+// queue of a student who left an hour ago would be the same defect this version
+// exists to fix, wearing a politer hat.
+function _writeStore(store, protectUid) {
     try {
-        if (!records.length) { localStorage.removeItem(KEY); return true; }
-        localStorage.setItem(KEY, JSON.stringify({
-            v: 1, uid, savedAt: Date.now(), records
-        }));
-        return true;
+        const owners = store.owners || {};
+
+        // Every slot is pruned, not just the caller's. A queue that has failed
+        // to flush for STALE_DAYS is not going to start, and an account with
+        // nothing left is not an owner — that is what keeps a shared cart
+        // machine from accumulating a term of dead slots.
+        for (const uid of Object.keys(owners)) {
+            const kept = _prune(owners[uid] && owners[uid].records);
+            if (kept.length) owners[uid] = { savedAt: owners[uid].savedAt || Date.now(), records: kept };
+            else delete owners[uid];
+        }
+
+        let uids = Object.keys(owners);
+        if (!uids.length) { localStorage.removeItem(KEY); return true; }
+
+        if (uids.length > MAX_QUEUE_OWNERS) {
+            // Oldest slot out first. Array.prototype.sort is stable, so slots
+            // saved in the same millisecond evict in the order they arrived.
+            const evictable = uids.filter(u => u !== protectUid)
+                .sort((a, b) => (owners[a].savedAt || 0) - (owners[b].savedAt || 0));
+            let over = uids.length - MAX_QUEUE_OWNERS;
+            for (const u of evictable) {
+                if (over <= 0) break;
+                delete owners[u]; over--;
+            }
+            uids = Object.keys(owners);
+        }
+
+        // ⚠️ A QUOTA FAILURE MUST NOT COST THE CURRENT STUDENT THEIR QUEUE.
+        // v1.4.0 returned false and dropped the write on the floor; with several
+        // slots there is something cheaper to give up first. Shed the oldest
+        // OTHER account and try again, down to the caller alone. Only then fail.
+        for (;;) {
+            try {
+                localStorage.setItem(KEY, JSON.stringify({ v: 2, owners }));
+                return true;
+            } catch (_) {
+                const others = Object.keys(owners).filter(u => u !== protectUid)
+                    .sort((a, b) => (owners[a].savedAt || 0) - (owners[b].savedAt || 0));
+                if (!others.length) return false;
+                delete owners[others[0]];
+            }
+        }
     } catch (_) { return false; }
+}
+
+function _read(uid) {
+    if (!uid) return [];
+    const o = _readStore().owners[uid];
+    return (o && Array.isArray(o.records)) ? o.records : [];
+}
+
+// ⚠️ THIS FUNCTION MAY ONLY EVER TOUCH `uid`'s OWN SLOT. That sentence is the
+// entire v1.5.0 fix. See the header.
+function _write(uid, records) {
+    if (!uid) return false;
+    const store = _readStore();
+    if (records && records.length) {
+        store.owners[uid] = { savedAt: Date.now(), records };
+    } else {
+        // An empty queue means THIS student has nothing pending. It has never
+        // meant the browser has nothing pending, and v1.4.0 could not tell the
+        // difference because there was only one slot to remove.
+        delete store.owners[uid];
+    }
+    return _writeStore(store, uid);
 }
 
 // Drop anything too old to be worth writing. Records with no parseable `at`
@@ -234,7 +372,7 @@ function _write(uid, records) {
 // still a record of work somebody did. (Invariant 9, "unknown is not expired".)
 function _prune(records) {
     const cutoff = Date.now() - STALE_DAYS * 86400 * 1000;
-    const kept = records.filter(r => {
+    const kept = (Array.isArray(records) ? records : []).filter(r => {
         const t = Date.parse(r && r.at);
         return !isFinite(t) || t >= cutoff;
     });
@@ -280,6 +418,28 @@ export function sessionLogPush(uid, record) {
 export function sessionLogPending(uid) { return _read(uid).length; }
 
 /**
+ * Remove one owner's records from the store and return them.
+ *
+ * ⚠️ TAKE, NOT READ, AND THE ATOMICITY IS THE POINT. (v1.5.0) The guest-to-
+ * account handover is `sessionLogAdopt(realUid, sessionLogTake(GUEST_QUEUE_UID))`
+ * — the records leave the guest slot in the same step they are handed over, so
+ * a handover interrupted half-way loses them rather than filing them twice.
+ * Losing a guest's unlogged tail costs one sprint's detail; adopting it twice
+ * would inflate a number a teacher grades on. Of the two, this is the direction
+ * to fail in.
+ */
+export function sessionLogTake(uid) {
+    if (!uid) return [];
+    const store = _readStore();
+    const slot = store.owners[uid];
+    const records = (slot && Array.isArray(slot.records)) ? slot.records : [];
+    if (!records.length) return [];
+    delete store.owners[uid];
+    _writeStore(store, null);
+    return records;
+}
+
+/**
  * How many SECONDS are sitting in the local queue for one date, not yet uploaded.
  *
  * ⚠️ ADDED FOR STAGE 2 (v1.4.0). `typing_logs` is now a PROJECTION of
@@ -321,16 +481,15 @@ export function sessionLogAdopt(uid, legacyRecords, fallbackDate) {
     return n;
 }
 
-// Only clears a queue we own.
+// Clear ONE account's queue and nothing else. This is the one path that already
+// had an ownership guard in v1.4.0; it now expresses it by construction rather
+// than by a `return` in front of a `removeItem`.
 export function sessionLogClear(uid) {
-    try {
-        const raw = localStorage.getItem(KEY);
-        if (raw) {
-            const q = JSON.parse(raw);
-            if (q && uid && q.uid && q.uid !== uid) return;
-        }
-        localStorage.removeItem(KEY);
-    } catch (_) {}
+    if (!uid) return;
+    const store = _readStore();
+    if (!store.owners[uid]) return;
+    delete store.owners[uid];
+    _writeStore(store, null);
 }
 
 // Group by the three things that must not be mixed inside one document: the day
