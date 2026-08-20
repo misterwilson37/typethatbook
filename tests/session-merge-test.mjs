@@ -1,4 +1,7 @@
-// session-merge-test.mjs v1.6.0
+// session-merge-test.mjs v1.6.1
+//
+// v1.6.1 — VERSION PIN ONLY. session-log.js is v1.6.0 (Round 24, the evening
+//          guest). No assertion about behaviour changed.
 //
 // v1.4.1 — PATH ONLY. Sources are read as `../` for tests/. No assertion changed.
 //
@@ -397,8 +400,8 @@ if (gameDeps && learnDeps) {
 
 // The module's own version, so a stale copy uploaded out of order is visible in
 // the test output rather than only in the footer.
-ok(mod.SESSION_LOG_VERSION === '1.5.0',
-   `session-log.js reports v1.5.0 (got ${mod.SESSION_LOG_VERSION})`);
+ok(mod.SESSION_LOG_VERSION === '1.6.0',
+   `session-log.js reports v1.6.0 (got ${mod.SESSION_LOG_VERSION})`);
 
 // ─── D. ⚠️ THE REPAIR RESYNC IS GONE, AND THIS PART NOW GUARDS ITS ABSENCE ───
 //

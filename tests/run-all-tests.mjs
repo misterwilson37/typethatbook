@@ -1,3 +1,6 @@
+// run-all-tests.mjs v1.6.0 — Round 24 (Monotype): adopt-date-test.mjs
+// registered. Nothing else changed. 36 harnesses.
+//
 // run-all-tests.mjs v1.5.0 — Round 23 (Empire): guest-merge-test.mjs and
 // queue-owner-test.mjs registered; reconcile-test.mjs and union-clock-test.mjs
 // DELETED with the reconcile tool they covered; real-sessions-fixture.mjs
@@ -190,6 +193,15 @@ const FAST = [
     // game.js v3.35.0 / learn.js v2.20.0.
     ['guest-merge-test.mjs',     'THE GUEST MINUTE: time typed before signing in is merged AND flushed AND lands in the session record, in BOTH modes'],
     ['queue-owner-test.mjs',     'ONE BROWSER, TWO STUDENTS: a second account may not destroy the first\u2019s unflushed queue, by push, by flush or by eviction'],
+
+    // ⚠️ Round 24 (Monotype). THE EVENING GUEST. sessionLogAdopt() recomputed a
+    // record's date from `at.slice(0, 10)` — UTC — throwing away the local date
+    // the caller had already stamped. In Central time that is tomorrow from
+    // 7:00 PM, so an evening guest's clock landed on today and their sprint
+    // record on tomorrow. Invisible during school hours, which is why every
+    // classroom test of the guest handover passed on a build with it.
+    // 4 failing against session-log.js v1.5.0.
+    ['adopt-date-test.mjs',      'THE EVENING GUEST: an adopted sprint keeps the local date the student typed it on, not the UTC one'],
 ];
 
 // ⚠️ RULES — need the Firebase emulator (a JVM plus a jar download), so they are
