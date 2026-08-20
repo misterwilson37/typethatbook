@@ -210,5 +210,54 @@ ok('the student and teacher day formatters produce the same string',
    })());
 
 // ═══════════════════════════════════════════════════════════════════════════
+console.log('\nPart E — THE QUERY SCOPE (the third way the two numbers diverge)');
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⚠️ Parts A–D prove the two sides do the same ARITHMETIC over the same DATES.
+// They say nothing about whether the two sides are looking at the same SET OF
+// DOCUMENTS, and that is where the third divergence lived.
+//
+// daylog.js readWeek() fetches `typing_logs/{uid}_{date}` by document id, with
+// no filter. reports.html used to query `where("classId","==",cid)`. A log
+// stamped `classId: ''` — which game.js's own comment above
+// applyPendingClassAssignment() says happens to any roster-imported student who
+// types before first opening the Lessons page — is visible to the child and
+// invisible to every class query on the page. Day one of a rotation, or day one
+// of a new school, is when every student is in that state at once.
+//
+// These are greps, and honest about being greps: the real proof is a live
+// report against a class containing such a student. What they CAN hold is that
+// the page still reads by id and still tells the teacher when the roster read
+// failed.
+
+ok('reports.html reads daily logs BY DOCUMENT ID',
+   /getDoc\(doc\(db, 'typing_logs', `\$\{uid\}_\$\{date\}`\)\)/.test(reportsCode),
+   'the by-id read is the only read that matches daylog.js');
+
+ok('the roster is an iteration source, not just the class query',
+   /async function readRosterUids\(/.test(reportsCode) &&
+   /collection\(db, 'users'\)/.test(reportsCode));
+
+// ⚠️ THE CLASS QUERY MUST NOT CONTRIBUTE TOTALS. If it ever sums again, a
+// student with a blank classId silently drops back out of the report.
+ok('the class query is discovery-only — its documents are never summed',
+   /discoveredByLogs/.test(reportsCode) &&
+   !/docs\.forEach\([\s\S]{0,400}?userMap\[uid\]\.seconds \+=/.test(reportsCode));
+
+ok('a failed roster read is reported, never silently degraded',
+   /rosterOk === false/.test(reportsCode) &&
+   /THE ROSTER READ FAILED/.test(reportsSrc));
+
+ok('documents the class query could not see are counted on screen',
+   /hiddenFromQuery/.test(reportsCode));
+
+// ⚠️ A missing day must never read as a zero day.
+ok('a failed by-id read returns an error, not a zero',
+   /function readLogById[\s\S]{0,600}?return \{ error:/.test(reportsCode));
+
+ok('REPORTS_VERSION is 2.21.0 or later',
+   /const REPORTS_VERSION = "2\.(2[1-9]|[3-9]\d)\./.test(reportsSrc));
+
+// ═══════════════════════════════════════════════════════════════════════════
 console.log(`\n${fail === 0 ? '✓ PASS' : '✗ FAIL'} — ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
