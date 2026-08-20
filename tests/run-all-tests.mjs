@@ -157,6 +157,11 @@ const FAST = [
     ['crossmode-overwrite-test.mjs', 'ONE DOCUMENT, TWO WRITERS: the cross-mode day-total overwrite (\u00a73.1), reproduced against the shipped build'],
     ['union-clock-test.mjs',     'interval UNION vs deduped SUM on the four real 2026-08-18 rollups, and the rebuild-disabled guard'],
     ['week-agreement-test.mjs',  'Rule 11 date agreement at all 24 hours \u2014 run as TZ=America/Chicago for the real check'],
+    // ⚠️ ROADMAP Phase B step B1. Written test-first and RED against daylog.js
+    // v1.1.0 — it could not even import. Green from v1.2.0. Its Part F LIFTS
+    // readLogTotals() OUT OF reports.html and drives it against daylog.js's
+    // totalsOf(), so the student's reader and the teacher's reader cannot drift.
+    ['daylog-cutover-test.mjs',  'the per-source cutover: pre-cutover days read EXACTLY as before, post-cutover days sum flat + splits, and reports.html carries the identical gate'],
     ['tab-lifetime-test.mjs',    'THE MISSING AXIS: two controllers over one shared document across real tab orderings \u2014 sequential, concurrent, stale-tab-after-lunch, open across midnight'],
 ];
 

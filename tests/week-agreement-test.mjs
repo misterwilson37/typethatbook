@@ -1,4 +1,16 @@
-// week-agreement-test.mjs v1.0.0
+// week-agreement-test.mjs v1.1.0 — amended Round 21 (Hammond), ROADMAP Phase B.
+//
+// ⚠️ v1.1.0 EXISTS BECAUSE THIS HARNESS BROKE THE MOMENT PHASE B TOUCHED THE
+// READERS, WHICH IS THE POINT OF IT. Both readers gained a second parameter —
+// totalsOf(data, dateStr) / readLogTotals(data, dateStr) — so the lift markers
+// no longer matched and the file died on `could not find in source`.
+// ⚠️ IT HAD BEEN IN NO LIST UNTIL THE SAME MORNING. Registered in Phase A hours
+// earlier; had it still been an orphan, Phase B would have silently removed the
+// only mechanical guard on Priority 1 and the suite would have stayed green.
+// ⚠️ A LIFT BY EXACT SIGNATURE IS BRITTLE ON PURPOSE — it fails loudly when a
+// shared function changes shape. Do not loosen these markers to `totalsOf(`.
+// The brittleness is the alarm.
+//
 //
 // ⚠️ PATHS: sources are read as `../` — this file lives in tests/ (Round 17).
 //
@@ -69,8 +81,22 @@ function lift(src, marker) {
 // (weekStartOf() calls ymd()), and re-declaring those here would be the
 // duplication this file exists to argue against. reports.html has no exports —
 // it is a page — so its two functions are lifted out of the markup instead.
-const studentTotals = lift(daylogSrc,  'function totalsOf(data) {');
-const teacherTotals = lift(reportsSrc, 'function readLogTotals(data) {');
+const studentTotals = lift(daylogSrc,  'function totalsOf(data, dateStr) {');
+const teacherTotals = lift(reportsSrc, 'function readLogTotals(data, dateStr) {');
+
+// ⚠️ THE LIFTED COPIES CLOSE OVER SOURCE_SPLIT_CUTOVER, WHICH IS A MODULE-LEVEL
+// CONST IN EACH FILE AND IS NOT CARRIED BY THE LIFT. Declaring it here would be
+// a THIRD copy of the cutover date — the exact duplication this file argues
+// against — so it is read out of each source and asserted equal instead.
+const cutOf = (src, what) => {
+    const m = src.match(/SOURCE_SPLIT_CUTOVER\s*=\s*["']([0-9-]+)["']/);
+    if (!m) throw new Error('no SOURCE_SPLIT_CUTOVER in ' + what);
+    return m[1];
+};
+const SOURCE_SPLIT_CUTOVER = cutOf(daylogSrc, 'daylog.js');
+ok('the two files agree on the cutover date',
+   SOURCE_SPLIT_CUTOVER === cutOf(reportsSrc, 'reports.html'),
+   `daylog ${SOURCE_SPLIT_CUTOVER} vs reports ${cutOf(reportsSrc, 'reports.html')}`);
 const teacherSat    = lift(reportsSrc, 'function getLastSaturday(from = new Date()) {');
 const teacherFmt    = lift(reportsSrc, 'function toDateStr(d) {');
 const { weekStartOf: studentWeek, localDateStr: studentYmd } =
@@ -100,10 +126,26 @@ const DOCS = [
     ['flat zero over a legacy split', { seconds: 0, secondsLibrary: 120, secondsSchool: 90 }],
 ];
 
+// ⚠️ EVERY DOCUMENT IS DRIVEN ON BOTH SIDES OF THE CUTOVER, AND WITH NO DATE AT
+// ALL. Agreement in the legacy branch alone would pass while the two files
+// disagreed about every day from the deploy weekend onward — which is the only
+// period anyone is going to grade.
+const afterCut = (() => {
+    const d = new Date(SOURCE_SPLIT_CUTOVER + 'T12:00:00');
+    d.setDate(d.getDate() + 3);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+           '-' + String(d.getDate()).padStart(2, '0');
+})();
+
 for (const [name, doc] of DOCS) {
-    const a = studentTotals(doc), b = teacherTotals(doc);
-    ok(name, a.seconds === b.seconds && a.chars === b.chars && a.mistakes === b.mistakes,
-       `student ${a.seconds}s/${a.chars}ch vs teacher ${b.seconds}s/${b.chars}ch`);
+    for (const [when, dateStr] of [['pre-cutover', '2026-08-18'],
+                                   ['post-cutover', afterCut],
+                                   ['no date', undefined]]) {
+        const a = studentTotals(doc, dateStr), b = teacherTotals(doc, dateStr);
+        ok(`${name} — ${when}`,
+           a.seconds === b.seconds && a.chars === b.chars && a.mistakes === b.mistakes,
+           `student ${a.seconds}s/${a.chars}ch vs teacher ${b.seconds}s/${b.chars}ch`);
+    }
 }
 
 // A whole week, summed by each side the way each side actually sums it.
@@ -113,9 +155,11 @@ for (const [name, doc] of DOCS) {
         { secondsLibrary: 200, secondsSchool: 407, charsLibrary: 100, charsSchool: 300 },
         { seconds: 903, chars: 1000 }, { seconds: 45, chars: 60 }, {},
     ];
-    const s = week.reduce((a, d) => a + studentTotals(d).seconds, 0);
-    const t = week.reduce((a, d) => a + teacherTotals(d).seconds, 0);
-    ok('a seven-day week sums identically on both sides', s === t, `${s} vs ${t}`);
+    for (const [when, dateStr] of [['pre-cutover', '2026-08-18'], ['post-cutover', afterCut]]) {
+        const s = week.reduce((a, d) => a + studentTotals(d, dateStr).seconds, 0);
+        const t = week.reduce((a, d) => a + teacherTotals(d, dateStr).seconds, 0);
+        ok(`a seven-day week sums identically on both sides — ${when}`, s === t, `${s} vs ${t}`);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -673,7 +673,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.21.0";
+    const REPORTS_VERSION = "2.22.0";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
@@ -1248,15 +1248,53 @@
             // would otherwise read as zero and lose a real day of typing.
             // Those days heal themselves: the next flat write from either
             // page supersedes them, and ⟳ rewrites them flat outright.
-            function readLogTotals(data) {
-                if ('seconds' in data || 'chars' in data || 'mistakes' in data) {
-                    return { seconds: data.seconds || 0, chars: data.chars || 0, mistakes: data.mistakes || 0 };
-                }
-                return {
+            // ═════════════════════════════════════════════════════════════════
+            // v2.22.0 — THE PER-SOURCE CUTOVER. ROADMAP Phase B, step B2.
+            // ═════════════════════════════════════════════════════════════════
+            //
+            // ⚠️ THIS CONSTANT AND THIS FUNCTION ARE A SECOND COPY OF daylog.js's
+            // SOURCE_SPLIT_CUTOVER AND totalsOf(). That is a Rule 9 smell and it
+            // is accepted for exactly one reason: reports.html is a standalone
+            // page that imports no modules, so it cannot share the student's
+            // copy. tests/daylog-cutover-test.mjs Part G LIFTS THIS FUNCTION OUT
+            // OF THIS FILE and drives it against daylog.js's on the same inputs,
+            // so the two cannot drift silently.
+            //
+            // ⚠️ IF YOU CHANGE ONE, CHANGE BOTH, IN THE SAME DEPLOY. A teacher
+            // and a student reading the same document and getting different
+            // numbers is the entire defect this project exists to have ended.
+            const SOURCE_SPLIT_CUTOVER = "2026-08-22";
+
+            // Days on or after the cutover read `seconds` PLUS both split
+            // triples; days before it read legacy-first, exactly as v2.21.0 did.
+            // After the writers change, the flat field is FROZEN — never written
+            // again — so on a post-cutover document it is the pre-cutover
+            // remainder, not a duplicate of the splits beside it.
+            //
+            // ⚠️ A MISSING dateStr TAKES THE OLD PATH ON PURPOSE: a caller that
+            // forgets the date must fail toward "nothing changed" rather than
+            // start summing historical documents. YYYY-MM-DD sorts
+            // lexicographically, so the string compare is exact.
+            function readLogTotals(data, dateStr) {
+                const flat = {
+                    seconds:  data.seconds  || 0,
+                    chars:    data.chars    || 0,
+                    mistakes: data.mistakes || 0,
+                };
+                const split = {
                     seconds:  (data.secondsLibrary  || 0) + (data.secondsSchool  || 0),
                     chars:    (data.charsLibrary    || 0) + (data.charsSchool    || 0),
                     mistakes: (data.mistakesLibrary || 0) + (data.mistakesSchool || 0),
                 };
+                if (dateStr && dateStr >= SOURCE_SPLIT_CUTOVER) {
+                    return {
+                        seconds:  flat.seconds  + split.seconds,
+                        chars:    flat.chars    + split.chars,
+                        mistakes: flat.mistakes + split.mistakes,
+                    };
+                }
+                if ('seconds' in data || 'chars' in data || 'mistakes' in data) return flat;
+                return split;
             }
 
             // ═════════════════════════════════════════════════════════════════
@@ -1321,7 +1359,11 @@
                 if (res.error) { unreadable++; return; }
                 if (res.missing) return;
                 const data = res.data;
-                const t = readLogTotals(data);
+                // ⚠️ p.date, NOT data.date. The pair drives the point read, so
+                // it is the date this document was FETCHED under; data.date is
+                // whatever the writer stamped inside it and has been wrong
+                // before. The gate must key off the id, like the read did.
+                const t = readLogTotals(data, p.date);
                 if (!userMap[p.uid]) {
                     userMap[p.uid] = {
                         uid: p.uid,

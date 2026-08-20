@@ -1,5 +1,41 @@
-// daylog.js v1.1.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
+// daylog.js v1.2.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
 //                     DOCUMENT IS A PROJECTION OF THE SESSION RECORD.
+//
+// v1.2.0 — ⚠️ ROADMAP PHASE B, STEP B2. THE READER HALF OF THE §3.1 FIX, AND IT
+//          SHIPS ALONE. totalsOf() is now DATE-GATED and EXPORTED.
+//
+//          §3.1: game.js and learn.js each write the whole day total under
+//          `seconds`, so a tab left open from an earlier period overwrites a
+//          newer total and a whole mode's time disappears. The fix is per-source
+//          FIELDS — secondsLibrary / secondsSchool — which firestore.rules
+//          v2.5.0 has permitted since v2.4.0 and which needs NO RULES DEPLOY.
+//          Verified by execution: tests/rules-probe.test.mjs Part B.
+//          (⚠️ The per-source DOCUMENT id design in HANDOFF §0.-4.C is DENIED by
+//          the deployed rules. Do not revive it. §0.-5.B.)
+//
+//          ⚠️ THE BLOCKER WAS NEVER THE WRITERS — IT WAS THIS FUNCTION. Reading
+//          legacy-first means a document holding `seconds` beside split fields
+//          returns `seconds` and silently drops the splits. Move the writers
+//          first and every afternoon after the switch vanishes behind that
+//          morning's flat number. So the readers go first, alone, and with no
+//          writer producing splits the totals are BIT-FOR-BIT what they were.
+//          That is the safety argument for shipping this file by itself: it is
+//          a no-op until game.js and learn.js follow.
+//
+//          ⚠️ WHY A DATE GATE INSTEAD OF JUST SUMMING. Plain flat+split summing
+//          double-counts the days written during the v3.29.x window, when the
+//          split shipped and was reverted — those documents carry a flat number
+//          AND splits describing the same seconds. That is precisely why v2.14.0
+//          made this legacy-first, and undoing it blindly re-breaks days that
+//          are currently right. Jake has ruled that historical data is good
+//          enough and is not to be repaired (HANDOFF §0.-7.A item 4); the gate
+//          honours that exactly — every day before the cutover reads as it does
+//          today and no past number moves.
+//
+//          ⚠️ tests/daylog-test.mjs PART B IS THE PROOF AND IT PASSES UNCHANGED.
+//          Its documents are dated 08-17/18/19, all pre-cutover. IF THAT
+//          HARNESS EVER NEEDS EDITING TO ACCOMMODATE THIS CHANGE, THE CUTOVER IS
+//          WRONG — stop and re-read this note.
 //
 // v1.1.0 adds the Stage 2 half: sessionSignature(), sumDaySessions() and
 // projectDayTotal(). v1.0.0's readWeek() is unchanged.
@@ -37,7 +73,34 @@
 // tests/week-anchor-test.mjs and tests/daylog-test.mjs both hold that line. A
 // mismatch here does not throw — it silently reads the wrong seven days.
 
-export const DAYLOG_VERSION = "1.1.0";
+export const DAYLOG_VERSION = "1.2.0";
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE PER-SOURCE CUTOVER
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Days on or after this date read `seconds` PLUS both split triples. Days before
+// it read legacy-first, exactly as every version up to v1.1.0 did.
+//
+// ⚠️ A SATURDAY, ON PURPOSE. The school week is Sat–Fri everywhere in this
+// project. A cutover on any other weekday leaves one week half in the old shape
+// and half in the new, and a weekly total spanning the seam becomes the one
+// number nobody can explain to a parent. Cutting on a week boundary means no
+// week is ever mixed. tests/daylog-cutover-test.mjs A3 holds this.
+//
+// ⚠️ THIS MUST BE THE SAME VALUE AS `SOURCE_SPLIT_CUTOVER` IN reports.html.
+// reports.html imports nothing — it is a standalone page — so it keeps its own
+// copy of this constant and of totalsOf(). Two copies of one rule is a Rule 9
+// smell and it is accepted here for exactly one reason: the alternative is the
+// teacher's page importing a module the student's page also imports, which the
+// page cannot do. tests/daylog-test.mjs Part G lifts reports.html's copy and
+// drives it against this one so the pair cannot drift silently.
+//
+// ⚠️ MOVING THIS DATE AFTER THE WRITERS SHIP WILL LOSE OR DOUBLE TIME. Later,
+// and days between the two values read legacy-first while carrying only splits —
+// they read as ZERO. Earlier, and v3.29.x days start double-counting. Set it
+// once, to the deploy weekend, and leave it.
+export const SOURCE_SPLIT_CUTOVER = "2026-08-22";
 
 // Local-noon date arithmetic throughout. Never toISOString(): that is UTC, and
 // an offset of a few hours shifts a date string by a whole day, which here means
@@ -73,26 +136,47 @@ export function localDateStr(now = new Date()) { return ymd(now); }
 // One document's three numbers, defaulted. A day with no document is a day with
 // no typing, which is zero — NOT a failure, and not a reason to leave the totals
 // unset.
-function totalsOf(data) {
+export function totalsOf(data, dateStr) {
     if (!data) return { seconds: 0, chars: 0, mistakes: 0 };
-    // ⚠️ LEGACY-FIRST, mirroring reports.html's readLogTotals(). The per-source
-    // split (secondsLibrary/secondsSchool) was deployed and then REVERTED in
-    // game.js v3.30.0 / learn.js v2.15.0, so a handful of documents written
-    // during that window carry split fields and no flat number. Summing both
-    // shapes would double-count every normal day; reading the split ONLY when
-    // there is no flat field recovers those few days and nothing else.
-    if ('seconds' in data || 'chars' in data || 'mistakes' in data) {
-        return {
-            seconds:  data.seconds  || 0,
-            chars:    data.chars    || 0,
-            mistakes: data.mistakes || 0,
-        };
-    }
-    return {
+
+    const flat = {
+        seconds:  data.seconds  || 0,
+        chars:    data.chars    || 0,
+        mistakes: data.mistakes || 0,
+    };
+    const split = {
         seconds:  (data.secondsLibrary  || 0) + (data.secondsSchool  || 0),
         chars:    (data.charsLibrary    || 0) + (data.charsSchool    || 0),
         mistakes: (data.mistakesLibrary || 0) + (data.mistakesSchool || 0),
     };
+
+    // ⚠️ ON OR AFTER THE CUTOVER: FLAT + SPLITS. After the writers change, the
+    // flat field is FROZEN — never written again — so whatever sits in it is the
+    // pre-cutover remainder for that day, not a duplicate of the splits beside
+    // it. On the cutover day itself a document can legitimately hold a morning's
+    // flat number and an afternoon's splits, and both are real. Legacy-first
+    // there would return the morning and throw the afternoon away.
+    //
+    // ⚠️ A MISSING dateStr DELIBERATELY TAKES THE OLD PATH. A caller that forgets
+    // to pass the date must fail toward "nothing changed" rather than start
+    // summing historical documents and moving numbers that are already correct.
+    // String comparison is safe and intended: YYYY-MM-DD sorts lexicographically.
+    if (dateStr && dateStr >= SOURCE_SPLIT_CUTOVER) {
+        return {
+            seconds:  flat.seconds  + split.seconds,
+            chars:    flat.chars    + split.chars,
+            mistakes: flat.mistakes + split.mistakes,
+        };
+    }
+
+    // ⚠️ BEFORE THE CUTOVER: LEGACY-FIRST, BYTE-FOR-BYTE THE v1.1.0 BEHAVIOUR.
+    // The per-source split shipped in game.js v3.29.0 and was REVERTED in
+    // v3.30.0, so a handful of documents from that window carry split fields and
+    // no flat number. Summing both shapes there would double-count every
+    // ordinary day; reading the split ONLY when there is no flat field recovers
+    // those few days and touches nothing else.
+    if ('seconds' in data || 'chars' in data || 'mistakes' in data) return flat;
+    return split;
 }
 
 /**
@@ -116,7 +200,7 @@ export async function readWeek({ db, doc, getDoc, uid, dateStr }) {
     const results = await Promise.all(dates.map(async (date) => {
         try {
             const snap = await getDoc(doc(db, 'typing_logs', `${uid}_${date}`));
-            return { date, totals: totalsOf(snap.exists() ? snap.data() : null) };
+            return { date, totals: totalsOf(snap.exists() ? snap.data() : null, date) };
         } catch (e) {
             console.warn('[daylog] read failed', date, e && e.message);
             return { date, totals: null };
