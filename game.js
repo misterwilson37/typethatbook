@@ -1,5 +1,13 @@
 // game.js v3.30.0
 //
+// v3.34.0 — ⚠️⚠️ EMERGENCY REVERT OF THE v3.32.0 PROJECTION. The daily total is
+//           the in-memory counter again. `typing_sessions` was found to contain
+//           OVERLAPPING rollups and NEGATIVE character counts (HANDOFF §0.0), so
+//           deriving a grade from it makes the grade the corrupt number. Stage 1
+//           — one document, HUD reads typing_logs, no stats/time_tracking — is
+//           KEPT and does not depend on sessions. Sessions are still written and
+//           still feed the drill-down; they just cannot decide a grade.
+//
 // v3.33.0 — ⚠️ THE HUD FOLLOWS THE DOCUMENT. Stage 2 made the WRITE a projection
 //           of typing_sessions and left the HUD painting the old in-memory
 //           counter — two different quantities, which is the divergence this
@@ -311,15 +319,19 @@ import { statsWalSave, statsWalRecover } from "./stats-wal.js";
 // time. See session-log.js for both defects.
 import {
     sessionLogInit, sessionLogPush, sessionLogFlush,
-    sessionLogPending, sessionLogAdopt, sessionLogPendingSeconds,
+    // sessionLogPendingSeconds is NOT imported — see the daylog.js import note.
+    sessionLogPending, sessionLogAdopt,
 } from "./session-log.js";
 // The time readout, shared with learn.js. Extracted BECAUSE this file's timer
 // slot held three different quantities depending on settings, and School's held a
 // fourth. DOM-free: it returns strings and this file writes them.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
 // ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
-import { readWeek, applyWeekToStats, readDaySessions, projectDayTotal,
-         DAYLOG_VERSION } from "./daylog.js";
+// ⚠️ readDaySessions/projectDayTotal are NOT imported. They exist in daylog.js
+// and are used by nothing shipped — v3.34.0 reverted the projection. Leaving the
+// import in would make it one keystroke to re-enable a grade computed from
+// records known to overlap. See HANDOFF §0.0 before touching this line.
+import { readWeek, applyWeekToStats, DAYLOG_VERSION } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // The version footer's three primary reads (this html file, this js file's own
 // VERSION, style.css) plus the lazy full-build panel on hover. See
@@ -341,7 +353,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.33.0";
+const VERSION = "3.34.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -3968,52 +3980,40 @@ async function _flushAllInner(reason, final = false) {
     if (walDirty || final || statsDocDirty) {
         const today = getLocalDateStr();
 
-        // ⚠️ STAGE 2 (v3.32.0) — THIS NUMBER IS DERIVED, NOT REPORTED.
+        // ⚠️⚠️ v3.34.0 — THE PROJECTION IS REVERTED. THE DAILY TOTAL IS THE
+        // COUNTER AGAIN. DO NOT PUT IT BACK WITHOUT READING HANDOFF §0.0.
         //
-        // It used to be `statsData.secondsToday`: an in-memory counter seeded at
-        // load and added to. Two tabs open at once each held their own, and
-        // whichever flushed second overwrote the other's contribution outright.
-        // The day total is now
+        // v3.32.0 made this number `server sessions + local queue + open sprint`,
+        // on the premise that `typing_sessions` is an append-only record that
+        // cannot overstate what a child typed. ⚠️ THAT PREMISE IS FALSE. Jake's
+        // drill-down on 2026-08-19 (HANDOFF §0.0) shows four rollups for one
+        // student on 08-18 whose wall-clock windows OVERLAP — one covering
+        // 10:47–11:16 and another 10:48–10:55, sharing sprint minutes with
+        // different durations and character counts. A student cannot type two
+        // different sprints at the same minute. Other records on 08-17 carry
+        // NEGATIVE character counts. Each document's stored total matches its own
+        // sprints, which is why Round 18's ten-document spot check passed and why
+        // nothing here caught it.
         //
-        //     sessions already on the server + this device's queue + this tab's
-        //     still-open sprint
+        // ⚠️ PROJECTING THE GRADE FROM THOSE RECORDS MAKES THE GRADE THE CORRUPT
+        // NUMBER INSTEAD OF MERELY COMPARING AGAINST IT. That is strictly worse
+        // than the counter, whose failures are at least understood.
         //
-        // The first term is shared, append-only and deduped, so two tabs can no
-        // longer erase each other: each adds only its own unflushed tail on top
-        // of the same server-derived base, and that tail reappears for everyone
-        // the moment it is logged. See daylog.js projectDayTotal().
+        // What is KEPT from this round and is not in question: loadUserStats()
+        // reads the week from typing_logs (one number, no stats/time_tracking),
+        // and the HUD is reset to whatever was actually written below. Those do
+        // not depend on sessions being trustworthy. Only the projection did.
         //
-        // ⚠️ THE OPEN SPRINT IS READ FROM THE WATERMARKS THAT ALREADY EXIST —
-        // sprintSeconds vs sprintLoggedSeconds — so there is no second set of
-        // books to keep, and nothing new to reset. If you add a reset site for
-        // one, you have added it for both by construction. (§3.3.)
-        const srv = await readDaySessions({
-            db, collection, query, where, getDocs, uid: currentUser.uid, dateStr: today });
-
-        // ⚠️ A FAILED SESSION READ WRITES NOTHING AT ALL. A projection computed
-        // from a failed read is not a smaller number, it is an invented one, and
-        // it would land on top of a correct stored value. The WAL keeps the local
-        // copy and the next flush retries; refusing costs one flush and loses
-        // nothing. Same principle as readWeek()'s partial-read refusal.
-        if (!srv.ok) {
-            console.warn(`Session read failed (${reason}) — daily log left alone this flush.`);
-            ok = false;
-        } else {
-        const queued = {
-            seconds:  sessionLogPendingSeconds(currentUser.uid, today),
-            chars:    0, mistakes: 0,
+        // ⚠️ SESSIONS REMAIN THE DRILL-DOWN AND THE RECONCILE INPUT. They are not
+        // deleted and nothing stops writing them — they are the only evidence
+        // that will identify whatever is producing the overlaps. They are simply
+        // no longer permitted to decide a grade.
+        const projected = {
+            seconds:  Math.max(0, Math.round(statsData.secondsToday || 0)),
+            chars:    Math.max(0, Math.round(statsData.charsToday   || 0)),
+            mistakes: Math.max(0, Math.round(statsData.mistakesToday|| 0)),
         };
-        // ⚠️ CHARS AND MISTAKES ARE NOT PROJECTED FROM THE QUEUE and that is
-        // deliberate, not an oversight: session-log.js exposes queued SECONDS
-        // only, because seconds are what Jake grades on and a second accessor
-        // for figures nobody grades on is surface area for nothing. They ride
-        // the counter as before and are corrected by ⟳ when they matter.
-        const open = {
-            seconds:  Math.max(0, sprintSeconds - sprintLoggedSeconds),
-            chars:    0, mistakes: 0,
-        };
-        const projected = projectDayTotal(srv, queued, open);
-
+        {
         try {
             await setDoc(doc(db, "typing_logs", `${currentUser.uid}_${today}`), {
                 uid: currentUser.uid,

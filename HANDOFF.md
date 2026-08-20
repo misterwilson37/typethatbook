@@ -5,6 +5,12 @@
      amended 2026-08-19 by Round 18 (Salter); amended 2026-08-19 by Round 19
      (Hermes).
 
+     v14.23.0 — Round 19, NINTH pass, LATE 2026-08-19. ⚠️⚠️⚠️ §0.0 IS REWRITTEN
+     AND IS AN EMERGENCY BRIEFING. typing_sessions contains OVERLAPPING rollups
+     and NEGATIVE character counts. Stage 2 (the grade derived from sessions) was
+     ALREADY DEPLOYED when this was found and is REVERTED in game.js v3.34.0 /
+     learn.js v2.19.0. Stage 1 is kept. Read §0.0 before anything.
+
      v14.22.0 — Round 19, EIGHTH pass: reports.html 2.18.0. ⚠️ THE COVERAGE DATE
      WAS OFF BY ONE — learn.js v2.7.0 was DEPLOYED on 2026-08-18, so that day is
      only PARTLY covered and the first fully-covered day is 08-19. A DEPLOY DATE
@@ -145,7 +151,132 @@ Blick (3) · Dvorak (2) · Underwood (1).
 
 ---
 
-## §0.0. ⚠️⚠️ THE ONLY THING THAT MATTERS: ONE NUMBER, NOT THREE
+## §0.0. ⚠️⚠️⚠️ START HERE — `typing_sessions` IS CORRUPT AND STAGE 2 IS REVERTED
+
+**Written 2026-08-19, late, at the end of Round 19. Jake has students typing in
+the morning. Read this section completely before writing a line of code.**
+
+### 0.0.A THE EVIDENCE, FROM JAKE'S OWN DRILL-DOWN
+
+One student, 2026-08-18. `typing_logs` says **13m 27s**. The reconcile sweep says
+**32m 21s**. The sweep's arithmetic is CORRECT — it is the exact sum of four
+rollup documents. The records are what is wrong.
+
+| document stamp | its own sprints sum to | the window its sprints cover |
+|---|---|---|
+| 10:25 AM | 891s ✓ | **10:47 – 11:16** |
+| 10:40 AM | 486s ✓ | **10:27 – 10:38** |
+| 10:43 AM | 245s ✓ | 10:43 – 10:46 |
+| 10:48 AM | 319s ✓ | 10:48 – 10:55 |
+
+**Three separate defects are visible here:**
+
+1. ⚠️ **THE WINDOWS OVERLAP.** The 10:25 document covers 10:47–11:16. The 10:48
+   document covers 10:48–10:55. They share sprint minutes (10:49, 10:55) with
+   **different durations and different character counts**. A student cannot be
+   typing two different sprints in the same minute. This is one stretch of typing
+   recorded twice by two writers — and because the sprint lists differ,
+   `sessionSignature()` sees two distinct documents and counts both in full.
+   **THE DUPLICATE DETECTION CANNOT SEE A PARTIAL OVERLAP.**
+2. ⚠️ **DOCUMENT TIMESTAMPS DO NOT MATCH THEIR CONTENTS.**
+   `_sessionLogFlushInner()` stamps each rollup with `chunk[0].at` — its first
+   sprint. The 10:25 document's first sprint is 10:47. The 10:40 document's is
+   10:27. That invariant is broken and nobody knows by what.
+3. ⚠️ **NEGATIVE CHARACTER COUNTS.** On 08-17 the same student has a sprint
+   reading `0 WPM, -362%, -29 ch`. Characters cannot be negative. That is not a
+   disagreement between records, it is garbage inside one.
+
+Characters corroborate: **1,620** across the sessions against **839** in the log.
+
+⚠️ **WHY ROUND 18's VERIFICATION PASSED AND WHY NO HARNESS CAUGHT IT.** Round 18
+checked that each document's stored totals equal the sum of its own `sprints[]`.
+**All four documents above pass that check.** Internal consistency says nothing
+about whether two documents describe the same minutes. Every test in this repo is
+arithmetic on records; none of them compares records to each other in time.
+**The check that would have found this is: do any two rollups for one student on
+one day overlap in wall-clock time?** Nobody had written it. Write it.
+
+### 0.0.B WHAT WAS DONE ABOUT IT, AT 3AM, AND WHY
+
+**Stage 2 was deployed to production before this was found.** `game.js` v3.32.0
+and `learn.js` v2.17.0 made the graded daily total
+`server sessions + local queue + open sprint` — **a grade derived from the
+records above.** That does not compare a number against corruption, **it makes
+the grade the corruption.** It is strictly worse than the counter, whose failure
+modes are at least understood and bounded.
+
+⚠️ **REVERTED IN `game.js` v3.34.0 AND `learn.js` v2.19.0.** The daily total is
+`statsData.secondsToday` again. `readDaySessions`, `projectDayTotal` and
+`sessionLogPendingSeconds` are **not imported** by either file — deliberately, so
+re-enabling it is not one keystroke. `session-merge-test.mjs` v1.5.0 asserts
+their ABSENCE, because the failure is silent: grades inflate and every arithmetic
+test stays green.
+
+**KEPT, because none of it depends on sessions being trustworthy:**
+
+* One number. `loadUserStats()` reads the week from the seven
+  `typing_logs/{uid}_{date}` documents the report grades from.
+  `users/{uid}/stats/time_tracking` is gone from every file.
+* The HUD is reset to whatever was actually written, so the student's screen and
+  the report cannot drift.
+* `firestore.rules` v2.5.0 owner-read. `update-gate.js`. `daylog.js`'s
+  `readWeek()`.
+
+**Sessions are still written and still feed the drill-down.** They are not
+deleted and nothing stops writing them — **they are the only evidence that will
+identify whatever is producing the overlaps.** They simply may not decide a grade.
+
+### 0.0.C ⚠️ WHAT MUST NOT HAPPEN
+
+* ⚠️ **DO NOT PRESS `Rebuild from sessions`. EITHER DIRECTION.** Up-moves were
+  recommended earlier in Round 19 on the reasoning that sessions cannot overstate
+  what a child typed. **That reasoning is dead.** The tool should be disabled in
+  `reports.html`; Round 19 ran out of time and did not do it. **Doing that is the
+  first job of Round 20.**
+* ⚠️ **DO NOT RE-DERIVE ANY GRADE FROM `typing_sessions`** until the overlap
+  cause is found AND a harness exists that would have caught it.
+* ⚠️ **DO NOT DELETE THE OVERLAPPING DOCUMENTS.** They are the evidence.
+
+### 0.0.D ⚠️ WHERE ROUND 20 SHOULD START — three candidates, no evidence for any
+
+**Do not pick one and build. Get a diagnostic first.** Round 16 formed a theory
+in this area and Jake's console output killed it; §6 item 7 still reads
+CAUSE UNKNOWN — DO NOT GUESS.
+
+1. **Two writers at once.** A stale cached page controller and a current one, or
+   Library and School in two tabs, each with its own in-memory watermark
+   (`sprintLoggedSeconds` / `stepLoggedSeconds`, §3.3). Two watermarks over one
+   stretch of typing produce exactly the overlap shape seen above.
+2. **`sessionLogAdopt()` re-adopting.** It exists to migrate the legacy sprint
+   array out of `ttb_wal_v2`. If it ever runs twice, or the legacy array is not
+   cleared, already-uploaded records are re-queued and re-chunked — different
+   chunk boundaries, different signature, counted again.
+3. **A failed queue trim.** `_sessionLogFlushInner()` writes the document, then
+   trims the queue and persists it. If the page dies in between, those records
+   are re-sent next load — and because more records have accumulated, the new
+   chunk is a SUPERSET, which is precisely a partial overlap.
+
+**The negative character count is the cheapest thread**, because whatever
+produced `-29 ch` is a bug with a line number, and it may be the same writer.
+
+⚠️ **THE FIRST THING TO BUILD IS A DETECTOR, NOT A FIX**: for one student-day,
+does any sprint timestamp appear in more than one rollup? Run it across the
+corpus. That turns this from an argument into a population of cases.
+
+### 0.0.E WHAT JAKE CAN AND CANNOT DO WITH THE DATA HE HAS
+
+* **He cannot take a defensible minutes grade for the week of 2026-08-15.** He
+  knows. He is giving students what they have.
+* **The sprint-level detail is still the best evidence available** — individual
+  runs with their own timestamps, WPM and character counts. "Did this student
+  show up and type most days" is answerable. "How many minutes exactly" is not.
+* **From the v3.34.0 deploy forward the counter is the only measure**, written to
+  one document that both he and the student read. That is Stage 1, and Stage 1
+  was never in question.
+
+---
+
+## §0.0.1 (was §0.0) — ONE NUMBER, NOT THREE
 
 **If you read one section of this document, read this one. If everything else in
 this repo works and this does not, nothing in this repo works.**
@@ -1650,8 +1781,8 @@ Round 16.**
 
 | file | version |
 |---|---|
-| `game.js` | 3.33.0 — ⚠️ Round 19 Stage 2 + HUD follows the document |
-| `learn.js` | 2.18.0 — ⚠️ Round 19 Stage 2 + HUD follows the document |
+| `game.js` | 3.34.0 — ⚠️ Stage 1 only. Stage 2 projection REVERTED, §0.0 |
+| `learn.js` | 2.19.0 — ⚠️ Stage 1 only. Stage 2 projection REVERTED, §0.0 |
 | `session-log.js` | 1.4.0 — ⚠️ Round 19. ⚠️ Its THREE version pins moved with it |
 | `hud.js` | 1.2.0 |
 | `variety-floor.js` | 1.0.0 |
@@ -1663,7 +1794,7 @@ Round 16.**
 | `admin.js` | 3.31.1 — ⚠️ Round 19: two real import-metadata defects, see §6 item 3 |
 | `lessons-admin.js` | 1.12.0 |
 | `staff-admin.js` | 2.2.0 |
-| `reports.html` | 2.17.0 — ⚠️ Round 19: audit DELETED; two downward rebuild refusals, §0.0.8 |
+| `reports.html` | 2.18.0 — ⚠️ audit DELETED. ⚠️ ITS REBUILD BUTTON MUST BE DISABLED, §0.0.C |
 | `update-gate.js` | 1.0.1 — ⚠️ NEW in Round 19. Loaded by its own script tag in both shells, NOT imported. See §0.10 |
 | `index.html` | 3.9.0 — ⚠️ Round 19 Stage 1 |
 | `firebase-config.js` | 1.2.0 |

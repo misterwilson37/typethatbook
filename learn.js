@@ -1,5 +1,8 @@
 // learn.js v2.16.0
 //
+// v2.19.0 — ⚠️⚠️ EMERGENCY REVERT of the v2.17.0 projection. Mirrors game.js
+//           v3.34.0. HANDOFF §0.0.
+//
 // v2.18.0 — ⚠️ THE HUD FOLLOWS THE DOCUMENT. Mirrors game.js v3.33.0 exactly.
 //
 // v2.17.0 — ⚠️ STAGE 2: the daily total is DERIVED from typing_sessions, not
@@ -275,14 +278,14 @@ import {
 // character count and a derived WPM, which is exactly what the module stores.
 import {
     sessionLogInit, sessionLogPush, sessionLogFlush, sessionLogPending,
-    sessionLogPendingSeconds,
 } from "./session-log.js";
 // The time readout, shared with game.js. ⚠️ Both pages render the SAME string in
 // the SAME element id — see hud.js for why that is the whole point.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
 // ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
-import { readWeek, applyWeekToStats, readDaySessions, projectDayTotal,
-         DAYLOG_VERSION } from "./daylog.js";
+// ⚠️ readDaySessions/projectDayTotal deliberately NOT imported — v2.19.0
+// reverted the projection. See HANDOFF §0.0.
+import { readWeek, applyWeekToStats, DAYLOG_VERSION } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // The version footer's three primary reads (this html file, this js file's own
 // LEARN_VERSION, style.css) plus the lazy full-build panel on hover. ⚠️ SAME
@@ -313,7 +316,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.18.0";
+const LEARN_VERSION = "2.19.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -3994,26 +3997,19 @@ async function _flushStatsInner(reason, final = false) {
     // saying which one "the" source was is no longer meaningful and would be
     // actively misleading on a mixed day. ⚠️ REQUIRES firestore.rules v2.4.0+;
     // see game.js's comment — deploy the rule before this file.
-    // ⚠️ STAGE 2 (v2.17.0) — DERIVED, NOT REPORTED. Identical in shape to
-    // game.js v3.32.0 and through the same daylog.js, so the two pages cannot
-    // compute a day differently. Total is (server sessions + local queue + this
-    // tab's open run). The open run is read from the watermarks that already
-    // exist — stepSeconds vs stepLoggedSeconds — so there is no second set of
-    // books and no new reset site. See §3.3.
+    // ⚠️⚠️ v2.19.0 — THE PROJECTION IS REVERTED. Mirrors game.js v3.34.0 and its
+    // note in full: `typing_sessions` was found to contain OVERLAPPING rollups
+    // and NEGATIVE character counts (HANDOFF §0.0), so a grade derived from it is
+    // the corrupt number rather than a check on it. Stage 1 is KEPT — the week is
+    // read from typing_logs and there is no stats/time_tracking. Sessions are
+    // still written and still feed the drill-down; they cannot decide a grade.
     const today = getLocalDateStr();
-    const srv = await readDaySessions({
-        db, collection, query, where, getDocs, uid: currentUser.uid, dateStr: today });
-
-    if (!srv.ok) {
-        // ⚠️ WRITE NOTHING. A projection built on a failed read is invented, and
-        // it would land on top of a correct stored value. The WAL keeps the local
-        // copy; the next flush retries.
-        console.warn(`[TTB] Session read failed (${reason}) — daily log left alone.`);
-        ok = false;
-    } else {
-      const queued = { seconds: sessionLogPendingSeconds(currentUser.uid, today), chars: 0, mistakes: 0 };
-      const open   = { seconds: Math.max(0, stepSeconds - stepLoggedSeconds), chars: 0, mistakes: 0 };
-      const projected = projectDayTotal(srv, queued, open);
+    const projected = {
+        seconds:  Math.max(0, Math.round(statsData.secondsToday || 0)),
+        chars:    Math.max(0, Math.round(statsData.charsToday   || 0)),
+        mistakes: Math.max(0, Math.round(statsData.mistakesToday|| 0)),
+    };
+    {
       try {
         await setDoc(doc(db, 'typing_logs', currentUser.uid + '_' + today), {
             uid: currentUser.uid, email: currentUser.email || '',

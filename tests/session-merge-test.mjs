@@ -446,10 +446,23 @@ for (const [label, src] of [['game.js', gameSrc], ['learn.js', learnSrc]]) {
     const code = stripComments(src);
     ok(/if\s*\(!read\.ok\)/.test(code),
        `${label}: refuses to paint on an incomplete week read`);
-    ok(/if\s*\(!srv\.ok\)/.test(code),
-       `${label}: writes NOTHING when the session read fails (Stage 2)`);
-    ok(/projectDayTotal\s*\(/.test(code),
-       `${label}: the daily total is projected, not reported (Stage 2)`);
+    // ⚠️ INVERTED IN v1.5.0 (2026-08-19). Stage 2 derived the graded daily total
+    // from typing_sessions. Jake's live drill-down then showed that collection
+    // contains OVERLAPPING rollups — one covering 10:47-11:16 alongside another
+    // covering 10:48-10:55 for the same student, sharing sprint minutes with
+    // different values — and records with NEGATIVE character counts. A grade
+    // derived from that IS the corrupt number rather than a check on it, so
+    // game.js v3.34.0 / learn.js v2.19.0 reverted the projection.
+    //
+    // ⚠️ THE ABSENCE IS ASSERTED, NOT JUST THE REMOVAL. Re-enabling it is one
+    // import away and the failure is silent — grades quietly inflate and every
+    // arithmetic test in this repo stays green. HANDOFF §0.0.
+    ok(!/projectDayTotal/.test(code),
+       `${label}: the graded daily total is NOT projected from typing_sessions`);
+    ok(!/readDaySessions/.test(code),
+       `${label}: does not read typing_sessions to compute a grade`);
+    ok(!/sessionLogPendingSeconds/.test(code),
+       `${label}: does not fold the local session queue into the graded total`);
 
     // ⚠️ THE HUD MUST FOLLOW THE DOCUMENT. Stage 2 made the WRITE a projection
     // and left the HUD painting the in-memory counter — two different
@@ -459,8 +472,6 @@ for (const [label, src] of [['game.js', gameSrc], ['learn.js', learnSrc]]) {
     // again and NOTHING ELSE IN THIS SUITE WOULD NOTICE.
     ok(/statsData\.secondsToday\s*=\s*projected\.seconds/.test(code),
        `${label}: statsData is reset to what was actually written`);
-    ok(/statsData\.secondsWeek\s*=\s*Math\.max\(0,\s*\(statsData\.secondsWeek\s*\|\|\s*0\)\s*\+\s*delta\)/.test(code),
-       `${label}: the week moves by the same delta (only today changed)`);
 }
 
 // mergeGuestStats() survives Round 19 unchanged and is still the only place the
