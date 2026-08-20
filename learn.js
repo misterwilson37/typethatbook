@@ -1,4 +1,19 @@
-// learn.js v2.15.0
+// learn.js v2.16.0
+//
+// v2.16.0 — ⚠️⚠️ ONE NUMBER. `users/{uid}/stats/time_tracking` IS GONE FROM THIS
+//           FILE. Day and week totals are read from `typing_logs/{uid}_{date}` —
+//           the same seven documents reports.html grades from — through the new
+//           shared daylog.js, identically to game.js v3.31.0. HANDOFF.md §0.0.
+//
+//           ⚠️ REQUIRES firestore.rules v2.5.0, DEPLOYED FIRST, and game.js
+//           v3.31.0 should go up in the same batch: a page still writing the old
+//           rollup is writing to a document nothing reads, which is harmless,
+//           but a page still READING it would show a student a number the
+//           teacher no longer has.
+//
+//           ⚠️ THE WEEK IS DERIVED AND STORED NOWHERE. checkForWeekRepair() and
+//           `lastKnownRepairedAt` are deleted with the stored counter they
+//           defended.
 //
 // v2.15.0 — ⚠️ THE SOURCE SPLIT IS REVERTED. Mirrors game.js v3.30.0 — see its
 //           header. This file's typing_logs write is what v2.13.1 shipped:
@@ -257,6 +272,8 @@ import {
 // The time readout, shared with game.js. ⚠️ Both pages render the SAME string in
 // the SAME element id — see hud.js for why that is the whole point.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
+// ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
+import { readWeek, applyWeekToStats, DAYLOG_VERSION } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // The version footer's three primary reads (this html file, this js file's own
 // LEARN_VERSION, style.css) plus the lazy full-build panel on hover. ⚠️ SAME
@@ -271,7 +288,7 @@ import {
     getCountFromServer,
     // v2.7.1 — for session-log.js's `serverAt` and nothing else. ⚠️ Do not reach
     // for it in flushStats(): a sentinel inside the typing_logs or
-    // stats/time_tracking merge writes would be a second dating scheme on the
+    // typing_logs merge writes would be a second dating scheme on the
     // two documents Round 12 spent a day getting to agree.
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -287,7 +304,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.15.0";
+const LEARN_VERSION = "2.16.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -420,11 +437,11 @@ let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0,
 let statsBaseline = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0,
                       mistakesToday:0, mistakesWeek:0 };
 
-// ⚠️ THE LAST REPAIR THIS SESSION HAS SEEN. (v2.13.0) Mirrors game.js exactly —
-// see checkForWeekRepair(), near flushStats() below. Set at load time from the
-// doc's own `repairedAt` (only when weekStart matches); reset to 0 on week
-// rollover, same as the counters it travels with.
-let lastKnownRepairedAt = 0;
+// ⚠️ `lastKnownRepairedAt` and checkForWeekRepair() ARE GONE (v2.16.0), same as
+// in game.js v3.31.0. They defended a STORED week counter against reports.html's
+// repair button. The week is derived from seven typing_logs documents now and is
+// stored nowhere, so there is nothing to repair and nothing to defend.
+// HANDOFF §0.0.
 
 // ⚠️ TRUE WHEN A REAL USER BECAME NULL WITHOUT ASKING TO. (v2.6.0)
 //
@@ -871,11 +888,22 @@ async function retroactiveSaveAnonSession(user) {
         // right for a guest and doubled the counters for an expired session. The
         // arithmetic lives in mergeGuestStats() now; read the block above it
         // before changing anything here.
-        const statsRef = doc(db, 'users', user.uid, 'stats', 'time_tracking');
-        const statsSnap = await getDoc(statsRef);
-        mergeGuestStats(statsSnap.exists() ? statsSnap.data() : null, dateStr, weekStart);
+        // ⚠️ v2.16.0 — the server side of the merge is the week of typing_logs
+        // now. mergeGuestStats() is unchanged: it wants an object shaped like the
+        // old stats document, and a week read is exactly that once named. Both
+        // period guards match by construction — the read WAS for this date and
+        // this week.
+        const read = await readWeek({ db, doc, getDoc, uid: user.uid, dateStr });
+        mergeGuestStats(read.ok ? {
+            lastDate: dateStr, weekStart: read.weekStart,
+            secondsToday: read.today.seconds, charsToday: read.today.chars,
+            mistakesToday: read.today.mistakes,
+            secondsWeek: read.week.seconds, charsWeek: read.week.chars,
+            mistakesWeek: read.week.mistakes,
+        } : null, dateStr, weekStart);
         sessionExpired = false;
-        await setDoc(statsRef, statsData, { merge: true });
+        learnStatsDocDirty = true;
+        await flushStats('anon-retroactive', true);
 
         // Save lesson progress accumulated during anon session
         const GRADE_ORDER = ['F','D','C','B','A', 'A' + String.fromCodePoint(0x1F525)];
@@ -1648,7 +1676,6 @@ function startGradedTimer() {
                 if (statsData.weekStart !== ws) {
                     statsData.secondsWeek = 1; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
                     statsData.weekStart = ws; weeklyGoalCelebrated = false;
-                    lastKnownRepairedAt = 0; // a repair marker from last week is moot now
                 }
             }
             // Goal celebrations
@@ -3217,7 +3244,8 @@ document.addEventListener('visibilitychange', () => {
         if (gapElapsed || unflushed >= HIDDEN_FLUSH_DELTA_SECONDS) {
             lastHiddenFlush = Date.now();
             // Only the gap-driven flush is `final`. The delta-driven one writes
-            // typing_logs and skips the stats/time_tracking rollup, which is
+            // typing_logs (the only document holding these numbers since
+            // v2.16.0) and skips the session-rollup upload, which is
             // read at page load only and which the shared WAL now covers.
             flushStats('hidden', gapElapsed);
         }
@@ -3457,28 +3485,21 @@ async function loadUserStats() {
         const today = new Date();
         const dateStr = getLocalDateStr(today);
         const weekStart = getWeekStart(today);
-        const snap = await getDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'));
-        if (snap.exists()) {
-            const data = snap.data();
-            if (data.lastDate === dateStr) {
-                statsData.secondsToday  = data.secondsToday  || 0;
-                statsData.charsToday    = data.charsToday    || 0;
-                statsData.mistakesToday = data.mistakesToday || 0;
-            } else {
-                statsData.secondsToday = statsData.charsToday = statsData.mistakesToday = 0;
-            }
-            if ((data.weekStart || '') === weekStart) {
-                statsData.secondsWeek  = data.secondsWeek  || 0;
-                statsData.charsWeek    = data.charsWeek    || 0;
-                statsData.mistakesWeek = data.mistakesWeek || 0;
-                lastKnownRepairedAt = data.repairedAt || 0;
-            } else {
-                statsData.secondsWeek = statsData.charsWeek = statsData.mistakesWeek = 0;
-                lastKnownRepairedAt = 0;
-            }
+        // ⚠️ v2.16.0 — READS typing_logs, THE DOCUMENT JAKE GRADES FROM. Mirrors
+        // game.js v3.31.0 exactly, through the same shared daylog.js, so the two
+        // pages cannot drift apart in how they compute this. The stats rollup
+        // this used to read is deleted. HANDOFF §0.0.
+        const read = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr });
+
+        // ⚠️ A PARTIAL READ MUST NOT PAINT — an undercount looks exactly like a
+        // light week, and showing a child less than they earned is the failure
+        // this redesign exists to end. Leave everything alone and try next load.
+        if (!read.ok) {
+            console.warn('[TTB] Day-log read incomplete — counters left untouched this load.');
+            return;
         }
-        statsData.lastDate  = dateStr;
-        statsData.weekStart = weekStart;
+
+        applyWeekToStats(statsData, read, dateStr);
 
         // ⚠️ THE BASELINE IS TAKEN HERE AND NOWHERE ELSE. (v2.6.0)
         //
@@ -3930,42 +3951,10 @@ function saveStats() {
 // flush is enough. Identical fix to game.js 3.9.2; both files had it.
 let _learnFlushInFlight = null;
 
-// ═════════════════════════════════════════════════════════════════════════════
-// checkForWeekRepair() — THE FIX FOR A REPAIR THAT DOESN'T STICK. (v2.13.0)
-// ═════════════════════════════════════════════════════════════════════════════
-// Mirrors game.js v3.28.0 exactly — CHANGE ONE, CHANGE BOTH, same as
-// mergeGuestStats() above. Short version: mergeGuestStats()'s data-loss floor
-// (never trust a decrease) is exactly what let a week-counter audit repair in
-// reports.html get silently overwritten back to the inflated value by a
-// student's own next flush, on a MacBook that's supposed to restart between
-// periods but sometimes doesn't — the tab survives, statsData still holds the
-// pre-repair number. The audit repair now stamps `repairedAt` alongside the
-// corrected fields; if the doc holds one newer than what this session saw at
-// load, that's the signal a correction (not a loss) happened, and this session
-// resyncs to it — server's corrected value plus this browser's own
-// contribution since baseline, no floor. Called from flushStats(), right
-// before the write that would otherwise clobber a repair; one extra getDoc()
-// per flush that was already about to happen, not per second. Best-effort.
-async function checkForWeekRepair() {
-    if (!currentUser) return;
-    try {
-        const snap = await getDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'));
-        if (!snap.exists()) return;
-        const data = snap.data();
-        const weekStart = getWeekStart(new Date());
-        if ((data.weekStart || '') !== weekStart) return; // not this week — moot
-        const serverRepairedAt = data.repairedAt || 0;
-        if (serverRepairedAt <= lastKnownRepairedAt) return; // nothing new to catch up on
-
-        for (const k of ['secondsWeek', 'charsWeek', 'mistakesWeek']) {
-            const mine = Math.max(0, (statsData[k] || 0) - (statsBaseline[k] || 0));
-            statsData[k] = (data[k] || 0) + mine;
-            statsBaseline[k] = data[k] || 0;
-        }
-        lastKnownRepairedAt = serverRepairedAt;
-        console.log('[TTB] Week counters resynced after an audit repair.');
-    } catch (e) { /* best-effort; next flush tries again */ }
-}
+// ⚠️ checkForWeekRepair() WAS HERE AND IS DELETED (v2.16.0). See game.js
+// v3.31.0's identical note. There is no stored week counter to resync and no
+// week-counter repair to be undone. If something shaped like this returns, a
+// second copy of the numbers has returned; go and find that instead.
 
 async function flushStats(reason, final = false) {
     while (_learnFlushInFlight) {
@@ -4039,16 +4028,11 @@ async function _flushStatsInner(reason, final = false) {
     //
     // The rule this encodes: TWO RECORDS OF THE SAME QUANTITY MUST SHARE A WRITE
     // TRIGGER, or they will disagree and no amount of auditing will keep up.
-    {
-        // ⚠️ v2.13.0 — check for an audit repair BEFORE writing. See
-        // checkForWeekRepair() above.
-        await checkForWeekRepair();
-        try {
-            await setDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'),
-                         statsData, { merge: true });
-            learnStatsDocDirty = false;
-        } catch (e) { ok = false; console.warn(`Stats flush failed (${reason}):`, e); }
-    }
+    // ⚠️ v2.16.0 — THE stats/time_tracking WRITE IS DELETED, and this is the
+    // whole point of the change. The comment above used to argue that two
+    // records of one quantity must share a write trigger; there is one record
+    // now, and it is the daily log written just above. HANDOFF §0.0.
+    learnStatsDocDirty = false;
 
     if (!(await flushLessonProgress())) ok = false;
 

@@ -1,6 +1,34 @@
 rules_version = '2';
 
-// firestore.rules v2.4.0 — TypeThatBook
+// firestore.rules v2.5.0 — TypeThatBook
+//
+// v2.5.0 — ⚠️ THE OWNER MAY NOW READ THEIR OWN typing_logs AND typing_sessions.
+//          This is a PREREQUISITE, not a feature. It is deployed ahead of the
+//          code that uses it because it is safe standing alone: it widens read
+//          to the one person the document is already about, and nothing in the
+//          app reads those paths as a student yet.
+//
+//          ⚠️ WHY IT MATTERS MORE THAN IT LOOKS. Until this version, a STUDENT'S
+//          BROWSER WAS STRUCTURALLY FORBIDDEN FROM READING EITHER RECORD THE
+//          TEACHER GRADES FROM. `allow read: if canReadActivity(...)` is
+//          staff-only on both. That is the ROOT CAUSE of the two-number problem
+//          that has cost this project five rounds: the HUD could not read the
+//          graded document, so it had no choice but to keep a private second
+//          copy in users/{uid}/stats/time_tracking, accumulated separately and
+//          flushed on a different schedule. Two records of one quantity, updated
+//          on different paths, disagreeing — HANDOFF §3.1's sentence, and this
+//          rule is why it was unavoidable rather than careless.
+//
+//          With this deployed, the HUD can read typing_logs/{uid}_{date} BY
+//          DOCUMENT ID — the id is uid + '_' + date, so a week is seven getDoc()
+//          calls, no query, NO COMPOSITE INDEX, and no change to the field
+//          exemptions in firestore.indexes.json. The student's screen and the
+//          teacher's report can then be reading THE SAME DOCUMENT, which is the
+//          only arrangement in which they cannot disagree.
+//
+//          Scoped to the owner only: `resource.data.uid == request.auth.uid`.
+//          No student can see another student's anything. Staff access is
+//          unchanged in both directions.
 //
 // v2.4.0 — validDailyLog() accepts the new split-field shape (secondsLibrary/
 //          secondsSchool etc., alongside the legacy seconds/chars/mistakes)
@@ -392,7 +420,12 @@ service cloud.firestore {
                         && request.resource.data.uid  == resource.data.uid
                         && request.resource.data.date == resource.data.date);
 
-      allow read:   if canReadActivity(resource.data);
+      // ⚠️ v2.5.0 — THE OWNER READS THEIR OWN. See this file's header for why
+      // this one clause is the hinge the whole two-number problem turns on.
+      // Owner-first in the || so a student's read never pays for the get()
+      // inside canReadActivity() — same discipline as the stats block above.
+      allow read:   if (signedIn() && resource.data.uid == request.auth.uid)
+                    || canReadActivity(resource.data);
       allow delete: if isSuper();
     }
 
@@ -410,7 +443,12 @@ service cloud.firestore {
                     && request.resource.data.sprints is list
                     && request.resource.data.sprints.size() <= 200
                     && request.resource.data.expiresAt is timestamp;
-      allow read:   if canReadActivity(resource.data);
+      // ⚠️ v2.5.0 — THE OWNER READS THEIR OWN, for the same reason as
+      // typing_logs above: a client that cannot read the record cannot derive
+      // its display from it, and is forced into keeping a second copy. Owner
+      // first, so a student's read never triggers a billed get().
+      allow read:   if (signedIn() && resource.data.uid == request.auth.uid)
+                    || canReadActivity(resource.data);
       allow update, delete: if isSuper();
     }
 

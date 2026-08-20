@@ -1,6 +1,12 @@
 # TypeThatBook
 
-<!-- README.md v1.13.0 — Round 18 (Salter).
+<!-- README.md v1.14.0 — Round 19 (Hermes). ⚠️ STAGE 1 SHIPPED: the student's
+     screen and the teacher's report read the SAME DOCUMENT. stats/time_tracking
+     is deleted, the week-counter audit is deleted, and daylog.js is the shared
+     reader. New sections: "Grading a week", "Forcing an update". The
+     reconciliation table now records the third copy as removed rather than as
+     the disease-in-waiting. See HANDOFF.md §0.0.
+     v1.13.0 — Round 18 (Salter).
      v1.13.0 — RECONCILIATION. reports.html 2.15.0 adds a read-only view comparing
               every student's daily-log total against the sum of their actual
               session records, and a bulk rebuild that repairs the logs from the
@@ -398,6 +404,14 @@ progress but restricts writes to the student themselves.)
 
 ## Grading a week — the procedure, start to finish
 
+⚠️ **The `Audit Week Counters` button is GONE as of `reports.html` v2.16.0.** It
+compared a student's stored week counter against the sum of their daily logs.
+There is no stored week counter any more — the student's own screen reads these
+same daily logs — so there is nothing for it to compare. If you are looking for
+it, you want `Reconcile vs Sessions`, which checks the graded document against
+the append-only session record behind it.
+
+
 ⚠️ **This is the weekly routine. It is read-only until the CSV lands, it does
 not require the week-counter audit, and it does not depend on which version of
 `game.js` any student is running.** That last property is the whole reason it
@@ -477,6 +491,25 @@ consequential decision in this part of the app.
 |---|---|---|
 | `typing_logs/{uid}_{date}` | a **live counter** accumulated in browser memory by `game.js` and `learn.js`, flushed on a timer and at page-death. Two page controllers share one document. | **This is a cache.** It depends on a tab surviving and on a write landing at exactly the wrong moment not happening. Every counter defect this project has had lived here. |
 | `typing_sessions/{auto}` | one document per (day, source, book/lesson) group, written from a durable `localStorage` queue at run/unit boundaries, each carrying the `sprints[]` it was built from. | **This is the record.** Verified 2026-08-19 by console dump: every document's stored `seconds`/`chars` matched the sum of its own sprints exactly. |
+| ~~`users/{uid}/stats/time_tracking`~~ | ✅ **DELETED — Round 19, Stage 1.** | It was a second copy of the same numbers, accumulated separately in the student's browser and flushed on its own schedule, and it is where every counting incident in this project's history came from. It existed only because `firestore.rules` up to v2.4.0 gave a student's browser **no read access** to either record above, so the HUD had nowhere else to get a number. `firestore.rules` v2.5.0 added owner-read; `daylog.js` is what that unlocked. |
+
+⚠️ **ONE DOCUMENT, READ BY EVERY SURFACE.** The student's HUD, the library shelf
+banner and the teacher's report all read `typing_logs/{uid}_{date}` — the same
+seven documents per week, through the same shared `daylog.js`. **Two surfaces
+reading one document cannot disagree.** Two surfaces reconciling two documents
+always eventually will, which is what four rounds of audits and repairs were
+about.
+
+⚠️ **THE WEEK IS DERIVED AND STORED NOWHERE.** It is the sum of the seven daily
+documents, recomputed on every page load. A derived quantity cannot drift from
+its inputs, cannot be double-merged, and has no repair path because it has no
+stored value to be wrong. **The week-counter audit and its repair button are
+deleted** — there is nothing left to audit.
+
+⚠️ **THE ONE RESIDUAL GAP, stated plainly because it is irreducible:** a student
+mid-sprint has typed seconds that have reached no stored record anywhere. The HUD
+shows the stored figure plus the live open-unit delta. It closes at every unit
+boundary and whenever the tab is hidden. No design removes it.
 
 Grades come from `typing_logs`. That is fine as long as somebody can check it
 against `typing_sessions`, which is what `reports.html` v2.15.0 exists to let

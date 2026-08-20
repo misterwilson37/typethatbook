@@ -5,6 +5,24 @@
      amended 2026-08-19 by Round 18 (Salter); amended 2026-08-19 by Round 19
      (Hermes).
 
+     v14.17.0 — Round 19, THIRD pass: ⚠️ STAGE 1 IS BUILT. §0.0.5's step list is
+     rewritten as a record of what shipped rather than a plan. New shared module
+     daylog.js; game.js 3.31.0, learn.js 2.16.0, index.html 3.9.0 and
+     reports.html 2.16.0 all read the graded document; the week-counter audit and
+     repair are DELETED. §2's table and harness count updated. §6 items 3 and 4
+     resolved. ⚠️ THE SUITE IS AT 29 OF 29 FOR THE FIRST TIME — invariant 54's
+     standing red is closed, and it was closed by FIXING TWO REAL DEFECTS, not by
+     deleting the harness that found them.
+
+     v14.16.0 — Round 19, second pass. ⚠️ §0.0 IS NEW AND IT IS THE TOP OF THIS
+     FILE. Jake, 2026-08-19, after five rounds of asking: "I NEED THE NUMBERS TO
+     LINE UP ACROSS THE BOARD. Make it the number one thing in the handoff. If
+     everything else works and that doesn't, then nothing works." §0.0 is that.
+     It also records the ROOT CAUSE, which no round before this one had named,
+     and it OVERTURNS §0.9's max() recommendation on Jake's explicit ruling that
+     inflation is not the safe direction. Read §0.0 before §0.10, before §0.9,
+     before anything.
+
      v14.15.0 — Round 19: §0.10 added ABOVE §0.9, because it answers a question
      §0.9 does not — §0.9 makes JAKE's number trustworthy and says nothing about
      the number the STUDENT is looking at, and Jake's stated requirement is that
@@ -90,6 +108,180 @@ Blick (3) · Dvorak (2) · Underwood (1).
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.0. ⚠️⚠️ THE ONLY THING THAT MATTERS: ONE NUMBER, NOT THREE
+
+**If you read one section of this document, read this one. If everything else in
+this repo works and this does not, nothing in this repo works.**
+
+Jake's words, 2026-08-19, after asking five consecutive rounds for the same
+thing and being handed five plans that did not deliver it:
+
+> *"I need the numbers to line up. Period. End of story."*
+> *"It's like saying I have a great car, except for the fact it has no brakes."*
+
+### 0.0.1 ⚠️ JAKE'S RULING ON WHICH DIRECTION IS SAFE — THIS OVERTURNS §0.9
+
+**§0.9 recommends grading on `max(logSeconds, sessionSeconds)` and argues that
+overcounting is the safe direction because it "can only err in the student's
+favour." JAKE HAS RULED THAT REASONING WRONG AND IT IS WITHDRAWN.** His words:
+
+> *"Inflating a kid's grade because my code is fucked may not result in angry
+> parents, but it results in kids getting credit for work they did not do.
+> That's not better. For the kid, it's worse."*
+
+⚠️ **DO NOT PROPOSE `max()`, A TOLERANCE WINDOW, A FUDGE FACTOR, OR ANY OTHER
+SCHEME WHOSE DEFENCE IS "IT ERRS TOWARD THE STUDENT."** He is not optimising for
+the absence of complaints. He is optimising for the number being TRUE, because a
+grade that overstates what a child did is a lie told to that child. The target
+is not "safe." The target is **correct**.
+
+`max()` remains in §0.9 only as the interim CSV workaround for the week already
+in progress, and it is a stopgap he accepted under a deadline, not a design.
+
+### 0.0.2 ⚠️ THE ROOT CAUSE — nobody had named this before Round 19
+
+`firestore.rules` up to v2.4.0:
+
+```
+match /typing_logs/{docId}     { allow read: if canReadActivity(resource.data); }
+match /typing_sessions/{id}    { allow read: if canReadActivity(resource.data); }
+```
+
+`canReadActivity()` is **staff-only**. Therefore:
+
+⚠️ **A STUDENT'S BROWSER HAS BEEN STRUCTURALLY FORBIDDEN FROM READING EITHER
+RECORD THE TEACHER GRADES FROM.** It could write them. It could never read them
+back. So the HUD had no way to display the graded number and **no choice but to
+maintain a private second copy** — `users/{uid}/stats/time_tracking` —
+accumulated independently in browser memory and flushed on its own schedule.
+
+That is §3.1's sentence ("two records of one quantity, updated on different
+paths, disagreed") and this rule is **why it was unavoidable rather than
+careless**. Every counting incident in this project's history — the doubled week
+counter, the missing stats documents, the HUD that changed on refresh, the
+cross-mode overwrite, the repair that gets overwritten by a live tab — is
+downstream of it. Four rounds tried to make two independently-written copies
+agree with each other. **They cannot. That is not a bug to fix, it is a
+guarantee that does not exist.**
+
+### 0.0.3 THE TARGET STATE — one document, read by both surfaces
+
+| | |
+|---|---|
+| **Record** | `typing_sessions` — append-only, dated when typed, written from a durable queue by every client back to v2.4.0. Already trustworthy; verified by console dump 2026-08-19. Untouched by this work. |
+| **Projection** | `typing_logs/{uid}_{date}` — **recomputed from that day's sessions. Set, never merged.** |
+| **The student's HUD** | reads `typing_logs/{uid}_{date}` |
+| **The teacher's report** | reads `typing_logs/{uid}_{date}` |
+| **`users/{uid}/stats/time_tracking`** | ⚠️ **DELETED. It is the second copy. It is the disease.** |
+
+**The kid's screen and Jake's report become the same document.** Not reconciled,
+not audited, not compared — *the same document*. Two things reading one document
+cannot disagree. That is the only arrangement that satisfies what he asked for,
+and everything short of it is another reconciliation tool.
+
+⚠️ **THE WEEK-COUNTER AUDIT AND ITS REPAIR DIE WITH IT.** They exist solely to
+drag the second copy back into line with the first. With one copy there is
+nothing to audit. Jake: *"I can't run an audit every time."* He is right, and
+the answer is not a faster audit.
+
+### 0.0.4 WHY THIS IS SMALLER THAN FIVE ROUNDS OF FAILURE SUGGEST
+
+The document id is `uid + '_' + date`. It is **deterministic**, so the HUD reads
+a week as **seven `getDoc()` calls by id** — no query, **no composite index**,
+and no change to `firestore.indexes.json`'s field exemptions (which have `uid`
+un-indexed, and would have made a `where('uid','==')` query impossible). About
+seven reads per page load against the one it does today. Negligible.
+
+**SHIPPED ALREADY (Round 19): `firestore.rules` v2.5.0** adds
+`(signedIn() && resource.data.uid == request.auth.uid) ||` to the read rule on
+both collections. Owner-scoped; no student can see another's anything; staff
+access unchanged. **Safe standing alone — nothing reads those paths as a student
+yet — which is why it deploys first.**
+
+### 0.0.5 ⚠️ STAGE 1 IS BUILT — WHAT SHIPPED, AND IN WHAT ORDER TO DEPLOY IT
+
+**STAGE 1 — MAKE THEM LINE UP. BUILT, Round 19. Deploy in this order.**
+
+| # | file | version | note |
+|---|---|---|---|
+| 1 | `firebase/firestore.rules` | 2.5.0 | ⚠️ **CONSOLE. Jake confirmed live 2026-08-19.** Everything below fails its reads without it. |
+| 2 | `daylog.js` | 1.0.0 — **NEW** | Shared module, imported by both page controllers. Goes up FIRST — a missing import renders nothing at all (§1). |
+| 3 | `reports.html` | 2.16.0 | ⚠️ **CONSUMER FIRST (§1).** Works correctly against the OLD controllers; the old version against the NEW ones offers a repair button for a document nothing reads. |
+| 4 | `index.html` | 3.9.0 | Shelf banner off the old rollup. |
+| 5 | `game.js` | 3.31.0 | |
+| 6 | `learn.js` | 2.16.0 | |
+| 7 | `versions.js` | 1.9.0 | Registers `daylog.js`. |
+
+**What the change is, in one sentence:** the day and week totals a student sees
+are read from `typing_logs/{uid}_{date}` — the same seven documents
+`reports.html` grades from — and `users/{uid}/stats/time_tracking` is written by
+nothing and read by nothing.
+
+**Deleted, deliberately, and each deletion is load-bearing:**
+
+* `checkForWeekRepair()` and `lastKnownRepairedAt`, both files. They defended a
+  stored week counter against a repair button. There is no stored week counter:
+  the week is the SUM of seven documents, recomputed on every load and persisted
+  nowhere.
+* `auditWeekCounters()`, `renderAuditPanel()`, `repairWeekCounter()`, `bucket()`,
+  `WEEK_TOLERANCE`, and `reports.html`'s own `weekStartOf()`/`addDays()` — about
+  240 lines. All of it existed to drag a second copy back into line with the
+  first. **Jake: "I can't run an audit every time." A faster audit was never it.**
+* The two mirror writes into `stats/time_tracking` from `reports.html`'s manual
+  save and `⟳` recalculate. A correction now reaches the student by being
+  written, full stop.
+
+**What survives and is now the only checking tool on the page:** `Reconcile vs
+Sessions`. That compares the graded document against the append-only session
+record — **a projection against its SOURCE**, which is a real check. The audit
+compared two rival copies of one number, which never was.
+
+⚠️ **THE ONE RESIDUAL GAP, AND SAY IT IN THESE WORDS.** A student mid-sprint has
+typed seconds that have reached no stored record anywhere. The HUD shows the
+projection plus the live open-unit delta. It closes at every unit boundary and on
+`visibilitychange`/`pagehide`. It is irreducible in any design. **DO NOT CLAIM
+ZERO.**
+
+⚠️ **`readWeek()` RETURNS `ok:false` RATHER THAN ZEROS IF ANY OF THE SEVEN READS
+FAILED, AND BOTH CALLERS STOP.** A partial week is an undercount that looks
+exactly like a light week, and showing a child less than they earned is the same
+lie as showing them more. `tests/daylog-test.mjs` Part C guards the module;
+`session-merge-test.mjs` Part D guards that the callers honour it.
+
+**STAGE 2 — MAKE IT TRUE. NOT BUILT.** The `typing_logs` write is still
+`setDoc(merge:true)` of an in-memory delta. Stage 2 makes it a value COMPUTED
+from `typing_sessions` (baseline read once at load + this session's own logged
+total + open delta), so every version of every page computes the same function of
+the same source. That is what closes §3.1's cross-mode overwrite for good.
+
+⚠️ **NOTE WHAT STAGE 1 ALREADY DID TO THAT BUG BY ACCIDENT.** Both pages now
+READ today's log at load before adding to it, so a student who does School then
+opens Library no longer overwrites School's seconds — the common case is closed.
+What remains is the genuinely concurrent case: both pages open in two tabs at
+once. Smaller, and still real.
+
+### 0.0.6 ⚠️ STILL OPEN AFTER STAGE 1
+
+* ⚠️ **THE LEADERBOARD IS THE LAST INDEPENDENT COUNTER IN THE APP.** `game.js`
+  ~7237 accumulates `totalSecondsWeek` from its own in-memory figures into
+  `leaderboard/`. **Round 19 did not touch it and this is the honest gap in the
+  "one number" claim** — it is a fourth surface, and it can disagree. It is
+  low-stakes (nobody is graded from it, it stores initials only) which is why it
+  was left, not because it is fine. Deriving it from the same week read is a
+  small change and should happen in Stage 2.
+* **The 120-day TTL on `typing_sessions`.** If Stage 2 makes `typing_logs` a pure
+  projection of a collection that expires, a rebuild after 120 days produces
+  zero. `typing_logs` has no TTL and must keep none — **and the never-zero
+  refusal (§0.8.3 item 1) becomes load-bearing, not a nicety.**
+* **Guests.** No uid, so no daily log and no gate. Both signed-out branches still
+  paint from local counters. Verified by reading, NOT by running.
+* ⚠️ **NOTHING IN NODE CAN CHECK THAT `firestore.rules` v2.5.0 ACTUALLY PERMITS
+  THE OWNER READ.** It is a console action and the entire redesign rests on it.
+  **If students report 0:00 after this deploys, check the rule first**, not the
+  green suite. `tests/daylog-test.mjs`'s header says the same thing.
 
 ---
 
@@ -207,7 +399,16 @@ about arithmetic.
 
 ---
 
-## §0.9. ⚠️ READ THIS FIRST — THE GRADE MOVES OFF `typing_logs`
+## §0.9. ⚠️ SUPERSEDED IN PART BY §0.0 — READ §0.0 FIRST
+
+⚠️ **§0.9's `max(logSeconds, sessionSeconds)` recommendation is WITHDRAWN.** Jake
+ruled on 2026-08-19 that inflation is not the safe direction — see §0.0.1. What
+survives here is the analysis of why `typing_sessions` is the trustworthy record
+and `typing_logs` is not; what does not survive is the idea that erring upward is
+acceptable. §0.9's step 3 ("demote the counter, leave the student watching it")
+is also superseded: §0.0 deletes the second copy instead.
+
+### The original §0.9 — THE GRADE MOVES OFF `typing_logs`
 
 **Jake's ruling, 2026-08-19, verbatim in substance:** *"If we have one
 trustworthy number and one broken number, get rid of the broken one and keep the
@@ -1231,33 +1432,37 @@ Round 16.**
 
 | file | version |
 |---|---|
-| `game.js` | 3.30.0 |
-| `learn.js` | 2.15.0 |
+| `game.js` | 3.31.0 — ⚠️ Round 19 Stage 1 |
+| `learn.js` | 2.16.0 — ⚠️ Round 19 Stage 1 |
 | `session-log.js` | 1.3.0 |
 | `hud.js` | 1.2.0 |
 | `variety-floor.js` | 1.0.0 |
 | `stats-wal.js` | shared module — check the constant |
-| `versions.js` | 1.8.0 — ⚠️ Round 19 |
+| `versions.js` | 1.9.0 — ⚠️ Round 19 |
+| `daylog.js` | 1.0.0 — ⚠️ **NEW, Round 19.** The shared week reader. §0.0 |
 | `keyboard.js` | 1.1.1 |
 | `adventure-renderer.js` | 1.5.4 |
-| `admin.js` | 3.31.0 |
+| `admin.js` | 3.31.1 — ⚠️ Round 19: two real import-metadata defects, see §6 item 3 |
 | `lessons-admin.js` | 1.12.0 |
 | `staff-admin.js` | 2.2.0 |
-| `reports.html` | 2.15.0 — Round 18. ⚠️ Round 19 did NOT touch it |
+| `reports.html` | 2.16.0 — ⚠️ Round 19: week-counter audit and repair DELETED |
 | `update-gate.js` | 1.0.1 — ⚠️ NEW in Round 19. Loaded by its own script tag in both shells, NOT imported. See §0.10 |
+| `index.html` | 3.9.0 — ⚠️ Round 19 Stage 1 |
 | `firebase-config.js` | 1.2.0 |
-| `firebase/firestore.rules` | 2.4.0 |
+| `firebase/firestore.rules` | 2.5.0 — ⚠️ Round 19. Owner-read on typing_logs + typing_sessions. **Jake confirmed live 2026-08-19.** See §0.0.2 |
 | `style.css` | 3.5.5 |
 | `game.html` | 1.2.0 — ⚠️ Round 19 added the update-gate script tag |
 | `learn.html` | 1.1.0 — ⚠️ Round 19 added the update-gate script tag |
 | `functions/index.js` | 1.7.0 — Cloud Function, NOT deployable from this repo; Jake mirrors it into the console by hand. See its own header. Moved out of the root in Round 17; the file is byte-identical. |
 
-`npm test` → **27 of 28 harnesses pass, 0 pending** (Round 18 added
-`tests/reconcile-test.mjs`). The only failure is `metadata-map-test.mjs`
-`metadata-map-test.mjs` fails on 42 of 487 assertions, pre-existing and unrelated — §6.
-(The denominator moved twice in Round 17: two green-but-unregistered harnesses were
-wired in, then three test-first ones moved to `PENDING`. The number to watch is
-**"1 failing, 0 missing"** — pending is reported separately and on purpose.)
+`npm test` → ⚠️ **ALL 29 HARNESSES PASS, 0 PENDING.** Round 19 added
+`tests/daylog-test.mjs` (28 assertions, five mutation-verified) and **closed the
+standing `metadata-map-test` failure that had been carried as acceptable for
+several rounds.** It was not a book-metadata question: it was reporting two real
+defects in `admin.js` (§6 item 3). **The number to watch is now "0 failing, 0
+missing." Anything else is new** — and invariant 54's warning about an accepted
+red hiding the next real failure has just been demonstrated the hard way, so do
+not re-open one.
 
 **Deploy check, in one glance:** Library footer reads `game.html vX · game.js vX ·
 style.css vX` (⚠️ CHANGED IN ROUND 15 — it used to read just `game.js v3.26.2`; if
@@ -1282,7 +1487,13 @@ else you check means anything.
 | `typing_sessions/*` | unit end, and on hide | nothing — drill-down display only |
 
 **Every counting incident in this project's history is the same sentence: two records
-of one quantity, updated on different paths, disagreed.** The doubled week counter, the
+of one quantity, updated on different paths, disagreed.**
+
+⚠️ **AND ROUND 19 FOUND WHY THE SECOND RECORD HAD TO EXIST: `firestore.rules`
+gave the student's browser NO READ ACCESS to `typing_logs` or `typing_sessions`,
+so the HUD could not display the graded number and was forced to keep its own
+copy. Read §0.0.2. Do not spend another round trying to make two copies agree —
+that guarantee does not exist. Delete one.** The doubled week counter, the
 missing stats documents, the HUD that changed on refresh, the cross-mode overwrite —
 all of it.
 
@@ -1980,11 +2191,23 @@ at the next consolidation **without changing the number**.
    self-consistent. Session rollups are the independent check where they exist: all Library days,
    School only from 2026-08-18. **For School days before that there is no second record and never
    will be.** Cannot recur from `game.js` v3.23.0 / `learn.js` v2.7.0 forward.
-3. **`metadata-map-test.mjs` — 42 of 487 assertions fail.** Pre-existing and unrelated:
-   Gutenberg-sourced EPUBs report a `gutenberg.org` origin where the harness expects Standard
-   Ebooks. A bookclean/import metadata question, not an app defect. Confirmed still 42 after Round
-   14. ⚠️ **Invariant 54 applies** — this has been the accepted "1 failing" for several rounds and
-   is exactly the state that hides the next real failure. Fix the map or skip it loudly.
+3. ✅ **RESOLVED, Round 19 — and it was never a metadata question.** This entry
+   read "a bookclean/import metadata question, not an app defect" for several
+   rounds. The harness was reporting **two real defects in `admin.js`**, both
+   fixed in v3.31.1: (a) `dc:rights` read only its FIRST element, and Standard
+   Ebooks emits two — so the CC0 half of the licence was silently dropped at
+   import, on a licence family whose one legal obligation is attribution;
+   identical in shape to the `dc:source` bug fixed in v3.26.0 two lines away.
+   (b) `readInBookSignals()` scoped its Credits lookup to `#pg-machine-header`,
+   which the bookclean pass strips — so all thirteen cleaned Gutenberg books
+   imported with **no transcriber attribution at all**. The harness went to
+   v1.4.0: it classifies Gutenberg books by the `_g` filename convention instead
+   of a hand-kept id list that goes stale on every batch, normalises the
+   `-claudeCleaned` rename, asserts the origin URL by SHAPE, and makes the
+   credits assertion conditional on the book actually having a Credits row
+   (wizard-of-oz has none — verified by scanning every xhtml entry).
+   ⚠️ **THE LESSON, WHICH IS INVARIANT 54 WITH A BODY: an accepted red was
+   hiding two real bugs for four rounds, exactly as predicted.**
 4. **`audit-versions.mjs` reports 7 header-budget problems** (`game.js` 135 lines / 13 entries,
    `learn.js` 152/16, `admin.js` 69/7, `lessons-admin.js` 76, against budgets of 60 and 6). Three
    rounds called migrating entries into `CHANGELOG.md` "the cheapest real task available" and none

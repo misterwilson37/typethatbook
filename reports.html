@@ -214,7 +214,6 @@
     .sprint-row.suspicious { color: #ffb300; }
     .sprint-idx { opacity: 0.5; min-width: 18px; }
     .session-src { font-size: 0.7rem; opacity: 0.7; border: 1px solid #444; padding: 0 4px; }
-    #audit-weeks-btn { margin-left: 8px; }
 
     /* --- RECONCILIATION (v2.15.0) --- */
     /* The three columns exist so a duplicate or a drifted total is visible
@@ -352,16 +351,13 @@
                 <input type="date" id="date-end">
             </div>
             <button id="generate-btn">Generate</button>
-            <button id="audit-weeks-btn" title="Compare each student's stored week counter against the sum of their daily logs">Audit Week Counters</button>
-            <button id="reconcile-btn" class="secondary" title="Read-only. Compare every student's daily-log total against the sum of their actual session records, and count duplicate rollups. Writes nothing.">Reconcile vs Sessions</button>
+            <button id="reconcile-btn" class="secondary" style="margin-left:8px;" title="Read-only. Compare every student's daily-log total against the sum of their actual session records, and count duplicate rollups. Writes nothing.">Reconcile vs Sessions</button>
             <div class="quick-btns">
                 <button class="quick-btn" data-range="today">Today</button>
                 <button class="quick-btn" data-range="this-week">This Week</button>
                 <button class="quick-btn" data-range="last-week">Last Week</button>
             </div>
         </div>
-
-        <div id="audit-panel" class="hidden" style="border:1px solid #555; padding:12px; margin-bottom:14px;"></div>
 
         <!-- v2.15.0 — reconciliation summary and rebuild preview. Populated by
              runReconcile(); the rebuild preview is rendered INTO this panel and
@@ -468,6 +464,29 @@
     //           afternoon's Library session wrote a split field. The two shapes
     //           cover disjoint periods, so summing loses nothing.
     //
+    // v2.16.0 — ⚠️⚠️ ONE NUMBER. THE WEEK-COUNTER AUDIT AND REPAIR ARE DELETED,
+    //           and so are the two mirror writes into
+    //           users/{uid}/stats/time_tracking. That document no longer exists:
+    //           game.js v3.31.0 and learn.js v2.16.0 read the student's day and
+    //           week out of typing_logs — THESE documents — through the shared
+    //           daylog.js. The student's screen and this report are now reading
+    //           the same seven documents per week, which is the only arrangement
+    //           in which they cannot disagree. HANDOFF.md §0.0.
+    //
+    //           ⚠️ REQUIRES firestore.rules v2.5.0 (owner-read on typing_logs).
+    //           ⚠️ DEPLOY THIS FILE BEFORE game.js/learn.js, not after — §1's
+    //           "ship the consumer first" rule. This version works perfectly
+    //           against the OLD page controllers (it just stops offering an audit
+    //           of a document they still write); the old version against the NEW
+    //           controllers would offer Jake a repair button for a document
+    //           nothing reads.
+    //
+    //           What SURVIVES, and is now the only checking tool on this page:
+    //           Reconcile vs Sessions. That compares the graded document against
+    //           the append-only session record — a projection against its SOURCE,
+    //           which is a real check. The audit compared two rival copies of one
+    //           number, which never was.
+    //
     // v2.15.0 — RECONCILIATION VIEW + REBUILD-ALL. Read-only observation first,
     //           then a bulk repair that uses the read-only view as its preview.
     //           NOTHING IN game.js OR learn.js MOVED. This version does not
@@ -537,7 +556,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.15.0";
+    const REPORTS_VERSION = "2.16.0";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
@@ -973,7 +992,7 @@
             // the legacy shape by a manual Save (see save-log-btn below) —
             // falls back to the flat fields. This is the only place that needs
             // to know both shapes exist; everything downstream (this
-            // function's own aggregation, the week-counter audit, the daily
+            // function's own aggregation, the reconcile sweep, the daily
             // log editor) keeps reading plain `seconds`/`chars`/`mistakes` off
             // whatever this returns.
             // ⚠️ v2.13.1 — SUMS THE LEGACY FIELD IN, RATHER THAN LETTING A SPLIT
@@ -1113,289 +1132,38 @@
 
 
     // ═════════════════════════════════════════════════════════════════════════
-    // WEEK-COUNTER AUDIT AND REPAIR  (v2.11.0 — rewritten; v2.12.0 — repairedAt)
+    // ⚠️ THE WEEK-COUNTER AUDIT AND ITS REPAIR ARE DELETED (v2.16.0)
     // ═════════════════════════════════════════════════════════════════════════
     //
-    // ⚠️ v2.12.0 — REPAIRS NOW SURVIVE A LINGERING SESSION. The repair below
-    // used to write only the three corrected fields. That was provably correct
-    // by itself and still got silently undone: a student whose browser tab
-    // survives across a "restart" that didn't happen is still holding the
-    // PRE-repair number in memory, and their very next flush (game.js/learn.js,
-    // every ~5 minutes) wrote that stale number straight back over the fix —
-    // happened twice to the same student before this existed. The repair now
-    // also stamps `repairedAt`; game.js v3.28.0 / learn.js v2.13.0 check it
-    // before every flush that would touch this doc and resync if it's newer
-    // than what their session saw at load. See repairWeekCounter() below for
-    // the client-side half of this, in their own checkForWeekRepair().
+    // Roughly 240 lines lived here: auditWeekCounters(), renderAuditPanel(),
+    // repairWeekCounter(), bucket(), WEEK_TOLERANCE, weekStartOf(), addDays().
+    // All of it existed for ONE purpose — dragging a SECOND copy of each
+    // student's week total (`users/{uid}/stats/time_tracking`) back into line
+    // with the first (`typing_logs`). HANDOFF §0.0.
     //
-    // ⚠️ v2.10.0 OF THIS AUDIT WAS WRONG AND REPORTED AN ALL-CLEAR IT HAD NOT
-    // EARNED. Two stacked mistakes, both worth remembering:
+    // ⚠️ THERE IS NO SECOND COPY ANY MORE, SO THERE IS NOTHING TO AUDIT.
+    // game.js v3.31.0 and learn.js v2.16.0 read the student's day and week out
+    // of `typing_logs/{uid}_{date}` — these documents, the ones this page
+    // grades from. The week total is the SUM of seven of them, recomputed on
+    // every page load and stored nowhere. A derived quantity has no stored
+    // value to be wrong, no merge to double it, and no repair path.
     //
-    //   1. It anchored the week on MONDAY. The app anchors on SATURDAY —
-    //      getWeekStart() in game.js and learn.js returns "the Saturday starting
-    //      this school week (Sat-Fri)", and there is a harness named for that
-    //      boundary. So every stored weekStart failed to match every computed
-    //      one, no day ever fell inside the week, and...
-    //   2. ...the no-days-matched case `continue`d, silently. A student who could
-    //      not be checked was indistinguishable from a student who passed.
+    // Jake, 2026-08-19: "I can't run an audit every time." He was right, and a
+    // faster audit was never the answer.
     //
-    // Ninety students were reported clean while none were examined.
+    // ⚠️ WHAT WENT WITH IT, ON PURPOSE:
+    //   * `repairedAt`. It existed so a live tab could tell "the number went
+    //     down because someone corrected it" from "the number went down because
+    //     it was lost". Nothing corrects a week total now. checkForWeekRepair()
+    //     is deleted from both page controllers to match.
+    //   * The "students with the app open can write a repair back" warning. That
+    //     race required a repair to race against.
     //
-    // ⚠️ THE RULE THAT COMES OUT OF THAT: AN AUDIT MAY NEVER HAVE A SILENT SKIP.
-    // Every student lands in exactly one bucket and every bucket is counted on
-    // screen. If the four counts below do not add up to the roster, that is a bug
-    // in this function, and the total is printed so it can be checked by eye.
-    //
-    // ── WHAT IS BEING COMPARED ───────────────────────────────────────────────
-    //
-    // typing_logs is written on every flush; users/{uid}/stats/time_tracking was,
-    // until game.js v3.23.0 / learn.js v2.7.0, written only on a `final` flush.
-    // Same numbers, different schedules, guaranteed divergence. The daily logs
-    // are the reliable record, so the correct week total is their sum — computed,
-    // not estimated.
-    //
-    // ⚠️ WHAT THIS STILL CANNOT VERIFY. If a student hit the additive-merge bug
-    // on a day when their stats doc had ALREADY been written that day, the day
-    // counter doubled too — and that inflated value went into typing_logs, which
-    // is the yardstick here. Those days look self-consistent. `crossCheck` below
-    // catches them where session rollups exist (all Library days; School only
-    // from 2026-08-18) and cannot catch them otherwise. Reported as its own
-    // count, never folded into the pass count.
-
-    const WEEK_TOLERANCE = 60;   // don't chase rounding or one in-flight flush
-
-    // ⚠️ COPIED VERBATIM FROM game.js / learn.js getWeekStart(). Saturday-anchored.
-    // If that function ever changes, this must change with it — a mismatch here
-    // does not throw, it just quietly audits nobody.
-    function weekStartOf(dateStr) {
-        const d = new Date(dateStr + 'T12:00:00');
-        const diff = (d.getDay() + 1) % 7;
-        d.setDate(d.getDate() - diff);
-        return d.getFullYear() + '-' +
-               String(d.getMonth() + 1).padStart(2, '0') + '-' +
-               String(d.getDate()).padStart(2, '0');
-    }
-    function addDays(dateStr, n) {
-        const d = new Date(dateStr + 'T12:00:00');
-        d.setDate(d.getDate() + n);
-        return d.getFullYear() + '-' +
-               String(d.getMonth() + 1).padStart(2, '0') + '-' +
-               String(d.getDate()).padStart(2, '0');
-    }
-
-    let auditRows = [];
-
-    async function auditWeekCounters() {
-        const panel = document.getElementById('audit-panel');
-        panel.classList.remove('hidden');
-        if (!reportData.length) {
-            panel.innerHTML = '<div style="color:#888;">Run Generate first — the audit reads the daily logs already on screen.</div>';
-            return;
-        }
-
-        // The window actually loaded, from the date inputs.
-        const winStart = document.getElementById('date-start').value;
-        const winEnd   = document.getElementById('date-end').value;
-
-        panel.innerHTML = '<div style="color:#888;">Auditing ' + reportData.length + ' students…</div>';
-        auditRows = [];
-
-        for (const r of reportData) {
-            const row = { r, status: '', note: '' };
-            let data = null;
-            try {
-                const snap = await getDoc(doc(db, 'users', r.uid, 'stats', 'time_tracking'));
-                data = snap.exists() ? snap.data() : null;
-            } catch (e) {
-                row.status = 'error';
-                row.note = e.message || 'read failed';
-                auditRows.push(row);
-                continue;
-            }
-
-            // Which week are we judging? The doc's own weekStart if it has one;
-            // otherwise the week of that student's most recent logged day, since
-            // a missing doc still needs to be created for the right week.
-            const latestDay = r.dailyLogs.length
-                ? r.dailyLogs[r.dailyLogs.length - 1].date : null;
-            const ws = (data && data.weekStart) || (latestDay ? weekStartOf(latestDay) : null);
-            if (!ws) { row.status = 'nodata'; auditRows.push(row); continue; }
-
-            // ⚠️ The window must cover the WHOLE Sat–Fri week, or the daily sum is
-            // a partial and any comparison against it is meaningless. Reported,
-            // never skipped.
-            const weekEnd = addDays(ws, 6);
-            if (!winStart || !winEnd || winStart > ws || winEnd < weekEnd) {
-                row.status = 'unverifiable';
-                row.ws = ws;
-                row.note = 'window ' + (winStart || '?') + '…' + (winEnd || '?') +
-                           ' does not cover ' + ws + '…' + weekEnd;
-                auditRows.push(row);
-                continue;
-            }
-
-            const inWeek = r.dailyLogs.filter(l => l.date >= ws && l.date <= weekEnd);
-            const sum = inWeek.reduce((a, l) => ({
-                secondsWeek:  a.secondsWeek  + l.seconds,
-                charsWeek:    a.charsWeek    + l.chars,
-                mistakesWeek: a.mistakesWeek + l.mistakes,
-            }), { secondsWeek: 0, charsWeek: 0, mistakesWeek: 0 });
-
-            row.ws = ws;
-            row.correct = sum;
-            row.days = inWeek.length;
-
-            if (!data) {
-                row.status = 'missing';
-                row.stored = null;
-            } else {
-                row.stored = data.secondsWeek || 0;
-                const delta = row.stored - sum.secondsWeek;
-                row.delta = delta;
-                if (Math.abs(delta) <= WEEK_TOLERANCE) row.status = 'ok';
-                else if (delta > 0) {
-                    row.status = 'inflated';
-                    // A near-exact doubling of one day, or of the whole week, is
-                    // the additive-merge signature specifically.
-                    row.doubled = sum.secondsWeek > 0 &&
-                        Math.abs(row.stored - sum.secondsWeek * 2) <= WEEK_TOLERANCE;
-                } else row.status = 'deficit';
-            }
-            auditRows.push(row);
-        }
-
-        renderAuditPanel();
-    }
-
-    function bucket(st) { return auditRows.filter(x => x.status === st); }
-
-    function renderAuditPanel() {
-        const panel = document.getElementById('audit-panel');
-        const inflated     = bucket('inflated');
-        const deficit      = bucket('deficit');
-        const missing      = bucket('missing');
-        const unverifiable = bucket('unverifiable');
-        const errors       = bucket('error');
-        const nodata       = bucket('nodata');
-        const clean        = bucket('ok');
-        const repairable   = inflated.concat(deficit, missing);
-
-        const total = auditRows.length;
-        const counted = inflated.length + deficit.length + missing.length +
-                        unverifiable.length + errors.length + nodata.length + clean.length;
-
-        let html = '<div style="font-weight:bold; margin-bottom:8px;">Week-counter audit</div>';
-
-        // ⚠️ EVERY STUDENT IS ACCOUNTED FOR, ON SCREEN. The v2.10.0 audit could
-        // examine nobody and say "no problems found"; this cannot.
-        html += '<div style="font-size:0.8rem; margin-bottom:10px;">' +
-            'Checked <b>' + total + '</b> students' +
-            (counted !== total ? ' <span style="color:#ff6666;">(bucket total ' + counted + ' — mismatch, tell Claude)</span>' : '') +
-            ' &nbsp;·&nbsp; <span style="color:#00ff41;">' + clean.length + ' correct</span>' +
-            ' &nbsp;·&nbsp; <span style="color:#ffb300;">' + inflated.length + ' inflated</span>' +
-            ' &nbsp;·&nbsp; <span style="color:#ffb300;">' + deficit.length + ' under-counted</span>' +
-            ' &nbsp;·&nbsp; <span style="color:#ffb300;">' + missing.length + ' no stats doc</span>' +
-            ' &nbsp;·&nbsp; <span style="color:#888;">' + unverifiable.length + ' unverifiable</span>' +
-            (errors.length ? ' &nbsp;·&nbsp; <span style="color:#ff6666;">' + errors.length + ' read errors</span>' : '') +
-            (nodata.length ? ' &nbsp;·&nbsp; <span style="color:#888;">' + nodata.length + ' no logged days</span>' : '') +
-            '</div>';
-
-        if (repairable.length) {
-            html += '<div style="color:#ccc; margin-bottom:6px; font-size:0.8rem;">' +
-                'The daily logs are the reliable record. Repair rewrites each week counter to their sum ' +
-                '&mdash; and creates the document where it is missing. Daily figures are never touched.</div>';
-            html += repairable.map((f, i) => {
-                const storedTxt = f.stored === null ? '<i>no document</i>' : formatTime(f.stored);
-                const tag = f.status === 'missing' ? '<span style="color:#888;">create</span>'
-                          : f.doubled ? '<span style="color:#ff6666;">exactly doubled</span>'
-                          : f.status === 'deficit' ? '<span style="color:#888;">under</span>' : '';
-                return '<div style="margin:3px 0; font-size:0.8rem;">' +
-                    '<span style="display:inline-block;min-width:170px;">' + escapeHtml(f.r.name) + '</span>' +
-                    '<span class="uid-chip" data-uid="' + f.r.uid + '" title="' + f.r.uid + '">' + f.r.uid.slice(0, 8) + '</span>' +
-                    '<span style="margin-left:10px;">wk ' + f.ws + '</span>' +
-                    '<span style="margin-left:10px;">' + storedTxt + ' &rarr; ' + formatTime(f.correct.secondsWeek) + '</span>' +
-                    '<span style="margin-left:10px;">' + tag + '</span>' +
-                    '<button class="audit-fix-btn" data-i="' + i + '" style="margin-left:10px;">Fix</button>' +
-                    '</div>';
-            }).join('');
-            html += '<button id="audit-fix-all" style="margin-top:10px;">Fix all ' + repairable.length + '</button>' +
-                '<div style="color:#888; font-size:0.75rem; margin-top:6px;">' +
-                '⚠️ Students with the app open are holding their own copy in memory and can write it back ' +
-                'over a repair. Run this before class, or have them reload afterwards.</div>';
-        } else {
-            html += '<div style="color:#00ff41;">Nothing to repair in this window.</div>';
-        }
-
-        if (unverifiable.length) {
-            html += '<div style="color:#888; margin-top:10px; font-size:0.78rem;"><b>Unverifiable (' +
-                unverifiable.length + ')</b> — the loaded window does not cover the whole Sat–Fri week ' +
-                'these counters describe, so the daily sum would be partial. Widen the date range and re-run. ' +
-                'These are NOT passes.</div>';
-        }
-        if (errors.length) {
-            html += '<div style="color:#ff6666; margin-top:6px; font-size:0.78rem;"><b>Read errors (' +
-                errors.length + ')</b> — ' + escapeHtml(errors[0].note || '') + '. See console.</div>';
-        }
-        panel.innerHTML = html;
-
-        // ⚠️ BOUND AFTER THE LAST innerHTML WRITE, or every listener is discarded.
-        panel.querySelectorAll('.audit-fix-btn').forEach(b => {
-            b.onclick = () => repairWeekCounter(repairable[parseInt(b.dataset.i, 10)], b);
-        });
-        const all = document.getElementById('audit-fix-all');
-        if (all) all.onclick = async () => {
-            all.disabled = true;
-            let done = 0, failed = 0;
-            for (const f of repairable) {
-                const r = await repairWeekCounter(f, null);
-                r ? done++ : failed++;
-                all.textContent = 'Repairing… ' + (done + failed) + '/' + repairable.length;
-            }
-            all.textContent = done + ' repaired' + (failed ? ', ' + failed + ' failed' : '') +
-                              ' — re-run the audit to confirm';
-        };
-    }
-
-    async function repairWeekCounter(f, btn) {
-        if (!f) return false;
-        if (btn) { btn.disabled = true; btn.textContent = '…'; }
-        try {
-            // ⚠️ ONLY THE THREE WEEK FIELDS, PLUS weekStart WHERE THE DOCUMENT IS
-            // BEING CREATED. The day counters and lastDate are not ours: this
-            // audit proves nothing about them, and a repair that rewrites what it
-            // has not verified is a second bug wearing a helpful face.
-            //
-            // ⚠️ repairedAt (v2.12.0) — a plain Date.now(), not serverTimestamp().
-            // This only ever needs to be self-consistent within one admin's own
-            // repair run; it doesn't need to agree with any client's clock, and
-            // serverTimestamp()'s write-then-resolve semantics would complicate
-            // comparing it for no benefit here. game.js/learn.js compare this
-            // against what their own session saw at load — see their
-            // checkForWeekRepair() — to tell "the number went down because it
-            // was corrected" from "the number went down because it was lost,"
-            // which is the one thing mergeGuestStats()'s data-loss floor can't
-            // tell on its own. Without this stamp, a student whose tab survives
-            // across a restart-that-didn't-happen can silently overwrite this
-            // exact repair on their next flush — which is precisely what
-            // happened, twice, before this existed.
-            const payload = {
-                secondsWeek:  f.correct.secondsWeek,
-                charsWeek:    f.correct.charsWeek,
-                mistakesWeek: f.correct.mistakesWeek,
-                repairedAt:   Date.now(),
-            };
-            if (f.status === 'missing') payload.weekStart = f.ws;
-            await setDoc(doc(db, 'users', f.r.uid, 'stats', 'time_tracking'), payload, { merge: true });
-            if (btn) btn.textContent = '✓ fixed';
-            return true;
-        } catch (e) {
-            console.error('repair failed', f.r.uid, e);
-            if (btn) { btn.textContent = 'failed'; btn.disabled = false; }
-            return false;
-        }
-    }
-
-    document.getElementById('audit-weeks-btn').onclick = auditWeekCounters;
+    // ⚠️ IF A FUTURE ROUND WANTS THIS BACK, IT WANTS THE SECOND COPY BACK, and
+    // that is the thing to argue about first. What remains — and what is
+    // actually needed — is `Reconcile vs Sessions` below: it compares the graded
+    // document against the append-only session record, which is a comparison
+    // between a projection and its SOURCE, not between two rival copies.
 
     document.addEventListener('click', (e) => {
         if (e.target.classList && e.target.classList.contains('uid-chip')) {
@@ -2273,12 +2041,11 @@
                     lastUpdated: new Date()
                 });
 
-                const today = new Date().toISOString().split('T')[0];
-                if (log.date === today) {
-                    try {
-                        await updateDoc(doc(db, "users", r.uid, "stats", "time_tracking"), { secondsToday: newSeconds });
-                    } catch (statsErr) { console.warn("Could not update live stats:", statsErr); }
-                }
+                // ⚠️ v2.16.0 — NO MIRROR WRITE. This used to also poke
+                // users/{uid}/stats/time_tracking so the student's HUD would
+                // agree with the correction. The HUD reads THIS document now, so
+                // the correction reaches the student by being written, full stop.
+                // That is what one number buys.
 
                 const oldSeconds = log.seconds;
                 log.seconds = newSeconds;
@@ -2454,14 +2221,8 @@
                 lastUpdated: new Date()
             });
 
-            const today = new Date().toISOString().split('T')[0];
-            if (log.date === today) {
-                try {
-                    await updateDoc(doc(db, "users", uid, "stats", "time_tracking"), {
-                        secondsToday: totalSec, charsToday: totalChars, mistakesToday: totalMistakes
-                    });
-                } catch (e2) { console.warn("Live stats update skipped:", e2); }
-            }
+            // ⚠️ v2.16.0 — NO MIRROR WRITE, same as the manual save above. A
+            // rebuild lands on the document the student's HUD reads.
 
             const oldSeconds = log.seconds;
             log.seconds = totalSec;

@@ -410,6 +410,8 @@
     <script type="module">
         import { db, auth } from "./firebase-config.js";
         import { readDeployedVersions, renderBuildList } from "./versions.js";
+        // ⚠️ HANDOFF §0.0 — the shelf banner reads the GRADED document now.
+        import { readWeek } from "./daylog.js";
 
         // ─── Version ──────────────────────────────────────────────────────────
         // This page's own version. The <title> and footer are both written from
@@ -420,7 +422,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.8.0";
+        const INDEX_VERSION = "3.9.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -1411,24 +1413,27 @@
         // pips and then redraw it a moment later.
         loadBooks();
 
+        // ⚠️ v3.9.0 — READS typing_logs, VIA daylog.js. This banner used to read
+        // users/{uid}/stats/time_tracking, which was a THIRD surface showing a
+        // number nobody else held. HANDOFF §0.0: one document, read by every
+        // surface. The Saturday-anchored week arithmetic that used to be
+        // open-coded here is gone with it — daylog.js owns that, and a fourth
+        // hand-rolled copy of the week boundary was a defect waiting for a
+        // daylight-saving weekend.
         async function loadIndexStats() {
             if (!currentUser) return;
             try {
-                const snap = await getDoc(doc(db, 'users', currentUser.uid, 'stats', 'time_tracking'));
-                if (!snap.exists()) return;
-                const data = snap.data();
                 const now = new Date();
-                const diff = (now.getDay() + 1) % 7;
-                const ws = new Date(now);
-                ws.setDate(ws.getDate() - diff);
-                const weekStartStr = ws.getFullYear() + '-' +
-                    String(ws.getMonth()+1).padStart(2,'0') + '-' +
-                    String(ws.getDate()).padStart(2,'0');
                 const todayStr = now.getFullYear() + '-' +
                     String(now.getMonth()+1).padStart(2,'0') + '-' +
                     String(now.getDate()).padStart(2,'0');
-                const secsToday = data.lastDate  === todayStr    ? (data.secondsToday || 0) : 0;
-                const secsWeek  = data.weekStart === weekStartStr ? (data.secondsWeek  || 0) : 0;
+                const read = await readWeek({ db, doc, getDoc,
+                                              uid: currentUser.uid, dateStr: todayStr });
+                // ⚠️ A PARTIAL READ SHOWS NOTHING RATHER THAN AN UNDERCOUNT. This
+                // banner is decoration; a wrong number on it is not.
+                if (!read.ok) return;
+                const secsToday = read.today.seconds;
+                const secsWeek  = read.week.seconds;
                 if (secsToday === 0 && secsWeek === 0) return;
                 function fmt(s) { const m=Math.floor(s/60),sec=s%60; return m+':'+String(sec).padStart(2,'0'); }
                 const bar = document.getElementById('index-stats-bar');

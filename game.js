@@ -1,5 +1,26 @@
 // game.js v3.30.0
 //
+// v3.31.0 — ⚠️⚠️ ONE NUMBER. `users/{uid}/stats/time_tracking` IS GONE FROM THIS
+//           FILE — every read and every write of it. The day and week totals the
+//           HUD paints are now read from `typing_logs/{uid}_{date}`, THE SAME
+//           SEVEN DOCUMENTS reports.html grades from, via the new shared
+//           daylog.js. HANDOFF.md §0.0 is the full statement; the short version
+//           is that the student's screen and the teacher's report were two
+//           independently-written copies of one quantity and no amount of
+//           auditing was ever going to make two copies agree.
+//
+//           ⚠️ REQUIRES firestore.rules v2.5.0, DEPLOYED FIRST. Until v2.5.0 the
+//           read rule on typing_logs was staff-only, which is precisely why the
+//           second copy existed. Without it every load fails its read, and the
+//           guard below leaves the counters untouched rather than painting zero.
+//
+//           ⚠️ THE WEEK IS DERIVED AND STORED NOWHERE. It is the sum of the seven
+//           daily documents, recomputed every load. checkForWeekRepair() and
+//           `lastKnownRepairedAt` are DELETED along with the stored counter they
+//           defended — there is nothing left to repair, and reports.html's
+//           week-counter audit goes with them. If either idea comes back, a
+//           second copy has come back; go and find that instead.
+//
 // v3.30.0 — ⚠️ THE SOURCE SPLIT IS REVERTED. This file's typing_logs write is
 //           byte-for-byte what v3.28.1 shipped: the flat seconds/chars/
 //           mistakes triple, from statsData.*Today. v3.29.0 and v3.29.1 both
@@ -276,6 +297,8 @@ import {
 // slot held three different quantities depending on settings, and School's held a
 // fourth. DOM-free: it returns strings and this file writes them.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
+// ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
+import { readWeek, applyWeekToStats, DAYLOG_VERSION } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // The version footer's three primary reads (this html file, this js file's own
 // VERSION, style.css) plus the lazy full-build panel on hover. See
@@ -286,7 +309,7 @@ import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
 // serverTimestamp is imported for ONE purpose: to hand it to session-log.js so
 // rollups carry a clock the student cannot set. It is not used anywhere else in
 // this file, and ⚠️ it must not be: a serverTimestamp() sentinel inside a
-// setDoc(merge:true) on typing_logs or stats/time_tracking would be a second
+// setDoc(merge:true) on typing_logs would be a second
 // dating scheme on the documents Round 12 spent a day reconciling.
 import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import {
@@ -297,7 +320,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.30.0";
+const VERSION = "3.31.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1007,12 +1030,11 @@ let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0, mist
 // read (loadUserStats), and reset to zero on a genuine sign-out.
 let statsBaseline = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0, mistakesToday:0, mistakesWeek:0 };
 
-// ⚠️ THE LAST REPAIR THIS SESSION HAS SEEN. (v3.28.0) See checkForWeekRepair()
-// below, near flushAll(), for what this guards against. Set at load time from
-// the doc's own `repairedAt` (only when weekStart matches — a repair marker
-// from a past week is moot, the counters already reset); reset to 0 whenever
-// the week itself rolls over, same as the counters it travels with.
-let lastKnownRepairedAt = 0;
+// ⚠️ `lastKnownRepairedAt` and checkForWeekRepair() ARE GONE (v3.31.0). They
+// existed to stop a live tab overwriting reports.html's week-counter repair.
+// There is no week-counter to repair: the week is the sum of seven typing_logs
+// documents, computed on every load and stored nowhere. A derived quantity has
+// no stored value to be wrong, so it has no repair path to defend. HANDOFF §0.0.
 
 // ⚠️ TRUE WHEN A REAL USER BECAME NULL WITHOUT ASKING TO. (v3.22.0)
 //
@@ -1536,34 +1558,38 @@ async function loadUserStats() {
         const today = new Date();
         const dateStr = getLocalDateStr(today);
         const weekStart = getWeekStart(today);
-        const docRef = doc(db, "users", currentUser.uid, "stats", "time_tracking");
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            if (data.lastDate === dateStr) {
-                statsData.secondsToday = data.secondsToday || 0;
-                statsData.charsToday = data.charsToday || 0;
-                statsData.mistakesToday = data.mistakesToday || 0;
-            } else {
-                statsData.secondsToday = 0; statsData.charsToday = 0; statsData.mistakesToday = 0;
-            }
-            if ((data.weekStart || '') === weekStart) {
-                statsData.secondsWeek = data.secondsWeek || 0;
-                statsData.charsWeek   = data.charsWeek   || 0;
-                statsData.mistakesWeek= data.mistakesWeek|| 0;
-                lastKnownRepairedAt = data.repairedAt || 0;
-            } else {
-                statsData.secondsWeek = 0; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
-                lastKnownRepairedAt = 0;
-            }
+        // ⚠️ v3.31.0 — READ FROM typing_logs, THE DOCUMENT JAKE GRADES FROM.
+        //
+        // This used to read users/{uid}/stats/time_tracking — a SECOND copy of
+        // these numbers, written by this page on its own schedule. That document
+        // is gone. See HANDOFF §0.0: the student's screen and the teacher's
+        // report now read the same seven documents, which is the only
+        // arrangement in which they cannot disagree.
+        //
+        // The DAY comes from today's document. The WEEK is the SUM of the seven,
+        // computed here and stored nowhere — so it can never be double-merged,
+        // can never be repaired, and can never drift from the days beneath it.
+        // Every week-counter defect this project has had was a stored week
+        // counter. There isn't one now.
+        const read = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr });
+
+        // ⚠️ A PARTIAL READ MUST NOT PAINT. If any of the seven failed, the
+        // totals below are an undercount that looks exactly like a light week —
+        // and showing a child a number lower than what they earned is the thing
+        // this whole redesign exists to stop. Leave the HUD on its cache, leave
+        // statsData alone, and let the next load try again.
+        if (!read.ok) {
+            console.warn("Day-log read incomplete — leaving counters untouched this load.");
+            return;
         }
+
+        applyWeekToStats(statsData, read, dateStr);
+
         // ⚠️ SAVED ONLY HERE — after the authoritative read, never from the live
         // counter and never from a merge. See the warning in hud.js.
         hudCacheSave({ todaySeconds: statsData.secondsToday,
                        weekSeconds:  statsData.secondsWeek,
                        date: dateStr, weekStart });
-        statsData.lastDate = dateStr;
-        statsData.weekStart = weekStart;
 
         // ⚠️ THE BASELINE IS TAKEN HERE AND NOWHERE ELSE. (v3.22.0)
         //
@@ -2504,7 +2530,6 @@ function gameTick() {
                     statsData.mistakesWeek = 0;
                     statsData.weekStart = weekStart;
                     weeklyGoalCelebrated = false;
-                    lastKnownRepairedAt = 0; // a repair marker from last week is moot now
                 }
             }
 
@@ -3731,8 +3756,10 @@ let walDirty = false;
 // it was TYPED. It used to ride inside this WAL under `sessions`, which meant it
 // inherited the WAL's book scoping and the WAL's flush-time date. Legacy records
 // are adopted once, in walRecover().
-let statsDocDirty = false;          // stats/time_tracking is only read at load,
-                                    // so it only needs writing at session end
+let statsDocDirty = false;          // ⚠️ v3.31.0: now means "a WAL recovery put
+                                    // seconds into statsData that no flush has
+                                    // written to typing_logs yet". It no longer
+                                    // refers to a stats document; there isn't one.
 // Denormalised tenancy stamps, written onto every log so reports can be scoped
 // by class or building without reading the whole collection. See MULTITENANCY.md.
 let ttbClassId = '';
@@ -3835,58 +3862,15 @@ function markDirty() {
 // saveProgress(force), walRecover()), so three-deep is reachable in normal use.
 let _flushInFlight = null;
 
-// ═════════════════════════════════════════════════════════════════════════════
-// checkForWeekRepair() — THE FIX FOR A REPAIR THAT DOESN'T STICK. (v3.28.0)
-// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️ checkForWeekRepair() WAS HERE AND IS DELETED (v3.31.0). It resynced this
+// session against reports.html's week-counter repair, because a live tab holding
+// a stale week total would otherwise write it straight back over the fix. Both
+// halves of that are gone: there is no stored week total to be stale, and no
+// repair button to be undone. `statsData.secondsWeek` is recomputed from seven
+// documents on every load and is never written anywhere. HANDOFF §0.0.
 //
-// mergeGuestStats()'s outer Math.max() floor exists to protect against DATA
-// LOSS: this browser has no way to tell "the server number went down because
-// of a bug or a lost write" from "the server number went down because someone
-// fixed it," so it refuses to go down at all. That is correct for what it was
-// built for and it is exactly what let reports.html's week-counter audit repair
-// get silently overwritten back to the inflated value: a student's tab that
-// was never closed still holds the OLD secondsWeek in `statsData`, and the very
-// next periodic flush writes that live number straight back over the fix — see
-// HANDOFF §0.7 for the incident this closes.
-//
-// The piece the floor is missing is a way to tell the two cases apart. The
-// audit repair now writes `repairedAt` (a plain Date.now() timestamp, not
-// serverTimestamp() — this only ever needs to be self-consistent within one
-// admin's repair run, not agree with any client's clock) alongside the
-// corrected fields. If the doc holds a `repairedAt` newer than the one this
-// session captured at load, that IS the distinguishing signal: it wasn't lost,
-// it was corrected, and this session should trust the correction — while still
-// keeping whatever real typing has happened in THIS browser since its own
-// baseline was taken, the same "mine = live - baseline" logic mergeGuestStats
-// uses, just without the floor that exists to defend against the case this
-// isn't.
-//
-// Called from flushAll(), right before the write that would otherwise clobber
-// a repair, and ONLY then — this adds one getDoc() per flush that was already
-// about to happen (every ~5 minutes of active typing, or at session end), not
-// one per second. Best-effort: a failed or skipped check just means the next
-// flush tries again.
-async function checkForWeekRepair() {
-    if (!currentUser || currentUser.isAnonymous) return;
-    try {
-        const docRef = doc(db, "users", currentUser.uid, "stats", "time_tracking");
-        const snap = await getDoc(docRef);
-        if (!snap.exists()) return;
-        const data = snap.data();
-        const weekStart = getWeekStart(new Date());
-        if ((data.weekStart || '') !== weekStart) return; // not this week — moot
-        const serverRepairedAt = data.repairedAt || 0;
-        if (serverRepairedAt <= lastKnownRepairedAt) return; // nothing new to catch up on
-
-        for (const k of ['secondsWeek', 'charsWeek', 'mistakesWeek']) {
-            const mine = Math.max(0, (statsData[k] || 0) - (statsBaseline[k] || 0));
-            statsData[k] = (data[k] || 0) + mine;
-            statsBaseline[k] = data[k] || 0;
-        }
-        lastKnownRepairedAt = serverRepairedAt;
-        console.log("Week counters resynced after an audit repair.");
-    } catch (e) { /* best-effort; next flush tries again */ }
-}
+// ⚠️ IF SOMETHING LIKE THIS COMES BACK, THE SECOND COPY HAS COME BACK. That is
+// the thing to go and find, not the resync.
 
 async function flushAll(reason, final = false) {
     while (_flushInFlight) {
@@ -3957,7 +3941,10 @@ async function _flushAllInner(reason, final = false) {
     // `readLogTotals()`. ⚠️ REQUIRES firestore.rules v2.4.0 or later — the old
     // rule required a legacy `seconds` field on every document and would
     // reject a brand-new day's first flush outright. Deploy the rule first.
-    if (walDirty || final) {
+    // ⚠️ v3.31.0 — `|| statsDocDirty` MOVED ONTO THIS TRIGGER. It used to gate
+    // the stats rollup below, which no longer exists. A WAL recovery sets it and
+    // nothing else would have written the recovered seconds anywhere.
+    if (walDirty || final || statsDocDirty) {
         try {
             const today = getLocalDateStr();
             await setDoc(doc(db, "typing_logs", `${currentUser.uid}_${today}`), {
@@ -4005,19 +3992,16 @@ async function _flushAllInner(reason, final = false) {
     //
     // The rule this encodes: TWO RECORDS OF THE SAME QUANTITY MUST SHARE A WRITE
     // TRIGGER, or they will disagree and no amount of auditing will keep up.
-    if (walDirty || final || statsDocDirty) {
-        // ⚠️ v3.28.0 — check for an audit repair BEFORE writing, not after. See
-        // checkForWeekRepair() above. If this session's statsData is stale
-        // relative to a correction the audit already made, this resyncs it in
-        // place so the write below carries the corrected number forward
-        // instead of clobbering it right back.
-        await checkForWeekRepair();
-        try {
-            await setDoc(doc(db, "users", currentUser.uid, "stats", "time_tracking"),
-                         statsData, { merge: true });
-            statsDocDirty = false;
-        } catch (e) { ok = false; console.warn(`Stats flush failed (${reason}):`, e); }
-    }
+    // ⚠️ v3.31.0 — THE stats/time_tracking WRITE IS DELETED. THIS IS THE POINT
+    // OF THE WHOLE CHANGE, so do not put it back to "keep the HUD fast" or "for
+    // the leaderboard" without reading HANDOFF §0.0 first.
+    //
+    // The comment that used to live here argued that two records of one quantity
+    // MUST SHARE A WRITE TRIGGER or they will disagree. That was true and it was
+    // treating the symptom. There is one record now. The daily log written above
+    // IS the number, for the student and for the teacher, and the week is its
+    // sum across seven days.
+    statsDocDirty = false;
 
     // 4. Sprint history — DELEGATED TO session-log.js (v3.22.0).
     //
@@ -4302,13 +4286,27 @@ function showReauthPrompt() {
                 const today = new Date();
                 const dateStr = getLocalDateStr(today);
                 const weekStart = getWeekStart(today);
-                const statsRef = doc(db, "users", currentUser.uid, "stats", "time_tracking");
-                const statsSnap = await getDoc(statsRef);
-                mergeGuestStats(statsSnap.exists() ? statsSnap.data() : null,
-                                dateStr, weekStart);
+                // ⚠️ v3.31.0 — the server side of the merge is now the seven
+                // typing_logs documents, not a stats rollup. mergeGuestStats()
+                // is UNCHANGED and still correct: it wants an object shaped like
+                // the old stats document, and a week read is exactly that once
+                // it is named. Both period guards match by construction, because
+                // the read was for this date and this week.
+                const read = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr });
+                // ⚠️ A FAILED READ MERGES AS "SERVER HAS NOTHING", and that is
+                // the safe direction HERE and only here: mergeGuestStats' floor
+                // never lets the result fall below what this browser already
+                // holds, so the worst case is that stored time is re-added by
+                // the next clean load rather than lost now.
+                mergeGuestStats(read.ok ? {
+                    lastDate: dateStr, weekStart: read.weekStart,
+                    secondsToday: read.today.seconds, charsToday: read.today.chars,
+                    mistakesToday: read.today.mistakes,
+                    secondsWeek: read.week.seconds, charsWeek: read.week.chars,
+                    mistakesWeek: read.week.mistakes,
+                } : null, dateStr, weekStart);
                 sessionExpired = false;
                 statsDocDirty = true;
-                await setDoc(statsRef, statsData, { merge: true });
                 await flushAll('reauth', true);
                 updateTimerUI();
             }
@@ -4364,11 +4362,11 @@ const HIDDEN_FLUSH_MIN_GAP_MS = 60000;
 //
 //   1. 120 seconds, not 45. The 5-minute interval flush already caps exposure;
 //      this only narrows the worst case from 5 minutes to 2.
-//   2. NOT `final`. A non-final flush writes `typing_logs` — the document
-//      reports.html actually reads — and skips the `stats/time_tracking`
-//      rollup, which is only ever read at page load and which the WAL now
-//      covers anyway. statsDocDirty stays true, so the next real `final` flush
-//      still writes it.
+//   2. NOT `final`. A non-final flush writes `typing_logs` — which since
+//      v3.31.0 is the ONLY document holding these numbers, for the student and
+//      the teacher alike — and skips the session-rollup upload, which is the
+//      expensive part. (Before v3.31.0 this bullet also talked about skipping a
+//      `stats/time_tracking` write; that document no longer exists. HANDOFF §0.0.)
 //
 // ⚠️ AND BE CLEAR ABOUT WHAT IS LEFT TO BUY. Once stats-wal.js exists, unflushed
 // time is no longer LOST — it replays on the next load of either page. All this
@@ -5271,17 +5269,22 @@ function showAnonLoginPrompt(rung) {
                     String(today.getDate()).padStart(2,'0');
                 const weekStart = getWeekStart(today);
 
-                // Load existing stats first
-                const statsRef = doc(db, "users", currentUser.uid, "stats", "time_tracking");
-                const statsSnap = await getDoc(statsRef);
                 // ⚠️ v3.22.0 — this block used to add the server's totals to the
                 // live ones inline, which was correct for a guest and doubled the
                 // counters for an expired session. The arithmetic now lives in
                 // mergeGuestStats(); read the block above it before changing this.
-                mergeGuestStats(statsSnap.exists() ? statsSnap.data() : null,
-                                dateStr, weekStart);
+                // ⚠️ v3.31.0 — the server side is the week of typing_logs now.
+                const read = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr });
+                mergeGuestStats(read.ok ? {
+                    lastDate: dateStr, weekStart: read.weekStart,
+                    secondsToday: read.today.seconds, charsToday: read.today.chars,
+                    mistakesToday: read.today.mistakes,
+                    secondsWeek: read.week.seconds, charsWeek: read.week.chars,
+                    mistakesWeek: read.week.mistakes,
+                } : null, dateStr, weekStart);
                 sessionExpired = false;
-                await setDoc(statsRef, statsData, { merge: true });
+                statsDocDirty = true;
+                await flushAll('anon-retroactive', true);
 
                 // Load goals since auth handler was skipped
                 await loadGoals();

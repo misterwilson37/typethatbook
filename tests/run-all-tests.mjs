@@ -123,6 +123,11 @@ const FAST = [
     ['session-merge-test.mjs',   'the guest/expired merge, session-log rollup dating, the repair resync, and Part E: two concurrent flushes write ONE document'],
     ['open-unit-test.mjs',       'the open sprint/run: deltas, watermarks, and the reset-site parity guard'],
     ['source-split-test.mjs',    'legacy-FIRST daily-log reads (the split is reverted), splitSessionTotals(), and sessionSignature() duplicate detection'],
+    // ⚠️ Round 17 (Underwood). Read this harness's own header before trusting a
+    // green run from it — it says plainly what it does not cover, which is
+    // everything about a tab being open during a rebuild.
+    ['reconcile-test.mjs',       'the rebuild plan\u2019s four refusals (never zero a day, never invent a log), and the position-is-not-identity guard'],
+    ['daylog-test.mjs',          'ONE NUMBER: the shared typing_logs week reader \u2014 Saturday anchor, legacy-first totals, and the partial-read refusal'],
 ];
 
 // ⚠️ PENDING — written test-first, against app code that has NOT landed. Each

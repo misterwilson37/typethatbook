@@ -1,4 +1,4 @@
-// versions.js v1.8.0 — reads every file's version constant out of the files as
+// versions.js v1.9.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
 //
 // WHY IT WORKS THIS WAY
@@ -26,6 +26,11 @@
 // result is cached in sessionStorage for the tab's lifetime. A student who never
 // opens it pays nothing.
 
+// v1.9.0 — registers daylog.js, the FIFTH module game.js and learn.js both
+// import — and the one whose staleness is worst. A cached copy of it reads the
+// wrong seven documents, on both pages, and the symptom is a student seeing a
+// number that is merely WRONG rather than obviously broken. HANDOFF §0.0.
+//
 // v1.8.0 — registers update-gate.js. It is NOT imported by game.js or learn.js
 // — it loads from its own script tag in each shell — which is exactly why it
 // needs to be here: nothing else on the page would reveal that it failed to
@@ -75,6 +80,7 @@ const SOURCES = [
     { file: 'variety-floor.js',      pattern: /\bexport\s+const\s+VARIETY_FLOOR_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'versions.js',           pattern: /\bexport\s+const\s+VERSIONS_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'update-gate.js',        pattern: /\bexport\s+const\s+UPDATE_GATE_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'daylog.js',             pattern: /\bexport\s+const\s+DAYLOG_VERSION\s*=\s*["']([^"']+)["']/ },
     // Stylesheets carry theirs in a comment on line 1 as well as in a
     // body::before / body::after stamp. The comment is what we parse here,
     // because a page that doesn't load the stylesheet can still report it.
@@ -86,7 +92,7 @@ const SOURCES = [
     { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
 ];
 
-export const VERSIONS_VERSION = '1.8.0';
+export const VERSIONS_VERSION = '1.9.0';
 
 const CACHE_KEY = 'ttb_buildVersions_v3';   // v3: entries gained header budget fields
 

@@ -11,7 +11,22 @@
 // thing Round 13 added, plus Round 16's repair resync, tested against the code
 // that actually ships.
 //
-// v1.3.0 — PART D is new: checkForWeekRepair() (game.js v3.28.0 / learn.js
+// v1.4.0 — ⚠️ PART D IS INVERTED (Round 19). It used to exercise
+//          checkForWeekRepair()'s arithmetic. That function is DELETED from both
+//          page controllers, along with the stored week counter it defended and
+//          reports.html's week-counter audit. HANDOFF §0.0.
+//
+//          ⚠️ AN ASSERTION THAT SIMPLY VANISHES WHEN A FEATURE IS REMOVED IS A
+//          GAP. The whole one-number architecture rests on there being exactly
+//          one stored copy of a student's time; a future round reintroducing
+//          users/{uid}/stats/time_tracking would reopen every counting defect
+//          this project has had, silently, because two copies agree perfectly
+//          right up until they don't. Part D now asserts the ABSENCE against the
+//          shipped sources — the same technique open-unit-test.mjs Part E uses to
+//          count increment sites — plus that both files import daylog.js, call
+//          readWeek(), and honour its partial-read refusal.
+//
+// v1.3.0 — PART D was: checkForWeekRepair() (game.js v3.28.0 / learn.js
 //          v2.13.0), lifted and sandboxed the same way Part A lifts
 //          mergeGuestStats(). Asserts the resync happens when a newer
 //          repairedAt shows up, is a no-op on a repairedAt already seen or
@@ -385,117 +400,59 @@ if (gameDeps && learnDeps) {
 ok(mod.SESSION_LOG_VERSION === '1.3.0',
    `session-log.js reports v1.3.0 (got ${mod.SESSION_LOG_VERSION})`);
 
-// ─── D. checkForWeekRepair() — the fix for a repair that doesn't stick ───────
-console.log('\n─── D. checkForWeekRepair ───');
+// ─── D. ⚠️ THE REPAIR RESYNC IS GONE, AND THIS PART NOW GUARDS ITS ABSENCE ───
+//
+// Part D used to lift checkForWeekRepair() out of both page controllers and
+// exercise its arithmetic. Round 19 DELETED that function, and the stored week
+// counter it defended, and reports.html's week-counter audit that made a repair
+// possible in the first place. HANDOFF §0.0.
+//
+// ⚠️ AN ASSERTION THAT SIMPLY DISAPPEARS WHEN A FEATURE IS REMOVED IS A GAP.
+// The whole architecture now rests on there being exactly ONE stored copy of a
+// student's time. A future round that reintroduces users/{uid}/stats/time_tracking
+// — for a "fast HUD", for the leaderboard, for anything — would reopen every
+// counting defect this project has had, and would do it silently, because two
+// copies agree perfectly right up until they don't. So the removal is asserted
+// against the shipped sources, the same way open-unit-test.mjs Part E counts
+// increment sites.
+console.log('\n─── D. one-number guards (Round 19) ───');
 
-// Same lift-and-sandbox technique as Part A. lastKnownRepairedAt is a bare
-// module-scope `let` in both real files, reassigned by the lifted body itself
-// (not passed in as a mutable object the way statsData/statsBaseline are) — so
-// the wrapper declares it in the SAME Function scope as the lifted body,
-// rather than as a parameter, and reads it back afterward. That only works
-// because the glue and the lifted body share one `new Function(...)` string.
-function makeRepairChecker(src, label) {
-    const body = lift(src, 'checkForWeekRepair');
-    ok(!!body, `${label}: checkForWeekRepair() exists`);
-    if (!body) return null;
-    return async (opts) => {
-        const fn = new Function('currentUser', 'statsData', 'statsBaseline',
-            'doc', 'db', 'getDoc', 'getWeekStart', 'initialRepairedAt', `
-            let lastKnownRepairedAt = initialRepairedAt;
-            async ${body}
-            return checkForWeekRepair().then(() => ({ statsData, lastKnownRepairedAt }));
-        `);
-        const stubDoc = (..._args) => 'stub-doc-ref';
-        const stubGetDoc = async () => ({
-            exists: () => !!opts.serverDoc,
-            data:   () => opts.serverDoc,
-        });
-        return fn(opts.currentUser, opts.statsData, opts.statsBaseline,
-                   stubDoc, null, stubGetDoc, opts.getWeekStart, opts.initialRepairedAt);
-    };
+// COMMENTS ARE ALLOWED TO NAME THESE THINGS AND MUST BE. Both files carry
+// deliberate notes explaining what was removed and why - that explanation is the
+// only thing standing between a future round and rebuilding the second copy from
+// scratch, so deleting it to satisfy a regex would be strictly worse than the
+// risk being guarded. CODE is what may not name them. Strip line comments first.
+const stripComments = (src) => src.replace(/^\s*\/\/.*$/gm, '');
+
+for (const [label, src] of [['game.js', gameSrc], ['learn.js', learnSrc]]) {
+    const code = stripComments(src);
+    ok(!/checkForWeekRepair/.test(code),
+       `${label}: checkForWeekRepair() is GONE from code`);
+    ok(!/lastKnownRepairedAt/.test(code),
+       `${label}: lastKnownRepairedAt is GONE from code`);
+    ok(!/["'`]time_tracking["'`]/.test(code),
+       `${label}: no code path names stats/time_tracking - one stored copy, not two`);
+    ok(/from\s+["']\.\/daylog\.js["']/.test(code),
+       `${label}: imports daylog.js (reads the graded document)`);
+    ok(/readWeek\s*\(/.test(code),
+       `${label}: calls readWeek() - day and week come from typing_logs`);
 }
 
-const checkers = [
-    ['game.js',  makeRepairChecker(gameSrc,  'game.js')],
-    ['learn.js', makeRepairChecker(learnSrc, 'learn.js')],
-];
+// ⚠️ THE PARTIAL-READ REFUSAL MUST BE HONOURED AT BOTH CALL SITES, not just
+// implemented in the module. daylog-test.mjs proves readWeek() reports ok:false;
+// this proves the pages actually stop when it does. A caller that ignores it
+// paints an undercount, which is indistinguishable on screen from a light week.
+for (const [label, src] of [['game.js', gameSrc], ['learn.js', learnSrc]]) {
+    ok(/if\s*\(!read\.ok\)/.test(stripComments(src)),
+       `${label}: refuses to paint on an incomplete week read`);
+}
 
-const THIS_WEEK = '2026-08-15';
-const sameWeekStart = () => THIS_WEEK;
-
-for (const [label, check] of checkers) {
-    if (!check) continue;
-
-    // 1. A repair newer than what this session saw: resync, keeping this
-    //    browser's own contribution since baseline, no floor.
-    let statsData = { secondsWeek: 5000, charsWeek: 0, mistakesWeek: 0, weekStart: THIS_WEEK };
-    let baseline  = { secondsWeek: 4990, charsWeek: 0, mistakesWeek: 0 }; // 10s typed since baseline
-    let out = await check({
-        currentUser: { uid: 'u1', isAnonymous: false },
-        statsData, statsBaseline: baseline,
-        getWeekStart: sameWeekStart,
-        initialRepairedAt: 100,
-        serverDoc: { weekStart: THIS_WEEK, secondsWeek: 1200, charsWeek: 0, mistakesWeek: 0, repairedAt: 200 },
-    });
-    ok(out.statsData.secondsWeek === 1210,
-       `${label}: newer repair resyncs to server value + this browser's own contribution ` +
-       `(got ${out.statsData.secondsWeek}, want 1210)`);
-    ok(out.lastKnownRepairedAt === 200,
-       `${label}: lastKnownRepairedAt advances to the repair it just caught up on`);
-
-    // 2. Same repair seen twice: idempotent, does not re-apply or drift.
-    statsData = { secondsWeek: 1210, charsWeek: 0, mistakesWeek: 0, weekStart: THIS_WEEK };
-    baseline  = { secondsWeek: 1210, charsWeek: 0, mistakesWeek: 0 };
-    out = await check({
-        currentUser: { uid: 'u1', isAnonymous: false },
-        statsData, statsBaseline: baseline,
-        getWeekStart: sameWeekStart,
-        initialRepairedAt: 200, // already caught up
-        serverDoc: { weekStart: THIS_WEEK, secondsWeek: 1200, charsWeek: 0, mistakesWeek: 0, repairedAt: 200 },
-    });
-    ok(out.statsData.secondsWeek === 1210,
-       `${label}: an already-seen repairedAt is a no-op (got ${out.statsData.secondsWeek}, want 1210)`);
-
-    // 3. No repairedAt on the doc at all (the common case — most students are
-    //    never audited): must not touch statsData.
-    statsData = { secondsWeek: 777, charsWeek: 0, mistakesWeek: 0, weekStart: THIS_WEEK };
-    baseline  = { secondsWeek: 700, charsWeek: 0, mistakesWeek: 0 };
-    out = await check({
-        currentUser: { uid: 'u1', isAnonymous: false },
-        statsData, statsBaseline: baseline,
-        getWeekStart: sameWeekStart,
-        initialRepairedAt: 0,
-        serverDoc: { weekStart: THIS_WEEK, secondsWeek: 700, charsWeek: 0, mistakesWeek: 0 },
-    });
-    ok(out.statsData.secondsWeek === 777,
-       `${label}: no repairedAt on the doc leaves statsData untouched (got ${out.statsData.secondsWeek}, want 777)`);
-
-    // 4. A repairedAt from a DIFFERENT week must be ignored — a stale marker
-    //    from last week is moot once the week has rolled over.
-    statsData = { secondsWeek: 40, charsWeek: 0, mistakesWeek: 0, weekStart: THIS_WEEK };
-    baseline  = { secondsWeek: 40, charsWeek: 0, mistakesWeek: 0 };
-    out = await check({
-        currentUser: { uid: 'u1', isAnonymous: false },
-        statsData, statsBaseline: baseline,
-        getWeekStart: sameWeekStart,
-        initialRepairedAt: 0,
-        serverDoc: { weekStart: '2026-08-08', secondsWeek: 9999, charsWeek: 0, mistakesWeek: 0, repairedAt: 500 },
-    });
-    ok(out.statsData.secondsWeek === 40,
-       `${label}: a repairedAt from a different weekStart is ignored (got ${out.statsData.secondsWeek}, want 40)`);
-
-    // 5. Anonymous / signed-out sessions are skipped entirely (no read, no throw).
-    statsData = { secondsWeek: 10, charsWeek: 0, mistakesWeek: 0, weekStart: THIS_WEEK };
-    baseline  = { secondsWeek: 10, charsWeek: 0, mistakesWeek: 0 };
-    out = await check({
-        currentUser: { uid: 'anon', isAnonymous: true },
-        statsData, statsBaseline: baseline,
-        getWeekStart: sameWeekStart,
-        initialRepairedAt: 0,
-        serverDoc: null,
-    });
-    ok(out.statsData.secondsWeek === 10,
-       `${label}: an anonymous session is skipped without touching statsData`);
+// mergeGuestStats() survives Round 19 unchanged and is still the only place the
+// guest/expired arithmetic lives. Part A above exercises it; this just pins that
+// it was not quietly rewritten while the read beneath it was replaced.
+for (const [label, src] of [['game.js', gameSrc], ['learn.js', learnSrc]]) {
+    ok(/function mergeGuestStats\(/.test(src),
+       `${label}: mergeGuestStats() still exists (the baseline-diff merge is unchanged)`);
 }
 
 // ─── E. concurrent flushes must not duplicate ───────────────────────────────

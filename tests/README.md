@@ -1,6 +1,17 @@
 # tests/
 
-<!-- tests/README.md v1.0.0 — Round 17 (Linotype). New file: before the Round 17
+<!-- tests/README.md v1.2.0 — Round 19 (Hermes). Registered daylog-test.mjs
+     (29 FAST). ⚠️ THE STANDING FAILURE IS CLOSED AND THE SECTION ABOUT IT IS
+     REWRITTEN — metadata-map-test was reporting two real admin.js defects, not a
+     book-metadata question. week-anchor-test.mjs v1.1.0 now compares learn.js and
+     game.js against daylog.js instead of against reports.html's deleted
+     weekStartOf(). session-merge-test.mjs v1.4.0's Part D is INVERTED: it guards
+     the ABSENCE of the second copy.
+     v1.1.0 — Round 18 (Salter). Registered reconcile-test.mjs
+     (28 FAST). ⚠️ That harness's own header is the important part of it: it says
+     what it CANNOT cover, which is everything about a browser tab, and it should
+     be read before anyone treats its green run as reassurance.
+     v1.0.0 — Round 17 (Linotype). New file: before the Round 17
      tidy these thirty-odd harnesses sat loose in the repo root among the shipped
      files, and there was nowhere to write down which of them the runner actually
      watches. Two of them turned out not to be watched at all. -->
@@ -16,7 +27,7 @@ From the repo root:
 
 ```
 npm install          # devDependencies only; nothing here reaches Cloud Functions
-npm test             # the 27 fast harnesses, ~10 seconds
+npm test             # the 28 fast harnesses, ~10 seconds
 npm run test:epubs   # plus the 4 corpus harnesses over library/, ~2 minutes
 ```
 
@@ -45,8 +56,8 @@ before the move.
 
 ## What is registered, and what is not
 
-Thirty-three harnesses are in this folder. Thirty-one are registered:
-`run-all-tests.mjs` holds three lists — `FAST` (27 harnesses, no external data, runs
+Thirty-four harnesses are in this folder. Thirty-two are registered:
+`run-all-tests.mjs` holds three lists — `FAST` (28 harnesses, no external data, runs
 in a fresh clone), `EPUB` (4, needs `library/`, behind `--with-epubs`), and `PENDING`
 (currently empty, see below). A harness that is in
 neither list **is not coverage**, however green it is on demand — Round 17 found
@@ -59,6 +70,21 @@ Two files are deliberately unregistered:
 |---|---|
 | `firestore-rules.test.mjs` | Needs the Firebase emulator — a CLI and a JVM. Also **known wrong**: it seeds roles as auth-token claims, and `firestore.rules` v2.x reads `staff/{uid}` documents. It is a starting point for a rewrite, not a passing suite. Its path to the rules is now `../firebase/firestore.rules`. |
 | `cover-harness.mjs` | It is a **diagnostic report**, not an assertion harness — it prints a table of cover-detection outcomes for a human to read, and exits 0 whether or not those outcomes are the right ones. Registering it would add a line that says `ok` unconditionally, which is worse than no line. Its `@xmldom/xmldom` dependency is declared now, so it runs from a clean install; deciding whether to give it real assertions is a live question, not a settled one. |
+
+## ⚠️ `reconcile-test.mjs` — read its header before trusting it (Round 18)
+
+It carries 35 assertions and **five of them are mutation-verified**: un-guard the
+never-zero refusal and 3 fail; restore the positional index and 3 fail; pass
+`allowZero` from the bulk path, move the `expect` check after the write, or put an
+`updateDoc` into the read-only half, and 1 fails each. That is the standard to
+hold new guards to — a guard nobody has broken on purpose is decoration.
+
+But it runs in Node, and the defects it is nearest to do not live in Node. It
+**cannot** see whether `firestore.rules` permits the sweep for a real account,
+whether the `⟳` button still works now that `recalcDailyLog()` returns an object,
+or anything at all about a student's tab being open during a rebuild. Its header
+says so at length, on purpose. **Green here means the refusals are wired up. It
+does not mean the round is safe.**
 
 ## `PENDING` — currently empty, and that is the correct resting state
 
@@ -90,13 +116,51 @@ survives contact with students** — all three were green the whole time.
   harness sitting in `PENDING` quietly is a disabled test with a nicer name — which is
   what `chunktest.mjs` was deleted for.
 
-## The standing failure
+## ⚠️ THE STANDING FAILURE IS CLOSED, AND IT WAS HIDING TWO REAL BUGS
 
-`metadata-map-test.mjs` fails on 42 of 487 assertions and has for several rounds:
-Gutenberg-sourced EPUBs report a `gutenberg.org` origin where the harness expects
-Standard Ebooks. It is a book-metadata question, not an app defect. It is also
-exactly the kind of accepted red that hides the next real one — see `HANDOFF.md`
-invariant 54. **The number to watch is "1 failing, 0 missing." Anything else is new.**
+For several rounds `metadata-map-test.mjs` failed 42 of 487 assertions and this
+file said it was "a book-metadata question, not an app defect." **It was an app
+defect. Twice.** Both fixed in `admin.js` v3.31.1:
+
+* `dc:rights` read only its FIRST element. Standard Ebooks emits two — a short
+  "Public domain (United States)" and then the CC0 dedication — so every SE book
+  carrying both had **the CC0 half of its licence silently dropped at import**.
+  Identical in shape to the `dc:source` bug fixed in v3.26.0, two lines away in
+  the same object literal.
+* `readInBookSignals()` scoped its Credits lookup to `#pg-machine-header`, which
+  the bookclean pass strips. All thirteen cleaned Gutenberg books imported with
+  **no transcriber attribution at all.**
+
+The harness itself went to v1.4.0 and is stronger for it: Gutenberg books are
+identified by the `_g` filename convention rather than a hand-kept id list that
+went stale on every bookclean batch, the `-claudeCleaned` rename is normalised,
+the origin URL is asserted by SHAPE, and the credits assertion is conditional on
+the book actually containing a Credits row (`wonderful-wizard-of-oz` has none —
+verified by scanning every xhtml entry in the archive, not assumed).
+
+⚠️ **THIS IS INVARIANT 54 WITH A BODY.** An accepted red hid two real bugs for
+four rounds, exactly as the invariant predicts. **The number to watch is now
+"0 failing, 0 missing." Anything else is new — and do not re-open a standing
+red.**
+
+## ⚠️ `daylog-test.mjs` — the one-number guard (Round 19)
+
+28 assertions, **five mutation-verified**: report `ok:true` on a failed day and
+Part C fails; sum the split fields on top of a flat `seconds` and Part B fails;
+anchor the week on Monday and Part A fails eleven times; make
+`applyWeekToStats()` accumulate instead of assign and Part D fails; build dates
+with `toISOString()` and Part A fails.
+
+⚠️ **IT PINS `process.env.TZ = 'America/Chicago'` BEFORE IMPORTING ANYTHING, AND
+THAT IS LOAD-BEARING.** The container is UTC, where `toISOString()` and local
+time agree — so the "never use toISOString()" guard passed happily against a
+version that used `toISOString()`, i.e. proved nothing. Jake's students are in
+Central. That mutation is only caught with the zone pinned.
+
+⚠️ **WHAT IT CANNOT COVER:** whether `firestore.rules` v2.5.0 actually permits a
+student to read their own `typing_logs`. That is a console action, the entire
+redesign rests on it, and no harness in Node will ever check it. **If students
+report 0:00 after a deploy, check the rule first, not the green suite.**
 
 ## Fixtures
 

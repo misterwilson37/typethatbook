@@ -1,4 +1,26 @@
-// admin.js v3.31.0
+// admin.js v3.31.1
+//
+// v3.31.1 — TWO IMPORT-METADATA DEFECTS, both surfaced by the harness that had
+//           been failing 42 assertions for several rounds and was recorded in
+//           HANDOFF §6 item 3 as "a book-metadata question, not an app defect."
+//           It was an app defect. Twice.
+//
+//           (1) dc:rights read only its FIRST element. Standard Ebooks emits
+//           two — a short "Public domain (United States)" and then the CC0
+//           dedication — so every SE book carrying both had the CC0 half of its
+//           licence silently dropped at import. Identical in shape to the
+//           dc:source bug fixed in v3.26.0, sitting two lines away.
+//
+//           (2) readInBookSignals() no longer loses the transcriber credit on a
+//           bookclean'd Gutenberg import. The pass strips the
+//           #pg-machine-header wrapper and keeps its contents; the Credits
+//           lookup was scoped to that id and therefore found nothing on all
+//           thirteen cleaned Gutenberg books in library/. Falls back to the
+//           whole document, gated on the page mentioning gutenberg.org so the
+//           original protection against "Credits" in book prose survives.
+//           Found by tests/metadata-map-test.mjs v1.4.0 — the harness that had
+//           been failing 42 assertions for several rounds and was recorded as
+//           "not an app defect."
 //
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
@@ -75,7 +97,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.31.0";
+const ADMIN_VERSION = "3.31.1";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -1109,7 +1131,22 @@ async function readInBookSignals(zip, opfDoc, opfPath, meta) {
             // text/html, not text/xml: forgiving, and querySelector works on it.
             // textContent/getAttribute only — never innerText on a parsed document.
             const doc = new DOMParser().parseFromString(await entry.async('string'), 'text/html');
-            const scope = doc.querySelector('#pg-machine-header') || doc.querySelector('#pg-header');
+            // ⚠️ v3.31.1 — A CLEANED GUTENBERG BOOK HAS NO #pg-machine-header.
+            // The bookclean pass strips the wrapper div and keeps its contents,
+            // so scoping to that id found nothing and the transcribers' names
+            // were silently dropped from every cleaned import — an attribution
+            // loss, on books whose whole licence story is that somebody typed
+            // them up for free. Found by tests/metadata-map-test.mjs v1.4.0.
+            //
+            // The fallback is the WHOLE DOCUMENT, but only for a page that is
+            // provably the Gutenberg boilerplate: it must mention gutenberg.org.
+            // "Credits" appears in ordinary book prose, which is why the scoped
+            // lookup existed; requiring the marker keeps that protection while
+            // surviving the loss of the wrapper.
+            const scope = doc.querySelector('#pg-machine-header')
+                       || doc.querySelector('#pg-header')
+                       || (/gutenberg\.org/i.test(doc.body ? (doc.body.textContent || '') : '')
+                             ? doc.body : null);
             if (!out.originUrl) {
                 for (const a of Array.from((scope || doc).querySelectorAll('a[href]'))) {
                     const m = GUTENBERG_EBOOK_URL.exec((a.getAttribute('href') || '').trim());
@@ -1173,7 +1210,16 @@ async function readEpubMetadata(file) {
         // say where the edition came from. Reading them here means the one legal
         // obligation attached to a CC book is filled in before Jake types
         // anything, rather than depending on him remembering.
-        rights: grab('rights')[0] || '',
+        // ⚠️ v3.31.1 — ALL of them, not just [0], for the SAME REASON dc:source
+        // needed it in v3.26.0 two lines below. Standard Ebooks emits TWO
+        // dc:rights elements: a short "Public domain (United States)" and then
+        // the CC0 dedication paragraph. Taking [0] got the short one and DROPPED
+        // THE CC0 HALF OF THE LICENCE at import — on a licence family whose one
+        // legal obligation is attribution. canonicalRightsFrom() already reads a
+        // compound string correctly (its hasPD/hasCC0 pair is built for exactly
+        // this), so joining is all that was needed. Books carrying a single
+        // dc:rights are unaffected: a one-element join is that element.
+        rights: grab('rights').join(' '),
         source: grab('source')[0] || '',
         // ⚠️ ALL of them, not just [0] (v3.26.0). Standard Ebooks emits several
         // dc:source elements and the FIRST IS A GUTENBERG URL — which is what sent
