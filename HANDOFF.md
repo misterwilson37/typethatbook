@@ -1,10 +1,26 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v14.29.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v14.30.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      2026-08-19 by Round 15 (Densmore), Round 16 (Royal) and Round 17 (Linotype);
      amended 2026-08-19 by Round 18 (Salter); amended 2026-08-19 by Round 19
      (Hermes); amended 2026-08-19 by Round 20 (Corona); amended 2026-08-20 by
-     Round 21 (Hammond).
+     Round 21 (Hammond) and Round 22 (Smith Premier).
+
+     v14.30.0 — Round 22 (Smith Premier). ⚠️⚠️ §3.1 IS CLOSED AND §0.-8 IS THE
+     WRITE-UP. game.js v3.35.0 and learn.js v2.20.0 write PER-SOURCE FIELDS; the
+     writers are DATE-GATED as well as the readers, which the roadmap did not say
+     and which is what makes the upload safe on a school night. reports.html
+     v2.24.0 gates recalcDailyLog() — ⚠️ its cutover constant was scoped inside
+     generateReport() and the ⟳ button would have thrown a ReferenceError, caught
+     by undefined-calls-test.mjs. ⚠️ lessons-admin.js was a FOURTH reader of
+     typing_logs that nobody had counted and would have shown every student's
+     week as nearly nothing from Saturday; v1.13.0 gates it and
+     daylog-cutover-test.mjs Part G now holds all three copies of that rule to
+     one behaviour by execution. Jake's firestore.rules v2.6.0 deploy is
+     CONFIRMED CORRECT by execution and now has a harness (rules-probe Part D),
+     proven red against the v2.5.0 clause order. ⚠️ §3.1 REMAINS LIVE UNTIL
+     2026-08-22 BY DESIGN — two harness Parts assert that defect on purpose.
+     35/35 harnesses, 72 rules assertions.
 
      v14.29.0 — Round 21 (Hammond), Phase A. ✅ SHIPPED: registration audit in
      run-all-tests.mjs v1.4.0 (an unregistered harness now FAILS the suite), three
@@ -180,11 +196,31 @@
      an entire evening of hunting, and produced an invariant numbering collision
      that took seven file uploads to repair. -->
 
-**Round 20 — Corona.** Predecessors: Hermes (19) · Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
+**Round 22 — Smith Premier.** Predecessors: Hammond II (21) · Corona (20) · Hermes (19) ·
+Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
 Sholes (14) · Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) ·
 Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) ·
 Blick (3) · Dvorak (2) · Underwood (1).
+
+⚠️ **I nearly called this round Underwood No. 5 and got as far as writing it into
+a harness header.** Underwood is Round 1 and it is in the list above; Salter's
+note below is about very nearly making the identical mistake. Reading the warning
+is not the same as checking the list. **Check the list.**
 *Other projects, do not reuse:* Stedman, Fable, Trilby, Vernier.
+
+> *On the name:* the Smith Premier had **two full keyboards** — one complete set
+> of keys for capitals and a second for lowercase, side by side, because it
+> refused to put two characters on one typebar. Every other maker used a shift.
+> Smith Premier's answer was: stop sharing the mechanism, and the collision stops
+> being something you have to manage. That is this round in one sentence. §3.1
+> was never a race that better locking would fix — it was **one field with two
+> writers**, where the last one to arrive is correct by definition. game.js and
+> learn.js now have their own keys. Nothing arbitrates, because there is nothing
+> left to arbitrate. ⚠️ The machine was also enormous, and the shift won in the
+> end. Two banks of keys is the *right* answer to exactly one problem and an
+> expensive answer to every other one — which is why this is a per-source
+> **field**, not the per-source **document** that two rounds designed and the
+> deployed rules reject.
 
 > *On the name:* the Corona 3 folded. You unlatched the carriage and the whole
 > top of the machine hinged down over the keys, which is how it fitted in a
@@ -220,6 +256,178 @@ Blick (3) · Dvorak (2) · Underwood (1).
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-8. ✅ §3.1 IS CLOSED — THE WRITERS SHIPPED, AND THREE THINGS TURNED UP WHILE DOING IT
+
+**Round 22 (Smith Premier), 2026-08-20 afternoon.** ROADMAP items 1 and 3, done.
+⚠️ **THIS IS A STUDENT WRITE-PATH CHANGE.** Six shipped files, five harnesses.
+
+### 0.-8.A ⚠️ JAKE'S RULES DEPLOY LANDED AND IT IS CORRECT
+
+`firestore.rules` **v2.6.0 is in the repo and in the right place.** The
+`resource == null` clause is FIRST on `typing_logs`, ahead of both clauses that
+dereference `resource.data`, mirrored pre-emptively onto `typing_sessions`, and
+correctly *not* applied to `practice_sessions` (staff-query-only, no by-id
+reader). Executed against the emulator: **54 + 18 = 72 assertions green.**
+
+⚠️ **THAT FIX HAD NO HARNESS, AND NOW IT DOES.** `rules-probe.test.mjs` **v1.1.0
+Part D** drives a full seven-day week read including a Saturday, a Sunday and a
+day that has not happened yet — the exact shape `daylog.js readWeek()` makes —
+plus the other half of the property: a stranger still learns nothing about a
+document that *does* exist. **Proven red against the v2.5.0 clause order** by
+deleting the null clause and re-running: 4 failing, then green when restored.
+
+⚠️ **WHAT PART D IS REALLY ASSERTING IS CLAUSE ORDER**, which nothing else in the
+repo can see. Every clause after the null test dereferences `resource`, so any
+reordering reinstates the incident **silently, with the app still appearing to
+work** — the page falls back to a live counter and the number on screen stays
+plausible. That is how it survived to reach ninety children.
+
+### 0.-8.B ✅ WHAT SHIPPED
+
+| File | Version | What |
+|---|---|---|
+| `daylog.js` | **v1.3.0** | `SOURCE_FIELDS`, `sourceTotalsOf()`, `dayLogPayloadFor()`; `readWeek()` returns `todaySources`. **`totalsOf()` UNTOUCHED.** |
+| `stats-wal.js` | **v1.1.0** | per-source counters in `DAY_COUNTERS`. Storage key unchanged. |
+| `game.js` | **v3.35.0** | writes `secondsLibrary`/`charsLibrary`/`mistakesLibrary` only. Stale header fixed. |
+| `learn.js` | **v2.20.0** | writes the School triple only. Stale header fixed. |
+| `reports.html` | **v2.24.0** | `recalcDailyLog()` date-gated; cutover constant hoisted out of `generateReport()` |
+| `lessons-admin.js` | **v1.13.0** | the fourth reader, date-gated |
+| `tests/tab-lifetime-test.mjs` | **v2.0.0** | B, C, F assert the CORRECT totals; new Part I |
+| `tests/crossmode-overwrite-test.mjs` | **v2.0.0** | rewritten onto per-source FIELDS |
+| `tests/daylog-cutover-test.mjs` | **v1.1.0** | Part G: `lessons-admin.js` parity |
+| `tests/rules-probe.test.mjs` | **v1.1.0** | Part D: the null-resource incident |
+| `tests/session-merge-test.mjs` | **v1.6.0** | the dead v3.33.0 HUD reset is now asserted ABSENT |
+
+**`npm test` → 35/35. `npm run test:rules` → 72 passing.**
+**`audit:versions` → zero "one of the two is a lie".**
+
+### 0.-8.C ⚠️⚠️ THE WRITERS ARE DATE-GATED, AND THE ROADMAP DID NOT SAY SO
+
+ROADMAP item 1 assumed the deploy day *is* the cutover day. **It is not.** The
+upload lands on a non-school evening; the cutover is Saturday 2026-08-22.
+
+⚠️ **EVERY READER IS LEGACY-FIRST BEFORE THAT DATE.** A page that started writing
+`secondsLibrary` on the 21st would file that whole afternoon in a field every
+reader in the app ignores, and the day would read as the morning's stale flat
+number. **So the gate is on the writer too**, in `daylog.js dayLogPayloadFor()` —
+**one `if` in the entire app** decides which shape a day is written in, and both
+pages pass their cross-mode counter AND their per-source counter into it so the
+choice of counter and the choice of field cannot disagree.
+
+**Consequences worth knowing:**
+- The upload is **safe on any day of the week** and changes nothing until Saturday.
+- A machine that misses the deploy is merely **old**, not at odds with the new shape.
+- ⚠️ **§3.1 IS STILL LIVE FOR THE DAYS IN BETWEEN.** `tab-lifetime-test.mjs`
+  Part D and `crossmode-overwrite-test.mjs` Part D **assert that defect on
+  purpose.** Do not "fix" them. It is bounded by the calendar.
+
+### 0.-8.D ⚠️ THE ⟳ BUTTON WOULD HAVE THROWN, NOT MERELY LOST DATA
+
+ROADMAP item 3 was right that `recalcDailyLog()`'s `deleteField()` calls become
+a data-loss button after the cutover — the split fields *are* the day by then.
+Gated: before the cutover, byte-for-byte v2.23.0; after it, the day comes back as
+the two per-source triples out of `splitSessionTotals()` **and the flat triple is
+deleted**, because ⟳ asserts "this day equals its sessions" and the sessions
+cover the whole day including any flat morning. That also makes the result
+correct under **both** branches of `readLogTotals()`.
+
+⚠️ **BUT THE GATE DID NOT COMPILE INTO A WORKING BUTTON.**
+`SOURCE_SPLIT_CUTOVER` was declared **inside `generateReport()`'s scope**.
+`recalcDailyLog()` is a sibling function outside it. The gate parsed fine and
+would have thrown a `ReferenceError` on the first click, with nothing on screen
+to explain it. **Found by `undefined-calls-test.mjs`, which is exactly the class
+of defect that harness exists for.** The constant now sits at the top of the
+script. ⚠️ **ONE DECLARATION ONLY** — a second one anywhere in that file lets the
+read path and the write path disagree about the date with nothing to notice.
+
+⚠️ **THE PER-DAY EDITOR'S SAVE BOX IS DELIBERATELY *NOT* GATED.** The two buttons
+assert different things: ⟳ says *this day equals its sessions*, which is a claim
+about where the time came from and must be filed per source; the SAVE box says
+*this day was N minutes, because I was in the room*, which is a claim about the
+total with no claim about the mode. Writing N into the frozen flat field and
+clearing the splits says exactly that, and after the cutover the reader sums, so
+the day reads as N. **Known and accepted:** a student tab left open across the
+edit still flushes its own counter on top. That hazard predates the cutover —
+the same tab used to overwrite the correction outright — and no client-side
+change removes it.
+
+### 0.-8.E ⚠️ `lessons-admin.js` WAS A FOURTH READER AND NOBODY HAD COUNTED IT
+
+`daylog.js`, `reports.html` and `index.html` all learned the cutover in v2.22.0.
+**The Students roster panel in `lessons-admin.js` has its own legacy-first copy
+of the totals rule and did not.** From Saturday it would have shown a roster of
+students with a week of nearly nothing while `reports.html`, three clicks away,
+showed their real minutes.
+
+⚠️ **THE PROBLEM IS THAT THERE ARE THREE HAND-MAINTAINED COPIES OF ONE RULE**,
+and the reason is the same each time: three standalone pages that cannot import
+each other. `daylog-cutover-test.mjs` **Part G now lifts this third copy too** and
+drives it against `daylog.js` on identical inputs, so all three are held to one
+behaviour **by execution rather than by anyone remembering**. Parts F and G
+together are the only mechanical guard on that trio.
+
+**The lesson to carry:** when a rule is copied, the copies are found by asking
+*who else reads this collection* — not by grepping for the rule, which only finds
+the copies that already agree with you.
+
+### 0.-8.F ⚠️ THE WAL TRADE, STATED PLAINLY BECAUSE IT IS A REAL NARROWING
+
+Before v1.1.0, a School tail stranded in the shared stats WAL could be flushed by
+a **Library** page, because both pages wrote the same `seconds` field and either
+could push the other's number. **That is over.** Each page writes only its own
+triple, so a Library page recovering `secondsSchool` has nowhere to put it. The
+value is kept and carried — a later School page flushes it — but it is no longer
+true that any page can drain the whole record.
+
+**This is the smaller loss and it is deliberate.** What the old behaviour bought
+was the tail of the other mode, bounded by one flush interval and recovered the
+next time that mode is opened. What it cost was that either page could write the
+other's minutes, **which IS §3.1** — unbounded and permanent. ⚠️ **Do not "fix"
+this by letting a page write the other's field when it looks larger.** That is
+§3.1 with a comparison in front of it.
+
+⚠️ **THE STORAGE KEY IS UNCHANGED ON PURPOSE.** A v1.0.0 record has no per-source
+keys; `_mergeInto()` skips absent keys, so it still replays its `secondsToday`
+correctly and contributes nothing to the new counters. Bumping the key would have
+thrown away every unflushed tail in the building on deploy day.
+
+### 0.-8.G ⚠️ HOW THE HARNESSES FAIL AGAINST THE OLD BUILD — THIS IS THE RULE 10 PART
+
+ROADMAP item 1 step 1 required that `tab-lifetime-test.mjs` B, C and F **fail
+against the shipped build before anything else moved.** They do, and the
+mechanism is worth keeping:
+
+**The controller those parts drive is not chosen by whoever edits the harness.
+It is chosen by reading `game.js` and `learn.js`.** If both build their payload
+with `dayLogPayloadFor()`, the split controller is live; otherwise the flat one
+is. Against a build without the writers, B/C/F drive the flat controller against
+the correct totals and go red — **6 of 19 failing**, verified by running the new
+harness against the original v3.34.0 files side by side.
+
+⚠️ **THAT INDIRECTION IS LOAD-BEARING, NOT CLEVERNESS.** A model harness that
+hard-codes which shape it believes is shipped proves only that its author's idea
+is internally consistent. **That is precisely how `crossmode-overwrite-test.mjs`
+spent six rounds validating a per-source DOCUMENT design the deployed rules
+reject outright.** It is rewritten onto fields, and its Part A — *neither page
+may name the other source's fields in a Firestore payload, ever* — is now the
+assertion that would notice §3.1 coming back.
+
+### 0.-8.H WHAT WAS DELIBERATELY NOT DONE
+
+* **ROADMAP item 2, removing the reconcile.** Independent of this work, and
+  §0.-7.A item 3 still stands: confirm the boundary with Jake before cutting,
+  because it shares `reports.html` with the drill-down and the per-day editor,
+  which he uses.
+* **ROADMAP items 3 (the session record losing work), 4, 5, 6, 7 and 8.**
+  Untouched. Item 5 is now measurable — the day after the cutover is the first
+  clean `log ÷ sessions` day on the new shape.
+* **The idle-threshold rationale as a code comment.** §0.-7.D wanted it folded
+  into this deploy. Not done: both headers were already over budget and this
+  round added to them. §0.-7.A item 1 remains the record. ⚠️ It is a comment,
+  not behaviour — **do not "fix" the 2s/3s constants while adding it.**
 
 ---
 
@@ -2624,39 +2832,51 @@ browsable user directory, by design. `users/{uid}` deliberately holds no PII, wh
 
 ## §2. Where the code is
 
-Shipped state after Round 18, 2026-08-19. **Verified against the repo, not copied from
-the previous table** — three consecutive rounds carried a stale version for `admin.js`.
-Run `npm run audit:versions`; do not trust this table either. **Round 17 moved
-files but changed no code.** **Round 18 changed exactly one line of this table
-(`reports.html`) and nothing else — every other version below is unchanged since
-Round 16.**
+Shipped state after **Round 22, 2026-08-20**. **Verified by running
+`npm run audit:versions`, not copied from the previous table** — three
+consecutive rounds carried a stale version for `admin.js`, and `game.js` and
+`learn.js` carried header comments that disagreed with their own constants for
+five and four versions respectively. **Both are fixed; the audit now reports
+zero "one of the two is a lie".** Run the audit; do not trust this table either.
+
+⚠️ **ROUND 22 IS A STUDENT WRITE-PATH ROUND.** `game.js`, `learn.js`,
+`daylog.js`, `stats-wal.js`, `reports.html` and `lessons-admin.js` all moved.
+See §0.-8 before deploying any of them, and §0.-8.B for the order.
 
 | file | version |
 |---|---|
-| `game.js` | 3.34.0 — ⚠️ Stage 1 only. Stage 2 projection REVERTED, §0.0 |
-| `learn.js` | 2.19.0 — ⚠️ Stage 1 only. Stage 2 projection REVERTED, §0.0 |
+| `game.js` | **3.35.0** — ⚠️ Round 22. Writes the Library triple only. §3.1 closed at the cutover, §0.-8 |
+| `learn.js` | **2.20.0** — ⚠️ Round 22. Writes the School triple only. §0.-8 |
 | `session-log.js` | 1.4.0 — ⚠️ Round 19. ⚠️ Its THREE version pins moved with it |
 | `hud.js` | 1.2.0 |
 | `variety-floor.js` | 1.0.0 |
-| `stats-wal.js` | shared module — check the constant |
+| `stats-wal.js` | **1.1.0** — ⚠️ Round 22. Per-source counters in DAY_COUNTERS; storage key unchanged. §0.-8.F |
 | `versions.js` | 1.9.0 — ⚠️ Round 19 |
-| `daylog.js` | 1.1.0 — ⚠️ **NEW, Round 19.** The shared week reader AND the Stage 2 projection. §0.0 |
+| `daylog.js` | **1.3.0** — ⚠️ Round 22. The shared week reader, the cutover, and `dayLogPayloadFor()` — **the one gate deciding a day's shape**. §0.-8.C |
 | `keyboard.js` | 1.1.1 |
 | `adventure-renderer.js` | 1.5.4 |
 | `admin.js` | 3.31.1 — ⚠️ Round 19: two real import-metadata defects, see §6 item 3 |
-| `lessons-admin.js` | 1.12.0 |
+| `lessons-admin.js` | **1.13.0** — ⚠️ Round 22. The FOURTH reader of typing_logs, date-gated at last. §0.-8.E |
 | `staff-admin.js` | 2.2.0 |
-| `reports.html` | 2.18.0 — ⚠️ audit DELETED. ⚠️ ITS REBUILD BUTTON MUST BE DISABLED, §0.0.C |
+| `reports.html` | **2.24.0** — ⚠️ Round 22. ⟳ date-gated (§0.-8.D). ⚠️ ITS REBUILD BUTTON MUST STAY DISABLED, §0.0.C |
 | `update-gate.js` | 1.0.1 — ⚠️ NEW in Round 19. Loaded by its own script tag in both shells, NOT imported. See §0.10 |
 | `index.html` | 3.9.0 — ⚠️ Round 19 Stage 1 |
 | `firebase-config.js` | 1.2.0 |
-| `firebase/firestore.rules` | 2.5.0 — ⚠️ Round 19. Owner-read on typing_logs + typing_sessions. **Jake confirmed live 2026-08-19.** See §0.0.2 |
+| `firebase/firestore.rules` | **2.6.0** — ⚠️ **Jake deployed this 2026-08-20 and it is CONFIRMED CORRECT BY EXECUTION.** The null-resource clause is FIRST and must stay first. §0.-8.A |
 | `style.css` | 3.5.5 |
 | `game.html` | 1.2.0 — ⚠️ Round 19 added the update-gate script tag |
 | `learn.html` | 1.1.0 — ⚠️ Round 19 added the update-gate script tag |
 | `functions/index.js` | 1.7.0 — Cloud Function, NOT deployable from this repo; Jake mirrors it into the console by hand. See its own header. Moved out of the root in Round 17; the file is byte-identical. |
 
-`npm test` → ⚠️ **ALL 29 HARNESSES PASS, 0 PENDING.** Round 19 added
+`npm test` → ⚠️ **ALL 35 HARNESSES PASS, 0 PENDING, 0 UNREGISTERED.**
+`npm run test:rules` → **72 passing** (54 + 18) against the deployed rules.
+⚠️ **TWO HARNESS PARTS ASSERT A DEFECT ON PURPOSE** and must not be "fixed":
+`tab-lifetime-test.mjs` Part D and `crossmode-overwrite-test.mjs` Part D are the
+pre-cutover shape, which is still live until 2026-08-22. `tab-lifetime-test.mjs`
+Part E is the v3.29.0 seeding mistake, driven deliberately so it cannot ship
+twice. Everything else asserts what a student earned.
+
+Historical note — Round 19 added
 `tests/daylog-test.mjs` (28 assertions, five mutation-verified) and **closed the
 standing `metadata-map-test` failure that had been carried as acceptable for
 several rounds.** It was not a book-metadata question: it was reporting two real
@@ -3519,6 +3739,10 @@ a pointer to a file you should go and read.**
 | 16 | Royal | ⚠️ MIXED — the source split shipped, broke twice in live use, and was REVERTED the same evening (see §0.6 item 9). Kept: delete→recalc, duplicate detection, flush serialization, week-repair resync, variety-floor extraction. The remediation variety floor (School's practice-missed-keys gap Round 15 flagged). The repair resync — a real incident, fixed and given harness coverage: an audit-repaired week counter that kept getting silently overwritten by a MacBook that skipped its between-period restart. Extracted the two files' duplicated variety-floor filter into `variety-floor.js`, the fifth shared module, with its own harness. The source split (DESIGN-TELEMETRY.md §2.4) — game.js/learn.js write per-source typing_logs fields instead of a shared, clobberable triple; requires firestore.rules v2.4.0 deployed first. Connected delete → recalc on the reports.html session drill-down, so a cheating student's numbers get fixed with zero manual bookkeeping and zero added cost. |
 | 17 | Linotype | Repository reorganisation — 79 root entries to 33. No app code changed and nothing the browser loads moved. Harnesses to `tests/`, docs to `docs/`, Firebase config to `firebase/`, the Cloud Function to `functions/`, `audit-versions.mjs` and the Python builders to `tools/`. Found and registered two green-but-unregistered harnesses (`sort-test`, `lesson-atomicity-test`), declared the missing `@xmldom/xmldom`, added the repo's first `.gitignore`, and corrected three rounds of notes claiming `MULTITENANCY.md` had been deleted when it had not. Second pass: merged three test-first harnesses from a concurrent round and added the `PENDING` list to `run-all-tests.mjs` so red-on-purpose harnesses cannot corrupt the headline number. Third pass: the concurrent round's app code landed, all three went green and were promoted, and `session-log.js`'s header/constant mismatch was repaired. |
 | 18 | Salter | Built the instrument before touching the repair, which is the whole shape of the round. `reports.html` 2.15.0 only; `game.js`, `learn.js`, `hud.js`, `stats-wal.js`, `session-log.js` and `firestore.rules` untouched. **(1)** A read-only reconciliation view: three sortable TOP-LEVEL columns (`Sessions`, `Δ`, `⧉`) comparing each student's daily-log total against the deduped sum of their actual session records — no expanding required, which was Jake's specific unfixed complaint. Sweeps every date in the range, not just dates with a log row, so a day whose log write never landed is caught. **(2)** Rebuild-all: `⟳` applied across the report behind a preview that separates who moves DOWN from who moves UP, with four refusals — never zero a sessionless day, never invent a missing log document, hold today back by default, and skip any pair that moved between preview and write. Wrote and then caught its own position-is-not-identity bug (corrections would have landed on the wrong children after the table re-sorted); invariant 107. New `tests/reconcile-test.mjs`, 35 assertions, five mutation-verified — and its own header says plainly what it cannot cover. Left §6 items 7–9 deliberately unanswered rather than guessing. |
+| 19 | Hermes | The update gate — one number in a console and every open tab in the building collects the new code. Stage 1 and Stage 2 of ONE NUMBER (the student and the teacher read the same document); `daylog.js` created; `stats/time_tracking` deleted from both pages. ⚠️ Stage 2 was REVERTED the same night on finding overlapping rollups and negative character counts in `typing_sessions`. |
+| 20 | Corona | Folded its own predecessor's conclusion: §0.0's evidence was sound, its arrow was wrong. The interval UNION vs the deduped SUM. Found the THIRD divergence — a `WHERE` clause, so a log stamped `classId:''` was visible to the child and invisible to every class query. Reproduced §3.1 at last. |
+| 21 | Hammond II | Test tooling only, nothing student-facing. The registration audit (an unregistered harness now FAILS the suite). `tab-lifetime-test.mjs`. ⚠️ RAN THE RULES EMULATOR that four rounds recorded as impossible, and found the per-source DOCUMENT design DENIED by the deployed rules. Recorded Jake's four standing rulings in §0.-7.A so they stop being relitigated. |
+| 22 | Smith Premier | ⚠️ §3.1 CLOSED. The writers ship per-source FIELDS, date-gated so the upload is safe on a school night and the shape switches on 2026-08-22. Confirmed Jake's `firestore.rules` v2.6.0 by execution and gave it the harness it never had. Found two readers nobody had counted: `recalcDailyLog()`'s cutover constant was out of scope and would have thrown on the ⟳ button, and `lessons-admin.js` was a fourth reader of `typing_logs` that would have shown every student's week as nearly nothing from Saturday. Rewrote `crossmode-overwrite-test.mjs`, which had spent six rounds validating a design the rules reject. |
 
 ---
 

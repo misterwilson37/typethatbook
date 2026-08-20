@@ -1,4 +1,4 @@
-// session-merge-test.mjs v1.4.1
+// session-merge-test.mjs v1.6.0
 //
 // v1.4.1 — PATH ONLY. Sources are read as `../` for tests/. No assertion changed.
 //
@@ -464,14 +464,38 @@ for (const [label, src] of [['game.js', gameSrc], ['learn.js', learnSrc]]) {
     ok(!/sessionLogPendingSeconds/.test(code),
        `${label}: does not fold the local session queue into the graded total`);
 
-    // ⚠️ THE HUD MUST FOLLOW THE DOCUMENT. Stage 2 made the WRITE a projection
-    // and left the HUD painting the in-memory counter — two different
-    // quantities, which is the divergence this whole round exists to end,
-    // rebuilt by the fix for it. After a successful write, statsData is reset to
-    // what was written. Without this line the kid and the teacher drift apart
-    // again and NOTHING ELSE IN THIS SUITE WOULD NOTICE.
-    ok(/statsData\.secondsToday\s*=\s*projected\.seconds/.test(code),
-       `${label}: statsData is reset to what was actually written`);
+    // ═════════════════════════════════════════════════════════════════════════
+    // ⚠️ REPLACED IN v1.6.0 (2026-08-20, ROADMAP item 1). READ BEFORE RESTORING.
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // This used to require `statsData.secondsToday = projected.seconds` — the
+    // v3.33.0/v2.18.0 line that reset the HUD to whatever the write computed. It
+    // was correct while the WRITE was a PROJECTION of typing_sessions and could
+    // legitimately differ from the counter. v3.34.0/v2.19.0 reverted that
+    // projection, at which point the delta became identically zero and the line
+    // was dead code that this harness was pinning in place.
+    //
+    // ⚠️ IT CANNOT COME BACK IN THAT SHAPE NOW AND MUST NOT BE RE-ASSERTED. The
+    // write names ONE SOURCE'S FIELDS (§3.1) and no longer knows the day total —
+    // the other mode's number is in the document, where only a fresh read would
+    // find it. A reset from this write would repaint the HUD from a figure that
+    // is only this page's half of the day.
+    //
+    // What the requirement has become is the two assertions below: the page must
+    // read the day from the graded document (which `readWeek` above covers) and
+    // must NOT write the HUD cache from its live counter. hud.js is explicit
+    // that the cache is saved after the authoritative read and never from a
+    // counter; a cache written here is this tab's opinion handed to the next
+    // page load as though the server had said it.
+    ok(!/statsData\.secondsToday\s*=\s*projected\.seconds/.test(code),
+       `${label}: the dead v3.33.0 HUD reset is gone — the write is per-source now`);
+
+    // ⚠️ THE WRITE NAMES ITS OWN SOURCE AND GOES THROUGH THE SHARED GATE. An
+    // inlined date comparison here is the Rule 9 failure that this project has
+    // already paid for twice: two copies of a cutover rule drifting apart is
+    // exactly how a teacher and a student read one document and get two numbers.
+    ok(/dayLogPayloadFor\s*\(\s*['"](library|school)['"]/.test(code),
+       `${label}: the daily-log payload comes from daylog.js dayLogPayloadFor()`);
 }
 
 // mergeGuestStats() survives Round 19 unchanged and is still the only place the

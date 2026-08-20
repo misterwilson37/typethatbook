@@ -1,4 +1,4 @@
-// stats-wal.js v1.0.0 — the day/week counters' write-ahead log, shared by
+// stats-wal.js v1.1.0 — the day/week counters' write-ahead log, shared by
 // game.js and learn.js.
 //
 // ═══════════════════════════════════════════════════════════════════════════
@@ -82,11 +82,46 @@
 //     storage, corrupt JSON — all degrade to "no WAL", which costs at most the
 //     un-flushed tail and must never break a typing lesson.
 
-export const STATS_WAL_VERSION = '1.0.0';
+// ═══════════════════════════════════════════════════════════════════════════
+// v1.1.0 — THE PER-SOURCE COUNTERS RIDE HERE TOO
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// game.js and learn.js each keep a per-source day counter now (ROADMAP item 1,
+// §3.1). Those counters are day-scoped exactly like `secondsToday`, so they
+// belong under the same period guard and get the same max() merge.
+//
+// ⚠️ ADDING THEM HERE IS NOT OPTIONAL AND THE FAILURE IS SILENT. statsWalSave()
+// stores whatever object it is handed, so the fields would be PRESENT in
+// localStorage either way — but _mergeInto() only ever copies keys named in
+// these two lists, so an unlisted counter is written, read back, and quietly
+// ignored on every recovery. The tail it was holding is dropped on the floor
+// with no error anywhere.
+//
+// ⚠️ WHAT THIS STILL DOES NOT DO, AND KNOW IT BEFORE RELYING ON IT. Before
+// v1.1.0, a School tail left in this record could be replayed by a LIBRARY page,
+// because both pages wrote the same `seconds` field and either could flush the
+// other's number. That is over: each page now writes only its own triple, so a
+// Library page recovering `secondsSchool` has nowhere to put it. The value is
+// kept and carried — a later School page flushes it — but it is no longer true
+// that any page can drain the whole record.
+//
+// That is a deliberate trade and it is the smaller loss. What the old behaviour
+// bought was the tail of the other mode; what it cost was that either page could
+// write the other's minutes, which IS §3.1. The tail is bounded by one flush
+// interval and reappears the next time that mode is opened. §3.1 was unbounded
+// and permanent.
+export const STATS_WAL_VERSION = '1.1.0';
 
 const KEY = 'ttb_statswal_v1';
 
-const DAY_COUNTERS  = ['secondsToday', 'charsToday', 'mistakesToday'];
+// ⚠️ THE STORAGE KEY IS UNCHANGED, ON PURPOSE. A record written by v1.0.0 has no
+// per-source keys; _mergeInto() skips absent keys, so an old record still
+// replays its `secondsToday` correctly and simply contributes nothing to the new
+// counters. Bumping the key would have thrown away every unflushed tail in the
+// building on deploy day to avoid a case that costs nothing.
+const DAY_COUNTERS  = ['secondsToday', 'charsToday', 'mistakesToday',
+                       'secondsLibrary', 'charsLibrary', 'mistakesLibrary',
+                       'secondsSchool',  'charsSchool',  'mistakesSchool'];
 const WEEK_COUNTERS = ['secondsWeek',  'charsWeek',  'mistakesWeek'];
 
 function _read() {

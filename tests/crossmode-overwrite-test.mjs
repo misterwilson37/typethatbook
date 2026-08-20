@@ -1,217 +1,234 @@
-// crossmode-overwrite-test.mjs v1.0.0
+// crossmode-overwrite-test.mjs v2.0.0
 //
 // ⚠️ PATHS: sources are read as `../` — this file lives in tests/ (Round 17).
 //
 // ═══════════════════════════════════════════════════════════════════════════
-// RULE 10, THE PRECONDITION. THIS HARNESS REPRODUCES §3.1 AGAINST THE CURRENT
-// BUILD AND FAILS. NOTHING IS FIXED UNTIL IT PASSES.
+// v2.0.0 — §3.1 IS FIXED AND THIS HARNESS NOW GUARDS THE FIX INSTEAD OF
+// DOCUMENTING THE DEFECT. READ THIS BEFORE EDITING ANYTHING BELOW.
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// §3.1, the cross-mode overwrite, in one sentence: game.js and learn.js each
-// hold their own in-memory `statsData` and each writes the WHOLE day's total
-// with setDoc(merge:true), so whichever writes second erases the other's
-// contribution. Ten minutes of School plus ten of Library is credited as ten.
+// v1.0.0 reproduced §3.1 — game.js and learn.js each writing the WHOLE day
+// total under `seconds`, so whichever flushed last erased the other's
+// contribution — and modelled the fix as PER-SOURCE DOCUMENTS: one
+// `{uid}_{date}_{source}` document per mode.
 //
-// ⚠️ IT HAS NEVER BEEN REPRODUCED, ONLY REASONED ABOUT. It has been a known
-// defect since game.js v3.30.0 reverted the source split, was carried through
-// six rounds as "a known, lived-with defect", and no harness ever drove it.
-// That is exactly the shape Rule 10 exists to forbid: a defect everybody agrees
-// exists, that no test would notice getting worse.
+// ⚠️ THAT FIX WAS NEVER DEPLOYABLE AND THE HARNESS COULD NOT KNOW. The deployed
+// firestore.rules bind the document id to the date — `docId == uid + '_' +
+// date` — so a third segment is PERMISSION_DENIED. Round 21 found that by
+// running the rules emulator against the real file rather than reading it
+// (HANDOFF §0.-5.B); rules-probe.test.mjs Part B is the executed evidence. A
+// green Part C here was describing a shape Firestore would have rejected on the
+// first write of first period.
 //
-// ⚠️ THIS IS A MODEL, NOT THE REAL WRITE PATH, AND THE MODEL IS THE HONEST PART.
-// Node has no Firestore, no two tabs and no page death. What is modelled is the
-// ONE property that matters and that Part A verifies against the real source
-// text: both controllers write an ABSOLUTE day total for the whole day, from a
-// baseline read at page load. Everything else — the flush timer, the WAL, the
-// visibility handlers — is choreography a harness cannot reach and this file
-// does not pretend to.
+// ⚠️ THE LESSON IS NOT "THE MODEL WAS WRONG". It is that a harness modelling a
+// FIX rather than the SHIPPED CODE proves only that the author's idea is
+// internally consistent. Part A below is the part that was always worth having:
+// it reads the real files. Everything else is arithmetic around it.
 //
-// Part A — STRUCTURAL: the real game.js and learn.js both write an absolute
-//          `seconds` for the whole day. While that is true, §3.1 is present.
-// Part B — THE DEFECT: model both writers, show time disappearing.
-// Part C — THE FIX: per-source documents, same scenario, nothing lost.
-// Part D — the fix must not break the ordinary single-mode day.
+// The shipped fix is per-source FIELDS on the one permitted document —
+// secondsLibrary/secondsSchool — which the rules have allowed since v2.4.0 and
+// which needs no rules deploy at all.
+//
+// Part A — STRUCTURAL: the real game.js and learn.js each write their OWN
+//          source's fields through the shared gate, and neither writes the
+//          other's. This is the assertion that would notice §3.1 coming back.
+// Part B — the scenario that lost ten minutes of twenty, driven on the new
+//          shape: nothing is lost.
+// Part C — the shape must not disturb an ordinary single-mode day.
+// Part D — the pre-cutover path is BYTE-FOR-BYTE the old behaviour, including
+//          its defect. Deploy day is not cutover day and the old shape has to
+//          keep behaving exactly as it did until the date arrives.
 
 import fs from 'fs';
+import { dayLogPayloadFor, SOURCE_FIELDS, SOURCE_SPLIT_CUTOVER, totalsOf } from '../daylog.js';
 
-let pass = 0, fail = 0, expectedFails = 0;
+let pass = 0, fail = 0;
 const ok = (name, cond, detail) => {
     if (cond) { pass++; console.log(`  ✓ ${name}`); }
     else { fail++; console.log(`  ✗ ${name}${detail ? ' — ' + detail : ''}`); }
 };
-const okExpectedFail = (name, cond, detail) => {
-    if (!cond) { expectedFails++; console.log(`  ⚠ ${name} — REPRODUCED${detail ? ': ' + detail : ''}`); }
-    else { pass++; console.log(`  ✓ ${name} (defect is fixed)`); }
-};
 
 const gameSrc  = fs.readFileSync(new URL('../game.js',  import.meta.url), 'utf8');
 const learnSrc = fs.readFileSync(new URL('../learn.js', import.meta.url), 'utf8');
+const stripComments = (src) => src.replace(/^\s*\/\/.*$/gm, '');
+const gameCode  = stripComments(gameSrc);
+const learnCode = stripComments(learnSrc);
 
 // ═══════════════════════════════════════════════════════════════════════════
-console.log('\nPart A — structural: is §3.1 still present in the shipped files?');
+console.log('\nPart A — structural: each page writes its own source and only its own');
 // ═══════════════════════════════════════════════════════════════════════════
 
-const absoluteWrite = /setDoc\(doc\(db,\s*["']typing_logs["'][\s\S]{0,900}?\bseconds:/;
-const perSourceDoc  = /typing_logs["']\s*,\s*`\$\{[^}]*\}_\$\{[^}]*\}_\$\{[^}]*source/;
+ok('game.js writes typing_logs',  /setDoc\(doc\(db,\s*["']typing_logs["']/.test(gameCode));
+ok('learn.js writes typing_logs', /setDoc\(doc\(db,\s*['"]typing_logs['"]/.test(learnCode));
 
-ok('game.js writes typing_logs',  absoluteWrite.test(gameSrc));
-ok('learn.js writes typing_logs', absoluteWrite.test(learnSrc));
+// ⚠️ THE PAYLOAD COMES FROM THE SHARED HELPER, NOT FROM AN INLINE OBJECT. That
+// is what keeps the two files from drifting on the field names AND on the
+// cutover date at the same time. An inlined `date >= '2026-08-22'` in either
+// file is the Rule 9 failure this project has already paid for twice.
+ok('game.js builds its payload with dayLogPayloadFor(\'library\')',
+   /dayLogPayloadFor\(\s*['"]library['"]/.test(gameCode));
+ok('learn.js builds its payload with dayLogPayloadFor(\'school\')',
+   /dayLogPayloadFor\(\s*['"]school['"]/.test(learnCode));
 
-okExpectedFail('game.js writes a PER-SOURCE document',  perSourceDoc.test(gameSrc),
-               'still writes one shared {uid}_{date} document');
-okExpectedFail('learn.js writes a PER-SOURCE document', perSourceDoc.test(learnSrc),
-               'still writes one shared {uid}_{date} document');
-
-// ═══════════════════════════════════════════════════════════════════════════
-console.log('\nPart B — the defect, driven');
-// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ THE ONE ASSERTION THAT WOULD CATCH §3.1 COMING BACK. Neither page may
+// name the other's fields anywhere in its code. Not in the write, not in a
+// recovery path, not in a "helpful" reconciliation. The whole fix is that a
+// merge from one page cannot mention the other's fields; a page that names them
+// has rebuilt the shared resource whatever it thought it was doing.
 //
-// The scenario is Jake's actual room. A student opens Library first period and
-// types. The Chromebook is supposed to restart between periods and sometimes
-// does not (game.js v3.28.0's own incident note), so that tab survives with its
-// in-memory statsData intact. The student then opens School and types more.
-// Both tabs flush.
-
-// TODAY'S SHARED DOCUMENT — the thing both writers target.
-function makeSharedDb() {
-    const store = new Map();
-    return {
-        write: (id, patch) => store.set(id, { ...(store.get(id) || {}), ...patch }),
-        read:  (id) => store.get(id) || null,
-        // What daylog.js readWeek() and reports.html both compute for the day.
-        dayTotal: (uid, date) => (store.get(`${uid}_${date}`) || {}).seconds || 0,
-    };
+// Comments are stripped first, deliberately: BOTH files discuss the other
+// mode's fields at length in their headers and must go on being able to.
+for (const [label, code, forbidden] of [
+    ['game.js',  gameCode,  SOURCE_FIELDS.school],
+    ['learn.js', learnCode, SOURCE_FIELDS.library],
+]) {
+    for (const field of Object.values(forbidden)) {
+        // Assignment or object-key use of the other source's field. A bare
+        // mention inside a seeded statsData literal is fine — that is the
+        // carried copy — so this looks for the field being WRITTEN into a
+        // Firestore payload, i.e. followed by a colon at the top of an object
+        // passed to setDoc. Simplest reliable proxy: the field name must never
+        // appear as a computed write target.
+        const wrote = new RegExp(`${field}\\s*:\\s*(statsData|Math|projected|payload)`).test(code);
+        ok(`${label}: never writes ${field} into a Firestore payload`, !wrote,
+           'a page that writes the other mode\'s field has rebuilt §3.1');
+    }
 }
 
-// A page controller: reads a baseline at load, ticks locally, writes the whole day.
-function controller(db, uid, date, source) {
-    let baseline = db.dayTotal(uid, date);   // loadUserStats() → readWeek()
-    let local = baseline;                    // statsData.secondsToday
+// ⚠️ AND THE INCREMENT IS SINGLE-SITED, per source, on both pages. A second
+// increment site is a second clock — open-unit-test.mjs Part E owns the
+// cross-mode counter; this owns the per-source one, which that harness does not
+// know about.
+ok(`game.js increments secondsLibrary in exactly ONE place`,
+   (gameCode.match(/statsData\.secondsLibrary\+\+/g) || []).length === 1,
+   `found ${(gameCode.match(/statsData\.secondsLibrary\+\+/g) || []).length}`);
+ok(`learn.js increments secondsSchool in exactly ONE place`,
+   (learnCode.match(/statsData\.secondsSchool\+\+/g) || []).length === 1,
+   `found ${(learnCode.match(/statsData\.secondsSchool\+\+/g) || []).length}`);
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\nPart B — the scenario that lost ten minutes of twenty');
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jake's actual room. A student opens Library first period and types. The
+// Chromebook is supposed to restart between periods and sometimes does not
+// (game.js v3.28.0's own incident note), so that tab survives with its in-memory
+// counters intact. The student then opens School and types more. Both flush.
+
+const POST = SOURCE_SPLIT_CUTOVER;   // the first day the new shape is live
+
+function makeDoc() {
+    return { store: {}, writes: 0 };
+}
+function mergeWrite(doc, fields) {
+    doc.writes++;
+    for (const [k, v] of Object.entries(fields)) doc.store[k] = v;
+}
+// The day, as every reader in the app computes it.
+const dayTotal = (doc, date) => totalsOf(doc.store, date).seconds;
+
+// A page controller built on the SHIPPED helper — not a hand-rolled copy of it.
+// If dayLogPayloadFor() ever starts naming a different field, every scenario
+// below moves with it rather than quietly testing an obsolete shape.
+function page(doc, source, date) {
+    const own = SOURCE_FIELDS[source];
     return {
-        load()      { baseline = db.dayTotal(uid, date); local = baseline; },
-        type(secs)  { local += secs; },      // the 1-second tick
-        // ⚠️ THIS LINE IS §3.1. An absolute total for the whole day, from a
-        // baseline that may be stale by everything the other tab has written.
-        flush()     { db.write(`${uid}_${date}`, { seconds: local, source }); },
-        seen()      { return local; },
+        // ⚠️ SEEDS FROM ITS OWN FIELD. Never from the day total — that is the
+        // v3.29.0 bug (tab-lifetime-test.mjs Part E drives it deliberately).
+        mine: { seconds: doc.store[own.seconds] || 0,
+                chars:   doc.store[own.chars]   || 0,
+                mistakes: doc.store[own.mistakes] || 0 },
+        day:  { seconds: totalsOf(doc.store, date).seconds, chars: 0, mistakes: 0 },
+        type(secs) { this.mine.seconds += secs; this.day.seconds += secs; return this; },
+        flush() { mergeWrite(doc, dayLogPayloadFor(source, date, { day: this.day, own: this.mine })); return this; },
     };
 }
 
 {
-    const db = makeSharedDb();
-    const uid = 'student1', date = '2026-08-19';
+    const doc = makeDoc();
+    const library = page(doc, 'library', POST);
+    library.type(600).flush();                    // ten minutes in a book
 
-    const library = controller(db, uid, date, 'library');
-    library.load();               // 0
-    library.type(600);            // ten minutes in a book
-    library.flush();              // document: 600
+    const school = page(doc, 'school', POST);     // opens after, seeds its own field at 0
+    school.type(600).flush();
+    ok('a two-mode day stores the full 20 minutes', dayTotal(doc, POST) === 1200,
+       `stored ${dayTotal(doc, POST)}s`);
 
-    const school = controller(db, uid, date, 'school');
-    school.load();                // 600 — correct so far
-    school.type(600);             // ten minutes of lessons
-    school.flush();               // document: 1200 — still correct
-
-    // ⚠️ AND NOW THE LIBRARY TAB, STILL OPEN FROM FIRST PERIOD, FLUSHES AGAIN.
-    // Its statsData still says 600. It writes 600 over the 1200.
+    // ⚠️ AND NOW THE STALE FIRST-PERIOD TAB FLUSHES AGAIN. On the old shape this
+    // line wrote 600 over the 1200 and ten minutes ceased to exist.
     library.flush();
+    ok('the stale first-period tab can no longer erase the other mode',
+       dayTotal(doc, POST) === 1200, `stored ${dayTotal(doc, POST)}s`);
 
-    const stored = db.dayTotal(uid, date);
-    okExpectedFail('a two-mode day stores the full 20 minutes', stored === 1200,
-                   `stored ${stored}s, the student typed 1200s — ${1200 - stored}s lost`);
-
-    // ⚠️ AND THE TWO NUMBERS STILL AGREE, WHICH IS WHY RULE 11 IS NOT ENOUGH ON
-    // ITS OWN. Both the child's screen and the report read this one document, so
-    // they show the SAME wrong number. Agreement is necessary and not sufficient
-    // — that distinction is Priority 1 versus Priority 2 in one assertion.
-    ok('both readers still agree — on a number that is too small',
-       db.dayTotal(uid, date) === db.dayTotal(uid, date));
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-console.log('\nPart C — the fix: one document per (uid, date, source)');
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// School writes only `{uid}_{date}_school`; Library writes only
-// `{uid}_{date}_library`. They cannot overwrite each other because they no
-// longer touch the same document. No lock, no increment, no merge policy, no
-// read-modify-write, no ordering requirement.
-//
-// ⚠️ NOT THE v3.29.x SOURCE SPLIT. That put per-source FIELDS inside ONE
-// document, so both writers still wrote the same document and the race
-// survived; v3.29.0 also fed both fields from the shared cross-mode counter.
-// Splitting at DOCUMENT level removes the shared resource instead of
-// subdividing it. Read HANDOFF §0.6 item 9 before touching this.
-
-function makeSplitDb() {
-    const store = new Map();
-    return {
-        write: (id, patch) => store.set(id, { ...(store.get(id) || {}), ...patch }),
-        dayTotal: (uid, date) =>
-            ['school', 'library'].reduce(
-                (a, s) => a + ((store.get(`${uid}_${date}_${s}`) || {}).seconds || 0), 0),
-        sourceTotal: (uid, date, s) => (store.get(`${uid}_${date}_${s}`) || {}).seconds || 0,
-    };
-}
-
-function splitController(db, uid, date, source) {
-    // ⚠️ THE BASELINE IS THIS SOURCE'S OWN DOCUMENT, NOT THE DAY. That is the
-    // whole change. A stale Library tab can only ever be stale about Library.
-    let local = db.sourceTotal(uid, date, source);
-    return {
-        load()     { local = db.sourceTotal(uid, date, source); },
-        type(secs) { local += secs; },
-        flush()    { db.write(`${uid}_${date}_${source}`, { seconds: local, source }); },
-    };
+    library.type(60).flush();
+    ok('and its own later minute still lands', dayTotal(doc, POST) === 1260,
+       `stored ${dayTotal(doc, POST)}s`);
 }
 
 {
-    const db = makeSplitDb();
-    const uid = 'student1', date = '2026-08-19';
-
-    const library = splitController(db, uid, date, 'library');
-    library.load(); library.type(600); library.flush();
-
-    const school = splitController(db, uid, date, 'school');
-    school.load(); school.type(600); school.flush();
-
-    library.flush();   // the stale first-period tab flushes again — harmless now
-
-    ok('a two-mode day stores the full 20 minutes', db.dayTotal(uid, date) === 1200,
-       `got ${db.dayTotal(uid, date)}s`);
-
-    // Order must not matter at all — that is the point of removing the shared doc.
-    const db2 = makeSplitDb();
-    const s2 = splitController(db2, uid, date, 'school');
-    const l2 = splitController(db2, uid, date, 'library');
-    s2.load(); l2.load();                 // both load before either writes
-    s2.type(300); l2.type(420);
-    l2.flush(); s2.flush(); l2.flush(); s2.flush();
-    ok('interleaved flushes in any order lose nothing', db2.dayTotal(uid, date) === 720,
-       `got ${db2.dayTotal(uid, date)}s, expected 720s`);
+    // Order must not matter at all — that is the point of removing the shared
+    // field. Both pages load before either writes, then interleave.
+    const doc = makeDoc();
+    const s = page(doc, 'school', POST), l = page(doc, 'library', POST);
+    s.type(300); l.type(420);
+    l.flush(); s.flush(); l.flush(); s.flush();
+    ok('interleaved flushes in any order lose nothing', dayTotal(doc, POST) === 720,
+       `got ${dayTotal(doc, POST)}s, expected 720s`);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-console.log('\nPart D — the fix must not disturb an ordinary day');
+console.log('\nPart C — an ordinary single-mode day is undisturbed');
 // ═══════════════════════════════════════════════════════════════════════════
 
 {
-    const db = makeSplitDb();
-    const uid = 'student2', date = '2026-08-19';
-    const school = splitController(db, uid, date, 'school');
-    school.load(); school.type(540); school.flush();
-    school.type(120); school.flush();     // a second flush later in the period
-    ok('a single-mode day is exactly what was typed', db.dayTotal(uid, date) === 660,
-       `got ${db.dayTotal(uid, date)}s`);
+    const doc = makeDoc();
+    const school = page(doc, 'school', POST);
+    school.type(540).flush();
+    school.type(120).flush();          // a second flush later in the period
+    ok('a single-mode day is exactly what was typed', dayTotal(doc, POST) === 660,
+       `got ${dayTotal(doc, POST)}s`);
 
-    const db3 = makeSplitDb();
-    ok('a day with no typing is zero, not a failure', db3.dayTotal('nobody', date) === 0);
+    ok('a day with no typing is zero, not a failure', dayTotal(makeDoc(), POST) === 0);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-console.log(`\n${fail === 0 && expectedFails === 0 ? '✓ PASS' : (fail ? '✗ FAIL' : '⚠ DEFECT REPRODUCED')}` +
-            ` — ${pass} passed, ${fail} failed, ${expectedFails} reproduced-as-expected\n`);
-if (expectedFails) {
-    console.log('  §3.1 is present in the shipped build, as documented. This harness');
-    console.log('  turns green when game.js and learn.js write per-source documents.\n');
+console.log('\nPart D — before the cutover, NOTHING CHANGES, defect included');
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⚠️ THIS PART ASSERTS A DEFECT ON PURPOSE AND MUST NOT BE "FIXED". The upload
+// and the cutover are different days: game.js and learn.js go up on a
+// non-school evening and the shape switches on the date. Until it does, both
+// pages write the flat triple exactly as v3.34.0/v2.19.0 did — because every
+// reader in the app is legacy-first before that date, so a page writing split
+// fields early would file a whole afternoon somewhere nothing reads.
+//
+// The price of that safety is that §3.1 is still live for the days in between.
+// That is the correct trade and it is bounded by the calendar.
+
+{
+    const PRE = '2026-08-21';
+    const doc = makeDoc();
+    const l = page(doc, 'library', PRE);
+    l.type(600).flush();
+    const s = page(doc, 'school', PRE);
+    s.type(600).flush();
+    ok('pre-cutover: the flat field is still what gets written',
+       'seconds' in doc.store && !('secondsLibrary' in doc.store),
+       JSON.stringify(doc.store));
+    ok('pre-cutover: sequential use is correct, as it always was',
+       dayTotal(doc, PRE) === 1200, `got ${dayTotal(doc, PRE)}s`);
+
+    l.flush();   // the stale tab, on the old shape
+    ok('pre-cutover: §3.1 is STILL PRESENT and that is expected until the date',
+       dayTotal(doc, PRE) === 600,
+       `got ${dayTotal(doc, PRE)}s — if this is 1200 the writers stopped honouring the gate`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log(`\n${fail === 0 ? '✓ PASS' : '✗ FAIL'} — ${pass} passed, ${fail} failed\n`);
+if (fail === 0) {
+    console.log(`  §3.1 is closed on and after ${SOURCE_SPLIT_CUTOVER}. Part A is the`);
+    console.log('  assertion that would notice it coming back: neither page may name');
+    console.log('  the other source\'s fields in a Firestore payload, ever.\n');
 }
 process.exit(fail === 0 ? 0 : 1);

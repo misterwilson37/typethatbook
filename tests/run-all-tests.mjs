@@ -148,13 +148,13 @@ const FAST = [
     ['reconcile-test.mjs',       'the rebuild plan\u2019s four refusals (never zero a day, never invent a log), and the position-is-not-identity guard'],
     ['daylog-test.mjs',          'ONE NUMBER: the shared typing_logs week reader \u2014 Saturday anchor, legacy-first totals, and the partial-read refusal'],
     // ── Round 21 (Hammond): were in NO list. See the v1.4.0 note above. ──
-    // ⚠️ crossmode-overwrite-test.mjs REPRODUCES A LIVE DEFECT and exits 0 while
-    // doing it — it reports the loss as expected behaviour rather than as a
-    // failure, which is why it can sit in FAST without turning the suite red.
-    // Read its output, not just its status. ⚠️ ITS PART C MODELS PER-SOURCE
-    // DOCUMENT IDS, WHICH firestore.rules v2.5.0 DENIES (HANDOFF §0.-5.B) —
-    // green here does not mean deployable.
-    ['crossmode-overwrite-test.mjs', 'ONE DOCUMENT, TWO WRITERS: the cross-mode day-total overwrite (\u00a73.1), reproduced against the shipped build'],
+    // ⚠️ REWRITTEN IN ROUND 22 (v2.0.0). It no longer reproduces §3.1 — it GUARDS
+    // THE FIX, and it fails properly now instead of reporting a loss as expected
+    // behaviour. Its old Part C modelled per-source DOCUMENT ids, which the
+    // deployed rules DENY (HANDOFF §0.-5.B): six rounds of green there meant
+    // only that the author's idea was self-consistent. Its Part A reads the real
+    // files and is the assertion that would notice §3.1 coming back.
+    ['crossmode-overwrite-test.mjs', 'ONE DOCUMENT, TWO WRITERS: \u00a73.1 CLOSED. Part A is the guard \u2014 neither page may name the other source\u2019s fields in a Firestore payload, ever'],
     ['union-clock-test.mjs',     'interval UNION vs deduped SUM on the four real 2026-08-18 rollups, and the rebuild-disabled guard'],
     ['week-agreement-test.mjs',  'Rule 11 date agreement at all 24 hours \u2014 run as TZ=America/Chicago for the real check'],
     // ⚠️ ROADMAP Phase B step B1. Written test-first and RED against daylog.js
@@ -167,7 +167,7 @@ const FAST = [
     // day counter. Real 2026-08-19 evidence is in the harness header.
     ['recalc-guard-test.mjs',    'the \u27f3 drop guard: small corrections stay silent, a big down-move needs a confirmed yes, and the delete path is exempt'],
     ['daylog-cutover-test.mjs',  'the per-source cutover: pre-cutover days read EXACTLY as before, post-cutover days sum flat + splits, and reports.html carries the identical gate'],
-    ['tab-lifetime-test.mjs',    'THE MISSING AXIS: two controllers over one shared document across real tab orderings \u2014 sequential, concurrent, stale-tab-after-lunch, open across midnight'],
+    ['tab-lifetime-test.mjs',    'THE MISSING AXIS: two controllers over one shared document across real tab orderings. \u26a0\ufe0f Parts B/C/F assert the CORRECT totals and choose their controller by READING game.js/learn.js, so they go RED on a build without the writers'],
 ];
 
 // ⚠️ RULES — need the Firebase emulator (a JVM plus a jar download), so they are
@@ -178,7 +178,7 @@ const FAST = [
 // rounds and it was false the whole time. Round 20 then designed a fix the
 // deployed rules reject. See tests/README.md → "Running the rules harnesses".
 const RULES = [
-    ['rules-probe.test.mjs',     'the rules questions HANDOFF \u00a70.-5 depends on: the roster sweep, the per-source shape, the owner read'],
+    ['rules-probe.test.mjs',     'the rules questions HANDOFF \u00a70.-5 depends on: the roster sweep, the per-source shape, the owner read, and \u26a0\ufe0f Part D \u2014 a day the student never typed reads as MISSING, not DENIED (the v2.6.0 incident)'],
     ['firestore-rules.test.mjs', 'the broad security suite \u2014 staff scoping, student isolation, privilege escalation'],
 ];
 

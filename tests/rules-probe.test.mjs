@@ -1,4 +1,7 @@
-// rules-probe.test.mjs v1.0.0 — THE RULES, EXECUTED.
+// rules-probe.test.mjs v1.1.0 — THE RULES, EXECUTED.
+//
+// v1.1.0 (Round 22) adds Part D, which guards the v2.6.0 null-resource fix —
+// the live incident that broke every student's week and had NO harness.
 //
 // ⚠️ THIS FILE EXISTS BECAUSE FIVE ROUNDS REASONED ABOUT `firestore.rules`
 //    INSTEAD OF RUNNING IT, AND THE FIFTH BUILT A PLAN THE RULES REJECT.
@@ -227,5 +230,80 @@ describe('C — the student reads the document the teacher grades', () => {
 
     it('the teacher reads the same document by the same id', async () => {
         await assertSucceeds(getDoc(doc(asBldg().firestore(), 'typing_logs', `${KID}_${D}`)));
+    });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// D — READING A DAY THE STUDENT DID NOT TYPE
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ THIS PART GUARDS A LIVE, CLASSROOM-WIDE INCIDENT AND IT DID NOT EXIST
+// WHEN THE INCIDENT HAPPENED. Read firestore.rules' v2.6.0 header with it.
+//
+// On a get() of a document that DOES NOT EXIST, `resource` is null. Rules v2.5.0
+// dereferenced `resource.data` in every read clause; dereferencing null is an
+// evaluation error and an error DENIES. So a read of a day a student had not
+// typed came back PERMISSION_DENIED rather than "no document" — and daylog.js
+// readWeek() reads SEVEN days and returns ok:false if any one fails.
+//
+// Every school week contains a Saturday, a Sunday and a day that has not
+// happened yet. So EVERY read of EVERY student's week failed, EVERY TIME, from
+// the moment v2.5.0 shipped. More than half of one class saw a week equal to
+// their day. Their real week was in the collection the whole time.
+//
+// ⚠️ IT WAS INVISIBLE AS AN ERROR — the page falls back to a live counter, so the
+// number on screen looked plausible. It was found because Jake asked why a
+// child's week equalled her day, and it was fixed by a rules paste with no code
+// deploy at all.
+//
+// ⚠️ WHAT THIS PART IS REALLY ASSERTING IS CLAUSE ORDER, which nothing else can
+// see. The null test must come FIRST: every clause after it dereferences
+// `resource`, so ANY reordering that puts one of them ahead reinstates the
+// incident exactly, silently, and with the app still appearing to work.
+describe('D — a missing day reads as missing, not as denied', () => {
+    const GAP = '2026-08-15';   // a Saturday. No document, and there never will be.
+
+    it('the owner may read a day they never typed', async () => {
+        await assertSucceeds(getDoc(doc(asKid().firestore(), 'typing_logs', `${KID}_${GAP}`)));
+    });
+
+    it('and it comes back as a non-existent document, not an error', async () => {
+        const snap = await getDoc(doc(asKid().firestore(), 'typing_logs', `${KID}_${GAP}`));
+        if (snap.exists()) throw new Error('the fixture is wrong — this day should not exist');
+    });
+
+    // ⚠️ A WHOLE WEEK, WHICH IS WHAT daylog.js ACTUALLY DOES. One failure in
+    // seven is the difference between a student seeing their week and a student
+    // seeing this tab. The single-day assertion above would pass on a rule that
+    // still broke a real page load, if the failure were in the loop rather than
+    // the clause; this drives the loop.
+    it('a seven-day week read survives days that do not exist', async () => {
+        const dates = ['2026-08-15','2026-08-16','2026-08-17','2026-08-18',
+                       '2026-08-19','2026-08-20','2026-08-21'];
+        for (const d of dates) {
+            await assertSucceeds(getDoc(doc(asKid().firestore(), 'typing_logs', `${KID}_${d}`)));
+        }
+    });
+
+    // The same trap is armed on typing_sessions, one getDoc() away from firing.
+    // Nothing reads that collection by id today; this is here so that when
+    // something does, it does not rediscover the incident.
+    it('the same is true of typing_sessions, which nothing reads by id yet', async () => {
+        await assertSucceeds(getDoc(doc(asKid().firestore(), 'typing_sessions', `${KID}_nothing`)));
+    });
+
+    // ⚠️ THE DISCLOSURE THIS BUYS IS EXACTLY "THIS ID DOES NOT EXIST", and no
+    // more. A signed-in user still learns NOTHING about a document that DOES
+    // exist and belongs to somebody else — that is the assertion in Part C, and
+    // this one is its other half. If both hold, the null clause is doing only
+    // what its comment claims.
+    it('and a missing day tells a stranger nothing about a real one', async () => {
+        await assertSucceeds(getDoc(doc(asKid().firestore(), 'typing_logs', `someone_else_${GAP}`)));
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), 'typing_logs', `someone_else_${GAP}`), {
+                uid: 'someone_else', date: GAP, classId: 'c_ems', schoolId: EMS, seconds: 900,
+            });
+        });
+        await assertFails(getDoc(doc(asKid().firestore(), 'typing_logs', `someone_else_${GAP}`)));
     });
 });

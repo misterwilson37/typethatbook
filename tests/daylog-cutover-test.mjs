@@ -1,4 +1,7 @@
-// daylog-cutover-test.mjs v1.0.0 — Round 21 (Hammond), ROADMAP Phase B step B1.
+// daylog-cutover-test.mjs v1.1.0 — Round 21 (Hammond), ROADMAP Phase B step B1.
+// v1.1.0 (Round 22) adds Part G: lessons-admin.js, the FOURTH reader of
+// typing_logs and the one the cutover work missed. Three hand-maintained copies
+// of one rule are now held to one behaviour BY EXECUTION rather than by memory.
 //
 // ⚠️ WRITTEN TEST-FIRST. Against daylog.js v1.1.0 this harness is RED, on
 // purpose, and it must be seen red before v1.2.0 is uploaded. Rule 10: the fix
@@ -227,6 +230,54 @@ console.log('   have ended. This is the only mechanical guard on that pair.');
     for (const [label, data, date] of cases) {
         eq(`F4 parity with reports.html — ${label}`,
            totalsOf(data, date), repRead ? repRead(data, date) : 'NO-LIFT');
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\n── G. the THIRD copy: lessons-admin.js\'s roster totals ──');
+console.log('   ⚠️ THE READER NOBODY UPDATED. daylog.js, reports.html and');
+console.log('   index.html all learned the cutover in v2.22.0. lessons-admin.js');
+console.log('   is the fourth surface that reads typing_logs and its Students');
+console.log('   panel was still legacy-first with no gate — so from the cutover');
+console.log('   it would have shown a roster of students with a week of nearly');
+console.log('   nothing while reports.html showed their real minutes, three');
+console.log('   clicks away. Caught by asking "who else reads this collection",');
+console.log('   not by any test. This part is that question, mechanised.');
+// ═════════════════════════════════════════════════════════════════════════════
+{
+    const la = readFileSync(new URL('../lessons-admin.js', import.meta.url), 'utf8');
+
+    const m = la.match(/const\s+SOURCE_SPLIT_CUTOVER\s*=\s*["']([0-9-]+)["']/);
+    eq('G1 lessons-admin.js declares a SOURCE_SPLIT_CUTOVER', !!m, true);
+    eq('G2 and it is THE SAME DATE as daylog.js', m && m[1], SOURCE_SPLIT_CUTOVER);
+
+    // ⚠️ LIFTED, NOT REIMPLEMENTED. The expression is inline in a forEach rather
+    // than in a named function, so it is extracted by its own bracketing
+    // comment markers. If that block is refactored into a function, lift it the
+    // way Part F lifts readLogTotals() — do NOT copy the arithmetic in here,
+    // which would make this part agree with a stale idea of the shipped code.
+    const start = la.indexOf('const SOURCE_SPLIT_CUTOVER = \'2026-08-22\';');
+    const end   = la.indexOf(';', la.indexOf('const secs =', start)) + 1;
+    const body  = (start > 0 && end > start) ? la.slice(start, end) : null;
+    eq('G3 the roster total expression is still liftable', !!body, true);
+
+    const laRead = body
+        ? new Function('data', 'date', body + '; return secs;')
+        : null;
+
+    const PRE2 = '2026-08-18', POST2 = SOURCE_SPLIT_CUTOVER;
+    const cases = [
+        ['pre-cutover flat only',         { seconds: 600 }, PRE2],
+        ['pre-cutover flat beside split', { seconds: 300, secondsLibrary: 300 }, PRE2],
+        ['pre-cutover split only',        { secondsLibrary: 120, secondsSchool: 60 }, PRE2],
+        ['post-cutover both splits',      { secondsLibrary: 600, secondsSchool: 600 }, POST2],
+        ['post-cutover frozen flat + split', { seconds: 600, secondsSchool: 600 }, POST2],
+        ['post-cutover flat only',        { seconds: 600 }, POST2],
+        ['a day with nothing in it',      {}, POST2],
+    ];
+    for (const [label, data, date] of cases) {
+        eq(`G4 parity with daylog.js — ${label}`,
+           laRead ? laRead(data, date) : 'NO-LIFT', totalsOf(data, date).seconds);
     }
 }
 

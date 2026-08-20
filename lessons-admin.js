@@ -1,4 +1,4 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.12.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.13.0
 //
 // v1.12.0 — legacy-first read, matching reports.html v2.14.0 after the source
 //          split was reverted in game.js v3.30.0 / learn.js v2.15.0.
@@ -13,6 +13,13 @@
 //
 // v1.11.0 — READ-SIDE OF THE SOURCE SPLIT (DESIGN-TELEMETRY.md §2.4). Same
 //          incident as game.js v3.29.0 / learn.js v2.14.0 / reports.html
+// v1.13.0 — ⚠️⚠️ THE ROSTER PANEL LEARNED THE PER-SOURCE CUTOVER. This file is
+//           the FOURTH reader of typing_logs and the only one Round 21's cutover
+//           work missed. Its weekSeconds column was legacy-first with no date
+//           gate, so from 2026-08-22 it would have reported a roster of students
+//           with a week of nearly nothing while reports.html showed their real
+//           minutes. No student-facing change; this is a staff page.
+//
 //          v2.13.0: typing_logs now carries secondsLibrary/secondsSchool
 //          instead of a shared `seconds` field two page controllers used to
 //          silently overwrite on each other. The roster panel's weekSeconds
@@ -96,7 +103,7 @@
 //          _studentsInited already true so reopening the tab could not recover.
 //          Both functions written from _commitCSV()/_bulkAssign().
 // v1.7.0 — Lesson + class authoring, CSV roster import, stuck-student scan.
-window.LESSONS_ADMIN_VERSION = '1.12.0';
+window.LESSONS_ADMIN_VERSION = '1.13.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -1861,9 +1868,36 @@ async function loadStudentRoster() {
             // ⚠️ v1.12.0 — legacy-first, matching reports.html v2.14.0 after the
             // source split was reverted. Summing would double-count any day
             // still carrying split fields from the window the split was live.
-            const secs = ('seconds' in data)
-                ? (data.seconds || 0)
-                : (data.secondsLibrary || 0) + (data.secondsSchool || 0);
+            //
+            // ═════════════════════════════════════════════════════════════════
+            // ⚠️⚠️ v1.13.0 — DATE-GATED. THIS FILE IS THE FOURTH READER AND IT
+            // WAS THE ONE NOBODY UPDATED.
+            // ═════════════════════════════════════════════════════════════════
+            //
+            // daylog.js (the student's HUD), reports.html (the grade) and
+            // index.html (via daylog.js) all learned the cutover in v2.22.0.
+            // This copy did not, and legacy-first is CATASTROPHIC for it after
+            // the writers ship: a post-cutover day carries only split fields, so
+            // `'seconds' in data` is false, the split branch is taken and — on
+            // this page's OLD code — that branch was the fallback nobody
+            // expected to be load-bearing. Worse, on a mixed day it returns the
+            // frozen flat remainder alone. Either way this panel would show a
+            // roster of students with a week of nearly nothing while
+            // reports.html showed their real minutes, three clicks away.
+            //
+            // ⚠️ A FOURTH COPY OF A RULE IS THE PROBLEM, NOT THE GATE. This is
+            // now the third hand-maintained copy of the same six lines
+            // (daylog.js totalsOf, reports.html readLogTotals, here) and the
+            // reason is the same each time: three standalone pages that cannot
+            // import each other. tests/daylog-cutover-test.mjs Part G lifts THIS
+            // copy too, so all three are held to one behaviour by execution
+            // rather than by anyone remembering.
+            const SOURCE_SPLIT_CUTOVER = '2026-08-22';
+            const _flatSecs  = data.seconds || 0;
+            const _splitSecs = (data.secondsLibrary || 0) + (data.secondsSchool || 0);
+            const secs = (date >= SOURCE_SPLIT_CUTOVER)
+                ? _flatSecs + _splitSecs
+                : (('seconds' in data) ? _flatSecs : _splitSecs);
             if (!byUid.has(uid)) {
                 byUid.set(uid, { name: data.displayName || '', email: data.email || '',
                                  lastLogin: date, weekSeconds: 0, classId: '' });

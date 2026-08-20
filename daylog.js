@@ -1,5 +1,22 @@
-// daylog.js v1.2.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
+// daylog.js v1.3.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
 //                     DOCUMENT IS A PROJECTION OF THE SESSION RECORD.
+//
+// v1.3.0 — ⚠️ ROADMAP ITEM 1, THE WRITER HALF. Adds SOURCE_FIELDS and
+//          sourceTotalsOf(), and readWeek() now returns `todaySources`.
+//          totalsOf() IS UNTOUCHED — daylog-cutover-test.mjs Part F drives it
+//          against reports.html's twin and any edit here breaks that pair.
+//
+//          ⚠️ WHY A WRITER NEEDS ITS OWN READ. game.js and learn.js each keep a
+//          per-source counter now, and ROADMAP item 1 is explicit about the one
+//          way to get it wrong: **the counter seeds from its own field, never
+//          from the day total.** Seeding from the total folds the other mode's
+//          time into your own bucket and the post-cutover reader then adds it
+//          twice — that is the v3.29.0 bug, and tab-lifetime-test.mjs Part E
+//          drives it deliberately. totalsOf() returns the DAY, which is the
+//          right number for a HUD and the wrong number for a seed, so a second
+//          accessor is not duplication: the two answer different questions.
+//
+//          It rides on readWeek()'s existing seven reads. No extra round trip.
 //
 // v1.2.0 — ⚠️ ROADMAP PHASE B, STEP B2. THE READER HALF OF THE §3.1 FIX, AND IT
 //          SHIPS ALONE. totalsOf() is now DATE-GATED and EXPORTED.
@@ -73,7 +90,7 @@
 // tests/week-anchor-test.mjs and tests/daylog-test.mjs both hold that line. A
 // mismatch here does not throw — it silently reads the wrong seven days.
 
-export const DAYLOG_VERSION = "1.2.0";
+export const DAYLOG_VERSION = "1.3.0";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE PER-SOURCE CUTOVER
@@ -179,6 +196,88 @@ export function totalsOf(data, dateStr) {
     return split;
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// THE WRITER SIDE OF THE CUTOVER  (v1.3.0)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️ ONE PAGE, ONE SOURCE, THREE FIELDS, AND NOTHING ELSE IT MAY WRITE. game.js
+// is 'library' and learn.js is 'school', for the whole of their lives. The
+// entire §3.1 fix is that each page's write names only the fields in its own
+// row below, so a merge from the other page cannot mention them and therefore
+// cannot replace them. A page that writes a field from the other row has
+// rebuilt the defect, whatever it was trying to achieve.
+export const SOURCE_FIELDS = {
+    library: { seconds: 'secondsLibrary', chars: 'charsLibrary', mistakes: 'mistakesLibrary' },
+    school:  { seconds: 'secondsSchool',  chars: 'charsSchool',  mistakes: 'mistakesSchool'  },
+};
+
+/**
+ * What one document already holds under EACH source's own triple.
+ *
+ * ⚠️ DELIBERATELY NOT DATE-GATED, AND THAT IS NOT AN OVERSIGHT. totalsOf() is
+ * gated because it answers "what did this child do that day", and the answer
+ * has to stay bit-for-bit identical for every day already in the database.
+ * This answers "what is currently stored in the field I am about to overwrite",
+ * which is a fact about the document, not about the calendar. Gating it would
+ * make a writer seed from zero on a day whose field is not zero, and the next
+ * flush would then write that zero-based counter straight over real time.
+ *
+ * On a pre-cutover document every field below is absent and every number is 0,
+ * which is correct: nothing has been written per-source yet.
+ */
+export function sourceTotalsOf(data) {
+    const d = data || {};
+    const of = (f) => ({
+        seconds:  d[f.seconds]  || 0,
+        chars:    d[f.chars]    || 0,
+        mistakes: d[f.mistakes] || 0,
+    });
+    return { library: of(SOURCE_FIELDS.library), school: of(SOURCE_FIELDS.school) };
+}
+
+/**
+ * The payload a page writes for its own source on `dateStr`, given its own
+ * counters. Shared so game.js and learn.js cannot drift on either the gate or
+ * the field names — the two files that have drifted on exactly this before.
+ *
+ * ⚠️ THE GATE IS ON THE WRITER TOO, AND IT IS THE PART THAT MAKES THE DEPLOY
+ * SAFE ON ANY DAY. The readers are legacy-first before the cutover. A page that
+ * started writing split fields on 2026-08-21 would file that afternoon under
+ * `secondsLibrary`, where every reader in the app would ignore it — a whole
+ * afternoon reading as the morning's stale flat number. Gating the writer means
+ * the upload can land on a Tuesday and still change nothing until Saturday, and
+ * that a machine that misses the deploy is merely OLD rather than at odds with
+ * the new shape.
+ *
+ * ⚠️ AFTER THE CUTOVER THE FLAT TRIPLE IS FROZEN — NEVER WRITTEN AGAIN BY A
+ * STUDENT PAGE. Whatever sits in it is the pre-cutover remainder for that day,
+ * which is exactly the assumption totalsOf() makes when it adds flat + splits.
+ * Write `seconds` from a student page after the cutover and that assumption is
+ * false the moment you do it.
+ *
+ * `day` is the page's cross-mode counter — the number the HUD paints. `own` is
+ * its per-source counter. BOTH are passed and the gate picks, so the choice of
+ * counter and the choice of field can never disagree: there is one `if` in the
+ * whole app that decides which shape a day is written in, and this is it.
+ */
+export function dayLogPayloadFor(source, dateStr, { day, own }) {
+    const n = (v) => Math.max(0, Math.round(v || 0));
+    if (!(dateStr >= SOURCE_SPLIT_CUTOVER)) {
+        return {
+            seconds:  n(day.seconds),
+            chars:    n(day.chars),
+            mistakes: n(day.mistakes),
+        };
+    }
+    const f = SOURCE_FIELDS[source];
+    if (!f) throw new Error('dayLogPayloadFor: unknown source ' + source);
+    return {
+        [f.seconds]:  n(own.seconds),
+        [f.chars]:    n(own.chars),
+        [f.mistakes]: n(own.mistakes),
+    };
+}
+
 /**
  * Read a student's whole school week out of `typing_logs`, by document id.
  *
@@ -197,10 +296,18 @@ export async function readWeek({ db, doc, getDoc, uid, dateStr }) {
     const byDate = {};
     let ok = true;
 
+    let todayRaw = null;
+
     const results = await Promise.all(dates.map(async (date) => {
         try {
             const snap = await getDoc(doc(db, 'typing_logs', `${uid}_${date}`));
-            return { date, totals: totalsOf(snap.exists() ? snap.data() : null, date) };
+            const data = snap.exists() ? snap.data() : null;
+            // ⚠️ TODAY'S RAW DOCUMENT IS KEPT, AND ONLY TODAY'S. The per-source
+            // seed needs the fields themselves, not the folded total, and today
+            // is the only day any writer touches. Holding all seven would be
+            // seven documents kept alive for six days nobody will write to.
+            if (date === dateStr) todayRaw = data;
+            return { date, totals: totalsOf(data, date) };
         } catch (e) {
             console.warn('[daylog] read failed', date, e && e.message);
             return { date, totals: null };
@@ -223,6 +330,11 @@ export async function readWeek({ db, doc, getDoc, uid, dateStr }) {
         dates,
         byDate,
         today,
+        // ⚠️ v1.3.0 — each source's OWN stored triple, for the writers to seed
+        // from. On a failed or missing read this is all zeroes, which is the
+        // same thing a fresh day looks like; callers must gate on `ok` exactly
+        // as they already do for `today`, and both callers do.
+        todaySources: sourceTotalsOf(todayRaw),
         week,
     };
 }
@@ -240,6 +352,22 @@ export function applyWeekToStats(statsData, read, dateStr) {
     statsData.secondsToday  = read.today.seconds;
     statsData.charsToday    = read.today.chars;
     statsData.mistakesToday = read.today.mistakes;
+
+    // ⚠️ v1.3.0 — BOTH per-source triples are seeded, on BOTH pages, and each
+    // page then ticks and writes ONLY its own. Seeding the other one costs
+    // nothing and buys two things: the WAL's max() merge has a value to compare
+    // against on either page, and mergeGuestStats() has a server figure for
+    // every key it folds. A key that is folded without a server value is one
+    // that gets overwritten by this browser's local number — which is the
+    // failure mode this whole section exists to end.
+    const src = read.todaySources || { library: {}, school: {} };
+    statsData.secondsLibrary  = src.library.seconds  || 0;
+    statsData.charsLibrary    = src.library.chars    || 0;
+    statsData.mistakesLibrary = src.library.mistakes || 0;
+    statsData.secondsSchool   = src.school.seconds   || 0;
+    statsData.charsSchool     = src.school.chars     || 0;
+    statsData.mistakesSchool  = src.school.mistakes  || 0;
+
     statsData.secondsWeek   = read.week.seconds;
     statsData.charsWeek     = read.week.chars;
     statsData.mistakesWeek  = read.week.mistakes;

@@ -413,6 +413,20 @@
     import { db, auth } from "./firebase-config.js";
 
     // ─── Version ──────────────────────────────────────────────────────────────
+    // v2.24.0 — ⚠️⚠️ recalcDailyLog()'s WRITE IS DATE-GATED. Unchanged, ⟳ became
+    //           a DATA-LOSS BUTTON the moment the writers shipped: on a
+    //           post-cutover day it deleted both per-source triples — which by
+    //           then ARE the day — and wrote the total into the flat field the
+    //           student pages have stopped maintaining. After the cutover it now
+    //           writes the day back as the two per-source triples out of
+    //           splitSessionTotals() and deletes the flat one. Before the
+    //           cutover, byte-for-byte v2.23.0's behaviour.
+    //           ⚠️ SHIP THIS BEFORE game.js v3.35.0 / learn.js v2.20.0, OR IN
+    //           THE SAME DEPLOY. It is safe alone: the gate is false until the
+    //           date, so nothing changes until then. ROADMAP item 1 step 3.
+    //           The per-day editor's SAVE box is deliberately NOT gated — see
+    //           its own note for why the two buttons assert different things.
+    //
     // v2.13.0 — TWO THINGS, BOTH FROM DESIGN-TELEMETRY.md §2.4.
     //   (1) THE SOURCE SPLIT, READ SIDE. game.js v3.29.0 / learn.js v2.14.0 now
     //       write secondsLibrary/secondsSchool (etc.) instead of a shared
@@ -673,7 +687,32 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.23.0";
+    const REPORTS_VERSION = "2.24.0";
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // ⚠️ THIS CONSTANT IS A SECOND COPY OF daylog.js's SOURCE_SPLIT_CUTOVER, as
+    // readLogTotals() is a second copy of its totalsOf(). That is a Rule 9 smell
+    // and it is accepted for exactly one reason: reports.html is a standalone
+    // page that imports no modules, so it cannot share the student's copy.
+    // tests/daylog-cutover-test.mjs Part F LIFTS THAT FUNCTION OUT OF THIS FILE
+    // and drives it against daylog.js's on identical inputs, so the two cannot
+    // drift silently.
+    //
+    // ⚠️ IF YOU CHANGE ONE, CHANGE BOTH, IN THE SAME DEPLOY. A teacher and a
+    // student reading the same document and getting different numbers is the
+    // entire defect this project exists to have ended.
+    //
+    // ⚠️ IT LIVES AT THE TOP OF THE SCRIPT, NOT INSIDE generateReport(). Two
+    // functions need it now — readLogTotals() on the read path and
+    // recalcDailyLog() on the write path — and they are in different scopes.
+    // ⚠️ ONE DECLARATION ONLY. daylog-cutover-test.mjs finds it by pattern; a
+    // second `const SOURCE_SPLIT_CUTOVER` anywhere in this file would let the
+    // read path and the write path disagree about the date with nothing to
+    // notice.
+    const SOURCE_SPLIT_CUTOVER = "2026-08-22";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
@@ -1263,7 +1302,13 @@
             // ⚠️ IF YOU CHANGE ONE, CHANGE BOTH, IN THE SAME DEPLOY. A teacher
             // and a student reading the same document and getting different
             // numbers is the entire defect this project exists to have ended.
-            const SOURCE_SPLIT_CUTOVER = "2026-08-22";
+            // ⚠️ v2.24.0 — THE DECLARATION MOVED TO THE TOP OF THIS SCRIPT and is
+            // no longer here. It was scoped inside generateReport(), which was
+            // invisible until recalcDailyLog() — a sibling function, outside that
+            // scope — needed it and got a ReferenceError on the ⟳ button that
+            // nothing on screen would have explained. Found by
+            // undefined-calls-test.mjs, which is exactly the class of defect that
+            // harness exists for. Search REPORTS_VERSION to find it.
 
             // Days on or after the cutover read `seconds` PLUS both split
             // triples; days before it read legacy-first, exactly as v2.21.0 did.
@@ -2664,11 +2709,30 @@
                 // FLAT SHAPE. Jake is asserting one definitive number for the
                 // whole day; a split (secondsLibrary + secondsSchool) that still
                 // added up to the OLD total would silently outrank this edit the
-                // next time anyone reads the doc — readLogTotals() always prefers
-                // the split sum when either half is present. chars/mistakes carry
-                // forward unchanged (only seconds is the thing being overridden),
-                // so nothing is lost. The flat shape wins until the next automatic
-                // flush re-establishes a split for that day.
+                // next time anyone reads the doc. chars/mistakes carry forward
+                // unchanged (only seconds is the thing being overridden), so
+                // nothing is lost.
+                //
+                // ⚠️ v2.24.0 — THIS PATH IS DELIBERATELY *NOT* DATE-GATED, unlike
+                // recalcDailyLog() below, and the difference is worth stating
+                // because it looks like an omission.
+                //
+                // ⟳ asserts "this day equals its sessions", which is a statement
+                // about where the time CAME FROM, so it has to be filed per
+                // source. This box asserts "this day was N minutes, because I
+                // was in the room" — a statement about the TOTAL, with no claim
+                // about which mode produced it. Writing N into the flat field
+                // and clearing the splits says exactly that: after the cutover
+                // readLogTotals() computes flat + splits, so the day reads as N,
+                // and a student who types more later adds their own field on top
+                // of the teacher's figure rather than replacing it.
+                //
+                // ⚠️ KNOWN AND ACCEPTED: a student tab left OPEN across this edit
+                // still holds its own counter in memory and will flush it, so the
+                // day becomes N plus that tab's total. That hazard predates the
+                // cutover — the same open tab used to overwrite the correction
+                // outright — and no client-side change removes it. Corrections
+                // are made after the fact in practice.
                 await updateDoc(doc(db, "typing_logs", log.docId), {
                     seconds: newSeconds,
                     chars: log.chars,
@@ -2903,15 +2967,55 @@
                              `(${currentSec}s → ${totalSec}s) with confirmation.`);
             }
 
-            // ⚠️ v2.14.0 — WRITES FLAT AND CLEARS THE SPLITS. The split is
-            // reverted (see readLogTotals above), so a recalculated day must
-            // come back in the one shape the app still writes. Clearing the
-            // split fields is what makes ⟳ the reliable cleanup for any day
-            // touched while the split was live.
+            // ═════════════════════════════════════════════════════════════════
+            // ⚠️⚠️ v2.24.0 — THE WRITE IS DATE-GATED. WITHOUT THIS, ⟳ IS A
+            // DATA-LOSS BUTTON ON EVERY DAY AFTER THE CUTOVER.
+            // ═════════════════════════════════════════════════════════════════
+            //
+            // v2.14.0 wrote the flat triple and deleteField()'d the six split
+            // fields, and that was right in a world where the split was reverted
+            // and nothing wrote those fields: clearing them made ⟳ the reliable
+            // cleanup for any day touched while the split was briefly live.
+            //
+            // ⚠️ THAT IS NOW BACKWARDS. On and after SOURCE_SPLIT_CUTOVER the
+            // split fields are THE DAY — game.js v3.35.0 and learn.js v2.20.0
+            // write nothing else — and readLogTotals() reads flat PLUS splits.
+            // Unchanged, one click of ⟳ on a post-cutover day deletes both
+            // per-source triples, writes the whole day into a field the student
+            // pages have stopped maintaining, and leaves the document in a shape
+            // the writers will then seed from as though it were empty.
+            //
+            // So: BEFORE the cutover, byte-for-byte what v2.23.0 did. AFTER it,
+            // the day comes back as the two per-source triples, from
+            // splitSessionTotals() — which already separates the sessions by
+            // source, so this is the same arithmetic filed correctly instead of
+            // flattened.
+            //
+            // ⚠️ AND THE FLAT TRIPLE IS DELETED ON THAT PATH, WHICH IS NOT AN
+            // OVERSIGHT. ⟳ asserts "this day equals its session records", and
+            // the session records cover the WHOLE day including any morning
+            // written flat by a page that had not picked up the new build. A
+            // frozen flat remainder left beside the new splits would be that
+            // morning counted twice. Deleting it also makes the result correct
+            // under BOTH branches of readLogTotals(), so a day rewritten here
+            // reads the same even if the cutover date is ever misconfigured.
+            //
+            // ⚠️ THIS SHIPS IN THE SAME DEPLOY AS THE WRITERS, OR EARLIER. It is
+            // safe standing alone — before the cutover the gate is false and
+            // this function behaves exactly as it does today.
+            const recalcPayload = (date >= SOURCE_SPLIT_CUTOVER)
+                ? {
+                    secondsLibrary: librarySec, charsLibrary: libraryChars, mistakesLibrary: libraryMist,
+                    secondsSchool:  schoolSec,  charsSchool:  schoolChars,  mistakesSchool:  schoolMist,
+                    seconds: deleteField(), chars: deleteField(), mistakes: deleteField(),
+                  }
+                : {
+                    seconds: totalSec, chars: totalChars, mistakes: totalMistakes,
+                    secondsLibrary: deleteField(), charsLibrary: deleteField(), mistakesLibrary: deleteField(),
+                    secondsSchool: deleteField(), charsSchool: deleteField(), mistakesSchool: deleteField(),
+                  };
             await updateDoc(doc(db, "typing_logs", log.docId), {
-                seconds: totalSec, chars: totalChars, mistakes: totalMistakes,
-                secondsLibrary: deleteField(), charsLibrary: deleteField(), mistakesLibrary: deleteField(),
-                secondsSchool: deleteField(), charsSchool: deleteField(), mistakesSchool: deleteField(),
+                ...recalcPayload,
                 lastUpdated: new Date()
             });
 

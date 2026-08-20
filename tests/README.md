@@ -56,6 +56,17 @@ before the move.
 
 ## What is registered, and what is not
 
+⚠️ **Round 22 rewrote two harnesses that used to be green by asserting a defect.**
+`tab-lifetime-test.mjs` Parts B/C/F and `crossmode-overwrite-test.mjs` now assert
+the correct totals. `tab-lifetime-test.mjs` chooses which controller to drive by
+**reading `game.js` and `learn.js`**, so it goes red on a build where the writers
+have not shipped — that indirection is deliberate, and its header explains why.
+
+⚠️ **Three Parts still assert defects on purpose and must not be "fixed":**
+`tab-lifetime-test.mjs` Part D and `crossmode-overwrite-test.mjs` Part D are the
+pre-cutover shape, live until 2026-08-22; `tab-lifetime-test.mjs` Part E is the
+v3.29.0 seeding mistake, driven so it cannot ship unnoticed twice.
+
 Thirty-four harnesses are in this folder. Thirty-two are registered:
 `run-all-tests.mjs` holds three lists — `FAST` (28 harnesses, no external data, runs
 in a fresh clone), `EPUB` (4, needs `library/`, behind `--with-epubs`), and `PENDING`

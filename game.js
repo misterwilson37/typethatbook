@@ -1,4 +1,34 @@
-// game.js v3.30.0
+// game.js v3.35.0
+//
+// ⚠️ THE LINE ABOVE SAID v3.30.0 FOR FIVE VERSIONS while `const VERSION` said
+// 3.34.0. tools/audit-versions.mjs has been reporting it as "one of the two is
+// a lie" that whole time. Fixed here because this deploy touches the file
+// anyway — HANDOFF §0.-7.D's instruction exactly.
+//
+// v3.35.0 — ⚠️⚠️ §3.1 IS CLOSED. THIS FILE NO LONGER WRITES THE DAY TOTAL.
+//           On and after daylog.js's SOURCE_SPLIT_CUTOVER, the daily-log write
+//           names `secondsLibrary`/`charsLibrary`/`mistakesLibrary` and nothing
+//           else, fed by a counter seeded from THOSE FIELDS. learn.js writes the
+//           School triple the same way. Two pages, one document, no shared
+//           field — so a merge from the other page cannot mention this page's
+//           numbers and therefore cannot replace them.
+//
+//           ⚠️ THE COUNTER SEEDS FROM ITS OWN FIELD, NEVER FROM THE DAY TOTAL.
+//           Seeding from the total folds School's time into Library's bucket and
+//           the reader then adds it twice. That was the v3.29.0 bug, it is why
+//           the source split was reverted in v3.30.0, and
+//           tab-lifetime-test.mjs Part E drives it deliberately so it cannot
+//           come back unnoticed.
+//
+//           ⚠️ THE WRITE IS DATE-GATED AND THAT IS WHAT MAKES THIS UPLOAD SAFE
+//           ON ANY DAY. Before the cutover this file writes the flat triple,
+//           byte-for-byte as v3.34.0 did. The readers are legacy-first before
+//           the cutover, so a page that started writing split fields early would
+//           file a whole afternoon somewhere every reader ignores.
+//
+//           `statsData.secondsToday` is UNCHANGED in meaning — still the whole
+//           day, still what the HUD paints, still seeded from the graded
+//           document. The student's number does not move.
 //
 // v3.34.0 — ⚠️⚠️ EMERGENCY REVERT OF THE v3.32.0 PROJECTION. The daily total is
 //           the in-memory counter again. `typing_sessions` was found to contain
@@ -331,7 +361,7 @@ import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
 // and are used by nothing shipped — v3.34.0 reverted the projection. Leaving the
 // import in would make it one keystroke to re-enable a grade computed from
 // records known to overlap. See HANDOFF §0.0 before touching this line.
-import { readWeek, applyWeekToStats, DAYLOG_VERSION } from "./daylog.js";
+import { readWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // The version footer's three primary reads (this html file, this js file's own
 // VERSION, style.css) plus the lazy full-build panel on hover. See
@@ -353,7 +383,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.34.0";
+const VERSION = "3.35.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1035,7 +1065,17 @@ let sessionLimit = 30;
 let sessionValueStr = "30";
 const savedSession = localStorage.getItem('ttb_sessionLength');
 if (savedSession) { sessionValueStr = savedSession; sessionLimit = (savedSession === 'infinity') ? 'infinity' : parseInt(savedSession); }
-let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0, mistakesToday:0, mistakesWeek:0, lastDate:"", weekStart:0 };
+// ⚠️ v3.35.0 — `secondsLibrary` IS THIS PAGE'S OWN COUNTER AND `secondsToday`
+// IS STILL THE DAY. They tick on the same line and mean different things:
+// secondsToday is what the student sees (both modes, the graded day), and
+// secondsLibrary is the only number this file is allowed to WRITE. The School
+// triple is carried, seeded and never touched here — daylog.js
+// applyWeekToStats() seeds both on both pages so the WAL and the guest merge
+// have a server figure for every key they fold. §3.1.
+let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0, mistakesToday:0, mistakesWeek:0,
+                  secondsLibrary:0, charsLibrary:0, mistakesLibrary:0,
+                  secondsSchool:0,  charsSchool:0,  mistakesSchool:0,
+                  lastDate:"", weekStart:0 };
 
 // ⚠️ THE BASELINE. WHAT FIRESTORE HAD WHEN WE LAST READ IT. (v3.22.0)
 //
@@ -1061,7 +1101,9 @@ let statsData = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0, mist
 // which is right in BOTH cases, because in the guest case the baseline is zero
 // and the formula degenerates to sum(). Set ONLY where Firestore is actually
 // read (loadUserStats), and reset to zero on a genuine sign-out.
-let statsBaseline = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0, mistakesToday:0, mistakesWeek:0 };
+let statsBaseline = { secondsToday:0, secondsWeek:0, charsToday:0, charsWeek:0, mistakesToday:0, mistakesWeek:0,
+                      secondsLibrary:0, charsLibrary:0, mistakesLibrary:0,
+                      secondsSchool:0,  charsSchool:0,  mistakesSchool:0 };
 
 // ⚠️ `lastKnownRepairedAt` and checkForWeekRepair() ARE GONE (v3.31.0). They
 // existed to stop a live tab overwriting reports.html's week-counter repair.
@@ -1653,7 +1695,16 @@ async function loadUserStats() {
     } catch (e) {}
 }
 
+// ⚠️ v3.35.0 — THE PER-SOURCE TRIPLES ARE IN HERE AND MUST STAY IN HERE.
+// STAT_KEYS is what captureStatsBaseline() snapshots, and the baseline is what
+// mergeGuestStats() subtracts to work out "how much of this number did THIS
+// browser put there". A counter that is folded but never baselined has a
+// baseline of zero forever, so every merge treats the server's own stored value
+// as this browser's contribution and adds it a second time. That is the
+// arithmetic that doubled a student's week on 2026-08-18.
 const STAT_KEYS = ['secondsToday','charsToday','mistakesToday',
+                   'secondsLibrary','charsLibrary','mistakesLibrary',
+                   'secondsSchool','charsSchool','mistakesSchool',
                    'secondsWeek','charsWeek','mistakesWeek'];
 
 // Snapshot statsData as "what the server had". See the statsBaseline block.
@@ -1713,7 +1764,14 @@ function mergeGuestStats(serverData, dateStr, weekStart) {
         statsData[key] = Math.max(live, server + mine);
     };
 
-    for (const k of ['secondsToday','charsToday','mistakesToday']) fold(k, dayMatches);
+    // ⚠️ v3.35.0 — THE PER-SOURCE TRIPLES FOLD ON THE DAY GUARD TOO. They are
+    // day-scoped counters like secondsToday and every argument above applies to
+    // them unchanged. Omitting them would leave a guest's Library minutes to be
+    // written over the account's stored secondsLibrary on the very next flush,
+    // because the write is absolute per field.
+    for (const k of ['secondsToday','charsToday','mistakesToday',
+                     'secondsLibrary','charsLibrary','mistakesLibrary',
+                     'secondsSchool','charsSchool','mistakesSchool']) fold(k, dayMatches);
     for (const k of ['secondsWeek','charsWeek','mistakesWeek'])    fold(k, weekMatches);
 
     statsData.lastDate  = dateStr;
@@ -2553,6 +2611,17 @@ function gameTick() {
                 statsData.secondsToday = 0;
                 statsData.charsToday = 0;
                 statsData.mistakesToday = 0;
+                // ⚠️ v3.35.0 — THE PER-SOURCE COUNTERS ROLL OVER WITH THE DAY.
+                // They are day-scoped, and a counter that survived midnight
+                // would be written into tomorrow's document as though it had
+                // been typed tomorrow. Both triples reset: the School one is
+                // seeded from a document that is also now the wrong day.
+                statsData.secondsLibrary = 0;
+                statsData.charsLibrary = 0;
+                statsData.mistakesLibrary = 0;
+                statsData.secondsSchool = 0;
+                statsData.charsSchool = 0;
+                statsData.mistakesSchool = 0;
                 statsData.lastDate = todayStr;
                 dailyGoalCelebrated = false; // eligible for today's goal
                 // Check week rollover too
@@ -2566,7 +2635,14 @@ function gameTick() {
                 }
             }
 
-            statsData.secondsToday++; statsData.secondsWeek++;
+            // ⚠️ ONE LINE, THREE COUNTERS, ONE GATE (v3.35.0). `secondsLibrary`
+            // advances here and NOWHERE ELSE, exactly like the two beside it.
+            // A per-source counter that ticked on its own schedule would be a
+            // second clock measuring the same student — DESIGN-TELEMETRY §7
+            // step 1.75, and the defect open-unit-test.mjs Part E exists to
+            // catch. The day and the source must never be able to disagree
+            // about how many seconds just passed.
+            statsData.secondsToday++; statsData.secondsWeek++; statsData.secondsLibrary++;
             timeAccumulator -= 1000;
             updateTimerUI();
 
@@ -2921,7 +2997,7 @@ function handleTyping(key) {
     }
 
     if (inputChar === targetChar) {
-        statsData.charsToday++; statsData.charsWeek++;
+        statsData.charsToday++; statsData.charsWeek++; statsData.charsLibrary++;
         anonCharsTyped++;
         consecutiveMistakes = 0;
 
@@ -2982,7 +3058,7 @@ function handleTyping(key) {
         consecutiveMistakes++;
         anonMistakes++;
 
-        statsData.mistakesToday++; statsData.mistakesWeek++;
+        statsData.mistakesToday++; statsData.mistakesWeek++; statsData.mistakesLibrary++;
         if (currentLetterStatus === 'clean') currentLetterStatus = 'error';
         mistakesAtCurrent++;
         const errEl = document.getElementById(`char-${currentCharIndex}`);
@@ -4008,12 +4084,41 @@ async function _flushAllInner(reason, final = false) {
         // deleted and nothing stops writing them — they are the only evidence
         // that will identify whatever is producing the overlaps. They are simply
         // no longer permitted to decide a grade.
-        const projected = {
-            seconds:  Math.max(0, Math.round(statsData.secondsToday || 0)),
-            chars:    Math.max(0, Math.round(statsData.charsToday   || 0)),
-            mistakes: Math.max(0, Math.round(statsData.mistakesToday|| 0)),
-        };
-        {
+        // ⚠️⚠️ v3.35.0 — THE §3.1 FIX. THIS PAGE WRITES ONE SOURCE'S FIELDS AND
+        // NOTHING ELSE. READ THIS BEFORE CHANGING THE PAYLOAD.
+        //
+        // Until now both controllers wrote the whole day under `seconds`, so a
+        // Library tab left open from first period flushed its own stale total
+        // over whatever School had written at lunch and a mode's time vanished.
+        // Not a race that better locking fixes — a SHARED FIELD, where the last
+        // writer is correct by definition. tab-lifetime-test.mjs Part C is that
+        // exact classroom sequence and it lost ten minutes of twenty.
+        //
+        // Removing the sharing removes the defect. After the cutover this file
+        // names secondsLibrary/charsLibrary/mistakesLibrary and learn.js names
+        // the School triple. A merge from the other page cannot mention these
+        // fields, so it cannot replace them. No lock, no read-modify-write, no
+        // ordering requirement, nothing to get right at 8:47 in the morning.
+        //
+        // ⚠️ `own` SEEDS FROM ITS OWN FIELD (daylog.js applyWeekToStats), NEVER
+        // FROM THE DAY TOTAL. Seeding from the total folds School's minutes into
+        // Library's bucket and the reader adds them a second time — the v3.29.0
+        // bug that got the whole split reverted in v3.30.0. tab-lifetime-test.mjs
+        // Part E drives that mistake on purpose so it cannot ship quietly twice.
+        //
+        // ⚠️ THE GATE LIVES IN daylog.js AND IS SHARED WITH learn.js. Before the
+        // cutover this writes the flat triple, byte-for-byte as v3.34.0 did,
+        // because every reader is legacy-first until that date. Do not inline the
+        // comparison here — two copies of a cutover rule is how a teacher and a
+        // student end up reading one document and getting two numbers.
+        const payload = dayLogPayloadFor('library', today, {
+            day: { seconds:  statsData.secondsToday,
+                   chars:    statsData.charsToday,
+                   mistakes: statsData.mistakesToday },
+            own: { seconds:  statsData.secondsLibrary,
+                   chars:    statsData.charsLibrary,
+                   mistakes: statsData.mistakesLibrary },
+        });
         try {
             await setDoc(doc(db, "typing_logs", `${currentUser.uid}_${today}`), {
                 uid: currentUser.uid,
@@ -4022,48 +4127,30 @@ async function _flushAllInner(reason, final = false) {
                 classId: ttbClassId || "",
                 schoolId: ttbSchoolId || "",
                 date: today,
-                seconds: projected.seconds,
-                // ⚠️ chars/mistakes still come from the counter — see the note on
-                // `queued` above. Only `seconds` is graded.
-                chars: statsData.charsToday || 0,
-                mistakes: statsData.mistakesToday || 0,
+                ...payload,
                 lastUpdated: new Date()
             }, { merge: true });
 
-            // ⚠️ v3.33.0 — THE HUD FOLLOWS THE DOCUMENT. THIS IS THE LAST PLACE
-            // THE TWO NUMBERS COULD DIVERGE AND IT IS NOT OPTIONAL.
+            // ⚠️ v3.35.0 — THE v3.33.0 HUD RECONCILIATION IS GONE, AND ITS
+            // ABSENCE IS THE POINT. It reset statsData to whatever the write
+            // computed, because v3.32.0's write was a PROJECTION of the session
+            // record and could legitimately differ from the counter. v3.34.0
+            // reverted that projection, which made the delta identically zero —
+            // the block has been dead code for two versions.
             //
-            // Stage 2 made the WRITE a projection of typing_sessions while the
-            // HUD was still painting `statsData.secondsToday` — a value seeded
-            // from typing_logs at load and ticked upward since. Those are two
-            // different quantities. A day whose stored log came from the old
-            // counter, or whose sessions are short of it for any reason, would
-            // be written DOWN by the projection while the student's screen kept
-            // showing the old higher figure. Kid sees one number, Jake sees
-            // another — the exact defect this whole round exists to end, rebuilt
-            // by the fix for it.
+            // It must not come back in this shape. This write no longer knows
+            // the day total: it names one source's fields, and the other
+            // source's number lives in the document where only a fresh read
+            // could find it. A "reconciliation" here would have to re-read to
+            // learn anything, and would then be repainting the HUD from a value
+            // this page did not write.
             //
-            // So after a successful write, statsData is reset TO WHAT WAS
-            // WRITTEN. The week moves by the same delta, because the week is the
-            // sum of the days and only today changed.
-            //
-            // ⚠️ THE NUMBER CAN GO DOWN ON SCREEN, ONCE, AND THAT IS CORRECT.
-            // It means the counter was ahead of the session record. Jake's
-            // ruling, 2026-08-19: a number that overstates what a child did is a
-            // lie told to that child. Do not add a floor here to keep it pretty
-            // — a floor is how mergeGuestStats() ended up unable to tell a
-            // correction from a loss.
-            const delta = projected.seconds - (statsData.secondsToday || 0);
-            if (delta !== 0) {
-                statsData.secondsToday = projected.seconds;
-                statsData.secondsWeek  = Math.max(0, (statsData.secondsWeek || 0) + delta);
-                hudCacheSave({ todaySeconds: statsData.secondsToday,
-                               weekSeconds:  statsData.secondsWeek,
-                               date: today, weekStart: statsData.weekStart });
-                updateTimerUI();
-            }
+            // ⚠️ AND THE CACHE IS NOT WRITTEN HERE. hud.js is explicit: the HUD
+            // cache is saved after the authoritative read and never from the
+            // live counter. loadUserStats() is that place. Writing it from here
+            // would cache this tab's opinion of the day and hand it to the next
+            // page load as though the server had said it.
         } catch (e) { ok = false; console.warn(`Log flush failed (${reason}):`, e); }
-        }
     }
 
     // 3. Week/day rollup.
@@ -4172,8 +4259,18 @@ function walRecover() {
 
     // Time: only trust the WAL if it's for the same day/week AND is larger.
     // Counters only go up within a period, so max() is the safe merge.
+    // ⚠️ v3.35.0 — THE PER-SOURCE TRIPLE IS IN THIS LIST AND OMITTING IT LOSES
+    // TIME SILENTLY. This block is the ONLY path by which a crashed tab's
+    // unflushed minutes reach statsData, and after the cutover `secondsLibrary`
+    // is the only number this page WRITES. Recover secondsToday without it and
+    // the HUD climbs by the recovered minutes while the flush that follows
+    // writes the un-recovered secondsLibrary — the student sees the time and the
+    // teacher does not. The School triple rides along for the same reason it is
+    // seeded: it costs a comparison and keeps the record whole for learn.js.
     if (wal.stats && wal.stats.lastDate === statsData.lastDate) {
-        for (const k of ['secondsToday', 'charsToday', 'mistakesToday']) {
+        for (const k of ['secondsToday', 'charsToday', 'mistakesToday',
+                         'secondsLibrary', 'charsLibrary', 'mistakesLibrary',
+                         'secondsSchool', 'charsSchool', 'mistakesSchool']) {
             if ((wal.stats[k] || 0) > (statsData[k] || 0)) { statsData[k] = wal.stats[k]; recovered = true; }
         }
     }
@@ -4402,10 +4499,24 @@ function showReauthPrompt() {
                 // never lets the result fall below what this browser already
                 // holds, so the worst case is that stored time is re-added by
                 // the next clean load rather than lost now.
+                // ⚠️ v3.35.0 — THE PER-SOURCE FIELDS ARE PASSED AS THE SERVER
+                // SIDE. mergeGuestStats() computes `server + this browser's own
+                // contribution` for every key it folds; a key with no server
+                // value folds as `0 + mine`, and the absolute per-field write
+                // that follows then puts this guest's Library minutes straight
+                // over the account's stored secondsLibrary. read.todaySources is
+                // what the document actually holds, per source, out of the same
+                // seven reads.
                 mergeGuestStats(read.ok ? {
                     lastDate: dateStr, weekStart: read.weekStart,
                     secondsToday: read.today.seconds, charsToday: read.today.chars,
                     mistakesToday: read.today.mistakes,
+                    secondsLibrary:  read.todaySources.library.seconds,
+                    charsLibrary:    read.todaySources.library.chars,
+                    mistakesLibrary: read.todaySources.library.mistakes,
+                    secondsSchool:   read.todaySources.school.seconds,
+                    charsSchool:     read.todaySources.school.chars,
+                    mistakesSchool:  read.todaySources.school.mistakes,
                     secondsWeek: read.week.seconds, charsWeek: read.week.chars,
                     mistakesWeek: read.week.mistakes,
                 } : null, dateStr, weekStart);
@@ -5379,10 +5490,24 @@ function showAnonLoginPrompt(rung) {
                 // mergeGuestStats(); read the block above it before changing this.
                 // ⚠️ v3.31.0 — the server side is the week of typing_logs now.
                 const read = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr });
+                // ⚠️ v3.35.0 — THE PER-SOURCE FIELDS ARE PASSED AS THE SERVER
+                // SIDE. mergeGuestStats() computes `server + this browser's own
+                // contribution` for every key it folds; a key with no server
+                // value folds as `0 + mine`, and the absolute per-field write
+                // that follows then puts this guest's Library minutes straight
+                // over the account's stored secondsLibrary. read.todaySources is
+                // what the document actually holds, per source, out of the same
+                // seven reads.
                 mergeGuestStats(read.ok ? {
                     lastDate: dateStr, weekStart: read.weekStart,
                     secondsToday: read.today.seconds, charsToday: read.today.chars,
                     mistakesToday: read.today.mistakes,
+                    secondsLibrary:  read.todaySources.library.seconds,
+                    charsLibrary:    read.todaySources.library.chars,
+                    mistakesLibrary: read.todaySources.library.mistakes,
+                    secondsSchool:   read.todaySources.school.seconds,
+                    charsSchool:     read.todaySources.school.chars,
+                    mistakesSchool:  read.todaySources.school.mistakes,
                     secondsWeek: read.week.seconds, charsWeek: read.week.chars,
                     mistakesWeek: read.week.mistakes,
                 } : null, dateStr, weekStart);
