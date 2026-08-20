@@ -1,4 +1,7 @@
-/* adventure.css v1.0.0 — view-mode skin for Adventure Mode */
+/* adventure.css v1.0.1 — view-mode skin for Adventure Mode */
+/* v1.0.1: the `body.view-adventure .text-btn` tint is DELETED. It painted the
+           HUD's (Logout) button dark-brown-on-black — invisible — and the HUD
+           bar is declared unskinned two rules below. See the comment there. */
 /* v1.0.0: out of alpha. No rule changes; version aligned with              */
 /*         adventure-renderer.js 1.0.0 and the game.js 3.5.0 splash.        */
 /* v0.0.7: book-info-bar visible in adventure mode (parchment strip)         */
@@ -246,9 +249,21 @@ body.view-adventure .modal-btn:disabled {
     box-shadow: none;
 }
 
-body.view-adventure .text-btn {
-    color: rgba(43, 34, 26, 0.6);
-}
+/* ⚠️ THE `.text-btn` TINT THAT USED TO BE HERE IS DELETED. (v1.0.1)
+   It read `color: rgba(43, 34, 26, 0.6)` — dark brown at 60%, which is the right
+   colour for a control on parchment and is near-black-on-black in the only
+   place the class is actually used. `.text-btn`'s ONLY users in this repo are
+   the (Logout) buttons in game.html and learn.html, and those live in the HUD
+   bar — which the note directly below declares is deliberately NOT skinned.
+   This rule was reaching into the one region the file promises not to touch,
+   and it made Logout completely invisible in adventure mode: Jake reported
+   there was no way to sign out at all. style.css v3.5.6 restyled the class and
+   this rule silently ate the change. If a future round adds a .text-btn to a
+   parchment surface, skin THAT, by its own id or a wrapper class. */
+
+/* HUD bar (top) is intentionally NOT skinned. The white-on-black look stays
+   in adventure mode — it doesn't clash and kids said the streak number was
+   missing when re-tinted. Keep it classic. */
 
 /* Modal selects (Sprint, Keyboard, View dropdowns) */
 body.view-adventure select.modal-select,
