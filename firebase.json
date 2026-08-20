@@ -1,0 +1,17 @@
+{
+  "//": [
+    "Emulator config for `npm run test:rules`. This file does NOT deploy anything",
+    "and does not change how Jake ships — deploys are still browser-only, through",
+    "the Firebase console and the GitHub web portal (HANDOFF B.4).",
+    "It exists so the rules can be EXECUTED against a local emulator instead of",
+    "reasoned about, which is what four rounds did instead."
+  ],
+  "firestore": {
+    "rules": "firebase/firestore.rules",
+    "indexes": "firebase/firestore.indexes.json"
+  },
+  "emulators": {
+    "firestore": { "port": 8080 },
+    "ui": { "enabled": false }
+  }
+}

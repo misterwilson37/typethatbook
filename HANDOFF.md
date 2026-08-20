@@ -1,9 +1,43 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v14.24.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v14.29.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      2026-08-19 by Round 15 (Densmore), Round 16 (Royal) and Round 17 (Linotype);
      amended 2026-08-19 by Round 18 (Salter); amended 2026-08-19 by Round 19
-     (Hermes); amended 2026-08-19 by Round 20 (Corona).
+     (Hermes); amended 2026-08-19 by Round 20 (Corona); amended 2026-08-20 by
+     Round 21 (Hammond).
+
+     v14.29.0 — Round 21 (Hammond), Phase A. ✅ SHIPPED: registration audit in
+     run-all-tests.mjs v1.4.0 (an unregistered harness now FAILS the suite), three
+     orphans registered, new tab-lifetime-test.mjs, firestore-rules.test.mjs
+     repaired from 14 red to 54 green, npm run test:rules. NOTHING STUDENT-FACING
+     CHANGED. ⚠️ §0.-7.A RECORDS FOUR RULINGS FROM JAKE THAT MUST NOT BE REOPENED:
+     the 2s/3s idle split is DELIBERATE and §0.-6.C was WRONG; time IS a valid
+     grading basis and ROADMAP D-1 is REJECTED; the historical data is good enough
+     and no bulk rebuild may be proposed; the reconcile is to be removed once its
+     boundary with the drill-down is confirmed.
+
+     v14.28.0 — Round 21 (Hammond), SECOND pass. ⚠️ §0.-6 IS NEW AND CORRECTS
+     §0.-5: "the log only undercounts" is UNSUPPORTED — the 08-19 down-list
+     contradicts it. The log and the sessions MEASURE DIFFERENT QUANTITIES and a
+     clean day produces log > sessions before any bug. New defect: the two modes
+     use DIFFERENT IDLE THRESHOLDS (2s vs 3s), so a Library minute and a School
+     minute are not the same minute. New file ROADMAP.md is the plan of record and
+     answers whether this is salvageable: yes for learning, NO for accountability
+     without a structural change.
+
+     v14.27.0 — Round 21 (Hammond), after midnight 2026-08-20. ⚠️⚠️⚠️ §0.-5 IS NEW
+     AND SITS ABOVE §0.-3 BECAUSE IT INVALIDATES A PLAN. THE FIRESTORE RULES
+     EMULATOR RUNS IN THE SANDBOX — it always has; the "I could not run this"
+     line in tests/firestore-rules.test.mjs was copied forward for four rounds and
+     is false. Executed against the deployed rules: §0.-4.C's per-source DOCUMENT
+     ids are PERMISSION_DENIED, while the per-source FIELD shape has been allowed
+     since v2.4.0 and its blocker is the legacy-first READERS, not the rules.
+     ⚠️ THE FIX SHAPE IS NOW AN OPEN DECISION FOR JAKE (§0.-5.C) — three
+     candidates, no instance picks one. Priority 3's roster read is VERIFIED
+     WORKING; the "THE ROSTER READ FAILED" banner will not fire. The reconcile
+     up-moves are inflated because the rebuild targets the deduped SUM while the
+     same screen shows the smaller interval UNION, and sessionSignature() cannot
+     see overlapping records — only identical ones. NO APPLICATION CODE SHIPPED.
 
      v14.26.0 — Round 20, THIRD pass. ⚠️ §0.-4 IS NEW. THE THIRD DIVERGENCE WAS
      A `WHERE` CLAUSE: reports.html queried typing_logs by classId while the
@@ -186,6 +220,458 @@ Blick (3) · Dvorak (2) · Underwood (1).
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-7. ✅ PHASE A COMPLETE — AND JAKE'S RULINGS, RECORDED SO THEY STOP BEING RELITIGATED
+
+**Round 21 (Hammond), 2026-08-20 morning.** ⚠️ **NOTHING IN THIS SECTION SHIPS TO
+A STUDENT.** Six files, all test tooling and config. `game.js`, `learn.js`,
+`reports.html`, `daylog.js` and `firestore.rules` are untouched.
+
+### 0.-7.A ⚠️⚠️ JAKE'S RULINGS. DO NOT REOPEN THESE.
+
+Each of these has now cost the project a round because it lived in a chat log
+instead of a file. **They are settled.**
+
+1. ⚠️ **THE 2s / 3s IDLE ASYMMETRY IS CORRECT AND DELIBERATE.** Jake, verbatim:
+   *"in game they know how to type and learn they don't."* Library is for
+   students who can already type, so a 2-second gate is right; School is for
+   students who cannot, whose keystroke gaps are legitimately longer, so 3
+   seconds is right. **It is not a bug, it is not an inconsistency, and it is not
+   a violation of "everything should do both."** Round 21 raised it as a defect
+   (§0.-6.C) and was wrong. ⚠️ **`ROADMAP.md` PHASE C1 IS WITHDRAWN.** Jake added
+   that if instances keep reopening it, collapse both to 2.5 — **treat that as
+   what it is: an expression of exhaustion at the churn, not a design decision.**
+   The right response is to leave the constants alone and stop raising it.
+
+2. ⚠️ **TIME IS A VALID BASIS FOR A GRADE.** Jake: *"Time is a perfectly valid
+   way to grade if the practice is legitimate. The goal is to make a tool that
+   measures legitimate practice time."* **`ROADMAP.md` §6 D-1 — "stop grading
+   minutes, grade chapters instead" — IS REJECTED.** The pedagogy is settled:
+   typing a book is excellent practice once a student can type; School exists to
+   get them to that point. **The job is to make the minutes legitimate, not to
+   stop counting them.** Do not re-propose D-1.
+
+3. **THE RECONCILE TOOL IS TO BE REMOVED.** Jake: *"Torch it. Torch the
+   reconcile."* ⚠️ **NOT DONE THIS ROUND AND DELIBERATELY SO** — "Reconcile vs
+   Sessions" shares `reports.html` with the drill-down and the per-day editor,
+   which Jake **uses** and which are not implicated. Removing the wrong one costs
+   him a tool he relies on. **Confirm the boundary with him before cutting.** It
+   writes nothing today, so there is no urgency.
+
+4. ⚠️ **THE HISTORICAL DATA IS GOOD ENOUGH AND IS NOT TO BE "REPAIRED."** Jake's
+   own account: a previous audit repaired the daily logs each time he ran it, as
+   he went. His judgement: *"The time that is currently showing is the real time,
+   or it's close enough."* **He is the person with ground truth about what he
+   ran, and this is his call to make.** ⚠️ **NO INSTANCE MAY PROPOSE A BULK
+   REBUILD OF PAST DAYS.** The remaining exposure he has already accepted is a
+   couple of students who typed at home.
+
+5. **CONSOLE TAMPERING → a report-side outlier check, later.** Jake: *"If a kid
+   finds that in the console, I find it hard to believe that we couldn't have
+   some sort of check in the reports that wouldn't find an obvious overcount."*
+   He is right and it is cheap — an implausibility flag in `reports.html`, not a
+   rules change. **Roadmap item, not urgent.** Note it needs the log-to-session
+   baseline to set a threshold.
+
+### 0.-7.B ✅ WHAT PHASE A SHIPPED
+
+| File | Version | What |
+|---|---|---|
+| `tests/run-all-tests.mjs` | **v1.4.0** | Three orphans registered; new `RULES` list; **REGISTRATION AUDIT** |
+| `tests/tab-lifetime-test.mjs` | **v1.0.0 NEW** | 13 checks. The axis nothing covered. |
+| `tests/rules-probe.test.mjs` | **v1.0.0 NEW** | 13 assertions against the real rules |
+| `tests/firestore-rules.test.mjs` | **v2.0.0** | 14 red → **54 passing, 0 failing** |
+| `tests/README.md` | v1.4.0 | The emulator setup; counts now audit-enforced |
+| `package.json` | — | `test:rules`, `test:rules:setup` |
+| `firebase.json` | **NEW** | Emulator config only. **Changes nothing about deploys.** |
+
+**`npm test` → ALL 33 HARNESSES PASS.** **`npm run test:rules` → 67 passing.**
+
+⚠️ **THE REGISTRATION AUDIT IS THE PART THAT MATTERS**, not the three lines that
+registered the orphans. A harness is only coverage if something notices when it
+stops being run, and until now nothing did. The suite now fails on any `.mjs` in
+`tests/` that is in no list and not exempted **with a written reason**.
+
+⚠️ **`tab-lifetime-test.mjs` PARTS B, C AND F PASS BY ASSERTING A DEFECT.** They
+are green *because* the shipped build loses the time they say it loses. **When
+Phase B lands they must be rewritten to assert the correct totals, and must fail
+before the writers change.** A green there today is not a green there tomorrow.
+
+### 0.-7.C ⚠️ THREE THINGS FOUND WHILE DOING PHASE A
+
+* ⚠️ **THE TWO RULES HARNESSES CANNOT SHARE ONE `mocha` PROCESS.** Both declare
+  root-level hooks that seed and clear the emulator; interleaved, each wipes the
+  other's seed and five roster assertions fail with `Null value error` — which
+  looks **exactly** like broken security rules. `test:rules` runs two separate
+  invocations for this reason. **Do not merge them to save three seconds.**
+* ✅ **THE OPEN UNKNOWN FROM §0.-5.G IS RESOLVED, AND IT IS BENIGN.** Split, the
+  token-less assertion shows `books/{id}` is `allow read: if true` **on purpose**
+  — a signed-out child must be able to open a book before they have an account.
+  Student logs and classes are correctly denied. **The old test asserted a policy
+  this project does not have.**
+* ⚠️ **`firestore-rules.test.mjs` HAD A SECOND WRONG ASSERTION**, unrelated to the
+  seed: it created a class with no `teacherUids` and expected success. The rule
+  requires a teacher to put themselves on a class they create, or they would make
+  a class they cannot then read. **The rule is right.** Both halves are now
+  asserted so the requirement is visible.
+
+### 0.-7.D WHAT WAS DELIBERATELY NOT DONE
+
+* **The stale version headers** (`game.js` says v3.30.0, runs 3.34.0). Comment-only
+  — but fixing them means re-uploading a **396 KB student file** for a comment.
+  ⚠️ **FOLD IT INTO THE PHASE B DEPLOY**, when those files are being touched
+  anyway. Not worth a standalone student-file deploy, and certainly not before
+  first period.
+* **The idle-threshold rationale as a code comment.** It belongs in `game.js` and
+  `learn.js` above the constants, and it ships with Phase B for the same reason.
+  Until then §0.-7.A item 1 is the record.
+* **Removing the reconcile.** §0.-7.A item 3.
+
+---
+
+## §0.-6. ⚠️⚠️⚠️ ROUND 21, SECOND PASS — THE ROADMAP, AND A CORRECTION TO §0.-5
+
+**`ROADMAP.md` is a new file at the repo root and it is the plan of record.** It
+answers a question nobody had asked in writing: *is this salvageable?* Summary,
+so this document is not silently dependent on that one:
+
+**Salvageable as a learning tool — it already is. NOT salvageable as an
+accountability tool in its current architecture**, and no amount of bug-fixing
+gets there, because the graded number is written by the student's own browser.
+
+### 0.-6.A ⚠️ CORRECTION TO §0.-5 — "THE LOG ONLY UNDERCOUNTS" IS UNSUPPORTED
+
+§0.-5.J and the Round 21 brief both lean on §3.1 losing time in one direction.
+**Jake's own 2026-08-19 reconcile screenshot contradicts it.** 08-19 is the first
+day with full session coverage on both modes, and its DOWN list is long:
+`10m 7s → 5m 33s`, `9m 14s → 5m 2s`, `12m 20s → 9m 56s`. On a one-directional
+defect that list would run the other way.
+
+⚠️ **THE HONEST STATEMENT IS THAT NOBODY KNOWS WHICH DIRECTION THE ERROR RUNS**,
+because the log and the sessions **measure different quantities** — see 0.-6.B.
+Do not tell a teacher the number is a floor.
+
+### 0.-6.B ⚠️⚠️ THE LOG AND THE SESSIONS ARE NOT TWO COPIES OF ONE NUMBER
+
+Six rounds have reconciled them as though one is right. **Neither is.**
+
+* The **day counter** ticks once per second whenever the student is inside the
+  idle window. It runs during pauses *inside* a sprint.
+* A **session rollup** records a completed sprint, floored at 5 seconds,
+  watermarked, only when the sprint closes.
+
+**A clean day of real typing produces log > sessions before any bug is
+involved.** The Δ only becomes evidence once someone establishes what that
+structural difference normally is, and **nobody ever has.** That measurement —
+`log ÷ union` across a class on a clean day — is `ROADMAP.md` Phase C2 and it is
+the input every rebuild decision has been missing.
+
+### 0.-6.C ⚠️ NEW DEFECT — THE TWO MODES DO NOT COUNT THE SAME MINUTE
+
+```
+game.js:370   IDLE_THRESHOLD       = 2000    // Library stops counting at 2s
+learn.js:520  LEARN_IDLE_THRESHOLD = 3000    // School keeps counting to 3s
+```
+
+**Library and School credit identical work differently, and the two figures are
+then added into one graded total.** For a hunt-and-peck student whose keystroke
+gaps cluster at 2–3 seconds this is a large fraction of recorded time. It has
+been there the whole time, on both sides of the number every round has been
+reconciling. It violates Jake's standing rule — *"Learn and game, of course.
+Everything should do both"* — with a constant.
+
+⚠️ **CHANGING IT IS A MEASUREMENT CHANGE, NOT A BUG FIX.** It moves every
+student's minutes. Jake picks the value and it gets announced. `ROADMAP.md` C1.
+
+### 0.-6.D THE FOUR DECISIONS THAT BLOCK EVERYTHING, AND NOTHING ELSE DOES
+
+1. §0.-5.C — the §3.1 fix shape. **Recommendation: per-source fields.**
+2. The v3.29.x double-count window — special-case it or repair by hand?
+3. The idle gate value (0.-6.C).
+4. ⚠️ **Is a minute a grade at all?** `ROADMAP.md` §6 lays out the only two
+   honest options: stop grading minutes and grade chapters/lessons/characters
+   instead, or derive the total server-side in a Cloud Function where the student
+   cannot reach it. **There is no third option**, and the first makes the rest of
+   the roadmap optional.
+
+⚠️ **`ROADMAP.md` PHASE A CARRIES ZERO STUDENT RISK AND NEEDS NO DECISION.**
+Register the five orphan harnesses, fix the two lying version headers, repair the
+rules-suite seed, and build the tab-lifetime harness. **A successor with time and
+no ruling from Jake should do Phase A, not write another document.**
+
+---
+
+## §0.-5. ⚠️⚠️⚠️ ROUND 21 (Hammond) — §0.-4.C's FIX IS NOT DEPLOYABLE. EXECUTED EVIDENCE, NOT READ EVIDENCE.
+
+**Written 2026-08-20, after midnight. This round wrote no application code.** It
+ran the Firestore rules emulator — which every previous round recorded as
+impossible — and checked the plan §0.-4.C left behind. The plan fails against
+the deployed rules. Read this before implementing anything in §0.-4.C.
+
+> **Naming.** Hammond. The Hammond typewriter struck every character with
+> identical force regardless of how hard the typist hit the key — a uniform
+> impression under any pressure. Round 20's failures were all assertions made
+> under time pressure and corrected only after Jake pushed. This round's job was
+> to press the same key on every claim.
+
+### 0.-5.A ⚠️ THE EMULATOR RUNS. IT HAS ALWAYS RUN. NOBODY TRIED.
+
+`tests/firestore-rules.test.mjs` carries this line at the top:
+
+> *⚠️ I COULD NOT RUN THIS. The Firestore emulator downloads its jar from
+> storage.googleapis.com, which isn't reachable from my sandbox.*
+
+That sentence was copied forward through four rounds and is **false**. The
+sandbox has `java` (OpenJDK 21) and `node` v22, and `storage.googleapis.com` is
+reachable. The emulator jar (`cloud-firestore-emulator-v1.22.0.jar`) downloads in
+seconds. Setup, start to finish:
+
+```
+npm install --no-save firebase-tools @firebase/rules-unit-testing firebase mocha
+# firebase.json → { "firestore": { "rules": "firebase/firestore.rules" } }
+npx firebase emulators:exec --only firestore --project demo-ttb \
+    "npx mocha tests/rules-probe.test.mjs --timeout 20000"
+```
+
+⚠️ **EVERY RULES CLAIM IN THIS DOCUMENT BEFORE §0.-5 WAS MADE BY READING.** Rules
+are the one file in this project with no test path Jake can run himself — §B.4
+says so — and that is exactly the file five rounds reasoned about instead of
+executing. **A future round that says "I cannot run the rules" is repeating a
+copied sentence, not reporting a fact.**
+
+### 0.-5.B ⚠️⚠️ THE §0.-4.C FIX IS DENIED BY THE DEPLOYED RULES
+
+`tests/crossmode-overwrite-test.mjs` Part C goes green on per-source **document
+ids** — `{uid}_{date}_school`, `{uid}_{date}_library`. Against `firestore.rules`
+v2.5.0 that write returns:
+
+```
+PERMISSION_DENIED: false for 'create' @ L392 ... false for 'create' @ L662
+```
+
+The binding at L392/L412 is `docId == request.auth.uid + '_' +
+request.resource.data.date`, added in v2.3.0 to cap the collection at one
+document per student per day. A third segment fails it. **The harness models a
+design production rejects, and it models it in green.** Round 20 discovered this
+in its final minutes and never got it into §0.-4.C, which still reads as though
+the fix is designed and ready.
+
+⚠️ **THIS IS THE RULE 9 CASE, EXACTLY.** If per-source documents are the chosen
+shape, the rules change **is** the round and ships first, alone, verified.
+
+### 0.-5.C ⚠️ THE CHEAPER SHAPE NEEDS NO RULES CHANGE — AND ITS BLOCKER IS ON THE READ SIDE
+
+`validDailyLog()` has accepted the **split-field** shape since v2.4.0, and it was
+never rolled back when game.js v3.30.0 / learn.js v2.15.0 reverted the writers.
+Executed against v2.5.0, all three of these succeed for a student on their own
+document:
+
+| write | result |
+|---|---|
+| create carrying ONLY `secondsLibrary`/`charsLibrary`/`mistakesLibrary` | ✅ allowed |
+| merge `secondsSchool`/`charsSchool`/`mistakesSchool` onto the same document | ✅ allowed |
+| a document carrying flat **and** both split triples | ✅ allowed |
+| create at `{uid}_{date}_school` | ❌ **denied** |
+
+**So the write side is already open and the read side is the blocker.** Both
+readers are legacy-first and identical by design:
+
+* `daylog.js` `totalsOf()`
+* `reports.html` `readLogTotals()`
+
+Both say: *if `seconds` is present at all, return it and ignore the splits.* The
+probe wrote a document holding `seconds: 90` beside `secondsLibrary: 120` and
+`secondsSchool: 240`; both readers return **90**. On any day that already carries
+a flat write from the current code — which is every day up to the cutover — a
+switch to split fields silently drops everything written after it.
+
+⚠️ **THAT IS A DESIGN DECISION FOR JAKE, NOT A ROUND.** The three candidate
+shapes, stated so the next instance does not re-derive them:
+
+1. **Per-source documents** (§0.-4.C). Needs a rules deploy first, alone. Rule 9.
+2. **Per-source fields**, readers changed from legacy-first to flat-plus-splits.
+   No rules deploy. ⚠️ Double-counts the handful of days written during the
+   v3.29.x window, which is precisely why v2.14.0 made the readers legacy-first.
+3. **Per-source fields with the flat field frozen** — writers stop writing
+   `seconds` entirely, readers sum flat + both splits, and the frozen flat value
+   is the pre-cutover remainder. No rules deploy, no migration, no double count,
+   because after cutover nothing ever writes flat again. ⚠️ Not tested by
+   anything. It is an idea, not a plan.
+
+**No instance should pick one of these on Jake's behalf.**
+
+### 0.-5.D PRIORITY 3 — THE ROSTER READ WORKS. THE BANNER WILL NOT FIRE.
+
+Round 20 shipped `reports.html` v2.21.0's roster sweep and left a warning that a
+red **"THE ROSTER READ FAILED"** banner might appear because nobody had checked
+whether the rules permit `users` queries. Executed:
+
+| query | result |
+|---|---|
+| building-scope teacher, `where('classId','==',cid)` | ✅ allowed |
+| class-scope teacher, `where('classId','==',cid)` | ✅ allowed |
+| building-scope teacher, `where('schoolId','==',sid)` | ✅ allowed |
+| super_admin, unfiltered `users` | ✅ allowed |
+| signed-in **student**, `where('classId','==',cid)` | ❌ denied — correct |
+
+The class query also returns students whose `users` document carries
+`schoolId: ''` or has no `schoolId` field at all — **the day-one and new-school
+case the whole v2.21.0 rewrite exists for.** A foreign-school student sitting in
+the class does not deny the whole query either.
+
+⚠️ **AND NAMES ARE NOT LOST.** `users` documents only ever carry `classId` and
+`schoolId` — game.js and learn.js write nothing else there — so
+`readRosterUids()`'s `u.displayName`/`u.email` are always `''`. Roster-discovered
+students would render as "Unknown" except that the by-id log read recovers
+`displayName` and `email` off the log document itself. Verified by reading the
+`runPool` worker: `data.displayName || p.info.name || 'Unknown'`. A student with
+a log gets a name; a student with no log produces no row at all, which is
+correct.
+
+⚠️ **THE ONE HOLE I LOOKED FOR AND DID NOT FIND.** `readRosterUids()` issues zero
+queries when `schoolId === '__all__'` and `classId === '__all__'`, and returns an
+empty roster with `rosterOk` still true — a silent partial. It is **not
+reachable**: `loadScopeOptions()` offers "All schools" to `isSuper()` only and
+defaults every other staff member to their first building. Left as-is, recorded
+so nobody re-derives it.
+
+### 0.-5.E ⚠️⚠️ THE RECONCILE SCREEN SHOWS TWO DIFFERENT SESSION NUMBERS AND THE REBUILD USES THE LARGER ONE
+
+From Jake's 2026-08-20 screenshots. **This is the reason the up-moves look
+ridiculous and it is not a rendering problem.**
+
+* **⏱ Clock** is the **union of wall-clock intervals** — `union-clock-test.mjs`.
+* **Sessions**, and the rebuild's target, is the **deduped sum** —
+  `sessionSignature()` then add.
+
+For the §0.-1 student on 2026-08-18 those are **1826s (30m 26s)** and **1941s
+(32m 21s)**. The rebuild preview offers `13m 27s → 32m 21s`. It is proposing the
+larger of two numbers the same screen is already showing, and the gap between
+them — 115s — is real double-counting the dedupe cannot see.
+
+⚠️ **`sessionSignature()` CATCHES IDENTICAL RECORDS, NOT OVERLAPPING ONES.**
+Jake's drill-down shows both failure modes side by side on one day:
+
+* Three identical `pinocchio` rollups at 4:55 PM — `0m 23s / 95 WPM / 182 ch`.
+  Two are tagged **⧉ duplicate** and excluded. **The dedupe works.**
+* The four §0.0.A rollups on 08-18 have **different** sprint stamps and
+  **overlapping** windows. Every signature is distinct. **Nothing excludes
+  them**, and they are what the +18m 54s is made of.
+
+⚠️ **A STUDENT REPORTED THEIR NUMBER WAS TOO HIGH.** That is the second
+independent signal — after the union/sum gap — that the up-moves are inflated.
+**Weight it.** It is the only evidence in this entire file that comes from
+someone who was actually in the room while the typing happened.
+
+✅ **NOTHING ON THAT SCREEN CAN WRITE.** `rebuild-run-btn` is unconditionally
+`disabled` since v2.19.0 and `runRebuildAll()` refuses independently on its first
+lines; `union-clock-test.mjs` Part F holds both. The preview is a diagnostic.
+**Do not re-enable it to fix a grading week.**
+
+### 0.-5.F THE ONE-MINUTE REPORT IS `RECONCILE_CONCURRENCY = 6`
+
+150 students × 7 days = **1,050 point reads**, issued six at a time. That is ~175
+sequential round-trips; at typical Firestore latency it lands almost exactly on
+the observed minute. The cost is unchanged either way — the ceiling is round
+trips, not documents. Raising the pool is a **staff-only, read-only** change to
+one constant and touches no student path. Not done this round; nothing was
+shipped this round.
+
+### 0.-5.G ⚠️ `tests/firestore-rules.test.mjs` IS STALE AND FAILS 14 ASSERTIONS — THE TEST IS WRONG, NOT THE RULES
+
+Its own header says *"tests for firestore.rules v1.1.0."* The rules are v2.5.0.
+Run as-is: **14 failing.** Every one traces to the test, not the rules:
+
+* It supplies roles as **auth-token claims** (`authenticatedContext(uid, { role:
+  'teacher' })`). Rules v2.x read `staff/{uid}` **documents** via `staffDoc()`.
+* It seeds exactly one staff document, without `active: true`, which v2.3.0 made
+  mandatory — hence `Property active is undefined on object`.
+* Class membership moved to `classes/{id}.teacherUids`; the test still uses
+  `staff.classIds`.
+
+With **only the seed corrected** — five staff documents with `active: true`,
+classes carrying `teacherUids` — the same file runs **48 passing, 4 failing**.
+Three of the four are test artifacts: one uid (`TEACHER_EMS`) serves two
+different personas that used to be distinguishable only by token claim, and one
+class is created without `teacherUids`.
+
+⚠️ **THE FOURTH IS UNRESOLVED AND IS NOT CLEARED.** `"a request with no auth
+token at all can read nothing"` bundles three reads —
+`getDoc(books/b1)`, `getDoc(typing_logs/…)`, `getDocs(collection(classes))` — and
+succeeded where it should fail. **Which of the three passed was not determined.**
+`match /classes/{classId}` is `allow read: if signedIn()`, so a token-less read
+of it should be denied; that is where to look first. **Do not record this as
+closed until someone splits the assertion and runs it.**
+
+⚠️ **ANYONE FOLLOWING THAT FILE'S OWN INSTRUCTION — "please run this before you
+let a colleague near real student data" — GETS 14 RED FAILURES AND WOULD
+REASONABLY CONCLUDE THE RULES ARE BROKEN.** They are not. Fixing the seed is a
+real, small, zero-risk job for the next round.
+
+### 0.-5.H FIVE HARNESSES ARE NOT IN THE SUITE THAT SAYS EVERYTHING IS GREEN
+
+`npm test` prints **ALL 29 HARNESSES PASS**. These exist in `tests/` and are not
+registered in `run-all-tests.mjs`:
+
+* `crossmode-overwrite-test.mjs` — ⚠️ **the harness that reproduces §3.1**
+* `union-clock-test.mjs` — the overlap measurement §0.-1 rests on
+* `week-agreement-test.mjs` — the Rule 11 date-agreement proof
+* `firestore-rules.test.mjs` — see §0.-5.G
+* `cover-harness.mjs` — known, recorded in `tests/README.md`
+
+⚠️ **THE HARNESS DRIVING THE LIVE DEFECT IS NOT IN THE SUITE THAT REPORTS
+GREEN.** All three of the first four that can run do pass or reproduce-as-
+expected when run by hand; this is a registration gap, not a hidden failure. It
+is also exactly how a green suite stops meaning anything.
+
+### 0.-5.I THE MIDNIGHT ROLLOVER — OBSERVED, NOT DIAGNOSED
+
+Jake's drill-down, 2026-08-20: a Library session rollup at **12:00 AM, 4m 9s,
+833 ch**, while the daily-log editor row for that same date reads **0m 6s, 13
+chars**. The session record and the graded document disagree by four minutes on
+a day six minutes old.
+
+⚠️ **NOT INVESTIGATED. DO NOT ASSUME IT IS §3.1.** The two candidates are the
+day-rollover reset in the flush path and the session rollup's own dating scheme
+(`session-log.js`), and distinguishing them needs the code read, not a guess.
+Recorded because it was seen, on real data, at the moment it happened. It is a
+**midnight** defect, not a school-hours one, and it ranks below everything above.
+
+### 0.-5.J STATE OF THE THREE PRIORITIES
+
+**PRIORITY 1 — the student's number equals the teacher's number: MET, and now
+tested rather than asserted.** One document, `typing_logs/{uid}_{date}`, read by
+id on both sides. `totalsOf()` and `readLogTotals()` are the same logic.
+`week-agreement-test.mjs` holds the dates at all 24 hours;
+`crossmode-overwrite-test.mjs` Part B holds the harder half — **both readers
+agree even when the number is wrong.** Rule 11 is necessary and not sufficient.
+
+**PRIORITY 2 — that number is accurate: OPEN.** §3.1 is reproduced (600 of 1200
+seconds lost) and the fix shape is undecided per §0.-5.C. ⚠️ **One correction to
+how §3.1 has been described:** with Stage 1 deployed, both controllers seed
+today's total from the shared document at load, so a student who does Library
+**then** School sequentially loses nothing. The loss needs a **stale or
+concurrent tab** — which game.js v3.28.0's own comment says is routine on
+MacBooks that do not restart between periods. Real defect, real harness, and the
+population size is still unmeasured.
+
+**PRIORITY 3 — the colleague's reports: the reporting path is sound.** §0.-5.D.
+His students' totals are as accurate as anyone's, which is to say they carry
+§3.1. **The reports are trustworthy as a record of what the daily log says. The
+daily log is what is in question.**
+
+### 0.-5.K WHAT THIS ROUND SHIPPED
+
+**No application code.** `HANDOFF.md` (this section), `tests/rules-probe.test.mjs`
+(new, runs), `tests/README.md` (the emulator setup, so the next instance does not
+re-derive it), and `ROUND-21-BRIEF.md`.
+
+⚠️ **DELIBERATE.** Round 19 shipped a student write-path change overnight and it
+is why §0.0 exists. This round started after midnight with two schools typing in
+seven hours. **The next round's first job is a decision from Jake on §0.-5.C, not
+code.**
 
 ---
 

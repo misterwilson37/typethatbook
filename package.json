@@ -68,9 +68,29 @@
     "Paths are repo-root relative — package.json is the only file at the root that",
     "knows where the suite lives, which is the point of putting it here."
   ],
+  "//scripts": [
+    "test:rules NEEDS THE FIREBASE EMULATOR — a JVM and a one-time jar download",
+    "from storage.googleapis.com. It is deliberately NOT part of `npm test`,",
+    "because a fresh clone cannot be assumed to have java and a suite that fails",
+    "on a missing JVM teaches people to ignore it.",
+    "It is here because firestore.rules is the ONE file Jake cannot test from a",
+    "browser (the Rules editor is console-only), which makes it the file that most",
+    "needs executing. firestore-rules.test.mjs carried an 'I COULD NOT RUN THIS'",
+    "header for four rounds; it was false, and Round 20 designed a fix the",
+    "deployed rules reject because nobody spent the nine seconds. HANDOFF 0.-5.A.",
+    "First run installs the emulator deps: npm run test:rules:setup",
+    "demo-ttb is a fake project id. Nothing here touches production.",
+    "TWO SEPARATE mocha INVOCATIONS, ON PURPOSE. Both harnesses declare root-level",
+    "hooks that seed and clear the emulator; in ONE mocha process those hooks",
+    "interleave and each file wipes the other seed, which surfaces as five",
+    "Null value error denials that look exactly like broken rules. Do not merge",
+    "these back into one mocha call to save three seconds."
+  ],
   "scripts": {
     "test": "node tests/run-all-tests.mjs",
     "test:epubs": "node tests/run-all-tests.mjs --with-epubs",
+    "test:rules:setup": "npm install --no-save firebase-tools @firebase/rules-unit-testing firebase mocha",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-ttb \"mocha tests/rules-probe.test.mjs --timeout 20000 && mocha tests/firestore-rules.test.mjs --timeout 20000\"",
     "audit:versions": "node tools/audit-versions.mjs"
   }
 }
