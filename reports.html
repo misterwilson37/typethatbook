@@ -469,6 +469,35 @@
     //           afternoon's Library session wrote a split field. The two shapes
     //           cover disjoint periods, so summing loses nothing.
     //
+    // v2.20.0 — ⚠️⚠️ THE `This Week` BUTTON SELECTED THE WRONG WEEK AFTER 7 PM.
+    //           A LIVE DEFECT, FOUND BY TESTING THE ONE THING JAKE HAS ASKED FOR
+    //           SIX TIMES: does the number the student sees equal the number the
+    //           teacher pulls?
+    //
+    //           toDateStr() formatted through toISOString(), which is UTC.
+    //           Nashville is UTC−5 in summer. From 7:00 PM local every date this
+    //           function produced was TOMORROW, and every caller is a date-picker
+    //           default or a quick-range button.
+    //
+    //           `This Week` fills the start box from getLastSaturday(). Shifted
+    //           forward one day it lands on SUNDAY — so the teacher's week began
+    //           a day after the student's, and SATURDAY'S TYPING WAS INSIDE THE
+    //           NUMBER ON THE CHILD'S SCREEN AND OUTSIDE THE REPORT. `Today`
+    //           after 7 PM queried tomorrow and returned an empty report.
+    //
+    //           ⚠️ THE COUNTING CODE WAS INNOCENT. Six rounds looked at
+    //           statsData, the WAL, the flush order, typing_sessions — and the
+    //           divergence Jake kept reporting was partly a date formatter,
+    //           firing only in the evening, which is when a teacher grades.
+    //           A DIVERGENCE BETWEEN TWO READERS IS NOT NECESSARILY IN EITHER
+    //           READER; IT CAN BE IN WHAT YOU ASKED THEM TO READ.
+    //
+    //           ⚠️ daylog.js says "Never toISOString(): that is UTC" thirty
+    //           lines in, and datesInRange() below says it again. Both were
+    //           written by rounds that fixed it locally and never grepped.
+    //           tests/week-agreement-test.mjs now holds the line across all
+    //           three, at every hour of the day.
+    //
     // v2.19.0 — ⚠️⚠️ THE REBUILD WRITE IS DISABLED, AND A THIRD NUMBER IS ADDED
     //           THAT DOES NOT CARE WHETHER THE RECORDS OVERLAP.
     //
@@ -644,7 +673,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.19.0";
+    const REPORTS_VERSION = "2.20.0";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
@@ -959,8 +988,30 @@
         return fri;
     }
 
+    // ⚠️ LOCAL, NOT UTC. (v2.20.0 — this was a live defect, not a tidy-up.)
+    //
+    // This used to be `d.toISOString().split('T')[0]`. toISOString() converts to
+    // UTC, and Nashville is UTC−5 in summer, so from 7:00 PM local onward every
+    // date this produced was TOMORROW. Every caller is a date-picker default or
+    // a quick-range button, so the whole effect was: **grade in the evening and
+    // the range you get is shifted a day forward.**
+    //
+    // ⚠️ WHY IT MATTERED MORE THAN ONE DAY'S DRIFT. `This Week` fills the start
+    // box from getLastSaturday(). Shifted forward, it lands on SUNDAY — so the
+    // teacher's week silently began a day after the student's, and every
+    // Saturday of typing fell outside the report while still being inside the
+    // number on the child's screen. That is the exact divergence §0.0.1 exists
+    // to prevent, and it was not in the counting code at all; it was in a date
+    // formatter. HANDOFF §0.-2.
+    //
+    // ⚠️ THE SAME MISTAKE IS ALREADY DOCUMENTED THIRTY LINES INTO daylog.js
+    // ("Never toISOString(): that is UTC") and again above datesInRange() in
+    // this file. Both were written by rounds that fixed it in their own
+    // function and did not grep for the other callers. Grep.
     function toDateStr(d) {
-        return d.toISOString().split('T')[0];
+        return d.getFullYear() + '-' +
+               String(d.getMonth() + 1).padStart(2, '0') + '-' +
+               String(d.getDate()).padStart(2, '0');
     }
 
     function setDefaultDates() {
@@ -1342,9 +1393,11 @@
 
     // Every date in [start, end], as YYYY-MM-DD, built by string arithmetic on
     // a local-noon Date so a timezone offset can never shift a day. (toDateStr
-    // elsewhere on this page goes through toISOString and is UTC; that is
-    // harmless for the date pickers and would NOT be harmless here, where an
-    // off-by-one day means querying a date no session was ever filed under.)
+    // above used to go through toISOString and be UTC — v2.20.0 fixed it, and
+    // tests/week-agreement-test.mjs Part D now holds both to the local rule.
+    // This function was always correct; it was written by a round that fixed
+    // the problem here and did not grep for the other formatter thirty lines
+    // up. That is how the same defect survived in one file twice.)
     function datesInRange(startStr, endStr) {
         const out = [];
         const d = new Date(startStr + 'T12:00:00');

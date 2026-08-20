@@ -5,6 +5,15 @@
      amended 2026-08-19 by Round 18 (Salter); amended 2026-08-19 by Round 19
      (Hermes); amended 2026-08-19 by Round 20 (Corona).
 
+     v14.25.0 — Round 20, SECOND pass. ⚠️ §0.-2 IS NEW. PRIORITY 1 (the student's
+     number equals the teacher's number) IS STRUCTURALLY MET and is now PROVEN by
+     tests/week-agreement-test.mjs rather than asserted. The last thing breaking
+     it was reports.html toDateStr() formatting through toISOString() — UTC — so
+     after 7 PM local the `This Week` button selected the wrong Saturday and
+     `Today` returned an empty report. Fixed in reports.html v2.20.0. §0.-2.D
+     states the Priority 2 fix: per-source DOCUMENTS, not per-source fields.
+     ⚠️ JAKE'S RULES 9 AND 10 ARE NOW STANDING RULES — see §0.-3.
+
      v14.24.0 — Round 20. ⚠️⚠️⚠️ §0.-1 IS NEW AND SITS ABOVE §0.0 BECAUSE IT
      CORRECTS IT. The overlap §0.0 found is real and accounts for 1m 55s of a
      19-minute gap. The other 17 minutes is typing_logs UNDERCOUNTING (§3.1, the
@@ -169,6 +178,40 @@ Blick (3) · Dvorak (2) · Underwood (1).
 
 ---
 
+## §0.-3. ⚠️⚠️⚠️ JAKE'S STANDING RULES 9 AND 10 — THEY OUTRANK EVERY PLAN BELOW
+
+Added 2026-08-19 on Jake's instruction, after this project cost him an evening
+for the sixth time. They apply to every project, not only this one. **An
+instance that cannot satisfy them must SAY SO and ask Jake to overrule, not
+quietly proceed.**
+
+**RULE 9 — SINGLE SOURCE OF TRUTH.** Adding a second record of a quantity that
+already exists requires DELETING the first in the same deploy. If the first
+cannot be deleted — a security rule, a live index, an API limit — **the round
+does not ship the addition. It ships work on the blocker.**
+
+> *Why:* every counting incident in this project traces to one sentence — "the
+> rules won't let me remove the old one yet, so I'll add the new one now and
+> clean up later." `stats/time_tracking` existed for months because
+> `firestore.rules` would not let a student read their own daily log. That was a
+> true constraint and the round shipped the second copy anyway. Rule 9 says the
+> rule change WAS the round.
+
+**RULE 10 — PROVE IT ON REAL DATA FIRST.** No number becomes a graded or
+reported value until a harness exists that FAILS against real production data
+before the fix and passes after. **A green suite on synthetic data is not
+evidence.**
+
+> *Why:* Round 18 verified every session document against its own `sprints[]`
+> and all four corrupt documents passed. Internal consistency is a statement
+> about ONE record; the defect lived BETWEEN records. Round 19 then derived a
+> grade from those records — Stage 2 — with a fully green suite.
+> ⚠️ **`week-agreement-test.mjs` Part B passes with the UTC bug fully present**
+> because it runs at local noon. Part C is the same check at all 24 hours and it
+> fails. That gap is the whole of Rule 10 in one file.
+
+---
+
 ## §0.-1. ⚠️⚠️⚠️ ROUND 20 (Corona) — §0.0's DIAGNOSIS IS HALF WRONG. READ THIS FIRST.
 
 **Written 2026-08-19, later still. §0.0 below is kept verbatim because its
@@ -278,7 +321,107 @@ inflation. Per Jake's standing rule, no mechanism was invented to explain it.
 
 ---
 
-## §0.0. ⚠️⚠️⚠️ START HERE — `typing_sessions` IS CORRUPT AND STAGE 2 IS REVERTED
+## §0.-2. ⚠️⚠️ PRIORITY 1 IS MET — AND THE LAST THING BREAKING IT WAS A DATE FORMATTER
+
+**Round 20, second pass. Jake's standing Priority 1, asked for across six
+rounds: THE NUMBER THE STUDENT SEES MUST EQUAL THE NUMBER THE TEACHER PULLS.**
+
+### 0.-2.A THE STRUCTURAL ANSWER: YES, AND IT SHIPPED IN ROUND 19
+
+There is one record. `game.js` and `learn.js` both call `readWeek()` in
+`daylog.js`, which reads seven `typing_logs/{uid}_{date}` documents by id.
+`reports.html` sums the same documents over the selected range.
+`users/{uid}/stats/time_tracking` is gone from every file. Round 19's Stage 1
+was correct and is the most valuable thing that round did.
+
+`tests/week-agreement-test.mjs` Part A now proves it rather than asserting it:
+`daylog.js totalsOf()` and `reports.html readLogTotals()` are lifted out of the
+shipping files and driven with every document shape that exists in production —
+flat, legacy-split, both, neither. Identical on all of them.
+
+### 0.-2.B ⚠️ WHAT WAS STILL BREAKING IT, EVERY EVENING
+
+`reports.html toDateStr()` formatted through `toISOString()`. **That is UTC.**
+Nashville is UTC−5 in summer, so **from 7:00 PM local every date that function
+produced was tomorrow.**
+
+Every caller is a date-picker default or a quick-range button:
+
+* **`This Week`** fills the start box from `getLastSaturday()`. Shifted forward
+  it lands on **Sunday**. The teacher's week began a day after the student's, so
+  **Saturday's typing was inside the number on the child's screen and outside
+  the report.**
+* **`Today`** filled both boxes with tomorrow and returned an empty report —
+  which reads as "this child did nothing", not as a bug.
+
+⚠️ **THE COUNTING CODE WAS INNOCENT.** Six rounds hunted this divergence in
+`statsData`, the WAL, flush ordering, `typing_sessions`. Part of it was a date
+formatter, firing only after 7 PM, which is when a teacher grades. **A
+disagreement between two readers is not necessarily in either reader. It can be
+in what you asked them to read.** Check the query before the arithmetic.
+
+⚠️ **`daylog.js` warns against exactly this thirty lines in — "Never
+toISOString(): that is UTC" — and `datesInRange()` in `reports.html` says it
+again.** Both were written by rounds that fixed it in their own function and did
+not grep for the other callers. **Fixed in `reports.html` v2.20.0. Grep.**
+
+### 0.-2.C WHAT REMAINS BETWEEN THE TWO NUMBERS
+
+Three things, all now known and none of them mysterious:
+
+1. **In-flight lag, by design.** The HUD adds this tab's still-open sprint on top
+   of the written document. Mid-period the student is ahead of the report by at
+   most one unlogged unit. It converges at the next flush. Not a defect.
+2. **The date range must match the week.** Use the `This Week` button, which is
+   now correct at every hour. A hand-typed range that starts Sunday will
+   disagree with a Saturday-anchored HUD and always would have.
+3. **§3.1, the cross-mode overwrite.** Both sides read the same document — so
+   they still AGREE — but they agree on a number that is too small. **This is
+   Priority 2 and it is the only counting defect left.** See §0.-1.A: one
+   student, one day, 13m 27s recorded against a 30m 26s session union.
+
+⚠️ **PRIORITY 1 AND PRIORITY 2 ARE NOW SEPARABLE, AND THAT IS THE POINT.** They
+were tangled for six rounds. Agreement is structural and done. Accuracy is one
+named bug in one write path.
+
+### 0.-2.D ⚠️ PRIORITY 2 — THE FIX, AND WHY IT IS NOT A REWRITE
+
+§3.1 in one sentence: `game.js` and `learn.js` each hold their own in-memory
+`statsData` and each writes the WHOLE day's total with `setDoc(merge:true)`, so
+whichever writes second erases the other's contribution. A student who does ten
+minutes of School and ten of Library is credited with ten.
+
+**The fix is one document per (uid, date, source), summed on read.** Document id
+becomes `{uid}_{date}_{source}`. School writes only the School document, Library
+only the Library one. **They can no longer overwrite each other because they no
+longer touch the same document** — no lock, no increment, no merge policy, no
+read-modify-write. `daylog.js readWeek()` reads fourteen documents instead of
+seven and adds them; `reports.html` groups by `(uid, date)` and sums.
+
+⚠️ **THIS IS NOT THE v3.29.x SOURCE SPLIT COMING BACK.** That split put
+per-source FIELDS inside ONE document, which left both writers writing the same
+document and therefore left the race intact — v3.29.0 also fed both fields from
+the shared cross-mode counter. Splitting at DOCUMENT level removes the shared
+resource instead of subdividing it. Read §0.6 item 9 before touching this.
+
+⚠️ **REQUIRED, RULE 10, BEFORE ANY CODE:** a harness that reproduces the
+overwrite against the current build — two writers, one day, second write erases
+the first — and fails. Then the fix. Then it passes. `week-agreement-test.mjs`
+and `union-clock-test.mjs` are the pattern.
+
+⚠️ **STILL OPEN AND NOT A BLOCKER:** two tabs in the SAME mode still race for
+one document. Rarer, bounded by one flush interval, and worth a note rather than
+a design. Do not let it grow the scope of the fix above.
+
+---
+
+## §0.0. ⚠️⚠️⚠️ ROUND 19'S BRIEFING — THE `typing_sessions` OVERLAP AND THE STAGE 2 REVERT
+
+⚠️ **READ §0.-1 AND §0.-2 FIRST.** This section's EVIDENCE is sound and its
+REFUSALS are still binding — the rebuild stays disabled, nothing re-derives a
+grade from sessions, the overlapping documents are not deleted. What §0.-1
+corrects is its CONCLUSION about which direction the error runs; what §0.-2
+answers is the Priority 1 question this section could not. Kept verbatim.
 
 **Written 2026-08-19, late, at the end of Round 19. Jake has students typing in
 the morning. Read this section completely before writing a line of code.**
