@@ -1,8 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- learn.html v1.0.0 — versioned the same way style.css is: a comment near
-         the top, parsed by versions.js. Bump when this file's markup changes. -->
+    <!-- learn.html v1.1.0 — versioned the same way style.css is: a comment near
+         the top, parsed by versions.js. Bump when this file's markup changes.
+         v1.1.0: loads update-gate.js from its OWN script tag, below. It is a
+         separate module graph on purpose — a 404 on that file cannot stop the
+         lesson page from booting, and adding it required no edit to learn.js.
+         See update-gate.js's header for how to trigger a building-wide reload. -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TypeThatBook — School</title>
@@ -106,5 +110,9 @@
     </footer>
 
     <script type="module" src="learn.js"></script>
+
+    <!-- ⚠️ SEPARATE TAG, NOT AN IMPORT INSIDE learn.js. Its own module graph, so
+         if this file is missing or fails, the lesson page still runs. -->
+    <script type="module" src="update-gate.js"></script>
 </body>
 </html>
