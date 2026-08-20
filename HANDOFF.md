@@ -1,7 +1,21 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v14.12.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     2026-08-19 by Round 15 (Densmore), Round 16 (Royal) and Round 17 (Linotype).
+<!-- HANDOFF.md v14.14.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     2026-08-19 by Round 15 (Densmore), Round 16 (Royal) and Round 17 (Linotype);
+     amended 2026-08-19 by Round 18 (Salter).
+
+     v14.14.0 — ⚠️ §0.9 ADDED AND IT IS THE TOP OF THIS FILE FOR A REASON. Jake
+     ruled on 2026-08-19 that the grade moves off `typing_logs` and onto
+     `typing_sessions`. That is now the priority above everything in §4. Read
+     §0.9 before §0.8, before §4, before anything.
+
+     v14.13.0 — Round 18: §0.8 added (reconciliation view + rebuild-all,
+     reports.html 2.15.0, tests/reconcile-test.mjs new). §2's table and harness
+     count updated. §5 gains invariants 107–109. §6 gains items 7–9, which are
+     the THREE OPEN QUESTIONS Round 18 deliberately did not answer. §8 and §9
+     updated. ⚠️ NO APP CODE OUTSIDE reports.html CHANGED — game.js, learn.js,
+     hud.js, stats-wal.js, session-log.js and firestore.rules are byte-identical
+     to what Round 17 left, and that was the point of the round.
 
      v14.12.0 — Round 17, fourth pass: ⚠️ THE SOURCE SPLIT WAS REVERTED. game.js
      3.30.0, learn.js 2.15.0, lessons-admin.js 1.12.0, reports.html 2.14.0 and
@@ -37,31 +51,301 @@
      an entire evening of hunting, and produced an invariant numbering collision
      that took seven file uploads to repair. -->
 
-**Round 17 — Linotype.** Predecessors: Royal (16) · Densmore (15) · Sholes (14) ·
-Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) · Remington (9) ·
-Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) · Blick (3) ·
-Dvorak (2) · Underwood (1).
+**Round 18 — Salter.** Predecessors: Linotype (17) · Royal (16) · Densmore (15) ·
+Sholes (14) · Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) ·
+Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) ·
+Blick (3) · Dvorak (2) · Underwood (1).
 *Other projects, do not reuse:* Stedman, Fable, Trilby, Vernier.
 
-> *On the name:* the Linotype's celebrated trick was not casting a line of type —
-> it was what happened afterwards. Every brass matrix carried a unique pattern of
-> teeth along its top edge, and the distributor bar at the end of the cycle would
-> carry each one along until its teeth matched its own channel in the magazine, and
-> drop it there. Nobody sorted the type. The machine put every piece back where it
-> belonged as a matter of course, which is the only reason the next line could be
-> set at speed. This round did no typesetting at all: it took seventy-nine loose
-> things out of the repo root and dropped each one into the channel it belonged in.
-> ⚠️ *Not to be confused with Ludlow (13)* — both are hot-metal machines and the
-> names sit close together in the list above. Ludlow shipped `hud.js`; Linotype
-> shipped no app code whatsoever.
+> *On the name:* George Salter & Co. of West Bromwich made typewriters, but that
+> was the sideline. What the name meant to anybody who bought one was **spring
+> balances and weighing scales** — the thing you put on the counter when the
+> number mattered and you needed to be able to show somebody how you got it.
+> This round built no typewriter. It built a scale: one pan holds `typing_logs`,
+> the other holds `typing_sessions`, and the needle is the Δ column. The repair
+> came second, on purpose, and only after the instrument existed to check it
+> with. ⚠️ *I very nearly called this round Underwood* — it is Round 1, it is
+> right there in the list above, and I wrote the wrong name into a message to
+> Jake before catching it. Read the list before you pick.
 
-> *On the previous name:* the Royal Typewriter Co. didn't win by being the most clever
-> machine on the market — it won by being the one that didn't jam, round after
-> round, until "reliable" and "Royal" were the same word to the people who
-> bought them. This round closed a gap that was already fully written down
-> (Round 15 flagged it, in writing, rather than leaving it implicit) — the
-> boring, correct thing to do with a flagged item is close it exactly the way
-> it was flagged, not improvise a better version.
+> *On the previous name:* the Linotype's celebrated trick was not casting a line
+> of type — it was the distributor bar putting every brass matrix back in its own
+> channel afterwards, which is the only reason the next line could be set at
+> speed. That round did no typesetting: it took seventy-nine loose things out of
+> the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.9. ⚠️ READ THIS FIRST — THE GRADE MOVES OFF `typing_logs`
+
+**Jake's ruling, 2026-08-19, verbatim in substance:** *"If we have one
+trustworthy number and one broken number, get rid of the broken one and keep the
+trustworthy one."*
+
+He grades students on practice time. 10 minutes a day, 40/50 for the week is an
+80%. Real grades, real parents, real administrators, and other schools now using
+this. **The number he grades from is not trustworthy and he knows it.** That is
+the only problem worth working on until it is closed.
+
+### 0.9.1 The ruling
+
+| | |
+|---|---|
+| **`typing_logs`** | A live counter in browser memory, written by `game.js` **and** `learn.js` into one shared document, flushed on a timer and at page-death. **Four rounds have tried to make it reliable. Three of those attempts shipped defects into a live classroom and were reverted.** It is not going to become trustworthy. |
+| **`typing_sessions`** | Append-only. One document per (day, source, book/lesson), written from a durable `localStorage` queue, dated when the typing happened, each carrying its own `sprints[]`. Verified by Jake's own console dump on 2026-08-19: ten documents, every stored total matching the sum of its own sprints exactly. |
+
+**`typing_sessions` becomes the graded record. `typing_logs` is demoted to a
+live on-screen display for the student and is never graded from again.**
+
+⚠️ **DO NOT "FIX" THE COUNTER.** That is the trap this project has fallen into
+four times. The counter is fine at its actual job — showing a kid a number while
+they type. It was never fit to be a grade. Rounds 15, 16 and two of Round 16's
+own passes were all spent trying to make a fundamentally unreliable mechanism
+reliable instead of asking why a grade was reading from it. **If your plan
+contains an edit to `game.js` or `learn.js`, you have the wrong plan.**
+
+### 0.9.2 Build order — smallest safe step first
+
+Every step below is in `reports.html` alone. **No step touches `game.js`,
+`learn.js`, `hud.js`, `stats-wal.js` or `session-log.js`. No step needs a
+`firestore.rules` change.** That is what makes this shippable inside a school
+week; do not give that property up for elegance.
+
+**STEP 1 — GRADE FROM SESSIONS. This is the one that has to land first.**
+
+`reports.html` v2.15.0 already computes the deduped session total per student —
+it is the `Sessions` column, and the sweep behind it (`runReconcile()`,
+`readPairSessions()`) is finished, tested and read-only. **The work is not
+computing the number. It is promoting it.**
+
+* Make the graded column **`max(logSeconds, sessionSeconds)`**, labelled plainly
+  as the graded figure, with the two inputs shown beside it.
+* ⚠️ **`max()`, NOT sessions-alone, and this is a deliberate safety margin, not
+  indecision.** Sessions are written at run/unit boundaries, so a queue that
+  never flushed loses real time — **sessions can undercount.** The log's failure
+  is bidirectional; the session record's failure is one-directional and always
+  downward. Taking the higher of two independently-written records can only ever
+  err in the student's favour, and every known defect in this area is our code's
+  fault, not a child's. Do not "simplify" this to sessions-only to make the data
+  model tidier.
+* Note what Jake's grading scheme does to the error: the target is 10 minutes,
+  so **anything above target is already full credit and inflation above it
+  changes no grade at all.** The only students inflation can affect are those
+  under target, and `max()` is generous to exactly them. **Deflation is the real
+  enemy and `max()` is precisely what catches it.**
+* Export it in the CSV. The CSV is what he actually grades from.
+
+**STEP 2 — SNAPSHOT, BECAUSE THE RECORD EXPIRES.**
+
+⚠️ **`typing_sessions` carries a 120-day TTL.** A 9-week rotation is 63 days, so
+the current quarter is safe — **but a grade challenged in April for October's
+work has no record behind it.** Write a per-student weekly total into a small
+permanent document (no TTL) at the end of each week, from `reports.html`, from
+the swept session data. Small, cheap, permanent, and it is the thing that makes
+this defensible six months out.
+
+**STEP 3 — DEMOTE THE COUNTER, IN THE UI ONLY.**
+
+Relabel `typing_logs` in `reports.html` as a live display figure, not a grade.
+Leave the writers alone. The counter keeps doing its on-screen job.
+
+**STEP 4 — ONLY THEN, and only with Jake's say-so, consider the writers.**
+
+Once the grade no longer depends on it, `typing_logs` becomes low-stakes and can
+be fixed calmly, or left alone forever. **It stops being urgent the moment
+step 1 lands, which is the entire point of doing step 1 first.**
+
+### 0.9.3 ⚠️ Two blind spots that survive this change — say them out loud
+
+1. **A student with no `typing_logs` document at all is invisible.** The report
+   enumerates students *from* `typing_logs`, so the sweep can only check students
+   that collection already knows about. A missing *day* is caught; a missing
+   *student* is not. The durable fix is to enumerate from the class roster
+   instead. **A cheaper interim check: compare the report's student count against
+   the class roster size and say so on screen when they differ.** Do that even
+   if you do nothing else about it.
+2. **Sessions begin at v2.4.0.** Anything before that is log-only and always will
+   be. Nothing fixes it; do not pretend otherwise in a UI.
+
+### 0.9.4 What Jake needs from the very next instance
+
+He said *"I can't chase this for weeks"* and he is right. **Step 1 is one file
+and no new write path.** It is achievable in a single session. Ship step 1 by
+itself if that is all there is time for — a shipped step 1 changes his situation
+completely and a perfect four-step plan that lands next month does not.
+
+⚠️ **This is a teacher who is the only tester and whose students are the blast
+radius.** Never deploy a write-path change on a school night. Step 1 is a
+read-path change, which is exactly why it is first.
+
+---
+
+## §0.8. Round 18 — Salter
+
+Jake's brief opened with the fact everything else in this round hangs off:
+
+> *Student grades come from typing time. The number he grades from is wrong —
+> inflation and deflation on every audit run. He grades from it now. Fixing the
+> writers is not the job. Giving him a correct number and a way to see it is
+> the job.*
+
+**One file changed: `reports.html`, 2.14.0 → 2.15.0.** One file added:
+`tests/reconcile-test.mjs`. `game.js`, `learn.js`, `hud.js`, `stats-wal.js`,
+`session-log.js` and `firestore.rules` are untouched, and the next round should
+keep it that way unless it has a reason far better than "while I was in there".
+
+### 0.8.1 ⚠️ THE PREMISE. Do not build on this round without accepting it.
+
+`typing_sessions` is the record. `typing_logs` is a cache of it.
+
+That was established on 2026-08-19 by a console dump Jake ran: ten
+`typing_sessions` documents, each one's stored `seconds`/`chars` matching the sum
+of its own `sprints[]` **exactly**, correct `source` tags, no internal
+inconsistency anywhere. Meanwhile every defect of Round 16 lived in
+`typing_logs` — a live counter accumulated in browser memory, shared by two page
+controllers, dependent on a tab surviving and on a write landing at page-death.
+
+So the comparison this round draws is (cache − record), and the repair rebuilds
+the cache from the record. **If a future round finds that `typing_sessions` is
+itself unreliable, this entire feature becomes actively dangerous** — it would
+be confidently overwriting good numbers with bad ones, at scale, with a preview
+that looks authoritative. Re-verify the premise before extending it.
+
+### 0.8.2 What shipped
+
+**(1) Reconciliation view — read-only.** A `Reconcile vs Sessions` button beside
+`Audit Week Counters`. It sweeps `typing_sessions` for every (student, date) pair
+in the current report, dedupes with the existing `sessionSignature()`, and fills
+three new **top-level, sortable** columns: `Sessions`, `Δ`, `⧉`.
+
+Top-level was the requirement, not a preference. Jake's complaint was specific:
+he should not have to expand each child to find a duplicate, and the drill-down
+version of this (v2.13.2) did not fix that. Sorting by `Δ` or by `⧉` is now the
+entire workflow; expanding a student is for confirming what the summary row
+already told you.
+
+⚠️ **The sweep probes every date in the range, not only dates that have a log
+row.** A day whose `typing_logs` write never landed at all has no row to iterate,
+so iterating the report's own `dailyLogs` would skip precisely the case this
+tool exists to catch — real sessions, no cached total, a child under-credited
+and nothing on screen saying so. A quiet day costs one empty-query read, which
+is the cheapest way to be able to say "checked".
+
+**(2) Rebuild-all.** What `⟳` does for one day, across the report, behind a
+preview. The preview splits into **"will go DOWN — read these first"** and "will
+go UP", biggest movers at the top of each, because a correct rebuild can
+legitimately lower a child's number and Jake has to be the one who accepts that
+before anything is written. It calls `recalcDailyLog()` — the same function `⟳`
+has used since v2.13.0 — one day at a time, one `updateDoc` each, against
+`typing_logs` only. **No new write path was introduced.**
+
+### 0.8.3 ⚠️ THE FOUR REFUSALS. Each one is a defect that was otherwise possible.
+
+1. **A day with no session records is never zeroed.** Skipped and listed with its
+   reason. `allowZero` is *not* passed on the bulk path. Such a day is usually
+   one that predates session logging (v2.4.0) or whose sessions aged past the
+   120-day TTL — its log total is real and is the only copy left. Zeroing it
+   would destroy graded time and would look exactly like a successful repair.
+2. **Sessions with no daily-log document are skipped, not created.**
+   `firestore.rules` gives staff `update` only on `typing_logs`; `create`
+   requires `request.resource.data.uid == request.auth.uid`. There is nothing to
+   write into, and widening that rule is a security change, not a repair.
+   They are surfaced in the panel so the shortfall is visible.
+3. **Today is excluded by default**, checkbox to include. Sessions are written at
+   run/unit boundaries, so a student mid-chapter has real time in their log that
+   is not in sessions yet; rebuilding now truncates them to their last completed
+   unit. The panel also warns if it is currently a weekday between 07:00 and
+   15:00.
+4. **Each write re-verifies against the preview.** `recalcDailyLog()` gained an
+   `expect` option: if the re-read produces anything other than what the preview
+   promised, the pair is **skipped and reported**, not written. Writing the
+   newer, more-correct value is the defensible-sounding choice and it is wrong —
+   the point of a preview is that the write is the thing that was previewed.
+
+### 0.8.4 ⚠️ POSITION IS NOT IDENTITY. This round's own near-miss.
+
+`reportData` is sorted **in place** by `renderTable()`, and the reconcile sweep
+*finishes by sorting the table by Δ*. The first version of `buildRebuildPlan()`
+keyed its moves by the array index the sweep had captured — which means every
+correction would have been written to whichever student happened to occupy that
+row after the sort. **One child's corrected time, written onto another child's
+log, in bulk, with a preview that named the right student.**
+
+It was found by reading the code, not by running anything. Every arithmetic
+assertion in this repo would have stayed green through it — which is Jake's
+standing point about Round 16 arriving one round later and landing on the same
+mistake. Everything that survives a render is keyed by `uid` now and resolved to
+an index at the moment of use (`uidIndexMap()`), including at write time, because
+clicking a column header between reading the preview and pressing the button is
+an entirely ordinary thing to do.
+
+`reconcile-test.mjs` Part B is the regression guard and it is the reason that
+file exists.
+
+### 0.8.5 ⚠️ WHAT THE HARNESS DOES NOT COVER. Read this before trusting green.
+
+`tests/reconcile-test.mjs` — 35 assertions, all passing, **five of them
+mutation-verified** (un-guard the zero refusal → 3 fail; restore the positional
+index → 3 fail; pass `allowZero` from the bulk path → 1 fail; move the `expect`
+check after the write → 1 fail; put an `updateDoc` in the read-only half →
+1 fail).
+
+It does **not** cover, and no harness in Node ever will:
+
+* whether `firestore.rules` actually permits the sweep for a real staff account
+  (rules are not evaluated here — and note that the bulk write needs
+  `readsWholeBuilding()`, so a class-scoped teacher's rebuild would be denied.
+  The preview detects this client-side and disables the button with an
+  explanation, but that check is a client-side guess at a server-side rule);
+* that the `⟳` button still works now that `recalcDailyLog()` returns an object
+  instead of a boolean (both pre-existing callers ignore the return value, and an
+  object is truthy, so this should be inert — *should be* is not *verified in a
+  browser*);
+* anything whatsoever about a student's tab being open during a rebuild, which
+  is the exact failure mode the "not during a period" rule exists for.
+
+**Green here means the refusals are wired up. It does not mean the round is
+safe.** Round 16 shipped three defects that each passed a full suite.
+
+### 0.8.6 Costs and ceilings
+
+* `MAX_RECONCILE_PAIRS = 2000` (students × days). Over that it **refuses** rather
+  than truncating — same principle as `MAX_REPORT_DOCS`. A reconciliation you
+  cannot tell is partial would report an all-clear it has not earned, on the one
+  screen whose whole job is to be trustworthy.
+* `RECONCILE_CONCURRENCY = 6`. Serial would take about a minute on a week of
+  ninety students and Jake would reasonably assume it had hung; all-at-once drops
+  connections. Cancellable, and a cancelled run shows **no partial results**,
+  because a half-swept table reads exactly like a clean one.
+* At Ellis a weekly reconcile is roughly 630 queries and a few thousand document
+  reads. Comfortably inside the free tier; it is not free at district scale, and
+  the confirm dialog states the cost before running.
+
+### 0.8.7 Honesty affordances — do not "simplify" these away
+
+* The three columns start as **`null`, not `0`**, and render as `—`. "Not
+  measured" and "measured, clean" must never look the same. The sort comparator
+  sinks nulls in both directions for the same reason.
+* Any path that changes a row's total (`⟳`, manual Save, bulk rebuild) **blanks
+  that row's reconciliation cells** rather than recomputing them from cached
+  session numbers. Recomputing would be arithmetic dressed up as observation.
+* After a rebuild the whole panel is replaced with *"reconciliation is now out of
+  date"*. A summary reading "14 with a non-zero Δ" above a freshly-repaired table
+  is a sentence that was true two seconds ago, which is the most misleading kind.
+* Unreadable days render as `unreadable`, are excluded from every count, and are
+  called out in red. A failed read must never pass for a clean one.
+* CSV export gains the reconciliation columns **only when a sweep has run** — an
+  always-present blank column in a spreadsheet that outlives the page is an
+  invitation to read "no duplicates found" out of "never looked".
+
+### 0.8.8 Accounting from the previous instance, carried forward deliberately
+
+Round 16's own note, kept because it is the reason this round was scoped the way
+it was: *three defects in two days, into a system where Jake is the only tester
+and students are the blast radius. The writers were changed before anything
+existed to see whether the numbers they produced were right. **That ordering was
+the mistake, not the ambition.*** Round 18 built the observation tool and nothing
+else. The next round should be very slow to break that ordering again.
 
 ---
 
@@ -807,10 +1091,12 @@ browsable user directory, by design. `users/{uid}` deliberately holds no PII, wh
 
 ## §2. Where the code is
 
-Shipped state after Round 16, 2026-08-19. **Verified against the repo, not copied from
+Shipped state after Round 18, 2026-08-19. **Verified against the repo, not copied from
 the previous table** — three consecutive rounds carried a stale version for `admin.js`.
 Run `npm run audit:versions`; do not trust this table either. **Round 17 moved
-files but changed no code — every version below is unchanged by it.**
+files but changed no code.** **Round 18 changed exactly one line of this table
+(`reports.html`) and nothing else — every other version below is unchanged since
+Round 16.**
 
 | file | version |
 |---|---|
@@ -826,7 +1112,7 @@ files but changed no code — every version below is unchanged by it.**
 | `admin.js` | 3.31.0 |
 | `lessons-admin.js` | 1.12.0 |
 | `staff-admin.js` | 2.2.0 |
-| `reports.html` | 2.14.0 |
+| `reports.html` | 2.15.0 — ⚠️ Round 18. The only app file that round touched |
 | `firebase-config.js` | 1.2.0 |
 | `firebase/firestore.rules` | 2.4.0 |
 | `style.css` | 3.5.5 |
@@ -834,7 +1120,8 @@ files but changed no code — every version below is unchanged by it.**
 | `learn.html` | 1.0.0 — new in Round 15, see §0.5 |
 | `functions/index.js` | 1.7.0 — Cloud Function, NOT deployable from this repo; Jake mirrors it into the console by hand. See its own header. Moved out of the root in Round 17; the file is byte-identical. |
 
-`npm test` → **26 of 27 harnesses pass, 0 pending.** The only failure is `metadata-map-test.mjs`
+`npm test` → **27 of 28 harnesses pass, 0 pending** (Round 18 added
+`tests/reconcile-test.mjs`). The only failure is `metadata-map-test.mjs`
 `metadata-map-test.mjs` fails on 42 of 487 assertions, pre-existing and unrelated — §6.
 (The denominator moved twice in Round 17: two green-but-unregistered harnesses were
 wired in, then three test-first ones moved to `PENDING`. The number to watch is
@@ -1167,6 +1454,11 @@ student's document to store a fact the teacher already knows.
 ---
 
 ## §4. ⚠️ THE FORWARD PLAN — telemetry step 2
+
+> ⚠️ **SUPERSEDED IN PRIORITY BY §0.9 (2026-08-19).** Everything in this section
+> remains valid engineering, and **none of it comes before moving the grade off
+> `typing_logs`.** Jake ruled on that directly. Read §0.9 first.
+
 
 `DESIGN-TELEMETRY.md` is the design and it is live; read its §2 (verification-only, every
 claim read out of shipped source) and §8 (things that must not happen) before writing code.
@@ -1521,12 +1813,26 @@ a number that somehow drifts can still be resolved.
 New invariants go here, at the next free number, and are folded into a group above
 at the next consolidation **without changing the number**.
 
-106. **PAINTING IS NOT COUNTING.** When you tighten a gate on a counter, check what
-     else lives inside that gate. A draw call trapped behind a counting gate shows
-     the student nothing — or worse, a hardcoded placeholder standing in for their
-     real total — while every number in the system is correct. It is invisible to
-     anyone reading the arithmetic, and it shipped in `game.js` v3.26.0 inside a
-     change whose counting half was right.
+107. **POSITION IS NOT IDENTITY.** Any handle that survives a re-render must be a
+     stable key — a `uid`, a document id — and must be resolved to an index at the
+     moment it is used, never at the moment it is captured. `reportData` is sorted
+     **in place**; an array index captured before a `renderTable()` names a
+     different student afterwards. Round 18 wrote this bug and caught it by
+     reading, not by testing: the arithmetic is identical either way, so a suite
+     that checks totals stays green while corrections land on the wrong children.
+108. **BUILD THE INSTRUMENT BEFORE THE REPAIR.** If you cannot see whether a
+     number is wrong, you cannot tell whether your fix helped, and you will ship
+     the fix anyway because it looked right in the code. Round 16 changed how
+     three counters were written before anything existed to check them and
+     shipped three defects in two days. An observation tool that writes nothing
+     is deployable on a school night; a write-path change is not.
+109. **"NOT MEASURED" MUST NOT RENDER AS "MEASURED, CLEAN".** A zero, a blank
+     cell, an empty column in an exported spreadsheet, a truncated result, a
+     cancelled run showing partial rows — every one of these gets read as an
+     all-clear by a tired person at 4pm. Initialise to `null` and render `—`;
+     refuse rather than truncate; discard partial results rather than display
+     them; and when a repair invalidates a measurement, clear the measurement
+     instead of leaving it on screen.
 
 ---
 
@@ -1558,6 +1864,29 @@ at the next consolidation **without changing the number**.
    does. Flagged by four rounds. Invariant 93. Write it or delete the claim.
 6. **`renderIdStamp()` is duplicated in `game.js` and `learn.js`.** Fifteen lines, unchanged
    tripwire.
+7. ⚠️ **71 CHARACTERS MISSING FROM 8/19's RECALC versus the displayed sprint totals. CAUSE
+   UNKNOWN — DO NOT GUESS.** Round 16 formed a session-writing theory and **Jake's console output
+   disproved it**. That is the whole state of knowledge: one theory, tested, dead. Round 18 did
+   not attempt this and deliberately added no speculation to it; what it *did* add is the
+   instrument — the `Δ` column carries a **characters delta alongside the time delta**, and the
+   CSV export carries `Delta Characters`, so the next attempt starts from a population of cases
+   rather than from one screenshot. Get a sample across many students before theorising again.
+8. ⚠️ **A THIRD DUPLICATE APPEARED AFTER `session-log.js` v1.3.0 SHIPPED.** The serialization in
+   v1.3.0 stops two *concurrent* flushes writing the same queue twice; it does **not** stop a
+   queue entry being re-sent by a **later page load** if the clearing `localStorage` write never
+   persisted during teardown. **That is a hypothesis and is labelled as one.** The likely durable
+   fix is deterministic document ids with `setDoc` instead of `addDoc` — which needs a
+   `firestore.rules` change to allow owner `update` on `typing_sessions`, and **getting that wrong
+   stops session recording silently**, which is the worst failure shape in this codebase. It is
+   not a school-week change. Round 18 did not touch it. Note the interaction: duplicates inflate
+   the drill-down but are already excluded from `recalcDailyLog()`, from the `Sessions` column and
+   from every rebuild, so this defect currently costs *visibility*, not *grades*.
+9. **The reconciliation view cannot see a student who has no `typing_logs` document at all.**
+   `reports.html` v2.15.0 sweeps every student **in the report** across every date in the range,
+   so a missing *day* is caught. A missing *student* is not — they never appear in the report to
+   be swept. Closing it means iterating the class roster rather than the report as the source of
+   truth, which is a real change to how that page is built, not an addition to it. Stated in the
+   panel's own notes so nobody reads a clean sweep as a complete one.
 7. **App Check initialized, not enforced.** §3.11.
 8. **`firestore-rules.test.mjs` has never been executed** and is known wrong — it seeds roles as
    auth-token claims while rules v2.x reads `staff/{uid}` documents. Needs a CLI and an emulator,
@@ -1633,6 +1962,7 @@ a pointer to a file you should go and read.**
 | 15 | Densmore | Fixed Round 14's HUD fix, which shipped green and didn't work. Version footer redesign. AI-practice variety floor (game.js/index.js). HUD long-form clip fix. |
 | 16 | Royal | ⚠️ MIXED — the source split shipped, broke twice in live use, and was REVERTED the same evening (see §0.6 item 9). Kept: delete→recalc, duplicate detection, flush serialization, week-repair resync, variety-floor extraction. The remediation variety floor (School's practice-missed-keys gap Round 15 flagged). The repair resync — a real incident, fixed and given harness coverage: an audit-repaired week counter that kept getting silently overwritten by a MacBook that skipped its between-period restart. Extracted the two files' duplicated variety-floor filter into `variety-floor.js`, the fifth shared module, with its own harness. The source split (DESIGN-TELEMETRY.md §2.4) — game.js/learn.js write per-source typing_logs fields instead of a shared, clobberable triple; requires firestore.rules v2.4.0 deployed first. Connected delete → recalc on the reports.html session drill-down, so a cheating student's numbers get fixed with zero manual bookkeeping and zero added cost. |
 | 17 | Linotype | Repository reorganisation — 79 root entries to 33. No app code changed and nothing the browser loads moved. Harnesses to `tests/`, docs to `docs/`, Firebase config to `firebase/`, the Cloud Function to `functions/`, `audit-versions.mjs` and the Python builders to `tools/`. Found and registered two green-but-unregistered harnesses (`sort-test`, `lesson-atomicity-test`), declared the missing `@xmldom/xmldom`, added the repo's first `.gitignore`, and corrected three rounds of notes claiming `MULTITENANCY.md` had been deleted when it had not. Second pass: merged three test-first harnesses from a concurrent round and added the `PENDING` list to `run-all-tests.mjs` so red-on-purpose harnesses cannot corrupt the headline number. Third pass: the concurrent round's app code landed, all three went green and were promoted, and `session-log.js`'s header/constant mismatch was repaired. |
+| 18 | Salter | Built the instrument before touching the repair, which is the whole shape of the round. `reports.html` 2.15.0 only; `game.js`, `learn.js`, `hud.js`, `stats-wal.js`, `session-log.js` and `firestore.rules` untouched. **(1)** A read-only reconciliation view: three sortable TOP-LEVEL columns (`Sessions`, `Δ`, `⧉`) comparing each student's daily-log total against the deduped sum of their actual session records — no expanding required, which was Jake's specific unfixed complaint. Sweeps every date in the range, not just dates with a log row, so a day whose log write never landed is caught. **(2)** Rebuild-all: `⟳` applied across the report behind a preview that separates who moves DOWN from who moves UP, with four refusals — never zero a sessionless day, never invent a missing log document, hold today back by default, and skip any pair that moved between preview and write. Wrote and then caught its own position-is-not-identity bug (corrections would have landed on the wrong children after the table re-sorted); invariant 107. New `tests/reconcile-test.mjs`, 35 assertions, five mutation-verified — and its own header says plainly what it cannot cover. Left §6 items 7–9 deliberately unanswered rather than guessing. |
 
 ---
 
@@ -1653,6 +1983,7 @@ a pointer to a file you should go and read.**
 | `docs/PEDAGOGY-AUDIT.md` | Round 2 research. The only record of why the lesson gates are what they are |
 | `docs/archive/MULTITENANCY.md` | ⚠️ **SUPERSEDED, and see the correction below.** Kept for two arguments that appear nowhere else; its warning header is what makes keeping it safe |
 | `tests/README.md` | 🆕 the suite: what is registered, what is deliberately not, and the standing failure |
+| `tests/reconcile-test.mjs` | ⚠️ not a document, listed here because **its header is one** — it states what the reconciliation harness does *not* cover, which is the part that matters. Read it before trusting a green run |
 | `tests/TESTING-ttb-test-epubs.md` | the synthetic EPUB test corpus |
 | `tools/README.md` | 🆕 `audit-versions.mjs` and the two EPUB builders, with their accepted problem count |
 | `library/gutCleaners/*` | the bookclean project's own docs. Separate concern, leave alone |
