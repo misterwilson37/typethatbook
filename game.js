@@ -1,4 +1,15 @@
-// game.js v3.36.0
+// game.js v3.37.0
+//
+// v3.37.0 — ⚠️ THE OVERNIGHT RESCUE, on Jake's ruling. A child who typed as a
+//           guest and did not sign in until the NEXT DAY now has those minutes
+//           credited to the day they typed them, via
+//           carryGuestDaysToTheirOwnDocuments(). Input is the dated, sourced
+//           guest queue, so it can only ever under-credit; sessionLogTake() is
+//           atomic, so it cannot run twice. ⚠️ PRE-CUTOVER DAYS ARE REFUSED BY
+//           daylog.js — adding to the shared flat triple is §3.1 with an
+//           addition in front of it. The rescue switches itself on at
+//           SOURCE_SPLIT_CUTOVER and never runs against the shape it would
+//           corrupt. The argument is in daylog.js v1.4.0's footer.
 //
 // v3.36.0 — ⚠️⚠️ THE GUEST MINUTE. This file had NO guest merge on the auth
 //           path and learn.js did. Jake, 2026-08-20, one student, one machine:
@@ -374,7 +385,8 @@ import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
 // and are used by nothing shipped — v3.34.0 reverted the projection. Leaving the
 // import in would make it one keystroke to re-enable a grade computed from
 // records known to overlap. See HANDOFF §0.0 before touching this line.
-import { readWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION } from "./daylog.js";
+import { readWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
+         carryOverPlan, carryOverPayloadFor, sourceTotalsOf } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // The version footer's three primary reads (this html file, this js file's own
 // VERSION, style.css) plus the lazy full-build panel on hover. See
@@ -396,7 +408,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.36.0";
+const VERSION = "3.37.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1864,8 +1876,14 @@ async function retroactiveSaveGuestSession(user) {
         // The merge above fixes the TOTAL; without this the day would still
         // carry minutes the drill-down cannot account for. Adopted under the
         // real uid, keeping each record's own `at` and therefore its own date.
-        const adopted = sessionLogAdopt(user.uid, sessionLogTake(GUEST_QUEUE_UID), dateStr);
+        const taken = sessionLogTake(GUEST_QUEUE_UID);
+        const adopted = sessionLogAdopt(user.uid, taken, dateStr);
         if (adopted) console.log(`Adopted ${adopted} guest sprint record(s) into ${user.uid}.`);
+
+        // ⚠️ v3.37.0 — WORK OUT THE OVERNIGHT RESCUE BEFORE THE FLUSH DRAINS
+        // THE QUEUE. `taken` is the only handle on these records that survives
+        // sessionLogFlush(); plan from it now, write after.
+        const carry = carryOverPlan(taken, dateStr);
 
         sessionExpired = false;
         statsDocDirty = true;
@@ -1873,6 +1891,13 @@ async function retroactiveSaveGuestSession(user) {
         // sprints, which is what makes the correction visible to the teacher
         // immediately rather than at the end of the period.
         await flushAll('guest-retroactive', true);
+
+        // ⚠️ AFTER THE FLUSH, DELIBERATELY. The flush is what a child is waiting
+        // on to see their own number move; this touches days that are already
+        // over and nobody is watching. A failure here also must not take the
+        // flush down with it, which is why it is its own await and its own try.
+        if (carry.length) await carryGuestDaysToTheirOwnDocuments(user, carry);
+
         return true;
     } catch (e) {
         console.warn('Guest session merge failed:', e);
@@ -4552,6 +4577,72 @@ function logOpenSprint(reason) {
     const sprintAcc = (entries > 0) ? Math.round((charsTyped / entries) * 100) : 100;
     logSession(sprintSeconds, charsTyped, sprintMistakes, sprintWPM, sprintAcc,
                reason ? '(' + reason + ')' : '(interrupted)');
+}
+
+// carryGuestDaysToTheirOwnDocuments() — THE OVERNIGHT RESCUE  (v3.37.0)
+//
+// ⚠️ JAKE'S RULING, 2026-08-20: a child who typed as a guest, lost their
+// connection, and did not sign in until the next day keeps those minutes —
+// credited to the day they typed them, not to today. The design argument, and
+// the objection it overturns, are in daylog.js's own header block. Read that
+// before changing anything here; this function is only the plumbing.
+//
+// ⚠️ ONE READ AND ONE WRITE PER PRIOR DAY, AND THE READ IS LOAD-BEARING. The
+// per-source field is absolute, not a Firestore increment, so the stored value
+// has to be read to be added to. That is a read-modify-write, and it is safe
+// here for one specific reason and no other: after the cutover this page is the
+// ONLY writer of the Library triple, so nothing can land between the read and
+// the write. daylog.js refuses a pre-cutover date outright for exactly this
+// reason — before the cutover the target is the SHARED flat triple, and this
+// same code against that field is §3.1 wearing a helpful expression.
+//
+// ⚠️ IT CANNOT CREATE A DAY OUT OF NOTHING BUT IT CAN CREATE A DOCUMENT. A day
+// on which a child only ever typed as a guest has no `typing_logs` document at
+// all. merge:true creates it, and firestore.rules v2.6.0 puts the
+// `resource == null` clause FIRST on `typing_logs` precisely so a first write
+// is allowed — that was Round 22's fix and this is the second caller to depend
+// on it.
+//
+// ⚠️ IF THE WRITE FAILS THE RECORDS ARE STILL GONE FROM THE GUEST SLOT. They
+// are not lost — they were adopted into the account's queue and reach
+// `typing_sessions` — but that day's TOTAL will not have them, which is the
+// "record without a total" divergence inverted. It is logged loudly rather than
+// retried: a retry needs durable state about what has already been credited,
+// and inventing one is how a rescue becomes a double-credit. Under-crediting is
+// the direction to fail in. Same ruling as sessionLogTake()'s.
+async function carryGuestDaysToTheirOwnDocuments(user, carry) {
+    for (const g of carry) {
+        try {
+            const ref = doc(db, "typing_logs", `${user.uid}_${g.date}`);
+            const snap = await getDoc(ref);
+            const stored = sourceTotalsOf(snap.exists() ? snap.data() : {})[g.source];
+
+            const payload = carryOverPayloadFor(g.source, g.date, {
+                stored,
+                add: { seconds: g.seconds, chars: g.chars, mistakes: g.mistakes },
+            });
+
+            await setDoc(ref, {
+                uid: user.uid,
+                email: user.email || "",
+                displayName: user.displayName || "Anonymous",
+                classId: ttbClassId || "",
+                schoolId: ttbSchoolId || "",
+                date: g.date,
+                ...payload,
+                lastUpdated: new Date()
+            }, { merge: true });
+
+            console.log(`Rescued ${g.seconds}s of guest ${g.source} typing onto ${g.date} ` +
+                        `(${g.records.length} sprint record(s)).`);
+        } catch (e) {
+            // ⚠️ NAMES THE DAY AND THE SECONDS. If a teacher ever asks why a
+            // drill-down row exists on a day whose total does not include it,
+            // this line is the answer, and it needs to be greppable.
+            console.warn(`Guest carry-over FAILED for ${g.date} ${g.source} ` +
+                         `(${g.seconds}s, ${g.chars} chars):`, e);
+        }
+    }
 }
 
 // Shown when a token expires mid-session. Deliberately NOT the guest ladder:

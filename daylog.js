@@ -1,5 +1,14 @@
-// daylog.js v1.3.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
+// daylog.js v1.4.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
 //                     DOCUMENT IS A PROJECTION OF THE SESSION RECORD.
+//
+// v1.4.0 — ⚠️ THE OVERNIGHT RESCUE, on Jake's ruling: a child who typed as a
+//          guest and did not sign in until the next day gets those minutes
+//          credited TO THE DAY THEY HAPPENED ON, not to today. Adds
+//          carryOverPlan() and carryOverPayloadFor(). ⚠️ PRE-CUTOVER DAYS ARE
+//          REFUSED BY BOTH — adding to the shared flat triple is §3.1 with an
+//          addition in front of it. The rescue switches itself on at
+//          SOURCE_SPLIT_CUTOVER. See the block at the foot of this file, which
+//          is the argument and not just the code.
 //
 // v1.3.0 — ⚠️ ROADMAP ITEM 1, THE WRITER HALF. Adds SOURCE_FIELDS and
 //          sourceTotalsOf(), and readWeek() now returns `todaySources`.
@@ -90,7 +99,7 @@
 // tests/week-anchor-test.mjs and tests/daylog-test.mjs both hold that line. A
 // mismatch here does not throw — it silently reads the wrong seven days.
 
-export const DAYLOG_VERSION = "1.3.0";
+export const DAYLOG_VERSION = "1.4.0";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE PER-SOURCE CUTOVER
@@ -484,5 +493,108 @@ export function projectDayTotal(serverSessions, queued, open) {
         seconds:  clamp(serverSessions.seconds)  + clamp(queued.seconds)  + clamp(open.seconds),
         chars:    clamp(serverSessions.chars)    + clamp(queued.chars)    + clamp(open.chars),
         mistakes: clamp(serverSessions.mistakes) + clamp(queued.mistakes) + clamp(open.mistakes),
+    };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE OVERNIGHT RESCUE  (v1.4.0)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️ JAKE'S RULING, 2026-08-20, VERBATIM: *"If Kid A types a bunch but loses
+// connection and comes in tomorrow, I want him to be able to rescue that time.
+// It wouldn't be cheating, as it would get picked up and put in the right
+// place."* That last clause is the whole design. The objection this overturns —
+// recorded in stats-wal.js's guest accumulator header — is that yesterday's
+// minutes must not be **silently credited to today**, because a teacher's daily
+// report has to mean what it says. That objection was correct and it is still
+// correct. It assumed the only available destination was today's counter.
+//
+// It is not, and has not been since Round 23 gave a guest's sprints a dated,
+// sourced, 21-day-durable queue. `typing_logs` is keyed `{uid}_{date}`, so the
+// right day is addressable. The seconds go to the day they happened on.
+//
+// ⚠️ THIS CANNOT INFLATE A GRADE, AND THAT IS STRUCTURAL RATHER THAN CAREFUL:
+//   * the input is CLOSED SPRINTS ONLY, so it can only ever be less than what
+//     the child actually typed — the open tail is not in the queue;
+//   * the records leave the guest slot via sessionLogTake(), which is atomic, so
+//     a second sign-in on the same browser finds nothing to carry;
+//   * a guest's time has never reached `typing_logs` under any uid, so there is
+//     nothing here to double.
+// The failure direction is UNDER-crediting a child. That is the one to have.
+//
+// ⚠️ PRE-CUTOVER DAYS ARE REFUSED, ON PURPOSE, AND IT IS NOT A LIMITATION —
+// IT IS THE §3.1 GUARD. Before SOURCE_SPLIT_CUTOVER a day's time lives in the
+// SHARED flat `seconds` triple. Adding to it means read-modify-write on a field
+// the other page also writes, which is §3.1 with an addition in front of it —
+// the exact defect Round 22 spent itself closing. After the cutover the target
+// is this page's own per-source field, which no other writer may name, so the
+// add is safe by construction. The practical effect is that the rescue switches
+// itself on with the cutover and never runs against the shape it would corrupt.
+// ⚠️ DO NOT "FIX" THIS BY ADDING TO THE FLAT TRIPLE. Read §3.1 first.
+
+/**
+ * Group a taken guest queue into per-day, per-source carry-over work.
+ *
+ * Returns [{ date, source, seconds, chars, mistakes, records }], excluding
+ * today (which the live merge already handles) and excluding any day the rescue
+ * may not safely touch. Pure — no clock, no storage, no Firestore.
+ *
+ * `todayStr` is the caller's local date, for the same reason every other date
+ * in this project is: this module does not get to decide what day it is.
+ */
+export function carryOverPlan(records, todayStr) {
+    if (!Array.isArray(records) || !todayStr) return [];
+    const groups = new Map();
+    for (const r of records) {
+        if (!r) continue;
+        const date = typeof r.date === 'string' && r.date.length === 10 ? r.date : '';
+        if (!date) continue;                       // undated: nowhere to put it
+        if (date >= todayStr) continue;            // today, or a clock in the future
+        if (!(date >= SOURCE_SPLIT_CUTOVER)) continue;   // see the header above
+        const source = r.source === 'school' ? 'school'
+                     : r.source === 'library' ? 'library' : '';
+        if (!source) continue;                     // unsourced: no field to name
+        const key = date + '\u0000' + source;
+        if (!groups.has(key)) {
+            groups.set(key, { date, source, seconds: 0, chars: 0, mistakes: 0, records: [] });
+        }
+        const g = groups.get(key);
+        g.seconds  += Math.max(0, Math.round(r.seconds  || 0));
+        g.chars    += Math.max(0, Math.round(r.chars    || 0));
+        g.mistakes += Math.max(0, Math.round(r.mistakes || 0));
+        g.records.push(r);
+    }
+    // Oldest first, so a partial failure leaves the most recent day for the
+    // retry rather than the other way round.
+    return Array.from(groups.values())
+        .filter(g => g.seconds > 0 || g.chars > 0)
+        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+/**
+ * The payload that credits one prior day's rescued time to its own document.
+ *
+ * `stored` is what that document ALREADY holds for this source — read it with
+ * sourceTotalsOf() immediately before calling this. The result is an absolute
+ * value for this page's own three fields, so it merges the same way every other
+ * write in this app does.
+ *
+ * ⚠️ IT THROWS ON A PRE-CUTOVER DATE RATHER THAN FALLING BACK TO THE FLAT
+ * TRIPLE. carryOverPlan() has already filtered those out; a caller that reaches
+ * here with one has bypassed the plan, and the quiet fallback would be the §3.1
+ * revival the header refuses. Fail loudly at the boundary instead.
+ */
+export function carryOverPayloadFor(source, dateStr, { stored, add }) {
+    if (!(dateStr >= SOURCE_SPLIT_CUTOVER)) {
+        throw new Error('carryOverPayloadFor: refusing a pre-cutover date ' + dateStr);
+    }
+    const f = SOURCE_FIELDS[source];
+    if (!f) throw new Error('carryOverPayloadFor: unknown source ' + source);
+    const n = (v) => Math.max(0, Math.round(v || 0));
+    const s = stored || {}, a = add || {};
+    return {
+        [f.seconds]:  n(s.seconds)  + n(a.seconds),
+        [f.chars]:    n(s.chars)    + n(a.chars),
+        [f.mistakes]: n(s.mistakes) + n(a.mistakes),
     };
 }

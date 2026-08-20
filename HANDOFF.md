@@ -15,8 +15,10 @@
      Library at home after 7:00 PM Central had their clock land on today and
      their sprint record on tomorrow. Invisible during school hours by
      construction. Also: Cmd+R was eaten in School (and typed as an `r`), and
-     the (Logout) button was styled invisible on a page whose test protocol had
-     been working around its absence. 36/36 harnesses.
+     the (Logout) button was styled invisible TWICE, in two stylesheets. ⚠️ AND
+     THEN JAKE RULED ON THE OVERNIGHT RESCUE and it shipped: a child who typed
+     as a guest and did not sign in until the next day now has those minutes
+     credited TO THE DAY THEY TYPED THEM. See §0.-10.G. 37/37 harnesses.
 
      ⚠️⚠️ v15.0.0 IS A MAJOR AND JAKE SIGNED IT OFF ("Feel free to do a clean up
      of Handoff while you're at it. Clean out anything unnecessary that you no
@@ -181,6 +183,16 @@ would have. The instrument you reach for first is not always the cheap one.
 | `tests/run-all-tests.mjs` | v1.6.0 | registers it |
 | `tests/session-merge-test.mjs` | v1.6.1 | version pin only |
 | `tests/open-unit-test.mjs` | v1.2.3 | version pin only |
+| `adventure.css` | **v1.0.1** | the `.text-btn` tint that ate the Logout fix (§0.-10.D) |
+| `daylog.js` | **v1.4.0** | `carryOverPlan()` / `carryOverPayloadFor()` (§0.-10.G) |
+| `game.js` | **v3.37.0** | `carryGuestDaysToTheirOwnDocuments()` (§0.-10.G) |
+| `tests/carryover-test.mjs` | **NEW** | 40 assertions, both guards mutation-verified |
+| `tests/guest-merge-test.mjs` | v1.1.0 | C4 asserts the property, not the spelling (§0.-10.I) |
+
+⚠️ **UPLOAD ORDER: `session-log.js`, then `daylog.js`, then `game.js`.** Both
+shared modules before the page controller that imports from them — `game.js`
+v3.37.0 imports `carryOverPlan`, `carryOverPayloadFor` and `sourceTotalsOf`, and
+a missing export throws on import and renders **nothing at all**.
 
 ⚠️ **UPLOAD `session-log.js` FIRST**, same as Round 23 — `game.js` and `learn.js`
 both import from it.
@@ -236,15 +248,34 @@ handlers are near-duplicates that have drifted, and they disagree elsewhere too
 scored character. Shift is deliberately not in the modifier list: Shift+A is how
 a child types a capital, and the lessons drill exactly that.
 
-**The Logout nobody could find.** Jake reported *"there's no logout in
-library/game, so I had to go back to the main page to sign out"* — and attached
-screenshots with `(Logout)` visible in three of them, at `#999` / 12px on a black
-bar beside a bold white name. `game.html` line 44 and `learn.html` line 37 are
-the only users of `.text-btn` in the repo. **A control nobody can find is a
-control that does not exist**, and this one had been there for rounds while a
-test protocol worked around it.
+**The Logout nobody could find — and it was invisible TWICE.** Jake reported
+*"there's no logout in library/game"* and attached screenshots with `(Logout)`
+visible in three of them, at `#999` / 12px on a black bar beside a bold white
+name. `style.css` v3.5.6 fixed that. He then reported it was *"completely
+invisible in adventure mode"* — and it was, for a **different reason, in a
+different file**: `adventure.css` line 249,
+`body.view-adventure .text-btn { color: rgba(43, 34, 26, 0.6) }`. Dark brown at
+60%, correct on parchment, near-black-on-black in the only place the class is
+ever used — **and three lines below it sits a comment declaring the HUD bar is
+deliberately NOT skinned.** The rule reached into the one region the file
+promises not to touch, and it silently ate the `style.css` fix. Deleted;
+`adventure.css` **v1.0.1**.
 
-### 0.-10.E ⚠️ STILL OPEN — THE GUEST SPRINT'S RECORD (ROADMAP item 2)
+⚠️ **TWO STYLESHEETS, ONE INVISIBLE CONTROL, AND THE SECOND ONE WOULD HAVE MADE
+THE FIRST FIX LOOK LIKE A FAILED DEPLOY.** `game.html` line 44 and `learn.html`
+line 37 are the only users of `.text-btn` in the whole repo — so a skin rule
+targeting the class could only ever have hit the HUD. **A control nobody can
+find is a control that does not exist**, and this one had been there for rounds
+while a test protocol worked around it.
+
+### 0.-10.E ✅ CLOSED BY §0.-10.H — THE GUEST SPRINT'S RECORD
+
+⚠️ **THIS SECTION WAS WRITTEN AS "STILL OPEN" AND WAS RESOLVED LATER THE SAME
+EVENING.** Jake drove the whole path in the console and every step worked; the
+2:03 PM record was late, like the other two. It is kept because the arithmetic
+below is still the clean proof that the MERGE works, and because the two
+candidates it names are the right ones to check if this ever recurs. **Read
+§0.-10.H before acting on anything here.**
 
 The merge is **proven working**, from the header alone:
 
@@ -280,14 +311,109 @@ each time but is **not sure a completion screen appeared**. The 2:02:59
 screenshot shows a guest "Sprint Complete" at **0m 1s**, which the floor
 certainly refused. Neither candidate is eliminated.
 
+### 0.-10.G ✅⚠️ THE OVERNIGHT RESCUE — JAKE OVERTURNED A STANDING RULING
+
+**Jake, 2026-08-20, verbatim:** *"If Kid A types a bunch but loses connection and
+comes in tomorrow, I want him to be able to rescue that time. It wouldn't be
+cheating, as it would get picked up and put in the right place. I'm not sure how
+that would be a bad thing."*
+
+⚠️ **THE RULING THIS OVERTURNS WAS IN THE REPO AND IT WAS CORRECT.**
+`stats-wal.js`'s guest-accumulator header: *"⚠️ DATE-STAMPED AND DROPPED ON A NEW
+DAY. Yesterday's guest minutes must not be silently credited to today — a
+teacher's daily report is the one thing that has to mean what it says."* Every
+word of that still holds. **It assumed the only available destination was
+today's counter** — which was true when it was written and stopped being true
+the moment Round 23 gave a guest's sprints a dated, sourced, 21-day queue.
+`typing_logs` is keyed `{uid}_{date}`, so the right day is addressable.
+
+⚠️ **THE GUEST ACCUMULATOR'S 24-HOUR DROP IS UNCHANGED AND MUST STAY.** It feeds
+the LIVE counter, where "yesterday's seconds land on today" is exactly the wrong
+answer. The rescue does not touch it. **Two mechanisms, two destinations** — the
+accumulator owns today, the queue owns the days that are over.
+
+| File | Version | What |
+|---|---|---|
+| `daylog.js` | **v1.4.0** | `carryOverPlan()`, `carryOverPayloadFor()` — pure, no clock, no storage |
+| `game.js` | **v3.37.0** | `carryGuestDaysToTheirOwnDocuments()`, called after the flush |
+| `tests/carryover-test.mjs` | **NEW** | 40 assertions; mutation-verified on both guards |
+
+**Why it cannot inflate a grade, structurally rather than carefully:**
+1. the input is **closed sprints only** — the open tail is not in the queue, so
+   the rescue is always *less* than what the child typed;
+2. `sessionLogTake()` is atomic, so a second sign-in finds nothing;
+3. a guest's time has never reached `typing_logs` under any uid, so there is
+   nothing to double.
+
+**The failure direction is UNDER-crediting a child**, which is the one to have.
+
+⚠️⚠️ **PRE-CUTOVER DAYS ARE REFUSED AND THAT IS THE §3.1 GUARD, NOT A GAP.**
+Before `SOURCE_SPLIT_CUTOVER` a day's time is in the SHARED flat triple, and
+adding to it is read-modify-write on a field the other page also writes — §3.1
+with an addition in front of it. After the cutover the target is this page's own
+per-source field, which no other writer may name, so the add is safe by
+construction and needs no lock. **The rescue therefore switches itself on with
+the cutover** and can never run against the shape it would corrupt.
+⚠️ `carryOverPayloadFor()` **throws** on a pre-cutover date rather than falling
+back to the flat triple. Do not "fix" that.
+
+⚠️ **IT IS LIBRARY-ONLY. `learn.js` IS NOT WIRED** — ROADMAP item 2b. The shared
+machinery is source-agnostic and the School side is already covered by the
+harness; what is missing is six lines in `retroactiveSaveAnonSession()`. Held
+back under the standing rule that a write-path change to the file 8th grade
+depends on ships in a round that can watch School run. **Ship it with item 3**;
+they touch the same function.
+
+### 0.-10.H ✅ THE GUEST PATH, DRIVEN RATHER THAN READ
+
+Jake ran the whole thing in the console. First time in the project's history.
+
+| Step | Result |
+|---|---|
+| chapter completed as a guest | `[["\u0000guest", 1, ["102s 2026-08-20"]]]` |
+| navigating away mid-sprint | queues — `pagehide` fires |
+| sign-in | `Adopted 1 guest sprint record(s) into fuHvKkVj…` |
+| after the flush | `[]` |
+
+So the 2:03 PM record was **late, not lost** — §0.-10.A, for the third time in
+one round.
+
+⚠️ **ONE THING DID NOT FIRE.** Cmd+Tab to another application did NOT trigger
+`visibilitychange`; macOS fires it on occlusion, not on focus loss. `pagehide`
+covers the case that matters, so nothing is lost — but the comment above the
+`visibilitychange` handler claims broader coverage than it has, and a future
+round must not lean on it.
+
+⚠️ **AND A FIRST READING WAS WRONG BECAUSE THE QUESTION WAS WRONG.** The first
+console check returned `{}` and looked like a smoking gun. It was taken mid-
+sprint, when an empty queue is the CORRECT state — the queue is only written
+when a sprint ends. **Ask for the reading at a moment when the answer means
+something**, or you will get a true answer to a question nobody asked.
+
+### 0.-10.I ⚠️ A HARNESS WENT RED FOR A TEXTUAL REASON, NOT A BEHAVIOURAL ONE
+
+`guest-merge-test.mjs` C4 required the literal nested call
+`sessionLogAdopt(user.uid, sessionLogTake(GUEST_QUEUE_UID)`. §0.-10.G needed the
+taken array in a local so the rescue could plan from it **before the flush drains
+the queue** — a correct change that turned the Part red for spelling. C4 now
+asserts that the slot is TAKEN and the result is ADOPTED, in that order, inside
+the one function. **v1.1.0. No other assertion changed.**
+
+⚠️ A source-text assertion should hold the PROPERTY, not one way of writing it,
+or it bills the next correct edit for the privilege.
+
 ### 0.-10.F WHAT WAS DELIBERATELY NOT DONE
 
-* **ROADMAP item 3** (`learn.js` flushes for anonymous users). Unchanged, and
-  still waiting on a round that can watch School run. ⚠️ v2.21.1 touched
-  `learn.js` anyway — but in the **keyboard handler**, not the write path.
-* **The header budget.** `learn.js` went 297 → 303 lines and 32 → 33 entries;
-  `session-log.js` is now over the entry budget as well as the line budget. Both
-  knowingly. ROADMAP item 9.
+* **ROADMAP item 3** (`learn.js` flushes for anonymous users) **and item 2b**
+  (wiring the rescue into School). Both unchanged, both waiting on a round that
+  can watch School run, and **both touch the same function** — ship them
+  together, not as two deploys. ⚠️ v2.21.1 touched `learn.js` anyway, but in the
+  **keyboard handler**, not the write path.
+* **The header budget.** `learn.js` went 297 → 303 lines and 32 → 33 entries,
+  `game.js` 352 → 363 and 29 → 30, `daylog.js` 92 → 101; `session-log.js` is now
+  over the entry budget as well as the line budget. All knowingly. The audit
+  still reports **15 problems, the same count as before the round**. ROADMAP
+  item 9.
 * **Nothing was done about the late flush itself.** It is not obviously a defect
   — the records arrive — and "flush more often" trades Firestore writes for a
   teacher seeing numbers two minutes fresher. §0.-9's `HIDDEN_FLUSH_MIN_GAP_MS`
