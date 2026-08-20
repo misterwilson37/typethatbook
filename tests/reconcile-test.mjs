@@ -96,8 +96,13 @@ const REFUSAL_CONSTS =
     liftConst(rep, 'SCHOOL_SESSIONS_FROM') +
     liftConst(rep, 'MAX_DROP_FRACTION') +
     liftConst(rep, 'MAX_DROP_FLOOR_SECONDS');
-ok(/SCHOOL_SESSIONS_FROM\s*=\s*'2026-08-18'/.test(REFUSAL_CONSTS),
-   'reports.html: SCHOOL_SESSIONS_FROM is 2026-08-18 (School kept no sessions before it)');
+// ⚠️ 2026-08-19, NOT 08-18. learn.js v2.7.0 was DEPLOYED on 08-18, part-way
+// through the day, so School coverage that day is PARTIAL — every run before the
+// upload hour exists only in the daily log. A deploy date is not a coverage date;
+// coverage starts the next midnight. v2.17.0 had this off by one and Jake's live
+// preview caught it: a full screen of 08-18 down-moves, largest 33m 12s → 17m 17s.
+ok(/SCHOOL_SESSIONS_FROM\s*=\s*'2026-08-19'/.test(REFUSAL_CONSTS),
+   'reports.html: SCHOOL_SESSIONS_FROM is 2026-08-19 (the first FULLY covered day)');
 ok(/MAX_DROP_FRACTION/.test(REFUSAL_CONSTS),
    'reports.html: MAX_DROP_FRACTION exists');
 
@@ -116,7 +121,12 @@ const datesInRange = datesBody
     ? new Function(datesBody + '; return datesInRange;')()
     : null;
 
-const TODAY = '2026-08-19';
+// ⚠️ TODAY MOVED FORWARD IN v2.18.0. The one legitimate down-move now has to sit
+// on a date that is BOTH fully session-covered (>= 2026-08-19) and NOT today
+// (today's rows are held back by design). 08-20 is today; 08-19 is the covered
+// past day. Bumping this without bumping the fixture dates silently empties the
+// down list and the refusal assertions pass vacuously.
+const TODAY = '2026-08-20';
 
 // Two students. Bea sorts after Abe by name and BEFORE him by delta — which is
 // the whole point of Part B.
@@ -132,10 +142,10 @@ function fixture() {
     const S = (seconds, chars, mistakes, docCount, dupes = 0) =>
         ({ seconds, chars, mistakes, docCount, keptCount: docCount - dupes, dupes });
     const reconState = { results: [
-        // Abe 8/18: log 600s, sessions 450s — a 25% drop on a date where School
-        // sessions exist. This is the ONE down-move that should survive both
-        // v2.17.0 refusals.
-        { idx: 0, uid: 'u_abe', date: '2026-08-18', li: 0, hasLog: true, docId: 'u_abe_2026-08-18',
+        // Abe 8/19: log 600s, sessions 450s — a 25% drop on a date with FULL
+        // session coverage. This is the ONE down-move that should survive both
+        // refusals. (Was dated 8/18 until v2.18.0 moved the coverage boundary.)
+        { idx: 0, uid: 'u_abe', date: '2026-08-19', li: 0, hasLog: true, docId: 'u_abe_2026-08-19',
           logSeconds: 600, logChars: 1000, logMistakes: 20, sess: S(450, 900, 18, 3), error: null },
         // ⚠️ Abe 8/17: log 1584s, sessions 111s — JAKE'S ACTUAL 2026-08-19 CASE,
         // 26m 24s -> 1m 51s. School kept no session records before 8/18, so those
@@ -147,8 +157,8 @@ function fixture() {
         // has to hold for dates nobody has thought about yet.
         { idx: 1, uid: 'u_bea', date: '2026-08-18', li: 2, hasLog: true, docId: 'u_bea_2026-08-18b',
           logSeconds: 2000, logChars: 3000, logMistakes: 50, sess: S(240, 400, 8, 1), error: null },
-        // Abe 8/19 is TODAY: log 300s, sessions 380s. Held back by default.
-        { idx: 0, uid: 'u_abe', date: '2026-08-19', li: 1, hasLog: true, docId: 'u_abe_2026-08-19',
+        // Abe 8/20 is TODAY: log 300s, sessions 380s. Held back by default.
+        { idx: 0, uid: 'u_abe', date: '2026-08-20', li: 1, hasLog: true, docId: 'u_abe_2026-08-20',
           logSeconds: 300, logChars: 500, logMistakes: 5, sess: S(380, 640, 7, 2), error: null },
         // Bea 8/17: log 120s, NO session documents at all. Must never be zeroed.
         { idx: 1, uid: 'u_bea', date: '2026-08-17', li: 0, hasLog: true, docId: 'u_bea_2026-08-17',
@@ -171,7 +181,7 @@ if (planBody && uidMapBody) {
     const { reportData, reconState } = fixture();
     const plan = makePlanner(reportData, reconState, TODAY)({ includeToday: false });
 
-    ok(plan.down.length === 1 && plan.down[0].uid === 'u_abe' && plan.down[0].date === '2026-08-18',
+    ok(plan.down.length === 1 && plan.down[0].uid === 'u_abe' && plan.down[0].date === '2026-08-19',
        'a modest DOWN move on a date with full session coverage is still proposed');
 
     // ⚠️ v2.17.0 — THE TWO DOWNWARD REFUSALS. Jake was one click from a bulk
@@ -184,14 +194,22 @@ if (planBody && uidMapBody) {
         const hit = plan.skipped.find(x => x.uid === uid && x.date === date);
         return hit ? hit.why : '(not skipped at all)';
     };
-    ok(!plan.down.some(m => m.date < '2026-08-18'),
-       'no DOWN move is ever proposed for a date before School kept session records');
+    ok(!plan.down.some(m => m.date < '2026-08-19'),
+       'no DOWN move is proposed for any date before School coverage was complete');
+    ok(!plan.down.some(m => m.date === '2026-08-18'),
+       '⚠️ 2026-08-18 ITSELF is refused — the deploy day is only partly covered');
     ok(/REFUSED/.test(whyFor('u_abe', '2026-08-17')),
        'the pre-8/18 down-move is quarantined into skipped WITH a reason, not silently dropped');
     ok(/School kept no session records/.test(whyFor('u_abe', '2026-08-17')),
        'the reason names the actual cause, so nobody re-derives it');
     ok(!plan.down.some(m => m.uid === 'u_bea' && m.fromSeconds === 2000),
        'a down-move that would cut a day by 88% is refused on proportion alone');
+    // ⚠️ THE UP HALF IS NEVER REFUSED. Sessions are append-only and deduped, so
+    // they cannot invent time — an UP move is recovering work the log LOST to
+    // the cross-mode overwrite, and refusing it would keep a child under-credited
+    // for our bug. Both guards are downward-only and must stay that way.
+    ok(plan.up.some(m => m.date < '2026-08-19'),
+       'UP moves on pre-coverage dates are NOT refused — sessions cannot invent time');
     ok(/REFUSED/.test(whyFor('u_bea', '2026-08-18')),
        'the oversized drop is quarantined with a reason too');
     ok(plan.down[0].fromSeconds === 600 && plan.down[0].toSeconds === 450,

@@ -464,6 +464,27 @@
     //           afternoon's Library session wrote a split field. The two shapes
     //           cover disjoint periods, so summing loses nothing.
     //
+    // v2.18.0 — ⚠️ TWO CORRECTIONS TO v2.17.0, BOTH FROM JAKE'S LIVE PREVIEW.
+    //
+    //           (1) SCHOOL_SESSIONS_FROM WAS OFF BY ONE DAY. It was 2026-08-18,
+    //           the day learn.js v2.7.0 was DEPLOYED — part-way through. School
+    //           coverage on 08-18 therefore starts at whatever hour the file went
+    //           up, and every School run before that hour exists only in the
+    //           daily log, exactly like 08-17. Jake's preview showed a full screen
+    //           of 08-18 down-moves, the largest 33m 12s → 17m 17s. Those were
+    //           mornings, not corruption. ⚠️ A DEPLOY DATE IS NOT A COVERAGE DATE;
+    //           coverage starts the next midnight. Now 2026-08-19.
+    //
+    //           (2) THE WRITE IS UP-MOVES-ONLY BY DEFAULT. An UP move means the
+    //           sessions hold more than the log, and sessions cannot invent time
+    //           — so it is recovering work the log lost to the cross-mode
+    //           overwrite, and it can only move a student toward the truth. A
+    //           DOWN move has two possible causes and this tool cannot tell them
+    //           apart. Under Jake's ruling that inflation is a lie told to a
+    //           child, a wrong DOWN move is the same lie pointed the other way:
+    //           it deletes work they actually did. Down is now an explicit
+    //           per-run opt-in with the count in front of him.
+    //
     // v2.17.0 — ⚠️⚠️ TWO REFUSALS ADDED TO THE REBUILD, AND ONE OF THEM STOPPED A
     //           DATA-DESTROYING BULK WRITE JAKE WAS ONE CLICK FROM MAKING.
     //
@@ -578,7 +599,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.17.0";
+    const REPORTS_VERSION = "2.18.0";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
@@ -1596,9 +1617,22 @@
     // day is not empty: it has 1m 51s of Library sessions. A PARTIAL record is
     // more dangerous than no record, because it defeats the emptiness check.
     //
-    // ⚠️ DO NOT MOVE THIS DATE FORWARD TO SILENCE A WARNING. Moving it backwards
-    // is a lie about when the data starts.
-    const SCHOOL_SESSIONS_FROM = '2026-08-18';
+    // ⚠️ v2.18.0 — THIS DATE WAS 2026-08-18 AND THAT WAS OFF BY ONE DAY.
+    // learn.js v2.7.0 was DEPLOYED ON 08-18, part-way through the day. So School
+    // session coverage on 08-18 itself is PARTIAL — it starts at whatever hour
+    // Jake uploaded the file, and every School run before that hour exists only
+    // in the daily log, exactly like 08-17. Jake's 2.17.0 preview showed it: a
+    // whole screen of down-moves, all dated 08-18, the largest 33m 12s → 17m 17s.
+    // Those are not corrupt logs. They are mornings.
+    //
+    // ⚠️ THE FIRST FULLY-COVERED DAY IS 2026-08-19. A deploy date is not a
+    // coverage date; coverage starts the next midnight. Generalise that before
+    // writing the next one of these.
+    //
+    // ⚠️ DO NOT MOVE THIS DATE BACKWARD TO MAKE MORE ROWS ELIGIBLE. Moving it
+    // forward is only ever conservative; moving it back is a claim about data
+    // that does not exist.
+    const SCHOOL_SESSIONS_FROM = '2026-08-19';
 
     // ⚠️ AND A PROPORTIONAL FLOOR, FOR EVERY DATE, INCLUDING FUTURE ONES.
     // The date guard above closes the case we understand. This closes the case
@@ -1609,6 +1643,23 @@
     const MAX_DROP_FRACTION = 0.5;   // refuse to cut a day by more than half
     const MAX_DROP_FLOOR_SECONDS = 300;  // ...unless the day is under 5 minutes
 
+    // ⚠️ UP-ONLY IS THE DEFAULT WRITE MODE (v2.18.0), AND THE REASONING MATTERS.
+    //
+    // An UP move means the session record holds MORE than the daily log. Sessions
+    // are append-only and deduped — they cannot invent time a child did not type.
+    // So an UP move is recovering work the log LOST, which is §3.1's cross-mode
+    // overwrite, and applying it can only move a student toward the truth.
+    //
+    // A DOWN move means the log holds more than the sessions. That has TWO
+    // possible causes and this tool cannot tell them apart: a genuinely inflated
+    // log, or a gap in the session record. Every large down-move Jake has
+    // examined turned out to be the second. Under his standing ruling —
+    // "inflating a kid's grade results in kids getting credit for work they did
+    // not do; that's worse" — the symmetric risk is that a WRONG down-move
+    // deletes work a child actually did, and that is the same lie pointed the
+    // other way.
+    //
+    // So the down half is opt-in, per run, with the count in front of him.
     function buildRebuildPlan({ includeToday = false } = {}) {
         const today = localToday();
         const plan = { down: [], up: [], skipped: [], todayHeld: [] };
@@ -1743,24 +1794,40 @@
             </div>` : ''}
             <div class="rebuild-actions">
                 <label><input type="checkbox" id="rebuild-include-today" /> include today (${localToday()})</label>
-                <button id="rebuild-run-btn" ${(!canWrite || total === 0) ? 'disabled' : ''}>Write ${total} change${total === 1 ? '' : 's'}</button>
+                <label title="A DOWN move can be a corrected log OR a gap in the session record, and this tool cannot tell which. Off by default."><input type="checkbox" id="rebuild-include-down" /> <strong>also write the ${plan.down.length} DOWN move${plan.down.length === 1 ? '' : 's'}</strong> (off by default \u2014 read the warning above)</label>
+                <button id="rebuild-run-btn" ${(!canWrite || plan.up.length === 0) ? 'disabled' : ''}>Write ${plan.up.length} change${plan.up.length === 1 ? '' : 's'}</button>
                 <span id="rebuild-status" style="color:#888; font-size:0.75rem;"></span>
             </div>
         `;
 
         const tick = document.getElementById('rebuild-include-today');
         if (tick) tick.onchange = () => renderRebuildPreview(buildRebuildPlan({ includeToday: tick.checked }));
+        const downTick = document.getElementById('rebuild-include-down');
+        if (downTick) downTick.onchange = () => {
+            const btn = document.getElementById('rebuild-run-btn');
+            const n = plan.up.length + (downTick.checked ? plan.down.length : 0);
+            btn.textContent = `Write ${n} change${n === 1 ? '' : 's'}`;
+            btn.disabled = !canWrite || n === 0;
+        };
         const run = document.getElementById('rebuild-run-btn');
-        if (run) run.onclick = () => runRebuildAll(plan);
+        if (run) run.onclick = () => runRebuildAll(plan,
+            { includeDown: !!(downTick && downTick.checked) });
     }
 
-    async function runRebuildAll(plan) {
-        const moves = [...plan.down, ...plan.up];
+    async function runRebuildAll(plan, { includeDown = false } = {}) {
+        // ⚠️ UP MOVES ONLY UNLESS EXPLICITLY ASKED FOR. See buildRebuildPlan()'s
+        // header. An UP move gives back work the log lost; a DOWN move might be
+        // deleting work a child did.
+        const moves = includeDown ? [...plan.down, ...plan.up] : [...plan.up];
         if (!moves.length) return;
-        const down = plan.down.length;
+        const down = includeDown ? plan.down.length : 0;
         if (!confirm(
             `Write ${moves.length} daily-log correction(s)?\n\n` +
-            `${down} student-day(s) will go DOWN and ${plan.up.length} will go UP.\n\n` +
+            (includeDown
+              ? `\u26a0\ufe0f ${down} student-day(s) will go DOWN. A down-move can be a corrected ` +
+                `log OR a gap in the session record, and this tool cannot tell which. ` +
+                `Every large one examined so far has been the second.\n\n`
+              : `${plan.up.length} student-day(s) will go UP. None will go down.\n\n`) +
             `Each one is recalculated from that day's session records, the same as the ⟳ button. ` +
             `Nothing else is touched. This cannot be undone in one click — the sessions remain, so ` +
             `a day can always be rebuilt again, but a manually-entered total that gets overwritten here is gone.\n\n` +

@@ -5,6 +5,12 @@
      amended 2026-08-19 by Round 18 (Salter); amended 2026-08-19 by Round 19
      (Hermes).
 
+     v14.22.0 — Round 19, EIGHTH pass: reports.html 2.18.0. ⚠️ THE COVERAGE DATE
+     WAS OFF BY ONE — learn.js v2.7.0 was DEPLOYED on 2026-08-18, so that day is
+     only PARTLY covered and the first fully-covered day is 08-19. A DEPLOY DATE
+     IS NOT A COVERAGE DATE. Also: the rebuild now writes UP MOVES ONLY by
+     default. §0.0.8 rewritten.
+
      v14.21.0 — Round 19, SEVENTH pass: §1 gains the DELIVERY RULES — zip laid
      out in real directories, and the deploy/test note ALONGSIDE the zip rather
      than inside it. Jake's instruction after DEPLOY-ROUND19.md shipped in the
@@ -414,10 +420,25 @@ Reconcile compares `typing_logs` against `typing_sessions` — **two different
 sources**. The audit could not have found this and never could have. Not a
 contradiction; a different question.
 
-**SHIPPED (reports.html 2.17.0), both DOWNWARD ONLY:**
+⚠️ **THE REBUILD WRITES UP MOVES ONLY BY DEFAULT (2.18.0).** An UP move means the
+sessions hold more than the log, and sessions are append-only and deduped — they
+**cannot invent time a child did not type**. So an UP move recovers work the log
+lost to the cross-mode overwrite and can only move a student toward the truth. A
+DOWN move has two possible causes and this tool cannot tell them apart. Under
+Jake's ruling that inflation is a lie told to a child, **a wrong DOWN move is the
+same lie pointed the other way — it deletes work they actually did.** Down is an
+explicit per-run opt-in with the count in front of him.
 
-1. `SCHOOL_SESSIONS_FROM = '2026-08-18'` — no down-move is proposed for any
-   earlier date. ⚠️ **Do not move this date to silence a warning.**
+**SHIPPED (reports.html 2.17.0, corrected in 2.18.0), both DOWNWARD ONLY:**
+
+1. `SCHOOL_SESSIONS_FROM = '2026-08-19'` — no down-move is proposed for any
+   earlier date. ⚠️ **IT WAS 08-18 IN v2.17.0 AND THAT WAS OFF BY ONE.**
+   `learn.js` v2.7.0 was *deployed* on 08-18, part-way through the day, so School
+   coverage that day starts at the upload hour and every earlier run exists only
+   in the daily log. Jake's live preview caught it — a full screen of 08-18
+   down-moves, largest 33m 12s → 17m 17s. Those were **mornings, not
+   corruption.** ⚠️ **A DEPLOY DATE IS NOT A COVERAGE DATE; coverage starts the
+   next midnight.** Generalise that before writing the next guard of this shape.
 2. `MAX_DROP_FRACTION = 0.5` above a `MAX_DROP_FLOOR_SECONDS = 300` floor — a
    rebuild that would cut a day by more than half is quarantined **for every
    date, including future ones**. The date guard closes the case we understand;
