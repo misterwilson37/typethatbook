@@ -1,5 +1,13 @@
 // game.js v3.30.0
 //
+// v3.33.0 — ⚠️ THE HUD FOLLOWS THE DOCUMENT. Stage 2 made the WRITE a projection
+//           of typing_sessions and left the HUD painting the old in-memory
+//           counter — two different quantities, which is the divergence this
+//           round exists to end, rebuilt by the fix for it. After a successful
+//           daily-log write, statsData is reset to what was actually written and
+//           the HUD repaints. The displayed number can drop once; that means the
+//           counter was ahead of the record, and correcting it is the point.
+//
 // v3.32.0 — ⚠️ STAGE 2: THE DAILY TOTAL IS DERIVED FROM typing_sessions, AND
 //           THE LEADERBOARD IS DERIVED TOO — it was the last place in the app
 //           that accumulated a student's time independently, and it is now a
@@ -333,7 +341,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.32.0";
+const VERSION = "3.33.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -4021,6 +4029,39 @@ async function _flushAllInner(reason, final = false) {
                 mistakes: statsData.mistakesToday || 0,
                 lastUpdated: new Date()
             }, { merge: true });
+
+            // ⚠️ v3.33.0 — THE HUD FOLLOWS THE DOCUMENT. THIS IS THE LAST PLACE
+            // THE TWO NUMBERS COULD DIVERGE AND IT IS NOT OPTIONAL.
+            //
+            // Stage 2 made the WRITE a projection of typing_sessions while the
+            // HUD was still painting `statsData.secondsToday` — a value seeded
+            // from typing_logs at load and ticked upward since. Those are two
+            // different quantities. A day whose stored log came from the old
+            // counter, or whose sessions are short of it for any reason, would
+            // be written DOWN by the projection while the student's screen kept
+            // showing the old higher figure. Kid sees one number, Jake sees
+            // another — the exact defect this whole round exists to end, rebuilt
+            // by the fix for it.
+            //
+            // So after a successful write, statsData is reset TO WHAT WAS
+            // WRITTEN. The week moves by the same delta, because the week is the
+            // sum of the days and only today changed.
+            //
+            // ⚠️ THE NUMBER CAN GO DOWN ON SCREEN, ONCE, AND THAT IS CORRECT.
+            // It means the counter was ahead of the session record. Jake's
+            // ruling, 2026-08-19: a number that overstates what a child did is a
+            // lie told to that child. Do not add a floor here to keep it pretty
+            // — a floor is how mergeGuestStats() ended up unable to tell a
+            // correction from a loss.
+            const delta = projected.seconds - (statsData.secondsToday || 0);
+            if (delta !== 0) {
+                statsData.secondsToday = projected.seconds;
+                statsData.secondsWeek  = Math.max(0, (statsData.secondsWeek || 0) + delta);
+                hudCacheSave({ todaySeconds: statsData.secondsToday,
+                               weekSeconds:  statsData.secondsWeek,
+                               date: today, weekStart: statsData.weekStart });
+                updateTimerUI();
+            }
         } catch (e) { ok = false; console.warn(`Log flush failed (${reason}):`, e); }
         }
     }

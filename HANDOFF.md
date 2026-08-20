@@ -5,6 +5,14 @@
      amended 2026-08-19 by Round 18 (Salter); amended 2026-08-19 by Round 19
      (Hermes).
 
+     v14.19.0 — Round 19, FIFTH pass: ⚠️ THE HUD NOW FOLLOWS THE DOCUMENT
+     (game.js 3.33.0 / learn.js 2.18.0). Stage 2 had reopened the divergence it
+     was built to close — the WRITE became a projection while the HUD kept
+     painting the in-memory counter. Found by asking "what does the student
+     actually see" rather than by any test. §0.0.6 gains the three open items
+     Jake asked to have flagged: the cross-device WAL, the sub-5-second floor,
+     and the sentence-boundary/WAL-checkpoint question.
+
      v14.18.0 — Round 19, FOURTH pass: ⚠️ STAGE 2 IS BUILT TOO. §0.0.5 now covers
      both stages. typing_logs is a PROJECTION of typing_sessions; the leaderboard
      — the last independent counter in the app — is derived; §0.0.6's open list
@@ -265,8 +273,8 @@ working in a real period.**
 |---|---|---|
 | `session-log.js` | 1.4.0 | Adds `sessionLogPendingSeconds()`. ⚠️ **Three version pins move with it** (§1) — `session-merge-test.mjs` and `open-unit-test.mjs` are updated. |
 | `daylog.js` | 1.1.0 | Adds `sessionSignature()`, `sumDaySessions()`, `readDaySessions()`, `projectDayTotal()`. |
-| `game.js` | 3.32.0 | Projection + leaderboard derived. |
-| `learn.js` | 2.17.0 | Projection. |
+| `game.js` | 3.33.0 | Projection, leaderboard derived, HUD follows the document. |
+| `learn.js` | 2.18.0 | Projection, HUD follows the document. |
 
 **The daily total is no longer reported by a tab. It is computed:**
 
@@ -310,6 +318,40 @@ old `lbPendingSeconds` accumulator **only as a floor**, so a guest stretch or a
 refused week read can never drag the board below what the session banked.
 
 ### 0.0.6 ⚠️ STILL OPEN AFTER STAGE 2
+
+* ⚠️ **THE WAL IS ON ONE CHROMEBOOK AND A WEEK CAN AGE OUT UNDER IT.** Jake
+  raised this and he is right. A student types 4:30, closes the tab before any
+  flush, and that time lives only in `ttb_wal_v2` in **that machine's**
+  localStorage. Signing in at home does not see it — different device, different
+  storage. It replays when they next open the app **on that Chromebook**, which
+  may be the following week, at which point the seconds land in a week that is
+  already graded. `stats-wal.js` carries `lastDate`/`weekStart` and the recovery
+  is period-guarded, so nothing is double-counted; the seconds are simply
+  **dropped rather than misfiled**, which is the right failure but is still a
+  loss. ⚠️ **DO NOT "FIX" THIS BY RELAXING THE PERIOD GUARD** — misfiling last
+  week's minutes into this week's grade is strictly worse than losing them.
+  Discuss with Jake before doing anything; he asked for it flagged, not solved.
+* ⚠️ **THE 5-SECOND FLOOR IS A SYSTEMATIC DOWNWARD BIAS ON THE PROJECTION.**
+  `sessionLogPush()` refuses a standalone record under 5 seconds (§3.3), and the
+  refusal deliberately does not advance the watermark — so those seconds are
+  DEFERRED, not lost, and arrive once the sprint grows past the floor. **But a
+  sprint that ENDS under 5 seconds drops them permanently.** Since Stage 2 the
+  graded total is projected from sessions, so this bias now reaches the grade
+  where before it only affected the drill-down. It is small (a few seconds per
+  abandoned sprint) and it errs downward, which is the direction Jake tolerates —
+  but it is real and nobody has measured it. **Measure before changing the
+  floor**: lowering it fills the report with noise records.
+* ⚠️ **SENTENCE DETECTION IS NAIVE AND THE WAL CHECKPOINT RIDES ON IT.**
+  `markDirty()` in `game.js` fires on any `.`/`!`/`?`/newline with no
+  abbreviation check, so "Mrs." is a sentence end. Jake noticed this in *Anne of
+  Green Gables*. For the WAL that is harmless-to-good (more checkpoints, all
+  local and free). **His proposal — checkpoint every sentence OR every N
+  characters (~100) — is sound and should be built**, because a long stretch with
+  no terminal punctuation currently goes unwritten, and it costs nothing:
+  localStorage only, no Firestore. ⚠️ **learn.js has NO equivalent trigger** —
+  it checkpoints at step boundaries only. **Jake's standing rule: "Learn and
+  game, of course. Everything should do both."** Build it symmetrically or not
+  at all.
 
 * ✅ **The leaderboard is derived** as of v3.32.0. It was the last independent
   counter; see §0.0.5.
@@ -1505,8 +1547,8 @@ Round 16.**
 
 | file | version |
 |---|---|
-| `game.js` | 3.32.0 — ⚠️ Round 19 Stage 2 |
-| `learn.js` | 2.17.0 — ⚠️ Round 19 Stage 2 |
+| `game.js` | 3.33.0 — ⚠️ Round 19 Stage 2 + HUD follows the document |
+| `learn.js` | 2.18.0 — ⚠️ Round 19 Stage 2 + HUD follows the document |
 | `session-log.js` | 1.4.0 — ⚠️ Round 19. ⚠️ Its THREE version pins moved with it |
 | `hud.js` | 1.2.0 |
 | `variety-floor.js` | 1.0.0 |

@@ -443,8 +443,24 @@ for (const [label, src] of [['game.js', gameSrc], ['learn.js', learnSrc]]) {
 // this proves the pages actually stop when it does. A caller that ignores it
 // paints an undercount, which is indistinguishable on screen from a light week.
 for (const [label, src] of [['game.js', gameSrc], ['learn.js', learnSrc]]) {
-    ok(/if\s*\(!read\.ok\)/.test(stripComments(src)),
+    const code = stripComments(src);
+    ok(/if\s*\(!read\.ok\)/.test(code),
        `${label}: refuses to paint on an incomplete week read`);
+    ok(/if\s*\(!srv\.ok\)/.test(code),
+       `${label}: writes NOTHING when the session read fails (Stage 2)`);
+    ok(/projectDayTotal\s*\(/.test(code),
+       `${label}: the daily total is projected, not reported (Stage 2)`);
+
+    // ⚠️ THE HUD MUST FOLLOW THE DOCUMENT. Stage 2 made the WRITE a projection
+    // and left the HUD painting the in-memory counter — two different
+    // quantities, which is the divergence this whole round exists to end,
+    // rebuilt by the fix for it. After a successful write, statsData is reset to
+    // what was written. Without this line the kid and the teacher drift apart
+    // again and NOTHING ELSE IN THIS SUITE WOULD NOTICE.
+    ok(/statsData\.secondsToday\s*=\s*projected\.seconds/.test(code),
+       `${label}: statsData is reset to what was actually written`);
+    ok(/statsData\.secondsWeek\s*=\s*Math\.max\(0,\s*\(statsData\.secondsWeek\s*\|\|\s*0\)\s*\+\s*delta\)/.test(code),
+       `${label}: the week moves by the same delta (only today changed)`);
 }
 
 // mergeGuestStats() survives Round 19 unchanged and is still the only place the

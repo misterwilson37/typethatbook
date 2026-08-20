@@ -1,5 +1,7 @@
 // learn.js v2.16.0
 //
+// v2.18.0 — ⚠️ THE HUD FOLLOWS THE DOCUMENT. Mirrors game.js v3.33.0 exactly.
+//
 // v2.17.0 — ⚠️ STAGE 2: the daily total is DERIVED from typing_sessions, not
 //           reported from this tab's counter. Mirrors game.js v3.32.0 exactly.
 //           A failed session read writes NOTHING. Requires session-log.js v1.4.0
@@ -311,7 +313,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.17.0";
+const LEARN_VERSION = "2.18.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -4024,6 +4026,22 @@ async function _flushStatsInner(reason, final = false) {
             chars: statsData.charsToday || 0, mistakes: statsData.mistakesToday || 0,
             lastUpdated: new Date(), source: 'school'
         }, { merge: true });
+
+        // ⚠️ v2.18.0 — THE HUD FOLLOWS THE DOCUMENT. See game.js v3.33.0's note
+        // in full; the same divergence existed here for the same reason. After a
+        // successful write, statsData becomes what was written, and the week
+        // moves by the same delta because only today changed. The number can drop
+        // once — that means the counter was ahead of the session record, and
+        // correcting it is the whole point. Do not add a floor.
+        const delta = projected.seconds - (statsData.secondsToday || 0);
+        if (delta !== 0) {
+            statsData.secondsToday = projected.seconds;
+            statsData.secondsWeek  = Math.max(0, (statsData.secondsWeek || 0) + delta);
+            hudCacheSave({ todaySeconds: statsData.secondsToday,
+                           weekSeconds:  statsData.secondsWeek,
+                           date: today, weekStart: statsData.weekStart });
+            renderTimeHUD();
+        }
       } catch (e) { ok = false; console.warn(`Log flush failed (${reason}):`, e); }
     }
 
