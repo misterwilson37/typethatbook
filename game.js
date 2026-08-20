@@ -1,5 +1,17 @@
 // game.js v3.30.0
 //
+// v3.32.0 — ⚠️ STAGE 2: THE DAILY TOTAL IS DERIVED FROM typing_sessions, AND
+//           THE LEADERBOARD IS DERIVED TOO — it was the last place in the app
+//           that accumulated a student's time independently, and it is now a
+//           view of statsData.secondsWeek (itself the sum of seven daily docs)
+//           with the old accumulator kept only as a floor. See flushLeaderboard(). The
+//           typing_logs write is no longer this tab's in-memory counter; it is
+//           (server sessions + local queue + this tab's open sprint). Two tabs
+//           can no longer overwrite each other's day. A failed session read
+//           writes NOTHING rather than a computed-from-nothing total. Requires
+//           session-log.js v1.4.0 and daylog.js v1.1.0, both uploaded first.
+//           HANDOFF §0.0.
+//
 // v3.31.0 — ⚠️⚠️ ONE NUMBER. `users/{uid}/stats/time_tracking` IS GONE FROM THIS
 //           FILE — every read and every write of it. The day and week totals the
 //           HUD paints are now read from `typing_logs/{uid}_{date}`, THE SAME
@@ -291,14 +303,15 @@ import { statsWalSave, statsWalRecover } from "./stats-wal.js";
 // time. See session-log.js for both defects.
 import {
     sessionLogInit, sessionLogPush, sessionLogFlush,
-    sessionLogPending, sessionLogAdopt
+    sessionLogPending, sessionLogAdopt, sessionLogPendingSeconds,
 } from "./session-log.js";
 // The time readout, shared with learn.js. Extracted BECAUSE this file's timer
 // slot held three different quantities depending on settings, and School's held a
 // fourth. DOM-free: it returns strings and this file writes them.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
 // ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
-import { readWeek, applyWeekToStats, DAYLOG_VERSION } from "./daylog.js";
+import { readWeek, applyWeekToStats, readDaySessions, projectDayTotal,
+         DAYLOG_VERSION } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // The version footer's three primary reads (this html file, this js file's own
 // VERSION, style.css) plus the lazy full-build panel on hover. See
@@ -320,7 +333,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.31.0";
+const VERSION = "3.32.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -3945,8 +3958,55 @@ async function _flushAllInner(reason, final = false) {
     // the stats rollup below, which no longer exists. A WAL recovery sets it and
     // nothing else would have written the recovered seconds anywhere.
     if (walDirty || final || statsDocDirty) {
+        const today = getLocalDateStr();
+
+        // ⚠️ STAGE 2 (v3.32.0) — THIS NUMBER IS DERIVED, NOT REPORTED.
+        //
+        // It used to be `statsData.secondsToday`: an in-memory counter seeded at
+        // load and added to. Two tabs open at once each held their own, and
+        // whichever flushed second overwrote the other's contribution outright.
+        // The day total is now
+        //
+        //     sessions already on the server + this device's queue + this tab's
+        //     still-open sprint
+        //
+        // The first term is shared, append-only and deduped, so two tabs can no
+        // longer erase each other: each adds only its own unflushed tail on top
+        // of the same server-derived base, and that tail reappears for everyone
+        // the moment it is logged. See daylog.js projectDayTotal().
+        //
+        // ⚠️ THE OPEN SPRINT IS READ FROM THE WATERMARKS THAT ALREADY EXIST —
+        // sprintSeconds vs sprintLoggedSeconds — so there is no second set of
+        // books to keep, and nothing new to reset. If you add a reset site for
+        // one, you have added it for both by construction. (§3.3.)
+        const srv = await readDaySessions({
+            db, collection, query, where, getDocs, uid: currentUser.uid, dateStr: today });
+
+        // ⚠️ A FAILED SESSION READ WRITES NOTHING AT ALL. A projection computed
+        // from a failed read is not a smaller number, it is an invented one, and
+        // it would land on top of a correct stored value. The WAL keeps the local
+        // copy and the next flush retries; refusing costs one flush and loses
+        // nothing. Same principle as readWeek()'s partial-read refusal.
+        if (!srv.ok) {
+            console.warn(`Session read failed (${reason}) — daily log left alone this flush.`);
+            ok = false;
+        } else {
+        const queued = {
+            seconds:  sessionLogPendingSeconds(currentUser.uid, today),
+            chars:    0, mistakes: 0,
+        };
+        // ⚠️ CHARS AND MISTAKES ARE NOT PROJECTED FROM THE QUEUE and that is
+        // deliberate, not an oversight: session-log.js exposes queued SECONDS
+        // only, because seconds are what Jake grades on and a second accessor
+        // for figures nobody grades on is surface area for nothing. They ride
+        // the counter as before and are corrected by ⟳ when they matter.
+        const open = {
+            seconds:  Math.max(0, sprintSeconds - sprintLoggedSeconds),
+            chars:    0, mistakes: 0,
+        };
+        const projected = projectDayTotal(srv, queued, open);
+
         try {
-            const today = getLocalDateStr();
             await setDoc(doc(db, "typing_logs", `${currentUser.uid}_${today}`), {
                 uid: currentUser.uid,
                 email: currentUser.email || "",
@@ -3954,12 +4014,15 @@ async function _flushAllInner(reason, final = false) {
                 classId: ttbClassId || "",
                 schoolId: ttbSchoolId || "",
                 date: today,
-                seconds: statsData.secondsToday || 0,
+                seconds: projected.seconds,
+                // ⚠️ chars/mistakes still come from the counter — see the note on
+                // `queued` above. Only `seconds` is graded.
                 chars: statsData.charsToday || 0,
                 mistakes: statsData.mistakesToday || 0,
                 lastUpdated: new Date()
             }, { merge: true });
         } catch (e) { ok = false; console.warn(`Log flush failed (${reason}):`, e); }
+        }
     }
 
     // 3. Week/day rollup.
@@ -7240,7 +7303,28 @@ async function flushLeaderboard() {
     const priorSeconds = lbOwnEntry.totalSecondsWeek || 0;
     lbPendingSeconds = 0;
     try {
-        lbOwnEntry.totalSecondsWeek = priorSeconds + secondsToAdd;
+        // ⚠️ v3.32.0 — DERIVED FROM statsData, NOT ACCUMULATED SEPARATELY.
+        //
+        // This was the LAST independent counter of a student's time in the app,
+        // and it was an honest gap in the "one number" claim: it summed its own
+        // `lbPendingSeconds` bucket, so a lost or retried leaderboard write moved
+        // it out of step with the graded figure permanently, with nothing
+        // anywhere to notice.
+        //
+        // `statsData.secondsWeek` is itself derived — the sum of the seven daily
+        // documents, recomputed at load (daylog.js) and ticked upward since. So
+        // taking it here makes the board a VIEW of the same record everything
+        // else reads, and a failed write costs nothing: the next flush simply
+        // reads the current value again instead of replaying a bucket.
+        //
+        // ⚠️ THE ACCUMULATOR IS KEPT AS A FLOOR, NOT AS THE SOURCE. A guest
+        // stretch, or a load whose week read was refused (readWeek ok:false),
+        // can leave statsData.secondsWeek below what this session has genuinely
+        // banked into the board. Taking the larger can only fail toward the
+        // student's own observed number, which is the same discipline
+        // mergeGuestStats() uses and for the same reason.
+        const derivedWeek = Math.max(0, Math.round(statsData.secondsWeek || 0));
+        lbOwnEntry.totalSecondsWeek = Math.max(derivedWeek, priorSeconds + secondsToAdd);
         lbOwnEntry.lastUpdated = new Date();
         await setDoc(doc(db, "leaderboard", currentUser.uid), lbOwnEntry, { merge: true });
         lbLastWriteTime = Date.now();

@@ -1,4 +1,8 @@
-// daylog.js v1.0.0 — THE STUDENT READS THE GRADED DOCUMENT.
+// daylog.js v1.1.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
+//                     DOCUMENT IS A PROJECTION OF THE SESSION RECORD.
+//
+// v1.1.0 adds the Stage 2 half: sessionSignature(), sumDaySessions() and
+// projectDayTotal(). v1.0.0's readWeek() is unchanged.
 //
 // HANDOFF.md §0.0. This module exists so that the number on a student's screen
 // and the number in Jake's report are THE SAME DOCUMENT, not two documents that
@@ -33,7 +37,7 @@
 // tests/week-anchor-test.mjs and tests/daylog-test.mjs both hold that line. A
 // mismatch here does not throw — it silently reads the wrong seven days.
 
-export const DAYLOG_VERSION = "1.0.0";
+export const DAYLOG_VERSION = "1.1.0";
 
 // Local-noon date arithmetic throughout. Never toISOString(): that is UTC, and
 // an offset of a few hours shifts a date string by a whole day, which here means
@@ -158,4 +162,115 @@ export function applyWeekToStats(statsData, read, dateStr) {
     statsData.lastDate      = dateStr;
     statsData.weekStart     = read.weekStart;
     return statsData;
+}
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// STAGE 2 — typing_logs BECOMES A PROJECTION OF typing_sessions
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Stage 1 made the student and the teacher read ONE document. It did not make
+// that document's contents derived: the write was still setDoc(merge:true) of an
+// in-memory counter, so two tabs open at once were still a last-write-wins race,
+// and whichever flushed second erased the other's contribution.
+//
+// ⚠️ THE FIX IS NOT A BIGGER LOCK, IT IS REMOVING THE OPINION. A day's total is
+//
+//     sessions already on the server   (shared, append-only, deduped)
+//   + this device's un-uploaded queue  (sessionLogPendingSeconds)
+//   + this tab's still-open unit       (typed, not yet even queued)
+//
+// The first term is the same for every tab, so two tabs no longer overwrite each
+// other's work — each adds only its own unflushed remainder on top of a shared
+// server-derived base. Anything a tab loses that way is bounded by its own open
+// unit and reappears for everyone the moment that unit is logged. The projection
+// is therefore SELF-HEALING: it converges on the session record, which is
+// append-only and cannot be overwritten at all.
+//
+// ⚠️ THE DEDUPE MUST MATCH reports.html EXACTLY. Its `Reconcile vs Sessions`
+// compares the graded document against these same sessions with its own
+// sessionSignature(). If the two disagree about what a duplicate is, the
+// reconcile tool reports a permanent non-zero Δ that no rebuild can close, and
+// Jake is back to two numbers — this time with a tool insisting one of them is
+// wrong. tests/daylog-test.mjs Part G lifts reports.html's function and asserts
+// the two agree on the same inputs. Do not edit one without the other.
+
+/**
+ * Identify a duplicate rollup. Copied in behaviour from reports.html's function
+ * of the same name — see the warning above.
+ *
+ * The signature is the sprint TIMESTAMPS, not the totals: two genuine sessions
+ * can coincidentally share seconds and characters, but two documents whose
+ * sprints carry identical ISO instants are the same recorded work written twice.
+ * Falls back to the document's own timestamp for pre-v2.10.0 rollups with no
+ * sprints array, and to the document id — never dedupable, but never wrongly
+ * merged either.
+ */
+export function sessionSignature(s, id) {
+    const sprints = Array.isArray(s.sprints) ? s.sprints : [];
+    const stamps = sprints.map(sp => sp && sp.at).filter(Boolean);
+    if (!stamps.length) {
+        const t = s.timestamp && s.timestamp.toDate ? s.timestamp.toDate().getTime() : null;
+        return t === null ? 'id\u0000' + id : `t\u0000${s.source || ''}\u0000${s.bookId || ''}\u0000${t}`;
+    }
+    return `s\u0000${s.source || ''}\u0000${s.bookId || ''}\u0000${stamps.join(',')}`;
+}
+
+/** Sum an array of {id, data} session rollups, skipping duplicates. Pure. */
+export function sumDaySessions(docs) {
+    const seen = new Set();
+    let seconds = 0, chars = 0, mistakes = 0, dupes = 0;
+    for (const d of docs) {
+        const sig = sessionSignature(d.data, d.id);
+        if (seen.has(sig)) { dupes++; continue; }
+        seen.add(sig);
+        seconds  += d.data.seconds  || 0;
+        chars    += d.data.chars    || 0;
+        mistakes += d.data.mistakes || 0;
+    }
+    return { seconds, chars, mistakes, dupes };
+}
+
+/**
+ * Read one day's session rollups off the server and fold them.
+ *
+ * ⚠️ RETURNS ok:false ON ANY FAILURE, and the caller must then WRITE NOTHING.
+ * A projection computed from a failed read is not a smaller number, it is a
+ * fabricated one — and it would be written over a correct stored value. The WAL
+ * keeps the local copy, so refusing costs one flush and loses nothing.
+ */
+export async function readDaySessions({ db, collection, query, where, getDocs, uid, dateStr }) {
+    try {
+        const snap = await getDocs(query(collection(db, 'typing_sessions'),
+                                         where('uid', '==', uid),
+                                         where('date', '==', dateStr)));
+        const docs = [];
+        snap.forEach(d => docs.push({ id: d.id, data: d.data() }));
+        return { ok: true, ...sumDaySessions(docs), docCount: docs.length };
+    } catch (e) {
+        console.warn('[daylog] session read failed', dateStr, e && e.message);
+        return { ok: false, seconds: 0, chars: 0, mistakes: 0, dupes: 0, docCount: 0 };
+    }
+}
+
+/**
+ * The whole projection, in one place, so game.js and learn.js cannot drift.
+ *
+ * `queued` is sessionLogPendingSeconds()-style totals for the local queue.
+ * `open`   is what this tab has typed that is not even queued yet.
+ *
+ * ⚠️ NEGATIVE OPEN IS CLAMPED TO ZERO, NOT TRUSTED. An open remainder below zero
+ * means this tab's bookkeeping disagrees with the queue — a day rolled over, a
+ * record was refused by the 5-second floor and then counted anyway, something.
+ * Subtracting it would remove real recorded time from a total the teacher grades
+ * on. Clamping can only under-credit this tab's own unlogged tail, which the
+ * next flush recovers.
+ */
+export function projectDayTotal(serverSessions, queued, open) {
+    const clamp = (n) => Math.max(0, Math.round(n || 0));
+    return {
+        seconds:  clamp(serverSessions.seconds)  + clamp(queued.seconds)  + clamp(open.seconds),
+        chars:    clamp(serverSessions.chars)    + clamp(queued.chars)    + clamp(open.chars),
+        mistakes: clamp(serverSessions.mistakes) + clamp(queued.mistakes) + clamp(open.mistakes),
+    };
 }

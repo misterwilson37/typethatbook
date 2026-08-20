@@ -1,3 +1,11 @@
+// session-log.js v1.4.0
+//
+// v1.4.0 — ADDS sessionLogPendingSeconds(uid, date). Nothing else changed; the
+//          flush serialization and every existing export behave identically.
+//          Stage 2 makes typing_logs a projection of typing_sessions, and the
+//          projection needs to know what is queued locally but not yet uploaded.
+//          See daylog.js projectDayTotal(). HANDOFF §0.0.
+//
 // session-log.js v1.3.0 — the sprint/run history queue, shared by game.js and
 // learn.js. The third shared module, after firebase-config.js and stats-wal.js.
 //
@@ -155,7 +163,7 @@
 //     a tab close would then try to write an empty map into a timestamp field.
 //     Queued records carry `at` (a real ISO string) and nothing else time-like.
 
-export const SESSION_LOG_VERSION = '1.3.0';
+export const SESSION_LOG_VERSION = '1.4.0';
 
 const KEY = 'ttb_sessionq_v1';
 const RECORDS_PER_DOC = 200;   // firestore.rules: sprints.size() <= 200
@@ -270,6 +278,30 @@ export function sessionLogPush(uid, record) {
 }
 
 export function sessionLogPending(uid) { return _read(uid).length; }
+
+/**
+ * How many SECONDS are sitting in the local queue for one date, not yet uploaded.
+ *
+ * ⚠️ ADDED FOR STAGE 2 (v1.4.0). `typing_logs` is now a PROJECTION of
+ * `typing_sessions` rather than a copy of an in-memory counter — see daylog.js
+ * and HANDOFF §0.0. The projection is
+ *
+ *     sessions on the server  +  this queue  +  the still-open unit
+ *
+ * and this function is the middle term. Without it the middle term is invisible
+ * and every flush between one unit boundary and the next would write a total
+ * that is short by whatever is waiting in localStorage — an undercount that
+ * looks exactly like a light period.
+ *
+ * Counts by the date the work was TYPED, matching how records are grouped for
+ * upload: a queue that survives overnight holds yesterday's records, and they
+ * must not be added to today's projection.
+ */
+export function sessionLogPendingSeconds(uid, dateStr) {
+    if (!uid || !dateStr) return 0;
+    return _read(uid).reduce(
+        (sum, r) => sum + (r && r.date === dateStr ? (r.seconds || 0) : 0), 0);
+}
 
 // Adopt records from somewhere else — used once, to migrate the sprint array
 // that used to ride inside game.js's ttb_wal_v2. Undated legacy records are

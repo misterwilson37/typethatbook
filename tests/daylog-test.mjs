@@ -31,8 +31,10 @@
 process.env.TZ = 'America/Chicago';
 
 import { strict as assert } from 'node:assert';
+import { readFileSync } from 'node:fs';
 import {
-    readWeek, applyWeekToStats, weekStartOf, weekDatesOf, localDateStr, DAYLOG_VERSION,
+    readWeek, applyWeekToStats, weekStartOf, weekDatesOf, localDateStr,
+    sessionSignature, sumDaySessions, projectDayTotal, DAYLOG_VERSION,
 } from '../daylog.js';
 
 let pass = 0, fail = 0;
@@ -193,6 +195,75 @@ const week = (pairs) => Object.fromEntries(pairs);
     eq('E2 all against typing_logs', seen.every(x => x.startsWith('typing_logs/')), true);
     eq('E3 ids are uid_date, Saturday first', seen[0], 'typing_logs/abc123_2026-08-15');
     eq('E4 ids are uid_date, Friday last', seen[6], 'typing_logs/abc123_2026-08-21');
+}
+
+// ─── G. STAGE 2: the projection, and its parity with reports.html ───────────
+//
+// ⚠️ THE DEDUPE MUST MATCH reports.html EXACTLY. Its `Reconcile vs Sessions`
+// compares the graded document against these same sessions using its OWN
+// sessionSignature(). If the two ever disagree about what a duplicate is, the
+// reconcile tool reports a permanent non-zero delta that no rebuild can close —
+// and Jake is back to two numbers, this time with a tool insisting one of them
+// is wrong. So the shipped function is lifted out of reports.html and run
+// side-by-side against ours on the same inputs.
+{
+    const rep = readFileSync(new URL('../reports.html', import.meta.url), 'utf8');
+    function lift(src, name) {
+        const i = src.indexOf('function ' + name + '(');
+        if (i < 0) return null;
+        let d = 0, j = src.indexOf('{', i);
+        for (; j < src.length; j++) { if (src[j] === '{') d++; else if (src[j] === '}') { d--; if (!d) break; } }
+        return src.slice(i, j + 1);
+    }
+    const body = lift(rep, 'sessionSignature');
+    eq('G1 reports.html still HAS a sessionSignature() to compare against', !!body, true);
+    const repSig = body ? new Function(body + '; return sessionSignature;')() : null;
+
+    const cases = [
+        ['sprints present', { source: 'library', bookId: 'b1',
+                              sprints: [{ at: '2026-08-19T10:00:00Z' }, { at: '2026-08-19T10:05:00Z' }] }, 'doc1'],
+        ['sprints empty, timestamp present', { source: 'school', bookId: 'l3',
+                              sprints: [], timestamp: { toDate: () => new Date('2026-08-19T11:00:00Z') } }, 'doc2'],
+        ['no sprints, no timestamp → falls back to id', { source: '', bookId: '' }, 'doc3'],
+        ['sprint entries missing `at` are filtered', { source: 'library', bookId: 'b1',
+                              sprints: [{}, { at: '2026-08-19T12:00:00Z' }] }, 'doc4'],
+    ];
+    for (const [label, data, id] of cases) {
+        eq(`G2 signature parity with reports.html — ${label}`,
+           sessionSignature(data, id), repSig ? repSig(data, id) : 'NO-LIFT');
+    }
+}
+
+// Duplicate rollups exist in the database (session-log.js before v1.3.0 could
+// write one queued sprint twice). A projection that trusted a raw sum would
+// inflate the very day it is computing.
+{
+    const a = { seconds: 300, chars: 400, mistakes: 5, source: 'library', bookId: 'b1',
+                sprints: [{ at: '2026-08-19T10:00:00Z' }] };
+    const dup = JSON.parse(JSON.stringify(a));
+    const b = { seconds: 120, chars: 200, mistakes: 2, source: 'school', bookId: 'l1',
+                sprints: [{ at: '2026-08-19T11:00:00Z' }] };
+    const t = sumDaySessions([{ id: 'd1', data: a }, { id: 'd2', data: dup }, { id: 'd3', data: b }]);
+    eq('G3 identical rollups are counted ONCE', t.seconds, 420);
+    eq('G4 the duplicate is reported, not hidden', t.dupes, 1);
+    eq('G5 chars dedupe with them', t.chars, 600);
+}
+
+// ⚠️ THE THREE TERMS, AND THE CLAMP. A negative open remainder means this tab's
+// bookkeeping disagrees with the queue; subtracting it would remove real
+// recorded time from a total a child is graded on. Clamping can only
+// under-credit this tab's own unlogged tail, which the next flush recovers.
+{
+    const srv    = { seconds: 600, chars: 900, mistakes: 10 };
+    const queued = { seconds: 45,  chars: 0,   mistakes: 0 };
+    const open   = { seconds: 12,  chars: 0,   mistakes: 0 };
+    eq('G6 projection is server + queue + open', projectDayTotal(srv, queued, open).seconds, 657);
+    eq('G7 a NEGATIVE open is clamped, never subtracted',
+       projectDayTotal(srv, queued, { seconds: -500, chars: 0, mistakes: 0 }).seconds, 645);
+    eq('G8 an empty day projects to zero, not NaN',
+       projectDayTotal({ seconds: 0 }, { seconds: 0 }, { seconds: 0 }).seconds, 0);
+    eq('G9 fractional seconds are rounded, not truncated toward a loss',
+       projectDayTotal({ seconds: 10.6 }, { seconds: 0 }, { seconds: 0 }).seconds, 11);
 }
 
 // ─── F. Version constant ─────────────────────────────────────────────────────

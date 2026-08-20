@@ -5,6 +5,13 @@
      amended 2026-08-19 by Round 18 (Salter); amended 2026-08-19 by Round 19
      (Hermes).
 
+     v14.18.0 — Round 19, FOURTH pass: ⚠️ STAGE 2 IS BUILT TOO. §0.0.5 now covers
+     both stages. typing_logs is a PROJECTION of typing_sessions; the leaderboard
+     — the last independent counter in the app — is derived; §0.0.6's open list
+     is down to the two items nothing in code can close. New: a note on EPUB
+     metadata backfill (§0.0.7), because Jake asked and the answer is not the one
+     anybody wants.
+
      v14.17.0 — Round 19, THIRD pass: ⚠️ STAGE 1 IS BUILT. §0.0.5's step list is
      rewritten as a record of what shipped rather than a plan. New shared module
      daylog.js; game.js 3.31.0, learn.js 2.16.0, index.html 3.9.0 and
@@ -251,29 +258,63 @@ exactly like a light week, and showing a child less than they earned is the same
 lie as showing them more. `tests/daylog-test.mjs` Part C guards the module;
 `session-merge-test.mjs` Part D guards that the callers honour it.
 
-**STAGE 2 — MAKE IT TRUE. NOT BUILT.** The `typing_logs` write is still
-`setDoc(merge:true)` of an in-memory delta. Stage 2 makes it a value COMPUTED
-from `typing_sessions` (baseline read once at load + this session's own logged
-total + open delta), so every version of every page computes the same function of
-the same source. That is what closes §3.1's cross-mode overwrite for good.
+**STAGE 2 — MAKE IT TRUE. BUILT, Round 19. Deploy after Stage 1 has been seen
+working in a real period.**
 
-⚠️ **NOTE WHAT STAGE 1 ALREADY DID TO THAT BUG BY ACCIDENT.** Both pages now
-READ today's log at load before adding to it, so a student who does School then
-opens Library no longer overwrites School's seconds — the common case is closed.
-What remains is the genuinely concurrent case: both pages open in two tabs at
-once. Smaller, and still real.
+| file | version | note |
+|---|---|---|
+| `session-log.js` | 1.4.0 | Adds `sessionLogPendingSeconds()`. ⚠️ **Three version pins move with it** (§1) — `session-merge-test.mjs` and `open-unit-test.mjs` are updated. |
+| `daylog.js` | 1.1.0 | Adds `sessionSignature()`, `sumDaySessions()`, `readDaySessions()`, `projectDayTotal()`. |
+| `game.js` | 3.32.0 | Projection + leaderboard derived. |
+| `learn.js` | 2.17.0 | Projection. |
 
-### 0.0.6 ⚠️ STILL OPEN AFTER STAGE 1
+**The daily total is no longer reported by a tab. It is computed:**
 
-* ⚠️ **THE LEADERBOARD IS THE LAST INDEPENDENT COUNTER IN THE APP.** `game.js`
-  ~7237 accumulates `totalSecondsWeek` from its own in-memory figures into
-  `leaderboard/`. **Round 19 did not touch it and this is the honest gap in the
-  "one number" claim** — it is a fourth surface, and it can disagree. It is
-  low-stakes (nobody is graded from it, it stores initials only) which is why it
-  was left, not because it is fine. Deriving it from the same week read is a
-  small change and should happen in Stage 2.
-* **The 120-day TTL on `typing_sessions`.** If Stage 2 makes `typing_logs` a pure
-  projection of a collection that expires, a rebuild after 120 days produces
+```
+typing_logs.seconds = server sessions (deduped)
+                    + this device's un-uploaded queue
+                    + this tab's still-open sprint/run
+```
+
+The first term is shared, append-only and cannot be overwritten, so **two tabs
+can no longer erase each other's day** — each adds only its own unflushed tail on
+top of the same base, and that tail reappears for everyone the moment it is
+logged. The projection is **self-healing**: it converges on the session record.
+
+⚠️ **THE OPEN TERM IS READ FROM THE WATERMARKS THAT ALREADY EXIST** —
+`sprintSeconds` vs `sprintLoggedSeconds` in `game.js`, `stepSeconds` vs
+`stepLoggedSeconds` in `learn.js`. No second set of books, so §3.3's "reset the
+watermark wherever you reset the counter" still covers both by construction.
+
+⚠️ **A FAILED SESSION READ WRITES NOTHING.** A projection built on a failed read
+is not a smaller number, it is an invented one, and it would land on top of a
+correct stored value. The WAL keeps the local copy and the next flush retries.
+
+⚠️ **ONLY `seconds` IS PROJECTED.** `chars` and `mistakes` still ride the counter.
+Deliberate: seconds are what Jake grades on, `session-log.js` exposes queued
+seconds only, and a second accessor for figures nobody grades on is surface area
+for nothing. `⟳` corrects them when they matter.
+
+⚠️ **READ COST.** One `typing_sessions` query per flush per student. At Ellis —
+90 students, roughly one period each, ~10 flushes — that is ~900 queries/day
+returning a handful of documents each. Negligible. **At the full district
+population SCALE-PLAN models it is materially larger and should be re-costed
+before that rollout**, most cheaply by caching the server term and refreshing it
+only after a successful session upload.
+
+**THE LEADERBOARD IS DERIVED TOO.** `flushLeaderboard()` was the last place in
+the app that accumulated a student's time independently — an honest gap in the
+"one number" claim, called out in the previous pass of this section. It now takes
+`statsData.secondsWeek` (itself the sum of seven daily documents) and keeps the
+old `lbPendingSeconds` accumulator **only as a floor**, so a guest stretch or a
+refused week read can never drag the board below what the session banked.
+
+### 0.0.6 ⚠️ STILL OPEN AFTER STAGE 2
+
+* ✅ **The leaderboard is derived** as of v3.32.0. It was the last independent
+  counter; see §0.0.5.
+* ⚠️ **THE 120-DAY TTL ON `typing_sessions` IS NOW LOAD-BEARING.** `typing_logs`
+  IS a projection of a collection that expires, a rebuild after 120 days produces
   zero. `typing_logs` has no TTL and must keep none — **and the never-zero
   refusal (§0.8.3 item 1) becomes load-bearing, not a nicety.**
 * **Guests.** No uid, so no daily log and no gate. Both signed-out branches still
@@ -282,6 +323,38 @@ once. Smaller, and still real.
   THE OWNER READ.** It is a console action and the entire redesign rests on it.
   **If students report 0:00 after this deploys, check the rule first**, not the
   green suite. `tests/daylog-test.mjs`'s header says the same thing.
+
+
+### 0.0.7 EPUB METADATA BACKFILL — asked for, and the honest answer
+
+Jake, 2026-08-19, on the transcriber credits lost by the `admin.js` bug before
+v3.31.1: *"If — on a future pass — we could add the ability to try to fill in
+missing metadata from the book itself (assuming that's still in what's uploaded),
+that would be grand."*
+
+⚠️ **IT IS NOT STILL IN WHAT WAS UPLOADED.** `admin.js` parses the EPUB **in the
+browser** and writes only the extracted chapter text to Firestore and the cover
+image to Storage (`covers/{bookId}` — the only `uploadBytes()` call in the file).
+**The source archive is discarded.** There is nothing on the server to re-read,
+so a backfill for the ~53 books already imported would need those EPUBs uploaded
+again.
+
+**What IS worth building, and is small:** a re-import path that takes an EPUB for
+a book that already exists and fills in **only the metadata fields that are
+currently blank**, touching no chapter text and overwriting nothing Jake has
+typed by hand. That turns the backfill from "re-import 53 books and redo the
+manual attribution work" into "drag the file in, and anything missing appears."
+He has already corrected rights and source by hand on all of them, so a tool that
+respects existing values is the difference between useful and destructive.
+
+⚠️ **DO NOT BUILD A BULK OVERWRITE.** He fixed those fields manually, one book at
+a time.
+
+**A cheaper partial for Gutenberg books specifically:** the origin URL is already
+stored and canonical (`gutenberg.org/ebooks/<id>`), so the transcriber names are
+recoverable from Gutenberg itself — but that is a cross-origin fetch from a
+browser with no CLI and no Cloud Function deploy, so it is a bigger job than it
+sounds. Mentioned so nobody re-derives it as an easy win.
 
 ---
 
@@ -1432,14 +1505,14 @@ Round 16.**
 
 | file | version |
 |---|---|
-| `game.js` | 3.31.0 — ⚠️ Round 19 Stage 1 |
-| `learn.js` | 2.16.0 — ⚠️ Round 19 Stage 1 |
-| `session-log.js` | 1.3.0 |
+| `game.js` | 3.32.0 — ⚠️ Round 19 Stage 2 |
+| `learn.js` | 2.17.0 — ⚠️ Round 19 Stage 2 |
+| `session-log.js` | 1.4.0 — ⚠️ Round 19. ⚠️ Its THREE version pins moved with it |
 | `hud.js` | 1.2.0 |
 | `variety-floor.js` | 1.0.0 |
 | `stats-wal.js` | shared module — check the constant |
 | `versions.js` | 1.9.0 — ⚠️ Round 19 |
-| `daylog.js` | 1.0.0 — ⚠️ **NEW, Round 19.** The shared week reader. §0.0 |
+| `daylog.js` | 1.1.0 — ⚠️ **NEW, Round 19.** The shared week reader AND the Stage 2 projection. §0.0 |
 | `keyboard.js` | 1.1.1 |
 | `adventure-renderer.js` | 1.5.4 |
 | `admin.js` | 3.31.1 — ⚠️ Round 19: two real import-metadata defects, see §6 item 3 |

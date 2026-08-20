@@ -331,8 +331,8 @@ globalThis.localStorage = {
     removeItem: k => { store.delete(k); },
 };
 const mod = await import('../session-log.js');
-ok(mod.SESSION_LOG_VERSION === '1.3.0',
-   `session-log.js reports v1.3.0 (got ${mod.SESSION_LOG_VERSION})`);
+ok(mod.SESSION_LOG_VERSION === '1.4.0',
+   `session-log.js reports v1.4.0 (got ${mod.SESSION_LOG_VERSION})`);
 
 const base = { date: '2026-08-18', at: '2026-08-18T09:00:00.000Z', chars: 10,
                mistakes: 0, wpm: 30, accuracy: 100, source: 'library', label: 'oz' };

@@ -1,6 +1,6 @@
 # TypeThatBook
 
-<!-- README.md v1.14.0 — Round 19 (Hermes). ⚠️ STAGE 1 SHIPPED: the student's
+<!-- README.md v1.15.0 — Round 19 (Hermes). ⚠️ STAGES 1 AND 2 SHIPPED: the student's
      screen and the teacher's report read the SAME DOCUMENT. stats/time_tracking
      is deleted, the week-counter audit is deleted, and daylog.js is the shared
      reader. New sections: "Grading a week", "Forcing an update". The
@@ -492,6 +492,20 @@ consequential decision in this part of the app.
 | `typing_logs/{uid}_{date}` | a **live counter** accumulated in browser memory by `game.js` and `learn.js`, flushed on a timer and at page-death. Two page controllers share one document. | **This is a cache.** It depends on a tab surviving and on a write landing at exactly the wrong moment not happening. Every counter defect this project has had lived here. |
 | `typing_sessions/{auto}` | one document per (day, source, book/lesson) group, written from a durable `localStorage` queue at run/unit boundaries, each carrying the `sprints[]` it was built from. | **This is the record.** Verified 2026-08-19 by console dump: every document's stored `seconds`/`chars` matched the sum of its own sprints exactly. |
 | ~~`users/{uid}/stats/time_tracking`~~ | ✅ **DELETED — Round 19, Stage 1.** | It was a second copy of the same numbers, accumulated separately in the student's browser and flushed on its own schedule, and it is where every counting incident in this project's history came from. It existed only because `firestore.rules` up to v2.4.0 gave a student's browser **no read access** to either record above, so the HUD had nowhere else to get a number. `firestore.rules` v2.5.0 added owner-read; `daylog.js` is what that unlocked. |
+
+⚠️ **AND `typing_logs` IS ITSELF DERIVED** (Stage 2, `game.js` v3.32.0 /
+`learn.js` v2.17.0). Each flush writes
+
+```
+seconds = deduped sessions on the server
+        + this device's un-uploaded queue
+        + this tab's still-open sprint or run
+```
+
+so two tabs open at once can no longer overwrite each other's day — each adds
+only its own unflushed tail on top of the same shared base. **A failed session
+read writes nothing at all**, because a projection built on a failed read is an
+invented number, not a smaller one.
 
 ⚠️ **ONE DOCUMENT, READ BY EVERY SURFACE.** The student's HUD, the library shelf
 banner and the teacher's report all read `typing_logs/{uid}_{date}` — the same
