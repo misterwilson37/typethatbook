@@ -1,5 +1,24 @@
-// run-all-tests.mjs v1.3.2 — Round 6 (Noiseless), amended Round 14 (Sholes),
-// Round 16 (Royal), Round 17 (Linotype).
+// run-all-tests.mjs v1.4.0 — Round 6 (Noiseless), amended Round 14 (Sholes),
+// Round 16 (Royal), Round 17 (Linotype), Round 21 (Hammond).
+//
+// v1.4.0 — ⚠️ THREE HARNESSES WERE IN NO LIST AT ALL, AND ONE OF THEM WAS THE
+//          ONLY HARNESS THAT DRIVES THE LIVE §3.1 DEFECT. This file printed
+//          "ALL 29 HARNESSES PASS" while crossmode-overwrite-test.mjs,
+//          union-clock-test.mjs and week-agreement-test.mjs sat beside it
+//          unrun. All three are runner-clean and are now in FAST.
+//          ⚠️ THE REAL FIX IS THE REGISTRATION AUDIT BELOW, NOT THE THREE LINES.
+//          A harness is only coverage if something notices when it stops being
+//          run, and until now nothing did — tests/README.md said "thirty-four
+//          harnesses, thirty-two registered" when the true numbers were
+//          thirty-nine and thirty-four. The count drifted because each round
+//          updated the number it remembered instead of the number on disk. The
+//          audit now reads the directory and FAILS THE SUITE on any .mjs that
+//          is in no list and not explicitly exempt. You cannot add a harness and
+//          forget to register it any more; the suite will not go green.
+//          ⚠️ NEW LIST `RULES` — harnesses that need the Firebase emulator. They
+//          are NOT run by `npm test` (a fresh clone has no JVM guarantee) but
+//          they ARE named, so the audit sees them and so nobody concludes again
+//          that the rules cannot be tested. `npm run test:rules` runs them.
 //
 // v1.3.2 — ⚠️ DESCRIPTION FIX, and worth a moment. source-split-test.mjs's entry
 //          here advertised "Part C: no split field is fed from the shared
@@ -81,7 +100,7 @@
 // it seeds roles as auth-token claims and the rules read staff/{uid} documents.
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 
 // HERE is tests/. ROOT is the repo root, one level up, where every shipped
 // file lives. Keep the two apart: mixing them up is how the move breaks.
@@ -128,6 +147,29 @@ const FAST = [
     // everything about a tab being open during a rebuild.
     ['reconcile-test.mjs',       'the rebuild plan\u2019s four refusals (never zero a day, never invent a log), and the position-is-not-identity guard'],
     ['daylog-test.mjs',          'ONE NUMBER: the shared typing_logs week reader \u2014 Saturday anchor, legacy-first totals, and the partial-read refusal'],
+    // ── Round 21 (Hammond): were in NO list. See the v1.4.0 note above. ──
+    // ⚠️ crossmode-overwrite-test.mjs REPRODUCES A LIVE DEFECT and exits 0 while
+    // doing it — it reports the loss as expected behaviour rather than as a
+    // failure, which is why it can sit in FAST without turning the suite red.
+    // Read its output, not just its status. ⚠️ ITS PART C MODELS PER-SOURCE
+    // DOCUMENT IDS, WHICH firestore.rules v2.5.0 DENIES (HANDOFF §0.-5.B) —
+    // green here does not mean deployable.
+    ['crossmode-overwrite-test.mjs', 'ONE DOCUMENT, TWO WRITERS: the cross-mode day-total overwrite (\u00a73.1), reproduced against the shipped build'],
+    ['union-clock-test.mjs',     'interval UNION vs deduped SUM on the four real 2026-08-18 rollups, and the rebuild-disabled guard'],
+    ['week-agreement-test.mjs',  'Rule 11 date agreement at all 24 hours \u2014 run as TZ=America/Chicago for the real check'],
+    ['tab-lifetime-test.mjs',    'THE MISSING AXIS: two controllers over one shared document across real tab orderings \u2014 sequential, concurrent, stale-tab-after-lunch, open across midnight'],
+];
+
+// ⚠️ RULES — need the Firebase emulator (a JVM plus a jar download), so they are
+// NOT part of `npm test`; a fresh clone cannot be assumed to have java. Run them
+// with `npm run test:rules`. They are named here so the registration audit can
+// see them and so that NOBODY CONCLUDES AGAIN THAT THE RULES CANNOT BE TESTED —
+// firestore-rules.test.mjs carried an "I COULD NOT RUN THIS" header for four
+// rounds and it was false the whole time. Round 20 then designed a fix the
+// deployed rules reject. See tests/README.md → "Running the rules harnesses".
+const RULES = [
+    ['rules-probe.test.mjs',     'the rules questions HANDOFF \u00a70.-5 depends on: the roster sweep, the per-source shape, the owner read'],
+    ['firestore-rules.test.mjs', 'the broad security suite \u2014 staff scoping, student isolation, privilege escalation'],
 ];
 
 // ⚠️ PENDING — written test-first, against app code that has NOT landed. Each
@@ -175,6 +217,33 @@ for (const f of MODULES) {
 }
 if (!syntaxBad) console.log(`  ok   ${'(syntax)'.padEnd(26)} all ${MODULES.length} shipped modules parse as ES modules`);
 
+// ═════════════════════════════════════════════════════════════════════════════
+// REGISTRATION AUDIT — the part of v1.4.0 that actually matters
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️ AN UNREGISTERED HARNESS IS NOT COVERAGE, AND NOTHING USED TO NOTICE. Three
+// harnesses sat in tests/ in no list — including the only one that drives the
+// live §3.1 defect — while this file printed ALL 29 HARNESSES PASS.
+//
+// This reads the directory and fails the suite on anything unaccounted for. To
+// exempt a file you must name it AND say why, right here, which is a deliberate
+// act that shows up in a diff.
+const EXEMPT = new Map([
+    ['run-all-tests.mjs', 'this file'],
+    ['cover-harness.mjs', 'needs a directory of EPUBs AND writes image files; run by hand'],
+]);
+const listed = new Set([...FAST, ...PENDING, ...EPUB, ...RULES].map(e => e[0]));
+const onDisk = readdirSync(HERE).filter(f => f.endsWith('.mjs'));
+const orphans = onDisk.filter(f => !listed.has(f) && !EXEMPT.has(f));
+if (orphans.length) {
+    console.log('');
+    console.log(`  FAIL ${'(registration)'.padEnd(26)} ${orphans.length} harness(es) in tests/ are in NO list:`);
+    for (const f of orphans) console.log(`         ${f}`);
+    console.log('         Add each to FAST, PENDING, EPUB or RULES — or to EXEMPT with a reason.');
+} else {
+    console.log(`  ok   ${'(registration)'.padEnd(26)} all ${onDisk.length} files in tests/ are accounted for`);
+}
+
 const withEpubs = process.argv.includes('--with-epubs');
 const suite = withEpubs ? [...FAST, ...EPUB] : FAST;
 
@@ -210,10 +279,12 @@ for (const [status, file, what, out] of results) {
 }
 
 console.log('');
-if (failed || missing || syntaxBad) {
-    console.log(`${failed} failing, ${missing} missing, of ${suite.length} harnesses; ${syntaxBad} syntax failure(s).`);
+if (failed || missing || syntaxBad || orphans.length) {
+    console.log(`${failed} failing, ${missing} missing, of ${suite.length} harnesses; ${syntaxBad} syntax failure(s); ${orphans.length} unregistered.`);
 } else {
-    console.log(`ALL ${suite.length} HARNESSES PASS.`);
+    // ⚠️ THIS LINE IS ONLY TRUE BECAUSE THE REGISTRATION AUDIT ABOVE PASSED.
+    // Before v1.4.0 it was printed while three harnesses sat unrun.
+    console.log(`ALL ${suite.length} HARNESSES PASS. (${RULES.length} rules harnesses not run — npm run test:rules.)`);
 }
 if (PENDING.length) {
     console.log(`${PENDING.length} pending (test-first, blocked on app code) — not counted above.`);
@@ -225,4 +296,4 @@ if (landed) {
     console.log('      PENDING, in the same commit that ships that code.');
 }
 if (!withEpubs) console.log('(EPUB corpus harnesses not run — pass --with-epubs.)');
-if (failed || missing || syntaxBad) process.exitCode = 1;
+if (failed || missing || syntaxBad || orphans.length) process.exitCode = 1;

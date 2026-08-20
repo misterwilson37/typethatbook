@@ -1,23 +1,43 @@
-// firestore-rules.test.mjs v1.1.1 — tests for firestore.rules v1.1.0
+// firestore-rules.test.mjs v2.0.0 — Round 21 (Hammond). REWRITTEN SEED.
 //
-// v1.1.1 — PATH ONLY, Round 17 (Linotype). This file moved from the repo root
-//          into tests/, so every source it reads is now `../` rather than `./`.
-//          No assertion, threshold or expectation changed.
+// ⚠️ THE OLD HEADER SAID "I COULD NOT RUN THIS." IT WAS FALSE FOR FOUR ROUNDS.
+// The Firebase emulator runs fine — java plus a jar from storage.googleapis.com.
+// That copied sentence is the most expensive line in this repo: because nobody
+// ran this file, Round 20 designed a §3.1 fix around per-source document ids
+// that firestore.rules v2.5.0 DENIES, and it was one session from student
+// write failures at two schools. See HANDOFF §0.-5.A and §0.-5.B.
 //
-// ⚠️ I COULD NOT RUN THIS. The Firestore emulator downloads its jar from
-//    storage.googleapis.com, which isn't reachable from my sandbox. The rules
-//    were verified by reading, not by executing. Please run this before you let
-//    a colleague near real student data.
+// Run:  npm run test:rules
+//   or  npx firebase emulators:exec --only firestore --project demo-ttb \
+//           "npx mocha tests/firestore-rules.test.mjs --timeout 20000"
 //
-// ── SETUP (one time) ──
-//   npm install --save-dev @firebase/rules-unit-testing firebase mocha
+// ⚠️ WHAT v2.0.0 CHANGED, AND WHY IT WAS 14 RED: this file was written for rules
+// v1.1.0, when a person's role lived in their AUTH TOKEN. Rules v2.x read it from
+// a `staff/{uid}` DOCUMENT via staffDoc(), and v2.3.0 made `active: true`
+// mandatory. So `authenticatedContext(uid, { role: 'teacher' })` produced a
+// context the rules treat as a STUDENT, and every staff assertion failed with
+// "Property active is undefined on object". The rules were never broken. THE
+// TEST WAS. Three specific repairs:
 //
-// ── RUN ──
-//   firebase emulators:exec --only firestore --project demo-ttb \
-//     "npx mocha firestore-rules.test.mjs --timeout 10000"
+//   1. Every persona now gets a real staff document with active: true.
+//   2. TEACHER_EMS was serving TWO personas — 'building' scope and 'own_classes'
+//      scope — which worked only while the difference lived in a token. It
+//      cannot work against a document: one uid, one readScope. Split into
+//      TEACHER_EMS and CLASS_TEACHER.
+//   3. Class membership moved to classes/{id}.teacherUids; the old seed left it
+//      undefined, which is a rules-side "Property teacherUids is undefined".
 //
-// Uses a fake project id (demo-ttb). Nothing touches production.
-
+// ⚠️ AND ONE ASSERTION WAS SIMPLY WRONG. The token-less block bundled three
+// reads into one `it()`, so a failure could not be localised. Split (below), it
+// resolves cleanly: books/{id} is `allow read: if true` ON PURPOSE — a guest
+// must be able to read a book before signing in, which is the whole anonymous
+// path in game.js. Student data and classes ARE correctly denied. The old
+// assertion asserted a policy this project does not have.
+//
+// ⚠️ THIS FILE IS THE BROAD SECURITY SUITE. For the narrow questions a design
+// decision currently rests on — the roster sweep, the per-source shape, the
+// owner read — see rules-probe.test.mjs, which is deliberately small.
+//
 import { initializeTestEnvironment, assertFails, assertSucceeds }
     from '@firebase/rules-unit-testing';
 import { doc, getDoc, setDoc, collection, getDocs, query, where, deleteDoc }
@@ -40,8 +60,13 @@ const asJake       = () => env.authenticatedContext(JAKE, { role: 'super_admin',
 // grants 'building' when they want that teacher to see the whole school.
 const asTeacherEms = () => env.authenticatedContext(TEACHER_EMS,
     { role: 'teacher', schoolIds: [EMS], readScope: 'building', email: 't_ems@x.net' });
-const asClassTeacher = () => env.authenticatedContext(TEACHER_EMS,
-    { role: 'teacher', schoolIds: [EMS], readScope: 'own_classes', classIds: ['c_ems'], email: 't_ems@x.net' });
+// ⚠️ CLASS_TEACHER IS A SEPARATE UID AS OF v2.0.0. It used to be TEACHER_EMS with
+// a different token claim. One uid cannot hold two readScopes once the scope
+// lives in a document — the staff doc wins and the persona silently collapses
+// into whichever was written last.
+const CLASS_TEACHER = 'uid_teacher_class_ems';
+const asClassTeacher = () => env.authenticatedContext(CLASS_TEACHER,
+    { role: 'teacher', schoolIds: [EMS], readScope: 'own_classes', classIds: ['c_ems'], email: 't_class@x.net' });
 const asOtherClassTeacher = () => env.authenticatedContext('uid_other_ems',
     { role: 'teacher', schoolIds: [EMS], readScope: 'own_classes', classIds: ['c_other'], email: 'other@x.net' });
 const asBldgAdminEms = () => env.authenticatedContext('uid_ba_ems',
@@ -69,11 +94,30 @@ beforeEach(async () => {
         await setDoc(doc(db, 'users', KID_EMS), { classId: 'c_ems', schoolId: EMS });
         await setDoc(doc(db, 'users', KID_HMS), { classId: 'c_hms', schoolId: HMS });
         await setDoc(doc(db, 'users', KID_EMS, 'stats', 'time_tracking'), { secondsToday: 100 });
-        await setDoc(doc(db, 'classes', 'c_ems'), { name: '3rd Period', schoolId: EMS, dailySeconds: 600 });
-        await setDoc(doc(db, 'classes', 'c_hms'), { name: '1st Period', schoolId: HMS, dailySeconds: 600 });
+        // ⚠️ teacherUids IS THE SOURCE OF CLASS MEMBERSHIP as of rules v2.x —
+        // teachesClass() reads it. Leaving it undefined errors the rule.
+        await setDoc(doc(db, 'classes', 'c_ems'), { name: '3rd Period', schoolId: EMS, dailySeconds: 600, teacherUids: [CLASS_TEACHER, TEACHER_EMS] });
+        await setDoc(doc(db, 'classes', 'c_other'), { name: '4th Period', schoolId: EMS, dailySeconds: 600, teacherUids: ['uid_other_ems'] });
+        await setDoc(doc(db, 'typing_logs', 'uid_kid_other_2026-07-30'), { uid: 'uid_kid_other', schoolId: EMS, classId: 'c_other', date: '2026-07-30', seconds: 300 });
+        await setDoc(doc(db, 'classes', 'c_hms'), { name: '1st Period', schoolId: HMS, dailySeconds: 600, teacherUids: [TEACHER_HMS] });
         await setDoc(doc(db, 'typing_logs', `${KID_EMS}_2026-07-30`), { uid: KID_EMS, schoolId: EMS, classId: 'c_ems', date: '2026-07-30', seconds: 300 });
         await setDoc(doc(db, 'typing_logs', `${KID_HMS}_2026-07-30`), { uid: KID_HMS, schoolId: HMS, classId: 'c_hms', date: '2026-07-30', seconds: 300 });
-        await setDoc(doc(db, 'staff', TEACHER_EMS), { role: 'teacher', schoolIds: [EMS], classIds: ['c_ems'] });
+        // ⚠️ STAFF DOCUMENTS, NOT TOKEN CLAIMS, AND `active: true` IS MANDATORY
+        // (rules v2.3.0). A missing `active` does not read as false — it reads as
+        // undefined and the rule errors out, which is what produced fourteen
+        // failures that looked like broken rules.
+        await setDoc(doc(db, 'staff', JAKE),
+            { role: 'super_admin', active: true, schoolIds: [EMS, HMS], readScope: 'building' });
+        await setDoc(doc(db, 'staff', TEACHER_EMS),
+            { role: 'teacher', active: true, schoolIds: [EMS], readScope: 'building' });
+        await setDoc(doc(db, 'staff', CLASS_TEACHER),
+            { role: 'teacher', active: true, schoolIds: [EMS], readScope: 'own_classes', classIds: ['c_ems'] });
+        await setDoc(doc(db, 'staff', TEACHER_HMS),
+            { role: 'teacher', active: true, schoolIds: [HMS], readScope: 'building' });
+        await setDoc(doc(db, 'staff', 'uid_ba_ems'),
+            { role: 'building_admin', active: true, schoolIds: [EMS] });
+        await setDoc(doc(db, 'staff', 'uid_other_ems'),
+            { role: 'teacher', active: true, schoolIds: [EMS], readScope: 'own_classes', classIds: ['c_other'] });
         await setDoc(doc(db, 'leaderboard', KID_EMS), { initials: 'AB', bestWPM: 40, leaderboardOptOut: false });
         await setDoc(doc(db, 'books', 'b1'), { title: 'Test' });
         await setDoc(doc(db, 'settings', 'goals'), { dailySeconds: 600 });
@@ -193,8 +237,12 @@ describe('class ownership', () => {
     it('a teacher must put themselves on a class they create', async () => {
         const db = asClassTeacher().firestore();
         await assertFails(setDoc(doc(db, 'classes', 'c_orphan'), { name: 'Orphan', schoolId: EMS }));
+        // ⚠️ MUST BE THE ACTING UID. The rule is `request.auth.uid in
+        // request.resource.data.teacherUids` — naming a DIFFERENT teacher is
+        // exactly the case it refuses. This read TEACHER_EMS until v2.0.0, which
+        // only passed while the two personas shared one uid.
         await assertSucceeds(setDoc(doc(db, 'classes', 'c_mine2'),
-            { name: 'Mine', schoolId: EMS, teacherUids: [TEACHER_EMS] }));
+            { name: 'Mine', schoolId: EMS, teacherUids: [CLASS_TEACHER] }));
     });
 
     it('a class with no schoolId cannot be created', async () => {
@@ -315,9 +363,16 @@ describe('privilege escalation', () => {
         const db = asTeacherEms().firestore();
         await assertFails(setDoc(doc(db, 'classes', 'c_new'), { name: 'Sneaky', schoolId: HMS }));
     });
-    it('a teacher CAN create a class in their own building', async () => {
+    // ⚠️ THIS ASSERTION USED TO OMIT teacherUids AND EXPECT SUCCESS. It was
+    // asserting a policy this project does not have: a plain teacher must put
+    // themselves on a class they create, or they would make a class they cannot
+    // then read. The rule is right; the test was wrong. Both halves are asserted
+    // now so the requirement is visible rather than incidental.
+    it('a teacher CAN create a class in their own building — WITH themselves on it', async () => {
         const db = asTeacherEms().firestore();
-        await assertSucceeds(setDoc(doc(db, 'classes', 'c_new'), { name: 'Mine', schoolId: EMS }));
+        await assertFails(setDoc(doc(db, 'classes', 'c_new_orphan'), { name: 'Mine', schoolId: EMS }));
+        await assertSucceeds(setDoc(doc(db, 'classes', 'c_new'),
+            { name: 'Mine', schoolId: EMS, teacherUids: [TEACHER_EMS] }));
     });
     it('a teacher CANNOT move their class to another building', async () => {
         const db = asTeacherEms().firestore();
@@ -382,11 +437,23 @@ describe('unauthenticated and role-less users', () => {
     // An anonymous-auth user HAS a request.auth and passes signedIn(), which is
     // what lets anonymous students read books in game.js. This block covers the
     // genuinely token-less case.
-    it('a request with no auth token at all can read nothing', async () => {
-        const db = asAnon().firestore();
-        await assertFails(getDoc(doc(db, 'books', 'b1')));
-        await assertFails(getDoc(doc(db, 'typing_logs', `${KID_EMS}_2026-07-30`)));
-        await assertFails(getDocs(collection(db, 'classes')));
+    // ⚠️ THIS USED TO BE ONE `it()` WITH THREE READS IN IT, AND IT FAILED. A
+    // bundled assertion cannot tell you WHICH read broke the policy, and this one
+    // sat recorded as an open unknown until it was split. Split, the answer is
+    // benign: books are public BY DESIGN and the other two are correctly denied.
+    // ⚠️ KEEP THEM SEPARATE. Re-bundling them re-creates the unknown.
+    it('books are readable WITHOUT a token — deliberate, not a hole', async () => {
+        // firestore.rules: match /books/{bookId} { allow read: if true; }
+        // A signed-out child must be able to open a book before they have an
+        // account; that is the entire anonymous path in game.js. The text of a
+        // public-domain book is not the thing being protected here.
+        await assertSucceeds(getDoc(doc(asAnon().firestore(), 'books', 'b1')));
+    });
+    it('a token-less request CANNOT read a student daily log', async () => {
+        await assertFails(getDoc(doc(asAnon().firestore(), 'typing_logs', `${KID_EMS}_2026-07-30`)));
+    });
+    it('a token-less request CANNOT list classes', async () => {
+        await assertFails(getDocs(collection(asAnon().firestore(), 'classes')));
     });
     it('a signed-in user with no staff role gets no staff powers', async () => {
         const db = asKidEms().firestore();
