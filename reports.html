@@ -464,6 +464,28 @@
     //           afternoon's Library session wrote a split field. The two shapes
     //           cover disjoint periods, so summing loses nothing.
     //
+    // v2.17.0 — ⚠️⚠️ TWO REFUSALS ADDED TO THE REBUILD, AND ONE OF THEM STOPPED A
+    //           DATA-DESTROYING BULK WRITE JAKE WAS ONE CLICK FROM MAKING.
+    //
+    //           On 2026-08-19 the preview offered to move a student from 26m 24s
+    //           down to 1m 51s on 2026-08-17. That was not a corrupt log being
+    //           repaired: learn.js only began writing session records on
+    //           2026-08-18 (HANDOFF §6 item 2), so on 08-17 a student's sessions
+    //           cover their Library time and NONE of their School time. The
+    //           rebuild would have written over the only surviving copy of
+    //           twenty-four minutes of real graded work, in bulk, behind a
+    //           preview that looked authoritative.
+    //
+    //           §0.8.3's "never zero a day" refusal did not catch it because the
+    //           day was not empty — it had 1m 51s of Library sessions. ⚠️ A
+    //           PARTIAL RECORD IS MORE DANGEROUS THAN NO RECORD, because it
+    //           defeats an emptiness check. That is the lesson; the two new
+    //           refusals are SCHOOL_SESSIONS_FROM and MAX_DROP_FRACTION.
+    //
+    //           ⚠️ BOTH ONLY AFFECT DOWNWARD MOVES. A rebuild that RAISES a
+    //           student's time is recovering work the daily log lost to the
+    //           cross-mode overwrite (§3.1) and is left exactly as it was.
+    //
     // v2.16.0 — ⚠️⚠️ ONE NUMBER. THE WEEK-COUNTER AUDIT AND REPAIR ARE DELETED,
     //           and so are the two mirror writes into
     //           users/{uid}/stats/time_tracking. That document no longer exists:
@@ -556,7 +578,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.16.0";
+    const REPORTS_VERSION = "2.17.0";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
@@ -1554,6 +1576,39 @@
         return m;
     }
 
+    // ⚠️⚠️ SCHOOL WROTE NO SESSION RECORDS BEFORE 2026-08-18. (v2.17.0)
+    //
+    // learn.js gained session logging in v2.7.0, which shipped on 2026-08-18.
+    // Library (game.js) has written them since v2.4.0. So for ANY DATE BEFORE
+    // THIS, a student's session records cover their Library time and NONE of
+    // their School time — HANDOFF §6 item 2, and it says "for School days before
+    // that there is no second record and never will be."
+    //
+    // ⚠️ WHAT THAT DOES TO THIS TOOL, AND IT IS SEVERE. On 2026-08-19 Jake's
+    // rebuild preview offered to move a student from 26m 24s down to 1m 51s on
+    // 2026-08-17. That is not a corrupted log being repaired. That is a student
+    // who did twenty-four minutes of School work on a day when School kept no
+    // session records, and the rebuild would have DESTROYED all of it — writing
+    // over the only surviving copy, in bulk, behind a preview that looked
+    // authoritative.
+    //
+    // §0.8.3's first refusal ("never zero a day") did not catch it, because the
+    // day is not empty: it has 1m 51s of Library sessions. A PARTIAL record is
+    // more dangerous than no record, because it defeats the emptiness check.
+    //
+    // ⚠️ DO NOT MOVE THIS DATE FORWARD TO SILENCE A WARNING. Moving it backwards
+    // is a lie about when the data starts.
+    const SCHOOL_SESSIONS_FROM = '2026-08-18';
+
+    // ⚠️ AND A PROPORTIONAL FLOOR, FOR EVERY DATE, INCLUDING FUTURE ONES.
+    // The date guard above closes the case we understand. This closes the case
+    // we do not: any rebuild that would remove most of a day is far more likely
+    // to be a gap in the session record than a correction to the log, whatever
+    // the calendar says. It is quarantined into `skipped` with its reason, not
+    // hidden — Jake can still see the disagreement and go look at the day.
+    const MAX_DROP_FRACTION = 0.5;   // refuse to cut a day by more than half
+    const MAX_DROP_FLOOR_SECONDS = 300;  // ...unless the day is under 5 minutes
+
     function buildRebuildPlan({ includeToday = false } = {}) {
         const today = localToday();
         const plan = { down: [], up: [], skipped: [], todayHeld: [] };
@@ -1593,6 +1648,31 @@
                 dupes: res.sess.dupes,
             };
             if (res.date === today && !includeToday) { plan.todayHeld.push(move); continue; }
+
+            // ⚠️ THE TWO DOWNWARD REFUSALS. Both only ever affect moves that go
+            // DOWN — a rebuild that RAISES a student's time is recovering work
+            // the log lost (the cross-mode overwrite, §3.1) and is left alone.
+            if (move.toSeconds < move.fromSeconds) {
+                if (res.date < SCHOOL_SESSIONS_FROM) {
+                    plan.skipped.push({ ...label, why:
+                        'REFUSED — before ' + SCHOOL_SESSIONS_FROM + ', School kept no session ' +
+                        'records, so any School time on this day exists ONLY in the daily log. ' +
+                        'Rebuilding would destroy it.' });
+                    continue;
+                }
+                const drop = move.fromSeconds - move.toSeconds;
+                if (move.fromSeconds > MAX_DROP_FLOOR_SECONDS &&
+                    drop > move.fromSeconds * MAX_DROP_FRACTION) {
+                    plan.skipped.push({ ...label, why:
+                        'REFUSED — would remove ' + Math.round(100 * drop / move.fromSeconds) +
+                        '% of this day (' + formatTime(move.fromSeconds) + ' \u2192 ' +
+                        formatTime(move.toSeconds) + '). A drop that large is far more likely ' +
+                        'to be a gap in the session record than a correction to the log. ' +
+                        'Open the day and look before doing anything by hand.' });
+                    continue;
+                }
+            }
+
             (move.toSeconds < move.fromSeconds ? plan.down : plan.up).push(move);
         }
 
@@ -1637,6 +1717,12 @@
                 already matches the sum of those records.</div>` : ''}
             ${plan.down.length ? `<div class="rebuild-group">
                 <h4 style="color:#ff8888;">${plan.down.length} will go DOWN — read these first</h4>
+                <div class="recon-warn">⚠️ Two refusals already removed the dangerous cases from this
+                list: anything dated before ${SCHOOL_SESSIONS_FROM} (School kept no session records
+                yet, so School time on those days exists ONLY in the daily log), and anything that
+                would cut a day by more than half. Both are in the skipped list below with reasons.
+                <strong>What remains here can still be wrong — a down-move is only ever as good as
+                the session record behind it.</strong></div>
                 <div class="rebuild-list">${plan.down.map(m => rebuildRowHtml(m, 'down')).join('')}</div>
             </div>` : ''}
             ${plan.up.length ? `<div class="rebuild-group">

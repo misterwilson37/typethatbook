@@ -5,6 +5,19 @@
      amended 2026-08-19 by Round 18 (Salter); amended 2026-08-19 by Round 19
      (Hermes).
 
+     v14.21.0 — Round 19, SEVENTH pass: §1 gains the DELIVERY RULES — zip laid
+     out in real directories, and the deploy/test note ALONGSIDE the zip rather
+     than inside it. Jake's instruction after DEPLOY-ROUND19.md shipped in the
+     archive: anything in the zip is a candidate for the repo.
+
+     v14.20.0 — Round 19, SIXTH pass: ⚠️⚠️ THE REBUILD WAS ONE CLICK FROM
+     DESTROYING REAL GRADED TIME AND §0.0.8 IS THE WRITE-UP. reports.html 2.17.0
+     adds two DOWNWARD refusals. Jake's own preview, 2026-08-19, offered to move
+     a student from 26m 24s to 1m 51s on 2026-08-17 — a date on which School kept
+     no session records at all. §0.8.3's never-zero refusal did not fire because
+     the day was not empty. ⚠️ A PARTIAL RECORD DEFEATS AN EMPTINESS CHECK AND IS
+     MORE DANGEROUS THAN NO RECORD.
+
      v14.19.0 — Round 19, FIFTH pass: ⚠️ THE HUD NOW FOLLOWS THE DOCUMENT
      (game.js 3.33.0 / learn.js 2.18.0). Stage 2 had reopened the divergence it
      was built to close — the WRITE became a projection while the HUD kept
@@ -366,6 +379,54 @@ refused week read can never drag the board below what the session banked.
   **If students report 0:00 after this deploys, check the rule first**, not the
   green suite. `tests/daylog-test.mjs`'s header says the same thing.
 
+
+### 0.0.8 ⚠️⚠️ THE 2026-08-19 NEAR-MISS — READ BEFORE TOUCHING THE REBUILD
+
+Jake ran `Reconcile vs Sessions` on 2026-08-19 and screenshotted the preview. The
+DOWN list opened with **26m 24s → 1m 51s on 2026-08-17**, and there were a dozen
+more like it. The UP list opened with **27m 21s → 50m 48s**.
+
+**Neither list was showing corrupt logs.** They were showing two different real
+things, and the tool could not tell them apart:
+
+* ⚠️ **THE DOWN MOVES ARE THE TOOL BEING BLIND.** `learn.js` gained session
+  logging in v2.7.0, which shipped **2026-08-18** (§6 item 2). Before that date a
+  student's `typing_sessions` cover their Library time and **none** of their
+  School time. So a child who did twenty-four minutes of School on 08-17 shows
+  `log 26m / sessions 1m51s` — and the rebuild would have written over **the only
+  surviving copy** of that work, in bulk, behind a preview that looked
+  authoritative.
+* **THE UP MOVES ARE PROBABLY REAL RECOVERIES.** Sessions higher than the log is
+  the signature of §3.1's cross-mode overwrite: `game.js` flushed its own
+  `secondsToday` over the shared field and erased what `learn.js` had put there.
+  The sessions kept both. **Left unrefused on purpose** — a rebuild that RAISES a
+  student's time is giving back work the log lost.
+
+⚠️ **WHY §0.8.3's FIRST REFUSAL DID NOT FIRE.** It refuses to rebuild a day with
+**zero** session documents. These days had one. **A PARTIAL RECORD DEFEATS AN
+EMPTINESS CHECK, AND IS MORE DANGEROUS THAN NO RECORD**, because it looks like
+evidence. That sentence is the lesson of this near-miss; generalise it before
+writing the next refusal.
+
+⚠️ **WHY THE WEEK-COUNTER AUDIT SAW NOTHING HOURS EARLIER.** It compared
+`stats/time_tracking` against `typing_logs` — **two copies of the same counter**.
+Reconcile compares `typing_logs` against `typing_sessions` — **two different
+sources**. The audit could not have found this and never could have. Not a
+contradiction; a different question.
+
+**SHIPPED (reports.html 2.17.0), both DOWNWARD ONLY:**
+
+1. `SCHOOL_SESSIONS_FROM = '2026-08-18'` — no down-move is proposed for any
+   earlier date. ⚠️ **Do not move this date to silence a warning.**
+2. `MAX_DROP_FRACTION = 0.5` above a `MAX_DROP_FLOOR_SECONDS = 300` floor — a
+   rebuild that would cut a day by more than half is quarantined **for every
+   date, including future ones**. The date guard closes the case we understand;
+   this closes the case we do not.
+
+Both quarantine into `skipped` **with their reason on screen**, never silently.
+`tests/reconcile-test.mjs` covers both, mutation-verified, and lifts the
+constants out of `reports.html` rather than retyping them so the date cannot
+drift while the test keeps passing.
 
 ### 0.0.7 EPUB METADATA BACKFILL — asked for, and the honest answer
 
@@ -1499,6 +1560,27 @@ token claims, and why `functions/index.js` is undeployable.
 
 **Complete replacement files, never diffs or patches.** Every time.
 
+⚠️ **DELIVER THE REPO AS A ZIP, WITH EVERY FILE ALREADY IN THE DIRECTORY IT
+BELONGS IN.** `tests/`, `tools/`, `docs/`, `firebase/`, `functions/`, `library/`.
+Round 17 spent an evening emptying the repo root and it is not to be refilled by
+a lazy delivery. Jake unzips and drags each file to the matching path; a flat
+zip makes that a guessing game.
+
+⚠️ **THE DEPLOY / TEST DOCUMENT GOES ALONGSIDE THE ZIP, NEVER INSIDE IT.** Jake's
+instruction, 2026-08-19, after a `DEPLOY-ROUND19.md` shipped inside the archive:
+he uploads what is in the zip, so anything in the zip is a candidate for the
+repo. A deploy note is **scaffolding for one delivery** — an upload order, a
+console step, a test script, a delete list — and it has no business in a
+repository that already carries `README.md` and `HANDOFF.md` as its permanent
+documentation. Present it as a **separate file in the same message**, where he
+can read it without unzipping anything.
+
+⚠️ **ANYTHING DURABLE OUT OF A DEPLOY NOTE BELONGS IN `README.md` OR THIS FILE
+INSTEAD.** If a step will be true again next round — the weekly grading
+procedure, how to fire the update gate, where the version stamps are — it is
+documentation, not scaffolding, and putting it only in a throwaway note means
+re-deriving it next time.
+
 **Version constants, not header comments.** Each file carries a runtime constant
 that renders on the page; the header comment is decoration. `versions.js` parses the
 constants out of the deployed files precisely so a stale cached file cannot lie about
@@ -1560,7 +1642,7 @@ Round 16.**
 | `admin.js` | 3.31.1 — ⚠️ Round 19: two real import-metadata defects, see §6 item 3 |
 | `lessons-admin.js` | 1.12.0 |
 | `staff-admin.js` | 2.2.0 |
-| `reports.html` | 2.16.0 — ⚠️ Round 19: week-counter audit and repair DELETED |
+| `reports.html` | 2.17.0 — ⚠️ Round 19: audit DELETED; two downward rebuild refusals, §0.0.8 |
 | `update-gate.js` | 1.0.1 — ⚠️ NEW in Round 19. Loaded by its own script tag in both shells, NOT imported. See §0.10 |
 | `index.html` | 3.9.0 — ⚠️ Round 19 Stage 1 |
 | `firebase-config.js` | 1.2.0 |
