@@ -673,7 +673,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.20.0";
+    const REPORTS_VERSION = "2.21.0";
 
     document.title = `TypeThatBook Reports v${REPORTS_VERSION}`;
     const _rfv = document.getElementById('footer-version');
@@ -1047,6 +1047,88 @@
     // --- GENERATE ---
     document.getElementById('generate-btn').onclick = generateReport;
 
+    // ═════════════════════════════════════════════════════════════════════════
+    // THE ROSTER SWEEP  (v2.21.0)  —  READ WHAT THE STUDENT READS
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // ⚠️ THIS EXISTS BECAUSE THE TWO SIDES WERE ASKING DIFFERENT QUESTIONS.
+    //
+    // The student's screen calls daylog.js readWeek(), which fetches
+    // `typing_logs/{uid}_{date}` BY DOCUMENT ID. No filter of any kind. Whatever
+    // is in that document is what the child sees.
+    //
+    // This page queried `where("classId","==",cid)`. A daily-log document is
+    // stamped with whatever `ttbClassId` held in the browser that wrote it — and
+    // game.js's own comment above applyPendingClassAssignment() says exactly
+    // when that is blank: a roster-imported student with no Firebase account yet
+    // lands in `pendingClassAssignments/{email}`, and if they type a chapter
+    // before ever opening the Lessons page, `ttbClassId` stays '' and every log
+    // that session writes is stamped `classId: ''`. It self-heals days later.
+    //
+    // ⚠️ SO THE DOCUMENT EXISTS, THE CHILD SEES IT, AND NO CLASS QUERY ON THIS
+    // PAGE COULD EVER RETURN IT. That is the sacred rule broken by a WHERE
+    // clause, and it fires hardest on DAY ONE OF A ROTATION OR A NEW SCHOOL,
+    // when every student is new at once.
+    //
+    // The fix is to stop asking a different question. The roster — `users` where
+    // `classId == cid` — is the iteration source, and every (uid, date) is read
+    // BY ID. Round 18 named this ("needs the class roster as the iteration
+    // source instead of the report") and deferred it.
+    //
+    // ⚠️ THE CLASS QUERY IS KEPT, AND NOT AS A BELT-AND-BRACES. It finds
+    // students the roster does NOT: a child whose `users` document is missing or
+    // carries a stale classId still leaves stamped logs. The two sources are
+    // UNIONED for discovery and then every uid is read the same way. Neither
+    // alone is complete; the union is the closest this page can get to "every
+    // child who typed."
+    //
+    // COST: (students × days) reads by id. 90 students over a school week is
+    // ~630 — small, and each is a point read, the cheapest thing Firestore does.
+    const MAX_ROSTER_PAIRS = 4000;
+
+    async function readRosterUids(startDate, endDate) {
+        const schoolId = document.getElementById('scope-school').value;
+        const classId  = document.getElementById('scope-class').value;
+        const usersRef = collection(db, 'users');
+        const out = new Map();   // uid -> { classId, name, email }
+        const queries = [];
+
+        if (classId && classId !== '__all__' && classId !== '__mine__') {
+            queries.push(query(usersRef, where('classId', '==', classId)));
+        } else if (classId === '__mine__') {
+            (me.classIds || []).slice(0, 30).forEach(cid =>
+                queries.push(query(usersRef, where('classId', '==', cid))));
+        } else if (schoolId && schoolId !== '__all__') {
+            queries.push(query(usersRef, where('schoolId', '==', schoolId)));
+        } else if (isSuper()) {
+            queries.push(query(usersRef));
+        }
+
+        for (const q of queries) {
+            const snap = await getDocs(q);
+            snap.forEach(d => {
+                const u = d.data() || {};
+                out.set(d.id, { classId: u.classId || '', name: u.displayName || '', email: u.email || '' });
+            });
+        }
+        return out;
+    }
+
+    // Read one student-day BY ID — byte-for-byte the read daylog.js performs.
+    // ⚠️ A FAILED READ RETURNS null, NEVER ZERO. A day we could not read is not
+    // a day with no typing, and a report that cannot tell those apart shows a
+    // child a zero they did not earn. Callers count nulls and say so.
+    async function readLogById(uid, date) {
+        try {
+            const snap = await getDoc(doc(db, 'typing_logs', `${uid}_${date}`));
+            if (!snap.exists()) return { missing: true };
+            return { missing: false, data: snap.data() };
+        } catch (e) {
+            console.warn('[roster] read failed', uid, date, e && e.message);
+            return { error: e.message || String(e) };
+        }
+    }
+
     async function generateReport() {
         const startDate = document.getElementById('date-start').value;
         const endDate = document.getElementById('date-end').value;
@@ -1177,40 +1259,100 @@
                 };
             }
 
-            // Aggregate by user
-            const userMap = {};
-            let skipped = 0;
+            // ═════════════════════════════════════════════════════════════════
+            // v2.21.0 — DISCOVER BY QUERY, THEN READ BY ID.
+            // ═════════════════════════════════════════════════════════════════
+            //
+            // The class query above is now a DISCOVERY pass only. Its results
+            // are never summed. Every number below comes from a point read of
+            // `typing_logs/{uid}_{date}` — the identical read daylog.js makes
+            // for the student. That is not a style preference: it is the only
+            // arrangement in which the teacher's number and the child's number
+            // cannot answer different questions. See readRosterUids().
+            const uids = new Map();     // uid -> { name, email }
             docs.forEach(d => {
                 const data = d.data();
-                if (scoped.clientFilter && !scoped.clientFilter(data)) { skipped++; return; }
-                const uid = data.uid;
-                if (!userMap[uid]) {
-                    userMap[uid] = {
-                        uid: uid,
-                        name: data.displayName || "Unknown",
-                        email: data.email || "",
-                        seconds: 0,
-                        chars: 0,
-                        mistakes: 0,
-                        days: new Set(),
-                        dailyLogs: []
+                if (scoped.clientFilter && !scoped.clientFilter(data)) return;
+                if (!data.uid) return;
+                uids.set(data.uid, { name: data.displayName || 'Unknown', email: data.email || '' });
+            });
+            const discoveredByLogs = new Set(uids.keys());
+
+            // ⚠️ A ROSTER FAILURE MUST NOT SILENTLY DEGRADE TO THE OLD BEHAVIOUR.
+            // Falling back to the class query alone would produce a report that
+            // looks exactly like a correct one and is short by every student
+            // with a blank classId — which is the defect this whole section
+            // exists to end. Say it on screen instead.
+            let rosterOk = true, rosterAdded = 0;
+            try {
+                const roster = await readRosterUids(startDate, endDate);
+                roster.forEach((info, uid) => {
+                    if (!uids.has(uid)) {
+                        uids.set(uid, { name: info.name || 'Unknown', email: info.email || '' });
+                        rosterAdded++;
+                    } else if (info.name && uids.get(uid).name === 'Unknown') {
+                        uids.get(uid).name = info.name;
+                    }
+                });
+            } catch (e) {
+                rosterOk = false;
+                console.warn('[roster] roster read failed:', e);
+            }
+
+            const dateList = datesInRange(startDate, endDate);
+            if (uids.size * dateList.length > MAX_ROSTER_PAIRS) {
+                statusEl.innerText =
+                    `Too much data — ${uids.size} students × ${dateList.length} days is over ` +
+                    `${MAX_ROSTER_PAIRS.toLocaleString()} reads. Narrow the range or pick one class. ` +
+                    `(Stopping on purpose: a partial report you cannot tell is partial is worse than none.)`;
+                statusEl.style.borderColor = "#ffaa00";
+                return;
+            }
+
+            statusEl.innerText = `Reading ${uids.size} students × ${dateList.length} days by id…`;
+
+            const userMap = {};
+            let unreadable = 0, hiddenFromQuery = 0;
+            const pairs = [];
+            uids.forEach((info, uid) => dateList.forEach(date => pairs.push({ uid, date, info })));
+
+            await runPool(pairs, async (p) => {
+                const res = await readLogById(p.uid, p.date);
+                if (res.error) { unreadable++; return; }
+                if (res.missing) return;
+                const data = res.data;
+                const t = readLogTotals(data);
+                if (!userMap[p.uid]) {
+                    userMap[p.uid] = {
+                        uid: p.uid,
+                        name: data.displayName || p.info.name || 'Unknown',
+                        email: data.email || p.info.email || '',
+                        seconds: 0, chars: 0, mistakes: 0,
+                        days: new Set(), dailyLogs: [],
                     };
                 }
-                const t = readLogTotals(data);
-                userMap[uid].seconds += t.seconds;
-                userMap[uid].chars += t.chars;
-                userMap[uid].mistakes += t.mistakes;
-                userMap[uid].days.add(data.date);
-                userMap[uid].dailyLogs.push({
-                    docId: d.id,
-                    date: data.date,
-                    seconds: t.seconds,
-                    chars: t.chars,
-                    mistakes: t.mistakes
-                });
-                if (data.displayName) userMap[uid].name = data.displayName;
-                if (data.email) userMap[uid].email = data.email;
+                // ⚠️ A DOCUMENT THE CLASS QUERY COULD NOT SEE. Counted so the
+                // divergence is a number on screen rather than a silent
+                // correction — Jake needs to know his roster stamping is
+                // drifting, not just get a quietly better total.
+                if (!discoveredByLogs.has(p.uid) || (data.classId || '') === '') hiddenFromQuery++;
+                const u = userMap[p.uid];
+                u.seconds += t.seconds; u.chars += t.chars; u.mistakes += t.mistakes;
+                u.days.add(p.date);
+                u.dailyLogs.push({ docId: `${p.uid}_${p.date}`, date: p.date,
+                                   seconds: t.seconds, chars: t.chars, mistakes: t.mistakes });
+                if (data.displayName) u.name = data.displayName;
+                if (data.email) u.email = data.email;
+            }, (done, total) => {
+                statusEl.innerText = `Read ${done.toLocaleString()} of ${total.toLocaleString()} student-days…`;
             });
+
+            // v2.21.0 — the class query no longer contributes totals, so nothing is
+            // "skipped" by a client filter any more. Kept as a binding so the
+            // CSV/status code below reads unchanged.
+            const skipped = 0;
+            window._ttbRosterNote = { rosterOk, rosterAdded, unreadable, hiddenFromQuery,
+                                      studentsRead: uids.size, days: dateList.length };
 
             reportData = Object.values(userMap).map(u => ({
                 uid: u.uid,
@@ -1252,11 +1394,21 @@
             const totalSecs = reportData.reduce((s, r) => s + r.seconds, 0);
             document.getElementById('total-line').innerHTML = 
                 `<strong>${reportData.length}</strong> students — <strong>${formatTime(totalSecs)}</strong> total typing time`;
-            document.getElementById('results-info').textContent =
-                `${scoped.label} · ${startDate} through ${endDate} — ` +
-                `${docs.length - skipped} daily log entries` +
-                (skipped ? ` (${docs.length} read, ${skipped} outside your classes)` : '') +
-                ` \u00b7 ${scoped.queries.length} quer${scoped.queries.length === 1 ? 'y' : 'ies'}`;
+            const _n = window._ttbRosterNote || {};
+            document.getElementById('results-info').innerHTML =
+                `${escapeHtml(scoped.label)} · ${startDate} through ${endDate} — ` +
+                `read <strong>by document id</strong>, the same read the student's own screen makes ` +
+                `(${_n.studentsRead || 0} students \u00d7 ${_n.days || 0} days)` +
+                (_n.rosterAdded ? ` \u00b7 <strong>${_n.rosterAdded}</strong> student(s) found on the roster ` +
+                                  `with no class-stamped log` : '') +
+                (_n.hiddenFromQuery ? ` \u00b7 <strong style="color:#ffaa00;">${_n.hiddenFromQuery} day(s) ` +
+                                      `the old class query could not see</strong>` : '') +
+                (_n.unreadable ? ` \u00b7 <span style="color:#ff8888;">${_n.unreadable} unreadable</span>` : '') +
+                (_n.rosterOk === false
+                    ? `<br><span style="color:#ff8888;">\u26a0\ufe0f THE ROSTER READ FAILED, so this report covers only ` +
+                      `students who left a class-stamped log. Any student whose logs carry a blank classId is ` +
+                      `MISSING from it entirely. Check the console \u2014 this is not a clean report.</span>`
+                    : '');
 
             document.getElementById('results-container').classList.remove('hidden');
             statusEl.innerText = `Found ${reportData.length} students.`;

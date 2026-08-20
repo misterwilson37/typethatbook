@@ -5,6 +5,17 @@
      amended 2026-08-19 by Round 18 (Salter); amended 2026-08-19 by Round 19
      (Hermes); amended 2026-08-19 by Round 20 (Corona).
 
+     v14.26.0 — Round 20, THIRD pass. ⚠️ §0.-4 IS NEW. THE THIRD DIVERGENCE WAS
+     A `WHERE` CLAUSE: reports.html queried typing_logs by classId while the
+     student's screen reads by document id, so any log stamped classId:'' was
+     visible to the child and invisible to every class query. Worst on day one of
+     a rotation or a NEW SCHOOL. Fixed in reports.html v2.21.0 — discover by
+     query, read by id, roster unioned in. ⚠️ RULE 11 IS NOW THE SACRED RULE and
+     heads §0.-3. §3.1 is REPRODUCED at last by tests/crossmode-overwrite-test.mjs
+     (loses 600 of 1200 seconds); the fix is designed, harness-green, and NOT
+     shipped — it is a student write-path change and goes out on a non-school
+     evening as Round 21's first job.
+
      v14.25.0 — Round 20, SECOND pass. ⚠️ §0.-2 IS NEW. PRIORITY 1 (the student's
      number equals the teacher's number) IS STRUCTURALLY MET and is now PROVEN by
      tests/week-agreement-test.mjs rather than asserted. The last thing breaking
@@ -178,7 +189,7 @@ Blick (3) · Dvorak (2) · Underwood (1).
 
 ---
 
-## §0.-3. ⚠️⚠️⚠️ JAKE'S STANDING RULES 9 AND 10 — THEY OUTRANK EVERY PLAN BELOW
+## §0.-3. ⚠️⚠️⚠️ JAKE'S STANDING RULES 9, 10 AND 11 — THEY OUTRANK EVERY PLAN BELOW
 
 Added 2026-08-19 on Jake's instruction, after this project cost him an evening
 for the sixth time. They apply to every project, not only this one. **An
@@ -197,6 +208,13 @@ does not ship the addition. It ships work on the blocker.**
 > true constraint and the round shipped the second copy anyway. Rule 9 says the
 > rule change WAS the round.
 
+**RULE 11 — SACRED, AND IT OUTRANKS RULES 9 AND 10 AND EVERYTHING BELOW.**
+The number the student sees and the number the teacher pulls must be the SAME
+NUMBER, read from the same record by readers proven identical. No feature ships
+if it could let them diverge. ⚠️ **A divergence can live in the QUERY or the
+DATE RANGE, not just the arithmetic** — §0.-2 (a UTC date formatter) and §0.-4
+(a `classId` WHERE clause) are both proof. Test the query.
+
 **RULE 10 — PROVE IT ON REAL DATA FIRST.** No number becomes a graded or
 reported value until a harness exists that FAILS against real production data
 before the fix and passes after. **A green suite on synthetic data is not
@@ -209,6 +227,84 @@ evidence.**
 > ⚠️ **`week-agreement-test.mjs` Part B passes with the UTC bug fully present**
 > because it runs at local noon. Part C is the same check at all 24 hours and it
 > fails. That gap is the whole of Rule 10 in one file.
+
+---
+
+## §0.-4. ⚠️⚠️⚠️ ROUND 20, THIRD PASS — THE THIRD DIVERGENCE WAS A `WHERE` CLAUSE
+
+**Rule 11 says test the QUERY, not only the arithmetic. §0.-2 tested the
+readers and the dates and declared Priority 1 met. It had not tested the SET OF
+DOCUMENTS each side looks at. That was the third divergence and it was live.**
+
+### 0.-4.A THE DEFECT
+
+`daylog.js readWeek()` fetches `typing_logs/{uid}_{date}` **by document id**,
+unfiltered. Whatever is in that document, the child sees.
+
+`reports.html` queried `where("classId","==",cid)`. A daily log is stamped with
+whatever `ttbClassId` held in the browser that wrote it — and **game.js's own
+comment above `applyPendingClassAssignment()` states exactly when that is
+blank**: a roster-imported student with no Firebase account yet lands in
+`pendingClassAssignments/{email}`; if they type a chapter before ever opening
+the Lessons page, `ttbClassId` stays `''` and every log that session writes is
+stamped `classId: ''`. It self-heals days later.
+
+⚠️ **The document exists, the child sees it, and no class query on the page
+could ever return it.** That comment was filed as a reporting inconvenience for
+rounds. It is the sacred rule broken by a `WHERE` clause.
+
+⚠️ **IT IS WORST ON DAY ONE OF A ROTATION OR A NEW SCHOOL**, when every student
+is unassigned at once. Round 18 named the gap ("needs the class roster as the
+iteration source instead of the report") and deferred it as too large.
+
+### 0.-4.B THE FIX — `reports.html` v2.21.0
+
+**Discover by query, read by id.** The class query is now a DISCOVERY pass whose
+documents are never summed. The `users` roster is unioned in as a second
+discovery source, and every `(uid, date)` is then read with
+`getDoc(doc(db,'typing_logs', uid + '_' + date))` — byte-for-byte the read
+`daylog.js` performs.
+
+⚠️ **BOTH DISCOVERY SOURCES ARE NEEDED.** The roster finds students whose logs
+carry a blank classId; the class query finds students whose `users` document is
+missing or stale but who left stamped logs. Neither alone is complete.
+
+⚠️ **A FAILED ROSTER READ IS SAID OUT LOUD, NEVER DEGRADED TO THE OLD PATH.**
+Silently falling back produces a report that looks correct and is short by every
+blank-classId student — the defect wearing the fix's clothes.
+
+The report line now states the read shape, how many students came from the
+roster with no class-stamped log, and how many days the old query could not see.
+Cost: (students × days) point reads, ~630 for a class week. `MAX_ROSTER_PAIRS`
+refuses above 4,000.
+
+⚠️ **REMAINING HOLE, STATED:** a student with NO `users` document and NO
+class-stamped log is invisible to both discovery sources. Closing it needs
+`pendingClassAssignments` as a third source, keyed by email→uid. Not done.
+
+### 0.-4.C PRIORITY 2 — §3.1 IS NOW REPRODUCED
+
+`tests/crossmode-overwrite-test.mjs` drives the cross-mode overwrite and it
+**loses 600 of 1200 seconds against the shipped build.** Six rounds carried §3.1
+as "a known, lived-with defect" and no harness ever drove it — precisely the
+shape Rule 10 forbids.
+
+⚠️ **Part B's second assertion is the one to read: BOTH READERS STILL AGREE.**
+They read one document, so they show the SAME wrong number. **Rule 11 is
+necessary and not sufficient**, and that is Priority 1 versus Priority 2 in a
+single line.
+
+Parts C and D show the fix passing: one document per `(uid, date, source)`, id
+`{uid}_{date}_{source}`, each controller baselined on ITS OWN source document.
+Order-independent, no lock, no increment, no merge policy.
+
+⚠️ **THE FIX IS NOT WRITTEN INTO `game.js`/`learn.js` AND THAT IS DELIBERATE.**
+It is a student write-path change across four files. Round 19 shipped exactly
+that overnight and it is why §0.0 exists. **It goes out on a non-school evening,
+with this harness green, and it is Round 21's first job.** Touching `daylog.js
+readWeek()` (fourteen point reads, summed) and `reports.html` (group by
+`(uid,date)`) in the same deploy is required — Rule 9: the shared document is
+DELETED in the same deploy, not left beside the new ones.
 
 ---
 
