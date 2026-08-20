@@ -215,68 +215,6 @@
     .sprint-idx { opacity: 0.5; min-width: 18px; }
     .session-src { font-size: 0.7rem; opacity: 0.7; border: 1px solid #444; padding: 0 4px; }
 
-    /* --- RECONCILIATION (v2.15.0) --- */
-    /* The three columns exist so a duplicate or a drifted total is visible
-       WITHOUT expanding a student. Muted until reconcile has run, so an
-       un-run column never reads as a clean result. */
-    .recon-cell { font-size: 0.8rem; white-space: nowrap; }
-    .recon-idle { color: #444; }
-    .recon-ok    { color: #4a5a4a; }
-    .recon-up    { color: #ffaa00; }   /* log > sessions — log may be inflated  */
-    .recon-down  { color: #4B9CD3; }   /* log < sessions — log may be deflated  */
-    .recon-err   { color: #ff3333; }
-    .recon-sub   { display: block; font-size: 0.65rem; opacity: 0.75; }
-    .recon-dupes { color: #ffaa00; font-weight: bold; }
-    .recon-dupes-zero { color: #3a3a3a; }
-
-    #recon-panel {
-        background: #1a1a1a; border: 1px solid #333;
-        padding: 14px 16px; margin-bottom: 16px; font-size: 0.8rem;
-    }
-    #recon-panel h3 {
-        font-size: 0.85rem; color: #4B9CD3; margin: 0 0 8px 0;
-        letter-spacing: 1px; text-transform: uppercase;
-    }
-    .recon-note { color: #777; font-size: 0.72rem; line-height: 1.5; margin-top: 8px; }
-    .recon-warn {
-        border-left: 3px solid #ffaa00; background: rgba(255,170,0,0.06);
-        padding: 8px 10px; margin: 10px 0; color: #ffcc66; font-size: 0.75rem;
-        line-height: 1.5;
-    }
-    .recon-bad {
-        border-left: 3px solid #ff3333; background: rgba(255,50,50,0.06);
-        padding: 8px 10px; margin: 10px 0; color: #ff8888; font-size: 0.75rem;
-        line-height: 1.5;
-    }
-    .recon-stat { display: inline-block; margin-right: 18px; color: #aaa; }
-    .recon-stat strong { color: #4B9CD3; }
-
-    /* Preview of a rebuild. Two lists, DOWN first — a number going down is the
-       one that can cost a child a grade, so it is the one Jake reads first. */
-    .rebuild-group { margin: 12px 0; }
-    .rebuild-group h4 {
-        font-size: 0.75rem; margin: 0 0 6px 0; letter-spacing: 1px;
-        text-transform: uppercase; color: #888;
-    }
-    .rebuild-list { max-height: 260px; overflow-y: auto; border: 1px solid #2a2a2a; }
-    .rebuild-row {
-        display: flex; gap: 10px; align-items: center;
-        padding: 4px 8px; font-size: 0.75rem; border-bottom: 1px solid #222;
-    }
-    .rebuild-row:last-child { border-bottom: none; }
-    .rebuild-name { width: 190px; color: #ccc; overflow: hidden; text-overflow: ellipsis; }
-    .rebuild-date { width: 92px; color: #888; }
-    .rebuild-move { width: 190px; color: #aaa; }
-    .rebuild-delta { width: 110px; text-align: right; }
-    .rebuild-tag {
-        font-size: 0.62rem; border: 1px solid #555; color: #888;
-        border-radius: 3px; padding: 0 4px; margin-left: 6px;
-    }
-    .rebuild-down .rebuild-delta { color: #ff8888; }
-    .rebuild-up   .rebuild-delta { color: #22c55e; }
-    .rebuild-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
-    .rebuild-actions label { color: #aaa; font-size: 0.75rem; display: flex; align-items: center; gap: 6px; }
-    #recon-progress { color: #888; font-size: 0.75rem; margin-top: 8px; min-height: 1.2em; }
     </style>
 </head>
 <body>
@@ -351,19 +289,12 @@
                 <input type="date" id="date-end">
             </div>
             <button id="generate-btn">Generate</button>
-            <button id="reconcile-btn" class="secondary" style="margin-left:8px;" title="Read-only. Compare every student's daily-log total against the sum of their actual session records, and count duplicate rollups. Writes nothing.">Reconcile vs Sessions</button>
             <div class="quick-btns">
                 <button class="quick-btn" data-range="today">Today</button>
                 <button class="quick-btn" data-range="this-week">This Week</button>
                 <button class="quick-btn" data-range="last-week">Last Week</button>
             </div>
         </div>
-
-        <!-- v2.15.0 — reconciliation summary and rebuild preview. Populated by
-             runReconcile(); the rebuild preview is rendered INTO this panel and
-             never appears before a reconcile has produced the numbers it
-             previews. -->
-        <div id="recon-panel" class="hidden"></div>
 
         <div id="results-container" class="hidden">
             <div class="export-bar">
@@ -381,19 +312,6 @@
                         <th data-col="wpm">Avg WPM <span class="sort-arrow">▲</span></th>
                         <th data-col="accuracy">Accuracy <span class="sort-arrow">▲</span></th>
                         <th data-col="days">Days Active <span class="sort-arrow">▲</span></th>
-                        <!-- v2.15.0 — the reconciliation columns. Deliberately at
-                             the TOP LEVEL of the table, not inside the drill-down:
-                             finding a duplicate must not require opening every
-                             student one at a time. Sort by Δ or by ⧉ to put the
-                             problems at the top. -->
-                        <th data-col="sessSeconds" title="Sum of this student's session records over the range, with duplicate rollups excluded. This is the record; Total Time is a cache of it.">Sessions <span class="sort-arrow">▲</span></th>
-                        <th data-col="delta" title="Total Time minus Sessions. Positive = the daily log reads HIGHER than the sessions behind it. Negative = the log reads LOWER. Not automatically a defect — see the notes under the panel above.">Δ <span class="sort-arrow">▲</span></th>
-                        <th data-col="dupes" title="Duplicate session rollups found across the range. These are already excluded from the Sessions column and from any rebuild; the count is here so they can be found and deleted.">⧉ <span class="sort-arrow">▲</span></th>
-                        <!-- v2.19.0 — the union column. Sessions is a SUM and
-                             double-counts an overlap; this is the measure of the
-                             union of the typing intervals and cannot. When the
-                             two disagree, the difference is duplication. -->
-                        <th data-col="clockSeconds" title="Union of this student's typing intervals across the range — every sprint placed on a wall-clock timeline, overlaps counted once. Unlike Sessions this cannot double-count one stretch of typing recorded twice. A red 'unplaced' figure means some records could not be placed on a timeline and are NOT in this number.">⏱ Clock <span class="sort-arrow">▲</span></th>
                         <th style="width:50px;"></th>
                     </tr>
                 </thead>
@@ -413,6 +331,30 @@
     import { db, auth } from "./firebase-config.js";
 
     // ─── Version ──────────────────────────────────────────────────────────────
+    // v2.25.0 — ⚠️ RECONCILE VS SESSIONS AND REBUILD-FROM-SESSIONS ARE DELETED.
+    //           ~830 lines, on Jake's confirmed boundary: "As long as you agree
+    //           none of it is necessary, you can make all those cuts without
+    //           impacting students at all." The rebuild had written nothing
+    //           since v2.19.0, so no stored data changes today.
+    //
+    //           KEPT: Generate, the CSV export, the per-student drill-down and
+    //           its ⧉ duplicate badge, the per-day editor and its SAVE box, and
+    //           ⟳ Recalculate on a SINGLE day. ⟳ is not the rebuild — it
+    //           corrects one day a teacher is looking at, behind a drop guard,
+    //           and it stays date-gated for the per-source cutover.
+    //
+    //           ⚠️ TWO THINGS THE CUT NEARLY BROKE, AND THEY ARE THE LESSON.
+    //           runPool() IS USED BY Generate, not only by the reconcile, and it
+    //           read RECONCILE_CONCURRENCY and reconCancel — cutting by function
+    //           name would have left Generate throwing. It has its own
+    //           POOL_CONCURRENCY now. And recalcDailyLog()'s `expect` option
+    //           became dead the moment the bulk rebuild went, since
+    //           runRebuildAll() was its only caller; it is removed with its
+    //           branch rather than left as a parameter nothing passes.
+    //
+    //           The CSV's eight grading columns are UNCHANGED — the ten
+    //           reconciliation columns only ever appeared after a sweep had run.
+    //
     // v2.24.0 — ⚠️⚠️ recalcDailyLog()'s WRITE IS DATE-GATED. Unchanged, ⟳ became
     //           a DATA-LOSS BUTTON the moment the writers shipped: on a
     //           post-cutover day it deleted both per-source triples — which by
@@ -687,7 +629,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.24.0";
+    const REPORTS_VERSION = "2.25.0";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -1452,21 +1394,7 @@
                 dailyLogs: u.dailyLogs.sort((a, b) => a.date.localeCompare(b.date)),
                 wpm: u.seconds > 0 ? Math.round((u.chars / 5) / (u.seconds / 60)) : 0,
                 accuracy: (u.chars + u.mistakes) > 0 ? Math.round((u.chars / (u.chars + u.mistakes)) * 100) : 100,
-                // ⚠️ v2.15.0 — null, NOT zero. These are "not measured yet",
-                // and the difference matters on a screen whose job is to say
-                // whether a number can be trusted. Zero would render as a clean
-                // Δ for a student nobody has checked. See reconCellsHtml() and
-                // the null handling in renderTable()'s comparator.
-                sessSeconds: null, sessChars: null, sessMistakes: null,
-                delta: null, deltaChars: null, dupes: null,
-                reconErrors: 0, reconPairs: [], orphanDays: 0
             }));
-
-            // A reconciliation describes one query's worth of rows. A new query
-            // invalidates it, so drop it rather than let last range's numbers
-            // sit beside this range's students.
-            reconState = null;
-            document.getElementById('recon-panel').classList.add('hidden');
 
             if (reportData.length === 0) {
                 document.getElementById('empty-msg').classList.remove('hidden');
@@ -1551,84 +1479,45 @@
     });
 
     // ═════════════════════════════════════════════════════════════════════════
-    // RECONCILIATION  (v2.15.0)  —  READ-ONLY. THIS SECTION ISSUES NO WRITES.
+    // ⚠️ RECONCILE VS SESSIONS AND REBUILD-FROM-SESSIONS ARE DELETED (v2.25.0)
     // ═════════════════════════════════════════════════════════════════════════
     //
-    // Everything from here to runRebuildAll() only calls getDocs(). If a future
-    // round adds a write to this half, the guarantee that made it safe to ship
-    // during a school week is gone — put the write in the rebuild half, which
-    // is gated behind a preview and an explicit click, and say so here.
+    // Roughly 830 lines lived here: runReconcile(), renderReconPanel(),
+    // reconCellsHtml(), readPairSessions(), unionSprintSeconds(), uidIndexMap(),
+    // buildRebuildPlan(), renderRebuildPreview(), runRebuildAll(), localToday(),
+    // and the Sessions / Δ / ⧉ / ⏱ Clock columns and their notes panels.
     //
-    // WHAT IT COMPARES, and why that is the right comparison:
+    // Jake, 2026-08-20: "Torch it. Torch the reconcile." Confirmed with him a
+    // second time in Round 23, boundary and all, because the tool shared this
+    // file with three things he USES and that were never implicated.
     //
-    //   typing_logs   — one document per student per day. A LIVE COUNTER,
-    //                   accumulated in browser memory by game.js and learn.js
-    //                   and flushed at intervals and at page-death. Two page
-    //                   controllers share it. Every defect of Round 16 was
-    //                   here, and every one of them needed a tab to survive and
-    //                   a write to land at exactly the wrong moment.
+    // ⚠️ WHAT STAYED, AND THE LINE BETWEEN THEM IS THE WHOLE POINT:
+    //   * Generate, and the CSV export.
+    //   * The per-student DRILL-DOWN, including its ⧉ duplicate badge.
+    //   * The per-day editor, its SAVE box, and ⟳ Recalculate on a single day.
+    //     ⟳ is not the rebuild. It corrects ONE day that a teacher is looking
+    //     at, behind a drop guard, and it is date-gated for the per-source
+    //     cutover. The thing that was dangerous was applying it across a whole
+    //     report from a preview nobody could check row by row.
     //
-    //   typing_sessions — one document per (day, source, book/lesson) group,
-    //                   each carrying the sprints[] it was built from. Written
-    //                   at unit boundaries from a durable localStorage queue.
-    //                   Confirmed intact on 2026-08-19 by console dump: every
-    //                   document's stored totals matched the sum of its own
-    //                   sprints exactly.
+    // ⚠️ THE REBUILD HAD ALREADY BEEN DISABLED SINCE v2.19.0 and wrote nothing,
+    // so nothing about the database changes today. What goes is the machinery
+    // behind a button that did nothing and four columns that only ever filled in
+    // after a sweep. tests/reconcile-test.mjs and tests/union-clock-test.mjs
+    // covered this code and are deleted in the same commit — the registration
+    // audit in run-all-tests.mjs catches it if only one half of that happens.
     //
-    // So: the sessions are the record and the log is a cache of it. Δ is
-    // (cache − record). That framing is what makes the sign meaningful.
+    // ⚠️ THE REAL SESSION DOCUMENTS union-clock-test.mjs HELD ARE NOT LOST. They
+    // were lifted first, into tests/real-sessions-fixture.mjs, because ROADMAP
+    // item 1 needs them and Jake's rule 10 will not accept synthetic records for
+    // a defect that lives BETWEEN records. That file is the reason this deletion
+    // was safe to make.
     //
-    // ⚠️ WHY THE SWEEP PROBES EVERY DATE IN THE RANGE AND NOT ONLY THE DATES
-    // THAT HAVE A LOG. A day whose typing_logs write never landed at all has
-    // no log row, so iterating the report's own dailyLogs would skip it — and
-    // that is exactly the deflation case this tool exists to catch: real
-    // sessions, no cached total, a child under-credited and nothing on screen
-    // to say so. Probing every date costs one empty-query read per quiet day,
-    // which is the cheapest possible way to be able to say "checked".
-    const MAX_RECONCILE_PAIRS = 2000;  // students × days. See the refusal below.
-    const RECONCILE_CONCURRENCY = 6;   // polite to Firestore, ~10x faster than serial
+    // ⚠️ IF A FUTURE ROUND WANTS A COMPARISON BACK, WHAT IT PROBABLY WANTS IS
+    // ROADMAP item 3 — a read-only implausibility FLAG that says "go and look"
+    // and leaves the judgement with the teacher. Not a screen that computes a
+    // Δ nobody can act on, and not a button that writes across a roster.
 
-    // Holds the last completed sweep so the rebuild preview can be built from
-    // it without re-reading. Cleared by generateReport() — a reconciliation of
-    // a range you are no longer looking at is worse than none.
-    let reconState = null;
-    let reconCancel = false;
-
-    function reconCellsHtml(r) {
-        if (r.sessSeconds === null || r.sessSeconds === undefined) {
-            return `<td class="recon-cell recon-idle">—</td>` +
-                   `<td class="recon-cell recon-idle">—</td>` +
-                   `<td class="recon-cell recon-idle">—</td>` +
-                   `<td class="recon-cell recon-idle">—</td>`;
-        }
-        if (r.reconErrors) {
-            return `<td class="recon-cell recon-err">unreadable</td>` +
-                   `<td class="recon-cell recon-err" title="${r.reconErrors} day(s) could not be read — this student's comparison is incomplete and must not be read as clean.">? </td>` +
-                   `<td class="recon-cell recon-err">?</td>` +
-                   `<td class="recon-cell recon-err">?</td>`;
-        }
-        const d = r.delta, dc = r.deltaChars;
-        const cls = d === 0 ? 'recon-ok' : (d > 0 ? 'recon-up' : 'recon-down');
-        const sign = d > 0 ? '+' : (d < 0 ? '−' : '');
-        const deltaTxt = d === 0 ? '0' : `${sign}${formatTime(Math.abs(d))}`;
-        const charTxt = dc === 0 ? '' :
-            `<span class="recon-sub">${dc > 0 ? '+' : '−'}${Math.abs(dc).toLocaleString()} ch</span>`;
-        const dupeCls = r.dupes ? 'recon-dupes' : 'recon-dupes-zero';
-        // ⚠️ THE `unplaced` SUB-LINE IS NOT DECORATION. A student showing it has
-        // records this column could not put on a timeline, so the Clock figure
-        // above it is a FLOOR, not a measurement, and must not be graded from.
-        // Silence here would make an incomplete number look like a complete one,
-        // which is the single failure mode this whole page exists to prevent.
-        const clockTxt = formatTime(r.clockSeconds || 0);
-        const unplacedTxt = (r.unplacedSeconds || 0) > 0
-            ? `<span class="recon-sub recon-err" title="Seconds in records with no usable timestamp — a pre-v2.10.0 rollup with no sprints[], or a sprint with an unparseable 'at'. These are NOT included in the Clock figure. Read Total Time for this student instead.">+${formatTime(r.unplacedSeconds)} unplaced</span>`
-            : '';
-        return `<td class="recon-cell">${formatTime(r.sessSeconds)}` +
-               `<span class="recon-sub">${r.sessChars.toLocaleString()} ch</span></td>` +
-               `<td class="recon-cell ${cls}">${deltaTxt}${charTxt}</td>` +
-               `<td class="recon-cell ${dupeCls}">${r.dupes || 0}</td>` +
-               `<td class="recon-cell">${clockTxt}${unplacedTxt}</td>`;
-    }
 
     // Every date in [start, end], as YYYY-MM-DD, built by string arithmetic on
     // a local-noon Date so a timezone offset can never shift a day. (toDateStr
@@ -1650,131 +1539,23 @@
         return out;
     }
 
-    function localToday() {
-        const n = new Date();
-        return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
-    }
-
-    // Read one (student, day)'s sessions and fold them exactly the way
-    // recalcDailyLog() does — same sessionSignature(), same splitSessionTotals().
-    // ⚠️ IT MUST STAY EXACTLY THE SAME FOLD. If this view and the repair ever
-    // disagree about what a duplicate is, the preview stops predicting the
-    // write, and a preview that does not predict the write is worse than no
-    // preview at all.
-    async function readPairSessions(uid, date) {
-        const q = query(collection(db, "typing_sessions"),
-                        where("uid", "==", uid), where("date", "==", date));
-        const snap = await getDocs(q);
-        const kept = [];
-        const all  = [];
-        const seen = new Set();
-        let dupes = 0;
-        snap.forEach(d => {
-            const data = d.data();
-            all.push(data);
-            const sig = sessionSignature(data, d.id);
-            if (seen.has(sig)) { dupes++; return; }
-            seen.add(sig);
-            kept.push(data);
-        });
-        const t = splitSessionTotals(kept);
-        // ⚠️ THE UNION IS COMPUTED OVER **ALL** DOCUMENTS, INCLUDING THE ONES
-        // sessionSignature() CALLED DUPLICATES. That is not an oversight and it
-        // is not inconsistent with the line above. The signature dedupe is a
-        // guess about document identity; the union is a fact about wall-clock
-        // time. Feeding it an exact duplicate costs nothing — the duplicate's
-        // intervals land on top of the original's and the union is unchanged —
-        // whereas EXCLUDING a document risks dropping intervals that only it
-        // covers. Over-feed a union, never under-feed it.
-        const clock = unionSprintSeconds(all);
-        return {
-            docCount: snap.size,
-            keptCount: kept.length,
-            dupes,
-            seconds:  t.schoolSec   + t.librarySec,
-            chars:    t.schoolChars + t.libraryChars,
-            mistakes: t.schoolMist  + t.libraryMist,
-            clockSeconds:    clock.seconds,
-            unplacedSeconds: clock.unplaced,
-        };
-    }
-
-    // ═════════════════════════════════════════════════════════════════════════
-    // THE UNION OF THE TYPING INTERVALS  (v2.19.0)
-    // ═════════════════════════════════════════════════════════════════════════
-    //
-    // Sum-of-records is the wrong operation the moment records can overlap, and
-    // HANDOFF §0.0 established that they can. Union-of-intervals is the right
-    // one, and it stays right no matter which of §0.0.D's three causes turns out
-    // to be real — it does not need to know.
-    //
-    // ⚠️ THE INTERVAL IS [at − seconds, at], NOT [at, at + seconds]. `at` is
-    // stamped by logSession()/logRun() at the moment the record is CREATED,
-    // which is when that stretch of typing ENDED. Reading it as a start time
-    // shifts every interval forward by its own duration, which would make two
-    // genuinely-overlapping records look adjacent and defeat the entire purpose
-    // of this function. game.js logSession() and learn.js logRun() both set
-    // `at: new Date().toISOString()` on the line that files the finished record.
-    //
-    // ⚠️ CONTINUATIONS ARE JUST INTERVALS. A sprint split into a partial and a
-    // remainder produces two records whose intervals are adjacent, not
-    // overlapping, so the union adds them — which is correct, because they are
-    // two different stretches of real typing. No special case is needed and
-    // none should be added.
-    //
-    // Pure, and deliberately so: it takes plain document data and returns
-    // numbers, with no Firestore, no DOM and no clock of its own.
-    function unionSprintSeconds(docs) {
-        const intervals = [];
-        let unplaced = 0;
-
-        for (const s of (docs || [])) {
-            const sprints = Array.isArray(s && s.sprints) ? s.sprints : null;
-            if (!sprints || !sprints.length) {
-                // A rollup with no sprint array (pre-v2.10.0) has no timeline at
-                // all. Its seconds are real and they are unmeasurable here.
-                unplaced += Math.max(0, Math.round((s && s.seconds) || 0));
-                continue;
-            }
-            for (const sp of sprints) {
-                const secs = Math.max(0, Math.round((sp && sp.seconds) || 0));
-                if (secs <= 0) continue;
-                const end = Date.parse(sp && sp.at);
-                if (!isFinite(end)) { unplaced += secs; continue; }
-                intervals.push([end - secs * 1000, end]);
-            }
-        }
-
-        if (!intervals.length) return { seconds: 0, unplaced, count: 0 };
-
-        intervals.sort((a, b) => a[0] - b[0]);
-        let total = 0;
-        let [curStart, curEnd] = intervals[0];
-        for (let i = 1; i < intervals.length; i++) {
-            const [s, e] = intervals[i];
-            if (s <= curEnd) {
-                // Overlapping or touching — extend, do not add. This one line is
-                // the whole defence against a stretch of typing recorded twice.
-                if (e > curEnd) curEnd = e;
-            } else {
-                total += curEnd - curStart;
-                curStart = s; curEnd = e;
-            }
-        }
-        total += curEnd - curStart;
-
-        return { seconds: Math.round(total / 1000), unplaced, count: intervals.length };
-    }
-
     // A tiny worker pool. Sequential would take a minute on a week of ninety
     // students and Jake would reasonably assume it had hung; firing all of them
     // at once is how you get a browser to drop connections.
+    //
+    // ⚠️ v2.25.0 — IT USED TO READ `RECONCILE_CONCURRENCY` AND `reconCancel`,
+    // both of which went with the reconcile. It has its own constant now and no
+    // cancel: its one remaining caller is generateReport()'s point-read sweep,
+    // which is already bounded by MAX_ROSTER_PAIRS and has never had a cancel
+    // button to honour. Do not re-add one here without adding the button too —
+    // a flag nothing can set is a branch nothing can test.
+    const POOL_CONCURRENCY = 6;   // polite to Firestore, ~10x faster than serial
+
     async function runPool(items, worker, onProgress) {
         let next = 0, done = 0;
-        const runners = new Array(Math.min(RECONCILE_CONCURRENCY, items.length))
+        const runners = new Array(Math.min(POOL_CONCURRENCY, items.length))
             .fill(0).map(async () => {
                 while (true) {
-                    if (reconCancel) return;
                     const i = next++;
                     if (i >= items.length) return;
                     await worker(items[i], i);
@@ -1788,646 +1569,16 @@
         return done;
     }
 
-    async function runReconcile() {
-        if (!reportData.length) return alert("Generate a report first.");
-        const startDate = document.getElementById('date-start').value;
-        const endDate   = document.getElementById('date-end').value;
-        const dates = datesInRange(startDate, endDate);
-        const panel = document.getElementById('recon-panel');
-        const btn = document.getElementById('reconcile-btn');
-
-        const pairCount = reportData.length * dates.length;
-        if (!dates.length) return alert("Pick a valid date range first.");
-
-        // ⚠️ A REFUSAL, NOT A TRUNCATION — the same principle the report's own
-        // MAX_REPORT_DOCS ceiling is built on. A reconciliation that silently
-        // checked only part of the range would report an all-clear it has not
-        // earned, on the one screen whose entire job is to be trustworthy.
-        if (pairCount > MAX_RECONCILE_PAIRS) {
-            panel.classList.remove('hidden');
-            panel.innerHTML =
-                `<h3>Reconcile — refused</h3>` +
-                `<div class="recon-bad">${reportData.length} students × ${dates.length} days ` +
-                `= ${pairCount.toLocaleString()} day-checks, over the ceiling of ` +
-                `${MAX_RECONCILE_PAIRS.toLocaleString()}. Narrow the date range or pick a single ` +
-                `class and run it again. Stopping here on purpose: a partial reconciliation ` +
-                `that you cannot tell is partial would be worse than not running one.</div>`;
-            return;
-        }
-
-        if (!confirm(
-            `Reconcile ${reportData.length} students across ${dates.length} day(s).\n\n` +
-            `This reads about ${pairCount.toLocaleString()} queries' worth of session records ` +
-            `and WRITES NOTHING.\n\nContinue?`)) return;
-
-        reconCancel = false;
-        btn.disabled = true;
-        panel.classList.remove('hidden');
-        panel.innerHTML = `<h3>Reconciling…</h3><div id="recon-progress">Starting…</div>` +
-                          `<div class="rebuild-actions"><button class="secondary" id="recon-cancel-btn">Cancel</button></div>`;
-        document.getElementById('recon-cancel-btn').onclick = () => {
-            reconCancel = true;
-            document.getElementById('recon-progress').textContent = 'Cancelling…';
-        };
-        const prog = document.getElementById('recon-progress');
-
-        // Index the report's own log rows by (uid, date) so a probe of a quiet
-        // day can tell "no log AND no sessions" (nothing happened, fine) from
-        // "no log BUT sessions exist" (a day of work with no cached total).
-        const logByPair = new Map();
-        reportData.forEach((r, idx) => {
-            r.dailyLogs.forEach((log, li) => {
-                logByPair.set(r.uid + '\u0000' + log.date, { idx, li, log });
-            });
-        });
-
-        const pairs = [];
-        reportData.forEach((r, idx) => {
-            dates.forEach(date => pairs.push({ idx, uid: r.uid, name: r.name, date }));
-        });
-
-        const results = [];
-        await runPool(pairs, async (p) => {
-            const hit = logByPair.get(p.uid + '\u0000' + p.date);
-            try {
-                const s = await readPairSessions(p.uid, p.date);
-                results.push({
-                    ...p,
-                    li: hit ? hit.li : null,
-                    hasLog: !!hit,
-                    docId: hit ? hit.log.docId : null,
-                    logSeconds:  hit ? hit.log.seconds  : 0,
-                    logChars:    hit ? hit.log.chars    : 0,
-                    logMistakes: hit ? hit.log.mistakes : 0,
-                    sess: s,
-                    error: null,
-                });
-            } catch (e) {
-                console.warn('[reconcile] read failed', p.uid, p.date, e);
-                results.push({
-                    ...p, li: hit ? hit.li : null, hasLog: !!hit,
-                    docId: hit ? hit.log.docId : null,
-                    logSeconds:  hit ? hit.log.seconds  : 0,
-                    logChars:    hit ? hit.log.chars    : 0,
-                    logMistakes: hit ? hit.log.mistakes : 0,
-                    sess: null, error: e.message || String(e),
-                });
-            }
-        }, (done, total) => {
-            prog.textContent = `Checked ${done.toLocaleString()} of ${total.toLocaleString()} student-days…`;
-        });
-
-        if (reconCancel) {
-            btn.disabled = false;
-            panel.innerHTML = `<h3>Reconcile — cancelled</h3>` +
-                `<div class="recon-warn">Cancelled part-way through. Nothing was written ` +
-                `(this view never writes), and no partial results are shown, because a ` +
-                `half-swept table reads exactly like a clean one.</div>`;
-            return;
-        }
-
-        // Fold per-pair results up onto each student.
-        reportData.forEach(r => {
-            r.sessSeconds = 0; r.sessChars = 0; r.sessMistakes = 0;
-            r.dupes = 0; r.reconErrors = 0; r.reconPairs = [];
-            r.orphanDays = 0;
-            r.clockSeconds = 0; r.unplacedSeconds = 0;
-        });
-        // Keyed by uid, not by the sweep's captured index. This fold happens
-        // before any re-sort today, so position would work — and it would keep
-        // working right up until someone moved a renderTable() call above it,
-        // at which point it would attribute one child's sessions to another
-        // silently. Not worth leaving armed.
-        const foldByUid = uidIndexMap();
-        results.forEach(res => {
-            const fi = foldByUid.get(res.uid);
-            const r = fi === undefined ? null : reportData[fi];
-            if (!r) return;
-            r.reconPairs.push(res);
-            if (res.error) { r.reconErrors++; return; }
-            r.sessSeconds  += res.sess.seconds;
-            r.sessChars    += res.sess.chars;
-            r.sessMistakes += res.sess.mistakes;
-            r.dupes        += res.sess.dupes;
-            // ⚠️ SUMMED ACROSS DAYS, UNIONED WITHIN ONE. Two different days
-            // cannot overlap each other, so adding day-unions is safe; two
-            // records inside one day can, which is why the union happens down in
-            // readPairSessions() and never up here.
-            r.clockSeconds    += res.sess.clockSeconds    || 0;
-            r.unplacedSeconds += res.sess.unplacedSeconds || 0;
-            if (!res.hasLog && res.sess.docCount > 0) r.orphanDays++;
-        });
-        reportData.forEach(r => {
-            r.delta      = r.seconds - r.sessSeconds;
-            r.deltaChars = r.chars   - r.sessChars;
-            r.deltaClock = r.seconds - r.clockSeconds;
-            r.reconPairs.sort((a, b) => a.date.localeCompare(b.date));
-        });
-
-        reconState = {
-            ranAt: new Date(),
-            startDate, endDate, dates,
-            pairCount: pairs.length,
-            results,
-        };
-
-        // Worst first. Largest absolute Δ at the top is the whole point of
-        // putting these on the summary row.
-        sortCol = 'delta';
-        sortAsc = false;
-        renderTable();
-        renderReconPanel();
-        btn.disabled = false;
-        statusEl.innerText = `Reconciled ${reportData.length} students across ${dates.length} day(s).`;
-        statusEl.style.borderColor = "#4B9CD3";
-    }
-
-    function renderReconPanel() {
-        const panel = document.getElementById('recon-panel');
-        if (!reconState) { panel.classList.add('hidden'); return; }
-
-        const withDelta = reportData.filter(r => !r.reconErrors && r.delta !== 0);
-        const inflated  = withDelta.filter(r => r.delta > 0);
-        const deflated  = withDelta.filter(r => r.delta < 0);
-        const totalDupes = reportData.reduce((s, r) => s + (r.dupes || 0), 0);
-        const withDupes  = reportData.filter(r => r.dupes > 0);
-        const errored    = reportData.filter(r => r.reconErrors > 0);
-        const orphans    = reportData.filter(r => r.orphanDays > 0);
-        const today      = localToday();
-        const rangeHasToday = reconState.dates.includes(today);
-
-        const plan = buildRebuildPlan({ includeToday: false });
-
-        panel.classList.remove('hidden');
-        panel.innerHTML = `
-            <h3>Reconciliation — ${reconState.startDate} to ${reconState.endDate}</h3>
-            <div>
-                <span class="recon-stat"><strong>${reportData.length}</strong> students</span>
-                <span class="recon-stat"><strong>${reconState.pairCount.toLocaleString()}</strong> student-days checked</span>
-                <span class="recon-stat"><strong>${withDelta.length}</strong> with a non-zero Δ</span>
-                <span class="recon-stat"><strong>${totalDupes}</strong> duplicate rollups (${withDupes.length} students)</span>
-            </div>
-            <div style="margin-top:6px;">
-                <span class="recon-stat recon-up">${inflated.length} logs read HIGHER than their sessions</span>
-                <span class="recon-stat recon-down">${deflated.length} logs read LOWER than their sessions</span>
-            </div>
-            ${errored.length ? `<div class="recon-bad">⚠️ ${errored.length} student(s) had at least one day that could not be read
-                (${errored.reduce((s, r) => s + r.reconErrors, 0)} day(s) total). Their rows say <em>unreadable</em> and
-                their numbers are NOT included in the counts above. Do not read this run as a clean sweep for them.
-                Check the console for the failures — a permission error here usually means a session document is
-                missing its classId stamp.</div>` : ''}
-            ${orphans.length ? `<div class="recon-warn">⚠️ ${orphans.length} student(s) have
-                ${orphans.reduce((s, r) => s + r.orphanDays, 0)} day(s) with session records but NO daily-log document at all —
-                real typing with no cached total behind it. <strong>Rebuild cannot fix these:</strong> firestore.rules only lets
-                staff UPDATE a daily log, never create one, so there is no document to write into. They are listed in the
-                rebuild preview as skipped; correct them by hand, or leave them and note the shortfall.</div>` : ''}
-            ${rangeHasToday ? `<div class="recon-warn">⚠️ This range includes TODAY (${today}). Session records are written at
-                run and unit boundaries, so a student who is mid-chapter right now has real time in their log that is not in
-                sessions yet — they will show a positive Δ that is not a defect. Today's rows are excluded from the rebuild
-                below by default.</div>` : ''}
-            <div class="recon-note">
-                <strong>⏱ Clock — read this column, not Δ.</strong>
-                <strong>Sessions</strong> adds up the session records. If one stretch of typing was written
-                twice — which is happening — it gets added twice, and the total reads higher than the
-                student ever typed. <strong>Clock</strong> does something different: it puts every sprint
-                on a wall-clock timeline and measures how much of the day is covered. Two records covering
-                10:49–10:51 cover it once. <em>A student cannot type in two places at once, and Clock is
-                the only column that knows that.</em>
-                <br><br>
-                So: <strong>Total Time</strong> is what you grade on today. <strong>Clock</strong> is the
-                independent check on it. Where those two roughly agree, that student's number is solid and
-                you can show it to a parent. Where they disagree badly, open the drill-down before you
-                decide anything. <strong>Ignore Δ and Sessions for grading</strong> — they are diagnostic
-                only until the overlap is fixed.
-                <br><br>
-                ⚠️ A red <em>unplaced</em> figure under a Clock number means some of that student's records
-                had no usable timestamp and could not be placed on the timeline. They are <strong>not</strong>
-                in the Clock figure, so it is a floor rather than a measurement. Grade those students from
-                Total Time.
-            </div>
-            <div class="recon-note">
-                Δ is (daily log − sessions). It is <strong>not automatically a defect</strong>:
-                session records begin at v2.4.0 and carry a 120-day TTL, so anything older than that,
-                or from before sessions existed, legitimately has a log and no sessions behind it.
-                This view has written nothing.
-            </div>
-            <div id="rebuild-preview"></div>
-        `;
-        renderRebuildPreview(plan);
-    }
-
-    // ═════════════════════════════════════════════════════════════════════════
-    // REBUILD-ALL  (v2.15.0)  —  the only part of this round that writes.
-    // ═════════════════════════════════════════════════════════════════════════
-    //
-    // It writes through recalcDailyLog(), the SAME function the ⟳ button has
-    // used since v2.13.0 — one day at a time, one updateDoc each, against
-    // typing_logs only. It does not touch game.js, learn.js, hud.js,
-    // stats-wal.js or session-log.js, and it introduces no new write path: if
-    // ⟳ is safe for one day, this is that same operation applied N times with a
-    // preview in front of it.
-    //
-    // ⚠️ FOUR REFUSALS, and each one is a defect that would otherwise be
-    // possible:
-    //   1. No sessions for a day → SKIPPED, never zeroed. (allowZero is not
-    //      passed. A day that predates session logging has a real log total and
-    //      no session records, and zeroing it destroys the only copy.)
-    //   2. Sessions but no log document → SKIPPED and reported. The rules give
-    //      staff update-only on typing_logs; there is nothing to update.
-    //   3. Today → excluded by default, because a live tab will flush over it.
-    //   4. A pair whose sessions changed between preview and write → SKIPPED
-    //      and reported, so the number written is never one Jake did not see.
-    // ⚠️ POSITION IS NOT IDENTITY ON THIS PAGE. reportData is sorted IN PLACE
-    // by renderTable(), and the reconcile sweep itself finishes by sorting the
-    // table by Δ — so every `idx` captured during the sweep is stale the moment
-    // the results are drawn, and Jake can re-sort again by clicking a header
-    // between reading the preview and clicking write. Anything that survives a
-    // render must be keyed by uid and resolved to an index at the moment it is
-    // used. (This bit me while writing it: the first version indexed the plan
-    // by the sweep's own idx, which would have written each correction to
-    // whichever student happened to be sitting in that row afterwards. Every
-    // arithmetic test in the suite would have passed.)
-    function uidIndexMap() {
-        const m = new Map();
-        reportData.forEach((r, i) => m.set(r.uid, i));
-        return m;
-    }
-
-    // ⚠️⚠️ SCHOOL WROTE NO SESSION RECORDS BEFORE 2026-08-18. (v2.17.0)
-    //
-    // learn.js gained session logging in v2.7.0, which shipped on 2026-08-18.
-    // Library (game.js) has written them since v2.4.0. So for ANY DATE BEFORE
-    // THIS, a student's session records cover their Library time and NONE of
-    // their School time — HANDOFF §6 item 2, and it says "for School days before
-    // that there is no second record and never will be."
-    //
-    // ⚠️ WHAT THAT DOES TO THIS TOOL, AND IT IS SEVERE. On 2026-08-19 Jake's
-    // rebuild preview offered to move a student from 26m 24s down to 1m 51s on
-    // 2026-08-17. That is not a corrupted log being repaired. That is a student
-    // who did twenty-four minutes of School work on a day when School kept no
-    // session records, and the rebuild would have DESTROYED all of it — writing
-    // over the only surviving copy, in bulk, behind a preview that looked
-    // authoritative.
-    //
-    // §0.8.3's first refusal ("never zero a day") did not catch it, because the
-    // day is not empty: it has 1m 51s of Library sessions. A PARTIAL record is
-    // more dangerous than no record, because it defeats the emptiness check.
-    //
-    // ⚠️ v2.18.0 — THIS DATE WAS 2026-08-18 AND THAT WAS OFF BY ONE DAY.
-    // learn.js v2.7.0 was DEPLOYED ON 08-18, part-way through the day. So School
-    // session coverage on 08-18 itself is PARTIAL — it starts at whatever hour
-    // Jake uploaded the file, and every School run before that hour exists only
-    // in the daily log, exactly like 08-17. Jake's 2.17.0 preview showed it: a
-    // whole screen of down-moves, all dated 08-18, the largest 33m 12s → 17m 17s.
-    // Those are not corrupt logs. They are mornings.
-    //
-    // ⚠️ THE FIRST FULLY-COVERED DAY IS 2026-08-19. A deploy date is not a
-    // coverage date; coverage starts the next midnight. Generalise that before
-    // writing the next one of these.
-    //
-    // ⚠️ DO NOT MOVE THIS DATE BACKWARD TO MAKE MORE ROWS ELIGIBLE. Moving it
-    // forward is only ever conservative; moving it back is a claim about data
-    // that does not exist.
-    const SCHOOL_SESSIONS_FROM = '2026-08-19';
-
-    // ⚠️ AND A PROPORTIONAL FLOOR, FOR EVERY DATE, INCLUDING FUTURE ONES.
-    // The date guard above closes the case we understand. This closes the case
-    // we do not: any rebuild that would remove most of a day is far more likely
-    // to be a gap in the session record than a correction to the log, whatever
-    // the calendar says. It is quarantined into `skipped` with its reason, not
-    // hidden — Jake can still see the disagreement and go look at the day.
-    const MAX_DROP_FRACTION = 0.5;   // refuse to cut a day by more than half
-    const MAX_DROP_FLOOR_SECONDS = 300;  // ...unless the day is under 5 minutes
-
-    // ⚠️ UP-ONLY IS THE DEFAULT WRITE MODE (v2.18.0), AND THE REASONING MATTERS.
-    //
-    // An UP move means the session record holds MORE than the daily log. Sessions
-    // are append-only and deduped — they cannot invent time a child did not type.
-    // So an UP move is recovering work the log LOST, which is §3.1's cross-mode
-    // overwrite, and applying it can only move a student toward the truth.
-    //
-    // A DOWN move means the log holds more than the sessions. That has TWO
-    // possible causes and this tool cannot tell them apart: a genuinely inflated
-    // log, or a gap in the session record. Every large down-move Jake has
-    // examined turned out to be the second. Under his standing ruling —
-    // "inflating a kid's grade results in kids getting credit for work they did
-    // not do; that's worse" — the symmetric risk is that a WRONG down-move
-    // deletes work a child actually did, and that is the same lie pointed the
-    // other way.
-    //
-    // So the down half is opt-in, per run, with the count in front of him.
-    function buildRebuildPlan({ includeToday = false } = {}) {
-        const today = localToday();
-        const plan = { down: [], up: [], skipped: [], todayHeld: [] };
-        if (!reconState) return plan;
-        const byUid = uidIndexMap();
-
-        for (const res of reconState.results) {
-            const idx = byUid.get(res.uid);
-            const r = idx === undefined ? null : reportData[idx];
-            if (!r) continue;
-            const label = { li: res.li, uid: res.uid, name: r.name, date: res.date };
-
-            if (res.error) { plan.skipped.push({ ...label, why: 'day could not be read' }); continue; }
-            if (!res.hasLog) {
-                if (res.sess.docCount > 0) {
-                    plan.skipped.push({ ...label, why: 'sessions exist but there is no daily-log document to update' });
-                }
-                continue;  // nothing at all happened that day — not worth listing
-            }
-            if (res.sess.docCount === 0) {
-                if (res.logSeconds > 0) {
-                    plan.skipped.push({ ...label, why: 'no session records for this day — log left alone, never zeroed' });
-                }
-                continue;
-            }
-            const same = res.sess.seconds  === res.logSeconds &&
-                         res.sess.chars    === res.logChars &&
-                         res.sess.mistakes === res.logMistakes;
-            if (same) continue;
-
-            const move = {
-                ...label,
-                docId: res.docId,
-                fromSeconds: res.logSeconds, toSeconds: res.sess.seconds,
-                fromChars:   res.logChars,   toChars:   res.sess.chars,
-                expect: { seconds: res.sess.seconds, chars: res.sess.chars, mistakes: res.sess.mistakes },
-                dupes: res.sess.dupes,
-            };
-            if (res.date === today && !includeToday) { plan.todayHeld.push(move); continue; }
-
-            // ⚠️ THE TWO DOWNWARD REFUSALS. Both only ever affect moves that go
-            // DOWN — a rebuild that RAISES a student's time is recovering work
-            // the log lost (the cross-mode overwrite, §3.1) and is left alone.
-            if (move.toSeconds < move.fromSeconds) {
-                if (res.date < SCHOOL_SESSIONS_FROM) {
-                    plan.skipped.push({ ...label, why:
-                        'REFUSED — before ' + SCHOOL_SESSIONS_FROM + ', School kept no session ' +
-                        'records, so any School time on this day exists ONLY in the daily log. ' +
-                        'Rebuilding would destroy it.' });
-                    continue;
-                }
-                const drop = move.fromSeconds - move.toSeconds;
-                if (move.fromSeconds > MAX_DROP_FLOOR_SECONDS &&
-                    drop > move.fromSeconds * MAX_DROP_FRACTION) {
-                    plan.skipped.push({ ...label, why:
-                        'REFUSED — would remove ' + Math.round(100 * drop / move.fromSeconds) +
-                        '% of this day (' + formatTime(move.fromSeconds) + ' \u2192 ' +
-                        formatTime(move.toSeconds) + '). A drop that large is far more likely ' +
-                        'to be a gap in the session record than a correction to the log. ' +
-                        'Open the day and look before doing anything by hand.' });
-                    continue;
-                }
-            }
-
-            (move.toSeconds < move.fromSeconds ? plan.down : plan.up).push(move);
-        }
-
-        // Biggest movers first within each group — the outliers are the ones
-        // worth an actual human look before approving.
-        plan.down.sort((a, b) => (a.toSeconds - a.fromSeconds) - (b.toSeconds - b.fromSeconds));
-        plan.up.sort((a, b) => (b.toSeconds - b.fromSeconds) - (a.toSeconds - a.fromSeconds));
-        return plan;
-    }
-
-    function rebuildRowHtml(m, dir) {
-        const d = m.toSeconds - m.fromSeconds;
-        return `<div class="rebuild-row rebuild-${dir}">
-            <span class="rebuild-name" title="${escapeHtml(m.name)}">${escapeHtml(m.name)}</span>
-            <span class="rebuild-date">${m.date}</span>
-            <span class="rebuild-move">${formatTime(m.fromSeconds)} → ${formatTime(m.toSeconds)}</span>
-            <span class="rebuild-delta">${d > 0 ? '+' : '−'}${formatTime(Math.abs(d))}</span>
-            ${m.dupes ? `<span class="rebuild-tag" title="${m.dupes} duplicate rollup(s) on this day were excluded from the new total">⧉ ${m.dupes}</span>` : ''}
-        </div>`;
-    }
-
-    function renderRebuildPreview(plan) {
-        const host = document.getElementById('rebuild-preview');
-        if (!host) return;
-        const total = plan.down.length + plan.up.length;
-        const canWrite = isSuper() || me.role === 'building_admin' || me.readScope === 'building';
-        const now = new Date();
-        const schoolHours = now.getDay() >= 1 && now.getDay() <= 5 &&
-                            now.getHours() >= 7 && now.getHours() < 15;
-
-        host.innerHTML = `
-            <h3 style="margin-top:18px;">Rebuild from sessions — preview</h3>
-            ${!canWrite ? `<div class="recon-bad">Your account reads its own classes only.
-                firestore.rules allows a daily-log correction from building-scoped staff only
-                (<code>readsWholeBuilding()</code>), so every write below would be denied.
-                The reconciliation above still works and is the part you need most.</div>` : ''}
-            ${schoolHours ? `<div class="recon-warn">⚠️ It is currently a weekday during school hours.
-                Students typing right now have time in their logs that has not reached sessions yet;
-                rebuilding their day now would roll it back to their last completed unit. Run this at the
-                end of a period or the end of the week.</div>` : ''}
-            ${total === 0 ? `<div class="recon-note">Nothing to rebuild — every day with session records
-                already matches the sum of those records.</div>` : ''}
-            ${plan.down.length ? `<div class="rebuild-group">
-                <h4 style="color:#ff8888;">${plan.down.length} will go DOWN — read these first</h4>
-                <div class="recon-warn">⚠️ Two refusals already removed the dangerous cases from this
-                list: anything dated before ${SCHOOL_SESSIONS_FROM} (School kept no session records
-                yet, so School time on those days exists ONLY in the daily log), and anything that
-                would cut a day by more than half. Both are in the skipped list below with reasons.
-                <strong>What remains here can still be wrong — a down-move is only ever as good as
-                the session record behind it.</strong></div>
-                <div class="rebuild-list">${plan.down.map(m => rebuildRowHtml(m, 'down')).join('')}</div>
-            </div>` : ''}
-            ${plan.up.length ? `<div class="rebuild-group">
-                <h4 style="color:#22c55e;">${plan.up.length} will go UP</h4>
-                <div class="rebuild-list">${plan.up.map(m => rebuildRowHtml(m, 'up')).join('')}</div>
-            </div>` : ''}
-            ${plan.todayHeld.length ? `<div class="recon-note">${plan.todayHeld.length} row(s) dated today are
-                held back — tick “include today” to rebuild them anyway.</div>` : ''}
-            ${plan.skipped.length ? `<div class="rebuild-group">
-                <h4>${plan.skipped.length} skipped — nothing will be written for these</h4>
-                <div class="rebuild-list">${plan.skipped.slice(0, 200).map(s => `
-                    <div class="rebuild-row">
-                        <span class="rebuild-name">${escapeHtml(s.name)}</span>
-                        <span class="rebuild-date">${s.date}</span>
-                        <span style="color:#777; font-size:0.72rem;">${escapeHtml(s.why)}</span>
-                    </div>`).join('')}</div>
-                ${plan.skipped.length > 200 ? `<div class="recon-note">…and ${plan.skipped.length - 200} more.</div>` : ''}
-            </div>` : ''}
-            <div class="recon-bad"><strong>⚠️ The write is disabled in v2.19.0 and the button below does nothing.</strong>
-                HANDOFF §0.0.C. On 2026-08-19 <code>typing_sessions</code> was found to contain rollups whose
-                sprint windows OVERLAP in wall-clock time — one stretch of typing recorded twice, with different
-                chunk boundaries, so the duplicate check sees two distinct documents and counts both in full.
-                The up-moves-only default rested entirely on “sessions cannot invent time.” They can.
-                <strong>This preview is kept because it is evidence, not because it is a plan.</strong>
-                Read the <strong>⏱ Clock</strong> column instead — it unions the typing intervals rather than
-                summing the records, so an overlap counts once.</div>
-            <div class="rebuild-actions">
-                <label><input type="checkbox" id="rebuild-include-today" /> include today (${localToday()})</label>
-                <label title="A DOWN move can be a corrected log OR a gap in the session record, and this tool cannot tell which. Off by default."><input type="checkbox" id="rebuild-include-down" /> <strong>also write the ${plan.down.length} DOWN move${plan.down.length === 1 ? '' : 's'}</strong> (off by default \u2014 read the warning above)</label>
-                <!-- v2.19.0 — UNCONDITIONALLY DISABLED. Kept in the DOM rather
-                     than deleted so that a future round re-enabling it has to
-                     read the banner above and delete this comment on purpose.
-                     runRebuildAll() refuses independently; see its first lines.
-                     Two locks, because one of them is a UI attribute and UI
-                     attributes get removed by accident. -->
-                <button id="rebuild-run-btn" disabled title="Disabled in reports.html v2.19.0 — HANDOFF §0.0.C. typing_sessions cannot decide a grade until the overlap cause is found and a harness exists that would have caught it.">Write ${plan.up.length} change${plan.up.length === 1 ? '' : 's'} — DISABLED</button>
-                <span id="rebuild-status" style="color:#888; font-size:0.75rem;"></span>
-            </div>
-        `;
-
-        const tick = document.getElementById('rebuild-include-today');
-        if (tick) tick.onchange = () => renderRebuildPreview(buildRebuildPlan({ includeToday: tick.checked }));
-        const downTick = document.getElementById('rebuild-include-down');
-        if (downTick) downTick.onchange = () => {
-            const btn = document.getElementById('rebuild-run-btn');
-            const n = plan.up.length + (downTick.checked ? plan.down.length : 0);
-            btn.textContent = `Write ${n} change${n === 1 ? '' : 's'}`;
-            btn.disabled = !canWrite || n === 0;
-        };
-        const run = document.getElementById('rebuild-run-btn');
-        if (run) run.onclick = () => runRebuildAll(plan,
-            { includeDown: !!(downTick && downTick.checked) });
-    }
-
-    async function runRebuildAll(plan, { includeDown = false } = {}) {
-        // ═════════════════════════════════════════════════════════════════════
-        // ⚠️⚠️ HARD REFUSAL — v2.19.0. HANDOFF §0.0.C.
-        // ═════════════════════════════════════════════════════════════════════
-        //
-        // The button that reaches here is also disabled, and that is not
-        // redundancy for its own sake. A `disabled` attribute is one word in a
-        // template string, it is invisible in a diff that touches the same line
-        // for another reason, and it can be cleared from the browser console by
-        // anyone who wants the button to work badly enough. This refusal is in
-        // the function that does the writing, which is the only place a lock
-        // cannot be walked around by accident.
-        //
-        // WHY, in one sentence: this function's entire safety argument was
-        // "sessions cannot invent time, so an UP move can only move a student
-        // toward the truth." typing_sessions was then found to contain rollups
-        // whose sprint windows OVERLAP in wall-clock time — one stretch of
-        // typing recorded twice by two writers, with different chunk
-        // boundaries, so sessionSignature() sees two distinct documents and
-        // sums both in full. Sessions CAN overstate. The argument is dead and
-        // every refusal built on top of it (SCHOOL_SESSIONS_FROM,
-        // MAX_DROP_FRACTION, the never-zero guard) was guarding the wrong end.
-        //
-        // ⚠️ RE-ENABLING THIS IS NOT A DECISION FOR THE ROUND THAT NEEDS IT.
-        // Two things must be true first, and a passing test suite is neither of
-        // them:
-        //   1. The overlap CAUSE is identified — not theorised. §0.0.D lists
-        //      three candidates and explicitly says do not pick one and build.
-        //   2. A harness exists that FAILS on the current production data.
-        //      Round 18 verified every document against its own sprints[] and
-        //      all four corrupt documents passed. Internal consistency says
-        //      nothing about whether two documents describe the same minutes.
-        //
-        // The ⟳ single-day button is untouched. One day, one student, in front
-        // of a human who can see the drill-down, is a different act from nine
-        // hundred writes behind a preview. This is a refusal to do it in bulk.
-        console.warn('[rebuild] refused — disabled in reports.html v2.19.0. HANDOFF §0.0.C.');
-        alert(
-            'Rebuild from sessions is disabled in reports.html v2.19.0.\n\n' +
-            'typing_sessions contains rollups whose sprint windows overlap in ' +
-            'wall-clock time, so the session total can read HIGHER than the ' +
-            'student actually typed. This tool would write that inflation into ' +
-            'the document you grade from.\n\n' +
-            'Use the ⏱ Clock column instead — it unions the typing intervals ' +
-            'rather than summing the records, so a stretch recorded twice ' +
-            'counts once. It is read-only and writes nothing.\n\n' +
-            'To correct a single day you have looked at yourself, the ⟳ button ' +
-            'beside that day still works.'
-        );
-        return;
-        // eslint-disable-next-line no-unreachable
-        /* ⚠️ EVERYTHING BELOW IS UNREACHABLE AND IS KEPT ON PURPOSE. Deleting it
-           would mean a future round re-implements the write from scratch and
-           loses the sequential ordering, the stale-row detection, the uid
-           re-resolution and the counted failure reporting — all of which are
-           correct and were expensive to get right. The defect is in the DATA
-           this reads, not in this code. */
-        // ⚠️ UP MOVES ONLY UNLESS EXPLICITLY ASKED FOR. See buildRebuildPlan()'s
-        // header. An UP move gives back work the log lost; a DOWN move might be
-        // deleting work a child did.
-        const moves = includeDown ? [...plan.down, ...plan.up] : [...plan.up];
-        if (!moves.length) return;
-        const down = includeDown ? plan.down.length : 0;
-        if (!confirm(
-            `Write ${moves.length} daily-log correction(s)?\n\n` +
-            (includeDown
-              ? `\u26a0\ufe0f ${down} student-day(s) will go DOWN. A down-move can be a corrected ` +
-                `log OR a gap in the session record, and this tool cannot tell which. ` +
-                `Every large one examined so far has been the second.\n\n`
-              : `${plan.up.length} student-day(s) will go UP. None will go down.\n\n`) +
-            `Each one is recalculated from that day's session records, the same as the ⟳ button. ` +
-            `Nothing else is touched. This cannot be undone in one click — the sessions remain, so ` +
-            `a day can always be rebuilt again, but a manually-entered total that gets overwritten here is gone.\n\n` +
-            `Proceed?`)) return;
-
-        const btn = document.getElementById('rebuild-run-btn');
-        const status = document.getElementById('rebuild-status');
-        btn.disabled = true;
-
-        let ok = 0, stale = 0, failed = 0, lost = 0;
-        // Resolved HERE, not at preview time — see uidIndexMap()'s comment. A
-        // header click between reading the preview and pressing the button is a
-        // completely ordinary thing to do and must not misdirect a write.
-        const byUid = uidIndexMap();
-        // ⚠️ SEQUENTIAL, AND THAT IS DELIBERATE. These are writes to the
-        // collection grades come from. Serial is slower and it means a failure
-        // stops with a known, countable number of documents already written,
-        // rather than an indeterminate set in flight. The counter below is the
-        // record of what happened; it is not decoration.
-        for (let i = 0; i < moves.length; i++) {
-            const m = moves[i];
-            status.textContent = `Writing ${i + 1} of ${moves.length}…`;
-            const idx = byUid.get(m.uid);
-            if (idx === undefined || m.li === null || !reportData[idx] || !reportData[idx].dailyLogs[m.li]) {
-                console.warn('[rebuild] could not resolve row for', m.uid, m.date, '— skipped.');
-                lost++;
-                continue;
-            }
-            const res = await recalcDailyLog(idx, m.li, m.uid, m.date, { expect: m.expect });
-            if (res && res.ok) ok++;
-            else if (res && res.reason === 'stale') stale++;
-            else failed++;
-        }
-
-        status.innerHTML = `<strong>${ok} written</strong>` +
-            (stale ? `, ${stale} skipped (changed since the preview — reconcile again)` : '') +
-            (lost ? `, ${lost} skipped (row no longer in the report)` : '') +
-            (failed ? `, <span style="color:#ff3333;">${failed} failed — see console</span>` : '') +
-            ` — run Reconcile again to confirm the Δ column is now zero.`;
-
-        // The reconciliation on screen is now describing a database that has
-        // moved. Rather than quietly leaving stale numbers up, invalidate it:
-        // the honest state after a repair is "not yet re-measured". The panel
-        // above is stamped stale for the same reason — a summary saying
-        // "14 with a non-zero Δ" sitting above a table that has just been
-        // repaired is a sentence that was true two seconds ago, which is the
-        // most misleading kind.
-        reportData.forEach(r => {
-            r.sessSeconds = null; r.sessChars = null; r.sessMistakes = null;
-            r.delta = null; r.deltaChars = null; r.dupes = null;
-        });
-        reconState = null;
-        const panel = document.getElementById('recon-panel');
-        const held = status.innerHTML;
-        panel.innerHTML = `<h3>Rebuild complete — reconciliation is now out of date</h3>
-            <div class="recon-warn">${held}</div>
-            <div class="recon-note">The figures that were here described the database before these writes.
-            They have been cleared rather than left on screen. Press <strong>Reconcile vs Sessions</strong>
-            again for a fresh comparison.</div>`;
-        renderTable();
-    }
-
-    document.getElementById('reconcile-btn').onclick = runReconcile;
-
     // --- TABLE RENDERING ---
     function renderTable() {
         reportData.sort((a, b) => {
             let va = a[sortCol], vb = b[sortCol];
-            // ⚠️ v2.15.0 — NULL IS "NOT MEASURED", NOT ZERO. The three
-            // reconciliation columns are null until Reconcile has run, and
-            // JavaScript would happily compare null as 0 — which would sort a
-            // student nobody has checked into the middle of the students who
-            // came back clean, i.e. it would make "unknown" look like "fine".
-            // Un-reconciled rows sink to the bottom in either direction.
+            // ⚠️ THE NULL HANDLING STAYS THOUGH THE COLUMNS THAT NEEDED IT ARE
+            // GONE (v2.25.0). Every remaining column is always a number or a
+            // string — but sortCol comes from a `data-col` attribute in the
+            // markup, so a future column that is sometimes absent would sort as
+            // 0 and make "unknown" look like "fine". That was the v2.15.0
+            // lesson and it cost nothing to keep. Un-measured rows sink.
             if (va === null || va === undefined || vb === null || vb === undefined) {
                 if (va === vb) return 0;
                 if (va === null || va === undefined) return 1;
@@ -2450,11 +1601,10 @@
                 <td class="wpm-cell">${r.wpm}</td>
                 <td>${r.accuracy}%</td>
                 <td>${r.days}</td>
-                ${reconCellsHtml(r)}
                 <td><button class="details-row-btn" data-idx="${idx}">Details</button></td>
             </tr>
             <tr class="detail-row hidden" id="detail-${idx}">
-                <td colspan="12">
+                <td colspan="8">
                     <div class="daily-logs">
                         ${r.dailyLogs.map((log, li) => {
                             const mins = Math.floor(log.seconds / 60);
@@ -2845,18 +1995,15 @@
         return `s\u0000${s.source || ''}\u0000${s.bookId || ''}\u0000${stamps.join(',')}`;
     }
 
-    // ⚠️ v2.15.0 — TWO ADDITIONS, BOTH FOR THE BULK REBUILD. Neither changes
-    // what this function does for the two callers that already existed.
+    // ⚠️ v2.25.0 — THE `expect` OPTION IS GONE WITH THE BULK REBUILD. It held
+    // the totals a preview had shown Jake, and refused to write anything else,
+    // because the point of a preview is that the write is the thing previewed.
+    // Its only caller was runRebuildAll(). Both surviving callers — the ⟳
+    // button and the post-delete recalc — are a teacher acting on ONE day they
+    // are looking at, with no preview to be stale against. Keeping a parameter
+    // nothing passes means keeping a branch nothing exercises.
     //
-    //   `expect` — the totals the rebuild preview showed Jake and that he
-    //     approved. If a re-read here produces anything else, the day moved
-    //     between the preview and the write (a student flushed a session, a
-    //     duplicate arrived) and we REFUSE rather than write a number he never
-    //     saw. Silently writing the newer, more-correct value would be the
-    //     defensible-sounding choice and it is wrong: the entire point of a
-    //     preview is that the write is the thing that was previewed.
-    //
-    //   RETURN VALUE is now an object, `{ ok, reason, ... }`, instead of a
+    //   RETURN VALUE is an object, `{ ok, reason, ... }`, instead of a
     //     bare boolean. Both pre-existing callers (the ⟳ button and the
     //     post-delete cascade) ignore the return entirely, and an object is
     //     truthy, so nothing that read it as a boolean changes meaning.
@@ -2885,7 +2032,7 @@
     const DROP_GUARD_RATIO = 0.9;
 
     async function recalcDailyLog(idx, li, uid, date,
-                                  { allowZero = false, expect = null, expectDrop = false } = {}) {
+                                  { allowZero = false, expectDrop = false } = {}) {
         const r = reportData[idx];
         const log = r.dailyLogs[li];
         const statusEl2 = document.getElementById(`log-status-${idx}-${li}`);
@@ -2921,19 +2068,6 @@
             const totalSec = schoolSec + librarySec;
             const totalChars = schoolChars + libraryChars;
             const totalMistakes = schoolMist + libraryMist;
-
-            // ⚠️ v2.15.0 — THE PREVIEW MUST PREDICT THE WRITE. Checked here,
-            // BEFORE updateDoc, so a stale pair costs a read and nothing else.
-            if (expect && (expect.seconds !== totalSec ||
-                           expect.chars !== totalChars ||
-                           expect.mistakes !== totalMistakes)) {
-                console.warn(`[rebuild] ${uid} ${date} moved since the preview ` +
-                             `(previewed ${expect.seconds}s/${expect.chars}ch, now ` +
-                             `${totalSec}s/${totalChars}ch) — skipped, not written.`);
-                if (statusEl2) { statusEl2.textContent = 'changed — skipped'; statusEl2.style.color = '#ffaa00'; }
-                return { ok: false, reason: 'stale',
-                         got: { seconds: totalSec, chars: totalChars, mistakes: totalMistakes } };
-            }
 
             // ⚠️ v2.23.0 — THE DROP GUARD. See the note above the function.
             //
@@ -3063,24 +2197,14 @@
             cells[2].textContent = formatTime(r.seconds);
             cells[4].textContent = r.wpm;
             cells[5].textContent = r.accuracy + '%';
-            // ⚠️ v2.15.0 — THE Δ BESIDE A CHANGED TOTAL IS A LIE UNTIL IT IS
-            // RE-MEASURED. Any path that reaches here (⟳, a manual Save, a bulk
-            // rebuild) has just moved cells[2] out from under a Δ that was
-            // computed against the old value. Rather than recompute it from
-            // cached session numbers — which would be arithmetic dressed up as
-            // observation — the three reconciliation cells go back to "—".
-            // Re-run Reconcile to earn them back.
-            // v2.19.0 — the Clock cell goes with them. It was measured against
-            // the same range and is now sitting beside a total it never saw.
-            if (cells.length >= 11) {
-                r.sessSeconds = null; r.sessChars = null; r.sessMistakes = null;
-                r.delta = null; r.deltaChars = null; r.dupes = null;
-                r.clockSeconds = null; r.unplacedSeconds = null; r.deltaClock = null;
-                cells[7].className  = 'recon-cell recon-idle'; cells[7].textContent  = '—';
-                cells[8].className  = 'recon-cell recon-idle'; cells[8].textContent  = '—';
-                cells[9].className  = 'recon-cell recon-idle'; cells[9].textContent  = '—';
-                cells[10].className = 'recon-cell recon-idle'; cells[10].textContent = '—';
-            }
+            // ⚠️ v2.15.0's Δ INVALIDATION LIVED HERE AND WENT WITH THE COLUMNS
+            // (v2.25.0). The principle it stood on is still true and is worth
+            // keeping in view: any path reaching this function has just moved
+            // cells[2], so ANY cell computed against the old value is a lie
+            // until it is re-measured. If a future column is derived from
+            // `seconds` rather than read from the document, blank it here —
+            // do not recompute it, which is arithmetic dressed up as
+            // observation. Nothing on this row is derived today.
         }
         const totalSecs = reportData.reduce((s, rr) => s + rr.seconds, 0);
         document.getElementById('total-line').innerHTML = 
@@ -3093,19 +2217,11 @@
         const startDate = document.getElementById('date-start').value;
         const endDate = document.getElementById('date-end').value;
         
-        // v2.15.0 — the reconciliation columns go into the CSV only when a
-        // sweep has actually run. An always-present column full of blanks in a
-        // spreadsheet that outlives this page is an invitation to read "no
-        // duplicates found" out of "never looked".
-        const reconciled = reportData.some(r => r.sessSeconds !== null && r.sessSeconds !== undefined);
-
-        const headers = ['Name', 'Email', 'Total Seconds', 'Total Time', 'Characters', 'Avg WPM', 'Accuracy %', 'Days Active']
-            .concat(reconciled ? ['Session Seconds', 'Session Characters', 'Delta Seconds', 'Delta Characters', 'Duplicate Rollups', 'Unreadable Days', 'Days With Sessions But No Log',
-            // v2.19.0 — 'Unplaced Seconds' sits immediately after 'Clock
-            // Seconds' on purpose. In a spreadsheet the two will be read
-            // together or not at all, and a Clock figure read without its
-            // unplaced companion is a floor being mistaken for a measurement.
-                                   'Clock Seconds', 'Unplaced Seconds', 'Delta vs Clock'] : []);
+        // ⚠️ v2.25.0 — THE EIGHT GRADING COLUMNS ARE UNCHANGED. The ten
+        // reconciliation columns that used to be appended here only ever
+        // appeared after a sweep had run, so a CSV exported without one came
+        // out exactly like this. Nothing about an existing export moves.
+        const headers = ['Name', 'Email', 'Total Seconds', 'Total Time', 'Characters', 'Avg WPM', 'Accuracy %', 'Days Active'];
         const rows = reportData.map(r => [
             r.name,
             r.email,
@@ -3115,18 +2231,7 @@
             r.wpm,
             r.accuracy,
             r.days
-        ].concat(reconciled ? [
-            r.sessSeconds === null || r.sessSeconds === undefined ? '' : r.sessSeconds,
-            r.sessChars   === null || r.sessChars   === undefined ? '' : r.sessChars,
-            r.delta       === null || r.delta       === undefined ? '' : r.delta,
-            r.deltaChars  === null || r.deltaChars  === undefined ? '' : r.deltaChars,
-            r.dupes       === null || r.dupes       === undefined ? '' : r.dupes,
-            r.reconErrors || 0,
-            r.orphanDays  || 0,
-            r.clockSeconds    === null || r.clockSeconds    === undefined ? '' : r.clockSeconds,
-            r.unplacedSeconds === null || r.unplacedSeconds === undefined ? '' : r.unplacedSeconds,
-            r.deltaClock      === null || r.deltaClock      === undefined ? '' : r.deltaClock
-        ] : []));
+        ]);
 
         let csv = headers.join(',') + '\n';
         rows.forEach(row => {

@@ -1,4 +1,14 @@
-// learn.js v2.20.0
+// learn.js v2.21.0
+//
+// v2.21.0 — ⚠️ THREE FIXES ON THE GUEST PATH. (1) logRun() filed a guest's runs
+//           under the throwaway ANONYMOUS uid — its guard tested `currentUser`,
+//           but a guest IS signed in anonymously, so the guard never fired.
+//           They go to GUEST_QUEUE_UID now and are adopted into the real
+//           account. (2) retroactiveSaveAnonSession() adopts those records, so
+//           the minutes land in the drill-down and not only in the total.
+//           (3) LOGOUT NOW RELOADS, like game.js: a signed-out page was still
+//           painting the departed student's `Daily 8:31 / Weekly 59:12`.
+//
 //
 // ⚠️ THE LINE ABOVE SAID v2.16.0 FOR FOUR VERSIONS while `const LEARN_VERSION`
 // said 2.19.0. tools/audit-versions.mjs has been calling that out as "one of the
@@ -300,6 +310,7 @@ import {
 // character count and a derived WPM, which is exactly what the module stores.
 import {
     sessionLogInit, sessionLogPush, sessionLogFlush, sessionLogPending,
+    sessionLogAdopt, sessionLogTake, GUEST_QUEUE_UID,
 } from "./session-log.js";
 // The time readout, shared with game.js. ⚠️ Both pages render the SAME string in
 // the SAME element id — see hud.js for why that is the whole point.
@@ -338,7 +349,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.20.0";
+const LEARN_VERSION = "2.21.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -665,7 +676,15 @@ document.getElementById('logout-btn').onclick = async () => {
     // expired session by the handler that is about to fire.
     try { await flushStats('signout', true); } catch (_) {}
     lastKnownUid = ''; sessionExpired = false;
-    try { await signOut(auth); } catch(e) { console.error(e); }
+    // ⚠️ v2.21.0 — RELOAD, LIKE game.js ALREADY DID. Without it the HUD kept
+    // painting the signed-out page with the departed student's figures — Jake's
+    // 2026-08-20 screenshot shows a signed-out School page still reading
+    // `Daily 8:31 / 10:00 · Weekly 59:12 / 50:00`, goal denominators and all.
+    // Under Rule 11 that is the worst kind of wrong number: a child looking at
+    // a total that is not theirs. A reload is the only thing that clears every
+    // in-memory counter at once; resetting them by hand is a list that the next
+    // counter gets left off.
+    try { await signOut(auth); location.reload(); } catch(e) { console.error(e); }
 };
 onAuthStateChanged(auth, async user => {
     // ⚠️ CAPTURED BEFORE currentUser IS OVERWRITTEN. (v2.6.0) `user === null`
@@ -984,6 +1003,13 @@ async function retroactiveSaveAnonSession(user) {
             secondsWeek: read.week.seconds, charsWeek: read.week.chars,
             mistakesWeek: read.week.mistakes,
         } : null, dateStr, weekStart);
+        // ⚠️ v2.21.0 — THE RUNS COME ACROSS TOO, AND THAT IS THE "in the record"
+        // HALF. The merge above fixes the TOTAL; without this the day still
+        // carries minutes the drill-down cannot account for. Each record keeps
+        // its own `at`, and therefore its own date.
+        const adopted = sessionLogAdopt(user.uid, sessionLogTake(GUEST_QUEUE_UID), dateStr);
+        if (adopted) console.log(`Adopted ${adopted} guest run record(s) into ${user.uid}.`);
+
         sessionExpired = false;
         learnStatsDocDirty = true;
         await flushStats('anon-retroactive', true);
@@ -2530,8 +2556,16 @@ function updateHUD() {
 // ⚠️ A ZERO DELTA IS NORMAL, NOT AN ERROR. Two hides in a row, or a hide
 // immediately followed by finishStep(), produce nothing the second time.
 function logRun(wpm, acc, detailSuffix) {
-    const sessionUid = currentUser ? currentUser.uid : (sessionExpired ? lastKnownUid : '');
-    if (!sessionUid) return;                     // a true guest has no account yet
+    // ⚠️ v2.21.0 — THE OLD LINE READ `currentUser ? currentUser.uid : …` AND ITS
+    // COMMENT SAID "a true guest has no account yet". Both were wrong about the
+    // same fact: a guest IS signed in, anonymously, so `currentUser` is NOT null
+    // and their runs were filed under a throwaway anonymous uid that no report
+    // can attribute and no later flush ever names. They go to the shared guest
+    // slot now and are handed to the real account by
+    // retroactiveSaveAnonSession(). Matches game.js v3.36.0.
+    const sessionUid = (currentUser && !currentUser.isAnonymous) ? currentUser.uid
+                     : (sessionExpired && lastKnownUid) ? lastKnownUid
+                     : GUEST_QUEUE_UID;
 
     const dSeconds  = Math.max(0, Math.round(stepSeconds - stepLoggedSeconds));
     const dChars    = Math.max(0, Math.round(chars       - stepLoggedChars));

@@ -1,5 +1,45 @@
 # CHANGELOG
 
+## Round 23 — Empire (2026-08-20)
+
+⚠️ **STUDENT WRITE-PATH ROUND.** Upload `session-log.js` FIRST.
+
+* **`session-log.js` 1.4.0 → 1.5.0.** The queue store is now one slot PER
+  ACCOUNT. `_write()` had no ownership guard, so any second uid on one profile
+  destroyed the first's unflushed records. The `v: 1` record migrates in place
+  under the same storage key. New: `GUEST_QUEUE_UID`, `sessionLogTake()`,
+  `MAX_QUEUE_OWNERS`. ⚠️ Older version entries trimmed from the header to hold
+  the 6-entry budget; the behaviour they describe is in SEMANTICS, not history.
+* **`game.js` 3.35.0 → 3.36.0.** THE GUEST MINUTE. This file had no guest merge
+  on the auth path while `learn.js` did, so time typed before signing in was
+  erased by `applyWeekToStats()`, which assigns. The merge existed twice, inline,
+  in two modal paths — so which of three sign-in buttons a child pressed decided
+  whether their minutes survived. `retroactiveSaveGuestSession()` is the one
+  copy, called by all three, before `loadUserStats()`. A true guest's sprints are
+  queued under `GUEST_QUEUE_UID` and adopted at sign-in instead of dropped.
+* **`learn.js` 2.20.0 → 2.21.0.** `logRun()` filed a guest's runs under the
+  throwaway anonymous uid — its guard tested `currentUser`, but a guest IS signed
+  in anonymously. They go to the guest slot now and are adopted.
+  `retroactiveSaveAnonSession()` adopts them. Logout reloads, so a signed-out
+  page stops painting the departed student's daily and weekly totals.
+* **`reports.html` 2.24.0 → 2.25.0.** Reconcile vs Sessions and rebuild-all
+  DELETED (~830 lines) on Jake's confirmed boundary. Kept: Generate, CSV,
+  drill-down and its ⧉ badge, the per-day editor and its SAVE box, and ⟳ on a
+  single day. `runPool()` — used by Generate — no longer depends on the
+  reconcile's constants. `recalcDailyLog()`'s dead `expect` option removed.
+* **`tests/run-all-tests.mjs` 1.4.0 → 1.5.0.** `guest-merge-test.mjs` (NEW, 11
+  failing against the old build) and `queue-owner-test.mjs` (NEW, 8 failing)
+  registered. `reconcile-test.mjs` and `union-clock-test.mjs` deleted with the
+  code they covered — the registration audit caught the half-done deletion.
+  `real-sessions-fixture.mjs` exempted as data.
+* **`tests/real-sessions-fixture.mjs` NEW.** The only real production session
+  data in the repository, lifted out of `union-clock-test.mjs` before deleting
+  it. No student-identifying data.
+* **`HANDOFF.md` 14.30.0 → 15.0.0**, and **`docs/archive/HANDOFF-ARCHIVE.md`
+  NEW.** 237 KB → 112 KB; Rounds 15–20 narratives archived read-only.
+* **`ROADMAP.md` 2.2.0 → 3.0.0.**
+
+
 <!-- CHANGELOG.md v1.3.0 — created 2026-08-02 by Blick.
      v1.3.0 — Round 6 (Noiseless), second pass: four documents recovered from outside
               the repo and committed — TTL-GUIDE.md v1.4.1 (verified accurate),

@@ -1,4 +1,17 @@
-// game.js v3.35.0
+// game.js v3.36.0
+//
+// v3.36.0 — ⚠️⚠️ THE GUEST MINUTE. This file had NO guest merge on the auth
+//           path and learn.js did. Jake, 2026-08-20, one student, one machine:
+//           School guest 1:04 → sign in → 8:31 (server 7:27, merged); Library
+//           guest 1:11 → sign in → 8:31 (the SAME number — the minute erased by
+//           applyWeekToStats(), which ASSIGNS). The merge existed here twice,
+//           inline, in two modal paths, so whether a child kept their minutes
+//           depended on which of three sign-in buttons they pressed.
+//           retroactiveSaveGuestSession() is now the one copy, called by all
+//           three, BEFORE loadUserStats(). A true guest's sprints are queued
+//           under GUEST_QUEUE_UID instead of dropped, and adopted at sign-in,
+//           so the minutes reach the RECORD and not only the total.
+//
 //
 // ⚠️ THE LINE ABOVE SAID v3.30.0 FOR FIVE VERSIONS while `const VERSION` said
 // 3.34.0. tools/audit-versions.mjs has been reporting it as "one of the two is
@@ -350,7 +363,7 @@ import { statsWalSave, statsWalRecover } from "./stats-wal.js";
 import {
     sessionLogInit, sessionLogPush, sessionLogFlush,
     // sessionLogPendingSeconds is NOT imported — see the daylog.js import note.
-    sessionLogPending, sessionLogAdopt,
+    sessionLogPending, sessionLogAdopt, sessionLogTake, GUEST_QUEUE_UID,
 } from "./session-log.js";
 // The time readout, shared with learn.js. Extracted BECAUSE this file's timer
 // slot held three different quantities depending on settings, and School's held a
@@ -383,7 +396,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.35.0";
+const VERSION = "3.36.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1507,6 +1520,12 @@ async function init() {
                 await loadProfileInfo();
                 await resolveViewMode();
                 await loadUserProgress();
+                // ⚠️ v3.36.0 — BEFORE loadUserStats(), NOT AFTER, AND THIS IS
+                // THE FIX FOR THE LOST GUEST MINUTE. loadUserStats() ASSIGNS the
+                // server's figures over statsData; anything this browser counted
+                // while signed out has to be merged and written first, or the
+                // assignment erases it. Mirrors learn.js exactly.
+                await retroactiveSaveGuestSession(currentUser);
                 await loadUserStats();
                 // Self-heal: if today > week, data was corrupted during transition
                 await loadGoals();
@@ -1779,6 +1798,86 @@ function mergeGuestStats(serverData, dateStr, weekStart) {
     // The merged value is now the authoritative figure and is about to be
     // written. Anything typed AFTER this point is a new contribution.
     captureStatsBaseline();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// retroactiveSaveGuestSession() — THE MINUTE A CHILD TYPES BEFORE SIGNING IN
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️ v3.36.0 — THIS FILE HAD NO SUCH STEP ON THE AUTH PATH AND learn.js DID,
+// AND THAT IS THE WHOLE DEFECT. Jake, 2026-08-20, one student, one machine:
+//
+//     School   guest 1:04 → sign in → 8:31   (server held 7:27; 7:27+1:04 ✓)
+//     Library  guest 1:11 → sign in → 8:31   (the same 8:31 — the minute lost)
+//
+// learn.js's onAuthStateChanged calls retroactiveSaveAnonSession() BEFORE
+// loadUserStats(), so every sign-in path in School merges. This file went
+// straight to loadUserStats(), and applyWeekToStats() is — by its own header —
+// AN ASSIGNMENT, NOT AN ACCUMULATION. It wrote the server's number over the
+// guest's counter and the minute was gone.
+//
+// ⚠️ THE MERGE DID EXIST HERE, TWICE, INLINE, IN TWO MODAL PATHS. So whether a
+// child kept their minutes depended on WHICH OF THREE SIGN-IN BUTTONS they
+// pressed: the "Nice work!" prompt merged, the start-modal merged, and the
+// header Sign In button — three lines long, the obvious one, on screen at all
+// times — did not. Both copies now call this function. ⚠️ DO NOT INLINE A
+// FOURTH: that is how the third one came to be missing.
+//
+// ⚠️ ORDER IS LOAD-BEARING AND MIRRORS learn.js. This runs BEFORE
+// loadUserStats(). It merges, then FLUSHES, so the loadUserStats() read that
+// follows reads back the merged figure rather than the pre-merge one. Remove
+// the await and the assignment wins again.
+//
+// ⚠️ SAFE TO CALL ON AN ORDINARY SIGN-IN. On a cold page load statsData is all
+// zeros and the baseline is zero, so `mine` is zero and mergeGuestStats()
+// degenerates to "take the server's numbers". On an expired-session re-auth the
+// baseline was captured by loadUserStats(), so `mine` is exactly what was typed
+// since. Both cases are the arithmetic mergeGuestStats() was written for.
+async function retroactiveSaveGuestSession(user) {
+    if (!user || user.isAnonymous) return false;
+    try {
+        const now = new Date();
+        const dateStr = getLocalDateStr(now);
+        const weekStart = getWeekStart(now);
+
+        const read = await readWeek({ db, doc, getDoc, uid: user.uid, dateStr });
+        // ⚠️ A FAILED READ MERGES AS "SERVER HAS NOTHING", which is the safe
+        // direction here and only here: mergeGuestStats()'s floor never lets the
+        // result fall below what this browser already holds, so the worst case
+        // is that stored time is re-added by the next clean load rather than
+        // lost now.
+        mergeGuestStats(read.ok ? {
+            lastDate: dateStr, weekStart: read.weekStart,
+            secondsToday: read.today.seconds, charsToday: read.today.chars,
+            mistakesToday: read.today.mistakes,
+            secondsLibrary:  read.todaySources.library.seconds,
+            charsLibrary:    read.todaySources.library.chars,
+            mistakesLibrary: read.todaySources.library.mistakes,
+            secondsSchool:   read.todaySources.school.seconds,
+            charsSchool:     read.todaySources.school.chars,
+            mistakesSchool:  read.todaySources.school.mistakes,
+            secondsWeek: read.week.seconds, charsWeek: read.week.chars,
+            mistakesWeek: read.week.mistakes,
+        } : null, dateStr, weekStart);
+
+        // ⚠️ THE SPRINTS COME ACROSS TOO, AND THAT IS THE "in the record" HALF.
+        // The merge above fixes the TOTAL; without this the day would still
+        // carry minutes the drill-down cannot account for. Adopted under the
+        // real uid, keeping each record's own `at` and therefore its own date.
+        const adopted = sessionLogAdopt(user.uid, sessionLogTake(GUEST_QUEUE_UID), dateStr);
+        if (adopted) console.log(`Adopted ${adopted} guest sprint record(s) into ${user.uid}.`);
+
+        sessionExpired = false;
+        statsDocDirty = true;
+        // final: true — this writes the daily log AND pushes the adopted
+        // sprints, which is what makes the correction visible to the teacher
+        // immediately rather than at the end of the period.
+        await flushAll('guest-retroactive', true);
+        return true;
+    } catch (e) {
+        console.warn('Guest session merge failed:', e);
+        return false;
+    }
 }
 
 function getLocalDateStr(date) {
@@ -4340,10 +4439,17 @@ async function saveCompletedChapters() {
 // ⚠️ A ZERO OR NEGATIVE DELTA WRITES NOTHING AND IS NOT AN ERROR. It means the
 // sprint has not advanced since the last record — a student hiding the tab twice
 // in a row, or a rollback that moved `currentCharIndex` backwards.
+// ⚠️ v3.36.0 — A TRUE GUEST'S SPRINTS ARE QUEUED, NOT DROPPED. The comment
+// above said "a guest has no account for the record to belong to", which is
+// true at this instant and stopped being a reason the moment session-log.js
+// gained a per-owner store. They go into GUEST_QUEUE_UID's slot and are handed
+// to the real account by retroactiveSaveGuestSession(). Dropping them left the
+// day's total carrying minutes with no evidence behind them — which is exactly
+// the shape of ROADMAP item 1's real case.
 function logSession(seconds, chars, mistakes, wpm, accuracy, detailSuffix) {
     const uid = (currentUser && !currentUser.isAnonymous) ? currentUser.uid
-              : (sessionExpired ? lastKnownUid : '');
-    if (!uid) return;
+              : (sessionExpired && lastKnownUid) ? lastKnownUid
+              : GUEST_QUEUE_UID;
 
     const dSeconds  = Math.max(0, Math.round((seconds  || 0) - sprintLoggedSeconds));
     const dChars    = Math.max(0, Math.round((chars    || 0) - sprintLoggedChars));
@@ -4484,45 +4590,11 @@ function showReauthPrompt() {
         }
         try {
             if (currentUser && !currentUser.isAnonymous) {
-                const today = new Date();
-                const dateStr = getLocalDateStr(today);
-                const weekStart = getWeekStart(today);
-                // ⚠️ v3.31.0 — the server side of the merge is now the seven
-                // typing_logs documents, not a stats rollup. mergeGuestStats()
-                // is UNCHANGED and still correct: it wants an object shaped like
-                // the old stats document, and a week read is exactly that once
-                // it is named. Both period guards match by construction, because
-                // the read was for this date and this week.
-                const read = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr });
-                // ⚠️ A FAILED READ MERGES AS "SERVER HAS NOTHING", and that is
-                // the safe direction HERE and only here: mergeGuestStats' floor
-                // never lets the result fall below what this browser already
-                // holds, so the worst case is that stored time is re-added by
-                // the next clean load rather than lost now.
-                // ⚠️ v3.35.0 — THE PER-SOURCE FIELDS ARE PASSED AS THE SERVER
-                // SIDE. mergeGuestStats() computes `server + this browser's own
-                // contribution` for every key it folds; a key with no server
-                // value folds as `0 + mine`, and the absolute per-field write
-                // that follows then puts this guest's Library minutes straight
-                // over the account's stored secondsLibrary. read.todaySources is
-                // what the document actually holds, per source, out of the same
-                // seven reads.
-                mergeGuestStats(read.ok ? {
-                    lastDate: dateStr, weekStart: read.weekStart,
-                    secondsToday: read.today.seconds, charsToday: read.today.chars,
-                    mistakesToday: read.today.mistakes,
-                    secondsLibrary:  read.todaySources.library.seconds,
-                    charsLibrary:    read.todaySources.library.chars,
-                    mistakesLibrary: read.todaySources.library.mistakes,
-                    secondsSchool:   read.todaySources.school.seconds,
-                    charsSchool:     read.todaySources.school.chars,
-                    mistakesSchool:  read.todaySources.school.mistakes,
-                    secondsWeek: read.week.seconds, charsWeek: read.week.chars,
-                    mistakesWeek: read.week.mistakes,
-                } : null, dateStr, weekStart);
-                sessionExpired = false;
-                statsDocDirty = true;
-                await flushAll('reauth', true);
+                // ⚠️ v3.36.0 — WAS AN INLINE COPY OF THE MERGE. There were two
+                // of them and the auth handler had neither, which is how the
+                // header Sign In button came to lose a guest's minutes while
+                // this modal kept them. One function now; see its header.
+                await retroactiveSaveGuestSession(currentUser);
                 updateTimerUI();
             }
         } catch (e) {
@@ -5477,43 +5549,9 @@ function showAnonLoginPrompt(rung) {
         // Login succeeded — retroactively save anonymous session time
         if (currentUser && !currentUser.isAnonymous) {
             try {
-                // Apply anonymous typing stats to their account
-                const today = new Date();
-                const dateStr = today.getFullYear() + '-' +
-                    String(today.getMonth()+1).padStart(2,'0') + '-' +
-                    String(today.getDate()).padStart(2,'0');
-                const weekStart = getWeekStart(today);
-
-                // ⚠️ v3.22.0 — this block used to add the server's totals to the
-                // live ones inline, which was correct for a guest and doubled the
-                // counters for an expired session. The arithmetic now lives in
-                // mergeGuestStats(); read the block above it before changing this.
-                // ⚠️ v3.31.0 — the server side is the week of typing_logs now.
-                const read = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr });
-                // ⚠️ v3.35.0 — THE PER-SOURCE FIELDS ARE PASSED AS THE SERVER
-                // SIDE. mergeGuestStats() computes `server + this browser's own
-                // contribution` for every key it folds; a key with no server
-                // value folds as `0 + mine`, and the absolute per-field write
-                // that follows then puts this guest's Library minutes straight
-                // over the account's stored secondsLibrary. read.todaySources is
-                // what the document actually holds, per source, out of the same
-                // seven reads.
-                mergeGuestStats(read.ok ? {
-                    lastDate: dateStr, weekStart: read.weekStart,
-                    secondsToday: read.today.seconds, charsToday: read.today.chars,
-                    mistakesToday: read.today.mistakes,
-                    secondsLibrary:  read.todaySources.library.seconds,
-                    charsLibrary:    read.todaySources.library.chars,
-                    mistakesLibrary: read.todaySources.library.mistakes,
-                    secondsSchool:   read.todaySources.school.seconds,
-                    charsSchool:     read.todaySources.school.chars,
-                    mistakesSchool:  read.todaySources.school.mistakes,
-                    secondsWeek: read.week.seconds, charsWeek: read.week.chars,
-                    mistakesWeek: read.week.mistakes,
-                } : null, dateStr, weekStart);
-                sessionExpired = false;
-                statsDocDirty = true;
-                await flushAll('anon-retroactive', true);
+                // ⚠️ v3.36.0 — WAS THE SECOND INLINE COPY OF THE MERGE.
+                // Both are one function now. See retroactiveSaveGuestSession().
+                await retroactiveSaveGuestSession(currentUser);
 
                 // Load goals since auth handler was skipped
                 await loadGoals();

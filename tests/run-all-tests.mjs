@@ -1,3 +1,11 @@
+// run-all-tests.mjs v1.5.0 — Round 23 (Empire): guest-merge-test.mjs and
+// queue-owner-test.mjs registered; reconcile-test.mjs and union-clock-test.mjs
+// DELETED with the reconcile tool they covered; real-sessions-fixture.mjs
+// exempted as data rather than a harness. ⚠️ THE AUDIT CAUGHT THE HALF-DONE
+// DELETION — the harnesses were removed from disk before their entries were
+// removed from FAST, and the suite went red naming both. That is the second
+// time it has paid for itself.
+//
 // run-all-tests.mjs v1.4.0 — Round 6 (Noiseless), amended Round 14 (Sholes),
 // Round 16 (Royal), Round 17 (Linotype), Round 21 (Hammond).
 //
@@ -142,10 +150,12 @@ const FAST = [
     ['session-merge-test.mjs',   'the guest/expired merge, session-log rollup dating, the repair resync, and Part E: two concurrent flushes write ONE document'],
     ['open-unit-test.mjs',       'the open sprint/run: deltas, watermarks, and the reset-site parity guard'],
     ['source-split-test.mjs',    'legacy-FIRST daily-log reads (the split is reverted), splitSessionTotals(), and sessionSignature() duplicate detection'],
-    // ⚠️ Round 17 (Underwood). Read this harness's own header before trusting a
-    // green run from it — it says plainly what it does not cover, which is
-    // everything about a tab being open during a rebuild.
-    ['reconcile-test.mjs',       'the rebuild plan\u2019s four refusals (never zero a day, never invent a log), and the position-is-not-identity guard'],
+    // ⚠️ Round 23 (Empire): reconcile-test.mjs and union-clock-test.mjs were
+    // DELETED here, in the same commit as the reconcile tool they covered. The
+    // registration audit caught the attempt to remove only one half. The real
+    // production session documents union-clock-test.mjs held were lifted first
+    // into real-sessions-fixture.mjs — ROADMAP item 2 required that, and item 1
+    // needs them.
     ['daylog-test.mjs',          'ONE NUMBER: the shared typing_logs week reader \u2014 Saturday anchor, legacy-first totals, and the partial-read refusal'],
     // ── Round 21 (Hammond): were in NO list. See the v1.4.0 note above. ──
     // ⚠️ REWRITTEN IN ROUND 22 (v2.0.0). It no longer reproduces §3.1 — it GUARDS
@@ -155,7 +165,6 @@ const FAST = [
     // only that the author's idea was self-consistent. Its Part A reads the real
     // files and is the assertion that would notice §3.1 coming back.
     ['crossmode-overwrite-test.mjs', 'ONE DOCUMENT, TWO WRITERS: \u00a73.1 CLOSED. Part A is the guard \u2014 neither page may name the other source\u2019s fields in a Firestore payload, ever'],
-    ['union-clock-test.mjs',     'interval UNION vs deduped SUM on the four real 2026-08-18 rollups, and the rebuild-disabled guard'],
     ['week-agreement-test.mjs',  'Rule 11 date agreement at all 24 hours \u2014 run as TZ=America/Chicago for the real check'],
     // ⚠️ ROADMAP Phase B step B1. Written test-first and RED against daylog.js
     // v1.1.0 — it could not even import. Green from v1.2.0. Its Part F LIFTS
@@ -168,6 +177,19 @@ const FAST = [
     ['recalc-guard-test.mjs',    'the \u27f3 drop guard: small corrections stay silent, a big down-move needs a confirmed yes, and the delete path is exempt'],
     ['daylog-cutover-test.mjs',  'the per-source cutover: pre-cutover days read EXACTLY as before, post-cutover days sum flat + splits, and reports.html carries the identical gate'],
     ['tab-lifetime-test.mjs',    'THE MISSING AXIS: two controllers over one shared document across real tab orderings. \u26a0\ufe0f Parts B/C/F assert the CORRECT totals and choose their controller by READING game.js/learn.js, so they go RED on a build without the writers'],
+    // ⚠️ Round 23 (Empire). The session queue was ONE slot holding ONE uid, so a
+    // second student signing in on the same Chromebook destroyed the first's
+    // unflushed sprints at their first five seconds of typing. Every READ was
+    // uid-scoped; `_write()` was not. Mutation-verified: 8 failing against
+    // session-log.js v1.4.0.
+    // ⚠️ Round 23 (Empire). THE GUEST MINUTE, and the numbers are Jake's own:
+    // School guest 1:04 -> 8:31 (merged), Library guest 1:11 -> 8:31 (lost).
+    // game.js had no guest merge on the auth path; the merge existed twice
+    // inline in two modal paths, so which of three sign-in buttons a child
+    // pressed decided whether their minutes survived. 11 failing against
+    // game.js v3.35.0 / learn.js v2.20.0.
+    ['guest-merge-test.mjs',     'THE GUEST MINUTE: time typed before signing in is merged AND flushed AND lands in the session record, in BOTH modes'],
+    ['queue-owner-test.mjs',     'ONE BROWSER, TWO STUDENTS: a second account may not destroy the first\u2019s unflushed queue, by push, by flush or by eviction'],
 ];
 
 // ⚠️ RULES — need the Firebase emulator (a JVM plus a jar download), so they are
@@ -241,6 +263,13 @@ if (!syntaxBad) console.log(`  ok   ${'(syntax)'.padEnd(26)} all ${MODULES.lengt
 const EXEMPT = new Map([
     ['run-all-tests.mjs', 'this file'],
     ['cover-harness.mjs', 'needs a directory of EPUBs AND writes image files; run by hand'],
+    // ⚠️ NOT A HARNESS — it asserts nothing and has no exit code. It is the only
+    // real production session data in the repository, lifted out of
+    // union-clock-test.mjs before Round 23 deleted it, because Jake's rule 10
+    // will not accept synthetic records for a defect that lives BETWEEN records.
+    // Imported by harnesses; never run on its own. Deleting it costs the project
+    // the only evidence it has about what a real day looks like.
+    ['real-sessions-fixture.mjs', 'a data fixture imported by harnesses, not a harness itself'],
 ]);
 const listed = new Set([...FAST, ...PENDING, ...EPUB, ...RULES].map(e => e[0]));
 const onDisk = readdirSync(HERE).filter(f => f.endsWith('.mjs'));
