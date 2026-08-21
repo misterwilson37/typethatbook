@@ -387,10 +387,33 @@ working-as-intended. It was a hole, and Jake's instinct closed it without either
 of us framing it that way. ⚠️ *A defect I have explained is not a defect I have
 justified.*
 
-⚠️ **LEADING MADE THE PROSE WARNING LOAD-BEARING.** `assignment`, `assume`,
-`assist`, `assess` and `asset` are all blocked now. One import of this module
-into `game.js` or the Gemini path would begin silently deleting ordinary English.
-B12 names them; F5/F6 hold the line.
+**AND THEN A THIRD TIME.** Jake: *"Ass is in real, nonoffensive words. I can't
+think of a single word that has fuck in it. [...] all of the other words should
+be on a NEVER USE list."* So `ass` is matched LEADING and everything else
+ANYWHERE. ⚠️ **Three matchers in one morning, each narrower than the last.** The
+module header holds all three quotes and Part B asserts the final state, because
+the failure mode here is a future round finding one quote and "restoring" it.
+
+⚠️⚠️ **AND THE COST WAS MEASURED BEFORE ADOPTING, WHICH PAID FOR ITSELF
+IMMEDIATELY.** The table showed `fuk` — an entry *I* invented, not a word anyone
+types — costing **80% of the filter's entire budget** on the key set most
+students are on, because f/u/k are all early keys while `fuck` proper needs a
+late `c`. Deleted. ⚠️ **That is the SECOND entry to do this, after `kkk`, and
+neither was visible by reading the list.** The generalisable rule: **a short
+entry made of early keys is expensive, and the expense is invisible except by
+measurement.** Part A prints a per-entry table every run for exactly this reason.
+
+⚠️⚠️⚠️ **THE HOLE WITH TEETH IS IN `learn.js`, NOT `game.js`, AND I HAD BEEN
+POINTING THE WARNING AT THE WRONG FILE.** `word_list`, `sentence_list` and
+`passage` are step types built from REAL ENGLISH, in the same switch statement as
+the two random generators this module guards. A future round reading "the drill
+filter lives in learn.js" could wire it into all six, and the only symptom would
+be words quietly missing from lessons. Part G measures it: **39 of 42 ordinary
+words destroyed** — `title`, `constitution`, `soldier`, `sweet`, `speech`,
+`parse`, `grape`, `raccoon`, `manuscript`, `hello`. **G3 asserts `safeGroup()` is
+called exactly twice**, counting code and not comments (the first draft counted
+both and read 4 — *a guard a comment can trip is a guard people learn to
+ignore*).
 
 **2. ⚠️ `kkk` WAS IN THE SLUR TIER FOR AN HOUR AND A FAILING TEST THREW IT OUT.**
 
@@ -417,6 +440,38 @@ active. **The comment is now accurate rather than lucky.**
 ⚠️ **Generalise it:** an invariant written in a comment can be true for a reason
 the comment does not state, and a change that looks cosmetic can remove that
 reason. When adding a knob, ask what the old code was quietly relying on.
+
+**4. ⚠️⚠️ THE FONT PICKER SHIPPED INVISIBLE, AND THAT IS THE MOST INSTRUCTIVE
+FAILURE OF THE DAY.**
+
+Jake, after the upload: *"Dumb question - where is the font changing tool?
+There's no settings on the learn page."* It was there. It rendered. It was
+attached to the right element and it was idempotent and it applied correctly.
+It was 0.75rem in `#777` under the lesson counter with no affordance, because I
+had written in the CSS that it should be *"deliberately quiet — it is a
+preference, not a call to action."*
+
+⚠️ **A CONTROL NOBODY CAN FIND HAS NOT SHIPPED.** "Quiet" is not a defence for a
+feature whose entire content is *a child choosing something*, and if the teacher
+who commissioned it cannot find it, no twelve-year-old will.
+
+⚠️⚠️ **BUT THE REAL DEFECT IS THE TEST SUITE, NOT THE CSS.** This round wrote 57
+assertions and every one of them was about the FILTER. Not one asked whether the
+other half of the work was on the screen. The round had a render bug and a green
+suite at the same time, and only a human opening the page caught it.
+**"The code runs" and "a person can find it" are different claims, and only the
+first one had a test.** Part H is the second claim: jsdom renders `learn.html`,
+builds the control, and asserts it exists, attaches to the map, is idempotent,
+carries an affordance, and clears a VISIBILITY FLOOR — at least 0.8rem, and a
+border, so it reads as a control rather than a caption. v3.6.0 sat below that
+floor, which is exactly why it was invisible.
+
+⚠️ **AND A SECOND, SMALLER LESSON FROM FIXING IT.** F11 asserted the font
+variable appeared in the CSS exactly ONCE, as a proxy for "the HUD never gets
+it". The visibility fix added a legitimate second use — the "Aa" glyph, which
+should preview the chosen face — and the test went red on a correct change.
+**A count is not an invariant.** It now checks WHICH selectors take the variable
+and names the HUD, keyboard and modal as forbidden.
 
 ⚠️ **AND WHILE IN THERE:** `body::before` still read `"v3.5.5"` after the v3.5.6
 edit, so the build footer had been under-reporting `style.css` by a patch. It is

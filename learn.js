@@ -1,4 +1,16 @@
-// learn.js v2.23.0
+// learn.js v2.23.1
+//
+// v2.23.1 — ⚠️ THE READING-FONT CONTROL IS FINDABLE. v2.23.0 shipped it as a
+//           bare label in #777 at 0.75rem, tucked under the lesson counter, and
+//           Jake asked whether the feature had shipped at all. It had — it was
+//           invisible. Now an "Aa" glyph rendered IN the chosen face, inside a
+//           bordered pill, with real contrast. style.css v3.6.1.
+//           ⚠️ A CONTROL NOBODY CAN FIND HAS NOT SHIPPED. "Deliberately quiet"
+//           is not a defence for a feature whose entire point is a child
+//           choosing something, and no render test existed to catch it —
+//           drill-filter-test.mjs Part H is that test now.
+//           ⚠️ IT IS ON THE MAP ONLY, STILL DELIBERATELY. A <select> inside the
+//           drill view is one Tab from eating a keystroke the student typed.
 //
 // v2.23.0 — ⚠️ TWO STUDENT-FACING ADDITIONS, AND NEITHER TOUCHES THE TIMING
 //           MECHANISM. Jake's condition, 2026-08-21, the morning after the
@@ -405,7 +417,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.23.0";
+const LEARN_VERSION = "2.23.1";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -793,15 +805,20 @@ function buildFontPicker() {
     if (!header || document.getElementById('drill-font-pick')) return;
     const wrap = document.createElement('div');
     wrap.id = 'drill-font-pick';
-    wrap.innerHTML = '<label for="drill-font-select">Reading font</label> ' +
+    // ⚠️ v2.23.1 — THE "Aa" IS THE AFFORDANCE, and it is rendered IN the chosen
+    // face. v2.23.0 shipped a bare label at 0.75rem in #777 and Jake asked
+    // whether the feature existed at all. It did. ⚠️ A CONTROL NOBODY CAN FIND
+    // HAS NOT SHIPPED — and if the teacher cannot find it, no twelve-year-old
+    // will, which is the entire audience.
+    wrap.innerHTML = '<span class="dfp-aa" aria-hidden="true">Aa</span>' +
+        '<label for="drill-font-select">Reading font</label>' +
         '<select id="drill-font-select">' +
         DRILL_FONTS.map(f => '<option value="' + f[0] + '">' + f[1] + '</option>').join('') +
         '</select>';
     header.appendChild(wrap);
     const sel = wrap.querySelector('select');
     sel.value = readDrillFont();
-    // Preview in the face itself — the label of each option is more useful in
-    // the font it names than in the page font.
+    // Each option reads in the face it names — the fastest possible label.
     sel.style.fontFamily = 'var(--drill-font)';
     sel.addEventListener('change', () => {
         const applied = applyDrillFont(sel.value);

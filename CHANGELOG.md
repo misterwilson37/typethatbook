@@ -29,6 +29,14 @@ whether a bad number was this defect or a stale deploy.
   was discarded by every parser that read the file. New `//type` key records why
   `"type": "module"` must NOT be added to silence the Node warning: it would
   break the CommonJS Cloud Function that `main` points at.
+* **`learn.js` 2.23.0 → 2.23.1 / `style.css` 3.6.0 → 3.6.1.** ⚠️ The reading-font
+  control shipped INVISIBLE — correct code, right element, styled at 0.75rem in
+  `#777` with no affordance, and Jake asked whether the feature existed. Now an
+  "Aa" glyph rendered in the chosen face inside a bordered pill. ⚠️ The real
+  defect was that 57 assertions covered the filter and none asked whether the
+  other half was on screen; **Part H** renders `learn.html` in jsdom and enforces
+  a visibility floor. Also fixes F11, which asserted a COUNT as a proxy for an
+  invariant and went red on a correct change.
 * **`learn.js` 2.22.0 → 2.23.0.** ⚠️ Two student-facing additions under Jake's
   condition that neither touch the timing mechanism — asserted, not promised, by
   `drill-filter-test.mjs` F7, which brace-matches the five new/changed functions
@@ -44,7 +52,7 @@ whether a bad number was this defect or a stale deploy.
   luck of the font. Also fixes `body::before`, which still read `"v3.5.5"` after
   the v3.5.6 edit — the build footer had been under-reporting this file, and
   nothing checked the stamp against the header. F12 does now.
-* **`drill-filter.js` NEW, at v1.2.0 after two same-morning revisions.**
+* **`drill-filter.js` NEW, at v1.3.0 after three same-morning revisions.**
   v1.0.0 matched SUBSTRINGS (wrong — would have stripped `lass` and `mass`);
   v1.1.0 matched WHOLE GROUPS on Jake's first ruling; **v1.2.0 matches LEADING**
   on his amendment — *"ass can't lead the word in the four letter clump. Fass is
@@ -52,7 +60,11 @@ whether a bad number was this defect or a stale deploy.
   own earlier examples, and v1.1.0's whole-group rule had a dead spot: a
   three-letter entry could not fire at groupSize 4 at all, so the original report
   was not covered by the fix written for it. Leading covers it.
-  ⚠️ Two tiers: `LEADING` (the ruling) and `ALWAYS` (slurs, substring).
+  Then **v1.3.0**: *"all of the other words should be on a NEVER USE list."*
+  `ass` is the sole `LEADING` entry; everything else is `NEVER`, matched anywhere.
+  ⚠️ `fuk`/`fuks` deleted — my invention, and 80% of the filter's whole cost on
+  the home+index key set. Second entry to do that after `kkk`; neither was
+  visible by reading. Part A now prints a per-entry cost table every run.
   ⚠️ **Leading matching also blocks `assignment`, `assume`, `assist`, `assess`
   and `asset`** — correct for nonsense groups, catastrophic for prose. The
   never-use-on-`game.js` warning is now load-bearing.

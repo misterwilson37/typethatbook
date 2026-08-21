@@ -244,56 +244,43 @@ the drill-down with noise records. ⚠️ It is one of the two candidates in ite
 
 ---
 
-## 7b. ✅ THE RANDOM DRILLS — FILTERED, ON JAKE'S LEADING RULING
+## 7b. ✅ THE RANDOM DRILLS — `ass` LEADS, EVERYTHING ELSE IS NEVER-USE
 
-**Shipped**: `drill-filter.js` v1.2.0, `learn.js` v2.23.0. 61 checks.
+**Shipped**: `drill-filter.js` v1.3.0, `learn.js` v2.23.0. 57 checks.
 
-⚠️⚠️ **THE RULING IS THE ITEM, IT CHANGED TWICE IN ONE MORNING, AND THE SECOND
-CHANGE REVERSED ONE OF ITS OWN EXAMPLES. READ BOTH PARTS BEFORE TOUCHING THIS.**
+⚠️⚠️ **THE RULING CAME IN THREE NARROWING STEPS IN ONE MORNING AND ALL THREE
+QUOTES ARE IN THE MODULE HEADER. READ THEM BEFORE CHANGING ANYTHING.** Part B
+asserts the FINAL state; restoring behaviour from an earlier quote goes red.
 
-> 1. *"ass is bad alone, but it is fine to randomize to lass or asse or mass or
->    whatever."*
-> 2. *"maybe make it so ass can't lead the word in the four letter clump. Fass is
->    fine, but asse would probably get it."*
+1. whole-group → `asse` fine
+2. leading → `asse` blocked, `fass` fine
+3. **NEVER-USE for everything but `ass`** → `xfart`/`fartx` blocked, `fass` fine
 
-**Part 2 is the live rule.** A tier 1 entry blocks a group when the group
-**STARTS** with it. `asse` was named acceptable in part 1 and is blocked under
-part 2 — that is Jake looking at the consequence and narrowing it, **not** a
-contradiction to resolve by preferring the older quote. Parts B1–B5 hold all of
-it, and B4 is annotated as the reversal so nobody "restores" it.
+**`ass` is the only leading entry**, because it is the only one that lives inside
+letter runs a drill should be free to produce. ⚠️ **A second leading entry needs a
+ruling of the same kind** — "appears inside legitimate letter runs", not "seems
+mild". C6 is the speed bump.
 
-| group | verdict |
-|---|---|
-| `ass` `asse` `assd` | blocked — leads |
-| `fass` `lass` `mass` `sass` | fine — does not lead |
-| `fart` | blocked | 
-| `xfart` | fine — see the asymmetry below |
+⚠️ **THE COST WAS MEASURED BEFORE ADOPTION, AND PART A PRINTS THE TABLE EVERY
+RUN**: worst case 0.22% of groups, across the whole ladder from home row to full
+alphabet, at both group sizes. A1 caps it at 1%.
 
-⚠️ **LEADING CLOSED A DEAD SPOT THE PREVIOUS RULE HAD.** Whole-group matching
-could never fire a three-letter entry at groupSize 4, so **the original report —
-a student seeing "ass" — was not covered by the fix written for it.** It is now.
-A1 asserts a non-zero rate where v1.1.0 measured exactly 0.
+⚠️⚠️ **TWO ENTRIES HAVE NOW COST MORE THAN THE DEFECT THEY WERE ADDED FOR, AND
+NEITHER WAS VISIBLE BY READING THE LIST.** `kkk` (substring, `k` is a home key)
+fired on same-finger repetition drills. `fuk` (my invention, not a word) was
+**80% of the filter's entire cost** on the home+index key set, because f/u/k are
+all early keys while `fuck` proper needs a late `c`. Both deleted. **The rule is:
+a short entry made of early keys is expensive, and you cannot see it by looking.
+Run Part A before and after.**
 
-⚠️ **KNOWN ASYMMETRY, RULED NOT OVERLOOKED:** a TRAILING tier 1 word passes
-(`xass`, `xfart`), because `fass` must pass and nothing separates them but
-position. The severe cases live in tier 2, which is substring and position-blind.
-**If a trailing giggle-tier word shows up in a classroom, move that entry to
-`ALWAYS` — do not make tier 1 match both ends**, which blocks `fass` and reopens
-the ruling. B5b asserts the gap on purpose.
-
-⚠️⚠️ **AND LEADING MADE THE NEVER-USE-ON-PROSE WARNING LOAD-BEARING.**
-`assignment`, `assume`, `assist`, `assess` and `asset` are ALL blocked now —
-words this app cannot do without. `class`, `passage`, `grass` and `harass` survive
-only because the sequence does not start them. **One import of this module into
-`game.js` or the Gemini practice path would begin silently deleting ordinary
-English.** B12 names the blocked half; F5/F6 hold the line.
-
-⚠️ **`kkk` WAS IN TIER 2 FOR AN HOUR AND A TEST THREW IT OUT.** Substring rule,
-`k` is a home key, so it fired on ordinary same-finger repetition more often than
-the defect being fixed. **A short tier-2 entry made of common keys is a pedagogy
-bug wearing a safety costume** — the cost of a content filter is paid in the thing
-being filtered, and nobody notices, because the evidence is what is missing. A4
-now caps the home-row rate; C7 blocks the class of entry.
+⚠️⚠️⚠️ **THE HOLE WITH TEETH — AND IT IS INSIDE `learn.js`, NOT `game.js`.**
+`word_list`, `sentence_list` and `passage` are step types built from **real
+English**, in the same switch statement as the two generators this filter guards.
+Part G measures what an import there would do: **39 of 42 ordinary words
+destroyed** — `title`, `constitution`, `biscuit`, `soldier`, `audience`, `sweet`,
+`weekend`, `speech`, `shampoo`, `parse`, `grape`, `raccoon`, `manuscript`,
+`hello`, `peanuts`, `shotgun`. **G3 asserts `safeGroup()` is called exactly
+twice.** Never point this at prose, in either file.
 
 ---
 
@@ -319,7 +306,22 @@ comment is now accurate rather than lucky.** F8–F10.
 
 ⚠️ **THE CONTROL IS ON THE MAP, NOT IN THE DRILL** — a `<select>` inside the drill
 view is one Tab away from eating a keystroke the student typed and should have
-been credited for.
+been credited for. **A student mid-lesson has to return to the map to change it**,
+which is acceptable for a once-a-year choice and is the deliberate trade.
+
+⚠️⚠️ **IT SHIPPED INVISIBLE IN v2.23.0 AND JAKE ASKED WHETHER IT EXISTED.** The
+code was correct, attached to the right element, and styled at 0.75rem in `#777`
+with no affordance. **A CONTROL NOBODY CAN FIND HAS NOT SHIPPED** — and if the
+teacher cannot find it, no twelve-year-old will, which is the entire audience.
+Fixed in `learn.js` v2.23.1 / `style.css` v3.6.1: an "Aa" glyph rendered in the
+chosen face, inside a bordered pill.
+
+⚠️ **THE REAL DEFECT WAS THAT NO RENDER TEST EXISTED.** Every assertion in the
+round was about the FILTER; not one asked whether the other half was on the
+screen. `drill-filter-test.mjs` **Part H** now renders `learn.html` in jsdom,
+builds the control and asserts it exists, is idempotent, carries an affordance,
+and clears a **visibility floor** (≥0.8rem, has a border). ⚠️ *"The code runs" and
+"a person can find it" are different claims, and only the first one had a test.*
 
 **Still open from this item:** nothing. If more faces are wanted, add to
 `DRILL_FONTS` and mark the fourth column `false` for anything proportional, or

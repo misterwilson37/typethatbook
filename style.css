@@ -1,4 +1,7 @@
-/* TypeThatBook style.css v3.6.0 */
+/* TypeThatBook style.css v3.6.1 */
+/* v3.6.1: the reading-font control is FINDABLE. v3.6.0 made it 0.75rem #777 with
+           no affordance and Jake asked where it was — it had shipped, it was
+           just invisible. ⚠️ A control nobody can find has not shipped. */
 /* v3.6.0: THE READING FONT (learn.js v2.23.0, ROADMAP item 8). #drill-text now
            takes --drill-font instead of a hard-coded stack. Scoped to the drill
            text ONLY — the HUD, the keyboard and the modal stay monospace, the
@@ -74,7 +77,7 @@
    line 1, not this, so nothing caught it and the build banner was right by luck.
    A file carrying its version twice has to have both updated or the redundancy is
    worse than none: it gives a wrong answer confidently. Update BOTH. */
-body::before { content: "v3.6.0"; display: none; }
+body::before { content: "v3.6.1"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -1163,12 +1166,30 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
 
 /* The reading-font control on the School map. Deliberately quiet — it is a
    preference, not a call to action, and it sits under the lesson counter. */
-#drill-font-pick { margin-top: 8px; font-size: 0.75rem; color: #777;
-                   font-family: 'Courier Prime', monospace; }
-#drill-font-pick label { margin-right: 6px; }
-#drill-font-pick select { background: #1c1c1c; color: #ddd; border: 1px solid #444;
-                          border-radius: 4px; padding: 3px 6px; font-size: 0.8rem;
+/* ⚠️ v3.6.1 — MADE FINDABLE. v3.6.0 styled this "deliberately quiet": 0.75rem,
+   #777, no affordance. Jake could not find it and asked whether it had shipped.
+   It had — it was just invisible. ⚠️ A CONTROL NOBODY CAN FIND HAS NOT SHIPPED,
+   and "quiet" is not a defence when the whole feature is a child choosing
+   something. It now reads as a control: a bordered pill, an "Aa" glyph that
+   previews the chosen face, and enough contrast to be seen on a black page. */
+#drill-font-pick {
+    margin: 12px auto 0; display: inline-flex; align-items: center; gap: 8px;
+    padding: 5px 10px 5px 8px;
+    background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 999px;
+    font-family: 'Courier Prime', monospace; font-size: 0.8rem; color: #bbb;
+}
+#drill-font-pick:hover { border-color: #555; }
+/* The glyph previews the face itself, which is the fastest possible label. */
+#drill-font-pick .dfp-aa {
+    font-family: var(--drill-font, 'Courier Prime', monospace);
+    font-size: 1.05rem; line-height: 1; color: #eee; min-width: 1.6em;
+    text-align: center;
+}
+#drill-font-pick label { color: #bbb; cursor: pointer; }
+#drill-font-pick select { background: #262626; color: #eee; border: 1px solid #4a4a4a;
+                          border-radius: 5px; padding: 4px 8px; font-size: 0.82rem;
                           cursor: pointer; }
+#drill-font-pick select:hover { border-color: var(--carolina-blue); }
 #drill-font-pick select:focus { outline: 2px solid var(--carolina-blue); outline-offset: 1px; }
 
 /* Drill keyboard wrap — fixed height matches keyboard so swapping

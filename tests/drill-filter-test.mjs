@@ -14,9 +14,10 @@
 //
 // Run: node tests/drill-filter-test.mjs
 
-import { containsBlocked, firstBlocked, safeGroup, BLOCKED, LEADING, ALWAYS,
+import { containsBlocked, firstBlocked, safeGroup, BLOCKED, LEADING, NEVER,
          MAX_ATTEMPTS, DRILL_FILTER_VERSION } from '../drill-filter.js';
 import { readFileSync } from 'node:fs';
+import { JSDOM } from 'jsdom';
 
 let failures = 0, checks = 0;
 const j = (v) => JSON.stringify(v);
@@ -29,125 +30,107 @@ const ok = (label, cond) => eq(label, !!cond, true);
 
 console.log(`\ndrill-filter.js v${DRILL_FILTER_VERSION}, ${BLOCKED.length} entries\n`);
 
-// ─── A. the defect, reproduced ───────────────────────────────────────────────
-console.log('── A. the defect is real — learn.js\'s own generator, measured ──');
+// ─── A. the cost, measured across the whole course ───────────────────────────
+console.log('── A. what the filter costs, on every key set a student meets ──');
 {
-    // ⚠️ A COPY OF generateRandom()'s DRAW, deliberately. It is three lines and
-    // lifting it would drag expandKeySetWithHomeCompanions() and the whole module
-    // in. What matters is the SHAPE — independent uniform draws from the key set —
-    // and if learn.js stops doing that, Part F notices.
+    // ⚠️ A COPY OF generateRandom()'s DRAW, deliberately — lifting it would drag
+    // the whole module in. What matters is the SHAPE: independent uniform draws.
     const HOME = ['a','s','d','f','j','k','l',';'];
-    // Early-reach set: home row plus the first index reaches. This is the one
-    // that matters, because it is where `fart` becomes reachable.
-    const REACH = ['a','s','d','f','j','k','l',';','r','t','g','u','y','h','e','i'];
+    const IDX  = HOME.concat(['g','h','r','t','y','u']);
+    const TOP  = IDX.concat(['e','i','o','p','q','w']);
+    const ALL  = TOP.concat(['z','x','c','v','b','n','m']);
+    const LADDER = [['home row',HOME], ['home+index',IDX], ['+top row',TOP], ['full alphabet',ALL]];
+
     const mk = (seed) => () => {
         seed |= 0; seed = seed + 0x6D2B79F5 | 0;
         let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
         t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
         return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
-    const draw = (keySet, size, rnd) => {
-        const out = [];
-        for (let i = 0; i < size; i++) out.push(keySet[Math.floor(rnd() * keySet.length)]);
-        return out;
-    };
-    const measure = (keySet, size, n = 200000) => {
+    const measure = (keys, size, n = 200000) => {
         const rnd = mk(20260821);
-        let hits = 0;
-        for (let i = 0; i < n; i++) if (containsBlocked(draw(keySet, size, rnd).join(''))) hits++;
-        return hits / n;
+        let hits = 0; const per = {};
+        for (let i = 0; i < n; i++) {
+            let g = '';
+            for (let j = 0; j < size; j++) g += keys[Math.floor(rnd() * keys.length)];
+            const w = firstBlocked(g);
+            if (w) { hits++; per[w] = (per[w] || 0) + 1; }
+        }
+        return { rate: hits / n, per };
     };
 
-    // ⚠️ v1.2.0 CLOSED A DEAD SPOT AND THIS IS THE PROOF. Under whole-group
-    // matching a three-letter entry could not fire at groupSize 4 at all, so the
-    // ORIGINAL REPORT — a student seeing "ass" — was not covered by the fix
-    // written for it. Leading matching covers it, and A1 asserts the rate is now
-    // non-zero where v1.1.0 measured exactly 0.
-    const homeRate4 = measure(HOME, 4);
-    console.log(`   home row, groupSize 4: about 1 in ${Math.round(1/homeRate4)} groups`);
-    ok('A1 ⚠️ at groupSize 4 the home row DOES now yield blocked groups — v1.1.0 gave 0',
-       homeRate4 > 0);
-    ok('A2 …"ass" leading a four-clump is caught',
+    // ⚠️ THIS TABLE IS THE POINT OF PART A. Twice now a plausible-looking entry
+    // has cost more than the defect it was added for — `kkk`, then `fuk` — and
+    // NEITHER WAS VISIBLE BY READING THE LIST. The per-entry column is how they
+    // were caught. Run this before and after touching NEVER.
+    let worst = 0, worstLabel = '';
+    for (const size of [4, 5]) {
+        for (const [name, keys] of LADDER) {
+            const r = measure(keys, size);
+            if (r.rate > worst) { worst = r.rate; worstLabel = `${name} @ ${size}`; }
+            const top = Object.entries(r.per).sort((x, y) => y[1] - x[1]).slice(0, 3)
+                .map(([w, c]) => `${w} ${(c / 2000).toFixed(3)}%`).join('  ');
+            console.log(`   size ${size}  ${name.padEnd(14)} ${(r.rate * 100).toFixed(3)}%   ${top}`);
+        }
+    }
+    console.log(`   worst: ${(worst * 100).toFixed(3)}% at ${worstLabel}`);
+
+    // ⚠️ THE CAP. A filter that redraws 1 group in 100 is invisible; one that
+    // redraws 1 in 10 is quietly reshaping what the drill teaches, and nobody
+    // would notice because the evidence is what is MISSING.
+    ok('A1 ⚠️ the whole filter costs under 1% of groups at its worst', worst < 0.01);
+
+    // The original report, and Jake's counter-examples.
+    ok('A2 "ass" leading a four-clump is caught',
        containsBlocked('assd') && containsBlocked('asse'));
-    ok('A3 ⚠️ …and "fass" is NOT — Jake\'s example, the whole point of leading',
+    ok('A3 ⚠️ "fass" is NOT — the one carve-out, and the reason for it',
        !containsBlocked('fass'));
+    ok('A4 the home row alone stays cheap', measure(HOME, 4).rate < 0.005);
 
-    // ⚠️ THE RATE MUST STAY SANE. A leading match has ONE position to hit, so it
-    // is intrinsically cheaper than a substring rule — this is the guard that
-    // would have caught `kkk` immediately had it been a tier 1 entry.
-    ok('A4 the home-row rejection rate stays under 1% of groups', homeRate4 < 0.01);
-
-    // The early-reach set at the DEFAULT size is where the real value is.
-    const reachRate = measure(REACH, 4);
-    const oneIn = Math.round(1 / reachRate);
-    const perDrill = 1 - Math.pow(1 - reachRate, 12);
-    console.log(`   early reach set, groupSize 4: about 1 in ${oneIn} groups`);
-    console.log(`   → a 12-group drill is blocked ${(perDrill * 100).toFixed(2)}% of the time`);
-    ok('A5 four-letter words ARE reachable from an early lesson', reachRate > 0);
-    ok('A6 "fart" needs only home keys and the first index reaches',
-       containsBlocked('fart'));
-    ok('A7 …and a drill is still overwhelmingly unfiltered', perDrill < 0.10);
-
-    // ⚠️ THE HEADER IS PROSE AND THIS IS ARITHMETIC. The first draft guessed
-    // "one in ninety" and was out by half. Nothing now claims a rate in prose —
-    // A7 asserts that, so the failure mode cannot come back by someone helpfully
-    // writing the number in again without a test behind it.
+    // ⚠️ THE HEADER IS PROSE AND THIS IS ARITHMETIC. An early draft guessed a
+    // rate in the head and was out by half. Nothing may claim a rate in prose
+    // that is not printed here.
     const src = readFileSync(new URL('../drill-filter.js', import.meta.url), 'utf8');
-    ok('A8 the header quotes NO un-tested rate — Part A prints the truth instead',
-       !/1 in \d+ groups/.test(src) && !/[\d.]+% of drills/.test(src));
+    ok('A5 the header quotes no rate this harness does not print',
+       !/1 in \d+ groups/.test(src));
 }
 
 // ─── B. the matcher ──────────────────────────────────────────────────────────
-console.log('\n── B. ⚠️ JAKE\'S RULING, AS AMENDED: LEADING ──');
+console.log('\n── B. ⚠️ THE RULING IN THREE PARTS, ALL OF THEM LIVE ──');
 {
-    // ⚠️ THE RULING, VERBATIM, AS ASSERTIONS — AND IT CHANGED ONCE. Jake gave it
-    // in two parts on 2026-08-21 and part 2 amended part 1, INCLUDING ONE OF ITS
-    // OWN EXAMPLES: `asse` was named as acceptable in part 1 and is blocked under
-    // part 2. ⚠️ B3 IS THAT REVERSAL. Do not "restore" it to `!containsBlocked`
-    // on the strength of the earlier quote — the live rule is part 2.
-    ok('B1 ⚠️ "lass" is FINE — does not lead',                 !containsBlocked('lass'));
-    ok('B2 ⚠️ "mass" is FINE — does not lead',                 !containsBlocked('mass'));
-    ok('B3 ⚠️ "fass" is FINE — Jake\'s amended example',        !containsBlocked('fass'));
-    ok('B4 ⚠️ "asse" IS blocked — the amendment, reversing B3 of v1.1.0',
-       containsBlocked('asse'));
-    ok('B5 …and "ass" alone is too',                            containsBlocked('ass'));
-    // ⚠️ THE ASYMMETRY, ASSERTED SO IT IS A DECISION AND NOT A SURPRISE. A
-    // trailing giggle-tier word passes, because `fass` must pass and nothing
-    // distinguishes them but position. The hard cases live in tier 2, which is
-    // position-blind. See the module header.
-    ok('B5b ⚠️ KNOWN: a TRAILING tier 1 word passes — move it to ALWAYS if it matters',
-       !containsBlocked('xass'));
+    // ⚠️ JAKE GAVE THIS RULING IN THREE MESSAGES IN ONE MORNING AND EACH ONE
+    // NARROWED THE LAST. The assertions below are the final state. Reading any
+    // single earlier quote and "restoring" behaviour from it will go red here,
+    // which is deliberate — see the module header for all three quotes.
+    //   1. whole-group    → `asse` fine
+    //   2. leading        → `asse` blocked, `fass` fine
+    //   3. NEVER for all but `ass` → `xfart` blocked, `fass` still fine
 
-    ok('B6 case insensitive',        containsBlocked('ASS') && containsBlocked('AsS'));
-    ok('B7 an ordinary group passes', !containsBlocked('asdf'));
-    ok('B8 empty and null are clean', !containsBlocked('') && !containsBlocked(null));
-    eq('B8b firstBlocked names the entry', firstBlocked('fart'), 'fart');
-    // Longest-first: a group leading `cuts` reports `cuts`, not `cut`.
-    eq('B8c …and the most specific one when two lead', firstBlocked('cutsx'), 'cuts');
+    // ── `ass`: the one carve-out, matched LEADING ──
+    ok('B1 "ass" alone',            containsBlocked('ass'));
+    ok('B2 "asse" — leads',         containsBlocked('asse'));
+    ok('B3 ⚠️ "fass" — FINE',       !containsBlocked('fass'));
+    ok('B4 ⚠️ "lass" — FINE',       !containsBlocked('lass'));
+    ok('B5 ⚠️ "mass" — FINE',       !containsBlocked('mass'));
+    ok('B6 ⚠️ "sass" — FINE',       !containsBlocked('sass'));
 
-    // ⚠️ TIER 2 IS SUBSTRING AND MUST STAY THAT WAY. A slur is a slur whatever
-    // surrounds it. This tier was not asked for — see the module header — so it
-    // is asserted loudly rather than left to be discovered.
-    ok('B9 ⚠️ a slur is blocked EMBEDDED, not just alone', containsBlocked('xkikex'));
-    ok('B10 …and alone',                                   containsBlocked('kike'));
+    // ── everything else: NEVER, position-blind. Jake's own examples. ──
+    ok('B7 "xfart"',  containsBlocked('xfart'));
+    ok('B8 "fartx"',  containsBlocked('fartx'));
+    ok('B9 "xfuck"',  containsBlocked('xfuck'));
+    ok('B10 "fuckx"', containsBlocked('fuckx'));
+    ok('B11 "xdamn"', containsBlocked('xdamn'));
 
-    // ═════════════════════════════════════════════════════════════════════════
-    // ⚠️⚠️ B11/B12 — THE PROSE GUARD, AND LEADING MATCHING MADE IT SHARPER.
-    // ═════════════════════════════════════════════════════════════════════════
-    // Under the ruling, a real word is safe only if the blocked sequence does
-    // not START it. That splits English cleanly in two, and the second half is
-    // the reason this module must NEVER be pointed at book text or Gemini prose.
-    for (const w of ['class', 'passage', 'grass', 'embarrassed', 'harass']) {
-        ok(`B11 "${w}" passes — the sequence does not lead`, !containsBlocked(w));
-    }
-    // ⚠️ THESE ARE ALL BLOCKED, AND THAT IS CORRECT FOR NONSENSE GROUPS AND
-    // CATASTROPHIC FOR PROSE. "assignment" is a word this app cannot do without.
-    // v1.1.0's whole-group rule happened to spare them; v1.2.0's does not, so the
-    // warning in the module header is now load-bearing rather than cautionary.
-    for (const w of ['assignment', 'assume', 'assist', 'assess', 'asset']) {
-        ok(`B12 ⚠️ "${w}" IS blocked — never use this module on prose`,
-           containsBlocked(w));
-    }
+    ok('B12 case insensitive',        containsBlocked('XFART') && containsBlocked('AsS'));
+    ok('B13 an ordinary group passes', !containsBlocked('asdf'));
+    ok('B14 empty and null are clean', !containsBlocked('') && !containsBlocked(null));
+    eq('B15 firstBlocked names the entry', firstBlocked('xfart'), 'fart');
+
+    // ⚠️ `fuk` IS GONE AND THIS ASSERTS IT. It was mine, not a ruling, and it
+    // was 80% of the filter's cost on the key set most students are on.
+    ok('B16 ⚠️ "fuka" passes — `fuk` was deleted, see the NEVER header',
+       !containsBlocked('fuka'));
+    ok('B17 …but the actual word is still caught anywhere', containsBlocked('afuckb'));
 }
 
 // ─── C. list hygiene ─────────────────────────────────────────────────────────
@@ -157,22 +140,24 @@ console.log('\n── C. the lists keep their own invariants ──');
     ok('C2 every entry is letters only — groups have no spaces or punctuation',
        BLOCKED.every(w => /^[a-z]+$/.test(w)));
     eq('C3 no duplicates within LEADING', LEADING.length, new Set(LEADING).size);
-    eq('C4 no duplicates within ALWAYS',      ALWAYS.length,      new Set(ALWAYS).size);
-    // ⚠️ AN ENTRY IN BOTH LISTS WOULD MEAN THE RULING IS SILENTLY OVERRIDDEN for
-    // that word — tier 2 wins, and the whole-group intent would be a dead letter.
-    eq('C5 ⚠️ no entry appears in BOTH lists — tier 2 would silently win',
-       LEADING.filter(w => ALWAYS.includes(w)), []);
-    // ⚠️ A TIER 2 ENTRY UNDER 4 CHARACTERS FIRES CONSTANTLY, because it is a
-    // substring test over a small alphabet. 'kkk' was in this list for one hour
-    // and A1 caught it at 1 in 270 groups on the home row. No exceptions now.
-    eq('C6 ⚠️ no tier 2 entry is shorter than 4 characters — see A1 and \'kkk\'',
-       ALWAYS.filter(w => w.length < 4), []);
-    // ⚠️ AND NONE OF THEM IS SPELLABLE FROM THE HOME ROW, which is the property
-    // A1 actually depends on. A tier 2 entry made of common keys is a pedagogy
-    // bug wearing a safety costume.
+    eq('C4 no duplicates within NEVER',   NEVER.length,   new Set(NEVER).size);
+    eq('C5 ⚠️ no entry in BOTH lists — NEVER would silently win',
+       LEADING.filter(w => NEVER.includes(w)), []);
+
+    // ⚠️ TIER 1 IS ONE WORD AND ITS FAMILY, BY RULING. A second entry needs a
+    // reason of the same kind — "appears inside letter runs a drill should be
+    // free to produce" — not "seems mild". This is a speed bump, not a law:
+    // if Jake rules another word in, update this assertion with the ruling.
+    eq('C6 ⚠️ LEADING holds only the `ass` family — a second entry needs a ruling',
+       LEADING.filter(w => !w.startsWith('ass')), []);
+
+    // ⚠️ NO NEVER ENTRY MAY BE SPELLABLE FROM THE HOME ROW. This is the `kkk`
+    // guard, and it is the cheap structural version of Part A's measurement:
+    // the home row is where every student starts and where a bad entry does the
+    // most damage.
     const HOMEKEYS = new Set(['a','s','d','f','j','k','l',';']);
-    eq('C7 ⚠️ no tier 2 entry is spellable from the home row alone',
-       ALWAYS.filter(w => [...w].every(ch => HOMEKEYS.has(ch))), []);
+    eq('C7 ⚠️ no NEVER entry is spellable from the home row alone — the `kkk` guard',
+       NEVER.filter(w => [...w].every(ch => HOMEKEYS.has(ch))), []);
 }
 
 // ─── D. ⚠️ IT MUST NOT HANG ──────────────────────────────────────────────────
@@ -307,14 +292,144 @@ console.log('\n── F. wired into School, and nowhere near the clock ──');
 
     // ⚠️ THE HUD IS MONOSPACE ON PURPOSE — the clock must not reflow while it
     // counts. The picker must never reach it.
-    eq('F11 ⚠️ the font variable is scoped to the drill text, not the HUD',
-       (css.match(/var\(--drill-font/g) || []).length, 1);
+    // ⚠️ THIS USED TO COUNT OCCURRENCES AND EXPECT 1, WHICH WAS A PROXY FOR THE
+    // REAL QUESTION AND BROKE THE MOMENT v3.6.1 ADDED A LEGITIMATE SECOND USE —
+    // the "Aa" preview glyph, which SHOULD render in the chosen face. Counting
+    // is not the invariant; WHICH SELECTORS get the variable is.
+    const users = [...css.matchAll(/([^{}]+)\{[^}]*var\(--drill-font/g)]
+        .map(m => m[1].trim().split('\n').pop().trim());
+    const ALLOWED = ['#drill-text', '#drill-font-pick .dfp-aa'];
+    eq('F11 ⚠️ only the drill text and the preview glyph get the font — never the HUD',
+       users.filter(u => !ALLOWED.includes(u)), []);
+    for (const forbidden of ['#hud-time', '#hud-week', '#virtual-keyboard', '#drill-modal']) {
+        ok(`F11b ⚠️ ${forbidden} stays monospace`,
+           !users.some(u => u.includes(forbidden)));
+    }
 
     // The stamp nothing was checking. v3.5.6 bumped the header and left
     // body::before at v3.5.5, so the build footer under-reported the file.
     const hdr = (css.match(/style\.css v([\d.]+)/) || [])[1];
     const stamp = (css.match(/body::before\s*\{\s*content:\s*"v([\d.]+)"/) || [])[1];
     eq('F12 style.css\'s machine-readable stamp matches its own header', stamp, hdr);
+}
+
+// ─── G. ⚠️ THE HOLE WITH TEETH — REAL ENGLISH LIVES IN THIS FILE TOO ────────
+console.log('\n── G. ⚠️ learn.js has step types made of REAL WORDS. Keep away. ──');
+{
+    const learn = readFileSync(new URL('../learn.js', import.meta.url), 'utf8');
+
+    // ⚠️ THE WARNING IN THE MODULE HEADER USED TO POINT AT game.js, WHICH MADE IT
+    // SOUND LIKE SOMEBODY ELSE'S PROBLEM. It is not. learn.js itself has THREE
+    // step types built from real English — word_list, sentence_list and passage —
+    // and a future round that reads "the drill filter is in learn.js" could
+    // reasonably wire it into all six. That would silently eat ordinary words.
+    for (const t of ['word_list', 'sentence_list', 'passage']) {
+        ok(`G1 learn.js still has the "${t}" step type — real English, unfiltered`,
+           learn.includes(`case '${t}'`));
+    }
+
+    // ⚠️ WHAT WOULD BE DESTROYED, BY NAME. Every one of these is a word a school
+    // typing app uses. They are asserted as BLOCKED so the damage is a number in
+    // the test output rather than a paragraph nobody reads.
+    const CASUALTIES = [
+        'assignment', 'assume', 'assist', 'assess', 'asset',   // leading `ass`
+        'title', 'titles', 'constitution', 'attitude',          // contains `tit`
+        'biscuit', 'circuit', 'cute', 'cutting',                // contains `cut`
+        'soldier', 'audience', 'obedient', 'ingredient',        // contains `die`
+        'sweet', 'between', 'weekend',                          // contains `wee`
+        'speech', 'speed',                                      // contains `pee`
+        'shampoo', 'spoon',                                     // contains `poo`
+        'sparse', 'parse', 'coarse',                            // contains `arse`
+        'grape', 'scrape',                                      // contains `rape`
+        'raccoon', 'cocoon', 'tycoon',                          // contains `coon`
+        'manuscript',                                           // contains `anus`
+        'shatter', 'shell', 'hello', 'album', 'peanuts',
+        'suspicion', 'homophone', 'begun', 'shotgun',
+    ];
+    const survivors = CASUALTIES.filter(w => !containsBlocked(w));
+    console.log(`   ${CASUALTIES.length - survivors.length} of ${CASUALTIES.length} ` +
+                `ordinary English words would be destroyed by this module.`);
+    ok('G2 ⚠️ the overwhelming majority of that list IS blocked — the cost is real',
+       (CASUALTIES.length - survivors.length) / CASUALTIES.length > 0.85);
+
+    // ⚠️ THE ACTUAL GUARD. The filter must reach the two RANDOM generators and
+    // nothing else. If a future round wires it into the word/sentence/passage
+    // path, safeGroup() count goes up and this goes red.
+    // ⚠️ COUNT CODE, NOT PROSE. The first draft of this counted /safeGroup\(/
+    // across the whole file and got 4 — two call sites and two comments that
+    // mention the function by name. A guard that a comment can trip is a guard
+    // people learn to ignore. Strip line comments first.
+    const codeOnly = learn.split('\n').filter(l => !/^\s*(\/\/|\*)/.test(l)).join('\n');
+    const uses = (codeOnly.match(/=\s*safeGroup\(/g) || []).length;
+    eq('G3 ⚠️ safeGroup() is CALLED exactly twice — the two random generators only',
+       uses, 2);
+}
+
+// ─── H. ⚠️ THE CONTROL ACTUALLY APPEARS ON THE PAGE ─────────────────────────
+console.log('\n── H. ⚠️ the font control renders, and can be SEEN ──');
+{
+    // ⚠️ THIS PART EXISTS BECAUSE THE FEATURE SHIPPED INVISIBLE. v2.23.0 built
+    // the picker correctly, appended it to the right element, and styled it at
+    // 0.75rem in #777 with no affordance — and Jake asked whether it existed.
+    // Every assertion I had written was about the FILTER; not one asked whether
+    // the other half of the round was on the screen.
+    // ⚠️ GENERALISE: "the code runs" and "a person can find it" are different
+    // claims, and only the first one had a test. A control nobody can find has
+    // not shipped.
+    const html  = readFileSync(new URL('../learn.html', import.meta.url), 'utf8');
+    const learn = readFileSync(new URL('../learn.js',   import.meta.url), 'utf8');
+    const css   = readFileSync(new URL('../style.css',  import.meta.url), 'utf8');
+
+    const dom = new JSDOM(html, { url: 'https://example.org/' });
+    const doc = dom.window.document;
+
+    // Lift the shipped font block rather than reimplementing it.
+    const start = learn.indexOf('const DRILL_FONTS = [');
+    const end   = learn.indexOf('\n}', learn.indexOf('function buildFontPicker()')) + 2;
+    ok('H1 the font block is liftable from learn.js', start > 0 && end > start);
+    const block = learn.slice(start, end);
+    const fakeLS = { _v: {}, getItem(k){ return this._v[k] ?? null; },
+                     setItem(k, v){ this._v[k] = v; } };
+    const api = new Function('document', 'localStorage',
+        block + '; return { buildFontPicker, applyDrillFont, DRILL_FONTS };')(doc, fakeLS);
+
+    ok('H2 learn.html still has the #map-header the picker attaches to',
+       !!doc.getElementById('map-header'));
+
+    api.buildFontPicker();
+    const pick = doc.getElementById('drill-font-pick');
+    ok('H3 ⚠️ the control RENDERS — the assertion that was missing',  !!pick);
+    ok('H4 …into the map header, where there is no drill to interrupt',
+       pick && pick.parentElement.id === 'map-header');
+    eq('H5 …with every face offered',
+       pick ? [...pick.querySelectorAll('option')].length : 0, api.DRILL_FONTS.length);
+    ok('H6 …and a visible "Aa" affordance, not a bare label',
+       !!(pick && pick.querySelector('.dfp-aa')));
+    ok('H7 …labelled in words a child reads, not font names',
+       pick && /Reading font/.test(pick.textContent));
+
+    // ⚠️ IDEMPOTENT. renderMap() runs on every auth change and progress update.
+    api.buildFontPicker(); api.buildFontPicker();
+    eq('H8 building it repeatedly makes exactly one control',
+       doc.querySelectorAll('#drill-font-pick').length, 1);
+
+    // ⚠️ THE VISIBILITY FLOOR. Not a taste assertion — a floor. v3.6.0 sat below
+    // it at 0.75rem/#777 and that is precisely why nobody found it.
+    const rule = (css.match(/#drill-font-pick\s*\{[^}]*\}/) || [''])[0];
+    const size = parseFloat((rule.match(/font-size:\s*([\d.]+)rem/) || [0, 0])[1]);
+    ok(`H9 ⚠️ font-size is at least 0.8rem (is ${size})`, size >= 0.8);
+    ok('H10 ⚠️ it has a border, so it reads as a control rather than a caption',
+       /border:/.test(rule));
+
+    // Choosing a face writes it and sets the proportional class.
+    api.applyDrillFont('serif');
+    ok('H11 a proportional face sets the no-reflow class',
+       doc.documentElement.classList.contains('ttb-drill-proportional'));
+    api.applyDrillFont('courier');
+    ok('H12 …and a monospace face clears it',
+       !doc.documentElement.classList.contains('ttb-drill-proportional'));
+    eq('H13 an unknown key falls back to the default rather than blanking the text',
+       api.applyDrillFont('nonsense'), api.DRILL_FONTS[0][0]);
 }
 
 console.log('');
@@ -324,7 +439,9 @@ if (failures) {
 } else {
     console.log(`All ${checks} checks pass.`);
     console.log('');
-    console.log('⚠️ WHOLE-GROUP MATCHING IS A DELIBERATE NARROWING (Jake, 2026-08-21).');
-    console.log('   `lass`, `mass` and `asse` are FINE and B1-B3 hold that line.');
-    console.log('   At groupSize 4 a three-letter entry cannot fire at all — see A1.');
+    console.log('⚠️ `ass` IS THE ONLY LEADING ENTRY. Everything else is NEVER-USE,');
+    console.log('   matched anywhere. Jake ruled it in three narrowing steps in one');
+    console.log('   morning — all three quotes are in the module header, and Part B');
+    console.log('   asserts the FINAL state. Do not restore behaviour from an early');
+    console.log('   quote. ⚠️ AND SEE PART G: real English lives in learn.js too.');
 }

@@ -1,4 +1,14 @@
-// drill-filter.js v1.2.0 — KEEP THE RANDOM DRILLS FROM SPELLING THINGS.
+// drill-filter.js v1.3.0 — KEEP THE RANDOM DRILLS FROM SPELLING THINGS.
+//
+// v1.3.0 — ⚠️ `ass` IS THE ONLY LEADING ENTRY LEFT; EVERYTHING ELSE IS NEVER-USE.
+//          Jake, 2026-08-21: "Ass is in real, nonoffensive words. I can't think
+//          of a single word that has fuck in it. [...] xfart and xfuck and xdamn
+//          (and fartx and fuckx, etc) will always elicit a response because the
+//          word is right there and can't be confused with anything else."
+//          ⚠️ MEASURED BEFORE ADOPTING, NOT AFTER: the whole NEVER list costs at
+//          most 0.24% of groups across the course's key-set ladder. Part A.
+//          ⚠️ `fuk`/`fuks` DELETED — my invention, not a word, and 80% of the
+//          filter's entire cost at the key set most students are on. See NEVER.
 //
 // v1.2.0 — ⚠️ TIER 1 IS NOW **LEADING**, NOT WHOLE-GROUP. Jake amended his own
 //          ruling the same morning, and amended one of his own examples with it:
@@ -137,6 +147,18 @@
 // that would derail a room of twelve-year-olds for five minutes. Both are worth
 // blocking; the second is most of the practical value.
 //
+// ⚠️⚠️ AND AS OF v1.3.0 THERE ARE TWO TIERS WITH A ONE-MEMBER FIRST TIER. Jake:
+// "Ass is different, but I think all of the other words should be on a NEVER USE
+// list." His reasoning, and it is the right reasoning: for everything except
+// `ass` there is no innocent reading. A group containing `fart` contains the
+// word `fart` wherever it sits, and a room of twelve-year-olds will find it.
+// `ass` alone lives inside letter runs a drill has a legitimate reason to make —
+// `fass`, `lass`, `mass`, `sass` — so it, and only it, is matched LEADING.
+//
+// ⚠️ DO NOT ADD A SECOND LEADING ENTRY WITHOUT A RULING. The qualification is
+// "appears inside letter runs a typing drill should be free to produce", not
+// "seems mild".
+//
 // ⚠️ THIS TESTS NONSENSE LETTER GROUPS, WHICH IS WHY IT CAN BE BLUNT. There is no real prose here to damage — no "Scunthorpe problem",
 // because there is no Scunthorpe. Nothing on this list can suppress a legitimate
 // word, because there are no legitimate words. That freedom does NOT transfer:
@@ -146,69 +168,70 @@
 // If prose ever needs filtering, that is a different module with word
 // boundaries and a much shorter list.
 //
-// ⚠️⚠️ v1.2.0 MADE THIS WARNING LOAD-BEARING RATHER THAN CAUTIONARY. Under
-// LEADING matching, `assignment`, `assume`, `assist`, `assess` and `asset` are
-// all blocked — every one of them is a word this app uses. `class`, `passage`,
-// `grass` and `harass` survive only because the sequence does not start them.
-// Part B12 asserts the blocked half by name. **A single import of this module
-// into game.js or into the Gemini practice path would begin silently deleting
-// ordinary English.**
+// ⚠️⚠️ AND v1.3.0 MADE IT SEVERE. With everything but `ass` matched ANYWHERE,
+// Part G measures the damage: **39 of 42 ordinary English words are blocked.**
+// `title`, `constitution`, `attitude`, `biscuit`, `circuit`, `soldier`,
+// `audience`, `ingredient`, `sweet`, `between`, `weekend`, `speech`, `shampoo`,
+// `sparse`, `parse`, `grape`, `scrape`, `raccoon`, `manuscript`, `shatter`,
+// `hello`, `album`, `peanuts`, `shotgun` — all destroyed.
 //
-// Short entries are the dangerous ones and they earn their place by being
-// REACHABLE: a two-letter entry would fire constantly, so the list starts at
-// three characters and anything three long is here because a beginner key set
-// can spell it.
-export const DRILL_FILTER_VERSION = '1.2.0';
+// ⚠️⚠️⚠️ AND THE TARGET OF THAT WARNING IS NOT ONLY game.js. IT IS THIS FILE.
+// learn.js has THREE step types built from real English — `word_list`,
+// `sentence_list` and `passage` — sitting in the same switch statement as the
+// two random generators this module guards. A future round reading "the drill
+// filter lives in learn.js" could reasonably wire it into all of them, and the
+// only visible symptom would be words quietly going missing from lessons.
+// Part G3 asserts safeGroup() is CALLED EXACTLY TWICE and names why.
+//
+// ⚠️ SHORT ENTRIES ARE THE EXPENSIVE ONES AND THE EXPENSE IS INVISIBLE BY
+// READING. A NEVER entry is tested at (groupSize - len + 1) positions, so a
+// three-letter entry made of EARLY keys costs several times what a six-letter
+// one made of late keys does. This has now bitten twice — `kkk`, then `fuk` —
+// and neither was catchable by looking at the list. ⚠️ MEASURE: run Part A
+// before and after adding anything.
+export const DRILL_FILTER_VERSION = '1.3.0';
 
 // ⚠️ LOWERCASE ONLY, both lists. Everything is compared lowercased; an uppercase
 // entry would never match and would look like it was working.
 
-// ── TIER 1 — blocked when the group STARTS with it (Jake's ruling, part 2) ───
-// ⚠️ SHORT ENTRIES MADE OF COMMON KEYS ARE THE RISK HERE, and it is a smaller
-// risk than tier 2's because a leading match has ONE position to hit rather than
-// (groupSize - len + 1). Part A prints the real figure and A4 caps it.
-// ⚠️ If you add a three-letter entry
-// spellable from the home row, CHECK PART A's printed rate before and after: the
-// `kkk` incident is what this warning is made of.
-export const LEADING = [
-    'ass', 'asses', 'arse', 'arses', 'butt', 'butts', 'bum', 'bums',
+// ── TIER 1 — LEADING. One word, and that is the whole design. ───────────────
+export const LEADING = ['ass', 'asses'];
+
+// ── TIER 2 — NEVER USE. Blocked anywhere in the group. ─────────────────────
+// ⚠️ `fuk` AND `fuks` WERE HERE AND WERE DELETED IN v1.3.0. They were my
+// invention rather than anyone's ruling — a near-miss spelling nobody types —
+// and the measurement showed them costing 0.074% of groups on the home+index key
+// set, which was EIGHTY PERCENT OF THE FILTER'S ENTIRE COST at the level most
+// students are actually on. `f`, `u` and `k` are all early keys, while `fuck`
+// proper needs a `c`, which is bottom-row and late. So a string that is not the
+// word was doing almost all of the work. Do not put them back.
+export const NEVER = [
+    'arse', 'arses', 'butt', 'butts', 'bum', 'bums',
     'fart', 'farts', 'poop', 'poops', 'poo', 'pee', 'wee', 'turd', 'turds',
     'crap', 'craps', 'piss', 'pissed',
     'boob', 'boobs', 'tit', 'tits', 'titty', 'penis', 'anus', 'pube', 'pubes',
     'dick', 'dicks', 'cock', 'cocks', 'balls', 'nuts', 'crotch',
     'nipple', 'nipples', 'scrotum', 'testicle', 'vagina', 'pussy',
-    'shit', 'shits', 'shat', 'fuck', 'fucks', 'fuk', 'fuks',
+    'shit', 'shits', 'shat', 'fuck', 'fucks',
     'cunt', 'cunts', 'twat', 'twats', 'wank', 'wanks', 'bitch', 'bitches',
     'slut', 'sluts', 'whore', 'whores', 'prick', 'pricks', 'douche', 'bastard',
     'damn', 'damned', 'hell', 'sex', 'sexy',
-    // Violence and self-harm. A random drill spelling one of these at a child who
-    // is struggling is a bad enough outcome to be worth a rare redraw.
+    // Violence and self-harm.
     'kill', 'kills', 'die', 'dies', 'dead', 'gun', 'guns', 'shoot', 'shot',
     'stab', 'stabs', 'bomb', 'bombs', 'blood', 'suicide', 'cut', 'cuts',
     // Substances.
     'drug', 'drugs', 'weed', 'vape', 'vapes', 'meth', 'heroin', 'cocaine',
     'beer', 'drunk',
-];
-
-// ── TIER 2 — blocked ANYWHERE in the group, always ───────────────────────────
-// ⚠️ THE RULING DOES NOT REACH THIS LIST, DELIBERATELY. See the header.
-export const ALWAYS = [
+    // Slurs and hate.
     'nigg', 'nigr', 'spic', 'chink', 'kike', 'coon', 'gook', 'wetback',
     'tranny', 'fagg', 'retard', 'hitler', 'nazi', 'rape',
 ];
-// ⚠️ 'kkk' WAS HERE AND WAS REMOVED, 2026-08-21, BY A FAILING TEST. It is a
-// SUBSTRING rule and `k` is a home key, so it fired on ordinary same-finger
-// repetition — `kkkl`, `akkk` — on the home row alone, more often than the
-// defect this module was written for (Part A prints both rates).
-// It would have silently suppressed a legitimate exercise: repeated same-finger keys are
-// core drill material, and no child reads three k's in a letter drill as
-// anything but three k's. ⚠️ DO NOT PUT IT BACK. If a whole group of exactly
-// 'kkk' ever needs blocking, that is still a k-repetition drill and still fine.
-// The general lesson: a short TIER 2 entry made of common keys is a pedagogy
-// bug wearing a safety costume. Part A1 is the guard.
+
+/** @deprecated v1.3.0 — the old name for NEVER, when it held only the slurs. */
+export const ALWAYS = NEVER;
 
 /** Everything filtered, for callers that want to display it. Not used in logic. */
-export const BLOCKED = LEADING.concat(ALWAYS);
+export const BLOCKED = LEADING.concat(NEVER);
 
 /** @deprecated v1.2.0 — the old name for LEADING, when the rule was equality. */
 export const WHOLE_GROUP = LEADING;
@@ -219,8 +242,8 @@ export const WHOLE_GROUP = LEADING;
 // sends a reader to the wrong row of the list.
 const _LEAD = Object.freeze(
     LEADING.map(w => String(w).toLowerCase()).sort((a, b) => b.length - a.length));
-const _ALWAYS = Object.freeze(
-    ALWAYS.map(w => String(w).toLowerCase()).sort((a, b) => b.length - a.length));
+const _NEVER = Object.freeze(
+    NEVER.map(w => String(w).toLowerCase()).sort((a, b) => b.length - a.length));
 
 /**
  * Which entry blocks this group, or '' if none.
@@ -236,7 +259,7 @@ export function firstBlocked(s) {
     // character — so v1.1.0's behaviour is a strict subset of this one.
     for (const w of _LEAD) if (t.startsWith(w)) return w;
     // Tier 2: anywhere at all.
-    for (const w of _ALWAYS) if (t.indexOf(w) !== -1) return w;
+    for (const w of _NEVER) if (t.indexOf(w) !== -1) return w;
     return '';
 }
 
