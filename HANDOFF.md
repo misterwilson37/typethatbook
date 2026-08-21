@@ -23,7 +23,10 @@
      orphan `typing_logs/{anonUid}` document written for guests in School,
      "because a guest is signed in anonymously." `signInAnonymously` APPEARS
      NOWHERE IN THIS REPO. Two rounds carried it; one grep ended it.
-     37/37 harnesses.
+     ⚠️⚠️ AND ROADMAP ITEM 6 IS CONFIRMED AND FIXED FOR LIBRARY — §0.-10.L. A
+     sprint crossing midnight was split correctly by the day counters and filed
+     WHOLE by the session record under the day it ended on: the observed 4m 9s
+     rollup beside a 0m 6s daily log, explained. 38/38 harnesses.
 
      ⚠️⚠️ v15.0.0 IS A MAJOR AND JAKE SIGNED IT OFF ("Feel free to do a clean up
      of Handoff while you're at it. Clean out anything unnecessary that you no
@@ -194,6 +197,8 @@ would have. The instrument you reach for first is not always the cheap one.
 | `tests/carryover-test.mjs` | **NEW** | 40 assertions, both guards mutation-verified |
 | `tests/guest-merge-test.mjs` | v1.1.0 | C4, C5, C7 assert the property, not the spelling (§0.-10.K) |
 | `learn.js` | **v2.22.0** | the School half of the rescue; item 3 deleted (§0.-10.G, §0.-10.J) |
+| `game.js` | v3.37.0 → **v3.38.0** | the midnight straddle (§0.-10.L) |
+| `tests/midnight-test.mjs` | **NEW** | 23 assertions; both halves mutation-verified |
 
 ⚠️ **UPLOAD ORDER: `session-log.js`, then `daylog.js`, then `game.js` and
 `learn.js`.** Both shared modules before EITHER page controller — v3.37.0 and
@@ -458,6 +463,70 @@ adopted, adopted before flushed. **v1.1.0.**
 IT.** A proximity window in characters is the worst version of this: it makes
 documenting your own change a test failure, which teaches the next round to
 write less of the thing this project runs on.
+
+### 0.-10.L ✅⚠️ ROADMAP ITEM 6 — THE MIDNIGHT STRADDLE, CONFIRMED AT LAST
+
+**Two rounds looked at this and could not name a culprit. The reason is that
+both numbers were right.**
+
+The observation (§0.-5.I, real data 2026-08-20): a session rollup of **4m 9s at
+12:00 AM** beside a daily log of **0m 6s** for the same date.
+
+A sprint running 11:56 PM → 12:00:09 AM is split correctly by the day counters —
+they tick second by second, and when `getLocalDateStr()` turns over the tick
+resets them and starts writing tomorrow's document. **243 seconds to yesterday,
+6 to today. Exactly right.** But `sprintSeconds` knew nothing about midnight and
+kept climbing, so when the sprint ended `logSession()` filed **one** record of
+249 seconds, stamped with the day it **ended** on.
+
+249 = 4m 9s. 6 = 0m 6s. The incident, to the second.
+
+⚠️ **THE ROADMAP'S SECOND CANDIDATE IS INNOCENT AND MUST NOT BE INVESTIGATED
+AGAIN.** "`session-log.js`'s own dating of a chunk" is not it — that module dates
+from the caller and always has. The caller was handing it a sprint that had
+already crossed midnight. ⚠️ Round 24's `sessionLogAdopt()` fix (§0.-10.C) is a
+**different** date defect on a **different** path; the coincidence of finding two
+date bugs in one round is not evidence they are the same one.
+
+**The fix** closes the open sprint on the outgoing day before the reset, reusing
+`logOpenSprint()` — the machinery that already handles navigating away
+mid-sprint. `logSession()` gains a `dateOverride` for this **one** caller, which
+still honours the oldest rule in the project: the caller dates the record,
+because the caller is the only thing that knows these seconds belong to
+yesterday.
+
+⚠️⚠️ **AND THE MIDNIGHT CHECK MOVED ABOVE `sprintSeconds++`. THAT ORDERING IS
+HALF THE FIX.** One line lower and the second that just elapsed — the first
+second of the new day — is filed under yesterday. Off by one, every midnight,
+forever, invisible. `midnight-test.mjs` **B4** is that mutation and it is the one
+a reviewer would wave through.
+
+⚠️ **THE FIVE-SECOND FLOOR IS THE RESIDUE AND IT IS THE RIGHT ONE.** A sprint
+begun at 11:59:58 has two seconds to close; the floor refuses them and
+deliberately does not advance the watermark, so they roll into the new day rather
+than vanishing. Two seconds on the wrong side of midnight beats two seconds gone.
+
+⚠️ **LIBRARY ONLY. `learn.js` IS NOT FIXED** — the full recipe is in ROADMAP
+item 6. Its tick increments **before** its rollover check and compensates with
+`= 1` instead of `= 0`, so mirroring means moving the block past
+`anonSecondsAccum++` and `armAnonLoginPrompt()` in the file 8th grade depends on.
+**Exposure decided it, not symmetry:** School runs 8am–3pm and a lesson does not
+straddle midnight; Library at home does. `midnight-test.mjs` **Part D asserts the
+gap on purpose** — invert those two when School is done, do not delete them.
+
+### 0.-10.M ⚠️ THE HARNESS CAUGHT ITSELF DOING THE THING §0.-10.K IS ABOUT
+
+`midnight-test.mjs` B4 went **red against correct code** on its first run. The
+fix's own comment block explains that the close must precede `sprintSeconds++` —
+so the phrase appears in PROSE above the line it describes, and `indexOf` found
+the comment first.
+
+**Fourth variant of the same failure in one round**, after `guest-merge-test.mjs`
+C4, C5 and C7. The block is decommented before the search now.
+
+⚠️ **AN ASSERTION THAT READS COMMENTS IS MEASURING THE DOCUMENTATION, NOT THE
+PROGRAM** — and in a repo whose comments are this dense, that is not an edge
+case, it is the default. **Strip comments first. Assert order, not distance.**
 
 ### 0.-10.F WHAT WAS DELIBERATELY NOT DONE
 

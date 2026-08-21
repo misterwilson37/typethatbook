@@ -1,5 +1,5 @@
-// run-all-tests.mjs v1.7.0 — Round 24 (Monotype): adopt-date-test.mjs and
-// carryover-test.mjs registered. Nothing else changed. 37 harnesses.
+// run-all-tests.mjs v1.8.0 — Round 24 (Monotype): adopt-date-test.mjs,
+// carryover-test.mjs and midnight-test.mjs registered. 38 harnesses.
 //
 // run-all-tests.mjs v1.5.0 — Round 23 (Empire): guest-merge-test.mjs and
 // queue-owner-test.mjs registered; reconcile-test.mjs and union-clock-test.mjs
@@ -209,6 +209,13 @@ const FAST = [
     // wrong day — today (the double-credit), the future (a bad device clock),
     // and a pre-cutover day (which is §3.1 with an addition in front of it).
     ['carryover-test.mjs',       'THE OVERNIGHT RESCUE: yesterday\u2019s guest minutes reach yesterday\u2019s document, and never today\u2019s'],
+
+    // ⚠️ Round 24 (Monotype). ROADMAP item 6, CONFIRMED AND FIXED for Library.
+    // A sprint crossing midnight was split correctly by the day counters and
+    // filed WHOLE by the session record, under the day it ended on — the
+    // observed 4m 9s rollup beside a 0m 6s daily log. Part D asserts the
+    // remaining School gap ON PURPOSE; invert it when learn.js is done.
+    ['midnight-test.mjs',        'A SPRINT THAT CROSSES MIDNIGHT belongs to two days, and the record must say so'],
 ];
 
 // ⚠️ RULES — need the Firebase emulator (a JVM plus a jar download), so they are

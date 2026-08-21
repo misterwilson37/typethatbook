@@ -1,4 +1,14 @@
-// game.js v3.37.0
+// game.js v3.38.0
+//
+// v3.38.0 — ⚠️ ROADMAP ITEM 6 CONFIRMED AND FIXED. A sprint crossing midnight
+//           was split correctly by the day counters (243s to yesterday, 6s to
+//           today) and filed WHOLE by the session record, stamped with the day
+//           it ENDED on — the observed 4m 9s rollup beside a 0m 6s daily log.
+//           The tick now closes the open sprint on the OUTGOING day before it
+//           resets, and the midnight check MOVED ABOVE `sprintSeconds++` so the
+//           second that just elapsed is not filed under yesterday.
+//           ⚠️ THE ROADMAP'S SECOND CANDIDATE IS INNOCENT — session-log.js dates
+//           from the caller and always did. tests/midnight-test.mjs.
 //
 // v3.37.0 — ⚠️ THE OVERNIGHT RESCUE, on Jake's ruling. A child who typed as a
 //           guest and did not sign in until the NEXT DAY now has those minutes
@@ -408,7 +418,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.37.0";
+const VERSION = "3.38.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -2726,11 +2736,46 @@ function gameTick() {
         timeAccumulator += 100;
         timerDisplay.style.opacity = '1';
         if (timeAccumulator >= 1000) {
-            activeSeconds++; sprintSeconds++;
-
-            // Midnight rollover check
+            // ⚠️⚠️ THE MIDNIGHT CHECK RUNS BEFORE THE TWO INCREMENTS BELOW, AND
+            // THAT ORDER IS THE FIX. (v3.38.0 — ROADMAP item 6.)
+            //
+            // THE DEFECT, observed on real data 2026-08-20 (HANDOFF §0.-5.I): a
+            // session rollup of 4m 9s at 12:00 AM beside a daily log of 0m 6s
+            // for the same date. 249 seconds in the drill-down, 6 in the total.
+            //
+            // ⚠️ NEITHER NUMBER WAS WRONG. THEY WERE ANSWERING DIFFERENT
+            // QUESTIONS. A sprint that runs 11:56 PM → 12:00:09 AM is split
+            // correctly by the day counters — 243 seconds into yesterday's
+            // document, 6 into today's, second by second as the clock passes.
+            // But `sprintSeconds` knew nothing about midnight and kept climbing,
+            // so when the sprint finally ended, logSession() filed ONE record of
+            // 249 seconds stamped with the day it ENDED on. Today's total: 6s.
+            // Today's drill-down: 4m 9s. That is the whole incident.
+            //
+            // ⚠️ THE ROADMAP NAMED TWO CANDIDATES AND THE SECOND ONE IS INNOCENT.
+            // "session-log.js's own dating of a chunk" is not it — that module
+            // dates from the caller and always has. The caller was handing it a
+            // sprint that had already crossed midnight.
+            //
+            // The fix closes the open sprint on the OUTGOING day, using the same
+            // machinery that already handles a student navigating away
+            // mid-sprint. The post-midnight remainder is logged later as a
+            // continuation against the watermark, dated correctly, by the
+            // ordinary path.
+            //
+            // ⚠️ IT MUST RUN BEFORE `sprintSeconds++`. One line lower and the
+            // second that just elapsed — the first second of the NEW day — gets
+            // filed under yesterday. Off by one second, every midnight, forever,
+            // and invisible. midnight-test.mjs Part B asserts this ordering.
+            //
+            // ⚠️ THE 5-SECOND FLOOR STILL APPLIES. A sprint begun at 11:59:58
+            // has 2 seconds to close and the floor refuses them; the watermark
+            // is deliberately NOT advanced, so they roll into the first record
+            // of the new day instead of being lost. Two seconds on the wrong
+            // side of midnight is the residue, and it is the right residue.
             const todayStr = getLocalDateStr();
             if (statsData.lastDate && statsData.lastDate !== todayStr) {
+                logOpenSprint('midnight', statsData.lastDate);
                 console.log(`Day rolled over: ${statsData.lastDate} → ${todayStr}. Resetting daily stats.`);
                 statsData.secondsToday = 0;
                 statsData.charsToday = 0;
@@ -2758,6 +2803,8 @@ function gameTick() {
                     weeklyGoalCelebrated = false;
                 }
             }
+
+            activeSeconds++; sprintSeconds++;
 
             // ⚠️ ONE LINE, THREE COUNTERS, ONE GATE (v3.35.0). `secondsLibrary`
             // advances here and NOWHERE ELSE, exactly like the two beside it.
@@ -4471,7 +4518,7 @@ async function saveCompletedChapters() {
 // to the real account by retroactiveSaveGuestSession(). Dropping them left the
 // day's total carrying minutes with no evidence behind them — which is exactly
 // the shape of ROADMAP item 1's real case.
-function logSession(seconds, chars, mistakes, wpm, accuracy, detailSuffix) {
+function logSession(seconds, chars, mistakes, wpm, accuracy, detailSuffix, dateOverride) {
     const uid = (currentUser && !currentUser.isAnonymous) ? currentUser.uid
               : (sessionExpired && lastKnownUid) ? lastKnownUid
               : GUEST_QUEUE_UID;
@@ -4503,7 +4550,16 @@ function logSession(seconds, chars, mistakes, wpm, accuracy, detailSuffix) {
 
     sessionLogPush(uid, {
         // ⚠️ STAMPED NOW, NOT AT FLUSH TIME. The whole point of session-log.js.
-        date: getLocalDateStr(),
+        //
+        // ⚠️ `dateOverride` IS FOR MIDNIGHT AND NOTHING ELSE. (v3.38.0) The tick
+        // closes the open sprint on the OUTGOING day before it resets the day
+        // counters, and at that instant getLocalDateStr() has already turned
+        // over — so the one caller who knows these seconds belong to yesterday
+        // has to say so. That is still "the caller dates the record", which is
+        // this project's oldest rule; it is not the module guessing.
+        // ⚠️ DO NOT PASS IT FROM ANYWHERE ELSE. Every other caller is logging
+        // seconds that happened just now, and "just now" is getLocalDateStr().
+        date: dateOverride || getLocalDateStr(),
         at: new Date().toISOString(),
         seconds: dSeconds, chars: dChars, mistakes: dMistakes,
         wpm: outWPM, accuracy: outAcc,
@@ -4567,7 +4623,7 @@ function flushSessionsNow() {
 //
 // This is the whole fix for the students who switch books every few sentences.
 // Their time was always in the counters; now it is in the session history too.
-function logOpenSprint(reason) {
+function logOpenSprint(reason, dateOverride) {
     if (!isGameActive && sprintSeconds <= 0) return;
     const charsTyped = currentCharIndex - sprintCharStart;
     const sprintMinutes = sprintSeconds / 60;
@@ -4576,7 +4632,7 @@ function logOpenSprint(reason) {
     const entries = charsTyped + sprintMistakes;
     const sprintAcc = (entries > 0) ? Math.round((charsTyped / entries) * 100) : 100;
     logSession(sprintSeconds, charsTyped, sprintMistakes, sprintWPM, sprintAcc,
-               reason ? '(' + reason + ')' : '(interrupted)');
+               reason ? '(' + reason + ')' : '(interrupted)', dateOverride);
 }
 
 // carryGuestDaysToTheirOwnDocuments() — THE OVERNIGHT RESCUE  (v3.37.0)

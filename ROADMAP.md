@@ -1,11 +1,12 @@
 # TYPETHATBOOK — ROADMAP
 
-**v3.3.0, 2026-08-20.** Round 24 shipped THE OVERNIGHT RESCUE on Jake's ruling,
+**v3.4.0, 2026-08-20.** Round 24 shipped THE OVERNIGHT RESCUE on Jake's ruling,
 fixed the evening-guest date, the School hard refresh and the Logout button
 (invisible twice, in two stylesheets), and — from Jake's own re-generated
 report — **downgraded item 1 from "records are lost" to "records are late."**
-⚠️ It also **deleted item 3 as a phantom** — one `grep` ended a defect two rounds
-had carried. Completed work and settled arguments live in `HANDOFF.md`.
+⚠️ It also **confirmed and fixed item 6** (the midnight straddle, Library) and
+**deleted item 3 as a phantom** — one `grep` ended a defect two rounds had
+carried. Completed work and settled arguments live in `HANDOFF.md`.
 
 ---
 
@@ -166,17 +167,54 @@ the end of the period — see item 1.
 
 ---
 
-## 6. THE MIDNIGHT STRADDLE
+## 6. ⚠️ THE MIDNIGHT STRADDLE — CONFIRMED, FIXED IN LIBRARY, OPEN IN SCHOOL
 
-A session rollup of 4m 9s at 12:00 AM beside a daily log of 0m 6s for the same
-date. Two candidates: the day-rollover reset inside the tick, and
-`session-log.js`'s own dating of a chunk. `tab-lifetime-test.mjs` Part H models
-the hypothesis. **Confirm against the code before fixing.**
+**The mechanism is no longer a hypothesis.** `game.js` v3.38.0,
+`tests/midnight-test.mjs`.
 
-⚠️ **ONE OF THE TWO CANDIDATES HAS SHRUNK.** Round 24 found and fixed a real
-UTC/local date defect in `sessionLogAdopt()` (item 2), which is the *adopt* half
-of "session-log.js's own dating." The rest of the module dates from the caller
-and always did. Re-read this item against v1.6.0 before spending a round on it.
+A sprint running 11:56 PM → 12:00:09 AM was **split correctly by the day
+counters** — they tick second by second, so 243 seconds landed on yesterday's
+document and 6 on today's. `sprintSeconds` knew nothing about midnight and kept
+climbing, so when the sprint ended, `logSession()` filed ONE record of 249
+seconds stamped with the day it **ended** on. Today's total: 6s. Today's
+drill-down: 4m 9s. That is the observed incident, exactly.
+
+⚠️ **NEITHER NUMBER WAS WRONG — THEY WERE ANSWERING DIFFERENT QUESTIONS**, which
+is why two rounds looked at this and could not name a culprit.
+
+⚠️ **THE SECOND CANDIDATE IS INNOCENT AND SHOULD NOT BE INVESTIGATED AGAIN.**
+"`session-log.js`'s own dating of a chunk" is not it. That module dates from the
+caller and always has; the caller was handing it a sprint that had already
+crossed midnight. ⚠️ Round 24's `sessionLogAdopt()` fix (item 2) is a *different*
+date defect on a *different* path. Do not conflate them.
+
+**The fix:** the tick closes the open sprint on the outgoing day before resetting,
+reusing the machinery that already handles navigating away mid-sprint. The
+remainder is logged as a continuation, dated correctly, by the ordinary path.
+⚠️ The check moved **above** `sprintSeconds++`, and that ordering is half the
+fix — one line lower and the first second of each new day is filed under
+yesterday, invisibly, forever. `midnight-test.mjs` B4.
+
+### Still open: the same fix in `learn.js`
+
+**The recipe, in full, so the next round does not re-derive it:**
+1. `logRun(wpm, acc, detailSuffix)` → add a `dateOverride` param; the push uses
+   `date: dateOverride || getLocalDateStr()`.
+2. `logOpenRun(reason)` → add `dateOverride` and pass it through.
+3. In the tick, call `logOpenRun('midnight', statsData.lastDate)` at the
+   rollover.
+
+⚠️ **STEP 3 IS NOT A ONE-LINER THERE, AND THAT IS WHY IT WAS HELD.** `learn.js`
+increments `stepSeconds` **before** its rollover check and compensates by setting
+the day counters to `1` rather than `0`. Mirroring `game.js` means moving the
+whole block above the increments — past `anonSecondsAccum++` and
+`armAnonLoginPrompt()` — and changing those `= 1`s back to `= 0`. In the file 8th
+grade depends on.
+
+⚠️ **EXPOSURE, NOT SYMMETRY, DECIDED THIS.** School runs 8am–3pm at Ellis; a
+lesson does not straddle midnight. Library at home does, and Library is fixed.
+`midnight-test.mjs` Part D asserts the School gap **on purpose** — invert those
+two assertions when it is done, do not delete them.
 
 ---
 
@@ -234,6 +272,16 @@ No deadline.
 - **`handleDrillKey()` and game.js's keydown listener are near-duplicates that
   drifted.** Round 24 fixed the modifier guard in one of them. They disagree in
   other places too. Neither is obviously the better copy.
+- **The two tick loops have drifted too**, and item 6 is the proof: one
+  increments before its midnight check and one after, and they compensate
+  differently. ⚠️ Any extraction of a shared day-counter has to reconcile that
+  first, not paper over it.
+- ⚠️ **`visibilitychange` DOES NOT FIRE ON macOS APP SWITCH.** Jake demonstrated
+  it 2026-08-20: Cmd+Tab away with the window still visible behind the new app
+  leaves the handler silent, so `logOpenSprint('hidden')` does not run.
+  `pagehide` covers navigation, which is the case that matters, so nothing is
+  lost — but the comment above that handler in both files claims broader
+  coverage than it has. **Do not build on it.**
 
 ---
 
