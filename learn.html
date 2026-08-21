@@ -18,26 +18,37 @@
     <div id="hud">
         <div class="hud-section left">
             <a id="back-btn" href="index.html" style="color:#999; text-decoration:none; margin-right:12px; font-size:13px;">← Home</a>
-            <!-- ⚠️ IDENTICAL TO game.html's SLOT, ON PURPOSE. Same id, same
-                 position, same string built by hud.js. A student moving between
-                 School and Library should not have to relearn the top bar. -->
-            <span id="hud-time" style="font-family:'Courier Prime',monospace;">Daily 0:00</span>
-            <span id="hud-lesson-label" style="color:#666; font-size:13px; margin-left:10px;"></span>
+            <!-- ⚠️ IDENTICAL TO game.html's SLOT, ON PURPOSE. Same ids, same
+                 positions, same strings from hud.js. A student moving between
+                 School and Library should not have to relearn the top bar.
+                 #hud-context carries the lesson name here and the book/chapter
+                 in Library — same slot, same role: context for the number above
+                 it, never a number of its own. -->
+            <span class="hud-stack">
+                <span id="hud-time" class="hud-lead" style="font-family:'Courier Prime',monospace;">Daily 0:00</span>
+                <span id="hud-context" class="hud-sub"><span id="hud-lesson-label"></span></span>
+            </span>
         </div>
         <div class="hud-section center">
-            WPM: <span id="wpm-display">—</span> | Acc: <span id="acc-display">—</span>
+            <span class="hud-stack hud-stack-center">
+                <!-- School gates on WPM and accuracy, not time, so #hud-sprint
+                     stays empty here and the live row centres itself. It exists
+                     so the two pages keep identical markup. -->
+                <span id="hud-sprint" class="hud-lead" style="font-family:'Courier Prime',monospace;"></span>
+                <span class="hud-live">WPM: <span id="wpm-display">—</span> | Acc: <span id="acc-display">—</span></span>
+            </span>
         </div>
         <div class="hud-section right" id="auth-container">
-            <span id="hud-week" style="font-family:'Courier Prime',monospace; font-size:13px; color:#aaa; margin-right:12px;"></span>
             <div id="user-info" class="hidden">
-                <div style="display:flex;flex-direction:column;align-items:flex-end;line-height:1.2;">
-                    <span id="user-name"></span>
-                    <span id="user-class-name" style="font-size:11px;color:#888;font-family:'Courier Prime',monospace;"></span>
-                </div>
+                <span class="hud-stack hud-stack-right">
+                    <span id="user-name" class="hud-lead"></span>
+                    <span id="hud-week" class="hud-sub" style="font-family:'Courier Prime',monospace;"></span>
+                </span>
                 <button id="logout-btn" class="text-btn">(Logout)</button>
             </div>
             <button id="login-btn" class="action-btn">Sign In</button>
         </div>
+    </div>
     </div>
 
     <div id="caps-warning" class="hidden">⚠ CAPS LOCK IS ON</div>

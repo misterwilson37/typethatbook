@@ -1,4 +1,14 @@
-// hud.js v1.2.0
+// hud.js v1.3.0
+//
+// v1.3.0 — ⚠️ BREAKING RETURN SHAPE. `{ left, long }` → `{ lead, sprint }`. The
+//          top bar is two rows now (ROADMAP item 0), so the combined
+//          `Sprint … (Daily …)` string and the `long` flag that existed to
+//          shrink it are both gone. `lead` is ALWAYS the Daily figure — read the
+//          block above the return before changing that.
+//          ⚠️ JAKE: A BREAKING CHANGE TO A SHARED MODULE'S PUBLIC FUNCTION IS
+//          ARGUABLY A MAJOR BUMP (v2.0.0). Shipped as a minor because both
+//          callers moved in the same commit and nothing else imports it, but
+//          that is your call to make, not mine.
 //
 // v1.2.0 — hudStrings() now returns `long: showSprint` alongside the strings.
 //          `left` runs to 40+ characters in the combined Sprint+Daily form
@@ -123,20 +133,43 @@ export function hudStrings(state) {
     const sprint = Math.max(0, Math.round(st.sprintSeconds || 0));
     const showSprint = limit > 0;
 
-    const left = showSprint
-        ? 'Sprint ' + fmt(sprint) + ' / ' + fmt(limit) + ' (' + daily + ')'
-        : daily;
-
+    // ══════════════════════════════════════════════════════════════════════════
+    // ⚠️ v1.3.0 — THE PARENTHESIS WAS A SECOND ROW TRYING TO HAPPEN.
+    // ══════════════════════════════════════════════════════════════════════════
+    //
+    // v1.2.0 returned ONE glued string — `Sprint 0:00 / 0:30 (Daily 41:37 /
+    // 10:00)` — and added a `long` flag so the callers could shrink the font and
+    // ellipsise it. That was a band-aid on a cramming problem, and the renders
+    // Jake sent on 2026-08-21 showed it losing: students saw
+    // `Daily 41:37 / 10:00…` with the GOAL cut off.
+    //
+    // ⚠️ `long` IS GONE, NOT TUNED. The bar has two rows now, so the
+    // parenthetical has somewhere to live and there is nothing left to truncate.
+    // If you find yourself re-adding a flag that tells a caller to shrink text,
+    // stop: that is this bug's exact fingerprint.
+    //
+    // ⚠️⚠️ `lead` IS ALWAYS THE DAILY FIGURE, ON EVERY SURFACE, AND CHANGING THAT
+    // NEEDS JAKE. Sprint-above-daily was asked for and argued down on the file
+    // header's own grounds: it would make Daily the lead line on the landing
+    // page and the sub line inside a book, so THE GRADED NUMBER WOULD MOVE
+    // DEPENDING ON WHERE THE CHILD IS STANDING. That is the defect this whole
+    // module was extracted to kill. The sprint is a LIVE quantity, not a time
+    // quantity, and it belongs with WPM and accuracy in the centre — it sat on
+    // the left only because that is where the parenthesis put it.
+    // tests/hud-lead-test.mjs asserts it. See ROADMAP item 0.
     return {
-        left,
+        // The graded number. Same slot, same word, all four surfaces.
+        lead: daily,
+        // The live sprint, for the CENTRE cluster. Empty when there is no limit
+        // to show it against — School has no per-run time target, so School's
+        // centre is WPM and accuracy alone and its lead row is simply absent.
+        sprint: showSprint ? fmt(sprint) + ' / ' + fmt(limit) : '',
         right: 'Weekly ' + pair(week, weeklyGoal) + (weeklyDone ? ' ✓' : ''),
         dailyDone,
         weeklyDone,
         // Past the sprint target. Library colours the readout for this; the
         // sprint is not stopped, and never has been.
         overtime: showSprint && sprint >= limit,
-        // v1.2.0 — see the header on hudStrings() above.
-        long: showSprint,
     };
 }
 

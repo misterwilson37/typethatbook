@@ -1,4 +1,15 @@
-// learn.js v2.23.2
+// learn.js v2.24.0
+//
+// v2.24.0 — THE TWO-ROW TOP BAR (ROADMAP item 0), identical in structure to
+//           game.js v3.39.0. Daily over the lesson name on the left; WPM and
+//           accuracy centred under an #hud-sprint slot that stays empty here.
+//           ⚠️ THE ↺ RESTART BUTTON IS NOW ANCHORED TO .hud-section.left rather
+//           than inserted after #hud-lesson-label — the label lives inside the
+//           11px sub row now, and the old anchor would have rendered Restart at
+//           sub-row size wedged under the Daily figure. #user-class-name is
+//           gone from the bar on Jake's ruling ("forget about the class, it can
+//           live in settings"); learn.js's write to it was already guarded.
+//           ⚠️ NO TIMING MECHANISM TOUCHED — this is paint only.
 //
 // v2.23.2 — ⚠️ THE STALE DAY CARRIED FORWARD — the identical defect and the
 //           identical fix as game.js v3.38.1. mergeGuestStats() guarded only
@@ -1904,8 +1915,14 @@ function showRestartButton(show) {
             'padding:1px 8px;color:#999;cursor:pointer;' +
             'font-family:\'Courier Prime\',monospace;';
         btn.onclick = restartLesson;
-        if (hudLessonLabel && hudLessonLabel.parentNode) {
-            hudLessonLabel.parentNode.insertBefore(btn, hudLessonLabel.nextSibling);
+        // ⚠️ v2.24.0 — ANCHORED TO THE SECTION, NOT TO THE LESSON LABEL. The
+        // label used to be a direct child of .hud-section.left, so inserting
+        // after it put the button in the bar. It is now inside #hud-context,
+        // the 11px SUB ROW of the two-row stack, and inserting there would
+        // render Restart at sub-row size wedged under the Daily figure.
+        const leftSection = document.querySelector('#hud .hud-section.left');
+        if (leftSection) {
+            leftSection.appendChild(btn);
         } else {
             document.getElementById('hud').appendChild(btn);
         }
@@ -4258,21 +4275,25 @@ function renderTimeHUD() {
         weeklyGoal:    goals.weeklySeconds,
     });
     if (hudTimer) {
-        hudTimer.textContent = hud.left;
+        // ⚠️ THE LEAD ROW IS ALWAYS THE DAILY FIGURE, SAME AS game.js. See the
+        // block above hudStrings()'s return and tests/hud-lead-test.mjs.
+        hudTimer.textContent = hud.lead;
         hudTimer.style.color = hud.dailyDone ? '#22c55e' : '';
-        // ⚠️ v2.11.1 — SAME AS game.js's updateTimerUI(). hud.long is always
-        // false here today (sprintLimit is hardcoded to 0 above — School has no
-        // per-run time target), but kept in lockstep on purpose: hud.js's
-        // header is explicit that this readout must stay identical on both
-        // pages, and a future School sprint feature shouldn't silently reopen
-        // the truncation bug game.js just got fixed for.
-        hudTimer.classList.toggle('hud-time-long', !!hud.long);
-        hudTimer.title = hud.left;
+        // .hud-time-long and hud.long are GONE (hud.js v1.3.0). Do not re-add.
+    }
+    // ⚠️ EMPTY HERE TODAY AND WIRED ANYWAY, SAME REASONING AS v2.11.1's. School
+    // gates on WPM and accuracy, not time, so `sprintLimit` is hardcoded to 0
+    // above and hud.sprint is ''. Kept in lockstep so a future School sprint
+    // cannot land in a different slot than Library's.
+    const sprintEl = document.getElementById('hud-sprint');
+    if (sprintEl) {
+        sprintEl.textContent = hud.sprint;
+        sprintEl.style.color = hud.overtime ? '#FFA500' : '';
     }
     const weekEl = document.getElementById('hud-week');
     if (weekEl) {
         weekEl.textContent = hud.right;
-        weekEl.style.color = hud.weeklyDone ? '#22c55e' : '#aaa';
+        weekEl.style.color = hud.weeklyDone ? '#22c55e' : '#888';
     }
 }
 

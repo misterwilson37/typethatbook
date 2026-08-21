@@ -1,4 +1,10 @@
-/* TypeThatBook style.css v3.6.1 */
+/* TypeThatBook style.css v3.7.0 */
+/* v3.7.0: THE TWO-ROW TOP BAR (ROADMAP item 0). New .hud-stack / .hud-lead /
+           .hud-sub / .hud-live. ⚠️ #hud IS STILL height:60px — the stack lives
+           inside the fixed box and does not grow it; read the block at #hud
+           before changing that, min-height was tried and reverted in v3.5.3.
+           .hud-time-long is DELETED rather than disabled: the 40-character
+           string it shrank no longer exists. See the block at #hud-time. */
 /* v3.6.1: the reading-font control is FINDABLE. v3.6.0 made it 0.75rem #777 with
            no affordance and Jake asked where it was — it had shipped, it was
            just invisible. ⚠️ A control nobody can find has not shipped. */
@@ -173,6 +179,8 @@ body {
    #hud-back-link (v3.5.5) are the CURRENT furniture on game.html's left
    section; #back-btn already covered learn.html's. */
 #back-btn, #hud-timer, #hud-daily-goal, #learn-restart-btn, #trophy-btn, #hud-back-link { flex: 0 0 auto; }
+/* The stack is the one thing in the left section allowed to give up width. */
+.hud-section.left .hud-stack { flex: 0 1 auto; }
 /* The designated shrinker. Lesson titles are author-supplied and unbounded
    ("G and H — Index Fingers Reach In"), so this is the right thing to ellipsis.
    learn.js sets a title attribute alongside the text so the full name is still
@@ -206,7 +214,59 @@ body {
     text-overflow: ellipsis;
     vertical-align: middle;
 }
-#hud-time.hud-time-long { font-size: 0.85em; }
+/* ⚠️ .hud-time-long IS DELETED (v3.7.0), NOT DISABLED. It shrank the font for
+   hud.js's combined `Sprint … (Daily …)` string. That string no longer exists —
+   the bar has two rows now and the parenthetical has its own line. If a future
+   round finds itself adding a class that shrinks text to make the bar fit, that
+   is this bug's fingerprint: give the content a row, don't shrink it. */
+
+/* ═══ THE TWO-ROW STACK (v3.7.0, ROADMAP item 0) ═════════════════════════
+   ⚠️ #hud IS STILL height:60px AND NOTHING HERE CHANGES THAT. Read the block at
+   the top of #hud before touching this: `min-height` was tried, broke cross-size
+   resolution, and was reverted (v3.5.3). Two rows fit inside 60px with room to
+   spare — 15px + 11px at line-height 1.25 is ~33px against a 60px box — so the
+   stack lives INSIDE the fixed height rather than growing it.
+
+   The stack is `display:flex; flex-direction:column`, which makes it a flex ITEM
+   of .hud-section and a flex CONTAINER for its two rows. .hud-section keeps
+   align-items:center, so a stack whose lead row is empty (School's centre, and
+   Library's centre with no sprint limit) centres its remaining row on its own
+   without any conditional CSS. */
+.hud-stack {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    line-height: 1.25;
+    min-width: 0;
+    overflow: hidden;
+}
+.hud-stack-center { align-items: center; text-align: center; }
+.hud-stack-right  { align-items: flex-end; text-align: right; }
+/* The graded number, and the student's name. Same weight in both places. */
+.hud-lead {
+    font-size: 15px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* ⚠️ THE SUB ROW IS THE DESIGNATED SHRINKER, same role #hud-lesson-label used
+   to hold alone. Book titles and lesson names are author-supplied and unbounded
+   ("G and H — Index Fingers Reach In"), so this is the right thing to ellipsis —
+   never the number above it. Callers set a title attribute alongside the text. */
+.hud-sub {
+    font-size: 11px;
+    font-weight: normal;
+    color: #888;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* ⚠️ WPM AND ACCURACY DO NOT SHRINK TO SUB-ROW SIZE. The centre section's
+   original comment is right that these must be readable across a classroom, so
+   the live row keeps close to its old 1.1em rather than dropping to 11px. Only
+   the sprint above it is new. */
+.hud-live { font-size: 1.05em; white-space: nowrap; }
+#hud-context { display: block; }
 .hud-section.center { justify-content: center; font-size: 1.1em; }
 #streak-display { transition: color 0.3s, text-shadow 0.3s; }
 .streak-cold { color: #666; }

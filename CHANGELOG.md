@@ -1,5 +1,50 @@
 # CHANGELOG
 
+## Round 26b — Elliott-Fisher (2026-08-21, evening)
+
+**THE TWO-ROW TOP BAR.** ROADMAP item 0's display half, built the same evening it
+was specced. ⚠️ **The "not before Monday" hold in item 0 was lifted by Jake** on
+two grounds, both good: nobody is typing between now and midnight and grades are
+already in, so tonight carries no data risk — and the current bar is **already
+unreadable for Monday's job**, truncating to `Daily 41:37 / 10:00…` with the goal
+cut off. Fixing the instrument improves the verification rather than confounding
+it. `hudStrings()` is a pure function over `secondsToday`/`secondsWeek` and never
+touches the per-source fields, so it is orthogonal to the cutover.
+
+⚠️ **THE "I'M DONE" STAMP IS *NOT* IN THIS SHIP.** It is a write path and it still
+has an unanswered design question (item 0c.3). It stays in the roadmap.
+
+* **`hud.js` 1.2.0 → 1.3.0.** ⚠️ **BREAKING RETURN SHAPE:** `{ left, long }` →
+  `{ lead, sprint }`. `lead` is **always** the Daily figure; the sprint is its own
+  field for the centre cluster. The `long` flag — v1.2.0's shrink-the-font
+  band-aid for the 40-character glued string — is **deleted, not tuned**, because
+  the string it compensated for no longer exists.
+  ⚠️ **JAKE: A BREAKING CHANGE TO A SHARED MODULE IS ARGUABLY MAJOR (2.0.0).**
+  Shipped as a minor since both callers moved in the same commit and nothing else
+  imports it, but that call is yours.
+* **`game.js` 3.38.1 → 3.39.0**, **`learn.js` 2.23.2 → 2.24.0**,
+  **`game.html`**, **`learn.html`**, **`style.css` 3.6.1 → 3.7.0.** Left slot is
+  Daily over context; centre is the sprint over WPM/accuracy/streak; right is the
+  name over the week. ⚠️ **`#hud` IS STILL `height: 60px`** — the stack lives
+  inside the fixed box (15px + 11px at line-height 1.25 ≈ 33px of 60px) and does
+  not grow it. v3.5.3's `min-height` warning stands untouched.
+  Overtime now colours the **sprint** instead of tinting the Daily figure orange
+  for a sprint event. WPM and accuracy stay near their old 1.1em rather than
+  dropping to sub-row size — the centre section's own comment about classroom
+  readability is right.
+* ⚠️ **`learn.js`: the ↺ Restart button is re-anchored to `.hud-section.left`.**
+  It inserted itself after `#hud-lesson-label`, which is now inside the 11px sub
+  row — the old anchor would have rendered Restart at sub-row size wedged under
+  the Daily figure. Found by checking, not by looking at it.
+* **`#user-class-name` is gone from the bar** on Jake's ruling ("forget about the
+  class, it can live in settings"). `learn.js`'s write to it was already guarded,
+  so nothing breaks.
+* **`tests/hud-lead-test.mjs` 1.0.0, new.** 91 assertions. Part A proves `lead`
+  is the Daily figure across every sprint/goal combination; Part D greps both
+  painters and both markups, including **that `#hud-time` appears before
+  `#hud-context`** — because in markup, order is what puts Daily on top.
+* **`tests/run-all-tests.mjs` 1.9.0 → 1.10.0.** 41 harnesses.
+
 ## Round 26 — Elliott-Fisher (2026-08-21, afternoon)
 
 ⚠️⚠️ **A LIVE DATA-CORRUPTION FIX IN THE GRADED DOCUMENT, FOUND IN PRODUCTION.**

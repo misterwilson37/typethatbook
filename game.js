@@ -1,4 +1,15 @@
-// game.js v3.38.1
+// game.js v3.39.0
+//
+// v3.39.0 — THE TWO-ROW TOP BAR (ROADMAP item 0). The left slot is now Daily
+//           over context and the sprint has moved to the centre with WPM,
+//           accuracy and the streak, because a sprint is a LIVE quantity and
+//           was on the left only because hud.js glued it there in parentheses.
+//           ⚠️ DAILY IS THE LEAD ROW AND MUST STAY THERE — hud.js v1.3.0's
+//           return block has the argument, tests/hud-lead-test.mjs has the
+//           assertion. `.hud-time-long` and `hud.long` are deleted, not tuned:
+//           the 40-character string they compensated for no longer exists.
+//           Overtime now colours the SPRINT rather than tinting the Daily
+//           figure orange for a sprint event.
 //
 // v3.38.1 — ⚠️ THE STALE DAY CARRIED FORWARD. mergeGuestStats() period-guarded
 //           the SERVER side of `live - base` and never the LIVE side — and on
@@ -1471,6 +1482,7 @@ const streakDisplay = document.getElementById('streak-display');
 const loginBtn = document.getElementById('login-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const trophyBtn = document.getElementById('trophy-btn');
+const sprintDisplay = document.getElementById('hud-sprint');
 const userInfo = document.getElementById('user-info');
 const userNameDisplay = document.getElementById('user-name');
 
@@ -2975,27 +2987,49 @@ function updateTimerUI() {
     });
 
     if (timerDisplay) {
-        timerDisplay.textContent = hud.left;
+        // ⚠️ THE LEAD ROW IS ALWAYS THE DAILY FIGURE. Not the sprint. See the
+        // block above hudStrings()'s return and tests/hud-lead-test.mjs.
+        timerDisplay.textContent = hud.lead;
         // ⚠️ COLOUR IS THE CALLER'S JOB (hud.js is DOM-free) AND MUST BE RESET.
         // An earlier draft only ever set the overtime colour, so a sprint that
         // went long left the readout orange for the rest of the period.
-        timerDisplay.style.color = hud.overtime ? '#FFA500'
-                                 : (hud.dailyDone ? '#22c55e' : 'white');
-        // ⚠️ v3.27.1 — hud.long marks the combined Sprint+Daily form, which can
-        // run 40+ characters. .hud-time-long shrinks the font (style.css); the
-        // title attribute is the fallback for the rare window narrow enough
-        // that it still ellipsises even at the smaller size. See style.css's
-        // block at #hud-time for why this doesn't touch #hud's fixed height.
-        timerDisplay.classList.toggle('hud-time-long', !!hud.long);
-        timerDisplay.title = hud.left;
+        // ⚠️ v3.39.0 — OVERTIME NOW COLOURS THE SPRINT, WHICH IS WHAT IT IS
+        // ABOUT. It used to tint the Daily readout orange because the two were
+        // one string; they are separate elements now and the Daily figure has
+        // no business changing colour for a sprint event.
+        timerDisplay.style.color = hud.dailyDone ? '#22c55e' : 'white';
+        // .hud-time-long and hud.long are GONE (hud.js v1.3.0). The string that
+        // needed shrinking does not exist any more. Do not re-add either.
+    }
+    if (sprintDisplay) {
+        sprintDisplay.textContent = hud.sprint;
+        sprintDisplay.style.color = hud.overtime ? '#FFA500' : 'white';
     }
     if (hud.overtime) isOvertime = true;
 
     const hudWeekEl = document.getElementById('hud-week');
     if (hudWeekEl) {
         hudWeekEl.textContent = hud.right;
-        hudWeekEl.style.color = hud.weeklyDone ? '#22c55e' : '#aaa';
+        hudWeekEl.style.color = hud.weeklyDone ? '#22c55e' : '#888';
     }
+    renderHudContext();
+}
+
+// The sub row under the Daily figure. CONTEXT, NEVER A NUMBER — the slot exists
+// to say what the minutes above it were spent on. learn.html's copy holds the
+// lesson name; here it is the book and chapter.
+function renderHudContext() {
+    const el = document.getElementById('hud-context');
+    if (!el) return;
+    const book = (bookMetadata && bookMetadata.title) ? String(bookMetadata.title) : '';
+    const chap = chapterTitleFor(currentChapterNum);
+    // Chapter titles are author-supplied and long ("The Piece of Wood That
+    // Laughed and Cried Like a Child"), so the book leads and the CSS
+    // ellipsises. Both go in the title attribute so a hover shows the whole
+    // thing, same contract #hud-lesson-label has always had.
+    const text = book && chap ? (book + ' \u00b7 ' + chap) : (book || chap || '');
+    el.textContent = text;
+    el.title = text;
 }
 
 function updateRunningWPM() {

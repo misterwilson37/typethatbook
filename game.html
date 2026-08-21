@@ -24,23 +24,33 @@
         <div class="hud-section left">
             <a id="hud-back-link" href="index.html" style="color:#999; text-decoration:none; margin-right:12px; font-size:13px;" title="Back to Library">← Library</a>
             <button id="trophy-btn" class="hidden" style="background:none; border:none; color:#FFD700; font-size:1.1em; cursor:pointer; margin-right:10px; padding:0;" title="Leaderboard">🏆</button>
-            <!-- ⚠️ ONE SLOT, ONE MEANING. (v3.9.0) This used to be three elements
-                 whose combined meaning changed with the session-length setting:
-                 sprint seconds, or day seconds, or sprint seconds again labelled
-                 "Active". hud.js builds the whole string now and learn.html has
-                 the identical element, so the two pages cannot drift. Do not
-                 re-add a second number here. -->
-            <span id="hud-time" style="font-family:'Courier Prime',monospace;">Daily 0:00</span>
+            <!-- ⚠️ TWO ROWS, ONE MEANING EACH. (v1.2.0) #hud-time is the GRADED
+                 number and it is the lead row on every surface — learn.html has
+                 the identical pair of ids in the identical position so the two
+                 pages cannot drift. Do not put a second number in #hud-time and
+                 do not move Daily to the sub row; hud.js's return block explains
+                 why at length, and tests/hud-lead-test.mjs fails if you do. -->
+            <span class="hud-stack">
+                <span id="hud-time" class="hud-lead" style="font-family:'Courier Prime',monospace;">Daily 0:00</span>
+                <span id="hud-context" class="hud-sub"></span>
+            </span>
         </div>
-    
+
         <div class="hud-section center">
-            WPM: <span id="wpm-display">0</span> | Acc: <span id="acc-display">100%</span> | <span id="streak-display" class="streak-cold">🔥 0</span>
+            <!-- The LIVE cluster: everything here resets constantly. The sprint
+                 is a live quantity, not a time quantity — see hud.js. -->
+            <span class="hud-stack hud-stack-center">
+                <span id="hud-sprint" class="hud-lead" style="font-family:'Courier Prime',monospace;"></span>
+                <span class="hud-live">WPM: <span id="wpm-display">0</span> | Acc: <span id="acc-display">100%</span> | <span id="streak-display" class="streak-cold">🔥 0</span></span>
+            </span>
         </div>
-    
+
         <div class="hud-section right" id="auth-container">
-            <span id="hud-week" style="font-family:'Courier Prime',monospace; font-size:13px; color:#aaa; margin-right:12px;"></span>
             <div id="user-info" class="hidden">
-                <span id="user-name">Guest</span>
+                <span class="hud-stack hud-stack-right">
+                    <span id="user-name" class="hud-lead">Guest</span>
+                    <span id="hud-week" class="hud-sub" style="font-family:'Courier Prime',monospace;"></span>
+                </span>
                 <button id="logout-btn" class="text-btn">(Logout)</button>
             </div>
             <button id="login-btn" class="action-btn">Sign In</button>

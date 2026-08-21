@@ -76,7 +76,18 @@ that morning **by design**, and two harness Parts assert that defect on purpose.
 
 ---
 
-## 0. ⭐ NEXT — THE TWO-ROW TOP BAR AND "I'M DONE"
+## 0. ⭐ THE TWO-ROW TOP BAR — ✅ SHIPPED. "I'M DONE" — STILL NEXT
+
+✅ **THE BAR SHIPPED 2026-08-21 EVENING** (hud.js v1.3.0, game.js v3.39.0,
+learn.js v2.24.0, style.css v3.7.0, both HTMLs, tests/hud-lead-test.mjs).
+⚠️ **The hold below was lifted by Jake and the reasoning was better than mine:**
+nobody types between now and midnight and grades are in, AND the old bar was
+already truncating `Daily 41:37 / 10:00…` — so Monday's verification was going to
+be done through a broken instrument either way.
+⚠️ **STILL OPEN AND STILL NEXT: "I'm done" (0d), the landing-page readout (0c.1),
+and the Adventure checkmark question (0c.3).** The landing page is NOT the same
+header — it is `.site-header`, not `#hud`, and its existing `loadIndexStats()`
+banner already works. That is a clean scope line, not a punt.
 
 ⚠️ **THE FIRST THING TO BUILD AFTER MONDAY'S VERIFICATION COMES BACK CLEAN, AND
 NOT ONE HOUR BEFORE.** Every screen below is an instrument Jake reads on Monday
