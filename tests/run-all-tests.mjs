@@ -1,5 +1,9 @@
-// run-all-tests.mjs v1.8.0 — Round 24 (Monotype): adopt-date-test.mjs,
+// run-all-tests.mjs v1.9.0 — Round 26 (Elliott-Fisher): live-period-test.mjs
+// registered. 40 harnesses.
+//
+// v1.8.0 — Round 24 (Monotype): adopt-date-test.mjs,
 // carryover-test.mjs and midnight-test.mjs registered. 38 harnesses.
+
 //
 // run-all-tests.mjs v1.5.0 — Round 23 (Empire): guest-merge-test.mjs and
 // queue-owner-test.mjs registered; reconcile-test.mjs and union-clock-test.mjs
@@ -192,6 +196,7 @@ const FAST = [
     // pressed decided whether their minutes survived. 11 failing against
     // game.js v3.35.0 / learn.js v2.20.0.
     ['guest-merge-test.mjs',     'THE GUEST MINUTE: time typed before signing in is merged AND flushed AND lands in the session record, in BOTH modes'],
+    ['live-period-test.mjs',     'THE STALE DAY: a tab open overnight must not post yesterday\'s whole day to today\'s ledger line'],
     ['queue-owner-test.mjs',     'ONE BROWSER, TWO STUDENTS: a second account may not destroy the first\u2019s unflushed queue, by push, by flush or by eviction'],
     // ⚠️ Round 25 (Hall). A student reported "ass" in a School lesson. Part A
     // reproduces learn.js's generateRandom() over 200,000 groups and MEASURES

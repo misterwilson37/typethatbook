@@ -1,5 +1,42 @@
 # CHANGELOG
 
+## Round 26 — Elliott-Fisher (2026-08-21, afternoon)
+
+⚠️⚠️ **A LIVE DATA-CORRUPTION FIX IN THE GRADED DOCUMENT, FOUND IN PRODUCTION.**
+Two students out of two classes showed a 2026-08-21 daily total equal to their
+real work **plus the whole of 2026-08-20** — exact to the second and the
+character for one of them. `HANDOFF.md` §0.-12 is the full write-up.
+
+⚠️ **THIS IS A STUDENT WRITE-PATH ROUND AND IT TOUCHES `learn.js`.** The standing
+hold exists because 8th grade depends on that file. It was overridden on the
+arithmetic: `learn.js` carries the identical defect on the identical path, the
+cutover verification runs Monday, and leaving one writer corrupt while fixing
+the other is the divergence Round 9 §4 warns about. ⚠️ **No timing mechanism was
+touched** — the tick, the 3s idle threshold and the drill path are byte-for-byte
+unchanged in both files.
+
+* **`game.js` 3.38.0 → 3.38.1** and **`learn.js` 2.23.1 → 2.23.2.**
+  `mergeGuestStats()` period-guarded the **server** side of `live - base` and
+  never the **live** side — and on the only path that calls it, the server guard
+  is a **tautology**, because `retroactiveSaveGuestSession()` /
+  `retroactiveSaveAnonSession()` synthesise `lastDate: dateStr`. `learn.js`'s
+  caller states the tautology as a guarantee: *"Both period guards match by
+  construction."* A tab left open overnight re-authed with yesterday's day
+  counters in `live`, so `mine` was yesterday's entire day and it landed on
+  today's `typing_logs` document before a key was pressed. The function's last
+  line, `statsData.lastDate = dateStr`, then restamped the stale counters as
+  today's, so the tick's midnight rollover never fired.
+  New `liveDay` / `liveWeek` gate **the contribution and the floor** — zeroing
+  `mine` alone is a half-fix, because `max(live, …)` re-floats the stale value on
+  its own. `liveWeek` is conditioned on `liveDay`: yesterday's week contribution
+  was already flushed and is already inside the server's week sum.
+* **`tests/live-period-test.mjs` 1.0.0, new.** 42 failing against the old build,
+  63 passing against the new. Part A drives the two students' real figures in
+  both files; **Part B passes on both builds on purpose**, re-driving the real
+  2026-08-20 guest-minute numbers so that a fix which un-fixed Round 23 goes red.
+  No student identifiers in the file.
+* **`tests/run-all-tests.mjs` 1.8.0 → 1.9.0.** Harness registered. 40 harnesses.
+
 ## Round 25 — Hall (2026-08-21)
 
 ⚠️ **NOT a student write-path round.** Nothing in `game.js`, `learn.js`,

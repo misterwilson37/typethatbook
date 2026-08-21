@@ -1,7 +1,30 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.5.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     through Round 25; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+<!-- HANDOFF.md v15.6.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     through Round 26; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.6.0 — Round 26 (Elliott-Fisher). ⚠️⚠️ §0.-12 IS THE WRITE-UP AND IT IS
+     A LIVE DATA-CORRUPTION FIX FOUND IN PRODUCTION ON THE EVE OF THE CUTOVER.
+     Two students out of two classes showed a 2026-08-21 daily total equal to
+     their real work PLUS THE WHOLE OF 2026-08-20 — exact to the second and the
+     character for one of them. `mergeGuestStats()` period-guarded the SERVER
+     side of `live - base` and never the LIVE side, and on the only path that
+     calls it the server guard is a TAUTOLOGY because the caller synthesises
+     `lastDate: dateStr`. learn.js's caller writes the tautology down as a
+     guarantee. A tab left open overnight re-authed with yesterday's counters in
+     `live`, and the function's own last line then restamped them as today's, so
+     the tick's midnight rollover never fired. ⚠️ THE CHILD REPORTED THE
+     FINGERPRINT HIMSELF — the HUD "started in the teens" before he typed.
+     Fixed in BOTH files (game.js v3.38.1, learn.js v2.23.2) with `liveDay` /
+     `liveWeek`, which gate the contribution AND THE FLOOR — §0.-12.C is about
+     why zeroing the contribution alone is a half-fix. tests/live-period-test.mjs
+     fails 42 against the old build and passes 63 against the new; its Part B
+     passes on BOTH and exists to prove Round 23's guest minute is not un-fixed.
+     ⚠️ §0.-12.E IS THE RESIDUE LIST — three things this does NOT fix, one of
+     which (the day rollover living only in the tick) is the structural version
+     of the same defect. ⚠️ §0.-12.F IS A SECOND, UNDIAGNOSED FINDING: one
+     student's 2026-08-17 reads 0m 0s / 0 chars against real typing. NOT chased,
+     NOT theorised about. 40 harnesses.
 
      v15.5.0 — Round 25 (Hall). ⚠️ §0.-11 IS THE WRITE-UP. A ONE-LINE STAFF READ
      PATH FIX, SHIPPED THE DAY BEFORE THE CUTOVER BECAUSE THAT IS THE LAST DAY IT
@@ -74,7 +97,7 @@
      AND KILLED BY JAKE — see §0.-9.E, which is the most useful part of this
      section for a future instance. 35/35 harnesses. -->
 
-**Round 25 — Hall.** Predecessors: Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
+**Round 26 — Elliott-Fisher.** Predecessors: Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
 Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
 Sholes (14) · Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) ·
 Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) ·
@@ -84,6 +107,19 @@ Blick (3) · Dvorak (2) · Underwood (1).
 by different companies and both are now on the list; a future round reading the
 list quickly will see two similar words and must not conclude one is a typo for
 the other. **Check the list, and read the whole word.**
+
+> *On the name:* the **Elliott-Fisher** was a FLAT-BED BOOK TYPEWRITER. The
+> carriage travelled over an open bound ledger instead of a sheet of paper, and
+> it existed for one job: posting an entry into an account book **that already
+> had numbers written on the page.** Its characteristic failure was posting a
+> figure onto a line that was already carrying a balance forward. That is this
+> round exactly — `typing_logs/{uid}_2026-08-21` received a balance that had
+> already been posted to `{uid}_2026-08-20`, and then got stamped with today's
+> date so nothing downstream could tell. ⚠️ The machine also lost to the
+> loose-leaf ledger and the tabulating card, for the reason bound books lose to
+> everything: **you cannot check one page against another without turning
+> back.** The fix here is one line of turning back — asking what day the number
+> in your hand is about, before adding it to the number on the page.
 
 > *On the name:* the **Hall** (Thomas Hall, 1881) had no keyboard. It was an
 > INDEX machine: you moved a pointer across a printed grid to a POSITION and
@@ -180,6 +216,151 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-12. ⚠️⚠️ ROUND 26 (Elliott-Fisher) — THE STALE DAY CARRIED FORWARD
+
+**2026-08-21, found in production from two students' report rows.** A live
+data-corruption path in the graded document, fixed in both writers the same day.
+
+### A. What was wrong, in the two students' own numbers
+
+Jake ran two classes. Everyone's time looked right except two children, whose
+daily total for today was through the roof. Taking the **unique** session
+rollups only (one of the two carried a known duplicate — §6 item 8):
+
+| | 08-21 log | today's sessions | **08-20's whole day** | sum |
+|---|---|---|---|---|
+| A | **20m 28s** / 2,219 ch | 6m 50s / 761 ch | 13m 38s / 1,458 ch | **20m 28s / 2,219 ch** |
+| B | **41m 37s** / 9,023 ch | 19m 14s / 4,068 ch | 22m 18s / 4,950 ch | 41m 32s / 9,018 ch |
+
+**A is exact — to the second AND to the character.** B is 5s / 5ch short, which
+is one open unit under the five-second floor (ROADMAP item 7).
+
+⚠️ **THIS IS NOT ROADMAP ITEM 4's `log ÷ sessions > 1.0`.** A pause inside a
+sprint produces seconds and no characters. Here the offset appears in seconds
+and characters at the same magnitude, and that magnitude is *yesterday's exact
+figure*. The identity is the diagnosis.
+
+⚠️ **AND THE CHILD NAMED THE FINGERPRINT WITHOUT BEING ASKED.** Jake logged into
+the account: the boy said he typed about ten minutes, and that the counter
+"seemed to start in the teens." **13m 38s is the teens**, and it was on his
+screen *before he typed anything* — because the merge flushes.
+
+### B. The mechanism — a guard on one side of a subtraction
+
+`mergeGuestStats()` computes `mine = live - base` and writes
+`max(live, server + mine)`. Both period guards test `d`, the **server** side:
+
+```
+const dayMatches  = d.lastDate === dateStr;
+```
+
+⚠️ **AND `d` IS SYNTHESISED BY THE CALLER WITH `lastDate: dateStr`.** So
+`dayMatches` is a **tautology** on the only path that reaches this function.
+`learn.js`'s caller states it as a guarantee: *"Both period guards match by
+construction — the read WAS for this date and this week."* That sentence is
+true, and it is the defect: it makes the checked term unfalsifiable while the
+term that can actually be stale — `statsData` — is never checked at all.
+
+A Chromebook lid closes on an open tab. The 24-hour token lapses overnight. The
+child signs back in next morning. `live` still holds yesterday's day counters,
+`base` still holds yesterday's page-load snapshot, so `mine` is **yesterday's
+entire day** — and it is posted to today's document, before a key is pressed.
+
+⚠️ **WHY IT COULD NOT SELF-CORRECT, AND IT IS THE LAST LINE OF THE FUNCTION.**
+`statsData.lastDate = dateStr` restamps the stale counters as today's. The
+tick's midnight rollover — the one mechanism that would have zeroed them — then
+finds `lastDate === todayStr` and never fires. **The function destroys the
+evidence of its own error on the way out.**
+
+### C. ⚠️ THE FIX, AND THE HALF-FIX THAT LOOKS LIKE IT
+
+`liveDay` / `liveWeek` in both files. Two things about it are load-bearing:
+
+1. ⚠️ **THE FLOOR GOES WITH THE CONTRIBUTION.** Zeroing `mine` is not enough.
+   `max(live, server + mine)` re-floats the stale figure on its own, because
+   `live` **is** the stale figure. An invalid live period takes the server's
+   value outright. **Part C of the harness exists only to catch this half-fix**,
+   and it drives a case where the server's number is *smaller* than the stale
+   one, which is the only shape that can tell them apart.
+2. ⚠️ **THE WEEK RIDES ON THE DAY**, which is not the obvious shape. The week's
+   own guard *passes* for a stale tab — yesterday genuinely is in this week —
+   but `mine` is then yesterday's contribution, and yesterday's contribution was
+   **flushed to yesterday's document and is already inside the server's week
+   sum.** `liveWeek = liveDay && …`. A week boundary is always also a day
+   boundary, so this can never be stricter than needed.
+
+⚠️ **WHY DISCARDING `live` IS SAFE AND IS NOT A SECOND DATA-LOSS PATH.** The
+rollover in the tick sets `lastDate` on the **first counted second** of the day,
+in both files (in `learn.js` it is the block that sets the counters to `1`
+rather than `0`, and it runs for guests too, inside the same gate). Therefore a
+`lastDate` still reading yesterday **proves** no second has been counted in this
+tab today: there is no contribution to lose. Anything genuinely typed today has
+already moved `lastDate` forward and the old arithmetic runs untouched.
+
+### D. Rule 10, satisfied on the real figures
+
+`tests/live-period-test.mjs` — **42 failing against `game.js` v3.38.0 /
+`learn.js` v2.23.1, 63 passing against v3.38.1 / v2.23.2.** Part A drives the
+two students' actual numbers, both files.
+
+⚠️ **PART B PASSES ON BOTH BUILDS AND THAT IS ITS ENTIRE PURPOSE.** It re-drives
+the real 2026-08-20 guest-minute figures (7:27 + 1:04 = 8:31 School;
+7:27 + 1:11 = 8:38 Library) and the expired-session case. A "fix" that also
+un-fixed Round 23's guest minute would go green on Part A and red here.
+
+⚠️ **NO STUDENT IDENTIFIERS ARE IN THE HARNESS.** The arithmetic is there and the
+accounts are not. Keep it that way.
+
+### E. ⚠️ THE RESIDUE — three things this does NOT fix
+
+1. ⚠️ **THE DAY ROLLOVER LIVES ONLY IN THE TICK, AND THAT IS THE STRUCTURAL
+   VERSION OF THIS DEFECT.** It runs on a counted second, so a tab that wakes up
+   on a new day and does anything *other* than type — sign in, flush, paint —
+   is operating on stale day counters until the first keystroke. This round
+   closed the one path that wrote them to Firestore. It did not move the
+   rollover somewhere a page load can reach. **That is the real repair and it is
+   ROADMAP item 9's `daycounter.js` bullet by another name.**
+2. **A sprint left open from yesterday is not closed.** The tick's rollover calls
+   `logOpenSprint('midnight', …)`; the merge path does not, so those seconds are
+   dropped rather than misfiled. **Dropping is the right failure** (ROADMAP,
+   "Known, and not being fixed") but it is a real difference between the two
+   paths and it is not asserted anywhere.
+3. **`dailyGoalCelebrated` is not reset** on the merge path, so a stale tab can
+   swallow today's confetti. Cosmetic. Named so nobody re-derives it.
+
+### F. ⚠️ A SECOND FINDING, DELIBERATELY NOT DIAGNOSED
+
+⚠️ **RESOLVED SAME DAY, AND THE ANSWER CHANGES ITS SHAPE.** Jake ran ⟳ on that
+row: it recovered **11m 54s / 1,197 chars** across three rollups — *Aesop's
+Fables*, *Pinocchio* and *Sherlock Holmes*. **THE SESSION RECORDS WERE THERE THE
+WHOLE TIME; ONLY THE DAY-LOG DOCUMENT WAS ZERO.** That is the opposite failure
+from §0.-12's carry-forward — there the total survived and lied, here the total
+vanished and the record held. Still uncaused, still not chased. The population
+is now one confirmed instance with intact evidence, which is a much better place
+to start than the paragraph below described.
+
+**Student A's 2026-08-17 read 0m 0s / 0 chars, and Jake said the child typed
+that day** — it is why the week total looked plausible despite the inflated day:
+a missing Monday and an over-counted Friday of similar size, cancelling.
+
+⚠️ **THIS IS NOT THE SAME DEFECT AND I DID NOT CHASE IT.** The carry-forward
+term matched 08-20 to the character, not 08-17, so the two are independent. The
+other student has a normal 08-17 (6m 44s / 1,311 ch), so it is not class-wide.
+**No theory is recorded here on purpose** — see ROADMAP item 3's lesson and §7's
+rule about what a report generated soon after a period is worth. Get a
+population before theorising.
+
+### G. WHAT WAS DELIBERATELY NOT DONE
+
+- **The two students' existing 08-21 rows were not repaired.** That is Jake's
+  call, not a round's — and the ⟳ button is a **downward** move on both rows,
+  which is exactly what `recalc-guard-test.mjs`'s drop guard is there to make
+  deliberate. Ask before clicking.
+- **No bulk repair, no sweep of other days.** §0.-7.A item 4 stands.
+- **The `daycounter.js` extraction** (E1). Not a school-night change.
 
 ---
 
@@ -2269,6 +2450,13 @@ at the next consolidation **without changing the number**.
      refuse rather than truncate; discard partial results rather than display
      them; and when a repair invalidates a measurement, clear the measurement
      instead of leaving it on screen.
+110. **A GUARD THAT CANNOT FAIL IS NOT A GUARD.** If the value a check tests is
+     supplied by the same code path that does the checking, the check is a
+     tautology and the thing it was written to catch is unprotected. Round 26's
+     defect was a period guard on the one side of a subtraction that the caller
+     synthesised; `learn.js` had written the tautology down as a guarantee, in a
+     comment, and two rounds read it as reassurance. **Ask what input would make
+     this guard fire. If you cannot construct one, the guard is a comment.**
 
 ---
 

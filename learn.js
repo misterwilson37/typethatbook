@@ -1,4 +1,14 @@
-// learn.js v2.23.1
+// learn.js v2.23.2
+//
+// v2.23.2 — ⚠️ THE STALE DAY CARRIED FORWARD — the identical defect and the
+//           identical fix as game.js v3.38.1. mergeGuestStats() guarded only
+//           the SERVER side of `live - base`; this file's caller states the
+//           tautology outright ("Both period guards match by construction"), so
+//           the only term that could be stale was the only one unchecked. A tab
+//           open overnight credited yesterday's whole day to today.
+//           `liveDay` / `liveWeek` now gate the contribution AND the floor.
+//           ⚠️ NO TIMING MECHANISM TOUCHED — the tick, the 3s idle threshold and
+//           the drill path are byte-for-byte unchanged.
 //
 // v2.23.1 — ⚠️ THE READING-FONT CONTROL IS FINDABLE. v2.23.0 shipped it as a
 //           bare label in #777 at 0.75rem, tucked under the lesson counter, and
@@ -620,14 +630,52 @@ function mergeGuestStats(serverData, dateStr, weekStart) {
     const dayMatches  = d.lastDate === dateStr;
     const weekMatches = (d.weekStart || '') === weekStart;
 
-    const fold = (key, matches) => {
+    // ═════════════════════════════════════════════════════════════════════════
+    // ⚠️ v2.23.2 — THE GUARD WAS ON ONE SIDE OF THE SUBTRACTION ONLY.
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // `dayMatches` asks whether the SERVER's numbers are about today. Nothing
+    // asked whether `statsData` — the `live` term below — is about today. The
+    // caller's own note two hundred lines down said "Both period guards match
+    // by construction — the read WAS for this date and this week," which is
+    // true and is the problem: it makes `dayMatches` a TAUTOLOGY, so the only
+    // term that can be stale is the only one never checked.
+    //
+    // ⚠️ MEASURED ON REAL DATA, 2026-08-21, two students, both in Library. A
+    // tab left open overnight still held YESTERDAY's day counters; the token
+    // lapsed, the child signed back in, and `mine = live - base` evaluated to
+    // yesterday's ENTIRE day, which was written to TODAY's document. See
+    // game.js v3.38.1 for the two students' arithmetic — this file carries the
+    // identical defect on the identical path and is fixed identically.
+    //
+    // ⚠️ WHY DISCARDING `live` IS SAFE. The rollover in the tick sets
+    // `lastDate` on the FIRST counted second of the day — in this file that is
+    // the block that sets the counters to 1 rather than 0, and it runs for
+    // guests too, inside the same gate. So a `lastDate` still reading yesterday
+    // PROVES nothing has been counted in this tab today: there is no
+    // contribution to lose.
+    // ⚠️ AND THE WEEK RIDES ON THE DAY. The week's own guard passes for a stale
+    // tab — yesterday IS in this week — but `mine` is then yesterday's
+    // contribution, which was flushed to yesterday's document and is already
+    // inside the server's week sum. A week boundary is always also a day
+    // boundary, so this never refuses a contribution the day would have kept.
+    const liveDay  = !statsData.lastDate  || statsData.lastDate  === dateStr;
+    const liveWeek = liveDay && (!statsData.weekStart || statsData.weekStart === weekStart);
+
+    const fold = (key, matches, liveValid) => {
         const live = statsData[key] || 0;
+        const server = matches ? (d[key] || 0) : 0;
+        // ⚠️ THE FLOOR GOES WITH THE CONTRIBUTION. The outer max() below stops a
+        // merge landing under what this browser already shows the student —
+        // right only while `live` describes the period being merged. Against a
+        // stale counter the floor IS the carry-forward, and zeroing `mine`
+        // alone would not stop it.
+        if (!liveValid) { statsData[key] = server; return; }
         const base = statsBaseline[key] || 0;
         // Clamped at zero: a counter lower than its baseline means the day or
         // week rolled over underneath us, and a negative contribution would
         // subtract real stored work.
         const mine = Math.max(0, live - base);
-        const server = matches ? (d[key] || 0) : 0;
         // The outer max() is a FLOOR, not the merge. It guarantees the result
         // can never land below what this browser already shows the student.
         statsData[key] = Math.max(live, server + mine);
@@ -640,8 +688,8 @@ function mergeGuestStats(serverData, dateStr, weekStart) {
     // ⚠️ Library before School, matching game.js exactly — see STAT_KEYS above.
     for (const k of ['secondsToday','charsToday','mistakesToday',
                      'secondsLibrary','charsLibrary','mistakesLibrary',
-                     'secondsSchool','charsSchool','mistakesSchool']) fold(k, dayMatches);
-    for (const k of ['secondsWeek','charsWeek','mistakesWeek'])    fold(k, weekMatches);
+                     'secondsSchool','charsSchool','mistakesSchool']) fold(k, dayMatches, liveDay);
+    for (const k of ['secondsWeek','charsWeek','mistakesWeek'])    fold(k, weekMatches, liveWeek);
 
     statsData.lastDate  = dateStr;
     statsData.weekStart = weekStart;

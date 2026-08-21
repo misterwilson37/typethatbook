@@ -1,5 +1,22 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.10.0, 2026-08-21 (afternoon).** ⭐ **ITEM 0 IS NEW AND IT IS THE NEXT
+BUILD** — the two-row top bar and the "I'm done" stamp, specced with Jake from
+live renders. Buildable; **not before Monday's verification**, because every
+screen it touches is an instrument Jake reads to perform that verification.
+
+**v3.9.0, 2026-08-21 (afternoon).** Round 26 (Elliott-Fisher) — one item, found
+in production, not on this list. ⚠️⚠️ **A TAB LEFT OPEN OVERNIGHT WAS POSTING
+YESTERDAY'S WHOLE DAY TOTAL TO TODAY'S `typing_logs` DOCUMENT** on re-auth, exact
+to the second and the character on one of the two students it hit.
+`mergeGuestStats()` guarded the server side of `live - base` and never the live
+side. Fixed in `game.js` v3.38.1 and `learn.js` v2.23.2;
+`tests/live-period-test.mjs` fails 42 against the old build. **`HANDOFF.md`
+§0.-12 is the write-up** — §0.-12.E lists three residues, and the first of them
+promotes item 9's `daycounter.js` bullet from tidying to repair. ⚠️ **§0.-12.F
+is a SECOND finding, undiagnosed on purpose:** one student's 2026-08-17 reads
+0m 0s against real typing. **Do not theorise — get a population.**
+
 **v3.8.0, 2026-08-21.** Round 25 (Hall), in three parts across one day.
 **Morning:** audited the whole cutover on its eve and **found it sound** — the
 table is `HANDOFF.md` §0.-11.C, and it exists so nobody repeats it. The one thing
@@ -44,12 +61,131 @@ that morning **by design**, and two harness Parts assert that defect on purpose.
   2026-08-20 in Library** — see item 1. Still unproven in School.
 - ⚠️ **NEW — Cmd+R / Ctrl+R reloads a School lesson** and does not type an `r`
   into the drill. `learn.js` v2.21.1.
+- ⚠️⚠️ **NEW — THE STALE-DAY CARRY IS THE ONE TO WATCH FOR ON MONDAY.** It is
+  fixed, but it is the defect most likely to be MISREAD as a cutover failure: a
+  day total far above its own sessions, in a child who never closed their tab.
+  **Check the footer version first** — `game.js` v3.38.1 / `learn.js` v2.23.2.
+  A pre-fix build still in a tab will still do it, and Hermes's update gate is
+  how you get the building onto the new code.
 - ⚠️⚠️ **NEW — THE OVERNIGHT RESCUE GOES LIVE ON THE CUTOVER, NOT ON UPLOAD.**
   `daylog.js` v1.4.0 refuses to carry into a pre-cutover day, so nothing happens
   before Saturday. **First chance to see it work: type as a guest on the 24th,
   do not sign in, sign in on the 25th, and check the 24th's total AND its
   drill-down.** Both should show the rescued sprint, on the 24th. Worth doing
   once in each mode — the two writers are separate copies.
+
+---
+
+## 0. ⭐ NEXT — THE TWO-ROW TOP BAR AND "I'M DONE"
+
+⚠️ **THE FIRST THING TO BUILD AFTER MONDAY'S VERIFICATION COMES BACK CLEAN, AND
+NOT ONE HOUR BEFORE.** Every screen below is an instrument Jake reads on Monday
+to check the cutover. Redesigning it the night before means a wrong number has
+two candidate explanations again, which is the trap Round 25 spent a whole
+session removing. Specced 2026-08-21 with Jake, from live renders. Buildable.
+
+### 0a. Why the bar is crammed — the parenthesis is a second row trying to happen
+
+`hudStrings()` returns ONE glued string:
+`Sprint 0:00 / 0:30 (Daily 41:37 / 10:00)`. At 40+ characters it overruns
+`#hud-time`'s nowrap flex third, so hud.js v1.2.0 added a `long` flag that
+shrinks the font and appends an ellipsis. **That was a band-aid and the renders
+show it failing** — students see `Daily 41:37 / 10:00…` with the goal cut off.
+
+⚠️ **THE FIX DELETES THE `long` FLAG RATHER THAN TUNING IT.** Give the slot two
+rows and the parenthetical has somewhere to live. `hudStrings()` returns
+`{ lead, sub }`; the ellipsis machinery goes.
+
+### 0b. The layout — three columns, two rows each
+
+| | Lead row (15px, bold) | Sub row (11px, `#888`) |
+|---|---|---|
+| **Left** | `Daily 41:37 / 10:00 ✓` | context — book · chapter, or lesson name · lesson time |
+| **Centre** | sprint `0:12 / 0:30` | `38 wpm · 94% · 🔥 6` |
+| **Right** | `Violet Peek` | `Weekly 117:51 / 50:00 ✓` |
+
+Then the ⚙ (Adventure only, currently orphaned BELOW the bar in the render), the
+stamp button, and `(Logout)`.
+
+⚠️ **DAILY IS THE LEAD ROW ON EVERY SURFACE AND THIS IS NOT NEGOTIABLE WITHOUT
+JAKE.** He asked for sprint-above-daily; the counter-argument he accepted is the
+epigraph at the top of `hud.js` — *"telling kids where to look for their minutes
+is kind of terrible."* Sprint-above-daily makes Daily the lead line on the
+landing page and the sub line inside a book, so **the graded number moves
+depending on where the child is standing.** That is the exact defect hud.js was
+extracted to kill. The sprint moves to the CENTRE instead, with the other live
+readouts, because a sprint is a live quantity and not a time quantity — it has
+been on the left only because that is where the parenthesis put it.
+
+**The cost, named honestly:** the big countdown is motivating and it shrinks.
+The fallback if Jake wants it back is bolding the sprint within the centre
+cluster, NOT promoting it to lead-left.
+
+### 0c. Per surface
+
+1. **Library landing (`index.html`)** — ⚠️ **THE ONLY GENUINELY NEW WORK.** It
+   has no time readout at all today and no Firestore read. It needs `Daily` on
+   the lead-left and `Weekly` **under the name**, plus the trophy. **No class
+   name here** — Jake's ruling, it lives in settings.
+   ⚠️ **IT MUST BE A REAL `readWeek()`, NOT `hudCacheLoad()`.** The cache is
+   display-only; painting it as truth is the second-source-of-truth trap hud.js
+   warns about in capitals. Cost: seven document reads per landing visit, on a
+   page that is free today. Name that to Jake before shipping it.
+2. **Standard (`game.html`)** — left `Daily` over `book · chapter`, centre
+   sprint. ⚠️ **THE TROPHY IS ALREADY HERE** — `#trophy-btn` is un-hidden on
+   sign-in, not on view, so Standard and Adventure share it. Nothing to add.
+3. **Adventure** — identical bar. The ⚙ gets a home in the row instead of
+   hanging beneath it. ⚠️ **OPEN QUESTION, ASK BEFORE BUILDING:** Jake said
+   *"checkmark on adventure can go next to the time — it doesn't need its own
+   row."* Best reading is that the full `Weekly` figure drops out of the game
+   surfaces and only its ✓ rides beside `Daily`, with the full figure living on
+   the landing page. **Two ✓ marks meaning different things in one bar is a
+   confusion, so this needs his yes before it is built either way.**
+4. **School (`learn.html`)** — left `Daily` over `lesson name · lesson time`.
+   No sprint exists (School gates on WPM and accuracy, not time), so the centre
+   is WPM over accuracy. The name-over-class right column **already ships here**
+   — this is the pattern the other three copy, not a new build.
+
+### 0d. "I'm done" — the stamp
+
+A student-facing exit that calls `logOpenSprint()` / `logOpenRun()` and then a
+`final` flush. **Both halves already exist and are already called on every other
+exit path; this is a third caller, not new machinery.**
+
+⚠️ **IT IS A RECEIPT, NEVER A REQUIREMENT, AND THE WORDING IS THE SAFEGUARD.**
+The flush happens anyway — on the interval, on `pagehide`, on sign-out. The
+moment a child believes unpressed means unsaved, the one who packs up when the
+bell rings loses minutes and a grade depends on a ritual. **Never "Save". Never
+a warning for skipping it. Never the only way out.** Jake chose "I'm done".
+
+What it buys:
+- ⚠️ **IT MANUFACTURES THE DELIBERATE EXIT §3.1 SAYS DOES NOT EXIST** — *"a
+  `final` flush needs a deliberate exit and a child closing a Chromebook lid
+  produces none."* It does not FIX the unflushed-tail gap; it gives every child
+  a way not to be in it.
+- **It closes the open sprint**, so the drill-down matches the day total instead
+  of dropping the tail under the five-second floor. That tightens item 5's
+  `log ÷ sessions` yardstick directly.
+- **The receipt is a week of receipts.** The stamped card shows five days, so a
+  child can see their own week without a teacher pulling a report — Rule 11
+  turning into a feature instead of a constraint.
+
+⚠️ **SCHOOL PLACEMENT HAS A LIVE HAZARD.** Item 8's ruling put the font picker on
+the map, not in the drill, because a focusable control inside the drill view is
+one Tab away from eating a keystroke the child should have been credited for.
+"I'm done" has the opposite requirement — they are IN the drill when the bell
+rings. **Resolution: `tabindex="-1"`, click-only, parked clear of the drill
+text.** Tab can never reach it; the mouse always can.
+
+### 0e. Files, and what a harness must assert
+
+`hud.js` (`{ lead, sub }`, `long` deleted) · `game.html` · `learn.html` ·
+`index.html` (+ its first `readWeek()`) · `style.css` · the renderers in
+`game.js` / `learn.js` · Adventure's ⚙ placement.
+
+A harness should assert **that `Daily` is the lead element in all four
+surfaces** — that is the invariant this whole item exists to protect, and it is
+the one a later round would quietly undo while making the bar look nicer.
 
 ---
 
@@ -333,6 +469,12 @@ F8's guarantee lapses silently.
 
 No deadline.
 
+- ⚠️ **THE DAY ROLLOVER LIVES ONLY IN THE TICK.** It fires on a counted second,
+  so a tab that wakes on a new day and signs in, flushes or paints — without
+  typing — is working from stale day counters until the first keystroke. Round
+  26 closed the one path that wrote them to Firestore; it did not move the
+  rollover somewhere a page load can reach. **This is now a repair, not tidying,
+  and it is the same work as the bullet below.** `HANDOFF.md` §0.-12.E.
 - **Extract the timer/stats/flush path out of `game.js`** as `daycounter.js` —
   pure functions, injected dependencies, directly testable, the same discipline
   as `daylog.js`. That path is where every counting defect has lived.
