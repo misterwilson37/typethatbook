@@ -1,4 +1,31 @@
-// learn.js v2.22.0
+// learn.js v2.23.0
+//
+// v2.23.0 — ⚠️ TWO STUDENT-FACING ADDITIONS, AND NEITHER TOUCHES THE TIMING
+//           MECHANISM. Jake's condition, 2026-08-21, the morning after the
+//           source-split cutover shipped: do these "if you think you can make
+//           them without touching the timing mechanism."
+//
+//           NOTHING in the tick loop, the day counters, stepSeconds,
+//           anonSecondsAccum, the WAL, the flush path, logRun() or the midnight
+//           rollover is modified. The diff is: one import, the two RANDOM text
+//           generators, one new self-contained font block, and one idempotent
+//           call at the top of renderMap().
+//
+//           1. THE DRILL FILTER. A student reported "ass" in a lesson.
+//              generateRandom() and generateReachPattern()'s phase 3 now draw
+//              each group through drill-filter.js's safeGroup(), which redraws a
+//              whole group that spells something. ⚠️ WHOLE-GROUP MATCHING ON
+//              JAKE'S RULING — `lass`, `mass` and `asse` are FINE. Phases 1 and 2
+//              of the pattern generator are deterministic and deliberately
+//              untouched. An exhausted redraw budget is LOGGED and the group is
+//              used anyway: a drill that never appears is worse than one that
+//              briefly spells something.
+//           2. THE READING FONT (ROADMAP item 8). Five faces, per-student, in
+//              localStorage, scoped to #drill-text only — never the HUD, which is
+//              monospace on purpose. No webfonts: a district can block a CDN.
+//              ⚠️ A PROPORTIONAL FACE BREAKS THE DRILL'S NO-REFLOW GUARANTEE via
+//              .dt-fixed/.dt-dirty's `font-weight: bold`; style.css v3.6.0 swaps
+//              that for an underline. See the block above buildFontPicker().
 //
 // v2.22.0 — ⚠️ THE OVERNIGHT RESCUE, SCHOOL HALF. Mirrors game.js v3.37.0: a
 //           guest who did not sign in until the next day has those minutes
@@ -345,6 +372,10 @@ import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
 import { readWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
          carryOverPlan, carryOverPayloadFor, sourceTotalsOf } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
+// ⚠️ v2.23.0 — THE DRILL TEXT FILTER. A student reported "ass" in a lesson.
+// Whole-group matching on Jake's ruling: `lass`, `mass` and `asse` are FINE.
+// See drill-filter.js's header — it holds the ruling and its edge cases.
+import { safeGroup, DRILL_FILTER_VERSION } from "./drill-filter.js";
 // The version footer's three primary reads (this html file, this js file's own
 // LEARN_VERSION, style.css) plus the lazy full-build panel on hover. ⚠️ SAME
 // STRUCTURE AS game.js, ON PURPOSE — see updateVersionFooter() below.
@@ -374,7 +405,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.22.0";
+const LEARN_VERSION = "2.23.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -691,6 +722,94 @@ const graduateLink   = document.getElementById('graduate-link');
 const backBtn        = document.getElementById('back-btn');
 const hudLessonLabel = document.getElementById('hud-lesson-label');
 const hudTimer       = document.getElementById('hud-time');
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE READING FONT  (v2.23.0) — ROADMAP item 8
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Kids want to change the font they read the drill in. Per-student, stored
+// locally, scoped to the DRILL TEXT ONLY.
+//
+// ⚠️ THE HUD IS NOT IN SCOPE AND MUST NOT BE. It is monospace on purpose — the
+// clock does not reflow while it counts. Same for the keyboard and the modal.
+// The selector below writes ONE custom property that ONLY #drill-text reads.
+//
+// ⚠️ NO WEBFONTS. Every face here is either already loaded (Courier Prime) or a
+// system stack. This project has an entire page — appcheck.html — devoted to the
+// fact that a district can block a CDN, and a font picker whose options silently
+// fall back to Times on the school network is worse than no picker. Nothing here
+// makes a network request.
+//
+// ⚠️ NO SCRIPT OR JOINED FACES (Jake's rule). A child learning to touch-type has
+// to tell `l` from `1` and `rn` from `m`, and per-character highlighting on a
+// joined face is unreadable besides.
+//
+// ⚠️⚠️ AND THE ONE THAT IS NOT OBVIOUS: A PROPORTIONAL FONT BREAKS THE DRILL'S
+// NO-REFLOW GUARANTEE, AND style.css SAYS SO WITHOUT KNOWING IT. The comment
+// above .dt-char reads "State classes change color only, never dimensions, so
+// every character is always the same width" — but .dt-fixed and .dt-dirty set
+// `font-weight: bold`. In a MONOSPACE face bold has the same advance width, so
+// that claim holds by luck of the font rather than by the CSS. In a proportional
+// face it does not: a character going bold the moment a child backspaces and
+// retypes would shove the rest of the line sideways, under their fingers, at
+// exactly the worst moment. style.css v3.6.0 swaps bold for an underline while a
+// proportional face is active — underline changes no advance width. If you add a
+// face here, add it to the right list below or that guarantee silently lapses.
+const DRILL_FONTS = [
+    // key,     label,        stack,                                              mono
+    ['courier', 'Typewriter', "'Courier Prime', monospace",                        true ],
+    ['mono',    'Plain',      "Consolas, 'Andale Mono', 'DejaVu Sans Mono', monospace", true ],
+    ['serif',   'Book',       "Georgia, 'Times New Roman', serif",                 false],
+    ['sans',    'Clean',      "Verdana, Geneva, sans-serif",                       false],
+    ['round',   'Rounded',    "'Comic Sans MS', 'Trebuchet MS', sans-serif",       false],
+];
+const DRILL_FONT_KEY = 'ttbDrillFont';
+
+function applyDrillFont(key) {
+    const f = DRILL_FONTS.find(x => x[0] === key) || DRILL_FONTS[0];
+    document.documentElement.style.setProperty('--drill-font', f[2]);
+    // The class is what style.css keys the bold-vs-underline swap off.
+    document.documentElement.classList.toggle('ttb-drill-proportional', !f[3]);
+    return f[0];
+}
+
+function readDrillFont() {
+    try { return localStorage.getItem(DRILL_FONT_KEY) || 'courier'; }
+    catch (_) { return 'courier'; }
+}
+
+// ⚠️ CALLED AT MODULE LOAD, BEFORE ANY DRILL IS BUILT, so a student never sees
+// the default face flash to their own. It touches one CSS property and one class
+// and reads nothing from the network or Firestore.
+applyDrillFont(readDrillFont());
+
+// ⚠️ THE CONTROL LIVES ON THE MAP, NOT IN THE DRILL. A <select> inside the drill
+// view would be one Tab keypress away from stealing focus from the typing
+// surface, and a keystroke that lands in a dropdown instead of the drill is a
+// character the student typed and did not get credit for. On the map there is no
+// drill running and nothing to steal.
+function buildFontPicker() {
+    const header = document.getElementById('map-header');
+    if (!header || document.getElementById('drill-font-pick')) return;
+    const wrap = document.createElement('div');
+    wrap.id = 'drill-font-pick';
+    wrap.innerHTML = '<label for="drill-font-select">Reading font</label> ' +
+        '<select id="drill-font-select">' +
+        DRILL_FONTS.map(f => '<option value="' + f[0] + '">' + f[1] + '</option>').join('') +
+        '</select>';
+    header.appendChild(wrap);
+    const sel = wrap.querySelector('select');
+    sel.value = readDrillFont();
+    // Preview in the face itself — the label of each option is more useful in
+    // the font it names than in the page font.
+    sel.style.fontFamily = 'var(--drill-font)';
+    sel.addEventListener('change', () => {
+        const applied = applyDrillFont(sel.value);
+        sel.value = applied;
+        try { localStorage.setItem(DRILL_FONT_KEY, applied); } catch (_) {}
+        sel.style.fontFamily = 'var(--drill-font)';
+    });
+}
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 document.getElementById('login-btn').onclick = async () => {
@@ -1380,6 +1499,13 @@ function refreshProgressCache() {
 // Build first, swap last: a throw now leaves the PREVIOUS map standing, which
 // is both a usable screen and a much better bug report.
 function renderMap() {
+    // ⚠️ v2.23.0 — IDEMPOTENT BY ITS OWN GUARD, and it has to be: renderMap() is
+    // called on every auth change and every progress update. buildFontPicker()
+    // returns immediately if the control already exists, so this is not a leak
+    // and not a duplicate listener. It is placed BEFORE the early return below
+    // so the picker survives a lessons-failed-to-load state — a student whose
+    // lessons did not load can still fix a font they cannot read.
+    buildFontPicker();
     if (allLessons.length === 0) {
         lessonMapEl.innerHTML = '<div style="color:#888; text-align:center; padding:40px;">No lessons loaded.</div>';
         return;
@@ -2279,11 +2405,22 @@ function generateReachPattern(keySet, groupSize, groupCount) {
     const uniqueKeys = [...new Set(allKeys)];
     const remaining = groupCount - groups.length;
     for (let i = 0; i < remaining; i++) {
-        const g = [];
-        // Shuffle-ish: pick keys ensuring reach keys appear often
-        for (let j = 0; j < groupSize; j++) {
-            const pool = j % 2 === 0 ? reachKeys : uniqueKeys;
-            g.push(pool[Math.floor(Math.random() * pool.length)]);
+        // ⚠️ v2.23.0 — PHASE 3 IS RANDOM AND THEREFORE FILTERED TOO. Phases 1 and
+        // 2 above are DETERMINISTIC — reach/home alternations built from the key
+        // pairs — so they cannot spell anything a lesson author did not choose,
+        // and are deliberately left alone. This phase draws freely and can.
+        const { group: g, exhausted, matched } = safeGroup(() => {
+            const g2 = [];
+            // Shuffle-ish: pick keys ensuring reach keys appear often
+            for (let j = 0; j < groupSize; j++) {
+                const pool = j % 2 === 0 ? reachKeys : uniqueKeys;
+                g2.push(pool[Math.floor(Math.random() * pool.length)]);
+            }
+            return g2;
+        });
+        if (exhausted) {
+            console.warn(`[drill-filter] pattern phase 3 cannot avoid "${matched}" ` +
+                         `at groupSize ${groupSize} — using it anyway.`);
         }
         groups.push(g);
     }
@@ -2331,9 +2468,33 @@ function generateRandom(keySet, groupSize, groupCount) {
     const chars = [];
     for (let g = 0; g < groupCount; g++) {
         if (g > 0) chars.push(' ');
-        for (let i = 0; i < groupSize; i++) {
-            chars.push(effectiveKeySet[Math.floor(Math.random() * effectiveKeySet.length)]);
+        // ⚠️ v2.23.0 — EACH GROUP IS DRAWN THROUGH THE FILTER. safeGroup()
+        // redraws the WHOLE group if it spells something, which is rejection
+        // sampling: every allowed group stays exactly as likely relative to
+        // every other as it was, so the drill still teaches the finger
+        // sequences it was built to teach. Changing one offending letter
+        // instead would bias it away from them. drill-filter.js Part E.
+        //
+        // ⚠️ THIS TOUCHES NO COUNTER, NO TIMER AND NO FLUSH. It is text
+        // generation only, called while a drill is being BUILT, before any of
+        // it is on screen and long before a keystroke is counted.
+        const { group, exhausted, matched } = safeGroup(() => {
+            const g2 = [];
+            for (let i = 0; i < groupSize; i++) {
+                g2.push(effectiveKeySet[Math.floor(Math.random() * effectiveKeySet.length)]);
+            }
+            return g2;
+        });
+        // ⚠️ AN EXHAUSTED BUDGET IS LOGGED AND THE GROUP IS STILL USED. It means
+        // this key set cannot produce a clean group at this size — a lesson
+        // configuration problem for Jake, NOT a reason to stop a child typing.
+        // A drill that never appears is worse than one that briefly spells
+        // something. drill-filter.js Part D.
+        if (exhausted) {
+            console.warn(`[drill-filter] key set cannot avoid "${matched}" at ` +
+                         `groupSize ${groupSize} — using it anyway. Check this lesson.`);
         }
+        group.forEach(c => chars.push(c));
     }
     return chars;
 }

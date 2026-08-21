@@ -1,4 +1,26 @@
-/* TypeThatBook style.css v3.5.6 */
+/* TypeThatBook style.css v3.6.0 */
+/* v3.6.0: THE READING FONT (learn.js v2.23.0, ROADMAP item 8). #drill-text now
+           takes --drill-font instead of a hard-coded stack. Scoped to the drill
+           text ONLY — the HUD, the keyboard and the modal stay monospace, the
+           HUD deliberately so.
+
+           ⚠️ AND THE PART THAT IS NOT COSMETIC: .dt-fixed and .dt-dirty set
+           `font-weight: bold`, three lines under a comment promising that state
+           classes "change color only, never dimensions, so every character is
+           always the same width". That promise was TRUE ONLY BECAUSE THE FONT
+           WAS MONOSPACE — bold has the same advance width there. In a
+           proportional face it is false: a character going bold the instant a
+           child backspaces and retypes would shove the rest of the line
+           sideways under their fingers, mid-drill, at the worst possible
+           moment. .ttb-drill-proportional swaps bold for an underline, which
+           changes no advance width. ⚠️ THE OLD COMMENT IS NOW ACCURATE RATHER
+           THAN LUCKY; do not reintroduce a weight or size change in a state
+           class.
+
+           ⚠️ ALSO FIXES THE VERSION STAMP: body::before still read "v3.5.5"
+           after the v3.5.6 edit, so the build footer under-reported this file
+           by one patch. It is the only machine-readable copy and nothing
+           checked it against the header. */
 /* v3.5.6: .text-btn — the (Logout) control on game.html/learn.html was #999 at
            12px on a black bar and could not be found. #ccc, 13px, a hover
            background and a focus ring. Nothing else uses the class. */
@@ -52,7 +74,7 @@
    line 1, not this, so nothing caught it and the build banner was right by luck.
    A file carrying its version twice has to have both updated or the redundancy is
    worse than none: it gives a wrong answer confidently. Update BOTH. */
-body::before { content: "v3.5.5"; display: none; }
+body::before { content: "v3.6.0"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -1093,7 +1115,12 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
 /* Drill text */
 #drill-text-area { flex: 1; position: relative; overflow: hidden; padding: 0; }
 #drill-text {
-    font-family: 'Courier Prime', monospace; font-size: 1.4rem; line-height: 2.0em;
+    /* ⚠️ --drill-font IS SET BY learn.js's applyDrillFont() AT MODULE LOAD, so a
+       student never sees the default flash to their own choice. The fallback
+       here is the pre-v3.6.0 value, which is what an unset property, a failed
+       localStorage read, or Library (which does not set it) all get. */
+    font-family: var(--drill-font, 'Courier Prime', monospace);
+    font-size: 1.4rem; line-height: 2.0em;
     max-width: 700px; width: 100%; text-align: left;
     position: absolute;
     left: 50%; transform: translateX(-50%);
@@ -1117,6 +1144,32 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
 .dt-space-perfect { background: transparent; }
 .dt-space-fixed   { background-color: var(--fixed-bg); border-radius: 2px; }
 .dt-space-dirty   { background-color: var(--error-bg); border-radius: 2px; }
+
+/* ⚠️ v3.6.0 — THE NO-REFLOW GUARANTEE, MADE REAL FOR PROPORTIONAL FACES.
+   Set on <html> by learn.js's applyDrillFont() when the chosen face is not
+   monospace. Bold changes the advance width of a glyph in a proportional font
+   and does not in a monospace one, so the bold above is safe by luck of the
+   font rather than by design. Underline changes no width in either.
+   ⚠️ COLOUR STILL CARRIES THE MEANING — blue for corrected, red for
+   brute-forced — exactly as before. The underline is the emphasis that bold
+   was providing, at zero layout cost. */
+.ttb-drill-proportional #drill-text .dt-fixed,
+.ttb-drill-proportional #drill-text .dt-dirty {
+    font-weight: normal;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 2px;
+}
+
+/* The reading-font control on the School map. Deliberately quiet — it is a
+   preference, not a call to action, and it sits under the lesson counter. */
+#drill-font-pick { margin-top: 8px; font-size: 0.75rem; color: #777;
+                   font-family: 'Courier Prime', monospace; }
+#drill-font-pick label { margin-right: 6px; }
+#drill-font-pick select { background: #1c1c1c; color: #ddd; border: 1px solid #444;
+                          border-radius: 4px; padding: 3px 6px; font-size: 0.8rem;
+                          cursor: pointer; }
+#drill-font-pick select:focus { outline: 2px solid var(--carolina-blue); outline-offset: 1px; }
 
 /* Drill keyboard wrap — fixed height matches keyboard so swapping
    keyboard↔modal never changes the height of the slot, preventing text jump */
