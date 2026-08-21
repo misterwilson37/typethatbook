@@ -1,7 +1,21 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.1.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     through Round 24; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+<!-- HANDOFF.md v15.2.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     through Round 25; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.2.0 — Round 25 (Hall). ⚠️ §0.-11 IS THE WRITE-UP. A ONE-LINE STAFF READ
+     PATH FIX, SHIPPED THE DAY BEFORE THE CUTOVER BECAUSE THAT IS THE LAST DAY IT
+     IS WORTH ANYTHING. `lessons-admin.js` dated every typing_logs document by
+     the `date` FIELD inside it, where reports.html warns in capitals to key off
+     the document ID. Cosmetic before the cutover; from 2026-08-22 it also picks
+     the READ BRANCH, and a post-cutover document read under a pre-cutover date
+     goes legacy-first and drops that day's per-source afternoon. ROADMAP item 9
+     had this as "not urgent" — an assessment that was correct when the cutover
+     was in the future and expired at midnight tonight. ⚠️ THE ROUND ALSO AUDITED
+     THE WHOLE CUTOVER AND FOUND IT SOUND — §0.-11.C lists what was checked and
+     what came back clean, so the next round does not re-audit it. ⚠️ AND
+     ROUND 24 LEFT NO CHANGELOG ENTRY — §0.-11.D. 38/38 harnesses, 53 checks in
+     daylog-cutover-test.mjs.
 
      v15.1.0 — Round 24 (Monotype). ⚠️⚠️ §0.-10 IS THE WRITE-UP AND IT OPENS
      WITH A RETRACTION. ROADMAP item 1 and §0.-9.F both recorded records as
@@ -54,7 +68,7 @@
      AND KILLED BY JAKE — see §0.-9.E, which is the most useful part of this
      section for a future instance. 35/35 harnesses. -->
 
-**Round 24 — Monotype.** Predecessors: Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
+**Round 25 — Hall.** Predecessors: Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
 Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
 Sholes (14) · Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) ·
 Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) ·
@@ -64,6 +78,21 @@ Blick (3) · Dvorak (2) · Underwood (1).
 by different companies and both are now on the list; a future round reading the
 list quickly will see two similar words and must not conclude one is a typo for
 the other. **Check the list, and read the whole word.**
+
+> *On the name:* the **Hall** (Thomas Hall, 1881) had no keyboard. It was an
+> INDEX machine: you moved a pointer across a printed grid to a POSITION and
+> pressed, and the letter you got was a function of where the pointer was. There
+> was no key cap — no label anywhere on the machine that could disagree with what
+> the mechanism actually did, because the address WAS the character. That is this
+> round exactly. A `typing_logs` document is addressed as `{uid}_{date}` by every
+> writer and every reader in this app, and the roster panel was asking a label
+> inside it instead: `data.date`, which a writer has to remember to set correctly
+> and which Round 24 caught being set wrongly on a neighbouring collection.
+> ⚠️ The Hall also lost, decisively, to machines with keys — an index typewriter
+> is slow, and being unable to disagree with yourself is not worth much if you
+> cannot type. **This is a one-line fix in a read path, not a principle to go
+> apply everywhere.** The stamped `date` field is still what the QUERY above it
+> filters on and still has to be, because an id is not indexable.
 
 > *On the name:* the Monotype was **two machines in two rooms**. A keyboard
 > operator punched a spool of paper tape; a caster in another room read that
@@ -145,6 +174,101 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-11. ⚠️ ROUND 25 (Hall) — THE ID IS THE DATE, AND A CUTOVER AUDIT THAT CAME BACK CLEAN
+
+**2026-08-21. The day before the cutover.** That fact chose this round's work
+more than the roadmap did.
+
+### A. What was wrong
+
+`lessons-admin.js`'s Students roster panel read each `typing_logs` document and
+took its day from `data.date`, the field the writer stamped inside it.
+`reports.html` does the same read three clicks away and carries this above it,
+in capitals:
+
+> ⚠️ p.date, NOT data.date. The pair drives the point read, so it is the date
+> this document was FETCHED under; data.date is whatever the writer stamped
+> inside it and **has been wrong before**. The gate must key off the id, like
+> the read did.
+
+Two staff surfaces, one collection, opposite rules. ROADMAP item 9 recorded the
+disagreement and rated it **"Not urgent."**
+
+⚠️ **THAT RATING WAS CORRECT AND IT EXPIRED TONIGHT.** Before the cutover a wrong
+date only mis-sorts a row and mis-files a week. From 2026-08-22 the same string
+also picks the READ BRANCH. A post-cutover document read under a pre-cutover date
+goes legacy-first, and on a **mixed** day — a morning written flat by a page that
+had not picked up the new build, an afternoon written per source — legacy-first
+returns the morning ALONE and drops the afternoon.
+
+⚠️ **AND MONDAY'S VERIFICATION LIST POINTS AT THIS EXACT PANEL.** ROADMAP says:
+*"The Students roster panel in the lessons admin still shows real weekly minutes.
+Near-zero means `lessons-admin.js` v1.13.0 did not reach the browser."* With the
+defect live there were **two** explanations for a low number and no way to tell
+them apart from the chair. Shipping the fix first removes one of them. **That is
+the whole argument for doing this today rather than next week.**
+
+### B. The fix, and the two things about it worth keeping
+
+`_logDateFromId(id)` → the `{uid}_{date}` suffix, or `''`.
+
+1. ⚠️ **ANCHORED AT THE END OF THE STRING, NOT SPLIT ON `_`.** A Firebase uid may
+   legally contain an underscore. Google sign-in happens not to produce one, and
+   *happens not to* is not a thing to key a grade off. `split('_')[1]` on
+   `uid_has_underscores_2026-08-24` returns `'has'`, which is not a date, does not
+   match the cutover, and sorts below every week boundary — a whole student
+   silently leaving the school week. `/_(\d{4}-\d{2}-\d{2})$/` cannot do that.
+2. ⚠️ **THE TOTALS EXPRESSION IS UNTOUCHED.** The date is computed *before* it and
+   handed in under the same variable name, so `daylog-cutover-test.mjs` Part G
+   still lifts the block byte-for-byte and its seven parity assertions against
+   `daylog.js` did not move. **If you refactor here, keep the lift working** —
+   Part G's own comment says how.
+
+Falls back to `data.date` when the id will not parse: an unknown id shape means
+fail toward *nothing changed*, the same house rule as `daylog.js`'s
+missing-`dateStr` branch.
+
+⚠️ **WHAT THIS DOES NOT FIX, AND CANNOT.** The query above it is
+`where('date', '>=', sinceDate)` — on the FIELD, because **an id is not an
+indexable field**. A document whose stamp is wrong can therefore still fail to be
+DISCOVERED at all, and no amount of correct dating afterwards recovers it. This
+round makes the documents that arrive read correctly. It does not make arrival
+sound. ⚠️ Do not write "the roster panel is immune to a bad date stamp" anywhere.
+
+### C. ⚠️ THE CUTOVER AUDIT — DONE, CLEAN, DO NOT REPEAT IT
+
+The above was found by auditing the cutover on its eve. **Everything else came
+back sound.** Recorded so Round 26 spends its time elsewhere:
+
+| Checked | Result |
+|---|---|
+| Every copy of the cutover constant in shipped code | Three — `daylog.js`, `reports.html`, `lessons-admin.js`. All `2026-08-22`. No fourth. |
+| A fifth reader nobody updated | None. `admin.js` and `staff-admin.js` never touch `typing_logs`; `session-log.js` mentions it only in comments; `index.html` reads it **through `daylog.js`**, so it inherits the gate. |
+| `readWeek()` passing the date to `totalsOf()` | Yes, per day, from the id it fetched by. |
+| The ⟳ recalc write on a post-cutover day | Date-gated (`reports.html` v2.24.0). Writes both per-source triples and `deleteField()`s the flat one. Correct. |
+| The manual SAVE box, which is **not** gated | Deliberate, and the reasoning at the call site is sound — ⟳ asserts *where time came from*, the box asserts *the total*. Its known hazard (an open student tab adding on top) is documented and accepted. **Not a defect. Do not "fix" it.** |
+| Per-source counters resetting at the midnight rollover | Both files, both triples. `game.js` ~L2783, `learn.js` ~L1905 (with its documented `= 1` compensation). |
+| `STAT_KEYS` / the guest-merge fold including the per-source triples | Yes, both, with the incident that required it written above them. |
+| Mixed old/new builds across the cutover | Degrades safely. An old writer reads flat and writes flat; the "missing `dateStr` takes the old path" branch is what makes this true. ⚠️ `update-gate.js` is the lever if a stale tab is ever suspected — bump `settings/appVersion.nonce`. |
+
+### D. ⚠️ ROUND 24 SHIPPED WITHOUT A CHANGELOG ENTRY
+
+`CHANGELOG.md` has one `## Round` heading and it is Round 23's. Round 24 shipped
+`game.js` v3.37.0/3.38.0, `learn.js` v2.21.1/2.22.0, `daylog.js` v1.4.0 and a
+`reports.html` bump, and wrote all of it into this file instead. ⚠️ **That is the
+same pressure ROADMAP item 9 is about** — the header budget and the CHANGELOG
+exist so history stops accumulating in the document people have to read to work.
+This round did not reconstruct Round 24's entry: doing it from the outside risks
+writing a plausible history rather than a true one. **Round 24's changes are
+described in §0.-10; if anyone can confirm the list, it belongs in `CHANGELOG.md`.**
+
+⚠️ **THE PER-FILE SECTIONS OF `CHANGELOG.md` ARE ALSO STALE** — its
+`lessons-admin.js` section still says `Current: v1.7.1` for a file that was at
+v1.13.0 before this round. Noted, not fixed; a bulk reconciliation is a round of
+its own and is worth less than it looks.
 
 ---
 

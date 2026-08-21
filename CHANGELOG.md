@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## Round 25 — Hall (2026-08-21)
+
+⚠️ **NOT a student write-path round.** Nothing in `game.js`, `learn.js`,
+`daylog.js`, `stats-wal.js` or `session-log.js` is touched. One staff-facing
+READ path and one harness.
+
+⚠️ **SHIPPED ON CUTOVER EVE ON PURPOSE.** The gate this corrects becomes
+load-bearing on 2026-08-22, and Monday's verification list includes the very
+panel it feeds. Fixing it after the observation would have meant not knowing
+whether a bad number was this defect or a stale deploy.
+
+* **`lessons-admin.js` 1.13.0 → 1.13.1.** The Students roster panel dated each
+  `typing_logs` document by `data.date` — the field the writer stamped — where
+  `reports.html` warns in capitals at its own point read to key off the document
+  id instead. New `_logDateFromId()` parses `{uid}_{date}` **anchored at the end
+  of the string**, because a Firebase uid may legally contain an underscore and
+  `split('_')[1]` would quietly truncate the date to nothing. Falls back to
+  `data.date` when the id will not parse, which is the old behaviour exactly.
+  The totals expression itself is UNCHANGED, so `daylog-cutover-test.mjs` Part G
+  still lifts it byte-for-byte.
+* **`tests/daylog-cutover-test.mjs` 1.1.0 → 1.2.0.** Part H (NEW, **12 failing
+  against v1.13.0**, verified by running it against the pre-fix file). H1/H2 are
+  the regression guard — they assert the roster LOOP calls the helper, because a
+  perfect helper that nothing calls is the failure mode here. H5 is the defect
+  end to end, on a mixed day. ⚠️ H5c asserts the OLD behaviour's loss and is
+  green under BOTH builds on purpose: it is the control that proves H5b is
+  measuring something.
+
 ## Round 23 — Empire (2026-08-20)
 
 ⚠️ **STUDENT WRITE-PATH ROUND.** Upload `session-log.js` FIRST.

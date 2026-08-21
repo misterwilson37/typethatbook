@@ -1,5 +1,12 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.5.0, 2026-08-21 — CUTOVER EVE.** Round 25 (Hall) audited the whole cutover
+one day out and **found it sound** — the audit table is `HANDOFF.md` §0.-11.C and
+it exists so nobody repeats it. One thing was not sound: item 9's
+`lessons-admin.js` bullet, rated *"not urgent"* while the cutover was still in
+the future, **became load-bearing tonight**. Fixed and shipped. Nothing in a
+student write path was touched.
+
 **v3.4.0, 2026-08-20.** Round 24 shipped THE OVERNIGHT RESCUE on Jake's ruling,
 fixed the evening-guest date, the School hard refresh and the Logout button
 (invisible twice, in two stylesheets), and — from Jake's own re-generated
@@ -20,7 +27,12 @@ that morning **by design**, and two harness Parts assert that defect on purpose.
 **Verify on Monday 2026-08-24:**
 - A student who used both modes shows a total **higher** than the old shape.
 - The Students roster panel in the lessons admin still shows real weekly minutes.
-  Near-zero means `lessons-admin.js` v1.13.0 did not reach the browser.
+  Near-zero means **`lessons-admin.js` v1.13.1 did not reach the browser** — and
+  as of Round 25 that is now the ONLY thing near-zero can mean. It used to have a
+  second explanation (the panel dated documents by the stamped field, so a
+  post-cutover day could read legacy-first and drop its afternoon) and the two
+  were indistinguishable from the chair. ⚠️ **Check the footer version before
+  concluding anything.**
 - One ⟳ click on a post-cutover day leaves the day unchanged.
 - **A child who types before signing in keeps those minutes.** ✅ **PROVEN
   2026-08-20 in Library** — see item 1. Still unproven in School.
@@ -254,7 +266,11 @@ No deadline.
   ⚠️ `STAT_KEYS`, the WAL fold, the guest merge and the midnight rollover are
   four hand-maintained lists a new counter has to be added to.
 - **Enforce the header budget**: 60 lines, 6 version entries; history belongs in
-  `CHANGELOG.md`. `game.js` is at 352 lines / 29 entries, `learn.js` at 303 / 33.
+  `CHANGELOG.md`. ⚠️ **AND THE CHANGELOG HAS TO BE WRITTEN FOR THAT TO MEAN
+  ANYTHING — ROUND 24 SHIPPED FOUR FILES AND ADDED NO ENTRY**, putting all of it
+  in `HANDOFF.md` instead, which is the pressure this bullet is about. Round 25
+  did not reconstruct it from the outside; see `HANDOFF.md` §0.-11.D. The
+  per-file sections are stale too (`lessons-admin.js` reads `Current: v1.7.1`). `game.js` is at 352 lines / 29 entries, `learn.js` at 303 / 33.
   ⚠️ Rounds 23 and 24 both added to them knowingly. Six shared modules are over
   the LINE budget; `session-log.js` is now over the ENTRY budget again too.
 - **Sentence-boundary WAL checkpoint**, both files or neither. localStorage only,
@@ -266,9 +282,18 @@ No deadline.
 - **The idle-threshold rationale as a code comment**, above the constants in both
   files. ⚠️ **A COMMENT, NOT A BEHAVIOUR CHANGE** — do not touch the 2s/3s values
   while adding it.
-- **`lessons-admin.js` keys its cutover gate off `data.date`**, the field the
-  writer stamped, where `reports.html` warns in capitals to key off the document
-  id. Not urgent; recorded so it is not rediscovered from scratch.
+- ~~**`lessons-admin.js` keys its cutover gate off `data.date`**~~ ✅ **DONE**,
+  Round 25, `lessons-admin.js` v1.13.1 — it keys off the document id now, via
+  `_logDateFromId()`. ⚠️ **THE LESSON IS THE TIMING, NOT THE FIX.** This sat here
+  rated *"not urgent"* and the rating was CORRECT when it was written: before the
+  cutover a wrong date only mis-sorted a row. From 2026-08-22 the same string
+  picks the read branch. **A backlog item's priority can be a function of the
+  calendar, and nothing in this file recomputes it.** When a dated change is
+  approaching, re-read the whole list against that date rather than against the
+  day it was written.
+  ⚠️ **STILL OPEN, AND IT IS A DIFFERENT PROBLEM:** the query above it filters on
+  `where('date', ...)`, on the FIELD, because an id is not indexable. A document
+  with a wrong stamp can still fail to be DISCOVERED. `HANDOFF.md` §0.-11.B.
 - **`handleDrillKey()` and game.js's keydown listener are near-duplicates that
   drifted.** Round 24 fixed the modifier guard in one of them. They disagree in
   other places too. Neither is obviously the better copy.

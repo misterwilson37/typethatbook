@@ -1,4 +1,19 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.13.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.13.1
+//
+// v1.13.1 — ⚠️ THE ROSTER PANEL'S DATE NOW COMES FROM THE DOCUMENT ID. It read
+//           `data.date`, the field the writer stamped, where reports.html warns
+//           in capitals at its own point read to key off the id instead. Before
+//           the cutover a wrong stamp only mis-sorted a row; from 2026-08-22 it
+//           also picks the read BRANCH, and a post-cutover document read under a
+//           pre-cutover date goes legacy-first and drops that day's per-source
+//           afternoon. New helper `_logDateFromId()`; the totals expression
+//           itself is untouched, so daylog-cutover-test.mjs Part G still lifts
+//           it unchanged. Part H is new and covers the derivation.
+//           ⚠️ THE QUERY ABOVE STILL FILTERS ON `date` AND CANNOT DO OTHERWISE —
+//           an id is not an indexable field. So a document whose stamp is wrong
+//           can still fail to be DISCOVERED here. This fix makes the ones that
+//           are discovered read correctly; it does not make discovery sound.
+//           Staff page, read-only. No student write path is touched.
 //
 // v1.12.0 — legacy-first read, matching reports.html v2.14.0 after the source
 //          split was reverted in game.js v3.30.0 / learn.js v2.15.0.
@@ -103,7 +118,7 @@
 //          _studentsInited already true so reopening the tab could not recover.
 //          Both functions written from _commitCSV()/_bulkAssign().
 // v1.7.0 — Lesson + class authoring, CSV roster import, stuck-student scan.
-window.LESSONS_ADMIN_VERSION = '1.13.0';
+window.LESSONS_ADMIN_VERSION = '1.13.1';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -1857,7 +1872,45 @@ async function loadStudentRoster() {
         logSnap.forEach(d => {
             const data = d.data();
             const uid  = data.uid || ''; if (!uid) return;
-            const date = data.date || '';
+            // ═════════════════════════════════════════════════════════════════
+            // ⚠️⚠️ v1.13.1 — THE DATE COMES FROM THE DOCUMENT ID, NOT THE FIELD.
+            // ═════════════════════════════════════════════════════════════════
+            //
+            // reports.html says this in capitals at its own point read and this
+            // file disagreed with it: "p.date, NOT data.date. ... data.date is
+            // whatever the writer stamped inside it and has been wrong before.
+            // The gate must key off the id, like the read did."
+            //
+            // ⚠️ IT HAS BEEN WRONG BEFORE, AND RECENTLY. Round 24 found
+            // sessionLogAdopt() recomputing a record's date from a UTC slice and
+            // stamping tomorrow onto an evening's typing. That was a different
+            // collection, but it is the same class of defect and it is the
+            // reason a stamped date is not evidence about which day a document
+            // IS. The id is: every writer and every reader in this app addresses
+            // these documents as `{uid}_{date}`, so the id is the one place the
+            // day is asserted by the addressing itself rather than by a field a
+            // writer had to remember to set.
+            //
+            // ⚠️ THIS WAS COSMETIC UNTIL TOMORROW. Before the cutover a wrong
+            // `date` only mis-sorted a row. From 2026-08-22 it also picks the
+            // BRANCH: a post-cutover document read under a pre-cutover date goes
+            // legacy-first, and on a mixed day — a morning written flat by a page
+            // that had not picked up the new build, an afternoon written per
+            // source — legacy-first returns the morning ALONE and silently drops
+            // the afternoon. That is the exact shape of failure this panel is
+            // scheduled to be checked for on Monday, which is the worst possible
+            // time to be unable to tell it from a stale deploy.
+            //
+            // ⚠️ PARSED FROM THE RIGHT, ON PURPOSE. A Firebase uid may legally
+            // contain an underscore, so splitting on the FIRST one is wrong and
+            // splitting on the last is only accidentally right. Anchoring the
+            // match to the end of the string is neither.
+            //
+            // ⚠️ FALLS BACK TO data.date, WHICH IS THE OLD BEHAVIOUR EXACTLY. An
+            // id this pattern cannot read means an unknown document shape, and
+            // the house rule for that is fail toward "nothing changed" — the
+            // same reasoning as daylog.js's missing-dateStr branch.
+            const date = _logDateFromId(d.id) || data.date || '';
             // ⚠️ v1.11.0 — READ-SIDE OF THE SOURCE SPLIT (DESIGN-TELEMETRY.md
             // §2.4). game.js/learn.js now write secondsLibrary/secondsSchool
             // instead of a shared `seconds` field — see reports.html's
@@ -1949,6 +2002,28 @@ function _localDateStr(d) {
     return d.getFullYear() + '-' +
         String(d.getMonth() + 1).padStart(2, '0') + '-' +
         String(d.getDate()).padStart(2, '0');
+}
+
+// The day a `typing_logs` document IS, taken from how it is addressed.
+//
+// ⚠️ v1.13.1. Ids are `{uid}_{date}` — built that way in daylog.js, in game.js,
+// in learn.js and in reports.html, which is what makes the id trustworthy in a
+// way the stamped `date` field is not. Returns '' when the pattern does not
+// match, so the caller can fall back rather than invent a day.
+//
+// ⚠️ ANCHORED AT THE END (`$`) BECAUSE A UID MAY CONTAIN AN UNDERSCORE. Firebase
+// allows it, Google sign-in happens not to produce one, and "happens not to" is
+// not a thing to key a grade off. `split('_')[1]` would truncate such a uid's
+// date to nothing; this cannot.
+//
+// ⚠️ IT VALIDATES THE SHAPE, NOT THE CALENDAR. `2026-13-45` matches and is
+// returned. That is deliberate: this function's job is to say what the id
+// claims, and a nonsense date that reaches the roster as a visible oddity is
+// better than one silently swapped for a plausible one. Nothing downstream does
+// arithmetic on it — the gate and the week boundary are both string compares.
+function _logDateFromId(id) {
+    const m = /_(\d{4}-\d{2}-\d{2})$/.exec(id || '');
+    return m ? m[1] : '';
 }
 
 function _buildClassFilterDropdown() {

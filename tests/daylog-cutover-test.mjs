@@ -1,4 +1,8 @@
 // daylog-cutover-test.mjs v1.1.0 — Round 21 (Hammond), ROADMAP Phase B step B1.
+// v1.2.0 (Round 25) adds Part H: the roster panel must date a document by
+// its ID, not by the `date` field inside it — Part G's arithmetic is only as
+// good as the date handed to it.
+//
 // v1.1.0 (Round 22) adds Part G: lessons-admin.js, the FOURTH reader of
 // typing_logs and the one the cutover work missed. Three hand-maintained copies
 // of one rule are now held to one behaviour BY EXECUTION rather than by memory.
@@ -279,6 +283,72 @@ console.log('   not by any test. This part is that question, mechanised.');
         eq(`G4 parity with daylog.js — ${label}`,
            laRead ? laRead(data, date) : 'NO-LIFT', totalsOf(data, date).seconds);
     }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\n── H. lessons-admin.js dates a document by its ID, not its field ──');
+console.log('   ⚠️ Part G proves the roster panel does the right ARITHMETIC once');
+console.log('   it knows the date. This part proves it knows the right DATE.');
+console.log('   reports.html warns in capitals at its own point read — "p.date,');
+console.log('   NOT data.date ... the gate must key off the id" — and this file');
+console.log('   disagreed with it until v1.13.1. Before the cutover that only');
+console.log('   mis-sorted a row. From the cutover it picks the BRANCH.');
+// ═════════════════════════════════════════════════════════════════════════════
+{
+    const laPath = process.env.LESSONS_ADMIN_PATH
+        ? new URL(process.env.LESSONS_ADMIN_PATH, `file://${process.cwd()}/`)
+        : new URL('../lessons-admin.js', import.meta.url);
+    const la = readFileSync(laPath, 'utf8');
+
+    // ⚠️ THE REGRESSION GUARD, AND IT IS THE POINT OF THIS PART. The helper can
+    // exist, be perfect, be tested below, and be called by nothing. This asserts
+    // the ROSTER LOOP actually derives its date from the id — the one line that
+    // would revert if someone "simplified" it back.
+    eq('H1 the roster loop derives its date from the document id',
+       /const\s+date\s*=\s*_logDateFromId\(\s*d\.id\s*\)/.test(la), true);
+    eq('H2 and still falls back to the stamped field when the id will not parse',
+       /_logDateFromId\(\s*d\.id\s*\)\s*\|\|\s*data\.date/.test(la), true);
+
+    // Lifted, not reimplemented — same discipline as Parts F and G.
+    const hm = la.match(/function\s+_logDateFromId\s*\([\s\S]*?\n\}/);
+    eq('H3 _logDateFromId is declared and liftable', !!hm, true);
+    const fromId = hm ? new Function(hm[0] + '; return _logDateFromId;')() : null;
+
+    const idCases = [
+        ['an ordinary Google uid',      'fuHvKkVjXYZabc0123456789ABCD_2026-08-24', '2026-08-24'],
+        // ⚠️ FIREBASE ALLOWS AN UNDERSCORE IN A UID. split('_')[1] returns
+        // 'has' here and the whole roster silently leaves the school week.
+        ['a uid containing an underscore', 'uid_has_underscores_2026-08-24',        '2026-08-24'],
+        ['the cutover day itself',      'abc_2026-08-22',                          '2026-08-22'],
+        ['no date suffix at all',       'abc',                                     ''],
+        ['a truncated date',            'abc_2026-08',                             ''],
+        ['a trailing separator',        'abc_2026-08-24_',                         ''],
+        ['undefined, as a missing id',  undefined,                                 ''],
+    ];
+    for (const [label, id, want] of idCases) {
+        eq(`H4 id → date — ${label}`, fromId ? fromId(id) : 'NO-LIFT', want);
+    }
+
+    // ─── H5: the consequence, end to end ────────────────────────────────────
+    // ⚠️ THIS IS THE DEFECT ITSELF, not a property of the helper. A document
+    // ADDRESSED as the 24th whose writer stamped the 21st inside it. Round 24
+    // found exactly this shape on typing_sessions (a UTC slice stamping
+    // tomorrow onto an evening's typing), which is why it is not hypothetical.
+    //
+    // The day is MIXED — a morning written flat by a page that had not picked
+    // up the new build, an afternoon written per source. Legacy-first returns
+    // the morning ALONE and drops the afternoon; the id-keyed gate sums them.
+    const mixed = { seconds: 300, secondsLibrary: 600, secondsSchool: 120, date: '2026-08-21' };
+    const idOf  = 'someuid_2026-08-24';
+
+    const dateByIdThenField = (fromId ? fromId(idOf) : '') || mixed.date || '';
+    eq('H5a the id wins over a stamp that disagrees with it',
+       dateByIdThenField, '2026-08-24');
+    eq('H5b so the day reads as flat + BOTH splits, agreeing with daylog.js',
+       totalsOf(mixed, dateByIdThenField).seconds, 1020);
+    // What the old line did, kept here so the size of the loss is on the record.
+    eq('H5c whereas the stamped date alone would have dropped 720s of it',
+       totalsOf(mixed, mixed.date).seconds, 300);
 }
 
 console.log('');
