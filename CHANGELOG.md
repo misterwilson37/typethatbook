@@ -20,6 +20,57 @@ whether a bad number was this defect or a stale deploy.
   `data.date` when the id will not parse, which is the old behaviour exactly.
   The totals expression itself is UNCHANGED, so `daylog-cutover-test.mjs` Part G
   still lifts it byte-for-byte.
+* **`lessons-admin.js` header repaired (same version).** `v1.13.0`'s entry had
+  been pasted into the middle of `v1.11.0`'s sentence, truncating it at
+  "reports.html". Entries descend again and `audit:versions` no longer reports
+  this file out of order. Comments only.
+* **`package.json` — the duplicate `//scripts` key is merged.** JSON takes the
+  last of a repeated key, so the array explaining `npm test` and `--with-epubs`
+  was discarded by every parser that read the file. New `//type` key records why
+  `"type": "module"` must NOT be added to silence the Node warning: it would
+  break the CommonJS Cloud Function that `main` points at.
+* **`learn.js` 2.22.0 → 2.23.0.** ⚠️ Two student-facing additions under Jake's
+  condition that neither touch the timing mechanism — asserted, not promised, by
+  `drill-filter-test.mjs` F7, which brace-matches the five new/changed functions
+  and checks none mentions a counter, timer or flush. (1) The drill filter, wired
+  into `generateRandom()` and the pattern generator's random phase 3; phases 1
+  and 2 are deterministic and untouched. (2) The reading-font picker, five faces,
+  `localStorage`, built into the map header by an idempotent call at the top of
+  `renderMap()`.
+* **`style.css` 3.5.6 → 3.6.0.** `#drill-text` reads `var(--drill-font)`.
+  ⚠️ `.ttb-drill-proportional` swaps `.dt-fixed`/`.dt-dirty`'s `font-weight: bold`
+  for an underline: bold changes advance width in a proportional face, so the
+  "state classes never change dimensions" promise above `.dt-char` held only by
+  luck of the font. Also fixes `body::before`, which still read `"v3.5.5"` after
+  the v3.5.6 edit — the build footer had been under-reporting this file, and
+  nothing checked the stamp against the header. F12 does now.
+* **`drill-filter.js` NEW, at v1.2.0 after two same-morning revisions.**
+  v1.0.0 matched SUBSTRINGS (wrong — would have stripped `lass` and `mass`);
+  v1.1.0 matched WHOLE GROUPS on Jake's first ruling; **v1.2.0 matches LEADING**
+  on his amendment — *"ass can't lead the word in the four letter clump. Fass is
+  fine, but asse would probably get it."* ⚠️ That amendment REVERSED one of his
+  own earlier examples, and v1.1.0's whole-group rule had a dead spot: a
+  three-letter entry could not fire at groupSize 4 at all, so the original report
+  was not covered by the fix written for it. Leading covers it.
+  ⚠️ Two tiers: `LEADING` (the ruling) and `ALWAYS` (slurs, substring).
+  ⚠️ **Leading matching also blocks `assignment`, `assume`, `assist`, `assess`
+  and `asset`** — correct for nonsense groups, catastrophic for prose. The
+  never-use-on-`game.js` warning is now load-bearing.
+  ⚠️ `kkk` was in tier 2 for an hour; a failing test threw it out, because it is a
+  substring rule and `k` is a home key, so it fired on ordinary same-finger
+  repetition more often than the defect it was there to fix.
+* **`school-audit.html` NEW at v1.0.0.** Read-only diagnostic: why classes do not
+  appear under a school. No writes, no repair button, no student names or emails.
+* **`tests/drill-filter-test.mjs` NEW.** 36 checks. Part A reproduces
+  `generateRandom()` over 200,000 groups and MEASURES the rate rather than
+  asserting it — and holds `drill-filter.js`'s header to that measurement, after
+  the first draft of that header guessed "one in ninety" and was out by half.
+  Part F1 is PENDING by design.
+* **`tests/run-all-tests.mjs` 1.5.0 → 1.6.0.** Registers the new harness and adds
+  `daylog.js`, `update-gate.js` and `drill-filter.js` to the syntax-check list.
+  ⚠️ `update-gate.js` is imported by both student HTML pages and had **no**
+  coverage; a syntax error in it would have taken down School and Library at
+  import time with the suite reporting success. 13 → 16 modules.
 * **`tests/daylog-cutover-test.mjs` 1.1.0 → 1.2.0.** Part H (NEW, **12 failing
   against v1.13.0**, verified by running it against the pre-fix file). H1/H2 are
   the regression guard — they assert the roster LOOP calls the helper, because a

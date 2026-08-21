@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TypeThatBook — School Assignment Audit v1.0.0</title>
+<!--
+    school-audit.html v1.0.0 — Round 25 (Hall), 2026-08-21.
+
+    WHY THIS PAGE EXISTS.
+
+    Jake, 2026-08-21: "Somehow, none of my kids are in my school on the website,
+    even though they're all in my classes."
+
+    That symptom has THREE possible causes and the code cannot tell them apart
+    from the outside. This page reads the four collections involved and says
+    which one it is. ⚠️ It was written INSTEAD of a theory — the house rule is
+    that when a report does not match what the code shows, you go and look
+    rather than reasoning forward from one plausible mechanism.
+
+    ── THE MECHANISM, SO THE OUTPUT MEANS SOMETHING ────────────────────────────
+
+    reports.html builds its class dropdown with this filter:
+
+        if (schoolId !== '__all__' && (c.schoolId || '') !== schoolId) return false;
+
+    So a class whose `schoolId` is blank, or does not EXACTLY equal the id of
+    the school document you picked, is filtered out of every named school. It
+    survives only under "All schools".
+
+    ⚠️ AND "All schools" IS WHERE A SUPER ADMIN LANDS BY DEFAULT — it is the
+    first option and nothing moves the selection off it. That is why this can be
+    invisible to the one person able to see everything, and why it would show up
+    the moment a building admin or a teacher looked. The classes are fine. The
+    kids are fine. It is the LINK from class to building that is missing or
+    pointing somewhere unexpected.
+
+    Everything downstream inherits that link, which is why it is worth getting
+    right rather than working around:
+      · users/{uid}.schoolId — the CSV import copies it off the class
+      · typing_logs.schoolId — game.js/learn.js stamp it at write time from the
+        user doc, falling back to the class
+      · the lessons-admin Students panel — queries typing_logs BY schoolId
+      · firestore.rules — scopes a building admin's reads by it
+
+    ⚠️ A REPAIR DOES NOT REACH BACKWARDS. Fixing a class today fixes documents
+    written from today. Every typing_logs document already written carries the
+    schoolId it was stamped with and this page does not change it — see the
+    "already written" panel below, which measures exactly that.
+
+    ── WHAT THIS PAGE WILL NOT DO ──────────────────────────────────────────────
+
+    ⚠️ IT IS READ-ONLY. There is no write, no repair button, no "fix all". Round
+    25 shipped the day before the source-split cutover and a bulk write to the
+    users collection is not a thing to do the night before a cutover, on a
+    diagnosis nobody has confirmed yet. Look first. Repair on Monday, knowing.
+
+    ⚠️ NO STUDENT-IDENTIFYING DATA IS DISPLAYED. Counts, class names and uid
+    prefixes only — no names, no emails. Standing rule for every school project.
+
+    Sign in with your staff account. Nothing here works for a student.
+-->
+<style>
+  :root { color-scheme: dark; }
+  body { background:#111; color:#eee; font-family:'Courier New',monospace;
+         margin:0; padding:24px; line-height:1.5; }
+  .wrap { max-width:900px; margin:0 auto; }
+  h1 { font-size:19px; margin:0 0 4px; }
+  .sub { color:#888; font-size:12px; margin-bottom:20px; }
+  button { background:#2a2a2a; color:#eee; border:1px solid #555; padding:9px 16px;
+           font-family:inherit; font-size:13px; cursor:pointer; border-radius:4px; }
+  button:hover:not(:disabled) { background:#3a3a3a; }
+  button:disabled { opacity:.5; cursor:default; }
+  section { border:1px solid #333; border-radius:6px; padding:14px 16px; margin:16px 0;
+            background:#161616; }
+  section h2 { font-size:14px; margin:0 0 10px; color:#9cf; letter-spacing:.03em; }
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  th, td { text-align:left; padding:4px 8px; border-bottom:1px solid #262626;
+           vertical-align:top; }
+  th { color:#888; font-weight:normal; }
+  .ok   { color:#22c55e; }
+  .bad  { color:#ff5555; }
+  .warn { color:#ffaa00; }
+  .dim  { color:#777; }
+  code { background:#222; padding:1px 5px; border-radius:3px; }
+  .verdict { border-left:3px solid #555; padding:12px 14px; margin:14px 0;
+             background:#1a1a1a; font-size:13px; }
+  .verdict.bad  { border-left-color:#ff5555; }
+  .verdict.ok   { border-left-color:#22c55e; }
+  .verdict.warn { border-left-color:#ffaa00; }
+  .note { font-size:12px; color:#888; margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>School Assignment Audit</h1>
+  <div class="sub">
+    Read-only. Answers one question: why do classes not appear under a school?<br>
+    No writes, no repairs, no student names or emails.
+  </div>
+
+  <button id="go">Sign in and run the audit</button>
+  <div id="status" class="note"></div>
+  <div id="out"></div>
+</div>
+
+<script type="module">
+import { db, auth } from './firebase-config.js';
+import { collection, getDocs, query, where }
+    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+const AUDIT_VERSION = '1.0.0';
+document.title = `TypeThatBook — School Assignment Audit v${AUDIT_VERSION}`;
+
+const statusEl = document.getElementById('status');
+const outEl    = document.getElementById('out');
+const goBtn    = document.getElementById('go');
+const esc = (s) => String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+// ⚠️ A uid PREFIX, never a whole one and never a name. Enough to eyeball that
+// two rows are different students; not enough to be a record of anybody.
+const short = (uid) => esc(String(uid || '').slice(0, 6)) + '…';
+
+goBtn.addEventListener('click', async () => {
+    goBtn.disabled = true;
+    try {
+        if (!auth.currentUser) {
+            statusEl.textContent = 'Opening Google sign-in…';
+            await signInWithPopup(auth, new GoogleAuthProvider());
+        }
+        await runAudit();
+    } catch (e) {
+        statusEl.innerHTML = '<span class="bad">Failed: ' + esc(e.message) + '</span>';
+        goBtn.disabled = false;
+    }
+});
+
+onAuthStateChanged(auth, (u) => {
+    if (u) goBtn.textContent = 'Run the audit as ' + esc(u.email || 'signed-in user');
+});
+
+async function runAudit() {
+    outEl.innerHTML = '';
+    statusEl.textContent = 'Reading schools…';
+
+    // ── 1. schools ──────────────────────────────────────────────────────────
+    const schools = {};
+    (await getDocs(collection(db, 'schools'))).forEach(d => { schools[d.id] = d.data() || {}; });
+    const schoolIds = Object.keys(schools);
+
+    let html = '<section><h2>1 · Schools</h2>';
+    if (!schoolIds.length) {
+        html += '<div class="bad">No documents in <code>schools</code>.</div>' +
+                '<div class="note">If this is empty, nothing can be assigned to a ' +
+                'building and every class falls through to “All schools”. This ' +
+                'would be the whole answer on its own.</div>';
+    } else {
+        html += '<table><tr><th>document id</th><th>name</th></tr>';
+        schoolIds.forEach(id => {
+            html += `<tr><td><code>${esc(id)}</code></td><td>${esc(schools[id].name || '—')}</td></tr>`;
+        });
+        html += '</table><div class="note">⚠️ The <b>document id</b> is what a class ' +
+                'must carry in its <code>schoolId</code> field. The name is decoration. ' +
+                'A class holding the school’s NAME instead of its ID matches nothing.</div>';
+    }
+    html += '</section>';
+
+    // ── 2. classes ──────────────────────────────────────────────────────────
+    statusEl.textContent = 'Reading classes…';
+    const classes = {};
+    (await getDocs(collection(db, 'classes'))).forEach(d => { classes[d.id] = d.data() || {}; });
+    const classIds = Object.keys(classes);
+
+    let blank = 0, orphan = 0, good = 0;
+    html += '<section><h2>2 · Classes → school link</h2>';
+    html += '<table><tr><th>class</th><th>schoolId held</th><th>verdict</th></tr>';
+    classIds.sort((a,b) => (classes[a].name||'').localeCompare(classes[b].name||''));
+    for (const id of classIds) {
+        const c = classes[id];
+        const sid = c.schoolId || '';
+        let verdict;
+        if (!sid) { blank++;  verdict = '<span class="bad">BLANK — invisible under any school</span>'; }
+        else if (!schools[sid]) { orphan++; verdict = '<span class="bad">points at no school document</span>'; }
+        else { good++; verdict = '<span class="ok">ok → ' + esc(schools[sid].name || sid) + '</span>'; }
+        html += `<tr><td>${esc(c.name || id)}</td>` +
+                `<td>${sid ? '<code>' + esc(sid) + '</code>' : '<span class="dim">(none)</span>'}</td>` +
+                `<td>${verdict}</td></tr>`;
+    }
+    html += '</table></section>';
+
+    // ── 3. users ────────────────────────────────────────────────────────────
+    statusEl.textContent = 'Reading user assignments…';
+    let uTotal = 0, uNoClass = 0, uNoSchool = 0, uMismatch = 0;
+    const mismatches = [];
+    (await getDocs(collection(db, 'users'))).forEach(d => {
+        const u = d.data() || {};
+        uTotal++;
+        const cid = u.classId || '';
+        if (!cid) { uNoClass++; return; }
+        const theirs = u.schoolId || '';
+        const should = (classes[cid] && classes[cid].schoolId) || '';
+        if (!theirs) uNoSchool++;
+        else if (should && theirs !== should) {
+            uMismatch++;
+            if (mismatches.length < 15) {
+                mismatches.push({ uid: d.id, cls: (classes[cid] && classes[cid].name) || cid,
+                                  theirs, should });
+            }
+        }
+    });
+
+    html += '<section><h2>3 · Students → school link</h2><table>';
+    html += `<tr><td>user documents</td><td>${uTotal}</td></tr>`;
+    html += `<tr><td>with no class</td><td>${uNoClass}</td></tr>`;
+    html += `<tr><td>in a class but <b>no schoolId</b></td><td class="${uNoSchool?'warn':'ok'}">${uNoSchool}</td></tr>`;
+    html += `<tr><td>schoolId disagrees with their class</td><td class="${uMismatch?'bad':'ok'}">${uMismatch}</td></tr>`;
+    html += '</table>';
+    if (mismatches.length) {
+        html += '<div class="note">First few disagreements (uid prefix only):</div><table>' +
+                '<tr><th>uid</th><th>class</th><th>user holds</th><th>class says</th></tr>';
+        mismatches.forEach(m => {
+            html += `<tr><td>${short(m.uid)}</td><td>${esc(m.cls)}</td>` +
+                    `<td><code>${esc(m.theirs)}</code></td><td><code>${esc(m.should)}</code></td></tr>`;
+        });
+        html += '</table>';
+    }
+    html += '<div class="note">⚠️ A blank user schoolId is <b>not necessarily a ' +
+            'problem</b>: game.js falls back to the class’s building when the user ' +
+            'doc has none. It only bites if the class is blank too.</div></section>';
+
+    // ── 4. what is already written ──────────────────────────────────────────
+    statusEl.textContent = 'Sampling recent typing logs…';
+    html += '<section><h2>4 · Already written — the part a repair cannot reach</h2>';
+    try {
+        const since = new Date(Date.now() - 45 * 86400000);
+        const sinceStr = since.getFullYear() + '-' +
+            String(since.getMonth()+1).padStart(2,'0') + '-' +
+            String(since.getDate()).padStart(2,'0');
+        const snap = await getDocs(query(collection(db, 'typing_logs'),
+                                         where('date', '>=', sinceStr)));
+        const byS = {}; let logBlank = 0, logTotal = 0;
+        snap.forEach(d => {
+            const s = (d.data() || {}).schoolId || '';
+            logTotal++;
+            if (!s) logBlank++; else byS[s] = (byS[s] || 0) + 1;
+        });
+        html += `<table><tr><th>typing_logs since ${esc(sinceStr)}</th><th>count</th></tr>`;
+        html += `<tr><td>total</td><td>${logTotal}</td></tr>`;
+        html += `<tr><td><b>blank schoolId</b></td><td class="${logBlank?'warn':'ok'}">${logBlank}</td></tr>`;
+        Object.keys(byS).forEach(s => {
+            const label = schools[s] ? esc(schools[s].name || s) : esc(s) + ' <span class="bad">(no such school)</span>';
+            html += `<tr><td>${label}</td><td>${byS[s]}</td></tr>`;
+        });
+        html += '</table>';
+        html += '<div class="note">⚠️ These are <b>already stamped</b>. Fixing a class ' +
+                'today changes what gets written tomorrow and nothing that is here. The ' +
+                'lessons-admin Students panel queries this field, so a blank count near ' +
+                'the total explains an empty roster panel exactly.</div>';
+    } catch (e) {
+        html += '<div class="warn">Could not read typing_logs: ' + esc(e.message) + '</div>' +
+                '<div class="note">A permission error here is itself informative — it ' +
+                'means the rules did not scope you to a building you expected to have.</div>';
+    }
+    html += '</section>';
+
+    // ── 5. verdict ──────────────────────────────────────────────────────────
+    html += '<section><h2>5 · Verdict</h2>';
+    if (!schoolIds.length) {
+        html += '<div class="verdict bad"><b>No school documents exist.</b> Create one ' +
+                'in the admin panel first; nothing else can be assigned until then.</div>';
+    } else if (blank && !good) {
+        html += `<div class="verdict bad"><b>Every class has a blank schoolId (${blank}).</b> ` +
+                'This is the whole answer. The classes exist, the kids are in them, and ' +
+                'nothing links either to a building — so they appear only under ' +
+                '“All schools”, which is where a super admin starts by default. ' +
+                'Fix: set the building on each class.</div>';
+    } else if (blank || orphan) {
+        html += `<div class="verdict warn"><b>${blank} class(es) blank, ${orphan} pointing ` +
+                `at a school that does not exist, ${good} correct.</b> The affected classes ` +
+                'are the ones missing from your school view; the rest should already be ' +
+                'showing. Compare against the table above.</div>';
+    } else if (uMismatch) {
+        html += `<div class="verdict warn"><b>Classes are all linked correctly, but ` +
+                `${uMismatch} student(s) hold a different schoolId than their class.</b> ` +
+                'The class dropdown will look right while per-student reads do not.</div>';
+    } else {
+        html += '<div class="verdict ok"><b>Every class points at a real school and no ' +
+                'student disagrees with their class.</b> If the symptom persists, it is ' +
+                'not the assignment — check section 4: historic logs may carry a blank ' +
+                'stamp even though today’s assignment is correct.</div>';
+    }
+    html += '<div class="note">⚠️ Nothing was written. Repairs belong in a round that ' +
+            'can watch them, after the source-split cutover has been verified.</div></section>';
+
+    outEl.innerHTML = html;
+    statusEl.innerHTML = '<span class="ok">Audit complete — read-only, nothing changed.</span>';
+    goBtn.disabled = false;
+}
+</script>
+</body>
+</html>

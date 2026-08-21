@@ -193,6 +193,15 @@ const FAST = [
     // game.js v3.35.0 / learn.js v2.20.0.
     ['guest-merge-test.mjs',     'THE GUEST MINUTE: time typed before signing in is merged AND flushed AND lands in the session record, in BOTH modes'],
     ['queue-owner-test.mjs',     'ONE BROWSER, TWO STUDENTS: a second account may not destroy the first\u2019s unflushed queue, by push, by flush or by eviction'],
+    // ⚠️ Round 25 (Hall). A student reported "ass" in a School lesson. Part A
+    // reproduces learn.js's generateRandom() over 200,000 groups and MEASURES
+    // the rate rather than arguing it: 1 in 135 groups, 8.5% of drills. Part D
+    // is the important one and is not about words at all — rejection sampling
+    // on a key set where every outcome is blocked is a frozen browser in a
+    // classroom, so the attempt budget is bounded and a group is always
+    // returned. ⚠️ PART F1 IS PENDING BY DESIGN: learn.js does not import the
+    // module yet. Flip F1 when the wiring ships.
+    ['drill-filter-test.mjs',    'THE RANDOM DRILLS MUST NOT SPELL THINGS: rejection sampling that cannot bias the drill and cannot hang the browser. \u26a0\ufe0f Part F1 is PENDING — learn.js is not wired to it yet'],
 
     // ⚠️ Round 24 (Monotype). THE EVENING GUEST. sessionLogAdopt() recomputed a
     // record's date from `at.slice(0, 10)` — UTC — throwing away the local date
@@ -259,10 +268,21 @@ import { readFileSync as _rf } from 'node:fs';
 // depend on were the only shipped JS nothing parsed. Found in Round 13 when hud.js
 // became the fourth. A shared module is the worst possible thing to leave
 // unchecked: a syntax error in one takes down BOTH student pages at import time.
+// ⚠️ THREE WERE MISSING UNTIL ROUND 25 AND TWO OF THEM ARE LOAD-BEARING ON A
+// STUDENT PAGE. `update-gate.js` is imported by game.html AND learn.html;
+// `daylog.js` is imported by game.js AND learn.js. Both are exactly the case the
+// paragraph above describes as the worst thing to leave unchecked, and both had
+// been left unchecked. daylog.js was accidentally covered — several harnesses
+// import it, so a syntax error would have surfaced somewhere — but update-gate.js
+// was covered by nothing at all: a stray character in it would have taken down
+// both student pages at import time and this suite would have reported success.
+// ⚠️ ADD EVERY NEW SHIPPED MODULE HERE. It is a hand-maintained list, which is
+// why it drifted; there is no import graph to walk without a bundler.
 const MODULES = ['game.js', 'learn.js', 'admin.js', 'adventure-renderer.js',
                  'keyboard.js', 'lessons-admin.js', 'staff-admin.js', 'versions.js',
                  'firebase-config.js', 'stats-wal.js', 'session-log.js', 'hud.js',
-                 'variety-floor.js'];
+                 'variety-floor.js', 'daylog.js', 'update-gate.js',
+                 'drill-filter.js'];
 let syntaxBad = 0;
 for (const f of MODULES) {
     const r = spawnSync(process.execPath, ['--input-type=module', '--check'],

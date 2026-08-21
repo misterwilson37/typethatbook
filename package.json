@@ -60,15 +60,35 @@
     "jsdom": "^24.0.0",
     "jszip": "^3.10.0"
   },
+  "//type": [
+    "⚠️ DO NOT ADD \"type\": \"module\" HERE TO SILENCE THE NODE WARNING.",
+    "Every harness run prints MODULE_TYPELESS_PACKAGE_JSON about daylog.js and",
+    "suggests exactly that fix. It would break the Cloud Function:",
+    "functions/index.js is CommonJS — `const { onCall } = require(...)` — and is",
+    "what `main` points at. \"type\": \"module\" makes .js mean ESM package-wide,",
+    "so the next `firebase deploy` fails on a require() the warning never",
+    "mentioned. The harnesses are .mjs and already unambiguous; the warning is",
+    "about daylog.js, which the browser loads as a module via a <script",
+    "type=module> tag and which Node only sees at all because the tests import",
+    "it. It is noise, it costs a few milliseconds, and the cure is worse.",
+    "If it ever becomes worth removing: rename functions/index.js to .cjs and",
+    "repoint `main`, in a round that can watch a deploy."
+  ],
   "//scripts": [
     "`npm test` exists so the suite has one obvious entry point. run-all-tests.mjs",
     "skips the EPUB corpus harnesses unless you pass --with-epubs, because those",
     "need the library/ folder and take minutes rather than seconds.",
     "",
     "Paths are repo-root relative — package.json is the only file at the root that",
-    "knows where the suite lives, which is the point of putting it here."
-  ],
-  "//scripts": [
+    "knows where the suite lives, which is the point of putting it here.",
+    "",
+    "⚠️ THIS ARRAY AND THE EMULATOR NOTE BELOW USED TO BE TWO SEPARATE",
+    "\"//scripts\" KEYS, AND JSON DOES NOT ALLOW THAT — last one wins. Everything",
+    "above this line was silently discarded by every parser that read the file,",
+    "which is a comment that had been deleted for as long as anyone had been",
+    "reading it. Merged into one array in Round 25. ⚠️ If you add another note,",
+    "add it HERE; do not open a second key.",
+    "",
     "test:rules NEEDS THE FIREBASE EMULATOR — a JVM and a one-time jar download",
     "from storage.googleapis.com. It is deliberately NOT part of `npm test`,",
     "because a fresh clone cannot be assumed to have java and a suite that fails",

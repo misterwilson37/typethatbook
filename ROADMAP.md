@@ -1,11 +1,17 @@
 # TYPETHATBOOK — ROADMAP
 
-**v3.5.0, 2026-08-21 — CUTOVER EVE.** Round 25 (Hall) audited the whole cutover
-one day out and **found it sound** — the audit table is `HANDOFF.md` §0.-11.C and
-it exists so nobody repeats it. One thing was not sound: item 9's
-`lessons-admin.js` bullet, rated *"not urgent"* while the cutover was still in
-the future, **became load-bearing tonight**. Fixed and shipped. Nothing in a
-student write path was touched.
+**v3.8.0, 2026-08-21.** Round 25 (Hall), in three parts across one day.
+**Morning:** audited the whole cutover on its eve and **found it sound** — the
+table is `HANDOFF.md` §0.-11.C, and it exists so nobody repeats it. The one thing
+that was not sound was item 9's `lessons-admin.js` bullet, rated *"not urgent"*
+while the cutover was still in the future and **load-bearing from the moment it
+was not**. Fixed. **Then:** two piddly items outside the frozen files.
+**Then, on Jake's call:** ⚠️ **items 7b and 8 both SHIPPED into `learn.js`** — the
+drill filter and the font picker — under an explicit condition, *"without
+touching the timing mechanism"*, which is now asserted by
+`drill-filter-test.mjs` **F7** rather than promised. ⚠️ **BOTH ITEMS CARRY A
+RULING OR A FINDING THAT MATTERS MORE THAN THE FEATURE. Read 7b and 8 before
+touching either.**
 
 **v3.4.0, 2026-08-20.** Round 24 shipped THE OVERNIGHT RESCUE on Jake's ruling,
 fixed the evening-guest date, the School hard refresh and the Logout button
@@ -238,21 +244,86 @@ the drill-down with noise records. ⚠️ It is one of the two candidates in ite
 
 ---
 
-## 8. STUDENT-FACING POLISH — Jake, 2026-08-20. NOT SOON.
+## 7b. ✅ THE RANDOM DRILLS — FILTERED, ON JAKE'S LEADING RULING
 
-Neither of these is a defect and neither has a deadline. They are here so they
-are not lost.
+**Shipped**: `drill-filter.js` v1.2.0, `learn.js` v2.23.0. 61 checks.
 
-- **A FONT PICKER IN SETTINGS.** Kids want to change the reading font; School at
-  minimum, but there is no reason to scope it. A handful of good options rather
-  than a list — a serif, a humanist sans, a slab, and one high-legibility face
-  (OpenDyslexic or similar) is plenty. ⚠️ **NO SCRIPT FACES.** A child learning
-  to touch-type has to be able to tell `l` from `1` and `rn` from `m`, and a
-  joined face makes per-character highlighting unreadable besides.
-  ⚠️ The setting is per-student and belongs beside the existing gear-menu
-  preferences, not in a class or school document.
-- **The reading-pane font is not the HUD font.** The HUD is monospace on purpose
-  — the clock does not reflow while it counts. Scope the picker to the text.
+⚠️⚠️ **THE RULING IS THE ITEM, IT CHANGED TWICE IN ONE MORNING, AND THE SECOND
+CHANGE REVERSED ONE OF ITS OWN EXAMPLES. READ BOTH PARTS BEFORE TOUCHING THIS.**
+
+> 1. *"ass is bad alone, but it is fine to randomize to lass or asse or mass or
+>    whatever."*
+> 2. *"maybe make it so ass can't lead the word in the four letter clump. Fass is
+>    fine, but asse would probably get it."*
+
+**Part 2 is the live rule.** A tier 1 entry blocks a group when the group
+**STARTS** with it. `asse` was named acceptable in part 1 and is blocked under
+part 2 — that is Jake looking at the consequence and narrowing it, **not** a
+contradiction to resolve by preferring the older quote. Parts B1–B5 hold all of
+it, and B4 is annotated as the reversal so nobody "restores" it.
+
+| group | verdict |
+|---|---|
+| `ass` `asse` `assd` | blocked — leads |
+| `fass` `lass` `mass` `sass` | fine — does not lead |
+| `fart` | blocked | 
+| `xfart` | fine — see the asymmetry below |
+
+⚠️ **LEADING CLOSED A DEAD SPOT THE PREVIOUS RULE HAD.** Whole-group matching
+could never fire a three-letter entry at groupSize 4, so **the original report —
+a student seeing "ass" — was not covered by the fix written for it.** It is now.
+A1 asserts a non-zero rate where v1.1.0 measured exactly 0.
+
+⚠️ **KNOWN ASYMMETRY, RULED NOT OVERLOOKED:** a TRAILING tier 1 word passes
+(`xass`, `xfart`), because `fass` must pass and nothing separates them but
+position. The severe cases live in tier 2, which is substring and position-blind.
+**If a trailing giggle-tier word shows up in a classroom, move that entry to
+`ALWAYS` — do not make tier 1 match both ends**, which blocks `fass` and reopens
+the ruling. B5b asserts the gap on purpose.
+
+⚠️⚠️ **AND LEADING MADE THE NEVER-USE-ON-PROSE WARNING LOAD-BEARING.**
+`assignment`, `assume`, `assist`, `assess` and `asset` are ALL blocked now —
+words this app cannot do without. `class`, `passage`, `grass` and `harass` survive
+only because the sequence does not start them. **One import of this module into
+`game.js` or the Gemini practice path would begin silently deleting ordinary
+English.** B12 names the blocked half; F5/F6 hold the line.
+
+⚠️ **`kkk` WAS IN TIER 2 FOR AN HOUR AND A TEST THREW IT OUT.** Substring rule,
+`k` is a home key, so it fired on ordinary same-finger repetition more often than
+the defect being fixed. **A short tier-2 entry made of common keys is a pedagogy
+bug wearing a safety costume** — the cost of a content filter is paid in the thing
+being filtered, and nobody notices, because the evidence is what is missing. A4
+now caps the home-row rate; C7 blocks the class of entry.
+
+---
+
+## 8. ✅ STUDENT-FACING POLISH — THE FONT PICKER SHIPPED
+
+`learn.js` v2.23.0, `style.css` v3.6.0. Five faces on the School map, per-student
+in `localStorage`, scoped to `#drill-text` only.
+
+⚠️ **NO WEBFONTS, AND THAT IS NOT LAZINESS.** Every face is either already loaded
+or a system stack. `appcheck.html` exists because a district can block a CDN; a
+picker whose options silently fall back to Times on the school network is worse
+than no picker.
+
+⚠️⚠️ **THE FINDING WORTH KEEPING: A PROPORTIONAL FACE BROKE A GUARANTEE `style.css`
+DID NOT KNOW IT WAS MAKING.** The comment above `.dt-char` promises state classes
+"change color only, never dimensions" — but `.dt-fixed` and `.dt-dirty` set
+`font-weight: bold` three lines below it. **That promise held only because the
+font was monospace**, where bold has the same advance width. In a proportional
+face a character going bold the instant a child backspaces and retypes would
+shove the rest of the line sideways under their fingers, mid-drill. `style.css`
+v3.6.0 swaps bold for an underline while a proportional face is active. **The old
+comment is now accurate rather than lucky.** F8–F10.
+
+⚠️ **THE CONTROL IS ON THE MAP, NOT IN THE DRILL** — a `<select>` inside the drill
+view is one Tab away from eating a keystroke the student typed and should have
+been credited for.
+
+**Still open from this item:** nothing. If more faces are wanted, add to
+`DRILL_FONTS` and mark the fourth column `false` for anything proportional, or
+F8's guarantee lapses silently.
 
 ---
 
@@ -266,7 +337,10 @@ No deadline.
   ⚠️ `STAT_KEYS`, the WAL fold, the guest merge and the midnight rollover are
   four hand-maintained lists a new counter has to be added to.
 - **Enforce the header budget**: 60 lines, 6 version entries; history belongs in
-  `CHANGELOG.md`. ⚠️ **AND THE CHANGELOG HAS TO BE WRITTEN FOR THAT TO MEAN
+  `CHANGELOG.md`. ⚠️ `npm run audit:versions` is the tool and it reports **15
+  problems**; `game.js` (373 lines / 31 entries) and `learn.js` (321 / 34) are the
+  worst and both are frozen until after Monday. The ONE ordering failure it found
+  is fixed — see below. ⚠️ **AND THE CHANGELOG HAS TO BE WRITTEN FOR THAT TO MEAN
   ANYTHING — ROUND 24 SHIPPED FOUR FILES AND ADDED NO ENTRY**, putting all of it
   in `HANDOFF.md` instead, which is the pressure this bullet is about. Round 25
   did not reconstruct it from the outside; see `HANDOFF.md` §0.-11.D. The
@@ -276,6 +350,14 @@ No deadline.
 - **Sentence-boundary WAL checkpoint**, both files or neither. localStorage only,
   costs nothing.
 - **`pendingClassAssignments` as a third roster discovery source.**
+- ~~**Three shipped modules were not syntax-checked**~~ ✅ **DONE**, Round 25.
+  `MODULES` in `run-all-tests.mjs` omitted `daylog.js`, `update-gate.js` and (on
+  arrival) `drill-filter.js`. ⚠️ **`update-gate.js` is imported by BOTH
+  `game.html` and `learn.html` and was covered by nothing at all** — a stray
+  character in it takes down both student pages at import time and the suite
+  would have reported success. `daylog.js` was accidentally covered by harnesses
+  importing it. 13 → 16 modules. It is a hand-maintained list with no import
+  graph behind it, so it will drift again; there is now a warning above it.
 - ~~**Guest paths verified by running rather than reading.**~~ ✅ **DONE** for
   Library, 2026-08-20, in the console — see item 2. ⚠️ **NOT DONE for School.**
   `learn.js`'s guest handover has still never been driven against a browser.
@@ -294,6 +376,23 @@ No deadline.
   ⚠️ **STILL OPEN, AND IT IS A DIFFERENT PROBLEM:** the query above it filters on
   `where('date', ...)`, on the FIELD, because an id is not indexable. A document
   with a wrong stamp can still fail to be DISCOVERED. `HANDOFF.md` §0.-11.B.
+- ~~**`lessons-admin.js`'s header entries are out of order**~~ ✅ **DONE**, Round
+  25. `v1.13.0`'s entry had been pasted into the MIDDLE of `v1.11.0`'s sentence,
+  cutting it off at "reports.html" and orphaning the paragraph that finished it.
+  ⚠️ **THAT IS WHAT THE ORDERING WARNING WAS ACTUALLY REPORTING** — not a
+  cosmetic sort problem but a destroyed sentence, which is worth knowing the next
+  time `audit:versions` says "out of order" about a file. Comments only.
+- ~~**`package.json` declares `//scripts` TWICE**~~ ✅ **DONE**, Round 25. JSON
+  does not allow duplicate keys — last one wins — so the first array, explaining
+  `npm test` and `--with-epubs`, was silently discarded by every parser that ever
+  read the file. A comment that had been deleted for as long as anyone had been
+  reading it. Merged into one array.
+- ⚠️ **DO NOT ADD `"type": "module"` TO `package.json`.** Every harness run prints
+  `MODULE_TYPELESS_PACKAGE_JSON` and recommends exactly that. `functions/index.js`
+  is CommonJS and is what `main` points at, so it would break the next
+  `firebase deploy` on a `require()` the warning never mentioned. The reasoning is
+  now in a `//type` key in the file itself. If it is ever worth doing: rename that
+  file to `.cjs` and repoint `main`, in a round that can watch a deploy.
 - **`handleDrillKey()` and game.js's keydown listener are near-duplicates that
   drifted.** Round 24 fixed the modifier guard in one of them. They disagree in
   other places too. Neither is obviously the better copy.

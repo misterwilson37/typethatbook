@@ -1,9 +1,9 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.2.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.5.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 25; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
 
-     v15.2.0 — Round 25 (Hall). ⚠️ §0.-11 IS THE WRITE-UP. A ONE-LINE STAFF READ
+     v15.5.0 — Round 25 (Hall). ⚠️ §0.-11 IS THE WRITE-UP. A ONE-LINE STAFF READ
      PATH FIX, SHIPPED THE DAY BEFORE THE CUTOVER BECAUSE THAT IS THE LAST DAY IT
      IS WORTH ANYTHING. `lessons-admin.js` dated every typing_logs document by
      the `date` FIELD inside it, where reports.html warns in capitals to key off
@@ -13,8 +13,14 @@
      had this as "not urgent" — an assessment that was correct when the cutover
      was in the future and expired at midnight tonight. ⚠️ THE ROUND ALSO AUDITED
      THE WHOLE CUTOVER AND FOUND IT SOUND — §0.-11.C lists what was checked and
-     what came back clean, so the next round does not re-audit it. ⚠️ AND
-     ROUND 24 LEFT NO CHANGELOG ENTRY — §0.-11.D. 38/38 harnesses, 53 checks in
+     what came back clean, so the next round does not re-audit it. ⚠️ THE FONT PICKER WAS ASKED FOR AND DEFERRED
+     ONE WEEKEND, ON TIMING NOT SCOPE — §0.-11.D, WHICH ALSO HOLDS THE TWO
+     PIDDLY FIXES THAT DID SHIP. ⚠️ AND ROUND 24 LEFT NO CHANGELOG ENTRY — §0.-11.H.
+     ⚠️⚠️ §0.-11.E IS THE SCHOOL-LINK DIAGNOSIS (mechanism certain, cause NOT —
+     school-audit.html answers it read-only), §0.-11.F IS THE DRILL FILTER AND THE FONT PICKER, BOTH
+     SHIPPED INTO learn.js v2.23.0 ON JAKE'S CALL — whole-group matching on his
+     ruling, and a proportional font turned out to break a no-reflow guarantee
+     style.css did not know it was making, §0.-11.G CONFIRMS THE CSV ROLLOVER EXISTS. 39 harnesses. 38/38 harnesses, 53 checks in
      daylog-cutover-test.mjs.
 
      v15.1.0 — Round 24 (Monotype). ⚠️⚠️ §0.-10 IS THE WRITE-UP AND IT OPENS
@@ -254,7 +260,187 @@ back sound.** Recorded so Round 26 spends its time elsewhere:
 | `STAT_KEYS` / the guest-merge fold including the per-source triples | Yes, both, with the incident that required it written above them. |
 | Mixed old/new builds across the cutover | Degrades safely. An old writer reads flat and writes flat; the "missing `dateStr` takes the old path" branch is what makes this true. ⚠️ `update-gate.js` is the lever if a stale tab is ever suspected — bump `settings/appVersion.nonce`. |
 
-### D. ⚠️ ROUND 24 SHIPPED WITHOUT A CHANGELOG ENTRY
+### D. ⚠️ THE FONT PICKER WAS ASKED FOR AND DEFERRED ONE WEEKEND
+
+Jake asked, 2026-08-21: *"Is it time to do the font choice and any other piddly
+things like that?"* Answer given: **the piddly things yes, the font picker no,
+and the reason is the calendar rather than the feature.**
+
+The picker lands in `game.js` and `learn.js`. Those are the two files whose
+counting behaviour changes at the cutover, and Monday's verification list is a
+set of observations ABOUT them. Re-uploading both tonight would put *"and both
+counting files changed the night before"* into the middle of that observation —
+the exact variable this round spent its day removing from the roster panel.
+
+⚠️ **THIS IS NOT THE `learn.js` WRITE-PATH HOLD.** That rule is about student
+write paths and a font picker writes no counters; citing it here would be
+borrowing authority from a rule that does not apply. The argument is narrower and
+expires sooner: **when Monday's list is green, do the picker first.**
+
+⚠️ **AND IT IS NOT A GENERAL LICENCE TO FREEZE THINGS.** Two piddly items DID
+ship tonight, both outside those files, and the test is exactly that — does the
+change land somewhere Monday's observation depends on?
+
+- `lessons-admin.js`'s header: `v1.13.0`'s entry had been pasted into the MIDDLE
+  of `v1.11.0`'s sentence, cutting it off at "reports.html" and orphaning the
+  paragraph that finished it. ⚠️ **That is what `audit:versions` "out of order"
+  was actually reporting** — a destroyed sentence, not a sort problem. Worth
+  knowing next time it says that about a different file.
+- `package.json` declared **`//scripts` twice**. JSON takes the last of a
+  repeated key, so the array explaining `npm test` and `--with-epubs` was
+  discarded by every parser that ever opened the file — a comment that had been
+  deleted for as long as anyone had been reading it. Merged.
+- ⚠️ **AND A TRAP IS NOW WRITTEN DOWN IN `package.json` ITSELF:** every harness
+  run prints `MODULE_TYPELESS_PACKAGE_JSON` and recommends adding
+  `"type": "module"`. **Do not.** `functions/index.js` is CommonJS and is what
+  `main` points at, so it breaks the next `firebase deploy` on a `require()` the
+  warning never mentions. The noise is cheaper than the cure.
+
+`audit:versions` still reports 14 problems, nearly all of them header budget in
+`game.js` (373 lines / 31 entries) and `learn.js` (321 / 34). Both frozen until
+after Monday. That is ROADMAP item 9, and it is a real round's work.
+
+---
+
+### E. ⚠️ THE SCHOOL LINK — DIAGNOSED TO A MECHANISM, NOT YET TO A CAUSE
+
+Jake, 2026-08-21: *"Somehow, none of my kids are in my school on the website,
+even though they're all in my classes."*
+
+**The mechanism is certain.** `reports.html`'s class dropdown filters on:
+
+```js
+if (schoolId !== '__all__' && (c.schoolId || '') !== schoolId) return false;
+```
+
+A class whose `schoolId` is blank — or which does not EXACTLY equal a school
+document's **id** — is filtered out of every named school and survives only under
+"All schools".
+
+⚠️ **AND "All schools" IS WHERE A SUPER ADMIN LANDS BY DEFAULT.** It is the first
+option and nothing moves the selection off it (`if (!isSuper() && visible.length)
+schoolSel.value = visible[0]` — supers are excluded). **That is why this is
+invisible to the one person who can see everything and would be obvious to a
+building admin.** It also explains the shape of the complaint exactly: the
+classes are fine, the kids are in them, and the CLASS→BUILDING link is the thing
+missing.
+
+⚠️ **WHICH OF THREE CAUSES IT IS CANNOT BE DETERMINED FROM THE CODE**, and the
+house rule for that is to go and look rather than reason forward from the most
+plausible one:
+1. no `schools` documents exist at all;
+2. classes carry a blank `schoolId` (the rules permit it for a super admin —
+   `isSuper() && request.resource.data.schoolId is string`, **and `''` IS a
+   string**, so the guard is in the UI only);
+3. classes carry a `schoolId` that is not any school's document id — e.g. a
+   NAME rather than an id, or a second school document.
+
+**`school-audit.html` v1.0.0 answers it in one click.** Read-only: four
+collections, a verdict, and a panel measuring what a repair CANNOT reach.
+
+⚠️ **THE PART A REPAIR CANNOT REACH IS THE POINT OF SECTION 4 OF THAT PAGE.**
+`typing_logs.schoolId` is stamped at write time by `game.js`/`learn.js` from the
+user document, falling back to the class. Fixing a class today changes what is
+written tomorrow and **nothing already stored** — and the lessons-admin Students
+panel queries `typing_logs` BY that field. So a corrected class can still show an
+empty roster panel for its history. Decide deliberately whether that matters
+before anyone "fixes" it and declares victory.
+
+⚠️ **NO REPAIR BUTTON, ON PURPOSE.** A bulk write to `users` on the night before
+the source-split cutover, on a diagnosis nobody had confirmed, is not a thing to
+do. Look first, repair Monday.
+
+### F. ⚠️ THE DRILL FILTER AND THE FONT — SHIPPED, AND THREE THINGS TO KEEP
+
+Both went into `learn.js` v2.23.0 on Jake's call, under one condition: *"if you
+think you can make them without touching the timing mechanism, do it."*
+
+⚠️ **THAT CONDITION IS NOW A TEST, NOT A PROMISE.** `drill-filter-test.mjs` **F7**
+brace-matches the five new/changed functions and asserts none mentions a counter,
+timer or flush. ⚠️ **The first version of F7 split the file on `/\nfunction /` and
+was WRONG** — bodies bled into what followed and it flagged `renderMap()`, which
+legitimately both calls the picker and paints a time on the map. *A render
+function displaying a number is not a render function computing one.* "Do these
+two words appear near each other" is not the question; brace-matching by name is.
+
+**1. ⚠️⚠️ THE RULING CHANGED TWICE IN ONE MORNING AND THE SECOND CHANGE REVERSED
+ONE OF ITS OWN EXAMPLES.**
+
+> 1. *"ass is bad alone, but it is fine to randomize to lass or asse or mass."*
+> 2. *"maybe make it so ass can't lead the word in the four letter clump. Fass is
+>    fine, but asse would probably get it."*
+
+Three matchers in one morning: substring (v1.0.0, wrong), whole-group (v1.1.0,
+part 1), **leading (v1.2.0, part 2 — live)**. `asse` was named ACCEPTABLE in part
+1 and is BLOCKED under part 2.
+
+⚠️ **DO NOT "FIX" THAT BY PREFERRING THE OLDER QUOTE.** It is Jake looking at the
+consequence of his own rule and narrowing it. B4 is annotated as the reversal for
+exactly this reason. **When a ruling is amended, the amendment is the ruling —
+and the superseded example is the thing most likely to be mistaken for a bug.**
+
+⚠️ **AND THE AMENDMENT FIXED SOMETHING NEITHER OF US SPOTTED IN PART 1.** Under
+whole-group matching a three-letter entry could not fire at groupSize 4 at all —
+so **the original report, a student seeing "ass", was not covered by the fix
+written for it.** I had written that up as a deliberate edge and documented it as
+working-as-intended. It was a hole, and Jake's instinct closed it without either
+of us framing it that way. ⚠️ *A defect I have explained is not a defect I have
+justified.*
+
+⚠️ **LEADING MADE THE PROSE WARNING LOAD-BEARING.** `assignment`, `assume`,
+`assist`, `assess` and `asset` are all blocked now. One import of this module
+into `game.js` or the Gemini path would begin silently deleting ordinary English.
+B12 names them; F5/F6 hold the line.
+
+**2. ⚠️ `kkk` WAS IN THE SLUR TIER FOR AN HOUR AND A FAILING TEST THREW IT OUT.**
+
+It is a SUBSTRING rule and `k` is a home key, so it fired on ordinary same-finger
+repetition — `kkkl`, `akkk` — more often than the defect the module was written
+for, silently suppressing a legitimate exercise. **A short tier-2 entry made of
+common keys is a pedagogy bug wearing a safety costume.** ⚠️ The general lesson is
+bigger than the entry: **a content filter's cost is paid in the thing being
+filtered, and nobody notices, because the evidence is what is missing.** A1 and C7
+are the guards. Do not put it back.
+
+**3. ⚠️⚠️ A PROPORTIONAL FONT BROKE A GUARANTEE `style.css` DID NOT KNOW IT WAS
+MAKING — AND THIS IS THE MOST REUSABLE FINDING OF THE DAY.**
+
+The comment above `.dt-char` promises state classes *"change color only, never
+dimensions, so every character is always the same width."* Three lines below it,
+`.dt-fixed` and `.dt-dirty` set `font-weight: bold`. **The promise held only
+because the font was monospace**, where bold has the same advance width. Add a
+proportional face and a character going bold the instant a child backspaces and
+retypes shoves the rest of the line sideways under their fingers, mid-drill.
+`style.css` v3.6.0 swaps bold for an underline while a proportional face is
+active. **The comment is now accurate rather than lucky.**
+
+⚠️ **Generalise it:** an invariant written in a comment can be true for a reason
+the comment does not state, and a change that looks cosmetic can remove that
+reason. When adding a knob, ask what the old code was quietly relying on.
+
+⚠️ **AND WHILE IN THERE:** `body::before` still read `"v3.5.5"` after the v3.5.6
+edit, so the build footer had been under-reporting `style.css` by a patch. It is
+the only machine-readable copy and nothing compared it to the header. **F12 does
+now.**
+
+⚠️ **NEVER WIRE THE FILTER INTO `game.js`.** Library's text is real books, where
+every entry on the list is a legitimate word. F5/F6 hold that.
+
+### G. THE CSV ROLLOVER — CONFIRMED PRESENT, ANSWERED FROM THE CODE
+
+Jake asked whether a student already in a class would be offered a move or would
+"vanish into the night". **It exists**, `lessons-admin.js` v1.10.0, and the
+answer is neither vanish nor silent move: the preview shows a decision block —
+*"What should happen to students who already have a class?"* — with **Commit
+LOCKED** until one of two radios is chosen (`_csvOverwriteMode` is deliberately
+not defaulted). ⚠️ The mode governs BOTH paths — students the roster can see and
+students queued to `pendingClassAssignments` by email — because applying it to
+only one half would make the behaviour depend on which side of the 45-day log
+window a student happened to fall on. That was the v1.10.0 defect.
+
+---
+
+### H. ⚠️ ROUND 24 SHIPPED WITHOUT A CHANGELOG ENTRY
 
 `CHANGELOG.md` has one `## Round` heading and it is Round 23's. Round 24 shipped
 `game.js` v3.37.0/3.38.0, `learn.js` v2.21.1/2.22.0, `daylog.js` v1.4.0 and a

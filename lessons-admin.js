@@ -14,20 +14,16 @@
 //           can still fail to be DISCOVERED here. This fix makes the ones that
 //           are discovered read correctly; it does not make discovery sound.
 //           Staff page, read-only. No student write path is touched.
-//
-// v1.12.0 — legacy-first read, matching reports.html v2.14.0 after the source
-//          split was reverted in game.js v3.30.0 / learn.js v2.15.0.
-//
-//
-// v1.11.1 — follows reports.html v2.13.1: the legacy `seconds` field is now
-//          SUMMED with the split fields rather than superseded by them, so time
-//          recorded earlier the same day by pre-split code isn't dropped.
+//           ⚠️ ALSO REPAIRS THIS HEADER: v1.13.0's entry had been pasted
+//           into the MIDDLE OF v1.11.0's sentence, truncating it at
+//           "reports.html" and orphaning the paragraph that finished it
+//           — which is why `npm run audit:versions` reported the entries
+//           out of order. Entries are descending again and v1.11.0 reads
+//           as one sentence. Comments only; no code moved.
 //
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
-// Version exposed as a window global so admin.js can read it
+// Version exposed as a window global so admin.js can read it.
 //
-// v1.11.0 — READ-SIDE OF THE SOURCE SPLIT (DESIGN-TELEMETRY.md §2.4). Same
-//          incident as game.js v3.29.0 / learn.js v2.14.0 / reports.html
 // v1.13.0 — ⚠️⚠️ THE ROSTER PANEL LEARNED THE PER-SOURCE CUTOVER. This file is
 //           the FOURTH reader of typing_logs and the only one Round 21's cutover
 //           work missed. Its weekSeconds column was legacy-first with no date
@@ -35,6 +31,15 @@
 //           with a week of nearly nothing while reports.html showed their real
 //           minutes. No student-facing change; this is a staff page.
 //
+// v1.12.0 — legacy-first read, matching reports.html v2.14.0 after the source
+//          split was reverted in game.js v3.30.0 / learn.js v2.15.0.
+//
+// v1.11.1 — follows reports.html v2.13.1: the legacy `seconds` field is now
+//          SUMMED with the split fields rather than superseded by them, so time
+//          recorded earlier the same day by pre-split code isn't dropped.
+//
+// v1.11.0 — READ-SIDE OF THE SOURCE SPLIT (DESIGN-TELEMETRY.md §2.4). Same
+//          incident as game.js v3.29.0 / learn.js v2.14.0 / reports.html
 //          v2.13.0: typing_logs now carries secondsLibrary/secondsSchool
 //          instead of a shared `seconds` field two page controllers used to
 //          silently overwrite on each other. The roster panel's weekSeconds
