@@ -1,7 +1,9 @@
 // guest-merge-test.mjs v1.1.0 — THE MINUTE A CHILD TYPES BEFORE SIGNING IN.
 //
-// v1.1.0 — Part C4 asserts the HANDOVER rather than one spelling of it. See the
-//          comment at C4. No other assertion changed.
+// v1.1.0 — Parts C4, C5 and C7 assert their PROPERTY rather than one spelling
+//          of it: C4/C5 that the slot is taken then adopted, C7 that the flush
+//          follows the adopt. All three used to be defeated by adding a
+//          comment. See the note at C4. No other assertion changed.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // THE DEFECT, MEASURED ON REAL DATA (Jake, 2026-08-20)
@@ -195,13 +197,29 @@ console.log('\n─── C. a guest\u2019s records are kept, and handed over ─
         ok(iTake >= 0 && iAdopt >= 0 && iTake < iAdopt,
            'C4 game.js takes the guest slot and adopts it, in that order, at sign-in');
     }
-    ok(/sessionLogAdopt\(\s*user\.uid,\s*sessionLogTake\(GUEST_QUEUE_UID\)/.test(learn),
-       'C5 learn.js does the same');
+    {
+        // Same reasoning as C4 — learn.js needed the same local for the same
+        // reason (Round 24, the overnight rescue). Property, not spelling.
+        const body = lift(decomment(learn), 'retroactiveSaveAnonSession') || '';
+        const iTake  = body.indexOf('sessionLogTake(GUEST_QUEUE_UID)');
+        const iAdopt = body.indexOf('sessionLogAdopt(user.uid');
+        ok(iTake >= 0 && iAdopt >= 0 && iTake < iAdopt,
+           'C5 learn.js takes and adopts the guest slot in the same order');
+    }
     // Jake: "As a flush so it's in the record, too."
     ok(/retroactiveSaveGuestSession[\s\S]{0,3000}?flushAll\('guest-retroactive', true\)/.test(game),
        'C6 ⚠️ game.js FLUSHES immediately — the correction reaches the teacher now');
-    ok(/sessionLogAdopt[\s\S]{0,500}?flushStats\('anon-retroactive', true\)/.test(learn),
-       'C7 learn.js flushes after adopting too');
+    {
+        // ⚠️ WAS A 500-CHARACTER PROXIMITY WINDOW and Round 24's comment block
+        // pushed the flush outside it — the third assertion in this file to go
+        // red for prose rather than behaviour. What matters is ORDER inside the
+        // one function: adopt, then flush. Distance is not the property.
+        const body = lift(decomment(learn), 'retroactiveSaveAnonSession') || '';
+        const iAdopt = body.indexOf('sessionLogAdopt(user.uid');
+        const iFlush = body.indexOf("flushStats('anon-retroactive', true)");
+        ok(iAdopt >= 0 && iFlush >= 0 && iAdopt < iFlush,
+           'C7 learn.js flushes AFTER adopting, in the same function');
+    }
 }
 
 console.log('\n─── D. the handover, against the real module ───');
