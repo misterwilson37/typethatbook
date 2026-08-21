@@ -1,10 +1,11 @@
 # TYPETHATBOOK — ROADMAP
 
-**v3.2.0, 2026-08-20.** Round 24 shipped THE OVERNIGHT RESCUE on Jake's ruling,
+**v3.3.0, 2026-08-20.** Round 24 shipped THE OVERNIGHT RESCUE on Jake's ruling,
 fixed the evening-guest date, the School hard refresh and the Logout button
 (invisible twice, in two stylesheets), and — from Jake's own re-generated
 report — **downgraded item 1 from "records are lost" to "records are late."**
-Completed work and settled arguments live in `HANDOFF.md`.
+⚠️ It also **deleted item 3 as a phantom** — one `grep` ended a defect two rounds
+had carried. Completed work and settled arguments live in `HANDOFF.md`.
 
 ---
 
@@ -28,7 +29,8 @@ that morning **by design**, and two harness Parts assert that defect on purpose.
   `daylog.js` v1.4.0 refuses to carry into a pre-cutover day, so nothing happens
   before Saturday. **First chance to see it work: type as a guest on the 24th,
   do not sign in, sign in on the 25th, and check the 24th's total AND its
-  drill-down.** Both should show the rescued sprint, on the 24th.
+  drill-down.** Both should show the rescued sprint, on the 24th. Worth doing
+  once in each mode — the two writers are separate copies.
 
 ---
 
@@ -95,40 +97,46 @@ future round leaning on it should not.
 
 ---
 
-## 2b. ⚠️ THE RESCUE IS LIBRARY-ONLY — learn.js IS NOT WIRED
+## 2b. ✅ THE RESCUE IS WIRED IN BOTH MODES
 
-`game.js` v3.37.0 carries prior-day guest sprints to their own documents.
-`learn.js` does not, and the shared machinery in `daylog.js` v1.4.0 is
-source-agnostic and ready for it: `carryOverPlan()` already groups School
-records correctly and `carryOverPayloadFor('school', …)` already names the right
-triple. `carryover-test.mjs` Parts A2, D4 and F5 cover the School side today.
+`game.js` v3.37.0 and `learn.js` v2.22.0 both carry prior-day guest sprints to
+their own documents, through the same `daylog.js` v1.4.0 functions.
 
-**What is missing is six lines in `learn.js`'s `retroactiveSaveAnonSession()`**,
-mirroring `game.js`: keep the taken array in a local, plan from it, write after
-the flush.
+⚠️ **THE STANDING HOLD ON `learn.js` DID NOT APPLY AND HERE IS WHY**, because a
+future round will face the same call. The rule is that a student write-path
+change to the file 8th grade depends on ships in a round that can watch School
+run. **This code cannot execute before the cutover** — `carryOverPlan()` filters
+every pre-cutover date, so the plan is empty and the writer is never called. It
+was inert on the school day following the deploy, by construction rather than by
+hope. ⚠️ **That reasoning is specific to this change.** Do not generalise it into
+"learn.js edits are fine."
 
-⚠️ **HELD BACK DELIBERATELY, under the standing rule** (§0.-9.G, item 3): a
-student write-path change to the file 8th grade depends on ships in a round that
-can watch School run. Round 24 could not. **Ship this and item 3 together, in
-one School-watching round** — they touch the same function and the same file, and
-two separate deploys to `learn.js` is two chances to be wrong.
+---
 
-⚠️ Until then, a School guest who signs in the next day keeps their **record**
-and not their **minutes**. That is the pre-existing behaviour, unchanged, not a
-regression.
+## 3. ✅ DELETED — "learn.js FLUSHES FOR ANONYMOUS USERS" WAS A PHANTOM
 
-## 3. learn.js FLUSHES FOR ANONYMOUS USERS
+**⚠️ THE PREMISE WAS FALSE AND IT SURVIVED TWO ROUNDS.** The item said
+`_flushStatsInner()`'s `if (!currentUser) return;` misses guests *"because a
+guest is signed in anonymously, so `currentUser` is not null"* — and concluded a
+real `typing_logs/{anonUid}_{date}` document existed under a uid no roster could
+attribute.
 
-`game.js`'s `_flushAllInner()` opens `if (!currentUser || currentUser.isAnonymous)
-return;`. **`learn.js`'s `_flushStatsInner()` opens only `if (!currentUser)
-return;`** — and a guest is signed in anonymously, so `currentUser` is not null.
-A guest in School therefore writes `typing_logs/{anonUid}_{date}`: a real
-document under a uid no roster can attribute.
+**`signInAnonymously` appears NOWHERE in this repo.** Not in `game.js`, not in
+`learn.js`, not in `index.html`, not anywhere. There is no anonymous auth. A
+guest has `currentUser === null`, that guard has always caught them, and **no
+orphan document has ever existed.** Firebase does not create an anonymous user
+on its own; it requires that call.
 
-**It loses nothing** — the student's own document is correct via the merge — so
-this is orphan noise, not a wrong grade. It is a one-line change to the file 8th
-grade depends on. ⚠️ **Ship it in a round that can watch School run**, not under
-deadline.
+⚠️ **EVERY `currentUser.isAnonymous` TEST IN BOTH FILES IS BELT-AND-BRACES
+AGAINST A STATE THE APP CANNOT PRODUCE.** They are harmless and they are **not
+evidence that the state occurs** — reading them as evidence is exactly how this
+item was born. ⚠️ **DO NOT "FIX" THIS BY ADDING ANOTHER ONE.** If anonymous auth
+is ever switched on, this whole area needs a real review, not another guard.
+
+⚠️ **THE LESSON IS THE ITEM.** It was written from reading two guards side by
+side and inferring the state they described. Round 23 then repeated it, Round 24
+scheduled work against it, and one `grep` for `signInAnonymously` ended it.
+**Grep for the mechanism before writing down the consequence.**
 
 ---
 
@@ -264,6 +272,11 @@ No deadline.
   in `stats-wal.js`'s header and `learn.js`'s `checkpointOwner()`. Round 23 built
   a whole theory on the opposite and Jake had to say so twice. **The only two
   uids that can meet on one profile are guest and signed-in.**
+- ⚠️⚠️ **THERE IS NO ANONYMOUS AUTH IN THIS APP.** `signInAnonymously` appears
+  nowhere in the repo, so a guest has `currentUser === null` and every
+  `currentUser.isAnonymous` test is a guard against a state that cannot occur.
+  Two rounds wrote a defect report on the opposite belief (deleted item 3).
+  **Grep for the mechanism before writing down the consequence.**
 - ⚠️ **YESTERDAY'S GUEST MINUTES ARE CREDITED TO YESTERDAY, NOT TO TODAY.**
   Jake's ruling, 2026-08-20: *"It wouldn't be cheating, as it would get picked up
   and put in the right place."* This **overturns the twenty-four-hour drop** in

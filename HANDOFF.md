@@ -18,7 +18,12 @@
      the (Logout) button was styled invisible TWICE, in two stylesheets. ⚠️ AND
      THEN JAKE RULED ON THE OVERNIGHT RESCUE and it shipped: a child who typed
      as a guest and did not sign in until the next day now has those minutes
-     credited TO THE DAY THEY TYPED THEM. See §0.-10.G. 37/37 harnesses.
+     credited TO THE DAY THEY TYPED THEM, in BOTH modes. See §0.-10.G.
+     ⚠️⚠️ AND ROADMAP ITEM 3 IS DELETED AS A PHANTOM — §0.-10.J. It described an
+     orphan `typing_logs/{anonUid}` document written for guests in School,
+     "because a guest is signed in anonymously." `signInAnonymously` APPEARS
+     NOWHERE IN THIS REPO. Two rounds carried it; one grep ended it.
+     37/37 harnesses.
 
      ⚠️⚠️ v15.0.0 IS A MAJOR AND JAKE SIGNED IT OFF ("Feel free to do a clean up
      of Handoff while you're at it. Clean out anything unnecessary that you no
@@ -177,7 +182,7 @@ would have. The instrument you reach for first is not always the cheap one.
 | File | Version | What |
 |---|---|---|
 | `session-log.js` | **v1.6.0** | `sessionLogAdopt()` prefers the record's own local `date`; the UTC slice survives only for the undated legacy migration |
-| `learn.js` | **v2.21.1** | one early return in `handleDrillKey()` — Cmd/Ctrl+R reaches the browser |
+| `learn.js` | v2.21.1 → **v2.22.0** | Cmd/Ctrl+R reaches the browser; then the School rescue |
 | `style.css` | **v3.5.6** | `.text-btn` legible: #ccc, 13px, hover background, focus ring |
 | `tests/adopt-date-test.mjs` | **NEW** | 13 assertions, **4 failing against v1.5.0** |
 | `tests/run-all-tests.mjs` | v1.6.0 | registers it |
@@ -187,12 +192,15 @@ would have. The instrument you reach for first is not always the cheap one.
 | `daylog.js` | **v1.4.0** | `carryOverPlan()` / `carryOverPayloadFor()` (§0.-10.G) |
 | `game.js` | **v3.37.0** | `carryGuestDaysToTheirOwnDocuments()` (§0.-10.G) |
 | `tests/carryover-test.mjs` | **NEW** | 40 assertions, both guards mutation-verified |
-| `tests/guest-merge-test.mjs` | v1.1.0 | C4 asserts the property, not the spelling (§0.-10.I) |
+| `tests/guest-merge-test.mjs` | v1.1.0 | C4, C5, C7 assert the property, not the spelling (§0.-10.K) |
+| `learn.js` | **v2.22.0** | the School half of the rescue; item 3 deleted (§0.-10.G, §0.-10.J) |
 
-⚠️ **UPLOAD ORDER: `session-log.js`, then `daylog.js`, then `game.js`.** Both
-shared modules before the page controller that imports from them — `game.js`
-v3.37.0 imports `carryOverPlan`, `carryOverPayloadFor` and `sourceTotalsOf`, and
-a missing export throws on import and renders **nothing at all**.
+⚠️ **UPLOAD ORDER: `session-log.js`, then `daylog.js`, then `game.js` and
+`learn.js`.** Both shared modules before EITHER page controller — v3.37.0 and
+v2.22.0 both import `carryOverPlan`, `carryOverPayloadFor` and `sourceTotalsOf`,
+and a missing export throws on import and renders **nothing at all**. ⚠️ This is
+the first round in a while where getting the order wrong breaks BOTH modes
+rather than one.
 
 ⚠️ **UPLOAD `session-log.js` FIRST**, same as Round 23 — `game.js` and `learn.js`
 both import from it.
@@ -390,25 +398,75 @@ sprint, when an empty queue is the CORRECT state — the queue is only written
 when a sprint ends. **Ask for the reading at a moment when the answer means
 something**, or you will get a true answer to a question nobody asked.
 
-### 0.-10.I ⚠️ A HARNESS WENT RED FOR A TEXTUAL REASON, NOT A BEHAVIOURAL ONE
+### 0.-10.J ⚠️⚠️ ROADMAP ITEM 3 WAS A PHANTOM, AND THE WAY IT GOT THERE MATTERS
 
-`guest-merge-test.mjs` C4 required the literal nested call
-`sessionLogAdopt(user.uid, sessionLogTake(GUEST_QUEUE_UID)`. §0.-10.G needed the
-taken array in a local so the rescue could plan from it **before the flush drains
-the queue** — a correct change that turned the Part red for spelling. C4 now
-asserts that the slot is TAKEN and the result is ADOPTED, in that order, inside
-the one function. **v1.1.0. No other assertion changed.**
+**Jake asked "why not fix the learn.js while we're in there?" The answer turned
+out to be: because there is nothing to fix.**
 
-⚠️ A source-text assertion should hold the PROPERTY, not one way of writing it,
-or it bills the next correct edit for the privilege.
+Item 3, written in Round 23 as §0.-9.G and carried into two roadmaps, said:
+
+> `learn.js`'s `_flushStatsInner()` opens only `if (!currentUser) return;` — and
+> a guest is signed in **anonymously**, so `currentUser` is not null. A guest in
+> School therefore writes `typing_logs/{anonUid}_{date}`: a real document under
+> a uid no roster can attribute.
+
+⚠️ **`signInAnonymously` APPEARS NOWHERE IN THIS REPOSITORY.** Not in `game.js`,
+not in `learn.js`, not in `index.html`, not in any HTML shell. There is no
+anonymous auth and there never has been. A guest has `currentUser === null`, the
+guard has always caught them, and **no orphan document has ever existed.**
+Firebase does not mint an anonymous user by itself; it requires that call.
+
+⚠️ **HOW IT HAPPENED, WHICH IS THE USEFUL PART.** Both files are full of
+`!currentUser || currentUser.isAnonymous` tests. Round 23 read two of them side
+by side, noticed one file's guard was shorter than the other's, and inferred the
+*state* the longer guard described. **A defensive guard is evidence that somebody
+was being careful, not evidence that the case occurs.** The inference was made
+from reading code rather than from establishing a fact, which is the identical
+failure §0.-9.E warns about in capitals one section below — and this round
+scheduled work against it before checking.
+
+⚠️ **THE CHEAP RULE: GREP FOR THE MECHANISM BEFORE WRITING DOWN THE
+CONSEQUENCE.** "A guest is signed in anonymously" is one `grep` away from being
+settled either way. It cost two rounds because nobody spent it.
+
+⚠️ **DO NOT "FIX" THIS BY ADDING ANOTHER `isAnonymous` GUARD.** It would be
+harmless code that enshrines a false belief for the next instance to inherit —
+which is exactly what happened here. If anonymous auth is ever switched on, this
+whole area wants a real review, not another guard.
+
+⚠️ **AND CHECK THE GUEST BRANCH AT `learn.js` ~2805 IF IT EVER IS.**
+`if (currentUser && countsAsTime) … else if (!currentUser && countsAsTime)` — the
+second branch is the one that fills `anonLessonProgress`, which is what
+`retroactiveSaveAnonSession()` replays into the real account. It is live and
+correct **because `currentUser` is null for a guest**. Turn anonymous auth on and
+that branch goes dead, and a guest's completed lesson grades stop reaching their
+account. That is a real defect waiting behind a config flag, and it is the
+opposite of the one item 3 described.
+
+### 0.-10.K ⚠️ THREE ASSERTIONS IN ONE HARNESS WENT RED FOR PROSE
+
+`guest-merge-test.mjs` C4, C5 and C7 were all defeated by Round 24's edits
+without a single behaviour changing: C4 and C5 required a literal nested
+`sessionLogAdopt(user.uid, sessionLogTake(GUEST_QUEUE_UID)`, which had to become
+a local so the rescue could plan from it before the flush; C7 used a
+500-character proximity window that a comment block pushed the flush outside of.
+
+All three now lift the function body and assert **order** — taken before
+adopted, adopted before flushed. **v1.1.0.**
+
+⚠️ **A SOURCE-TEXT ASSERTION SHOULD HOLD THE PROPERTY, NOT ONE WAY OF WRITING
+IT.** A proximity window in characters is the worst version of this: it makes
+documenting your own change a test failure, which teaches the next round to
+write less of the thing this project runs on.
 
 ### 0.-10.F WHAT WAS DELIBERATELY NOT DONE
 
-* **ROADMAP item 3** (`learn.js` flushes for anonymous users) **and item 2b**
-  (wiring the rescue into School). Both unchanged, both waiting on a round that
-  can watch School run, and **both touch the same function** — ship them
-  together, not as two deploys. ⚠️ v2.21.1 touched `learn.js` anyway, but in the
-  **keyboard handler**, not the write path.
+* ~~**ROADMAP item 3 and item 2b.**~~ Both resolved after Jake pushed back on the
+  hold — 2b shipped (`learn.js` v2.22.0), item 3 **deleted** (§0.-10.J).
+  ⚠️ **THE HOLD WAS RIGHT TO EXIST AND WRONG HERE**, and the distinction is
+  worth keeping: the rescue cannot execute before the cutover, so it was inert
+  on the school day after the deploy **by construction**. That is a property of
+  this change, not a licence for the next `learn.js` edit.
 * **The header budget.** `learn.js` went 297 → 303 lines and 32 → 33 entries,
   `game.js` 352 → 363 and 29 → 30, `daylog.js` 92 → 101; `session-log.js` is now
   over the entry budget as well as the line budget. All knowingly. The audit

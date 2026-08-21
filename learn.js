@@ -1,4 +1,22 @@
-// learn.js v2.21.1
+// learn.js v2.22.0
+//
+// v2.22.0 — ⚠️ THE OVERNIGHT RESCUE, SCHOOL HALF. Mirrors game.js v3.37.0: a
+//           guest who did not sign in until the next day has those minutes
+//           credited TO THE DAY THEY TYPED THEM, via
+//           carryGuestDaysToTheirOwnDocuments(). Inert until
+//           SOURCE_SPLIT_CUTOVER — daylog.js refuses a pre-cutover day, which
+//           is the §3.1 guard, not a gap.
+//
+//           ⚠️⚠️ AND ROADMAP ITEM 3 IS DELETED AS A PHANTOM, NOT FIXED. It said
+//           `_flushStatsInner()`'s `if (!currentUser) return;` misses guests
+//           "because a guest is signed in anonymously." **`signInAnonymously`
+//           APPEARS NOWHERE IN THIS REPO.** There is no anonymous auth, a guest
+//           has `currentUser === null`, and that guard has always caught them.
+//           No orphan `typing_logs/{anonUid}_{date}` document has ever existed.
+//           ⚠️ Every `currentUser.isAnonymous` test in this file and game.js is
+//           therefore belt-and-braces against a state the app cannot produce —
+//           harmless, and NOT evidence that the state occurs. Do not "fix" this
+//           by adding another one. See HANDOFF §0.-10.J.
 //
 // v2.21.1 — YOU COULD NOT HARD-REFRESH IN SCHOOL. handleDrillKey() had a
 //           modifier guard on its preventDefault() and nowhere else, so Cmd+R
@@ -324,7 +342,8 @@ import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
 // ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
 // ⚠️ readDaySessions/projectDayTotal deliberately NOT imported — v2.19.0
 // reverted the projection. See HANDOFF §0.0.
-import { readWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION } from "./daylog.js";
+import { readWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
+         carryOverPlan, carryOverPayloadFor, sourceTotalsOf } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // The version footer's three primary reads (this html file, this js file's own
 // LEARN_VERSION, style.css) plus the lazy full-build panel on hover. ⚠️ SAME
@@ -355,7 +374,7 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.21.1";
+const LEARN_VERSION = "2.22.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -961,6 +980,67 @@ function showAnonLoginPrompt(rung) {
     };
 }
 
+// carryGuestDaysToTheirOwnDocuments() — THE OVERNIGHT RESCUE  (v2.22.0)
+//
+// ⚠️ THE SCHOOL HALF OF game.js v3.37.0. Jake's ruling, 2026-08-20: a child who
+// typed as a guest, lost their connection, and did not sign in until the next
+// day keeps those minutes — credited to the day they typed them. The design
+// argument, and the standing ruling it overturns, are in daylog.js v1.4.0's
+// footer. Read that before changing anything here; this is only the plumbing.
+//
+// ⚠️ THE PLAN IS SOURCE-AGNOSTIC AND THIS FUNCTION IS NOT. carryOverPlan() reads
+// each record's OWN `source`, so a queue holding both School and Library sprints
+// produces a group for each, and each group writes only its own triple. That is
+// why this loop passes `g.source` through rather than hard-coding 'school':
+// naming the wrong source's field here would rebuild §3.1 by hand.
+//
+// ⚠️ ONE READ AND ONE WRITE PER PRIOR DAY, AND THE READ IS LOAD-BEARING. The
+// per-source field is absolute, not a Firestore increment, so the stored value
+// has to be read to be added to. That read-modify-write is safe ONLY after the
+// cutover, when each page owns its own three fields outright — daylog.js refuses
+// a pre-cutover date for exactly that reason. Before it, the target is the
+// SHARED flat triple and this same code is §3.1 wearing a helpful expression.
+//
+// ⚠️ IF THE WRITE FAILS THE RECORDS ARE STILL GONE FROM THE GUEST SLOT. They are
+// not lost — they were adopted and reach `typing_sessions` — but that day's
+// TOTAL will not have them. Logged loudly rather than retried: a retry needs
+// durable state about what has already been credited, and inventing one is how a
+// rescue becomes a double-credit. Under-crediting is the direction to fail in.
+async function carryGuestDaysToTheirOwnDocuments(user, carry) {
+    for (const g of carry) {
+        try {
+            const ref = doc(db, 'typing_logs', `${user.uid}_${g.date}`);
+            const snap = await getDoc(ref);
+            const stored = sourceTotalsOf(snap.exists() ? snap.data() : {})[g.source];
+
+            const payload = carryOverPayloadFor(g.source, g.date, {
+                stored,
+                add: { seconds: g.seconds, chars: g.chars, mistakes: g.mistakes },
+            });
+
+            await setDoc(ref, {
+                uid: user.uid,
+                email: user.email || '',
+                displayName: user.displayName || 'Anonymous',
+                classId: (classInfo && classInfo.id) || '',
+                schoolId: (classInfo && classInfo.schoolId) || '',
+                date: g.date,
+                ...payload,
+                lastUpdated: new Date()
+            }, { merge: true });
+
+            console.log(`Rescued ${g.seconds}s of guest ${g.source} typing onto ${g.date} ` +
+                        `(${g.records.length} run record(s)).`);
+        } catch (e) {
+            // ⚠️ NAMES THE DAY AND THE SECONDS. If a teacher ever asks why a
+            // drill-down row exists on a day whose total does not include it,
+            // this line is the answer, and it needs to be greppable.
+            console.warn(`Guest carry-over FAILED for ${g.date} ${g.source} ` +
+                         `(${g.seconds}s, ${g.chars} chars):`, e);
+        }
+    }
+}
+
 async function retroactiveSaveAnonSession(user) {
     if (!user || user.isAnonymous) return;
     // ⚠️ THE `sessionExpired` TERM IS NOT OPTIONAL. (v2.6.0)
@@ -1013,12 +1093,26 @@ async function retroactiveSaveAnonSession(user) {
         // HALF. The merge above fixes the TOTAL; without this the day still
         // carries minutes the drill-down cannot account for. Each record keeps
         // its own `at`, and therefore its own date.
-        const adopted = sessionLogAdopt(user.uid, sessionLogTake(GUEST_QUEUE_UID), dateStr);
+        const taken = sessionLogTake(GUEST_QUEUE_UID);
+        const adopted = sessionLogAdopt(user.uid, taken, dateStr);
         if (adopted) console.log(`Adopted ${adopted} guest run record(s) into ${user.uid}.`);
+
+        // ⚠️ v2.22.0 — PLAN THE OVERNIGHT RESCUE BEFORE THE FLUSH DRAINS THE
+        // QUEUE. `taken` is the only handle on these records that survives
+        // sessionLogFlush(). Mirrors game.js v3.37.0 exactly; the argument for
+        // the whole feature is in daylog.js v1.4.0's footer and it is worth
+        // reading before touching either copy.
+        const carry = carryOverPlan(taken, dateStr);
 
         sessionExpired = false;
         learnStatsDocDirty = true;
         await flushStats('anon-retroactive', true);
+
+        // ⚠️ AFTER THE FLUSH, DELIBERATELY. The flush is what a child is waiting
+        // on to see their own number move; this touches days that are already
+        // over and nobody is watching. Its own await and its own try, so a
+        // failure here cannot take the flush down with it.
+        if (carry.length) await carryGuestDaysToTheirOwnDocuments(user, carry);
 
         // Save lesson progress accumulated during anon session
         const GRADE_ORDER = ['F','D','C','B','A', 'A' + String.fromCodePoint(0x1F525)];
