@@ -546,6 +546,35 @@ implementation I had assumed, not about the goal. **Both times the goal was
 fine and the assumed mechanism was the problem.** Ask what the feature needs
 before arguing it cannot have it.
 
+### H. ✅ ITEM 10 IS FULLY SPECCED — AND ONE DISTINCTION IS WORTH REUSING
+
+All three open questions closed by Jake, 2026-08-22. The details are in ROADMAP
+item 10; **two of the three produced rules that generalise beyond this feature.**
+
+⚠️⚠️ **"A GATE IS NOT A LEDGER."** Jake on the `activeDayCount` Rule 9 question:
+*"Unlike time, this doesn't have to be bullet proof — it just needs to be a
+gate."* Rule 9 exists because a duplicated counter corrupted **the graded
+record** — `stats/time_tracking` was a second copy of the number a parent sees.
+A counter that is never reported, never graded and never shown, whose worst
+failure is a lesson opening a day early, is a **different risk class wearing the
+same shape**. ⚠️ **SPEND RULE 9 ON LEDGERS.** Applying it uniformly to anything
+that looks like a duplicate is how a correct rule starts blocking cheap, correct
+work — which is the same failure mode as §0.-16.B's over-strict reading of the
+timing condition, in a different rule. **Twice in one day.**
+
+⚠️⚠️ **"MASTERY IS WHAT CLOSES A LESSON, AND ONLY MASTERY."** The gate applies
+only to lessons with three A🔥. An unmastered lesson is always replayable,
+forever — so the case I had raised as an open question ("a kid who advanced on a
+B loses review access") **cannot occur**. ⚠️ Any future round tempted to add a
+distance or time condition that reaches unmastered lessons would **invert the
+feature**, punishing the struggling student, who is the one this app exists for.
+
+And a small one worth keeping: `fireCount` seeds from the existing best grade at
+read time (`grade === FIRE_GRADE ? 1 : 0`) — Jake's idea, no migration, no new
+write. ⚠️ **1 is the honest maximum**: best-grade is monotonic and cannot
+distinguish one fire from twenty, and seeding at 3 would lock a class out on
+deploy morning.
+
 ### G. ⚠️ THE OVERRIDE — THE THREAT MODEL IS NOT CRYPTOGRAPHIC
 
 Jake proposed a hashed password on the settings page. Recorded because the

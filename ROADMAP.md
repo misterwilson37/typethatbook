@@ -1,5 +1,16 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.17.0, 2026-08-22.** ✅ **ITEM 10 IS FULLY SPECCED AND BUILDABLE** — all three
+open questions resolved by Jake. ⚠️ (1) `activeDayCount` ships cheap: **A GATE IS
+NOT A LEDGER**, and Rule 9 exists to protect the graded record, not a review
+gate whose worst failure is a lesson opening a day early. (2) ⚠️⚠️ **THE GATE ONLY
+EVER TOUCHES LESSONS WITH 3× A🔥** — an unmastered lesson is always replayable,
+forever, so "the kid who advanced on a B" is not a case the rule can reach.
+*Mastery is what closes a lesson, and only mastery.* (3) `fireCount` seeds from
+the existing best grade — `grade === 'A🔥' ? 1 : 0`, computed at read time, no
+migration; **1 is the honest maximum**, since best-grade cannot tell one fire
+from twenty, and seeding higher would lock a class out on deploy morning.
+
 **v3.16.0, 2026-08-22.** ⭐ **ITEM 10 HAS A MODEL** — a RECEDING REACH-BACK
 WINDOW, on Jake's clarifications. ⚠️ **THE FLAT 30-DAY COOLDOWN IS WITHDRAWN:**
 kids are in his class for **2 months**, so a flat month is a quarter of the
@@ -1014,19 +1025,70 @@ So a PRACTICE run:
 
 ---
 
-### ⚠️ OPEN — THREE THINGS THAT NEED JAKE BEFORE THIS IS BUILDABLE
+### ✅ RESOLVED — ALL THREE DECISIONS ARE MADE. THIS IS BUILDABLE.
 
-1. **Does advancing reset `reachBack`, or only MASTERING a new lesson?** Reset on
-   advance is the cleaner rule and the one specced above, but it means a child
-   who nudges forward one lesson loses the review access they had just earned.
-   Reset on *mastery* is gentler and slightly more state.
-2. ⚠️ **`activeDayCount` — Rule 9, §E.** Add the counter and accept a drift whose
-   worst case is a lesson unlocking a day early, or fall back to calendar days
-   and accept that an absent child returns to unlocked lessons?
-3. **The `fireCount` grace.** Every current student starts at 0, so nobody is
-   gated until they earn three *more* A🔥. Probably right — it means the feature
-   arrives quietly rather than locking a class out on deploy day — but it should
-   be chosen.
+**Jake, 2026-08-22.** Recorded verbatim-in-substance so the next round does not
+re-open them.
+
+#### 1. ✅ `activeDayCount` — BUILD IT CHEAP, RULE 9 SPENT DELIBERATELY
+
+> *"A lesson unlocking a day early is fine. Doing this in the cheapest way
+> possible is also fine — cheap here being firestore reads. Unlike time, this
+> doesn't have to be bullet proof — it just needs to be a gate."*
+
+⚠️ **THE DISTINCTION IS THE VALUABLE PART AND IT SHOULD BE REUSED: A GATE IS NOT
+A LEDGER.** Rule 9 exists because a duplicated counter corrupted the *graded
+record* — `stats/time_tracking` was a second copy of the number a parent sees.
+This counter is never reported, never graded, never shown, and its worst failure
+is a child getting review access one day early. **Same rule, different risk
+class.** Spend Rule 9 on ledgers; a gate can be approximate.
+
+**Implementation:** a monotonic `activeDayCount` on the student record,
+incremented **once per day at the existing day-rollover in the tick** — the one
+place that already owns the day boundary, so it is one increment site and not a
+second clock. Never read a month of `typing_logs` to compute it.
+
+#### 2. ✅ THE QUESTION DISSOLVES — AN UNMASTERED LESSON IS NEVER GATED
+
+> *"If the kid moves forward on a B, he should be able to go back. We're talking
+> about lessons that get 3 A's... A kid wanting to redo a lesson until he masters
+> it is a **good** thing. A kid bumming around on a lesson he's mastered is a
+> **bad** thing."*
+
+⚠️ **THE GATE ONLY EVER APPLIES TO LESSONS WITH `fireCount >= 3`.** A lesson
+passed with a B — or an A, or two A🔥 — is **always** graded and **always**
+replayable, at any distance, forever. `reachBack` never enters the question for
+it. So "the kid who advanced on a B" is not a case the rule can reach.
+
+**That is the whole design in one sentence, and it should lead any future
+summary of this item:** *mastery is what closes a lesson, and only mastery.*
+⚠️ **DO NOT ADD A DISTANCE OR TIME CONDITION THAT APPLIES TO UNMASTERED
+LESSONS.** It would invert the feature — punishing the struggling student, who
+is the one this app exists for.
+
+**Consequence for `reachBack` reset:** it stays as specced (measured from the
+last advance), because it can only ever govern lessons the student has already
+proven three times over.
+
+#### 3. ✅ SEED `fireCount` FROM THE EXISTING BEST GRADE — JAKE'S IDEA, AND IT IS FREE
+
+> *"You said it keeps 'highest score' — if that's an A, can we make the count 1?"*
+
+**Yes, and it costs nothing:**
+
+```js
+fireCount ?? (grade === FIRE_GRADE ? 1 : 0)
+```
+
+Computed at read time from a field already stored. **No backfill, no migration,
+no new write.** A student who has already earned A🔥 starts at 1 and needs two
+more rather than three.
+
+⚠️ **AND 1 IS THE HONEST MAXIMUM — DO NOT SEED HIGHER.** `grade` is
+best-ever-seen and monotonic (see §B), so it cannot distinguish one A🔥 from
+twenty. Seeding at 3 would claim knowledge the data does not contain **and would
+lock a class out on deploy morning**, which is the kind of thing discovered
+during first period rather than during testing.
 
 ---
 
