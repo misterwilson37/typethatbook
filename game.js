@@ -1,4 +1,18 @@
-// game.js v3.42.1
+// game.js v3.42.2
+//
+// v3.42.2 — ⚠️⚠️ "I'M DONE" WAS NEVER WIRED IN LIBRARY. handleImDone() shipped in
+//           v3.42.0 complete and correct; the button shipped in game.html; the
+//           style shipped in style.css v3.7.2; receipt.js shipped to draw the
+//           card. **The line attaching the handler to the button did not.**
+//           Clicking it produced no handler, no error and no console output —
+//           reported by Jake on 2026-08-22 after typing Pinocchio.
+//           ⚠️ learn.js WIRED ITS IDENTICAL BUTTON CORRECTLY. Round 26 built both
+//           halves of a twin and connected one — the sixth twin failure of the
+//           week (§0.-13.E), and the first to reach a child.
+//           ⚠️ NO HARNESS COULD HAVE CAUGHT IT: undefined-calls-test asks whether
+//           every reference RESOLVES, and handleImDone resolves perfectly — it is
+//           simply never referenced. tests/dead-handler-test.mjs now asks the
+//           mirror question. HANDOFF §0.-18.
 //
 // v3.42.1 — ⚠️ STAMP ONLY, NO BEHAVIOUR. `const VERSION` still read "3.38.0"
 //           after v3.38.1, v3.39.0, v3.39.1, v3.40.0, v3.41.0 and v3.42.0 all
@@ -495,7 +509,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.42.1";
+const VERSION = "3.42.2";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1711,6 +1725,33 @@ async function init() {
 }
 
 function setupAuthListeners() {
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ ROADMAP 0d — "I'M DONE" WAS NEVER WIRED IN LIBRARY. v3.42.2.
+    // ═══════════════════════════════════════════════════════════════════════
+    // Round 26 shipped `handleImDone()` complete and correct, gave the button
+    // markup in game.html, gave it a style in style.css v3.7.2 — and never
+    // attached the two. Clicking it did **nothing at all**: no handler, no
+    // error, no console output, which is precisely what Jake reported after
+    // typing Pinocchio on 2026-08-22.
+    //
+    // ⚠️ THE OTHER HALF OF THE TWIN WAS FINE. `learn.js` wires the identical
+    // button correctly in its own auth block. **Round 26 built both halves of a
+    // twin and connected one** — the sixth twin failure of the week, and the
+    // exact shape §0.-13.E is about.
+    //
+    // ⚠️ NO EXISTING HARNESS COULD HAVE CAUGHT IT. undefined-calls-test asks
+    // whether every reference RESOLVES; `handleImDone` resolves perfectly, it is
+    // simply never referenced. A defined-but-unreachable function is invisible
+    // to that check by construction. tests/dead-handler-test.mjs now asks the
+    // other question. See HANDOFF §0.-18.
+    //
+    // Guarded, and placed here rather than at the top of the file, because
+    // #done-btn lives inside #user-info: it is in the markup at load, but a
+    // future change could move it, and a missing button must not throw and take
+    // the login/logout wiring below down with it. Same shape as learn.js's.
+    const doneBtn = document.getElementById('done-btn');
+    if (doneBtn) doneBtn.addEventListener('click', handleImDone);
+
     loginBtn.addEventListener('click', async () => {
         try { await signInWithPopup(auth, new GoogleAuthProvider()); }
         catch (e) { alert("Login failed: " + e.message); }

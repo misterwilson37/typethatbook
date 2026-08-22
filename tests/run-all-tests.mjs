@@ -215,6 +215,12 @@ const FAST = [
     // suite. `npm run audit:versions` had been reporting four files as "one of
     // the two is a lie" for a whole round and nobody ran it, because it is a
     // separate command. A guard outside `npm test` is a guard nobody runs.
+    // ⚠️ Round 27f. The MIRROR of undefined-calls-test: that one asks whether
+    // everything USED is DEFINED; this asks whether everything DEFINED is USED.
+    // Written because "I'm done" shipped as a styled, visible, INERT button in
+    // Library for a day — game.js defined handleImDone() and never attached it,
+    // and 43 harnesses passed the whole time because none of them could fail.
+    ['dead-handler-test.mjs',    '\u26a0\ufe0f NO BUTTON IS INERT AND NO FUNCTION IS ORPHANED: every function a page controller defines is referenced, every button in the markup is wired, and BOTH pages attach handleImDone'],
     ['version-stamp-test.mjs',   '\u26a0\ufe0f THE FILE MUST NOT LIE ABOUT ITS OWN VERSION: runtime constant vs header, both CSS stamps, and the three module pins. Header-length budgets print as NOTES and never fail \u2014 see the block at the top before promoting one'],
 
     // ⚠️ Round 24 (Monotype). THE EVENING GUEST. sessionLogAdopt() recomputed a

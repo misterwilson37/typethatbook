@@ -1,5 +1,42 @@
 # CHANGELOG
 
+## Round 27f — Chicago (2026-08-22) — THE BUTTON THAT DID NOTHING
+
+* ⚠️⚠️ **"I'M DONE" WAS NEVER WIRED IN LIBRARY.** Reported live by Jake after
+  typing Pinocchio: clicked it, nothing happened, nothing in the console.
+  Round 26 shipped `handleImDone()` (correct and complete), the button markup,
+  the `.done-btn` styling and the whole of `receipt.js` — and attached the
+  handler **only in `learn.js`.** School worked the entire time.
+  **Round 26 built both halves of a twin and connected one** — the sixth twin
+  failure of the week and **the first to reach a child.** `game.js` → **3.42.2**.
+
+* ⚠️⚠️ **43 HARNESSES PASSED AND NOT ONE COULD HAVE FAILED.**
+  `undefined-calls-test.mjs` asks *"does every reference resolve?"* —
+  `handleImDone` resolves perfectly; it is simply never referenced. **A
+  defined-but-unreachable function is outside that question by construction.**
+
+* ⭐ **`tests/dead-handler-test.mjs` 1.0.0, new — the mirror question.** Is
+  everything *defined* also *used*? Three sections: every function a page
+  controller defines is referenced; every `<button>` with an id is mentioned by
+  its controller; and both pages attach `handleImDone` — named explicitly,
+  because twins fail one half at a time. **Mutation-verified** by deleting the
+  wiring line again. **45 harnesses.**
+
+* ⚠️ **The new harness had two false-positive runs, and both fixes made it
+  looser.** Stripping string literals hid every element id (an id lives *inside*
+  a string), reporting all ten buttons as inert; stripping template literals
+  deleted real calls from `${...}`. Two explicit source views now, each
+  documented with the failure that produced it. **Stripping comments stays
+  mandatory** — `handleImDone` appears in a game.js comment, and a naive grep
+  would have counted that as a use and passed the very defect.
+
+* **`learn.js` → 2.29.1 — `updateWeeklyHUD()` deleted.** Its comment claimed
+  *"several call sites"*; there were **zero**. The last went when `hud.js` v1.3.0
+  split the readout. ⚠️ A comment asserting callers is not evidence of callers.
+
+* ✅ **Jake confirms School's ⚙ panel and settings look right** — §0.-16's CSS was
+  written blind and landed.
+
 ## Round 27c — Chicago (2026-08-22) — ROADMAP 0b: THE SCHOOL SETTINGS PANEL
 
 * ⭐ **`settings-panel.js` 1.1.0, new — the sixth shared module.** A ⚙ in

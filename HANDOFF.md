@@ -1,7 +1,23 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.12.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.13.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 27; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.13.0 — Round 27f (Chicago). ⚠️⚠️ §0.-18 — "I'M DONE" WAS A VISIBLE,
+     STYLED, INERT BUTTON IN LIBRARY FOR A DAY. Round 26 shipped handleImDone(),
+     the markup, the CSS and receipt.js — and attached the handler ONLY in
+     learn.js. Sixth twin failure of the week and the FIRST TO REACH A CHILD.
+     Symptom was silence: no handler, no error, nothing to search for.
+     ⚠️⚠️ §0.-18.B IS THE LESSON: 43 harnesses passed and NOT ONE COULD HAVE
+     FAILED. undefined-calls-test asks "does every reference RESOLVE" and
+     handleImDone resolves perfectly — it is simply never referenced. A
+     defined-but-unreachable function is outside that question BY CONSTRUCTION.
+     tests/dead-handler-test.mjs asks the mirror. When a defect ships past a green
+     suite, ask WHAT QUESTION NOBODY WAS ASKING, not which harness slipped.
+     ⚠️ §0.-18.C: the new harness had two false-positive runs and both fixes made
+     it LOOSER. ⚠️ §0.-18.D: updateWeeklyHUD() deleted — its comment claimed
+     "several call sites" and there were ZERO. A comment asserting callers is not
+     evidence of callers. game.js v3.42.2, learn.js v2.29.1, 45 harnesses.
 
      v15.12.0 — Round 27e (Chicago). §0.-17.E/F, DESIGN ONLY. ⚠️⚠️ THE FLAT 30-DAY
      COOLDOWN IS WITHDRAWN ON ONE FACT ABOUT JAKE'S ROOM: kids are with him for
@@ -336,6 +352,98 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-18. ⚠️⚠️ ROUND 27f (Chicago) — A BUTTON THAT DID NOTHING, IN PRODUCTION
+
+**2026-08-22.** Jake, after typing some Pinocchio: *"clicked I'm done — nothing
+happened. Nothing showed in the console on click."* Confirmed by him afterwards:
+**it works in School and not in Library.**
+
+### A. THE DEFECT — ONE MISSING LINE, AND EVERYTHING ELSE PRESENT
+
+Round 26 shipped ROADMAP item 0d complete:
+
+| shipped | where |
+|---|---|
+| `handleImDone()` — correct, re-entrancy-guarded, error-handled | `game.js` v3.42.0 |
+| `<button id="done-btn">` | `game.html` |
+| `.done-btn` styling | `style.css` v3.7.2 |
+| `receipt.js` v1.0.0 to draw the card | new file |
+| **the line attaching the handler to the button** | ⚠️ **`learn.js` ONLY** |
+
+⚠️⚠️ **SO ROUND 26 BUILT BOTH HALVES OF A TWIN AND CONNECTED ONE.** That is the
+sixth twin failure of the week (§0.-13.E counted four, §0.-14 made the version
+stamp the fifth) and **the first one to reach a child.** School's copy has been
+working the whole time, which is why it read as a mystery rather than a missing
+feature.
+
+⚠️ **AND THE SYMPTOM IS THE WORST AVAILABLE ONE: SILENCE.** No handler, so no
+error, so no console output. There was nothing to search for. Jake's console dump
+was clean and correct — `Initializing JS v3.42.1`, which also confirms Round 27's
+stamp fix reached the browser and reported honestly.
+
+### B. ⚠️⚠️ 43 HARNESSES PASSED, AND NOT ONE OF THEM COULD HAVE FAILED
+
+This is the part worth keeping. `undefined-calls-test.mjs` asks:
+
+> *does every reference RESOLVE?*
+
+`handleImDone` resolves perfectly. It is defined, correct, and referenced by
+nothing. **A defined-but-unreachable function is invisible to that check by
+construction** — not overlooked, not a gap in coverage, but outside the question
+the check asks.
+
+`tests/dead-handler-test.mjs` asks the mirror question:
+
+> *is everything DEFINED also USED?*
+
+Three sections: every function a page controller defines is referenced somewhere;
+every `<button>` with an id is mentioned by its controller; and — named
+explicitly, because twins fail one half at a time — **both pages attach
+`handleImDone`.** Mutation-verified by deleting the wiring line again: two
+failures.
+
+⚠️ **GENERALISE, BECAUSE THIS IS NOT ABOUT BUTTONS.** When a defect ships past a
+green suite, the useful question is rarely *"which harness should have caught
+it"* — it is **"what question was nobody asking?"** Here the whole suite asked
+one direction of a two-directional question for 43 harnesses.
+
+### C. ⚠️ THE HARNESS HAD TWO FALSE-POSITIVE RUNS OF ITS OWN
+
+Recorded because both fixes made it **looser**, and the reasoning is not obvious:
+
+1. **Stripping string literals hid every element ID.** An id lives *inside* a
+   string, so `getElementById('done-btn')` became `getElementById('')` and the
+   first run reported **all ten buttons in the app as inert.**
+2. **Stripping template literals deleted real calls.** Nine honest functions —
+   `getMissedCharsHTML`, `getDropdownHTML` and friends — are only ever called
+   from inside `${...}` in an HTML template.
+
+Fixed with two explicitly separate views of the source, `identifiersOnly()` and
+`withStrings()`, each documented with the failure that produced it. ⚠️ **Stripping
+comments is still required in both**, and that is the non-negotiable half:
+`handleImDone` appears in a **comment** in game.js ("See handleImDone() and
+receipt.js"), so a naive grep would have counted that as a use and passed the
+very defect this file exists for.
+
+### D. AND ONE MORE ORPHAN, FOUND ON THE FIRST GREEN RUN
+
+`updateWeeklyHUD()` in `learn.js` — deleted. Its comment read *"kept as an alias:
+several call sites read naturally as 'the week changed, redraw'"*. **There were
+zero call sites.** The last one went when `hud.js` v1.3.0 split the readout, and
+the alias stayed behind describing callers that no longer existed.
+
+⚠️ **A COMMENT ASSERTING CALLERS IS NOT EVIDENCE OF CALLERS.** This one read as
+justification, which is exactly what kept four rounds of readers moving past it.
+
+### E. Shipped
+
+`game.js` **v3.42.2** (the wiring), `learn.js` **v2.29.1** (the orphan deleted),
+`tests/dead-handler-test.mjs` **v1.0.0**, registered. **45 harnesses, all
+passing.** ⚠️ **No behaviour changed in School** — Jake confirmed the ⚙ panel and
+its settings look right, so §0.-16's blind CSS landed.
 
 ---
 
@@ -2423,8 +2531,8 @@ reads.
 
 | file | version |
 |---|---|
-| `game.js` | **3.42.1** — ⚠️ Round 27. Stamp corrected: the constant said 3.38.0 for six releases. §0.-14 |
-| `learn.js` | **2.29.0** — ⚠️ Round 27c. THE SCHOOL SETTINGS PANEL, and the graded clock pauses for it. §0.-16 |
+| `game.js` | **3.42.2** — ⚠️ Round 27f. "I'm done" WIRED AT LAST; it was inert in Library. §0.-18 |
+| `learn.js` | **2.29.1** — ⚠️ Round 27c/f. The School settings panel; graded clock pauses for it; one orphan deleted. §0.-16, §0.-18 |
 | `session-log.js` | **1.6.0** — PER-OWNER queue + `GUEST_QUEUE_UID`. ⚠️ UPLOAD THIS FIRST — both pages import from it. Its TWO pins are checked by version-stamp-test.mjs C |
 | `hud.js` | **2.0.0** — ⚠️⚠️ MAJOR, JAKE SIGNED IT OFF. The v1.3.0 return-shape break recorded as the major it was. §0.-15. ⚠️ UPLOAD BEFORE THE TWO WRITERS |
 | `variety-floor.js` | 1.0.0 |

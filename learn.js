@@ -1,4 +1,8 @@
-// learn.js v2.29.0
+// learn.js v2.29.1
+//
+// v2.29.1 — DEAD CODE. updateWeeklyHUD() deleted: its comment claimed "several
+//           call sites" and there were zero. Found by the new
+//           tests/dead-handler-test.mjs. No behaviour change. §0.-18.
 //
 // v2.29.0 — ⚠️⚠️ THE ⚙ IS AVAILABLE DURING A DRILL AND THE CLOCK PAUSES, on
 //           Jake's ruling the same day: *"I meant not to break the ability to
@@ -519,7 +523,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.29.0";
+const LEARN_VERSION = "2.29.1";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -4525,9 +4529,17 @@ function renderTimeHUD() {
     }
 }
 
-// Kept as an alias: several call sites read naturally as "the week changed,
-// redraw". Both slots come from one call now, so either name refreshes both.
-function updateWeeklyHUD() { renderTimeHUD(); }
+// ⚠️ updateWeeklyHUD() DELETED (v2.29.1). Its comment claimed it was "kept as an
+// alias: several call sites read naturally as 'the week changed, redraw'" —
+// **there were zero call sites.** The last one went when hud.js v1.3.0 split the
+// readout, and the alias stayed behind describing callers that no longer exist.
+//
+// ⚠️ A COMMENT ASSERTING CALLERS IS NOT EVIDENCE OF CALLERS, and this one read
+// as justification, which is what kept it alive through four rounds of people
+// reading past it. Found by tests/dead-handler-test.mjs on its first run — the
+// same harness written for the "I'm done" button, which was the same defect
+// pointing the other way (a caller with nothing attached, vs. a callee with
+// nobody calling). HANDOFF §0.-18.
 
 // Coalesced stats persistence, mirroring the pattern in game.js v3.4.0.
 //
