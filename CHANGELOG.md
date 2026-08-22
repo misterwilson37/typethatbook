@@ -1,5 +1,39 @@
 # CHANGELOG
 
+## Round 26c — Elliott-Fisher (2026-08-21, evening)
+
+**THE LANDING PAGE JOINS THE BAR** (ROADMAP item 0c.1). Jake accepted the extra
+read as worth it — and ⚠️ **THERE WAS NO EXTRA READ TO ACCEPT.**
+
+* **`index.html` 3.9.0 → 3.10.0.** ⚠️ **`loadIndexStats()` WAS ALREADY DOING THE
+  SEVEN-DOCUMENT READ AND THROWING THE ANSWER AWAY.** It painted
+  `#index-stats-bar`, an element removed from the markup at some point with the
+  function left orphaned, so every landing visit paid for `readWeek()` and then
+  hit `if (!bar) return;`. The header readout is that read finally reaching a
+  screen. **The cost was already being paid; only the benefit was missing.**
+* **The landing page now uses `hud.js`.** Its open-coded `fmt()` was a FOURTH
+  copy of the same formatting, on the one surface nobody checks against a
+  report. Daily leads on the left; the week sits under the name.
+* **Goals resolve cache-first**, reading `ttb_goalsCache_v1` — game.js's own key,
+  same 24-hour TTL, same uid check — so the usual case costs **zero** additional
+  reads and a miss costs two. ⚠️ **A GOAL THAT WILL NOT RESOLVE STAYS ZERO** and
+  hud.js renders the bare figure with no denominator and no tick. Never guess a
+  goal: a wrong denominator invents a ✓ the child did not earn.
+* ⚠️ **Both readouts hide on sign-out.** On a shared Chromebook the next child
+  must not find the last one's minutes sitting in the header.
+* **Styles are scoped as `.idx-*`, not `.hud-*`.** This page has never linked
+  `style.css`; linking it now to save six declarations would restyle the whole
+  library. Deliberately a different prefix so nobody greps `.hud-stack`, finds
+  these, and concludes one rule governs both bars.
+* **`tests/hud-lead-test.mjs` 1.0.0 → 1.1.0.** 97 assertions. New Part D checks
+  cover the fourth surface: it imports `hudStrings`, its `fmt()` copy is gone,
+  Daily is the lead row, the week is under the name, and the readout clears on
+  sign-out.
+
+⚠️ **STILL NOT SHIPPED: the trophy on the landing page.** `index.html` has no
+leaderboard and no entry point to one — `openLeaderboard()` lives in `game.js`.
+That is a real feature, not a button, and it stays in item 0.
+
 ## Round 26b — Elliott-Fisher (2026-08-21, evening)
 
 **THE TWO-ROW TOP BAR.** ROADMAP item 0's display half, built the same evening it

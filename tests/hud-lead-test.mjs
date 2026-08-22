@@ -1,4 +1,4 @@
-// hud-lead-test.mjs v1.0.0 — THE GRADED NUMBER DOES NOT MOVE.
+// hud-lead-test.mjs v1.1.0 — THE GRADED NUMBER DOES NOT MOVE.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // WHAT THIS PROTECTS, AND WHY IT IS A HARNESS AND NOT A COMMENT
@@ -24,8 +24,10 @@
 //       School's centre row has nothing to render rather than a stray "0:00".
 //   C — REGRESSION: the numbers hud.js reports are the numbers it was given.
 //       A layout change must not become an arithmetic change.
-//   D — GREP: both paint functions read `hud.lead` into the lead element, and
-//       neither has re-grown a shrink-the-text flag.
+//   D — GREP: both paint functions read `hud.lead` into the lead element,
+//       neither has re-grown a shrink-the-text flag, and index.html — the
+//       FOURTH surface, on a different stylesheet path entirely — uses hud.js
+//       rather than a fifth copy of the formatting.
 //
 // ⚠️ MUTATION-VERIFIED. Swapping `lead: daily` for the old combined string in
 // hud.js fails Part A on every row; deleting either `hud.lead` assignment fails
@@ -123,6 +125,30 @@ console.log('\n─── D. GREP: both painters, both pages ───');
     }
     ok(!/hud-time-long/.test(decomment(src('style.css'))),
        'D9 ⚠️ style.css: the shrink rule is deleted, not just unused');
+
+    // ⚠️ THE FOURTH SURFACE. index.html is .site-header, not #hud, so none of
+    // the assertions above reach it — and it is the one page where a
+    // hand-rolled copy could drift unnoticed, because nobody compares the
+    // landing page to a report.
+    const idx = src('index.html');
+    ok(/import\s*\{\s*hudStrings\s*\}\s*from\s*["'.\/]*hud\.js["']/.test(idx),
+       'D10 ⚠️ index.html: the landing page uses hud.js, not its own formatter');
+    ok(!/function fmt\(s\)/.test(idx),
+       'D11 ⚠️ index.html: the open-coded fmt() copy is gone');
+    const iLead = idx.indexOf('id="index-daily"');
+    const iSub  = idx.indexOf('id="index-daily-sub"');
+    ok(iLead >= 0 && iSub > iLead,
+       'D12 ⚠️ index.html: Daily is the LEAD row here too');
+    ok(/id="user-name-lead"[\s\S]{0,200}id="index-week"/.test(idx),
+       'D13 index.html: the week sits UNDER the name');
+    ok(/index-daily-stack[\s\S]*?style\.display = 'none'/.test(idx) ||
+       idx.includes("_ds.style.display = 'none'"),
+       'D14 ⚠️ index.html: the readout is hidden on sign-out — shared Chromebooks');
+    // The dead ELEMENT LOOKUP, not the word — v3.10.0's comment names the
+    // orphan it removed, and a harness that forbids naming a bug in a comment
+    // teaches people to delete the explanation instead of the code.
+    ok(!/getElementById\(['"]index-stats-bar['"]\)/.test(idx),
+       'D15 ⚠️ index.html: nothing still paints into the orphaned banner');
 }
 
 console.log(`\n${fail ? 'FAILED' : 'PASSED'} — ${pass} passing, ${fail} failing`);

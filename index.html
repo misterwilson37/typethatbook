@@ -305,6 +305,17 @@
         }
 
         .hidden { display: none !important; }
+        /* ⚠️ SCOPED COPIES, NOT style.css's .hud-stack. This page has never linked
+           style.css and linking it now to save six declarations would restyle the
+           whole library. Different prefix on purpose so nobody greps .hud-stack,
+           finds these, and assumes one rule governs both bars. */
+        .idx-stack { display:inline-flex; flex-direction:column; justify-content:center;
+                     line-height:1.25; min-width:0; vertical-align:middle; }
+        .idx-stack-right { align-items:flex-end; text-align:right; }
+        .idx-lead { font-size:0.95rem; font-weight:700; color:#ccc;
+                    font-family:'Courier Prime',monospace; white-space:nowrap; }
+        .idx-sub  { font-size:0.7rem; font-weight:400; color:#888;
+                    font-family:'Courier Prime',monospace; white-space:nowrap; }
     </style>
 </head>
 <body>
@@ -319,11 +330,28 @@
                 <a href="learn.html" id="mode-school" class="mode-btn">School</a>
                 <button type="button" id="mode-library" class="mode-btn active">Library</button>
             </nav>
+        <!-- ⚠️ THE SAME SLOT AS game.html / learn.html's #hud-time, AND THE SAME
+             RULE: the graded number leads, context sits underneath, and Daily
+             never moves to a sub row. This bar is .site-header rather than #hud
+             — different stylesheet path, same contract. hud.js builds both
+             strings so a fourth hand-rolled fmt() cannot drift from the other
+             three. See tests/hud-lead-test.mjs. -->
+        <span class="idx-stack" id="index-daily-stack" style="display:none;">
+            <span id="index-daily" class="idx-lead"></span>
+            <!-- Empty on purpose: there is no book or lesson to name on the landing
+                 page, and "today" would only repeat the word "Daily" above it. The
+                 slot stays so a future context has somewhere to go. -->
+            <span id="index-daily-sub" class="idx-sub"></span>
+        </span>
         </div>
         <div class="header-links">
             <a href="reports.html">Reports</a>
             <a href="admin.html">Admin</a>
             <div id="auth-area">
+                <span class="idx-stack idx-stack-right" id="index-name-stack" style="display:none;">
+                    <span id="user-name-lead" class="idx-lead"></span>
+                    <span id="index-week" class="idx-sub"></span>
+                </span>
                 <span id="user-name" style="display:none;"></span>
                 <button id="login-btn" class="auth-btn">Sign In</button>
                 <button id="logout-btn" class="auth-btn subtle" style="display:none;">Logout</button>
@@ -412,6 +440,7 @@
         import { readDeployedVersions, renderBuildList } from "./versions.js";
         // ⚠️ HANDOFF §0.0 — the shelf banner reads the GRADED document now.
         import { readWeek } from "./daylog.js";
+        import { hudStrings } from "./hud.js";
 
         // ─── Version ──────────────────────────────────────────────────────────
         // This page's own version. The <title> and footer are both written from
@@ -422,7 +451,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.9.0";
+        const INDEX_VERSION = "3.10.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -553,14 +582,27 @@
             lastAuthUid = uid;
 
             if (user) {
+                // The name moves into the two-row stack so the week can sit under
+                // it; the old flat #user-name stays in the DOM and hidden rather
+                // than being deleted, because other code still looks it up.
                 userNameEl.textContent = user.displayName || user.email;
-                userNameEl.style.display = '';
+                userNameEl.style.display = 'none';
+                const _nameLead = document.getElementById('user-name-lead');
+                const _nameStack = document.getElementById('index-name-stack');
+                if (_nameLead) _nameLead.textContent = user.displayName || user.email;
+                if (_nameStack) _nameStack.style.display = '';
                 loginBtn.style.display = 'none';
                 logoutBtn.style.display = '';
                 await loadUserProgress();
                 loadIndexStats();
             } else {
                 userNameEl.style.display = 'none';
+                // ⚠️ BOTH READOUTS GO AWAY ON SIGN-OUT. On a shared Chromebook the
+                // next child must not see the last one's minutes in the header.
+                const _ns = document.getElementById('index-name-stack');
+                if (_ns) _ns.style.display = 'none';
+                const _ds = document.getElementById('index-daily-stack');
+                if (_ds) _ds.style.display = 'none';
                 loginBtn.style.display = '';
                 logoutBtn.style.display = 'none';
                 userProgress = {};
@@ -1420,27 +1462,85 @@
         // open-coded here is gone with it — daylog.js owns that, and a fourth
         // hand-rolled copy of the week boundary was a defect waiting for a
         // daylight-saving weekend.
+        // ⚠️ v3.10.0 — THIS FUNCTION WAS ALREADY DOING THE READ AND THROWING IT
+        // AWAY. It painted #index-stats-bar, an element that no longer exists in
+        // the markup — removed at some point, the function left orphaned — so
+        // every landing visit paid for seven document reads and then hit
+        // `if (!bar) return;`. The header readout is not a NEW read. It is the
+        // read that was already happening, finally reaching a screen.
+        //
+        // ⚠️ AND THE STRINGS COME FROM hud.js NOW. The open-coded fmt() that used
+        // to live here was a FOURTH copy of the same formatting, on the one
+        // surface nobody checks against the other three. HANDOFF §0.0: one
+        // document, read by every surface — and one module that turns it into
+        // words.
+        const IDX_GOALS_CACHE_KEY = 'ttb_goalsCache_v1';   // written by game.js
+        const IDX_GOALS_CACHE_MS  = 86400000;
+        let indexGoals = { dailySeconds: 0, weeklySeconds: 0 };
+
+        // Cache first, exactly as game.js does it, keyed and TTL'd identically so
+        // the two cannot disagree about what is fresh. A miss costs two reads.
+        // ⚠️ A GOAL THAT CANNOT BE RESOLVED STAYS ZERO, and hud.js then renders the
+        // bare figure with no denominator and no tick. Never guess a goal: a
+        // wrong denominator invents a ✓ the child did not earn.
+        async function resolveIndexGoals() {
+            if (!currentUser) return;
+            try {
+                const raw = localStorage.getItem(IDX_GOALS_CACHE_KEY);
+                if (raw) {
+                    const c = JSON.parse(raw);
+                    if (c && c.uid === currentUser.uid && (Date.now() - c.at) < IDX_GOALS_CACHE_MS) {
+                        indexGoals = { dailySeconds: c.dailySeconds || 0,
+                                       weeklySeconds: c.weeklySeconds || 0 };
+                        return;
+                    }
+                }
+            } catch (_) { /* fall through to a real read */ }
+            try {
+                const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
+                if (!userSnap.exists()) return;
+                const ud = userSnap.data();
+                if (!ud.classId) return;
+                const classSnap = await getDoc(doc(db, 'classes', ud.classId));
+                if (!classSnap.exists()) return;
+                const cd = classSnap.data();
+                indexGoals = { dailySeconds: cd.dailySeconds || 0,
+                               weeklySeconds: cd.weeklySeconds || 0 };
+            } catch (_) { /* goals are a denominator; without them we show the figure alone */ }
+        }
+
         async function loadIndexStats() {
             if (!currentUser) return;
             try {
+                await resolveIndexGoals();
                 const now = new Date();
                 const todayStr = now.getFullYear() + '-' +
                     String(now.getMonth()+1).padStart(2,'0') + '-' +
                     String(now.getDate()).padStart(2,'0');
                 const read = await readWeek({ db, doc, getDoc,
                                               uid: currentUser.uid, dateStr: todayStr });
-                // ⚠️ A PARTIAL READ SHOWS NOTHING RATHER THAN AN UNDERCOUNT. This
-                // banner is decoration; a wrong number on it is not.
+                // ⚠️ A PARTIAL READ SHOWS NOTHING RATHER THAN AN UNDERCOUNT. Same
+                // ruling as before: a missing number here is a gap, a wrong one
+                // is a child told they have less time than they earned.
                 if (!read.ok) return;
-                const secsToday = read.today.seconds;
-                const secsWeek  = read.week.seconds;
-                if (secsToday === 0 && secsWeek === 0) return;
-                function fmt(s) { const m=Math.floor(s/60),sec=s%60; return m+':'+String(sec).padStart(2,'0'); }
-                const bar = document.getElementById('index-stats-bar');
-                if (!bar) return;
-                bar.style.display = '';
-                bar.innerHTML = 'Today: <strong>' + fmt(secsToday) + '</strong>' +
-                    ' │ This week: <strong>' + fmt(secsWeek) + '</strong>';
+                const hud = hudStrings({
+                    todaySeconds: read.today.seconds,
+                    dailyGoal:    indexGoals.dailySeconds,
+                    weekSeconds:  read.week.seconds,
+                    weeklyGoal:   indexGoals.weeklySeconds,
+                });
+                const dailyEl = document.getElementById('index-daily');
+                const stackEl = document.getElementById('index-daily-stack');
+                if (dailyEl && stackEl) {
+                    dailyEl.textContent = hud.lead;
+                    dailyEl.style.color = hud.dailyDone ? '#22c55e' : '#ccc';
+                    stackEl.style.display = '';
+                }
+                const weekEl = document.getElementById('index-week');
+                if (weekEl) {
+                    weekEl.textContent = hud.right;
+                    weekEl.style.color = hud.weeklyDone ? '#22c55e' : '#888';
+                }
             } catch(e) { /* stats are non-critical */ }
         }
     </script>

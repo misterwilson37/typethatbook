@@ -1,5 +1,5 @@
 // run-all-tests.mjs v1.10.0 — Round 26 (Elliott-Fisher): live-period-test.mjs
-// and hud-lead-test.mjs registered. 41 harnesses.
+// and hud-lead-test.mjs registered. 41 harnesses. Landing page joined in 26c.
 //
 // v1.8.0 — Round 24 (Monotype): adopt-date-test.mjs,
 // carryover-test.mjs and midnight-test.mjs registered. 38 harnesses.

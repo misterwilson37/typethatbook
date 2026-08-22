@@ -84,10 +84,16 @@ learn.js v2.24.0, style.css v3.7.0, both HTMLs, tests/hud-lead-test.mjs).
 nobody types between now and midnight and grades are in, AND the old bar was
 already truncating `Daily 41:37 / 10:00…` — so Monday's verification was going to
 be done through a broken instrument either way.
-⚠️ **STILL OPEN AND STILL NEXT: "I'm done" (0d), the landing-page readout (0c.1),
-and the Adventure checkmark question (0c.3).** The landing page is NOT the same
-header — it is `.site-header`, not `#hud`, and its existing `loadIndexStats()`
-banner already works. That is a clean scope line, not a punt.
+✅ **THE LANDING PAGE SHIPPED TOO** (index.html v3.10.0). ⚠️ **The "extra read"
+this item warned about did not exist:** `loadIndexStats()` was already calling
+`readWeek()` every visit and discarding the result into a `#index-stats-bar`
+element that had been deleted from the markup. Goals resolve from game.js's own
+`ttb_goalsCache_v1`, so the usual case adds nothing at all.
+
+⚠️ **STILL OPEN AND STILL NEXT: "I'm done" (0d), the Adventure checkmark question
+(0c.3), and the trophy on the landing page** — that last one is a real feature,
+not a button: `index.html` has no leaderboard and `openLeaderboard()` lives in
+`game.js`.
 
 ⚠️ **THE FIRST THING TO BUILD AFTER MONDAY'S VERIFICATION COMES BACK CLEAN, AND
 NOT ONE HOUR BEFORE.** Every screen below is an instrument Jake reads on Monday
