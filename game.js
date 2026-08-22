@@ -1,4 +1,9 @@
-// game.js v3.39.0
+// game.js v3.39.1
+//
+// v3.39.1 — ⚠️ THE ⚙ GEAR WAS NEVER IN THE BAR. It was appended to <body> at
+//           `absolute; top:20px; right:20px`, so it floated in the reading area
+//           just below the HUD, attached to nothing. Long-standing; visible in
+//           every render Jake sent. Now a child of .hud-section.right.
 //
 // v3.39.0 — THE TWO-ROW TOP BAR (ROADMAP item 0). The left slot is now Daily
 //           over context and the sprint has moved to the centre with WPM,
@@ -1520,8 +1525,17 @@ async function init() {
         const btn = document.createElement('button');
         btn.id = 'menu-btn';
         btn.innerHTML = '&#9881;';
+        btn.title = 'Settings';
         btn.onclick = openMenuModal;
-        document.body.appendChild(btn);
+        // ⚠️ v3.39.1 — IN THE BAR, NOT FLOATING UNDER IT. This was appended to
+        // <body> with `position:absolute; top:20px; right:20px`, which put it
+        // 20px down the PAGE — i.e. dangling just under a 60px #hud, in the
+        // reading area, unattached to anything. Nobody had noticed because the
+        // one-row bar had no obvious right-hand home for it. The two-row bar
+        // does. Appended to the right section so it sits with the other
+        // controls; style.css v3.7.1 takes it out of absolute positioning.
+        const rightSection = document.querySelector('#hud .hud-section.right');
+        (rightSection || document.body).appendChild(btn);
     }
 
     // Game Genie button (admin only, hidden until auth confirms)

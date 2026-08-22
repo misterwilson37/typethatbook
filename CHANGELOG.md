@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## Round 26d — Elliott-Fisher (2026-08-21, evening)
+
+* **`game.js` 3.39.0 → 3.39.1**, **`style.css` 3.7.0 → 3.7.1.** ⚠️ **THE ⚙ GEAR
+  WAS NEVER IN THE BAR AND HAD NOT BEEN FOR A LONG TIME.** It was appended to
+  `<body>` with `position:absolute; top:20px; right:20px` — which is 20px down
+  the PAGE, i.e. dangling just below a 60px `#hud`, in the reading area, aligned
+  to nothing. It shows that way in every render Jake has sent, including the ones
+  from before this round. Nobody caught it because the one-row bar had no obvious
+  right-hand home for it; the two-row bar does. Now a child of
+  `.hud-section.right`, laid out in the flex row like every other control.
+  **Not a regression from 26b — an old defect the redesign made visible.**
+
 ## Round 26c — Elliott-Fisher (2026-08-21, evening)
 
 **THE LANDING PAGE JOINS THE BAR** (ROADMAP item 0c.1). Jake accepted the extra

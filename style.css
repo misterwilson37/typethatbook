@@ -1,4 +1,6 @@
-/* TypeThatBook style.css v3.7.0 */
+/* TypeThatBook style.css v3.7.1 */
+/* v3.7.1: the ⚙ gear joins the bar. See the block at #menu-btn — it was
+           absolutely positioned against <body> and floated below #hud. */
 /* v3.7.0: THE TWO-ROW TOP BAR (ROADMAP item 0). New .hud-stack / .hud-lead /
            .hud-sub / .hud-live. ⚠️ #hud IS STILL height:60px — the stack lives
            inside the fixed box and does not grow it; read the block at #hud
@@ -178,7 +180,7 @@ body {
    nobody will ever prioritize; harmless either way. #trophy-btn and
    #hud-back-link (v3.5.5) are the CURRENT furniture on game.html's left
    section; #back-btn already covered learn.html's. */
-#back-btn, #hud-timer, #hud-daily-goal, #learn-restart-btn, #trophy-btn, #hud-back-link { flex: 0 0 auto; }
+#back-btn, #hud-timer, #hud-daily-goal, #learn-restart-btn, #trophy-btn, #hud-back-link, #menu-btn { flex: 0 0 auto; }
 /* The stack is the one thing in the left section allowed to give up width. */
 .hud-section.left .hud-stack { flex: 0 1 auto; }
 /* The designated shrinker. Lesson titles are author-supplied and unbounded
@@ -846,7 +848,12 @@ footer.pinned #footer-full.build-list { display: block; }
 .stat-subtext { margin-top: 15px; font-size: 0.9em; color: #666; text-align: center; line-height: 1.5; }
 .stat-subtext span.highlight { color: var(--carolina-blue); font-weight: bold; border-bottom: 1px solid #ccc; }
 
-#menu-btn { position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: #555; font-size: 1.5rem; cursor: pointer; z-index: 1000; padding: 10px; }
+/* ⚠️ v3.7.1 — NOT `position: absolute` ANY MORE. `top:20px; right:20px` on a
+   <body> child put the gear 20px down the PAGE, which is underneath a 60px #hud
+   — floating in the reading area, aligned to nothing. game.js v3.39.1 appends it
+   to .hud-section.right instead, so it lays out in the flex row like every other
+   control. Nothing else here changes; it is the same button. */
+#menu-btn { position: static; background: transparent; border: none; color: #888; font-size: 1.2rem; cursor: pointer; padding: 0 2px; line-height: 1; }
 #menu-btn:hover { color: #00ff41; }
 
 /* --- GAME GENIE (admin only) --- */
