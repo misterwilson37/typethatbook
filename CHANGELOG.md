@@ -1,5 +1,64 @@
 # CHANGELOG
 
+## Round 27c — Chicago (2026-08-22) — ROADMAP 0b: THE SCHOOL SETTINGS PANEL
+
+* ⭐ **`settings-panel.js` 1.1.0, new — the sixth shared module.** A ⚙ in
+  School's top bar, same id and same slot as Library's, opening a dialog with the
+  reading font, the child's class, their goals and their student ID.
+  ⚠️ **DOM-only and state-free**, the same contract as `celebrate.js` and
+  `receipt.js`: it never reads Firestore, never flushes, never touches a counter.
+  Every value it shows is already in memory, so **opening settings costs zero
+  document reads.** `drill-filter-test` F7b asserts the contract by name.
+
+* ✅ **THE CLASS HAS A HOME AGAIN, AND THIS WAS A DEBT.** `updateClassDisplay()`
+  had been writing to `#user-class-name` — an element `learn.js` v2.24.0 deleted
+  from `learn.html` **in the same version** that removed it from the bar. Every
+  call landed in a null check and the class name went nowhere at all. Same shape
+  as §0.-13.C's orphaned `loadIndexStats()` paint, two instances in four days.
+
+* ⚠️ **RULE 9 — THE FONT MODEL MOVED, IT WAS NOT COPIED.** `DRILL_FONTS`,
+  `applyDrillFont()`, `readDrillFont()` and `buildFontPicker()` are **deleted**
+  from `learn.js` in the same deploy that adds them to `settings-panel.js`.
+  F9b asserts no local copy grew back.
+
+* ⚠️⚠️ **JAKE NARROWED "DON'T TOUCH THE TIMING MECHANISM"** (2026-08-22): it means
+  *don't break accurate tracking*, not *never stop the clock*. This shipped for a
+  few hours with the gear hidden during a drill on the strict reading; **the ⚙ is
+  now available in both views and the graded clock pauses**, exactly like
+  Library's menu. `learn.js` **2.27.1 → 2.29.0**.
+  ⚠️ Note how little the pause buys, which is why it is safe: the gate is
+  `drillPos > 0 && !isDrillIdle()` with a 3-second threshold, so **School's clock
+  already stopped itself three seconds into any pause.**
+
+* ⚠️⚠️ **THE RISK IS THE RESUME, NOT THE PAUSE**, and it is defended structurally
+  rather than by care: one `close()` reached by ✕, Esc and backdrop alike; the
+  resume in a `finally` so a teardown throw cannot eat it; handed through
+  `onClose` rather than any one dismiss handler; guarded on `drillRunning`.
+  A pause that never resumes means a child types on while **nothing counts** —
+  silent, no error. F7c1–c5, F7d, F7e. **Mutation-verified both ways.**
+
+* **The Tab hazard, solved the strong way.** The dialog is created on open and
+  **removed** on close, not hidden — between opens there is no `<select>` in the
+  document at all, which is stronger than the map picker it replaced. Focus
+  returns to whatever held it. H2 / H8b / H8c.
+
+* **`style.css` 3.7.3 → 3.8.0** (`.settings-overlay` and friends; the font picker
+  restyled from a map pill into a dialog row, 0.8rem floor unchanged and still
+  asserted). **`versions.js` → 1.11.0**, **`audit-versions.mjs` → 1.3.0**,
+  **`undefined-calls-test.mjs`** widened from 16 files to 20 — it had never known
+  about `drill-filter.js`, `celebrate.js` or `receipt.js`.
+
+* **`drill-filter-test.mjs` 1.3.0 → 1.5.0.** Part H now **imports the real
+  module** and drives it, instead of slicing the font block out of `learn.js` as
+  text and eval'ing it through `new Function`. **92 checks. 44 harnesses pass.**
+
+* ⭐ **ROADMAP item 10 is new** — students farming the first three lessons.
+  ⚠️ Step one is a **measurement, not a build**: `attempts` is already stored per
+  lesson per student, so the claim can be sized before it is designed for.
+
+* ⚠️ **NOT DONE:** the corner ID stamp still stands (Jake asked for a move; it was
+  added to the panel and the corner left pending his look — see ROADMAP 0b).
+
 ## Round 27b — Chicago (2026-08-22) — hud 2.0.0, and ROADMAP 9b closed
 
 **Two rulings from Jake, both taken. No behaviour changed.**

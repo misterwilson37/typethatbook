@@ -1,5 +1,7 @@
-// audit-versions.mjs v1.2.0 — Round 15 (Sholes's successor), Round 17 (Linotype),
+// audit-versions.mjs v1.3.0 — Round 15 (Sholes's successor), Round 17 (Linotype),
 // Round 27 (Chicago).
+//
+// v1.3.0 — SOURCES mirrors versions.js v1.11.0: settings-panel.js added.
 //
 // v1.2.0 — SOURCES mirrors versions.js v1.10.0: drill-filter.js, celebrate.js
 //          and receipt.js added. ⚠️ THIS TOOL IS NO LONGER THE ONLY OFFLINE
@@ -65,6 +67,7 @@ const SOURCES = [
     { file: 'drill-filter.js',       pattern: /\bexport\s+const\s+DRILL_FILTER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'celebrate.js',          pattern: /\bexport\s+const\s+CELEBRATE_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'receipt.js',            pattern: /\bexport\s+const\s+RECEIPT_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'settings-panel.js',     pattern: /\bexport\s+const\s+SETTINGS_PANEL_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'style.css',             pattern: /style\.css\s+v([0-9][^\s*]*)/ },
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
     { file: 'game.html',             pattern: /game\.html\s+v([0-9][^\s\->]*)/ },

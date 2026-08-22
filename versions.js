@@ -1,5 +1,9 @@
-// versions.js v1.10.0 — reads every file's version constant out of the files as
+// versions.js v1.11.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
+//
+// v1.11.0 — SOURCES gained settings-panel.js (ROADMAP 0b). ⚠️ The D2 ratchet
+//           added in Round 27 caught this omission on the first test run after
+//           the module was created, which is what it is for.
 //
 // v1.10.0 — SOURCES gained drill-filter.js, celebrate.js and receipt.js:
 //           three modules game.js and learn.js import, which the footer could
@@ -100,6 +104,7 @@ const SOURCES = [
     { file: 'drill-filter.js',       pattern: /\bexport\s+const\s+DRILL_FILTER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'celebrate.js',          pattern: /\bexport\s+const\s+CELEBRATE_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'receipt.js',            pattern: /\bexport\s+const\s+RECEIPT_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'settings-panel.js',     pattern: /\bexport\s+const\s+SETTINGS_PANEL_VERSION\s*=\s*["']([^"']+)["']/ },
     // Stylesheets carry theirs in a comment on line 1 as well as in a
     // body::before / body::after stamp. The comment is what we parse here,
     // because a page that doesn't load the stylesheet can still report it.
@@ -111,7 +116,7 @@ const SOURCES = [
     { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
 ];
 
-export const VERSIONS_VERSION = '1.10.0';
+export const VERSIONS_VERSION = '1.11.0';
 
 const CACHE_KEY = 'ttb_buildVersions_v3';   // v3: entries gained header budget fields
 

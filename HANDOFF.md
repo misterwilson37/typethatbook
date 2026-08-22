@@ -1,7 +1,56 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.9.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.12.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 27; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.12.0 — Round 27e (Chicago). §0.-17.E/F, DESIGN ONLY. ⚠️⚠️ THE FLAT 30-DAY
+     COOLDOWN IS WITHDRAWN ON ONE FACT ABOUT JAKE'S ROOM: kids are with him for
+     TWO MONTHS, so a flat month is a quarter of the course and opens every
+     mastered lesson at once, home row FIRST. Distance had to be in the rule and
+     only he knew that. Now: `reachBack = floor(activeDays/7)`, graded if
+     `L >= furthest - reachBack`. ⚠️ PROGRESS RESETS IT — review reaches the
+     STALLING student and not the coasting one, with nobody assessing anybody.
+     ✅ PRACTICE MODE IS IN and BOTH my objections were retired — a run in NEITHER
+     record creates no divergence, and it never touches the increment site
+     because it never ARMS the timer (§0.-16's pause work). ⚠️ Generalise: two of
+     three objections were to an assumed MECHANISM, not the goal.
+
+     v15.11.0 — Round 27d (Chicago). §0.-17, DESIGN ONLY, NO CODE. ROADMAP item 10
+     specced. ⚠️ The chapter staleness ladder is 7d→exact / 30d→sentence /
+     beyond→chapter start, NEVER the start of the book, and it is a RE-UPLOAD
+     DEGRADATION PATH rather than a review mechanic — the mechanism does not
+     transfer to lessons, the thresholds should. ⚠️ `grade` is BEST-grade-only so
+     "three times A🔥" needs a new fireCount; `completedAt` gives the cooldown
+     clock free. ⚠️⚠️ §0.-17.C IS A WITHDRAWN CLAIM OF MINE: I said Rule 11
+     forbade uncounted time and IT DOES NOT — time counting for neither side
+     creates no divergence. Rule 11 ends discussions, so a wrong invocation is
+     expensive; cite it against the MECHANISM, not the goal. The real objections
+     (log vs sessions divergence by design; a condition on the one increment
+     site) still stand, hence the 30-day cooldown recommendation. ⚠️ §0.-17.D:
+     the override threat model is a student WATCHING JAKE TYPE IT, not
+     cryptography, and a hardcoded hash cannot be rotated without a deploy.
+
+     v15.10.0 — Round 27c (Chicago). ✅ ROADMAP 0b SHIPPED — §0.-16 is the
+     write-up. settings-panel.js is the SIXTH shared module: a ⚙ in School's bar
+     holding the reading font, the class, the goals and the student ID.
+     ⚠️ THE CLASS ROW IS A DEBT BEING PAID — updateClassDisplay() had been
+     writing to #user-class-name, an element v2.24.0 deleted in the same version,
+     so the name went NOWHERE. That is §0.-13.C's orphaned paint, twice in four
+     days: when a round removes an element, GREP FOR ITS WRITERS.
+     ⚠️⚠️ §0.-16.B IS THE PART TO READ: Jake NARROWED "don't touch the timing
+     mechanism" to mean ACCURACY, not "never stop the clock". I had read it
+     strictly and built the gear to hide during a drill; the ⚙ now pauses like
+     Library's. A strict reading of a recorded rule FEELS safe and goes
+     unquestioned — this one would have left School permanently worse than
+     Library. ⚠️ §0.-16.C: THE RISK IS THE RESUME, NOT THE PAUSE. A pause that
+     never resumes is silent minutes lost. One close(), a `finally`, onClose,
+     guarded on drillRunning — F7c1–c5, mutation-verified. And note the pause
+     buys only ~3s: the idle gate already stops the clock. ⚠️ RULE 9 OBSERVED —
+     the font model MOVED out of learn.js; F9b asserts no copy returned.
+     ⭐ ROADMAP ITEM 10 IS NEW (lesson farming) and step one is a MEASUREMENT, not
+     a build — `attempts` is already stored per lesson per student.
+     ⚠️ THE CORNER ID STAMP IS STILL THERE pending Jake's look — §0.-16.E.
+     44 harnesses, all passing.
 
      v15.9.0 — Round 27b (Chicago). §0.-15 IS JAKE'S TWO RULINGS, BOTH TAKEN.
      ✅ **hud.js IS v2.0.0 AND THE MAJOR IS SIGNED OFF** — no code changed, the
@@ -287,6 +336,220 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-17. ⚠️ ROUND 27d (Chicago) — ITEM 10 SPECCED, AND A CLAIM OF MINE WITHDRAWN
+
+**2026-08-22. No code.** Design work on ROADMAP item 10 (lesson farming),
+recorded here because two of the three findings are corrections to things this
+repo already said.
+
+### A. ⚠️ THE CHAPTER STALENESS LADDER IS NOT A REVIEW MECHANIC
+
+Jake asked whether item 10 could reuse "the same logic we use on chapters," and
+said his memory of it might be wrong. Checked in `game.js` rather than recalled:
+
+| bookmark age | lands at |
+|---|---|
+| under **7 days** | the exact offset |
+| under **30 days** | the start of the sentence |
+| beyond 30 days | the start of the chapter |
+
+**It never returns anyone to the start of the book**, which is what he
+remembered. ⚠️⚠️ **AND IT ONLY RUNS WHEN A RE-UPLOADED BOOK'S `anchorText` CANNOT
+BE FOUND.** It is a degradation path — the app admitting it lost the student's
+place — not something that fires during ordinary reading.
+
+**So the mechanism does not transfer to lessons. The thresholds should:** 7 and
+30 days are Jake's own numbers, already reasoned about once, and a lesson
+cooldown on the same 30 days is one fewer arbitrary constant in the app.
+
+### B. ⚠️ "THREE TIMES A🔥" IS NOT IN THE DATA, BUT THE COOLDOWN CLOCK IS
+
+`lessonProgress` stores `grade` as the **BEST grade ever seen** (monotonic
+through `GRADE_ORDER`), so it cannot tell one A🔥 from twenty. A `fireCount` has
+to be added. ⚠️ It is a genuinely new quantity rather than a second copy of one,
+so Rule 9 is satisfied — but it starts at zero for every student who has already
+earned fire, and **that grace should be a decision, not a surprise.**
+
+`completedAt` is already written on every completion, so the cooldown needs no
+new timestamp.
+
+### C. ⚠️⚠️ I WITHDREW A RULE 11 CLAIM, AND THE WITHDRAWAL IS THE USEFUL PART
+
+The first draft of item 10 said, in capitals, that not counting time from a
+mastered lesson was **forbidden by Rule 11**. **That was wrong, and it was
+corrected in place rather than quietly dropped** (§0 rule 3).
+
+Rule 11 says the number **the student** sees and the number **the teacher** pulls
+must be the same number. **Time that counts for neither creates no divergence**
+and does not engage the rule at all.
+
+⚠️ **WHY THIS MATTERS BEYOND ONE ROADMAP ITEM.** Rule 11 is the most invoked rule
+in this repo, and invoking it ends discussions — which makes a wrong invocation
+expensive. It nearly killed a feature Jake had a sound argument for
+(*"them smashing f and j for 10 minutes should not count if they're typing full
+words"*). **Cite the rule against the mechanism, not against the goal, and read
+the rule again before citing it.**
+
+The real objections, which stand: a "doesn't count" run would make `typing_logs`
+disagree with `typing_sessions` **by design** — manufacturing the exact signature
+item 4's implausibility flag and the Δ column exist to detect — and it would put
+a condition on the one increment site the tick's header credits with killing four
+bugs at once. **The recommendation is therefore a 30-day cooldown, which reaches
+the same outcome without touching the counting path at all.**
+
+### E. ⚠️⚠️ THE MODEL LANDED ON JAKE'S CLARIFICATIONS — AND A FLAT COOLDOWN WAS WRONG
+
+Recorded because the correction came from **one fact about his room that no
+amount of reading the codebase would have produced**: *"kids are in my class for
+2 months."*
+
+A flat 30-day cooldown — my recommendation an hour earlier — is a **quarter of
+the entire course**, and it opens every mastered lesson simultaneously, **home
+row first**, which is the exact opposite of what he wants. ⚠️ **DISTANCE HAD TO BE
+IN THE RULE, NOT JUST TIME**, and only he knew that.
+
+The rule is now `reachBack = floor(activeDays / 7)`; a lesson is graded if
+`L >= furthestLesson - reachBack`. ⚠️⚠️ **PROGRESS RESETS IT, AND THAT IS THE PART
+WORTH KEEPING:** a child advancing normally never accumulates reach-back and
+never sees an old lesson; a child **stalling** earns one more lesson behind them
+per week. **Review reaches the struggling student and is withheld from the
+coasting one, without anybody assessing anybody** — the problem is solved by the
+shape of the rule rather than by a judgement call. Lesson 1 needs 26 weeks of
+standing still, so it never opens inside a two-month course.
+
+### F. ✅ AND BOTH OF MY OBJECTIONS TO PRACTICE MODE WERE RETIRED
+
+⚠️ **THE FIRST ONE I HAD BACKWARDS.** I argued uncounted time would make
+`typing_logs` disagree with `typing_sessions`. That is only true if the tick
+skips seconds **while the session log still files the run.** A run recorded in
+NEITHER leaves the two in perfect agreement — there is nothing to diverge.
+
+⚠️⚠️ **THE SECOND WAS RETIRED BY WORK THAT SHIPPED THE SAME DAY.** I argued it
+would put a condition on the one increment site. It does not have to:
+**a practice run simply never calls `startGradedTimer()`.** §0.-16's pause work
+for the ⚙ dialog is the same mechanism used differently — no gate touched, no
+condition added, the timer just never armed.
+
+**Generalise:** two of my three objections to this feature were about a specific
+implementation I had assumed, not about the goal. **Both times the goal was
+fine and the assumed mechanism was the problem.** Ask what the feature needs
+before arguing it cannot have it.
+
+### G. ⚠️ THE OVERRIDE — THE THREAT MODEL IS NOT CRYPTOGRAPHIC
+
+Jake proposed a hashed password on the settings page. Recorded because the
+reasoning generalises: **nobody has to reverse the hash — they have to watch him
+type it once**, and ninety students share a working secret within about a week.
+⚠️ **AND A HARDCODED HASH CANNOT BE ROTATED WITHOUT A DEPLOY**, which is the
+property that actually matters once it leaks.
+
+⚠️ **NONE OF THIS IS TAMPER-PROOF AND IT DOES NOT NEED TO BE.** The gate lives in
+`learn.js`, so devtools defeats any version of it. What makes it work is that the
+attempt is **still recorded** — the grade and the time still write, so a child who
+forces their way back into lesson 1 appears in the roster doing lesson 1. **Speed
+bump plus visibility is the correct level for a laziness problem.** The
+recommendation is a per-student toggle in `lessons-admin.js`, and any override
+must leave a trace in the reports.
+
+---
+
+## §0.-16. ✅ ROUND 27c (Chicago) — ROADMAP 0b, AND A RULING THAT NARROWED A RULE
+
+**2026-08-22.** The School settings panel shipped. `settings-panel.js` v1.1.0 is
+the sixth shared module.
+
+### A. What it is, and what it paid off
+
+A ⚙ in School's top bar, same id and same slot as Library's, opening a dialog
+holding the reading font, the child's class, their goals, and their student ID.
+
+⚠️ **THE CLASS ROW IS A DEBT BEING PAID, NOT A FEATURE.** `updateClassDisplay()`
+had been writing to `#user-class-name` — an element `learn.js` v2.24.0 deleted
+from `learn.html` in the same version that removed it from the bar. So every
+call landed in `if (classEl)` and the class name went **nowhere at all**. That is
+§0.-13.C's orphaned-paint shape exactly: `loadIndexStats()` painting an element
+that had been deleted out from under it. **Two instances in four days. When a
+round removes an element, grep for its writers in the same commit.**
+
+⚠️ **RULE 9 WAS OBSERVED ON THE FONT MODEL.** `DRILL_FONTS`, `applyDrillFont()`,
+`readDrillFont()` and `buildFontPicker()` were **deleted** from `learn.js` in the
+same deploy that added them to `settings-panel.js`. `drill-filter-test` F9b
+asserts no local copy came back, because two font tables that nobody chose to
+differ is precisely how the celebrations drifted (§0.-13.E).
+
+### B. ⚠️⚠️ JAKE NARROWED A RULE, AND THE NARROWING IS THE VALUABLE PART
+
+Item 7b/8 shipped on the condition *"without touching the timing mechanism"*, and
+`drill-filter-test` F7 has asserted it since Round 25. I read that as **"never
+stop the clock"**, and on that reading built the gear to hide during a drill —
+because Library's ⚙ can pause and School's could not.
+
+Jake, the same day: *"When I said 'don't mess with the timing mechanism', I meant
+not to break the ability to track the time accurately. It acting the same way it
+does in library mode — namely, counting time typed and pausing when necessary —
+is just fine."*
+
+⚠️ **THE CONDITION IS ABOUT ACCURACY, NOT ABOUT MOTION.** Pausing while a child
+is demonstrably not typing **is** accurate tracking — it is what the idle gate
+already does. The forbidden things are a second increment site, a second gate,
+and credit for time nobody typed. F7's comment now says so, and
+`openSchoolSettings()` is off its list by name.
+
+⚠️ **AND A GENERAL LESSON, WHICH IS WHY THIS HAS ITS OWN SECTION.** A rule
+recorded as a quoted sentence gets re-read by instances who were not in the
+conversation, and a strict reading feels *safe* — so it goes unquestioned and
+quietly costs features. **The strict reading cost half a day here and would have
+left School's ⚙ permanently worse than Library's.** When a recorded condition is
+about to remove a capability, ask what it was protecting before designing around
+it.
+
+### C. ⚠️⚠️ THE RISK IS THE RESUME, NOT THE PAUSE
+
+**A pause that never resumes is silent.** The child types for the rest of the
+lesson, nothing counts, no error is raised, and the minutes are simply gone —
+strictly worse than the seconds the pause saves.
+
+⚠️ **AND NOTE HOW LITTLE THE PAUSE ACTUALLY BUYS, because it is the reason this
+is safe at all.** The gate is `drillPos > 0 && !isDrillIdle()` and
+`LEARN_IDLE_THRESHOLD` is 3 seconds: **School's clock already stops itself three
+seconds into any pause.** The explicit pause removes those three seconds and
+makes the intent legible; it is not load-bearing for correctness.
+
+The resume is defended structurally, not by care:
+- **one `close()`**, reached by ✕, Esc and the backdrop alike — F7c5;
+- the resume in a **`finally`**, so a throw in the teardown cannot eat it — F7c4;
+- handed through **`onClose`**, not attached to any one dismiss handler — F7c2;
+- **guarded on `drillRunning`**, so it only resumes what it paused — F7c3.
+
+⚠️ It is a **tenth caller of an existing path**, not a new mechanism:
+`learnTickInterval` is an alias for `timerInterval` and nine sites already stop
+the clock this way. F7d/F7e assert there is still exactly one timer and one
+arming site.
+
+### D. The Tab hazard, solved the strong way
+
+Item 8's ruling holds: the dialog is **created on open and removed on close**,
+not hidden. Between opens there is no `<select>` in the document, so there is
+nothing to tab to — stronger than the map picker it replaced, which was
+permanently present. Focus returns to whatever held it. `drill-filter-test`
+H2/H8b/H8c.
+
+### E. What was NOT done
+
+- ⚠️ **THE CORNER ID STAMP IS STILL THERE.** Jake asked for the ID to *move*; it
+  has been **added** to the panel and the corner stamp left standing pending his
+  look. Two reasons, both now weaker than they were: §2's deploy check says a
+  missing ID stamp means the new code is not running (**the footer version is the
+  better instrument now that Round 27 fixed it**), and a child can read eight
+  characters aloud from the corner without navigating. **One-line removal from
+  both writers when he rules.**
+- **The panel is still sparse**, and Jake said so. Item 10 and the QoL items may
+  give it more to hold; nothing was invented to fill it.
+- ⚠️ **NOTHING WAS SEEN RENDERING** — same as §0.-13.H. `style.css` v3.8.0's
+  `.settings-overlay` block was written blind. **Ask him to open it once.**
 
 ---
 
@@ -2161,12 +2424,12 @@ reads.
 | file | version |
 |---|---|
 | `game.js` | **3.42.1** — ⚠️ Round 27. Stamp corrected: the constant said 3.38.0 for six releases. §0.-14 |
-| `learn.js` | **2.27.1** — ⚠️ Round 27. Stamp corrected: the constant said 2.23.1 for five releases. §0.-14 |
+| `learn.js` | **2.29.0** — ⚠️ Round 27c. THE SCHOOL SETTINGS PANEL, and the graded clock pauses for it. §0.-16 |
 | `session-log.js` | **1.6.0** — PER-OWNER queue + `GUEST_QUEUE_UID`. ⚠️ UPLOAD THIS FIRST — both pages import from it. Its TWO pins are checked by version-stamp-test.mjs C |
 | `hud.js` | **2.0.0** — ⚠️⚠️ MAJOR, JAKE SIGNED IT OFF. The v1.3.0 return-shape break recorded as the major it was. §0.-15. ⚠️ UPLOAD BEFORE THE TWO WRITERS |
 | `variety-floor.js` | 1.0.0 |
 | `stats-wal.js` | **1.1.0** — ⚠️ Round 22. Per-source counters in DAY_COUNTERS; storage key unchanged. §0.-8.F |
-| `versions.js` | **1.10.0** — ⚠️ Round 27. SOURCES gained the three modules the footer could not see. §0.-15 |
+| `versions.js` | **1.11.0** — ⚠️ Round 27. SOURCES gained the modules the footer could not see, settings-panel.js included. §0.-15 |
 | `daylog.js` | **1.4.0** — The shared week reader, the cutover, and `dayLogPayloadFor()` — **the one gate deciding a day's shape**. §0.-8.C. Carries the Overnight Rescue |
 | `keyboard.js` | 1.1.1 |
 | `adventure-renderer.js` | 1.5.4 |
@@ -2178,7 +2441,8 @@ reads.
 | `index.html` | 3.10.0 — ⚠️ Round 26. The landing readout. ⚠️ NOT in the audit's SOURCES — its version is unchecked |
 | `firebase-config.js` | 1.2.0 |
 | `firebase/firestore.rules` | **2.6.0** — ⚠️ **Jake deployed this 2026-08-20 and it is CONFIRMED CORRECT BY EXECUTION.** The null-resource clause is FIRST and must stay first. §0.-8.A |
-| `style.css` | **3.7.3** — ⚠️ Round 27. `body::before` said v3.6.1 against a v3.7.2 header. §0.-14 |
+| `style.css` | **3.8.0** — ⚠️ Round 27c. `.settings-overlay` for the ⚙ panel; #drill-font-pick restyled as a dialog row. §0.-16 |
+| `settings-panel.js` | **1.1.0** — ⚠️ NEW, Round 27c. The SIXTH shared module. ⚠️ UPLOAD BEFORE learn.js. §0.-16 |
 | `game.html` | 1.2.0 — ⚠️ div-balance checked this round: 5 open / 5 close in `#hud`, whole file balanced |
 | `learn.html` | **1.2.0** — ⚠️ Round 26 fixed §0.-13.B's stray `</div>`. Re-checked this round: balanced |
 | `adventure.css` | **1.0.2** — ⚠️ Round 27. `body::after` said v1.0.0; nothing had ever checked it. §0.-14.B |

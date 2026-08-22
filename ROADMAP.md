@@ -1,5 +1,36 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.16.0, 2026-08-22.** ⭐ **ITEM 10 HAS A MODEL** — a RECEDING REACH-BACK
+WINDOW, on Jake's clarifications. ⚠️ **THE FLAT 30-DAY COOLDOWN IS WITHDRAWN:**
+kids are in his class for **2 months**, so a flat month is a quarter of the
+course and it opens every mastered lesson at once, home row first — the opposite
+of the ask. The rule is now `reachBack = floor(activeDays / 7)`, graded if
+`L >= furthest - reachBack`. ⚠️⚠️ **PROGRESS RESETS IT, WHICH IS THE ELEGANT
+PART:** a child advancing never sees an old lesson, a child STALLING earns one
+more lesson behind them per week — review reaches the struggling student and not
+the coasting one, with nobody assessing anybody. Lesson 1 needs 26 weeks of
+standing still. ✅ **PRACTICE MODE IS BACK IN** and both of my objections are
+retired: a run recorded in NEITHER `typing_logs` NOR `typing_sessions` creates no
+divergence, and it never touches the increment site because **it simply never
+arms `startGradedTimer()`** — item 0b's pause work is the mechanism. ⚠️ THREE
+OPEN QUESTIONS need Jake, including a Rule 9 call on `activeDayCount`.
+
+**v3.15.0, 2026-08-22.** ⭐ **ITEM 10 IS SPECCED** — lesson farming. ⚠️ THREE
+FINDINGS WORTH READING BEFORE BUILDING IT. (1) The chapter staleness ladder is
+7d→exact / 30d→sentence / beyond→chapter start, it NEVER goes to the start of the
+book, and **it is a re-upload degradation path, not a review mechanic** — the
+mechanism does not transfer but the 7/30-day thresholds should. (2) `grade` stores
+the BEST grade only, so **"three times A🔥" is not derivable from what is stored**
+and needs a new `fireCount`; `completedAt` already gives the cooldown clock free.
+(3) ⚠️⚠️ **A CORRECTION IN PLACE: the previous draft said Rule 11 forbids
+uncounted time. That was WRONG** — time counting for neither student nor teacher
+creates no divergence. The real objections are that the drill-down would disagree
+with the day total by design, and that it puts a condition on the one increment
+site. **Recommendation is the 30-day cooldown, which gets the same outcome with
+none of it.** ⚠️ And the override should be an admin toggle, NOT a hashed password
+in the bundle — the failure mode is a student watching Jake type it, not
+cryptography, and a hardcoded hash cannot be rotated without a deploy.
+
 **v3.14.0, 2026-08-22.** ⚠️⚠️ **`hud.js` IS v2.0.0 ON JAKE'S EXPLICIT SIGN-OFF**
 ("Give hud 2.0. It's earned it"). No code changed — the number catches up with
 the breaking return-shape change that shipped as a minor in v1.3.0. ⚠️ Why it is
@@ -280,39 +311,70 @@ the one a later round would quietly undo while making the bar look nicer.
 
 ---
 
-## 0b. ⭐ STILL NEXT — A SETTINGS PANEL FOR SCHOOL
+## 0b. ✅ DONE — THE SETTINGS PANEL FOR SCHOOL
 
-⚠️ **ROUND 27 DID NOT START THIS, DELIBERATELY.** The suite was red on delivery
-and the footer version — Monday's primary instrument — was reporting the pre-fix
-build. Both outrank a new feature. **Nothing below is stale; it is simply
-untouched.** `HANDOFF.md` §0.-14.H.
+**Shipped 2026-08-22** (settings-panel.js v1.0.0, learn.js v2.29.0,
+style.css v3.8.0, drill-filter-test.mjs v1.5.0). A ⚙ in School's top bar, in the
+same slot as Library's, opening a dialog that holds all three things this item
+was opened for:
 
-Jake, 2026-08-21: *"I think we have room for the settings thing in learn."* The
-two-row bar freed the space, and `.hud-section.right` now has a real home for a
-⚙ (game.js v3.39.1 put Library's there).
+1. ✅ **The reading font.** Moved out of the map header. ⚠️ **RULE 9 — IT WAS A
+   MOVE, NOT A COPY:** `DRILL_FONTS`, `applyDrillFont()`, `readDrillFont()` and
+   `buildFontPicker()` are DELETED from `learn.js` in the same deploy that added
+   them to `settings-panel.js`. `drill-filter-test` F9b asserts no copy grew
+   back — two font tables nobody chose to differ is how the celebrations drifted.
+2. ✅ **The class**, plus the goals the top bar's numbers are measured against.
+   ⚠️ **THIS WAS THE DEBT v2.24.0 CREATED:** `updateClassDisplay()` had been
+   writing to `#user-class-name`, an element deleted from `learn.html` in that
+   same version, so the class name went nowhere at all — the same orphaned-paint
+   shape as §0.-13.C's `loadIndexStats()`.
+3. ✅ **Parity.** Same id, same slot, same gesture as Library's ⚙.
 
-⚠️ **THIS IS NOT "ADD A GEAR TO learn.html". IT IS A PLACE TO PUT THREE THINGS
-THAT CURRENTLY HAVE NOWHERE TO LIVE:**
+✅ **AND THE STUDENT ID JOINED IT**, on Jake's ask — the same eight characters the
+corner stamp and `reports.html` show, from the same `currentUser.uid`.
 
-1. **The reading-font control.** Item 8 shipped it into the School MAP, not the
-   drill, because a focusable control inside the drill is one Tab away from
-   eating a keystroke the child should have been credited for. ⚠️ **THAT RULING
-   DOES NOT CHANGE** — a modal is the way to satisfy both: the ⚙ itself is
-   `tabindex="-1"` and click-only, and the controls live inside a dialog that
-   only exists while it is open.
-2. **Class information.** `#user-class-name` was removed from the bar in
-   learn.js v2.24.0 on Jake's ruling ("forget about the class, it can live in
-   settings"). ⚠️ **IT NOW LIVES NOWHERE. THIS IS THE DEBT THAT RULING CREATED**
-   and this item is where it gets paid. Library's menu modal already shows
-   school and class; School shows neither.
-3. **Parity with Library's menu**, which is the real argument. A child moving
-   between the two modes should not find that the ⚙ means something different
-   on each side.
+### ⚠️⚠️ JAKE RULED ON WHAT "DON'T TOUCH THE TIMING MECHANISM" MEANS
 
-`openMenuModal()` in `game.js` is the model. ⚠️ **DO NOT IMPORT IT** — it reaches
-into book, chapter, sprint and view state that School has none of. Take its
-shape, not its body, and put the shared parts somewhere both can import rather
-than growing a third copy of a settings dialog.
+2026-08-22: *"When I said 'don't mess with the timing mechanism', I meant not to
+break the ability to track the time accurately. It acting the same way it does in
+library mode — namely, counting time typed and pausing when necessary — is just
+fine."*
+
+**So the condition on items 7b/8 is about ACCURACY, not about never stopping the
+clock.** This item shipped for a few hours with the gear hidden during a drill,
+on the stricter reading; the ruling replaced that with a pause, exactly like
+Library's menu. **The gear is now available in both views.**
+
+⚠️ **AND THE PAUSE BUYS LESS THAN IT LOOKS LIKE, WHICH IS WHY IT IS SAFE.**
+`startGradedTimer()`'s gate is `drillPos > 0 && !isDrillIdle()`, and
+`LEARN_IDLE_THRESHOLD` is 3 seconds — **School's clock already stops itself three
+seconds into any pause.** The explicit pause removes those three seconds and
+makes the intent legible. It is not what stands between a child and a wrong
+number.
+
+⚠️⚠️ **THE RISK IS THE RESUME, NOT THE PAUSE, AND IT IS ASSERTED IN FIVE PLACES.**
+A pause that never resumes means a child types for the rest of the lesson while
+NOTHING COUNTS — silent, no error, minutes gone, strictly worse than the problem
+the pause solves. So: one `close()` reached by ✕, Esc and backdrop alike; the
+resume handed to `onClose` and run in a `finally` so a throw in the teardown
+cannot swallow it; guarded on `drillRunning` so it only resumes what it paused.
+`drill-filter-test` F7c1–c5, F7d, F7e. Mutation-verified both ways.
+
+### ⚠️ ONE THING LEFT DELIBERATELY UNDONE — THE CORNER ID STAMP
+
+Jake asked for the ID to *move* into settings. It has been ADDED there; the
+bottom-left corner stamp is **still present**, pending his look, for two reasons
+worth stating before anyone deletes it:
+
+- `HANDOFF.md` §2's deploy check reads *"If the ID stamp is missing, the new code
+  is not running and nothing else you check means anything."* That instruction
+  would need rewriting in the same commit. ⚠️ It is now a weaker argument than it
+  was this morning, because Round 27 fixed the footer version stamps and the
+  footer is the better instrument.
+- The stamp exists so a child can read eight characters aloud across a classroom
+  without navigating anywhere (see the block above `renderIdStamp()`).
+
+**It is a one-line removal from both writers when Jake says so.**
 
 ---
 
@@ -728,6 +790,254 @@ reads the `import` statements out of `game.js` and `learn.js` and **fails if any
 module they import is missing from SOURCES.** The next extracted module cannot
 repeat this: a file that runs on a child's screen must be reportable in the
 footer Jake reads to diagnose a deploy.
+
+---
+
+## 10. ⭐ NEW — STUDENTS ARE FARMING THE FIRST THREE LESSONS
+
+**Jake, 2026-08-22:** *"Students are just redoing the first three lessons
+indefinitely because they're easy... it's one of the dumbest things I have to
+police manually now, and I'd rather build it in if I can."*
+
+**Position: after the quality-of-life items, well before the new game mode.**
+
+---
+
+### A. ⚠️ FIRST, THE CHAPTER LADDER — WHAT IT ACTUALLY IS
+
+Jake asked whether we could reuse the chapter logic and said his memory of it
+might be wrong. **It was close on the numbers and wrong on the destinations**, so
+here it is from `game.js`, checked rather than recalled:
+
+| bookmark age | where the student lands |
+|---|---|
+| under **7 days** | the **exact offset** — they remember the sentence |
+| under **30 days** | the **start of the sentence** |
+| beyond 30 days | the **start of the chapter** |
+
+`REANCHOR_EXACT_MS` / `REANCHOR_SENTENCE_MS`. **It never sends anyone to the
+start of the book.**
+
+⚠️⚠️ **AND IT IS NOT A REVIEW MECHANIC AT ALL, WHICH IS THE PART THAT MATTERS
+HERE.** The ladder is a **degradation path for a re-uploaded book**: it only runs
+when the text changed and `anchorText` could not be found in the new version. It
+is the app admitting *"I lost your place, here is how far back I will honestly
+claim to know."* It never fires during normal reading.
+
+**So the mechanism does not transfer — but the thresholds should.** 7 and 30 days
+are Jake's own numbers, already reasoned about once and already in the codebase.
+A lesson cooldown measured in the same 30 days is one fewer arbitrary constant.
+
+---
+
+### B. ⚠️ WHAT THE DATA CAN AND CANNOT ALREADY ANSWER
+
+`users/{uid}/lessonProgress/{lessonId}` currently stores:
+
+| field | use for this item |
+|---|---|
+| `completedAt` | ✅ **the cooldown clock, free** — updated on every completion |
+| `attempts` | ✅ sizes the problem today, but counts failures too |
+| `grade` | ⚠️ **BEST grade only, monotonic** — tells you they *ever* got A🔥 |
+| `passed`, `timeSpentSeconds`, `finalWPM` | context |
+
+⚠️ **"THREE TIMES A🔥" IS NOT DERIVABLE FROM WHAT IS STORED.** `grade` keeps the
+best grade ever seen, so it cannot distinguish one A🔥 from twenty. A new counter
+is required — `fireCount`, incremented on the run that earns `FIRE_GRADE`.
+
+⚠️ **That is a genuinely new quantity, not a second copy of an existing one, so
+Rule 9 is satisfied** — but it starts at zero for every student who has already
+earned fire, so the gate does not begin biting until they earn three more.
+**Decide deliberately whether that grace is wanted; it is probably a feature.**
+
+---
+
+### C. ⚠️⚠️ A CORRECTION — I OVERSTATED THE RULE 11 OBJECTION
+
+The previous version of this item said *"do not fix this by not counting the
+time — Rule 11 forbids it."* **That was wrong and it is worth correcting in
+place rather than quietly dropping.**
+
+Rule 11 says the number **the student sees** and the number **the teacher pulls**
+must be the same number. Time that counts for neither does not violate it. There
+is no divergence in "this run counted for nobody."
+
+**The real objections are different, and two of them are serious:**
+
+1. ⚠️⚠️ **THE DRILL-DOWN WOULD DISAGREE WITH THE DAY TOTAL, BY DESIGN.** If the
+   tick skips seconds but `session-log.js` still files the run, `typing_logs` and
+   `typing_sessions` diverge — which is exactly what item 4's implausibility flag
+   and the Δ column in `reports.html` exist to catch. **We would be manufacturing
+   the signature of the bug class this project has spent six rounds chasing.**
+   Any "doesn't count" mode must exclude the run from **both** records, or mark
+   it so every reader can tell.
+2. ⚠️ **IT PUTS A CONDITION ON THE ONE INCREMENT SITE.** The tick has one gate and
+   one increment site, and the header above `startGradedTimer()` lists four
+   separate bugs that all vanished when it stopped having three. A condition is
+   not a second site, so this is survivable — but it is the single most
+   load-bearing line in the app.
+3. **A child typing for ten minutes and watching their total not move reads as a
+   broken app**, and silent counting failures are this project's specialty. It
+   would have to be loud: the warning up front *and* a visible "Practice — not
+   counted" state in the HUD for the whole run.
+
+⚠️ **AND JAKE'S ARGUMENT FOR IT IS SOUND:** *"them smashing f and j for 10 minutes
+should not count if they're typing full words."* That is a real fairness problem
+and a real grading problem. The objection is to the **implementation cost**, not
+the goal.
+
+---
+
+### D. ⭐ THE MODEL — A RECEDING REACH-BACK WINDOW
+
+**Jake's clarifications, 2026-08-22, and they change the shape:**
+
+> *"Kids are in my class for 2 months."*
+> *"When I say a month, I mean a month of typing anything."*
+> *"It should cool down slowly backwards — homerow shouldn't open up first. If
+> they're on lesson 27 and they fireballed 26 3 times already, it should be a
+> week before they can do 26 again, and then a week more before they do 25
+> again."*
+> *"I do not want kids to go back and do lesson 1 unless they actually,
+> legitimately, need to do lesson 1 again."*
+
+⚠️ **THE TWO-MONTH COURSE KILLS THE FLAT 30-DAY COOLDOWN THE LAST DRAFT
+RECOMMENDED.** A flat month is a quarter of the time Jake has a child at all, and
+it opens *every* mastered lesson at once — including the home row, which is the
+one he least wants opened. **Distance has to be in the rule, not just time.**
+
+**THE RULE:**
+
+```
+reachBack = floor(activeDaysSinceLastAdvance / 7)
+lesson L is GRADED  if  L >= furthestLesson - reachBack
+lesson L is PRACTICE otherwise   (when fireCount >= 3)
+```
+
+Check it against Jake's own example — a student at lesson 27:
+
+| active days stalled | reachBack | graded lessons |
+|---|---|---|
+| 0–6 | 0 | 27 only |
+| 7–13 | 1 | 26, 27 |
+| 14–20 | 2 | 25–27 |
+| 56 (the whole course) | 8 | 19–27 |
+
+**Lesson 1 would need 26 weeks of standing still. It never opens inside a
+two-month course** — which is exactly the ask.
+
+⚠️⚠️ **AND THE PROPERTY THAT MAKES THIS BETTER THAN A COOLDOWN: PROGRESS RESETS
+IT, SO REVIEW ARRIVES EXACTLY WHEN IT IS NEEDED.** A child advancing normally
+never accumulates reach-back and never sees an old lesson. A child who **stalls**
+— the one who actually has forgotten something — earns access to one more lesson
+behind them per week of trying. The mechanism hands review to the struggling
+student and withholds it from the coasting one, **without either of them being
+assessed by anybody.** That is the whole problem solved by the shape of the rule
+rather than by a judgement call.
+
+⚠️ **"ACTIVE DAYS", NOT CALENDAR DAYS** — Jake was explicit. A child absent for a
+month must not come back to a pile of unlocked lessons. See §E for the cost.
+
+⚠️ **RE-LOCK ON RE-FIRE.** *"If they fireball lesson 1 after it unlocks, I want it
+immediately locked again."* Earning A🔥 in a reach-back-opened lesson stamps it
+and returns it to PRACTICE immediately — it does not wait out another window.
+**A reach-back opening is one shot, not a licence.**
+
+---
+
+### E. ⚠️ THE ONE EXPENSIVE PART — "ACTIVE DAYS" NEEDS A COUNTER, AND RULE 9 APPLIES
+
+The set of days a student typed **already exists**: it is exactly the set of
+`typing_logs/{uid}_{date}` documents. Counting a month of them costs ~30 document
+reads on every map render, which is not affordable.
+
+The cheap alternative is a monotonic `activeDayCount` on the student's record,
+incremented **once per day, at the existing day-rollover in the tick** — the one
+place that already owns the day boundary, so it is one increment site and not a
+second clock.
+
+⚠️⚠️ **THAT IS A SECOND RECORD OF A QUANTITY THAT ALREADY EXISTS, AND RULE 9 SAYS
+AN INSTANCE THAT CANNOT SATISFY IT MUST SAY SO AND ASK JAKE RATHER THAN QUIETLY
+PROCEED. SO: SAYING SO.** The drift case is real — a teacher deleting a day's log
+through the ⟳ path would leave the counter over-counting.
+
+**The argument for accepting it anyway, which is Jake's to weigh:**
+
+⚠️ **THE CONSEQUENCE OF DRIFT HERE IS "A LESSON UNLOCKS A DAY EARLY."** It is not
+a grade, not a reported minute, not a number a parent sees. **Rule 9 exists
+because duplicated counters corrupted the graded record** — `stats/time_tracking`
+is the cautionary tale, and it was a duplicate of *the graded total itself*. This
+counter never touches a grade, is never reported, and its worst failure is a
+child getting review access slightly sooner than intended. **That is a different
+risk class, and the rule should probably be spent elsewhere.**
+
+**If Jake would rather not add it:** fall back to calendar days from
+`completedAt` (free, already stored) and accept that an absent child returns to
+unlocked lessons. ⚠️ That is a real regression against his stated requirement,
+and it should be a decision rather than a discovery.
+
+---
+
+### F. ✅ PRACTICE MODE — AND ITEM 0b JUST MADE IT NEARLY FREE
+
+> *"If they want to type it for fun, that's fine. But I'm not grading it, and
+> they should have a banner across the top that says so."*
+
+⚠️⚠️ **THIS RETIRES MY OBJECTION FROM THE PREVIOUS DRAFT, AND THE REASON IS
+WORTH READING.** I argued that uncounted time would make `typing_logs` disagree
+with `typing_sessions` — manufacturing the exact signature item 4's implausibility
+flag exists to catch. **That is only true if the tick skips seconds while the
+session log still files the run.** If a practice run is recorded in **neither**,
+the two records stay in perfect agreement, because the run does not exist in
+either of them. There is no divergence to detect.
+
+⚠️ **AND THE SECOND OBJECTION IS RETIRED BY WORK THAT SHIPPED THIS MORNING.** I
+argued it would put a condition on the one increment site the tick's header
+credits with killing four bugs at once. It does not have to:
+**a practice run simply never calls `startGradedTimer()`.** Item 0b built the
+pause-and-resume path for the ⚙ dialog, and this is the same mechanism used
+differently — no gate is touched, no condition is added, the timer is just never
+armed. **The single increment site stays exactly as it is.**
+
+So a PRACTICE run:
+- never arms the graded timer → no seconds counted, no condition added;
+- never calls `sessionLogPush()` / `logRun()` → no session record, so nothing to
+  disagree with;
+- never calls `saveProgress()` → no grade, no `fireCount`, no `completedAt` move.
+  ⚠️ **THIS IS ALSO WHAT MAKES THE RE-LOCK IN §D COHERENT:** a practice run cannot
+  earn the A🔥 that would re-lock it, because it cannot earn anything.
+- shows **a persistent banner across the top for the whole run** — Jake's word,
+  and it must not be a dismissible toast. ⚠️ **A child typing for ten minutes
+  while the daily total does not move reads as a broken app**, and silent
+  counting failures are this project's specialty. The banner is the feature, not
+  the decoration.
+
+---
+
+### ⚠️ OPEN — THREE THINGS THAT NEED JAKE BEFORE THIS IS BUILDABLE
+
+1. **Does advancing reset `reachBack`, or only MASTERING a new lesson?** Reset on
+   advance is the cleaner rule and the one specced above, but it means a child
+   who nudges forward one lesson loses the review access they had just earned.
+   Reset on *mastery* is gentler and slightly more state.
+2. ⚠️ **`activeDayCount` — Rule 9, §E.** Add the counter and accept a drift whose
+   worst case is a lesson unlocking a day early, or fall back to calendar days
+   and accept that an absent child returns to unlocked lessons?
+3. **The `fireCount` grace.** Every current student starts at 0, so nobody is
+   gated until they earn three *more* A🔥. Probably right — it means the feature
+   arrives quietly rather than locking a class out on deploy day — but it should
+   be chosen.
+
+---
+
+### H. Before any of it: measure
+
+`attempts` is already stored per lesson per student. **A read-only
+attempts-per-lesson column in the lessons admin costs an afternoon** and answers
+whether this is three kids or thirty, and whether it is the strong ones coasting
+or the struggling ones hiding. ⚠️ This project has twice built on a number nobody
+checked (§0.-10's retraction, §0.-9.E's Chromebook theory). The fix is cheap and
+the measurement is cheaper.
 
 ---
 

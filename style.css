@@ -1,4 +1,11 @@
-/* TypeThatBook style.css v3.7.3 */
+/* TypeThatBook style.css v3.8.0 */
+/* v3.8.0: THE ⚙ SETTINGS PANEL (ROADMAP item 0b) — .settings-overlay and its
+           children, for settings-panel.js. ⚠️ NAMED FOR THE PANEL, NOT FOR
+           SCHOOL, so Library can adopt the same shell without a second block.
+           ⚠️ #drill-font-pick RESTYLED FROM A PILL INTO A DIALOG ROW: it moved
+           out of the map header into the panel. The 0.8rem floor is unchanged
+           and is still asserted by drill-filter-test.mjs H9 — v3.6.0 sat below
+           it and that is why nobody could find the control. */
 /* v3.7.3: ⚠️ STAMP ONLY, NO RULE CHANGED. body::before still read "v3.6.1"
            after v3.7.0, v3.7.1 and v3.7.2, so the build panel under-reported
            this file by three versions — including the whole two-row bar.
@@ -99,7 +106,7 @@
    what versions.js reads back out of the LIVE stylesheet to tell a stale cached
    CSS from a deployed one. Bump it in the SAME EDIT as the header comment at the
    top, always. It has now drifted twice; drill-filter-test.mjs F12 catches it. */
-body::before { content: "v3.7.3"; display: none; }
+body::before { content: "v3.8.0"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -1275,11 +1282,12 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
    something. It now reads as a control: a bordered pill, an "Aa" glyph that
    previews the chosen face, and enough contrast to be seen on a black page. */
 #drill-font-pick {
-    margin: 12px auto 0; display: inline-flex; align-items: center; gap: 8px;
-    padding: 5px 10px 5px 8px;
-    background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 999px;
-    font-family: 'Courier Prime', monospace; font-size: 0.8rem; color: #bbb;
+    margin: 0; display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; padding: 8px 2px;
+    font-family: 'Courier Prime', monospace; font-size: 0.85rem; color: #bbb;
 }
+/* ⚠️ THE 0.8rem FLOOR IS ASSERTED BY drill-filter-test.mjs H9, NOT A PREFERENCE.
+   v3.6.0 sat below it at 0.75rem/#777 and that is exactly why nobody found it. */
 #drill-font-pick:hover { border-color: #555; }
 /* The glyph previews the face itself, which is the fastest possible label. */
 #drill-font-pick .dfp-aa {
@@ -1293,6 +1301,60 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
                           cursor: pointer; }
 #drill-font-pick select:hover { border-color: var(--carolina-blue); }
 #drill-font-pick select:focus { outline: 2px solid var(--carolina-blue); outline-offset: 1px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE ⚙ SETTINGS PANEL (v3.8.0, ROADMAP item 0b) — settings-panel.js
+   ═══════════════════════════════════════════════════════════════════════════
+   ⚠️ School had no dialog of any kind. These rules are shared-shaped on purpose:
+   they are named for the panel, not for School, so Library can adopt the same
+   shell later without a second stylesheet block. See settings-panel.js.
+
+   ⚠️ THE OVERLAY IS ABOVE #hud (z-index 100) DELIBERATELY. The gear lives IN the
+   bar, so a panel that opened underneath it would be partly covered by the
+   control that opened it. */
+.settings-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(0, 0, 0, 0.72);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+}
+.settings-panel {
+    background: #141414; border: 1px solid #3a3a3a; border-radius: 10px;
+    width: 100%; max-width: 380px; max-height: 80vh; overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    font-family: 'Courier Prime', monospace;
+}
+.settings-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid #2a2a2a;
+}
+.settings-title { font-size: 1rem; color: #eee; font-weight: bold; }
+.settings-close {
+    background: none; border: none; color: #999; font-size: 1.1rem;
+    cursor: pointer; padding: 2px 6px; border-radius: 4px; line-height: 1;
+}
+.settings-close:hover { color: #fff; background: #2a2a2a; }
+.settings-close:focus { outline: 2px solid var(--carolina-blue); outline-offset: 1px; }
+.settings-body { padding: 6px 16px 16px; }
+.settings-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; padding: 10px 2px; border-bottom: 1px solid #222;
+    flex-wrap: wrap;
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-label { font-size: 0.85rem; color: #bbb; }
+.settings-value { font-size: 0.85rem; color: #eee; text-align: right; }
+/* ⚠️ An unset value says so rather than rendering a blank line — an empty space
+   where a class name should be reads as a bug to a twelve-year-old. */
+.settings-value-empty { color: #777; font-style: italic; }
+.settings-hint {
+    flex-basis: 100%; text-align: right;
+    font-size: 0.7rem; color: #777; margin-top: -4px;
+}
+.settings-control { display: flex; align-items: center; gap: 8px; }
+.settings-note {
+    font-size: 0.78rem; color: #888; padding: 10px 2px; line-height: 1.5;
+}
 
 /* Drill keyboard wrap — fixed height matches keyboard so swapping
    keyboard↔modal never changes the height of the slot, preventing text jump */

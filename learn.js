@@ -1,4 +1,36 @@
-// learn.js v2.27.1
+// learn.js v2.29.0
+//
+// v2.29.0 — ⚠️⚠️ THE ⚙ IS AVAILABLE DURING A DRILL AND THE CLOCK PAUSES, on
+//           Jake's ruling the same day: *"I meant not to break the ability to
+//           track the time accurately. It acting the same way it does in library
+//           mode — namely, counting time typed and pausing when necessary — is
+//           just fine."* v2.28.0 hid the gear during a drill on the stricter
+//           reading of item 7b/8's condition; this replaces that with a pause.
+//           ⚠️ THE RISK IS THE RESUME. A pause that never resumes means a child
+//           types on while NOTHING COUNTS. It rides on settings-panel.js's
+//           `onClose`, in a `finally`, from the one close() all three dismiss
+//           paths share, guarded on `drillRunning`. drill-filter F7c1–c5.
+//           ⚠️ IT IS A TENTH CALLER OF AN EXISTING PATH, NOT A NEW MECHANISM —
+//           `learnTickInterval` is an alias for `timerInterval` and nine sites
+//           already stop the clock this way. No second timer, no second gate.
+//           ✅ The student ID joins the panel, on Jake's ask.
+//
+// v2.28.0 — ⭐ THE SCHOOL SETTINGS PANEL (ROADMAP item 0b). A ⚙ in the top bar
+//           opens settings-panel.js's dialog. THREE things that had nowhere to
+//           live now do: the reading font, the child's CLASS, and their goals.
+//           ⚠️ THE CLASS IS THE DEBT v2.24.0 CREATED, BEING PAID —
+//           `updateClassDisplay()` had been writing to `#user-class-name`, an
+//           element deleted from learn.html in that same version, so the text
+//           went nowhere at all. Same shape as §0.-13.C's orphaned paint.
+//           ⚠️ RULE 9 — THE FONT MODEL MOVED, IT WAS NOT COPIED. DRILL_FONTS,
+//           applyDrillFont(), readDrillFont() and buildFontPicker() are DELETED
+//           from this file in the same deploy that adds them to
+//           settings-panel.js. drill-filter-test F9b asserts no copy came back.
+//           ⚠️⚠️ THE GEAR IS HIDDEN DURING A DRILL AND THAT IS DELIBERATE —
+//           Library's ⚙ pauses the game first and School CANNOT, because item
+//           7b/8 shipped on Jake's condition "without touching the timing
+//           mechanism" (drill-filter F7). Read the block above
+//           ensureSettingsButton() before changing it. HANDOFF §0.-16.
 //
 // v2.27.1 — ⚠️ STAMP ONLY, NO BEHAVIOUR. `const LEARN_VERSION` still read
 //           "2.23.1" after v2.23.2, v2.24.0, v2.25.0, v2.26.0 and v2.27.0 all
@@ -428,7 +460,7 @@ import {
 // The time readout, shared with game.js. ⚠️ Both pages render the SAME string in
 // the SAME element id — see hud.js for why that is the whole point.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
-         celebrationDone, celebrationMark } from "./hud.js";
+         celebrationDone, celebrationMark, fmt } from "./hud.js";
 // ⚠️ v2.26.0 — THE "copied from game.js" BLOCK IS GONE, and its header said so
 // in as many words for months. celebrate.js owns the celebrations; School and
 // Library now show the SAME one. Do not copy it back.
@@ -437,6 +469,12 @@ import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
 // caller that wants the banner without the animation.
 import { launchConfetti, launchFireworks } from "./celebrate.js";
 import { showReceipt } from "./receipt.js";
+// ⚠️ ROADMAP 0b. The reading-font model MOVED here from this file in v2.28.0 —
+// there is no local copy left and there must not be a new one. `openMenuModal()`
+// in game.js is deliberately NOT imported: it reaches into book, chapter, sprint
+// and view state School has none of. This module is its shape, not its body.
+import { openSettingsPanel, buildSettingsButton, applyDrillFont, readDrillFont,
+         SETTINGS_PANEL_VERSION } from "./settings-panel.js";
 // ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
 // ⚠️ readDaySessions/projectDayTotal deliberately NOT imported — v2.19.0
 // reverted the projection. See HANDOFF §0.0.
@@ -481,7 +519,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.27.1";
+const LEARN_VERSION = "2.29.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -881,64 +919,129 @@ const hudTimer       = document.getElementById('hud-time');
 // exactly the worst moment. style.css v3.6.0 swaps bold for an underline while a
 // proportional face is active — underline changes no advance width. If you add a
 // face here, add it to the right list below or that guarantee silently lapses.
-const DRILL_FONTS = [
-    // key,     label,        stack,                                              mono
-    ['courier', 'Typewriter', "'Courier Prime', monospace",                        true ],
-    ['mono',    'Plain',      "Consolas, 'Andale Mono', 'DejaVu Sans Mono', monospace", true ],
-    ['serif',   'Book',       "Georgia, 'Times New Roman', serif",                 false],
-    ['sans',    'Clean',      "Verdana, Geneva, sans-serif",                       false],
-    ['round',   'Rounded',    "'Comic Sans MS', 'Trebuchet MS', sans-serif",       false],
-];
-const DRILL_FONT_KEY = 'ttbDrillFont';
+// ⚠️ THE READING-FONT MODEL MOVED TO settings-panel.js (v2.28.0, ROADMAP 0b).
+// DRILL_FONTS, applyDrillFont(), readDrillFont() and buildFontPicker() all lived
+// here. ⚠️ RULE 9 — THIS WAS A MOVE AND THE ORIGINALS ARE DELETED, in the same
+// deploy that added them there. Do not re-add a local copy of the font table:
+// two lists that nobody chose to differ is exactly how the celebrations drifted
+// (HANDOFF §0.-13.E).
+//
+// ⚠️ AND THE CONTROL MOVED WITH IT — from the map header into the ⚙ dialog. The
+// ruling it was placed on the map to satisfy has NOT changed: a focusable
+// control reachable by Tab from a typing view eats keystrokes. The dialog
+// satisfies it a stronger way — it does not exist at all between opens, so
+// there is nothing to tab to, whereas the map picker was permanently in the
+// document. See settings-panel.js's header.
 
-function applyDrillFont(key) {
-    const f = DRILL_FONTS.find(x => x[0] === key) || DRILL_FONTS[0];
-    document.documentElement.style.setProperty('--drill-font', f[2]);
-    // The class is what style.css keys the bold-vs-underline swap off.
-    document.documentElement.classList.toggle('ttb-drill-proportional', !f[3]);
-    return f[0];
-}
-
-function readDrillFont() {
-    try { return localStorage.getItem(DRILL_FONT_KEY) || 'courier'; }
-    catch (_) { return 'courier'; }
-}
-
-// ⚠️ CALLED AT MODULE LOAD, BEFORE ANY DRILL IS BUILT, so a student never sees
+// ⚠️ APPLIED AT MODULE LOAD, BEFORE ANY DRILL IS BUILT, so a student never sees
 // the default face flash to their own. It touches one CSS property and one class
 // and reads nothing from the network or Firestore.
 applyDrillFont(readDrillFont());
 
-// ⚠️ THE CONTROL LIVES ON THE MAP, NOT IN THE DRILL. A <select> inside the drill
-// view would be one Tab keypress away from stealing focus from the typing
-// surface, and a keystroke that lands in a dropdown instead of the drill is a
-// character the student typed and did not get credit for. On the map there is no
-// drill running and nothing to steal.
-function buildFontPicker() {
-    const header = document.getElementById('map-header');
-    if (!header || document.getElementById('drill-font-pick')) return;
-    const wrap = document.createElement('div');
-    wrap.id = 'drill-font-pick';
-    // ⚠️ v2.23.1 — THE "Aa" IS THE AFFORDANCE, and it is rendered IN the chosen
-    // face. v2.23.0 shipped a bare label at 0.75rem in #777 and Jake asked
-    // whether the feature existed at all. It did. ⚠️ A CONTROL NOBODY CAN FIND
-    // HAS NOT SHIPPED — and if the teacher cannot find it, no twelve-year-old
-    // will, which is the entire audience.
-    wrap.innerHTML = '<span class="dfp-aa" aria-hidden="true">Aa</span>' +
-        '<label for="drill-font-select">Reading font</label>' +
-        '<select id="drill-font-select">' +
-        DRILL_FONTS.map(f => '<option value="' + f[0] + '">' + f[1] + '</option>').join('') +
-        '</select>';
-    header.appendChild(wrap);
-    const sel = wrap.querySelector('select');
-    sel.value = readDrillFont();
-    // Each option reads in the face it names — the fastest possible label.
-    sel.style.fontFamily = 'var(--drill-font)';
-    sel.addEventListener('change', () => {
-        const applied = applyDrillFont(sel.value);
-        sel.value = applied;
-        try { localStorage.setItem(DRILL_FONT_KEY, applied); } catch (_) {}
-        sel.style.fontFamily = 'var(--drill-font)';
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚙ THE SCHOOL SETTINGS PANEL (ROADMAP item 0b)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ THE GEAR IS AVAILABLE DURING A DRILL AND THE CLOCK PAUSES, EXACTLY LIKE
+// LIBRARY. Jake ruled on this directly, 2026-08-22: *"When I said 'don't mess
+// with the timing mechanism', I meant not to break the ability to track the time
+// accurately. It acting the same way it does in library mode — namely, counting
+// time typed and pausing when necessary — is just fine."*
+//
+// ⚠️ SO ITEM 7b/8's CONDITION IS ABOUT ACCURACY, NOT ABOUT NEVER STOPPING THE
+// CLOCK. Pausing while a child is demonstrably not typing IS accurate tracking;
+// it is what the idle gate already does. The forbidden thing is a second
+// increment site, a second gate, or credit for time nobody typed.
+//
+// ⚠️ AND NOTE HOW LITTLE THIS ACTUALLY BUYS, because it explains why it is safe:
+// `startGradedTimer()`'s gate is `drillPos > 0 && !isDrillIdle()`, and
+// LEARN_IDLE_THRESHOLD is 3 seconds. **School's clock already stops itself three
+// seconds into any pause**, dialog or no dialog. The explicit pause below
+// removes those three seconds and makes the intent legible; it is not what
+// stands between a child and a wrong number.
+function ensureSettingsButton() {
+    const btn = buildSettingsButton(openSchoolSettings);
+    if (!btn.parentNode) {
+        // ⚠️ SAME SLOT AS LIBRARY'S, so the two bars stay identical. game.js
+        // v3.39.1 learned the hard way that appending this to <body> dangles it
+        // in the reading area; style.css v3.7.1 positions it inside the bar.
+        const right = document.querySelector('#hud .hud-section.right');
+        (right || document.body).appendChild(btn);
+    }
+    return btn;
+}
+
+// ⚠️ EVERY VALUE HERE IS ALREADY IN MEMORY. This function performs NO reads:
+// `classInfo` and `goals` were resolved by loadGoals() and cached for 24h, the
+// uid is on `currentUser`, and the font comes from localStorage. Opening
+// settings must never cost a document read — the same rule hud.js's celebration
+// latch is built on.
+function openSchoolSettings() {
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ THE PAUSE, AND ITS RESUME. READ BOTH HALVES BEFORE EDITING EITHER.
+    // ═══════════════════════════════════════════════════════════════════════
+    // `learnTickInterval` is an ALIAS for `timerInterval`, not a second timer —
+    // see the block above startGradedTimer(). Nine call sites already stop the
+    // clock this way for a hard stop, a modal or a step end; this is a tenth
+    // caller of an existing path, NOT a new mechanism. `startGradedTimer()`
+    // re-arms the same single interval and resets no counter, so `stepSeconds`
+    // and the WPM denominator survive the pause intact.
+    //
+    // ⚠️⚠️ THE FAILURE MODE IS THE RESUME, NOT THE PAUSE. A pause that never
+    // resumes means a child types for the rest of the lesson while NOTHING
+    // COUNTS — silent, no error, minutes gone. That is worse than the few
+    // seconds the pause saves. The resume therefore rides on
+    // settings-panel.js's `onClose`, which runs in a `finally` on the single
+    // close() that all three dismiss paths (✕, Esc, backdrop) go through.
+    // ⚠️ NEVER pause here without handing the matching resume to onClose.
+    const drillRunning = drillView && !drillView.classList.contains('hidden');
+    if (drillRunning) clearInterval(learnTickInterval);
+
+    const rows = [{ kind: 'font' }];
+
+    // ⚠️ THIS IS THE DEBT learn.js v2.24.0 CREATED, BEING PAID. `#user-class-name`
+    // was removed from the top bar on Jake's ruling ("forget about the class, it
+    // can live in settings") and then lived NOWHERE — `updateClassDisplay()` has
+    // been writing to an element that no longer exists in learn.html, which is
+    // the same shape as §0.-13.C's orphaned `loadIndexStats()` paint.
+    if (currentUser && !currentUser.isAnonymous) {
+        rows.push({
+            kind: 'info', label: 'Class',
+            value: (classInfo && classInfo.name) || '',
+            empty: 'No class assigned',
+            hint: 'set by your teacher',
+        });
+        // The goals the graded numbers in the top bar are measured against. A
+        // child who can see `Daily 9:22 / 10:00` should be able to find out
+        // where the 10:00 came from.
+        if (goals.dailySeconds > 0 || goals.weeklySeconds > 0) {
+            rows.push({
+                kind: 'info', label: 'Your goals',
+                value: (goals.dailySeconds  > 0 ? fmt(goals.dailySeconds)  + ' a day' : '')
+                     + (goals.dailySeconds > 0 && goals.weeklySeconds > 0 ? ' \u00b7 ' : '')
+                     + (goals.weeklySeconds > 0 ? fmt(goals.weeklySeconds) + ' a week' : ''),
+            });
+        }
+        // ⚠️ THE STUDENT ID, ON JAKE'S ASK. Same EIGHT characters the corner
+        // stamp and reports.html show — read the block above renderIdStamp() for
+        // why eight and not twenty-eight: eight can be read aloud across a
+        // classroom without a mistake. ⚠️ IT IS THE SAME VALUE FROM THE SAME
+        // PLACE (`currentUser.uid`), not a second copy of anything: there is no
+        // derived quantity here to drift.
+        rows.push({
+            kind: 'info', label: 'Your ID',
+            value: currentUser.uid.slice(0, 8),
+            hint: 'tell your teacher this if something looks wrong',
+        });
+    } else {
+        rows.push({ kind: 'note',
+            text: 'Sign in to see your class, your goals and your ID.' });
+    }
+
+    openSettingsPanel({
+        title: 'Settings',
+        rows,
+        onClose: () => { if (drillRunning) startGradedTimer(); },
     });
 }
 
@@ -1644,7 +1747,16 @@ function renderMap() {
     // and not a duplicate listener. It is placed BEFORE the early return below
     // so the picker survives a lessons-failed-to-load state — a student whose
     // lessons did not load can still fix a font they cannot read.
-    buildFontPicker();
+    // ⚠️ v2.28.0 — THE FONT PICKER IS NO LONGER BUILT HERE. It moved into the ⚙
+    // dialog (ROADMAP 0b, settings-panel.js). renderMap() runs on every auth
+    // change and every progress update, so what it does now is make sure the
+    // gear exists — `buildSettingsButton()` returns the existing one if there is
+    // one, so this stays idempotent for the same reason the picker did.
+    //
+    // ⚠️ IT STAYS BEFORE THE EARLY RETURN BELOW, for the reason the picker did:
+    // a student whose lessons failed to load must still be able to reach the
+    // control that fixes a font they cannot read.
+    ensureSettingsButton();
     if (allLessons.length === 0) {
         lessonMapEl.innerHTML = '<div style="color:#888; text-align:center; padding:40px;">No lessons loaded.</div>';
         return;
@@ -3582,6 +3694,11 @@ async function saveProgress(passed, wpm, acc, grade) {
 function showView(which) {
     mapView.classList.toggle('hidden', which !== 'map');
     drillView.classList.toggle('hidden', which !== 'drill');
+    // ⚠️ THE GEAR IS NOT HIDDEN HERE ANY MORE (v2.28.0 shipped it map-only for a
+    // few hours; Jake ruled the same day that pausing is fine). It stays visible
+    // in both views, like Library's, and openSchoolSettings() pauses the graded
+    // clock while it is open. `ensureSettingsButton()` is idempotent, so there
+    // is nothing to toggle here.
 }
 
 function stopLesson() {

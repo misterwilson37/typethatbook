@@ -55,6 +55,12 @@ const FILES = [
     'stats-wal.js', 'session-log.js', 'hud.js',
     // ⚠️ Added Round 16. The fifth shared module — see variety-floor.js's header.
     'variety-floor.js',
+    // ⚠️ Added Round 27. Three modules extracted in Rounds 25–26 and one in 27,
+    // none of which this audit knew about — so a typo in any of them would have
+    // reached a classroom unparsed. `drill-filter.js` and `celebrate.js` and
+    // `receipt.js` are imported by the writers; `settings-panel.js` is ROADMAP
+    // 0b. **If you extract a module, add it here in the same commit.**
+    'drill-filter.js', 'celebrate.js', 'receipt.js', 'settings-panel.js',
 ];
 
 // ⚠️ HTML PAGES TOO (v1.2.0). v1.0.0 and v1.1.0 checked only the .js files and so
