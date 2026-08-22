@@ -1,4 +1,4 @@
-// celebration-test.mjs v1.0.0 — "NOT EVERYONE GOT FIREWORKS."
+// celebration-test.mjs v1.1.0 — "NOT EVERYONE GOT FIREWORKS."
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // THE REPORT AND THE DEFECT
@@ -144,10 +144,42 @@ console.log('\n─── E. GREP: both writers, same helper ───');
            `E4 ⚠️ ${f}: no open-coded "already past the goal" suppression survives`);
         ok(/function applyGoalCelebrationState/.test(body),
            `E5 ${f}: the seed is a named function, so its call sites cannot drift`);
+        // ⚠️ THE ASSERTION THAT KEEPS "MAKE THE FIREWORKS BIGGER" A ONE-LINE EDIT.
+        // Both files carried their own copy until v3.41.0 / v2.26.0, and the two
+        // had drifted without anyone choosing to. A local redefinition here means
+        // School and Library can diverge again silently.
+        ok(!/function\s+launchFireworks\s*\(/.test(body),
+           `E7 ⚠️ ${f}: no local launchFireworks() — celebrate.js owns it`);
+        ok(!/function\s+launchConfetti\s*\(/.test(body),
+           `E8 ⚠️ ${f}: no local launchConfetti()`);
+        ok(!/function\s+createCelebrationCanvas\s*\(/.test(body),
+           `E9 ${f}: no local celebration canvas`);
+        ok(/from\s*["'.\/]*celebrate\.js["']/.test(body),
+           `E10 ${f}: imports the shared celebrations`);
     }
     ok(/export function celebrationDone/.test(src('hud.js')) &&
        /export function celebrationMark/.test(src('hud.js')),
        'E6 hud.js owns the definition both files share');
+
+    // ⚠️ "DOUBLE IT" LIVES IN ONE PLACE AND THIS IS THE PLACE. Jake asked for a
+    // bigger weekly display; if a later round tunes it back down, that should be
+    // a deliberate edit to a named constant, not a quiet drift in one of two
+    // copies. The weekly celebration must stay clearly larger than the daily.
+    const cel = src('celebrate.js');
+    const num = (name) => {
+        const m = cel.match(new RegExp('const\\s+' + name + '\\s*=\\s*(\\d+)'));
+        return m ? parseInt(m[1], 10) : NaN;
+    };
+    ok(num('SHELL_COUNT') >= 10,
+       `E11 ⚠️ the fireworks are doubled — SHELL_COUNT is ${num('SHELL_COUNT')}, was 5`);
+    ok(num('FIREWORK_FRAMES') >= 800,
+       `E12 ⚠️ and they run twice as long — ${num('FIREWORK_FRAMES')} frames, was 400`);
+    ok(num('FIREWORK_FRAMES') > num('CONFETTI_FRAMES'),
+       'E13 the WEEKLY celebration outlasts the daily — it is crossed once a week');
+    ok(/pointer-events:none/.test(cel),
+       'E14 ⚠️ the canvas cannot swallow clicks or keystrokes while it is up');
+    ok(/shells\.length >= SHELL_COUNT/.test(cel),
+       'E15 ⚠️ the teardown waits for staggered shells — every() is vacuously true on []');
 }
 
 console.log(`\n${fail ? 'FAILED' : 'PASSED'} — ${pass} passing, ${fail} failing`);

@@ -1,4 +1,10 @@
-// learn.js v2.25.0
+// learn.js v2.26.0
+//
+// v2.26.0 — THE CELEBRATIONS MOVED TO celebrate.js. ⚠️ This file's copies had
+//           DRIFTED from Library's without anyone choosing to: a fixed 80
+//           particles against 60–100, particles that never shrank as they faded,
+//           and a toast with no entrance animation. School and Library now show
+//           the same celebration, and the fireworks are doubled.
 //
 // v2.25.0 — ⚠️ "NOT EVERYONE GOT FIREWORKS" — the same fix as game.js v3.40.0.
 //           A child who crosses their weekly goal in School and misses it now
@@ -406,6 +412,13 @@ import {
 // the SAME element id — see hud.js for why that is the whole point.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
          celebrationDone, celebrationMark } from "./hud.js";
+// ⚠️ v2.26.0 — THE "copied from game.js" BLOCK IS GONE, and its header said so
+// in as many words for months. celebrate.js owns the celebrations; School and
+// Library now show the SAME one. Do not copy it back.
+// showGoalToast is intentionally NOT imported: celebrate.js raises its own
+// toast as part of each celebration. It stays exported there for any future
+// caller that wants the banner without the animation.
+import { launchConfetti, launchFireworks } from "./celebrate.js";
 // ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
 // ⚠️ readDaySessions/projectDayTotal deliberately NOT imported — v2.19.0
 // reverted the projection. See HANDOFF §0.0.
@@ -4666,88 +4679,6 @@ async function _flushStatsInner(reason, final = false) {
 }
 
 // ─── Celebration (copied from game.js) ───────────────────────────────────────
-function createCelebrationCanvas() {
-    const canvas = document.createElement('canvas');
-    canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;';
-    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-    document.body.appendChild(canvas); return canvas;
-}
-
-function showGoalToast(message, color) {
-    const toast = document.createElement('div');
-    toast.textContent = message;
-    toast.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:' + color + ';color:#000;font-family:"Courier Prime",monospace;font-weight:700;font-size:1.2rem;padding:14px 28px;border-radius:8px;z-index:10000;box-shadow:0 4px 20px rgba(0,0,0,0.5);';
-    document.body.appendChild(toast);
-    setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 3000);
-}
-
-function launchConfetti() {
-    const canvas = createCelebrationCanvas();
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    const colors = ['#4B9CD3','#FFD700','#FF6B6B','#22c55e','#FF69B4','#FFA500','#9B59B6','#00CED1'];
-    const pieces = [];
-    for (let i = 0; i < 150; i++) {
-        pieces.push({ x: W*0.5+(Math.random()-0.5)*W*0.6, y:-20-Math.random()*100,
-            w:6+Math.random()*6, h:10+Math.random()*8, color:colors[Math.floor(Math.random()*colors.length)],
-            rotation:Math.random()*Math.PI*2, rotSpeed:(Math.random()-0.5)*0.15,
-            vx:(Math.random()-0.5)*4, vy:2+Math.random()*3,
-            wobble:Math.random()*Math.PI*2, wobbleSpeed:0.03+Math.random()*0.05 });
-    }
-    showGoalToast('🎉 Daily Goal Reached!', '#22c55e');
-    let frame = 0;
-    (function animate() {
-        ctx.clearRect(0,0,W,H); let alive=false;
-        pieces.forEach(p => {
-            p.x+=p.vx+Math.sin(p.wobble)*0.5; p.y+=p.vy; p.vy+=0.04;
-            p.rotation+=p.rotSpeed; p.wobble+=p.wobbleSpeed; p.vx*=0.99;
-            if(p.y<H+50){ alive=true; ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rotation);
-                ctx.fillStyle=p.color; ctx.globalAlpha=Math.max(0,1-(frame/200));
-                ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); ctx.restore(); }
-        });
-        frame++; if(alive&&frame<250) requestAnimationFrame(animate); else canvas.remove();
-    })();
-}
-
-function launchFireworks() {
-    const canvas = createCelebrationCanvas();
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    const colors = ['#4B9CD3','#FFD700','#FF6B6B','#22c55e','#FF69B4','#FFA500','#9B59B6','#00CED1','#fff'];
-    const shells = [], particles = [];
-    for(let i=0;i<5;i++) setTimeout(()=>{
-        shells.push({x:W*(0.2+Math.random()*0.6),y:H,vy:-(8+Math.random()*4),
-            targetY:H*(0.15+Math.random()*0.35),color:colors[Math.floor(Math.random()*colors.length)],exploded:false});
-    },i*400);
-    showGoalToast('🎆 Weekly Goal Reached!', '#FFD700');
-    let frame=0;
-    (function animate(){
-        ctx.clearRect(0,0,W,H);
-        shells.forEach(s=>{
-            if(s.exploded)return; s.y+=s.vy; s.vy+=0.12;
-            ctx.beginPath();ctx.arc(s.x,s.y,2,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
-            if(s.y<=s.targetY||s.vy>=0){
-                s.exploded=true;
-                for(let i=0;i<80;i++){
-                    const angle=(Math.PI*2*i)/80+(Math.random()-0.5)*0.3, speed=2+Math.random()*4;
-                    particles.push({x:s.x,y:s.y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,
-                        color:Math.random()>0.3?s.color:colors[Math.floor(Math.random()*colors.length)],
-                        life:1.0,decay:0.008+Math.random()*0.012,size:1.5+Math.random()*2});
-                }
-            }
-        });
-        for(let i=particles.length-1;i>=0;i--){
-            const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.04; p.vx*=0.98; p.life-=p.decay;
-            if(p.life<=0){particles.splice(i,1);continue;}
-            ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
-            ctx.fillStyle=p.color;ctx.globalAlpha=p.life;ctx.fill();
-        }
-        ctx.globalAlpha=1; frame++;
-        if(frame<400&&(particles.length>0||shells.some(s=>!s.exploded))) requestAnimationFrame(animate);
-        else canvas.remove();
-    })();
-}
-
 // ─── Init ─────────────────────────────────────────────────────────────────────
 // ⚠️ THIS COMMENT USED TO SAY "lessons collection is public, no auth needed"
 // AND IT WAS NOT TRUE. firestore.rules had `allow read: if signedIn()` on

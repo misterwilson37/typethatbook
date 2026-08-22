@@ -1,5 +1,44 @@
 # CHANGELOG
 
+## Round 26f — Elliott-Fisher (2026-08-21, evening)
+
+⚠️ **"DOUBLE IT" MEANT THE FIREWORKS, NOT THE ODDS.** 26e read Jake's *"I'm not
+sure if they just didn't see it (so double it)"* as a probability argument and
+built a recovery latch. He meant make the display twice as big. Both were worth
+doing; this is the one he asked for.
+
+* **`celebrate.js` 1.0.0, new.** `launchConfetti()`, `launchFireworks()`,
+  `showGoalToast()` and the canvas, in one place.
+  ⚠️ **THE FOURTH HAND-MAINTAINED TWIN FOUND IN A SINGLE DAY** — after
+  `mergeGuestStats()`, `applyGoalCelebrationState()` (open-coded twice inside
+  `learn.js` alone), and the ⚙ / ↺ furniture. `learn.js`'s header called its copy
+  "copied from game.js" and had for months.
+  ⚠️ **AND THEY HAD ALREADY DRIFTED, WITHOUT ANYONE CHOOSING TO:** School burst a
+  fixed 80 particles where Library burst 60–100; School's particles never shrank
+  as they faded (`p.size` against `p.size * p.life`); School's toast had no
+  entrance animation. Nobody decided any of that. School and Library now show the
+  same celebration.
+* **The weekly fireworks are doubled.** `SHELL_COUNT` 5 → **10**, `SHELL_STAGGER`
+  400ms → 300ms, `FIREWORK_FRAMES` 400 → **800**. Wider launch spread, higher
+  bursts. ⚠️ **The DAILY confetti is deliberately unchanged** — it recurs every
+  morning and should stay the smaller of the two; the weekly is crossed once per
+  week per child and is the most-earned moment in the app.
+* ⚠️ **A latent bug the doubling would have exposed, now commented in place.** The
+  teardown test is `shells.length >= SHELL_COUNT && shells.every(...)` — the
+  length term is NOT redundant, because shells arrive on staggered timeouts and
+  `every()` is vacuously true on an empty array. Doubling the count lengthens
+  that window; without the guard the display would tear itself down before the
+  second shell launched.
+* **`game.js` 3.40.0 → 3.41.0**, **`learn.js` 2.25.0 → 2.26.0.** Local copies
+  deleted, shared module imported. These files decide WHETHER to celebrate;
+  `celebrate.js` decides HOW, and knows nothing about goals, totals or students.
+* **`tests/celebration-test.mjs` 1.0.0 → 1.1.0.** 41 assertions. New checks:
+  neither writer defines a local `launchFireworks`/`launchConfetti`, the doubling
+  constants hold, the weekly outlasts the daily, the canvas keeps
+  `pointer-events:none` (a full-screen layer that swallowed keystrokes would
+  interrupt typing), and the staggered-teardown guard survives.
+  Mutation-verified: reverting the constants to 5/400 fails E11 and E12.
+
 ## Round 26e — Elliott-Fisher (2026-08-21, evening)
 
 * ⚠️ **`learn.html` 1.1.0 → 1.2.0 — A STRAY `</div>`, AND IT WAS MINE.** Round

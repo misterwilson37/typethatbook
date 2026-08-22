@@ -6,7 +6,11 @@ the class information learn.js v2.24.0 removed from the bar. ✅ Item 0's bar an
 landing readout shipped; "I'm done" is still open. ✅ **"NOT EVERYONE GOT
 FIREWORKS" IS FIXED** — the goal suppression asked whether the total was already
 past the goal, which stays true all week, rather than whether the child had been
-SHOWN it. hud.js v1.4.0's latch; tests/celebration-test.mjs.
+SHOWN it. hud.js v1.4.0's latch; tests/celebration-test.mjs. ✅ **AND THE
+FIREWORKS ARE DOUBLED** — celebrate.js v1.0.0, 10 shells over twice the run time.
+⚠️ **celebrate.js IS THE FOURTH TWIN EXTRACTED TODAY** and its two copies had
+already drifted; item 9's "reduce the surface" is no longer a tidying exercise,
+it is the day's actual lesson.
 
 **v3.10.0, 2026-08-21 (afternoon).** ⭐ **ITEM 0 IS NEW AND IT IS THE NEXT
 BUILD** — the two-row top bar and the "I'm done" stamp, specced with Jake from

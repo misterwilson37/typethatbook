@@ -1,4 +1,10 @@
-// game.js v3.40.0
+// game.js v3.41.0
+//
+// v3.41.0 — THE CELEBRATIONS MOVED TO celebrate.js, and the fireworks DOUBLED
+//           there (10 shells, not 5; twice the run time). Jake's "so double it"
+//           meant the display, not the odds — the weekly goal is crossed once a
+//           week per child and should be impossible to miss. ⚠️ The fourth
+//           hand-maintained twin found in one day, and it had already drifted.
 //
 // v3.40.0 — ⚠️ "NOT EVERYONE GOT FIREWORKS." The goal suppression asked whether
 //           the total was already past the goal — true for the rest of the week
@@ -426,6 +432,14 @@ import {
 // fourth. DOM-free: it returns strings and this file writes them.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
          celebrationDone, celebrationMark } from "./hud.js";
+// ⚠️ v3.41.0 — THE CELEBRATIONS MOVED OUT. They were a hand-maintained twin of
+// learn.js's, and the two had already drifted. celebrate.js owns them now; this
+// file decides WHETHER to celebrate, that file decides HOW. Do not re-add a
+// local launchFireworks() — "make the fireworks bigger" must stay ONE edit.
+// showGoalToast is intentionally NOT imported: celebrate.js raises its own
+// toast as part of each celebration. It stays exported there for any future
+// caller that wants the banner without the animation.
+import { launchConfetti, launchFireworks } from "./celebrate.js";
 // ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
 // ⚠️ readDaySessions/projectDayTotal are NOT imported. They exist in daylog.js
 // and are used by nothing shipped — v3.34.0 reverted the projection. Leaving the
@@ -6907,184 +6921,6 @@ window.addEventListener('resize', () => {
 });
 
 // --- CELEBRATIONS ---
-function createCelebrationCanvas() {
-    const canvas = document.createElement('canvas');
-    canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;';
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    document.body.appendChild(canvas);
-    return canvas;
-}
-
-function launchConfetti() {
-    const canvas = createCelebrationCanvas();
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    const colors = ['#4B9CD3','#FFD700','#FF6B6B','#22c55e','#FF69B4','#FFA500','#9B59B6','#00CED1'];
-    const pieces = [];
-
-    for (let i = 0; i < 150; i++) {
-        pieces.push({
-            x: W * 0.5 + (Math.random() - 0.5) * W * 0.6,
-            y: -20 - Math.random() * 100,
-            w: 6 + Math.random() * 6,
-            h: 10 + Math.random() * 8,
-            color: colors[Math.floor(Math.random() * colors.length)],
-            rotation: Math.random() * Math.PI * 2,
-            rotSpeed: (Math.random() - 0.5) * 0.15,
-            vx: (Math.random() - 0.5) * 4,
-            vy: 2 + Math.random() * 3,
-            wobble: Math.random() * Math.PI * 2,
-            wobbleSpeed: 0.03 + Math.random() * 0.05
-        });
-    }
-
-    // Show toast
-    showGoalToast("🎉 Daily Goal Reached!", "#22c55e");
-
-    let frame = 0;
-    function animate() {
-        ctx.clearRect(0, 0, W, H);
-        let alive = false;
-        pieces.forEach(p => {
-            p.x += p.vx + Math.sin(p.wobble) * 0.5;
-            p.y += p.vy;
-            p.vy += 0.04; // gravity
-            p.rotation += p.rotSpeed;
-            p.wobble += p.wobbleSpeed;
-            p.vx *= 0.99;
-            if (p.y < H + 50) {
-                alive = true;
-                ctx.save();
-                ctx.translate(p.x, p.y);
-                ctx.rotate(p.rotation);
-                ctx.fillStyle = p.color;
-                ctx.globalAlpha = Math.max(0, 1 - (frame / 200));
-                ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
-                ctx.restore();
-            }
-        });
-        frame++;
-        if (alive && frame < 250) requestAnimationFrame(animate);
-        else canvas.remove();
-    }
-    requestAnimationFrame(animate);
-}
-
-function launchFireworks() {
-    const canvas = createCelebrationCanvas();
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    const shells = [];
-    const particles = [];
-    const colors = ['#4B9CD3','#FFD700','#FF6B6B','#22c55e','#FF69B4','#FFA500','#9B59B6','#00CED1','#fff'];
-
-    // Launch 5 shells staggered
-    for (let i = 0; i < 5; i++) {
-        setTimeout(() => {
-            shells.push({
-                x: W * (0.2 + Math.random() * 0.6),
-                y: H,
-                vy: -(8 + Math.random() * 4),
-                targetY: H * (0.15 + Math.random() * 0.35),
-                color: colors[Math.floor(Math.random() * colors.length)],
-                exploded: false
-            });
-        }, i * 400);
-    }
-
-    showGoalToast("🎆 Weekly Goal Reached!", "#FFD700");
-
-    let frame = 0;
-    function animate() {
-        ctx.clearRect(0, 0, W, H);
-
-        // Update shells
-        shells.forEach(s => {
-            if (s.exploded) return;
-            s.y += s.vy;
-            s.vy += 0.12;
-            // Trail
-            ctx.beginPath();
-            ctx.arc(s.x, s.y, 2, 0, Math.PI * 2);
-            ctx.fillStyle = '#fff';
-            ctx.fill();
-            // Explode
-            if (s.y <= s.targetY || s.vy >= 0) {
-                s.exploded = true;
-                const count = 60 + Math.floor(Math.random() * 40);
-                const burstColor = s.color;
-                for (let i = 0; i < count; i++) {
-                    const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.3;
-                    const speed = 2 + Math.random() * 4;
-                    particles.push({
-                        x: s.x, y: s.y,
-                        vx: Math.cos(angle) * speed,
-                        vy: Math.sin(angle) * speed,
-                        color: Math.random() > 0.3 ? burstColor : colors[Math.floor(Math.random() * colors.length)],
-                        life: 1.0,
-                        decay: 0.008 + Math.random() * 0.012,
-                        size: 1.5 + Math.random() * 2
-                    });
-                }
-            }
-        });
-
-        // Update particles
-        for (let i = particles.length - 1; i >= 0; i--) {
-            const p = particles[i];
-            p.x += p.vx;
-            p.y += p.vy;
-            p.vy += 0.04;
-            p.vx *= 0.98;
-            p.life -= p.decay;
-            if (p.life <= 0) { particles.splice(i, 1); continue; }
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
-            ctx.fillStyle = p.color;
-            ctx.globalAlpha = p.life;
-            ctx.fill();
-            ctx.globalAlpha = 1;
-        }
-
-        frame++;
-        const allExploded = shells.length >= 5 && shells.every(s => s.exploded);
-        if (frame < 400 && !(allExploded && particles.length === 0)) {
-            requestAnimationFrame(animate);
-        } else {
-            canvas.remove();
-        }
-    }
-    requestAnimationFrame(animate);
-}
-
-function showGoalToast(message, color) {
-    const toast = document.createElement('div');
-    toast.textContent = message;
-    toast.style.cssText = `
-        position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
-        background: ${color}; color: #000; font-family: 'Courier Prime', monospace;
-        font-weight: 700; font-size: 1.2rem; padding: 14px 28px;
-        border-radius: 8px; z-index: 10000; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-        animation: toastIn 0.4s ease-out;
-    `;
-    // Add keyframes if not already present
-    if (!document.getElementById('toast-keyframes')) {
-        const style = document.createElement('style');
-        style.id = 'toast-keyframes';
-        style.textContent = `
-            @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
-            @keyframes toastOut { from { opacity: 1; transform: translateX(-50%) translateY(0); } to { opacity: 0; transform: translateX(-50%) translateY(-20px); } }
-        `;
-        document.head.appendChild(style);
-    }
-    document.body.appendChild(toast);
-    setTimeout(() => {
-        toast.style.animation = 'toastOut 0.5s ease-in forwards';
-        setTimeout(() => toast.remove(), 500);
-    }, 3000);
-}
-
 // Find the start position of the sentence containing pos. Used by hard-stop
 // to roll the cursor back to the start of the failed sentence — user retypes.
 // Mirrors the boundary logic in getSentenceMap.
