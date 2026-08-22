@@ -1,4 +1,9 @@
-// learn.js v2.29.1
+// learn.js v2.30.0
+//
+// v2.30.0 — THE CORNER ID STAMP IS GONE. renderIdStamp() deleted; the student ID
+//           lives in the ⚙ panel only, with click-to-copy carried over. Twin
+//           deleted from game.js in the same commit. ⚠️ HANDOFF §2's deploy check
+//           referenced the stamp and has been rewritten. §0.-19.
 //
 // v2.29.1 — DEAD CODE. updateWeeklyHUD() deleted: its comment claimed "several
 //           call sites" and there were zero. Found by the new
@@ -523,7 +528,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.29.1";
+const LEARN_VERSION = "2.30.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -1026,15 +1031,18 @@ function openSchoolSettings() {
                      + (goals.weeklySeconds > 0 ? fmt(goals.weeklySeconds) + ' a week' : ''),
             });
         }
-        // ⚠️ THE STUDENT ID, ON JAKE'S ASK. Same EIGHT characters the corner
-        // stamp and reports.html show — read the block above renderIdStamp() for
-        // why eight and not twenty-eight: eight can be read aloud across a
-        // classroom without a mistake. ⚠️ IT IS THE SAME VALUE FROM THE SAME
-        // PLACE (`currentUser.uid`), not a second copy of anything: there is no
-        // derived quantity here to drift.
+        // ⚠️ THE STUDENT ID. Round 27g DELETED the corner stamp that used to
+        // carry it, so this and Library's Settings menu are now the only places
+        // it appears. Same EIGHT characters reports.html prints beside each
+        // student — eight are unambiguous across a building and can be read
+        // aloud across a classroom without a mistake; twenty-eight cannot.
+        // ⚠️ `copy` CARRIES OVER THE STAMP'S CLICK-TO-COPY. Eight characters are
+        // enough to read out and not enough to paste into a console, and losing
+        // that on the way into settings would have been a silent capability loss.
         rows.push({
             kind: 'info', label: 'Your ID',
             value: currentUser.uid.slice(0, 8),
+            copy: currentUser.uid,
             hint: 'tell your teacher this if something looks wrong',
         });
     } else {
@@ -1143,7 +1151,6 @@ onAuthStateChanged(auth, async user => {
         // Load lessons if needed for signed-out view
         if (allLessons.length === 0) await loadLessons();
     }
-    renderIdStamp();
     renderMap();
 });
 
@@ -1171,27 +1178,24 @@ onAuthStateChanged(auth, async user => {
 // fourth shared module for fifteen lines — but that judgement is exactly the one
 // that produced the divergences this round spent its time on, so if it grows any
 // further, extract it.
-function renderIdStamp() {
-    let el = document.getElementById('ttb-id-stamp');
-    const uid = (currentUser && !currentUser.isAnonymous) ? currentUser.uid
-              : (sessionExpired ? lastKnownUid : '');
-    if (!uid) { if (el) el.remove(); return; }
-    if (!el) {
-        el = document.createElement('div');
-        el.id = 'ttb-id-stamp';
-        el.style.cssText = 'position:fixed;bottom:4px;left:8px;z-index:9998;' +
-            'font-family:monospace;font-size:0.7rem;opacity:0.45;cursor:pointer;' +
-            'user-select:all;';
-        el.onclick = () => {
-            const full = el.dataset.uid || '';
-            if (full && navigator.clipboard) navigator.clipboard.writeText(full).catch(() => {});
-        };
-        document.body.appendChild(el);
-    }
-    el.dataset.uid = uid;
-    el.title = 'Student ID: ' + uid + ' (click to copy)';
-    el.textContent = 'ID ' + uid.slice(0, 8);
-}
+// ⚠️ renderIdStamp() DELETED (Round 27g). The student ID was a fixed-position
+// stamp in the bottom-left corner of every page. Jake asked for it to move into
+// settings; it is in School's ⚙ panel (learn.js v2.29.0) and in Library's
+// Settings menu (game.js v3.42.3), with the same eight characters and the same
+// click-to-copy.
+//
+// ⚠️ THIS FUNCTION WAS THE DUPLICATED-TWIN ITS OWN HEADER WARNED ABOUT — "CHANGE
+// ONE, CHANGE BOTH... if it grows any further, extract it." It never grew; it was
+// deleted from both files in one commit instead, which is the other way to
+// resolve a twin and the cheaper one when the feature has somewhere better to
+// live.
+//
+// ⚠️⚠️ AND IT HAD A SECOND JOB NOBODY WROTE DOWN AS A REQUIREMENT: HANDOFF §2's
+// deploy check read "if the ID stamp is missing, the new code is not running and
+// nothing else you check means anything." **That instruction is now wrong and
+// has been rewritten** — the build footer is the deploy instrument, and it is a
+// better one since Round 27 made the version stamps honest. If you delete a
+// visible element, grep the DOCS for it too, not just the code.
 
 // ─── Re-authentication ───────────────────────────────────────────────────────
 //

@@ -1,4 +1,10 @@
-// game.js v3.42.2
+// game.js v3.42.3
+//
+// v3.42.3 — THE CORNER ID STAMP IS GONE; the student ID moved into the Settings
+//           menu with its click-to-copy intact. renderIdStamp() deleted from BOTH
+//           writers in one commit — it was the duplicated twin its own header
+//           warned about. ⚠️ HANDOFF §2's deploy check named the stamp and has
+//           been rewritten; the build footer is the instrument now. §0.-19.
 //
 // v3.42.2 — ⚠️⚠️ "I'M DONE" WAS NEVER WIRED IN LIBRARY. handleImDone() shipped in
 //           v3.42.0 complete and correct; the button shipped in game.html; the
@@ -509,7 +515,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.42.2";
+const VERSION = "3.42.3";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -610,27 +616,24 @@ function _ttbEmit(type, detail) {
 // fourth shared module for fifteen lines — but that judgement is exactly the one
 // that produced the divergences this round spent its time on, so if it grows any
 // further, extract it.
-function renderIdStamp() {
-    let el = document.getElementById('ttb-id-stamp');
-    const uid = (currentUser && !currentUser.isAnonymous) ? currentUser.uid
-              : (sessionExpired ? lastKnownUid : '');
-    if (!uid) { if (el) el.remove(); return; }
-    if (!el) {
-        el = document.createElement('div');
-        el.id = 'ttb-id-stamp';
-        el.style.cssText = 'position:fixed;bottom:4px;left:8px;z-index:9998;' +
-            'font-family:monospace;font-size:0.7rem;opacity:0.45;cursor:pointer;' +
-            'user-select:all;';
-        el.onclick = () => {
-            const full = el.dataset.uid || '';
-            if (full && navigator.clipboard) navigator.clipboard.writeText(full).catch(() => {});
-        };
-        document.body.appendChild(el);
-    }
-    el.dataset.uid = uid;
-    el.title = 'Student ID: ' + uid + ' (click to copy)';
-    el.textContent = 'ID ' + uid.slice(0, 8);
-}
+// ⚠️ renderIdStamp() DELETED (Round 27g). The student ID was a fixed-position
+// stamp in the bottom-left corner of every page. Jake asked for it to move into
+// settings; it is in School's ⚙ panel (learn.js v2.29.0) and in Library's
+// Settings menu (game.js v3.42.3), with the same eight characters and the same
+// click-to-copy.
+//
+// ⚠️ THIS FUNCTION WAS THE DUPLICATED-TWIN ITS OWN HEADER WARNED ABOUT — "CHANGE
+// ONE, CHANGE BOTH... if it grows any further, extract it." It never grew; it was
+// deleted from both files in one commit instead, which is the other way to
+// resolve a twin and the cheaper one when the feature has somewhere better to
+// live.
+//
+// ⚠️⚠️ AND IT HAD A SECOND JOB NOBODY WROTE DOWN AS A REQUIREMENT: HANDOFF §2's
+// deploy check read "if the ID stamp is missing, the new code is not running and
+// nothing else you check means anything." **That instruction is now wrong and
+// has been rewritten** — the build footer is the deploy instrument, and it is a
+// better one since Round 27 made the version stamps honest. If you delete a
+// visible element, grep the DOCS for it too, not just the code.
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE VERSION FOOTER — primary triad always visible, everything else on hover.
@@ -1627,7 +1630,6 @@ async function init() {
             if (!user.isAnonymous) lastKnownUid = user.uid;
             sessionExpired = false;
             updateAuthUI(true);
-            renderIdStamp();
             // Show Game Genie for admins
             const ggBtn = document.getElementById('genie-btn');
             if (ggBtn) ggBtn.classList.toggle('hidden', !ADMIN_EMAILS.includes(user.email));
@@ -1702,7 +1704,6 @@ async function init() {
 
             if (wasSignedIn) {
                 sessionExpired = true;
-                renderIdStamp();
                 // Everything typed from here until they re-authenticate cannot
                 // reach Firestore — logSession(), markDirty(), walSave() and
                 // flushAll() all require a user. The counters keep climbing in
@@ -6284,6 +6285,29 @@ async function openMenuModal() {
             <div id="school-status" style="font-size:0.7em; color:#888; min-height:1em; margin-top:2px;"></div>`}
     ` : '';
 
+    // ⚠️ THE STUDENT ID LIVES HERE NOW (v3.42.3). It was a fixed-position stamp in
+    // the bottom-left corner of every page; Jake asked for it to move into
+    // settings, and learn.js v2.29.0 had already put it in School's ⚙ panel — so
+    // leaving Library without one was the twin half-built AGAIN.
+    //
+    // ⚠️ EIGHT CHARACTERS, NOT TWENTY-EIGHT, AND THAT IS NOT AESTHETIC. Eight are
+    // unambiguous across a building and can be read aloud across a classroom
+    // without a mistake. `reports.html` prints the same eight beside each
+    // student, which is the entire point: the child reads it out, Jake finds the
+    // row. The full value stays in the title and on the clipboard.
+    //
+    // Not PII, and it is the student's own id only: no lookup, no list, nothing
+    // another student's browser could be made to show.
+    const idHTML = (currentUser && !currentUser.isAnonymous) ? `
+        <div class="menu-label" style="margin-top:8px;">Your ID</div>
+        <div id="ttb-id-row" title="${escapeHtml('Student ID: ' + currentUser.uid + ' (click to copy)')}"
+             data-uid="${escapeHtml(currentUser.uid)}"
+             style="font-family:monospace; font-size:0.8em; color:#aaa; margin-top:3px;
+                    text-align:center; cursor:pointer; user-select:all;">${escapeHtml(currentUser.uid.slice(0, 8))}</div>
+        <div style="font-size:0.7em; color:#666; text-align:center; margin-top:2px;">
+            tell your teacher this if something looks wrong</div>
+    ` : '';
+
     const initialsHTML = (currentUser && !currentUser.isAnonymous) ? `
         <div class="menu-col menu-col-initials">
             <div class="menu-label">Initials</div>
@@ -6295,6 +6319,7 @@ async function openMenuModal() {
                 Hide me from leaderboards
             </label>
             ${schoolHTML}
+            ${idHTML}
         </div>` : '';
 
     document.getElementById('modal-body').innerHTML = `
@@ -6354,6 +6379,17 @@ async function openMenuModal() {
             ${initialsHTML}
         </div>
     `;
+
+    // ⚠️ CLICK-TO-COPY CARRIED OVER FROM THE CORNER STAMP (v3.42.3). The stamp
+    // copied the FULL uid on click; eight characters is enough to read aloud but
+    // not enough to paste into a Firestore console, and dropping that on the way
+    // into settings would have been a silent capability loss. Guarded because
+    // #ttb-id-row only exists for a signed-in student.
+    const idRow = document.getElementById('ttb-id-row');
+    if (idRow) idRow.onclick = () => {
+        const full = idRow.dataset.uid || '';
+        if (full && navigator.clipboard) navigator.clipboard.writeText(full).catch(() => {});
+    };
 
     document.getElementById('layout-select').onchange = (e) => {
         setKeyboardLayout(e.target.value);

@@ -1,4 +1,8 @@
-// settings-panel.js v1.1.0 — THE ⚙ DIALOG, AND THE READING-FONT MODEL.
+// settings-panel.js v1.2.0 — THE ⚙ DIALOG, AND THE READING-FONT MODEL.
+//
+// v1.2.0 — `copy` on an info row: click the value to put a longer form on the
+//          clipboard. Added for the student ID when Round 27g deleted the corner
+//          stamp that used to carry that behaviour. §0.-19.
 //
 // v1.1.0 — `onClose`. learn.js pauses School's graded clock while this is open,
 //          and this is how it gets resumed. ⚠️ READ THE BLOCK INSIDE close():
@@ -68,7 +72,7 @@
 // again must be able to keep typing without clicking anything. Losing that is
 // the same defect as eating a keystroke, one step removed.
 
-export const SETTINGS_PANEL_VERSION = '1.1.0';
+export const SETTINGS_PANEL_VERSION = '1.2.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE READING-FONT MODEL — moved here from learn.js v2.23.0 in one commit
@@ -210,6 +214,19 @@ export function openSettingsPanel({ title = 'Settings', rows = [], onClose = nul
         val.textContent = (row.value === undefined || row.value === null || row.value === '')
             ? (row.empty || '\u2014') : String(row.value);
         if (!row.value) val.classList.add('settings-value-empty');
+        // ⚠️ OPTIONAL CLICK-TO-COPY (v1.2.0). Added for the student ID, whose
+        // corner stamp copied the FULL uid on click — eight characters are enough
+        // to read aloud and not enough to paste into a console. `row.copy` holds
+        // the long form; the row keeps showing the short one.
+        if (row.copy) {
+            val.dataset.copy = String(row.copy);
+            val.title = String(row.copy) + ' (click to copy)';
+            val.style.cursor = 'pointer';
+            val.style.userSelect = 'all';
+            val.onclick = () => {
+                if (navigator.clipboard) navigator.clipboard.writeText(String(row.copy)).catch(() => {});
+            };
+        }
         wrap.appendChild(lab);
         wrap.appendChild(val);
         if (row.hint) {

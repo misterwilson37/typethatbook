@@ -371,11 +371,24 @@ resume handed to `onClose` and run in a `finally` so a throw in the teardown
 cannot swallow it; guarded on `drillRunning` so it only resumes what it paused.
 `drill-filter-test` F7c1–c5, F7d, F7e. Mutation-verified both ways.
 
-### ⚠️ ONE THING LEFT DELIBERATELY UNDONE — THE CORNER ID STAMP
+### ✅ DONE — THE CORNER ID STAMP IS GONE, THE ID IS IN BOTH SETTINGS
 
-Jake asked for the ID to *move* into settings. It has been ADDED there; the
-bottom-left corner stamp is **still present**, pending his look, for two reasons
-worth stating before anyone deletes it:
+**Closed 2026-08-22 (Round 27g), on Jake's confirmation:** *"as long as you fold
+it into the game/library settings, as it's not there right now."*
+
+⚠️ **HE CAUGHT THE HALF-BUILT TWIN BEFORE I DID.** School's ⚙ panel had the ID;
+Library's Settings menu did not. Deleting the corner stamp without adding it to
+Library would have removed a child's only way to read their own ID in Library —
+**the seventh twin of the week, and it would have been mine.**
+
+Shipped: `game.js` v3.42.3 puts the ID in the Settings menu with click-to-copy;
+`settings-panel.js` v1.2.0 gained an optional `copy` on info rows so School's
+row keeps the same behaviour; `renderIdStamp()` deleted from **both** writers in
+one commit. ⚠️ **`HANDOFF.md` §2's deploy check named the stamp and has been
+rewritten** — the build footer is the instrument now, and a better one since this
+round made the version stamps honest.
+
+The two reasons it had been left standing, both now answered:
 
 - `HANDOFF.md` §2's deploy check reads *"If the ID stamp is missing, the new code
   is not running and nothing else you check means anything."* That instruction

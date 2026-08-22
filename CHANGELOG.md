@@ -1,5 +1,40 @@
 # CHANGELOG
 
+## Round 27g — Chicago (2026-08-22) — THE ID MOVES INTO SETTINGS
+
+* ✅ **The corner `ID xxxxxxxx` stamp is deleted.** The student ID now lives in
+  **Settings on both pages** — Library's ⚙ menu (`game.js` **3.42.3**) and
+  School's ⚙ panel (`learn.js` **2.30.0**) — with the same eight characters
+  `reports.html` prints beside each student, and **click-to-copy carried over**
+  for the full uid. `settings-panel.js` **1.2.0** gained an optional `copy` on
+  info rows so School's version comes from the shared module rather than a second
+  implementation.
+
+* ⚠️ **JAKE CAUGHT A HALF-BUILT TWIN BEFORE I DID** — *"as long as you fold it
+  into the game/library settings, as it's not there right now."* School's panel
+  had the ID; Library's menu did not. Deleting the stamp alone would have left a
+  child in Library with no way to read their own ID at all. **The seventh twin
+  failure of the week, and the first that would have been mine.**
+  ⚠️ The pattern is structural rather than careless: two page controllers that
+  cannot import each other make every student-facing feature a twin **by
+  construction**, so half-building one is the default unless something checks.
+
+* ⚠️ **`renderIdStamp()` deleted from both writers in one commit.** It was the
+  duplicated twin its own header warned about (*"CHANGE ONE, CHANGE BOTH... if it
+  grows any further, extract it"*). It never grew; deletion is the other way to
+  resolve a twin, and the cheaper one when the feature has somewhere better to
+  live.
+
+* ⚠️⚠️ **`HANDOFF.md` §2's deploy check named the stamp and has been rewritten.**
+  It read *"if the ID stamp is missing, the new code is not running and nothing
+  else you check means anything"* — a troubleshooting instruction, followed at
+  8:05am with a class arriving, that became **false** the moment the element was
+  deleted. The build footer is the deploy instrument now, and a better one since
+  this round made the version stamps honest.
+  **When you delete a visible element, grep the docs for it, not just the code.**
+
+* **45 harnesses pass. Zero version stamps lying.**
+
 ## Round 27f — Chicago (2026-08-22) — THE BUTTON THAT DID NOTHING
 
 * ⚠️⚠️ **"I'M DONE" WAS NEVER WIRED IN LIBRARY.** Reported live by Jake after

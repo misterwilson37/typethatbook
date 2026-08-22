@@ -1,7 +1,22 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.13.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.14.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 27; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.14.0 — Round 27g (Chicago). ✅ §0.-19 — THE CORNER ID STAMP IS DELETED and
+     the student ID lives in Settings on BOTH pages. ⚠️ JAKE CAUGHT A HALF-BUILT
+     TWIN BEFORE I DID: School's panel had the ID, Library's menu did not, and
+     deleting the stamp alone would have left Library students unable to read
+     their own ID — the SEVENTH twin of the week and the first that would have
+     been mine. ⚠️ The pattern is structural, not carelessness: two page
+     controllers that cannot import each other make every student-facing feature
+     a twin BY CONSTRUCTION, so half-building one is the DEFAULT unless something
+     checks. ⚠️⚠️ §0.-19.C: §2's deploy check NAMED the stamp and became false on
+     deletion — a troubleshooting instruction followed at 8:05am with a class
+     arriving. Rewritten to the build footer. WHEN YOU DELETE A VISIBLE ELEMENT,
+     GREP THE DOCS, NOT JUST THE CODE — same defect as §0.-16's orphaned paint,
+     one layer up, and the docs layer has no harness. game.js v3.42.3,
+     learn.js v2.30.0, settings-panel.js v1.2.0. 45 harnesses.
 
      v15.13.0 — Round 27f (Chicago). ⚠️⚠️ §0.-18 — "I'M DONE" WAS A VISIBLE,
      STYLED, INERT BUTTON IN LIBRARY FOR A DAY. Round 26 shipped handleImDone(),
@@ -352,6 +367,64 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-19. ✅ ROUND 27g (Chicago) — THE CORNER ID STAMP MOVED INTO SETTINGS
+
+**2026-08-22, last of the round.** Jake: *"as long as you fold it into the
+game/library settings, as it's not there right now."*
+
+### A. ⚠️ HE CAUGHT A HALF-BUILT TWIN BEFORE I DID — THE SEVENTH THIS WEEK
+
+School's ⚙ panel got the student ID in §0.-16. **Library's Settings menu never
+did.** Deleting the corner stamp on its own would have left a child in Library
+with no way to read their own ID at all — and `reports.html` prints those same
+eight characters beside every student, so the workflow *"read it out, Jake finds
+the row"* would simply have stopped working on one page.
+
+⚠️ **THAT WOULD HAVE BEEN THE SEVENTH TWIN FAILURE OF THE WEEK AND THE FIRST ONE
+OF MINE.** §0.-13.E counted four, the version stamp was the fifth, "I'm done"
+the sixth. **The pattern is not that Round 26 was careless. It is that this
+codebase has two page controllers that cannot import each other, so every
+student-facing feature is a twin by construction, and half-building one is the
+default failure unless something checks.**
+
+### B. Shipped
+
+- `game.js` **v3.42.3** — the ID in the Settings menu, with click-to-copy.
+- `settings-panel.js` **v1.2.0** — an optional `copy` on info rows, so School's
+  row keeps the same behaviour from the shared module rather than a second
+  implementation.
+- `learn.js` **v2.30.0** — uses it.
+- `renderIdStamp()` **deleted from both writers in one commit.**
+
+⚠️ **THE STAMP WAS THE DUPLICATED TWIN ITS OWN HEADER WARNED ABOUT** — *"CHANGE
+ONE, CHANGE BOTH... if it grows any further, extract it."* It never grew; it was
+deleted from both instead. **Deletion is the other way to resolve a twin, and the
+cheaper one when the feature has somewhere better to live.**
+
+⚠️ **CLICK-TO-COPY WAS CARRIED OVER DELIBERATELY.** The stamp copied the FULL uid;
+eight characters are enough to read aloud and not enough to paste into a console.
+Dropping it would have been a silent capability loss — the kind nobody reports
+because nobody knew it was there.
+
+### C. ⚠️⚠️ DELETING A VISIBLE ELEMENT CREATES DOCUMENTATION DEBT
+
+`HANDOFF.md` §2's deploy check read: *"If the ID stamp is missing, the new code
+is not running and nothing else you check means anything."*
+
+**That instruction became false the moment the stamp was deleted**, and it is a
+troubleshooting instruction — the kind followed at 8:05am with a class arriving.
+It has been rewritten: **the build footer is the deploy instrument**, and a
+better one since §0.-14 made the version stamps honest and `npm test` fails if
+one lies again.
+
+⚠️ **GENERALISE: WHEN YOU DELETE A VISIBLE ELEMENT, GREP THE DOCS FOR IT, NOT
+JUST THE CODE.** §0.-16 recorded the code version of this lesson — `learn.js`
+v2.24.0 deleted `#user-class-name` and left `updateClassDisplay()` writing to
+nothing. **This is the same defect one layer up**, and the docs layer has no
+harness. Twice in one week, in two different layers.
 
 ---
 
@@ -2560,8 +2633,8 @@ reads.
 
 | file | version |
 |---|---|
-| `game.js` | **3.42.2** — ⚠️ Round 27f. "I'm done" WIRED AT LAST; it was inert in Library. §0.-18 |
-| `learn.js` | **2.29.1** — ⚠️ Round 27c/f. The School settings panel; graded clock pauses for it; one orphan deleted. §0.-16, §0.-18 |
+| `game.js` | **3.42.3** — ⚠️ Round 27f/g. "I'm done" wired at last; the ID moved into Settings. §0.-18, §0.-19 |
+| `learn.js` | **2.30.0** — ⚠️ Round 27c/f/g. School settings panel; clock pauses for it; two orphans deleted. §0.-16, §0.-18, §0.-19 |
 | `session-log.js` | **1.6.0** — PER-OWNER queue + `GUEST_QUEUE_UID`. ⚠️ UPLOAD THIS FIRST — both pages import from it. Its TWO pins are checked by version-stamp-test.mjs C |
 | `hud.js` | **2.0.0** — ⚠️⚠️ MAJOR, JAKE SIGNED IT OFF. The v1.3.0 return-shape break recorded as the major it was. §0.-15. ⚠️ UPLOAD BEFORE THE TWO WRITERS |
 | `variety-floor.js` | 1.0.0 |
@@ -2579,7 +2652,7 @@ reads.
 | `firebase-config.js` | 1.2.0 |
 | `firebase/firestore.rules` | **2.6.0** — ⚠️ **Jake deployed this 2026-08-20 and it is CONFIRMED CORRECT BY EXECUTION.** The null-resource clause is FIRST and must stay first. §0.-8.A |
 | `style.css` | **3.8.0** — ⚠️ Round 27c. `.settings-overlay` for the ⚙ panel; #drill-font-pick restyled as a dialog row. §0.-16 |
-| `settings-panel.js` | **1.1.0** — ⚠️ NEW, Round 27c. The SIXTH shared module. ⚠️ UPLOAD BEFORE learn.js. §0.-16 |
+| `settings-panel.js` | **1.2.0** — ⚠️ NEW, Round 27c. The SIXTH shared module. ⚠️ UPLOAD BEFORE learn.js. §0.-16, §0.-19 |
 | `game.html` | 1.2.0 — ⚠️ div-balance checked this round: 5 open / 5 close in `#hud`, whole file balanced |
 | `learn.html` | **1.2.0** — ⚠️ Round 26 fixed §0.-13.B's stray `</div>`. Re-checked this round: balanced |
 | `adventure.css` | **1.0.2** — ⚠️ Round 27. `body::after` said v1.0.0; nothing had ever checked it. §0.-14.B |
@@ -2611,10 +2684,16 @@ style.css vX` (⚠️ CHANGED IN ROUND 15 — it used to read just `game.js v3.2
 you see that old single-file format, Round 15's code is not running). Lessons footer
 reads the same three-file shape for `learn.html` / `learn.js` / `style.css`. Hover
 either footer (tap-to-pin on touch) for the full deployed build, `hud.js` and
-`session-log.js` and `stats-wal.js` included. Both student pages still show a small
-grey `ID xxxxxxxx` bottom-left once signed in. **If the ID stamp is missing, the new
-code is not running** and nothing
-else you check means anything.
+`session-log.js` and `stats-wal.js` included. ⚠️⚠️ **THE CORNER `ID xxxxxxxx` STAMP IS GONE (Round 27g), AND SO IS THE DEPLOY
+CHECK THAT DEPENDED ON IT.** This paragraph used to read *"if the ID stamp is
+missing, the new code is not running and nothing else you check means anything."*
+The student ID now lives in **Settings** on both pages — Library's ⚙ menu and
+School's ⚙ panel — so its absence from the corner proves nothing.
+
+⚠️ **THE FOOTER VERSION IS THE DEPLOY INSTRUMENT NOW, AND IT IS A BETTER ONE**,
+because Round 27 made the version stamps honest and `npm test` fails if one lies
+again (§0.-14). Read the footer triad; a wrong or old version there is the
+signal. **Do not look for the corner stamp.**
 
 ---
 
