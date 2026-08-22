@@ -1,4 +1,12 @@
-/* TypeThatBook style.css v3.7.2 */
+/* TypeThatBook style.css v3.7.3 */
+/* v3.7.3: ⚠️ STAMP ONLY, NO RULE CHANGED. body::before still read "v3.6.1"
+           after v3.7.0, v3.7.1 and v3.7.2, so the build panel under-reported
+           this file by three versions — including the whole two-row bar.
+           ⚠️ THIS IS THE SECOND TIME AND THE HARNESS ALREADY EXISTED:
+           drill-filter-test.mjs F12 was written in Round 25 against the
+           identical v3.5.5/v3.5.6 slip, and it has been RED in the delivered
+           repo ever since Round 26 shipped. A guard nobody reads the output of
+           is not a guard. See HANDOFF §0.-14. */
 /* v3.7.2: .done-btn — "I'm done" (ROADMAP item 0d). Deliberately quiet; see the
            block at .done-btn and receipt.js's header before restyling it. */
 /* v3.7.1: the ⚙ gear joins the bar. See the block at #menu-btn — it was
@@ -87,7 +95,11 @@
    line 1, not this, so nothing caught it and the build banner was right by luck.
    A file carrying its version twice has to have both updated or the redundancy is
    worse than none: it gives a wrong answer confidently. Update BOTH. */
-body::before { content: "v3.6.1"; display: none; }
+/* ⚠️ THIS IS THE ONLY MACHINE-READABLE COPY OF THIS FILE'S VERSION, and it is
+   what versions.js reads back out of the LIVE stylesheet to tell a stale cached
+   CSS from a deployed one. Bump it in the SAME EDIT as the header comment at the
+   top, always. It has now drifted twice; drill-filter-test.mjs F12 catches it. */
+body::before { content: "v3.7.3"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */

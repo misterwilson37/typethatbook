@@ -1,0 +1,306 @@
+// version-stamp-test.mjs v1.0.0 — Round 27 (Chicago).
+//
+// ⚠️⚠️ WHY THIS FILE EXISTS, AND IT IS NOT "TIDINESS".
+//
+// On 2026-08-21 Round 26 shipped four files whose RUNTIME VERSION CONSTANT did
+// not match the code inside them:
+//
+//     game.js     constant 3.38.0   header 3.42.0   (six releases stale)
+//     learn.js    constant 2.23.1   header 2.27.0   (five releases stale)
+//     hud.js      constant 1.2.0    header 1.4.0    (two, across a BREAKING change)
+//     style.css   body::before v3.6.1   header v3.7.2   (three)
+//
+// The constant is not decoration. `versions.js` parses it out of the DEPLOYED
+// file to build the footer panel, which is the only way Jake — who has no
+// command line — can tell what is actually running in a classroom. And
+// ROADMAP's cutover checklist says, in capitals, *check the footer version
+// before concluding anything*. A correctly deployed build was going to report
+// the PRE-FIX version of the stale-day data-corruption fix, which is precisely
+// the reading that means "the fix never reached the browser".
+//
+// ⚠️ THE CHECK ALREADY EXISTED AND NOBODY RAN IT. `tools/audit-versions.mjs`
+// has reported "one of the two is a lie" the entire time, via
+// `npm run audit:versions` — a SEPARATE command, outside `npm test`. That is
+// the whole lesson: **a guard that is not in the suite is a guard nobody runs.**
+// This file is that check, moved inside the thing rounds actually execute.
+//
+// ⚠️ AND IT IS DELIBERATELY NARROWER THAN THE AUDIT TOOL. audit-versions.mjs
+// also reports header-LENGTH budgets (60 lines, 6 entries), and fourteen of
+// those are outstanding right now — game.js's header is 420 lines. Failing the
+// suite on those would leave `npm test` permanently red, and invariant 54 is
+// explicit that an accepted red hides the next real failure. That is not
+// hypothetical here: hud-test.mjs and drill-filter-test.mjs were BOTH red in the
+// repo Round 27 was handed, and the second one had been catching this very
+// defect since Round 25.
+//
+// So: **a stamp that lies is a FAILURE. A header that is too long is a NOTE.**
+// The notes print, loudly, and exit 0. Header length is ROADMAP item 9.
+//
+// ⚠️ WHAT THIS CANNOT CATCH, stated so nobody trusts it further than it goes.
+// It compares what a file claims against what the same file claims elsewhere.
+// If BOTH the header and the constant are stale together, this passes and the
+// file is still lying about its code. audit-versions.mjs's own header records
+// exactly that happening to adventure-renderer.js in Round 5, and only a
+// behavioural test found it. This closes the two-labels-disagree hole. It does
+// not make a version stamp true.
+
+import { readFileSync } from 'fs';
+
+let pass = 0, fail = 0;
+const notes = [];
+const ok = (cond, msg) => { if (cond) { pass++; } else { fail++; console.log('  FAIL: ' + msg); } };
+
+// ⚠️ MIRRORED FROM versions.js, LIKE tools/audit-versions.mjs. If the three ever
+// disagree, versions.js is the one that ships and is therefore the one that is
+// right. A missing entry here is a file nobody is checking — see D.
+const SOURCES = [
+    { file: 'game.js',               pattern: /\bconst\s+VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'learn.js',              pattern: /\bconst\s+LEARN_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'keyboard.js',           pattern: /\bexport\s+const\s+KB_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'adventure-renderer.js', pattern: /\bexport\s+const\s+RENDERER_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'admin.js',              pattern: /\bconst\s+ADMIN_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'lessons-admin.js',      pattern: /window\.LESSONS_ADMIN_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'staff-admin.js',        pattern: /window\.STAFF_ADMIN_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'firebase-config.js',    pattern: /\bexport\s+const\s+CONFIG_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'stats-wal.js',          pattern: /\bexport\s+const\s+STATS_WAL_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'session-log.js',        pattern: /\bexport\s+const\s+SESSION_LOG_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'hud.js',                pattern: /\bexport\s+const\s+HUD_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'variety-floor.js',      pattern: /\bexport\s+const\s+VARIETY_FLOOR_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'versions.js',           pattern: /\bexport\s+const\s+VERSIONS_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'update-gate.js',        pattern: /\bexport\s+const\s+UPDATE_GATE_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'daylog.js',             pattern: /\bexport\s+const\s+DAYLOG_VERSION\s*=\s*["']([^"']+)["']/ },
+    // ⚠️ ROADMAP 9b, Round 27. Three modules extracted in Rounds 25–26 that the
+    // footer could not see. celebrate.js and receipt.js had no constant at all
+    // until this commit. ⚠️ THIS LIST IS MIRRORED IN tools/audit-versions.mjs
+    // AND tests/version-stamp-test.mjs — section D of that harness FAILS if the
+    // three ever disagree, so all three move together or none do.
+    { file: 'drill-filter.js',       pattern: /\bexport\s+const\s+DRILL_FILTER_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'celebrate.js',          pattern: /\bexport\s+const\s+CELEBRATE_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'receipt.js',            pattern: /\bexport\s+const\s+RECEIPT_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'style.css',             pattern: /style\.css\s+v([0-9][^\s*]*)/ },
+    { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
+    { file: 'game.html',             pattern: /game\.html\s+v([0-9][^\s\->]*)/ },
+    { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
+];
+// The CSS files carry their header in the same comment the pattern above reads,
+// so header-vs-constant is not a meaningful question for them. The HTML files
+// have no runtime constant separate from their comment either.
+const HEADER_EXEMPT = ['style.css', 'adventure.css', 'game.html', 'learn.html'];
+const HEADER_MAX_LINES = 60;
+const HEADER_MAX_ENTRIES = 6;
+
+const read = f => readFileSync(new URL('../' + f, import.meta.url), 'utf8');
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n─── A. ⚠️ THE RUNTIME CONSTANT MATCHES THE HEADER COMMENT ───');
+// ═══════════════════════════════════════════════════════════════════════════
+// This is the whole point of the file. Everything below is supporting work.
+for (const { file, pattern } of SOURCES) {
+    let src;
+    try { src = read(file); }
+    catch { ok(false, `${file} — could not be read at all`); continue; }
+
+    const version = (src.match(pattern) || [])[1];
+    ok(!!version, `${file} has a machine-readable version stamp`);
+    if (!version) continue;
+
+    if (HEADER_EXEMPT.includes(file)) continue;
+
+    // The header claim is the FIRST line of the leading comment block that
+    // names this file AND carries a version.
+    //
+    // ⚠️ THIS IS DELIBERATELY LOOSE, AND IT TOOK TWO FALSE POSITIVES TO GET
+    // THERE — recorded so nobody tightens it back up:
+    //   · `lessons-admin.js` opens `// lessons-admin.js — TypeThatBook Lesson
+    //     Panel v1.13.1`. A title sits between the name and the version.
+    //   · `keyboard.js` puts its stamp on line THREE, under two lines of
+    //     description. "First line of the file" is not the convention.
+    // Both are honest headers. A checker that cries wolf on them is worse than
+    // no checker, because the next round learns to skip section A.
+    const esc = file.replace(/\./g, '\\.');
+    const headLines = [];
+    for (const line of src.split('\n')) {
+        if (line.startsWith('//') || line.trim() === '') headLines.push(line); else break;
+    }
+    let header;
+    for (const line of headLines) {
+        const re = new RegExp(esc + '.*?v([0-9][\\d.]*)', 'g');
+        let m, last;
+        while ((m = re.exec(line)) !== null) last = m[1];   // last wins: titles may hold digits
+        if (last) { header = last; break; }
+    }
+    ok(!!header, `${file} declares its version in its header comment`);
+    if (!header) continue;
+
+    ok(version === header,
+       `⚠️ ${file}: constant says v${version}, header says v${header} — ONE OF THE TWO IS A LIE. ` +
+       `The constant is what versions.js parses and what the footer renders, so fix whichever is wrong ` +
+       `and bump BOTH in the same edit.`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n─── B. ⚠️ style.css\'s TWO STAMPS AGREE ───');
+// ═══════════════════════════════════════════════════════════════════════════
+// The stylesheets have the same defect in a different shape: the header comment
+// and the `body::before` content are two hand-maintained copies of one number.
+// ⚠️ drill-filter-test.mjs F12 ALREADY ASSERTS THIS and was red on delivery.
+// It is duplicated here on purpose — F12 lives in a harness about drill word
+// filtering, where nobody looking for a version problem would ever find it, and
+// the next round to touch style.css should trip over this file instead.
+{
+    const css = read('style.css');
+    const hdr   = (css.match(/style\.css v([\d.]+)/) || [])[1];
+    const stamp = (css.match(/body::before\s*\{\s*content:\s*"v([\d.]+)"/) || [])[1];
+    ok(!!hdr,   'style.css declares a version in its header');
+    ok(!!stamp, 'style.css carries a body::before machine-readable stamp');
+    ok(stamp === hdr,
+       `⚠️ style.css: body::before says v${stamp}, header says v${hdr}. This is the ONLY copy ` +
+       `versions.js can read back out of a LIVE page to spot a stale cached stylesheet.`);
+}
+{
+    const css = read('adventure.css');
+    const hdr   = (css.match(/adventure\.css v([\d.]+)/) || [])[1];
+    const stamp = (css.match(/body::after\s*\{\s*content:\s*"v([\d.]+)"/) || [])[1];
+    ok(!!hdr, 'adventure.css declares a version in its header');
+    if (stamp) {
+        ok(stamp === hdr,
+           `⚠️ adventure.css: body::after says v${stamp}, header says v${hdr}`);
+    } else {
+        notes.push('adventure.css has no body::after stamp — versions.js cannot read its APPLIED version');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n─── C. ⚠️ THE VERSION PINS POINT AT VERSIONS THAT EXIST ───');
+// ═══════════════════════════════════════════════════════════════════════════
+// HANDOFF §1: three pins exist, and "bump either module and every pin on it
+// moves in the same commit".
+//
+// ⚠️⚠️ THE PIN ON hud.js FAILED TO FIRE IN ROUND 26 AND THAT IS THE SUBTLEST
+// PART OF THIS WHOLE DEFECT. hud-test.mjs asserted `HUD_VERSION === '1.2.0'`
+// precisely so that bumping hud.js would go red and force a human to look. It
+// stayed green — because the constant was never bumped either. The pin was
+// checking a number a human maintains by hand, so it could only ever be as
+// honest as that number. It went two releases, through a BREAKING return-shape
+// change, without a murmur, and hud-test.mjs crashed on the old API instead.
+//
+// A pin catches "you bumped the module and forgot the harness". It cannot catch
+// "you forgot to bump the module". Section A is what catches that. Both are
+// needed and neither replaces the other.
+{
+    const PINS = [
+        ['tests/session-merge-test.mjs', 'session-log.js', /\bexport\s+const\s+SESSION_LOG_VERSION\s*=\s*["']([^"']+)["']/],
+        ['tests/open-unit-test.mjs',     'session-log.js', /\bexport\s+const\s+SESSION_LOG_VERSION\s*=\s*["']([^"']+)["']/],
+        ['tests/hud-test.mjs',           'hud.js',         /\bexport\s+const\s+HUD_VERSION\s*=\s*["']([^"']+)["']/],
+    ];
+    for (const [harness, module, modPattern] of PINS) {
+        const actual = (read(module).match(modPattern) || [])[1];
+        const hSrc   = read(harness);
+        // The pin is an equality assertion against a literal version string.
+        const pinned = [...hSrc.matchAll(/_VERSION\s*===\s*'([\d.]+)'/g)].map(m => m[1]);
+        ok(pinned.length > 0, `${harness} still carries a version pin on ${module}`);
+        if (!pinned.length) continue;
+        ok(pinned.every(p => p === actual),
+           `⚠️ ${harness} pins ${module} at v${pinned.join('/')} but the module is v${actual} — ` +
+           `move the pin in the same commit as the bump.`);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n─── D. ⚠️ THE THREE MIRRORS OF THE SOURCE LIST AGREE ───');
+// ═══════════════════════════════════════════════════════════════════════════
+// versions.js, tools/audit-versions.mjs and this file each carry a copy of
+// SOURCES. HANDOFF §0.-13.E's finding was that FOUR hand-maintained twins failed
+// in one day; this file would be the next one if nobody checked it. A file
+// missing from a list is a file whose stamp nobody is watching — which is how
+// hud.js, session-log.js and stats-wal.js went unchecked until v1.1.0 of the
+// audit tool added them.
+{
+    const names = src => [...src.matchAll(/\{\s*file:\s*'([^']+)'/g)].map(m => m[1]);
+    const mine    = SOURCES.map(s => s.file);
+    const shipped = names(read('versions.js'));
+    const audit   = names(read('tools/audit-versions.mjs'));
+
+    ok(shipped.length > 0, 'versions.js exposes a readable SOURCES list');
+    for (const f of shipped) {
+        ok(mine.includes(f),
+           `⚠️ versions.js checks ${f} and this harness does not — add it to SOURCES here`);
+    }
+    for (const f of audit) {
+        ok(mine.includes(f),
+           `⚠️ tools/audit-versions.mjs checks ${f} and this harness does not`);
+    }
+    // ⚠️ NOT symmetrical on purpose: versions.js FETCHES over HTTP and may
+    // legitimately carry a file this offline check cannot reach.
+    for (const f of mine) {
+        if (!shipped.includes(f)) {
+            notes.push(`${f} is checked here but not by versions.js — the footer will not report it`);
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n─── D2. ✅ EVERY SHARED MODULE THE WRITERS IMPORT IS WATCHED ───');
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️ CLOSED IN ROUND 27 ON JAKE'S RULING (ROADMAP 9b). Rounds 25 and 26
+// extracted drill-filter.js, celebrate.js and receipt.js and none reached
+// versions.js's SOURCES, so the footer could not report them and a stale cached
+// copy in a classroom was invisible. celebrate.js and receipt.js had no runtime
+// constant at all.
+//
+// ⚠️ THIS ASSERTION IS THE RATCHET, NOT THE FIX. The fix was a one-time wiring;
+// this stops the NEXT extracted module from repeating it. §0.-13.E's finding was
+// that extracting a hand-maintained twin is only half the job — the module then
+// has to be wired into the machinery that maintains it. Three rounds forgot.
+//
+// A module imported by game.js or learn.js is, by definition, code that runs on
+// a child's screen, and anything that runs on a child's screen must be
+// reportable in the footer Jake reads to diagnose a deploy.
+{
+    const mine = SOURCES.map(s => s.file);
+    const imports = new Set();
+    for (const writer of ['game.js', 'learn.js']) {
+        const src = read(writer);
+        for (const m of src.matchAll(/from\s+["']\.\/([\w.-]+\.js)["']/g)) imports.add(m[1]);
+    }
+    ok(imports.size > 0, 'the writers\' local module imports are readable');
+    for (const f of [...imports].sort()) {
+        ok(mine.includes(f),
+           `⚠️ ${f} is imported by a page controller but is NOT in SOURCES — ` +
+           `the build footer cannot report it, so a stale cached copy of it is ` +
+           `invisible from the chair. Add it to versions.js, tools/audit-versions.mjs ` +
+           `and this file, in the same commit (section D checks all three agree).`);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n─── E. NOTES — header budgets, which are ROADMAP item 9, NOT failures ───');
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️ READ THE BLOCK AT THE TOP OF THIS FILE BEFORE PROMOTING ANY OF THESE TO A
+// FAILURE. They are real untidiness and they are also fourteen items deep right
+// now. A suite that is red for a known reason trains everyone to ignore red,
+// which is the mechanism that let this whole round's defect ship.
+for (const { file } of SOURCES) {
+    if (HEADER_EXEMPT.includes(file)) continue;
+    let src; try { src = read(file); } catch { continue; }
+    const lines = src.split('\n');
+    let n = 0;
+    while (n < lines.length && (lines[n].startsWith('//') || lines[n].trim() === '')) n++;
+    const headerLines = n;
+    const entries = lines.slice(0, n).filter(l => /^\/\/\s*v[\d.]+\s*—/.test(l)).length;
+    if (headerLines > HEADER_MAX_LINES) {
+        notes.push(`${file}: header is ${headerLines} lines (budget ${HEADER_MAX_LINES})`);
+    }
+    if (entries > HEADER_MAX_ENTRIES) {
+        notes.push(`${file}: ${entries} version entries (budget ${HEADER_MAX_ENTRIES})`);
+    }
+}
+if (notes.length) {
+    console.log(`  ${notes.length} note(s) — untidiness, not defects:`);
+    for (const nt of notes) console.log('    · ' + nt);
+} else {
+    console.log('  none');
+}
+
+console.log(`\n${pass} passed, ${fail} failed, ${notes.length} note(s)`);
+process.exit(fail ? 1 : 0);

@@ -210,7 +210,12 @@ const FAST = [
     // classroom, so the attempt budget is bounded and a group is always
     // returned. ⚠️ PART F1 IS PENDING BY DESIGN: learn.js does not import the
     // module yet. Flip F1 when the wiring ships.
-    ['drill-filter-test.mjs',    'THE RANDOM DRILLS MUST NOT SPELL THINGS: rejection sampling that cannot bias the drill and cannot hang the browser. \u26a0\ufe0f Part F1 is PENDING — learn.js is not wired to it yet'],
+    ['drill-filter-test.mjs',    'THE RANDOM DRILLS MUST NOT SPELL THINGS: rejection sampling that cannot bias the drill and cannot hang the browser. \u26a0\ufe0f F12 also guards style.css\u2019s body::before stamp'],
+    // ⚠️ Round 27 (Chicago). The audit that already existed, moved INSIDE the
+    // suite. `npm run audit:versions` had been reporting four files as "one of
+    // the two is a lie" for a whole round and nobody ran it, because it is a
+    // separate command. A guard outside `npm test` is a guard nobody runs.
+    ['version-stamp-test.mjs',   '\u26a0\ufe0f THE FILE MUST NOT LIE ABOUT ITS OWN VERSION: runtime constant vs header, both CSS stamps, and the three module pins. Header-length budgets print as NOTES and never fail \u2014 see the block at the top before promoting one'],
 
     // ⚠️ Round 24 (Monotype). THE EVENING GUEST. sessionLogAdopt() recomputed a
     // record's date from `at.slice(0, 10)` — UTC — throwing away the local date

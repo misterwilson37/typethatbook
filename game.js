@@ -1,4 +1,17 @@
-// game.js v3.42.0
+// game.js v3.42.1
+//
+// v3.42.1 — ⚠️ STAMP ONLY, NO BEHAVIOUR. `const VERSION` still read "3.38.0"
+//           after v3.38.1, v3.39.0, v3.39.1, v3.40.0, v3.41.0 and v3.42.0 all
+//           shipped. ⚠️⚠️ THE COST WAS AIMED SQUARELY AT MONDAY'S CUTOVER
+//           VERIFICATION: ROADMAP told Jake to check the footer for v3.38.1
+//           before concluding anything about a stale-day carry, and a correctly
+//           deployed build was going to answer "3.38.0" — the PRE-FIX version.
+//           The one instrument for telling "the fix never reached the browser"
+//           apart from "the fix is there and something else is wrong" was
+//           reporting the wrong answer, in the direction that sends you chasing
+//           the update gate. See HANDOFF §0.-14.
+//           ⚠️ The warning at line ~84 about this exact defect has now been true
+//           twice, so v3.42.1 also puts the reminder ON the constant itself.
 //
 // v3.42.0 — "I'M DONE" (ROADMAP item 0d). A student-facing exit that files the
 //           open sprint and takes a `final` flush, then shows receipt.js's
@@ -475,7 +488,14 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
 
-const VERSION = "3.38.0";
+// ⚠️ THIS LINE IS THE VERSION — the comment at the top of the file is decoration.
+// versions.js parses THIS, the footer renders THIS, and ROADMAP's verification
+// steps tell Jake to read THIS. It sat at "3.38.0" across six releases, through
+// the whole of Round 26, and the stale-day fix that shipped in v3.38.1 was
+// therefore invisible from the chair. Bump it in the SAME EDIT as the header
+// entry above, always. tests/version-stamp-test.mjs now fails the suite if you
+// do not.
+const VERSION = "3.42.1";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page

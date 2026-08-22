@@ -1,7 +1,46 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.7.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     through Round 26; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+<!-- HANDOFF.md v15.9.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     through Round 27; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.9.0 — Round 27b (Chicago). §0.-15 IS JAKE'S TWO RULINGS, BOTH TAKEN.
+     ✅ **hud.js IS v2.0.0 AND THE MAJOR IS SIGNED OFF** — no code changed, the
+     number catches up with v1.3.0's breaking return-shape change. ⚠️ §0.-15.A is
+     why that is not bookkeeping: a minor PROMISES the caller still works, and a
+     v1.2.0 caller reads `.left`, gets `undefined`, and renders the word
+     "undefined" into a child's top bar rather than throwing. ✅ **ROADMAP 9b
+     CLOSED** — celebrate.js 1.1.0 and receipt.js 1.1.0 gained the constants they
+     were extracted without, and all three modules are in versions.js (1.10.0),
+     audit-versions.mjs (1.2.0) and the harness mirror. ⚠️⚠️ §0.-15.B IS THE COST
+     REASONING AND IT IS REUSABLE: versions.js fetches STATIC FILES, not
+     Firestore — no bill; localStorage CANNOT answer "what is on the server"
+     because it is a cache of the very thing being checked (invariant 1's shape);
+     and reporting the already-imported constants would have been free but would
+     have been a FIFTH TWIN. ⚠️ The ratchet is the lasting part — D2 reads the
+     writers' imports and FAILS on a module missing from SOURCES.
+
+     v15.8.0 — Round 27 (Chicago). ⚠️⚠️ §0.-14 IS THE WRITE-UP AND THE SUITE WAS
+     RED IN THE REPO AS DELIVERED — two harnesses, of 43. FIVE FILES WERE LYING
+     ABOUT THEIR OWN VERSION: game.js's constant said 3.38.0 against a 3.42.0
+     header, learn.js 2.23.1 against 2.27.0, hud.js 1.2.0 across a BREAKING
+     return-shape change, style.css and adventure.css in their CSS stamps. The
+     CODE WAS NEW IN EVERY CASE — only the stamps were stale, and the header was
+     the honest half every time. ⚠️⚠️ §0.-14.C IS WHY IT WAS URGENT: ROADMAP tells
+     Jake to check the footer for v3.38.1 / v2.23.2 before concluding anything on
+     Monday, and a correctly deployed build was going to answer with the PRE-FIX
+     numbers — failing in the direction that reads as "a tab on old code" and
+     sends you to the update gate. ⚠️ §0.-14.D IS THE PART WORTH READING: the pin
+     on hud.js could not fire, because a pin checks a hand-maintained number and
+     inherits its honesty — it catches "you forgot the harness", never "you
+     forgot to bump the module". Fixed in tests/version-stamp-test.mjs (99
+     checks), which puts audit-versions.mjs's check INSIDE `npm test`, because
+     a guard outside the suite is a guard nobody runs. ⚠️ IT FAILS ON LYING
+     STAMPS ONLY — the 14 header-length budgets print as NOTES on purpose;
+     read §0.-14.E before promoting one. hud-test.mjs rewritten for the
+     `{ lead, sprint }` API. ⚠️ §0.-14.G is two false positives whose fix was to
+     make the check LOOSER. 44 harnesses, all passing. ⚠️ ROADMAP ITEM 0b WAS NOT
+     STARTED — see §0.-14.H, which also leaves hud.js's major-bump question open
+     as Jake's to make.
 
      v15.7.0 — Round 26b–f (Elliott-Fisher), same evening, all display work.
      §0.-13 is the write-up. The two-row top bar shipped across all four
@@ -115,7 +154,7 @@
      AND KILLED BY JAKE — see §0.-9.E, which is the most useful part of this
      section for a future instance. 35/35 harnesses. -->
 
-**Round 26 — Elliott-Fisher.** Predecessors: Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
+**Round 27 — Chicago.** Predecessors: Elliott-Fisher (26) · Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
 Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
 Sholes (14) · Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) ·
 Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) ·
@@ -125,6 +164,20 @@ Blick (3) · Dvorak (2) · Underwood (1).
 by different companies and both are now on the list; a future round reading the
 list quickly will see two similar words and must not conclude one is a typo for
 the other. **Check the list, and read the whole word.**
+
+> *On the name:* the **Chicago** (1898) printed from a **removable type sleeve** —
+> a cylinder carrying the whole character set, which you could pull out and swap
+> for another. Change the sleeve and the machine printed a different face, or a
+> different alphabet entirely, **while every key cap on the front stayed exactly
+> where it was.** So the label under your finger and the character on the page
+> could disagree, and there was nothing on the machine to tell you which one to
+> believe. That is this round exactly: `const VERSION = "3.38.0"` and
+> `// game.js v3.42.0`, two labels on one file, and the code was neither of the
+> things one of them said. ⚠️ The machine also went out under **three different
+> names in its life** — it began as the Munson and ended as the Draper — which
+> is the same joke told twice, and a fair warning that a name is the cheapest
+> part of anything. **Check what the mechanism does, not what the front of it
+> says.**
 
 > *On the name:* the **Elliott-Fisher** was a FLAT-BED BOOK TYPEWRITER. The
 > carriage travelled over an open bound ledger instead of a sheet of paper, and
@@ -234,6 +287,212 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-15. ✅ ROUND 27b (Chicago) — JAKE'S TWO RULINGS, BOTH TAKEN
+
+Same round, after §0.-14. **No behaviour changed here either.**
+
+### A. ✅ `hud.js` IS v2.0.0 — THE MAJOR IS SIGNED OFF
+
+Jake, 2026-08-22: *"Give hud 2.0. It's earned it."* **§1 says a major needs his
+explicit sign-off; this is it, recorded so no future round re-litigates it.**
+
+No code changed in the bump. It is the version number catching up with a
+breaking change that shipped as a **minor** in v1.3.0 — `{ left, long }` became
+`{ lead, sprint }` — under a header that said the call was Jake's to make.
+
+⚠️ **WHY THIS IS NOT BOOKKEEPING, AND IT IS THE ARGUMENT FOR TAKING SEMVER
+SERIOUSLY IN THIS REPO.** A minor bump is a promise: *your caller still works.*
+Every caller written against v1.2.0 reads `.left` and gets `undefined` — and
+`undefined` **does not throw.** It renders the word "undefined" into a child's
+top bar, or it crashes one line later on `.includes()`. That is precisely what
+happened to `tests/hud-test.mjs`, which sat crashed for two releases. **A major
+is the one signal that says "go and look at every call site," and it was the
+signal not sent.**
+
+The public surface is now written down in the file header, at 2.0.0, so a caller
+can be checked against it rather than against memory.
+
+### B. ✅ ROADMAP 9b CLOSED — AND THE COST QUESTION IS WORTH KEEPING
+
+Jake asked whether the cost was money, and whether localStorage could carry it.
+**Neither, and the reasoning generalises:**
+
+- ⚠️ **`versions.js` DOES NOT TOUCH FIRESTORE.** It `fetch()`es the *static
+  files* from the web host and reads the version constant out of the deployed
+  bytes. Nothing here is a document read and nothing is billed per operation.
+  **When a cost question comes up, check which system is being billed before
+  designing around it** — this one had no bill.
+- **The bandwidth was already spent.** SOURCES already pulls `game.js` (424 KB)
+  and `learn.js` (260 KB). The three additions are ~38 KB, on a request that
+  only fires on a footer hover and is already cached per tab in
+  `sessionStorage`.
+- ⚠️⚠️ **localStorage CANNOT ANSWER THIS QUESTION AND THE REASON IS THE WHOLE
+  POINT OF THE MECHANISM.** The footer exists to report **what is on the
+  server**, so a stale cached file cannot lie about its own version. A cache of
+  what the browser already loaded **is the thing being checked.** It would
+  report the stale file's own opinion of itself — invariant 1's exact shape, a
+  cached copy of a quantity that lives elsewhere.
+- ⚠️ **AND THE FREE-LOOKING ALTERNATIVE WAS A FIFTH TWIN.** All three modules are
+  ES imports already in memory, so reading their constants directly costs zero
+  fetches. Genuinely free, and it was tempting. But it answers a *different*
+  question — "what is running in this tab" rather than "what is on the server" —
+  through a *second* mechanism, and §0.-13.E is this week's expensive proof that
+  a second hand-maintained path drifts from the first. **One mechanism.**
+
+**Shipped:** `celebrate.js` 1.1.0 and `receipt.js` 1.1.0 gained the version
+constants they were extracted without; all three files added to `versions.js`
+(1.10.0), `tools/audit-versions.mjs` (1.2.0) and `tests/version-stamp-test.mjs`
+in one commit, which section D of that harness requires.
+
+⚠️ **THE RATCHET IS THE PART THAT LASTS.** D2 now reads the `import` statements
+out of `game.js` and `learn.js` and **fails if any module they import is missing
+from SOURCES.** Mutation-verified. A file that runs on a child's screen must be
+reportable in the footer Jake reads to diagnose a deploy, and the next
+extraction cannot quietly skip it.
+
+---
+
+## §0.-14. ⚠️⚠️ ROUND 27 (Chicago) — FIVE FILES LYING ABOUT THEIR OWN VERSION
+
+**2026-08-22, the morning of the cutover.** No student-facing behaviour changed
+this round. **Not one line of arithmetic, not one write path.** Everything here
+is version stamps, and it is filed as a serious defect because of *which*
+instrument it broke and *when*.
+
+### A. ⚠️ THE SUITE WAS RED IN THE REPO AS DELIVERED
+
+Two harnesses failing, of 43 registered. That is the first thing to say, because
+`§2` of this file still claimed *"ALL 35 HARNESSES PASS"* and ROADMAP said item
+0 was closed and item 0b was next. **Item 0b was not started.** A red suite
+outranks the next feature — invariant 54, and it had just been demonstrated
+again.
+
+| harness | what it was saying |
+|---|---|
+| `hud-test.mjs` | crashed on a `TypeError` — asserting the `{ left, long }` API that hud.js v1.3.0 deleted |
+| `drill-filter-test.mjs` | **F12: `style.css`'s `body::before` stamp disagreed with its own header** |
+
+### B. THE DEFECT — five stamps, five files, one evening
+
+`tools/audit-versions.mjs` reported four of these the whole time. The fifth had
+never been checked by anything.
+
+| file | runtime stamp (what renders) | header (the truth) | stale by |
+|---|---|---|---|
+| `game.js` | **3.38.0** | 3.42.0 | six releases |
+| `learn.js` | **2.23.1** | 2.27.0 | five releases |
+| `hud.js` | **1.2.0** | 1.4.0 | two, across a BREAKING change |
+| `style.css` | **v3.6.1** (`body::before`) | v3.7.2 | three |
+| `adventure.css` | **v1.0.0** (`body::after`) | v1.0.1 | one — ⚠️ found by the new harness, unchecked before |
+
+⚠️ **THE CODE WAS NEW IN EVERY CASE. ONLY THE STAMPS WERE STALE.** Verified
+before touching anything — `liveDay`/`liveWeek`, `handleImDone`,
+`celebrationMark` and the `receipt.js`/`celebrate.js` imports are all present in
+both writers. **The header was right and the constant was wrong**, every time,
+which is the direction that matters: §1 says the constant is the version and the
+header is decoration, and here the decoration was the only honest part.
+
+### C. ⚠️⚠️ WHY THIS WAS URGENT AND NOT COSMETIC — IT WAS AIMED AT MONDAY
+
+ROADMAP's cutover checklist says, in capitals, twice:
+
+> **Check the footer version first** — `game.js` v3.38.1 / `learn.js` v2.23.2.
+
+A **correctly deployed** build was going to answer **3.38.0 / 2.23.1** — below
+the stale-day fix in both files. So the single instrument that separates *"the
+fix never reached the browser"* from *"the fix is there and something else is
+wrong"* was reporting the first when the second was true.
+
+⚠️ **AND THE FAILURE DIRECTION IS THE EXPENSIVE ONE.** It does not read as
+"broken". It reads as *a specific, plausible, already-documented problem* —
+a tab on old code — and the documented remedy is to go and fire Hermes's update
+gate at ninety Chromebooks. Round 25 spent an entire session removing exactly
+this class of ambiguity from the Monday verification, and it had grown back in
+the version stamps.
+
+### D. ⚠️⚠️ THE PIN THAT COULD NOT FIRE — THE PART WORTH READING
+
+`hud-test.mjs` asserts `HUD_VERSION === '1.2.0'`. §1 says the three pins exist
+so that *bumping a shared module fails its harness and forces a human to look.*
+
+**It stayed green through v1.3.0 and v1.4.0.** Because the constant was never
+bumped either. hud.js's return shape changed from `{ left, long }` to
+`{ lead, sprint }` underneath a pin that was still reporting all clear, and the
+harness that pin protects sat crashed on the old API instead.
+
+> ⚠️ **A PIN IS A CHECK ON A HAND-MAINTAINED NUMBER, SO IT INHERITS THAT
+> NUMBER'S HONESTY AND CANNOT EXCEED IT.** It catches *"you bumped the module
+> and forgot the harness."* It is structurally incapable of catching *"you
+> forgot to bump the module."*
+
+That is a real gap in a mechanism this project relies on in three places, and it
+is why the fix below is not "be more careful."
+
+### E. THE FIX — `tests/version-stamp-test.mjs`, and why it is in the SUITE
+
+⚠️ **THE CHECK ALREADY EXISTED AND NOBODY RAN IT.** `npm run audit:versions` had
+been printing "one of the two is a lie" for four files across a whole round. It
+is a **separate command**, outside `npm test`. That is the entire lesson:
+**a guard that is not in the suite is a guard nobody runs.**
+
+New harness, 99 checks, five sections. A: constant vs header, every file in
+`SOURCES`. B: both CSS stamps. C: all three module pins point at versions that
+exist. D: the three mirrored copies of `SOURCES` (versions.js,
+audit-versions.mjs, this harness) agree — because a file missing from the list
+is a file nobody is watching. E: notes.
+
+⚠️ **IT IS DELIBERATELY NARROWER THAN THE AUDIT TOOL, AND THAT IS LOAD-BEARING.**
+The audit also reports header-LENGTH budgets, and **fourteen** are outstanding
+(`game.js`'s header is 433 lines). Failing the suite on those leaves `npm test`
+permanently red, which is the exact mechanism that let this round's defect ship
+past two red harnesses. **A stamp that lies is a FAILURE; a header that is too
+long is a NOTE.** The notes print loudly and exit 0. Header length is item 9.
+
+⚠️ **WHAT IT CANNOT DO.** It compares what a file claims against what the same
+file claims elsewhere. **If the header and the constant are stale *together*,
+this passes and the file is still lying.** `audit-versions.mjs`'s own header
+records that happening to `adventure-renderer.js` in Round 5, caught only by a
+behavioural test. This closes the two-labels-disagree hole; it does not make a
+version stamp true.
+
+### F. Rule 10, satisfied by mutation
+
+Every guard was driven against the real failure, not just observed green:
+
+| mutation | caught by |
+|---|---|
+| `game.js` constant put back to 3.38.0 (Round 26 exactly) | version-stamp A |
+| `style.css` header bumped, `body::before` forgotten | version-stamp B |
+| `hud.js` bumped honestly, pin left behind | version-stamp C |
+| the `long` / `left` fields resurrected | hud-test B, 2 checks |
+| **`lead` made sprint-above-daily — the graded number moves** | hud-test B, 5 checks |
+
+### G. ⚠️ TWO FALSE POSITIVES THE NEW HARNESS THREW ON ITS FIRST RUN
+
+Recorded because the fix was to make the check **looser**, and a future round
+will be tempted to tighten it back.
+
+`lessons-admin.js` opens `// lessons-admin.js — TypeThatBook Lesson Panel
+v1.13.1` (a title between the name and the version). `keyboard.js` puts its
+stamp on **line three**, under two lines of description. Both are honest
+headers. **A checker that cries wolf on an honest file is worse than no checker**,
+because the next round learns to skip that section — which is how F12 came to be
+ignored in the first place.
+
+### H. What was NOT done
+
+- **ROADMAP item 0b, the School settings panel.** Untouched. The suite was red
+  and Monday's instrument was broken; both outrank a new feature.
+- ⚠️ **THE `hud.js` MAJOR-BUMP QUESTION IS STILL OPEN AND IT IS JAKE'S.** v1.3.0's
+  own header flags that a breaking change to a shared module's public function is
+  arguably **v2.0.0**, shipped as a minor because both callers moved together.
+  Round 27 did not take that decision either — it is a §1 major and needs sign-off.
+- ⚠️ **NOTHING WAS SEEN RENDERING**, same as §0.-13.H. No layout changed this
+  round, so the exposure is small, but the footer numbers are worth one glance.
+- **The fourteen header-budget notes.** Item 9.
 
 ---
 
@@ -1875,40 +2134,57 @@ browsable user directory, by design. `users/{uid}` deliberately holds no PII, wh
 
 ## §2. Where the code is
 
-Shipped state after **Round 22, 2026-08-20**. **Verified by running
-`npm run audit:versions`, not copied from the previous table** — three
-consecutive rounds carried a stale version for `admin.js`, and `game.js` and
-`learn.js` carried header comments that disagreed with their own constants for
-five and four versions respectively. **Both are fixed; the audit now reports
-zero "one of the two is a lie".** Run the audit; do not trust this table either.
+Shipped state after **Round 27, 2026-08-22**. **Verified by running
+`npm run audit:versions`, not copied from the previous table.**
 
-⚠️ **ROUND 22 IS A STUDENT WRITE-PATH ROUND.** `game.js`, `learn.js`,
-`daylog.js`, `stats-wal.js`, `reports.html` and `lessons-admin.js` all moved.
-See §0.-8 before deploying any of them, and §0.-8.B for the order.
+⚠️⚠️ **THIS TABLE SAT FIVE ROUNDS STALE — IT STILL SAID "ROUND 22" WHILE ROUNDS
+23–26 SHIPPED — AND THE PARAGRAPH THAT USED TO BE HERE CLAIMED THE HEADER/
+CONSTANT PROBLEM WAS "FIXED".** It was not; it came straight back in Round 26,
+in five files at once (§0.-14). Two lessons, both earned:
+
+1. **Run the audit. Do not trust this table.** That instruction was already here
+   and was already correct. It is now also enforced — `npm test` fails on a
+   lying stamp, so the table cannot drift this far again without the suite
+   saying so.
+2. ⚠️ **"FIXED" WAS THE WRONG WORD FOR A DEFECT NOTHING WAS CHECKING.** Round 22
+   corrected the *instances* and wrote down that the class was closed. Nothing
+   prevented recurrence, and four rounds later the recurrence shipped. **A
+   corrected instance is not a closed defect until something fails when it comes
+   back.**
+
+⚠️ **ROUND 27 CHANGED NO BEHAVIOUR** — five version stamps, one rewritten
+harness, one new harness. The interesting deploy note is that `game.js`,
+`learn.js`, `hud.js`, `style.css` and `adventure.css` all now report themselves
+honestly for the first time since Round 26, which is what Monday's verification
+reads.
 
 | file | version |
 |---|---|
-| `game.js` | **3.36.0** — ⚠️ Round 23. THE GUEST MERGE, §0.-9. Writes the Library triple only |
-| `learn.js` | **2.21.0** — ⚠️ Round 23. Guest runs off the anon uid; logout reloads. §0.-9 |
-| `session-log.js` | **1.5.0** — ⚠️ Round 23. PER-OWNER queue + `GUEST_QUEUE_UID`. ⚠️ UPLOAD THIS FIRST — both pages import from it. Its TWO pins moved with it |
-| `hud.js` | 1.2.0 |
+| `game.js` | **3.42.1** — ⚠️ Round 27. Stamp corrected: the constant said 3.38.0 for six releases. §0.-14 |
+| `learn.js` | **2.27.1** — ⚠️ Round 27. Stamp corrected: the constant said 2.23.1 for five releases. §0.-14 |
+| `session-log.js` | **1.6.0** — PER-OWNER queue + `GUEST_QUEUE_UID`. ⚠️ UPLOAD THIS FIRST — both pages import from it. Its TWO pins are checked by version-stamp-test.mjs C |
+| `hud.js` | **2.0.0** — ⚠️⚠️ MAJOR, JAKE SIGNED IT OFF. The v1.3.0 return-shape break recorded as the major it was. §0.-15. ⚠️ UPLOAD BEFORE THE TWO WRITERS |
 | `variety-floor.js` | 1.0.0 |
 | `stats-wal.js` | **1.1.0** — ⚠️ Round 22. Per-source counters in DAY_COUNTERS; storage key unchanged. §0.-8.F |
-| `versions.js` | 1.9.0 — ⚠️ Round 19 |
-| `daylog.js` | **1.3.0** — ⚠️ Round 22. The shared week reader, the cutover, and `dayLogPayloadFor()` — **the one gate deciding a day's shape**. §0.-8.C |
+| `versions.js` | **1.10.0** — ⚠️ Round 27. SOURCES gained the three modules the footer could not see. §0.-15 |
+| `daylog.js` | **1.4.0** — The shared week reader, the cutover, and `dayLogPayloadFor()` — **the one gate deciding a day's shape**. §0.-8.C. Carries the Overnight Rescue |
 | `keyboard.js` | 1.1.1 |
 | `adventure-renderer.js` | 1.5.4 |
 | `admin.js` | 3.31.1 — ⚠️ Round 19: two real import-metadata defects, see §6 item 3 |
-| `lessons-admin.js` | **1.13.0** — ⚠️ Round 22. The FOURTH reader of typing_logs, date-gated at last. §0.-8.E |
+| `lessons-admin.js` | **1.13.1** — ⚠️ Round 25. Dates typing_logs by DOCUMENT ID, not the stamped field. §0.-11 |
 | `staff-admin.js` | 2.2.0 |
-| `reports.html` | **2.25.0** — ⚠️ Round 23. THE RECONCILE AND REBUILD ARE DELETED, §0.-9.D |
+| `reports.html` | **2.25.0** — ⚠️ Round 23. THE RECONCILE AND REBUILD ARE DELETED, §0.-9.D. ⚠️ NOT in the audit's SOURCES — its version is unchecked |
 | `update-gate.js` | 1.0.1 — ⚠️ NEW in Round 19. Loaded by its own script tag in both shells, NOT imported. See §0.10 |
-| `index.html` | 3.9.0 — ⚠️ Round 19 Stage 1 |
+| `index.html` | 3.10.0 — ⚠️ Round 26. The landing readout. ⚠️ NOT in the audit's SOURCES — its version is unchecked |
 | `firebase-config.js` | 1.2.0 |
 | `firebase/firestore.rules` | **2.6.0** — ⚠️ **Jake deployed this 2026-08-20 and it is CONFIRMED CORRECT BY EXECUTION.** The null-resource clause is FIRST and must stay first. §0.-8.A |
-| `style.css` | 3.5.5 |
-| `game.html` | 1.2.0 — ⚠️ Round 19 added the update-gate script tag |
-| `learn.html` | 1.1.0 — ⚠️ Round 19 added the update-gate script tag |
+| `style.css` | **3.7.3** — ⚠️ Round 27. `body::before` said v3.6.1 against a v3.7.2 header. §0.-14 |
+| `game.html` | 1.2.0 — ⚠️ div-balance checked this round: 5 open / 5 close in `#hud`, whole file balanced |
+| `learn.html` | **1.2.0** — ⚠️ Round 26 fixed §0.-13.B's stray `</div>`. Re-checked this round: balanced |
+| `adventure.css` | **1.0.2** — ⚠️ Round 27. `body::after` said v1.0.0; nothing had ever checked it. §0.-14.B |
+| `celebrate.js` | **1.1.0** — ⚠️ Round 27 gave it the version constant it shipped without. Now in SOURCES. §0.-15 |
+| `receipt.js` | **1.1.0** — ⚠️ Round 27 gave it the version constant it shipped without. Now in SOURCES. §0.-15 |
+| `drill-filter.js` | 1.3.0 — ⚠️ Round 25. Now in SOURCES (§0.-15); it always had a constant, nothing watched it |
 | `functions/index.js` | 1.7.0 — Cloud Function, NOT deployable from this repo; Jake mirrors it into the console by hand. See its own header. Moved out of the root in Round 17; the file is byte-identical. |
 
 `npm test` → ⚠️ **ALL 35 HARNESSES PASS, 0 PENDING, 0 UNREGISTERED.**
@@ -2806,6 +3082,10 @@ a pointer to a file you should go and read.**
 | 20 | Corona | Folded its own predecessor's conclusion: §0.0's evidence was sound, its arrow was wrong. The interval UNION vs the deduped SUM. Found the THIRD divergence — a `WHERE` clause, so a log stamped `classId:''` was visible to the child and invisible to every class query. Reproduced §3.1 at last. |
 | 21 | Hammond II | Test tooling only, nothing student-facing. The registration audit (an unregistered harness now FAILS the suite). `tab-lifetime-test.mjs`. ⚠️ RAN THE RULES EMULATOR that four rounds recorded as impossible, and found the per-source DOCUMENT design DENIED by the deployed rules. Recorded Jake's four standing rulings in §0.-7.A so they stop being relitigated. |
 | 23 | Empire | ⚠️ THE GUEST MINUTE: a child who typed before signing in kept their time in School and lost it in Library, because `game.js` had no guest merge on the auth path while `learn.js` did — and `game.js`'s two INLINE copies meant which of three sign-in buttons they pressed decided the outcome. One function now, before `loadUserStats()`, with the sprints adopted so the minutes reach the record. `learn.js` stopped filing guest runs under the throwaway anonymous uid, and its logout reloads instead of leaving the last student's totals on screen. The reconcile and rebuild-all DELETED on Jake's confirmed boundary (~830 lines), with the real production session documents lifted into `real-sessions-fixture.mjs` first. `session-log.js` made per-owner. ⚠️ Also spent most of its length on a cross-account queue theory that Jake killed with a fact already written in `stats-wal.js`'s header — see §0.-9.E, which is the part worth reading. HANDOFF.md split at 237 KB; Rounds 15–20 to `docs/archive/`. |
+| 27 | Chicago | ⚠️ **THE SUITE WAS RED ON DELIVERY AND FIVE FILES WERE LYING ABOUT THEIR OWN VERSION** — `game.js` 3.38.0/3.42.0, `learn.js` 2.23.1/2.27.0, `hud.js` 1.2.0/1.4.0 across a breaking change, plus both stylesheets' CSS stamps. The code was new; only the stamps were stale. ⚠️ Aimed squarely at Monday: ROADMAP told Jake to check the footer for the very numbers a correct deploy would fail to show. ⚠️ The hud.js pin could not fire — a pin inherits the honesty of the hand-maintained number it checks. `tests/version-stamp-test.mjs` moves the existing `audit:versions` check inside `npm test`, failing on lying stamps and NOTING header budgets. `hud-test.mjs` rewritten for `{ lead, sprint }`. No behaviour changed. Item 0b deliberately not started. |
+| 26 | Elliott-Fisher | ⚠️ THE STALE DAY CARRIED FORWARD — a tab left open overnight re-posted yesterday's entire day total to today's `typing_logs`, exact to the second and the character, because `mergeGuestStats()` guarded the server side of `live - base` and never the live side. Then the two-row top bar across all four surfaces, the landing readout, the celebration latch, `celebrate.js`, and "I'm done" (`receipt.js`). ⚠️ Four hand-maintained twins failed in one day — §0.-13.E. ⚠️ And it left five version stamps stale, which Round 27 found. |
+| 25 | Hall | Audited the whole cutover on its eve and found it sound. `lessons-admin.js` dated `typing_logs` by the stamped field where every other reader keys off the document ID — cosmetic before the cutover, load-bearing after it. The drill filter and the font picker shipped into `learn.js` on Jake's call. |
+| 24 | Monotype | ⚠️ OPENED WITH A RETRACTION — records two rounds had called LOST were merely LATE. The evening guest: `sessionLogAdopt()` recomputed dates from UTC, filing an after-7pm Library sprint on tomorrow. THE OVERNIGHT RESCUE shipped on Jake's ruling. Item 3 deleted as a phantom by one grep; item 6 confirmed and fixed for Library. |
 | 22 | Smith Premier | ⚠️ §3.1 CLOSED. The writers ship per-source FIELDS, date-gated so the upload is safe on a school night and the shape switches on 2026-08-22. Confirmed Jake's `firestore.rules` v2.6.0 by execution and gave it the harness it never had. Found two readers nobody had counted: `recalcDailyLog()`'s cutover constant was out of scope and would have thrown on the ⟳ button, and `lessons-admin.js` was a fourth reader of `typing_logs` that would have shown every student's week as nearly nothing from Saturday. Rewrote `crossmode-overwrite-test.mjs`, which had spent six rounds validating a design the rules reject. |
 
 ---

@@ -1,4 +1,45 @@
-// hud.js v1.4.0
+// hud.js v2.0.0
+//
+// ⚠️⚠️ v2.0.0 — MAJOR, ON JAKE'S EXPLICIT SIGN-OFF (2026-08-22: "Give hud 2.0.
+//          It's earned it"). NO CODE CHANGED IN THIS BUMP. It is the version
+//          number catching up with a breaking change that already shipped.
+//
+//          v1.3.0 changed this module's public return shape — `{ left, long }`
+//          became `{ lead, sprint }` — and went out as a MINOR, with its own
+//          header saying that was arguably wrong and that the call was Jake's.
+//          It is now made: **that was a major, and it is recorded as one.**
+//
+//          ⚠️ WHY IT MATTERS BEYOND BOOKKEEPING. A minor bump says "your caller
+//          still works." Every caller of `hudStrings()` written against v1.2.0
+//          reads `.left` and gets `undefined` — which does not throw, it renders
+//          the word "undefined" into a child's top bar, or crashes on
+//          `.includes()` one line later. **That is exactly what happened to
+//          `tests/hud-test.mjs`**, which sat crashed for two releases (§0.-14).
+//          A semver major is the one signal that would have said "go and look at
+//          every call site," and it was the signal not sent.
+//
+//          THE PUBLIC SURFACE AT 2.0.0, so a caller can be checked against it:
+//            fmt(seconds) -> 'm:ss'
+//            hudStrings(state) -> { lead, sprint, right,
+//                                   dailyDone, weeklyDone, overtime }
+//            hudCacheSave({...}) / hudCacheLoad(todayStr, weekStart)
+//            celebrationDone(kind, period) / celebrationMark(kind, period)
+//            HUD_VERSION
+//          ⚠️ `left` and `long` ARE GONE AND ARE NOT COMING BACK — see the block
+//          at the return statement in hudStrings().
+//
+// v1.4.1 — ⚠️ STAMP ONLY, NO BEHAVIOUR. `HUD_VERSION` still read '1.2.0' after
+//          v1.3.0 and v1.4.0 both shipped. The constant is what versions.js
+//          parses and what the build footer renders, so this module reported
+//          itself as the PRE-BREAKING-CHANGE build for two versions.
+//          ⚠️ AND IT DISARMED ITS OWN PIN: tests/hud-test.mjs asserts
+//          `HUD_VERSION === <n>` precisely so that bumping this file forces the
+//          harness to move with it. The constant never moved, so the pin stayed
+//          green while v1.3.0 changed the return shape underneath it, and
+//          hud-test.mjs sat red on the old `{ left, long }` API. A pin only
+//          works if the thing it pins is honest. See HANDOFF §0.-14.
+//          Also corrected the stale doc-block above hudStrings(), which still
+//          documented the v1.2.0 return shape.
 //
 // v1.4.0 — celebrationDone() / celebrationMark(). A period-keyed latch recording
 //          what a child was actually SHOWN, replacing "is the total already past
@@ -85,7 +126,11 @@
 // returns text and flags; each page writes them where it keeps them. It is also
 // then a pure function, so `hud-test.mjs` drives the real code with no jsdom.
 
-export const HUD_VERSION = '1.2.0';
+// ⚠️ THIS CONSTANT IS THE VERSION. The comment at the top of the file is
+// decoration; versions.js parses THIS line and the build footer renders it.
+// It sat at '1.2.0' through v1.3.0 and v1.4.0 — bump it in the same edit that
+// writes the header entry, every time, or the file lies about itself.
+export const HUD_VERSION = '2.0.0';
 
 // m:ss. Not padded on minutes — `9:22` reads faster than `09:22` and a student's
 // day does not reach three digits. Seconds ALWAYS padded, or 9:7 appears.
@@ -112,13 +157,21 @@ function pair(elapsed, goal) {
 //   weekSeconds    statsData.secondsWeek
 //   weeklyGoal     goals.weeklySeconds
 //
-// Returns { left, right, dailyDone, weeklyDone, overtime, long }. The flags are
-// for colour; the caller owns colour because the two pages theme differently.
-// `long` (v1.2.0) is for layout, not colour: true whenever `left` is the
-// combined Sprint+Daily form, which can run to 40+ characters
-// ("Sprint 29:59 / 30:00 (Daily 119:55 / 120:00)") — noticeably longer than
-// Daily alone. See the callers for what they do with it; hud.js stays DOM-free
-// and never sizes anything itself.
+// Returns { lead, sprint, right, dailyDone, weeklyDone, overtime }.
+//
+// ⚠️ THIS BLOCK DESCRIBED `{ left, right, ..., long }` UNTIL v1.4.1 — three
+// versions after v1.3.0 deleted both. It is fixed here for the same reason the
+// constant below the header was: a comment that describes a shape the code no
+// longer returns is a trap for the next reader, and this file had two of them.
+//
+//   lead    the Daily figure — ALWAYS, on every surface. Read the block at the
+//           return statement before changing that; it needs Jake.
+//   sprint  the live sprint clock for the CENTRE cluster, or '' when there is
+//           no limit to show it against (School's normal case).
+//   right   the Weekly figure.
+//
+// The flags are for colour; the caller owns colour because the two pages theme
+// differently. hud.js stays DOM-free and never sizes anything itself.
 export function hudStrings(state) {
     const st = state || {};
     const today = Math.max(0, Math.round(st.todaySeconds || 0));

@@ -1,4 +1,14 @@
-// learn.js v2.27.0
+// learn.js v2.27.1
+//
+// v2.27.1 — ⚠️ STAMP ONLY, NO BEHAVIOUR. `const LEARN_VERSION` still read
+//           "2.23.1" after v2.23.2, v2.24.0, v2.25.0, v2.26.0 and v2.27.0 all
+//           shipped — the School half of game.js v3.42.1, same defect, same
+//           evening, which makes the version stamp the FIFTH hand-maintained
+//           twin to fail in one day (HANDOFF §0.-13.E counted four).
+//           ⚠️ ROADMAP told Jake to check the footer for v2.23.2 on Monday. A
+//           correctly deployed build was going to answer "2.23.1" — one patch
+//           BELOW the stale-day fix, i.e. exactly the reading that means "the
+//           fix is not running". See HANDOFF §0.-14.
 //
 // v2.27.0 — "I'M DONE" (ROADMAP item 0d), the School half of game.js v3.42.0.
 //           ⚠️ `tabindex="-1"` IN THE MARKUP IS LOAD-BEARING — item 8's ruling
@@ -466,7 +476,12 @@ import {
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const LEARN_VERSION = "2.23.1";
+// ⚠️ THIS LINE IS THE VERSION — the comment at the top of the file is decoration.
+// versions.js parses THIS, the footer renders THIS, and ROADMAP's verification
+// steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
+// in the SAME EDIT as the header entry above, always.
+// tests/version-stamp-test.mjs now fails the suite if you do not.
+const LEARN_VERSION = "2.27.1";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.

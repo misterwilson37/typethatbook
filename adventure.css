@@ -1,4 +1,10 @@
-/* adventure.css v1.0.1 — view-mode skin for Adventure Mode */
+/* adventure.css v1.0.2 — view-mode skin for Adventure Mode */
+/* v1.0.2: ⚠️ STAMP ONLY, NO RULE CHANGED. body::after still read "v1.0.0" after
+           v1.0.1, so versions.js reported the APPLIED skin as one version below
+           the deployed file. Found by tests/version-stamp-test.mjs on its first
+           run — nothing had ever checked this file's stamp, because
+           drill-filter-test.mjs F12 only knows about style.css. The FIFTH stale
+           stamp of the set; see HANDOFF §0.-14. */
 /* v1.0.1: the `body.view-adventure .text-btn` tint is DELETED. It painted the
            HUD's (Logout) button dark-brown-on-black — invisible — and the HUD
            bar is declared unskinned two rules below. See the comment there. */
@@ -10,7 +16,10 @@
 /* v0.0.4: number & symbol positioning fixed for round keys                   */
 /* v0.0.3: keyboard + modal skin (round typewriter keys, parchment modals)    */
 /* v0.0.2: bumped for v3.0.1 release; machine-readable version stamp          */
-body::after { content: "v1.0.0"; display: none; }
+/* ⚠️ Bump this in the SAME EDIT as the header at the top. versions.js reads it
+   back off the live page to spot a stale cached skin; it drifted for a whole
+   version because nothing checked it. tests/version-stamp-test.mjs B does now. */
+body::after { content: "v1.0.2"; display: none; }
 
 /* Every rule in this file is scoped under body.view-adventure. Classic view
    never sees any of this. */

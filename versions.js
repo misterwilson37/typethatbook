@@ -1,5 +1,16 @@
-// versions.js v1.9.0 — reads every file's version constant out of the files as
+// versions.js v1.10.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
+//
+// v1.10.0 — SOURCES gained drill-filter.js, celebrate.js and receipt.js:
+//           three modules game.js and learn.js import, which the footer could
+//           not report because nobody added them here when they were extracted.
+//           ⚠️ tests/version-stamp-test.mjs D2 now reads the writers' imports
+//           and FAILS if a module they load is missing from this list, so the
+//           next extraction cannot repeat it. ROADMAP 9b; HANDOFF §0.-15.
+//           ⚠️ Cost: three more static-file fetches on a footer hover, ~38 KB
+//           against the 684 KB game.js and learn.js already pull, cached per
+//           tab in sessionStorage. NOT Firestore reads — nothing here is billed
+//           per operation.
 //
 // WHY IT WORKS THIS WAY
 //
@@ -81,6 +92,14 @@ const SOURCES = [
     { file: 'versions.js',           pattern: /\bexport\s+const\s+VERSIONS_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'update-gate.js',        pattern: /\bexport\s+const\s+UPDATE_GATE_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'daylog.js',             pattern: /\bexport\s+const\s+DAYLOG_VERSION\s*=\s*["']([^"']+)["']/ },
+    // ⚠️ ROADMAP 9b, Round 27. Three modules extracted in Rounds 25–26 that the
+    // footer could not see. celebrate.js and receipt.js had no constant at all
+    // until this commit. ⚠️ THIS LIST IS MIRRORED IN tools/audit-versions.mjs
+    // AND tests/version-stamp-test.mjs — section D of that harness FAILS if the
+    // three ever disagree, so all three move together or none do.
+    { file: 'drill-filter.js',       pattern: /\bexport\s+const\s+DRILL_FILTER_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'celebrate.js',          pattern: /\bexport\s+const\s+CELEBRATE_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'receipt.js',            pattern: /\bexport\s+const\s+RECEIPT_VERSION\s*=\s*["']([^"']+)["']/ },
     // Stylesheets carry theirs in a comment on line 1 as well as in a
     // body::before / body::after stamp. The comment is what we parse here,
     // because a page that doesn't load the stylesheet can still report it.
@@ -92,7 +111,7 @@ const SOURCES = [
     { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
 ];
 
-export const VERSIONS_VERSION = '1.9.0';
+export const VERSIONS_VERSION = '1.10.0';
 
 const CACHE_KEY = 'ttb_buildVersions_v3';   // v3: entries gained header budget fields
 

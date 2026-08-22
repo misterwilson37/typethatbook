@@ -1,5 +1,103 @@
 # CHANGELOG
 
+## Round 27b — Chicago (2026-08-22) — hud 2.0.0, and ROADMAP 9b closed
+
+**Two rulings from Jake, both taken. No behaviour changed.**
+
+* ⚠️⚠️ **`hud.js` 1.4.1 → 2.0.0 — MAJOR, ON EXPLICIT SIGN-OFF** (*"Give hud 2.0.
+  It's earned it"*). No code changed; the number catches up with the breaking
+  return-shape change that shipped as a minor in v1.3.0 (`{ left, long }` →
+  `{ lead, sprint }`). **Why it is not bookkeeping:** a minor bump is a promise
+  that the caller still works, and every v1.2.0 caller reads `.left` and gets
+  `undefined` — which does not throw. It renders the word "undefined" into a
+  child's top bar, or crashes a line later on `.includes()`. The public surface
+  is now written into the file header so callers can be checked against it.
+  ⚠️ **`tests/hud-test.mjs`'s pin moved to 2.0.0 in the same commit.**
+
+* ✅ **ROADMAP 9b closed.** `drill-filter.js`, `celebrate.js` and `receipt.js`
+  were extracted in Rounds 25–26 and never wired into the version machinery, so
+  the build footer could not report them — a stale cached copy was invisible
+  from the chair. `celebrate.js` **1.0.0 → 1.1.0** and `receipt.js` **1.0.0 →
+  1.1.0** gained the runtime constants they shipped without; all three added to
+  `versions.js` **1.9.0 → 1.10.0**, `tools/audit-versions.mjs` **1.1.1 →
+  1.2.0**, and the harness mirror, in one commit.
+
+* ⚠️ **THE COST QUESTION, RECORDED BECAUSE THE ANSWER GENERALISES.** It was never
+  Firestore — `versions.js` fetches *static files* from the web host, and
+  nothing there is billed per operation. The ~38 KB added sits against the
+  684 KB `game.js` and `learn.js` already pull, on a hover, cached per tab.
+  **localStorage could not have carried it:** the footer's job is to report what
+  is *on the server*, and a cache of what the browser already loaded is the very
+  thing being checked. And reporting the already-imported constants — genuinely
+  free — would have been a **second mechanism answering a different question**,
+  i.e. a fifth hand-maintained twin in the week that taught us what those cost.
+
+* ⚠️ **THE RATCHET.** `version-stamp-test.mjs` D2 now reads the `import`
+  statements out of `game.js` and `learn.js` and **fails if a module they import
+  is missing from SOURCES.** Mutation-verified. The next extraction cannot
+  repeat this. **44 harnesses, all passing.**
+
+## Round 27 — Chicago (2026-08-22, cutover morning) — VERSION STAMPS
+
+**⚠️⚠️ FIVE FILES WERE LYING ABOUT THEIR OWN VERSION, AND THE SUITE WAS RED IN
+THE REPO AS DELIVERED** (two harnesses of 43). **No student-facing behaviour
+changed this round** — not one line of arithmetic, not one write path.
+
+* **The five stamps.** In every case the runtime stamp was stale and the header
+  comment was the honest half; **the code was new**:
+
+  | file | was | now |
+  |---|---|---|
+  | `game.js` | constant `3.38.0`, header 3.42.0 | **3.42.1** |
+  | `learn.js` | constant `2.23.1`, header 2.27.0 | **2.27.1** |
+  | `hud.js` | constant `1.2.0`, header 1.4.0 | **1.4.1** |
+  | `style.css` | `body::before` v3.6.1, header v3.7.2 | **3.7.3** |
+  | `adventure.css` | `body::after` v1.0.0, header v1.0.1 | **1.0.2** |
+
+* ⚠️⚠️ **WHY IT WAS URGENT: IT WAS AIMED AT MONDAY'S CUTOVER VERIFICATION.**
+  `ROADMAP.md` instructed Jake to *check the footer version first —
+  `game.js` v3.38.1 / `learn.js` v2.23.2*. A **correctly deployed** build was
+  going to answer 3.38.0 / 2.23.1, i.e. below the stale-day data-corruption fix.
+  The one instrument that separates "the fix never reached the browser" from
+  "the fix is there and something else is wrong" was reporting the first when
+  the second was true — and the documented response to that reading is to go and
+  fire the update gate at ninety Chromebooks. **The checklist is corrected.**
+
+* ⚠️ **THE `hud.js` PIN COULD NOT FIRE, AND THAT IS THE PART WORTH READING.**
+  `hud-test.mjs` asserts `HUD_VERSION === <n>` so that bumping the module forces
+  the harness to move. It stayed green through v1.3.0 and v1.4.0 — because the
+  constant was never bumped either — so a **breaking** return-shape change
+  (`{ left, long }` → `{ lead, sprint }`) went in underneath it and the harness
+  crashed on the old API. **A pin checks a hand-maintained number and inherits
+  that number's honesty. It cannot catch "you forgot to bump the module."**
+
+* **`tests/version-stamp-test.mjs` 1.0.0, new.** 99 checks: constant vs header
+  for every file in `SOURCES`, both CSS stamps, all three module pins, and
+  agreement between the three mirrored copies of the source list.
+  ⚠️ **THE CHECK ALREADY EXISTED — `npm run audit:versions` had been reporting
+  four of these for a whole round.** It is a separate command, outside
+  `npm test`. **A guard that is not in the suite is a guard nobody runs.**
+  ⚠️ It fails on lying stamps ONLY; the 17 header-length/coverage findings print
+  as **notes** and exit 0, because seventeen permanent reds is the exact
+  mechanism that let this ship past two already-failing harnesses.
+
+* **`tests/hud-test.mjs` 1.1.1 → 1.2.0.** Part B rewritten against the real
+  `{ lead, sprint }` API; pin moved to 1.4.1. Mutation-verified: resurrecting
+  the `long`/`left` fields fails 2 checks, and making `lead` sprint-above-daily
+  — the graded number moving between surfaces — fails 5.
+
+* **`tests/run-all-tests.mjs`:** registered the new harness; corrected
+  `drill-filter-test.mjs`'s description, which still called Part F1 *PENDING*
+  long after it went green. **44 harnesses, all passing.**
+
+* **`hud.js`** also had its doc-block corrected — it still documented the
+  deleted v1.2.0 return shape, three versions on.
+
+* ⚠️ **NOT DONE, ON PURPOSE:** ROADMAP item 0b (the School settings panel). A red
+  suite and a broken instrument outrank a new feature. And `hud.js`'s
+  **major-bump question remains open and is Jake's** — v1.3.0's own header flags
+  that a breaking change to a shared module's public function is arguably v2.0.0.
+
 ## Round 26g — Elliott-Fisher (2026-08-21, evening) — ROADMAP 0d
 
 **"I'M DONE" SHIPPED.** A student-facing exit in all three modes.

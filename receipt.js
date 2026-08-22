@@ -1,4 +1,11 @@
-// receipt.js v1.0.0 — "I'M DONE": THE STAMPED CARD.
+// receipt.js v1.1.0 — "I'M DONE": THE STAMPED CARD.
+//
+// v1.1.0 — ⚠️ A VERSION CONSTANT, WHICH THIS MODULE SHIPPED WITHOUT.
+//          It was extracted as a shared module and never wired into the
+//          machinery that maintains shared modules, so versions.js could not
+//          report it and the build footer could not see it — a stale cached
+//          copy in a classroom was invisible from the chair. ROADMAP 9b;
+//          HANDOFF §0.-15. No behaviour changed.
 //
 // ═════════════════════════════════════════════════════════════════════════════
 // ⚠️ THIS IS A RECEIPT. IT IS NOT A SAVE BUTTON, AND THE DIFFERENCE IS THE
@@ -127,6 +134,11 @@ function injectStyles() {
  * @param {string}  todayStr  'YYYY-MM-DD'
  * @param {boolean} partial   true when the read came back !ok
  */
+// ⚠️ THIS CONSTANT IS THE VERSION — the comment at the top is decoration.
+// versions.js parses THIS line to build the footer panel. Bump both in the
+// same edit; tests/version-stamp-test.mjs fails the suite if they disagree.
+export const RECEIPT_VERSION = '1.1.0';
+
 export function showReceipt(week, todayStr, partial) {
     injectStyles();
     const old = document.getElementById('ttb-receipt-backdrop');

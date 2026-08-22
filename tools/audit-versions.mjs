@@ -1,4 +1,11 @@
-// audit-versions.mjs v1.1.1 — Round 15 (Sholes's successor), Round 17 (Linotype).
+// audit-versions.mjs v1.2.0 — Round 15 (Sholes's successor), Round 17 (Linotype),
+// Round 27 (Chicago).
+//
+// v1.2.0 — SOURCES mirrors versions.js v1.10.0: drill-filter.js, celebrate.js
+//          and receipt.js added. ⚠️ THIS TOOL IS NO LONGER THE ONLY OFFLINE
+//          CHECK — tests/version-stamp-test.mjs runs the same comparison inside
+//          `npm test`, because this one is a separate command and Round 26
+//          shipped five lying stamps past it without ever running it.
 //
 // v1.1.1 — PATH ONLY. Moved from the repo root into tools/, so ROOT now defaults
 //          to the parent directory rather than '.'. `npm run audit:versions` is
@@ -50,6 +57,14 @@ const SOURCES = [
     { file: 'versions.js',           pattern: /\bexport\s+const\s+VERSIONS_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'update-gate.js',        pattern: /\bexport\s+const\s+UPDATE_GATE_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'daylog.js',             pattern: /\bexport\s+const\s+DAYLOG_VERSION\s*=\s*["']([^"']+)["']/ },
+    // ⚠️ ROADMAP 9b, Round 27. Three modules extracted in Rounds 25–26 that the
+    // footer could not see. celebrate.js and receipt.js had no constant at all
+    // until this commit. ⚠️ THIS LIST IS MIRRORED IN tools/audit-versions.mjs
+    // AND tests/version-stamp-test.mjs — section D of that harness FAILS if the
+    // three ever disagree, so all three move together or none do.
+    { file: 'drill-filter.js',       pattern: /\bexport\s+const\s+DRILL_FILTER_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'celebrate.js',          pattern: /\bexport\s+const\s+CELEBRATE_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'receipt.js',            pattern: /\bexport\s+const\s+RECEIPT_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'style.css',             pattern: /style\.css\s+v([0-9][^\s*]*)/ },
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
     { file: 'game.html',             pattern: /game\.html\s+v([0-9][^\s\->]*)/ },

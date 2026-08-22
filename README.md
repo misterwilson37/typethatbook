@@ -42,8 +42,9 @@ From the repo root:
 
 ```
 npm install          # devDependencies only; nothing here reaches Cloud Functions
-npm test             # the 28 fast harnesses, ~10 seconds
-npm run test:epubs   # plus the 4 corpus harnesses over library/, ~2 minutes
+npm test             # the 44 fast harnesses, ~15 seconds
+npm run test:epubs   # plus the corpus harnesses over library/, ~2 minutes
+npm run audit:versions   # version stamps only — now also covered by `npm test`
 ```
 
 `npm test` is `node tests/run-all-tests.mjs`. You can also run any single harness
@@ -53,6 +54,38 @@ directly, from anywhere:
 node tests/hud-test.mjs
 node tests/lesson-atomicity-test.mjs
 ```
+
+## ⚠️ VERSION STAMPS — the one rule that keeps the deploy diagnosable
+
+**Every shipped file carries its version TWICE: a runtime constant and a header
+comment. Bump BOTH in the same edit, always.**
+
+The constant is the one that matters. `versions.js` parses it out of the
+**deployed** file to build the footer panel, so a stale cached file cannot lie
+about itself — and since there is no command line here, that footer is the only
+way to tell what is actually running in a classroom. The header comment is
+decoration.
+
+The two are hand-maintained twins, and in Round 26 **five files** drifted in a
+single evening — `game.js` reported itself six releases behind while the fix
+everyone was about to verify sat in the code. Stylesheets have the same problem
+in a different shape: `style.css`'s `body::before` and `adventure.css`'s
+`body::after` are machine-readable stamps that must match their own headers.
+
+`npm test` now fails if any of them disagree (`tests/version-stamp-test.mjs`).
+It also fails if a module `game.js` or `learn.js` imports is missing from
+`versions.js`'s SOURCES — three extracted modules had been invisible to the
+footer for two rounds. **Anything that runs on a child's screen must be
+reportable in the footer**, because that footer is the only deploy diagnostic
+available without a command line.
+It also checks the three harness **version pins** — and note why that is
+separate: a pin catches *"you bumped the module and forgot the harness."* It is
+structurally incapable of catching *"you forgot to bump the module,"* because it
+is an assertion about a number a human maintains by hand. Both checks are needed.
+
+**Header-length budgets are reported as notes, not failures.** Read the block at
+the top of that harness before changing that — a permanently red suite is what
+allowed the above to ship past two already-failing harnesses.
 
 ## ⚠️ Running the rules harnesses — THE EMULATOR WORKS, AND FIVE ROUNDS BELIEVED IT DID NOT
 

@@ -1,5 +1,32 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.14.0, 2026-08-22.** ⚠️⚠️ **`hud.js` IS v2.0.0 ON JAKE'S EXPLICIT SIGN-OFF**
+("Give hud 2.0. It's earned it"). No code changed — the number catches up with
+the breaking return-shape change that shipped as a minor in v1.3.0. ⚠️ Why it is
+not bookkeeping: a minor says "your caller still works", and every v1.2.0 caller
+reads `.left` and gets `undefined` — which does not throw, it renders the word
+"undefined" into a child's top bar. That is what happened to `hud-test.mjs` for
+two releases. ✅ **ITEM 9b IS CLOSED** — the cost was never Firestore and could
+not have been localStorage; see the item for why, because the reasoning is
+reusable. **44 harnesses, all passing.**
+
+**v3.13.0, 2026-08-22 (cutover morning).** Round 27 (Chicago) — ⚠️⚠️ **THE SUITE
+WAS RED IN THE REPO AS DELIVERED (two harnesses of 43) AND FIVE FILES WERE LYING
+ABOUT THEIR OWN VERSION.** `game.js`'s constant read 3.38.0 against a 3.42.0
+header; `learn.js` 2.23.1 against 2.27.0; `hud.js` 1.2.0 across a *breaking*
+return-shape change; both stylesheets in their CSS stamps. **The code was new in
+every case — only the stamps were stale.** ⚠️⚠️ **THE COST WAS AIMED AT MONDAY:
+the checklist above told Jake to check the footer for v3.38.1 / v2.23.2, and a
+correctly deployed build was going to answer with the PRE-FIX numbers** — the
+reading that means "go fire the update gate." **The checklist is corrected
+above.** ⚠️ The hud.js pin could not fire because a pin checks a hand-maintained
+number and inherits its honesty; `HANDOFF.md` §0.-14.D is the part worth reading.
+Fixed by `tests/version-stamp-test.mjs` (99 checks), which moves
+`audit:versions`'s check INSIDE `npm test` — **a guard outside the suite is a
+guard nobody runs.** `hud-test.mjs` rewritten for the `{ lead, sprint }` API.
+**44 harnesses, all passing.** ⭐ **ITEM 9b IS NEW** (closed same day — see above). ⚠️ **ITEM 0b WAS NOT
+STARTED** — a red suite and a broken instrument outrank a new feature.
+
 **v3.12.0, 2026-08-21 (evening).** ✅ **ITEM 0 IS CLOSED** — the two-row bar, the
 landing readout and "I'm done" all shipped. ⚠️ **The landing-page trophy did NOT
 ship with it and is NOT part of item 0's closure:** index.html has no leaderboard
@@ -84,9 +111,24 @@ that morning **by design**, and two harness Parts assert that defect on purpose.
 - ⚠️⚠️ **NEW — THE STALE-DAY CARRY IS THE ONE TO WATCH FOR ON MONDAY.** It is
   fixed, but it is the defect most likely to be MISREAD as a cutover failure: a
   day total far above its own sessions, in a child who never closed their tab.
-  **Check the footer version first** — `game.js` v3.38.1 / `learn.js` v2.23.2.
-  A pre-fix build still in a tab will still do it, and Hermes's update gate is
-  how you get the building onto the new code.
+  **Check the footer version first** — ⚠️ **`game.js` v3.42.1 OR HIGHER /
+  `learn.js` v2.27.1 OR HIGHER.** A pre-fix build still in a tab will still do
+  it, and Hermes's update gate is how you get the building onto the new code.
+
+  ⚠️⚠️ **THESE NUMBERS WERE WRONG UNTIL ROUND 27 AND THE ERROR POINTED THE
+  DANGEROUS WAY.** This line used to say *v3.38.1 / v2.23.2*, and a correctly
+  deployed build would have answered **3.38.0 / 2.23.1** — because the version
+  CONSTANTS in both files had not been bumped since Round 26 began, while their
+  headers had. So the footer was going to report the PRE-FIX version of the very
+  fix you are here to confirm, and the documented response to that reading is to
+  go and fire the update gate at ninety Chromebooks. **The fix is now the number
+  above, and `npm test` fails if a stamp and a header ever disagree again.**
+  See `HANDOFF.md` §0.-14.
+- ⚠️ **AND WHILE YOU ARE READING THE FOOTER: `style.css` should be v3.7.3 or
+  higher and `hud.js` **v2.0.0** or higher** (hover the footer, or tap to pin on
+  touch). Both were under-reporting themselves by two and three versions
+  respectively, which matters because the two-row bar you are reading the day
+  total off of shipped in `style.css` v3.7.0.
 - ⚠️⚠️ **NEW — THE OVERNIGHT RESCUE GOES LIVE ON THE CUTOVER, NOT ON UPLOAD.**
   `daylog.js` v1.4.0 refuses to carry into a pre-cutover day, so nothing happens
   before Saturday. **First chance to see it work: type as a guest on the 24th,
@@ -238,7 +280,12 @@ the one a later round would quietly undo while making the bar look nicer.
 
 ---
 
-## 0b. ⭐ NEXT — A SETTINGS PANEL FOR SCHOOL
+## 0b. ⭐ STILL NEXT — A SETTINGS PANEL FOR SCHOOL
+
+⚠️ **ROUND 27 DID NOT START THIS, DELIBERATELY.** The suite was red on delivery
+and the footer version — Monday's primary instrument — was reporting the pre-fix
+build. Both outrank a new feature. **Nothing below is stale; it is simply
+untouched.** `HANDOFF.md` §0.-14.H.
 
 Jake, 2026-08-21: *"I think we have room for the settings thing in learn."* The
 two-row bar freed the space, and `.hud-section.right` now has a real home for a
@@ -561,10 +608,15 @@ No deadline.
   ⚠️ `STAT_KEYS`, the WAL fold, the guest merge and the midnight rollover are
   four hand-maintained lists a new counter has to be added to.
 - **Enforce the header budget**: 60 lines, 6 version entries; history belongs in
-  `CHANGELOG.md`. ⚠️ `npm run audit:versions` is the tool and it reports **15
-  problems**; `game.js` (373 lines / 31 entries) and `learn.js` (321 / 34) are the
-  worst and both are frozen until after Monday. The ONE ordering failure it found
-  is fixed — see below. ⚠️ **AND THE CHANGELOG HAS TO BE WRITTEN FOR THAT TO MEAN
+  `CHANGELOG.md`. ⚠️ **Now reported by `npm test` as NOTES rather than only by
+  `npm run audit:versions`** — `tests/version-stamp-test.mjs` section E, **17
+  notes** as of Round 27. `game.js` (433 lines / 38 entries) and `learn.js`
+  (410 / 42) are the worst.
+  ⚠️⚠️ **DO NOT PROMOTE THESE NOTES TO FAILURES WITHOUT DOING THE WORK FIRST.**
+  Seventeen of them would make `npm test` permanently red, and a suite that is
+  red for a known reason is precisely the mechanism that let Round 26's five
+  lying stamps ship past two already-failing harnesses. Read the block at the top
+  of that harness. The ONE ordering failure the audit found is fixed — see below. ⚠️ **AND THE CHANGELOG HAS TO BE WRITTEN FOR THAT TO MEAN
   ANYTHING — ROUND 24 SHIPPED FOUR FILES AND ADDED NO ENTRY**, putting all of it
   in `HANDOFF.md` instead, which is the pressure this bullet is about. Round 25
   did not reconstruct it from the outside; see `HANDOFF.md` §0.-11.D. The
@@ -630,6 +682,52 @@ No deadline.
   `pagehide` covers navigation, which is the case that matters, so nothing is
   lost — but the comment above that handler in both files claims broader
   coverage than it has. **Do not build on it.**
+
+---
+
+## 9b. ✅ DONE — THE THREE SHARED MODULES THE FOOTER COULD NOT SEE
+
+**Closed 2026-08-22 on Jake's ruling.** `drill-filter.js`, `celebrate.js` and
+`receipt.js` were extracted in Rounds 25–26 and none reached `versions.js`'s
+SOURCES, so the build footer could not report them — a stale cached copy of any
+of the three was invisible from the chair. `celebrate.js` and `receipt.js` had
+**no runtime version constant at all.**
+
+⚠️ **THE COST WAS NEVER MONEY, AND THE QUESTION IS WORTH RECORDING BECAUSE THE
+ANSWER IS NOT OBVIOUS.** Jake asked whether it was billing, and whether
+localStorage could carry it instead. Neither:
+
+- **`versions.js` does not touch Firestore.** It `fetch()`es the *static files*
+  from the web host to read each version constant out of the deployed bytes.
+  Nothing here is a document read; nothing here is billed per-operation.
+- **The bandwidth is already spent.** SOURCES already fetches `game.js` (424 KB)
+  and `learn.js` (260 KB). The three additions total about 38 KB — roughly 5% on
+  top of a request that only fires when the footer is hovered, and which is
+  already cached per tab in `sessionStorage`.
+- ⚠️ **localStorage CANNOT ANSWER THIS QUESTION, and the reason is the point of
+  the whole mechanism.** The footer exists to report **what is on the server**,
+  so that a stale cached file cannot lie about its own version. A cache of what
+  the browser already loaded is *the very thing being checked* — it would report
+  the stale file's own opinion of itself. That is invariant 1's shape exactly: a
+  cached copy of a quantity that lives elsewhere.
+- ⚠️ **AND THE FREE-LOOKING ALTERNATIVE WOULD HAVE BEEN A FIFTH TWIN.** All three
+  modules are ES imports already in memory, so reporting their constants directly
+  costs zero fetches — genuinely free, and it was tempting. But it answers a
+  *different* question ("what is running in this tab") through a *second*
+  mechanism, and this project's most expensive lesson of the week (§0.-13.E) is
+  that a second hand-maintained path drifts from the first. **One mechanism.**
+
+**So the cost was programming time, which Jake pre-authorised.** Shipped:
+constants added to `celebrate.js` (1.1.0) and `receipt.js` (1.1.0); all three
+files added to `versions.js`, `tools/audit-versions.mjs` **and**
+`tests/version-stamp-test.mjs` in one commit, which section D of that harness
+requires.
+
+⚠️ **THE RATCHET MATTERS MORE THAN THE WIRING.** `version-stamp-test.mjs` D2 now
+reads the `import` statements out of `game.js` and `learn.js` and **fails if any
+module they import is missing from SOURCES.** The next extracted module cannot
+repeat this: a file that runs on a child's screen must be reportable in the
+footer Jake reads to diagnose a deploy.
 
 ---
 
