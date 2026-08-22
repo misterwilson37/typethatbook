@@ -1,7 +1,25 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.6.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.7.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 26; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.7.0 — Round 26b–f (Elliott-Fisher), same evening, all display work.
+     §0.-13 is the write-up. The two-row top bar shipped across all four
+     surfaces; ⚠️ `lead` IS ALWAYS THE DAILY FIGURE and §0.-13.A is why that is
+     not a style choice. ⚠️ §0.-13.B IS A STRAY `</div>` THIS ROUND SHIPPED into
+     learn.html — the Safari-always/Chrome-sometimes signature of a parse-error
+     recovery path; run a div-balance check after any markup edit. §0.-13.C: the
+     landing page's "extra read" already existed and was being discarded.
+     §0.-13.D fixes "not everyone got fireworks" — the suppression asked whether
+     the total was past the goal, which stays true all week, instead of whether
+     the child had been SHOWN it. ⚠️⚠️ §0.-13.E IS THE DAY'S ACTUAL LESSON: FOUR
+     hand-maintained twins failed in one day, and ROADMAP item 9 is no longer
+     tidying. §0.-13.F is about mockups and cost a phantom roadmap item.
+     New invariants 111 and 112. §0.-13.G is "I'm done" (Round 26g) and ⚠️ ITS
+     RULES ARE THE DESIGN — read them before touching that button. 43 harnesses.
+     celebrate.js and receipt.js are new. ✅ ROADMAP ITEM 0 IS CLOSED; next is
+     item 0b, a settings panel for School, which is also the only place left for
+     the class information learn.js v2.24.0 removed from the bar.
 
      v15.6.0 — Round 26 (Elliott-Fisher). ⚠️⚠️ §0.-12 IS THE WRITE-UP AND IT IS
      A LIVE DATA-CORRUPTION FIX FOUND IN PRODUCTION ON THE EVE OF THE CUTOVER.
@@ -361,6 +379,179 @@ population before theorising.
   deliberate. Ask before clicking.
 - **No bulk repair, no sweep of other days.** §0.-7.A item 4 stands.
 - **The `daycounter.js` extraction** (E1). Not a school-night change.
+
+---
+
+## §0.-13. ROUND 26b–f (Elliott-Fisher) — THE TWO-ROW BAR, AND FOUR TWINS IN ONE DAY
+
+Same round, same evening, after §0.-12's data fix. All display; nothing here
+touches a counter or a write.
+
+### A. The bar
+
+`hudStrings()` returned one glued string — `Sprint 0:00 / 0:30 (Daily 41:37 /
+10:00)` — plus a `long` flag telling callers to shrink the font. Students were
+seeing `Daily 41:37 / 10:00…` with the goal cut off. **The parenthesis was a
+second row trying to happen.** `{ lead, sprint }` now; `long` deleted, not tuned.
+
+⚠️ **`lead` IS ALWAYS THE DAILY FIGURE AND THIS IS THE ONE THING NOT TO UNDO.**
+Jake asked for sprint-above-daily. The counter-argument is the epigraph at the
+top of `hud.js` — *"telling kids where to look for their minutes is kind of
+terrible"* — because sprint-above-daily makes Daily the lead row on the landing
+page and the sub row inside a book, so **the graded number moves depending on
+where the child is standing.** That is the defect hud.js was extracted to kill.
+The sprint moved to the centre with WPM and accuracy: it is a LIVE quantity, and
+it sat on the left only because the parenthesis put it there.
+`tests/hud-lead-test.mjs` asserts it in all four surfaces, including that
+`#hud-time` appears BEFORE `#hud-context` in the markup — in HTML, order is what
+puts Daily on top.
+
+⚠️ **THE HOLD WAS LIFTED AND JAKE'S REASONING BEAT MINE.** ROADMAP item 0 said
+"not before Monday's verification." He pointed out nobody types between then and
+midnight and grades were in — and, decisively, **the old bar was already
+truncating the number Monday's verification depends on reading.** Fixing the
+instrument improved the check rather than confounding it.
+
+### B. ⚠️ THE STRAY `</div>`, WHICH WAS MINE
+
+Jake: *"the margin at the top is gone... definitely appears in Safari but is hit
+and miss in Chrome, which is also weird."*
+
+26b's markup replacement sliced one closing tag short of the original block while
+the replacement text carried both. `learn.html`'s `#hud` had six closers to five
+openers. **An unbalanced close tag is a parse-error recovery path, and recovery
+is exactly where engines differ** — that is the whole "Safari always, Chrome
+sometimes" signature, and it is worth recognising on sight.
+
+⚠️ **RUN A DIV-BALANCE CHECK ON BOTH HUD BLOCKS AFTER ANY MARKUP EDIT.** One
+command. It would have caught this before it shipped, and `game.html` — edited
+the same way in the same commit — was fine, so "I did them both the same" is not
+evidence.
+
+### C. The landing page — the read was already being paid for
+
+⚠️ **`loadIndexStats()` WAS ALREADY CALLING `readWeek()` EVERY VISIT AND THROWING
+THE ANSWER AWAY.** It painted `#index-stats-bar`, an element deleted from the
+markup at some point with the function left orphaned, so every landing visit did
+seven document reads and hit `if (!bar) return;`. Jake accepted an "extra read"
+that did not exist.
+
+Goals resolve from `ttb_goalsCache_v1` — game.js's own key, same TTL, same uid
+check — so the usual case adds nothing. ⚠️ **A GOAL THAT WILL NOT RESOLVE STAYS
+ZERO** and hud.js renders the bare figure with no tick. Never guess a
+denominator: it invents a ✓ the child did not earn.
+
+**Daily was then removed from that bar on Jake's ruling** ("it just looks out of
+place; weekly is what matters most there"). `hud.lead` is still computed and
+deliberately unpainted, so restoring it is an element, not a formatter.
+⚠️ **THAT IS NOT AN EXCEPTION TO §0.-13.A.** The rule is that the graded number
+does not MOVE between the surfaces that show it, not that every surface shows it.
+
+### D. ⚠️ "NOT EVERYONE GOT FIREWORKS" — the suppression asked the wrong question
+
+Both writers fired correctly. The **suppression** was wrong:
+
+```
+if (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds)
+    weeklyGoalCelebrated = true;
+```
+
+*"Is the total already past the goal"* is true for the **entire remainder of the
+week.** So a crossing that failed to fire at the moment it happened was gone
+permanently — and the plainest way to fail at that moment is `goals.weeklySeconds`
+still being 0 because the class read has not returned and the child started
+typing immediately.
+
+⚠️ **A WEEKLY GOAL IS CROSSED EXACTLY ONCE PER WEEK, SO ONE MISSED MOMENT IS THE
+WHOLE WEEK.** The daily goal carried the identical defect invisibly for as long,
+because it re-arms every morning.
+
+`hud.js` v1.4.0's latch records what was actually SHOWN, keyed to the period. A
+child who crosses in School and misses it gets it in Library, once.
+⚠️ **localStorage ON PURPOSE** — per-browser, so a second Chromebook may show it
+twice. That is the correct direction to fail. **Never move this to Firestore: a
+celebration is not a grade and must not cost a read.**
+
+### E. ⚠️ FOUR HAND-MAINTAINED TWINS IN ONE DAY — this is the day's real lesson
+
+| Twin | How it failed |
+|---|---|
+| `mergeGuestStats()` | same defect in both files; §0.-12 |
+| `applyGoalCelebrationState()` | open-coded **twice inside `learn.js` alone** |
+| the ⚙ and ↺ furniture | anchored differently on each page |
+| the celebrations | drifted in three details nobody chose |
+
+The celebration drift is the instructive one because **none of it was a bug
+anyone would file**: School burst a fixed 80 particles against Library's 60–100,
+School's particles never shrank as they faded (`p.size` vs `p.size * p.life`),
+School's toast had no entrance animation. That is what drift looks like before it
+becomes a defect.
+
+⚠️ **AND IT HAD A CONCRETE COST THE SAME EVENING.** Jake asked for bigger
+fireworks. With two copies that is two edits and the second is forgotten. It is
+now `SHELL_COUNT` in `celebrate.js`, and the harness asserts neither writer has
+re-grown a local copy.
+
+⚠️ **ROADMAP ITEM 9 IS NO LONGER TIDYING.** "Reduce the surface" is the day's
+finding, not a nice-to-have.
+
+### F. ⚠️ A LESSON ABOUT MOCKUPS, RECORDED BECAUSE IT COST A ROADMAP ITEM
+
+Round 26 drew a preview of the new bar, crammed eight elements into the Adventure
+row, and it wrapped so a ✓ landed on a third line. Jake said *"checkmark on
+adventure can go next to the time — it doesn't need its own row."* **That was a
+bug report about the preview.** It was written into ROADMAP 0c.3 as a design
+question needing a ruling, and sat there across several exchanges before Jake had
+to explain what he had actually meant.
+
+⚠️ **WHEN A DRAWN PREVIEW AND THE SHIPPED CODE DISAGREE, FEEDBACK ON THE PREVIEW
+IS FEEDBACK ON THE PREVIEW.** Ask which one the person is looking at before
+recording it as a ruling. The shipped ✓ has always been part of the string
+`hudStrings()` builds, inline with the time, one element.
+
+### G. ✅ "I'M DONE" SHIPPED (Round 26g, ROADMAP 0d — item 0 is now closed)
+
+`receipt.js` v1.0.0 + `handleImDone()` in both writers. File the open sprint or
+run, take a `final` flush, read the week, draw a stamped library date-due card.
+**Both halves already existed and were already called on every other exit path;
+this is a third caller, not new machinery.**
+
+⚠️ **IT IS A RECEIPT AND THE RULES ARE THE DESIGN.** Never labelled "Save"; no
+confirm, no nag, no warning for skipping it; never the only way out; nothing
+anywhere gates on it. **A child who never presses it loses nothing.**
+
+⚠️ **THE FAILURE MODE IS NOT A CRASH — IT IS THE BUTTON SLOWLY BECOMING
+LOAD-BEARING.** Relabelled "Save", given a confirm-on-exit, promoted to the
+primary action, wired into something that branches on it. None of those would
+break a test that only checked the flush fires, which is why
+`tests/done-button-test.mjs` asserts the *wording and the shape* as well. That is
+unusual for this suite and it is deliberate.
+
+What it buys beyond reassurance: it **manufactures the deliberate exit §3.1 says
+does not exist** (it does NOT fix the unflushed-tail gap — it gives every child a
+way not to be in it), and it **closes the open sprint**, so the drill-down
+matches the day total instead of dropping the tail under the five-second floor.
+
+⚠️ `tabindex="-1"`, mouse only — item 8's Tab hazard, solved the other way round
+because the child is IN the drill when the bell rings. Inside `#user-info`, so
+guests never see it. Re-entrancy guarded and released in a `finally`. A failed
+read still draws the card, marked short, because showing nothing after a
+successful flush reads as "it didn't work".
+
+### H. What was NOT done
+- ⚠️ **The trophy on the landing page — MOVED OUT OF ITEM 0, NOT CLOSED WITH
+  IT.** `index.html` has no leaderboard and `openLeaderboard()` lives in
+  `game.js`. A feature, not a button. It now stands as its own roadmap entry so
+  item 0's closure does not quietly swallow it.
+- **A settings panel for School (ROADMAP 0b).** ⚠️ **AND THIS ROUND CREATED THE
+  DEBT** — `#user-class-name` was removed from the School bar on Jake's ruling,
+  so class information now lives NOWHERE on that side while Library's menu shows
+  it. 0b is where that gets paid.
+- ⚠️ **NOTHING HERE WAS SEEN RENDERING.** Every layout change this evening was
+  written blind and verified by Jake in a browser, which is how the stray `</div>`
+  was caught. `style.css` has three consecutive versions (v3.5.1/2/3) that were
+  each fixing the previous one's HUD layout, written by rounds that COULD see the
+  screen. Ask him to look.
 
 ---
 
@@ -2457,6 +2648,18 @@ at the next consolidation **without changing the number**.
      synthesised; `learn.js` had written the tautology down as a guarantee, in a
      comment, and two rounds read it as reassurance. **Ask what input would make
      this guard fire. If you cannot construct one, the guard is a comment.**
+111. **TWO COPIES OF A FUNCTION ARE ONE DEFECT WITH A DELAY.** Four
+     hand-maintained twins failed on 2026-08-21 — `mergeGuestStats()`,
+     `applyGoalCelebrationState()`, the HUD furniture, the celebrations. The
+     celebration copies had drifted in three details nobody chose, none of which
+     anyone would have filed. **A comment saying "copied from game.js" is not
+     documentation, it is an open ticket.** When you find yourself editing the
+     same logic in two files, stop and extract it; the second edit is the one
+     that gets forgotten.
+112. **FEEDBACK ON A PREVIEW IS FEEDBACK ON THE PREVIEW.** A mockup that renders
+     badly generates comments about the mockup. Recording those as product
+     rulings invents work and, worse, invents constraints. Ask which artefact
+     the person is looking at before writing anything down. See §0.-13.F.
 
 ---
 

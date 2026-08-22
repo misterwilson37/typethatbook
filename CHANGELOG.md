@@ -1,5 +1,56 @@
 # CHANGELOG
 
+## Round 26g — Elliott-Fisher (2026-08-21, evening) — ROADMAP 0d
+
+**"I'M DONE" SHIPPED.** A student-facing exit in all three modes.
+
+* **`receipt.js` 1.0.0, new.** The stamped library date-due card — the week's
+  days, then today's total stamped RETURNED. Shared by both writers from the
+  start, because four hand-maintained twins failed on this same day.
+  ⚠️ **DOM-only and state-free**, same contract as `celebrate.js`: it is handed a
+  week that has already been read and it draws it. It never reads Firestore,
+  never flushes, never decides. Formatting comes from `hud.js`'s `fmt()` — the
+  fifth surface onto it, so a receipt reading "12m 30s" beside a HUD reading
+  "12:30" cannot happen.
+* **`game.js` 3.41.0 → 3.42.0**, **`learn.js` 2.26.0 → 2.27.0.**
+  `handleImDone()`: file the open sprint/run, take a `final` flush, read the
+  week, draw the card. **Both halves already existed and are already called on
+  every other exit path — this is a third caller, not new machinery.**
+  ⚠️ It manufactures the deliberate exit §3.1 says does not exist. It does NOT
+  fix the unflushed-tail gap; it gives every child a way not to be in it. And it
+  closes the open sprint, so the drill-down matches the day total instead of
+  dropping the tail under the five-second floor.
+* ⚠️ **THE RULES, AND THEY ARE THE DESIGN:** never labelled "Save"; no confirm,
+  no nag, no warning for skipping it; never the only way out (← Library and
+  (Logout) are untouched); nothing anywhere gates on it. **A child who never
+  presses it loses nothing.** The failure mode is not a crash — it is the button
+  slowly becoming load-bearing, and `tests/done-button-test.mjs` asserts the
+  wording and the shape for exactly that reason.
+* **`tabindex="-1"`, mouse only.** ROADMAP item 8's ruling: a focusable control
+  reachable by Tab from a typing view eats a keystroke the child should have been
+  credited for. Item 8 solved that by moving the font picker out of the drill;
+  this button has the opposite requirement — they are IN the drill when the bell
+  rings — so it is unreachable by Tab instead.
+* **Inside `#user-info`**, so guests never see it: no week to read, nothing to
+  flush.
+* **Re-entrancy guarded.** Twelve-year-olds double-click, and two overlapping
+  runs would file the open sprint twice — §6 item 8's duplicate rollup,
+  manufactured on purpose. Released in a `finally` so a throw cannot wedge the
+  button shut.
+* **A failed read still shows the card, marked short.** The flush already
+  happened; showing nothing would read as "it didn't work", which is the one
+  message this button must never send.
+* **`style.css` 3.7.1 → 3.7.2.** `.done-btn` is outlined and quiet on purpose.
+  ⚠️ If a later round wants to make it a solid accent button for
+  discoverability, read `receipt.js`'s header first.
+* **`tests/done-button-test.mjs` 1.0.0, new.** 55 assertions; mutation-verified
+  by relabelling it "Save" (fails B1/B2) and reversing close-then-flush (fails
+  A4). Part F re-runs the div-balance check that would have caught 26e's stray
+  tag.
+* **`tests/run-all-tests.mjs` → 1.12.0.** 43 harnesses.
+
+⚠️ **NOT SEEN RENDERING.** Same as everything else this evening.
+
 ## Round 26f — Elliott-Fisher (2026-08-21, evening)
 
 ⚠️ **"DOUBLE IT" MEANT THE FIREWORKS, NOT THE ODDS.** 26e read Jake's *"I'm not

@@ -1,4 +1,11 @@
-// learn.js v2.26.0
+// learn.js v2.27.0
+//
+// v2.27.0 — "I'M DONE" (ROADMAP item 0d), the School half of game.js v3.42.0.
+//           ⚠️ `tabindex="-1"` IN THE MARKUP IS LOAD-BEARING — item 8's ruling
+//           says a focusable control inside the drill is one Tab away from
+//           eating a keystroke the child should have been credited for. Mouse
+//           only. ⚠️ NO TIMING MECHANISM TOUCHED; this files the open run and
+//           takes the flush that every other exit path already takes.
 //
 // v2.26.0 — THE CELEBRATIONS MOVED TO celebrate.js. ⚠️ This file's copies had
 //           DRIFTED from Library's without anyone choosing to: a fixed 80
@@ -419,6 +426,7 @@ import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
 // toast as part of each celebration. It stays exported there for any future
 // caller that wants the banner without the animation.
 import { launchConfetti, launchFireworks } from "./celebrate.js";
+import { showReceipt } from "./receipt.js";
 // ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
 // ⚠️ readDaySessions/projectDayTotal deliberately NOT imported — v2.19.0
 // reverted the projection. See HANDOFF §0.0.
@@ -923,6 +931,14 @@ function buildFontPicker() {
 document.getElementById('login-btn').onclick = async () => {
     try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch(e) { console.error(e); }
 };
+{
+    // ROADMAP item 0d. Guarded because #done-btn lives inside #user-info and a
+    // future markup change could move it; a missing button must not throw here
+    // and take the logout wiring below down with it.
+    const _doneBtn = document.getElementById('done-btn');
+    if (_doneBtn) _doneBtn.onclick = handleImDone;
+}
+
 document.getElementById('logout-btn').onclick = async () => {
     // Clear the marker FIRST. A deliberate sign-out must not be mistaken for an
     // expired session by the handler that is about to fire.
@@ -3028,6 +3044,52 @@ function flushSessionsNow() {
 function logOpenRun(reason) {
     if (stepSeconds <= 0 && chars <= 0) return;
     logRun(netWPM(), accuracyPct(), reason ? '(' + reason + ')' : '(interrupted)');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// "I'M DONE" (ROADMAP item 0d) — the School half
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️ IDENTICAL IN SHAPE TO game.js's handleImDone(), AND IT MUST STAY THAT WAY.
+// A child moving between School and Library should not find that the same button
+// behaves differently. receipt.js owns the card so the two cannot drift the way
+// four other twins did on 2026-08-21 — see HANDOFF §0.-13.E before copying
+// anything out of this function into that one.
+//
+// ⚠️ THE TAB HAZARD IS WHY THE MARKUP LOOKS THE WAY IT DOES. ROADMAP item 8 put
+// the reading-font control on the MAP rather than in the drill, because a
+// focusable control inside the drill view is one Tab away from eating a
+// keystroke the child should have been credited for. "I'm done" has the opposite
+// requirement — they are IN the drill when the bell rings — so learn.html gives
+// it `tabindex="-1"`: Tab can never reach it, the mouse always can.
+let _doneInFlight = false;
+async function handleImDone() {
+    if (_doneInFlight) return;          // twelve-year-olds double-click
+    _doneInFlight = true;
+    const btn = document.getElementById('done-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    try {
+        logOpenRun('done');
+        await flushStats('done', true);
+        const dateStr = getLocalDateStr(new Date());
+        let week = null, ok = true;
+        if (currentUser) {
+            try {
+                week = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr });
+                ok = !!(week && week.ok);
+            } catch (_) { ok = false; }
+        }
+        // A failed read still shows the card, marked short. The flush already
+        // happened — see game.js's copy of this comment for why that matters.
+        showReceipt(week || { dates: [dateStr], byDate: {} }, dateStr, !ok);
+    } catch (e) {
+        console.warn("I'm done failed:", e);
+        const dateStr = getLocalDateStr(new Date());
+        showReceipt({ dates: [dateStr], byDate: {} }, dateStr, true);
+    } finally {
+        _doneInFlight = false;
+        if (btn) { btn.disabled = false; btn.textContent = "I'm done"; }
+    }
 }
 
 // ─── Finish Step ─────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
-// run-all-tests.mjs v1.11.0 — Round 26 (Elliott-Fisher): live-period-test.mjs
-// hud-lead-test.mjs and celebration-test.mjs registered. 42 harnesses.
+// run-all-tests.mjs v1.12.0 — Round 26 (Elliott-Fisher): live-period-test.mjs
+// hud-lead-test.mjs, celebration-test.mjs and done-button-test.mjs
+// registered. 43 harnesses.
 //
 // v1.8.0 — Round 24 (Monotype): adopt-date-test.mjs,
 // carryover-test.mjs and midnight-test.mjs registered. 38 harnesses.
@@ -199,6 +200,7 @@ const FAST = [
     ['live-period-test.mjs',     'THE STALE DAY: a tab open overnight must not post yesterday\'s whole day to today\'s ledger line'],
     ['hud-lead-test.mjs',        'THE GRADED NUMBER DOES NOT MOVE: Daily is the LEAD row of the top bar on every surface'],
     ['celebration-test.mjs',     'NOT EVERYONE GOT FIREWORKS: a goal crossing missed in one mode must fire in the next, once'],
+    ['done-button-test.mjs',     "I'M DONE IS A RECEIPT: it files the open sprint and flushes, and nothing may ever gate on it"],
     ['queue-owner-test.mjs',     'ONE BROWSER, TWO STUDENTS: a second account may not destroy the first\u2019s unflushed queue, by push, by flush or by eviction'],
     // ⚠️ Round 25 (Hall). A student reported "ass" in a School lesson. Part A
     // reproduces learn.js's generateRandom() over 200,000 groups and MEASURES

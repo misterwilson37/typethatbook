@@ -1,9 +1,17 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.12.0, 2026-08-21 (evening).** ✅ **ITEM 0 IS CLOSED** — the two-row bar, the
+landing readout and "I'm done" all shipped. ⚠️ **The landing-page trophy did NOT
+ship with it and is NOT part of item 0's closure:** index.html has no leaderboard
+and `openLeaderboard()` lives in game.js. That is a feature, not a button, and it
+now stands on its own. Next up is **item 0b**, a settings panel for School — and
+⚠️ that item is also where the class information learn.js v2.24.0 removed from
+the bar gets a home again, because right now it lives NOWHERE on the School side.
+
 **v3.11.0, 2026-08-21 (evening).** ⭐ **ITEM 0b IS NEW** — a settings panel for
 School, which the two-row bar made room for and which is now the only home for
 the class information learn.js v2.24.0 removed from the bar. ✅ Item 0's bar and
-landing readout shipped; "I'm done" is still open. ✅ **"NOT EVERYONE GOT
+landing readout shipped; "I'm done" is still open; ✅ 0c.3 was never a question — see it. ✅ **"NOT EVERYONE GOT
 FIREWORKS" IS FIXED** — the goal suppression asked whether the total was already
 past the goal, which stays true all week, rather than whether the child had been
 SHOWN it. hud.js v1.4.0's latch; tests/celebration-test.mjs. ✅ **AND THE
@@ -88,7 +96,7 @@ that morning **by design**, and two harness Parts assert that defect on purpose.
 
 ---
 
-## 0. ⭐ THE TWO-ROW TOP BAR — ✅ SHIPPED. "I'M DONE" — STILL NEXT
+## 0. ✅ DONE — THE TWO-ROW TOP BAR AND "I'M DONE"
 
 ✅ **THE BAR SHIPPED 2026-08-21 EVENING** (hud.js v1.3.0, game.js v3.39.0,
 learn.js v2.24.0, style.css v3.7.0, both HTMLs, tests/hud-lead-test.mjs).
@@ -102,8 +110,11 @@ this item warned about did not exist:** `loadIndexStats()` was already calling
 element that had been deleted from the markup. Goals resolve from game.js's own
 `ttb_goalsCache_v1`, so the usual case adds nothing at all.
 
-⚠️ **STILL OPEN AND STILL NEXT: "I'm done" (0d), the Adventure checkmark question
-(0c.3), and the trophy on the landing page** — that last one is a real feature,
+✅ **"I'm done" SHIPPED** (receipt.js v1.0.0, game.js v3.42.0, learn.js v2.27.0,
+tests/done-button-test.mjs). **ITEM 0 IS CLOSED.**
+
+⚠️ **ONE THING MOVED OUT RATHER THAN CLOSED WITH IT: the trophy on the landing
+page** — see item 0c below — that last one is a real feature,
 not a button: `index.html` has no leaderboard and `openLeaderboard()` lives in
 `game.js`.
 
@@ -163,13 +174,22 @@ cluster, NOT promoting it to lead-left.
 2. **Standard (`game.html`)** — left `Daily` over `book · chapter`, centre
    sprint. ⚠️ **THE TROPHY IS ALREADY HERE** — `#trophy-btn` is un-hidden on
    sign-in, not on view, so Standard and Adventure share it. Nothing to add.
-3. **Adventure** — identical bar. The ⚙ gets a home in the row instead of
-   hanging beneath it. ⚠️ **OPEN QUESTION, ASK BEFORE BUILDING:** Jake said
-   *"checkmark on adventure can go next to the time — it doesn't need its own
-   row."* Best reading is that the full `Weekly` figure drops out of the game
-   surfaces and only its ✓ rides beside `Daily`, with the full figure living on
-   the landing page. **Two ✓ marks meaning different things in one bar is a
-   confusion, so this needs his yes before it is built either way.**
+3. **Adventure** — identical bar. ✅ The ⚙ got a home in the row (game.js
+   v3.39.1); it had been `position:absolute` against `<body>` and floating below
+   the HUD for a long time.
+   ⚠️ **THERE WAS NEVER AN OPEN QUESTION HERE, AND THE LESSON IS ABOUT MOCKUPS,
+   NOT ABOUT CHECKMARKS.** This item recorded Jake's *"checkmark on adventure can
+   go next to the time — it doesn't need its own row"* as a design choice needing
+   a ruling. It was a **BUG REPORT ABOUT A PREVIEW.** The mockup Round 26 drew
+   crammed eight elements into the Adventure row, it wrapped, and the ✓ landed on
+   a third line. Jake was pointing at the render.
+   The shipped answer is that the ✓ is part of the string `hudStrings()` builds —
+   `'Weekly ' + pair(…) + ' ✓'`, one element, inline with the time — and always
+   has been. **Nothing to decide, nothing to build.**
+   ⚠️ **DO NOT RE-RAISE THIS.** And the general form is worth keeping: when a
+   drawn preview and the shipped code disagree, feedback on the preview is
+   feedback on the preview. Ask which one the person is looking at before writing
+   it down as a ruling.
 4. **School (`learn.html`)** — left `Daily` over `lesson name · lesson time`.
    No sprint exists (School gates on WPM and accuracy, not time), so the centre
    is WPM over accuracy. The name-over-class right column **already ships here**

@@ -1,4 +1,10 @@
-// game.js v3.41.0
+// game.js v3.42.0
+//
+// v3.42.0 — "I'M DONE" (ROADMAP item 0d). A student-facing exit that files the
+//           open sprint and takes a `final` flush, then shows receipt.js's
+//           stamped card. ⚠️ IT IS A RECEIPT, NOT A SAVE BUTTON — nothing is
+//           gated on it, nothing warns if it is skipped, and ← Library and
+//           (Logout) remain untouched. See handleImDone() and receipt.js.
 //
 // v3.41.0 — THE CELEBRATIONS MOVED TO celebrate.js, and the fireworks DOUBLED
 //           there (10 shells, not 5; twice the run time). Jake's "so double it"
@@ -440,6 +446,7 @@ import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
 // toast as part of each celebration. It stays exported there for any future
 // caller that wants the banner without the animation.
 import { launchConfetti, launchFireworks } from "./celebrate.js";
+import { showReceipt } from "./receipt.js";
 // ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
 // ⚠️ readDaySessions/projectDayTotal are NOT imported. They exist in daylog.js
 // and are used by nothing shipped — v3.34.0 reverted the projection. Leaving the
@@ -3078,6 +3085,60 @@ function renderHudContext() {
     const text = book && chap ? (book + ' \u00b7 ' + chap) : (book || chap || '');
     el.textContent = text;
     el.title = text;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// "I'M DONE" (ROADMAP item 0d)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️ A RECEIPT, NOT A SAVE BUTTON. receipt.js's header has the full argument and
+// the rules that go with it; the one that matters at THIS call site is that
+// nothing may be gated on this handler. A child who never presses it loses
+// nothing, and the code must keep that true.
+//
+// Both halves already existed and are already called on every other exit path.
+// This is a third caller, not new machinery:
+//   logOpenSprint() — files the sprint in progress, so the drill-down matches
+//                     the day total instead of dropping the tail under the
+//                     five-second floor (ROADMAP item 5's yardstick).
+//   flushAll(_, true) — ⚠️ THE DELIBERATE EXIT §3.1 SAYS DOES NOT EXIST: "a
+//                     `final` flush needs a deliberate exit and a child closing
+//                     a Chromebook lid produces none." This manufactures one. It
+//                     does NOT fix the unflushed-tail gap; it gives every child
+//                     a way not to be in it.
+let _doneInFlight = false;
+async function handleImDone() {
+    // ⚠️ RE-ENTRANCY. Twelve-year-olds double-click. Two overlapping runs would
+    // file the open sprint twice — the duplicate-rollup shape in §6 item 8,
+    // manufactured on purpose. Same guard flushAll() uses, same reason.
+    if (_doneInFlight) return;
+    _doneInFlight = true;
+    const btn = document.getElementById('done-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    try {
+        logOpenSprint('done');
+        await flushAll('done', true);
+        const dateStr = getLocalDateStr(new Date());
+        let week = null, ok = true;
+        if (currentUser) {
+            try {
+                week = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr });
+                ok = !!(week && week.ok);
+            } catch (_) { ok = false; }
+        }
+        // ⚠️ A FAILED READ STILL SHOWS THE CARD, MARKED SHORT. The flush already
+        // happened; the child's minutes are filed whatever the read did. Showing
+        // nothing here would read as "it didn't work", which is the one message
+        // this button must never send.
+        showReceipt(week || { dates: [dateStr], byDate: {} }, dateStr, !ok);
+    } catch (e) {
+        console.warn("I'm done failed:", e);
+        const dateStr = getLocalDateStr(new Date());
+        showReceipt({ dates: [dateStr], byDate: {} }, dateStr, true);
+    } finally {
+        _doneInFlight = false;
+        if (btn) { btn.disabled = false; btn.textContent = "I'm done"; }
+    }
 }
 
 function updateRunningWPM() {

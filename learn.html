@@ -44,6 +44,18 @@
                     <span id="user-name" class="hud-lead"></span>
                     <span id="hud-week" class="hud-sub" style="font-family:'Courier Prime',monospace;"></span>
                 </span>
+                <!-- ⚠️ A RECEIPT, NOT A SAVE BUTTON. receipt.js's header has the
+                     rules. NEVER relabel this "Save": the moment a child
+                     believes unpressed means unsaved, the one who packs up at
+                     the bell loses minutes and a grade depends on a ritual.
+                     ⚠️ tabindex="-1" — ROADMAP item 8's ruling. A focusable control
+                     reachable by Tab from a typing view eats keystrokes the
+                     child should have been credited for. Mouse only.
+                     ⚠️ INSIDE #user-info ON PURPOSE, so it is hidden for guests —
+                     there is no week to read and nothing to flush for them.
+                     ⚠️ NOT THE ONLY WAY OUT: the back link and (Logout) stay. -->
+                <button id="done-btn" type="button" class="done-btn" tabindex="-1"
+                        title="Save and see your week">I'm done</button>
                 <button id="logout-btn" class="text-btn">(Logout)</button>
             </div>
             <button id="login-btn" class="action-btn">Sign In</button>

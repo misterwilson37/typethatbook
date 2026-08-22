@@ -1,4 +1,6 @@
-/* TypeThatBook style.css v3.7.1 */
+/* TypeThatBook style.css v3.7.2 */
+/* v3.7.2: .done-btn — "I'm done" (ROADMAP item 0d). Deliberately quiet; see the
+           block at .done-btn and receipt.js's header before restyling it. */
 /* v3.7.1: the ⚙ gear joins the bar. See the block at #menu-btn — it was
            absolutely positioned against <body> and floated below #hud. */
 /* v3.7.0: THE TWO-ROW TOP BAR (ROADMAP item 0). New .hud-stack / .hud-lead /
@@ -181,6 +183,27 @@ body {
    #hud-back-link (v3.5.5) are the CURRENT furniture on game.html's left
    section; #back-btn already covered learn.html's. */
 #back-btn, #hud-timer, #hud-daily-goal, #learn-restart-btn, #trophy-btn, #hud-back-link, #menu-btn { flex: 0 0 auto; }
+/* ⚠️ "I'm done" (v3.7.2, ROADMAP item 0d). QUIET ON PURPOSE — outlined, not
+   filled, and no colour that competes with the Daily figure. It is a receipt a
+   child may take if they want it, NOT the primary action of the screen and NOT
+   a thing anyone should feel prompted to press before they are finished. If a
+   later round is tempted to make it a solid accent button to "improve
+   discoverability", read receipt.js's header first: the failure mode is a child
+   believing their minutes depend on it. */
+.done-btn {
+    flex: 0 0 auto;
+    background: transparent;
+    border: 1px solid #6b6b66;
+    border-radius: 999px;
+    color: #e8e8e6;
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.72rem;
+    padding: 3px 11px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.done-btn:hover { border-color: #9a9a94; color: #fff; }
+.done-btn:disabled { opacity: 0.55; cursor: default; }
 /* The stack is the one thing in the left section allowed to give up width. */
 .hud-section.left .hud-stack { flex: 0 1 auto; }
 /* The designated shrinker. Lesson titles are author-supplied and unbounded
