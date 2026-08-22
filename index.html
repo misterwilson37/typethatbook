@@ -330,19 +330,15 @@
                 <a href="learn.html" id="mode-school" class="mode-btn">School</a>
                 <button type="button" id="mode-library" class="mode-btn active">Library</button>
             </nav>
-        <!-- ⚠️ THE SAME SLOT AS game.html / learn.html's #hud-time, AND THE SAME
-             RULE: the graded number leads, context sits underneath, and Daily
-             never moves to a sub row. This bar is .site-header rather than #hud
-             — different stylesheet path, same contract. hud.js builds both
-             strings so a fourth hand-rolled fmt() cannot drift from the other
-             three. See tests/hud-lead-test.mjs. -->
-        <span class="idx-stack" id="index-daily-stack" style="display:none;">
-            <span id="index-daily" class="idx-lead"></span>
-            <!-- Empty on purpose: there is no book or lesson to name on the landing
-                 page, and "today" would only repeat the word "Daily" above it. The
-                 slot stays so a future context has somewhere to go. -->
-            <span id="index-daily-sub" class="idx-sub"></span>
-        </span>
+        <!-- ⚠️ DAILY IS DELIBERATELY ABSENT HERE (v3.11.0). It was built and then
+             removed on Jake's ruling: "it just looks out of place — weekly is
+             what matters most there." The landing page is where a child checks
+             how the WEEK is going before choosing what to do; the daily figure
+             belongs on the screens where they are actually spending the minutes,
+             and it leads the bar on all three of those. ⚠️ Absence here is not
+             an exception to hud.js's rule that the graded number never moves —
+             the rule is about where it appears, not that it must appear
+             everywhere. tests/hud-lead-test.mjs no longer asserts it here. -->
         </div>
         <div class="header-links">
             <a href="reports.html">Reports</a>
@@ -451,7 +447,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.10.0";
+        const INDEX_VERSION = "3.11.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -597,12 +593,10 @@
                 loadIndexStats();
             } else {
                 userNameEl.style.display = 'none';
-                // ⚠️ BOTH READOUTS GO AWAY ON SIGN-OUT. On a shared Chromebook the
+                // ⚠️ THE READOUT GOES AWAY ON SIGN-OUT. On a shared Chromebook the
                 // next child must not see the last one's minutes in the header.
                 const _ns = document.getElementById('index-name-stack');
                 if (_ns) _ns.style.display = 'none';
-                const _ds = document.getElementById('index-daily-stack');
-                if (_ds) _ds.style.display = 'none';
                 loginBtn.style.display = '';
                 logoutBtn.style.display = 'none';
                 userProgress = {};
@@ -1529,13 +1523,12 @@
                     weekSeconds:  read.week.seconds,
                     weeklyGoal:   indexGoals.weeklySeconds,
                 });
-                const dailyEl = document.getElementById('index-daily');
-                const stackEl = document.getElementById('index-daily-stack');
-                if (dailyEl && stackEl) {
-                    dailyEl.textContent = hud.lead;
-                    dailyEl.style.color = hud.dailyDone ? '#22c55e' : '#ccc';
-                    stackEl.style.display = '';
-                }
+                // ⚠️ hud.lead IS COMPUTED AND NOT PAINTED HERE, ON PURPOSE. The
+                // daily readout was removed from this bar in v3.11.0 (Jake:
+                // "it just looks out of place"). Still built, because it costs
+                // nothing and because the day the landing page wants it back,
+                // the only change is an element to paint into — not a second
+                // formatter reinvented next to the first.
                 const weekEl = document.getElementById('index-week');
                 if (weekEl) {
                     weekEl.textContent = hud.right;

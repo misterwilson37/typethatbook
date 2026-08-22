@@ -1,4 +1,12 @@
-// game.js v3.39.1
+// game.js v3.40.0
+//
+// v3.40.0 — ⚠️ "NOT EVERYONE GOT FIREWORKS." The goal suppression asked whether
+//           the total was already past the goal — true for the rest of the week
+//           — rather than whether the child had actually been SHOWN it. One
+//           missed moment was the whole week's fireworks. Now latched per period
+//           via hud.js v1.4.0, so a crossing missed in one mode fires in the
+//           next. ⚠️ The daily goal hid the same defect because it re-arms every
+//           morning.
 //
 // v3.39.1 — ⚠️ THE ⚙ GEAR WAS NEVER IN THE BAR. It was appended to <body> at
 //           `absolute; top:20px; right:20px`, so it floated in the reading area
@@ -416,7 +424,8 @@ import {
 // The time readout, shared with learn.js. Extracted BECAUSE this file's timer
 // slot held three different quantities depending on settings, and School's held a
 // fourth. DOM-free: it returns strings and this file writes them.
-import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
+import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
+         celebrationDone, celebrationMark } from "./hud.js";
 // ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
 // ⚠️ readDaySessions/projectDayTotal are NOT imported. They exist in daylog.js
 // and are used by nothing shipped — v3.34.0 reverted the projection. Leaving the
@@ -2283,13 +2292,15 @@ async function loadGoals() {
     }
 }
 
+// ⚠️ v3.40.0 — THIS ASKED THE WRONG QUESTION AND IT COST A WEEK OF FIREWORKS.
+// It suppressed on "is the total already past the goal", which stays true for
+// the whole remainder of the week — so a crossing that failed to fire at the
+// moment it happened could never fire again. It now suppresses on whether the
+// child was actually SHOWN it, latched per period. hud.js v1.4.0 has the
+// argument; tests/celebration-test.mjs has the assertions.
 function applyGoalCelebrationState() {
-    if (goals.dailySeconds  > 0 && statsData.secondsToday >= goals.dailySeconds) {
-        dailyGoalCelebrated = true;
-    }
-    if (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds) {
-        weeklyGoalCelebrated = true;
-    }
+    dailyGoalCelebrated  = celebrationDone('day',  getLocalDateStr(new Date()));
+    weeklyGoalCelebrated = celebrationDone('week', String(getWeekStart(new Date())));
 }
 
 async function loadUserProgress() {
@@ -2918,12 +2929,21 @@ function gameTick() {
             });
 
             // Goal celebrations
+            // ⚠️ THE `goals.* > 0` GATE IS A RACE AND IT IS ONE WAY A CHILD GOT
+            // NOTHING. Goals arrive from an async class read; a child who starts
+            // typing before it returns ticks through their crossing with the
+            // goal still 0, and the gate drops it. Still correct to gate — a
+            // goal of 0 means "no goal" — but the latch makes the miss
+            // RECOVERABLE: the next page with goals and an uncelebrated period
+            // fires it instead of suppressing it for the rest of the week.
             if (goals.dailySeconds > 0 && !dailyGoalCelebrated && statsData.secondsToday >= goals.dailySeconds) {
                 dailyGoalCelebrated = true;
+                celebrationMark('day', getLocalDateStr(new Date()));
                 launchConfetti();
             }
             if (goals.weeklySeconds > 0 && !weeklyGoalCelebrated && statsData.secondsWeek >= goals.weeklySeconds) {
                 weeklyGoalCelebrated = true;
+                celebrationMark('week', String(getWeekStart(new Date())));
                 launchFireworks();
             }
 

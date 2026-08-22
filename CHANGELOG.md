@@ -1,5 +1,46 @@
 # CHANGELOG
 
+## Round 26e — Elliott-Fisher (2026-08-21, evening)
+
+* ⚠️ **`learn.html` 1.1.0 → 1.2.0 — A STRAY `</div>`, AND IT WAS MINE.** Round
+  26b's markup replacement sliced one closing tag short of the original block
+  while the replacement text carried both, leaving `#hud` with six closers to
+  five openers. **That is the missing top margin Jake saw in Safari and
+  intermittently in Chrome** — an unbalanced close tag is a parse-error recovery
+  path, and recovery is exactly where engines differ. `game.html` was checked and
+  is balanced. ⚠️ **A div-balance check on both HUD blocks is now the first thing
+  to run after any markup edit** — it took one command and would have caught this
+  before it shipped.
+* **`index.html` 3.10.0 → 3.11.0.** Daily removed from the landing bar on Jake's
+  ruling — *"it just looks out of place; weekly is what matters most there."*
+  The week stays under the name. `hud.lead` is still computed and deliberately
+  not painted, so the day it comes back the change is an element to paint into
+  rather than a second formatter invented beside the first.
+* ⚠️ **`hud.js` 1.3.0 → 1.4.0, `game.js` 3.39.1 → 3.40.0, `learn.js` 2.24.0 →
+  2.25.0 — "NOT EVERYONE GOT FIREWORKS."** Both writers fired correctly; the
+  **suppression** was wrong. It asked *"is the total already past the goal"* —
+  true for the entire remainder of the week — instead of *"have we actually
+  SHOWN this to the child."* So any crossing that failed to fire at the moment
+  it happened was gone permanently, and the plainest way to fail at that moment
+  is `goals.weeklySeconds` still being 0 because the class read has not returned
+  and the child started typing straight away.
+  ⚠️ **A WEEKLY GOAL IS CROSSED EXACTLY ONCE PER WEEK, so one missed moment is
+  the whole week.** The daily goal carried the identical defect invisibly because
+  it re-arms every morning.
+  New `celebrationDone()` / `celebrationMark()` latch what was actually shown,
+  keyed to the period. **A child who crosses in School and misses it now gets it
+  in Library, once.** ⚠️ localStorage on purpose: per-browser, so a second
+  Chromebook may show it twice — the correct direction to fail, and Jake's own
+  ruling was "if they just didn't see it, double it."
+  ⚠️ `learn.js`'s two open-coded suppression pairs are now one named
+  `applyGoalCelebrationState()`, so its call sites cannot drift the way the
+  duplicated pairs could.
+* **`tests/celebration-test.mjs` 1.0.0, new.** 28 assertions; mutation-verified
+  by restoring the old suppression, which fails Part E. Part B is the recovery
+  case and is the whole point of the change.
+* **`tests/hud-lead-test.mjs`** updated for the landing page's ruling.
+  **`tests/run-all-tests.mjs` → 1.11.0.** 42 harnesses.
+
 ## Round 26d — Elliott-Fisher (2026-08-21, evening)
 
 * **`game.js` 3.39.0 → 3.39.1**, **`style.css` 3.7.0 → 3.7.1.** ⚠️ **THE ⚙ GEAR

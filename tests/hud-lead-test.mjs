@@ -135,14 +135,15 @@ console.log('\n─── D. GREP: both painters, both pages ───');
        'D10 ⚠️ index.html: the landing page uses hud.js, not its own formatter');
     ok(!/function fmt\(s\)/.test(idx),
        'D11 ⚠️ index.html: the open-coded fmt() copy is gone');
-    const iLead = idx.indexOf('id="index-daily"');
-    const iSub  = idx.indexOf('id="index-daily-sub"');
-    ok(iLead >= 0 && iSub > iLead,
-       'D12 ⚠️ index.html: Daily is the LEAD row here too');
+    // ⚠️ THE LANDING PAGE CARRIES THE WEEK ONLY (index.html v3.11.0, Jake's
+    // ruling). It still routes through hud.js, which is what D10/D11 protect —
+    // the rule is that the graded number does not MOVE between the surfaces
+    // that show it, not that every surface must show it.
+    ok(!/id="index-daily"/.test(idx),
+       'D12 index.html: the daily readout is absent by ruling, not by accident');
     ok(/id="user-name-lead"[\s\S]{0,200}id="index-week"/.test(idx),
        'D13 index.html: the week sits UNDER the name');
-    ok(/index-daily-stack[\s\S]*?style\.display = 'none'/.test(idx) ||
-       idx.includes("_ds.style.display = 'none'"),
+    ok(idx.includes("_ns.style.display = 'none'"),
        'D14 ⚠️ index.html: the readout is hidden on sign-out — shared Chromebooks');
     // The dead ELEMENT LOOKUP, not the word — v3.10.0's comment names the
     // orphan it removed, and a harness that forbids naming a bug in a comment

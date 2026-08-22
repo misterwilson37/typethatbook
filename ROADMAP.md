@@ -1,5 +1,13 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.11.0, 2026-08-21 (evening).** ⭐ **ITEM 0b IS NEW** — a settings panel for
+School, which the two-row bar made room for and which is now the only home for
+the class information learn.js v2.24.0 removed from the bar. ✅ Item 0's bar and
+landing readout shipped; "I'm done" is still open. ✅ **"NOT EVERYONE GOT
+FIREWORKS" IS FIXED** — the goal suppression asked whether the total was already
+past the goal, which stays true all week, rather than whether the child had been
+SHOWN it. hud.js v1.4.0's latch; tests/celebration-test.mjs.
+
 **v3.10.0, 2026-08-21 (afternoon).** ⭐ **ITEM 0 IS NEW AND IT IS THE NEXT
 BUILD** — the two-row top bar and the "I'm done" stamp, specced with Jake from
 live renders. Buildable; **not before Monday's verification**, because every
@@ -203,6 +211,37 @@ text.** Tab can never reach it; the mouse always can.
 A harness should assert **that `Daily` is the lead element in all four
 surfaces** — that is the invariant this whole item exists to protect, and it is
 the one a later round would quietly undo while making the bar look nicer.
+
+---
+
+## 0b. ⭐ NEXT — A SETTINGS PANEL FOR SCHOOL
+
+Jake, 2026-08-21: *"I think we have room for the settings thing in learn."* The
+two-row bar freed the space, and `.hud-section.right` now has a real home for a
+⚙ (game.js v3.39.1 put Library's there).
+
+⚠️ **THIS IS NOT "ADD A GEAR TO learn.html". IT IS A PLACE TO PUT THREE THINGS
+THAT CURRENTLY HAVE NOWHERE TO LIVE:**
+
+1. **The reading-font control.** Item 8 shipped it into the School MAP, not the
+   drill, because a focusable control inside the drill is one Tab away from
+   eating a keystroke the child should have been credited for. ⚠️ **THAT RULING
+   DOES NOT CHANGE** — a modal is the way to satisfy both: the ⚙ itself is
+   `tabindex="-1"` and click-only, and the controls live inside a dialog that
+   only exists while it is open.
+2. **Class information.** `#user-class-name` was removed from the bar in
+   learn.js v2.24.0 on Jake's ruling ("forget about the class, it can live in
+   settings"). ⚠️ **IT NOW LIVES NOWHERE. THIS IS THE DEBT THAT RULING CREATED**
+   and this item is where it gets paid. Library's menu modal already shows
+   school and class; School shows neither.
+3. **Parity with Library's menu**, which is the real argument. A child moving
+   between the two modes should not find that the ⚙ means something different
+   on each side.
+
+`openMenuModal()` in `game.js` is the model. ⚠️ **DO NOT IMPORT IT** — it reaches
+into book, chapter, sprint and view state that School has none of. Take its
+shape, not its body, and put the shared parts somewhere both can import rather
+than growing a third copy of a settings dialog.
 
 ---
 

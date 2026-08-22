@@ -1,4 +1,10 @@
-// learn.js v2.24.0
+// learn.js v2.25.0
+//
+// v2.25.0 — ⚠️ "NOT EVERYONE GOT FIREWORKS" — the same fix as game.js v3.40.0.
+//           A child who crosses their weekly goal in School and misses it now
+//           gets it in Library. ⚠️ A STRAY </div> THIS ROUND INTRODUCED in
+//           learn.html is fixed in that file at v1.2.0 — it is the missing top
+//           margin Jake saw in Safari and intermittently in Chrome.
 //
 // v2.24.0 — THE TWO-ROW TOP BAR (ROADMAP item 0), identical in structure to
 //           game.js v3.39.0. Daily over the lesson name on the left; WPM and
@@ -398,7 +404,8 @@ import {
 } from "./session-log.js";
 // The time readout, shared with game.js. ⚠️ Both pages render the SAME string in
 // the SAME element id — see hud.js for why that is the whole point.
-import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad } from "./hud.js";
+import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
+         celebrationDone, celebrationMark } from "./hud.js";
 // ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
 // ⚠️ readDaySessions/projectDayTotal deliberately NOT imported — v2.19.0
 // reverted the projection. See HANDOFF §0.0.
@@ -710,6 +717,18 @@ let goals     = { dailySeconds: 0, weeklySeconds: 0 };
 let classInfo = { id: '', name: '', dailySeconds: 0, weeklySeconds: 0 };
 let dailyGoalCelebrated  = false;
 let weeklyGoalCelebrated = false;
+
+// ⚠️ v2.25.0 — IDENTICAL TO game.js's, AND IT ONLY WORKS IF BOTH FILES USE IT.
+// This was two open-coded lines in two places asking "is the total already past
+// the goal", which stays true for the rest of the week — so a crossing that
+// failed to fire at the moment it happened never fired again. hud.js v1.4.0's
+// latch records what was actually SHOWN. A child who crosses their weekly goal
+// in School and misses it now gets it in Library, once. Named as a function so
+// the two call sites cannot drift apart the way the open-coded pairs could.
+function applyGoalCelebrationState() {
+    dailyGoalCelebrated  = celebrationDone('day',  getLocalDateStr(new Date()));
+    weeklyGoalCelebrated = celebrationDone('week', String(getWeekStart(new Date())));
+}
 let learnActiveSeconds   = 0;   // active seconds this step (for HUD display)
 let learnTickInterval    = null;
 let learnLastInputTime   = 0;
@@ -2121,10 +2140,14 @@ function startGradedTimer() {
             }
             // Goal celebrations
             if (goals.dailySeconds > 0 && !dailyGoalCelebrated && statsData.secondsToday >= goals.dailySeconds) {
-                dailyGoalCelebrated = true; launchConfetti();
+                dailyGoalCelebrated = true;
+                celebrationMark('day', getLocalDateStr(new Date()));
+                launchConfetti();
             }
             if (goals.weeklySeconds > 0 && !weeklyGoalCelebrated && statsData.secondsWeek >= goals.weeklySeconds) {
-                weeklyGoalCelebrated = true; launchFireworks();
+                weeklyGoalCelebrated = true;
+                celebrationMark('week', String(getWeekStart(new Date())));
+                launchFireworks();
             }
             // ⚠️ ONE CALL DRAWS BOTH SLOTS (v2.9.0).
         }
@@ -4177,8 +4200,7 @@ async function loadGoals() {
                           dailySeconds: goals.dailySeconds,
                           weeklySeconds: goals.weeklySeconds };
             updateClassDisplay();
-            if (goals.dailySeconds  > 0 && statsData.secondsToday >= goals.dailySeconds)  dailyGoalCelebrated  = true;
-            if (goals.weeklySeconds > 0 && statsData.secondsWeek  >= goals.weeklySeconds) weeklyGoalCelebrated = true;
+            applyGoalCelebrationState();
             return;
         }
 
@@ -4226,8 +4248,7 @@ async function loadGoals() {
             schoolId: classInfo.schoolId || ''
         });
 
-        if (goals.dailySeconds  > 0 && statsData.secondsToday >= goals.dailySeconds)  dailyGoalCelebrated  = true;
-        if (goals.weeklySeconds > 0 && statsData.secondsWeek  >= goals.weeklySeconds) weeklyGoalCelebrated = true;
+        applyGoalCelebrationState();
     } catch(e) { console.warn('loadGoals failed:', e); }
 }
 

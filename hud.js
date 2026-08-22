@@ -1,4 +1,10 @@
-// hud.js v1.3.0
+// hud.js v1.4.0
+//
+// v1.4.0 — celebrationDone() / celebrationMark(). A period-keyed latch recording
+//          what a child was actually SHOWN, replacing "is the total already past
+//          the goal" as the suppression test. See the block above them: the old
+//          question stayed true for the rest of the week, so one missed moment
+//          was the whole week's fireworks. Reported by Jake.
 //
 // v1.3.0 — ⚠️ BREAKING RETURN SHAPE. `{ left, long }` → `{ lead, sprint }`. The
 //          top bar is two rows now (ROADMAP item 0), so the combined
@@ -221,4 +227,60 @@ export function hudCacheLoad(todayStr, weekStart) {
             weekSeconds:  (c.weekStart === weekStart) ? (c.weekSeconds || 0) : 0,
         };
     } catch { return null; }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️ THE CELEBRATION LATCH (v1.4.0) — "NOT EVERYONE GOT FIREWORKS"
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Reported by Jake, week of 2026-08-21: some students never saw the weekly
+// fireworks. Both game.js and learn.js fire them correctly from the tick, and
+// both suppress on load so a child does not get fireworks on every page view for
+// the rest of the week. ⚠️ THE SUPPRESSION WAS THE PROBLEM, AND IT ASKED THE
+// WRONG QUESTION. It asked *"is the total already past the goal?"* — which is
+// true for the entire remainder of the week — instead of *"have we actually
+// SHOWN this to the child yet?"*
+//
+// So any crossing that failed to fire at the moment it happened was gone
+// permanently, and there are real ways to fail at that moment:
+//   • `goals.weeklySeconds` is still 0 because the class read has not returned
+//     yet, and the child started typing immediately. The gate drops it silently.
+//   • the child has no class, or the goals cache went cold and the read failed.
+//   • the crossing lands on a page or path that is not the tick.
+// ⚠️ AND THE WEEKLY GOAL IS CROSSED EXACTLY ONCE PER WEEK, so a single missed
+// moment is the whole week. The daily goal hid the same defect because it
+// re-arms every morning — miss Monday's confetti and Tuesday's still comes.
+//
+// This latch records what was actually SHOWN, keyed to the period it was shown
+// for. A child who crosses in School and misses it gets it in Library, once.
+//
+// ⚠️ IT IS localStorage, SO IT IS PER-BROWSER, AND THAT IS DELIBERATE. A child on
+// a second Chromebook may see the fireworks twice. That is the correct direction
+// to fail in — Jake's own ruling was "if they just didn't see it, double it" —
+// and a duplicate celebration costs nothing while a missing one generated a
+// week of complaints. NEVER make this authoritative by moving it to Firestore:
+// a celebration is not a grade, and it must never cost a document read.
+const CELEBRATION_KEY = 'ttb_celebrated_v1';
+
+function _celebrationRead() {
+    try { return JSON.parse(localStorage.getItem(CELEBRATION_KEY)) || {}; }
+    catch { return {}; }
+}
+
+// kind: 'day' | 'week'. period: the dateStr for a day, the weekStart for a week.
+// ⚠️ A MISSING OR UNREADABLE LATCH REPORTS false — "not shown yet" — so private
+// mode and a cleared cache err toward showing it again, never toward silence.
+export function celebrationDone(kind, period) {
+    if (!period) return false;
+    const c = _celebrationRead();
+    return c[kind] === period;
+}
+
+export function celebrationMark(kind, period) {
+    if (!period) return;
+    try {
+        const c = _celebrationRead();
+        c[kind] = period;
+        localStorage.setItem(CELEBRATION_KEY, JSON.stringify(c));
+    } catch { /* private mode — the child may simply see it twice */ }
 }
