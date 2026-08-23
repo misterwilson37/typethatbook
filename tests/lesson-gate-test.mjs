@@ -38,12 +38,29 @@ const FIRE = 'A' + String.fromCodePoint(0x1F525);
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  ✗ FAIL  ' + m); } };
 
-// A lessonProgress record with `n` fires.
-const rec = (n, extra = {}) => ({ passed: true, grade: n ? FIRE : 'B', fireCount: n, ...extra });
+// ⚠️⚠️ ROADMAP 14 REPLACED THE RULE THIS FILE WAS WRITTEN FOR, AND THESE TWO
+// HELPERS ARE WHERE THE TRANSLATION LIVES. Mastery was "three A🔥 on a LESSON"
+// (`fireCount >= 3`); it is now "four POINTS on a RUN" (A🔥 = 2, A = 1). Every
+// assertion below is unchanged in meaning — only the unit moved — which is the
+// point: if a section that guarded the old rule cannot be re-expressed in the
+// new one, that is a promise the new rule broke, not a test that went stale.
+//
+// `n` is still "how mastered", 0–3, so the cases below read the same. It is
+// spent as points on EVERY run of the lesson, because these sections ask about
+// lessons and a lesson is practice only when all of its runs are.
+const rec = (n, extra = {}) => {
+    const pts = n >= 3 ? G.MASTERY_POINTS : n * 1;      // 3 fires → mastered
+    return {
+        passed: true, grade: n ? FIRE : 'B',
+        runCount: 2, runScores: { '0': pts, '1': pts },
+        ...extra,
+    };
+};
 // The mode of lesson `index` for a student at `furthest`, stalled `days`.
+// ⚠️ `lastLockDay: 0` REPLACES `lastAdvanceDay: 0` — same zero, different event.
 const mode = (index, furthest, record, days, extra = {}) => G.lessonModeFor({
-    index, furthestIndex: furthest, record, fireGrade: FIRE,
-    activeDayCount: days, lastAdvanceDay: 0, unlocked: true, ...extra,
+    index, furthestIndex: furthest, record, runCount: (record && record.runCount) || 2,
+    activeDayCount: days, lastLockDay: 0, unlocked: true, ...extra,
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -106,9 +123,22 @@ console.log("\n─── C. THE RECEDING WINDOW — Jake's own worked example �
     ok(mode(25, 26, rec(3), 7) === 'graded', 'stalled a week: lesson 26 opens');
     ok(mode(24, 26, rec(3), 7) === 'practice', 'stalled a week: lesson 25 does NOT');
     ok(mode(24, 26, rec(3), 14) === 'graded', 'stalled two weeks: lesson 25 opens');
-    ok(mode(26, 26, rec(3), 0) === 'graded',
-       'the furthest lesson is always graded — a student who masters the end of ' +
-       'their own progress must still have somewhere that counts');
+    // ⚠️⚠️ ROADMAP 14 DELETED "THE FURTHEST LESSON IS ALWAYS GRADED", AND THE
+    // DELETION IS HALF THE FIX. Under the old rule that exception is what let
+    // Jake master lesson 1 and keep farming it: nothing behind him ever locked
+    // because he never passed a LATER lesson. What the exception was PROTECTING
+    // is still guaranteed, and these two assertions are that guarantee moved
+    // into the new unit — the student always has somewhere that counts, it is
+    // just the next RUN rather than the same lesson.
+    ok(mode(26, 26, rec(3), 0) === 'practice',
+       '⚠️ a fully mastered furthest lesson is PRACTICE with no window open — ' +
+       'the farming hole is closed');
+    ok(G.runModeFor({ lessonIndex: 26, runIdx: 1, furthestLessonIndex: 26,
+                      record: { runCount: 2, runScores: { '0': 4, '1': 1 } },
+                      activeDayCount: 0, lastLockDay: 0 }) === 'graded',
+       '⚠️⚠️ BUT AN UNMASTERED RUN IN THAT SAME LESSON STILL COUNTS — which is ' +
+       'why the exception is safe to delete. Mastering run 1 does not strand a ' +
+       'student on run 2');
 
     ok(mode(0, 26, rec(3), 56) === 'practice',
        '⚠️⚠️ LESSON 1 IS STILL PRACTICE AFTER THE ENTIRE TWO-MONTH COURSE SPENT ' +
@@ -152,28 +182,34 @@ console.log('\n─── D. ⚠️⚠️ PROGRESS RESETS THE WINDOW ───');
 
 // ═══════════════════════════════════════════════════════════════════════════
 console.log('\n─── E. RE-LOCK ON RE-FIRE — one shot, not a licence ───');
-// ═══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
+// ⚠️ ROADMAP 14 MADE THIS FREE. v1.0.0 needed a per-lesson `fireAtDay` stamp and
+// a clause reading it. Now the clock runs from `lastLockDay`, and crossing four
+// points on ANY run stamps it — so re-mastering anything collapses the window to
+// zero for everything. One mechanism instead of two, and Jake's requirement is
+// unchanged: *"if they fireball lesson 1 after it unlocks, I want it immediately
+// locked again."*
 {
-    // Stalled 7 days, lesson 26 (index 25) has opened. They fire it on day 7.
+    // Stalled 7 days with the last lock on day 0: lesson 26 (index 25) has opened.
     ok(mode(25, 26, rec(3), 7) === 'graded', 'before: the opened lesson is graded');
-    ok(mode(25, 26, rec(4, { fireAtDay: 7 }), 7) === 'practice',
-       '⚠️ IMMEDIATELY after re-firing it, the same lesson is practice again — ' +
-       'Jake: "if they fireball lesson 1 after it unlocks, I want it immediately ' +
-       'locked again"');
-    ok(mode(25, 26, rec(4, { fireAtDay: 7 }), 13) === 'practice',
-       'six active days later, still practice');
-    ok(mode(25, 26, rec(4, { fireAtDay: 7 }), 14) === 'graded',
-       'a further full window later, it opens again — the rule recedes rather ' +
-       'than permanently burning a lesson');
-    ok(mode(25, 26, rec(3), 7) === 'graded',
-       'a record with no fireAtDay stamp predates the feature and is not held ' +
-       'against the student');
-    ok(mode(0, 27, rec(2, { fireAtDay: 0 }), 0) === 'graded',
+
+    // They re-master it on day 7, which stamps lastLockDay = 7.
+    const after = (days) => G.lessonModeFor({
+        index: 25, furthestIndex: 26, record: rec(3), runCount: 2,
+        activeDayCount: days, lastLockDay: 7, unlocked: true,
+    });
+    ok(after(7) === 'practice',
+       '⚠️ IMMEDIATELY after re-firing it, the same lesson is practice again');
+    ok(after(13) === 'practice', 'six active days later, still practice');
+    ok(after(14) === 'graded',
+       'a further full window later it opens again — the rule recedes rather than ' +
+       'permanently burning a lesson');
+    ok(mode(0, 27, rec(2), 0) === 'graded',
        '⚠️ the re-lock cannot reach an UNMASTERED lesson either — section A holds ' +
-       'even for a record carrying a stamp');
+       'whatever the clock says');
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
 console.log('\n─── F. ACTIVE DAYS — a gate, not a ledger ───');
 // ═══════════════════════════════════════════════════════════════════════════
 {

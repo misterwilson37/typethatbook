@@ -56,6 +56,7 @@
 // only evidence that the other five parts are testing anything.
 
 import { readFileSync } from 'fs';
+import { runScoreOf, pointsForGrade, MASTERY_POINTS } from '../lesson-gate.js';
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; } else { fail++; console.log('  FAIL: ' + msg); } };
@@ -93,6 +94,7 @@ function buildWorld({ flushFails = false, signedIn = true } = {}) {
         writes: 0,
         walWrites: 0,
         rendered: 0,
+        locks: 0,
         view: '',
     };
 
@@ -132,6 +134,13 @@ function buildWorld({ flushFails = false, signedIn = true } = {}) {
         cacheWrite: (_k, payload) => { w.cache = structuredClone(payload); },
         PROGRESS_CACHE_KEY: 'p', PROGRESS_CACHE_MS: 1,
         _wal: () => { w.walWrites++; },
+        // ⚠️ v2.34.0 (ROADMAP 14) — recordRunOutcome() now banks mastery points
+        // and stamps the lock, so the model has to supply those too. Kept as
+        // real imports rather than stubs: the point of this harness is to drive
+        // the SHIPPED function, and a stubbed scorer would let a scoring bug
+        // through the one place run data is written.
+        runScoreOf, pointsForGrade, MASTERY_POINTS,
+        _stampLock: () => { w.locks++; },
         _render: () => { w.rendered++; },
         _view: (v) => { w.view = v; },
         console: { warn: () => {}, log: () => {} },
@@ -149,7 +158,8 @@ function buildWorld({ flushFails = false, signedIn = true } = {}) {
         let userProgress = {};
         const pendingProgress = new Set();
         let currentUser = _uid, currentLesson = null, currentRuns = [];
-        let stepSeconds = 0, learnDirty = false;
+        let stepSeconds = 0, learnDirty = false, gateActiveDays = 0;
+        function stampLastLockDay() { _stampLock(); }
         function learnWalSave() { _wal(); }
         function renderMap() { _render(); }
         function showView(v) { _view(v); }

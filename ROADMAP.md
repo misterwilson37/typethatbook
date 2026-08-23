@@ -1,5 +1,13 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.23.0, 2026-08-23.** ✅ **ITEM 14 IS BUILT** — Round 32 (Lambert). Points per
+run, locked by run, unlocked by lesson, clock from the last lock. ⚠️ Read item
+14's note on the `>=`/`>` off-by-one: closing the exploit the obvious way moves
+§10.D's worked example by a lesson. ⚠️ **THE BANNER AND SCORE PATHS HAVE NO TEST
+COVERAGE.** ⚠️ **ITEM 11 IS NOW THE PRIORITY** — Jake raised it a third time:
+his son is in his class but not his school. Both causes are known; it is twenty
+minutes. 48 harnesses.
+
 **v3.22.0, 2026-08-23.** ✅ **ITEM 14b IS FIXED** — Round 31 (Fitch),
 `learn.js` v2.33.1. ⚠⚠️ **AND THE MECHANISM 14b NAMED WAS WRONG IN A WAY THAT
 WOULD HAVE PRODUCED A FIX THAT CHANGED NOTHING**: `flushLessonProgress()` was
@@ -929,7 +937,35 @@ symptom completely.
 
 ---
 
-## 14. ⭐⭐ MASTERY IS CUMULATIVE POINTS, PER **RUN**, NOT THREE FIREBALLS PER LESSON
+## 14. ✅ BUILT (Round 32, Lambert) — MASTERY IS CUMULATIVE POINTS PER **RUN**
+
+**Shipped in `lesson-gate.js` v1.1.0 and `learn.js` v2.34.0.** A🔥 = 2, A = 1,
+B and below = 0, locked at 4. Locked by run, unlocked by lesson, clock from the
+last lock. Downward closure computed, not stored. `lastLockDay` replaces
+`lastAdvanceDay`; `stampAdvanceIfNew()` deleted. 48 harnesses pass.
+
+⚠️⚠️ **THE ONE CHANGE TO A NUMBER YOU SET, AND IT WAS CAUGHT BY A HARNESS.**
+Closing the farming hole by changing `index >= furthest - reachBack` to `>` also
+moves §10.D's worked example by one lesson — at seven stalled days you specified
+lessons 26 AND 27 open, and `>` opens only 27. The shipped fix is a guard instead:
+`if (reachBack === 0) return 'practice'`, with the comparison left as v1.0.0 had
+it above zero. **Every distance you specified is intact.**
+
+⚠️ **"THE FURTHEST LESSON IS ALWAYS GRADED" IS DELETED.** That exception is why a
+mastered lesson stayed farmable until the student passed a LATER one — which a
+farming student never does. An unmastered RUN in the same lesson still counts, so
+nobody is stranded.
+
+⚠️ **NOT VERIFIED: `runScorePill()` and `armRunMode()` have no coverage** — the
+banner and the score are the only two things a student sees and neither has been
+executed. `learn.js`'s header cites `tests/run-mastery-test.mjs`, **which does not
+exist.** Write it or strike the line.
+
+---
+
+### The original item, kept for the reasoning behind each ruling
+
+## 14a. ⭐⭐ MASTERY IS CUMULATIVE POINTS, PER **RUN**, NOT THREE FIREBALLS PER LESSON
 
 ### ✅ JAKE'S RULING, 2026-08-23 — TAKE THIS AS DECIDED
 

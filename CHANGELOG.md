@@ -1,5 +1,55 @@
 # CHANGELOG
 
+## Round 32 — Lambert (2026-08-23) — ITEM 14 BUILT, AND I MOVED JAKE'S NUMBER
+
+* ✅ **ROADMAP 14.** Mastery is cumulative points per RUN — A🔥 = 2, A = 1, B and
+  below = 0, **locked at 4**. Locked by run, unlocked by lesson, clock from the
+  last lock. `lesson-gate.js` v1.1.0, `learn.js` v2.34.0.
+
+* ✅ **Points are banked in `recordRunOutcome()`**, where the grade already is.
+  This is item 13's fix: the student is shown fire for a RUN and `fireCount` only
+  ever counted a LESSON — Jake's record read `lastGrade: "A🔥"` beside
+  `fireCount: 0` after three fireballs in a row.
+
+* ✅ **Downward closure, computed not stored.** Mastering 1.2 closes 1.1; lesson 2
+  never touches lesson 1.
+
+* ⚠️⚠️ **I CHANGED `>=` TO `>` AND SILENTLY MOVED JAKE'S WORKED EXAMPLE BY ONE
+  LESSON.** It closes the farming hole correctly. It also means that at seven
+  stalled days only lesson 27 opens, where §10.D specifies 26 and 27.
+  `lesson-gate-test.mjs` Section C failed on exactly that — **which is the entire
+  reason the worked example lives in a harness instead of a document.** The
+  shipped fix is a guard, `if (reachBack === 0) return 'practice'`, with v1.0.0's
+  comparison untouched above zero.
+
+* ⚠️ **"The furthest lesson is always graded" is deleted**, and the deletion is
+  half the fix. An unmastered run in that lesson still counts, so nobody is
+  stranded on run 2 by mastering run 1.
+
+* ✅ **`lastLockDay` replaces `lastAdvanceDay`**; `stampAdvanceIfNew()` is gone.
+  The old clock ran from the last advance, so a student grinding one run accrued
+  reach-back the entire time they were farming.
+
+* ⚠️⚠️ **NOT VERIFIED, AND 48/48 IS NOT COVERAGE.** `runScorePill()` and
+  `armRunMode()` — the banner and the score, the only two things a student sees —
+  have never been executed. `learn.js`'s header cites
+  `tests/run-mastery-test.mjs`, **which does not exist.**
+
+* ⚠️⚠️ **THE ROUND'S REAL FAILURE IS PROCESS, AND IT IS IN HANDOFF §0.-24.A.**
+  Jake: *"WHY WON'T YOU DELIVER ANYTHING? … GIVE ME A HANDOFF EVERY ROUND."* Many
+  turns produced design decisions reported as progress, a zip shipped with a red
+  suite, and advice to "test it on Nico tonight" — **he deploys through the GitHub
+  web portal, so there is no such thing as a private test.** A round that produces
+  no document produced nothing.
+
+* ⚠️ **`learn.js` was truncated to zero bytes mid-round** by a Python heredoc
+  hitting `UnicodeEncodeError` on a surrogate escape. Restored from the Round 31
+  package, all six edits re-applied with an assertion on each.
+
+**48 harnesses, all passing.**
+
+---
+
 ## Round 31 — Fitch (2026-08-23) — THE WRITE SUCCEEDED AND STORED THE WRONG THING
 
 Jake: *"I finished every single run. I finished the run, got a grade, and then
@@ -4672,6 +4722,28 @@ Each block below is exactly what stood in the file header, newest first.
 //           eating a keystroke the child should have been credited for. Mouse
 //           only. ⚠️ NO TIMING MECHANISM TOUCHED; this files the open run and
 //           takes the flush that every other exit path already takes.
+```
+
+### § learn.js — archived header entries (Round 31b)
+
+```
+// v2.28.0 — ⭐ THE SCHOOL SETTINGS PANEL (ROADMAP item 0b). A ⚙ in the top bar
+//           opens settings-panel.js's dialog. THREE things that had nowhere to
+//           live now do: the reading font, the child's CLASS, and their goals.
+//           ⚠️ THE CLASS IS THE DEBT v2.24.0 CREATED, BEING PAID —
+//           `updateClassDisplay()` had been writing to `#user-class-name`, an
+//           element deleted from learn.html in that same version, so the text
+//           went nowhere at all. Same shape as §0.-13.C's orphaned paint.
+//           ⚠️ RULE 9 — THE FONT MODEL MOVED, IT WAS NOT COPIED. DRILL_FONTS,
+//           applyDrillFont(), readDrillFont() and buildFontPicker() are DELETED
+//           from this file in the same deploy that adds them to
+//           settings-panel.js. drill-filter-test F9b asserts no copy came back.
+//           ⚠️⚠️ THE GEAR IS HIDDEN DURING A DRILL AND THAT IS DELIBERATE —
+//           Library's ⚙ pauses the game first and School CANNOT, because item
+//           7b/8 shipped on Jake's condition "without touching the timing
+//           mechanism" (drill-filter F7). Read the block above
+//           ensureSettingsButton() before changing it. HANDOFF §0.-16.
+//
 ```
 
 ### § learn.js — archived header entries (Round 31)

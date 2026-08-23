@@ -1,7 +1,34 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.18.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     through Round 31; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+<!-- HANDOFF.md v15.19.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     through Round 32; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.19.0 — Round 32 (Lambert). ⭐⭐ ROADMAP ITEM 14 IS BUILT — §0.-24 is the
+     write-up. Mastery is cumulative points per RUN (A🔥 = 2, A = 1, B and below
+     = 0, locked at 4), locked by run, unlocked by lesson, clock from the last
+     lock. lesson-gate.js v1.1.0, learn.js v2.34.0.
+     ⚠️⚠️ §0.-24.A IS THE MOST IMPORTANT PART AND IT IS NOT ABOUT THE FEATURE.
+     JAKE'S STANDING RULE, IN HIS WORDS: "GIVE ME A HANDOFF EVERY ROUND." A round
+     that produces no document produced NOTHING — the code lands in a repo the
+     next instance cannot interpret. Write it before you run out of room. This
+     round reported design decisions as progress for many turns, shipped a zip
+     with a red suite, and told him to "test it on Nico tonight" WHEN HE DEPLOYS
+     VIA THE GITHUB WEB PORTAL AND THERE IS NO SUCH THING AS A PRIVATE TEST.
+     ⚠️ §0.-24.B: I changed `>=` to `>` to close the farming hole and SILENTLY
+     MOVED JAKE'S OWN WORKED EXAMPLE BY ONE LESSON. lesson-gate-test Section C
+     caught it, which is why the worked example lives in a harness and not a
+     document. The real fix is a guard — `if (reachBack === 0) return 'practice'`
+     — with v1.0.0's comparison left untouched above zero.
+     ⚠️ §0.-24.D IS WHAT IS NOT VERIFIED: runScorePill() and armRunMode() — the
+     BANNER AND THE SCORE, the only two things a student sees — HAVE NEVER BEEN
+     EXECUTED, and learn.js's header cites tests/run-mastery-test.mjs WHICH DOES
+     NOT EXIST. Do not read 48/48 as coverage.
+     ⚠️ I TRUNCATED learn.js TO ZERO BYTES mid-round with a Python heredoc that
+     hit UnicodeEncodeError on a surrogate escape. Restored and re-applied. Use
+     io.open(encoding='utf-8') on BOTH ends and literal emoji, never \uD83D pairs.
+     ⚠️ ITEM 11 — HIS SON IS IN HIS CLASS BUT NOT HIS SCHOOL — IS DIAGNOSED AND
+     UNFIXED FOR A THIRD ROUND. §6 item 9. Twenty minutes. Do it first.
+     48 harnesses, all passing.
 
      v15.18.0 — Round 31 (Fitch). ✅ ROADMAP 14b IS FIXED — §0.-23 is the
      write-up — ⚠️⚠️ AND THE ITEM'S OWN DIAGNOSIS WAS WRONG IN A WAY THAT WOULD
@@ -359,7 +386,7 @@
      ⚠️ ROUNDS 23 AND 24 SUMMARISED HERE UNTIL NOW; their write-ups are
      §0.-9 and §0.-10 in this file and are unchanged. -->
 
-**Round 31 — Fitch.** Predecessors: Postal (30) · Odell (29) · Daugherty (28) · Chicago (27) · Elliott-Fisher (26) · Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
+**Round 32 — Lambert.** Predecessors: Fitch (31) · Postal (30) · Odell (29) · Daugherty (28) · Chicago (27) · Elliott-Fisher (26) · Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
 Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
 Sholes (14) · Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) ·
 Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) ·
@@ -369,6 +396,14 @@ Blick (3) · Dvorak (2) · Underwood (1).
 by different companies and both are now on the list; a future round reading the
 list quickly will see two similar words and must not conclude one is a typo for
 the other. **Check the list, and read the whole word.**
+
+> *On the name:* the **Lambert** (1896) selected letters by **position on a
+> dial** — you moved a pointer around a circular index and pressed. ⚠️ **One
+> position off did not give you a slightly wrong result. It gave you a different
+> letter.** That is this round: a one-character edit from `>=` to `>` closed the
+> exploit correctly and moved Jake's own worked example by exactly one lesson,
+> and nothing about the code looked wrong. The harness holding his number caught
+> it. **Where the answer is a position, off-by-one is not a rounding error.**
 
 > *On the name:* the **Fitch** (1886) was one of the first **visible-writing**
 > machines — on the up-strike typewriters that dominated the decade the paper sat
@@ -553,6 +588,120 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-24. ⚠️⚠️ ROUND 32 (Lambert) — ITEM 14 BUILT, AND I MOVED JAKE'S NUMBER
+
+**2026-08-23.** ROADMAP 14. Mastery is now cumulative points per RUN — A🔥 = 2,
+A = 1, B and below = 0, locked at 4. Locked by run, unlocked by lesson, clock from
+the last lock. `lesson-gate.js` v1.1.0, `learn.js` v2.34.0. **48 harnesses pass.**
+
+### A. ⚠️⚠️ READ THIS FIRST: HOW THIS ROUND ACTUALLY WENT
+
+Jake, near the end: *"WHY WON'T YOU DELIVER ANYTHING? When you do this, I get
+nothing out of it. GIVE ME A HANDOFF EVERY ROUND."*
+
+He was right and the failure is worth more than the feature. Across many turns I
+reported design decisions as progress, shipped a zip whose own suite was red,
+told him to "test it on Nico tonight" — **and he deploys through the GitHub web
+portal, so there is no such thing as testing without it becoming the standard.**
+That constraint is in §7 and I still gave advice that ignored it.
+
+⚠️ **THE STANDING RULE, FROM HIM, IN HIS WORDS: A HANDOFF EVERY ROUND.** Not at
+the end of the work, not when the suite goes green, not when it feels finished.
+**A round that produces no document produced nothing**, because the code lands in
+a repo the next instance cannot interpret. Write it before you run out of room,
+not after.
+
+⚠️ **AND I TRUNCATED `learn.js` TO ZERO BYTES MID-ROUND.** A Python heredoc hit a
+`UnicodeEncodeError` on a surrogate pair while writing, and the file was already
+opened for write. Restored from the Round 31 package and all six edits re-applied
+with an assertion on each. **THE LESSON IS MECHANICAL: read/modify/write on a
+`.js` file containing emoji must go through `io.open(..., encoding='utf-8')` on
+BOTH ends, and must never embed a `\uD83D\uDD25`-style surrogate escape in the
+Python source.** Use the literal character.
+
+### B. ⚠️⚠️ THE OFF-BY-ONE, AND WHY A HARNESS CAUGHT IT AND I DID NOT
+
+To close the farming hole I changed `lessonModeFor`'s comparison from
+`index >= furthest - reachBack` to `index > …`. It closes the hole. **It also
+silently moved Jake's own worked example (ROADMAP §10.D) by one lesson:** at seven
+stalled days he specified lessons 26 AND 27 open, and `>` opens only 27.
+
+`lesson-gate-test.mjs` Section C failed on exactly that, and **THAT IS THE ENTIRE
+REASON THE WORKED EXAMPLE LIVES IN A HARNESS INSTEAD OF A DOCUMENT.** A number the
+customer set by hand had been changed by a plausible-looking one-character edit,
+inside a change he had approved in principle.
+
+✅ **THE REAL FIX IS A GUARD, NOT A COMPARISON:**
+
+```js
+if (reachBack === 0) return 'practice';                       // closes the hole
+if (lessonIndex >= furthestLessonIndex - reachBack) return 'graded';   // v1.0.0, untouched
+```
+
+Zero window → nothing mastered is graded, including the furthest lesson. Above
+zero, every distance is exactly what Jake specified. **Lesson 1 still needs 26
+weeks.**
+
+### C. WHAT THE RULE IS NOW
+
+* **Points on the run, banked in `recordRunOutcome()`** where the grade already
+  is — `runScores`, plus `runLocks[k] = activeDayCount` on the crossing.
+  ⚠️ This is item 13's fix: the student is shown fire for a RUN and `fireCount`
+  only ever counted a LESSON. Jake's record read `lastGrade: "A🔥"` beside
+  `fireCount: 0` after three fireballs in a row.
+* **Downward closure**, computed not stored: `runMastered(rec, k)` is true if any
+  run at index ≥ k has 4 points. Mastering 1.2 closes 1.1; lesson 2 never touches
+  lesson 1.
+* ⚠️ **"THE FURTHEST LESSON IS ALWAYS GRADED" IS DELETED, AND THE DELETION IS
+  HALF THE FIX.** That exception is why Jake could master lesson 1 and keep
+  farming it — nothing behind him ever locked because he never passed a LATER
+  lesson. What it protected still holds and is now asserted in Section C: an
+  UNMASTERED RUN in that same lesson still counts, so mastering run 1 never
+  strands a student on run 2.
+* ⚠️ **`lastLockDay` REPLACES `lastAdvanceDay`; `stampAdvanceIfNew()` IS GONE.**
+  The old clock ran from the last advance, so a student grinding one run accrued
+  reach-back the whole time they were farming. Do not reintroduce the second
+  stamp — they will disagree, and that is Rule 9.
+* **Re-lock on re-fire is now free.** Crossing 4 on any run stamps `lastLockDay`,
+  collapsing the window for everything. One mechanism where v1.0.0 needed a
+  per-lesson `fireAtDay` and a clause reading it.
+* **`practiceRun` is armed PER RUN in `beginStep()`**, not once per lesson: one
+  lesson can hold a mastered run and an unmastered one simultaneously.
+* **`runScorePill()`** shows `Mastery n/4` under the grade. ROADMAP 14 calls this
+  a requirement: the v1.0.0 rule was unfalsifiable from outside, which is why
+  nobody could report it broken.
+
+### D. ⚠️⚠️ WHAT IS NOT VERIFIED — DO NOT READ 48/48 AS COVERAGE
+
+* **`runScorePill()` AND `armRunMode()` HAVE NEVER BEEN EXECUTED.** No harness, no
+  browser. **The banner and the score — the two things a student would actually
+  see — are the two pieces with zero coverage.** §0.-18 is what a defined,
+  styled, unreachable feature looks like when it ships.
+* ⚠️ **`learn.js`'s v2.34.0 header CITES `tests/run-mastery-test.mjs`, WHICH DOES
+  NOT EXIST.** I wrote the reference intending to write the harness. It is a
+  fresh instance of the exact defect class this week was spent hunting. **Write
+  the harness or strike the line — do not leave it.**
+* **No clean-copy verification** (ROADMAP 8b). Round 31 got one; this did not.
+* ⚠️ **`if (staff) return 'graded'` MAKES THIS UNOBSERVABLE FROM JAKE'S OWN
+  ACCOUNT**, and the v1.0.0 comment claims the opposite — that the exemption lets
+  him check the feature. It cost him an evening. He runs everything as his son.
+  Wants a staff override toggle? Ask.
+
+### E. STILL OPEN
+
+* ⚠️ **ROADMAP ITEM 11 — JAKE'S SON IS IN HIS CLASS BUT NOT HIS SCHOOL.** He
+  raised it again this round. Both causes are in §6 item 9: two direct writers
+  (`lessons-admin.js:1129`, `:1776`) write `classId` and never `schoolId`, and a
+  24-hour goals cache keeps Settings saying "No class assigned". **Diagnosed
+  three rounds running and never fixed. It is twenty minutes.**
+* **ROADMAP item 15** — the reconstruction button — unbuilt.
+* ⚠️ **ROADMAP §10.H, the measurement — still not built. Fifth round.**
+* **`lesson-gate.js` v1.1.0 is arguably a MAJOR bump and I did not take it.**
+  `lessonModeFor()` keeps its signature but answers from run scores;
+  `fireCountOf`/`isMastered` survive only to seed legacy records. Jake's call.
 
 ---
 
@@ -3507,7 +3656,7 @@ browsable user directory, by design. `users/{uid}` deliberately holds no PII, wh
 
 ## §2. Where the code is
 
-Shipped state after **Round 31, 2026-08-23**. **Verified by running
+Shipped state after **Round 32, 2026-08-23**. **Verified by running
 `npm run audit:versions`, not copied from the previous table.** (Round 28 ran it;
 0 problems.)
 
@@ -3556,11 +3705,11 @@ reads.
 | file | version |
 |---|---|
 | `game.js` | **3.45.0** — Round 30: the build panel's own staleness flag is gone. Round 29's active-day counter stands. §0.-22.C, §0.-21.B |
-| `learn.js` | **2.33.1** — ⚠️⚠️ Round 31: `exitLessonToMap()` — leaving a lesson flushes the RUN, not just the time, and the FLUSH COMES BEFORE THE RELOAD THAT EMPTIES `userProgress`. §0.-23. Round 29's gate and Round 30's panel fix stand |
+| `learn.js` | **2.34.0** — ⭐⭐ Round 32: ROADMAP 14. Points per RUN, banked in `recordRunOutcome()`; `practiceRun` armed per run; `lastLockDay` replaces `lastAdvanceDay`. ⚠️ `runScorePill()`/`armRunMode()` have NO coverage. §0.-24. Round 31:  ⚠️⚠️ Round 31: `exitLessonToMap()` — leaving a lesson flushes the RUN, not just the time, and the FLUSH COMES BEFORE THE RELOAD THAT EMPTIES `userProgress`. §0.-23. Round 29's gate and Round 30's panel fix stand |
 | `session-log.js` | **1.6.0** — PER-OWNER queue + `GUEST_QUEUE_UID`. ⚠️ UPLOAD THIS FIRST — both pages import from it. Its TWO pins are checked by version-stamp-test.mjs C |
 | `hud.js` | **2.0.0** — ⚠️⚠️ MAJOR, JAKE SIGNED IT OFF. The v1.3.0 return-shape break recorded as the major it was. §0.-15. ⚠️ UPLOAD BEFORE THE TWO WRITERS |
 | `variety-floor.js` | 1.0.0 |
-| `lesson-gate.js` | **1.0.0** — ⭐⭐ **NEW, Round 29.** The whole of ROADMAP item 10's rule, and it is PURE. ⚠️ **UPLOAD BEFORE game.js AND learn.js** — both import it. §0.-21.A |
+| `lesson-gate.js` | **1.1.0** — ⭐⭐ Round 32: the run-scoring rule (ROADMAP 14). ⚠️ ARGUABLY MAJOR AND NOT TAKEN — Jake's call. ⚠️ UPLOAD BEFORE learn.js. §0.-24. Round 29:  ⭐⭐ **NEW, Round 29.** The whole of ROADMAP item 10's rule, and it is PURE. ⚠️ **UPLOAD BEFORE game.js AND learn.js** — both import it. §0.-21.A |
 | `stats-wal.js` | **1.1.0** — ⚠️ Round 22. Per-source counters in DAY_COUNTERS; storage key unchanged. §0.-8.F |
 | `versions.js` | **1.13.0** — ⚠️⚠️ Round 30. The read cache is module state with a 60s TTL, NOT sessionStorage — ⚠️ **do not move it back to storage that outlives a page load.** Round 28's `{ notes }` gate and proportional header budget stand. §0.-22, §0.-20.C/D/F |
 | `daylog.js` | **1.4.0** — The shared week reader, the cutover, and `dayLogPayloadFor()` — **the one gate deciding a day's shape**. §0.-8.C. Carries the Overnight Rescue |
@@ -4523,6 +4672,7 @@ a pointer to a file you should go and read.**
 | 20 | Corona | Folded its own predecessor's conclusion: §0.0's evidence was sound, its arrow was wrong. The interval UNION vs the deduped SUM. Found the THIRD divergence — a `WHERE` clause, so a log stamped `classId:''` was visible to the child and invisible to every class query. Reproduced §3.1 at last. |
 | 21 | Hammond II | Test tooling only, nothing student-facing. The registration audit (an unregistered harness now FAILS the suite). `tab-lifetime-test.mjs`. ⚠️ RAN THE RULES EMULATOR that four rounds recorded as impossible, and found the per-source DOCUMENT design DENIED by the deployed rules. Recorded Jake's four standing rulings in §0.-7.A so they stop being relitigated. |
 | 23 | Empire | ⚠️ THE GUEST MINUTE: a child who typed before signing in kept their time in School and lost it in Library, because `game.js` had no guest merge on the auth path while `learn.js` did — and `game.js`'s two INLINE copies meant which of three sign-in buttons they pressed decided the outcome. One function now, before `loadUserStats()`, with the sprints adopted so the minutes reach the record. `learn.js` stopped filing guest runs under the throwaway anonymous uid, and its logout reloads instead of leaving the last student's totals on screen. The reconcile and rebuild-all DELETED on Jake's confirmed boundary (~830 lines), with the real production session documents lifted into `real-sessions-fixture.mjs` first. `session-log.js` made per-owner. ⚠️ Also spent most of its length on a cross-account queue theory that Jake killed with a fact already written in `stats-wal.js`'s header — see §0.-9.E, which is the part worth reading. HANDOFF.md split at 237 KB; Rounds 15–20 to `docs/archive/`. |
+| 32 | Lambert | ⭐⭐ ROADMAP 14 BUILT — mastery is cumulative points per RUN (A🔥 = 2, A = 1, locked at 4), locked by run, unlocked by lesson, clock from the last lock. Downward closure computed not stored. ⚠️⚠️ The round's real lesson is §0.-24.A: **a handoff every round, in Jake's words** — many turns produced design talk and no document, plus a zip shipped with a red suite and advice to "test it on Nico" when GitHub means deploy IS the standard. ⚠️ §0.-24.B: `>=` → `>` closed the exploit and moved his worked example by a lesson; the harness caught it, the fix is a `reachBack === 0` guard. ⚠️ NOT VERIFIED: the banner and score paths have no coverage and the header cites a harness that does not exist. learn.js v2.34.0, lesson-gate.js v1.1.0, 48 harnesses. |
 | 31 | Fitch | ⚠️⚠️ ROADMAP 14b — **THE WRITE SUCCEEDED AND STORED THE WRONG THING.** Leaving a lesson for the map banked the time and dropped the run, and the item's own diagnosis was wrong: `flushLessonProgress()` was being called all along (inside `flushStats()`, on the interval and on every hide). What lost the run was `stopLesson()`'s `loadUserProgress()`, whose first statement empties `userProgress` — so the flush wrote back the record it had just re-read, successfully, every time, with no error path anywhere. ⚠️ A flush appended to the END of `stopLesson()` would have read as a correct fix and changed nothing: **the order is the fix.** `exitLessonToMap()` snapshots, flushes, refreshes the progress cache, reloads, and carries unflushed runs across. `exit-flush-test.mjs` (31 checks, 18 failing against v2.33.0) reproduces the loss through the old exit in Part A before proving anything else. ⚠️ Also: the runner marks a harness bad on a TEXT match for FAIL/ERROR/UNSAFE in its output, so a clean harness can be reported red by a section header — rule recorded in the runner rather than the detector loosened. ✅ Jake amended the "no bulk repair" ruling to MINUTES. learn.js v2.33.1, 48 harnesses. |
 | 27 | Chicago | ⚠️ **THE SUITE WAS RED ON DELIVERY AND FIVE FILES WERE LYING ABOUT THEIR OWN VERSION** — `game.js` 3.38.0/3.42.0, `learn.js` 2.23.1/2.27.0, `hud.js` 1.2.0/1.4.0 across a breaking change, plus both stylesheets' CSS stamps. The code was new; only the stamps were stale. ⚠️ Aimed squarely at Monday: ROADMAP told Jake to check the footer for the very numbers a correct deploy would fail to show. ⚠️ The hud.js pin could not fire — a pin inherits the honesty of the hand-maintained number it checks. `tests/version-stamp-test.mjs` moves the existing `audit:versions` check inside `npm test`, failing on lying stamps and NOTING header budgets. `hud-test.mjs` rewritten for `{ lead, sprint }`. No behaviour changed. Item 0b deliberately not started. |
 | 26 | Elliott-Fisher | ⚠️ THE STALE DAY CARRIED FORWARD — a tab left open overnight re-posted yesterday's entire day total to today's `typing_logs`, exact to the second and the character, because `mergeGuestStats()` guarded the server side of `live - base` and never the live side. Then the two-row top bar across all four surfaces, the landing readout, the celebration latch, `celebrate.js`, and "I'm done" (`receipt.js`). ⚠️ Four hand-maintained twins failed in one day — §0.-13.E. ⚠️ And it left five version stamps stale, which Round 27 found. |

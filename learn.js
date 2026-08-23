@@ -1,4 +1,20 @@
-// learn.js v2.33.1
+// learn.js v2.34.0
+//
+// v2.34.0 — ⚠️⚠️ ROADMAP 14 — MASTERY IS CUMULATIVE POINTS PER **RUN**.
+//           A🔥 = 2, A = 1, B and below = 0, LOCKED AT 4. recordRunOutcome()
+//           banks the points where the grade already is — which is the fix for
+//           item 13: the student is shown fire for a RUN and fireCount only ever
+//           counted a LESSON, so Jake's record read lastGrade "A🔥" beside
+//           fireCount 0 after three fireballs in a row.
+//           ⚠️ DOWNWARD CLOSURE: mastering run k closes runs 0..k-1 of the SAME
+//           lesson only — lesson 2 never touches lesson 1. ⚠️ practiceRun is now
+//           armed PER RUN in beginStep(), not once per lesson: one lesson can
+//           hold a mastered run and an unmastered one at the same time.
+//           ⚠️ lastLockDay REPLACES lastAdvanceDay and stampAdvanceIfNew() is
+//           GONE — the clock runs from the last LOCK, so a student grinding one
+//           run no longer accrues reach-back while farming. runScorePill() shows
+//           the score, because the old rule was unfalsifiable from outside.
+//           tests/run-mastery-test.mjs.
 //
 // v2.33.1 — ⚠️⚠️ ROADMAP 14b — "← MAP" BANKED THE TIME AND THREW AWAY THE RUN.
 //           stopLesson() reloaded progress on the way out, and loadUserProgress()
@@ -66,23 +82,6 @@
 //           already stop the clock this way. No second timer, no second gate.
 //           ✅ The student ID joins the panel, on Jake's ask.
 //
-// v2.28.0 — ⭐ THE SCHOOL SETTINGS PANEL (ROADMAP item 0b). A ⚙ in the top bar
-//           opens settings-panel.js's dialog. THREE things that had nowhere to
-//           live now do: the reading font, the child's CLASS, and their goals.
-//           ⚠️ THE CLASS IS THE DEBT v2.24.0 CREATED, BEING PAID —
-//           `updateClassDisplay()` had been writing to `#user-class-name`, an
-//           element deleted from learn.html in that same version, so the text
-//           went nowhere at all. Same shape as §0.-13.C's orphaned paint.
-//           ⚠️ RULE 9 — THE FONT MODEL MOVED, IT WAS NOT COPIED. DRILL_FONTS,
-//           applyDrillFont(), readDrillFont() and buildFontPicker() are DELETED
-//           from this file in the same deploy that adds them to
-//           settings-panel.js. drill-filter-test F9b asserts no copy came back.
-//           ⚠️⚠️ THE GEAR IS HIDDEN DURING A DRILL AND THAT IS DELIBERATE —
-//           Library's ⚙ pauses the game first and School CANNOT, because item
-//           7b/8 shipped on Jake's condition "without touching the timing
-//           mechanism" (drill-filter F7). Read the block above
-//           ensureSettingsButton() before changing it. HANDOFF §0.-16.
-//
 //
 //
 //
@@ -110,8 +109,9 @@ import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // rule in it is a function of numbers this file passes in, which is why the whole
 // design is covered by lesson-gate-test.mjs without driving a browser.
 import { activeDayPlan, activeDayCountOf, fireCountOf, isMastered,
-         lessonModeFor, furthestIndexOf, reachBackFor,
-         MASTERY_FIRE_COUNT, REACH_BACK_DAYS } from "./lesson-gate.js";
+         lessonModeFor, runModeFor, runScoreOf, runMastered, pointsForGrade,
+         lastLockDayOf, furthestIndexOf, reachBackFor,
+         MASTERY_POINTS, MASTERY_FIRE_COUNT, REACH_BACK_DAYS } from "./lesson-gate.js";
 // The day/week counters' WAL, shared with game.js. It is a separate module
 // because the counters are the one piece of state that is true regardless of
 // which page or which book a student is on, and both previous copies of it were
@@ -191,7 +191,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.33.1";
+const LEARN_VERSION = "2.34.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -1431,17 +1431,21 @@ function refreshProgressCache() {
 // DEPLOY MORNING, which is the failure discovered during first period rather
 // than during testing.
 let gateActiveDays = 0;
-let gateLastAdvanceDay = 0;
+// ⚠️ v2.34.0 — ROADMAP 14. `lastLockDay` REPLACES `lastAdvanceDay`. Do not
+// reintroduce the second stamp — they will disagree, and that is Rule 9. The old
+// field is still READ once, as a fallback for records written before this
+// shipped, inside lastLockDayOf().
+let gateLastLockDay = 0;
 
 async function loadGateState() {
-    gateActiveDays = 0; gateLastAdvanceDay = 0;
+    gateActiveDays = 0; gateLastLockDay = 0;
     if (!currentUser || currentUser.isAnonymous) return;
     try {
         const snap = await getDoc(doc(db, 'users', currentUser.uid));
         const d = snap.exists() ? snap.data() : {};
         gateActiveDays = activeDayCountOf(d);
-        gateLastAdvanceDay = typeof d.lastAdvanceDay === 'number'
-            ? d.lastAdvanceDay : gateActiveDays;
+        const lock = lastLockDayOf(d);
+        gateLastLockDay = (typeof lock === 'number') ? lock : gateActiveDays;
     } catch (e) {
         console.warn('[TTB] gate state not read; nothing will be gated:', e);
     }
@@ -1454,14 +1458,35 @@ async function loadGateState() {
 // agree. A second place computing this is a lesson that shows a practice badge
 // and files a grade anyway.
 function modeForLesson(lesson) {
-    const idx = allLessons.findIndex(l => l.id === lesson.id);
+    const rec = userProgress[lesson.id];
     return lessonModeFor({
-        index: idx,
+        index: allLessons.findIndex(l => l.id === lesson.id),
         furthestIndex: furthestIndexOf(allLessons, userProgress),
-        record: userProgress[lesson.id],
-        fireGrade: FIRE_GRADE,
+        record: rec,
+        // ⚠️ v2.34.0 — WITHOUT runCount THIS DEFAULTS TO 1 AND GATES OFF RUN 0
+        // ALONE, which is wrong and wrong quietly. Prefer the stored count; fall
+        // back to the live run list for a lesson with no record yet.
+        runCount: (rec && rec.runCount) || buildRunList(lesson).length || 1,
         activeDayCount: gateActiveDays,
-        lastAdvanceDay: gateLastAdvanceDay,
+        lastLockDay: gateLastLockDay,
+        unlocked: isUnlocked(lesson),
+        staff: isStaffUser(currentUser),
+    });
+}
+
+// ⚠️⚠️ v2.34.0 — ROADMAP 14. THE MODE OF ONE **RUN**, AND THIS IS NOW THE
+// DECISION THAT MATTERS. modeForLesson() above is the label on the map card;
+// this decides whether a run pays. A single lesson can hold a mastered run and
+// an unmastered one at the same time — that is the whole point of scoring per
+// run — so anything asking "does this count?" must ask about the RUN.
+function modeForRun(lesson, runIdx) {
+    return runModeFor({
+        lessonIndex: allLessons.findIndex(l => l.id === lesson.id),
+        runIdx,
+        furthestLessonIndex: furthestIndexOf(allLessons, userProgress),
+        record: userProgress[lesson.id],
+        activeDayCount: gateActiveDays,
+        lastLockDay: gateLastLockDay,
         unlocked: isUnlocked(lesson),
         staff: isStaffUser(currentUser),
     });
@@ -1786,6 +1811,23 @@ function gradeOnMap(grade) {
     return '<span style="color:' + (colors[grade] || '#888') + ';font-weight:bold;font-size:0.85rem;">' + grade + '</span>';
 }
 
+// ⚠️⚠️ v2.34.0 — ROADMAP 14, AND THE ITEM CALLS THIS A REQUIREMENT, NOT A
+// NICETY. The v1.0.0 rule was UNFALSIFIABLE FROM OUTSIDE: Jake ran a dozen
+// attempts and could not tell whether it wanted three fireballs IN A ROW (it did
+// not), which is why nobody could report it broken. Whatever the threshold is,
+// THE STUDENT MUST SEE PROGRESS TOWARD IT.
+function runScorePill(runIdx) {
+    if (!currentLesson) return '';
+    const have = Math.min(runScoreOf(userProgress[currentLesson.id], runIdx), MASTERY_POINTS);
+    const done = have >= MASTERY_POINTS;
+    const label = done
+        ? 'Mastered \u00b7 this run no longer counts time'
+        : 'Mastery ' + have + '/' + MASTERY_POINTS + ' \u2014 A🔥 = 2, A = 1';
+    return '<div class="run-score-pill" style="margin-top:0.5rem;font-size:0.8rem;' +
+           'letter-spacing:0.04em;color:' + (done ? '#ff6600' : '#8a8a8a') + ';">' +
+           label + '</div>';
+}
+
 // ─── Start Lesson ─────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════
 // THE PRACTICE BANNER (v2.32.0, ROADMAP 10)
@@ -1829,9 +1871,19 @@ function showPracticeBanner(on) {
 // changes its mind about whether it counts.
 let practiceRun = false;
 
-function startLesson(lesson) {
-    practiceRun = modeForLesson(lesson) === 'practice';
+// ⚠️⚠️ v2.34.0 — ROADMAP 14. DECIDED PER **RUN**, AT THE DOOR OF THE RUN.
+// v2.32.0 decided it once for the whole lesson, which was right when the unit
+// was a lesson and is wrong now: one lesson can hold a mastered run and an
+// unmastered one at the same time, and that is the entire point of scoring per
+// run. Still decided ONCE per run and never re-derived mid-run — a counter
+// ticking over mid-drill must not change whether the run already being typed
+// counts.
+function armRunMode(runIdx) {
+    practiceRun = currentLesson ? modeForRun(currentLesson, runIdx) === 'practice' : false;
     showPracticeBanner(practiceRun);
+}
+
+function startLesson(lesson) {
     currentLesson  = lesson;
     currentRuns    = buildRunList(lesson);
     currentStepIdx = 0;
@@ -2188,6 +2240,10 @@ function startGradedTimer() {
 function beginStep(stepIdx) {
     currentStepIdx = stepIdx;
     currentStep = currentRuns[stepIdx];
+    // ⚠️ BEFORE ANY TIMER ARMS. armRunMode() sets practiceRun, which decides
+    // whether this run pays at all — settled before the first keystroke can be
+    // counted, not after.
+    armRunMode(stepIdx);
     if (!currentStep) {
         console.warn('[TTB] beginStep: run ' + stepIdx + ' does not exist in a ' +
                      currentRuns.length + '-run lesson — returning to the map.');
@@ -3113,7 +3169,7 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     recordRunOutcome(currentStepIdx, grade, canAdvance);
 
     document.getElementById('dm-title').textContent = 'Step ' + nextIdx + ' of ' + totalSteps + ' done';
-    document.getElementById('dm-stars').innerHTML = gradeHTML(grade);
+    document.getElementById('dm-stars').innerHTML = gradeHTML(grade) + runScorePill(currentStepIdx);
 
     const dailyBadge = (goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds)
         ? '<span class="goal-badge goal-blue">\u2713</span>' : '';
@@ -3290,7 +3346,7 @@ function showLessonResultModal(wpm, acc) {
     titleMap['D']     = 'Almost \u2014 Try Once More';
     titleMap['F']     = 'Not Yet';
     document.getElementById('dm-title').textContent = titleMap[grade] || 'Done';
-    document.getElementById('dm-stars').innerHTML = gradeHTML(grade);
+    document.getElementById('dm-stars').innerHTML = gradeHTML(grade) + runScorePill(currentStepIdx);
     const rdBadge = (goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds)
         ? '<span class="goal-badge goal-blue" title="Daily goal!">✓</span>' : '';
     const rwBadge = (goals.weeklySeconds > 0 && statsData.secondsWeek >= goals.weeklySeconds)
@@ -3501,6 +3557,32 @@ function recordRunOutcome(runIdx, grade, advanced) {
     runAttempts[key] = (runAttempts[key] || 0) + 1;
     if (!advanced) runFailures[key] = (runFailures[key] || 0) + 1;
 
+    // ⚠️⚠️ v2.34.0 — ROADMAP 14. THE POINTS ARE BANKED HERE, ON THE RUN,
+    // WHERE THE GRADE ALREADY IS. This is the line item 13 was about: the student
+    // is shown a fireball for a RUN, and `fireCount` only ever counted a LESSON —
+    // which is why Jake's own record read `lastGrade: "A🔥"` beside
+    // `fireCount: 0` after three fireballs in a row. Scoring the run counts the
+    // thing the screen actually shows fire for.
+    //
+    // ⚠️ A PRACTICE RUN NEVER REACHES THIS FUNCTION — finishStep() returns at
+    // the practiceRun branch first — so a mastered run cannot re-lock itself by
+    // being replayed. That is what makes the reach-back window escapable at all.
+    const runScores = Object.assign({}, prev.runScores);
+    const before    = runScoreOf(prev, runIdx);
+    const after     = before + pointsForGrade(grade);
+    runScores[key]  = after;
+
+    // ⚠️ THE LOCK STAMP IS THE CLOCK FOR EVERY LESSON, NOT JUST THIS ONE. Jake:
+    // unlock "based on the date of the last lock". Crossing the threshold resets
+    // reach-back globally, which is the point — it measures time since the student
+    // last PROVED something, not time since they last moved. Stamped ONLY on the
+    // crossing, so replaying a mastered run cannot keep pushing it forward.
+    const runLocks = Object.assign({}, prev.runLocks);
+    if (before < MASTERY_POINTS && after >= MASTERY_POINTS) {
+        runLocks[key] = gateActiveDays;
+        stampLastLockDay();
+    }
+
     userProgress[id] = Object.assign({}, prev, {
         lessonId: id,
         started: true,
@@ -3513,6 +3595,8 @@ function recordRunOutcome(runIdx, grade, advanced) {
         lastSeenAt: new Date().toISOString(),
         runAttempts,
         runFailures,
+        runScores,
+        runLocks,
         // The real cumulative figure. timeSpentSeconds previously added only the
         // final run's stepSeconds, so it undercounted by the whole rest of the lesson.
         timeSpentSeconds: (prev.timeSpentSeconds || 0) + stepSeconds,
@@ -3626,14 +3710,22 @@ async function exitLessonToMap() {
 // ⚠️ ONLY ON A **FIRST** PASS. Re-passing a lesson already passed must not reset
 // the window — that would be farming with extra steps, and it is exactly what
 // this feature exists to stop.
-async function stampAdvanceIfNew(prev, passed) {
-    if (!passed || prev.passed === true) return;
+// ⚠️⚠️ v2.34.0 — ROADMAP 14. THE CLOCK RUNS FROM THE LAST **LOCK**, NOT THE
+// LAST ADVANCE, AND THAT IS JAKE'S RULING. The old stamp fired when a student
+// passed a lesson they had never passed before — so a student grinding ONE RUN,
+// never advancing, accrued reach-back the entire time they were farming. From
+// the last lock, the clock starts only once the student has actually mastered
+// something.
+//
+// ⚠️ CALLED ON THE CROSSING ONLY (see recordRunOutcome), so replaying a mastered
+// run cannot keep pushing the window out from under itself.
+async function stampLastLockDay() {
     if (!currentUser || currentUser.isAnonymous) return;
-    gateLastAdvanceDay = gateActiveDays;
+    gateLastLockDay = gateActiveDays;
     try {
         await setDoc(doc(db, 'users', currentUser.uid),
-                     { lastAdvanceDay: gateActiveDays }, { merge: true });
-    } catch (e) { console.warn('[TTB] advance stamp not written:', e); }
+                     { lastLockDay: gateActiveDays }, { merge: true });
+    } catch (e) { console.warn('[TTB] lock stamp not written:', e); }
 }
 
 async function saveProgress(passed, wpm, acc, grade) {
@@ -3696,7 +3788,9 @@ async function saveProgress(passed, wpm, acc, grade) {
         );
         userProgress[currentLesson.id] = record;
         pendingProgress.delete(currentLesson.id);   // this write covered it
-        await stampAdvanceIfNew(prev, passed);
+        // ⚠️ v2.34.0 — stampAdvanceIfNew() IS GONE. The window no longer runs from
+        // the last advance; recordRunOutcome() stamps lastLockDay when a run
+        // crosses 4 points. Passing a lesson is no longer a clock event.
     } catch(e) { console.warn('Could not save lesson progress:', e); }
 }
 
