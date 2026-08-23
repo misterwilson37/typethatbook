@@ -1,7 +1,27 @@
 # tests/
 
-<!-- tests/README.md v1.7.0 — Round 30 (Postal), Round 29 (Odell), Round 28
-     (Daugherty), Round 21
+<!-- tests/README.md v1.8.0 — Round 31 (Fitch), Round 30 (Postal), Round 29
+     (Odell), Round 28 (Daugherty), Round 21
+
+     v1.8.0 — Round 31 (Fitch). NEW: exit-flush-test.mjs — ROADMAP 14b.
+     ⚠️ PART A DRIVES THE OLD, BROKEN EXIT AND MUST KEEP LOSING RUNS. It passes
+     on both builds by construction and is the ONLY evidence that Parts B–F are
+     measuring anything; if A2 ever reads twelve, the model has gone insensitive
+     and the green below it is worthless. ⚠️ TWO MODELLING DETAILS WERE
+     LOAD-BEARING AND BOTH WERE WRONG ON THE FIRST ATTEMPT: the page's state must
+     be real BINDINGS rather than a snapshot object (the defect IS a
+     reassignment, so a copy made it invisible and the harness passed against a
+     broken build), and `merge: true` merges nested maps KEY BY KEY rather than
+     replacing them — modelling it as a replace made the old build look worse
+     than it is and would have misdescribed the production record the round is
+     about.
+     ⚠️⚠️ AND A TRAP EVERY FUTURE HARNESS INHERITS: run-all-tests.mjs marks a
+     harness bad on `status !== 0 || /FAIL|UNSAFE|\bERROR\b/` — A TEXT MATCH OVER
+     EVERYTHING THE HARNESS PRINTED. A harness that exits 0 and prints
+     "PASS — 31 passing, 0 failing" is still reported FAIL if one of its own
+     section headers contains the word. DO NOT LOOSEN THE DETECTOR: a harness
+     that reports failures in prose and exits 0 is exactly what it catches.
+     A HARNESS MUST NOT PRINT FAIL, ERROR OR UNSAFE EXCEPT ON A REAL FAILURE.
 
      v1.7.0 — Round 30 (Postal). build-panel-test.mjs gained SECTION H: the build
      panel's read cache must EXPIRE and must never outlive a page load. ⚠️ IT WAS
@@ -192,11 +212,11 @@ found it reading *"28 harnesses"*. **The audit catches an unregistered FILE; it
 cannot catch a wrong NUMBER in English prose**, so the paragraph above overstated
 what was fixed. Recount by running, never by editing the number you remember.
 
-Current, verified by running: **56 `.mjs` files in this folder, 46 registered** —
-`FAST` (40, no external data, runs in a fresh clone), `EPUB` (4, needs
+Current, verified by running: **57 `.mjs` files in this folder, 47 registered** —
+`FAST` (41, no external data, runs in a fresh clone), `EPUB` (4, needs
 `library/`, behind `--with-epubs`), `RULES` (2, behind `npm run test:rules`).
 `PENDING` is empty. The remainder are fixtures and helpers, not harnesses.
-`npm test` reports **ALL 47 HARNESSES PASS** — 47 rather than 40 because the
+`npm test` reports **ALL 48 HARNESSES PASS** — 48 rather than 41 because the
 runner counts its own syntax-check and registration audits.
 
 A harness that is in

@@ -1,4 +1,16 @@
-// learn.js v2.33.0
+// learn.js v2.33.1
+//
+// v2.33.1 — ⚠️⚠️ ROADMAP 14b — "← MAP" BANKED THE TIME AND THREW AWAY THE RUN.
+//           stopLesson() reloaded progress on the way out, and loadUserProgress()
+//           opens by EMPTYING userProgress — so every run outcome recorded in
+//           memory died before the scheduled flush could read it, while
+//           pendingProgress still named the lesson, so the flush wrote the
+//           freshly-reloaded copy back and reported success. ⚠️ THE WRITE NEVER
+//           FAILED; it stored the numbers it had just read. Jake's u1_l1 read
+//           runAttempts {0:1, 1:2} after a dozen runs. New exitLessonToMap()
+//           flushes, refreshes the progress cache, THEN reloads, and carries
+//           anything unflushed across. ⚠️ A flush added AFTER the reload would
+//           read as correct and change nothing. tests/exit-flush-test.mjs.
 //
 // v2.33.0 — ⚠️ TWIN OF game.js v3.45.0. The build panel's per-page "already
 //           loaded" flag is gone; versions.js v1.13.0 owns freshness. Nothing
@@ -70,16 +82,6 @@
 //           7b/8 shipped on Jake's condition "without touching the timing
 //           mechanism" (drill-filter F7). Read the block above
 //           ensureSettingsButton() before changing it. HANDOFF §0.-16.
-//
-// v2.27.1 — ⚠️ STAMP ONLY, NO BEHAVIOUR. `const LEARN_VERSION` still read
-//           "2.23.1" after v2.23.2, v2.24.0, v2.25.0, v2.26.0 and v2.27.0 all
-//           shipped — the School half of game.js v3.42.1, same defect, same
-//           evening, which makes the version stamp the FIFTH hand-maintained
-//           twin to fail in one day (HANDOFF §0.-13.E counted four).
-//           ⚠️ ROADMAP told Jake to check the footer for v2.23.2 on Monday. A
-//           correctly deployed build was going to answer "2.23.1" — one patch
-//           BELOW the stale-day fix, i.e. exactly the reading that means "the
-//           fix is not running". See HANDOFF §0.-14.
 //
 //
 //
@@ -189,7 +191,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.33.0";
+const LEARN_VERSION = "2.33.1";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -3536,6 +3538,81 @@ async function flushLessonProgress() {
     return ok;
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ v2.33.1 — LEAVING A LESSON MUST BANK THE RUN, NOT JUST THE TIME.
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-08-23: *"I finished every single run. I finished the run, got a
+// grade, and then clicked back to map. Could the back to map not count as
+// finishing? It counted the time and everything."* He was exactly right, and
+// his own `lessonProgress` record proves it: `u1_l1` read `attempts: 3`,
+// `runAttempts {0:1, 1:2}` after a dozen completed runs.
+//
+// ⚠️ THE MECHANISM IS NOT THE ONE ROADMAP 14b NAMED, AND THE DIFFERENCE DECIDES
+// WHERE THE FIX GOES. 14b said `flushLessonProgress()` has one caller in the
+// session-end path and `stopLesson()` never calls it. The first half is wrong —
+// the call sits inside `flushStats()`, which also runs on the five-minute
+// interval and on every hide — so a write *was* scheduled and *did* fire. What
+// killed the run was the line underneath:
+//
+//     loadUserProgress()   →   userProgress = {}   →   repopulate from cache
+//
+// `stopLesson()` reloads the map's data on the way out, and `loadUserProgress()`
+// opens by EMPTYING `userProgress`. The run outcomes recorded in memory are
+// gone before the scheduled flush ever reads them, while `pendingProgress` still
+// names the lesson — so the flush finds the freshly-RELOADED record under that
+// id and writes that back instead. ⚠️ THE WRITE SUCCEEDS. It reports true, it
+// costs a billed write, and it stores the numbers it just read. Nothing
+// anywhere logs a failure, which is why this survived a dozen rounds.
+//
+// ⚠️ AND IT EXPLAINS WHY SOME RUNS SURVIVED. `saveStats()` fires
+// `learnWalSave()` before the wipe, so the WAL holds the good record for a
+// window; the next `saveStats()` after the reload overwrites it with the stale
+// one. Whatever happened to be flushed inside that window landed. That is the
+// 4-of-12 in Jake's record, and it is why the loss looked random.
+//
+// ⚠️ THE "NEXT LESSON →" BUTTON WAS NEVER AFFECTED — it calls `startLesson()`,
+// which does not reload progress, so the in-memory record survives to the next
+// flush. Only "← Map" loses work. Jake described the losing path precisely.
+//
+// SO THE ORDER IS THE WHOLE FIX: flush BEFORE the reload, refresh the cache the
+// reload is about to read, and carry anything that did NOT land across it.
+// ⚠️ A FLUSH ADDED *AFTER* `loadUserProgress()` WOULD READ AS CORRECT AND
+// CHANGE NOTHING — it would write the same reloaded copy the old code did.
+//
+// ⚠️ THE CACHE REFRESH IS NOT TIDINESS. `loadUserProgress()` prefers
+// PROGRESS_CACHE_KEY over Firestore, so without `refreshProgressCache()` the
+// reload re-installs the pre-run copy from localStorage, the map under-reports
+// the attempt it just banked, and the next run computes `prev` from it.
+async function exitLessonToMap() {
+    // Snapshot BEFORE anything can replace userProgress. Cheap: pendingProgress
+    // holds at most the lessons touched since the last flush.
+    const held = {};
+    for (const id of pendingProgress) {
+        if (userProgress[id]) held[id] = userProgress[id];
+    }
+
+    const flushed = await flushLessonProgress();
+    if (flushed) refreshProgressCache();
+
+    await loadUserProgress();
+
+    // ⚠️ WHATEVER DID NOT LAND STAYS IN MEMORY. An offline Chromebook must not
+    // have its unflushed runs quietly replaced by the server copy — that is the
+    // defect above with a network error in front of it. `held` is newer by
+    // construction, so it wins the merge.
+    let carried = 0;
+    for (const id of Object.keys(held)) {
+        if (!pendingProgress.has(id)) continue;
+        userProgress[id] = Object.assign({}, userProgress[id], held[id]);
+        carried++;
+    }
+    if (carried && currentUser) { learnDirty = true; learnWalSave(); }
+
+    renderMap();
+    showView('map');
+}
+
 // ⚠️ v2.32.0 — ROADMAP 10. THE CLAUSE THAT MAKES PROGRESS RESET THE WINDOW.
 //
 // Passing a lesson the student had NEVER passed before stamps today's active-day
@@ -3662,10 +3739,11 @@ function stopLesson() {
     drillModal.classList.add('hidden');
     wpmDisplay.textContent = '—';
     accDisplay.textContent = '—';
-    loadUserProgress().then(() => {
-        renderMap();
-        showView('map');
-    });
+    // ⚠️ v2.33.1 — THIS USED TO BE `loadUserProgress().then(...)` AND THAT LINE
+    // IS WHERE THE RUN WENT. See exitLessonToMap()'s header: the reload empties
+    // userProgress, so the run outcomes recorded above were destroyed before the
+    // scheduled flush could read them. The flush now happens first.
+    exitLessonToMap();
 }
 
 function getNextLesson() {

@@ -1,5 +1,99 @@
 # CHANGELOG
 
+## Round 31 — Fitch (2026-08-23) — THE WRITE SUCCEEDED AND STORED THE WRONG THING
+
+Jake: *"I finished every single run. I finished the run, got a grade, and then
+clicked back to map. Could the back to map not count as finishing? It counted the
+time and everything."* ROADMAP item 14b.
+
+* ⚠️⚠️ **THE ITEM SAID THE FLUSH WAS NEVER CALLED. THE FLUSH WAS CALLED.**
+  14b named `flushLessonProgress()` as having *"exactly one caller … in the
+  session-end path"*. That line is inside `flushStats()`, which also runs on the
+  five-minute interval and on every `visibilitychange`. **A write fired after
+  every single run.**
+
+* ⚠️⚠️ **WHAT LOST THE RUN WAS THE RELOAD.** `stopLesson()` ended with
+  `loadUserProgress()`, whose first statement is `userProgress = {}`. The
+  outcomes recorded in memory were destroyed before the scheduled flush read
+  them — while `pendingProgress` still named the lesson — so the flush found the
+  freshly RELOADED record under that id and wrote **that** back. **It returned
+  `true`, cost a billed write, cleared the queue and stored the numbers it had
+  just read.** There is no error path here and there never was one, which is why
+  a green suite never saw it.
+
+* ⚠️ **THE OBVIOUS FIX WOULD HAVE CHANGED NOTHING.** *"`await
+  flushLessonProgress()` in `stopLesson()`"* is a fix only if it lands **before**
+  the reload; appended to the end of the function, where anyone adding a line
+  would put it, it flushes the record `loadUserProgress()` just installed — same
+  stale document, same successful write — and **every test that asks "is the
+  flush called?" goes green.** THE ORDER IS THE FIX.
+
+* ✅ **`learn.js` v2.33.1 — `exitLessonToMap()`.** Snapshot what is pending,
+  flush, `refreshProgressCache()`, reload, then carry anything that did not land
+  back over the top. ⚠️ **The cache refresh is not tidiness:**
+  `loadUserProgress()` prefers `PROGRESS_CACHE_KEY` over Firestore, so an
+  unrefreshed cache re-installs the pre-run copy and the map under-reports the
+  attempt it just banked. ⚠️ **The carry-across is not tidiness either:** an
+  offline Chromebook must not have its unflushed runs replaced by the server
+  copy — that is the same defect with a network error in front of it.
+
+* ⚠️ **WHY THE LOSS LOOKED RANDOM.** `saveStats()` fires `learnWalSave()`
+  *before* the wipe, so the WAL holds the good record for a window and the next
+  save after the reload overwrites it with the stale one. Only runs whose
+  interval flush fired inside that window landed — Jake's `runAttempts {0:1,
+  1:2}` against a dozen completed runs. **Not zero, which someone would have
+  reported; a plausible minority, which nobody can.**
+
+* ✅ **"NEXT LESSON →" WAS NEVER AFFECTED** — it calls `startLesson()`, which does
+  not reload progress. **Only "← Map" lost work, and Jake named that path
+  exactly.**
+
+* ✅ **NEW: `tests/exit-flush-test.mjs`** — 31 checks, **18 failing against
+  `learn.js` v2.33.0**. ⚠️ **Part A drives the OLD exit and must keep losing
+  runs**; it passes on both builds by construction and is the only evidence that
+  Parts B–F measure anything. Part D asserts the ORDER rather than the call.
+  ⚠️ Two modelling details were load-bearing and both were wrong on the first
+  attempt: the page's state must be real **bindings** (the defect IS a
+  reassignment, so a snapshot object made the wipe invisible and the harness
+  passed against a broken build), and **`merge: true` merges nested maps key by
+  key** — modelling it as a wholesale replace made the old build look worse than
+  it is and would have misdescribed the very record this round is about.
+
+* ⚠️ **A TRAP IN THE RUNNER, RECORDED IN ITS HEADER (`run-all-tests.mjs`
+  v1.13.0).** It marks a harness bad on
+  `status !== 0 || /FAIL|UNSAFE|\bERROR\b/.test(out)` — **a text match over
+  everything the harness printed.** A harness exiting 0 and printing
+  *"PASS — 31 passing, 0 failing"* is still reported **FAIL** if a section header
+  contains the word. **Do not loosen the detector** — a harness that reports its
+  own failures in prose and exits 0 is exactly what it exists to catch. The rule
+  belongs on the other side: a harness must not print those words except on a
+  real failure.
+
+* ✅ **JAKE AMENDED A SETTLED RULING.** *"Bulk repairing scores is fine — change
+  the ruling to minutes so it doesn't bite us later."* ROADMAP's *"historical data
+  is good enough, no bulk repair of past days"* was written without a noun and had
+  come to read as a ban on repairing anything. It is now scoped to **minutes**;
+  grades and run scores are a pure function of data still on the record and are
+  out of scope.
+
+* ⭐⭐ **ROADMAP ITEM 15 IS NOW THE NEXT BUILD** and has absorbed Jake's
+  reconstruction button. ⚠️ **It cannot run off `typing_logs`** — a day
+  aggregate with no lesson and no per-run WPM. `typing_sessions.sprints[]`
+  carries `label` (lesson), `detail` ("run N"), `wpm`, `accuracy` and `mistakes`,
+  and `calculateGrade()` needs nothing else. Three constraints in that item are
+  not optional; the run-index one can grade the wrong material silently.
+
+* ⚠️ **ROADMAP item 11 was diagnosed and NOT fixed** — HANDOFF §6 item 9 now
+  names both direct writers (`lessons-admin.js:1129` and `:1776` write `classId`
+  and never `schoolId`, while `learn.js`'s import path writes both and says why)
+  and the 24-hour goals cache behind the *"No class assigned"* display.
+
+* ⚠️ **ROADMAP §10.H — the measurement — is still not built.** Fourth round.
+
+**48 harnesses, all passing.**
+
+---
+
 ## Round 30 — Postal (2026-08-23) — THE DEPLOY INSTRUMENT CACHED ITS OWN ANSWER
 
 Jake, after uploading two files and being unable to confirm it: *"Force
@@ -4578,6 +4672,20 @@ Each block below is exactly what stood in the file header, newest first.
 //           eating a keystroke the child should have been credited for. Mouse
 //           only. ⚠️ NO TIMING MECHANISM TOUCHED; this files the open run and
 //           takes the flush that every other exit path already takes.
+```
+
+### § learn.js — archived header entries (Round 31)
+
+```
+// v2.27.1 — ⚠️ STAMP ONLY, NO BEHAVIOUR. `const LEARN_VERSION` still read
+//           "2.23.1" after v2.23.2, v2.24.0, v2.25.0, v2.26.0 and v2.27.0 all
+//           shipped — the School half of game.js v3.42.1, same defect, same
+//           evening, which makes the version stamp the FIFTH hand-maintained
+//           twin to fail in one day (HANDOFF §0.-13.E counted four).
+//           ⚠️ ROADMAP told Jake to check the footer for v2.23.2 on Monday. A
+//           correctly deployed build was going to answer "2.23.1" — one patch
+//           BELOW the stale-day fix, i.e. exactly the reading that means "the
+//           fix is not running". See HANDOFF §0.-14.
 ```
 
 ### § admin.js — archived header entries

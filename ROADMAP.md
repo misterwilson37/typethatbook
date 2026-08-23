@@ -1,5 +1,21 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.22.0, 2026-08-23.** ✅ **ITEM 14b IS FIXED** — Round 31 (Fitch),
+`learn.js` v2.33.1. ⚠⚠️ **AND THE MECHANISM 14b NAMED WAS WRONG IN A WAY THAT
+WOULD HAVE PRODUCED A FIX THAT CHANGED NOTHING**: `flushLessonProgress()` was
+being called all along, on the interval and on every hide. What lost the run was
+`stopLesson()`'s `loadUserProgress()`, which opens by EMPTYING `userProgress` —
+so the flush wrote back the record it had just re-read, **successfully, every
+time**. A flush appended to the end of `stopLesson()` would have read as a
+correct fix and written the same stale record. **THE ORDER IS THE FIX.** Read
+item 14b. ⭐⭐ **ITEM 15 IS NOW THE NEXT BUILD** and has absorbed Jake's
+reconstruction button: `typing_sessions.sprints[]` carries lesson, run index,
+wpm, accuracy and mistakes, so every lost run is recomputable — ⚠️ but it
+**cannot** run off `typing_logs` (a day aggregate with no lesson and no per-run
+WPM), and three constraints in that item are not optional.
+✅ **THE "NO BULK REPAIR" RULING IS AMENDED TO MINUTES** on Jake's instruction;
+see *Settled*. **48 harnesses, all passing.**
+
 **v3.21.0, 2026-08-23.** ⭐⭐ **EIGHT NEW ITEMS (11–18) FROM JAKE'S FIRST REAL TEST
 OF THE LESSON GATE.** ⚠️ **ITEM 13 IS THE ONE TO READ FIRST AND ITS FIRST STEP IS
 A READ, NOT AN EDIT** — the gate did not fire, and the evidence in Jake's own
@@ -1068,20 +1084,52 @@ measuring a quantity the screen never displays.
 
 ---
 
-## 14b. ⚠️⚠️ NEW, AND IT BLOCKS ITEM 14 — RUN OUTCOMES ARE LOST ON "BACK TO MAP"
+## 14b. ✅ FIXED (Round 31, Fitch) — RUN OUTCOMES WERE LOST ON "BACK TO MAP"
 
 **Jake, 2026-08-23:** *"I finished every single run. I finished the run, got a
 grade, and then clicked back to map. Could the back to map not count as
 finishing? It counted the time and everything."*
 
-### ✅ CONFIRMED IN THE CODE. HE IS EXACTLY RIGHT.
+### ✅ CONFIRMED, AND HE WAS EXACTLY RIGHT ABOUT THE SYMPTOM
 
-`recordRunOutcome()` does not write to Firestore. It updates `userProgress` in
+### ⚠⚠️ BUT THE MECHANISM BELOW WAS WRONG, AND THE CORRECTION IS THE USEFUL PART
+
+**Shipped in `learn.js` v2.33.1.** `exitLessonToMap()` flushes, refreshes the
+progress cache, then reloads — and carries anything unflushed across.
+`tests/exit-flush-test.mjs`, 31 checks, 18 failing against v2.33.0.
+
+⚠️ **THE DIAGNOSIS IN THE STRUCK-THROUGH TEXT BELOW WAS WRONG IN A WAY THAT
+WOULD HAVE PRODUCED A FIX THAT CHANGED NOTHING.** `flushLessonProgress()` does
+not have one caller in the session-end path: the call sits inside
+`flushStats()`, which also runs on the five-minute interval and on every hide.
+**A write WAS scheduled and DID fire.** What lost the run is the next line in
+`stopLesson()` — `loadUserProgress()`, which opens by *emptying* `userProgress`.
+The in-memory outcomes died before the scheduled flush read them, and because
+`pendingProgress` still named the lesson, the flush then wrote the freshly
+RELOADED record back. ⚠️ **THE WRITE SUCCEEDED EVERY TIME.** It returned true,
+cost a billed write and stored the numbers it had just read.
+
+⚠️ **SO "ADD A FLUSH TO `stopLesson()`" — THE OBVIOUS READING OF THE OLD ITEM —
+IS A FIX ONLY IF IT LANDS *BEFORE* THE RELOAD.** Written after it, as anyone
+appending a line to the end of a function would, it writes the same stale record
+and every test that only asks "is the flush called?" goes green.
+`exit-flush-test.mjs` Part D asserts the ORDER for that reason.
+
+⚠️ **AND IT EXPLAINS THE PARTIAL SURVIVAL.** `saveStats()` fires
+`learnWalSave()` before the wipe, so the WAL holds the good record briefly; the
+next `saveStats()` after the reload overwrites it with the stale one. Only runs
+whose interval flush beat the wipe landed — which is why the loss had no pattern
+Jake could report, and why the record read four of twelve rather than zero.
+
+✅ **"NEXT LESSON →" WAS NEVER AFFECTED.** It calls `startLesson()`, which does
+not reload progress. Only "← Map" lost work — Jake named the losing path exactly.
+
+~~`recordRunOutcome()` does not write to Firestore. It updates `userProgress` in
 memory, adds the lesson to `pendingProgress`, and calls `learnWalSave()`. The
 Firestore write happens in **`flushLessonProgress()`** — and that function has
-**exactly one caller**, at learn.js:4778, in the session-end path.
+**exactly one caller**, at learn.js:4778, in the session-end path.~~
 
-⚠️ **`stopLesson()` DOES NOT CALL IT.** It calls `saveStats()` and
+~~⚠️ **`stopLesson()` DOES NOT CALL IT.**~~ It calls `saveStats()` and
 `persistGuestAccum()` and returns. So leaving a lesson for the map banks the
 **time** and drops the **run outcome**.
 
@@ -1125,7 +1173,7 @@ gate just had, one layer down.** Fix this first, then build item 14 on it.
 
 ---
 
-## 15. ⭐ NEW — STORE THE GRADE ON THE LOG RECORD, AND BACKFILL IT ONCE
+## 15. ⭐⭐ STORE THE GRADE, AND RECONSTRUCT THE ONES 14b LOST — **NEXT BUILD**
 
 **Jake:** *"Would it be possible without costing significantly more to record
 grades for class alongside the other stats? ... It also feels like something we
@@ -1150,6 +1198,53 @@ progress count, not a side effect of opening reports. Writes are cheap here (ite
 Reports would then show a fireball count per student, which is what Jake wanted
 when he noticed the report *"didn't share the grades (where I could have counted
 the number of flaming A's)."*
+
+### ⚠⚠️ IT CANNOT RUN OFF `typing_logs`, AND THAT CHANGES THE BUILD
+
+**Verified in the code, Round 31.** `typing_logs/{uid}_{date}` holds `uid`,
+`email`, `displayName`, `seconds`, `chars`, `mistakes`, `source`, `classId`,
+`schoolId`, `date`, `lastUpdated` — **a DAY AGGREGATE. No lesson, no run, no
+per-run WPM.** A grade cannot be derived from it at all; averaging a day of
+typing into one WPM and grading that would produce a number no run ever earned.
+
+✅ **`typing_sessions` HAS EVERYTHING.** `learn.js logRun()` pushes, and
+`session-log.js` flushes verbatim into `sprints[]`, one record per run:
+
+    label ("u1_l1")   detail ("run 2")   wpm   accuracy   chars   mistakes   seconds   date
+
+✅ **AND `calculateGrade(wpm, acc, minWPM, minAcc, clean)` NEEDS NOTHING ELSE** —
+`clean` is `mistakes === 0`, which is on the record.
+
+### ⭐ JAKE'S BUTTON, 2026-08-23 — AND IT IS THE SAME BUILD AS THIS ITEM
+
+> *"I wonder if we can clean up the 'didn't save score on run' issue via a button
+> that looks at the lesson in the report and figures out the score based on
+> lesson, speed, and accuracy."*
+
+✅ **YES.** `typing_sessions` is a SECOND, INDEPENDENT WITNESS to the runs
+`lessonProgress` dropped — Nico's morning shows ten sprints against a record
+holding four. Item 14b stops the bleeding forward; this recovers what is already
+gone, and the two together are what make item 14 gradeable on real history.
+✅ **The "no bulk repair" ruling does not block it** — amended to minutes on
+Jake's instruction; see *Settled*.
+
+⚠️ **THREE THINGS THE BUILDER MUST NOT SKIP.**
+1. ⚠️ **MERGE CONTINUATIONS BEFORE GRADING.** An interrupted run writes several
+   sprints and `logRun()` RECOMPUTES wpm/accuracy for each FRAGMENT (the
+   `continuation: true` branch). Grading fragments individually would invent
+   grades — the `(left page)` and `(hidden)` rows at 0 WPM in Jake's own
+   screenshot are what that looks like. Group by `(date, label, detail)` and
+   grade the union.
+2. ⚠️ **THE GATES ARE NOT ON THE RECORD.** Whether run *N* is speed-graded comes
+   from `gatesForRun()` — the lesson's gates and the run's TYPE, out of the
+   lesson definition. So it is `lesson × run index → gates → grade`, and it
+   inherits the hazard `runCount`'s own comment names: **editing a lesson
+   re-chunks it and shifts every run index.** A reconstruction that reads
+   today's definition against a two-week-old sprint can grade the wrong
+   material. Refuse the lesson when `runCount` disagrees rather than guessing.
+3. ⚠️ **`typing_sessions` HAS A 120-DAY TTL.** This repairs the current
+   trimester, not the archive, and it is not a mechanism anyone should plan to
+   re-run annually.
 
 ---
 
@@ -1730,7 +1825,17 @@ the measurement is cheaper.
   students who can already type; School is for students who cannot.
 - **Time is a valid basis for a grade.** The job is to make the minutes
   legitimate, not to stop counting them.
-- **Historical data is good enough.** No bulk repair of past days.
+- ⚠️ **HISTORICAL *MINUTES* ARE GOOD ENOUGH. NO BULK REPAIR OF PAST DAYS' TIME.**
+  **Amended by Jake, 2026-08-23:** *"Bulk repairing scores is fine — change the
+  ruling to minutes so it doesn't bite us later."* ⚠️ **THE RULING WAS ALWAYS
+  ABOUT THE CLOCK AND IT WAS WRITTEN WITHOUT A NOUN**, which is how it came to
+  read as a ban on repairing anything. It bans re-deriving a day's `seconds`
+  after the fact, and it bans it because the inputs to that number expire, are
+  clamped, and were never the whole story — a repaired day total is a guess
+  wearing the same font as a measurement. **GRADES AND RUN SCORES ARE NOT IN
+  SCOPE**: they are a pure function of data that is still on the record
+  (`lesson × wpm × accuracy × clean`), so recomputing one is a *calculation*,
+  not a reconstruction, and it can be re-run and checked. See item 15.
 - **§3.1's fix is per-source fields**, date-gated at 2026-08-22, shipped in Round
   22. Per-source document ids are denied by the deployed rules. Do not revive.
 - **The flat `seconds` triple is frozen after the cutover** and is never written

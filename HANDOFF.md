@@ -1,7 +1,54 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.17.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     through Round 30; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+<!-- HANDOFF.md v15.18.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     through Round 31; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.18.0 — Round 31 (Fitch). ✅ ROADMAP 14b IS FIXED — §0.-23 is the
+     write-up — ⚠️⚠️ AND THE ITEM'S OWN DIAGNOSIS WAS WRONG IN A WAY THAT WOULD
+     HAVE PRODUCED A FIX THAT CHANGED NOTHING. 14b said flushLessonProgress()
+     has one caller in the session-end path and stopLesson() never calls it.
+     THE FLUSH WAS BEING CALLED ALL ALONG — line 4778 is inside flushStats(),
+     which runs on the 5-minute interval and on every hide. What lost the run is
+     stopLesson()'s loadUserProgress(), whose FIRST STATEMENT is
+     `userProgress = {}`: the outcomes died before the scheduled flush read
+     them, while pendingProgress still named the lesson — so the flush found the
+     RELOADED record under that id and wrote THAT back.
+     ⚠️⚠️ THE WRITE SUCCEEDED. It returned true, cost a billed write, cleared
+     the queue and stored the numbers it had just read. THERE IS NO ERROR PATH
+     HERE AND THERE NEVER WAS ONE, which is why a suite that has been green all
+     week never saw it. ⚠️ SO "await flushLessonProgress() in stopLesson()" —
+     the obvious reading of 14b — IS A FIX ONLY IF IT LANDS BEFORE THE RELOAD;
+     appended to the end of the function it writes the same stale document and
+     every test that asks "is the flush called?" goes green. THE ORDER IS THE
+     FIX, and exit-flush-test.mjs Part D asserts the order rather than the call.
+     ⚠️ §0.-23.C is why the loss looked RANDOM (the WAL holds the good record
+     for a window, so only runs whose interval flush fired inside it landed —
+     Jake's {0:1, 1:2} out of a dozen, not zero, which someone would have
+     reported). ✅ "Next Lesson →" was never affected; only "← Map" lost work,
+     and Jake named that path precisely. ⚠️ §0.-23.D: the harness had to
+     REPRODUCE the defect before it could prove the fix, and two modelling
+     details were load-bearing — the page state must be real BINDINGS (the
+     defect IS a reassignment), and `merge: true` merges nested maps KEY BY KEY,
+     which is precisely why {0:1, 1:2} survived at all.
+     ⚠️ §0.-23.E is a trap in the runner: it marks a harness bad on a TEXT
+     match for FAIL/UNSAFE/ERROR anywhere in its output, so a harness printing
+     "PASS — 31 passing, 0 failing" is still reported FAIL if a section header
+     contains the word. DO NOT LOOSEN IT; the rule is that a harness must not
+     print those words except on a real failure, and it is now in the runner's
+     header. ⭐⭐ ROADMAP ITEM 15 IS THE NEXT BUILD and has absorbed Jake's
+     reconstruction button — typing_sessions.sprints[] carries lesson, run
+     index, wpm, accuracy and mistakes, so a lost run is recomputable, ⚠️ BUT
+     IT CANNOT RUN OFF typing_logs (a DAY AGGREGATE with no lesson and no
+     per-run WPM) and the item's three constraints are not optional — the
+     run-index one can grade the wrong material silently. ✅ THE "NO BULK
+     REPAIR" RULING IS AMENDED TO MINUTES on Jake's instruction.
+     ⚠️ ROADMAP §10.H — THE MEASUREMENT — IS STILL NOT BUILT, fourth round.
+     ⚠️ ITEM 11 IS DIAGNOSED AND NOT FIXED: §6 item 12 now names BOTH direct
+     writers (lessons-admin.js:1129 and :1776 write classId and never schoolId,
+     while learn.js's import path writes both and says why) and the 24-hour
+     goals cache that keeps Settings saying "No class assigned" after a correct
+     assignment.
+     learn.js v2.33.1. 48 harnesses, all passing.
 
      v15.17.0 — Round 30 (Postal). ⚠️⚠️ §0.-22 — THE BUILD PANEL ANSWERED FROM A
      COPY IT TOOK AT PAGE LOAD. Its cache lived in sessionStorage, which SURVIVES
@@ -309,58 +356,10 @@
      style.css did not know it was making, §0.-11.G CONFIRMS THE CSV ROLLOVER EXISTS. 39 harnesses. 38/38 harnesses, 53 checks in
      daylog-cutover-test.mjs.
 
-     v15.1.0 — Round 24 (Monotype). ⚠️⚠️ §0.-10 IS THE WRITE-UP AND IT OPENS
-     WITH A RETRACTION. ROADMAP item 1 and §0.-9.F both recorded records as
-     MISSING that were merely LATE: Jake re-generated the same day thirty
-     minutes on and found the 12:57 PM Library sprint present in the drill-down
-     and the day's log up from 11m 40s to 12m 40s. A report generated minutes
-     after a period is not yet the record, and this project has built work on
-     one at least twice. The round's own fix is THE EVENING GUEST:
-     sessionLogAdopt() recomputed each record's date from at.slice(0,10) — UTC —
-     discarding the local date the caller had already stamped, so a child typing
-     Library at home after 7:00 PM Central had their clock land on today and
-     their sprint record on tomorrow. Invisible during school hours by
-     construction. Also: Cmd+R was eaten in School (and typed as an `r`), and
-     the (Logout) button was styled invisible TWICE, in two stylesheets. ⚠️ AND
-     THEN JAKE RULED ON THE OVERNIGHT RESCUE and it shipped: a child who typed
-     as a guest and did not sign in until the next day now has those minutes
-     credited TO THE DAY THEY TYPED THEM, in BOTH modes. See §0.-10.G.
-     ⚠️⚠️ AND ROADMAP ITEM 3 IS DELETED AS A PHANTOM — §0.-10.J. It described an
-     orphan `typing_logs/{anonUid}` document written for guests in School,
-     "because a guest is signed in anonymously." `signInAnonymously` APPEARS
-     NOWHERE IN THIS REPO. Two rounds carried it; one grep ended it.
-     ⚠️⚠️ AND ROADMAP ITEM 6 IS CONFIRMED AND FIXED FOR LIBRARY — §0.-10.L. A
-     sprint crossing midnight was split correctly by the day counters and filed
-     WHOLE by the session record under the day it ended on: the observed 4m 9s
-     rollup beside a 0m 6s daily log, explained. 38/38 harnesses.
+     ⚠️ ROUNDS 23 AND 24 SUMMARISED HERE UNTIL NOW; their write-ups are
+     §0.-9 and §0.-10 in this file and are unchanged. -->
 
-     ⚠️⚠️ v15.0.0 IS A MAJOR AND JAKE SIGNED IT OFF ("Feel free to do a clean up
-     of Handoff while you're at it. Clean out anything unnecessary that you no
-     longer need."). THE ROUND NARRATIVES FOR ROUNDS 15–20 ARE NOW IN
-     docs/archive/HANDOFF-ARCHIVE.md. This file went 237 KB → 112 KB, which was
-     ROADMAP item 7: past 200 KB nobody reads it, and that is how a blocker sat
-     unread in the repo for a full session. ⚠️ THE ARCHIVE IS READ-ONLY HISTORY,
-     NOT A SECOND HANDOFF — §0 rules 1 and 2 are unchanged, and every live
-     conclusion was lifted into this file's own text BEFORE the split. If you
-     need the archive to do your job, that is a bug HERE. Fix it here.
-
-     v15.0.0 — Round 23 (Empire). ⚠️⚠️ §0.-9 IS THE WRITE-UP AND IT IS A STUDENT
-     WRITE-PATH ROUND. THE GUEST MINUTE: a child who types before signing in had
-     their time merged in School and ERASED in Library, proven on Jake's own
-     numbers (7:27 + 1:04 = 8:31 in School; 7:27 + 1:11 = 8:31 in Library — the
-     same figure, the minute gone). game.js had NO guest merge on the auth path
-     while learn.js did; the merge existed in game.js TWICE, inline, in two modal
-     paths, so which of three sign-in buttons a child pressed decided whether
-     their minutes survived. One function now, called by all three, BEFORE
-     loadUserStats(). A guest's sprints are queued and adopted rather than
-     dropped, so the minutes reach the RECORD as well as the total.
-     ⚠️ THE RECONCILE IS DELETED on Jake's confirmed boundary (~830 lines), and
-     the real production session documents were LIFTED FIRST into
-     tests/real-sessions-fixture.mjs. ⚠️ A CROSS-ACCOUNT QUEUE THEORY WAS RAISED
-     AND KILLED BY JAKE — see §0.-9.E, which is the most useful part of this
-     section for a future instance. 35/35 harnesses. -->
-
-**Round 30 — Postal.** Predecessors: Odell (29) · Daugherty (28) · Chicago (27) · Elliott-Fisher (26) · Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
+**Round 31 — Fitch.** Predecessors: Postal (30) · Odell (29) · Daugherty (28) · Chicago (27) · Elliott-Fisher (26) · Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
 Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
 Sholes (14) · Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) ·
 Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) ·
@@ -370,6 +369,19 @@ Blick (3) · Dvorak (2) · Underwood (1).
 by different companies and both are now on the list; a future round reading the
 list quickly will see two similar words and must not conclude one is a typo for
 the other. **Check the list, and read the whole word.**
+
+> *On the name:* the **Fitch** (1886) was one of the first **visible-writing**
+> machines — on the up-strike typewriters that dominated the decade the paper sat
+> face-down against the platen, so a typist could not see the line they were
+> typing until they lifted the carriage to look. **The words were being recorded
+> correctly the whole time and nobody could see them.** That is this round and
+> most of the list it came from: a run outcome that was recorded, written and
+> then quietly overwritten by a successful write; a class assignment that landed
+> in the database while Settings said "No class assigned"; a mastery score no
+> student can see; a build panel answering from before the deploy. ⚠️ **The
+> machine's warning is the round's too** — visible writing did not make the Fitch
+> good, and it lost to machines that hid the line but hit the paper reliably.
+> **Being able to see the number is not the same as the number being right.**
 
 > *On the name:* the **Postal** (1902) was a cheap index typewriter sold by mail
 > order — you posted a coupon and waited. ⚠️ **The whole idea of it is a message
@@ -541,6 +553,134 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-23. ⚠️⚠️ ROUND 31 (Fitch) — THE WRITE SUCCEEDED AND STORED THE WRONG THING
+
+**2026-08-23.** ROADMAP 14b. Jake:
+
+> *"I finished every single run. I finished the run, got a grade, and then
+> clicked back to map. Could the back to map not count as finishing? It counted
+> the time and everything."*
+
+He was right about the symptom and the item was wrong about the cause, and the
+difference is the whole round.
+
+### A. ⚠️⚠️ THE ITEM SAID "THE FLUSH IS NEVER CALLED." THE FLUSH WAS CALLED.
+
+14b's diagnosis: `flushLessonProgress()` has *"exactly one caller, at
+learn.js:4778, in the session-end path"*, and `stopLesson()` does not call it.
+**The line at 4778 is inside `flushStats()`**, which runs on the five-minute
+interval and on every `visibilitychange` — not only at session end. A write was
+scheduled after every single run, and it fired.
+
+What lost the run is the line `stopLesson()` ended with:
+
+```js
+    loadUserProgress().then(() => { renderMap(); showView('map'); });
+```
+
+and the first statement inside `loadUserProgress()`:
+
+```js
+    userProgress = {};          // ⚠️ the run outcomes, gone
+```
+
+The outcomes recorded in memory were destroyed before the scheduled flush read
+them — while `pendingProgress` **still named the lesson**. So the flush looked
+the id up, found the record `loadUserProgress()` had just re-installed from the
+cache, and wrote *that* back.
+
+⚠️⚠️ **THE WRITE SUCCEEDED. It returned `true`, cost a billed write, cleared
+the queue and stored the numbers it had just read.** There is no error path here
+and there never was one — which is why this survived every round, every audit and
+a suite that has been green for a week. **A failed write leaves a trace. A write
+that succeeds with stale input leaves a correct-looking document.**
+
+### B. ⚠️ THE FIX IS AN ORDER, AND THE OBVIOUS FIX WOULD HAVE CHANGED NOTHING
+
+The natural reading of 14b — *"`stopLesson()` should `await
+flushLessonProgress()` alongside `saveStats()`"* — is only a fix if it lands
+**before** the reload. Appended to the end of the function, where anyone adding
+a line would put it, it flushes the record `loadUserProgress()` just installed:
+same stale document, same successful write, and **every test that asks "is the
+flush called?" goes green.**
+
+`exitLessonToMap()` (learn.js v2.33.1) does three things in this order and the
+order is the entire feature:
+
+1. **snapshot** what is pending, before anything can replace it;
+2. **flush**, then `refreshProgressCache()` — ⚠️ not tidiness:
+   `loadUserProgress()` prefers `PROGRESS_CACHE_KEY` over Firestore, so an
+   unrefreshed cache re-installs the pre-run copy and the map under-reports the
+   attempt it just banked;
+3. **reload**, then carry anything that did not land back over the top — an
+   offline Chromebook must not have its unflushed runs replaced by the server.
+
+`tests/exit-flush-test.mjs` **Part D asserts the ORDER**, not the call.
+
+### C. WHY THE LOSS LOOKED RANDOM, WHICH IS WHY NOBODY REPORTED IT AS A BUG
+
+`saveStats()` fires `learnWalSave()` **before** the wipe, so the WAL holds the
+good record for a window; the next `saveStats()` after the reload overwrites it
+with the stale one. Only the runs whose interval flush happened to fire inside
+that window landed. That is Jake's `runAttempts {0:1, 1:2}` against a dozen
+completed runs — **not zero, which someone would have noticed, but a plausible
+minority.** The harness models the interval at one run in four and reproduces the
+shape exactly (two of twelve, three successful writes).
+
+✅ **AND "NEXT LESSON →" WAS NEVER AFFECTED** — it calls `startLesson()`, which
+does not reload progress, so the in-memory record survives. **Only "← Map" lost
+work, and Jake named that path precisely.** Invariant 86 again: take his
+description literally.
+
+### D. ⚠️ THE HARNESS HAD TO REPRODUCE THE DEFECT BEFORE IT COULD PROVE THE FIX
+
+`exit-flush-test.mjs` Part A drives the model through the **old** exit and
+asserts it still LOSES runs. It passes on both builds by construction, and it is
+the only evidence that Parts B–F are measuring anything at all. ⚠️ **If A2 ever
+reads twelve, the model has gone insensitive and the green below it is worthless.**
+Two modelling details were load-bearing and both were wrong on the first attempt:
+
+* **The page's state must be real bindings, not a snapshot object.** The defect
+  IS a reassignment of `userProgress`; handing the extracted functions a copy
+  made the wipe invisible and the harness passed against a broken build.
+* ⚠️ **`merge: true` merges nested maps KEY BY KEY.** Modelling it as a
+  wholesale replace made the old build look worse than it is (one run surviving
+  instead of two) and would have misdescribed the very record this round is
+  about — `{0:1, 1:2}` survived *because* Firestore preserved the untouched key.
+
+### E. ⚠️ A TRAP IN THE RUNNER, WORTH TEN MINUTES TO ANYONE WHO HITS IT
+
+`run-all-tests.mjs` marks a harness bad on
+`r.status !== 0 || /FAIL|UNSAFE|\bERROR\b/.test(out)` — **a text match over
+everything the harness printed.** A harness that exits 0 and prints
+`PASS — 31 passing, 0 failing` is still reported **FAIL** if any line it printed
+contains the word. Mine did: a section header reading *"C. A FAILED FLUSH MUST
+NOT LOSE THE BUFFER."*
+
+⚠️ **DO NOT LOOSEN THE DETECTOR** — a harness that reports its own failures in
+prose and exits 0 is exactly what it exists to catch. The rule belongs on the
+other side and is now in the runner's header: **a harness must not print FAIL,
+ERROR or UNSAFE except when something actually failed.** Recorded because it is
+one more instrument that can only be wrong in the direction of a false red, and
+§0.-20.B is what a standing false red does to the alarms beside it.
+
+### F. WHAT WAS NOT DONE
+
+* ⚠️ **ROADMAP §10.H — THE MEASUREMENT — IS STILL NOT BUILT.** Fourth round
+  running. It was jumped again, this time because 14b blocks item 14 outright.
+* **Nothing was reconstructed.** This stops the bleeding forward; the runs
+  already lost are ROADMAP item 15, which is now the next build and which
+  absorbed Jake's reconstruction button. `typing_sessions.sprints[]` is the
+  source — **not `typing_logs`**, which is a day aggregate with no lesson and no
+  per-run WPM. Three constraints in that item are not optional; the run-index
+  one can grade the wrong material silently.
+* **Item 14 is still unbuilt** and is now unblocked.
+* **Item 11 was diagnosed and not fixed** — see §6 item 12, which now names both
+  writers and the cache. It is small and it is poisoning the class stamp on
+  every log written between an assignment and a cache expiry.
 
 ---
 
@@ -3367,7 +3507,7 @@ browsable user directory, by design. `users/{uid}` deliberately holds no PII, wh
 
 ## §2. Where the code is
 
-Shipped state after **Round 30, 2026-08-23**. **Verified by running
+Shipped state after **Round 31, 2026-08-23**. **Verified by running
 `npm run audit:versions`, not copied from the previous table.** (Round 28 ran it;
 0 problems.)
 
@@ -3416,7 +3556,7 @@ reads.
 | file | version |
 |---|---|
 | `game.js` | **3.45.0** — Round 30: the build panel's own staleness flag is gone. Round 29's active-day counter stands. §0.-22.C, §0.-21.B |
-| `learn.js` | **2.33.0** — ⭐⭐ Round 29's lesson-farming gate, plus Round 30's panel fix. §0.-21, §0.-22.C |
+| `learn.js` | **2.33.1** — ⚠️⚠️ Round 31: `exitLessonToMap()` — leaving a lesson flushes the RUN, not just the time, and the FLUSH COMES BEFORE THE RELOAD THAT EMPTIES `userProgress`. §0.-23. Round 29's gate and Round 30's panel fix stand |
 | `session-log.js` | **1.6.0** — PER-OWNER queue + `GUEST_QUEUE_UID`. ⚠️ UPLOAD THIS FIRST — both pages import from it. Its TWO pins are checked by version-stamp-test.mjs C |
 | `hud.js` | **2.0.0** — ⚠️⚠️ MAJOR, JAKE SIGNED IT OFF. The v1.3.0 return-shape break recorded as the major it was. §0.-15. ⚠️ UPLOAD BEFORE THE TWO WRITERS |
 | `variety-floor.js` | 1.0.0 |
@@ -4290,8 +4430,26 @@ at the next consolidation **without changing the number**.
    auth-token claims while rules v2.x reads `staff/{uid}` documents. Needs a CLI and an emulator,
    which Jake does not have. Its guest-boundary assertions are the only automated statement of
    where that boundary is.
-9. **`_bulkAssign()` writes `classId` but not `schoolId`.** Fine within one building; do not use it
-   for a cross-building move.
+9. ⚠️⚠️ **ASSIGNING A CLASS FROM ADMIN WRITES `classId` AND NEVER `schoolId`, AND IT IS NOT
+   "FINE WITHIN ONE BUILDING" — THIS ENTRY SAID SO FOR THREE ROUNDS AND WAS WRONG.** Confirmed by
+   reading in Round 31, and it is ROADMAP item 11. **There are TWO direct writers**, not one:
+   `lessons-admin.js:1129` (single student) and `:1776` (`_bulkAssign()`), and both write
+   `{ classId }` alone. `schoolId` is then **ABSENT, not empty** — Jake's console read of
+   `users/{nico}` shows no such field — so a student is in a class that belongs to a school they
+   are not in, visible under *All schools* and **invisible under their own**. ⚠️ **THE CORRECT
+   PATH ALREADY EXISTS AND IS THE OTHER ONE**: `learn.js applyPendingClassAssignment()` writes
+   `{ classId, schoolId }` together and its comment says exactly why (*"a student with a class but
+   no building is invisible to their own teacher"*). Two writers, one right. **The fix is probably
+   to route the admin assign through the pending record rather than to add a third writer.**
+   ⚠️ **AND THE DISPLAY HALF IS A SECOND, SEPARATE BUG** (ROADMAP item 11, Bug B): Settings kept
+   saying *"No class assigned"* after a correct assignment because `loadGoals()` caches class info
+   in `ttb_goalsCache_v1` for **24 hours**, and its hit-guard only rejects an entry that has a
+   `classId` with no `className` — `''` is falsy, so an *unassigned* entry sails through as a hit.
+   The import path clears that key deliberately (see its v2.2.4 note); **a direct admin write has
+   no way to reach a cache on the student's Chromebook.** ⚠️ Every log flushed inside that window
+   is stamped `classId: ''`, so the student's first day is missing from every class-filtered
+   report. **Fixing the writer will not fix the display, and fixing the display will not fix the
+   stamp.**
 10. **`_onClassesChanged()` is probably vestigial** — it exists to refresh a custom-claims token,
     and claims were removed. **Not investigated. Check `admin.js`'s hook before deleting.**
 11. **No word or character count exists anywhere in the book schema**, so library "Length" sorts by
@@ -4365,6 +4523,7 @@ a pointer to a file you should go and read.**
 | 20 | Corona | Folded its own predecessor's conclusion: §0.0's evidence was sound, its arrow was wrong. The interval UNION vs the deduped SUM. Found the THIRD divergence — a `WHERE` clause, so a log stamped `classId:''` was visible to the child and invisible to every class query. Reproduced §3.1 at last. |
 | 21 | Hammond II | Test tooling only, nothing student-facing. The registration audit (an unregistered harness now FAILS the suite). `tab-lifetime-test.mjs`. ⚠️ RAN THE RULES EMULATOR that four rounds recorded as impossible, and found the per-source DOCUMENT design DENIED by the deployed rules. Recorded Jake's four standing rulings in §0.-7.A so they stop being relitigated. |
 | 23 | Empire | ⚠️ THE GUEST MINUTE: a child who typed before signing in kept their time in School and lost it in Library, because `game.js` had no guest merge on the auth path while `learn.js` did — and `game.js`'s two INLINE copies meant which of three sign-in buttons they pressed decided the outcome. One function now, before `loadUserStats()`, with the sprints adopted so the minutes reach the record. `learn.js` stopped filing guest runs under the throwaway anonymous uid, and its logout reloads instead of leaving the last student's totals on screen. The reconcile and rebuild-all DELETED on Jake's confirmed boundary (~830 lines), with the real production session documents lifted into `real-sessions-fixture.mjs` first. `session-log.js` made per-owner. ⚠️ Also spent most of its length on a cross-account queue theory that Jake killed with a fact already written in `stats-wal.js`'s header — see §0.-9.E, which is the part worth reading. HANDOFF.md split at 237 KB; Rounds 15–20 to `docs/archive/`. |
+| 31 | Fitch | ⚠️⚠️ ROADMAP 14b — **THE WRITE SUCCEEDED AND STORED THE WRONG THING.** Leaving a lesson for the map banked the time and dropped the run, and the item's own diagnosis was wrong: `flushLessonProgress()` was being called all along (inside `flushStats()`, on the interval and on every hide). What lost the run was `stopLesson()`'s `loadUserProgress()`, whose first statement empties `userProgress` — so the flush wrote back the record it had just re-read, successfully, every time, with no error path anywhere. ⚠️ A flush appended to the END of `stopLesson()` would have read as a correct fix and changed nothing: **the order is the fix.** `exitLessonToMap()` snapshots, flushes, refreshes the progress cache, reloads, and carries unflushed runs across. `exit-flush-test.mjs` (31 checks, 18 failing against v2.33.0) reproduces the loss through the old exit in Part A before proving anything else. ⚠️ Also: the runner marks a harness bad on a TEXT match for FAIL/ERROR/UNSAFE in its output, so a clean harness can be reported red by a section header — rule recorded in the runner rather than the detector loosened. ✅ Jake amended the "no bulk repair" ruling to MINUTES. learn.js v2.33.1, 48 harnesses. |
 | 27 | Chicago | ⚠️ **THE SUITE WAS RED ON DELIVERY AND FIVE FILES WERE LYING ABOUT THEIR OWN VERSION** — `game.js` 3.38.0/3.42.0, `learn.js` 2.23.1/2.27.0, `hud.js` 1.2.0/1.4.0 across a breaking change, plus both stylesheets' CSS stamps. The code was new; only the stamps were stale. ⚠️ Aimed squarely at Monday: ROADMAP told Jake to check the footer for the very numbers a correct deploy would fail to show. ⚠️ The hud.js pin could not fire — a pin inherits the honesty of the hand-maintained number it checks. `tests/version-stamp-test.mjs` moves the existing `audit:versions` check inside `npm test`, failing on lying stamps and NOTING header budgets. `hud-test.mjs` rewritten for `{ lead, sprint }`. No behaviour changed. Item 0b deliberately not started. |
 | 26 | Elliott-Fisher | ⚠️ THE STALE DAY CARRIED FORWARD — a tab left open overnight re-posted yesterday's entire day total to today's `typing_logs`, exact to the second and the character, because `mergeGuestStats()` guarded the server side of `live - base` and never the live side. Then the two-row top bar across all four surfaces, the landing readout, the celebration latch, `celebrate.js`, and "I'm done" (`receipt.js`). ⚠️ Four hand-maintained twins failed in one day — §0.-13.E. ⚠️ And it left five version stamps stale, which Round 27 found. |
 | 25 | Hall | Audited the whole cutover on its eve and found it sound. `lessons-admin.js` dated `typing_logs` by the stamped field where every other reader keys off the document ID — cosmetic before the cutover, load-bearing after it. The drill filter and the font picker shipped into `learn.js` on Jake's call. |

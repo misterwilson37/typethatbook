@@ -1,4 +1,20 @@
-// run-all-tests.mjs v1.12.0 — Round 26 (Elliott-Fisher): live-period-test.mjs
+// run-all-tests.mjs v1.13.0 — Round 31 (Fitch): exit-flush-test.mjs registered.
+// 48 harnesses.
+//
+// ⚠️ v1.13.0 — A CONSTRAINT ON HARNESS OUTPUT, WRITTEN DOWN BECAUSE IT COST A
+//          ROUND TEN MINUTES. `run()` marks a harness bad on `r.status !== 0 ||
+//          /FAIL|UNSAFE|\bERROR\b/.test(out)` — a TEXT match over everything the
+//          harness printed. So a harness that exits 0 and prints
+//          "PASS — 31 passing, 0 failing" is still reported FAIL if any line it
+//          printed contains the word: a section header reading
+//          "C. A FAILED FLUSH MUST NOT LOSE THE BUFFER" is enough.
+//          ⚠️ DO NOT LOOSEN THE DETECTOR — a harness that reports its own
+//          failures in prose and exits 0 is exactly what it is there to catch.
+//          The rule is on the other side: A HARNESS MUST NOT PRINT "FAIL",
+//          "ERROR" OR "UNSAFE" EXCEPT WHEN SOMETHING ACTUALLY FAILED. Name the
+//          section "a write that does not land" instead.
+//
+// v1.12.0 — Round 26 (Elliott-Fisher): live-period-test.mjs
 // hud-lead-test.mjs, celebration-test.mjs and done-button-test.mjs
 // registered. 43 harnesses.
 //
@@ -202,6 +218,13 @@ const FAST = [
     ['celebration-test.mjs',     'NOT EVERYONE GOT FIREWORKS: a goal crossing missed in one mode must fire in the next, once'],
     ['done-button-test.mjs',     "I'M DONE IS A RECEIPT: it files the open sprint and flushes, and nothing may ever gate on it"],
     ['queue-owner-test.mjs',     'ONE BROWSER, TWO STUDENTS: a second account may not destroy the first\u2019s unflushed queue, by push, by flush or by eviction'],
+    // ⚠️ Round 31 (Fitch), ROADMAP 14b. The time was banked on the way out of a
+    // lesson and the RUN was not, because stopLesson() reloaded progress and
+    // loadUserProgress() opens by emptying userProgress — so the scheduled
+    // flush wrote back the record it had just re-read, successfully. Part A
+    // drives the OLD exit and must keep losing runs; it is the only thing that
+    // proves the other five parts are measuring something.
+    ['exit-flush-test.mjs',      '\u26a0\ufe0f \u2190 MAP BANKS THE TIME AND THROWS AWAY THE RUN: the flush must beat the reload that empties userProgress, the cache must be refreshed between them, and an unflushed run must survive a failed write'],
     // ⚠️ Round 25 (Hall). A student reported "ass" in a School lesson. Part A
     // reproduces learn.js's generateRandom() over 200,000 groups and MEASURES
     // the rate rather than arguing it: 1 in 135 groups, 8.5% of drills. Part D
