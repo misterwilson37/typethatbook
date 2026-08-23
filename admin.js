@@ -1,4 +1,11 @@
-// admin.js v3.31.1
+// admin.js v3.31.2
+//
+// v3.31.2 — IMPORT ONLY, NO BEHAVIOUR. ADMIN_EMAILS is imported from
+//           firebase-config.js instead of declared here. It was one of FOUR
+//           hand-maintained copies of the same two addresses; nothing had
+//           drifted, which was luck. HANDOFF §0.-20.H. v3.25.2's entry moved
+//           to CHANGELOG.md § ARCHIVED FILE HEADERS — this file was one over
+//           the 8-entry budget once v3.31.2 was added.
 //
 // v3.31.1 — TWO IMPORT-METADATA DEFECTS, both surfaced by the harness that had
 //           been failing 42 assertions for several rounds and was recorded in
@@ -73,12 +80,6 @@
 //           field on the screen and the only one with no protection. A file's cover is
 //           now only staged when the book has NONE; otherwise it is offered in the
 //           mismatch panel with both images side by side.
-// v3.25.2 — ⚠️ DATA-LOSS GUARD. The overwrite file input and the mismatch panel both
-//           survived a change of book, so Jane Eyre could sit selected with a football
-//           book still loaded in "Overwrite Data with New EPUB" — and Process Overwrite
-//           reads the input, not the book. One click would have replaced Jane Eyre's
-//           chapters. The stale panel was the visible, harmless half; the loaded file
-//           was the dangerous half and predates the panel entirely.
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * loadBookList(selectFirst) defaults to FALSE and preserves the current
@@ -89,7 +90,7 @@
 //     is gated behind signedIn() and it would race auth.
 //   * Never use innerText on a DOMParser document. It needs layout and
 //     returns undefined in Firefox.
-import { db, auth, storage } from "./firebase-config.js";
+import { db, auth, storage, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 import { initLessonsPanel, setStaffHooks } from "./lessons-admin.js";
 import { initStaffPanel, initStaffPanelContent, syncOwnClaimsAfterClassChange }
     from "./staff-admin.js";
@@ -97,7 +98,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.31.1";
+const ADMIN_VERSION = "3.31.2";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -106,11 +107,9 @@ const GENRES = [
     "Thriller", "Western", "Young Adult"
 ];
 
-// Only these emails can access the admin panel
-const ADMIN_EMAILS = [
-    "jacob.wilson@sumnerk12.net",
-    "jacob.v.wilson@gmail.com",
-];
+// ⚠️ v3.43.0 — imported from firebase-config.js; this file no longer keeps its
+// own copy. Which emails can OPEN this panel is a UI question; what the panel
+// can READ is decided by firestore.rules and the setStaffRole claims.
 
 // DOM Elements
 const statusEl = document.getElementById('status');

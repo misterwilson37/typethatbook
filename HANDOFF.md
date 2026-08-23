@@ -1,7 +1,51 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.14.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     through Round 27; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+<!-- HANDOFF.md v15.15.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     through Round 28; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.15.0 — Round 28 (Daugherty). ⚠️⚠️ §0.-20 IS THE WRITE-UP AND THE PANEL
+     JAKE DIAGNOSES DEPLOYS WITH HAD THREE THINGS WRONG WITH IT. (1) It was
+     unreadable, and ⚠️ THE CAUSE WAS NOT IN THE PANEL: adventure.css's ONE
+     unscoped rule, `body footer { opacity:.55 }`, faded the whole SUBTREE in
+     every view, so no amount of reading the panel's own opaque background could
+     explain it. That rule was CORRECT when written — v3.5.4 hung a panel inside
+     the footer afterwards. Third instance in a week of a true statement going
+     false without being edited (§0.-16, §0.-19.C). (2) ⚠️⚠️ ITS LOUDEST RED LINE
+     WAS FALSE ON EVERY SESSION SINCE IT SHIPPED: the renderer-drift guard
+     excluded the sentinel 'failed' but not '—', the NEVER-MOUNTED one, so
+     classic view — the DEFAULT view — always printed "stale module cache". A red
+     alarm that is always on teaches you to discount the real ones beside it.
+     ⚠️ Assert the positive SHAPE you need; never enumerate the sentinels you
+     happen to know about. (3) The ⚠ notes were shown to every child who hovered
+     the footer. Now staff-only and ⚠️⚠️ DEFAULTING TO OFF, so a fourth surface
+     added by someone who never read this fails toward silence — but
+     ⚠️⚠️ §0.-20.D IS THE PART TO READ: a gated panel still prints the COUNT,
+     because Jake reads it at a student's machine signed in as nobody and a
+     panel that looked CLEAN when something was wrong is §0.-14.C's failure
+     direction exactly. HIDDEN IS FINE; ABSENT IS NOT. ⚠️ §0.-20.E IS TWO
+     FAILURES OF MY OWN VERIFICATION and both generalise: a check that passed
+     because the string was in the IMPORT LINE, and a mutation whose sed died
+     and printed a pass indistinguishable from a real one. ✅ ROADMAP ITEM 9's
+     HEADER BUDGET IS CLOSED on Jake's ruling — lines are PROPORTIONAL now
+     (max(220, 8% of body), measured against the body so a header can't fund its
+     own growth), entries are 8 and ⚠️ DELIBERATELY FLAT. 45 entries moved to
+     CHANGELOG.md § ARCHIVED FILE HEADERS; ⚠️ §0.-20.G is how that nearly ate the
+     Load-bearing blocks. ✅ ADMIN_EMAILS IS ONE COPY, NOT FOUR (§0.-20.H).
+     ⚠️ §0.-20.J: I NAMED THIS ROUND UNDERWOOD, WROTE IT INTO SIX FILES, AND
+     UNDERWOOD IS ROUND 1 — the third time, past two written warnings I had
+     already read. The roster is data; the warnings are prose. GREP THE LIST.
+     ⚠️⚠️ §0.-20.K: THE ROOT README.md WAS A COPY OF tests/README.md AND THE
+     PROJECT README HAD BEEN GONE FOR FOUR ROUNDS. Reconstructed as v2.0.0 and
+     MARKED AS RECONSTRUCTED — prefer the original if Jake has one.
+     ⚠️⚠️ §0.-20.K: THIS ROUND SHIPS A CHANGED-FILES-ONLY UPLOAD SET (ROADMAP
+     8b, Jake's instruction) AND THE FIRST BUILD OF IT SILENTLY OMITTED
+     versions.js — the diff was right, the copy dropped its manifest's last
+     line. That would have blanked both student pages via an import error in a
+     file Jake never opened. CAUGHT ONLY BY APPLYING THE SET TO A CLEAN COPY AND
+     RUNNING THE SUITE THERE. "Every file I edited passes" is not "these files
+     are sufficient".
+     game.js v3.43.0, learn.js v2.31.0, versions.js v1.12.0,
+     firebase-config.js v1.3.0. 46 harnesses, all passing.
 
      v15.14.0 — Round 27g (Chicago). ✅ §0.-19 — THE CORNER ID STAMP IS DELETED and
      the student ID lives in Settings on BOTH pages. ⚠️ JAKE CAUGHT A HALF-BUILT
@@ -234,7 +278,7 @@
      AND KILLED BY JAKE — see §0.-9.E, which is the most useful part of this
      section for a future instance. 35/35 harnesses. -->
 
-**Round 27 — Chicago.** Predecessors: Elliott-Fisher (26) · Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
+**Round 28 — Daugherty.** Predecessors: Chicago (27) · Elliott-Fisher (26) · Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
 Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
 Sholes (14) · Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) ·
 Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) ·
@@ -244,6 +288,31 @@ Blick (3) · Dvorak (2) · Underwood (1).
 by different companies and both are now on the list; a future round reading the
 list quickly will see two similar words and must not conclude one is a typo for
 the other. **Check the list, and read the whole word.**
+
+> *On the name:* the **Daugherty Visible** (1891) was **the first typewriter you
+> could read while you typed on it.** Every machine before it was a *blind
+> writer*: the typebars struck the **underside** of the platen, so the line you
+> had just written sat facing away from you and you had to stop and lift the
+> carriage to find out what the machine had actually done. ⚠️ **A blind writer
+> is not broken.** It types correctly. It simply does not show you its own
+> output — which is this round precisely: a build panel that was rendered
+> correctly and then faded to unreadable by an ancestor two files away, and a
+> red staleness alarm that had been firing on every session since it shipped
+> with nobody able to tell it apart from a real one. ⚠️ And the machine's own
+> footnote is the round's other half: the Daugherty was **first** and the
+> Underwood got the credit, because being right is not the same as being
+> legible. **An instrument nobody can read is not an instrument.**
+
+⚠️⚠️ **I CALLED THIS ROUND UNDERWOOD, WROTE IT INTO SIX FILES AND A MESSAGE TO
+JAKE, AND CAUGHT IT ONLY WHEN UPDATING THIS ROSTER.** Underwood is **Round 1**.
+⚠️ **THAT IS THE THIRD TIME**, and the two notes warning about it are directly
+below — Monotype (24) *"very nearly called this round Underwood"*, and Salter
+(18) on the same near-miss. **I had read both warnings** while writing §0.-20's
+neighbours. Reading a warning about a mistake is not the same as performing the
+check the warning describes; the warnings are prose and the roster is data.
+**Grep the roster for your candidate before you write it anywhere.** This is the
+same shape as §0.-19.C — a doc that names a thing, and a check nobody runs
+against it.
 
 > *On the name:* the **Chicago** (1898) printed from a **removable type sleeve** —
 > a cylinder carrying the whole character set, which you could pull out and swap
@@ -367,6 +436,351 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-20. ⚠️⚠️ ROUND 28 (Daugherty) — THE DIAGNOSTIC THAT COULD NOT BE READ
+
+**2026-08-22, evening.** Jake sent one screenshot of the build panel over
+Aesop's Fables and one sentence: *"the hover version is barely readable in game
+AND it's full of announced errors that are just formatting kids definitely don't
+need to see."* Both halves were true, they had **different causes**, and a third
+defect was sitting in the screenshot that nobody had asked about.
+
+### A. ⚠️⚠️ THE CAUSE OF THE UNREADABILITY WAS NOT IN THE PANEL
+
+`adventure.css` line 80:
+
+```css
+body footer { opacity: 0.55; }
+```
+
+**It is the only unscoped rule in that file**, and four lines under the version
+stamp the file asserted the opposite: *"Every rule in this file is scoped under
+body.view-adventure. Classic view never sees any of this."* False for three
+versions. So it applied in classic view — the default — and `opacity` composites
+the **entire subtree**, which since `style.css` v3.5.4 includes `#footer-full`.
+The panel's own `rgba(255,255,255,0.97)` was being multiplied by `.55`
+afterwards.
+
+⚠️ **THIS IS WHY READING THE PANEL'S CSS COULD NEVER HAVE SOLVED IT.** The
+background was correct. Every colour was correct. The element was rendered
+correctly and then faded by an ancestor two files away. **When something looks
+translucent and its own background is opaque, stop reading the element and start
+reading its ancestors** — `opacity`, `filter` and `mix-blend-mode` are the three
+that reach down.
+
+⚠️ **AND THE RULE WAS RIGHT WHEN IT WAS WRITTEN.** The fade was for the
+one-line version stamp this footer used to be. v3.5.4 hung a panel inside that
+footer and nobody re-read the fade. **A correct rule became wrong because
+something else moved underneath it**, which is the same shape as §0.-16's
+orphaned paint and §0.-19.C's stale deploy check — the third instance in a week
+of a true statement going false without being edited.
+
+The fix puts the fade on `#footer-primary`, which is the element it was always
+describing, and declares `opacity: 1` **on the panel itself** so the next person
+who dims the footer cannot reach it. `adventure.css` **1.0.3**, `style.css`
+**3.8.1**.
+
+⚠️ The panel was also **unbounded**: `white-space: nowrap`, no `max-width`. One
+long ⚠ note made it wider than the viewport and it ran off the left edge, taking
+the file list with it. Notes wrap now; rows do not.
+
+### B. ⚠️⚠️ THE LOUDEST RED LINE IN THE PANEL WAS FALSE, AND HAD BEEN FOR WEEKS
+
+Nobody asked about this. It is visible in Jake's screenshot:
+
+```
+⚠ adventure-renderer.js mounted v—, deployed file reads v1.5.4 — stale module cache
+```
+
+`game.js` seeds `rendererVersionStr = '—'` meaning **never mounted**. The guard
+was:
+
+```js
+if (_mountedRendererVersion && _mountedRendererVersion !== 'failed') {
+```
+
+`'—'` is truthy and is not `'failed'`, so in **classic view — the default view —**
+the comparison `'—' !== '1.5.4'` was true and the panel printed a red
+stale-cache alarm **on every single session since the check shipped**.
+
+⚠️ **A RED ALARM THAT IS ALWAYS ON IS NOT AN ALARM.** Worse than useless here:
+it sat directly beside the genuine staleness checks (the CSS stamp comparison,
+the header/constant drift) and taught anyone reading the panel to discount that
+whole class of line. The instrument's most alarming output was noise.
+
+⚠️ **THE GENERAL FAULT IS EXCLUDING SENTINELS BY NAME.** The guard listed the
+sentinel it knew about. Sentinels are added by later rounds and nobody goes back
+to update an exclusion list. It now requires a **semver shape**, which no
+sentinel can satisfy — not `'—'`, not `'failed'`, not the next one. **Assert the
+positive shape you need, never enumerate the negatives you happen to know
+about.**
+
+### C. THE NOTES ARE STAFF-ONLY, AND THE DEFAULT IS THE POINT
+
+Nothing gated them, on any of the three surfaces. `renderBuildList` now takes
+`{ notes }` and **defaults to `false`**.
+
+⚠️ **THE DIRECTION OF THE DEFAULT IS THE WHOLE DESIGN.** Three call sites on
+three student-reachable surfaces, and no two of the controllers can import each
+other — §0.-13.E's twin problem, by construction. Gating two and forgetting the
+third is the *default outcome*. So the unsafe state is the one you have to ask
+for by name: a fourth surface added by someone who never reads this shows a
+clean version list, which is harmless.
+
+### D. ⚠️⚠️ HIDDEN IS FINE. ABSENT IS NOT. THIS IS THE PART TO READ
+
+The obvious implementation — drop the notes — produces a panel that looks
+**clean** when something is wrong.
+
+⚠️ **JAKE READS THIS PANEL AT A STUDENT'S MACHINE, SIGNED IN AS NOBODY.** That
+is precisely the state where notes are suppressed. A clean-looking panel in that
+moment is a diagnostic that lies, and it lies in the direction §0.-14.C is an
+entire write-up about: *failing in a way that reads as "everything is fine"*.
+
+So `renderHiddenNotesLine(n)` always prints the **count**:
+
+> 12 build notes — sign in as staff to read them.
+
+Grey, lowercase, **no ⚠** — it is read most often by a child who hovered the
+footer by accident and can act on none of it. `countBuildNotes()` is exported so
+`game.js` can fold its own renderer-drift note into **one** total rather than
+reporting two partial ones.
+
+⚠️ Note the deliberate asymmetry the twins carry: `game.js` adds
+`+ (drift ? 1 : 0)` and `learn.js` does not, because `keyboard.js` is a **static**
+import there and cannot drift. Marked in both files. **Do not "fix" it into
+symmetry.**
+
+### E. ⚠️⚠️ TWO FAILURES OF MY OWN VERIFICATION, BOTH WORTH MORE THAN THE FIX
+
+**E1. A check that passed for the wrong reason.** `build-panel-test.mjs` section
+D asserted `src.includes('renderHiddenNotesLine')`. I deleted `index.html`'s call
+site as a mutation and **the test still passed** — the string is in the **import
+line**. The check confirmed a name was *imported*, never that anything *called*
+it. Same family as §0.-18 (a function defined and never referenced) and
+§0.-14.D (a pin that inherits the honesty of the thing it checks). Fixed by
+requiring the trailing `(`. ⚠️ **The general form: when asserting that code does
+something, assert on the CALL, not on the NAME.** A name appears in imports,
+comments and exports.
+
+**E2. A mutation that never ran and reported success.** M5's `sed` died on a
+delimiter clash inside the pattern. The harness then printed `32 passed`
+**which is byte-identical to a real pass**, and I nearly recorded the mutation
+as verified. Re-run through Python it fails correctly.
+⚠️ **A MUTATION THAT NEVER APPLIED IS NOT A MUTATION THAT FAILED TO MATTER.**
+Rule 10 work must confirm **the file actually changed**, not that the suite went
+green afterwards — green is exactly what a no-op mutation produces.
+
+### F. THE HEADER BUDGET — ONE LABEL, TWO DIFFERENT PROBLEMS
+
+Jake's ruling: *"a previous iteration of you made those limits, and I have no
+problem with you raising them to a reasonable amount. Probably should make a note
+that if the code itself expands, the line limit should, too."*
+
+Seventeen standing violations. **They were not seventeen instances of one
+problem.**
+
+* ⚠️ **The LINE budget was WRONG.** A flat 60 lines was applied to files ranging
+  from 51 lines (`variety-floor.js`) to 8,000 (`game.js`). It flagged
+  `drill-filter.js` — 191 header lines documenting 105 lines of filter policy,
+  where **the policy is the product and the code is the easy part** — as the same
+  violation as a 40-entry changelog. Now
+  `max(220, ceil(bodyLines × 0.08))`, per the ruling.
+  ⚠️ **MEASURED AGAINST THE BODY, NOT THE FILE.** Against the total, a header
+  funds its own growth: add 100 lines of header, earn 8 more, forever.
+* ⚠️ **The ENTRY budget was RIGHT and was catching something real.** `game.js`
+  had **40** entries in one comment block, `learn.js` **46**, both partly out of
+  order — because nobody scrolls to the bottom of a 460-line comment to file a
+  new entry in the right slot. Raised 6 → 8 (a round's work plus room) and
+  **left FLAT on purpose.**
+  ⚠️⚠️ **DO NOT MAKE ENTRIES PROPORTIONAL.** "Nobody reads to the bottom" gets
+  **worse** as a file grows, not better. If you come here to raise a number
+  because something is failing, **raise the line floor, not the entry count**:
+  the line budget is a guess about how much rationale a module deserves and
+  guesses get revised; the entry budget is a claim about how a person reads.
+
+⚠️ **SECTION E OF `version-stamp-test.mjs` IS A FAILURE NOW (v1.1.0), AND THE
+OLD WARNING'S CONDITION WAS MET RATHER THAN OVERRIDDEN.** §0.-14.E said don't
+promote these without doing the work first, because seventeen reds would leave
+`npm test` permanently red — the mechanism that let Round 26's five lying stamps
+ship past two already-failing harnesses. **The count is zero.** A budget at zero
+is a ratchet; a budget at seventeen is only noise. Three copies of the budget
+numbers now exist (`versions.js`, `audit-versions.mjs`, the harness) and
+⚠️ **nothing checks them against each other** — section D checks the SOURCES
+lists agree, not the budgets. Change `versions.js` first, then both mirrors, in
+the same commit.
+
+### G. ⚠️ THE ARCHIVE NEARLY ATE THE PART WORTH KEEPING
+
+45 entries moved verbatim to `CHANGELOG.md` §&nbsp;ARCHIVED FILE HEADERS.
+**Nothing was deleted.**
+
+⚠️ The first attempt also swallowed `game.js`'s and `learn.js`'s *"Load-bearing.
+Do not simplify these"* blocks and their module descriptors, because the trim
+scanned forward from the **last** entry rather than the first archived one and
+ran to the end of the header. Caught by reading the seam, not by a test — there
+is no harness that knows those blocks are precious.
+
+⚠️ **THE LESSON IS ABOUT WHAT A HEADER IS.** It is not a changelog with some
+prose in it. It is **prose with a changelog embedded in it**, and the two are
+interleaved rather than stacked — `learn.js` has entries, then the descriptor and
+two dividers, then *more* entries, then Load-bearing. Redone against a pristine
+copy with entry lines and prose lines classified separately before anything moved.
+
+### H. ⚠️⚠️ `ADMIN_EMAILS`: FOUR COPIES → ONE
+
+Jake: *"I trust you. You're fresh and up to the task."*
+
+`game.js`, `learn.js`, `admin.js`, and `reports.html` (as `BOOTSTRAP_EMAILS`)
+each held the same two addresses. **Nothing had drifted. That is luck, not
+design** — adding a colleague meant editing four files, and the symptom of
+missing one is a teacher who can open Reports but not the admin panel, with **no
+error anywhere** to explain it. Silent, per-page, and only discoverable by the
+person locked out.
+
+⚠️ **`firebase-config.js` WON ON DEPENDENCY COST, NOT ON TOPIC.** A new
+`staff.js` would have been the tidier-sounding home and would have been a
+**fifth** thing to remember to register in `versions.js` and its two mirrors. All
+five consumers already import `db`/`auth` from `firebase-config.js`, so the
+consolidation cost **zero new dependencies and zero new registrations**. When
+choosing a home for shared state, count the import edges you would create.
+
+⚠️ **IT IS A UI GATE, NOT A SECURITY BOUNDARY**, and it never was — it ships in
+client code on every page. `firestore.rules` and the `setStaffRole` custom claims
+decide what data can be fetched; this decides what buttons are drawn. Never put
+a real permission behind it. `reports.html` keeps the local name
+`BOOTSTRAP_EMAILS` aliased to the import, because **its** use is a different
+idea — a temporary bridge to custom claims, marked for deletion — and calling it
+the same thing at the use sites would have hidden that.
+
+`tests/build-panel-test.mjs` section E fails if a second literal list reappears
+**under any name**, so this cannot silently regrow.
+
+### I. ⚠️⚠️ I PICKED A NAME THAT WAS ALREADY TAKEN, PAST TWO WARNINGS ABOUT IT
+
+Filed here rather than only in the roster because it is the round's cleanest
+example of its own theme.
+
+I named this round **Underwood**, wrote it into six files and a message to Jake,
+and caught it only while updating the predecessor list. **Underwood is Round 1.**
+⚠️ **It is the third time**, and both previous near-misses left written warnings
+— Monotype (24): *"I very nearly called this round Underwood — it is Round 1, it
+is right there in the list above."* Salter (18) recorded the same.
+
+⚠️ **I HAD READ BOTH WARNINGS.** They sit in the section I was editing. Reading a
+warning about a mistake is not the same as performing the check it describes:
+the warnings are **prose**, the roster is **data**, and I pattern-matched on
+"typewriter that made the writing visible" without ever grepping the list. Same
+shape as §0.-19.C — a document naming a thing, with no check running against it.
+
+The round is **Daugherty**, the 1891 first-visible-writing machine, which is the
+better name anyway: every earlier typewriter struck the underside of the platen
+and hid its own output from the person operating it.
+
+⚠️ **AND THE FIX FOR THIS IS CHEAP AND NOT BUILT.** The roster is a
+machine-readable list in a Markdown file. A harness could assert that the name in
+`HANDOFF.md`'s banner does not appear in the predecessor list. Not done this
+round; noted for whoever wants it, along with the observation that **three
+occurrences of the same slip is a missing check, not three careless instances.**
+### J. ⚠️⚠️ THE PROJECT README WAS GONE AND HAD BEEN FOR FOUR ROUNDS
+
+Found while updating the harness count. **`README.md` at the repo root was a copy
+of `tests/README.md`**, titled `# tests/`, at **v1.4.0** — while `tests/README.md`
+itself sat at **v1.2.0**. Two copies of one document at two versions, and **the
+root one was the copy being edited**, so four rounds of tests-README work landed
+in the file a new reader opens first while the folder it describes kept the stale
+one.
+
+⚠️ **§7's document map says this file should be *"what the project is; file map,
+data model. Root"*.** It had not been that for some time and nothing noticed,
+because **no check reads a document's title against its path** and the version
+audit does not cover Markdown.
+
+⚠️ **THE ORIGINAL IS NOT RECOVERABLE** — there is no git history in the delivered
+archive. The root `README.md` is now **v2.0.0, RECONSTRUCTED** from this file,
+`ROADMAP.md` and the code, and it is deliberately thin: **a short true map beats
+a long confident invention**, and every line in it is checkable against the repo.
+⚠️ **If Jake has the original anywhere, prefer it over mine.** The reconstruction
+is marked as such in its own header comment so nobody mistakes it for the
+document that was lost. `tests/README.md` is now the only tests README, at
+v1.5.0, merged from the newer root copy.
+
+⚠️ **THE COUNTS INSIDE IT HAD DRIFTED TWICE OVER, AND THE SECOND TIME IS THE
+INTERESTING ONE.** Round 21 added a registration audit and wrote a paragraph
+saying the counts *"cannot drift again — if they disagree with reality, `npm test`
+goes red."* The very next sentence then drifted, from 28 to 39 harnesses, and
+stayed wrong for seven rounds. **The audit catches an unregistered FILE. It
+cannot catch a wrong NUMBER in English prose**, and the paragraph claiming
+otherwise is what stopped anyone recounting. **A guard's blast radius is smaller
+than the sentence announcing it.**
+
+### K. ⚠️⚠️ THE PARTIAL-UPLOAD SET, AND THE FILE IT SILENTLY DROPPED
+
+Jake, after the full archive was delivered: *"Can you please only zip up the files
+that need to be uploaded? I would hate for one corrupted, unedited file to burn
+the whole thing down."* Correct instinct, and it is the right default from here —
+**a 180-file archive re-uploads 161 files nobody touched**, each of which is a
+chance to overwrite something good with something stale, for no benefit.
+
+⚠️⚠️ **THE FIRST BUILD OF THAT SET WAS MISSING `versions.js`, AND NOTHING IN THE
+PROCESS WOULD HAVE TOLD ANYONE.** The diff was right — 19 files, `versions.js`
+among them. The **shell loop that copied them** dropped its last line:
+
+```sh
+while IFS= read -r f; do ... done < changed.txt   # ⚠️ discards an
+                                                  #    unterminated final line
+```
+
+`wc -l` said **18**; `grep -c .` said **19**. The manifest had no trailing
+newline, and `read` returns false on the last line when it has no terminator —
+so the loop processes it *into `$f`* and then exits without running the body.
+
+⚠️ **THE FAILURE IT WAS HEADED FOR IS THE WORST KIND THIS PROJECT HAS.**
+`game.js` v3.43.0 imports `countBuildNotes` from `versions.js`. v1.11.0 does not
+export it. An ES module import failure is not a degraded page — it throws
+**before any code runs**, so both student pages go **blank**. And the file that
+caused it is one Jake never opened, in a round about a build panel, which is
+exactly the "one unedited file burns the whole thing down" he was trying to avoid
+by asking for the smaller set.
+
+✅ **WHAT CAUGHT IT WAS APPLYING THE SET, NOT REVIEWING IT.** A pristine copy of
+the delivered repo, plus the upload set and nothing else, then `npm test`. The
+suite went red on `build-panel-test.mjs` — *"default render emits no ⚠ at all"* —
+because the old `versions.js` was still there. ⚠️ **A harness written this round
+caught this round's delivery mistake**, which is the first time that has happened
+here.
+
+⚠️ **THE GENERALISABLE PART, AND IT IS NOT ABOUT `read`.** *"Every file I edited
+passes"* and *"these files are sufficient"* are **different claims**, and only the
+second one matters for a partial upload. The first is about the working tree,
+which is always complete by construction; the second is about the **archive**, and
+nothing in a working tree can test it. **Build the set, apply it to a clean copy
+of what the recipient actually has, and run the suite there.** The rebuilt version
+copies in Python and re-hashes every file at the destination against the source,
+so a silent drop is impossible rather than merely unlikely.
+
+### L. WHAT WAS NOT DONE
+
+* **The remaining ROADMAP item 9 bullets.** `daycounter.js`, the day rollover
+  living only in the tick, the two drifted tick loops, `handleDrillKey()`. Only
+  the header-budget and `ADMIN_EMAILS` bullets closed.
+* **The eight harnesses that failed on a fresh checkout** did so on
+  `ERR_MODULE_NOT_FOUND` for `jsdom` — a missing dev dependency, not a defect.
+  `npm install` fixed all eight. ⚠️ Worth knowing before a round panics at a
+  red suite it did not cause.
+* **`school-audit.html` and `staff-admin.js` were not touched** and hold no copy
+  of the admin list; they were checked.
+* ⚠️ **A HARNESS FOR THE ROUND-NAME ROSTER.** §0.-20.I is the third occurrence of
+  the same slip. The roster is a machine-readable list in this file and a check
+  that the banner's name is not in it is a few lines. Not built.
+* ⚠️ **A CHECK THAT A DOCUMENT'S TITLE MATCHES ITS PATH.** §0.-20.J's root README
+  said `# tests/` for four rounds. Nothing reads Markdown headings.
+* ⚠️ **NOTHING CHECKS THE THREE COPIES OF THE HEADER-BUDGET NUMBERS** against
+  each other. `version-stamp-test.mjs` section D checks the three SOURCES lists
+  agree; the budgets in `versions.js`, `audit-versions.mjs` and that harness are
+  unguarded. Same twin shape, one layer down, and I created the third copy.
 
 ---
 
@@ -2607,8 +3021,13 @@ browsable user directory, by design. `users/{uid}` deliberately holds no PII, wh
 
 ## §2. Where the code is
 
-Shipped state after **Round 27, 2026-08-22**. **Verified by running
-`npm run audit:versions`, not copied from the previous table.**
+Shipped state after **Round 28, 2026-08-22**. **Verified by running
+`npm run audit:versions`, not copied from the previous table.** (Round 28 ran it;
+0 problems.)
+
+⚠️ **UPLOAD `firebase-config.js` FIRST THIS ROUND.** It is the new home of
+`ADMIN_EMAILS` and **five files import it**. A build with the new `game.js` and
+the old `firebase-config.js` throws at import time on both student pages.
 
 ⚠️⚠️ **THIS TABLE SAT FIVE ROUNDS STALE — IT STILL SAID "ROUND 22" WHILE ROUNDS
 23–26 SHIPPED — AND THE PARAGRAPH THAT USED TO BE HERE CLAIMED THE HEADER/
@@ -2633,29 +3052,29 @@ reads.
 
 | file | version |
 |---|---|
-| `game.js` | **3.42.3** — ⚠️ Round 27f/g. "I'm done" wired at last; the ID moved into Settings. §0.-18, §0.-19 |
-| `learn.js` | **2.30.0** — ⚠️ Round 27c/f/g. School settings panel; clock pauses for it; two orphans deleted. §0.-16, §0.-18, §0.-19 |
+| `game.js` | **3.43.0** — ⚠️ Round 28. The build panel's ⚠ notes are staff-only, and its renderer-drift alarm no longer fires on the never-mounted sentinel. `ADMIN_EMAILS` now imported. §0.-20 |
+| `learn.js` | **2.31.0** — ⚠️ Round 28. Twin of game.js's note gate. `ADMIN_EMAILS` now imported. §0.-20 |
 | `session-log.js` | **1.6.0** — PER-OWNER queue + `GUEST_QUEUE_UID`. ⚠️ UPLOAD THIS FIRST — both pages import from it. Its TWO pins are checked by version-stamp-test.mjs C |
 | `hud.js` | **2.0.0** — ⚠️⚠️ MAJOR, JAKE SIGNED IT OFF. The v1.3.0 return-shape break recorded as the major it was. §0.-15. ⚠️ UPLOAD BEFORE THE TWO WRITERS |
 | `variety-floor.js` | 1.0.0 |
 | `stats-wal.js` | **1.1.0** — ⚠️ Round 22. Per-source counters in DAY_COUNTERS; storage key unchanged. §0.-8.F |
-| `versions.js` | **1.11.0** — ⚠️ Round 27. SOURCES gained the modules the footer could not see, settings-panel.js included. §0.-15 |
+| `versions.js` | **1.12.0** — ⚠️⚠️ Round 28. `renderBuildList` gained `{ notes }`, DEFAULTING TO FALSE, plus `countBuildNotes`/`renderHiddenNotesLine`. The header LINE budget is proportional now; the ENTRY budget is flat at 8 and must stay flat. §0.-20.C/D/F |
 | `daylog.js` | **1.4.0** — The shared week reader, the cutover, and `dayLogPayloadFor()` — **the one gate deciding a day's shape**. §0.-8.C. Carries the Overnight Rescue |
 | `keyboard.js` | 1.1.1 |
 | `adventure-renderer.js` | 1.5.4 |
-| `admin.js` | 3.31.1 — ⚠️ Round 19: two real import-metadata defects, see §6 item 3 |
-| `lessons-admin.js` | **1.13.1** — ⚠️ Round 25. Dates typing_logs by DOCUMENT ID, not the stamped field. §0.-11 |
+| `admin.js` | **3.31.2** — Round 28: `ADMIN_EMAILS` imported, no behaviour. §0.-20.H |
+| `lessons-admin.js` | **1.13.2** — Round 28: header entries archived, no code. Still dates typing_logs by DOCUMENT ID (Round 25). §0.-11 |
 | `staff-admin.js` | 2.2.0 |
-| `reports.html` | **2.25.0** — ⚠️ Round 23. THE RECONCILE AND REBUILD ARE DELETED, §0.-9.D. ⚠️ NOT in the audit's SOURCES — its version is unchecked |
+| `reports.html` | **2.25.1** — Round 28: `BOOTSTRAP_EMAILS` aliases the shared export. Round 23's reconcile/rebuild deletion stands, §0.-9.D. ⚠️ NOT in the audit's SOURCES — its version is unchecked |
 | `update-gate.js` | 1.0.1 — ⚠️ NEW in Round 19. Loaded by its own script tag in both shells, NOT imported. See §0.10 |
-| `index.html` | 3.10.0 — ⚠️ Round 26. The landing readout. ⚠️ NOT in the audit's SOURCES — its version is unchecked |
-| `firebase-config.js` | 1.2.0 |
+| `index.html` | **3.12.0** — ⚠️ Round 28. Its build-info button gates ⚠ notes like the two typing pages. ⚠️ NOT in the audit's SOURCES — its version is unchecked |
+| `firebase-config.js` | **1.3.0** — ⚠️⚠️ Round 28. **THE ONLY COPY of `ADMIN_EMAILS`**, down from four, plus `isStaffUser()`. ⚠️ UPLOAD BEFORE game.js, learn.js, admin.js, reports.html AND index.html — all five now import from it. §0.-20.H |
 | `firebase/firestore.rules` | **2.6.0** — ⚠️ **Jake deployed this 2026-08-20 and it is CONFIRMED CORRECT BY EXECUTION.** The null-resource clause is FIRST and must stay first. §0.-8.A |
-| `style.css` | **3.8.0** — ⚠️ Round 27c. `.settings-overlay` for the ⚙ panel; #drill-font-pick restyled as a dialog row. §0.-16 |
+| `style.css` | **3.8.1** — ⚠️ Round 28. `#footer-full` is opaque, bounded and declares its own `opacity:1` so an ancestor cannot fade it again. §0.-20.A |
 | `settings-panel.js` | **1.2.0** — ⚠️ NEW, Round 27c. The SIXTH shared module. ⚠️ UPLOAD BEFORE learn.js. §0.-16, §0.-19 |
 | `game.html` | 1.2.0 — ⚠️ div-balance checked this round: 5 open / 5 close in `#hud`, whole file balanced |
 | `learn.html` | **1.2.0** — ⚠️ Round 26 fixed §0.-13.B's stray `</div>`. Re-checked this round: balanced |
-| `adventure.css` | **1.0.2** — ⚠️ Round 27. `body::after` said v1.0.0; nothing had ever checked it. §0.-14.B |
+| `adventure.css` | **1.0.3** — ⚠️⚠️ Round 28. **THE ROUND'S ROOT CAUSE.** Its one unscoped rule, `body footer { opacity:.55 }`, faded the build panel in every view. §0.-20.A |
 | `celebrate.js` | **1.1.0** — ⚠️ Round 27 gave it the version constant it shipped without. Now in SOURCES. §0.-15 |
 | `receipt.js` | **1.1.0** — ⚠️ Round 27 gave it the version constant it shipped without. Now in SOURCES. §0.-15 |
 | `drill-filter.js` | 1.3.0 — ⚠️ Round 25. Now in SOURCES (§0.-15); it always had a constant, nothing watched it |
@@ -2694,6 +3113,26 @@ School's ⚙ panel — so its absence from the corner proves nothing.
 because Round 27 made the version stamps honest and `npm test` fails if one lies
 again (§0.-14). Read the footer triad; a wrong or old version there is the
 signal. **Do not look for the corner stamp.**
+
+⚠️⚠️ **ROUND 28 CHANGED WHAT THE HOVER PANEL SHOWS YOU, AND YOU NEED TO KNOW
+WHICH VERSION OF IT YOU ARE LOOKING AT (§0.-20).**
+
+* **Signed in as staff** — the panel is what it always was, ⚠ notes included,
+  and it is now *legible*: before `adventure.css` v1.0.3 it was rendered at 55%
+  opacity over the book text and could not be read at all.
+* **Signed out, or signed in as a student** — the ⚠ notes are hidden and a grey
+  line reads **"N build notes — sign in as staff to read them."**
+  ⚠️ **THAT LINE IS THE POINT. A PANEL WITH NO GREY LINE IS GENUINELY CLEAN; A
+  PANEL WITH ONE IS NOT.** You will most often read this standing at a student's
+  machine signed in as nobody, and the whole design exists so that state cannot
+  look like "everything is fine."
+* ⚠️ **THE OLD `adventure-renderer.js … stale module cache` LINE WAS FALSE** and
+  fired on every classic-mode session since it shipped. If you remember
+  discounting it, that instinct was correct and is no longer needed — it now
+  only appears when the renderer is actually mounted and actually drifted.
+* ⚠️ **`firebase-config.js` IS THE FIRST FILE TO UPLOAD THIS ROUND.** Five files
+  import `ADMIN_EMAILS` from it. A browser holding the OLD one against the NEW
+  `game.js`/`learn.js` throws at import time — a blank page, not a degraded one.
 
 ---
 

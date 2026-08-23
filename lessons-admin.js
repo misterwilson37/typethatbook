@@ -1,4 +1,8 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.13.1
+// lessons-admin.js — TypeThatBook Lesson Panel v1.13.2
+//
+// v1.13.2 — HEADER ONLY, NO CODE. Four older entries moved to CHANGELOG.md
+//           § ARCHIVED FILE HEADERS; this file was over the build panel's
+//           entry budget. See versions.js v1.12.0.
 //
 // v1.13.1 — ⚠️ THE ROSTER PANEL'S DATE NOW COMES FROM THE DOCUMENT ID. It read
 //           `data.date`, the field the writer stamped, where reports.html warns
@@ -85,45 +89,10 @@
 //          Rejects rather than repairs, reports every problem rather than the
 //          first, and names lessons by id rather than by array index.
 //
-// v1.8.1 — The Students list said "31 students loaded." above a table showing one
-//          row. loadStudentRoster() wrote that string AFTER _renderRoster() had
-//          already written the true one — "1 student (filtered from 31)" — into the
-//          same element. Two writers, one status line, and the one that ran last
-//          knew less. The sentence explaining the screen existed and was destroyed
-//          a line later. _renderRoster() now owns it outright, and says both
-//          numbers plus which range is filtering, because the gap between them is
-//          the diagnosis. Also relabelled: this panel is built from typing_logs, so
-//          an imported student who has never typed cannot appear under any filter,
-//          and a bare count read like enrollment.
-//          (The Sat–Fri default that caused it lives in admin.html.)
+// ⚠️ v1.13.2 — v1.8.1, v1.8.0, v1.7.1 and v1.7.0 moved to CHANGELOG.md
+//    § ARCHIVED FILE HEADERS. Nothing deleted.
 //
-// v1.8.0 — CSV import can CREATE the classes it doesn't recognise. It used to
-//          print "class not found" in red and stop, which left the only route
-//          through the Classes tab, typing each name by hand, then re-running
-//          the import — for a file that already listed every name needed.
-//          Two halves:
-//            1. The lookup now normalises, so "Period 3", "period-3" and
-//               "Period  3" all match an existing class. A large share of what
-//               was reported as missing was a punctuation mismatch, and
-//               creating a duplicate class for it would have been the WORSE
-//               outcome — two classes, one roster split between them.
-//            2. Genuinely new names are listed with a school picker and a
-//               button. ⚠️ NEVER automatic: a typo'd name in a CSV is
-//               indistinguishable from a new class, and silently creating
-//               "Perod 3" splits a roster in a way that looks fine on the
-//               screen it was made on.
-//          Class id + record shape now come from _newClassId()/_newClassRecord(),
-//          shared with saveClass(), so the two creation paths cannot drift.
-//
-// v1.7.1 — _addOneStudent() and _populateOneStudentClasses() were WIRED AND
-//          MISSING. initStudentsPanel() evaluated `_addOneStudent` while
-//          attaching a listener, threw a ReferenceError there, and so never
-//          reached the CSV preview/commit wiring, the progress tabs, or
-//          loadStudentRoster() — an empty roster and dead import buttons, with
-//          _studentsInited already true so reopening the tab could not recover.
-//          Both functions written from _commitCSV()/_bulkAssign().
-// v1.7.0 — Lesson + class authoring, CSV roster import, stuck-student scan.
-window.LESSONS_ADMIN_VERSION = '1.13.1';
+window.LESSONS_ADMIN_VERSION = '1.13.2';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where

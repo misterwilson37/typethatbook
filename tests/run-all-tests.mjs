@@ -221,7 +221,8 @@ const FAST = [
     // Library for a day — game.js defined handleImDone() and never attached it,
     // and 43 harnesses passed the whole time because none of them could fail.
     ['dead-handler-test.mjs',    '\u26a0\ufe0f NO BUTTON IS INERT AND NO FUNCTION IS ORPHANED: every function a page controller defines is referenced, every button in the markup is wired, and BOTH pages attach handleImDone'],
-    ['version-stamp-test.mjs',   '\u26a0\ufe0f THE FILE MUST NOT LIE ABOUT ITS OWN VERSION: runtime constant vs header, both CSS stamps, and the three module pins. Header-length budgets print as NOTES and never fail \u2014 see the block at the top before promoting one'],
+    ['version-stamp-test.mjs',   '\u26a0\ufe0f THE FILE MUST NOT LIE ABOUT ITS OWN VERSION: runtime constant vs header, both CSS stamps, and the three module pins. \u26a0\ufe0f v1.1.0 \u2014 header budgets are ENFORCED now rather than printed as notes: the line budget is PROPORTIONAL to file size and the entry budget is 8. Read the v1.1.0 block before demoting either'],
+    ['build-panel-test.mjs',      '\u26a0\ufe0f THE BUILD PANEL DOES NOT SCOLD CHILDREN, AND DOES NOT LIE WHEN GAGGED: \u26a0 notes default OFF so a forgetful caller is safe, all three surfaces gate them explicitly, a SUPPRESSED note still prints its COUNT, ADMIN_EMAILS has exactly one literal home, and the renderer-drift alarm needs a real semver rather than the never-mounted sentinel'],
 
     // ⚠️ Round 24 (Monotype). THE EVENING GUEST. sessionLogAdopt() recomputed a
     // record's date from `at.slice(0, 10)` — UTC — throwing away the local date

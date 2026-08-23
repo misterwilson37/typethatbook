@@ -1,4 +1,19 @@
-// version-stamp-test.mjs v1.0.0 — Round 27 (Chicago).
+// version-stamp-test.mjs v1.1.0 — Round 27 (Chicago), Round 28 (Daugherty).
+//
+// v1.1.0 — ⚠️⚠️ SECTION E IS A FAILURE NOW, NOT A NOTE — AND READ WHY BEFORE
+//          TOUCHING IT. The block below says notes stay notes because a suite
+//          that is red for a known reason trains everyone to ignore red. That
+//          reasoning was never about header budgets being unimportant; it was
+//          about the count being FOURTEEN. Round 28 took the count to ZERO —
+//          by raising the line budget (it was wrong: flat 60 against files
+//          from 51 to 8,000 lines) and by moving 45 stale changelog entries to
+//          CHANGELOG.md § ARCHIVED FILE HEADERS (they were right: game.js had
+//          40 entries in one comment block). A budget at zero violations can
+//          be a ratchet. A budget at fourteen can only be noise.
+//          ⚠️ THE CONDITION FOR DEMOTING IT BACK IS NOT "it went red". It is
+//          "it went red and the budget is wrong". If a header genuinely needs
+//          the room, raise HEADER_FLOOR_LINES — in versions.js FIRST, then the
+//          two mirrors. If it is a changelog run, move it to CHANGELOG.md.
 //
 // ⚠️⚠️ WHY THIS FILE EXISTS, AND IT IS NOT "TIDINESS".
 //
@@ -24,17 +39,17 @@
 // the whole lesson: **a guard that is not in the suite is a guard nobody runs.**
 // This file is that check, moved inside the thing rounds actually execute.
 //
-// ⚠️ AND IT IS DELIBERATELY NARROWER THAN THE AUDIT TOOL. audit-versions.mjs
-// also reports header-LENGTH budgets (60 lines, 6 entries), and fourteen of
-// those are outstanding right now — game.js's header is 420 lines. Failing the
-// suite on those would leave `npm test` permanently red, and invariant 54 is
-// explicit that an accepted red hides the next real failure. That is not
-// hypothetical here: hud-test.mjs and drill-filter-test.mjs were BOTH red in the
-// repo Round 27 was handed, and the second one had been catching this very
-// defect since Round 25.
+// ⚠️ IT USED TO BE DELIBERATELY NARROWER THAN THE AUDIT TOOL, and v1.1.0 closed
+// that gap. The reason for the gap was fourteen outstanding header-budget
+// violations: failing on those would have left `npm test` permanently red, and
+// invariant 54 is explicit that an accepted red hides the next real failure.
+// That was not hypothetical — hud-test.mjs and drill-filter-test.mjs were BOTH
+// red in the repo Round 27 was handed, and the second had been catching Round
+// 27's own defect since Round 25.
 //
-// So: **a stamp that lies is a FAILURE. A header that is too long is a NOTE.**
-// The notes print, loudly, and exit 0. Header length is ROADMAP item 9.
+// Round 28 removed the reason rather than the check. Both budgets are at zero
+// violations, so both are enforced. **A stamp that lies is a failure and so is
+// a header over budget.** ROADMAP item 9 is closed.
 //
 // ⚠️ WHAT THIS CANNOT CATCH, stated so nobody trusts it further than it goes.
 // It compares what a file claims against what the same file claims elsewhere.
@@ -87,8 +102,15 @@ const SOURCES = [
 // so header-vs-constant is not a meaningful question for them. The HTML files
 // have no runtime constant separate from their comment either.
 const HEADER_EXEMPT = ['style.css', 'adventure.css', 'game.html', 'learn.html'];
-const HEADER_MAX_LINES = 60;
-const HEADER_MAX_ENTRIES = 6;
+// ⚠️ MIRRORS versions.js v1.12.0 AND tools/audit-versions.mjs v1.4.0. Three
+// copies; section D fails if the SOURCES lists disagree, but nothing checks
+// these three numbers against each other — change versions.js first, then both
+// mirrors, in the same commit.
+const HEADER_FLOOR_LINES = 220;
+const HEADER_LINES_RATIO = 0.08;
+const HEADER_MAX_ENTRIES = 8;
+const headerLineBudget = body =>
+    Math.max(HEADER_FLOOR_LINES, Math.ceil(body * HEADER_LINES_RATIO));
 
 const read = f => readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 
@@ -275,12 +297,15 @@ console.log('\n─── D2. ✅ EVERY SHARED MODULE THE WRITERS IMPORT IS WATCH
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-console.log('\n─── E. NOTES — header budgets, which are ROADMAP item 9, NOT failures ───');
+console.log('\n─── E. HEADER BUDGETS — proportional lines, flat entries, both ENFORCED ───');
 // ═══════════════════════════════════════════════════════════════════════════
-// ⚠️ READ THE BLOCK AT THE TOP OF THIS FILE BEFORE PROMOTING ANY OF THESE TO A
-// FAILURE. They are real untidiness and they are also fourteen items deep right
-// now. A suite that is red for a known reason trains everyone to ignore red,
-// which is the mechanism that let this whole round's defect ship.
+// ⚠️ v1.1.0 — PROMOTED FROM NOTES. Read the v1.1.0 entry at the top of this file
+// before demoting them back: the old reasoning was about a count of fourteen,
+// not about the checks being unimportant, and the count is zero now.
+//
+// ⚠️ THE LINE BUDGET IS MEASURED AGAINST THE BODY, NOT THE FILE. Measuring
+// against the total lets a header fund its own growth: add 100 lines of header,
+// earn 8 more lines of header, forever.
 for (const { file } of SOURCES) {
     if (HEADER_EXEMPT.includes(file)) continue;
     let src; try { src = read(file); } catch { continue; }
@@ -289,18 +314,17 @@ for (const { file } of SOURCES) {
     while (n < lines.length && (lines[n].startsWith('//') || lines[n].trim() === '')) n++;
     const headerLines = n;
     const entries = lines.slice(0, n).filter(l => /^\/\/\s*v[\d.]+\s*—/.test(l)).length;
-    if (headerLines > HEADER_MAX_LINES) {
-        notes.push(`${file}: header is ${headerLines} lines (budget ${HEADER_MAX_LINES})`);
-    }
-    if (entries > HEADER_MAX_ENTRIES) {
-        notes.push(`${file}: ${entries} version entries (budget ${HEADER_MAX_ENTRIES})`);
-    }
+    const bodyLines = lines.length - n;
+    const budget = headerLineBudget(bodyLines);
+    ok(headerLines <= budget,
+       `${file}: header ${headerLines} lines <= budget ${budget} (${bodyLines} lines of code)`);
+    ok(entries <= HEADER_MAX_ENTRIES,
+       `${file}: ${entries} version entries <= ${HEADER_MAX_ENTRIES} ` +
+       `— overflow belongs in CHANGELOG.md § ARCHIVED FILE HEADERS`);
 }
 if (notes.length) {
-    console.log(`  ${notes.length} note(s) — untidiness, not defects:`);
+    console.log(`  ${notes.length} note(s):`);
     for (const nt of notes) console.log('    · ' + nt);
-} else {
-    console.log('  none');
 }
 
 console.log(`\n${pass} passed, ${fail} failed, ${notes.length} note(s)`);

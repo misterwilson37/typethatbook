@@ -1,5 +1,12 @@
-// audit-versions.mjs v1.3.0 — Round 15 (Sholes's successor), Round 17 (Linotype),
-// Round 27 (Chicago).
+// audit-versions.mjs v1.4.0 — Round 15 (Sholes's successor), Round 17 (Linotype),
+// Round 27 (Chicago), Round 28 (Daugherty).
+//
+// v1.4.0 — MIRRORS versions.js v1.12.0's PROPORTIONAL HEADER BUDGET. The flat
+//          60-line limit is replaced by max(220, 8% of the file's CODE lines),
+//          and the entry budget goes 6 → 8. ⚠️ THE RATIO IS MEASURED AGAINST
+//          THE BODY, NOT THE WHOLE FILE — a header measured against the total
+//          would fund its own growth. Read the long block in versions.js for
+//          why lines scale and entries deliberately do not.
 //
 // v1.3.0 — SOURCES mirrors versions.js v1.11.0: settings-panel.js added.
 //
@@ -19,14 +26,14 @@
 // kept in sync, and it hadn't been for three modules. Caught while adding the
 // two new html entries for the version-footer redesign.
 //
-// Runs versions.js's OWN checks — runtime constant vs header comment, the 60-line
-// header budget, the 6-entry budget, and entry ordering — against the files on
-// disk, so drift is caught without deploying and opening a browser.
+// Runs versions.js's OWN checks — runtime constant vs header comment, the
+// proportional header-line budget, the 8-entry budget, and entry ordering —
+// against the files on disk, so drift is caught without deploying and opening a browser.
 //
 //   node audit-versions.mjs [path-to-repo]     # defaults to .
 //
 // ⚠️ THIS IS A MIRROR, NOT A SECOND SOURCE OF TRUTH. SOURCES, HEADER_EXEMPT and
-// the two budget numbers below are copied from versions.js. If you change them
+// the three budget numbers below are copied from versions.js. If you change them
 // there, change them here — and if the two ever disagree, versions.js is the one
 // that ships and therefore the one that is right. The reason to accept a copy at
 // all is that versions.js FETCHES its files over HTTP for the build panel, which
@@ -74,8 +81,12 @@ const SOURCES = [
     { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
 ];
 const HEADER_EXEMPT = ['style.css', 'adventure.css', 'game.html', 'learn.html'];
-const HEADER_MAX_LINES = 60;
-const HEADER_MAX_ENTRIES = 6;
+// ⚠️ MIRRORS versions.js v1.12.0. Change there first; these three are the copy.
+const HEADER_FLOOR_LINES = 220;
+const HEADER_LINES_RATIO = 0.08;
+const HEADER_MAX_ENTRIES = 8;
+const headerLineBudget = body =>
+    Math.max(HEADER_FLOOR_LINES, Math.ceil(body * HEADER_LINES_RATIO));
 
 function cmpSemver(a, b) {
     const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
@@ -112,7 +123,10 @@ for (const { file, pattern } of SOURCES) {
         const header = hm ? hm[1] : null;
         if (header && version && header !== version)
             flags.push(`header comment says v${header} — one of the two is a lie`);
-        if (n > HEADER_MAX_LINES) flags.push(`header is ${n} lines (budget ${HEADER_MAX_LINES})`);
+        const bodyLines = text.split('\n').length - n;
+        const budget = headerLineBudget(bodyLines);
+        if (n > budget)
+            flags.push(`header is ${n} lines (budget ${budget} for ${bodyLines} lines of code)`);
         const entries = block
             .map(l => (l.trim().match(/^\/\/\s*v(\d+\.\d+(?:\.\d+)?)\s*[-\u2014]/) || [])[1])
             .filter(Boolean);

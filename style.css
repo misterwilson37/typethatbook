@@ -1,4 +1,13 @@
-/* TypeThatBook style.css v3.8.0 */
+/* TypeThatBook style.css v3.8.1 */
+/* v3.8.1: #footer-full IS NOW OPAQUE, BOUNDED AND SELF-DEFENDING. adventure.css
+           v1.0.3 removed the ancestor `opacity` that was washing this panel
+           out; this half makes the panel immune to the next one — `opacity: 1`
+           declared on the element itself, an opaque background instead of
+           rgba(...,.97), and a `backdrop-filter` so any future translucency
+           still can't put book text through it. Also bounded: it was
+           `white-space: nowrap` with no max-width, so one long ⚠ note made the
+           panel wider than the viewport and it ran off the left edge. Now
+           max-width/max-height with scroll, and notes wrap. HANDOFF §0.-20. */
 /* v3.8.0: THE ⚙ SETTINGS PANEL (ROADMAP item 0b) — .settings-overlay and its
            children, for settings-panel.js. ⚠️ NAMED FOR THE PANEL, NOT FOR
            SCHOOL, so Library can adopt the same shell without a second block.
@@ -106,7 +115,7 @@
    what versions.js reads back out of the LIVE stylesheet to tell a stale cached
    CSS from a deployed one. Bump it in the SAME EDIT as the header comment at the
    top, always. It has now drifted twice; drill-filter-test.mjs F12 catches it. */
-body::before { content: "v3.8.0"; display: none; }
+body::before { content: "v3.8.1"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -864,22 +873,58 @@ select.modal-select {
    keeps `position: fixed` (which is itself a containing block, same as
    `relative` would be) so the panel can anchor to it with no extra wrapper. */
 footer { position: fixed; bottom: 5px; right: 10px; font-size: 0.7em; color: #666; background: rgba(255,255,255,0.8); z-index: 101; padding: 2px 5px; border-radius: 3px; cursor: default; }
+/* ⚠️ v3.8.1 — THREE OF THESE DECLARATIONS ARE DEFENCE, NOT DECORATION.
+   `opacity: 1` is here because adventure.css v1.0.2 had `opacity: .55` on
+   <footer> and opacity composites the whole subtree — the panel was legible in
+   its own right and unreadable on screen anyway. A declaration on the element
+   itself cannot be reached by an ancestor's fade, so the next person who dims
+   the footer cannot break this again.
+   `background: #fff` (not rgba) and the backdrop-filter are the same argument
+   one layer down: this panel sits over 24px monospace book text, and ANY
+   see-through at all makes numbers unreadable. It is a diagnostic. If you
+   cannot read it, it does not work.
+   The size bounds are the third: `white-space: nowrap` with no max-width meant
+   one long ⚠ note stretched the panel past the viewport and off the left edge,
+   taking the file list with it. Notes now wrap; the list stays nowrap. */
 footer #footer-full.build-list {
     display: none;
     position: absolute;
     bottom: 100%;
     right: 0;
     margin-bottom: 4px;
-    background: rgba(255,255,255,0.97);
-    color: #333;
-    border: 1px solid #ccc;
+    opacity: 1;
+    background: #fff;
+    backdrop-filter: blur(3px);
+    color: #222;
+    border: 1px solid #b0b0b0;
     border-radius: 4px;
-    padding: 6px 10px;
+    padding: 8px 12px;
     font-size: 12px;
     line-height: 1.55;
     white-space: nowrap;
     text-align: left;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    max-width: min(680px, calc(100vw - 24px));
+    max-height: calc(100vh - 90px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.28);
+}
+/* ⚠️ NOT SCOPED TO THE FOOTER. index.html's build panel is a #build-list under
+   a button, not a hover panel, and it renders the same note markup — scoping
+   these under `footer` left its notes as unstyled inline spans. Three panels,
+   one set of note styles. */
+.build-note {
+    display: block;
+    white-space: normal;
+    margin-left: 1.4em;
+}
+.build-note-hidden {
+    display: block;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid #e0e0e0;
+    color: #777;
+    white-space: normal;
 }
 /* Hover, for a mouse. `.pinned` (toggled by a click/tap in JS) is the touch
    equivalent — hover never fires on a touchscreen, so without it the panel

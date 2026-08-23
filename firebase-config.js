@@ -1,5 +1,22 @@
-// firebase-config.js v1.2.0
+// firebase-config.js v1.3.0
 //
+// v1.3.0 - ⚠️⚠️ ADMIN_EMAILS LIVES HERE NOW, AND THIS IS A 4→1 CONSOLIDATION.
+//          The same two-address list was hand-maintained in FOUR files —
+//          game.js, learn.js, admin.js and reports.html (as BOOTSTRAP_EMAILS) —
+//          which is the twin problem HANDOFF §0.-13.E counted four instances of
+//          in a single day. Nobody had drifted yet. That is luck, not design:
+//          adding a colleague meant editing four files and the only way to
+//          discover you had missed one was a teacher being locked out of one
+//          page and not the others.
+//          ⚠️ THIS FILE IS THE RIGHT HOME BECAUSE OF WHO ALREADY IMPORTS IT.
+//          All four consumers already pull `db`/`auth` from here, so the
+//          consolidation cost zero new dependencies — no page had to learn
+//          about a module it did not already load. A new shared module would
+//          have been a fifth thing to remember to register in versions.js.
+//          ⚠️ NOT A SECURITY BOUNDARY, AND IT NEVER WAS. This list ships in
+//          client code on every page. firestore.rules and the setStaffRole
+//          custom claims are what actually enforce access; this decides what
+//          the UI OFFERS. Do not move a real permission behind it.
 // v1.2.0 - App Check with reCAPTCHA v3. Sign-up is open to any Google account
 //          on earth (deliberately - students self-serve), which made every
 //          `allow create` an authenticated, unmetered write target pointed at a
@@ -16,7 +33,35 @@ import { getStorage } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-s
 import { initializeAppCheck, ReCaptchaV3Provider, getToken }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app-check.js";
 
-export const CONFIG_VERSION = '1.2.0';
+export const CONFIG_VERSION = '1.3.0';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WHO IS STAFF  (v1.3.0)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⚠️ THE ONLY COPY. game.js, learn.js, admin.js, reports.html and index.html
+// all import from here. If you are adding a teacher, this is the one line, and
+// tests/admin-list-test.mjs FAILS if a second literal list reappears anywhere
+// in the repo — because the failure mode of the old arrangement was silent:
+// four lists, one edited, and a colleague who can reach Reports but not the
+// admin panel with no error message anywhere to explain it.
+//
+// ⚠️ A UI GATE, NOT A SECURITY BOUNDARY. This ships in client code on every
+// page and anyone can read it in devtools. firestore.rules and the setStaffRole
+// custom claims decide what data can actually be fetched; this decides what
+// buttons are drawn. Never put a real permission behind it.
+export const ADMIN_EMAILS = [
+    "jacob.wilson@sumnerk12.net",
+    "jacob.v.wilson@gmail.com",
+];
+
+// Takes the Firebase user object (or null) rather than an email string, because
+// every call site had `currentUser && ADMIN_EMAILS.includes(currentUser.email)`
+// written out longhand and one of them is eventually going to forget the null
+// check on a signed-out page.
+export function isStaffUser(user) {
+    return !!(user && user.email && ADMIN_EMAILS.includes(user.email));
+}
 
 const firebaseConfig = {
   apiKey: "AIzaSyCV3RVWUwTLKoi_ze-FNCiam4lhggHKHR8",

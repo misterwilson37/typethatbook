@@ -1,6 +1,36 @@
 # tests/
 
-<!-- tests/README.md v1.2.0 — Round 19 (Hermes). Registered daylog-test.mjs
+<!-- tests/README.md v1.5.0 — Round 28 (Daugherty), Round 21 (Hammond), Phase A.
+
+     v1.5.0 — Round 28 (Daugherty). NEW: build-panel-test.mjs — the build footer
+     must not scold children AND must not look clean when it has merely been
+     gagged.
+     ⚠️⚠️ THIS FILE WAS TWO FILES AT TWO DIFFERENT VERSIONS. A copy of it sat at
+     the REPO ROOT as README.md at v1.4.0 while tests/README.md was still v1.2.0,
+     and the root copy was the one being edited. Merged here; see the note in the
+     root README about what that copy had displaced.
+     ⚠️ THE COUNTS BELOW WERE THREE ROUNDS STALE. The registration audit catches
+     an unregistered FILE; it cannot catch a wrong NUMBER in English prose. Count
+     by running, not by editing the sentence.
+     ⚠️ EIGHT HARNESSES FAIL ON A FRESH CHECKOUT WITH ERR_MODULE_NOT_FOUND —
+     `jsdom` is a dev dependency and is not vendored. RUN `npm install` BEFORE
+     CONCLUDING THE SUITE IS RED. Round 28 nearly filed those eight as defects.
+     v1.4.0 — Round 21 (Hammond), Phase A. ⚠️ THE REGISTRATION
+     AUDIT NOW ENFORCES THIS FILE. run-all-tests.mjs v1.4.0 reads the directory
+     and FAILS THE SUITE on any .mjs in no list. The counts below cannot drift
+     again — if they disagree with reality, `npm test` goes red. Three orphans
+     (crossmode-overwrite, union-clock, week-agreement) are registered; new
+     harness tab-lifetime-test.mjs covers the axis nothing covered; new RULES
+     list runs under `npm run test:rules` (67 assertions, all passing).
+     v1.3.0 — Round 21 (Hammond). ⚠️ THE FIREBASE EMULATOR RUNS.
+     firestore-rules.test.mjs's "I COULD NOT RUN THIS" header was copied forward
+     through four rounds and is FALSE — see "Running the rules harnesses" below.
+     New file rules-probe.test.mjs (13 assertions, passing) executes the rules
+     questions HANDOFF §0.-5 depends on. ⚠️ THE UNREGISTERED COUNT WAS WRONG: this
+     file said two files are unregistered; there are FIVE, and one of them is
+     crossmode-overwrite-test.mjs, the only harness that reproduces the live §3.1
+     defect.
+     v1.2.0 — Round 19 (Hermes). Registered daylog-test.mjs
      (29 FAST). ⚠️ THE STANDING FAILURE IS CLOSED AND THE SECTION ABOUT IT IS
      REWRITTEN — metadata-map-test was reporting two real admin.js defects, not a
      book-metadata question. week-anchor-test.mjs v1.1.0 now compares learn.js and
@@ -26,9 +56,14 @@ reason they are plain `.mjs` and not something the browser would try to execute.
 From the repo root:
 
 ```
-npm install          # devDependencies only; nothing here reaches Cloud Functions
-npm test             # the 28 fast harnesses, ~10 seconds
-npm run test:epubs   # plus the 4 corpus harnesses over library/, ~2 minutes
+npm install          # ⚠️ FIRST, AND ON EVERY FRESH CLONE. devDependencies only;
+                     #    nothing here reaches Cloud Functions. jsdom is NOT
+                     #    vendored, and without it EIGHT harnesses fail with
+                     #    ERR_MODULE_NOT_FOUND — which is not a red suite, it is
+                     #    an uninstalled one. Round 28 nearly filed it as a defect.
+npm test             # the fast harnesses + the registration and syntax audits
+npm run test:epubs   # plus the corpus harnesses over library/, ~2 minutes
+npm run audit:versions   # version stamps only — now also covered by `npm test`
 ```
 
 `npm test` is `node tests/run-all-tests.mjs`. You can also run any single harness
@@ -38,6 +73,68 @@ directly, from anywhere:
 node tests/hud-test.mjs
 node tests/lesson-atomicity-test.mjs
 ```
+
+## ⚠️ VERSION STAMPS — the one rule that keeps the deploy diagnosable
+
+**Every shipped file carries its version TWICE: a runtime constant and a header
+comment. Bump BOTH in the same edit, always.**
+
+The constant is the one that matters. `versions.js` parses it out of the
+**deployed** file to build the footer panel, so a stale cached file cannot lie
+about itself — and since there is no command line here, that footer is the only
+way to tell what is actually running in a classroom. The header comment is
+decoration.
+
+The two are hand-maintained twins, and in Round 26 **five files** drifted in a
+single evening — `game.js` reported itself six releases behind while the fix
+everyone was about to verify sat in the code. Stylesheets have the same problem
+in a different shape: `style.css`'s `body::before` and `adventure.css`'s
+`body::after` are machine-readable stamps that must match their own headers.
+
+`npm test` now fails if any of them disagree (`tests/version-stamp-test.mjs`).
+It also fails if a module `game.js` or `learn.js` imports is missing from
+`versions.js`'s SOURCES — three extracted modules had been invisible to the
+footer for two rounds. **Anything that runs on a child's screen must be
+reportable in the footer**, because that footer is the only deploy diagnostic
+available without a command line.
+It also checks the three harness **version pins** — and note why that is
+separate: a pin catches *"you bumped the module and forgot the harness."* It is
+structurally incapable of catching *"you forgot to bump the module,"* because it
+is an assertion about a number a human maintains by hand. Both checks are needed.
+
+**Header-length budgets are reported as notes, not failures.** Read the block at
+the top of that harness before changing that — a permanently red suite is what
+allowed the above to ship past two already-failing harnesses.
+
+## ⚠️ Running the rules harnesses — THE EMULATOR WORKS, AND FIVE ROUNDS BELIEVED IT DID NOT
+
+`firestore-rules.test.mjs` opens with *"I COULD NOT RUN THIS. The Firestore
+emulator downloads its jar from storage.googleapis.com, which isn't reachable
+from my sandbox."* **That sentence is false and it was copied forward through
+four rounds.** Round 20 then designed a §3.1 fix that the deployed rules reject,
+because nobody executed the file that would have said so in nine seconds.
+
+⚠️ **`firestore.rules` IS THE ONLY FILE IN THIS PROJECT JAKE CANNOT TEST FROM A
+BROWSER** (§B.4 — the Rules editor is console-only). It is therefore the file
+that most needs executing and the one that has been reasoned about most. From
+the repo root:
+
+```
+npm install --no-save firebase-tools @firebase/rules-unit-testing firebase mocha
+npx firebase emulators:exec --only firestore --project demo-ttb \
+    "npx mocha tests/rules-probe.test.mjs --timeout 20000"
+```
+
+You need `java` (any modern JDK) and network access to `storage.googleapis.com`
+for the emulator jar; `firebase.json` needs
+`{ "firestore": { "rules": "firebase/firestore.rules" } }` and the project id
+`demo-ttb` is a fake, so nothing touches production.
+
+⚠️ **ROLES LIVE IN `staff/{uid}` DOCUMENTS WITH `active: true`, NOT IN THE AUTH
+TOKEN.** `authenticatedContext(uid, { role: 'teacher' })` produces a context the
+rules treat as a **student**. Every one of `firestore-rules.test.mjs`'s 14
+failures is that one mistake. If a new rules harness reports that staff can do
+nothing, check the seed before you touch the rules.
 
 ## ⚠️ How these files find the code they test
 
@@ -56,30 +153,47 @@ before the move.
 
 ## What is registered, and what is not
 
-⚠️ **Round 22 rewrote two harnesses that used to be green by asserting a defect.**
-`tab-lifetime-test.mjs` Parts B/C/F and `crossmode-overwrite-test.mjs` now assert
-the correct totals. `tab-lifetime-test.mjs` chooses which controller to drive by
-**reading `game.js` and `learn.js`**, so it goes red on a build where the writers
-have not shipped — that indirection is deliberate, and its header explains why.
+⚠️ **THIS PARAGRAPH USED TO CARRY A HAND-MAINTAINED COUNT AND IT WAS WRONG** —
+it said thirty-four harnesses with thirty-two registered when the truth was
+thirty-nine and thirty-four. The count drifted because each round updated the
+number it remembered rather than the number on disk, and three harnesses fell
+out of the suite entirely, including the only one that reproduces the live §3.1
+defect.
 
-⚠️ **Three Parts still assert defects on purpose and must not be "fixed":**
-`tab-lifetime-test.mjs` Part D and `crossmode-overwrite-test.mjs` Part D are the
-pre-cutover shape, live until 2026-08-22; `tab-lifetime-test.mjs` Part E is the
-v3.29.0 seeding mistake, driven so it cannot ship unnoticed twice.
+✅ **THAT CANNOT HAPPEN AGAIN.** `run-all-tests.mjs` v1.4.0 reads this directory
+on every run and fails the suite on anything in no list. To exempt a file you
+must name it in `EXEMPT` **with a reason**, which is a deliberate act visible in
+a diff. Trust the audit, not this paragraph.
 
-Thirty-four harnesses are in this folder. Thirty-two are registered:
-`run-all-tests.mjs` holds three lists — `FAST` (28 harnesses, no external data, runs
-in a fresh clone), `EPUB` (4, needs `library/`, behind `--with-epubs`), and `PENDING`
-(currently empty, see below). A harness that is in
+⚠️ **AND IT DRIFTED AGAIN ANYWAY, IN THE SENTENCE BELOW THIS ONE.** Round 28
+found it reading *"28 harnesses"*. **The audit catches an unregistered FILE; it
+cannot catch a wrong NUMBER in English prose**, so the paragraph above overstated
+what was fixed. Recount by running, never by editing the number you remember.
+
+Current, verified by running: **55 `.mjs` files in this folder, 45 registered** —
+`FAST` (39, no external data, runs in a fresh clone), `EPUB` (4, needs
+`library/`, behind `--with-epubs`), `RULES` (2, behind `npm run test:rules`).
+`PENDING` is empty. The remainder are fixtures and helpers, not harnesses.
+`npm test` reports **ALL 46 HARNESSES PASS** — 46 rather than 39 because the
+runner counts its own syntax-check and registration audits.
+
+A harness that is in
 neither list **is not coverage**, however green it is on demand — Round 17 found
 `sort-test.mjs` and `lesson-atomicity-test.mjs` in exactly that state, both passing,
 both invisible, and registered them.
 
-Two files are deliberately unregistered:
+### Not in `FAST`, and why
+
+✅ **THE THREE ACCIDENTAL ORPHANS ARE NOW REGISTERED** (Round 21, Phase A). What
+remains out is out on purpose:
 
 | File | Why it is not in the runner |
 |---|---|
-| `firestore-rules.test.mjs` | Needs the Firebase emulator — a CLI and a JVM. Also **known wrong**: it seeds roles as auth-token claims, and `firestore.rules` v2.x reads `staff/{uid}` documents. It is a starting point for a rewrite, not a passing suite. Its path to the rules is now `../firebase/firestore.rules`. |
+| `crossmode-overwrite-test.mjs` | ⚠️ **NOT DELIBERATE — REGISTER IT.** This is the harness that reproduces §3.1 against the shipped build (loses 600 of 1200 seconds). It exits 0 by design, reporting "reproduced-as-expected", so it can be registered without turning the suite red. **The suite prints ALL 29 HARNESSES PASS while the harness driving the live defect is not in it.** ⚠️ Its Part C models per-source **document ids**, which `firestore.rules` v2.5.0 **denies** — see HANDOFF §0.-5.B. Green here does not mean deployable. |
+| `union-clock-test.mjs` | ⚠️ **NOT DELIBERATE — REGISTER IT.** 35 assertions, passing. Holds the interval-union measurement §0.-1 rests on, against the four real 2026-08-18 rollups. |
+| `week-agreement-test.mjs` | ⚠️ **NOT DELIBERATE — REGISTER IT.** 26 assertions, passing. The Rule 11 date-agreement proof at all 24 hours. Run it as `TZ=America/Chicago node tests/week-agreement-test.mjs` for the real check. |
+| `firestore-rules.test.mjs` | Needs the Firebase emulator — see below; **the emulator is available**, contrary to this file's own header. Also **known wrong**: it seeds roles as auth-token claims, and `firestore.rules` v2.x reads `staff/{uid}` documents. Run as-is it fails **14** assertions, none of which are rule defects. With only the seed corrected — five staff documents carrying `active: true`, classes carrying `teacherUids` — it runs **48 passing, 4 failing**, and three of those four are test artifacts. ⚠️ The fourth is **unresolved**: `"a request with no auth token at all can read nothing"` bundles three reads and succeeded; which one passed was never determined. See HANDOFF §0.-5.G. |
+| `rules-probe.test.mjs` | Needs the emulator, same as above. Registering it would break `npm test` in a fresh clone, which has no JVM guarantee — that is why it is out, and it is the **only** reason. 13 assertions, passing. |
 | `cover-harness.mjs` | It is a **diagnostic report**, not an assertion harness — it prints a table of cover-detection outcomes for a human to read, and exits 0 whether or not those outcomes are the right ones. Registering it would add a line that says `ok` unconditionally, which is worse than no line. Its `@xmldom/xmldom` dependency is declared now, so it runs from a clean install; deciding whether to give it real assertions is a live question, not a settled one. |
 
 ## ⚠️ `reconcile-test.mjs` — read its header before trusting it (Round 18)

@@ -328,9 +328,16 @@
 <footer id="footer-version">Reports</footer>
 
 <script type="module">
-    import { db, auth } from "./firebase-config.js";
+    import { db, auth, ADMIN_EMAILS } from "./firebase-config.js";
 
     // ─── Version ──────────────────────────────────────────────────────────────
+    // v2.25.1 — IMPORT ONLY, NO BEHAVIOUR. BOOTSTRAP_EMAILS is now an alias for
+    //           the ADMIN_EMAILS export in firebase-config.js rather than a
+    //           fourth literal copy. ⚠️ THE LOCAL NAME IS KEPT ON PURPOSE — this
+    //           file's use is a temporary bridge to custom claims, marked for
+    //           deletion, and calling it the same thing as the other pages' UI
+    //           gate would hide that. HANDOFF §0.-20.H.
+    //
     // v2.25.0 — ⚠️ RECONCILE VS SESSIONS AND REBUILD-FROM-SESSIONS ARE DELETED.
     //           ~830 lines, on Jake's confirmed boundary: "As long as you agree
     //           none of it is necessary, you can make all those cuts without
@@ -629,7 +636,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.25.0";
+    const REPORTS_VERSION = "2.25.1";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -667,12 +674,16 @@
     //
     // Access now comes from Auth CUSTOM CLAIMS (role + schoolIds), set by the
     // setStaffRole Cloud Function and enforced by firestore.rules. The hardcoded
-    // ADMIN_EMAILS list below is kept ONLY as a bootstrap fallback so nobody is
-    // locked out before claims are assigned. Delete it once staff records exist.
-    const BOOTSTRAP_EMAILS = [
-        "jacob.wilson@sumnerk12.net",
-        "jacob.v.wilson@gmail.com",
-    ];
+    // ADMIN_EMAILS list is kept ONLY as a bootstrap fallback so nobody is
+    // locked out before claims are assigned. Delete this alias once staff
+    // records exist — deleting it does NOT delete the list, which is shared.
+    //
+    // ⚠️ v2.15.0 — THE LITERAL COPY IS GONE. It is imported from
+    // firebase-config.js, the single list all five pages now read. The local
+    // name is kept because this file's fallback is a DIFFERENT IDEA from the
+    // other pages' UI gate — here it is a temporary bridge to custom claims,
+    // and calling it BOOTSTRAP_EMAILS at the two use sites keeps that visible.
+    const BOOTSTRAP_EMAILS = ADMIN_EMAILS;
 
     const statusEl = document.getElementById('status');
     let reportData = [];

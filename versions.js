@@ -1,5 +1,22 @@
-// versions.js v1.11.0 — reads every file's version constant out of the files as
+// versions.js v1.12.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
+//
+// v1.12.0 — ⚠️⚠️ THE ⚠ NOTES ARE STAFF-ONLY NOW, AND THE DEFAULT IS OFF.
+//           renderBuildList(results, { notes }) — omit the option and you get
+//           NO notes. That direction is deliberate: this function has three
+//           call sites on three student-reachable surfaces (game.js, learn.js,
+//           index.html), so a caller that forgets the flag must fail toward
+//           silence, not toward a child reading "40 version entries (budget 6)"
+//           over their book. §0.-13.E's twin problem, defused by making the
+//           unsafe state the one you have to ASK for.
+//           ⚠️ IT DOES NOT GO SILENT — renderHiddenNotesLine(n) prints "n build
+//           notes — sign in as staff" and every caller ends with it. THAT IS
+//           LOAD-BEARING: Jake troubleshoots at a student's machine while
+//           signed in as nobody, and a panel that looked CLEAN when something
+//           was wrong would be a diagnostic that lies — the exact failure
+//           direction §0.-14.C is about. Hidden is fine. Absent is not.
+//           ⚠️ countBuildNotes(results) exists so a caller can add its own
+//           notes (game.js's renderer-drift line) to the same count.
 //
 // v1.11.0 — SOURCES gained settings-panel.js (ROADMAP 0b). ⚠️ The D2 ratchet
 //           added in Round 27 caught this omission on the first test run after
@@ -73,10 +90,8 @@
 // with the build panel showing three correct version numbers and no sign of the
 // fourth.
 //
-// v1.4.0 — registers stats-wal.js, the second module game.js and learn.js both
-// import. ⚠️ A shared module that is not in this list is the worst kind to have
-// stale: a cached copy of it misbehaves on BOTH pages at once, and the build
-// panel would show two files at their correct versions and no sign of the third.
+//
+// ⚠️ v1.12.0 — v1.4.0's entry moved to CHANGELOG.md § ARCHIVED FILE HEADERS.
 //
 // Explicit patterns rather than one clever regex, so an unexpected match is
 // impossible and adding a file is obvious.
@@ -116,7 +131,7 @@ const SOURCES = [
     { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
 ];
 
-export const VERSIONS_VERSION = '1.11.0';
+export const VERSIONS_VERSION = '1.12.0';
 
 const CACHE_KEY = 'ttb_buildVersions_v3';   // v3: entries gained header budget fields
 
@@ -138,18 +153,58 @@ const CACHE_KEY = 'ttb_buildVersions_v3';   // v3: entries gained header budget 
 // are exempt: their comment IS the source of truth, there's no second copy.
 const HEADER_EXEMPT = ['style.css', 'adventure.css', 'game.html', 'learn.html'];
 
-// v1.3.0 — HEADER BUDGET.
+// v1.3.0 — HEADER BUDGET.  ⚠️ REVISED IN v1.12.0 — READ THE BLOCK BELOW.
 //
 // Headers grew unbounded: game.js reached 122 lines and 18 version entries, and
 // its entries had drifted OUT OF ORDER because each session's edit anchored on
 // the previous newest one and landed a slot too deep. Nobody catches either by
 // reading, because nobody reads a 122-line comment.
 //
-// Budget: 60 lines and 6 version entries per header, newest first. Everything
-// older lives in CHANGELOG.md. Violations are reported in index.html's build
-// panel, which is the only place a check can run without a CLI.
-const HEADER_MAX_LINES = 60;
-const HEADER_MAX_ENTRIES = 6;
+// Violations are reported in the build panel, which is the only place a check
+// can run without a CLI.
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// v1.12.0 — ⚠️⚠️ THE TWO BUDGETS MEASURE DIFFERENT THINGS AND ONLY ONE SCALES.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The flat 60/6 pair had FOURTEEN outstanding violations and had been printing
+// them into a student-facing panel for weeks. Fourteen standing violations is
+// not fourteen problems; it is a budget that was wrong. But they were wrong in
+// two DIFFERENT ways, and collapsing them would have thrown away the useful
+// half.
+//
+// ⚠️ LINES ARE PROPORTIONAL, ON JAKE'S RULING (2026-08-22): "if the code itself
+// expands, the line limit should, too." A 20-line module documented in 32 lines
+// and an 8,000-line module documented in 400 are not the same fact, and a flat
+// number called both of them the same violation. The budget is now a FLOOR plus
+// a share of the body:
+//
+//     budget = max(HEADER_FLOOR_LINES, ceil(bodyLines * HEADER_LINES_RATIO))
+//
+// The floor is what protects the doc-dense small modules — drill-filter.js is
+// 191 header lines over 105 lines of code and that is CORRECT, because in that
+// module the policy IS the product and the code is the easy part. The ratio is
+// what keeps the ratchet: a header can outgrow the floor only by earning it.
+//
+// ⚠️ ENTRIES ARE NOT PROPORTIONAL AND MUST NOT BECOME SO. This is the budget
+// that caught something real — game.js was at 40 entries, learn.js at 46, and
+// both had entries out of order because nobody scrolls to the bottom of a
+// changelog to file a new one correctly. That failure does not get better
+// because the file got bigger; it gets WORSE. 6 was too tight to be obeyed and
+// so was ignored; 8 is a round's worth of work plus room. CHANGELOG.md is the
+// overflow and has a § ARCHIVED FILE HEADERS section for exactly this.
+//
+// ⚠️ IF YOU COME HERE TO RAISE A NUMBER BECAUSE SOMETHING IS FAILING, RAISE THE
+// LINE FLOOR, NOT THE ENTRY COUNT. The line budget is a guess about how much
+// rationale a module deserves and guesses get revised. The entry budget is a
+// claim about how a person reads, and that has not changed since Round 14.
+const HEADER_FLOOR_LINES  = 220;
+const HEADER_LINES_RATIO  = 0.08;
+const HEADER_MAX_ENTRIES  = 8;
+
+function headerLineBudget(bodyLines) {
+    return Math.max(HEADER_FLOOR_LINES, Math.ceil(bodyLines * HEADER_LINES_RATIO));
+}
 
 function cmpSemver(a, b) {
     const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
@@ -180,16 +235,24 @@ function auditHeader(file, text) {
 
     const ordered = entries.every((v, i) => i === 0 || cmpSemver(entries[i - 1], v) >= 0);
 
+    // ⚠️ THE BUDGET IS MEASURED AGAINST THE BODY, NOT THE WHOLE FILE. Measuring
+    // against the total would let a header fund itself: add 100 lines of header,
+    // earn 8 more lines of header, forever. `bodyLines` excludes the header, so
+    // only real code buys room.
+    const bodyLines = lines.length - n;
+    const budget = headerLineBudget(bodyLines);
+
     const problems = [];
-    if (n > HEADER_MAX_LINES)
-        problems.push('header is ' + n + ' lines (budget ' + HEADER_MAX_LINES + ')');
+    if (n > budget)
+        problems.push('header is ' + n + ' lines (budget ' + budget +
+                      ' for ' + bodyLines + ' lines of code)');
     if (entries.length > HEADER_MAX_ENTRIES)
         problems.push(entries.length + ' version entries (budget ' + HEADER_MAX_ENTRIES +
                       ') \u2014 move the rest to CHANGELOG.md');
     if (!ordered)
         problems.push('version entries out of order: ' + entries.join(' '));
 
-    return { lines: n, entries: entries.length, ordered, problems };
+    return { lines: n, entries: entries.length, ordered, budget, bodyLines, problems };
 }
 
 function readHeaderVersion(file, text) {
@@ -260,31 +323,72 @@ export function readAppliedCssVersion(pseudo) {
     } catch (e) { return null; }
 }
 
-// Render the build list as HTML. Flags anything it couldn't read, and flags a
-// stylesheet whose applied version disagrees with the deployed file.
-export function renderBuildList(results) {
+// v1.12.0 — Every ⚠ note one file can produce, as data rather than as HTML
+// glued onto a row. Pulled out so the same list can be COUNTED without being
+// SHOWN, which is what makes the staff gate honest instead of just quiet.
+//
+// ⚠️ ORDER MATTERS TO A READER, NOT TO THE CODE: staleness first (it describes
+// THIS MACHINE RIGHT NOW and is the reason anyone opened the panel), then
+// stamp drift, then header hygiene (identical on every machine in the
+// building, and the only category a student was ever going to see).
+function collectNotes(r) {
+    const notes = [];
+
+    const pseudo = r.file === 'style.css' ? '::before'
+                 : r.file === 'adventure.css' ? '::after' : null;
+    if (pseudo && r.version) {
+        const applied = readAppliedCssVersion(pseudo);
+        if (applied && applied !== r.version) {
+            notes.push({ color: '#c62828',
+                         text: `browser is applying v${applied} — stale cached ` +
+                               `stylesheet, hard-reload` });
+        }
+    }
+    if (r.header && r.version && r.header !== r.version) {
+        notes.push({ color: '#e65100',
+                     text: `header comment says v${r.header} — one of the two is a lie` });
+    }
+    if (r.audit && r.audit.problems.length) {
+        for (const p of r.audit.problems) notes.push({ color: '#c62828', text: p });
+    }
+    return notes;
+}
+
+// How many ⚠ notes this build would produce. Exported so a caller that adds
+// notes of its own (game.js's renderer-drift check) can report ONE total
+// instead of two partial ones.
+export function countBuildNotes(results) {
+    return results.reduce((n, r) => n + collectNotes(r).length, 0);
+}
+
+// The line that keeps a gated panel from lying. `n` is the TOTAL — the caller's
+// own notes included. Returns '' for zero, so a clean build says nothing.
+//
+// ⚠️ DO NOT MAKE THIS ALARMING. It is read most often by a child who has
+// hovered the footer by accident and can do nothing about any of it. Grey,
+// lowercase, no ⚠.
+export function renderHiddenNotesLine(n) {
+    if (!n) return '';
+    return `<div class="build-note-hidden">${n} build note${n === 1 ? '' : 's'}` +
+           ` — sign in as staff to read ${n === 1 ? 'it' : 'them'}.</div>`;
+}
+
+// Render the build list as HTML.
+//
+// ⚠️ `notes` DEFAULTS TO FALSE ON PURPOSE — see the v1.12.0 header entry. A
+// caller that forgets the option shows a student a clean list of file versions,
+// which is harmless. The opposite default put header-budget scolding on top of
+// a nine-year-old's book.
+export function renderBuildList(results, { notes = false } = {}) {
     const rows = results.map(r => {
         if (!r.version) {
-            return `<div style="color:#ff8a65">${r.file} — could not read (${r.note})</div>`;
+            return `<div style="color:#c05621">${r.file} — could not read (${r.note})</div>`;
         }
         let line = `<div><span style="opacity:.6">${r.file}</span> v${r.version}`;
-        // Runtime constant vs header comment. The constant wins — it's what
-        // renders — so the header is what's reported as wrong.
-        if (r.audit && r.audit.problems.length) {
-            line += r.audit.problems.map(p =>
-                ' <span style="color:#ff5252">\u26a0 ' + p + '</span>').join('');
-        }
-        if (r.header && r.header !== r.version) {
-            line += ` <span style="color:#ffb74d">⚠ header comment says v${r.header}` +
-                    ` — one of the two is a lie</span>`;
-        }
-        const pseudo = r.file === 'style.css' ? '::before'
-                     : r.file === 'adventure.css' ? '::after' : null;
-        if (pseudo) {
-            const applied = readAppliedCssVersion(pseudo);
-            if (applied && applied !== r.version) {
-                line += ` <span style="color:#ff5252">⚠ browser is applying v${applied}` +
-                        ` — stale cached stylesheet, hard-reload</span>`;
+        if (notes) {
+            for (const nt of collectNotes(r)) {
+                line += `<span class="build-note" style="color:${nt.color}">` +
+                        `\u26a0 ${nt.text}</span>`;
             }
         }
         return line + `</div>`;

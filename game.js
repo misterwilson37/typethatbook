@@ -1,4 +1,18 @@
-// game.js v3.42.3
+// game.js v3.43.0
+//
+// v3.43.0 — ⚠️⚠️ THE BUILD PANEL WAS UNREADABLE AND ITS LOUDEST WARNING WAS
+//           FALSE. Two independent defects in one hover. (1) adventure.css's
+//           unscoped `body footer { opacity:.55 }` faded the whole subtree,
+//           panel included, in EVERY view — fixed in adventure.css v1.0.3 /
+//           style.css v3.8.1. (2) ⚠️ THE ONE IN THIS FILE: the renderer-drift
+//           check guarded against 'failed' but not against '—', the
+//           NEVER-MOUNTED sentinel, so classic view — the default — printed
+//           "mounted v—, deployed file reads v1.5.4 — stale module cache" on
+//           every single session. A red alarm that is always on is not an
+//           alarm. It now requires a real semver. ⚠️ AND THE ⚠ NOTES ARE
+//           STAFF-ONLY: versions.js v1.12.0 gates them, this file passes the
+//           flag and re-renders from cache when auth changes underneath. See
+//           HANDOFF §0.-20.
 //
 // v3.42.3 — THE CORNER ID STAMP IS GONE; the student ID moved into the Settings
 //           menu with its click-to-copy intact. renderIdStamp() deleted from BOTH
@@ -58,299 +72,6 @@
 //           just below the HUD, attached to nothing. Long-standing; visible in
 //           every render Jake sent. Now a child of .hud-section.right.
 //
-// v3.39.0 — THE TWO-ROW TOP BAR (ROADMAP item 0). The left slot is now Daily
-//           over context and the sprint has moved to the centre with WPM,
-//           accuracy and the streak, because a sprint is a LIVE quantity and
-//           was on the left only because hud.js glued it there in parentheses.
-//           ⚠️ DAILY IS THE LEAD ROW AND MUST STAY THERE — hud.js v1.3.0's
-//           return block has the argument, tests/hud-lead-test.mjs has the
-//           assertion. `.hud-time-long` and `hud.long` are deleted, not tuned:
-//           the 40-character string they compensated for no longer exists.
-//           Overtime now colours the SPRINT rather than tinting the Daily
-//           figure orange for a sprint event.
-//
-// v3.38.1 — ⚠️ THE STALE DAY CARRIED FORWARD. mergeGuestStats() period-guarded
-//           the SERVER side of `live - base` and never the LIVE side — and on
-//           the one path that calls it the server guard is a TAUTOLOGY, because
-//           retroactiveSaveGuestSession() synthesises `lastDate: dateStr`. A
-//           tab left open overnight re-authed with yesterday's day counters in
-//           `live`, so `mine` was yesterday's WHOLE DAY and it landed on
-//           today's typing_logs document. Two students, 2026-08-21, exact to
-//           the second and the character. `liveDay` / `liveWeek` now gate the
-//           contribution AND the floor. See the block above the function and
-//           tests/live-period-test.mjs.
-//
-// v3.38.0 — ⚠️ ROADMAP ITEM 6 CONFIRMED AND FIXED. A sprint crossing midnight
-//           was split correctly by the day counters (243s to yesterday, 6s to
-//           today) and filed WHOLE by the session record, stamped with the day
-//           it ENDED on — the observed 4m 9s rollup beside a 0m 6s daily log.
-//           The tick now closes the open sprint on the OUTGOING day before it
-//           resets, and the midnight check MOVED ABOVE `sprintSeconds++` so the
-//           second that just elapsed is not filed under yesterday.
-//           ⚠️ THE ROADMAP'S SECOND CANDIDATE IS INNOCENT — session-log.js dates
-//           from the caller and always did. tests/midnight-test.mjs.
-//
-// v3.37.0 — ⚠️ THE OVERNIGHT RESCUE, on Jake's ruling. A child who typed as a
-//           guest and did not sign in until the NEXT DAY now has those minutes
-//           credited to the day they typed them, via
-//           carryGuestDaysToTheirOwnDocuments(). Input is the dated, sourced
-//           guest queue, so it can only ever under-credit; sessionLogTake() is
-//           atomic, so it cannot run twice. ⚠️ PRE-CUTOVER DAYS ARE REFUSED BY
-//           daylog.js — adding to the shared flat triple is §3.1 with an
-//           addition in front of it. The rescue switches itself on at
-//           SOURCE_SPLIT_CUTOVER and never runs against the shape it would
-//           corrupt. The argument is in daylog.js v1.4.0's footer.
-//
-// v3.36.0 — ⚠️⚠️ THE GUEST MINUTE. This file had NO guest merge on the auth
-//           path and learn.js did. Jake, 2026-08-20, one student, one machine:
-//           School guest 1:04 → sign in → 8:31 (server 7:27, merged); Library
-//           guest 1:11 → sign in → 8:31 (the SAME number — the minute erased by
-//           applyWeekToStats(), which ASSIGNS). The merge existed here twice,
-//           inline, in two modal paths, so whether a child kept their minutes
-//           depended on which of three sign-in buttons they pressed.
-//           retroactiveSaveGuestSession() is now the one copy, called by all
-//           three, BEFORE loadUserStats(). A true guest's sprints are queued
-//           under GUEST_QUEUE_UID instead of dropped, and adopted at sign-in,
-//           so the minutes reach the RECORD and not only the total.
-//
-//
-// ⚠️ THE LINE ABOVE SAID v3.30.0 FOR FIVE VERSIONS while `const VERSION` said
-// 3.34.0. tools/audit-versions.mjs has been reporting it as "one of the two is
-// a lie" that whole time. Fixed here because this deploy touches the file
-// anyway — HANDOFF §0.-7.D's instruction exactly.
-//
-// v3.35.0 — ⚠️⚠️ §3.1 IS CLOSED. THIS FILE NO LONGER WRITES THE DAY TOTAL.
-//           On and after daylog.js's SOURCE_SPLIT_CUTOVER, the daily-log write
-//           names `secondsLibrary`/`charsLibrary`/`mistakesLibrary` and nothing
-//           else, fed by a counter seeded from THOSE FIELDS. learn.js writes the
-//           School triple the same way. Two pages, one document, no shared
-//           field — so a merge from the other page cannot mention this page's
-//           numbers and therefore cannot replace them.
-//
-//           ⚠️ THE COUNTER SEEDS FROM ITS OWN FIELD, NEVER FROM THE DAY TOTAL.
-//           Seeding from the total folds School's time into Library's bucket and
-//           the reader then adds it twice. That was the v3.29.0 bug, it is why
-//           the source split was reverted in v3.30.0, and
-//           tab-lifetime-test.mjs Part E drives it deliberately so it cannot
-//           come back unnoticed.
-//
-//           ⚠️ THE WRITE IS DATE-GATED AND THAT IS WHAT MAKES THIS UPLOAD SAFE
-//           ON ANY DAY. Before the cutover this file writes the flat triple,
-//           byte-for-byte as v3.34.0 did. The readers are legacy-first before
-//           the cutover, so a page that started writing split fields early would
-//           file a whole afternoon somewhere every reader ignores.
-//
-//           `statsData.secondsToday` is UNCHANGED in meaning — still the whole
-//           day, still what the HUD paints, still seeded from the graded
-//           document. The student's number does not move.
-//
-// v3.34.0 — ⚠️⚠️ EMERGENCY REVERT OF THE v3.32.0 PROJECTION. The daily total is
-//           the in-memory counter again. `typing_sessions` was found to contain
-//           OVERLAPPING rollups and NEGATIVE character counts (HANDOFF §0.0), so
-//           deriving a grade from it makes the grade the corrupt number. Stage 1
-//           — one document, HUD reads typing_logs, no stats/time_tracking — is
-//           KEPT and does not depend on sessions. Sessions are still written and
-//           still feed the drill-down; they just cannot decide a grade.
-//
-// v3.33.0 — ⚠️ THE HUD FOLLOWS THE DOCUMENT. Stage 2 made the WRITE a projection
-//           of typing_sessions and left the HUD painting the old in-memory
-//           counter — two different quantities, which is the divergence this
-//           round exists to end, rebuilt by the fix for it. After a successful
-//           daily-log write, statsData is reset to what was actually written and
-//           the HUD repaints. The displayed number can drop once; that means the
-//           counter was ahead of the record, and correcting it is the point.
-//
-// v3.32.0 — ⚠️ STAGE 2: THE DAILY TOTAL IS DERIVED FROM typing_sessions, AND
-//           THE LEADERBOARD IS DERIVED TOO — it was the last place in the app
-//           that accumulated a student's time independently, and it is now a
-//           view of statsData.secondsWeek (itself the sum of seven daily docs)
-//           with the old accumulator kept only as a floor. See flushLeaderboard(). The
-//           typing_logs write is no longer this tab's in-memory counter; it is
-//           (server sessions + local queue + this tab's open sprint). Two tabs
-//           can no longer overwrite each other's day. A failed session read
-//           writes NOTHING rather than a computed-from-nothing total. Requires
-//           session-log.js v1.4.0 and daylog.js v1.1.0, both uploaded first.
-//           HANDOFF §0.0.
-//
-// v3.31.0 — ⚠️⚠️ ONE NUMBER. `users/{uid}/stats/time_tracking` IS GONE FROM THIS
-//           FILE — every read and every write of it. The day and week totals the
-//           HUD paints are now read from `typing_logs/{uid}_{date}`, THE SAME
-//           SEVEN DOCUMENTS reports.html grades from, via the new shared
-//           daylog.js. HANDOFF.md §0.0 is the full statement; the short version
-//           is that the student's screen and the teacher's report were two
-//           independently-written copies of one quantity and no amount of
-//           auditing was ever going to make two copies agree.
-//
-//           ⚠️ REQUIRES firestore.rules v2.5.0, DEPLOYED FIRST. Until v2.5.0 the
-//           read rule on typing_logs was staff-only, which is precisely why the
-//           second copy existed. Without it every load fails its read, and the
-//           guard below leaves the counters untouched rather than painting zero.
-//
-//           ⚠️ THE WEEK IS DERIVED AND STORED NOWHERE. It is the sum of the seven
-//           daily documents, recomputed every load. checkForWeekRepair() and
-//           `lastKnownRepairedAt` are DELETED along with the stored counter they
-//           defended — there is nothing left to repair, and reports.html's
-//           week-counter audit goes with them. If either idea comes back, a
-//           second copy has come back; go and find that instead.
-//
-// v3.30.0 — ⚠️ THE SOURCE SPLIT IS REVERTED. This file's typing_logs write is
-//           byte-for-byte what v3.28.1 shipped: the flat seconds/chars/
-//           mistakes triple, from statsData.*Today. v3.29.0 and v3.29.1 both
-//           tried to give Library its own fields and both were wrong in ways
-//           only live use caught (v3.29.0 fed both fields from the shared
-//           cross-mode counter; v3.29.1 fixed that but the round as a whole
-//           had by then produced two student-visible defects in two days).
-//           Reverted deliberately, on Jake's clock, rather than attempting a
-//           third counter change overnight with students arriving in the
-//           morning. The bug the split was meant to fix — DESIGN-TELEMETRY.md
-//           §2.4, two page controllers overwriting each other's daily total —
-//           IS STILL PRESENT and is once again a known, lived-with defect
-//           rather than a half-landed fix. See HANDOFF §0.6 item 9.
-//           Everything else from Round 16 stays: the week-repair resync
-//           (v3.28.0) and the variety floor (v3.28.1) are untouched.
-//
-// v3.28.1 — EXTRACTED `_qualifyingPracticeChars()`'s FILTER into the new
-//           variety-floor.js, the fifth shared module. No behavior change —
-//           see that file's header. Closes the "no harness coverage" flag
-//           Round 15/16 left on this logic: the filter itself is now a real,
-//           directly-imported, directly-tested pure function
-//           (variety-floor-test.mjs) rather than something only reachable by
-//           lifting it out of the monolith with brace-matching. The DOM-level
-//           wiring around it (button gating) still isn't extracted, and still
-//           isn't covered — that part is unchanged this round.
-//
-// v3.28.0 — THE REPAIR RESYNC. Fixes a real incident: a student's week counter
-//           got audit-repaired in reports.html and came back inflated on the
-//           next check — twice. Root cause was a MacBook that's supposed to
-//           restart between class periods but sometimes doesn't; the tab (and
-//           its in-memory statsData) survives, still holding the pre-repair
-//           number, and the next 5-minute flush wrote that stale number
-//           straight back over the fix. mergeGuestStats()'s data-loss floor
-//           (Math.max, never trust a decrease) is what made the repair
-//           unwindable in the first place — it can't tell "the number went
-//           down because of a bug" from "the number went down because someone
-//           corrected it." reports.html's repair now stamps a `repairedAt`;
-//           new checkForWeekRepair() (called from flushAll(), right before the
-//           write that would otherwise clobber a repair) compares it against
-//           what this session saw at load and resyncs — server's corrected
-//           value plus this browser's own contribution since baseline, no
-//           floor — when it's newer. New `lastKnownRepairedAt`, set in
-//           loadUserStats() and reset on week rollover alongside the counters
-//           it travels with. See checkForWeekRepair()'s own comment, next to
-//           flushAll(), for the full mechanism.
-//
-// v3.27.1 — TWO STUDENT-REPORTED FIXES. (1) THE AI-PRACTICE VARIETY FLOOR:
-//           startPracticeMode()/getMissedCharsHTML() now require at least
-//           PRACTICE_MIN_QUALIFYING_CHARS (3) DIFFERENT characters, each missed
-//           at least PRACTICE_CHAR_MISS_THRESHOLD (3) times, before the ✨
-//           Practice button offers or the Gemini call fires. Before this, a
-//           single missed letter — Jake's example was "F" and "J", with only F
-//           really qualifying — could produce an AI paragraph "focused on" one
-//           dominant, common letter: fast and easy to type, free banked time,
-//           not remediation. Server-side floor is index.js v1.7.0, which also
-//           moved input validation ahead of the daily-limit reservation so a
-//           rejected request no longer burns one of the student's 5 slots.
-//           (2) THE HUD LONG-FORM CLIP: hud.js v1.2.0's new `long` flag drives
-//           a `.hud-time-long` class (smaller font) and a `title` attribute
-//           (full-string tooltip) on #hud-time, so the combined Sprint+Daily
-//           form — 40+ characters — ellipsises instead of silently hard-
-//           clipping past the section boundary. See style.css v3.5.5.
-//
-// v3.27.0 — VERSION FOOTER REDESIGN. #footer-primary always shows game.html /
-//           game.js / style.css — the three files most likely to explain what
-//           a student is seeing. #footer-full is the rest of the deployed
-//           build (hud.js, session-log.js, stats-wal.js, firebase-config.js,
-//           etc.), fetched lazily on first hover via versions.js's existing
-//           readDeployedVersions()/renderBuildList() — the same mechanism
-//           index.html's build-info button already used. Built because Jake,
-//           debugging the HUD bug below, had no way to see which hud.js was
-//           actually deployed. Touch gets a tap-to-pin `.pinned` class since
-//           hover doesn't exist on a touchscreen. FEATURE, minor bump.
-//
-// v3.26.3 — ⚠️ THE 0:00-UNTIL-FIRST-KEYSTROKE BUG, FOR REAL THIS TIME. v3.26.2's
-//           cache seed in loadChapter() was overwritten on the very next line by
-//           an unconditional updateTimerUI() call, which repainted from statsData
-//           — still zero, since loadUserStats() hadn't resolved yet. Separately,
-//           the init handler carried a comment claiming a repaint happened after
-//           loadGoals() landed; the call it described did not exist in the code.
-//           Net effect: nothing painted real numbers until gameTick() started on
-//           the first keystroke. Fixed two ways: the cache fallback now lives
-//           INSIDE updateTimerUI() itself (same pattern as learn.js's
-//           renderTimeHUD(), which never had this bug), so every caller gets it
-//           for free; and the missing post-loadGoals() repaint is restored, so
-//           real numbers land the moment they're available. Reported by Jake,
-//           who noticed the predecessor's fix didn't actually fix it.
-//
-// v3.26.2 — ⚠️ THE READOUT NO LONGER OPENS AT 0:00 WHILE FIRESTORE IS READ.
-//           v3.26.1 fixed the paint; the NUMBER still was not there yet, because
-//           statsData holds its initialised zeros until an async read lands.
-//           hud.js v1.1.0 caches the last known totals; this paints them once at
-//           load and lets the real read overwrite. ⚠️ DISPLAY ONLY — statsData is
-//           never seeded from the cache. Reported by Jake, twice, both times right.
-//
-// v3.26.1 — ⚠️ THE TIME READOUT IS PAINTED EVERY TICK, NOT ONLY WHEN IT CHANGES.
-//           v3.26.0 correctly gated the ACCUMULATOR on the first keystroke and
-//           left updateTimerUI() inside that gate, so nothing drew the readout
-//           until a keystroke plus a full accumulator rollover. Students saw
-//           game.html's hardcoded `Daily 0:00` and an empty `#hud-week` instead of
-//           their real totals — reported by Jake within an hour of deploy. No
-//           number was ever wrong; the drawing was late. Painting now happens
-//           unconditionally, above the gate.
-//
-// v3.26.0 — ⚠️ NO CLOCK UNTIL THE FIRST KEYSTROKE. DESIGN-TELEMETRY §7 step 1.75,
-//           ruled by Jake 2026-08-18. gameTick() gated both its AFK check and its
-//           accumulator on `lastInputTime`, which startGame() stamped with
-//           Date.now() — so a sprint began counting the moment it opened and a
-//           student earned IDLE_THRESHOLD seconds for typing nothing. Two seconds
-//           a sprint, every sprint. `lastInputTime` now starts at 0 and both gates
-//           test it for truthiness first. ⚠️ THE AFK GUARD IS NOT OPTIONAL: an
-//           unguarded `now - 0` exceeds AFK_THRESHOLD immediately and would
-//           auto-pause every sprint into the break screen before a key was
-//           pressed. Recorded minutes drop slightly from this deploy forward;
-//           NOTHING STORED IS REWRITTEN — the seconds already banked stay banked,
-//           which is Jake's explicit ruling.
-//
-// v3.25.1 — COMMENTS ONLY. No code, no behaviour, no field, no gate changed.
-//           Invariant citations renumbered against the single consolidated
-//           HANDOFF.md §5. ⚠️ The §5 numbers are APPEND-ONLY from now on: a new
-//           invariant takes the next free number and nothing is ever renumbered
-//           again. This one repair was unavoidable because the old sequence was
-//           genuinely ambiguous — Round 9 assigned 56-81 and Round 11, told to
-//           continue from Round 8's 55, also started at 56.
-//
-// v3.25.0 — (1) ⚠️ THE TOP-BAR READOUT MOVES TO hud.js AND IS IDENTICAL TO
-//           SCHOOL'S. The left slot used to hold three different quantities
-//           depending on the session-length setting — sprint, or day, or sprint
-//           again labelled "Active" — in one position. It now always reads
-//           `Sprint 0:27 / 0:30 (Daily 9:22 / 10:00)`, or Daily alone with no
-//           sprint limit, and the right slot always reads Weekly.
-//           (2) ⚠️ QUEUED SESSIONS UPLOAD ON HIDE AND ON pagehide. Reports showed
-//           n-1 sessions: the queue was only drained by a `final` flush, so
-//           clicking Home recorded the sprint locally and uploaded nothing until
-//           the next visit. See flushSessionsNow().
-//
-// v3.24.0 — ⚠️ THE OPEN SPRINT IS NOW RECORDED. Session records were only ever
-//           written when a sprint ENDED (chapter complete, AFK pause, guest
-//           nudge), so a student who switches books every few sentences produced
-//           counter time with NO session history behind it. Harmless today;
-//           an undercount the moment totals derive from sessions. logOpenSprint()
-//           closes the open sprint on visibilitychange:hidden and pagehide
-//           WITHOUT ending it, and logSession() therefore writes DELTAS against
-//           a watermark rather than sprint totals. DESIGN-TELEMETRY §7 step 1.5.
-//           ⚠️ Reset the watermark wherever sprintSeconds is reset — four sites,
-//           counted by open-unit-test.mjs.
-//
-// v3.23.1 — Hands `serverTimestamp` to session-log.js so sprint rollups carry
-//           `serverAt` — a clock a student cannot change — alongside the client
-//           `timestamp` they can. DESIGN-TELEMETRY.md §6.3 / §7 step 1. One
-//           import, one dependency, no behaviour change in this file; nothing
-//           reads the new field yet, deliberately.
-//
-// v3.23.0 — ⚠️ THE STATS ROLLUP NOW SHARES A WRITE TRIGGER WITH THE DAILY LOG.
-//           They hold the same numbers and were written on different schedules,
-//           so about half of ninety students had no stats document at all and the
-//           rest had one from an arbitrary moment. See the block at step 3 of
-//           _flushAllInner() before changing the gate back.
 //
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
@@ -358,88 +79,13 @@
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
-// v3.22.0 — ⚠️ THE DOUBLED WEEK COUNTER, and the sprint history that was filed
-//           under the wrong day. Four changes; the first is the one that was
-//           actively corrupting a student's numbers.
-//           (1) A SIGNED-OUT USER IS NOT A GUEST. Sessions expire at 24h and can
-//           expire mid-period. onAuthStateChanged fires with null, and every
-//           `!currentUser || isAnonymous` test in the file then reads a student
-//           halfway through a lesson as a brand-new visitor — including the
-//           login ladder, which re-offered sign-in after 60 seconds. Signing
-//           back in ran the guest merge, which ADDS Firestore's stored totals to
-//           the live ones. But statsData was never reset by the sign-out: it
-//           still held everything loaded at page open. 20 minutes + 20 minutes
-//           = 40. See sessionExpired and mergeGuestStats().
-//           (2) The merge is a BASELINE DIFF now, not a sum and not a max().
-//           Both were wrong in opposite directions. See mergeGuestStats().
-//           (3) Sprint rollups move to session-log.js, shared with learn.js,
-//           which had no sprint logging whatsoever. Records carry the date they
-//           were TYPED; this file used to stamp them at flush time.
-//           (4) Typing while signed out is no longer discarded in silence.
+// ⚠️ v3.43.0 — 33 OLDER ENTRIES (v3.39.0 back to v3.17.0) MOVED TO CHANGELOG.md
+//    § ARCHIVED FILE HEADERS. Nothing was deleted. The header budget is
+//    PROPORTIONAL now — see versions.js's HEADER_MAX_LINES — so this block is
+//    allowed to grow as the file does. The ENTRY budget is not proportional and
+//    is the one that fired: a changelog nobody scrolls to the bottom of is the
+//    defect, and it does not get better because the file got bigger.
 //
-// v3.21.1 — applyPendingClassAssignment() honours an explicit reassignment, and
-//          always consumes the record it read. The old `if (existing) return;`
-//          silently discarded every rollover assignment for a RETURNING student —
-//          the one student the importer cannot see — and left the record in place
-//          to be re-read and re-rejected on every sign-in thereafter. Intent now
-//          travels on the record as `overwrite` (lessons-admin.js v1.10.0), stale
-//          records expire at 30 days, and the goals cache is dropped on a move as
-//          well as a first placement, because last year's cached class is
-//          well-formed and therefore invisible to a validity check.
-//
-// v3.21.0 — ⚠️ THE CLOSED-TAB DATA LOSS. `ttb_wal_v2` held reading position AND
-//           the day/week time counters in one record, overwritten wholesale on
-//           every visibilitychange. walRecover() bails on
-//           `wal.bookId !== currentBookId` — right for a position, wrong for a
-//           clock — so: type in Dracula, close the tab (up to 5 minutes lives
-//           only in the WAL), open Treasure Island, and the first hide
-//           overwrites the slot. Those minutes were gone, silently, and nothing
-//           reported it. Counters now live in stats-wal.js, keyed by uid and
-//           period rather than by book, written and recovered by BOTH pages.
-//           The hide-flush 60s rate limit also gains a delta escape hatch: the
-//           gap governs how often we flush, the un-flushed delta governs
-//           whether we flush at all.
-//
-// v3.20.1 — Deleted lastSavedIndex and practiceRealLastSavedIndex: 22 references,
-//           ZERO consumers. Eighteen assignments kept a "where we last saved"
-//           counter accurate, and the only two reads copied it into a shadow so
-//           practice mode could zero it and put it back afterwards — a value
-//           carefully preserved across a mode switch and never once used to
-//           decide anything. walDirty is what actually drives flushing.
-//           ⚠️ Dead state is not free: every one of those eighteen sites was a
-//           place a future edit could be told to "keep lastSavedIndex in sync",
-//           and Round 8 nearly did exactly that rather than leave one load path
-//           inconsistent. Flagged in Round 8 §6; removed here.
-//
-// v3.20.0 — ONE guest login ladder, replacing two that did not know about each
-//           other: a one-shot prompt at 2 sprints/150s, and a separate two-rung
-//           150s/300s ladder that only armed in infinity mode. They disagreed
-//           about the thing that matters — the first retroactively saved the
-//           guest's minutes and position into the new account, the second called
-//           location.reload() and threw the session away — and the second was the
-//           one firing at five minutes, with the most to lose. Now: rungs at 60s
-//           and 300s of active typing, in EVERY session mode, always the
-//           retroactive-save path, never a third prompt.
-//           ⚠️ Fires at a SPRINT BOUNDARY, not mid-sprint. See anonNudgeDue().
-//
-// v3.19.1 — Book-switch guidance was written to textStream, which sits BEHIND the
-//           open modal — invisible exactly when needed. "Close" also loaded the
-//           book (correct behaviour, dishonest label). Hint now renders in the
-//           modal; the footer button relabels to "Start Reading".
-//
-// v3.19.0 — Settings dropdown stopped scanning the whole `books` collection.
-//           openMenuModal() did an uncached getDocs on every open — the last read in
-//           the student path ignoring the caching discipline the rest of the file
-//           adopted in v3.4.0. Now cached for an hour and validated by a COUNT
-//           aggregation. Console escape hatch: ttbClearBookList().
-//
-// v3.18.0 — Flip Back reachable from the PAUSE/sprint stats screen too. That screen
-//           is where a student notices they are lost — they stop typing because the
-//           text stopped making sense — so requiring them to dismiss it and pause
-//           again asked them to navigate out of the confusion the tool exists to fix.
-// v3.17.0 — FLIP BACK. Game Genie's chapter+sentence navigation, for students, bounded.
-//           ⚠️ Ceiling is `furthest`, NOT where they stand — that bound collapses on first
-//           use, since flipping back makes their old place "ahead". Two-step cross-chapter.
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * The write-ahead log is MORE durable than the per-sentence writes it
@@ -451,7 +97,7 @@
 //     splash, and reconciliation against the student's Firestore profile.
 //   * applyViewMode() must replay textLoaded + positionSet. A renderer
 //     mounted mid-session missed those events and will draw nothing.
-import { db, auth } from "./firebase-config.js";
+import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // The day/week counters' WAL, shared with learn.js. Extracted BECAUSE this
 // file's WAL was the bug: one key held reading position (book-scoped) and the
 // time counters (not book-scoped), and walRecover()'s correct bookId guard
@@ -493,6 +139,7 @@ import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // updateVersionBanner() below and the header on readOneDeployedVersion() for
 // why this doesn't just re-fetch game.js from inside itself.
 import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
+         countBuildNotes, renderHiddenNotesLine,
          readAppliedCssVersion } from "./versions.js";
 // serverTimestamp is imported for ONE purpose: to hand it to session-log.js so
 // rollups carry a clock the student cannot set. It is not used anywhere else in
@@ -515,7 +162,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.42.3";
+const VERSION = "3.43.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -682,36 +329,81 @@ async function updateVersionBanner(advRendererVersion) {
 // Separate from _ensureFullBuildLoaded() so a repeat hover after the triad
 // updates (a new chapter, a view-mode switch) can re-render from the SAME
 // already-fetched results without a second network round trip.
+// v3.43.0 — Is the person at this keyboard staff? Read at RENDER time, never
+// cached, because the panel outlives the sign-in: a student hovers it as a
+// guest, Jake signs in on the same tab, and the next hover must show more.
+// ⚠️ THIS IS A DISPLAY GATE AND NOTHING ELSE. Everything it hides is already
+// readable by anyone who opens devtools or the raw .js files, and none of it is
+// student data. Do not grow a security expectation on it.
+function _buildNotesAllowed() {
+    return isStaffUser(currentUser);
+}
+
+// ⚠️ v3.43.0 — '—' IS THE NEVER-MOUNTED SENTINEL AND IT WAS BEING TREATED AS A
+// VERSION. The old guard excluded 'failed' and nothing else, so in classic view
+// — which is the DEFAULT view — `'—' !== '1.5.4'` was true and the panel
+// printed a red stale-module-cache alarm on every session since the check
+// shipped. Requiring an actual semver is the fix; a sentinel can never satisfy
+// it, and neither can a future one somebody adds without reading this.
+const _SEMVER_RE = /^\d+\.\d+\.\d+$/;
+
+function _rendererDriftNote(results) {
+    if (!_SEMVER_RE.test(String(_mountedRendererVersion || ''))) return null;
+    const fetched = results.find(r => r.file === 'adventure-renderer.js');
+    if (!fetched || !fetched.version || fetched.version === _mountedRendererVersion) return null;
+    return `adventure-renderer.js mounted v${_mountedRendererVersion},` +
+           ` deployed file reads v${fetched.version} — stale module cache`;
+}
+
 function _renderFullBuildPanel(results) {
     const full = document.getElementById('footer-full');
     if (!full) return;
+    const showNotes = _buildNotesAllowed();
+
     let html = `<div style="opacity:.6;margin-bottom:4px">game.html (this page)</div>`
-             + renderBuildList(results);
+             + renderBuildList(results, { notes: showNotes });
+
     // adventure-renderer.js is dynamically imported (§ applyViewMode), so its
     // live, actually-running version can be compared against a fresh fetch of
     // the file on disk — the same drift a stale-CSS check catches elsewhere.
-    if (_mountedRendererVersion && _mountedRendererVersion !== 'failed') {
-        const fetched = results.find(r => r.file === 'adventure-renderer.js');
-        if (fetched && fetched.version && fetched.version !== _mountedRendererVersion) {
-            html += `<div style="color:#ff5252">⚠ adventure-renderer.js mounted` +
-                    ` v${_mountedRendererVersion}, deployed file reads` +
-                    ` v${fetched.version} — stale module cache</div>`;
-        }
+    const drift = _rendererDriftNote(results);
+    if (drift && showNotes) {
+        html += `<div><span class="build-note" style="color:#c62828">⚠ ${drift}</span></div>`;
     }
+
+    // ⚠️ ONE TOTAL, THIS FILE'S NOTE INCLUDED. A gated panel that showed nothing
+    // would read as a clean build, and Jake troubleshoots at student machines
+    // signed in as nobody — see versions.js v1.12.0.
+    html += renderHiddenNotesLine(showNotes ? 0 : countBuildNotes(results) + (drift ? 1 : 0));
+
     full.innerHTML = html;
     full.dataset.loaded = 'true';
+    full.dataset.notes = String(showNotes);
 }
 
 let _buildFetchPromise = null;
+let _buildResults = null;
 function _ensureFullBuildLoaded() {
     const full = document.getElementById('footer-full');
-    if (!full || full.dataset.loaded === 'true') return;
+    if (!full) return;
+    // Already drawn — but redraw for free if the sign-in state changed since,
+    // so signing in mid-session reveals the notes without a page reload.
+    if (full.dataset.loaded === 'true') {
+        if (_buildResults && full.dataset.notes !== String(_buildNotesAllowed())) {
+            _renderFullBuildPanel(_buildResults);
+        }
+        return;
+    }
     if (!_buildFetchPromise) {
         full.innerHTML = '<div style="opacity:.6">Reading deployed files…</div>';
         _buildFetchPromise = readDeployedVersions()
-            .then(results => { _renderFullBuildPanel(results); _buildFetchPromise = null; })
+            .then(results => {
+                _buildResults = results;
+                _renderFullBuildPanel(results);
+                _buildFetchPromise = null;
+            })
             .catch(() => {
-                full.innerHTML = '<div style="color:#ff8a65">Could not read build info.</div>';
+                full.innerHTML = '<div style="color:#c05621">Could not read build info.</div>';
                 _buildFetchPromise = null;
             });
     }
@@ -1155,11 +847,12 @@ function getFingerColor(fingerName) {
     return handGuideColor;
 }
 
-// ADMIN WHITELIST - same list as index.html, used to show admin link
-const ADMIN_EMAILS = [
-    "jacob.wilson@sumnerk12.net",
-    "jacob.v.wilson@gmail.com",
-];
+// ⚠️ v3.43.0 — THE LIST IS GONE FROM THIS FILE. It is imported from
+// firebase-config.js, which every page already loads. It used to be duplicated
+// here, in learn.js, in admin.js and in reports.html — four hand-maintained
+// copies of two email addresses, and adding a colleague meant remembering all
+// four. `ADMIN_EMAILS` is still in scope under the same name so the three call
+// sites below read exactly as they did; new code should prefer isStaffUser().
 
 // STATE — URL param takes priority, then localStorage, then default
 function getBookIdFromUrl() {

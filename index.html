@@ -432,8 +432,9 @@
     </footer>
 
     <script type="module">
-        import { db, auth } from "./firebase-config.js";
-        import { readDeployedVersions, renderBuildList } from "./versions.js";
+        import { db, auth, isStaffUser } from "./firebase-config.js";
+        import { readDeployedVersions, renderBuildList,
+                 countBuildNotes, renderHiddenNotesLine } from "./versions.js";
         // ⚠️ HANDOFF §0.0 — the shelf banner reads the GRADED document now.
         import { readWeek } from "./daylog.js";
         import { hudStrings } from "./hud.js";
@@ -447,7 +448,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.11.0";
+        const INDEX_VERSION = "3.12.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -469,11 +470,18 @@
                 _list.innerHTML = 'Reading deployed files…';
                 try {
                     const results = await readDeployedVersions();
+                    // ⚠️ v3.12.0 — THE ⚠ NOTES ARE STAFF-ONLY, like the two typing
+                    // pages'. This button sits in the Library footer where any
+                    // student can press it, and what it used to print was header
+                    // budget scolding. Read at click time, never cached, so
+                    // signing in and pressing it again shows more.
+                    const _staff = isStaffUser(currentUser);
                     _list.innerHTML =
                         `<div style="opacity:.6;margin-bottom:4px">index.html v${INDEX_VERSION} (this page)</div>`
-                        + renderBuildList(results);
+                        + renderBuildList(results, { notes: _staff })
+                        + renderHiddenNotesLine(_staff ? 0 : countBuildNotes(results));
                 } catch (e) {
-                    _list.innerHTML = '<div style="color:#ff8a65">Could not read build info.</div>';
+                    _list.innerHTML = '<div style="color:#c05621">Could not read build info.</div>';
                 }
             });
         }

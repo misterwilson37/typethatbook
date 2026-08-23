@@ -1,5 +1,13 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.18.0, 2026-08-23.** ⭐ **NEW ITEM 8b — EVERY ROUND SHIPS A CHANGED-FILES-ONLY
+UPLOAD SET**, on Jake's instruction, with the applied-to-a-clean-copy suite run as
+the non-optional part. ⚠️ Round 28's first attempt at it silently omitted
+`versions.js` and would have blanked both student pages; the file list was right
+and the copy was wrong, which is why reviewing the list is not the check.
+✅ **ITEM 9's HEADER-BUDGET AND `ADMIN_EMAILS` BULLETS ARE CLOSED** (Round 28).
+⚠️ **ITEM 10 IS STILL THE NEXT BUILD** and is unchanged by any of this.
+
 **v3.17.0, 2026-08-22.** ✅ **ITEM 10 IS FULLY SPECCED AND BUILDABLE** — all three
 open questions resolved by Jake. ⚠️ (1) `activeDayCount` ships cheap: **A GATE IS
 NOT A LEDGER**, and Rule 9 exists to protect the graded record, not a review
@@ -678,6 +686,64 @@ F8's guarantee lapses silently.
 
 ---
 
+## 8b. ⭐ NEW — EVERY ROUND SHIPS A CHANGED-FILES-ONLY UPLOAD SET
+
+**Standing practice from Round 28, on Jake's instruction:** *"Can you please only
+zip up the files that need to be uploaded? I would hate for one corrupted,
+unedited file to burn the whole thing down. Love that the zip has the folder
+structure, but I really only want to update that which has been done."*
+
+⚠️ **THE FULL-ARCHIVE HABIT WAS A REAL RISK AND NOBODY HAD NAMED IT.** Round 28
+changed **19 files of 180**. Shipping all 180 re-uploads 161 files nobody touched
+— every book in `library/`, `firestore.rules`, `functions/` — each one a chance
+to overwrite a good file with a stale one, for **zero benefit**, through a web
+portal, by hand, with a class arriving. The risk is entirely one-directional.
+
+**What a round delivers from now on:**
+
+1. A zip containing **only files whose bytes differ** from the archive Jake
+   handed over, **at their real paths** so it drops over a checkout.
+2. A root **`UPLOAD.md`** with the files in **dependency order**, grouped so an
+   interrupted upload stops somewhere safe, plus what to check afterwards and
+   ⚠️ **which files are repo-only and never reach a browser.**
+   `UPLOAD.md` is per-deploy and is **deleted after the upload** — it is not a
+   repository document.
+3. ⚠️⚠️ **THE SET APPLIED TO A PRISTINE COPY OF WHAT JAKE ACTUALLY HAS, WITH
+   `npm test` RUN THERE.** Not optional, and it is the whole item.
+
+### ⚠️⚠️ WHY ITEM 3 IS THE POINT, AND IT IS NOT PARANOIA
+
+*"Every file I edited passes"* and *"these files are sufficient"* are **different
+claims.** The first is about the working tree, which is complete by construction
+and can never expose an omission. The second is about the **archive**, and
+nothing in the working tree can test it.
+
+**Round 28's first attempt at this shipped without `versions.js`.** The diff was
+correct; the shell loop that copied the files dropped its last line, because the
+manifest had no trailing newline and `while read` discards an unterminated final
+line. `wc -l` reported 18 and `grep -c .` reported 19. The result would have been
+`game.js` v3.43.0 importing `countBuildNotes` from `versions.js` v1.11.0, which
+does not export it — ⚠️ **an ES module import failure throws before any code runs,
+so both student pages go BLANK**, caused by a file Jake never opened. See
+HANDOFF §0.-20.K.
+
+**It was caught by applying the set and running the suite there**, and by nothing
+else. A review of the file list would have passed it; the list was right.
+
+### Worth building, not built
+
+- ⚠️ **A `tools/make-upload-set.mjs`** that diffs against a reference copy, copies
+  in a way that cannot silently drop an entry, **re-hashes every file at the
+  destination**, and refuses to emit a set that fails the applied-suite check.
+  ⚠️ **JAKE CANNOT RUN IT — HE HAS NO CLI** — so it is a tool for the *instance*,
+  not for him, and it should refuse rather than warn.
+- **A recorded manifest of what was last delivered**, so the next round can diff
+  against what Jake actually has rather than against the zip it happened to be
+  handed. Today the reference is the uploaded archive, which works only because
+  rounds have been sequential.
+
+---
+
 ## 9. REDUCE THE SURFACE
 
 No deadline.
@@ -693,22 +759,46 @@ No deadline.
   as `daylog.js`. That path is where every counting defect has lived.
   ⚠️ `STAT_KEYS`, the WAL fold, the guest merge and the midnight rollover are
   four hand-maintained lists a new counter has to be added to.
-- **Enforce the header budget**: 60 lines, 6 version entries; history belongs in
-  `CHANGELOG.md`. ⚠️ **Now reported by `npm test` as NOTES rather than only by
-  `npm run audit:versions`** — `tests/version-stamp-test.mjs` section E, **17
-  notes** as of Round 27. `game.js` (433 lines / 38 entries) and `learn.js`
-  (410 / 42) are the worst.
-  ⚠️⚠️ **DO NOT PROMOTE THESE NOTES TO FAILURES WITHOUT DOING THE WORK FIRST.**
-  Seventeen of them would make `npm test` permanently red, and a suite that is
-  red for a known reason is precisely the mechanism that let Round 26's five
-  lying stamps ship past two already-failing harnesses. Read the block at the top
-  of that harness. The ONE ordering failure the audit found is fixed — see below. ⚠️ **AND THE CHANGELOG HAS TO BE WRITTEN FOR THAT TO MEAN
-  ANYTHING — ROUND 24 SHIPPED FOUR FILES AND ADDED NO ENTRY**, putting all of it
-  in `HANDOFF.md` instead, which is the pressure this bullet is about. Round 25
-  did not reconstruct it from the outside; see `HANDOFF.md` §0.-11.D. The
-  per-file sections are stale too (`lessons-admin.js` reads `Current: v1.7.1`). `game.js` is at 352 lines / 29 entries, `learn.js` at 303 / 33.
-  ⚠️ Rounds 23 and 24 both added to them knowingly. Six shared modules are over
-  the LINE budget; `session-log.js` is now over the ENTRY budget again too.
+- ~~**Enforce the header budget**~~ ✅ **DONE**, Round 28 (Daugherty), on Jake's
+  ruling: *"a previous iteration of you made those limits, and I have no problem
+  with you raising them to a reasonable amount. Probably should make a note that
+  if the code itself expands, the line limit should, too."*
+  ⚠️⚠️ **THE SEVENTEEN NOTES WERE TWO DIFFERENT PROBLEMS WEARING ONE LABEL, AND
+  ONLY ONE OF THEM WAS UNTIDINESS.** The bullet above assumed a single backlog of
+  sloppy headers. It was not:
+  * **The LINE budget was WRONG.** A flat 60 was applied to files from 51 lines
+    (`variety-floor.js`) to 8,000 (`game.js`). It called `drill-filter.js` — 191
+    header lines documenting 105 lines of filter policy, where the policy *is*
+    the product — the same violation as a 40-entry changelog. That is not
+    untidiness; it is a budget measuring the wrong thing. Now
+    `max(220, ceil(bodyLines × 0.08))`, per Jake's ruling.
+    ⚠️ **MEASURED AGAINST THE BODY, NOT THE FILE** — measuring against the total
+    lets a header fund its own growth: add 100 lines of header, earn 8 more.
+  * **The ENTRY budget was RIGHT and was the one catching something.** `game.js`
+    had 40 entries in one comment block and `learn.js` 46, both partly out of
+    order because nobody scrolls to the bottom of a changelog to file a new one
+    correctly. 45 entries moved verbatim to `CHANGELOG.md` §&nbsp;ARCHIVED FILE
+    HEADERS. Budget raised 6 → 8 (a round's work plus room) and **deliberately
+    left FLAT.** ⚠️ **DO NOT MAKE ENTRIES PROPORTIONAL.** "Nobody reads to the
+    bottom" gets *worse* as a file grows, not better.
+  ⚠️ **SECTION E IS A FAILURE NOW, NOT A NOTE**, and the old warning's condition
+  was met rather than overridden. It said *don't promote these without doing the
+  work first*, because seventeen would leave `npm test` permanently red. The
+  count is **zero**. A budget at zero violations is a ratchet; a budget at
+  seventeen is only noise. `versions.js` v1.12.0 is the source; `audit-versions.mjs`
+  v1.4.0 and `version-stamp-test.mjs` v1.1.0 are the two mirrors, and **nothing
+  checks the three budget numbers against each other** — change `versions.js`
+  first, then both, in the same commit.
+- ~~**Four hand-maintained copies of `ADMIN_EMAILS`**~~ ✅ **DONE**, Round 28.
+  `game.js`, `learn.js`, `admin.js` and `reports.html` (as `BOOTSTRAP_EMAILS`)
+  each carried the same two addresses. **Nothing had drifted — that is luck, not
+  design**, and the symptom of forgetting one is a colleague who can reach
+  Reports but not the admin panel, with no error anywhere to explain it. Now one
+  export in `firebase-config.js` v1.3.0, which won on the grounds that all five
+  consumers already import `db`/`auth` from it: zero new dependencies, and no
+  new module to remember to register in `versions.js`.
+  ⚠️ `tests/build-panel-test.mjs` section E **fails if a second literal list
+  reappears anywhere**, under any name, so this cannot silently regrow.
 - **Sentence-boundary WAL checkpoint**, both files or neither. localStorage only,
   costs nothing.
 - **`pendingClassAssignments` as a third roster discovery source.**

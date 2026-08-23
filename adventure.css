@@ -1,4 +1,14 @@
-/* adventure.css v1.0.2 — view-mode skin for Adventure Mode */
+/* adventure.css v1.0.3 — view-mode skin for Adventure Mode */
+/* v1.0.3: ⚠️⚠️ THE ONE UNSCOPED RULE IN THIS FILE WAS DIMMING THE BUILD PANEL
+           ON EVERY PAGE, IN EVERY VIEW. `body footer { opacity: 0.55 }` was
+           written for the one-line version stamp this footer used to be. It
+           is not scoped to .view-adventure — the ONLY rule here that isn't —
+           so it applied in classic view too, and `opacity` composites the
+           whole SUBTREE, which since v3.5.4 includes #footer-full. No
+           background alpha could rescue it: the panel's own
+           rgba(255,255,255,.97) was being multiplied by .55 after the fact.
+           The fade now lives on #footer-primary, which is the element it was
+           always meant for. See HANDOFF §0.-20. */
 /* v1.0.2: ⚠️ STAMP ONLY, NO RULE CHANGED. body::after still read "v1.0.0" after
            v1.0.1, so versions.js reported the APPLIED skin as one version below
            the deployed file. Found by tests/version-stamp-test.mjs on its first
@@ -19,10 +29,14 @@
 /* ⚠️ Bump this in the SAME EDIT as the header at the top. versions.js reads it
    back off the live page to spot a stale cached skin; it drifted for a whole
    version because nothing checked it. tests/version-stamp-test.mjs B does now. */
-body::after { content: "v1.0.2"; display: none; }
+body::after { content: "v1.0.3"; display: none; }
 
-/* Every rule in this file is scoped under body.view-adventure. Classic view
-   never sees any of this. */
+/* ⚠️ v1.0.3 — THIS CLAIM WAS FALSE FOR THREE VERSIONS AND COST A ROUND.
+   Almost every rule in this file is scoped under body.view-adventure. Classic
+   view sees ONE exception and it is marked as such below: `body footer`, the
+   version-footer type treatment, which is deliberately global. If you add a
+   second unscoped rule, say so here — the next person reads this paragraph and
+   stops looking. */
 
 /* The canvas always exists in the DOM but is hidden in classic view. */
 #adventure-canvas.hidden {
@@ -76,13 +90,27 @@ body.view-adventure #book-info-bar .bib-chap {
     color: #5a4a36 !important;
 }
 
-/* Footer version banner */
+/* Footer version banner.
+   ⚠️ DELIBERATELY UNSCOPED — this is the one rule in the file that applies in
+   classic view too, and the paragraph under body::after says so. The typography
+   is wanted on both surfaces; it was never adventure-only. */
 body footer {
     font-family: 'Courier Prime', monospace;
     font-size: 11px;
-    opacity: 0.55;
     padding: 4px 12px;
 }
+
+/* ⚠️ v1.0.3 — THE FADE BELONGS TO THE STAMP, NOT THE FOOTER.
+   `opacity` on <footer> composited the ENTIRE subtree, so the hover build panel
+   inherited 55% opacity and every line of it read through the book text
+   underneath. #footer-primary is the always-on-screen triad and the only part
+   that should recede; the panel is opened deliberately and must be legible the
+   instant it appears. Hover/focus/pin brings the stamp back to full so the
+   triad is readable while you are actually reading it. */
+body #footer-primary { opacity: 0.55; transition: opacity 0.12s; }
+body footer:hover  #footer-primary,
+body footer:focus  #footer-primary,
+body footer.pinned #footer-primary { opacity: 1; }
 
 /* ─── Adventure view: keyboard ───────────────────────────────────────── */
 /* Round typewriter keys with parchment base. Per-key finger tints are
