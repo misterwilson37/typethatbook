@@ -21,6 +21,7 @@
 // suppressed. §0.-14.C is a whole write-up about a version stamp failing in the
 // direction that reads as "everything is fine". So:
 //
+//     H. ⚠️ THE READ CACHE EXPIRES, AND NEVER OUTLIVES A PAGE LOAD
 //     A. notes off by DEFAULT     — a caller that forgets the flag is safe
 //     B. notes on when asked      — the gate is a gate, not a deletion
 //     C. suppressed is never SILENT — the count still prints
@@ -191,6 +192,90 @@ console.log('\n─── F. ⚠️⚠️ THE RENDERER-DRIFT NOTE NEEDS A SEMVER,
     // changing what "never mounted" looks like.
     ok(/rendererVersionStr\s*=\s*'—'/.test(src),
        "'—' is still the never-mounted sentinel; the guard changed, not the seed");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n─── H. ⚠️⚠️ THE READ CACHE EXPIRES AND DIES WITH THE PAGE ───');
+// ═══════════════════════════════════════════════════════════════════════════
+// Jake, 2026-08-23: *"Force refreshing is not refreshing everything. I have to
+// close the tab and open a new one."* That was this cache. It lived in
+// sessionStorage, which SURVIVES a reload — including a hard reload — and clears
+// only in a new tab. So the panel answered "what is running right now?" from a
+// copy taken at first page load, and the harder he refreshed the more certain
+// the wrong answer looked. §0.-22.
+{
+    const src = read('versions.js');
+    // Comments stripped: this file now discusses sessionStorage at length.
+    const code = src.replace(/\/\/[^\n]*/g, '');
+
+    ok(!/sessionStorage\.getItem/.test(code),
+       '⚠️⚠️ NOTHING READS FROM sessionStorage. That storage outlives a reload, ' +
+       'so a deploy instrument kept there cannot be refreshed by any action a ' +
+       'person would think to try.');
+    ok(!/sessionStorage\.setItem/.test(code),
+       'and nothing writes to it either — a write with no read is the next ' +
+       "round's confusing discovery");
+    ok(/sessionStorage\.removeItem/.test(code),
+       'the legacy key IS cleared once at load, so a tab upgrading from v1.12.0 ' +
+       'does not leave a plausible-looking cache behind for someone to find');
+    ok(typeof V.BUILD_READ_TTL_MS === 'number' && V.BUILD_READ_TTL_MS > 0,
+       'the freshness policy is a named, exported number rather than a literal ' +
+       'buried in a branch');
+    ok(V.BUILD_READ_TTL_MS <= 5 * 60_000,
+       '⚠️ the TTL is short enough to be useful DURING a deploy — the only time ' +
+       'anyone reads this panel is when they doubt what is running');
+
+    // Drive the real thing. readOne() fetches, so stub fetch and count calls.
+    const realFetch = globalThis.fetch;
+    let fetches = 0;
+    globalThis.fetch = async () => { fetches++; return {
+        ok: true, status: 200,
+        text: async () => 'export const VERSIONS_VERSION = \'9.9.9\';\n',
+    }; };
+    try {
+        V._resetBuildCacheForTest();
+        await V.readDeployedVersions();
+        const first = fetches;
+        ok(first > 0, 'a cold read actually fetches');
+
+        await V.readDeployedVersions();
+        ok(fetches === first,
+           'a second read inside the TTL is served from memory — opening the ' +
+           'panel three times must not re-fetch ~600KB on a school connection');
+
+        await V.readDeployedVersions({ force: true });
+        ok(fetches > first,
+           '⚠️ { force: true } ALWAYS goes to the network. index.html\'s build ' +
+           'button passes it, because a deliberate press means "right now".');
+
+        // Concurrency: two callers, one round of fetches.
+        V._resetBuildCacheForTest();
+        fetches = 0;
+        await Promise.all([V.readDeployedVersions(), V.readDeployedVersions()]);
+        const both = fetches;
+        V._resetBuildCacheForTest();
+        fetches = 0;
+        await V.readDeployedVersions();
+        ok(both === fetches,
+           '⚠️ two concurrent callers share ONE round of fetches. Valid here and ' +
+           'NOT always: learn.js v2.3.0 records a real defect from sharing an ' +
+           'in-flight promise between callers with different credentials — these ' +
+           'are unauthenticated static reads, so callers are interchangeable.');
+    } finally {
+        globalThis.fetch = realFetch;
+        V._resetBuildCacheForTest();
+    }
+
+    // ⚠️ The page controllers must not rebuild a staleness layer of their own.
+    for (const f of ['game.js', 'learn.js']) {
+        const c = read(f).replace(/\/\/[^\n]*/g, '');
+        ok(!/dataset\.loaded/.test(c),
+           `${f} keeps no "already loaded" flag — it was a THIRD layer of ` +
+           `staleness on top of this cache and the HTTP cache, and it is the one ` +
+           `that made a hard reload useless`);
+    }
+    ok(/readDeployedVersions\(\s*\{\s*force:\s*true/.test(read('index.html')),
+       "index.html's explicit build button forces a fresh read");
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

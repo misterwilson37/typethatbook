@@ -1,5 +1,15 @@
-// versions.js v1.12.0 — reads every file's version constant out of the files as
+// versions.js v1.13.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
+//
+// v1.13.0 — ⚠️⚠️ THE BUILD PANEL NO LONGER ANSWERS FROM A COPY IT TOOK AT PAGE
+//           LOAD. The sessionStorage cache is replaced by module state with a
+//           60-second TTL. Module state dies with the page, which is the
+//           lifetime the old comment already CLAIMED ("the tab's lifetime" was
+//           what it said and what it meant was "this page load"); the TTL is
+//           what saves a Chromebook tab left open for a week. ⚠️ A DEPLOY
+//           INSTRUMENT MAY BE CHEAP OR IT MAY BE CACHED, NOT BOTH — this one is
+//           read exactly when someone doubts what is running, which is exactly
+//           when a remembered answer is the wrong one. HANDOFF §0.-22.
 //
 // v1.12.0 — ⚠️⚠️ THE ⚠ NOTES ARE STAFF-ONLY NOW, AND THE DEFAULT IS OFF.
 //           renderBuildList(results, { notes }) — omit the option and you get
@@ -55,8 +65,15 @@
 //
 // COST: this fetches the raw .js files (game.js is ~210KB). That's why it is
 // LAZY — nothing is requested until the build banner is expanded — and why the
-// result is cached in sessionStorage for the tab's lifetime. A student who never
-// opens it pays nothing.
+// result is cached. A student who never opens it pays nothing.
+//
+// ⚠️⚠️ v1.13.0 — THE CACHE USED TO BE sessionStorage AND THAT MADE THE
+// INSTRUMENT LIE. sessionStorage SURVIVES A RELOAD — including a hard reload —
+// and is only fresh in a NEW TAB. So the one question this panel exists to
+// answer, "what is running right now?", was answered from a copy taken at first
+// page load and never revisited. Jake, 2026-08-23: *"Force refreshing is not
+// refreshing everything. I have to close the tab and open a new one."* That was
+// the panel, not his browser and not the files. See HANDOFF §0.-22.
 
 // v1.9.0 — registers daylog.js, the FIFTH module game.js and learn.js both
 // import — and the one whose staleness is worst. A cached copy of it reads the
@@ -83,12 +100,6 @@
 //
 // v1.6.0 — registers hud.js, the FOURTH shared module. Same reasoning as v1.5.0.
 //
-// v1.5.0 — registers session-log.js, the THIRD module game.js and learn.js both
-// import. The warning below applied to stats-wal.js and applies here twice over:
-// this one is the only writer of typing_sessions on either page, so a stale
-// cached copy takes out the teacher's entire drill-down — on both pages at once,
-// with the build panel showing three correct version numbers and no sign of the
-// fourth.
 //
 //
 // ⚠️ v1.12.0 — v1.4.0's entry moved to CHANGELOG.md § ARCHIVED FILE HEADERS.
@@ -132,9 +143,15 @@ const SOURCES = [
     { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
 ];
 
-export const VERSIONS_VERSION = '1.12.0';
+export const VERSIONS_VERSION = '1.13.0';
 
-const CACHE_KEY = 'ttb_buildVersions_v3';   // v3: entries gained header budget fields
+// ⚠️ v1.13.0 — THE OLD sessionStorage KEY, KEPT ONLY TO BE CLEARED. A tab that
+// loaded v1.12.0 or earlier has a stale build list sitting in sessionStorage
+// under this key; nothing reads it any more, but leaving it there means a
+// future reader finds a plausible-looking cache and wonders what writes it.
+// Cleared once at module load, then the name can go.
+const LEGACY_CACHE_KEY = 'ttb_buildVersions_v3';
+try { sessionStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
 
 // v1.2.0 — HEADER-COMMENT DRIFT DETECTION.
 //
@@ -301,16 +318,48 @@ export async function readOneDeployedVersion(file) {
 }
 
 // Read every file's deployed version. Cached per tab.
+// How long a read stays good. Short enough that a second look after a deploy
+// tells the truth; long enough that opening the panel three times in a row does
+// not re-fetch ~600KB of source on a school connection.
+//
+// ⚠️ THIS IS THE WHOLE FRESHNESS POLICY AND IT LIVES HERE, IN ONE PLACE. The
+// three callers used to each keep their own "already loaded" flag on top of this
+// cache, so there were four layers deciding staleness and none of them owned it.
+// A caller that wants a guaranteed-fresh read passes { force: true }; everything
+// else just calls and lets this decide.
+export const BUILD_READ_TTL_MS = 60_000;
+
+// ⚠️⚠️ MODULE STATE, NOT sessionStorage, AND THE DIFFERENCE IS THE BUG.
+// sessionStorage survives a reload and a hard reload, and clears only in a new
+// tab — so a stale read outlived every refresh a person would try. Module state
+// dies when the page does, which is the lifetime this cache was always described
+// as having. ⚠️ DO NOT MOVE IT BACK TO ANY STORAGE THAT OUTLIVES A PAGE LOAD.
+let _buildCache = null;
+let _buildCacheAt = 0;
+let _buildInFlight = null;
+
 export async function readDeployedVersions({ force = false } = {}) {
-    if (!force) {
-        try {
-            const raw = sessionStorage.getItem(CACHE_KEY);
-            if (raw) return JSON.parse(raw);
-        } catch (_) { /* fall through */ }
-    }
-    const results = await Promise.all(SOURCES.map(readOne));
-    try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(results)); } catch (_) {}
-    return results;
+    const fresh = _buildCache && (Date.now() - _buildCacheAt) < BUILD_READ_TTL_MS;
+    if (!force && fresh) return _buildCache;
+    // Coalesce concurrent callers. ⚠️ VALID HERE AND NOT ALWAYS: learn.js v2.3.0
+    // records a real defect from sharing an in-flight promise between callers
+    // with DIFFERENT credentials. These fetches are unauthenticated static reads,
+    // so every caller is genuinely interchangeable.
+    if (_buildInFlight) return _buildInFlight;
+    _buildInFlight = Promise.all(SOURCES.map(readOne))
+        .then(results => {
+            _buildCache = results;
+            _buildCacheAt = Date.now();
+            return results;
+        })
+        .finally(() => { _buildInFlight = null; });
+    return _buildInFlight;
+}
+
+// Exported for the harness: proves the cache is expiring rather than merely
+// appearing to. Not for production callers — pass { force: true } instead.
+export function _resetBuildCacheForTest() {
+    _buildCache = null; _buildCacheAt = 0; _buildInFlight = null;
 }
 
 // Read a stylesheet's version from its body::before / body::after stamp. This is

@@ -1,6 +1,17 @@
 # tests/
 
-<!-- tests/README.md v1.6.0 — Round 29 (Odell), Round 28 (Daugherty), Round 21
+<!-- tests/README.md v1.7.0 — Round 30 (Postal), Round 29 (Odell), Round 28
+     (Daugherty), Round 21
+
+     v1.7.0 — Round 30 (Postal). build-panel-test.mjs gained SECTION H: the build
+     panel's read cache must EXPIRE and must never outlive a page load. ⚠️ IT WAS
+     IN sessionStorage, WHICH SURVIVES A HARD RELOAD — so the one instrument that
+     reports what is deployed could not be refreshed by any action a person would
+     try. ⚠️ THE GENERAL POINT, AND IT IS WHY THIS SECTION EXISTS AT ALL: a
+     diagnostic is consulted INSTEAD of checking, so when it is wrong nothing
+     disagrees with it. Anything that reports on the system needs a harness aimed
+     at it specifically. Third instance in three rounds.
+     v1.6.0 — Round 29 (Odell), Round 28 (Daugherty), Round 21
      (Hammond), Phase A.
 
      v1.6.0 — Round 29 (Odell). NEW: lesson-gate-test.mjs — ROADMAP item 10.

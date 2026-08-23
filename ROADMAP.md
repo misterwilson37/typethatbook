@@ -1,5 +1,26 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.21.0, 2026-08-23.** ⭐⭐ **EIGHT NEW ITEMS (11–18) FROM JAKE'S FIRST REAL TEST
+OF THE LESSON GATE.** ⚠️ **ITEM 13 IS THE ONE TO READ FIRST AND ITS FIRST STEP IS
+A READ, NOT AN EDIT** — the gate did not fire, and the evidence in Jake's own
+screenshot (lesson 1 showing a green `A`, not `A🔥`, on a monotonic best-ever
+field) suggests **the gate is fine and the spec is wrong**: it counts a LESSON
+grade while the student is being shown fire on a RUN. Item 14 likely dissolves it.
+⚠️ **ITEM 11 IS A DATA-INTEGRITY BUG** — a class assigned without a school makes a
+student visible from one query and invisible from another. ⚠️ **ITEM 17 IS THE
+EXPENSIVE ONE** (1,155 reads to report on three students) and **ITEM 18 IS WHY IT
+MATTERS** (11% of the daily read quota at 135 students; the target is ~400).
+⚠️ **WRITES ARE 0.2%, READS ARE 11.3% — A 50x ASYMMETRY. TRADE READS FOR WRITES
+FREELY IN THIS PROJECT.**
+
+**v3.20.0, 2026-08-23.** ⚠️⚠️ **THE BUILD PANEL WAS CACHING ITS OWN ANSWER IN
+`sessionStorage`** and could not be refreshed by reloading — only by opening a new
+tab. Fixed in Round 30 (Postal), `versions.js` v1.13.0. ⚠️ **Anything that reports
+on the system needs a harness pointed at it specifically**, because a diagnostic
+is consulted instead of checking and so has nothing behind it to disagree when it
+is wrong — third instance in three rounds. HANDOFF §0.-22. ⚠️ **§10.H — THE
+MEASUREMENT — IS STILL THE NEXT THING**, and was next before this round too.
+
 **v3.19.0, 2026-08-23.** ✅ **ITEM 10 IS BUILT** — the lesson-farming gate, Round
 29 (Odell). ⚠️⚠️ **MASTERY IS WHAT CLOSES A LESSON, AND ONLY MASTERY**; an
 unmastered lesson is graded and replayable forever, at any distance, and a
@@ -749,6 +770,454 @@ else. A review of the file list would have passed it; the list was right.
   against what Jake actually has rather than against the zip it happened to be
   handed. Today the reference is the uploaded archive, which works only because
   rounds have been sequential.
+
+---
+
+## 11. ⭐⭐ NEW — A CLASS WITHOUT A SCHOOL, AND THE STUDENT WHO IS IN NEITHER
+
+**Jake, 2026-08-23, testing with his son's account.** Assigned Nico to the "7th &
+8th Grade" class from admin. Admin confirmed the class. **`learn.html` → Settings
+still said "No class assigned."** Reports showed him under *All schools* but **not
+under Ellis Middle School.**
+
+### ✅ RESOLVED BY JAKE'S CONSOLE READ, 2026-08-23 — IT IS **TWO** BUGS
+
+`users/{nico}` contains:
+
+    activeDayCount: 1
+    activeDayLast: "2026-08-23"
+    classId: "7th_8th_grade_sta…"      ← SET
+                                        ← schoolId ABSENT ENTIRELY
+
+⚠️ **BUG A — `classId` IS WRITTEN AND `schoolId` IS NEVER WRITTEN AT ALL.** Not
+empty: absent. Cause (1) below is confirmed. Assigning a class must write both.
+
+⚠️⚠️ **BUG B — AND IT IS A SEPARATE ONE. `classId` IS PRESENT AND SETTINGS STILL
+SAYS "No class assigned."** Cause (2) is ALSO real. Whatever `learn.js` reads for
+that panel, it is not this field — check whether it reads `profile/info`
+(a subcollection document that exists and holds `initials`, `viewMode`,
+`leaderboardOptOut`, `viewRemember`) or bails early on the missing `schoolId`.
+**Fixing the writer will not fix the display.**
+
+⚠️⚠️ **AND A THIRD THING THE LOG RECORD REVEALS — READ THIS BEFORE DESIGNING THE
+FIX.** `typing_logs/{uid}_2026-08-17` carries `classId: ""` and `schoolId: ""` as
+**stamped fields on the log itself.** Reports filter on the LOG's stamp, not on
+the student's current class. That is why Nico appears under *All schools* and is
+absent from *Ellis Middle School*.
+
+**So assigning him to a class does NOT retroactively fix his old reports**, and
+that may be correct: a stamp-at-write-time records where the student was *that
+day*, which is what you want for a child who changes class mid-year. **The
+alternative — join to the user's current class at read time — rewrites history
+every time a roster changes.** ⚠️ **PICK ONE DELIBERATELY AND WRITE DOWN WHY**;
+today the system does the first while the UI implies the second.
+
+⚠️ **THREE CANDIDATE CAUSES — (1) AND (2) ARE NOW BOTH CONFIRMED. KEPT FOR THE
+REASONING.**
+1. Assigning a class writes `classId` but never writes `schoolId`, so the student
+   is in a class that belongs to a school he is not in. Reports filter by school
+   and lose him; the "all schools" view finds him.
+2. The class IS assigned and **learn.js reads it from somewhere else** — a stale
+   `users/{uid}` field vs a roster document, or a read that happens before the
+   assignment lands.
+3. The Settings panel never read class at all and has always said this.
+
+**The reports screenshot is the strongest evidence for (1):** Nico appears under
+*All schools* with 2m 53s and is absent from *Ellis Middle School* entirely, while
+Jake's two accounts appear in both. ⚠️ **But (2) and (3) have not been ruled out
+and the fix differs for each.** Start by reading Nico's `users/{uid}` document in
+the console and writing down what `classId` and `schoolId` actually contain.
+
+**Whatever the cause: assigning a class must assign its school, atomically.**
+Jake: *"the classes should be locked into the schools. Either which way, I need a
+way to be able to assign students to schools AND classes."* A class belongs to
+exactly one school; a student in a class is in that school by definition, and
+letting the two be set independently is what created a record that is true from
+one query and invisible from another.
+
+⚠️ **THE SUPER-ADMIN CASE IS THE ONE THAT MADE THIS.** Jake can see every school,
+so the class picker offered him a class from a school the student was not in.
+Either scope the picker to the selected school, or show `School — Class` pairs and
+write both.
+
+---
+
+## 12. ⚠️ SAFARI HUD SPACING, AND TWO SMALLER THINGS IN THE SAME PANEL
+
+* **`learn.html` lacks the top padding `game.html` has.** Visible in Jake's
+  screenshot: School's HUD sits flush against the top edge, Library's does not.
+  Believed to be a missing wrapper element, noted in an earlier round and still
+  open. ⚠️ **Twin problem again** — the two shells are hand-maintained.
+* **The student ID is CUT OFF in Library's settings panel** but renders fully in
+  School's. Same panel, same field, different shell.
+* **Settings does not show the class in Library at all** (School shows "No class
+  assigned"). Fold into item 11 — until that is resolved it is unclear whether
+  this is a display bug or a correct display of missing data.
+
+---
+
+## 13. ⭐⭐ NEW — THE GATE DID NOT FIRE, AND THE LIKELY REASON IS A GRADE MISMATCH
+
+**Jake, testing:** typed lesson 1 a dozen times, *"definitely got 3 fireballs in
+that practice window"*, later got **three in a row**, and was never gated.
+Confirmed running `learn.js v2.32.0` and `lesson-gate.js v1.0.0`.
+
+⚠️⚠️ **THE STRONGEST EVIDENCE IS IN HIS OWN SCREENSHOT AND IT IS EASY TO MISS:
+THE LESSON 1 CARD SHOWS A GREEN `A`, NOT `A🔥`.** `grade` on a lessonProgress
+record is best-ever-seen and monotonic — it cannot go down. So if the lesson had
+ever been graded A🔥, the card would say so. **It says A.**
+
+### ✅✅ CONFIRMED BY JAKE'S CONSOLE READ, 2026-08-23
+
+`users/{nico}/lessonProgress/u1_l1`:
+
+    fireCount: 0          grade: "A"        lastGrade: "A"
+    attempts: 3           stars: 3          runCount: 2
+    runAttempts: {0:1, 1:2}                 furthestRunIdx: 1
+    finalWPM: 51          finalAccuracy: 97
+
+⚠️⚠️ **`fireCount: 0` AND `grade: "A"`. THE GATE WAS NEVER BROKEN.** It counted a
+LESSON grade that never reached A🔥, incremented correctly zero times, and gated
+nothing — exactly as written. **The spec was wrong, not the code.** Do not "fix"
+`lesson-gate.js`; change what is scored (item 14).
+
+⚠️ **ONE LOOSE THREAD WORTH A GLANCE:** Jake typed this lesson *"a dozen times"*
+and the record shows `attempts: 3` with `runAttempts {0:1, 1:2}` — **four runs
+total, not a dozen.** Either most attempts were abandoned before the write, or
+runs are being under-recorded. If the latter, it undercounts every mastery score
+built on top of it. **Check before building item 14 on this field.**
+
+**Original hypothesis, now confirmed:** what a student experiences as "a fireball" is
+awarded per RUN or per STEP, and what `fireCount` counts is the LESSON grade
+computed across the whole lesson. Jake typed *"just that first one"* — one drill
+— and saw fire on it, while the lesson-level grade stayed A. If so, `fireCount`
+was correctly incremented **zero times** and the gate behaved exactly as written.
+
+⚠️ **THAT WOULD MEAN THE GATE IS NOT BROKEN AND THE SPEC IS.** `lesson-gate.js`
+counts a quantity that does not correspond to the thing the student is being
+rewarded for on screen. Do not start by editing the gate.
+
+**First step is a read, not an edit:** open Nico's
+`users/{uid}/lessonProgress/{lesson-1}` in the console and record `grade`,
+`fireCount`, `runAttempts`. Three outcomes, three different bugs:
+* `fireCount` absent → `saveProgress` is not writing it. A wiring bug.
+* `fireCount` 0–2 with `grade: 'A'` → the hypothesis above. **A spec bug**; fix
+  by counting the thing the student sees (see item 14).
+* `fireCount >= 3` → the gate is reading state wrong. Check `furthestIndexOf`
+  and `isStaffUser` before anything else.
+
+⚠️ **RULE OUT THE STAFF GATE FIRST AND CHEAPLY.** `lessonModeFor` returns
+`'graded'` unconditionally for staff. Nico's account is not on `ADMIN_EMAILS`, so
+this should not apply — but it is one line to confirm and would explain the
+symptom completely.
+
+---
+
+## 14. ⭐⭐ MASTERY IS CUMULATIVE POINTS, PER **RUN**, NOT THREE FIREBALLS PER LESSON
+
+### ✅ JAKE'S RULING, 2026-08-23 — TAKE THIS AS DECIDED
+
+> *"A fireball counts as 2, an A counts for 1, and we kill access at a score of 4."*
+
+    A🔥 = 2   ·   A = 1   ·   B and below = 0   ·   MASTERED at 4
+
+⚠️ **B SCORING ZERO IS WHAT PRESERVES THE WHOLE FEATURE'S GUARANTEE.** A student
+who only ever passes with a B never accumulates and is therefore **never gated,
+forever** — which is `lesson-gate.js`'s section-A promise, unchanged. Do not give
+B a value "for fairness"; it would invert the feature onto the struggling student.
+
+Reaching 4 takes: two fireballs, or one fireball and two A's, or four A's. It is
+strictly harder than the shipped 3-fireball rule for a strong student and much
+easier to reach honestly, which is the point.
+
+### ✅ AND IT IS SCORED PER **RUN**, NOT PER LESSON
+
+> *"Kids are doing the thing that I did, and that needs to stop. If that means we
+> have to change it to 1.1 and 1.2 and so on, then that's what we need to do."*
+
+⚠️⚠️ **THE RENUMBERING IS PROBABLY NOT NEEDED, AND THIS IS THE MOST USEFUL THING
+ON THIS PAGE.** `recordRunOutcome(runIdx, grade, advanced)` **already writes
+per-run data on every run**: `runAttempts`, `runFailures`, `furthestRunIdx`,
+`lastRunIdx`, `lastGrade` — all keyed by run index, all on the lessonProgress
+record. The granularity Jake is asking for **already exists in the data model.**
+
+So the change is a `runScores` map beside `runAttempts` — `{ "0": 4, "1": 2 }` —
+incremented in `recordRunOutcome` where the grade is already in hand. **No lesson
+renumbering, no new collection, no migration.** ⚠️ Verify this against
+`recordRunOutcome` before committing to it; the claim is from a read, not a build.
+
+⚠️ **`runCount` IS ALREADY STORED FOR EXACTLY THIS HAZARD** and its comment says
+why: *"editing a lesson changes how it chunks, which shifts every index in
+runAttempts/runFailures."* `runScores` inherits that fragility. **Editing a lesson
+must invalidate its run scores**, or a teacher's content edit silently locks or
+unlocks runs at random.
+
+### ✅ REACH-BACK IS IN RUNS TOO — JAKE'S RULING, 2026-08-23
+
+> *"Adjust the reach back to runs with the same rules. I would go ahead and say
+> that run 3 of a lesson locks runs 1 and 2, too, as it's the same skills. If we
+> score in runs but reach back in lessons, then a kid can do run 1 forever without
+> ever stopping if they never redo the second run."*
+
+⚠️ **HIS OBJECTION KILLS MY EARLIER RECOMMENDATION AND HE IS RIGHT.** I proposed
+scoring in runs and reaching back in lessons. That leaves the exploit intact: a
+student who never advances past run 1 has a furthest LESSON that never moves, so
+nothing behind them ever locks, and run 1 stays graded forever. **The unit that
+locks and the unit that measures distance have to be the same one.**
+
+**The model, then — everything in runs:**
+
+* Flatten the curriculum into one ordered sequence of runs. A run's position in
+  that sequence is its index.
+* A run is **mastered** at 4 points (`A🔥`=2, `A`=1, `B`=0), cumulative.
+* ⚠️ **DOWNWARD CLOSURE — mastering run *k* of a lesson also closes runs 1..*k-1*
+  of that lesson.** Jake: *"it's the same skills."* This is what stops a student
+  retreating one run to keep farming.
+* `reachBack = floor(activeDaysSinceLastAdvance / 7)`, **counted in runs.**
+* A mastered run is graded iff `runIndex >= furthestRun - reachBack`.
+
+### ⚠️⚠️ THE CONSEQUENCE JAKE SHOULD SEE BEFORE THIS SHIPS — RECOMPUTE THE NUMBER
+
+**Reach-back in runs is a much tighter window than reach-back in lessons**, and
+the headline figure everyone agreed to was computed in lessons.
+
+`u1_l1` has `runCount: 2`. If lessons average 2–5 runs, 47 lessons is roughly
+**150 runs**, so:
+
+* "Lesson 1 needs 26 weeks" becomes **lesson 1 needs ~150 weeks.** It cannot open,
+  ever, which is what Jake asked for by name.
+* ⚠️ **BUT THE STRUGGLING STUDENT NOW GETS LESS REVIEW, NOT MORE.** A week of
+  stalling used to reopen a whole previous lesson. It now reopens **one run** —
+  a fraction of the same material. **Review reaching the student who has actually
+  forgotten something was the entire justification for the receding window over a
+  flat cooldown**, and this change quietly weakens it.
+
+**Two ways out, and Jake should pick:**
+1. **Accept it.** Anti-farming is the live problem; review is theoretical.
+2. ⚠️ **Reach back in runs but faster** — e.g. `floor(days / 7) * 3` runs, or one
+   run per two active days. Same rule shape, same anti-exploit property, review
+   restored to roughly its old pace. **This is the cheaper fix and it is one
+   constant.**
+
+### ✅✅ JAKE'S RESOLUTION, 2026-08-23 — TAKE THIS OVER BOTH OF MINE
+
+> *"Maybe it's locked by run as discussed, but unlocked by lesson based on the
+> date of the last lock? That seems like a happy in-between."*
+
+**Locked by run. Unlocked by lesson. The clock runs from the last lock.**
+
+⚠️ **THIS IS BETTER THAN EITHER OPTION ABOVE AND IT IS WORTH SEEING WHY.** My two
+were both a single knob — pick a unit, or pick a multiplier — and each traded the
+anti-farm property against the review property. His splits the two *directions*
+instead, and each direction gets the unit that suits it:
+
+* **Locking per run** is what kills farming, because it is fine-grained enough to
+  stop a student grinding one run. Nothing coarser can.
+* **Unlocking per lesson** is what makes review real, because a whole lesson's
+  worth of material comes back at once. Nothing finer is worth having.
+* ⚠️ **"From the date of the last lock" fixes the thing neither of mine did.** My
+  window ran from the last *advance*, so a student grinding one run — never
+  advancing — accrued reach-back the whole time. **Running it from the last LOCK
+  means the clock only starts once the student has actually mastered something**,
+  which is the correct trigger: it measures time since you last proved you knew
+  something, not time since you last moved.
+
+**Open detail for whoever builds it:** "the last lock" should almost certainly be
+the most recent `lockedAt` across all runs, stored on the user record the way
+`lastAdvanceDay` is now. ⚠️ Note this **replaces** `lastAdvanceDay` rather than
+joining it — do not keep both, or they will disagree (Rule 9).
+
+~~Recommendation: (2), with the multiplier tuned once real run counts are known.~~
+Superseded by Jake's resolution above; kept so it is not re-proposed.
+⚠️ The multiplier is a guess until somebody counts the runs per lesson across the
+curriculum — which is a lessons-admin query, not an opinion.
+
+### ⚠️ THE SUPERSEDED QUESTION — REACH-BACK'S UNIT
+
+`lesson-gate.js` measures reach-back in **lessons** (`index >= furthest -
+reachBack`). If mastery becomes per-run, does the window recede one **run** per
+week or one **lesson** per week?
+
+⚠️ **THIS SILENTLY CHANGES THE NUMBER JAKE ASKED FOR BY NAME.** "Lesson 1 needs 26
+weeks" was computed in lessons. If runs are ~5 per lesson and the window recedes
+one run per week, lesson 1 needs **130 weeks** — safer, but no longer the number
+anyone agreed to. **Decide the unit explicitly and recompute the headline number.**
+
+~~Recommendation: keep reach-back in lessons, score mastery in runs.~~
+⚠️ **WITHDRAWN — Jake identified the hole in it (above): a student who never
+advances past run 1 has a furthest LESSON that never moves, so nothing ever
+locks.** Kept only so the next round does not re-propose it.
+
+### ⚠️ AND THE STUDENT MUST BE ABLE TO SEE THE SCORE
+
+Jake believed the shipped rule required three fireballs **in a row**. It never
+did — `fireCount` was already cumulative. That he could not tell after a dozen
+attempts is the finding: **the rule is unfalsifiable from outside**, so nobody can
+report it as broken. Whatever the threshold is, **show progress toward it** — the
+card already has room beside "3 runs · 90%".
+
+
+
+**Jake:** *"Three fireballs in a row is HARD. If one mistake takes away a
+fireball, then I think a fireball and 2 regular A's should also count. And they
+shouldn't have to be in a row — they should be cumulative as discussed."*
+
+⚠️ **THIS DISSOLVES ITEM 13'S MISMATCH IF THE HYPOTHESIS HOLDS.** Scoring the RUN
+counts the thing the student is actually shown fire for, so the gate stops
+measuring a quantity the screen never displays.
+
+---
+
+## 14b. ⚠️⚠️ NEW, AND IT BLOCKS ITEM 14 — RUN OUTCOMES ARE LOST ON "BACK TO MAP"
+
+**Jake, 2026-08-23:** *"I finished every single run. I finished the run, got a
+grade, and then clicked back to map. Could the back to map not count as
+finishing? It counted the time and everything."*
+
+### ✅ CONFIRMED IN THE CODE. HE IS EXACTLY RIGHT.
+
+`recordRunOutcome()` does not write to Firestore. It updates `userProgress` in
+memory, adds the lesson to `pendingProgress`, and calls `learnWalSave()`. The
+Firestore write happens in **`flushLessonProgress()`** — and that function has
+**exactly one caller**, at learn.js:4778, in the session-end path.
+
+⚠️ **`stopLesson()` DOES NOT CALL IT.** It calls `saveStats()` and
+`persistGuestAccum()` and returns. So leaving a lesson for the map banks the
+**time** and drops the **run outcome**.
+
+That is why `u1_l1` reads `runAttempts {0:1, 1:2}` after a dozen completed runs:
+only the runs that happened to be in memory when a session actually ended
+survived.
+
+### ⚠️⚠️ THE IRONY IS THE LESSON, AND IT IS WORTH READING TWICE
+
+`stopLesson()` carries a v2.5.0 comment headed **"BANK THE TIME ON THE WAY OUT"**,
+written to fix this exact class of defect:
+
+> *"saveStats() used to be reached only from finishStep(), i.e. only when a run
+> COMPLETED... walking away is the normal way a partial lesson ends, and the
+> minutes still have to count."*
+
+**Somebody stood on this line, correctly diagnosed "leaving does not persist",
+fixed the time half, and left the run half sitting beside it.** ⚠️ **When you find
+a write that is missing from an exit path, check every OTHER write on that path
+before you leave.** A partial fix here is worse than none, because the comment now
+reads as though the path was audited.
+
+### ⚠️ AND IT IS THE DIVERGENCE ITEM 4 EXISTS TO DETECT
+
+Time is written; the run that produced the time is not. `typing_logs` and
+`lessonProgress` disagree by construction, on the most common exit path in the
+app. ⚠️ **ROADMAP item 4's implausibility flag would fire on this**, and it would
+be right.
+
+### THE FIX, AND WHY IT COMES BEFORE ITEM 14
+
+`stopLesson()` should `await flushLessonProgress()` alongside `saveStats()`.
+⚠️ **Check the guest path and the WAL recovery path** (learn.js:4593 re-populates
+`pendingProgress` from the WAL) so a flush on the way out does not fight recovery
+on the way back in.
+
+⚠️⚠️ **ITEM 14 IS BUILT ENTIRELY ON PER-RUN DATA AND THAT DATA IS CURRENTLY
+UNDERCOUNTED BY ROUGHLY 3x.** Mastery scored on a field that silently drops most
+of its input would gate nobody and nobody would know why — **the same failure the
+gate just had, one layer down.** Fix this first, then build item 14 on it.
+
+---
+
+## 15. ⭐ NEW — STORE THE GRADE ON THE LOG RECORD, AND BACKFILL IT ONCE
+
+**Jake:** *"Would it be possible without costing significantly more to record
+grades for class alongside the other stats? ... It also feels like something we
+could figure retroactively, as we know the lesson, the speed, and the accuracy
+from the record, so we could do a one time compute."*
+
+✅ **YES, AND HIS RETROACTIVE INSIGHT IS CORRECT.** Grade is a pure function of
+`(lesson thresholds, wpm, accuracy)`, all three of which are already on the
+record. So this is a **derived** field, not a new measurement — Rule 9 is
+satisfied: it is a cache of a computation, not a second source of truth.
+
+⚠️ **WHICH MEANS IT MUST BE COMPUTED, NOT TRUSTED.** Store it for display and
+counting; recompute it if the lesson's thresholds ever change. A stored grade that
+outlives its threshold is exactly the class of defect §0.-14 is about.
+
+⚠️ **THE BACKFILL IS A WRITE-HEAVY, READ-HEAVY ONE-OFF AND MUST NOT RUN ON REPORT
+GENERATION.** Jake's own instinct — *"a one time write of all of them back"* —
+is right, but it should be an explicit admin button with a confirmation and a
+progress count, not a side effect of opening reports. Writes are cheap here (item
+17), reads are not.
+
+Reports would then show a fireball count per student, which is what Jake wanted
+when he noticed the report *"didn't share the grades (where I could have counted
+the number of flaming A's)."*
+
+---
+
+## 16. ⚠️ NEW — THE BUILD PANEL IS MISSING ON `reports.html` AND `admin.html`
+
+Jake: *"the hover doesn't work on reports. It also doesn't work on admin."*
+
+`reports.html` shows `Reports v2.25.1` and `admin.html` shows a corner stamp, but
+neither has the hover build list. ⚠️ **AND NEITHER IS IN `versions.js`'s
+`SOURCES`** — HANDOFF §2 already flags that their versions are *unchecked*, which
+means a stale `admin.js` cannot be detected by the one instrument built to detect
+stale files. Small job: add both to SOURCES and give each shell the footer.
+
+---
+
+## 17. ⚠️⚠️ NEW — REPORTS READ EVERY RECORD OF EVERY STUDENT, EVERY TIME
+
+Jake: *"reading every record of every kid every time to generate a report seems
+problematic... that 1155 is there regardless of the time window or the school
+window, and it takes a minute and a half NOW. Next week, when it's 2200+, it'll
+take 3 minutes."*
+
+⚠️ **THE COST IS SUPERLINEAR IN THE WRONG VARIABLE.** 1,155 reads to report on
+**three** students who typed. The window and the school filter are being applied
+**in the browser, after the read.** They must move into the Firestore query.
+
+### ✅ THE `date` FIELD ALREADY EXISTS — NO BACKFILL NEEDED
+
+Jake's console read of `typing_logs/{uid}_2026-08-17` shows the document carries
+**`date: "2026-08-17"` as a real field**, alongside `uid`, `email`,
+`displayName`, `seconds`, `chars`, `mistakes`, `source`, `classId`, `schoolId`,
+`lastUpdated`.
+
+⚠️ **SO THIS IS A PURE QUERY CHANGE PLUS AN INDEX. No migration, no one-off
+write.** `where('date','>=',start).where('date','<=',end)` works against the data
+as it stands today.
+
+⚠️ **BUT `schoolId` AND `classId` ARE STAMPED `""` ON EXISTING LOGS** (item 11),
+so a school filter in the query will return nothing for historical records until
+that is resolved. **Ship the date filter first — it is the whole cost saving —
+and treat the school filter as blocked on item 11.**
+
+`typing_logs/{uid}_{date}` also encodes the date in the document ID, which is why
+the current code reads by document id — a decision §0.-11 made for good reasons. ⚠️ **The index must exist before the query ships or it
+fails at runtime**, and `firebase/firestore.indexes.json` is in this repo.
+
+---
+
+## 18. ⚠️ NEW — THE READ BUDGET CAPS THE PROJECT AT ~270 STUDENTS
+
+Jake, from the August Firestore usage: **11.3% of the 50K/day free read quota with
+~135 students in one month.** Writes are at **0.2%**.
+
+⚠️ **THE TARGET IS ~400 CONCURRENT USERS (7,000 students / 3 trimesters / 6
+periods), AND THE CURRENT SHAPE REACHES ABOUT 270.** Not urgent this month;
+structurally blocking before the target.
+
+* ⚠️ **ITEM 17 IS ALMOST CERTAINLY THE BULK OF IT** and should be measured before
+  anything else is optimised. **Do not optimise the student pages on a guess** —
+  this project has twice built on a number nobody checked.
+* ⚠️ **WRITES ARE ESSENTIALLY FREE HERE AND READS ARE THE CONSTRAINT.** Jake:
+  *"if more writes would be helpful for stability, it's definitely an option, as
+  we have a ton of space."* **That inverts the usual trade and should be written
+  into any design discussion in this repo.** 0.2% vs 11.3% is a 50x asymmetry.
+* Jake's localStorage idea — read the session start once at login, accumulate
+  locally, flush as now — is **directionally right and needs care**: the WAL
+  already does the flushing half. The question is which READS the student pages
+  do per session, and that is a measurement, not a redesign.
 
 ---
 

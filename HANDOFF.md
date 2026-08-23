@@ -1,7 +1,63 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.16.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     through Round 29; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+<!-- HANDOFF.md v15.17.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     through Round 30; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.17.0 — Round 30 (Postal). ⚠️⚠️ §0.-22 — THE BUILD PANEL ANSWERED FROM A
+     COPY IT TOOK AT PAGE LOAD. Its cache lived in sessionStorage, which SURVIVES
+     A HARD RELOAD and clears only in a new tab, so the one instrument that
+     reports what is deployed could not be refreshed by any action a person would
+     think to try. Jake: "force refreshing is not refreshing everything. I have to
+     close the tab and open a new one." NOT his browser, NOT the files.
+     ⚠️ THE INDIVIDUAL FETCHES WERE ALREADY `cache: 'no-cache'` AND SAID SO IN A
+     COMMENT — a correct component behind a wrong cache is a wrong system, and
+     the comment made the whole thing read as considered. Now module state with a
+     60s TTL: module state DIES WITH THE PAGE, which is the lifetime the old
+     comment already claimed. DO NOT MOVE IT BACK TO ANY STORAGE THAT OUTLIVES A
+     PAGE LOAD. ⚠️ Three layers of staleness became one — game.js and learn.js
+     each kept their own `dataset.loaded` early return on top of it, and none of
+     the three expired inside a tab. ⚠️⚠️ §0.-22.B IS THE PART TO READ: this is
+     the THIRD way this same instrument has lied in three rounds (§0.-14,
+     §0.-20.A, §0.-20.B), and the reason is structural — a diagnostic is consulted
+     INSTEAD of checking, so when it is wrong nothing disagrees with it.
+     ⚠️ §0.-22.D: THE SITE IS GITHUB PAGES, NOT FIREBASE HOSTING — firebase.json
+     is emulator config only. GH Pages CANNOT SET CACHE HEADERS; do not propose
+     it. Use a `?x=1` query string to tell "not deployed yet" from "cached".
+     ⚠️⚠️ ROADMAP ITEMS 11-18 ARE NEW, FROM JAKE'S FIRST REAL TEST OF THE LESSON
+     GATE WITH A STUDENT ACCOUNT, AND NOTHING HAS BEEN FIXED YET. ⚠️ JAKE THEN
+     READ THE ACTUAL DOCUMENTS OUT OF THE CONSOLE AND FOUR OPEN QUESTIONS ARE NOW
+     CLOSED — read items 11, 13 and 17 for the values, and DO NOT RE-DERIVE THEM:
+     (a) fireCount IS 0 and grade IS "A", so THE GATE WAS NEVER BROKEN and the
+     SPEC was wrong; (b) classId IS written and schoolId is ABSENT ENTIRELY, and
+     Settings still says "no class" DESPITE classId being present — TWO bugs, not
+     one; (c) typing_logs ALREADY CARRIES A `date` FIELD, so item 17 is a pure
+     query change with NO migration; (d) typing_logs stamps classId/schoolId AT
+     WRITE TIME and they are "" on every existing record, so assignment does not
+     retroactively fix reports and somebody must decide stamp-at-write vs
+     join-at-read ON PURPOSE. ⚠️ ITEM 14 NOW HAS JAKE'S FULL RULING — A🔥=2, A=1,
+     mastery at 4, SCORED AND REACHED BACK IN RUNS, with mastering run k closing
+     runs 1..k-1 of the same lesson. READ THE CONSEQUENCE SECTION BEFORE BUILDING
+     IT: reach-back in runs makes the review window ~5x tighter than the number
+     everyone agreed to, which weakens the one thing that justified a receding
+     window over a flat cooldown. READ ITEM 13
+     FIRST AND NOTE THAT ITS FIRST STEP IS A READ, NOT AN EDIT: the gate never
+     fired, and the evidence in Jake's screenshot — lesson 1 showing a green `A`
+     on a field that is MONOTONIC BEST-EVER-SEEN, so it can never have been A🔥 —
+     points at the SPEC rather than the code. lesson-gate.js counts a LESSON
+     grade; the student is shown fire on a RUN. If that holds, fireCount was
+     correctly incremented ZERO times and the gate behaved exactly as written.
+     DO NOT START BY EDITING THE GATE. ⚠️ Item 11 is a DATA-INTEGRITY bug: a class
+     assigned without a school makes a student visible from one query and
+     invisible from another. ⚠️ Item 17: reports read 1,155 records to report on
+     THREE students, because the date and school filters are applied in the
+     browser AFTER the read. ⚠️⚠️ ITEM 18 IS THE NUMBER THAT SHOULD CHANGE HOW
+     DESIGNS ARE ARGUED HERE: Firestore reads are at 11.3% of the daily free
+     quota with 135 students, WRITES ARE AT 0.2%. That is a 50x asymmetry, the
+     target is ~400 concurrent users, and the current shape caps out near 270.
+     TRADE READS FOR WRITES FREELY. ⚠️ ROADMAP §10.H — THE MEASUREMENT JAKE ASKED
+     FOR FIRST — IS STILL NOT BUILT.
+     game.js v3.45.0, learn.js v2.33.0, versions.js v1.13.0, index.html v3.13.0.
+     47 harnesses, all passing.
 
      v15.16.0 — Round 29 (Odell). ⭐⭐ ROADMAP ITEM 10 IS BUILT — the lesson-farming
      gate. §0.-21 is the write-up. ⚠️⚠️ THE ONE SENTENCE THAT SHOULD LEAD ANY
@@ -304,7 +360,7 @@
      AND KILLED BY JAKE — see §0.-9.E, which is the most useful part of this
      section for a future instance. 35/35 harnesses. -->
 
-**Round 29 — Odell.** Predecessors: Daugherty (28) · Chicago (27) · Elliott-Fisher (26) · Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
+**Round 30 — Postal.** Predecessors: Odell (29) · Daugherty (28) · Chicago (27) · Elliott-Fisher (26) · Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
 Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
 Sholes (14) · Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) ·
 Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) ·
@@ -314,6 +370,17 @@ Blick (3) · Dvorak (2) · Underwood (1).
 by different companies and both are now on the list; a future round reading the
 list quickly will see two similar words and must not conclude one is a typo for
 the other. **Check the list, and read the whole word.**
+
+> *On the name:* the **Postal** (1902) was a cheap index typewriter sold by mail
+> order — you posted a coupon and waited. ⚠️ **The whole idea of it is a message
+> that has been SENT but has not ARRIVED**, and the gap between those two being
+> invisible from either end. That is this round exactly: the deploy had landed on
+> the server, the browser was asking for it correctly, and the panel in between
+> answered from a copy it had taken at page load and never revisited. **Nobody
+> was wrong and the answer was still stale.** ⚠️ The machine's other habit is the
+> round's warning: it was sold on the promise that it was *"just as good"* as a
+> $100 Remington, and the way you found out otherwise was by using it. **An
+> instrument is only worth what it is worth at the moment you doubt something.**
 
 > *On the name:* the **Odell** (1889) was an **index typewriter**. No keyboard —
 > the whole alphabet lay along one linear scale in front of you, and you slid a
@@ -474,6 +541,108 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-22. ⚠️⚠️ ROUND 30 (Postal) — THE DEPLOY INSTRUMENT CACHED ITS OWN ANSWER
+
+**2026-08-23.** Jake, after uploading two files and being unable to confirm it:
+
+> *"Force refreshing is not refreshing everything. I have to close the tab and
+> open a new one. Is that normal? It's still just fetching the old files."*
+
+⚠️ **IT WAS NOT HIS BROWSER AND IT WAS NOT THE FILES. IT WAS THE PANEL.**
+
+### A. THE DEFECT, IN FOUR LINES
+
+```js
+export async function readDeployedVersions({ force = false } = {}) {
+    if (!force) {
+        const raw = sessionStorage.getItem(CACHE_KEY);
+        if (raw) return JSON.parse(raw);          // ⚠️ for the life of the TAB
+```
+
+**`sessionStorage` survives a reload. It survives a HARD reload. It clears only
+in a new tab.** So the panel answered *"what is running right now?"* from a copy
+taken at first page load, and every stronger refresh Jake tried returned the same
+stale answer with the same confidence. Closing the tab worked, which is why the
+tab got the credit.
+
+⚠️ **THE INDIVIDUAL FETCHES WERE ALREADY CORRECT** — `readOne()` uses
+`cache: 'no-cache'` and its comment says exactly why: *"reporting a cached
+version number would defeat the purpose."* The mechanism was right and a cache
+in front of it defeated it anyway. **A correct component behind a wrong cache is
+a wrong system**, and the comment on the fetch made the whole thing read as
+carefully considered.
+
+### B. ⚠️⚠️ THIS IS THE THIRD WAY THE SAME INSTRUMENT HAS LIED IN THREE ROUNDS
+
+* §0.-14 — five files reported a version they were not.
+* §0.-20.A — the panel was rendered correctly and faded to unreadable.
+* §0.-20.B — its loudest warning fired on every session and was false.
+* **§0.-22 — it answers from before the deploy it is being consulted about.**
+
+⚠️ **THE PATTERN IS NOT "THIS FILE IS BUGGY." IT IS THAT A DIAGNOSTIC IS THE ONE
+THING NOBODY DIAGNOSES.** Every other defect in this project was found because a
+number looked wrong to a teacher or a child. The build panel has no such reader:
+it is consulted *instead of* checking, so when it is wrong there is nothing
+behind it to disagree. **Anything whose job is to tell the truth about the system
+needs a harness pointed at it specifically**, which is what
+`tests/build-panel-test.mjs` now is — 44 checks, section H being this round's.
+
+### C. THE FIX — LIFETIME, NOT CLEVERNESS
+
+The cache is now **module state with a 60-second TTL**.
+
+⚠️ **MODULE STATE DIES WITH THE PAGE, WHICH IS THE LIFETIME THE OLD COMMENT
+ALREADY CLAIMED.** It said *"cached for the tab's lifetime"* and what it meant
+was *"this page load"* — the words and the storage disagreed and the storage won.
+**Do not move this back to anything that outlives a page load.**
+
+The TTL is what saves a Chromebook tab left open for a week, which is a real case
+here — `update-gate.js` exists entirely because of it.
+
+⚠️ **AND THREE LAYERS OF STALENESS BECAME ONE.** `game.js` and `learn.js` each
+kept their own `dataset.loaded === 'true'` early return on top of this cache, on
+top of the HTTP cache. **None of the three expired inside a tab, and no one of
+them owned the question.** The page controllers now simply ask on every hover and
+let `versions.js` decide whether that costs a fetch; `index.html`'s explicit
+build button passes `{ force: true }`, because a deliberate press means *right
+now*.
+
+### D. ⚠️ WHAT JAKE ACTUALLY CANNOT FIX, AND SHOULD NOT BE TOLD TO
+
+The site is **GitHub Pages** (`CNAME` → `typethatbook.misterwilson.org`).
+`firebase.json` in this repo is **emulator config only** and deploys nothing —
+its own `"//"` key says so, and it is easy to misread as hosting config.
+
+⚠️ **GITHUB PAGES DOES NOT SUPPORT CUSTOM CACHE HEADERS.** There is no
+`Cache-Control` change available. Do not propose one. `update-gate.js`'s header
+already records the constraint: HTML at a ten-minute `max-age`, modules behind an
+ETag, no service worker.
+
+**The one honest way to separate "not deployed yet" from "cached" is a throwaway
+query string**, which is a different URL and so defeats the browser cache and the
+Fastly edge together:
+
+```
+typethatbook.misterwilson.org/versions.js?x=1
+```
+
+⚠️ **AND A WEB-PORTAL COMMIT IS NOT LIVE IMMEDIATELY** — the Pages build runs,
+then propagates. Refreshing inside that window returns old bytes no matter how
+hard you refresh, and the tab you open a minute later gets credit for the fix.
+
+### E. WHAT WAS NOT DONE
+
+* ⚠️ **ROADMAP §10.H — THE MEASUREMENT — IS STILL NOT BUILT**, and is still the
+  next thing. It was next before this round too; this jumped the queue because it
+  was costing Jake the ability to tell whether a deploy had landed at all.
+* **No refresh affordance in the panel.** The 60s TTL means a second hover tells
+  the truth, which seemed better than a control that needs explaining. If it
+  turns out people hover once and believe it, a `↻` is the answer.
+* **Item 10 has still never been driven in a browser.** Unchanged from §0.-21.G
+  and worth repeating: the rule is proven, the wiring is not.
 
 ---
 
@@ -3198,9 +3367,21 @@ browsable user directory, by design. `users/{uid}` deliberately holds no PII, wh
 
 ## §2. Where the code is
 
-Shipped state after **Round 29, 2026-08-23**. **Verified by running
+Shipped state after **Round 30, 2026-08-23**. **Verified by running
 `npm run audit:versions`, not copied from the previous table.** (Round 28 ran it;
 0 problems.)
+
+⚠️ **ROUND 30 CHANGES HOW YOU VERIFY A DEPLOY, SO READ THIS FIRST.** Before
+`versions.js` v1.13.0, the hover panel cached its answer in `sessionStorage` and
+**could not be refreshed by reloading** — only by opening a new tab (§0.-22). If
+you are checking a deploy from a tab that was open beforehand, **open a new tab**;
+from v1.13.0 onward a second hover sixty seconds later is enough.
+
+⚠️ **AND THE SITE IS GITHUB PAGES, NOT FIREBASE HOSTING.** A web-portal commit is
+not live immediately, and no cache header can change that. To tell "not deployed
+yet" from "cached", fetch the file with a throwaway query string —
+`typethatbook.misterwilson.org/versions.js?x=1` — which is a different URL and so
+bypasses both the browser and the CDN edge.
 
 ⚠️ **ROUND 29: UPLOAD `lesson-gate.js` FIRST.** It is a new shared module and
 both page controllers import it; a browser with the new `learn.js` and no
@@ -3234,14 +3415,14 @@ reads.
 
 | file | version |
 |---|---|
-| `game.js` | **3.44.0** — ⚠️ Round 29. Counts ACTIVE DAYS for School's lesson gate (twin of learn.js). Round 28's build-panel work stands. §0.-21.B, §0.-20 |
-| `learn.js` | **2.32.0** — ⭐⭐ Round 29. ROADMAP item 10: the lesson-farming gate, practice runs, the banner. §0.-21 |
+| `game.js` | **3.45.0** — Round 30: the build panel's own staleness flag is gone. Round 29's active-day counter stands. §0.-22.C, §0.-21.B |
+| `learn.js` | **2.33.0** — ⭐⭐ Round 29's lesson-farming gate, plus Round 30's panel fix. §0.-21, §0.-22.C |
 | `session-log.js` | **1.6.0** — PER-OWNER queue + `GUEST_QUEUE_UID`. ⚠️ UPLOAD THIS FIRST — both pages import from it. Its TWO pins are checked by version-stamp-test.mjs C |
 | `hud.js` | **2.0.0** — ⚠️⚠️ MAJOR, JAKE SIGNED IT OFF. The v1.3.0 return-shape break recorded as the major it was. §0.-15. ⚠️ UPLOAD BEFORE THE TWO WRITERS |
 | `variety-floor.js` | 1.0.0 |
 | `lesson-gate.js` | **1.0.0** — ⭐⭐ **NEW, Round 29.** The whole of ROADMAP item 10's rule, and it is PURE. ⚠️ **UPLOAD BEFORE game.js AND learn.js** — both import it. §0.-21.A |
 | `stats-wal.js` | **1.1.0** — ⚠️ Round 22. Per-source counters in DAY_COUNTERS; storage key unchanged. §0.-8.F |
-| `versions.js` | **1.12.0** — ⚠️⚠️ Round 28. `renderBuildList` gained `{ notes }`, DEFAULTING TO FALSE, plus `countBuildNotes`/`renderHiddenNotesLine`. The header LINE budget is proportional now; the ENTRY budget is flat at 8 and must stay flat. §0.-20.C/D/F |
+| `versions.js` | **1.13.0** — ⚠️⚠️ Round 30. The read cache is module state with a 60s TTL, NOT sessionStorage — ⚠️ **do not move it back to storage that outlives a page load.** Round 28's `{ notes }` gate and proportional header budget stand. §0.-22, §0.-20.C/D/F |
 | `daylog.js` | **1.4.0** — The shared week reader, the cutover, and `dayLogPayloadFor()` — **the one gate deciding a day's shape**. §0.-8.C. Carries the Overnight Rescue |
 | `keyboard.js` | 1.1.1 |
 | `adventure-renderer.js` | 1.5.4 |
@@ -3250,7 +3431,7 @@ reads.
 | `staff-admin.js` | 2.2.0 |
 | `reports.html` | **2.25.1** — Round 28: `BOOTSTRAP_EMAILS` aliases the shared export. Round 23's reconcile/rebuild deletion stands, §0.-9.D. ⚠️ NOT in the audit's SOURCES — its version is unchecked |
 | `update-gate.js` | 1.0.1 — ⚠️ NEW in Round 19. Loaded by its own script tag in both shells, NOT imported. See §0.10 |
-| `index.html` | **3.12.0** — ⚠️ Round 28. Its build-info button gates ⚠ notes like the two typing pages. ⚠️ NOT in the audit's SOURCES — its version is unchecked |
+| `index.html` | **3.13.0** — Round 30: the build button passes `{ force: true }` — a deliberate press means *right now*. ⚠️ NOT in the audit's SOURCES — its version is unchecked |
 | `firebase-config.js` | **1.3.0** — ⚠️⚠️ Round 28. **THE ONLY COPY of `ADMIN_EMAILS`**, down from four, plus `isStaffUser()`. ⚠️ UPLOAD BEFORE game.js, learn.js, admin.js, reports.html AND index.html — all five now import from it. §0.-20.H |
 | `firebase/firestore.rules` | **2.6.0** — ⚠️ **Jake deployed this 2026-08-20 and it is CONFIRMED CORRECT BY EXECUTION.** The null-resource clause is FIRST and must stay first. §0.-8.A |
 | `style.css` | **3.9.0** — Round 29: `.practice-banner` and `.practice-only`. Round 28's `#footer-full` fix stands. §0.-21.E, §0.-20.A |

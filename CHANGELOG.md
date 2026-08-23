@@ -1,5 +1,71 @@
 # CHANGELOG
 
+## Round 30 — Postal (2026-08-23) — THE DEPLOY INSTRUMENT CACHED ITS OWN ANSWER
+
+Jake, after uploading two files and being unable to confirm it: *"Force
+refreshing is not refreshing everything. I have to close the tab and open a new
+one. It's still just fetching the old files."*
+
+* ⚠️⚠️ **IT WAS NOT HIS BROWSER AND IT WAS NOT THE FILES. IT WAS THE PANEL.**
+  `readDeployedVersions()` cached its result in **`sessionStorage`**, which
+  **survives a reload — including a hard reload — and clears only in a new tab.**
+  So the one instrument that reports what is deployed answered *"what is running
+  right now?"* from a copy taken at first page load, and **every stronger refresh
+  returned the same stale answer with the same confidence.** Closing the tab
+  worked, which is why the tab got the credit.
+
+* ⚠️ **THE FETCHES THEMSELVES WERE ALREADY CORRECT.** `readOne()` uses
+  `cache: 'no-cache'`, with a comment saying exactly why: *"reporting a cached
+  version number would defeat the purpose."* **A correct component behind a wrong
+  cache is a wrong system** — and the comment on the fetch made the whole thing
+  read as carefully considered, which is why nobody looked at the layer above it.
+
+* ⚠️⚠️ **THIS IS THE THIRD WAY THE SAME INSTRUMENT HAS LIED IN THREE ROUNDS** —
+  §0.-14 (five files misreporting their version), §0.-20.A (rendered correctly,
+  faded to unreadable), §0.-20.B (its loudest warning false on every session), and
+  now this. **The pattern is not that the file is buggy. It is that a diagnostic
+  is the one thing nobody diagnoses:** it is consulted *instead of* checking, so
+  when it is wrong there is nothing behind it to disagree. Anything whose job is
+  to tell the truth about the system needs a harness pointed at it specifically.
+
+* ✅ **THE FIX IS LIFETIME, NOT CLEVERNESS.** Module state with a 60-second TTL.
+  ⚠️ **Module state dies with the page, which is the lifetime the old comment
+  already claimed** — it said *"cached for the tab's lifetime"* and meant *"this
+  page load"*; the words and the storage disagreed and the storage won. **Do not
+  move it back to anything that outlives a page load.** The TTL is what saves a
+  Chromebook tab left open for a week, which is a real case here.
+
+* ⚠️ **THREE LAYERS OF STALENESS BECAME ONE.** `game.js` and `learn.js` each kept
+  their own `dataset.loaded === 'true'` early return on top of this cache, on top
+  of the HTTP cache. **None of the three expired inside a tab and none of them
+  owned the question.** The pages now ask on every hover and let `versions.js`
+  decide; `index.html`'s explicit build button passes `{ force: true }`, because a
+  deliberate press means *right now*.
+
+* ⚠️ **A NOTE FOR WHOEVER DEBUGS DEPLOYS NEXT: THE SITE IS GITHUB PAGES.**
+  `firebase.json` here is **emulator config only** and deploys nothing — easy to
+  misread as hosting config. **GH Pages cannot set cache headers**, so there is no
+  `Cache-Control` fix to propose. To tell *"not deployed yet"* from *"cached"*,
+  fetch with a throwaway query string (`/versions.js?x=1`) — a different URL, so
+  it bypasses the browser and the CDN edge together.
+
+* ⚠️ **I FILED THIS ROUND'S OWN HEADER ENTRY IN THE WRONG SLOT** — `v1.13.0`
+  landed *below* `v1.12.0` in `versions.js`, and the ordering check caught it.
+  **In the file that implements the ordering check.** Exactly the drift Round 14
+  built it for: each edit anchors on the previous newest entry and lands one slot
+  too deep.
+
+* **`tests/build-panel-test.mjs` section H** — 44 checks, five mutations verified,
+  including that the cache expires, that `{ force: true }` always reaches the
+  network, that concurrent callers share one round of fetches, and that neither
+  page controller rebuilds a staleness layer of its own.
+  **47 harnesses pass. 0 audit problems.**
+
+* ⚠️ **ROADMAP §10.H — the measurement Jake asked for first — is STILL not built**
+  and is next. This jumped the queue because it was costing him the ability to
+  tell whether a deploy had landed at all.
+
+
 ## Round 29 — Odell (2026-08-23) — ROADMAP ITEM 10, THE LESSON-FARMING GATE
 
 Jake: *"Students are just redoing the first three lessons indefinitely because
@@ -4478,6 +4544,40 @@ Each block below is exactly what stood in the file header, newest first.
 //           particles against 60–100, particles that never shrank as they faded,
 //           and a toast with no entrance animation. School and Library now show
 //           the same celebration, and the fireworks are doubled.
+```
+
+### § versions.js — archived header entries (Round 30)
+
+```
+// v1.5.0 — registers session-log.js, the THIRD module game.js and learn.js both
+// import. The warning below applied to stats-wal.js and applies here twice over:
+// this one is the only writer of typing_sessions on either page, so a stale
+// cached copy takes out the teacher's entire drill-down — on both pages at once,
+// with the build panel showing three correct version numbers and no sign of the
+// fourth.
+```
+
+### § game.js — archived header entries (Round 30)
+
+```
+// v3.40.0 — ⚠️ "NOT EVERYONE GOT FIREWORKS." The goal suppression asked whether
+//           the total was already past the goal — true for the rest of the week
+//           — rather than whether the child had actually been SHOWN it. One
+//           missed moment was the whole week's fireworks. Now latched per period
+//           via hud.js v1.4.0, so a crossing missed in one mode fires in the
+//           next. ⚠️ The daily goal hid the same defect because it re-arms every
+//           morning.
+```
+
+### § learn.js — archived header entries (Round 30)
+
+```
+// v2.27.0 — "I'M DONE" (ROADMAP item 0d), the School half of game.js v3.42.0.
+//           ⚠️ `tabindex="-1"` IN THE MARKUP IS LOAD-BEARING — item 8's ruling
+//           says a focusable control inside the drill is one Tab away from
+//           eating a keystroke the child should have been credited for. Mouse
+//           only. ⚠️ NO TIMING MECHANISM TOUCHED; this files the open run and
+//           takes the flush that every other exit path already takes.
 ```
 
 ### § admin.js — archived header entries

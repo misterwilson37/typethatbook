@@ -1,4 +1,12 @@
-// game.js v3.44.0
+// game.js v3.45.0
+//
+// v3.45.0 — ⚠️ THE BUILD PANEL NO LONGER KEEPS ITS OWN "already loaded" FLAG.
+//           It was a THIRD layer of staleness on top of versions.js's cache and
+//           the HTTP cache, and none of the three expired inside a tab — which
+//           is why a hard reload could not refresh the one instrument that
+//           reports what is deployed. versions.js v1.13.0 owns freshness now
+//           (60s TTL, page-scoped); this file just asks on every hover.
+//           ⚠️ DO NOT REINTRODUCE A CACHE HERE. HANDOFF §0.-22.
 //
 // v3.44.0 — ROADMAP item 10's ACTIVE-DAY COUNTER, and nothing else. This file
 //           renders no lesson gate; it counts days, because Jake's rule is "a
@@ -69,13 +77,6 @@
 //           week per child and should be impossible to miss. ⚠️ The fourth
 //           hand-maintained twin found in one day, and it had already drifted.
 //
-// v3.40.0 — ⚠️ "NOT EVERYONE GOT FIREWORKS." The goal suppression asked whether
-//           the total was already past the goal — true for the rest of the week
-//           — rather than whether the child had actually been SHOWN it. One
-//           missed moment was the whole week's fireworks. Now latched per period
-//           via hud.js v1.4.0, so a crossing missed in one mode fires in the
-//           next. ⚠️ The daily goal hid the same defect because it re-arms every
-//           morning.
 //
 //
 //
@@ -174,7 +175,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.44.0";
+const VERSION = "3.45.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -380,7 +381,10 @@ async function updateVersionBanner(advRendererVersion) {
     // Kept for the hover panel, not the triad — see _renderFullBuildPanel().
     _mountedRendererVersion = advRendererVersion || null;
     const full = document.getElementById('footer-full');
-    if (full) full.dataset.loaded = 'false';
+    // ⚠️ v1.13.0 of versions.js owns freshness now; this flag is only the
+    // record of WHICH audience the panel was last drawn for. Resetting it forces
+    // a redraw on the next hover without forcing a re-fetch.
+    if (full) full.dataset.notes = '';
 }
 
 // Builds the hover panel's contents from a fresh readDeployedVersions() read.
@@ -435,37 +439,39 @@ function _renderFullBuildPanel(results) {
     html += renderHiddenNotesLine(showNotes ? 0 : countBuildNotes(results) + (drift ? 1 : 0));
 
     full.innerHTML = html;
-    full.dataset.loaded = 'true';
     full.dataset.notes = String(showNotes);
 }
 
+// ⚠️⚠️ v3.45.0 — THIS NO LONGER KEEPS ITS OWN "already loaded" FLAG.
+// It used to return early on `dataset.loaded === 'true'`, which was a THIRD
+// layer of staleness on top of versions.js's cache and the HTTP cache — and the
+// one that made a hard reload useless, because nothing in the chain expired
+// inside a tab. versions.js v1.13.0 owns the freshness policy now (60s TTL,
+// page-scoped), so every hover simply asks and lets it decide whether that costs
+// a fetch. HANDOFF §0.-22.
+//
+// ⚠️ THE PANEL IS READ AT EXACTLY THE MOMENT SOMEONE DOUBTS WHAT IS RUNNING.
+// That is the moment a remembered answer is worst. Do not reintroduce a cache
+// here to save a fetch nobody is paying for.
 let _buildFetchPromise = null;
 let _buildResults = null;
 function _ensureFullBuildLoaded() {
     const full = document.getElementById('footer-full');
     if (!full) return;
-    // Already drawn — but redraw for free if the sign-in state changed since,
-    // so signing in mid-session reveals the notes without a page reload.
-    if (full.dataset.loaded === 'true') {
-        if (_buildResults && full.dataset.notes !== String(_buildNotesAllowed())) {
-            _renderFullBuildPanel(_buildResults);
-        }
-        return;
-    }
-    if (!_buildFetchPromise) {
-        full.innerHTML = '<div style="opacity:.6">Reading deployed files…</div>';
-        _buildFetchPromise = readDeployedVersions()
-            .then(results => {
-                _buildResults = results;
-                _renderFullBuildPanel(results);
-                _buildFetchPromise = null;
-            })
-            .catch(() => {
-                full.innerHTML = '<div style="color:#c05621">Could not read build info.</div>';
-                _buildFetchPromise = null;
-            });
-    }
+    if (!_buildResults) full.innerHTML = '<div style="opacity:.6">Reading deployed files\u2026</div>';
+    if (_buildFetchPromise) return;
+    _buildFetchPromise = readDeployedVersions()
+        .then(results => {
+            _buildResults = results;
+            _renderFullBuildPanel(results);
+            _buildFetchPromise = null;
+        })
+        .catch(() => {
+            full.innerHTML = '<div style="color:#c05621">Could not read build info.</div>';
+            _buildFetchPromise = null;
+        });
 }
+
 
 // Hover opens it for a mouse. Touch has no hover event at all, so a tap
 // toggles `.pinned` (same CSS effect) and a tap anywhere else closes it —

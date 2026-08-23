@@ -1,4 +1,8 @@
-// learn.js v2.32.0
+// learn.js v2.33.0
+//
+// v2.33.0 — ⚠️ TWIN OF game.js v3.45.0. The build panel's per-page "already
+//           loaded" flag is gone; versions.js v1.13.0 owns freshness. Nothing
+//           about ROADMAP item 10 changed. HANDOFF §0.-22.
 //
 // v2.32.0 — ⭐⭐ ROADMAP ITEM 10 — THE LESSON-FARMING GATE. Jake: "students are
 //           just redoing the first three lessons indefinitely because they're
@@ -77,12 +81,6 @@
 //           BELOW the stale-day fix, i.e. exactly the reading that means "the
 //           fix is not running". See HANDOFF §0.-14.
 //
-// v2.27.0 — "I'M DONE" (ROADMAP item 0d), the School half of game.js v3.42.0.
-//           ⚠️ `tabindex="-1"` IN THE MARKUP IS LOAD-BEARING — item 8's ruling
-//           says a focusable control inside the drill is one Tab away from
-//           eating a keystroke the child should have been credited for. Mouse
-//           only. ⚠️ NO TIMING MECHANISM TOUCHED; this files the open run and
-//           takes the flush that every other exit path already takes.
 //
 //
 //
@@ -191,7 +189,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.32.0";
+const LEARN_VERSION = "2.33.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -4861,7 +4859,10 @@ async function updateVersionFooter() {
         ` &nbsp;·&nbsp; <span style="opacity:.7">style.css</span> v${styleVer || '?'}`;
 
     const full = document.getElementById('footer-full');
-    if (full) full.dataset.loaded = 'false';
+    // ⚠️ v1.13.0 of versions.js owns freshness now; this flag is only the
+    // record of WHICH audience the panel was last drawn for. Resetting it forces
+    // a redraw on the next hover without forcing a re-fetch.
+    if (full) full.dataset.notes = '';
 }
 
 // v2.31.0 — ⚠️ TWIN OF game.js's _buildNotesAllowed(). Read at RENDER time and
@@ -4888,35 +4889,39 @@ function _renderFullBuildPanel(results) {
     html += renderHiddenNotesLine(showNotes ? 0 : countBuildNotes(results));
 
     full.innerHTML = html;
-    full.dataset.loaded = 'true';
     full.dataset.notes = String(showNotes);
 }
 
+// ⚠️⚠️ v2.33.0 — THIS NO LONGER KEEPS ITS OWN "already loaded" FLAG.
+// It used to return early on `dataset.loaded === 'true'`, which was a THIRD
+// layer of staleness on top of versions.js's cache and the HTTP cache — and the
+// one that made a hard reload useless, because nothing in the chain expired
+// inside a tab. versions.js v1.13.0 owns the freshness policy now (60s TTL,
+// page-scoped), so every hover simply asks and lets it decide whether that costs
+// a fetch. HANDOFF §0.-22.
+//
+// ⚠️ THE PANEL IS READ AT EXACTLY THE MOMENT SOMEONE DOUBTS WHAT IS RUNNING.
+// That is the moment a remembered answer is worst. Do not reintroduce a cache
+// here to save a fetch nobody is paying for.
 let _buildFetchPromise = null;
 let _buildResults = null;
 function _ensureFullBuildLoaded() {
     const full = document.getElementById('footer-full');
     if (!full) return;
-    if (full.dataset.loaded === 'true') {
-        if (_buildResults && full.dataset.notes !== String(_buildNotesAllowed())) {
-            _renderFullBuildPanel(_buildResults);
-        }
-        return;
-    }
-    if (!_buildFetchPromise) {
-        full.innerHTML = '<div style="opacity:.6">Reading deployed files…</div>';
-        _buildFetchPromise = readDeployedVersions()
-            .then(results => {
-                _buildResults = results;
-                _renderFullBuildPanel(results);
-                _buildFetchPromise = null;
-            })
-            .catch(() => {
-                full.innerHTML = '<div style="color:#c05621">Could not read build info.</div>';
-                _buildFetchPromise = null;
-            });
-    }
+    if (!_buildResults) full.innerHTML = '<div style="opacity:.6">Reading deployed files\u2026</div>';
+    if (_buildFetchPromise) return;
+    _buildFetchPromise = readDeployedVersions()
+        .then(results => {
+            _buildResults = results;
+            _renderFullBuildPanel(results);
+            _buildFetchPromise = null;
+        })
+        .catch(() => {
+            full.innerHTML = '<div style="color:#c05621">Could not read build info.</div>';
+            _buildFetchPromise = null;
+        });
 }
+
 
 // Hover for a mouse; `.pinned` (toggled by click/tap) for touch, which has no
 // hover event at all. ⚠️ SAME LISTENERS AS game.js's setupVersionFooter() —
