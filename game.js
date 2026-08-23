@@ -1,4 +1,14 @@
-// game.js v3.43.0
+// game.js v3.44.0
+//
+// v3.44.0 — ROADMAP item 10's ACTIVE-DAY COUNTER, and nothing else. This file
+//           renders no lesson gate; it counts days, because Jake's rule is "a
+//           month of typing ANYTHING" and a period spent in Library is an active
+//           day that a School lesson has to know about. ⚠️ TWIN OF learn.js's
+//           noteActiveDay() — a page that fails to count silently starves the
+//           gate on the OTHER page, with no error and no symptom except a review
+//           window that never opens. lesson-gate-test.mjs section G greps both.
+//           ⚠️ THE CALL SITS BELOW THE TICK'S INCREMENTS, NOT BETWEEN THEM AND
+//           THE GATE — open-unit-test.mjs Part E asserts those two are adjacent.
 //
 // v3.43.0 — ⚠️⚠️ THE BUILD PANEL WAS UNREADABLE AND ITS LOUDEST WARNING WAS
 //           FALSE. Two independent defects in one hover. (1) adventure.css's
@@ -67,10 +77,6 @@
 //           next. ⚠️ The daily goal hid the same defect because it re-arms every
 //           morning.
 //
-// v3.39.1 — ⚠️ THE ⚙ GEAR WAS NEVER IN THE BAR. It was appended to <body> at
-//           `absolute; top:20px; right:20px`, so it floated in the reading area
-//           just below the HUD, attached to nothing. Long-standing; visible in
-//           every render Jake sent. Now a child of .hud-section.right.
 //
 //
 //
@@ -98,6 +104,12 @@
 //   * applyViewMode() must replay textLoaded + positionSet. A renderer
 //     mounted mid-session missed those events and will draw nothing.
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
+// ROADMAP item 10's gate lives in School, but its clock is fed from BOTH pages —
+// Jake: "when I say a month, I mean a month of typing ANYTHING". A student who
+// spends the period in Library is having an active day, and a School lesson must
+// know about it. ⚠️ THIS FILE IMPORTS THE MODULE ONLY TO COUNT DAYS; it renders
+// no lesson gate and must not start.
+import { activeDayPlan } from "./lesson-gate.js";
 // The day/week counters' WAL, shared with learn.js. Extracted BECAUSE this
 // file's WAL was the bug: one key held reading position (book-scoped) and the
 // time counters (not book-scoped), and walRecover()'s correct bookId guard
@@ -162,7 +174,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.43.0";
+const VERSION = "3.44.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -305,6 +317,52 @@ function _ttbEmit(type, detail) {
 // own to import) and style.css (a stylesheet, same reasoning) are read at all,
 // and both are small.
 let _mountedRendererVersion = null;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ROADMAP item 10 — the active-day counter (v3.44.0)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ TWIN. The identical function is in learn.js. Jake's rule is "a month of
+// typing ANYTHING", so a day spent in either mode is one active day, and a page
+// that fails to count silently starves the lesson gate on the OTHER page — no
+// error, no visible symptom, just a review window that never opens.
+// lesson-gate-test.mjs section G greps both files for it. CHANGE ONE, CHANGE BOTH.
+//
+// ⚠️ CALLED FROM INSIDE THE TICK'S GATE BUT **BELOW** THE INCREMENTS, and that is
+// not stylistic. open-unit-test.mjs Part E asserts the gate and the first
+// increment are ADJACENT — it matches them within a fixed window of characters —
+// so anything inserted between them fails the suite. Below is the only place
+// this can go.
+//
+// ⚠️ IT IS NOT A SECOND CLOCK. It does not measure time; it answers a yes/no
+// question about the calendar, once per session. `_activeDayDone` makes every
+// call after the first a single boolean test, so this sits on a path that runs
+// 3,600 times an hour and costs ONE Firestore read and AT MOST one write per
+// student per day.
+//
+// ⚠️ THE FLAG IS SET BEFORE THE FIRST await ON PURPOSE. Ticks are 1s apart and
+// the read is slower than that on a school connection; without it, two ticks
+// race and the day is counted twice. That failure is invisible — the counter is
+// never displayed — which is exactly why it is guarded here rather than left to
+// be noticed.
+let _activeDayDone = false;
+async function noteActiveDay() {
+    if (_activeDayDone) return;
+    if (!currentUser || currentUser.isAnonymous) return;   // a guest has no record to stamp
+    _activeDayDone = true;
+    try {
+        const snap = await getDoc(doc(db, 'users', currentUser.uid));
+        const plan = activeDayPlan(snap.exists() ? snap.data() : {}, getLocalDateStr());
+        if (!plan) return;                                 // already counted today — the common case
+        await setDoc(doc(db, 'users', currentUser.uid), plan, { merge: true });
+    } catch (e) {
+        // ⚠️ A FAILED WRITE MUST NOT COST THE STUDENT ANYTHING. The worst case is
+        // a review lesson opening one active day late, which is the safe
+        // direction, and it is the trade Jake spent Rule 9 on deliberately:
+        // a gate is not a ledger. See lesson-gate.js.
+        console.warn('[TTB] active-day counter not written:', e);
+    }
+}
 
 async function updateVersionBanner(advRendererVersion) {
     const primary = document.getElementById('footer-primary');
@@ -2691,6 +2749,7 @@ function gameTick() {
             statsData.secondsToday++; statsData.secondsWeek++; statsData.secondsLibrary++;
             timeAccumulator -= 1000;
             updateTimerUI();
+            noteActiveDay();   // ⚠️ v3.44.0 — ROADMAP 10. Below the increments on purpose; see its own comment.
 
             // ─── Adventure: heartbeat stats ───
             _ttbEmit('stats', {

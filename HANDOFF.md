@@ -1,7 +1,33 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.15.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     through Round 28; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+<!-- HANDOFF.md v15.16.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     through Round 29; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.16.0 — Round 29 (Odell). ⭐⭐ ROADMAP ITEM 10 IS BUILT — the lesson-farming
+     gate. §0.-21 is the write-up. ⚠️⚠️ THE ONE SENTENCE THAT SHOULD LEAD ANY
+     SUMMARY OF IT: MASTERY IS WHAT CLOSES A LESSON, AND ONLY MASTERY. A lesson
+     with fewer than three A🔥 is graded and replayable forever, at any distance —
+     DO NOT ADD A DISTANCE OR TIME CONDITION THAT REACHES AN UNMASTERED LESSON, it
+     would invert the feature and punish the student this app exists for.
+     lesson-gate.js v1.0.0 holds the whole rule and is PURE — no Firestore, no
+     DOM, no clock — which is why 56 checks cover the design without a browser.
+     ⚠️ §0.-21.B: THE ROADMAP NAMED AN INCREMENT SITE THAT WOULD NEVER HAVE FIRED.
+     It said to count active days at the tick's day-rollover; that branch is the
+     MIDNIGHT-STRADDLE path and runs only for a tab open across midnight, so the
+     counter would have sat at 0 forever — AND THE FAILURE WOULD HAVE LOOKED LIKE
+     SUCCESS, since reachBack 0 is indistinguishable from "everyone is advancing".
+     Third instance this month of a document naming a code site that does not do
+     what the document thinks (§0.-19.C, §0.-20.J). OPEN THE LINE THE SPEC CITES.
+     ⚠️ §0.-21.C: a practice run writes NOTHING anywhere, and the three omissions
+     are ONE decision — half of it would manufacture the exact typing_logs /
+     typing_sessions divergence item 4's flag exists to catch. ⚠️ §0.-21.F: THE
+     SUITE CAUGHT AN ORPHAN `async` TOKEN OF MINE AT game.js MODULE TOP LEVEL. It
+     PARSES — acorn accepted it — and throws ReferenceError before any code runs,
+     blanking Library for every student. "It parses" and "every reference
+     resolves" are different questions. ⚠️ ROADMAP §10.H — THE MEASUREMENT JAKE
+     ASKED FOR FIRST — IS STILL NOT BUILT.
+     game.js v3.44.0, learn.js v2.32.0, lesson-gate.js v1.0.0 (NEW),
+     style.css v3.9.0. 47 harnesses, all passing.
 
      v15.15.0 — Round 28 (Daugherty). ⚠️⚠️ §0.-20 IS THE WRITE-UP AND THE PANEL
      JAKE DIAGNOSES DEPLOYS WITH HAD THREE THINGS WRONG WITH IT. (1) It was
@@ -278,7 +304,7 @@
      AND KILLED BY JAKE — see §0.-9.E, which is the most useful part of this
      section for a future instance. 35/35 harnesses. -->
 
-**Round 28 — Daugherty.** Predecessors: Chicago (27) · Elliott-Fisher (26) · Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
+**Round 29 — Odell.** Predecessors: Daugherty (28) · Chicago (27) · Elliott-Fisher (26) · Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
 Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
 Sholes (14) · Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) ·
 Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) ·
@@ -288,6 +314,18 @@ Blick (3) · Dvorak (2) · Underwood (1).
 by different companies and both are now on the list; a future round reading the
 list quickly will see two similar words and must not conclude one is a typo for
 the other. **Check the list, and read the whole word.**
+
+> *On the name:* the **Odell** (1889) was an **index typewriter**. No keyboard —
+> the whole alphabet lay along one linear scale in front of you, and you slid a
+> pointer to the character you wanted and pressed. ⚠️ **The cost of a character
+> was the DISTANCE to it, and you always started from wherever you last were.**
+> That is this round's rule with the letters swapped for lessons: reaching one
+> lesson back is cheap, reaching to lesson 1 is twenty-six weeks of travel, and
+> every advance resets where you are standing. ⚠️ And the machine's own reason
+> for existing is the feature's: the Odell sold for **$15 against a Remington's
+> $100** — it was the machine for someone who could not yet afford to be good at
+> this. **A gate built on mastery has to be gentle with the student who has not
+> got there yet**, which is why an unmastered lesson is never gated at all.
 
 > *On the name:* the **Daugherty Visible** (1891) was **the first typewriter you
 > could read while you typed on it.** Every machine before it was a *blind
@@ -436,6 +474,145 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-21. ⭐⭐ ROUND 29 (Odell) — ROADMAP ITEM 10, THE LESSON-FARMING GATE
+
+**2026-08-23.** Jake: *"Lesson farming! I'm ready!"* The spec was fully resolved
+in ROADMAP §10 with all three decisions made, so this round is a BUILD and not a
+design. What follows is what the build learned that the spec did not know.
+
+### A. ⚠️⚠️ THE RULE IS PURE, AND THAT IS THE LOAD-BEARING CHOICE
+
+`lesson-gate.js` **v1.0.0** contains the entire feature: mastery, the reach-back
+window, the re-lock, the active-day plan. **No Firestore, no DOM, no clock** —
+every number is passed in by the caller.
+
+⚠️ **THAT IS WHY 56 CHECKS COVER THE WHOLE DESIGN WITHOUT DRIVING A BROWSER.**
+Compare `drill-filter.js` (§0.-15) and `daylog.js`: the same discipline, and the
+reason those two have real coverage while the DOM-level wiring around them still
+does not. A rule expressed as a pure function is a rule that can be *argued with*
+in a harness. The alternative — the mode computed inline in `renderMap()` — would
+have been testable only by rendering a lesson map, which nothing in this repo can
+do.
+
+### B. ⚠️⚠️ THE ROADMAP NAMED AN INCREMENT SITE THAT WOULD NEVER HAVE FIRED
+
+ROADMAP §10.E said to increment `activeDayCount` *"at the existing day-rollover
+in the tick — the one place that already owns the day boundary."* Read in
+isolation that is obviously right, and it is wrong.
+
+**That rollover is the MIDNIGHT-STRADDLE path.** `statsData.lastDate` is set to
+today at load (learn.js:441, :1095), so the branch at learn.js:1933 runs only for
+a tab left open across midnight. ⚠️ **In a middle school that is essentially
+never**, and the counter would have sat at 0 for every student for the life of
+the feature.
+
+⚠️ **AND THE FAILURE WOULD HAVE BEEN SILENT AND LOOKED LIKE SUCCESS.** With the
+counter at 0, `reachBack` is 0, so no lesson ever reopens — which is
+indistinguishable from *"the students are all advancing normally."* Nobody would
+have reported it. It would have been found, if ever, by a child asking why a
+lesson never came back.
+
+**The general form, and it is the third instance this month:** a document naming
+a code site is not the same as the code site doing what the document thinks. See
+§0.-19.C (a deploy check naming a deleted element) and §0.-20.J (a README that
+had been a different file for four rounds). **Open the line the spec cites before
+building on it.**
+
+The counter now reads the stored date instead — `activeDayPlan(userDoc, today)`,
+which returns `null` on a day already counted, so it costs **one read and at most
+one write per student per day.**
+
+### C. ⚠️ THE THREE OMISSIONS OF A PRACTICE RUN ARE ONE DECISION
+
+A practice run writes **nothing, anywhere**: no grade, no `fireCount`, no
+`completedAt`, no session record, no second of time.
+
+⚠️ **SPLITTING THEM IS THE BUG, AND IT IS A SPECIFIC ONE.** A run recorded in
+`typing_logs` but not `typing_sessions` — or the reverse — is *precisely* the
+divergence signature ROADMAP item 4's implausibility flag exists to detect. A
+half-implemented practice mode would **manufacture the anomaly the teacher's
+report is built to find**, at scale, and the report would be right to flag it.
+Recorded in neither, the two stay in perfect agreement, because the run does not
+exist in either of them. **There is nothing to disagree about.**
+
+⚠️ **AND IT IS WHAT MAKES THE RE-LOCK COHERENT:** a practice run cannot earn the
+A🔥 that would re-lock a lesson, because it cannot earn anything at all.
+
+### D. ⚠️ THE ONE INCREMENT SITE IS UNTOUCHED, AND THAT WAS NOT LUCK
+
+An earlier draft of item 10 was rejected because it would have put a condition on
+the single time-increment site — the one `startGradedTimer()`'s header credits
+with ending a four-bug era. It does not have to: **a practice run simply never
+arms the timer.** The guard is the first line of `startGradedTimer()`, above the
+interval, and nothing inside the gate changed.
+
+⚠️ `noteActiveDay()` is called from *inside* the tick's gate but **below** the
+increments, for a reason a future round will otherwise undo: `open-unit-test.mjs`
+Part E asserts the gate and the first increment are **adjacent**, matching them
+within a fixed window of characters. Anything inserted between them fails the
+suite. **Below is the only legal place.**
+
+### E. ⚠️ THE BANNER IS THE FEATURE
+
+Jake: *"they should have a banner across the top that says so."* Not dismissible,
+not a toast, no fade, no close button, present for the whole run.
+
+⚠️ **A CHILD TYPING FOR TEN MINUTES WHILE THE DAILY TOTAL DOES NOT MOVE READS AS
+A BROKEN APP** — and silent counting failures are this project's specialty:
+§0.-16's orphaned paint, §0.-12's stale day, the WAL that dropped a book switch.
+Every one of them looked like nothing happening. **This is the one case where
+nothing happening is correct, so it is the one case that has to say so out loud.**
+
+The wording leads with *"You have already mastered this lesson"* and names the way
+out as forward. ⚠️ **`practice-only` IS STYLED WARM, NOT GREY, AND CARRIES NO
+PADLOCK.** Drawing a mastered lesson like a locked one tells a child they may not
+revisit something they are good at, which inverts the message.
+
+### F. ⚠️⚠️ THE SUITE CAUGHT A DEFECT OF MINE THAT WOULD HAVE BLANKED LIBRARY
+
+`undefined-calls-test.mjs`:
+
+```
+game.js:325  async  is never declared, imported, or a known global
+```
+
+Repairing a bad insertion — I had split `async function updateVersionBanner` in
+half and put a code block through the seam — I restored the `async` on the
+function and **left the original one orphaned at module top level.**
+
+⚠️ **IT PARSES. `acorn --module` accepted the file**, which is why the syntax
+check in `run-all-tests.mjs` passed it. A bare `async` as an expression statement
+is a reference to an undeclared identifier, so it throws `ReferenceError` **at
+module evaluation, before any code runs** — every student opening Library gets a
+blank page.
+
+⚠️ **THE LESSON IS ABOUT THE TWO CHECKS, NOT ABOUT THE TYPO.** "It parses" and
+"every reference resolves" are different questions, and this round is the third
+time in a month the second one earned its keep (§0.-18 was the mirror question,
+"is everything defined also used?"). **A file that parses is not a file that
+runs.**
+
+### G. WHAT WAS NOT DONE
+
+* ⚠️ **ROADMAP §10.H — THE MEASUREMENT, WHICH JAKE PUT FIRST.** *"Before any of
+  it: measure."* An attempts-per-lesson column in the lessons admin, to answer
+  whether this is three kids or thirty and whether it is the strong ones coasting
+  or the struggling ones hiding. **Still not built**, and it is cheaper now than
+  when it was written: `fireCount` sits on the same record as `attempts`, so one
+  column can show mastery and grinding side by side. ⚠️ **This project has twice
+  built on a number nobody checked** (§0.-10's retraction, §0.-9.E's Chromebook
+  theory). Worth doing before the gate meets ninety students.
+* **The student-facing override.** ROADMAP §10 notes it should be an admin
+  toggle, not a hashed password in the bundle. Staff are ungated
+  (`isStaffUser`) so Jake can demonstrate any lesson, but there is no per-student
+  release. Nobody has needed one yet.
+* **Nothing here has been driven in a browser.** The rule is proven; that
+  `renderMap` asks it correctly, that the timer really never arms, and that the
+  banner appears are unproven. Section G of the harness greps the call sites,
+  which is weaker than exercising them and is stated as such in its own header.
 
 ---
 
@@ -3021,11 +3198,16 @@ browsable user directory, by design. `users/{uid}` deliberately holds no PII, wh
 
 ## §2. Where the code is
 
-Shipped state after **Round 28, 2026-08-22**. **Verified by running
+Shipped state after **Round 29, 2026-08-23**. **Verified by running
 `npm run audit:versions`, not copied from the previous table.** (Round 28 ran it;
 0 problems.)
 
-⚠️ **UPLOAD `firebase-config.js` FIRST THIS ROUND.** It is the new home of
+⚠️ **ROUND 29: UPLOAD `lesson-gate.js` FIRST.** It is a new shared module and
+both page controllers import it; a browser with the new `learn.js` and no
+`lesson-gate.js` throws at import time and the page is blank, not degraded. Same
+hazard as Round 28's, one file along.
+
+⚠️ **ROUND 28: UPLOAD `firebase-config.js` FIRST.** It is the new home of
 `ADMIN_EMAILS` and **five files import it**. A build with the new `game.js` and
 the old `firebase-config.js` throws at import time on both student pages.
 
@@ -3052,11 +3234,12 @@ reads.
 
 | file | version |
 |---|---|
-| `game.js` | **3.43.0** — ⚠️ Round 28. The build panel's ⚠ notes are staff-only, and its renderer-drift alarm no longer fires on the never-mounted sentinel. `ADMIN_EMAILS` now imported. §0.-20 |
-| `learn.js` | **2.31.0** — ⚠️ Round 28. Twin of game.js's note gate. `ADMIN_EMAILS` now imported. §0.-20 |
+| `game.js` | **3.44.0** — ⚠️ Round 29. Counts ACTIVE DAYS for School's lesson gate (twin of learn.js). Round 28's build-panel work stands. §0.-21.B, §0.-20 |
+| `learn.js` | **2.32.0** — ⭐⭐ Round 29. ROADMAP item 10: the lesson-farming gate, practice runs, the banner. §0.-21 |
 | `session-log.js` | **1.6.0** — PER-OWNER queue + `GUEST_QUEUE_UID`. ⚠️ UPLOAD THIS FIRST — both pages import from it. Its TWO pins are checked by version-stamp-test.mjs C |
 | `hud.js` | **2.0.0** — ⚠️⚠️ MAJOR, JAKE SIGNED IT OFF. The v1.3.0 return-shape break recorded as the major it was. §0.-15. ⚠️ UPLOAD BEFORE THE TWO WRITERS |
 | `variety-floor.js` | 1.0.0 |
+| `lesson-gate.js` | **1.0.0** — ⭐⭐ **NEW, Round 29.** The whole of ROADMAP item 10's rule, and it is PURE. ⚠️ **UPLOAD BEFORE game.js AND learn.js** — both import it. §0.-21.A |
 | `stats-wal.js` | **1.1.0** — ⚠️ Round 22. Per-source counters in DAY_COUNTERS; storage key unchanged. §0.-8.F |
 | `versions.js` | **1.12.0** — ⚠️⚠️ Round 28. `renderBuildList` gained `{ notes }`, DEFAULTING TO FALSE, plus `countBuildNotes`/`renderHiddenNotesLine`. The header LINE budget is proportional now; the ENTRY budget is flat at 8 and must stay flat. §0.-20.C/D/F |
 | `daylog.js` | **1.4.0** — The shared week reader, the cutover, and `dayLogPayloadFor()` — **the one gate deciding a day's shape**. §0.-8.C. Carries the Overnight Rescue |
@@ -3070,7 +3253,7 @@ reads.
 | `index.html` | **3.12.0** — ⚠️ Round 28. Its build-info button gates ⚠ notes like the two typing pages. ⚠️ NOT in the audit's SOURCES — its version is unchecked |
 | `firebase-config.js` | **1.3.0** — ⚠️⚠️ Round 28. **THE ONLY COPY of `ADMIN_EMAILS`**, down from four, plus `isStaffUser()`. ⚠️ UPLOAD BEFORE game.js, learn.js, admin.js, reports.html AND index.html — all five now import from it. §0.-20.H |
 | `firebase/firestore.rules` | **2.6.0** — ⚠️ **Jake deployed this 2026-08-20 and it is CONFIRMED CORRECT BY EXECUTION.** The null-resource clause is FIRST and must stay first. §0.-8.A |
-| `style.css` | **3.8.1** — ⚠️ Round 28. `#footer-full` is opaque, bounded and declares its own `opacity:1` so an ancestor cannot fade it again. §0.-20.A |
+| `style.css` | **3.9.0** — Round 29: `.practice-banner` and `.practice-only`. Round 28's `#footer-full` fix stands. §0.-21.E, §0.-20.A |
 | `settings-panel.js` | **1.2.0** — ⚠️ NEW, Round 27c. The SIXTH shared module. ⚠️ UPLOAD BEFORE learn.js. §0.-16, §0.-19 |
 | `game.html` | 1.2.0 — ⚠️ div-balance checked this round: 5 open / 5 close in `#hud`, whole file balanced |
 | `learn.html` | **1.2.0** — ⚠️ Round 26 fixed §0.-13.B's stray `</div>`. Re-checked this round: balanced |

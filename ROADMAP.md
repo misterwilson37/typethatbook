@@ -1,5 +1,13 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.19.0, 2026-08-23.** ✅ **ITEM 10 IS BUILT** — the lesson-farming gate, Round
+29 (Odell). ⚠️⚠️ **MASTERY IS WHAT CLOSES A LESSON, AND ONLY MASTERY**; an
+unmastered lesson is graded and replayable forever, at any distance, and a
+distance-or-time condition reaching one would invert the feature. ⚠️ §10.E named
+an increment site that would never have fired — read the note at the top of the
+item before trusting any other line number it cites. ⚠️ **§10.H, the measurement
+Jake asked for FIRST, is still not built.**
+
 **v3.18.0, 2026-08-23.** ⭐ **NEW ITEM 8b — EVERY ROUND SHIPS A CHANGED-FILES-ONLY
 UPLOAD SET**, on Jake's instruction, with the applied-to-a-clean-copy suite run as
 the non-optional part. ⚠️ Round 28's first attempt at it silently omitted
@@ -907,7 +915,31 @@ footer Jake reads to diagnose a deploy.
 
 ---
 
-## 10. ⭐ NEW — STUDENTS ARE FARMING THE FIRST THREE LESSONS
+## 10. ✅ BUILT — STUDENTS ARE FARMING THE FIRST THREE LESSONS
+
+✅ **SHIPPED Round 29 (Odell), 2026-08-23.** `lesson-gate.js` v1.0.0 holds the
+whole rule and is pure; `learn.js` v2.32.0 renders it; `game.js` v3.44.0 feeds
+the day counter. 56 checks in `tests/lesson-gate-test.mjs`. HANDOFF §0.-21.
+
+⚠️ **THE SPEC BELOW IS CORRECT EXCEPT FOR ONE LINE IN §E, AND THE ERROR IS WORTH
+KEEPING.** It says to increment `activeDayCount` *"at the existing day-rollover in
+the tick."* **That rollover is the midnight-straddle path** and runs only for a
+tab left open across midnight — the counter would have sat at 0 for every student
+forever, and `reachBack` 0 is indistinguishable from "everyone is advancing," so
+nothing would have reported it. The build reads the stored date instead. §0.-21.B.
+
+⚠️ **STILL OPEN: §H, THE MEASUREMENT, WHICH THIS ITEM PUT FIRST** — *"before any
+of it: measure."* Not built. It is cheaper now than when written: `fireCount` sits
+on the same record as `attempts`, so one admin column shows mastery and grinding
+side by side. **This project has twice built on a number nobody checked.**
+
+⚠️ **AND NOTHING HERE HAS BEEN DRIVEN IN A BROWSER.** The rule is proven pure and
+green; that `renderMap` asks it correctly, that the timer never arms, and that the
+banner appears are unproven.
+
+---
+
+### THE ORIGINAL ITEM, kept because the reasoning is reusable
 
 **Jake, 2026-08-22:** *"Students are just redoing the first three lessons
 indefinitely because they're easy... it's one of the dumbest things I have to

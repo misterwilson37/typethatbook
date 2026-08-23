@@ -1,5 +1,88 @@
 # CHANGELOG
 
+## Round 29 — Odell (2026-08-23) — ROADMAP ITEM 10, THE LESSON-FARMING GATE
+
+Jake: *"Students are just redoing the first three lessons indefinitely because
+they're easy... it's one of the dumbest things I have to police manually now."*
+
+* ⭐⭐ **`lesson-gate.js` 1.0.0 — THE WHOLE RULE, AND IT IS PURE.** No Firestore,
+  no DOM, no clock; every number is passed in. ⚠️ **That is why 56 checks cover
+  the entire design without driving a browser** — the same discipline
+  `daylog.js` and `drill-filter.js` are built on, and the reason those two have
+  real coverage while the DOM wiring around them still does not.
+
+  ```
+  reachBack = floor(activeDaysSinceLastAdvance / 7)
+  a MASTERED lesson L is graded iff  L >= furthest - reachBack
+                                and  it has not re-fired inside the window
+  ```
+
+* ⚠️⚠️ **MASTERY IS WHAT CLOSES A LESSON, AND ONLY MASTERY.** A lesson with fewer
+  than three A🔥 — a B, an A, two fires, no record at all — is **graded and
+  replayable forever, at any distance.** ⚠️ **DO NOT ADD A DISTANCE OR TIME
+  CONDITION THAT REACHES AN UNMASTERED LESSON.** It would invert the feature and
+  punish the struggling student, who is the one this app exists for. Section A of
+  the harness is that sentence made executable; if it goes red, the feature has
+  turned around.
+
+* ⚠️⚠️ **PROGRESS RESETS THE WINDOW, WHICH IS WHY THIS BEATS A COOLDOWN.** Two
+  students, same twenty active days, same lessons: the one who advanced two days
+  ago gets practice, the one who has not advanced at all gets a graded lesson
+  back. **Review reaches the student who has actually forgotten something and
+  withholds itself from the one who is coasting, with neither of them assessed by
+  anybody.** The shape of the rule does the work a judgement call would need.
+  **Lesson 1 needs 26 weeks of standing still and cannot open inside a two-month
+  course** — the number Jake asked for by name.
+
+* ⚠️⚠️ **THE ROADMAP NAMED AN INCREMENT SITE THAT WOULD NEVER HAVE FIRED.** §10.E
+  said to count active days *"at the existing day-rollover in the tick."* **That
+  rollover is the midnight-straddle path** — `statsData.lastDate` is set to today
+  at load, so it runs only for a tab left open across midnight, which in a middle
+  school is never. The counter would have sat at 0 for the life of the feature.
+  ⚠️ **And the failure would have looked like success:** `reachBack` 0 is
+  indistinguishable from "everyone is advancing normally," so nobody would have
+  reported it. **Third instance this month of a document naming a code site that
+  does not do what the document thinks** (§0.-19.C, §0.-20.J). Now reads the
+  stored date: one read, at most one write, per student per day.
+
+* ⚠️ **A PRACTICE RUN WRITES NOTHING, ANYWHERE — AND THE THREE OMISSIONS ARE ONE
+  DECISION.** No grade, no session record, no second of time. **Half of it would
+  manufacture the exact `typing_logs`/`typing_sessions` divergence that ROADMAP
+  item 4's implausibility flag exists to catch**, at scale, and the report would
+  be right to flag it. Recorded in neither, the two stay in perfect agreement.
+  ⚠️ It is also what makes the re-lock coherent: a practice run cannot earn the
+  A🔥 that would re-lock a lesson, because it cannot earn anything.
+
+* ⚠️ **THE ONE INCREMENT SITE IS UNTOUCHED.** An earlier draft of this item was
+  rejected for putting a condition on it. It does not have to: **a practice run
+  simply never arms `startGradedTimer()`.** No new gate, no new flag, nothing
+  between the gate and the increments — item 0b's pause work reused differently.
+
+* ⚠️ **THE BANNER IS THE FEATURE, NOT DECORATION.** Not dismissible, no fade, no
+  close button, present for the whole run. **A child typing for ten minutes while
+  the daily total does not move reads as a broken app**, and silent counting
+  failures are this project's specialty. This is the one case where nothing
+  happening is correct, so it is the one case that must say so out loud. The
+  mastered card is styled **warm, not grey, and carries no padlock** — the lesson
+  is fully playable and the student earned the state.
+
+* ⚠️⚠️ **`undefined-calls-test.mjs` CAUGHT AN ORPHAN `async` TOKEN AT `game.js`
+  MODULE TOP LEVEL.** Left behind repairing a bad insertion. ⚠️ **It parses** —
+  `acorn --module` accepted the file, so the suite's syntax check passed it — and
+  a bare `async` as an expression statement throws `ReferenceError` **before any
+  code runs**, blanking Library for every student. **"It parses" and "every
+  reference resolves" are different questions**, and this is the third time in a
+  month the second one has earned its keep.
+
+* ⚠️ **NOT DONE: ROADMAP §10.H, THE MEASUREMENT JAKE PUT FIRST** — *"before any
+  of it: measure."* The attempts-per-lesson column is cheaper now than when it was
+  written, since `fireCount` sits on the same record as `attempts`. This project
+  has twice built on a number nobody checked.
+
+* **`tests/lesson-gate-test.mjs` 1.0.0** — seven sections, 56 checks.
+  **47 harnesses pass. 0 audit problems.**
+
+
 ## Round 28 — Daugherty (2026-08-22) — THE DIAGNOSTIC THAT COULD NOT BE READ
 
 * ⚠️⚠️ **THE BUILD PANEL WAS UNREADABLE, AND THE CAUSE WAS NOT IN THE PANEL.**
@@ -4376,6 +4459,25 @@ Each block below is exactly what stood in the file header, newest first.
 //          and a bare count read like enrollment.
 //          (The Sat–Fri default that caused it lives in admin.html.)
 //
+```
+
+### § game.js — archived header entries (Round 29)
+
+```
+// v3.39.1 — ⚠️ THE ⚙ GEAR WAS NEVER IN THE BAR. It was appended to <body> at
+//           `absolute; top:20px; right:20px`, so it floated in the reading area
+//           just below the HUD, attached to nothing. Long-standing; visible in
+//           every render Jake sent. Now a child of .hud-section.right.
+```
+
+### § learn.js — archived header entries (Round 29)
+
+```
+// v2.26.0 — THE CELEBRATIONS MOVED TO celebrate.js. ⚠️ This file's copies had
+//           DRIFTED from Library's without anyone choosing to: a fixed 80
+//           particles against 60–100, particles that never shrank as they faded,
+//           and a toast with no entrance animation. School and Library now show
+//           the same celebration, and the fireworks are doubled.
 ```
 
 ### § admin.js — archived header entries

@@ -1,4 +1,20 @@
-// learn.js v2.31.0
+// learn.js v2.32.0
+//
+// v2.32.0 — ⭐⭐ ROADMAP ITEM 10 — THE LESSON-FARMING GATE. Jake: "students are
+//           just redoing the first three lessons indefinitely because they're
+//           easy." ⚠️⚠️ THE RULE IS IN lesson-gate.js AND IT IS PURE; this file
+//           only supplies numbers and draws the result. MASTERY IS WHAT CLOSES A
+//           LESSON, AND ONLY MASTERY — a lesson with fewer than three A🔥 is
+//           always graded and always replayable, forever, at any distance.
+//           ⚠️ A PRACTICE RUN WRITES NOTHING ANYWHERE: no grade, no session, no
+//           second. The three omissions are ONE decision — splitting them would
+//           manufacture the exact typing_logs/typing_sessions divergence that
+//           ROADMAP item 4's implausibility flag exists to detect. And it never
+//           arms startGradedTimer(), so ⚠️ THE ONE INCREMENT SITE IS UNTOUCHED:
+//           no new condition, nothing between the gate and the increments.
+//           ⚠️ THE BANNER IS THE FEATURE, NOT DECORATION — a child typing for ten
+//           minutes while the daily total does not move reads as a broken app.
+//           See HANDOFF §0.-21.
 //
 // v2.31.0 — ⚠️ THE BUILD PANEL'S ⚠ NOTES ARE STAFF-ONLY. versions.js v1.12.0
 //           gates them and defaults to OFF; this file passes the flag and
@@ -68,11 +84,6 @@
 //           only. ⚠️ NO TIMING MECHANISM TOUCHED; this files the open run and
 //           takes the flush that every other exit path already takes.
 //
-// v2.26.0 — THE CELEBRATIONS MOVED TO celebrate.js. ⚠️ This file's copies had
-//           DRIFTED from Library's without anyone choosing to: a fixed 80
-//           particles against 60–100, particles that never shrank as they faded,
-//           and a toast with no entrance animation. School and Library now show
-//           the same celebration, and the fireworks are doubled.
 //
 //
 //
@@ -95,6 +106,12 @@
 //   * Do NOT scale gates by grade level. An 8th grader may have had this
 //     teacher twice or never; unit position is the only honest signal.
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
+// ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
+// rule in it is a function of numbers this file passes in, which is why the whole
+// design is covered by lesson-gate-test.mjs without driving a browser.
+import { activeDayPlan, activeDayCountOf, fireCountOf, isMastered,
+         lessonModeFor, furthestIndexOf, reachBackFor,
+         MASTERY_FIRE_COUNT, REACH_BACK_DAYS } from "./lesson-gate.js";
 // The day/week counters' WAL, shared with game.js. It is a separate module
 // because the counters are the one piece of state that is true regardless of
 // which page or which book a student is on, and both previous copies of it were
@@ -174,7 +191,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.31.0";
+const LEARN_VERSION = "2.32.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -1351,6 +1368,11 @@ function afterLessonsLoaded() {
 
 async function loadUserProgress() {
     if (!currentUser) return;
+    // ⚠️ v2.32.0 — ROADMAP 10. The gate's two numbers are read alongside progress
+    // because they are useless without it and vice versa: a mode needs the record
+    // AND the day count. Reading them apart is how one of them ends up stale
+    // behind a renderMap() that already ran.
+    await loadGateState();
     userProgress = {};
 
     const cached = cacheRead(PROGRESS_CACHE_KEY, PROGRESS_CACHE_MS, currentUser.uid);
@@ -1394,6 +1416,103 @@ function refreshProgressCache() {
 //
 // Build first, swap last: a throw now leaves the PREVIOUS map standing, which
 // is both a usable screen and a much better bug report.
+// ═══════════════════════════════════════════════════════════════════════════
+// ROADMAP item 10 — THE GATE'S STATE (v2.32.0)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Two numbers off the student record, read once at sign-in and cached: how many
+// days they have typed, and what that count was when they last advanced. The
+// rule needs nothing else — see lesson-gate.js, which is pure.
+//
+// ⚠️ BOTH DEFAULT TO 0 AND THE DEFAULT IS THE PERMISSIVE ONE. A read that fails,
+// or a student whose record predates this feature, yields reachBack 0, which
+// means "no lesson has been reopened" — nothing is unlocked that should not be.
+// ⚠️ THE OPPOSITE DEFAULT WOULD HAND A LEGACY STUDENT THE WHOLE CURRICULUM ON
+// DEPLOY MORNING, which is the failure discovered during first period rather
+// than during testing.
+let gateActiveDays = 0;
+let gateLastAdvanceDay = 0;
+
+async function loadGateState() {
+    gateActiveDays = 0; gateLastAdvanceDay = 0;
+    if (!currentUser || currentUser.isAnonymous) return;
+    try {
+        const snap = await getDoc(doc(db, 'users', currentUser.uid));
+        const d = snap.exists() ? snap.data() : {};
+        gateActiveDays = activeDayCountOf(d);
+        gateLastAdvanceDay = typeof d.lastAdvanceDay === 'number'
+            ? d.lastAdvanceDay : gateActiveDays;
+    } catch (e) {
+        console.warn('[TTB] gate state not read; nothing will be gated:', e);
+    }
+}
+
+// The mode of one lesson: 'locked' | 'graded' | 'practice'.
+// ⚠️ ONE FUNCTION ASKS THE RULE, AND EVERY CALLER GOES THROUGH IT. renderMap
+// draws the badge, startLesson decides whether to arm the clock, and
+// finishStep decides whether anything is written — three decisions that MUST
+// agree. A second place computing this is a lesson that shows a practice badge
+// and files a grade anyway.
+function modeForLesson(lesson) {
+    const idx = allLessons.findIndex(l => l.id === lesson.id);
+    return lessonModeFor({
+        index: idx,
+        furthestIndex: furthestIndexOf(allLessons, userProgress),
+        record: userProgress[lesson.id],
+        fireGrade: FIRE_GRADE,
+        activeDayCount: gateActiveDays,
+        lastAdvanceDay: gateLastAdvanceDay,
+        unlocked: isUnlocked(lesson),
+        staff: isStaffUser(currentUser),
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ROADMAP item 10 — the active-day counter (v2.32.0)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ TWIN. The identical function is in game.js. Jake's rule is "a month of
+// typing ANYTHING", so a day spent in either mode is one active day, and a page
+// that fails to count silently starves the lesson gate on the OTHER page — no
+// error, no visible symptom, just a review window that never opens.
+// lesson-gate-test.mjs section G greps both files for it. CHANGE ONE, CHANGE BOTH.
+//
+// ⚠️ CALLED FROM INSIDE THE TICK'S GATE BUT **BELOW** THE INCREMENTS, and that is
+// not stylistic. open-unit-test.mjs Part E asserts the gate and the first
+// increment are ADJACENT — it matches them within a fixed window of characters —
+// so anything inserted between them fails the suite. Below is the only place
+// this can go.
+//
+// ⚠️ IT IS NOT A SECOND CLOCK. It does not measure time; it answers a yes/no
+// question about the calendar, once per session. `_activeDayDone` makes every
+// call after the first a single boolean test, so this sits on a path that runs
+// 3,600 times an hour and costs ONE Firestore read and AT MOST one write per
+// student per day.
+//
+// ⚠️ THE FLAG IS SET BEFORE THE FIRST await ON PURPOSE. Ticks are 1s apart and
+// the read is slower than that on a school connection; without it, two ticks
+// race and the day is counted twice. That failure is invisible — the counter is
+// never displayed — which is exactly why it is guarded here rather than left to
+// be noticed.
+let _activeDayDone = false;
+async function noteActiveDay() {
+    if (_activeDayDone) return;
+    if (!currentUser || currentUser.isAnonymous) return;   // a guest has no record to stamp
+    _activeDayDone = true;
+    try {
+        const snap = await getDoc(doc(db, 'users', currentUser.uid));
+        const plan = activeDayPlan(snap.exists() ? snap.data() : {}, getLocalDateStr());
+        if (!plan) return;                                 // already counted today — the common case
+        await setDoc(doc(db, 'users', currentUser.uid), plan, { merge: true });
+    } catch (e) {
+        // ⚠️ A FAILED WRITE MUST NOT COST THE STUDENT ANYTHING. The worst case is
+        // a review lesson opening one active day late, which is the safe
+        // direction, and it is the trade Jake spent Rule 9 on deliberately:
+        // a gate is not a ledger. See lesson-gate.js.
+        console.warn('[TTB] active-day counter not written:', e);
+    }
+}
+
 function renderMap() {
     // ⚠️ v2.23.0 — IDEMPOTENT BY ITS OWN GUARD, and it has to be: renderMap() is
     // called on every auth change and every progress update. buildFontPicker()
@@ -1489,12 +1608,19 @@ function renderMap() {
             const grade = prog?.grade || (prog?.stars ? ['','B','A','A🔥'][Math.min(prog.stars,3)] : '');
             const isLocked = !isDone && !isUnlocked(lesson);
             const isNext = lesson.id === firstActiveId;
+            // ⚠️ v2.32.0 — ROADMAP 10. 'practice' is a MASTERED lesson outside the
+            // reach-back window. It is NOT locked and must never be drawn as
+            // though it were: the student can still play it, and telling a child
+            // they may not revisit something they are good at is the opposite of
+            // this feature. What changes is that it no longer pays.
+            const isPractice = !isLocked && modeForLesson(lesson) === 'practice';
 
             const card = document.createElement('div');
             card.className = 'map-lesson-card' +
-                (isLocked ? ' locked' : '') +
-                (isDone   ? ' completed' : '') +
-                (isNext   ? ' active-next' : '');
+                (isLocked   ? ' locked' : '') +
+                (isDone     ? ' completed' : '') +
+                (isPractice ? ' practice-only' : '') +
+                (isNext     ? ' active-next' : '');
 
             const keysLabel = (lesson.newKeys || []).length
                 ? lesson.newKeys.map(k => k.toUpperCase()).join(' ')
@@ -1506,6 +1632,7 @@ function renderMap() {
                 <div class="mlc-meta">${mapMeta(lesson)}</div>
                 <div class="mlc-stars">${gradeOnMap(grade)}</div>
                 ${isLocked ? '<div class="mlc-lock">🔒</div>' : ''}
+                ${isPractice ? '<div class="mlc-practice" title="You have mastered this one — play it any time, but it won\u2019t count toward your time or your grade.">Mastered · practice</div>' : ''}
             `;
 
             if (!isLocked) {
@@ -1660,7 +1787,51 @@ function gradeOnMap(grade) {
 }
 
 // ─── Start Lesson ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// THE PRACTICE BANNER (v2.32.0, ROADMAP 10)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jake: *"they should have a banner across the top that says so."*
+//
+// ⚠️⚠️ THE BANNER IS THE FEATURE, NOT THE DECORATION, AND IT MUST NOT BE
+// DISMISSIBLE. A child typing for ten minutes while the daily total does not
+// move reads as a broken app — and **silent counting failures are this
+// project's specialty**: §0.-16's orphaned paint, §0.-12's stale day, the WAL
+// that dropped a book-switch. Every one of them looked like nothing happening.
+// This is the one case where nothing happening is CORRECT, so it is the one
+// case that has to say so out loud, for the whole run, where the clock would be.
+//
+// ⚠️ THE WORDING IS DELIBERATE AND IS NOT A TELLING-OFF. The student earned this
+// state by mastering the lesson three times. "Mastered" leads; what it costs
+// comes second; and it names the way back — which is forward.
+const PRACTICE_MODE_BANNER =
+    '\u2b50 <strong>Practice run.</strong> You have already mastered this lesson, ' +
+    'so this run will not add to your time or change your grade. ' +
+    'Keep going for fun \u2014 or head to your next lesson to earn more.';
+
+function showPracticeBanner(on) {
+    let el = document.getElementById('practice-banner');
+    if (!on) { if (el) el.remove(); return; }
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'practice-banner';
+        el.className = 'practice-banner';
+        // Ahead of the drill view so it sits across the top of the run rather
+        // than scrolling with the text.
+        drillView.insertAdjacentElement('afterbegin', el);
+    }
+    el.innerHTML = PRACTICE_MODE_BANNER;
+}
+
+// ⚠️ v2.32.0 — ROADMAP 10. TRUE for the whole of a practice run, decided ONCE at
+// the door and never re-derived mid-run. Re-asking modeForLesson() later would be
+// a bug waiting for the day a student's counter ticks over mid-lesson and a run
+// changes its mind about whether it counts.
+let practiceRun = false;
+
 function startLesson(lesson) {
+    practiceRun = modeForLesson(lesson) === 'practice';
+    showPracticeBanner(practiceRun);
     currentLesson  = lesson;
     currentRuns    = buildRunList(lesson);
     currentStepIdx = 0;
@@ -1899,6 +2070,18 @@ function isDrillIdle() {
 // correct rather than betting that all nine were found. Both names, one timer.
 function startGradedTimer() {
     clearInterval(timerInterval);
+    // ⚠️⚠️ v2.32.0 — ROADMAP 10. A PRACTICE RUN NEVER ARMS THE CLOCK, AND NOTE
+    // WHAT THIS IS **NOT**: it is not a condition inside the gate below. The one
+    // increment site that this function's header credits with killing four
+    // separate counting bugs is untouched — no new test, no new flag, nothing
+    // between the gate and the increments. The timer is simply never started.
+    //
+    // ⚠️ THAT DISTINCTION IS THE WHOLE REASON THIS FEATURE COULD BE BUILT AT ALL.
+    // The earlier draft of item 10 was rejected because it would have put a
+    // condition on the increment. Item 0b's pause work made this possible: the
+    // mechanism for "run without the clock" already existed and is reused here,
+    // used differently.
+    if (practiceRun) { renderTimeHUD(); updateHUD(); return; }
     timerInterval = setInterval(() => {
         // The graded gate, and now the only gate. `drillPos > 0` means at least
         // one correct character; isDrillIdle() is false only within
@@ -1960,6 +2143,7 @@ function startGradedTimer() {
                 launchFireworks();
             }
             // ⚠️ ONE CALL DRAWS BOTH SLOTS (v2.9.0).
+            noteActiveDay();   // ⚠️ v2.32.0 — ROADMAP 10. Below the increments; see its own comment.
         }
         // ⚠️ PAINTING IS NOT COUNTING, AND THE PAINT IS NOT GATED. (v2.10.1)
         // renderTimeHUD() used to sit inside the gate above, so nothing drew the
@@ -2998,6 +3182,37 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     }
 }
 
+// ⚠️ v2.32.0 — ROADMAP 10. The practice run's end screen. It shows the student
+// exactly what they did and then stops. No grade badge, because no grade was
+// earned; no "press Enter to continue", because there is no progression to
+// continue along; and no remediation links, because nothing here was assessed.
+function renderPracticeResult(wpm, acc, grade) {
+    const stats = document.getElementById('dm-stats');
+    if (stats) stats.innerHTML =
+        '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
+        '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>';
+    const msg = document.getElementById('dm-msg');
+    if (msg) msg.innerHTML =
+        '<div style="font-size:0.85rem;color:#555;">\u2b50 Practice run \u2014 nothing was recorded. ' +
+        'Nice typing.</div>';
+    const rem = document.getElementById('dm-remediation');
+    if (rem) rem.innerHTML = '';
+
+    // Two ways out, both back to the map. ⚠️ NO "next step" BUTTON: a practice
+    // run does not advance through the lesson, because advancing is the thing
+    // that would need recording.
+    const btns = document.getElementById('dm-btns');
+    if (btns) {
+        btns.innerHTML = '<button id="dm-practice-again">Play it again</button>' +
+                         '<button id="dm-practice-done" class="primary">Back to lessons</button>';
+        const again = document.getElementById('dm-practice-again');
+        const done  = document.getElementById('dm-practice-done');
+        if (again) again.onclick = () => { drillModal.classList.add('hidden'); startLesson(currentLesson); };
+        if (done)  done.onclick  = () => { drillModal.classList.add('hidden'); stopLesson(); };
+    }
+    drillModal.classList.remove('hidden');
+}
+
 function showLessonResultModal(wpm, acc) {
     const gates  = gatesForRun(currentStep);
     const minWPM = gates.minWPM;
@@ -3005,6 +3220,29 @@ function showLessonResultModal(wpm, acc) {
 
     const grade  = calculateGrade(wpm, acc, minWPM, minAcc, mistakes === 0);
     const passed = gradeAdvances(grade, gates);
+
+    // ⚠️⚠️ v2.32.0 — ROADMAP 10. A PRACTICE RUN WRITES NOTHING, ANYWHERE.
+    //
+    // Not a grade, not a run outcome, not a session record, not an attempt, not
+    // a second. The modal still shows the student their WPM and accuracy —
+    // ⚠️ THEY ARE NOT BEING PUNISHED AND THE SCREEN MUST NOT ACT LIKE IT — but
+    // nothing leaves this function.
+    //
+    // ⚠️ THE THREE OMISSIONS ARE ONE DECISION, AND SPLITTING THEM IS THE BUG.
+    // A run recorded in typing_logs but not typing_sessions (or the reverse) is
+    // precisely the divergence signature ROADMAP item 4's implausibility flag
+    // exists to catch — this feature would MANUFACTURE the anomaly the report is
+    // built to find. Recorded in NEITHER, the two stay in perfect agreement,
+    // because the run does not exist in either of them. There is nothing to
+    // disagree about.
+    //
+    // ⚠️ AND IT IS WHAT MAKES THE RE-LOCK IN lesson-gate.js COHERENT: a practice
+    // run cannot earn the A🔥 that would re-lock the lesson, because it cannot
+    // earn anything at all.
+    if (practiceRun) {
+        renderPracticeResult(wpm, acc, grade);
+        return;
+    }
 
     // Record the run BEFORE saveProgress, so the cumulative time and run maps it
     // spreads forward already include this run.
@@ -3300,6 +3538,29 @@ async function flushLessonProgress() {
     return ok;
 }
 
+// ⚠️ v2.32.0 — ROADMAP 10. THE CLAUSE THAT MAKES PROGRESS RESET THE WINDOW.
+//
+// Passing a lesson the student had NEVER passed before stamps today's active-day
+// count, which collapses reachBack to 0. This is the whole reason the design
+// beats a flat cooldown: a child who keeps advancing never accumulates reach-back
+// and never sees an old lesson, while a child who stalls earns one more lesson
+// behind them per week of trying. **Review reaches the student who needs it and
+// withholds itself from the one who is coasting, with neither of them assessed by
+// anybody.**
+//
+// ⚠️ ONLY ON A **FIRST** PASS. Re-passing a lesson already passed must not reset
+// the window — that would be farming with extra steps, and it is exactly what
+// this feature exists to stop.
+async function stampAdvanceIfNew(prev, passed) {
+    if (!passed || prev.passed === true) return;
+    if (!currentUser || currentUser.isAnonymous) return;
+    gateLastAdvanceDay = gateActiveDays;
+    try {
+        await setDoc(doc(db, 'users', currentUser.uid),
+                     { lastAdvanceDay: gateActiveDays }, { merge: true });
+    } catch (e) { console.warn('[TTB] advance stamp not written:', e); }
+}
+
 async function saveProgress(passed, wpm, acc, grade) {
     if (!currentUser || !currentLesson) return;
     const prev = userProgress[currentLesson.id] || {};
@@ -3313,11 +3574,30 @@ async function saveProgress(passed, wpm, acc, grade) {
     const prevGrade   = prev.grade || 'F';
     const bestGrade   = GRADE_ORDER.indexOf(grade) > GRADE_ORDER.indexOf(prevGrade) ? grade : prevGrade;
 
+    // ⚠️ v2.32.0 — ROADMAP 10. fireCount is the ONLY thing that closes a lesson.
+    //
+    // ⚠️ IT IS SEEDED, NOT MIGRATED. fireCountOf() derives a legacy record's count
+    // from the `grade` already stored — no backfill, no migration, no extra write.
+    // A student who has earned A🔥 before today starts at 1 and needs two more,
+    // because `grade` is best-ever-seen and cannot tell one fire from twenty.
+    // Seeding at 3 would have locked a whole class out on deploy morning.
+    const prevFire = fireCountOf(prev, FIRE_GRADE);
+    const fireCount = grade === FIRE_GRADE ? prevFire + 1 : prevFire;
+
+    // ⚠️ THE RE-LOCK STAMP. Recorded only on the run that reaches mastery or
+    // beyond, and it is what makes a reach-back opening ONE SHOT rather than a
+    // licence — Jake: "if they fireball lesson 1 after it unlocks, I want it
+    // immediately locked again." lesson-gate.js reads it; nothing else does.
+    const fireAtDay = (grade === FIRE_GRADE && fireCount >= MASTERY_FIRE_COUNT)
+        ? gateActiveDays : prev.fireAtDay;
+
     const record = {
         // Spread prev first so the run-level fields written by recordRunOutcome
         // survive. saveProgress used setDoc WITHOUT merge, so completing a lesson
         // would otherwise wipe runAttempts/runFailures/furthestRunIdx on the way past.
         ...prev,
+        fireCount,
+        ...(typeof fireAtDay === 'number' ? { fireAtDay } : {}),
         lessonId: currentLesson.id,
         completedAt: new Date().toISOString(),
         attempts,
@@ -3341,6 +3621,7 @@ async function saveProgress(passed, wpm, acc, grade) {
         );
         userProgress[currentLesson.id] = record;
         pendingProgress.delete(currentLesson.id);   // this write covered it
+        await stampAdvanceIfNew(prev, passed);
     } catch(e) { console.warn('Could not save lesson progress:', e); }
 }
 
@@ -3356,6 +3637,7 @@ function showView(which) {
 }
 
 function stopLesson() {
+    showPracticeBanner(false);   // ⚠️ v2.32.0 — the banner is per-run; it must not survive back to the map
     clearInterval(timerInterval);
     clearInterval(learnTickInterval);
     stopIntroAnim();

@@ -1,4 +1,12 @@
-/* TypeThatBook style.css v3.8.1 */
+/* TypeThatBook style.css v3.9.0 */
+/* v3.9.0: ROADMAP item 10 — .practice-banner and .map-lesson-card.practice-only.
+           ⚠️ THE BANNER IS NOT A TOAST AND MUST NOT BE STYLED AS ONE: no fade,
+           no auto-dismiss, no close affordance. It states, for the whole run,
+           that nothing is being recorded — and a child typing for ten minutes
+           while the daily total does not move otherwise reads a working app as a
+           broken one. ⚠️ AND .practice-only IS NOT .locked: it is warm rather
+           than grey and carries no padlock, because the lesson is fully playable
+           and the student earned the state by mastering it. HANDOFF §0.-21. */
 /* v3.8.1: #footer-full IS NOW OPAQUE, BOUNDED AND SELF-DEFENDING. adventure.css
            v1.0.3 removed the ancestor `opacity` that was washing this panel
            out; this half makes the panel immune to the next one — `opacity: 1`
@@ -115,7 +123,7 @@
    what versions.js reads back out of the LIVE stylesheet to tell a stale cached
    CSS from a deployed one. Bump it in the SAME EDIT as the header comment at the
    top, always. It has now drifted twice; drill-filter-test.mjs F12 catches it. */
-body::before { content: "v3.8.1"; display: none; }
+body::before { content: "v3.9.0"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -1568,4 +1576,34 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
     height: 2px; background: var(--carolina-blue);
     box-shadow: 0 0 5px var(--carolina-blue);
     transition: top 0.15s linear;
+}
+
+/* ─── ROADMAP item 10 — practice mode (v3.9.0) ──────────────────────────── */
+
+/* ⚠️ DELIBERATELY NOT DISMISSIBLE. See the header entry. */
+.practice-banner {
+    background: #fff4d6;
+    border-bottom: 2px solid #e6b800;
+    color: #5a4500;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    text-align: center;
+}
+.practice-banner strong { color: #7a5c00; }
+
+/* ⚠️ WARM, NOT GREY, AND NO PADLOCK. A mastered lesson is still fully
+   playable; drawing it like a locked one tells a child they may not revisit
+   something they are good at, which is the opposite of this feature. */
+.map-lesson-card.practice-only {
+    border-style: dashed;
+    border-color: #e6b800;
+    background: #fffdf5;
+}
+.map-lesson-card.practice-only .mlc-practice {
+    margin-top: 4px;
+    font-size: 0.62rem;
+    letter-spacing: 0.02em;
+    color: #8a6d00;
+    text-transform: uppercase;
 }

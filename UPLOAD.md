@@ -1,135 +1,122 @@
-# UPLOAD — Round 28 (Daugherty), 2026-08-23
+# UPLOAD — Round 29 (Odell), 2026-08-23
 
-**19 files changed of 180 in the repo, plus this note.** This archive contains
-**only those**, at their real paths. Drop it over a checkout, or upload file by
-file through the GitHub web portal in the order below.
+**13 files changed of 181, plus this note.** Only those are here, at their real
+paths. ⚠️ **This set is diffed against the repo AFTER Round 28 was uploaded.** If
+Round 28 has not gone up yet, upload it first — these files assume
+`firebase-config.js` v1.3.0 and `versions.js` v1.12.0 are already live.
 
-✅ **THIS SET WAS VERIFIED BY APPLYING IT.** A pristine copy of the delivered
-repo, plus these files and nothing else, runs **all 46 harnesses green** and
-`audit:versions` clean. That is the check that matters for a partial upload —
-"the files I edited all pass" is a different and weaker claim than "these files
-are sufficient."
+⚠️ **DELETE THIS FILE AFTER THE UPLOAD.** It is a note about one deploy.
 
-⚠️ **AND THE VERIFICATION EARNED ITS KEEP ON THE FIRST RUN: `versions.js` WAS
-MISSING FROM THE FIRST BUILD OF THIS SET.** The list of changed files was correct;
-the shell loop that copied them dropped its last line, because the manifest had no
-trailing newline and `while read` discards an unterminated final line. **The count
-printed 19 either way.** Had this shipped, `game.js` v3.43.0 would have imported
-`countBuildNotes` from `versions.js` v1.11.0, which does not export it — a blank
-page, from a file nobody had touched. See HANDOFF §0.-20.L.
-
-⚠️ **DELETE THIS FILE AFTER THE UPLOAD.** `UPLOAD.md` is a note about one deploy,
-not a repository document. It is the only file here that is not meant to survive.
+✅ **VERIFIED BY APPLYING IT.** A pristine copy of the post-Round-28 repo, plus
+these files and nothing else, runs **all 47 harnesses green** and
+`audit:versions` clean. Round 28's first attempt at a partial set silently
+dropped `versions.js`, so this is now checked by applying, not by reviewing the
+list — see HANDOFF §0.-20.K.
 
 ---
 
-## ⚠️⚠️ ORDER MATTERS THIS ROUND, AND IT DID NOT LAST ROUND
+## ⚠️⚠️ ORDER MATTERS — `lesson-gate.js` IS A NEW SHARED MODULE
 
-`ADMIN_EMAILS` moved into `firebase-config.js` and **five files now import it from
-there**. Uploading through the web portal means one commit per file, so the site
-is in a **mixed state between commits** — some files new, some old, live, with
-students possibly on it.
+`lesson-gate.js` did not exist before this round and **both page controllers
+import it**. The web portal means one commit per file, so the site sits in a mixed
+state between them, live, with students possibly on it.
 
-⚠️ **The bad ordering is not a degraded page. It is a blank one.** A browser that
-loads the NEW `game.js` against the OLD `firebase-config.js` throws
-`SyntaxError: does not provide an export named 'ADMIN_EMAILS'` **at import time**,
-before any of the file runs. No HUD, no text, no error visible to a child — a
-white screen.
+⚠️ **The bad ordering is a BLANK page, not a degraded one.** A browser loading the
+new `learn.js` against a repo with no `lesson-gate.js` fails the import **before
+any code runs** — no map, no lessons, no error a child can report. Identical
+hazard to Round 28's `firebase-config.js`, one file along.
 
-**Upload group 1 completely before starting group 2.**
-
-### Group 1 — the shared modules everything else imports
+### Group 1 — the new module, alone
 
 | # | file | why first |
 |---|---|---|
-| 1 | `firebase-config.js` | **1.3.0** — new home of `ADMIN_EMAILS` + `isStaffUser()`. ⚠️ Five files import it. **This one is the whole reason for the ordering.** |
-| 2 | `versions.js` | **1.12.0** — `renderBuildList` gained `{ notes }`; imported by `game.js`, `learn.js`, `index.html` |
+| 1 | `lesson-gate.js` | **1.0.0, NEW.** The whole of ROADMAP item 10's rule. ⚠️ Imported by both `game.js` and `learn.js` |
 
-⚠️ **BOTH ARE BACKWARD-COMPATIBLE ON THEIR OWN.** `firebase-config.js` v1.3.0
-still exports everything v1.2.0 did — it only *adds*. `versions.js` v1.12.0's new
-option defaults to off, so an old caller that passes nothing still works. **That
-is deliberate: after group 1, the live site is still fine on the old page files.**
-If you have to stop halfway, stop here.
+⚠️ **IT IS INERT UNTIL SOMETHING IMPORTS IT.** Nothing on the live site references
+it yet, so uploading it alone changes nothing and cannot break anything. **If you
+have to stop halfway, stop here.**
 
-### Group 2 — the pages (any order within the group)
+### Group 2 — the pages
 
 | # | file | what changed |
 |---|---|---|
-| 3 | `game.js` | **3.43.0** — notes gated; the false `stale module cache` alarm fixed; imports `ADMIN_EMAILS` |
-| 4 | `learn.js` | **2.31.0** — twin of the above; imports `ADMIN_EMAILS` |
-| 5 | `index.html` | **3.12.0** — build-info button gates notes; imports `isStaffUser` |
-| 6 | `admin.js` | **3.31.2** — imports `ADMIN_EMAILS`. No behaviour change |
-| 7 | `reports.html` | **2.25.1** — `BOOTSTRAP_EMAILS` aliases the import. No behaviour change |
-| 8 | `lessons-admin.js` | **1.13.2** — header entries archived. **No code changed at all** |
+| 2 | `learn.js` | **2.32.0** — the gate, practice runs, the banner. The feature |
+| 3 | `game.js` | **3.44.0** — counts active days only. Renders no gate |
+| 4 | `versions.js` | **1.12.0 → registers `lesson-gate.js`** so the footer can report it |
 
-### Group 3 — stylesheets (safe any time, but they are the visible fix)
+⚠️ **`game.js` IS NOT OPTIONAL AND ITS CHANGE IS INVISIBLE.** It only counts days
+— but your rule is *"a month of typing anything"*, so a period spent in Library is
+an active day a School lesson has to know about. **Skipping it silently starves
+the gate**: reach-back would accrue at roughly half speed, with no error anywhere
+and no symptom except review lessons opening later than they should.
+
+### Group 3 — the stylesheet
 
 | # | file | what changed |
 |---|---|---|
-| 9 | `style.css` | **3.8.1** — `#footer-full` opaque, bounded, self-defending |
-| 10 | `adventure.css` | **1.0.3** — ⚠️ **the round's root cause.** The unscoped `body footer { opacity:.55 }` |
+| 5 | `style.css` | **3.9.0** — `.practice-banner`, `.practice-only`. No page imports a stylesheet, so this is safe any time |
 
-⚠️ **These two are what makes the panel readable, and they are independent of
-everything above.** If you only want the readability fix today and want to defer
-the rest, **groups 1 and 2 can wait and these two cannot break anything** — no
-page imports a stylesheet.
+⚠️ **BUT DO NOT SHIP `learn.js` WITHOUT IT.** The banner would render unstyled —
+plain text at the top of the drill — which still says the right words but loses
+the visual weight that makes a child read it.
 
-### Group 4 — repo only, never served to a browser
+### Group 4 — repo only, never served
 
-`CHANGELOG.md` · `HANDOFF.md` · `README.md` · `ROADMAP.md` ·
-`tests/README.md` · `tests/build-panel-test.mjs` *(new)* ·
-`tests/run-all-tests.mjs` · `tests/version-stamp-test.mjs` ·
-`tools/audit-versions.mjs`
+`CHANGELOG.md` · `HANDOFF.md` · `ROADMAP.md` · `tests/README.md` ·
+`tests/lesson-gate-test.mjs` *(new)* · `tests/run-all-tests.mjs` ·
+`tests/version-stamp-test.mjs` · `tools/audit-versions.mjs`
 
-⚠️ **`tests/build-panel-test.mjs` IS NEW AND `tests/run-all-tests.mjs` REGISTERS
-IT.** Upload both or neither — the runner's registration audit **fails the suite**
-on a `.mjs` in the folder that is in no list, so uploading only the harness turns
-`npm test` red for a bookkeeping reason.
-
-⚠️ **`README.md` IS A RECONSTRUCTION.** The project README had been overwritten by
-a copy of `tests/README.md` some rounds ago and there is no history to recover it
-from. Read HANDOFF §0.-20.J before accepting it. **If you have the original
-anywhere, use yours.**
+⚠️ **`tests/lesson-gate-test.mjs` IS NEW AND `tests/run-all-tests.mjs` REGISTERS
+IT.** Upload both or neither — the registration audit **fails the suite** on a
+`.mjs` in no list.
 
 ---
 
-## After the upload — what to check, in one hover
+## After the upload — what to check
 
-Open a book in Library and **hover the footer**.
+⚠️ **THE GATE WILL NOT VISIBLY DO ANYTHING FOR MOST STUDENTS ON DAY ONE, AND THAT
+IS CORRECT.** `activeDayCount` starts at 0 and climbs one per day typed;
+`fireCount` seeds at 1 for a lesson already showing A🔥 and needs two more. **A
+class that sees no change on Monday is the feature working**, not failing.
 
-1. **The triad reads `game.html v1.2.0 · game.js v3.43.0 · style.css v3.8.1`.**
-   If `game.js` still says 3.42.3, the new code is not running and nothing else
-   below means anything.
-2. **The hover panel is readable** — solid white, sharp black text, no book text
-   showing through. That is the whole fix. If it is still washed out,
-   `adventure.css` did not land or is cached; hard-reload.
-3. **No red `adventure-renderer.js … stale module cache` line** in classic view.
-   ⚠️ That line was **false** and fired every session before this round. Its
-   absence is the fix working, not information missing.
-4. **Signed out or as a student:** no ⚠ lines, and a grey
-   *"N build notes — sign in as staff to read them."*
-   ⚠️ **That grey line is load-bearing.** A panel with no ⚠ *and* no grey line is
-   genuinely clean. A panel with the grey line has notes you are not being shown.
-   Sign in with an admin account and hover again — **no reload needed**, it
-   re-renders on the next hover.
-5. **Do the same on `learn.html`.** The two pages are hand-maintained twins and
-   the seventh twin failure of the week was one page having a feature the other
-   did not.
+1. **Footer triad on `learn.html` reads `learn.js v2.32.0`.** Hover for the full
+   panel and confirm `lesson-gate.js v1.0.0` is listed. If it is absent,
+   `versions.js` did not go up.
+2. **Sign in as yourself and open the lesson map.** ⚠️ **You will see no practice
+   badges at all** — staff are never gated, so you can demonstrate any lesson to a
+   child. That is deliberate; it also means **you cannot test the gate from your
+   own account.**
+3. **To actually see it:** find a student who has three A🔥 on a lesson behind
+   their furthest, and look at their map. Or read
+   `tests/lesson-gate-test.mjs` section C, which is your worked example executed.
+4. **Open a mastered lesson as a student** → warm dashed card, "Mastered ·
+   practice", and on entry **a yellow banner across the top of the drill for the
+   whole run.** ⚠️ Finish it and confirm the daily total **does not move** — that
+   is the whole point, and the banner is why it does not read as broken.
+5. **Open a normal lesson** → no banner, clock runs, grade files as always.
 
-⚠️ **If any student page is BLANK after this deploy, it is the ordering.** Upload
-`firebase-config.js` and hard-reload; that is the only new way this round can fail.
+⚠️ **IF ANY STUDENT PAGE IS BLANK, IT IS THE ORDERING.** Upload `lesson-gate.js`
+and hard-reload.
 
 ---
+
+## ⚠️ What is NOT in this feature, and you should know before Monday
+
+* **The measurement you asked for first** (ROADMAP §10.H) is **not built** — the
+  attempts-per-lesson column that would tell you whether this is three kids or
+  thirty. It is cheaper now than when you wrote it, because `fireCount` sits on
+  the same record as `attempts`.
+* **Nothing here has been driven in a browser.** The rule is proven by 56 checks;
+  that the map asks it correctly, that the clock really never arms, and that the
+  banner appears are **unproven**. Worth five minutes on one student account
+  before ninety of them meet it.
+* **No per-student override.** Staff are ungated so you can demo; there is no way
+  to hand one child back one lesson. Nobody has needed it yet.
 
 ## What did NOT change
 
-**161 of 180 files are untouched** and are not in this archive — every book in
-`library/`, `firestore.rules`, `functions/`, `keyboard.js`,
-`adventure-renderer.js`, `daylog.js`, `session-log.js`, `stats-wal.js`, `hud.js`,
-`settings-panel.js`, `drill-filter.js`, `celebrate.js`, `receipt.js`,
-`update-gate.js`, `variety-floor.js`, `staff-admin.js`, `game.html`,
+**168 of 181 files are untouched** — every book in `library/`,
+`firestore.rules`, `functions/`, `firebase-config.js`, `index.html`,
+`admin.js`, `reports.html`, `keyboard.js`, `daylog.js`, `session-log.js`,
+`stats-wal.js`, `hud.js`, `settings-panel.js`, `adventure.css`, `game.html`,
 `learn.html`, `package.json`.
-
-⚠️ **`package.json` is deliberately absent.** Running `npm install` here bumped
-its declared dependency ranges as a side effect; that was not an intended change
-and has been reverted. The dependencies it declares were already correct.

@@ -1,6 +1,17 @@
 # tests/
 
-<!-- tests/README.md v1.5.0 — Round 28 (Daugherty), Round 21 (Hammond), Phase A.
+<!-- tests/README.md v1.6.0 — Round 29 (Odell), Round 28 (Daugherty), Round 21
+     (Hammond), Phase A.
+
+     v1.6.0 — Round 29 (Odell). NEW: lesson-gate-test.mjs — ROADMAP item 10.
+     ⚠️ SECTION A IS THE ONE THAT MATTERS AND IT IS NOT A REGRESSION TEST: it
+     asserts an UNMASTERED lesson is never gated, at any distance, forever. If it
+     goes red the feature has inverted and is punishing the struggling student,
+     and the fix is NEVER to relax a number below it. 56 checks; 47 harnesses.
+     ⚠️ AND THE COUNTS BELOW WERE GUESSED ONCE IN THIS ROUND BEFORE BEING RUN —
+     inside the very paragraph that says not to do that. They are now from
+     `node -e` over the directory and the FAST list. COUNT BY RUNNING.
+     v1.5.0 — Round 28 (Daugherty), Round 21 (Hammond), Phase A.
 
      v1.5.0 — Round 28 (Daugherty). NEW: build-panel-test.mjs — the build footer
      must not scold children AND must not look clean when it has merely been
@@ -170,11 +181,11 @@ found it reading *"28 harnesses"*. **The audit catches an unregistered FILE; it
 cannot catch a wrong NUMBER in English prose**, so the paragraph above overstated
 what was fixed. Recount by running, never by editing the number you remember.
 
-Current, verified by running: **55 `.mjs` files in this folder, 45 registered** —
-`FAST` (39, no external data, runs in a fresh clone), `EPUB` (4, needs
+Current, verified by running: **56 `.mjs` files in this folder, 46 registered** —
+`FAST` (40, no external data, runs in a fresh clone), `EPUB` (4, needs
 `library/`, behind `--with-epubs`), `RULES` (2, behind `npm run test:rules`).
 `PENDING` is empty. The remainder are fixtures and helpers, not harnesses.
-`npm test` reports **ALL 46 HARNESSES PASS** — 46 rather than 39 because the
+`npm test` reports **ALL 47 HARNESSES PASS** — 47 rather than 40 because the
 runner counts its own syntax-check and registration audits.
 
 A harness that is in
