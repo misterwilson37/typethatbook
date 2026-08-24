@@ -1,6 +1,41 @@
 # CHANGELOG
 
-## Round 34 — Molle (2026-08-23) — THE GATE WAS TAXING THE STUDENT IT MEANT TO MOVE ALONG
+## Round 35 — Fitch (2026-08-23) — ITEM 17 MEASURED, NOTHING SHIPPED
+
+**No code changed this round, deliberately.** Documents only.
+
+* ✅ **The date filter was already in the query.** Item 17 claimed the window was
+  applied in the browser after the read. `buildScopedQuery()` has been spreading
+  `where("date", …)` into every branch for some time. ⚠️ **A round that "fixed"
+  it would have changed nothing and reported a saving.**
+
+* ⚠️⚠️ **The cost is the roster sweep: `students × days`, unconditionally.**
+  Jake measured three students across two days — six legitimate documents — at
+  **1,155 reads.**
+
+* ⚠️⚠️ **Jake's correction decides the fix.** They are not empty days: *"those
+  days are chock full of data…for last week."* The misses are ACTIVE students
+  whose activity sits elsewhere in time, so the question is per STUDENT, not per
+  day.
+
+* ⚠️⚠️ **The obvious fix is illegal under `firestore.rules`.** One range query
+  per uid would read only existing documents — but rules run per returned
+  document and **a query fails ENTIRELY if any is denied**, and a `classId: ''`
+  log is denied for any non-super caller. **The point reads survive only because
+  they fail one at a time.**
+
+* **Three ways forward in item 17.** Round 33's writer fix already half-solves the
+  cheapest. ⚠️ **One unmeasured number decides between them**: the fraction of
+  recent logs carrying a non-empty `classId`.
+
+* ✅ **One name per INSTANCE, not per round.** Rounds 31–34 had been written up as
+  four different names; consolidated to **Fitch** across all documents.
+
+**50 harnesses, all passing.**
+
+---
+
+## Round 34 — Fitch (2026-08-23) — THE GATE WAS TAXING THE STUDENT IT MEANT TO MOVE ALONG
 
 Jake, after Round 32 went live and worked: *"Scoring works! locking works! It did
 reveal that if the first one is locked, students have no way to get to the second
@@ -37,7 +72,7 @@ run legitimately."*
 
 ---
 
-## Round 33 — Crandall (2026-08-23) — TWO BUGS, TWO FILES, ONE COMPLAINT
+## Round 33 — Fitch (2026-08-23) — TWO BUGS, TWO FILES, ONE COMPLAINT
 
 Jake, for the third time: *"my son … is a part of my 7th & 8th grade class but
 isn't actually assigned to my school due to an error in the admin code."*
@@ -77,7 +112,7 @@ isn't actually assigned to my school due to an error in the admin code."*
 
 ---
 
-## Round 32 — Lambert (2026-08-23) — ITEM 14 BUILT, AND I MOVED JAKE'S NUMBER
+## Round 32 — Fitch (2026-08-23) — ITEM 14 BUILT, AND I MOVED JAKE'S NUMBER
 
 * ✅ **ROADMAP 14.** Mastery is cumulative points per RUN — A🔥 = 2, A = 1, B and
   below = 0, **locked at 4**. Locked by run, unlocked by lesson, clock from the

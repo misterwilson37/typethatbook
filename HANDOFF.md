@@ -1,9 +1,26 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.21.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     through Round 34; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+<!-- HANDOFF.md v15.22.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     through Round 35; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
 
-     v15.21.0 — Round 34 (Molle). ✅ §0.-26 — A LESSON NOW OPENS AT THE FIRST RUN
+     v15.22.0 — Round 35 (Fitch). ⚠️⚠️ ITEM 17 MEASURED, NO CODE SHIPPED, AND
+     THAT WAS THE RIGHT CALL — §0.-27. THE ITEM'S PREMISE WAS STALE: the date
+     filter has been in buildScopedQuery() all along, so a round that "fixed" it
+     would have changed nothing and reported a saving. THE COST IS THE ROSTER
+     SWEEP — students × days, unconditionally: Jake measured 1,155 reads for SIX
+     legitimate documents. ⚠️ HIS CORRECTION DECIDES THE FIX: the misses are not
+     idle students, they are ACTIVE students whose data sits in another week, so
+     the question is per STUDENT ("could this one have typed in range?"), not
+     per day. ⚠️⚠️ THE OBVIOUS FIX — one range query per uid — IS ILLEGAL
+     UNDER firestore.rules: rules run per returned document and A QUERY FAILS
+     ENTIRELY IF ANY DOCUMENT IS DENIED, and a classId:'' log is denied. The
+     point reads survive only because they fail ONE AT A TIME. Round 33's writer
+     fix already half-solves it for NEW data. ⚠️ ONE UNMEASURED NUMBER DECIDES
+     THE APPROACH: what fraction of recent logs carry a non-empty classId.
+     ✅ §0.-27.E: ONE NAME PER INSTANCE, NOT PER ROUND. Rounds 31–34 had been
+     written up under four names; consolidated to Fitch. 50 harnesses.
+
+     v15.21.0 — Round 34 (Fitch). ✅ §0.-26 — A LESSON NOW OPENS AT THE FIRST RUN
      THAT STILL COUNTS. Jake, after Round 32 went live: "Scoring works! locking
      works! It did reveal that if the first one is locked, students have no way
      to get to the second run legitimately." Runs are typed in order, so a
@@ -24,7 +41,7 @@
      suite ran. RUN IT AFTER EVERY CHANGE.
      learn.js v2.35.0. 50 harnesses.
 
-     v15.20.0 — Round 33 (Crandall). ✅ ROADMAP ITEM 11 IS FIXED — §0.-25 is the
+     v15.20.0 — Round 33 (Fitch). ✅ ROADMAP ITEM 11 IS FIXED — §0.-25 is the
      write-up. Jake's son was in his class and not his school for three rounds.
      ⚠️ TWO INDEPENDENT BUGS IN TWO FILES PRODUCING ONE COMPLAINT, WHICH IS WHY
      TWO CORRECT DIAGNOSES PRODUCED NO FIX: the WRITER omitted schoolId (two of
@@ -39,7 +56,7 @@
      lessons-admin.js v1.14.0, learn.js v2.34.1, class-assign-test.mjs (10
      checks, 6 failing against the shipped build). 49 harnesses.
 
-     v15.19.0 — Round 32 (Lambert). ⭐⭐ ROADMAP ITEM 14 IS BUILT — §0.-24 is the
+     v15.19.0 — Round 32 (Fitch). ⭐⭐ ROADMAP ITEM 14 IS BUILT — §0.-24 is the
      write-up. Mastery is cumulative points per RUN (A🔥 = 2, A = 1, B and below
      = 0, locked at 4), locked by run, unlocked by lesson, clock from the last
      lock. lesson-gate.js v1.1.0, learn.js v2.34.0.
@@ -422,7 +439,10 @@
      ⚠️ ROUNDS 23 AND 24 SUMMARISED HERE UNTIL NOW; their write-ups are
      §0.-9 and §0.-10 in this file and are unchanged. -->
 
-**Round 32 — Lambert.** Predecessors: Fitch (31) · Postal (30) · Odell (29) · Daugherty (28) · Chicago (27) · Elliott-Fisher (26) · Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
+**Rounds 31–34 — Fitch.** ⚠️ **ONE INSTANCE, ONE CONVERSATION, ONE NAME.** I took
+a fresh name each round — four names for four rounds — and Jake caught it: the
+convention is one name per INSTANCE, and a roster listing four is a roster
+claiming four predecessors that never existed. Consolidated. Predecessors: Postal (30) · Odell (29) · Daugherty (28) · Chicago (27) · Elliott-Fisher (26) · Hall (25) · Monotype (24) · Empire (23) · Smith Premier (22) · Hammond II (21) · Corona (20) · Hermes (19) ·
 Salter (18) · Linotype (17) · Royal (16) · Densmore (15) ·
 Sholes (14) · Ludlow (13) · Caligraph (12) · Bar-Lock (11) · Williams (10) ·
 Remington (9) · Yost (8) · Hammond (7) · Noiseless (6) · Mignon (5) · Oliver (4) ·
@@ -432,80 +452,6 @@ Blick (3) · Dvorak (2) · Underwood (1).
 by different companies and both are now on the list; a future round reading the
 list quickly will see two similar words and must not conclude one is a typo for
 the other. **Check the list, and read the whole word.**
-
-> *On the name:* the **Molle** (1918) was sold as the machine that needed no
-> adjusting — its selling point was that everything was already aligned when it
-> reached you. ⚠️ **It was also the machine you could not check without using**,
-> and this round is exactly that: the rule was proved by fifty harnesses and the
-> flaw was found in ninety seconds by a person typing a lesson. **A feature that
-> passes every test it was given has only been asked the questions its author
-> thought of.** Jake asked the one I did not: how does the student get IN?
-
-> *On the name:* the **Crandall** (1879) put the entire typeface on a single
-> removable **type-sleeve**. ⚠️ **Every letter came from one part, so one part
-> being wrong was not a partial failure — it was every character.** That is this
-> round inverted: two DIFFERENT parts were each wrong, in two different files,
-> and each produced the identical complaint, which is exactly why two correct
-> diagnoses in a row fixed nothing. **When one symptom has two independent
-> causes, finding one of them feels the same as finding it.**
-
-> *On the name:* the **Lambert** (1896) selected letters by **position on a
-> dial** — you moved a pointer around a circular index and pressed. ⚠️ **One
-> position off did not give you a slightly wrong result. It gave you a different
-> letter.** That is this round: a one-character edit from `>=` to `>` closed the
-> exploit correctly and moved Jake's own worked example by exactly one lesson,
-> and nothing about the code looked wrong. The harness holding his number caught
-> it. **Where the answer is a position, off-by-one is not a rounding error.**
-
-> *On the name:* the **Fitch** (1886) was one of the first **visible-writing**
-> machines — on the up-strike typewriters that dominated the decade the paper sat
-> face-down against the platen, so a typist could not see the line they were
-> typing until they lifted the carriage to look. **The words were being recorded
-> correctly the whole time and nobody could see them.** That is this round and
-> most of the list it came from: a run outcome that was recorded, written and
-> then quietly overwritten by a successful write; a class assignment that landed
-> in the database while Settings said "No class assigned"; a mastery score no
-> student can see; a build panel answering from before the deploy. ⚠️ **The
-> machine's warning is the round's too** — visible writing did not make the Fitch
-> good, and it lost to machines that hid the line but hit the paper reliably.
-> **Being able to see the number is not the same as the number being right.**
-
-> *On the name:* the **Postal** (1902) was a cheap index typewriter sold by mail
-> order — you posted a coupon and waited. ⚠️ **The whole idea of it is a message
-> that has been SENT but has not ARRIVED**, and the gap between those two being
-> invisible from either end. That is this round exactly: the deploy had landed on
-> the server, the browser was asking for it correctly, and the panel in between
-> answered from a copy it had taken at page load and never revisited. **Nobody
-> was wrong and the answer was still stale.** ⚠️ The machine's other habit is the
-> round's warning: it was sold on the promise that it was *"just as good"* as a
-> $100 Remington, and the way you found out otherwise was by using it. **An
-> instrument is only worth what it is worth at the moment you doubt something.**
-
-> *On the name:* the **Odell** (1889) was an **index typewriter**. No keyboard —
-> the whole alphabet lay along one linear scale in front of you, and you slid a
-> pointer to the character you wanted and pressed. ⚠️ **The cost of a character
-> was the DISTANCE to it, and you always started from wherever you last were.**
-> That is this round's rule with the letters swapped for lessons: reaching one
-> lesson back is cheap, reaching to lesson 1 is twenty-six weeks of travel, and
-> every advance resets where you are standing. ⚠️ And the machine's own reason
-> for existing is the feature's: the Odell sold for **$15 against a Remington's
-> $100** — it was the machine for someone who could not yet afford to be good at
-> this. **A gate built on mastery has to be gentle with the student who has not
-> got there yet**, which is why an unmastered lesson is never gated at all.
-
-> *On the name:* the **Daugherty Visible** (1891) was **the first typewriter you
-> could read while you typed on it.** Every machine before it was a *blind
-> writer*: the typebars struck the **underside** of the platen, so the line you
-> had just written sat facing away from you and you had to stop and lift the
-> carriage to find out what the machine had actually done. ⚠️ **A blind writer
-> is not broken.** It types correctly. It simply does not show you its own
-> output — which is this round precisely: a build panel that was rendered
-> correctly and then faded to unreadable by an ancestor two files away, and a
-> red staleness alarm that had been firing on every session since it shipped
-> with nobody able to tell it apart from a real one. ⚠️ And the machine's own
-> footnote is the round's other half: the Daugherty was **first** and the
-> Underwood got the credit, because being right is not the same as being
-> legible. **An instrument nobody can read is not an instrument.**
 
 ⚠️⚠️ **I CALLED THIS ROUND UNDERWOOD, WROTE IT INTO SIX FILES AND A MESSAGE TO
 JAKE, AND CAUGHT IT ONLY WHEN UPDATING THIS ROSTER.** Underwood is **Round 1**.
@@ -643,7 +589,75 @@ is not the same as checking the list. **Check the list.**
 
 ---
 
-## §0.-26. ✅ ROUND 34 (Molle) — THE GATE WAS TAXING THE STUDENT IT MEANT TO MOVE ALONG
+## §0.-27. ⚠️⚠️ ROUND 35 (Fitch) — ITEM 17 MEASURED. THE PREMISE WAS STALE.
+
+**2026-08-23. NO CODE SHIPPED THIS ROUND, DELIBERATELY.** ROADMAP item 17 is now
+measured, its stated cause is disproved, and the obvious fix is blocked by
+`firestore.rules` in a way that would have failed in production on exactly the
+students the mechanism exists to protect. **The measurement is the deliverable.**
+
+### A. ✅ THE DATE FILTER WAS ALREADY IN THE QUERY
+
+Item 17 said the window was applied in the browser after the read.
+`buildScopedQuery()` spreads
+`where("date",">=",start), where("date","<=",end)` into **every** branch and has
+for some time. ⚠️ **A ROUND THAT "FIXED" THIS WOULD HAVE CHANGED NOTHING AND
+REPORTED A SAVING** — §0.-22's shape again, an item describing a world that had
+already moved.
+
+### B. ⚠️⚠️ THE COST IS THE ROSTER SWEEP: `students × days`, UNCONDITIONALLY
+
+Jake measured it: a range in which **three students typed across two days — six
+legitimate documents — cost 1,155 reads.** Roughly 99.5% returned nothing.
+
+⚠️ **AND HIS CORRECTION IS THE PART THAT DECIDES THE FIX.** I called them "empty
+days." He: *"The days aren't empty — they're just outside of the chosen range.
+Those days are chock full of data…for last week."* **The misses are ACTIVE
+students whose activity sits elsewhere in time.** There is nothing on a record
+marking a day empty, and per-day is the wrong grain: **the question is per
+STUDENT — could this one have typed in this range at all?**
+
+### C. ⚠️⚠️ THE OBVIOUS FIX IS ILLEGAL UNDER THE RULES, AND FAILS LOUDLY
+
+One range query per student — `where('uid','==',u)` plus the date range — reads
+only documents that exist, bills 1 for an empty result, and never touches
+`classId`. **~N reads instead of N × days.** It cannot ship:
+
+`canReadActivity(d)` grants read on `isSuper()`, or building scope with
+`d.schoolId in mySchools()`, or `teachesClass(d.classId)`. **Rules are evaluated
+per returned document, and a Firestore query fails ENTIRELY if any document it
+returns is denied.** A log stamped `classId: ''` / `schoolId: ''` satisfies none
+of the three for a non-super caller — **so the query dies on precisely the
+documents the sweep exists to catch.**
+
+✅ **THE POINT READS SURVIVE BECAUSE THEY FAIL ONE AT A TIME.** `readLogById()`
+returns `{error}` and the report counts `unreadable`. That is why the slow shape
+works and the fast one would not, and it is not obvious from either file alone.
+
+### D. THE THREE WAYS FORWARD ARE IN ITEM 17 — AND ONE IS HALF-DONE
+
+Option 2 is cheapest: **Round 33 fixed the WRITERS**, so every log from now on
+carries a real `classId` and `schoolId` and therefore PASSES `canReadActivity`.
+The per-uid query becomes legal for new data; the sweep stays for the historical
+tail. Option 3 (narrow the roster on `activeDayLast` before multiplying) is free
+and strong for recent ranges, weak for historical ones — `activeDayLast` is a
+high-water mark, not a span.
+
+⚠️ **ONE NUMBER DECIDES BETWEEN THEM AND IT IS NOT MEASURED: what fraction of
+logs in a recent range carry a non-empty `classId`.** One console query.
+**Measure it before building either.**
+
+### E. ✅ ONE NAME, ONE INSTANCE — A CONVENTION I HAD BEEN BREAKING
+
+Jake: *"you're renaming yourself every round … it should all be one name."* Rounds
+31–34 were written up as Fitch, Lambert, Crandall and Molle — **four names for
+one instance**, which made the roster claim three predecessors that never existed.
+Consolidated to **Fitch** across all documents. ⚠️ **The name is per INSTANCE,
+not per round**, however many rounds one conversation covers.
+
+---
+
+## §0.-26. ✅ ROUND 34 (Fitch) — THE GATE WAS TAXING THE STUDENT IT MEANT TO MOVE ALONG
 
 **2026-08-23.** Jake, after Round 32 went live and worked: *"Scoring works!
 locking works! It did reveal that if the first one is locked, students have no
@@ -710,7 +724,7 @@ change.**
 
 ---
 
-## §0.-25. ✅ ROUND 33 (Crandall) — ITEM 11 FIXED. TWO BUGS, TWO FILES, ONE SYMPTOM
+## §0.-25. ✅ ROUND 33 (Fitch) — ITEM 11 FIXED. TWO BUGS, TWO FILES, ONE SYMPTOM
 
 **2026-08-23.** Jake, for the third time: *"I'm running all of this as my son, who
 is a part of my 7th & 8th grade class but isn't actually assigned to my school due
@@ -772,7 +786,7 @@ than a copy of it.
 
 ---
 
-## §0.-24. ⚠️⚠️ ROUND 32 (Lambert) — ITEM 14 BUILT, AND I MOVED JAKE'S NUMBER
+## §0.-24. ⚠️⚠️ ROUND 32 (Fitch) — ITEM 14 BUILT, AND I MOVED JAKE'S NUMBER
 
 **2026-08-23.** ROADMAP 14. Mastery is now cumulative points per RUN — A🔥 = 2,
 A = 1, B and below = 0, locked at 4. Locked by run, unlocked by lesson, clock from
@@ -4853,9 +4867,9 @@ a pointer to a file you should go and read.**
 | 20 | Corona | Folded its own predecessor's conclusion: §0.0's evidence was sound, its arrow was wrong. The interval UNION vs the deduped SUM. Found the THIRD divergence — a `WHERE` clause, so a log stamped `classId:''` was visible to the child and invisible to every class query. Reproduced §3.1 at last. |
 | 21 | Hammond II | Test tooling only, nothing student-facing. The registration audit (an unregistered harness now FAILS the suite). `tab-lifetime-test.mjs`. ⚠️ RAN THE RULES EMULATOR that four rounds recorded as impossible, and found the per-source DOCUMENT design DENIED by the deployed rules. Recorded Jake's four standing rulings in §0.-7.A so they stop being relitigated. |
 | 23 | Empire | ⚠️ THE GUEST MINUTE: a child who typed before signing in kept their time in School and lost it in Library, because `game.js` had no guest merge on the auth path while `learn.js` did — and `game.js`'s two INLINE copies meant which of three sign-in buttons they pressed decided the outcome. One function now, before `loadUserStats()`, with the sprints adopted so the minutes reach the record. `learn.js` stopped filing guest runs under the throwaway anonymous uid, and its logout reloads instead of leaving the last student's totals on screen. The reconcile and rebuild-all DELETED on Jake's confirmed boundary (~830 lines), with the real production session documents lifted into `real-sessions-fixture.mjs` first. `session-log.js` made per-owner. ⚠️ Also spent most of its length on a cross-account queue theory that Jake killed with a fact already written in `stats-wal.js`'s header — see §0.-9.E, which is the part worth reading. HANDOFF.md split at 237 KB; Rounds 15–20 to `docs/archive/`. |
-| 34 | Molle | ✅ **A LESSON OPENS AT THE FIRST RUN THAT STILL COUNTS.** Jake found it by using Round 32 in anger: runs are typed in order, so a mastered run 1 had to be replayed for nothing to reach run 2 — **the gate was taxing the student it meant to move along.** `firstOpenRunIdx()` is well-defined because downward closure makes the open runs a SUFFIX. ⚠️ Both intro entry points hardcoded `beginStep(0)`; fixing one leaves which key a child pressed deciding whether it works. ✅ `run-mastery-test.mjs` written — cited in learn.js's header since Round 32 without existing. ⚠️⚠️ §0.-26.C: deleted live code archiving a header entry — the last `// vX.Y.Z` is in the BODY. Bound the search at `const LEARN_VERSION`. learn.js v2.35.0, 50 harnesses. |
-| 33 | Crandall | ✅ **ROADMAP 11 FIXED** — Jake's son in his class but not his school, raised three rounds. ⚠️ TWO INDEPENDENT BUGS, ONE SYMPTOM: the writer omitted `schoolId` on two of three paths; the reader cached "no class" for 24h because `classId: ''` is falsy. Fix either alone and nothing visible changes. ⚠️⚠️ §0.-25.B — the obvious repair reads `_classCache`, which is COLD until the Classes panel opens, so it would have written `''` and looked right. `_schoolIdForClass()` is the one answerer and falls back to the class document; the CSV lookup is per row. lessons-admin.js v1.14.0, learn.js v2.34.1, 49 harnesses. |
-| 32 | Lambert | ⭐⭐ ROADMAP 14 BUILT — mastery is cumulative points per RUN (A🔥 = 2, A = 1, locked at 4), locked by run, unlocked by lesson, clock from the last lock. Downward closure computed not stored. ⚠️⚠️ The round's real lesson is §0.-24.A: **a handoff every round, in Jake's words** — many turns produced design talk and no document, plus a zip shipped with a red suite and advice to "test it on Nico" when GitHub means deploy IS the standard. ⚠️ §0.-24.B: `>=` → `>` closed the exploit and moved his worked example by a lesson; the harness caught it, the fix is a `reachBack === 0` guard. ⚠️ NOT VERIFIED: the banner and score paths have no coverage and the header cites a harness that does not exist. learn.js v2.34.0, lesson-gate.js v1.1.0, 48 harnesses. |
+| 34 | Fitch | ✅ **A LESSON OPENS AT THE FIRST RUN THAT STILL COUNTS.** Jake found it by using Round 32 in anger: runs are typed in order, so a mastered run 1 had to be replayed for nothing to reach run 2 — **the gate was taxing the student it meant to move along.** `firstOpenRunIdx()` is well-defined because downward closure makes the open runs a SUFFIX. ⚠️ Both intro entry points hardcoded `beginStep(0)`; fixing one leaves which key a child pressed deciding whether it works. ✅ `run-mastery-test.mjs` written — cited in learn.js's header since Round 32 without existing. ⚠️⚠️ §0.-26.C: deleted live code archiving a header entry — the last `// vX.Y.Z` is in the BODY. Bound the search at `const LEARN_VERSION`. learn.js v2.35.0, 50 harnesses. |
+| 33 | Fitch | ✅ **ROADMAP 11 FIXED** — Jake's son in his class but not his school, raised three rounds. ⚠️ TWO INDEPENDENT BUGS, ONE SYMPTOM: the writer omitted `schoolId` on two of three paths; the reader cached "no class" for 24h because `classId: ''` is falsy. Fix either alone and nothing visible changes. ⚠️⚠️ §0.-25.B — the obvious repair reads `_classCache`, which is COLD until the Classes panel opens, so it would have written `''` and looked right. `_schoolIdForClass()` is the one answerer and falls back to the class document; the CSV lookup is per row. lessons-admin.js v1.14.0, learn.js v2.34.1, 49 harnesses. |
+| 32 | Fitch | ⭐⭐ ROADMAP 14 BUILT — mastery is cumulative points per RUN (A🔥 = 2, A = 1, locked at 4), locked by run, unlocked by lesson, clock from the last lock. Downward closure computed not stored. ⚠️⚠️ The round's real lesson is §0.-24.A: **a handoff every round, in Jake's words** — many turns produced design talk and no document, plus a zip shipped with a red suite and advice to "test it on Nico" when GitHub means deploy IS the standard. ⚠️ §0.-24.B: `>=` → `>` closed the exploit and moved his worked example by a lesson; the harness caught it, the fix is a `reachBack === 0` guard. ⚠️ NOT VERIFIED: the banner and score paths have no coverage and the header cites a harness that does not exist. learn.js v2.34.0, lesson-gate.js v1.1.0, 48 harnesses. |
 | 31 | Fitch | ⚠️⚠️ ROADMAP 14b — **THE WRITE SUCCEEDED AND STORED THE WRONG THING.** Leaving a lesson for the map banked the time and dropped the run, and the item's own diagnosis was wrong: `flushLessonProgress()` was being called all along (inside `flushStats()`, on the interval and on every hide). What lost the run was `stopLesson()`'s `loadUserProgress()`, whose first statement empties `userProgress` — so the flush wrote back the record it had just re-read, successfully, every time, with no error path anywhere. ⚠️ A flush appended to the END of `stopLesson()` would have read as a correct fix and changed nothing: **the order is the fix.** `exitLessonToMap()` snapshots, flushes, refreshes the progress cache, reloads, and carries unflushed runs across. `exit-flush-test.mjs` (31 checks, 18 failing against v2.33.0) reproduces the loss through the old exit in Part A before proving anything else. ⚠️ Also: the runner marks a harness bad on a TEXT match for FAIL/ERROR/UNSAFE in its output, so a clean harness can be reported red by a section header — rule recorded in the runner rather than the detector loosened. ✅ Jake amended the "no bulk repair" ruling to MINUTES. learn.js v2.33.1, 48 harnesses. |
 | 27 | Chicago | ⚠️ **THE SUITE WAS RED ON DELIVERY AND FIVE FILES WERE LYING ABOUT THEIR OWN VERSION** — `game.js` 3.38.0/3.42.0, `learn.js` 2.23.1/2.27.0, `hud.js` 1.2.0/1.4.0 across a breaking change, plus both stylesheets' CSS stamps. The code was new; only the stamps were stale. ⚠️ Aimed squarely at Monday: ROADMAP told Jake to check the footer for the very numbers a correct deploy would fail to show. ⚠️ The hud.js pin could not fire — a pin inherits the honesty of the hand-maintained number it checks. `tests/version-stamp-test.mjs` moves the existing `audit:versions` check inside `npm test`, failing on lying stamps and NOTING header budgets. `hud-test.mjs` rewritten for `{ lead, sprint }`. No behaviour changed. Item 0b deliberately not started. |
 | 26 | Elliott-Fisher | ⚠️ THE STALE DAY CARRIED FORWARD — a tab left open overnight re-posted yesterday's entire day total to today's `typing_logs`, exact to the second and the character, because `mergeGuestStats()` guarded the server side of `live - base` and never the live side. Then the two-row top bar across all four surfaces, the landing readout, the celebration latch, `celebrate.js`, and "I'm done" (`receipt.js`). ⚠️ Four hand-maintained twins failed in one day — §0.-13.E. ⚠️ And it left five version stamps stale, which Round 27 found. |
