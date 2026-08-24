@@ -1,7 +1,28 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.20.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     through Round 33; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+<!-- HANDOFF.md v15.21.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     through Round 34; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.21.0 — Round 34 (Molle). ✅ §0.-26 — A LESSON NOW OPENS AT THE FIRST RUN
+     THAT STILL COUNTS. Jake, after Round 32 went live: "Scoring works! locking
+     works! It did reveal that if the first one is locked, students have no way
+     to get to the second run legitimately." Runs are typed in order, so a
+     mastered run 1 had to be replayed FOR NOTHING to reach run 2 — THE GATE WAS
+     TAXING THE STUDENT IT MEANT TO MOVE ALONG. firstOpenRunIdx() is well-defined
+     because downward closure makes the mastered runs a PREFIX and the open runs
+     a SUFFIX; loosen closure and it must be REWRITTEN, not patched.
+     ⚠️ BOTH intro entry points hardcoded beginStep(0) — button AND Enter key.
+     Fixing one leaves which key a child pressed deciding whether the feature
+     works (§0.-18's shape).
+     ✅ tests/run-mastery-test.mjs IS WRITTEN — learn.js had cited it in its own
+     header SINCE ROUND 32 WITHOUT IT EXISTING. 18 checks, 8 failing against
+     v2.34.1.
+     ⚠️⚠️ §0.-26.C: I DELETED LIVE CODE while archiving a header entry — the
+     last `// vX.Y.Z —` in learn.js is in the BODY, not the header. BOUND THE
+     SEARCH: slice at `const LEARN_VERSION` and search only above it. Second
+     file-destroying tooling error in three rounds; both caught only because the
+     suite ran. RUN IT AFTER EVERY CHANGE.
+     learn.js v2.35.0. 50 harnesses.
 
      v15.20.0 — Round 33 (Crandall). ✅ ROADMAP ITEM 11 IS FIXED — §0.-25 is the
      write-up. Jake's son was in his class and not his school for three rounds.
@@ -412,6 +433,14 @@ by different companies and both are now on the list; a future round reading the
 list quickly will see two similar words and must not conclude one is a typo for
 the other. **Check the list, and read the whole word.**
 
+> *On the name:* the **Molle** (1918) was sold as the machine that needed no
+> adjusting — its selling point was that everything was already aligned when it
+> reached you. ⚠️ **It was also the machine you could not check without using**,
+> and this round is exactly that: the rule was proved by fifty harnesses and the
+> flaw was found in ninety seconds by a person typing a lesson. **A feature that
+> passes every test it was given has only been asked the questions its author
+> thought of.** Jake asked the one I did not: how does the student get IN?
+
 > *On the name:* the **Crandall** (1879) put the entire typeface on a single
 > removable **type-sleeve**. ⚠️ **Every letter came from one part, so one part
 > being wrong was not a partial failure — it was every character.** That is this
@@ -611,6 +640,73 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-26. ✅ ROUND 34 (Molle) — THE GATE WAS TAXING THE STUDENT IT MEANT TO MOVE ALONG
+
+**2026-08-23.** Jake, after Round 32 went live and worked: *"Scoring works!
+locking works! It did reveal that if the first one is locked, students have no
+way to get to the second run legitimately."* `learn.js` v2.35.0,
+`tests/run-mastery-test.mjs`. **50 harnesses.**
+
+### A. THE BUG ITEM 14 DID NOT THINK THROUGH
+
+Runs are typed **in order from run 0**. A student whose run 1 was mastered had to
+replay it — earning nothing, banked to nothing — to reach run 2, the run that
+still pays. ⚠️ **THE GATE'S PURPOSE IS TO MOVE A STUDENT FORWARD AND ITS ONLY
+EFFECT HERE WAS A TOLL ON THE WAY.** Nothing in item 14 is wrong; it simply never
+asked how the student ENTERS a lesson, and neither did I.
+
+✅ `firstOpenRunIdx()` — and it is **well-defined because of downward closure, not
+by luck.** `runMastered(rec, k)` is true if any run at index ≥ k has four points,
+so the mastered runs are always a **prefix** and the open runs always a
+**suffix**. The first open run therefore exists, is unique, and cannot strand a
+student mid-lesson. ⚠️ **IF CLOSURE IS EVER LOOSENED THIS STOPS BEING A SUFFIX
+AND THE FUNCTION MUST BE REWRITTEN, NOT PATCHED.**
+
+⚠️ **BOTH INTRO ENTRY POINTS HARDCODED `beginStep(0)`** — the Start button and the
+Enter key. Fixing one would have left the other sending the student back through
+the mastered runs, and which one a child used would decide whether the feature
+worked. Same shape as §0.-18: **a decision with two doors needs both doors
+changed.** `run-mastery-test.mjs` Part B asserts neither hardcodes 0 and that
+there are exactly two `beginStep(currentStepIdx)` calls.
+
+### B. ✅ THE PHANTOM HARNESS IS WRITTEN
+
+`learn.js` has cited `tests/run-mastery-test.mjs` in its own version header since
+Round 32 **without the file existing.** §0.-24.D carried it as debt for two
+rounds. **A header asserting a harness is not evidence of a harness** — the same
+shape as §0.-18.D's comment claiming "several call sites" when there were zero.
+
+It covers what 48/48 did not: the paths a STUDENT meets. `lesson-gate-test.mjs`
+proves the rule; this proves the student can reach it. 18 checks, **8 failing
+against v2.34.1.**
+
+### C. ⚠️⚠️ I DELETED A BLOCK OF LIVE CODE ARCHIVING A HEADER ENTRY. READ THIS.
+
+To free a header slot I searched for the last `// vX.Y.Z —` in the file. **The
+last one is not in the header** — `learn.js` has version-tagged comments in its
+BODY (`// v2.31.0 — ⚠️ TWIN OF game.js's _buildNotesAllowed()` at ~line 5057).
+The regex matched that, and the delete took working code with it. Caught
+immediately by `undefined-calls-test` and `build-panel-test` going red, restored
+from the Round 33 package, edits re-applied.
+
+✅ **THE FIX IS MECHANICAL AND BELONGS IN ANY FUTURE ARCHIVE STEP: BOUND THE
+SEARCH TO THE HEADER.** Slice the file at `const LEARN_VERSION` and search only
+above it. ⚠️ **This is the second file-destroying edit in three rounds** (§0.-24
+was a `UnicodeEncodeError` truncation). Both were tooling, not logic, and both
+were caught only because the suite runs after every change. **Run it after every
+change.**
+
+### D. STILL OPEN
+
+* **ROADMAP item 15** — the reconstruction button — unbuilt.
+* ⚠️ **ROADMAP §10.H, the measurement — still not built. Seventh round.**
+* **`lesson-gate.js` v1.1.0 is arguably MAJOR and Jake has not ruled on it.**
+* ⚠️ **`if (staff) return 'graded'` still makes the gate unobservable from Jake's
+  own account.** He runs everything as his son, so it has not bitten again, but
+  the v1.0.0 comment still claims the exemption is a testing aid. It is not.
 
 ---
 
@@ -3741,7 +3837,7 @@ browsable user directory, by design. `users/{uid}` deliberately holds no PII, wh
 
 ## §2. Where the code is
 
-Shipped state after **Round 33, 2026-08-23**. **Verified by running
+Shipped state after **Round 34, 2026-08-23**. **Verified by running
 `npm run audit:versions`, not copied from the previous table.** (Round 28 ran it;
 0 problems.)
 
@@ -3790,7 +3886,7 @@ reads.
 | file | version |
 |---|---|
 | `game.js` | **3.45.0** — Round 30: the build panel's own staleness flag is gone. Round 29's active-day counter stands. §0.-22.C, §0.-21.B |
-| `learn.js` | **2.34.1** — ✅ Round 33: the goals-cache hit-guard treats an UNASSIGNED entry as a miss (ROADMAP 11, Bug B). §0.-25. Round 32:  ⭐⭐ Round 32: ROADMAP 14. Points per RUN, banked in `recordRunOutcome()`; `practiceRun` armed per run; `lastLockDay` replaces `lastAdvanceDay`. ⚠️ `runScorePill()`/`armRunMode()` have NO coverage. §0.-24. Round 31:  ⚠️⚠️ Round 31: `exitLessonToMap()` — leaving a lesson flushes the RUN, not just the time, and the FLUSH COMES BEFORE THE RELOAD THAT EMPTIES `userProgress`. §0.-23. Round 29's gate and Round 30's panel fix stand |
+| `learn.js` | **2.35.0** — ✅ Round 34: a lesson opens at the first run that still counts (`firstOpenRunIdx()`); both intro entry points honour it. §0.-26. Round 33:  ✅ Round 33: the goals-cache hit-guard treats an UNASSIGNED entry as a miss (ROADMAP 11, Bug B). §0.-25. Round 32:  ⭐⭐ Round 32: ROADMAP 14. Points per RUN, banked in `recordRunOutcome()`; `practiceRun` armed per run; `lastLockDay` replaces `lastAdvanceDay`. ⚠️ `runScorePill()`/`armRunMode()` have NO coverage. §0.-24. Round 31:  ⚠️⚠️ Round 31: `exitLessonToMap()` — leaving a lesson flushes the RUN, not just the time, and the FLUSH COMES BEFORE THE RELOAD THAT EMPTIES `userProgress`. §0.-23. Round 29's gate and Round 30's panel fix stand |
 | `session-log.js` | **1.6.0** — PER-OWNER queue + `GUEST_QUEUE_UID`. ⚠️ UPLOAD THIS FIRST — both pages import from it. Its TWO pins are checked by version-stamp-test.mjs C |
 | `hud.js` | **2.0.0** — ⚠️⚠️ MAJOR, JAKE SIGNED IT OFF. The v1.3.0 return-shape break recorded as the major it was. §0.-15. ⚠️ UPLOAD BEFORE THE TWO WRITERS |
 | `variety-floor.js` | 1.0.0 |
@@ -4757,6 +4853,7 @@ a pointer to a file you should go and read.**
 | 20 | Corona | Folded its own predecessor's conclusion: §0.0's evidence was sound, its arrow was wrong. The interval UNION vs the deduped SUM. Found the THIRD divergence — a `WHERE` clause, so a log stamped `classId:''` was visible to the child and invisible to every class query. Reproduced §3.1 at last. |
 | 21 | Hammond II | Test tooling only, nothing student-facing. The registration audit (an unregistered harness now FAILS the suite). `tab-lifetime-test.mjs`. ⚠️ RAN THE RULES EMULATOR that four rounds recorded as impossible, and found the per-source DOCUMENT design DENIED by the deployed rules. Recorded Jake's four standing rulings in §0.-7.A so they stop being relitigated. |
 | 23 | Empire | ⚠️ THE GUEST MINUTE: a child who typed before signing in kept their time in School and lost it in Library, because `game.js` had no guest merge on the auth path while `learn.js` did — and `game.js`'s two INLINE copies meant which of three sign-in buttons they pressed decided the outcome. One function now, before `loadUserStats()`, with the sprints adopted so the minutes reach the record. `learn.js` stopped filing guest runs under the throwaway anonymous uid, and its logout reloads instead of leaving the last student's totals on screen. The reconcile and rebuild-all DELETED on Jake's confirmed boundary (~830 lines), with the real production session documents lifted into `real-sessions-fixture.mjs` first. `session-log.js` made per-owner. ⚠️ Also spent most of its length on a cross-account queue theory that Jake killed with a fact already written in `stats-wal.js`'s header — see §0.-9.E, which is the part worth reading. HANDOFF.md split at 237 KB; Rounds 15–20 to `docs/archive/`. |
+| 34 | Molle | ✅ **A LESSON OPENS AT THE FIRST RUN THAT STILL COUNTS.** Jake found it by using Round 32 in anger: runs are typed in order, so a mastered run 1 had to be replayed for nothing to reach run 2 — **the gate was taxing the student it meant to move along.** `firstOpenRunIdx()` is well-defined because downward closure makes the open runs a SUFFIX. ⚠️ Both intro entry points hardcoded `beginStep(0)`; fixing one leaves which key a child pressed deciding whether it works. ✅ `run-mastery-test.mjs` written — cited in learn.js's header since Round 32 without existing. ⚠️⚠️ §0.-26.C: deleted live code archiving a header entry — the last `// vX.Y.Z` is in the BODY. Bound the search at `const LEARN_VERSION`. learn.js v2.35.0, 50 harnesses. |
 | 33 | Crandall | ✅ **ROADMAP 11 FIXED** — Jake's son in his class but not his school, raised three rounds. ⚠️ TWO INDEPENDENT BUGS, ONE SYMPTOM: the writer omitted `schoolId` on two of three paths; the reader cached "no class" for 24h because `classId: ''` is falsy. Fix either alone and nothing visible changes. ⚠️⚠️ §0.-25.B — the obvious repair reads `_classCache`, which is COLD until the Classes panel opens, so it would have written `''` and looked right. `_schoolIdForClass()` is the one answerer and falls back to the class document; the CSV lookup is per row. lessons-admin.js v1.14.0, learn.js v2.34.1, 49 harnesses. |
 | 32 | Lambert | ⭐⭐ ROADMAP 14 BUILT — mastery is cumulative points per RUN (A🔥 = 2, A = 1, locked at 4), locked by run, unlocked by lesson, clock from the last lock. Downward closure computed not stored. ⚠️⚠️ The round's real lesson is §0.-24.A: **a handoff every round, in Jake's words** — many turns produced design talk and no document, plus a zip shipped with a red suite and advice to "test it on Nico" when GitHub means deploy IS the standard. ⚠️ §0.-24.B: `>=` → `>` closed the exploit and moved his worked example by a lesson; the harness caught it, the fix is a `reachBack === 0` guard. ⚠️ NOT VERIFIED: the banner and score paths have no coverage and the header cites a harness that does not exist. learn.js v2.34.0, lesson-gate.js v1.1.0, 48 harnesses. |
 | 31 | Fitch | ⚠️⚠️ ROADMAP 14b — **THE WRITE SUCCEEDED AND STORED THE WRONG THING.** Leaving a lesson for the map banked the time and dropped the run, and the item's own diagnosis was wrong: `flushLessonProgress()` was being called all along (inside `flushStats()`, on the interval and on every hide). What lost the run was `stopLesson()`'s `loadUserProgress()`, whose first statement empties `userProgress` — so the flush wrote back the record it had just re-read, successfully, every time, with no error path anywhere. ⚠️ A flush appended to the END of `stopLesson()` would have read as a correct fix and changed nothing: **the order is the fix.** `exitLessonToMap()` snapshots, flushes, refreshes the progress cache, reloads, and carries unflushed runs across. `exit-flush-test.mjs` (31 checks, 18 failing against v2.33.0) reproduces the loss through the old exit in Part A before proving anything else. ⚠️ Also: the runner marks a harness bad on a TEXT match for FAIL/ERROR/UNSAFE in its output, so a clean harness can be reported red by a section header — rule recorded in the runner rather than the detector loosened. ✅ Jake amended the "no bulk repair" ruling to MINUTES. learn.js v2.33.1, 48 harnesses. |

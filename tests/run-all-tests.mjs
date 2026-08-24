@@ -1,5 +1,5 @@
-// run-all-tests.mjs v1.14.0 — Round 33 (Crandall): class-assign-test.mjs
-// registered. 49 harnesses.
+// run-all-tests.mjs v1.15.0 — Round 34 (Molle): run-mastery-test.mjs
+// registered. 50 harnesses.
 //
 // ⚠️ v1.13.0 — A CONSTRAINT ON HARNESS OUTPUT, WRITTEN DOWN BECAUSE IT COST A
 //          ROUND TEN MINUTES. `run()` marks a harness bad on `r.status !== 0 ||
@@ -230,6 +230,11 @@ const FAST = [
     // "no class" for 24 hours. Part C is the one that matters most: a fix reading
     // _classCache directly would have looked right and written '' exactly as the
     // bug did, because that cache is cold until the Classes panel is opened.
+    // ⚠️ Round 34 (Molle), ROADMAP 14's student-facing half — and the harness
+    // learn.js had CITED IN ITS HEADER SINCE ROUND 32 WITHOUT IT EXISTING. Part A
+    // is Jake's own bug, found by using the feature: with run 1 mastered the
+    // student had to replay it for nothing to reach run 2.
+    ['run-mastery-test.mjs',     '⚠️ THE STUDENT CAN REACH THE RULE: a lesson opens at the first run that still counts, both intro entry points honour it, the mode is armed per run before the drill shows, and the score is visible'],
     ['class-assign-test.mjs',    '⚠️ A STUDENT IN A CLASS BUT NOT A SCHOOL: every assignment writer carries the building, one answerer looks it up, it survives a cold cache, and an unassigned student is never a cacheable answer'],
     ['exit-flush-test.mjs',      '\u26a0\ufe0f \u2190 MAP BANKS THE TIME AND THROWS AWAY THE RUN: the flush must beat the reload that empties userProgress, the cache must be refreshed between them, and an unflushed run must survive a failed write'],
     // ⚠️ Round 25 (Hall). A student reported "ass" in a School lesson. Part A

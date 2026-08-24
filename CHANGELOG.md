@@ -1,5 +1,42 @@
 # CHANGELOG
 
+## Round 34 — Molle (2026-08-23) — THE GATE WAS TAXING THE STUDENT IT MEANT TO MOVE ALONG
+
+Jake, after Round 32 went live and worked: *"Scoring works! locking works! It did
+reveal that if the first one is locked, students have no way to get to the second
+run legitimately."*
+
+* ✅ **`learn.js` v2.35.0 — a lesson opens at the first run that still counts.**
+  Runs are typed in order from run 0, so a student whose run 1 was mastered had
+  to replay it — earning nothing — to reach the run that still pays. ⚠️ **Nothing
+  in item 14 was wrong; it simply never asked how a student ENTERS a lesson.**
+
+* ✅ **`firstOpenRunIdx()` is well-defined because of downward closure, not luck.**
+  `runMastered(rec, k)` is true if any run at index ≥ k has four points, so the
+  mastered runs are always a PREFIX and the open runs always a SUFFIX. ⚠️ **If
+  closure is loosened this stops being a suffix and the function must be
+  rewritten, not patched.**
+
+* ⚠️ **BOTH INTRO ENTRY POINTS HARDCODED `beginStep(0)`** — the Start button and
+  the Enter key. Fixing one would leave which key a child pressed deciding
+  whether the feature worked. Part B asserts neither hardcodes 0.
+
+* ✅ **`tests/run-mastery-test.mjs` IS WRITTEN.** learn.js had cited it in its own
+  version header **since Round 32 without the file existing.** 18 checks, 8
+  failing against v2.34.1. ⚠️ **A header asserting a harness is not evidence of a
+  harness.**
+
+* ⚠️⚠️ **I DELETED LIVE CODE ARCHIVING A HEADER ENTRY.** The last
+  `// vX.Y.Z —` in learn.js is in the BODY, not the header, and the delete took
+  working code with it. Caught by `undefined-calls-test` and `build-panel-test`
+  going red, restored, re-applied. **Bound the search: slice at
+  `const LEARN_VERSION` and search only above it.** Second file-destroying
+  tooling error in three rounds, both caught only because the suite runs.
+
+**50 harnesses, all passing.**
+
+---
+
 ## Round 33 — Crandall (2026-08-23) — TWO BUGS, TWO FILES, ONE COMPLAINT
 
 Jake, for the third time: *"my son … is a part of my 7th & 8th grade class but
@@ -4762,6 +4799,55 @@ Each block below is exactly what stood in the file header, newest first.
 //           eating a keystroke the child should have been credited for. Mouse
 //           only. ⚠️ NO TIMING MECHANISM TOUCHED; this files the open run and
 //           takes the flush that every other exit path already takes.
+```
+
+### § learn.js — archived header entries (Round 34)
+
+```
+// v2.31.0 — ⚠️ TWIN OF game.js's _buildNotesAllowed(). Read at RENDER time and
+// never cached: the panel outlives the sign-in, so a guest hover followed by
+// Jake signing in on the same tab must show more on the next hover.
+// ⚠️ A DISPLAY GATE, NOT A SECURITY ONE — everything it hides is in the raw
+// .js files anyone can open, and none of it is student data.
+function _buildNotesAllowed() {
+    return isStaffUser(currentUser);
+}
+
+function _renderFullBuildPanel(results) {
+    const full = document.getElementById('footer-full');
+    if (!full) return;
+    const showNotes = _buildNotesAllowed();
+
+    let html = `<div style="opacity:.6;margin-bottom:4px">learn.html (this page)</div>`
+             + renderBuildList(results, { notes: showNotes });
+    // keyboard.js is imported statically (not dynamically like game.js's
+    // adventure-renderer.js), so KB_VERSION here IS the deployed constant —
+    // no separate drift check needed the way adventure-renderer.js gets one.
+    // ⚠️ WHICH IS WHY THIS COUNT HAS NO `+ (drift ? 1 : 0)` TERM and game.js's
+    // does. The twins differ here on purpose; do not "fix" it into symmetry.
+    html += renderHiddenNotesLine(showNotes ? 0 : countBuildNotes(results));
+
+    full.innerHTML = html;
+    full.dataset.notes = String(showNotes);
+}
+
+// ⚠️⚠️ v2.33.0 — THIS NO LONGER KEEPS ITS OWN "already loaded" FLAG.
+// It used to return early on `dataset.loaded === 'true'`, which was a THIRD
+// layer of staleness on top of versions.js's cache and the HTTP cache — and the
+// one that made a hard reload useless, because nothing in the chain expired
+// inside a tab. versions.js v1.13.0 owns the freshness policy now (60s TTL,
+// page-scoped), so every hover simply asks and lets it decide whether that costs
+// a fetch. HANDOFF §0.-22.
+//
+```
+
+### § learn.js — archived header entries (Round 34)
+
+```
+// v2.29.1 — DEAD CODE. updateWeeklyHUD() deleted: its comment claimed "several
+//           call sites" and there were zero. Found by the new
+//           tests/dead-handler-test.mjs. No behaviour change. §0.-18.
+//
 ```
 
 ### § learn.js — archived header entries (Round 32)

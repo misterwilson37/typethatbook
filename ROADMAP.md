@@ -1,5 +1,11 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.24.0, 2026-08-23.** ✅ **ITEM 11 FIXED** (Round 33) and ✅ **ITEM 14 COMPLETE**
+(Round 34): a lesson opens at the first run that still counts, and
+`run-mastery-test.mjs` — cited in learn.js's header since Round 32 without
+existing — is written. ⭐⭐ **ITEM 15 IS THE NEXT BUILD.** ⚠️ §10.H, the
+measurement, is still unbuilt — seventh round. 50 harnesses.
+
 **v3.23.0, 2026-08-23.** ✅ **ITEM 14 IS BUILT** — Round 32 (Lambert). Points per
 run, locked by run, unlocked by lesson, clock from the last lock. ⚠️ Read item
 14's note on the `>=`/`>` off-by-one: closing the exploit the obvious way moves
@@ -976,7 +982,15 @@ mastered lesson stayed farmable until the student passed a LATER one — which a
 farming student never does. An unmastered RUN in the same lesson still counts, so
 nobody is stranded.
 
-⚠️ **NOT VERIFIED: `runScorePill()` and `armRunMode()` have no coverage** — the
+✅ **ROUND 34 (Molle) CLOSED THE ENTRY GAP AND THE COVERAGE GAP.** Jake, using it:
+*"if the first one is locked, students have no way to get to the second run
+legitimately."* Runs are typed in order, so a mastered run 1 had to be replayed
+for nothing to reach run 2. `firstOpenRunIdx()` opens a lesson at the first run
+that still counts — well-defined because downward closure makes the open runs a
+suffix. `tests/run-mastery-test.mjs` is written and covers the banner, the score
+and both intro entry points. **50 harnesses.**
+
+~~⚠️ NOT VERIFIED: `runScorePill()` and `armRunMode()` have no coverage~~ — the
 banner and the score are the only two things a student sees and neither has been
 executed. `learn.js`'s header cites `tests/run-mastery-test.mjs`, **which does not
 exist.** Write it or strike the line.

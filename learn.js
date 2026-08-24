@@ -1,4 +1,14 @@
-// learn.js v2.34.1
+// learn.js v2.35.0
+//
+// v2.35.0 — ⚠️⚠️ A LESSON NOW OPENS AT THE FIRST RUN THAT STILL COUNTS. Jake:
+//           "if the first one is locked, students have no way to get to the
+//           second run legitimately." Runs are typed in order, so a student whose
+//           run 1 was mastered had to replay it FOR NOTHING to reach the run that
+//           still pays — the gate was taxing the student it meant to move along.
+//           firstOpenRunIdx() is well-defined because DOWNWARD CLOSURE makes the
+//           mastered runs a PREFIX and the open runs a SUFFIX; loosen closure and
+//           it must be rewritten, not patched. tests/run-mastery-test.mjs — which
+//           learn.js had CITED SINCE ROUND 32 WITHOUT IT EXISTING, now written.
 //
 // v2.34.1 — ⚠️⚠️ ROADMAP 11, BUG B — SETTINGS SAID "NO CLASS ASSIGNED" FOR 24
 //           HOURS AFTER A CORRECT ASSIGNMENT. The goals cache's hit-guard only
@@ -70,10 +80,6 @@
 //           lives in the ⚙ panel only, with click-to-copy carried over. Twin
 //           deleted from game.js in the same commit. ⚠️ HANDOFF §2's deploy check
 //           referenced the stamp and has been rewritten. §0.-19.
-//
-// v2.29.1 — DEAD CODE. updateWeeklyHUD() deleted: its comment claimed "several
-//           call sites" and there were zero. Found by the new
-//           tests/dead-handler-test.mjs. No behaviour change. §0.-18.
 //
 //
 //
@@ -184,7 +190,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.34.1";
+const LEARN_VERSION = "2.35.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -1472,6 +1478,29 @@ function modeForLesson(lesson) {
 // this decides whether a run pays. A single lesson can hold a mastered run and
 // an unmastered one at the same time — that is the whole point of scoring per
 // run — so anything asking "does this count?" must ask about the RUN.
+// ⚠️⚠️ v2.35.0 — JAKE, 2026-08-23: *"if the first one is locked, students have
+// no way to get to the second run legitimately."* He is right, and it is the one
+// thing item 14 did not think through. Runs are typed in order from run 0, so a
+// student whose run 1 was mastered had to replay it — for nothing — to reach the
+// run that still pays. THE GATE WAS TAXING THE STUDENT IT MEANT TO MOVE ALONG.
+//
+// ✅ THE ANSWER IS WELL-DEFINED BECAUSE OF DOWNWARD CLOSURE, NOT BY LUCK.
+// runMastered(rec, k) is true if ANY run at index ≥ k has four points, so the
+// mastered runs are always a PREFIX and the open runs always a SUFFIX. "The first
+// open run" therefore exists, is unique, and cannot strand a student in the
+// middle of a lesson. ⚠️ IF CLOSURE IS EVER LOOSENED this stops being a suffix
+// and this function must be REWRITTEN, not patched.
+//
+// Returns 0 when every run is practice: the whole lesson is replayable, the
+// banner says so, and the student starts at the top like anyone else.
+function firstOpenRunIdx(lesson) {
+    const runs = buildRunList(lesson);
+    for (let i = 0; i < runs.length; i++) {
+        if (modeForRun(lesson, i) !== 'practice') return i;
+    }
+    return 0;
+}
+
 function modeForRun(lesson, runIdx) {
     return runModeFor({
         lessonIndex: allLessons.findIndex(l => l.id === lesson.id),
@@ -1879,7 +1908,9 @@ function armRunMode(runIdx) {
 function startLesson(lesson) {
     currentLesson  = lesson;
     currentRuns    = buildRunList(lesson);
-    currentStepIdx = 0;
+    // ⚠️ v2.35.0 — NOT ALWAYS 0. See firstOpenRunIdx(): a student whose early runs
+    // are mastered starts at the first one that still counts.
+    currentStepIdx = firstOpenRunIdx(lesson);
     mistakes       = 0;
     chars          = 0;
     resetStepLogWatermark();
@@ -2018,7 +2049,10 @@ function showIntro(lesson) {
     introStartBtn.onclick = () => {
         stopIntroAnim();
         document.removeEventListener('keydown', introEnterHandler);
-        beginStep(0);
+        // ⚠️ v2.35.0 — currentStepIdx, NOT 0. startLesson() already worked out the
+        // first run that still counts; a literal 0 here sends the student back
+        // through the runs the gate exists to move them past.
+        beginStep(currentStepIdx);
     };
 
     // Enter key activates Start Lesson from the intro screen
@@ -2027,7 +2061,7 @@ function showIntro(lesson) {
             e.preventDefault();
             document.removeEventListener('keydown', introEnterHandler);
             stopIntroAnim();
-            beginStep(0);
+            beginStep(currentStepIdx);   // v2.35.0 — see introStartBtn above
         }
     }
     document.addEventListener('keydown', introEnterHandler);
