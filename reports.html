@@ -636,7 +636,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.25.1";
+    const REPORTS_VERSION = "2.27.0";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -667,7 +667,9 @@
     const _rfv = document.getElementById('footer-version');
     if (_rfv) _rfv.textContent = `Reports v${REPORTS_VERSION}`;
 
-    import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    // ⚠️ SDK ROUTED THROUGH read-meter.js so this page can say what it COST.
+    // Same shim the student pages use; `export *` keeps every SDK symbol.
+    import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, ttbMeter } from "./read-meter.js";
     import { ledgerFrom, planReads } from "./logdays.js";
     import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
@@ -1135,6 +1137,14 @@
         document.getElementById('results-container').classList.add('hidden');
         document.getElementById('empty-msg').classList.add('hidden');
 
+        // ⚠️ PER-REPORT COST, MEASURED RATHER THAN ESTIMATED. The meter counts
+        // for the whole page load, so a single report is the DELTA across this
+        // function. Without this the only cost figure on screen was
+        // students × days — which is what the sweep WOULD have read before the
+        // ledger pruned it, not what it actually did.
+        const _m0 = (() => { try { return ttbMeter.totals(); } catch (_) { return null; } })();
+        const _t0 = Date.now();
+
         try {
             const logsRef = collection(db, "typing_logs");
             const scoped = buildScopedQuery(logsRef, startDate, endDate);
@@ -1360,7 +1370,7 @@
 
             const userMap = {};
             let unreadable = 0, hiddenFromQuery = 0;
-            // ⚠️ v2.8.0 — THE SWEEP IS PRUNED PER (STUDENT, DAY) BY THE LEDGER.
+            // ⚠️ v2.26.0 — THE SWEEP IS PRUNED PER (STUDENT, DAY) BY THE LEDGER.
             //
             // Measured 2026-08-24: 1,155 point reads for SIX real records, and
             // 1,149 of them returned nothing. The misses were never bad data —
@@ -1381,19 +1391,57 @@
             // "this report may be incomplete" banner, and a day the ledger tells
             // us is empty is a day we KNOW about — counting it as unreadable would
             // cry wolf on every report forever.
+            // ⚠️ v2.27.0 — THE SWEEP WAS READING THE FUTURE, AND IT WAS MOST OF
+            // THE BILL. "This Week" runs Saturday to Friday, so a report pulled
+            // on Monday asked Firestore about Wednesday, Thursday, Friday and
+            // Saturday of a week that had not happened. Measured 2026-08-24:
+            // 167 students x 7 days = 1,169 reads, of which 668 were days that
+            // could not contain data under any circumstance.
+            //
+            // This needs no ledger, no schema and no migration. It is a calendar
+            // fact, it applies to every student on the first report after deploy,
+            // and it is the largest single saving available to this page.
+            //
+            // ⚠️ THE HORIZON IS TOMORROW, NOT TODAY, AND THE SLACK IS DELIBERATE.
+            // A typing_log id carries the STUDENT'S LOCAL DATE, computed in their
+            // browser. A machine whose clock runs fast, or a student in a
+            // timezone ahead of the teacher reading the report, can legitimately
+            // create a document dated tomorrow. One day of slack costs one day of
+            // reads and removes that whole class of edge case.
+            //
+            // ⚠️ AND THE DISCOVERY QUERY IS STILL THE BACKSTOP. It filters on the
+            // `date` FIELD across the full requested range, so a wildly
+            // future-dated log still turns up there — this only prunes the
+            // by-id sweep, never the query.
+            const _horizon = (() => {
+                const t = new Date();
+                t.setDate(t.getDate() + 1);
+                return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-` +
+                       `${String(t.getDate()).padStart(2, '0')}`;
+            })();
+            const sweepDates  = dateList.filter(d => d <= _horizon);
+            const futureDays  = dateList.length - sweepDates.length;
+
             const pairs = [];
             let ledgerSkipped = 0, ledgerBlind = 0;
             uids.forEach((info, uid) => {
-                const plan = planReads(info.ledger, dateList, { always: [] });
+                const plan = planReads(info.ledger, sweepDates, { always: [] });
                 if (plan.blind) ledgerBlind++;
                 ledgerSkipped += plan.skip.length;
                 plan.fetch.forEach(date => pairs.push({ uid, date, info }));
             });
 
+            const futureSkipped = futureDays * uids.size;
+            window._ttbSweepNote = { futureDays, futureSkipped, ledgerSkipped, ledgerBlind,
+                                      swept: pairs.length,
+                                      wouldHaveBeen: uids.size * dateList.length };
+
             statusEl.innerText =
-                `Reading ${pairs.length} student-days by id` +
-                (ledgerSkipped ? ` (skipped ${ledgerSkipped.toLocaleString()} known-empty)` : '') +
-                `…`;
+                `Reading ${pairs.length.toLocaleString()} student-days by id` +
+                (futureSkipped || ledgerSkipped
+                    ? ` (skipped ${(futureSkipped + ledgerSkipped).toLocaleString()} that cannot hold data)`
+                    : '') +
+                `\u2026`;
 
             await runPool(pairs, async (p) => {
                 const res = await readLogById(p.uid, p.date);
@@ -1464,10 +1512,46 @@
             document.getElementById('total-line').innerHTML = 
                 `<strong>${reportData.length}</strong> students — <strong>${formatTime(totalSecs)}</strong> total typing time`;
             const _n = window._ttbRosterNote || {};
+            const _s = window._ttbSweepNote || {};
+
+            const _m1 = (() => { try { return ttbMeter.totals(); } catch (_) { return null; } })();
+            const _cost = (_m0 && _m1)
+                ? { reads:  _m1.reads  - _m0.reads,
+                    misses: _m1.misses - _m0.misses,
+                    writes: _m1.writes - _m0.writes }
+                : null;
+            const _secs = ((Date.now() - _t0) / 1000).toFixed(1);
+            // ⚠️ MISSES ARE CALLED OUT SEPARATELY BECAUSE THEY ARE THE BUDGET.
+            // A read that finds nothing bills the same as one that finds a
+            // student's day, and on this page they were 99% of the total.
+            const _costHTML = _cost
+                ? `<br><span style="opacity:.85">This report cost ` +
+                  `<strong>${_cost.reads.toLocaleString()}</strong> reads ` +
+                  (_cost.misses
+                      ? `(<strong>${_cost.misses.toLocaleString()}</strong> found nothing) ` : '') +
+                  (_cost.writes ? `\u00b7 <strong>${_cost.writes}</strong> writes ` : '') +
+                  `\u00b7 ${_secs}s. Full breakdown: <code>ttbMeter.report()</code></span>`
+                : '';
+
             document.getElementById('results-info').innerHTML =
                 `${escapeHtml(scoped.label)} · ${startDate} through ${endDate} — ` +
                 `read <strong>by document id</strong>, the same read the student's own screen makes ` +
-                `(${_n.studentsRead || 0} students \u00d7 ${_n.days || 0} days)` +
+                // ⚠️ WAS "students × days" — THE CROSS PRODUCT, i.e. what the sweep
+                // WOULD have read before anything pruned it. That number stopped
+                // being true the moment pruning existed, and it was the only cost
+                // figure on the page. Report what was actually read.
+                `(<strong>${(_s.swept ?? 0).toLocaleString()}</strong> student-days read` +
+                (_s.wouldHaveBeen && _s.wouldHaveBeen > _s.swept
+                    ? ` of ${_s.wouldHaveBeen.toLocaleString()} possible` : '') +
+                `)` +
+                (_s.futureSkipped
+                    ? ` \u00b7 <strong>${_s.futureSkipped.toLocaleString()}</strong> skipped as ` +
+                      `${_s.futureDays} day(s) still in the future` : '') +
+                (_s.ledgerSkipped
+                    ? ` \u00b7 <strong>${_s.ledgerSkipped.toLocaleString()}</strong> skipped as known-empty` : '') +
+                (_s.ledgerBlind
+                    ? ` \u00b7 <span style="opacity:.7">${_s.ledgerBlind} student(s) have no activity ledger yet ` +
+                      `and were swept in full</span>` : '') +
                 (_n.rosterAdded ? ` \u00b7 <strong>${_n.rosterAdded}</strong> student(s) found on the roster ` +
                                   `with no class-stamped log` : '') +
                 (_n.hiddenFromQuery ? ` \u00b7 <strong style="color:#ffaa00;">${_n.hiddenFromQuery} day(s) ` +
@@ -1477,7 +1561,8 @@
                     ? `<br><span style="color:#ff8888;">\u26a0\ufe0f THE ROSTER READ FAILED, so this report covers only ` +
                       `students who left a class-stamped log. Any student whose logs carry a blank classId is ` +
                       `MISSING from it entirely. Check the console \u2014 this is not a clean report.</span>`
-                    : '');
+                    : '')
+                + _costHTML;
 
             document.getElementById('results-container').classList.remove('hidden');
             statusEl.innerText = `Found ${reportData.length} students.`;
@@ -1603,7 +1688,16 @@
     // which is already bounded by MAX_ROSTER_PAIRS and has never had a cancel
     // button to honour. Do not re-add one here without adding the button too —
     // a flag nothing can set is a branch nothing can test.
-    const POOL_CONCURRENCY = 6;   // polite to Firestore, ~10x faster than serial
+    // ⚠️ RAISED 6 → 24 (v2.27.0). "Polite to Firestore" was costing Jake two
+    // minutes at a desk: 1,269 point reads six at a time is ~210 sequential
+    // round trips, and every one of them is a separate HTTPS request over a
+    // school network. Firestore's own client fans out far wider than this;
+    // 24 is still well inside what a single browser tab will open.
+    //
+    // ⚠️ THIS IS A TEACHER-FACING PAGE ONLY. Do not copy the number to anything
+    // students run — 101 students each opening 24 parallel reads is a different
+    // conversation. reports.html is one person at a desk.
+    const POOL_CONCURRENCY = 24;
 
     async function runPool(items, worker, onProgress) {
         let next = 0, done = 0;
