@@ -1,5 +1,45 @@
 # CHANGELOG
 
+## Round 33 — Crandall (2026-08-23) — TWO BUGS, TWO FILES, ONE COMPLAINT
+
+Jake, for the third time: *"my son … is a part of my 7th & 8th grade class but
+isn't actually assigned to my school due to an error in the admin code."*
+
+* ✅ **ROADMAP 11 FIXED.** `lessons-admin.js` v1.14.0, `learn.js` v2.34.1.
+
+* ⚠️ **BUG A — THE WRITER.** Three paths assign a class and only two wrote
+  `schoolId`. The single-student save and `_bulkAssign()` sent `{ classId }`
+  alone, leaving `schoolId` **absent, not empty** — visible under *All schools*,
+  invisible under their own, missing from every school-filtered report.
+
+* ⚠️ **BUG B — THE READER.** The goals cache rejected an entry naming a class
+  with no `className`, but an entry taken before assignment carries
+  `classId: ''` — **falsy** — and passed as a hit. Settings answered "No class
+  assigned" for 24 hours after the assignment landed. **A direct admin write
+  cannot reach a cache on the student's Chromebook**, so the unassigned state
+  must not be cacheable at all.
+
+* ⚠️⚠️ **FIXING EITHER ALONE FIXES NOTHING VISIBLE**, which is why two correct
+  diagnoses in a row produced no shippable fix. Each looked like the whole story.
+
+* ⚠️⚠️ **THE OBVIOUS REPAIR DIES ON A COLD CACHE.** `_classCache` is filled
+  when the CLASSES panel opens; an admin going straight to Students has an empty
+  one, so `_classCache[classId].schoolId` reads `undefined` and writes `''`
+  exactly as the bug did. `_schoolIdForClass()` is the one answerer, cache then
+  class document. Part C of the harness asserts the fallback.
+
+* ⚠️ **THE CSV LOOKUP IS PER ROW, NOT HOISTED.** A rollover file can name a
+  different class on every line; one lookup for the file stamps the first row's
+  building onto everyone in it.
+
+* ✅ **NEW: `tests/class-assign-test.mjs`** — 10 checks, **6 failing against the
+  shipped build**, verified on a clean extract. Part D extracts the cache guard
+  from source and runs it, so the assertion is about the shipped line.
+
+**49 harnesses, all passing.**
+
+---
+
 ## Round 32 — Lambert (2026-08-23) — ITEM 14 BUILT, AND I MOVED JAKE'S NUMBER
 
 * ✅ **ROADMAP 14.** Mastery is cumulative points per RUN — A🔥 = 2, A = 1, B and
@@ -4724,6 +4764,26 @@ Each block below is exactly what stood in the file header, newest first.
 //           takes the flush that every other exit path already takes.
 ```
 
+### § learn.js — archived header entries (Round 32)
+
+```
+// v2.29.0 — ⚠️⚠️ THE ⚙ IS AVAILABLE DURING A DRILL AND THE CLOCK PAUSES, on
+//           Jake's ruling the same day: *"I meant not to break the ability to
+//           track the time accurately. It acting the same way it does in library
+//           mode — namely, counting time typed and pausing when necessary — is
+//           just fine."* v2.28.0 hid the gear during a drill on the stricter
+//           reading of item 7b/8's condition; this replaces that with a pause.
+//           ⚠️ THE RISK IS THE RESUME. A pause that never resumes means a child
+//           types on while NOTHING COUNTS. It rides on settings-panel.js's
+//           `onClose`, in a `finally`, from the one close() all three dismiss
+//           paths share, guarded on `drillRunning`. drill-filter F7c1–c5.
+//           ⚠️ IT IS A TENTH CALLER OF AN EXISTING PATH, NOT A NEW MECHANISM —
+//           `learnTickInterval` is an alias for `timerInterval` and nine sites
+//           already stop the clock this way. No second timer, no second gate.
+//           ✅ The student ID joins the panel, on Jake's ask.
+//
+```
+
 ### § learn.js — archived header entries (Round 31b)
 
 ```
@@ -4758,6 +4818,22 @@ Each block below is exactly what stood in the file header, newest first.
 //           correctly deployed build was going to answer "2.23.1" — one patch
 //           BELOW the stale-day fix, i.e. exactly the reading that means "the
 //           fix is not running". See HANDOFF §0.-14.
+```
+
+### § lessons-admin.js — archived header entries (Round 33)
+
+```
+// v1.9.0 — Import JSON validates STEPS, not just lesson ids. parseImportJSON()
+//          checked one field — that each lesson had an `id` — and wrote whatever
+//          else the file held straight to Firestore. learn.js reads a different
+//          field per step type, so a step whose type and fields disagree yields
+//          either a throw out of renderMap() or a drill with no characters. Both
+//          look like a blank screen, in another file, to every student at once,
+//          and neither names the lesson. ⚠️ The validator belongs at import
+//          because that is the last moment a human is looking at the file.
+//          Rejects rather than repairs, reports every problem rather than the
+//          first, and names lessons by id rather than by array index.
+//
 ```
 
 ### § admin.js — archived header entries

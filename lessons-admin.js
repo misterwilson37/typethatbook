@@ -1,4 +1,16 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.13.2
+// lessons-admin.js — TypeThatBook Lesson Panel v1.14.0
+//
+// v1.14.0 — ⚠️⚠️ ROADMAP 11 — A STUDENT IN A CLASS BUT NOT A SCHOOL. THREE
+//           writers assigned a class and only TWO wrote schoolId; the
+//           single-student save and _bulkAssign() sent classId alone, so the
+//           student had NO building — visible under "All schools", invisible
+//           under their own, missing from every school-filtered report. Jake's
+//           own son, three rounds running. ⚠️ _schoolIdForClass() is now the ONE
+//           answerer and it FALLS BACK TO THE CLASS DOCUMENT: _classCache is
+//           filled when the CLASSES panel opens, so a fix reading it directly
+//           would have looked right and written '' exactly as the bug did.
+//           ⚠️ The CSV lookup is PER ROW — a rollover file can name a different
+//           class on every line. tests/class-assign-test.mjs.
 //
 // v1.13.2 — HEADER ONLY, NO CODE. Four older entries moved to CHANGELOG.md
 //           § ARCHIVED FILE HEADERS; this file was over the build panel's
@@ -78,21 +90,10 @@
 //          Also: the commit summary reports queued and skipped counts, not just
 //          a bare "N assigned" that was true and misleading at the same time.
 //
-// v1.9.0 — Import JSON validates STEPS, not just lesson ids. parseImportJSON()
-//          checked one field — that each lesson had an `id` — and wrote whatever
-//          else the file held straight to Firestore. learn.js reads a different
-//          field per step type, so a step whose type and fields disagree yields
-//          either a throw out of renderMap() or a drill with no characters. Both
-//          look like a blank screen, in another file, to every student at once,
-//          and neither names the lesson. ⚠️ The validator belongs at import
-//          because that is the last moment a human is looking at the file.
-//          Rejects rather than repairs, reports every problem rather than the
-//          first, and names lessons by id rather than by array index.
-//
 // ⚠️ v1.13.2 — v1.8.1, v1.8.0, v1.7.1 and v1.7.0 moved to CHANGELOG.md
 //    § ARCHIVED FILE HEADERS. Nothing deleted.
 //
-window.LESSONS_ADMIN_VERSION = '1.13.2';
+window.LESSONS_ADMIN_VERSION = '1.14.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -1125,8 +1126,18 @@ async function loadStudentProgress(uid, label) {
                 const classId = document.getElementById('student-class-select').value;
                 if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.style.color = '#888'; }
                 try {
-                    await setDoc(doc(_db, 'users', uid),
-                        { classId: classId || null }, { merge: true });
+                    // ⚠️⚠️ v1.14.0 — ROADMAP 11. schoolId MUST RIDE ALONG. This
+                    // writer sent classId ALONE for three rounds, which is how
+                    // Jake's own son ended up in his class and NOT in his
+                    // school: visible under "All schools", invisible under his
+                    // own, and missing from every school-filtered report.
+                    // ⚠️ THE CORRECT PATTERN ALREADY EXISTED TWICE IN THIS FILE
+                    // (_commitCSV and the one-student add at ~1700) and this
+                    // path simply did not use it. Three writers, one omission.
+                    await setDoc(doc(_db, 'users', uid), {
+                        classId: classId || null,
+                        schoolId: await _schoolIdForClass(classId),
+                    }, { merge: true });
                     if (statusEl) { statusEl.textContent = classId ? 'Assigned.' : 'Removed.'; statusEl.style.color = '#00ff41'; }
                 } catch(e) {
                     if (statusEl) { statusEl.textContent = 'Error: ' + e.message; statusEl.style.color = '#ff4444'; }
@@ -1229,7 +1240,30 @@ async function toggleStudentLesson(uid, lesson, existingProg, card, label) {
 
 // ─── CLASSES PANEL ────────────────────────────────────────────────────────────
 let _classesPanelInited = false;
-let _classCache = {};  // classId → { name, dailySeconds, weeklySeconds }
+let _classCache = {};  // classId → { name, schoolId, dailySeconds, weeklySeconds }
+
+// ⚠️⚠️ v1.14.0 — ROADMAP 11. THE CACHE IS NOT ALWAYS WARM, AND WITHOUT THIS
+// THE FIX ABOVE WOULD HAVE LOOKED RIGHT AND CHANGED NOTHING. `_classCache` is
+// filled by loadAndRenderClasses(), which runs when the CLASSES panel opens — an
+// admin who goes straight to Students and assigns a class has an EMPTY cache, so
+// `_classCache[classId].schoolId` reads undefined and the writer sends '' exactly
+// as before. Same defect, one layer down, and silent.
+//
+// So: cache first, then the class document itself. One read, on a click.
+async function _schoolIdForClass(classId) {
+    if (!classId) return '';
+    const hit = _classCache[classId];
+    if (hit && hit.schoolId) return hit.schoolId;
+    try {
+        const snap = await getDoc(doc(_db, 'classes', classId));
+        const sid = snap.exists() ? (snap.data().schoolId || '') : '';
+        if (sid) _classCache[classId] = Object.assign({}, hit, { id: classId, schoolId: sid });
+        return sid;
+    } catch (e) {
+        console.warn('[TTB] schoolId lookup failed for class', classId, e);
+        return '';
+    }
+}
 
 function initClassesPanel() {
     if (_classesPanelInited) { renderClassList(); return; }
@@ -1701,7 +1735,7 @@ async function _addOneStudent() {
     // exists yet the write is a CREATE, and firestore.rules requires the building
     // on create — without it there is nothing to scope the document by and the
     // write is denied.
-    const schoolId = (_classCache[classId] && _classCache[classId].schoolId) || '';
+    const schoolId = await _schoolIdForClass(classId);
 
     try {
         const existing = _rosterData.find(r => (r.email || '').toLowerCase() === email);
@@ -1770,10 +1804,18 @@ async function _bulkAssign() {
     const uids    = [..._selectedUids];
     btn.disabled  = true; btn.textContent = 'Saving…';
 
+    // ⚠️ v1.14.0 — ROADMAP 11. Same omission as the single-student writer above.
+    // HANDOFF §6 item 9 called this "fine within one building" for three rounds
+    // and it was never fine: schoolId ends up ABSENT, not empty.
+    const _assignSchoolId = await _schoolIdForClass(classId);
+
     let ok = 0;
     for (const uid of uids) {
         try {
-            await setDoc(doc(_db, 'users', uid), { classId: classId || null }, { merge: true });
+            await setDoc(doc(_db, 'users', uid), {
+                classId: classId || null,
+                schoolId: _assignSchoolId,
+            }, { merge: true });
             const r = _rosterData.find(r => r.uid === uid);
             if (r) r.classId = classId || '';
             ok++;
@@ -2667,6 +2709,7 @@ async function _commitCSV() {
     commitBtn.disabled = true;
     areaEl.innerHTML += '<div style="color:#888; margin-top:6px;">Writing…</div>';
 
+
     // ⚠️ THE MODE MUST GOVERN BOTH PATHS OR IT IS A LIE (v1.10.0). "Leave existing
     // classes alone" has to mean the same thing for a student the roster can see
     // as for one it cannot — otherwise the answer applies to whichever half of the
@@ -2678,6 +2721,12 @@ async function _commitCSV() {
 
     let ok = 0, fail = 0, skipped = 0, queued = 0;
     for (const { uid, email, classId } of _csvParsed) {
+        // ⚠️ v1.14.0 — ROADMAP 11. Through the one answerer, not out of
+        // _classCache. ⚠️ PER ROW, NOT HOISTED: a rollover CSV can name a
+        // DIFFERENT class on every line, so one lookup for the file would stamp
+        // the first row's building onto all of them. _schoolIdForClass() caches,
+        // so this is one read per distinct class, not per row.
+        const _csvSchoolId = await _schoolIdForClass(classId);
         try {
             if (uid) {
                 if (!overwrite) {
@@ -2691,7 +2740,7 @@ async function _commitCSV() {
                 // building on create — otherwise there's nothing to scope by.
                 await setDoc(doc(_db, 'users', uid), {
                     classId: classId || null,
-                    schoolId: (_classCache[classId] && _classCache[classId].schoolId) || ''
+                    schoolId: _csvSchoolId
                 }, { merge: true });
                 const r = _rosterData.find(r => r.uid === uid);
                 if (r) r.classId = classId || '';
@@ -2707,7 +2756,7 @@ async function _commitCSV() {
                 // preview screen; this carries the answer to where it is needed.
                 await setDoc(doc(_db, 'pendingClassAssignments', email.toLowerCase()), {
                     classId: classId || null,
-                    schoolId: (_classCache[classId] && _classCache[classId].schoolId) || '',
+                    schoolId: _csvSchoolId,
                     overwrite,
                     assignedAt: new Date().toISOString() });
                 queued++;

@@ -1,7 +1,22 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.19.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     through Round 32; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+<!-- HANDOFF.md v15.20.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     through Round 33; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.20.0 — Round 33 (Crandall). ✅ ROADMAP ITEM 11 IS FIXED — §0.-25 is the
+     write-up. Jake's son was in his class and not his school for three rounds.
+     ⚠️ TWO INDEPENDENT BUGS IN TWO FILES PRODUCING ONE COMPLAINT, WHICH IS WHY
+     TWO CORRECT DIAGNOSES PRODUCED NO FIX: the WRITER omitted schoolId (two of
+     three assignment paths), and the READER cached "no class" for 24 hours
+     because classId '' is FALSY and slipped through the hit-guard. Fix either
+     alone and the symptom remains.
+     ⚠️⚠️ §0.-25.B: the obvious repair reads _classCache, WHICH IS COLD until
+     the Classes panel is opened — it would have written '' and looked correct.
+     _schoolIdForClass() falls back to the class document and is the ONE
+     answerer. The CSV lookup is PER ROW: a rollover file can name a different
+     class on every line.
+     lessons-admin.js v1.14.0, learn.js v2.34.1, class-assign-test.mjs (10
+     checks, 6 failing against the shipped build). 49 harnesses.
 
      v15.19.0 — Round 32 (Lambert). ⭐⭐ ROADMAP ITEM 14 IS BUILT — §0.-24 is the
      write-up. Mastery is cumulative points per RUN (A🔥 = 2, A = 1, B and below
@@ -397,6 +412,14 @@ by different companies and both are now on the list; a future round reading the
 list quickly will see two similar words and must not conclude one is a typo for
 the other. **Check the list, and read the whole word.**
 
+> *On the name:* the **Crandall** (1879) put the entire typeface on a single
+> removable **type-sleeve**. ⚠️ **Every letter came from one part, so one part
+> being wrong was not a partial failure — it was every character.** That is this
+> round inverted: two DIFFERENT parts were each wrong, in two different files,
+> and each produced the identical complaint, which is exactly why two correct
+> diagnoses in a row fixed nothing. **When one symptom has two independent
+> causes, finding one of them feels the same as finding it.**
+
 > *On the name:* the **Lambert** (1896) selected letters by **position on a
 > dial** — you moved a pointer around a circular index and pressed. ⚠️ **One
 > position off did not give you a slightly wrong result. It gave you a different
@@ -588,6 +611,68 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-25. ✅ ROUND 33 (Crandall) — ITEM 11 FIXED. TWO BUGS, TWO FILES, ONE SYMPTOM
+
+**2026-08-23.** Jake, for the third time: *"I'm running all of this as my son, who
+is a part of my 7th & 8th grade class but isn't actually assigned to my school due
+to an error in the admin code."* Diagnosed twice, fixed never. **Fixed now.**
+`lessons-admin.js` v1.14.0, `learn.js` v2.34.1, `tests/class-assign-test.mjs`.
+**49 harnesses.**
+
+### A. ⚠️ FIXING EITHER HALF ALONE FIXES NOTHING HE COULD SEE
+
+**Bug A — the writer.** Three paths assign a class and only TWO wrote `schoolId`.
+The single-student save and `_bulkAssign()` sent `{ classId }` alone, so the
+student ends up with `schoolId` **ABSENT, not empty** — in a class belonging to a
+school they are not in. Visible under *All schools*, invisible under their own,
+missing from every school-filtered report.
+
+**Bug B — the reader.** `learn.js`'s goals cache rejected an entry that NAMES a
+class but has no `className`. An entry taken BEFORE assignment carries
+`classId: ''` — **falsy** — so it passed as a HIT and Settings kept answering *"No
+class assigned"* for up to 24 hours after a correct assignment landed.
+
+⚠️ **THE TWO ARE INDEPENDENT AND PRODUCE THE SAME COMPLAINT.** Fix the writer and
+Settings still says no class for a day. Fix the reader and the student is still
+outside their building. That is why two rounds of correct diagnosis produced no
+fix worth shipping — each looked like the whole story.
+
+### B. ⚠️⚠️ THE COLD CACHE — THE OBVIOUS FIX WOULD HAVE WRITTEN `''` AND LOOKED RIGHT
+
+The natural repair is `schoolId: _classCache[classId].schoolId`. **`_classCache`
+is filled by `loadAndRenderClasses()`, which runs when the CLASSES panel opens.**
+An admin who goes straight to Students has an empty one — so that fix reads
+`undefined`, writes `''`, and reproduces the bug exactly, with no error anywhere.
+I wrote it that way first.
+
+✅ `_schoolIdForClass()` is now the **one answerer**: cache, then the class
+document itself. `class-assign-test.mjs` **Part C asserts the fallback exists**,
+and Part B asserts no writer reaches into `_classCache` on its own — three inline
+lookups is three chances to drift, and this file has already proved it drifts.
+
+⚠️ **THE CSV LOOKUP IS PER ROW, NOT HOISTED.** I hoisted it first. A rollover CSV
+can name a DIFFERENT class on every line, so one lookup for the file stamps the
+first row's building onto every student in it. The helper caches, so per-row costs
+one read per distinct class.
+
+### C. THE HARNESS
+
+`tests/class-assign-test.mjs` — 10 checks, **6 failing against the shipped build**,
+verified against a clean extract of Jake's zip. Part D extracts the cache guard
+**from source** and runs it, so the assertion is about the shipped line rather
+than a copy of it.
+
+### D. STILL OPEN
+
+* ⚠️ **`runScorePill()` and `armRunMode()` (Round 32) STILL HAVE NO COVERAGE**, and
+  `learn.js`'s header still cites `tests/run-mastery-test.mjs`, **which does not
+  exist.** Write it or strike the line. §0.-24.D.
+* **ROADMAP item 15** — the reconstruction button — unbuilt.
+* ⚠️ **ROADMAP §10.H, the measurement — still not built. Sixth round.**
+* **`lesson-gate.js` v1.1.0 is arguably MAJOR and Jake has not ruled on it.**
 
 ---
 
@@ -3656,7 +3741,7 @@ browsable user directory, by design. `users/{uid}` deliberately holds no PII, wh
 
 ## §2. Where the code is
 
-Shipped state after **Round 32, 2026-08-23**. **Verified by running
+Shipped state after **Round 33, 2026-08-23**. **Verified by running
 `npm run audit:versions`, not copied from the previous table.** (Round 28 ran it;
 0 problems.)
 
@@ -3705,7 +3790,7 @@ reads.
 | file | version |
 |---|---|
 | `game.js` | **3.45.0** — Round 30: the build panel's own staleness flag is gone. Round 29's active-day counter stands. §0.-22.C, §0.-21.B |
-| `learn.js` | **2.34.0** — ⭐⭐ Round 32: ROADMAP 14. Points per RUN, banked in `recordRunOutcome()`; `practiceRun` armed per run; `lastLockDay` replaces `lastAdvanceDay`. ⚠️ `runScorePill()`/`armRunMode()` have NO coverage. §0.-24. Round 31:  ⚠️⚠️ Round 31: `exitLessonToMap()` — leaving a lesson flushes the RUN, not just the time, and the FLUSH COMES BEFORE THE RELOAD THAT EMPTIES `userProgress`. §0.-23. Round 29's gate and Round 30's panel fix stand |
+| `learn.js` | **2.34.1** — ✅ Round 33: the goals-cache hit-guard treats an UNASSIGNED entry as a miss (ROADMAP 11, Bug B). §0.-25. Round 32:  ⭐⭐ Round 32: ROADMAP 14. Points per RUN, banked in `recordRunOutcome()`; `practiceRun` armed per run; `lastLockDay` replaces `lastAdvanceDay`. ⚠️ `runScorePill()`/`armRunMode()` have NO coverage. §0.-24. Round 31:  ⚠️⚠️ Round 31: `exitLessonToMap()` — leaving a lesson flushes the RUN, not just the time, and the FLUSH COMES BEFORE THE RELOAD THAT EMPTIES `userProgress`. §0.-23. Round 29's gate and Round 30's panel fix stand |
 | `session-log.js` | **1.6.0** — PER-OWNER queue + `GUEST_QUEUE_UID`. ⚠️ UPLOAD THIS FIRST — both pages import from it. Its TWO pins are checked by version-stamp-test.mjs C |
 | `hud.js` | **2.0.0** — ⚠️⚠️ MAJOR, JAKE SIGNED IT OFF. The v1.3.0 return-shape break recorded as the major it was. §0.-15. ⚠️ UPLOAD BEFORE THE TWO WRITERS |
 | `variety-floor.js` | 1.0.0 |
@@ -3716,7 +3801,7 @@ reads.
 | `keyboard.js` | 1.1.1 |
 | `adventure-renderer.js` | 1.5.4 |
 | `admin.js` | **3.31.2** — Round 28: `ADMIN_EMAILS` imported, no behaviour. §0.-20.H |
-| `lessons-admin.js` | **1.13.2** — Round 28: header entries archived, no code. Still dates typing_logs by DOCUMENT ID (Round 25). §0.-11 |
+| `lessons-admin.js` | **1.14.0** — ✅ Round 33: every class-assignment writer carries `schoolId`, through `_schoolIdForClass()` — the one answerer, with a cold-cache fallback. §0.-25. Round 28:  Round 28: header entries archived, no code. Still dates typing_logs by DOCUMENT ID (Round 25). §0.-11 |
 | `staff-admin.js` | 2.2.0 |
 | `reports.html` | **2.25.1** — Round 28: `BOOTSTRAP_EMAILS` aliases the shared export. Round 23's reconcile/rebuild deletion stands, §0.-9.D. ⚠️ NOT in the audit's SOURCES — its version is unchecked |
 | `update-gate.js` | 1.0.1 — ⚠️ NEW in Round 19. Loaded by its own script tag in both shells, NOT imported. See §0.10 |
@@ -4672,6 +4757,7 @@ a pointer to a file you should go and read.**
 | 20 | Corona | Folded its own predecessor's conclusion: §0.0's evidence was sound, its arrow was wrong. The interval UNION vs the deduped SUM. Found the THIRD divergence — a `WHERE` clause, so a log stamped `classId:''` was visible to the child and invisible to every class query. Reproduced §3.1 at last. |
 | 21 | Hammond II | Test tooling only, nothing student-facing. The registration audit (an unregistered harness now FAILS the suite). `tab-lifetime-test.mjs`. ⚠️ RAN THE RULES EMULATOR that four rounds recorded as impossible, and found the per-source DOCUMENT design DENIED by the deployed rules. Recorded Jake's four standing rulings in §0.-7.A so they stop being relitigated. |
 | 23 | Empire | ⚠️ THE GUEST MINUTE: a child who typed before signing in kept their time in School and lost it in Library, because `game.js` had no guest merge on the auth path while `learn.js` did — and `game.js`'s two INLINE copies meant which of three sign-in buttons they pressed decided the outcome. One function now, before `loadUserStats()`, with the sprints adopted so the minutes reach the record. `learn.js` stopped filing guest runs under the throwaway anonymous uid, and its logout reloads instead of leaving the last student's totals on screen. The reconcile and rebuild-all DELETED on Jake's confirmed boundary (~830 lines), with the real production session documents lifted into `real-sessions-fixture.mjs` first. `session-log.js` made per-owner. ⚠️ Also spent most of its length on a cross-account queue theory that Jake killed with a fact already written in `stats-wal.js`'s header — see §0.-9.E, which is the part worth reading. HANDOFF.md split at 237 KB; Rounds 15–20 to `docs/archive/`. |
+| 33 | Crandall | ✅ **ROADMAP 11 FIXED** — Jake's son in his class but not his school, raised three rounds. ⚠️ TWO INDEPENDENT BUGS, ONE SYMPTOM: the writer omitted `schoolId` on two of three paths; the reader cached "no class" for 24h because `classId: ''` is falsy. Fix either alone and nothing visible changes. ⚠️⚠️ §0.-25.B — the obvious repair reads `_classCache`, which is COLD until the Classes panel opens, so it would have written `''` and looked right. `_schoolIdForClass()` is the one answerer and falls back to the class document; the CSV lookup is per row. lessons-admin.js v1.14.0, learn.js v2.34.1, 49 harnesses. |
 | 32 | Lambert | ⭐⭐ ROADMAP 14 BUILT — mastery is cumulative points per RUN (A🔥 = 2, A = 1, locked at 4), locked by run, unlocked by lesson, clock from the last lock. Downward closure computed not stored. ⚠️⚠️ The round's real lesson is §0.-24.A: **a handoff every round, in Jake's words** — many turns produced design talk and no document, plus a zip shipped with a red suite and advice to "test it on Nico" when GitHub means deploy IS the standard. ⚠️ §0.-24.B: `>=` → `>` closed the exploit and moved his worked example by a lesson; the harness caught it, the fix is a `reachBack === 0` guard. ⚠️ NOT VERIFIED: the banner and score paths have no coverage and the header cites a harness that does not exist. learn.js v2.34.0, lesson-gate.js v1.1.0, 48 harnesses. |
 | 31 | Fitch | ⚠️⚠️ ROADMAP 14b — **THE WRITE SUCCEEDED AND STORED THE WRONG THING.** Leaving a lesson for the map banked the time and dropped the run, and the item's own diagnosis was wrong: `flushLessonProgress()` was being called all along (inside `flushStats()`, on the interval and on every hide). What lost the run was `stopLesson()`'s `loadUserProgress()`, whose first statement empties `userProgress` — so the flush wrote back the record it had just re-read, successfully, every time, with no error path anywhere. ⚠️ A flush appended to the END of `stopLesson()` would have read as a correct fix and changed nothing: **the order is the fix.** `exitLessonToMap()` snapshots, flushes, refreshes the progress cache, reloads, and carries unflushed runs across. `exit-flush-test.mjs` (31 checks, 18 failing against v2.33.0) reproduces the loss through the old exit in Part A before proving anything else. ⚠️ Also: the runner marks a harness bad on a TEXT match for FAIL/ERROR/UNSAFE in its output, so a clean harness can be reported red by a section header — rule recorded in the runner rather than the detector loosened. ✅ Jake amended the "no bulk repair" ruling to MINUTES. learn.js v2.33.1, 48 harnesses. |
 | 27 | Chicago | ⚠️ **THE SUITE WAS RED ON DELIVERY AND FIVE FILES WERE LYING ABOUT THEIR OWN VERSION** — `game.js` 3.38.0/3.42.0, `learn.js` 2.23.1/2.27.0, `hud.js` 1.2.0/1.4.0 across a breaking change, plus both stylesheets' CSS stamps. The code was new; only the stamps were stale. ⚠️ Aimed squarely at Monday: ROADMAP told Jake to check the footer for the very numbers a correct deploy would fail to show. ⚠️ The hud.js pin could not fire — a pin inherits the honesty of the hand-maintained number it checks. `tests/version-stamp-test.mjs` moves the existing `audit:versions` check inside `npm test`, failing on lying stamps and NOTING header budgets. `hud-test.mjs` rewritten for `{ lead, sprint }`. No behaviour changed. Item 0b deliberately not started. |

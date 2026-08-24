@@ -797,7 +797,27 @@ else. A review of the file list would have passed it; the list was right.
 
 ---
 
-## 11. ⭐⭐ NEW — A CLASS WITHOUT A SCHOOL, AND THE STUDENT WHO IS IN NEITHER
+## 11. ✅ FIXED (Round 33, Crandall) — A STUDENT IN A CLASS BUT NOT A SCHOOL
+
+**`lessons-admin.js` v1.14.0, `learn.js` v2.34.1, `tests/class-assign-test.mjs`.**
+
+⚠️ **TWO INDEPENDENT BUGS PRODUCING ONE COMPLAINT, WHICH IS WHY THIS WAS
+CORRECTLY DIAGNOSED TWICE AND FIXED NEITHER TIME.** Bug A: two of three
+assignment writers sent `classId` alone, so `schoolId` was ABSENT and the student
+sat outside their own building. Bug B: the goals cache treated an entry with
+`classId: ''` as a HIT — falsy — so Settings said "No class assigned" for 24 hours
+after a correct assignment. **Fix either alone and the symptom survives.**
+
+⚠️⚠️ **THE OBVIOUS REPAIR WOULD HAVE WRITTEN `''` AND LOOKED CORRECT** —
+`_classCache` is cold until the Classes panel is opened. `_schoolIdForClass()` is
+now the one answerer and falls back to the class document. The CSV lookup is
+**per row**: a rollover file can name a different class on every line.
+
+---
+
+### The original item, kept for the diagnosis
+
+## 11a. ⭐⭐ NEW — A CLASS WITHOUT A SCHOOL, AND THE STUDENT WHO IS IN NEITHER
 
 **Jake, 2026-08-23, testing with his son's account.** Assigned Nico to the "7th &
 8th Grade" class from admin. Admin confirmed the class. **`learn.html` → Settings

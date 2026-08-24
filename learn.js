@@ -1,4 +1,12 @@
-// learn.js v2.34.0
+// learn.js v2.34.1
+//
+// v2.34.1 — ⚠️⚠️ ROADMAP 11, BUG B — SETTINGS SAID "NO CLASS ASSIGNED" FOR 24
+//           HOURS AFTER A CORRECT ASSIGNMENT. The goals cache's hit-guard only
+//           rejected an entry naming a class with no className; an entry taken
+//           BEFORE assignment has classId '' — falsy — and passed as a hit. A
+//           direct admin write cannot clear a cache on the student's Chromebook,
+//           so the unassigned state must not be cacheable at all. Paired with
+//           lessons-admin.js v1.14.0, which fixes the writer half.
 //
 // v2.34.0 — ⚠️⚠️ ROADMAP 14 — MASTERY IS CUMULATIVE POINTS PER **RUN**.
 //           A🔥 = 2, A = 1, B and below = 0, LOCKED AT 4. recordRunOutcome()
@@ -66,21 +74,6 @@
 // v2.29.1 — DEAD CODE. updateWeeklyHUD() deleted: its comment claimed "several
 //           call sites" and there were zero. Found by the new
 //           tests/dead-handler-test.mjs. No behaviour change. §0.-18.
-//
-// v2.29.0 — ⚠️⚠️ THE ⚙ IS AVAILABLE DURING A DRILL AND THE CLOCK PAUSES, on
-//           Jake's ruling the same day: *"I meant not to break the ability to
-//           track the time accurately. It acting the same way it does in library
-//           mode — namely, counting time typed and pausing when necessary — is
-//           just fine."* v2.28.0 hid the gear during a drill on the stricter
-//           reading of item 7b/8's condition; this replaces that with a pause.
-//           ⚠️ THE RISK IS THE RESUME. A pause that never resumes means a child
-//           types on while NOTHING COUNTS. It rides on settings-panel.js's
-//           `onClose`, in a `finally`, from the one close() all three dismiss
-//           paths share, guarded on `drillRunning`. drill-filter F7c1–c5.
-//           ⚠️ IT IS A TENTH CALLER OF AN EXISTING PATH, NOT A NEW MECHANISM —
-//           `learnTickInterval` is an alias for `timerInterval` and nine sites
-//           already stop the clock this way. No second timer, no second gate.
-//           ✅ The student ID joins the panel, on Jake's ask.
 //
 //
 //
@@ -191,7 +184,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.34.0";
+const LEARN_VERSION = "2.34.1";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -4504,7 +4497,21 @@ async function loadGoals() {
         // write back has everything both pages need.
         const c0 = cacheRead(LEARN_GOALS_KEY, LEARN_GOALS_MS,
                              currentUser ? currentUser.uid : '');
-        const c = (c0 && c0.classId && !c0.className) ? null : c0;
+        // ⚠️⚠️ v2.34.1 — ROADMAP 11, BUG B. AN ENTRY WITH NO CLASS IS ALSO A MISS.
+        // The guard below only rejected an entry that NAMES a class but carries
+        // no className. An entry recorded before the student was assigned has
+        // `classId: ''` — falsy — so it sailed through as a HIT, and Settings
+        // kept answering "No class assigned" for up to 24 HOURS after a correct
+        // assignment landed in Firestore. Jake hit this on his own son and spent
+        // an evening on it, with the admin panel and the database both right.
+        //
+        // ⚠️ A DIRECT ADMIN WRITE CANNOT REACH A CACHE ON THE STUDENT'S
+        // CHROMEBOOK. applyPendingClassAssignment() clears this key deliberately,
+        // but only the IMPORT path runs it — there is no mechanism by which the
+        // Students panel could. So the unassigned state must not be cacheable at
+        // all: it is the one value that changes from OUTSIDE the browser holding
+        // it, and it costs two reads for a student who genuinely has no class.
+        const c = (c0 && (!c0.classId || !c0.className)) ? null : c0;
         if (c) {
             goals.dailySeconds  = c.dailySeconds  || 0;
             goals.weeklySeconds = c.weeklySeconds || 0;

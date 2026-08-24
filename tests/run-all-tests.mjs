@@ -1,5 +1,5 @@
-// run-all-tests.mjs v1.13.0 — Round 31 (Fitch): exit-flush-test.mjs registered.
-// 48 harnesses.
+// run-all-tests.mjs v1.14.0 — Round 33 (Crandall): class-assign-test.mjs
+// registered. 49 harnesses.
 //
 // ⚠️ v1.13.0 — A CONSTRAINT ON HARNESS OUTPUT, WRITTEN DOWN BECAUSE IT COST A
 //          ROUND TEN MINUTES. `run()` marks a harness bad on `r.status !== 0 ||
@@ -224,6 +224,13 @@ const FAST = [
     // flush wrote back the record it had just re-read, successfully. Part A
     // drives the OLD exit and must keep losing runs; it is the only thing that
     // proves the other five parts are measuring something.
+    // ⚠️ Round 33 (Crandall), ROADMAP 11. Jake's own son was in his class and not
+    // his school for three rounds. TWO bugs in TWO files and fixing either alone
+    // fixes nothing visible — the writer omitted schoolId, and the reader cached
+    // "no class" for 24 hours. Part C is the one that matters most: a fix reading
+    // _classCache directly would have looked right and written '' exactly as the
+    // bug did, because that cache is cold until the Classes panel is opened.
+    ['class-assign-test.mjs',    '⚠️ A STUDENT IN A CLASS BUT NOT A SCHOOL: every assignment writer carries the building, one answerer looks it up, it survives a cold cache, and an unassigned student is never a cacheable answer'],
     ['exit-flush-test.mjs',      '\u26a0\ufe0f \u2190 MAP BANKS THE TIME AND THROWS AWAY THE RUN: the flush must beat the reload that empties userProgress, the cache must be refreshed between them, and an unflushed run must survive a failed write'],
     // ⚠️ Round 25 (Hall). A student reported "ass" in a School lesson. Part A
     // reproduces learn.js's generateRandom() over 200,000 groups and MEASURES
