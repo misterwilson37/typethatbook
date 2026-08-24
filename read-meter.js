@@ -1,4 +1,16 @@
-// read-meter.js v1.0.0 — FIRESTORE READ/WRITE INSTRUMENTATION.
+// read-meter.js v1.0.1 — FIRESTORE READ/WRITE INSTRUMENTATION.
+//
+// v1.0.1 — ⚠️ THE `calls` COLUMN WAS INFLATED AND IT LOOKED LIKE A FINDING.
+//          bump() incremented `calls` on every field pass, and record() calls it
+//          once for reads and again for misses — so a getDoc that MISSED counted
+//          as two calls. Jake's first run showed `typing_logs/* — 7 reads, 6
+//          misses, 13 calls`, and 13 is 7+6, not a real call count. readWeek()
+//          makes exactly SEVEN getDoc calls. Nothing else was wrong: reads,
+//          misses and writes were all correct.
+//          ⚠️ THE LESSON IS ABOUT INSTRUMENTS, NOT ARITHMETIC. A diagnostic that
+//          over-reports is worse than none, because the next three rounds get
+//          spent explaining a number that was never there. Count the event once,
+//          at the event.
 //
 // ⚠️ THIS IS A DIAGNOSTIC, NOT A FEATURE. It exists to answer one question that
 // neither Firebase console can answer: HOW MANY DOCUMENTS DOES ONE STUDENT'S
@@ -80,7 +92,7 @@ import {
     deleteDoc as _deleteDoc,
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-export const READ_METER_VERSION = "1.0.0";
+export const READ_METER_VERSION = "1.0.1";
 
 // ─── State ────────────────────────────────────────────────────────────────────
 //
@@ -96,10 +108,15 @@ const DAY_KEY = 'ttb_readmeter_' + new Date().getFullYear() + '-' +
 const session = { reads: 0, misses: 0, writes: 0, calls: 0, byPath: {}, bySite: {} };
 const t0 = Date.now();
 
-function bump(bucket, key, field, n) {
+// ⚠️ ONE CALL IS ONE CALL. v1.0.0 incremented `calls` once per FIELD written,
+// so a miss (which writes both `reads` and `misses`) scored two. Every counter
+// for one SDK invocation is applied here, together, exactly once.
+function bump(bucket, key, reads, misses, writes) {
     if (!bucket[key]) bucket[key] = { reads: 0, misses: 0, writes: 0, calls: 0 };
-    bucket[key][field] += n;
-    bucket[key].calls += (field === 'calls' ? 0 : 1);
+    bucket[key].reads  += reads;
+    bucket[key].misses += misses;
+    bucket[key].writes += writes;
+    bucket[key].calls  += 1;
 }
 
 // ⚠️ DOCUMENT IDS ARE COLLAPSED TO `*`. `users/aB3x.../lessonProgress` and
@@ -159,10 +176,8 @@ function record({ path, site, reads = 0, misses = 0, writes = 0 }) {
         session.misses += misses;
         session.writes += writes;
         session.calls += 1;
-        const p = normalize(path), s = site;
-        if (reads)  { bump(session.byPath, p, 'reads', reads);   bump(session.bySite, s, 'reads', reads); }
-        if (misses) { bump(session.byPath, p, 'misses', misses); bump(session.bySite, s, 'misses', misses); }
-        if (writes) { bump(session.byPath, p, 'writes', writes); bump(session.bySite, s, 'writes', writes); }
+        bump(session.byPath, normalize(path), reads, misses, writes);
+        bump(session.bySite, site, reads, misses, writes);
         persistDay(reads, misses, writes);
     } catch (_) { /* a broken counter must never break a page */ }
 }
