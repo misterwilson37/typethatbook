@@ -82,7 +82,7 @@
 export const UPDATE_GATE_VERSION = "1.0.1";
 
 import { db, auth } from "./firebase-config.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { doc, getDoc } from "./read-meter.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const NONCE_KEY               = "ttb_update_nonce";

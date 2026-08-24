@@ -537,7 +537,7 @@
         // getCountFromServer is billed at ONE read per up to 1000 matched index
         // entries, which is what makes validating the cached book list cost a
         // single read instead of re-fetching the whole collection.
-        import { collection, getDocs, getCountFromServer, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { collection, getDocs, getCountFromServer, doc, getDoc } from "./read-meter.js";
         import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
         let currentUser = null;

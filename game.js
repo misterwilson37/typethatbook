@@ -159,7 +159,7 @@ import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
 // this file, and ⚠️ it must not be: a serverTimestamp() sentinel inside a
 // setDoc(merge:true) on typing_logs would be a second
 // dating scheme on the documents Round 12 spent a day reconciling.
-import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer, serverTimestamp } from "./read-meter.js";
 import {
     onAuthStateChanged,
     GoogleAuthProvider,

@@ -172,7 +172,7 @@ import {
     // typing_logs merge writes would be a second dating scheme on the
     // two documents Round 12 spent a day getting to agree.
     serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "./read-meter.js";
 import {
     onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
