@@ -1,5 +1,88 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.25.0, 2026-08-24.** ✅ **THE READ BUDGET WAS MEASURED PROPERLY AT LAST** and
+two of the three findings are fixed (Round 36). ⚠️ **THE THREE CONSOLES DISAGREE
+AND ONLY ONE OF THEM IS WATCHING THE APP** — read §READS below before opening any
+of them again, or you will spend an afternoon profiling your own clicks.
+⭐ **ITEM 18 (readWeek pruning) IS THE NEXT BUILD** and is deliberately held one
+round: the ledger it depends on has never run in production. 51 harnesses.
+
+---
+
+## §READS — WHAT THE CONSOLES ACTUALLY MEASURE (2026-08-24)
+
+⚠️ **Firestore Query Insights CANNOT SEE THIS APP.** Every top query it reports
+reads `COLLECTION /x SELECT _none_ PageSize 300` — no WHERE clause, uniform page
+size, one row listing collection *names*. No TTB query has that shape. It is
+profiling the **Firebase console data browser**, i.e. whoever is clicking around
+in it. It showed ~7,500 reads for a week in which Cloud Monitoring counted
+~138,600. The cause is `experimentalForceLongPolling: true` in
+firebase-config.js — the Web SDK's traffic goes over the Listen WebChannel, which
+Query Insights does not instrument. **Do not tune anything based on it.**
+
+⚠️ **The Firebase "Billable Metrics" percentage is a MONTHLY total against a
+DAILY quota** and understates the peak badly. 11% for the month was 46K on
+Aug 21 against a 50,000/day free allowance — 92% of one day's ceiling.
+⚠️ It also **includes Firebase console usage**, so after-hours development shows
+up as app traffic. One evening session measured 13,200 reads; a Saturday with
+nobody at all measured 1,043.
+
+✅ **Cloud Monitoring `document/read_ops_count`, grouped by `type`, is the honest
+one.** ⚠️ Set the alignment function to **Sum** or the axis reads `/s` and the
+peak shows as `0.07`. ⚠️ `NOT_FOUND` is near-zero and is **not** where missing-
+document reads land — they bill as `LOOKUP`.
+
+✅ **`read-meter.js` is the only instrument that answers "which line".** It is a
+transparent shim: pages import the Firestore SDK *through* it. Leave it in.
+`ttbMeter.report()`, `ttbMeter.day()`, `copy(ttbMeter.json())`.
+
+**Measured, one student, one day: 361 reads · 88 misses · 9 writes · 14 loads.
+24% of every read found nothing.**
+
+---
+
+## ⭐ ITEM 18 — PRUNE `readWeek()` WITH THE LEDGER  *(next build)*
+
+`daylog.js:312` is the single most expensive line in the student path: **7 point
+reads per call, 5–6 of them returning nothing**, and `game.html` calls it twice
+on a load (the second is `retroactiveSaveGuestSession()` at game.js:1802, which
+fires whenever there is unflushed guest time). Measured: 14 reads, 11 misses, one
+page load.
+
+`logdays.js` already ships the ledger and `planReads()` already computes the
+answer. The change is to thread a ledger into `readWeek()` and fetch only
+`plan.fetch`.
+
+⚠️ **THIS WAS HELD BACK ON PURPOSE AND THE REASON MATTERS.** The ledger has never
+run in production. Trusting it to *skip* a read before we have watched it *fill*
+would put the one unrecoverable failure — a child's week total reading short —
+behind an untested field. The writer shipped first so it can be watched. Ship the
+reader once `ttbLogDays` is visibly correct on real student documents.
+
+⚠️ **WHEN IT IS BUILT:** today must be in `always` (daylog.js keeps today's RAW
+document for the per-source seed, not just its folded total), a skipped day must
+produce `{seconds:0,chars:0,mistakes:0}` and **must not** set `ok:false` — a day
+the ledger knows is empty is not a day that failed to read — and the ledger
+should come from the `users/{uid}` document game.js already fetches, not a second
+read.
+
+## ITEM 19 — CONTINUE READING  *(Jake, Round 36)*
+
+A **Continue Reading** row at the top of the library page: the most recent three
+books the student has actually read, so nobody scrolls to find their place.
+
+✅ **This is nearly free.** `index.html` already reads `users/{uid}/progress` and
+caches it for 8 hours (`IDXPROG_CACHE_KEY`) — the last-read timestamp needed to
+rank three books is in the documents it already has. No new query, no new
+collection, no schema change.
+
+⚠️ Rank on a **last-touched** field, not on percent complete: an abandoned book at
+80% is not what the student wants resumed, and a book opened this morning at 4% is.
+⚠️ A book that has since been removed from the library must fall out of the row
+silently rather than render a dead card.
+
+---
+
 **v3.24.0, 2026-08-23.** ✅ **ITEM 11 FIXED** (Round 33) and ✅ **ITEM 14 COMPLETE**
 (Round 34): a lesson opens at the first run that still counts, and
 `run-mastery-test.mjs` — cited in learn.js's header since Round 32 without

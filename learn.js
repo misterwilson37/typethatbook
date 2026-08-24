@@ -158,6 +158,7 @@ import { safeGroup, DRILL_FILTER_VERSION } from "./drill-filter.js";
 // The version footer's three primary reads (this html file, this js file's own
 // LEARN_VERSION, style.css) plus the lazy full-build panel on hover. ⚠️ SAME
 // STRUCTURE AS game.js, ON PURPOSE — see updateVersionFooter() below.
+import { noteDay } from "./logdays.js";
 import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
          countBuildNotes, renderHiddenNotesLine,
          readAppliedCssVersion } from "./versions.js";
@@ -167,6 +168,9 @@ import {
     // to 1000 matched index entries, which is what makes the lessons cache
     // validation cost 1 read instead of ~80. Available since SDK v9.11.
     getCountFromServer,
+    // v3.46.0 — for logdays.js's ledger write. See the noteDay() call in the
+    // flush path below and the ordering rule in logdays.js's header.
+    updateDoc, arrayUnion,
     // v2.7.1 — for session-log.js's `serverAt` and nothing else. ⚠️ Do not reach
     // for it in flushStats(): a sentinel inside the typing_logs or
     // typing_logs merge writes would be a second dating scheme on the
@@ -4921,6 +4925,12 @@ async function _flushStatsInner(reason, final = false) {
                mistakes: statsData.mistakesSchool },
     });
     {
+      // ⚠️ LEDGER FIRST — see logdays.js. Same rule as game.js's flush: the
+      // ledger may be a superset of the logs and must never be a subset.
+      try { await noteDay({ db, doc, updateDoc, setDoc, arrayUnion,
+                            uid: currentUser.uid, date: today }); }
+      catch (_) { /* noteDay swallows its own failures */ }
+
       try {
         await setDoc(doc(db, 'typing_logs', currentUser.uid + '_' + today), {
             uid: currentUser.uid, email: currentUser.email || '',

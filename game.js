@@ -159,7 +159,8 @@ import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
 // this file, and ⚠️ it must not be: a serverTimestamp() sentinel inside a
 // setDoc(merge:true) on typing_logs would be a second
 // dating scheme on the documents Round 12 spent a day reconciling.
-import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer, serverTimestamp } from "./read-meter.js";
+import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer, serverTimestamp, arrayUnion } from "./read-meter.js";
+import { noteDay } from "./logdays.js";
 import {
     onAuthStateChanged,
     GoogleAuthProvider,
@@ -4315,6 +4316,15 @@ async function _flushAllInner(reason, final = false) {
                    chars:    statsData.charsLibrary,
                    mistakes: statsData.mistakesLibrary },
         });
+        // ⚠️ THE LEDGER IS WRITTEN FIRST, AND THE ORDER IS THE SAFETY ARGUMENT.
+        // See logdays.js: a ledger entry with no log behind it costs one wasted
+        // read — which is precisely what every day costs today. A log with no
+        // ledger entry costs a child minutes they earned. Never move this below
+        // the setDoc, and never make the setDoc conditional on it.
+        try { await noteDay({ db, doc, updateDoc, setDoc, arrayUnion,
+                              uid: currentUser.uid, date: today }); }
+        catch (_) { /* noteDay swallows its own failures; this is belt and braces */ }
+
         try {
             await setDoc(doc(db, "typing_logs", `${currentUser.uid}_${today}`), {
                 uid: currentUser.uid,
@@ -5956,28 +5966,66 @@ function setModalTitle(text) {
 // Shares no state with index.html's cache on purpose: different shape, different
 // TTL, and a stale read here is a dropdown, not a library.
 const BOOKLIST_CACHE_KEY = 'ttb_bookListCache_v1';
-const BOOKLIST_CACHE_MS  = 3600 * 1000;   // 1 hour
+// ⚠️ NOW A CEILING ON HOW LONG A COUNT-VALIDATED CACHE MAY LIVE, not a gate on
+// whether the cache is consulted at all. Raised to a school day: past TRUST_MS
+// every serve costs exactly 1 read to confirm the count, so a longer life is
+// nearly free and a shorter one just re-pays 55.
+const BOOKLIST_CACHE_MS  = 8 * 3600 * 1000;   // 8 hours
+// Inside this window the cache is served with NO reads at all. Long enough to
+// cover a class period's navigations, short enough that a book added at lunch
+// shows up in the afternoon.
+const BOOKLIST_TRUST_MS  = 30 * 60 * 1000;    // 30 minutes
 let bookListMem = null;                   // per-tab, avoids re-touching localStorage
 
 async function loadBookList() {
     if (bookListMem) return bookListMem;
 
+    // ⚠️ v3.46.0 — THE COUNT GUARD USED TO RUN ONLY ON A CACHE THAT WAS STILL
+    // FRESH, WHICH IS THE ONE CASE THAT DOES NOT NEED IT. Past the TTL the
+    // cached copy was discarded UNREAD and the full collection refetched.
+    // Measured 2026-08-24 on a real student session: index.html spent 1 read
+    // validating a fresh cache while this function spent 55 refetching a stale
+    // one, in the same minute, over the same 55 books.
+    //
+    // A getCountFromServer() is ONE read and it answers the only question that
+    // matters — has the library changed? So the TTL is no longer a gate on the
+    // cache, it is a gate on the CHECK:
+    //
+    //     age < TRUST_MS   →  serve from cache, 0 reads
+    //     cache exists     →  1 read to confirm the count, then serve, 1 read
+    //     no cache at all  →  full fetch, 55 reads
+    //
+    // ⚠️ THE COUNT IS NOT A CHECKSUM, and that is deliberate. Editing a title
+    // in place leaves the count unchanged and this will serve the old one for up
+    // to BOOKLIST_CACHE_MS. That was already true of the previous code and it is
+    // the right trade: a stale title for an hour costs nothing, and the
+    // alternative is 55 reads per student per page load to catch a typo fix.
+    // window.ttbClearBookList() is the escape hatch after a bulk edit.
     let cached = null;
     try {
         const raw = localStorage.getItem(BOOKLIST_CACHE_KEY);
         if (raw) {
             const c = JSON.parse(raw);
-            if (Array.isArray(c.books) && c.books.length &&
-                (Date.now() - c.at) < BOOKLIST_CACHE_MS) cached = c;
+            if (Array.isArray(c.books) && c.books.length) cached = c;
         }
     } catch (_) { /* cache is an optimisation, never a dependency */ }
 
     if (cached) {
+        // Very recently validated — skip even the count.
+        if ((Date.now() - cached.at) < BOOKLIST_TRUST_MS) {
+            bookListMem = cached.books;
+            return bookListMem;
+        }
         let liveCount = null;
         try {
             liveCount = (await getCountFromServer(collection(db, "books"))).data().count;
-        } catch (_) { /* aggregation unavailable — trust the TTL */ }
-        if (liveCount === null || liveCount === cached.books.length) {
+        } catch (_) { /* aggregation unavailable — fall through to the full fetch */ }
+        if (liveCount !== null && liveCount === cached.books.length &&
+            (Date.now() - cached.at) < BOOKLIST_CACHE_MS) {
+            // ⚠️ RESTAMP. Without this the count is re-paid on every single
+            // navigation once the entry passes TRUST_MS.
+            cached.at = Date.now();
+            try { localStorage.setItem(BOOKLIST_CACHE_KEY, JSON.stringify(cached)); } catch (_) {}
             bookListMem = cached.books;
             return bookListMem;
         }

@@ -658,7 +658,9 @@
         // was live and the data feeding it was stale. Any future change to what is
         // cached needs this number bumped, or the change silently does nothing.
         const BOOKS_CACHE_KEY   = 'ttb_booksCache_v2';
-        const BOOKS_CACHE_MS    = 6 * 3600 * 1000;
+        const BOOKS_CACHE_MS    = 8 * 3600 * 1000;   // ceiling on a validated cache
+        // Served with NO reads inside this window. See _loadBooksOnce().
+        const BOOKS_TRUST_MS    = 30 * 60 * 1000;    // 30 minutes
         const IDXPROG_CACHE_KEY = 'ttb_idxProgCache_v1';
         const IDXPROG_CACHE_MS  = 8 * 3600 * 1000;
 
@@ -669,6 +671,26 @@
                 const c = JSON.parse(raw);
                 if (uid !== undefined && c.uid !== uid) return null;
                 if ((Date.now() - c.at) > maxAgeMs) return null;
+                return c;
+            } catch (_) { return null; }
+        }
+
+        // ⚠️ v1.3.0 — AGE-BLIND READ, FOR CALLERS THAT CAN CHEAPLY VALIDATE.
+        // idxCacheRead() returns null past the TTL, which means a caller holding
+        // a 1-read getCountFromServer() guard never gets to USE it on the one
+        // cache that needs checking. Measured 2026-08-24: a fresh cache cost 1
+        // read to confirm while a stale one cost 55 to refetch, same session,
+        // same 55 books. This returns the entry whatever its age; the caller
+        // decides whether it is still trustworthy.
+        //
+        // ⚠️ ONLY FOR CACHES WITH A SERVER-SIDE VALIDITY CHECK. A cache with no
+        // way to test staleness must keep using idxCacheRead() and its TTL.
+        function idxCacheReadAnyAge(key, uid) {
+            try {
+                const raw = localStorage.getItem(key);
+                if (!raw) return null;
+                const c = JSON.parse(raw);
+                if (uid !== undefined && c.uid !== uid) return null;
                 return c;
             } catch (_) { return null; }
         }
@@ -716,14 +738,33 @@
 
         async function _loadBooksOnce() {
             try {
-                const cached = idxCacheRead(BOOKS_CACHE_KEY, BOOKS_CACHE_MS);
-                if (cached && Array.isArray(cached.books) && cached.books.length) {
+                // ⚠️ ANY-AGE READ ON PURPOSE — see idxCacheReadAnyAge(). Inside
+                // BOOKS_TRUST_MS the cache is served with zero reads; past it,
+                // ONE read confirms the count instead of 55 refetching it.
+                const cached = idxCacheReadAnyAge(BOOKS_CACHE_KEY);
+                if (cached && Array.isArray(cached.books) && cached.books.length &&
+                    (Date.now() - cached.at) < BOOKS_TRUST_MS) {
+                    allBooks = cached.books;
+                    _booksOk = true;
+                    buildGenreFilters();
+                    buildTagFilters();
+                    renderBooks();
+                    openAboutFromHash();
+                    return;
+                }
+                if (cached && Array.isArray(cached.books) && cached.books.length &&
+                    (Date.now() - cached.at) < BOOKS_CACHE_MS) {
                     let liveCount = null;
                     try {
                         const agg = await getCountFromServer(collection(db, "books"));
                         liveCount = agg.data().count;
-                    } catch (_) { /* aggregation unavailable — trust the TTL */ }
-                    if (liveCount === null || liveCount === cached.books.length) {
+                    } catch (_) { /* aggregation unavailable — fall through to a full fetch */ }
+                    if (liveCount !== null && liveCount === cached.books.length) {
+                        // ⚠️ RESTAMP, or the count is re-paid on every navigation.
+                        try {
+                            cached.at = Date.now();
+                            localStorage.setItem(BOOKS_CACHE_KEY, JSON.stringify(cached));
+                        } catch (_) {}
                         allBooks = cached.books;
                         _booksOk = true;
                         buildGenreFilters();

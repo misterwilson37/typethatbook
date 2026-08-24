@@ -668,6 +668,7 @@
     if (_rfv) _rfv.textContent = `Reports v${REPORTS_VERSION}`;
 
     import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { ledgerFrom, planReads } from "./logdays.js";
     import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
     // v2.5.0 — Multi-school support.
@@ -1100,7 +1101,11 @@
             const snap = await getDocs(q);
             snap.forEach(d => {
                 const u = d.data() || {};
-                out.set(d.id, { classId: u.classId || '', name: u.displayName || '', email: u.email || '' });
+                // ⚠️ THE LEDGER RIDES ALONG FOR FREE. This query already fetches
+                // the whole user document; carrying ttbLogDays out of it costs
+                // nothing and saves the sweep below (roster × days) point reads.
+                out.set(d.id, { classId: u.classId || '', name: u.displayName || '',
+                                email: u.email || '', ledger: ledgerFrom(u, d.id) });
             });
         }
         return out;
@@ -1336,6 +1341,12 @@
             }
 
             const dateList = datesInRange(startDate, endDate);
+            // ⚠️ THE CEILING IS STILL CHECKED ON THE UNPRUNED CROSS PRODUCT.
+            // The ledger can only ever reduce the pair count, so a range that
+            // clears this check cannot be made to exceed it by pruning — and a
+            // range that fails it would fail on a roster with no ledger at all.
+            // Checking the pruned number instead would let a range through today
+            // that stops working the moment a new student appears.
             if (uids.size * dateList.length > MAX_ROSTER_PAIRS) {
                 statusEl.innerText =
                     `Too much data — ${uids.size} students × ${dateList.length} days is over ` +
@@ -1349,8 +1360,40 @@
 
             const userMap = {};
             let unreadable = 0, hiddenFromQuery = 0;
+            // ⚠️ v2.8.0 — THE SWEEP IS PRUNED PER (STUDENT, DAY) BY THE LEDGER.
+            //
+            // Measured 2026-08-24: 1,155 point reads for SIX real records, and
+            // 1,149 of them returned nothing. The misses were never bad data —
+            // they were students who typed in a different week. No property of an
+            // absent document can prune that, so the prune has to come from
+            // somewhere that knows in advance: users/{uid}.ttbLogDays, carried out
+            // of the roster query above at no extra cost.
+            //
+            // ⚠️ THE FALLBACK IS PER-PAIR AND IT DEGRADES TO TODAY'S BEHAVIOUR.
+            // planReads() returns `blind` for a student with no ledger, and reads
+            // every date BEFORE that student's `since` regardless. So:
+            //   * a student who has not typed since the ledger shipped → swept, as now
+            //   * a range that predates the ledger → swept, as now
+            //   * a range after it → only the days that exist
+            // There is no flag day and no window in which a report reads short.
+            //
+            // ⚠️ A SKIPPED PAIR IS NOT AN UNREADABLE ONE. `unreadable` drives the
+            // "this report may be incomplete" banner, and a day the ledger tells
+            // us is empty is a day we KNOW about — counting it as unreadable would
+            // cry wolf on every report forever.
             const pairs = [];
-            uids.forEach((info, uid) => dateList.forEach(date => pairs.push({ uid, date, info })));
+            let ledgerSkipped = 0, ledgerBlind = 0;
+            uids.forEach((info, uid) => {
+                const plan = planReads(info.ledger, dateList, { always: [] });
+                if (plan.blind) ledgerBlind++;
+                ledgerSkipped += plan.skip.length;
+                plan.fetch.forEach(date => pairs.push({ uid, date, info }));
+            });
+
+            statusEl.innerText =
+                `Reading ${pairs.length} student-days by id` +
+                (ledgerSkipped ? ` (skipped ${ledgerSkipped.toLocaleString()} known-empty)` : '') +
+                `…`;
 
             await runPool(pairs, async (p) => {
                 const res = await readLogById(p.uid, p.date);
