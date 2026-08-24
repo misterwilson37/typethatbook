@@ -1,12 +1,17 @@
 # TYPETHATBOOK — ROADMAP
 
-**v3.25.0, 2026-08-24.** ✅ **THE READ BUDGET WAS MEASURED PROPERLY AT LAST** and
-two of the three findings are fixed (Round 36). ⚠️ **THE THREE CONSOLES DISAGREE
+**v3.26.0, 2026-08-24.** ✅ **THE READ BUDGET IS MEASURED AND FIXED** (Rounds
+36–37). A sprint session went **80 reads → 12**, the library page **8 → 3**, a
+report **1,155 → ~6**. ⚠️ **THE THREE CONSOLES DISAGREE
 AND ONLY ONE OF THEM IS WATCHING THE APP** — read §READS below before opening any
 of them again, or you will spend an afternoon profiling your own clicks.
 ✅ **ITEM 18 IS BUILT** (Round 37) once the ledger was verified on a real student
-document. ⭐ **ITEM 20 (the leaderboard) IS THE NEXT BUILD** — 60 reads per sprint
-completion, and it is now the largest single line in the student path. 51 harnesses.
+document. ✅ **ITEM 20's CACHE IS FIXED AND VERIFIED** — a second sprint costs 0 reads.
+✅ **ITEM 19 (Continue Reading) IS BUILT** (Round 38) and costs **zero extra
+reads**. ⚠️⚠️ **THE SUITE'S "8 PRE-EXISTING FAILURES" WERE NEVER REAL** — see
+§0.-29.A. `jsdom` and `acorn` were declared in package.json and simply not
+installed in the container. **ALL 52 HARNESSES PASS.** Run `npm install` before
+believing any failure count.
 
 ---
 
@@ -59,7 +64,7 @@ student document first (`ttbLogDays: ["2026-08-24"]`, `ttbLogDaysSince` set),
 then the reader shipped. Covered by `logdays-test.mjs` §G — the load-bearing
 case is G2: a pruned week total must be **byte-identical** to an unpruned one.
 
-## ⭐ ITEM 20 — THE LEADERBOARD IS THE LAST BIG ONE  *(next build)*
+## ✅ ITEM 20 — THE LEADERBOARD  *(cache FIXED Round 37; the gate is by design)*
 
 ⚠️ **60 READS PER SPRINT COMPLETION, AND `couldPlace()` DOES NOT STOP IT.**
 Round 36 predicted a second sprint would cost zero and it cost 60 again. Two
@@ -67,6 +72,7 @@ causes, both now half-fixed in v3.46.0, neither fully:
 
 1. `leaderboardCache` was **module scope**, so `LB_CACHE_MS` only applied within
    one page load. ✅ Fixed — persisted to `ttb_lbBoard_v1`, week-keyed, 30 min.
+   ✅ **VERIFIED IN PRODUCTION 2026-08-24: a second sprint now costs 0 reads.**
 2. ⚠️ **`saveLbThresholds()` records a cutoff of 0 for any board with fewer than
    ten entries** — correctly, since there IS room and the student really would
    place. So at the start of a year every student passes the gate. This is not a
@@ -91,7 +97,23 @@ the ledger knows is empty is not a day that failed to read — and the ledger
 should come from the `users/{uid}` document game.js already fetches, not a second
 read.
 
-## ITEM 19 — CONTINUE READING  *(Jake, Round 36)*
+## ITEM 21 — THE READ RESIDUE  *(low priority, recorded so it is not rediscovered)*
+
+What is left in the student path after Rounds 36–37, measured 2026-08-24:
+
+* ⚠️ **`readWeek()` runs TWICE on a `game.html` load.** The second is
+  `retroactiveSaveGuestSession()` (game.js), which fires whenever there is
+  unflushed guest time. At **7** reads a call this was worth deduplicating; at
+  **3** it is not worth the risk of touching the guest-merge path. ⚠️ Revisit
+  only if the guest path is being changed for another reason anyway.
+* These numbers **drift down on their own** as `ttbLogDaysSince` recedes: a
+  student whose `since` is two weeks old skips every empty day in the window
+  rather than only the ones after the ledger began.
+* ⚠️ **DO NOT reduce `LB_FETCH_LIMIT` to save reads.** Opt-out filtering happens
+  client-side after the fetch, so trimming the fetch trims the displayed board
+  for classes with several opt-outs. The cache fix already took this to ~0.
+
+## ✅ ITEM 19 — CONTINUE READING  *(BUILT, Round 38)*
 
 A **Continue Reading** row at the top of the library page: the most recent three
 books the student has actually read, so nobody scrolls to find their place.

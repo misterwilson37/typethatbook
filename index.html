@@ -95,6 +95,26 @@
         }
 
         /* --- BOOK GRID --- */
+        /* ROADMAP 19 — CONTINUE READING.
+           Deliberately reuses .book-card and .book-cover so the cards are the
+           SAME objects the student already knows, just fewer of them. Only the
+           row wrapper and the resume line are new. */
+        .continue-row { margin: 0 0 2rem; }
+        .continue-heading {
+            font-size: 1.05rem; font-weight: 700; letter-spacing: .02em;
+            margin: 0 0 .75rem; opacity: .85;
+        }
+        /* ⚠️ CAPPED, NOT auto-fill. The main shelf flows to as many columns as
+           fit; three cards doing that on a wide screen stretch into something
+           that does not look like a shelf at all. */
+        .continue-grid {
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            max-width: 44rem;
+        }
+        .continue-resume {
+            margin-top: .4rem; font-size: .8rem; font-weight: 600;
+            opacity: .75;
+        }
         .library-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -414,6 +434,15 @@
                      progress, so the option would sort nothing. See renderBooks(). -->
             </select>
         </div>
+        <!-- ROADMAP 19 — CONTINUE READING. Populated by renderContinue(); hidden
+             for guests and for anyone with no progress. ⚠️ IT SITS OUTSIDE
+             #book-grid ON PURPOSE: the genre, age and sort controls must not
+             filter it. "Your books" that vanish when a child taps a genre pill
+             would read as a bug, not as a filter. -->
+        <section id="continue-row" class="continue-row" hidden>
+            <h2 class="continue-heading">Continue reading</h2>
+            <div class="library-grid continue-grid" id="continue-grid"></div>
+        </section>
         <div id="filter-note"></div>
         <div class="library-grid" id="book-grid">
             <div class="loading-spinner">Loading library...</div>
@@ -448,7 +477,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.13.0";
+        const INDEX_VERSION = "3.14.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -1118,7 +1147,121 @@
             }
         }
 
+        // ═══════════════════════════════════════════════════════════════════
+        // ROADMAP 19 — CONTINUE READING (v1.4.0)
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // The three books this student most recently typed in, so nobody has to
+        // scroll a shelf of fifty-plus to find their place.
+        //
+        // ✅ COSTS NOTHING. Every field it needs is already on the documents
+        // loadUserProgress() fetches and caches for eight hours. No new query, no
+        // new collection, no schema change, and no writer change — game.js has
+        // stamped `lastUpdated` on every progress write for a long time; this is
+        // the first consumer.
+        //
+        // ⚠️ RANK ON last-touched, NOT ON PERCENT COMPLETE. A book abandoned at
+        // 80% is not what a student wants resumed; the one they opened this
+        // morning at 4% is. Sorting by progress would bury the actual answer
+        // under whatever they finished most of last month.
+
+        // ⚠️ `lastUpdated` ARRIVES IN FOUR DIFFERENT SHAPES AND THIS IS NOT
+        // PARANOIA — IT IS THE CACHE.
+        //
+        //   * cold read from Firestore  → a Timestamp, with .toDate()
+        //   * after the localStorage round-trip → Timestamp.toJSON() has turned
+        //     it into a PLAIN OBJECT: { seconds, nanoseconds }. No methods left.
+        //   * very old documents        → an ISO string
+        //   * belt and braces           → a raw epoch number
+        //
+        // The cached shape is the one that matters, because the cache serves for
+        // eight hours and a cold read only happens once a day. Handling the
+        // Timestamp alone would give every card a rank of 0 for almost the whole
+        // school day — the row would still RENDER, in a stable but meaningless
+        // order, which is precisely the kind of wrong that never gets reported.
+        function progressTimeMs(p) {
+            const v = p && p.lastUpdated;
+            if (!v) return 0;
+            try {
+                if (typeof v.toDate === 'function') return v.toDate().getTime() || 0;
+                if (typeof v.seconds === 'number') return v.seconds * 1000;
+                if (typeof v === 'number') return v;
+                if (typeof v === 'string') { const t = Date.parse(v); return isNaN(t) ? 0 : t; }
+                if (v instanceof Date) return v.getTime() || 0;
+            } catch (_) {}
+            return 0;
+        }
+
+        const CONTINUE_MAX = 3;
+
+        function renderContinue() {
+            const row  = document.getElementById('continue-row');
+            const grid = document.getElementById('continue-grid');
+            if (!row || !grid) return;
+
+            const hide = () => { row.hidden = true; grid.innerHTML = ''; };
+
+            // A guest has no progress, and a student mid-load has no shelf to
+            // resolve ids against. Either way: draw nothing rather than a heading
+            // over an empty box.
+            if (!currentUser || !allBooks.length) return hide();
+
+            const byId = new Map(allBooks.map(b => [b.id, b]));
+
+            const picks = Object.keys(userProgress || {})
+                // ⚠️ A BOOK THAT HAS LEFT THE LIBRARY FALLS OUT SILENTLY. Progress
+                // documents outlive the books they point at — a title pulled for
+                // re-cleaning, a bad EPUB deleted — and a card whose link 404s is
+                // worse than no card. The shelf is the authority on what exists.
+                .filter(id => byId.has(id))
+                .map(id => ({ id, book: byId.get(id), at: progressTimeMs(userProgress[id]) }))
+                // ⚠️ NEVER SURFACED A BOOK THEY HAVE NOT ACTUALLY OPENED. A zero
+                // stamp means we cannot say when — or whether — they read it, and
+                // guessing puts a stranger's-looking book at the top of a row
+                // titled "Continue reading".
+                .filter(x => x.at > 0)
+                .sort((a, b) => b.at - a.at)
+                .slice(0, CONTINUE_MAX);
+
+            if (!picks.length) return hide();
+
+            grid.innerHTML = picks.map(({ id, book }) => {
+                const coverHTML = book.coverUrl
+                    ? `<img class="book-cover" src="${escapeAttr(book.coverUrl)}" alt="${escapeAttr(book.title)} cover" loading="lazy">`
+                    : `<div class="book-cover-placeholder">${escapeHtml(book.title)}</div>`;
+                // ⚠️ NO CHAPTER LABEL HERE, DELIBERATELY. Part-numbered books use
+                // ids like 1.01 and 2.09, and turning one into an ordinal needs
+                // the chapter LIST — which is stripped before caching because it
+                // is the largest field on the document. renderBooks() carries a
+                // long comment about the two bugs that came of doing arithmetic
+                // on those labels. The percentage already lives on the main shelf
+                // card; this row only has to get them back to the book.
+                //
+                // ⚠️ THE <a> WRAPS ONLY THE LINK PART, and no <a> or <button> may
+                // go inside it — same rule as renderBooks(), same recovery
+                // behaviour if broken.
+                return `
+                    <div class="book-card">
+                        <a class="book-card-link" href="game.html?book=${encodeURIComponent(id)}">
+                            ${coverHTML}
+                            <div class="book-info">
+                                <div class="book-title">${escapeHtml(book.title)}</div>
+                                ${book.author ? `<div class="book-author">${escapeHtml(book.author)}</div>` : ''}
+                                <div class="continue-resume">Continue \u2192</div>
+                            </div>
+                        </a>
+                    </div>`;
+            }).join('');
+
+            row.hidden = false;
+        }
+
         function renderBooks() {
+            // ⚠️ CALLED FROM HERE so the row can never disagree with the shelf.
+            // renderBooks() is invoked from eight places — cold load, warm cache,
+            // stale cache, sign-in, sign-out, sort, filter — and hanging the row
+            // off any one of them would leave the other seven stale.
+            renderContinue();
             const grid = document.getElementById('book-grid');
             const byGenre = activeGenre === "all"
                 ? allBooks

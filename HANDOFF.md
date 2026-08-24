@@ -1,7 +1,63 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.22.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     through Round 35; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+<!-- HANDOFF.md v15.24.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     through Round 38; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.24.0 — Round 38 (Underwood). ✅ ITEM 19 (CONTINUE READING) BUILT for
+     ZERO extra reads — §0.-29.B. ⚠️⚠️ AND THE SUITE'S "8 PRE-EXISTING FAILURES"
+     WERE NEVER REAL — §0.-29.A: jsdom and acorn were DECLARED in package.json
+     and simply not installed. `npm install` → ALL HARNESSES PASS, and did so
+     before this round touched anything. ⚠️ THE COST WAS THE FALSE ASSURANCE, NOT
+     THE FALSE NUMBER: "8 failing, none of them mine" sounded like the changes
+     had been checked against card-markup-test.mjs and undefined-calls-test.mjs.
+     They had not been RUN. Two rounds of index.html and game.js edits shipped
+     without either. ⚠️ RUN `npm install` BEFORE READING A FAILURE COUNT.
+     ⚠️ §0.-29.B: `lastUpdated` arrives as a Timestamp on a cold read and as a
+     PLAIN { seconds } object after the 8-hour cache — handling only the first
+     ranks every card 0 for most of the school day, and the row STILL RENDERS in
+     a meaningless order. ⚠️ renderContinue() is called from renderBooks(), which
+     runs from EIGHT places including sign-out — where a stale row would show one
+     child's books to the next.
+     index.html v3.14.0. 52 harnesses, ALL PASSING.
+
+     v15.23.0 — Rounds 36-37 (Underwood). ✅✅ THE READ BUDGET IS MEASURED AND
+     FIXED — §0.-28. A sprint session went 80 reads → 12; the library page 8 → 3;
+     a report 1,155 → ~6. ⚠️⚠️ READ §0.-28.A BEFORE OPENING ANY CONSOLE: QUERY
+     INSIGHTS CANNOT SEE THIS APP. Every query it reports is
+     `SELECT _none_ PageSize 300` with no WHERE clause — it is profiling the
+     FIREBASE CONSOLE DATA BROWSER, i.e. whoever is clicking around in it. It
+     showed 7,500 reads for a week Cloud Monitoring counted 138,600 in. Cause:
+     `experimentalForceLongPolling` routes the Web SDK over the Listen
+     WebChannel, which Query Insights does not instrument. ⚠️ The Firebase
+     "Billable Metrics" percentage is a MONTHLY total against a DAILY quota (11%
+     for the month was 92% of one day's ceiling) and INCLUDES CONSOLE USAGE, so
+     after-hours development reads as student traffic — 38% of the worst day was
+     Jake before school started.
+     ✅ §0.-28.C: read-meter.js is the only instrument that answers WHICH LINE.
+     ⚠️ LEAVE IT IN. `export *` then local overrides — the ordering is what makes
+     a missing symbol impossible; DO NOT tidy it into an explicit export list.
+     ⚠️ §0.-28.E: THE getCountFromServer GUARD ONLY RAN ON A CACHE THAT WAS STILL
+     FRESH — the one case not needing it. Past the TTL the cache was discarded
+     UNREAD and 55 books refetched. index.html spent 1 read validating while
+     game.js spent 55 refetching, same session, same books.
+     ⚠️⚠️ §0.-28.F: logdays.js — noteDay() IS CALLED BEFORE THE typing_logs
+     WRITE. A ledger entry with no log = one wasted read. A LOG WITH NO LEDGER
+     ENTRY = A CHILD'S MINUTES VANISHING. The ledger must be a SUPERSET; NOBODY
+     MAY PRUNE IT. ⚠️ ledgerFrom() returns null, NOT an empty ledger — an empty
+     one reads as "typed on no days" and would empty every report at once.
+     ✅ §0.-28.G: ITEM 18 BUILT. ⚠️ THE WRITER SHIPPED ONE ROUND BEFORE THE
+     READER, ON PURPOSE — do this again for anything gating a read on a stored
+     field. ⚠️ A SKIPPED DAY MUST NOT SET ok:false.
+     ⚠️ §0.-28.H: I PREDICTED THE LEADERBOARD WOULD COST 0 AND IT COST 60 AGAIN.
+     leaderboardCache was module scope, so its TTL only ever applied within one
+     page load. ⚠️ The 0-threshold on a board under ten entries IS CORRECT and
+     must not be "fixed" — see ROADMAP item 20.
+     ⚠️ §0.-28.J: a test case named "…FAILURE…" failed the whole suite while
+     passing itself — run-all-tests.mjs text-matches /FAIL|UNSAFE|\bERROR\b/.
+     AND MY GUARD AGAINST IT WAS ALSO WRONG: assert on the PRINTED strings, not
+     the source text.
+     daylog.js v1.5.0, game.js v3.46.0, logdays.js v1.0.0, read-meter.js v1.0.1.
+     51 harnesses, 18 of them new in logdays-test.mjs.
 
      v15.22.0 — Round 35 (Fitch). ⚠️⚠️ ITEM 17 MEASURED, NO CODE SHIPPED, AND
      THAT WAS THE RIGHT CALL — §0.-27. THE ITEM'S PREMISE WAS STALE: the date
@@ -588,6 +644,301 @@ is not the same as checking the list. **Check the list.**
 > the repo root and dropped each one into the channel it belonged in.
 
 ---
+
+## §0.-29. ✅ ROUND 38 — CONTINUE READING, AND THE FAILURES THAT WERE NEVER THERE
+
+**2026-08-24.** ROADMAP item 19 built for zero extra reads. ⚠️ **AND THE SUITE
+HAS BEEN LYING FOR AT LEAST THREE ROUNDS, IN MY FAVOUR.**
+
+### A. ⚠️⚠️ THE "8 PRE-EXISTING FAILURES" WERE AN UNINSTALLED npm
+
+Rounds 36 and 37 both reported "8 failing, none of them mine" and moved on. The
+eight were `undefined-calls`, `card-markup`, `credits`, `credit`, `about`,
+`about-render`, `metadata-map` and `drill-filter` — and every one of them died on
+`ERR_MODULE_NOT_FOUND` for **`jsdom` or `acorn`**.
+
+⚠️ **BOTH WERE ALREADY DECLARED IN package.json.** Nothing was wrong with the
+repo. The container had never run `npm install`. `npm install jsdom acorn` →
+**ALL 51 HARNESSES PASS**, and did so before this round changed anything.
+
+⚠️ **THE COST WAS NOT THE FALSE NUMBER, IT WAS THE FALSE ASSURANCE.** "None of
+them are mine" sounded like the changes had been checked against those eight. They
+had not been *run at all* — including `card-markup-test.mjs`, which exists
+specifically to catch invalid card markup, and `undefined-calls-test.mjs`, which
+resolves every identifier in every shipped file. Two rounds of index.html and
+game.js edits went out without either.
+
+⚠️ **THIS IS THE SAME SHAPE AS THE ROUND 7/8 ARGUMENT** recorded in
+package.json's own `//devDependencies` note: Round 8 read a working test run as
+proof of a declaration nobody opened the file to check. This is that error with
+the signs reversed — a failing test run read as proof of a repo problem nobody
+checked either. ⚠️ **RUN `npm install` BEFORE READING A FAILURE COUNT, AND SAY
+WHICH PACKAGES WERE MISSING IF ANY WERE.**
+
+### B. ✅ CONTINUE READING — index.html v3.14.0, ZERO NEW READS
+
+A row of the three books the student most recently typed in, above the shelf.
+
+✅ Every field already exists. `loadUserProgress()` fetches
+`users/{uid}/progress` and caches it for eight hours, and **game.js has stamped
+`lastUpdated` on every progress write for a long time — this is the first
+consumer.** No new query, no schema change, no writer change.
+
+⚠️ **RANKS ON LAST-TOUCHED, NOT PERCENT COMPLETE.** A book abandoned at 80% is
+not what a student wants resumed; the one opened this morning at 4% is.
+
+⚠️⚠️ **`lastUpdated` ARRIVES IN FOUR SHAPES AND THE CACHED ONE IS THE ONE THAT
+RUNS ALL DAY.** A cold read gives a Firestore Timestamp with `.toDate()`. The
+localStorage round-trip strips the methods and leaves a plain
+`{ seconds, nanoseconds }`. Handling only the Timestamp would rank every card 0
+for almost the entire school day — **the row would still render, in a stable but
+meaningless order**, which is the kind of wrong that never gets reported because
+it just looks like a feature that is not very clever. `progressTimeMs()` handles
+Timestamp, `{seconds}`, ISO string, epoch number and `Date`, and returns 0 rather
+than throwing on anything else — it runs inside `renderBooks()`, so a throw takes
+down the whole shelf, not just the row.
+
+⚠️ **THE ROW SITS OUTSIDE `#book-grid` ON PURPOSE.** The genre, age and sort
+controls must not filter it: "your books" vanishing when a child taps a genre
+pill reads as a bug, not as a filter.
+
+⚠️ **renderContinue() IS CALLED FROM renderBooks(), NOT FROM ONE CALLER.**
+renderBooks() runs from eight places — cold load, warm cache, stale cache,
+sign-in, sign-out, sort, filter, age-clear. Hanging the row off any one of them
+leaves the other seven stale, **including sign-out, where it would show one
+child's books to the next**.
+
+⚠️ **A BOOK THAT HAS LEFT THE LIBRARY FALLS OUT SILENTLY.** Progress documents
+outlive the books they point at; the shelf is the authority on what exists.
+⚠️ **NO CHAPTER LABEL ON THESE CARDS, DELIBERATELY** — part-numbered ids like
+`2.09` need the chapter LIST to turn into an ordinal, and that list is stripped
+before caching. renderBooks() carries the long comment about the two bugs that
+came of doing arithmetic on those labels.
+
+`tests/continue-reading-test.mjs`, 14 cases. **52 harnesses, all passing.**
+
+## §0.-28. ✅ ROUNDS 36–37 — THE READ BUDGET, MEASURED PROPERLY AND THEN FIXED
+
+**2026-08-24. 80 reads → 12 on a sprint session; 8 → 3 on the library page.**
+Item 17 is closed, and so is the wider read-budget question §0.-27 could not
+answer. ⚠️ **THE FIRST HALF OF THIS SECTION IS ABOUT INSTRUMENTS, AND IT IS THE
+PART THAT SAVES THE NEXT ROUND A DAY.** Three consoles disagree by 18x and only
+one of them is watching this application.
+
+### A. ⚠️⚠️ FIRESTORE QUERY INSIGHTS CANNOT SEE THIS APP
+
+Every top query it reported read `COLLECTION /x SELECT _none_ PageSize 300` — no
+`WHERE` clause, uniform page size, and one row listing collection *names*. **No
+TTB query has that shape**; every app query filters on `classId`, `uid` or
+`date`, and none sets a page size. It is profiling the **Firebase console data
+browser** — i.e. whoever is clicking around in it.
+
+It showed ~7,500 reads for a week in which Cloud Monitoring counted ~138,600.
+⚠️ **IT IS NOT SAMPLING.** The cause is `experimentalForceLongPolling: true` in
+`firebase-config.js` (kept deliberately — Round 4, Safari sign-in): the Web SDK's
+traffic goes over the Listen WebChannel, which Query Insights does not
+instrument. The `Fetch API cannot load .../Listen/channel` console errors are
+that same transport being torn down on navigation. **Benign. Do not chase them.**
+
+⚠️ **DO NOT TUNE ANYTHING ON QUERY INSIGHTS.**
+
+### B. ⚠️ THE FIREBASE "BILLABLE METRICS" PERCENTAGE IS A MONTHLY TOTAL AGAINST A DAILY QUOTA
+
+11% "for the month" was **46K on Aug 21 against a 50,000/day free allowance** —
+92% of one day's ceiling. ⚠️ It also **includes Firebase console usage**, so
+after-hours development lands in the same number as the students. Measured: one
+evening session of Jake's cost 13,200 reads; the Saturday with nobody at all
+cost 1,043. **Roughly 38% of the worst day was Jake, before school started.**
+
+✅ Cloud Monitoring `document/read_ops_count` grouped by `type` is the honest
+one. ⚠️ Set the alignment function to **Sum** or the axis reads `/s` and a 46,000
+peak displays as `0.07`. ⚠️ `NOT_FOUND` is near-zero and is **not** where
+missing-document reads land — they bill as `LOOKUP`.
+
+### C. ✅ read-meter.js — THE ONLY INSTRUMENT THAT ANSWERS "WHICH LINE"
+
+A transparent shim: `game.js`, `learn.js`, `index.html` and `update-gate.js`
+import the Firestore SDK **through** it, one changed URL each.
+
+⚠️ **`export *` FIRST, THEN THE LOCAL OVERRIDES, AND THE ORDER IS LOAD-BEARING.**
+A local export shadows a star export of the same name, so every SDK symbol stays
+available even though the file names a dozen. That is the whole safety argument:
+the failure mode of a shim like this is a blank page during third period, and
+this makes it impossible by construction rather than by careful reading of
+import lists. ⚠️ **DO NOT "TIDY" IT INTO AN EXPLICIT EXPORT LIST.**
+
+Console: `ttbMeter.report()`, `ttbMeter.day()`, `copy(ttbMeter.json())`. It
+auto-reports 6 seconds after load and again on `pagehide`. **LEAVE IT IN** — it
+costs nothing idle and it is the only way to answer this class of question.
+
+⚠️ v1.0.0 INFLATED THE `calls` COLUMN and it looked like a finding: `bump()`
+incremented once per FIELD written, so a miss (which writes `reads` and `misses`)
+scored two. `7 reads, 6 misses, 13 calls` was 7+6, not 13 calls. Fixed in v1.0.1.
+**A diagnostic that over-reports is worse than none.**
+
+### D. ✅ THE MEASUREMENT, AND WHAT IT KILLED
+
+One student, one day, before any fix: **361 reads · 88 misses · 9 writes.**
+**24% of every read found nothing.**
+
+⚠️ **TWO HYPOTHESES DIED CHEAPLY AND BOTH DESERVED TO.** (1) That localStorage
+caches were cold on shared hardware — killed by one question to Jake: students
+use MacBook Airs with individual logins, same machine daily, so the caches
+persist. (2) That typing was expensive — 1:30 of typing produced 3 writes and
+essentially no reads. **The write budget was never the problem and still isn't.**
+
+### E. ✅ THE INVERTED COUNT GUARD — 55 READS TO RE-READ 55 UNCHANGED BOOKS
+
+⚠️ **THE `getCountFromServer` GUARD ONLY RAN ON A CACHE THAT WAS STILL FRESH,
+WHICH IS THE ONE CASE THAT DOES NOT NEED IT.** Past the TTL the cached copy was
+discarded **unread** and the whole collection refetched. Measured in one session:
+`index.html` spent **1** read validating a fresh cache while `game.js` spent
+**55** refetching a stale one, over the same 55 books, minutes apart.
+
+✅ Fixed in both `loadBookList()` (game.js) and `_loadBooksOnce()` (index.html).
+The TTL now gates the **check**, not the cache:
+
+    age < TRUST_MS (30 min)  →  serve from cache, 0 reads
+    cache exists at all      →  1 read to confirm the count, then serve
+    no cache                 →  full fetch, 55 reads
+
+⚠️ **RESTAMP ON SUCCESSFUL VALIDATION** or the 1 read is re-paid on every single
+navigation. ⚠️ `idxCacheReadAnyAge()` in index.html exists only for caches that
+have a server-side validity check; a cache with no way to test staleness must
+keep using `idxCacheRead()` and its TTL.
+
+⚠️ **THE COUNT IS NOT A CHECKSUM, DELIBERATELY.** Editing a title in place leaves
+the count unchanged and serves the old one for up to 8 hours. That was already
+true and it is the right trade — the alternative is 55 reads per student per load
+to catch a typo fix. `window.ttbClearBookList()` after a bulk edit.
+
+### F. ✅ logdays.js — THE LEDGER, AND WHY THE WRITE ORDER IS THE WHOLE ARGUMENT
+
+Every read path discovered activity by **guessing document ids and seeing what
+came back**. `readWeek()` asked for seven `typing_logs/{uid}_{date}` to find one
+or two; `reports.html` asked for students × days. Firestore bills a `get()` on a
+document that does not exist, so both paid full price for absence.
+
+`users/{uid}.ttbLogDays` now records which dates a log actually exists for.
+
+⚠️⚠️ **`noteDay()` IS CALLED BEFORE THE `typing_logs` WRITE, NEVER AFTER, AND
+THIS IS NOT NEGOTIABLE.** The costs are not symmetrical:
+
+* a ledger entry with **no log** costs ONE WASTED READ — exactly what every day
+  cost before this existed. Harmless.
+* a log with **no ledger entry** costs a child minutes they earned, because a
+  reader that trusts the ledger skips that day.
+
+**The ledger must be a SUPERSET of the logs.** Write the cheap safe one first and
+let it be wrong in the safe direction. ⚠️ **COROLLARY: NOBODY MAY "TIDY UP" THE
+LEDGER.** No pruning pass, no reconciliation, no "this day has no log, remove
+it". A stale entry is a wasted read; a removed entry is a wrong number.
+
+⚠️ **`ttbLogDaysSince` IS WHY A HALF-MIGRATED DATABASE IS SAFE.** Per date:
+`date < since` → unknowable, read blind, exactly as before. `date >= since` →
+the ledger is complete, absent means absent, skip it. No flag day, no backfill,
+no window in which anything reads short. As the year moves on `since` recedes and
+the saving becomes total on its own.
+
+⚠️ **`ledgerFrom()` RETURNS `null`, NOT AN EMPTY LEDGER, WHEN THERE IS NOTHING.**
+`null` means "I know nothing" and skips nothing. An empty ledger would read as
+"typed on no days" and skip **everything**. Confusing the two empties every
+report at once. `logdays-test.mjs` §A2 exists solely to pin this.
+
+⚠️ **`arrayUnion`, NOT read-modify-write.** Two tabs, or Library and School open
+at once, must not clobber each other's day. Guarded by an in-memory Set so the
+flush path (many times a session) writes the ledger once per day, not once per
+flush.
+
+### G. ✅ ITEM 18 — readWeek() PRUNED (daylog.js v1.5.0)
+
+⚠️ **THE WRITER SHIPPED ONE ROUND BEFORE THE READER, ON PURPOSE.** Trusting an
+untested field to *skip* a read would have put the one unrecoverable failure — a
+child's week total reading short — behind something that had never run in
+production. Jake confirmed `ttbLogDays: ["2026-08-24"]` on a real student
+document; the reader shipped the next round. **Do this again for anything that
+gates a read on a stored field.**
+
+⚠️ **THE LEDGER DEFAULTS TO THIS MACHINE'S localStorage MIRROR AND THAT IS SAFE
+BY CONSTRUCTION.** A mirror only vouches for dates from when *that machine*
+started recording. A student who typed on a loaner Tuesday and is on their own
+MacBook today has a `since` of today, so Tuesday falls before it, is classed
+unknowable, and is read blind. **The per-machine `since` handles the
+cross-machine case without anyone having to think about it.**
+
+⚠️ **A SKIPPED DAY MUST NOT SET `ok:false`.** It returns `totalsOf(null)` — the
+same zeros a genuinely absent document produces. Setting `ok:false` would
+suppress the HUD on an ordinary Monday for every student who has typed only
+today, which is the `ok` contract inverted. `logdays-test.mjs` §G3.
+⚠️ A read that **throws** still sets `ok:false`. §G5.
+
+⚠️ **TODAY IS ALWAYS FETCHED** (`always: [dateStr]`). `readWeek()` keeps today's
+RAW document for the per-source seed, not just its folded total, and the student
+may be about to type for the first time this session.
+
+⚠️ **A CALLER HOLDING THE `users/{uid}` DOCUMENT SHOULD PASS
+`ledgerFrom(userData, uid)`** — it unions the server copy in and saves more. None
+of the six call sites do yet.
+
+### H. ✅ THE LEADERBOARD — 60 READS PER SPRINT, AND MY PREDICTION WAS WRONG
+
+Round 36 predicted a second sprint would cost 0. **It cost 60 again.** Two
+causes, and only one was a bug:
+
+1. ✅ `leaderboardCache` was a **module variable**, so `LB_CACHE_MS` applied only
+   within one page load. Every navigation reset it and the next sprint paid the
+   full four-query fetch. Now persisted to `ttb_lbBoard_v1`, **week-keyed** (a
+   board restored across a week boundary would show last week's ranking as this
+   week's), 30 minutes. ⚠️ **BOTH EXISTING CACHE-BUST SITES NOW CLEAR THE
+   PERSISTED COPY TOO** — clearing only the in-memory one means the next page
+   load restores exactly what was just busted.
+2. ⚠️ **`saveLbThresholds()` RECORDS A CUTOFF OF 0 FOR ANY BOARD WITH FEWER THAN
+   TEN ENTRIES, AND THAT IS CORRECT** — there IS room, so the student really
+   would place. At the start of a year every student passes `couldPlace()`.
+   **THIS IS NOT A BUG AND MUST NOT BE "FIXED" BY FAKING A THRESHOLD**: it would
+   silently stop celebrating real placements for the students most likely to
+   earn one. See ROADMAP item 20 for the shape of the real fix.
+
+### I. ✅ reports.html — THE SWEEP IS PRUNED PER (STUDENT, DAY)
+
+The roster query already fetches whole user documents, so `ttbLogDays` rides out
+of it **for free**. ⚠️ **A SKIPPED PAIR IS NOT AN UNREADABLE ONE** — `unreadable`
+drives the "this report may be incomplete" banner, and counting known-empty days
+there would cry wolf on every report forever. ⚠️ **THE `MAX_ROSTER_PAIRS` CEILING
+IS STILL CHECKED ON THE UNPRUNED CROSS PRODUCT**: pruning can only reduce the
+count, so checking the pruned number would let a range through today that stops
+working the moment a new student appears.
+
+### J. ⚠️ TWO SELF-INFLICTED WOUNDS, BOTH CAUGHT BY THE SUITE
+
+⚠️ **I SET `DAYLOG_VERSION` TO 1.3.0 WHEN IT WAS ALREADY 1.4.0.** Read the
+current value before bumping; do not assume the sequence.
+
+⚠️⚠️ **A TEST CASE NAMED "…a genuine read FAILURE…" FAILED THE WHOLE SUITE WHILE
+PASSING ITSELF.** `run-all-tests.mjs` text-matches `/FAIL|UNSAFE|\bERROR\b/` over
+everything a harness prints, and "FAILURE" contains "FAIL". Its own header warns
+about exactly this. ⚠️ **AND MY GUARD AGAINST IT WAS ALSO WRONG**: I asserted the
+substring was absent from the whole FILE, when only what `check()` PRINTS
+reaches the matcher — a comment explaining the rule tripped my own assert.
+**Assert on the printed strings, not the source text.**
+
+### K. THE NUMBERS
+
+| | before | after |
+|---|---|---|
+| `index.html` load | 8 | **3** |
+| `game.html` load | 19 | **11** |
+| `game.html` + one sprint | 80 | **12** |
+| `readWeek()` per call | 7 reads / 6 misses | **3 reads / 1 miss** |
+| book list, stale cache | 55 | **1** (0 inside 30 min) |
+| leaderboard, 2nd sprint | 60 | **0** |
+| one report | 1,155 | **~6 + pre-`since` days** |
+
+⚠️ `readWeek()` still runs **twice** on a `game.html` load — the second is
+`retroactiveSaveGuestSession()`, which fires whenever there is unflushed guest
+time. At 3 reads a call it is no longer worth the risk of deduplicating; at 7 it
+was. ⚠️ These figures will drift DOWN on their own as `ttbLogDaysSince` recedes.
+
 
 ## §0.-27. ⚠️⚠️ ROUND 35 (Fitch) — ITEM 17 MEASURED. THE PREMISE WAS STALE.
 
