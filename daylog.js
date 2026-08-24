@@ -1,4 +1,12 @@
-// daylog.js v1.4.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
+// daylog.js v1.5.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
+//
+// v1.5.0 — ROADMAP ITEM 18. readWeek() no longer fetches all seven days blind;
+//          logdays.js tells it which of them can hold nothing. Measured before:
+//          14 reads / 10 misses on one game.html load. ⚠️ A SKIPPED DAY MUST NOT
+//          SET ok:false — see the comment in the map below, and Part G of
+//          daylog-cutover-test.mjs's sibling harness logdays-test.mjs.
+//
+// v1.4.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
 //                     DOCUMENT IS A PROJECTION OF THE SESSION RECORD.
 //
 // v1.4.0 — ⚠️ THE OVERNIGHT RESCUE, on Jake's ruling: a child who typed as a
@@ -99,7 +107,7 @@
 // tests/week-anchor-test.mjs and tests/daylog-test.mjs both hold that line. A
 // mismatch here does not throw — it silently reads the wrong seven days.
 
-export const DAYLOG_VERSION = "1.4.0";
+export const DAYLOG_VERSION = "1.5.0";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE PER-SOURCE CUTOVER
@@ -162,6 +170,8 @@ export function localDateStr(now = new Date()) { return ymd(now); }
 // One document's three numbers, defaulted. A day with no document is a day with
 // no typing, which is zero — NOT a failure, and not a reason to leave the totals
 // unset.
+import { ledgerFrom, planReads } from './logdays.js';
+
 export function totalsOf(data, dateStr) {
     if (!data) return { seconds: 0, chars: 0, mistakes: 0 };
 
@@ -300,14 +310,55 @@ export function dayLogPayloadFor(source, dateStr, { day, own }) {
  * from "we could not find out", because painting the first when it is the second
  * shows a child a zero they did not earn.
  */
-export async function readWeek({ db, doc, getDoc, uid, dateStr }) {
+export async function readWeek({ db, doc, getDoc, uid, dateStr, ledger }) {
     const dates = weekDatesOf(dateStr);
+
+    // ⚠️ v1.3.0 — ROADMAP ITEM 18. SEVEN READS TO FIND ONE OR TWO DAYS.
+    //
+    // Measured 2026-08-24 on real hardware: this function is the most expensive
+    // line in the student path. One game.html load spent 14 reads here and 10 of
+    // them returned nothing — 71% of the cost of the page, paid to discover
+    // absence. The misses were never bad data; they are days in the same week
+    // the student simply did not type.
+    //
+    // logdays.js records which dates a typing_log actually exists for, so the
+    // days it vouches for as EMPTY are skipped instead of fetched.
+    //
+    // ⚠️ THE LEDGER DEFAULTS TO THIS MACHINE'S MIRROR, AND THAT IS SAFE FOR A
+    // REASON WORTH SPELLING OUT. A mirror only vouches for dates from the moment
+    // THAT MACHINE started recording (`since`). A student who typed on a loaner
+    // laptop on Tuesday and is on their own machine today has a mirror whose
+    // `since` is today — so Tuesday falls before it, is classed as unknowable,
+    // and is read blind exactly as it is now. The per-machine `since` makes the
+    // cross-machine case correct by construction rather than by luck.
+    //
+    // ⚠️ A CALLER WITH THE users/{uid} DOCUMENT IN HAND SHOULD PASS A BETTER
+    // LEDGER: ledgerFrom(userData, uid) unions the server's copy in and saves
+    // more. Never pass an EMPTY ledger — see ledgerFrom()'s docstring on why
+    // null and empty must not be confused.
+    //
+    // ⚠️ TODAY IS IN `always` AND MUST STAY THERE. This function keeps today's
+    // RAW document for the per-source seed, not just its folded total, and the
+    // student may be about to type for the first time this session — the ledger
+    // cannot know that yet. Skipping today would seed the splits from nothing.
+    const plan = planReads(
+        ledger === undefined ? ledgerFrom(null, uid) : ledger,
+        dates,
+        { always: [dateStr] }
+    );
+    const skipped = new Set(plan.skip);
     const byDate = {};
     let ok = true;
 
     let todayRaw = null;
 
     const results = await Promise.all(dates.map(async (date) => {
+        // ⚠️ A SKIPPED DAY IS A KNOWN-EMPTY DAY, NOT A FAILED READ. It returns
+        // totalsOf(null) — the same zeros a genuinely absent document produces —
+        // so `ok` stays TRUE. Returning `totals: null` here instead would set
+        // ok:false and suppress the HUD on every ordinary week, which is the
+        // exact failure the ok/false contract exists to prevent, inverted.
+        if (skipped.has(date)) return { date, totals: totalsOf(null, date) };
         try {
             const snap = await getDoc(doc(db, 'typing_logs', `${uid}_${date}`));
             const data = snap.exists() ? snap.data() : null;

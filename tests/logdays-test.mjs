@@ -152,7 +152,7 @@ await check('D1. a date in always is fetched even when the ledger says it is emp
     assert.ok(!p.skip.includes('2026-08-21'));
 });
 
-// ─── E. THE WRITE ORDER AND ITS FAILURE MODE ─────────────────────────────────
+// ─── E. THE WRITE ORDER AND WHAT HAPPENS WHEN IT BREAKS ─────────────────────────────────
 
 await check('E1. noteDay records locally even when the server write fails', () => {
     store.clear();
@@ -234,6 +234,120 @@ await check('F1. no date holding a real log is ever skipped, over 2000 random le
                 `(since=${since})`);
         }
     }
+});
+
+// ─── G. readWeek() INTEGRATION — THE PART THAT CAN SHOW A WRONG NUMBER ───────
+//
+// ⚠️ ROADMAP ITEM 18 LIVES OR DIES HERE. Sections A–F prove the planner never
+// skips a truthful day. These prove daylog.js CONSUMES the plan correctly: that
+// a skipped day folds in as zero rather than as a failure, that `ok` survives,
+// and above all that the WEEK TOTAL is identical to what the unpruned reader
+// would have produced. If the totals differ by a single second, a child's HUD
+// is wrong and the feature must not ship.
+
+const { readWeek } = await import('../daylog.js');
+
+// A fake Firestore holding exactly two days of typing.
+function fakeDb(present) {
+    let reads = 0;
+    return {
+        reads: () => reads,
+        io: {
+            db: {},
+            doc: (_db, _col, id) => ({ id }),
+            getDoc: async (ref) => {
+                reads++;
+                const data = present[ref.id];
+                return { exists: () => !!data, data: () => data };
+            },
+        },
+    };
+}
+
+const UID = 'g-student';
+const TODAY = '2026-08-21';
+const PRESENT = {
+    [`${UID}_2026-08-18`]: { seconds: 300, chars: 900, mistakes: 4, date: '2026-08-18' },
+    [`${UID}_2026-08-21`]: { seconds: 120, chars: 400, mistakes: 1, date: '2026-08-21' },
+};
+
+await check('G1. an unpruned read is the baseline: 7 reads, ok, correct total', async () => {
+    store.clear();
+    const f = fakeDb(PRESENT);
+    const r = await readWeek({ ...f.io, uid: UID, dateStr: TODAY, ledger: null });
+    assert.equal(f.reads(), 7, 'no ledger must read all seven, exactly as before');
+    assert.equal(r.ok, true);
+    assert.equal(r.week.seconds, 420);
+    assert.equal(r.week.chars, 1300);
+});
+
+await check('G2. a pruned read returns the IDENTICAL week total on fewer reads', async () => {
+    store.clear();
+    const base = await readWeek({ ...fakeDb(PRESENT).io, uid: UID, dateStr: TODAY, ledger: null });
+
+    const f = fakeDb(PRESENT);
+    const ledger = ledgerFrom({
+        [LOGDAYS_FIELD]: ['2026-08-18', '2026-08-21'],
+        [LOGDAYS_SINCE]: '2026-08-15',
+    }, UID);
+    const r = await readWeek({ ...f.io, uid: UID, dateStr: TODAY, ledger });
+
+    // ⚠️ THE ASSERTION THE WHOLE ITEM RESTS ON.
+    assert.deepEqual(r.week, base.week, 'pruning must not change a single number');
+    assert.deepEqual(r.today, base.today);
+    assert.equal(r.ok, true, 'skipped days are KNOWN empty, not failures');
+    assert.ok(f.reads() < 7, 'it has to actually save something');
+    assert.equal(f.reads(), 2, 'exactly the two days that hold data');
+});
+
+await check('G3. ok stays true when every non-today day is skipped', async () => {
+    // ⚠️ THE ORDINARY MONDAY. A student who has typed only today would, if a
+    // skip were treated as a failed read, get ok:false and a suppressed HUD on
+    // the most common day of the week there is.
+    store.clear();
+    const only = { [`${UID}_${TODAY}`]: { seconds: 60, chars: 200, mistakes: 0, date: TODAY } };
+    const f = fakeDb(only);
+    const ledger = ledgerFrom({
+        [LOGDAYS_FIELD]: [TODAY], [LOGDAYS_SINCE]: '2026-08-15',
+    }, UID);
+    const r = await readWeek({ ...f.io, uid: UID, dateStr: TODAY, ledger });
+    assert.equal(r.ok, true);
+    assert.equal(r.week.seconds, 60);
+    assert.equal(f.reads(), 1, 'today only');
+});
+
+await check('G4. today is fetched even when the ledger has never heard of it', async () => {
+    // The first sprint of the day: the log does not exist yet and the ledger
+    // cannot know it is about to. daylog.js needs today's RAW document anyway.
+    store.clear();
+    const f = fakeDb({});
+    const ledger = ledgerFrom({
+        [LOGDAYS_FIELD]: ['2026-08-18'], [LOGDAYS_SINCE]: '2026-08-15',
+    }, UID);
+    const r = await readWeek({ ...f.io, uid: UID, dateStr: TODAY, ledger });
+    assert.equal(r.ok, true);
+    assert.equal(f.reads(), 2, 'the ledger day plus today, unconditionally');
+});
+
+await check('G5. a genuine read that throws still sets ok:false', async () => {
+    // ⚠️ THE CONTRACT MUST NOT HAVE BEEN WEAKENED. Pruning teaches readWeek to
+    // treat some absent days as fine; it must not have taught it to treat a
+    // THROWN read as fine. A partial week that looks complete is the original sin.
+    store.clear();
+    let n = 0;
+    const io = {
+        db: {}, doc: (_d, _c, id) => ({ id }),
+        getDoc: async (ref) => {
+            if (++n === 1) throw new Error('permission-denied');
+            const data = PRESENT[ref.id];
+            return { exists: () => !!data, data: () => data };
+        },
+    };
+    const ledger = ledgerFrom({
+        [LOGDAYS_FIELD]: ['2026-08-18', '2026-08-21'], [LOGDAYS_SINCE]: '2026-08-15',
+    }, UID);
+    const r = await readWeek({ ...io, uid: UID, dateStr: TODAY, ledger });
+    assert.equal(r.ok, false, 'a thrown read is still a failure, pruning or not');
 });
 
 // ─── report ──────────────────────────────────────────────────────────────────

@@ -1176,9 +1176,53 @@ let lastStartBtnLabel = "Start Reading";
 // Leaderboard
 let userInitials = '';
 let leaderboardOptOut = false;
+// ⚠️ v3.46.0 — PERSISTED, BECAUSE MODULE SCOPE MADE THE TTL A LIE.
+//
+// These were plain module variables, so LB_CACHE_MS only ever applied WITHIN a
+// single page load. Every navigation reset them to empty, and the next sprint
+// completion paid the full four-query, 60-read fetch again.
+//
+// ⚠️ AND `couldPlace()` DOES NOT STOP IT EARLY IN A SMALL SCHOOL. saveLbThresholds()
+// records a cutoff of 0 for any board with fewer than ten entries — correctly,
+// since there is room and the student really would place — so at the start of a
+// year EVERY student passes the gate and EVERY sprint completion fetches. The
+// gate is not broken; it is simply true for everyone until the boards fill.
+//
+// Measured 2026-08-24: 60 reads on a second sprint, on a second page load,
+// after the thresholds were already cached. Predicted zero. It was not zero.
+//
+// Persisting across loads is the fix that does not touch the celebration logic:
+// the board is a weekly ranking, half an hour stale is invisible to a student,
+// and a fetch that used to happen per page load now happens per LB_CACHE_MS.
+const LB_BOARD_KEY = 'ttb_lbBoard_v1';
 let leaderboardCache = {}; // { category: [entries], ... }
 let leaderboardCacheTime = 0;
-const LB_CACHE_MS = 600000;   // 10 minutes (was 30s, and was being busted anyway)
+(function restoreLbBoard() {
+    try {
+        const raw = localStorage.getItem(LB_BOARD_KEY);
+        if (!raw) return;
+        const c = JSON.parse(raw);
+        // ⚠️ WEEK-KEYED. `totalSecondsWeek` rows are meaningless once the week
+        // rolls, and a board restored across that boundary would show last
+        // week's ranking as this week's. A mismatch drops the cache entirely.
+        if (!c || c.weekStart !== getWeekStart(new Date())) return;
+        if (!c.board || typeof c.board !== 'object') return;
+        leaderboardCache = c.board;
+        leaderboardCacheTime = c.at || 0;
+    } catch (_) { /* a cold board costs one fetch, never correctness */ }
+})();
+function persistLbBoard() {
+    try {
+        localStorage.setItem(LB_BOARD_KEY, JSON.stringify({
+            weekStart: getWeekStart(new Date()),
+            at: leaderboardCacheTime,
+            board: leaderboardCache,
+        }));
+    } catch (_) { /* quota — the in-memory copy still serves this load */ }
+}
+const LB_CACHE_MS = 1800000;  // 30 minutes. Now genuinely spans page loads
+                              // (see LB_BOARD_KEY) — a weekly board does not
+                              // change meaningfully inside a class period.
 
 // The student's own leaderboard doc, read once per session instead of once per
 // sprint. We are the only writer for our own doc, so an in-memory copy stays
@@ -6270,6 +6314,9 @@ async function openMenuModal() {
             leaderboardOptOut = optOutBox.checked;
             await saveInitials(userInitials);
             leaderboardCacheTime = 0; // bust cache
+            // ⚠️ THE PERSISTED COPY MUST GO TOO. Clearing only the in-memory one
+            // means the next page load restores exactly what was just busted.
+            try { localStorage.removeItem(LB_BOARD_KEY); } catch (_) {}
             // Push the flag to the public leaderboard doc right now. Waiting for
             // the next sprint-end flush would leave a student who opted out and
             // closed the tab still listed.
@@ -7818,6 +7865,7 @@ async function fetchLeaderboard() {
         leaderboardCache = result;
         leaderboardCacheTime = Date.now();
         saveLbThresholds(result);
+        persistLbBoard();
         return result;
     } catch(e) { console.warn("Fetch leaderboard failed:", e); return {}; }
 }
@@ -7891,6 +7939,7 @@ async function openLeaderboard(activeTab) {
             try {
                 await setDoc(doc(db, "leaderboard", uid), { [activeCat]: 0 }, { merge: true });
                 leaderboardCacheTime = 0;   // bust cache
+                try { localStorage.removeItem(LB_BOARD_KEY); } catch (_) {}
                 // A reset lowers the real top-10 cutoff, so the persisted
                 // thresholds are now too high and would suppress legitimate
                 // placements. Drop them; the re-render below rebuilds them.

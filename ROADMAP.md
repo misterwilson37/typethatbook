@@ -4,8 +4,9 @@
 two of the three findings are fixed (Round 36). ⚠️ **THE THREE CONSOLES DISAGREE
 AND ONLY ONE OF THEM IS WATCHING THE APP** — read §READS below before opening any
 of them again, or you will spend an afternoon profiling your own clicks.
-⭐ **ITEM 18 (readWeek pruning) IS THE NEXT BUILD** and is deliberately held one
-round: the ledger it depends on has never run in production. 51 harnesses.
+✅ **ITEM 18 IS BUILT** (Round 37) once the ledger was verified on a real student
+document. ⭐ **ITEM 20 (the leaderboard) IS THE NEXT BUILD** — 60 reads per sprint
+completion, and it is now the largest single line in the student path. 51 harnesses.
 
 ---
 
@@ -41,7 +42,7 @@ transparent shim: pages import the Firestore SDK *through* it. Leave it in.
 
 ---
 
-## ⭐ ITEM 18 — PRUNE `readWeek()` WITH THE LEDGER  *(next build)*
+## ✅ ITEM 18 — PRUNE `readWeek()` WITH THE LEDGER  *(BUILT, Round 37)*
 
 `daylog.js:312` is the single most expensive line in the student path: **7 point
 reads per call, 5–6 of them returning nothing**, and `game.html` calls it twice
@@ -53,7 +54,31 @@ page load.
 answer. The change is to thread a ledger into `readWeek()` and fetch only
 `plan.fetch`.
 
-⚠️ **THIS WAS HELD BACK ON PURPOSE AND THE REASON MATTERS.** The ledger has never
+✅ **BUILT.** `daylog.js` v1.5.0. The ledger was confirmed correct on a real
+student document first (`ttbLogDays: ["2026-08-24"]`, `ttbLogDaysSince` set),
+then the reader shipped. Covered by `logdays-test.mjs` §G — the load-bearing
+case is G2: a pruned week total must be **byte-identical** to an unpruned one.
+
+## ⭐ ITEM 20 — THE LEADERBOARD IS THE LAST BIG ONE  *(next build)*
+
+⚠️ **60 READS PER SPRINT COMPLETION, AND `couldPlace()` DOES NOT STOP IT.**
+Round 36 predicted a second sprint would cost zero and it cost 60 again. Two
+causes, both now half-fixed in v3.46.0, neither fully:
+
+1. `leaderboardCache` was **module scope**, so `LB_CACHE_MS` only applied within
+   one page load. ✅ Fixed — persisted to `ttb_lbBoard_v1`, week-keyed, 30 min.
+2. ⚠️ **`saveLbThresholds()` records a cutoff of 0 for any board with fewer than
+   ten entries** — correctly, since there IS room and the student really would
+   place. So at the start of a year every student passes the gate. This is not a
+   bug and must not be "fixed" by faking a threshold: it would silently stop
+   celebrating real placements for the students most likely to earn one.
+
+The real fix is to stop needing the whole board to decide a celebration.
+`computePlacements()` wants a rank, which needs the top ten; but the persisted
+thresholds already answer "are you on it at all". ⚠️ Consider fetching ONE
+category — the one whose threshold was crossed — rather than all four.
+
+*(Historic note on why item 18 was staged: )* ⚠️ **IT WAS HELD BACK ON PURPOSE.** The ledger has never
 run in production. Trusting it to *skip* a read before we have watched it *fill*
 would put the one unrecoverable failure — a child's week total reading short —
 behind an untested field. The writer shipped first so it can be watched. Ship the
