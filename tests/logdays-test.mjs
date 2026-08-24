@@ -200,6 +200,59 @@ await check('E3. a repeat call in the same page load does not write again', () =
         });
 });
 
+// ─── E2. ensureSince() — THE STUDENT WHO SIGNS IN AND DOES NOTHING ───────────
+
+const { ensureSince } = await import('../logdays.js');
+
+await check('E4. seeds since when the user document has none', async () => {
+    store.clear();
+    let wrote = null, merged = false;
+    const io = { db: {}, doc: () => ({}),
+                 setDoc: async (_r, d, o) => { wrote = d; merged = !!(o && o.merge); } };
+    const ok = await ensureSince({ ...io, uid: 'n1', date: '2026-08-24', userData: {} });
+    assert.equal(ok, true);
+    assert.equal(wrote[LOGDAYS_SINCE], '2026-08-24');
+    assert.ok(merged, 'must MERGE, never overwrite a user document');
+});
+
+await check('E5. does nothing when since already exists', async () => {
+    // ⚠️ ONE WRITE PER STUDENT, EVER. If this fired on every page load it would
+    // be 167 writes a day for a field that never changes.
+    store.clear();
+    let writes = 0;
+    const io = { db: {}, doc: () => ({}), setDoc: async () => { writes++; } };
+    const ok = await ensureSince({ ...io, uid: 'n2', date: '2026-08-24',
+                                   userData: { [LOGDAYS_SINCE]: '2026-08-01' } });
+    assert.equal(ok, false);
+    assert.equal(writes, 0);
+});
+
+await check('E6. refuses to write without the user document', async () => {
+    // ⚠️ THE GUARD THAT MATTERS. Writing `since` blind could replace an EARLIER
+    // value with a later one, which silently reclassifies days we DO know about
+    // into "skip" — the one direction this module must never move.
+    store.clear();
+    let writes = 0;
+    const io = { db: {}, doc: () => ({}), setDoc: async () => { writes++; } };
+    assert.equal(await ensureSince({ ...io, uid: 'n3', date: '2026-08-24' }), false);
+    assert.equal(await ensureSince({ ...io, uid: 'n3', date: '2026-08-24', userData: null }), false);
+    assert.equal(writes, 0, 'no user document means no write, ever');
+});
+
+await check('E7. a seeded student with no typing days is SKIPPABLE, not blind', async () => {
+    // ⚠️ THE WHOLE POINT. Before this, a student who never typed had no ledger,
+    // ledgerFrom() returned null, and every day of every range was swept for
+    // them forever. A `since` with an empty day list is the meaningful claim
+    // "watched since X, typed on nothing after it".
+    store.clear();
+    const led = ledgerFrom({ [LOGDAYS_SINCE]: '2026-08-17' }, 'n4');
+    assert.ok(led, 'a since with no days must still be a usable ledger');
+    const p = planReads(led, DATES);
+    assert.equal(p.blind, false);
+    assert.deepEqual(p.fetch, [], 'nothing to read for a student with no typing days');
+    assert.equal(p.skip.length, DATES.length);
+});
+
 // ─── F. THE PROPERTY THAT MATTERS, ON RANDOM INPUT ───────────────────────────
 
 await check('F1. no date holding a real log is ever skipped, over 2000 random ledgers', () => {

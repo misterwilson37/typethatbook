@@ -158,7 +158,7 @@ import { safeGroup, DRILL_FILTER_VERSION } from "./drill-filter.js";
 // The version footer's three primary reads (this html file, this js file's own
 // LEARN_VERSION, style.css) plus the lazy full-build panel on hover. ⚠️ SAME
 // STRUCTURE AS game.js, ON PURPOSE — see updateVersionFooter() below.
-import { noteDay } from "./logdays.js";
+import { noteDay, ensureSince } from "./logdays.js";
 import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
          countBuildNotes, renderHiddenNotesLine,
          readAppliedCssVersion } from "./versions.js";
@@ -1446,6 +1446,14 @@ async function loadGateState() {
     try {
         const snap = await getDoc(doc(db, 'users', currentUser.uid));
         const d = snap.exists() ? snap.data() : {};
+
+        // ⚠️ SAME REASON AS game.js's noteActiveDay(): this already holds the
+        // user document, and ensureSince() must see the existing value rather
+        // than write one blind. See logdays.js v1.1.0.
+        try { await ensureSince({ db, doc, setDoc, uid: currentUser.uid,
+                                  date: getLocalDateStr(), userData: d }); }
+        catch (_) { /* ensureSince swallows its own failures */ }
+
         gateActiveDays = activeDayCountOf(d);
         const lock = lastLockDayOf(d);
         gateLastLockDay = (typeof lock === 'number') ? lock : gateActiveDays;

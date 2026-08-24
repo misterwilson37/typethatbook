@@ -636,7 +636,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.27.0";
+    const REPORTS_VERSION = "2.28.0";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -1391,36 +1391,16 @@
             // "this report may be incomplete" banner, and a day the ledger tells
             // us is empty is a day we KNOW about — counting it as unreadable would
             // cry wolf on every report forever.
-            // ⚠️ v2.27.0 — THE SWEEP WAS READING THE FUTURE, AND IT WAS MOST OF
-            // THE BILL. "This Week" runs Saturday to Friday, so a report pulled
-            // on Monday asked Firestore about Wednesday, Thursday, Friday and
-            // Saturday of a week that had not happened. Measured 2026-08-24:
-            // 167 students x 7 days = 1,169 reads, of which 668 were days that
-            // could not contain data under any circumstance.
-            //
-            // This needs no ledger, no schema and no migration. It is a calendar
-            // fact, it applies to every student on the first report after deploy,
-            // and it is the largest single saving available to this page.
-            //
-            // ⚠️ THE HORIZON IS TOMORROW, NOT TODAY, AND THE SLACK IS DELIBERATE.
-            // A typing_log id carries the STUDENT'S LOCAL DATE, computed in their
-            // browser. A machine whose clock runs fast, or a student in a
-            // timezone ahead of the teacher reading the report, can legitimately
-            // create a document dated tomorrow. One day of slack costs one day of
-            // reads and removes that whole class of edge case.
-            //
-            // ⚠️ AND THE DISCOVERY QUERY IS STILL THE BACKSTOP. It filters on the
-            // `date` FIELD across the full requested range, so a wildly
-            // future-dated log still turns up there — this only prunes the
-            // by-id sweep, never the query.
-            const _horizon = (() => {
-                const t = new Date();
-                t.setDate(t.getDate() + 1);
-                return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-` +
-                       `${String(t.getDate()).padStart(2, '0')}`;
-            })();
-            const sweepDates  = dateList.filter(d => d <= _horizon);
-            const futureDays  = dateList.length - sweepDates.length;
+            // ⚠️ DAYS THAT HAVE NOT HAPPENED YET ARE STILL SWEPT, ON PURPOSE.
+            // v2.27.0 clamped the sweep at tomorrow, on the theory that a
+            // Saturday-to-Friday window pulled on a Monday was paying for four
+            // impossible days. ⚠️ THAT WAS A REAL SAVING AND THE WRONG FIX.
+            // Jake's grading week IS Saturday to Friday and the default has to
+            // stay; more to the point, the ledger below already skips a day it
+            // knows to be empty, and a future day is simply the easiest case of
+            // that. A second mechanism doing the same job means two places to
+            // check when a number looks wrong, and only one of them is tested.
+            const sweepDates = dateList;
 
             const pairs = [];
             let ledgerSkipped = 0, ledgerBlind = 0;
@@ -1431,15 +1411,14 @@
                 plan.fetch.forEach(date => pairs.push({ uid, date, info }));
             });
 
-            const futureSkipped = futureDays * uids.size;
-            window._ttbSweepNote = { futureDays, futureSkipped, ledgerSkipped, ledgerBlind,
+            window._ttbSweepNote = { futureDays: 0, futureSkipped: 0, ledgerSkipped, ledgerBlind,
                                       swept: pairs.length,
                                       wouldHaveBeen: uids.size * dateList.length };
 
             statusEl.innerText =
                 `Reading ${pairs.length.toLocaleString()} student-days by id` +
-                (futureSkipped || ledgerSkipped
-                    ? ` (skipped ${(futureSkipped + ledgerSkipped).toLocaleString()} that cannot hold data)`
+                (ledgerSkipped
+                    ? ` (skipped ${ledgerSkipped.toLocaleString()} the ledger knows are empty)`
                     : '') +
                 `\u2026`;
 

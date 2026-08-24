@@ -160,7 +160,7 @@ import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
 // setDoc(merge:true) on typing_logs would be a second
 // dating scheme on the documents Round 12 spent a day reconciling.
 import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer, serverTimestamp, arrayUnion } from "./read-meter.js";
-import { noteDay } from "./logdays.js";
+import { noteDay, ensureSince } from "./logdays.js";
 import {
     onAuthStateChanged,
     GoogleAuthProvider,
@@ -354,7 +354,19 @@ async function noteActiveDay() {
     _activeDayDone = true;
     try {
         const snap = await getDoc(doc(db, 'users', currentUser.uid));
-        const plan = activeDayPlan(snap.exists() ? snap.data() : {}, getLocalDateStr());
+        const _udata = snap.exists() ? snap.data() : {};
+
+        // ⚠️ SEEDED HERE BECAUSE THIS IS THE ONE PLACE THAT ALREADY HOLDS THE
+        // USER DOCUMENT. ensureSince() must see the existing value or it could
+        // replace an earlier `since` with a later one. It writes at most once per
+        // student, ever, and does nothing when the field is already set.
+        // Without it, a student who signs in and never types has no ledger, and
+        // reports.html sweeps every day of every range for them forever.
+        try { await ensureSince({ db, doc, setDoc, uid: currentUser.uid,
+                                  date: getLocalDateStr(), userData: _udata }); }
+        catch (_) { /* ensureSince swallows its own failures */ }
+
+        const plan = activeDayPlan(_udata, getLocalDateStr());
         if (!plan) return;                                 // already counted today — the common case
         await setDoc(doc(db, 'users', currentUser.uid), plan, { merge: true });
     } catch (e) {

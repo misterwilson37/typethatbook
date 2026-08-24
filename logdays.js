@@ -1,4 +1,18 @@
-// logdays.js v1.0.0 — WHICH DAYS DID THIS STUDENT TYPE?
+// logdays.js v1.2.0 — WHICH DAYS DID THIS STUDENT TYPE?
+//
+// v1.2.0 — ⚠️ ledgerFrom() READ `since` INSIDE THE DAY-ARRAY BRANCH, so a
+//          document with a since and no days returned null and was swept in
+//          full. That is exactly the document v1.1.0's ensureSince() creates,
+//          which would have made the seeding pointless. Caught by a harness case
+//          written for ensureSince, not by one written for ledgerFrom.
+//
+// v1.1.0 — ensureSince(). noteDay() only fires on a typing flush, so a student
+//          who signs in and does nothing never gets a ledger and is swept in
+//          full, forever. Seeding `since` from the page controllers gives every
+//          signed-in student a ledger on their first load. ⚠️ IT NEEDS THE USER
+//          DOCUMENT THE CALLER ALREADY HAS — writing `since` blind could replace
+//          an earlier value with a later one, which is the one direction this
+//          module must never move.
 //
 // ⚠️ THE PROBLEM THIS EXISTS TO END: every read path in TTB discovers a
 // student's activity by GUESSING AT DOCUMENT IDS AND SEEING WHAT COMES BACK.
@@ -75,7 +89,7 @@
 // see the user document must prefer it, and any reader that cannot must union
 // the two rather than trusting the local one alone.
 
-export const LOGDAYS_VERSION = "1.0.0";
+export const LOGDAYS_VERSION = "1.2.0";
 
 // ⚠️ FIELD NAME IS PREFIXED. `users` documents are shared with staff-admin.js,
 // the roster importer and the reports roster query; an unprefixed `logDays`
@@ -204,9 +218,23 @@ export function ledgerFrom(userData, uid) {
     const days = new Set();
     let since = null;
 
-    if (userData && Array.isArray(userData[LOGDAYS_FIELD])) {
-        for (const d of userData[LOGDAYS_FIELD]) if (typeof d === 'string') days.add(d);
-        if (typeof userData[LOGDAYS_SINCE] === 'string') since = userData[LOGDAYS_SINCE];
+    // ⚠️ `since` IS READ INDEPENDENTLY OF THE DAY ARRAY, AND v1.0.0 GOT THIS
+    // WRONG. It read `since` INSIDE the Array.isArray() branch, so a document
+    // with a `since` and no day array returned null — "I know nothing" — and was
+    // swept in full. That is precisely the document ensureSince() creates for a
+    // student who has signed in and never typed, which is the case the whole
+    // seeding mechanism exists to make skippable. The two fields answer
+    // different questions and must be read separately:
+    //     since  — "from when have I been watching?"
+    //     days   — "and what did I see?"
+    // An empty answer to the second is a real answer, not a missing one.
+    if (userData) {
+        if (Array.isArray(userData[LOGDAYS_FIELD])) {
+            for (const d of userData[LOGDAYS_FIELD]) if (typeof d === 'string') days.add(d);
+        }
+        if (typeof userData[LOGDAYS_SINCE] === 'string' && userData[LOGDAYS_SINCE]) {
+            since = userData[LOGDAYS_SINCE];
+        }
     }
 
     const local = uid ? readLocal(uid) : null;
@@ -217,12 +245,11 @@ export function ledgerFrom(userData, uid) {
         if (local.since && (!since || local.since < since)) since = local.since;
     }
 
-    if (!since || days.size === 0) {
-        // A `since` with no days is legitimate (a student who has not typed since
-        // the ledger began) — but only if it came from the server, where absence
-        // is meaningful. With neither, we know nothing.
-        if (!since) return null;
-    }
+    // ⚠️ NO `since` MEANS NO LEDGER, and that is the ONLY null case. A ledger
+    // with a since and zero days is the meaningful claim "watched since X, saw
+    // nothing after it" — returning null for that would sweep the very students
+    // this is meant to skip. See logdays-test.mjs E7.
+    if (!since) return null;
     return { days, since };
 }
 
@@ -250,6 +277,57 @@ export function planReads(ledger, dates, opts) {
         skip.push(d);                                               // known absent
     }
     return { fetch, skip, blind: false };
+}
+
+/**
+ * Make sure this student's user document has a `since`, even if they have never
+ * typed a word.
+ *
+ * ⚠️ THIS IS THE DIFFERENCE BETWEEN A LEDGER THAT HELPS AND ONE THAT DOES NOT,
+ * AND IT IS NOT OBVIOUS. noteDay() only fires on a typing flush, so it never
+ * reaches a student who signed in and did nothing. Those students have NO
+ * ledger, ledgerFrom() correctly returns null, and reports.html correctly sweeps
+ * every day of the range for them — forever, because they never type and so
+ * never get a ledger.
+ *
+ * Measured 2026-08-24: a three-day report swept 501 student-days for 104 real
+ * records. The roster was 167 user documents; roughly 66 of them belonged to
+ * accounts with no typing at all, and every one was swept in full.
+ *
+ * A `since` with an EMPTY day list is the meaningful statement "I have been
+ * watching this student since date X and they have typed on no days after it".
+ * That is what lets a reader skip them.
+ *
+ * ⚠️ ONE WRITE PER STUDENT, EVER — NOT PER DAY. `since` is set once and then
+ * only ever moves backward. The caller already holds the user document (it was
+ * read to decide something else), so this costs NO extra read either, and it
+ * does nothing at all when the field is already there.
+ *
+ * ⚠️ PASS THE DOCUMENT DATA YOU ALREADY HAVE. Calling this without `userData`
+ * would mean writing `since` blind, which could overwrite an EARLIER value with
+ * a later one — and a later `since` silently reclassifies days we do know about
+ * into "skip", which is the one direction this module must never move.
+ */
+export async function ensureSince({ db, doc, setDoc, uid, date, userData }) {
+    if (!uid || !date || !userData) return false;
+    // Already vouched for — nothing to do, and nothing to write.
+    if (typeof userData[LOGDAYS_SINCE] === 'string' && userData[LOGDAYS_SINCE]) return false;
+
+    const key = 'since|' + uid;
+    if (stampedThisLoad.has(key)) return false;
+    stampedThisLoad.add(key);
+
+    try {
+        await setDoc(doc(db, 'users', uid), { [LOGDAYS_SINCE]: date }, { merge: true });
+        const local = readLocal(uid);
+        writeLocal(uid, local ? local.days : [],
+                   local && local.since && local.since < date ? local.since : date);
+        return true;
+    } catch (e) {
+        stampedThisLoad.delete(key);
+        console.warn('[logdays] since not seeded (harmless, costs reads later):', e && e.message);
+        return false;
+    }
 }
 
 /** For diagnostics from the console. */
