@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!-- reports.html v1.0.0 — versioned the same way style.css and game.html are: a comment
+     near the top, because this file holds no runtime constant of its own. The
+     JS it loads (the inline module) carries its own version separately; this number is
+     the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
+     the markup changes, and do not reformat it. ROADMAP 16. -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -325,7 +330,19 @@
     </div>
 </div>
 
-<footer id="footer-version">Reports</footer>
+<!-- ROADMAP 16 — Jake: "the hover doesn't work on reports. It also doesn't work
+     on admin." Both had a version stamp and no build list, so the one instrument
+     built to spot a stale deploy could not be used on the two pages where a
+     stale deploy does the most damage. -->
+<footer id="reports-footer">
+    <span id="footer-version">Reports</span>
+    <button id="build-toggle" type="button"
+            style="margin-left:10px;font:inherit;font-size:.85em;background:none;
+                   border:1px solid currentColor;border-radius:4px;padding:1px 7px;
+                   color:inherit;opacity:.65;cursor:pointer">build info</button>
+    <div id="build-list" style="display:none;margin-top:8px;font-size:.8em;
+                                line-height:1.55;text-align:left;max-width:560px"></div>
+</footer>
 
 <script type="module">
     import { db, auth, ADMIN_EMAILS } from "./firebase-config.js";
@@ -667,10 +684,40 @@
     const _rfv = document.getElementById('footer-version');
     if (_rfv) _rfv.textContent = `Reports v${REPORTS_VERSION}`;
 
+    // ⚠️ ROADMAP 16 — THE BUILD PANEL. Notes are shown unconditionally here,
+    // unlike index.html's: reports.html is behind a staff-role check, so anyone
+    // who can see this footer is already staff. index.html gates them because a
+    // student can reach that page.
+    (function wireBuildPanel() {
+        const _btn = document.getElementById('build-toggle');
+        const _list = document.getElementById('build-list');
+        if (!_btn || !_list) return;
+        _btn.addEventListener('click', async () => {
+            if (_list.style.display !== 'none') {
+                _list.style.display = 'none'; _btn.textContent = 'build info'; return;
+            }
+            _list.style.display = ''; _btn.textContent = 'hide';
+            _list.innerHTML = 'Reading deployed files\u2026';
+            try {
+                // force: someone presses this to learn what is running RIGHT
+                // NOW. One read, against a panel that would otherwise confidently
+                // report a build from before the deploy.
+                const results = await readDeployedVersions({ force: true });
+                _list.innerHTML =
+                    `<div style="opacity:.6;margin-bottom:4px">reports.html \u2014 ` +
+                    `inline module v${REPORTS_VERSION} (this page)</div>` +
+                    renderBuildList(results, { notes: true });
+            } catch (e) {
+                _list.innerHTML = '<div style="color:#c05621">Could not read build info.</div>';
+            }
+        });
+    })();
+
     // ⚠️ SDK ROUTED THROUGH read-meter.js so this page can say what it COST.
     // Same shim the student pages use; `export *` keeps every SDK symbol.
     import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, ttbMeter } from "./read-meter.js";
     import { ledgerFrom, planReads } from "./logdays.js";
+    import { readDeployedVersions, renderBuildList } from "./versions.js";
     import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
     // v2.5.0 — Multi-school support.

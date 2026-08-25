@@ -1,4 +1,4 @@
-// versions.js v1.13.0 — reads every file's version constant out of the files as
+// versions.js v1.14.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
 //
 // v1.13.0 — ⚠️⚠️ THE BUILD PANEL NO LONGER ANSWERS FROM A COPY IT TOOK AT PAGE
@@ -86,6 +86,10 @@
 // load. A silently absent update gate looks identical to a working one right up
 // until a deploy doesn't reach the building.
 //
+// v1.14.0 — ROADMAP 16: registers reports.html and admin.html. ⚠️ A STALE
+//           admin.js WAS INVISIBLE TO THE DRIFT DETECTOR, which is backwards for
+//           the file that writes every book in the library.
+//
 // v1.7.0 — registers game.html and learn.html, and exports readOneDeployedVersion()
 // so a page can read its OWN entry (and only its own entry) without paying for
 // the full SOURCES fetch. Built for the game.html/learn.html footer redesign:
@@ -98,7 +102,6 @@
 // their own to hold a constant. HEADER_EXEMPT covers them for the same reason
 // it covers the stylesheets: there is no second (constant) copy to drift from.
 //
-// v1.6.0 — registers hud.js, the FOURTH shared module. Same reasoning as v1.5.0.
 //
 //
 //
@@ -143,9 +146,16 @@ const SOURCES = [
     // the top, because there is no runtime JS in either file to hold a constant.
     { file: 'game.html',             pattern: /game\.html\s+v([0-9][^\s\->]*)/ },
     { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
+    // ⚠️ ROADMAP 16 — THE TWO STAFF PAGES WERE UNWATCHED, WHICH IS BACKWARDS.
+    // A stale admin.js is the single most damaging stale file in the project (it
+    // is what writes books), and it was the one file the drift detector could
+    // not see. reports.html and admin.html are shells like game.html: they hold
+    // no runtime constant of their own, so they carry a comment near the top.
+    { file: 'reports.html',          pattern: /reports\.html\s+v([0-9][^\s\->]*)/ },
+    { file: 'admin.html',            pattern: /admin\.html\s+v([0-9][^\s\->]*)/ },
 ];
 
-export const VERSIONS_VERSION = '1.13.0';
+export const VERSIONS_VERSION = '1.14.0';
 
 // ⚠️ v1.13.0 — THE OLD sessionStorage KEY, KEPT ONLY TO BE CLEARED. A tab that
 // loaded v1.12.0 or earlier has a stale build list sitting in sessionStorage

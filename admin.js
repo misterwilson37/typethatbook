@@ -1,4 +1,21 @@
-// admin.js v3.31.2
+// admin.js v3.33.0
+//
+// v3.33.0 — ROADMAP 16. The build panel, and admin.html is now registered in
+//           versions.js SOURCES — a stale admin.js was previously invisible to
+//           the one instrument built to find stale files, which is backwards for
+//           the file that writes every book. ⚠️ The version line now writes a
+//           SPAN inside the footer, not the footer's innerText, which would
+//           delete the new button.
+//
+// v3.32.0 — Firestore SDK routed through read-meter.js — ONE CHANGED IMPORT URL,
+//           no behaviour change. The shim re-exports the whole SDK via `export *`
+//           and wraps only the billable calls in counters, so every symbol this
+//           file imports still resolves. `ttbMeter.report()` gives reads and
+//           writes by collection AND by call site.
+//           ⚠️ THE v3.25.3 ENTRY MOVED to CHANGELOG.md § ARCHIVED FILE HEADERS
+//           to stay inside the 8-entry budget. NOTHING WAS DELETED, and this
+//           note is load-bearing: FOUR live comments in this file cite that
+//           version as their explanation and now have nowhere else to point.
 //
 // v3.31.2 — IMPORT ONLY, NO BEHAVIOUR. ADMIN_EMAILS is imported from
 //           firebase-config.js instead of declared here. It was one of FOUR
@@ -67,19 +84,6 @@
 //           (cap 4) for the classroom notice, Gutenberg's origin link and its Credits row; a
 //           cleaned PD-only book moves to combined PD+CC0, a CC BY book never does. New
 //           'Prepared by' field; 'Cleaned up by' is now a select.
-// v3.26.0 — ⚠️ THE SOURCE AND LICENSE AUTOFILLS HAD NEVER ONCE BEEN RIGHT. Of 24 books in
-//           library/, two ever matched an option: SE put a gutenberg.org URL in Source
-//           (dc:source is UPSTREAM, read before dc:publisher) and a 90-word paragraph in
-//           License. Both now map through canonicalSourceFrom()/canonicalRightsFrom(). The
-//           mismatch panel argued the paragraph back in; the v3.20.0 warning was overwritten
-//           by its own summary say(). Origin URL read from Gutenberg's #pg-header.
-// v3.25.3 — ⚠️ AN OVERWRITE REPLACED A HAND-SOURCED COVER WITH NO PROMPT. Jake found a
-//           real jacket photograph for a Hancock title, re-uploaded the Gutenberg EPUB
-//           for its metadata, and the parse staged Gutenberg's generic placeholder over
-//           it; Upload All then wrote that to Storage. The cover was the most hand-made
-//           field on the screen and the only one with no protection. A file's cover is
-//           now only staged when the book has NONE; otherwise it is offered in the
-//           mismatch panel with both images side by side.
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * loadBookList(selectFirst) defaults to FALSE and preserves the current
@@ -94,11 +98,11 @@ import { db, auth, storage, ADMIN_EMAILS, isStaffUser } from "./firebase-config.
 import { initLessonsPanel, setStaffHooks } from "./lessons-admin.js";
 import { initStaffPanel, initStaffPanelContent, syncOwnClaimsAfterClassChange }
     from "./staff-admin.js";
-import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } from "./read-meter.js";
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.31.2";
+const ADMIN_VERSION = "3.33.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -556,7 +560,39 @@ let offeredCover = null;
 // rather than storing an octet-stream nobody can render.
 let stagedCoverType = '';
 
-if(footerEl) footerEl.innerText = `Admin JS: v${ADMIN_VERSION} | Lessons Admin: v${window.LESSONS_ADMIN_VERSION || '?'} | Staff Admin: v${window.STAFF_ADMIN_VERSION || '?'}`;
+// ⚠️ v3.33.0 — WRITES THE SPAN, NOT THE WHOLE FOOTER. The footer now also
+// holds the build-info button and its panel; innerText on the <footer> would
+// delete both, which is exactly the kind of thing that looks like the button
+// "never worked" rather than like it was erased half a second after load.
+const footerVerEl = document.getElementById('admin-footer-version');
+if (footerVerEl) footerVerEl.innerText =
+    `Admin JS: v${ADMIN_VERSION} | Lessons Admin: v${window.LESSONS_ADMIN_VERSION || '?'} | Staff Admin: v${window.STAFF_ADMIN_VERSION || '?'}`;
+else if (footerEl) footerEl.innerText = `Admin JS: v${ADMIN_VERSION}`;
+
+// ⚠️ ROADMAP 16 — THE BUILD PANEL. Notes shown unconditionally: admin.html is
+// behind a staff check, so anyone reading this footer is already staff.
+(function wireAdminBuildPanel() {
+    const btn = document.getElementById('build-toggle');
+    const list = document.getElementById('build-list');
+    if (!btn || !list) return;
+    btn.addEventListener('click', async () => {
+        if (list.style.display !== 'none') {
+            list.style.display = 'none'; btn.textContent = 'build'; return;
+        }
+        list.style.display = ''; btn.textContent = 'hide';
+        list.innerHTML = 'Reading deployed files\u2026';
+        try {
+            const { readDeployedVersions, renderBuildList } = await import('./versions.js');
+            const results = await readDeployedVersions({ force: true });
+            list.innerHTML =
+                `<div style="opacity:.6;margin-bottom:4px">admin.js v${ADMIN_VERSION} (this page)</div>`
+                + renderBuildList(results, { notes: true });
+        } catch (e) {
+            list.innerHTML = '<div style="color:#c05621">Could not read build info.</div>';
+            console.warn('[admin] build panel:', e);
+        }
+    });
+})();
 
 // HANDOFF §4.1: admin.html's <title> was hardcoded and had no constant behind it,
 // so it read v3.3.0 for nineteen minor versions. The tab title is the first

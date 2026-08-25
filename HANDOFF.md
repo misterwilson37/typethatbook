@@ -1,7 +1,39 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.24.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
-     through Round 38; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+<!-- HANDOFF.md v15.25.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+     through Round 40; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.25.0 — Rounds 39-40 (Underwood). ✅ §0.-30.A: THE ROSTER QUERY READS
+     EVERY USER DOCUMENT IN THE DATABASE — `query(usersRef)` with NO FILTER on
+     the isSuper() + "All schools" path. 501 = 167 x 3 days; 1,169 = 167 x 7.
+     167 is not 101 students; ~66 are staff, old and test accounts. ⚠️ AND THE
+     `students × days` LINE ON SCREEN WAS THE CROSS PRODUCT — what the sweep
+     WOULD read before pruning — which misled two rounds. It reports what was
+     actually read now.
+     ⚠️ §0.-30.B: NOTHING HISTORICAL WAS EVER LOADED. The discovery query
+     returned 104 documents, correctly date-filtered. The 501 were blind guesses,
+     397 of them empty. The cost was absence, not old records.
+     ⚠️ §0.-30.C: the future-date clamp was BUILT AND REVERTED. A Sat–Fri week
+     pulled on a Monday really does sweep impossible days — but planReads()
+     already skips a day it knows is empty. ⚠️ JAKE'S SAT–FRI DEFAULT MUST NOT
+     CHANGE. ROADMAP 21 holds the three-line restore.
+     ✅✅ §0.-30.D: ensureSince(). noteDay() only fires on a TYPING FLUSH, so a
+     student who signs in and never types had no ledger and was swept in full
+     FOREVER. Seeded from the user document both controllers already read — no
+     extra read, ONE WRITE PER STUDENT EVER.
+     ⚠️⚠️ §0.-30.E: writing that test found ledgerFrom() reading `since` INSIDE
+     the day-array branch, so a since-with-no-days returned null — exactly the
+     document ensureSince() creates. The seeding would have saved NOTHING. The
+     two fields answer different questions: AN EMPTY DAY LIST IS A REAL ANSWER.
+     ✅ §0.-30.F: ROADMAP 16 — build panel on both staff pages, and admin.html is
+     in SOURCES at last. ⚠️ admin.js wrote footerEl.innerText, which would have
+     DELETED the new button half a second after load.
+     ⚠️⚠️ §0.-30.G: I DELETED A HEADER ENTRY WITHOUT ARCHIVING IT — §0.-26.C's
+     failure by a different route. THE RULE IS: VALIDATE EVERY FILE, THEN WRITE
+     EVERY FILE; no write before any assertion. ⚠️ And ASSERT ON THE BOUNDARY,
+     not on a shape you expect.
+     reports.html v2.28.0, admin.js v3.33.0, versions.js v1.14.0,
+     logdays.js v1.2.0. 52 harnesses, ALL PASSING.
 
      v15.24.0 — Round 38 (Underwood). ✅ ITEM 19 (CONTINUE READING) BUILT for
      ZERO extra reads — §0.-29.B. ⚠️⚠️ AND THE SUITE'S "8 PRE-EXISTING FAILURES"
@@ -644,6 +676,122 @@ is not the same as checking the list. **Check the list.**
 > the repo root and dropped each one into the channel it belonged in.
 
 ---
+
+## §0.-30. ✅ ROUND 40 — WHERE 501 CAME FROM, AND THE LEDGER THAT WAS NEVER SEEDED
+
+**2026-08-24.** Jake ran the instrumented report and the console answered a
+question three rounds of arithmetic had got wrong.
+
+### A. ⚠️⚠️ THE ROSTER QUERY READS EVERY USER DOCUMENT IN THE DATABASE
+
+```
+users                167 reads   1 call     reports.html:1103
+typing_logs          104 reads   1 call     reports.html:1181
+typing_logs/*        501 reads   397 misses reports.html:1122
+```
+
+**501 = 167 × 3 days. 1,169 was 167 × 7.** Same roster both times; only the day
+count moved. And 167 is not "students" — `readRosterUids()` runs
+`query(usersRef)` with **NO FILTER** on the `isSuper()` + "All schools" path.
+Jake has ~101 students; the other ~66 are staff, old accounts and test users.
+
+⚠️ **THE `students × days` LINE ON SCREEN WAS THE CROSS PRODUCT** — what the
+sweep WOULD read before anything pruned it — and it was the only cost figure the
+page showed. It misled both of us for two rounds. It now reports what was
+actually read, of how many were possible, and why the rest were skipped.
+
+### B. ✅ WHAT THE REPORT ACTUALLY COSTS, AND WHAT IT NEVER DID
+
+⚠️ **NOTHING HISTORICAL WAS EVER LOADED.** Jake's model was "1,155 documents from
+last week that have no impact on this week", and the complaint was right while the
+mechanism was not: the discovery query returned **104 documents**, correctly
+date-filtered, cheap. The 501 were blind guesses at document ids, **397 of which
+came back empty**. The cost was never old records. It was absence.
+
+### C. ⚠️ THE FUTURE-DATE CLAMP: BUILT, THEN REVERTED, AND BOTH WERE RIGHT
+
+A Saturday-to-Friday grading week pulled on a Monday really does sweep days that
+cannot hold data — 167 × 4 = 668 reads of a week that had not happened. That part
+was true and Jake accepted it.
+
+⚠️ **BUT I ALSO CLAIMED IT EXPLAINED HIS SPEEDUP, AND IT DID NOT.** He had
+narrowed the dates to 8/22–8/24 himself; every one of those falls inside the
+clamp, so the clamp did nothing in the run I was pointing at. **Reverted.**
+`planReads()` already skips a day it knows is empty, and a future day is the
+easiest case of that — a second mechanism doing one job means two places to check
+when a number looks wrong, and only one of them is tested.
+⚠️ **JAKE'S SATURDAY-TO-FRIDAY DEFAULT MUST NOT CHANGE.** ROADMAP item 21 records
+the three-line restore if ledger seeding ever fails to deliver.
+
+### D. ✅✅ ensureSince() — THE LEDGER WAS NEVER GOING TO REACH MOST STUDENTS
+
+⚠️ **`noteDay()` ONLY FIRES ON A TYPING FLUSH.** A student who signs in and does
+nothing therefore has no ledger; `ledgerFrom()` correctly returns `null`, and
+reports.html correctly sweeps every day of every range for them — **forever**,
+because they never type and so never get a ledger. That is most of the ~66 extra
+accounts, and it is why the ledger looked useless in production.
+
+✅ `ensureSince()` seeds `ttbLogDaysSince` on first sign-in, from the user
+document `noteActiveDay()` (game.js) and `loadGateState()` (learn.js) **already
+read**. No extra read. ⚠️ **ONE WRITE PER STUDENT, EVER** — `since` is set once
+and only ever moves backward.
+
+⚠️ **IT REFUSES TO WRITE WITHOUT THE CALLER'S `userData`, AND THAT GUARD IS THE
+POINT.** Writing `since` blind could replace an EARLIER value with a later one,
+which silently reclassifies days we DO know about into "skip" — the one direction
+this module must never move. `logdays-test.mjs` E6.
+
+### E. ⚠️⚠️ AND WRITING THAT TEST FOUND A BUG THAT WOULD HAVE MADE IT POINTLESS
+
+`ledgerFrom()` read `since` **inside** the `Array.isArray(days)` branch. So a
+document with a `since` and no day array returned `null` — "I know nothing" — and
+was swept in full. **That is exactly the document `ensureSince()` creates.** The
+seeding would have shipped, written 167 fields, and saved nothing.
+
+⚠️ **THE TWO FIELDS ANSWER DIFFERENT QUESTIONS AND MUST BE READ SEPARATELY:**
+`since` is "from when have I been watching?", `days` is "and what did I see?".
+**An empty answer to the second is a real answer, not a missing one.** logdays.js
+v1.2.0. Caught by a case written for `ensureSince`, not by one written for
+`ledgerFrom` — the harness for the new thing found the bug in the old thing.
+
+### F. ✅ ROADMAP 16 — THE BUILD PANEL ON BOTH STAFF PAGES
+
+`reports.html` and `admin.html` had a version stamp and no build list, and
+**neither was in `versions.js` SOURCES** — so a stale `admin.js`, the file that
+writes every book in the library, was invisible to the one instrument built to
+find stale files.
+
+Both shells now carry an HTML version comment parsed by SOURCES, both footers have
+the button. ⚠️ **THE SHELLS ARE IN `HEADER_EXEMPT`** in `version-stamp-test.mjs`:
+section A compares a runtime constant against a `//` header and a markup shell has
+neither. **Exempt there means "no constant to disagree with", NOT "stop watching
+it"** — they are still parsed and still drift-checked.
+
+⚠️ `admin.js` wrote `footerEl.innerText`, which would have **deleted the new
+button half a second after load** — a bug that reads as "the button never worked"
+rather than as "the button was erased". It writes a span inside the footer now.
+
+### G. ⚠️⚠️ I DELETED A HEADER ENTRY WITHOUT ARCHIVING IT. AGAIN.
+
+Archiving `admin.js`'s oldest entry to stay inside the 8-entry budget, my script
+wrote `admin.js` **before** a later assertion failed — so the entry was removed
+and never filed, leaving an orphan line glued to the previous entry. **This is
+§0.-26.C's failure, repeated by a different route.** Restored from Jake's upload
+and redone.
+
+⚠️ **THE FIX IS AN ORDERING RULE: VALIDATE EVERY FILE, THEN WRITE EVERY FILE.**
+No write may precede any assertion. It then caught three more of my own mistakes
+harmlessly in the same round — a too-strict substring check, an assertion my own
+explanatory comment tripped, and a line-count assertion that failed on a
+legitimately one-line entry (`versions.js` v1.6.0).
+
+⚠️ **AND ASSERT ON THE BOUNDARY, NOT ON A SHAPE YOU EXPECT.** "This entry has at
+least two lines" was a guess about the data. "The line after the entry is not a
+continuation" is the property that actually matters.
+
+⚠️ **FOUR LIVE CODE COMMENTS IN `admin.js` CITE "v3.25.3"** as their explanation,
+which makes the "moved to CHANGELOG" note in its header load-bearing rather than
+decorative. Check for citations before archiving an entry.
 
 ## §0.-29. ✅ ROUND 38 — CONTINUE READING, AND THE FAILURES THAT WERE NEVER THERE
 

@@ -82,6 +82,8 @@ const SOURCES = [
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
     { file: 'game.html',             pattern: /game\.html\s+v([0-9][^\s\->]*)/ },
     { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
+    { file: 'reports.html',          pattern: /reports\.html\s+v([0-9][^\s\->]*)/ },
+    { file: 'admin.html',            pattern: /admin\.html\s+v([0-9][^\s\->]*)/ },
 ];
 const HEADER_EXEMPT = ['style.css', 'adventure.css', 'game.html', 'learn.html'];
 // ⚠️ MIRRORS versions.js v1.12.0. Change there first; these three are the copy.

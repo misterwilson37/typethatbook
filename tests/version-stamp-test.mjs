@@ -100,11 +100,19 @@ const SOURCES = [
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
     { file: 'game.html',             pattern: /game\.html\s+v([0-9][^\s\->]*)/ },
     { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
+    { file: 'reports.html',          pattern: /reports\.html\s+v([0-9][^\s\->]*)/ },
+    { file: 'admin.html',            pattern: /admin\.html\s+v([0-9][^\s\->]*)/ },
 ];
 // The CSS files carry their header in the same comment the pattern above reads,
 // so header-vs-constant is not a meaningful question for them. The HTML files
 // have no runtime constant separate from their comment either.
-const HEADER_EXEMPT = ['style.css', 'adventure.css', 'game.html', 'learn.html'];
+// ⚠️ EXEMPT FROM SECTION A ONLY — they are still parsed for a version and still
+// drift-checked. Section A compares a RUNTIME CONSTANT against a `//` header
+// comment, and none of these files has either: the stylesheets carry a CSS
+// comment, the markup shells an HTML one. Adding a file here says "this has no
+// runtime constant to disagree with", not "stop watching it".
+const HEADER_EXEMPT = ['style.css', 'adventure.css', 'game.html', 'learn.html',
+                       'reports.html', 'admin.html'];
 // ⚠️ MIRRORS versions.js v1.12.0 AND tools/audit-versions.mjs v1.4.0. Three
 // copies; section D fails if the SOURCES lists disagree, but nothing checks
 // these three numbers against each other — change versions.js first, then both

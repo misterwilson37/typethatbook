@@ -4805,6 +4805,8 @@ Each block below is exactly what stood in the file header, newest first.
 ### § versions.js — archived header entries (Round 30)
 
 ```
+// v1.6.0 — registers hud.js, the FOURTH shared module. Same reasoning as v1.5.0.
+
 // v1.5.0 — registers session-log.js, the THIRD module game.js and learn.js both
 // import. The warning below applied to stats-wal.js and applies here twice over:
 // this one is the only writer of typing_sessions on either page, so a stale
@@ -4960,6 +4962,21 @@ function _renderFullBuildPanel(results) {
 ### § admin.js — archived header entries
 
 ```
+// v3.26.0 — ⚠️ THE SOURCE AND LICENSE AUTOFILLS HAD NEVER ONCE BEEN RIGHT. Of 24 books in
+//           library/, two ever matched an option: SE put a gutenberg.org URL in Source
+//           (dc:source is UPSTREAM, read before dc:publisher) and a 90-word paragraph in
+//           License. Both now map through canonicalSourceFrom()/canonicalRightsFrom(). The
+//           mismatch panel argued the paragraph back in; the v3.20.0 warning was overwritten
+//           by its own summary say(). Origin URL read from Gutenberg's #pg-header.
+
+// v3.25.3 — ⚠️ AN OVERWRITE REPLACED A HAND-SOURCED COVER WITH NO PROMPT. Jake found a
+//           real jacket photograph for a Hancock title, re-uploaded the Gutenberg EPUB
+//           for its metadata, and the parse staged Gutenberg's generic placeholder over
+//           it; Upload All then wrote that to Storage. The cover was the most hand-made
+//           field on the screen and the only one with no protection. A file's cover is
+//           now only staged when the book has NONE; otherwise it is offered in the
+//           mismatch panel with both images side by side.
+
 // v3.25.2 — ⚠️ DATA-LOSS GUARD. The overwrite file input and the mismatch panel both
 //           survived a change of book, so Jane Eyre could sit selected with a football
 //           book still loaded in "Overwrite Data with New EPUB" — and Process Overwrite

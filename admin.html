@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!-- admin.html v1.0.0 — versioned the same way style.css and game.html are: a comment
+     near the top, because this file holds no runtime constant of its own. The
+     JS it loads (admin.js) carries its own version separately; this number is
+     the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
+     the markup changes, and do not reformat it. ROADMAP 16. -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1049,7 +1054,17 @@
     </div>
 </div>
 
-<footer id="admin-footer">Admin JS: Loading...</footer>
+<!-- ROADMAP 16 — the build panel. admin.js fills the span and wires the button. -->
+<footer id="admin-footer">
+    <span id="admin-footer-version">Admin JS: Loading...</span>
+    <button id="build-toggle" type="button"
+            style="margin-left:8px;font:inherit;font-size:.9em;background:none;
+                   border:1px solid currentColor;border-radius:4px;padding:0 6px;
+                   color:inherit;opacity:.7;cursor:pointer">build</button>
+    <div id="build-list" style="display:none;margin-top:6px;font-size:.95em;
+                                line-height:1.5;text-align:left;max-width:520px;
+                                max-height:60vh;overflow:auto"></div>
+</footer>
 
 <script type="module" src="admin.js"></script>
 </body>

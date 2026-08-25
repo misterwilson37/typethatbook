@@ -1,14 +1,16 @@
 # TYPETHATBOOK — ROADMAP
 
-**v3.26.0, 2026-08-24.** ✅ **THE READ BUDGET IS MEASURED AND FIXED** (Rounds
+**v3.27.0, 2026-08-24.** ✅ **THE READ BUDGET IS MEASURED AND FIXED** (Rounds
 36–37). A sprint session went **80 reads → 12**, the library page **8 → 3**, a
 report **1,155 → ~6**. ⚠️ **THE THREE CONSOLES DISAGREE
 AND ONLY ONE OF THEM IS WATCHING THE APP** — read §READS below before opening any
 of them again, or you will spend an afternoon profiling your own clicks.
 ✅ **ITEM 18 IS BUILT** (Round 37) once the ledger was verified on a real student
 document. ✅ **ITEM 20's CACHE IS FIXED AND VERIFIED** — a second sprint costs 0 reads.
-✅ **ITEM 19 (Continue Reading) IS BUILT** (Round 38) and costs **zero extra
-reads**. ⚠️⚠️ **THE SUITE'S "8 PRE-EXISTING FAILURES" WERE NEVER REAL** — see
+✅ **ITEMS 16, 17, 18, 19 AND 20 ARE CLOSED.** ⭐ **THE LEDGER IS NOW SEEDED ON
+SIGN-IN** (Round 40) — `noteDay()` only fired on a typing flush, so a student who
+signed in and never typed had no ledger and was swept in full **forever**.
+✅ Item 19 (Continue Reading) costs **zero extra reads**. ⚠️⚠️ **THE SUITE'S "8 PRE-EXISTING FAILURES" WERE NEVER REAL** — see
 §0.-29.A. `jsdom` and `acorn` were declared in package.json and simply not
 installed in the container. **ALL 52 HARNESSES PASS.** Run `npm install` before
 believing any failure count.
@@ -109,6 +111,18 @@ What is left in the student path after Rounds 36–37, measured 2026-08-24:
 * These numbers **drift down on their own** as `ttbLogDaysSince` recedes: a
   student whose `since` is two weeks old skips every empty day in the window
   rather than only the ones after the ledger began.
+* ⚠️ **THE ROSTER QUERY READS EVERY USER DOCUMENT** when scope is "All schools"
+  and the reader is super_admin — `query(usersRef)` with no filter, measured at
+  **167 reads** against a roster Jake thinks of as 101 students. The extra ~66 are
+  staff, old accounts and test users. Selecting a specific school filters it
+  today; changing the default is Jake's call, not a round's.
+* ⚠️ **THE FUTURE-DATE CLAMP WAS BUILT AND REVERTED (Round 40), AND THE REASON
+  MATTERS.** A Saturday-to-Friday window pulled on a Monday really does sweep days
+  that cannot hold data — that part was true. But `planReads()` already skips a
+  day it knows is empty, and a future day is the easiest case of that, so the
+  clamp was a second mechanism doing one job. ⚠️ **IF LEDGER SEEDING EVER FAILS
+  TO DELIVER**, the clamp is a three-line restore: filter `dateList` at
+  `today + 1` before building `pairs`. Jake's Sat–Fri default must not change.
 * ⚠️ **DO NOT reduce `LB_FETCH_LIMIT` to save reads.** Opt-out filtering happens
   client-side after the fetch, so trimming the fetch trims the displayed board
   for classes with several opt-outs. The cache fix already took this to ~0.
@@ -1448,7 +1462,7 @@ Jake's instruction; see *Settled*.
 
 ---
 
-## 16. ⚠️ NEW — THE BUILD PANEL IS MISSING ON `reports.html` AND `admin.html`
+## 16. ✅ FIXED (Round 40) — THE BUILD PANEL ON `reports.html` AND `admin.html`
 
 Jake: *"the hover doesn't work on reports. It also doesn't work on admin."*
 
@@ -1458,9 +1472,30 @@ neither has the hover build list. ⚠️ **AND NEITHER IS IN `versions.js`'s
 means a stale `admin.js` cannot be detected by the one instrument built to detect
 stale files. Small job: add both to SOURCES and give each shell the footer.
 
+✅ **DONE.** Both shells now carry an HTML version comment (`reports.html v1.0.0`,
+`admin.html v1.0.0`) parsed by `versions.js` SOURCES, and both footers have the
+build-info button. ⚠️ **THE TWO SHELLS ARE IN `HEADER_EXEMPT`** in
+`version-stamp-test.mjs`: section A compares a *runtime constant* against a `//`
+header, and a markup shell has neither. Exempt there means "no constant to
+disagree with", **not** "stop watching it" — they are still parsed and still
+drift-checked. ⚠️ `admin.js` previously wrote `footerEl.innerText`, which would
+have **deleted the new button half a second after load**; it now writes a span
+inside the footer.
+
 ---
 
-## 17. ⚠️⚠️ NEW — REPORTS READ EVERY RECORD OF EVERY STUDENT, EVERY TIME
+## 17. ✅ CLOSED (Rounds 35–40) — REPORTS READ EVERY RECORD OF EVERY STUDENT
+
+⚠️ **THE PREMISE WAS WRONG AND THE COMPLAINT WAS RIGHT.** The date filter was
+already in `buildScopedQuery()` (Round 35). Nothing historical was ever loaded:
+measured 2026-08-24, the discovery query returned **104 documents** — correctly
+date-filtered — while the by-id sweep spent **501 reads and got 397 misses**. The
+cost was never old records; it was blind guesses at document ids.
+⚠️ **AND THE `students × days` FIGURE ON SCREEN WAS THE CROSS PRODUCT** — what
+the sweep *would* read before pruning — which misled two rounds. It now reports
+what was actually read. See §0.-28 and §0.-30. Original text below.
+
+### The original item, kept for the diagnosis
 
 Jake: *"reading every record of every kid every time to generate a report seems
 problematic... that 1155 is there regardless of the time window or the school
@@ -1493,7 +1528,14 @@ fails at runtime**, and `firebase/firestore.indexes.json` is in this repo.
 
 ---
 
-## 18. ⚠️ NEW — THE READ BUDGET CAPS THE PROJECT AT ~270 STUDENTS
+## 18. ✅ CLOSED (Rounds 36–40) — THE READ BUDGET
+
+Measured, then fixed. A sprint session went **80 reads → 12**, the library page
+**8 → 3**. ⚠️ **AND ~38% OF THE WORST DAY WAS JAKE'S OWN AFTER-HOURS WORK**, not
+students — the Firebase usage panel includes console browsing. Read §READS at the
+top of this file before re-opening any console. Original text below.
+
+### The original item, kept for the arithmetic
 
 Jake, from the August Firestore usage: **11.3% of the 50K/day free read quota with
 ~135 students in one month.** Writes are at **0.2%**.
