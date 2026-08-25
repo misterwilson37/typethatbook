@@ -1,5 +1,7 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.28.0, 2026-08-25.** ⭐ **ITEM 15 IS BUILT** (Round 41) — the grade is stored where it is earned, and the `⚑` button reconstructs what 14b lost. ⚠️⚠️ **AND A PRACTICE DRILL WAS BEING GRADED AS THE LESSON** — HANDOFF §0.-31.A; **ITEMS 22 AND 23 ARE NEW** and record what that cost the archive. ⚠️ **`firestore.rules` v2.7.0 MUST BE PASTED INTO THE CONSOLE** or the new button does nothing.
+
 **v3.27.0, 2026-08-24.** ✅ **THE READ BUDGET IS MEASURED AND FIXED** (Rounds
 36–37). A sprint session went **80 reads → 12**, the library page **8 → 3**, a
 report **1,155 → ~6**. ⚠️ **THE THREE CONSOLES DISAGREE
@@ -1387,7 +1389,7 @@ gate just had, one layer down.** Fix this first, then build item 14 on it.
 
 ---
 
-## 15. ⭐⭐ STORE THE GRADE, AND RECONSTRUCT THE ONES 14b LOST — **NEXT BUILD**
+## 15. ✅ BUILT (Round 41, Rem-Sho) — STORE THE GRADE, AND RECONSTRUCT THE ONES 14b LOST
 
 **Jake:** *"Would it be possible without costing significantly more to record
 grades for class alongside the other stats? ... It also feels like something we
@@ -1459,6 +1461,76 @@ Jake's instruction; see *Settled*.
 3. ⚠️ **`typing_sessions` HAS A 120-DAY TTL.** This repairs the current
    trimester, not the archive, and it is not a mechanism anyone should plan to
    re-run annually.
+
+
+### ✅ BUILT, ROUND 41 — WHAT SHIPPED AND WHAT IT REFUSES TO DO
+
+**Forward half.** `recordRunOutcome()` writes `runGrades[k]` (best grade per run)
+and `runFires[k]` (A🔥 count per run). ⚠️ `runScores` **could not** answer Jake's
+question: it is a SUM, so 2 points is one A🔥 or two A's. No new reads, no new
+writes — both ride the merge already queued.
+
+**Backward half.** The `⚑` button beside `⟳` on every daily-log row.
+**Preview → confirm → write**, nothing written before the confirm. It:
+
+* fills only runs with **no stored grade** — never overwrites what a student earned;
+* **never touches `passed`, `fireCount`, `runScores`, `runLocks` or `grade`**, so
+  nothing it writes can advance or unlock a lesson;
+* tags every entry `runGradesFrom[k] = 'sessions'` and stamps `regradedAt`;
+* **refuses** on `runCount` drift (constraint 2) and merges continuations before
+  grading (constraint 1).
+
+⚠️ **THE RULES HAD TO CHANGE FOR IT TO WORK AT ALL** — staff could read a
+student's `lessonProgress` and never write it. `firestore.rules` v2.7.0, scoped to
+`lessonProgress` only, shipped in the same round (Rule 9) and verified against the
+emulator. **It is a console paste; the button does nothing until it is deployed.**
+
+---
+
+## 22. ⚠️⚠️ NEW — THE ARCHIVE BEFORE 2026-08-25 CANNOT BE FULLY TRUSTED
+
+Round 41 found that the **"🎲 Practice missed keys" drill was being graded as the
+lesson's run 1** — see HANDOFF §0.-31.A. Fixed forward, but:
+
+⚠️ **SPRINTS WRITTEN BEFORE `learn.js` v2.36.0 CARRY NO `practice` STAMP**, so a
+remediation drill in the archive is indistinguishable from a real run. Item 15's
+`⚑` reconstruction may therefore grade a random-letter drill as lesson material
+for any day before 2026-08-25. This is **not recoverable** — the information was
+never written.
+
+⚠️ **THE SAME DEFECT WROTE `runCount: 1` ONTO REAL LESSON RECORDS.** Any student
+who used the button has a `lessonProgress` record whose `runCount` is the
+synthetic drill's, not the lesson's. Consequences, both live today:
+
+1. `lessonModeFor()` scans `runCount` runs, so the **map card badge** can read
+   "practice" for a lesson that still pays. The per-run banner is correct
+   (`armRunMode()` asks `modeForRun()`), so this is a mislabel, not a mis-grade.
+2. Item 15's `⚑` will **refuse** those lessons with `runcount-drift` — correctly,
+   and visibly, which is how they can be found.
+
+**The repair is one line and has not been written:** `recordRunOutcome()` could
+re-derive `runCount` from `buildRunList(currentLesson).length` rather than
+`currentRuns.length`. ⚠️ **DO NOT DO THIS BLIND** — `currentRuns` is also replaced
+by the remediation detour and by nothing else, so the two agree on every ordinary
+path, and a change here touches the mastery gate. Measure how many records
+actually carry a wrong `runCount` first: the `⚑` button's refusal list is the
+measurement, free, on any day Jake opens.
+
+---
+
+## 23. ⚠️ NEW — `saveProgress()` AND `recordRunOutcome()` TRUST `currentLesson` ALONE
+
+The Round 41 defect was possible because **four writers read `currentLesson` and
+none of them checked that `currentRuns` still belonged to it.** The remediation
+detour is the only path that breaks that pairing today, and it is now flagged —
+but the *structural* hazard is unguarded: any future feature that swaps the run
+list will re-open it, silently, and the symptom will again be a grade rather than
+an error.
+
+⚠️ **THE CHEAP GUARD IS AN ASSERTION, NOT A REFACTOR:** `recordRunOutcome()` could
+refuse when `currentRuns.length !== buildRunList(currentLesson).length` and warn.
+Not built. Recorded so the next instance does not rediscover it from a student's
+record.
 
 ---
 

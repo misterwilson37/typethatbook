@@ -1,7 +1,51 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.25.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.26.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 40; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.26.0 — Round 41 (Rem-Sho). ⚠️⚠️ §0.-31.A: THE "🎲 PRACTICE MISSED KEYS"
+     DRILL WAS BEING GRADED AS THE LESSON'S RUN 1, IN PRODUCTION. It replaces
+     currentRuns and leaves currentLesson alone, so logRun() filed a sprint under
+     the lesson's id, recordRunOutcome() banked mastery points and wrote
+     runCount: 1 over a 12-run lesson, and saveProgress() marked the WHOLE LESSON
+     passed. ⚠️ key_random is ACCURACY-ONLY, so a clean 83-character random drill
+     scored A🔥 and unlocked the next lesson. ⚠️ THE FIX IS A POSITION: the branch
+     is ABOVE the isLastRun fork, because BOTH modals write and a guard in
+     showLessonResultModal() alone still grades a multi-chunk drill.
+     ⚠️⚠️ §0.-31.B: THE MINUTES STILL COUNT, IN BOTH RECORDS. §0.-21.C's "write
+     nothing anywhere" is right for ROADMAP 10's practice run and WRONG here —
+     that replays mastered material, this is a child typing keys they just got
+     wrong. Only the assessment is suppressed. The result screen MUST NOT say
+     "nothing was recorded"; it would be false.
+     ⚠️ §0.-31.C: SPRINTS BEFORE v2.36.0 CARRY NO STAMP and cannot be told from
+     real runs, so the reconstruction may grade a drill as lesson material for
+     any day before today. Unfixable, and it is why nothing the button writes
+     advances a student.
+     ✅ §0.-31.D: ROADMAP 15 BUILT, BOTH HALVES. runGrades/runFires store the
+     grade where it is earned (runScores is a SUM and cannot tell one A🔥 from two
+     A's). The ⚑ button reconstructs from typing_sessions: preview → confirm →
+     write, never overwrites an earned grade, NEVER touches passed/fireCount/
+     runScores/grade, tags every entry runGradesFrom:'sessions', and REFUSES on
+     runCount drift.
+     ⚠️⚠️ §0.-31.E: THE RULES FORBADE THE FEATURE — staff could READ a student's
+     lessonProgress and never WRITE it, so the button would have failed for every
+     student except Jake. Rules v2.7.0 ships in the SAME round (Rule 9), scoped to
+     lessonProgress ONLY, and was EXECUTED: 61 emulator cases, 7 new.
+     ⚠️ §0.-31.F: run-grade.js is the ONE copy of the grade rule; learn.js's
+     copies and THREE local GRADE_ORDER arrays are deleted. Part D is the ratchet
+     — runPlan() computes SHAPE not content and must agree with learn.js's real
+     generators on run count, or reports.html grades the wrong material.
+     ⚠️ §0.-31.G: logRun() appends "(interrupted)"/"(left page)"/"(hidden)" to a
+     FRAGMENT's detail — keying on the raw string invents grades from partial runs.
+     ⚠️⚠️ §0.-31.H: I TRUNCATED run-all-tests.mjs TO ZERO BYTES — §0.-24 verbatim,
+     having read it this session. ENCODE FIRST, TEMP FILE, VERIFY SIZE, RENAME.
+     And two assertions went red against the CORRECT build by matching my own
+     COMMENTS; position checks run on decomment(src) now.
+     ⚠️ §0.-31.I: ROUNDS 36-40 ARE ALL WRITTEN UP AS UNDERWOOD, WHICH IS ROUND 1.
+     Fourth occurrence. GREP THE ROSTER.
+     learn.js v2.36.0, run-grade.js v1.0.0 (NEW), reports.html v1.1.0/v2.29.0,
+     versions.js v1.15.0, firestore.rules v2.7.0. 54 harnesses + 61 rules cases,
+     ALL PASSING. audit:versions 0 problems (it was 1 in the repo as delivered).
 
      v15.25.0 — Rounds 39-40 (Underwood). ✅ §0.-30.A: THE ROSTER QUERY READS
      EVERY USER DOCUMENT IN THE DATABASE — `query(usersRef)` with NO FILTER on
@@ -527,6 +571,10 @@
      ⚠️ ROUNDS 23 AND 24 SUMMARISED HERE UNTIL NOW; their write-ups are
      §0.-9 and §0.-10 in this file and are unchanged. -->
 
+**Round 41 — Rem-Sho.** ⚠️ **ROUNDS 36–40 ARE ALL WRITTEN UP AS UNDERWOOD, AND UNDERWOOD IS ROUND 1** — the fourth occurrence, past three written warnings including §0.-20.J, which is the write-up of the third. Left as recorded rather than renamed: a roster is data and rewriting history in it would be worse than an honest duplicate. **Grep the roster before you write a name anywhere.**
+
+> *On the name:* the **Rem-Sho** was built by the Remington-Sholes company, and the name was the product. It evoked Remington — the machine everyone trusted — and Sholes, the man who invented the thing, and a buyer reading the front of it drew a lineage the mechanism did not have. That is this round exactly. A synthetic random-letter drill was filed under a lesson's id, labelled "run 1", and graded as that lesson's work; nothing on the record disagreed, because the label *was* the provenance. ⚠️ And the fix is the same shape as the lesson: stamp the record with what it actually is, because a reader a fortnight later has nothing else to go on. The archive written before today has no stamp, and that is exactly why it cannot be fully trusted now.
+
 **Rounds 31–34 — Fitch.** ⚠️ **ONE INSTANCE, ONE CONVERSATION, ONE NAME.** I took
 a fresh name each round — four names for four rounds — and Jake caught it: the
 convention is one name per INSTANCE, and a roster listing four is a roster
@@ -676,6 +724,176 @@ is not the same as checking the list. **Check the list.**
 > the repo root and dropped each one into the channel it belonged in.
 
 ---
+
+## §0.-31. ✅ ROUND 41 (Rem-Sho) — A PRACTICE DRILL WAS BEING GRADED AS THE LESSON
+
+**2026-08-25.** Jake asked for ROADMAP 15. Reading item 15's own constraint 2 —
+*"the gates are not on the record"* — meant opening `gatesForRun()`, and the line
+the spec cites turned out to be reachable from a button no one had traced.
+
+### A. ⚠️⚠️ THE "🎲 PRACTICE MISSED KEYS" DRILL WAS THE LESSON'S RUN 1
+
+`_practiceMissedKeys()` replaces `currentRuns` with a synthetic one-chunk
+`key_random` drill and calls `beginStep(0)`. It **deliberately leaves
+`currentLesson` alone** — the student is still notionally in the lesson — and
+every writer downstream reads that as authority:
+
+* `logRun()` filed a `typing_sessions` sprint carrying the **lesson's id** and
+  `detail: "run 1"`, byte-identical in shape to a real run.
+* `recordRunOutcome(0, …)` banked mastery points into the real
+  `runScores["0"]` and wrote **`runCount: 1`** over a 12-run lesson's count.
+* `saveProgress()` marked the **whole lesson `passed`**, bumped `attempts`,
+  overwrote `finalWPM`/`finalAccuracy` and could increment `fireCount`.
+
+⚠️ **AND IT WAS THE EASIEST A🔥 IN THE APP.** A synthetic step is `key_random`,
+so `gatesForRun()` returns `minWPM: null` — accuracy only — and a clean
+83-character run of random letters scored A🔥, passed the lesson and unlocked the
+next one via `isUnlocked()`.
+
+⚠️ **THE FIX IS AN ORDER, NOT A GUARD.** `remediationRun` is set **before**
+`beginStep()` and branched on **above the `isLastRun` fork** in `finishStep()`.
+Both modals write — `showLessonResultModal()` calls `recordRunOutcome()` *and*
+`saveProgress()`, `showStepModal()` calls `recordRunOutcome()` — so a guard
+inside the first one still grades any drill that chunks into more than one run,
+**which is exactly the student with enough missed keys to need one.**
+`remediation-test.mjs` B3 asserts the position, not the presence.
+
+### B. ⚠️⚠️ THE MINUTES STILL COUNT. THIS IS NOT ROADMAP 10.
+
+§0.-21.C's ruling for the *practice run* — write nothing anywhere, minutes
+included — is right there and **wrong here**, and reusing it would have been the
+easy mistake. That run replays material already mastered. This one is a child
+typing keys they just got wrong. `saveStats()` and `logRun()` both run **before**
+the branch, so the seconds land in `typing_logs` and `typing_sessions` alike;
+only the assessment is suppressed. Suppressing one of the two would manufacture
+the exact divergence ROADMAP item 4's flag exists to catch.
+
+⚠️ `renderRemediationResult()` **must not say "nothing was recorded"** — that is
+ROADMAP 10's wording and it would be false. A child told their four minutes did
+not count stops pressing the one button in this app that answers what they
+personally got wrong. `remediation-test.mjs` C3 asserts the absence of that
+sentence.
+
+### C. ⚠️ WHAT IT COSTS THE ARCHIVE, AND WHY IT HAD TO BE FIRST
+
+Sprints written **before learn.js v2.36.0 carry no `practice` stamp** and cannot
+be told from real runs. So the reconstruction in §D may grade a random-letter
+drill as lesson material for any day before today. That is unfixable and is why
+**nothing the button writes advances a student.**
+
+It is also why this had to be fixed before item 15 rather than alongside it: the
+reconstruction reads `typing_sessions` and keys on `runCount`, and this defect
+corrupts both — it would have written reconstructed grades derived from polluted
+records, permanently, and `runCount: 1` would have made item 15's own staleness
+guard misfire on legitimate lessons while staying quiet on the corrupted ones.
+
+### D. ✅ ROADMAP 15 IS BUILT, BOTH HALVES
+
+**Forward:** `runGrades[k]` (best grade per run) and `runFires[k]` (A🔥 count per
+run) are written in `recordRunOutcome()`. ⚠️ `runScores` **could not** answer
+Jake's question — it is a SUM, so 2 points is one A🔥 or two A's and nothing can
+tell them apart afterwards. No new reads and no new writes: both ride the merge
+`recordRunOutcome()` already queues.
+
+**Backward:** the `⚑` button beside `⟳` on every daily-log row. Preview → confirm
+→ write, in that order, with nothing written before the confirm. Four guarantees,
+all enforced in code:
+
+1. It **never overwrites a grade the student earned** — only empty runs are filled.
+2. It **never touches `passed`, `fireCount`, `runScores`, `runLocks` or `grade`**.
+   Those advance a child through the curriculum. A repair tool that can promote is
+   a promotion tool, and a wrong promotion is indistinguishable from real progress
+   afterwards — §0.-14.C's failure direction.
+3. Every entry is tagged `runGradesFrom[k] = 'sessions'` and the record stamped
+   `regradedAt`, so a reconstructed A🔥 is distinguishable from an earned one
+   forever, and a future round can find and undo everything this one wrote.
+4. It **refuses rather than guesses** when `runCount` has drifted.
+
+### E. ⚠️⚠️ THE RULES FORBADE THE FEATURE, AND THE RULE CHANGE *WAS* THE ROUND
+
+`match /users/{uid}/{collection}/{docId}` allowed `write: if request.auth.uid ==
+uid` **with no staff branch at all**. Staff could read a student's
+`lessonProgress` and never write it — so the button would have failed
+permission-denied for every student except Jake's own account, **the one account
+that never needed it.**
+
+✅ **Rules v2.7.0 ships in this round, not after it.** Rule 9's note names the
+exact sentence this would have been: *"the rules won't let me remove the old one
+yet, so I'll add the new one now and clean up later."*
+⚠️ **THE STAFF BRANCH NAMES `lessonProgress` EXPLICITLY** rather than reusing the
+four-name whitelist — nothing needs staff writing a student's `profile`,
+`progress` or `stats`, and a wildcard would have handed every teacher all four.
+⚠️ **IT WAS EXECUTED, NOT REASONED ABOUT.** `npm run test:rules` now runs 61
+cases, 7 of them new, including four negatives proving the branch is
+`lessonProgress`-only. §0.-5.A is about the round that skipped those nine seconds.
+
+### F. ⚠️ RULE 9 — `run-grade.js`, AND WHY IT IS NOT A TWIN
+
+Grading a stored sprint needs `lesson × run index → run type → gates`, and run
+index indexes the **chunked** list — a 2-step lesson can be 12 runs. Reproducing
+that in `reports.html` would be the twin failure of §0.-13.E, §0.-18 and §0.-19.
+
+`run-grade.js` v1.0.0 is the one copy. learn.js's `calculateGrade`,
+`gatesForRun`, `chunkSequence`, `DRILL_TYPES`, `FIRE_GRADE`,
+`REACH_HOME_COMPANION` and **three separate local `GRADE_ORDER` arrays** (two
+written as literal `A🔥`, one built from the code point — three spellings of one
+ordering, in one file) are **deleted in the same deploy**.
+
+⚠️ **ONE PLACE A TWIN COULD STILL FORM, AND PART D IS THE RATCHET.** `runPlan()`
+must chunk a sequence, and two step types generate their characters at random.
+But their **length and space positions are fixed** by `(groupSize, groupCount)`,
+so chunk boundaries are fully determined without generating a letter — the plan
+computes **shape, never content**. `run-grade-test.mjs` D2 drives learn.js's
+**real** generators, extracted from the shipped source, and asserts both agree on
+run count across 11 step shapes. **If D2 goes red, `reports.html` is mapping run
+indices onto the wrong steps and every grade it writes is against the wrong
+gates.**
+
+### G. ⚠️ A HAZARD ITEM 15 DID NOT LIST
+
+`logRun()` appends `(interrupted)`, `(left page)` or `(hidden)` to a **fragment's**
+`detail`. Keying a run on the raw string files one run's fragments as three
+separate runs and grades each on its own partial numbers — which is precisely how
+the 0 WPM rows in Jake's screenshot would have become real, stored grades.
+`runIndexFromDetail()` strips the parenthetical; `mergeContinuations()` sums the
+union and recomputes WPM with `logRun()`'s own arithmetic.
+
+### H. ⚠️⚠️ I TRUNCATED A FILE TO ZERO BYTES. §0.-24, VERBATIM, HAVING READ IT.
+
+`io.open(p, 'w')` truncates on open; the encode then threw `UnicodeEncodeError`
+on a surrogate escape and `tests/run-all-tests.mjs` was left at **0 bytes**. This
+is §0.-24's heredoc failure exactly, and **I had read that warning earlier in the
+same session** while surveying this file.
+
+⚠️ **THE RULE IS: ENCODE FIRST, WRITE TO A TEMP FILE, VERIFY THE SIZE, RENAME.**
+No file may be opened for writing until the bytes are known-good. Reading a
+warning about a mistake is not performing the check the warning describes —
+§0.-20.J's lesson, one layer down, and now the second thing in this file that has
+been learned twice. Restored from Jake's upload.
+
+⚠️ **AND TWO ASSERTIONS WENT RED AGAINST THE CORRECT BUILD** because they matched
+**this round's own comments** — I had written `isLastRun` and `beginStep()` in
+prose above the lines that use them. Position checks now run on `decomment(src)`.
+**A harness that reads comments can be satisfied by writing a comment.**
+
+### I. ⚠️ AND THE ROSTER WAS WRONG AGAIN
+
+Rounds 36–40 are all written up as **Underwood**, which is **Round 1**. §0.-20.J
+is the write-up of that mistake being made for the third time, past two warnings.
+It was then made a fourth time and stuck. **This round grepped the roster before
+writing the name anywhere**, which is the check §0.-20.J asks for and is the only
+thing that works. Rem-Sho is free.
+
+### J. THE NUMBERS
+
+`learn.js` v2.36.0, `run-grade.js` v1.0.0 (NEW), `reports.html` v1.1.0 / inline
+v2.29.0, `versions.js` v1.15.0, `firestore.rules` v2.7.0,
+`run-all-tests.mjs` v1.16.0.
+**54 harnesses pass** (52 before), plus **61 rules cases** under the emulator.
+`remediation-test.mjs` is mutation-verified: **27 passing on the fix, 17 failing
+against v2.35.0.** `npm run audit:versions` reports **0 problems** — it reported
+**1** in the repo as delivered (`versions.js`'s v1.14.0 entry was filed between
+v1.8.0 and v1.7.0).
 
 ## §0.-30. ✅ ROUND 40 — WHERE 501 CAME FROM, AND THE LEDGER THAT WAS NEVER SEEDED
 

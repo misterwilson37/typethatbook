@@ -1,5 +1,20 @@
-// versions.js v1.14.0 — reads every file's version constant out of the files as
+// versions.js v1.15.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
+//
+// v1.15.0 — SOURCES gained run-grade.js (ROADMAP 15), the shared grade rule that
+//           learn.js and reports.html both import. ⚠️ THE D2 RATCHET CAUGHT THE
+//           OMISSION on the first test run after the module was created — the
+//           third time it has done that (settings-panel.js, then the Round 27
+//           trio), which is exactly what it is for.
+//           ⚠️ AND THE v1.14.0 ENTRY BELOW WAS FILED IN THE WRONG PLACE — it sat
+//           between v1.8.0 and v1.7.0, so `npm run audit:versions` reported
+//           "version entries out of order" on a clean checkout. Moved up here.
+//           The audit was RIGHT and had been red in the repo as delivered.
+//
+// v1.14.0 — ROADMAP 16: registers reports.html and admin.html. ⚠️ A STALE
+//           admin.js WAS INVISIBLE TO THE DRIFT DETECTOR, which is backwards for
+//           the file that writes every book in the library.
+//
 //
 // v1.13.0 — ⚠️⚠️ THE BUILD PANEL NO LONGER ANSWERS FROM A COPY IT TOOK AT PAGE
 //           LOAD. The sessionStorage cache is replaced by module state with a
@@ -86,29 +101,6 @@
 // load. A silently absent update gate looks identical to a working one right up
 // until a deploy doesn't reach the building.
 //
-// v1.14.0 — ROADMAP 16: registers reports.html and admin.html. ⚠️ A STALE
-//           admin.js WAS INVISIBLE TO THE DRIFT DETECTOR, which is backwards for
-//           the file that writes every book in the library.
-//
-// v1.7.0 — registers game.html and learn.html, and exports readOneDeployedVersion()
-// so a page can read its OWN entry (and only its own entry) without paying for
-// the full SOURCES fetch. Built for the game.html/learn.html footer redesign:
-// each page shows its own html/js/css triad immediately (three small, targeted
-// fetches — game.html is ~2KB, not the 210KB fetching game.js from outside it
-// would cost) and defers the full cross-file list to the SAME lazy
-// readDeployedVersions() index.html's build panel already uses, on first hover.
-// ⚠️ game.html and learn.html carry their version the same way style.css does —
-// a comment near the top, because they are markup shells with no runtime JS of
-// their own to hold a constant. HEADER_EXEMPT covers them for the same reason
-// it covers the stylesheets: there is no second (constant) copy to drift from.
-//
-//
-//
-//
-// ⚠️ v1.12.0 — v1.4.0's entry moved to CHANGELOG.md § ARCHIVED FILE HEADERS.
-//
-// Explicit patterns rather than one clever regex, so an unexpected match is
-// impossible and adding a file is obvious.
 const SOURCES = [
     { file: 'game.js',               pattern: /\bconst\s+VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'learn.js',              pattern: /\bconst\s+LEARN_VERSION\s*=\s*["']([^"']+)["']/ },
@@ -134,6 +126,7 @@ const SOURCES = [
     { file: 'celebrate.js',          pattern: /\bexport\s+const\s+CELEBRATE_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'receipt.js',            pattern: /\bexport\s+const\s+RECEIPT_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'lesson-gate.js',        pattern: /\bexport\s+const\s+LESSON_GATE_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'run-grade.js',          pattern: /\bexport\s+const\s+RUN_GRADE_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'read-meter.js',         pattern: /\bexport\s+const\s+READ_METER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'logdays.js',            pattern: /\bexport\s+const\s+LOGDAYS_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'settings-panel.js',     pattern: /\bexport\s+const\s+SETTINGS_PANEL_VERSION\s*=\s*["']([^"']+)["']/ },
@@ -155,7 +148,7 @@ const SOURCES = [
     { file: 'admin.html',            pattern: /admin\.html\s+v([0-9][^\s\->]*)/ },
 ];
 
-export const VERSIONS_VERSION = '1.14.0';
+export const VERSIONS_VERSION = '1.15.0';
 
 // ⚠️ v1.13.0 — THE OLD sessionStorage KEY, KEPT ONLY TO BE CLEARED. A tab that
 // loaded v1.12.0 or earlier has a stale build list sitting in sessionStorage

@@ -1,4 +1,37 @@
-# CHANGELOG
+# CHANGELOG — TypeThatBook
+
+## Round 41 (Rem-Sho) — 2026-08-25
+
+**⚠️⚠️ A PRACTICE DRILL WAS BEING GRADED AS THE LESSON.** The "🎲 Practice missed
+keys" drill replaces `currentRuns` and leaves `currentLesson` alone, so every
+writer downstream read it as the lesson's run 1: a sprint filed under the
+lesson's id, mastery points banked, `runCount: 1` written over a 12-run lesson,
+and the **whole lesson marked passed**. `key_random` is accuracy-only, so a clean
+83-character random drill scored **A🔥** and unlocked the next lesson.
+⚠️ The minutes still count, in both records — only the assessment is suppressed.
+
+**⭐ ROADMAP 15 BUILT, BOTH HALVES.** `runGrades`/`runFires` store the grade where
+it is earned; the `⚑` button reconstructs what 14b lost from `typing_sessions`,
+preview-then-confirm, never overwriting an earned grade and never touching
+`passed`, `fireCount`, `runScores` or `grade`.
+
+**⚠️ `firestore.rules` v2.7.0 — REQUIRED, CONSOLE PASTE.** Staff could read a
+student's `lessonProgress` and never write it; the button does nothing until this
+is deployed. Scoped to `lessonProgress` only; 61 emulator cases, 7 new.
+
+- `learn.js` v2.36.0 — remediation fix; `runGrades`/`runFires`; imports the rule
+- `run-grade.js` v1.0.0 **(NEW)** — the one copy of the grade rule (Rule 9)
+- `reports.html` v1.1.0 / inline v2.29.0 — the `⚑` reconstruction button
+- `versions.js` v1.15.0 — registers `run-grade.js`; fixes the out-of-order entry
+- `firebase/firestore.rules` v2.7.0 — the staff `lessonProgress` write branch
+- `tests/remediation-test.mjs` **(NEW)** — 27 passing; **17 failing against v2.35.0**
+- `tests/run-grade-test.mjs` **(NEW)** — 50 checks; Part D is the anti-twin ratchet
+- `tests/run-all-tests.mjs` v1.16.0, `tests/open-unit-test.mjs`,
+  `tests/exit-flush-test.mjs`, `tests/firestore-rules.test.mjs`,
+  `tools/audit-versions.mjs`
+
+**54 harnesses + 61 rules cases pass. `audit:versions`: 0 problems** (1 in the
+repo as delivered).
 
 ## Round 35 — Fitch (2026-08-23) — ITEM 17 MEASURED, NOTHING SHIPPED
 
@@ -3959,6 +3992,39 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### learn.js v2.30.0 — archived by Round 41 (Rem-Sho) to stay inside the 8-entry budget
+
+```
+// v2.30.0 — THE CORNER ID STAMP IS GONE. renderIdStamp() deleted; the student ID
+//           lives in the ⚙ panel only, with click-to-copy carried over. Twin
+//           deleted from game.js in the same commit. ⚠️ HANDOFF §2's deploy check
+//           referenced the stamp and has been rewritten. §0.-19.
+```
+
+### versions.js v1.7.0 — archived by Round 41 (Rem-Sho) to stay inside the 8-entry budget
+
+```
+// v1.7.0 — registers game.html and learn.html, and exports readOneDeployedVersion()
+// so a page can read its OWN entry (and only its own entry) without paying for
+// the full SOURCES fetch. Built for the game.html/learn.html footer redesign:
+// each page shows its own html/js/css triad immediately (three small, targeted
+// fetches — game.html is ~2KB, not the 210KB fetching game.js from outside it
+// would cost) and defers the full cross-file list to the SAME lazy
+// readDeployedVersions() index.html's build panel already uses, on first hover.
+// ⚠️ game.html and learn.html carry their version the same way style.css does —
+// a comment near the top, because they are markup shells with no runtime JS of
+// their own to hold a constant. HEADER_EXEMPT covers them for the same reason
+// it covers the stylesheets: there is no second (constant) copy to drift from.
+//
+//
+//
+//
+// ⚠️ v1.12.0 — v1.4.0's entry moved to CHANGELOG.md § ARCHIVED FILE HEADERS.
+//
+// Explicit patterns rather than one clever regex, so an unexpected match is
+// impossible and adding a file is obvious.
+```
 
 ⚠️ **NOTHING HERE WAS DELETED.** These are verbatim header entries lifted out
 of four files when the per-file **entry budget** fired in the build panel. The

@@ -242,10 +242,16 @@ function makeSchoolSandbox() {
         '  watermark() { return stepLoggedSeconds; },',
         '};',
     ]);
+    // ⚠️ v1.4.0 — `remediationRun` IS INJECTED FALSE, AND THAT IS THE CASE THIS
+    // HARNESS IS ABOUT. learn.js v2.36.0 stamps `practice: 'remediation'` on a
+    // sprint written during a "🎲 Practice missed keys" drill; every assertion
+    // below is about an ORDINARY run, which must carry no such field. Part F
+    // asserts the stamp is absent rather than merely not looked at.
     const api = new Function('state', 'sessionLogPush', 'getLocalDateStr',
-                             'currentUser', 'sessionExpired', 'lastKnownUid', src)(
+                             'currentUser', 'sessionExpired', 'lastKnownUid',
+                             'remediationRun', src)(
         state, (uid, r) => { pushed.push(r); return true; },
-        () => '2026-08-18', { uid: 'stu1' }, false, '');
+        () => '2026-08-18', { uid: 'stu1' }, false, '', false);
     return { api, state, pushed };
 }
 

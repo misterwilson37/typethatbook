@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// firestore.rules v2.6.0 — TypeThatBook
+// firestore.rules v2.7.0 — TypeThatBook
 //
 // v2.6.0 — ⚠️⚠️⚠️ A READ OF A DAY THE STUDENT DID NOT TYPE WAS BEING DENIED, AND
 //          IT BROKE EVERY STUDENT'S WEEK. `resource` is null on a get() of a
@@ -323,9 +323,32 @@ service cloud.firestore {
     // add a subcollection, add it here or its writes will silently fail.
     // ('stats' is matched by the more specific rule above and never reaches
     // this block, but it is listed for completeness and costs nothing.)
+    // ⚠⚠ v2.7.0 — ROADMAP 15. BUILDING-SCOPED STAFF MAY WRITE lessonProgress,
+    // AND ONLY lessonProgress.
+    //
+    // reports.html's ⚑ grade-reconstruction button writes runGrades/runFires
+    // back onto a STUDENT'S record, and until this version the rule here was
+    // `request.auth.uid == uid` with no staff branch at all — so the button
+    // would have failed permission-denied for every student except Jake's own
+    // account, which is the one account that never needed it.
+    //
+    // ⚠ RULE 9: THIS RULE CHANGE SHIPS IN THE SAME ROUND AS THE FEATURE, not
+    // after it. "The rules won't let me do it yet, so I'll ship the other half
+    // now" is the one sentence every counting incident in this project traces to.
+    //
+    // ⚠ THE SCOPE IS DELIBERATELY NARROWER THAN THE READ RULE BELOW. It names
+    // lessonProgress explicitly rather than reusing the four-name whitelist:
+    // nothing in the app needs staff to write a student's `profile`, `progress`
+    // or `stats`, and a wildcard here would hand every teacher a write path to
+    // all four. It mirrors the /stats rule above — super, or a staff member who
+    // reads the whole building AND is in that student's building.
     match /users/{uid}/{collection}/{docId} {
-      allow write: if request.auth.uid == uid
-                   && collection in ['progress', 'profile', 'lessonProgress', 'stats'];
+      allow write: if (request.auth.uid == uid
+                       && collection in ['progress', 'profile', 'lessonProgress', 'stats'])
+        || (collection == 'lessonProgress'
+            && (isSuper()
+                || (isStaff() && readsWholeBuilding() && inMySchool(
+                      get(/databases/$(database)/documents/users/$(uid)).data.schoolId))));
       allow read: if request.auth.uid == uid
         || isSuper()
         || (isStaff() && inMySchool(

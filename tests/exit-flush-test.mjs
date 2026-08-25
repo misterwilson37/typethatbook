@@ -56,6 +56,7 @@
 // only evidence that the other five parts are testing anything.
 
 import { readFileSync } from 'fs';
+import { betterGrade, FIRE_GRADE } from '../run-grade.js';
 import { runScoreOf, pointsForGrade, MASTERY_POINTS } from '../lesson-gate.js';
 
 let pass = 0, fail = 0;
@@ -145,6 +146,11 @@ function buildWorld({ flushFails = false, signedIn = true } = {}) {
         _view: (v) => { w.view = v; },
         console: { warn: () => {}, log: () => {} },
         structuredClone,
+        // ⚠️ v1.1.0 — recordRunOutcome() banks a per-run GRADE as of learn.js
+        // v2.36.0 (ROADMAP 15) and reaches for run-grade.js's betterGrade() to
+        // do it. Imported rather than restated: a harness carrying its own copy
+        // of the ordering would pass while the shipped rule changed underneath.
+        betterGrade, FIRE_GRADE,
     };
 
     const NEEDED = ['recordRunOutcome', 'flushLessonProgress',

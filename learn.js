@@ -1,4 +1,22 @@
-// learn.js v2.35.0
+// learn.js v2.36.0
+//
+// v2.36.0 — ⚠️⚠️ A REMEDIATION DRILL WAS BEING GRADED AS A RUN OF THE LESSON.
+//           "🎲 Practice missed keys" replaces currentRuns with a synthetic
+//           key_random drill and deliberately leaves currentLesson alone, so
+//           everything downstream read it as the lesson's run 1: logRun() filed
+//           a sprint under the lesson's id, recordRunOutcome() banked mastery
+//           points into runScores["0"] and wrote runCount: 1 over a 12-run
+//           lesson's count, and saveProgress() marked the WHOLE LESSON passed.
+//           ⚠️ AND key_random IS ACCURACY-ONLY, so a clean 83-character random
+//           drill scored A🔥 and unlocked the next lesson. remediationRun now
+//           branches ABOVE the isLastRun fork — both modals write, so a guard in
+//           one still grades a multi-chunk drill. ⚠️ THE MINUTES STILL COUNT, in
+//           BOTH records: this is NOT ROADMAP 10's practice run, and suppressing
+//           them would manufacture item 4's divergence. tests/remediation-test.mjs.
+//           ⭐ ROADMAP 15 — runGrades/runFires store the grade WHERE IT IS
+//           EARNED (runScores is a SUM and cannot tell one A🔥 from two A's), and
+//           the grade rule moved to run-grade.js so reports.html can reconstruct
+//           without a second copy of it. Rule 9: the copies here are DELETED.
 //
 // v2.35.0 — ⚠️⚠️ A LESSON NOW OPENS AT THE FIRST RUN THAT STILL COUNTS. Jake:
 //           "if the first one is locked, students have no way to get to the
@@ -76,10 +94,6 @@
 //           readability half of the fix is in adventure.css v1.0.3 and
 //           style.css v3.8.1; nothing in this file was the cause. §0.-20.
 //
-// v2.30.0 — THE CORNER ID STAMP IS GONE. renderIdStamp() deleted; the student ID
-//           lives in the ⚙ panel only, with click-to-copy carried over. Twin
-//           deleted from game.js in the same commit. ⚠️ HANDOFF §2's deploy check
-//           referenced the stamp and has been rewritten. §0.-19.
 //
 //
 //
@@ -111,6 +125,17 @@ import { activeDayPlan, activeDayCountOf, fireCountOf, isMastered,
          lessonModeFor, runModeFor, runScoreOf, runMastered, pointsForGrade,
          lastLockDayOf, furthestIndexOf, reachBackFor,
          MASTERY_POINTS, MASTERY_FIRE_COUNT, REACH_BACK_DAYS } from "./lesson-gate.js";
+// ROADMAP item 15 — the grade rule. ⚠️ PURE MODULE, AND THE ONLY COPY: every
+// function below used to live in this file, and reports.html needed all of them
+// to reconstruct a grade. Two copies of calculateGrade() is the shape Rule 9
+// forbids, so the copies here were DELETED in the same deploy that added this
+// import. ⚠️ gatesForRun() TAKES THE LESSON'S GATES AS AN ARGUMENT now — the
+// old one read `currentLesson` out of module scope, which is what made it
+// impossible to call from anywhere else.
+import { calculateGrade, gradeAdvances, gatesForRun, betterGrade,
+         chunkSequence, DRILL_TYPES, FIRE_GRADE, GRADE_ORDER,
+         REACH_HOME_COMPANION, CHUNK_TARGET, CHUNK_SLACK,
+         RUN_GRADE_VERSION } from "./run-grade.js";
 // The day/week counters' WAL, shared with game.js. It is a separate module
 // because the counters are the one piece of state that is true regardless of
 // which page or which book a student is on, and both previous copies of it were
@@ -194,7 +219,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.35.0";
+const LEARN_VERSION = "2.36.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -497,8 +522,6 @@ let currentLesson  = null;
 // 10.5 minutes of flawless typing), and nothing survived the bell. Chunking in the
 // engine rather than the data fixes all 47 existing lessons without touching a
 // single Firestore document. See PEDAGOGY-AUDIT.md §3.2.
-const CHUNK_TARGET = 150;   // ≈30–60s at these gates; matches game.js sprint length
-const CHUNK_SLACK  = 1.30;  // a 180-char step stays whole rather than becoming 150+30
 
 let currentRuns    = [];  // expanded + chunked runs for the current lesson
 let currentStepIdx = 0;   // index into currentRuns
@@ -1150,7 +1173,6 @@ async function retroactiveSaveAnonSession(user) {
         if (carry.length) await carryGuestDaysToTheirOwnDocuments(user, carry);
 
         // Save lesson progress accumulated during anon session
-        const GRADE_ORDER = ['F','D','C','B','A', 'A' + String.fromCodePoint(0x1F525)];
         for (const [lessonId, record] of Object.entries(anonLessonProgress)) {
             const progRef  = doc(db, 'users', user.uid, 'lessonProgress', lessonId);
             const progSnap = await getDoc(progRef);
@@ -1734,51 +1756,6 @@ function isUnlocked(lesson) {
     return userProgress[prev.id]?.passed === true;
 }
 
-const FIRE_GRADE = 'A' + String.fromCodePoint(0x1F525); // A🔥
-
-// v2.0.0 grade model.
-//
-// Accuracy is the gate. Speed sets the badge. Three things changed and each fixes a
-// specific way the old model punished the wrong student:
-//
-//   1. C now ADVANCES. Under the old model both gates had to be met, so 14 WPM at
-//      100% accuracy failed while 15 WPM at 85% passed — the more careful typist
-//      was the one held back. Accuracy met + speed short is a pass with a C.
-//   2. D/F depend on accuracy alone. Being slow is never failing.
-//   3. A🔥 is reachable. It was 2× the WPM gate at 95% accuracy, which on a 49-char
-//      drill meant 30 WPM at 0.40s/keystroke — an adult touch-typist number sitting
-//      permanently on the lesson map where every student could see it and none
-//      could earn it. On drill runs it is now a clean run (zero mistakes), fully
-//      inside the student's control. On prose runs it is 1.5× rather than 2×.
-//
-// `minWPM: null` (every key-drill run) means speed is measured and displayed but
-// not graded. `clean` is a true zero-mistake flag, not rounded accuracy — 99.6%
-// rounds to 100 and should not earn a badge that says perfect.
-function calculateGrade(wpm, acc, minWPM, minAcc, clean) {
-    if (acc < minAcc) return acc < minAcc * 0.80 ? 'F' : 'D';
-
-    // Accuracy-only run: the badge is about how clean it was.
-    if (minWPM == null) {
-        if (clean)     return FIRE_GRADE;
-        if (acc >= 95) return 'A';
-        return 'B';
-    }
-
-    if (wpm >= minWPM) {
-        if (wpm >= minWPM * 1.5  && acc >= 95) return FIRE_GRADE;
-        if (wpm >= minWPM * 1.15 && acc >= 90) return 'A';
-        return 'B';
-    }
-    return 'C';   // accuracy met, speed short — advances
-}
-
-// Advancement, in one place so the modals can't disagree about it.
-function gradeAdvances(grade, gates) {
-    if (grade === 'D' || grade === 'F') return false;
-    if (grade === 'C' && gates && gates.strictSpeed) return false;
-    return true;
-}
-
 // Feedback text. The old version's C and D branches told students to speed up, which
 // on a paused-clock or accuracy-only run was simply false information — and being
 // told to try harder at something you already did is how a student concludes the
@@ -1905,6 +1882,24 @@ function showPracticeBanner(on) {
 // changes its mind about whether it counts.
 let practiceRun = false;
 
+// ⚠️⚠️ v2.36.0 — TRUE FOR THE WHOLE OF A "🎲 PRACTICE MISSED KEYS" DRILL.
+//
+// ⚠️ IT IS NOT THE SAME FLAG AS practiceRun ABOVE AND MUST NOT BE FOLDED INTO
+// IT. They suppress DIFFERENT things, and that is the entire fix:
+//
+//   practiceRun     — ROADMAP 10's replay of a MASTERED run. Writes NOTHING
+//                     anywhere, minutes included (§0.-21.C: the three omissions
+//                     are one decision).
+//   remediationRun  — a synthetic drill built from the keys the student just
+//                     missed. The child is typing and the clock is honest, so
+//                     the MINUTES COUNT, in typing_logs and typing_sessions
+//                     alike. What must not happen is that it is ASSESSED.
+//
+// ⚠️ SUPPRESSING THE MINUTES HERE WOULD MANUFACTURE THE DIVERGENCE ROADMAP
+// ITEM 4's FLAG EXISTS TO CATCH — time in one record and not the other. Both
+// records get the seconds; neither gets a grade.
+let remediationRun = false;
+
 // ⚠️⚠️ v2.34.0 — ROADMAP 14. DECIDED PER **RUN**, AT THE DOOR OF THE RUN.
 // v2.32.0 decided it once for the whole lesson, which was right when the unit
 // was a lesson and is wrong now: one lesson can hold a mastered run and an
@@ -1919,6 +1914,11 @@ function armRunMode(runIdx) {
 
 function startLesson(lesson) {
     currentLesson  = lesson;
+    // ⚠️ v2.36.0 — CLEARED HERE, WHERE THE REAL RUN LIST IS REBUILT. A
+    // remediation drill leaves currentLesson alone and only replaces
+    // currentRuns, so this is the one line that both entry points into a real
+    // run go through ("Play it again" and _gotoLesson() both land here).
+    remediationRun = false;
     currentRuns    = buildRunList(lesson);
     // ⚠️ v2.35.0 — NOT ALWAYS 0. See firstOpenRunIdx(): a student whose early runs
     // are mastered starts at the first one that still counts.
@@ -2451,78 +2451,9 @@ function buildSequence(step) {
     }
 }
 
-// ─── Chunking ────────────────────────────────────────────────────────────────
-// Split a character array into runs of roughly CHUNK_TARGET, breaking only at
-// spaces so no word or drill group is ever cut in half. Leading spaces are dropped
-// from each chunk after the first, so a chunk never opens by asking for a space.
-function chunkSequence(seq) {
-    if (seq.length <= CHUNK_TARGET * CHUNK_SLACK) return [seq];
-
-    // Aim for equal-sized chunks rather than filling to the brim and leaving a
-    // stub: 320 chars becomes 160+160, not 150+150+20.
-    const n      = Math.ceil(seq.length / CHUNK_TARGET);
-    const target = Math.ceil(seq.length / n);
-    const chunks = [];
-    let start = 0;
-
-    const STUB = Math.floor(target * 0.5);   // don't leave a fragment behind
-
-    while (start < seq.length) {
-        while (start < seq.length && seq[start] === ' ') start++;   // trim leading space
-        if (start >= seq.length) break;
-
-        let end = start + target;
-        if (end >= seq.length) { chunks.push(seq.slice(start)); break; }
-
-        // Walk back to the nearest space so the break lands between words/groups.
-        let cut = end;
-        while (cut > start && seq[cut] !== ' ') cut--;
-        // No space in range (one very long token) — fall forward instead of
-        // producing a zero-length chunk, which would loop forever.
-        if (cut === start) {
-            cut = end;
-            while (cut < seq.length && seq[cut] !== ' ') cut++;
-        }
-        // If what's left would be a stub, swallow it now. Otherwise the last run of
-        // a chunked step ends up being five characters with its own results modal,
-        // which reads as a bug even though the arithmetic is fine.
-        if (seq.length - cut <= STUB) { chunks.push(seq.slice(start)); break; }
-
-        chunks.push(seq.slice(start, cut));
-        start = cut;
-    }
-    return chunks.filter(c => c.length > 0);
-}
-
 // Which step types are pure key drills. These are graded on accuracy only — speed
 // on random letter groups is not a meaningful measure of anything, and gating it
 // made the new-key drill the hardest thing in its own lesson.
-const DRILL_TYPES = new Set(['key_pattern', 'key_pattern_auto', 'key_random']);
-
-// Effective gates for a run. Precedence: explicit step.gates > type default >
-// lesson gates. `minWPM: null` means speed is recorded but not gated.
-function gatesForRun(run) {
-    const lg  = currentLesson ? (currentLesson.gates || {}) : {};
-    const acc = lg.minAccuracy == null ? 85 : lg.minAccuracy;
-    const wpm = lg.minWPM     == null ? 15 : lg.minWPM;
-
-    // strictSpeed makes a short-on-speed result (grade C) block advancement again.
-    // Nothing sets it today. Add `"gates": { ..., "strictSpeed": true }` to the
-    // Unit 7 graduation lessons via Import JSON if you ever want 25 WPM enforced
-    // rather than advisory — the engine already honours it.
-    const strict = !!lg.strictSpeed;
-
-    if (run && run.gates) {
-        return { minAccuracy: run.gates.minAccuracy == null ? acc : run.gates.minAccuracy,
-                 minWPM:     run.gates.minWPM     === undefined ? wpm : run.gates.minWPM,
-                 strictSpeed: run.gates.strictSpeed == null ? strict : !!run.gates.strictSpeed };
-    }
-    if (run && DRILL_TYPES.has(run.type)) {
-        return { minAccuracy: acc, minWPM: null, strictSpeed: false };
-    }
-    return { minAccuracy: acc, minWPM: wpm, strictSpeed: strict };
-}
-
 // Expand authored steps into the run list the engine executes.
 function buildRunList(lesson) {
     const runs = [];
@@ -2627,22 +2558,6 @@ function generateReachPattern(keySet, groupSize, groupCount) {
     });
     return chars;
 }
-
-// Home-key companions: for any reach key, the same finger's home-row key.
-// Using the same indices as keyboard.js getHomePositions (rows[1] positions 0-9).
-const REACH_HOME_COMPANION = {
-    'q':'a','z':'a',                         // left-pinky reaches → a
-    'w':'s','x':'s',                         // left-ring reaches → s
-    'e':'d','c':'d',                         // left-middle reaches → d
-    'r':'f','t':'f','g':'f','v':'f','b':'f', // left-index reaches → f
-    'y':'j','u':'j','h':'j','n':'j','m':'j', // right-index reaches → j
-    'i':'k',',':'k',                         // right-middle reaches → k
-    'o':'l','.':'l',                         // right-ring reaches → l
-    'p':';','[':';',']':';','\\':';','\'':';','/':';', // right-pinky reaches → ;
-    // Number row — same finger as the letter below
-    '1':'a','2':'s','3':'d','4':'f','5':'f',
-    '6':'j','7':'j','8':'k','9':'l','0':';'
-};
 
 function expandKeySetWithHomeCompanions(keySet) {
     // For each reach key in the set, automatically include its home-row companion
@@ -3077,6 +2992,19 @@ function logRun(wpm, acc, detailSuffix) {
         label: (currentLesson && currentLesson.id) || '',
         detail: 'run ' + (currentStepIdx + 1) + (detailSuffix ? ' ' + detailSuffix : ''),
         ...(continuation ? { continuation: true } : {}),
+        // ⚠️⚠️ v2.36.0 — THE STAMP THAT MAKES THIS RECORD HONEST.
+        //
+        // The minutes belong to the child and are filed unchanged. But this
+        // sprint carries the LESSON'S id and a run number, because the drill
+        // borrows the lesson's engine — so without this field it is byte-for-byte
+        // indistinguishable from a real run of that lesson, and ROADMAP 15's
+        // reconstruction would grade it as one.
+        //
+        // ⚠️ RECORDS WRITTEN BEFORE v2.36.0 DO NOT HAVE IT and cannot be
+        // recovered — run-grade.js isAssessedSprint() treats an unstamped record
+        // as assessed, which is the only safe default going forward and is
+        // WRONG for the existing archive. ROADMAP 15 says what that costs.
+        ...(remediationRun ? { practice: 'remediation' } : {}),
     });
 
     stepLoggedSeconds  = Math.max(stepLoggedSeconds,  Math.round(stepSeconds));
@@ -3186,6 +3114,23 @@ function finishStep() {
     // stretch twice.
     logRun(wpm, acc);
 
+    // ⚠️⚠️ v2.36.0 — THE REMEDIATION DRILL LEAVES BEFORE EITHER MODAL.
+    //
+    // ⚠️ THE BRANCH IS HERE, NOT INSIDE showLessonResultModal(), AND THE
+    // DIFFERENCE IS LOAD-BEARING. Both modals write: showLessonResultModal()
+    // calls recordRunOutcome() AND saveProgress(), and showStepModal() calls
+    // recordRunOutcome(). A guard in the first one alone would still grade every
+    // drill that chunks into more than one run — and a missed-key set large
+    // enough to chunk is exactly the student this button exists for. Branching
+    // above the isLastRun fork is the only placement that covers both.
+    //
+    // saveStats() and logRun() have already run, so the minutes are banked in
+    // both records before this returns.
+    if (remediationRun) {
+        renderRemediationResult(wpm, acc);
+        return;
+    }
+
     const isLastRun = currentStepIdx >= currentRuns.length - 1;
 
     if (isLastRun) {
@@ -3199,7 +3144,7 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     drillModal.classList.remove('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = 'none';
 
-    const gates    = gatesForRun(currentStep);
+    const gates    = gatesForRun(currentStep, currentLesson && currentLesson.gates);
     const minWPM   = gates.minWPM;
     const minAcc   = gates.minAccuracy;
     const grade    = calculateGrade(wpm, acc, minWPM, minAcc, mistakes === 0);
@@ -3277,6 +3222,69 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     }
 }
 
+// ⚠️ v2.36.0 — ROADMAP 15. The remediation drill's end screen.
+//
+// ⚠️ IT IS NOT renderPracticeResult(). That screen says "nothing was recorded",
+// which would be FALSE here — the minutes were recorded, in both records. A
+// child who typed for four minutes and is told it did not count will stop
+// pressing the button, and the button is the one thing in this app that responds
+// to what they personally got wrong.
+//
+// So: their numbers, an honest line about what happened to them, and no grade
+// badge — because no grade was earned. There is nothing to grade against; a
+// drill built from three letters the student missed is not the lesson.
+function renderRemediationResult(wpm, acc) {
+    const title = document.getElementById('dm-title');
+    if (title) title.textContent = '\uD83C\uDFB2 Practice Done';
+
+    const stars = document.getElementById('dm-stars');
+    if (stars) stars.innerHTML = '';
+
+    const stats = document.getElementById('dm-stats');
+    if (stats) stats.innerHTML =
+        '<div class="dm-stat"><div class="dm-val">' + wpm + '</div><div class="dm-label">WPM</div></div>' +
+        '<div class="dm-stat"><div class="dm-val">' + acc + '%</div><div class="dm-label">Accuracy</div></div>';
+
+    const msg = document.getElementById('dm-msg');
+    if (msg) msg.innerHTML =
+        '<div style="font-size:0.85rem;color:#555;">Extra practice on the keys you missed \u2014 ' +
+        'your time counted, and this one is not graded. Nice work.</div>' +
+        '<div class="cumulative-row" style="font-size:0.78rem;margin-top:4px;">' +
+        '<span>Today: ' + formatTime(statsData.secondsToday) + '</span>' +
+        '<span class="cumulative-sep">|</span>' +
+        '<span>This week: ' + formatTime(statsData.secondsWeek) + '</span>' +
+        '</div>';
+
+    const rem = document.getElementById('dm-remediation');
+    if (rem) rem.innerHTML = '';
+
+    // ⚠️ NO "TRY AGAIN" AND NO "NEXT STEP". currentRuns holds the synthetic
+    // drill, so beginStep() from here would replay or overrun the drill rather
+    // than move through the lesson. Both ways out rebuild the real run list:
+    // startLesson() for another go at the lesson, stopLesson() for the map.
+    const btns = document.getElementById('dm-btns');
+    if (btns) {
+        btns.innerHTML = '<button id="dm-rem-again" class="dm-btn-secondary">Play the lesson again</button>' +
+                         '<button id="dm-rem-done" class="dm-btn-primary">\u2190 Map</button>';
+        const again = document.getElementById('dm-rem-again');
+        const done  = document.getElementById('dm-rem-done');
+        const lesson = currentLesson;
+        if (again) again.onclick = () => {
+            drillModal.classList.add('hidden');
+            document.getElementById('drill-keyboard-wrap').style.display = '';
+            if (lesson) startLesson(lesson); else stopLesson();
+        };
+        if (done) done.onclick = () => {
+            drillModal.classList.add('hidden');
+            document.getElementById('drill-keyboard-wrap').style.display = '';
+            stopLesson();
+        };
+    }
+
+    drillModal.classList.remove('hidden');
+    document.getElementById('drill-keyboard-wrap').style.display = 'none';
+}
+
 // ⚠️ v2.32.0 — ROADMAP 10. The practice run's end screen. It shows the student
 // exactly what they did and then stops. No grade badge, because no grade was
 // earned; no "press Enter to continue", because there is no progression to
@@ -3309,7 +3317,7 @@ function renderPracticeResult(wpm, acc, grade) {
 }
 
 function showLessonResultModal(wpm, acc) {
-    const gates  = gatesForRun(currentStep);
+    const gates  = gatesForRun(currentStep, currentLesson && currentLesson.gates);
     const minWPM = gates.minWPM;
     const minAcc = gates.minAccuracy;
 
@@ -3356,7 +3364,6 @@ function showLessonResultModal(wpm, acc) {
         // anonLessonsCompleted went with the old trigger — it was the "2 lessons"
         // half of a condition that no longer exists, and an incrementing counter
         // nobody reads is how dead state accumulates.
-        const GRADE_ORDER = ['F','D','C','B','A', FIRE_GRADE];
         const prev = anonLessonProgress[currentLesson.id];
         const prevGrade = prev ? (prev.grade || 'F') : 'F';
         const bestGrade = GRADE_ORDER.indexOf(grade) > GRADE_ORDER.indexOf(prevGrade) ? grade : prevGrade;
@@ -3559,6 +3566,19 @@ window._practiceMissedKeys = function(missedKeys) {
         type: syntheticStep.type, anchorEnforced: false, gates: null, sequence: seq,
         label: syntheticStep.label + (all.length > 1 ? ` (${i + 1}/${all.length})` : ''),
     }));
+    // ⚠️⚠️ v2.36.0 — SET BEFORE beginStep(). THIS DRILL IS NOT A RUN OF THE
+    // LESSON AND MUST NOT BE GRADED AS ONE.
+    //
+    // Until v2.36.0 it was. currentLesson is deliberately left alone above (the
+    // student is still "in" the lesson), so everything downstream read this
+    // drill as the lesson's run 1: logRun() filed a typing_sessions sprint under
+    // the lesson's id labelled "run 1"; recordRunOutcome(0, …) banked mastery
+    // points into the real runScores["0"] and wrote runCount: 1 over a 12-run
+    // lesson's count; and saveProgress() marked the WHOLE LESSON passed with the
+    // drill's grade. And because a synthetic step is key_random, gatesForRun()
+    // returns minWPM: null — accuracy only — so a clean 83-character run of
+    // random letters scored A🔥 and could unlock the next lesson.
+    remediationRun = true;
     beginStep(0);
 };
 
@@ -3611,6 +3631,35 @@ function recordRunOutcome(runIdx, grade, advanced) {
     const after     = before + pointsForGrade(grade);
     runScores[key]  = after;
 
+    // ⚠️⚠️ v2.36.0 — ROADMAP 15, THE FORWARD HALF. THE GRADE IS STORED WHERE IT
+    // IS EARNED, so it never has to be reconstructed again.
+    //
+    // Jake: *"the report didn't share the grades (where I could have counted the
+    // number of flaming A's)."* runScores above cannot answer that — it is a
+    // SUM, so 2 points is one A🔥 or two A's and nothing can tell them apart
+    // afterwards. These two fields can:
+    //
+    //   runGrades[k] — the BEST grade seen on run k. Best, not last, because
+    //                  that is what `grade` has always meant on this record and
+    //                  a report showing two different senses of the word is
+    //                  worse than one showing neither.
+    //   runFires[k]  — how many times run k was A🔥. The countable thing.
+    //
+    // ⚠️ COSTS NO NEW READS AND NO NEW WRITES. Both ride the merge that
+    // recordRunOutcome() already queues; `prev` is in memory. Item 18's ruling —
+    // reads are 50× dearer than writes — is why two fields is the right shape
+    // rather than something cleverer that has to be recomputed.
+    //
+    // ⚠️ DERIVED, NOT AUTHORITATIVE. It is a cache of
+    // calculateGrade(gates, wpm, acc); if a lesson's gates ever change, the
+    // stored grade outlives them. That is the defect class §0.-14 is about, and
+    // it is why reports.html recomputes rather than trusting these, and why the
+    // reconstruction refuses a lesson whose runCount has drifted.
+    const runGrades = Object.assign({}, prev.runGrades);
+    const runFires  = Object.assign({}, prev.runFires);
+    runGrades[key]  = betterGrade(grade, runGrades[key] || 'F') || grade;
+    if (grade === FIRE_GRADE) runFires[key] = (runFires[key] || 0) + 1;
+
     // ⚠️ THE LOCK STAMP IS THE CLOCK FOR EVERY LESSON, NOT JUST THIS ONE. Jake:
     // unlock "based on the date of the last lock". Crossing the threshold resets
     // reach-back globally, which is the point — it measures time since the student
@@ -3635,6 +3684,8 @@ function recordRunOutcome(runIdx, grade, advanced) {
         runAttempts,
         runFailures,
         runScores,
+        runGrades,
+        runFires,
         runLocks,
         // The real cumulative figure. timeSpentSeconds previously added only the
         // final run's stepSeconds, so it undercounted by the whole rest of the lesson.
@@ -3776,7 +3827,6 @@ async function saveProgress(passed, wpm, acc, grade) {
     const timeSpent = prev.timeSpentSeconds || 0;
 
     // Keep best grade seen — order: F D C B A A🔥
-    const GRADE_ORDER = ['F','D','C','B','A','A🔥'];
     const prevGrade   = prev.grade || 'F';
     const bestGrade   = GRADE_ORDER.indexOf(grade) > GRADE_ORDER.indexOf(prevGrade) ? grade : prevGrade;
 

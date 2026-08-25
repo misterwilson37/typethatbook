@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- reports.html v1.0.0 — versioned the same way style.css and game.html are: a comment
+<!-- reports.html v1.1.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (the inline module) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
@@ -185,6 +185,16 @@
         }
         .recalc-btn:hover { border-color: #4B9CD3; color: #4B9CD3; }
         .recalc-btn:disabled { opacity: 0.4; cursor: default; }
+        /* ROADMAP 15 — the grade reconstruction. Same shape as ⟳ on purpose:
+           both are staff-only repair tools that read typing_sessions and write
+           back, and a teacher should not have to learn two idioms. */
+        .regrade-btn {
+            background: none; border: 1px solid #444; color: #888;
+            cursor: pointer; font-size: 0.75rem; padding: 1px 5px;
+            margin-left: 3px; border-radius: 3px;
+        }
+        .regrade-btn:hover { border-color: #ff9800; color: #ff9800; }
+        .regrade-btn:disabled { opacity: 0.4; cursor: default; }
         .dupe-tag {
             font-size: 0.65rem; color: #ffaa00; border: 1px solid #ffaa00;
             border-radius: 3px; padding: 0 4px; margin-right: 4px; white-space: nowrap;
@@ -653,7 +663,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.28.0";
+    const REPORTS_VERSION = "2.29.0";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -717,6 +727,12 @@
     // Same shim the student pages use; `export *` keeps every SDK symbol.
     import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, ttbMeter } from "./read-meter.js";
     import { ledgerFrom, planReads } from "./logdays.js";
+    // ROADMAP 15. ⚠️ THE GRADE RULE IS IMPORTED, NEVER RESTATED. Reconstructing a
+    // grade needs calculateGrade(), the gates, the chunking and the continuation
+    // merge — all four used to live only in learn.js, and a copy of any of them
+    // here is the twin failure this project has hit seven times. Rule 9.
+    import { gradeMergedRun, mergeContinuations, betterGrade,
+             FIRE_GRADE } from "./run-grade.js";
     import { readDeployedVersions, renderBuildList } from "./versions.js";
     import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
@@ -1793,6 +1809,7 @@
                                 <span class="log-chars">${log.chars.toLocaleString()} chars</span>
                                 <button class="save-log-btn" data-idx="${idx}" data-li="${li}">Save</button>
                                 <button class="recalc-btn" data-idx="${idx}" data-li="${li}" data-uid="${r.uid}" data-date="${log.date}" title="Recalculate from sessions">⟳</button>
+                                <button class="regrade-btn" data-uid="${r.uid}" data-date="${log.date}" data-name="${escapeHtml(r.name)}" title="Reconstruct lesson grades for this day from the session records (ROADMAP 15)">⚑</button>
                                 <span class="log-save-status" id="log-status-${idx}-${li}"></span>
                             </div>
                             <div class="sessions-container hidden" id="sessions-${r.uid}-${log.date}" data-idx="${idx}" data-li="${li}" data-uid="${r.uid}" data-date="${log.date}"></div>
@@ -2091,6 +2108,17 @@
             return;
         }
 
+        // ROADMAP 15 — reconstruct lesson grades for one student-day
+        if (e.target.classList.contains('regrade-btn')) {
+            const uid  = e.target.dataset.uid;
+            const date = e.target.dataset.date;
+            const name = e.target.dataset.name || uid;
+            e.target.disabled = true;
+            try { await reconstructGrades(uid, date, name); }
+            finally { e.target.disabled = false; }
+            return;
+        }
+
         // Recalculate daily total from sessions
         if (e.target.classList.contains('recalc-btn')) {
             const idx = parseInt(e.target.dataset.idx);
@@ -2103,6 +2131,189 @@
             return;
         }
     });
+
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ROADMAP 15 — RECONSTRUCT LESSON GRADES FROM typing_sessions
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // Jake: *"I wonder if we can clean up the 'didn't save score on run' issue
+    // via a button that looks at the lesson in the report and figures out the
+    // score based on lesson, speed, and accuracy."* This is that button.
+    //
+    // It exists because ROADMAP 14b lost run outcomes on "← Map" for a fortnight:
+    // `stopLesson()` reloaded progress before the scheduled flush read it, so the
+    // write succeeded and stored the RELOADED record. `typing_sessions` is a
+    // SECOND, INDEPENDENT WITNESS to those runs — Nico's morning shows ten
+    // sprints against a record holding four — and a grade is a pure function of
+    // (lesson gates, wpm, accuracy), all of which are on the sprint.
+    //
+    // ⚠️⚠️ FOUR THINGS THIS MUST NOT DO, AND ALL FOUR ARE ENFORCED BELOW.
+    //
+    // 1. ⚠️ IT NEVER OVERWRITES A GRADE THE STUDENT ACTUALLY EARNED. Only runs
+    //    with no stored grade are filled in. A reconstruction is evidence about
+    //    a GAP; where the record already speaks it is the better witness,
+    //    because it was written by the engine that graded the run live.
+    //
+    // 2. ⚠️⚠️ IT NEVER TOUCHES `passed`, `fireCount`, `runScores`, `runLocks` OR
+    //    `grade`. Those fields ADVANCE A CHILD THROUGH THE CURRICULUM and gate
+    //    what they are allowed to open. A reconstructed number is derived from a
+    //    record; letting it unlock lessons would make a repair tool into a
+    //    promotion tool, and a wrong one would be indistinguishable from real
+    //    progress afterwards — §0.-14.C's failure direction exactly.
+    //
+    // 3. ⚠️ EVERY RECONSTRUCTED GRADE IS LABELLED. `runGradesFrom[k] = 'sessions'`
+    //    so a reconstructed A🔥 can be told from an earned one FOREVER, by
+    //    anything that reads the record later. This is the field that lets a
+    //    future round undo this one.
+    //
+    // 4. ⚠️⚠️ IT REFUSES RATHER THAN GUESSES. gradeMergedRun() rejects a lesson
+    //    whose `runCount` has drifted from the stored record's, because editing a
+    //    lesson re-chunks it and shifts every run index — today's definition read
+    //    against a two-week-old sprint can grade the wrong material silently.
+    //
+    // ⚠️ AND ONE THING IT CANNOT DO. Sprints written before learn.js v2.36.0
+    // include "🎲 Practice missed keys" drills filed under the lesson's id as
+    // "run N" — the defect Round 41 fixed — and nothing distinguishes them. Runs
+    // reconstructed from before the fix may therefore include a random-letter
+    // drill graded as lesson material. That is why nothing here advances a
+    // student, and why the preview shows the count before you agree to it.
+    //
+    // COST: one typing_sessions query (already the drill-down's own query shape)
+    // plus one lessonProgress read per lesson touched, and one write per lesson
+    // changed. Writes are ~50× cheaper than reads here (item 18), so the shape is
+    // "read the few lessons this day mentions", never the whole subcollection.
+    async function reconstructGrades(uid, date, name) {
+        const status = (msg, colour) => {
+            const el = document.getElementById('regrade-status');
+            if (el) { el.textContent = msg; el.style.color = colour || '#888'; }
+            else console.log('[regrade] ' + msg);
+        };
+
+        // ─── 1. the day's sprints ────────────────────────────────────────────
+        const snap = await getDocs(query(collection(db, "typing_sessions"),
+                                         where("uid", "==", uid), where("date", "==", date)));
+        if (snap.empty) { alert(`No session records for ${name} on ${date}.`); return; }
+
+        // ⚠️ SCHOOL ONLY. A Library sprint has no lesson and no run index; its
+        // `bookId` is a book. Grading one would invent a lesson that was never
+        // opened.
+        const flat = [];
+        snap.forEach(d => {
+            const s = d.data();
+            if (s.source !== 'school') return;
+            (Array.isArray(s.sprints) ? s.sprints : []).forEach(sp => flat.push(sp));
+        });
+        if (!flat.length) { alert(`No lesson runs for ${name} on ${date} — nothing to grade.`); return; }
+
+        const skippedRemediation = flat.filter(sp => sp && sp.practice).length;
+        const runs = mergeContinuations(flat);
+        if (!runs.length) { alert(`No gradeable runs for ${name} on ${date}.`); return; }
+
+        // ─── 2. the lessons those runs name ──────────────────────────────────
+        const lessonIds = [...new Set(runs.map(r => r.label).filter(Boolean))];
+        const lessons = new Map();
+        const allSnap = await getDocs(collection(db, 'lessons'));
+        allSnap.forEach(d => { const l = d.data(); if (lessonIds.includes(l.id)) lessons.set(l.id, l); });
+
+        // ─── 3. each student's record for those lessons ──────────────────────
+        const records = new Map();
+        for (const id of lessonIds) {
+            const ref = doc(db, 'users', uid, 'lessonProgress', id);
+            const rs = await getDoc(ref);
+            records.set(id, rs.exists() ? rs.data() : null);
+        }
+
+        // ─── 4. grade, without writing anything yet ──────────────────────────
+        const planned = new Map();   // lessonId -> { runGrades, runGradesFrom, runFires }
+        const filled = [], refused = [], already = [];
+
+        for (const run of runs) {
+            const lesson = lessons.get(run.label);
+            const rec    = records.get(run.label);
+            if (!lesson) { refused.push(`${run.label} run ${run.runIdx + 1} — lesson not found`); continue; }
+
+            const res = gradeMergedRun(run, lesson, rec ? rec.runCount : null);
+            if (!res.ok) { refused.push(`${run.label} run ${run.runIdx + 1} — ${res.detail || res.reason}`); continue; }
+
+            const key = String(run.runIdx);
+            const existing = rec && rec.runGrades && rec.runGrades[key];
+            if (existing) { already.push(`${run.label} run ${run.runIdx + 1} (${existing})`); continue; }
+
+            if (!planned.has(run.label)) {
+                planned.set(run.label, {
+                    runGrades:     Object.assign({}, (rec && rec.runGrades)     || {}),
+                    runGradesFrom: Object.assign({}, (rec && rec.runGradesFrom) || {}),
+                    runFires:      Object.assign({}, (rec && rec.runFires)      || {}),
+                });
+            }
+            const p = planned.get(run.label);
+            // ⚠️ betterGrade() GUARDS THE SECOND PASS. Running this button twice
+            // on the same day must not compound anything.
+            p.runGrades[key]     = betterGrade(res.grade, p.runGrades[key] || 'F') || res.grade;
+            p.runGradesFrom[key] = 'sessions';
+            if (res.grade === FIRE_GRADE) p.runFires[key] = (p.runFires[key] || 0) + 1;
+            filled.push(`${run.label} run ${run.runIdx + 1} → ${res.grade}` +
+                        (run.fragments > 1 ? `  (${run.fragments} fragments merged)` : ''));
+        }
+
+        // ─── 5. THE PREVIEW IS THE CONFIRMATION ──────────────────────────────
+        //
+        // ⚠️ ROADMAP 15: "an explicit admin button with a confirmation and a
+        // progress count, not a side effect of opening reports." Nothing above
+        // this line has written anything. Everything the write will do is on
+        // screen before it is agreed to — which is also how Rule 10 is satisfied
+        // for a value that becomes a reported grade: the real numbers are
+        // checked against a real student before they land.
+        if (!filled.length) {
+            alert(`${name} — ${date}\n\nNothing to reconstruct.\n\n` +
+                  `  runs found            : ${runs.length}\n` +
+                  `  already graded        : ${already.length}\n` +
+                  `  refused               : ${refused.length}\n` +
+                  (skippedRemediation ? `  practice drills skipped: ${skippedRemediation}\n` : '') +
+                  (refused.length ? `\n${refused.slice(0, 8).join('\n')}` : ''));
+            return;
+        }
+
+        const go = confirm(
+            `RECONSTRUCT GRADES — ${name}, ${date}\n\n` +
+            `Will WRITE ${filled.length} grade(s) across ${planned.size} lesson(s):\n\n` +
+            filled.slice(0, 14).join('\n') +
+            (filled.length > 14 ? `\n  …and ${filled.length - 14} more` : '') +
+            `\n\nLeaves alone:\n` +
+            `  ${already.length} run(s) that already have a grade\n` +
+            `  ${refused.length} run(s) it refused to guess at\n` +
+            (skippedRemediation ? `  ${skippedRemediation} practice drill(s)\n` : '') +
+            `\nThis writes runGrades/runFires only. It does NOT change passed,\n` +
+            `fireCount, runScores or the lesson grade, so nothing advances or\n` +
+            `unlocks. Each entry is tagged as reconstructed.\n\n` +
+            (refused.length ? `Refused:\n${refused.slice(0, 6).join('\n')}\n\n` : '') +
+            `Proceed?`);
+        if (!go) return;
+
+        // ─── 6. write ────────────────────────────────────────────────────────
+        let wrote = 0, failedWrites = 0;
+        for (const [lessonId, p] of planned) {
+            try {
+                await setDoc(doc(db, 'users', uid, 'lessonProgress', lessonId), {
+                    runGrades: p.runGrades,
+                    runGradesFrom: p.runGradesFrom,
+                    runFires: p.runFires,
+                    // ⚠️ A DATED MARK, so a later round can find every record this
+                    // button touched without inferring it from the tags.
+                    regradedAt: new Date().toISOString(),
+                }, { merge: true });
+                wrote++;
+            } catch (err) {
+                failedWrites++;
+                console.warn('[regrade] write failed for ' + lessonId, err);
+            }
+        }
+
+        alert(`${name} — ${date}\n\n` +
+              `Wrote ${wrote} lesson record(s); ${filled.length} grade(s) reconstructed.` +
+              (failedWrites ? `\n\n\u26a0\ufe0f ${failedWrites} write(s) FAILED — see the console.` : ''));
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // recalcDailyLog() — recompute one day's log from its remaining session

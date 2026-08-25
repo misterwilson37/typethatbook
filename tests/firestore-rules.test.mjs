@@ -411,6 +411,50 @@ describe('time correction (reports.html)', () => {
     });
 });
 
+// ═══════════════ grade reconstruction (ROADMAP 15, reports.html) ═══════════════
+// ⚠⚠ THE ⚑ BUTTON WRITES TO A STUDENT'S lessonProgress, AND UNTIL rules v2.7.0
+// NOTHING IN THIS FILE COULD. The rule was `request.auth.uid == uid` with no
+// staff branch, so the feature would have failed permission-denied for every
+// student except Jake's own account — the one account that never needed it.
+// Rule 9: the rule change shipped in the same round as the button.
+describe('grade reconstruction (lessonProgress)', () => {
+    it('teacher can write lessonProgress for a student in their building', async () => {
+        const db = asTeacherEms().firestore();
+        await assertSucceeds(setDoc(doc(db, 'users', KID_EMS, 'lessonProgress', 'u1_l1'),
+            { runGrades: { '0': 'A' }, runGradesFrom: { '0': 'sessions' } }, { merge: true }));
+    });
+    it('teacher CANNOT write lessonProgress for a student in another building', async () => {
+        const db = asTeacherEms().firestore();
+        await assertFails(setDoc(doc(db, 'users', KID_HMS, 'lessonProgress', 'u1_l1'),
+            { runGrades: { '0': 'A' } }, { merge: true }));
+    });
+    it('super_admin can write anyone\u2019s lessonProgress', async () => {
+        const db = asJake().firestore();
+        await assertSucceeds(setDoc(doc(db, 'users', KID_HMS, 'lessonProgress', 'u1_l1'),
+            { runGrades: { '0': 'A' } }, { merge: true }));
+    });
+    it('\u26a0 THE STAFF BRANCH IS lessonProgress ONLY \u2014 not profile', async () => {
+        const db = asTeacherEms().firestore();
+        await assertFails(setDoc(doc(db, 'users', KID_EMS, 'profile', 'main'),
+            { displayName: 'changed' }, { merge: true }));
+    });
+    it('\u26a0 ...and not progress', async () => {
+        const db = asTeacherEms().firestore();
+        await assertFails(setDoc(doc(db, 'users', KID_EMS, 'progress', 'book1'),
+            { pos: 5 }, { merge: true }));
+    });
+    it('a student still writes their own lessonProgress', async () => {
+        const db = asKidEms().firestore();
+        await assertSucceeds(setDoc(doc(db, 'users', KID_EMS, 'lessonProgress', 'u1_l1'),
+            { runGrades: { '0': 'B' } }, { merge: true }));
+    });
+    it('\u26a0 a student CANNOT write another student\u2019s lessonProgress', async () => {
+        const db = asKidEms().firestore();
+        await assertFails(setDoc(doc(db, 'users', KID_HMS, 'lessonProgress', 'u1_l1'),
+            { runGrades: { '0': 'A' } }, { merge: true }));
+    });
+});
+
 // ═══════════════════════ roster pre-assignment ═══════════════════════
 describe('pendingClassAssignments', () => {
     beforeEach(async () => {
