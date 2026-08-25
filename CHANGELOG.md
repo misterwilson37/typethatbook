@@ -1,5 +1,23 @@
 # CHANGELOG — TypeThatBook
 
+## Round 42 (Rem-Sho) — 2026-08-25
+
+**✅ ROADMAP 25 — "I'm done" stamped a child a receipt shorter than the HUD they
+had been watching.** 9:31 against 10:02, the gap being exactly the run in
+progress. `flushStats('done', true)` passed `final` and **the gate never read
+it**, so every press mid-run wrote nothing and the receipt read a stale
+`typing_logs`.
+
+⚠️ **A twin divergence where `game.js` was already correct** — Library forced the
+write, School skipped it, and both files carry comments swearing they are
+identical in shape. `tests/im-done-test.mjs` drives **both**.
+
+- `learn.js` v2.37.0 — the gate reads `final`
+- `tests/im-done-test.mjs` **(NEW)** — 21 checks; 2 fail against v2.36.0
+- `tests/run-all-tests.mjs` v1.17.0
+
+**55 harnesses pass. `audit:versions`: 0 problems.**
+
 ## Round 41b (Rem-Sho) — 2026-08-25, same day
 
 **⚠️⚠️ THE ⚑ BUTTON WROTE A WRONG GRADE ONTO A REAL STUDENT.** `mergeContinuations()`
@@ -4018,6 +4036,169 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### learn.js v2.31.0 — archived by Round 42 (Rem-Sho), 8-entry budget
+
+⚠️ **learn.js still cites v2.31.0 in live code comments.** Every header entry was
+cited when this was archived, so there was no uncited one to take instead.
+**This block is where those pointers resolve.**
+
+```
+// v2.31.0 — ⚠️ THE BUILD PANEL'S ⚠ NOTES ARE STAFF-ONLY. versions.js v1.12.0
+//           gates them and defaults to OFF; this file passes the flag and
+//           re-renders from the cached results when auth changes underneath, so
+//           signing in mid-session reveals them without a reload. ⚠️ TWIN OF
+//           game.js v3.43.0 — the two panels must agree, and game.js has one
+//           extra note (renderer drift) that School has no equivalent for by
+//           construction, because keyboard.js is a STATIC import here. The
+//           readability half of the fix is in adventure.css v1.0.3 and
+//           style.css v3.8.1; nothing in this file was the cause. §0.-20.
+//
+```
+
+### learn.js v2.31.0 — archived by Round 42 (Rem-Sho), 8-entry budget
+
+⚠️ **learn.js still cites v2.31.0 in 2 live code comment(s).** Every header entry
+was cited when this was archived, so there was no uncited one to take instead.
+**This block is where those pointers resolve.**
+
+```
+// v2.31.0 — ⚠️ THE BUILD PANEL'S ⚠ NOTES ARE STAFF-ONLY. versions.js v1.12.0
+//           gates them and defaults to OFF; this file passes the flag and
+//           re-renders from the cached results when auth changes underneath, so
+//           signing in mid-session reveals them without a reload. ⚠️ TWIN OF
+//           game.js v3.43.0 — the two panels must agree, and game.js has one
+//           extra note (renderer drift) that School has no equivalent for by
+//           construction, because keyboard.js is a STATIC import here. The
+//           readability half of the fix is in adventure.css v1.0.3 and
+//           style.css v3.8.1; nothing in this file was the cause. §0.-20.
+//
+//
+//
+//
+//
+//
+// Lesson-mode engine, separate from game.js. Same write-ahead-log and
+// coalesced-flush persistence pattern.
+//
+// ── Full history: CHANGELOG.md § learn.js ─────────────────────────────────
+// ── Why it looks like this: PEDAGOGY-AUDIT.md ─────────────────────────────
+//
+// ⚠️ v2.31.0 — 39 OLDER ENTRIES (v2.26.0 back to v2.2.0) MOVED TO CHANGELOG.md
+//    § ARCHIVED FILE HEADERS. Nothing was deleted. Same reasoning as game.js.
+//
+// ── Load-bearing ──────────────────────────────────────────────────────────
+//
+//   * saveProgress() uses merge:true. Without it, completing a lesson erases
+//     every run-level field.
+//   * ttb_learnwal_v1 and ttb_learnpos_v1 both carry an explicit `v`. Bump it
+//     rather than changing the payload shape, or a mid-run student on the old
+//     shape gets a corrupt resume.
+//   * Do NOT scale gates by grade level. An 8th grader may have had this
+//     teacher twice or never; unit position is the only honest signal.
+import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
+// ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
+// rule in it is a function of numbers this file passes in, which is why the whole
+// design is covered by lesson-gate-test.mjs without driving a browser.
+import { activeDayPlan, activeDayCountOf, fireCountOf, isMastered,
+         lessonModeFor, runModeFor, runScoreOf, runMastered, pointsForGrade,
+         lastLockDayOf, furthestIndexOf, reachBackFor,
+         MASTERY_POINTS, MASTERY_FIRE_COUNT, REACH_BACK_DAYS } from "./lesson-gate.js";
+// ROADMAP item 15 — the grade rule. ⚠️ PURE MODULE, AND THE ONLY COPY: every
+// function below used to live in this file, and reports.html needed all of them
+// to reconstruct a grade. Two copies of calculateGrade() is the shape Rule 9
+// forbids, so the copies here were DELETED in the same deploy that added this
+// import. ⚠️ gatesForRun() TAKES THE LESSON'S GATES AS AN ARGUMENT now — the
+// old one read `currentLesson` out of module scope, which is what made it
+// impossible to call from anywhere else.
+import { calculateGrade, gradeAdvances, gatesForRun, betterGrade,
+         chunkSequence, DRILL_TYPES, FIRE_GRADE, GRADE_ORDER,
+         REACH_HOME_COMPANION, CHUNK_TARGET, CHUNK_SLACK,
+         RUN_GRADE_VERSION } from "./run-grade.js";
+// The day/week counters' WAL, shared with game.js. It is a separate module
+// because the counters are the one piece of state that is true regardless of
+// which page or which book a student is on, and both previous copies of it were
+// scoped to something narrower than that. See stats-wal.js for the bug.
+import {
+    statsWalSave, statsWalRecover,
+    guestAccumSave, guestAccumLoad, guestAccumClear
+} from "./stats-wal.js";
+// The sprint/run history queue, shared with game.js. ⚠️ THIS FILE HAD NO SESSION
+// LOGGING OF ANY KIND BEFORE v2.6.0 — see the header. A run is the lesson-mode
+// equivalent of a sprint: a bounded stretch of typing with a duration, a
+// character count and a derived WPM, which is exactly what the module stores.
+import {
+    sessionLogInit, sessionLogPush, sessionLogFlush, sessionLogPending,
+    sessionLogAdopt, sessionLogTake, GUEST_QUEUE_UID,
+} from "./session-log.js";
+// The time readout, shared with game.js. ⚠️ Both pages render the SAME string in
+// the SAME element id — see hud.js for why that is the whole point.
+import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
+         celebrationDone, celebrationMark, fmt } from "./hud.js";
+// ⚠️ v2.26.0 — THE "copied from game.js" BLOCK IS GONE, and its header said so
+// in as many words for months. celebrate.js owns the celebrations; School and
+// Library now show the SAME one. Do not copy it back.
+// showGoalToast is intentionally NOT imported: celebrate.js raises its own
+// toast as part of each celebration. It stays exported there for any future
+// caller that wants the banner without the animation.
+import { launchConfetti, launchFireworks } from "./celebrate.js";
+import { showReceipt } from "./receipt.js";
+// ⚠️ ROADMAP 0b. The reading-font model MOVED here from this file in v2.28.0 —
+// there is no local copy left and there must not be a new one. `openMenuModal()`
+// in game.js is deliberately NOT imported: it reaches into book, chapter, sprint
+// and view state School has none of. This module is its shape, not its body.
+import { openSettingsPanel, buildSettingsButton, applyDrillFont, readDrillFont,
+         SETTINGS_PANEL_VERSION } from "./settings-panel.js";
+// ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
+// ⚠️ readDaySessions/projectDayTotal deliberately NOT imported — v2.19.0
+// reverted the projection. See HANDOFF §0.0.
+import { readWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
+         carryOverPlan, carryOverPayloadFor, sourceTotalsOf } from "./daylog.js";
+import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
+// ⚠️ v2.23.0 — THE DRILL TEXT FILTER. A student reported "ass" in a lesson.
+// Whole-group matching on Jake's ruling: `lass`, `mass` and `asse` are FINE.
+// See drill-filter.js's header — it holds the ruling and its edge cases.
+import { safeGroup, DRILL_FILTER_VERSION } from "./drill-filter.js";
+// The version footer's three primary reads (this html file, this js file's own
+// LEARN_VERSION, style.css) plus the lazy full-build panel on hover. ⚠️ SAME
+// STRUCTURE AS game.js, ON PURPOSE — see updateVersionFooter() below.
+import { noteDay, ensureSince } from "./logdays.js";
+import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
+         countBuildNotes, renderHiddenNotesLine,
+         readAppliedCssVersion } from "./versions.js";
+import {
+    collection, getDocs, query, where, doc, getDoc, setDoc, addDoc, deleteDoc,
+    // Aggregation query. Firestore bills getCountFromServer at ONE read per up
+    // to 1000 matched index entries, which is what makes the lessons cache
+    // validation cost 1 read instead of ~80. Available since SDK v9.11.
+    getCountFromServer,
+    // v3.46.0 — for logdays.js's ledger write. See the noteDay() call in the
+    // flush path below and the ordering rule in logdays.js's header.
+    updateDoc, arrayUnion,
+    // v2.7.1 — for session-log.js's `serverAt` and nothing else. ⚠️ Do not reach
+    // for it in flushStats(): a sentinel inside the typing_logs or
+    // typing_logs merge writes would be a second dating scheme on the
+    // two documents Round 12 spent a day getting to agree.
+    serverTimestamp
+} from "./read-meter.js";
+import {
+    onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import {
+    FINGER_COLORS, FINGER_NAMES, LAYOUTS, KB_VERSION,
+    createKeyboard, buildFingerMap, getFingerInfo,
+    createHandGuide, buildFingerSVG, setHandGuideToChar, setHandGuideToChars,
+    resetHandGuideToHome, colorKeyboardKeys, flashFingerPressed,
+    getHomePositions, getKeyCenterInKB, toggleKeyboardCase
+} from "./keyboard.js";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+// ⚠️ THIS LINE IS THE VERSION — the comment at the top of the file is decoration.
+// versions.js parses THIS, the footer renders THIS, and ROADMAP's verification
+// steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
+// in the SAME EDIT as the header entry above, always.
+// tests/version-stamp-test.mjs now fails the suite if you do not.
+```
 
 ### lessons-admin.js v1.11.1 — archived by Round 41 (Rem-Sho), 8-entry budget
 

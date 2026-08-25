@@ -1,7 +1,22 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.26.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.27.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 40; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.27.0 — Round 42 (Rem-Sho). ✅ §0.-32: ROADMAP 25 FIXED — "I'M DONE" WAS
+     STAMPING A CHILD A NUMBER SMALLER THAN THE HUD. `flushStats('done', true)`
+     passed `final` and the gate NEVER READ IT, so every press mid-run wrote
+     NOTHING. ⚠️ The tick increments secondsToday and does NOT set learnDirty —
+     only saveStats() does, at RUN BOUNDARIES.
+     ⚠️⚠️ A TWIN DIVERGENCE WHERE THE SIBLING WAS ALREADY RIGHT: game.js gated on
+     `!walDirty && !final`. "IDENTICAL IN SHAPE" WAS A CLAIM NO ONE HAD CHECKED.
+     im-done-test.mjs drives BOTH files.
+     ⚠️⚠️ §0.-32.D: I ALMOST DELETED 5.4KB OF learn.js TWICE — an unbounded slice,
+     the THIRD self-inflicted file-damage incident in two rounds. AND MY GUARD WAS
+     WRONG: it counted `'import '` while the deleted text CONTAINED that phrase.
+     GUARD ON STRUCTURE (code-line count), NEVER ON WORDS. Bound a slice by the
+     thing you are removing — a lone `//` line separates entries here.
+     learn.js v2.37.0, tests/im-done-test.mjs (NEW). 55 harnesses, 0 audit problems.
 
      v15.26.0 — Round 41 (Rem-Sho). ⚠️⚠️ §0.-31.A: THE "🎲 PRACTICE MISSED KEYS"
      DRILL WAS BEING GRADED AS THE LESSON'S RUN 1, IN PRODUCTION. It replaces
@@ -772,6 +787,83 @@ is not the same as checking the list. **Check the list.**
 > the repo root and dropped each one into the channel it belonged in.
 
 ---
+
+## §0.-32. ✅ ROUND 42 (Rem-Sho) — "I'M DONE" WAS TELLING A CHILD A SMALLER NUMBER
+
+**2026-08-25, same day, same instance.** ROADMAP 25, and it was one clause.
+
+### A. ⚠️⚠️ THE `final` ARGUMENT WAS PASSED AND NEVER READ
+
+`handleImDone()` does everything right: `logOpenRun('done')`, then
+`await flushStats('done', true)`, then read the week, then draw. The bug was one
+line deeper:
+
+    if (!learnDirty && pendingProgress.size === 0) return;      // ← no `final`
+
+⚠️ **THE PER-SECOND TICK INCREMENTS `statsData.secondsToday` AND DOES NOT SET
+`learnDirty`.** Only `saveStats()` does, and it is called at **run boundaries** —
+`finishStep()`, `stopLesson()`. So mid-run the counter climbs while the flag
+stays false, **every "final" flush in that window wrote nothing**, and the
+receipt then read a `typing_logs` the flush had never touched. That is exactly
+why the two numbers agreed the instant a run ended and disagreed at every other
+moment — the thing Jake's two screenshots show side by side.
+
+### B. ⚠️⚠️ A TWIN DIVERGENCE WHERE THE SIBLING WAS ALREADY CORRECT
+
+`game.js`: `if (!walDirty && !final && queued === 0) return;`
+`learn.js`: `if (!learnDirty && pendingProgress.size === 0) return;`
+
+**Library's "I'm done" has always forced the write. School's silently skipped
+it.** Both functions carry comments swearing they are *"identical in shape"* and
+pointing at §0.-13.E — and they differed in precisely the clause that decides
+whether a child is told the truth about their own minutes.
+
+⚠️ **"IDENTICAL IN SHAPE" IS A CLAIM NO ONE HAD CHECKED.** Shape is what a reader
+compares; behaviour is what a child experiences. `tests/im-done-test.mjs` drives
+**both files** and asserts they agree — a harness reading only the broken one
+would have passed the day before this was found and every day after it returned.
+
+### C. ⚠️ THE FIX IS `&& !final`, AND NOT MARKING THE TICK DIRTY
+
+The tempting fix — have the tick set `learnDirty` — schedules a WAL write every
+second for a flag that only matters at flush time. **A `final` flush with nothing
+new to say is cheap and correct**: it writes the same values back under a merge.
+The gate exists to skip *idle interval* flushes, and **a child pressing a button
+is not idle.** The harness asserts the gate reads `final` *regardless of how the
+dirty flag behaves*, so a future round that changes the flag cannot silently
+reopen this.
+
+### D. ⚠️⚠️ I ALMOST DELETED 5.4KB OF learn.js, TWICE, AND THE GUARD IS THE LESSON
+
+Archiving a header entry to stay inside the 8-entry budget, I sliced from the
+entry to **the end of the header** rather than to the end of the entry. The first
+attempt wrote — **8 harnesses went red**. The second attempt was caught by an
+assertion before writing.
+
+⚠️ **THEN THE GUARD ITSELF WAS WRONG.** My canary counted `'import '` — and the
+archived entry's own prose contains *"keyboard.js is a STATIC import here"*, so
+**the canary was measuring the text being deleted.** It fired correctly by
+accident and I nearly "fixed" it by loosening it.
+
+⚠️ **THE RULE: GUARD ON STRUCTURE, NOT ON WORDS.** The write now asserts the
+count of non-comment code lines is **unchanged**, that `\nimport ` statement
+count is unchanged, and that fewer than 1200 bytes vanished. A word appearing in
+prose can never satisfy those. ⚠️ **AND BOUND A SLICE BY THE THING YOU ARE
+REMOVING** — this file separates header entries with a lone `//` line, which was
+the boundary all along and which an earlier round in this same session had
+already used correctly.
+
+**This is the third self-inflicted file-damage incident in two rounds** (§0.-31.H
+truncated a harness to zero bytes). Every one was a write whose extent I had not
+bounded. **Compute the slice, assert on the result, then write.**
+
+### E. THE NUMBERS
+
+`learn.js` v2.37.0, `tests/im-done-test.mjs` **(NEW — 21 checks, mutation-verified:
+2 fail against v2.36.0)**, `run-all-tests.mjs` v1.17.0.
+**55 harnesses pass**, `audit:versions` **0 problems**, verified on a clean
+checkout. ⚠️ Every learn.js header entry was cited in live code, so v2.31.0 was
+archived to CHANGELOG with a note saying so — its pointers resolve there.
 
 ## §0.-31. ✅ ROUND 41 (Rem-Sho) — A PRACTICE DRILL WAS BEING GRADED AS THE LESSON
 

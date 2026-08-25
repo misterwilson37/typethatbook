@@ -1,4 +1,22 @@
-// learn.js v2.36.0
+// learn.js v2.37.0
+//
+// v2.37.0 — ⚠️⚠️ ROADMAP 25 — "I'M DONE" STAMPED A CHILD A RECEIPT SHORTER THAN
+//           THE HUD THEY HAD BEEN WATCHING. 9:31 against 10:02, the gap being
+//           exactly the run they were mid-way through. handleImDone() did
+//           everything right — logOpenRun('done'), then `await flushStats('done',
+//           true)` — but `final` was NEVER READ by the flush gate, so the flush
+//           returned having written nothing and the receipt read a typing_logs it
+//           had not touched. ⚠️ THE TICK INCREMENTS secondsToday AND DOES NOT SET
+//           learnDirty; only saveStats() does, at RUN BOUNDARIES — so the flag was
+//           false for the entire window in which a child presses this button.
+//           ⚠️⚠️ A TWIN DIVERGENCE WHERE THE SIBLING WAS ALREADY CORRECT: game.js
+//           gates on `!walDirty && !final && queued === 0`. Library forced the
+//           write; School skipped it — and both carry comments swearing they are
+//           identical in shape. IDENTICAL IN SHAPE IS NOT IDENTICAL IN BEHAVIOUR.
+//           tests/im-done-test.mjs drives BOTH files.
+//           ⚠️ EVERY HEADER ENTRY WAS CITED IN LIVE CODE, so v2.31.0 went to
+//           CHANGELOG.md's archive rather than an uncited one; its citations
+//           resolve there.
 //
 // v2.36.0 — ⚠️⚠️ A REMEDIATION DRILL WAS BEING GRADED AS A RUN OF THE LESSON.
 //           "🎲 Practice missed keys" replaces currentRuns with a synthetic
@@ -83,16 +101,6 @@
 //           ⚠️ THE BANNER IS THE FEATURE, NOT DECORATION — a child typing for ten
 //           minutes while the daily total does not move reads as a broken app.
 //           See HANDOFF §0.-21.
-//
-// v2.31.0 — ⚠️ THE BUILD PANEL'S ⚠ NOTES ARE STAFF-ONLY. versions.js v1.12.0
-//           gates them and defaults to OFF; this file passes the flag and
-//           re-renders from the cached results when auth changes underneath, so
-//           signing in mid-session reveals them without a reload. ⚠️ TWIN OF
-//           game.js v3.43.0 — the two panels must agree, and game.js has one
-//           extra note (renderer drift) that School has no equivalent for by
-//           construction, because keyboard.js is a STATIC import here. The
-//           readability half of the fix is in adventure.css v1.0.3 and
-//           style.css v3.8.1; nothing in this file was the cause. §0.-20.
 //
 //
 //
@@ -219,7 +227,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.36.0";
+const LEARN_VERSION = "2.37.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -4930,7 +4938,34 @@ async function flushStats(reason, final = false) {
 
 async function _flushStatsInner(reason, final = false) {
     if (!currentUser) return;
-    if (!learnDirty && pendingProgress.size === 0) return;
+    // ⚠️⚠️ v2.37.0 — `&& !final` IS THE FIX FOR ROADMAP 25 AND IT IS ONE CLAUSE.
+    //
+    // "I'm done" stamped a child a receipt SHORTER than the HUD they had been
+    // watching a second earlier — 9:31 against 10:02, the gap being exactly the
+    // run they were in the middle of. handleImDone() does everything right:
+    // logOpenRun('done'), then `await flushStats('done', true)`. But `final` was
+    // never read HERE, so the flush hit this gate and returned having written
+    // NOTHING, and the receipt then read a typing_logs the flush never touched.
+    //
+    // ⚠️ THE PER-SECOND TICK INCREMENTS statsData.secondsToday AND DOES NOT SET
+    // learnDirty. Only saveStats() does, and it is called at RUN BOUNDARIES —
+    // finishStep(), stopLesson(). So mid-run the counter climbs while the flag
+    // stays false, and every "final" flush in that window was a no-op. That is
+    // why the two numbers agreed the moment a run ended and disagreed at every
+    // other moment.
+    //
+    // ⚠️⚠️ THIS WAS A TWIN DIVERGENCE, AND THE SIBLING WAS ALREADY RIGHT.
+    // game.js's flushAll() gates on `if (!walDirty && !final && queued === 0)`.
+    // Library's "I'm done" has always forced the write; School's silently
+    // skipped it. Both carry comments swearing they are identical in shape
+    // (§0.-13.E), and they differed in exactly the clause that decides whether a
+    // child is told the truth. ⚠️ IDENTICAL IN SHAPE IS NOT IDENTICAL IN
+    // BEHAVIOUR, and only a harness driving BOTH can tell them apart.
+    //
+    // ⚠️ A `final` FLUSH WITH NOTHING TO SAY IS CHEAP AND CORRECT. It writes the
+    // same values back under a merge. The gate exists to skip IDLE interval
+    // flushes; "the child pressed the button" is not idle.
+    if (!learnDirty && pendingProgress.size === 0 && !final) return;
     if (learnFlushTimer) { clearTimeout(learnFlushTimer); learnFlushTimer = null; }
     let ok = true;
 

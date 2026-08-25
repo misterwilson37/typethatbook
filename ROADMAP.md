@@ -1,5 +1,7 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.31.0, 2026-08-25.** ✅ **ITEM 25 IS FIXED** (Round 42) — "I'm done" no longer stamps a number smaller than the HUD. **Item 26 (resume buttons) is now the top open item.**
+
 **v3.30.0, 2026-08-25.** ⚠️⚠️ **THE ⚑ BUTTON WROTE A WRONG GRADE AND IT IS FIXED AND SELF-HEALING** — re-run it and it corrects its own past output (HANDOFF §0.-31.N). ⚠️⚠️ **ITEM 24 IS NEW AND UNFIXED: DO NOT PRESS ⟳ ON A DAY WITH TWO ROLLUPS AT THE SAME MINUTE.**
 
 **v3.29.0, 2026-08-25.** ⭐ **§10.H IS BUILT** — Jake's first ask, unbuilt for five rounds, shipped for zero extra reads. ⚠️ **ITEMS 13 AND 11a WERE STALE ⭐⭐ FLAGS** and are closed; 11a's residue is a RULING for Jake, not a bug.
@@ -51,11 +53,9 @@ fix instead: **Ctrl-F any line below to land on the section.**
 
 **In Jake's stated order, then everything else by position in the file.**
 
-1. **25. ⚠️⚠️⚠️ NEXT — "I'M DONE" SHOWS A CHILD A TIME THAT IS NOT THEIR TIME**
-   — ⚠️ **the app lies to a student about their own minutes.** Outranks everything.
-2. **26. ⭐ THE RESUME-BOOK BUTTONS ARE TOO BIG AND READ AS LIBRARY SHELF**
+1. **26. ⭐ THE RESUME-BOOK BUTTONS ARE TOO BIG AND READ AS LIBRARY SHELF**
    — after 25, *"if there isn't something more pressing."*
-3. **24. ⚠️⚠️ `⟳` OVER-COUNTS A DAY WITH OVERLAPPING ROLLUPS, SILENTLY**
+2. **24. ⚠️⚠️ `⟳` OVER-COUNTS A DAY WITH OVERLAPPING ROLLUPS, SILENTLY**
    — ⚠️ **do not press `⟳` on a day with two rollups at the same minute** meanwhile.
 
 Everything else still open:
@@ -483,7 +483,13 @@ that morning **by design**, and two harness Parts assert that defect on purpose.
 
 ---
 
-## 25. ⚠️⚠️⚠️ NEXT — "I'M DONE" SHOWS A CHILD A TIME THAT IS NOT THEIR TIME
+## 25. ✅ FIXED (Round 42, Rem-Sho) — "I'M DONE" SHOWED A TIME THAT WAS NOT THEIRS
+
+✅ **One clause: `flushStats()`'s gate never read its own `final` argument, so
+every press mid-run wrote nothing.** ⚠️ **A twin divergence where `game.js` was
+already correct** — see HANDOFF §0.-32. `tests/im-done-test.mjs` drives both.
+
+### The original report, kept
 
 **Jake, 2026-08-25, with two screenshots.** The HUD reads `Daily 10:02 / 10:00`.
 The receipt stamps **`AUG 25 9:31 — RETURNED`** and says *"Your minutes are
