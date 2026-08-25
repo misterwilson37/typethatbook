@@ -1,6 +1,6 @@
 # TYPETHATBOOK — ROADMAP
 
-**v3.30.0, 2026-08-25.** ⚠️⚠️ **THE ⛑ BUTTON WROTE A WRONG GRADE AND IT IS FIXED AND SELF-HEALING** — re-run it and it corrects its own past output (HANDOFF §0.-31.N). ⚠️⚠️ **ITEM 24 IS NEW AND UNFIXED: DO NOT PRESS ⟳ ON A DAY WITH TWO ROLLUPS AT THE SAME MINUTE.**
+**v3.30.0, 2026-08-25.** ⚠️⚠️ **THE ⚑ BUTTON WROTE A WRONG GRADE AND IT IS FIXED AND SELF-HEALING** — re-run it and it corrects its own past output (HANDOFF §0.-31.N). ⚠️⚠️ **ITEM 24 IS NEW AND UNFIXED: DO NOT PRESS ⟳ ON A DAY WITH TWO ROLLUPS AT THE SAME MINUTE.**
 
 **v3.29.0, 2026-08-25.** ⭐ **§10.H IS BUILT** — Jake's first ask, unbuilt for five rounds, shipped for zero extra reads. ⚠️ **ITEMS 13 AND 11a WERE STALE ⭐⭐ FLAGS** and are closed; 11a's residue is a RULING for Jake, not a bug.
 
@@ -20,6 +20,92 @@ signed in and never typed had no ledger and was swept in full **forever**.
 §0.-29.A. `jsdom` and `acorn` were declared in package.json and simply not
 installed in the container. **ALL 52 HARNESSES PASS.** Run `npm install` before
 believing any failure count.
+
+---
+
+# ROADMAP INDEX — READ THIS FIRST
+
+⚠️⚠️ **THE NUMBERS ARE NOT AN ORDER AND THEY ARE NOT UNIQUE. DO NOT RENUMBER
+THEM.** Jake, 2026-08-25: *"I tried to navigate the roadmap, and it's practically
+impossible... It counts from 9 to 12, and then 10 is the last thing listed."*
+He is right, and here is exactly what is wrong:
+
+* **Items appear in the order they were WRITTEN, not in numeric order.** Items 9
+  and 10 sit at the END of the file because they were expanded long after they
+  were filed.
+* **⚠️⚠️ THERE ARE TWO DIFFERENT ITEM 18s.** `ITEM 18 — PRUNE readWeek() WITH THE
+  LEDGER` (near the top, in the §READS block) and `ITEM 18 — THE READ BUDGET`
+  (lower down) are unrelated. The §READS block runs its own series 18–21 that
+  collided with the main list. **When citing, quote the TITLE, never the bare
+  number.**
+* Letter suffixes (`11a`, `14b`, `9b`) are follow-ons filed after their parent
+  closed. They are not sub-items and can outlive the parent.
+
+⚠️ **RENUMBERING WOULD BE THE EXPENSIVE FIX, NOT THE CHEAP ONE.** HANDOFF.md,
+several source files and the harnesses all cite these numbers in prose —
+`ROADMAP 15`, `item 14b`, `§10.H`, `item 18's ruling on reads`. Renumbering
+breaks every one of those **silently**, in files no test reads. This index is the
+fix instead: **Ctrl-F any line below to land on the section.**
+
+## ⚠️ OPEN — needs work
+
+**In Jake's stated order, then everything else by position in the file.**
+
+1. **25. ⚠️⚠️⚠️ NEXT — "I'M DONE" SHOWS A CHILD A TIME THAT IS NOT THEIR TIME**
+   — ⚠️ **the app lies to a student about their own minutes.** Outranks everything.
+2. **26. ⭐ THE RESUME-BOOK BUTTONS ARE TOO BIG AND READ AS LIBRARY SHELF**
+   — after 25, *"if there isn't something more pressing."*
+3. **24. ⚠️⚠️ `⟳` OVER-COUNTS A DAY WITH OVERLAPPING ROLLUPS, SILENTLY**
+   — ⚠️ **do not press `⟳` on a day with two rollups at the same minute** meanwhile.
+
+Everything else still open:
+
+- ITEM 21 — THE READ RESIDUE  *(low priority, recorded so it is not rediscovered)*
+- 1. THE DRILL-DOWN AND THE CLOCK ARE LATE, NOT WRONG
+- 4. THE IMPLAUSIBILITY FLAG
+- 5. WHAT A NORMAL DAY LOOKS LIKE
+- 6. ⚠️ THE MIDNIGHT STRADDLE — CONFIRMED, FIXED IN LIBRARY, OPEN IN SCHOOL
+- 7. THE 5-SECOND FLOOR
+- 8b. ⭐ NEW — EVERY ROUND SHIPS A CHANGED-FILES-ONLY UPLOAD SET
+- 11a. ⚠️ MOSTLY CLOSED (Round 41) — ONE OPEN **DECISION**, NOT A BUG
+- 12. ⚠️ SAFARI HUD SPACING, AND TWO SMALLER THINGS IN THE SAME PANEL
+- 14a. ⭐⭐ MASTERY IS CUMULATIVE POINTS, PER **RUN**  — ⚠️ **SUSPECTED STALE: this reads like the spec item 14 BUILT in Round 32. Items 13 and 11a were both stale ⭐⭐ flags closed in Round 41 (§0.-31.L). VERIFY BEFORE WORKING IT.**
+- 22. ⚠️⚠️ NEW — THE ARCHIVE BEFORE 2026-08-25 CANNOT BE FULLY TRUSTED
+- 23. ⚠️ NEW — `saveProgress()` AND `recordRunOutcome()` TRUST `currentLesson` ALONE
+- 9. REDUCE THE SURFACE
+
+## ⏳ WATCHING — no action, just don't forget
+
+- ⏳ THE CUTOVER IS STILL 2026-08-22 — nothing to do but watch
+
+## ✅ DONE — kept for the reasoning, not for the task
+
+- ✅ ITEM 18 — PRUNE `readWeek()` WITH THE LEDGER  *(BUILT, Round 37)*
+- ✅ ITEM 20 — THE LEADERBOARD  *(cache FIXED Round 37; the gate is by design)*
+- ✅ ITEM 19 — CONTINUE READING  *(BUILT, Round 38)*
+- 0. ✅ DONE — THE TWO-ROW TOP BAR AND "I'M DONE"
+- 0b. ✅ DONE — THE SETTINGS PANEL FOR SCHOOL
+- 2. ✅ THE GUEST PATH IS VERIFIED BY RUNNING — and item 9's oldest bullet is closed
+- 2b. ✅ THE RESCUE IS WIRED IN BOTH MODES
+- 3. ✅ DELETED — "learn.js FLUSHES FOR ANONYMOUS USERS" WAS A PHANTOM
+- 7b. ✅ THE RANDOM DRILLS — `ass` LEADS, EVERYTHING ELSE IS NEVER-USE
+- 8. ✅ STUDENT-FACING POLISH — THE FONT PICKER SHIPPED
+- 11. ✅ FIXED (Round 33, Crandall) — A STUDENT IN A CLASS BUT NOT A SCHOOL
+- 13. ✅ CLOSED (Round 41) — THE GATE DID NOT FIRE, AND THE SPEC WAS WRONG
+- 14. ✅ BUILT (Round 32, Lambert) — MASTERY IS CUMULATIVE POINTS PER **RUN**
+- 14b. ✅ FIXED (Round 31, Fitch) — RUN OUTCOMES WERE LOST ON "BACK TO MAP"
+- 15. ✅ BUILT (Round 41, Rem-Sho) — STORE THE GRADE, AND RECONSTRUCT THE ONES 14b LOST
+- 16. ✅ FIXED (Round 40) — THE BUILD PANEL ON `reports.html` AND `admin.html`
+- 17. ✅ CLOSED (Rounds 35–40) — REPORTS READ EVERY RECORD OF EVERY STUDENT
+- 18. ✅ CLOSED (Rounds 36–40) — THE READ BUDGET
+- 9b. ✅ DONE — THE THREE SHARED MODULES THE FOOTER COULD NOT SEE
+- 10. ✅ BUILT — STUDENTS ARE FARMING THE FIRST THREE LESSONS
+
+## REFERENCE
+
+- §READS — WHAT THE CONSOLES ACTUALLY MEASURE (2026-08-24)
+- Known, and not being fixed
+- Settled — do not reopen
 
 ---
 
@@ -394,6 +480,74 @@ that morning **by design**, and two harness Parts assert that defect on purpose.
   do not sign in, sign in on the 25th, and check the 24th's total AND its
   drill-down.** Both should show the rescued sprint, on the 24th. Worth doing
   once in each mode — the two writers are separate copies.
+
+---
+
+## 25. ⚠️⚠️⚠️ NEXT — "I'M DONE" SHOWS A CHILD A TIME THAT IS NOT THEIR TIME
+
+**Jake, 2026-08-25, with two screenshots.** The HUD reads `Daily 10:02 / 10:00`.
+The receipt stamps **`AUG 25 9:31 — RETURNED`** and says *"Your minutes are
+counted."* **It is 31 seconds short, and the 31 seconds are the run the child is
+in the middle of.** The second screenshot is the same button pressed after a run
+completed: HUD `10:26`, receipt `10:26`. **They agree only when nothing is in
+flight.**
+
+⚠️⚠️ **THIS IS THE HIGHEST-PRIORITY OPEN ITEM AND IT OUTRANKS EVERY OTHER ENTRY
+IN THIS FILE.** Not because 31 seconds matter arithmetically — they do not — but
+because of *what the receipt says*. It is the one screen in the app whose entire
+job is to tell a child their work was recorded, and it tells them a number that
+is smaller than the one they were watching a second earlier. **A student who
+notices learns that the app under-counts them.** Every other item here is about
+data a teacher reads; this one is about trust a child has.
+
+**THE MECHANISM (read before fixing — this is a theory, not a diagnosis):**
+`logRun()` banks a run's seconds when the run ENDS. Mid-run elapsed time lives in
+the live counter that the HUD renders and has not been written anywhere. The
+receipt reads what is stored, so it is *honest about storage* and *wrong about
+the child*.
+
+⚠️ **THE FIX IS PROBABLY ALREADY IN THE FILE, WHICH IS THE REASON TO BE CAREFUL.**
+`logRun()` already writes a partial for an interrupted run — that is what
+`(left page)` and `(hidden)` are. So "I'm done" plausibly needs to do exactly
+what leaving the page does: flush the partial, *then* render the receipt.
+**⚠️ VERIFY THAT AND DO NOT ASSUME IT:**
+* Does the partial-flush path double-count if the run is later completed? The
+  watermark (`stepLoggedSeconds`) exists to stop that — **confirm it, with a
+  harness, before touching the writer.**
+* Does the receipt read `typing_logs`, the live counter, or `statsData`? All
+  three exist and they are not the same number (§3.1).
+* ⚠️ **A partial flush writes a `typing_sessions` sprint.** After Round 41 that
+  sprint gets graded. **An abandoned partial must not become a graded attempt** —
+  `run-grade.js`'s orphan rule covers the fragment-with-no-start case, but a
+  partial with a start is a different shape. **Check it.**
+
+⚠️ **AND CHECK THE OTHER DIRECTION.** If the receipt is fixed by flushing, the
+receipt and the HUD must agree *afterwards* too — a fix that makes the stamp
+right while leaving the HUD ticking from a stale seed just moves the lie.
+
+---
+
+## 26. ⭐ THE RESUME-BOOK BUTTONS ARE TOO BIG AND READ AS LIBRARY SHELF
+
+**Jake, 2026-08-25:** *"The resume book buttons in the library work, but they're
+way too big... it looks like it's a part of the library, and kids are rolling
+right past it."*
+
+**The ask:** a **quarter-size cover** with text to its right — *"Resume Alice's
+Adventures in Wonderland"* — so the row reads as a **different kind of thing**
+from the shelf below it, not as the first item on the shelf.
+
+⚠️ **THE PROBLEM IS CATEGORY, NOT SIZE.** Shrinking the cover without changing
+the layout would make it a *small shelf item*, which is the same mistake quieter.
+A horizontal card with the verb first (*Resume…*) is a different visual grammar
+from a grid of covers, and the grammar is what tells a child this row is about
+**them** rather than about the library.
+
+⚠️ **VERIFY THE CLAIM BEFORE REDESIGNING.** *"Kids are rolling right past it"* is
+an observation worth trusting, but Continue Reading was BUILT in Round 38 (item
+19) and the drill-down can show whether resumed books are actually being opened.
+**Check whether the button is being missed or being ignored** — they need
+different fixes, and only one of them is a layout change.
 
 ---
 

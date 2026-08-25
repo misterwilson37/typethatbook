@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- reports.html v1.2.0 — versioned the same way style.css and game.html are: a comment
+<!-- reports.html v1.3.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (the inline module) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
@@ -206,6 +206,7 @@
         .grades-panel td, .grades-panel th { padding: 2px 8px 2px 0; text-align: left; white-space: nowrap; }
         .grade-pip { display:inline-block; min-width:1.6em; text-align:center; margin-right:2px; border-radius:3px; padding:0 2px; }
         .grade-recon { opacity: 0.75; border-bottom: 1px dotted #888; }
+        .grade-cont { opacity: 0.55; }
         .dupe-tag {
             font-size: 0.65rem; color: #ffaa00; border: 1px solid #ffaa00;
             border-radius: 3px; padding: 0 4px; margin-right: 4px; white-space: nowrap;
@@ -674,7 +675,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.30.0";
+    const REPORTS_VERSION = "2.31.0";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -742,8 +743,8 @@
     // grade needs calculateGrade(), the gates, the chunking and the continuation
     // merge — all four used to live only in learn.js, and a copy of any of them
     // here is the twin failure this project has hit seven times. Rule 9.
-    import { gradeMergedRun, mergeRunAttempts, betterGrade,
-             FIRE_GRADE } from "./run-grade.js";
+    import { gradeMergedRun, mergeRunAttempts, betterGrade, runPlan,
+             gatesForRun, FIRE_GRADE } from "./run-grade.js";
     import { readDeployedVersions, renderBuildList } from "./versions.js";
     import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
@@ -1942,6 +1943,10 @@
 
                 const allSprints = [];
                 sessions.forEach(s => (s.sprints || []).forEach(sp => allSprints.push(sp)));
+                // ROADMAP 15 — grade the day's attempts once, then stamp each row.
+                let _spGrades = new Map();
+                try { _spGrades = await gradeSprintsForDay(allSprints); }
+                catch (err) { console.warn('[grades] sprint grading failed', err); }
                 const spWPMs = allSprints.map(sp => sp.wpm || 0);
                 const spMean = spWPMs.length ? spWPMs.reduce((a, b) => a + b, 0) / spWPMs.length : 0;
 
@@ -1972,6 +1977,24 @@
                                 <span class="session-stat">${sp.accuracy != null ? sp.accuracy : '\u2014'}%</span>
                                 <span class="session-stat">${(sp.chars || 0).toLocaleString()} ch</span>
                                 <span class="session-book">${escapeHtml(sp.detail || '')}</span>
+                                ${(() => {
+                                    // ⚠️ THE GRADE OF THE ATTEMPT THIS SPRINT BELONGS TO, not of
+                                    // this sprint. A continuation row shows its run's grade with a
+                                    // "·" prefix, because the fragment did not earn one by itself.
+                                    const g = _spGrades.get(sprintIdentity(sp));
+                                    if (!g) return '';
+                                    if (!g.res.ok) return `<span class="grade-pip" style="color:#555;" title="Not graded: ${escapeHtml(g.res.detail || g.res.reason)}">—</span>`;
+                                    const gr = g.res.grade;
+                                    const colour = gr === FIRE_GRADE ? '#ff6600'
+                                                 : gr === 'A' ? '#22c55e' : gr === 'B' ? '#4B9CD3'
+                                                 : gr === 'C' ? '#888' : '#ff6666';
+                                    const gates = g.res.gates || {};
+                                    const goal = `needs ${gates.minAccuracy}%` +
+                                                 (gates.minWPM == null ? ', speed not graded' : ` and ${gates.minWPM} WPM`);
+                                    return `<span class="grade-pip${g.continuation ? ' grade-cont' : ''}" style="color:${colour};" ` +
+                                           `title="Attempt ${g.seq} of ${g.of} at this run — ${goal}${g.continuation ? ' (this row is a continuation of that attempt)' : ''}">` +
+                                           `${g.continuation ? '·' : ''}${escapeHtml(gr)}</span>`;
+                                })()}
                                 ${spOdd ? '<span class="flag-icon" title="Much faster than this student\u2019s other runs today">\uD83D\uDEA9</span>' : ''}
                             </div>`;
                     }).join('');
@@ -2177,6 +2200,92 @@
     //
     // COST: one subcollection read per student, on demand, on click. Same shape
     // as the stuck scan — cheap when asked for, wasteful on a timer.
+    // ⚠️ ONE FETCH PER PAGE, NOT PER EXPANSION. The lessons collection is ~80
+    // documents and every grade computation needs it. A per-row read would turn
+    // opening a drill-down into 80 billed reads.
+    let _lessonDefs = null;
+    async function lessonDefs() {
+        if (_lessonDefs) return _lessonDefs;
+        _lessonDefs = new Map();
+        try {
+            const snap = await getDocs(collection(db, 'lessons'));
+            snap.forEach(d => { const l = d.data(); if (l && l.id) _lessonDefs.set(l.id, l); });
+        } catch (err) {
+            console.warn('[grades] lesson load failed', err);
+        }
+        return _lessonDefs;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ROADMAP 15 — THE GRADE ON EVERY SPRINT ROW
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // Jake: *"being able to see it on each row would be nice... to see if a kid
+    // has gotten a D 20 times in a row — may be time to reassess where that kid
+    // is."* That pattern is invisible in a best-grade column BY CONSTRUCTION: a
+    // record holding "B" cannot tell you it was preceded by twenty D's.
+    //
+    // ⚠️⚠️ A GRADE BELONGS TO AN **ATTEMPT**, NOT A SPRINT, and that is why this
+    // is computed here rather than per row. An interrupted run is several
+    // sprints; each carries only its own partial numbers, and grading one alone
+    // is exactly the invented grade that put a wrong D on a student's record.
+    // So the whole day is merged into attempts ONCE, and every sprint is mapped
+    // back to the attempt it belongs to. Continuation rows show the grade of the
+    // run they are part of, marked so, rather than a grade of their own.
+    //
+    // ⚠️ RETURNS A MAP KEYED ON THE SPRINT'S OWN IDENTITY, not on its index — a
+    // sprint appears in more than one rollup when rollups overlap (ROADMAP 24),
+    // and both copies must resolve to the same attempt.
+    async function gradeSprintsForDay(flatSprints) {
+        const out = new Map();
+        const defs = await lessonDefs();
+        const attempts = mergeRunAttempts(flatSprints);
+
+        // Which attempt does each sprint belong to? Re-derive with the same rule
+        // mergeRunAttempts() uses, so the two cannot drift apart.
+        const graded = new Map();   // "label\u0000runIdx\u0000at" -> {grade, seq, of}
+        const perRun = new Map();
+        for (const att of attempts) {
+            const lesson = defs.get(att.label);
+            const res = lesson ? gradeMergedRun(att, lesson, null) : { ok: false, reason: 'lesson not found' };
+            const k = `${att.label}\u0000${att.runIdx}`;
+            const list = perRun.get(k) || [];
+            list.push({ at: att.at, res });
+            perRun.set(k, list);
+        }
+        for (const [k, list] of perRun) {
+            list.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+            list.forEach((e, i) => graded.set(`${k}\u0000${e.at}`, { res: e.res, seq: i + 1, of: list.length }));
+        }
+
+        // Walk the same chronological order and attach each sprint to its attempt.
+        const rows = [];
+        const seen = new Set();
+        for (const sp of flatSprints) {
+            const runIdx = runIndexFromDetailLocal(sp.detail);
+            if (runIdx === null || sp.practice) continue;
+            rows.push({ sp, runIdx });
+        }
+        rows.sort((a, b) => String(a.sp.at || '').localeCompare(String(b.sp.at || '')));
+        const openAt = new Map();
+        for (const { sp, runIdx } of rows) {
+            const k = `${sp.label}\u0000${runIdx}`;
+            if (sp.continuation !== true || !openAt.has(k)) openAt.set(k, sp.at || '');
+            const g = graded.get(`${k}\u0000${openAt.get(k)}`);
+            if (g) out.set(sprintIdentity(sp), { ...g, continuation: sp.continuation === true });
+        }
+        return out;
+    }
+
+    const sprintIdentity = (sp) =>
+        [sp.at || '', sp.detail || '', sp.seconds || 0, sp.chars || 0].join('\u0000');
+    const runIndexFromDetailLocal = (detail) => {
+        const m = /^\s*run\s+(\d+)/i.exec(String(detail || ''));
+        if (!m) return null;
+        const n = parseInt(m[1], 10);
+        return n >= 1 ? n - 1 : null;
+    };
+
     async function showGrades(uid, panel) {
         panel.innerHTML = '<span style="color:#888;">Loading grades…</span>';
         let snap;

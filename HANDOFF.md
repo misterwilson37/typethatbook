@@ -43,6 +43,16 @@
      COMMENTS; position checks run on decomment(src) now.
      ⚠️ §0.-31.I: ROUNDS 36-40 ARE ALL WRITTEN UP AS UNDERWOOD, WHICH IS ROUND 1.
      Fourth occurrence. GREP THE ROSTER.
+     ✅ §0.-31.P: THE GRADE IS ON EVERY SPRINT ROW (a "D 20 times in a row"
+     pattern is invisible in a best-grade column BY CONSTRUCTION). ⚠️ A GRADE
+     BELONGS TO AN ATTEMPT, NOT A SPRINT. ⚠️ It makes mastery AUDITABLE, NOT
+     FIXED — points accumulate ACROSS DAYS and the ⚑ button is per-day, so it
+     still must not write runScores. The teacher-edit path is NOT BUILT.
+     ⚠️⚠️ ROADMAP IS NOW INDEXED — Jake could not navigate it and he was right:
+     items sit in WRITTEN order, and THERE ARE TWO DIFFERENT ITEM 18s. ⚠️ DO NOT
+     RENUMBER — HANDOFF, sources and harnesses cite these numbers in prose, and
+     renumbering breaks every citation SILENTLY. Cite the TITLE, not the number.
+     ⚠️ 14a is SUSPECTED STALE (reads like what item 14 built) — verify first.
      ⚠️⚠️ §0.-31.N: THE ⚑ BUTTON WROTE A WRONG GRADE ONTO A REAL STUDENT AND JAKE
      SAVED IT AS ACCURATE. "u1_l5 run 1 → D (15 fragments merged)"; the true
      answer is B. THREE compounding faults: RETRIES merged as fragments (only
@@ -1077,6 +1087,33 @@ teacher to confirm a *reduction*; an inflation of nine minutes applies silently.
 **So pressing `⟳` on that day would raise a real student's graded minutes by ~40%
 with no prompt.** ROADMAP item 24. **Do not press `⟳` on a day whose drill-down
 shows two rollups at the same minute until it is fixed.**
+
+### P. THE GRADE IS ON EVERY SPRINT ROW NOW — AND WHAT THAT DOES *NOT* SOLVE
+
+Jake: *"seeing it on each row... to see if a kid has gotten a D 20 times in a
+row — may be time to reassess where that kid is."* That pattern is invisible in a
+best-grade column **by construction**: a record holding `B` cannot tell you it
+was preceded by twenty D's.
+
+⚠️⚠️ **A GRADE BELONGS TO AN ATTEMPT, NOT A SPRINT**, which is why
+`gradeSprintsForDay()` merges the whole day ONCE and maps each sprint back to the
+attempt it belongs to. Grading a row on its own numbers is exactly the defect of
+§0.-31.N. A continuation row shows its run's grade prefixed `·` and dimmed — the
+fragment did not earn one by itself.
+
+⚠️ **AND THE HONEST ANSWER TO JAKE'S QUESTION — "that would solve the mastery
+question too, right?" — IS *PARTLY*.** It makes mastery **auditable**: every
+attempt's grade is on screen, and `RUN_POINTS` (A🔥 = 2, A = 1, everything else 0)
+against `MASTERY_POINTS = 4` is then arithmetic he can do by eye. **It does not
+FIX a stored `runScores`,** and the ⚑ button still must not write one:
+
+⚠️⚠️ **POINTS ACCUMULATE ACROSS DAYS AND THE BUTTON IS PER-DAY.** A per-day write
+to `runScores` would either double-count on a second press or need the student's
+whole history in hand to assign rather than increment. **That is a different
+feature from reconstruction and must not be bolted onto it.** The clean path is
+the one Jake already asked for — **a deliberate teacher edit** — legitimate
+precisely because a human decided it, unlike a number inferred from thin
+evidence. ⭐ **NOT BUILT. It follows item 25.**
 
 ### J. THE NUMBERS
 
