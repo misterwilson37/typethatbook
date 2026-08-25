@@ -1,4 +1,20 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.15.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.16.0
+//
+// v1.16.0 — ⚠️⚠️ THE LESSON-TRAFFIC SIGNAL FIRED ON ALMOST EVERY ROW, AND THE
+// SWEEP SPENT ~4,000 READS WITHOUT SAYING SO. Both found by Jake on the first
+// real run, over 138 students.
+//   1. v1.15.0 flagged anything above 3 runs/student. The real median is ~6-7,
+//      so "replayed after passing" appeared on nearly every line. ⚠️ THAT IS
+//      §0.-20.B's ALARM THAT IS ALWAYS ON — a signal on every row is decoration,
+//      and it teaches a teacher to stop reading the column. The threshold is now
+//      RELATIVE (twice this scan's MEDIAN, min 8 students) because a constant
+//      chosen without data cannot know what normal looks like in this building.
+//   2. Ordering by runs/student alone put ONE-STUDENT lessons above 97-student
+//      ones. Flagged rows lead now; small samples are listed but never flagged.
+//   3. ⚠️ THIS FILE WAS NOT METERED. It imported Firestore directly, so
+//      ttbMeter never saw the most expensive click in the app. Now imports
+//      ./read-meter.js (a URL swap), warns before scanning >40 students, and
+//      prints the actual read count next to the results.
 //
 // v1.15.0 — ⭐ ROADMAP §10.H — THE MEASUREMENT JAKE ASKED FOR FIRST, unbuilt for
 // five rounds and shipped here for ZERO EXTRA READS. scanForStuck() already reads
@@ -76,37 +92,22 @@
 //          module between them (the same reason getWeekStart() is a
 //          hand-maintained twin in game.js/learn.js, not an import).
 //
-// v1.10.0 — THE ROLLOVER IMPORT. A returning student kept last year's class and
-//          nothing anywhere said so. Three parts:
-//            1. The preview no longer claims a student with no uid is new. A
-//               missing uid means only "no typing_logs in the last ROSTER_DAYS" —
-//               a student who last typed in the spring is indistinguishable from
-//               one who has never typed, and the old label promised "will apply
-//               on first login" for the case where nothing happened at all.
-//            2. A decision block, in the preview, asking what to do about
-//               students who already have a class. Commit stays LOCKED until it
-//               is answered. Not an overlay: it sits beside the table it is about
-//               and cannot be dismissed by a stray click.
-//            3. The answer travels with the record as `overwrite`, so the
-//               consumer (game.js / learn.js applyPendingClassAssignment) is told
-//               rather than left to guess which fact is newer. It governs BOTH
-//               write paths — visible students are skipped here, queued students
-//               are decided at sign-in — because an answer that applied to only
-//               half the file would reproduce the original defect.
-//          Also: the Create-classes button was losing its click listener to a
-//          later `innerHTML +=` whenever a file had both new classes and valid
-//          rows. All wiring in this panel now happens after the last write.
-//          Also: the commit summary reports queued and skipped counts, not just
-//          a bare "N assigned" that was true and misleading at the same time.
-//
 // ⚠️ v1.13.2 — v1.8.1, v1.8.0, v1.7.1 and v1.7.0 moved to CHANGELOG.md
 //    § ARCHIVED FILE HEADERS. Nothing deleted.
 //
-window.LESSONS_ADMIN_VERSION = '1.15.0';
+window.LESSONS_ADMIN_VERSION = '1.16.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "./read-meter.js";   // ⚠️ METERED. read-meter.js re-exports the whole SDK
+// with the billable calls wrapped, so this is a URL swap and nothing else.
+// Jake, 2026-08-25, after a 138-student scan: "There's nothing in the console
+// letting me know how many reads/writes it used." This file was one of THREE
+// still importing Firestore directly and therefore invisible to the meter —
+// the others were staff-admin.js and school-audit.html. ⚠️ A PAGE THAT IS NOT
+// METERED IS A PAGE WHOSE COST NOBODY CAN SEE, and admin pages are where the
+// expensive sweeps live. ttbMeter.report() in the console, any time.
+
 
 const LESSON_COLLECTION = "lessons";
 
@@ -2096,6 +2097,27 @@ async function scanForStuck() {
     outEl.innerHTML = '';
     const setStat = (m, c) => { if (statEl) { statEl.textContent = m; statEl.style.color = c || '#888'; } };
 
+    // ⚠️⚠️ v1.16.0 — THE COST IS STATED BEFORE IT IS SPENT.
+    //
+    // Jake ran this over 138 students and reported it "very slow", with nothing
+    // in the console saying what it cost. It is ONE SUBCOLLECTION READ PER
+    // STUDENT — ~30 documents each, so ~4,000 reads for a whole school — and
+    // that is the most expensive thing a teacher can click in this app.
+    // ⚠️ AN UNMETERED SWEEP IS HOW A READ BUDGET GETS SPENT WITHOUT ANYONE
+    // DECIDING TO SPEND IT (item 18: reads are ~50x dearer than writes).
+    if (roster.length > 40) {
+        const est = roster.length * 30;
+        if (!confirm(`Scan ${roster.length} students?\n\n` +
+                     `This reads every student's lesson history \u2014 roughly ` +
+                     `${est.toLocaleString()} Firestore reads, and it takes a while.\n\n` +
+                     `Narrowing the class filter first makes it much cheaper.`)) {
+            if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+            return;
+        }
+    }
+    const _m0 = (() => { try { return window.ttbMeter && window.ttbMeter.totals(); } catch (_) { return null; } })();
+    const _t0 = Date.now();
+
     const findings = [];
     _lessonStats = new Map();   // ROADMAP §10.H — reset per scan
     let done = 0, failed = 0;
@@ -2172,6 +2194,13 @@ async function scanForStuck() {
             'Run numbers come from how the lesson chunked at the time. Editing a lesson\u2019s ' +
             'steps reshuffles them, so treat a stuck point from before an edit as approximate.</div>';
     }
+    // ⚠️ WHAT IT COST, ON SCREEN, NOT ONLY IN THE CONSOLE. A number a teacher
+    // has to open devtools for is a number a teacher does not see.
+    const _m1 = (() => { try { return window.ttbMeter && window.ttbMeter.totals(); } catch (_) { return null; } })();
+    const _cost = (_m0 && _m1)
+        ? `${(_m1.reads - _m0.reads).toLocaleString()} reads in ${Math.round((Date.now() - _t0) / 1000)}s`
+        : `${Math.round((Date.now() - _t0) / 1000)}s`;
+
     const tEl = document.getElementById('lesson-stats-title');
     if (tEl) tEl.textContent = 'Lesson traffic \u2014 ' + done + ' student' + (done === 1 ? '' : 's') + ' scanned';
     _renderLessonStats(done);
@@ -2239,24 +2268,49 @@ function _renderLessonStats(scanned) {
         return;
     }
 
-    // Order by the thing being looked for: most-replayed first.
+    // ⚠️⚠️ v1.16.0 — RECALIBRATED AGAINST REAL DATA. v1.15.0's THRESHOLD WAS
+    // PICKED BLIND AND FIRED ON ALMOST EVERY ROW.
+    //
+    // v1.15.0 flagged anything above 3 runs/student. Jake's first real scan (138
+    // students) came back with a median near 6-7 and "replayed after passing" on
+    // nearly every line. ⚠️ THAT IS §0.-20.B's RED ALARM THAT IS ALWAYS ON — a
+    // signal on every row is not a signal, it is decoration, and it teaches a
+    // teacher to stop reading the column. I chose that number with no data,
+    // which is the thing Rule 10 exists to prevent.
+    //
+    // ⚠️ THE THRESHOLD IS NOW RELATIVE TO THIS SCAN. "Unusual" means unusual FOR
+    // THIS COHORT — twice the median runs/student among the lessons scanned. A
+    // constant cannot know what normal looks like in Jake's building.
     const rows = Array.from(_lessonStats.entries()).map(([id, a]) => {
         const perStudent = a.students ? a.runAttempts / a.students : 0;
         const passRate   = a.students ? a.passed / a.students : 0;
-        // ⚠️ THE READING IS THE POINT. High replay + high pass = coasting;
-        // high replay + low pass = struggling. Anything under three runs a
-        // student is just "normal use" and gets no label at all, because a
-        // label on ordinary data is how a panel teaches you to ignore it
-        // (§0.-20.B: a red alarm that is always on).
-        let signal = '', colour = '#666';
-        if (perStudent >= 3 && a.students >= 2) {
-            if (passRate >= 0.75)     { signal = 'replayed after passing'; colour = '#ffaa00'; }
-            else if (passRate <= 0.4) { signal = 'hard \u2014 few clearing it';  colour = '#ff6666'; }
-            else                      { signal = 'heavy traffic';          colour = '#888';    }
-        }
         const title = (_lessonCache[id] && _lessonCache[id].title) || '';
-        return { id, title, ...a, perStudent, passRate, signal, colour };
-    }).sort((x, y) => y.perStudent - x.perStudent);
+        return { id, title, ...a, perStudent, passRate, signal: '', colour: '#666' };
+    });
+
+    // ⚠️ MEDIAN, NOT MEAN. One lesson at 14.7 runs/student drags a mean upward
+    // and would suppress the very rows it should be surfacing.
+    const ordered = rows.map(r => r.perStudent).sort((x, y) => x - y);
+    const median  = ordered.length ? ordered[Math.floor(ordered.length / 2)] : 0;
+    const HEAVY   = Math.max(3, median * 2);
+
+    // ⚠️ A LESSON WITH THREE STUDENTS IS NOISE AND IT SORTED TO THE TOP.
+    // v1.15.0 ordered by runs/student alone, so u7_p9 (ONE student, 8 runs)
+    // outranked u1_l4 (97 students, 744 runs). Small samples have the widest
+    // spread and the least meaning. They stay LISTED — the counts are real — but
+    // they cannot be flagged and they cannot lead.
+    const MIN_STUDENTS = 8;
+
+    for (const r of rows) {
+        if (r.students < MIN_STUDENTS || r.perStudent < HEAVY) continue;
+        if (r.passRate >= 0.90)      { r.signal = 'replayed after passing'; r.colour = '#ffaa00'; }
+        else if (r.passRate <= 0.60) { r.signal = 'hard \u2014 few clearing it';  r.colour = '#ff6666'; }
+        else                         { r.signal = 'heavy traffic';          r.colour = '#888';    }
+    }
+
+    // Flagged first, then by traffic: the thing being looked for is at the top,
+    // the rest is reference.
+    rows.sort((x, y) => (y.signal ? 1 : 0) - (x.signal ? 1 : 0) || y.perStudent - x.perStudent);
 
     const cell = 'padding:4px 8px; border-bottom:1px solid #262626; white-space:nowrap;';
     outEl.innerHTML =
@@ -2276,12 +2330,15 @@ function _renderLessonStats(scanned) {
             '<td style="' + cell + ' color:#ff9800; text-align:right;">' + (r.fires || '\u2014') + '</td>' +
             '<td style="' + cell + ' color:' + (r.stuck ? '#ff6666' : '#555') + '; text-align:right;">' +
                 (r.stuck || '\u2014') + '</td>' +
-            '<td style="' + cell + ' color:' + r.colour + ';">' + escHtml(r.signal) + '</td>' +
+            '<td style="padding:4px 0 4px 10px; border-bottom:1px solid #262626; color:' +
+                r.colour + ';">' + escHtml(r.signal) + '</td>' +
             '</tr>').join('') +
         '</tbody></table>' +
         '<div style="color:#666; font-size:0.75em; margin-top:8px;">' +
         'From the same ' + scanned + '-student read as the stuck scan above \u2014 no extra Firestore reads. ' +
         '<b>Runs/student</b> counts finished runs, not lesson completions, so a student grinding one run shows up here. ' +
+        'Flagged rows have more than <b>' + HEAVY.toFixed(1) + '</b> runs/student (twice this scan\u2019s median) ' +
+        'AND at least ' + MIN_STUDENTS + ' students \u2014 the bar is relative to this cohort, not fixed. ' +
         '<b>Replayed after passing</b> is the farming signal; <b>hard</b> is the opposite problem. ' +
         '\u26a0\ufe0f A\uD83D\uDD25 is recorded from 2026-08-25 onward only \u2014 a dash means not recorded, not zero earned.' +
         '</div>';

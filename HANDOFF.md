@@ -1,7 +1,22 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.27.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.28.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 40; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.28.0 — Round 43 (Rem-Sho). ⚠️⚠️ §0.-33.A: I CHOSE A THRESHOLD WITH NO
+     DATA AND IT FIRED ON EVERY ROW. §10.H flagged >3 runs/student; the real
+     median over 138 students is ~6-7. §0.-20.B's ALARM THAT IS ALWAYS ON, in a
+     file whose own comment warns against it. Threshold is now RELATIVE (2x this
+     scan's MEDIAN, min 8 students). Sorting by rate alone put ONE-student
+     lessons above 97-student ones.
+     ⚠️⚠️ §0.-33.B: THREE PAGES WERE INVISIBLE TO read-meter.js — lessons-admin,
+     staff-admin, school-audit — AND THEY WERE THE ADMIN PAGES, where the
+     expensive sweeps live. A 138-student scan costs ~4,000 reads and nothing
+     said so. ⚠️ A NEW PAGE IMPORTS ./read-meter.js, NEVER THE SDK URL.
+     ⚠️⚠️ §0.-33.C: I DUPLICATED A CHUNK OF lessons-admin.js WITH A BACKWARD
+     SLICE (end anchor matched an EARLIER occurrence). FOURTH file-damage
+     incident in three rounds. ASSERT s.count(anchor)==1 AND j>i, ALWAYS.
+     lessons-admin.js v1.16.0. 55 harnesses, 0 audit problems.
 
      v15.27.0 — Round 42 (Rem-Sho). ✅ §0.-32: ROADMAP 25 FIXED — "I'M DONE" WAS
      STAMPING A CHILD A NUMBER SMALLER THAN THE HUD. `flushStats('done', true)`
@@ -787,6 +802,67 @@ is not the same as checking the list. **Check the list.**
 > the repo root and dropped each one into the channel it belonged in.
 
 ---
+
+## §0.-33. ✅ ROUND 43 (Rem-Sho) — THE ALARM THAT WAS ALWAYS ON, AND THE THREE UNMETERED PAGES
+
+**2026-08-25.** Jake ran §10.H over 138 students. Two findings, both mine.
+
+### A. ⚠️⚠️ I CHOSE A THRESHOLD WITH NO DATA AND IT FIRED ON EVERY ROW
+
+v1.15.0 flagged any lesson above **3 runs/student**. The real median across 138
+students is **~6–7**, so *"replayed after passing"* appeared on nearly every
+line. ⚠️ **THAT IS §0.-20.B's RED ALARM THAT IS ALWAYS ON.** A signal on every
+row is not a signal; it is decoration, and it teaches a teacher to stop reading
+the column — which is worse than never having built it.
+
+⚠️ **THE THRESHOLD IS NOW RELATIVE TO THE SCAN**: twice this cohort's **median**
+(not mean — one lesson at 14.7 drags a mean and suppresses the rows it should
+surface), with a floor of 8 students. ⚠️ **A CONSTANT CANNOT KNOW WHAT NORMAL
+LOOKS LIKE IN JAKE'S BUILDING**, and Rule 10 is precisely about not shipping one
+that pretends to. I wrote a comment in v1.15.0 warning against an always-on
+alarm and then shipped one in the same file.
+
+⚠️ **AND THE SORT WAS BACKWARDS.** Ordering by runs/student alone put `u7_p9`
+(ONE student, 8 runs) above `u1_l4` (97 students, 744 runs). Small samples have
+the widest spread and the least meaning. They are still listed — the counts are
+real — but they cannot be flagged and cannot lead.
+
+### B. ⚠️⚠️ THREE PAGES WERE INVISIBLE TO THE READ METER
+
+Jake: *"There's nothing in the console letting me know how many reads/writes it
+used."* `read-meter.js` has existed since Round 40 and attaches by **changing one
+import URL**. `lessons-admin.js`, `staff-admin.js` and `school-audit.html` were
+still importing Firestore directly.
+
+⚠️ **THE UNMETERED PAGES WERE THE ADMIN PAGES — WHERE THE EXPENSIVE SWEEPS
+LIVE.** The metered set was every student-facing page, i.e. the cheap ones. A
+138-student scan costs ~4,000 reads and nothing anywhere said so.
+
+✅ All three now import `./read-meter.js`. The scan **warns before it spends**
+(any roster over 40) and **prints the actual read count next to its results** —
+on screen, not only in the console, because a number a teacher must open devtools
+for is a number a teacher does not see.
+
+⚠️ **THE STANDING RULE: A NEW PAGE IMPORTS `./read-meter.js`, NEVER THE SDK URL.**
+There is no harness for this yet; `grep -l firebasejs *.js *.html` is the check.
+
+### C. ⚠️⚠️ I DUPLICATED A CHUNK OF lessons-admin.js WITH A BACKWARD SLICE
+
+Cutting between two `index()` results, the end anchor matched an **earlier**
+occurrence than the start anchor — `outEl.innerHTML` appears in the empty-state
+branch above it — so `j < i` and `s[:i] + new + s[j:]` **duplicated everything
+between them**. Caught by `acorn` (`await outside async`), restored, redone.
+
+⚠️ **THE FIX IS TWO ASSERTIONS, AND THEY ARE NOW HABIT:** every anchor must match
+**exactly once** (`s.count(old) == 1`), and any slice must assert `j > i`. This
+is the **fourth** self-inflicted file-damage incident in three rounds (§0.-31.H
+zero-byte truncation, §0.-32.D two unbounded slices). **Every one was a write
+whose extent I had not bounded before making it.**
+
+### D. THE NUMBERS
+
+`lessons-admin.js` v1.16.0, `staff-admin.js` and `school-audit.html` metered.
+**55 harnesses pass**, `audit:versions` **0 problems**, clean-checkout verified.
 
 ## §0.-32. ✅ ROUND 42 (Rem-Sho) — "I'M DONE" WAS TELLING A CHILD A SMALLER NUMBER
 

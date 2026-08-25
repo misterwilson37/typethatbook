@@ -1,5 +1,7 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.32.0, 2026-08-25.** ✅ **§10.H RECALIBRATED** — its signal fired on every row because I picked the threshold with no data; it is relative to the scan now. ✅ **EVERY PAGE IS METERED** — three admin pages were invisible to `read-meter.js`, and the scan now warns before spending ~4,000 reads.
+
 **v3.31.0, 2026-08-25.** ✅ **ITEM 25 IS FIXED** (Round 42) — "I'm done" no longer stamps a number smaller than the HUD. **Item 26 (resume buttons) is now the top open item.**
 
 **v3.30.0, 2026-08-25.** ⚠️⚠️ **THE ⚑ BUTTON WROTE A WRONG GRADE AND IT IS FIXED AND SELF-HEALING** — re-run it and it corrects its own past output (HANDOFF §0.-31.N). ⚠️⚠️ **ITEM 24 IS NEW AND UNFIXED: DO NOT PRESS ⟳ ON A DAY WITH TWO ROLLUPS AT THE SAME MINUTE.**

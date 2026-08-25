@@ -26,7 +26,15 @@ window.STAFF_ADMIN_VERSION = '2.2.0';
 
 import { collection, getDocs, doc, getDoc, setDoc, deleteDoc, serverTimestamp,
          query, where }
-    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    from "./read-meter.js";   // ⚠️ METERED. read-meter.js re-exports the whole SDK
+// with the billable calls wrapped, so this is a URL swap and nothing else.
+// Jake, 2026-08-25, after a 138-student scan: "There's nothing in the console
+// letting me know how many reads/writes it used." This file was one of THREE
+// still importing Firestore directly and therefore invisible to the meter —
+// the others were staff-admin.js and school-audit.html. ⚠️ A PAGE THAT IS NOT
+// METERED IS A PAGE WHOSE COST NOBODY CAN SEE, and admin pages are where the
+// expensive sweeps live. ttbMeter.report() in the console, any time.
+
 
 let _db = null, _auth = null;
 let _scope = { role: null, schoolIds: [] };

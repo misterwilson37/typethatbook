@@ -1,5 +1,21 @@
 # CHANGELOG — TypeThatBook
 
+## Round 43 (Rem-Sho) — 2026-08-25
+
+**⚠️ The §10.H signal fired on almost every row.** I set the threshold at 3
+runs/student with no data; the real median over 138 students is ~6–7. It is now
+relative — twice this scan's median, minimum 8 students — and flagged rows sort
+first. One-student lessons no longer outrank 97-student ones.
+
+**⚠️ Three pages were invisible to the read meter,** and they were the admin
+pages where the expensive sweeps live. `lessons-admin.js`, `staff-admin.js` and
+`school-audit.html` now import `./read-meter.js`. The stuck scan warns before
+spending (any roster over 40) and prints its real read count on screen.
+
+- `lessons-admin.js` v1.16.0, `staff-admin.js`, `school-audit.html`
+
+**55 harnesses pass. `audit:versions`: 0 problems.**
+
 ## Round 42 (Rem-Sho) — 2026-08-25
 
 **✅ ROADMAP 25 — "I'm done" stamped a child a receipt shorter than the HUD they
@@ -4036,6 +4052,34 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### lessons-admin.js v1.10.0 — archived by Round 43 (Rem-Sho), 8-entry budget
+
+```
+// v1.10.0 — THE ROLLOVER IMPORT. A returning student kept last year's class and
+//          nothing anywhere said so. Three parts:
+//            1. The preview no longer claims a student with no uid is new. A
+//               missing uid means only "no typing_logs in the last ROSTER_DAYS" —
+//               a student who last typed in the spring is indistinguishable from
+//               one who has never typed, and the old label promised "will apply
+//               on first login" for the case where nothing happened at all.
+//            2. A decision block, in the preview, asking what to do about
+//               students who already have a class. Commit stays LOCKED until it
+//               is answered. Not an overlay: it sits beside the table it is about
+//               and cannot be dismissed by a stray click.
+//            3. The answer travels with the record as `overwrite`, so the
+//               consumer (game.js / learn.js applyPendingClassAssignment) is told
+//               rather than left to guess which fact is newer. It governs BOTH
+//               write paths — visible students are skipped here, queued students
+//               are decided at sign-in — because an answer that applied to only
+//               half the file would reproduce the original defect.
+//          Also: the Create-classes button was losing its click listener to a
+//          later `innerHTML +=` whenever a file had both new classes and valid
+//          rows. All wiring in this panel now happens after the last write.
+//          Also: the commit summary reports queued and skipped counts, not just
+//          a bare "N assigned" that was true and misleading at the same time.
+//
+```
 
 ### learn.js v2.31.0 — archived by Round 42 (Rem-Sho), 8-entry budget
 
