@@ -1,4 +1,11 @@
-// run-grade.js v1.0.0 — THE GRADE RULE, IN ONE PLACE, WITH NOTHING ELSE IN IT.
+// run-grade.js v1.1.0 — THE GRADE RULE, IN ONE PLACE, WITH NOTHING ELSE IN IT.
+//
+// v1.1.0 — ⚠️⚠️ mergeContinuations() IS REPLACED BY mergeRunAttempts(), AND THE
+//          OLD ONE WROTE A WRONG GRADE ONTO A REAL STUDENT'S RECORD. It merged
+//          RETRIES as though they were fragments of one run, folded an abandoned
+//          32%-accuracy tail into three good attempts, and double-counted every
+//          sprint that appeared in two overlapping rollups. Read the block above
+//          mergeRunAttempts() before touching any of it.
 //
 // ROADMAP item 15. Extracted from learn.js so that reports.html can grade a run
 // without owning a second copy of the rule. ⚠️ THAT IS THE WHOLE REASON THIS
@@ -34,7 +41,7 @@
 // two agree on run count for every step type, which is the ratchet that stops
 // this becoming a twin.
 
-export const RUN_GRADE_VERSION = "1.0.0";
+export const RUN_GRADE_VERSION = "1.1.0";
 
 // A🔥 as a string, built from a code point so no source file has to carry a
 // surrogate pair literally — HANDOFF §0.-24 is about a heredoc that died on one.
@@ -301,47 +308,111 @@ export function isAssessedSprint(s) {
     return !!s && !s.practice;
 }
 
-// Group a flat list of sprints into runs and sum each run's fragments.
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ v1.1.0 — mergeContinuations() WAS WRONG AND IT WROTE A WRONG GRADE
+// ═════════════════════════════════════════════════════════════════════════════
 //
-// ⚠️⚠️ THIS IS ITEM 15'S CONSTRAINT 1 AND IT IS NOT OPTIONAL. An interrupted run
-// writes several sprints, and logRun() RECOMPUTES wpm/accuracy for each fragment
-// against that fragment alone. Grading the fragments individually invents grades:
-// the "(left page)" and "(hidden)" rows sitting at 0 WPM in Jake's own screenshot
-// are what that looks like. The union is the run; a fragment is not.
+// v1.0.0 grouped every sprint sharing (date, label, runIdx) into ONE run and
+// summed it. Against Jake's real 2026-08-24 data that produced
+// "u1_l5 run 1 → D (15 fragments merged)" — and D is an artifact of the merge,
+// not anything the student did. Three distinct faults, and they compound:
 //
-// wpm and accuracy are recomputed from the summed chars/mistakes/seconds using
-// logRun()'s own arithmetic, so a merged run is graded on the same formula a
-// single-fragment run is.
-export function mergeContinuations(sprints) {
-    const byRun = new Map();
+// ⚠️ 1. RETRIES ARE NOT FRAGMENTS. A student who fails run 1 and types it again
+//    writes a second sprint with the SAME detail, "run 1". Those are two
+//    ATTEMPTS. Jake's morning has run 1 typed at 8:47 (90%), 8:49 (87%) and
+//    8:50 (94%) — three honest attempts, folded into one imaginary run.
+//    ⚠️ ONLY A SPRINT CARRYING `continuation: true` IS A FRAGMENT. logRun() sets
+//    it when the run already has a watermark, which is the only true signal.
+//
+// ⚠️ 2. AN ABANDONED FRAGMENT POISONS THE UNION. The 9:13 sprint — 23 seconds,
+//    28 characters, 32% accuracy, "run 1 (left page)" — is someone walking away
+//    mid-run. Averaged into three good attempts it drags the union under the
+//    85% gate, which is where the D came from.
+//
+// ⚠️⚠️ 3. OVERLAPPING ROLLUPS DOUBLE-COUNT, AND sessionSignature() CANNOT SEE IT.
+//    Jake's day holds an 8:47 rollup of 5 sprints AND an 8:47 rollup of 7 that
+//    CONTAINS THE SAME FIVE. daylog.js's dedupe keys on the whole sprint
+//    timestamp LIST, so a superset has a different signature and is not a
+//    duplicate by that test — correctly, at the document level. The duplication
+//    is per SPRINT, so it has to be removed per SPRINT. That is why the count
+//    said 15 when the student typed about five.
+//
+// ⚠️ THE ROADMAP'S OWN CONSTRAINT 1 IS WRONG IN BOTH DIRECTIONS and must not be
+// followed literally: "group by (date, label, detail)" MERGES retries (identical
+// detail) and SEPARATES real fragments (whose detail carries "(left page)").
+// The correct unit is the ATTEMPT, and `continuation` is what delimits it.
+
+// One sprint's identity, for removing the same recorded work read twice.
+// ⚠️ `at` IS AN ISO INSTANT WITH MILLISECONDS — two distinct sprints cannot share
+// one. The numbers are included so a record with a coincidentally equal stamp is
+// still kept.
+function sprintKey(s) {
+    return [s.at || '', s.detail || '', s.seconds || 0, s.chars || 0, s.mistakes || 0].join('\u0000');
+}
+
+/**
+ * Split a flat sprint list into RUN ATTEMPTS.
+ *
+ * An attempt opens on a non-continuation sprint and absorbs the continuation
+ * sprints that follow it for the same (label, runIdx). Each attempt is graded on
+ * its own, and the BEST grade across attempts is what a run is worth — which is
+ * what `grade` has always meant on a lessonProgress record.
+ *
+ * ⚠️ A CONTINUATION WITH NO OPEN ATTEMPT IS NOT GRADEABLE. It is the tail of a
+ * run whose start is missing — before this date range, in a lost flush, or
+ * abandoned. Grading it alone invents a grade from a partial number, which is
+ * the "0 WPM row" in Jake's screenshot. It is returned with `orphan: true` so a
+ * caller can report it, and gradeMergedRun() refuses it.
+ */
+export function mergeRunAttempts(sprints) {
+    const seen = new Set();
+    const rows = [];
     for (const s of (sprints || [])) {
         if (!isAssessedSprint(s)) continue;
         const runIdx = runIndexFromDetail(s.detail);
         if (runIdx === null) continue;
-        const key = `${s.date}\u0000${s.label}\u0000${runIdx}`;
-        if (!byRun.has(key)) {
-            byRun.set(key, {
-                date: s.date, label: s.label, runIdx,
-                seconds: 0, chars: 0, mistakes: 0, fragments: 0,
-                at: s.at || '',
-            });
+        // ⚠️ A SPRINT WITH NO `at` CANNOT BE DEDUPED and is kept. Pre-v2.10.0
+        // rollups have no stamps; dropping them would lose real work, which is
+        // the worse error of the two.
+        if (s.at) {
+            const k = sprintKey(s);
+            if (seen.has(k)) continue;
+            seen.add(k);
         }
-        const g = byRun.get(key);
-        g.seconds  += Number(s.seconds)  || 0;
-        g.chars    += Number(s.chars)    || 0;
-        g.mistakes += Number(s.mistakes) || 0;
-        g.fragments += 1;
-        if (s.at && (!g.at || s.at < g.at)) g.at = s.at;
+        rows.push({ ...s, runIdx });
     }
 
-    for (const g of byRun.values()) {
-        const correct = Math.max(0, g.chars - g.mistakes);
-        g.wpm      = g.seconds > 0 ? Math.round((correct / 5) / (g.seconds / 60)) : 0;
-        g.accuracy = g.chars   > 0 ? Math.round((correct / g.chars) * 100) : 100;
-        g.clean    = g.mistakes === 0;
+    // Chronological, so "the fragment that follows its start" is well defined
+    // across rollups as well as within one.
+    rows.sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
+
+    const attempts = [];
+    const open = new Map();          // "label\u0000runIdx" -> attempt
+    for (const s of rows) {
+        const key = `${s.label}\u0000${s.runIdx}`;
+        let att = s.continuation === true ? open.get(key) : null;
+        if (!att) {
+            att = {
+                date: s.date, label: s.label, runIdx: s.runIdx,
+                seconds: 0, chars: 0, mistakes: 0, fragments: 0,
+                at: s.at || '', orphan: s.continuation === true,
+            };
+            attempts.push(att);
+            open.set(key, att);
+        }
+        att.seconds  += Number(s.seconds)  || 0;
+        att.chars    += Number(s.chars)    || 0;
+        att.mistakes += Number(s.mistakes) || 0;
+        att.fragments += 1;
     }
-    return Array.from(byRun.values())
-        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.runIdx - b.runIdx));
+
+    for (const a of attempts) {
+        const correct = Math.max(0, a.chars - a.mistakes);
+        a.wpm      = a.seconds > 0 ? Math.round((correct / 5) / (a.seconds / 60)) : 0;
+        a.accuracy = a.chars   > 0 ? Math.round((correct / a.chars) * 100) : 100;
+        a.clean    = a.mistakes === 0;
+    }
+    return attempts;
 }
 
 // Grade one merged run against a lesson. Returns a reason instead of a grade
@@ -355,6 +426,15 @@ export function mergeContinuations(sprints) {
 // only honest answer is to say so.
 export function gradeMergedRun(run, lesson, storedRunCount) {
     if (!lesson) return { ok: false, reason: 'no-lesson' };
+
+    // ⚠️⚠️ v1.1.0 — AN ORPHAN FRAGMENT IS NEVER GRADED. mergeRunAttempts() sets
+    // this when a `continuation: true` sprint has no start to attach to: the run
+    // began outside this date range, or its opening flush was lost. Its numbers
+    // describe a TAIL, so grading it invents a grade from a partial — the 23s /
+    // 28ch / 32% row in Jake's screenshot is exactly this shape, and folding it
+    // into three good attempts is what produced a spurious D.
+    if (run && run.orphan) return { ok: false, reason: 'orphan-fragment',
+        detail: `run ${run.runIdx + 1} is the tail of a run whose start is not in range` };
 
     const plan = runPlan(lesson);
     if (!plan.length) return { ok: false, reason: 'no-runs' };

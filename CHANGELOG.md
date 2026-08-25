@@ -1,5 +1,28 @@
 # CHANGELOG — TypeThatBook
 
+## Round 41b (Rem-Sho) — 2026-08-25, same day
+
+**⚠️⚠️ THE ⚑ BUTTON WROTE A WRONG GRADE ONTO A REAL STUDENT.** `mergeContinuations()`
+merged retries as though they were fragments of one run, folded an abandoned
+32%-accuracy tail into three good attempts, and double-counted every sprint
+appearing in two overlapping rollups. `u1_l5 run 1 → D`; the true answer is **B**.
+
+✅ **The student was never affected** — `runGrades` feeds nothing that advances or
+unlocks. ✅ **Fixed and self-healing:** re-run the button and it **recomputes** the
+entries it wrote, correcting them. Earned grades are still never touched.
+
+✅ **The grades now show.** A `◈` beside each student renders lesson × run, with
+reconstructed pips dimmed and underdotted so a derived fireball is always
+distinguishable from an earned one.
+
+⚠️ **NEW, UNFIXED — ROADMAP 24:** `⟳` over-counts a day with overlapping rollups,
+and the drop guard only guards downwards, so the inflation is silent. **Do not
+press `⟳` on a day whose drill-down shows two rollups at the same minute.**
+
+- `run-grade.js` v1.1.0 — `mergeRunAttempts()` replaces `mergeContinuations()`
+- `reports.html` v1.2.0 / inline v2.30.0 — recompute, the `◈` grades panel, dialog wrapping
+- `tests/run-grade-test.mjs` — Part E rebuilt on Jake's real 2026-08-24 data
+
 ## Round 41 (Rem-Sho) — 2026-08-25
 
 **⚠️⚠️ A PRACTICE DRILL WAS BEING GRADED AS THE LESSON.** The "🎲 Practice missed

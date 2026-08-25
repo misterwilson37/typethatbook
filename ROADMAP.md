@@ -1,5 +1,7 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.30.0, 2026-08-25.** ⚠️⚠️ **THE ⛑ BUTTON WROTE A WRONG GRADE AND IT IS FIXED AND SELF-HEALING** — re-run it and it corrects its own past output (HANDOFF §0.-31.N). ⚠️⚠️ **ITEM 24 IS NEW AND UNFIXED: DO NOT PRESS ⟳ ON A DAY WITH TWO ROLLUPS AT THE SAME MINUTE.**
+
 **v3.29.0, 2026-08-25.** ⭐ **§10.H IS BUILT** — Jake's first ask, unbuilt for five rounds, shipped for zero extra reads. ⚠️ **ITEMS 13 AND 11a WERE STALE ⭐⭐ FLAGS** and are closed; 11a's residue is a RULING for Jake, not a bug.
 
 **v3.28.0, 2026-08-25.** ⭐ **ITEM 15 IS BUILT** (Round 41) — the grade is stored where it is earned, and the `⚑` button reconstructs what 14b lost. ⚠️⚠️ **AND A PRACTICE DRILL WAS BEING GRADED AS THE LESSON** — HANDOFF §0.-31.A; **ITEMS 22 AND 23 ARE NEW** and record what that cost the archive. ⚠️ **`firestore.rules` v2.7.0 MUST BE PASTED INTO THE CONSOLE** or the new button does nothing.
@@ -1532,6 +1534,43 @@ writes — both ride the merge already queued.
 student's `lessonProgress` and never write it. `firestore.rules` v2.7.0, scoped to
 `lessonProgress` only, shipped in the same round (Rule 9) and verified against the
 emulator. **It is a console paste; the button does nothing until it is deployed.**
+
+---
+
+## 24. ⚠️⚠️ NEW — `⟳` OVER-COUNTS A DAY WITH OVERLAPPING ROLLUPS, SILENTLY
+
+Found while diagnosing the ⚑ mis-grade (HANDOFF §0.-31.N) and **deliberately not
+chased further.** Jake's 2026-08-24 drill-down shows **two rollups at 8:47** — one
+of 5 sprints and one of 7 that **contains the same five** — and the same shape
+again at 9:12. The rollups sum to **~30m 30s** against a stored day of **21m 40s**.
+
+⚠️ **`sessionSignature()` CANNOT SEE THIS AND IS NOT WRONG.** It keys on the whole
+sprint timestamp LIST, so a superset genuinely is a different document. The
+duplication is per **sprint**, and only a per-sprint dedupe finds it —
+`run-grade.js` v1.1.0 does exactly that for grading, and `recalcDailyLog()` does
+not, because it sums whole rollups through `splitSessionTotals()`.
+
+⚠️⚠️ **AND THE DROP GUARD ONLY GUARDS DOWNWARDS.** `DROP_GUARD_RATIO` prompts on a
+*reduction*. An inflation applies with no prompt at all. **Pressing `⟳` on that
+day would raise a real student's graded minutes by roughly 40% and say nothing.**
+
+**DO NOT PRESS `⟳` ON A DAY WHOSE DRILL-DOWN SHOWS TWO ROLLUPS AT THE SAME
+MINUTE** until this is fixed.
+
+⚠️ **THE CAUSE IS UPSTREAM AND IS THE THING TO FIX.** Two rollups covering the
+same sprints means a flush wrote a document and did not clear what it wrote —
+session-log.js v1.3.0 serialised the concurrent case (§0.-13's duplicate-session
+race), so this is either a survivor of that or a failed `_write()` after a
+partial success. ⚠️ **MEASURE BEFORE BUILDING:** the drill-down already renders
+every rollup, so counting days with same-minute pairs is free.
+
+**Two candidate fixes, and they are not alternatives:**
+1. **The reader** — give `splitSessionTotals()` a per-sprint dedupe, so a day
+   already corrupted totals correctly. Cheap, and it makes `⟳` safe today.
+2. **The writer** — find why the queue survives a successful write. Without it,
+   new overlapping rollups keep appearing.
+⚠️ **AND A SYMMETRIC DROP GUARD** — an unexplained *rise* deserves the same
+confirmation a fall gets, whatever else is done.
 
 ---
 

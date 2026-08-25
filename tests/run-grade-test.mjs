@@ -30,7 +30,7 @@ import { readFileSync } from 'fs';
 import {
     calculateGrade, gradeAdvances, gatesForRun, betterGrade, chunkSequence,
     runPlan, gatesForRunIndex, runIndexFromDetail, isAssessedSprint,
-    mergeContinuations, gradeMergedRun, FIRE_GRADE, DRILL_TYPES,
+    mergeRunAttempts, gradeMergedRun, FIRE_GRADE, DRILL_TYPES,
 } from '../run-grade.js';
 
 let pass = 0, fail = 0;
@@ -211,16 +211,13 @@ console.log('\n--- E. SPRINTS BACK INTO RUNS ---');
     ok(isAssessedSprint({ detail: 'run 1', practice: 'remediation' }) === false,
        'E6 a remediation sprint is not');
 
-    // ⚠️ CONSTRAINT 1: an interrupted run writes several sprints, and logRun()
-    // RECOMPUTES wpm/accuracy for each fragment against that fragment alone.
-    const merged = mergeContinuations([
-        { date: '2026-08-24', label: 'u1_l1', detail: 'run 2', seconds: 30, chars: 100, mistakes: 2, at: '2026-08-24T14:00:00Z' },
-        { date: '2026-08-24', label: 'u1_l1', detail: 'run 2 (hidden)', seconds: 30, chars: 100, mistakes: 0, continuation: true, at: '2026-08-24T14:01:00Z' },
+    // ⚠️ A TRUE FRAGMENT merges into the attempt it continues.
+    const merged = mergeRunAttempts([
+        { date: '2026-08-24', label: 'u1_l1', detail: 'run 2', seconds: 30, chars: 100, mistakes: 2, at: '2026-08-24T14:00:00.000Z' },
+        { date: '2026-08-24', label: 'u1_l1', detail: 'run 2 (hidden)', seconds: 30, chars: 100, mistakes: 0, continuation: true, at: '2026-08-24T14:01:00.000Z' },
     ]);
     ok(merged.length === 1,
-       '⚠️⚠️ E7 TWO FRAGMENTS OF ONE RUN MERGE INTO ONE RUN. Grading them ' +
-       'separately is ROADMAP 15 constraint 1 \u2014 the 0 WPM rows in Jake\u2019s ' +
-       'screenshot are what that looks like');
+       'E7 a continuation merges into the attempt it continues');
     ok(merged[0].seconds === 60 && merged[0].chars === 200 && merged[0].mistakes === 2,
        'E8 the union sums seconds, chars and mistakes');
     ok(merged[0].wpm === Math.round((198 / 5) / 1),
@@ -229,20 +226,54 @@ console.log('\n--- E. SPRINTS BACK INTO RUNS ---');
        '⚠️ E10 THE UNION IS NOT CLEAN. The second fragment alone had zero ' +
        'mistakes and would have scored A🔥 on its own');
 
-    const twoRuns = mergeContinuations([
-        { date: '2026-08-24', label: 'u1_l1', detail: 'run 1', seconds: 30, chars: 90, mistakes: 0 },
-        { date: '2026-08-24', label: 'u1_l1', detail: 'run 2', seconds: 30, chars: 90, mistakes: 0 },
+    // ⚠️⚠️ THE DEFECT v1.0.0 SHIPPED. Retries carry the SAME detail.
+    const retries = mergeRunAttempts([
+        { date: '2026-08-24', label: 'u1_l5', detail: 'run 1', seconds: 87, chars: 106, mistakes: 11, at: '2026-08-24T13:47:00.000Z' },
+        { date: '2026-08-24', label: 'u1_l5', detail: 'run 1', seconds: 85, chars: 109, mistakes: 14, at: '2026-08-24T13:49:00.000Z' },
+        { date: '2026-08-24', label: 'u1_l5', detail: 'run 1', seconds: 73, chars: 101, mistakes:  6, at: '2026-08-24T13:50:00.000Z' },
     ]);
-    ok(twoRuns.length === 2, 'E11 two genuinely different runs stay separate');
+    ok(retries.length === 3,
+       '⚠️⚠️ E11 THREE ATTEMPTS AT RUN 1 STAY THREE ATTEMPTS. v1.0.0 merged them ' +
+       'into one imaginary run because the detail string is identical \u2014 this is ' +
+       'the defect that wrote a wrong D onto a real student\u2019s record');
 
-    const skipRem = mergeContinuations([
-        { date: '2026-08-24', label: 'u1_l1', detail: 'run 1', seconds: 30, chars: 90, mistakes: 1 },
-        { date: '2026-08-24', label: 'u1_l1', detail: 'run 1', seconds: 20, chars: 80, mistakes: 0, practice: 'remediation' },
+    // ⚠️⚠️ OVERLAPPING ROLLUPS. daylog.js sessionSignature() keys on the whole
+    // sprint LIST, so a 7-sprint rollup containing a 5-sprint one is not a
+    // duplicate at the DOCUMENT level. The duplication is per sprint.
+    const dupA = { date: '2026-08-24', label: 'u1_l5', detail: 'run 1', seconds: 87, chars: 106, mistakes: 11, at: '2026-08-24T13:47:00.000Z' };
+    const dupB = { date: '2026-08-24', label: 'u1_l5', detail: 'run 1', seconds: 85, chars: 109, mistakes: 14, at: '2026-08-24T13:49:00.000Z' };
+    const overlap = mergeRunAttempts([dupA, dupB, { ...dupA }, { ...dupB },
+        { date: '2026-08-24', label: 'u1_l5', detail: 'run 1', seconds: 77, chars: 113, mistakes: 18, at: '2026-08-24T13:55:00.000Z' }]);
+    ok(overlap.length === 3,
+       '⚠️⚠️ E12 A SPRINT PRESENT IN TWO OVERLAPPING ROLLUPS IS COUNTED ONCE. ' +
+       'Jake\u2019s 2026-08-24 holds an 8:47 rollup of 5 sprints and an 8:47 rollup ' +
+       'of 7 that CONTAINS the same five; v1.0.0 counted them twice and reported ' +
+       '"15 fragments merged" for about five real runs');
+
+    // ⚠️ THE ABANDONED TAIL. 23s, 28 chars, 32% — someone walked away.
+    const orphan = mergeRunAttempts([
+        { date: '2026-08-24', label: 'u1_l5', detail: 'run 1 (left page)', seconds: 23, chars: 28, mistakes: 19, continuation: true, at: '2026-08-24T14:13:00.000Z' },
+    ]);
+    ok(orphan.length === 1 && orphan[0].orphan === true,
+       'E13 a continuation with no start is flagged as an orphan');
+    ok(gradeMergedRun(orphan[0], { id: 'u1_l5', steps: [{ id: 's', type: 'passage', text: 'x '.repeat(20) }] }, null).ok === false,
+       '⚠️⚠️ E14 AN ORPHAN IS REFUSED, NOT GRADED. Its numbers describe a TAIL. ' +
+       'v1.0.0 averaged this 32% fragment into three good attempts, which is ' +
+       'precisely where the spurious D came from');
+
+    const twoRuns = mergeRunAttempts([
+        { date: '2026-08-24', label: 'u1_l1', detail: 'run 1', seconds: 30, chars: 90, mistakes: 0, at: '2026-08-24T14:00:00.000Z' },
+        { date: '2026-08-24', label: 'u1_l1', detail: 'run 2', seconds: 30, chars: 90, mistakes: 0, at: '2026-08-24T14:02:00.000Z' },
+    ]);
+    ok(twoRuns.length === 2, 'E15 two genuinely different runs stay separate');
+
+    const skipRem = mergeRunAttempts([
+        { date: '2026-08-24', label: 'u1_l1', detail: 'run 1', seconds: 30, chars: 90, mistakes: 1, at: '2026-08-24T14:00:00.000Z' },
+        { date: '2026-08-24', label: 'u1_l1', detail: 'run 1', seconds: 20, chars: 80, mistakes: 0, practice: 'remediation', at: '2026-08-24T14:05:00.000Z' },
     ]);
     ok(skipRem.length === 1 && skipRem[0].chars === 90,
-       '⚠️⚠️ E12 A REMEDIATION SPRINT IS DROPPED BEFORE MERGING. It carries the ' +
-       'same lesson id and the same run number, so merging it would fold a ' +
-       'random-letter drill into a real run\u2019s totals');
+       '⚠️⚠️ E16 A REMEDIATION SPRINT IS DROPPED BEFORE ANYTHING ELSE. Same ' +
+       'lesson id, same run number \u2014 the stamp is all that separates them');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

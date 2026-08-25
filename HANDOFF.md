@@ -43,6 +43,23 @@
      COMMENTS; position checks run on decomment(src) now.
      ⚠️ §0.-31.I: ROUNDS 36-40 ARE ALL WRITTEN UP AS UNDERWOOD, WHICH IS ROUND 1.
      Fourth occurrence. GREP THE ROSTER.
+     ⚠️⚠️ §0.-31.N: THE ⚑ BUTTON WROTE A WRONG GRADE ONTO A REAL STUDENT AND JAKE
+     SAVED IT AS ACCURATE. "u1_l5 run 1 → D (15 fragments merged)"; the true
+     answer is B. THREE compounding faults: RETRIES merged as fragments (only
+     `continuation: true` marks one), an abandoned 32% tail poisoning the union,
+     and OVERLAPPING ROLLUPS double-counting — sessionSignature() keys on the
+     whole sprint LIST so a SUPERSET is not a document-level duplicate; dedupe
+     per SPRINT. 21 raw sprints → 13 real attempts.
+     ⚠️⚠️ THE ROADMAP'S OWN CONSTRAINT 1 IS WRONG IN BOTH DIRECTIONS and I
+     followed it. A constraint from an earlier round is a HYPOTHESIS.
+     ✅ THE STUDENT WAS NEVER AFFECTED — runGrades feeds nothing. Guarantees 2
+     and 3 of §0.-31.D turned a wrong write into a wrong DISPLAY and made it
+     findable. ✅ The button RECOMPUTES its own tagged entries now; a
+     skip-if-present rule would have frozen the bad data forever.
+     ✅ AND THE GRADES NOW SHOW — the ◈ panel, reconstructed pips dimmed.
+     ⚠️⚠️ §0.-31.O: NEW, NOT FIXED — ⟳ OVER-COUNTS a day with overlapping
+     rollups (30m30s of sessions vs a 21m40s stored day) and THE DROP GUARD ONLY
+     GUARDS DOWNWARDS, so an inflation applies SILENTLY. ROADMAP 24.
      ⚠️⚠️ §0.-31.M: NOTHING WAS WATCHING firestore.rules — not versions.js, not
      audit-versions, not version-stamp-test. I bumped its title to v2.7.0 and left
      its note stack at v2.6.0; both instruments reported CLEAN. Jake caught it by
@@ -987,6 +1004,79 @@ every other warning around them. Fixed, and now asserted.
 number tells you *that* something changed; the note is the only thing that tells
 the next instance *what*. I wrote 400 lines of handoff about this round and
 skipped the four lines that belong in the file a future round will actually open.
+
+### N. ⚠️⚠️ THE RECONSTRUCTION WROTE A WRONG GRADE ONTO A REAL STUDENT
+
+**Jake ran the ⚑ button on 2026-08-24 and saved the output as accurate.** It was
+not. `u1_l5 run 1 → D (15 fragments merged)`; the true answer is **B**. The child
+typed about five real attempts, not fifteen fragments, and never earned a D.
+
+⚠️ **THE STUDENT WAS NEVER AFFECTED, AND THAT IS THE ONLY REASON THIS IS
+RECOVERABLE.** `runGrades` feeds nothing: not `passed`, not `fireCount`, not
+`runScores`, not the lesson grade. Nothing unlocked, nothing locked, and no
+screen a student sees changed. **Guarantee 2 in §0.-31.D is what turned a wrong
+write into a wrong display**, and guarantee 3 — `runGradesFrom: 'sessions'` — is
+what makes it findable and fixable. Those two constraints earned their keep
+within a day of shipping.
+
+**THREE FAULTS IN `mergeContinuations()`, AND THEY COMPOUND:**
+
+1. ⚠️⚠️ **RETRIES ARE NOT FRAGMENTS.** A student who fails run 1 and types it
+   again writes a second sprint with the *identical* detail, `"run 1"`. Jake's
+   morning holds run 1 at 8:47 (90%), 8:49 (87%) and 8:50 (94%) — three honest
+   attempts, folded into one imaginary run. **Only `continuation: true` marks a
+   fragment.**
+2. ⚠️ **AN ABANDONED TAIL POISONS THE UNION.** The 9:13 sprint — 23s, 28 chars,
+   32% — averaged into three good attempts drags the union under the 85% gate.
+   **That is where the D came from.**
+3. ⚠️⚠️ **OVERLAPPING ROLLUPS DOUBLE-COUNT AND `sessionSignature()` CANNOT SEE
+   IT.** The day holds an 8:47 rollup of 5 sprints *and* an 8:47 rollup of 7 that
+   **contains the same five**. daylog.js keys on the whole sprint timestamp LIST,
+   so a superset has a different signature and is correctly not a document-level
+   duplicate. **The duplication is per SPRINT and must be removed per SPRINT.**
+   21 raw sprints → 13 real attempts.
+
+⚠️⚠️ **THE ROADMAP'S OWN CONSTRAINT 1 IS WRONG IN BOTH DIRECTIONS AND I FOLLOWED
+IT.** *"Group by (date, label, detail) and grade the union"* **merges retries**
+(identical detail) and **separates real fragments** (whose detail carries
+`"(left page)"`). I noticed the second half, fixed it by stripping the
+parenthetical, and inherited the first half without ever asking whether two
+sprints with the same detail were the same run. **A constraint written down by an
+earlier round is a hypothesis, not a specification** — the third time this file
+records that lesson (§0.-21.B, §0.-23.A).
+
+✅ **`mergeRunAttempts()` REPLACES IT.** An attempt opens on a non-continuation
+sprint and absorbs the continuations that follow it; sprints are deduped on their
+ISO instant; a continuation with no start is an **orphan** and is refused, never
+graded. Best grade across attempts is what a run is worth.
+
+✅ **AND THE BUTTON IS SELF-HEALING NOW, WHICH IS THE PART THAT MATTERS.** It
+**recomputes** entries tagged `runGradesFrom: 'sessions'` and still never touches
+an earned one. ⚠️ **A SKIP-IF-PRESENT RULE WOULD HAVE FROZEN THE BAD DATA
+FOREVER** — the first version had exactly that rule, and it was one line from
+being unrepairable. `runFires` is **assigned, not incremented**, so a recompute
+converges however many times it runs.
+
+⚠️ **AND THE GRADES WERE INVISIBLE.** Round 41 shipped the field, the writer and
+the reconstruction, and gave the teacher **nowhere to read any of it** — when the
+item's whole purpose was *"where I could have counted the number of flaming
+A's."* `showGrades()` (the `◈` beside each student) renders lesson × run, and
+**draws reconstructed pips dimmed and underdotted** so a teacher can always tell
+a derived fireball from an earned one.
+
+### O. ⚠️⚠️ NEW, NOT FIXED — `⟳` OVER-COUNTS A DAY WITH OVERLAPPING ROLLUPS
+
+Found while diagnosing §N and **not chased**, per the rule about not speculating
+past two files. Jake's 2026-08-24 rollups sum to **~30m 30s** of session time
+against a stored day of **21m 40s**, because two pairs of rollups overlap.
+`recalcDailyLog()` sums whole rollups through `splitSessionTotals()`, deduping
+with `sessionSignature()` — **which cannot see a superset.**
+
+⚠️ **AND THE DROP GUARD ONLY GUARDS DOWNWARDS.** `DROP_GUARD_RATIO` asks the
+teacher to confirm a *reduction*; an inflation of nine minutes applies silently.
+**So pressing `⟳` on that day would raise a real student's graded minutes by ~40%
+with no prompt.** ROADMAP item 24. **Do not press `⟳` on a day whose drill-down
+shows two rollups at the same minute until it is fixed.**
 
 ### J. THE NUMBERS
 
