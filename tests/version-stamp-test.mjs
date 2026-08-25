@@ -1,4 +1,4 @@
-// version-stamp-test.mjs v1.1.0 — Round 27 (Chicago), Round 28 (Daugherty).
+// version-stamp-test.mjs v1.2.0 — Round 27 (Chicago), Round 28 (Daugherty).
 //
 // v1.1.0 — ⚠️⚠️ SECTION E IS A FAILURE NOW, NOT A NOTE — AND READ WHY BEFORE
 //          TOUCHING IT. The block below says notes stay notes because a suite
@@ -309,6 +309,65 @@ console.log('\n─── D2. ✅ EVERY SHARED MODULE THE WRITERS IMPORT IS WATCH
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n─── F. ⚠️ THE RULES FILE IS WATCHED TOO ───');
+//
+// ⚠️⚠️ NOTHING CHECKED firestore.rules UNTIL ROUND 41, AND JAKE CAUGHT IT BY
+// READING THE FILE. Round 41 bumped its title line to v2.7.0 and left the
+// version-note stack ending at v2.6.0 — the file claimed a version its own
+// history did not mention — and `npm test` and `npm run audit:versions` both
+// reported clean, because this file is in NONE of the three source lists.
+//
+// ⚠️ IT IS DELIBERATELY *NOT* ADDED TO versions.js SOURCES. That instrument
+// fetches files as DEPLOYED and compares them; the rules that matter live in the
+// Firebase console, not on GitHub Pages, so a SOURCES entry would report the
+// repo's copy while implying it had checked the live ones. §0.-22's lesson: a
+// diagnostic is consulted INSTEAD of checking, so when it is wrong nothing
+// disagrees with it. The honest check is internal consistency, which is what
+// this section does.
+{
+    const rulesPath = new URL('../firebase/firestore.rules', import.meta.url);
+    let rules = null;
+    try { rules = readFileSync(rulesPath, 'utf8'); } catch (_) {}
+
+    ok(rules !== null, 'F1 firebase/firestore.rules is present');
+
+    if (rules) {
+        const title = /^\s*\/\/\s*firestore\.rules\s+v([0-9][^\s]*)/m.exec(rules);
+        ok(!!title, 'F2 it carries a version on its title line');
+
+        // Every entry in the note stack, newest first.
+        const entries = [...rules.matchAll(/^\/\/ v(\d+\.\d+\.\d+) —/gm)].map(m => m[1]);
+        ok(entries.length > 0, 'F3 it has a version-note stack');
+
+        if (title && entries.length) {
+            ok(entries[0] === title[1],
+               `⚠️⚠️ F4 THE TITLE VERSION MATCHES THE NEWEST NOTE — title says v${title[1]}, ` +
+               `newest note is v${entries[0]}. A rules change with no note is a change ` +
+               'nobody can date, in the one file Jake cannot test from a browser and ' +
+               'must paste by hand');
+
+            const numeric = (v) => v.split('.').map(Number);
+            const newer = (a, b) => {   // a strictly newer than b
+                const [A, B] = [numeric(a), numeric(b)];
+                for (let i = 0; i < 3; i++) {
+                    if ((A[i] || 0) !== (B[i] || 0)) return (A[i] || 0) > (B[i] || 0);
+                }
+                return false;
+            };
+            const desc = entries.every((v, i) => i === 0 || newer(entries[i - 1], v));
+            ok(desc, 'F5 the note stack is in descending order');
+        }
+
+        // ⚠️ The bare glyph reads as a dingbat rather than a warning sign in the
+        // Rules editor, so a warning written without the variation selector is
+        // quietly less visible than every other warning in the file.
+        const bare = (rules.match(/\u26a0(?!\ufe0f)/g) || []).length;
+        ok(bare === 0,
+           `F6 every ⚠️ carries its variation selector (${bare} bare)`);
+    }
+}
+
 console.log('\n─── E. HEADER BUDGETS — proportional lines, flat entries, both ENFORCED ───');
 // ═══════════════════════════════════════════════════════════════════════════
 // ⚠️ v1.1.0 — PROMOTED FROM NOTES. Read the v1.1.0 entry at the top of this file

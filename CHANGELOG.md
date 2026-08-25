@@ -23,7 +23,10 @@ is deployed. Scoped to `lessonProgress` only; 61 emulator cases, 7 new.
 - `run-grade.js` v1.0.0 **(NEW)** — the one copy of the grade rule (Rule 9)
 - `reports.html` v1.1.0 / inline v2.29.0 — the `⚑` reconstruction button
 - `versions.js` v1.15.0 — registers `run-grade.js`; fixes the out-of-order entry
-- `firebase/firestore.rules` v2.7.0 — the staff `lessonProgress` write branch
+- `firebase/firestore.rules` v2.7.0 — the staff `lessonProgress` write branch.
+  ⚠️ **Its v2.7.0 header note was missing on first delivery** — the title said
+  v2.7.0 and the note stack stopped at v2.6.0. Nothing checked this file at all;
+  `version-stamp-test.mjs` v1.2.0 Section F does now.
 - `tests/remediation-test.mjs` **(NEW)** — 27 passing; **17 failing against v2.35.0**
 - `tests/run-grade-test.mjs` **(NEW)** — 50 checks; Part D is the anti-twin ratchet
 - `tests/run-all-tests.mjs` v1.16.0, `tests/open-unit-test.mjs`,
@@ -3992,6 +3995,15 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### lessons-admin.js v1.11.1 — archived by Round 41 (Rem-Sho), 8-entry budget
+
+```
+// v1.11.1 — follows reports.html v2.13.1: the legacy `seconds` field is now
+//          SUMMED with the split fields rather than superseded by them, so time
+//          recorded earlier the same day by pre-split code isn't dropped.
+//
+```
 
 ### learn.js v2.30.0 — archived by Round 41 (Rem-Sho) to stay inside the 8-entry budget
 

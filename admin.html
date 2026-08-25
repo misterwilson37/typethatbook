@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- admin.html v1.0.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.1.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
@@ -750,6 +750,12 @@
             <!-- Stuck-student scan results (lessons-admin.js scanForStuck) -->
             <div id="stuck-status" style="font-size:0.8em; color:#888; min-height:1.2em; margin-bottom:6px;"></div>
             <div id="stuck-results" style="margin-bottom:14px; overflow-x:auto;"></div>
+            <!-- ROADMAP §10.H — the lesson measurement. Filled by the SAME scan as
+                 stuck-results above; no button of its own, because a second button
+                 would re-read the same ~300 documents to answer a neighbouring
+                 question about the same data. -->
+            <div id="lesson-stats-title" style="font-size:0.85em; color:#4B9CD3; margin:14px 0 4px;"></div>
+            <div id="lesson-stats-results" style="margin-bottom:14px; overflow-x:auto;"></div>
 
             <!-- Roster table -->
             <div style="overflow-x:auto;">

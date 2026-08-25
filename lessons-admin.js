@@ -1,4 +1,17 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.14.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.15.0
+//
+// v1.15.0 — ⭐ ROADMAP §10.H — THE MEASUREMENT JAKE ASKED FOR FIRST, unbuilt for
+// five rounds and shipped here for ZERO EXTRA READS. scanForStuck() already reads
+// every record it needs — one lessonProgress subcollection per filtered student —
+// so the per-lesson aggregate rides the same sweep. A second button would have
+// re-read ~300 documents to answer a neighbouring question about the same data.
+// ⚠️⚠️ TWO COLUMNS, NOT ONE: replay-rate high with a HIGH pass rate is the strong
+// ones coasting; the same number with a LOW pass rate is the struggling ones
+// grinding. Opposite problems, opposite fixes, and one "attempts" column cannot
+// tell them apart. ⚠️ It sums runAttempts, NOT `attempts` — a student stuck on
+// run 2 of 12 has attempts: 0 and is exactly who this is looking for (§0.-13).
+// ⚠️ A🔥 counts are recorded from 2026-08-25 onward only; a dash means NOT
+// RECORDED, not zero earned, and the table footnote says so.
 //
 // v1.14.0 — ⚠️⚠️ ROADMAP 11 — A STUDENT IN A CLASS BUT NOT A SCHOOL. THREE
 //           writers assigned a class and only TWO wrote schoolId; the
@@ -50,10 +63,6 @@
 // v1.12.0 — legacy-first read, matching reports.html v2.14.0 after the source
 //          split was reverted in game.js v3.30.0 / learn.js v2.15.0.
 //
-// v1.11.1 — follows reports.html v2.13.1: the legacy `seconds` field is now
-//          SUMMED with the split fields rather than superseded by them, so time
-//          recorded earlier the same day by pre-split code isn't dropped.
-//
 // v1.11.0 — READ-SIDE OF THE SOURCE SPLIT (DESIGN-TELEMETRY.md §2.4). Same
 //          incident as game.js v3.29.0 / learn.js v2.14.0 / reports.html
 //          v2.13.0: typing_logs now carries secondsLibrary/secondsSchool
@@ -93,7 +102,7 @@
 // ⚠️ v1.13.2 — v1.8.1, v1.8.0, v1.7.1 and v1.7.0 moved to CHANGELOG.md
 //    § ARCHIVED FILE HEADERS. Nothing deleted.
 //
-window.LESSONS_ADMIN_VERSION = '1.14.0';
+window.LESSONS_ADMIN_VERSION = '1.15.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -2088,12 +2097,26 @@ async function scanForStuck() {
     const setStat = (m, c) => { if (statEl) { statEl.textContent = m; statEl.style.color = c || '#888'; } };
 
     const findings = [];
+    _lessonStats = new Map();   // ROADMAP §10.H — reset per scan
     let done = 0, failed = 0;
     for (const stu of roster) {
         setStat(`Reading ${done + 1} of ${roster.length}\u2026`, '#888');
         try {
             const snap = await getDocs(collection(_db, 'users', stu.uid, 'lessonProgress'));
             snap.forEach(d => {
+                // ⭐ ROADMAP §10.H — THE MEASUREMENT, FOR ZERO EXTRA READS.
+                // Jake asked for this before the farming gate was designed and it
+                // went unbuilt for five rounds because it read as a new feature.
+                // It is not: this sweep ALREADY reads every record it needs, one
+                // subcollection per student. Aggregating here costs nothing but
+                // arithmetic — the alternative was a second button doing the same
+                // ~300 reads over again.
+                // ⚠️ COUNTED BEFORE THE `passed` EARLY RETURN BELOW. A passed
+                // lesson is exactly the interesting case for farming: the
+                // question is whether a lesson is being replayed BY STUDENTS WHO
+                // ALREADY CLEARED IT, and returning first would have counted only
+                // the students still stuck on it — the opposite population.
+                _noteLessonStat(d.id, d.data());
                 const r = d.data();
                 if (r.passed === true) return;
                 const fails = r.runFailures || {};
@@ -2149,7 +2172,119 @@ async function scanForStuck() {
             'Run numbers come from how the lesson chunked at the time. Editing a lesson\u2019s ' +
             'steps reshuffles them, so treat a stuck point from before an edit as approximate.</div>';
     }
+    const tEl = document.getElementById('lesson-stats-title');
+    if (tEl) tEl.textContent = 'Lesson traffic \u2014 ' + done + ' student' + (done === 1 ? '' : 's') + ' scanned';
+    _renderLessonStats(done);
     if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+}
+
+// ── ROADMAP §10.H — THE LESSON MEASUREMENT ───────────────────────────────────
+//
+// Jake asked for this FIRST, before item 10's gate was designed, and it went
+// unbuilt for five rounds:
+//
+//   *"A read-only attempts-per-lesson column in the lessons admin costs an
+//    afternoon and answers whether this is three kids or thirty, and whether it
+//    is the strong ones coasting or the struggling ones hiding."*
+//
+// ⚠️ IT COSTS ZERO EXTRA READS. scanForStuck() already reads exactly the records
+// this needs — one `lessonProgress` subcollection per filtered student. This
+// aggregates the same documents on the way past. A separate button would have
+// re-read ~300 documents to answer a neighbouring question about the same data.
+//
+// ⚠️⚠️ TWO COLUMNS ANSWER JAKE'S ACTUAL QUESTION, AND ONE OF THEM ALONE IS
+// MISLEADING. "Attempts per student" high with a HIGH pass rate is the strong
+// ones coasting — replaying something they have already cleared. The same number
+// with a LOW pass rate is the struggling ones grinding. They are opposite
+// problems with opposite fixes, and a single "attempts" column cannot tell them
+// apart — which is how a farming gate could end up punishing the student it was
+// built to help (lesson-gate-test.mjs Section A is the guard on that).
+//
+// ⚠️ `fires` IS NEW IN ROUND 41 AND IS NOT RETROSPECTIVE. `runFires` is written
+// by learn.js v2.36.0 onward, so a lesson cleared before 2026-08-25 shows 0 fires
+// however it was actually typed. A blank column here means "not recorded yet",
+// NOT "nobody has earned one" — the same distinction §0.-30.E is about, and the
+// footnote under the table says so rather than leaving it to be inferred.
+let _lessonStats = new Map();
+
+function _noteLessonStat(lessonId, r) {
+    if (!lessonId || !r) return;
+    let a = _lessonStats.get(lessonId);
+    if (!a) {
+        a = { students: 0, attempts: 0, passed: 0, fires: 0, stuck: 0, runAttempts: 0 };
+        _lessonStats.set(lessonId, a);
+    }
+    a.students += 1;
+    a.attempts += Number(r.attempts) || 0;
+    if (r.passed === true) a.passed += 1;
+
+    // ⚠️ SUM THE RUN MAP, NOT `attempts`. `attempts` counts LESSON completions
+    // (saveProgress), while runAttempts counts every run finished — a student
+    // grinding run 2 of 12 twenty times has attempts: 0 and is exactly who this
+    // is looking for. HANDOFF §0.-13 is about that student rendering as
+    // "not started".
+    for (const n of Object.values(r.runAttempts || {})) a.runAttempts += Number(n) || 0;
+    for (const n of Object.values(r.runFires    || {})) a.fires       += Number(n) || 0;
+
+    const fails = Object.values(r.runFailures || {}).map(Number);
+    if (r.passed !== true && fails.length && Math.max(...fails) >= STUCK_FAILURES) a.stuck += 1;
+}
+
+function _renderLessonStats(scanned) {
+    const outEl = document.getElementById('lesson-stats-results');
+    if (!outEl) return;
+    if (!_lessonStats.size) {
+        outEl.innerHTML = '<div style="color:#888; font-size:0.85em;">' +
+            'No lesson records among the scanned students.</div>';
+        return;
+    }
+
+    // Order by the thing being looked for: most-replayed first.
+    const rows = Array.from(_lessonStats.entries()).map(([id, a]) => {
+        const perStudent = a.students ? a.runAttempts / a.students : 0;
+        const passRate   = a.students ? a.passed / a.students : 0;
+        // ⚠️ THE READING IS THE POINT. High replay + high pass = coasting;
+        // high replay + low pass = struggling. Anything under three runs a
+        // student is just "normal use" and gets no label at all, because a
+        // label on ordinary data is how a panel teaches you to ignore it
+        // (§0.-20.B: a red alarm that is always on).
+        let signal = '', colour = '#666';
+        if (perStudent >= 3 && a.students >= 2) {
+            if (passRate >= 0.75)     { signal = 'replayed after passing'; colour = '#ffaa00'; }
+            else if (passRate <= 0.4) { signal = 'hard \u2014 few clearing it';  colour = '#ff6666'; }
+            else                      { signal = 'heavy traffic';          colour = '#888';    }
+        }
+        const title = (_lessonCache[id] && _lessonCache[id].title) || '';
+        return { id, title, ...a, perStudent, passRate, signal, colour };
+    }).sort((x, y) => y.perStudent - x.perStudent);
+
+    const cell = 'padding:4px 8px; border-bottom:1px solid #262626; white-space:nowrap;';
+    outEl.innerHTML =
+        '<table style="border-collapse:collapse; font-size:0.78em; width:100%;"><thead><tr style="color:#4B9CD3; text-align:left;">' +
+        ['Lesson', 'Students', 'Runs', 'Runs/student', 'Passed', 'A\uD83D\uDD25', 'Stuck', '']
+            .map(h => '<th style="' + cell + '">' + h + '</th>').join('') +
+        '</tr></thead><tbody>' +
+        rows.map(r =>
+            '<tr>' +
+            '<td style="' + cell + ' color:#ccc;">' + escHtml(r.id) +
+                (r.title ? '<span style="color:#666;"> \u00b7 ' + escHtml(r.title) + '</span>' : '') + '</td>' +
+            '<td style="' + cell + ' color:#888; text-align:right;">' + r.students + '</td>' +
+            '<td style="' + cell + ' color:#888; text-align:right;">' + r.runAttempts + '</td>' +
+            '<td style="' + cell + ' color:#eee; text-align:right;">' + r.perStudent.toFixed(1) + '</td>' +
+            '<td style="' + cell + ' color:#888; text-align:right;">' + r.passed +
+                ' <span style="color:#555;">(' + Math.round(r.passRate * 100) + '%)</span></td>' +
+            '<td style="' + cell + ' color:#ff9800; text-align:right;">' + (r.fires || '\u2014') + '</td>' +
+            '<td style="' + cell + ' color:' + (r.stuck ? '#ff6666' : '#555') + '; text-align:right;">' +
+                (r.stuck || '\u2014') + '</td>' +
+            '<td style="' + cell + ' color:' + r.colour + ';">' + escHtml(r.signal) + '</td>' +
+            '</tr>').join('') +
+        '</tbody></table>' +
+        '<div style="color:#666; font-size:0.75em; margin-top:8px;">' +
+        'From the same ' + scanned + '-student read as the stuck scan above \u2014 no extra Firestore reads. ' +
+        '<b>Runs/student</b> counts finished runs, not lesson completions, so a student grinding one run shows up here. ' +
+        '<b>Replayed after passing</b> is the farming signal; <b>hard</b> is the opposite problem. ' +
+        '\u26a0\ufe0f A\uD83D\uDD25 is recorded from 2026-08-25 onward only \u2014 a dash means not recorded, not zero earned.' +
+        '</div>';
 }
 
 // ── Render filtered/sorted roster ─────────────────────────────────────────────

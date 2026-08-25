@@ -2,6 +2,36 @@ rules_version = '2';
 
 // firestore.rules v2.7.0 — TypeThatBook
 //
+// v2.7.0 — ⚠️⚠️ BUILDING-SCOPED STAFF MAY NOW WRITE lessonProgress, AND ONLY
+//          lessonProgress. ROADMAP 15's grade-reconstruction button (the ⚑ on
+//          each daily-log row in reports.html) writes runGrades/runFires back
+//          onto a STUDENT'S record, and the rule here was `request.auth.uid ==
+//          uid` with NO STAFF BRANCH AT ALL — so the feature would have failed
+//          permission-denied for every student except Jake's own account, which
+//          is the one account that never needed it.
+//
+//          ⚠️ MUST DEPLOY, AND THE BUTTON IS INERT UNTIL YOU DO. Unlike v2.6.0
+//          this is not a fix to a live symptom — nothing is broken today — but
+//          reports.html v1.1.0 ships in the same round and its new button does
+//          nothing at all until this publishes. It fails as a console warning on
+//          a rarely-used button, which is precisely how the typing_logs update
+//          rule stayed silently broken for several versions (see v2.2.0's note
+//          at match /typing_logs).
+//
+//          ⚠️ SCOPED NARROWER THAN THE READ RULE BESIDE IT, ON PURPOSE. It names
+//          lessonProgress explicitly rather than reusing the four-name
+//          whitelist: nothing in the app needs staff writing a student's
+//          `profile`, `progress` or `stats`, and a wildcard there would hand
+//          every teacher a write path to all four. Mirrors the /stats rule —
+//          super, or staff who read the whole building AND are in that student's
+//          building.
+//
+//          ⚠️ EXECUTED, NOT REASONED ABOUT. `npm run test:rules` covers this with
+//          7 new cases, 4 of them NEGATIVE (a teacher may not reach `profile` or
+//          `progress`; a student may not reach another student's record).
+//          HANDOFF §0.-5.A is the round that skipped those nine seconds.
+//          See the block comment at match /users/{uid}/{collection} for the rest.
+//
 // v2.6.0 — ⚠️⚠️⚠️ A READ OF A DAY THE STUDENT DID NOT TYPE WAS BEING DENIED, AND
 //          IT BROKE EVERY STUDENT'S WEEK. `resource` is null on a get() of a
 //          document that does not exist; v2.5.0's owner clause dereferenced it;
@@ -323,7 +353,7 @@ service cloud.firestore {
     // add a subcollection, add it here or its writes will silently fail.
     // ('stats' is matched by the more specific rule above and never reaches
     // this block, but it is listed for completeness and costs nothing.)
-    // ⚠⚠ v2.7.0 — ROADMAP 15. BUILDING-SCOPED STAFF MAY WRITE lessonProgress,
+    // ⚠️⚠️ v2.7.0 — ROADMAP 15. BUILDING-SCOPED STAFF MAY WRITE lessonProgress,
     // AND ONLY lessonProgress.
     //
     // reports.html's ⚑ grade-reconstruction button writes runGrades/runFires
@@ -332,11 +362,11 @@ service cloud.firestore {
     // would have failed permission-denied for every student except Jake's own
     // account, which is the one account that never needed it.
     //
-    // ⚠ RULE 9: THIS RULE CHANGE SHIPS IN THE SAME ROUND AS THE FEATURE, not
+    // ⚠️ RULE 9: THIS RULE CHANGE SHIPS IN THE SAME ROUND AS THE FEATURE, not
     // after it. "The rules won't let me do it yet, so I'll ship the other half
     // now" is the one sentence every counting incident in this project traces to.
     //
-    // ⚠ THE SCOPE IS DELIBERATELY NARROWER THAN THE READ RULE BELOW. It names
+    // ⚠️ THE SCOPE IS DELIBERATELY NARROWER THAN THE READ RULE BELOW. It names
     // lessonProgress explicitly rather than reusing the four-name whitelist:
     // nothing in the app needs staff to write a student's `profile`, `progress`
     // or `stats`, and a wildcard here would hand every teacher a write path to

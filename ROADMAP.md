@@ -1,5 +1,7 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.29.0, 2026-08-25.** ⭐ **§10.H IS BUILT** — Jake's first ask, unbuilt for five rounds, shipped for zero extra reads. ⚠️ **ITEMS 13 AND 11a WERE STALE ⭐⭐ FLAGS** and are closed; 11a's residue is a RULING for Jake, not a bug.
+
 **v3.28.0, 2026-08-25.** ⭐ **ITEM 15 IS BUILT** (Round 41) — the grade is stored where it is earned, and the `⚑` button reconstructs what 14b lost. ⚠️⚠️ **AND A PRACTICE DRILL WAS BEING GRADED AS THE LESSON** — HANDOFF §0.-31.A; **ITEMS 22 AND 23 ARE NEW** and record what that cost the archive. ⚠️ **`firestore.rules` v2.7.0 MUST BE PASTED INTO THE CONSOLE** or the new button does nothing.
 
 **v3.27.0, 2026-08-24.** ✅ **THE READ BUDGET IS MEASURED AND FIXED** (Rounds
@@ -969,7 +971,33 @@ now the one answerer and falls back to the class document. The CSV lookup is
 
 ### The original item, kept for the diagnosis
 
-## 11a. ⭐⭐ NEW — A CLASS WITHOUT A SCHOOL, AND THE STUDENT WHO IS IN NEITHER
+## 11a. ⚠️ MOSTLY CLOSED (Round 41) — ONE OPEN **DECISION**, NOT A BUG
+
+✅ **BUG A AND BUG B WERE BOTH FIXED IN ROUND 33** (item 11, HANDOFF §0.-25):
+the writer omitted `schoolId` on two of three assignment paths, and the reader
+cached "no class" for 24 hours because `classId: ''` is falsy and slipped the
+hit-guard. `lessons-admin.js` v1.14.0 and `learn.js` v2.34.1. **Neither is open.**
+
+⚠️ **WHAT IS ACTUALLY LEFT IS A RULING ONLY JAKE CAN MAKE**, and it is the third
+bullet below: `typing_logs` stamps `classId`/`schoolId` **at write time**, so
+assigning a class does **not** retroactively fix old reports. That may well be
+correct — a stamp records where the student was *that day*, which is what you want
+for a child who changes class mid-year — but **the UI implies the opposite**, and
+today the system does one thing while the screen suggests another.
+
+**The two options, stated once so they are not re-derived:**
+* **Stamp at write (today).** History is immutable; a mid-year class change leaves
+  last month's minutes under the old class, correctly. Reports of "this student's
+  work" before the assignment simply do not carry the new class.
+* **Join at read.** Reports always reflect the current roster; a roster change
+  silently rewrites what last month's report says. ⚠️ **This is the option that
+  can make a printed report and a re-printed report disagree.**
+
+⚠️ **DO NOT BUILD EITHER ON A GUESS.** The recommendation is to keep stamp-at-write
+and fix the *implication* — a line in reports saying the class shown is the one
+recorded that day. But it is Jake's call and it has never been put to him plainly.
+
+### Kept for the reasoning — the original investigation
 
 **Jake, 2026-08-23, testing with his son's account.** Assigned Nico to the "7th &
 8th Grade" class from admin. Admin confirmed the class. **`learn.html` → Settings
@@ -1052,7 +1080,27 @@ write both.
 
 ---
 
-## 13. ⭐⭐ NEW — THE GATE DID NOT FIRE, AND THE LIKELY REASON IS A GRADE MISMATCH
+## 13. ✅ CLOSED (Round 41) — THE GATE DID NOT FIRE, AND THE SPEC WAS WRONG
+
+⚠️ **THE LOOSE THREAD IS ANSWERED AND THIS ITEM IS DONE.** It stayed ⭐⭐ for eight
+rounds on one unresolved line: Jake typed lesson 1 *"a dozen times"* and the
+record read `attempts: 3`, `runAttempts {0:1, 1:2}` — four runs, not a dozen —
+with the note *"if runs are being under-recorded it undercounts every mastery
+score built on top of it. Check before building item 14 on this field."*
+
+✅ **THAT WAS ROADMAP 14b, AND IT WAS FIXED IN ROUND 31.** `stopLesson()` reloaded
+progress before the scheduled flush read it, so "← Map" banked the time and threw
+away the run — and `{0:1, 1:2}` out of a dozen is precisely the fingerprint
+HANDOFF §0.-23.C predicts: only runs whose interval flush fired inside the WAL
+window survived, which is why the loss looked random. **Runs were not being
+under-recorded by the counter; they were being overwritten after the fact.**
+Nothing is owed here and item 14's field is sound.
+
+⚠️ **THE ITEM WAS ALREADY RESOLVED BELOW AND THE HEADING NEVER CAUGHT UP** — the
+same defect that cost Round 35 a whole round on item 17's stale premise. **When a
+console read settles an item, change the heading in the same edit.**
+
+### Kept for the reasoning — the original diagnosis
 
 **Jake, testing:** typed lesson 1 a dozen times, *"definitely got 3 fireballs in
 that practice window"*, later got **three in a row**, and was never gated.
@@ -2105,7 +2153,23 @@ during first period rather than during testing.
 
 ---
 
-### H. Before any of it: measure
+### H. ✅ BUILT (Round 41) — the measurement
+
+⭐ **SHIPPED in `lessons-admin.js` v1.15.0, for ZERO EXTRA READS.** It rides the
+`⚠ Find stuck` sweep, which already reads one `lessonProgress` subcollection per
+filtered student. A second button would have re-read the same ~300 documents to
+answer a neighbouring question about the same data.
+
+⚠️ **TWO COLUMNS, BECAUSE ONE IS MISLEADING.** Runs-per-student high with a **high**
+pass rate is the strong ones coasting; the same number with a **low** pass rate is
+the struggling ones grinding. Opposite problems, opposite fixes — and the original
+spec below asked for a single "attempts" column, which cannot tell them apart.
+⚠️ It sums `runAttempts`, **not** `attempts`: a student stuck on run 2 of 12 has
+`attempts: 0` and is exactly who this is looking for.
+⚠️ **A🔥 counts run from 2026-08-25 only** (`runFires`, Round 41). A dash means NOT
+RECORDED, not zero earned.
+
+### The original ask, kept
 
 `attempts` is already stored per lesson per student. **A read-only
 attempts-per-lesson column in the lessons admin costs an afternoon** and answers

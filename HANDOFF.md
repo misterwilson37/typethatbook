@@ -43,7 +43,28 @@
      COMMENTS; position checks run on decomment(src) now.
      ⚠️ §0.-31.I: ROUNDS 36-40 ARE ALL WRITTEN UP AS UNDERWOOD, WHICH IS ROUND 1.
      Fourth occurrence. GREP THE ROSTER.
+     ⚠️⚠️ §0.-31.M: NOTHING WAS WATCHING firestore.rules — not versions.js, not
+     audit-versions, not version-stamp-test. I bumped its title to v2.7.0 and left
+     its note stack at v2.6.0; both instruments reported CLEAN. Jake caught it by
+     READING THE FILE. §0.-30.F one file over, on the security boundary of the
+     whole app — the file he cannot test from a browser and pastes by hand.
+     ✅ version-stamp-test.mjs v1.2.0 Section F watches it now (mutation-verified).
+     ⚠️ NOT added to versions.js SOURCES ON PURPOSE: that fetches files AS
+     DEPLOYED, and the rules that run live in the CONSOLE — a SOURCES entry would
+     report the repo copy while implying it had checked the live ones (§0.-22).
+     ⚠️ A VERSION BUMP IS NOT A NUMBER, IT IS A NOTE.
+     ⭐ §0.-31.K: ROADMAP §10.H IS BUILT — Jake's FIRST ask, unbuilt for five
+     rounds, and it was never a feature: scanForStuck() already reads every record
+     it needs, so the per-lesson aggregate rides that sweep for ZERO extra reads.
+     ⚠️⚠️ TWO COLUMNS, NOT ONE — replay-rate with a HIGH pass rate is coasting,
+     with a LOW pass rate is struggling; the original spec's single "attempts"
+     column cannot tell them apart.
+     ⚠️ §0.-31.L: ITEMS 13 AND 11a WERE STALE ⭐⭐ FLAGS — both already fixed
+     (14b/Round 31 and Round 33), headings never updated. THIS IS WHAT COST ROUND
+     35 A WHOLE ROUND. When a read settles an item, change the HEADING in the same
+     edit. 11a's residue is a RULING for Jake (stamp-at-write vs join-at-read).
      learn.js v2.36.0, run-grade.js v1.0.0 (NEW), reports.html v1.1.0/v2.29.0,
+     lessons-admin.js v1.15.0, admin.html v1.1.0,
      versions.js v1.15.0, firestore.rules v2.7.0. 54 harnesses + 61 rules cases,
      ALL PASSING. audit:versions 0 problems (it was 1 in the repo as delivered).
 
@@ -884,11 +905,94 @@ It was then made a fourth time and stuck. **This round grepped the roster before
 writing the name anywhere**, which is the check §0.-20.J asks for and is the only
 thing that works. Rem-Sho is free.
 
+### K. ⭐ §10.H IS BUILT, AND IT WAS NEVER A FEATURE
+
+Jake asked for the lesson measurement **before** item 10's gate was designed. It
+went unbuilt for five rounds and four handoffs said so. The reason it kept
+slipping is that it read as new work; it is not.
+
+`scanForStuck()` in `lessons-admin.js` **already reads exactly the records it
+needs** — one `lessonProgress` subcollection per filtered student, ~25 for a
+class, ~300 for the school. The aggregate rides that same sweep. **Zero extra
+reads.** A second button would have re-read all ~300 documents to answer a
+neighbouring question about the same data.
+
+⚠️⚠️ **TWO COLUMNS, BECAUSE ONE IS ACTIVELY MISLEADING.** Runs-per-student high
+with a **high** pass rate is the strong ones coasting; the same number with a
+**low** pass rate is the struggling ones grinding. Opposite problems, opposite
+fixes. **The original spec asked for a single "attempts" column**, which cannot
+tell them apart — and confusing them is how a farming gate ends up punishing the
+student it was built to help.
+
+⚠️ **IT SUMS `runAttempts`, NOT `attempts`.** `attempts` counts lesson
+*completions*; a student grinding run 2 of 12 has `attempts: 0` and is precisely
+who this is looking for (§0.-13's "not started" student).
+⚠️ **AND IT IS COUNTED BEFORE THE `passed` EARLY RETURN** in the stuck loop —
+returning first would have counted only students still stuck, which is the
+opposite population from the one the farming question is about.
+
+### L. ⚠️ TWO ⭐⭐ ROADMAP ITEMS WERE STALE, AND THAT IS AN EXPENSIVE FAILURE
+
+**Item 13** carried ⭐⭐ for eight rounds on one unresolved line — *"a dozen
+attempts, four runs recorded; check before building item 14 on this field."*
+**That was ROADMAP 14b and Round 31 fixed it.** `{0:1, 1:2}` out of a dozen is the
+exact fingerprint §0.-23.C predicts. The item's own body had said "RESOLVED BY
+JAKE'S CONSOLE READ" since Round 30; **the heading never caught up.**
+
+**Item 11a** carried ⭐⭐ with both of its bugs fixed in Round 33. What is actually
+left is a **ruling for Jake** — `typing_logs` stamps class/school at write time,
+so assignment does not fix old reports, and the UI implies otherwise. Recorded as
+a decision with both options stated, not as a bug.
+
+⚠️ **THIS IS EXACTLY WHAT COST ROUND 35 A WHOLE ROUND** (item 17's stale premise:
+*"a round that 'fixed' it would have changed nothing and reported a saving"*).
+**WHEN A CONSOLE READ OR A LATER ROUND SETTLES AN ITEM, CHANGE THE HEADING IN THE
+SAME EDIT.** A ⭐⭐ that is already fixed is worse than no flag: it spends the next
+instance's attention on the highest-priority thing in the file.
+
+### M. ⚠️⚠️ NOTHING WAS WATCHING `firestore.rules`, AND JAKE FOUND IT BY READING
+
+I bumped the rules file's title line to v2.7.0 and **left its version-note stack
+ending at v2.6.0** — the file claimed a version its own history did not mention.
+`npm test` and `npm run audit:versions` both reported **clean**, because
+`firestore.rules` appears in **none of the three source lists**: not
+`versions.js` SOURCES, not `tools/audit-versions.mjs`, not
+`version-stamp-test.mjs`.
+
+⚠️ **THIS IS §0.-30.F ONE FILE OVER.** That round found `admin.js` invisible to
+the drift detector and called it backwards for the file that writes every book in
+the library. This is the file that is **the security boundary of the whole app**,
+that Jake **cannot test from a browser**, and that he **pastes by hand** — and it
+was the least-watched file in the repo.
+
+✅ **`version-stamp-test.mjs` v1.2.0 Section F now watches it.** Mutation-verified:
+F4 and F6 both go red against the file exactly as I shipped it an hour earlier.
+
+⚠️⚠️ **IT IS DELIBERATELY *NOT* ADDED TO `versions.js` SOURCES, AND THE REASON
+MATTERS MORE THAN THE CHECK.** That instrument fetches files **as deployed** and
+compares them. The rules that actually run live in the **Firebase console**, not
+on GitHub Pages. A SOURCES entry would faithfully report the repo's copy while
+*implying* it had checked the live ones — a green light on the one file whose
+deployed state nothing in this repo can see. **That is §0.-22 exactly: a
+diagnostic is consulted INSTEAD of checking, so when it is wrong nothing
+disagrees with it.** The honest check is internal consistency, and that is all
+Section F claims.
+
+⚠️ **F6 IS SMALLER AND WORTH KEEPING.** My match-site comment used bare `⚠`
+without the variation selector, so three warnings in the security-boundary file
+rendered as a dingbat rather than a warning sign — quietly less visible than
+every other warning around them. Fixed, and now asserted.
+
+⚠️ **THE GENERAL LESSON: A VERSION BUMP IS NOT A NUMBER, IT IS A NOTE.** The
+number tells you *that* something changed; the note is the only thing that tells
+the next instance *what*. I wrote 400 lines of handoff about this round and
+skipped the four lines that belong in the file a future round will actually open.
+
 ### J. THE NUMBERS
 
 `learn.js` v2.36.0, `run-grade.js` v1.0.0 (NEW), `reports.html` v1.1.0 / inline
 v2.29.0, `versions.js` v1.15.0, `firestore.rules` v2.7.0,
-`run-all-tests.mjs` v1.16.0.
+`lessons-admin.js` v1.15.0, `admin.html` v1.1.0, `run-all-tests.mjs` v1.16.0.
 **54 harnesses pass** (52 before), plus **61 rules cases** under the emulator.
 `remediation-test.mjs` is mutation-verified: **27 passing on the fix, 17 failing
 against v2.35.0.** `npm run audit:versions` reports **0 problems** — it reported
