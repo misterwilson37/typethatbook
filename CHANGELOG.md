@@ -1,5 +1,24 @@
 # CHANGELOG — TypeThatBook
 
+## Round 44 (Rem-Sho) — 2026-08-25
+
+**✅ Item 22 closed by measurement** — zero `runCount` drift across five students.
+
+**⚠️ Item 24 measured at 12 of 51 student-days and is still happening.**
+`splitSessionTotals()` now sums **sprints, not documents**, so `⟳` no longer
+double-counts a sprint present in two overlapping rollups. The recalc guard is
+**symmetric** — an unexplained increase now prompts exactly as a decrease does.
+
+⚠️ **The writer is traced but unfixed** (next round): the server write and the
+local queue removal are not atomic, the flush runs on `pagehide`, and `_addDoc()`
+mints a random id so a resend appends a larger document instead of replacing.
+The fix is a derived document id, and it needs a `firestore.rules` change in the
+same round.
+
+- `reports.html` v1.4.0 / inline v2.32.0
+
+**55 harnesses pass. `audit:versions`: 0 problems.**
+
 ## Round 43 (Rem-Sho) — 2026-08-25
 
 **⚠️ The §10.H signal fired on almost every row.** I set the threshold at 3

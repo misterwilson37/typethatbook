@@ -1,7 +1,20 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.28.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.29.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 40; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.29.0 — Round 44 (Rem-Sho). ✅ §0.-34.A: ITEM 22 CLOSED BY MEASUREMENT —
+     ZERO runCount drift across five students. A round was sketched and is not
+     worth spending. THIS IS WHAT MEASURING FIRST BUYS.
+     ⚠️⚠️ §0.-34.B: ITEM 24 IS LIVE — 12 of 51 student-days, 8 of 10 students,
+     every day incl. TODAY. READER FIXED: splitSessionTotals() sums SPRINTS not
+     DOCUMENTS. sessionSignature() cannot see a SUPERSET and is not wrong.
+     ⚠️ THE RECALC GUARD WAS ONE-SIDED — inflation applied SILENTLY. Symmetric now.
+     ⚠️⚠️ §0.-34.C: THE WRITER IS TRACED AND UNFIXED, NEXT ROUND. Server write and
+     local removal are NOT ATOMIC and the flush runs on pagehide; _addDoc() mints
+     a RANDOM id so a resend appends instead of replacing. FIX IS IDEMPOTENCE (a
+     derived doc id) AND IT NEEDS A firestore.rules CHANGE IN THE SAME ROUND.
+     reports.html v1.4.0/v2.32.0. 55 harnesses, 0 audit problems.
 
      v15.28.0 — Round 43 (Rem-Sho). ⚠️⚠️ §0.-33.A: I CHOSE A THRESHOLD WITH NO
      DATA AND IT FIRED ON EVERY ROW. §10.H flagged >3 runs/student; the real
@@ -803,7 +816,60 @@ is not the same as checking the list. **Check the list.**
 
 ---
 
-## §0.-33. ✅ ROUND 43 (Rem-Sho) — THE ALARM THAT WAS ALWAYS ON, AND THE THREE UNMETERED PAGES
+## §0.-34. ✅ ROUND 44 (Rem-Sho) — TWO MEASUREMENTS, AND THEY POINTED OPPOSITE WAYS
+
+**2026-08-25.** Jake ran both measurements. **This is what measuring first buys.**
+
+### A. ✅ ITEM 22 CLOSED FOR THE COST OF ASKING
+
+Zero `runcount-drift` refusals across five students. The remediation defect
+*could* corrupt `runCount`; in practice almost nobody pressed the button enough.
+⚠️ **A ROUND WAS SKETCHED FOR THIS AND IS NOW NOT WORTH SPENDING.** The repair
+was one line and would have been defensible — and pointless.
+
+### B. ⚠️⚠️ ITEM 24 IS LIVE AND WIDESPREAD: 12 OF 51 STUDENT-DAYS
+
+8 of 10 students sampled, every day from the 18th to the 25th, **including
+today**. Not a historical artefact.
+
+✅ **THE READER IS FIXED, SO `⟳` IS SAFE NOW.** `splitSessionTotals()` sums
+**sprints, not documents**, deduping on `(source, bookId, at, detail)`.
+⚠️ `sessionSignature()` cannot see this and **is not wrong** — it keys on the
+whole sprint LIST, so a 7-sprint rollup *containing* a 5-sprint one is genuinely
+a different document. Document dedupe stays; per-sprint is the layer beneath it.
+
+✅ **AND THE GUARD IS SYMMETRIC.** It only ever asked about reductions —
+**inflation applied silently**, and inflation is what this data actually
+produces. `⟳` on 2026-08-24 would have raised a real student 21m 40s → ~30m
+without a prompt. ⚠️ **A GRADED NUMBER MOVING UP DESERVES THE SAME QUESTION AS
+ONE MOVING DOWN**, and it took a bug to notice the guard was one-sided.
+
+### C. ⚠️⚠️ THE WRITER IS TRACED AND UNFIXED — NEXT ROUND
+
+`_sessionLogFlushInner()`: the server write and the local removal are **not
+atomic**, and the removal is second. The flush runs on `pagehide`, **which is
+exactly when a browser may kill the page**. Die between them and the document is
+on the server while the queue still holds its sprints; the next load resends, and
+`_addDoc()` mints a **random id**, so the resend becomes a *new, larger*
+document. That is the superset shape precisely.
+
+⚠️ **`_write()`'s RETURN VALUE IS DISCARDED AT BOTH FLUSH CALL SITES.** It
+returns `false` when localStorage cannot persist. A second, rarer path to the
+same outcome.
+
+⚠️⚠️ **THE FIX IS IDEMPOTENCE, NOT A MORE RELIABLE REMOVAL** — a derived document
+id so a resend overwrites rather than appends. **IT NEEDS A `firestore.rules`
+CHANGE IN THE SAME ROUND** (`typing_sessions` update is `isSuper()`-only today,
+so a resend would be denied and retry forever). ⚠️ **I DID NOT SHIP IT THIS
+ROUND**: it is the hottest write path in the app plus a rules change, at the end
+of a long session, and the last four incidents in this file were all haste.
+
+### D. THE NUMBERS
+
+`reports.html` v1.4.0 / inline v2.32.0. **55 harnesses**, `audit:versions` **0
+problems**. ⚠️ `undefined-calls-test.mjs` caught me calling a `setStatus()` that
+does not exist in that scope, and matching the drop branch's return contract was
+the real fix — a bare `return` would have handed callers `undefined`. — THE ALARM THAT WAS ALWAYS ON, AND THE THREE UNMETERED PAGES
 
 **2026-08-25.** Jake ran §10.H over 138 students. Two findings, both mine.
 

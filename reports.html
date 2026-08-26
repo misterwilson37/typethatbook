@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- reports.html v1.3.0 — versioned the same way style.css and game.html are: a comment
+<!-- reports.html v1.4.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (the inline module) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
@@ -675,7 +675,7 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.31.0";
+    const REPORTS_VERSION = "2.32.0";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -2598,14 +2598,51 @@
     // Anything not explicitly tagged 'school' folds into Library, the
     // original, untagged mode; every session game.js/learn.js write today
     // carries a tag (session-log.js requires it).
+    // ⚠️⚠️ v2.32.0 — ROADMAP 24. SUMS **SPRINTS**, NOT DOCUMENTS, BECAUSE ONE
+    // SPRINT CAN APPEAR IN TWO DOCUMENTS.
+    //
+    // MEASURED 2026-08-25: **12 of 51 student-days** carried at least one sprint
+    // present in more than one rollup — 8 of 10 students sampled, across every
+    // day from the 18th to the 25th. This is not a historical artefact; it is
+    // still happening.
+    //
+    // ⚠️ sessionSignature() BELOW CANNOT SEE IT, AND IS NOT WRONG. It keys on the
+    // whole sprint-timestamp LIST, so an 8:47 rollup of 7 sprints that CONTAINS
+    // an 8:47 rollup of 5 is genuinely a different document. The duplication is
+    // per SPRINT, so it has to be removed per SPRINT. Document-level dedupe stays
+    // — it catches exact twins — and this is the layer beneath it.
+    //
+    // ⚠️⚠️ WHAT THIS PREVENTS: `⟳` recomputes a day from these totals and WRITES
+    // THE RESULT to typing_logs. On 2026-08-24 it would have raised a real
+    // student from 21m 40s to about 30m — a ~40% inflation of a graded number,
+    // with no prompt, because the drop guard only ever asked about REDUCTIONS.
+    //
+    // ⚠️ A ROLLUP WITH NO `sprints` ARRAY (pre-v2.10.0) IS COUNTED WHOLE, from
+    // its own totals. It cannot be deduped and must not be dropped: losing real
+    // minutes to avoid double-counting them is the worse error.
     function splitSessionTotals(sessions) {
         let schoolSec = 0, schoolChars = 0, schoolMist = 0;
         let librarySec = 0, libraryChars = 0, libraryMist = 0;
+        const seen = new Set();
+
         sessions.forEach(s => {
-            if (s.source === 'school') {
-                schoolSec += s.seconds || 0; schoolChars += s.chars || 0; schoolMist += s.mistakes || 0;
-            } else {
-                librarySec += s.seconds || 0; libraryChars += s.chars || 0; libraryMist += s.mistakes || 0;
+            const school = s.source === 'school';
+            const sprints = Array.isArray(s.sprints) ? s.sprints : [];
+            const stamped = sprints.filter(sp => sp && sp.at);
+
+            if (!stamped.length) {
+                // No per-sprint identity available — trust the document total.
+                if (school) { schoolSec += s.seconds || 0; schoolChars += s.chars || 0; schoolMist += s.mistakes || 0; }
+                else        { librarySec += s.seconds || 0; libraryChars += s.chars || 0; libraryMist += s.mistakes || 0; }
+                return;
+            }
+
+            for (const sp of stamped) {
+                const k = `${s.source || ''}\u0000${s.bookId || ''}\u0000${sp.at}\u0000${sp.detail || ''}`;
+                if (seen.has(k)) continue;          // already counted from another rollup
+                seen.add(k);
+                if (school) { schoolSec += sp.seconds || 0; schoolChars += sp.chars || 0; schoolMist += sp.mistakes || 0; }
+                else        { librarySec += sp.seconds || 0; libraryChars += sp.chars || 0; libraryMist += sp.mistakes || 0; }
             }
         });
         return { schoolSec, schoolChars, schoolMist, librarySec, libraryChars, libraryMist };
@@ -2717,6 +2754,48 @@
             // down-move is the WHOLE POINT: a rollup was just removed, so the
             // day is supposed to shrink. Every other caller gets the guard.
             const currentSec = log.seconds || 0;
+
+            // ⚠️⚠️ v2.32.0 — ROADMAP 24. THE GUARD IS SYMMETRIC NOW.
+            //
+            // It only ever asked about REDUCTIONS. An INFLATION applied silently
+            // — and inflation is the failure this data actually produces: with
+            // duplicated sprints in a day, `⟳` on 2026-08-24 would have raised a
+            // real student from 21m 40s to ~30m and said nothing.
+            //
+            // ⚠️ THE PER-SPRINT DEDUPE IN splitSessionTotals() SHOULD MAKE THIS
+            // UNREACHABLE FOR THAT CAUSE. It is here because "should" is not a
+            // guarantee, and because a graded number moving UP without a reason
+            // deserves the same question as one moving down. If this fires,
+            // something is producing minutes the dedupe cannot explain — SAY NO
+            // AND TELL ME.
+            if (!expectDrop && currentSec > 0 && totalSec > currentSec / DROP_GUARD_RATIO) {
+                const gained = totalSec - currentSec;
+                const pct = Math.round((totalSec / currentSec - 1) * 100);
+                const okToRaise = confirm(
+                    `\u26a0\ufe0f This would INCREASE the stored day by ${pct}%.\n\n` +
+                    `  stored now : ${formatTime(currentSec)}  (${log.chars || 0} chars)\n` +
+                    `  sessions   : ${formatTime(totalSec)}  (${totalChars} chars)\n` +
+                    `  difference : +${formatTime(gained)}\n\n` +
+                    `The stored figure comes from the student's own live counter, ` +
+                    `which is normally the MORE complete of the two. Session ` +
+                    `records going higher is unusual and usually means the same ` +
+                    `work was recorded twice.\n\n` +
+                    `Unless you know why this day should grow, cancel and report it.\n\n` +
+                    `Overwrite it anyway?`
+                );
+                if (!okToRaise) {
+                    // ⚠️ SAME RETURN SHAPE AS THE DROP BRANCH. This function's
+                    // callers read `{ ok, reason, got }`; a bare `return` would
+                    // hand them undefined and the post-delete recalc would treat
+                    // a declined inflation as a crash.
+                    if (statusEl2) { statusEl2.textContent = 'kept the stored figure'; statusEl2.style.color = '#888'; }
+                    return { ok: false, reason: 'raise-declined',
+                             got: { seconds: totalSec, chars: totalChars, mistakes: totalMistakes } };
+                }
+                console.warn(`[recalc] ${uid} ${date} overwritten UP by ${gained}s ` +
+                             `(${currentSec}s \u2192 ${totalSec}s) with confirmation.`);
+            }
+
             if (!expectDrop && currentSec > 0 && totalSec < currentSec * DROP_GUARD_RATIO) {
                 const lost = currentSec - totalSec;
                 const pct  = Math.round((1 - totalSec / currentSec) * 100);

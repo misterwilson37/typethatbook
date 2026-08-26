@@ -1,5 +1,7 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.33.0, 2026-08-25.** ✅ **ITEM 22 CLOSED BY MEASUREMENT** (zero drift across five students — not worth a round). ⚠️⚠️ **ITEM 24 MEASURED AT 12/51 STUDENT-DAYS AND IS LIVE** — the READER is fixed so `⟳` is safe, but **the WRITER is next round** and the fix needs a `firestore.rules` change with it.
+
 **v3.32.0, 2026-08-25.** ✅ **§10.H RECALIBRATED** — its signal fired on every row because I picked the threshold with no data; it is relative to the scan now. ✅ **EVERY PAGE IS METERED** — three admin pages were invisible to `read-meter.js`, and the scan now warns before spending ~4,000 reads.
 
 **v3.31.0, 2026-08-25.** ✅ **ITEM 25 IS FIXED** (Round 42) — "I'm done" no longer stamps a number smaller than the HUD. **Item 26 (resume buttons) is now the top open item.**
@@ -1699,7 +1701,55 @@ emulator. **It is a console paste; the button does nothing until it is deployed.
 
 ---
 
-## 24. ⚠️⚠️ NEW — `⟳` OVER-COUNTS A DAY WITH OVERLAPPING ROLLUPS, SILENTLY
+## 24. ⚠️⚠️ READER FIXED (Round 44) — WRITER STILL OPEN. **NEXT ROUND.**
+
+**MEASURED 2026-08-25: 12 of 51 student-days, 8 of 10 students, every day from
+the 18th to the 25th.** It is still happening — today's date is in the sample.
+
+✅ **THE READER IS SAFE NOW.** `splitSessionTotals()` sums **sprints, not
+documents**, deduping on `(source, bookId, at, detail)`. And the recalc guard is
+**symmetric** — an unexplained *rise* now asks the same question a fall does.
+Before this, `⟳` on 2026-08-24 would have raised a real student from 21m 40s to
+~30m with no prompt.
+
+⚠️⚠️ **THE WRITER IS UNFIXED AND KEEPS PRODUCING THEM. THIS IS THE NEXT ROUND.**
+
+**The mechanism, traced (`session-log.js` `_sessionLogFlushInner`):** the server
+write and the local removal are **not atomic**, and the removal happens *second*:
+
+```
+await _addDoc(...)                 ← lands on the server
+records = records.filter(...)      ← removal computed
+_write(uid, records)               ← removal persisted … maybe
+```
+
+⚠️ **THE FLUSH RUNS ON `pagehide`/`visibilitychange`, WHICH IS PRECISELY WHEN A
+BROWSER MAY KILL THE PAGE.** Die between those lines and the document is on the
+server while the queue still holds its sprints. Next load resends — and because
+`_addDoc()` mints a **random id**, the resend becomes a *new, larger* document
+rather than replacing the old one. That is the superset shape exactly: a 5-sprint
+rollup and a 7-sprint rollup containing it.
+
+⚠️ **AND `_write()`'s RETURN VALUE IS DISCARDED.** It returns `false` when
+localStorage cannot persist (quota, after shedding other slots). Both call sites
+in the flush ignore it. A second, rarer path to the same outcome.
+
+**THE FIX IS IDEMPOTENCE, NOT A MORE RELIABLE REMOVAL.** Derive the document id
+from the chunk (`uid` + first sprint's `at` + source + label) and `setDoc` it, so
+a resend lands on the **same document** and simply overwrites — a superset
+replacing a subset is the correct result, with no duplicate and no loss.
+
+⚠️⚠️ **THIS NEEDS A RULES CHANGE AND MUST NOT SHIP WITHOUT ONE.**
+`match /typing_sessions/{id}` allows `update` to `isSuper()` only, so a student's
+resend would be **denied** and retry forever. The owner needs update rights under
+the same validation the create rule already applies. ⚠️ **Rule 9: the rules change
+ships in the same round as the code.**
+
+⚠️ **AND THE EXISTING DUPLICATES STAY.** They are harmless now that the reader
+dedupes, and a cleanup pass would be a bulk write over student history — decide
+that separately, once the writer has stopped adding to them.
+
+### The original item, kept
 
 Found while diagnosing the ⚑ mis-grade (HANDOFF §0.-31.N) and **deliberately not
 chased further.** Jake's 2026-08-24 drill-down shows **two rollups at 8:47** — one
@@ -1736,7 +1786,19 @@ confirmation a fall gets, whatever else is done.
 
 ---
 
-## 22. ⚠️⚠️ NEW — THE ARCHIVE BEFORE 2026-08-25 CANNOT BE FULLY TRUSTED
+## 22. ✅ MEASURED AND CLOSED (Round 44) — runCount DRIFT IS ESSENTIALLY ABSENT
+
+✅ **Jake ran ⚑ across five students on 2026-08-25: ZERO `runcount-drift`
+refusals.** The remediation defect could corrupt `runCount`, but in practice
+almost nobody used the button enough to matter. **The repair sketched below is
+NOT worth a round** — this is what the measurement was for.
+
+⚠️ **The other half of this item still stands and cannot be fixed:** sprints
+written before `learn.js` v2.36.0 carry no `practice` stamp, so a reconstruction
+may grade an old practice drill as lesson material. Nothing the ⚑ button writes
+advances a student, which is why that is tolerable.
+
+### The original item, kept
 
 Round 41 found that the **"🎲 Practice missed keys" drill was being graded as the
 lesson's run 1** — see HANDOFF §0.-31.A. Fixed forward, but:
