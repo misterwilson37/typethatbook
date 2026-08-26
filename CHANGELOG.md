@@ -1,5 +1,53 @@
 # CHANGELOG — TypeThatBook
 
+## Round 47 (Blickensderfer) — 2026-08-26 — the Continue-reading row
+
+**✅ ROADMAP item 26 is CLOSED.** The row is horizontal cards now — cover left,
+"Resume" above the title, progress bar, "Last read …" line, accent rule down the
+left edge — laid out on the SHELF's own grid tracks with each card spanning two
+columns, so card edges land on the shelf's column lines rather than near them.
+The shelf gained a heading ("The stacks") so the two rows read as two named
+things.
+
+**⚠️⚠️ The old row's widths were never what the stylesheet said.** The grid
+element carried `class="library-grid continue-grid"`, and `.library-grid` is
+declared LATER at equal specificity — so its columns and gap silently overrode
+every width in `.continue-grid`. Nothing errored; the page rendered another
+rule's numbers and it read as a design choice. **When a layout looks "slightly
+off", check for a shared class before adjusting a number.**
+
+**⚠️ The cover stretches to the card's height AND keeps its 2:3 shape.** The
+first attempt only did the first half: `align-self: stretch` against a fixed
+width grew the box vertically while the width stayed put, turning the cover into
+a sliver on any card with a wrapped title — with `object-fit: cover` hiding it by
+cropping. Height stretches and `aspect-ratio` derives the width, with the fixed
+width kept as an `@supports` fallback.
+
+**⭐ `chapter-position.js` v1.0.0 (NEW MODULE).** `chapterPositionOf()` and
+`lastReadLabel()` moved out of index.html. The new bar needed the same number the
+shelf card prints, and copying it would have been the fifth hand-maintained twin
+this project has had to find. ⚠️ A local function would have killed the twin and
+still been the wrong answer — a module is importable by the HARNESSES, so
+`progress-test.mjs` and `continue-reading-test.mjs` no longer lift source text out
+of an HTML file and rebuild it with `new Function`. Registered in all three
+registries.
+
+- `index.html` v3.15.0, `chapter-position.js` v1.0.0 **(NEW)**
+- `versions.js`, `tools/audit-versions.mjs`, `tests/version-stamp-test.mjs` —
+  registry entries for the new module
+- `tests/progress-test.mjs` v1.2.0 and `tests/continue-reading-test.mjs` v1.2.0 —
+  both import now instead of scraping; C3/C4/C5 are new and mutation-verified
+  (C3 alone passed a mutation that forced the bar on, which is why C4 exists)
+
+**⚠️ Item 26's own instruction is still undone:** nobody has checked whether kids
+were MISSING the row or IGNORING it. The redesign was worth doing either way, but
+only one of those is a layout problem.
+
+**✅ Item 24 confirmed in production this round** — three sprints across a tab
+switch and an immediate Home (the `pagehide` path), no duplicates in Reports.
+
+**57 harnesses pass. `audit:versions`: 0 problems.**
+
 ## Round 46 (Blickensderfer) — 2026-08-26 — the session-log WRITER, closed
 
 **✅ ROADMAP item 24 is CLOSED.** `session-log.js` v1.7.0's flush is now

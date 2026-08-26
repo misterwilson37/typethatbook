@@ -1,91 +1,101 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-08-26 by Round 46 (Blickensderfer), for whoever is next
+> ## ▶ START HERE — written 2026-08-26 by Round 47 (Blickensderfer), for whoever is next
 >
-> **The next round is ROADMAP item 26: the resume-book buttons are too big and
-> read as a library shelf.** Item 24 (the session-log writer) is CLOSED this
-> round — reader, writer and rules all landed together. See §0.-36 below for
-> the full account; you should not need to rediscover any of it.
+> **The next round is ROADMAP item 12** (Safari HUD spacing, plus two smaller
+> things in the same panel) **or item 23** (`saveProgress()` and
+> `recordRunOutcome()` trust `currentLesson` alone — a write-path correctness
+> item, and the last unexamined one of its kind). Items 24 and 26 are both
+> closed. §0.-36 and §0.-37 have the full accounts.
 >
-> ### What landed this round
+> ### ✅ ITEM 24 IS CONFIRMED IN PRODUCTION, NOT JUST IN A HARNESS
 >
-> `session-log.js` v1.7.0's flush is now IDEMPOTENT: a resent chunk (killed
-> `pagehide`, or a silently-failed local `_write()`) derives a document id from
-> `uid` + the first sprint's `at` + `source` + `label` and writes with
-> `setDoc()`, so it overwrites its own document instead of appending a new one.
-> Shipped as ONE unit with `firestore.rules` v2.8.0 (owner `update` rights on
-> `typing_sessions`, same clamps as `create`) and `game.js` v3.46.0 /
-> `learn.js` v2.38.0 (both now pass `doc`/`setDoc` into `sessionLogInit()`).
+> Jake ran the real case on 2026-08-26: three sprints in one book, across a tab
+> switch and an **immediate Home** (which is the `pagehide` path the bug lived
+> on), checking Reports between each. Every round appeared, **no duplicates**.
+> `firestore.rules` v2.8.0 is deployed. The writer fix is done and verified.
 >
-> ⚠️⚠️ **THIS IS FOUR FILES THAT MUST DEPLOY TOGETHER**: `session-log.js`,
-> `firebase/firestore.rules`, `game.js`, `learn.js`. The rules change alone
-> does nothing; the code change without it is denied and retries forever;
-> either page controller alone breaks §0.-13.E's twin-symmetry rule.
-> **`firestore.rules` v2.8.0 MUST BE PASTED INTO THE CONSOLE BEFORE OR IN THE
-> SAME SESSION AS the JS files go live**, same as v2.7.0's note.
+> ⚠️ **PRE-EXISTING DUPLICATE DOCUMENTS ARE STILL THERE.** The reader dedupes
+> them (Round 44) and the writer has stopped making new ones (Round 46), but
+> nothing has cleaned up the old ones. A bulk-write pass over student history is
+> a separate decision nobody has made. It is not urgent and it is not a bug.
 >
-> ✅ **VERIFIED AGAINST THE REAL EMULATOR, NOT JUST REASONED ABOUT.**
-> `npm run test:rules` was actually run (Java is present) and caught a real bug
-> in the new test's own seeding step before it was trusted — see §0.-36.D.
-> **65 rules cases pass, 4 of them new.** ⚠️ Do not treat a green `npm test` as
-> having covered the rules change; it cannot see a permission denial. Run
-> `npm run test:rules` yourself before concluding this is still working after
-> any future edit near `typing_sessions`.
+> ### What Round 47 shipped (ROADMAP 26)
 >
-> ⚠️ **EXISTING DUPLICATE DOCUMENTS FROM BEFORE THIS ROUND STILL STAND.** The
-> reader already dedupes them (Round 44) and the writer has stopped adding to
-> them (this round), but nothing has cleaned the old ones up. A bulk-write
-> cleanup pass is a separate decision — not urgent, not this round's job.
+> `index.html` v3.15.0 + **`chapter-position.js` v1.0.0 (NEW MODULE)**. The
+> Continue-reading row is horizontal cards on the shelf's own grid tracks.
 >
-> ### Before you touch `session-log.js` again
+> ⚠️⚠️ **READ THIS ONE BEFORE YOU TOUCH ANY CSS IN index.html.** The old row's
+> widths were never what the stylesheet said: the element carried
+> `class="library-grid continue-grid"`, and `.library-grid` is declared LATER at
+> EQUAL specificity, so its columns and gap silently won. Nothing errored. The
+> page just rendered another rule's numbers, and it read as a design choice for
+> weeks. **When a layout looks "slightly off", check for a shared class before
+> you adjust a number.**
 >
-> Same warning Round 45 left, still true: it is the hottest write path in the
-> app and has a history of subtle, data-losing bugs — read its own header,
-> v1.3.0 through v1.7.0 (v1.3.0 is archived to CHANGELOG.md § ARCHIVED FILE
-> HEADERS, line budget — the file still cites it once, at `_flushChain`).
-> `tests/session-writer-test.mjs` is now the model for a mutation-verified
-> harness on this file, alongside `tests/queue-owner-test.mjs`.
+> ⚠️ **THE ROW'S GRID DECLARES THE SHELF'S TRACKS ON PURPOSE** and each card
+> spans two columns, so card edges land on the shelf's column lines at every
+> width. Do NOT give `.continue-grid` its own column widths — that is the bug,
+> in the other direction.
+>
+> ### ⭐ chapter-position.js, and the lesson about "extracted"
+>
+> `chapterPositionOf()` and `lastReadLabel()` used to be inline in
+> `renderBooks()`. The new progress bar needed the same number, so the first
+> pass extracted them into a **local function** in index.html. That killed the
+> twin — and Jake asked why it was not a shared module, which was the better
+> question. A module is importable by the HARNESSES too: `progress-test.mjs` and
+> `continue-reading-test.mjs` no longer lift source text out of an HTML file and
+> rebuild it with `new Function`, which is a technique that had already drifted
+> onto unrelated code twice. **"Not duplicated" and "reachable by a test" are
+> two different goals and a module is what gets you both.**
+>
+> ⚠️ **REGISTERED IN ALL THREE REGISTRIES** — `versions.js`,
+> `tools/audit-versions.mjs`, `tests/version-stamp-test.mjs`. All three or the
+> build panel lies; §9b is the round where three shared modules were invisible
+> to the footer for weeks because only the first was done.
+>
+> ⚠️ `chapterPositionOf()` is **not** `progressOf()` — position vs completion,
+> they legitimately disagree, and the bar uses the one the shelf card prints so
+> one book cannot show two percentages on one screen.
+>
+> ### ⚠️ ITEM 26'S OWN INSTRUCTION IS STILL UNDONE
+>
+> **Nobody has checked whether kids were MISSING the row or IGNORING it.** The
+> redesign was worth doing either way, but if they are ignoring it, a better-
+> looking row will not move the number. The drill-down can answer this. Check
+> before crediting the redesign with anything.
 >
 > ### ⚠️⚠️ READ §0.-31.H, §0.-32.D AND §0.-33.C BEFORE YOU EDIT ANY FILE
 >
-> Unchanged from Round 45's warning — still the standing rule, not yet retired:
-> encode first, write to a temp file, verify the size, rename; assert every
-> anchor matches exactly once (`s.count(old) == 1`) and any slice asserts
-> `j > i`; guard on structure (non-comment code line count), never on words.
-> This round made no file-damage incidents — the streak since §0.-33.C is now
-> three rounds.
+> Still the standing rule: encode first, write to a temp file, verify the size,
+> rename; assert every anchor matches exactly once (`s.count(old) == 1`) and any
+> slice asserts `j > i`; guard on structure (non-comment code line count), never
+> on words. **Four rounds now with no file-damage incident.**
 >
 > ### State of play
 >
 > * **57 harnesses pass**, `npm run audit:versions` reports **0 problems**,
->   `npm run test:rules` passes **65 cases**. The changed-file set for this
->   round: `session-log.js`, `firebase/firestore.rules`, `game.js`, `learn.js`,
->   `tests/session-writer-test.mjs` (new), `tests/session-merge-test.mjs`,
->   `tests/queue-owner-test.mjs`, `tests/guest-merge-test.mjs`,
->   `tests/open-unit-test.mjs`, `tests/version-stamp-test.mjs` (no edit
->   needed — it caught the version pins), `tests/firestore-rules.test.mjs`,
->   `tests/run-all-tests.mjs`, `ROADMAP.md`, `CHANGELOG.md`, `HANDOFF.md`.
-> * `firestore.rules` **v2.8.0 IS NOT YET DEPLOYED** — Jake pastes it into the
->   console himself; see the upload checklist. Until then the app-side fix is
->   live in the repo but the resend path it enables is still denied in
->   production.
+>   `npm run test:rules` passes **65 cases** (last run Round 46).
+> * `firestore.rules` **v2.8.0 IS DEPLOYED** and verified by real use. No
+>   console step is outstanding.
 > * ⚠️ **ROADMAP.md's numbers are not an order and are not unique** (there are
->   two item 18s). **DO NOT RENUMBER** — sources and harnesses cite them in
->   prose. `tests/roadmap-index-test.mjs` keeps the index honest; regenerate it
->   in the same edit that changes a heading's status. It was run this round and
->   is clean.
-> * ⚠️ Item **14a is still suspected stale** — untouched this round, carried
->   forward from Round 45's note. Verify before working it.
-> * The read meter's miss ratio from Round 45's note (**2,562 reads / 1,640
->   misses across 4 page loads**) is still unexamined and still may be worth a
->   look, now that item 26 is next rather than item 24.
+>   two item 18s). **DO NOT RENUMBER.** `tests/roadmap-index-test.mjs` keeps the
+>   index honest — regenerate the index in the same edit that changes a
+>   heading's status. Run clean this round. ⚠️ It matches on the heading's exact
+>   text, so an index entry that paraphrases a heading fails B1.
+> * ⚠️ Item **14a is still suspected stale** — carried forward unexamined since
+>   Round 45. Verify before working it; a stale ⭐⭐ flag cost Round 35 a round.
+> * The read meter's miss ratio (**2,562 reads / 1,640 misses across 4 page
+>   loads**) is still unexamined.
 >
 > ### The name
 >
-> Round 46 is **Blickensderfer** — checked against the roster
-> (`grep -rihn "Round [0-9]* (" . | grep -oP "Round \d+ \([A-Za-z-]+\)"`) before
-> picking it. One name per conversation, not per round; if the next round is a
-> continuation of this same conversation, keep this name.
+> Rounds 46–47 are **Blickensderfer** — one name per conversation, not per
+> round. ⚠️ **GREP THE ROSTER BEFORE YOU PICK YOURS**:
+> `grep -rihn "Round [0-9]* (" . | grep -oP "Round \d+ \([A-Za-z-]+\)"`. Rounds
+> 36–40 are all written up as *Underwood*, which is Round 1 — a fourth
+> occurrence past three written warnings.
 
 
 <!-- HANDOFF.md v15.30.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended

@@ -158,14 +158,29 @@
         }
         /* ⚠️ NOT .book-cover — that is width:100% + aspect-ratio, built to fill a
            shelf column, and it collapses this flex row.
-           ⚠️ height:100% + align-self:stretch is what closes the gap under the
-           cover: the card's height is set by the text beside it, and a fixed-
-           height cover left dead space below itself. object-fit:cover means the
-           art crops rather than distorts as that height changes. */
+           ⚠️⚠️ THE COVER STRETCHES TO THE CARD'S HEIGHT AND KEEPS ITS SHAPE. Both
+           halves matter and the first attempt only had one: align-self:stretch
+           against a FIXED width grew the box vertically while the width stayed
+           at 46px, so a two-line title turned the cover into a tall sliver.
+           object-fit:cover hid the distortion by CROPPING, which is worse — the
+           art stays undistorted while the book stops looking like a book.
+           So the height is what stretches and `aspect-ratio` derives the width
+           from it, which is the only arrangement where a taller card gets a
+           BIGGER cover rather than a thinner one.
+           ⚠️ THE FIXED WIDTH IS THE FALLBACK, NOT THE RULE. It is declared first
+           and only replaced inside @supports, so a browser without
+           `aspect-ratio` (Safari before 15) gets a sane 46x69 cover instead of
+           an <img> at its intrinsic width, which would be several hundred
+           pixels of blown-out card. */
         .continue-cover, .continue-cover-placeholder {
-            width: 46px; flex-shrink: 0; align-self: stretch;
-            height: auto; min-height: 100%;
+            flex: 0 0 auto; align-self: stretch;
+            width: 46px; min-height: 69px;
             border-radius: 2px;
+        }
+        @supports (aspect-ratio: 2 / 3) {
+            .continue-cover, .continue-cover-placeholder {
+                width: auto; height: auto; aspect-ratio: 2 / 3;
+            }
         }
         .continue-cover { object-fit: cover; background: #e0d8cf; }
         .continue-cover-placeholder {

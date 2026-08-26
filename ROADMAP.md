@@ -1,5 +1,18 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.35.0, 2026-08-26.** ✅ **ITEM 26 CLOSED — THE CONTINUE-READING ROW IS ITS OWN
+KIND OF OBJECT NOW.** Horizontal cards (small cover left, "Resume" above the
+title, progress bar, last-read line) on the SHELF's own grid tracks, each card
+spanning two columns so its edges land on the shelf's column lines rather than
+near them. ⚠️ **THE OLD ROW'S WIDTHS WERE NEVER WHAT THE CSS SAID**: the element
+carried `class="library-grid continue-grid"` and `.library-grid` is declared
+LATER at equal specificity, so its columns and gap silently won. ⭐ The chapter
+math left index.html for `chapter-position.js` v1.0.0 — one copy, both callers,
+and importable by the harnesses, which no longer scrape source text out of an
+HTML file. ✅ **ITEM 24 IS ALSO CONFIRMED IN PRODUCTION** — Jake typed three
+sprints across tab switches and an immediate Home (the `pagehide` path), and
+Reports showed every round with no duplicates.
+
 **v3.34.0, 2026-08-26.** ✅ **ITEM 24 CLOSED — THE WRITER IS FIXED.** session-log.js
 v1.7.0 derives a stable document id per chunk and writes with `setDoc()` instead
 of `addDoc()`, so a resent chunk overwrites its own document instead of
@@ -70,10 +83,10 @@ fix instead: **Ctrl-F any line below to land on the section.**
 
 **Priority first, then everything else by position in the file.**
 
-1. **26. ⭐ THE RESUME-BOOK BUTTONS ARE TOO BIG AND READ AS LIBRARY SHELF**
-   — ⭐ Jake: *"if there isn't something more pressing."* Item 24 is now closed, so this is next.
-2. **12. ⚠️ SAFARI HUD SPACING, AND TWO SMALLER THINGS IN THE SAME PANEL**
-   — ⚠️ Safari HUD spacing — Jake-reported, small, and untouched for several rounds.
+1. **12. ⚠️ SAFARI HUD SPACING, AND TWO SMALLER THINGS IN THE SAME PANEL**
+   — ⚠️ Jake-reported, small, and untouched for several rounds. Items 24 and 26 are both closed, so this is next.
+2. **23. ⚠️ NEW — `saveProgress()` AND `recordRunOutcome()` TRUST `currentLesson` ALONE**
+   — ⚠️ A correctness item on the write path, and the only unexamined one left of its kind.
 
 Everything else still open:
 
@@ -87,7 +100,6 @@ Everything else still open:
 - 8b. ⭐ NEW — EVERY ROUND SHIPS A CHANGED-FILES-ONLY UPLOAD SET
 - 11a. ⚠️ MOSTLY CLOSED (Round 41) — ONE OPEN **DECISION**, NOT A BUG
 - 14a. ⭐⭐ MASTERY IS CUMULATIVE POINTS, PER **RUN**, NOT THREE FIREBALLS PER LESSON
-- 23. ⚠️ NEW — `saveProgress()` AND `recordRunOutcome()` TRUST `currentLesson` ALONE
 - 9. REDUCE THE SURFACE
 
 ## ⏳ WATCHING — no action, just don't forget
@@ -114,6 +126,7 @@ Everything else still open:
 - 15. ✅ BUILT (Round 41, Rem-Sho) — STORE THE GRADE, AND RECONSTRUCT THE ONES 14b LOST
 - 22. ✅ MEASURED AND CLOSED (Round 44) — runCount DRIFT IS ESSENTIALLY ABSENT
 - 24. ✅ CLOSED (Round 46, Rem-Sho) — THE WRITER: A RESENT CHUNK NO LONGER DUPLICATES
+- 26. ✅ CLOSED (Round 47, Blickensderfer) — THE CONTINUE-READING ROW READS AS ITS OWN THING
 - 16. ✅ FIXED (Round 40) — THE BUILD PANEL ON `reports.html` AND `admin.html`
 - 17. ✅ CLOSED (Rounds 35–40) — REPORTS READ EVERY RECORD OF EVERY STUDENT
 - 18. ✅ CLOSED (Rounds 36–40) — THE READ BUDGET
@@ -177,7 +190,67 @@ right while leaving the HUD ticking from a stale seed just moves the lie.
 
 ---
 
-## 26. ⭐ THE RESUME-BOOK BUTTONS ARE TOO BIG AND READ AS LIBRARY SHELF
+## 26. ✅ CLOSED (Round 47, Blickensderfer) — THE CONTINUE-READING ROW READS AS ITS OWN THING
+
+✅ **SHIPPED index.html v3.15.0 + chapter-position.js v1.0.0.** The row is
+horizontal cards now — 46px cover at the left, "Resume" in accent caps above the
+title, a progress bar, and a "Last read …" line — with an accent rule down the
+left edge of each card.
+
+⚠️⚠️ **THE OLD ROW'S WIDTHS WERE NEVER WHAT THE STYLESHEET SAID, AND THAT IS THE
+FINDING WORTH KEEPING.** The grid element carried `class="library-grid
+continue-grid"`. `.library-grid` is declared LATER in the stylesheet at EQUAL
+specificity, so its `grid-template-columns` and `gap` silently overrode
+`.continue-grid`'s — every width in that rule was dead. Jake saw it as "slightly
+off" and it was: the cards were shelf-width, and the heading sat at the page edge
+while the cards were centred inside `.library-grid`'s max-width. ⚠️ **A
+SHARED-CLASS OVERRIDE FAILS SILENTLY AND LOOKS LIKE A DESIGN CHOICE.** Nothing
+errors; the page just renders someone else's numbers.
+
+✅ **THE FIX FOR "slightly off" IS SHARED TRACKS, NOT A CLOSER NUMBER.** Jake:
+being slightly different is worse than being obviously different. So the row
+declares the SHELF's columns and gap, and each card spans TWO of them — card
+edges land on the shelf's own column lines at every viewport width because they
+are computed from the same tracks. Change `.library-grid`'s `minmax` and the row
+follows it. ⚠️ **DO NOT GIVE `.continue-grid` ITS OWN COLUMN WIDTHS** — that is
+the bug this item was about, in the other direction.
+
+✅ **THE SHELF HAS A HEADING NOW** ("The stacks"), so the two rows read as two
+named things rather than one long scroll. It is deliberately NOT hidden with the
+Continue row: a guest, or a student with no progress, still has a shelf.
+
+⭐⭐ **THE CHAPTER MATH LEFT index.html.** `chapterPositionOf()` and
+`lastReadLabel()` are `chapter-position.js` v1.0.0. The new progress bar needed
+the SAME number the shelf card prints, and copying it would have been the FIFTH
+hand-maintained twin this project has had to hunt down. ⚠️ **A LOCAL FUNCTION
+WOULD HAVE KILLED THE TWIN AND STILL BEEN THE WRONG ANSWER** — Jake asked why it
+was not a shared module, and he was right: a module is importable by the
+HARNESSES too, so progress-test.mjs and continue-reading-test.mjs no longer lift
+source text out of an HTML file and rebuild it with `new Function`. Registered in
+all three registries (versions.js, tools/audit-versions.mjs,
+tests/version-stamp-test.mjs) — ⚠️ all three, or the build panel lies; §9b is the
+round where three modules were invisible to the footer for weeks.
+
+⚠️ **`chapterPositionOf()` IS NOT `progressOf()`.** Position vs completion. A
+child on ch. 5 who finished 3 is 42% by one and 25% by the other. The bar uses
+the one the shelf card prints, so one book cannot show two different percentages
+on one screen.
+
+⚠️ **A NULL POSITION DRAWS NOTHING, NEVER A 0% BAR.** A confident wrong answer is
+worse than an absent one. `continue-reading-test.mjs` C3 checks the template
+omits and **C4 checks the CALLER decides to** — C3 alone passed a mutation that
+forced the bar on, which is why both exist.
+
+### ⚠️ STILL OPEN, AND IT WAS THIS ITEM'S OWN INSTRUCTION
+
+**Nobody has verified whether kids were MISSING the row or IGNORING it.** The
+redesign was worth doing either way, but if they are ignoring it, a better-
+looking row will not move the number and the real fix is elsewhere. The
+drill-down can answer this. **Check before assuming this item did anything.**
+
+### The original ask, kept
+
+
 
 **Jake, 2026-08-25:** *"The resume book buttons in the library work, but they're
 way too big... it looks like it's a part of the library, and kids are rolling
