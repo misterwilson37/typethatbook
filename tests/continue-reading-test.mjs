@@ -1,5 +1,13 @@
-// continue-reading-test.mjs v1.1.0 — ROADMAP 19. THE ROW MUST POINT AT A BOOK
+// continue-reading-test.mjs v1.3.0 — ROADMAP 19. THE ROW MUST POINT AT A BOOK
 // THAT EXISTS, IN THE ORDER THE STUDENT LAST TOUCHED IT.
+//
+// v1.3.0 — C6: THE COVER'S DIMENSIONS. index.html v3.15.0 sized the cover
+//          `auto` inside an @supports block; an <img> has intrinsic dimensions,
+//          so it rendered at the file's own size and blew the cards to ~600px.
+//          Three CSS declarations, invisible to every assertion in this file,
+//          caught by Jake in a browser. C6 checks both dimensions are stated in
+//          px, that no conditional block sets them back to auto, that the ratio
+//          is 2:3, and that the card floor covers the cover.
 //
 // v1.1.0 — ⭐ ROADMAP 26 (index.html v3.15.0): the card is its own <a> now, not
 //          a .book-card div wrapping a .book-card-link. Part C rewritten for
@@ -292,6 +300,48 @@ await check('C5. lastReadLabel never prints a precision the stamp does not have'
     // A clock-skewed FUTURE stamp must not read as negative days. A Chromebook
     // with a wrong clock is not a hypothetical in a school.
     assert.equal(lastReadLabel(NOW + 86400000, NOW), 'Last read today');
+});
+
+await check('C6. the cover has DEFINITE dimensions — an <img> sized `auto` uses the file', () => {
+    // ⚠️⚠️ index.html v3.15.0 SHIPPED THIS BUG AND THE WHOLE SUITE MISSED IT.
+    // An @supports block set `width:auto; height:auto; aspect-ratio:2/3` on the
+    // cover. An <img> has INTRINSIC dimensions, so `auto` does not mean "size me
+    // from my container" — it means "use the file's own 400x600". The flex line's
+    // cross size was then computed FROM that, `aspect-ratio` never applied, and
+    // the covers rendered full size and dragged the cards to ~600px tall.
+    // Nothing here could see it: every assertion in this file is about markup and
+    // arithmetic, and the defect was three CSS declarations. This case exists so
+    // the next person to reach for `auto` on a replaced element trips a harness
+    // instead of a screenshot.
+    const css = src.replace(/\/\*[\s\S]*?\*\//g, '');
+    const rule = css.match(/\.continue-cover\s*,\s*\.continue-cover-placeholder\s*\{([^}]*)\}/);
+    assert.ok(rule, 'the shared cover rule must exist');
+    const body = rule[1];
+
+    assert.ok(/width:\s*\d+px/.test(body), 'C6a the cover states a width in px');
+    assert.ok(/height:\s*\d+px/.test(body), 'C6b the cover states a height in px');
+    assert.ok(!/width:\s*auto/.test(body) && !/height:\s*auto/.test(body),
+        'C6c ⚠⚠ neither dimension may be `auto` — that is the v3.15.0 defect');
+
+    // ⚠️ AND NOT REINTRODUCED FROM A CONDITIONAL BLOCK. The original bug lived
+    // in @supports, so checking only the base rule would have passed it.
+    assert.ok(!/@supports[^{]*\{[\s\S]*?\.continue-cover[\s\S]*?(width|height):\s*auto/.test(css),
+        'C6d ⚠⚠ no conditional block may set the cover back to auto');
+
+    // The stated size must actually be 2:3, or the art crops in a way that stops
+    // looking like a book — which is the complaint that started this.
+    const w = Number(body.match(/width:\s*(\d+)px/)[1]);
+    const h = Number(body.match(/height:\s*(\d+)px/)[1]);
+    assert.ok(Math.abs((w / h) - (2 / 3)) < 0.02,
+        `C6e the cover is 2:3 (got ${w}x${h} = ${(w / h).toFixed(3)})`);
+
+    // And the card is floored at least as tall as the cover, so the cover is
+    // never the thing that leaves a gap underneath itself.
+    const card = css.match(/\.continue-card\s*\{([^}]*)\}/);
+    assert.ok(card, 'the card rule must exist');
+    const floor = card[1].match(/min-height:\s*(\d+)px/);
+    assert.ok(floor, 'C6f the card states a min-height floor');
+    assert.ok(Number(floor[1]) >= h, `C6g the floor (${floor[1]}px) covers the cover (${h}px)`);
 });
 
 // ─── D. THE ROW IS HIDDEN, NOT EMPTY, WHEN THERE IS NOTHING ──────────────────

@@ -139,6 +139,11 @@
         .continue-card {
             grid-column: span 2;
             display: flex; gap: 12px; align-items: stretch;
+            /* The cover is 84px and the padding is 12px top and bottom. Flooring
+               here means the cover is never the thing that leaves a gap — the
+               card is at least as tall as the cover, and a short title cannot
+               shrink the card underneath it. */
+            min-height: 108px;
             background: var(--card-bg);
             border-radius: 6px;
             border-left: 4px solid var(--accent);
@@ -158,29 +163,23 @@
         }
         /* ⚠️ NOT .book-cover — that is width:100% + aspect-ratio, built to fill a
            shelf column, and it collapses this flex row.
-           ⚠️⚠️ THE COVER STRETCHES TO THE CARD'S HEIGHT AND KEEPS ITS SHAPE. Both
-           halves matter and the first attempt only had one: align-self:stretch
-           against a FIXED width grew the box vertically while the width stayed
-           at 46px, so a two-line title turned the cover into a tall sliver.
-           object-fit:cover hid the distortion by CROPPING, which is worse — the
-           art stays undistorted while the book stops looking like a book.
-           So the height is what stretches and `aspect-ratio` derives the width
-           from it, which is the only arrangement where a taller card gets a
-           BIGGER cover rather than a thinner one.
-           ⚠️ THE FIXED WIDTH IS THE FALLBACK, NOT THE RULE. It is declared first
-           and only replaced inside @supports, so a browser without
-           `aspect-ratio` (Safari before 15) gets a sane 46x69 cover instead of
-           an <img> at its intrinsic width, which would be several hundred
-           pixels of blown-out card. */
+           ⚠️⚠️ BOTH DIMENSIONS ARE DEFINITE, AND THAT IS THE WHOLE POINT. An
+           <img> has INTRINSIC dimensions, so `width:auto; height:auto` does not
+           mean "size me from my container" — it means "use the file's own
+           400x600", and the flex line's cross size is then computed FROM that.
+           v3.15.0 shipped exactly that mistake inside an @supports block and the
+           covers rendered at full size, dragging the cards to 600px tall.
+           `aspect-ratio` never applied, because nothing was left for it to
+           resolve against. A stated width and a stated height cannot do that,
+           and 56x84 is a true 2:3.
+           ⚠️ align-self:center, NOT stretch. Stretch on a fixed width is what
+           turned the cover into a tall sliver in the first pass. The card is
+           floored at the cover's height below, so any leftover space is a few
+           pixels split evenly above and below rather than dumped underneath. */
         .continue-cover, .continue-cover-placeholder {
-            flex: 0 0 auto; align-self: stretch;
-            width: 46px; min-height: 69px;
+            flex: 0 0 auto; align-self: center;
+            width: 56px; height: 84px;
             border-radius: 2px;
-        }
-        @supports (aspect-ratio: 2 / 3) {
-            .continue-cover, .continue-cover-placeholder {
-                width: auto; height: auto; aspect-ratio: 2 / 3;
-            }
         }
         .continue-cover { object-fit: cover; background: #e0d8cf; }
         .continue-cover-placeholder {
@@ -193,9 +192,18 @@
             font-size: .68rem; font-weight: 700; color: var(--accent);
             text-transform: uppercase; letter-spacing: .03em;
         }
+        /* ⚠️ CLAMPED TO TWO LINES. Book titles are author-supplied and unbounded
+           ("The Adventures of Pinocchio, and Other Long Titles That Wrap"), and
+           an unclamped one makes its card taller than its neighbour in the same
+           grid row — which is the "slightly off" complaint again, one row down.
+           Two lines fits every title in the library today; the rest ellipsis.
+           The child is looking at their own book with its cover beside it, so a
+           truncated tail costs them nothing. */
         .continue-title {
             font-size: .9rem; font-weight: 700; line-height: 1.25;
             margin: 1px 0 8px;
+            display: -webkit-box; -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
         }
         /* ⚠️ margin-top:auto PINS THE BAR AND THE STAMP TO THE BOTTOM. Titles run
            one line or three; without this the bars sit at different heights in
@@ -580,6 +588,19 @@
         // it, because they used to be hardcoded separately and had already
         // drifted apart (title said 3.0.0, footer said 2.3.1).
         //
+        // v3.16.0: ⚠⚠ THE COVER FIX v3.15.0 SHIPPED WAS WRONG AND VISIBLY SO.
+        //         An @supports block set `width:auto; height:auto; aspect-ratio`
+        //         on the <img>. An <img> has INTRINSIC dimensions, so `auto` does
+        //         not mean "size me from my container" — it means "use the file's
+        //         own 400x600", and the flex line's cross size was then computed
+        //         FROM that. Covers rendered full size and dragged the cards to
+        //         ~600px tall. `aspect-ratio` never applied; nothing was left for
+        //         it to resolve against. ⚠️ BOTH DIMENSIONS ARE DEFINITE NOW
+        //         (56x84, a true 2:3) and the card is floored at 108px so the
+        //         cover is never what leaves a gap. ⚠️ The title is clamped to two
+        //         lines — an unbounded title made one card taller than its
+        //         neighbour in the same grid row.
+        //
         // v3.15.0: ⭐ ROADMAP 26 — THE CONTINUE-READING ROW IS A DIFFERENT KIND OF
         //         THING NOW. Jake: "they're way too big... it looks like it's a
         //         part of the library, and kids are rolling right past it."
@@ -612,7 +633,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.15.0";
+        const INDEX_VERSION = "3.16.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');

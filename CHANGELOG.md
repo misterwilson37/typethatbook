@@ -1,5 +1,67 @@
 # CHANGELOG — TypeThatBook
 
+## Round 49 (Blickensderfer) — 2026-08-26 — the cover size regression
+
+**⚠️⚠️ index.html v3.15.0 shipped a visible regression and this suite could not
+see it.** An `@supports` block set `width:auto; height:auto; aspect-ratio:2/3` on
+the Continue-reading cover. **An `<img>` has INTRINSIC dimensions**, so `auto`
+does not mean "size me from my container" — it means "use the file's own
+400x600". The flex line's cross size was computed from that, `aspect-ratio` never
+applied, and the covers rendered at full size, dragging the cards to ~600px tall.
+Jake caught it in the browser: *"the size of the books is horrible!"*
+
+**✅ Fixed in v3.16.0 with both dimensions definite** — 56x84, a true 2:3 — plus
+a 108px card floor so the cover is never what leaves a gap, and `align-self:
+center` rather than `stretch` (stretch against a fixed width is what produced the
+sliver in the pass before this one). The title is clamped to two lines: an
+unbounded title made one card taller than its neighbour in the same grid row,
+which is the "slightly off" complaint one row down.
+
+**⚠️ The lesson, written into the harness rather than a comment.** Three CSS
+declarations produced a defect no assertion in the file could reach, because
+everything here tests markup and arithmetic. `continue-reading-test.mjs` C6 now
+checks the cover states both dimensions in px, that neither is `auto`, that **no
+conditional block sets them back to auto** (the original bug lived in
+`@supports`, so checking the base rule alone would have passed it), that the
+stated size is 2:3, and that the card floor covers the cover height.
+Mutation-verified by reintroducing the exact bug through the exact route.
+
+- `index.html` v3.16.0, `tests/continue-reading-test.mjs` v1.3.0
+
+**57 harnesses pass. `audit:versions`: 0 problems.**
+
+## Round 48 (Blickensderfer) — 2026-08-26 — the HUD lead axis
+
+**✅ ROADMAP item 12 is CLOSED.** School's lesson HUD leaves `#hud-sprint` empty
+by design, and `.hud-stack` was `justify-content: center` with auto height — so
+the one remaining row centred on the BAR's midline (~30px) while every two-row
+stack put its LEAD row at ~23px. WPM/accuracy, the headline number on that page,
+sat **seven pixels low**. Fixed in `style.css` v3.10.0: the stack gets a two-row
+`min-height` floor and pins to the top, an empty `.hud-lead` is removed, and the
+row beneath takes its box — so it centres on the same axis `#hud-time` and
+`#user-name` use.
+
+**⚠️⚠️ The old comment asserted the bug as a feature.** v3.9.0 said an empty lead
+row lets the remaining row "centre itself without any conditional CSS." It does
+— on the wrong axis. **A comment explaining why no code is needed is the hardest
+kind of wrong to notice.**
+
+**⚠️ `min-height`, not `height`** — the opposite of `#hud`'s own rule above it,
+deliberately: Library's centre during a sprint is genuinely taller than two rows
+and a fixed height would clip it. **`+`, not `:has()`** — old Safari is a real
+target on school Macs.
+
+**⚠️ Two of the item's three bullets were STALE** and were checked before any
+work was done. The student-ID bullet had it backwards — both panels print eight
+characters on purpose, matching `reports.html`. The class bullet was folded into
+item 11, which closed in Round 33. **Three stale flags in ROADMAP.md now; 14a is
+still suspected.**
+
+- `style.css` v3.10.0, `tests/hud-lead-test.mjs` v1.2.0 (Section E, 9 assertions,
+  mutation-verified both ways)
+
+**57 harnesses pass. `audit:versions`: 0 problems.**
+
 ## Round 47 (Blickensderfer) — 2026-08-26 — the Continue-reading row
 
 **✅ ROADMAP item 26 is CLOSED.** The row is horizontal cards now — cover left,
