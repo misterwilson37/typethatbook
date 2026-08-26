@@ -1,4 +1,10 @@
-// firestore-rules.test.mjs v2.0.0 — Round 21 (Hammond). REWRITTEN SEED.
+// firestore-rules.test.mjs v2.1.0 — Round 21 (Hammond). REWRITTEN SEED.
+//
+// v2.1.0 — Round 46 (Rem-Sho), ROADMAP item 24. Four new cases under 'student
+//          access' cover firestore.rules v2.8.0's typing_sessions owner
+//          UPDATE — the rule session-log.js v1.7.0's idempotent resend needs.
+//          Needs the emulator; `npm test` cannot see a rules denial. Run
+//          `npm run test:rules` before deploying either change.
 //
 // ⚠️ THE OLD HEADER SAID "I COULD NOT RUN THIS." IT WAS FALSE FOR FOUR ROUNDS.
 // The Firebase emulator runs fine — java plus a jar from storage.googleapis.com.
@@ -312,6 +318,54 @@ describe('student access', () => {
 
     it('student CANNOT read another student\'s typing log', async () => {
         await assertFails(getDoc(doc(asKidEms().firestore(), 'typing_logs', `${KID_HMS}_2026-07-30`)));
+    });
+
+    // ⚠️ Round 46 (Rem-Sho), ROADMAP item 24 — the writer half. session-log.js
+    // v1.7.0 makes the queue flush idempotent by deriving a stable document id
+    // and calling setDoc() (an UPDATE once the id already exists) instead of
+    // addDoc(). Before firestore.rules v2.8.0 that update was isSuper()-only,
+    // so a real student resend would be DENIED and retry forever. These four
+    // cases are the ones that would have caught that silently, since none of
+    // them show up in `npm test` — only the emulator sees rule denials.
+    it('student CAN update their OWN typing_sessions doc (the resend path)', async () => {
+        const db = asKidEms().firestore();
+        const ref = doc(db, 'typing_sessions', `${KID_EMS}|first|library|pinocchio`);
+        const base = { uid: KID_EMS, seconds: 70, sprints: [{ a: 1 }],
+                        expiresAt: new Date(Date.now() + 1000) };
+        await assertSucceeds(setDoc(ref, base));                    // create
+        // The resend: same id, superset payload — exactly what a second flush
+        // of an unflushed queue derives and writes.
+        await assertSucceeds(setDoc(ref, { ...base, seconds: 150,
+                                            sprints: [{ a: 1 }, { a: 2 }] }));
+    });
+
+    it("student CANNOT update another student's typing_sessions doc", async () => {
+        const hmsDb = asKidHms().firestore();
+        const ref = doc(hmsDb, 'typing_sessions', `${KID_HMS}|first|library|x`);
+        await assertSucceeds(setDoc(ref, { uid: KID_HMS, seconds: 60, sprints: [{ a: 1 }],
+                                            expiresAt: new Date(Date.now() + 1000) }));
+        const db = asKidEms().firestore();
+        await assertFails(setDoc(doc(db, 'typing_sessions', `${KID_HMS}|first|library|x`),
+            { uid: KID_HMS, seconds: 999, sprints: [{ a: 1 }], expiresAt: new Date(Date.now() + 1000) }));
+    });
+
+    it('student CANNOT update typing_sessions with an out-of-range value', async () => {
+        const db = asKidEms().firestore();
+        const ref = doc(db, 'typing_sessions', `${KID_EMS}|first|library|y`);
+        const base = { uid: KID_EMS, seconds: 60, sprints: [{ a: 1 }],
+                        expiresAt: new Date(Date.now() + 1000) };
+        await assertSucceeds(setDoc(ref, base));
+        // A resend must pass the SAME clamps as create — seconds beyond a day
+        // is exactly the forged-value case the create rule already refuses.
+        await assertFails(setDoc(ref, { ...base, seconds: 999999 }));
+    });
+
+    it('student CANNOT delete their own typing_sessions doc', async () => {
+        const db = asKidEms().firestore();
+        const ref = doc(db, 'typing_sessions', `${KID_EMS}|first|library|z`);
+        await assertSucceeds(setDoc(ref, { uid: KID_EMS, seconds: 60, sprints: [{ a: 1 }],
+                                            expiresAt: new Date(Date.now() + 1000) }));
+        await assertFails(deleteDoc(ref));
     });
 
     it('student CANNOT edit books, lessons, or settings', async () => {

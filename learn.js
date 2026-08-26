@@ -1,4 +1,19 @@
-// learn.js v2.37.0
+// learn.js v2.38.0
+//
+// v2.38.0 — ROADMAP item 24, the writer half — TWIN OF game.js v3.46.0.
+//           `sessionLogInit()` now passes `doc` and `setDoc` (both already
+//           imported from read-meter.js for other writes) alongside the
+//           existing four dependencies, so session-log.js v1.7.0's
+//           idempotent flush has what it needs on this page. ⚠️ THIS MUST
+//           LAND IN THE SAME ROUND AS game.js's call — session-log.js's own
+//           header says the two must agree, and session-merge-test.mjs Part C
+//           checks it. Nothing else in this file changed; the fix lives
+//           entirely in session-log.js. See its v1.7.0 entry and HANDOFF
+//           §0.-36 for the full trace. ⚠️⚠️ SHIPS WITH firestore.rules v2.8.0
+//           — do not deploy this without it.
+//           ⚠️ v2.32.0 ARCHIVED THIS ROUND (8-entry budget) — its citations
+//           throughout this file resolve to CHANGELOG.md § ARCHIVED FILE
+//           HEADERS now.
 //
 // v2.37.0 — ⚠️⚠️ ROADMAP 25 — "I'M DONE" STAMPED A CHILD A RECEIPT SHORTER THAN
 //           THE HUD THEY HAD BEEN WATCHING. 9:31 against 10:02, the gap being
@@ -85,27 +100,6 @@
 // v2.33.0 — ⚠️ TWIN OF game.js v3.45.0. The build panel's per-page "already
 //           loaded" flag is gone; versions.js v1.13.0 owns freshness. Nothing
 //           about ROADMAP item 10 changed. HANDOFF §0.-22.
-//
-// v2.32.0 — ⭐⭐ ROADMAP ITEM 10 — THE LESSON-FARMING GATE. Jake: "students are
-//           just redoing the first three lessons indefinitely because they're
-//           easy." ⚠️⚠️ THE RULE IS IN lesson-gate.js AND IT IS PURE; this file
-//           only supplies numbers and draws the result. MASTERY IS WHAT CLOSES A
-//           LESSON, AND ONLY MASTERY — a lesson with fewer than three A🔥 is
-//           always graded and always replayable, forever, at any distance.
-//           ⚠️ A PRACTICE RUN WRITES NOTHING ANYWHERE: no grade, no session, no
-//           second. The three omissions are ONE decision — splitting them would
-//           manufacture the exact typing_logs/typing_sessions divergence that
-//           ROADMAP item 4's implausibility flag exists to detect. And it never
-//           arms startGradedTimer(), so ⚠️ THE ONE INCREMENT SITE IS UNTOUCHED:
-//           no new condition, nothing between the gate and the increments.
-//           ⚠️ THE BANNER IS THE FEATURE, NOT DECORATION — a child typing for ten
-//           minutes while the daily total does not move reads as a broken app.
-//           See HANDOFF §0.-21.
-//
-//
-//
-//
-//
 //
 // Lesson-mode engine, separate from game.js. Same write-ahead-log and
 // coalesced-flush persistence pattern.
@@ -227,7 +221,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.37.0";
+const LEARN_VERSION = "2.38.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -237,7 +231,10 @@ const LEARN_VERSION = "2.37.0";
 // School and Library write differently shaped documents — which is the R2
 // symmetry failure DESIGN-TELEMETRY.md exists to prevent, in its smallest
 // possible form. session-merge-test.mjs Part C asserts the two calls agree.
-sessionLogInit({ db, collection, addDoc, serverTimestamp });
+//
+// v2.38.0 — `doc` and `setDoc` join the surface; session-log.js v1.7.0
+// requires them. See game.js v3.46.0's identical note.
+sessionLogInit({ db, collection, addDoc, doc, setDoc, serverTimestamp });
 
 // ⚠️ v2.31.0 — imported from firebase-config.js. ⚠️ TWIN OF game.js AND THE
 // REASON FOR THE MOVE: this file and game.js each carried their own copy, so

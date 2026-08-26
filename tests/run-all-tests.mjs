@@ -1,4 +1,5 @@
-// run-all-tests.mjs v1.18.0 — Round 45 (Rem-Sho): roadmap-index-test.mjs.
+// run-all-tests.mjs v1.19.0 — Round 46 (Rem-Sho): session-writer-test.mjs.
+// v1.18.0 — Round 45 (Rem-Sho): roadmap-index-test.mjs.
 // v1.17.0 — Round 42 (Rem-Sho): im-done-test.mjs.
 // v1.16.0 — Round 41 (Rem-Sho): remediation-test.mjs and
 // run-grade-test.mjs.
@@ -222,6 +223,14 @@ const FAST = [
     ['celebration-test.mjs',     'NOT EVERYONE GOT FIREWORKS: a goal crossing missed in one mode must fire in the next, once'],
     ['done-button-test.mjs',     "I'M DONE IS A RECEIPT: it files the open sprint and flushes, and nothing may ever gate on it"],
     ['queue-owner-test.mjs',     'ONE BROWSER, TWO STUDENTS: a second account may not destroy the first\u2019s unflushed queue, by push, by flush or by eviction'],
+    // ⚠️ Round 46 (Rem-Sho), ROADMAP item 24 \u2014 the writer half. addDoc()
+    // minted a random id on every flush, so a chunk resent after a killed
+    // pagehide (or a silently-failed local removal) became a NEW, larger
+    // document instead of overwriting the old one \u2014 12 of 51 student-days,
+    // measured. The fix is a derived document id + setDoc(), so a resend
+    // overwrites. Ships with firestore.rules v2.8.0 (owner update rights) \u2014
+    // this harness cannot see the rules; run npm run test:rules before deploy.
+    ['session-writer-test.mjs',  'THE WRITER: a resent chunk overwrites its own document instead of duplicating it, whether the page was killed or the local removal itself failed, and two different chunks never collide on one id'],
     // ⚠️ Round 31 (Fitch), ROADMAP 14b. The time was banked on the way out of a
     // lesson and the RUN was not, because stopLesson() reloaded progress and
     // loadUserProgress() opens by emptying userProgress — so the scheduled

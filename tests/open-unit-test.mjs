@@ -1,4 +1,7 @@
-// open-unit-test.mjs v1.2.3 — the open sprint / open run, and the watermark that
+// open-unit-test.mjs v1.2.4 — the open sprint / open run, and the watermark that
+//
+// v1.2.4 — VERSION PIN ONLY. session-log.js is v1.7.0 (Round 46, the writer).
+//          No assertion about behaviour changed.
 //
 // v1.2.3 — VERSION PIN ONLY. session-log.js is v1.6.0 (Round 24, the evening
 //          guest). No assertion about behaviour changed.
@@ -340,8 +343,8 @@ globalThis.localStorage = {
     removeItem: k => { store.delete(k); },
 };
 const mod = await import('../session-log.js');
-ok(mod.SESSION_LOG_VERSION === '1.6.0',
-   `session-log.js reports v1.6.0 (got ${mod.SESSION_LOG_VERSION})`);
+ok(mod.SESSION_LOG_VERSION === '1.7.0',
+   `session-log.js reports v1.7.0 (got ${mod.SESSION_LOG_VERSION})`);
 
 const base = { date: '2026-08-18', at: '2026-08-18T09:00:00.000Z', chars: 10,
                mistakes: 0, wpm: 30, accuracy: 100, source: 'library', label: 'oz' };

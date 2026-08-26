@@ -1,74 +1,91 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-08-25 by Round 45 (Rem-Sho), for whoever is next
+> ## ▶ START HERE — written 2026-08-26 by Round 46 (Blickensderfer), for whoever is next
 >
-> **The next round is ROADMAP item 24: the session-log WRITER.** Everything you
-> need is in that item and in §0.-34.C. It is specified, measured, and traced —
-> **you should not need to rediscover any of it.**
+> **The next round is ROADMAP item 26: the resume-book buttons are too big and
+> read as a library shelf.** Item 24 (the session-log writer) is CLOSED this
+> round — reader, writer and rules all landed together. See §0.-36 below for
+> the full account; you should not need to rediscover any of it.
 >
-> **What it is:** `_sessionLogFlushInner()` writes the rollup to Firestore and
-> *then* clears the local queue, non-atomically, **on `pagehide`** — precisely
-> when a browser may kill the page. Die between those two steps and the document
-> is on the server while the queue still holds its sprints. The next load
-> resends, and `_addDoc()` mints a **random id**, so the resend appends a *larger*
-> document instead of replacing the old one.
+> ### What landed this round
 >
-> **Measured 2026-08-25: 12 of 51 student-days, 8 of 10 students, every day from
-> the 18th to the 25th.** Still happening.
+> `session-log.js` v1.7.0's flush is now IDEMPOTENT: a resent chunk (killed
+> `pagehide`, or a silently-failed local `_write()`) derives a document id from
+> `uid` + the first sprint's `at` + `source` + `label` and writes with
+> `setDoc()`, so it overwrites its own document instead of appending a new one.
+> Shipped as ONE unit with `firestore.rules` v2.8.0 (owner `update` rights on
+> `typing_sessions`, same clamps as `create`) and `game.js` v3.46.0 /
+> `learn.js` v2.38.0 (both now pass `doc`/`setDoc` into `sessionLogInit()`).
 >
-> **The fix is idempotence** — a derived document id so a resend overwrites.
-> ⚠️⚠️ **IT NEEDS A `firestore.rules` CHANGE IN THE SAME ROUND.** `typing_sessions`
-> `update` is `isSuper()`-only today, so a student's resend would be denied and
-> retry forever. **Rule 9. Do not ship half.**
-> ⚠️ `npm run test:rules` works here (Java is present, 61 cases) — **execute the
-> rule, do not reason about it.** §0.-31.E is the round that learned that.
+> ⚠️⚠️ **THIS IS FOUR FILES THAT MUST DEPLOY TOGETHER**: `session-log.js`,
+> `firebase/firestore.rules`, `game.js`, `learn.js`. The rules change alone
+> does nothing; the code change without it is denied and retries forever;
+> either page controller alone breaks §0.-13.E's twin-symmetry rule.
+> **`firestore.rules` v2.8.0 MUST BE PASTED INTO THE CONSOLE BEFORE OR IN THE
+> SAME SESSION AS the JS files go live**, same as v2.7.0's note.
 >
-> ### Before you touch `session-log.js`, read this
+> ✅ **VERIFIED AGAINST THE REAL EMULATOR, NOT JUST REASONED ABOUT.**
+> `npm run test:rules` was actually run (Java is present) and caught a real bug
+> in the new test's own seeding step before it was trusted — see §0.-36.D.
+> **65 rules cases pass, 4 of them new.** ⚠️ Do not treat a green `npm test` as
+> having covered the rules change; it cannot see a permission denial. Run
+> `npm run test:rules` yourself before concluding this is still working after
+> any future edit near `typing_sessions`.
 >
-> It is the hottest write path in the app and it has a history of subtle,
-> data-losing bugs — see its own header, v1.3.0 through v1.6.0. **Do not shorten
-> the loop.** Write the harness first; `tests/queue-owner-test.mjs` is the model.
+> ⚠️ **EXISTING DUPLICATE DOCUMENTS FROM BEFORE THIS ROUND STILL STAND.** The
+> reader already dedupes them (Round 44) and the writer has stopped adding to
+> them (this round), but nothing has cleaned the old ones up. A bulk-write
+> cleanup pass is a separate decision — not urgent, not this round's job.
 >
-> ### ⚠️⚠️ AND READ §0.-31.H, §0.-32.D AND §0.-33.C BEFORE YOU EDIT ANY FILE
+> ### Before you touch `session-log.js` again
 >
-> Round 41–43 caused **four** self-inflicted file-damage incidents — a harness
-> truncated to zero bytes, two unbounded slices that deleted 5KB of `learn.js`,
-> and a backward slice that duplicated a chunk of `lessons-admin.js`. **Every one
-> was a write whose extent was not bounded before it was made.** The rules that
-> came out of it, and they are not optional:
+> Same warning Round 45 left, still true: it is the hottest write path in the
+> app and has a history of subtle, data-losing bugs — read its own header,
+> v1.3.0 through v1.7.0 (v1.3.0 is archived to CHANGELOG.md § ARCHIVED FILE
+> HEADERS, line budget — the file still cites it once, at `_flushChain`).
+> `tests/session-writer-test.mjs` is now the model for a mutation-verified
+> harness on this file, alongside `tests/queue-owner-test.mjs`.
 >
-> * **Encode first, write to a temp file, verify the size, rename.** Never
->   `open(path, 'w')` before the bytes are known-good.
-> * **Assert every anchor matches exactly once** (`s.count(old) == 1`), and any
->   slice must assert `j > i`.
-> * **Guard on structure, not on words.** A canary that counted `'import '` once
->   fired correctly *by accident* because the text being deleted contained that
->   phrase. Count non-comment code lines instead.
+> ### ⚠️⚠️ READ §0.-31.H, §0.-32.D AND §0.-33.C BEFORE YOU EDIT ANY FILE
+>
+> Unchanged from Round 45's warning — still the standing rule, not yet retired:
+> encode first, write to a temp file, verify the size, rename; assert every
+> anchor matches exactly once (`s.count(old) == 1`) and any slice asserts
+> `j > i`; guard on structure (non-comment code line count), never on words.
+> This round made no file-damage incidents — the streak since §0.-33.C is now
+> three rounds.
 >
 > ### State of play
 >
-> * **56 harnesses pass**, `npm run audit:versions` reports **0 problems**, and
->   the changed-file set is verified on a clean checkout. Keep it that way.
-> * `firestore.rules` **v2.7.0 is deployed**. No console step is outstanding.
+> * **57 harnesses pass**, `npm run audit:versions` reports **0 problems**,
+>   `npm run test:rules` passes **65 cases**. The changed-file set for this
+>   round: `session-log.js`, `firebase/firestore.rules`, `game.js`, `learn.js`,
+>   `tests/session-writer-test.mjs` (new), `tests/session-merge-test.mjs`,
+>   `tests/queue-owner-test.mjs`, `tests/guest-merge-test.mjs`,
+>   `tests/open-unit-test.mjs`, `tests/version-stamp-test.mjs` (no edit
+>   needed — it caught the version pins), `tests/firestore-rules.test.mjs`,
+>   `tests/run-all-tests.mjs`, `ROADMAP.md`, `CHANGELOG.md`, `HANDOFF.md`.
+> * `firestore.rules` **v2.8.0 IS NOT YET DEPLOYED** — Jake pastes it into the
+>   console himself; see the upload checklist. Until then the app-side fix is
+>   live in the repo but the resend path it enables is still denied in
+>   production.
 > * ⚠️ **ROADMAP.md's numbers are not an order and are not unique** (there are
->   two item 18s). **DO NOT RENUMBER** — sources and harnesses cite them in prose.
->   Read the index at the top of that file first; `tests/roadmap-index-test.mjs`
->   keeps it honest, so **regenerate the index in the same edit that changes a
->   heading's status.**
-> * ⚠️ Item **14a is suspected stale** — it reads like what item 14 already built.
->   **Verify before working it**; items 13 and 11a were both stale ⭐⭐ flags, and
->   one such flag cost Round 35 an entire round.
-> * The read meter now covers **every** page (`ttbMeter.report()`). Jake's last
->   sample showed **2,562 reads / 1,640 misses across 4 page loads** — that miss
->   ratio is unexamined and may be worth a look after item 24.
+>   two item 18s). **DO NOT RENUMBER** — sources and harnesses cite them in
+>   prose. `tests/roadmap-index-test.mjs` keeps the index honest; regenerate it
+>   in the same edit that changes a heading's status. It was run this round and
+>   is clean.
+> * ⚠️ Item **14a is still suspected stale** — untouched this round, carried
+>   forward from Round 45's note. Verify before working it.
+> * The read meter's miss ratio from Round 45's note (**2,562 reads / 1,640
+>   misses across 4 page loads**) is still unexamined and still may be worth a
+>   look, now that item 26 is next rather than item 24.
 >
 > ### The name
 >
-> This session was **Rem-Sho** across rounds 41–45 — one name per conversation,
-> not per round. ⚠️ **GREP THE ROSTER BEFORE YOU PICK YOURS.** Rounds 36–40 are
-> all written up as *Underwood*, which is Round 1 — the fourth occurrence, past
-> three written warnings. The check is `grep -ri <name> .`, and it is the only
-> thing that has ever worked.
+> Round 46 is **Blickensderfer** — checked against the roster
+> (`grep -rihn "Round [0-9]* (" . | grep -oP "Round \d+ \([A-Za-z-]+\)"`) before
+> picking it. One name per conversation, not per round; if the next round is a
+> continuation of this same conversation, keep this name.
 
 
 <!-- HANDOFF.md v15.30.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
@@ -895,6 +912,119 @@ is not the same as checking the list. **Check the list.**
 > the repo root and dropped each one into the channel it belonged in.
 
 ---
+
+## §0.-36. ✅ ROUND 46 (Blickensderfer) — THE WRITER, CLOSED, AND VERIFIED ON THE EMULATOR
+
+**2026-08-26.** ROADMAP item 24's writer half — traced and specified by Round
+44, handed off by Round 45's `▶ START HERE` block. Landed in one round, tested
+before and after, and — for the first time this project checked the claim
+rather than asserting it — run against the real Firebase rules emulator.
+
+### A. ✅ THE FIX: A DERIVED DOCUMENT ID, NOT A MORE RELIABLE REMOVAL
+
+`_sessionLogFlushInner()` wrote every rollup with `addDoc()` — a random id —
+and removed the chunk from the local queue only after that write resolved, on
+`pagehide`, exactly when a browser may kill the page. Die between the write
+and the removal (or have the removal itself fail silently — `_write()`
+returns `false` on a full localStorage, discarded at both call sites) and the
+next resend minted a SECOND random id: a new, larger document, not an
+overwrite. Measured by Round 44: 12 of 51 student-days.
+
+`session-log.js` v1.7.0 derives the document id from the chunk — `uid` + the
+first sprint's `at` + `source` + `label`, see `_sessionDocId()` — and writes
+with `setDoc()`. A resend of the same chunk derives the SAME id and lands on
+the SAME document, overwriting it. ⚠️ **THIS RESOLVES BOTH KNOWN PATHS AT
+ONCE** — a killed page and a failed local write are indistinguishable to the
+next flush, because neither one changes what it derives as the id. That is
+why the fix note in v1.6.0's round said "idempotence, not a more reliable
+removal": a more reliable removal would still leave the failure-during-removal
+path open.
+
+⚠️ **`_sessionDocId()` sanitizes and can return `null`.** Firestore document
+ids forbid `/`, a bare `.` or `..`, and the `__.*__` reserved pattern. None of
+`uid`, `at`, `source` or `label` are expected to contain any of those, but
+"expected" doesn't get to gate a write — a slash is stripped, and a
+degenerate id falls back to the old `addDoc()` path for that one document
+only (idempotence lost for it, not the write itself).
+
+### B. ✅ SHIPPED AS ONE UNIT — code, rules, and BOTH page controllers
+
+`firestore.rules` v2.8.0: the `typing_sessions` owner may now `update`, under
+the SAME validation `create` already applies — not a bare `isOwner()`. A
+resend recomputes the whole payload from the current queue, so `update` here
+is really "create, again," and the seconds/sprints/expiresAt clamps that stop
+a forged value apply to it exactly as they do to a first write. `delete`
+stays `isSuper()`-only; nothing in the app deletes one of these and this round
+did not open that door.
+
+`game.js` v3.46.0 and `learn.js` v2.38.0: both now pass `doc, setDoc` into
+`sessionLogInit()`, which `session-log.js` v1.7.0 requires (`_ready()` returns
+`false` without them — the queue would simply stop flushing, silently, which
+is worse than the bug this fixes). ⚠️ **THE TWO CALLS MUST AGREE** — same rule
+as every prior round on this module — and `session-merge-test.mjs` Part C
+still asserts it.
+
+### C. ⚠️ FOUR FILES, ONE DEPLOY. DO NOT SHIP HALF.
+
+`session-log.js`, `firebase/firestore.rules`, `game.js`, `learn.js`. The rules
+change alone does nothing (nothing calls `setDoc` on `typing_sessions` without
+the code change). The code change without the rules change is denied on every
+real resend and retries forever — looking shipped, doing nothing, exactly the
+failure mode v2.7.0's own header warned about for a different rule. Either
+page controller without the other breaks twin symmetry and the paired
+harness. Jake pastes `firestore.rules` into the console himself; it is not
+deployed by this round, only written.
+
+### D. ⚠️⚠️ THE HARNESS CAUGHT ITS OWN BUG, AGAINST THE REAL EMULATOR
+
+`tests/session-writer-test.mjs` was written first — 6 parts, mutation-verified
+RED against v1.6.0 (13 failing, no crash), GREEN against v1.7.0 (23/23). That
+proves the id-derivation logic. It cannot prove the RULE, because it mocks
+`setDoc` rather than calling Firestore.
+
+`npm run test:rules` was actually run — Java was present in this container —
+against `tests/firestore-rules.test.mjs`'s four new cases. The first run
+failed one of the NEW cases, and not the one it was testing: the seeding step
+tried to `setDoc` a `typing_sessions` document AS Jake (`super_admin`) on
+behalf of another student, and the `create` rule has no `isSuper()` branch —
+only the owner may create their own record, full stop. Fixed by seeding as
+the student (`asKidHms()`) instead. ⚠️ **A GREEN HARNESS THAT MOCKS THE RULE
+CANNOT CATCH A RULE THAT DOESN'T EXIST THE WAY YOU ASSUMED.** §0.-31.E made
+this point about executing a rule instead of reasoning about it; this is the
+same lesson landing on a brand-new test rather than an old one.
+
+**65 rules cases pass, 4 of them new.** `npm test`: **57 harnesses pass, 0
+missing.** `npm run audit:versions`: **0 problems.**
+
+### E. THE FALLOUT — FIVE HARNESSES WHOSE MOCKS ASSUMED THE OLD SIGNATURE
+
+`session-merge-test.mjs`, `queue-owner-test.mjs` and `guest-merge-test.mjs`
+each construct their own injected Firestore surface for `sessionLogInit()`,
+and each supplied only `addDoc`. Once `_ready()` started requiring `doc` and
+`setDoc`, all three flushes silently reported nothing written — not a logic
+regression, a mock gap. `open-unit-test.mjs` and `version-stamp-test.mjs`
+separately pin `session-log.js`'s version number in their own headers for
+mutation-testing purposes; both needed bumping to v1.7.0. None of these five
+represent a change in what the module does — they are the cost of a required
+dependency changing shape, and version-stamp-test.mjs's Section C (version
+pins) is exactly the harness built to catch a stale one.
+
+### F. ⚠️ A HEADER OVER BUDGET, AND AN ARCHIVE THAT FOLLOWS THE ESTABLISHED PATTERN
+
+`session-log.js`'s header hit 236 lines against a 220-line budget after the
+v1.7.0 entry, even trimmed once. Rather than compress further and lose the
+warnings a future round will need, the v1.3.0 entry (SERIALIZED FLUSHES, the
+2026-08-19 duplicate-session race) moved to `CHANGELOG.md` § ARCHIVED FILE
+HEADERS — same mechanism Round 28 and Round 43 used for `game.js` and
+`lessons-admin.js`, with the same "still cited once, here's where it
+resolves" note for the one live reference (`_flushChain`'s comment).
+
+### G. THE NUMBERS
+
+`session-log.js` v1.7.0, `firebase/firestore.rules` v2.8.0, `game.js` v3.46.0,
+`learn.js` v2.38.0, `tests/session-writer-test.mjs` (NEW), `run-all-tests.mjs`
+v1.19.0. **57 harnesses pass**, `audit:versions` **0 problems**, `test:rules`
+**65 cases, 0 failing**.
 
 ## §0.-35. ✅ ROUND 45 (Rem-Sho) — THE HANDOFF PASS, AND THE INDEX THAT LIED
 

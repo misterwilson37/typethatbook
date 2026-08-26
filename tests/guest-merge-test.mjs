@@ -1,4 +1,8 @@
-// guest-merge-test.mjs v1.1.0 — THE MINUTE A CHILD TYPES BEFORE SIGNING IN.
+// guest-merge-test.mjs v1.2.0 — THE MINUTE A CHILD TYPES BEFORE SIGNING IN.
+//
+// v1.2.0 — VERSION PIN / MOCK ONLY. session-log.js is v1.7.0 (Round 46, the
+//          writer) — Part D's real-module mock gains `doc`/`setDoc`, required
+//          now. No assertion about behaviour changed.
 //
 // v1.1.0 — Parts C4, C5 and C7 assert their PROPERTY rather than one spelling
 //          of it: C4/C5 that the slot is taken then adopted, C7 that the flush
@@ -234,6 +238,8 @@ console.log('\n─── D. the handover, against the real module ───');
     const writes = [];
     m.sessionLogInit({
         db: {}, collection: (_d, n) => n,
+        doc: (_d, _n, id) => ({ __ref: true, id }),
+        setDoc: async (_ref, p) => { writes.push(p); },
         addDoc: async (_c, p) => { writes.push(p); return { id: 'd' + writes.length }; },
     });
 

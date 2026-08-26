@@ -1,6 +1,27 @@
 rules_version = '2';
 
-// firestore.rules v2.7.0 — TypeThatBook
+// firestore.rules v2.8.0 — TypeThatBook
+//
+// v2.8.0 — ⚠️⚠️ THE typing_sessions OWNER MAY NOW UPDATE, UNDER THE SAME
+//          VALIDATION AS create. ROADMAP item 24: session-log.js v1.7.0 makes
+//          the queue flush IDEMPOTENT — a resent chunk derives the same
+//          document id and calls setDoc() to overwrite it rather than
+//          addDoc()'s random-id append. Without this rule change that resend
+//          is DENIED (`update` was `isSuper()`-only) and retries forever,
+//          which is exactly the failure the app-side fix cannot see from the
+//          browser — it would look shipped and do nothing. ⚠️ MUST DEPLOY IN
+//          THE SAME ROUND AS session-log.js v1.7.0 / game.js v3.46.0 /
+//          learn.js v2.38.0, same reasoning as v2.7.0's note above about a
+//          feature that fails silently on a rarely-hit path.
+//
+//          ⚠️ SAME OWNERSHIP AND FIELD CHECKS AS create, not a bare
+//          `isOwner()`. A resend recomputes the whole payload from the
+//          current queue, so `update` is really "create, again" here — the
+//          size/seconds/expiresAt clamps exist to stop a forged value and a
+//          resend is not exempt from them just because the document already
+//          exists. `delete` stays `isSuper()`-only; nothing in the app ever
+//          deletes one of these, and this round is not the round to open
+//          that door.
 //
 // v2.7.0 — ⚠️⚠️ BUILDING-SCOPED STAFF MAY NOW WRITE lessonProgress, AND ONLY
 //          lessonProgress. ROADMAP 15's grade-reconstruction button (the ⚑ on
@@ -587,7 +608,27 @@ service cloud.firestore {
       allow read:   if (signedIn() && resource == null)
                     || (signedIn() && resource.data.uid == request.auth.uid)
                     || canReadActivity(resource.data);
-      allow update, delete: if isSuper();
+      // ⚠️ v2.8.0 — THE OWNER MAY UPDATE, UNDER THE SAME VALIDATION AS
+      // create. This is what session-log.js v1.7.0's idempotent flush needs:
+      // a resend derives the same document id and setDoc()s it, which is a
+      // Firestore UPDATE against an existing document. Before this it was
+      // isSuper()-only, so a real resend would be denied and retry forever —
+      // see the header note above. The clauses are the create rule's,
+      // repeated rather than shared, because `update`'s `resource` is the
+      // EXISTING document and `create`'s `resource` is null; a shared
+      // function taking both would need the same five checks written twice
+      // inside it anyway.
+      allow update: if isSuper()
+                    || (signedIn()
+                        && resource.data.uid == request.auth.uid
+                        && request.resource.data.uid == request.auth.uid
+                        && request.resource.data.seconds is number
+                        && request.resource.data.seconds >= 0
+                        && request.resource.data.seconds <= 86400
+                        && request.resource.data.sprints is list
+                        && request.resource.data.sprints.size() <= 200
+                        && request.resource.data.expiresAt is timestamp);
+      allow delete: if isSuper();
     }
 
     // These carry email, displayName, and the full generated paragraph, so they

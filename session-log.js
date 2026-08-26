@@ -1,4 +1,37 @@
-// session-log.js v1.6.0
+// session-log.js v1.7.0
+//
+// v1.7.0 — ⚠️⚠️ THE WRITER. ROADMAP item 24. `_sessionLogFlushInner()` wrote
+//          every rollup with `addDoc()` — a RANDOM id — and cleared the local
+//          queue only AFTER that write resolved, on `pagehide`, exactly when
+//          a browser may kill the page. Die between write and removal (or
+//          have the removal itself silently fail — `_write()` returns
+//          `false` on a full localStorage, discarded at both call sites) and
+//          the next load resent the chunk under a SECOND random id — a new,
+//          larger document, not an overwrite. Measured 2026-08-25: 12 of 51
+//          student-days.
+//
+//          ⚠️⚠️ FIX: IDEMPOTENCE, NOT A MORE RELIABLE REMOVAL. The document
+//          id is now DERIVED from the chunk (`uid` + first sprint's `at` +
+//          `source` + `label`, see _sessionDocId()) and written with
+//          `setDoc()`. A resend derives the SAME id and overwrites — a
+//          superset replacing a subset, no duplicate, no loss. This covers
+//          BOTH known paths at once: a killed page and a failed local write
+//          are indistinguishable to the next flush.
+//
+//          ⚠️ NEEDS sessionLogInit({ ..., doc, setDoc }) — two new required
+//          deps; `addDoc` stays accepted but unused. game.js / learn.js both
+//          already import `doc`/`setDoc` and must pass them in the SAME
+//          round, or the flush silently stops (`_ready()` false).
+//
+//          ⚠️⚠️ SHIPS WITH firestore.rules v2.8.0, REQUIRED — `update` on
+//          `typing_sessions` was `isSuper()`-only; without it a resend is
+//          DENIED and retries forever, looking fixed and doing nothing.
+//
+//          ⚠️ Existing duplicates are untouched — the reader already dedupes
+//          them (v1.6.0); a cleanup pass is a separate, later decision.
+//
+//          tests/session-writer-test.mjs — mutation-verified, 13 failing
+//          against v1.6.0.
 //
 // v1.6.0 — ⚠️ sessionLogAdopt() THREW AWAY A GOOD LOCAL DATE AND REPLACED IT
 //          WITH A UTC ONE. The date came from `at.slice(0, 10)`, and `at` is
@@ -63,27 +96,10 @@
 //          projection needs to know what is queued locally but not yet uploaded.
 //          See daylog.js projectDayTotal(). HANDOFF §0.0.
 //
-// session-log.js v1.3.0 — the sprint/run history queue, shared by game.js and
-// learn.js. The third shared module, after firebase-config.js and stats-wal.js.
-//
-// v1.3.0 — SERIALIZED FLUSHES. `sessionLogFlush()` is now a thin wrapper that
-//          chains onto `_flushChain` and calls `_sessionLogFlushInner()`; a second
-//          flush starts only after the first has resolved and cleared what it
-//          wrote. This closes the duplicate-session race of 2026-08-19: clicking
-//          Home fires BOTH visibilitychange:hidden and pagehide, each calling
-//          flushSessionsNow() unawaited, and the second read a queue the first had
-//          not cleared yet. Callers WAIT rather than being dropped — one arriving
-//          mid-flush may carry records the in-flight run never saw. Guarded by
-//          session-merge-test.mjs Part E, which is mutation-tested. The full
-//          reasoning is in the comment block above sessionLogFlush().
-//          ⚠️ HEADER REPAIR, Round 17 (Linotype): this file arrived with
-//          SESSION_LOG_VERSION already set to '1.3.0' and its header still saying
-//          1.2.1, so `npm run audit:versions` reported "header comment says
-//          v1.2.1 — one of the two is a lie", the twelfth problem in a repo whose
-//          standing count is eleven. The code was correct and complete; only the
-//          header was missing. This entry was written from the file's own
-//          sessionLogFlush() comment block and the concurrent round's HANDOFF §0.6
-//          item 8, not invented. NOTHING EXECUTABLE WAS CHANGED.
+// v1.3.0 — SERIALIZED FLUSHES, closing the 2026-08-19 duplicate-session race
+//          (two flush handlers firing unawaited). Archived to CHANGELOG.md
+//          § ARCHIVED FILE HEADERS (line budget); the `_flushChain` note
+//          above `_sessionLogFlushInner` still cites it and resolves there.
 //
 // v1.2.1, v1.2.0, v1.1.0 — invariant-citation renumbering; the `continuation`
 //          exemption from the 5-second floor; and `serverAt`. ⚠️ The two of
@@ -201,7 +217,7 @@
 //     a tab close would then try to write an empty map into a timestamp field.
 //     Queued records carry `at` (a real ISO string) and nothing else time-like.
 
-export const SESSION_LOG_VERSION = '1.6.0';
+export const SESSION_LOG_VERSION = '1.7.0';
 
 const KEY = 'ttb_sessionq_v1';
 const RECORDS_PER_DOC = 200;   // firestore.rules: sprints.size() <= 200
@@ -236,13 +252,24 @@ export const MAX_QUEUE_OWNERS = 8;
 export const GUEST_QUEUE_UID = '\u0000guest';
 
 // Injected by init(). Nothing in this file reaches for a global.
-let _db = null, _collection = null, _addDoc = null, _serverTimestamp = null;
+let _db = null, _collection = null, _addDoc = null, _doc = null, _setDoc = null,
+    _serverTimestamp = null;
 
 export function sessionLogInit(deps) {
     if (!deps) return;
     _db         = deps.db         || null;
     _collection = deps.collection || null;
+    // ⚠️ KEPT, BUT NO LONGER CALLED BY THIS FILE (v1.7.0). `addDoc()` mints a
+    // random id, which is precisely what made a resend duplicate rather than
+    // overwrite — see the v1.7.0 header entry. Accepting it as optional input
+    // rather than deleting it costs nothing and avoids a second, unrelated
+    // required-dependency trap for whichever caller upgrades second.
     _addDoc     = deps.addDoc     || null;
+    // ⚠️ REQUIRED FOR THE WRITER (v1.7.0). `doc()` builds the derived-id
+    // reference; `setDoc()` writes to it so a resend overwrites instead of
+    // appending. See _sessionDocId() and _sessionLogFlushInner().
+    _doc        = deps.doc        || null;
+    _setDoc     = deps.setDoc     || null;
     // ⚠️ OPTIONAL, ON PURPOSE, AND IT IS NOT ONLY A COURTESY TO THE TESTS.
     // Jake uploads one file at a time through the GitHub web portal, so there is
     // a window — minutes, or an afternoon — where this module is new and a page
@@ -255,7 +282,38 @@ export function sessionLogInit(deps) {
         ? deps.serverTimestamp : null;
 }
 
-function _ready() { return !!(_db && _collection && _addDoc); }
+// ⚠️ `doc` AND `setDoc` ARE REQUIRED NOW, `addDoc` IS NOT (v1.7.0). A caller
+// still on the old three-dependency init() finds the queue simply never
+// flushes — silent, but no worse than the pre-v1.5.0 window this same
+// trade-off already accepts for `serverTimestamp`, and far better than
+// flushing with the exact mechanism this version exists to remove.
+function _ready() { return !!(_db && _collection && _doc && _setDoc); }
+
+// Firestore document ids forbid `/`, forbid a bare `.` or `..`, and forbid
+// the reserved `__.*__` pattern. None of `uid`, `at`, `source` or `label` are
+// expected to contain a slash, but "expected" is not a guarantee a book or
+// lesson id gets to violate a write — so it is stripped, not trusted.
+function _sanitizeIdPart(s) {
+    return String(s == null ? '' : s).replace(/\//g, '_');
+}
+
+// The write path's idempotence key. Same uid, same first sprint's `at`, same
+// source, same label \u2192 same id, always \u2014 which is the whole fix: a
+// resend of an unflushed chunk derives this identically and overwrites
+// rather than duplicating. Joined with `|`, which cannot appear in a
+// well-formed ISO timestamp or in `source` ('library' | 'school'), so a
+// label containing `|` is the only way two different chunks could collide —
+// stripped to `_` above, same as a slash, so it never can.
+function _sessionDocId(uid, firstSprint) {
+    const parts = [uid, firstSprint.at, firstSprint.source, firstSprint.label]
+        .map(p => _sanitizeIdPart(p).replace(/\|/g, '_'));
+    const id = parts.join('|');
+    // A derived id can, in principle, land on `.`/`..` or the empty string if
+    // every part sanitizes away — neither is a valid Firestore id. Falling
+    // back to addDoc()'s old behaviour (random id) for that one document is
+    // safer than writing to a rejected ref and losing the rollup outright.
+    return (id && id !== '.' && id !== '..' && !/^__.*__$/.test(id)) ? id : null;
+}
 
 // ⚠️ THERE IS NO CLIENT-SIDE FALLBACK HERE, AND THERE MUST NEVER BE ONE.
 // `new Date()` would satisfy the field's type and destroy its only purpose: a
@@ -617,9 +675,7 @@ async function _sessionLogFlushInner(uid, meta) {
             const stamp = isFinite(firstAt) ? new Date(firstAt) : new Date();
 
             try {
-                // _stampServer() adds `serverAt` here, at write time, and only
-                // here — see the sentinel note in SEMANTICS above.
-                await _addDoc(_collection(_db, 'typing_sessions'), _stampServer({
+                const payload = _stampServer({
                     uid,
                     email:       meta.email       || '',
                     displayName: meta.displayName || 'Anonymous',
@@ -645,7 +701,27 @@ async function _sessionLogFlushInner(uid, meta) {
                         : 100,
                     sprints: chunk,
                     expiresAt: new Date(Date.now() + TTL_DAYS * 86400 * 1000),
-                }));
+                });
+                // ⚠️ IDEMPOTENT ON PURPOSE (v1.7.0) — see _sessionDocId() and
+                // the v1.7.0 header entry. A resend of this exact chunk
+                // (killed page, or a `_write()` that failed silently) derives
+                // the SAME id and overwrites this document rather than
+                // minting a duplicate one. `setDoc()` with no `merge` option
+                // is a full replace, which is correct here: the resend always
+                // recomputes the payload from whatever the queue holds NOW,
+                // and a superset replacing a subset is the right outcome.
+                const sessionId = _sessionDocId(uid, chunk[0]);
+                if (sessionId) {
+                    await _setDoc(_doc(_db, 'typing_sessions', sessionId), payload);
+                } else if (_addDoc) {
+                    // See _sessionDocId()'s own note — this is the fallback
+                    // for the id landing on something Firestore would reject,
+                    // not the normal path. Idempotence is lost for this one
+                    // document only.
+                    await _addDoc(_collection(_db, 'typing_sessions'), payload);
+                } else {
+                    throw new Error('session-log: no valid write path for this chunk');
+                }
                 if (totals.seconds > MAX_SECONDS) {
                     console.warn('[session-log] rollup seconds clamped to ' + MAX_SECONDS +
                                  ' — local total was ' + totals.seconds + '. Check the queue.');

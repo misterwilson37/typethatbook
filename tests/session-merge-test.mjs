@@ -1,4 +1,12 @@
-// session-merge-test.mjs v1.6.1
+// session-merge-test.mjs v1.6.2
+//
+// v1.6.2 — VERSION PIN ONLY. session-log.js is v1.7.0 (Round 46, the writer).
+//          The `surface` mock gains `doc`/`setDoc` (required now — `_ready()`
+//          returns false without them). Part E's slow stub moved from
+//          `addDoc` to `setDoc`, the function the writer actually calls; the
+//          serialization it proves is `sessionLogFlush()`'s own chain, not a
+//          property of which Firestore function is slow, so the race it
+//          reproduces is identical. No assertion about BEHAVIOUR changed.
 //
 // v1.6.1 — VERSION PIN ONLY. session-log.js is v1.6.0 (Round 24, the evening
 //          guest). No assertion about behaviour changed.
@@ -230,6 +238,11 @@ let failNext = 0;
 const SENTINEL = () => ({ __sentinel: 'serverTimestamp' });
 const surface = {
     db: {}, collection: (_db, name) => name,
+    doc: (_db, _colName, id) => ({ __ref: true, id }),
+    setDoc: async (ref, payload) => {
+        if (failNext > 0) { failNext--; throw new Error('simulated denial'); }
+        writes.push(payload);
+    },
     addDoc: async (col, payload) => {
         if (failNext > 0) { failNext--; throw new Error('simulated denial'); }
         writes.push(payload);
@@ -400,8 +413,8 @@ if (gameDeps && learnDeps) {
 
 // The module's own version, so a stale copy uploaded out of order is visible in
 // the test output rather than only in the footer.
-ok(mod.SESSION_LOG_VERSION === '1.6.0',
-   `session-log.js reports v1.6.0 (got ${mod.SESSION_LOG_VERSION})`);
+ok(mod.SESSION_LOG_VERSION === '1.7.0',
+   `session-log.js reports v1.7.0 (got ${mod.SESSION_LOG_VERSION})`);
 
 // ─── D. ⚠️ THE REPAIR RESYNC IS GONE, AND THIS PART NOW GUARDS ITS ABSENCE ───
 //
@@ -519,7 +532,7 @@ console.log('\n─── E. flush serialization ───');
 // it read a queue the first had not cleared yet and wrote the same record
 // again. session-log.js v1.3.0 serializes flushes to make that impossible.
 //
-// The stub addDoc everywhere else in this file resolves immediately, which
+// The stub setDoc everywhere else in this file resolves immediately, which
 // cannot reproduce a race — the window only exists across a real await. This
 // one is deliberately slow.
 {
@@ -529,13 +542,12 @@ console.log('\n─── E. flush serialization ───');
     mod.sessionLogInit({
         ...surface,
         serverTimestamp: SENTINEL,
-        addDoc: async (col, payload) => {
+        setDoc: async (ref, payload) => {
             inFlight++;
             maxConcurrent = Math.max(maxConcurrent, inFlight);
             await new Promise(r => setTimeout(r, 15));
             inFlight--;
             writes.push(payload);
-            return { id: 'doc' + writes.length };
         },
     });
 
@@ -549,7 +561,7 @@ console.log('\n─── E. flush serialization ───');
     ok(writes.length === 1,
        `one queued record flushed twice concurrently writes ONE document (got ${writes.length})`);
     ok(maxConcurrent === 1,
-       `the two flushes never overlap inside addDoc (max concurrent was ${maxConcurrent})`);
+       `the two flushes never overlap inside setDoc (max concurrent was ${maxConcurrent})`);
     ok(okA === true && okB === true,
        'both concurrent callers still report success — the loser is a no-op, not a failure');
     ok(mod.sessionLogPending(UID) === 0,

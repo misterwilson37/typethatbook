@@ -1,5 +1,18 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.34.0, 2026-08-26.** ✅ **ITEM 24 CLOSED — THE WRITER IS FIXED.** session-log.js
+v1.7.0 derives a stable document id per chunk and writes with `setDoc()` instead
+of `addDoc()`, so a resent chunk overwrites its own document instead of
+duplicating it — covering both the killed-page path and the silent-local-write-
+failure path with one change. Ships with firestore.rules v2.8.0 (owner `update`
+rights on `typing_sessions`, under the same validation as `create`) and
+game.js v3.46.0 / learn.js v2.38.0 (both now pass `doc`/`setDoc` into
+`sessionLogInit()`). ⚠️ **VERIFIED AGAINST THE REAL EMULATOR, NOT JUST
+REASONED ABOUT** — `npm run test:rules` ran clean (65 cases, 4 new) after
+catching one bug in the new test's own seeding step. **THIS MUST DEPLOY AS ONE
+UNIT**: the rules change without the code change does nothing; the code change
+without the rules change is denied and retries forever.
+
 **v3.33.0, 2026-08-25.** ✅ **ITEM 22 CLOSED BY MEASUREMENT** (zero drift across five students — not worth a round). ⚠️⚠️ **ITEM 24 MEASURED AT 12/51 STUDENT-DAYS AND IS LIVE** — the READER is fixed so `⟳` is safe, but **the WRITER is next round** and the fix needs a `firestore.rules` change with it.
 
 **v3.32.0, 2026-08-25.** ✅ **§10.H RECALIBRATED** — its signal fired on every row because I picked the threshold with no data; it is relative to the scan now. ✅ **EVERY PAGE IS METERED** — three admin pages were invisible to `read-meter.js`, and the scan now warns before spending ~4,000 reads.
@@ -57,11 +70,9 @@ fix instead: **Ctrl-F any line below to land on the section.**
 
 **Priority first, then everything else by position in the file.**
 
-1. **24. ⚠️⚠️ READER FIXED (Round 44) — WRITER STILL OPEN. **NEXT ROUND.****
-   — ⚠️⚠️ **THE WRITER. THIS IS THE NEXT ROUND.** The reader is fixed and `⟳` is safe; the writer still produces duplicates on ~24% of student-days. **Needs a `firestore.rules` change in the same round.**
-2. **26. ⭐ THE RESUME-BOOK BUTTONS ARE TOO BIG AND READ AS LIBRARY SHELF**
-   — ⭐ After 24 — Jake: *"if there isn't something more pressing."*
-3. **12. ⚠️ SAFARI HUD SPACING, AND TWO SMALLER THINGS IN THE SAME PANEL**
+1. **26. ⭐ THE RESUME-BOOK BUTTONS ARE TOO BIG AND READ AS LIBRARY SHELF**
+   — ⭐ Jake: *"if there isn't something more pressing."* Item 24 is now closed, so this is next.
+2. **12. ⚠️ SAFARI HUD SPACING, AND TWO SMALLER THINGS IN THE SAME PANEL**
    — ⚠️ Safari HUD spacing — Jake-reported, small, and untouched for several rounds.
 
 Everything else still open:
@@ -102,6 +113,7 @@ Everything else still open:
 - 14b. ✅ FIXED (Round 31, Fitch) — RUN OUTCOMES WERE LOST ON "BACK TO MAP"
 - 15. ✅ BUILT (Round 41, Rem-Sho) — STORE THE GRADE, AND RECONSTRUCT THE ONES 14b LOST
 - 22. ✅ MEASURED AND CLOSED (Round 44) — runCount DRIFT IS ESSENTIALLY ABSENT
+- 24. ✅ CLOSED (Round 46, Rem-Sho) — THE WRITER: A RESENT CHUNK NO LONGER DUPLICATES
 - 16. ✅ FIXED (Round 40) — THE BUILD PANEL ON `reports.html` AND `admin.html`
 - 17. ✅ CLOSED (Rounds 35–40) — REPORTS READ EVERY RECORD OF EVERY STUDENT
 - 18. ✅ CLOSED (Rounds 36–40) — THE READ BUDGET
@@ -1329,88 +1341,64 @@ emulator. **It is a console paste; the button does nothing until it is deployed.
 
 ---
 
-## 24. ⚠️⚠️ READER FIXED (Round 44) — WRITER STILL OPEN. **NEXT ROUND.**
+## 24. ✅ CLOSED (Round 46, Rem-Sho) — THE WRITER: A RESENT CHUNK NO LONGER DUPLICATES
 
 **MEASURED 2026-08-25: 12 of 51 student-days, 8 of 10 students, every day from
-the 18th to the 25th.** It is still happening — today's date is in the sample.
+the 18th to the 25th.** The reader's fix (Round 44) made `⟳` safe; the writer
+kept producing new duplicates until this round.
 
-✅ **THE READER IS SAFE NOW.** `splitSessionTotals()` sums **sprints, not
-documents**, deduping on `(source, bookId, at, detail)`. And the recalc guard is
-**symmetric** — an unexplained *rise* now asks the same question a fall does.
-Before this, `⟳` on 2026-08-24 would have raised a real student from 21m 40s to
-~30m with no prompt.
+✅ **THE FIX IS IDEMPOTENCE.** `session-log.js` v1.7.0's `_sessionLogFlushInner`
+now derives the document id from the chunk (`uid` + the first sprint's `at` +
+`source` + `label`, see `_sessionDocId()`) and writes with `setDoc()` instead
+of `addDoc()`. A resend of an unflushed chunk — whether the page was killed
+between the server write and the local removal, or `_write()` failed silently
+(the "second, rarer path," `_write()`'s discarded return value) — derives the
+SAME id and lands on the SAME document, overwriting it. A superset replacing a
+subset is the correct result: no duplicate, no loss.
 
-⚠️⚠️ **THE WRITER IS UNFIXED AND KEEPS PRODUCING THEM. THIS IS THE NEXT ROUND.**
+✅ **SHIPPED AS ONE UNIT, PER RULE 9.** `firestore.rules` v2.8.0 gives the
+`typing_sessions` owner `update` rights under the same validation `create`
+already applies (not a bare `isOwner()` — the seconds/sprints/expiresAt clamps
+still hold, because a resend is really "create, again"). `delete` stays
+`isSuper()`-only. Without this the app-side fix would look shipped and be
+silently denied on every real resend.
 
-**The mechanism, traced (`session-log.js` `_sessionLogFlushInner`):** the server
-write and the local removal are **not atomic**, and the removal happens *second*:
+✅ **VERIFIED AGAINST THE REAL EMULATOR, NOT JUST REASONED ABOUT.**
+`tests/session-writer-test.mjs` is mutation-verified (13 failing against
+v1.6.0, 23/23 passing against v1.7.0) but cannot see a rules denial — that
+needed `npm run test:rules`, which was actually run this round (Java was
+present). It caught a real bug in the new rules test's OWN seeding step (a
+super_admin cannot create a `typing_sessions` doc on another uid's behalf —
+the create rule has no `isSuper()` branch), fixed by seeding as the student
+instead. **65 cases pass, 4 of them new.**
 
-```
-await _addDoc(...)                 ← lands on the server
-records = records.filter(...)      ← removal computed
-_write(uid, records)               ← removal persisted … maybe
-```
-
-⚠️ **THE FLUSH RUNS ON `pagehide`/`visibilitychange`, WHICH IS PRECISELY WHEN A
-BROWSER MAY KILL THE PAGE.** Die between those lines and the document is on the
-server while the queue still holds its sprints. Next load resends — and because
-`_addDoc()` mints a **random id**, the resend becomes a *new, larger* document
-rather than replacing the old one. That is the superset shape exactly: a 5-sprint
-rollup and a 7-sprint rollup containing it.
-
-⚠️ **AND `_write()`'s RETURN VALUE IS DISCARDED.** It returns `false` when
-localStorage cannot persist (quota, after shedding other slots). Both call sites
-in the flush ignore it. A second, rarer path to the same outcome.
-
-**THE FIX IS IDEMPOTENCE, NOT A MORE RELIABLE REMOVAL.** Derive the document id
-from the chunk (`uid` + first sprint's `at` + source + label) and `setDoc` it, so
-a resend lands on the **same document** and simply overwrites — a superset
-replacing a subset is the correct result, with no duplicate and no loss.
-
-⚠️⚠️ **THIS NEEDS A RULES CHANGE AND MUST NOT SHIP WITHOUT ONE.**
-`match /typing_sessions/{id}` allows `update` to `isSuper()` only, so a student's
-resend would be **denied** and retry forever. The owner needs update rights under
-the same validation the create rule already applies. ⚠️ **Rule 9: the rules change
-ships in the same round as the code.**
-
-⚠️ **AND THE EXISTING DUPLICATES STAY.** They are harmless now that the reader
-dedupes, and a cleanup pass would be a bulk write over student history — decide
-that separately, once the writer has stopped adding to them.
+⚠️ **EXISTING DUPLICATES STILL STAND.** They predate this fix, the reader
+already dedupes them (Round 44), and a cleanup pass is a bulk write over
+student history — a separate decision, once the writer had stopped adding to
+them, which as of this round it has.
 
 ### The original item, kept
 
-Found while diagnosing the ⚑ mis-grade (HANDOFF §0.-31.N) and **deliberately not
-chased further.** Jake's 2026-08-24 drill-down shows **two rollups at 8:47** — one
-of 5 sprints and one of 7 that **contains the same five** — and the same shape
-again at 9:12. The rollups sum to **~30m 30s** against a stored day of **21m 40s**.
+Found while diagnosing the ⚑ mis-grade (HANDOFF §0.-31.N). Jake's 2026-08-24
+drill-down showed **two rollups at 8:47** — one of 5 sprints and one of 7 that
+**contains the same five** — and the same shape again at 9:12. The rollups
+summed to **~30m 30s** against a stored day of **21m 40s**.
 
 ⚠️ **`sessionSignature()` CANNOT SEE THIS AND IS NOT WRONG.** It keys on the whole
 sprint timestamp LIST, so a superset genuinely is a different document. The
 duplication is per **sprint**, and only a per-sprint dedupe finds it —
-`run-grade.js` v1.1.0 does exactly that for grading, and `recalcDailyLog()` does
-not, because it sums whole rollups through `splitSessionTotals()`.
+`run-grade.js` v1.1.0 does exactly that for grading, and `recalcDailyLog()`
+sums whole rollups through `splitSessionTotals()`, which Round 44 gave a
+per-sprint dedupe of its own.
 
-⚠️⚠️ **AND THE DROP GUARD ONLY GUARDS DOWNWARDS.** `DROP_GUARD_RATIO` prompts on a
-*reduction*. An inflation applies with no prompt at all. **Pressing `⟳` on that
-day would raise a real student's graded minutes by roughly 40% and say nothing.**
+⚠️⚠️ **THE DROP GUARD ONLY GUARDED DOWNWARDS**, until Round 44 made it
+symmetric — an unexplained *rise* now asks the same question a fall does.
 
-**DO NOT PRESS `⟳` ON A DAY WHOSE DRILL-DOWN SHOWS TWO ROLLUPS AT THE SAME
-MINUTE** until this is fixed.
-
-⚠️ **THE CAUSE IS UPSTREAM AND IS THE THING TO FIX.** Two rollups covering the
-same sprints means a flush wrote a document and did not clear what it wrote —
-session-log.js v1.3.0 serialised the concurrent case (§0.-13's duplicate-session
-race), so this is either a survivor of that or a failed `_write()` after a
-partial success. ⚠️ **MEASURE BEFORE BUILDING:** the drill-down already renders
-every rollup, so counting days with same-minute pairs is free.
-
-**Two candidate fixes, and they are not alternatives:**
-1. **The reader** — give `splitSessionTotals()` a per-sprint dedupe, so a day
-   already corrupted totals correctly. Cheap, and it makes `⟳` safe today.
-2. **The writer** — find why the queue survives a successful write. Without it,
-   new overlapping rollups keep appearing.
-⚠️ **AND A SYMMETRIC DROP GUARD** — an unexplained *rise* deserves the same
-confirmation a fall gets, whatever else is done.
+⚠️ **THE CAUSE WAS UPSTREAM, AND THIS ROUND IS THAT FIX.** Two rollups covering
+the same sprints meant a flush wrote a document and did not clear what it
+wrote — session-log.js v1.3.0 serialised the CONCURRENT case (§0.-13's
+duplicate-session race); this was the SEQUENTIAL one, a killed page or a
+failed local write between an otherwise-successful write and its own cleanup.
 
 ---
 

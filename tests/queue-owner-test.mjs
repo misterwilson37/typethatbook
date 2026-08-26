@@ -1,4 +1,8 @@
-// queue-owner-test.mjs v1.0.0 — ONE BROWSER, TWO STUDENTS, ONE QUEUE.
+// queue-owner-test.mjs v1.1.0 — ONE BROWSER, TWO STUDENTS, ONE QUEUE.
+//
+// v1.1.0 — VERSION PIN / MOCK ONLY. session-log.js is v1.7.0 (Round 46, the
+//          writer) — the injected Firestore surface gains `doc`/`setDoc`,
+//          required now. No assertion about behaviour changed.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // THE DEFECT THIS WAS WRITTEN AGAINST — session-log.js v1.4.0 and earlier
@@ -81,6 +85,11 @@ let denyNext = 0;
 mod.sessionLogInit({
     db: {},
     collection: (_db, name) => name,
+    doc: (_db, _colName, id) => ({ __ref: true, id }),
+    setDoc: async (ref, payload) => {
+        if (denyNext > 0) { denyNext--; throw new Error('simulated denial'); }
+        writes.push(payload);
+    },
     addDoc: async (_col, payload) => {
         if (denyNext > 0) { denyNext--; throw new Error('simulated denial'); }
         writes.push(payload);

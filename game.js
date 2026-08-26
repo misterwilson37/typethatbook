@@ -1,4 +1,16 @@
-// game.js v3.45.0
+// game.js v3.46.0
+//
+// v3.46.0 — ROADMAP item 24, the writer half — TWIN OF learn.js v2.38.0.
+//           `sessionLogInit()` now passes `doc` and `setDoc` (both already
+//           imported from read-meter.js for other writes) alongside the
+//           existing four dependencies, so session-log.js v1.7.0's
+//           idempotent flush has what it needs on this page. ⚠️ THIS MUST
+//           LAND IN THE SAME ROUND AS learn.js's call — session-log.js's own
+//           header says the two must agree, and session-merge-test.mjs Part C
+//           checks it. Nothing else in this file changed; the fix lives
+//           entirely in session-log.js. See its v1.7.0 entry and HANDOFF
+//           §0.-36 for the full trace. ⚠️⚠️ SHIPS WITH firestore.rules v2.8.0
+//           — do not deploy this without it.
 //
 // v3.45.0 — ⚠️ THE BUILD PANEL NO LONGER KEEPS ITS OWN "already loaded" FLAG.
 //           It was a THIRD layer of staleness on top of versions.js's cache and
@@ -70,16 +82,6 @@
 //           stamped card. ⚠️ IT IS A RECEIPT, NOT A SAVE BUTTON — nothing is
 //           gated on it, nothing warns if it is skipped, and ← Library and
 //           (Logout) remain untouched. See handleImDone() and receipt.js.
-//
-// v3.41.0 — THE CELEBRATIONS MOVED TO celebrate.js, and the fireworks DOUBLED
-//           there (10 shells, not 5; twice the run time). Jake's "so double it"
-//           meant the display, not the odds — the weekly goal is crossed once a
-//           week per child and should be impossible to miss. ⚠️ The fourth
-//           hand-maintained twin found in one day, and it had already drifted.
-//
-//
-//
-//
 //
 // Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
 // mode, chapter navigation, all modals, write-ahead-log persistence.
@@ -176,7 +178,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.45.0";
+const VERSION = "3.46.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -187,7 +189,14 @@ const VERSION = "3.45.0";
 // function and omits the field if it is not, so old-page-controller/new-module
 // and new-page-controller/old-module both work during an upload window. Neither
 // combination throws; the only difference is whether the field appears.
-sessionLogInit({ db, collection, addDoc, serverTimestamp });
+//
+// v3.46.0 — `doc` and `setDoc` join the surface, both already imported below
+// for other writes. session-log.js v1.7.0 requires them (`_ready()` returns
+// false without them, and the queue simply never flushes) — see its header
+// and HANDOFF §0.-36. ⚠️ THIS LINE MUST MATCH learn.js's — session-merge-test
+// Part C asserts the two calls agree, same as it already did for the original
+// four dependencies.
+sessionLogInit({ db, collection, addDoc, doc, setDoc, serverTimestamp });
 
 const DEFAULT_BOOK = "wizard_of_oz";
 const IDLE_THRESHOLD = 2000;

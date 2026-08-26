@@ -1,5 +1,39 @@
 # CHANGELOG — TypeThatBook
 
+## Round 46 (Blickensderfer) — 2026-08-26 — the session-log WRITER, closed
+
+**✅ ROADMAP item 24 is CLOSED.** `session-log.js` v1.7.0's flush is now
+IDEMPOTENT: `_sessionLogFlushInner()` derives a document id from the chunk
+(`uid` + first sprint's `at` + `source` + `label`) and writes with `setDoc()`
+instead of `addDoc()`'s random id, so a resend (killed `pagehide`, or a
+silently-failed local `_write()`) overwrites its own document instead of
+duplicating it. Fixes both known paths to the bug at once.
+
+**Shipped as one unit, per Rule 9:** `firebase/firestore.rules` v2.8.0 gives
+the `typing_sessions` owner `update` rights under the same validation `create`
+already applies; `game.js` v3.46.0 and `learn.js` v2.38.0 both now pass
+`doc, setDoc` into `sessionLogInit()`.
+
+**⚠️⚠️ Verified against the real emulator, not just reasoned about.**
+`npm run test:rules` was actually run (Java present) — 4 new cases, and the
+first run caught a bug in the test's own seeding step (a super_admin cannot
+`create` a `typing_sessions` doc on another student's behalf; only the owner
+can). Fixed by seeding as the student instead. **65 rules cases pass.**
+
+- `tests/session-writer-test.mjs` **(NEW)** — 6 parts, mutation-verified: 13
+  failing against v1.6.0, 23/23 passing against v1.7.0
+- Five existing harnesses updated for the new required dependencies
+  (`session-merge-test.mjs`, `queue-owner-test.mjs`, `guest-merge-test.mjs`,
+  `open-unit-test.mjs`, `version-stamp-test.mjs`'s version pins) — mock gaps,
+  not logic regressions
+- `session-log.js` v1.3.0's header entry archived to § ARCHIVED FILE HEADERS
+  (line budget), same mechanism as `game.js`/`lessons-admin.js` before it
+- `run-all-tests.mjs` v1.19.0, `ROADMAP.md`, `HANDOFF.md` §0.-36
+
+**57 harnesses pass. `audit:versions`: 0 problems. `test:rules`: 65 cases, 0
+failing.** ⚠️ `firestore.rules` v2.8.0 is written but not yet pasted into the
+console — Jake does that step himself.
+
 ## Round 45 (Rem-Sho) — 2026-08-25 — handoff pass
 
 **A `▶ START HERE` block now opens HANDOFF.md** — the next round, the file-editing
@@ -4087,6 +4121,64 @@ what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
 
+### session-log.js v1.3.0 — archived by Round 46 (Rem-Sho), line budget
+
+⚠️ **session-log.js still cites v1.3.0 once in live code** (the `⚠️ SERIALIZED
+— DO NOT CALL _sessionLogFlushInner DIRECTLY` note above `_flushChain`). This
+block is where that pointer resolves.
+
+```
+// session-log.js v1.3.0 — the sprint/run history queue, shared by game.js and
+// learn.js. The third shared module, after firebase-config.js and stats-wal.js.
+//
+// v1.3.0 — SERIALIZED FLUSHES. `sessionLogFlush()` is now a thin wrapper that
+//          chains onto `_flushChain` and calls `_sessionLogFlushInner()`; a second
+//          flush starts only after the first has resolved and cleared what it
+//          wrote. This closes the duplicate-session race of 2026-08-19: clicking
+//          Home fires BOTH visibilitychange:hidden and pagehide, each calling
+//          flushSessionsNow() unawaited, and the second read a queue the first had
+//          not cleared yet. Callers WAIT rather than being dropped — one arriving
+//          mid-flush may carry records the in-flight run never saw. Guarded by
+//          session-merge-test.mjs Part E, which is mutation-tested. The full
+//          reasoning is in the comment block above sessionLogFlush().
+//          ⚠️ HEADER REPAIR, Round 17 (Linotype): this file arrived with
+//          SESSION_LOG_VERSION already set to '1.3.0' and its header still saying
+//          1.2.1, so `npm run audit:versions` reported "header comment says
+//          v1.2.1 — one of the two is a lie", the twelfth problem in a repo whose
+//          standing count is eleven. The code was correct and complete; only the
+//          header was missing. This entry was written from the file's own
+//          sessionLogFlush() comment block and the concurrent round's HANDOFF §0.6
+//          item 8, not invented. NOTHING EXECUTABLE WAS CHANGED.
+//
+```
+
+### learn.js v2.32.0 — archived by Round 46 (Rem-Sho), 8-entry budget
+
+⚠️ **learn.js still cites v2.32.0 in many live code comments** (ROADMAP item 10's
+lesson-farming gate — the gate rule itself lives in `lesson-gate.js` and is
+unaffected by this archive). Every header entry was cited when this was
+archived, so there was no uncited one to take instead. **This block is where
+those pointers resolve.**
+
+```
+// v2.32.0 — ⭐⭐ ROADMAP ITEM 10 — THE LESSON-FARMING GATE. Jake: "students are
+//           just redoing the first three lessons indefinitely because they're
+//           easy." ⚠️⚠️ THE RULE IS IN lesson-gate.js AND IT IS PURE; this file
+//           only supplies numbers and draws the result. MASTERY IS WHAT CLOSES A
+//           LESSON, AND ONLY MASTERY — a lesson with fewer than three A🔥 is
+//           always graded and always replayable, forever, at any distance.
+//           ⚠️ A PRACTICE RUN WRITES NOTHING ANYWHERE: no grade, no session, no
+//           second. The three omissions are ONE decision — splitting them would
+//           manufacture the exact typing_logs/typing_sessions divergence that
+//           ROADMAP item 4's implausibility flag exists to detect. And it never
+//           arms startGradedTimer(), so ⚠️ THE ONE INCREMENT SITE IS UNTOUCHED:
+//           no new condition, nothing between the gate and the increments.
+//           ⚠️ THE BANNER IS THE FEATURE, NOT DECORATION — a child typing for ten
+//           minutes while the daily total does not move reads as a broken app.
+//           See HANDOFF §0.-21.
+//
+```
+
 ### lessons-admin.js v1.10.0 — archived by Round 43 (Rem-Sho), 8-entry budget
 
 ```
@@ -4331,6 +4423,19 @@ better because the file got bigger.
 Each block below is exactly what stood in the file header, newest first.
 
 ### § game.js — archived header entries
+
+⚠️ **v3.41.0 archived by Round 46 (Rem-Sho), 8-entry budget.** game.js still
+cites it at two other points in the file (the version-history summary line and
+the celebrate.js extraction note) — this block is where that pointer resolves.
+
+```
+// v3.41.0 — THE CELEBRATIONS MOVED TO celebrate.js, and the fireworks DOUBLED
+//           there (10 shells, not 5; twice the run time). Jake's "so double it"
+//           meant the display, not the odds — the weekly goal is crossed once a
+//           week per child and should be impossible to miss. ⚠️ The fourth
+//           hand-maintained twin found in one day, and it had already drifted.
+//
+```
 
 ```
 // v3.39.0 — THE TWO-ROW TOP BAR (ROADMAP item 0). The left slot is now Daily
