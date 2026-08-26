@@ -1,4 +1,5 @@
-// run-all-tests.mjs v1.17.0 — Round 42 (Rem-Sho): im-done-test.mjs.
+// run-all-tests.mjs v1.18.0 — Round 45 (Rem-Sho): roadmap-index-test.mjs.
+// v1.17.0 — Round 42 (Rem-Sho): im-done-test.mjs.
 // v1.16.0 — Round 41 (Rem-Sho): remediation-test.mjs and
 // run-grade-test.mjs.
 // v1.15.0 — Round 34 (Molle): run-mastery-test.mjs
@@ -237,6 +238,7 @@ const FAST = [
     // learn.js had CITED IN ITS HEADER SINCE ROUND 32 WITHOUT IT EXISTING. Part A
     // is Jake's own bug, found by using the feature: with run 1 mastered the
     // student had to replay it for nothing to reach run 2.
+    ['roadmap-index-test.mjs',   '⚠️⚠️ THE ROADMAP INDEX MUST DESCRIBE THE DOCUMENT. Jake could not navigate ROADMAP.md; Round 41 indexed it and I let the index go stale within THREE ROUNDS — item 22 closed and still listed open, item 24 still carrying a warning after the fix. An index that lies about status is worse than none, because a reader trusts it INSTEAD of the file. Checks agreement, not truth'],
     ['im-done-test.mjs',         '⚠️⚠️ ROADMAP 25 — "I’M DONE" MUST NOT STAMP A CHILD A NUMBER SMALLER THAN THE HUD THEY WERE JUST WATCHING. learn.js’s flush gate ignored its own `final` argument, so every press mid-run wrote NOTHING and the receipt read a stale typing_logs. ⚠️ A TWIN DIVERGENCE WHERE THE SIBLING WAS ALREADY RIGHT — game.js gated on `!walDirty && !final`. This harness drives BOTH files and asserts they agree'],
     ['remediation-test.mjs',     '⚠️⚠️ A PRACTICE DRILL IS NOT A RUN OF THE LESSON: the 🎲 Practice-missed-keys drill borrows the lesson’s engine and used to be GRADED as its run 1 — a clean 83-character random drill scored A🔥, passed a 12-run lesson and wrote runCount: 1 over its count. ⚠️ Part C is the half that is NOT ROADMAP 10: the minutes still count in BOTH records, only the assessment is suppressed'],
     ['run-grade-test.mjs',       '⭐ ROADMAP 15 — THE GRADE RULE AND THE RECONSTRUCTION. ⚠️ Part D is the ratchet: runPlan() computes the run list from SHAPE ALONE (two step types generate their characters at random) and must agree with learn.js’s real generators on run count, or reports.html grades the wrong material. Also: fragments of one interrupted run merge before grading, and a drifted runCount REFUSES rather than guesses'],

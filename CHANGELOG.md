@@ -1,5 +1,20 @@
 # CHANGELOG — TypeThatBook
 
+## Round 45 (Rem-Sho) — 2026-08-25 — handoff pass
+
+**A `▶ START HERE` block now opens HANDOFF.md** — the next round, the file-editing
+rules from four damage incidents, the state of play, and the roster warning.
+
+**⚠️ The ROADMAP index had gone stale within three rounds of being built** — item
+22 closed and still listed open, item 24 still warning after its fix. Rebuilt
+from live headings, and `tests/roadmap-index-test.mjs` now asserts the index and
+the body agree.
+
+- `tests/roadmap-index-test.mjs` **(NEW)** — 8 checks, mutation-verified
+- `tests/run-all-tests.mjs` v1.18.0, `HANDOFF.md` v15.30.0, `ROADMAP.md`
+
+**56 harnesses pass. `audit:versions`: 0 problems.** No code changed this round.
+
 ## Round 44 (Rem-Sho) — 2026-08-25
 
 **✅ Item 22 closed by measurement** — zero `runCount` drift across five students.

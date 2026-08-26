@@ -1,7 +1,87 @@
 # HANDOFF — TypeThatBook
 
-<!-- HANDOFF.md v15.29.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+> ## ▶ START HERE — written 2026-08-25 by Round 45 (Rem-Sho), for whoever is next
+>
+> **The next round is ROADMAP item 24: the session-log WRITER.** Everything you
+> need is in that item and in §0.-34.C. It is specified, measured, and traced —
+> **you should not need to rediscover any of it.**
+>
+> **What it is:** `_sessionLogFlushInner()` writes the rollup to Firestore and
+> *then* clears the local queue, non-atomically, **on `pagehide`** — precisely
+> when a browser may kill the page. Die between those two steps and the document
+> is on the server while the queue still holds its sprints. The next load
+> resends, and `_addDoc()` mints a **random id**, so the resend appends a *larger*
+> document instead of replacing the old one.
+>
+> **Measured 2026-08-25: 12 of 51 student-days, 8 of 10 students, every day from
+> the 18th to the 25th.** Still happening.
+>
+> **The fix is idempotence** — a derived document id so a resend overwrites.
+> ⚠️⚠️ **IT NEEDS A `firestore.rules` CHANGE IN THE SAME ROUND.** `typing_sessions`
+> `update` is `isSuper()`-only today, so a student's resend would be denied and
+> retry forever. **Rule 9. Do not ship half.**
+> ⚠️ `npm run test:rules` works here (Java is present, 61 cases) — **execute the
+> rule, do not reason about it.** §0.-31.E is the round that learned that.
+>
+> ### Before you touch `session-log.js`, read this
+>
+> It is the hottest write path in the app and it has a history of subtle,
+> data-losing bugs — see its own header, v1.3.0 through v1.6.0. **Do not shorten
+> the loop.** Write the harness first; `tests/queue-owner-test.mjs` is the model.
+>
+> ### ⚠️⚠️ AND READ §0.-31.H, §0.-32.D AND §0.-33.C BEFORE YOU EDIT ANY FILE
+>
+> Round 41–43 caused **four** self-inflicted file-damage incidents — a harness
+> truncated to zero bytes, two unbounded slices that deleted 5KB of `learn.js`,
+> and a backward slice that duplicated a chunk of `lessons-admin.js`. **Every one
+> was a write whose extent was not bounded before it was made.** The rules that
+> came out of it, and they are not optional:
+>
+> * **Encode first, write to a temp file, verify the size, rename.** Never
+>   `open(path, 'w')` before the bytes are known-good.
+> * **Assert every anchor matches exactly once** (`s.count(old) == 1`), and any
+>   slice must assert `j > i`.
+> * **Guard on structure, not on words.** A canary that counted `'import '` once
+>   fired correctly *by accident* because the text being deleted contained that
+>   phrase. Count non-comment code lines instead.
+>
+> ### State of play
+>
+> * **56 harnesses pass**, `npm run audit:versions` reports **0 problems**, and
+>   the changed-file set is verified on a clean checkout. Keep it that way.
+> * `firestore.rules` **v2.7.0 is deployed**. No console step is outstanding.
+> * ⚠️ **ROADMAP.md's numbers are not an order and are not unique** (there are
+>   two item 18s). **DO NOT RENUMBER** — sources and harnesses cite them in prose.
+>   Read the index at the top of that file first; `tests/roadmap-index-test.mjs`
+>   keeps it honest, so **regenerate the index in the same edit that changes a
+>   heading's status.**
+> * ⚠️ Item **14a is suspected stale** — it reads like what item 14 already built.
+>   **Verify before working it**; items 13 and 11a were both stale ⭐⭐ flags, and
+>   one such flag cost Round 35 an entire round.
+> * The read meter now covers **every** page (`ttbMeter.report()`). Jake's last
+>   sample showed **2,562 reads / 1,640 misses across 4 page loads** — that miss
+>   ratio is unexamined and may be worth a look after item 24.
+>
+> ### The name
+>
+> This session was **Rem-Sho** across rounds 41–45 — one name per conversation,
+> not per round. ⚠️ **GREP THE ROSTER BEFORE YOU PICK YOURS.** Rounds 36–40 are
+> all written up as *Underwood*, which is Round 1 — the fourth occurrence, past
+> three written warnings. The check is `grep -ri <name> .`, and it is the only
+> thing that has ever worked.
+
+
+<!-- HANDOFF.md v15.30.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 40; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.30.0 — Round 45 (Rem-Sho). ✅ A ▶ START HERE BLOCK now opens this file:
+     what the next round is, what not to do to a file, and the state of play.
+     ⚠️⚠️ THE ROADMAP INDEX HAD GONE STALE WITHIN THREE ROUNDS OF BEING BUILT —
+     item 22 closed and still listed open, item 24 still warning after its fix.
+     AN INDEX THAT LIES ABOUT STATUS IS WORSE THAN NONE (§0.-22, one document
+     over). Rebuilt from live headings, and tests/roadmap-index-test.mjs now
+     asserts index and body AGREE (mutation-verified against the real drift).
+     56 harnesses, 0 audit problems.
 
      v15.29.0 — Round 44 (Rem-Sho). ✅ §0.-34.A: ITEM 22 CLOSED BY MEASUREMENT —
      ZERO runCount drift across five students. A round was sketched and is not
@@ -815,6 +895,54 @@ is not the same as checking the list. **Check the list.**
 > the repo root and dropped each one into the channel it belonged in.
 
 ---
+
+## §0.-35. ✅ ROUND 45 (Rem-Sho) — THE HANDOFF PASS, AND THE INDEX THAT LIED
+
+**2026-08-25.** Jake asked whether "next round" meant now or a new instance, and
+said: *if a new you, go over your documentation and make sure it's up to snuff.*
+It was not.
+
+### A. ⚠️⚠️ THE INDEX WENT STALE WITHIN THREE ROUNDS OF BEING BUILT — BY ME
+
+Round 41 indexed ROADMAP.md because Jake could not navigate it. By Round 44 the
+index said item **22 was open** (it had been closed by measurement), still
+carried item 24's *"do not press ⟳"* warning after ⟳ was fixed, and still led
+with item 25 after item 25 shipped.
+
+⚠️ **AN INDEX THAT LIES ABOUT STATUS IS WORSE THAN NO INDEX**, because its whole
+purpose is that a reader trusts it INSTEAD of reading the file. That is §0.-22's
+rule about diagnostics, one document over — and I wrote the warning about stale
+status flags in §0.-31.L *myself*, then did it three times in four rounds.
+
+✅ **`tests/roadmap-index-test.mjs`** now asserts every heading appears in the
+index exactly once and that its group matches its own ✅/⏳ marker.
+**Mutation-verified against the real drift.** ⚠️ **IT CHECKS AGREEMENT, NOT
+TRUTH** — nothing can check whether a status is correct; that is judgement. It
+checks the mechanical half, which is the half that rotted.
+
+### B. ✅ A `▶ START HERE` BLOCK OPENS THE FILE NOW
+
+The next instance previously had to infer the next task from a 400-line header.
+It now reads: what the next round is and why, the three file-editing rules that
+came out of four self-inflicted damage incidents, the state of play, and the
+roster warning. ⚠️ **Every cross-reference in it was checked to resolve** — a
+handoff that points at a section that does not exist is a handoff that teaches
+the reader to stop following pointers.
+
+### C. ⚠️ WHY ROUND 45 IS NOT THE WRITER FIX
+
+Item 24's writer fix touches the hottest write path in the app **and**
+`firestore.rules`, needs emulator coverage and a new harness. This session had
+already caused four file-damage incidents, the most recent minutes earlier.
+⚠️ **THE HONEST CALL WAS TO SPEND THE REMAINING BUDGET MAKING THE HANDOFF GOOD
+ENOUGH THAT THE NEXT INSTANCE LOSES NOTHING**, rather than start a delicate fix
+with little left. The spec, the measurement and the trace are all filed.
+
+### D. THE NUMBERS
+
+`tests/roadmap-index-test.mjs` **(NEW — 8 checks)**, `run-all-tests.mjs` v1.18.0,
+HANDOFF v15.30.0, ROADMAP index rebuilt from live headings.
+**56 harnesses pass**, `audit:versions` **0 problems**, clean-checkout verified.
 
 ## §0.-34. ✅ ROUND 44 (Rem-Sho) — TWO MEASUREMENTS, AND THEY POINTED OPPOSITE WAYS
 
