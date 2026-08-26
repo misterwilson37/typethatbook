@@ -1,4 +1,31 @@
-// learn.js v2.38.0
+// learn.js v2.39.0
+//
+// v2.39.0 — ⚠⚠ ROADMAP 23 — THE RUN LIST IS NOW PAIRED WITH THE LESSON, AND
+//           THE TWO WRITERS ASSERT IT. The Round 41 defect was possible because
+//           four writers read `currentLesson` and NONE checked that
+//           `currentRuns` still belonged to it — and the symptom was a GRADE on
+//           a child's record, not an error. `remediationRun` (v2.36.0) guards
+//           the one detour that breaks the pairing today; this guards the SHAPE,
+//           so the next feature that swaps the run list fails loudly.
+//           `currentRunsFor` is set at EVERY site that assigns `currentRuns`
+//           (startLesson, the remediation detour, and the exit reset), and
+//           recordRunOutcome() / saveProgress() refuse when it does not match.
+//
+//           ⚠ THE ROADMAP PROPOSED COMPARING buildRunList() LENGTHS AND THAT
+//           WOULD HAVE BEEN WRONG TWICE: buildSequence() is RANDOM per call for
+//           key_random / key_pattern_auto, so recomputing invites a false
+//           positive — and a false positive here REFUSES A REAL RUN, which is
+//           silent data loss and strictly worse than the hazard. It also passes
+//           any swap that happens to produce the same run count, which the
+//           remediation drill on a 3-chunk lesson would. A pairing token answers
+//           the real question in O(1) with no recomputation.
+//
+//           ⚠ IT CANNOT FIRE TODAY — finishStep() returns at the remediation
+//           branch before either writer. That is the point: it is a backstop for
+//           a hazard that has already cost one round, not a fix for a live bug.
+//           tests/exit-flush-test.mjs Section G drives it (7 assertions,
+//           mutation-verified: removing the guard fails G2/G3/G4/G7, and
+//           accepting a falsy token fails G6).
 //
 // v2.38.0 — ROADMAP item 24, the writer half — TWIN OF game.js v3.46.0.
 //           `sessionLogInit()` now passes `doc` and `setDoc` (both already
@@ -96,10 +123,6 @@
 //           flushes, refreshes the progress cache, THEN reloads, and carries
 //           anything unflushed across. ⚠️ A flush added AFTER the reload would
 //           read as correct and change nothing. tests/exit-flush-test.mjs.
-//
-// v2.33.0 — ⚠️ TWIN OF game.js v3.45.0. The build panel's per-page "already
-//           loaded" flag is gone; versions.js v1.13.0 owns freshness. Nothing
-//           about ROADMAP item 10 changed. HANDOFF §0.-22.
 //
 // Lesson-mode engine, separate from game.js. Same write-ahead-log and
 // coalesced-flush persistence pattern.
@@ -221,7 +244,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.38.0";
+const LEARN_VERSION = "2.39.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -529,6 +552,16 @@ let currentLesson  = null;
 // single Firestore document. See PEDAGOGY-AUDIT.md §3.2.
 
 let currentRuns    = [];  // expanded + chunked runs for the current lesson
+// ⚠⚠ v2.39.0 — ROADMAP 23. WHAT currentRuns WAS BUILT FOR. The Round 41 defect
+// was possible because four writers read `currentLesson` and none of them
+// checked that `currentRuns` still belonged to it — and the symptom was a GRADE,
+// not an error. This is the pairing, written at every site that assigns
+// currentRuns, and asserted by the two writers that persist a run.
+//
+// Holds a lesson id, or REMEDIATION_RUNS while a remediation drill owns the
+// list, or null when no lesson is open.
+const REMEDIATION_RUNS = '\u0000remediation';   // cannot collide with a lesson id
+let currentRunsFor = null;
 let currentStepIdx = 0;   // index into currentRuns
 let currentStep    = null;// currentRuns[currentStepIdx]
 let drillSequence  = [];  // array of chars to type for current run
@@ -1925,6 +1958,7 @@ function startLesson(lesson) {
     // run go through ("Play it again" and _gotoLesson() both land here).
     remediationRun = false;
     currentRuns    = buildRunList(lesson);
+    currentRunsFor = lesson.id;          // ⚠ ROADMAP 23 — paired here, always.
     // ⚠️ v2.35.0 — NOT ALWAYS 0. See firstOpenRunIdx(): a student whose early runs
     // are mastered starts at the first one that still counts.
     currentStepIdx = firstOpenRunIdx(lesson);
@@ -3566,6 +3600,9 @@ window._practiceMissedKeys = function(missedKeys) {
     // swap-and-restore worked only because beginStep read steps synchronously; runs
     // make the intent explicit and leave the lesson object alone. Chunked in case
     // the missed-key set produces a long drill.
+    // ⚠ ROADMAP 23 — the list stops belonging to currentLesson on the NEXT line,
+    // so the pairing is broken here, deliberately and visibly, before it is.
+    currentRunsFor = REMEDIATION_RUNS;
     currentRuns = chunkSequence(buildSequence(syntheticStep)).map((seq, i, all) => ({
         stepId: 'remediation', stepIdx: 0, chunkIdx: i, chunkCount: all.length,
         type: syntheticStep.type, anchorEnforced: false, gates: null, sequence: seq,
@@ -3610,8 +3647,44 @@ window._gotoLesson = function(id) {
 // sum — same as the pre-existing attempts counter, and not worth a transaction.
 const pendingProgress = new Set();   // lessonIds with unflushed run data
 
+// ⚠⚠ v2.39.0 — ROADMAP 23. THE STRUCTURAL GUARD, NOT A SECOND FLAG.
+//
+// The Round 41 defect: four writers read `currentLesson`, none checked that
+// `currentRuns` still belonged to it, and the symptom was a GRADE rather than an
+// error. `remediationRun` fixed the one path that broke the pairing in v2.36.0 —
+// but that is a flag for a KNOWN detour. Any future feature that swaps the run
+// list re-opens the hazard silently, and a wrong grade on a child's record is
+// the thing that gets discovered weeks later from a report.
+//
+// ⚠ THE ROADMAP PROPOSED COMPARING LENGTHS —
+// `currentRuns.length !== buildRunList(currentLesson).length` — AND THAT WOULD
+// HAVE BEEN THE WRONG GUARD, TWICE OVER:
+//   1. buildSequence() is RANDOM per call for key_random and key_pattern_auto
+//      (see buildRunList's own note on why sequences are baked). Recomputing to
+//      compare invites a false positive, and a false positive here REFUSES TO
+//      RECORD A REAL RUN — silent data loss, strictly worse than the hazard.
+//   2. A swap that happens to produce the same number of runs passes it. The
+//      remediation drill on a 3-chunk lesson would.
+// The pairing token answers the actual question — "was this list built for this
+// lesson?" — in O(1), with no recomputation and no randomness.
+//
+// ⚠ A FIRING GUARD MEANS A BUG UPSTREAM, so it refuses the write rather than
+// filing a run against a lesson it may not belong to. It cannot fire today:
+// finishStep() returns at the remediation branch before reaching either writer.
+function runsBelongToCurrentLesson(where) {
+    if (!currentLesson) return false;
+    if (currentRunsFor === currentLesson.id) return true;
+    console.error(
+        `[ROADMAP 23] ${where}: currentRuns was built for ` +
+        `${currentRunsFor === REMEDIATION_RUNS ? 'a remediation drill' : String(currentRunsFor)}` +
+        `, not lesson ${currentLesson.id}. Refusing to record — this is a bug, ` +
+        `not a student action.`);
+    return false;
+}
+
 function recordRunOutcome(runIdx, grade, advanced) {
     if (!currentLesson) return;
+    if (!runsBelongToCurrentLesson('recordRunOutcome')) return;
     const id   = currentLesson.id;
     const prev = userProgress[id] || {};
     const key  = String(runIdx);
@@ -3825,6 +3898,12 @@ async function stampLastLockDay() {
 
 async function saveProgress(passed, wpm, acc, grade) {
     if (!currentUser || !currentLesson) return;
+    // ⚠ ROADMAP 23 — the second of the two writers. saveProgress() marks the
+    // WHOLE LESSON passed, which is the more damaging of the two if the run list
+    // it was reached through did not belong to this lesson (see §0.-31.N: a
+    // remediation drill marked a 12-run lesson passed on one 83-character run of
+    // random letters).
+    if (!runsBelongToCurrentLesson('saveProgress')) return;
     const prev = userProgress[currentLesson.id] || {};
     const attempts  = (prev.attempts || 0) + 1;
     // NOT prev + stepSeconds: recordRunOutcome already added this run's seconds to
@@ -3920,6 +3999,7 @@ function stopLesson() {
     persistGuestAccum();
     showRestartButton(false);
     currentLesson = null;
+    currentRunsFor = null;               // ⚠ ROADMAP 23 — unpaired when nothing is open.
     backBtn.href = 'index.html'; backBtn.onclick = null;
     hudLessonLabel.textContent = '';
     hudLessonLabel.title = '';

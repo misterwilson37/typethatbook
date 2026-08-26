@@ -1,5 +1,39 @@
 # CHANGELOG — TypeThatBook
 
+## Round 50 (Blickensderfer) — 2026-08-26 — the run-list pairing, and an empty board
+
+**✅ ROADMAP item 23 is CLOSED** (learn.js v2.39.0). `currentRunsFor` records what
+`currentRuns` was built for, set at every site that assigns the list, and both
+writers refuse when it does not match `currentLesson.id`. The refusal is total —
+no attempt, no grade, no fire, nothing on `lastGrade` — and audible, because a
+silent refusal is its own failure mode.
+
+**⚠️⚠️ The guard the item proposed would have been wrong twice.** It suggested
+`currentRuns.length !== buildRunList(currentLesson).length`. But `buildSequence()`
+is **random per call** for `key_random`/`key_pattern_auto` — `buildRunList()`'s
+own comment says sequences are baked for exactly that reason — so recomputing
+invites a false positive, and **a false positive here refuses a REAL run**: silent
+data loss, strictly worse than the hazard. It also passes any swap producing the
+same run count, which the remediation drill on a 3-chunk lesson would. A pairing
+token answers the real question in O(1).
+
+**✅ ROADMAP item 14a is CLOSED BY VERIFICATION** — nothing built. Its ruling
+(A🔥=2, A=1, B=0, mastered at 4, scored per run, with downward closure) was
+already shipped verbatim by item 14 in learn.js v2.34.0. ⚠️ **That is the fourth
+stale flag in ROADMAP.md, and it carried ⭐⭐** — the highest priority marker in
+the file. The check cost minutes; the build would have cost a round.
+
+**✅ NO DEFECT IS OUTSTANDING ON THE ROADMAP.** What remains is measurement,
+process, and one open decision.
+
+- `learn.js` v2.39.0, `tests/exit-flush-test.mjs` v1.1.0 (Section G, 7 assertions,
+  mutation-verified: removing the guard fails G2/G3/G4/G7, accepting a falsy
+  token fails G6)
+- learn.js v2.33.0's header entry archived to § ARCHIVED FILE HEADERS (8-entry
+  budget); still cited once at `loadBuildInfo()`
+
+**57 harnesses pass. `audit:versions`: 0 problems.**
+
 ## Round 49 (Blickensderfer) — 2026-08-26 — the cover size regression
 
 **⚠️⚠️ index.html v3.15.0 shipped a visible regression and this suite could not
@@ -4230,6 +4264,19 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### learn.js v2.33.0 — archived by Round 50 (Blickensderfer), 8-entry budget
+
+⚠️ **learn.js still cites v2.33.0 once in live code** (the build-panel note above
+`loadBuildInfo()`). This block is where that pointer resolves.
+
+```
+// v2.33.0 — ⚠️ TWIN OF game.js v3.45.0. The build panel's per-page "already
+//           loaded" flag is gone; versions.js v1.13.0 owns freshness. Nothing
+//           about ROADMAP item 10 changed. HANDOFF §0.-22.
+//
+```
+
 
 ### session-log.js v1.3.0 — archived by Round 46 (Rem-Sho), line budget
 

@@ -1,145 +1,83 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-08-26 by Round 47 (Blickensderfer), for whoever is next
+> ## ▶ START HERE — written 2026-08-26 by Round 50 (Blickensderfer), for whoever is next
 >
-> **The next round is ROADMAP item 23** — `saveProgress()` and
-> `recordRunOutcome()` trust `currentLesson` alone. It is a write-path
-> correctness item and the last unexamined one of its kind. Items 12, 24 and 26
-> are all closed.
+> ✅ **NO DEFECT IS OUTSTANDING ON THE ROADMAP.** Items 12, 23, 24 and 26 closed
+> by work this session; 13, 11a, two-thirds of 12, and 14a closed by
+> VERIFICATION — nothing was built for those because nothing needed to be.
+> What remains in ROADMAP.md is measurement (§READS, items 1/4/5/7/21), process
+> (8b, 9), and ONE open decision (11a). **Read an item before working it.**
 >
-> ⚠️⚠️ **AFTER THAT, ITEM 14a NEEDS VERIFYING BEFORE IT NEEDS BUILDING.** It
-> carries a ⭐⭐ and reads like what item 14 already shipped. **THREE flags in
-> ROADMAP.md have now turned out stale** — 13, 11a, and two of item 12's three
-> bullets, the last of which had its claim BACKWARDS (it said the student ID was
-> cut off in Library; both panels truncate to eight characters on purpose). A
-> stale ⭐⭐ cost Round 35 an entire round. **Read the code before you believe
-> the flag.**
+> ### ⚠️⚠️ FOUR STALE FLAGS NOW, AND ONE OF THEM CARRIED ⭐⭐
 >
-> ### ⚠️⚠️ `auto` ON A REPLACED ELEMENT MEANS "USE THE FILE'S OWN SIZE"
+> 13, 11a, two of item 12's three bullets, and 14a all turned out to be already
+> shipped — and one of item 12's bullets had its claim **backwards** (it said the
+> student ID was cut off in Library; both panels truncate to eight characters on
+> purpose, matching reports.html, so a child can read it aloud across a room).
+> 14a carried ⭐⭐, the highest marker in the file, and its ruling was already
+> implemented verbatim in lesson-gate.js. **A ⭐⭐ cost Round 35 an entire round.
+> The check costs minutes. Read the code before you believe the flag.**
 >
-> index.html v3.15.0 sized the Continue-reading cover `width:auto; height:auto;
-> aspect-ratio:2/3` inside an `@supports` block, reasoning that the height would
-> stretch and the ratio would derive the width. **An `<img>` has INTRINSIC
-> dimensions.** `auto` took the file's own 400x600, the flex line's cross size
-> was computed from that, `aspect-ratio` never applied, and the cards rendered
-> ~600px tall. Fixed in v3.16.0: **both dimensions definite** (56x84), card
-> floored at 108px, `align-self: center` not `stretch`.
+> ### What Jake asked for next
 >
-> ⚠️ **THE SUITE COULD NOT SEE ANY OF IT.** Three CSS declarations, and every
-> assertion in `continue-reading-test.mjs` was about markup and arithmetic. It
-> took a screenshot. C6 now guards the shape of that rule — including that **no
-> conditional block re-introduces `auto`**, because the original bug lived in
-> `@supports` and a check on the base rule alone would have passed it.
+> **A reads/writes pass across every page**, once these changes are live. The
+> instrument exists: `ttbMeter.report()` in the console covers every page. The
+> last sample on record is **2,562 reads / 1,640 misses across 4 page loads**,
+> still unexamined. ⚠️ Item 18's ruling — **reads are ~50× dearer than writes** —
+> is the lens for reading that number, and §READS in ROADMAP.md is where the
+> earlier notes live.
 >
-> ⚠️ **TWO VISUAL DEFECTS IN TWO ROUNDS NOW REACHED JAKE'S BROWSER** (this, and
-> the HUD lead axis below). Both were CSS, both were invisible to `npm test`.
-> **If a round touches layout, look at it rendered before shipping it** — and
-> when you add a guard, mutate it back into the original bug to prove it fires.
-
-> ### ⚠️⚠️ style.css v3.10.0 — THE COMMENT THAT ASSERTED A BUG AS A FEATURE
+> ### ⚠️⚠️ ROADMAP 23 — THE GUARD, AND WHY IT IS NOT THE ONE THE ITEM ASKED FOR
 >
-> Item 12's real half: School's lesson HUD leaves `#hud-sprint` empty, and
-> `.hud-stack` was `justify-content: center` with auto height — so the one
-> remaining row centred on the BAR's midline while every two-row stack put its
-> LEAD row ~7px higher. The headline number on that page sat below every other
-> headline in the bar. **v3.9.0's comment said this was fine and explained why
-> no conditional CSS was needed.** It was wrong, and a comment that explains why
-> no code is needed is the hardest kind of wrong to notice — nothing in the
-> suite could see it either. `tests/hud-lead-test.mjs` Section E can now.
+> learn.js v2.39.0 pairs `currentRuns` with the lesson it was built for
+> (`currentRunsFor`) and both writers refuse on a mismatch. **The item proposed
+> comparing `buildRunList()` lengths and that would have been wrong twice:**
+> `buildSequence()` is RANDOM per call for key_random/key_pattern_auto, so
+> recomputing invites a false positive — and a false positive here **refuses a
+> REAL run**, which is silent data loss and strictly worse than the hazard. It
+> also passes any swap that yields the same count. ⚠️ The guard **cannot fire
+> today** (finishStep() returns at the remediation branch first); it is a
+> backstop for a structural hazard, not a fix for a live bug. Set
+> `currentRunsFor` at ANY new site that assigns `currentRuns`, or runs stop
+> recording.
 >
-> ⚠️ `min-height`, NOT `height`, on `.hud-stack` — the opposite of `#hud`'s own
-> rule directly above it. Library's centre during a sprint is legitimately
-> taller than two rows and a fixed height clips it against `overflow:hidden`.
-> ⚠️ `+`, NOT `:has()` — old Safari is a real target on a school Mac.
-> ⚠️ `--hud-row-lead` / `--hud-row-sub` are defined ONCE. The stack's floor and
-> the promoted row must agree exactly; two literals drift and put the row NEAR
-> the axis, which is the same defect one pixel quieter.
+> ### ⚠️⚠️ TWO VISUAL DEFECTS REACHED JAKE'S BROWSER THIS SESSION
 >
-> ### ✅ ITEM 24 IS CONFIRMED IN PRODUCTION, NOT JUST IN A HARNESS
->
-> Jake ran the real case on 2026-08-26: three sprints in one book, across a tab
-> switch and an **immediate Home** (which is the `pagehide` path the bug lived
-> on), checking Reports between each. Every round appeared, **no duplicates**.
-> `firestore.rules` v2.8.0 is deployed. The writer fix is done and verified.
->
-> ⚠️ **PRE-EXISTING DUPLICATE DOCUMENTS ARE STILL THERE.** The reader dedupes
-> them (Round 44) and the writer has stopped making new ones (Round 46), but
-> nothing has cleaned up the old ones. A bulk-write pass over student history is
-> a separate decision nobody has made. It is not urgent and it is not a bug.
->
-> ### What Round 47 shipped (ROADMAP 26)
->
-> `index.html` v3.15.0 + **`chapter-position.js` v1.0.0 (NEW MODULE)**. The
-> Continue-reading row is horizontal cards on the shelf's own grid tracks.
->
-> ⚠️⚠️ **READ THIS ONE BEFORE YOU TOUCH ANY CSS IN index.html.** The old row's
-> widths were never what the stylesheet said: the element carried
-> `class="library-grid continue-grid"`, and `.library-grid` is declared LATER at
-> EQUAL specificity, so its columns and gap silently won. Nothing errored. The
-> page just rendered another rule's numbers, and it read as a design choice for
-> weeks. **When a layout looks "slightly off", check for a shared class before
-> you adjust a number.**
->
-> ⚠️ **THE ROW'S GRID DECLARES THE SHELF'S TRACKS ON PURPOSE** and each card
-> spans two columns, so card edges land on the shelf's column lines at every
-> width. Do NOT give `.continue-grid` its own column widths — that is the bug,
-> in the other direction.
->
-> ### ⭐ chapter-position.js, and the lesson about "extracted"
->
-> `chapterPositionOf()` and `lastReadLabel()` used to be inline in
-> `renderBooks()`. The new progress bar needed the same number, so the first
-> pass extracted them into a **local function** in index.html. That killed the
-> twin — and Jake asked why it was not a shared module, which was the better
-> question. A module is importable by the HARNESSES too: `progress-test.mjs` and
-> `continue-reading-test.mjs` no longer lift source text out of an HTML file and
-> rebuild it with `new Function`, which is a technique that had already drifted
-> onto unrelated code twice. **"Not duplicated" and "reachable by a test" are
-> two different goals and a module is what gets you both.**
->
-> ⚠️ **REGISTERED IN ALL THREE REGISTRIES** — `versions.js`,
-> `tools/audit-versions.mjs`, `tests/version-stamp-test.mjs`. All three or the
-> build panel lies; §9b is the round where three shared modules were invisible
-> to the footer for weeks because only the first was done.
->
-> ⚠️ `chapterPositionOf()` is **not** `progressOf()` — position vs completion,
-> they legitimately disagree, and the bar uses the one the shelf card prints so
-> one book cannot show two percentages on one screen.
->
-> ### ⚠️ ITEM 26'S OWN INSTRUCTION IS STILL UNDONE
->
-> **Nobody has checked whether kids were MISSING the row or IGNORING it.** The
-> redesign was worth doing either way, but if they are ignoring it, a better-
-> looking row will not move the number. The drill-down can answer this. Check
-> before crediting the redesign with anything.
+> The HUD lead axis (§ style.css v3.10.0) and the cover-size regression (§
+> index.html v3.16.0). **Both were CSS, both were invisible to `npm test`, and
+> both took a screenshot to find.** `auto` on a replaced element means "use the
+> file's own size", not "size me from my container" — that one shipped. **If a
+> round touches layout, look at it RENDERED before shipping**, with a real
+> full-size asset rather than a convenient thumbnail, and when you add a guard,
+> mutate it back into the original bug to prove it fires.
 >
 > ### ⚠️⚠️ READ §0.-31.H, §0.-32.D AND §0.-33.C BEFORE YOU EDIT ANY FILE
 >
-> Still the standing rule: encode first, write to a temp file, verify the size,
-> rename; assert every anchor matches exactly once (`s.count(old) == 1`) and any
-> slice asserts `j > i`; guard on structure (non-comment code line count), never
-> on words. **Four rounds now with no file-damage incident.**
+> Encode first, write to a temp file, verify the size, rename; assert every
+> anchor matches exactly once (`s.count(old) == 1`) and any slice asserts
+> `j > i`; guard on structure, never on words. **No file-damage incident in
+> this session or the four rounds before it.**
 >
 > ### State of play
 >
-> * **57 harnesses pass**, `npm run audit:versions` reports **0 problems**,
->   `npm run test:rules` passes **65 cases** (last run Round 46).
-> * `firestore.rules` **v2.8.0 IS DEPLOYED** and verified by real use. No
->   console step is outstanding.
-> * ⚠️ **ROADMAP.md's numbers are not an order and are not unique** (there are
->   two item 18s). **DO NOT RENUMBER.** `tests/roadmap-index-test.mjs` keeps the
->   index honest — regenerate the index in the same edit that changes a
->   heading's status. Run clean this round. ⚠️ It matches on the heading's exact
->   text, so an index entry that paraphrases a heading fails B1.
-> * ⚠️ Item **14a is still suspected stale** — carried forward unexamined since
->   Round 45. Verify before working it; a stale ⭐⭐ flag cost Round 35 a round.
-> * The read meter's miss ratio (**2,562 reads / 1,640 misses across 4 page
->   loads**) is still unexamined.
+> * **57 harnesses pass**, `npm run audit:versions` **0 problems**,
+>   `npm run test:rules` **65 cases** (last run Round 46).
+> * `firestore.rules` **v2.8.0 IS DEPLOYED** and verified by real classroom use —
+>   Jake typed three sprints across a tab switch and an immediate Home (the
+>   `pagehide` path) with no duplicates.
+> * ⚠️ **Pre-existing duplicate `typing_sessions` documents still exist.** The
+>   reader dedupes them and the writer no longer creates them; nothing has
+>   cleaned up the old ones. A bulk write over student history is a decision
+>   nobody has made. Not urgent, not a bug.
+> * ⚠️ **ROADMAP.md's numbers are not an order and are not unique** (two item
+>   18s). **DO NOT RENUMBER.** `roadmap-index-test.mjs` matches on a heading's
+>   EXACT text and counts `##` headings — a paraphrased index entry fails B1, and
+>   a `##` used for a "kept original" heading registers as a new open item.
 >
 > ### The name
 >
-> Rounds 46–47 are **Blickensderfer** — one name per conversation, not per
-> round. ⚠️ **GREP THE ROSTER BEFORE YOU PICK YOURS**:
+> Rounds 46–50 are **Blickensderfer** — one name per conversation, not per round.
+> ⚠️ **GREP THE ROSTER BEFORE YOU PICK YOURS**:
 > `grep -rihn "Round [0-9]* (" . | grep -oP "Round \d+ \([A-Za-z-]+\)"`. Rounds
 > 36–40 are all written up as *Underwood*, which is Round 1 — a fourth
 > occurrence past three written warnings.

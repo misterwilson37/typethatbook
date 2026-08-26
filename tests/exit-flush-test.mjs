@@ -1,4 +1,11 @@
-// exit-flush-test.mjs v1.0.0 — "← MAP" BANKS THE TIME AND THROWS AWAY THE RUN.
+// exit-flush-test.mjs v1.1.0
+//
+// v1.1.0 — SECTION G: ROADMAP 23, the run-list pairing (learn.js v2.39.0).
+//          runsBelongToCurrentLesson() is LIFTED, not stubbed — stubbing it
+//          true would drive a writer that cannot refuse, and the guard it
+//          actually carries is the thing under test. console.error is captured
+//          rather than discarded for the same reason: a harness that swallowed
+//          the message would pass while the shipped guard failed silently. — "← MAP" BANKS THE TIME AND THROWS AWAY THE RUN.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // THE DEFECT, MEASURED ON REAL DATA (Jake's console read, 2026-08-23)
@@ -92,6 +99,7 @@ function buildWorld({ flushFails = false, signedIn = true } = {}) {
     const w = {
         server: {},                 // users/{uid}/lessonProgress/{id}
         cache: null,                // PROGRESS_CACHE_KEY payload
+        errors: [],                 // ⚠ ROADMAP 23 — what the guard shouted, if anything
         writes: 0,
         walWrites: 0,
         rendered: 0,
@@ -144,7 +152,10 @@ function buildWorld({ flushFails = false, signedIn = true } = {}) {
         _stampLock: () => { w.locks++; },
         _render: () => { w.rendered++; },
         _view: (v) => { w.view = v; },
-        console: { warn: () => {}, log: () => {} },
+        // ⚠ `error` IS CAPTURED, NOT DISCARDED (ROADMAP 23). The guard's whole
+        // value when it fires is that a human finds out; a harness that swallowed
+        // the message would pass while the shipped guard failed silently.
+        console: { warn: () => {}, log: () => {}, error: (m) => { w.errors.push(String(m)); } },
         structuredClone,
         // ⚠️ v1.1.0 — recordRunOutcome() banks a per-run GRADE as of learn.js
         // v2.36.0 (ROADMAP 15) and reaches for run-grade.js's betterGrade() to
@@ -153,7 +164,14 @@ function buildWorld({ flushFails = false, signedIn = true } = {}) {
         betterGrade, FIRE_GRADE,
     };
 
-    const NEEDED = ['recordRunOutcome', 'flushLessonProgress',
+    // ⚠ v1.2.0 — runsBelongToCurrentLesson() IS LIFTED, NOT STUBBED (ROADMAP 23,
+    // learn.js v2.39.0). recordRunOutcome() and saveProgress() now refuse to
+    // write when currentRuns was not built for currentLesson. Stubbing it true
+    // would make this harness drive a version of the writer that cannot refuse —
+    // and the whole point of lifting the shipped function is that the guard it
+    // actually carries is the one under test. Part E below drives it directly.
+    const NEEDED = ['runsBelongToCurrentLesson', 'recordRunOutcome',
+                    'flushLessonProgress',
                     'loadUserProgress', 'refreshProgressCache'];
     const bodies = NEEDED.map(n => extractFn(src, n));
     const exitBody = extractFn(src, 'exitLessonToMap');
@@ -164,6 +182,10 @@ function buildWorld({ flushFails = false, signedIn = true } = {}) {
         let userProgress = {};
         const pendingProgress = new Set();
         let currentUser = _uid, currentLesson = null, currentRuns = [];
+        // ⚠ ROADMAP 23 — the pairing token. Set to the lesson id by _open()
+        // below, exactly as startLesson() does in the shipped file.
+        const REMEDIATION_RUNS = '\u0000remediation';
+        let currentRunsFor = null;
         let stepSeconds = 0, learnDirty = false, gateActiveDays = 0;
         function stampLastLockDay() { _stampLock(); }
         function learnWalSave() { _wal(); }
@@ -176,7 +198,19 @@ function buildWorld({ flushFails = false, signedIn = true } = {}) {
 
         return {
             ${present.join(', ')}${exitBody ? ', exitLessonToMap' : ''},
-            setRun: (l, runs, secs) => { currentLesson = l; currentRuns = runs; stepSeconds = secs; },
+            // ⚠ ROADMAP 23 — setRun() pairs the list with the lesson, because
+            // that is what startLesson() does. A harness that left the token
+            // null would have every write refused and every assertion below
+            // would fail for the wrong reason.
+            setRun: (l, runs, secs) => {
+                currentLesson = l; currentRuns = runs;
+                currentRunsFor = l ? l.id : null;
+                stepSeconds = secs;
+            },
+            // Breaks the pairing WITHOUT touching currentLesson — exactly what a
+            // remediation drill, or any future run-list swap, does.
+            _unpair: (token) => { currentRunsFor = token === undefined ? REMEDIATION_RUNS : token; },
+            _pairing: () => currentRunsFor,
             progress: () => userProgress,
             pending: () => pendingProgress,
         };
@@ -343,6 +377,58 @@ console.log('\n─── F. THE GUEST PATH ───');
            'F3 \u26a0\ufe0f the guest keeps their runs in memory for the merge at sign-in');
         ok(w.view === 'map', 'F4 the guest still reaches the map');
     } else { fail += 4; console.log('  FAIL: F1–F4 skipped — no exitLessonToMap()'); }
+}
+
+console.log('\n─── G. ⚠⚠ ROADMAP 23 — A RUN LIST THAT DOES NOT BELONG TO THE LESSON ───');
+{
+    // The Round 41 defect: four writers read `currentLesson`, none checked that
+    // `currentRuns` still belonged to it, and the symptom was a GRADE on a
+    // child's record rather than an error. `remediationRun` guards the ONE
+    // detour that breaks the pairing today; this guards the SHAPE of it, so the
+    // next feature that swaps the run list fails loudly instead of quietly
+    // banking a wrong grade.
+    const w = buildWorld({ signedIn: true });
+
+    // Baseline: paired, so the writer works exactly as sections A–F expect.
+    w.fns.setRun(LESSON, new Array(LESSON.runs).fill(0).map((_, i) => ({ i })), 30);
+    w.fns.recordRunOutcome(0, 'A', true);
+    const banked = totalAttempts(w.fns.progress()[LESSON.id]);
+    ok(banked === 1, `G1 a PAIRED list records normally (got ${banked})`);
+
+    // Now break the pairing the way a remediation drill does: currentLesson is
+    // untouched, only the list changes owner.
+    w.fns._unpair();
+    w.fns.recordRunOutcome(1, 'A\u{1F525}', true);
+    const after = totalAttempts(w.fns.progress()[LESSON.id]);
+    ok(after === banked,
+       `G2 ⚠⚠ an UNPAIRED list records NOTHING — no attempt, no grade (got ${after}, want ${banked})`);
+
+    // ⚠ AND THE REFUSAL IS TOTAL, NOT PARTIAL. A guard that skipped the grade
+    // but still bumped runCount or lastGrade would leave the record internally
+    // inconsistent, which is the failure mode §0.-14 is about.
+    const rec = w.fns.progress()[LESSON.id] || {};
+    ok(rec.lastGrade !== 'A\u{1F525}',
+       'G3 ⚠ the refused run did not leave its grade behind on lastGrade');
+    ok(!(rec.runFires && rec.runFires['1']),
+       'G4 ⚠ the refused run banked no fire on run 1');
+
+    // Re-pairing restores normal service — the guard is a gate, not a latch.
+    w.fns.setRun(LESSON, new Array(LESSON.runs).fill(0).map((_, i) => ({ i })), 30);
+    w.fns.recordRunOutcome(1, 'A', true);
+    ok(totalAttempts(w.fns.progress()[LESSON.id]) === banked + 1,
+       'G5 re-pairing restores recording — the guard is a gate, not a one-way latch');
+
+    // ⚠ THE REFUSAL MUST BE AUDIBLE. A silent refusal is its own failure mode:
+    // the run vanishes and nobody knows why, which is harder to diagnose than
+    // the wrong grade it replaced.
+    ok(w.errors.some(m => m.includes('ROADMAP 23') && m.includes(LESSON.id)),
+       `G7 ⚠⚠ the refusal logs an error naming the lesson (got ${JSON.stringify(w.errors)})`);
+
+    // A null token (nothing open) must refuse too, not fall through on falsy.
+    w.fns._unpair(null);
+    w.fns.recordRunOutcome(2, 'A', true);
+    ok(totalAttempts(w.fns.progress()[LESSON.id]) === banked + 1,
+       'G6 ⚠ a NULL pairing refuses as well — not just the remediation sentinel');
 }
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} passing, ${fail} failing`);

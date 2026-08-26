@@ -1,5 +1,22 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.37.0, 2026-08-26.** ✅ **ITEM 23 CLOSED.** `currentRuns` is now paired with
+the lesson it was built for (`currentRunsFor`), and both writers refuse when the
+pairing breaks. ⚠️ **The guard the item proposed — comparing `buildRunList()`
+lengths — would have been wrong twice**: `buildSequence()` is random per call, so
+recomputing invites a false positive that would REFUSE A REAL RUN, and a swap
+producing the same count passes it anyway. **AND 14a IS CLOSED BY VERIFICATION** — its ruling was
+already shipped verbatim by item 14 (A🔥=2, A=1, B=0, mastered at 4, scored per
+run). That is the FOURTH stale flag in this file, and it carried ⭐⭐.
+
+**v3.36.0, 2026-08-26.** ✅ **ITEM 12 CLOSED.** School's lesson HUD put its
+headline number seven pixels below every other headline in the bar, because an
+empty lead row let the remaining row centre on the BAR's midline instead of the
+LEAD row's axis — and style.css v3.9.0's comment asserted that behaviour as a
+feature. Fixed in style.css v3.10.0 by reserving the row; guarded by
+hud-lead-test.mjs Section E. ⚠️ **The item's other two bullets were STALE** and
+Jake confirmed it — three stale flags in this file now, with 14a still suspected.
+
 **v3.35.0, 2026-08-26.** ✅ **ITEM 26 CLOSED — THE CONTINUE-READING ROW IS ITS OWN
 KIND OF OBJECT NOW.** Horizontal cards (small cover left, "Resume" above the
 title, progress bar, last-read line) on the SHELF's own grid tracks, each card
@@ -83,10 +100,7 @@ fix instead: **Ctrl-F any line below to land on the section.**
 
 **Priority first, then everything else by position in the file.**
 
-1. **12. ⚠️ SAFARI HUD SPACING, AND TWO SMALLER THINGS IN THE SAME PANEL**
-   — ⚠️ Jake-reported, small, and untouched for several rounds. Items 24 and 26 are both closed, so this is next.
-2. **23. ⚠️ NEW — `saveProgress()` AND `recordRunOutcome()` TRUST `currentLesson` ALONE**
-   — ⚠️ A correctness item on the write path, and the only unexamined one left of its kind.
+1. ✅ **NOTHING IS OPEN AND PRIORITISED.** Items 12, 23, 24 and 26 closed by work; 13, 11a and 14a closed by verification. What remains below is measurement, process, and one open decision — no defect is outstanding.
 
 Everything else still open:
 
@@ -99,7 +113,6 @@ Everything else still open:
 - 7. THE 5-SECOND FLOOR
 - 8b. ⭐ NEW — EVERY ROUND SHIPS A CHANGED-FILES-ONLY UPLOAD SET
 - 11a. ⚠️ MOSTLY CLOSED (Round 41) — ONE OPEN **DECISION**, NOT A BUG
-- 14a. ⭐⭐ MASTERY IS CUMULATIVE POINTS, PER **RUN**, NOT THREE FIREBALLS PER LESSON
 - 9. REDUCE THE SURFACE
 
 ## ⏳ WATCHING — no action, just don't forget
@@ -127,6 +140,9 @@ Everything else still open:
 - 22. ✅ MEASURED AND CLOSED (Round 44) — runCount DRIFT IS ESSENTIALLY ABSENT
 - 24. ✅ CLOSED (Round 46, Rem-Sho) — THE WRITER: A RESENT CHUNK NO LONGER DUPLICATES
 - 26. ✅ CLOSED (Round 47, Blickensderfer) — THE CONTINUE-READING ROW READS AS ITS OWN THING
+- 12. ✅ CLOSED (Round 47, Blickensderfer) — THE LEAD AXIS, AND TWO STALE BULLETS
+- 23. ✅ CLOSED (Round 50, Blickensderfer) — THE RUN LIST IS PAIRED WITH THE LESSON
+- 14a. ✅ CLOSED BY VERIFICATION (Round 50, Blickensderfer) — ALREADY SHIPPED BY ITEM 14
 - 16. ✅ FIXED (Round 40) — THE BUILD PANEL ON `reports.html` AND `admin.html`
 - 17. ✅ CLOSED (Rounds 35–40) — REPORTS READ EVERY RECORD OF EVERY STUDENT
 - 18. ✅ CLOSED (Rounds 36–40) — THE READ BUDGET
@@ -945,17 +961,57 @@ write both.
 
 ---
 
-## 12. ⚠️ SAFARI HUD SPACING, AND TWO SMALLER THINGS IN THE SAME PANEL
+## 12. ✅ CLOSED (Round 47, Blickensderfer) — THE LEAD AXIS, AND TWO STALE BULLETS
 
-* **`learn.html` lacks the top padding `game.html` has.** Visible in Jake's
-  screenshot: School's HUD sits flush against the top edge, Library's does not.
-  Believed to be a missing wrapper element, noted in an earlier round and still
-  open. ⚠️ **Twin problem again** — the two shells are hand-maintained.
-* **The student ID is CUT OFF in Library's settings panel** but renders fully in
-  School's. Same panel, same field, different shell.
-* **Settings does not show the class in Library at all** (School shows "No class
-  assigned"). Fold into item 11 — until that is resolved it is unclear whether
-  this is a display bug or a correct display of missing data.
+✅ **FIXED IN style.css v3.10.0.** School's lesson HUD leaves `#hud-sprint`
+empty by design, and `.hud-stack` was `justify-content: center` with auto
+height — so the one remaining row centred on the BAR's midline (~30px) while
+every two-row stack put its LEAD row at ~23px. WPM/accuracy, the headline
+number on that page, sat **seven pixels low** against "Daily …" to its left and
+the student's name to its right. Jake, with a screenshot: *"very obviously off
+in comparison to every other HUD (including the lesson menu HUD)."*
+
+⚠️⚠️ **THE OLD COMMENT ASSERTED THE BUG AS A FEATURE.** style.css v3.9.0 said a
+stack with an empty lead row "centres its remaining row on its own without any
+conditional CSS." It does centre it — on the wrong axis. **A comment that
+explains why no code is needed is the hardest kind of wrong to notice**, and
+this one survived several rounds because nothing in the suite could see it.
+
+✅ **THE FIX RESERVES THE ROW, IT DOES NOT NUDGE A MARGIN.** `.hud-stack` gets a
+two-row `min-height` floor and pins to the top; an empty `.hud-lead` is removed
+and the row beneath takes its box, so the promoted row centres on the same axis
+`#hud-time` and `#user-name` use. Row heights are `--hud-row-lead` /
+`--hud-row-sub`, defined once, because the floor and the promoted row must agree
+EXACTLY — two literals would drift and land the row *near* the axis, which is
+the same defect one pixel quieter.
+
+⚠️ **min-height, NOT height** — the opposite of `#hud`'s own rule directly above
+it, and deliberately so. Library's centre during a sprint is genuinely taller
+than two nominal rows (the live row does not shrink to 11px), and a fixed height
+would clip it against `overflow: hidden`. The floor aligns short stacks; tall
+ones may still grow.
+
+⚠️ **`+`, NOT `:has()`** — this has to work on whatever Safari is on a school
+Mac. Guarded by `tests/hud-lead-test.mjs` Section E (9 assertions,
+mutation-verified: reverting `justify-content` fails E2/E3, swapping the
+variable for a literal fails E5/E7).
+
+### ✅ THE OTHER TWO BULLETS WERE STALE — Jake confirmed, 2026-08-26
+
+Both were checked against the source before any work was done, and both had
+already been fixed by later rounds:
+
+* **"Student ID is CUT OFF in Library"** — and the bullet had it BACKWARDS.
+  Both panels print the same **eight** characters on purpose (`game.js` v3.42.3,
+  `learn.js` v2.29.0), matching what `reports.html` prints beside each student:
+  eight can be read aloud across a classroom without error, twenty-eight cannot.
+  The full uid is still in the title and on the clipboard. **Not a defect.**
+* **"Settings does not show the class in Library"** — was folded into item 11,
+  which closed in Round 33. Jake confirmed it is no longer live.
+
+⚠️ **THAT IS THREE STALE FLAGS IN THIS FILE NOW** (13, 11a, and two-thirds of
+12), plus 14a still suspected. **Verify before building** — §0.-35 is the round
+that lost time to exactly this.
 
 ---
 
@@ -1072,7 +1128,32 @@ exist.** Write it or strike the line.
 
 ### The original item, kept for the reasoning behind each ruling
 
-## 14a. ⭐⭐ MASTERY IS CUMULATIVE POINTS, PER **RUN**, NOT THREE FIREBALLS PER LESSON
+## 14a. ✅ CLOSED BY VERIFICATION (Round 50, Blickensderfer) — ALREADY SHIPPED
+
+⚠️⚠️ **STALE FLAG. NOTHING WAS BUILT AND NOTHING NEEDED TO BE.** Item 14 shipped
+this in learn.js v2.34.0, and the code matches Jake's ruling *verbatim*:
+
+| Jake's ruling, 2026-08-23 | `lesson-gate.js` as shipped |
+|---|---|
+| A🔥 = 2 | `RUN_POINTS['A🔥'] = 2` |
+| A = 1 | `RUN_POINTS['A'] = 1` |
+| B and below = 0 | absent from `RUN_POINTS`; `pointsForGrade()` returns 0 |
+| mastered at 4 | `MASTERY_POINTS = 4` |
+| scored per **run** | `runScores[runIdx]` in `recordRunOutcome()` |
+
+The downward-closure clause Jake asked for (*"run 3 of a lesson locks runs 1 and
+2, too"*) is implemented and computed rather than stored. The renumbering the
+item worried about was correctly judged unnecessary at the time — the per-run
+granularity already existed in the data model — and it is still unnecessary.
+
+⚠️ **THIS IS THE FOURTH STALE FLAG IN THIS FILE** (13, 11a, two-thirds of 12, and
+now 14a — which carried ⭐⭐, the highest priority marker here). A ⭐⭐ once cost
+Round 35 an entire round. **The check is cheap and the build is not: read the
+code before you believe the flag.**
+
+### The original item, kept
+
+*(Original heading: ⭐⭐ MASTERY IS CUMULATIVE POINTS, PER **RUN**, NOT THREE FIREBALLS PER LESSON — demoted from `##` so it is not read as a second open item; roadmap-index-test.mjs counts headings.)*
 
 ### ✅ JAKE'S RULING, 2026-08-23 — TAKE THIS AS DECIDED
 
@@ -1518,7 +1599,44 @@ measurement, free, on any day Jake opens.
 
 ---
 
-## 23. ⚠️ NEW — `saveProgress()` AND `recordRunOutcome()` TRUST `currentLesson` ALONE
+## 23. ✅ CLOSED (Round 50, Blickensderfer) — THE RUN LIST IS PAIRED WITH THE LESSON
+
+✅ **SHIPPED learn.js v2.39.0.** `currentRunsFor` records what `currentRuns` was
+built for, set at **every** site that assigns the list — `startLesson()`, the
+remediation detour, and the exit reset — and both writers refuse when it does not
+match `currentLesson.id`.
+
+⚠️⚠️ **THE GUARD THIS ITEM PROPOSED WAS THE WRONG ONE, AND THE REASON MATTERS.**
+The item suggested `currentRuns.length !== buildRunList(currentLesson).length`.
+That fails twice:
+
+1. **`buildSequence()` is RANDOM per call** for `key_random` and
+   `key_pattern_auto` — `buildRunList()`'s own comment says sequences are baked
+   for exactly this reason. Recomputing to compare invites a false positive, and
+   **a false positive here refuses a REAL run**: silent data loss, strictly worse
+   than the hazard it guards.
+2. **A swap that produces the same run count passes it.** The remediation drill
+   on a 3-chunk lesson would sail straight through.
+
+A pairing token answers the real question — *was this list built for this
+lesson?* — in O(1), with no recomputation and no randomness.
+
+⚠️ **IT CANNOT FIRE TODAY, AND THAT IS THE POINT.** `finishStep()` returns at the
+remediation branch before either writer. This is a backstop for a structural
+hazard that has already cost one round, not a fix for a live bug — `remediationRun`
+flags the one KNOWN detour, this guards the shape.
+
+⚠️ **THE REFUSAL IS TOTAL AND AUDIBLE.** No attempt, no grade, no fire, nothing
+left behind on `lastGrade` — a partial write would leave the record internally
+inconsistent, which is the defect class §0.-14 is about. And it logs an error
+naming the lesson, because a silent refusal is its own failure mode: the run
+vanishes and nobody knows why.
+
+Guarded by `tests/exit-flush-test.mjs` Section G (7 assertions,
+mutation-verified: removing the guard fails G2/G3/G4/G7, and accepting a falsy
+token — the mistake a hand-written guard would plausibly make — fails G6).
+
+### The original item, kept
 
 The Round 41 defect was possible because **four writers read `currentLesson` and
 none of them checked that `currentRuns` still belonged to it.** The remediation
@@ -1526,11 +1644,6 @@ detour is the only path that breaks that pairing today, and it is now flagged �
 but the *structural* hazard is unguarded: any future feature that swaps the run
 list will re-open it, silently, and the symptom will again be a grade rather than
 an error.
-
-⚠️ **THE CHEAP GUARD IS AN ASSERTION, NOT A REFACTOR:** `recordRunOutcome()` could
-refuse when `currentRuns.length !== buildRunList(currentLesson).length` and warn.
-Not built. Recorded so the next instance does not rediscover it from a student's
-record.
 
 ---
 
