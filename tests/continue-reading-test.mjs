@@ -1,5 +1,14 @@
-// continue-reading-test.mjs — ROADMAP 19. THE ROW MUST POINT AT A BOOK THAT
-// EXISTS, IN THE ORDER THE STUDENT LAST TOUCHED IT.
+// continue-reading-test.mjs v1.1.0 — ROADMAP 19. THE ROW MUST POINT AT A BOOK
+// THAT EXISTS, IN THE ORDER THE STUDENT LAST TOUCHED IT.
+//
+// v1.1.0 — ⭐ ROADMAP 26 (index.html v3.15.0): the card is its own <a> now, not
+//          a .book-card div wrapping a .book-card-link. Part C rewritten for
+//          the new structure with the nested-interactive assertions KEPT — this
+//          row has no ⓘ button today, and C1 is what catches the day one is
+//          added. C3 and C4 are new: C3 that an empty bar string leaves no
+//          element (never a 0% bar), C4 that the CALLER actually omits it,
+//          because C3 alone passed a mutation that forced the bar on. Both
+//          mutation-verified. Sections A, B and D are unchanged.
 //
 // The feature reads nothing new: every field comes off the progress documents
 // index.html already fetches and caches. That makes ONE function load-bearing —
@@ -150,63 +159,118 @@ await check('B5. no progress, no books, and a guest all yield nothing', () => {
 
 // ─── C. THE MARKUP SURVIVES A REAL PARSER ────────────────────────────────────
 
+const TPL_ANCHOR = '                return `\n                    <a class="continue-card" href="game.html?book=${encodeURIComponent(id)}">';
+
+// Lifts the card template out of renderContinue() and renders it for real.
+// ⚠️ v1.1.0 — THE CARD IS ITS OWN <a> NOW (index.html v3.15.0, ROADMAP 26). It
+// used to be a .book-card div wrapping a .book-card-link anchor, because the
+// shelf card has an ⓘ button and a credit link that may not sit inside an
+// anchor. This row has neither, so the whole card is the link and a child
+// aiming at a 60px target has no dead margin. The nested-interactive
+// assertions below are KEPT AND TIGHTENED anyway — if anything clickable is
+// ever added here, this is what catches it before a browser does.
+function renderCard(id, book, coverHTML, barHTML, lastHTML) {
+    const start = src.indexOf(TPL_ANCHOR);
+    assert.ok(start > 0, 'could not locate the continue-card template in index.html');
+    const end = src.indexOf('</a>`;', start);
+    assert.ok(end > start, 'the continue-card template no longer ends where expected');
+    const tpl = src.slice(start + '                return `'.length, end + '</a>'.length);
+    const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+    const escA = s => String(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const render = new Function('id', 'book', 'coverHTML', 'barHTML', 'lastHTML',
+                                'escapeHtml', 'escapeAttr', 'return `' + tpl + '`;');
+    return render(id, book, coverHTML, barHTML, lastHTML, esc, escA);
+}
+
 await check('C1. the card parses with the anchor intact and no nested interactives', () => {
     // ⚠️ SAME RULE THAT BROKE renderBooks() IN v3.5.0: an <a> may not contain
     // another <a> or a <button>, and browsers RECOVER by closing the outer
     // anchor early and reparenting everything after it — which is what put half
     // a credit line on the page background outside its card.
-    const start = src.indexOf('                return `\n                    <div class="book-card">\n                        <a class="book-card-link" href="game.html?book=${encodeURIComponent(id)}">');
-    assert.ok(start > 0, 'could not locate the continue-card template in index.html');
-    const end = src.indexOf('</div>`;', start);
-    const tpl = src.slice(start + '                return `'.length, end + '</div>'.length);
-
-    const render = new Function('id', 'book', 'coverHTML', 'escapeHtml', 'escapeAttr',
-                                'return `' + tpl + '`;');
-    const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
-    const escA = s => String(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    // coverHTML is built just above the template in renderContinue(); the cover
-    // itself is not what this case is about, so a stand-in stands in.
-    const COVER = '<img class="book-cover" src="c.jpg" alt="cover">';
-
-    const html = render('pinocchio', {
-        title: 'The Adventures of "Pinocchio"',
-        author: "Carlo Collodi",
-        coverUrl: 'https://example.test/c.jpg',
-    }, COVER, esc, escA);
+    const COVER = '<img class="continue-cover" src="c.jpg" alt="">';
+    const BAR = '<div class="continue-bar-bg"><div class="continue-bar-fill" style="width:62%"></div></div>';
+    const LAST = '<div class="continue-last">Last read yesterday</div>';
 
     const host = document.createElement('div');
-    host.innerHTML = html;
+    host.innerHTML = renderCard('pinocchio', {
+        title: 'The Adventures of "Pinocchio"',
+        author: 'Carlo Collodi',
+        coverUrl: 'https://example.test/c.jpg',
+    }, COVER, BAR, LAST);
 
-    const card = host.querySelector('.book-card');
-    assert.ok(card, 'a card element must exist');
-    const link = card.querySelector('a.book-card-link');
-    assert.ok(link, 'the anchor must survive parsing');
-    assert.equal(link.querySelectorAll('a').length, 0, 'no nested anchor');
-    assert.equal(link.querySelectorAll('button').length, 0, 'no button inside the anchor');
-    assert.ok(link.querySelector('.book-title'), 'the title must be INSIDE the link');
-    assert.ok(link.querySelector('.continue-resume'), 'the resume line must be inside the link');
-    assert.equal(card.children.length, 1, 'nothing reparented out of the anchor');
-    assert.ok(link.getAttribute('href').includes('book=pinocchio'));
+    const card = host.querySelector('a.continue-card');
+    assert.ok(card, 'the card must BE the anchor');
+    assert.equal(card.querySelectorAll('a').length, 0, 'no nested anchor');
+    assert.equal(card.querySelectorAll('button').length, 0, 'no button inside the anchor');
+    assert.ok(card.querySelector('.continue-title'), 'the title must be inside the link');
+    assert.ok(card.querySelector('.continue-resume'), 'the resume label must be inside the link');
+    assert.ok(card.querySelector('.continue-bar-fill'), 'the progress bar must be inside the link');
+    assert.ok(card.querySelector('.continue-last'), 'the last-read line must be inside the link');
+    // ⚠️ NOTHING REPARENTED. If a browser had recovered from a nested anchor it
+    // would have closed this one early and left siblings behind it.
+    assert.equal(host.children.length, 1, 'nothing reparented out of the anchor');
+    assert.ok(card.getAttribute('href').includes('book=pinocchio'));
 });
 
 await check('C2. a title with quotes and markup cannot escape its element', () => {
-    const start = src.indexOf('                return `\n                    <div class="book-card">\n                        <a class="book-card-link" href="game.html?book=${encodeURIComponent(id)}">');
-    const end = src.indexOf('</div>`;', start);
-    const tpl = src.slice(start + '                return `'.length, end + '</div>'.length);
-    const render = new Function('id', 'book', 'coverHTML', 'escapeHtml', 'escapeAttr',
-                                'return `' + tpl + '`;');
-    const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
-    const escA = s => String(s).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
     const nasty = '<img src=x onerror=alert(1)>"';
     const host = document.createElement('div');
     // ⚠️ NO COVER IMAGE HERE, so any <img> the parser finds came out of the
     // TITLE — which is the whole point of the case.
-    host.innerHTML = render('b', { title: nasty, author: nasty, coverUrl: '' },
-                            '<div class="book-cover-placeholder"></div>', esc, escA);
+    host.innerHTML = renderCard('b', { title: nasty, author: nasty, coverUrl: '' },
+                                '<div class="continue-cover-placeholder"></div>', '', '');
     assert.equal(host.querySelectorAll('img').length, 0,
         'a book title must never become an element');
-    assert.equal(host.querySelector('.book-title').textContent, nasty);
+    assert.equal(host.querySelector('.continue-title').textContent, nasty);
+});
+
+await check('C3. an empty bar/last-read string leaves NO element behind', () => {
+    // ⚠️ THIS CASE COVERS THE TEMPLATE ONLY — that given an empty string it
+    // renders nothing at all, rather than an empty <div> that would paint a 0%
+    // bar. It does NOT prove the caller ever passes an empty string; that is
+    // C4's job, and the two were briefly conflated here. A mutation forcing
+    // `barHTML` to a constant passes this case and fails C4, which is the
+    // split working as intended.
+    const host = document.createElement('div');
+    host.innerHTML = renderCard('b', { title: 'Heidi', coverUrl: '' },
+                                '<div class="continue-cover-placeholder"></div>', '', '');
+    assert.equal(host.querySelectorAll('.continue-bar-bg').length, 0,
+        'no bar element at all when the position is unknown');
+    assert.equal(host.querySelectorAll('.continue-last').length, 0,
+        'no last-read element at all when there is no stamp');
+    assert.ok(host.querySelector('.continue-title'), 'the title still renders');
+});
+
+await check('C4. the CALLER omits the bar when the position is unknowable', () => {
+    // ⚠️ A 0% BAR WOULD BE A LIE — a child halfway through a book must not be
+    // shown an empty bar because a field was stripped from a cache. The
+    // contract that prevents it is chapterPositionOf() returning null, and the
+    // caller guarding on it. Both halves are checked here, against the LIVE
+    // file: the function is lifted by walking its braces (same technique as
+    // progress-test.mjs v1.1.0, and for the same reason — a substring anchor
+    // drifts onto its neighbour), and the guard is checked as source.
+    const FN = 'function chapterPositionOf(book, progress) {';
+    const i = src.indexOf(FN);
+    assert.ok(i > 0, 'chapterPositionOf() is gone — did the math get re-inlined?');
+    let depth = 0, end = -1;
+    for (let k = i + FN.length - 1; k < src.length; k++) {
+        if (src[k] === '{') depth++;
+        else if (src[k] === '}') { depth--; if (depth === 0) { end = k + 1; break; } }
+    }
+    assert.ok(end > i, 'could not find the end of chapterPositionOf()');
+    const calc = new Function(`${src.slice(i, end)}; return chapterPositionOf;`)();
+
+    assert.equal(calc({ totalChapters: 20 }, null), null, 'no progress doc → null');
+    assert.equal(calc({ totalChapters: 0 }, { chapter: 'chapter_3' }), null, 'no denominator → null');
+    assert.equal(calc({}, { chapter: 'chapter_3' }), null, 'nothing to divide by → null');
+    // And it still answers for the ordinary case, so the nulls above are a
+    // contract rather than a function that never returns anything.
+    assert.equal(calc({ totalChapters: 20 }, { chapter: 'chapter_5' }).pct, 25);
+
+    // ⚠️ THE GUARD ITSELF. Without this the nulls above are unused and the
+    // template gets `undefined`, which renders the string "undefined".
+    assert.ok(/const barHTML = pos\s*\n?\s*\?/.test(src),
+        'renderContinue must guard barHTML on pos being non-null');
 });
 
 // ─── D. THE ROW IS HIDDEN, NOT EMPTY, WHEN THERE IS NOTHING ──────────────────

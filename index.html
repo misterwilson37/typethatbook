@@ -99,21 +99,74 @@
            Deliberately reuses .book-card and .book-cover so the cards are the
            SAME objects the student already knows, just fewer of them. Only the
            row wrapper and the resume line are new. */
+        /* ROADMAP 26 (v3.15.0) — THE ROW IS A DIFFERENT KIND OF THING FROM THE
+           SHELF, AND THE LAYOUT IS WHAT SAYS SO.
+           Jake, 2026-08-25: "they're way too big... it looks like it's a part of
+           the library, and kids are rolling right past it."
+           ⚠️ THE PROBLEM WAS CATEGORY, NOT SIZE. The old row reused .book-card and
+           .book-cover — the same vertical cover-on-top object as the shelf, just
+           fewer of them — so it read as the shelf's first row. These cards are
+           HORIZONTAL, cover small and left, verb first, with an accent rule down
+           the side. Shrinking the old card instead would have made a small shelf
+           item, which is the same mistake quieter. */
         .continue-row { margin: 0 0 2rem; }
         .continue-heading {
             font-size: 1.05rem; font-weight: 700; letter-spacing: .02em;
             margin: 0 0 .75rem; opacity: .85;
         }
-        /* ⚠️ CAPPED, NOT auto-fill. The main shelf flows to as many columns as
-           fit; three cards doing that on a wide screen stretch into something
-           that does not look like a shelf at all. */
+        /* ⚠️ auto-fit, NOT auto-fill, AND THAT IS THE WHOLE DIFFERENCE HERE. With
+           auto-fill a wide screen keeps empty phantom columns and two cards sit
+           squeezed at the left; auto-fit collapses the empties so one or two cards
+           span the row properly. The shelf below uses auto-fill because a shelf
+           SHOULD keep its column rhythm — this row should not. */
         .continue-grid {
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
             max-width: 44rem;
         }
+        .continue-card {
+            display: flex; gap: 12px; align-items: flex-start;
+            background: var(--card-bg);
+            border-radius: 6px;
+            border-left: 4px solid var(--accent);
+            box-shadow: 0 2px 8px var(--shadow);
+            padding: 12px 14px;
+            text-decoration: none; color: inherit;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .continue-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px var(--shadow-hover);
+        }
+        /* ⚠️ NOT .book-cover. That class is width:100% + aspect-ratio, built to
+           fill a shelf column; reusing it here collapses the flex row. */
+        .continue-cover {
+            width: 40px; height: 60px; object-fit: cover;
+            border-radius: 2px; flex-shrink: 0; background: #e0d8cf;
+        }
+        .continue-cover-placeholder {
+            width: 40px; height: 60px; flex-shrink: 0; border-radius: 2px;
+            background: linear-gradient(135deg, #c9bfb0 0%, #a89880 100%);
+        }
+        /* min-width:0 is load-bearing: without it a long title refuses to wrap and
+           pushes the card past its grid column. */
+        .continue-body { flex: 1; min-width: 0; }
         .continue-resume {
-            margin-top: .4rem; font-size: .8rem; font-weight: 600;
-            opacity: .75;
+            font-size: .68rem; font-weight: 700; color: var(--accent);
+            text-transform: uppercase; letter-spacing: .03em;
+        }
+        .continue-title {
+            font-size: .85rem; font-weight: 700; line-height: 1.25;
+            margin: 1px 0 6px;
+        }
+        .continue-bar-bg {
+            width: 100%; height: 5px; background: #e8e2d8;
+            border-radius: 3px; overflow: hidden;
+        }
+        .continue-bar-fill { height: 100%; background: var(--accent); }
+        .continue-last {
+            font-size: .68rem; color: #999; margin-top: 4px;
         }
         .library-grid {
             display: grid;
@@ -350,7 +403,7 @@
                 <a href="learn.html" id="mode-school" class="mode-btn">School</a>
                 <button type="button" id="mode-library" class="mode-btn active">Library</button>
             </nav>
-        <!-- ⚠️ DAILY IS DELIBERATELY ABSENT HERE (v3.11.0). It was built and then
+        <!-- ⚠️ DAILY IS DELIBERATELY ABSENT HERE (v3.15.0). It was built and then
              removed on Jake's ruling: "it just looks out of place — weekly is
              what matters most there." The landing page is where a child checks
              how the WEEK is going before choosing what to do; the daily figure
@@ -473,11 +526,30 @@
         // it, because they used to be hardcoded separately and had already
         // drifted apart (title said 3.0.0, footer said 2.3.1).
         //
+        // v3.15.0: ⭐ ROADMAP 26 — THE CONTINUE-READING ROW IS A DIFFERENT KIND OF
+        //         THING NOW. Jake: "they're way too big... it looks like it's a
+        //         part of the library, and kids are rolling right past it."
+        //         ⚠️ THE PROBLEM WAS CATEGORY, NOT SIZE — the row reused
+        //         .book-card/.book-cover, so it WAS the shelf, just shorter.
+        //         Cards are horizontal now: 40x60 cover left, "Resume" above the
+        //         title, progress bar, last-read line. auto-fit (not auto-fill)
+        //         so two or three span a wide screen properly.
+        //         ⚠️⚠️ THE CHAPTER MATH MOVED OUT OF renderBooks() into
+        //         chapterPositionOf() — ONE COPY, both callers. Copying it for
+        //         the new bar would have been the fifth hand-maintained twin
+        //         this project has had to find. ⚠️ Do not re-inline it:
+        //         progress-test.mjs v1.1.0 and continue-reading-test.mjs C4 both
+        //         lift it by name and will fail loudly if it goes.
+        //         ⚠️ chapterPositionOf() is NOT progressOf() — position vs
+        //         completion, they legitimately disagree, and the bar uses the
+        //         same one the shelf card prints so one book cannot show two
+        //         different percentages on one screen.
+        //
         // v3.0.1: single INDEX_VERSION constant drives title + footer; added the
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.14.0";
+        const INDEX_VERSION = "3.15.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -1122,6 +1194,74 @@
             return (p.completedChapters ? p.completedChapters.length : 0) / chapterCount;
         }
 
+        // ⚠️⚠️ THE ONE COPY OF THE CHAPTER-POSITION RULE (v3.15.0). This block used
+        // to live inline in renderBooks(), and the Continue-reading row (ROADMAP 26)
+        // needed the SAME number for its progress bar. Copying it would have made a
+        // hand-maintained twin — the exact defect that has now been found four
+        // separate times in this project (celebrate.js, hud.js, the grade rule, the
+        // build panel), every time by drifting rather than by breaking. So it moved
+        // here and BOTH callers read it.
+        //
+        // ⚠️ RETURNS null, NOT A ZEROED OBJECT, when the position is unknowable. A
+        // caller must decide whether to draw nothing (both do); a 0% bar would tell
+        // a child they have read none of a book they are halfway through.
+        //
+        // ⚠️ THIS IS CHAPTER POSITION, NOT completedChapters — deliberately, and it
+        // is NOT interchangeable with progressOf() above. progressOf() answers "how
+        // much is finished" for SORTING; this answers "where are they" for DISPLAY,
+        // and they legitimately disagree (a child on ch. 5 who finished 3 is 42% by
+        // one and 25% by the other). Using progressOf() for the bar would have put
+        // two different percentages for one book on one screen.
+        //
+        // The list is only present on a cold load — it is stripped before caching
+        // because it is the largest field on the document — and old book documents
+        // have no `matter` on their entries at all. So this degrades in three steps
+        // rather than assuming the best case. game.js v3.10.0 writes
+        // bodyIndex/bodyTotal on the progress doc, which is the ONLY source that
+        // survives the grid cache. Prefer it, then the list, then arithmetic.
+        function chapterPositionOf(book, progress) {
+            const denom = (typeof progress?.bodyTotal === 'number' && progress.bodyTotal > 0)
+                ? progress.bodyTotal
+                : ((typeof book.bodyChapters === 'number' && book.bodyChapters > 0)
+                    ? book.bodyChapters : book.totalChapters);
+            if (!progress || !(denom > 0)) return null;
+            const curId = String(progress.chapter || "chapter_1");
+            let chapNum = (typeof progress.bodyIndex === 'number' && progress.bodyIndex > 0)
+                ? progress.bodyIndex : null;
+            if (chapNum === null && book.chapters && book.chapters.length) {
+                const bodyOnly = book.chapters.filter(c => (c.matter || 'body') === 'body');
+                const list = bodyOnly.length ? bodyOnly : book.chapters;
+                const at = list.findIndex(c => String(c.id) === curId);
+                if (at !== -1) chapNum = at + 1;
+            }
+            // Fallback for a cached grid or a pre-v3.19.1 document. parseFloat,
+            // not parseInt, so 2.09 does not silently become 2 — and it is
+            // floored back to a whole number for display.
+            if (chapNum === null) {
+                const raw = parseFloat(curId.replace("chapter_", ""));
+                chapNum = Number.isFinite(raw) ? Math.max(1, Math.round(raw)) : 1;
+            }
+            const pct = Math.min(100, Math.round((chapNum / denom) * 100));
+            return { chapNum, denom, pct };
+        }
+
+        // "Last read" for the Continue-reading row. ⚠️ COARSE ON PURPOSE, AND IT
+        // NEVER SAYS A NUMBER OF MINUTES. The stamp behind it is `lastUpdated`,
+        // which is written when progress is SAVED, not when the child stopped
+        // typing — precise-looking output ("14 minutes ago") would be a precision
+        // the underlying field does not have. Days are safe; anything inside a day
+        // is "today".
+        function lastReadLabel(ms) {
+            if (!ms) return '';
+            const days = Math.floor((Date.now() - ms) / 86400000);
+            if (days <= 0) return 'Last read today';
+            if (days === 1) return 'Last read yesterday';
+            if (days < 7) return `Last read ${days} days ago`;
+            if (days < 14) return 'Last read last week';
+            if (days < 60) return `Last read ${Math.floor(days / 7)} weeks ago`;
+            return 'Last read a while ago';
+        }
+
         function sortBooks(list) {
             const arr = list.slice();
             const byTitle = (a, b) => titleSortKey(a.title).localeCompare(titleSortKey(b.title));
@@ -1225,10 +1365,24 @@
 
             if (!picks.length) return hide();
 
-            grid.innerHTML = picks.map(({ id, book }) => {
+            grid.innerHTML = picks.map(({ id, book, at }) => {
+                // ⚠️ THE PLACEHOLDER CARRIES NO TITLE HERE, unlike the shelf's. At
+                // 40x60 there is no room for one, and the title is already the
+                // largest line of the card six pixels to its right.
                 const coverHTML = book.coverUrl
-                    ? `<img class="book-cover" src="${escapeAttr(book.coverUrl)}" alt="${escapeAttr(book.title)} cover" loading="lazy">`
-                    : `<div class="book-cover-placeholder">${escapeHtml(book.title)}</div>`;
+                    ? `<img class="continue-cover" src="${escapeAttr(book.coverUrl)}" alt="" loading="lazy">`
+                    : `<div class="continue-cover-placeholder"></div>`;
+                // ⚠️ SAME NUMBER AS THE SHELF CARD, from the same function — see
+                // chapterPositionOf(). A second percentage for one book on one
+                // screen is the thing this avoids. Draws nothing when unknowable
+                // rather than a 0% bar.
+                const pos = chapterPositionOf(book, userProgress[id]);
+                const barHTML = pos
+                    ? `<div class="continue-bar-bg"><div class="continue-bar-fill" style="width:${pos.pct}%"></div></div>`
+                    : '';
+                const lastText = lastReadLabel(at);
+                const lastHTML = lastText
+                    ? `<div class="continue-last">${escapeHtml(lastText)}</div>` : '';
                 // ⚠️ NO CHAPTER LABEL HERE, DELIBERATELY. Part-numbered books use
                 // ids like 1.01 and 2.09, and turning one into an ordinal needs
                 // the chapter LIST — which is stripped before caching because it
@@ -1240,17 +1394,22 @@
                 // ⚠️ THE <a> WRAPS ONLY THE LINK PART, and no <a> or <button> may
                 // go inside it — same rule as renderBooks(), same recovery
                 // behaviour if broken.
+                // ⚠️ THE WHOLE CARD IS THE <a> NOW, not a div wrapping one. There is
+                // no ⓘ button and no credit link in this row, so the "no <a> inside
+                // an <a>" split renderBooks() needs does not apply here — and a
+                // child aiming at a 60px-tall target should not have dead margin
+                // around it. ⚠️ IF ANYTHING CLICKABLE IS EVER ADDED TO THIS CARD,
+                // this must go back to the wrapper/link split; see renderBooks().
                 return `
-                    <div class="book-card">
-                        <a class="book-card-link" href="game.html?book=${encodeURIComponent(id)}">
-                            ${coverHTML}
-                            <div class="book-info">
-                                <div class="book-title">${escapeHtml(book.title)}</div>
-                                ${book.author ? `<div class="book-author">${escapeHtml(book.author)}</div>` : ''}
-                                <div class="continue-resume">Continue \u2192</div>
-                            </div>
-                        </a>
-                    </div>`;
+                    <a class="continue-card" href="game.html?book=${encodeURIComponent(id)}">
+                        ${coverHTML}
+                        <div class="continue-body">
+                            <div class="continue-resume">Resume</div>
+                            <div class="continue-title">${escapeHtml(book.title)}</div>
+                            ${barHTML}
+                            ${lastHTML}
+                        </div>
+                    </a>`;
             }).join('');
 
             row.hidden = false;
@@ -1328,40 +1487,14 @@
                 //    zero. The ordinal has to come from the chapter LIST, not from
                 //    arithmetic on the label.
                 //
-                // The list is only present on a cold load — it is stripped before
-                // caching because it is the largest field on the document — and old
-                // book documents have no `matter` on their entries at all. So this
-                // degrades in three steps rather than assuming the best case.
-                // game.js v3.10.0 writes bodyIndex/bodyTotal on the progress doc,
-                // which is the ONLY source that survives the grid cache — the chapter
-                // list is stripped before caching because it is the largest field on
-                // the book document. Prefer it, then the list, then arithmetic.
-                const denom = (typeof progress?.bodyTotal === 'number' && progress.bodyTotal > 0)
-                    ? progress.bodyTotal
-                    : ((typeof book.bodyChapters === 'number' && book.bodyChapters > 0)
-                        ? book.bodyChapters : book.totalChapters);
-                if (progress && denom > 0) {
-                    const curId = String(progress.chapter || "chapter_1");
-                    let chapNum = (typeof progress.bodyIndex === 'number' && progress.bodyIndex > 0)
-                        ? progress.bodyIndex : null;
-                    if (chapNum === null && book.chapters && book.chapters.length) {
-                        const bodyOnly = book.chapters.filter(c => (c.matter || 'body') === 'body');
-                        const list = bodyOnly.length ? bodyOnly : book.chapters;
-                        const at = list.findIndex(c => String(c.id) === curId);
-                        if (at !== -1) chapNum = at + 1;
-                    }
-                    // Fallback for a cached grid or a pre-v3.19.1 document. parseFloat,
-                    // not parseInt, so 2.09 does not silently become 2 — and it is
-                    // floored back to a whole number for display.
-                    if (chapNum === null) {
-                        const raw = parseFloat(curId.replace("chapter_", ""));
-                        chapNum = Number.isFinite(raw) ? Math.max(1, Math.round(raw)) : 1;
-                    }
-                    const pct = Math.min(100, Math.round((chapNum / denom) * 100));
+                // ⚠️ THE MATH MOVED OUT (v3.15.0) — chapterPositionOf() is the one
+                // copy, shared with the Continue-reading row. Do not re-inline it.
+                const pos = chapterPositionOf(book, progress);
+                if (pos) {
                     progressHTML = `
                         <div class="book-progress">
-                            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
-                            <div class="progress-label">Ch. ${chapNum} / ${denom}</div>
+                            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pos.pct}%"></div></div>
+                            <div class="progress-label">Ch. ${pos.chapNum} / ${pos.denom}</div>
                         </div>`;
                 }
 
@@ -1721,7 +1854,7 @@
                     weeklyGoal:   indexGoals.weeklySeconds,
                 });
                 // ⚠️ hud.lead IS COMPUTED AND NOT PAINTED HERE, ON PURPOSE. The
-                // daily readout was removed from this bar in v3.11.0 (Jake:
+                // daily readout was removed from this bar in v3.15.0 (Jake:
                 // "it just looks out of place"). Still built, because it costs
                 // nothing and because the day the landing page wants it back,
                 // the only change is an element to paint into — not a second

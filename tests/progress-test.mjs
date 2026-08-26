@@ -1,26 +1,40 @@
-// Lifts the patched progress block out of index.html and exercises it against
+// progress-test.mjs v1.1.0
+//
+// v1.1.0 — Lifts the NAMED chapterPositionOf() function (index.html v3.15.0+)
+//          by walking its braces, instead of slicing a region between two
+//          substring anchors. No assertion about behaviour changed.
+//
+// Lifts the chapter-position rule out of index.html and exercises it against
 // the cases that were broken: a part-numbered book, a cache-stripped document,
 // and a pre-v3.19.1 document with no `matter` on its chapters.
 import { readFileSync } from 'fs';
 
 const s = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-// ⚠️ ANCHOR ON THE PROGRESS BLOCK, NOT ON `const denom`. This used to slice from
-// the first `const denom = ` in the whole file. index.html v3.8.0 added a sort
-// comparator with its own denominator earlier in the file, and this harness
-// silently sliced a region hundreds of lines wide, then failed with a
-// SyntaxError naming a function it does not test. A harness that locates code by
-// a common substring is one unrelated edit away from testing something else and
-// blaming the wrong author.
-const anchor = s.indexOf('const progress = userProgress[book.id];');
-if (anchor < 0) throw new Error('progress-test: could not find the progress block in index.html');
-const i = s.indexOf('const denom = ', anchor);
-const j = s.indexOf('const pct = Math.min(100', i);
-if (i < 0 || j < 0) throw new Error('progress-test: the progress block no longer has the expected shape');
-// The slice opens `if (progress && denom > 0) {` and the closing brace is past
-// our end point, so drop that guard — the test always supplies progress.
-const body = s.slice(i, j).replace('if (progress && denom > 0) {', '') +
-  '\n  return { chapNum, denom, pct: Math.min(100, Math.round((chapNum / denom) * 100)) };';
-const calc = new Function('book', 'progress', body);
+// ⚠️ v1.1.0 — THIS NO LONGER SLICES A REGION, AND THAT IS THE POINT. index.html
+// v3.15.0 extracted the math into a NAMED function, `chapterPositionOf()`,
+// because ROADMAP 26's Continue-reading row needed the same number and copying
+// it would have made a hand-maintained twin. The old anchor here sliced from
+// `const denom = ` to `const pct = Math.min(100` and rebuilt a function out of
+// the fragment — twice already that anchor had drifted onto unrelated code and
+// failed while naming the wrong function. Extracting a whole named declaration
+// is bounded by its own braces, so it cannot silently capture a neighbour.
+//
+// ⚠️ IT STILL READS THE LIVE FILE rather than importing. index.html is a page,
+// not a module; there is nothing to import. The point of reading the real file
+// is unchanged — a copy of the rule pasted into this harness would pass forever
+// while the page drifted underneath it.
+const FN = 'function chapterPositionOf(book, progress) {';
+const i = s.indexOf(FN);
+if (i < 0) throw new Error('progress-test: chapterPositionOf() is gone from index.html — did the math get re-inlined?');
+// Walk the braces to find the function's true end, so this cannot run past it
+// into whatever happens to be declared next.
+let depth = 0, j = -1;
+for (let k = i + FN.length - 1; k < s.length; k++) {
+    if (s[k] === '{') depth++;
+    else if (s[k] === '}') { depth--; if (depth === 0) { j = k + 1; break; } }
+}
+if (j < 0) throw new Error('progress-test: could not find the end of chapterPositionOf()');
+const calc = new Function(`${s.slice(i, j)}; return chapterPositionOf;`)();
 
 const part = n => 'chapter_' + n;
 const heidi = {
