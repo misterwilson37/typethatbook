@@ -379,9 +379,30 @@ const gameIncs = (gameSrc2.match(/statsData\.secondsToday\+\+/g) || []).length;
 ok(gameIncs === 1,
    `game.js increments secondsToday in exactly ONE place (found ${gameIncs})`);
 
-ok(/if \(drillPos > 0 && !isDrillIdle\(\)\) \{[\s\S]{0,400}?statsData\.secondsToday\+\+/.test(learnSrc2),
-   '⚠️ learn.js: secondsToday advances INSIDE the graded gate (drillPos > 0), ' +
-   'i.e. not until the first CORRECT keystroke — Jake\'s ruling, 2026-08-18');
+// ⚠⚠ v1.2.5 — BRACE-MATCHED, NOT A CHARACTER WINDOW. This used to allow 400
+// characters between the gate and the increment, which made it a distance
+// check wearing a structure check's label: learn.js v2.40.0 (ROADMAP 6) added
+// the midnight rollover INSIDE the same gate, above the increments, and the
+// comment block pushed the increment past 400 characters. The assertion failed
+// while the property it names — "the increment is inside the graded gate" — was
+// still perfectly true. §0.-33.C's rule applies to harnesses as much as to
+// writes: guard on STRUCTURE, never on distance or words. Walking the gate's
+// own braces cannot be defeated by a comment.
+{
+    const GATE = 'if (drillPos > 0 && !isDrillIdle()) {';
+    const g = learnSrc2.indexOf(GATE);
+    ok(g >= 0, '⚠️ learn.js: the graded gate `drillPos > 0 && !isDrillIdle()` is present');
+    let depth = 0, gEnd = -1;
+    for (let k = g + GATE.length - 1; k >= 0 && k < learnSrc2.length; k++) {
+        if (learnSrc2[k] === '{') depth++;
+        else if (learnSrc2[k] === '}') { depth--; if (depth === 0) { gEnd = k; break; } }
+    }
+    ok(gEnd > g, '⚠️ learn.js: the graded gate\u2019s block closes');
+    const inGate = g >= 0 && gEnd > g ? learnSrc2.slice(g, gEnd) : '';
+    ok(inGate.includes('statsData.secondsToday++'),
+       '⚠️ learn.js: secondsToday advances INSIDE the graded gate (drillPos > 0), ' +
+       'i.e. not until the first CORRECT keystroke — Jake\'s ruling, 2026-08-18');
+}
 
 ok(/if \(lastInputTime && now - lastInputTime < IDLE_THRESHOLD\)/.test(gameSrc2),
    '⚠️ game.js: the tick is gated on lastInputTime being set — no free seconds ' +

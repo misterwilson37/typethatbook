@@ -1,5 +1,13 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.38.0, 2026-08-26.** ✅ **ITEM 6 CLOSED — BOTH HALVES OF THE MIDNIGHT
+STRADDLE.** School mirrors Library: the tick closes the open run on the outgoing
+day, with the rollover moved ABOVE the increments and the compensating `= 1`s
+reverted to `= 0`. midnight-test.mjs Part D inverted, not deleted — nine
+assertions now. ⚠️ open-unit-test.mjs's graded-gate check was a DISTANCE check
+wearing a structure check's label and had to be brace-matched; it is stricter now,
+not looser.
+
 **v3.37.0, 2026-08-26.** ✅ **ITEM 23 CLOSED.** `currentRuns` is now paired with
 the lesson it was built for (`currentRunsFor`), and both writers refuse when the
 pairing breaks. ⚠️ **The guard the item proposed — comparing `buildRunList()`
@@ -100,7 +108,8 @@ fix instead: **Ctrl-F any line below to land on the section.**
 
 **Priority first, then everything else by position in the file.**
 
-1. ✅ **NOTHING IS OPEN AND PRIORITISED.** Items 12, 23, 24 and 26 closed by work; 13, 11a and 14a closed by verification. What remains below is measurement, process, and one open decision — no defect is outstanding.
+1. ✅ **NO DEFECT IS OUTSTANDING.** Items 6, 12, 23, 24 and 26 closed by work; 13, 11a and 14a closed by verification. What remains below is measurement (§READS, 1, 4, 5, 7, 21), process (8b, 9), and one open decision (11a).
+   ⚠️ **Round 50 claimed this one round early and was wrong** — item 6 was still a live defect, listed among the "measurement" items because its heading said *fixed in Library*. **Read the headings, not the summary.**
 
 Everything else still open:
 
@@ -109,7 +118,6 @@ Everything else still open:
 - 1. THE DRILL-DOWN AND THE CLOCK ARE LATE, NOT WRONG
 - 4. THE IMPLAUSIBILITY FLAG
 - 5. WHAT A NORMAL DAY LOOKS LIKE
-- 6. ⚠️ THE MIDNIGHT STRADDLE — CONFIRMED, FIXED IN LIBRARY, OPEN IN SCHOOL
 - 7. THE 5-SECOND FLOOR
 - 8b. ⭐ NEW — EVERY ROUND SHIPS A CHANGED-FILES-ONLY UPLOAD SET
 - 11a. ⚠️ MOSTLY CLOSED (Round 41) — ONE OPEN **DECISION**, NOT A BUG
@@ -143,6 +151,7 @@ Everything else still open:
 - 12. ✅ CLOSED (Round 47, Blickensderfer) — THE LEAD AXIS, AND TWO STALE BULLETS
 - 23. ✅ CLOSED (Round 50, Blickensderfer) — THE RUN LIST IS PAIRED WITH THE LESSON
 - 14a. ✅ CLOSED BY VERIFICATION (Round 50, Blickensderfer) — ALREADY SHIPPED BY ITEM 14
+- 6. ✅ CLOSED (Round 51, Blickensderfer) — THE MIDNIGHT STRADDLE, BOTH HALVES
 - 16. ✅ FIXED (Round 40) — THE BUILD PANEL ON `reports.html` AND `admin.html`
 - 17. ✅ CLOSED (Rounds 35–40) — REPORTS READ EVERY RECORD OF EVERY STUDENT
 - 18. ✅ CLOSED (Rounds 36–40) — THE READ BUDGET
@@ -644,7 +653,41 @@ the end of the period — see item 1.
 
 ---
 
-## 6. ⚠️ THE MIDNIGHT STRADDLE — CONFIRMED, FIXED IN LIBRARY, OPEN IN SCHOOL
+## 6. ✅ CLOSED (Round 51, Blickensderfer) — THE MIDNIGHT STRADDLE, BOTH HALVES
+
+✅ **SHIPPED learn.js v2.40.0.** School now mirrors game.js v3.38.0: the tick
+closes the open run on the OUTGOING day before resetting, `logRun()` and
+`logOpenRun()` take a `dateOverride` for that one caller, and the remainder is
+logged as a continuation by the ordinary path.
+
+⚠️⚠️ **THE ROLLOVER MOVED ABOVE THE INCREMENTS, AND THAT IS HALF THE FIX.** This
+is why it was held for several rounds and it was a real reason, not timidity.
+learn.js incremented `stepSeconds` BEFORE its rollover check and compensated by
+resetting counters to `1` rather than `0`. That worked for the COUNTERS and could
+not work for the LOG: by the time the rollover ran, the second was already inside
+a `stepSeconds` that `logOpenRun()` was about to file under the new day. The block
+now sits above `learnActiveSeconds++`, above `anonSecondsAccum++` and above
+`armAnonLoginPrompt()`, and every `= 1` is back to `= 0`. **One line lower and the
+first second of each new day is filed under yesterday, invisibly, forever.**
+
+✅ **PART D OF `midnight-test.mjs` WAS INVERTED, NOT DELETED**, exactly as the
+item instructed. It now has nine assertions instead of two: D1–D4 the plumbing,
+D5/D6 the ordering, D7–D9 that the compensating `= 1`s are gone — leaving one
+behind would double-count the first second of every new day, the mirror image of
+the bug just fixed. Mutation-verified both ways.
+
+⚠️ **A HARNESS HAD TO BE REPAIRED TO ACCEPT THE FIX, AND IT WAS THE HARNESS THAT
+WAS WRONG.** `open-unit-test.mjs`'s graded-gate check allowed 400 characters
+between the gate and the increment — a DISTANCE check wearing a STRUCTURE check's
+label. The new comment block pushed the increment past 400 and it failed while
+the property it names was still true. It brace-matches the gate now (v1.2.5);
+§0.-33.C's rule — guard on structure, never on distance or words — applies to
+harnesses as much as to writes. ⚠️ Verified STRICTER, not looser: an increment
+moved outside the gate still fails it.
+
+### The original item, kept
+
+
 
 **The mechanism is no longer a hypothesis.** `game.js` v3.38.0,
 `tests/midnight-test.mjs`.

@@ -1,4 +1,30 @@
-// learn.js v2.39.0
+// learn.js v2.40.0
+//
+// v2.40.0 — ⚠⚠ ROADMAP 6, THE SCHOOL HALF — THE MIDNIGHT STRADDLE. Library was
+//           fixed in game.js v3.38.0; School had the same defect and kept it for
+//           several rounds because the fix is NOT a one-liner here. A lesson
+//           straddling midnight filed ONE record stamped with the day it ENDED
+//           on, so the day counters and the drill-down disagreed — neither wrong,
+//           answering different questions.
+//
+//           ⚠⚠ THE ROLLOVER MOVED ABOVE THE INCREMENTS AND THAT IS HALF THE FIX.
+//           This file incremented stepSeconds BEFORE its rollover check and
+//           compensated by resetting counters to `1` rather than `0`. That worked
+//           for the COUNTERS and could not work for the LOG: by the time the
+//           rollover ran, the second was already in a stepSeconds that
+//           logOpenRun() was about to file under the new day. The block now sits
+//           above `learnActiveSeconds++`, above `anonSecondsAccum++` and above
+//           `armAnonLoginPrompt()`, and every `= 1` is back to `= 0`.
+//           ⚠ ONE LINE LOWER AND THE FIRST SECOND OF EACH NEW DAY IS FILED UNDER
+//           YESTERDAY, invisibly, forever. midnight-test.mjs D5/D6 assert the
+//           ordering; D7–D9 assert the compensations are gone. Mutation-verified.
+//
+//           `logRun()` and `logOpenRun()` take a `dateOverride` for exactly one
+//           caller — the rollover — and default to today for every other.
+//           ⚠ THE 5-SECOND FLOOR STILL APPLIES, as in game.js: a run begun at
+//           11:59:58 has 2 seconds to close, the floor refuses them, and the
+//           watermark is NOT advanced, so they roll into the first record of the
+//           new day rather than vanishing.
 //
 // v2.39.0 — ⚠⚠ ROADMAP 23 — THE RUN LIST IS NOW PAIRED WITH THE LESSON, AND
 //           THE TWO WRITERS ASSERT IT. The Round 41 defect was possible because
@@ -87,14 +113,6 @@
 //           mastered runs a PREFIX and the open runs a SUFFIX; loosen closure and
 //           it must be rewritten, not patched. tests/run-mastery-test.mjs — which
 //           learn.js had CITED SINCE ROUND 32 WITHOUT IT EXISTING, now written.
-//
-// v2.34.1 — ⚠️⚠️ ROADMAP 11, BUG B — SETTINGS SAID "NO CLASS ASSIGNED" FOR 24
-//           HOURS AFTER A CORRECT ASSIGNMENT. The goals cache's hit-guard only
-//           rejected an entry naming a class with no className; an entry taken
-//           BEFORE assignment has classId '' — falsy — and passed as a hit. A
-//           direct admin write cannot clear a cache on the student's Chromebook,
-//           so the unassigned state must not be cacheable at all. Paired with
-//           lessons-admin.js v1.14.0, which fixes the writer half.
 //
 // v2.34.0 — ⚠️⚠️ ROADMAP 14 — MASTERY IS CUMULATIVE POINTS PER **RUN**.
 //           A🔥 = 2, A = 1, B and below = 0, LOCKED AT 4. recordRunOutcome()
@@ -244,7 +262,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.39.0";
+const LEARN_VERSION = "2.40.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -2232,6 +2250,55 @@ function startGradedTimer() {
         // file, because the same harness also counts how many times it appears.
         if (drillPos > 0 && !isDrillIdle()) {
             stepSeconds++;
+            // ⚠⚠ v2.40.0 — ROADMAP 6, THE SCHOOL HALF. THE ROLLOVER RUNS *BEFORE*
+            // THE INCREMENTS NOW, AND THAT ORDERING IS HALF THE FIX.
+            //
+            // The Library half (game.js v3.38.0) closes the open sprint on the
+            // OUTGOING day before resetting, so the seconds typed before
+            // midnight are filed against the day they were typed on. School had
+            // no equivalent: `stepSeconds` knew nothing about midnight and kept
+            // climbing, so a lesson straddling it filed ONE record stamped with
+            // the day it ENDED on — the same defect, the same shape, the same
+            // two numbers disagreeing afterwards.
+            //
+            // ⚠ THE OLD CODE INCREMENTED FIRST AND COMPENSATED WITH `= 1`. That
+            // worked for the counters and could not work for the LOG, because by
+            // the time the rollover was reached the second had already been
+            // added to a `stepSeconds` that logOpenRun() was about to file under
+            // the new day. Moving the block up and restoring the `= 0`s is the
+            // only arrangement where both the counters and the record agree.
+            // ROADMAP 6 spelled this out; it is not a one-liner and that is why
+            // it was held. midnight-test.mjs Part D asserts it.
+            //
+            // ⚠ IT MUST ALSO RUN ABOVE `anonSecondsAccum++` AND
+            // `armAnonLoginPrompt()` — both are day-scoped in the same way.
+            //
+            // ⚠ THE 5-SECOND FLOOR STILL APPLIES, exactly as in game.js: a run
+            // begun at 11:59:58 has 2 seconds to close, the floor refuses them,
+            // and the watermark is deliberately NOT advanced so they roll into
+            // the first record of the new day rather than vanishing.
+            const todayStr = getLocalDateStr();
+            if (statsData.lastDate && statsData.lastDate !== todayStr) {
+                logOpenRun('midnight', statsData.lastDate);
+                console.log(`Day rolled over: ${statsData.lastDate} → ${todayStr}. Resetting daily stats.`);
+                statsData.secondsToday = 0; statsData.charsToday = 0; statsData.mistakesToday = 0;
+                // ⚠️ v2.20.0 — THE PER-SOURCE COUNTERS ROLL OVER WITH THE DAY. The
+                // Library triple resets to 0 — it is seeded from a document that
+                // is now the wrong day and this page never adds to it.
+                // ⚠ v2.40.0 — SCHOOL'S RESETS TO 0 NOW, NOT 1. The second that
+                // just elapsed has not been counted yet at this point in the
+                // tick; the increments below add it, to the new day, once.
+                statsData.secondsSchool = 0; statsData.charsSchool = 0; statsData.mistakesSchool = 0;
+                statsData.secondsLibrary = 0; statsData.charsLibrary = 0; statsData.mistakesLibrary = 0;
+                statsData.lastDate = todayStr; dailyGoalCelebrated = false;
+                const ws = getWeekStart(new Date());
+                if (statsData.weekStart !== ws) {
+                    // ⚠ v2.40.0 — 0, not 1, for the same reason as above.
+                    statsData.secondsWeek = 0; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
+                    statsData.weekStart = ws; weeklyGoalCelebrated = false;
+                }
+            }
+
             learnActiveSeconds++;
             statsData.secondsToday++;
             statsData.secondsWeek++;
@@ -2240,26 +2307,6 @@ function startGradedTimer() {
                 anonSecondsAccum++;
                 if (anonSecondsAccum % GUEST_ACCUM_SAVE_EVERY === 0) persistGuestAccum();
                 armAnonLoginPrompt();   // fires at the run boundary, not here
-            }
-            // Midnight rollover
-            const todayStr = getLocalDateStr();
-            if (statsData.lastDate && statsData.lastDate !== todayStr) {
-                statsData.secondsToday = 1; statsData.charsToday = 0; statsData.mistakesToday = 0;
-                // ⚠️ v2.20.0 — THE PER-SOURCE COUNTERS ROLL OVER WITH THE DAY, and
-                // School's starts at 1 for the same reason secondsToday does:
-                // the second that just ticked belongs to the new day. A counter
-                // that survived midnight would be filed under tomorrow as
-                // though it had been typed tomorrow. The Library triple resets
-                // to 0 — it is seeded from a document that is now the wrong day
-                // and this page never adds to it.
-                statsData.secondsSchool = 1; statsData.charsSchool = 0; statsData.mistakesSchool = 0;
-                statsData.secondsLibrary = 0; statsData.charsLibrary = 0; statsData.mistakesLibrary = 0;
-                statsData.lastDate = todayStr; dailyGoalCelebrated = false;
-                const ws = getWeekStart(new Date());
-                if (statsData.weekStart !== ws) {
-                    statsData.secondsWeek = 1; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
-                    statsData.weekStart = ws; weeklyGoalCelebrated = false;
-                }
             }
             // Goal celebrations
             if (goals.dailySeconds > 0 && !dailyGoalCelebrated && statsData.secondsToday >= goals.dailySeconds) {
@@ -2985,7 +3032,11 @@ function updateHUD() {
 //
 // ⚠️ A ZERO DELTA IS NORMAL, NOT AN ERROR. Two hides in a row, or a hide
 // immediately followed by finishStep(), produce nothing the second time.
-function logRun(wpm, acc, detailSuffix) {
+// ⚠⚠ v2.40.0 — ROADMAP 6, THE SCHOOL HALF. `dateOverride` exists for exactly one
+// caller: the tick's midnight rollover, which must file the seconds typed BEFORE
+// midnight against the day they were typed on. Every other caller passes
+// nothing and gets today, which is correct for them.
+function logRun(wpm, acc, detailSuffix, dateOverride) {
     // ⚠️ v2.21.0 — THE OLD LINE READ `currentUser ? currentUser.uid : …` AND ITS
     // COMMENT SAID "a true guest has no account yet". Both were wrong about the
     // same fact: a guest IS signed in, anonymously, so `currentUser` is NOT null
@@ -3020,7 +3071,9 @@ function logRun(wpm, acc, detailSuffix) {
 
     sessionLogPush(sessionUid, {
         // ⚠️ STAMPED NOW, NOT AT FLUSH TIME. See session-log.js.
-        date: getLocalDateStr(),
+        // ⚠ ROADMAP 6 — the outgoing day when the tick is closing a run across
+        // midnight; today for every other caller.
+        date: dateOverride || getLocalDateStr(),
         at: new Date().toISOString(),
         seconds: dSeconds,
         chars: dChars,
@@ -3068,9 +3121,10 @@ function flushSessionsNow() {
 
 // Close the open run WITHOUT ending it. Counters are untouched, so a student who
 // comes back and finishes the run has only the remainder recorded.
-function logOpenRun(reason) {
+function logOpenRun(reason, dateOverride) {
     if (stepSeconds <= 0 && chars <= 0) return;
-    logRun(netWPM(), accuracyPct(), reason ? '(' + reason + ')' : '(interrupted)');
+    logRun(netWPM(), accuracyPct(), reason ? '(' + reason + ')' : '(interrupted)',
+           dateOverride);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

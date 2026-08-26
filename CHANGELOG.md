@@ -1,5 +1,43 @@
 # CHANGELOG — TypeThatBook
 
+## Round 51 (Blickensderfer) — 2026-08-26 — the midnight straddle, School half
+
+**✅ ROADMAP item 6 is CLOSED, both halves.** learn.js v2.40.0 mirrors game.js
+v3.38.0: the tick closes the open run on the OUTGOING day before resetting,
+`logRun()`/`logOpenRun()` take a `dateOverride` for that one caller, and the
+remainder is logged as a continuation by the ordinary path.
+
+**⚠️⚠️ The rollover moved ABOVE the increments, and that is half the fix** — the
+real reason this was held for several rounds. learn.js incremented `stepSeconds`
+BEFORE its rollover check and compensated with `= 1` resets. That worked for the
+counters and could not work for the log: by the time the rollover ran, the second
+was already inside a `stepSeconds` that `logOpenRun()` was about to file under the
+new day. The block now sits above `learnActiveSeconds++`, `anonSecondsAccum++` and
+`armAnonLoginPrompt()`, with every `= 1` back to `= 0`. **One line lower and the
+first second of each new day is filed under yesterday, invisibly, forever.**
+
+**✅ midnight-test.mjs Part D was INVERTED, not deleted**, as the item instructed —
+nine assertions instead of two. D5/D6 pin the ordering; D7–D9 pin that the
+compensating `= 1`s are gone, since leaving one behind double-counts the first
+second of every new day. Mutation-verified both ways.
+
+**⚠️ A harness had to be repaired to accept the fix, and the HARNESS was wrong.**
+`open-unit-test.mjs`'s graded-gate check allowed 400 characters between the gate
+and the increment — a DISTANCE check wearing a STRUCTURE check's label. It failed
+while the property it names was still true. Brace-matched now (v1.2.5), and
+verified **stricter**: an increment moved outside the gate still fails it.
+§0.-33.C's rule applies to harnesses as much as to writes.
+
+**⚠️ Round 50's "no defect is outstanding" was one round early.** Item 6 was live,
+and it read as measurement because its heading said *fixed in Library*. Read the
+headings, not the summary.
+
+- `learn.js` v2.40.0, `tests/midnight-test.mjs`, `tests/open-unit-test.mjs` v1.2.5
+- learn.js v2.34.1's header entry archived to § ARCHIVED FILE HEADERS (8-entry
+  budget); still cited once at the goals-cache hit-guard
+
+**57 harnesses pass. `audit:versions`: 0 problems.**
+
 ## Round 50 (Blickensderfer) — 2026-08-26 — the run-list pairing, and an empty board
 
 **✅ ROADMAP item 23 is CLOSED** (learn.js v2.39.0). `currentRunsFor` records what
@@ -4264,6 +4302,24 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### learn.js v2.34.1 — archived by Round 51 (Blickensderfer), 8-entry budget
+
+⚠️ **learn.js still cites v2.34.1 once in live code** (the goals-cache hit-guard,
+`⚠️⚠️ v2.34.1 — ROADMAP 11, BUG B. AN ENTRY WITH NO CLASS IS ALSO A MISS.`).
+This block is where that pointer resolves.
+
+```
+// v2.34.1 — ⚠️⚠️ ROADMAP 11, BUG B — SETTINGS SAID "NO CLASS ASSIGNED" FOR 24
+//           HOURS AFTER A CORRECT ASSIGNMENT. The goals cache's hit-guard only
+//           rejected an entry naming a class with no className; an entry taken
+//           BEFORE assignment has classId '' — falsy — and passed as a hit. A
+//           direct admin write cannot clear a cache on the student's Chromebook,
+//           so the unassigned state must not be cacheable at all. Paired with
+//           lessons-admin.js v1.14.0, which fixes the writer half.
+//
+```
+
 
 ### learn.js v2.33.0 — archived by Round 50 (Blickensderfer), 8-entry budget
 

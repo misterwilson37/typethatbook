@@ -186,22 +186,46 @@ console.log('\n─── C. dateOverride reaches the record, and defaults to now
        'C3 ⚠️ and it DEFAULTS to now — every other caller is logging seconds that just happened');
 }
 
-// ─── D. School is not fixed, and that is recorded ──────────────────────────
-console.log('\n─── D. ⚠️ KNOWN GAP, ASSERTED ON PURPOSE: learn.js ───');
+// ─── D. School closes its run too, now ─────────────────────────────
+console.log('\n─── D. ✅ ROADMAP 6 CLOSED: learn.js mirrors game.js ───');
 {
-    // ⚠️ learn.js increments stepSeconds BEFORE its rollover check and
-    // compensates by setting the day counters to 1 rather than 0. Mirroring
-    // game.js there means reordering the block past `anonSecondsAccum++` and
-    // `armAnonLoginPrompt()` as well, in the file 8th grade depends on, for a
-    // case that essentially cannot occur: School is used 8am–3pm at Ellis and a
-    // lesson does not straddle midnight. Library at home does. Exposure, not
-    // symmetry, decided this.
-    ok(!learn.includes("logOpenRun('midnight'"),
-       'D1 ⚠️ learn.js does NOT yet close its open run at midnight — ROADMAP item 6');
-    ok(/function logRun\(wpm, acc, detailSuffix\)/.test(learn),
-       'D2 and logRun() has no date override yet — the recipe is in the roadmap');
-    console.log('        ↑ ⚠️ WHEN SCHOOL IS FIXED, INVERT THESE TWO. They are here so');
-    console.log('          the gap cannot be quietly forgotten, not as a target.');
+    // ⚠⚠ THESE WERE INVERTED, NOT DELETED (learn.js v2.40.0). Until then they
+    // asserted the GAP on purpose so it could not be quietly forgotten. The
+    // reason it was held for several rounds is real and worth keeping: learn.js
+    // incremented stepSeconds BEFORE its rollover check and compensated with
+    // `= 1`, so mirroring game.js meant moving the whole block past
+    // `anonSecondsAccum++` and `armAnonLoginPrompt()` in the file 8th grade
+    // depends on.
+    ok(learn.includes("logOpenRun('midnight', statsData.lastDate)"),
+       'D1 ✅ learn.js closes its open run on the OUTGOING day at midnight');
+    ok(/function logRun\(wpm, acc, detailSuffix, dateOverride\)/.test(learn),
+       'D2 ✅ logRun() takes a date override');
+    ok(/function logOpenRun\(reason, dateOverride\)/.test(learn),
+       'D3 ✅ logOpenRun() passes it through');
+    ok(learn.includes('date: dateOverride || getLocalDateStr(),'),
+       'D4 ⚠ and it DEFAULTS to now — every other caller logs seconds that just happened');
+
+    // ⚠⚠ THE ORDERING IS HALF THE FIX, exactly as Part B asserts for game.js.
+    // One line lower and the first second of each new day is filed under
+    // yesterday, invisibly, forever.
+    const close = learn.indexOf("logOpenRun('midnight'");
+    const reset = learn.indexOf('statsData.secondsSchool = 0', close);
+    const incr  = learn.indexOf('statsData.secondsSchool++', close);
+    ok(close > 0 && reset > close,
+       'D5 ⚠⚠ the close happens BEFORE the counters are reset');
+    ok(close > 0 && incr > close,
+       'D6 ⚠⚠ the close happens BEFORE the second is added to the new day');
+
+    // ⚠ THE `= 1` COMPENSATIONS ARE GONE. They existed only because the
+    // increments ran first; leaving one behind double-counts the first second of
+    // every new day — the mirror image of the bug just fixed.
+    const tick = incr > 0 ? learn.slice(close, incr + 200) : learn.slice(close, close + 2500);
+    ok(!/statsData\.secondsSchool = 1\b/.test(tick),
+       'D7 ⚠ School\u2019s counter resets to 0, not the old compensating 1');
+    ok(!/statsData\.secondsWeek = 1\b/.test(tick),
+       'D8 ⚠ the week counter resets to 0 as well');
+    ok(!/statsData\.secondsToday = 1\b/.test(tick),
+       'D9 ⚠ and the day counter resets to 0');
 }
 
 console.log(`\n${pass} passing, ${fail} failing.`);

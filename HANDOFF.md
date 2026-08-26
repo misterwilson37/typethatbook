@@ -2,11 +2,23 @@
 
 > ## ▶ START HERE — written 2026-08-26 by Round 50 (Blickensderfer), for whoever is next
 >
-> ✅ **NO DEFECT IS OUTSTANDING ON THE ROADMAP.** Items 12, 23, 24 and 26 closed
-> by work this session; 13, 11a, two-thirds of 12, and 14a closed by
+> ✅ **NO DEFECT IS OUTSTANDING ON THE ROADMAP.** Items 6, 12, 23, 24 and 26
+> closed by work this session; 13, 11a, two-thirds of 12, and 14a closed by
 > VERIFICATION — nothing was built for those because nothing needed to be.
 > What remains in ROADMAP.md is measurement (§READS, items 1/4/5/7/21), process
-> (8b, 9), and ONE open decision (11a). **Read an item before working it.**
+> (8b, 9), and ONE open decision (11a).
+>
+> ⚠️⚠️ **ROUND 50 MADE THIS SAME CLAIM ONE ROUND EARLY AND IT WAS WRONG.** Item 6
+> was still a live defect — the midnight straddle, fixed in Library, open in
+> School — and it got counted as "measurement" because its heading began
+> *CONFIRMED, FIXED IN LIBRARY*. **Read the headings, not the summary line, and
+> read the item before you work it OR before you declare it done.**
+>
+> ⚠️ **ROADMAP 6 IS NOW CLOSED AND ITS ORDERING IS LOAD-BEARING.** learn.js's
+> midnight rollover MUST stay above `learnActiveSeconds++`, `anonSecondsAccum++`
+> and `armAnonLoginPrompt()`, and the counter resets MUST be `= 0`, not the old
+> compensating `= 1`. One line lower and the first second of each new day is
+> filed under yesterday, invisibly, forever. midnight-test.mjs D5–D9.
 >
 > ### ⚠️⚠️ FOUR STALE FLAGS NOW, AND ONE OF THEM CARRIED ⭐⭐
 >
