@@ -298,7 +298,20 @@ await check('F1. no date holding a real log is ever skipped, over 2000 random le
 // would have produced. If the totals differ by a single second, a child's HUD
 // is wrong and the feature must not ship.
 
-const { readWeek } = await import('../daylog.js');
+const { readWeek: _readWeekMemoised, invalidateWeek } = await import('../daylog.js');
+
+// ⚠⚠ EVERY CALL IN SECTION G IS A COLD READ, ON PURPOSE (daylog.js v1.6.0).
+// readWeek() is memoised per page load and that memo is MODULE state, shared by
+// every call in this file. Section G reuses one UID across several fake
+// databases — that is the point of the section — so without this wrapper G3
+// was handed G2's week and reported a total from the wrong fixture, and G5's
+// throwing read was never issued at all.
+//
+// ⚠ THE MEMO IS NOT STUBBED OUT. This section tests the LEDGER's effect on
+// which days get fetched; dropping the memo first is how it gets a clean
+// reader without pretending the memo is absent. weekly-memo-test.mjs is where
+// the memo itself is tested, and that one deliberately does not invalidate.
+const readWeek = (args) => { invalidateWeek(args && args.uid); return _readWeekMemoised(args); };
 
 // A fake Firestore holding exactly two days of typing.
 function fakeDb(present) {

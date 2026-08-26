@@ -1,4 +1,17 @@
-// daylog.js v1.5.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
+// daylog.js v1.6.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
+//
+// v1.6.0 — §READS. readWeek() IS MEMOISED PER PAGE LOAD. Measured 2026-08-26 as
+//          a student: it was 20 of 31 reads in a full session (65%), and
+//          game.html paid TEN because it reads the same week twice —
+//          retroactiveSaveGuestSession() then loadUserStats(), three lines
+//          apart. The memo holds the PROMISE (so overlapping callers share one
+//          round trip), never caches an `ok:false` read, hands every caller a
+//          deep copy, and lives in memory only — it cannot outlive the page.
+//          ⚠⚠ EVERY WRITER OF typing_logs MUST CALL invalidateWeek(uid).
+//          weekly-memo-test.mjs asserts they do; a writer that forgets shows a
+//          later caller pre-write numbers within the same load.
+//          ⚠ THIS IS NOT THE CLOSED-DAY CACHE — see ROADMAP §READS. A day with
+//          data is still re-read on every fresh page load.
 //
 // v1.5.0 — ROADMAP ITEM 18. readWeek() no longer fetches all seven days blind;
 //          logdays.js tells it which of them can hold nothing. Measured before:
@@ -107,7 +120,7 @@
 // tests/week-anchor-test.mjs and tests/daylog-test.mjs both hold that line. A
 // mismatch here does not throw — it silently reads the wrong seven days.
 
-export const DAYLOG_VERSION = "1.5.0";
+export const DAYLOG_VERSION = "1.6.0";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE PER-SOURCE CUTOVER
@@ -310,7 +323,82 @@ export function dayLogPayloadFor(source, dateStr, { day, own }) {
  * from "we could not find out", because painting the first when it is the second
  * shows a child a zero they did not earn.
  */
-export async function readWeek({ db, doc, getDoc, uid, dateStr, ledger }) {
+// ⚠⚠ v1.6.0 — §READS. THE PER-PAGE-LOAD MEMO, AND WHY IT IS A PROMISE.
+//
+// Measured 2026-08-26 on real hardware, signed in as a student: readWeek() was
+// 20 of 31 reads across a full session — 65% — and a Library page load cost 5
+// reads of which 5 were this function. game.html cost TEN, because it calls
+// readWeek() twice per load: retroactiveSaveGuestSession() reads a week, then
+// loadUserStats() reads the same week three lines later. Same uid, same date,
+// same seven documents, twice.
+//
+// ⚠ THE PROMISE IS CACHED, NOT THE RESULT. Two callers that overlap must share
+// one round trip; caching only the resolved value would let a second caller
+// start its own reads while the first is still in flight, which is the exact
+// case on a page that awaits them back to back.
+//
+// ⚠ A FAILED READ IS NEVER CACHED. `ok:false` means some day could not be read,
+// and the caller's next attempt must actually retry — memoising a failure would
+// pin a partial week for the life of the page. Same reasoning as the
+// ok/false contract in readWeek() itself.
+//
+// ⚠⚠ EVERY CALLER GETS ITS OWN DEEP COPY. Handing the same object to two
+// callers means one mutating `today` or `byDate` corrupts the other's view of
+// the week, and the bug would look like a counting defect rather than an
+// aliasing one — which is the hardest kind to trace in this file.
+//
+// ⚠⚠ IN MEMORY ONLY, FOR THIS PAGE LOAD. This is NOT a localStorage cache of
+// closed days (see ROADMAP §READS) — it cannot outlive the page, so it can
+// never serve a stale day to a later visit. The only staleness it can produce
+// is within one load, and invalidateWeek() closes that: every writer of
+// typing_logs MUST call it. weekly-memo-test.mjs asserts they all do.
+const _weekMemo = new Map();
+
+const _memoKey = (uid, dateStr) => String(uid) + '|' + String(dateStr);
+
+/**
+ * Drop the memo for a uid. Call after ANY write to typing_logs, before the next
+ * readWeek(), or a caller later in the same page load sees pre-write numbers.
+ * Cheap and safe to over-call — the cost of a needless drop is one read.
+ */
+export function invalidateWeek(uid) {
+    const prefix = String(uid) + '|';
+    for (const k of Array.from(_weekMemo.keys())) {
+        if (k.startsWith(prefix)) _weekMemo.delete(k);
+    }
+}
+
+/** Test seam. Not for app code. */
+export function _weekMemoSize() { return _weekMemo.size; }
+
+export async function readWeek(args) {
+    const { uid, dateStr } = args;
+    const key = _memoKey(uid, dateStr);
+    if (_weekMemo.has(key)) return _clone(await _weekMemo.get(key));
+
+    const p = _readWeekUncached(args);
+    _weekMemo.set(key, p);
+    try {
+        const result = await p;
+        // ⚠ See the header: a partial week must not be pinned for the page.
+        if (!result || !result.ok) _weekMemo.delete(key);
+        return _clone(result);
+    } catch (e) {
+        _weekMemo.delete(key);
+        throw e;
+    }
+}
+
+// structuredClone is present in every browser this app targets and in Node 17+;
+// the JSON fallback is for a harness that stubs the global away. Neither path
+// carries functions or Dates — a week read is plain numbers and strings.
+function _clone(v) {
+    if (v == null) return v;
+    try { return structuredClone(v); }
+    catch (_) { return JSON.parse(JSON.stringify(v)); }
+}
+
+async function _readWeekUncached({ db, doc, getDoc, uid, dateStr, ledger }) {
     const dates = weekDatesOf(dateStr);
 
     // ⚠️ v1.3.0 — ROADMAP ITEM 18. SEVEN READS TO FIND ONE OR TWO DAYS.

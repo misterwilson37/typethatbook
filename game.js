@@ -146,7 +146,7 @@ import { showReceipt } from "./receipt.js";
 // and are used by nothing shipped — v3.34.0 reverted the projection. Leaving the
 // import in would make it one keystroke to re-enable a grade computed from
 // records known to overlap. See HANDOFF §0.0 before touching this line.
-import { readWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
+import { readWeek, invalidateWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
          carryOverPlan, carryOverPayloadFor, sourceTotalsOf } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // The version footer's three primary reads (this html file, this js file's own
@@ -4401,6 +4401,12 @@ async function _flushAllInner(reason, final = false) {
                 ...payload,
                 lastUpdated: new Date()
             }, { merge: true });
+            // ⚠⚠ §READS / daylog.js v1.6.0 — THE MEMO MUST BE DROPPED THE MOMENT THIS
+            // LANDS. readWeek() is memoised per page load; a caller later in this same
+            // load would otherwise be handed the pre-write week and paint a total that
+            // is short by whatever was just saved. Over-calling is free — the cost of a
+            // needless drop is one read. weekly-memo-test.mjs asserts this call exists.
+            invalidateWeek(currentUser.uid);
 
             // ⚠️ v3.35.0 — THE v3.33.0 HUD RECONCILIATION IS GONE, AND ITS
             // ABSENCE IS THE POINT. It reset statsData to whatever the write

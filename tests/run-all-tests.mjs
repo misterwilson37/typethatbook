@@ -230,6 +230,11 @@ const FAST = [
     // measured. The fix is a derived document id + setDoc(), so a resend
     // overwrites. Ships with firestore.rules v2.8.0 (owner update rights) \u2014
     // this harness cannot see the rules; run npm run test:rules before deploy.
+    // ⚠ §READS — readWeek() was 65% of every read in a measured student session,
+    // and game.html read the same week twice per load. The memo removes the
+    // duplicate; Part C is the load-bearing half, asserting every typing_logs
+    // writer drops it, because a stale memo paints a short total mid-load.
+    ['weekly-memo-test.mjs',     'ONE WEEK READ PER PAGE LOAD: the memo dedupes the double read, never caches a failure, hands every caller its own copy, and EVERY typing_logs writer drops it'],
     ['session-writer-test.mjs',  'THE WRITER: a resent chunk overwrites its own document instead of duplicating it, whether the page was killed or the local removal itself failed, and two different chunks never collide on one id'],
     // ⚠️ Round 31 (Fitch), ROADMAP 14b. The time was banked on the way out of a
     // lesson and the RUN was not, because stopLesson() reloaded progress and

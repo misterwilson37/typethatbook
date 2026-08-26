@@ -216,7 +216,7 @@ import { openSettingsPanel, buildSettingsButton, applyDrillFont, readDrillFont,
 // ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
 // ⚠️ readDaySessions/projectDayTotal deliberately NOT imported — v2.19.0
 // reverted the projection. See HANDOFF §0.0.
-import { readWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
+import { readWeek, invalidateWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
          carryOverPlan, carryOverPayloadFor, sourceTotalsOf } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // ⚠️ v2.23.0 — THE DRILL TEXT FILTER. A student reported "ass" in a lesson.
@@ -5172,6 +5172,12 @@ async function _flushStatsInner(reason, final = false) {
             // v2.19.0's.
             ...(useSplit ? {} : { source: 'school' })
         }, { merge: true });
+        // ⚠⚠ §READS / daylog.js v1.6.0 — THE MEMO MUST BE DROPPED THE MOMENT THIS
+        // LANDS. readWeek() is memoised per page load; a caller later in this same
+        // load would otherwise be handed the pre-write week and paint a total that
+        // is short by whatever was just saved. Over-calling is free — the cost of a
+        // needless drop is one read. weekly-memo-test.mjs asserts this call exists.
+        invalidateWeek(currentUser.uid);
 
         // ⚠️ v2.20.0 — THE v2.18.0 HUD RECONCILIATION IS GONE. It existed
         // because v2.17.0's write was a PROJECTION of the session record and

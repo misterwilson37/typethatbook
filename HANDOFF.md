@@ -2,6 +2,37 @@
 
 > ## ▶ START HERE — written 2026-08-26 by Round 50 (Blickensderfer), for whoever is next
 >
+> ### ⭐ THE ROADMAP IS NOT RETIRED, AND JAKE ASKED THE RIGHT QUESTION ABOUT IT
+>
+> With no defects left it looked finishable. It is not. ROADMAP.md is the
+> DURABLE backlog; this block is a per-session baton that gets rewritten every
+> round — anything parked here evaporates within two rounds. The roadmap is also
+> where four stale flags were caught and where item 6 was hiding in plain sight,
+> and its CLOSED items carry the reasoning that stops rework (§ item 4's *"the
+> second candidate is innocent, do not investigate again"*). **New work goes in
+> ROADMAP.md; this block points at it.**
+>
+> ### ⚠️ §READS IS MEASURED. THE NEXT TWO ITEMS ARE 28 THEN 27.
+>
+> A full student session costs **31 reads**, and **`readWeek()` is 20 of them —
+> 65%**. A Library load is 5 reads of which 5 are that one function, cold and
+> warm alike. daylog.js v1.6.0 memoised it per page load (killing game.html's
+> double read); **item 28** is the rest — cache closed days, 5 → 2.
+>
+> ⚠⚠ **ITEM 27 IS DEFERRED ON PURPOSE AND THE REASON MUST NOT BE LOST.**
+> `learn.js` skips its week read entirely when there is no guest data;
+> `game.js` reads unconditionally. The guard **cannot be copied** — game.js has
+> no `anonSecondsAccum` — it must be AUTHORED, in the exact path that lost guest
+> minutes in v3.36.0. **Harness first, and prove a guest who typed before
+> signing in keeps every second.**
+>
+> ⚠️ **THE MEMO'S ONE RULE: every `typing_logs` writer MUST call
+> `invalidateWeek(uid)`.** A writer that forgets shows a later caller in the same
+> load pre-write numbers — a short total, in the file with the worst history of
+> counting defects. `weekly-memo-test.mjs` Part C asserts it; C5 fails if a third
+> writer appears, and the fix is to give it an invalidation, not to raise the
+> number.
+>
 > ✅ **NO DEFECT IS OUTSTANDING ON THE ROADMAP.** Items 6, 12, 23, 24 and 26
 > closed by work this session; 13, 11a, two-thirds of 12, and 14a closed by
 > VERIFICATION — nothing was built for those because nothing needed to be.

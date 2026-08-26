@@ -1,5 +1,13 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.39.0, 2026-08-26.** ✅ **§READS MEASURED, AND readWeek() IS 65% OF EVERY
+READ.** A full student session cost 31 reads; 20 were `readWeek()`, and a Library
+page load is 5 reads of which 5 are that function, cold or warm.
+`daylog.js` v1.6.0 memoises it per page load, killing the double read on
+game.html. **Two new items** carry the rest: **28** (the closed-day cache, 5 → 2)
+and **27** (the guard learn.js has and game.js does not — deliberately deferred,
+because it must be authored, not copied, in the path that lost guest minutes).
+
 **v3.38.0, 2026-08-26.** ✅ **ITEM 6 CLOSED — BOTH HALVES OF THE MIDNIGHT
 STRADDLE.** School mirrors Library: the tick closes the open run on the outgoing
 day, with the rollover moved ABOVE the increments and the compensating `= 1`s
@@ -108,7 +116,11 @@ fix instead: **Ctrl-F any line below to land on the section.**
 
 **Priority first, then everything else by position in the file.**
 
-1. ✅ **NO DEFECT IS OUTSTANDING.** Items 6, 12, 23, 24 and 26 closed by work; 13, 11a and 14a closed by verification. What remains below is measurement (§READS, 1, 4, 5, 7, 21), process (8b, 9), and one open decision (11a).
+1. **28. ⭐ THE CLOSED-DAY CACHE — THE REST OF THE WEEK READ**
+   — ⭐ The measured win: 5 reads → 2 on every page load of every page. §READS has the numbers.
+2. **27. ⚠️ game.js READS A WEEK IT DOES NOT NEED — THE GUARD learn.js ALREADY HAS**
+   — ⚠️ **Do the harness first.** The guard must be AUTHORED, not copied, and it sits in the path that lost guest minutes in v3.36.0.
+3. ✅ **NO DEFECT IS OUTSTANDING.** Items 6, 12, 23, 24 and 26 closed by work; 13, 11a and 14a closed by verification. What remains below is measurement (§READS, 1, 4, 5, 7, 21), process (8b, 9), and one open decision (11a).
    ⚠️ **Round 50 claimed this one round early and was wrong** — item 6 was still a live defect, listed among the "measurement" items because its heading said *fixed in Library*. **Read the headings, not the summary.**
 
 Everything else still open:
@@ -212,6 +224,79 @@ what leaving the page does: flush the partial, *then* render the receipt.
 ⚠️ **AND CHECK THE OTHER DIRECTION.** If the receipt is fixed by flushing, the
 receipt and the HUD must agree *afterwards* too — a fix that makes the stamp
 right while leaving the HUD ticking from a stale seed just moves the lie.
+
+---
+
+## 27. ⚠️ game.js READS A WEEK IT DOES NOT NEED — THE GUARD learn.js ALREADY HAS
+
+**MEASURED 2026-08-26.** `game.html` spent 10 of its 16 reads in `readWeek()`,
+because it reads the same week TWICE per page load:
+`retroactiveSaveGuestSession()` reads one, then `loadUserStats()` reads it again
+three lines later. daylog.js v1.6.0's memo now serves the second from memory, so
+**the cost is paid once instead of twice — but it is still paid.**
+
+⚠️ **learn.js DOES NOT PAY IT AT ALL**, because its equivalent function returns
+before the read when there is no guest data:
+
+```js
+if (!anonSecondsAccum && !Object.keys(anonLessonProgress).length && !sessionExpired) return;
+```
+
+`game.js`'s `retroactiveSaveGuestSession()` guards only `if (!user ||
+user.isAnonymous) return false;` and then reads unconditionally. **Another
+hand-maintained twin**, and the divergence is measurable: School's map load
+costs 5 daylog reads, Library's book load costs 10.
+
+⚠⚠ **THIS WAS DELIBERATELY NOT DONE IN THE §READS ROUND, AND THE REASON MUST
+SURVIVE.** `game.js` has **no `anonSecondsAccum`** — no page-local guest
+accumulator at all — so the guard cannot be copied across, it has to be
+AUTHORED. And this is the code path with a history of losing guest minutes:
+game.js v3.36.0 exists because `retroactiveSaveGuestSession()` ran in the wrong
+ORDER and erased what a signed-out child had typed; the comment above the call
+site still says so. **A guard that is slightly too eager silently drops a
+child's minutes, which is far worse than the read it saves.** A performance
+round is the wrong place to author a new correctness condition in the
+guest-merge path.
+
+**What it needs:** work out what `game.js` can legitimately test for — pending
+guest sprints via `sessionLogPending(GUEST_QUEUE_UID)`, whatever local stats
+contribution `mergeGuestStats()` would fold, and `sessionExpired` — and prove
+with a harness that a guest who typed before signing in still keeps every
+second. **Do the harness first.** Saving: roughly 5 reads per Library page load
+for the common case of a student who was never a guest.
+
+---
+
+## 28. ⭐ THE CLOSED-DAY CACHE — THE REST OF THE WEEK READ
+
+**MEASURED 2026-08-26:** `readWeek()` was **20 of 31 reads across a full student
+session — 65%**. A Library page load costs **5 reads, and all 5 are this
+function**; cold and warm are identical, because nothing caches it across loads.
+daylog.js v1.6.0's memo fixes the WITHIN-a-load duplication only.
+
+⚠️ **THE STRUCTURAL COST: YOU CANNOT SKIP A DAY THAT HAS DATA.** `planReads()`
+skips days known EMPTY, but a day with typing must be read to get its numbers.
+So reads scale with how many days a child has typed this week, **on every page
+load, all week**. A student who types five days a week pays five reads per load
+by Friday.
+
+⭐ **THE FIX: A CLOSED DAY NEVER CHANGES AGAIN.** Cache the folded totals for
+days older than yesterday in localStorage, and the week read becomes *today +
+yesterday + anything uncached* — **5 reads down to 2** on a warm machine, on
+every page load, on every page.
+
+⚠️ **KEEP YESTERDAY LIVE, DO NOT CACHE IT.** Both `typing_logs` writers target
+`today`, but the Overnight Rescue path (game.js v3.37.0's `carryOverPlan()`)
+exists specifically to credit typing to *the day it was typed on*, and that is
+exactly the kind of edge that makes "a past day is immutable" wrong at the
+margin. The cost of being conservative here is one read.
+
+⚠️ **AND THE LEDGER PASS-THROUGH IS A SEPARATE, SMALLER THING.** Not one of the
+seven `readWeek()` call sites passes `ledger`, though daylog.js's own docstring
+says a caller holding `users/{uid}` should pass `ledgerFrom(userData, uid)`.
+**Expect a small win at Ellis specifically**: students use the same MacBook every
+day, so the local per-machine mirror is already close to the server's copy. Worth
+doing, not worth leading with.
 
 ---
 

@@ -33,9 +33,24 @@ process.env.TZ = 'America/Chicago';
 import { strict as assert } from 'node:assert';
 import { readFileSync } from 'node:fs';
 import {
-    readWeek, applyWeekToStats, weekStartOf, weekDatesOf, localDateStr,
+    readWeek as _readWeekMemoised, invalidateWeek,
+    applyWeekToStats, weekStartOf, weekDatesOf, localDateStr,
     sessionSignature, sumDaySessions, projectDayTotal, DAYLOG_VERSION,
 } from '../daylog.js';
+
+// ⚠⚠ v1.1.0 — EVERY CALL HERE IS A COLD READ, ON PURPOSE (daylog.js v1.6.0).
+// readWeek() is now memoised per page load, and that memo is MODULE state: it
+// survives from one part of this file to the next. Several parts below reuse
+// `uid: 'u1'` with a different fake database each time, so without this wrapper
+// Part C was handed Part B's week and reported ok:true on a read that had
+// thrown — the harness failing for a reason that has nothing to do with the
+// property it names.
+//
+// ⚠ THE MEMO IS NOT STUBBED OUT. This file tests the READER's arithmetic, and
+// dropping the memo before each call is how it gets a clean reader without
+// pretending the memo is absent. tests/weekly-memo-test.mjs is where the memo
+// itself is tested; that one deliberately does NOT invalidate between calls.
+const readWeek = (args) => { invalidateWeek(args && args.uid); return _readWeekMemoised(args); };
 
 let pass = 0, fail = 0;
 const bad = [];

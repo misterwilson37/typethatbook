@@ -1,5 +1,54 @@
 # CHANGELOG — TypeThatBook
 
+## Round 52 (Blickensderfer) — 2026-08-26 — §READS measured, and the week memo
+
+**✅ §READS HAS REAL NUMBERS NOW.** Measured on real hardware signed in as a
+student, across a full session (Library → sprint → leaderboard → Library →
+School → lesson → practice → map): **31 reads, 11 writes, 4 misses.**
+
+**`readWeek()` was 20 of the 31 — 65%.** Every other read site in the entire
+session was 1–2 calls. There is one cost centre, not several:
+
+| Page | daylog reads | everything else |
+|---|---|---|
+| game.html (sprint) | 10 | 6 |
+| index.html (cold AND warm) | 5 | **0** |
+| learn.html | 5 | 3 |
+
+**✅ daylog.js v1.6.0 memoises readWeek() per page load.** game.html read the
+same week TWICE — `retroactiveSaveGuestSession()` then `loadUserStats()`, three
+lines apart, same uid, same date, same seven documents. The memo holds the
+PROMISE (overlapping callers share one round trip), never caches an `ok:false`
+read, hands every caller a deep copy, and lives in memory only.
+⚠️ **Every `typing_logs` writer now calls `invalidateWeek()`** — that is the
+load-bearing half, and `weekly-memo-test.mjs` Part C asserts it structurally.
+
+**⚠️ Two existing harnesses had to be given cold reads.** `daylog-test` and
+`logdays-test` reuse one uid across several fake databases, so module-level memo
+state leaked between parts — Part C was handed Part B's week and reported
+`ok:true` on a read that had thrown. Both now drop the memo before each call,
+with a comment saying why. ⚠️ The memo is **not stubbed out** in either: those
+files test the reader's arithmetic, and `weekly-memo-test.mjs` deliberately does
+NOT invalidate, because it tests the memo.
+
+**⚠️ Two new roadmap items rather than two rushed fixes:**
+- **28** — the closed-day cache. A closed day never changes, so caching days
+  older than yesterday takes the week read from **5 to 2** on every load. Keep
+  yesterday live: the Overnight Rescue path writes to the day typing happened on.
+- **27** — the guard `learn.js` has and `game.js` does not. **Deliberately
+  deferred**: `game.js` has no `anonSecondsAccum`, so the guard must be AUTHORED
+  rather than copied, and it lives in the path that lost guest minutes in
+  v3.36.0. A performance round is the wrong place to author a new correctness
+  condition in the guest-merge path. **Harness first.**
+
+- `daylog.js` v1.6.0, `game.js`, `learn.js` (invalidation call sites),
+  `tests/weekly-memo-test.mjs` **(NEW)**, `tests/daylog-test.mjs`,
+  `tests/logdays-test.mjs`, `tests/run-all-tests.mjs`
+
+**58 harnesses pass. `audit:versions`: 0 problems.** Mutation-verified: a writer
+that forgets to invalidate fails C2/C3, returning the memo uncloned fails B4/B5,
+and caching a failed read fails B1.
+
 ## Round 51 (Blickensderfer) — 2026-08-26 — the midnight straddle, School half
 
 **✅ ROADMAP item 6 is CLOSED, both halves.** learn.js v2.40.0 mirrors game.js
