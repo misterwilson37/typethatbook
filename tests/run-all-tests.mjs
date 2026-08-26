@@ -234,6 +234,11 @@ const FAST = [
     // and game.html read the same week twice per load. The memo removes the
     // duplicate; Part C is the load-bearing half, asserting every typing_logs
     // writer drops it, because a stale memo paints a short total mid-load.
+    // ⭐⭐ ROADMAP 28 — the measured win: closed days are read once a day, not
+    // once a page load. ⚠ Part B is the boundary that carries the risk
+    // (yesterday is never cached — the Overnight Rescue writes back into it),
+    // and Part D is the never-under-read contract.
+    ['closed-day-cache-test.mjs', 'A CLOSED DAY IS READ ONCE, NOT ONCE PER PAGE LOAD: today and yesterday are always live, the cached week totals identically, and an expired, foreign, corrupt or faulted cache falls back to reading'],
     ['weekly-memo-test.mjs',     'ONE WEEK READ PER PAGE LOAD: the memo dedupes the double read, never caches a failure, hands every caller its own copy, and EVERY typing_logs writer drops it'],
     ['session-writer-test.mjs',  'THE WRITER: a resent chunk overwrites its own document instead of duplicating it, whether the page was killed or the local removal itself failed, and two different chunks never collide on one id'],
     // ⚠️ Round 31 (Fitch), ROADMAP 14b. The time was banked on the way out of a

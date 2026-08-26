@@ -1,5 +1,95 @@
 # CHANGELOG — TypeThatBook
 
+## Round 54 (Blickensderfer) — 2026-08-26 — the closed-day cache
+
+**✅ ROADMAP item 28 is CLOSED** (daylog.js v1.7.0). Days strictly before
+yesterday are banked in localStorage. Measured on the shipped code, a student who
+typed Mon–Wed with the ledger in play: **3 reads cold, 2 on every load after**,
+with the week total identical across all of them.
+
+**⚠⚠ The real defect was that reads GREW WITH THE WEEK.** `planReads()` skips
+days known EMPTY, but a day with typing must be read for its numbers — so a
+five-day-a-week typist paid five reads per page load by Friday. **It is now flat
+at two, Monday or Friday.**
+
+**⚠⚠ Yesterday is never cached.** "A closed day never changes" is *almost* true,
+and the margin is where the bug would live: the Overnight Rescue
+(`carryOverPlan()`) credits typing to the day it was typed on and reaches back
+into yesterday's document. Hiding that correction from the child who earned it is
+not worth one read.
+
+**⚠⚠ The cache expires at local midnight, and that is not a guessed TTL.** A
+teacher's ⟳ recalc rewrites a past day from the TEACHER's browser and cannot
+invalidate a student's localStorage. There is no hook to add — an expiry is the
+only mechanism, and a school day is the right grain.
+
+**⚠️ It may over-read and must never under-read.** Expired, foreign-uid,
+wrong-shape and corrupt caches are discarded and the day is read for real; a
+faulted (`ok:false`) run banks nothing. `closed-day-cache-test.mjs`, 23
+assertions, mutation-verified — caching yesterday fails B2/B3, banking on a
+faulted run fails E2, ignoring the expiry fails D1.
+
+**⚠️ Two reader harnesses needed BOTH cache layers dropped.** `logdays-test` and
+`daylog-test` reuse one uid across fixtures, so a day banked by an earlier part
+was served to a later one. Neither stubs the caches out — they drop them, so both
+still test the reader that ships.
+
+**⚠⚠ ITEM 27's VALUE COLLAPSED AND THE ROADMAP NOW SAYS SO.** With the v1.6.0
+memo in place the second `readWeek()` call already costs nothing, and
+`loadUserStats()` needs the week regardless — so the guard saves **roughly zero
+reads**. It is a twin-symmetry item now, not a performance one.
+
+**⚠️ AND THE CLEAN-DAY PLAN WAS CORRECTED.** Round 53 wrote it up as a
+before/after comparison and told the next round to freeze before item 28. That
+misread Jake's purpose: he is measuring **the floor**, to judge a county rollout.
+Ship every tightening first, *then* run the day.
+
+- `daylog.js` v1.7.0, `tests/closed-day-cache-test.mjs` **(NEW)**,
+  `tests/logdays-test.mjs`, `tests/daylog-test.mjs`, `tests/run-all-tests.mjs`,
+  `ROADMAP.md`, `HANDOFF.md`
+
+**59 harnesses pass. `audit:versions`: 0 problems.**
+
+## Round 53 (Blickensderfer) — 2026-08-26 — the backlog, made readable
+
+**Documentation only — no code changed. 58 harnesses pass.**
+
+**✅ 11a CLOSED by Jake's ruling.** `typing_logs` stamping `classId`/`schoolId`
+at write time is INTENDED — it records where a student was *that day*, which is
+what you want for a child who changes class mid-year. *"All the people who it
+impacts are either my students — and I can get them all anyway — or didn't exist
+when it was a problem."* ⚠️ **No backfill.**
+
+**✅ 8b RETIRED TO CONVENTION.** *"Of course we do that."* Changed-files-only
+uploads is a standing rule, not a backlog task. New **§ CONVENTIONS** section at
+the top of ROADMAP.md holds it, plus three rules this session earned:
+verify-a-flag-before-building, look-at-layout-rendered, and
+guard-on-structure-not-distance.
+
+**⚠️ §READS AND ITEM 21 HAD NO BODIES.** Both were index entries pointing at
+nothing, for several rounds — the index promised sections that did not exist.
+Both written up. §READS now carries the real 2026-08-26 measurement (31 reads,
+`readWeek()` 65% of them), the three findings, and ⚠️ **the mechanics for
+retaking it** — including *do not `reset()` after a page has loaded*, which cost
+Round 52 a sample.
+
+**⭐ Item 29 added:** README.md is v2.0.0 from Round 28 — twenty-five rounds
+stale — and it is the file map and data model. ⚠️ It was destroyed once already.
+
+**⭐ THE CLEAN DAY is recorded in the index.** Jake runs one ordinary school day
+on a frozen build: item 5's baseline, and confirmation that Round 52's read work
+is live (game.html should cost 5 daylog reads on a sprint, not 10).
+⚠⚠ **Item 28 must not land before that run** — it moves the same numbers the run
+exists to read.
+
+**⚠️⚠️ AND THE HONEST CORRECTION:** Rounds 50 and 52 both said "no defect is
+outstanding." Round 50 was wrong — item 6 was live. And **item 9's first bullet
+is a repair, not tidying**: a tab that wakes on a new day and paints without
+typing works from stale day counters until the first keystroke. Both the index
+and the handoff now say so.
+
+- `ROADMAP.md`, `HANDOFF.md`, `CHANGELOG.md`
+
 ## Round 52 (Blickensderfer) — 2026-08-26 — §READS measured, and the week memo
 
 **✅ §READS HAS REAL NUMBERS NOW.** Measured on real hardware signed in as a

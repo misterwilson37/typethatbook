@@ -1,129 +1,79 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-08-26 by Round 50 (Blickensderfer), for whoever is next
+> ## ▶ START HERE — written 2026-08-26 by Round 54 (Blickensderfer), for whoever is next
 >
-> ### ⭐ THE ROADMAP IS NOT RETIRED, AND JAKE ASKED THE RIGHT QUESTION ABOUT IT
+> ⭐⭐ **THE READS WORK IS DONE AND THE BUILD IS READY FOR THE CLEAN DAY.**
+> Jake is running one ordinary school day on this build to find **the floor**,
+> so he can judge shipping TypeThatBook to the county. ⚠️ **It is NOT a
+> before/after comparison** — an earlier draft said to freeze before item 28 and
+> that was wrong; every tightening ships FIRST, then the day is measured.
 >
-> With no defects left it looked finishable. It is not. ROADMAP.md is the
-> DURABLE backlog; this block is a per-session baton that gets rewritten every
-> round — anything parked here evaporates within two rounds. The roadmap is also
-> where four stale flags were caught and where item 6 was hiding in plain sight,
-> and its CLOSED items carry the reasoning that stops rework (§ item 4's *"the
-> second candidate is innocent, do not investigate again"*). **New work goes in
-> ROADMAP.md; this block points at it.**
+> **What good looks like:** a Library load at **2** reads rather than 5, a sprint
+> page well under its measured 16, a full session comfortably under 31.
+> Mechanics are in ROADMAP §READS — follow them exactly: `copy(ttbMeter.json())`
+> on each page **before navigating**, never `reset()` after a page has loaded,
+> signed in **as a student**, `ttbMeter.day()` at the end.
 >
-> ### ⚠️ §READS IS MEASURED. THE NEXT TWO ITEMS ARE 28 THEN 27.
+> ### ✅ What the reads work actually did
 >
-> A full student session costs **31 reads**, and **`readWeek()` is 20 of them —
-> 65%**. A Library load is 5 reads of which 5 are that one function, cold and
-> warm alike. daylog.js v1.6.0 memoised it per page load (killing game.html's
-> double read); **item 28** is the rest — cache closed days, 5 → 2.
+> * **daylog.js v1.6.0** — per-load memo. game.html read the same week twice
+>   (`retroactiveSaveGuestSession()` then `loadUserStats()`, three lines apart).
+> * **daylog.js v1.7.0** — the closed-day cache. **2 reads per load, FLAT**,
+>   whether the student has typed one day this week or five. The old cost grew
+>   with the week; that was the real defect.
 >
-> ⚠⚠ **ITEM 27 IS DEFERRED ON PURPOSE AND THE REASON MUST NOT BE LOST.**
-> `learn.js` skips its week read entirely when there is no guest data;
-> `game.js` reads unconditionally. The guard **cannot be copied** — game.js has
-> no `anonSecondsAccum` — it must be AUTHORED, in the exact path that lost guest
-> minutes in v3.36.0. **Harness first, and prove a guest who typed before
-> signing in keeps every second.**
+> ⚠⚠ **THE TWO BOUNDARIES ARE LOAD-BEARING. DO NOT MOVE THEM WITHOUT READING
+> WHY.** Yesterday is never cached (the Overnight Rescue writes back into it);
+> the cache expires at local midnight (a teacher's ⟳ recalc happens in the
+> TEACHER's browser and cannot invalidate a student's localStorage — there is no
+> hook to add). `closed-day-cache-test.mjs` fails if either moves.
 >
-> ⚠️ **THE MEMO'S ONE RULE: every `typing_logs` writer MUST call
-> `invalidateWeek(uid)`.** A writer that forgets shows a later caller in the same
-> load pre-write numbers — a short total, in the file with the worst history of
-> counting defects. `weekly-memo-test.mjs` Part C asserts it; C5 fails if a third
-> writer appears, and the fix is to give it an invalidation, not to raise the
-> number.
+> ⚠️ **EVERY `typing_logs` WRITER MUST STILL CALL `invalidateWeek(uid)`**
+> (v1.6.0's rule). `weekly-memo-test.mjs` C5 fails if a third writer appears —
+> give it an invalidation, do not raise the number.
 >
-> ✅ **NO DEFECT IS OUTSTANDING ON THE ROADMAP.** Items 6, 12, 23, 24 and 26
-> closed by work this session; 13, 11a, two-thirds of 12, and 14a closed by
-> VERIFICATION — nothing was built for those because nothing needed to be.
-> What remains in ROADMAP.md is measurement (§READS, items 1/4/5/7/21), process
-> (8b, 9), and ONE open decision (11a).
+> ### What is left, and it is not much
 >
-> ⚠️⚠️ **ROUND 50 MADE THIS SAME CLAIM ONE ROUND EARLY AND IT WAS WRONG.** Item 6
-> was still a live defect — the midnight straddle, fixed in Library, open in
-> School — and it got counted as "measurement" because its heading began
-> *CONFIRMED, FIXED IN LIBRARY*. **Read the headings, not the summary line, and
-> read the item before you work it OR before you declare it done.**
+> Read **ROADMAP.md's "▶ HOW TO APPROACH WHAT'S LEFT"** block — the durable copy.
+> In short: **29** (README, twenty-five rounds stale, and it is the file map),
+> then the measurement chain **5 → 4**, with **1** and **7** attached, then **9**.
 >
-> ⚠️ **ROADMAP 6 IS NOW CLOSED AND ITS ORDERING IS LOAD-BEARING.** learn.js's
-> midnight rollover MUST stay above `learnActiveSeconds++`, `anonSecondsAccum++`
-> and `armAnonLoginPrompt()`, and the counter resets MUST be `= 0`, not the old
-> compensating `= 1`. One line lower and the first second of each new day is
-> filed under yesterday, invisibly, forever. midnight-test.mjs D5–D9.
+> ⚠⚠ **ITEM 27's VALUE COLLAPSED AND SOMEBODY SHOULD RE-JUDGE IT BEFORE
+> BUILDING.** The memo means its second read already costs nothing, and
+> `loadUserStats()` needs the week regardless — the guard now saves roughly
+> **zero** reads. It is twin-symmetry tidiness, not performance. The roadmap
+> entry says so.
 >
-> ### ⚠️⚠️ FOUR STALE FLAGS NOW, AND ONE OF THEM CARRIED ⭐⭐
->
-> 13, 11a, two of item 12's three bullets, and 14a all turned out to be already
-> shipped — and one of item 12's bullets had its claim **backwards** (it said the
-> student ID was cut off in Library; both panels truncate to eight characters on
-> purpose, matching reports.html, so a child can read it aloud across a room).
-> 14a carried ⭐⭐, the highest marker in the file, and its ruling was already
-> implemented verbatim in lesson-gate.js. **A ⭐⭐ cost Round 35 an entire round.
-> The check costs minutes. Read the code before you believe the flag.**
->
-> ### What Jake asked for next
->
-> **A reads/writes pass across every page**, once these changes are live. The
-> instrument exists: `ttbMeter.report()` in the console covers every page. The
-> last sample on record is **2,562 reads / 1,640 misses across 4 page loads**,
-> still unexamined. ⚠️ Item 18's ruling — **reads are ~50× dearer than writes** —
-> is the lens for reading that number, and §READS in ROADMAP.md is where the
-> earlier notes live.
->
-> ### ⚠️⚠️ ROADMAP 23 — THE GUARD, AND WHY IT IS NOT THE ONE THE ITEM ASKED FOR
->
-> learn.js v2.39.0 pairs `currentRuns` with the lesson it was built for
-> (`currentRunsFor`) and both writers refuse on a mismatch. **The item proposed
-> comparing `buildRunList()` lengths and that would have been wrong twice:**
-> `buildSequence()` is RANDOM per call for key_random/key_pattern_auto, so
-> recomputing invites a false positive — and a false positive here **refuses a
-> REAL run**, which is silent data loss and strictly worse than the hazard. It
-> also passes any swap that yields the same count. ⚠️ The guard **cannot fire
-> today** (finishStep() returns at the remediation branch first); it is a
-> backstop for a structural hazard, not a fix for a live bug. Set
-> `currentRunsFor` at ANY new site that assigns `currentRuns`, or runs stop
-> recording.
->
-> ### ⚠️⚠️ TWO VISUAL DEFECTS REACHED JAKE'S BROWSER THIS SESSION
->
-> The HUD lead axis (§ style.css v3.10.0) and the cover-size regression (§
-> index.html v3.16.0). **Both were CSS, both were invisible to `npm test`, and
-> both took a screenshot to find.** `auto` on a replaced element means "use the
-> file's own size", not "size me from my container" — that one shipped. **If a
-> round touches layout, look at it RENDERED before shipping**, with a real
-> full-size asset rather than a convenient thumbnail, and when you add a guard,
-> mutate it back into the original bug to prove it fires.
+> ⚠️ **ITEM 9's FIRST BULLET IS A REPAIR, NOT TIDYING** — the day rollover lives
+> only in the typing tick, so a tab that wakes on a new day and paints without
+> typing works from stale counters until the first keystroke. Small, quiet,
+> still a bug. **"No defect outstanding" has been claimed wrongly twice; read
+> the headings, not the summary.**
 >
 > ### ⚠️⚠️ READ §0.-31.H, §0.-32.D AND §0.-33.C BEFORE YOU EDIT ANY FILE
 >
 > Encode first, write to a temp file, verify the size, rename; assert every
-> anchor matches exactly once (`s.count(old) == 1`) and any slice asserts
-> `j > i`; guard on structure, never on words. **No file-damage incident in
-> this session or the four rounds before it.**
+> anchor matches exactly once; guard on structure, never on distance or words.
+> **No file-damage incident in this session.** And see ROADMAP § CONVENTIONS —
+> verify a flag before building for it, look at layout RENDERED, ship
+> changed-files-only.
 >
 > ### State of play
 >
-> * **57 harnesses pass**, `npm run audit:versions` **0 problems**,
->   `npm run test:rules` **65 cases** (last run Round 46).
-> * `firestore.rules` **v2.8.0 IS DEPLOYED** and verified by real classroom use —
->   Jake typed three sprints across a tab switch and an immediate Home (the
->   `pagehide` path) with no duplicates.
-> * ⚠️ **Pre-existing duplicate `typing_sessions` documents still exist.** The
->   reader dedupes them and the writer no longer creates them; nothing has
->   cleaned up the old ones. A bulk write over student history is a decision
->   nobody has made. Not urgent, not a bug.
-> * ⚠️ **ROADMAP.md's numbers are not an order and are not unique** (two item
->   18s). **DO NOT RENUMBER.** `roadmap-index-test.mjs` matches on a heading's
->   EXACT text and counts `##` headings — a paraphrased index entry fails B1, and
->   a `##` used for a "kept original" heading registers as a new open item.
+> * **59 harnesses pass**, `audit:versions` **0 problems**, `test:rules` **65
+>   cases** (last run Round 46).
+> * `firestore.rules` **v2.8.0 IS DEPLOYED** and verified by real classroom use.
+> * ⚠️ **Pre-existing duplicate `typing_sessions` documents still exist** — the
+>   reader dedupes them, the writer no longer makes them, nothing cleaned up the
+>   old ones. A decision nobody has made. Not urgent, not a bug.
+> * ⚠️ **DO NOT RENUMBER ROADMAP ITEMS.** `roadmap-index-test.mjs` matches a
+>   heading's EXACT text.
 >
 > ### The name
 >
-> Rounds 46–50 are **Blickensderfer** — one name per conversation, not per round.
+> Rounds 46–54 are **Blickensderfer** — one name per conversation, not per round.
 > ⚠️ **GREP THE ROSTER BEFORE YOU PICK YOURS**:
-> `grep -rihn "Round [0-9]* (" . | grep -oP "Round \d+ \([A-Za-z-]+\)"`. Rounds
-> 36–40 are all written up as *Underwood*, which is Round 1 — a fourth
-> occurrence past three written warnings.
+> `grep -rihn "Round [0-9]* (" . | grep -oP "Round \d+ \([A-Za-z-]+\)"`.
 
 
 <!-- HANDOFF.md v15.30.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended

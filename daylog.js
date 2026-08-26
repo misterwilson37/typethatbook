@@ -1,4 +1,22 @@
-// daylog.js v1.6.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
+// daylog.js v1.7.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
+//
+// v1.7.0 — ⭐⭐ ROADMAP 28 — THE CLOSED-DAY CACHE. v1.6.0 removed the duplicate
+//          week read WITHIN a page load; this removes the repetition ACROSS
+//          loads. Days strictly BEFORE yesterday are banked in localStorage, so
+//          a week read costs today + yesterday instead of every day the student
+//          has typed this week. Measured starting point: 5 reads per Library
+//          load, cold and warm alike.
+//          ⚠⚠ YESTERDAY IS NEVER CACHED — the Overnight Rescue reaches back
+//          into yesterday's document, and hiding that correction from the child
+//          who earned it is worth more than one read.
+//          ⚠⚠ THE CACHE EXPIRES AT LOCAL MIDNIGHT because a teacher's ⟳ recalc
+//          rewrites a past day from the TEACHER's browser and cannot invalidate
+//          a student's localStorage. There is no hook to add; an expiry is the
+//          only mechanism, and a school day is the right grain.
+//          ⚠ IT MAY OVER-READ AND MUST NEVER UNDER-READ — anything expired,
+//          unparseable, from another uid or from an older shape is discarded and
+//          the day is read for real. Nothing is banked from an `ok:false` run.
+//          tests/closed-day-cache-test.mjs.
 //
 // v1.6.0 — §READS. readWeek() IS MEMOISED PER PAGE LOAD. Measured 2026-08-26 as
 //          a student: it was 20 of 31 reads in a full session (65%), and
@@ -120,7 +138,7 @@
 // tests/week-anchor-test.mjs and tests/daylog-test.mjs both hold that line. A
 // mismatch here does not throw — it silently reads the wrong seven days.
 
-export const DAYLOG_VERSION = "1.6.0";
+export const DAYLOG_VERSION = "1.7.0";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE PER-SOURCE CUTOVER
@@ -398,7 +416,101 @@ function _clone(v) {
     catch (_) { return JSON.parse(JSON.stringify(v)); }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ⭐⭐ ROADMAP 28 — THE CLOSED-DAY CACHE (v1.7.0)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Measured 2026-08-26: readWeek() was 20 of 31 reads in a full student session,
+// and a Library page load cost 5 reads of which 5 were this function — COLD AND
+// WARM ALIKE, because nothing cached it across loads. v1.6.0's memo removed the
+// duplicate WITHIN a load; this removes the repetition ACROSS loads.
+//
+// ⚠️⚠️ THE STRUCTURAL PROBLEM IT SOLVES: YOU CANNOT SKIP A DAY THAT HAS DATA.
+// planReads() skips days known EMPTY, but a day with typing must be read to get
+// its numbers — so reads scaled with how many days a child had typed this week,
+// on every page load, all week. By Friday a five-day-a-week typist paid five
+// reads per load. Now they pay for today, yesterday, and nothing else.
+//
+// ⚠️⚠️ WHY YESTERDAY IS NEVER CACHED. "A closed day never changes" is ALMOST
+// true and the margin is where the bug would live. Both typing_logs writers
+// target today — but the Overnight Rescue path (game.js v3.37.0's
+// carryOverPlan()) exists precisely to credit typing to THE DAY IT WAS TYPED ON,
+// which reaches back into yesterday. Caching yesterday would hide that
+// correction from the child who earned it. The cost of being conservative is
+// exactly one read.
+//
+// ⚠️⚠️ WHY THE CACHE DIES AT LOCAL MIDNIGHT RATHER THAN LIVING FOREVER. A
+// teacher's ⟳ recalc rewrites a PAST day's typing_logs document, and it happens
+// in the teacher's browser — it cannot reach into a student's localStorage to
+// invalidate anything. There is no hook to add; an expiry is the only mechanism
+// available. Expiring at the next local midnight means a recalc reaches the
+// student's own HUD by the next school day, while still collapsing every page
+// load after the first within a day. THAT is where the saving is: students load
+// these pages many times a day, not once.
+//
+// ⚠️ IT MAY OVER-READ AND MUST NEVER UNDER-READ — the same contract logdays.js
+// holds itself to. Anything unparseable, expired, from another uid, or from an
+// older shape is DISCARDED and the day is read for real. A cache that guesses
+// wrong shows a child fewer minutes than they typed, and an undercount is
+// indistinguishable on screen from a light week.
+const DAY_CACHE_PREFIX = 'ttbDayCache:';
+const DAY_CACHE_SHAPE  = 3;      // bump to invalidate every stored entry at once
+const DAY_CACHE_MAX    = 40;     // days kept; a week read never needs more than 7
+
+const _endOfLocalDay = (nowMs) => {
+    const d = new Date(nowMs);
+    d.setHours(24, 0, 0, 0);     // next local midnight, DST-correct
+    return d.getTime();
+};
+
+/**
+ * The dates of `dates` whose totals may be cached: strictly BEFORE yesterday.
+ * Exported so the harness pins the boundary rather than restating it.
+ */
+export function closedDaysOf(dates, dateStr) {
+    // The T12:00:00 anchor is this file's idiom for date arithmetic (see
+    // weekStartOf) — it keeps the shift DST-safe, which a raw epoch subtraction
+    // is not on the two days a year it matters.
+    const d = new Date(dateStr + 'T12:00:00');
+    d.setDate(d.getDate() - 1);
+    const yesterday = ymd(d);
+    // ⚠️ STRICTLY BEFORE YESTERDAY. `<` not `<=` — see the header on the
+    // Overnight Rescue reaching back into yesterday's document.
+    return dates.filter(x => x < yesterday);
+}
+
+function _readDayCache(uid, nowMs) {
+    try {
+        const raw = localStorage.getItem(DAY_CACHE_PREFIX + uid);
+        if (!raw) return {};
+        const c = JSON.parse(raw);
+        if (!c || c.v !== DAY_CACHE_SHAPE || c.uid !== uid) return {};
+        if (!(typeof c.exp === 'number') || nowMs >= c.exp) return {};
+        return (c.days && typeof c.days === 'object') ? c.days : {};
+    } catch (_) { return {}; }   // ⚠️ unparseable → read everything
+}
+
+function _writeDayCache(uid, days, nowMs) {
+    try {
+        const keys = Object.keys(days).sort();
+        const trimmed = {};
+        for (const k of keys.slice(-DAY_CACHE_MAX)) trimmed[k] = days[k];
+        localStorage.setItem(DAY_CACHE_PREFIX + uid, JSON.stringify({
+            v: DAY_CACHE_SHAPE, uid, exp: _endOfLocalDay(nowMs), days: trimmed,
+        }));
+    } catch (_) { /* quota or no storage — the next load simply reads again */ }
+}
+
+/** Drop a student's closed-day cache. Exported for the harness and for admin tools. */
+export function clearDayCache(uid) {
+    try { localStorage.removeItem(DAY_CACHE_PREFIX + uid); } catch (_) {}
+}
+
 async function _readWeekUncached({ db, doc, getDoc, uid, dateStr, ledger }) {
+    const _now = Date.now();
+    const _cached = _readDayCache(uid, _now);
+    const _cacheable = new Set(closedDaysOf(weekDatesOf(dateStr), dateStr));
+    const _fresh = {};
     const dates = weekDatesOf(dateStr);
 
     // ⚠️ v1.3.0 — ROADMAP ITEM 18. SEVEN READS TO FIND ONE OR TWO DAYS.
@@ -447,6 +559,17 @@ async function _readWeekUncached({ db, doc, getDoc, uid, dateStr, ledger }) {
         // ok:false and suppress the HUD on every ordinary week, which is the
         // exact failure the ok/false contract exists to prevent, inverted.
         if (skipped.has(date)) return { date, totals: totalsOf(null, date) };
+        // ⚠️ ROADMAP 28 — A CACHED CLOSED DAY COSTS NOTHING AND IS NOT A MISS.
+        // Same reasoning as the skip above: this is a known VALUE, not a failed
+        // read, so `ok` stays true. Only days strictly before yesterday can be
+        // here — see closedDaysOf().
+        if (_cacheable.has(date)) {
+            const hit = _cached[date];
+            if (hit && typeof hit.seconds === 'number') {
+                return { date, totals: { seconds: hit.seconds, chars: hit.chars || 0,
+                                         mistakes: hit.mistakes || 0 }, cached: true };
+            }
+        }
         try {
             const snap = await getDoc(doc(db, 'typing_logs', `${uid}_${date}`));
             const data = snap.exists() ? snap.data() : null;
@@ -465,10 +588,27 @@ async function _readWeekUncached({ db, doc, getDoc, uid, dateStr, ledger }) {
     const week = { seconds: 0, chars: 0, mistakes: 0 };
     for (const r of results) {
         if (!r.totals) { ok = false; byDate[r.date] = { seconds: 0, chars: 0, mistakes: 0 }; continue; }
+        // ⚠️ ROADMAP 28 — BANK ONLY WHAT WAS ACTUALLY READ, AND ONLY IF IT IS
+        // CLOSED. A cached hit is not re-banked (nothing learned), a skipped
+        // day is not banked (the ledger already vouches for it, and banking a
+        // zero would let a stale ledger and a stale cache agree on a wrong
+        // answer), and nothing is banked from a run where any day FAILED —
+        // see the `ok` gate below.
+        if (!r.cached && _cacheable.has(r.date) && !skipped.has(r.date)) {
+            _fresh[r.date] = r.totals;
+        }
         byDate[r.date] = r.totals;
         week.seconds  += r.totals.seconds;
         week.chars    += r.totals.chars;
         week.mistakes += r.totals.mistakes;
+    }
+
+    // ⚠️ NOTHING IS BANKED FROM A PARTIAL WEEK. `ok:false` means some day could
+    // not be read; the days that DID succeed are still trustworthy, but a run
+    // that hit an auth or network fault is the wrong moment to write a cache
+    // that outlives the page. The next clean load banks them.
+    if (ok && Object.keys(_fresh).length) {
+        _writeDayCache(uid, { ..._cached, ..._fresh }, _now);
     }
 
     const today = byDate[dateStr] || { seconds: 0, chars: 0, mistakes: 0 };

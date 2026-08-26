@@ -88,6 +88,46 @@ believing any failure count.
 
 ---
 
+## § CONVENTIONS — standing rules, not tasks
+
+Things that were once backlog items and are now simply how this project works.
+**They are here so they stay true without needing a task to nag about them.**
+
+### ⭐ EVERY ROUND SHIPS A CHANGED-FILES-ONLY UPLOAD SET
+
+*(was item 8b — retired to convention Round 53. Jake: "Of course we do that.")*
+
+Zip **only** the files a round actually changed, keeping the original folder
+structure. ⚠️ **THE RISK IS ONE-DIRECTIONAL.** Round 28 changed 19 files of
+180; shipping all 180 re-uploads 161 files nobody touched — every book in
+`library/`, `firestore.rules`, `functions/` — each one a chance to overwrite a
+good file with a stale copy, for **zero benefit**, through a web portal, by hand,
+with a class arriving.
+
+### ⚠️ VERIFY A FLAG BEFORE YOU BUILD FOR IT
+
+**Four flags in this file have turned out already-shipped** — 13, 11a, two of
+item 12's three bullets, and 14a, which carried ⭐⭐, the highest marker here.
+One of item 12's bullets had its claim **backwards**. A stale ⭐⭐ cost Round 35
+an entire round; the check costs minutes. **Read the code before you believe the
+flag.**
+
+### ⚠️ IF A ROUND TOUCHES LAYOUT, LOOK AT IT RENDERED
+
+Two visual defects reached Jake's browser in one session — a HUD row seven
+pixels off its axis, and covers rendering at full file size. **Both were CSS,
+both were invisible to `npm test`, both took a screenshot to find.** Use a real
+full-size asset, not a convenient thumbnail.
+
+### ⚠️ GUARD ON STRUCTURE, NEVER ON DISTANCE OR WORDS
+
+HANDOFF §0.-33.C's rule for writes applies to **harnesses** too. A check that
+allowed "400 characters between the gate and the increment" was a distance check
+wearing a structure check's label, and it failed on a comment while the property
+it named was still true. Brace-match instead.
+
+---
+
 # ROADMAP INDEX — READ THIS FIRST
 
 ⚠️⚠️ **THE NUMBERS ARE NOT AN ORDER AND THEY ARE NOT UNIQUE. DO NOT RENUMBER
@@ -116,12 +156,78 @@ fix instead: **Ctrl-F any line below to land on the section.**
 
 **Priority first, then everything else by position in the file.**
 
-1. **28. ⭐ THE CLOSED-DAY CACHE — THE REST OF THE WEEK READ**
-   — ⭐ The measured win: 5 reads → 2 on every page load of every page. §READS has the numbers.
+### ▶ HOW TO APPROACH WHAT'S LEFT — grouped, Round 53
+
+✅ **NO DEFECT IS OUTSTANDING**, with ONE qualification: **item 9's first bullet
+is a repair, not tidying** — the day rollover lives only in the typing tick, so a
+tab that wakes on a new day and signs in, flushes or paints *without typing*
+works from stale day counters until the first keystroke. It is small and quiet,
+but it is a bug. ⚠️ **Rounds 50 and 52 both said "no defect outstanding" while
+that bullet and item 6 sat open. Read the headings, not the summary.**
+
+**A. The reads work — finish it in this order.**
+- **28** — the closed-day cache. **The only item with a measured payoff: 5 reads
+  → 2 on every page load of every page.** §READS has the numbers.
+- **29** — update `README.md`, twenty-five rounds stale. Cheap, and it is the
+  file map a new reader starts from.
+- **27** — the guard `learn.js` has and `game.js` does not. **Harness first**;
+  the guard must be AUTHORED, not copied, in the path that lost guest minutes.
+
+**B. The measurement chain — in order, and it needs a clean day first.**
+- **5** — measure `log ÷ sessions` per student for one clean day. Sets a
+  threshold from evidence rather than a guess. **Everything else here waits on
+  it.**
+- **4** — the implausibility flag: read-only, staff-only, *"this looks
+  impossible, go look."* **Needs 5's threshold.**
+- **1** — the drill-down and clock are **late, not wrong**. Constrains 4: a flag
+  that fires every sixth period at 2:55 PM is a flag nobody reads by October.
+- **7** — the 5-second floor. Small, downward, unmeasured. **Measure first**;
+  lowering it fills the drill-down with noise records.
+
+**C. Structural, no deadline.**
+- **9** — move the rollover somewhere a page load can reach (the repair above),
+  and extract the timer/stats/flush path out of `game.js` as a pure, testable
+  `daycounter.js`. **That path is where every counting defect has lived.**
+
+**D. Parked — no action.**
+- **21** — the reverted future-day clamp, kept so nobody re-adds it.
+- **⏳** the 2026-08-22 cutover — just watch it.
+
+### ⭐⭐ THE CLEAN DAY — JAKE'S PLAN, 2026-08-26
+
+**PURPOSE: FIND THE FLOOR, TO DECIDE ON A COUNTY ROLLOUT.** Jake:
+*"I want to see how tight we can make it and then gauge whether or not I can
+ship it to the county. That requires a clean run with all of the tightenings you
+can think of."*
+
+⚠️ **IT IS NOT A BEFORE/AFTER COMPARISON.** An earlier draft of this block said
+to freeze before item 28 so today and tomorrow could be compared. **That was
+wrong and it has been corrected.** Nobody needs the comparison; what is needed is
+the *lowest number this build can produce*, measured on a real day.
+
+**So: ship every tightening FIRST, then run one ordinary school day on the
+resulting build.**
+
+- ✅ daylog.js v1.6.0 — the per-load memo (game.html's double week read)
+- ✅ daylog.js v1.7.0 — the closed-day cache (**2 reads per load, flat**)
+- ⚠️ the ledger pass-through is the one known tightening NOT done — small, and
+  it only affects the cold load
+
+**What to capture** — the mechanics are in §READS, and follow them exactly:
+`copy(ttbMeter.json())` on each page **before navigating**, never `reset()` after
+a page has loaded, signed in **as a student**. Then `ttbMeter.day()` at the end.
+
+**What good looks like:** a Library load at **2** reads rather than 5, a sprint
+page well under its measured 16, and a full session comfortably under 31. Those
+numbers × the county's student count are the rollout argument.
+
+---
+
+
+1. **29. ⚠️ README.md IS TWENTY-FIVE ROUNDS STALE**
+   — ⚠️ The file map and data model. Cheap; do it on a round with room.
 2. **27. ⚠️ game.js READS A WEEK IT DOES NOT NEED — THE GUARD learn.js ALREADY HAS**
-   — ⚠️ **Do the harness first.** The guard must be AUTHORED, not copied, and it sits in the path that lost guest minutes in v3.36.0.
-3. ✅ **NO DEFECT IS OUTSTANDING.** Items 6, 12, 23, 24 and 26 closed by work; 13, 11a and 14a closed by verification. What remains below is measurement (§READS, 1, 4, 5, 7, 21), process (8b, 9), and one open decision (11a).
-   ⚠️ **Round 50 claimed this one round early and was wrong** — item 6 was still a live defect, listed among the "measurement" items because its heading said *fixed in Library*. **Read the headings, not the summary.**
+   — ⚠⚠ **ITS VALUE COLLAPSED IN ROUND 52 AND NOBODY HAS RE-JUDGED IT.** The memo means the second call costs nothing already, and `loadUserStats()` needs the week regardless — so the guard now saves **roughly zero reads**. It is a tidiness/twin-symmetry item, not a performance one. **Do the harness first** if it is done at all.
 
 Everything else still open:
 
@@ -131,8 +237,6 @@ Everything else still open:
 - 4. THE IMPLAUSIBILITY FLAG
 - 5. WHAT A NORMAL DAY LOOKS LIKE
 - 7. THE 5-SECOND FLOOR
-- 8b. ⭐ NEW — EVERY ROUND SHIPS A CHANGED-FILES-ONLY UPLOAD SET
-- 11a. ⚠️ MOSTLY CLOSED (Round 41) — ONE OPEN **DECISION**, NOT A BUG
 - 9. REDUCE THE SURFACE
 
 ## ⏳ WATCHING — no action, just don't forget
@@ -163,6 +267,9 @@ Everything else still open:
 - 12. ✅ CLOSED (Round 47, Blickensderfer) — THE LEAD AXIS, AND TWO STALE BULLETS
 - 23. ✅ CLOSED (Round 50, Blickensderfer) — THE RUN LIST IS PAIRED WITH THE LESSON
 - 14a. ✅ CLOSED BY VERIFICATION (Round 50, Blickensderfer) — ALREADY SHIPPED BY ITEM 14
+- 11a. ✅ CLOSED (Round 53) — JAKE RULED: THE WRITE-TIME STAMP IS CORRECT
+- 8b. ✅ RETIRED TO CONVENTION (Round 53) — A STANDING RULE, NOT A TASK
+- 28. ✅ CLOSED (Round 54, Blickensderfer) — THE CLOSED-DAY CACHE
 - 6. ✅ CLOSED (Round 51, Blickensderfer) — THE MIDNIGHT STRADDLE, BOTH HALVES
 - 16. ✅ FIXED (Round 40) — THE BUILD PANEL ON `reports.html` AND `admin.html`
 - 17. ✅ CLOSED (Rounds 35–40) — REPORTS READ EVERY RECORD OF EVERY STUDENT
@@ -227,6 +334,26 @@ right while leaving the HUD ticking from a stale seed just moves the lie.
 
 ---
 
+## 29. ⚠️ README.md IS TWENTY-FIVE ROUNDS STALE
+
+`README.md` is **v2.0.0, Round 28 (2026-08-23)**. Rounds 29–52 have since added
+or changed, at minimum: `chapter-position.js`, `celebrate.js`, `receipt.js`,
+`logdays.js`, `settings-panel.js`, `run-grade.js`, `lesson-gate.js`, the
+source-split cutover, the two-row HUD, the School settings panel, the language
+filter, `school-audit.html`, and the harness count (**17 → 58**).
+
+⚠️ **IT IS THE FILE MAP AND DATA MODEL** — HANDOFF §7's document map assigns it
+*"what the project is; file map, data model."* A stale file map is worse than
+none: it sends a reader to a module that has since moved or been split.
+
+⚠⚠ **AND IT HAS BEEN DESTROYED ONCE BEFORE.** Round 28 found the project README
+overwritten wholesale by a copy of `tests/README.md`. **Read what is actually in
+it before editing**, and do not let the two converge again.
+
+**Do it on a round with room, not as a rush at the end of one.**
+
+---
+
 ## 27. ⚠️ game.js READS A WEEK IT DOES NOT NEED — THE GUARD learn.js ALREADY HAS
 
 **MEASURED 2026-08-26.** `game.html` spent 10 of its 16 reads in `readWeek()`,
@@ -267,7 +394,64 @@ for the common case of a student who was never a guest.
 
 ---
 
-## 28. ⭐ THE CLOSED-DAY CACHE — THE REST OF THE WEEK READ
+## 28. ✅ CLOSED (Round 54, Blickensderfer) — THE CLOSED-DAY CACHE
+
+✅ **SHIPPED daylog.js v1.7.0.** Days strictly before yesterday are banked in
+localStorage, so a week read costs **today + yesterday** instead of every day the
+student has typed this week.
+
+**Measured on the shipped code**, a student who typed Mon–Wed, with the ledger
+in play:
+
+| | reads | week total |
+|---|---|---|
+| cold load | 3 | 1800s |
+| every load after | **2** | 1800s |
+
+⚠⚠ **AND IT NO LONGER GROWS WITH THE WEEK.** That was the actual defect: reads
+scaled with how many days a child had typed, on every page load, so a five-day
+typist paid five reads per load by Friday. It is now **flat at two**, Monday or
+Friday.
+
+⚠⚠ **YESTERDAY IS NEVER CACHED.** "A closed day never changes" is *almost* true
+and the margin is where the bug would live — the Overnight Rescue
+(game.js v3.37.0's `carryOverPlan()`) credits typing to THE DAY IT WAS TYPED ON
+and reaches back into yesterday's document. Caching it would hide that
+correction from the child who earned it, to save one read.
+
+⚠⚠ **THE CACHE EXPIRES AT LOCAL MIDNIGHT, AND THE REASON IS NOT A GUESS AT A
+TTL.** A teacher's ⟳ recalc rewrites a past day's document *from the teacher's
+browser*, which cannot invalidate a student's localStorage. **There is no hook to
+add** — an expiry is the only mechanism available, and a school day is the right
+grain: a recalc reaches the student's HUD by the next school day, while every
+page load after the first within a day costs nothing.
+
+⚠️ **IT MAY OVER-READ AND MUST NEVER UNDER-READ** — logdays.js's contract.
+Expired, foreign-uid, wrong-shape and corrupt caches are all discarded and the
+day is read for real, and **nothing is banked from an `ok:false` run**. An
+undercount is indistinguishable on screen from a light week.
+
+`tests/closed-day-cache-test.mjs`, 23 assertions, mutation-verified: caching
+yesterday fails B2/B3, banking on a faulted run fails E2, ignoring the expiry
+fails D1.
+
+⚠️ **TWO READER HARNESSES NEEDED BOTH CACHE LAYERS DROPPED** — `logdays-test`
+and `daylog-test` reuse one uid across fixtures, and a day banked by an earlier
+part was served to a later one. Neither stubs the caches out; they drop them, so
+they still test the reader that ships.
+
+### The remaining, smaller thing
+
+⚠️ **The ledger pass-through is still not done.** No `readWeek()` call site
+passes `ledger`, though daylog.js's docstring says a caller holding
+`users/{uid}` should pass `ledgerFrom(userData, uid)`. With the cache in place
+this only affects the **cold** load, and at Ellis the local per-machine mirror
+already covers most of it — students use the same MacBook daily. **Small. Do it
+if a round has room.**
+
+### The original item, kept
+
+
 
 **MEASURED 2026-08-26:** `readWeek()` was **20 of 31 reads across a full student
 session — 65%**. A Library page load costs **5 reads, and all 5 are this
@@ -606,6 +790,86 @@ The two reasons it had been left standing, both now answered:
 
 ---
 
+## §READS — WHAT THE CONSOLES ACTUALLY MEASURE (2026-08-24)
+
+⚠️ **THIS SECTION HAD NO BODY UNTIL ROUND 53.** The index promised it for several
+rounds and there was nothing to land on. Written up here from the first real
+end-to-end measurement.
+
+⚠️ **NUMBERING:** this block runs its own series **18–21**, unrelated to the
+main items 18–21 lower in the file. See the index's note.
+
+### ✅ THE MEASUREMENT, 2026-08-26 — SIGNED IN AS A STUDENT, FULL SESSION
+
+Route: Library → sprint → leaderboard → Library → School → lesson → practice
+→ map. Captured with `copy(ttbMeter.json())` on each page **before** navigating.
+
+**31 reads, 11 writes, 4 misses.**
+
+| Page | `readWeek()` reads | everything else |
+|---|---|---|
+| game.html (sprint) | 10 | 6 |
+| index.html — **cold AND warm** | 5 | **0** |
+| learn.html | 5 | 3 |
+
+⚠⚠ **`readWeek()` WAS 20 OF THE 31 — 65%.** Every other read site in the whole
+session was 1–2 calls. **There is one cost centre, not several.** A Library page
+load is five reads of which five are that one function, and cold and warm are
+identical because nothing cached it across loads.
+
+### THE THREE FINDINGS
+
+1. **game.html read the same week TWICE per load** —
+   `retroactiveSaveGuestSession()` then `loadUserStats()`, three lines apart,
+   same uid, same date. ✅ **Fixed in daylog.js v1.6.0's per-load memo.**
+2. **`learn.js` skips that read entirely when there is no guest data; `game.js`
+   does not.** → **item 27**, deferred deliberately.
+3. **You cannot skip a day that HAS data.** `planReads()` skips days known
+   empty, but a day with typing must be read for its numbers — so reads scale
+   with how many days a child has typed this week, **on every page load, all
+   week**. → **item 28**, the closed-day cache.
+
+### ⚠️ HOW TO TAKE THIS MEASUREMENT AGAIN — THE MECHANICS MATTER
+
+* `session` is **per page load and in memory**; it dies on navigation. `day` is
+  **totals only**, in localStorage, and carries **no per-path detail**.
+* So: `copy(ttbMeter.json())` **on each page before leaving it**. Do the thing,
+  copy, *then* navigate.
+* ⚠️ **DO NOT `reset()` AFTER A PAGE HAS LOADED.** Round 52 did, and it zeroed
+  reads that had already happened — the first Library sample came back as 0 and
+  had to be retaken. Reset before opening anything, or not at all.
+* `ttbMeter.day()` at the very end for the cross-navigation total.
+* ⚠️ **Sign in as a STUDENT.** An admin account reads staff and class documents
+  students never touch and inflates everything.
+
+### CONTEXT FOR THE NUMBERS
+
+⚠️ **ITEM 18's RULING STANDS: reads are ~50× dearer than writes.** Do not trade
+a read saving for a write saving. 31 reads for a full session is **healthy** —
+item 18 took a sprint from 80 to 12 and it has held. At 400 students that is
+roughly 14k reads against a 50k daily quota. **This is headroom work, not a
+fire.** Admin and reports legitimately read a lot and are not the thing that
+multiplies; the student pages are.
+
+---
+
+## ITEM 21 — THE READ RESIDUE  *(low priority, recorded so it is not rediscovered)*
+
+⚠️ **THIS SECTION ALSO HAD NO BODY UNTIL ROUND 53** — its only surviving
+description was one line in HANDOFF.md.
+
+A future-day clamp was added to the week read and then **reverted**.
+`planReads()` already skips a day it knows is empty, and a future day is the
+easiest case of that; two mechanisms doing one job means two places to check when
+a number looks wrong, and only one of them was tested.
+
+⚠️ **JAKE'S SATURDAY-TO-FRIDAY WEEK DEFAULT MUST NOT CHANGE.** This item exists
+only to record the three-line restore **if ledger seeding ever fails to deliver
+in production**. It is not work to schedule — it is a note so nobody rediscovers
+the clamp and re-adds it as a novelty.
+
+---
+
 ## 1. THE DRILL-DOWN AND THE CLOCK ARE LATE, NOT WRONG
 
 **Reframed by Round 24 on new evidence. This is a smaller problem than it has
@@ -916,7 +1180,16 @@ F8's guarantee lapses silently.
 
 ---
 
-## 8b. ⭐ NEW — EVERY ROUND SHIPS A CHANGED-FILES-ONLY UPLOAD SET
+## 8b. ✅ RETIRED TO CONVENTION (Round 53) — A STANDING RULE, NOT A TASK
+
+✅ **JAKE, 2026-08-26:** *"Of course we do that."* Followed every round since 28.
+**It lives in § CONVENTIONS at the top of this file now** — nothing about the
+practice changed, and the reasoning below is kept because it is the argument for
+never drifting off it.
+
+### The original item, kept
+
+
 
 **Standing practice from Round 28, on Jake's instruction:** *"Can you please only
 zip up the files that need to be uploaded? I would hate for one corrupted,
@@ -994,7 +1267,24 @@ now the one answerer and falls back to the class document. The CSV lookup is
 
 ### The original item, kept for the diagnosis
 
-## 11a. ⚠️ MOSTLY CLOSED (Round 41) — ONE OPEN **DECISION**, NOT A BUG
+## 11a. ✅ CLOSED (Round 53) — JAKE RULED: THE WRITE-TIME STAMP IS CORRECT
+
+✅ **JAKE'S RULING, 2026-08-26:** *"All the people who it impacts are either my
+students — and I can get them all anyway — or didn't exist when it was a
+problem."*
+
+**`typing_logs` stamping `classId`/`schoolId` AT WRITE TIME IS INTENDED.** The
+stamp records where a student was *that day*, which is what you want for a child
+who changes class mid-year. Assigning a class does not retroactively rewrite old
+reports, and should not.
+
+⚠️ **NO BACKFILL. DO NOT WRITE ONE.** A bulk rewrite of historical
+`classId`/`schoolId` would destroy the exact information the stamp exists to
+preserve.
+
+### The original decision, kept
+
+
 
 ✅ **BUG A AND BUG B WERE BOTH FIXED IN ROUND 33** (item 11, HANDOFF §0.-25):
 the writer omitted `schoolId` on two of three assignment paths, and the reader

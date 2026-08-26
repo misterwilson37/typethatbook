@@ -298,7 +298,7 @@ await check('F1. no date holding a real log is ever skipped, over 2000 random le
 // would have produced. If the totals differ by a single second, a child's HUD
 // is wrong and the feature must not ship.
 
-const { readWeek: _readWeekMemoised, invalidateWeek } = await import('../daylog.js');
+const { readWeek: _readWeekMemoised, invalidateWeek, clearDayCache } = await import('../daylog.js');
 
 // ⚠⚠ EVERY CALL IN SECTION G IS A COLD READ, ON PURPOSE (daylog.js v1.6.0).
 // readWeek() is memoised per page load and that memo is MODULE state, shared by
@@ -311,7 +311,20 @@ const { readWeek: _readWeekMemoised, invalidateWeek } = await import('../daylog.
 // which days get fetched; dropping the memo first is how it gets a clean
 // reader without pretending the memo is absent. weekly-memo-test.mjs is where
 // the memo itself is tested, and that one deliberately does not invalidate.
-const readWeek = (args) => { invalidateWeek(args && args.uid); return _readWeekMemoised(args); };
+const readWeek = (args) => {
+    const uid = args && args.uid;
+    // ⚠⚠ BOTH LAYERS ARE DROPPED (daylog.js v1.7.0). invalidateWeek() clears the
+    // per-load MEMO; clearDayCache() clears the localStorage CLOSED-DAY CACHE.
+    // The second was added when ROADMAP 28 landed and Section G started
+    // counting one read where it expected two — a day banked by an earlier part
+    // was being served to a later one. Neither layer is stubbed out: these
+    // sections test the READER, and dropping the caches first is how they get a
+    // cold reader without pretending the caches are absent.
+    // closed-day-cache-test.mjs and weekly-memo-test.mjs are where the caches
+    // themselves are tested, and those deliberately do NOT drop them.
+    invalidateWeek(uid); clearDayCache(uid);
+    return _readWeekMemoised(args);
+};
 
 // A fake Firestore holding exactly two days of typing.
 function fakeDb(present) {
