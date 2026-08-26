@@ -113,6 +113,7 @@ const SOURCES = [
     { file: 'stats-wal.js',          pattern: /\bexport\s+const\s+STATS_WAL_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'session-log.js',        pattern: /\bexport\s+const\s+SESSION_LOG_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'hud.js',                pattern: /\bexport\s+const\s+HUD_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'chapter-position.js',   pattern: /\bexport\s+const\s+CHAPTER_POSITION_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'variety-floor.js',      pattern: /\bexport\s+const\s+VARIETY_FLOOR_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'versions.js',           pattern: /\bexport\s+const\s+VERSIONS_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'update-gate.js',        pattern: /\bexport\s+const\s+UPDATE_GATE_VERSION\s*=\s*["']([^"']+)["']/ },

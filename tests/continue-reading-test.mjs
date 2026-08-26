@@ -23,6 +23,7 @@
 // because it looks like a feature that just does not seem very smart.
 
 import { readFileSync } from 'fs';
+import { chapterPositionOf, lastReadLabel } from '../chapter-position.js';
 import { strict as assert } from 'node:assert';
 import { JSDOM } from 'jsdom';
 
@@ -249,16 +250,9 @@ await check('C4. the CALLER omits the bar when the position is unknowable', () =
     // file: the function is lifted by walking its braces (same technique as
     // progress-test.mjs v1.1.0, and for the same reason — a substring anchor
     // drifts onto its neighbour), and the guard is checked as source.
-    const FN = 'function chapterPositionOf(book, progress) {';
-    const i = src.indexOf(FN);
-    assert.ok(i > 0, 'chapterPositionOf() is gone — did the math get re-inlined?');
-    let depth = 0, end = -1;
-    for (let k = i + FN.length - 1; k < src.length; k++) {
-        if (src[k] === '{') depth++;
-        else if (src[k] === '}') { depth--; if (depth === 0) { end = k + 1; break; } }
-    }
-    assert.ok(end > i, 'could not find the end of chapterPositionOf()');
-    const calc = new Function(`${src.slice(i, end)}; return chapterPositionOf;`)();
+    // ⚠️ IMPORTED, NOT SCRAPED (v1.2.0). chapter-position.js is a real module
+    // now, so the contract is checked against the thing the page actually runs.
+    const calc = chapterPositionOf;
 
     assert.equal(calc({ totalChapters: 20 }, null), null, 'no progress doc → null');
     assert.equal(calc({ totalChapters: 0 }, { chapter: 'chapter_3' }), null, 'no denominator → null');
@@ -271,6 +265,33 @@ await check('C4. the CALLER omits the bar when the position is unknowable', () =
     // template gets `undefined`, which renders the string "undefined".
     assert.ok(/const barHTML = pos\s*\n?\s*\?/.test(src),
         'renderContinue must guard barHTML on pos being non-null');
+});
+
+await check('C5. lastReadLabel never prints a precision the stamp does not have', () => {
+    // ⚠️ THE STAMP IS `lastUpdated`, WRITTEN WHEN PROGRESS IS SAVED — not when
+    // the child stopped typing. Minutes would be a confident wrong answer, so
+    // the label is coarse by design and the smallest unit is a day.
+    const NOW = Date.parse('2026-08-26T15:00:00Z');
+    const ago = d => NOW - d * 86400000;
+
+    assert.equal(lastReadLabel(ago(0), NOW), 'Last read today');
+    assert.equal(lastReadLabel(ago(1), NOW), 'Last read yesterday');
+    assert.equal(lastReadLabel(ago(3), NOW), 'Last read 3 days ago');
+    assert.equal(lastReadLabel(ago(9), NOW), 'Last read last week');
+    assert.equal(lastReadLabel(ago(21), NOW), 'Last read 3 weeks ago');
+    assert.equal(lastReadLabel(ago(400), NOW), 'Last read a while ago');
+    assert.ok(!/minute|hour/i.test(lastReadLabel(ago(0), NOW)), 'never minutes or hours');
+
+    // ⚠️ NO STAMP MEANS NO LINE, not "Last read NaN days ago". B3 already
+    // refuses to surface an unstamped book at all, so this is the second line
+    // of defence rather than the first.
+    for (const junk of [0, null, undefined, NaN, 'yesterday']) {
+        assert.equal(lastReadLabel(junk, NOW), '', `junk stamp ${String(junk)} yields no line`);
+    }
+
+    // A clock-skewed FUTURE stamp must not read as negative days. A Chromebook
+    // with a wrong clock is not a hypothetical in a school.
+    assert.equal(lastReadLabel(NOW + 86400000, NOW), 'Last read today');
 });
 
 // ─── D. THE ROW IS HIDDEN, NOT EMPTY, WHEN THERE IS NOTHING ──────────────────

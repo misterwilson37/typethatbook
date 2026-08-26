@@ -109,24 +109,36 @@
            HORIZONTAL, cover small and left, verb first, with an accent rule down
            the side. Shrinking the old card instead would have made a small shelf
            item, which is the same mistake quieter. */
-        .continue-row { margin: 0 0 2rem; }
-        .continue-heading {
+        .continue-row { margin: 0 0 2.5rem; }
+        /* ⚠️ THE HEADINGS AND BOTH GRIDS SHARE ONE SET OF NUMBERS. The heading
+           used to sit at the page edge while the cards were centred inside
+           .library-grid's max-width, which is why it read as detached from its
+           own row. max-width/margin/padding here are .library-grid's, exactly. */
+        .continue-heading, .shelf-heading {
             font-size: 1.05rem; font-weight: 700; letter-spacing: .02em;
-            margin: 0 0 .75rem; opacity: .85;
+            max-width: 1100px; margin: 0 auto .75rem; padding: 0 24px;
+            opacity: .85;
         }
-        /* ⚠️ auto-fit, NOT auto-fill, AND THAT IS THE WHOLE DIFFERENCE HERE. With
-           auto-fill a wide screen keeps empty phantom columns and two cards sit
-           squeezed at the left; auto-fit collapses the empties so one or two cards
-           span the row properly. The shelf below uses auto-fill because a shelf
-           SHOULD keep its column rhythm — this row should not. */
+        .shelf-heading { margin-top: 0; }
+        /* ⚠️⚠️ THE SAME TRACKS AS .library-grid, DELIBERATELY, AND THAT IS THE
+           WHOLE FIX FOR "slightly off". Jake: being slightly different is worse
+           than being obviously different. So this grid declares the SHELF's
+           columns and gap, and each card SPANS TWO of them — the card edges land
+           on the shelf's own column lines at every viewport width, because they
+           are computed from the same tracks rather than from a number that
+           happens to look close. Change .library-grid's minmax and this follows
+           it; do not give this one its own. */
         .continue-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 12px;
-            max-width: 44rem;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 24px;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 24px;
         }
         .continue-card {
-            display: flex; gap: 12px; align-items: flex-start;
+            grid-column: span 2;
+            display: flex; gap: 12px; align-items: stretch;
             background: var(--card-bg);
             border-radius: 6px;
             border-left: 4px solid var(--accent);
@@ -135,31 +147,46 @@
             text-decoration: none; color: inherit;
             transition: transform 0.2s, box-shadow 0.2s;
         }
+        /* At the narrowest widths the shelf itself is one column, and a 2-span
+           card would invent a second one and overflow the page. */
+        @media (max-width: 480px) {
+            .continue-card { grid-column: span 1; }
+        }
         .continue-card:hover {
-            transform: translateY(-2px);
+            transform: translateY(-4px);
             box-shadow: 0 8px 24px var(--shadow-hover);
         }
-        /* ⚠️ NOT .book-cover. That class is width:100% + aspect-ratio, built to
-           fill a shelf column; reusing it here collapses the flex row. */
-        .continue-cover {
-            width: 40px; height: 60px; object-fit: cover;
-            border-radius: 2px; flex-shrink: 0; background: #e0d8cf;
+        /* ⚠️ NOT .book-cover — that is width:100% + aspect-ratio, built to fill a
+           shelf column, and it collapses this flex row.
+           ⚠️ height:100% + align-self:stretch is what closes the gap under the
+           cover: the card's height is set by the text beside it, and a fixed-
+           height cover left dead space below itself. object-fit:cover means the
+           art crops rather than distorts as that height changes. */
+        .continue-cover, .continue-cover-placeholder {
+            width: 46px; flex-shrink: 0; align-self: stretch;
+            height: auto; min-height: 100%;
+            border-radius: 2px;
         }
+        .continue-cover { object-fit: cover; background: #e0d8cf; }
         .continue-cover-placeholder {
-            width: 40px; height: 60px; flex-shrink: 0; border-radius: 2px;
             background: linear-gradient(135deg, #c9bfb0 0%, #a89880 100%);
         }
-        /* min-width:0 is load-bearing: without it a long title refuses to wrap and
-           pushes the card past its grid column. */
-        .continue-body { flex: 1; min-width: 0; }
+        /* min-width:0 is load-bearing: without it a long title refuses to wrap
+           and pushes the card past its grid column. */
+        .continue-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
         .continue-resume {
             font-size: .68rem; font-weight: 700; color: var(--accent);
             text-transform: uppercase; letter-spacing: .03em;
         }
         .continue-title {
-            font-size: .85rem; font-weight: 700; line-height: 1.25;
-            margin: 1px 0 6px;
+            font-size: .9rem; font-weight: 700; line-height: 1.25;
+            margin: 1px 0 8px;
         }
+        /* ⚠️ margin-top:auto PINS THE BAR AND THE STAMP TO THE BOTTOM. Titles run
+           one line or three; without this the bars sit at different heights in
+           adjacent cards, which is the same "slightly off" complaint in a
+           smaller place. */
+        .continue-meta { margin-top: auto; }
         .continue-bar-bg {
             width: 100%; height: 5px; background: #e8e2d8;
             border-radius: 3px; overflow: hidden;
@@ -494,9 +521,18 @@
              would read as a bug, not as a filter. -->
         <section id="continue-row" class="continue-row" hidden>
             <h2 class="continue-heading">Continue reading</h2>
-            <div class="library-grid continue-grid" id="continue-grid"></div>
+            <!-- ⚠️ NOT .library-grid ANY MORE (v3.15.0). It carried both classes,
+                 and .library-grid is defined LATER in the stylesheet at equal
+                 specificity, so ITS columns and gap silently won — the cards came
+                 out shelf-width and misaligned with both the heading above them
+                 and the shelf below. .continue-grid is now standalone. -->
+            <div class="continue-grid" id="continue-grid"></div>
         </section>
         <div id="filter-note"></div>
+        <!-- ⚠️ THE SHELF HAS A HEADING NOW so the two rows read as two different
+             things. It is NOT hidden with the Continue row: a guest, or a student
+             with no progress, still has a shelf and it still deserves a name. -->
+        <h2 class="shelf-heading">The stacks</h2>
         <div class="library-grid" id="book-grid">
             <div class="loading-spinner">Loading library...</div>
         </div>
@@ -520,6 +556,9 @@
         // ⚠️ HANDOFF §0.0 — the shelf banner reads the GRADED document now.
         import { readWeek } from "./daylog.js";
         import { hudStrings } from "./hud.js";
+        // ⭐ ROADMAP 26 — the ONE copy of the chapter-position rule, shared by
+        // renderBooks() and renderContinue(). See chapter-position.js.
+        import { chapterPositionOf, lastReadLabel } from "./chapter-position.js";
 
         // ─── Version ──────────────────────────────────────────────────────────
         // This page's own version. The <title> and footer are both written from
@@ -534,16 +573,25 @@
         //         Cards are horizontal now: 40x60 cover left, "Resume" above the
         //         title, progress bar, last-read line. auto-fit (not auto-fill)
         //         so two or three span a wide screen properly.
-        //         ⚠️⚠️ THE CHAPTER MATH MOVED OUT OF renderBooks() into
-        //         chapterPositionOf() — ONE COPY, both callers. Copying it for
-        //         the new bar would have been the fifth hand-maintained twin
-        //         this project has had to find. ⚠️ Do not re-inline it:
-        //         progress-test.mjs v1.1.0 and continue-reading-test.mjs C4 both
-        //         lift it by name and will fail loudly if it goes.
+        //         ⚠️⚠️ THE CHAPTER MATH LEFT THIS FILE ENTIRELY — it is
+        //         chapter-position.js v1.0.0 now, imported above and called by
+        //         BOTH renderBooks() and renderContinue(). Copying it for the
+        //         new bar would have been the fifth hand-maintained twin this
+        //         project has had to find. A local function would have removed
+        //         the twin too, and that is what the first pass did, but a
+        //         MODULE is also importable by the harnesses — progress-test
+        //         and continue-reading-test no longer scrape source text out of
+        //         this HTML file to reach it.
         //         ⚠️ chapterPositionOf() is NOT progressOf() — position vs
         //         completion, they legitimately disagree, and the bar uses the
         //         same one the shelf card prints so one book cannot show two
         //         different percentages on one screen.
+        //         ⚠️ LAYOUT: the row's grid declares the SHELF's tracks and each
+        //         card spans two of them, so card edges land on the shelf's own
+        //         column lines instead of near them. It also stopped carrying
+        //         .library-grid, whose later-declared columns had been silently
+        //         overriding this row's. Both headings share the shelf's
+        //         max-width and padding so nothing sits at the page edge.
         //
         // v3.0.1: single INDEX_VERSION constant drives title + footer; added the
         //         build-info panel that reads every other file's version constant
@@ -1194,73 +1242,6 @@
             return (p.completedChapters ? p.completedChapters.length : 0) / chapterCount;
         }
 
-        // ⚠️⚠️ THE ONE COPY OF THE CHAPTER-POSITION RULE (v3.15.0). This block used
-        // to live inline in renderBooks(), and the Continue-reading row (ROADMAP 26)
-        // needed the SAME number for its progress bar. Copying it would have made a
-        // hand-maintained twin — the exact defect that has now been found four
-        // separate times in this project (celebrate.js, hud.js, the grade rule, the
-        // build panel), every time by drifting rather than by breaking. So it moved
-        // here and BOTH callers read it.
-        //
-        // ⚠️ RETURNS null, NOT A ZEROED OBJECT, when the position is unknowable. A
-        // caller must decide whether to draw nothing (both do); a 0% bar would tell
-        // a child they have read none of a book they are halfway through.
-        //
-        // ⚠️ THIS IS CHAPTER POSITION, NOT completedChapters — deliberately, and it
-        // is NOT interchangeable with progressOf() above. progressOf() answers "how
-        // much is finished" for SORTING; this answers "where are they" for DISPLAY,
-        // and they legitimately disagree (a child on ch. 5 who finished 3 is 42% by
-        // one and 25% by the other). Using progressOf() for the bar would have put
-        // two different percentages for one book on one screen.
-        //
-        // The list is only present on a cold load — it is stripped before caching
-        // because it is the largest field on the document — and old book documents
-        // have no `matter` on their entries at all. So this degrades in three steps
-        // rather than assuming the best case. game.js v3.10.0 writes
-        // bodyIndex/bodyTotal on the progress doc, which is the ONLY source that
-        // survives the grid cache. Prefer it, then the list, then arithmetic.
-        function chapterPositionOf(book, progress) {
-            const denom = (typeof progress?.bodyTotal === 'number' && progress.bodyTotal > 0)
-                ? progress.bodyTotal
-                : ((typeof book.bodyChapters === 'number' && book.bodyChapters > 0)
-                    ? book.bodyChapters : book.totalChapters);
-            if (!progress || !(denom > 0)) return null;
-            const curId = String(progress.chapter || "chapter_1");
-            let chapNum = (typeof progress.bodyIndex === 'number' && progress.bodyIndex > 0)
-                ? progress.bodyIndex : null;
-            if (chapNum === null && book.chapters && book.chapters.length) {
-                const bodyOnly = book.chapters.filter(c => (c.matter || 'body') === 'body');
-                const list = bodyOnly.length ? bodyOnly : book.chapters;
-                const at = list.findIndex(c => String(c.id) === curId);
-                if (at !== -1) chapNum = at + 1;
-            }
-            // Fallback for a cached grid or a pre-v3.19.1 document. parseFloat,
-            // not parseInt, so 2.09 does not silently become 2 — and it is
-            // floored back to a whole number for display.
-            if (chapNum === null) {
-                const raw = parseFloat(curId.replace("chapter_", ""));
-                chapNum = Number.isFinite(raw) ? Math.max(1, Math.round(raw)) : 1;
-            }
-            const pct = Math.min(100, Math.round((chapNum / denom) * 100));
-            return { chapNum, denom, pct };
-        }
-
-        // "Last read" for the Continue-reading row. ⚠️ COARSE ON PURPOSE, AND IT
-        // NEVER SAYS A NUMBER OF MINUTES. The stamp behind it is `lastUpdated`,
-        // which is written when progress is SAVED, not when the child stopped
-        // typing — precise-looking output ("14 minutes ago") would be a precision
-        // the underlying field does not have. Days are safe; anything inside a day
-        // is "today".
-        function lastReadLabel(ms) {
-            if (!ms) return '';
-            const days = Math.floor((Date.now() - ms) / 86400000);
-            if (days <= 0) return 'Last read today';
-            if (days === 1) return 'Last read yesterday';
-            if (days < 7) return `Last read ${days} days ago`;
-            if (days < 14) return 'Last read last week';
-            if (days < 60) return `Last read ${Math.floor(days / 7)} weeks ago`;
-            return 'Last read a while ago';
-        }
 
         function sortBooks(list) {
             const arr = list.slice();
@@ -1406,8 +1387,8 @@
                         <div class="continue-body">
                             <div class="continue-resume">Resume</div>
                             <div class="continue-title">${escapeHtml(book.title)}</div>
-                            ${barHTML}
-                            ${lastHTML}
+                            ${barHTML || lastHTML
+                                ? `<div class="continue-meta">${barHTML}${lastHTML}</div>` : ''}
                         </div>
                     </a>`;
             }).join('');

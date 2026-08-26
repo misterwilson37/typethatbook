@@ -8,6 +8,7 @@
 // the cases that were broken: a part-numbered book, a cache-stripped document,
 // and a pre-v3.19.1 document with no `matter` on its chapters.
 import { readFileSync } from 'fs';
+import { chapterPositionOf } from '../chapter-position.js';
 
 const s = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 // ⚠️ v1.1.0 — THIS NO LONGER SLICES A REGION, AND THAT IS THE POINT. index.html
@@ -23,18 +24,13 @@ const s = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 // not a module; there is nothing to import. The point of reading the real file
 // is unchanged — a copy of the rule pasted into this harness would pass forever
 // while the page drifted underneath it.
-const FN = 'function chapterPositionOf(book, progress) {';
-const i = s.indexOf(FN);
-if (i < 0) throw new Error('progress-test: chapterPositionOf() is gone from index.html — did the math get re-inlined?');
-// Walk the braces to find the function's true end, so this cannot run past it
-// into whatever happens to be declared next.
-let depth = 0, j = -1;
-for (let k = i + FN.length - 1; k < s.length; k++) {
-    if (s[k] === '{') depth++;
-    else if (s[k] === '}') { depth--; if (depth === 0) { j = k + 1; break; } }
-}
-if (j < 0) throw new Error('progress-test: could not find the end of chapterPositionOf()');
-const calc = new Function(`${s.slice(i, j)}; return chapterPositionOf;`)();
+// ⚠️ v1.2.0 — IT IMPORTS NOW. index.html v3.15.0 moved the rule out to
+// chapter-position.js, a real module, so this harness no longer lifts source
+// text out of an HTML file at all — no substring anchor, no brace walking, no
+// `new Function`. Two earlier versions of this file located the math by
+// searching for a common substring and both drifted onto unrelated code and
+// failed while naming the wrong function. An import cannot do that.
+const calc = chapterPositionOf;
 
 const part = n => 'chapter_' + n;
 const heidi = {
