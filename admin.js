@@ -1,4 +1,23 @@
-// admin.js v3.33.0
+// admin.js v3.34.0
+//
+// v3.34.0 — dc:contributor read generically at import (readEpubMetadata()), and
+//           used as a fallback for Prepared By alongside Gutenberg's in-book
+//           credit scan. Global Grey editions credit their preparer in a personal
+//           sign-off glued onto the LAST CHAPTER'S PROSE, not in a scoped in-book
+//           element the way Gutenberg's machine header is — no reasonable scan
+//           target, and not classroom content even if there were. The
+//           restructuring pipeline (ttb-fix-epubs.py 1.14.0) now extracts that
+//           name at conversion time into dc:contributor instead, and this file
+//           simply reads it — a source-agnostic Dublin Core field, not a
+//           Global-Grey-specific branch, so any future source crediting a
+//           preparer this way is covered for free. Also closes the matching gap
+//           in canonicalSourceFrom(): Global Grey conversions previously emitted
+//           a bare 'Public domain text' dc:source/dc:identifier with no
+//           publisher at all, so SOURCE_PATTERNS' existing /global\s*grey/i case
+//           never once matched a converted book — the real product-page URL and
+//           publisher name were being discarded by the converter before this
+//           file ever saw them. Fixed on the converter side; this file needed no
+//           change for that half.
 //
 // v3.33.0 — ROADMAP 16. The build panel, and admin.html is now registered in
 //           versions.js SOURCES — a stale admin.js was previously invisible to
@@ -1268,11 +1287,27 @@ async function readEpubMetadata(file) {
         // identifiers, so take the first one that is actually a URL and ignore the
         // bare UUIDs rather than trying to read opf:scheme.
         identifier: grab('identifier').find(v => /^https?:\/\//i.test(v)) || '',
+        // ⚠️ v3.34.0 — dc:contributor, READ GENERICALLY. Gutenberg's transcriber
+        // credit lives inside the book's own front-matter HTML (readInBookSignals()
+        // below, gated to Gutenberg because that's the only source shaped that way).
+        // A Global Grey edition names its preparer in a personal sign-off glued onto
+        // the LAST CHAPTER'S PROSE instead — no in-book element to scope a scan to,
+        // and not something worth reproducing in a classroom book even if there were.
+        // The restructuring pipeline (ttb-fix-epubs.py 1.14.0) now extracts that name
+        // at conversion time and writes it into dc:contributor, a field this file
+        // did not read at all before. Reading it here costs nothing on every book
+        // that doesn't have one, and needs no source-specific branching — any future
+        // source that credits a preparer via dc:contributor gets this for free.
+        contributor: grab('contributor')[0] || '',
     };
     // Gutenberg only: the canonical origin link and the transcriber credits.
     const sig = await readInBookSignals(zip, opf, opfPath, meta);
     meta.originUrl = sig.originUrl;
-    meta.preparedBy = sig.preparedBy;
+    // dc:contributor is the fallback, not sig.preparedBy's replacement — Gutenberg
+    // books carry both routes' potential, and the in-book credit (verified, scoped
+    // to Gutenberg's own machine header) is more specific than a bare name field, so
+    // it wins when both are present.
+    meta.preparedBy = sig.preparedBy || meta.contributor;
     return meta;
 }
 
