@@ -1,4 +1,20 @@
-// admin.js v3.34.0
+// admin.js v3.35.0
+//
+// v3.35.0 — Standard Ebooks' own producer credit (colophon.xhtml's "This ebook
+//           was produced for Standard Ebooks by NAME") now fills Prepared By.
+//           readInBookSignals() couldn't reach it: that function is gated to
+//           Gutenberg AND scans only the first SIGNAL_SPINE_LIMIT (4) spine
+//           documents — right for Gutenberg's front-matter header, wrong for
+//           Standard Ebooks' colophon, which is backmatter (confirmed: itemref
+//           14 of 14 on a real book). New readStandardEbooksSignals() looks the
+//           document up by name instead of position — "colophon" is Standard
+//           Ebooks' own fixed filename — and findStandardEbooksProducer() reads
+//           the credit by its semantic shape (the anchor immediately after the
+//           one linking to standardebooks.org itself), not by pattern-matching
+//           prose. Verified the original Gutenberg transcriber credited two
+//           sentences later in the same colophon (David Widger, on Jekyll and
+//           Hyde) is never mistaken for this — he's marked
+//           epub:type="z3998:personal-name", never a link.
 //
 // v3.34.0 — dc:contributor read generically at import (readEpubMetadata()), and
 //           used as a fallback for Prepared By alongside Gutenberg's in-book
@@ -1160,6 +1176,57 @@ const GUTENBERG_EBOOK_URL = /^https?:\/\/(?:www\.)?gutenberg\.org\/ebooks\/(\d+)
 // notice that lives in the front matter or nowhere.
 const SIGNAL_SPINE_LIMIT = 4;
 
+// ─── STANDARD EBOOKS' PRODUCER CREDIT (v3.35.0) ──────────────────────────────
+//
+// Jake, on Jekyll and Hyde: "make sure that the admin.js would pull the preparer
+// out - for jekyll and hyde, it's Alex Cabal, as shown in the line 'This ebook
+// was produced for Standard Ebooks by Alex Cabal.'" It didn't. readInBookSignals()
+// below is gated to Gutenberg only and, even widened, scans only the first
+// SIGNAL_SPINE_LIMIT (4) spine documents — right for Gutenberg, whose header sits
+// in the front matter, but WRONG for Standard Ebooks, whose credit lives in
+// colophon.xhtml, which is BACKMATTER: the last or near-last spine item, not the
+// first few. Confirmed on Jekyll and Hyde's own OPF — colophon.xhtml is itemref
+// 14 of 14. A position-limited scan can never reach it regardless of the limit
+// chosen without also walking the whole spine, which SIGNAL_SPINE_LIMIT exists
+// specifically to avoid on a long book. So: look the document up by name instead
+// of by position — "colophon" is Standard Ebooks' own fixed filename, not a guess.
+//
+// The credit's own shape is reliable and semantic, not prose to pattern-match:
+// "This ebook was produced for <a href="…standardebooks.org…">Standard Ebooks</a>
+// … by … <a href="…">Alex Cabal</a>". The producer is always the anchor
+// immediately following the one linking to standardebooks.org itself, in the same
+// paragraph — verified against Jekyll and Hyde's real colophon, where the
+// ORIGINAL Gutenberg transcriber (David Widger) is credited two sentences later
+// but marked as <b epub:type="z3998:personal-name">, never as a link, so he is
+// never mistaken for the anchor this function is looking for.
+function findStandardEbooksProducer(doc) {
+    for (const p of Array.from(doc.querySelectorAll('p'))) {
+        const anchors = Array.from(p.querySelectorAll('a[href]'));
+        const seIdx = anchors.findIndex(a =>
+            /^https?:\/\/(?:www\.)?standardebooks\.org\/?$/i.test((a.getAttribute('href') || '').trim()));
+        if (seIdx !== -1 && anchors[seIdx + 1]) {
+            const name = (anchors[seIdx + 1].textContent || '').replace(/\s+/g, ' ').trim();
+            if (name) return name;
+        }
+    }
+    return '';
+}
+
+async function readStandardEbooksSignals(zip, opfDoc, opfPath) {
+    try {
+        const base = opfPath.substring(0, opfPath.lastIndexOf('/') + 1);
+        const manifest = opfDoc.getElementsByTagName('manifest')[0];
+        if (!manifest) return '';
+        const item = Array.from(manifest.getElementsByTagName('item'))
+            .find(it => /colophon/i.test(it.getAttribute('href') || ''));
+        if (!item) return '';
+        const entry = zipEntry(zip, base + item.getAttribute('href'));
+        if (!entry) return '';
+        const doc = new DOMParser().parseFromString(await entry.async('string'), 'text/html');
+        return findStandardEbooksProducer(doc);
+    } catch (_) { return ''; /* a missing signal is never worth failing an import */ }
+}
+
 async function readInBookSignals(zip, opfDoc, opfPath, meta) {
     const out = { originUrl: '', preparedBy: '' };
     // ⚠️ EDITION SIGNALS ONLY — dc:publisher and dc:identifier, NEVER dc:source.
@@ -1303,11 +1370,17 @@ async function readEpubMetadata(file) {
     // Gutenberg only: the canonical origin link and the transcriber credits.
     const sig = await readInBookSignals(zip, opf, opfPath, meta);
     meta.originUrl = sig.originUrl;
-    // dc:contributor is the fallback, not sig.preparedBy's replacement — Gutenberg
-    // books carry both routes' potential, and the in-book credit (verified, scoped
-    // to Gutenberg's own machine header) is more specific than a bare name field, so
-    // it wins when both are present.
-    meta.preparedBy = sig.preparedBy || meta.contributor;
+    // Standard Ebooks: the producer credit from colophon.xhtml (v3.35.0). Origin URL
+    // needs no equivalent here — meta.identifier is already the book's own
+    // standardebooks.org page, and autofillFromEpub()'s `meta.originUrl ||
+    // meta.identifier` fallback already fills Origin URL from it correctly.
+    const edition = [meta.publisher, meta.identifier].filter(Boolean).join(' ');
+    const sePreparedBy = /standard\s*ebooks/i.test(edition)
+        ? await readStandardEbooksSignals(zip, opf, opfPath) : '';
+    // dc:contributor is the last fallback, not a replacement for either in-book
+    // credit — both the Gutenberg and Standard Ebooks scans are scoped and verified
+    // against the book's own text, so either wins over a bare metadata field.
+    meta.preparedBy = sig.preparedBy || sePreparedBy || meta.contributor;
     return meta;
 }
 
