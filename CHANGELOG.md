@@ -7,18 +7,18 @@ yesterday are banked in localStorage. Measured on the shipped code, a student wh
 typed Mon–Wed with the ledger in play: **3 reads cold, 2 on every load after**,
 with the week total identical across all of them.
 
-**⚠⚠ The real defect was that reads GREW WITH THE WEEK.** `planReads()` skips
+**⚠️⚠️ The real defect was that reads GREW WITH THE WEEK.** `planReads()` skips
 days known EMPTY, but a day with typing must be read for its numbers — so a
 five-day-a-week typist paid five reads per page load by Friday. **It is now flat
 at two, Monday or Friday.**
 
-**⚠⚠ Yesterday is never cached.** "A closed day never changes" is *almost* true,
+**⚠️⚠️ Yesterday is never cached.** "A closed day never changes" is *almost* true,
 and the margin is where the bug would live: the Overnight Rescue
 (`carryOverPlan()`) credits typing to the day it was typed on and reaches back
 into yesterday's document. Hiding that correction from the child who earned it is
 not worth one read.
 
-**⚠⚠ The cache expires at local midnight, and that is not a guessed TTL.** A
+**⚠️⚠️ The cache expires at local midnight, and that is not a guessed TTL.** A
 teacher's ⟳ recalc rewrites a past day from the TEACHER's browser and cannot
 invalidate a student's localStorage. There is no hook to add — an expiry is the
 only mechanism, and a school day is the right grain.
@@ -34,7 +34,7 @@ faulted run fails E2, ignoring the expiry fails D1.
 was served to a later one. Neither stubs the caches out — they drop them, so both
 still test the reader that ships.
 
-**⚠⚠ ITEM 27's VALUE COLLAPSED AND THE ROADMAP NOW SAYS SO.** With the v1.6.0
+**⚠️⚠️ ITEM 27's VALUE COLLAPSED AND THE ROADMAP NOW SAYS SO.** With the v1.6.0
 memo in place the second `readWeek()` call already costs nothing, and
 `loadUserStats()` needs the week regardless — so the guard saves **roughly zero
 reads**. It is a twin-symmetry item now, not a performance one.
@@ -79,7 +79,7 @@ stale — and it is the file map and data model. ⚠️ It was destroyed once al
 **⭐ THE CLEAN DAY is recorded in the index.** Jake runs one ordinary school day
 on a frozen build: item 5's baseline, and confirmation that Round 52's read work
 is live (game.html should cost 5 daylog reads on a sprint, not 10).
-⚠⚠ **Item 28 must not land before that run** — it moves the same numbers the run
+⚠️⚠️ **Item 28 must not land before that run** — it moves the same numbers the run
 exists to read.
 
 **⚠️⚠️ AND THE HONEST CORRECTION:** Rounds 50 and 52 both said "no defect is
@@ -911,7 +911,7 @@ they're easy... it's one of the dumbest things I have to police manually now."*
   Now gated on a semver shape, which no sentinel can satisfy — not `'—'`, not
   `'failed'`, and not the next one somebody adds without reading the comment.
 
-* ⚠️ **THE ⚠ NOTES ARE STAFF-ONLY, AND THE DEFAULT IS OFF.** Nothing gated them:
+* ⚠️ **THE ⚠️ NOTES ARE STAFF-ONLY, AND THE DEFAULT IS OFF.** Nothing gated them:
   every student who hovered the footer on either typing page, or pressed *build
   info* in the Library, was shown twelve files' worth of header-budget scolding
   in red over their book. `renderBuildList(results, { notes })` now defaults to
@@ -4442,6 +4442,64 @@ what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
 
+### admin.js v3.28.0 and v3.27.0 — archived by Round 55, 8-entry budget
+
+⚠️ **admin.js still cites both in live code** — v3.28.0 five times and v3.27.0
+four, including one citation of v3.28.0 from inside the v3.29.0 entry itself.
+This block is where those pointers resolve.
+
+⚠️⚠️ **THEY WERE ARCHIVED IN THE ROUND THAT CAUGHT ADMIN.JS LYING ABOUT ITS OWN
+VERSION.** The constant read `3.33.0` while the header carried honest v3.34.0 and
+v3.35.0 entries whose code is demonstrably present in the file
+(`readStandardEbooksSignals`, `findStandardEbooksProducer`, the generic
+`readEpubMetadata` contributor read). **The header was true and the constant was
+stale** — the reverse of Round 27's five files, and the same defect class. The
+constant is what `versions.js` parses and what the in-page build footer renders,
+which is the only diagnostic available at a classroom machine, so admin.js has
+been reporting a two-round-old version to the one instrument that exists to
+prevent exactly this.
+
+```
+// v3.28.0 — ⚠️ THE GENRE DROPDOWN HAD NO "Custom…" OPTION AND WAS ERASING DATA. The
+//           population loop appended GENRES and nothing else, so the __custom__ value that
+//           THREE handlers tested for could never occur and Sports had no way back into the
+//           list. Worse, the load path was `genreSelect.value = meta.genre`: a stored genre
+//           with no matching option sets selectedIndex -1, reads back as '', and the next
+//           Save Metadata wrote genre:''. Proven in jsdom. Genre is now the fourth field on
+//           readSelectOrCustom/writeSelectOrCustom/wireCustomSelect; Sports restored; a
+//           leading blank option added, without which a fresh form defaulted to "Adventure"
+//           and the autofill's !value guard declined to fill the genre it had just guessed.
+// v3.27.0 — CLASSROOM EDITIONS ARE NOT PUBLIC-DOMAIN-ONLY: rewording slurs is an editorial
+//           contribution and needs its own licence. readInBookSignals() does ONE spine walk
+//           (cap 4) for the classroom notice, Gutenberg's origin link and its Credits row; a
+//           cleaned PD-only book moves to combined PD+CC0, a CC BY book never does. New
+//           'Prepared by' field; 'Cleaned up by' is now a select.
+```
+
+
+### learn.js v2.33.1 — archived by Round 55, 8-entry budget
+
+⚠️ **learn.js still cites v2.33.1 twice in live code** — the exitLessonToMap()
+block (`⚠️⚠️ v2.33.1 — LEAVING A LESSON MUST BANK THE RUN, NOT JUST THE TIME.`)
+and the reload note further down (`⚠️ v2.33.1 — THIS USED TO BE
+loadUserProgress().then(...)`). This block is where both pointers resolve.
+
+```
+// v2.33.1 — ⚠️⚠️ ROADMAP 14b — "← MAP" BANKED THE TIME AND THREW AWAY THE RUN.
+//           stopLesson() reloaded progress on the way out, and loadUserProgress()
+//           opens by EMPTYING userProgress — so every run outcome recorded in
+//           memory died before the scheduled flush could read it, while
+//           pendingProgress still named the lesson, so the flush wrote the
+//           freshly-reloaded copy back and reported success. ⚠️ THE WRITE NEVER
+//           FAILED; it stored the numbers it had just read. Jake's u1_l1 read
+//           runAttempts {0:1, 1:2} after a dozen runs. New exitLessonToMap()
+//           flushes, refreshes the progress cache, THEN reloads, and carries
+//           anything unflushed across. ⚠️ A flush added AFTER the reload would
+//           read as correct and change nothing. tests/exit-flush-test.mjs.
+//
+```
+
+
 ### learn.js v2.34.1 — archived by Round 51 (Blickensderfer), 8-entry budget
 
 ⚠️ **learn.js still cites v2.34.1 once in live code** (the goals-cache hit-guard,
@@ -4566,7 +4624,7 @@ cited when this was archived, so there was no uncited one to take instead.
 **This block is where those pointers resolve.**
 
 ```
-// v2.31.0 — ⚠️ THE BUILD PANEL'S ⚠ NOTES ARE STAFF-ONLY. versions.js v1.12.0
+// v2.31.0 — ⚠️ THE BUILD PANEL'S ⚠️ NOTES ARE STAFF-ONLY. versions.js v1.12.0
 //           gates them and defaults to OFF; this file passes the flag and
 //           re-renders from the cached results when auth changes underneath, so
 //           signing in mid-session reveals them without a reload. ⚠️ TWIN OF
@@ -4585,7 +4643,7 @@ was cited when this was archived, so there was no uncited one to take instead.
 **This block is where those pointers resolve.**
 
 ```
-// v2.31.0 — ⚠️ THE BUILD PANEL'S ⚠ NOTES ARE STAFF-ONLY. versions.js v1.12.0
+// v2.31.0 — ⚠️ THE BUILD PANEL'S ⚠️ NOTES ARE STAFF-ONLY. versions.js v1.12.0
 //           gates them and defaults to OFF; this file passes the flag and
 //           re-renders from the cached results when auth changes underneath, so
 //           signing in mid-session reveals them without a reload. ⚠️ TWIN OF

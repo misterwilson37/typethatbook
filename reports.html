@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- reports.html v1.4.0 — versioned the same way style.css and game.html are: a comment
+<!-- reports.html v1.6.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (the inline module) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
@@ -202,6 +202,13 @@
         .grades-btn:hover { border-color: #22c55e; color: #22c55e; }
         .grades-btn:disabled { opacity: 0.4; cursor: default; }
         .grades-panel { margin-top: 8px; font-size: 0.75rem; }
+        .mastery-lock { color: #d9a441; font-size: 0.72rem; cursor: help; }
+        .clear-mastery-btn {
+            background: none; border: 1px solid #3a3a3a; color: #8a7860;
+            cursor: pointer; font-size: 0.72rem; padding: 0 5px; line-height: 1.4;
+        }
+        .clear-mastery-btn:hover:not(:disabled) { color: #d9a441; border-color: #d9a441; }
+        .clear-mastery-btn:disabled { opacity: 0.4; cursor: default; }
         .grades-panel table { border-collapse: collapse; }
         .grades-panel td, .grades-panel th { padding: 2px 8px 2px 0; text-align: left; white-space: nowrap; }
         .grade-pip { display:inline-block; min-width:1.6em; text-align:center; margin-right:2px; border-radius:3px; padding:0 2px; }
@@ -219,6 +226,89 @@
         .delete-session-btn:hover { border-color: #ff3333; color: #ff3333; }
         .log-save-status { font-size: 0.75rem; min-width: 60px; }
         .expand-sessions { cursor: pointer; user-select: none; }
+
+        /* ── ROADMAP 36 — the at-a-glance marks ─────────────────────────────
+           ⚠️ THE ERROR RATE IS A COLUMN AND THE SCAN FLAGS ARE ICONS, and the
+           difference is not cosmetic: the rate is always there (it is free), the
+           flags are not there until the scan is paid for. A column cannot say
+           "unknown" gracefully; an icon can, and does — see .scan-unknown. */
+        .err-rate {
+            display: inline-block; min-width: 46px; text-align: right;
+            font-size: 0.72rem; font-variant-numeric: tabular-nums;
+            padding: 1px 5px; border-radius: 3px; cursor: help;
+        }
+        .err-ok    { color: #6b7280; }
+        .err-watch { color: #d9a441; background: rgba(217,164,65,0.10); }
+        .err-high  { color: #ff8a5c; background: rgba(255,138,92,0.14); font-weight: bold; }
+        /* ⚠️ A DASH, NOT A ZERO. 0/0 and a pre-cutover day are "no answer", and
+           rendering either as a clean green 0% is the report lying by omission. */
+        .err-none  { color: #444; }
+
+        .scan-mark, .flag-mark {
+            display: inline-block; min-width: 14px; text-align: center;
+            font-size: 0.8rem; cursor: help; margin-left: 1px;
+        }
+        /* ⚠️ NOT-SCANNED MUST NOT LOOK LIKE CLEAN. A faint dot reads as "no
+           information"; the tick reads as "looked, found nothing". If these two
+           ever converge visually the whole surface becomes untrustworthy. */
+        .scan-unknown { color: #333; }
+        .scan-clean   { color: #2f6b3f; }
+        .fl-fail  { color: #ff5555; }
+        .fl-fast  { color: #d9a441; }
+        .fl-dupe  { color: #7aa7c7; }
+        .fl-short { color: #9a7fb8; }
+
+        .delete-run-btn {
+            background: none; border: none; color: #553333; cursor: pointer;
+            font-size: 0.7rem; padding: 0 4px; line-height: 1;
+        }
+        .delete-run-btn:hover:not(:disabled) { color: #ff5555; }
+        .delete-run-btn:disabled { opacity: 0.4; cursor: default; }
+
+        #scan-status { font-size: 0.75rem; margin-left: 10px; }
+
+        /* ── THE FLOATING LEGEND ────────────────────────────────────────────
+           Jake: "ideally one that stays on the screen as you scroll. Lots of
+           horizontal space that's unused columns right now where it could float."
+           .container is max-width 960px and centred, so on a wide screen there is
+           dead margin either side. The legend lives in the right-hand margin,
+           position:fixed so it survives scrolling.
+
+           ⚠️ IT MUST NOT OVERLAP THE TABLE ON A NARROW SCREEN. Below the width
+           where the margin exists, it stops floating and becomes an ordinary
+           block above the results — a legend sitting on top of the data is worse
+           than a legend you have to scroll to. The breakpoint is the container
+           width plus twice the panel width plus gutters, not a round number
+           picked by eye. */
+        #flag-legend {
+            position: fixed; top: 90px; right: 16px; width: 190px;
+            background: #191919; border: 1px solid #333; border-left: 3px solid #4B9CD3;
+            padding: 10px 12px; font-size: 0.68rem; line-height: 1.5;
+            z-index: 40; max-height: calc(100vh - 120px); overflow-y: auto;
+        }
+        #flag-legend h4 {
+            margin: 0 0 6px; font-size: 0.7rem; color: #4B9CD3;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        #flag-legend .lg-row { display: flex; gap: 7px; margin-bottom: 3px; align-items: baseline; }
+        #flag-legend .lg-key { flex: 0 0 16px; text-align: center; }
+        #flag-legend .lg-txt { color: #999; }
+        #flag-legend .lg-sep { border-top: 1px solid #2a2a2a; margin: 8px 0 6px; }
+        #flag-legend .lg-note { color: #6b6b6b; font-style: italic; margin-top: 7px; }
+        #flag-legend .lg-collapse {
+            position: absolute; top: 6px; right: 8px; background: none; border: none;
+            color: #666; cursor: pointer; font-size: 0.75rem; padding: 0;
+        }
+        #flag-legend .lg-collapse:hover { color: #fff; }
+        #flag-legend.collapsed .lg-body { display: none; }
+        #flag-legend.collapsed { width: auto; }
+        @media (max-width: 1360px) {
+            #flag-legend {
+                position: static; width: auto; max-height: none;
+                margin: 0 0 16px; max-width: 960px;
+            }
+            #flag-legend .lg-collapse { display: none; }
+        }
         .expand-sessions:hover { color: #4B9CD3; }
         .sessions-container { padding: 4px 0 8px 20px; }
         .sessions-container.hidden { display: none; }
@@ -326,9 +416,12 @@
         <div id="results-container" class="hidden">
             <div class="export-bar">
                 <div class="total-line" id="total-line"></div>
+                <button class="secondary" id="scan-btn" title="Read the session records for every student in this report and flag the days worth opening. This costs reads, so it is never automatic.">Scan for flags</button>
+                <span id="scan-status"></span>
                 <button class="secondary" id="export-btn">Export CSV</button>
             </div>
             <div class="results-info" id="results-info"></div>
+            <div id="flag-legend" class="hidden"></div>
             <table>
                 <thead>
                     <tr>
@@ -675,7 +768,40 @@
     //           needs the class roster as the iteration source instead of the
     //           report, which is a larger change than this round.
     //
-    const REPORTS_VERSION = "2.32.0";
+    // v2.33.0 — ⭐ ROADMAP 36 + 32, SHIPPED TOGETHER BECAUSE THEY ARE ONE LOOP:
+    //           flag the day → expand it → delete the run. ✅ THE ERROR-RATE
+    //           COLUMN IS FREE — typing_logs already carries `mistakes` beside
+    //           `chars` and this page already fetches it, so the day-level rate
+    //           costs ZERO additional reads. Everything else costs a read per
+    //           student per day and therefore lives behind a scan button that
+    //           states its cost and never runs on load. ⚠️⚠️ "NO ANSWER" IS NEVER
+    //           RENDERED AS 0% and "not scanned" never looks like "clean" — both
+    //           lie in the direction nobody checks. Per-run delete identifies the
+    //           run by sprintIdentity(), never by array index, and recomputes the
+    //           rollup in the same write. ⚠️ NO RULES CHANGE NEEDED: v2.8.0's
+    //           `allow update: if isSuper()` already covers it. ⚠️ THE HELPERS
+    //           WERE SCOPED INSIDE renderTable() ON THE FIRST ATTEMPT — v2.24.0's
+    //           defect verbatim, caught by undefined-calls-test.mjs.
+    //           tests/day-flags-test.mjs.
+    // v2.34.0 — ⭐⚠️⚠️ ROADMAP 33 — CLEAR MASTERY FOR A LESSON. The ⊘ in the
+    //           ◈ grades panel, on any lesson with banked mastery. This is the
+    //           item that was locking children out of lessons they never passed:
+    //           mastery lives in userProgress/lessonProgress, and NO delete path
+    //           reaches it. ⚠️⚠️ IT IS A CONTROL, NOT AN AUTOMATIC CONSEQUENCE OF
+    //           DELETING A RUN — runScores is a cumulative SUM and runGrades is
+    //           best-ever-seen, so neither can have one entry removed and
+    //           subtracting on delete would be wrong silently. ⚠️ Clears
+    //           runScores AND runLocks together, KEEPS runGrades/runFires/
+    //           runAttempts/runFailures, and re-derives users/{uid}.lastLockDay
+    //           from the surviving maximum ACROSS EVERY LESSON — it is the global
+    //           reach-back clock, and clearing the lesson that set it would leave
+    //           every other lesson shut. ⚠️⚠️ deleteField(), never an empty map:
+    //           an empty map falls through to runScoreOf()'s legacy seed and
+    //           re-awards the points this button just declined to trust.
+    //           ⚠️⚠️ REQUIRES firestore.rules v2.10.0 — v2.7.0 opened
+    //           lessonProgress to BUILDING-scoped staff only, so a class teacher
+    //           could read the record and not write it. tests/clear-mastery-test.mjs.
+    const REPORTS_VERSION = "2.34.0";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -1386,6 +1512,40 @@
             }
 
             // ═════════════════════════════════════════════════════════════════
+            // v2.33.0 — ROADMAP 36. THE SCHOOL-ONLY TRIPLE, FOR THE ERROR COLUMN.
+            // ═════════════════════════════════════════════════════════════════
+            //
+            // ⚠️ WHY A SEPARATE READER RATHER THAN A FLAG ON readLogTotals():
+            // that function answers "what did this child do today", is summed
+            // into every total on the page, and is LIFTED OUT OF THIS FILE by
+            // daylog-cutover-test.mjs Part G and driven against daylog.js's
+            // totalsOf() on identical inputs. Adding a parameter to it would
+            // change the shape that harness pins. This one answers a different
+            // question and is summed into nothing.
+            //
+            // ⚠️⚠️ AND IT MUST BE ABLE TO SAY "I DON'T KNOW", WHICH IS WHY IT
+            // RETURNS null RATHER THAN ZEROS. A day before the cutover has no
+            // split fields at all — not zero School characters, NO ANSWER — and
+            // a column that renders that as 0% would be inventing a clean day
+            // out of an absent one. ROADMAP 36 says this in words; this is the
+            // line that makes it true.
+            //
+            // ⚠️ MIRRORS daylog.js sourceTotalsOf() FIELD-FOR-FIELD. If the
+            // SOURCE_FIELDS names ever change there, they change here. Same
+            // Rule 9 acceptance as readLogTotals above, and the same obligation.
+            function readSchoolTotals(data, dateStr) {
+                if (!dateStr || dateStr < SOURCE_SPLIT_CUTOVER) return null;
+                const has = ('charsSchool' in data) || ('mistakesSchool' in data)
+                         || ('charsLibrary' in data) || ('mistakesLibrary' in data);
+                if (!has) return null;
+                return {
+                    seconds:  data.secondsSchool  || 0,
+                    chars:    data.charsSchool    || 0,
+                    mistakes: data.mistakesSchool || 0,
+                };
+            }
+
+            // ═════════════════════════════════════════════════════════════════
             // v2.21.0 — DISCOVER BY QUERY, THEN READ BY ID.
             // ═════════════════════════════════════════════════════════════════
             //
@@ -1524,8 +1684,12 @@
                 const u = userMap[p.uid];
                 u.seconds += t.seconds; u.chars += t.chars; u.mistakes += t.mistakes;
                 u.days.add(p.date);
+                // ⚠️ v2.33.0 — ROADMAP 36. `school` is null on a pre-cutover day and
+                // on a document that carries no split fields. NULL MEANS UNKNOWN,
+                // not zero, and every reader of it must branch on that.
                 u.dailyLogs.push({ docId: `${p.uid}_${p.date}`, date: p.date,
-                                   seconds: t.seconds, chars: t.chars, mistakes: t.mistakes });
+                                   seconds: t.seconds, chars: t.chars, mistakes: t.mistakes,
+                                   school: readSchoolTotals(data, p.date) });
                 if (data.displayName) u.name = data.displayName;
                 if (data.email) u.email = data.email;
             }, (done, total) => {
@@ -1772,6 +1936,108 @@
     }
 
     // --- TABLE RENDERING ---
+    // ⚠️⚠️ v2.33.0 — DECLARED AT MODULE SCOPE, NOT INSIDE renderTable().
+    // scanForFlags() and renderLegend() are siblings of renderTable(), not
+    // children of it, and they read every one of these. Scoped inside, they were
+    // four ReferenceErrors waiting for the branch that reached them — caught by
+    // undefined-calls-test.mjs. ⚠️ THIS IS v2.24.0’S DEFECT REPEATED VERBATIM:
+    // SOURCE_SPLIT_CUTOVER was scoped inside generateReport() and blew up in
+    // recalcDailyLog(), a sibling, on a button nothing on screen explained.
+    // The note is left here because I made the same mistake in the same file.
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ROADMAP 36 — WHAT THE DAY ROW SAYS WITHOUT BEING EXPANDED
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // Jake: *"Something that tells me at a glance what the kids did without
+    // having to expand each day to find out."*
+    //
+    // ✅ THE ERROR RATE IS FREE AND THAT IS WHY IT IS A COLUMN. A typing_logs
+    // document carries `mistakes` beside `chars`, this page already fetches that
+    // document for every day row it draws, and `log.chars` is already rendered.
+    // The rate costs ZERO additional reads.
+    //
+    // ⚠️⚠️ EVERYTHING ELSE COSTS A READ PER STUDENT PER DAY, so everything else
+    // is behind the scan button and appears as an ICON, never a column. The
+    // distinction is not cosmetic: a column is a promise that the answer is
+    // always there, and for the scanned flags it is not until you have paid.
+    //
+    // ⚠️ THE THRESHOLDS ARE PROVISIONAL AND ARE MARKED AS SUCH ON SCREEN.
+    // §0.-33.A is a threshold picked with no data that fired on every row. These
+    // exist so Jake can WATCH the number for a week and then set them; the column
+    // shows the RATE, not just an icon, for exactly that reason. Do not treat
+    // these numbers as settled and do not build anything that blocks on them.
+    const ERR_WATCH = 0.30;    // provisional — worth a look
+    const ERR_HIGH  = 0.50;    // provisional — a masher's coin-flip floor
+
+    // ⚠️ RETURNS null FOR "NO ANSWER", AND THE THREE null CASES ARE DIFFERENT
+    // FROM EACH OTHER AND ALL DIFFERENT FROM ZERO:
+    //   * a pre-cutover day (no split fields ever written)
+    //   * a day with a log and no typing (0 chars, 0 mistakes — 0/0)
+    //   * School-only asked for on a document that has no School triple
+    // A clean green 0% for any of them is the report lying by omission.
+    function errorRateOf(triple) {
+        if (!triple) return null;
+        const denom = (triple.chars || 0) + (triple.mistakes || 0);
+        if (denom <= 0) return null;
+        return (triple.mistakes || 0) / denom;
+    }
+
+    // Which triple the column is showing, and whether it is the School-only one.
+    // ⚠️ LABELLED ON SCREEN EITHER WAY. A combined rate dilutes a bad lesson
+    // with a clean book and a School rate does not, so a column that switched
+    // silently between them would mean two different things in two rows.
+    function dayErrorCell(log) {
+        const school   = log.school || null;
+        const combined = { chars: log.chars, mistakes: log.mistakes };
+        const useSchool = school !== null && errorRateOf(school) !== null;
+        const rate = useSchool ? errorRateOf(school) : errorRateOf(combined);
+        if (rate === null) {
+            return `<span class="err-rate err-none" title="No typing recorded for this day, or a pre-cutover day with no School/Library split. This is NOT a 0% day — there is no answer to show.">—</span>`;
+        }
+        const pct = Math.round(rate * 100);
+        const cls = rate >= ERR_HIGH ? 'err-high' : rate >= ERR_WATCH ? 'err-watch' : 'err-ok';
+        const scope = useSchool ? 'School only' : 'Library + School combined (pre-cutover day — no split stored)';
+        const denom = useSchool ? (school.chars + school.mistakes) : (log.chars + log.mistakes);
+        return `<span class="err-rate ${cls}" title="${pct}% of keystrokes were mistakes — ${scope}. ` +
+               `${denom.toLocaleString()} keystrokes judged. Thresholds are PROVISIONAL (watch ≥${Math.round(ERR_WATCH*100)}%, high ≥${Math.round(ERR_HIGH*100)}%) ` +
+               `and are here to be watched for a week before anything is built on them.">${pct}%${useSchool ? '' : '*'}</span>`;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // THE SCANNED FLAGS. Populated only by the scan button; empty until then.
+    // ⚠️ KEYED `uid|date`. Absent means NOT SCANNED, and the row renders a
+    // different mark for that than for "scanned, nothing found" — see the
+    // legend. An icon whose absence is ambiguous is worse than no icon.
+    let scanFlags = new Map();
+    let scanRange = null;      // {from, to} of the last scan, for the legend
+
+    const FLAG_DEFS = [
+        { key: 'fail',  icon: '\u25cf', cls: 'fl-fail',
+          label: 'Repeated F',   desc: 'Three or more failing runs in a row on this day' },
+        { key: 'fast',  icon: '\u25b2', cls: 'fl-fast',
+          label: 'Speed jump',   desc: 'A run far faster than this student\u2019s others that day' },
+        { key: 'dupe',  icon: '\u29c9', cls: 'fl-dupe',
+          label: 'Duplicate',    desc: 'The same rollup filed twice — safe to delete' },
+        { key: 'short', icon: '\u25cb', cls: 'fl-short',
+          label: 'Tiny runs',    desc: 'Several runs under the 5-second floor' },
+    ];
+
+    function scanCell(uid, date) {
+        const key = uid + '|' + date;
+        if (!scanFlags.has(key)) {
+            return `<span class="scan-mark scan-unknown" title="Not scanned. Press &quot;Scan for flags&quot; above to check this day — that costs reads, so it is never automatic.">·</span>`;
+        }
+        const found = scanFlags.get(key);
+        if (!found || found.size === 0) {
+            return `<span class="scan-mark scan-clean" title="Scanned — nothing flagged on this day.">✓</span>`;
+        }
+        return FLAG_DEFS.filter(f => found.has(f.key)).map(f =>
+            `<span class="flag-mark ${f.cls}" title="${f.label}: ${f.desc}">${f.icon}</span>`
+        ).join('');
+    }
+
+
     function renderTable() {
         reportData.sort((a, b) => {
             let va = a[sortCol], vb = b[sortCol];
@@ -1793,6 +2059,8 @@
             return 0;
         });
 
+
+        renderLegend();
         const tbody = document.getElementById('report-body');
         tbody.innerHTML = reportData.map((r, idx) => `
             <tr class="summary-row" data-idx="${idx}">
@@ -1819,6 +2087,8 @@
                                 <input type="number" class="log-sec-input" value="${secs}" min="0" max="59" step="1" title="Seconds" style="width:45px;" />
                                 <span class="goal-unit">s</span>
                                 <span class="log-chars">${log.chars.toLocaleString()} chars</span>
+                                ${dayErrorCell(log)}
+                                <span class="scan-cell" data-uid="${r.uid}" data-date="${log.date}">${scanCell(r.uid, log.date)}</span>
                                 <button class="save-log-btn" data-idx="${idx}" data-li="${li}">Save</button>
                                 <button class="recalc-btn" data-idx="${idx}" data-li="${li}" data-uid="${r.uid}" data-date="${log.date}" title="Recalculate from sessions">⟳</button>
                                 <button class="regrade-btn" data-uid="${r.uid}" data-date="${log.date}" data-name="${escapeHtml(r.name)}" title="Reconstruct lesson grades for this day from the session records (ROADMAP 15)">⚑</button>
@@ -1855,7 +2125,169 @@
     });
 
     // Edit/Save delegation on table
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ROADMAP 36 — THE SCAN. PAID ONCE, ON DEMAND, NEVER ON LOAD.
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // ⚠️⚠️ THIS IS THE READ-EXPENSIVE HALF AND IT IS BEHIND A BUTTON FOR THAT
+    // REASON ALONE. The error-rate column beside it is free — it reads a field
+    // already on screen. Everything here needs typing_sessions, which this page
+    // otherwise touches only when a day is expanded, on click.
+    //
+    // COST: ONE query per student across the WHOLE date range, not one per
+    // student-day. That is the shape that makes the button affordable: a class of
+    // 25 over a week is 25 queries returning perhaps 250 documents, versus 175
+    // separate day queries. ⚠️ Firestore bills per DOCUMENT returned, so the
+    // saving is in round-trips and latency rather than in reads — do not describe
+    // it to Jake as cheaper than it is. The honest claim is: it is the same
+    // documents he would read by expanding every day by hand, fetched once,
+    // deliberately, with a number shown before and after.
+    //
+    // ⚠️ IT NEVER RUNS ON LOAD, ON GENERATE, OR ON A TIMER. Same discipline as
+    // the stuck scan and the grades panel. A convenience that reads the whole
+    // class every time the page opens is exactly the explosion this file has
+    // spent ten rounds avoiding.
+    //
+    // ⚠️ THE THRESHOLDS HERE ARE PROVISIONAL, LIKE THE COLUMN'S. They exist to
+    // be watched for a week. §0.-33.A.
+    const SCAN_FAIL_STREAK = 3;     // consecutive failing runs — Jake's "three strikes"
+    const SCAN_SHORT_RUNS  = 3;     // runs under the floor before it is worth saying
+    const SCAN_SHORT_SECS  = 5;     // the 5-second floor, ROADMAP 7
+
+    async function scanForFlags() {
+        if (!reportData || !reportData.length) { alert('Generate a report first.'); return; }
+        const btn = document.getElementById('scan-btn');
+        const status = document.getElementById('scan-status');
+        const setStatus = (m, c) => { if (status) { status.textContent = m; status.style.color = c || '#888'; } };
+
+        // ⚠️ TELL HIM WHAT IT WILL COST BEFORE HE SPENDS IT, and let him say no.
+        // The count is students, and the document count is unknown until it
+        // returns — say both, and do not pretend to know the second.
+        const nStudents = reportData.length;
+        const nDays = reportData.reduce((a, r) => a + r.dailyLogs.length, 0);
+        if (!confirm(
+            `Scan ${nStudents} student${nStudents === 1 ? '' : 's'} across ${nDays} recorded day` +
+            `${nDays === 1 ? '' : 's'}?\n\n` +
+            `This reads the session records — the same ones you would see by expanding ` +
+            `every day by hand, fetched once instead of one day at a time. It costs reads, ` +
+            `which is why it is not automatic.`)) return;
+
+        if (btn) btn.disabled = true;
+        scanFlags = new Map();
+        let done = 0, docs = 0, failed = 0;
+
+        for (const r of reportData) {
+            const dates = r.dailyLogs.map(l => l.date);
+            if (!dates.length) { done++; continue; }
+            try {
+                // One query per student over the range. `date` is a YYYY-MM-DD
+                // string, so a range compare is exact and needs no index beyond
+                // the uid+date one the drill-down already uses.
+                const snap = await getDocs(query(
+                    collection(db, "typing_sessions"),
+                    where("uid", "==", r.uid),
+                    where("date", ">=", dates[0]),
+                    where("date", "<=", dates[dates.length - 1])
+                ));
+                docs += snap.size;
+
+                // Bucket by day, then judge each day on its own.
+                const byDay = new Map();
+                snap.forEach(d => {
+                    const v = { id: d.id, ...d.data() };
+                    if (!byDay.has(v.date)) byDay.set(v.date, []);
+                    byDay.get(v.date).push(v);
+                });
+
+                for (const date of dates) {
+                    const sessions = byDay.get(date) || [];
+                    const found = new Set();
+
+                    // — duplicates: the same signature filed twice. Reuses the
+                    //   drill-down's own sessionSignature() so the two views
+                    //   cannot disagree about what a duplicate is.
+                    const seen = new Set();
+                    sessions.forEach(x => {
+                        const sig = sessionSignature(x, x.id);
+                        if (seen.has(sig)) found.add('dupe');
+                        seen.add(sig);
+                    });
+
+                    // — sprint-level checks, in time order across the whole day.
+                    const sprints = [];
+                    sessions.forEach(x => (x.sprints || []).forEach(sp => sprints.push(sp)));
+                    sprints.sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
+
+                    // Tiny runs — the 5-second floor, ROADMAP 7.
+                    if (sprints.filter(sp => (sp.seconds || 0) > 0 && (sp.seconds || 0) < SCAN_SHORT_SECS)
+                               .length >= SCAN_SHORT_RUNS) found.add('short');
+
+                    // Speed jump — mean of the OTHERS, so a fast run cannot raise
+                    // the bar it is measured against and hide itself. Same rule
+                    // the sprint rows already use; kept identical on purpose.
+                    const wpms = sprints.map(sp => sp.wpm || 0);
+                    if (wpms.length > 1) {
+                        const total = wpms.reduce((a, b) => a + b, 0);
+                        for (const w of wpms) {
+                            const others = (total - w) / (wpms.length - 1);
+                            if (others > 10 && w > others * 1.6) { found.add('fast'); break; }
+                        }
+                    }
+
+                    // ⚠️ REPEATED F — THE ONE JAKE ASKED FOR, AND THE ONE WITH A
+                    // CAVEAT. Grades are not stored on a sprint; they are
+                    // RECONSTRUCTED by gradeSprintsForDay(), which refuses rather
+                    // than guesses when a lesson's runCount has drifted. A day it
+                    // cannot grade produces NO flag — which reads identically to
+                    // a clean day, and that is the one place this scan is weaker
+                    // than it looks. Said in the legend, not hidden.
+                    try {
+                        const graded = await gradeSprintsForDay(sprints);
+                        let streak = 0;
+                        for (const sp of sprints) {
+                            const g = graded.get(sprintIdentity(sp));
+                            if (!g || !g.res || !g.res.ok) continue;
+                            if (g.continuation) continue;   // a fragment did not earn its own grade
+                            if (g.res.grade === 'F') { streak++; if (streak >= SCAN_FAIL_STREAK) { found.add('fail'); break; } }
+                            else streak = 0;
+                        }
+                    } catch (err) {
+                        console.warn('[scan] grading failed for ' + r.uid + ' ' + date, err);
+                    }
+
+                    scanFlags.set(r.uid + '|' + date, found);
+                }
+            } catch (err) {
+                console.error('[scan] failed for ' + r.uid, err);
+                failed++;
+            }
+            done++;
+            setStatus(`Scanning… ${done} of ${nStudents} students, ${docs} session records read`);
+        }
+
+        scanRange = { students: nStudents, days: nDays, docs, failed };
+        if (btn) btn.disabled = false;
+
+        // ⚠️ REPAINT THE CELLS IN PLACE rather than re-rendering the table. A
+        // full renderTable() would collapse every drill-down Jake has open, which
+        // is precisely the thing this feature exists to save him from doing twice.
+        document.querySelectorAll('.scan-cell').forEach(cell => {
+            cell.innerHTML = scanCell(cell.dataset.uid, cell.dataset.date);
+        });
+        renderLegend();
+        setStatus(
+            `Scanned ${nStudents} student${nStudents === 1 ? '' : 's'}, ${docs} session records` +
+            (failed ? ` — ${failed} could not be read` : ''),
+            failed ? '#c05621' : '#4B9CD3');
+    }
+
     document.getElementById('report-body').addEventListener('click', async (e) => {
+        if (e.target.classList.contains('clear-mastery-btn')) {
+            await clearMastery(e.target.dataset.uid, e.target.dataset.lesson, e.target);
+            return;
+        }
+
         // Toggle detail row
         if (e.target.classList.contains('details-row-btn')) {
             const idx = e.target.dataset.idx;
@@ -1996,6 +2428,7 @@
                                            `${g.continuation ? '·' : ''}${escapeHtml(gr)}</span>`;
                                 })()}
                                 ${spOdd ? '<span class="flag-icon" title="Much faster than this student\u2019s other runs today">\uD83D\uDEA9</span>' : ''}
+                                <button class="delete-run-btn" data-session-id="${s.id}" data-run-id="${escapeHtml(sprintIdentity(sp))}" title="Delete just this run">✕</button>
                             </div>`;
                     }).join('');
                     return `
@@ -2018,6 +2451,121 @@
             } catch (err) {
                 console.error("Sessions load error:", err);
                 container.innerHTML = `<div style="padding:8px; color:#ff3333; font-size:0.75rem;">Error: ${err.message}</div>`;
+            }
+            return;
+        }
+
+        // ═════════════════════════════════════════════════════════════════════
+        // ROADMAP 32 — DELETE ONE RUN, NOT THE WHOLE SESSION
+        // ═════════════════════════════════════════════════════════════════════
+        //
+        // Jake: *"as an admin, I can only delete full sessions, not individual
+        // runs. I'd love to be able to delete individual runs."*
+        //
+        // ⚠️⚠️ A RUN IS NOT A DOCUMENT, AND THAT IS THE WHOLE DIFFICULTY. Runs
+        // live as entries in a typing_sessions document's `sprints[]` array, so
+        // removing one is an UPDATE to that document, not a delete.
+        //
+        // ✅ NO RULES CHANGE IS NEEDED, AND I CHECKED RATHER THAN ASSUMED.
+        // firestore.rules v2.8.0 reads `allow update: if isSuper() || (owner
+        // && …)`. Jake is super_admin — he has to be, because the whole-session
+        // delete below is `allow delete: if isSuper()` and he uses it. So the
+        // super branch already permits this write. ⚠️ The OWNER branch does not
+        // and must not: it revalidates every create-time field, and a student
+        // editing their own sprint list is the forgery this collection's
+        // whitelist exists to stop.
+        //
+        // ⚠️⚠️ THE ROLLUP MUST BE RECOMPUTED IN THE SAME WRITE. `seconds`, `chars`,
+        // `mistakes`, `wpm`, `accuracy` and `sprintCount` are stored on the parent
+        // document and are summaries of the array. Removing a sprint without
+        // rewriting them leaves the drill-down and the row above it disagreeing,
+        // which is EXACTLY the divergence signature ROADMAP item 4's implausibility
+        // flag exists to catch — manufactured by hand, by the tool meant to clean up.
+        //
+        // ⚠️ IDENTIFIED BY sprintIdentity(), NEVER BY ARRAY INDEX. An index is
+        // stale the instant one is removed, and a second click would delete a
+        // different run than the one under the cursor. The identity function is
+        // the drill-down's own — the same one the grade map is keyed on.
+        //
+        // ⚠️⚠️ AND IT DOES NOT TOUCH MASTERY, WHICH IS ROADMAP 33 AND IS NOT FIXED
+        // BY THIS BUTTON. runScores/runLocks live on the student's lessonProgress
+        // record and no delete path reaches them. The confirm text says so out
+        // loud, because a teacher who deletes a run and expects a child to be
+        // unlocked will otherwise be quietly wrong.
+        if (e.target.classList.contains('delete-run-btn')) {
+            const sessionId = e.target.dataset.sessionId;
+            const runId = e.target.dataset.runId;
+            if (!sessionId || !runId) return;
+            if (!confirm(
+                "Delete just this run?\n\n" +
+                "The run is removed from its session and the session's totals are " +
+                "recalculated, then the day's totals are recalculated from the sessions.\n\n" +
+                "This does NOT clear mastery. If this run is why a student is locked " +
+                "out of a lesson, deleting it will not unlock them — that is a " +
+                "separate fix (roadmap item 33).")) return;
+            try {
+                e.target.disabled = true;
+                const ref = doc(db, "typing_sessions", sessionId);
+                const snapDoc = await getDoc(ref);
+                if (!snapDoc.exists()) { alert("That session no longer exists."); return; }
+                const data = snapDoc.data();
+                const sprints = Array.isArray(data.sprints) ? data.sprints : [];
+
+                // ⚠️ REMOVE EXACTLY ONE. Two runs can share an identity if they
+                // are genuinely identical; splice at the first match rather than
+                // filtering, or one click silently deletes both.
+                const at = sprints.findIndex(sp => sprintIdentity(sp) === runId);
+                if (at < 0) {
+                    alert("Could not find that run — the session may have changed. Reopen the day and try again.");
+                    return;
+                }
+                const kept = sprints.slice(0, at).concat(sprints.slice(at + 1));
+
+                if (kept.length === 0) {
+                    // ⚠️ AN EMPTY SESSION IS NOT A SESSION. Leaving a zero-run
+                    // rollup behind would show as a 0-second row that the day
+                    // recalculation ignores — a ghost the teacher cannot explain.
+                    if (!confirm("That was the only run in this session. Delete the whole session?")) return;
+                    await deleteDoc(ref);
+                } else {
+                    const secs  = kept.reduce((a, sp) => a + (sp.seconds  || 0), 0);
+                    const chars = kept.reduce((a, sp) => a + (sp.chars    || 0), 0);
+                    const miss  = kept.reduce((a, sp) => a + (sp.mistakes || 0), 0);
+                    // ⚠️ RECOMPUTED THE SAME WAY THE WRITER COMPUTES THEM: WPM from
+                    // characters over time, accuracy from mistakes against
+                    // keystrokes. Averaging the surviving sprints' own wpm values
+                    // would weight a 5-second run equally with a 5-minute one.
+                    await updateDoc(ref, {
+                        sprints: kept,
+                        sprintCount: kept.length,
+                        seconds: secs,
+                        chars: chars,
+                        mistakes: miss,
+                        wpm: secs > 0 ? Math.round((chars / 5) / (secs / 60)) : 0,
+                        accuracy: (chars + miss) > 0 ? Math.round((chars / (chars + miss)) * 100) : 100,
+                    });
+                }
+
+                // ⚠️ THE DAY DOCUMENT IS THE GRADED ONE AND NOTHING ELSE UPDATES
+                // IT. Same call, same options, as the whole-session delete below.
+                const cell = e.target.closest('.sprint-list')?.previousElementSibling;
+                const container = e.target.closest('.sessions-container');
+                const uid = container?.dataset.uid;
+                const date = container?.dataset.date;
+                const idx = container?.dataset.idx;
+                const li = container?.dataset.li;
+                if (uid && date && idx != null && li != null) {
+                    const liEl = document.querySelector(`.daily-log-entry[data-idx="${idx}"][data-li="${li}"]`);
+                    await recalcDailyLog(idx, li, uid, date, { allowZero: true, expectDrop: true });
+                }
+
+                // Reopen the day so the row reflects what just happened.
+                const reopen = document.querySelector(`.expand-sessions[data-uid="${uid}"][data-date="${date}"]`);
+                if (reopen) { reopen.click(); reopen.click(); }
+            } catch (err) {
+                console.error("Run delete error:", err);
+                alert("Could not delete that run: " + err.message);
+                e.target.disabled = false;
             }
             return;
         }
@@ -2286,6 +2834,145 @@
         return n >= 1 ? n - 1 : null;
     };
 
+    // ═════════════════════════════════════════════════════════════════════════
+    // ROADMAP 33 — CLEAR MASTERY FOR A LESSON
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // Jake: *"the poor kids who had me test mastery are now locked out of the
+    // earliest lessons when they're not the ones who tested out."*
+    //
+    // ⚠️⚠️ WHY THIS IS A CONTROL AND NOT AN AUTOMATIC CONSEQUENCE OF DELETING A
+    // RUN. Deleting a session removes EVIDENCE; mastery is not stored as
+    // evidence. `runScores[k]` is a CUMULATIVE SUM — the module says so itself:
+    // *"runScores is a SUM and cannot tell one A🔥 from two A's"* — and
+    // `runGrades[k]` is best-ever-seen. Neither is a log, so neither can have one
+    // entry removed. Subtracting `pointsForGrade()` on delete would be arithmetic
+    // on a number that cannot be faithfully reversed, and it would be wrong
+    // silently. ROADMAP 33 weighed three shapes and this is the third: explicit,
+    // auditable, needs no reconstruction.
+    //
+    // ⚠️⚠️ IT CLEARS runScores AND runLocks TOGETHER, NEVER ONE ALONE. runLocks
+    // stamps WHEN the threshold was crossed and feeds the reach-back clock.
+    // Clearing the points and leaving the stamp would unlock the lesson while the
+    // clock still says the child proved something that day.
+    //
+    // ⚠️⚠️ AND IT RE-DERIVES users/{uid}.lastLockDay ACROSS EVERY LESSON, which
+    // is the part that is easy to miss and hard to see afterwards. lastLockDay is
+    // GLOBAL — the reach-back window for the whole curriculum measures time since
+    // the student last proved anything, anywhere. Clearing the lesson that
+    // happened to set it would leave the stamp pointing at a crossing that no
+    // longer exists, and reach-back would stay shut for every OTHER lesson.
+    // Recomputed here as the maximum surviving runLocks value across the whole
+    // subcollection — which is exactly what stampLastLockDay() would have left
+    // behind had this lesson never been mastered.
+    //
+    // ⚠️ HISTORY IS KEPT. runGrades, runFires, runAttempts and runFailures are
+    // NOT touched. The child still earned those grades and the report should
+    // still show them; what is being undone is the GATE, not the record. A tool
+    // that erased the evidence along with the consequence would make item 34's
+    // three-strikes tracking impossible after any cleanup.
+    //
+    // ⚠️ REQUIRES firestore.rules v2.10.0. v2.7.0 opened lessonProgress to
+    // BUILDING-scoped staff only, so an ordinary class teacher could read a
+    // record and not write it. Without the deploy this button is denied and
+    // looks like a button that does nothing.
+    //
+    // COST: the subcollection read the grades panel already made, plus one write
+    // per lesson cleared and at most one write to the user document.
+
+    // ⚠️ MIRRORS lesson-gate.js MASTERY_POINTS. Named with a _UI suffix because
+    // it is a SECOND COPY and must not be mistaken for the authority: this page
+    // imports no modules, the same Rule 9 acceptance as readLogTotals(). If the
+    // threshold ever changes in lesson-gate.js it changes here, in the same
+    // deploy, or this panel will describe a gate the app is not applying.
+    const MASTERY_POINTS_UI = 4;
+
+    // Which runs on this record are at or past the threshold.
+    // ⚠️ THIS IS NOT runMastered(). That function answers "is run k in practice
+    // mode", which is true when ANY LATER run is mastered — mastered runs form a
+    // prefix. This one lists the runs that actually banked the points, because
+    // that is what the teacher is being shown and what the button will clear.
+    // Conflating the two would report every run of a lesson as mastered the
+    // moment its last run was.
+    function masteredRuns(rec) {
+        const scores = (rec && rec.runScores) || {};
+        return Object.keys(scores)
+            .filter(k => Number(scores[k]) >= MASTERY_POINTS_UI)
+            .map(Number)
+            .sort((a, b) => a - b);
+    }
+
+    async function clearMastery(uid, lessonId, btn) {
+        if (!confirm(
+            `Clear mastery for ${lessonId}?\n\n` +
+            `Every run in this lesson goes back to being GRADED, so the student ` +
+            `can earn credit in it again.\n\n` +
+            `Grades, fireballs and attempt counts are KEPT — this undoes the lock, ` +
+            `not the history.\n\n` +
+            `The reach-back clock is recalculated from whatever mastery is left.`)) return;
+        if (btn) btn.disabled = true;
+        try {
+            const ref = doc(db, 'users', uid, 'lessonProgress', lessonId);
+
+            // ⚠️ deleteField(), NOT `{}`. An empty map is a value: runScoreOf()
+            // would read it, find no entry for the run, and fall through to
+            // pointsForGrade(record.grade) — the LEGACY SEED path — which would
+            // re-award points from the best-ever grade this button just declined
+            // to trust. Removing the field entirely is what makes the seed the
+            // intended fallback rather than a resurrection.
+            await updateDoc(ref, {
+                runScores: deleteField(),
+                runLocks:  deleteField(),
+            });
+
+            // ─── re-derive the global clock ──────────────────────────────────
+            // ⚠️ READ AFTER THE WRITE, not before. Deriving from the copy the
+            // panel loaded would include the lesson we just cleared and put the
+            // stamp straight back.
+            let maxLock = null;
+            try {
+                const all = await getDocs(collection(db, 'users', uid, 'lessonProgress'));
+                all.forEach(d => {
+                    const locks = d.data().runLocks || {};
+                    Object.values(locks).forEach(v => {
+                        const n = Number(v);
+                        if (Number.isFinite(n) && (maxLock === null || n > maxLock)) maxLock = n;
+                    });
+                });
+            } catch (err) {
+                // ⚠️ SAY SO RATHER THAN GUESS. A failed re-derivation leaves the
+                // lesson unlocked and the clock stale — better than writing a
+                // number we could not verify, but the teacher must know.
+                console.warn('[mastery] could not re-derive lastLockDay', err);
+                alert(`Mastery cleared for ${lessonId}, but the reach-back clock could not be ` +
+                      `recalculated (${err.message}). The lesson is unlocked; tell whoever ` +
+                      `maintains this so lastLockDay can be checked by hand.`);
+                if (btn) { const p = btn.closest('.grades-panel'); if (p) await showGrades(uid, p); }
+                return;
+            }
+
+            // ⚠️ null MEANS NO MASTERY ANYWHERE, and the field is REMOVED rather
+            // than zeroed. lastLockDayOf() falls back to lastAdvanceDay and then
+            // to null, and null is what "has never proved anything" is supposed
+            // to look like. Writing 0 would be a real crossing on day zero.
+            if (maxLock === null) {
+                await updateDoc(doc(db, 'users', uid), { lastLockDay: deleteField() });
+            } else {
+                await updateDoc(doc(db, 'users', uid), { lastLockDay: maxLock });
+            }
+
+            const panel = btn ? btn.closest('.grades-panel') : null;
+            if (panel) await showGrades(uid, panel);
+        } catch (err) {
+            console.error('[mastery] clear failed', err);
+            alert(`Could not clear mastery: ${err.message}\n\n` +
+                  `If this says "permission denied", firestore.rules v2.10.0 has not ` +
+                  `been deployed yet — the rules file in the repo changes nothing until ` +
+                  `it is pasted into the Firebase console.`);
+            if (btn) btn.disabled = false;
+        }
+    }
+
     async function showGrades(uid, panel) {
         panel.innerHTML = '<span style="color:#888;">Loading grades…</span>';
         let snap;
@@ -2314,7 +3001,9 @@
                 // history or a lesson nobody has finished a run of. Rendering
                 // only the populated ones would quietly hide the gap this
                 // feature exists to close.
-                rows.push({ id: d.id, legacy: r.grade || '', pips: '', fires: 0, runCount: r.runCount || 0 });
+                rows.push({ id: d.id, legacy: r.grade || '', pips: '', fires: 0,
+                            runCount: r.runCount || 0,
+                            mastered: masteredRuns(r), locks: r.runLocks || {} });
                 return;
             }
             const pips = idxs.map(i => {
@@ -2332,14 +3021,15 @@
             }).join('');
             rows.push({ id: d.id, legacy: r.grade || '', pips,
                         fires: idxs.reduce((n, i) => n + (Number(fires[String(i)]) || 0), 0),
-                        runCount: r.runCount || 0 });
+                        runCount: r.runCount || 0,
+                        mastered: masteredRuns(r), locks: r.runLocks || {} });
         });
 
         rows.sort((a, b) => a.id.localeCompare(b.id));
 
         panel.innerHTML =
             '<table><thead><tr style="color:#4B9CD3;">' +
-            ['Lesson', 'Best grade', 'Per run', 'A\uD83D\uDD25'].map(h => `<th>${h}</th>`).join('') +
+            ['Lesson', 'Best grade', 'Per run', 'A\uD83D\uDD25', 'Mastered', ''].map(h => `<th>${h}</th>`).join('') +
             '</tr></thead><tbody>' +
             rows.map(r =>
                 '<tr>' +
@@ -2347,6 +3037,12 @@
                 `<td style="color:#888;">${escapeHtml(r.legacy || '—')}</td>` +
                 `<td>${r.pips || '<span style="color:#555;">not recorded</span>'}</td>` +
                 `<td style="color:${r.fires ? '#ff6600' : '#555'};">${r.fires || '—'}</td>` +
+                `<td>${r.mastered.length
+                        ? `<span class="mastery-lock" title="Runs ${r.mastered.map(i => i + 1).join(', ')} are at or past the ${MASTERY_POINTS_UI}-point mastery threshold. Every run at or below the highest of these is in practice mode and pays nothing.">\u25a0 ${r.mastered.length}</span>`
+                        : '<span style="color:#555;">\u2014</span>'}</td>` +
+                `<td>${r.mastered.length
+                        ? `<button class="clear-mastery-btn" data-uid="${uid}" data-lesson="${escapeHtml(r.id)}" title="Clear mastery for this lesson \u2014 puts every run back to graded. Does not touch grades or history.">\u2298</button>`
+                        : ''}</td>` +
                 '</tr>').join('') +
             '</tbody></table>' +
             `<div style="color:#666; margin-top:6px;">` +
@@ -2933,6 +3629,49 @@
     }
 
     // --- CSV EXPORT ---
+    // ⚠️ ROADMAP 36 — THE LEGEND IS NOT DECORATION AND IS NOT OPTIONAL.
+    // Four icons at three levels of the report, two of which (the sprint-row and
+    // session-row flags) already existed with DIFFERENT meanings, is unreadable
+    // without one. Jake asked for it explicitly and asked that it stay on screen.
+    //
+    // ⚠️ IT NAMES THE UNSCANNED STATE FIRST. The single most confusing thing this
+    // surface can do is let "not looked at" read as "clean", so that distinction
+    // gets a row of its own rather than a footnote.
+    function renderLegend() {
+        const el = document.getElementById('flag-legend');
+        if (!el) return;
+        el.classList.remove('hidden');
+        const rows = FLAG_DEFS.map(f =>
+            `<div class="lg-row"><span class="lg-key ${f.cls}">${f.icon}</span>` +
+            `<span class="lg-txt"><b>${f.label}</b> — ${f.desc}</span></div>`).join('');
+        el.innerHTML =
+            '<button class="lg-collapse" title="Collapse">\u2212</button>' +
+            '<h4>Legend</h4><div class="lg-body">' +
+            '<div class="lg-row"><span class="lg-key err-high">%</span>' +
+            '<span class="lg-txt"><b>Error rate</b> — mistakes as a share of keystrokes. ' +
+            'School only; <b>*</b> means combined (a day before the split existed). ' +
+            '<b>—</b> means no typing, not 0%.</span></div>' +
+            '<div class="lg-sep"></div>' +
+            '<div class="lg-row"><span class="lg-key scan-unknown">\u00b7</span>' +
+            '<span class="lg-txt"><b>Not scanned</b> — no information yet. Not the same as clean.</span></div>' +
+            '<div class="lg-row"><span class="lg-key scan-clean">\u2713</span>' +
+            '<span class="lg-txt"><b>Scanned, clear</b></span></div>' +
+            rows +
+            '<div class="lg-note">Thresholds are provisional — watch them for a week ' +
+            'before trusting them. A day whose lessons cannot be regraded shows no ' +
+            '“Repeated F” even if it had one.</div>' +
+            (scanRange ? `<div class="lg-note">Last scan: ${scanRange.students} students, ${scanRange.docs} records.</div>` : '') +
+            '</div>';
+        const btn = el.querySelector('.lg-collapse');
+        if (btn) btn.onclick = () => {
+            el.classList.toggle('collapsed');
+            btn.textContent = el.classList.contains('collapsed') ? '+' : '\u2212';
+            btn.title = el.classList.contains('collapsed') ? 'Expand' : 'Collapse';
+        };
+    }
+
+    document.getElementById('scan-btn').onclick = scanForFlags;
+
     document.getElementById('export-btn').onclick = () => {
         if (reportData.length === 0) return;
         const startDate = document.getElementById('date-start').value;

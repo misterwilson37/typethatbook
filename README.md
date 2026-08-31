@@ -4,7 +4,7 @@ A classroom typing application for Ellis Middle School. Students type real books
 one sentence at a time, and the time they spend doing it becomes the number their
 teacher grades.
 
-<!-- README.md v2.0.0 — Round 28 (Daugherty), 2026-08-23.
+<!-- README.md v2.1.0 — Round 28 (Daugherty), 2026-08-23.
 
      ⚠️⚠️ THIS FILE HAD BEEN OVERWRITTEN BY A COPY OF tests/README.md AND THE
      PROJECT README WAS GONE. HANDOFF §7's document map says this file should
@@ -20,7 +20,19 @@ teacher grades.
      confident invention. If Jake has the original anywhere, prefer it over this.
 
      The tests README now lives only at tests/README.md, at v1.5.0, merged from
-     the newer root copy. -->
+     the newer root copy.
+
+     v2.1.0 — Round 55: added the teacher pointer at the top and the
+     docs/TEACHER-GUIDE.md row. ⚠️ The pointer is FIRST, above the HANDOFF line,
+     on purpose: a teacher who opens this file is one paragraph from a file map
+     they have no use for, and the reason this README exists at all is that
+     documents get read by the wrong person and edited in the wrong place. -->
+
+⚠️ **Teaching with it rather than working on it? Read
+[`docs/TEACHER-GUIDE.md`](docs/TEACHER-GUIDE.md) and stop there.** It covers the
+reports panel — what the marks mean, how to delete a run, how to unlock a student
+whose mastery was set by somebody else typing on their account — and it assumes
+no knowledge of anything below.
 
 ⚠️ **Start with `HANDOFF.md`.** It is the working document — current state, every
 defect and its write-up, the standing rules, and the deploy order. This file is
@@ -33,6 +45,7 @@ only a map.
 | `HANDOFF.md` | ⚠️ **Read first.** State, defects, standing rules, §2 deploy table, §5 invariants |
 | `ROADMAP.md` | What is planned and what was deliberately deferred, with the reasoning |
 | `CHANGELOG.md` | Per-round history, plus **§ ARCHIVED FILE HEADERS** — older per-file entries moved out of source headers |
+| `docs/TEACHER-GUIDE.md` | ⭐ **For teachers.** The reports panel in plain language — the error-rate column, the flag icons and the scan, deleting one run, clearing mastery. The only non-developer document in the repo |
 | `docs/README.md` | Index of `docs/` — one line per document on when to read it |
 | `tests/README.md` | How the harnesses work, what is registered, and what each cannot cover |
 | `tools/README.md` | `audit-versions.mjs` and the two EPUB builders |

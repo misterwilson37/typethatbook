@@ -1,13 +1,28 @@
-// learn.js v2.40.0
+// learn.js v2.41.0
 //
-// v2.40.0 — ⚠⚠ ROADMAP 6, THE SCHOOL HALF — THE MIDNIGHT STRADDLE. Library was
+// v2.41.0 — ⚠️ ROADMAP 31 — THE IDLE SPACE-SKIP LEFT THE SPACE BAR LIT. The
+//           idle-resume skip in handleDrillKey() advanced drillPos past a space
+//           and never repainted, so the keyboard kept showing the space target
+//           — thumb circles and #space-hint — while the game already expected
+//           the first letter of the next word. Kids reported it and photographed
+//           it; it only fires after a LEARN_IDLE_THRESHOLD (3s) pause landing on
+//           a space, which is why it reads as intermittent and never reproduces
+//           for a teacher on demand. One advanceHandGuide() call, guarded on
+//           drillPos having actually moved. ⚠️ NOTHING ELSE CHANGED — no
+//           threshold, no timing, no scoring. tests/drill-paint-test.mjs asserts
+//           the INVARIANT (every drillPos mutation is followed by a paint), not
+//           this call site, because guarding the line leaves the next one open.
+//           ⚠️ v2.33.1 ARCHIVED THIS ROUND (8-entry budget) — its two citations
+//           in this file resolve to CHANGELOG.md § ARCHIVED FILE HEADERS now.
+//
+// v2.40.0 — ⚠️⚠️ ROADMAP 6, THE SCHOOL HALF — THE MIDNIGHT STRADDLE. Library was
 //           fixed in game.js v3.38.0; School had the same defect and kept it for
 //           several rounds because the fix is NOT a one-liner here. A lesson
 //           straddling midnight filed ONE record stamped with the day it ENDED
 //           on, so the day counters and the drill-down disagreed — neither wrong,
 //           answering different questions.
 //
-//           ⚠⚠ THE ROLLOVER MOVED ABOVE THE INCREMENTS AND THAT IS HALF THE FIX.
+//           ⚠️⚠️ THE ROLLOVER MOVED ABOVE THE INCREMENTS AND THAT IS HALF THE FIX.
 //           This file incremented stepSeconds BEFORE its rollover check and
 //           compensated by resetting counters to `1` rather than `0`. That worked
 //           for the COUNTERS and could not work for the LOG: by the time the
@@ -15,18 +30,18 @@
 //           logOpenRun() was about to file under the new day. The block now sits
 //           above `learnActiveSeconds++`, above `anonSecondsAccum++` and above
 //           `armAnonLoginPrompt()`, and every `= 1` is back to `= 0`.
-//           ⚠ ONE LINE LOWER AND THE FIRST SECOND OF EACH NEW DAY IS FILED UNDER
+//           ⚠️ ONE LINE LOWER AND THE FIRST SECOND OF EACH NEW DAY IS FILED UNDER
 //           YESTERDAY, invisibly, forever. midnight-test.mjs D5/D6 assert the
 //           ordering; D7–D9 assert the compensations are gone. Mutation-verified.
 //
 //           `logRun()` and `logOpenRun()` take a `dateOverride` for exactly one
 //           caller — the rollover — and default to today for every other.
-//           ⚠ THE 5-SECOND FLOOR STILL APPLIES, as in game.js: a run begun at
+//           ⚠️ THE 5-SECOND FLOOR STILL APPLIES, as in game.js: a run begun at
 //           11:59:58 has 2 seconds to close, the floor refuses them, and the
 //           watermark is NOT advanced, so they roll into the first record of the
 //           new day rather than vanishing.
 //
-// v2.39.0 — ⚠⚠ ROADMAP 23 — THE RUN LIST IS NOW PAIRED WITH THE LESSON, AND
+// v2.39.0 — ⚠️⚠️ ROADMAP 23 — THE RUN LIST IS NOW PAIRED WITH THE LESSON, AND
 //           THE TWO WRITERS ASSERT IT. The Round 41 defect was possible because
 //           four writers read `currentLesson` and NONE checked that
 //           `currentRuns` still belonged to it — and the symptom was a GRADE on
@@ -37,7 +52,7 @@
 //           (startLesson, the remediation detour, and the exit reset), and
 //           recordRunOutcome() / saveProgress() refuse when it does not match.
 //
-//           ⚠ THE ROADMAP PROPOSED COMPARING buildRunList() LENGTHS AND THAT
+//           ⚠️ THE ROADMAP PROPOSED COMPARING buildRunList() LENGTHS AND THAT
 //           WOULD HAVE BEEN WRONG TWICE: buildSequence() is RANDOM per call for
 //           key_random / key_pattern_auto, so recomputing invites a false
 //           positive — and a false positive here REFUSES A REAL RUN, which is
@@ -46,7 +61,7 @@
 //           remediation drill on a 3-chunk lesson would. A pairing token answers
 //           the real question in O(1) with no recomputation.
 //
-//           ⚠ IT CANNOT FIRE TODAY — finishStep() returns at the remediation
+//           ⚠️ IT CANNOT FIRE TODAY — finishStep() returns at the remediation
 //           branch before either writer. That is the point: it is a backstop for
 //           a hazard that has already cost one round, not a fix for a live bug.
 //           tests/exit-flush-test.mjs Section G drives it (7 assertions,
@@ -129,18 +144,6 @@
 //           run no longer accrues reach-back while farming. runScorePill() shows
 //           the score, because the old rule was unfalsifiable from outside.
 //           tests/run-mastery-test.mjs.
-//
-// v2.33.1 — ⚠️⚠️ ROADMAP 14b — "← MAP" BANKED THE TIME AND THREW AWAY THE RUN.
-//           stopLesson() reloaded progress on the way out, and loadUserProgress()
-//           opens by EMPTYING userProgress — so every run outcome recorded in
-//           memory died before the scheduled flush could read it, while
-//           pendingProgress still named the lesson, so the flush wrote the
-//           freshly-reloaded copy back and reported success. ⚠️ THE WRITE NEVER
-//           FAILED; it stored the numbers it had just read. Jake's u1_l1 read
-//           runAttempts {0:1, 1:2} after a dozen runs. New exitLessonToMap()
-//           flushes, refreshes the progress cache, THEN reloads, and carries
-//           anything unflushed across. ⚠️ A flush added AFTER the reload would
-//           read as correct and change nothing. tests/exit-flush-test.mjs.
 //
 // Lesson-mode engine, separate from game.js. Same write-ahead-log and
 // coalesced-flush persistence pattern.
@@ -262,7 +265,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.40.0";
+const LEARN_VERSION = "2.41.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -570,7 +573,7 @@ let currentLesson  = null;
 // single Firestore document. See PEDAGOGY-AUDIT.md §3.2.
 
 let currentRuns    = [];  // expanded + chunked runs for the current lesson
-// ⚠⚠ v2.39.0 — ROADMAP 23. WHAT currentRuns WAS BUILT FOR. The Round 41 defect
+// ⚠️⚠️ v2.39.0 — ROADMAP 23. WHAT currentRuns WAS BUILT FOR. The Round 41 defect
 // was possible because four writers read `currentLesson` and none of them
 // checked that `currentRuns` still belonged to it — and the symptom was a GRADE,
 // not an error. This is the pairing, written at every site that assigns
@@ -1976,7 +1979,7 @@ function startLesson(lesson) {
     // run go through ("Play it again" and _gotoLesson() both land here).
     remediationRun = false;
     currentRuns    = buildRunList(lesson);
-    currentRunsFor = lesson.id;          // ⚠ ROADMAP 23 — paired here, always.
+    currentRunsFor = lesson.id;          // ⚠️ ROADMAP 23 — paired here, always.
     // ⚠️ v2.35.0 — NOT ALWAYS 0. See firstOpenRunIdx(): a student whose early runs
     // are mastered starts at the first one that still counts.
     currentStepIdx = firstOpenRunIdx(lesson);
@@ -2250,7 +2253,7 @@ function startGradedTimer() {
         // file, because the same harness also counts how many times it appears.
         if (drillPos > 0 && !isDrillIdle()) {
             stepSeconds++;
-            // ⚠⚠ v2.40.0 — ROADMAP 6, THE SCHOOL HALF. THE ROLLOVER RUNS *BEFORE*
+            // ⚠️⚠️ v2.40.0 — ROADMAP 6, THE SCHOOL HALF. THE ROLLOVER RUNS *BEFORE*
             // THE INCREMENTS NOW, AND THAT ORDERING IS HALF THE FIX.
             //
             // The Library half (game.js v3.38.0) closes the open sprint on the
@@ -2261,7 +2264,7 @@ function startGradedTimer() {
             // the day it ENDED on — the same defect, the same shape, the same
             // two numbers disagreeing afterwards.
             //
-            // ⚠ THE OLD CODE INCREMENTED FIRST AND COMPENSATED WITH `= 1`. That
+            // ⚠️ THE OLD CODE INCREMENTED FIRST AND COMPENSATED WITH `= 1`. That
             // worked for the counters and could not work for the LOG, because by
             // the time the rollover was reached the second had already been
             // added to a `stepSeconds` that logOpenRun() was about to file under
@@ -2270,10 +2273,10 @@ function startGradedTimer() {
             // ROADMAP 6 spelled this out; it is not a one-liner and that is why
             // it was held. midnight-test.mjs Part D asserts it.
             //
-            // ⚠ IT MUST ALSO RUN ABOVE `anonSecondsAccum++` AND
+            // ⚠️ IT MUST ALSO RUN ABOVE `anonSecondsAccum++` AND
             // `armAnonLoginPrompt()` — both are day-scoped in the same way.
             //
-            // ⚠ THE 5-SECOND FLOOR STILL APPLIES, exactly as in game.js: a run
+            // ⚠️ THE 5-SECOND FLOOR STILL APPLIES, exactly as in game.js: a run
             // begun at 11:59:58 has 2 seconds to close, the floor refuses them,
             // and the watermark is deliberately NOT advanced so they roll into
             // the first record of the new day rather than vanishing.
@@ -2285,7 +2288,7 @@ function startGradedTimer() {
                 // ⚠️ v2.20.0 — THE PER-SOURCE COUNTERS ROLL OVER WITH THE DAY. The
                 // Library triple resets to 0 — it is seeded from a document that
                 // is now the wrong day and this page never adds to it.
-                // ⚠ v2.40.0 — SCHOOL'S RESETS TO 0 NOW, NOT 1. The second that
+                // ⚠️ v2.40.0 — SCHOOL'S RESETS TO 0 NOW, NOT 1. The second that
                 // just elapsed has not been counted yet at this point in the
                 // tick; the increments below add it, to the new day, once.
                 statsData.secondsSchool = 0; statsData.charsSchool = 0; statsData.mistakesSchool = 0;
@@ -2293,7 +2296,7 @@ function startGradedTimer() {
                 statsData.lastDate = todayStr; dailyGoalCelebrated = false;
                 const ws = getWeekStart(new Date());
                 if (statsData.weekStart !== ws) {
-                    // ⚠ v2.40.0 — 0, not 1, for the same reason as above.
+                    // ⚠️ v2.40.0 — 0, not 1, for the same reason as above.
                     statsData.secondsWeek = 0; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
                     statsData.weekStart = ws; weeklyGoalCelebrated = false;
                 }
@@ -2809,9 +2812,37 @@ function handleDrillKey(e) {
     // type a space as their first character back. During active typing every
     // space is required as normal.
     const wasIdle = learnLastInputTime > 0 && (Date.now() - learnLastInputTime) > LEARN_IDLE_THRESHOLD;
+    // ⚠️⚠️ v2.41.0 — ROADMAP 31. THE SKIP MOVES drillPos, SO THE SKIP MUST REPAINT.
+    //
+    // This block advanced past the space and returned to the caller with the
+    // keyboard still painted for the character it had just skipped:
+    // advanceHandGuide() is the ONLY thing that moves the target highlight, the
+    // hand guide and #space-hint, and nothing on this path called it. The last
+    // paint happened at the end of the PREVIOUS keystroke, when the space really
+    // was the target — so the space bar kept `space-active` and its two thumb
+    // circles while the game had already moved on to the next letter. Jake's
+    // students photographed exactly that: "the two dots appeared on the space bar
+    // when the game expected the first letter of the following word."
+    //
+    // ⚠️ advanceHandGuide() CANNOT SELF-CORRECT HERE AND MUST NOT BE MADE TO.
+    // Its space-clearing line is guarded `if (ch !== ' ')` — "Clear space-active
+    // only when moving away from a space, not when landing on one." That guard is
+    // right. The defect was never in the painter; it was a mutation that did not
+    // call it.
+    //
+    // ⚠️ GUARDED ON drillPos HAVING MOVED, NOT ON wasIdle. A repaint at an
+    // unchanged position is a no-op today and a flicker the first time somebody
+    // gives the highlight a transition.
+    //
+    // ⚠️⚠️ THE INVARIANT, AND IT IS BIGGER THAN THIS BLOCK: EVERY MUTATION OF
+    // drillPos IS FOLLOWED BY A PAINT. Guarding this one line leaves the next one
+    // open, and this is the third position/paint divergence in this file.
+    // tests/drill-paint-test.mjs asserts the invariant, not the call.
     if (wasIdle && drillPos < drillSequence.length && drillSequence[drillPos] === ' ') {
+        const posBeforeSkip = drillPos;
         drillPos++;
         if (drillPos >= drillSequence.length) { finishStep(); return; }
+        if (drillPos !== posBeforeSkip) advanceHandGuide();
     }
     const newExpected = drillSequence[drillPos];
 
@@ -3032,7 +3063,7 @@ function updateHUD() {
 //
 // ⚠️ A ZERO DELTA IS NORMAL, NOT AN ERROR. Two hides in a row, or a hide
 // immediately followed by finishStep(), produce nothing the second time.
-// ⚠⚠ v2.40.0 — ROADMAP 6, THE SCHOOL HALF. `dateOverride` exists for exactly one
+// ⚠️⚠️ v2.40.0 — ROADMAP 6, THE SCHOOL HALF. `dateOverride` exists for exactly one
 // caller: the tick's midnight rollover, which must file the seconds typed BEFORE
 // midnight against the day they were typed on. Every other caller passes
 // nothing and gets today, which is correct for them.
@@ -3071,7 +3102,7 @@ function logRun(wpm, acc, detailSuffix, dateOverride) {
 
     sessionLogPush(sessionUid, {
         // ⚠️ STAMPED NOW, NOT AT FLUSH TIME. See session-log.js.
-        // ⚠ ROADMAP 6 — the outgoing day when the tick is closing a run across
+        // ⚠️ ROADMAP 6 — the outgoing day when the tick is closing a run across
         // midnight; today for every other caller.
         date: dateOverride || getLocalDateStr(),
         at: new Date().toISOString(),
@@ -3654,7 +3685,7 @@ window._practiceMissedKeys = function(missedKeys) {
     // swap-and-restore worked only because beginStep read steps synchronously; runs
     // make the intent explicit and leave the lesson object alone. Chunked in case
     // the missed-key set produces a long drill.
-    // ⚠ ROADMAP 23 — the list stops belonging to currentLesson on the NEXT line,
+    // ⚠️ ROADMAP 23 — the list stops belonging to currentLesson on the NEXT line,
     // so the pairing is broken here, deliberately and visibly, before it is.
     currentRunsFor = REMEDIATION_RUNS;
     currentRuns = chunkSequence(buildSequence(syntheticStep)).map((seq, i, all) => ({
@@ -3701,7 +3732,7 @@ window._gotoLesson = function(id) {
 // sum — same as the pre-existing attempts counter, and not worth a transaction.
 const pendingProgress = new Set();   // lessonIds with unflushed run data
 
-// ⚠⚠ v2.39.0 — ROADMAP 23. THE STRUCTURAL GUARD, NOT A SECOND FLAG.
+// ⚠️⚠️ v2.39.0 — ROADMAP 23. THE STRUCTURAL GUARD, NOT A SECOND FLAG.
 //
 // The Round 41 defect: four writers read `currentLesson`, none checked that
 // `currentRuns` still belonged to it, and the symptom was a GRADE rather than an
@@ -3710,7 +3741,7 @@ const pendingProgress = new Set();   // lessonIds with unflushed run data
 // list re-opens the hazard silently, and a wrong grade on a child's record is
 // the thing that gets discovered weeks later from a report.
 //
-// ⚠ THE ROADMAP PROPOSED COMPARING LENGTHS —
+// ⚠️ THE ROADMAP PROPOSED COMPARING LENGTHS —
 // `currentRuns.length !== buildRunList(currentLesson).length` — AND THAT WOULD
 // HAVE BEEN THE WRONG GUARD, TWICE OVER:
 //   1. buildSequence() is RANDOM per call for key_random and key_pattern_auto
@@ -3722,7 +3753,7 @@ const pendingProgress = new Set();   // lessonIds with unflushed run data
 // The pairing token answers the actual question — "was this list built for this
 // lesson?" — in O(1), with no recomputation and no randomness.
 //
-// ⚠ A FIRING GUARD MEANS A BUG UPSTREAM, so it refuses the write rather than
+// ⚠️ A FIRING GUARD MEANS A BUG UPSTREAM, so it refuses the write rather than
 // filing a run against a lesson it may not belong to. It cannot fire today:
 // finishStep() returns at the remediation branch before reaching either writer.
 function runsBelongToCurrentLesson(where) {
@@ -3952,7 +3983,7 @@ async function stampLastLockDay() {
 
 async function saveProgress(passed, wpm, acc, grade) {
     if (!currentUser || !currentLesson) return;
-    // ⚠ ROADMAP 23 — the second of the two writers. saveProgress() marks the
+    // ⚠️ ROADMAP 23 — the second of the two writers. saveProgress() marks the
     // WHOLE LESSON passed, which is the more damaging of the two if the run list
     // it was reached through did not belong to this lesson (see §0.-31.N: a
     // remediation drill marked a 12-run lesson passed on one 83-character run of
@@ -4053,7 +4084,7 @@ function stopLesson() {
     persistGuestAccum();
     showRestartButton(false);
     currentLesson = null;
-    currentRunsFor = null;               // ⚠ ROADMAP 23 — unpaired when nothing is open.
+    currentRunsFor = null;               // ⚠️ ROADMAP 23 — unpaired when nothing is open.
     backBtn.href = 'index.html'; backBtn.onclick = null;
     hudLessonLabel.textContent = '';
     hudLessonLabel.title = '';
@@ -5172,7 +5203,7 @@ async function _flushStatsInner(reason, final = false) {
             // v2.19.0's.
             ...(useSplit ? {} : { source: 'school' })
         }, { merge: true });
-        // ⚠⚠ §READS / daylog.js v1.6.0 — THE MEMO MUST BE DROPPED THE MOMENT THIS
+        // ⚠️⚠️ §READS / daylog.js v1.6.0 — THE MEMO MUST BE DROPPED THE MOMENT THIS
         // LANDS. readWeek() is memoised per page load; a caller later in this same
         // load would otherwise be handed the pre-write week and paint a total that
         // is short by whatever was just saved. Over-calling is free — the cost of a

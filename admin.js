@@ -105,20 +105,6 @@
 //           the classroom argument to canonicalRightsFrom(), and the gap flag. KEPT: the
 //           v3.26.0 source/licence mapping, the combined PD & CC0 option (pick it by
 //           hand), Gutenberg origin, Prepared by, and the v3.28.0 genre data-loss fix.
-// v3.28.0 — ⚠️ THE GENRE DROPDOWN HAD NO "Custom…" OPTION AND WAS ERASING DATA. The
-//           population loop appended GENRES and nothing else, so the __custom__ value that
-//           THREE handlers tested for could never occur and Sports had no way back into the
-//           list. Worse, the load path was `genreSelect.value = meta.genre`: a stored genre
-//           with no matching option sets selectedIndex -1, reads back as '', and the next
-//           Save Metadata wrote genre:''. Proven in jsdom. Genre is now the fourth field on
-//           readSelectOrCustom/writeSelectOrCustom/wireCustomSelect; Sports restored; a
-//           leading blank option added, without which a fresh form defaulted to "Adventure"
-//           and the autofill's !value guard declined to fill the genre it had just guessed.
-// v3.27.0 — CLASSROOM EDITIONS ARE NOT PUBLIC-DOMAIN-ONLY: rewording slurs is an editorial
-//           contribution and needs its own licence. readInBookSignals() does ONE spine walk
-//           (cap 4) for the classroom notice, Gutenberg's origin link and its Credits row; a
-//           cleaned PD-only book moves to combined PD+CC0, a CC BY book never does. New
-//           'Prepared by' field; 'Cleaned up by' is now a select.
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * loadBookList(selectFirst) defaults to FALSE and preserves the current
@@ -137,7 +123,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.33.0";
+const ADMIN_VERSION = "3.35.0";
 
 const GENRES = [
     "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
@@ -2183,10 +2169,10 @@ async function parseEpubFile(file) {
                             //     "successfully" and renders as a broken image, so it
                             //     must not pass silently. Check the preview.
                             const note = !sniffed
-                                ? ' ⚠ UNVERIFIED — bytes unrecognised, type taken from ' +
+                                ? ' ⚠️ UNVERIFIED — bytes unrecognised, type taken from ' +
                                   'the manifest. Check the preview actually shows art.'
                                 : (declared && declared !== sniffed
-                                    ? ' ⚠ manifest said ' + declared : '');
+                                    ? ' ⚠️ manifest said ' + declared : '');
                             coverNote = 'cover: ' + coverPath.split('/').pop() +
                                         ' (' + type + ')' + coverVia + note;
                         }
@@ -2440,12 +2426,12 @@ async function parseEpubFile(file) {
             // is the single most important thing on this screen — say it loudly
             // and say what to do. An excess means a <p> was counted twice, which
             // is odd but not lossy.
-            // ⚠ Subtract the title elements we removed ON PURPOSE, or the
+            // ⚠️ Subtract the title elements we removed ON PURPOSE, or the
             // reconciliation reports its own fix as data loss and warns in amber
             // on every single import.
             const pDelta = pSeen - pGrouped - titleSegmentsRemoved;
             const pNote = pDelta > 0
-                ? ` ⚠ ${pDelta} paragraph${pDelta === 1 ? '' : 's'} in the EPUB did not reach any chapter — check the chapter list before uploading.`
+                ? ` ⚠️ ${pDelta} paragraph${pDelta === 1 ? '' : 's'} in the EPUB did not reach any chapter — check the chapter list before uploading.`
                 : (pDelta < 0 ? ` (note: ${-pDelta} paragraph${pDelta === -1 ? '' : 's'} counted more than once)` : '');
             // ⚠️ THE COVER IS NAMED HERE, ALWAYS. (v3.18.3) The old summary
             // reported chapters, splits, reconciliation and language warnings and
@@ -4228,7 +4214,7 @@ uploadAllBtn.onclick = async () => {
         }
         const bookData = Object.assign({}, form.data, {
             totalChapters: stagedChapters.length,
-            // ⚠ Completion should be measured against this, not totalChapters.
+            // ⚠️ Completion should be measured against this, not totalChapters.
             bodyChapters: stagedBodyChapters ||
                           stagedChapters.filter(c => (c.matter || 'body') === 'body').length,
             chapters: chapterMeta,
@@ -4302,7 +4288,7 @@ uploadAllBtn.onclick = async () => {
             `${window._ttbLastPrune === -1 ? ', \u26a0 could not prune old chapters' : ''}.` +
             `${uploadCoverFailed ? '' : ' This book is done.'}`;
         if (uploadCoverFailed) {
-            statusEl.innerText += ' ⚠ COVER FAILED: ' + uploadCoverFailed;
+            statusEl.innerText += ' ⚠️ COVER FAILED: ' + uploadCoverFailed;
         }
         statusEl.style.borderColor = uploadCoverFailed ? "#ff3333"
             : ((bookData.minAge !== null && bookData.protagonistGender) ? "#00ff41" : "#ffaa00");
@@ -5852,7 +5838,7 @@ if (repairChapterOrderBtn) {
                 before.split(', ').map(id => '<span style="color:#888">' + id + '</span>').join(' ') +
                 '<br><br><strong>After (' + deduped.length + ' entries):</strong><br>' +
                 after.split(', ').map(id => '<span style="color:#66ccff">' + id + '</span>').join(' ') +
-                (dupCount > 0 ? '<br><br><span style="color:#ffaa00;">⚠ ' + dupCount + ' duplicate(s) will be removed.</span>' : '') +
+                (dupCount > 0 ? '<br><br><span style="color:#ffaa00;">⚠️ ' + dupCount + ' duplicate(s) will be removed.</span>' : '') +
                 '<br><br><button id="repair-confirm-btn" style="background:#004466;border:1px solid #006688;color:#66ccff;padding:8px 20px;cursor:pointer;border-radius:4px;">Write Repaired Order to Firestore</button>' +
                 ' <button id="repair-cancel-btn" style="background:#333;border:1px solid #555;color:#aaa;padding:8px 20px;cursor:pointer;border-radius:4px;">Cancel</button>';
 

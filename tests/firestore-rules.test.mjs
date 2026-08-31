@@ -46,7 +46,7 @@
 //
 import { initializeTestEnvironment, assertFails, assertSucceeds }
     from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, collection, getDocs, query, where, deleteDoc }
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, deleteDoc }
     from 'firebase/firestore';
 import { readFileSync } from 'fs';
 import assert from 'assert';
@@ -360,6 +360,151 @@ describe('student access', () => {
         await assertFails(setDoc(ref, { ...base, seconds: 999999 }));
     });
 
+    // ═════════════════════════════════════════════════════════════════════════
+    // firestore.rules v2.9.0 — STAFF MAY REMOVE A RUN, WITHIN THEIR OWN SCOPE
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // ⚠️⚠️ I COULD NOT RUN THESE. No Firebase CLI and no emulator in the
+    // environment they were written in, so every case below is UNEXECUTED.
+    // `npm run test:rules` is the command; run it before trusting a single one.
+    // The file's own header carries this warning for four earlier rounds and
+    // the reason has not changed: only the emulator sees a rule denial, and a
+    // denied write from reports.html looks to the teacher like a button that
+    // does nothing.
+    //
+    // WHY THEY EXIST: reports.html v2.33.0 ships a per-run ✕ that edits a
+    // session's `sprints[]` array. v2.8.0 allowed that update to isSuper() and
+    // the owner only — so it worked for Jake, who is super_admin, and would have
+    // been DENIED SILENTLY for every building admin and teacher. ⚠️ The round
+    // that shipped the button asserted in writing that no rules change was
+    // needed, having checked exactly one privileged account. Jake caught it.
+    // **A permission checked against one privileged account is not checked**,
+    // and the four cases below are the shape of that lesson.
+    //
+    // ⚠️ CASES 2–5 ARE THE ONES THAT MATTER. Case 1 proves the feature works;
+    // the rest prove it cannot become a write-anything power. If a future round
+    // relaxes one of the three clamps, exactly one of these should go red — if
+    // none does, the clamp was never load-bearing and this suite is decorative.
+    it('v2.9.0: a teacher CAN remove a run from a session in their own class', async () => {
+        const ref = `typing_sessions/${KID_EMS}|first|school|u1_l1`;
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), ref), {
+                uid: KID_EMS, schoolId: EMS, classId: 'c_ems', date: '2026-08-26',
+                seconds: 120, chars: 400, mistakes: 20, wpm: 40, accuracy: 95,
+                sprintCount: 2, sprints: [{ a: 1 }, { a: 2 }],
+                expiresAt: new Date(Date.now() + 100000),
+            });
+        });
+        const db = asClassTeacher().firestore();
+        await assertSucceeds(updateDoc(doc(db, ref), {
+            sprints: [{ a: 1 }], sprintCount: 1,
+            seconds: 60, chars: 200, mistakes: 10, wpm: 40, accuracy: 95,
+        }));
+    });
+
+    it('v2.9.0: a teacher CANNOT touch a session in a class they do not teach', async () => {
+        const ref = `typing_sessions/${KID_HMS}|first|school|u1_l2`;
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), ref), {
+                uid: KID_HMS, schoolId: HMS, classId: 'c_hms', date: '2026-08-26',
+                seconds: 120, chars: 400, mistakes: 20, wpm: 40, accuracy: 95,
+                sprintCount: 2, sprints: [{ a: 1 }, { a: 2 }],
+                expiresAt: new Date(Date.now() + 100000),
+            });
+        });
+        // An EMS teacher reaching into an HMS class. Scope is judged on the
+        // EXISTING document, so there is nothing the caller can send to widen it.
+        const db = asClassTeacher().firestore();
+        await assertFails(updateDoc(doc(db, ref), {
+            sprints: [{ a: 1 }], sprintCount: 1, seconds: 60, chars: 200,
+            mistakes: 10, wpm: 40, accuracy: 95,
+        }));
+    });
+
+    it('v2.9.0: ⚠️ staff CANNOT ADD a run — the list must strictly shrink', async () => {
+        const ref = `typing_sessions/${KID_EMS}|first|school|u1_l3`;
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), ref), {
+                uid: KID_EMS, schoolId: EMS, classId: 'c_ems', date: '2026-08-26',
+                seconds: 60, chars: 200, mistakes: 10, wpm: 40, accuracy: 95,
+                sprintCount: 1, sprints: [{ a: 1 }],
+                expiresAt: new Date(Date.now() + 100000),
+            });
+        });
+        const db = asClassTeacher().firestore();
+        // This is the clamp that makes widening the rule safe at all: the staff
+        // branch is a DELETE expressed as an update, and there is no shape of it
+        // a client can use to append.
+        await assertFails(updateDoc(doc(db, ref), {
+            sprints: [{ a: 1 }, { a: 2 }], sprintCount: 2, seconds: 120,
+            chars: 400, mistakes: 10, wpm: 40, accuracy: 95,
+        }));
+        // Same size, rewritten upward — refused by the seconds/chars clamps even
+        // though the size test alone would not catch it.
+        await assertFails(updateDoc(doc(db, ref), {
+            sprints: [{ a: 9 }], sprintCount: 1, seconds: 600,
+            chars: 9999, mistakes: 0, wpm: 200, accuracy: 100,
+        }));
+    });
+
+    it('v2.9.0: ⚠️ staff CANNOT move a session between scopes or past its TTL', async () => {
+        const ref = `typing_sessions/${KID_EMS}|first|school|u1_l4`;
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), ref), {
+                uid: KID_EMS, schoolId: EMS, classId: 'c_ems', date: '2026-08-26',
+                seconds: 120, chars: 400, mistakes: 20, wpm: 40, accuracy: 95,
+                sprintCount: 2, sprints: [{ a: 1 }, { a: 2 }],
+                expiresAt: new Date(Date.now() + 100000),
+            });
+        });
+        const db = asClassTeacher().firestore();
+        // hasOnly() names seven rollup fields. Every one of these rides along
+        // with an otherwise-legal shrink, which is exactly how a scope escape
+        // would arrive in practice.
+        for (const rider of [{ classId: 'c_hms' }, { schoolId: HMS },
+                             { uid: KID_HMS }, { date: '2026-08-27' },
+                             { expiresAt: new Date(Date.now() + 99999999) }]) {
+            await assertFails(updateDoc(doc(db, ref), {
+                sprints: [{ a: 1 }], sprintCount: 1, seconds: 60, chars: 200,
+                mistakes: 10, wpm: 40, accuracy: 95, ...rider,
+            }));
+        }
+    });
+
+    it('v2.9.0: a teacher CAN delete a session in their class (the last-run path)', async () => {
+        const ref = `typing_sessions/${KID_EMS}|first|school|u1_l5`;
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), ref), {
+                uid: KID_EMS, schoolId: EMS, classId: 'c_ems', date: '2026-08-26',
+                seconds: 60, chars: 200, mistakes: 10, wpm: 40, accuracy: 95,
+                sprintCount: 1, sprints: [{ a: 1 }],
+                expiresAt: new Date(Date.now() + 100000),
+            });
+        });
+        // ⚠️ EASY TO MISS AND THE REASON delete WAS WIDENED TOO: reports.html
+        // falls back to deleting the document when the LAST run goes, because a
+        // zero-run rollup is a ghost row the day recalculation ignores. Left at
+        // isSuper(), the button would work for a teacher until the run happened
+        // to be the final one — a bug that appears only on the tidiest days.
+        const db = asClassTeacher().firestore();
+        await assertSucceeds(deleteDoc(doc(db, ref)));
+    });
+
+    it('v2.9.0: a student STILL cannot delete their own session', async () => {
+        // The widening is staff-scoped. This is the regression guard on the
+        // case immediately below, which predates it.
+        const ref = `typing_sessions/${KID_EMS}|first|school|u1_l6`;
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await setDoc(doc(ctx.firestore(), ref), {
+                uid: KID_EMS, schoolId: EMS, classId: 'c_ems', date: '2026-08-26',
+                seconds: 60, chars: 200, mistakes: 10, wpm: 40, accuracy: 95,
+                sprintCount: 1, sprints: [{ a: 1 }],
+                expiresAt: new Date(Date.now() + 100000),
+            });
+        });
+        await assertFails(deleteDoc(doc(asKidEms().firestore(), ref)));
+    });
+
     it('student CANNOT delete their own typing_sessions doc', async () => {
         const db = asKidEms().firestore();
         const ref = doc(db, 'typing_sessions', `${KID_EMS}|first|library|z`);
@@ -466,7 +611,7 @@ describe('time correction (reports.html)', () => {
 });
 
 // ═══════════════ grade reconstruction (ROADMAP 15, reports.html) ═══════════════
-// ⚠⚠ THE ⚑ BUTTON WRITES TO A STUDENT'S lessonProgress, AND UNTIL rules v2.7.0
+// ⚠️⚠️ THE ⚑ BUTTON WRITES TO A STUDENT'S lessonProgress, AND UNTIL rules v2.7.0
 // NOTHING IN THIS FILE COULD. The rule was `request.auth.uid == uid` with no
 // staff branch, so the feature would have failed permission-denied for every
 // student except Jake's own account — the one account that never needed it.

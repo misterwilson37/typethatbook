@@ -1,5 +1,66 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.45.0, 2026-08-30.** ⭐✅ **ITEM 33 CLOSED — THE ONE THAT WAS COSTING CHILDREN
+SOMETHING EVERY DAY IT STAYED OPEN.** `reports.html` v2.34.0, `firestore.rules`
+v2.10.0. ⚠️⚠️ **AND IT SURFACED THAT v2.7.0 HAD THE SAME PERMISSION HOLE, SINCE
+ROUND 15**: `lessonProgress` was open to building-scoped staff only, so the ⛑
+grade-reconstruction button has been silently denied for every class teacher for
+forty rounds. Same root cause as v2.9.0, twice over — **a permission checked
+against one privileged account is not checked.** ⚠️⚠️ **BOTH RULES VERSIONS MUST
+BE PASTED INTO THE FIREBASE CONSOLE**; the new emulator cases are UNEXECUTED.
+
+**v3.44.0, 2026-08-30.** ⚠️⚠️ **`firestore.rules` v2.9.0 — THE PER-RUN DELETE
+NEEDED A RULES CHANGE AFTER ALL, AND JAKE CAUGHT IT.** v2.8.0 allowed the update to
+`isSuper()` and the owner only, so the ✕ worked for Jake and would have been
+silently denied for every building admin and teacher. The new staff branch is
+scoped by `canReadActivity(resource.data)` — the same predicate the read rule uses
+— and clamped so it can only ever REMOVE: `affectedKeys().hasOnly()` on seven
+rollup fields, `sprints.size()` must strictly shrink, and `seconds`/`chars` may not
+increase. `delete` is widened the same way, because the button deletes the document
+when the last run goes. ⚠️⚠️ **MUST BE PASTED INTO THE FIREBASE CONSOLE — a rules
+file in the repo changes nothing until it is deployed.** ⚠️ **The six new cases in
+`firestore-rules.test.mjs` are UNEXECUTED**; there is no emulator in the
+environment they were written in. `npm run test:rules`.
+
+**v3.43.0, 2026-08-30.** ✅ **ITEMS 32 AND 36 CLOSED** — `reports.html` v2.33.0 /
+markup v1.5.0, shipped as one loop with a floating legend. ✅ **And item 32 needed
+NO firestore.rules change** — this file said it did, and that was wrong: v2.8.0's
+`allow update: if isSuper()` already covers it. Nothing to paste into the console.
+⚠️ **Item 35 is deliberately still open**: the error-rate column exists so its
+threshold can be set from a real week rather than guessed. ⚠️⚠️ **Item 33 remains
+the one hurting children** and is untouched by the new delete button — the confirm
+dialog says so out loud.
+
+**v3.42.0, 2026-08-30.** ⭐ **ITEM 36 ADDED, AND ITEMS 32 + 35 + 36 ARE ONE
+FEATURE.** Jake chose item 35's shape 1 (flag, don't block) and asked for the flag
+at the DAY level, so he can tell which days need expanding without opening each
+one. ✅ **The finding that shapes it: `typing_logs` already carries `mistakes`
+beside `chars`, and the report already fetches it** — so a day-level error rate,
+which is exactly item 35's discriminator, costs ZERO additional reads. Every other
+flag he might want costs a read per student per day. **Build the free one first.**
+
+**v3.41.0, 2026-08-29.** ✅ **ITEM 31 CLOSED** — `learn.js` v2.41.0, one guarded
+repaint, with `drill-paint-test.mjs` asserting the invariant and not the call site.
+⚠️⚠️ **AND admin.js WAS LYING ABOUT ITS OWN VERSION, THE OTHER WAY ROUND FROM ROUND
+27.** The constant read `3.33.0` while the header carried honest v3.34.0 and
+v3.35.0 entries whose code is demonstrably in the file. The HEADER was true and the
+CONSTANT was stale — the build footer, the only diagnostic at a classroom machine,
+has been reporting a two-round-old admin.js. Constant bumped to 3.35.0; the two
+oldest entries archived for the 8-entry budget. **`npm test` and `audit:versions`
+were both red on arrival because of it and are green now.** ⚠️
+`metadata-map-test.mjs`'s 30 assertions were red BEFORE this round too and are NOT
+this round's doing.
+
+**v3.40.0, 2026-08-29.** ⭐ **SIX NEW ITEMS FROM JAKE'S CLEAN DAY — 30 THROUGH 35.**
+Reported after one ordinary school day on the Round 54 build: two defects
+(**30** adventure colour feedback, **31** the idle space-skip), two gaps in the
+reports panel (**32** run-level delete, **33** deleted evidence does not reach
+mastery), and two anti-farming asks (**34** the lesson-level lock, **35** the
+spam guard). ⚠️ **33 IS THE ONE THAT IS HURTING CHILDREN TODAY** — students
+Jake tested mastery on are locked out of lessons they never passed, and there is
+no code path today that can undo it. ⚠️ **31 AND 35 ARE DIAGNOSED TO THE LINE**;
+**30 IS NOT** and its heading says so.
+
 **v3.39.0, 2026-08-26.** ✅ **§READS MEASURED, AND readWeek() IS 65% OF EVERY
 READ.** A full student session cost 31 reads; 20 were `readWeek()`, and a Library
 page load is 5 reads of which 5 are that function, cold or warm.
@@ -227,7 +288,7 @@ numbers × the county's student count are the rollout argument.
 1. **29. ⚠️ README.md IS TWENTY-FIVE ROUNDS STALE**
    — ⚠️ The file map and data model. Cheap; do it on a round with room.
 2. **27. ⚠️ game.js READS A WEEK IT DOES NOT NEED — THE GUARD learn.js ALREADY HAS**
-   — ⚠⚠ **ITS VALUE COLLAPSED IN ROUND 52 AND NOBODY HAS RE-JUDGED IT.** The memo means the second call costs nothing already, and `loadUserStats()` needs the week regardless — so the guard now saves **roughly zero reads**. It is a tidiness/twin-symmetry item, not a performance one. **Do the harness first** if it is done at all.
+   — ⚠️⚠️ **ITS VALUE COLLAPSED IN ROUND 52 AND NOBODY HAS RE-JUDGED IT.** The memo means the second call costs nothing already, and `loadUserStats()` needs the week regardless — so the guard now saves **roughly zero reads**. It is a tidiness/twin-symmetry item, not a performance one. **Do the harness first** if it is done at all.
 
 Everything else still open:
 
@@ -238,6 +299,9 @@ Everything else still open:
 - 5. WHAT A NORMAL DAY LOOKS LIKE
 - 7. THE 5-SECOND FLOOR
 - 9. REDUCE THE SURFACE
+- 30. ⚠️ ADVENTURE MODE GIVES NO COLOUR FEEDBACK ON A WRONG KEY — AND CAPS LOCK IS WHERE IT SHOWS
+- 34. ⚠️ THE LESSON-LEVEL MASTERY LOCK ONLY CLOSES WHEN EVERY RUN IS MASTERED
+- 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
 
 ## ⏳ WATCHING — no action, just don't forget
 
@@ -271,6 +335,10 @@ Everything else still open:
 - 8b. ✅ RETIRED TO CONVENTION (Round 53) — A STANDING RULE, NOT A TASK
 - 28. ✅ CLOSED (Round 54, Blickensderfer) — THE CLOSED-DAY CACHE
 - 6. ✅ CLOSED (Round 51, Blickensderfer) — THE MIDNIGHT STRADDLE, BOTH HALVES
+- 31. ✅ CLOSED (Round 55) — THE IDLE SPACE-SKIP LEFT THE SPACE BAR LIT
+- 33. ✅ CLOSED (Round 55) — MASTERY CAN NOW BE CLEARED FOR A LESSON
+- 36. ✅ CLOSED (Round 55) — THE DAY ROW NOW SAYS WHAT HAPPENED
+- 32. ✅ CLOSED (Round 55) — A RUN CAN NOW BE DELETED WITHOUT ITS SESSION
 - 16. ✅ FIXED (Round 40) — THE BUILD PANEL ON `reports.html` AND `admin.html`
 - 17. ✅ CLOSED (Rounds 35–40) — REPORTS READ EVERY RECORD OF EVERY STUDENT
 - 18. ✅ CLOSED (Rounds 36–40) — THE READ BUDGET
@@ -346,7 +414,7 @@ filter, `school-audit.html`, and the harness count (**17 → 58**).
 *"what the project is; file map, data model."* A stale file map is worse than
 none: it sends a reader to a module that has since moved or been split.
 
-⚠⚠ **AND IT HAS BEEN DESTROYED ONCE BEFORE.** Round 28 found the project README
+⚠️⚠️ **AND IT HAS BEEN DESTROYED ONCE BEFORE.** Round 28 found the project README
 overwritten wholesale by a copy of `tests/README.md`. **Read what is actually in
 it before editing**, and do not let the two converge again.
 
@@ -374,7 +442,7 @@ user.isAnonymous) return false;` and then reads unconditionally. **Another
 hand-maintained twin**, and the divergence is measurable: School's map load
 costs 5 daylog reads, Library's book load costs 10.
 
-⚠⚠ **THIS WAS DELIBERATELY NOT DONE IN THE §READS ROUND, AND THE REASON MUST
+⚠️⚠️ **THIS WAS DELIBERATELY NOT DONE IN THE §READS ROUND, AND THE REASON MUST
 SURVIVE.** `game.js` has **no `anonSecondsAccum`** — no page-local guest
 accumulator at all — so the guard cannot be copied across, it has to be
 AUTHORED. And this is the code path with a history of losing guest minutes:
@@ -408,18 +476,18 @@ in play:
 | cold load | 3 | 1800s |
 | every load after | **2** | 1800s |
 
-⚠⚠ **AND IT NO LONGER GROWS WITH THE WEEK.** That was the actual defect: reads
+⚠️⚠️ **AND IT NO LONGER GROWS WITH THE WEEK.** That was the actual defect: reads
 scaled with how many days a child had typed, on every page load, so a five-day
 typist paid five reads per load by Friday. It is now **flat at two**, Monday or
 Friday.
 
-⚠⚠ **YESTERDAY IS NEVER CACHED.** "A closed day never changes" is *almost* true
+⚠️⚠️ **YESTERDAY IS NEVER CACHED.** "A closed day never changes" is *almost* true
 and the margin is where the bug would live — the Overnight Rescue
 (game.js v3.37.0's `carryOverPlan()`) credits typing to THE DAY IT WAS TYPED ON
 and reaches back into yesterday's document. Caching it would hide that
 correction from the child who earned it, to save one read.
 
-⚠⚠ **THE CACHE EXPIRES AT LOCAL MIDNIGHT, AND THE REASON IS NOT A GUESS AT A
+⚠️⚠️ **THE CACHE EXPIRES AT LOCAL MIDNIGHT, AND THE REASON IS NOT A GUESS AT A
 TTL.** A teacher's ⟳ recalc rewrites a past day's document *from the teacher's
 browser*, which cannot invalidate a student's localStorage. **There is no hook to
 add** — an expiry is the only mechanism available, and a school day is the right
@@ -812,7 +880,7 @@ Route: Library → sprint → leaderboard → Library → School → lesson → 
 | index.html — **cold AND warm** | 5 | **0** |
 | learn.html | 5 | 3 |
 
-⚠⚠ **`readWeek()` WAS 20 OF THE 31 — 65%.** Every other read site in the whole
+⚠️⚠️ **`readWeek()` WAS 20 OF THE 31 — 65%.** Every other read site in the whole
 session was 1–2 calls. **There is one cost centre, not several.** A Library page
 load is five reads of which five are that one function, and cold and warm are
 identical because nothing cached it across loads.
@@ -1734,7 +1802,7 @@ finishing? It counted the time and everything."*
 
 ### ✅ CONFIRMED, AND HE WAS EXACTLY RIGHT ABOUT THE SYMPTOM
 
-### ⚠⚠️ BUT THE MECHANISM BELOW WAS WRONG, AND THE CORRECTION IS THE USEFUL PART
+### ⚠️⚠️ BUT THE MECHANISM BELOW WAS WRONG, AND THE CORRECTION IS THE USEFUL PART
 
 **Shipped in `learn.js` v2.33.1.** `exitLessonToMap()` flushes, refreshes the
 progress cache, then reloads — and carries anything unflushed across.
@@ -1841,7 +1909,7 @@ Reports would then show a fireball count per student, which is what Jake wanted
 when he noticed the report *"didn't share the grades (where I could have counted
 the number of flaming A's)."*
 
-### ⚠⚠️ IT CANNOT RUN OFF `typing_logs`, AND THAT CHANGES THE BUILD
+### ⚠️⚠️ IT CANNOT RUN OFF `typing_logs`, AND THAT CHANGES THE BUILD
 
 **Verified in the code, Round 31.** `typing_logs/{uid}_{date}` holds `uid`,
 `email`, `displayName`, `seconds`, `chars`, `mistakes`, `source`, `classId`,
@@ -2639,7 +2707,7 @@ during first period rather than during testing.
 ### H. ✅ BUILT (Round 41) — the measurement
 
 ⭐ **SHIPPED in `lessons-admin.js` v1.15.0, for ZERO EXTRA READS.** It rides the
-`⚠ Find stuck` sweep, which already reads one `lessonProgress` subcollection per
+`⚠️ Find stuck` sweep, which already reads one `lessonProgress` subcollection per
 filtered student. A second button would have re-read the same ~300 documents to
 answer a neighbouring question about the same data.
 
@@ -2726,3 +2794,476 @@ the measurement is cheaper.
   `toISOString()`, never at flush time, never by this-module's-idea-of-today.
   Round 24 found the one path that had drifted from this and it had been there
   since the guest queue shipped. `adopt-date-test.mjs` holds the line.
+
+
+---
+
+## 30. ⚠️ ADVENTURE MODE GIVES NO COLOUR FEEDBACK ON A WRONG KEY — AND CAPS LOCK IS WHERE IT SHOWS
+
+**Jake, 2026-08-29:** *"Adventure mode caps lock is invisible. The bar pops up,
+but the words are the same color."*
+
+⚠️ **THE WARNING BAR ITSELF IS PROBABLY FINE AND THAT IS WHY THIS ITEM IS
+WORDED THE WAY IT IS.** `#caps-warning` is a DOM element in `game.html`;
+`style.css` paints it white on `#D32F2F` and `adventure.css` v-current repaints
+it `#f2e8d5` on `#c0392b`, later in the cascade and at higher specificity. Both
+pairs are legible, neither rule is `!important`-shadowed by anything else in
+`adventure.css` (grepped: the only `!important` colour rules are the book-info
+bar's), and `game.js`'s keydown handler toggles `.hidden` on it in every view.
+**Read literally, the reported symptom should not be possible, so the report is
+probably about the TEXT BEING TYPED, not the bar's own lettering.**
+
+⚠️⚠️ **AND THERE THE ASYMMETRY IS REAL AND IT IS IN THE CODE.**
+`adventure.css` sets `body.view-adventure #text-stream { display: none
+!important }` — the per-letter `<span id="char-N">` nodes that carry
+`error-state`, the `applyMissShade()` background and the `done-dirty` colour are
+**not on screen in adventure at all**. The canvas draws the text instead, from
+`_ttbEmit` events, and `_onKeystroke()` in `adventure-renderer.js` writes
+`this.letterStatus[pos]` **only inside its `if (d.correct)` branch**. There is no
+`else`. A wrong key gets a transient `mistakeFlash` and a tilt; it never earns a
+persistent colour the way a classic-mode letter does.
+
+**So: with caps on, a child in classic mode sees a wall of red and knows. In
+adventure they see the bar, and the letters look the same as always.** That is
+exactly the sentence Jake wrote.
+
+**BEFORE BUILDING, ASK JAKE ONE QUESTION AND DO NOT GUESS THE ANSWER:** *"is the
+bar's own text unreadable, or is it the typed letters that don't change?"* The
+two have nothing in common — one is four lines of CSS, the other is a renderer
+change — and building the wrong one costs a round. ⚠️ A screenshot settles it in
+one glance and Jake has students who take them.
+
+⚠️ **IF IT IS THE RENDERER:** the fix is an `else` branch in `_onKeystroke()`
+that records a persistent wrong-key status, NOT a second colour system. The
+statuses already exist (`perfect`/`fixed`/`dirty`) and the canvas already reads
+them. **Do not reach for the DOM spans** — hiding them is deliberate and
+`display:none` is what makes the canvas the single painter.
+
+## 31. ✅ CLOSED (Round 55) — THE IDLE SPACE-SKIP LEFT THE SPACE BAR LIT
+
+✅ **FIXED IN `learn.js` v2.41.0.** One `advanceHandGuide()` call inside the
+idle-resume space skip, guarded on `drillPos` having actually moved. ⚠️ Nothing
+else changed — no threshold, no timing, no scoring. **`tests/drill-paint-test.mjs`
+asserts the INVARIANT rather than the call**: every mutation of `drillPos` is
+followed by a painter at its own brace depth. ⚠️⚠️ **Part B's depth rule is the
+line that makes the harness worth anything** — the first draft PASSED against the
+real defect, because the skip's `{ finishStep(); return; }` guard clause sat
+between the mutation and the end of the block and a depth-blind scan read it as
+"painted". A painter on a branch that returns cannot paint the path that falls
+through. Mutation-verified against the original code.
+
+⚠️ **DO NOT "FIX" THIS IN `advanceHandGuide()`.** Its `if (ch !== ' ')` guard was
+never the bug; clearing `space-active` unconditionally would kill the space cue on
+the one frame the student is being asked to press it. Part D pins that guard.
+
+### The original report, kept
+
+**Jake, 2026-08-29:** *"the space bar will highlight instead of the following
+letter regularly enough to notice... the two dots appeared on the space bar when
+the game expected the first letter of the following word."*
+
+✅ **FOUND, AND IT IS FIVE LINES IN `learn.js`.** `handleDrillKey()`, the
+idle-resume space skip:
+
+```js
+const wasIdle = learnLastInputTime > 0 &&
+                (Date.now() - learnLastInputTime) > LEARN_IDLE_THRESHOLD;
+if (wasIdle && drillPos < drillSequence.length && drillSequence[drillPos] === ' ') {
+    drillPos++;
+    if (drillPos >= drillSequence.length) { finishStep(); return; }
+}
+const newExpected = drillSequence[drillPos];
+```
+
+**It moves `drillPos` past the space and never repaints the keyboard.**
+`advanceHandGuide()` — the only function that moves the target highlight, the
+hand guide and the space cue — is not called on this path. The last paint
+happened at the END of the previous keystroke, when the space WAS the target, so
+the space bar is still carrying `space-active` and `#space-hint` is still
+visible. **The two dots Jake's students photographed are the thumb circles that
+`setHandGuideToChar()` put there for a character the game has already skipped.**
+
+⚠️ **AND `advanceHandGuide()` CANNOT SELF-CORRECT HERE, BY DESIGN.** Its
+space-clearing line is guarded: `if (ch !== ' ')` clears `space-active`, with the
+comment *"Clear space-active only when moving away from a space, not when landing
+on one."* The guard is right; nothing is calling the function.
+
+**WHY IT READS AS INTERMITTENT:** `LEARN_IDLE_THRESHOLD` is **3000ms**, and the
+skip only fires when the paused-on character is a space. A three-second pause at
+a word boundary is an ordinary thing for a beginning typist to do — which is why
+it happens often enough for a class to notice and never on demand for a teacher.
+
+**THE FIX IS ONE CALL**, after the skip and before `newExpected` is read. ⚠️
+**But guard it on `drillPos` actually having moved**, not on `wasIdle` — a paint
+on a position that did not change is a no-op today and a flicker the first time
+somebody adds an animation to it. ⚠️ **A HARNESS MUST ASSERT THE INVARIANT, NOT
+THE CALL**: *every mutation of `drillPos` outside `renderDrillText()`'s own path
+is followed by a highlight refresh.* This is the third position/paint divergence
+in this file's history; guarding the specific line leaves the next one open.
+
+## 32. ✅ CLOSED (Round 55) — A RUN CAN NOW BE DELETED WITHOUT ITS SESSION
+
+✅ **SHIPPED IN `reports.html` v2.33.0 / markup v1.5.0.** A ✕ on every sprint row.
+
+⚠️⚠️ **AND THE ROUND GOT THE RULES QUESTION WRONG TWICE BEFORE JAKE FIXED IT.**
+The item first said this "ships as one unit with a rules change, exactly like item
+24 did". That was then CORRECTED to "no rules change needed" on the strength of
+`allow update: if isSuper()` covering Jake. **Both were wrong.** Jake: *"Building
+admin should be able to do it for their building and teachers for their class."*
+The second claim checked exactly one privileged account — the one doing the
+testing — and every building admin and teacher would have found the ✕ present and
+silently denied. ⚠️ **A PERMISSION CHECKED AGAINST ONE PRIVILEGED ACCOUNT IS NOT
+CHECKED.** `firestore.rules` v2.9.0 adds the staff branch.
+
+⚠️ **THE SUPERSEDED CLAIM, KEPT SO THE MISTAKE IS LEGIBLE:** This item said it "ships as one unit with a rules change, exactly like
+item 24 did". ⚠️ **It does not.** `firestore.rules` v2.8.0 reads
+`allow update: if isSuper() || (owner && …)`, and Jake is super_admin — he must
+be, because the whole-session delete beside it is `allow delete: if isSuper()` and
+he uses it daily. The super branch already permits the write. **The owner branch
+does not and must not**: it revalidates every create-time field, and a student
+editing their own sprint list is the forgery that whitelist exists to stop.
+
+⚠️ **THE ROLLUP IS RECOMPUTED IN THE SAME WRITE**, from the surviving sprints —
+`seconds`, `chars`, `mistakes`, `wpm`, `accuracy`, `sprintCount`. Leaving them
+stale would make a session row disagree with its own sprint list, which is item
+4's divergence signature manufactured by the tool meant to clean it up. WPM is
+recomputed from characters over time, not averaged across the surviving sprints,
+which would weight a 5-second run equally with a five-minute one.
+
+⚠️⚠️ **THE RUN IS IDENTIFIED BY `sprintIdentity()`, NEVER BY ARRAY INDEX.** An
+index is stale the instant one run is removed, so a second click would delete a
+different run than the one under the cursor. And it removes **exactly one** —
+`findIndex` + splice, not `filter` — because two genuinely identical runs share an
+identity and a filter would silently take both.
+
+⚠️ **THE CONFIRM SAYS IT DOES NOT CLEAR MASTERY.** Item 33 is still open. A
+teacher who deletes a run expecting a child to be unlocked would otherwise be
+quietly wrong and the child would stay locked out.
+
+### The original report, kept
+
+**Jake, 2026-08-29:** *"as an admin, I can only delete full sessions, not
+individual runs. I'd love to be able to delete individual runs."*
+
+✅ **CONFIRMED.** `reports.html`'s drill-down renders a `.session-entry` with a
+`.delete-session-btn` and, under it, a `.sprint-list` of per-run rows carrying
+their grade pips and the 🚩 flag. **The run rows are display-only** — there is no
+button, no handler and no data attribute pointing at anything deletable. The
+delete path calls `deleteDoc(doc(db, "typing_sessions", sessionId))` on the whole
+rollup and then `recalcDailyLog(..., { allowZero: true, expectDrop: true })`.
+
+⚠️⚠️ **THE HARD PART IS NOT THE BUTTON, IT IS THAT A RUN IS NOT A DOCUMENT.**
+Runs live as sprint entries INSIDE a `typing_sessions` document; `splitSessionTotals()`
+sums SPRINTS, not documents (Round 44's reader fix). So deleting one run is an
+**update** to a session document, not a delete — which means:
+
+- `firestore.rules` must permit a staff `update` on `typing_sessions`, and today
+  v2.8.0 grants `update` to the **owner** only, added for item 24's idempotent
+  writer. ⚠️ **This ships as one unit with a rules change, exactly like item 24
+  did**, and the rules go in the console by hand or the button does nothing.
+- the session's own rollup fields (`seconds`, `wpm`, `accuracy`, `sprintCount`)
+  are now wrong and must be recomputed from the surviving sprints **in the same
+  write**, or the drill-down and its parent row disagree — which is item 4's
+  divergence signature, manufactured by hand.
+- `sessionSignature()` feeds the duplicate detector. Editing a session changes
+  its signature. ⚠️ **Check what that does to `_isDupe` before shipping**; a
+  dedupe that stops recognising a known duplicate is a silent inflation.
+- and `recalcDailyLog(..., { expectDrop: true })` must still run afterwards, for
+  the same reason the session delete calls it: `typing_logs` is the graded
+  document and nothing else updates it.
+
+⭐ **DO 33 IN THE SAME ROUND OR THIS BUTTON MAKES 33 WORSE**, because it hands
+Jake a faster way to delete evidence that mastery still will not hear about.
+
+## 33. ✅ CLOSED (Round 55) — MASTERY CAN NOW BE CLEARED FOR A LESSON
+
+✅ **SHIPPED: `reports.html` v2.34.0 / markup v1.6.0, `firestore.rules` v2.10.0.**
+A ⊘ in the ◈ grades panel on any lesson with banked mastery.
+
+⚠️⚠️ **SHAPE 3 OF THE THREE THIS ITEM WEIGHED — A CONTROL, NOT AN AUTOMATIC
+CONSEQUENCE OF DELETING A RUN.** Shape 1 (subtract on delete) stays unbuilt for
+the reason written above: `runScores` is a cumulative SUM and `runGrades` is
+best-ever-seen, so neither can have one entry removed, and subtraction would be
+wrong silently. Shape 2 (a per-run ledger) is a fourth copy of a quantity already
+stored twice — Rule 9.
+
+**What it does:** clears `runScores` and `runLocks` **together**, keeps
+`runGrades` / `runFires` / `runAttempts` / `runFailures`, and re-derives
+`users/{uid}.lastLockDay` from the surviving maximum across the WHOLE
+subcollection.
+
+⚠️⚠️ **THE GLOBAL CLOCK IS THE PART THAT IS EASY TO MISS.** `lastLockDay` is the
+reach-back window for the entire curriculum. Clearing the lesson that happened to
+set it would leave the stamp pointing at a crossing that no longer exists — the
+same child, still locked out, by a different mechanism. Re-read AFTER the write,
+never from the copy the panel loaded.
+
+⚠️⚠️ **`deleteField()`, NEVER AN EMPTY MAP.** An empty map is a value:
+`runScoreOf()` finds no entry, falls through to `pointsForGrade(record.grade)` —
+the legacy seed — and re-awards points from the best-ever grade this button just
+declined to trust. `clear-mastery-test.mjs` C4/C5 pin both halves, mutation-verified.
+
+⚠️⚠️ **AND `firestore.rules` v2.7.0 HAD THE SAME HOLE AS v2.8.0, UNNOTICED SINCE
+ROUND 15.** It opened `lessonProgress` to `readsWholeBuilding()` staff — false for
+an ordinary teacher, whose readScope defaults to `own_classes`. So the ⛑
+reconstruction button has ALSO been teacher-denied this whole time, for the same
+reason and unnoticed for the same reason: the only person testing it reads the
+whole building. v2.10.0 adds a `teachesClass()` branch against the student's own
+`classId`, plus a narrow `lastLockDay` branch on the user document.
+
+⚠️ **THE MANUAL WORKAROUND IN THE ORIGINAL ITEM IS NO LONGER NEEDED**, but the
+note about the Game Genie stays true and is worth keeping: `gg-unlock` writes
+`passed: true` and does NOT clear mastery, so it still will not fix a
+`'practice'` lesson.
+
+### The original report, kept
+
+**Jake, 2026-08-29:** *"deleted runs do not impact mastery judgement. So the poor
+kids who had me test mastery are now locked out of the earliest lessons when
+they're not the ones who tested out."*
+
+⚠️⚠️⚠️ **THIS IS THE ONE COSTING CHILDREN SOMETHING RIGHT NOW, AND IT IS NOT A
+MISSING CALL — IT IS TWO RECORDS THAT HAVE NEVER BEEN CONNECTED.**
+
+Mastery does not live in `typing_sessions` or in `typing_logs`. It lives in the
+student's `userProgress[lessonId]` record, written by `recordRunOutcome()` in
+`learn.js`: `runScores`, `runGrades`, `runFires`, `runLocks`, `runAttempts`,
+`runFailures`. `runModeFor()` reads `runScores` (via `runMastered()`) and
+`runLocks` (via `lastLockDayOf()`), and nothing else.
+
+**The delete path touches neither.** Deleting a session removes evidence and
+recalculates `typing_logs` — the MINUTES. `runScores` is untouched, so the four
+points Jake banked while demonstrating are still banked, `runMastered()` is still
+true, `runModeFor()` still returns `'practice'`, and the child still cannot earn
+anything in a lesson they never mastered. ⚠️ **`recalcDailyLog()` cannot be
+extended to fix this**: it recomputes a day's totals from sessions, and mastery
+is not a function of a day.
+
+⚠️⚠️ **AND MASTERY IS NOT RECONSTRUCTIBLE FROM SESSIONS, SO “JUST RECALCULATE IT”
+IS NOT AVAILABLE.** `runScores[k]` is a **cumulative sum** — the file says so
+itself: *"runScores is a SUM and cannot tell one A🔥 from two A's"*. `runGrades[k]`
+is best-ever-seen. Neither is a log, so neither can have one entry removed. ⚠️
+And `runLocks[k]` / `lastLockDay` were stamped on the crossing and drive
+reach-back **globally**, for every lesson, not just this one.
+
+**THREE SHAPES, AND THE THIRD IS PROBABLY RIGHT:**
+
+1. **Subtract on delete.** Needs the deleted run's grade to reverse
+   `pointsForGrade()`. ⚠️ `runScores` is a sum and `runGrades` is a max, so
+   subtraction cannot restore either faithfully, and un-stamping `runLocks`
+   silently moves every other lesson's reach-back. **Do not build this.**
+2. **Recompute from a per-run ledger.** Correct, and the ledger does not exist —
+   it would be the fourth record of a quantity already stored twice. Rule 9.
+3. ⭐ **A staff “clear mastery for this run / this lesson” control in reports,
+   next to the delete.** Explicit, auditable, needs no reconstruction, and it is
+   what Jake actually needs today: he knows exactly which children and which
+   lessons. It also serves the same need after item 32's per-run delete.
+
+⚠️ **WHATEVER SHIP, IT MUST CLEAR `runScores[k]` AND `runLocks[k]` TOGETHER AND
+RE-DERIVE `lastLockDay`**, or the child is unlocked in one lesson and the
+reach-back clock still says they proved something.
+
+⚠️ **THERE IS A MANUAL WORKAROUND FOR TODAY AND JAKE SHOULD HAVE IT NOW**, before
+any of this is built: the Game Genie overlay in `learn.js` has a `gg-unlock`
+button that writes `{ passed: true, grade: 'B', adminOverride: true }`. **It
+unlocks; it does NOT clear mastery**, so it will not fix a `'practice'` lesson.
+For an affected child the field that has to change is `runScores` on their
+`lessonProgress` record, edited in the Firestore console.
+
+## 34. ⚠️ THE LESSON-LEVEL MASTERY LOCK ONLY CLOSES WHEN EVERY RUN IS MASTERED
+
+**Jake, 2026-08-29:** *"Kids have found a workaround for the mastery lock by
+reaching the end of a lesson, going back to the map, and doing it again... Perhaps
+a three strikes tracking?"*
+
+⚠️ **PARTIALLY DIAGNOSED. DO NOT BUILD FROM THIS ITEM WITHOUT WATCHING A CHILD
+DO IT ONCE** — the mechanism below is consistent with the report and with the
+code, and it is not confirmed.
+
+**WHAT THE CODE SAYS.** The gate is per RUN, not per lesson. `runMastered(rec, k)`
+is true when any run at index ≥ k has 4 points, so mastered runs form a PREFIX and
+open runs a SUFFIX; `firstOpenRunIdx()` drops the student at the first run that
+still pays. `lessonModeFor()` returns `'practice'` **only when every run in the
+lesson is practice** — its own comment: *"A lesson is 'practice' only when EVERY
+run in it is."*
+
+⚠️⚠️ **SO THE LESSON-LEVEL LOCK CLOSES LAST, AND THE LAST RUNS ARE THE HARDEST.**
+A child who masters the early runs and stops short of the late ones has a lesson
+that is still graded, still replayable, and still paying — indefinitely. Walking
+to the end and back to the map re-enters at `firstOpenRunIdx()` and collects
+again. **That is not a bug in the gate; it is the gate's stated design meeting a
+child who found its edge.**
+
+⚠️ **AND `lesson-gate.js` FORBIDS THE OBVIOUS FIX, IN CAPITALS, FOR A GOOD
+REASON:** *"DO NOT ADD A DISTANCE OR TIME CONDITION THAT APPLIES TO AN UNMASTERED
+LESSON. It would invert the feature and punish the struggling student, who is the
+one this app exists for."* **Read that before proposing anything.** A child
+replaying an unmastered run is doing the thing Jake called *a GOOD thing*, and the
+farming child and the struggling child look identical from inside the gate.
+
+⭐ **WHICH IS WHY JAKE'S OWN ASK — TRACK IT, DON'T BLOCK IT — IS THE RIGHT
+INSTINCT AND IS ALMOST FREE.** `recordRunOutcome()` **already writes
+`runAttempts[k]` and `runFailures[k]` on every run, and has since Round 32.** The
+counter for a three-strikes rule exists and is already persisted. ⚠️ **And
+`reports.html` does not read either field — grep returns zero.** So the first
+move is not a rule, it is a COLUMN: surface `runAttempts` in the drill-down, look
+at a real week, and set the threshold from the distribution. ⚠️⚠️ **§0.-33.A IS
+EXACTLY THIS MISTAKE ALREADY MADE ONCE** — a threshold picked with no data fired
+on every row. **Measure first, and pair this with item 5.**
+
+## 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
+
+**Jake, 2026-08-29:** *"kids spamming the keyboard in the early lessons. When
+it's just two keys, it's not hard to finish a lesson with an F."*
+
+✅ **CONFIRMED, AND IT IS ARITHMETIC RATHER THAN A DEFECT.** `learn.js` has two
+guards, and **both count CONSECUTIVE mistakes and both reset to zero on any
+correct key** (`drillConsecutiveMistakes = 0; // reset on any correct key`):
+
+- `DRILL_HARD_STOP_THRESHOLD = 5` — the hard-stop overlay
+- `DRILL_SPAM_THRESHOLD = 10` — restarts the run
+
+**In a two-key lesson, mashing lands on the right key about half the time.**
+Reaching five consecutive wrong keys is a coin flip run of five — roughly one
+attempt in thirty — and ten is one in a thousand. **The guard is not failing; it
+is unreachable in exactly the lessons Jake is describing.** The threshold was set
+for prose, where the alphabet is wide and a masher misses nearly every key.
+
+⚠️ **AND THE TWIN COMMENT IS A LIE, WHICH IS ITS OWN SMALL FINDING.**
+`DRILL_HARD_STOP_THRESHOLD = 5` is annotated *"(matches game.js)"*. `game.js` has
+`SPAM_THRESHOLD = 3`. They have never matched. ⚠️ Fix the comment or the number
+in whichever round touches this, and note that the two files are NOT twins here —
+`game.js` types a book and `learn.js` types a two-key drill, and one number
+cannot be right for both.
+
+**WHAT IT ACTUALLY COSTS TODAY, WHICH IS LESS THAN IT LOOKS.** `pointsForGrade()`
+gives **0 for both F and B**, and `MASTERY_POINTS` is 4. **A spammed F earns no
+mastery and cannot unlock anything.** What it does earn is TIME in `typing_logs`
+and an attempt on the record — a daily-goal number, not a grade. ⚠️ **Say this
+to Jake before building anything**, because it changes what the fix is for: this
+is minutes-farming, not mastery-farming, and item 33 is the one distorting
+mastery.
+
+**SHAPES, CHEAPEST FIRST:**
+
+1. **Scale the threshold to the lesson's key count.** A run over an `n`-key
+   alphabet should stop at far fewer consecutive misses when `n` is 2. Pure
+   arithmetic, lives in `lesson-gate.js` where the rules already are, and is
+   testable without a browser.
+2. **Count TOTAL mistakes in the run, not consecutive ones.** Mashing produces a
+   ≥50% error rate over the whole run; a struggling child produces a low rate
+   with occasional streaks. ⚠️ This is the discriminator the consecutive counter
+   is missing, and it is the one that does not punish the struggling student.
+3. ⚠️ **Jake's *"stop tracking after 3 repeated false attempts"* — careful.**
+   Suppressing minutes on a run that still files a session is item 4's divergence
+   signature manufactured on purpose; §0.-21.C's ruling is that **the three
+   omissions are one decision**. If a run stops paying, it must write NOTHING,
+   the way `practiceRun` does.
+
+**MEASURE FIRST, WITH ITEM 5.** A per-run error rate is already derivable from
+the sessions data; look at what a real class produces on lesson 1 before choosing
+a number.
+
+
+---
+
+## 36. ✅ CLOSED (Round 55) — THE DAY ROW NOW SAYS WHAT HAPPENED
+
+✅ **SHIPPED IN `reports.html` v2.33.0 / markup v1.5.0**, with item 32, as one loop.
+
+**What landed:** a free error-rate column on every day row; four scan-only flag
+icons (repeated F, speed jump, duplicate, tiny runs); a "Scan for flags" button
+that states its cost and asks before spending; and a `position: fixed` legend in
+the dead right-hand margin beside the 960px container, collapsible, that **stops
+floating below 1360px** so it can never sit on top of the data.
+
+⚠️⚠️ **THE TWO ASSERTIONS THAT MATTER, AND BOTH ARE ABOUT LYING QUIETLY:**
+"no answer" is never rendered as `0%` (a day with a log and no typing, or a
+pre-cutover day with no split, shows a dash), and **"not scanned" never looks like
+"scanned, clear"**. Both failure modes lie in the direction of *this child was
+fine*, which is the direction nobody checks. `tests/day-flags-test.mjs` pins both,
+mutation-verified.
+
+⚠️ **THE SCAN'S BLIND SPOT IS ON SCREEN, NOT BURIED.** `gradeSprintsForDay()`
+REFUSES rather than guesses on a drifted `runCount`, so a day it cannot grade
+shows no "Repeated F" even if it had one — indistinguishable from a clean day. The
+legend says so. An undisclosed false negative on a cheating check is worse than no
+check.
+
+⚠️ **THE THRESHOLDS ARE PROVISIONAL AND SAY SO IN EVERY TOOLTIP.** §0.-33.A.
+The column shows the RATE precisely so Jake can watch a real week before item 35
+picks a number.
+
+### The original report, kept
+
+**Jake, 2026-08-30:** *"I'd like a flag for days, too, so I know which days need
+to be expanded... Something that tells me at a glance what the kids did without
+having to expand each day to find out."* Chosen together with item 35's shape 1
+(flag, don't block) and item 32 (delete a run, not a session).
+
+⭐ **32 + 35 + 36 ARE ONE FEATURE AND SHOULD SHIP AS ONE.** Flag the day → expand
+it → delete the run. Any one alone leaves the loop open: a flag with no per-run
+delete tells Jake about a problem he still cannot fix, and a per-run delete with
+no flag makes him hunt for the run by expanding every day.
+
+✅ **ONE FLAG IS ALREADY FREE, AND THAT FINDING SHAPES THE WHOLE ITEM.**
+A `typing_logs` document carries **`mistakes` beside `chars`** — see `daylog.js`
+`readDay()`, and both split triples (`mistakesLibrary` / `mistakesSchool`) carry it
+too. The report already fetches that document for every day row it draws;
+`log.chars` is rendered in the row today and `log.mistakes` is sitting in the same
+object, unread.
+
+**So the day-level error rate — `mistakes / (chars + mistakes)` — costs ZERO
+additional reads.** It is exactly item 35's discriminator (a masher sits at ≥50%,
+a struggling child at 10–20%), computed at the level Jake wants to see it, from
+data already on the screen. ⚠️ **Build this one first and alone**, because it is
+the only flag in the list that is free, and shipping it proves the surface before
+anything expensive is attached to it.
+
+⚠️⚠️ **EVERY OTHER FLAG COSTS READS — SAY SO OUT LOUD BEFORE DESIGNING THE COLUMN.**
+F-streaks, duplicate rollups, per-run grades and mastery state live in
+`typing_sessions` and `lessonProgress`, which this page reads **only on expansion,
+on click**. A day row that knew about them would have to read them for every
+student and every day in the range on every Generate — the drill-down's cost
+multiplied by the whole class. ⚠️ **That is the read explosion this file has spent
+ten rounds avoiding, and it would arrive disguised as a convenience.**
+
+⭐ **THE SHAPE THAT GETS THE REST WITHOUT THE EXPLOSION: A SCAN BUTTON, PAID ONCE,
+ON DEMAND.** One `typing_sessions` query bounded by the report's own date range and
+student set — the same query shape the drill-down and `reconstructGrades()` already
+use — stamps EVERY day row at once, instead of one query per expansion. Jake pays
+the reads deliberately, by pressing a button, and gets the whole grid lit up. ⚠️
+**Same discipline as the stuck scan and the grades panel: cheap when asked for,
+wasteful on a timer. It must never run on load.**
+
+**FLAGS OR COLUMNS — Jake asked, and the answer is BOTH, split by cost:**
+
+- **A COLUMN for the free one.** Error rate is present for every day, always, with
+  no work — a column is honest about that. ⚠️ Show the RATE, not just an icon: the
+  number is what lets Jake set item 35's threshold from real data instead of
+  guessing, and §0.-33.A is that mistake already made once.
+- **ICONS for the scanned ones**, appearing only after a scan, because an icon that
+  is absent can mean "clean" or "not looked at" and a column cannot say "unknown"
+  gracefully. ⚠️ **The unscanned state must be visibly different from the clean
+  state**, or the report lies by omission.
+- ⚠️ **DO NOT REUSE THE EXISTING FLAG GLYPH.** It already means "much faster than
+  this student's other runs today" on sprint rows and "unusual stats" on session
+  rows. A third meaning at a third level makes all three unreadable. New glyphs,
+  and a legend that says what each one means.
+
+⚠️ **ONE THING THE DAY FLAG CANNOT DO, AND MUST NOT PRETEND TO.** `mistakes` is a
+day TOTAL across Library and School both. A child who read a book cleanly and then
+mashed a two-key lesson shows a diluted rate; a child who did nothing but one bad
+lesson shows a stark one. **The split fields are right there** — `mistakesSchool`
+/ `charsSchool` — so the School-only rate is equally free and is the one that
+matches item 35's concern. ⚠️ **Use the split, and label which one is on screen**,
+or the column reads as an accusation of the wrong activity.
+
+⚠️⚠️ **PRE-CUTOVER DAYS HAVE NO SPLIT.** `daylog.js`'s cutover is date-gated
+(2026-08-22); a day before it carries only the flat triple. The column must show
+the combined rate for those days and **say that it is combined** — silently mixing
+two meanings in one column is §3.1's defect wearing a report's clothes.
+
+⚠️ **A ZERO-CHARACTER DAY IS NOT A 0% DAY.** `mistakes / (chars + mistakes)` is
+0/0 on a day with a log and no typing, and a column that renders that as a clean
+green 0% is worse than a blank. Render nothing, not zero.

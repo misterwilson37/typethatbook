@@ -1,9 +1,15 @@
 # docs/
 
-<!-- docs/README.md v1.0.0 — Round 17 (Linotype). New file. This is a map, not a
+<!-- docs/README.md v1.1.0 — Round 17 (Linotype). New file. This is a map, not a
      second copy of anything: every line below points at a file and says what it is
      good for. Round 13 and Round 14 both burned time on document maps that listed
-     files which were not in the repo. Everything listed here is in this folder. -->
+     files which were not in the repo. Everything listed here is in this folder.
+
+     v1.1.0 — Round 55: registered TEACHER-GUIDE.md, the first teacher-facing
+     document in the repo. ⚠️ It is listed under Current with the rest, but it is
+     a different KIND of document and its row says so — a maintainer who edits it
+     like the others will write developer prose into the one file that must not
+     have any. -->
 
 Reference material. Nothing here is served or deployed; it is what you read before
 changing something.
@@ -19,6 +25,7 @@ entry points, and a reader who has to open a folder to find the handoff will not
 | `README-SESSION-LOGGING.md` | You are working on session history, the week-counter audit, or the ID stamp. Companion to `HANDOFF.md`. |
 | `TTL-GUIDE.md` | You are changing retention or looking at the Firestore bill. Console runbook for the two TTL policies and the three composite indexes. ⚠️ TTL lives in the **Google Cloud** console, not the Firebase one — that trips everyone. |
 | `SCALE-PLAN.md` | You are about to assume something about cost or load at district scale. The 7,000-student model. ⚠️ Read its header box: statuses were corrected and its Security section's premise was false. |
+| `TEACHER-GUIDE.md` | ⭐ **You are a teacher, or you are about to change something a teacher can see.** The reports panel in a teacher's words: pulling a report, what the error-rate column and flag icons mean, deleting a run, and clearing mastery. ⚠️ The only document here NOT written for whoever is editing the code — keep it that way. Its maintainer footnotes map each section back to its roadmap item. |
 | `PEDAGOGY-AUDIT.md` | You are changing lesson mode and want to know why students stalled in it the first time. |
 
 ## archive/

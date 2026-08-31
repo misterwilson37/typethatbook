@@ -1,6 +1,96 @@
 rules_version = '2';
 
-// firestore.rules v2.8.0 — TypeThatBook
+// firestore.rules v2.10.0 — TypeThatBook
+//
+// v2.10.0 — ⚠️⚠️ A CLASS TEACHER MAY NOW WRITE lessonProgress FOR THEIR OWN
+//           STUDENTS. ROADMAP 33.
+//
+//           v2.7.0 opened lessonProgress to BUILDING-SCOPED staff for the ⛑
+//           grade-reconstruction button: `isStaff() && readsWholeBuilding() &&
+//           inMySchool(…)`. ⚠️ readsWholeBuilding() is FALSE for an ordinary
+//           teacher — their readScope defaults to 'own_classes' — so a class
+//           teacher could read a student's mastery record and not write it.
+//           ROADMAP 33's ⊘ clear-mastery control would have been denied for
+//           exactly the people Jake wants using it.
+//
+//           ⚠️ SAME MISTAKE AS v2.9.0, ONE COLLECTION OVER, AND IT WAS ALREADY
+//           IN THE FILE WHEN v2.9.0 WAS WRITTEN. The ⛑ button has had this
+//           limitation since v2.7.0 and nobody noticed, because the only person
+//           testing it reads the whole building. **A permission checked against
+//           one privileged account is not checked** — v2.9.0's note says this
+//           and it applies here retroactively.
+//
+//           The new branch mirrors canReadActivity()'s third clause:
+//           teachesClass() against the STUDENT'S OWN classId, read from their
+//           user document. Same predicate, same source of truth, so a teacher
+//           can write mastery for exactly the students whose activity they can
+//           already read and not one more.
+//
+//           ⚠️ THE STUDENT'S classId IS READ FROM THEIR user DOCUMENT, NEVER
+//           FROM THE PAYLOAD. Judging the incoming document would let a caller
+//           hand us the class that authorises its own write.
+//
+//           ⚠️ COSTS ONE get() ON THE USER DOC AND ONE ON THE CLASS DOC, both
+//           cached per request. The building branch above already pays the
+//           first, so a building admin's cost is unchanged; only the teacher
+//           branch adds the class lookup, and only when the building branch has
+//           already failed.
+//
+//           ⚠️ MUST DEPLOY WITH learn.js / reports.html of the same round. A
+//           clear-mastery button whose write is denied looks to the teacher like
+//           a button that does nothing — the silent-failure shape v2.7.0, v2.8.0
+//           and v2.9.0 all carry this same warning about.
+//
+// v2.9.0 — ⚠️⚠️ STAFF MAY REMOVE A RUN, WITHIN THEIR OWN SCOPE. ROADMAP 32.
+//          reports.html v2.33.0 ships a per-run ✕ that edits a session's
+//          `sprints[]` array — an UPDATE, not a delete, because a run is not a
+//          document. v2.8.0 allowed that update to isSuper() and to the OWNER
+//          only, so the button worked for Jake and DENIED SILENTLY for every
+//          building admin and teacher.
+//
+//          ⚠️ THE ROUND THAT SHIPPED THE BUTTON GOT THIS WRONG IN WRITING.
+//          ROADMAP 32 originally said the feature "ships as one unit with a
+//          rules change"; that was then CORRECTED to "no rules change needed"
+//          on the strength of isSuper() covering Jake. Both were wrong. The
+//          first was right for the wrong reason and the second checked only
+//          the one person who was testing it. **Jake caught it: "Building
+//          admin should be able to do it for their building and teachers for
+//          their class."** A permission checked against one privileged account
+//          is not checked.
+//
+//          ⚠️⚠️ THE STAFF BRANCH CAN ONLY EVER REMOVE, NEVER ADD OR INFLATE,
+//          and that is what makes widening this safe. Three clamps, together:
+//            1. affectedKeys().hasOnly([…]) — the seven rollup fields and
+//               nothing else. uid, date, schoolId, classId and expiresAt are
+//               untouchable, so a teacher cannot move a record into their own
+//               scope, out of another's, or past its TTL.
+//            2. sprints.size() must STRICTLY DECREASE. This is a delete-only
+//               power expressed as an update. There is no shape of this rule a
+//               client can use to append a run.
+//            3. seconds and chars must not increase. Belt and braces on (2):
+//               even a same-size list cannot be rewritten upward, and minutes
+//               are the currency ROADMAP 35 is about.
+//
+//          ⚠️ SCOPE IS canReadActivity(resource.data) — THE EXISTING DOCUMENT,
+//          not the incoming one. Judging the payload would let a client hand us
+//          the stamps that authorise its own write. Same predicate the read rule
+//          uses, so a staff member can edit exactly the records they can already
+//          see and not one more: building admins by schoolId, teachers by
+//          teachesClass(classId).
+//
+//          ⚠️ A PRE-v3.4.2 DOCUMENT HAS NO STAMPS AND SO IS SUPER-ONLY, which
+//          is the right way round and matches the read rule's own note below.
+//
+//          ⚠️⚠️ DELETE IS WIDENED THE SAME WAY AND FOR A REASON THAT IS EASY TO
+//          MISS: reports.html's per-run handler falls back to deleting the
+//          whole document when the LAST run is removed, because a zero-run
+//          rollup is a ghost row the day recalculation ignores. Leaving delete
+//          at isSuper() would make the button work for a teacher until the run
+//          it removed happened to be the last one.
+//
+//          ⚠️ MUST DEPLOY WITH reports.html v2.33.0. Without it the ✕ is
+//          present and denied for everyone but Jake — the same silent-failure
+//          shape as v2.7.0 and v2.8.0, and the reason both carry this warning.
 //
 // v2.8.0 — ⚠️⚠️ THE typing_sessions OWNER MAY NOW UPDATE, UNDER THE SAME
 //          VALIDATION AS create. ROADMAP item 24: session-log.js v1.7.0 makes
@@ -316,7 +406,28 @@ service cloud.firestore {
                  .hasOnly(['classId', 'schoolId'])
             && (inMySchool(resource.data.schoolId)
                 || !('schoolId' in resource.data)
-                || resource.data.schoolId == ''));
+                || resource.data.schoolId == ''))
+        // ⚠️⚠️ v2.10.0 — ROADMAP 33. lastLockDay, AND NOTHING ELSE, IN ITS OWN
+        // BRANCH. Clearing a lesson's mastery invalidates this stamp: it is the
+        // reach-back clock for EVERY lesson and it records when the student last
+        // PROVED something. Leaving it behind means a child is unlocked in one
+        // lesson while the global clock still says they mastered something today.
+        //
+        // ⚠️ SEPARATE FROM THE classId/schoolId BRANCH ABOVE ON PURPOSE. Folding
+        // lastLockDay into that hasOnly() would let the roster importer write it
+        // too, and a CSV import has no business touching a mastery clock.
+        //
+        // ⚠️ THE VALUE IS CLAMPED. It is a day count, so a negative or absurd
+        // number would push reach-back out past any real date and silently lock a
+        // child out of everything. 20000 days is ~55 years.
+        || (isStaff()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['lastLockDay'])
+            && request.resource.data.lastLockDay is number
+            && request.resource.data.lastLockDay >= 0
+            && request.resource.data.lastLockDay <= 20000
+            && (inMySchool(resource.data.schoolId)
+                || teachesClass(resource.data.classId)));
 
       // Assigning a student who exists in Auth but has never had a user document.
       allow create: if request.auth.uid == uid
@@ -399,7 +510,13 @@ service cloud.firestore {
         || (collection == 'lessonProgress'
             && (isSuper()
                 || (isStaff() && readsWholeBuilding() && inMySchool(
-                      get(/databases/$(database)/documents/users/$(uid)).data.schoolId))));
+                      get(/databases/$(database)/documents/users/$(uid)).data.schoolId))
+                // ⚠️ v2.10.0 — ROADMAP 33. The class-teacher branch. Mirrors
+                // canReadActivity()'s third clause exactly, against the
+                // STUDENT'S OWN classId from their user document — never from
+                // the payload, which the caller controls.
+                || (isStaff() && teachesClass(
+                      get(/databases/$(database)/documents/users/$(uid)).data.classId))));
       allow read: if request.auth.uid == uid
         || isSuper()
         || (isStaff() && inMySchool(
@@ -618,6 +735,11 @@ service cloud.firestore {
       // EXISTING document and `create`'s `resource` is null; a shared
       // function taking both would need the same five checks written twice
       // inside it anyway.
+      // ⚠️ v2.9.0 — A THIRD BRANCH: STAFF, WITHIN SCOPE, REMOVAL ONLY.
+      // See the header note. The three clamps below are not independent
+      // niceties — they are what makes this a delete expressed as an update,
+      // and removing any one of them turns it into a write-anything power for
+      // every teacher in the district. Read all three before touching one.
       allow update: if isSuper()
                     || (signedIn()
                         && resource.data.uid == request.auth.uid
@@ -627,8 +749,25 @@ service cloud.firestore {
                         && request.resource.data.seconds <= 86400
                         && request.resource.data.sprints is list
                         && request.resource.data.sprints.size() <= 200
-                        && request.resource.data.expiresAt is timestamp);
-      allow delete: if isSuper();
+                        && request.resource.data.expiresAt is timestamp)
+                    || (canReadActivity(resource.data)
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['sprints', 'sprintCount', 'seconds',
+                                       'chars', 'mistakes', 'wpm', 'accuracy'])
+                        && request.resource.data.sprints is list
+                        && resource.data.sprints is list
+                        && request.resource.data.sprints.size()
+                             < resource.data.sprints.size()
+                        && request.resource.data.seconds is number
+                        && request.resource.data.seconds >= 0
+                        && request.resource.data.seconds <= resource.data.seconds
+                        && request.resource.data.chars is number
+                        && request.resource.data.chars >= 0
+                        && request.resource.data.chars <= resource.data.chars);
+      // ⚠️ v2.9.0 — the per-run button deletes the document when the LAST run
+      // goes, so a teacher who can remove runs must be able to reach that case
+      // or the button breaks on the final one. Same scope predicate as update.
+      allow delete: if canReadActivity(resource.data);
     }
 
     // These carry email, displayName, and the full generated paragraph, so they
