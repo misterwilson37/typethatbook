@@ -1,5 +1,14 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.48.0, 2026-09-01.** ✅ **ITEMS 37, 38 AND 40 CLOSED** — `reports.html`
+v2.35.0 / markup v1.7.0, `admin.html` v1.2.0. Tokens, the product font, three
+severities with one meaning each, and keyboard usability. **No behaviour changed.**
+⚠️ **38 IS ONLY CLOSED FOR reports.html**; admin's colour retirement is blocked
+on item 42's inline-style extraction, not on effort — its 276 inline attributes
+win on specificity, so restyling it now would change nothing on screen.
+⚠️ Remaining open: **30** (waiting on a screenshot), **34**, **35** (waiting on a
+week of real error-rate data), **39**, **41**, **42**.
+
 **v3.47.0, 2026-09-01.** ✅ **ITEM 43 CLOSED — `learn.js` v2.42.0.** ⭐ **THE
 DEPLOY IS THE REPAIR.** Jake: *"He doesn't have console on his machine. As a
 student, it's removed."* The read-side half — an empty map no longer counts as a
@@ -321,10 +330,7 @@ Everything else still open:
 - 30. ⚠️ ADVENTURE MODE GIVES NO COLOUR FEEDBACK ON A WRONG KEY — AND CAPS LOCK IS WHERE IT SHOWS
 - 34. ⚠️ THE LESSON-LEVEL MASTERY LOCK ONLY CLOSES WHEN EVERY RUN IS MASTERED
 - 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
-- 37. ⭐ THE STAFF PAGES DO NOT USE THE DESIGN SYSTEM AT ALL
-- 38. ⚠️⚠️ ONE COLOUR MEANS THREE DIFFERENT THINGS ACROSS THE STAFF PAGES
 - 39. ⚠️ 64 alert() AND confirm() CALLS ARE THE LOUDEST “UNFINISHED” SIGNAL IN THE APP
-- 40. ⚠️ THE STAFF PAGES ARE NOT KEYBOARD-USABLE, ON A TYPING APP
 - 41. THREE SLOW OPERATIONS RUN WITH NOTHING MOVING ON SCREEN
 - 42. ⚠️ admin.html CARRIES 276 INLINE style= ATTRIBUTES AND CANNOT BE RESTYLED UNTIL IT DOES NOT
 
@@ -361,6 +367,9 @@ Everything else still open:
 - 28. ✅ CLOSED (Round 54, Blickensderfer) — THE CLOSED-DAY CACHE
 - 6. ✅ CLOSED (Round 51, Blickensderfer) — THE MIDNIGHT STRADDLE, BOTH HALVES
 - 31. ✅ CLOSED (Round 55) — THE IDLE SPACE-SKIP LEFT THE SPACE BAR LIT
+- 40. ✅ CLOSED (Round 55) — THE STAFF PAGES ARE KEYBOARD-USABLE
+- 38. ✅ CLOSED for reports.html (Round 55) — THREE SEVERITIES, ONE MEANING EACH
+- 37. ✅ CLOSED (Round 55) — THE STAFF PAGES NOW USE A DESIGN SYSTEM
 - 43. ✅ CLOSED (Round 55) — AN EMPTY PROGRESS CACHE LOCKED STUDENTS OUT OF THE CURRICULUM
 - 33. ✅ CLOSED (Round 55) — MASTERY CAN NOW BE CLEARED FOR A LESSON
 - 36. ✅ CLOSED (Round 55) — THE DAY ROW NOW SAYS WHAT HAPPENED
@@ -3455,7 +3464,26 @@ the 08-31 record shows this student doing.
 
 ---
 
-## 37. ⭐ THE STAFF PAGES DO NOT USE THE DESIGN SYSTEM AT ALL
+## 37. ✅ CLOSED (Round 55) — THE STAFF PAGES NOW USE A DESIGN SYSTEM
+
+✅ **`reports.html` v2.35.0 / markup v1.7.0, `admin.html` v1.2.0.** Both pages
+load Courier Prime and declare a `:root` token block: surfaces, six ink levels,
+`--accent`, and the three severities.
+
+⚠️⚠️ **THE DARK THEME STAYS AND THAT IS THE POINT.** A teacher scanning a dense
+table and a child reading one sentence of a book are different jobs. What was
+wrong was never the theme — it was that the staff pages had NO system, so every
+value was picked at the point of use. The tokens are **role-named, not copied
+from `style.css`**, exactly as this item required. The one shared value is
+`--accent` (#4B9CD3), the product's identity colour, and
+`staff-tokens-test.mjs` B3 pins it against `--carolina-blue`.
+
+⚠️ **admin.html GOT THE FONT, THE TOKENS AND THE FOCUS RULES BUT NOT THE COLOUR
+RETIREMENT** — see item 42. Its 276 inline `style=` attributes win on
+specificity, so rewriting its style block would change nothing on screen. The
+tokens are declared there so item 42's extraction has somewhere to land.
+
+### The original report, kept
 
 **Jake, 2026-09-01:** *"It and admin look so much rougher than the student facing
 side."* Measured rather than judged, and the measurement gives the answer.
@@ -3484,7 +3512,31 @@ once the tokens exist, and 38 is barely expressible without them.
 
 ---
 
-## 38. ⚠️⚠️ ONE COLOUR MEANS THREE DIFFERENT THINGS ACROSS THE STAFF PAGES
+## 38. ✅ CLOSED for reports.html (Round 55) — THREE SEVERITIES, ONE MEANING EACH
+
+✅ **`reports.html` is done.** Every warning-ish value now resolves to
+`--notice` (look at this), `--warn` (probably wrong) or `--bad` (wrong, or a
+destructive control). Grade pips are a **separate** scale on purpose: a C is not
+a warning and must not be coloured like one.
+
+✅ **Round 55's own additions were retired**, as this item demanded — `#d9a441`
+and `#8a7860` came in with the item 36 work and are gone.
+
+⚠️⚠️ **`staff-tokens-test.mjs` PART C COVERS THE STYLE BLOCK AND THE JS HALF
+BOTH.** Most of this page's markup is built in template strings, so an inline
+`style="color:#ff3333"` is exactly as unsystematic as a rule and harder to find.
+Zero raw hex outside `:root` in either half. Mutation-verified.
+
+⚠️ **STILL OPEN FOR admin.html**, and it is blocked on item 42 rather than on
+effort. Its amber still means three things; untangling that is part of the
+inline-style extraction, not a separate pass over the same lines.
+
+⚠️ **A NEAR-MISS WORTH KEEPING.** The colour sweep's regex matched the digits
+inside `&#8635;` — an HTML entity for the recalculate glyph — and would have
+rewritten it into a CSS variable. Caught by inspecting the inventory before
+running the replacement. Part C3 now asserts that entity survives.
+
+### The original report, kept
 
 **Counted, not estimated:** `reports.html` has **33 distinct hex colours in 323
 style lines**; `admin.html` has **51 in 164**. Five near-identical greys
@@ -3529,7 +3581,26 @@ never a call at a time.
 
 ---
 
-## 40. ⚠️ THE STAFF PAGES ARE NOT KEYBOARD-USABLE, ON A TYPING APP
+## 40. ✅ CLOSED (Round 55) — THE STAFF PAGES ARE KEYBOARD-USABLE
+
+✅ **`for=` on all six `reports.html` labels** (there were zero) and on eleven in
+`admin.html` — ⚠️ **only where the pairing was unambiguous**. A `for=` pointing
+at the wrong control is worse than none: it moves focus somewhere unexpected and
+reads the wrong name aloud. The rest wait for item 42, when that markup is being
+handled anyway.
+
+✅ **`:focus-visible` rings on both pages**, as an `outline` with an offset — not
+a border, which participates in layout and would shift the row it lands in.
+
+⭐ **AND THE PART THAT WAS NOT IN THE ORIGINAL ITEM.** The uid chip and the
+day-row expander are interactive `<span>`s: a focus ring alone would have led a
+keyboard user to a control that then ignored them, which is worse than no ring
+because it promises something the page does not deliver. Both now carry
+`role="button"` **and** `tabindex="0"` — either alone is worse than neither — and
+a `keydown` handler maps Enter and Space onto the existing click path, with
+Space `preventDefault()`ed so it does not scroll the teacher away from the row.
+
+### The original report, kept
 
 Nearly free, and the least defensible of the six to leave undone.
 

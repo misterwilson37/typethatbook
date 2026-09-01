@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- admin.html v1.1.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.2.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
@@ -9,10 +9,78 @@
     <meta charset="UTF-8">
     <!-- Fallback only. admin.js overwrites this from ADMIN_VERSION on load (v3.24.0),
          so do not treat this number as authoritative or keep it in sync by hand. -->
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
     <title>TypeThatBook Admin</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; }
+        /* ═══════════════════════════════════════════════════════════════════
+           ROADMAP 37 + 40 — PARTIAL, AND THE LIMIT IS DELIBERATE
+           ═══════════════════════════════════════════════════════════════════
+
+           ⚠️⚠️ WHAT LANDED HERE: the shared font, the token block, and the
+           focus rules. WHAT DID NOT: retiring this page's 51 distinct colours
+           onto those tokens.
+
+           ⚠️⚠️ THAT IS ROADMAP 42 AND IT IS NOT SKIPPED LAZINESS. This file
+           carries 276 INLINE style= ATTRIBUTES against reports.html's 33, and
+           admin.js builds much of its markup as strings — so most of this
+           page's colour lives in the JavaScript, not in this block. Rewriting
+           the ~164 lines below would leave the page looking exactly as it does
+           now, because the inline attributes win on specificity. The tokens are
+           declared here so that item 42's extraction has somewhere to land;
+           using them before that extraction would be motion without progress.
+
+           ⚠️ SO: A NEW RULE IN THIS BLOCK SHOULD USE THE TOKENS. An existing
+           inline style= should be MOVED here as part of item 42 rather than
+           re-coloured in place, or the extraction gets harder rather than
+           easier.
+
+           The token names and values are the same set as reports.html. ⚠️ IF
+           ONE CHANGES THERE IT CHANGES HERE — two staff pages with the same
+           token names and different values would be worse than no tokens at
+           all, and there is no shared stylesheet to enforce it. */
+        :root {
+            --surface:      #111111;
+            --surface-1:    #191919;
+            --surface-2:    #222222;
+            --rule:         #333333;
+            --rule-strong:  #444444;
+
+            --ink:          #eeeeee;
+            --ink-bright:   #ffffff;
+            --ink-dim:      #aaaaaa;
+            --ink-dimmer:   #888888;
+            --ink-faint:    #666666;
+            --ink-ghost:    #555555;
+
+            /* SHARED WITH style.css --carolina-blue, do not drift */
+            --accent:       #4B9CD3;
+
+            /* ⚠️ THE THREE SEVERITIES (ROADMAP 38). One meaning each. Amber
+               currently means three different things across this page; that is
+               untangled as part of item 42's extraction, not before it. */
+            --notice:       #d9a441;
+            --warn:         #ff9800;
+            --bad:          #ff5555;
+            --good:         #22c55e;
+        }
+
+        body { background: var(--surface); color: var(--ink); font-family: 'Courier Prime', 'Courier New', monospace; padding: 20px; }
+
+        /* ── ROADMAP 40 — KEYBOARD USABILITY ────────────────────────────────
+           One :focus rule in this whole file, and one for= across 60+ labels.
+           ⚠️ :focus-visible so the ring reaches keyboard users without firing
+           on every mouse click, and an outline rather than a border so it never
+           shifts the layout of the row it lands in. */
+        a:focus-visible,
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible,
+        [tabindex]:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
         .container { max-width: 900px; margin: 0 auto; padding-bottom: 80px; }
         
         input, textarea, button, select { 
@@ -210,7 +278,7 @@
         <div class="import-box" style="border-color: #4B9CD3;">
             <h3 style="margin-top:0; color:#4B9CD3;">1. Database Manager</h3>
             
-            <label>Select Book / Action</label>
+            <label for="book-select">Select Book / Action</label>
             <select id="book-select">
                 <option value="">Loading books...</option>
             </select>
@@ -240,22 +308,22 @@
                  control answers. Do not "tidy" the file input back down under the
                  text fields — top-to-bottom is now the actual workflow. -->
             <div id="create-new-ui" class="hidden" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
-                <label>1. Choose the EPUB &mdash; everything below fills itself in</label>
+                <label for="new-epub-file">1. Choose the EPUB &mdash; everything below fills itself in</label>
                 <input type="file" id="new-epub-file" accept=".epub">
                 <div id="autofill-status" style="font-size:0.8em; color:#888; min-height:1.15em; margin:6px 0 12px;"></div>
 
                 <label style="color:#777; font-size:0.85em; text-transform:uppercase; letter-spacing:0.05em;">2. Check what it read</label>
                 <div class="row">
                     <div class="col">
-                        <label>Book ID (e.g. dracula)</label>
+                        <label for="new-book-id">Book ID (e.g. dracula)</label>
                         <input type="text" id="new-book-id" placeholder="From the title">
                     </div>
                     <div class="col">
-                        <label>Display Title (e.g. Dracula)</label>
+                        <label for="new-book-title">Display Title (e.g. Dracula)</label>
                         <input type="text" id="new-book-title" placeholder="From &lt;dc:title&gt;">
                     </div>
                     <div class="col">
-                        <label>Author (e.g. Bram Stoker)</label>
+                        <label for="new-book-author">Author (e.g. Bram Stoker)</label>
                         <input type="text" id="new-book-author" placeholder="From &lt;dc:creator&gt;">
                     </div>
                 </div>
@@ -273,11 +341,11 @@
                 
                 <div class="row" style="border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 10px;">
                     <div class="col" style="flex:2;">
-                        <label>Book Display Title</label>
+                        <label for="active-book-title">Book Display Title</label>
                         <input type="text" id="active-book-title">
                     </div>
                     <div class="col">
-                        <label>Author</label>
+                        <label for="active-book-author">Author</label>
                         <input type="text" id="active-book-author" placeholder="e.g. Mark Twain">
                     </div>
                     <div class="col" style="display:flex; align-items:flex-end;">
@@ -317,7 +385,7 @@
                             </div>
                         </div>
                         <div class="col">
-                            <label>Protagonist</label>
+                            <label for="active-book-protagonist">Protagonist</label>
                             <select id="active-book-protagonist" style="width:100%;">
                                 <option value="">— Not tagged —</option>
                                 <option value="female">Female</option>
@@ -529,15 +597,15 @@
                 <div style="padding: 15px; border:1px solid #333; margin-bottom:20px;">
                     <div class="row">
                         <div class="col">
-                            <label>Chapter Number (Supports 0, 1.1)</label>
+                            <label for="manual-chap-num">Chapter Number (Supports 0, 1.1)</label>
                             <input type="number" id="manual-chap-num" value="1" step="any">
                         </div>
                         <div class="col">
-                            <label>Chapter Title (Optional)</label>
+                            <label for="manual-chap-title">Chapter Title (Optional)</label>
                             <input type="text" id="manual-chap-title">
                         </div>
                     </div>
-                    <label>JSON Segments</label>
+                    <label for="json-content">JSON Segments</label>
                     <textarea id="json-content" rows="15"></textarea>
                     
                     <div id="chap-edit-position" class="hidden" style="font-size:0.8em; color:#4B9CD3; margin-bottom:6px;"></div>
@@ -679,7 +747,7 @@
                                font-family:inherit; font-size:0.8em; border-radius:3px; width:160px;
                                vertical-align:middle; box-sizing:border-box;">
                     <button id="student-refresh-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">↺</button>
-                    <button id="stuck-scan-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;" title="Read every filtered student's lesson progress and list runs they can't clear">⚠ Find stuck</button>
+                    <button id="stuck-scan-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;" title="Read every filtered student's lesson progress and list runs they can't clear">⚠️ Find stuck</button>
                     <button id="student-csv-toggle-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">CSV Import</button>
                     <button id="student-one-toggle-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">Add One Student</button>
                 </div>

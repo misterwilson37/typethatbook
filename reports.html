@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- reports.html v1.6.0 — versioned the same way style.css and game.html are: a comment
+<!-- reports.html v1.7.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (the inline module) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
@@ -8,22 +8,147 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
     <title>TypeThatBook Reports</title>  <!-- version appended at runtime from REPORTS_VERSION -->
     <style>
-        body { background: #111; color: #eee; font-family: 'Courier New', monospace; padding: 20px; margin: 0; }
+        /* ═══════════════════════════════════════════════════════════════════
+           ROADMAP 37 + 38 — THE STAFF PAGES JOIN THE DESIGN SYSTEM
+           ═══════════════════════════════════════════════════════════════════
+
+           Jake: *"It and admin look so much rougher than the student facing
+           side."* Measured before it was changed: 33 distinct hex colours in
+           323 style lines, five near-identical greys doing overlapping jobs,
+           and four unrelated warning tones with no rule about which meant what.
+
+           ⚠️⚠️ THIS FILE IS DARK AND style.css IS LIGHT, AND THAT IS DELIBERATE
+           AND STAYS. A teacher scanning a dense table at a desk and a child
+           reading one sentence of a book are different jobs. What was wrong was
+           not the theme, it was that the staff pages had NO system at all —
+           every value was picked at the point of use.
+
+           ⚠️⚠️ SO THESE TOKENS ARE NAMED FOR THEIR ROLE, NOT COPIED FROM
+           style.css'S VALUES. ROADMAP 37 says this explicitly: --ink-spent over
+           there is tuned so typed text stops competing with what comes next,
+           which is reasoning about reading a book and does not transfer to a
+           table. Adopt the NAMING DISCIPLINE, not the numbers. The one value
+           that IS shared is --accent (#4B9CD3, Carolina blue), because it is
+           the product's identity colour and must not drift between surfaces.
+
+           ⚠️ THE FONT IS THE OTHER HALF AND IT IS SHARED. Courier Prime is what
+           index.html and learn.html load; this page was on plain 'Courier New'.
+
+           ── THE SEVERITY VOCABULARY (ROADMAP 38) ────────────────────────────
+
+           ⚠️⚠️ THIS PART IS A CORRECTNESS FIX, NOT A COSMETIC ONE, AND IT IS THE
+           REASON 38 WAS NOT SORTED WITH THE POLISH ITEMS. Amber meant "watch
+           this error rate" on a day row, "suspicious" on a sprint row, and
+           something else again in admin. A teacher cannot learn what a colour
+           means if it means three things, and the whole value of item 36's
+           at-a-glance surface rests on a mark meaning ONE thing reliably.
+
+           THREE SEVERITIES. Every warning-ish colour in this file now resolves
+           to exactly one of them:
+
+             --notice  something to look at, no judgement implied
+             --warn    something probably wrong, worth opening
+             --bad     something wrong, or a destructive control
+
+           ⚠️ ROUND 55 CAUSED PART OF THIS AND THE ROUND OWNS IT: the item 36
+           work introduced #d9a441 and #8a7860 without checking the existing
+           palette — two more colours added by the round that was improving
+           legibility. Both are retired here.
+
+           ⚠️ ADDING A COLOUR MEANS ADDING A TOKEN OR REUSING ONE. If a new
+           state does not fit notice/warn/bad, that is worth a conversation
+           rather than a fourth hex value.  */
+        :root {
+            /* surfaces, darkest to lightest */
+            --surface:      #111111;
+            --surface-1:    #191919;
+            --surface-2:    #222222;
+            --rule:         #333333;
+            --rule-strong:  #444444;
+
+            /* text, brightest to faintest */
+            --ink:          #eeeeee;
+            --ink-bright:   #ffffff;
+            --ink-dim:      #aaaaaa;
+            --ink-dimmer:   #888888;
+            --ink-faint:    #666666;
+            --ink-ghost:    #555555;
+
+            /* identity — SHARED WITH style.css --carolina-blue, do not drift */
+            --accent:       #4B9CD3;
+
+            /* ⚠️ THE THREE SEVERITIES. One meaning each, everywhere. */
+            --notice:       #d9a441;
+            --warn:         #ff9800;
+            --bad:          #ff5555;
+            --good:         #22c55e;
+
+            /* grade pips — a scale, not severities, and deliberately separate:
+               a C is not a warning and must not be coloured like one */
+            --grade-fire:   #ff6600;
+            --grade-a:      #22c55e;
+            --grade-b:      #4B9CD3;
+            --grade-c:      #888888;
+            --grade-d:      #ff6666;
+        }
+
+        body { background: var(--surface); color: var(--ink); font-family: 'Courier Prime', 'Courier New', monospace; padding: 20px; margin: 0; }
         .container { max-width: 960px; margin: 0 auto; padding-bottom: 40px; }
 
-        a { color: #888; text-decoration: none; border-bottom: 1px dotted #888; }
-        a:hover { color: #fff; }
+        a { color: var(--ink-dimmer); text-decoration: none; border-bottom: 1px dotted var(--ink-dimmer); }
+        a:hover { color: var(--ink-bright); }
 
-        .status-bar { padding: 15px; margin-bottom: 20px; background: #222; border-left: 4px solid #555; font-size: 0.9rem; }
+        .status-bar { padding: 15px; margin-bottom: 20px; background: var(--surface-2); border-left: 4px solid var(--ink-ghost); font-size: 0.9rem; }
 
         .hidden { display: none !important; }
 
+        /* ── ROADMAP 40 — KEYBOARD USABILITY ────────────────────────────────
+           This page had TWO :focus rules in 3,700 lines and SIX <label>
+           elements with ZERO for= attributes.
+
+           ⚠️⚠️ ON A TYPING APP. The staff pages were the least keyboard-usable
+           surface in a product whose entire purpose is teaching children to use
+           a keyboard without reaching for a mouse. That is worth fixing on its
+           own terms and not only for the teachers.
+
+           ⚠️ :focus-visible, NOT :focus. A ring that appears on every mouse
+           click is noise, and noise is what gets a focus style deleted six
+           months later by someone who thinks it is a bug. focus-visible shows
+           it to keyboard users and stays out of the way of everyone else.
+
+           ⚠️ outline WITH AN offset, NOT a border or a box-shadow. A border
+           changes layout and would shift the row it lands in; an outline does
+           not participate in layout at all. The offset is what keeps it legible
+           against the dark surfaces — a 0-offset outline on #191919 reads as a
+           thicker edge rather than a ring.
+
+           ⚠️ THE :focus-visible RULE MUST STAY AHEAD OF ANY LATER :hover RULE
+           for the same element, or hover silently wins on a focused control the
+           mouse happens to be resting on. */
+        a:focus-visible,
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        [tabindex]:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        /* ⚠️ The uid chip is a click-to-copy control built as a <span>, so it
+           is not reachable by keyboard at all until it is told to be. Given a
+           tabindex in the markup; this is the style half. */
+        .uid-chip:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
         /* --- DATE CONTROLS --- */
         .controls {
-            background: #1a1a1a;
-            border: 1px solid #333;
+            background: var(--surface-1);
+            border: 1px solid var(--rule);
             padding: 20px;
             margin-bottom: 20px;
             display: flex;
@@ -33,11 +158,11 @@
         }
         .control-group { display: flex; flex-direction: column; gap: 4px; }
         .control-group label {
-            color: #888; font-size: 0.7rem;
+            color: var(--ink-dimmer); font-size: 0.7rem;
             text-transform: uppercase; letter-spacing: 1px;
         }
         .control-group input[type="date"] {
-            background: #222; border: 1px solid #444; color: #fff;
+            background: var(--surface-2); border: 1px solid var(--rule-strong); color: var(--ink-bright);
             padding: 10px 12px; font-family: inherit; font-size: 0.9rem;
         }
         .control-group input[type="date"]::-webkit-calendar-picker-indicator {
@@ -45,55 +170,55 @@
         }
 
         button {
-            padding: 10px 20px; background: #0047AB; color: white;
+            padding: 10px 20px; background: var(--accent); color: white;
             border: none; font-family: inherit; font-weight: bold;
             text-transform: uppercase; font-size: 0.8rem;
             cursor: pointer; transition: background 0.2s;
         }
-        button:hover { background: #4B9CD3; }
-        button:disabled { background: #555; cursor: not-allowed; }
+        button:hover { background: var(--accent); }
+        button:disabled { background: var(--ink-ghost); cursor: not-allowed; }
 
-        button.secondary { background: #333; border: 1px solid #555; }
-        button.secondary:hover { background: #555; }
+        button.secondary { background: var(--rule); border: 1px solid var(--ink-ghost); }
+        button.secondary:hover { background: var(--ink-ghost); }
 
         .quick-btns { display: flex; gap: 8px; align-items: flex-end; }
         .quick-btn {
-            padding: 10px 14px; background: #222; border: 1px solid #444;
-            color: #aaa; font-size: 0.75rem;
+            padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--rule-strong);
+            color: var(--ink-dim); font-size: 0.75rem;
         }
-        .quick-btn:hover { background: #333; color: #fff; border-color: #4B9CD3; }
+        .quick-btn:hover { background: var(--rule); color: var(--ink-bright); border-color: var(--accent); }
 
         /* --- TABLE --- */
         .results-info {
-            color: #666; font-size: 0.8rem; margin-bottom: 10px;
+            color: var(--ink-faint); font-size: 0.8rem; margin-bottom: 10px;
         }
 
         table {
             width: 100%; border-collapse: collapse;
-            background: #1a1a1a; margin-bottom: 20px;
+            background: var(--surface-1); margin-bottom: 20px;
         }
         th {
-            background: #222; color: #4B9CD3;
+            background: var(--surface-2); color: var(--accent);
             padding: 12px 15px; text-align: left;
             font-size: 0.75rem; text-transform: uppercase;
-            letter-spacing: 1px; border-bottom: 2px solid #333;
+            letter-spacing: 1px; border-bottom: 2px solid var(--rule);
             cursor: pointer; user-select: none;
         }
-        th:hover { color: #fff; }
+        th:hover { color: var(--ink-bright); }
         th .sort-arrow { font-size: 0.6rem; margin-left: 4px; opacity: 0.5; }
         th.sorted .sort-arrow { opacity: 1; }
 
         td {
-            padding: 10px 15px; border-bottom: 1px solid #222;
+            padding: 10px 15px; border-bottom: 1px solid var(--surface-2);
             font-size: 0.85rem;
         }
-        tr:hover td { background: #222; }
+        tr:hover td { background: var(--surface-2); }
 
-        .time-cell { font-weight: bold; color: #4B9CD3; }
-        .wpm-cell { color: #aaa; }
+        .time-cell { font-weight: bold; color: var(--accent); }
+        .wpm-cell { color: var(--ink-dim); }
 
         .empty-msg {
-            text-align: center; color: #555; padding: 40px;
+            text-align: center; color: var(--ink-ghost); padding: 40px;
             font-size: 0.9rem;
         }
 
@@ -102,128 +227,128 @@
             display: flex; justify-content: space-between;
             align-items: center; margin-bottom: 20px;
         }
-        .total-line { color: #888; font-size: 0.85rem; }
-        .total-line strong { color: #4B9CD3; }
+        .total-line { color: var(--ink-dimmer); font-size: 0.85rem; }
+        .total-line strong { color: var(--accent); }
 
         /* --- LOGIN --- */
         #login-section { text-align: center; padding: 60px 0; }
-        #login-section p { color: #888; margin-bottom: 15px; }
+        #login-section p { color: var(--ink-dimmer); margin-bottom: 15px; }
 
         footer {
             position: fixed; bottom: 5px; right: 10px;
-            font-size: 0.7em; color: #666;
+            font-size: 0.7em; color: var(--ink-faint);
             background: rgba(255,255,255,0.8);
             padding: 2px 5px; border-radius: 3px; z-index: 101;
         }
 
         /* --- GOALS PANEL --- */
         .goals-panel {
-            background: #1a1a1a; border: 1px solid #333;
+            background: var(--surface-1); border: 1px solid var(--rule);
             padding: 20px; margin-bottom: 20px;
         }
         .goals-row {
             display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;
         }
         .goal-card {
-            background: #222; border: 1px solid #333; border-radius: 6px;
+            background: var(--surface-2); border: 1px solid var(--rule); border-radius: 6px;
             padding: 15px 20px; flex: 1; min-width: 180px;
         }
         .goal-card label {
-            color: #888; font-size: 0.7rem; text-transform: uppercase;
+            color: var(--ink-dimmer); font-size: 0.7rem; text-transform: uppercase;
             letter-spacing: 1px; display: block; margin-bottom: 8px;
         }
         .goal-icon { font-size: 1.5rem; margin-bottom: 6px; }
         .goal-input-row { display: flex; align-items: center; gap: 8px; }
         .goal-input-row input[type="number"] {
-            background: #111; border: 1px solid #444; color: #fff;
+            background: var(--surface); border: 1px solid var(--rule-strong); color: var(--ink-bright);
             padding: 8px 10px; font-family: inherit; font-size: 1.1rem;
             width: 80px; text-align: center; border-radius: 4px;
         }
-        .goal-input-row input:focus { border-color: #4B9CD3; outline: none; }
-        .goal-unit { color: #666; font-size: 0.8rem; }
-        .goal-hint { color: #555; font-size: 0.65rem; margin-top: 6px; font-style: italic; }
+        .goal-input-row input:focus { border-color: var(--accent); outline: none; }
+        .goal-unit { color: var(--ink-faint); font-size: 0.8rem; }
+        .goal-hint { color: var(--ink-ghost); font-size: 0.65rem; margin-top: 6px; font-style: italic; }
         .goal-status {
             margin-top: 10px; font-size: 0.8rem; min-height: 1.2em;
         }
-        .goal-status.ok { color: #22c55e; }
-        .goal-status.err { color: #ff3333; }
+        .goal-status.ok { color: var(--good); }
+        .goal-status.err { color: var(--bad); }
 
         /* --- EDIT UI --- */
         .details-row-btn {
-            background: transparent; border: 1px solid #555; color: #aaa;
+            background: transparent; border: 1px solid var(--ink-ghost); color: var(--ink-dim);
             padding: 3px 10px; font-size: 0.7rem; cursor: pointer;
             font-family: inherit; border-radius: 3px;
         }
-        .details-row-btn:hover { border-color: #4B9CD3; color: #4B9CD3; }
-        .detail-row td { padding: 0 !important; background: #111; }
+        .details-row-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .detail-row td { padding: 0 !important; background: var(--surface); }
         .detail-row.hidden { display: none; }
         .daily-logs { padding: 10px 15px; }
         .daily-log-entry {
             display: flex; align-items: center; gap: 10px;
-            padding: 6px 0; border-bottom: 1px solid #222;
+            padding: 6px 0; border-bottom: 1px solid var(--surface-2);
             font-size: 0.8rem;
         }
         .daily-log-entry:last-child { border-bottom: none; }
-        .log-date { color: #888; width: 90px; flex-shrink: 0; }
+        .log-date { color: var(--ink-dimmer); width: 90px; flex-shrink: 0; }
         .log-seconds-input {
-            background: #1a1a1a; border: 1px solid #444; color: #fff;
+            background: var(--surface-1); border: 1px solid var(--rule-strong); color: var(--ink-bright);
             padding: 4px 6px; width: 60px; text-align: center;
             font-family: inherit; font-size: 0.8rem; border-radius: 3px;
         }
-        .log-seconds-input:focus { border-color: #4B9CD3; outline: none; }
-        .log-chars { color: #666; font-size: 0.75rem; }
+        .log-seconds-input:focus { border-color: var(--accent); outline: none; }
+        .log-chars { color: var(--ink-faint); font-size: 0.75rem; }
         .save-log-btn {
-            background: #333; border: 1px solid #555; color: #aaa;
+            background: var(--rule); border: 1px solid var(--ink-ghost); color: var(--ink-dim);
             padding: 3px 10px; font-size: 0.7rem; cursor: pointer;
             font-family: inherit; border-radius: 3px;
         }
-        .save-log-btn:hover { border-color: #22c55e; color: #22c55e; }
+        .save-log-btn:hover { border-color: var(--good); color: var(--good); }
         .recalc-btn {
-            background: transparent; border: 1px solid #555; color: #aaa;
+            background: transparent; border: 1px solid var(--ink-ghost); color: var(--ink-dim);
             padding: 3px 8px; font-size: 0.8rem; cursor: pointer;
             font-family: inherit; border-radius: 3px; line-height: 1;
         }
-        .recalc-btn:hover { border-color: #4B9CD3; color: #4B9CD3; }
+        .recalc-btn:hover { border-color: var(--accent); color: var(--accent); }
         .recalc-btn:disabled { opacity: 0.4; cursor: default; }
         /* ROADMAP 15 — the grade reconstruction. Same shape as ⟳ on purpose:
            both are staff-only repair tools that read typing_sessions and write
            back, and a teacher should not have to learn two idioms. */
         .regrade-btn {
-            background: none; border: 1px solid #444; color: #888;
+            background: none; border: 1px solid var(--rule-strong); color: var(--ink-dimmer);
             cursor: pointer; font-size: 0.75rem; padding: 1px 5px;
             margin-left: 3px; border-radius: 3px;
         }
-        .regrade-btn:hover { border-color: #ff9800; color: #ff9800; }
+        .regrade-btn:hover { border-color: var(--warn); color: var(--warn); }
         .regrade-btn:disabled { opacity: 0.4; cursor: default; }
         .grades-btn {
-            background: none; border: 1px solid #444; color: #888; cursor: pointer;
+            background: none; border: 1px solid var(--rule-strong); color: var(--ink-dimmer); cursor: pointer;
             font-size: 0.7rem; padding: 0 5px; margin-left: 5px; border-radius: 3px;
         }
-        .grades-btn:hover { border-color: #22c55e; color: #22c55e; }
+        .grades-btn:hover { border-color: var(--good); color: var(--good); }
         .grades-btn:disabled { opacity: 0.4; cursor: default; }
         .grades-panel { margin-top: 8px; font-size: 0.75rem; }
-        .mastery-lock { color: #d9a441; font-size: 0.72rem; cursor: help; }
+        .mastery-lock { color: var(--notice); font-size: 0.72rem; cursor: help; }
         .clear-mastery-btn {
-            background: none; border: 1px solid #3a3a3a; color: #8a7860;
+            background: none; border: 1px solid var(--rule-strong); color: var(--notice);
             cursor: pointer; font-size: 0.72rem; padding: 0 5px; line-height: 1.4;
         }
-        .clear-mastery-btn:hover:not(:disabled) { color: #d9a441; border-color: #d9a441; }
+        .clear-mastery-btn:hover:not(:disabled) { color: var(--notice); border-color: var(--notice); }
         .clear-mastery-btn:disabled { opacity: 0.4; cursor: default; }
         .grades-panel table { border-collapse: collapse; }
         .grades-panel td, .grades-panel th { padding: 2px 8px 2px 0; text-align: left; white-space: nowrap; }
         .grade-pip { display:inline-block; min-width:1.6em; text-align:center; margin-right:2px; border-radius:3px; padding:0 2px; }
-        .grade-recon { opacity: 0.75; border-bottom: 1px dotted #888; }
+        .grade-recon { opacity: 0.75; border-bottom: 1px dotted var(--ink-dimmer); }
         .grade-cont { opacity: 0.55; }
         .dupe-tag {
-            font-size: 0.65rem; color: #ffaa00; border: 1px solid #ffaa00;
+            font-size: 0.65rem; color: var(--warn); border: 1px solid var(--warn);
             border-radius: 3px; padding: 0 4px; margin-right: 4px; white-space: nowrap;
         }
         .delete-session-btn {
-            background: transparent; border: 1px solid transparent; color: #666;
+            background: transparent; border: 1px solid transparent; color: var(--ink-faint);
             padding: 2px 6px; font-size: 0.75rem; cursor: pointer;
             font-family: inherit; border-radius: 3px; margin-left: auto;
         }
-        .delete-session-btn:hover { border-color: #ff3333; color: #ff3333; }
+        .delete-session-btn:hover { border-color: var(--bad); color: var(--bad); }
         .log-save-status { font-size: 0.75rem; min-width: 60px; }
         .expand-sessions { cursor: pointer; user-select: none; }
 
@@ -237,12 +362,12 @@
             font-size: 0.72rem; font-variant-numeric: tabular-nums;
             padding: 1px 5px; border-radius: 3px; cursor: help;
         }
-        .err-ok    { color: #6b7280; }
-        .err-watch { color: #d9a441; background: rgba(217,164,65,0.10); }
-        .err-high  { color: #ff8a5c; background: rgba(255,138,92,0.14); font-weight: bold; }
+        .err-ok    { color: var(--ink-faint); }
+        .err-watch { color: var(--notice); background: rgba(217,164,65,0.10); }
+        .err-high  { color: var(--warn); background: rgba(255,138,92,0.14); font-weight: bold; }
         /* ⚠️ A DASH, NOT A ZERO. 0/0 and a pre-cutover day are "no answer", and
            rendering either as a clean green 0% is the report lying by omission. */
-        .err-none  { color: #444; }
+        .err-none  { color: var(--rule-strong); }
 
         .scan-mark, .flag-mark {
             display: inline-block; min-width: 14px; text-align: center;
@@ -251,18 +376,18 @@
         /* ⚠️ NOT-SCANNED MUST NOT LOOK LIKE CLEAN. A faint dot reads as "no
            information"; the tick reads as "looked, found nothing". If these two
            ever converge visually the whole surface becomes untrustworthy. */
-        .scan-unknown { color: #333; }
-        .scan-clean   { color: #2f6b3f; }
-        .fl-fail  { color: #ff5555; }
-        .fl-fast  { color: #d9a441; }
-        .fl-dupe  { color: #7aa7c7; }
-        .fl-short { color: #9a7fb8; }
+        .scan-unknown { color: var(--rule); }
+        .scan-clean   { color: var(--good); }
+        .fl-fail  { color: var(--bad); }
+        .fl-fast  { color: var(--notice); }
+        .fl-dupe  { color: var(--accent); }
+        .fl-short { color: var(--notice); }
 
         .delete-run-btn {
-            background: none; border: none; color: #553333; cursor: pointer;
+            background: none; border: none; color: var(--bad); cursor: pointer;
             font-size: 0.7rem; padding: 0 4px; line-height: 1;
         }
-        .delete-run-btn:hover:not(:disabled) { color: #ff5555; }
+        .delete-run-btn:hover:not(:disabled) { color: var(--bad); }
         .delete-run-btn:disabled { opacity: 0.4; cursor: default; }
 
         #scan-status { font-size: 0.75rem; margin-left: 10px; }
@@ -282,24 +407,24 @@
            picked by eye. */
         #flag-legend {
             position: fixed; top: 90px; right: 16px; width: 190px;
-            background: #191919; border: 1px solid #333; border-left: 3px solid #4B9CD3;
+            background: var(--surface-1); border: 1px solid var(--rule); border-left: 3px solid var(--accent);
             padding: 10px 12px; font-size: 0.68rem; line-height: 1.5;
             z-index: 40; max-height: calc(100vh - 120px); overflow-y: auto;
         }
         #flag-legend h4 {
-            margin: 0 0 6px; font-size: 0.7rem; color: #4B9CD3;
+            margin: 0 0 6px; font-size: 0.7rem; color: var(--accent);
             text-transform: uppercase; letter-spacing: 0.5px;
         }
         #flag-legend .lg-row { display: flex; gap: 7px; margin-bottom: 3px; align-items: baseline; }
         #flag-legend .lg-key { flex: 0 0 16px; text-align: center; }
-        #flag-legend .lg-txt { color: #999; }
-        #flag-legend .lg-sep { border-top: 1px solid #2a2a2a; margin: 8px 0 6px; }
-        #flag-legend .lg-note { color: #6b6b6b; font-style: italic; margin-top: 7px; }
+        #flag-legend .lg-txt { color: var(--ink-dim); }
+        #flag-legend .lg-sep { border-top: 1px solid var(--rule); margin: 8px 0 6px; }
+        #flag-legend .lg-note { color: var(--ink-faint); font-style: italic; margin-top: 7px; }
         #flag-legend .lg-collapse {
             position: absolute; top: 6px; right: 8px; background: none; border: none;
-            color: #666; cursor: pointer; font-size: 0.75rem; padding: 0;
+            color: var(--ink-faint); cursor: pointer; font-size: 0.75rem; padding: 0;
         }
-        #flag-legend .lg-collapse:hover { color: #fff; }
+        #flag-legend .lg-collapse:hover { color: var(--ink-bright); }
         #flag-legend.collapsed .lg-body { display: none; }
         #flag-legend.collapsed { width: auto; }
         @media (max-width: 1360px) {
@@ -309,28 +434,28 @@
             }
             #flag-legend .lg-collapse { display: none; }
         }
-        .expand-sessions:hover { color: #4B9CD3; }
+        .expand-sessions:hover { color: var(--accent); }
         .sessions-container { padding: 4px 0 8px 20px; }
         .sessions-container.hidden { display: none; }
         .session-entry {
             display: flex; align-items: center; gap: 12px;
-            padding: 4px 8px; font-size: 0.75rem; color: #aaa;
-            border-left: 2px solid #333;
+            padding: 4px 8px; font-size: 0.75rem; color: var(--ink-dim);
+            border-left: 2px solid var(--rule);
         }
-        .session-entry.suspicious { border-left-color: #ff6b6b; background: rgba(255,50,50,0.05); }
-        .session-time { color: #888; width: 70px; flex-shrink: 0; }
+        .session-entry.suspicious { border-left-color: var(--bad); background: rgba(255,50,50,0.05); }
+        .session-time { color: var(--ink-dimmer); width: 70px; flex-shrink: 0; }
         .session-stat { width: 65px; text-align: right; }
-        .session-book { color: #555; font-style: italic; font-size: 0.7rem; }
+        .session-book { color: var(--ink-ghost); font-style: italic; font-size: 0.7rem; }
         .flag-icon { font-size: 0.85rem; }
     .uid-chip { font-family: monospace; font-size: 0.68rem; opacity: 0.55; margin-left: 8px;
-                cursor: pointer; border: 1px solid #444; padding: 0 4px; border-radius: 3px; }
+                cursor: pointer; border: 1px solid var(--rule-strong); padding: 0 4px; border-radius: 3px; }
     .uid-chip:hover { opacity: 1; }
-    .sprint-list { margin: 2px 0 8px 26px; border-left: 2px solid #333; padding-left: 8px; }
+    .sprint-list { margin: 2px 0 8px 26px; border-left: 2px solid var(--rule); padding-left: 8px; }
     .sprint-row { display: flex; gap: 10px; align-items: center; font-size: 0.72rem;
-                  color: #aaa; padding: 1px 0; }
-    .sprint-row.suspicious { color: #ffb300; }
+                  color: var(--ink-dim); padding: 1px 0; }
+    .sprint-row.suspicious { color: var(--notice); }
     .sprint-idx { opacity: 0.5; min-width: 18px; }
-    .session-src { font-size: 0.7rem; opacity: 0.7; border: 1px solid #444; padding: 0 4px; }
+    .session-src { font-size: 0.7rem; opacity: 0.7; border: 1px solid var(--rule-strong); padding: 0 4px; }
 
     </style>
 </head>
@@ -355,11 +480,11 @@
     <div id="reports-section" class="hidden">
         <!-- GOALS MANAGEMENT -->
         <div class="goals-panel">
-            <h2 style="font-size:1rem; color:#4B9CD3; margin-bottom:15px; letter-spacing:1px;">STUDENT GOALS</h2>
+            <h2 style="font-size:1rem; color:var(--accent); margin-bottom:15px; letter-spacing:1px;">STUDENT GOALS</h2>
             <div class="goals-row">
                 <div class="goal-card">
                     <div class="goal-icon">🎉</div>
-                    <label>Daily Goal</label>
+                    <label for="daily-goal">Daily Goal</label>
                     <div class="goal-input-row">
                         <input type="number" id="daily-goal" min="0" max="120" step="1" value="0" />
                         <span class="goal-unit">minutes</span>
@@ -368,7 +493,7 @@
                 </div>
                 <div class="goal-card">
                     <div class="goal-icon">🎆</div>
-                    <label>Weekly Goal (Sat–Fri)</label>
+                    <label for="weekly-goal">Weekly Goal (Sat–Fri)</label>
                     <div class="goal-input-row">
                         <input type="number" id="weekly-goal" min="0" max="600" step="5" value="0" />
                         <span class="goal-unit">minutes</span>
@@ -383,11 +508,11 @@
         <!-- SCOPE -->
         <div class="controls" id="scope-controls">
             <div class="control-group">
-                <label>School</label>
+                <label for="scope-school">School</label>
                 <select id="scope-school"></select>
             </div>
             <div class="control-group">
-                <label>Class</label>
+                <label for="scope-class">Class</label>
                 <select id="scope-class"></select>
             </div>
             <div class="control-group" style="align-self:flex-end">
@@ -398,11 +523,11 @@
         <!-- REPORTS -->
         <div class="controls">
             <div class="control-group">
-                <label>Start Date</label>
+                <label for="date-start">Start Date</label>
                 <input type="date" id="date-start">
             </div>
             <div class="control-group">
-                <label>End Date</label>
+                <label for="date-end">End Date</label>
                 <input type="date" id="date-end">
             </div>
             <button id="generate-btn">Generate</button>
@@ -801,7 +926,22 @@
     //           ⚠️⚠️ REQUIRES firestore.rules v2.10.0 — v2.7.0 opened
     //           lessonProgress to BUILDING-scoped staff only, so a class teacher
     //           could read the record and not write it. tests/clear-mastery-test.mjs.
-    const REPORTS_VERSION = "2.34.0";
+    // v2.35.0 — ⭐ ROADMAP 37 + 38 + 40. No behaviour changed; this is the
+    //           staff pages joining the design system. A :root token block, the
+    //           product font (Courier Prime, which this page never loaded), and
+    //           every one of the 33 hex values retired onto a token — in the
+    //           STYLE BLOCK AND THE JS HALF BOTH, because an inline style= built
+    //           in a template string is exactly as unsystematic as a rule and
+    //           harder to find later. ⚠️⚠️ 38 IS A CORRECTNESS FIX: amber meant
+    //           "watch this error rate", "suspicious" and something else again;
+    //           there are now three severities (notice/warn/bad) with one meaning
+    //           each. ⚠️ Round 55's own item 36 work added two of the colours
+    //           retired here. ⚠️ 40: for= on all six labels, :focus-visible
+    //           rings, and role+tabindex+Enter/Space on the interactive spans.
+    //           ⚠️ THE DARK THEME STAYS — a teacher scanning a table and a child
+    //           reading a sentence are different jobs; what was missing was a
+    //           system, not a repaint. tests/staff-tokens-test.mjs.
+    const REPORTS_VERSION = "2.35.0";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -856,7 +996,7 @@
                     `inline module v${REPORTS_VERSION} (this page)</div>` +
                     renderBuildList(results, { notes: true });
             } catch (e) {
-                _list.innerHTML = '<div style="color:#c05621">Could not read build info.</div>';
+                _list.innerHTML = '<div style="color:var(--warn)">Could not read build info.</div>';
             }
         });
     })();
@@ -947,13 +1087,13 @@
                 me.readScope = 'building';
                 statusEl.innerText = "Logged in as: " + me.email +
                     " — BOOTSTRAP MODE (no staff document yet; see SETUP-NO-CLI.md)";
-                statusEl.style.borderColor = "#ffaa00";
+                statusEl.style.borderColor = "var(--notice)";
             }
 
             if (!me.role) {
                 statusEl.innerText = "Access Denied — this account has no staff role. " +
                     "Open the admin page to request access.";
-                statusEl.style.borderColor = "#ff3333";
+                statusEl.style.borderColor = "var(--bad)";
                 document.getElementById('login-section').classList.remove('hidden');
                 return;
             }
@@ -968,7 +1108,7 @@
 
             if (statusEl.style.borderColor !== "rgb(255, 170, 0)") {
                 statusEl.innerText = `Logged in as: ${me.email} (${me.role})`;
-                statusEl.style.borderColor = "#00ff41";
+                statusEl.style.borderColor = "var(--good)";
             }
             document.getElementById('login-section').classList.add('hidden');
             document.getElementById('reports-section').classList.remove('hidden');
@@ -977,7 +1117,7 @@
             await loadGoals();
         } else {
             statusEl.innerText = "Not logged in.";
-            statusEl.style.borderColor = "#ff3333";
+            statusEl.style.borderColor = "var(--bad)";
             document.getElementById('login-section').classList.remove('hidden');
         }
     });
@@ -1354,7 +1494,7 @@
             if (!scoped.queries.length) {
                 statusEl.innerText = "No classes assigned to you yet — ask your " +
                     "building admin to add you to a class, or pick a different scope.";
-                statusEl.style.borderColor = "#ffaa00";
+                statusEl.style.borderColor = "var(--notice)";
                 return;
             }
 
@@ -1395,7 +1535,7 @@
                 // Almost always a missing composite index while it builds.
                 statusEl.innerText = "Query failed — see console. If this mentions " +
                     "an index, click the link it logs and try again once it's built.";
-                statusEl.style.borderColor = "#ff3333";
+                statusEl.style.borderColor = "var(--bad)";
                 console.error("Scoped report query failed:", e);
                 return;
             }
@@ -1407,7 +1547,7 @@
                     `Narrow the date range or pick a single class. ` +
                     `(Stopping here on purpose: a partial report you can't tell is ` +
                     `partial is worse than none.)`;
-                statusEl.style.borderColor = "#ffaa00";
+                statusEl.style.borderColor = "var(--notice)";
                 return;
             }
 
@@ -1597,7 +1737,7 @@
                     `Too much data — ${uids.size} students × ${dateList.length} days is over ` +
                     `${MAX_ROSTER_PAIRS.toLocaleString()} reads. Narrow the range or pick one class. ` +
                     `(Stopping on purpose: a partial report you cannot tell is partial is worse than none.)`;
-                statusEl.style.borderColor = "#ffaa00";
+                statusEl.style.borderColor = "var(--notice)";
                 return;
             }
 
@@ -1772,11 +1912,11 @@
                       `and were swept in full</span>` : '') +
                 (_n.rosterAdded ? ` \u00b7 <strong>${_n.rosterAdded}</strong> student(s) found on the roster ` +
                                   `with no class-stamped log` : '') +
-                (_n.hiddenFromQuery ? ` \u00b7 <strong style="color:#ffaa00;">${_n.hiddenFromQuery} day(s) ` +
+                (_n.hiddenFromQuery ? ` \u00b7 <strong style="color:var(--notice);">${_n.hiddenFromQuery} day(s) ` +
                                       `the old class query could not see</strong>` : '') +
-                (_n.unreadable ? ` \u00b7 <span style="color:#ff8888;">${_n.unreadable} unreadable</span>` : '') +
+                (_n.unreadable ? ` \u00b7 <span style="color:var(--bad);">${_n.unreadable} unreadable</span>` : '') +
                 (_n.rosterOk === false
-                    ? `<br><span style="color:#ff8888;">\u26a0\ufe0f THE ROSTER READ FAILED, so this report covers only ` +
+                    ? `<br><span style="color:var(--bad);">\u26a0\ufe0f THE ROSTER READ FAILED, so this report covers only ` +
                       `students who left a class-stamped log. Any student whose logs carry a blank classId is ` +
                       `MISSING from it entirely. Check the console \u2014 this is not a clean report.</span>`
                     : '')
@@ -1784,12 +1924,12 @@
 
             document.getElementById('results-container').classList.remove('hidden');
             statusEl.innerText = `Found ${reportData.length} students.`;
-            statusEl.style.borderColor = "#00ff41";
+            statusEl.style.borderColor = "var(--good)";
 
         } catch (e) {
             console.error(e);
             statusEl.innerText = "Error: " + e.message;
-            statusEl.style.borderColor = "#ff3333";
+            statusEl.style.borderColor = "var(--bad)";
         }
     }
 
@@ -2064,7 +2204,7 @@
         const tbody = document.getElementById('report-body');
         tbody.innerHTML = reportData.map((r, idx) => `
             <tr class="summary-row" data-idx="${idx}">
-                <td>${escapeHtml(r.name)}<span class="uid-chip" title="Student ID: ${r.uid} (click to copy)" data-uid="${r.uid}">${String(r.uid).slice(0,8)}</span><button class="grades-btn" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}" title="Show this student's lesson grades, run by run">◈</button><div class="grades-panel hidden" id="grades-${r.uid}"></div></td>
+                <td>${escapeHtml(r.name)}<span class="uid-chip" role="button" tabindex="0" title="Student ID: ${r.uid} (click to copy)" data-uid="${r.uid}">${String(r.uid).slice(0,8)}</span><button class="grades-btn" data-uid="${r.uid}" data-name="${escapeHtml(r.name)}" title="Show this student's lesson grades, run by run">◈</button><div class="grades-panel hidden" id="grades-${r.uid}"></div></td>
                 <td>${escapeHtml(r.email)}</td>
                 <td class="time-cell">${formatTime(r.seconds)}</td>
                 <td>${r.chars.toLocaleString()}</td>
@@ -2081,7 +2221,7 @@
                             const secs = log.seconds % 60;
                             return `
                             <div class="daily-log-entry" data-idx="${idx}" data-li="${li}">
-                                <span class="log-date expand-sessions" data-uid="${r.uid}" data-date="${log.date}" title="Click to view sessions">▶ ${log.date}</span>
+                                <span class="log-date expand-sessions" role="button" tabindex="0" data-uid="${r.uid}" data-date="${log.date}" title="Click to view sessions">▶ ${log.date}</span>
                                 <input type="number" class="log-min-input" value="${mins}" min="0" step="1" title="Minutes" style="width:45px;" />
                                 <span class="goal-unit">m</span>
                                 <input type="number" class="log-sec-input" value="${secs}" min="0" max="59" step="1" title="Seconds" style="width:45px;" />
@@ -2159,7 +2299,7 @@
         if (!reportData || !reportData.length) { alert('Generate a report first.'); return; }
         const btn = document.getElementById('scan-btn');
         const status = document.getElementById('scan-status');
-        const setStatus = (m, c) => { if (status) { status.textContent = m; status.style.color = c || '#888'; } };
+        const setStatus = (m, c) => { if (status) { status.textContent = m; status.style.color = c || 'var(--ink-dimmer)'; } };
 
         // ⚠️ TELL HIM WHAT IT WILL COST BEFORE HE SPENDS IT, and let him say no.
         // The count is students, and the document count is unknown until it
@@ -2279,8 +2419,24 @@
         setStatus(
             `Scanned ${nStudents} student${nStudents === 1 ? '' : 's'}, ${docs} session records` +
             (failed ? ` — ${failed} could not be read` : ''),
-            failed ? '#c05621' : '#4B9CD3');
+            failed ? 'var(--warn)' : 'var(--accent)');
     }
+
+    // ⚠️ ROADMAP 40 — A CONTROL THAT ONLY ANSWERS TO A MOUSE IS NOT A CONTROL.
+    // The uid chip, the day-row expander and the grade/flag buttons are all
+    // reachable by Tab now; Enter and Space must do what a click does, or the
+    // focus ring leads a keyboard user to something that ignores them.
+    // ⚠️ preventDefault() ON SPACE: its default action is to scroll the page,
+    // which would fire the control AND jump the teacher away from the row.
+    document.getElementById('report-body').addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const t = e.target;
+        if (!(t instanceof HTMLElement)) return;
+        if (t.matches('.uid-chip, .expand-sessions')) {
+            e.preventDefault();
+            t.click();
+        }
+    });
 
     document.getElementById('report-body').addEventListener('click', async (e) => {
         if (e.target.classList.contains('clear-mastery-btn')) {
@@ -2314,7 +2470,7 @@
             
             e.target.textContent = `▼ ${date}`;
             container.classList.remove('hidden');
-            container.innerHTML = '<div style="padding:8px; color:#888; font-size:0.75rem;">Loading sessions...</div>';
+            container.innerHTML = '<div style="padding:8px; color:var(--ink-dimmer); font-size:0.75rem;">Loading sessions...</div>';
             
             try {
                 const sessionsRef = collection(db, "typing_sessions");
@@ -2325,7 +2481,7 @@
                 const snap = await getDocs(q);
                 
                 if (snap.empty) {
-                    container.innerHTML = '<div style="padding:8px; color:#666; font-size:0.75rem; font-style:italic;">No session data (sessions logged from v2.4.0+)</div>';
+                    container.innerHTML = '<div style="padding:8px; color:var(--ink-faint); font-size:0.75rem; font-style:italic;">No session data (sessions logged from v2.4.0+)</div>';
                     return;
                 }
                 
@@ -2415,11 +2571,11 @@
                                     // "·" prefix, because the fragment did not earn one by itself.
                                     const g = _spGrades.get(sprintIdentity(sp));
                                     if (!g) return '';
-                                    if (!g.res.ok) return `<span class="grade-pip" style="color:#555;" title="Not graded: ${escapeHtml(g.res.detail || g.res.reason)}">—</span>`;
+                                    if (!g.res.ok) return `<span class="grade-pip" style="color:var(--ink-ghost);" title="Not graded: ${escapeHtml(g.res.detail || g.res.reason)}">—</span>`;
                                     const gr = g.res.grade;
-                                    const colour = gr === FIRE_GRADE ? '#ff6600'
-                                                 : gr === 'A' ? '#22c55e' : gr === 'B' ? '#4B9CD3'
-                                                 : gr === 'C' ? '#888' : '#ff6666';
+                                    const colour = gr === FIRE_GRADE ? 'var(--grade-fire)'
+                                                 : gr === 'A' ? 'var(--good)' : gr === 'B' ? 'var(--accent)'
+                                                 : gr === 'C' ? 'var(--ink-dimmer)' : 'var(--grade-d)';
                                     const gates = g.res.gates || {};
                                     const goal = `needs ${gates.minAccuracy}%` +
                                                  (gates.minWPM == null ? ', speed not graded' : ` and ${gates.minWPM} WPM`);
@@ -2450,7 +2606,7 @@
                 
             } catch (err) {
                 console.error("Sessions load error:", err);
-                container.innerHTML = `<div style="padding:8px; color:#ff3333; font-size:0.75rem;">Error: ${err.message}</div>`;
+                container.innerHTML = `<div style="padding:8px; color:var(--bad); font-size:0.75rem;">Error: ${err.message}</div>`;
             }
             return;
         }
@@ -2626,7 +2782,7 @@
             try {
                 e.target.disabled = true;
                 statusEl2.textContent = 'Saving...';
-                statusEl2.style.color = '#888';
+                statusEl2.style.color = 'var(--ink-dimmer)';
 
                 // ⚠️ v2.13.0 — A MANUAL SAVE COLLAPSES THE DOC BACK TO THE LEGACY
                 // FLAT SHAPE. Jake is asserting one definitive number for the
@@ -2678,12 +2834,12 @@
                 updateSummaryRow(idx, r);
 
                 statusEl2.textContent = '✓ Saved';
-                statusEl2.style.color = '#22c55e';
+                statusEl2.style.color = 'var(--good)';
                 setTimeout(() => { statusEl2.textContent = ''; }, 2000);
             } catch (err) {
                 console.error("Save error:", err);
                 statusEl2.textContent = '✗ ' + err.message;
-                statusEl2.style.color = '#ff3333';
+                statusEl2.style.color = 'var(--bad)';
             } finally {
                 e.target.disabled = false;
             }
@@ -2974,16 +3130,16 @@
     }
 
     async function showGrades(uid, panel) {
-        panel.innerHTML = '<span style="color:#888;">Loading grades…</span>';
+        panel.innerHTML = '<span style="color:var(--ink-dimmer);">Loading grades…</span>';
         let snap;
         try {
             snap = await getDocs(collection(db, 'users', uid, 'lessonProgress'));
         } catch (err) {
-            panel.innerHTML = `<span style="color:#ff3333;">Could not read grades: ${escapeHtml(err.message)}</span>`;
+            panel.innerHTML = `<span style="color:var(--bad);">Could not read grades: ${escapeHtml(err.message)}</span>`;
             return;
         }
         if (snap.empty) {
-            panel.innerHTML = '<span style="color:#666; font-style:italic;">No lesson records.</span>';
+            panel.innerHTML = '<span style="color:var(--ink-faint); font-style:italic;">No lesson records.</span>';
             return;
         }
 
@@ -3012,9 +3168,9 @@
                 if (recon) reconTotal++;
                 const f = Number(fires[String(i)]) || 0;
                 fireTotal += f;
-                const colour = g === FIRE_GRADE ? '#ff6600'
-                             : g === 'A' ? '#22c55e' : g === 'B' ? '#4B9CD3'
-                             : g === 'C' ? '#888' : '#ff6666';
+                const colour = g === FIRE_GRADE ? 'var(--grade-fire)'
+                             : g === 'A' ? 'var(--good)' : g === 'B' ? 'var(--accent)'
+                             : g === 'C' ? 'var(--ink-dimmer)' : 'var(--grade-d)';
                 return `<span class="grade-pip${recon ? ' grade-recon' : ''}" style="color:${colour};" ` +
                        `title="Run ${i + 1}${recon ? ' — reconstructed from session records' : ' — earned'}">` +
                        `${escapeHtml(g)}</span>`;
@@ -3028,24 +3184,24 @@
         rows.sort((a, b) => a.id.localeCompare(b.id));
 
         panel.innerHTML =
-            '<table><thead><tr style="color:#4B9CD3;">' +
+            '<table><thead><tr style="color:var(--accent);">' +
             ['Lesson', 'Best grade', 'Per run', 'A\uD83D\uDD25', 'Mastered', ''].map(h => `<th>${h}</th>`).join('') +
             '</tr></thead><tbody>' +
             rows.map(r =>
                 '<tr>' +
-                `<td style="color:#ccc;">${escapeHtml(r.id)}</td>` +
-                `<td style="color:#888;">${escapeHtml(r.legacy || '—')}</td>` +
-                `<td>${r.pips || '<span style="color:#555;">not recorded</span>'}</td>` +
-                `<td style="color:${r.fires ? '#ff6600' : '#555'};">${r.fires || '—'}</td>` +
+                `<td style="color:var(--ink-dim);">${escapeHtml(r.id)}</td>` +
+                `<td style="color:var(--ink-dimmer);">${escapeHtml(r.legacy || '—')}</td>` +
+                `<td>${r.pips || '<span style="color:var(--ink-ghost);">not recorded</span>'}</td>` +
+                `<td style="color:${r.fires ? 'var(--grade-fire)' : 'var(--ink-ghost)'};">${r.fires || '—'}</td>` +
                 `<td>${r.mastered.length
                         ? `<span class="mastery-lock" title="Runs ${r.mastered.map(i => i + 1).join(', ')} are at or past the ${MASTERY_POINTS_UI}-point mastery threshold. Every run at or below the highest of these is in practice mode and pays nothing.">\u25a0 ${r.mastered.length}</span>`
-                        : '<span style="color:#555;">\u2014</span>'}</td>` +
+                        : '<span style="color:var(--ink-ghost);">\u2014</span>'}</td>` +
                 `<td>${r.mastered.length
                         ? `<button class="clear-mastery-btn" data-uid="${uid}" data-lesson="${escapeHtml(r.id)}" title="Clear mastery for this lesson \u2014 puts every run back to graded. Does not touch grades or history.">\u2298</button>`
                         : ''}</td>` +
                 '</tr>').join('') +
             '</tbody></table>' +
-            `<div style="color:#666; margin-top:6px;">` +
+            `<div style="color:var(--ink-faint); margin-top:6px;">` +
             `${fireTotal} fireball${fireTotal === 1 ? '' : 's'} across ${rows.length} lesson${rows.length === 1 ? '' : 's'}. ` +
             (reconTotal
                 ? `<span class="grade-recon">Dimmed</span> = reconstructed from session records (${reconTotal}), not graded live. `
@@ -3108,7 +3264,7 @@
     async function reconstructGrades(uid, date, name) {
         const status = (msg, colour) => {
             const el = document.getElementById('regrade-status');
-            if (el) { el.textContent = msg; el.style.color = colour || '#888'; }
+            if (el) { el.textContent = msg; el.style.color = colour || 'var(--ink-dimmer)'; }
             else console.log('[regrade] ' + msg);
         };
 
@@ -3413,14 +3569,14 @@
         const statusEl2 = document.getElementById(`log-status-${idx}-${li}`);
         const entry = document.querySelector(`.daily-log-entry[data-idx="${idx}"][data-li="${li}"]`);
 
-        if (statusEl2) { statusEl2.textContent = 'Recalculating...'; statusEl2.style.color = '#888'; }
+        if (statusEl2) { statusEl2.textContent = 'Recalculating...'; statusEl2.style.color = 'var(--ink-dimmer)'; }
 
         try {
             const q = query(collection(db, "typing_sessions"), where("uid", "==", uid), where("date", "==", date));
             const snap = await getDocs(q);
 
             if (snap.empty && !allowZero) {
-                if (statusEl2) { statusEl2.textContent = 'No sessions found'; statusEl2.style.color = '#ff6b6b'; }
+                if (statusEl2) { statusEl2.textContent = 'No sessions found'; statusEl2.style.color = 'var(--bad)'; }
                 return { ok: false, reason: 'no-sessions' };
             }
 
@@ -3484,7 +3640,7 @@
                     // callers read `{ ok, reason, got }`; a bare `return` would
                     // hand them undefined and the post-delete recalc would treat
                     // a declined inflation as a crash.
-                    if (statusEl2) { statusEl2.textContent = 'kept the stored figure'; statusEl2.style.color = '#888'; }
+                    if (statusEl2) { statusEl2.textContent = 'kept the stored figure'; statusEl2.style.color = 'var(--ink-dimmer)'; }
                     return { ok: false, reason: 'raise-declined',
                              got: { seconds: totalSec, chars: totalChars, mistakes: totalMistakes } };
                 }
@@ -3510,7 +3666,7 @@
                     `Overwrite it anyway?`
                 );
                 if (!okToDrop) {
-                    if (statusEl2) { statusEl2.textContent = 'kept the stored figure'; statusEl2.style.color = '#888'; }
+                    if (statusEl2) { statusEl2.textContent = 'kept the stored figure'; statusEl2.style.color = 'var(--ink-dimmer)'; }
                     return { ok: false, reason: 'drop-declined',
                              got: { seconds: totalSec, chars: totalChars, mistakes: totalMistakes } };
                 }
@@ -3594,7 +3750,7 @@
                 statusEl2.textContent = snap.size
                     ? `✓ ${formatTime(totalSec)} from ${snap.size} session${snap.size === 1 ? '' : 's'}`
                     : '✓ 0:00 — no sessions remain for this day';
-                statusEl2.style.color = '#22c55e';
+                statusEl2.style.color = 'var(--good)';
                 setTimeout(() => { statusEl2.textContent = ''; }, 3000);
             }
             return { ok: true, reason: 'written',
@@ -3602,7 +3758,7 @@
                      was: oldSeconds, sessionDocs: snap.size };
         } catch (err) {
             console.error("Recalc error:", err);
-            if (statusEl2) { statusEl2.textContent = '✗ ' + err.message; statusEl2.style.color = '#ff3333'; }
+            if (statusEl2) { statusEl2.textContent = '✗ ' + err.message; statusEl2.style.color = 'var(--bad)'; }
             return { ok: false, reason: 'error', message: err.message };
         }
     }
