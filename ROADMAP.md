@@ -1,5 +1,15 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.49.0, 2026-09-01.** ✅ **ITEM 41 CLOSED** — `reports.html` v2.36.0. ⭐ **It
+turned out to contain a real defect**: the ⟳ recalculate re-enabled itself on the
+line after its await with no `finally`, so any throw left the button dead until
+reload. ⚠️ Also corrected `recalc-guard-test.mjs` A5, which pinned a line's
+SHAPE rather than the property it protects and went red against a meaning-
+preserving refactor. ⚠️ Remaining open: **30** (may have been transient — see the
+renderer asymmetry noted in it, which stands on its own), **34**, **35** (waiting
+on a week of error-rate data), **39** and **42** — and **42 should come before 39
+for admin**, or the same lines get touched twice.
+
 **v3.48.0, 2026-09-01.** ✅ **ITEMS 37, 38 AND 40 CLOSED** — `reports.html`
 v2.35.0 / markup v1.7.0, `admin.html` v1.2.0. Tokens, the product font, three
 severities with one meaning each, and keyboard usability. **No behaviour changed.**
@@ -331,7 +341,6 @@ Everything else still open:
 - 34. ⚠️ THE LESSON-LEVEL MASTERY LOCK ONLY CLOSES WHEN EVERY RUN IS MASTERED
 - 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
 - 39. ⚠️ 64 alert() AND confirm() CALLS ARE THE LOUDEST “UNFINISHED” SIGNAL IN THE APP
-- 41. THREE SLOW OPERATIONS RUN WITH NOTHING MOVING ON SCREEN
 - 42. ⚠️ admin.html CARRIES 276 INLINE style= ATTRIBUTES AND CANNOT BE RESTYLED UNTIL IT DOES NOT
 
 ## ⏳ WATCHING — no action, just don't forget
@@ -367,6 +376,7 @@ Everything else still open:
 - 28. ✅ CLOSED (Round 54, Blickensderfer) — THE CLOSED-DAY CACHE
 - 6. ✅ CLOSED (Round 51, Blickensderfer) — THE MIDNIGHT STRADDLE, BOTH HALVES
 - 31. ✅ CLOSED (Round 55) — THE IDLE SPACE-SKIP LEFT THE SPACE BAR LIT
+- 41. ✅ CLOSED (Round 55) — THE SLOW CONTROLS NOW LOOK BUSY
 - 40. ✅ CLOSED (Round 55) — THE STAFF PAGES ARE KEYBOARD-USABLE
 - 38. ✅ CLOSED for reports.html (Round 55) — THREE SEVERITIES, ONE MEANING EACH
 - 37. ✅ CLOSED (Round 55) — THE STAFF PAGES NOW USE A DESIGN SYSTEM
@@ -3619,7 +3629,40 @@ interactive element. No layout changes.
 
 ---
 
-## 41. THREE SLOW OPERATIONS RUN WITH NOTHING MOVING ON SCREEN
+## 41. ✅ CLOSED (Round 55) — THE SLOW CONTROLS NOW LOOK BUSY
+
+✅ **`reports.html` v2.36.0.** One `withBusy()` helper — disable, busy label,
+`aria-busy`, restore in a `finally` — around Generate, ⛑ regrade, ⟳ recalculate
+and ⊘ clear-mastery. ⚠️ **It was FOUR controls, not the three this item
+counted**; the ⟳ recalculate was missed when the item was written.
+
+⭐ **AND ONE OF THEM WAS ACTUALLY BROKEN, WHICH THIS ITEM DID NOT KNOW.**
+`recalc-btn` set `disabled = true`, awaited, then set it false on the next line
+— with nothing catching a throw. **Any failure inside `recalcDailyLog()` left
+that button dead until the teacher reloaded**, on a row giving no hint that
+reloading was the cure. That was a real defect filed as a polish item, and it is
+why `busy-state-test.mjs` Part C is its own section.
+
+⚠️ **THE DISABLE IS THE CORRECTNESS HALF.** Three of the four WRITE. A second
+⛑ while the first is still resolving reconstructs the same day twice. The label
+is what stops a disabled button reading as a broken one; they ship together.
+
+⚠️ **`scanForFlags()` IS DELIBERATELY NOT CONVERTED** and Part D asserts so, to
+stop a later round "finishing the job". It reports incremental progress from
+inside a loop — *"42 of 60 students, 380 records read"* — which a wrap-the-call
+helper cannot express. Folding it in would trade real progress for a spinner.
+
+⚠️⚠️ **A HARNESS WAS CORRECTED, NOT WEAKENED, TO LAND THIS.**
+`recalc-guard-test.mjs` A5 matched the literal string
+`await recalcDailyLog(idx, li, uid, date);` and went red against a change that
+did not touch its meaning — the call became a `() =>` arrow inside `withBusy()`,
+same four arguments, same absent options object, same default drop guard. **A
+test that pins the SHAPE of a line rather than the PROPERTY it protects fails on
+refactors and passes on regressions.** A5 now asserts the property (no fifth
+argument, because a fifth argument is the options object that would silently
+remove the guard) and was re-verified to still catch that regression.
+
+### The original report, kept
 
 `reports.html` has **two** loading indicators in 3,730 lines. **Generate**, the
 **⛑** regrade and **⊘** clear-mastery can all run for seconds against the network

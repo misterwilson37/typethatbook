@@ -53,8 +53,22 @@ console.log('\n── A. the guard exists in reports.html ──');
        /allowZero:\s*true,\s*expectDrop:\s*true/.test(src), true);
 
     // The manual button takes no options, so it gets the guard by default.
-    eq('A5 the manual ⟳ handler still calls recalcDailyLog with no options',
-       /await recalcDailyLog\(idx, li, uid, date\);/.test(src), true);
+    //
+    // ⚠️⚠️ ASSERT THE INVARIANT (no options argument), NOT THE CALL SYNTAX.
+    // This used to match `await recalcDailyLog(idx, li, uid, date);` literally
+    // and went red in Round 55 against a change that did not touch its meaning:
+    // ROADMAP 41 wrapped the handler in withBusy(), so the call became
+    // `() => recalcDailyLog(idx, li, uid, date)` — same four arguments, same
+    // absent options object, same default guard. A test that pins the SHAPE of a
+    // line rather than the PROPERTY it protects fails on refactors and passes on
+    // regressions, which is exactly backwards.
+    //
+    // The property: the manual ⟳ passes those four arguments and NOTHING ELSE.
+    // A fifth argument would be an options object, and an options object is how
+    // expectDrop/allowZero get set — which is how this button would quietly lose
+    // the drop guard.
+    eq('A5 the manual ⟳ handler calls recalcDailyLog with no options object',
+       /recalcDailyLog\(idx, li, uid, date\)\s*[;)]/.test(src), true);
 
     // ⚠️ THE STUDENT-FACING CONSEQUENCE MUST BE IN THE DIALOG. A teacher deciding
     // whether to overwrite a child's minutes has to know the child sees them.

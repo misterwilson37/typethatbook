@@ -941,7 +941,16 @@
     //           ⚠️ THE DARK THEME STAYS — a teacher scanning a table and a child
     //           reading a sentence are different jobs; what was missing was a
     //           system, not a repaint. tests/staff-tokens-test.mjs.
-    const REPORTS_VERSION = "2.35.0";
+    // v2.36.0 — ⚠️ ROADMAP 41. A slow control must look busy. One withBusy()
+    //           helper — disable, busy label, aria-busy, restore in a finally —
+    //           applied to Generate (which had nothing at all), ⛑ regrade,
+    //           ⊘ clear-mastery and the ↻ recalculate. ⚠️⚠️ THE DISABLE IS THE
+    //           CORRECTNESS HALF: three of the four WRITE, and a teacher who
+    //           thinks a button did nothing clicks it again. ⚠️ A REAL DEFECT
+    //           FIXED, NOT ONLY POLISH: recalc-btn re-enabled on the line after
+    //           its await with no finally, so a throw left it dead until reload.
+    //           tests/busy-state-test.mjs.
+    const REPORTS_VERSION = "2.36.0";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -1381,7 +1390,58 @@
     });
 
     // --- GENERATE ---
-    document.getElementById('generate-btn').onclick = generateReport;
+    // ═════════════════════════════════════════════════════════════════════════
+    // ROADMAP 41 — A SLOW CONTROL MUST LOOK BUSY
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // This page had TWO loading indicators in 3,700 lines. Generate, the ⛑
+    // regrade and the ⊘ clear-mastery all run for seconds against the network
+    // with nothing moving on screen; only "Scan for flags" reported progress,
+    // because item 36 added it.
+    //
+    // ⚠️⚠️ THE CONSEQUENCE IS NOT AESTHETIC. A teacher who thinks a button did
+    // nothing clicks it again, and three of these four WRITE. A second ⛑ while
+    // the first is still resolving reconstructs the same day twice; a second
+    // ⊘ re-reads the whole subcollection to re-derive a clock that is already
+    // being re-derived. **The disable is the correctness half and the label is
+    // the kindness half**, and they ship together because a disabled button with
+    // no explanation reads as a broken one.
+    //
+    // ⚠️ RESTORE IN finally, ALWAYS. `recalc-btn` disabled itself and
+    // re-enabled on the line after the await, with nothing in between to catch a
+    // throw — so any failure left that button dead until the teacher reloaded
+    // the page, with no hint that reloading was what it needed. That is the
+    // failure this helper exists to make unrepresentable.
+    //
+    // ⚠️ THE ORIGINAL LABEL IS READ AT CALL TIME, not stored globally. These
+    // rows are re-rendered constantly; a cached label would be reapplied to a
+    // button that has since become a different one.
+    //
+    // ⚠️ IT DOES NOT SWALLOW. The error propagates after the button is
+    // restored — every caller here already has its own reporting, and a helper
+    // that ate exceptions would hide exactly the failures the disable is meant
+    // to survive.
+    async function withBusy(btn, busyLabel, fn) {
+        if (!btn) return fn();
+        const wasHTML = btn.innerHTML;
+        const wasDisabled = btn.disabled;
+        btn.disabled = true;
+        // ⚠️ aria-busy so the state is announced, not only drawn. ROADMAP 40
+        // made these reachable by keyboard; a keyboard user who cannot see the
+        // greyed-out pixels needs to be told the control is working.
+        btn.setAttribute('aria-busy', 'true');
+        if (busyLabel) btn.innerHTML = busyLabel;
+        try {
+            return await fn();
+        } finally {
+            btn.disabled = wasDisabled;
+            btn.removeAttribute('aria-busy');
+            btn.innerHTML = wasHTML;
+        }
+    }
+
+    document.getElementById('generate-btn').onclick = (e) =>
+        withBusy(e.currentTarget, 'Working\u2026', generateReport);
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE ROSTER SWEEP  (v2.21.0)  —  READ WHAT THE STUDENT READS
@@ -2440,7 +2500,12 @@
 
     document.getElementById('report-body').addEventListener('click', async (e) => {
         if (e.target.classList.contains('clear-mastery-btn')) {
-            await clearMastery(e.target.dataset.uid, e.target.dataset.lesson, e.target);
+            // ⚠️ clearMastery() manages its own disabled state because it
+            // re-renders the panel on success, which replaces this button
+            // entirely. The helper supplies the busy label and aria-busy and
+            // restores whatever it finds — harmless when the node is gone.
+            await withBusy(e.target, '\u2026', () =>
+                clearMastery(e.target.dataset.uid, e.target.dataset.lesson, e.target));
             return;
         }
 
@@ -2864,9 +2929,10 @@
             const uid  = e.target.dataset.uid;
             const date = e.target.dataset.date;
             const name = e.target.dataset.name || uid;
-            e.target.disabled = true;
-            try { await reconstructGrades(uid, date, name); }
-            finally { e.target.disabled = false; }
+            // ⚠️ This one was already correct — disable with a finally. It goes
+            // through the helper anyway so the busy LABEL and aria-busy are
+            // consistent across all four, and so there is one place to change.
+            await withBusy(e.target, '\u2026', () => reconstructGrades(uid, date, name));
             return;
         }
 
@@ -2876,9 +2942,11 @@
             const li = parseInt(e.target.dataset.li);
             const uid = e.target.dataset.uid;
             const date = e.target.dataset.date;
-            e.target.disabled = true;
-            await recalcDailyLog(idx, li, uid, date);
-            e.target.disabled = false;
+            // ⚠️⚠️ THIS IS THE ONE THAT WAS ACTUALLY BROKEN. It disabled itself and
+            // re-enabled on the line after the await, with no finally — so a
+            // throw inside recalcDailyLog() left the button permanently dead,
+            // on a row that gives no clue that a page reload is the cure.
+            await withBusy(e.target, '\u2026', () => recalcDailyLog(idx, li, uid, date));
             return;
         }
     });
