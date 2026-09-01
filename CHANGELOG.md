@@ -1,5 +1,82 @@
 # CHANGELOG — TypeThatBook
 
+## Round 55 (Smith-Premier) — 2026-09-01 — the clean day produced bugs, not a number
+
+Round 54 set this build up to measure the reads floor for a county rollout. Jake
+ran the day and brought **six defects** instead, and the round became about those.
+⚠️ **The reads measurement was never taken** — ROADMAP §READS is unchanged and it
+is still worth doing.
+
+**⭐⭐ ROADMAP 43 — AN EMPTY PROGRESS CACHE LOCKED A STUDENT OUT OF THE WHOLE
+CURRICULUM** (learn.js v2.42.0). A student reported losing all lesson progression
+but none of his time. `refreshProgressCache()` wrote whatever `userProgress` held
+with no check that it had ever been READ, and `loadUserProgress()` sets it to `{}`
+then **awaits** a network round trip — so an ordinary tab switch inside that
+window persisted the empty map. `{}` then passed the `typeof`-object cache-hit
+test, Firestore was never consulted, and `isUnlocked()` offered lesson one **and
+nothing else** for up to eight hours, re-stamping its own TTL while he worked.
+⚠️ **The Firestore record and his minutes were intact the entire time**, which is
+exactly why it looked like a lesson bug. Fixed with a uid-keyed load guard and
+**empty-is-a-MISS on the read side**, which self-heals every poisoned cache on the
+next page load — necessary because **students have no browser console**, so the
+one-line repair first offered was never reachable by the person who needed it.
+
+**⚠️⚠️ A PERMISSION CHECKED AGAINST ONE PRIVILEGED ACCOUNT IS NOT CHECKED, AND
+THIS ROUND PROVED IT TWICE.** `firestore.rules` v2.8.0 allowed the new per-run
+delete to `isSuper()` and the owner — it worked for Jake and would have been
+silently denied for every teacher and building admin. **I asserted in writing that
+no rules change was needed; Jake caught it.** Checking that turned up **v2.7.0
+with the same hole on `lessonProgress`, live since Round 15** — open to
+`readsWholeBuilding()` staff only, which is false for an ordinary teacher, so the
+⛑ grade-reconstruction button has been teacher-denied for forty rounds. v2.10.0
+adds both branches, clamped so staff can only ever REMOVE. **Deployed and verified
+by Jake.**
+
+**✅ ROADMAP 31** (learn.js v2.41.0) — the space-bar bug two students reported and
+photographed. The idle-resume space skip advanced `drillPos` past a space and never
+repainted, so the keyboard kept the space target — two thumb dots — while the game
+expected the next letter. Fires only after a 3-second pause landing on a space,
+which is why it read as intermittent and never reproduced for a teacher on demand.
+
+**✅ ROADMAP 32, 33, 36** (reports.html v2.34.0) — per-run delete, clear-mastery,
+and the at-a-glance day surface. ⭐ **The error-rate column is free**: `typing_logs`
+already carries `mistakes` beside `chars` and the report already fetches it.
+Everything else costs a read per student per day and lives behind a scan button
+that states its cost. ⚠️⚠️ **"No answer" is never rendered as 0% and "not scanned"
+never looks like "clean"** — both would lie in the direction nobody checks.
+
+**✅ ROADMAP 37, 38, 40, 41** (reports.html v2.36.0, admin.html v1.2.0) — design
+tokens and the product font on the staff pages, three severities with one meaning
+each, keyboard usability, busy states. ⚠️ **38 is a correctness item**: amber meant
+three different things across two pages. ⚠️ **41 contained a real defect** —
+`recalc-btn` re-enabled on the line after its await with no `finally`, so any throw
+left it dead until reload.
+
+**⚠️ admin.js v3.35.0 — ROUND 27'S DEFECT INVERTED.** The constant read `3.33.0`
+while the header carried honest v3.34.0 and v3.35.0 entries whose code is
+demonstrably in the file. The HEADER was true and the CONSTANT was stale, so the
+build footer — the only diagnostic at a classroom machine — under-reported by two
+rounds. `npm test` and `audit:versions` were both red on arrival because of it.
+
+**⭐ docs/TEACHER-GUIDE.md** — the first teacher-facing document in the repo. Its
+body carries no roadmap numbers; the maintainer footnotes do.
+
+**⚠️⚠️ WHAT I GOT WRONG.** A header-archive step searched the whole file for the
+next version comment instead of the header block, matched an inline comment deep in
+the code, and **deleted learn.js's import block**; `node --check` caught it and it
+was restored byte-identical. **Two mutation tests silently did not mutate** — shell
+escaping turned `\u2026` into a literal ellipsis, so a harness "passed" against
+changes it should have caught. `recalc-guard-test.mjs` A5 **pinned a line's text
+rather than the property it protects** and went red against a meaning-preserving
+refactor; corrected to assert the property and re-verified. And normalising bare
+⚠️ glyphs **widened the diff** into ~26 pre-existing lines.
+
+**⚠️ Still unrun: six new `test:rules` cases.** No emulator in the environment they
+were written in. **Still red on arrival: `metadata-map-test.mjs`**, 30 assertions,
+a book classified as Gutenberg where the harness expects Standard Ebooks.
+
+65 harnesses (64 pass), 0 audit problems.
+
 ## Round 54 (Blickensderfer) — 2026-08-26 — the closed-day cache
 
 **✅ ROADMAP item 28 is CLOSED** (daylog.js v1.7.0). Days strictly before

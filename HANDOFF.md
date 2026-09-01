@@ -1,83 +1,138 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-08-26 by Round 54 (Blickensderfer), for whoever is next
+> ## ▶ START HERE — written 2026-09-01 by Round 55 (Smith-Premier), for whoever is next
 >
-> ⭐⭐ **THE READS WORK IS DONE AND THE BUILD IS READY FOR THE CLEAN DAY.**
-> Jake is running one ordinary school day on this build to find **the floor**,
-> so he can judge shipping TypeThatBook to the county. ⚠️ **It is NOT a
-> before/after comparison** — an earlier draft said to freeze before item 28 and
-> that was wrong; every tightening ships FIRST, then the day is measured.
->
-> **What good looks like:** a Library load at **2** reads rather than 5, a sprint
-> page well under its measured 16, a full session comfortably under 31.
-> Mechanics are in ROADMAP §READS — follow them exactly: `copy(ttbMeter.json())`
+> ⭐⭐ **THE CLEAN DAY HAPPENED, AND WHAT IT PRODUCED WAS SIX BUG REPORTS, NOT A
+> READS NUMBER.** Round 54 set this build up to measure the floor for a county
+> rollout. Jake ran the day — and then brought defects, so the round became about
+> those instead. ⚠️ **THE READS MEASUREMENT WAS NEVER TAKEN.** It is still worth
+> taking and the mechanics in ROADMAP §READS are unchanged: `copy(ttbMeter.json())`
 > on each page **before navigating**, never `reset()` after a page has loaded,
-> signed in **as a student**, `ttbMeter.day()` at the end.
+> signed in **as a student**, `ttbMeter.day()` at the end. Jake also asked about
+> reading it from the Firebase/Cloud consoles — those answer *how much*, never
+> *which line*; `read-meter.js` is still the only instrument for the second.
 >
-> ### ✅ What the reads work actually did
+> ### ⚠️⚠️ THE LESSON OF THIS ROUND, AND IT COST A CHILD A WEEK OF PROGRESS
 >
-> * **daylog.js v1.6.0** — per-load memo. game.html read the same week twice
->   (`retroactiveSaveGuestSession()` then `loadUserStats()`, three lines apart).
-> * **daylog.js v1.7.0** — the closed-day cache. **2 reads per load, FLAT**,
->   whether the student has typed one day this week or five. The old cost grew
->   with the week; that was the real defect.
+> **A permission checked against one privileged account is not checked.** It
+> happened twice in one round, and the second one had been live for forty rounds:
 >
-> ⚠⚠ **THE TWO BOUNDARIES ARE LOAD-BEARING. DO NOT MOVE THEM WITHOUT READING
-> WHY.** Yesterday is never cached (the Overnight Rescue writes back into it);
-> the cache expires at local midnight (a teacher's ⟳ recalc happens in the
-> TEACHER's browser and cannot invalidate a student's localStorage — there is no
-> hook to add). `closed-day-cache-test.mjs` fails if either moves.
+> * `firestore.rules` v2.8.0 allowed the new per-run delete to `isSuper()` and the
+>   owner. It worked for Jake and would have been **silently denied** for every
+>   teacher. I asserted in writing that no rules change was needed. Jake caught it.
+> * Checking that turned up **v2.7.0 with the same hole** on `lessonProgress` —
+>   open to `readsWholeBuilding()` staff only, which is false for an ordinary
+>   teacher. **The ⛑ grade-reconstruction button has been teacher-denied since
+>   Round 15**, unnoticed because the only person testing it reads the whole
+>   building.
 >
-> ⚠️ **EVERY `typing_logs` WRITER MUST STILL CALL `invalidateWeek(uid)`**
-> (v1.6.0's rule). `weekly-memo-test.mjs` C5 fails if a third writer appears —
-> give it an invalidation, do not raise the number.
+> ⚠️ **A DENIED WRITE LOOKS LIKE A BUTTON THAT DOES NOTHING.** That is the least
+> debuggable failure this project has. Test staff features as a TEACHER.
 >
-> ### What is left, and it is not much
+> ### ✅ What shipped
 >
-> Read **ROADMAP.md's "▶ HOW TO APPROACH WHAT'S LEFT"** block — the durable copy.
-> In short: **29** (README, twenty-five rounds stale, and it is the file map),
-> then the measurement chain **5 → 4**, with **1** and **7** attached, then **9**.
+> * **learn.js v2.42.0** — ⭐ **ITEM 43, the worst defect found this round.** An
+>   empty progress map was a valid cache HIT, and `refreshProgressCache()` could
+>   write one during the await inside `loadUserProgress()`. `isUnlocked()` then
+>   offered lesson one **and nothing else** for up to eight hours, renewing its own
+>   TTL while the student worked — **with the Firestore record and their typing
+>   time both perfectly intact**. That is why it presented as lost lesson
+>   progression with correct minutes. Two halves: a uid-keyed load guard on the
+>   write side, and empty-is-a-MISS on the read side, which **self-heals every
+>   already-poisoned cache on the next page load**. ⚠️ That second half mattered
+>   because **students have no browser console** — the one-line repair I first
+>   offered was never reachable by the person who needed it.
+> * **learn.js v2.41.0** — item 31, the space-bar bug two students reported. The
+>   idle space-skip moved `drillPos` and never repainted.
+> * **reports.html v2.36.0** — items 32, 33, 36, 37, 38, 40, 41. Per-run delete,
+>   clear-mastery, the at-a-glance day flags, design tokens, keyboard usability,
+>   busy states.
+> * **firestore.rules v2.10.0** — ✅ **DEPLOYED AND VERIFIED BY JAKE.**
+> * **admin.js v3.35.0** — ⚠️ the constant said `3.33.0` while the header carried
+>   honest v3.34.0/v3.35.0 entries whose code is in the file. **Round 27's defect
+>   inverted**: the header was true and the CONSTANT was stale, so the build footer
+>   — the only diagnostic at a classroom machine — under-reported by two rounds.
+> * **docs/TEACHER-GUIDE.md** — the first teacher-facing document in the repo.
+>   ⚠️ **Keep developer prose out of it.** Its maintainer footnotes carry the
+>   roadmap numbers; the body deliberately has none.
 >
-> ⚠⚠ **ITEM 27's VALUE COLLAPSED AND SOMEBODY SHOULD RE-JUDGE IT BEFORE
-> BUILDING.** The memo means its second read already costs nothing, and
-> `loadUserStats()` needs the week regardless — the guard now saves roughly
-> **zero** reads. It is twin-symmetry tidiness, not performance. The roadmap
-> entry says so.
+> ### ⚠️⚠️ WHAT I GOT WRONG, SO YOU DO NOT REPEAT IT
 >
-> ⚠️ **ITEM 9's FIRST BULLET IS A REPAIR, NOT TIDYING** — the day rollover lives
-> only in the typing tick, so a tab that wakes on a new day and paints without
-> typing works from stale counters until the first keystroke. Small, quiet,
-> still a bug. **"No defect outstanding" has been claimed wrongly twice; read
-> the headings, not the summary.**
+> * **I damaged learn.js.** A header-archive step searched the WHOLE FILE for the
+>   next `// vN.N` line; the last header entry has no successor there, so it
+>   matched an inline comment deep in the code and deleted the import block with
+>   it. `node --check` caught it, restored from backup, verified byte-identical
+>   against the last shipped copy. **Bound every slice to the block you mean.**
+> * **Two mutation tests silently did not mutate.** Shell escaping turned `\u2026`
+>   into a literal ellipsis, so the search strings never matched and the harness
+>   "passed". A mutation test that does not mutate looks exactly like a passing
+>   one. **Assert the anchor matched before trusting the result.**
+> * **A harness went red against a meaning-preserving refactor.**
+>   `recalc-guard-test.mjs` A5 matched a line's exact TEXT rather than the property
+>   it protects. Corrected to assert the property, then re-verified it still
+>   catches the real regression. **Pin properties, not syntax.**
+> * **I widened a diff I did not mean to.** Normalising bare ⚠️ glyphs to carry
+>   their variation selector also touched ~26 pre-existing ones in learn.js.
+>   Cosmetic and consistent with the convention, but more changed lines than the
+>   work needed.
+>
+> ### What is left
+>
+> **30** — the Adventure caps-lock report; it did not recur, so it may have been
+> transient. ⚠️ **But a real finding stands on its own regardless:**
+> `_onKeystroke()` in `adventure-renderer.js` writes `letterStatus` ONLY inside its
+> `if (d.correct)` branch — there is no `else`, so a wrong key never earns the
+> persistent colour a classic-mode letter gets. Narrow the item to that.
+>
+> **35** — deliberately waiting on data. The error-rate column exists so its
+> threshold comes from a real week rather than a guess (§0.-33.A).
+>
+> **39** (64 `alert()`/`confirm()` calls) and **42** (276 inline `style=` in
+> admin.html) each want their own conversation. ⚠️ **42 BEFORE 39 FOR ADMIN**, or
+> the same lines get touched twice. **34** needs a student watched once first.
 >
 > ### ⚠️⚠️ READ §0.-31.H, §0.-32.D AND §0.-33.C BEFORE YOU EDIT ANY FILE
 >
-> Encode first, write to a temp file, verify the size, rename; assert every
-> anchor matches exactly once; guard on structure, never on distance or words.
-> **No file-damage incident in this session.** And see ROADMAP § CONVENTIONS —
-> verify a flag before building for it, look at layout RENDERED, ship
-> changed-files-only.
+> Encode first, write to a temp file, verify the size, rename; assert every anchor
+> matches exactly once; guard on structure, never on distance or words. And see
+> ROADMAP § CONVENTIONS — verify a flag before building for it, look at layout
+> RENDERED, ship changed-files-only.
 >
 > ### State of play
 >
-> * **59 harnesses pass**, `audit:versions` **0 problems**, `test:rules` **65
->   cases** (last run Round 46).
-> * `firestore.rules` **v2.8.0 IS DEPLOYED** and verified by real classroom use.
-> * ⚠️ **Pre-existing duplicate `typing_sessions` documents still exist** — the
->   reader dedupes them, the writer no longer makes them, nothing cleaned up the
->   old ones. A decision nobody has made. Not urgent, not a bug.
+> * **64 of 65 harnesses pass**, `audit:versions` **0 problems**.
+> * ⚠️ **The one failure is `metadata-map-test.mjs` (30 assertions) and it was
+>   RED ON ARRIVAL**, verified against the untouched upload.
+>   `robert-louis-stephenson-black-arrow_claudeCleaned.epub` is classified as
+>   Gutenberg where the harness expects Standard Ebooks — probably one of the six
+>   books uploaded that week. A real disagreement, not test rot.
+> * ⚠️ **`test:rules` HAS SIX NEW CASES THAT HAVE NEVER BEEN RUN.** No emulator
+>   in the environment they were written in. `npm run test:rules`.
+> * ⚠️ Pre-existing duplicate `typing_sessions` documents still exist — reader
+>   dedupes, writer no longer makes them, nothing cleaned up the old ones.
 > * ⚠️ **DO NOT RENUMBER ROADMAP ITEMS.** `roadmap-index-test.mjs` matches a
 >   heading's EXACT text.
 >
 > ### The name
 >
-> Rounds 46–54 are **Blickensderfer** — one name per conversation, not per round.
-> ⚠️ **GREP THE ROSTER BEFORE YOU PICK YOURS**:
+> Round 55 is **Smith-Premier**. ⚠️ **GREP THE ROSTER BEFORE YOU PICK YOURS**:
 > `grep -rihn "Round [0-9]* (" . | grep -oP "Round \d+ \([A-Za-z-]+\)"`.
 
 
-<!-- HANDOFF.md v15.30.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.31.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 40; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.31.0 — Round 55 (Smith-Premier). ⭐ START HERE REWRITTEN. The clean day
+     produced six bug reports rather than a reads number, and the reads
+     measurement was never taken — said plainly rather than left implied.
+     ⚠️⚠️ THE ROUND'S LESSON IS A PERMISSIONS ONE: a permission checked against
+     one privileged account is not checked. It happened twice, and the second
+     (lessonProgress, v2.7.0) had been silently denying teachers since Round 15.
+     ⚠️⚠️ ITEM 43 IS THE ONE TO READ: an empty progress cache locked a student
+     out of the whole curriculum for a school day with the server record intact.
+     ⚠️ A "WHAT I GOT WRONG" SECTION IS NEW AND SHOULD STAY — I damaged learn.js
+     with an unbounded slice, shipped two mutation tests that did not mutate, and
+     widened a diff I did not mean to. 65 harnesses, 0 audit problems.
 
      v15.30.0 — Round 45 (Rem-Sho). ✅ A ▶ START HERE BLOCK now opens this file:
      what the next round is, what not to do to a file, and the state of play.
@@ -533,7 +588,7 @@
      classic view — the DEFAULT view — always printed "stale module cache". A red
      alarm that is always on teaches you to discount the real ones beside it.
      ⚠️ Assert the positive SHAPE you need; never enumerate the sentinels you
-     happen to know about. (3) The ⚠ notes were shown to every child who hovered
+     happen to know about. (3) The ⚠️ notes were shown to every child who hovered
      the footer. Now staff-only and ⚠️⚠️ DEFAULTING TO OFF, so a fourth surface
      added by someone who never read this fails toward silence — but
      ⚠️⚠️ §0.-20.D IS THE PART TO READ: a gated panel still prints the COUNT,
@@ -1485,7 +1540,7 @@ diagnostic is consulted INSTEAD of checking, so when it is wrong nothing
 disagrees with it.** The honest check is internal consistency, and that is all
 Section F claims.
 
-⚠️ **F6 IS SMALLER AND WORTH KEEPING.** My match-site comment used bare `⚠`
+⚠️ **F6 IS SMALLER AND WORTH KEEPING.** My match-site comment used bare `⚠️`
 without the variation selector, so three warnings in the security-boundary file
 rendered as a dingbat rather than a warning sign — quietly less visible than
 every other warning around them. Fixed, and now asserted.
@@ -2741,7 +2796,7 @@ who dims the footer cannot reach it. `adventure.css` **1.0.3**, `style.css`
 **3.8.1**.
 
 ⚠️ The panel was also **unbounded**: `white-space: nowrap`, no `max-width`. One
-long ⚠ note made it wider than the viewport and it ran off the left edge, taking
+long ⚠️ note made it wider than the viewport and it ran off the left edge, taking
 the file list with it. Notes wrap now; rows do not.
 
 ### B. ⚠️⚠️ THE LOUDEST RED LINE IN THE PANEL WAS FALSE, AND HAD BEEN FOR WEEKS
@@ -2749,7 +2804,7 @@ the file list with it. Notes wrap now; rows do not.
 Nobody asked about this. It is visible in Jake's screenshot:
 
 ```
-⚠ adventure-renderer.js mounted v—, deployed file reads v1.5.4 — stale module cache
+⚠️ adventure-renderer.js mounted v—, deployed file reads v1.5.4 — stale module cache
 ```
 
 `game.js` seeds `rendererVersionStr = '—'` meaning **never mounted**. The guard
@@ -2801,7 +2856,7 @@ So `renderHiddenNotesLine(n)` always prints the **count**:
 
 > 12 build notes — sign in as staff to read them.
 
-Grey, lowercase, **no ⚠** — it is read most often by a child who hovered the
+Grey, lowercase, **no ⚠️** — it is read most often by a child who hovered the
 footer by accident and can act on none of it. `countBuildNotes()` is exported so
 `game.js` can fold its own renderer-drift note into **one** total rather than
 reporting two partial ones.
@@ -3005,7 +3060,7 @@ by asking for the smaller set.
 
 ✅ **WHAT CAUGHT IT WAS APPLYING THE SET, NOT REVIEWING IT.** A pristine copy of
 the delivered repo, plus the upload set and nothing else, then `npm test`. The
-suite went red on `build-panel-test.mjs` — *"default render emits no ⚠ at all"* —
+suite went red on `build-panel-test.mjs` — *"default render emits no ⚠️ at all"* —
 because the old `versions.js` was still there. ⚠️ **A harness written this round
 caught this round's delivery mistake**, which is the first time that has happened
 here.
@@ -5393,10 +5448,10 @@ signal. **Do not look for the corner stamp.**
 ⚠️⚠️ **ROUND 28 CHANGED WHAT THE HOVER PANEL SHOWS YOU, AND YOU NEED TO KNOW
 WHICH VERSION OF IT YOU ARE LOOKING AT (§0.-20).**
 
-* **Signed in as staff** — the panel is what it always was, ⚠ notes included,
+* **Signed in as staff** — the panel is what it always was, ⚠️ notes included,
   and it is now *legible*: before `adventure.css` v1.0.3 it was rendered at 55%
   opacity over the book text and could not be read at all.
-* **Signed out, or signed in as a student** — the ⚠ notes are hidden and a grey
+* **Signed out, or signed in as a student** — the ⚠️ notes are hidden and a grey
   line reads **"N build notes — sign in as staff to read them."**
   ⚠️ **THAT LINE IS THE POINT. A PANEL WITH NO GREY LINE IS GENUINELY CLEAN; A
   PANEL WITH ONE IS NOT.** You will most often read this standing at a student's

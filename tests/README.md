@@ -1,6 +1,11 @@
 # tests/
 
-<!-- tests/README.md v1.8.0 — Round 31 (Fitch), Round 30 (Postal), Round 29
+<!-- tests/README.md v1.9.0 — Round 31 (Fitch), Round 30 (Postal), Round 29
+
+     v1.9.0 — Round 55 (Smith-Premier). ⚠️⚠️ THE REGISTRATION COUNT HAD DRIFTED
+     AGAIN — "57 files, 47 registered" against a real 74 and 64. THREE WARNINGS
+     ON THIS PAGE DID NOT STOP IT, because a warning cannot count. The paragraph
+     now carries the two commands that recount it instead of a number to edit.
      (Odell), Round 28 (Daugherty), Round 21
 
      v1.8.0 — Round 31 (Fitch). NEW: exit-flush-test.mjs — ROADMAP 14b.
@@ -212,12 +217,24 @@ found it reading *"28 harnesses"*. **The audit catches an unregistered FILE; it
 cannot catch a wrong NUMBER in English prose**, so the paragraph above overstated
 what was fixed. Recount by running, never by editing the number you remember.
 
-Current, verified by running: **57 `.mjs` files in this folder, 47 registered** —
-`FAST` (41, no external data, runs in a fresh clone), `EPUB` (4, needs
-`library/`, behind `--with-epubs`), `RULES` (2, behind `npm run test:rules`).
-`PENDING` is empty. The remainder are fixtures and helpers, not harnesses.
-`npm test` reports **ALL 48 HARNESSES PASS** — 48 rather than 41 because the
-runner counts its own syntax-check and registration audits.
+Current, verified by running — Round 55: **74 `.mjs` files in this folder, 64
+registered** — `FAST` (58, no external data, runs in a fresh clone), `EPUB` (4,
+needs `library/`, behind `--with-epubs`), `RULES` (2, behind
+`npm run test:rules`). `PENDING` is empty. The remainder are fixtures and
+helpers, not harnesses. `npm test` reports **65 harnesses** — more than 58
+because the runner counts its own syntax-check and registration audits.
+
+⚠️ **AND IT HAD DRIFTED AGAIN, EXACTLY AS THE PARAGRAPHS ABOVE PREDICT.** Round
+55 found this reading *"57 files, 47 registered"* against a real 74 and 64 — ten
+harnesses added across rounds by people who updated the list and not the prose.
+**Three warnings on this page did not stop it**, because a warning cannot count.
+Recount by running the two commands below, never by editing the number you
+remember:
+
+```bash
+ls tests/*.mjs | wc -l          # files on disk
+npm test 2>&1 | tail -2         # what the runner actually ran
+```
 
 A harness that is in
 neither list **is not coverage**, however green it is on demand — Round 17 found
