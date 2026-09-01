@@ -1,5 +1,24 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.47.0, 2026-09-01.** ✅ **ITEM 43 CLOSED — `learn.js` v2.42.0.** ⭐ **THE
+DEPLOY IS THE REPAIR.** Jake: *"He doesn't have console on his machine. As a
+student, it's removed."* The read-side half — an empty map no longer counts as a
+cache hit — means every already-poisoned cache falls through to Firestore on the
+student's next page load, with no console and no per-student action. The write-side
+guard stops it recurring. ⚠️ **Ship this before items 37–42**; the polish work is
+worth nothing to a child who cannot open lesson two.
+
+**v3.46.0, 2026-09-01.** ⚠️⚠️⚠️ **ITEM 43 — A STUDENT IS LOCKED OUT OF THE
+WHOLE CURRICULUM AND IT IS DIAGNOSED BUT NOT FIXED.** An empty progress map is a
+valid cache HIT, and `refreshProgressCache()` can write one during the await
+inside `loadUserProgress()`. `isUnlocked()` then offers lesson one and nothing
+else, for up to eight hours, renewing itself while the student works — with the
+server record perfectly intact the whole time. **Read item 43 before anything
+else in this file; it carries the one-line console repair for the affected
+student.** ⭐ Also added items **37–42**, the staff-page polish set Jake asked for
+after seeing reports and admin beside the student pages — measured rather than
+judged, and **38 is a correctness item, not a cosmetic one**.
+
 **v3.45.0, 2026-08-30.** ⭐✅ **ITEM 33 CLOSED — THE ONE THAT WAS COSTING CHILDREN
 SOMETHING EVERY DAY IT STAYED OPEN.** `reports.html` v2.34.0, `firestore.rules`
 v2.10.0. ⚠️⚠️ **AND IT SURFACED THAT v2.7.0 HAD THE SAME PERMISSION HOLE, SINCE
@@ -302,6 +321,12 @@ Everything else still open:
 - 30. ⚠️ ADVENTURE MODE GIVES NO COLOUR FEEDBACK ON A WRONG KEY — AND CAPS LOCK IS WHERE IT SHOWS
 - 34. ⚠️ THE LESSON-LEVEL MASTERY LOCK ONLY CLOSES WHEN EVERY RUN IS MASTERED
 - 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
+- 37. ⭐ THE STAFF PAGES DO NOT USE THE DESIGN SYSTEM AT ALL
+- 38. ⚠️⚠️ ONE COLOUR MEANS THREE DIFFERENT THINGS ACROSS THE STAFF PAGES
+- 39. ⚠️ 64 alert() AND confirm() CALLS ARE THE LOUDEST “UNFINISHED” SIGNAL IN THE APP
+- 40. ⚠️ THE STAFF PAGES ARE NOT KEYBOARD-USABLE, ON A TYPING APP
+- 41. THREE SLOW OPERATIONS RUN WITH NOTHING MOVING ON SCREEN
+- 42. ⚠️ admin.html CARRIES 276 INLINE style= ATTRIBUTES AND CANNOT BE RESTYLED UNTIL IT DOES NOT
 
 ## ⏳ WATCHING — no action, just don't forget
 
@@ -336,6 +361,7 @@ Everything else still open:
 - 28. ✅ CLOSED (Round 54, Blickensderfer) — THE CLOSED-DAY CACHE
 - 6. ✅ CLOSED (Round 51, Blickensderfer) — THE MIDNIGHT STRADDLE, BOTH HALVES
 - 31. ✅ CLOSED (Round 55) — THE IDLE SPACE-SKIP LEFT THE SPACE BAR LIT
+- 43. ✅ CLOSED (Round 55) — AN EMPTY PROGRESS CACHE LOCKED STUDENTS OUT OF THE CURRICULUM
 - 33. ✅ CLOSED (Round 55) — MASTERY CAN NOW BE CLEARED FOR A LESSON
 - 36. ✅ CLOSED (Round 55) — THE DAY ROW NOW SAYS WHAT HAPPENED
 - 32. ✅ CLOSED (Round 55) — A RUN CAN NOW BE DELETED WITHOUT ITS SESSION
@@ -3267,3 +3293,305 @@ two meanings in one column is §3.1's defect wearing a report's clothes.
 ⚠️ **A ZERO-CHARACTER DAY IS NOT A 0% DAY.** `mistakes / (chars + mistakes)` is
 0/0 on a day with a log and no typing, and a column that renders that as a clean
 green 0% is worse than a blank. Render nothing, not zero.
+
+
+---
+
+## 43. ✅ CLOSED (Round 55) — AN EMPTY PROGRESS CACHE LOCKED STUDENTS OUT OF THE CURRICULUM
+
+✅ **FIXED IN `learn.js` v2.42.0.** Two halves, and they do different jobs:
+
+1. **The write-side guard.** `_progressLoadedForUid` — a uid, not a boolean —
+   cleared on entry to `loadUserProgress()` and set only where the map is
+   genuinely populated. `refreshProgressCache()` returns early unless it matches
+   the signed-in user. ⚠️ **The catch block deliberately does NOT set it**: a
+   failed read means the empty map is ignorance, not fact.
+2. ⭐ **Empty-is-a-MISS on the read side — THE SELF-HEAL, AND THE HALF THAT
+   MATTERS TODAY.** Jake: *"He doesn't have console on his machine. As a student,
+   it's removed."* So the one-line console repair below was never available to
+   the person who needed it. **This half repairs every already-poisoned cache on
+   the student's next page load**, with no console, no teacher action and no
+   per-student intervention. Deploying v2.42.0 IS the repair.
+
+⚠️ **COSTS ONE SUBCOLLECTION READ PER LOAD FOR A STUDENT WHO HAS GENUINELY
+PASSED NOTHING** — a brand-new account, until they finish their first lesson.
+That is the right trade: the alternative is being unable to distinguish "new
+student" from "lost everything", which is the confusion that caused this defect.
+
+⚠️⚠️ **`progress-cache-test.mjs` ASSERTS THE INVARIANT, NOT THE CALL SITES.**
+Part B4 pins that there are exactly TWO `cacheWrite(PROGRESS_CACHE_KEY)` sites,
+one of them the guarded function — a third would be an unguarded path straight
+back here. Mutation-verified against all three halves of the fix.
+
+⚠️ **`refreshProgressCache()` AT THE END OF `flushStats()` STILL RUNS WHEN `ok`
+IS FALSE**, i.e. after a failed flush. The guard makes it harmless — it can now
+only write a genuinely-loaded map — so this is no longer a defect, but it is
+still wrong and is left noted rather than silently fixed.
+
+⚠️ **THE OLD CONSOLE REPAIR, KEPT FOR THE RECORD ONLY.** It works from a
+teacher's machine on a teacher's own poisoned cache; it was never reachable for a
+student. Prefer the deploy.
+
+### The original report, kept
+
+**Jake, 2026-09-01:** *"A student reported that all his progress was lost — not
+his time, but the lesson progression… I saw his screen — 1.1 was all he had
+available to him."*
+
+⚠️⚠️⚠️ **DIAGNOSED, NOT FIXED. THIS IS THE MOST SERIOUS OPEN ITEM IN THIS FILE
+AND IT IS STILL HAPPENING.** Every phrase of the report matches the mechanism
+below, including the two that look contradictory: the server record is intact and
+the student is locked out.
+
+### The mechanism
+
+`loadUserProgress()` prefers `localStorage` over Firestore and **returns early on
+a cache hit, without ever consulting the subcollection**:
+
+```js
+userProgress = {};
+const cached = cacheRead(PROGRESS_CACHE_KEY, PROGRESS_CACHE_MS, currentUser.uid);
+if (cached && cached.progress && typeof cached.progress === 'object') {
+    userProgress = cached.progress;
+    return;                      // ← Firestore is never read
+}
+```
+
+`refreshProgressCache()` writes whatever `userProgress` currently holds, **with no
+check that it has ever been loaded**:
+
+```js
+function refreshProgressCache() {
+    if (!currentUser) return;
+    cacheWrite(PROGRESS_CACHE_KEY, { uid: currentUser.uid, progress: userProgress });
+}
+```
+
+⚠️⚠️ **AND `{}` IS A VALID CACHE PAYLOAD.** `typeof {} === 'object'` is true, so an
+empty map is a HIT, not a miss. The one state that means *"I know nothing"* is
+indistinguishable from *"I know this student has passed nothing"*.
+
+**The race, in order:**
+
+1. Page load reaches `loadUserProgress()`. It sets `userProgress = {}` and then
+   **awaits** `getDocs(…)` — a network round trip. For the length of that await,
+   the in-memory record is empty.
+2. Anything that flushes during that window reaches `flushStats()` →
+   `refreshProgressCache()` → **writes `{progress: {}}` with a fresh timestamp.**
+   The triggers are ordinary: `visibilitychange:hidden` fires on a tab switch, a
+   Chromebook lid, or Google Classroom in another tab.
+3. `getDocs` resolves and writes the good copy — **but whichever write lands last
+   wins**, and this load is fine either way.
+4. **The next load is not.** `cacheRead` returns the empty map (uid matches, age
+   under 8 hours), `loadUserProgress()` returns early, and Firestore is never
+   asked.
+5. `isUnlocked()` reads `userProgress[prev.id]?.passed === true` for every lesson.
+   All undefined. **Only `allLessons[0]` — u1_11 — is unlocked.**
+6. `PROGRESS_CACHE_MS` is **8 hours, one school day** — and every subsequent
+   `flushStats()` re-stamps `at`, so the poisoning **renews itself for as long as
+   the student keeps working.** It does not clear on reload, on navigation, or on
+   signing out and back in.
+
+### Why every detail of Jake's report follows from it
+
+* ✅ **"not his time"** — time lives in `statsData` → `typing_logs`, a completely
+  separate path that this cache never touches. Nothing about the minutes breaks.
+* ✅ **"1.1 was all he had available"** — not *some* progress lost. `isUnlocked()`
+  falls through to `idx === 0` and nothing else. An empty map cannot produce any
+  other symptom, and a partial loss would look nothing like this.
+* ✅ **The record on the server is INTACT** — screenshot 1 shows u1_11–u2_13
+  passed and u2_14 attempted. Nothing ever deleted anything; the client stopped
+  reading it.
+* ✅ **The 08-31 session replays u1_11 → u1_12 → u1_13 → u1_14 in sequence**
+  (9:57–10:11, screenshot 2). That is exactly what a student does when the map
+  offers them lesson one: they walk forward through it again. Those replays wrote
+  `passed: true` back, which is why the server copy still looks healthy.
+
+⚠️ **THE SPACEBAR CONNECTION IS PROBABLY A COINCIDENCE AND SHOULD NOT STEER THE
+FIX.** Jake flagged that this student was one of the two who reported item 31.
+There is no code path between them. The only honest link is behavioural and it is
+weak: item 31 fired after a 3-second pause, and a student who pauses is a student
+who is being distracted — which is also what fires `visibilitychange`. Worth one
+sentence, not an investigation.
+
+### The fix, and the two halves are not the same size
+
+1. ⭐ **A load-state guard, which is the actual fix.** A module-level flag set
+   only after `loadUserProgress()` has genuinely populated (from cache or from
+   Firestore), and `refreshProgressCache()` returns early unless it is set. That
+   closes the write side, which is where the poison originates. ⚠️ It must be
+   keyed to the uid, or a sign-out/sign-in as a different student re-opens it.
+2. **Treat an empty map as a MISS on the read side.** Cheap belt-and-braces, and
+   it makes any cache already poisoned in the wild self-heal on the next load
+   rather than after 8 hours. ⚠️ Not sufficient alone — a student who has
+   genuinely passed nothing would then re-read Firestore on every load, which is
+   a read cost, not a defect, but it is worth knowing before shipping it.
+3. ⚠️ **`refreshProgressCache()` at the end of `flushStats()` runs even when
+   `ok` is false**, i.e. after a flush that failed. That is a separate smaller
+   wrong and should be looked at in the same round.
+
+⚠️⚠️ **THE HARNESS MUST ASSERT THE INVARIANT, NOT THE FLAG:** *the progress cache
+is never written before the progress has been read.* Guarding the one call site
+leaves the next one open, and there are already two call sites
+(`exitLessonToMap()` and `flushStats()`).
+
+### ⭐ WHAT TO DO FOR THE AFFECTED STUDENT TODAY, BEFORE ANY FIX SHIPS
+
+**On his machine, in the browser console on the TypeThatBook tab:**
+
+```js
+localStorage.removeItem('ttb_lessonProgCache_v1'); location.reload();
+```
+
+That is the whole repair. The server record was never damaged, so the reload
+re-reads it and his map comes back. ⚠️ **It will recur** until the guard ships —
+the same race can poison the cache again the same afternoon.
+
+⚠️ **It is worth asking the class whether anyone else is seeing lesson one only.**
+The window is small but the trigger is an everyday tab switch, and a student who
+believes they have been reset to the beginning is unlikely to volunteer it as a
+BUG — they are more likely to just start typing lesson one again, which is what
+the 08-31 record shows this student doing.
+
+---
+
+## 37. ⭐ THE STAFF PAGES DO NOT USE THE DESIGN SYSTEM AT ALL
+
+**Jake, 2026-09-01:** *"It and admin look so much rougher than the student facing
+side."* Measured rather than judged, and the measurement gives the answer.
+
+**`style.css` has a `:root` token block and loads Courier Prime. `reports.html`
+and `admin.html` load NEITHER.** They are self-contained dark pages in plain
+`'Courier New'`. That is not a styling gap, it is two different products — and it
+is the single largest cause of the difference Jake is describing.
+
+**The work:** a `:root` block in each staff page mapping their colours onto 8–10
+named tokens (`--ink`, `--ink-dim`, `--rule`, `--accent`, `--warn`, `--bad`,
+`--good`, `--surface`), plus the Courier Prime `<link>`. Mostly find-and-replace;
+no behaviour changes.
+
+⚠️⚠️ **DO NOT REDEFINE THE STUDENT-SIDE VALUES, ADOPT THEM WHERE THEY FIT AND LEAVE
+THE REST ALONE.** `style.css`'s values were chosen for reading a book —
+`--ink-spent` is deliberately tuned so typed text stops competing with what comes
+next, and that reasoning is written at the token. A table being scanned by a
+teacher wants different contrast from a sentence being read by a child.
+**A token that means two different things on two surfaces is how the sprawl in
+item 38 started.** Where the staff need differs, name a new token; never repoint
+an existing one.
+
+⭐ **DO THIS FIRST WHATEVER ELSE IS CHOSEN.** 38, 39, 40 and 41 are all cheaper
+once the tokens exist, and 38 is barely expressible without them.
+
+---
+
+## 38. ⚠️⚠️ ONE COLOUR MEANS THREE DIFFERENT THINGS ACROSS THE STAFF PAGES
+
+**Counted, not estimated:** `reports.html` has **33 distinct hex colours in 323
+style lines**; `admin.html` has **51 in 164**. Five near-identical greys
+(`#888 #aaa #666 #555 #444`) do overlapping jobs, and there are four unrelated
+warning tones (`#ff3333 #ff9800 #ffaa00 #ff5555`) with no rule about which means
+what.
+
+⚠️⚠️ **THIS IS A CORRECTNESS ITEM WEARING A POLISH ITEM'S CLOTHES, AND IT SHOULD
+NOT BE SORTED WITH THE COSMETIC ONES.** Amber currently means *"watch this error
+rate"* on a day row, *"suspicious"* on a sprint row, and something else again in
+admin. **A teacher cannot learn what a colour means if it means three things**,
+and the entire value of item 36's at-a-glance surface rests on a mark meaning one
+thing reliably.
+
+**The work:** three severities — notice / warn / bad — one token each, applied
+consistently, with the legend naming them.
+
+⚠️ **ROUND 55 MADE THIS WORSE AND THE ROUND SHOULD OWN IT.** The item 36 work
+introduced `#d9a441` and `#8a7860` without checking what was already in the file.
+Two more colours in the pile, added by the round that was improving legibility.
+
+---
+
+## 39. ⚠️ 64 alert() AND confirm() CALLS ARE THE LOUDEST “UNFINISHED” SIGNAL IN THE APP
+
+**Counted: 22 in `reports.html`, 42 in `admin.js`.**
+
+Browser dialogs cannot be styled, cannot show structure, and read as scaffolding
+to anyone who has used software built after 1998. They are also why item 32's and
+item 33's confirmations are walls of unformatted text — the destructive
+confirmations that most need structure are the ones least able to have it.
+
+**The work:** a small inline status banner for information, a modal for
+destructive confirmation. One pattern covers all 64.
+
+⚠️ **BIGGER THAN 37, 38 AND 40 PUT TOGETHER, AND IT IS ITS OWN ROUND.** Every
+one of those 64 sites is a behavioural change with an early return in it —
+`if (!confirm(…)) return;` is synchronous and a modal is not. **A half-converted
+page is worse than an unconverted one**: a destructive action whose confirmation
+became non-blocking will fire without waiting for the answer. Convert whole pages,
+never a call at a time.
+
+---
+
+## 40. ⚠️ THE STAFF PAGES ARE NOT KEYBOARD-USABLE, ON A TYPING APP
+
+Nearly free, and the least defensible of the six to leave undone.
+
+* **`reports.html` has SIX `<label>` elements and ZERO `for=` attributes.**
+  Clicking a label does not focus its input. `admin.html` has one `for=` in the
+  whole file.
+* **Two `:focus` rules in `reports.html`, one in `admin.html`** (`style.css` has
+  six). A keyboard user cannot see where they are.
+
+⚠️ **ON A TYPING APP.** The staff pages are the least keyboard-usable surface in
+a product whose entire purpose is teaching children to use a keyboard without a
+mouse. That is worth fixing on its own terms and not only for the teachers.
+
+**The work:** `for=`/`id=` pairs on every label, and a visible focus ring on every
+interactive element. No layout changes.
+
+---
+
+## 41. THREE SLOW OPERATIONS RUN WITH NOTHING MOVING ON SCREEN
+
+`reports.html` has **two** loading indicators in 3,730 lines. **Generate**, the
+**⛑** regrade and **⊘** clear-mastery can all run for seconds against the network
+with nothing moving on screen. Only **Scan for flags** reports progress, because
+item 36 added it.
+
+**The consequence is not aesthetic:** a teacher who thinks a button did nothing
+clicks it again, and two of those three write to Firestore.
+
+**The work:** a shared disabled-plus-status pattern, reusing what the scan button
+already does.
+
+---
+
+## 42. ⚠️ admin.html CARRIES 276 INLINE style= ATTRIBUTES AND CANNOT BE RESTYLED UNTIL IT DOES NOT
+
+**276 inline `style=` attributes** in `admin.html`, against 33 in `reports.html`.
+
+⚠️⚠️ **THIS IS WHY admin.html RESISTS EVERY OTHER ITEM ON THIS LIST.** There is no
+stylesheet to edit, so any visual change means hunting through markup, and
+`admin.js` builds much of the markup as strings — so the styles are in the
+JavaScript too. **Items 37–41 cannot land properly on admin until this is done.**
+
+**The work:** extract to classes in the page's `<style>` block. Mechanical,
+tedious, low-risk, and entirely mechanical to verify — rendering should be
+byte-identical.
+
+⚠️ **SEQUENCE THIS BEFORE 39 FOR admin**, not after: converting 42 `confirm()`
+calls in a file whose markup is still inline means touching the same lines twice.
+
+---
+
+### ⭐ SUGGESTED ORDER FOR 37–42
+
+**37 + 38 + 40 in one round.** All mechanical, all low-risk, all testable without
+a browser, and together they close most of the visible gap. Jake asked for exactly
+these three.
+
+**42 next** — it unblocks admin for everything else.
+
+**39 last, on its own** — it is the only one of the six that changes behaviour.
+
+**41 can ride along with any of them.**
+
+⚠️ **NONE OF THESE COME BEFORE ITEM 43.** A student is locked out of the
+curriculum today.

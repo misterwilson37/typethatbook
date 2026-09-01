@@ -4477,6 +4477,49 @@ prevent exactly this.
 ```
 
 
+### learn.js v2.34.0 — archived by Round 55 (second pass), 8-entry budget
+
+⚠️ learn.js still cites v2.34.0 in live code — the `recordRunOutcome()` header
+block. This is where that pointer resolves.
+
+```
+// v2.34.0 — ⚠️⚠️ ROADMAP 14 — MASTERY IS CUMULATIVE POINTS PER **RUN**.
+//           A🔥 = 2, A = 1, B and below = 0, LOCKED AT 4. recordRunOutcome()
+//           banks the points where the grade already is — which is the fix for
+//           item 13: the student is shown fire for a RUN and fireCount only ever
+//           counted a LESSON, so Jake's record read lastGrade "A🔥" beside
+//           fireCount 0 after three fireballs in a row.
+//           ⚠️ DOWNWARD CLOSURE: mastering run k closes runs 0..k-1 of the SAME
+//           lesson only — lesson 2 never touches lesson 1. ⚠️ practiceRun is now
+//           armed PER RUN in beginStep(), not once per lesson: one lesson can
+//           hold a mastered run and an unmastered one at the same time.
+//           ⚠️ lastLockDay REPLACES lastAdvanceDay and stampAdvanceIfNew() is
+//           GONE — the clock runs from the last LOCK, so a student grinding one
+//           run no longer accrues reach-back while farming. runScorePill() shows
+//           the score, because the old rule was unfalsifiable from outside.
+//           tests/run-mastery-test.mjs.
+//
+// Lesson-mode engine, separate from game.js. Same write-ahead-log and
+// coalesced-flush persistence pattern.
+//
+// ── Full history: CHANGELOG.md § learn.js ─────────────────────────────────
+// ── Why it looks like this: PEDAGOGY-AUDIT.md ─────────────────────────────
+//
+// ⚠️ v2.31.0 — 39 OLDER ENTRIES (v2.26.0 back to v2.2.0) MOVED TO CHANGELOG.md
+//    § ARCHIVED FILE HEADERS. Nothing was deleted. Same reasoning as game.js.
+//
+// ── Load-bearing ──────────────────────────────────────────────────────────
+//
+//   * saveProgress() uses merge:true. Without it, completing a lesson erases
+//     every run-level field.
+//   * ttb_learnwal_v1 and ttb_learnpos_v1 both carry an explicit `v`. Bump it
+//     rather than changing the payload shape, or a mid-run student on the old
+//     shape gets a corrupt resume.
+//   * Do NOT scale gates by grade level. An 8th grader may have had this
+//     teacher twice or never; unit position is the only honest signal.
+```
+
+
 ### learn.js v2.33.1 — archived by Round 55, 8-entry budget
 
 ⚠️ **learn.js still cites v2.33.1 twice in live code** — the exitLessonToMap()

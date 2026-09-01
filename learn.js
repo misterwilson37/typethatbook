@@ -1,4 +1,22 @@
-// learn.js v2.41.0
+// learn.js v2.42.0
+//
+// v2.42.0 — ⚠️⚠️⚠️ ROADMAP 43 — AN EMPTY PROGRESS CACHE WAS LOCKING
+//           STUDENTS OUT OF THE WHOLE CURRICULUM. `refreshProgressCache()` wrote
+//           whatever `userProgress` held with no check that it had been read,
+//           and `loadUserProgress()` sets it to `{}` then AWAITS a network round
+//           trip. A flush inside that window — an ordinary tab switch —
+//           persisted the empty map; `{}` then passed the `typeof === 'object'`
+//           cache-hit test on the next load, Firestore was never consulted, and
+//           isUnlocked() offered lesson one and nothing else for up to eight
+//           hours, re-stamping its own TTL while the student worked. ⚠️ THE
+//           SERVER RECORD WAS NEVER TOUCHED and neither was their time, which is
+//           why it presented as lost lesson progression with intact minutes.
+//           Two halves: a uid-keyed load-state guard on the write side, and
+//           empty-is-a-MISS on the read side, which SELF-HEALS every already
+//           poisoned cache on the student's next page load — no console needed,
+//           which matters because students do not have one.
+//           ⚠️ v2.34.0 ARCHIVED THIS ROUND (8-entry budget).
+//           tests/progress-cache-test.mjs.
 //
 // v2.41.0 — ⚠️ ROADMAP 31 — THE IDLE SPACE-SKIP LEFT THE SPACE BAR LIT. The
 //           idle-resume skip in handleDrillKey() advanced drillPos past a space
@@ -129,40 +147,6 @@
 //           it must be rewritten, not patched. tests/run-mastery-test.mjs — which
 //           learn.js had CITED SINCE ROUND 32 WITHOUT IT EXISTING, now written.
 //
-// v2.34.0 — ⚠️⚠️ ROADMAP 14 — MASTERY IS CUMULATIVE POINTS PER **RUN**.
-//           A🔥 = 2, A = 1, B and below = 0, LOCKED AT 4. recordRunOutcome()
-//           banks the points where the grade already is — which is the fix for
-//           item 13: the student is shown fire for a RUN and fireCount only ever
-//           counted a LESSON, so Jake's record read lastGrade "A🔥" beside
-//           fireCount 0 after three fireballs in a row.
-//           ⚠️ DOWNWARD CLOSURE: mastering run k closes runs 0..k-1 of the SAME
-//           lesson only — lesson 2 never touches lesson 1. ⚠️ practiceRun is now
-//           armed PER RUN in beginStep(), not once per lesson: one lesson can
-//           hold a mastered run and an unmastered one at the same time.
-//           ⚠️ lastLockDay REPLACES lastAdvanceDay and stampAdvanceIfNew() is
-//           GONE — the clock runs from the last LOCK, so a student grinding one
-//           run no longer accrues reach-back while farming. runScorePill() shows
-//           the score, because the old rule was unfalsifiable from outside.
-//           tests/run-mastery-test.mjs.
-//
-// Lesson-mode engine, separate from game.js. Same write-ahead-log and
-// coalesced-flush persistence pattern.
-//
-// ── Full history: CHANGELOG.md § learn.js ─────────────────────────────────
-// ── Why it looks like this: PEDAGOGY-AUDIT.md ─────────────────────────────
-//
-// ⚠️ v2.31.0 — 39 OLDER ENTRIES (v2.26.0 back to v2.2.0) MOVED TO CHANGELOG.md
-//    § ARCHIVED FILE HEADERS. Nothing was deleted. Same reasoning as game.js.
-//
-// ── Load-bearing ──────────────────────────────────────────────────────────
-//
-//   * saveProgress() uses merge:true. Without it, completing a lesson erases
-//     every run-level field.
-//   * ttb_learnwal_v1 and ttb_learnpos_v1 both carry an explicit `v`. Bump it
-//     rather than changing the payload shape, or a mid-run student on the old
-//     shape gets a corrupt resume.
-//   * Do NOT scale gates by grade level. An 8th grader may have had this
-//     teacher twice or never; unit position is the only honest signal.
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
 // rule in it is a function of numbers this file passes in, which is why the whole
@@ -265,7 +249,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.41.0";
+const LEARN_VERSION = "2.42.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -1308,6 +1292,19 @@ const LESSONS_CACHE_KEY   = 'ttb_lessonsCache_v1';
 const LESSONS_CACHE_MS    = 4 * 3600 * 1000;    // content edits land within 4h
 const PROGRESS_CACHE_KEY  = 'ttb_lessonProgCache_v1';
 const PROGRESS_CACHE_MS   = 8 * 3600 * 1000;    // one school day
+
+// ⚠️⚠️ v2.42.0 — ROADMAP 43. THE CACHE MUST NOT BE WRITTEN BEFORE IT IS READ.
+//
+// Holds the uid whose progress is genuinely in `userProgress` right now — set
+// ONLY where the map has actually been populated, never on the error path.
+// `refreshProgressCache()` refuses to write unless this matches the signed-in
+// user, which is what stops an empty map being persisted as fact.
+//
+// ⚠️ A uid AND NOT A BOOLEAN. Two students share a Chromebook in the same
+// browser profile more often than anyone plans for; a boolean would stay true
+// across a sign-out and let the second student's flush write the first
+// student's map, or an empty one, under the new uid.
+let _progressLoadedForUid = null;
 const LEARN_GOALS_KEY     = 'ttb_goalsCache_v1'; // SAME key game.js uses — one
                                                  // read serves both pages
 const LEARN_GOALS_MS      = 24 * 3600 * 1000;
@@ -1459,15 +1456,42 @@ async function loadUserProgress() {
     await loadGateState();
     userProgress = {};
 
+    // ⚠️⚠️ v2.42.0 — ROADMAP 43. NOT LOADED UNTIL PROVEN LOADED. Cleared here so
+    // that an early return, a throw, or a flush firing during the await below
+    // cannot find a stale `true` from the previous student or the previous load.
+    _progressLoadedForUid = null;
+
     const cached = cacheRead(PROGRESS_CACHE_KEY, PROGRESS_CACHE_MS, currentUser.uid);
-    if (cached && cached.progress && typeof cached.progress === 'object') {
+    // ⚠️⚠️ AN EMPTY MAP IS A MISS, NOT A HIT. `typeof {} === 'object'` is true,
+    // so the old condition accepted `{}` as a complete answer — and `{}` is
+    // exactly what a poisoned cache holds. isUnlocked() then found nothing
+    // passed and offered lesson one and nothing else, for up to eight hours,
+    // re-stamping its own TTL on every flush while the student worked.
+    //
+    // ⭐ THIS HALF IS THE SELF-HEAL. Any cache already poisoned in the wild
+    // falls through to Firestore on the student's next page load, with no
+    // console and no teacher intervention. The guard on the write side stops it
+    // happening again; this stops it having already happened.
+    //
+    // ⚠️ COSTS ONE SUBCOLLECTION READ PER LOAD FOR A STUDENT WHO HAS GENUINELY
+    // PASSED NOTHING — a brand-new account, until they finish their first
+    // lesson. That is a real read cost and it is the right trade: the
+    // alternative is being unable to tell "new student" from "lost everything",
+    // which is the confusion that caused this defect.
+    if (cached && cached.progress && typeof cached.progress === 'object'
+        && Object.keys(cached.progress).length > 0) {
         userProgress = cached.progress;
+        _progressLoadedForUid = currentUser.uid;
         return;
     }
 
     try {
         const snap = await getDocs(collection(db, 'users', currentUser.uid, 'lessonProgress'));
         snap.forEach(d => { userProgress[d.id] = d.data(); });
+        // ⚠️ SET ONLY HERE, AFTER THE READ RESOLVED. The catch below deliberately
+        // leaves it null: a failed read means the empty map in memory is
+        // ignorance, not fact, and nothing may persist it.
+        _progressLoadedForUid = currentUser.uid;
         cacheWrite(PROGRESS_CACHE_KEY, { uid: currentUser.uid, progress: userProgress });
     } catch(e) { console.warn('Could not load lesson progress:', e); }
 }
@@ -1477,6 +1501,25 @@ async function loadUserProgress() {
 // finished a lesson, and the next load would show them un-completing it.
 function refreshProgressCache() {
     if (!currentUser) return;
+    // ⚠️⚠️ v2.42.0 — ROADMAP 43. THE GUARD, AND THE WHOLE FIX IS THIS LINE.
+    //
+    // This function used to write whatever `userProgress` happened to hold, with
+    // no check that it had ever been read. `loadUserProgress()` sets it to `{}`
+    // and then AWAITS a network round trip; anything flushing inside that window
+    // — visibilitychange:hidden fires on a tab switch, a Chromebook lid, or
+    // Google Classroom in another tab — reached here and persisted the empty map
+    // as though it were the student's record.
+    //
+    // ⚠️ THE CONSEQUENCE WAS NOT PARTIAL. isUnlocked() reads
+    // `userProgress[prev.id]?.passed === true` for every lesson, so an empty map
+    // unlocks allLessons[0] and nothing else. A student with eight lessons
+    // passed was offered lesson one, for eight hours, with their Firestore
+    // record perfectly intact the whole time. Their TIME was never affected —
+    // that lives in typing_logs — which is what made it look like a lesson bug
+    // rather than a cache bug.
+    //
+    // ⚠️ THE UID MUST MATCH, not merely be set. See _progressLoadedForUid.
+    if (_progressLoadedForUid !== currentUser.uid) return;
     cacheWrite(PROGRESS_CACHE_KEY, { uid: currentUser.uid, progress: userProgress });
 }
 
