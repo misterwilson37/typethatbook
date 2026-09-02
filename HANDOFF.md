@@ -92,9 +92,54 @@
 >
 > ### What is left
 >
-> **42's `admin.js` half** is still the biggest single piece: 183 attributes / 539
-> declarations / 60 hex colours, inside template strings, and **item 38 for admin
-> is blocked until it is done**. `node tools/audit-inline-styles.mjs`.
+> **42's `admin.js` half** is the biggest single piece and **Round 57 surveyed it
+> rather than starting it** — read the survey block in the item before touching a
+> line. Three findings that change the plan:
+> * ⭐⭐ **The ⭐⭐ defect inside item 42 is already fixed**, by Round 56 itself.
+>   `button.btn-tint-save:not(:disabled)` is what makes `button:disabled` win. A
+>   round acting on the item as written would have deleted inline backgrounds that
+>   no longer exist.
+> * ⚠️⚠️ **The blocking rule is far narrower than the item says.** File-wide it
+>   blocks 203 of 492 declarations, including all 123 `color` ones. But setting
+>   `.style.color = '#f00'` is harmless — only assignment of **`''`** is a hazard,
+>   and there are exactly **three** in the file (build-panel `display`, `.seg-row`
+>   background, `.seg-text` color). The item carries the grep that finds a fourth.
+> * ⚠️ **Round 56's transformer does not apply.** It parsed real HTML; these are
+>   template strings. That is the actual difficulty and why this is a round of its
+>   own.
+>
+> ⭐⭐ **STANDING RULING FROM JAKE, 2026-09-02 — NORMALISE ADMIN, DO NOT ASK.**
+> I wrote into item 42 that the twelve-value font-size ladder was "Jake's call,
+> not a refactor's" and should be extracted at exact values. **He overruled it
+> the same day:** *"The whole point of the admin redesign is that it doesn't look
+> as good as the rest. I don't need to judge whether .7 is better than .72 on a
+> step by step basis — right now it looks **bad**. Consistency would help a lot,
+> so cleaning it up in any way would be a step in the right direction."*
+>
+> ⚠️⚠️ **THE CAUTION WAS THE MISTAKE, NOT THE CHANGE.** Preserving twelve
+> near-identical sizes byte-for-byte preserves the defect. I had read his design
+> pet peeve — "slightly off" reads worse than an obvious difference — as *every
+> size change needs sign-off*. It means the opposite: it is the REASON to
+> normalise. **A preference about what looks bad is not a request to be consulted
+> about every instance of it.**
+>
+> ⚠️ **THE EDGE:** this is standing permission for dimension-like values — sizes,
+> spacing, radii, border widths — where a value means nothing beyond its size.
+> **It does not extend blindly to colour**, because item 38's finding is that
+> amber means three different things here, so merging two ambers merges two
+> meanings. Sizes: just fix them. Colours: fix them via item 38's severities.
+>
+> ⭐ **ROADMAP 47 STEP ONE IS DONE** — `rights-ladder.js` v1.0.0. ⚠️⚠️ **AND THE
+> ITEM'S STATED REASON FOR IT WAS WRONG; STEP TWO MUST READ THE CORRECTED NOTE.**
+> The item implies the Cloud Function will IMPORT the ladder. It cannot: `firebase
+> deploy --only functions` packages the `functions/` directory and nothing above
+> it. **The functions-side ladder will be a COPY**, so step two's job is to write
+> that copy AND a harness asserting the two are byte-identical. ⚠️ The repo
+> already carries one unguarded duplication across that boundary —
+> `MIN_PROBLEM_CHARS = 3`, in both `variety-floor.js` and `functions/index.js`,
+> with nothing checking they agree. `metadata-map-test.mjs` **Part F** guards the
+> precondition that makes an honest copy possible (no imports, no DOM); **do not
+> delete it to make an edit convenient.**
 >
 > **34 and 35 are waiting on a week of Jake's real data** (his call, 2026-09-02).
 > **30** is unreproduced — *"wasn't seen today, but I'll keep my eye out."*
@@ -396,6 +441,9 @@
      ✅ THE CREDIT-ROW GAP IS CLOSED — credits-binding-test.mjs v1.0.0, 54
      assertions, 12 failing against the pre-fix build. Parts C and D are CLASS
      guards: every field a surface READS must be carried by what FEEDS it.
+     ⚠️⚠️ ROADMAP 47 STEP ONE DONE, AND THE ITEM'S REASON FOR IT WAS WRONG: a
+     Cloud Function CANNOT import a root module (deploy packages functions/
+     only), so step two writes a COPY plus a byte-identity harness.
      67 harnesses, 0 audit problems.
 
      v15.31.0 — Round 55 (Smith-Premier). ⭐ START HERE REWRITTEN. The clean day

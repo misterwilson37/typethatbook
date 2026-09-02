@@ -375,7 +375,7 @@ import { readFileSync as _rf } from 'node:fs';
 const MODULES = ['game.js', 'learn.js', 'admin.js', 'adventure-renderer.js',
                  'keyboard.js', 'lessons-admin.js', 'staff-admin.js', 'versions.js',
                  'firebase-config.js', 'stats-wal.js', 'session-log.js', 'hud.js',
-                 'variety-floor.js', 'daylog.js', 'update-gate.js',
+                 'variety-floor.js', 'daylog.js', 'update-gate.js', 'rights-ladder.js',
                  'drill-filter.js'];
 let syntaxBad = 0;
 for (const f of MODULES) {

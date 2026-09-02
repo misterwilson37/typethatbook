@@ -82,6 +82,7 @@ const SOURCES = [
     { file: 'hud.js',                pattern: /\bexport\s+const\s+HUD_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'chapter-position.js',   pattern: /\bexport\s+const\s+CHAPTER_POSITION_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'variety-floor.js',      pattern: /\bexport\s+const\s+VARIETY_FLOOR_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'rights-ladder.js',      pattern: /\bexport\s+const\s+RIGHTS_LADDER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'versions.js',           pattern: /\bexport\s+const\s+VERSIONS_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'update-gate.js',        pattern: /\bexport\s+const\s+UPDATE_GATE_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'daylog.js',             pattern: /\bexport\s+const\s+DAYLOG_VERSION\s*=\s*["']([^"']+)["']/ },

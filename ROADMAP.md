@@ -3555,6 +3555,15 @@ once the tokens exist, and 38 is barely expressible without them.
 
 ## 38. ✅ CLOSED for reports.html (Round 55) — THREE SEVERITIES, ONE MEANING EACH
 
+⚠️ **JAKE'S STANDING RULING OF 2026-09-02 APPLIES TO admin AND IS RECORDED IN
+FULL IN ITEM 42:** *"right now it looks bad. Consistency would help a lot, so
+cleaning it up in any way would be a step in the right direction."* **Do not open
+a round on admin's appearance by asking him to adjudicate individual values.**
+⚠️ For COLOUR specifically the route is still through the three severities below,
+not a blind merge — this page's amber means three different things, and
+collapsing two ambers can merge two meanings. The ruling removes the need to ask
+permission; it does not remove the need to settle what a colour MEANS first.
+
 ✅ **`reports.html` is done.** Every warning-ish value now resolves to
 `--notice` (look at this), `--warn` (probably wrong) or `--bad` (wrong, or a
 destructive control). Grade pips are a **separate** scale on purpose: a C is not
@@ -3736,17 +3745,31 @@ inline value beats every selector, so **34 declarations have been suppressing
 `:hover` and `:disabled` rules all along**. Extracting them REVIVES those states —
 a visible change, and Jake's call rather than a refactor's. They stayed inline.
 
-⭐⭐ **AND ONE OF THOSE SUPPRESSIONS IS A DEFECT, NOT A PREFERENCE.**
-`button:disabled { background:#555; cursor:not-allowed }` is dead on the buttons
-that need it most, and `admin.js` really does disable them for slow work:
-`auditBtn.disabled = true` for a whole-book audit, `saveTitleBtn.disabled = true`
-for a metadata save. **So ROADMAP 41 — "the slow controls now look busy" — is not
-merely undone on admin, it is DEFEATED there**, by the inline styles this item
-exists to remove. The fingerprint is `saveTitleBtn.style.opacity = '0.6'`: someone
-hit the dead rule and worked around it without diagnosing it. **`auditBtn` has no
-workaround at all**, so a full-book audit runs behind a button that looks idle.
-⚠️ **One line each to fix — delete the inline background — but it changes how
-four buttons look, so it wants Jake's eye rather than a refactor's.**
+⭐⭐ ~~**AND ONE OF THOSE SUPPRESSIONS IS A DEFECT, NOT A PREFERENCE.**~~
+✅ **ALREADY FIXED BY ROUND 56 ITSELF, AND THIS ITEM DID NOT KNOW.** Checked in
+Round 57 before acting on it. The four buttons no longer carry an inline
+background at all — Round 56 moved them to `btn-tint` classes and, crucially,
+wrote them as `button.btn-tint-save:not(:disabled)` rather than plain
+`.btn-tint-save`. That `:not(:disabled)` is what makes `button:disabled` win when
+the button IS disabled, and admin.html carries a comment beside it warning
+against "simplifying" it back. **`auditBtn.disabled = true` (line 5083) and
+`saveTitleBtn.disabled = true` (4201) now both grey out correctly.**
+
+⚠️ **THE ITEM WAS DESCRIBING THE STATE BEFORE THE ROUND THAT WROTE IT.** The fix
+shipped in the same round as the warning, and nobody updated the warning — so a
+later round would have "fixed" a defect that no longer existed, by deleting
+inline backgrounds that are no longer there. **An item that lies about status is
+worse than none**, which is §0.-22's lesson about the index, one document over.
+
+⚠️ **ONE RESIDUE, AND THE STANDING RULING BELOW COVERS IT — DO NOT ASK.**
+`saveTitleBtn.style.opacity = '0.6'` (4202) is still there. It was the workaround
+someone reached for when the disabled rule was dead. It is now redundant — the
+button greys out on its own — and **`auditBtn` has no equivalent**, so the two
+slow controls do not look the same while they work. That is precisely the
+"slightly different" mismatch, so **make them match: either both dip or neither
+does.** Simplest is to delete the opacity lines and let `button:disabled` do the
+work on both. ⚠️ Originally written here as "ask; do not pick" — see the standing
+ruling below for why that was the wrong instinct.
 
 **3. "Low-risk" was wrong in a way that would have broken two features.**
 `#tab-staff` and `#build-list` both carry inline `display:none` and are shown
@@ -3757,6 +3780,92 @@ again, and the build panel never opens.** Silent, role-dependent, and exactly th
 "a button that does nothing" failure Round 55's header warns about. The general
 rule, now enforced: **a property must not be extracted from an element whose
 `.style.<property>` is assigned at runtime.**
+
+### ⭐ ROUND 57's SURVEY OF THE admin.js HALF — READ THIS BEFORE STARTING
+
+⚠️⚠️ **THE "183 attributes / 539 declarations" HEADLINE IS TRUE AND IS NOT THE
+SHAPE OF THE WORK.** Measured properly rather than estimated:
+
+| | count | what it means |
+|---|---|---|
+| `style=` attributes | 183 | |
+| …**computed** (contain `${`) | **2** | lines 3656, 3818 — can never be a static class |
+| …static | 181 | |
+| static declarations | **492** | the real work |
+| `.style.cssText =` elements | 3 | `createElement`, no `style=` attribute — **out of scope entirely** |
+
+⚠️⚠️ **AND THE BLOCKING RULE IS MUCH NARROWER THAN "DO NOT EXTRACT A PROPERTY
+THAT IS ASSIGNED AT RUNTIME."** Applied file-wide, that rule blocks 203 of the
+492 — including all 123 `color` declarations, which is most of what item 38
+needs. But it is the wrong rule. **Setting `.style.color = '#f00'` at runtime is
+harmless**: an inline value still beats a class, so extraction changes nothing.
+**The hazard is assignment of `''`**, which clears the inline value and falls
+through to whatever the stylesheet says — that is precisely how Round 56's
+`display:none` trap worked.
+
+**There are exactly THREE such resets in the whole file:**
+
+```
+ 666  list.style.display   = ''      ← the build panel
+3857  row.style.background = ''      ← .seg-row, clearing search highlights
+3859  textEl.style.color   = ''      ← .seg-text, same loop
+```
+
+**So the true blocked set is: `display` on the build-panel list, `background` on
+`.seg-row`, and `color` on `.seg-text`.** Everything else is extractable. ⚠️ **Do
+not widen this back to the file-wide rule out of caution** — it would leave 203
+declarations inline for no reason and keep item 38 blocked. ⚠️ **And do not
+narrow it either**: re-run the reset grep before extracting, because a new `= ''`
+anywhere adds a fourth.
+
+```
+grep -noP "\w+\.style\.\w+\s*=\s*[^;]{0,40}" admin.js | grep -E "=\s*(''|\"\")"
+```
+
+⚠️ **THE TRANSFORMER ROUND 56 BUILT DOES NOT APPLY UNCHANGED.** It parsed real
+HTML. These are template strings, so there is no parser — adding a class means
+finding or creating a `class="…"` on a tag that exists only as text, sometimes
+with interpolation inside it. **That is the actual difficulty of this half, and
+it is why it is a round of its own rather than a ride-along.**
+
+### ⭐⭐ STANDING RULING FROM JAKE, 2026-09-02 — NORMALISE. DO NOT ASK.
+
+I wrote, in the paragraph this replaces, that the twelve-value font-size ladder
+was "a decision for Jake, not a refactor's" and that a round should extract at
+exact values and report. **Jake overruled that immediately, and he was right:**
+
+> *"The whole point of the admin redesign is that it doesn't look as good as the
+> rest. I don't need to judge whether .7 is better than .72 on a step by step
+> basis — right now it looks **bad**. Consistency would help a lot, so cleaning
+> it up in any way would be a step in the right direction."*
+
+⚠️⚠️ **SO THE CAUTION WAS THE MISTAKE, NOT THE CHANGE.** admin.js carries **twelve
+distinct font sizes** — `0.7em 0.72em 0.75em 0.8em 0.85em .85em 0.9em .9em
+0.95em .95em 1em 1.1em` — several differing by 0.02em, two pairs differing only
+in whether the leading zero is written. **That IS the bad look.** Preserving it
+byte-for-byte preserves the defect. **Collapse it to a small scale and keep
+going. Do not open a round by asking which values to keep.**
+
+⚠️ **WHY I GOT THIS WRONG, SO THE NEXT ROUND DOES NOT.** Jake's design pet peeve
+is that "slightly off" reads worse than an obvious difference — and I read that
+as *"every size change needs his sign-off"*. It means the opposite here. The
+peeve is the REASON to normalise, not a reason to preserve twelve near-identical
+values. **A preference about what looks bad is not a request to be consulted
+about every instance of it.**
+
+⚠️ **THE STANDING PERMISSION AND ITS EDGE.** This covers dimension-like values —
+font sizes, spacing, radii, border widths — where a value carries no meaning
+beyond its size, so merging two of them loses nothing. ⚠️ **IT DOES NOT
+AUTOMATICALLY EXTEND TO COLOUR**, and the reason is item 38's own finding: on
+this page **amber means three different things**, so collapsing two ambers can
+merge two meanings and destroy information the page is carrying. Normalise
+colour through item 38's severities, which exist to settle what the colours MEAN
+first. **Sizes: just fix them. Colours: fix them via 38.**
+
+⚠️ **AND STILL EXTRACT FIRST.** The classes must exist before the values can be
+normalised in one place — that is the whole reason 42 blocks 38. Extract to
+`u-` classes, then collapse the class list, rather than hand-editing 41
+`font-size` declarations in template strings.
 
 ### What shipped, and the two things that will rot
 
@@ -3998,6 +4107,40 @@ the Firebase client SDK and the DOM; a Cloud Function cannot import it at any
 price. So item 47 either gets a **second copy of the licence ladder** — two legal
 mappers drifting apart, which is worse than none — or the ladder moves first.
 ⚠️ **EXTRACT IT AS STEP ONE OF THIS ITEM, NOT AS A TIDY-UP.**
+
+✅ **DONE, Round 57 (Bar-Lock)** — `rights-ladder.js` v1.0.0, `admin.js` v3.40.0,
+`metadata-map-test.mjs` v1.6.0. Extracted verbatim; bodies unchanged, the four
+declarations gained `export` and nothing else. 518 → 532 assertions, still green.
+
+⚠️⚠️ **BUT THE REASON WRITTEN ABOVE IS WRONG, AND WHOEVER DOES STEP TWO MUST READ
+THIS.** The paragraph implies the extraction lets the Cloud Function **import**
+the ladder. **It does not, and it cannot.** `firebase deploy --only functions`
+packages the `functions/` directory and **nothing above it**, so a root-level
+module is never uploaded — checked against `firebase.json` and
+`functions/index.js` before building anything. The functions-side ladder will be
+a **COPY** no matter what.
+
+⚠️ **THE PRECEDENT IS ALREADY IN THE REPO AND IT IS THE UNGUARDED KIND.**
+`MIN_PROBLEM_CHARS = 3` is written by hand in **both** `variety-floor.js` and
+`functions/index.js`, and **nothing asserts they agree**. That one is a number.
+Two licence mappers disagreeing about what a school may put in front of a child
+is a different order of problem.
+
+✅ **SO THE EXTRACTION WAS STILL RIGHT, FOR TWO REASONS THAT SURVIVE THE
+CORRECTION:**
+1. `metadata-map-test.mjs` **stopped lifting the ladder out of `admin.js` as
+   text** through `new Function(...)`. That lift tested a re-evaluated COPY rather
+   than the shipped code, and its slicer was already known-broken for `async`
+   functions. The harness now imports what admin.js runs.
+2. The ladder has **one canonical home**, so step two's copy can be *checked
+   against it* rather than hand-maintained beside it.
+
+⚠️ **WHAT STEP TWO MUST DO, CONCRETELY:** copy the ladder body into `functions/`
+and add a harness asserting the two are **byte-identical** (comments stripped),
+so a fix to one that misses the other goes red. `metadata-map-test.mjs` **Part F**
+already guards the precondition — the module imports nothing and touches no DOM,
+which is the only reason an honest copy is possible at all. ⚠️ **Do not delete
+Part F to make a future edit convenient.**
 
 ✅ And it pays for itself immediately: `metadata-map-test.mjs` stops lifting text
 and starts importing, which removes a whole class of harness fragility. The

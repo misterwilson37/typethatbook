@@ -1,4 +1,25 @@
-// admin.js v3.39.0
+// admin.js v3.40.0
+//
+// v3.40.0 — ⚠️ ROADMAP 47, STEP ONE: THE LICENCE LADDER MOVED TO rights-ladder.js.
+//           SOURCE_PATTERNS, looksLikeBareUrl(), canonicalSourceFrom() and
+//           canonicalRightsFrom() left VERBATIM — bodies unchanged, the four
+//           declarations gained `export` and nothing else. Imported at the top of
+//           this file now.
+//           ⚠️ selectOptionValues() STAYED. It reads the live <select>, which is
+//           the whole mechanism by which admin.html remains the single source of
+//           truth for what a mapping may return, and it is the one piece a
+//           DOM-free consumer cannot have.
+//           ⚠️⚠️ ROADMAP 47's STATED REASON FOR THE MOVE WAS WRONG AND THE MOVE
+//           IS STILL RIGHT. The item says to extract so the planned Cloud
+//           Function can IMPORT the ladder. It cannot: `firebase deploy --only
+//           functions` packages the `functions/` directory and nothing above it.
+//           What the move actually buys is that metadata-map-test.mjs stops
+//           LIFTING these four out of this file as text and imports them, so the
+//           harness now exercises the shipped code rather than a re-evaluated
+//           copy — and the ladder gets one canonical home to check a future
+//           functions-side copy against.
+//           ⚠️ metadata-map-test.mjs PART F guards the property that makes that
+//           copy possible: the module imports nothing and touches no DOM.
 //
 // v3.39.0 — ⚠️ ROADMAP 44: A HAND-TYPED BOOK ID WITH A SPACE IN IT NOW WARNS.
 //           `.trim()` strips the ends and nothing else, and the autofill only
@@ -127,16 +148,6 @@
 //           note is load-bearing: FOUR live comments in this file cite that
 //           version as their explanation and now have nowhere else to point.
 //
-// v3.31.2 — IMPORT ONLY, NO BEHAVIOUR. ADMIN_EMAILS is imported from
-//           firebase-config.js instead of declared here. It was one of FOUR
-//           hand-maintained copies of the same two addresses; nothing had
-//           drifted, which was luck. HANDOFF §0.-20.H. v3.25.2's entry moved
-//           to CHANGELOG.md § ARCHIVED FILE HEADERS — this file was one over
-//           the 8-entry budget once v3.31.2 was added.
-//
-// Book authoring: EPUB import, chapter editor, metadata and tags, language
-// filter, CSV export. Hosts the Lessons and Staff panels from their own files.
-//
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
@@ -151,13 +162,17 @@
 //     returns undefined in Firefox.
 import { db, auth, storage, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 import { initLessonsPanel, setStaffHooks } from "./lessons-admin.js";
+// ROADMAP 47 step one. Pure string mapping, no DOM and no SDK — see that file's
+// header for why it is separate and why it must stay dependency-free.
+import { SOURCE_PATTERNS, looksLikeBareUrl,
+         canonicalSourceFrom, canonicalRightsFrom } from "./rights-ladder.js";
 import { initStaffPanel, initStaffPanelContent, syncOwnClaimsAfterClassChange }
     from "./staff-admin.js";
 import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } from "./read-meter.js";
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.39.0";
+const ADMIN_VERSION = "3.40.0";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -1520,17 +1535,6 @@ async function readEpubMetadata(file) {
 // the real dc: values of all 24 library books. String mapping is testable, so it is
 // tested — this is the same argument §2.2c made about canvas geometry.
 
-// Ordered, and the ORDER IS LOAD-BEARING in two directions. Standard Ebooks before
-// Gutenberg, because an SE book cites Gutenberg as its own upstream and matches both.
-const SOURCE_PATTERNS = [
-    [/standard\s*ebooks/i,               'Standard Ebooks'],
-    [/gutenberg/i,                       'Project Gutenberg'],
-    [/global\s*grey/i,                   'Global Grey'],
-    [/faded\s*page/i,                    'Faded Page'],
-    [/wikisource/i,                      'Wikisource'],
-    [/archive\.org|internet\s*archive/i, 'Internet Archive'],
-];
-
 // The option values a select can actually hold, minus the two sentinels. Reading
 // these from the DOM rather than restating them here is the whole reason a mapping
 // table cannot drift away from the dropdown it feeds.
@@ -1541,74 +1545,16 @@ function selectOptionValues(selectId) {
                 .filter(v => v && v !== '__custom__');
 }
 
-function looksLikeBareUrl(s) {
-    return /^https?:\/\/\S*$/i.test(String(s || '').trim());
-}
-
-// TWO PASSES, and the split is the fix for the Standard Ebooks case. Pass 1 asks who
-// produced THIS edition (dc:publisher, dc:identifier). Only if that says nothing does
-// pass 2 fall back to dc:source, which says what the edition was BUILT FROM. Without
-// the split, every Standard Ebook resolves to Project Gutenberg — accurately, and
-// uselessly, because the Source field means "whose edition is this".
-function canonicalSourceFrom(meta, allowed) {
-    const edition  = [meta.publisher, meta.identifier].filter(Boolean).join(' ');
-    const upstream = (Array.isArray(meta.sources) && meta.sources.length
-                        ? meta.sources : [meta.source]).filter(Boolean).join(' ');
-    for (const hay of [edition, upstream]) {
-        if (!hay) continue;
-        for (const [re, name] of SOURCE_PATTERNS) {
-            if (re.test(hay) && allowed.indexOf(name) !== -1) return name;
-        }
-    }
-    return '';
-}
-
-// Returns an exact option value, or '' meaning "I will not guess at this one".
-function canonicalRightsFrom(rightsText, allowed) {
-    const t = String(rightsText || '').trim();
-    if (!t) return '';
-    const exact  = v => (allowed.indexOf(v) !== -1 ? v : '');
-    const byPrefix = p => allowed.find(v => v.indexOf(p) === 0) || '';
-
-    // 0. ALREADY CANONICAL. A book whose dc:rights is verbatim an option value needs
-    //    no heuristic, and running one on it can only make things worse. Both test
-    //    fixtures are this case and the compound rule in step 2 mis-mapped them until
-    //    this short-circuit existed — found by metadata-map-test.mjs, not by reading.
-    if (allowed.indexOf(t) !== -1) return t;
-
-    // ⚠️ "PUBLIC DOMAIN DEDICATION" IS PART OF CC0'S OWN NAME. It is not a separate
-    //    claim about the text, so it must not be counted as one: "CC0 1.0 Public
-    //    Domain Dedication" otherwise reads as "asserts both" and lands on the
-    //    Standard Ebooks combined value. SE's paragraph survives the strip because it
-    //    asserts the source text is public domain in its own sentence.
-    const hasPD  = /public\s+domain/i.test(t.replace(/public\s+domain\s+dedication/ig, ''));
-    const hasCC0 = /\bcc0\b|publicdomain\/zero/i.test(t);
-
-    // 1. An explicit CC BY licence FIRST, because it is the only family that carries
-    //    a real obligation and it must not be flattened into "public domain" by a
-    //    later rule. Family and version are read out of the text, and the built value
-    //    is used ONLY if the dropdown can express it exactly. A CC BY 3.0 book has no
-    //    option here, and inventing 4.0 to make it fit would be a false legal claim
-    //    written into Firestore — so it falls through and a human decides.
-    const by = /\bCC[\s-]*BY(-?NC)?(-?SA)?[\s-]*([0-9](?:\.[0-9])?)?/i.exec(t);
-    if (by) {
-        if (!by[3]) return '';                 // a CC licence with no version is unnameable
-        const nc = by[1] ? '-NC' : '';
-        const sa = by[2] ? '-SA' : '';
-        const slug = ('by' + nc + sa).toLowerCase();
-        return exact('CC BY' + nc + sa + ' ' + by[3] +
-                     ' https://creativecommons.org/licenses/' + slug + '/' + by[3] + '/');
-    }
-    // 2. Standard Ebooks asserts BOTH — the source text is believed US public domain,
-    //    and SE's own contributions are dedicated CC0. Tested as a compound condition
-    //    rather than by matching SE's exact prose, which SE is free to reword.
-    if (hasPD && hasCC0) return byPrefix('Public domain (United States) &');
-    // 3. CC0 on its own.
-    if (hasCC0) return byPrefix('CC0 1.0');
-    // 4. Public domain on its own — Gutenberg's terse "Public domain in the USA."
-    if (hasPD) return exact('Public domain (United States)');
-    return '';
-}
+// ⚠️ THE LADDER ITSELF NOW LIVES IN rights-ladder.js (ROADMAP 47, step one).
+// SOURCE_PATTERNS, looksLikeBareUrl(), canonicalSourceFrom() and
+// canonicalRightsFrom() were extracted VERBATIM at admin.js v3.40.0 and are
+// imported at the top of this file. ⚠️ selectOptionValues() STAYED HERE on
+// purpose: it reads the live <select>, so it is the mechanism by which
+// admin.html remains the single source of truth for what a mapping may return,
+// and it is the one piece of this group a DOM-free consumer cannot have.
+// Read rights-ladder.js's header before editing any of the four — the pattern
+// order and the two-pass split are each load-bearing and each independently
+// pinned by metadata-map-test.mjs.
 
 // Fires the moment a file is chosen. Never overwrites something already typed:
 // if you deliberately set an id, the file does not get to argue.

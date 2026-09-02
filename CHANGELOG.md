@@ -119,6 +119,81 @@ next forgotten field is caught rather than this one. **Mutation-verified against
 the pre-fix build: 12 failing**, including Part E reproducing Jake's report
 verbatim.
 
+**⭐ ROADMAP 47 STEP ONE — THE LICENCE LADDER MOVED OUT OF admin.js**
+(`rights-ladder.js` v1.0.0, `admin.js` v3.40.0, `metadata-map-test.mjs` v1.6.0).
+Extracted **verbatim**: bodies unchanged, the four declarations gained `export`
+and nothing else. ⚠️ `selectOptionValues()` stayed behind on purpose — it reads
+the live `<select>`, which is the mechanism keeping admin.html the single source
+of truth for what a mapping may return.
+
+⚠️⚠️ **AND THE ITEM'S STATED REASON FOR THE MOVE WAS WRONG, CHECKED BEFORE
+BUILDING.** ROADMAP 47 says to extract so the planned Cloud Function can IMPORT
+the ladder. **It cannot** — `firebase deploy --only functions` packages the
+`functions/` directory and nothing above it, so a root-level module is never
+uploaded. The functions-side ladder will be a **copy** regardless. ⚠️ The repo
+already has one unguarded duplication across that exact boundary:
+`MIN_PROBLEM_CHARS = 3` is hand-written in both `variety-floor.js` and
+`functions/index.js` and **nothing asserts they agree**.
+
+✅ **The move was still right, for reasons that survive the correction.**
+`metadata-map-test.mjs` **stopped lifting the ladder out of admin.js as text**
+through `new Function(...)` — a lift that tested a re-evaluated copy rather than
+the shipped code, with a slicer already known-broken for `async` functions — and
+the ladder now has one canonical home for a future copy to be checked against.
+**New Part F** guards the precondition: the module imports nothing, touches no
+DOM, and admin.js keeps no local copy that would silently shadow the import.
+518 → 532 assertions. ⚠️ Part F's first two mutations fail as a **crash** at
+module load rather than as an assertion, and the header says so.
+
+⚠️ **`version-stamp-test.mjs` §D caught the new module being registered in two of
+its three mirrors and not the third** — which is exactly the drift that section
+exists for, on its first opportunity.
+
+**⚠️ ROADMAP 42's admin.js HALF — SURVEYED AND NOT STARTED, DELIBERATELY.** The
+item has now been wrong about its own method twice, so Round 57 measured before
+touching anything and found three things that change the plan.
+
+⭐⭐ **THE DEFECT INSIDE IT WAS ALREADY FIXED, BY THE ROUND THAT WROTE THE
+WARNING.** Item 42 says `button:disabled` is dead on admin and that a full-book
+audit "runs behind a button that looks idle", one line each to fix. **Not any
+more.** Round 56 moved those buttons to `btn-tint` classes written as
+`button.btn-tint-save:not(:disabled)`, and that `:not(:disabled)` is exactly what
+lets `button:disabled` win. The fix shipped in the same round as the warning and
+nobody updated the warning — so the next round would have "fixed" a defect that
+no longer exists by deleting inline backgrounds that are no longer there.
+
+⚠️⚠️ **AND THE BLOCKING RULE IS FAR NARROWER THAN THE ITEM STATES.** "Do not
+extract a property assigned at runtime", applied file-wide, blocks 203 of the 492
+declarations — including all 123 `color` ones, which is most of what item 38
+needs. **It is the wrong rule.** Setting `.style.color = '#f00'` is harmless;
+inline still beats a class. **The hazard is assignment of `''`**, and there are
+exactly **three** in the entire file: the build-panel `display`, `.seg-row`
+background, `.seg-text` color. Everything else is extractable.
+
+⚠️ **NOT STARTED ON PURPOSE.** Round 56's transformer parsed real HTML; these are
+template strings with no parser, so adding a class means editing a tag that
+exists only as text. Beginning a 492-declaration rewrite of the file Jake runs
+his classroom from, without room to verify it element-by-element, is the
+"shipped two broken features" outcome this item already caused once. The survey,
+the three reset sites, the re-runnable grep that finds a fourth, and the
+twelve-value font-size ladder (**Jake's call, not a refactor's**) are all written
+into the item instead.
+
+⭐⭐ **AND JAKE OVERRULED ONE OF MY CONCLUSIONS THE SAME DAY, CORRECTLY.** I wrote
+into item 42 that admin.js's twelve-value font-size ladder was "a decision for
+Jake, not a refactor's" and that a round should extract at exact values and
+report. His answer: *"The whole point of the admin redesign is that it doesn't
+look as good as the rest. I don't need to judge whether .7 is better than .72 on
+a step by step basis — right now it looks bad. Consistency would help a lot, so
+cleaning it up in any way would be a step in the right direction."*
+⚠️ **The caution was the mistake, not the change** — preserving twelve
+near-identical sizes byte-for-byte preserves the defect. I had read his stated
+design pet peeve ("slightly off" reads worse than an obvious difference) as
+*every size change needs sign-off*; it means the opposite. Recorded as a standing
+ruling in items 42 and 38, with its edge: it covers dimension-like values, and
+**not** colour, where item 38's finding that amber means three things still has
+to be settled first.
+
 **End state: all 67 harnesses pass, `test:rules` 89/89, `audit:versions` 0
 problems.** The suite has not been fully green for several rounds.
 
@@ -4692,6 +4767,31 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### admin.js v3.31.2 — archived by Round 57 (Bar-Lock), 8-entry budget
+
+Second archive from this file in one round; the ladder extraction pushed it back
+over 8. Verbatim, nothing deleted.
+
+⚠️ **It records `ADMIN_EMAILS` collapsing to one home in `firebase-config.js`** —
+four hand-maintained copies, nothing drifted, *"which is luck, not design."*
+Worth reading next to Round 57's ladder extraction, which is the same move for
+the same reason: `build-panel-test.mjs` §E fails if a second literal list
+reappears under any name, and `metadata-map-test.mjs` Part F now does the
+equivalent for the licence ladder.
+
+```
+// v3.31.2 — IMPORT ONLY, NO BEHAVIOUR. ADMIN_EMAILS is imported from
+//           firebase-config.js instead of declared here. It was one of FOUR
+//           hand-maintained copies of the same two addresses; nothing had
+//           drifted, which was luck. HANDOFF §0.-20.H. v3.25.2's entry moved
+//           to CHANGELOG.md § ARCHIVED FILE HEADERS — this file was one over
+//           the 8-entry budget once v3.31.2 was added.
+//
+// Book authoring: EPUB import, chapter editor, metadata and tags, language
+// filter, CSV export. Hosts the Lessons and Staff panels from their own files.
+//
+```
 
 ### game.js v3.42.0 and learn.js v2.35.0 — archived by Round 57 (Bar-Lock), 8-entry budget
 

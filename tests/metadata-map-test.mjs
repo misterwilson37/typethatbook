@@ -1,4 +1,16 @@
-// metadata-map-test.mjs v1.5.0
+// metadata-map-test.mjs v1.6.0
+//
+// v1.6.0 — ⚠️ THE LADDER IS IMPORTED NOW, NOT LIFTED. ROADMAP 47 step one moved
+//          SOURCE_PATTERNS, looksLikeBareUrl(), canonicalSourceFrom() and
+//          canonicalRightsFrom() into rights-ladder.js, so this file stopped
+//          slicing them out of admin.js as text and rebuilding them through
+//          `new Function(...)`. That lift tested a COPY, not the shipped code,
+//          and its slicer was already known-broken for `async` functions — this
+//          file documented that and kept it. Only selectOptionValues() is still
+//          lifted, correctly: it reads the real admin.html <select>.
+//          ⚠️ NEW PART F guards what makes a future functions-side copy possible:
+//          the ladder imports nothing, touches no DOM, and admin.js keeps no
+//          local copy that would silently shadow the import. 518 -> 532.
 //
 // v1.5.0 — ⚠️⚠️ THE SAME FAILURE AS v1.4.0, ONE LAYER DOWN, AND v1.4.0'S OWN
 //          WARNING PREDICTED IT. Round 57 (Bar-Lock). This harness arrived RED
@@ -134,11 +146,32 @@ function eq(label, got, want) {
     bad.push(`  ${label}\n      got:  ${JSON.stringify(got)}\n      want: ${JSON.stringify(want)}`);
 }
 
-// ── lift, the same way about-test.mjs does ───────────────────────────────────
-// ⚠️ NOTE FOR WHOEVER COPIES THIS. about-test.mjs's lift() searches for
-// `function NAME(` and so begins its slice AFTER the `async` keyword, silently
-// producing a non-async function whose `await` is a SyntaxError. Every previous use
-// happened to be synchronous, so nobody found out. Preserved here.
+// ── IMPORTED, NOT LIFTED (v1.6.0 — ROADMAP 47 step one) ──────────────────────
+//
+// ⚠️⚠️ THIS FILE USED TO LIFT THE LADDER OUT OF admin.js AS TEXT and rebuild it
+// through `new Function(...)`. That was necessary while the four lived inside a
+// browser module wired to the DOM and the Firebase client SDK, and it was a
+// standing hazard for two reasons worth recording now that it is gone:
+//
+//   * IT TESTED A COPY, NOT THE SHIPPED CODE. The lifted text was re-evaluated in
+//     a fresh scope, so anything the real functions closed over was invisible and
+//     any divergence between "what the slice captured" and "what runs in a
+//     browser" was untestable BY CONSTRUCTION.
+//   * THE SLICER WAS ALREADY KNOWN TO BE WRONG, in a way this file documented and
+//     kept. about-test.mjs's lift() begins its slice after the `async` keyword,
+//     producing a non-async function whose `await` is a SyntaxError; every use
+//     happened to be synchronous, so nobody found out.
+//
+// `rights-ladder.js` is now an ordinary module, so these are ordinary imports and
+// the harness exercises exactly what admin.js runs.
+import { SOURCE_PATTERNS, looksLikeBareUrl,
+         canonicalSourceFrom, canonicalRightsFrom } from '../rights-ladder.js';
+
+// ⚠️ selectOptionValues() IS STILL LIFTED, AND THAT IS CORRECT. It reads the live
+// <select> out of admin.html, which is the whole mechanism by which the markup
+// stays the single source of truth for what a mapping may return — so it cannot
+// move into a DOM-free module, and driving it against the REAL admin.html is the
+// point of it. This is the only lift left in the file.
 function lift(name) {
     let start = SRC.indexOf(`async function ${name}(`);
     if (start < 0) start = SRC.indexOf(`function ${name}(`);
@@ -150,6 +183,9 @@ function lift(name) {
     }
     throw new Error(name + ' is unbalanced');
 }
+
+// ⚠️ STILL USED, by the GENRES check further down — that list is markup-adjacent
+// and genuinely lives in admin.js, so it is lifted like selectOptionValues is.
 function liftConst(n) {
     const m = SRC.match(new RegExp('^const ' + n + '\\s*=[\\s\\S]*?;$', 'm'));
     if (!m) throw new Error(n + ' not found in admin.js');
@@ -158,14 +194,12 @@ function liftConst(n) {
 
 // admin.html's real selects, so the option values under test are the shipped ones.
 const dom = new JSDOM(HTML);
-const F = new Function('document', 'Array',
-    liftConst('SOURCE_PATTERNS') + '\n' +
-    lift('selectOptionValues') + '\n' +
-    lift('looksLikeBareUrl') + '\n' +
-    lift('canonicalSourceFrom') + '\n' +
-    lift('canonicalRightsFrom') + '\n' +
-    'return { selectOptionValues, looksLikeBareUrl, canonicalSourceFrom, canonicalRightsFrom };'
-)(dom.window.document, Array);
+const F = Object.assign(
+    new Function('document', 'Array',
+        lift('selectOptionValues') + '\nreturn { selectOptionValues };'
+    )(dom.window.document, Array),
+    { looksLikeBareUrl, canonicalSourceFrom, canonicalRightsFrom, SOURCE_PATTERNS }
+);
 
 const RIGHTS_OPTS = F.selectOptionValues('active-book-rights');
 const SOURCE_OPTS = F.selectOptionValues('active-book-source');
@@ -570,6 +604,77 @@ for (const f of files) {
     // just as happily when the whole function has been renamed out from under us.
     eq(`${f} \u2192 signals expose exactly {originUrl, preparedBy}`,
        Object.keys(sig).sort().join(','), 'originUrl,preparedBy');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PART F — ⚠️⚠️ rights-ladder.js STAYS PORTABLE, OR STEP TWO CANNOT HAPPEN
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ROADMAP 47's second step puts this ladder behind an admin-gated Cloud Function
+// so a model can give a SECOND OPINION on a book's licence before it goes in
+// front of children. ⚠️ A Cloud Function cannot import this file — `firebase
+// deploy --only functions` packages the `functions/` directory and nothing above
+// it — so the functions-side copy will be a COPY, and the only thing that makes
+// an honest copy possible is that this module depends on nothing.
+//
+// ⚠️ THE FAILURE TO DESIGN AGAINST IS ALREADY IN THE REPO. `MIN_PROBLEM_CHARS =
+// 3` is written by hand in BOTH `variety-floor.js` and `functions/index.js`, and
+// nothing asserts they agree. That one is a number. This one would be two legal
+// mappers disagreeing about what a school may put in front of a child, which is
+// worse than having only one.
+//
+// So: no imports, no DOM, no SDK. If a future edit needs any of those, it does
+// not belong in this file — it belongs in the caller, the way selectOptionValues()
+// stayed in admin.js.
+//
+// ⚠️ MUTATION-VERIFIED, AND TWO OF THE THREE FAIL AS A CRASH RATHER THAN AS AN
+// ASSERTION — recorded because "it failed" and "F1 printed" are different claims.
+// Adding an import to the ladder, or dropping an export, kills this harness at
+// module-load time (exit 1) BEFORE any assertion runs, because this file imports
+// the ladder for real now. F1/F2/F6 are therefore belt-and-braces: they exist so
+// the failure NAMES the rule instead of being a bare SyntaxError, and so they
+// still bite if a future consumer stops importing. Only F7 — admin.js keeping a
+// local copy that shadows the import — fails as a clean assertion, and it is the
+// one that would otherwise be completely silent.
+{
+    console.log('\n─── F. ⚠️ THE LADDER MODULE IS SELF-CONTAINED ───');
+    // This file's only assertion helper is eq(); every check below is a boolean,
+    // so give them a name rather than writing `, true` twenty times.
+    const ok = (cond, msg) => eq(msg, !!cond, true);
+    const ladder = readFileSync(new URL('../rights-ladder.js', import.meta.url), 'utf8');
+    const code = ladder
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n');
+
+    ok(!/^\s*import\s/m.test(code),
+       'F1 \u26a0\ufe0f\u26a0\ufe0f rights-ladder.js imports NOTHING \u2014 an import makes the functions-side copy impossible and forces a second hand-maintained legal mapper');
+    ok(!/\brequire\s*\(/.test(code),
+       'F2 and require()s nothing either');
+    ok(!/\bdocument\b/.test(code),
+       'F3 \u26a0\ufe0f it never touches `document` \u2014 a Cloud Function has no DOM. selectOptionValues() stayed in admin.js for exactly this reason');
+    ok(!/\bwindow\b/.test(code),
+       'F4 and never touches `window`');
+    ok(!/\blocalStorage\b|\bfetch\s*\(/.test(code),
+       'F5 and reaches no browser API \u2014 it is string mapping and nothing else');
+
+    // The four exports the two consumers actually rely on. A rename that broke
+    // admin.js would otherwise only show up as a blank dropdown in a classroom.
+    for (const name of ['SOURCE_PATTERNS', 'looksLikeBareUrl',
+                        'canonicalSourceFrom', 'canonicalRightsFrom']) {
+        ok(new RegExp('export\\s+(const|function)\\s+' + name + '\\b').test(code),
+           `F6 \`${name}\` is exported`);
+    }
+    // ⚠️ AND admin.js MUST NOT HAVE KEPT A LOCAL COPY. An extraction that leaves
+    // the original behind is the drift this move exists to prevent, and it would
+    // be invisible: the local definition would simply win.
+    for (const name of ['canonicalSourceFrom', 'canonicalRightsFrom', 'looksLikeBareUrl']) {
+        ok(!new RegExp('^function\\s+' + name + '\\b', 'm').test(SRC),
+           `F7 \u26a0\ufe0f admin.js no longer defines \`${name}\` locally \u2014 a leftover copy would silently shadow the import`);
+    }
+    ok(!/^const SOURCE_PATTERNS\b/m.test(SRC),
+       'F7 \u26a0\ufe0f admin.js no longer defines `SOURCE_PATTERNS` locally');
+    ok(/from ['"]\.\/rights-ladder\.js['"]/.test(SRC),
+       'F8 admin.js imports the ladder rather than restating it');
 }
 
 console.log(`\nmetadata-map-test: ${files.length} books read from ${LIB}` +
