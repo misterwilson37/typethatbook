@@ -1,9 +1,15 @@
 <!DOCTYPE html>
-<!-- admin.html v1.2.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.3.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
-     the markup changes, and do not reformat it. ROADMAP 16. -->
+     the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.3.0 — ROADMAP 42. 834 of this file's 866 inline declarations moved off
+     276 elements and into the utility block at the END of <style>. 32 stay
+     inline on purpose and every one is pinned by tests/inline-styles-test.mjs
+     Part C. ⚠⚠ THE UTILITY BLOCK MUST REMAIN LAST — those classes tie with
+     .lbtn and .l-field on specificity and win on SOURCE ORDER alone. -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -243,14 +249,369 @@
         .lessons-toolbar { display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
         #lessons-import-section,
         #lessons-export-section { background:#1a1a1a; border:1px dashed #444; padding:16px; margin-bottom:16px; }
+    
+        /* ── ROADMAP 41 + 42 — THE TINTED ACTION BUTTONS ──────────────────
+           ⚠⚠ THESE TINTS USED TO BE INLINE, AND AN INLINE VALUE BEATS EVERY
+           SELECTOR — so `button:disabled { background:#555; cursor:not-allowed }`
+           could not reach them. #audit-book-btn and #save-title-btn really are
+           disabled during slow work, so the grey-out simply never happened.
+           #save-title-btn worked around it with `style.opacity = '0.6'` in
+           admin.js; #audit-book-btn had no workaround at all.
+
+           ⚠️ `:not(:disabled)` IS THE WHOLE MECHANISM. The tint applies only while
+           the button is live, so a disabled one falls through to
+           `button:disabled` and greys out on its own. Do NOT "simplify" this to a
+           plain `.btn-tint-save { background: ... }`: that ties with
+           `button:disabled` on specificity and, sitting later in the file, wins.
+           The bug returns and nothing looks wrong.
+
+           ⚠️ The hover is `filter: brightness()`, NOT four new hex values. Item 38
+           is still open on this page and Round 55 was rightly criticised for
+           adding two colours while improving legibility; a derived hover adds
+           none. */
+        button.btn-tint:not(:disabled):hover   { filter: brightness(1.6); }
+        button.btn-tint-save:not(:disabled)    { background: #224422; }
+        button.btn-tint-audit:not(:disabled)   { background: #332200; }
+        button.btn-tint-scan:not(:disabled)    { background: #220022; }
+        button.btn-tint-repair:not(:disabled)  { background: #002233; }
+
+        /* ⚠️ The text-style toggles keep NO hover fill on purpose — they are
+           links wearing a <button> for keyboard and screen-reader reasons, and
+           `button:hover { background:#4B9CD3 }` would flood them Carolina blue.
+           The :hover rule is what holds that off; the bare class only TIES with
+           button:hover, which is not enough. */
+        button.btn-plain,
+        button.btn-plain:hover { background: none; }
+
+        /* ════════════════════════════════════════════════════════════════════
+           ROADMAP 42 — THE INLINE STYLES, EXTRACTED
+           ════════════════════════════════════════════════════════════════════
+
+           834 of 866 inline declarations, off 276 elements.
+
+           ⚠️⚠️ THIS BLOCK MUST STAY LAST IN THE FILE. These are single-class
+           selectors, so against rules like `.lbtn` and `.l-field` they tie on
+           specificity and win only on SOURCE ORDER. Move this block up and 69
+           declarations silently revert to what they overrode. No test can see a
+           rendering change — the guard is inline-styles-test.mjs Part D, which
+           pins the ordering itself.
+
+           ⚠️ VALUE-NAMED (`u-color-888`), NOT ROLE-NAMED, DELIBERATELY. A role
+           name asserts a meaning, and item 38's finding is that this page's
+           colours do not yet HAVE settled meanings — amber means three things.
+           Naming by role now would invent the answer to the question item 38
+           exists to ask. When 38 retires a value onto a token, its class goes
+           with it.
+
+           ⚠️ 84 OF THESE 202 CLASSES ARE USED EXACTLY ONCE, AND THAT NUMBER
+           IS THE POINT. A single-use utility is not reuse — it is a one-off value
+           that now has somewhere to live and can be found. Most of the tail is
+           one-off colour. **That count is the metric for item 38**; it should
+           fall hard when the three severities land. Print it with
+           `node tools/audit-inline-styles.mjs`. */
+
+        /* align-items */
+        .u-align-items-center { align-items: center; }
+        .u-align-items-end { align-items: end; }
+        .u-align-items-flex-end { align-items: flex-end; }
+
+        /* align-self */
+        .u-align-self-center { align-self: center; }
+
+        /* background */
+        .u-background-000 { background: #000; }
+        .u-background-001a2a { background: #001a2a; }
+        .u-background-0a1a0a { background: #0a1a0a; }
+        .u-background-111 { background: #111; }
+        .u-background-12000c { background: #12000c; }
+        .u-background-150011 { background: #150011; }
+        .u-background-1a0011 { background: #1a0011; }
+        .u-background-1a0a0a { background: #1a0a0a; }
+        .u-background-1a1a00 { background: #1a1a00; }
+        .u-background-1a1a1a { background: #1a1a1a; }
+        .u-background-222 { background: #222; }
+
+        /* border */
+        .u-border-1px-solid-004466 { border: 1px solid #004466; }
+        .u-border-1px-solid-1a4a1a { border: 1px solid #1a4a1a; }
+        .u-border-1px-solid-330022 { border: 1px solid #330022; }
+        .u-border-1px-solid-333 { border: 1px solid #333; }
+        .u-border-1px-solid-440022 { border: 1px solid #440022; }
+        .u-border-1px-solid-444 { border: 1px solid #444; }
+        .u-border-1px-solid-444400 { border: 1px solid #444400; }
+        .u-border-1px-solid-4a1a1a { border: 1px solid #4a1a1a; }
+        .u-border-1px-solid-4b9cd3 { border: 1px solid #4B9CD3; }
+        .u-border-1px-solid-553300 { border: 1px solid #553300; }
+        .u-border-1px-solid-555 { border: 1px solid #555; }
+        .u-border-none { border: none; }
+
+        /* border-bottom */
+        .u-border-bottom-1px-solid-333 { border-bottom: 1px solid #333; }
+        .u-border-bottom-1px-solid-444 { border-bottom: 1px solid #444; }
+        .u-border-bottom-2px-solid-4b9cd3 { border-bottom: 2px solid #4B9CD3; }
+        .u-border-bottom-2px-solid-transparent { border-bottom: 2px solid transparent; }
+        .u-border-bottom-none { border-bottom: none; }
+
+        /* border-collapse */
+        .u-border-collapse-collapse { border-collapse: collapse; }
+
+        /* border-color */
+        .u-border-color-004466 { border-color: #004466; }
+        .u-border-color-333 { border-color: #333; }
+        .u-border-color-336633 { border-color: #336633; }
+        .u-border-color-440044 { border-color: #440044; }
+        .u-border-color-4b9cd3 { border-color: #4B9CD3; }
+        .u-border-color-664400 { border-color: #664400; }
+
+        /* border-left */
+        .u-border-left-3px-solid-4b9cd3 { border-left: 3px solid #4B9CD3; }
+
+        /* border-radius */
+        .u-border-radius-0-0-4px-4px { border-radius: 0 0 4px 4px; }
+        .u-border-radius-3px { border-radius: 3px; }
+        .u-border-radius-4px { border-radius: 4px; }
+        .u-border-radius-4px-4px-0-0 { border-radius: 4px 4px 0 0; }
+
+        /* border-top */
+        .u-border-top-1px-dashed-333 { border-top: 1px dashed #333; }
+        .u-border-top-1px-solid-330022 { border-top: 1px solid #330022; }
+        .u-border-top-1px-solid-333 { border-top: 1px solid #333; }
+        .u-border-top-1px-solid-444 { border-top: 1px solid #444; }
+
+        /* box-sizing */
+        .u-box-sizing-border-box { box-sizing: border-box; }
+
+        /* color */
+        .u-color-00ff41 { color: #00ff41; }
+        .u-color-4b9cd3 { color: #4B9CD3; }
+        .u-color-555 { color: #555; }
+        .u-color-666 { color: #666; }
+        .u-color-66ccff { color: #66ccff; }
+        .u-color-777 { color: #777; }
+        .u-color-886688 { color: #886688; }
+        .u-color-888 { color: #888; }
+        .u-color-aaa { color: #aaa; }
+        .u-color-b87ae8 { color: #b87ae8; }
+        .u-color-bbb { color: #bbb; }
+        .u-color-cc66cc { color: #cc66cc; }
+        .u-color-cc99cc { color: #cc99cc; }
+        .u-color-ccc { color: #ccc; }
+        .u-color-eee { color: #eee; }
+        .u-color-ff3333 { color: #ff3333; }
+        .u-color-ff6666 { color: #ff6666; }
+        .u-color-ff9999 { color: #ff9999; }
+        .u-color-ffaa00 { color: #ffaa00; }
+        .u-color-ffcc66 { color: #ffcc66; }
+        .u-color-white { color: white; }
+
+        /* cursor */
+        .u-cursor-pointer { cursor: pointer; }
+
+        /* display */
+        .u-display-flex { display: flex; }
+        .u-display-grid { display: grid; }
+        .u-display-none { display: none; }
+
+        /* flex */
+        .u-flex-1 { flex: 1; }
+        .u-flex-1-4 { flex: 1.4; }
+        .u-flex-2 { flex: 2; }
+
+        /* flex-direction */
+        .u-flex-direction-column { flex-direction: column; }
+
+        /* flex-shrink */
+        .u-flex-shrink-0 { flex-shrink: 0; }
+
+        /* flex-wrap */
+        .u-flex-wrap-wrap { flex-wrap: wrap; }
+
+        /* font */
+        .u-font-inherit { font: inherit; }
+
+        /* font-family */
+        .u-font-family-courier-new-monospace { font-family: 'Courier New', monospace; }
+        .u-font-family-inherit { font-family: inherit; }
+        .u-font-family-monospace { font-family: monospace; }
+
+        /* font-size */
+        .u-font-size-0-72em { font-size: 0.72em; }
+        .u-font-size-0-75em { font-size: 0.75em; }
+        .u-font-size-0-78em { font-size: 0.78em; }
+        .u-font-size-0-82em { font-size: 0.82em; }
+        .u-font-size-0-85em { font-size: 0.85em; }
+        .u-font-size-0-8em { font-size: 0.8em; }
+        .u-font-size-0-9rem { font-size: 0.9rem; }
+        .u-font-size-1-1em { font-size: 1.1em; }
+        .u-font-size-0-95em { font-size: 0.95em; }
+
+        /* font-weight */
+        .u-font-weight-bold { font-weight: bold; }
+
+        /* gap */
+        .u-gap-0 { gap: 0; }
+        .u-gap-10px { gap: 10px; }
+        .u-gap-14px { gap: 14px; }
+        .u-gap-20px { gap: 20px; }
+        .u-gap-4px { gap: 4px; }
+        .u-gap-5px { gap: 5px; }
+        .u-gap-6px { gap: 6px; }
+        .u-gap-8px { gap: 8px; }
+
+        /* grid-template-columns */
+        .u-grid-template-columns-1fr-1fr { grid-template-columns: 1fr 1fr; }
+        .u-grid-template-columns-1fr-2fr-auto { grid-template-columns: 1fr 2fr auto; }
+        .u-grid-template-columns-2fr-1fr-1fr-1fr { grid-template-columns: 2fr 1fr 1fr 1fr; }
+        .u-grid-template-columns-2fr-1fr-auto { grid-template-columns: 2fr 1fr auto; }
+        .u-grid-template-columns-repeat-auto-fill-minmax-140px-1fr { grid-template-columns: repeat(auto-fill,minmax(140px,1fr)); }
+
+        /* justify-content */
+        .u-justify-content-space-between { justify-content: space-between; }
+
+        /* letter-spacing */
+        .u-letter-spacing-0-05em { letter-spacing: 0.05em; }
+
+        /* line-height */
+        .u-line-height-1-5 { line-height: 1.5; }
+        .u-line-height-1-6 { line-height: 1.6; }
+        .u-line-height-1-8 { line-height: 1.8; }
+
+        /* margin */
+        .u-margin-0 { margin: 0; }
+        .u-margin-0-0-12px { margin: 0 0 12px; }
+        .u-margin-0-0-16px { margin: 0 0 16px; }
+        .u-margin-0-0-4px { margin: 0 0 4px; }
+        .u-margin-0-0-8px { margin: 0 0 8px; }
+        .u-margin-14px-0-4px { margin: 14px 0 4px; }
+        .u-margin-30px-0 { margin: 30px 0; }
+        .u-margin-6px-0-12px { margin: 6px 0 12px; }
+
+        /* margin-bottom */
+        .u-margin-bottom-10px { margin-bottom: 10px; }
+        .u-margin-bottom-12px { margin-bottom: 12px; }
+        .u-margin-bottom-14px { margin-bottom: 14px; }
+        .u-margin-bottom-15px { margin-bottom: 15px; }
+        .u-margin-bottom-16px { margin-bottom: 16px; }
+        .u-margin-bottom-1px { margin-bottom: -1px; }
+        .u-margin-bottom-20px { margin-bottom: 20px; }
+        .u-margin-bottom-4px { margin-bottom: 4px; }
+        .u-margin-bottom-5px { margin-bottom: 5px; }
+        .u-margin-bottom-6px { margin-bottom: 6px; }
+        .u-margin-bottom-8px { margin-bottom: 8px; }
+
+        /* margin-left */
+        .u-margin-left-5px { margin-left: 5px; }
+        .u-margin-left-6px { margin-left: 6px; }
+
+        /* margin-top */
+        .u-margin-top-0 { margin-top: 0; }
+        .u-margin-top-10px { margin-top: 10px; }
+        .u-margin-top-12px { margin-top: 12px; }
+        .u-margin-top-14px { margin-top: 14px; }
+        .u-margin-top-15px { margin-top: 15px; }
+        .u-margin-top-16px { margin-top: 16px; }
+        .u-margin-top-20px { margin-top: 20px; }
+        .u-margin-top-3px { margin-top: 3px; }
+        .u-margin-top-4px { margin-top: 4px; }
+        .u-margin-top-5px { margin-top: 5px; }
+        .u-margin-top-6px { margin-top: 6px; }
+        .u-margin-top-8px { margin-top: 8px; }
+
+        /* max-height */
+        .u-max-height-240px { max-height: 240px; }
+        .u-max-height-340px { max-height: 340px; }
+        .u-max-height-360px { max-height: 360px; }
+        .u-max-height-400px { max-height: 400px; }
+        .u-max-height-60vh { max-height: 60vh; }
+
+        /* max-width */
+        .u-max-width-520px { max-width: 520px; }
+
+        /* min-height */
+        .u-min-height-1-15em { min-height: 1.15em; }
+        .u-min-height-1-1em { min-height: 1.1em; }
+        .u-min-height-1-2em { min-height: 1.2em; }
+        .u-min-height-1em { min-height: 1em; }
+
+        /* min-width */
+        .u-min-width-120px { min-width: 120px; }
+        .u-min-width-140px { min-width: 140px; }
+        .u-min-width-160px { min-width: 160px; }
+        .u-min-width-180px { min-width: 180px; }
+
+        /* opacity */
+        .u-opacity-0-4 { opacity: 0.4; }
+
+        /* overflow */
+        .u-overflow-auto { overflow: auto; }
+
+        /* overflow-x */
+        .u-overflow-x-auto { overflow-x: auto; }
+
+        /* overflow-y */
+        .u-overflow-y-auto { overflow-y: auto; }
+
+        /* padding */
+        .u-padding-10px { padding: 10px; }
+        .u-padding-12px { padding: 12px; }
+        .u-padding-14px { padding: 14px; }
+        .u-padding-15px { padding: 15px; }
+        .u-padding-16px { padding: 16px; }
+        .u-padding-2px-5px { padding: 2px 5px; }
+        .u-padding-3px-12px { padding: 3px 12px; }
+        .u-padding-4px-0 { padding: 4px 0; }
+        .u-padding-4px-10px { padding: 4px 10px; }
+        .u-padding-4px-14px { padding: 4px 14px; }
+        .u-padding-4px-6px { padding: 4px 6px; }
+        .u-padding-5px-12px { padding: 5px 12px; }
+        .u-padding-5px-14px { padding: 5px 14px; }
+        .u-padding-5px-16px { padding: 5px 16px; }
+        .u-padding-5px-8px { padding: 5px 8px; }
+        .u-padding-6px-16px { padding: 6px 16px; }
+        .u-padding-6px-18px { padding: 6px 18px; }
+        .u-padding-6px-20px { padding: 6px 20px; }
+        .u-padding-6px-8px { padding: 6px 8px; }
+        .u-padding-8px-12px { padding: 8px 12px; }
+        .u-padding-8px-16px { padding: 8px 16px; }
+
+        /* padding-bottom */
+        .u-padding-bottom-10px { padding-bottom: 10px; }
+
+        /* padding-left */
+        .u-padding-left-20px { padding-left: 20px; }
+
+        /* padding-top */
+        .u-padding-top-10px { padding-top: 10px; }
+        .u-padding-top-12px { padding-top: 12px; }
+        .u-padding-top-14px { padding-top: 14px; }
+        .u-padding-top-15px { padding-top: 15px; }
+
+        /* text-align */
+        .u-text-align-left { text-align: left; }
+
+        /* text-transform */
+        .u-text-transform-uppercase { text-transform: uppercase; }
+
+        /* vertical-align */
+        .u-vertical-align-middle { vertical-align: middle; }
+
+        /* white-space */
+        .u-white-space-nowrap { white-space: nowrap; }
+        .u-white-space-pre-wrap { white-space: pre-wrap; }
+
+        /* width */
+        .u-width-100pct { width: 100%; }
+        .u-width-160px { width: 160px; }
+        .u-width-28px { width: 28px; }
+        .u-width-auto { width: auto; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+    <div class="u-display-flex u-justify-content-space-between u-align-items-center u-margin-bottom-20px">
         <h1>ADMIN PANEL</h1>
-        <div style="display:flex; gap:20px;">
+        <div class="u-display-flex u-gap-20px">
             <a href="reports.html">Reports</a>
             <a href="index.html">Back to Library</a>
         </div>
@@ -270,36 +631,32 @@
             <button class="tab-btn" id="tab-lessons">⌨ Lessons</button>
             <button class="tab-btn" id="tab-students">👤 Students</button>
             <button class="tab-btn" id="tab-classes">🏫 Classes</button>
-            <button class="tab-btn" id="tab-staff" style="display:none">🎓 Staff</button>
+            <button class="tab-btn" id="tab-staff" style="display:none;">🎓 Staff</button>
         </div>
 
         <div id="books-panel">
         
-        <div class="import-box" style="border-color: #4B9CD3;">
-            <h3 style="margin-top:0; color:#4B9CD3;">1. Database Manager</h3>
+        <div class="import-box u-border-color-4b9cd3">
+            <h3 class="u-margin-top-0 u-color-4b9cd3">1. Database Manager</h3>
             
             <label for="book-select">Select Book / Action</label>
             <select id="book-select">
                 <option value="">Loading books...</option>
             </select>
 
-            <div id="edit-existing-ui" class="hidden" style="margin-top:10px;">
+            <div id="edit-existing-ui" class="hidden u-margin-top-10px">
                 <button id="open-book-btn">Open Book</button>
             </div>
 
-            <div style="margin-top:12px; border-top:1px solid #333; padding-top:10px;">
-                <button id="export-books-csv-btn" class="secondary-btn"
-                        style="width:auto; padding:5px 14px; font-size:0.85em;">⤓ Export Book List (CSV)</button>
-                <button id="library-balance-btn" class="secondary-btn"
-                        style="width:auto; padding:5px 14px; font-size:0.85em; margin-left:6px;">📊 Balance Report</button>
+            <div class="u-margin-top-12px u-border-top-1px-solid-333 u-padding-top-10px">
+                <button id="export-books-csv-btn" class="secondary-btn u-width-auto u-padding-5px-14px u-font-size-0-85em">⤓ Export Book List (CSV)</button>
+                <button id="library-balance-btn" class="secondary-btn u-width-auto u-padding-5px-14px u-font-size-0-85em u-margin-left-6px">📊 Balance Report</button>
                 <!-- Deliberately last, deliberately red, deliberately NOT beside
                      Open Book. This is the only control in this panel that destroys
                      a student's reading position. -->
-                <button id="delete-book-btn" class="danger-btn"
-                        style="width:auto; padding:5px 14px; font-size:0.85em; margin-left:6px;">🗑 Delete Book…</button>
-                <div id="export-books-status" style="font-size:0.75em; color:#888; margin-top:5px; min-height:1.1em;"></div>
-                <div id="library-balance-out" class="hidden"
-                     style="margin-top:10px; background:#111; border:1px solid #333; padding:12px; font-size:0.8em; max-height:340px; overflow-y:auto;"></div>
+                <button id="delete-book-btn" class="danger-btn u-width-auto u-padding-5px-14px u-font-size-0-85em u-margin-left-6px">🗑 Delete Book…</button>
+                <div id="export-books-status" class="u-font-size-0-75em u-margin-top-5px u-min-height-1-1em" style="color:#888;"></div>
+                <div id="library-balance-out" class="hidden u-margin-top-10px u-background-111 u-border-1px-solid-333 u-padding-12px u-font-size-0-8em u-max-height-340px u-overflow-y-auto"></div>
             </div>
 
             <!-- ⚠️ THE FILE PICKER COMES FIRST, AND THE ORDER IS THE POINT.
@@ -307,12 +664,12 @@
                  it, so asking for them first was asking a question the next
                  control answers. Do not "tidy" the file input back down under the
                  text fields — top-to-bottom is now the actual workflow. -->
-            <div id="create-new-ui" class="hidden" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 15px;">
+            <div id="create-new-ui" class="hidden u-margin-top-15px u-border-top-1px-solid-333 u-padding-top-15px">
                 <label for="new-epub-file">1. Choose the EPUB &mdash; everything below fills itself in</label>
                 <input type="file" id="new-epub-file" accept=".epub">
-                <div id="autofill-status" style="font-size:0.8em; color:#888; min-height:1.15em; margin:6px 0 12px;"></div>
+                <div id="autofill-status" class="u-font-size-0-8em u-min-height-1-15em u-margin-6px-0-12px" style="color:#888;"></div>
 
-                <label style="color:#777; font-size:0.85em; text-transform:uppercase; letter-spacing:0.05em;">2. Check what it read</label>
+                <label class="u-color-777 u-font-size-0-85em u-text-transform-uppercase u-letter-spacing-0-05em">2. Check what it read</label>
                 <div class="row">
                     <div class="col">
                         <label for="new-book-id">Book ID (e.g. dracula)</label>
@@ -327,9 +684,9 @@
                         <input type="text" id="new-book-author" placeholder="From &lt;dc:creator&gt;">
                     </div>
                 </div>
-                <div style="display:flex; gap:8px; align-items:center; margin-top:10px;">
-                    <button id="create-parse-btn" style="margin:0;">Parse &amp; Initialize Staging</button>
-                    <button id="create-reset-btn" class="secondary-btn" style="width:auto; margin:0; padding:8px 16px;"
+                <div class="u-display-flex u-gap-8px u-align-items-center u-margin-top-10px">
+                    <button id="create-parse-btn" class="u-margin-0">Parse &amp; Initialize Staging</button>
+                    <button id="create-reset-btn" class="secondary-btn u-width-auto u-margin-0 u-padding-8px-16px"
                             title="Clear these fields so you can start another book without reloading.">Start another book</button>
                 </div>
             </div>
@@ -339,8 +696,8 @@
             <h2>2. Content Staging</h2>
             <div class="import-box">
                 
-                <div class="row" style="border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 10px;">
-                    <div class="col" style="flex:2;">
+                <div class="row u-border-bottom-1px-solid-333 u-margin-bottom-20px u-padding-bottom-10px">
+                    <div class="col u-flex-2">
                         <label for="active-book-title">Book Display Title</label>
                         <input type="text" id="active-book-title">
                     </div>
@@ -348,10 +705,10 @@
                         <label for="active-book-author">Author</label>
                         <input type="text" id="active-book-author" placeholder="e.g. Mark Twain">
                     </div>
-                    <div class="col" style="display:flex; align-items:flex-end;">
-                        <div style="width:100%;">
-                            <button id="save-title-btn" class="secondary-btn" style="background:#224422; border-color:#336633;">Save Metadata</button>
-                            <div id="save-title-status" style="font-size:0.75em; color:#888; min-height:1.1em; margin-top:4px;"></div>
+                    <div class="col u-display-flex u-align-items-flex-end">
+                        <div class="u-width-100pct">
+                            <button id="save-title-btn" class="secondary-btn u-border-color-336633 btn-tint btn-tint-save">Save Metadata</button>
+                            <div id="save-title-status" class="u-font-size-0-75em u-min-height-1-1em u-margin-top-4px" style="color:#888;"></div>
                         </div>
                     </div>
                 </div>
@@ -370,23 +727,23 @@
                     <div class="row">
                         <div class="col">
                             <label>Genre <span class="hint" title="Options are built in admin.js from the GENRES list. Custom… stores whatever you type, and a stored genre that is not in the list is preserved rather than silently dropped.">i</span></label>
-                            <select id="active-book-genre" style="width:100%;"></select>
-                            <input type="text" id="active-book-genre-custom" class="hidden"
-                                   placeholder="Type new genre" style="width:100%; margin-top:4px;">
+                            <select id="active-book-genre" class="u-width-100pct"></select>
+                            <input type="text" id="active-book-genre-custom" class="hidden u-width-100pct u-margin-top-4px"
+                                   placeholder="Type new genre">
                         </div>
-                        <div class="col" style="flex:1.4;">
+                        <div class="col u-flex-1-4">
                             <label>Target Age Range <span class="hint" title="Reading age, not grade. Leave both blank if unsure — an untagged book is hidden whenever a student filters by age.">i</span></label>
-                            <div style="display:flex; align-items:center; gap:6px;">
+                            <div class="u-display-flex u-align-items-center u-gap-6px">
                                 <input type="number" id="active-book-minage" min="3" max="18"
-                                       placeholder="7" style="width:100%;">
-                                <span style="color:#888;">to</span>
+                                       placeholder="7" class="u-width-100pct">
+                                <span class="u-color-888">to</span>
                                 <input type="number" id="active-book-maxage" min="3" max="18"
-                                       placeholder="11" style="width:100%;">
+                                       placeholder="11" class="u-width-100pct">
                             </div>
                         </div>
                         <div class="col">
                             <label for="active-book-protagonist">Protagonist</label>
-                            <select id="active-book-protagonist" style="width:100%;">
+                            <select id="active-book-protagonist" class="u-width-100pct">
                                 <option value="">— Not tagged —</option>
                                 <option value="female">Female</option>
                                 <option value="male">Male</option>
@@ -397,10 +754,10 @@
                         </div>
                     </div>
 
-                    <div class="row" style="margin-top:12px;">
+                    <div class="row u-margin-top-12px">
                         <div class="col">
                             <label>Source <span class="hint" title="Who produced this edition — Standard Ebooks, Project Gutenberg, and so on. Auto-filled from the EPUB's dc:source or dc:publisher.">i</span></label>
-                            <select id="active-book-source" style="width:100%;">
+                            <select id="active-book-source" class="u-width-100pct">
                                 <option value="">— Not set —</option>
                                 <option value="Standard Ebooks">Standard Ebooks</option>
                                 <option value="Project Gutenberg">Project Gutenberg</option>
@@ -411,12 +768,11 @@
                                 <option value="Author or publisher direct">Author or publisher direct</option>
                                 <option value="__custom__">Custom…</option>
                             </select>
-                            <input type="text" id="active-book-source-custom" class="hidden"
-                                   style="width:100%; margin-top:4px;" placeholder="Who produced this edition">
+                            <input type="text" id="active-book-source-custom" class="hidden u-width-100pct u-margin-top-4px" placeholder="Who produced this edition">
                         </div>
-                        <div class="col" style="flex:1.4;">
+                        <div class="col u-flex-1-4">
                             <label>License / rights <span class="hint" title="Required for Creative Commons books; shown on the library card. The URL is part of the value on purpose — a license URI is what CC actually asks for, and the card turns it into a link. Auto-filled from the EPUB's dc:rights when it declares one, mapped onto one of these options rather than pasted in raw.">i</span></label>
-                            <select id="active-book-rights" style="width:100%;">
+                            <select id="active-book-rights" class="u-width-100pct">
                                 <option value="">— Not set —</option>
                                 <option value="Public domain (United States)">Public domain (United States)</option>
                                 <!-- The Standard Ebooks case, and ~20 of the 23 books in the library.
@@ -434,34 +790,36 @@
                                 <option value="CC BY-NC-SA 3.0 https://creativecommons.org/licenses/by-nc-sa/3.0/">CC BY-NC-SA 3.0</option>
                                 <option value="__custom__">Custom…</option>
                             </select>
-                            <input type="text" id="active-book-rights-custom" class="hidden"
-                                   style="width:100%; margin-top:4px;" placeholder="License name and URL">
+                            <input type="text" id="active-book-rights-custom" class="hidden u-width-100pct u-margin-top-4px" placeholder="License name and URL">
                         </div>
                         <div class="col">
                             <label>Archive URL <span class="hint" title="Link to the EPUB this was built from. Provenance, not compliance — it lets anyone check your edition against the original.">i</span></label>
-                            <input type="text" id="active-book-archive" style="width:100%;"
+                            <input type="text" id="active-book-archive" class="u-width-100pct"
                                    placeholder="https://github.com/…/name.epub">
                         </div>
                         <div class="col">
                             <label>Origin URL <span class="hint" title="Where this edition came from originally — the Standard Ebooks or Gutenberg page, the author's own download. Archive URL is YOUR copy; this is the upstream one. Having both means the provenance survives whichever host disappears first.">i</span></label>
-                            <input type="text" id="active-book-origin" style="width:100%;"
+                            <input type="text" id="active-book-origin" class="u-width-100pct"
                                    placeholder="https://standardebooks.org/ebooks/…">
                         </div>
                         <div class="col">
                             <label>Prepared by <span class="hint" title="Who produced the SOURCE text — Project Gutenberg's transcribers and proofreaders, or Standard Ebooks' producer. Auto-filled from Gutenberg's machine header (its 'Credits' line). This is NOT the same as Cleaned up by: these are the volunteers who made the public-domain text exist, and crediting them is the decent thing even though nothing obliges it.">i</span></label>
-                            <input type="text" id="active-book-preparedby" style="width:100%;"
+                            <input type="text" id="active-book-preparedby" class="u-width-100pct"
                                    placeholder="filled from the EPUB where it says">
                         </div>
                         <div class="col">
+                            <label>Uploaded by <span class="hint" title="Who added this book to TypeThatBook, stamped automatically from the signed-in account the first time it was uploaded. READ-ONLY on purpose: this field exists so that a book which turns out to be wrongly licensed or badly cleaned can be traced to whoever added it, and a value anyone can type answers a weaker question. An overwrite does not restamp it — it stays with whoever created the book. Books added before this field existed show a dash.">i</span></label>
+                            <div id="active-book-uploadedby" class="u-color-888 u-font-size-0-85em u-padding-top-10px">—</div>
+                        </div>
+                        <div class="col">
                             <label>Cleaned up by <span class="hint" title="Who did YOUR classroom text pass. Defaults to Claude, because in practice it always has been. Distinct from Prepared by, which is whoever produced the source text.">i</span></label>
-                            <select id="active-book-cleanedby" style="width:100%;">
+                            <select id="active-book-cleanedby" class="u-width-100pct">
                                 <option value="">— Not set —</option>
                                 <option value="Claude">Claude</option>
                                 <option value="Jake Wilson">Jake Wilson</option>
                                 <option value="__custom__">Custom…</option>
                             </select>
-                            <input type="text" id="active-book-cleanedby-custom" class="hidden"
-                                   style="width:100%; margin-top:4px;" placeholder="Who did the text pass">
+                            <input type="text" id="active-book-cleanedby-custom" class="hidden u-width-100pct u-margin-top-4px" placeholder="Who did the text pass">
                         </div>
                     </div>
                   </div>
@@ -474,8 +832,8 @@
                   </div>
                 </div>
 
-                <div id="overwrite-section" class="hidden" style="border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 10px;">
-                    <label style="color:#ff9999;">Overwrite Data with New EPUB</label>
+                <div id="overwrite-section" class="hidden u-border-bottom-1px-solid-333 u-margin-bottom-20px u-padding-bottom-10px">
+                    <label class="u-color-ff9999">Overwrite Data with New EPUB</label>
                     <div class="row">
                         <div class="col">
                             <input type="file" id="overwrite-epub-file" accept=".epub">
@@ -487,114 +845,108 @@
                     <!-- v3.25.0: overwrite fills BLANK metadata from the new file, and
                          reports any field where the file disagrees with what is saved.
                          Populated by reportMetadataMismatches() in admin.js. -->
-                    <div id="metadata-mismatch" class="hidden"
-                         style="margin-top:10px; padding:10px; background:#1a1a1a;
-                                border:1px solid #553300; border-radius:4px;"></div>
+                    <div id="metadata-mismatch" class="hidden u-margin-top-10px u-padding-10px u-background-1a1a1a u-border-1px-solid-553300 u-border-radius-4px"></div>
                 </div>
                 
                 <div class="checkbox-wrapper">
                     <input type="checkbox" id="clean-newlines" checked>
                     <label for="clean-newlines">Aggressive Cleaning (Remove line breaks inside paragraphs)</label>
                 </div>
-                <div style="font-size: 0.8em; color: #888; margin-bottom: 10px;">* Auto-fixes: Smart quotes, dashes, ligatures (æ→ae), accents (é→e), ellipsis, special spaces, fractions, symbols. Remaining untypeable characters trigger the wizard.</div>
+                <div class="u-font-size-0-8em u-color-888 u-margin-bottom-10px">* Auto-fixes: Smart quotes, dashes, ligatures (æ→ae), accents (é→e), ellipsis, special spaces, fractions, symbols. Remaining untypeable characters trigger the wizard.</div>
 
                 <div id="chapter-list"></div>
                 
                 <button id="upload-all-btn">Upload All Chapters to Database</button>
                 
-                <div style="display:flex; gap:10px; margin-top:10px;">
-                    <button id="audit-book-btn" class="secondary-btn" style="flex:1; background:#332200; border-color:#664400; color:#ffcc66;">🔍 Audit Book for Untypeable Characters</button>
-                    <button id="language-scan-btn" class="secondary-btn" style="flex:1; background:#220022; border-color:#440044; color:#cc66cc;">🔍 Scan for Language Warnings</button>
+                <div class="u-display-flex u-gap-10px u-margin-top-10px">
+                    <button id="audit-book-btn" class="secondary-btn u-flex-1 u-border-color-664400 u-color-ffcc66 btn-tint btn-tint-audit">🔍 Audit Book for Untypeable Characters</button>
+                    <button id="language-scan-btn" class="secondary-btn u-flex-1 u-border-color-440044 u-color-cc66cc btn-tint btn-tint-scan">🔍 Scan for Language Warnings</button>
                 </div>
-                <div style="display:flex; gap:10px; margin-top:10px;">
-                    <button id="repair-chapter-order-btn" class="secondary-btn" style="flex:1; background:#002233; border-color:#004466; color:#66ccff;">🔧 Fix Chapter Order &amp; Remove Duplicates</button>
+                <div class="u-display-flex u-gap-10px u-margin-top-10px">
+                    <button id="repair-chapter-order-btn" class="secondary-btn u-flex-1 u-border-color-004466 u-color-66ccff btn-tint btn-tint-repair">🔧 Fix Chapter Order &amp; Remove Duplicates</button>
                 </div>
-                <div id="repair-results" class="hidden" style="margin-top:10px; padding:10px; background:#001a2a; border:1px solid #004466; color:#66ccff; font-size:0.85em;"></div>
-                <div id="audit-results" class="hidden" style="margin-top:15px; background:#1a1a00; border:1px solid #444400; padding:15px; max-height:400px; overflow-y:auto;"></div>
+                <div id="repair-results" class="hidden u-margin-top-10px u-padding-10px u-background-001a2a u-border-1px-solid-004466 u-color-66ccff u-font-size-0-85em"></div>
+                <div id="audit-results" class="hidden u-margin-top-15px u-background-1a1a00 u-border-1px-solid-444400 u-padding-15px u-max-height-400px u-overflow-y-auto"></div>
                 <!-- Custom wordlist + free-text search. The built-in FLAGGED_WORDS list
                      is hardcoded, so before this there was no way to flag a word it
                      didn't know about, or to look for one yourself. -->
-                <details id="language-tools" style="margin-top:10px; background:#150011; border:1px solid #330022; padding:10px;">
-                    <summary style="cursor:pointer; color:#cc66cc; font-size:0.85em;">Word list &amp; search</summary>
+                <details id="language-tools" class="u-margin-top-10px u-background-150011 u-border-1px-solid-330022 u-padding-10px">
+                    <summary class="u-cursor-pointer u-color-cc66cc u-font-size-0-85em">Word list &amp; search</summary>
 
-                    <div style="margin-top:12px;">
-                        <label style="font-size:0.8em; color:#cc99cc;">Find any word or phrase in this book</label>
-                        <div style="display:flex; gap:6px; margin-top:4px;">
+                    <div class="u-margin-top-12px">
+                        <label class="u-font-size-0-8em u-color-cc99cc">Find any word or phrase in this book</label>
+                        <div class="u-display-flex u-gap-6px u-margin-top-4px">
                             <input type="text" id="language-search-input" placeholder="e.g. boobies"
-                                style="flex:1; padding:5px 8px; background:#222; border:1px solid #444; color:#eee; font-family:inherit; font-size:0.85em; border-radius:3px;">
-                            <button id="language-search-btn" class="secondary-btn" style="width:auto; padding:5px 14px; font-size:0.85em;">Search</button>
+                                class="u-flex-1 u-padding-5px-8px u-background-222 u-border-1px-solid-444 u-color-eee u-font-family-inherit u-font-size-0-85em u-border-radius-3px">
+                            <button id="language-search-btn" class="secondary-btn u-width-auto u-padding-5px-14px u-font-size-0-85em">Search</button>
                         </div>
-                        <div style="font-size:0.72em; color:#886688; margin-top:3px;">
+                        <div class="u-font-size-0-72em u-color-886688 u-margin-top-3px">
                             Whole words by default. Wrap in <code>/…/</code> for a regular expression.
                         </div>
                     </div>
 
-                    <div style="margin-top:14px; border-top:1px solid #330022; padding-top:12px;">
-                        <label style="font-size:0.8em; color:#cc99cc;">Always flag these words (saved for every book)</label>
-                        <div style="display:flex; gap:6px; margin-top:4px;">
+                    <div class="u-margin-top-14px u-border-top-1px-solid-330022 u-padding-top-12px">
+                        <label class="u-font-size-0-8em u-color-cc99cc">Always flag these words (saved for every book)</label>
+                        <div class="u-display-flex u-gap-6px u-margin-top-4px">
                             <input type="text" id="custom-word-input" placeholder="add a word…"
-                                style="flex:1; padding:5px 8px; background:#222; border:1px solid #444; color:#eee; font-family:inherit; font-size:0.85em; border-radius:3px;">
-                            <button id="custom-word-add-btn" class="secondary-btn" style="width:auto; padding:5px 14px; font-size:0.85em;">Add</button>
+                                class="u-flex-1 u-padding-5px-8px u-background-222 u-border-1px-solid-444 u-color-eee u-font-family-inherit u-font-size-0-85em u-border-radius-3px">
+                            <button id="custom-word-add-btn" class="secondary-btn u-width-auto u-padding-5px-14px u-font-size-0-85em">Add</button>
                         </div>
-                        <div style="font-size:0.72em; color:#886688; margin-top:3px;">
+                        <div class="u-font-size-0-72em u-color-886688 u-margin-top-3px">
                             Whole words by default. Wrap in <code>/…/</code> for a regular
                             expression — <code>/boob\w*/</code> catches boob, boobs, boobies.
                         </div>
-                        <div id="custom-word-list" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;"></div>
-                        <div id="custom-word-status" style="font-size:0.72em; color:#886688; margin-top:5px; min-height:1em;"></div>
+                        <div id="custom-word-list" class="u-margin-top-8px u-display-flex u-flex-wrap-wrap u-gap-5px"></div>
+                        <div id="custom-word-status" class="u-font-size-0-72em u-margin-top-5px u-min-height-1em" style="color:#886688;"></div>
                     </div>
 
-                    <div style="margin-top:14px; border-top:1px solid #330022; padding-top:12px;">
-                        <label style="font-size:0.8em; color:#cc99cc;">Find &amp; replace across this book</label>
-                        <div style="display:flex; gap:6px; margin-top:4px; flex-wrap:wrap;">
+                    <div class="u-margin-top-14px u-border-top-1px-solid-330022 u-padding-top-12px">
+                        <label class="u-font-size-0-8em u-color-cc99cc">Find &amp; replace across this book</label>
+                        <div class="u-display-flex u-gap-6px u-margin-top-4px u-flex-wrap-wrap">
                             <input type="text" id="fr-find" placeholder="Ass"
-                                style="flex:1; min-width:120px; padding:5px 8px; background:#222; border:1px solid #444; color:#eee; font-family:inherit; font-size:0.85em; border-radius:3px;">
-                            <span style="color:#886688; align-self:center;">&rarr;</span>
+                                class="u-flex-1 u-min-width-120px u-padding-5px-8px u-background-222 u-border-1px-solid-444 u-color-eee u-font-family-inherit u-font-size-0-85em u-border-radius-3px">
+                            <span class="u-color-886688 u-align-self-center">&rarr;</span>
                             <input type="text" id="fr-replace" placeholder="Donkey"
-                                style="flex:1; min-width:120px; padding:5px 8px; background:#222; border:1px solid #444; color:#eee; font-family:inherit; font-size:0.85em; border-radius:3px;">
-                            <button id="fr-preview-btn" class="secondary-btn" style="width:auto; padding:5px 14px; font-size:0.85em;">Preview</button>
+                                class="u-flex-1 u-min-width-120px u-padding-5px-8px u-background-222 u-border-1px-solid-444 u-color-eee u-font-family-inherit u-font-size-0-85em u-border-radius-3px">
+                            <button id="fr-preview-btn" class="secondary-btn u-width-auto u-padding-5px-14px u-font-size-0-85em">Preview</button>
                         </div>
-                        <div style="display:flex; gap:14px; margin-top:6px; flex-wrap:wrap; font-size:0.75em; color:#cc99cc;">
-                            <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
-                                <input type="checkbox" id="fr-wholeword" checked style="width:auto;"> Whole words</label>
-                            <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
-                                <input type="checkbox" id="fr-preservecase" checked style="width:auto;"> Match capitalisation</label>
-                            <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
-                                <input type="checkbox" id="fr-fixarticles" checked style="width:auto;"> Fix a/an</label>
-                            <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
-                                <input type="checkbox" id="fr-titles" checked style="width:auto;"> Include chapter titles</label>
+                        <div class="u-display-flex u-gap-14px u-margin-top-6px u-flex-wrap-wrap u-font-size-0-75em u-color-cc99cc">
+                            <label class="u-display-flex u-align-items-center u-gap-4px u-cursor-pointer">
+                                <input type="checkbox" id="fr-wholeword" checked class="u-width-auto"> Whole words</label>
+                            <label class="u-display-flex u-align-items-center u-gap-4px u-cursor-pointer">
+                                <input type="checkbox" id="fr-preservecase" checked class="u-width-auto"> Match capitalisation</label>
+                            <label class="u-display-flex u-align-items-center u-gap-4px u-cursor-pointer">
+                                <input type="checkbox" id="fr-fixarticles" checked class="u-width-auto"> Fix a/an</label>
+                            <label class="u-display-flex u-align-items-center u-gap-4px u-cursor-pointer">
+                                <input type="checkbox" id="fr-titles" checked class="u-width-auto"> Include chapter titles</label>
                         </div>
-                        <div style="font-size:0.72em; color:#886688; margin-top:3px;">
+                        <div class="u-font-size-0-72em u-color-886688 u-margin-top-3px">
                             Works on the staged copy — nothing is written until you upload.
                             Wrap the find box in <code>/…/</code> for a regular expression.
                         </div>
-                        <div id="fr-out" class="hidden"
-                             style="margin-top:10px; background:#12000c; border:1px solid #330022; padding:12px; font-size:0.78em; max-height:340px; overflow-y:auto;"></div>
+                        <div id="fr-out" class="hidden u-margin-top-10px u-background-12000c u-border-1px-solid-330022 u-padding-12px u-font-size-0-78em u-max-height-340px u-overflow-y-auto"></div>
                     </div>
 
-                    <div style="margin-top:14px; border-top:1px solid #330022; padding-top:12px;">
-                        <label style="font-size:0.8em; color:#cc99cc;">Audit the filter</label>
-                        <div style="display:flex; gap:6px; margin-top:4px; flex-wrap:wrap;">
-                            <button id="filter-audit-btn" class="secondary-btn"
-                                    style="width:auto; padding:5px 14px; font-size:0.85em;">Show every term</button>
+                    <div class="u-margin-top-14px u-border-top-1px-solid-330022 u-padding-top-12px">
+                        <label class="u-font-size-0-8em u-color-cc99cc">Audit the filter</label>
+                        <div class="u-display-flex u-gap-6px u-margin-top-4px u-flex-wrap-wrap">
+                            <button id="filter-audit-btn" class="secondary-btn u-width-auto u-padding-5px-14px u-font-size-0-85em">Show every term</button>
                             <input type="text" id="filter-test-input" placeholder="paste a sentence to test…"
-                                style="flex:1; min-width:180px; padding:5px 8px; background:#222; border:1px solid #444; color:#eee; font-family:inherit; font-size:0.85em; border-radius:3px;">
-                            <button id="filter-test-btn" class="secondary-btn"
-                                    style="width:auto; padding:5px 14px; font-size:0.85em;">Test</button>
+                                class="u-flex-1 u-min-width-180px u-padding-5px-8px u-background-222 u-border-1px-solid-444 u-color-eee u-font-family-inherit u-font-size-0-85em u-border-radius-3px">
+                            <button id="filter-test-btn" class="secondary-btn u-width-auto u-padding-5px-14px u-font-size-0-85em">Test</button>
                         </div>
-                        <div id="filter-audit-out" class="hidden"
-                             style="margin-top:10px; background:#12000c; border:1px solid #330022; padding:12px; font-size:0.78em; max-height:360px; overflow-y:auto;"></div>
+                        <div id="filter-audit-out" class="hidden u-margin-top-10px u-background-12000c u-border-1px-solid-330022 u-padding-12px u-font-size-0-78em u-max-height-360px u-overflow-y-auto"></div>
                     </div>
                 </details>
 
-                <div id="language-results" class="hidden" style="margin-top:15px; background:#1a0011; border:1px solid #440022; padding:15px; max-height:400px; overflow-y:auto;"></div>
+                <div id="language-results" class="hidden u-margin-top-15px u-background-1a0011 u-border-1px-solid-440022 u-padding-15px u-max-height-400px u-overflow-y-auto"></div>
             </div>
 
-            <hr style="border-color:#333; margin: 30px 0;">
+            <hr class="u-border-color-333 u-margin-30px-0">
 
             <details id="manual-details">
-                <summary style="cursor:pointer; color:#4B9CD3; margin-bottom:10px;">Manual Chapter Editor</summary>
-                <div style="padding: 15px; border:1px solid #333; margin-bottom:20px;">
+                <summary class="u-cursor-pointer u-color-4b9cd3 u-margin-bottom-10px">Manual Chapter Editor</summary>
+                <div class="u-padding-15px u-border-1px-solid-333 u-margin-bottom-20px">
                     <div class="row">
                         <div class="col">
                             <label for="manual-chap-num">Chapter Number (Supports 0, 1.1)</label>
@@ -608,10 +960,10 @@
                     <label for="json-content">JSON Segments</label>
                     <textarea id="json-content" rows="15"></textarea>
                     
-                    <div id="chap-edit-position" class="hidden" style="font-size:0.8em; color:#4B9CD3; margin-bottom:6px;"></div>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <div id="chap-edit-position" class="hidden u-font-size-0-8em u-color-4b9cd3 u-margin-bottom-6px"></div>
+                    <div class="u-display-flex u-gap-10px u-flex-wrap-wrap">
                         <button id="update-staged-btn" class="hidden">Update Staged Chapter</button>
-                        <button id="update-next-btn" class="hidden" style="background:#224422; border-color:#336633;">Update &amp; Next →</button>
+                        <button id="update-next-btn" class="hidden u-border-color-336633 btn-tint btn-tint-save">Update &amp; Next →</button>
                         <button id="save-btn">Save Directly to DB</button>
                     </div>
                 </div>
@@ -632,81 +984,72 @@
             </div>
 
             <div id="lessons-import-section" class="hidden">
-                <h4 style="margin:0 0 12px; color:#4B9CD3;">Import Lessons JSON</h4>
+                <h4 class="u-margin-0-0-12px u-color-4b9cd3">Import Lessons JSON</h4>
 
                 <!-- Step 1: Choose source -->
-                <div style="margin-bottom:12px;">
+                <div class="u-margin-bottom-12px">
                     <label class="l-label">1. Upload a lessons.json file</label>
-                    <input type="file" id="lessons-import-file" accept=".json" style="margin-bottom:8px;">
+                    <input type="file" id="lessons-import-file" accept=".json" class="u-margin-bottom-8px">
                     <label class="l-label">— or paste JSON —</label>
-                    <textarea id="lessons-import-json" rows="4" class="l-field"
-                        style="margin-bottom:4px; font-size:0.8em;"
+                    <textarea id="lessons-import-json" rows="4" class="l-field u-margin-bottom-4px u-font-size-0-8em"
                         placeholder='{"lessons": [...]}  or plain array'></textarea>
-                    <button id="lessons-import-preview" class="lbtn lbtn-secondary"
-                        style="width:auto; padding:6px 18px;">Check JSON</button>
+                    <button id="lessons-import-preview" class="lbtn lbtn-secondary u-width-auto u-padding-6px-18px">Check JSON</button>
                 </div>
 
                 <!-- Step 2: Preview — hidden until parse succeeds -->
-                <div id="lessons-import-preview-area" class="hidden"
-                    style="background:#0a1a0a; border:1px solid #1a4a1a; border-radius:4px;
-                           padding:12px; margin-bottom:12px;">
-                    <div id="lessons-import-summary" style="color:#00ff41; font-size:0.85em; margin-bottom:8px;"></div>
-                    <div id="lessons-import-breakdown" style="color:#888; font-size:0.78em; line-height:1.8;"></div>
+                <div id="lessons-import-preview-area" class="hidden u-background-0a1a0a u-border-1px-solid-1a4a1a u-border-radius-4px u-padding-12px u-margin-bottom-12px">
+                    <div id="lessons-import-summary" class="u-color-00ff41 u-font-size-0-85em u-margin-bottom-8px"></div>
+                    <div id="lessons-import-breakdown" class="u-color-888 u-font-size-0-78em u-line-height-1-8"></div>
                 </div>
 
                 <!-- Parse error -->
-                <div id="lessons-import-error" class="hidden"
-                    style="background:#1a0a0a; border:1px solid #4a1a1a; border-radius:4px;
-                           padding:10px; margin-bottom:12px; color:#ff6666; font-size:0.82em;">
+                <div id="lessons-import-error" class="hidden u-background-1a0a0a u-border-1px-solid-4a1a1a u-border-radius-4px u-padding-10px u-margin-bottom-12px u-color-ff6666 u-font-size-0-82em">
                 </div>
 
                 <!-- Safety note — always visible once section is open -->
-                <div style="background:#111; border-left:3px solid #4B9CD3;
-                            padding:8px 12px; margin-bottom:12px; font-size:0.78em; color:#888;">
-                    ✓ Student progress is stored separately and will <strong style="color:#eee;">never</strong>
+                <div class="u-background-111 u-border-left-3px-solid-4b9cd3 u-padding-8px-12px u-margin-bottom-12px u-font-size-0-78em u-color-888">
+                    ✓ Student progress is stored separately and will <strong class="u-color-eee">never</strong>
                     be affected by lesson imports. Only lesson content is overwritten.
                 </div>
 
                 <!-- Step 3: Commit -->
-                <button id="lessons-import-commit" class="lbtn lbtn-primary" disabled
-                    style="opacity:0.4;">
+                <button id="lessons-import-commit" class="lbtn lbtn-primary u-opacity-0-4" disabled>
                     Upload to Firestore
                 </button>
-                <div id="lessons-import-progress" style="margin-top:8px; font-size:0.8em; color:#888; min-height:1.2em;"></div>
+                <div id="lessons-import-progress" class="u-margin-top-8px u-font-size-0-8em u-color-888 u-min-height-1-2em"></div>
             </div>
 
             <div id="lessons-export-section" class="hidden">
-                <h4 style="margin:0 0 12px; color:#4B9CD3;">Export Lessons JSON</h4>
+                <h4 class="u-margin-0-0-12px u-color-4b9cd3">Export Lessons JSON</h4>
 
-                <div style="font-size:0.8em; color:#888; margin-bottom:12px; line-height:1.5;">
-                    Reads the <code style="color:#b87ae8;">lessons</code> collection straight from Firestore
+                <div class="u-font-size-0-8em u-color-888 u-margin-bottom-12px u-line-height-1-5">
+                    Reads the <code class="u-color-b87ae8">lessons</code> collection straight from Firestore
                     every time this panel opens. Unsaved edits in an expanded lesson card are
-                    <strong style="color:#ffaa00;">not</strong> included — save first.
+                    <strong class="u-color-ffaa00">not</strong> included — save first.
                     The file is import-compatible: it can be pasted back into Import JSON as-is.
                 </div>
 
-                <div id="lessons-export-summary" style="color:#00ff41; font-size:0.85em; margin-bottom:10px; min-height:1.2em;"></div>
+                <div id="lessons-export-summary" class="u-color-00ff41 u-font-size-0-85em u-margin-bottom-10px u-min-height-1-2em"></div>
 
-                <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
-                    <button id="lessons-export-download" class="lbtn lbtn-primary" disabled style="opacity:0.4;">⭳ Download .json</button>
-                    <button id="lessons-export-copy" class="lbtn lbtn-secondary" disabled style="opacity:0.4;">⧉ Copy to clipboard</button>
+                <div class="u-display-flex u-gap-6px u-flex-wrap-wrap u-margin-bottom-10px">
+                    <button id="lessons-export-download" class="lbtn lbtn-primary u-opacity-0-4" disabled>⭳ Download .json</button>
+                    <button id="lessons-export-copy" class="lbtn lbtn-secondary u-opacity-0-4" disabled>⧉ Copy to clipboard</button>
                     <button id="lessons-export-refresh" class="lbtn lbtn-secondary">↺ Re-read</button>
                 </div>
 
-                <div id="lessons-export-status" style="font-size:0.8em; color:#888; min-height:1.2em; margin-bottom:12px;"></div>
+                <div id="lessons-export-status" class="u-font-size-0-8em u-color-888 u-min-height-1-2em u-margin-bottom-12px"></div>
 
                 <!-- Gate audit: every threshold in the curriculum in one table. -->
-                <details style="margin-bottom:12px;">
-                    <summary style="cursor:pointer; color:#4B9CD3; font-size:0.85em; margin-bottom:8px;">
+                <details class="u-margin-bottom-12px">
+                    <summary class="u-cursor-pointer u-color-4b9cd3 u-font-size-0-85em u-margin-bottom-8px">
                         Gate audit — every lesson's thresholds
                     </summary>
-                    <div id="lessons-export-audit" style="margin-top:10px; overflow-x:auto;"></div>
+                    <div id="lessons-export-audit" class="u-margin-top-10px u-overflow-x-auto"></div>
                 </details>
 
                 <details>
-                    <summary style="cursor:pointer; color:#4B9CD3; font-size:0.85em;">Raw JSON</summary>
-                    <textarea id="lessons-export-json" rows="12" class="l-field" readonly
-                        style="font-family:monospace; font-size:0.72em; margin-top:8px;"
+                    <summary class="u-cursor-pointer u-color-4b9cd3 u-font-size-0-85em">Raw JSON</summary>
+                    <textarea id="lessons-export-json" rows="12" class="l-field u-font-family-monospace u-font-size-0-72em u-margin-top-8px" readonly
                         placeholder="Nothing exported yet."></textarea>
                 </details>
             </div>
@@ -716,10 +1059,10 @@
 
         <div id="students-panel" class="hidden">
             <!-- Toolbar -->
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:6px;">
-                <h3 style="margin:0; color:#4B9CD3; flex-shrink:0;">Students</h3>
-                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                    <select id="student-filter-time" class="l-field" style="margin:0; width:auto; font-size:0.8em; padding:5px 8px;">
+            <div class="u-display-flex u-align-items-center u-justify-content-space-between u-margin-bottom-12px u-flex-wrap-wrap u-gap-6px">
+                <h3 class="u-margin-0 u-color-4b9cd3 u-flex-shrink-0">Students</h3>
+                <div class="u-display-flex u-gap-6px u-align-items-center u-flex-wrap-wrap">
+                    <select id="student-filter-time" class="l-field u-margin-0 u-width-auto u-font-size-0-8em u-padding-5px-8px">
                         <!-- ⚠️ DEFAULT IS "Last 7 days", NOT "This week". The week here
                              starts on SATURDAY (see _weekStartDate in lessons-admin.js:
                              (getDay()+1)%7 is 0 on a Saturday), which is right for weekly
@@ -738,44 +1081,40 @@
                         <option value="month">Last 30 days</option>
                         <option value="all">All time</option>
                     </select>
-                    <select id="student-filter-class" class="l-field" style="margin:0; width:auto; font-size:0.8em; padding:5px 8px;">
+                    <select id="student-filter-class" class="l-field u-margin-0 u-width-auto u-font-size-0-8em u-padding-5px-8px">
                         <option value="all">All classes</option>
                         <option value="none">Unassigned</option>
                     </select>
                     <input id="student-filter-text" type="text" placeholder="Filter name / email…"
-                        style="padding:5px 8px; background:#222; border:1px solid #444; color:#eee;
-                               font-family:inherit; font-size:0.8em; border-radius:3px; width:160px;
-                               vertical-align:middle; box-sizing:border-box;">
-                    <button id="student-refresh-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">↺</button>
-                    <button id="stuck-scan-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;" title="Read every filtered student's lesson progress and list runs they can't clear">⚠️ Find stuck</button>
-                    <button id="student-csv-toggle-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">CSV Import</button>
-                    <button id="student-one-toggle-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 12px; font-size:0.8em;">Add One Student</button>
+                        class="u-padding-5px-8px u-background-222 u-border-1px-solid-444 u-color-eee u-font-family-inherit u-font-size-0-8em u-border-radius-3px u-width-160px u-vertical-align-middle u-box-sizing-border-box">
+                    <button id="student-refresh-btn" class="lbtn lbtn-secondary u-width-auto u-padding-5px-12px u-font-size-0-8em">↺</button>
+                    <button id="stuck-scan-btn" class="lbtn lbtn-secondary u-width-auto u-padding-5px-12px u-font-size-0-8em" title="Read every filtered student's lesson progress and list runs they can't clear">⚠️ Find stuck</button>
+                    <button id="student-csv-toggle-btn" class="lbtn lbtn-secondary u-width-auto u-padding-5px-12px u-font-size-0-8em">CSV Import</button>
+                    <button id="student-one-toggle-btn" class="lbtn lbtn-secondary u-width-auto u-padding-5px-12px u-font-size-0-8em">Add One Student</button>
                 </div>
             </div>
 
             <!-- Bulk action bar (shown when checkboxes checked) -->
-            <div id="student-bulk-bar" style="display:none; align-items:center; gap:8px; background:#1a1a1a;
-                 border:1px solid #333; border-radius:4px; padding:8px 12px; margin-bottom:10px; font-size:0.82em;">
-                <span id="student-bulk-count" style="color:#4B9CD3; font-weight:bold; flex-shrink:0;"></span>
-                <span style="color:#666; flex-shrink:0;">→ assign to:</span>
-                <select id="student-bulk-class" class="l-field" style="margin:0; flex:1; min-width:140px; font-size:0.82em; padding:4px 6px;">
+            <div id="student-bulk-bar" class="u-display-none u-align-items-center u-gap-8px u-background-1a1a1a u-border-1px-solid-333 u-border-radius-4px u-padding-8px-12px u-margin-bottom-10px u-font-size-0-82em">
+                <span id="student-bulk-count" class="u-color-4b9cd3 u-font-weight-bold u-flex-shrink-0"></span>
+                <span class="u-color-666 u-flex-shrink-0">→ assign to:</span>
+                <select id="student-bulk-class" class="l-field u-margin-0 u-flex-1 u-min-width-140px u-font-size-0-82em u-padding-4px-6px">
                     <option value="">— No class (clear) —</option>
                 </select>
-                <button id="student-bulk-assign-btn" class="lbtn lbtn-primary" style="width:auto; padding:4px 14px; font-size:0.82em;">Assign</button>
-                <button id="student-bulk-cancel-btn" class="lbtn lbtn-secondary" style="width:auto; padding:4px 10px; font-size:0.82em;">✕</button>
+                <button id="student-bulk-assign-btn" class="lbtn lbtn-primary u-width-auto u-padding-4px-14px u-font-size-0-82em">Assign</button>
+                <button id="student-bulk-cancel-btn" class="lbtn lbtn-secondary u-width-auto u-padding-4px-10px u-font-size-0-82em">✕</button>
             </div>
 
             <!-- CSV Import section -->
             <!-- Add a single student. For the kid who transfers in mid-October and
                  doesn't warrant a spreadsheet. -->
-            <div id="student-one-section" class="hidden" style="background:#1a1a1a; border:1px solid #333;
-                 border-radius:4px; padding:14px; margin-bottom:14px;">
-                <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:4px;">Add one student</div>
-                <div style="font-size:.75em; color:#666; margin-bottom:10px;">
+            <div id="student-one-section" class="hidden u-background-1a1a1a u-border-1px-solid-333 u-border-radius-4px u-padding-14px u-margin-bottom-14px">
+                <div class="u-font-size-0-8em u-color-4b9cd3 u-font-weight-bold u-margin-bottom-4px">Add one student</div>
+                <div class="u-font-size-0-75em u-color-666 u-margin-bottom-10px">
                     Works whether or not they've signed in yet. If they haven't, the
                     assignment waits for them and applies on their first sign-in.
                 </div>
-                <div style="display:grid; grid-template-columns:2fr 1fr auto; gap:8px; align-items:end;">
+                <div class="u-display-grid u-grid-template-columns-2fr-1fr-auto u-gap-8px u-align-items-end">
                     <div>
                         <label class="l-label">Student email</label>
                         <input id="student-one-email" class="l-field" type="email"
@@ -785,59 +1124,56 @@
                         <label class="l-label">Class</label>
                         <select id="student-one-class" class="l-field"></select>
                     </div>
-                    <button id="student-one-add-btn" class="lbtn lbtn-primary"
-                            style="width:auto; padding:6px 18px;">Add</button>
+                    <button id="student-one-add-btn" class="lbtn lbtn-primary u-width-auto u-padding-6px-18px">Add</button>
                 </div>
-                <div id="student-one-status" style="margin-top:8px; font-size:0.8em; color:#888;"></div>
+                <div id="student-one-status" class="u-margin-top-8px u-font-size-0-8em u-color-888"></div>
             </div>
 
-            <div id="student-csv-section" class="hidden" style="background:#1a1a1a; border:1px solid #333;
-                 border-radius:4px; padding:14px; margin-bottom:14px;">
-                <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:8px;">Bulk Class Assignment via CSV</div>
-                <div style="font-size:0.75em; color:#666; margin-bottom:8px;">
-                    Two columns: <code style="color:#aaa;">email</code> and <code style="color:#aaa;">class_name</code>
+            <div id="student-csv-section" class="hidden u-background-1a1a1a u-border-1px-solid-333 u-border-radius-4px u-padding-14px u-margin-bottom-14px">
+                <div class="u-font-size-0-8em u-color-4b9cd3 u-font-weight-bold u-margin-bottom-8px">Bulk Class Assignment via CSV</div>
+                <div class="u-font-size-0-75em u-color-666 u-margin-bottom-8px">
+                    Two columns: <code class="u-color-aaa">email</code> and <code class="u-color-aaa">class_name</code>
                     (header row optional). Separate with comma. Class name matched case-insensitively.
                 </div>
-                <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
-                    <input type="file" id="student-csv-file" accept=".csv,.txt" style="flex:1; font-size:0.8em;">
+                <div class="u-display-flex u-gap-8px u-margin-bottom-8px u-align-items-center">
+                    <input type="file" id="student-csv-file" accept=".csv,.txt" class="u-flex-1 u-font-size-0-8em">
                 </div>
-                <textarea id="student-csv-paste" class="l-field" rows="4"
-                    placeholder="email,class_name&#10;1088461@sumnerk12.net,7th &amp; 8th Grade (Standard)"
-                    style="font-size:0.78em; font-family:monospace; margin-bottom:8px;"></textarea>
-                <div style="display:flex; gap:8px; align-items:center;">
-                    <button id="student-csv-preview-btn" class="lbtn lbtn-primary" style="width:auto; padding:5px 14px; font-size:0.8em;">1. Test File</button>
-                    <button id="student-csv-commit-btn" class="lbtn lbtn-secondary" style="width:auto; padding:5px 14px; font-size:0.8em; opacity:0.4; cursor:not-allowed;" disabled>2. Commit</button>
-                    <span id="student-csv-loading" style="color:#888; font-size:0.78em; display:none;">Loading classes…</span>
+                <textarea id="student-csv-paste" class="l-field u-font-size-0-78em u-font-family-monospace u-margin-bottom-8px" rows="4"
+                    placeholder="email,class_name&#10;1088461@sumnerk12.net,7th &amp; 8th Grade (Standard)"></textarea>
+                <div class="u-display-flex u-gap-8px u-align-items-center">
+                    <button id="student-csv-preview-btn" class="lbtn lbtn-primary u-width-auto u-padding-5px-14px u-font-size-0-8em">1. Test File</button>
+                    <button id="student-csv-commit-btn" class="lbtn lbtn-secondary u-width-auto u-padding-5px-14px u-font-size-0-8em u-opacity-0-4" style="cursor:not-allowed;" disabled>2. Commit</button>
+                    <span id="student-csv-loading" class="u-color-888 u-font-size-0-78em u-display-none">Loading classes…</span>
                 </div>
-                <div id="student-csv-preview-area" style="margin-top:10px; font-size:0.78em; max-height:240px; overflow-y:auto;"></div>
+                <div id="student-csv-preview-area" class="u-margin-top-10px u-font-size-0-78em u-max-height-240px u-overflow-y-auto"></div>
             </div>
 
             <!-- Status bar -->
-            <div id="student-list-status" style="font-size:0.8em; color:#666; margin-bottom:6px;">Loading students…</div>
+            <div id="student-list-status" class="u-font-size-0-8em u-color-666 u-margin-bottom-6px">Loading students…</div>
 
             <!-- Stuck-student scan results (lessons-admin.js scanForStuck) -->
-            <div id="stuck-status" style="font-size:0.8em; color:#888; min-height:1.2em; margin-bottom:6px;"></div>
-            <div id="stuck-results" style="margin-bottom:14px; overflow-x:auto;"></div>
+            <div id="stuck-status" class="u-font-size-0-8em u-color-888 u-min-height-1-2em u-margin-bottom-6px"></div>
+            <div id="stuck-results" class="u-margin-bottom-14px u-overflow-x-auto"></div>
             <!-- ROADMAP §10.H — the lesson measurement. Filled by the SAME scan as
                  stuck-results above; no button of its own, because a second button
                  would re-read the same ~300 documents to answer a neighbouring
                  question about the same data. -->
-            <div id="lesson-stats-title" style="font-size:0.85em; color:#4B9CD3; margin:14px 0 4px;"></div>
-            <div id="lesson-stats-results" style="margin-bottom:14px; overflow-x:auto;"></div>
+            <div id="lesson-stats-title" class="u-font-size-0-85em u-color-4b9cd3 u-margin-14px-0-4px"></div>
+            <div id="lesson-stats-results" class="u-margin-bottom-14px u-overflow-x-auto"></div>
 
             <!-- Roster table -->
-            <div style="overflow-x:auto;">
-                <table id="student-roster-table" style="width:100%; border-collapse:collapse; font-size:0.8em; display:none;">
+            <div class="u-overflow-x-auto">
+                <table id="student-roster-table" class="u-width-100pct u-border-collapse-collapse u-font-size-0-8em u-display-none">
                     <thead>
-                        <tr style="border-bottom:1px solid #333; color:#888; text-align:left; background:#111;">
-                            <th style="padding:6px 8px; width:28px;">
+                        <tr class="u-border-bottom-1px-solid-333 u-color-888 u-text-align-left u-background-111">
+                            <th class="u-padding-6px-8px u-width-28px">
                                 <input type="checkbox" id="student-select-all" title="Select all visible">
                             </th>
-                            <th class="roster-sort" data-col="name"  style="padding:6px 8px; cursor:pointer; white-space:nowrap;">Name</th>
-                            <th class="roster-sort" data-col="email" style="padding:6px 8px; cursor:pointer; white-space:nowrap;">Email</th>
-                            <th class="roster-sort" data-col="last"  style="padding:6px 8px; cursor:pointer; white-space:nowrap;">Last Login</th>
-                            <th class="roster-sort" data-col="week"  style="padding:6px 8px; cursor:pointer; white-space:nowrap;">This Week</th>
-                            <th class="roster-sort" data-col="class" style="padding:6px 8px; cursor:pointer; white-space:nowrap;">Class</th>
+                            <th class="roster-sort u-padding-6px-8px u-cursor-pointer u-white-space-nowrap" data-col="name">Name</th>
+                            <th class="roster-sort u-padding-6px-8px u-cursor-pointer u-white-space-nowrap" data-col="email">Email</th>
+                            <th class="roster-sort u-padding-6px-8px u-cursor-pointer u-white-space-nowrap" data-col="last">Last Login</th>
+                            <th class="roster-sort u-padding-6px-8px u-cursor-pointer u-white-space-nowrap" data-col="week">This Week</th>
+                            <th class="roster-sort u-padding-6px-8px u-cursor-pointer u-white-space-nowrap" data-col="class">Class</th>
                         </tr>
                     </thead>
                     <tbody id="student-roster-body"></tbody>
@@ -845,42 +1181,40 @@
             </div>
 
             <!-- Per-student detail panel -->
-            <div id="student-class-assign" class="hidden" style="margin-top:16px; padding-top:14px; border-top:1px solid #333;">
+            <div id="student-class-assign" class="hidden u-margin-top-16px u-padding-top-14px u-border-top-1px-solid-333">
                 <!-- Header row: name + class assign -->
-                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
-                    <span id="student-selected-label" style="font-size:0.9rem; color:#4B9CD3; font-weight:bold; flex:1;"></span>
-                    <label class="l-label" style="margin:0; white-space:nowrap; font-size:0.78em;">Class:</label>
-                    <select id="student-class-select" class="l-field" style="margin:0; min-width:160px;">
+                <div class="u-display-flex u-gap-8px u-align-items-center u-flex-wrap-wrap u-margin-bottom-12px">
+                    <span id="student-selected-label" class="u-font-size-0-9rem u-color-4b9cd3 u-font-weight-bold u-flex-1"></span>
+                    <label class="l-label u-margin-0 u-white-space-nowrap u-font-size-0-78em">Class:</label>
+                    <select id="student-class-select" class="l-field u-margin-0 u-min-width-160px">
                         <option value="">— No class (default goals) —</option>
                     </select>
-                    <button id="student-class-save-btn" class="lbtn lbtn-primary" style="width:auto; padding:5px 14px; font-size:0.8em;">Save</button>
-                    <span id="student-class-status" style="font-size:0.78em; color:#888;"></span>
+                    <button id="student-class-save-btn" class="lbtn lbtn-primary u-width-auto u-padding-5px-14px u-font-size-0-8em">Save</button>
+                    <span id="student-class-status" class="u-font-size-0-78em u-color-888"></span>
                 </div>
                 <!-- Progress view tabs -->
-                <div style="display:flex; gap:0; margin-bottom:12px; border-bottom:1px solid #333;">
-                    <button class="progress-tab-btn tab-active-detail" data-pane="lessons"
-                        style="background:none; border:none; border-bottom:2px solid #4B9CD3; color:#4B9CD3;
-                               padding:5px 16px; cursor:pointer; font-family:inherit; font-size:0.82em; font-weight:bold; margin-bottom:-1px;">
+                <div class="u-display-flex u-gap-0 u-margin-bottom-12px u-border-bottom-1px-solid-333">
+                    <button class="progress-tab-btn tab-active-detail u-border-none u-border-bottom-2px-solid-4b9cd3 u-color-4b9cd3 u-padding-5px-16px u-font-family-inherit u-font-size-0-82em u-font-weight-bold u-margin-bottom-1px btn-plain" data-pane="lessons"
+                       >
                         Lessons
                     </button>
-                    <button class="progress-tab-btn" data-pane="books"
-                        style="background:none; border:none; border-bottom:2px solid transparent; color:#666;
-                               padding:5px 16px; cursor:pointer; font-family:inherit; font-size:0.82em; margin-bottom:-1px;">
+                    <button class="progress-tab-btn u-border-none u-border-bottom-2px-solid-transparent u-color-666 u-padding-5px-16px u-font-family-inherit u-font-size-0-82em u-margin-bottom-1px btn-plain" data-pane="books"
+                       >
                         Books
                     </button>
                 </div>
                 <!-- Lessons pane -->
                 <div id="student-pane-lessons">
                     <div id="student-lesson-grid"
-                        style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px;">
+                        class="u-display-grid u-grid-template-columns-repeat-auto-fill-minmax-140px-1fr u-gap-8px">
                     </div>
-                    <div style="margin-top:10px; font-size:0.75em; color:#555;">
+                    <div class="u-margin-top-10px u-font-size-0-75em u-color-555">
                         Click any lesson to lock (remove progress) or unlock (mark passed).
                     </div>
                 </div>
                 <!-- Books pane -->
-                <div id="student-pane-books" style="display:none;">
-                    <div id="student-book-grid" style="font-size:0.82em; color:#888;">
+                <div id="student-pane-books" class="u-display-none">
+                    <div id="student-book-grid" class="u-font-size-0-82em u-color-888">
                         Select a student to see book progress.
                     </div>
                 </div>
@@ -888,20 +1222,17 @@
         </div><!-- /students-panel -->
 
         <div id="staff-panel" class="hidden">
-            <h3 style="margin:0 0 4px; color:#4B9CD3;">Staff Manager</h3>
-            <div style="font-size:.8em; color:#888; margin-bottom:16px;">
+            <h3 class="u-margin-0-0-4px u-color-4b9cd3">Staff Manager</h3>
+            <div class="u-font-size-0-8em u-color-888 u-margin-bottom-16px">
                 A person who signs in is a student by default. Give them a role here.
                 Super admin is granted from the Firebase console only.
             </div>
 
             <!-- Help -->
-            <button id="staff-help-toggle" type="button" style="margin-bottom:12px;font:inherit;
-                    font-size:.8em;background:none;border:1px solid #4B9CD3;border-radius:4px;
-                    padding:3px 12px;color:#4B9CD3;cursor:pointer">How this works / setup notes</button>
-            <div id="staff-help" style="display:none;background:#111;border:1px solid #333;
-                 border-radius:4px;padding:14px;margin-bottom:16px;font-size:.85em;line-height:1.6;color:#bbb">
-                <div style="color:#4B9CD3;font-weight:bold;margin-bottom:6px">Getting people in</div>
-                <ul style="margin:0 0 12px;padding-left:20px">
+            <button id="staff-help-toggle" type="button" class="u-margin-bottom-12px u-font-inherit u-font-size-0-8em u-border-1px-solid-4b9cd3 u-border-radius-4px u-padding-3px-12px u-color-4b9cd3 btn-plain">How this works / setup notes</button>
+            <div id="staff-help" class="u-display-none u-background-111 u-border-1px-solid-333 u-border-radius-4px u-padding-14px u-margin-bottom-16px u-font-size-0-85em u-line-height-1-6 u-color-bbb">
+                <div class="u-color-4b9cd3 u-font-weight-bold u-margin-bottom-6px">Getting people in</div>
+                <ul class="u-margin-0-0-12px u-padding-left-20px">
                     <li><b>They ask.</b> A colleague signs in, opens this page, and clicks
                         “Request access”. Their request appears below.</li>
                     <li><b>You grant it by email</b> — works whether or not they've ever
@@ -911,8 +1242,8 @@
                         student. Add them to classes by CSV or single email on the
                         Classes tab.</li>
                 </ul>
-                <div style="color:#4B9CD3;font-weight:bold;margin-bottom:6px">Roles</div>
-                <ul style="margin:0 0 12px;padding-left:20px">
+                <div class="u-color-4b9cd3 u-font-weight-bold u-margin-bottom-6px">Roles</div>
+                <ul class="u-margin-0-0-12px u-padding-left-20px">
                     <li><b>Teacher</b> — “Can see” is per person: their own classes
                         (default) or the whole building. Their building admin decides.</li>
                     <li><b>Building Admin</b> — whole building; can grant teacher roles
@@ -920,13 +1251,13 @@
                     <li><b>Super Admin</b> — everything, including books, lessons and
                         schools.</li>
                 </ul>
-                <div style="color:#ffaa00;font-weight:bold;margin-bottom:6px">The one thing that needs the Firebase console</div>
-                <p style="margin:0 0 8px">
+                <div class="u-color-ffaa00 u-font-weight-bold u-margin-bottom-6px">The one thing that needs the Firebase console</div>
+                <p class="u-margin-0-0-8px">
                     <b>The first super admin.</b> Nobody — including a super admin — can edit
                     their own staff record, which is what stops an admin quietly widening
                     their own access. So the very first one has to be created by hand.
                 </p>
-                <p style="margin:0 0 8px">
+                <p class="u-margin-0-0-8px">
                     Create a document in the <code>staff</code> collection whose <b>ID is that
                     person's Auth UID</b> (Authentication → Users → “User UID”), with fields:
                     <code>role</code> = <code>super_admin</code> (string),
@@ -935,22 +1266,21 @@
                     <code>active</code> = <code>true</code> (boolean),
                     plus <code>email</code> and <code>displayName</code>.
                 </p>
-                <p style="margin:0">
+                <p class="u-margin-0">
                     <a href="https://console.firebase.google.com/" target="_blank" rel="noopener"
-                       style="color:#4B9CD3">Open the Firebase console →</a>
+                       style="color:#4B9CD3;">Open the Firebase console →</a>
                     &nbsp;·&nbsp; Everything else, including adding schools, is on this page.
                 </p>
             </div>
 
             <!-- Schools (super admin only) -->
-            <div id="schools-section" style="display:none;background:#1a1a1a;border:1px solid #333;
-                 border-radius:4px;padding:16px;margin-bottom:16px;">
-                <div style="font-size:0.8em;color:#4B9CD3;font-weight:bold;margin-bottom:4px;">Schools</div>
-                <div style="font-size:.75em;color:#666;margin-bottom:10px;">
+            <div id="schools-section" class="u-display-none u-background-1a1a1a u-border-1px-solid-333 u-border-radius-4px u-padding-16px u-margin-bottom-16px">
+                <div class="u-font-size-0-8em u-color-4b9cd3 u-font-weight-bold u-margin-bottom-4px">Schools</div>
+                <div class="u-font-size-0-75em u-color-666 u-margin-bottom-10px">
                     At least one is required before anyone can be assigned. The short ID is
                     stored on every class and every log, so keep it brief and permanent.
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:end;">
+                <div class="u-display-grid u-grid-template-columns-1fr-2fr-auto u-gap-8px u-align-items-end">
                     <div>
                         <label class="l-label">Short ID</label>
                         <input id="school-id-input" class="l-field" type="text" placeholder="ems">
@@ -959,46 +1289,44 @@
                         <label class="l-label">Full name</label>
                         <input id="school-name-input" class="l-field" type="text" placeholder="Ellis Middle School">
                     </div>
-                    <button id="school-add-btn" class="lbtn lbtn-primary"
-                            style="width:auto;padding:6px 18px;">Add</button>
+                    <button id="school-add-btn" class="lbtn lbtn-primary u-width-auto u-padding-6px-18px">Add</button>
                 </div>
-                <div id="school-status" style="margin-top:8px;font-size:0.8em;color:#888;"></div>
-                <div id="schools-list" style="margin-top:10px;"></div>
+                <div id="school-status" class="u-margin-top-8px u-font-size-0-8em u-color-888"></div>
+                <div id="schools-list" class="u-margin-top-10px"></div>
             </div>
 
             <!-- Grant by email -->
-            <div style="background:#1a1a1a;border:1px solid #333;border-radius:4px;padding:16px;margin-bottom:16px;">
-                <div style="font-size:0.8em;color:#4B9CD3;font-weight:bold;margin-bottom:4px;">Give someone a role</div>
-                <div style="font-size:.75em;color:#666;margin-bottom:10px;">
+            <div class="u-background-1a1a1a u-border-1px-solid-333 u-border-radius-4px u-padding-16px u-margin-bottom-16px">
+                <div class="u-font-size-0-8em u-color-4b9cd3 u-font-weight-bold u-margin-bottom-4px">Give someone a role</div>
+                <div class="u-font-size-0-75em u-color-666 u-margin-bottom-10px">
                     Works whether or not they've signed in before. If they have no account
                     yet, the role waits for them.
                 </div>
-                <div style="display:flex;gap:8px;align-items:flex-end;">
-                    <div style="flex:1">
+                <div class="u-display-flex u-gap-8px u-align-items-flex-end">
+                    <div class="u-flex-1">
                         <label class="l-label">Email address</label>
                         <input id="staff-email-grant-input" class="l-field" type="email"
                                placeholder="jane.doe@sumnerk12.net" autocomplete="off">
                     </div>
-                    <button id="staff-email-grant-btn" class="lbtn lbtn-primary"
-                            style="width:auto;padding:6px 20px;">Continue</button>
+                    <button id="staff-email-grant-btn" class="lbtn lbtn-primary u-width-auto u-padding-6px-20px">Continue</button>
                 </div>
                 <div id="staff-pending-grants"></div>
             </div>
 
             <!-- Pending requests -->
-            <div style="background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:16px; margin-bottom:16px;">
-                <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:4px;">Access requests</div>
-                <div style="font-size:.75em; color:#666; margin-bottom:10px;">
+            <div class="u-background-1a1a1a u-border-1px-solid-333 u-border-radius-4px u-padding-16px u-margin-bottom-16px">
+                <div class="u-font-size-0-8em u-color-4b9cd3 u-font-weight-bold u-margin-bottom-4px">Access requests</div>
+                <div class="u-font-size-0-75em u-color-666 u-margin-bottom-10px">
                     A colleague signs in, opens this page, and asks for access. They show up here.
                 </div>
                 <div id="staff-requests"></div>
-                <div id="staff-status" style="margin-top:8px; font-size:0.8em; color:#888;"></div>
+                <div id="staff-status" class="u-margin-top-8px u-font-size-0-8em u-color-888"></div>
             </div>
 
             <!-- Grant -->
-            <div id="staff-candidate" style="display:none; background:#1a1a1a; border:1px solid #4B9CD3; border-radius:4px; padding:16px; margin-bottom:20px;">
-                <div id="staff-candidate-info" style="margin-bottom:14px;"></div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
+            <div id="staff-candidate" class="u-display-none u-background-1a1a1a u-border-1px-solid-4b9cd3 u-border-radius-4px u-padding-16px u-margin-bottom-20px">
+                <div id="staff-candidate-info" class="u-margin-bottom-14px"></div>
+                <div class="u-display-grid u-grid-template-columns-1fr-1fr u-gap-8px u-margin-bottom-10px">
                     <div>
                         <label class="l-label">Role</label>
                         <select id="staff-role-select" class="l-field"></select>
@@ -1008,32 +1336,32 @@
                         <select id="staff-scope-select" class="l-field"></select>
                     </div>
                 </div>
-                <div style="margin-bottom:12px;">
+                <div class="u-margin-bottom-12px">
                     <label class="l-label">School(s)</label>
-                    <div id="staff-schools-box" style="padding:4px 0;"></div>
+                    <div id="staff-schools-box" class="u-padding-4px-0"></div>
                 </div>
-                <div style="display:flex; gap:8px;">
-                    <button id="staff-grant-btn" class="lbtn lbtn-primary" style="width:auto; padding:6px 20px;">Save Role</button>
-                    <button id="staff-revoke-btn" class="lbtn lbtn-secondary" style="width:auto; padding:6px 16px; display:none;">Remove Access</button>
+                <div class="u-display-flex u-gap-8px">
+                    <button id="staff-grant-btn" class="lbtn lbtn-primary u-width-auto u-padding-6px-20px">Save Role</button>
+                    <button id="staff-revoke-btn" class="lbtn lbtn-secondary u-width-auto u-padding-6px-16px u-display-none">Remove Access</button>
                 </div>
             </div>
 
             <!-- Existing staff -->
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold;">Current staff</div>
-                <button id="staff-refresh-btn" class="lbtn lbtn-secondary" style="width:auto; padding:3px 12px; font-size:.8em;">Refresh</button>
+            <div class="u-display-flex u-align-items-center u-justify-content-space-between u-margin-bottom-8px">
+                <div class="u-font-size-0-8em u-color-4b9cd3 u-font-weight-bold">Current staff</div>
+                <button id="staff-refresh-btn" class="lbtn lbtn-secondary u-width-auto u-padding-3px-12px u-font-size-0-8em">Refresh</button>
             </div>
             <div id="staff-list"></div>
         </div>
 
         <div id="classes-panel" class="hidden">
-            <h3 style="margin:0 0 16px; color:#4B9CD3;">Class Manager</h3>
+            <h3 class="u-margin-0-0-16px u-color-4b9cd3">Class Manager</h3>
 
             <!-- Create / Edit form -->
-            <div style="background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:16px; margin-bottom:20px;">
-                <div style="font-size:0.8em; color:#4B9CD3; font-weight:bold; margin-bottom:10px;" id="class-form-title">New Class</div>
+            <div class="u-background-1a1a1a u-border-1px-solid-333 u-border-radius-4px u-padding-16px u-margin-bottom-20px">
+                <div class="u-font-size-0-8em u-color-4b9cd3 u-font-weight-bold u-margin-bottom-10px" id="class-form-title">New Class</div>
                 <input type="hidden" id="class-edit-id">
-                <div style="display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:8px; margin-bottom:8px;">
+                <div class="u-display-grid u-grid-template-columns-2fr-1fr-1fr-1fr u-gap-8px u-margin-bottom-8px">
                     <div>
                         <label class="l-label">Class Name</label>
                         <input id="class-name-input" class="l-field" type="text" placeholder="e.g. Period 2 — 7th Grade">
@@ -1051,15 +1379,15 @@
                         <input id="class-weekly-input" class="l-field" type="number" value="50" min="0" step="1">
                     </div>
                 </div>
-                <div style="display:flex; gap:8px;">
-                    <button id="class-save-btn" class="lbtn lbtn-primary" style="width:auto; padding:6px 20px;">Save Class</button>
-                    <button id="class-cancel-btn" class="lbtn lbtn-secondary" style="width:auto; padding:6px 16px; display:none;">Cancel</button>
+                <div class="u-display-flex u-gap-8px">
+                    <button id="class-save-btn" class="lbtn lbtn-primary u-width-auto u-padding-6px-20px">Save Class</button>
+                    <button id="class-cancel-btn" class="lbtn lbtn-secondary u-width-auto u-padding-6px-16px u-display-none">Cancel</button>
                 </div>
-                <div id="class-form-status" style="margin-top:8px; font-size:0.8em; color:#888;"></div>
+                <div id="class-form-status" class="u-margin-top-8px u-font-size-0-8em u-color-888"></div>
             </div>
 
             <!-- Class list -->
-            <div id="class-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+            <div id="class-list" class="u-display-flex u-flex-direction-column u-gap-8px"></div>
         </div><!-- /classes-panel -->
 
     </div><!-- /editor-section -->
@@ -1067,9 +1395,9 @@
 
 <div id="warning-modal" class="hidden">
     <div class="warning-content">
-        <h2 style="color:#ff3333; margin-top:0;">⚠️ WARNING</h2>
+        <h2 class="u-color-ff3333 u-margin-top-0">⚠️ WARNING</h2>
         <p>This will replace all chapters currently in the Staging Area.</p>
-        <div class="row" style="margin-top:20px;">
+        <div class="row u-margin-top-20px">
             <div class="col"><button id="confirm-overwrite-btn" class="danger-btn">Yes, Overwrite</button></div>
             <div class="col"><button id="cancel-overwrite-btn" class="secondary-btn">Cancel</button></div>
         </div>
@@ -1078,50 +1406,50 @@
 
 <div id="error-wizard-modal" class="hidden">
     <div class="error-wizard-content">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #444; padding-bottom:10px;">
-            <h3 style="margin:0; color:#ffaa00;">Import Issue Detected</h3>
-            <span id="wizard-step" style="color:#888;"></span>
+        <div class="u-display-flex u-justify-content-space-between u-align-items-center u-margin-bottom-15px u-border-bottom-1px-solid-444 u-padding-bottom-10px">
+            <h3 class="u-margin-0 u-color-ffaa00">Import Issue Detected</h3>
+            <span id="wizard-step" class="u-color-888"></span>
         </div>
         
-        <div style="margin-bottom:15px;">
-            <span style="color:#ccc;">Problem Character:</span> 
-            <span id="wizard-char-display" style="font-weight:bold; color:#ff3333; border:1px solid #555; padding:2px 5px; margin-left:5px;"></span>
+        <div class="u-margin-bottom-15px">
+            <span class="u-color-ccc">Problem Character:</span> 
+            <span id="wizard-char-display" class="u-font-weight-bold u-color-ff3333 u-border-1px-solid-555 u-padding-2px-5px u-margin-left-5px"></span>
         </div>
         
         <label>Context:</label>
-        <div style="background:#000; padding:15px; border:1px solid #444; margin-bottom:5px; border-radius:4px 4px 0 0; border-bottom:none;">
-            <div id="wizard-preview" style="font-family:'Courier New', monospace; white-space:pre-wrap; line-height:1.6; font-size:1.1em; color:#aaa;"></div>
+        <div class="u-background-000 u-padding-15px u-border-1px-solid-444 u-margin-bottom-5px u-border-radius-4px-4px-0-0 u-border-bottom-none">
+            <div id="wizard-preview" class="u-font-family-courier-new-monospace u-white-space-pre-wrap u-line-height-1-6 u-font-size-1-1em u-color-aaa"></div>
         </div>
         
-        <label style="margin-top:0;">Edit Sentence to Fix:</label>
-        <textarea id="wizard-edit-input" rows="4" style="width:100%; background:#111; color:white; border:1px solid #555; padding:15px; font-family:'Courier New', monospace; font-size:1.1em; line-height:1.6; border-radius:0 0 4px 4px; margin-top:0;"></textarea>
+        <label class="u-margin-top-0">Edit Sentence to Fix:</label>
+        <textarea id="wizard-edit-input" rows="4" class="u-width-100pct u-background-111 u-color-white u-border-1px-solid-555 u-padding-15px u-font-family-courier-new-monospace u-font-size-1-1em u-line-height-1-6 u-border-radius-0-0-4px-4px u-margin-top-0"></textarea>
         
-        <div class="row" style="margin-top:20px;">
+        <div class="row u-margin-top-20px">
             <div class="col"><button id="wizard-ignore-btn" class="secondary-btn">Ignore (Keep Char)</button></div>
-            <div class="col"><button id="wizard-save-btn" style="background:#0047AB;">Save & Check</button></div>
+            <div class="col"><button id="wizard-save-btn">Save & Check</button></div>
             <div class="col"><button id="wizard-cancel-btn" class="danger-btn">Cancel Import</button></div>
         </div>
         
-        <div id="replace-all-section" style="margin-top:20px; padding-top:15px; border-top:1px solid #444;">
-            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-                <span style="color:#ccc; white-space:nowrap;">Replace all <span id="replace-all-count" style="color:#ffaa00; font-weight:bold;"></span> instances of</span>
-                <span id="replace-all-char" style="font-weight:bold; color:#ff3333; border:1px solid #555; padding:2px 5px; font-family:'Courier New', monospace;"></span>
-                <span style="color:#ccc;">with:</span>
+        <div id="replace-all-section" class="u-margin-top-20px u-padding-top-15px u-border-top-1px-solid-444">
+            <div class="u-display-flex u-align-items-center u-gap-10px u-margin-bottom-10px">
+                <span class="u-color-ccc u-white-space-nowrap">Replace all <span id="replace-all-count" class="u-color-ffaa00 u-font-weight-bold"></span> instances of</span>
+                <span id="replace-all-char" class="u-font-weight-bold u-color-ff3333 u-border-1px-solid-555 u-padding-2px-5px u-font-family-courier-new-monospace"></span>
+                <span class="u-color-ccc">with:</span>
             </div>
             <div class="row">
-                <div class="col" style="flex:2;"><input id="replace-all-input" type="text" style="margin:0;" placeholder="Replacement text" /></div>
-                <div class="col"><button id="replace-all-btn" style="background:#0047AB; margin:0;">Replace All (char)</button></div>
+                <div class="col u-flex-2"><input id="replace-all-input" type="text" class="u-margin-0" placeholder="Replacement text" /></div>
+                <div class="col"><button id="replace-all-btn" class="u-margin-0">Replace All (char)</button></div>
             </div>
             
-            <div id="replace-word-row" class="hidden" style="margin-top:12px; padding-top:12px; border-top:1px dashed #333;">
-                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-                    <span style="color:#ccc; white-space:nowrap;">Or replace word</span>
-                    <span id="replace-word-original" style="font-weight:bold; color:#ffaa00; border:1px solid #555; padding:2px 5px; font-family:'Courier New', monospace;"></span>
-                    <span style="color:#ccc;">(<span id="replace-word-count" style="color:#ffaa00;"></span> occurrences) with:</span>
+            <div id="replace-word-row" class="hidden u-margin-top-12px u-padding-top-12px u-border-top-1px-dashed-333">
+                <div class="u-display-flex u-align-items-center u-gap-10px u-margin-bottom-10px">
+                    <span class="u-color-ccc u-white-space-nowrap">Or replace word</span>
+                    <span id="replace-word-original" class="u-font-weight-bold u-color-ffaa00 u-border-1px-solid-555 u-padding-2px-5px u-font-family-courier-new-monospace"></span>
+                    <span class="u-color-ccc">(<span id="replace-word-count" class="u-color-ffaa00"></span> occurrences) with:</span>
                 </div>
                 <div class="row">
-                    <div class="col" style="flex:2;"><input id="replace-word-input" type="text" style="margin:0;" placeholder="Replacement word" /></div>
-                    <div class="col"><button id="replace-word-btn" style="background:#0047AB; margin:0;">Replace All (word)</button></div>
+                    <div class="col u-flex-2"><input id="replace-word-input" type="text" class="u-margin-0" placeholder="Replacement word" /></div>
+                    <div class="col"><button id="replace-word-btn" class="u-margin-0">Replace All (word)</button></div>
                 </div>
             </div>
         </div>
@@ -1132,12 +1460,8 @@
 <footer id="admin-footer">
     <span id="admin-footer-version">Admin JS: Loading...</span>
     <button id="build-toggle" type="button"
-            style="margin-left:8px;font:inherit;font-size:.9em;background:none;
-                   border:1px solid currentColor;border-radius:4px;padding:0 6px;
-                   color:inherit;opacity:.7;cursor:pointer">build</button>
-    <div id="build-list" style="display:none;margin-top:6px;font-size:.95em;
-                                line-height:1.5;text-align:left;max-width:520px;
-                                max-height:60vh;overflow:auto"></div>
+            style="margin-left:8px; font:inherit; font-size:.9em; background:none; border:1px solid currentColor; border-radius:4px; padding:0 6px; color:inherit; opacity:.7; cursor:pointer;">build</button>
+    <div id="build-list" class="u-margin-top-6px u-font-size-0-95em u-line-height-1-5 u-text-align-left u-max-width-520px u-max-height-60vh u-overflow-auto" style="display:none;"></div>
 </footer>
 
 <script type="module" src="admin.js"></script>

@@ -1,5 +1,29 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.52.0, 2026-09-01 (later still).** ✅ **ITEM 46 CLOSED** — `admin.js` v3.38.0 stamps `uploadedBy` from the signed-in uid on CREATE only, read-only, gated by `alreadyExists` so it costs **no extra Firestore read** and an overwrite cannot restamp. ⚠⚠ An unstamped book reads "added before this was recorded" and is **never guessed as Jake**. ✅ Contributor fallback for a missing `dc:creator` (v3.37.0) — ⚠️ **three** places read `dc:creator` and the third feeds `looksLikeLeadingMatter()`, so a blank author there imports the Gutenberg title page **as chapter one**. ⭐ **Item 47 corrected against the code**: the ladder is **six** models behind ONE callable, `generatePractice`; it powers AI practice only and **lessons do not use Gemini at all**; and ⚠⚠ 47 must share the model chain, NOT that endpoint, which is quota'd at 5/day per student uid.
+
+**v3.51.0, 2026-09-01 (later).** ✅ **THE FIVE TINTED BUTTONS ARE FIXED, NOT DEFERRED.** Round 56 first left them inline on the reasoning that reviving a dead `:hover` is a visible change and so Jake's to approve; Jake: *"You have buttons that don't work or are invisible? They need to be fixed."* He was right — a suppressed `:disabled` is a defect, not a design decision awaiting sign-off. Tints moved to `.btn-tint-*` guarded by `:not(:disabled)`, hover is a derived `filter: brightness()` so **no new colour was added** while item 38 is open. Three `#0047AB` inlines were identical to `button{background}` and just deleted. `admin.html` **20 → 9** inline attributes; three duplicate font-size classes merged (`.8em` and `0.8em` were the same size under two names). ✅ `admin.js` **v3.37.0** — contributor fallback (see below) folded in with the genre change, since neither had shipped. ⭐ **New items 45, 46, 47** — building filtering, upload provenance, and the Gemini licence check. ⚠️ **47 answers Jake's ladder question: extract it, but the reason is the Cloud Function, not current duplication.**
+
+**v3.50.0, 2026-09-01.** ✅ **ITEM 42 CLOSED FOR `admin.html`** — v1.3.0, 834 of
+866 inline declarations extracted onto 202 utility classes. ⚠️⚠️ **THE ITEM'S OWN
+METHOD WAS WRONG IN THREE WAYS AND ALL THREE ARE WRITTEN INTO IT**: the 276 count
+was markup-only (`admin.js` holds 183 more and is STILL OPEN); "byte-identical
+rendering" is false because 34 declarations were suppressing `:hover`/`:disabled`
+and had to stay inline; and "low-risk" would have **broken the Staff tab and the
+build panel**, which are restored with `.style.display = ''` and would have fallen
+through to the new class. ⭐⭐ **AND IT SURFACED A DEFECT: ROADMAP 41 IS DEFEATED ON
+admin.** `button:disabled` is dead on `auditBtn` and `saveTitleBtn`, both of which
+really are disabled for slow work — a whole-book audit runs behind a button that
+looks idle. One line each to fix, but it changes how four buttons look, so it is
+Jake's call. ⭐ **New: `tools/audit-inline-styles.mjs`** (every figure this item
+cites is now re-derivable) and **`tests/inline-styles-test.mjs`**, 19 assertions,
+mutation-verified. ✅ Also `admin.js` v3.36.0 — **Drama added, Classic Literature /
+Historical Fiction / Young Adult retired** at Jake's request, with the two
+`SUBJECT_TO_GENRE` rows that pointed at retired genres removed in the same edit.
+⭐ **New item 44** — the Book ID field takes any typed string; no active bug, and
+the obvious slug guard would fire on `wizard_of_oz`. ⚠️ Remaining open: **30**,
+**34**, **35**, **39**, **42 (admin.js half)**, **44**.
+
 **v3.49.0, 2026-09-01.** ✅ **ITEM 41 CLOSED** — `reports.html` v2.36.0. ⭐ **It
 turned out to contain a real defect**: the ⟳ recalculate re-enabled itself on the
 line after its await with no `finally`, so any throw left the button dead until
@@ -341,7 +365,10 @@ Everything else still open:
 - 34. ⚠️ THE LESSON-LEVEL MASTERY LOCK ONLY CLOSES WHEN EVERY RUN IS MASTERED
 - 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
 - 39. ⚠️ 64 alert() AND confirm() CALLS ARE THE LOUDEST “UNFINISHED” SIGNAL IN THE APP
-- 42. ⚠️ admin.html CARRIES 276 INLINE style= ATTRIBUTES AND CANNOT BE RESTYLED UNTIL IT DOES NOT
+- 42. ⚠️ admin.js STILL CARRIES 183 (Round 56 CLOSED THE admin.html HALF) — AND THE THREE THINGS THIS ITEM GOT WRONG
+- 44. ⚠️ THE BOOK ID FIELD ACCEPTS ANYTHING TYPED INTO IT, AND slugifyBookId() IS RIGHT THERE
+- 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME
+- 47. ⭐ A GEMINI LICENCE CHECK, AND THE RIGHTS LADDER IT WOULD NEED LIFTED OUT OF admin.js FIRST
 
 ## ⏳ WATCHING — no action, just don't forget
 
@@ -381,6 +408,7 @@ Everything else still open:
 - 38. ✅ CLOSED for reports.html (Round 55) — THREE SEVERITIES, ONE MEANING EACH
 - 37. ✅ CLOSED (Round 55) — THE STAFF PAGES NOW USE A DESIGN SYSTEM
 - 43. ✅ CLOSED (Round 55) — AN EMPTY PROGRESS CACHE LOCKED STUDENTS OUT OF THE CURRICULUM
+- 46. ✅ CLOSED (Round 56) — WHO UPLOADED THIS BOOK, STAMPED AND NOT TYPEABLE
 - 33. ✅ CLOSED (Round 55) — MASTERY CAN NOW BE CLEARED FOR A LESSON
 - 36. ✅ CLOSED (Round 55) — THE DAY ROW NOW SAYS WHAT HAPPENED
 - 32. ✅ CLOSED (Round 55) — A RUN CAN NOW BE DELETED WITHOUT ITS SESSION
@@ -3677,7 +3705,73 @@ already does.
 
 ---
 
-## 42. ⚠️ admin.html CARRIES 276 INLINE style= ATTRIBUTES AND CANNOT BE RESTYLED UNTIL IT DOES NOT
+## 42. ⚠️ admin.js STILL CARRIES 183 (Round 56 CLOSED THE admin.html HALF) — AND THE THREE THINGS THIS ITEM GOT WRONG
+
+✅ **`admin.html` v1.3.0 — 834 of its 866 inline declarations moved off 276
+elements into a utility block; 32 remain, each for a reason pinned by
+`tests/inline-styles-test.mjs` Part C.** Structure, attributes and text are
+unchanged — only `class`, `style` and the `<style>` block differ, verified
+element-by-element against the pre-extraction file before shipping.
+
+⚠⚠ **STILL OPEN FOR `admin.js`, WHICH IS THE OTHER HALF AND WAS NEVER COUNTED.**
+It carries **183 more attributes / 539 declarations / 60 distinct hex colours**,
+building the same page out of template strings. `node tools/audit-inline-styles.mjs`
+prints all of it. **Item 38 for admin is NOT unblocked until that half is done**,
+because most of this page's colour lives there, not in the markup.
+
+### ⚠⚠ THE THREE THINGS THIS ITEM ASSERTED THAT TURNED OUT TO BE FALSE
+
+It called the work *"mechanical, tedious, low-risk, and entirely mechanical to
+verify — rendering should be byte-identical."* **Verify a flag before you build
+for it** applies to an item's METHOD as much as to its premise.
+
+**1. The count was admin.html only.** 276 was right for the markup and missed
+`admin.js` entirely. The real figure is **459 attributes / 1,405 declarations**.
+
+**2. "Byte-identical rendering" is false, and 32 declarations prove it.** An
+inline value beats every selector, so **34 declarations have been suppressing
+`:hover` and `:disabled` rules all along**. Extracting them REVIVES those states —
+a visible change, and Jake's call rather than a refactor's. They stayed inline.
+
+⭐⭐ **AND ONE OF THOSE SUPPRESSIONS IS A DEFECT, NOT A PREFERENCE.**
+`button:disabled { background:#555; cursor:not-allowed }` is dead on the buttons
+that need it most, and `admin.js` really does disable them for slow work:
+`auditBtn.disabled = true` for a whole-book audit, `saveTitleBtn.disabled = true`
+for a metadata save. **So ROADMAP 41 — "the slow controls now look busy" — is not
+merely undone on admin, it is DEFEATED there**, by the inline styles this item
+exists to remove. The fingerprint is `saveTitleBtn.style.opacity = '0.6'`: someone
+hit the dead rule and worked around it without diagnosing it. **`auditBtn` has no
+workaround at all**, so a full-book audit runs behind a button that looks idle.
+⚠️ **One line each to fix — delete the inline background — but it changes how
+four buttons look, so it wants Jake's eye rather than a refactor's.**
+
+**3. "Low-risk" was wrong in a way that would have broken two features.**
+`#tab-staff` and `#build-list` both carry inline `display:none` and are shown
+again with `element.style.display = ''`. That clears the INLINE value and falls
+through to the stylesheet — so moving `display:none` into a class means `''`
+resolves to the CLASS, and **the Staff tab never appears for building admins
+again, and the build panel never opens.** Silent, role-dependent, and exactly the
+"a button that does nothing" failure Round 55's header warns about. The general
+rule, now enforced: **a property must not be extracted from an element whose
+`.style.<property>` is assigned at runtime.**
+
+### What shipped, and the two things that will rot
+
+* **202 utility classes, VALUE-named (`u-color-888`), not role-named.** A role
+  name asserts a meaning, and item 38's whole finding is that this page's colours
+  do not yet HAVE settled meanings — amber means three things. Naming by role now
+  would invent the answer to the question item 38 exists to ask.
+* ⚠⚠ **THE UTILITY BLOCK MUST STAY LAST.** The classes are single-class
+  selectors, so against `.lbtn`, `.l-field`, `.col` and `.l-label` they tie on
+  specificity and win on **source order alone**. 69 declarations depend on it. A
+  rule added below the block does not error and does not look broken — those 69
+  just quietly revert to what they were written to override. Part D pins it.
+* ⭐ **84 of the 202 classes are used exactly once, and that count is the metric
+  for item 38.** The tail is mostly one-off colour; it should fall hard when the
+  three severities land and barely move otherwise.
+
+### The original item, kept
+
 
 **276 inline `style=` attributes** in `admin.html`, against 33 in `reports.html`.
 
@@ -3709,3 +3803,256 @@ these three.
 
 ⚠️ **NONE OF THESE COME BEFORE ITEM 43.** A student is locked out of the
 curriculum today.
+
+---
+
+## 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME
+
+**Jake, 2026-09-01:** *"a way for building admins to filter books for their
+building and for teachers to filter it even further."*
+
+⚠⚠ **THE FIRST THING TO SETTLE IS WHETHER THIS IS A FILTER OR A BOUNDARY, BECAUSE
+THEY ARE DIFFERENT FEATURES AND ONLY ONE OF THEM IS CHEAP.** A filter is a
+convenience for staff looking at a long list. A boundary is *this building's
+admin cannot see or edit that building's books* — which is `firestore.rules`
+work, not UI work, and the rules have already caught three rounds out (items
+0.-7.A, 22, 21). **Ask before building.** The phrasing — admins filter, teachers
+filter *further* — sounds like convenience, and convenience is the version that
+ships in a round.
+
+⚠️ **AND TODAY THERE IS NOTHING TO FILTER ON.** A `books/{id}` document carries
+no school, building or owner field of any kind; `_staffScope.schoolIds` exists on
+the STAFF side (`admin.js:715`) and has no counterpart on a book. So step one is a
+field, and **item 46 is the same step** — do them together or the second one
+rewrites the first.
+
+⚠️ **“TEACHERS FILTER FURTHER” IS PROBABLY NOT A FILTER AT ALL.** A teacher
+narrowing a list for their own convenience is a dropdown. A teacher choosing which
+books *their class can see* is curation, it reaches `index.html`, and it changes
+what a child is offered — a different feature with a different blast radius.
+**Find out which one is meant before writing either.**
+
+⚠⚠ **AND ASK WHAT STUDENTS SEE.** `index.html:1085` builds the library's genre
+pills from `allBooks`, so students currently see everything. If a building filter
+is staff-only, a child in Building B is still offered Building A's books and the
+feature will look broken to the person who asked for it.
+
+---
+
+## 46. ✅ CLOSED (Round 56) — WHO UPLOADED THIS BOOK, STAMPED AND NOT TYPEABLE
+
+✅ **`admin.js` v3.38.0.** Stamped from `_staffScope.uid` on CREATE only, rendered
+read-only next to Prepared by. `uploadedAt` goes with it.
+
+* ⚠️ **`alreadyExists` is the gate, and it costs NO Firestore read** — it is
+  already computed from `bookTitlesMap` for the overwrite confirm. Do not "harden"
+  this into a `getDoc()`; see §READS.
+* ⚠️ **An overwrite does not restamp.** Otherwise the field answers "who touched
+  it last", which is a different question. Save Metadata never writes it at all.
+* ⚠️ **The uid is stored, not a name or email** — both go stale the day someone
+  changes theirs. `staff/{uid}` resolves at display time, cached for the session,
+  and only for a book that HAS a stamp.
+* ⚠⚠ **A book with no stamp reads "— (added before this was recorded)" and is
+  NEVER guessed as Jake.** He is almost certainly right that everything so far is
+  his, but a guessed provenance stamp is indistinguishable from a recorded one
+  afterwards, and this field's entire value is that it can be trusted. Backfill on
+  an explicit instruction only.
+* ⚠️ An unreadable `staff/{uid}` falls back to showing the uid rather than
+  erroring — a building admin opening another building's book becomes the ordinary
+  case the moment **item 45** lands, and a uid is still a traceable answer.
+
+⭐ **Item 45 now has the book-level owner field it needed**, though it still needs
+a school/building field of its own.
+
+### The original item, kept
+
+
+**Jake, 2026-09-01:** *"a new field for who uploaded the book — Me for everything
+so far, but now that there's another building admin, I assume he could upload his
+own (and he may not be as strict as I am)."*
+
+⚠⚠ **THE STATED PURPOSE IS PROVENANCE UNDER DOUBT, WHICH MEANS THE FIELD MUST
+NOT BE TYPEABLE.** "He may not be as strict as I am" is the whole requirement:
+this exists so that when a book turns out to be wrongly licensed or badly cleaned,
+the record says who added it. A hand-typed field records who *remembered* to type
+it. **Stamp it from `auth.currentUser` at create time, render it read-only.**
+Compare item 44: that field is hand-typed and that is exactly why it holds
+`alice1_in wonderland`.
+
+⚠️ **STAMP AT CREATE, NEVER ON SAVE.** A book Jake uploaded and a colleague later
+edited must still read as Jake's upload, or the field answers the wrong question
+the first time it is used.
+
+⚠️ **EXISTING BOOKS HAVE NO VALUE AND MUST NOT BE BACKFILLED TO JAKE BY GUESS.**
+He said "me for everything so far" and he is almost certainly right — but a
+guessed provenance stamp is indistinguishable from a recorded one afterwards, and
+this field exists precisely to be trusted. **Backfill from an explicit instruction
+or leave it blank and render blank as "— (before this field existed)".**
+
+✅ Staff identity, not student data — no §PRIVACY concern. Store the uid and
+resolve to a name for display, the way `staff/{uid}` is already read at
+`admin.js:756`; an email or a display name stored on the book goes stale the day
+someone changes theirs.
+
+**Size:** small on its own, and it wants doing **in the same round as item 45**,
+which needs a book-level owner field anyway.
+
+---
+
+## 47. ⭐ A GEMINI LICENCE CHECK, AND THE RIGHTS LADDER IT WOULD NEED LIFTED OUT OF admin.js FIRST
+
+**Jake, 2026-09-01:** *"some sort of gemini based check for books to triple check
+to make sure that they're cc0 or public domain or otherwise able for us to use …
+I'd want to do that test without using your tokens."*
+
+✅ **THE INFRASTRUCTURE EXISTS, AND HERE IS EXACTLY WHAT IT IS** (checked, because
+Jake asked and a half-remembered ladder is worth confirming). `functions/index.js`
+holds **one** callable, `exports.generatePractice`, backed by a **six-model** chain:
+`gemini-3-flash-preview` primary, then `gemini-flash-latest`,
+`gemini-3.1-flash-lite-preview`, `gemini-2.5-flash`, `gemini-flash-lite-latest`,
+`gemini-2.5-flash-lite`. Running the licence check server-side is exactly right: it
+bills to the project, not to a chat session, and it can run on upload rather than
+on somebody remembering.
+
+⚠️ **BUT IT IS AI PRACTICE ONLY — LESSONS DO NOT USE GEMINI AT ALL.** `game.js` is
+the only caller; `learn.js` has zero references. (`variety-floor.js` and
+`adventure-renderer.js` mention it only in comments.) Worth knowing before anyone
+plans around a lesson-generation path that does not exist.
+
+⚠⚠ **AND DO NOT REUSE `generatePractice` — REUSE THE MODEL LADDER.** That callable
+is student-facing and quota'd at `DAILY_LIMIT = 5` per uid per day. Running admin
+licence checks through it would spend a child's practice allowance on staff work,
+and its prompt and response shape are built for practice text. **A licence check
+wants its own admin-gated callable that shares the fallback chain.**
+
+⚠⚠ **THE MODEL MUST NEVER BE THE AUTHORITY, ONLY THE ALARM.** A licence
+determination is a legal claim about someone else's work, and this is a school
+putting books in front of children. `canonicalRightsFrom()`'s existing failure mode
+is already the correct one and its header says so: *"left verbatim for a human",
+never "asserted a license the book does not carry"*. **The check may FLAG and it
+may DISAGREE; it must not APPROVE.** A book it likes is a book a human has not
+looked at yet. ⚠️ Design the output as "this disagrees with the ladder, here is
+why" — not a confidence score, which invites a threshold, which becomes an
+auto-approve.
+
+⭐ **THE MOST USEFUL VERSION IS THE CHEAPEST: DISAGREEMENT DETECTION.**
+`canonicalRightsFrom()` already returns a canonical value or `''`. Send the model
+the book's `dc:rights` / `dc:source` / front matter and ask what IT concludes, then
+compare. **Agreement is silence; disagreement, or a ladder `''` the model has an
+opinion about, is the flag.** That needs no new judgement from the model — only a
+second opinion on a decision already being made — and it is the one shape that
+cannot silently widen what gets accepted.
+
+### ⭐ Jake's question: should the ladder move to its own file? — YES, BUT NOT FOR THE REASON GIVEN
+
+*"We already have the ladder of checks somewhere in the code (should it be put in
+a separate file, now that it's used in a couple of places?)"*
+
+⚠️ **CHECKED, AND IT IS NOT YET USED IN A COUPLE OF PLACES.** `SOURCE_PATTERNS`,
+`canonicalSourceFrom()` and `canonicalRightsFrom()` live only in `admin.js`
+(~1468–1560). The only other consumer is `tests/metadata-map-test.mjs`, and it does
+not import them — **it lifts them out of the file as text**, which its own header
+records. So today's duplication is not the argument.
+
+**The argument is the Cloud Function.** `admin.js` is a browser ES module wired to
+the Firebase client SDK and the DOM; a Cloud Function cannot import it at any
+price. So item 47 either gets a **second copy of the licence ladder** — two legal
+mappers drifting apart, which is worse than none — or the ladder moves first.
+⚠️ **EXTRACT IT AS STEP ONE OF THIS ITEM, NOT AS A TIDY-UP.**
+
+✅ And it pays for itself immediately: `metadata-map-test.mjs` stops lifting text
+and starts importing, which removes a whole class of harness fragility. The
+project already has five shared modules (`hud.js`, `celebrate.js`,
+`variety-floor.js`, `session-log.js`, `daylog.js`) and `version-stamp-test.mjs`
+§D2 already watches every shared module the writers import — so a `rights-ladder.js`
+lands in an established pattern with its guard already written.
+
+⚠️ **THE LADDER'S ORDER IS LOAD-BEARING AND MUST SURVIVE THE MOVE.** Standard
+Ebooks before Gutenberg (an SE book cites Gutenberg upstream and matches both), the
+already-canonical short-circuit before the heuristics, and CC BY before anything
+that could flatten it into "public domain". `metadata-map-test.mjs` covers all
+three against the real `dc:` values of the library — ⚠️ **it is currently RED on 39
+stale source/rights fixtures**, so **get it green BEFORE the move**, or it cannot
+tell you whether the move broke anything.
+
+
+---
+
+## 44. ⚠️ THE BOOK ID FIELD ACCEPTS ANYTHING TYPED INTO IT, AND slugifyBookId() IS RIGHT THERE
+
+**Reported by Jake, 2026-09-01**, from a sibling instance's diagnosis: the
+Wonderland book's id is `alice1_in wonderland` — a space in the middle of a
+Firestore document id.
+
+✅ **THERE IS NO ACTIVE BUG, AND THE CHECKING IS RECORDED HERE SO NOBODY
+RE-INVESTIGATES IT.** Three things were verified, not assumed:
+
+* **Every URL that carries a book id encodes it.** `game.js:6368`,
+  `index.html:1421` and `:1577`, `game.js:5328` and `:5592` all wrap the id in
+  `encodeURIComponent`, so the space travels as `%20`.
+* **The one composite storage key is delimiter-safe.** `chapterCacheKey()`
+  (`game.js:2371`) is `ttb_ch_v1:${bookId}:${chapterId}` — colon-delimited, and a
+  space cannot collide with a colon.
+* **No filename is affected.** The EPUB on disk is
+  `lewis-carroll_alices-adventures-in-wonderland_john-tenniel.epub` and is clean.
+  **The space is in the Firestore document id only.**
+
+⚠⚠ **DO NOT "FIX" THE EXISTING BOOK.** A Firestore document id is immutable:
+renaming means create-new, copy, delete-old — and every `books/{id}` subcollection
+plus every student progress and `typing_logs` record citing that id would have to
+move with it. **That is a migration with student data in it, for a cosmetic
+space.** Leave it. This item is only about the next one.
+
+### The root cause — confirmed at both line numbers
+
+`slugifyBookId()` (`admin.js:1092`) collapses `[^a-z0-9]+` to a hyphen and could
+never emit a space. But the create path (`admin.js:1643`) is just:
+
+```js
+const id = newBookId.value.trim();
+```
+
+`.trim()` strips the ends and nothing else, so a hand-typed interior space passes
+straight through. The autofill only fills a field that is **empty**, so anyone who
+types the id themselves bypasses the slug entirely.
+
+### ⚠⚠ THE OBVIOUS GUARD IS THE WRONG GUARD, AND THIS IS THE USEFUL PART
+
+The proposal that came with the report was to warn when the typed id *does not
+match what `slugifyBookId()` would produce*. **That check would fire on the
+flagship book.** `game.js:201` reads:
+
+```js
+const DEFAULT_BOOK = "wizard_of_oz";
+```
+
+Underscores. `slugifyBookId("Wizard of Oz")` returns `wizard-of-oz`, with hyphens
+— so the existing corpus and the auto-slug **already disagree**, and a round-trip
+check would flag most of the library on sight. `slugifyBookId()` also truncates at
+40 characters and strips a leading `the-`/`a-`/`an-`, so it is not idempotent on
+ids that are already fine.
+
+⚠️ **A flag that fires on the correct case is a flag nobody reads by October** —
+the same constraint item 1 puts on item 4.
+
+**So: guard on the character that is actually wrong, not on slug equality.**
+Whitespace, and only whitespace, until there is a reason for more:
+
+```js
+if (/\s/.test(id)) { /* warn, do not block */ }
+```
+
+⚠️ **WARN, NEVER BLOCK.** Ids like `e-nesbit-psammead01-children-and-it` and
+`l-frank-baum-oz01-the-wonderful-wizard-of-oz` are hand-shaped on purpose — the
+series prefix and the volume number are doing real work that no slugifier would
+produce. A blocker would fight Jake every time he adds a series.
+
+⚠️ **IF A WIDER RULE IS EVER WANTED, MEASURE THE CORPUS FIRST.** Whether
+uppercase or `.`/`/` should also warn is answerable only by listing the real
+`books` collection ids, which are in Firestore and not in this repo. Do not guess
+the character class from the filenames in `library/` — those follow a different
+convention and are not the ids.
+
+**Size:** small, and it belongs in admin.js. ⭐ **Ride it along with any round
+already inside `admin.js`** rather than spending a round on it — item 42 is going
+to be in that file anyway.

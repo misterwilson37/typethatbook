@@ -1,6 +1,144 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-01 by Round 55 (Smith-Premier), for whoever is next
+> ## ▶ START HERE — written 2026-09-01 by Round 56 (Munson), for whoever is next
+>
+> ⭐⭐ **ITEM 42 IS CLOSED FOR `admin.html` AND OPEN FOR `admin.js`, AND THE SPLIT
+> IS THE POINT.** 834 of the markup's 866 inline declarations are now utility
+> classes. **`admin.js` still holds 183 attributes / 539 declarations / 60
+> distinct hex colours**, building the same page out of template strings — and
+> **item 38 for admin is not unblocked until that half is done**, because most of
+> this page's colour lives there, not in the markup.
+> `node tools/audit-inline-styles.mjs` prints every figure.
+>
+> ### ⚠️⚠️ THE LESSON OF THIS ROUND: AN ITEM'S *METHOD* NEEDS VERIFYING TOO
+>
+> § CONVENTIONS says verify a flag before you build for it. This round found that
+> the rule applies to **how** an item says to do the work, not just to whether the
+> work is still needed. Item 42 called itself *"mechanical, low-risk, and entirely
+> mechanical to verify — rendering should be byte-identical."* **All three were
+> wrong**, and following them literally would have shipped two broken features:
+>
+> * **`#tab-staff` and `#build-list` carry inline `display:none` and are restored
+>   with `element.style.display = ''`.** That clears the INLINE value and falls
+>   through to the stylesheet. Move `display:none` into a class and `''` resolves
+>   to the CLASS — **the Staff tab never appears for building admins again and the
+>   build panel never opens.** Silent and role-dependent. The general rule, now
+>   enforced by the transformer and by Part C: **never extract a property from an
+>   element whose `.style.<property>` is assigned at runtime.**
+> * **34 declarations were suppressing `:hover` and `:disabled`.** An inline value
+>   beats every selector, so extracting them REVIVES states that have been dead
+>   for as long as they have existed. That is a visible change and Jake's call.
+>   They stayed inline; Part C pins each one with its reason.
+>
+> ### ✅ ROADMAP 41 WAS DEFEATED ON admin — AND IS NOW FIXED
+>
+> `button:disabled { background:#555; cursor:not-allowed }` could not reach five
+> buttons, because an inline background outranks every selector. And they really
+> are disabled for slow work: `auditBtn.disabled = true` for a whole-book audit,
+> `saveTitleBtn.disabled = true` for a metadata save.
+>
+> ⚠️⚠️ **I FIRST SHIPPED THIS AS A QUESTION FOR JAKE RATHER THAN A FIX, AND THAT
+> WAS THE WRONG CALL.** My reasoning was that reviving a dead `:hover` is a visible
+> change and therefore his to approve. His answer: *"You have buttons that don't
+> work or are invisible? They need to be fixed."* **A suppressed `:disabled` is a
+> defect, not a design decision awaiting ratification.** Ask about the things that
+> are genuinely a matter of taste; fix the ones that are broken. ⚠️ I also
+> **overstated it to him** — I wrote that the audit button "looks completely idle",
+> when `admin.js` does swap its label to "🔍 Auditing…". The missing feedback was
+> the grey-out and the cursor, not all feedback. **Overstating a real finding costs
+> you the next one.**
+>
+> **The fix:** tints moved to `.btn-tint-*` guarded by `:not(:disabled)`, so a
+> disabled button falls through to `button:disabled` on its own. ⚠️ **Written as a
+> plain `.btn-tint-save { background: … }` the rule TIES with `button:disabled` and,
+> sitting later in the file, wins — the bug returns and nothing looks wrong.** Part
+> C3c pins that. Hover is a derived `filter: brightness(1.6)`, **not four new hex
+> values**, because item 38 is open and Round 55 was rightly pulled up for adding
+> colour while improving something else. Three `#0047AB` inlines were identical to
+> `button{background}` and were simply deleted. `admin.html` is 20 → 9 inline
+> attributes.
+>
+> ### ✅ What shipped
+>
+> * **`admin.js` v3.37.0 also carries the contributor fallback** Jake relayed from
+>   a sibling: a book with **no `dc:creator` at all** falls back to the first
+>   `dc:contributor`, so a compiler-led anthology like English Fairy Tales stops
+>   importing with a blank author. ⚠️⚠️ **THREE SEPARATE PLACES IN admin.js READ
+>   `dc:creator` and all three needed it** — `readEpubMetadata()`, the author-input
+>   autofill, and `bookMetaAuthor`. Fixing one leaves the author right in the form
+>   and blank on the title page. ⚠️ The `bookMetaAuthor` one is not about
+>   attribution at all: it feeds `looksLikeLeadingMatter()`, so a blank author there
+>   means the Gutenberg title page stops being recognised as front matter and gets
+>   **imported as chapter one** — a child typing boilerplate. ⚠️ And `preparedBy`
+>   now refuses a contributor already promoted to author, or the page reads "By
+>   Joseph Jacobs / Prepared by Joseph Jacobs". The guard is `creators.length === 0`,
+>   never `!creators[0]`: on an ordinary Gutenberg book the contributor is the
+>   TRANSCRIBER. ⚠️ The "compiler" role-filter half of that sibling's fix belongs to
+>   `ttb-fix-epubs.py`, **which is not in this repo** — it was not touched here.
+> * **ROADMAP items 45, 46, 47** — building filtering, upload provenance, the Gemini
+>   licence check. ⭐ 47 answers Jake's question about the rights ladder: **extract
+>   it, but the reason is the Cloud Function, not current duplication** — it lives in
+>   only one place today, and `metadata-map-test.mjs` reaches it by lifting text
+>   rather than importing. ⚠️ Get that harness green *before* moving the ladder, or
+>   it cannot tell you whether the move broke anything.
+>
+> * **`admin.html` v1.3.0** — item 42's markup half. 202 utility classes,
+>   **value-named (`u-color-888`), not role-named**: a role name asserts a
+>   meaning, and item 38's finding is that this page's colours do not yet HAVE
+>   settled meanings. ⚠️⚠️ **THE UTILITY BLOCK MUST STAY LAST IN THE FILE** — the
+>   classes are single-class selectors, so against `.lbtn`, `.l-field`, `.col` and
+>   `.l-label` they tie on specificity and win on **source order alone**. 69
+>   declarations depend on it, and a rule added below the block does not error and
+>   does not look broken; those 69 just quietly revert.
+> * **`admin.js` v3.36.0** — Drama added; Classic Literature, Historical Fiction
+>   and Young Adult retired at Jake's request. ⚠️ The two `SUBJECT_TO_GENRE` rows
+>   pointing at retired genres went in the same edit: `guessGenre()`'s output goes
+>   through `writeSelectOrCustom()`, which PRESERVES an unknown value in Custom…,
+>   so leaving them would have re-created the retired genres on import one book at
+>   a time. ⚠️ **This retags nothing** — the student library's genre pills are
+>   built from the books (`index.html:1085`), not from `GENRES`.
+> * **`tests/inline-styles-test.mjs`** — 19 assertions, all five mutations caught.
+> * **`tools/audit-inline-styles.mjs`** — item 42's original 276 was a hand count
+>   that missed `admin.js` entirely. Every figure the item cites is now
+>   re-derivable with one command.
+> * **ROADMAP item 44** — the Book ID field takes any typed string.
+>
+> ### ⚠️ WHAT I GOT WRONG, SO YOU DO NOT REPEAT IT
+>
+> * **My first transformer mis-aligned the DOM against the source.** I assumed
+>   `querySelectorAll('[style]')` order matched the order of `style="` in the raw
+>   text. It does — but my tag regex silently matched only **266 of 276** tags,
+>   because it required every attribute to be quoted and ten tags carry boolean or
+>   unquoted ones. Everything after the first missed tag would have been rewritten
+>   with **another element's styles**. Caught only because the rewriter asserted
+>   the two strings matched before touching anything. **Assert the pairing, never
+>   infer it from position** — and a regex over HTML attributes needs to be
+>   quote-aware, not optimistic.
+> * **The harness's first draft went red against correct code.** Part B banned hex
+>   colour in markup outright; 13 of the 20 retained declarations ARE colour, by
+>   design. Same failure `staff-tokens-test.mjs` records. **A check that cannot
+>   tell deliberate residue from a leak is a check someone silences.**
+>
+> ### What is left
+>
+> **42's `admin.js` half** is the next piece and it is bigger than the markup was:
+> 539 declarations, and the styles are inside template strings, so the transformer
+> here does not apply unchanged. ⚠️ **Do it before 39 for admin**, still — that
+> sequencing was right even though the rest of the item was not.
+>
+> **39** (64 `alert()`/`confirm()`) wants its own conversation. **30**, **34**,
+> **35** and **44** unchanged. ⚠️ **The reads measurement from Round 54 has still
+> never been taken**; ROADMAP §READS has the mechanics.
+>
+> *On the name:* the **Munson** (1890) did away with individual typebars. Every
+> character lived on one interchangeable steel sleeve, so changing the whole
+> typeface meant swapping a single part rather than touching ninety separate
+> pieces. That is this round exactly — 834 values that each lived at their own
+> point of use, moved onto one sleeve so the page can be restyled by changing one
+> thing. ⚠️ And the machine's real lesson is the harness's: the sleeve only works
+> because it is *aligned*, and my first attempt at the alignment was off by ten.
+
+> ## Round 55 (Smith-Premier) — the previous handoff, kept
 >
 > ⭐⭐ **THE CLEAN DAY HAPPENED, AND WHAT IT PRODUCED WAS SIX BUG REPORTS, NOT A
 > READS NUMBER.** Round 54 set this build up to measure the floor for a county

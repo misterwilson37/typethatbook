@@ -2870,11 +2870,63 @@ Design rules:
 
 ## `admin.js`
 
-Current: **v3.31.0**
+Current: **v3.38.0**
 
-⚠️ **This section skips v3.29.0 and v3.30.0.** They shipped in the file (see the header
-comment in `admin.js`) but were never written up here. Round 9 did not reconstruct them
-— filing an invented summary of someone else's change is worse than an acknowledged gap.
+⚠️ **v3.32.0–v3.35.0 are written up in the file's own header, not here.** They are
+not lost and they are not reconstructed below — an invented summary of someone
+else's change is worse than a pointer to the real one.
+
+#### v3.36.0 – v3.38.0 — Round 56 (Munson)
+
+**Genre list.** Drama added; Classic Literature, Historical Fiction and Young Adult
+retired at Jake's request. ⚠️ The two `SUBJECT_TO_GENRE` rows pointing at retired
+genres went in the same edit: `guessGenre()`'s result is written through
+`writeSelectOrCustom()`, which PRESERVES an unknown value in Custom…, so leaving
+them would have re-created the retired genres on import one book at a time.
+⚠⚠ This retags nothing — the student library's genre pills are built from the
+books, not from `GENRES`.
+
+**Contributor fallback.** A book with no `dc:creator` at all now falls back to the
+first `dc:contributor`, so a compiler-led anthology (English Fairy Tales, credited
+to Joseph Jacobs as a contributor) stops importing with a blank author.
+⚠⚠ **Three separate places read `dc:creator` and all three needed it.** The third,
+`bookMetaAuthor`, is not about attribution at all — it feeds
+`looksLikeLeadingMatter()`, so a blank author means the Gutenberg title page is no
+longer recognised as front matter and gets imported as chapter one.
+⚠️ `preparedBy` now refuses a contributor already promoted to author, or the page
+reads "By Joseph Jacobs / Prepared by Joseph Jacobs".
+
+**ROADMAP 46 — uploaded-by provenance.** Stamped from the signed-in uid on CREATE
+only and rendered read-only. ⚠️ An overwrite does not restamp, or the field answers
+"who touched it last". ⚠️ The uid is stored, not a name — names go stale; the
+staff document is resolved at display time and cached. ⚠️ A book with no stamp
+reads "added before this was recorded" and **is never guessed as Jake**: a guessed
+provenance stamp is indistinguishable from a recorded one afterwards.
+
+⚠️ **v3.31.0's header entry was archived out to hold the 8-entry budget.** Unlike
+v3.30.0 it was already written up below, so nothing needed recovering.
+
+⚠️ **This section skips v3.29.0.** It shipped in the file but was never written up
+here. Round 9 did not reconstruct it — filing an invented summary of someone else's
+change is worse than an acknowledged gap.
+
+⚠️ **v3.30.0 was recovered here, not reconstructed.** It was archived out of
+`admin.js`'s header to hold the 8-entry budget when v3.36.0 was added, and the text
+below is that entry verbatim rather than a summary of it — the gap this section used
+to acknowledge is closed by moving the original, which is the only way to close one
+honestly.
+
+#### v3.30.0
+
+⚠️ **CLASSROOM-DEDICATION MACHINERY REMOVED AT JAKE'S REQUEST.** v3.27.0 tied a
+licence change to a notice on the title page, and v3.29.0 added a button to write that
+notice. Two halves that looked like one feature and were not: the gap flag read the
+License FIELD while its name pointed at the title-page TEXT, so adding the line never
+cleared the dot and there was no way to tell that from a bug. Gone: `runDedication()`,
+`CLASSROOM_NOTICE`, `DEDICATION_TEXT`, the classroom argument to
+`canonicalRightsFrom()`, and the gap flag. KEPT: the v3.26.0 source/licence mapping,
+the combined PD & CC0 option (pick it by hand), Gutenberg origin, Prepared by, and the
+v3.28.0 genre data-loss fix.
 
 #### v3.31.0
 

@@ -1,4 +1,57 @@
-// admin.js v3.35.0
+// admin.js v3.38.0
+//
+// v3.38.0 — ⚠️ ROADMAP 46: WHO UPLOADED THIS BOOK, STAMPED AND NOT TYPEABLE.
+//           Jake, on a second building admin joining: "he may not be as strict as
+//           I am." The field exists to answer, months later, who added a book that
+//           turned out to be wrongly licensed — so a hand-typed value would record
+//           who REMEMBERED to fill it in, not who did it. Stamped from
+//           _staffScope.uid, rendered read-only.
+//           ⚠⚠ STAMPED ON CREATE ONLY. `alreadyExists` (already computed from
+//           bookTitlesMap, so it costs NO read) gates it: an overwrite must not
+//           restamp, or the field answers "who touched it last" — a different
+//           question nobody asked. Save Metadata never writes it at all.
+//           ⚠️ THE uid IS STORED, NOT A NAME. Names and emails go stale; staff/{uid}
+//           is resolved at display time and cached for the session, and only for a
+//           book that HAS a stamp.
+//           ⚠️ A BOOK WITH NO STAMP READS "— (added before this was recorded)",
+//           NOT Jake. He is almost certainly right that everything so far is his,
+//           but a guessed provenance stamp is indistinguishable from a recorded one
+//           afterwards, and this field's whole value is that it can be trusted.
+//           Backfill on an explicit instruction, never by inference.
+//
+// v3.37.0 — TWO UNRELATED CHANGES, BOTH SHIPPED IN ROUND 56, FOLDED INTO ONE
+//           ENTRY BECAUSE NEITHER HAD BEEN DEPLOYED YET (the 8-entry header budget
+//           is worth more than a second stamp for an unshipped step).
+//
+//           (a) GENRE LIST. Drama added; Classic Literature, Historical Fiction
+//           and Young Adult retired at Jake's request ("they're lame and not
+//           helpful"). ⚠️ The two SUBJECT_TO_GENRE rows pointing at retired genres
+//           went in the same edit — guessGenre()'s result is written through
+//           writeSelectOrCustom(), which PRESERVES an unknown value in Custom…, so
+//           leaving them would have re-created the retired genres on import one
+//           book at a time with nothing on screen to say so.
+//           ⚠⚠ THIS RETAGS NOTHING. The student library's genre pills are built
+//           from the books (index.html:1085), not from GENRES, so a book still
+//           stored as "Young Adult" keeps its pill until that book is changed. No
+//           stored value is at risk: Custom… preserves it.
+//
+//           (b) ⚠️ NO dc:creator AT ALL NOW FALLS BACK TO THE FIRST dc:contributor.
+//           A compiler-led anthology carries no dc:creator: English Fairy Tales
+//           files Joseph Jacobs as a CONTRIBUTOR, so it imported with a blank
+//           author and lost him from both the title page and the filename.
+//           ⚠⚠ THREE SEPARATE PLACES IN THIS FILE READ dc:creator and all three
+//           needed it — readEpubMetadata(), the author-input autofill, and
+//           bookMetaAuthor. Fixing one leaves the author right in the form and
+//           blank on the title page, or the reverse.
+//           ⚠️ The bookMetaAuthor one is not about attribution at all: it feeds
+//           looksLikeLeadingMatter(), so a blank author there means the Gutenberg
+//           title page stops being recognised as front matter and gets imported as
+//           chapter one — a child typing boilerplate.
+//           ⚠️ And preparedBy no longer reuses a contributor already promoted to
+//           author, or the title page reads "By Joseph Jacobs / Prepared by Joseph
+//           Jacobs". The guard is `creators.length === 0`, never `!creators[0]`:
+//           on a normal Gutenberg book the contributor is the TRANSCRIBER, and a
+//           book that has an author must never be overridden by one.
 //
 // v3.35.0 — Standard Ebooks' own producer credit (colophon.xhtml's "This ebook
 //           was produced for Standard Ebooks by NAME") now fills Prepared By.
@@ -86,25 +139,6 @@
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
-// v3.31.0 — COVER EGRESS. Covers were stored exactly as extracted from the EPUB
-//           (measured 164-380 KB) and served with no Cache-Control, to a grid slot
-//           that is ~360px wide on a 2x display. Serving them was the largest real
-//           cost in the project and the one SCALE-PLAN.md never modelled. Covers are
-//           now downscaled to 500x800 JPEG on upload (~5-6x smaller) and uploaded
-//           with `public, max-age=2592000`. downscaleCover() falls back to the
-//           original blob on every failure path and keeps the original if the
-//           re-encode is not actually smaller. The admin status line now reports the
-//           saving, so a silent fallback is visible rather than assumed.
-//
-// v3.30.0 — ⚠️ CLASSROOM-DEDICATION MACHINERY REMOVED AT JAKE'S REQUEST. v3.27.0 tied a
-//           licence change to a notice on the title page, and v3.29.0 added a button to
-//           write that notice. Two halves that looked like one feature and were not: the
-//           gap flag read the License FIELD while its name pointed at the title-page
-//           TEXT, so adding the line never cleared the dot and there was no way to tell
-//           that from a bug. Gone: runDedication(), CLASSROOM_NOTICE, DEDICATION_TEXT,
-//           the classroom argument to canonicalRightsFrom(), and the gap flag. KEPT: the
-//           v3.26.0 source/licence mapping, the combined PD & CC0 option (pick it by
-//           hand), Gutenberg origin, Prepared by, and the v3.28.0 genre data-loss fix.
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
 //
 //   * loadBookList(selectFirst) defaults to FALSE and preserves the current
@@ -123,13 +157,27 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.35.0";
+const ADMIN_VERSION = "3.38.0";
 
+// ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
+// lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
+// Adult. Added: Drama.
+//
+// ⚠️⚠️ RETIRING AN OPTION DOES NOT RETAG A BOOK, AND THE STUDENT-FACING PILLS ARE
+// BUILT FROM THE BOOKS, NOT FROM THIS LIST. index.html:1085 is
+// `[...new Set(allBooks.map(b => b.genre))]` — so a book still stored as
+// "Young Adult" keeps showing a Young Adult pill in the library until someone
+// changes that book. This list controls what the admin OFFERS, nothing else.
+//
+// ✅ AND NO STORED GENRE IS AT RISK FROM THIS EDIT. writeSelectOrCustom() lands a
+// value with no matching option in Custom… and preserves it — that is the whole
+// point of the v3.28.0 fix documented at the dropdown builder below. Opening an
+// old Young Adult book and pressing Save Metadata re-saves "Young Adult", it does
+// not blank it. Retagging is a deliberate human act, which is correct.
 const GENRES = [
-    "Adventure", "Classic Literature", "Fantasy", "Historical Fiction",
-    "Horror", "Humor", "Mystery", "Mythology", "Non-Fiction",
-    "Poetry", "Romance", "Science Fiction", "Short Stories", "Sports",
-    "Thriller", "Western", "Young Adult"
+    "Adventure", "Drama", "Fantasy", "Horror", "Humor", "Mystery",
+    "Mythology", "Non-Fiction", "Poetry", "Romance", "Science Fiction",
+    "Short Stories", "Sports", "Thriller", "Western"
 ];
 
 // ⚠️ v3.43.0 — imported from firebase-config.js; this file no longer keeps its
@@ -909,6 +957,44 @@ bookSelect.onchange = () => {
 //
 // The stale panel was the visible half and the harmless half. The loaded file was the
 // dangerous half, and it had been that way since long before the panel existed.
+// ── ROADMAP 46 — WHO UPLOADED THIS BOOK ────────────────────────────
+// ⚠️ RESOLVES A uid TO A NAME AT DISPLAY TIME rather than storing the name on the
+// book. A stored name or email is a copy that goes stale the day someone changes
+// theirs, and then the provenance record quietly disagrees with the staff list.
+// staff/{uid} is the one source — the same document sign-in already reads.
+//
+// ⚠️ ONE READ, CACHED FOR THE SESSION, AND ONLY WHEN A STAMPED BOOK IS OPENED.
+// Books predating the field cost nothing at all, and re-opening the same book
+// costs nothing after the first time. See ROADMAP §READS — Jake is weighing a
+// county-wide rollout on exactly this kind of arithmetic, so a per-open read for a
+// line of display text would be the wrong trade.
+const _uploaderNames = new Map();
+async function showUploadedBy(uid) {
+    const el = document.getElementById('active-book-uploadedby');
+    if (!el) return;
+    if (!uid) { el.textContent = '\u2014 (added before this was recorded)'; return; }
+    if (uid === _staffScope.uid) { el.textContent = 'You'; return; }
+    if (_uploaderNames.has(uid)) { el.textContent = _uploaderNames.get(uid); return; }
+    el.textContent = '\u2026';
+    let name = uid;
+    try {
+        const snap = await getDoc(doc(db, 'staff', uid));
+        if (snap.exists()) {
+            const d = snap.data();
+            name = d.displayName || d.name || d.email || uid;
+        }
+    } catch (e) {
+        // ⚠️ A staff document this admin cannot read is NOT an error worth a dialog.
+        // firestore.rules legitimately scopes staff reads, and a building admin
+        // opening another building's book becomes the ordinary case the moment
+        // ROADMAP 45 lands. Fall back to the uid: it is still a traceable answer,
+        // which is the entire point of the field.
+        console.warn('Could not resolve uploader ' + uid + ':', e);
+    }
+    _uploaderNames.set(uid, name);
+    el.textContent = name;
+}
+
 function clearOverwriteState() {
     offeredCover = null;
     savedCoverUrl = null;
@@ -1007,6 +1093,16 @@ openBookBtn.onclick = async () => {
             writeSelectOrCustom('active-book-cleanedby', meta.cleanedBy);
             const prepIn = document.getElementById('active-book-preparedby');
             if (prepIn) prepIn.value = meta.preparedBy || "";
+            // ROADMAP 46 (v3.38.0). Read-only: a provenance field anyone can type
+            // answers a weaker question than the one it exists for.
+            // ⚠️ THE THREE STATES ARE DELIBERATELY DIFFERENT, because collapsing them
+            // would be a lie in the direction that matters. A book with no stamp
+            // PREDATES the field — it is not "uploaded by nobody", and it is not to
+            // be guessed as Jake. He said "me for everything so far" and is very
+            // likely right, but a guessed provenance stamp is indistinguishable from
+            // a recorded one afterwards, and this field exists to be trusted.
+            // Backfill on an explicit instruction, never on inference.
+            showUploadedBy(meta.uploadedBy);
             // Attribution (v3.20.0). Plain || is correct here — these are strings
             // and '' is exactly what an untagged book should show.
             writeSelectOrCustom('active-book-source', meta.source);
@@ -1116,8 +1212,20 @@ const SUBJECT_TO_GENRE = [
     [/\bpoetry|poems\b/i,                    'Poetry'],
     [/\bautobiograph|biograph|slaves|history/i, 'Non-Fiction'],
     [/\bromance|courtship|love stories/i,    'Romance'],
-    [/\bjuvenile|children/i,                 'Young Adult'],
-    [/\bbildungsroman|classic/i,             'Classic Literature'],
+    // ⚠️ v3.36.0 — TWO ROWS REMOVED WITH THEIR GENRES, AND THEY HAD TO GO IN THE
+    // SAME EDIT. `juvenile|children -> Young Adult` and
+    // `bildungsroman|classic -> Classic Literature` pointed at options that no
+    // longer exist, and guessGenre()'s output goes through writeSelectOrCustom() —
+    // which preserves an unknown value in Custom… rather than dropping it. Left in
+    // place they would have quietly re-created the retired genres on import, one
+    // book at a time, with nothing on screen to say so. The juvenile row was the
+    // worse of the two: this library is ENTIRELY juvenile fiction, so it matched
+    // almost everything.
+    //
+    // Drama is deliberately left with NO row. Sports and Thriller have none either
+    // — a genre without an autofill rule is the normal case, and guessing at a
+    // dc:subject vocabulary nobody has measured is how the mapping in §v3.26.0 got
+    // it wrong for 22 of 24 books. Add one when a real play shows up to measure.
 ];
 function guessGenre(subjects) {
     const joined = (subjects || []).join(' ; ');
@@ -1306,9 +1414,19 @@ async function readEpubMetadata(file) {
     const grab = tag => Array.from(opf.getElementsByTagNameNS(DC, tag))
                              .map(el => (el.textContent || '').trim()).filter(Boolean);
     const titles = grab('title');
+    // ⚠️ v3.37.0 — NO dc:creator AT ALL FALLS BACK TO THE FIRST dc:contributor.
+    // Gutenberg files a compiler-led anthology with no dc:creator: English Fairy
+    // Tales credits Joseph Jacobs as a CONTRIBUTOR, so the book imported with a
+    // blank author, and the title page and the generated filename both lost him.
+    // ⚠️ The guard is `creators.length === 0`, not `!creators[0]` — a book WITH a
+    // creator must never be overridden by a contributor, who on a normal
+    // Gutenberg book is the transcriber, not the author.
+    const creators = grab('creator');
+    const contributors = grab('contributor');
+    const authorFromContributor = creators.length === 0 ? (contributors[0] || '') : '';
     const meta = {
         title: titles[0] || '',
-        author: grab('creator')[0] || '',
+        author: creators[0] || authorFromContributor,
         subjects: grab('subject'),
         language: grab('language')[0] || '',
         // ⚠️ ATTRIBUTION (v3.20.0). Public domain books need none of this, but a
@@ -1351,7 +1469,7 @@ async function readEpubMetadata(file) {
         // did not read at all before. Reading it here costs nothing on every book
         // that doesn't have one, and needs no source-specific branching — any future
         // source that credits a preparer via dc:contributor gets this for free.
-        contributor: grab('contributor')[0] || '',
+        contributor: contributors[0] || '',
     };
     // Gutenberg only: the canonical origin link and the transcriber credits.
     const sig = await readInBookSignals(zip, opf, opfPath, meta);
@@ -1366,7 +1484,14 @@ async function readEpubMetadata(file) {
     // dc:contributor is the last fallback, not a replacement for either in-book
     // credit — both the Gutenberg and Standard Ebooks scans are scoped and verified
     // against the book's own text, so either wins over a bare metadata field.
-    meta.preparedBy = sig.preparedBy || sePreparedBy || meta.contributor;
+    //
+    // ⚠️⚠️ v3.37.0 — AND IT IS NOT A FALLBACK AT ALL IF THAT CONTRIBUTOR HAS
+    // ALREADY BECOME THE AUTHOR. Without this guard English Fairy Tales credits
+    // Joseph Jacobs twice — "By Joseph Jacobs", "Prepared by Joseph Jacobs" — which
+    // is not what "prepared by" means and reads like a bug on the title page.
+    // One name, one role.
+    meta.preparedBy = sig.preparedBy || sePreparedBy ||
+                      (authorFromContributor ? '' : meta.contributor);
     return meta;
 }
 
@@ -1995,9 +2120,20 @@ async function parseEpubFile(file) {
         });
 
         // --- EXTRACT AUTHOR FROM OPF ---
+        // ⚠️ v3.37.0 — same fallback as readEpubMetadata(): a compiler-led
+        // anthology can carry no dc:creator at all, and the compiler is filed as a
+        // dc:contributor. THREE separate places in this file read dc:creator and
+        // all three needed it — fixing only one leaves the author correct in the
+        // form and blank on the title page, or the reverse.
         let extractedAuthor = "";
-        const creators = opfDoc.getElementsByTagNameNS("http://purl.org/dc/elements/1.1/", "creator");
-        if (creators.length > 0) extractedAuthor = creators[0].textContent.trim();
+        const DC_EL = "http://purl.org/dc/elements/1.1/";
+        const creators = opfDoc.getElementsByTagNameNS(DC_EL, "creator");
+        if (creators.length > 0) {
+            extractedAuthor = creators[0].textContent.trim();
+        } else {
+            const contribs = opfDoc.getElementsByTagNameNS(DC_EL, "contributor");
+            if (contribs.length > 0) extractedAuthor = contribs[0].textContent.trim();
+        }
         const authorInput = document.getElementById('active-book-author');
         if (authorInput && !authorInput.value.trim()) authorInput.value = extractedAuthor;
 
@@ -2224,7 +2360,12 @@ async function parseEpubFile(file) {
             return (els && els[0] && (els[0].textContent || '').trim()) || '';
         };
         const bookMetaTitle = dcFirst('title');
-        const bookMetaAuthor = dcFirst('creator');
+        // ⚠️ v3.37.0 — the contributor fallback matters HERE for a reason that is
+        // not attribution: bookMetaAuthor is what looksLikeLeadingMatter() matches
+        // front matter against. Leave it blank on a compiler-led anthology and the
+        // Gutenberg title page stops being recognised as leading matter, so it gets
+        // imported as chapter one and a child is asked to type the boilerplate.
+        const bookMetaAuthor = dcFirst('creator') || dcFirst('contributor');
         // Flipped by the first body unit that is NOT leading matter.
         let seenRealChapter = false;
 
@@ -4240,6 +4381,32 @@ uploadAllBtn.onclick = async () => {
             // It is reported loudly at the end instead.
         }
         
+        // ⚠️⚠️ v3.38.0 — PROVENANCE, STAMPED ON CREATE AND NEVER ON A LATER WRITE.
+        // ROADMAP 46. Jake, on a second building admin joining: "he may not be as
+        // strict as I am." So this field exists to answer, months later, WHO ADDED
+        // A BOOK THAT TURNED OUT TO BE WRONG. Three consequences, all load-bearing:
+        //
+        //   1. NOT TYPEABLE, ANYWHERE. A hand-typed provenance field records who
+        //      remembered to fill it in. Compare ROADMAP 44: the Book ID field is
+        //      hand-typed and that is exactly why one of them holds a space.
+        //   2. `alreadyExists` IS THE GUARD, AND IT COSTS NO READ. It is already
+        //      computed above from bookTitlesMap, which is in memory from the book
+        //      list. Re-reading the document to ask "was this here before?" would
+        //      add a Firestore read per upload for something already known.
+        //      ⚠️ Do NOT "harden" this into a getDoc() — see ROADMAP §READS.
+        //   3. ⚠️ AN OVERWRITE MUST NOT RESTAMP. A book Jake uploaded and a
+        //      colleague later re-uploaded is still Jake's upload; restamping on
+        //      every write would make the field answer "who touched it last",
+        //      which is a different question nobody asked. Save Metadata
+        //      (setDoc at the top of this file) never writes it at all.
+        //
+        // ⚠️ THE uid IS STORED, NOT A NAME OR AN EMAIL. Both go stale the day
+        // someone changes theirs; staff/{uid} is already read at sign-in and is the
+        // one place a display name should come from.
+        if (!alreadyExists && _staffScope.uid) {
+            bookData.uploadedBy = _staffScope.uid;
+            bookData.uploadedAt = serverTimestamp();
+        }
         await setDoc(doc(db, "books", activeBookId), bookData, { merge: true });
         const uploadedId = activeBookId;
         
