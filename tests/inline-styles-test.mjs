@@ -65,9 +65,23 @@ ok(utilRules.length > 150,
    `A2 the utility block exists (${utilRules.length} classes)`);
 
 // Every u- class used in the markup is declared, and every declared one is used.
+//
+// ⚠️⚠️ admin.js IS A SECOND CONSUMER OF THIS BLOCK AND MUST BE COUNTED HERE.
+// Round 58 extracted 250 declarations out of the template strings admin.js
+// builds its markup from, and those classes are USED at runtime while appearing
+// nowhere in admin.html. Reading only the markup made A4 report 31 healthy
+// classes as orphans, and — far worse in the other direction — would let A3 miss
+// a class admin.js uses that nobody ever declared, which renders as "nothing
+// happened" rather than as an error.
+//
+// ⚠️ THE BLOCK LIVES IN admin.html AND ITS CONSUMERS ARE BOTH FILES. Any future
+// page that builds markup against these utilities has to be added to this list
+// too, or its classes look unused and get deleted from under it.
+const CONSUMERS = [markup, adminJs];
 const used = new Set();
-for (const m of markup.matchAll(/\bclass\s*=\s*"([^"]*)"/g))
-    for (const c of m[1].split(/\s+/)) if (c.startsWith('u-')) used.add(c);
+for (const src of CONSUMERS)
+    for (const m of src.matchAll(/\bclass\s*=\s*"([^"]*)"/g))
+        for (const c of m[1].split(/\s+/)) if (c.startsWith('u-')) used.add(c);
 const declared = new Set(utilRules.map(m => m[1]));
 const undeclared = [...used].filter(c => !declared.has(c));
 const unused = [...declared].filter(c => !used.has(c));

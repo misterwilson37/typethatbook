@@ -4768,6 +4768,29 @@ what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
 
+### admin.js v3.32.0 — archived by Round 58 (Emerson), 8-entry budget
+
+Pushed over by v3.41.0 (ROADMAP 42, the admin.js half). Verbatim, nothing
+deleted. ⚠️ **It carries the v3.25.3 pointer, which FOUR live comments in
+`admin.js` depend on** — both resolve here now, and the note folded into
+v3.33.0's entry points at this section.
+
+It is the read-meter.js routing: one changed import URL, no behaviour change,
+with the shim re-exporting the whole SDK and wrapping only the billable calls.
+
+```
+// v3.32.0 — Firestore SDK routed through read-meter.js — ONE CHANGED IMPORT URL,
+//           no behaviour change. The shim re-exports the whole SDK via `export *`
+//           and wraps only the billable calls in counters, so every symbol this
+//           file imports still resolves. `ttbMeter.report()` gives reads and
+//           writes by collection AND by call site.
+//           ⚠️ THE v3.25.3 ENTRY MOVED to CHANGELOG.md § ARCHIVED FILE HEADERS
+//           to stay inside the 8-entry budget. NOTHING WAS DELETED, and this
+//           note is load-bearing: FOUR live comments in this file cite that
+//           version as their explanation and now have nowhere else to point.
+//
+```
+
 ### learn.js v2.37.0 — archived by Round 58 (Emerson), 8-entry budget
 
 Second archive from this file in one round; ROADMAP 49 and 50 both landed in it.

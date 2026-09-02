@@ -239,7 +239,39 @@
 > are.** The missing direction is added and mutation-verified: it goes red against
 > the repo exactly as it arrived.
 >
-> ### ⚠️ ITEM 42's admin.js HALF — WHAT EXISTS AND WHAT IT COST TO NOT SHIP
+> ### ✅ ITEM 42's admin.js HALF SHIPPED — AND IT IS HALF, NOT THE ITEM
+>
+> `admin.js` **v3.41.0**, `admin.html` **v1.4.0**. 250 declarations out of 136
+> template-string `style=` attributes: **31 new classes, 46 existing reused, 0
+> name collisions.** ⭐ **Jake's font-size ladder: twelve values → six**, every
+> move to the nearest surviving rung.
+>
+> ⚠️⚠️ **DO NOT REPORT 42 AS NEARLY DONE. THE COLOUR HALF IS THE ONE THAT
+> UNBLOCKS ITEM 38 AND IT IS UNTOUCHED** — 128 `color` and 39 `background`
+> declarations are still inline. Every excluded property is one `admin.js`
+> assigns at RUNTIME (`.style.borderColor` ×43, `.style.color` ×16,
+> `.style.opacity` ×6, `.style.background` ×6, `.style.display` ×4,
+> `.style.fontWeight` ×1), and item 38's finding is that amber means three
+> different things on this page. **42 is two jobs and this was the smaller one.**
+>
+> ⚠️ **13 attributes were refused as dynamic, and that is how the one hazard shape
+> excluded ITSELF** rather than by anyone remembering it: `.seg-row`'s heading
+> background is built by interpolation and is the element cleared with
+> `.style.background = ''`.
+>
+> ⚠️ **A HAZARD ROUND 57's SURVEY DID NOT NAME:** 21 styled tags already carry a
+> `class=`. A second `class=` attribute is **discarded silently by every parser** —
+> the first wins — so the utilities would simply not apply and nothing on screen
+> would say so. **16 rewrites merge.**
+>
+> ⚠️ **`inline-styles-test.mjs` A3/A4 NOW READ BOTH CONSUMERS.** The block lives in
+> `admin.html` and is used by two files; reading only the markup reported 31
+> healthy classes as orphans, and — the dangerous direction — would have let A3
+> miss an `admin.js` class nobody declared. Mutation-verified by deleting a class
+> `admin.js` depends on. **Any future page built against these utilities has to
+> join that list or its classes look unused and get deleted from under it.**
+>
+> ### ⚠️ THE ORIGINAL SURVEY NOTES, KEPT
 >
 > The work is real and it is **not** in this upload. What was established, so the
 > next round does not re-derive it:
@@ -731,7 +763,7 @@
 > `grep -rihn "Round [0-9]* (" . | grep -oP "Round \d+ \([A-Za-z-]+\)"`.
 
 
-<!-- HANDOFF.md v15.36.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.37.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 40; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
 
      v15.33.0 — Round 58 (Emerson). ⭐ START HERE REWRITTEN.
