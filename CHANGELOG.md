@@ -4768,6 +4768,44 @@ what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
 
+### learn.js v2.36.0 — archived by Round 58 (Emerson), 8-entry budget
+
+Pushed over the budget by v2.44.0 (ROADMAP 49, the stale hard-stop overlay).
+Verbatim, nothing deleted.
+
+⚠️⚠️ **TEN LIVE COMMENTS IN `learn.js` STILL CITE v2.36.0** — `remediationRun`'s
+guard, the run-list rebuild in `startLesson()`, the `practice` stamp on the
+session record, both modal exits, and the note that records written *before*
+v2.36.0 carry no stamp and cannot be told from real runs. **So this is where
+those citations resolve**, and the pointer left in v2.37.0's entry is
+load-bearing rather than courtesy — §0.-30.G's rule about checking for citations
+before archiving an entry.
+
+It is the round that stopped the 🎲 practice-missed-keys drill being graded as
+the lesson's run 1 — a clean 83-character random drill scoring A🔥 and unlocking
+the next lesson.
+
+```
+// v2.36.0 — ⚠️⚠️ A REMEDIATION DRILL WAS BEING GRADED AS A RUN OF THE LESSON.
+//           "🎲 Practice missed keys" replaces currentRuns with a synthetic
+//           key_random drill and deliberately leaves currentLesson alone, so
+//           everything downstream read it as the lesson's run 1: logRun() filed
+//           a sprint under the lesson's id, recordRunOutcome() banked mastery
+//           points into runScores["0"] and wrote runCount: 1 over a 12-run
+//           lesson's count, and saveProgress() marked the WHOLE LESSON passed.
+//           ⚠️ AND key_random IS ACCURACY-ONLY, so a clean 83-character random
+//           drill scored A🔥 and unlocked the next lesson. remediationRun now
+//           branches ABOVE the isLastRun fork — both modals write, so a guard in
+//           one still grades a multi-chunk drill. ⚠️ THE MINUTES STILL COUNT, in
+//           BOTH records: this is NOT ROADMAP 10's practice run, and suppressing
+//           them would manufacture item 4's divergence. tests/remediation-test.mjs.
+//           ⭐ ROADMAP 15 — runGrades/runFires store the grade WHERE IT IS
+//           EARNED (runScores is a SUM and cannot tell one A🔥 from two A's), and
+//           the grade rule moved to run-grade.js so reports.html can reconstruct
+//           without a second copy of it. Rule 9: the copies here are DELETED.
+//
+```
+
 ### admin.js v3.31.2 — archived by Round 57 (Bar-Lock), 8-entry budget
 
 Second archive from this file in one round; the ladder extraction pushed it back

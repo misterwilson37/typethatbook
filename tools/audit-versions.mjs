@@ -1,5 +1,17 @@
-// audit-versions.mjs v1.4.0 — Round 15 (Sholes's successor), Round 17 (Linotype),
-// Round 27 (Chicago), Round 28 (Daugherty).
+// audit-versions.mjs v1.5.0 — Round 15 (Sholes's successor), Round 17 (Linotype),
+// Round 27 (Chicago), Round 28 (Daugherty), Round 58 (Emerson).
+//
+// v1.5.0 — SOURCES mirrors versions.js v1.15.0: rights-ladder.js added. ⚠️ IT
+//          HAD BEEN MISSING SINCE ROUND 57 SHIPPED THAT MODULE, so this tool
+//          printed "0 problems" while one shipped file's stamp went unread —
+//          verified by mutation before the fix (constant 9.9.9 against a
+//          v1.0.0 header: 0 problems here, 1 failure in the harness).
+//          ⚠️⚠️ THE REASON IT SURVIVED IS THE PART WORTH KEEPING. version-
+//          stamp-test.mjs section D calls itself "the three mirrors agree" and
+//          both of its loops ended at the HARNESS's list — nothing was ever
+//          asserted INTO this file, so it could lose an entry silently. The
+//          missing direction is added there now. A mirror needs a check
+//          pointing AT it, not only away from it.
 //
 // v1.4.0 — MIRRORS versions.js v1.12.0's PROPORTIONAL HEADER BUDGET. The flat
 //          60-line limit is replaced by max(220, 8% of the file's CODE lines),
@@ -64,6 +76,7 @@ const SOURCES = [
     { file: 'hud.js',                pattern: /\bexport\s+const\s+HUD_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'chapter-position.js',   pattern: /\bexport\s+const\s+CHAPTER_POSITION_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'variety-floor.js',      pattern: /\bexport\s+const\s+VARIETY_FLOOR_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'rights-ladder.js',      pattern: /\bexport\s+const\s+RIGHTS_LADDER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'versions.js',           pattern: /\bexport\s+const\s+VERSIONS_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'update-gate.js',        pattern: /\bexport\s+const\s+UPDATE_GATE_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'daylog.js',             pattern: /\bexport\s+const\s+DAYLOG_VERSION\s*=\s*["']([^"']+)["']/ },

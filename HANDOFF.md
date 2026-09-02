@@ -1,6 +1,259 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-02 by Round 57 (Bar-Lock), for whoever is next
+> ## ▶ START HERE — written 2026-09-02 by Round 58 (Emerson), for whoever is next
+>
+> ✅ **ROADMAP 49 IS FIXED AND SHIPPED — `learn.js` v2.44.0.** ⚠️⚠️ **ROADMAP 50
+> IS STILL OPEN, STILL UNDIAGNOSED, AND IS THE ONLY OUTSTANDING DEFECT.** Jake reported them mid-round, with screenshots, from two different
+> children on two different browsers. **49 is closed; 50 is the top open item**
+> and outranks everything else in this file.
+>
+> ⚠️⚠️ **AND ON 49, JAKE CORRECTED MY DIAGNOSIS AND HE WAS RIGHT.** My first
+> answer was that Caps Lock made every keystroke a mistake and blocked the
+> hard-stop release. Both true — and neither explains the screenshot, because the
+> overlay demanded `S` on a line reading `;lfd;`, which has no `s` in it. I filed
+> the mismatch as an open question about letter-case and moved on. **He pushed
+> back with the drill text.** The real defect was that `beginStep()` cleared
+> `drillIsHardStop` and left the overlay DIV in the document. ⚠️ **A diagnosis
+> that explains most of a report is not a diagnosis; it is a hypothesis that has
+> recruited the evidence it likes. WHEN ONE DETAIL DOES NOT FIT, THAT DETAIL IS
+> THE FINDING.**
+>
+> ⚠️⚠️ **AND HE THEN RULED CAPS LOCK NOT-A-BUG:** *"The kid needs to learn to turn
+> off caps lock... that's the kid needing to learn."* **The `e.key` comparison is
+> CORRECT — do not "fix" it.** With Caps Lock on the child really is producing the
+> wrong character, and the banner already says so. `learn.js` teaches capitals, so
+> forgiving case would make every capital-letter drill **unfailable, silently**.
+> `hardstop-overlay-test.mjs` carries **no** Caps Lock case on purpose and its
+> header says why, so nobody adds one thinking it was an oversight.
+>
+> ⭐ **HE SAID THEY COULD WAIT AND I STOPPED ANYWAY, AND THAT WAS THE RIGHT CALL.**
+> His words: *"They can go on the roadmap if you're in the middle of fixing
+> something, but above what was already on it."* I was in the middle of item 42's
+> `admin.js` half — a finished, verified 250-declaration transform sitting in a
+> scratch copy. **I set it down and did not ship it.** A cosmetic change to the
+> admin page, landing in the same upload as a counting bug he is actively
+> hunting, would put "and the styling changed" into the middle of his diagnosis.
+> That is §0.-11.D's argument exactly, and it is why item 42 is still open.
+>
+> ### ⚠️⚠️ ROADMAP 49 IS THREE DEFECTS IN A CHAIN — AND I GOT IT WRONG FIRST
+>
+> **Caps Lock is on in both screenshots and the red banner is up in both.** The
+> app detects the condition, tells the child, and then behaves as if it had not.
+> `e.key` is the CHARACTER the OS produced: with Caps Lock on, the `s` key
+> delivers `'S'`, and the drill expects `'s'`.
+>
+> * **The ordinary path** (`typed = e.key`, `typed === newExpected`) scores every
+>   correct keystroke as a mistake. **That is where the 25% and 64% accuracy in
+>   the screenshots came from, and it is graded work.**
+> * **The hard-stop release branch** makes the same comparison, so the overlay
+>   saying *"type the correct key to continue"* rejects the correct key. **The
+>   child cannot finish the drill by typing correctly.**
+>
+> ⭐⭐ **AND NEITHER OF THOSE EXPLAINS WHAT JAKE PHOTOGRAPHED.** The overlay
+> demanded `S` on a line reading `;lfd;` — no `s` in it anywhere, in QWERTY. I
+> filed that mismatch as an open question about the glyph's letter-case and moved
+> on. **Jake pushed back with the drill text and he was right to.** The answer:
+> `#drill-hardstop` is removed in exactly three places and **`beginStep()` is not
+> one of them** — it clears `drillIsHardStop` and leaves the DIV in the document,
+> and the DIV's parent `#drill-keyboard-wrap` is static markup that survives a
+> restart. So a Caps-Locked child hits the hard stop, cannot release it (defect
+> two), presses `↻ Restart`, and gets a brand-new random drill under **a red
+> letter from the sequence that was just thrown away.**
+>
+> ⭐ **THE CONFIRMATION IS IN THE SCREENSHOTS WITHOUT READING ANY CODE:** the
+> overlay is `rgba(255,255,255,0.92)` over `inset:0`, and in both images the whole
+> keyboard is washed out to near-white while the drill text above it is at full
+> contrast. I had both screenshots in front of me and did not look at the
+> keyboard's brightness.
+>
+> ⚠️⚠️ **THE LESSON, AND IT IS THE ROUND'S:** I found a real defect that explained
+> the Caps Lock banner, the 25% accuracy and the lockout, and I stopped — because
+> three of the four symptoms fit. **The fourth was the one he asked about.** A
+> diagnosis that explains most of a report is not a diagnosis; it is a
+> hypothesis that has recruited the evidence it likes. §0.-12.F's rule is to get a
+> population before theorising, and the mirror of it is this: when one detail does
+> not fit, that detail is the finding.
+>
+> ⚠️⚠️ **THE FIX IS NOT `.toLowerCase()` ON BOTH SIDES.** `learn.js` teaches
+> capitals — Shift+A is a real drill and the modifier guard lets Shift through on
+> purpose (§0.-10.D). A blanket lowercase makes every capital lesson unfailable,
+> silently. The missing distinction is between a capital the child MEANT and one
+> the machine IMPOSED, and `e.getModifierState('CapsLock')` already answers it —
+> `learn.js:4465` calls it today just to toggle the banner. **Three shapes are
+> written into the item and the choice is Jake's.**
+>
+> ⚠️ **THE TWO SITES ARE A TWIN.** Fixing the release without the scoring path
+> leaves a child who can continue and is still marked wrong on every letter.
+>
+> ### ✅ WHAT SHIPPED FOR 49, AND THE TWIN THAT WAS *NOT* FIXED
+>
+> `learn.js` **v2.44.0**. `_hideHardStopOverlay()` is now the one home for the
+> removal, and the release branch, the spam-restart branch and **`beginStep()`**
+> all go through it. ⚠️ **THE FIX IS OWNERSHIP, NOT A LINE** — the flag and the
+> element were one piece of state in two places, and patching `beginStep()` alone
+> leaves the next site free to repeat it.
+>
+> `tests/hardstop-overlay-test.mjs` v1.0.0, 9 assertions, **mutation-verified red
+> against v2.43.0 — the build in the screenshots.** Part A reads every
+> `drillIsHardStop = false` out of the shipped source and requires each to clear
+> the overlay within six lines. ⚠️ *"Does `beginStep()` remove it"* would pass
+> forever and say nothing about the next site, **and a third site appearing
+> unnoticed is what this defect WAS.**
+>
+> ⚠️ **THE HARNESS CORRECTED ME TWICE WHILE I WROTE IT**, and both belong here:
+> its first draft matched the `let drillIsHardStop = false;` **declaration** and
+> went red against the correct build (§0.-14.G), and I pinned **three** clear
+> sites when there are **two** — the spam branch removes the element and reaches
+> the flag through `beginStep()` via a `setTimeout`, which is one site across two
+> functions.
+>
+> ✅ **`game.js` WAS TRACED, ON JAKE'S INSTRUCTION, AND CORRECTLY LEFT ALONE.**
+> It has the same asymmetry — `isHardStop` cleared at three sites, only
+> `resumeGame()` hides `#modal` — and **not** the bug. Four routes checked:
+> `showStatsModal()` closes the modal before every callback; the hard-stop modal
+> **has no button** (`btn.style.display = 'none'`); the keystroke handler's
+> `if (isHardStop)` branch **returns unconditionally**, so the smart-start path
+> that fires `modalActionCallback` cannot run; and the practice button lives in
+> the *stats* modal, not this one.
+>
+> ⚠️⚠️ **SAFE BY CIRCUMSTANCE, NOT BY CONSTRUCTION — THAT IS THE PART TO CARRY.**
+> Two of those four are one-liners that do not look load-bearing where they sit: a
+> hidden button and a `return`. **Delete either and Library acquires School's
+> bug**, with nothing else in the suite noticing. `hardstop-overlay-test.mjs`
+> **Part E** pins both, mutation-verified — exposing the button fails one, removing
+> the `return` fails the other.
+>
+> ⚠️ **AND NOTE WHAT WAS *NOT* DONE:** no change to `game.js`. The fix would have
+> been a change to shared modal plumbing in service of a bug nobody can produce.
+> §0.-28.H is the round that acted on a twin's assumed behaviour and was wrong.
+>
+> ⚠️ `learn.js`'s v2.36.0 entry went to `CHANGELOG.md` § ARCHIVED FILE HEADERS for
+> the 8-entry budget. **Ten live comments in the file still cite v2.36.0**, so the
+> pointer folded into v2.37.0's entry is load-bearing, not courtesy (§0.-30.G).
+>
+> ### ⚠️⚠️ ROADMAP 50 IS *NOT* DIAGNOSED, AND THE ITEM'S VALUE IS WHAT IT RULES OUT
+>
+> A student whose daily rows total **26m 15s** — and whose report shows exactly
+> that — has a top bar reading `Daily 6:55` beside `Weekly 6:55`. ⚠️ **Weekly
+> equals today PRECISELY**, in two students, so every other day of the week
+> returned **zero** through `readWeek()` while the same documents read correctly
+> from `reports.html`. **There is no off-by-one to look for.**
+>
+> Ruled out and executed, not reasoned about: the Saturday anchor across the
+> month boundary (`weekStartOf` is correct for all of 08-29 → 09-04), the HUD
+> paint, and Round 57's new `rollDayIfNeeded()` week reset — which is guarded on
+> a string-vs-string comparison that does not fire inside one week. ⚠️ **A
+> Date-vs-string comparison there WOULD have produced exactly this symptom; it
+> was checked for that reason and is innocent.**
+>
+> ⚠️⚠️ **THE ONE FACT THAT NARROWS IT: NO CALLER PASSES A LEDGER.** All nine
+> `readWeek()` call sites use the default, which is `ledgerFrom(null, uid)` —
+> **this machine's localStorage mirror and nothing else.** The server's
+> `ttbLogDays` is never consulted by the student pages, though `daylog.js`'s own
+> comment asks for it. So the reader's entire notion of which days a student typed
+> on is a per-browser cache, and the two mechanisms that can silently return a
+> zero (`planReads()`'s skip, the closed-day cache) are both per-browser too.
+>
+> ⭐ **THE CHECK IS IN THE ITEM AND NEEDS NO CONSOLE — students have no devtools
+> (item 43 is the write-up of a repair that could not be delivered for that
+> reason).** Sign in as the affected student **on Jake's machine** and read the
+> top bar; correct there and wrong on the student's machine puts it in the
+> per-browser caches, and the fix is the one `daylog.js` already asks for.
+> ⚠️ **DO NOT SHIP A FIX BEFORE THAT ANSWER** — §0.-27 is the round that spent
+> itself fixing a premise that had already moved.
+>
+> ### ✅ WHAT SHIPPED: A HOLE IN THE INSTRUMENT THAT REPORTS THE BUILD IS HONEST
+>
+> `rights-ladder.js` shipped in Round 57 into `versions.js` and into
+> `version-stamp-test.mjs` — and **not** into `tools/audit-versions.mjs`. So
+> `npm run audit:versions`, the figure every handoff in this file quotes as
+> evidence, **was not reading that module's stamp at all.** Verified by mutation
+> before the fix: constant `9.9.9` against a `v1.0.0` header printed **0
+> problems**.
+>
+> ⚠️⚠️ **WHY IT SURVIVED IS THE PART WORTH CARRYING.** Section D calls itself
+> *"the three mirrors of the source list agree"* and **both of its loops ended at
+> the harness's own list** — `shipped → mine` and `audit → mine`. Nothing was ever
+> asserted INTO the audit tool, so that list could lose an entry silently. Worse,
+> D2's failure message instructs the next round to add a module to all three
+> *"(section D checks all three agree)"*, which was **false when it was written**.
+> ⚠️ **A MIRROR NEEDS A CHECK POINTING AT IT. Two checks running away from the
+> same list prove nothing about the lists they came from, however many there
+> are.** The missing direction is added and mutation-verified: it goes red against
+> the repo exactly as it arrived.
+>
+> ### ⚠️ ITEM 42's admin.js HALF — WHAT EXISTS AND WHAT IT COST TO NOT SHIP
+>
+> The work is real and it is **not** in this upload. What was established, so the
+> next round does not re-derive it:
+>
+> * ⭐ **Round 57's survey is accurate.** Exactly **three** `.style.<prop> = ''`
+>   assignments (build-panel `display` L666, `.seg-row` background L3857,
+>   `.seg-text` color L3859) — I checked, and there is no fourth.
+> * ⚠️⚠️ **A HAZARD ROUND 57's SURVEY DID NOT NAME: 21 of the styled tags ALREADY
+>   CARRY A `class=` ATTRIBUTE, and none carries one after the `style=`.** Adding
+>   a second `class=` is not an error in any parser — **the first wins and the
+>   second is discarded silently**, so the utilities would simply not apply and
+>   nothing on screen would say so. The transform must MERGE, and 16 of the
+>   rewrites do.
+> * ⚠️ **Round 56's transformer genuinely does not apply** (it aligned a real DOM;
+>   these are template strings) — but the replacement safety property is
+>   *stronger*, not weaker: every edit is a `(start, end)` **span** computed from
+>   the original string in one pass and applied right-to-left, asserted
+>   non-overlapping. **Nothing is located by anchor text, so there is no anchor to
+>   match the wrong occurrence** — which is the failure Round 56 records.
+> * The vetted run: **136 spans, 250 declarations moved, 0 name collisions, 46
+>   existing `admin.html` utilities reused, 31 new.** Output parses (`node
+>   --check`) and no tag ends with two `class=` attributes. `.seg-row`'s
+>   conditional heading background is among the **13 refused as dynamic** — which
+>   is how the one hazard shape that matters excludes itself rather than by
+>   anyone remembering it.
+> * ⚠️ **Jake's font-size ladder: 12 distinct values → 6**, every move to the
+>   nearest surviving rung.
+> * ⚠️⚠️ **COLOUR WAS DELIBERATELY EXCLUDED AND THE COLOUR HALF IS THE ONE THAT
+>   UNBLOCKS ITEM 38.** 128 `color` and 39 `background` declarations remain
+>   inline. Every excluded property is one that `admin.js` assigns at runtime
+>   (`.style.borderColor` ×43, `.style.color` ×16, `.style.opacity` ×6,
+>   `.style.background` ×6, `.style.display` ×4, `.style.fontWeight` ×1). **So
+>   "42's admin.js half" is not one job, it is two**, and the half that was ready
+>   is the half that does NOT unblock 38. Say that plainly rather than reporting
+>   42 as nearly done.
+> * ⚠️ **A CHECK I HAD TO LOOSEN, RECORDED SO IT IS NOT TIGHTENED BACK.** The
+>   collision check first compared `"font-size: 0.75em"` against
+>   `"font-size: 0.75em;"` and reported **46 collisions against a file that agreed
+>   with itself perfectly.** §0.-14.G is the standing note: a checker that cries
+>   wolf on honest input is a checker the next round skips.
+>
+> ### THE STATE OF PLAY
+>
+> * **67 harnesses pass, `audit:versions` 0 problems** — verified on arrival
+>   BEFORE anything was changed (`npm install` first — §0.-29.A), and again after.
+> * ⚠️ **`npm run test:rules` WAS NOT RUN THIS ROUND.** Java 21 is present in this
+>   container, so it was available; nothing this round touched `firestore.rules`,
+>   and the emulator install is a large download. **Run it in any round that
+>   touches the rules, and say in the handoff whether you did.**
+> * **34 and 35** still wait on a week of Jake's real data. **30** is unreproduced.
+>   **39** wants its own conversation. **47 step two** is the functions-side COPY
+>   plus a byte-identity harness — read Round 57's correction, the Cloud Function
+>   cannot import it.
+> * ⚠️ **The reads measurement has still never been taken.**
+>
+> *On the name:* the **Emerson** (1907) swung its typebars in horizontally from
+> **both sides at once**, meeting at a single printing point — two mirrored banks
+> that only produced a clean letter because each was aligned against the other.
+> That is this round twice. `versions.js` and `tools/audit-versions.mjs` are two
+> banks of the same list, and every check ran from one of them toward the harness
+> and none ran back, so one side drifted and the page still looked right.
+> `admin.html` and `admin.js` are the other pair — two halves building one screen,
+> one of them governed by a stylesheet and the other by 539 inline declarations.
+> ⚠️ And the machine's real lesson is the one that stopped this round: the Emerson
+> failed commercially because it was solving alignment beautifully while the
+> market wanted **visible writing**. I had a verified 250-declaration
+> transformation in hand and Jake had two children who could not finish a drill.
+> **Correct work on the wrong thing is still the wrong thing.**
+
+> ## Round 57 (Bar-Lock) — the previous handoff, kept
+
 >
 > ⭐⭐ **THE BUILD IS FULLY GREEN FOR THE FIRST TIME IN SEVERAL ROUNDS.** 66
 > harnesses, `test:rules` 89/89, `audit:versions` 0 problems. **If your first run
@@ -421,8 +674,46 @@
 > `grep -rihn "Round [0-9]* (" . | grep -oP "Round \d+ \([A-Za-z-]+\)"`.
 
 
-<!-- HANDOFF.md v15.32.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.34.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 40; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.33.0 — Round 58 (Emerson). ⭐ START HERE REWRITTEN.
+     ⚠️⚠️ TWO LIVE STUDENT-FACING DEFECTS ARE OPEN AND NEITHER IS FIXED —
+     ROADMAP 49 (Caps Lock makes a School drill uncompletable AND the hard stop
+     will not release: e.key delivers 'S' where the drill expects 's', so every
+     correct keystroke scores as a mistake — that is the 25% and 64% accuracy in
+     Jake's screenshots, and it is graded work) and 50 (the weekly HUD equals
+     TODAY exactly while reports.html totals the same days correctly).
+     ✅ 49 IS FIXED — learn.js v2.44.0, hardstop-overlay-test.mjs (NEW), 68
+     harnesses. ⚠️⚠️ CAPS LOCK IS RULED NOT-A-BUG BY JAKE and the e.key
+     comparison MUST NOT BE "FIXED" — learn.js teaches capitals.
+     ✅ game.js TRACED and correctly left alone: same asymmetry, NOT the bug —
+     no button on the hard-stop modal, and the keystroke handler's isHardStop
+     branch returns unconditionally. ⚠️⚠️ SAFE BY CIRCUMSTANCE, NOT BY
+     CONSTRUCTION: two one-liners hold it up, so Part E pins both.
+     ⚠️⚠️ THE FIRST WRITE-UP OF 49 WAS WRONG:
+     beginStep() clears drillIsHardStop and LEAVES THE OVERLAY DIV, so a Restart
+     shows a fresh drill under a red letter from the discarded sequence. That is
+     what Jake photographed; I had filed it as an open question about letter-case
+     and he caught it. A diagnosis that explains most of a report is a hypothesis.
+     ⚠️ THE FIX IS NOT .toLowerCase() — learn.js teaches capitals. 50 IS NOT DIAGNOSED and the item's value is what it RULES
+     OUT (week anchor across the month boundary, the HUD paint, Round 57's new
+     rollDayIfNeeded week reset) plus one NO-CONSOLE check — students have no
+     devtools.
+     ⭐ ITEM 42's admin.js HALF WAS FINISHED IN A SCRATCH COPY AND DELIBERATELY
+     NOT SHIPPED. Jake said the defects could wait if I was mid-fix; shipping a
+     250-declaration cosmetic change into the same upload as a counting bug he
+     is hunting is §0.-11.D's mistake. Everything established about it is in
+     START HERE so the next round does not re-derive it — including a hazard
+     Round 57's survey did NOT name: 21 styled tags already carry a class=, and
+     a second class= attribute is discarded SILENTLY by every parser.
+     ✅ SHIPPED: rights-ladder.js reached versions.js and version-stamp-test.mjs
+     in Round 57 and NOT tools/audit-versions.mjs, so audit:versions printed
+     "0 problems" while one shipped module's stamp went unread.
+     ⚠️⚠️ IT SURVIVED BECAUSE SECTION D's TWO LOOPS BOTH ENDED AT THE HARNESS'S
+     OWN LIST while D2's message claimed section D checked all three. A MIRROR
+     NEEDS A CHECK POINTING AT IT. Mutation-verified both ways.
+     67 harnesses, 0 audit problems. test:rules NOT run (rules untouched).
 
      v15.32.0 — Round 57 (Bar-Lock). ⭐ START HERE REWRITTEN. THE BUILD IS FULLY
      GREEN — 66 harnesses, test:rules 89/89, 0 audit problems — for the first

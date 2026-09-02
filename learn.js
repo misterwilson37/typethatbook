@@ -1,4 +1,28 @@
-// learn.js v2.43.0
+// learn.js v2.44.0
+//
+// v2.44.0 — ⚠️⚠️ ROADMAP 49: A RESTARTED DRILL INHERITED THE PREVIOUS ONE'S
+//           HARD-STOP OVERLAY. `#drill-hardstop` was removed at two sites and
+//           `drillIsHardStop` cleared at two; beginStep() was the one that
+//           cleared the flag and left the ELEMENT standing. Its parent,
+//           #drill-keyboard-wrap, is static markup in learn.html that
+//           beginStep() never rebuilds, so nothing tore it down.
+//           ⚠️ WHAT JAKE PHOTOGRAPHED: a drill reading `;lfd;` under a red `S`
+//           and "Too many errors — type the correct key to continue". The `S`
+//           was the expected character of the sequence that had just been
+//           discarded. Two students, two browsers.
+//           ⚠️⚠️ THE FLAG WAS ALREADY FALSE, SO THE DRILL UNDERNEATH WAS LIVE
+//           AND SCORING under a 92%-white sheet — the app grading a run the
+//           child believed it was refusing them. Worse than a lock.
+//           ⚠️ THE FIX IS OWNERSHIP, NOT A LINE: both now go through
+//           _hideHardStopOverlay(), and hardstop-overlay-test.mjs asserts the
+//           PAIRING at every site that clears the flag — a third site appearing
+//           unnoticed is what this defect WAS.
+//           ⚠️⚠️ CAPS LOCK IS WHAT GETS A STUDENT HERE AND IS NOT FIXED, ON
+//           JAKE'S RULING (2026-09-02): "The kid needs to learn to turn off caps
+//           lock... that's the kid needing to learn." With Caps Lock on the
+//           child really is producing the wrong character and the banner says
+//           so. DO NOT "fix" the e.key comparison — this file teaches capitals,
+//           and forgiving case would make every capital drill unfailable.
 //
 // v2.43.0 — ⚠️⚠️ ROADMAP 9: THE DAY ROLLOVER IS NO LONGER TICK-ONLY. The twin of
 //           game.js v3.47.0(a), and it must stay the twin. The rollover fired
@@ -137,24 +161,12 @@
 //           ⚠️ EVERY HEADER ENTRY WAS CITED IN LIVE CODE, so v2.31.0 went to
 //           CHANGELOG.md's archive rather than an uncited one; its citations
 //           resolve there.
-//
-// v2.36.0 — ⚠️⚠️ A REMEDIATION DRILL WAS BEING GRADED AS A RUN OF THE LESSON.
-//           "🎲 Practice missed keys" replaces currentRuns with a synthetic
-//           key_random drill and deliberately leaves currentLesson alone, so
-//           everything downstream read it as the lesson's run 1: logRun() filed
-//           a sprint under the lesson's id, recordRunOutcome() banked mastery
-//           points into runScores["0"] and wrote runCount: 1 over a 12-run
-//           lesson's count, and saveProgress() marked the WHOLE LESSON passed.
-//           ⚠️ AND key_random IS ACCURACY-ONLY, so a clean 83-character random
-//           drill scored A🔥 and unlocked the next lesson. remediationRun now
-//           branches ABOVE the isLastRun fork — both modals write, so a guard in
-//           one still grades a multi-chunk drill. ⚠️ THE MINUTES STILL COUNT, in
-//           BOTH records: this is NOT ROADMAP 10's practice run, and suppressing
-//           them would manufacture item 4's divergence. tests/remediation-test.mjs.
-//           ⭐ ROADMAP 15 — runGrades/runFires store the grade WHERE IT IS
-//           EARNED (runScores is a SUM and cannot tell one A🔥 from two A's), and
-//           the grade rule moved to run-grade.js so reports.html can reconstruct
-//           without a second copy of it. Rule 9: the copies here are DELETED.
+//           ⚠️ v2.36.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS
+//           (8-entry budget, Round 58). ⚠️⚠️ TEN LIVE COMMENTS IN THIS FILE
+//           STILL CITE v2.36.0 — the remediation stamp, the run-list rebuild,
+//           both modal exits — so that pointer is load-bearing, not courtesy.
+//           It is the round that stopped the 🎲 practice drill being graded as
+//           the lesson's run 1.
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
@@ -258,7 +270,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.43.0";
+const LEARN_VERSION = "2.44.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -2481,6 +2493,10 @@ function beginStep(stepIdx) {
     drillBackspaceOrigin = -1;
     drillConsecutiveMistakes = 0;
     drillIsHardStop = false;
+    // ⚠️ ROADMAP 49 — THE ELEMENT GOES WITH THE FLAG. This line was missing and
+    // it is the whole defect: a restarted drill inherited the previous
+    // sequence's overlay. See _hideHardStopOverlay().
+    _hideHardStopOverlay();
     stepStartTime = Date.now();
     // ⚠️ v2.5.1 — THIS LINE WAS THE OUTAGE. v2.5.0 deleted the checkpoint system
     // and the local `resume` object with it, but left this reference standing:
@@ -2791,8 +2807,7 @@ function handleDrillKey(e) {
             drillIsHardStop = false;
             drillConsecutiveMistakes = 0;
             // Clear the hard stop overlay and re-enable timer
-            const hsEl = document.getElementById('drill-hardstop');
-            if (hsEl) hsEl.remove();
+            _hideHardStopOverlay();
             clearInterval(timerInterval);
             startGradedTimer();
             learnLastInputTime = Date.now();
@@ -2929,8 +2944,7 @@ function handleDrillKey(e) {
             const stepIdx = currentStepIdx;
             clearInterval(timerInterval);
             clearInterval(learnTickInterval);
-            const hsEl = document.getElementById('drill-hardstop');
-            if (hsEl) hsEl.remove();
+            _hideHardStopOverlay();
             setTimeout(() => beginStep(stepIdx), 400);
             return;
         }
@@ -4554,10 +4568,31 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
+// ⚠️⚠️ THE OVERLAY AND THE FLAG ARE ONE PIECE OF STATE, AND THEY USED TO BE TWO.
+// ROADMAP 49: `drillIsHardStop` was cleared at three sites and the DIV removed at
+// two of them. beginStep() cleared the flag and left the element in the document
+// — and the element's parent, #drill-keyboard-wrap, is static markup in
+// learn.html that beginStep() never rebuilds, so nothing tore it down. A student
+// who hit the hard stop and pressed ↻ Restart got a brand-new random drill under
+// a red letter from the sequence that had just been thrown away, demanding a key
+// that was no longer anywhere in their text. Jake photographed exactly that.
+//
+// ⚠️ THE FLAG WAS FALSE BY THEN, SO THE DRILL UNDERNEATH WAS LIVE AND SCORING.
+// That is worse than a lock: the app was grading a run the child believed it was
+// refusing them. §0.-21.E — the one case where nothing is wrong is the case that
+// has to say so out loud, and this was saying the opposite.
+//
+// ⚠️ SO CLEAR BOTH THROUGH THIS ONE FUNCTION, NEVER BY HAND. A future site that
+// clears the flag and forgets the element re-creates the defect exactly, and
+// tests/hardstop-overlay-test.mjs asserts the pairing rather than the call sites.
+function _hideHardStopOverlay() {
+    const el = document.getElementById('drill-hardstop');
+    if (el) el.remove();
+}
+
 function _showHardStopOverlay(targetChar) {
     // Remove any existing overlay first
-    const existing = document.getElementById('drill-hardstop');
-    if (existing) existing.remove();
+    _hideHardStopOverlay();
 
     let friendly = targetChar;
     if (targetChar === ' ')  friendly = 'Space';

@@ -1,4 +1,23 @@
-// version-stamp-test.mjs v1.2.0 — Round 27 (Chicago), Round 28 (Daugherty).
+// version-stamp-test.mjs v1.3.0 — Round 27 (Chicago), Round 28 (Daugherty),
+// Round 41 (Rem-Sho), Round 58 (Emerson).
+//
+// v1.3.0 — ⚠️⚠️ SECTION D WAS NOT CHECKING WHAT IT SAID IT CHECKED. It calls
+//          itself "the three mirrors of the source list agree" and D2's own
+//          failure message tells the next round that section D checks all
+//          three — but both of D's loops ended at THIS harness's list, so no
+//          assertion ever pointed INTO tools/audit-versions.mjs. That list
+//          could lose an entry and D stayed green.
+//          ⚠️ IT HAD ALREADY LOST ONE. rights-ladder.js shipped in Round 57
+//          into versions.js and into this file, and not into the audit tool,
+//          so `npm run audit:versions` reported "0 problems" while that
+//          module's stamp went unread — the figure every handoff quotes as
+//          evidence the build is honest. Mutation-verified both ways: the new
+//          assertion goes red against the repo exactly as it arrived, and with
+//          the entry restored the audit tool catches a 9.9.9-against-v1.0.0
+//          constant it previously passed.
+//          ⚠️ THE GENERAL FORM: a mirror needs a check pointing AT it. Two
+//          checks running away from the same list prove nothing about the
+//          lists they came from, however many of them there are.
 //
 // v1.1.0 — ⚠️⚠️ SECTION E IS A FAILURE NOW, NOT A NOTE — AND READ WHY BEFORE
 //          TOUCHING IT. The block below says notes stay notes because a suite
@@ -266,6 +285,31 @@ console.log('\n─── D. ⚠️ THE THREE MIRRORS OF THE SOURCE LIST AGREE �
     for (const f of audit) {
         ok(mine.includes(f),
            `⚠️ tools/audit-versions.mjs checks ${f} and this harness does not`);
+    }
+    // ⚠️⚠️ THIS DIRECTION WAS MISSING UNTIL ROUND 58, AND ITS ABSENCE HAD ALREADY
+    // COST SOMETHING. Both loops above end at `mine`, so nothing ever asserted a
+    // file INTO tools/audit-versions.mjs — that list could quietly lose entries
+    // and this section stayed green while calling itself "the three mirrors
+    // agree". D2's own failure message told the next round that section D checks
+    // all three, which was false when it was written.
+    //
+    // What it cost: rights-ladder.js shipped in Round 57, was added to
+    // versions.js and to this harness, and was NOT added to the audit tool.
+    // `npm run audit:versions` — the offline instrument every handoff quotes as
+    // "0 problems" — was therefore not checking that module's stamp at all.
+    // Verified by mutation: with the constant set to 9.9.9 against a v1.0.0
+    // header, the audit printed 0 problems and this harness printed the failure.
+    //
+    // ⚠️ THE ASYMMETRY BELOW IS STILL DELIBERATE AND THIS IS NOT AN EXCEPTION TO
+    // IT. That one is about versions.js FETCHING over HTTP. audit-versions.mjs
+    // and this harness both read the same files off the same disk, and
+    // audit-versions.mjs's own header calls itself a mirror of versions.js, so
+    // there is no file versions.js can legitimately carry that it cannot.
+    for (const f of shipped) {
+        ok(audit.includes(f),
+           `⚠️ versions.js checks ${f} and tools/audit-versions.mjs does not — ` +
+           `npm run audit:versions will report "0 problems" while that file's ` +
+           `stamp goes unread. Add it to tools/audit-versions.mjs's SOURCES.`);
     }
     // ⚠️ NOT symmetrical on purpose: versions.js FETCHES over HTTP and may
     // legitimately carry a file this offline check cannot reach.

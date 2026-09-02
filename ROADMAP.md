@@ -1,5 +1,9 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.54.0, 2026-09-02 (Round 58, Emerson, later).** ✅ **ITEM 49 CLOSED — `learn.js` v2.44.0.** `beginStep()` cleared `drillIsHardStop` and left the overlay DIV standing, and its parent `#drill-keyboard-wrap` is static markup it never rebuilds — so a student who hit the hard stop and pressed ↻ Restart got a fresh random drill under a red letter from the sequence just discarded. ⚠️⚠️ **The flag was already false, so the drill underneath was LIVE AND SCORING under a 92%-white sheet** — the app grading a run the child believed it was refusing. `hardstop-overlay-test.mjs` v1.0.0, mutation-verified red against v2.43.0. ⚠️⚠️ **CAPS LOCK IS RULED NOT-A-BUG.** Jake, 2026-09-02: *"The kid needs to learn to turn off caps lock... that's the kid needing to learn."* **The `e.key` comparison is CORRECT and must not be "fixed"** — this file teaches capitals and forgiving case would make every capital drill unfailable; the harness carries no Caps Lock case on purpose. ✅ **`game.js` TRACED AND CORRECTLY LEFT ALONE** — it has the same asymmetry and **not** the bug: the hard-stop modal has no button, the keystroke handler's `isHardStop` branch returns unconditionally, and `showStatsModal()` closes before every callback. ⚠️⚠️ **It is safe by circumstance, not construction** — two one-liners hold it up, so `hardstop-overlay-test.mjs` **Part E** pins both, mutation-verified. ⚠️ **Item 50 (the weekly HUD) is now the only open defect** and is still undiagnosed.
+
+**v3.53.0, 2026-09-02 (Round 58, Emerson).** ⚠️⚠️ **TWO LIVE STUDENT-FACING DEFECTS ARE NEW AT THE TOP AND NEITHER IS FIXED — 49 AND 50.** Jake reported both mid-round with screenshots. **49** is three defects in a chain: with **Caps Lock on**, `e.key` delivers `'S'` where the drill expects `'s'`, so every correct keystroke scores as a mistake AND the hard-stop release branch never matches — and then `beginStep()` clears the hard-stop FLAG while leaving the overlay ELEMENT in the document, so a `↻ Restart` produces a fresh drill under a stale red letter from the sequence just discarded. ⚠️⚠️ **That last one is what Jake actually photographed, and the first write-up of the item missed it** — it filed the mismatch as an open question about letter-case. He pushed back with the drill text (`;lfd;` — no `s` anywhere) and he was right. ⚠️ **The fix is NOT a blanket `.toLowerCase()`** — `learn.js` teaches capitals — and the three shapes are Jake's to choose between. **50** is NOT diagnosed: the weekly HUD equals today EXACTLY while `reports.html` totals the same days correctly, and the item records what was ruled out (week anchor across the month boundary, the HUD paint, Round 57's `rollDayIfNeeded()` week reset) plus the one **no-console** check that splits the rest. ⚠️ **Students have no devtools** — the check is run from Jake's chair. ✅ **Shipped this round: a gap in the version machinery.** `rights-ladder.js` reached `versions.js` and `version-stamp-test.mjs` in Round 57 and NOT `tools/audit-versions.mjs`, so `npm run audit:versions` — the "0 problems" every handoff quotes — was not reading that module's stamp. ⚠️⚠️ **It survived because section D's two loops both ended at the harness's own list**: nothing was ever asserted INTO the audit tool, while D2's message told the next round that "section D checks all three agree." Mutation-verified both ways. ⚠️ **ITEM 42's admin.js HALF WAS STARTED AND DELIBERATELY NOT SHIPPED** — see the handoff; the transform was complete and verified in a scratch copy when Jake reported the two defects, and a 250-declaration cosmetic change is the wrong thing to put in front of a teacher hunting a counting bug.
+
 **v3.52.0, 2026-09-01 (later still).** ✅ **ITEM 46 CLOSED** — `admin.js` v3.38.0 stamps `uploadedBy` from the signed-in uid on CREATE only, read-only, gated by `alreadyExists` so it costs **no extra Firestore read** and an overwrite cannot restamp. ⚠⚠ An unstamped book reads "added before this was recorded" and is **never guessed as Jake**. ✅ Contributor fallback for a missing `dc:creator` (v3.37.0) — ⚠️ **three** places read `dc:creator` and the third feeds `looksLikeLeadingMatter()`, so a blank author there imports the Gutenberg title page **as chapter one**. ⭐ **Item 47 corrected against the code**: the ladder is **six** models behind ONE callable, `generatePractice`; it powers AI practice only and **lessons do not use Gemini at all**; and ⚠⚠ 47 must share the model chain, NOT that endpoint, which is quota'd at 5/day per student uid.
 
 **v3.51.0, 2026-09-01 (later).** ✅ **THE FIVE TINTED BUTTONS ARE FIXED, NOT DEFERRED.** Round 56 first left them inline on the reasoning that reviving a dead `:hover` is a visible change and so Jake's to approve; Jake: *"You have buttons that don't work or are invisible? They need to be fixed."* He was right — a suppressed `:disabled` is a defect, not a design decision awaiting sign-off. Tints moved to `.btn-tint-*` guarded by `:not(:disabled)`, hover is a derived `filter: brightness()` so **no new colour was added** while item 38 is open. Three `#0047AB` inlines were identical to `button{background}` and just deleted. `admin.html` **20 → 9** inline attributes; three duplicate font-size classes merged (`.8em` and `0.8em` were the same size under two names). ✅ `admin.js` **v3.37.0** — contributor fallback (see below) folded in with the genre change, since neither had shipped. ⭐ **New items 45, 46, 47** — building filtering, upload provenance, and the Gemini licence check. ⚠️ **47 answers Jake's ladder question: extract it, but the reason is the Cloud Function, not current duplication.**
@@ -347,11 +351,13 @@ numbers × the county's student count are the rollout argument.
 ---
 
 
-1. **47. ⭐ A GEMINI LICENCE CHECK, AND THE RIGHTS LADDER IT WOULD NEED LIFTED OUT OF admin.js FIRST**
+1. **50. ⚠️⚠️ THE WEEKLY HUD IS SHOWING ONLY TODAY — A STUDENT WITH 26m READS 6m**
+   — ⚠️ **REPORTED BY JAKE 2026-09-02. NOT DIAGNOSED. The item says what was RULED OUT and gives the one no-console check that splits the rest.** Do not guess past it.
+2. **47. ⭐ A GEMINI LICENCE CHECK, AND THE RIGHTS LADDER IT WOULD NEED LIFTED OUT OF admin.js FIRST**
    — ⚠️ **UNBLOCKED IN ROUND 57.** It waited on `metadata-map-test.mjs` being
    green, and that harness is green: the 39 assertions were test rot, not a
    defect. The ladder can be extracted now.
-2. **27. ⚠️ game.js READS A WEEK IT DOES NOT NEED — THE GUARD learn.js ALREADY HAS**
+3. **27. ⚠️ game.js READS A WEEK IT DOES NOT NEED — THE GUARD learn.js ALREADY HAS**
    — ⚠️⚠️ **ITS VALUE COLLAPSED IN ROUND 52 AND NOBODY HAS RE-JUDGED IT.** The memo means the second call costs nothing already, and `loadUserStats()` needs the week regardless — so the guard now saves **roughly zero reads**. It is a tidiness/twin-symmetry item, not a performance one. **Do the harness first** if it is done at all.
 
 Everything else still open:
@@ -376,6 +382,7 @@ Everything else still open:
 
 ## ✅ DONE — kept for the reasoning, not for the task
 
+- 49. ✅ FIXED (Round 58, Emerson) — A STALE HARD-STOP OVERLAY DEMANDED A KEY FROM A DELETED DRILL  *(⚠️ Caps Lock is ruled NOT-a-bug — do not "fix" the e.key comparison)*
 - 48. ✅ “TEXT PREPARED BY” NAMED THE WRONG PERSON ON EVERY BOOK, ON EVERY SURFACE  *(Round 57 — two defects, one symptom)*
 - 44. ✅ THE BOOK ID FIELD ACCEPTS ANYTHING TYPED INTO IT, AND slugifyBookId() IS RIGHT THERE  *(Round 57 — warns on whitespace, never blocks)*
 - 29. ✅ README.md IS TWENTY-FIVE ROUNDS STALE  *(Round 57 — file map regenerated from versions.js)*
@@ -2873,6 +2880,282 @@ the measurement is cheaper.
 
 
 ---
+
+## 49. ✅ FIXED (Round 58, Emerson) — A STALE HARD-STOP OVERLAY DEMANDED A KEY FROM A DELETED DRILL
+
+**Reported by Jake, 2026-09-02, two screenshots, two different students, two
+different browsers (Chrome and Safari), `learn.js v2.43.0`.** Jake: *"the kid
+should hit S when that key is nowhere near what he needs to hit."*
+
+⚠️ **CAPS LOCK IS ON IN BOTH SCREENSHOTS, AND THE RED "CAPS LOCK IS ON" BANNER IS
+UP IN BOTH.** That is the whole item. The app detects the condition, tells the
+child about it, and then behaves as though it had not noticed.
+
+### A. ⚠️⚠️ THE LOCK CANNOT BE RELEASED — THIS IS THE HALF THAT TRAPS A CHILD
+
+`handleDrillKey()`, the hard-stop release branch (learn.js ~2787):
+
+```js
+if (drillIsHardStop) {
+    const expected = drillSequence[drillPos];
+    const typed = (e.key === 'Enter') ? '\n' : (e.key === 'Tab') ? '\t'
+                : (e.key.length === 1 ? e.key : null);
+    if (typed === expected) { … release … }
+    // anything else is ignored
+}
+```
+
+**`e.key` is the CHARACTER the OS produced, not the key that was pressed.** With
+Caps Lock on, the `s` key delivers `'S'`. Every drill in the screenshots is
+lowercase. So `'S' !== 's'`, the branch never releases, and **the only way out is
+to notice Caps Lock or reload the page.** The overlay says *"type the correct key
+to continue"* while the correct key is being pressed and rejected.
+
+⚠️ **AND THE ORDINARY PATH HAS THE SAME COMPARISON** (learn.js ~2835,
+`typed = e.key`, then `if (typed === newExpected)`). So before the hard stop is
+ever reached, every keystroke is scored as a mistake: **that is where the 25% and
+64% accuracy in the screenshots came from, and it is graded work.** The child was
+typing correctly.
+
+⚠️ **THE TWO SITES ARE A TWIN AND MUST BE FIXED TOGETHER.** Repairing the release
+without the scoring path gives a child who can continue but is still being marked
+wrong on every letter; repairing the scoring path without the release still
+strands them behind the overlay. §0.-18 and §0.-32.B are what a half-fixed twin
+costs here.
+
+### B. ✅ CAPS LOCK IS RULED NOT-A-BUG — JAKE, 2026-09-02. DO NOT "FIX" IT.
+
+The first write-up of this item offered three shapes for forgiving Caps Lock and
+called the choice Jake's. **He closed it:**
+
+> *"The kid needs to learn to turn off caps lock. I'm not worried about that.
+> That's not an error on your or my part — that's the kid needing to learn."*
+
+⚠️⚠️ **AND THE RULING MAKES THE CODE CORRECT AS IT STANDS.** With Caps Lock on the
+child really is producing `'S'` where the drill wants `'s'` — that is a wrong
+character, the app is right to score it wrong and right to refuse it at the hard
+stop, and the red **CAPS LOCK IS ON** banner is already up saying why. There is
+nothing to repair in `handleDrillKey()`'s comparison.
+
+⚠️⚠️ **SO DO NOT LOWERCASE THE COMPARISON, IN EITHER PATH.** A future round
+reading only §A will see `typed === newExpected` against a raw `e.key`, recognise
+it as a case-sensitivity bug, and "fix" it. **`learn.js` teaches capitals** —
+Shift+A is real drill material and the modifier guard lets Shift through on
+purpose (§0.-10.D). Forgiving case would make every capital-letter drill
+**unfailable, silently**, and nothing on screen would say so.
+`hardstop-overlay-test.mjs` deliberately contains **no** Caps Lock case, and its
+header says why, so that nobody adds one believing it was an oversight.
+
+**What Caps Lock did here was get the student to the hard stop** — five
+consecutive mistakes — which is where §C's real defect was waiting.
+
+### C. ⭐⭐ THE `S` IS A GHOST FROM A DRILL THAT NO LONGER EXISTS — `beginStep()` CLEARS THE FLAG AND LEAVES THE ELEMENT
+
+⚠️⚠️ **THIS IS THE PART JAKE ACTUALLY ASKED ABOUT, AND §A DOES NOT EXPLAIN IT.**
+Caps Lock on `l` produces `L`, not `S`. Jake: *"Why would s be the correct key
+when l is highlighted? The line he's on is semicolon, l, f, d, ;. There is no s.
+Anywhere."* He is right, and the first write-up of this item filed the mismatch as
+an open question about the glyph's letter-case. **It was not a rendering
+question. The overlay is stale.**
+
+`#drill-hardstop` is removed in exactly **three** places: the release branch
+(2794), the spam-restart branch (2932), and the top of `_showHardStopOverlay()`
+itself (4559). **`beginStep()` is not one of them.** It sets
+`drillIsHardStop = false` (2483) and regenerates `drillSequence`, `drillPos`,
+`drillCharStates` and `drillConsecutiveMistakes` — **and leaves the overlay DIV in
+the document.**
+
+⚠️ **THE OVERLAY'S PARENT SURVIVES A RESTART.** It is appended to
+`#drill-keyboard-wrap`, a static element in `learn.html:108` that is only ever
+shown and hidden. `_rebuildKeyboard()` replaces `drillKeyboard`, which is a
+*child*. So nothing tears the overlay down.
+
+**The chain, and every link is needed:**
+
+1. Caps Lock on → §A makes every keystroke a mistake.
+2. Five consecutive → hard stop, overlay renders the character at the *then*
+   current `drillPos` — an `s`, in a home-row random drill.
+3. §A's release branch compares raw `e.key`, so the correct key never releases it.
+   **The child is stuck**, which is why they reach for the control in step 4.
+4. `↻ Restart` → `restartLesson()` → `startLesson()` → `beginStep()`: a brand-new
+   random sequence, `drillPos` back to 0, flag cleared — **overlay orphaned**.
+5. What Jake photographed: fresh text with no `s` in it, and a stale red `S` with
+   *"Too many errors — type the correct key to continue"* sitting over the
+   keyboard.
+
+⭐ **THE FADED KEYBOARD IN BOTH SCREENSHOTS IS THE CONFIRMATION, AND IT IS VISIBLE
+WITHOUT READING ANY CODE.** The overlay is `inset:0; z-index:30;
+background:rgba(255,255,255,0.92)`. **Both screenshots show the whole keyboard
+washed out to near-white while the drill text above it is at full contrast.** That
+is a 92%-white sheet lying over the keys. A live hard stop would look identical —
+which is exactly why it reads as "the app wants me to press S".
+
+⚠️ **THE CHILD IS NOT LOCKED AT THIS POINT.** `drillIsHardStop` is false after the
+restart, so keystrokes are processed normally and the drill really is playable
+under the sheet. **That is worse, not better**: the app is scoring a run the child
+believes is refusing them, and §0.-21.E's rule applies — the one case where
+nothing is wrong is the case that has to say so out loud, and here it is saying
+the opposite.
+
+⚠️ **THE ONE-LINE FIX IS NOT THE WHOLE FIX.** Removing `#drill-hardstop` in
+`beginStep()` is correct and belongs beside `drillIsHardStop = false` — but on its
+own it leaves §A intact, so a Caps-Locked child still cannot release a hard stop
+and still has every correct key scored wrong. **Fix the ownership, not just the
+instance:** the overlay and the flag are one piece of state expressed in two
+places, and every site that clears one must clear the other. That is what a
+harness should pin.
+
+### D. ✅ WHAT SHIPPED, AND THE ONE THING LEFT
+
+`learn.js` **v2.44.0**. `_hideHardStopOverlay()` is the one home for the removal;
+the release branch, the spam-restart branch and **`beginStep()`** all go through
+it. ⚠️ **THE FIX IS OWNERSHIP, NOT A LINE** — the flag and the element were one
+piece of state expressed in two places, and adding a removal to `beginStep()`
+alone would leave the next site free to repeat it.
+
+`tests/hardstop-overlay-test.mjs` **v1.0.0**, 9 assertions,
+**mutation-verified: red against `learn.js` v2.43.0, the build in Jake's
+screenshots.** ⚠️ Part A asserts the **pairing** — it reads every assignment of
+`drillIsHardStop = false` out of the shipped source and requires each to clear the
+overlay within six lines. *"Does `beginStep()` remove it"* would pass forever and
+say nothing about the next site, and **a third site appearing unnoticed is what
+this defect WAS.**
+
+⚠️ **TWO THINGS THE HARNESS CORRECTED IN ME, BOTH WORTH THE LINE:** its first
+draft matched the `let drillIsHardStop = false;` **declaration** and went red
+against the correct build (§0.-14.G — a checker crying wolf on honest input is one
+the next round skips); and I pinned **three** clear sites when there are **two**,
+because the spam branch removes the element and reaches the flag through
+`beginStep()` via a `setTimeout` — one site across two functions, not a site of
+its own.
+
+### E. ✅ TRACED (Round 58) — `game.js` HAS THE ASYMMETRY AND *NOT* THE BUG
+
+**Jake asked for the trace rather than the guess.** `isHardStop` really is cleared
+at three sites and only `resumeGame()` hides `#modal` — `setupGame()` and
+`startGame()` do not. **But the stale-modal case is unreachable**, and every route
+was checked:
+
+* `showStatsModal()` sets `modalActionCallback = () => { closeModal(); callback(); }`
+  — **the modal is closed before any callback**, so `advanceToNextChapter()` →
+  `loadChapter()` → `setupGame()` always runs with it hidden.
+* **The hard-stop modal has no button at all**: `triggerHardStop()` ends with
+  `btn.style.display = 'none'`. There is nothing to click.
+* The keystroke handler's `if (isHardStop) { … }` branch **returns
+  unconditionally**, so the smart-start path below it — which fires
+  `modalActionCallback` and can reach `startGame()` — cannot run during a hard
+  stop.
+* `startPracticeMode()`'s entry point (`#practice-btn`) is rendered by
+  `getMissedCharsHTML()` **inside the stats modal**, which is not the hard-stop
+  modal. `exitPracticeMode()` calls `closeModal()` after its `setupGame()`.
+
+⚠️ **SO NOTHING WAS CHANGED IN `game.js`.** The fix there would have been a change
+to shared modal plumbing in service of a bug nobody can produce, and §0.-28.H is
+the round that acted on a twin's assumed behaviour and was wrong.
+
+⚠️⚠️ **BUT IT IS SAFE BY CIRCUMSTANCE, NOT BY CONSTRUCTION, AND THAT IS THE PART
+TO CARRY.** Two of the four reasons above are one-liners that do not look
+load-bearing where they sit — a hidden button, and a `return`. Delete either and
+**Library acquires School's bug**, with nothing else in the suite noticing.
+`hardstop-overlay-test.mjs` **Part E** pins both, mutation-verified: exposing the
+action button fails one assertion, removing the `return` fails the other.
+
+---
+
+## 50. ⚠️⚠️ THE WEEKLY HUD IS SHOWING ONLY TODAY — A STUDENT WITH 26m READS 6m
+
+**Reported by Jake, 2026-09-02, three screenshots.** The student's daily-log rows
+read **8m 54s (2026-08-31) + 11m 5s (09-01) + 6m 16s (09-02)**, and the report's
+own week column totals them correctly at **26m 15s**. The student's top bar reads
+**`Daily 6:55 / 8:00` beside `Weekly 6:55 / 40:00`** — a second screenshot from a
+different student shows `Daily 4:15` beside `Weekly 4:15`.
+
+⚠️⚠️ **THE SYMPTOM IS EXACT, AND THAT IS THE MOST USEFUL FACT IN THIS ITEM.**
+Weekly does not merely under-report; it equals **today, precisely**. So every
+other day of the week returned **zero** through `readWeek()`, while the same
+documents read correctly from `reports.html`. This is not arithmetic drift and
+there is no point looking for an off-by-one.
+
+### A. ✅ WHAT HAS BEEN RULED OUT — DO NOT RE-DERIVE THESE
+
+* **The Saturday week anchor across the month boundary.** The first suspect, and
+  it is innocent. `weekStartOf()` returns `2026-08-29` for `09-02`, `09-01`,
+  `08-31` and `08-29` alike, and `weekDatesOf('2026-09-02')` returns
+  `08-29 … 09-04`. Executed, not reasoned about. `week-anchor-test.mjs` and
+  `daylog-test.mjs` are both green.
+* **The HUD paint.** `renderTimeHUD()` passes `statsData.secondsWeek` into
+  `hudStrings()`'s `weekSeconds` and renders `hud.right` into `#hud-week`. The
+  daily figure is not being painted into the weekly slot; `hud-lead-test.mjs`
+  covers the axis. **The in-memory `secondsWeek` really is wrong.**
+* **`rollDayIfNeeded()`'s week reset** (new in Round 57, and the obvious suspect
+  because it is new and in the counting path). It is guarded on
+  `statsData.weekStart !== ws`, `getWeekStart()` returns a **string** in both
+  files, and `statsData.weekStart` is a string from `read.weekStart`. The two
+  agree within one week, so the reset does not fire. ⚠️ **A Date-vs-string
+  comparison here WOULD have produced exactly this symptom — it was checked for
+  that reason and is not the cause.**
+
+### B. ⚠️ WHERE IT IS, AND THE ONE FACT THAT NARROWS IT
+
+`readWeek()` sums seven per-day reads. A day contributes zero when it is
+**skipped** by `planReads()`, or when the **closed-day cache** returns a zero for
+it. Those are the two mechanisms that can produce a silent zero, and both are
+recent (`logdays.js` item 18, `daylog.js` v1.7.0 / ROADMAP 28).
+
+⚠️⚠️ **NO CALLER PASSES A LEDGER.** All nine `readWeek()` call sites across
+`learn.js`, `game.js` and `index.html` use the default, which is
+`ledgerFrom(null, uid)` — **this machine's localStorage mirror and nothing else**.
+The server's `ttbLogDays` is never consulted by the student pages, even though
+`daylog.js`'s own comment asks a caller holding the user document to pass
+`ledgerFrom(userData, uid)` and says none of them do. So the reader's entire
+notion of "which days this student typed on" is a per-browser cache.
+
+⚠️ **THE MIRROR'S ARITHMETIC LOOKS SOUND ON PAPER** — `noteDay()` keeps
+`since = min(days)`, so a day earlier than anything recorded falls before `since`
+and is read blind rather than skipped, which is the safe direction. **That is
+exactly why this needs measuring rather than more reading.**
+
+### C. ⭐ THE CHECK THAT SPLITS IT, AND IT NEEDS NO CONSOLE
+
+⚠️ **STUDENTS HAVE NO DEVTOOLS** — item 43 is the write-up of an entire repair
+that could not be delivered for that reason. So the check below is deliberately
+one Jake can run from his own chair.
+
+**Sign in as the affected student on JAKE'S machine and read the top bar.**
+
+* **Weekly reads 26m 15s on Jake's machine and 6m on the student's** → the fault
+  is the **per-browser mirror or the per-browser closed-day cache**, because the
+  only thing that changed is which `localStorage` is answering. That points at
+  `logdays.js`'s `ttb_logDays_v1` / `daylog.js`'s `ttbDayCache:` — and the real
+  fix is almost certainly the one `daylog.js` already asks for: **pass
+  `ledgerFrom(userData, uid)` from the call sites that hold the user document**,
+  so the server's ledger backstops the mirror.
+* **Weekly reads 6m on Jake's machine too** → the mirror is innocent and the
+  fault is in `readWeek()` itself or in the documents. Then, and only then, the
+  next step is the meter: `copy(ttbMeter.json())` on `learn.html` and read which
+  of the seven `typing_logs` reads were issued at all.
+
+⚠️ **DO NOT SHIP A FIX BEFORE THAT ANSWER.** Both candidate mechanisms are
+read-pruning optimisations whose whole purpose is to skip work, and §0.-27 is the
+round that spent itself "fixing" a premise that had already moved. ⚠️ **AND IF A
+ROUND DOES REACH FOR THE PRUNING: `logdays.js`'s header rule is that the ledger
+must be a SUPERSET of the logs and NOBODY MAY PRUNE IT** — a stale entry costs one
+wasted read, a missing entry costs a child their minutes, which is the failure on
+screen here.
+
+### D. ⚠️ WHAT IT DOES AND DOES NOT COST
+
+**The stored record is intact** — the daily rows and the report's 26m 15s come
+from `typing_logs`, which is what grading reads. This is the number the CHILD
+sees, not the number Jake grades on. ⚠️ **That does not make it cosmetic:** Rule
+11 is that the number the student sees and the number the teacher pulls are the
+same number, and they currently are not. A child who has met the weekly goal is
+being told they have not.
+
+⚠️ **AND IT SUPPRESSES THE WEEKLY CELEBRATION.** `weeklyGoalCelebrated` latches on
+`statsData.secondsWeek >= goals.weeklySeconds`, so an affected student cannot
+cross the weekly goal and will never get the fireworks — §0.-13.D is the last time
+a missed crossing was a whole week gone, and the latch is per-period by design.
 
 ## 30. ⚠️ ADVENTURE MODE GIVES NO COLOUR FEEDBACK ON A WRONG KEY — AND CAPS LOCK IS WHERE IT SHOWS
 
