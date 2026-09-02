@@ -1,4 +1,33 @@
-// logdays.js v1.2.0 — WHICH DAYS DID THIS STUDENT TYPE?
+// logdays.js v1.4.0 — WHICH DAYS DID THIS STUDENT TYPE?
+//
+// v1.4.0 — ⚠️⚠️ ROADMAP 50: reconcilePlan()/reconcile(). THE MIRROR MAY NOT
+//          KNOW LESS THAN THE SERVER. Every readWeek() caller passes NO ledger,
+//          so the reader trusts THIS BROWSER'S mirror alone and the server's
+//          ttbLogDays — written by the same noteDay(), never pruned — is not
+//          consulted. A mirror missing a day the server vouches for turns a day
+//          the child typed into a skipped read and a zero.
+//          ⚠️ NOT A GUESS AT THE ROOT CAUSE, which was never found. Whatever
+//          corrupts a mirror entry, the effect and the cure are the same.
+//          ⚠️⚠️ IT CANNOT CAUSE AN UNDERCOUNT: it only ADDS days and only moves
+//          `since` BACKWARD. An extra day costs one wasted read; a missing one
+//          costs a child their week. Every change here must keep that
+//          direction — logdays-test.mjs H3 fails if `since` can move forward.
+//          ⚠️ CALL IT WHERE THE USER DOCUMENT IS ALREADY IN HAND (learn.js
+//          loadGateState) so it costs NO extra read. Its console.warn is the
+//          ONLY instrument there is: students have no devtools and cannot clear
+//          site data, so a fault in their browser is otherwise invisible.
+//
+// v1.3.0 — ⚠️⚠️ ROADMAP 50: LOCAL_KEY bumped _v1 → _v2, alongside hud.js
+//          v2.1.0 and daylog.js v1.8.0. NO FAULT WAS FOUND IN THIS FILE; it is
+//          bumped because the fault is known to be per-browser and NOT pinned to
+//          one store. ⚠️ ITEM 18's READ SAVING IS SUSPENDED for roughly a week
+//          per student while `since` catches up, and that is accepted: a child
+//          shown fewer minutes than they typed outranks a read budget.
+//          ⚠️ A LATENT BUG FOUND WHILE LOOKING AND DELIBERATELY NOT FIXED HERE:
+//          noteDay()'s `while (days.length > MAX_DAYS) days.shift()` drops the
+//          oldest dates WITHOUT moving `since` forward, so past 400 recorded
+//          days those dates become "known absent" and get skipped. Harmless at
+//          today's volumes, wrong later. ROADMAP 50 §C2.
 //
 // v1.2.0 — ⚠️ ledgerFrom() READ `since` INSIDE THE DAY-ARRAY BRANCH, so a
 //          document with a since and no days returned null and was swept in
@@ -89,7 +118,7 @@
 // see the user document must prefer it, and any reader that cannot must union
 // the two rather than trusting the local one alone.
 
-export const LOGDAYS_VERSION = "1.2.0";
+export const LOGDAYS_VERSION = "1.4.0";
 
 // ⚠️ FIELD NAME IS PREFIXED. `users` documents are shared with staff-admin.js,
 // the roster importer and the reports roster query; an unprefixed `logDays`
@@ -97,7 +126,16 @@ export const LOGDAYS_VERSION = "1.2.0";
 export const LOGDAYS_FIELD  = 'ttbLogDays';
 export const LOGDAYS_SINCE  = 'ttbLogDaysSince';
 
-const LOCAL_KEY = 'ttb_logDays_v1';
+// ⚠️⚠️ BUMPED TO _v2 BY ROUND 58 — ROADMAP 50, the same one-shot repair as
+// hud.js's HUD_CACHE_KEY. Renaming orphans every mirror, so ledgerFrom() returns
+// null, planReads() reports blind, and the week is read in full from Firestore
+// once per machine.
+// ⚠️ THIS COSTS READS AND THAT IS ACCEPTED: item 18's saving is suspended for
+// roughly a week per student (until `since` falls behind the week being read),
+// because a child shown fewer minutes than they typed outranks a read budget.
+// ⚠️ NO FAULT WAS FOUND IN THIS FILE. It is bumped because the fault is known to
+// be per-browser and NOT known to be in one particular store — see ROADMAP 50 §C2.
+const LOCAL_KEY = 'ttb_logDays_v2';
 
 // ⚠️ CAP. One entry per school day is ~180/year at 10 bytes each — trivial
 // against the 1MB document limit, but a runaway writer is not, and an unbounded
@@ -332,3 +370,99 @@ export async function ensureSince({ db, doc, setDoc, uid, date, userData }) {
 
 /** For diagnostics from the console. */
 export function ledgerLocal(uid) { return readLocal(uid); }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ THE RECONCILER (v1.4.0) — THE MIRROR MAY NOT KNOW LESS THAN THE SERVER
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ROADMAP 50. A student whose daily rows totalled 26m 15s had a weekly HUD
+// reading exactly today's figure, on two machines, while reports.html totalled
+// the same documents correctly. Proven per-browser: the same student read
+// correctly in a fresh browser, because empty storage makes planReads() go blind
+// and fetch all seven days.
+//
+// ⚠️ THE ROOT CAUSE WAS NEVER FOUND, AND THIS IS NOT A GUESS AT IT. It is the
+// structural repair daylog.js has asked for in its own comments since item 18:
+// every readWeek() caller passes NO ledger, so the reader trusts THIS MACHINE'S
+// MIRROR ALONE. The server's ttbLogDays — written by the same noteDay() that
+// writes the mirror, and never pruned — is simply not consulted.
+//
+// So whatever corrupts, truncates or loses a mirror entry, the effect is the
+// same and so is the cure: a day the SERVER vouches for must never be a day the
+// mirror calls absent, because "absent" is what planReads() turns into "skip",
+// and a skip is what turns a child's minutes into zero.
+//
+// ⚠️⚠️ IT CANNOT CAUSE AN UNDERCOUNT, AND THAT IS THE WHOLE SAFETY ARGUMENT.
+// It only ever ADDS days and only ever moves `since` BACKWARD. An extra day
+// costs one wasted read; a missing day costs a child their week. The asymmetry
+// is the entire reason this module exists, and every change here must preserve
+// its direction.
+//
+// ⚠️ PURE. Takes the two records and returns the merged one — no storage, no
+// Firestore, no clock. reconcile() below is the only part that touches
+// localStorage, and it is four lines. logdays-test.mjs drives THIS function.
+
+/**
+ * Merge a server ledger into a local mirror.
+ *
+ * @param local     this machine's mirror, or null
+ * @param userData  the users/{uid} document data, or null
+ * @returns { days, since, added, moved } — `added` lists days the server knew
+ *          about and the mirror did not, which is the fault condition; `moved`
+ *          is true when `since` moved backward. Both null-safe.
+ */
+export function reconcilePlan(local, userData) {
+    const serverDays = (userData && Array.isArray(userData[LOGDAYS_FIELD]))
+        ? userData[LOGDAYS_FIELD].filter(d => typeof d === 'string') : [];
+    const serverSince = (userData && typeof userData[LOGDAYS_SINCE] === 'string'
+                         && userData[LOGDAYS_SINCE]) ? userData[LOGDAYS_SINCE] : null;
+
+    // ⚠️ NO LOCAL MIRROR IS NOT A FAULT. ledgerFrom() already returns null for
+    // it and the reader goes blind, which is correct and costs only reads.
+    // Seeding one here would be a behaviour change smuggled in beside a repair.
+    if (!local) return { days: null, since: null, added: [], moved: false };
+
+    const days = new Set(local.days || []);
+    // ⚠️ ONLY DAYS THE MIRROR CLAIMS TO COVER COUNT AS MISSING. A day before the
+    // mirror's `since` is one it never claimed to have seen — planReads() reads
+    // those blind already, so they are not the fault and must not be reported as
+    // one. Reporting them would make every student who ever used a second
+    // machine look broken.
+    const added = serverDays
+        .filter(d => !days.has(d) && (!local.since || d >= local.since))
+        .sort();
+    for (const d of added) days.add(d);
+
+    let since = local.since || null;
+    let moved = false;
+    if (serverSince && (!since || serverSince < since)) { since = serverSince; moved = true; }
+
+    return { days: [...days].sort(), since, added, moved };
+}
+
+/**
+ * Apply reconcilePlan() to this machine's mirror. Returns the days that were
+ * missing, so a caller can report them.
+ *
+ * ⚠️ CALL IT WHERE THE USER DOCUMENT IS ALREADY IN HAND — it must cost NO extra
+ * read, or it is a read tax on every student to catch a fault most never have.
+ */
+export function reconcile(uid, userData) {
+    if (!uid) return [];
+    const local = readLocal(uid);
+    const plan = reconcilePlan(local, userData);
+    if (!plan.days) return [];
+    if (plan.added.length || plan.moved) {
+        writeLocal(uid, plan.days, plan.since);
+        if (plan.added.length) {
+            // ⚠️ THE ONLY INSTRUMENT THERE IS. Students have no devtools and
+            // cannot clear site data, so a fault in their browser is invisible
+            // unless a child mentions it. This line is what makes ROADMAP 50
+            // detectable at all if it recurs.
+            console.warn('[logdays] mirror was missing ' + plan.added.length +
+                         ' day(s) the server vouches for — healed: ' +
+                         plan.added.join(', ') + ' (ROADMAP 50)');
+        }
+    }
+    return plan.added;
+}

@@ -1,4 +1,15 @@
-// daylog.js v1.7.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
+// daylog.js v1.8.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
+//
+// v1.8.0 — ⚠️⚠️ ROADMAP 50: DAY_CACHE_SHAPE 3 → 4, the documented one-shot
+//          invalidation, used for exactly the reason it exists. No fault was
+//          found in this cache — it expires at local midnight, discards any
+//          shape or uid mismatch, and banks only days actually READ from a run
+//          where every day succeeded. Bumped because the fault is known to be
+//          per-browser and not pinned to a store.
+//          ⚠️ THE STRUCTURAL FIX IS STILL NOT DONE: no readWeek() caller passes
+//          a ledger, so the reader trusts a per-browser mirror ALONE. Passing
+//          ledgerFrom(userData, uid) can only ADD reads, never cause an
+//          undercount, and would remove this whole class.
 //
 // v1.7.0 — ⭐⭐ ROADMAP 28 — THE CLOSED-DAY CACHE. v1.6.0 removed the duplicate
 //          week read WITHIN a page load; this removes the repetition ACROSS
@@ -138,7 +149,7 @@
 // tests/week-anchor-test.mjs and tests/daylog-test.mjs both hold that line. A
 // mismatch here does not throw — it silently reads the wrong seven days.
 
-export const DAYLOG_VERSION = "1.7.0";
+export const DAYLOG_VERSION = "1.8.0";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE PER-SOURCE CUTOVER
@@ -454,7 +465,12 @@ function _clone(v) {
 // wrong shows a child fewer minutes than they typed, and an undercount is
 // indistinguishable on screen from a light week.
 const DAY_CACHE_PREFIX = 'ttbDayCache:';
-const DAY_CACHE_SHAPE  = 3;      // bump to invalidate every stored entry at once
+const DAY_CACHE_SHAPE  = 4;      // bump to invalidate every stored entry at once
+                                 // ⚠️ 3 → 4, Round 58, ROADMAP 50: the documented
+                                 // one-shot invalidation, used for exactly the
+                                 // reason it exists. No fault found in this cache;
+                                 // bumped because the fault is per-browser and not
+                                 // pinned to a store. See hud.js's HUD_CACHE_KEY.
 const DAY_CACHE_MAX    = 40;     // days kept; a week read never needs more than 7
 
 const _endOfLocalDay = (nowMs) => {

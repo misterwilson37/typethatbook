@@ -23,7 +23,8 @@ globalThis.localStorage = {
     clear: () => store.clear(),
 };
 
-const { ledgerFrom, planReads, noteDay, LOGDAYS_FIELD, LOGDAYS_SINCE } =
+const { ledgerFrom, planReads, noteDay, reconcilePlan, reconcile,
+        LOGDAYS_FIELD, LOGDAYS_SINCE } =
     await import('../logdays.js');
 
 const results = [];
@@ -95,7 +96,12 @@ await check('B3. the earlier since wins when the server and the local mirror dis
     // absent" and INTO "read blind". Taking the later one would skip days the
     // ledger never actually vouched for.
     store.clear();
-    store.set('ttb_logDays_v1', JSON.stringify({
+    // ⚠️ KEY BUMPED _v1 → _v2 BY ROUND 58 (ROADMAP 50). This harness names the
+// storage key literally rather than importing it, which is deliberate — a
+// rename is a REAL migration for every student's browser and should have to be
+// made in two places on purpose. If you are here because this went red after a
+// bump, that is the check working.
+store.set('ttb_logDays_v2', JSON.stringify({
         uid: 'u1', days: ['2026-08-18'], since: '2026-08-18',
     }));
     const led = ledgerFrom({
@@ -112,7 +118,7 @@ await check('B3. the earlier since wins when the server and the local mirror dis
 
 await check('C1. a day known only to the server survives', () => {
     store.clear();
-    store.set('ttb_logDays_v1', JSON.stringify({
+    store.set('ttb_logDays_v2', JSON.stringify({
         uid: 'u1', days: ['2026-08-18'], since: '2026-08-17',
     }));
     const led = ledgerFrom({
@@ -127,7 +133,7 @@ await check('C1. a day known only to the server survives', () => {
 
 await check('C2. the local mirror is ignored when it belongs to another student', () => {
     store.clear();
-    store.set('ttb_logDays_v1', JSON.stringify({
+    store.set('ttb_logDays_v2', JSON.stringify({
         uid: 'SOMEONE-ELSE', days: ['2026-08-19'], since: '2026-08-17',
     }));
     const led = ledgerFrom({
@@ -163,7 +169,7 @@ await check('E1. noteDay records locally even when the server write fails', () =
     };
     return noteDay({ ...io, uid: 'E1-student', date: '2026-08-24' }).then(ok => {
         assert.equal(ok, false, 'a total failure must report false');
-        const local = JSON.parse(store.get('ttb_logDays_v1'));
+        const local = JSON.parse(store.get('ttb_logDays_v2'));
         assert.ok(local.days.includes('2026-08-24'),
             'the local mirror must still record the day — it is what stops the ' +
             'next reader skipping a date this student really typed on');
@@ -431,10 +437,94 @@ await check('G5. a genuine read that throws still sets ok:false', async () => {
 
 // ─── report ──────────────────────────────────────────────────────────────────
 await new Promise(r => setTimeout(r, 50));
+// H. ⚠️⚠️ THE RECONCILER — ROADMAP 50. THE MIRROR MAY NOT KNOW LESS THAN THE
+//    SERVER, AND THE REPAIR MAY ONLY EVER MOVE IN THE SAFE DIRECTION.
+// ═══════════════════════════════════════════════════════════════════════════
+
+await check('H1. a day the server vouches for and the mirror lacks is ADDED and reported', () => {
+    const local  = { days: ['2026-09-02'], since: '2026-08-31' };
+    const server = { [LOGDAYS_FIELD]: ['2026-08-31', '2026-09-01', '2026-09-02'],
+                     [LOGDAYS_SINCE]: '2026-08-31' };
+    const p = reconcilePlan(local, server);
+    assert.deepEqual(p.added, ['2026-08-31', '2026-09-01']);
+    assert.deepEqual(p.days, ['2026-08-31', '2026-09-01', '2026-09-02']);
+    // ⚠️ THIS IS ROADMAP 50's SYMPTOM EXACTLY: without the merge those two days
+    // are "known absent", planReads() skips them, and a 26-minute week reads as
+    // today's 6 minutes.
+    const plan = planReads({ since: local.since, days: new Set(local.days) },
+                           ['2026-08-31', '2026-09-01', '2026-09-02'],
+                           { always: ['2026-09-02'] });
+    assert.deepEqual(plan.skip, ['2026-08-31', '2026-09-01']);
+});
+
+await check('H2. ⚠️ a day BEFORE the mirror\'s since is not a fault and is not reported', () => {
+    // The student typed on a loaner laptop before this machine started watching.
+    // planReads() already reads those blind. Calling it a fault would make every
+    // student who ever used a second machine look broken.
+    const local  = { days: ['2026-09-02'], since: '2026-09-02' };
+    const server = { [LOGDAYS_FIELD]: ['2026-08-31', '2026-09-02'],
+                     [LOGDAYS_SINCE]: '2026-08-31' };
+    const p = reconcilePlan(local, server);
+    assert.deepEqual(p.added, []);
+});
+
+await check('H3. ⚠️⚠️ since ONLY EVER MOVES BACKWARD, never forward', () => {
+    const earlier = reconcilePlan({ days: [], since: '2026-09-02' },
+                                  { [LOGDAYS_SINCE]: '2026-08-25' });
+    assert.equal(earlier.since, '2026-08-25');
+    assert.equal(earlier.moved, true);
+    // ⚠️ A LATER SERVER `since` MUST BE IGNORED. Moving it forward would
+    // reclassify days this machine DOES know about into "skip" — the one
+    // direction this module must never move, and the shape of ROADMAP 50.
+    const later = reconcilePlan({ days: [], since: '2026-08-25' },
+                                { [LOGDAYS_SINCE]: '2026-09-02' });
+    assert.equal(later.since, '2026-08-25');
+    assert.equal(later.moved, false);
+});
+
+await check('H4. ⚠️ no local mirror is not a fault — it is left alone', () => {
+    // ledgerFrom() returns null for it and the reader goes blind, which is
+    // correct. Seeding a mirror here would be a behaviour change smuggled in
+    // beside a repair.
+    const p = reconcilePlan(null, { [LOGDAYS_FIELD]: ['2026-09-01'] });
+    assert.equal(p.days, null);
+    assert.deepEqual(p.added, []);
+});
+
+await check('H5. junk from the server cannot corrupt the mirror', () => {
+    const local = { days: ['2026-09-02'], since: '2026-09-01' };
+    for (const bad of [null, undefined, {}, { [LOGDAYS_FIELD]: 'nope' },
+                       { [LOGDAYS_FIELD]: [1, null, {}] }, { [LOGDAYS_SINCE]: 7 }]) {
+        const p = reconcilePlan(local, bad);
+        assert.deepEqual(p.days, ['2026-09-02']);
+        assert.deepEqual(p.added, []);
+        assert.equal(p.since, '2026-09-01');
+    }
+});
+
+await check('H6. reconcile() writes the healed mirror through to storage', () => {
+    store.clear();
+    store.set('ttb_logDays_v2', JSON.stringify({
+        uid: 'u1', days: ['2026-09-02'], since: '2026-08-31' }));
+    const added = reconcile('u1', {
+        [LOGDAYS_FIELD]: ['2026-08-31', '2026-09-01', '2026-09-02'],
+        [LOGDAYS_SINCE]: '2026-08-31' });
+    assert.deepEqual(added, ['2026-08-31', '2026-09-01']);
+    const after = JSON.parse(store.get('ttb_logDays_v2'));
+    assert.deepEqual(after.days, ['2026-08-31', '2026-09-01', '2026-09-02']);
+    // ⚠️ AND THE SKIP IS GONE — the assertion that matters, stated as the reader
+    // sees it rather than as the mirror's contents.
+    const plan = planReads({ since: after.since, days: new Set(after.days) },
+                           ['2026-08-31', '2026-09-01', '2026-09-02'],
+                           { always: ['2026-09-02'] });
+    assert.deepEqual(plan.skip, []);
+});
+
 let failed = 0;
 for (const [state, name] of results) {
     console.log(`  ${state === 'ok' ? 'ok  ' : 'FAIL'} ${name}`);
     if (state !== 'ok') failed++;
 }
+// ═══════════════════════════════════════════════════════════════════════════
 console.log(`\n${results.length - failed} passed, ${failed} failed`);
 if (failed) process.exit(1);

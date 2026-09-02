@@ -1,4 +1,14 @@
-// learn.js v2.44.0
+// learn.js v2.45.0
+//
+// v2.45.0 — ⚠️ ROADMAP 50: loadGateState() now calls logdays.js's reconcile()
+//           beside its existing ensureSince(), on the user document it ALREADY
+//           HOLDS — zero extra reads. Unions the server's ttbLogDays back into
+//           this browser's mirror so a missing day cannot become a skipped read
+//           and a lost week.
+//           ⚠️ IT HEALS THE NEXT PAGE LOAD, NOT THIS ONE. loadGateState() runs
+//           after loadUserStats()'s readWeek(), and reordering startup to gain
+//           one refresh was judged not worth the risk. Say that rather than
+//           implying it is instant.
 //
 // v2.44.0 — ⚠️⚠️ ROADMAP 49: A RESTARTED DRILL INHERITED THE PREVIOUS ONE'S
 //           HARD-STOP OVERLAY. `#drill-hardstop` was removed at two sites and
@@ -143,30 +153,13 @@
 //           ⚠️ v2.32.0 ARCHIVED THIS ROUND (8-entry budget) — its citations
 //           throughout this file resolve to CHANGELOG.md § ARCHIVED FILE
 //           HEADERS now.
-//
-// v2.37.0 — ⚠️⚠️ ROADMAP 25 — "I'M DONE" STAMPED A CHILD A RECEIPT SHORTER THAN
-//           THE HUD THEY HAD BEEN WATCHING. 9:31 against 10:02, the gap being
-//           exactly the run they were mid-way through. handleImDone() did
-//           everything right — logOpenRun('done'), then `await flushStats('done',
-//           true)` — but `final` was NEVER READ by the flush gate, so the flush
-//           returned having written nothing and the receipt read a typing_logs it
-//           had not touched. ⚠️ THE TICK INCREMENTS secondsToday AND DOES NOT SET
-//           learnDirty; only saveStats() does, at RUN BOUNDARIES — so the flag was
-//           false for the entire window in which a child presses this button.
-//           ⚠️⚠️ A TWIN DIVERGENCE WHERE THE SIBLING WAS ALREADY CORRECT: game.js
-//           gates on `!walDirty && !final && queued === 0`. Library forced the
-//           write; School skipped it — and both carry comments swearing they are
-//           identical in shape. IDENTICAL IN SHAPE IS NOT IDENTICAL IN BEHAVIOUR.
-//           tests/im-done-test.mjs drives BOTH files.
-//           ⚠️ EVERY HEADER ENTRY WAS CITED IN LIVE CODE, so v2.31.0 went to
-//           CHANGELOG.md's archive rather than an uncited one; its citations
-//           resolve there.
-//           ⚠️ v2.36.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS
-//           (8-entry budget, Round 58). ⚠️⚠️ TEN LIVE COMMENTS IN THIS FILE
-//           STILL CITE v2.36.0 — the remediation stamp, the run-list rebuild,
-//           both modal exits — so that pointer is load-bearing, not courtesy.
-//           It is the round that stopped the 🎲 practice drill being graded as
-//           the lesson's run 1.
+//          ⚠️ v2.37.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS
+//          (8-entry budget, Round 58, second archive from this file this
+//          round). It is ROADMAP 25 — "I'm done" stamping a child a receipt
+//          shorter than the time they typed, Library writing and School not,
+//          both files carrying comments swearing they were identical in shape.
+//          ⚠️ IDENTICAL IN SHAPE IS NOT IDENTICAL IN BEHAVIOUR, and
+//          im-done-test.mjs drives BOTH files because of it.
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
@@ -234,7 +227,7 @@ import { safeGroup, DRILL_FILTER_VERSION } from "./drill-filter.js";
 // The version footer's three primary reads (this html file, this js file's own
 // LEARN_VERSION, style.css) plus the lazy full-build panel on hover. ⚠️ SAME
 // STRUCTURE AS game.js, ON PURPOSE — see updateVersionFooter() below.
-import { noteDay, ensureSince } from "./logdays.js";
+import { noteDay, ensureSince, reconcile } from "./logdays.js";
 import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
          countBuildNotes, renderHiddenNotesLine,
          readAppliedCssVersion } from "./versions.js";
@@ -270,7 +263,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.44.0";
+const LEARN_VERSION = "2.45.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -1598,6 +1591,21 @@ async function loadGateState() {
         try { await ensureSince({ db, doc, setDoc, uid: currentUser.uid,
                                   date: getLocalDateStr(), userData: d }); }
         catch (_) { /* ensureSince swallows its own failures */ }
+
+        // ⚠️⚠️ ROADMAP 50 — THE MIRROR MAY NOT KNOW LESS THAN THE SERVER.
+        // Same document, same zero extra reads. readWeek() trusts THIS BROWSER'S
+        // mirror alone, so a mirror missing a day the server vouches for turns a
+        // day the child typed into a skipped read and a zero. This unions the
+        // server's ttbLogDays back in before the next week read.
+        // ⚠️ IT ONLY ADDS DAYS AND ONLY MOVES `since` BACKWARD, so it cannot
+        // cause an undercount — an extra day costs one wasted read, a missing
+        // one costs a child their week.
+        // ⚠️ IT HEALS THE NEXT LOAD, NOT THIS ONE, and that is accepted: this
+        // runs after loadUserStats()'s readWeek(), and reordering the page's
+        // startup to gain one refresh is not worth the risk. Say so rather than
+        // implying it is instant.
+        try { reconcile(currentUser.uid, d); }
+        catch (_) { /* best effort — a failure here costs reads, never minutes */ }
 
         gateActiveDays = activeDayCountOf(d);
         const lock = lastLockDayOf(d);

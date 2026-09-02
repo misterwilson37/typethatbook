@@ -4768,6 +4768,46 @@ what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
 
+### learn.js v2.37.0 — archived by Round 58 (Emerson), 8-entry budget
+
+Second archive from this file in one round; ROADMAP 49 and 50 both landed in it.
+Verbatim, nothing deleted. Cited twice in live code; the pointer folded into
+v2.38.0's entry resolves here.
+
+⚠️ **It is ROADMAP 25 — "I'm done" stamping a child a receipt shorter than the
+time they typed.** Library flushed before the write, School did not, **and both
+files carried comments swearing they were identical in shape.** That is why
+`im-done-test.mjs` drives both files rather than one: *identical in shape is not
+identical in behaviour*, which is the same lesson Round 58 met again in
+`game.js`'s hard-stop modal (ROADMAP 49 §E).
+
+```
+// v2.37.0 — ⚠️⚠️ ROADMAP 25 — "I'M DONE" STAMPED A CHILD A RECEIPT SHORTER THAN
+//           THE HUD THEY HAD BEEN WATCHING. 9:31 against 10:02, the gap being
+//           exactly the run they were mid-way through. handleImDone() did
+//           everything right — logOpenRun('done'), then `await flushStats('done',
+//           true)` — but `final` was NEVER READ by the flush gate, so the flush
+//           returned having written nothing and the receipt read a typing_logs it
+//           had not touched. ⚠️ THE TICK INCREMENTS secondsToday AND DOES NOT SET
+//           learnDirty; only saveStats() does, at RUN BOUNDARIES — so the flag was
+//           false for the entire window in which a child presses this button.
+//           ⚠️⚠️ A TWIN DIVERGENCE WHERE THE SIBLING WAS ALREADY CORRECT: game.js
+//           gates on `!walDirty && !final && queued === 0`. Library forced the
+//           write; School skipped it — and both carry comments swearing they are
+//           identical in shape. IDENTICAL IN SHAPE IS NOT IDENTICAL IN BEHAVIOUR.
+//           tests/im-done-test.mjs drives BOTH files.
+//           ⚠️ EVERY HEADER ENTRY WAS CITED IN LIVE CODE, so v2.31.0 went to
+//           CHANGELOG.md's archive rather than an uncited one; its citations
+//           resolve there.
+//           ⚠️ v2.36.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS
+//           (8-entry budget, Round 58). ⚠️⚠️ TEN LIVE COMMENTS IN THIS FILE
+//           STILL CITE v2.36.0 — the remediation stamp, the run-list rebuild,
+//           both modal exits — so that pointer is load-bearing, not courtesy.
+//           It is the round that stopped the 🎲 practice drill being graded as
+//           the lesson's run 1.
+//
+```
+
 ### learn.js v2.36.0 — archived by Round 58 (Emerson), 8-entry budget
 
 Pushed over the budget by v2.44.0 (ROADMAP 49, the stale hard-stop overlay).

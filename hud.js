@@ -1,4 +1,13 @@
-// hud.js v2.0.0
+// hud.js v2.1.0
+//
+// v2.1.0 — ⚠️⚠️ ROADMAP 50: HUD_CACHE_KEY bumped _v1 → _v2. A ONE-SHOT REPAIR,
+//          NOT A FIX — the root cause of a weekly HUD reading exactly today's
+//          figure is still unknown. Renaming orphans every stored entry so each
+//          machine re-reads its week from Firestore once.
+//          ⚠️ IT SHIPS IN THE APP BECAUSE NOTHING ELSE CAN REACH THE VALUE:
+//          students cannot clear site data (blocked by district policy) and have
+//          no devtools. ⚠️ IF THE FAULT RETURNS AFTER THIS, IT IS A WRITE BUG
+//          AND NOT A STALE ENTRY — the most useful thing to tell the next round.
 //
 // ⚠️⚠️ v2.0.0 — MAJOR, ON JAKE'S EXPLICIT SIGN-OFF (2026-08-22: "Give hud 2.0.
 //          It's earned it"). NO CODE CHANGED IN THIS BUMP. It is the version
@@ -130,7 +139,7 @@
 // decoration; versions.js parses THIS line and the build footer renders it.
 // It sat at '1.2.0' through v1.3.0 and v1.4.0 — bump it in the same edit that
 // writes the header entry, every time, or the file lies about itself.
-export const HUD_VERSION = '2.0.0';
+export const HUD_VERSION = '2.1.0';
 
 // m:ss. Not padded on minutes — `9:22` reads faster than `09:22` and a student's
 // day does not reach three digits. Seconds ALWAYS padded, or 9:7 appears.
@@ -253,7 +262,20 @@ export function hudStrings(state) {
 // a second source of truth for the day total, and §3.7's merge baseline would be
 // computed against a number that never came from the server. That is the doubled
 // week counter, rebuilt.
-const HUD_CACHE_KEY = 'ttb_hudCache_v1';
+// ⚠️⚠️ BUMPED TO _v2 BY ROUND 58 — A ONE-SHOT REPAIR, NOT A FIX. ROADMAP 50: a
+// student whose daily rows totalled 26m 15s had a weekly HUD reading 6m 55s —
+// exactly today's figure — while reports.html totalled the same documents
+// correctly. Proven to live in PER-BROWSER state: the same student read
+// correctly in a fresh browser, because empty storage makes planReads() go
+// blind and fetch all seven days.
+// ⚠️ THE ROOT CAUSE IS STILL UNKNOWN and this rename does not find it. Changing
+// the key orphans every existing entry, so every machine re-reads its week from
+// Firestore once. That is the only repair available: STUDENTS CANNOT CLEAR SITE
+// DATA (blocked by district policy) and HAVE NO DEVTOOLS, so nothing outside the
+// app can reach this value on their machine.
+// ⚠️ IF THE FAULT RETURNS AFTER THIS, IT IS A WRITE BUG AND NOT A STALE ENTRY —
+// that is the single most useful thing the next round can be told.
+const HUD_CACHE_KEY = 'ttb_hudCache_v2';
 
 export function hudCacheSave({ todaySeconds, weekSeconds, date, weekStart }) {
     try {

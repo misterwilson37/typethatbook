@@ -1,5 +1,11 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.57.0, 2026-09-02 (Round 58, Emerson, final).** ✅ **ITEM 50 — THE STRUCTURAL REPAIR SHIPPED TOO, ON JAKE'S GO-AHEAD.** `logdays.js` v1.4.0 adds `reconcilePlan()`/`reconcile()`: **the mirror may not know less than the server.** Every `readWeek()` caller passes no ledger, so the reader trusts this browser's mirror alone while the server's `ttbLogDays` — written by the same `noteDay()`, never pruned — goes unconsulted. `learn.js` v2.45.0 calls it from `loadGateState()`, **on the user document that function already holds, so it costs ZERO extra reads.** ⚠️⚠️ **IT CANNOT CAUSE AN UNDERCOUNT:** it only ADDS days and only moves `since` BACKWARD — an extra day costs one wasted read, a missing one costs a child their week. `logdays-test.mjs` H1–H6, **mutation-verified twice**, including H3 which fails if `since` can ever move forward. ⚠️ **It heals the NEXT page load, not the current one** — `loadGateState()` runs after `loadUserStats()`'s `readWeek()`, and reordering startup for one refresh was not worth the risk. ⚠️ **Its `console.warn` is the only instrument that exists** — students have no devtools and cannot clear site data, so a recurrence is otherwise invisible. ⚠️ **THE ROOT CAUSE IS STILL UNKNOWN and the item stays open** — this makes the fault self-healing, not diagnosed.
+
+**v3.56.0, 2026-09-02 (Round 58, Emerson, final).** ✅ **ITEM 50 — A ONE-SHOT REPAIR SHIPPED; THE ITEM STAYS OPEN.** `hud.js` v2.1.0, `logdays.js` v1.3.0, `daylog.js` v1.8.0: all three per-browser stores invalidated by a key/shape bump, so every machine re-reads its week from Firestore once — the condition the new browser proved gives the right answer. ⚠️⚠️ **IT SHIPPED IN THE APP BECAUSE NOTHING ELSE CAN REACH THAT STATE: students cannot clear site data (district policy, not Jake's choice) and have no devtools.** Any future plan ending in "have the student clear X" is not a plan. ⚠️ **REPAIR, NOT FIX** — root cause still unknown, and two of the three stores had no fault found in them but were bumped anyway because guessing wrong costs another week of miscounted children. ⚠️ Costs reads: item 18's saving is suspended ~a week per student, accepted. ⭐⭐ **TELL THE NEXT ROUND WHETHER IT CAME BACK** — recurrence means a write bug, not stale state, and that single fact is worth more than any further reading.
+
+**v3.55.0, 2026-09-02 (Round 58, Emerson, later still).** ⚠️⚠️ **ITEM 50 IS NARROWED, NOT CLOSED, AND THE EVIDENCE WAS NEARLY READ BACKWARDS.** Jake found the student's weekly HUD correct **in a new browser** and read that as the bug being gone. **It means the opposite:** a new browser has empty `localStorage`, so the ledger is null, `planReads()` goes `blind: true`, and all seven days are fetched — the pre-optimisation path, correct by construction. **The new browser bypassed the fault; it did not repair it, and that machine will be wrong again tomorrow.** ⭐ What it DID establish: the fault is entirely in **per-browser state** — the documents, the week arithmetic and the read logic are all correct given a correct ledger. ⚠️ **A WORKAROUND EXISTS TODAY:** clearing site data on the affected machine restores the right figure. ⚠️ Of the three per-browser stores, the day mirror and the closed-day cache were read closely and no fault found (**a latent one WAS found in the mirror's 400-day trim and is written up — it drops days without moving `since`**); **the HUD seed cache is the one left standing and is where the next round starts.** ⚠️⚠️ **AND THE REAL FIX MAY NOT NEED THE ANSWER:** no `readWeek()` caller passes a ledger, so the reader trusts a per-browser mirror alone — passing `ledgerFrom(userData, uid)` unions the server's copy in and **cannot** cause an undercount.
+
 **v3.54.0, 2026-09-02 (Round 58, Emerson, later).** ✅ **ITEM 49 CLOSED — `learn.js` v2.44.0.** `beginStep()` cleared `drillIsHardStop` and left the overlay DIV standing, and its parent `#drill-keyboard-wrap` is static markup it never rebuilds — so a student who hit the hard stop and pressed ↻ Restart got a fresh random drill under a red letter from the sequence just discarded. ⚠️⚠️ **The flag was already false, so the drill underneath was LIVE AND SCORING under a 92%-white sheet** — the app grading a run the child believed it was refusing. `hardstop-overlay-test.mjs` v1.0.0, mutation-verified red against v2.43.0. ⚠️⚠️ **CAPS LOCK IS RULED NOT-A-BUG.** Jake, 2026-09-02: *"The kid needs to learn to turn off caps lock... that's the kid needing to learn."* **The `e.key` comparison is CORRECT and must not be "fixed"** — this file teaches capitals and forgiving case would make every capital drill unfailable; the harness carries no Caps Lock case on purpose. ✅ **`game.js` TRACED AND CORRECTLY LEFT ALONE** — it has the same asymmetry and **not** the bug: the hard-stop modal has no button, the keystroke handler's `isHardStop` branch returns unconditionally, and `showStatsModal()` closes before every callback. ⚠️⚠️ **It is safe by circumstance, not construction** — two one-liners hold it up, so `hardstop-overlay-test.mjs` **Part E** pins both, mutation-verified. ⚠️ **Item 50 (the weekly HUD) is now the only open defect** and is still undiagnosed.
 
 **v3.53.0, 2026-09-02 (Round 58, Emerson).** ⚠️⚠️ **TWO LIVE STUDENT-FACING DEFECTS ARE NEW AT THE TOP AND NEITHER IS FIXED — 49 AND 50.** Jake reported both mid-round with screenshots. **49** is three defects in a chain: with **Caps Lock on**, `e.key` delivers `'S'` where the drill expects `'s'`, so every correct keystroke scores as a mistake AND the hard-stop release branch never matches — and then `beginStep()` clears the hard-stop FLAG while leaving the overlay ELEMENT in the document, so a `↻ Restart` produces a fresh drill under a stale red letter from the sequence just discarded. ⚠️⚠️ **That last one is what Jake actually photographed, and the first write-up of the item missed it** — it filed the mismatch as an open question about letter-case. He pushed back with the drill text (`;lfd;` — no `s` anywhere) and he was right. ⚠️ **The fix is NOT a blanket `.toLowerCase()`** — `learn.js` teaches capitals — and the three shapes are Jake's to choose between. **50** is NOT diagnosed: the weekly HUD equals today EXACTLY while `reports.html` totals the same days correctly, and the item records what was ruled out (week anchor across the month boundary, the HUD paint, Round 57's `rollDayIfNeeded()` week reset) plus the one **no-console** check that splits the rest. ⚠️ **Students have no devtools** — the check is run from Jake's chair. ✅ **Shipped this round: a gap in the version machinery.** `rights-ladder.js` reached `versions.js` and `version-stamp-test.mjs` in Round 57 and NOT `tools/audit-versions.mjs`, so `npm run audit:versions` — the "0 problems" every handoff quotes — was not reading that module's stamp. ⚠️⚠️ **It survived because section D's two loops both ended at the harness's own list**: nothing was ever asserted INTO the audit tool, while D2's message told the next round that "section D checks all three agree." Mutation-verified both ways. ⚠️ **ITEM 42's admin.js HALF WAS STARTED AND DELIBERATELY NOT SHIPPED** — see the handoff; the transform was complete and verified in a scratch copy when Jake reported the two defects, and a 250-declaration cosmetic change is the wrong thing to put in front of a teacher hunting a counting bug.
@@ -3115,33 +3121,79 @@ notion of "which days this student typed on" is a per-browser cache.
 and is read blind rather than skipped, which is the safe direction. **That is
 exactly why this needs measuring rather than more reading.**
 
-### C. ⭐ THE CHECK THAT SPLITS IT, AND IT NEEDS NO CONSOLE
+### C. ✅ THE CHECK WAS RUN AND IT CONFIRMED THE FAULT — IT DID NOT CLEAR IT
 
-⚠️ **STUDENTS HAVE NO DEVTOOLS** — item 43 is the write-up of an entire repair
-that could not be delivered for that reason. So the check below is deliberately
-one Jake can run from his own chair.
+**Jake, 2026-09-02: the same student's weekly HUD reads correctly in a NEW
+BROWSER.** He read that as the bug being gone. ⚠️⚠️ **IT MEANS THE OPPOSITE, AND
+THE NEXT ROUND MUST NOT INHERIT THE WRONG READING.**
 
-**Sign in as the affected student on JAKE'S machine and read the top bar.**
+A new browser has empty `localStorage`. So `readLocal()` returns null,
+`ledgerFrom(null, uid)` returns **null**, `planReads()` reports `blind: true`, and
+**all seven days are fetched.** A blind read is the pre-optimisation behaviour and
+is correct by construction. ⚠️ **The new browser did not repair anything — it
+bypassed the thing that is broken.** The student's own machine is still wrong, and
+will be wrong again tomorrow.
 
-* **Weekly reads 26m 15s on Jake's machine and 6m on the student's** → the fault
-  is the **per-browser mirror or the per-browser closed-day cache**, because the
-  only thing that changed is which `localStorage` is answering. That points at
-  `logdays.js`'s `ttb_logDays_v1` / `daylog.js`'s `ttbDayCache:` — and the real
-  fix is almost certainly the one `daylog.js` already asks for: **pass
-  `ledgerFrom(userData, uid)` from the call sites that hold the user document**,
-  so the server's ledger backstops the mirror.
-* **Weekly reads 6m on Jake's machine too** → the mirror is innocent and the
-  fault is in `readWeek()` itself or in the documents. Then, and only then, the
-  next step is the meter: `copy(ttbMeter.json())` on `learn.html` and read which
-  of the seven `typing_logs` reads were issued at all.
+⭐ **WHAT IT DID ESTABLISH, AND IT IS A LOT:** the fault is entirely in
+**per-browser state**. The Firestore documents are correct (`reports.html` always
+agreed), the week arithmetic is correct, and the reading code is correct **given a
+correct ledger**. Something in this browser's storage is telling the reader that
+days the student typed on are days they did not.
 
-⚠️ **DO NOT SHIP A FIX BEFORE THAT ANSWER.** Both candidate mechanisms are
-read-pruning optimisations whose whole purpose is to skip work, and §0.-27 is the
-round that spent itself "fixing" a premise that had already moved. ⚠️ **AND IF A
-ROUND DOES REACH FOR THE PRUNING: `logdays.js`'s header rule is that the ledger
-must be a SUPERSET of the logs and NOBODY MAY PRUNE IT** — a stale entry costs one
-wasted read, a missing entry costs a child their minutes, which is the failure on
-screen here.
+⚠️⚠️ **THE OBVIOUS WORKAROUND IS NOT AVAILABLE AND THAT IS WHY THE REPAIR SHIPPED
+IN THE APP.** Round 58 first told Jake to clear site data on the affected machine.
+**He can't: it is blocked by district policy, and it wasn't his choice.** Students
+also have no devtools (item 43). ⚠️ **So nothing outside the app can reach a value
+in a student's `localStorage` — the only instrument that can is code that runs on
+their machine.** Any future item that ends in "have the student clear X" is not a
+plan.
+
+✅ **SHIPPED (Round 58) — A ONE-SHOT INVALIDATION OF ALL THREE STORES.**
+`hud.js` v2.1.0 (`HUD_CACHE_KEY` → `_v2`), `logdays.js` v1.3.0 (`LOCAL_KEY` →
+`_v2`), `daylog.js` v1.8.0 (`DAY_CACHE_SHAPE` 3 → 4). Renaming orphans every
+stored entry, so each machine reads its week from Firestore once — the same
+condition the new browser was in, which is known to give the right answer.
+
+⚠️⚠️ **THIS IS A REPAIR, NOT A FIX, AND THE ITEM STAYS OPEN.** The root cause is
+still unknown. All three were bumped, including two with no fault found in them,
+because the fault is known to be per-browser and **not** pinned to a store —
+guessing one and being wrong would leave children miscounted for another week.
+⚠️ **IT COSTS READS:** item 18's saving is suspended for roughly a week per
+student while `since` catches up. Accepted deliberately — a child shown fewer
+minutes than they typed outranks a read budget.
+
+⭐⭐ **THE MOST VALUABLE THING THE NEXT ROUND CAN BE TOLD: DID IT COME BACK?** If a
+student's weekly goes wrong again after this ships, the fault is a **write** bug
+and not a stale entry, and the three stores can be told apart by which one
+repopulated wrongly. If it does not come back, it was stale state from an earlier
+build and the item can close.
+
+### C2. ⚠️ THE THREE PER-BROWSER STORES, AND WHAT WAS RULED OUT BY READING
+
+1. **`ttb_logDays_v1`** (logdays.js) — the day mirror. ⚠️ **Read closely and no
+   fault found:** `noteDay()` keeps `since = min(days)`, so a day earlier than
+   anything recorded falls *before* `since` and is read **blind**, not skipped —
+   the safe direction. `MAX_DAYS` is **400**, so the `days.shift()` trim cannot
+   reach inside one week. ⚠️ **A LATENT BUG IS THERE ANYWAY AND IS NOT THIS ONE:**
+   that trim drops the oldest entries **without moving `since` forward**, so after
+   400 recorded days the trimmed-away dates become "known absent" and are skipped.
+   Harmless now, wrong later, and worth fixing when someone is in the file.
+2. **`ttbDayCache:`** (daylog.js v1.7.0) — closed-day totals. ⚠️ **Read closely
+   and no fault found:** it expires at local midnight, is discarded on any shape
+   or uid mismatch, banks only days that were actually READ (never a skipped or
+   cached one) and only from a run where every day succeeded.
+3. **The HUD seed cache** (`hudCacheSave`/`hudCacheLoad` in learn.js) — ⚠️ **NOT
+   examined in depth, and it is the one left standing.** It is consulted in
+   `renderTimeHUD()` when today and week are both zero. **Start here.**
+
+⚠️⚠️ **AND THE REAL FIX MAY NOT REQUIRE KNOWING WHICH.** `daylog.js` asks for it
+in its own comments and no caller does it: **all nine `readWeek()` call sites pass
+no ledger**, so the reader trusts a per-browser mirror *alone*. Passing
+`ledgerFrom(userData, uid)` from the sites that already hold the user document
+unions the **server's** `ttbLogDays` in, and since an extra day only ever adds a
+read, it **cannot** cause an undercount. That removes the whole class rather than
+one instance. ⚠️ Check first that those call sites really hold `userData` —
+`ledgerFrom()`'s docstring is emphatic that null and empty must never be confused.
 
 ### D. ⚠️ WHAT IT DOES AND DOES NOT COST
 

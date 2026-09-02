@@ -131,7 +131,64 @@
 > the 8-entry budget. **Ten live comments in the file still cite v2.36.0**, so the
 > pointer folded into v2.37.0's entry is load-bearing, not courtesy (§0.-30.G).
 >
-> ### ⚠️⚠️ ROADMAP 50 IS *NOT* DIAGNOSED, AND THE ITEM'S VALUE IS WHAT IT RULES OUT
+> ### ⚠️⚠️ ROADMAP 50 — NARROWED, AND THE KEY EVIDENCE READS BACKWARDS
+>
+> ⚠️⚠️ **JAKE FOUND THE STUDENT'S WEEKLY HUD CORRECT IN A NEW BROWSER AND READ IT
+> AS THE BUG BEING GONE. IT MEANS THE OPPOSITE.** A new browser has empty
+> `localStorage`, so `ledgerFrom(null, uid)` returns null, `planReads()` goes
+> `blind: true`, and all seven days are fetched — the pre-optimisation path, which
+> is correct by construction. **The new browser bypassed the fault. That machine
+> will be wrong again tomorrow.** Do not inherit the wrong reading.
+>
+> ⭐ **IT NARROWED THINGS SHARPLY THOUGH:** the fault is entirely in **per-browser
+> state**. Documents correct, week arithmetic correct, read logic correct given a
+> correct ledger.
+>
+> ⚠️⚠️ **AND THEN I PROPOSED A WORKAROUND THAT DOES NOT EXIST.** I told Jake to
+> have the student clear site data. **He can't — it is blocked by district policy,
+> and it was not his choice.** Students also have no devtools (item 43 is a whole
+> repair that could not be delivered for that reason). ⚠️ **NOTHING OUTSIDE THE
+> APP CAN REACH A VALUE IN A STUDENT'S `localStorage`. The only instrument that
+> can is code running on their machine.** Any plan that ends in "have the student
+> clear X" or "have them run Y in the console" is not a plan, and I have now
+> written both of those in one session.
+>
+> ✅ **SO THE REPAIR SHIPPED IN THE APP:** `hud.js` v2.1.0, `logdays.js` v1.3.0,
+> `daylog.js` v1.8.0 — all three per-browser stores invalidated by a key/shape
+> bump, putting every machine in the same state as the new browser, which is known
+> to give the right answer. ⚠️ **REPAIR, NOT FIX. THE ITEM STAYS OPEN.** Two of
+> the three had no fault found in them and were bumped anyway: the fault is known
+> to be per-browser and not pinned to a store, and guessing wrong costs another
+> week of miscounted children. ⚠️ It suspends item 18's read saving for about a
+> week per student, accepted on purpose.
+>
+> ✅ **AND THE STRUCTURAL REPAIR SHIPPED TOO** (`logdays.js` v1.4.0, `learn.js`
+> v2.45.0): `reconcile()` unions the server's `ttbLogDays` back into this
+> browser's mirror, called from `loadGateState()` on the user document it already
+> holds — **zero extra reads.** ⚠️⚠️ **It cannot cause an undercount: it only ADDS
+> days and only moves `since` BACKWARD.** Mutation-verified twice; H3 fails if
+> `since` can move forward, which is the one direction this module must never
+> move. ⚠️ It heals the **next** page load, not the current one, because
+> `loadGateState()` runs after `loadUserStats()`'s `readWeek()`.
+>
+> ⚠️ **THIS MAKES THE FAULT SELF-HEALING, NOT DIAGNOSED. THE ITEM STAYS OPEN.**
+>
+> ⭐⭐ **THE ONE THING TO CARRY: DID IT COME BACK?** Recurrence means a **write**
+> bug rather than stale state from an earlier build, and tells the three stores
+> apart. No recurrence means the item can close. **That single fact is worth more
+> than any further reading of this code.**
+>
+> Item 50 §C2 has the three stores. Two were read closely and cleared; **the HUD
+> seed cache is the one left standing.** ⚠️ **And the real fix may not need the
+> answer** — no `readWeek()` caller passes a ledger, and passing
+> `ledgerFrom(userData, uid)` can only ADD reads, never cause an undercount.
+>
+> ⚠️ **A LATENT BUG WAS FOUND WHILE LOOKING AND IS NOT THIS ONE:** the mirror's
+> 400-day trim `days.shift()`s the oldest entries **without moving `since`
+> forward**, so past 400 recorded days those dates become "known absent" and get
+> skipped. Harmless now, wrong later.
+>
+> ### ⚠️⚠️ ORIGINAL NOTES ON 50 — STILL ACCURATE, AND THE ITEM'S VALUE IS WHAT IT RULES OUT
 >
 > A student whose daily rows total **26m 15s** — and whose report shows exactly
 > that — has a top bar reading `Daily 6:55` beside `Weekly 6:55`. ⚠️ **Weekly
@@ -674,7 +731,7 @@
 > `grep -rihn "Round [0-9]* (" . | grep -oP "Round \d+ \([A-Za-z-]+\)"`.
 
 
-<!-- HANDOFF.md v15.34.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.36.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 40; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
 
      v15.33.0 — Round 58 (Emerson). ⭐ START HERE REWRITTEN.
@@ -713,7 +770,13 @@
      ⚠️⚠️ IT SURVIVED BECAUSE SECTION D's TWO LOOPS BOTH ENDED AT THE HARNESS'S
      OWN LIST while D2's message claimed section D checked all three. A MIRROR
      NEEDS A CHECK POINTING AT IT. Mutation-verified both ways.
-     67 harnesses, 0 audit problems. test:rules NOT run (rules untouched).
+     ⚠️⚠️ 50: A ONE-SHOT REPAIR SHIPPED (hud.js v2.1.0, logdays.js v1.3.0,
+     daylog.js v1.8.0 — all three per-browser stores invalidated). REPAIR, NOT
+     FIX; root cause unknown; ITEM STAYS OPEN. ⚠️ IT SHIPPED IN THE APP BECAUSE
+     STUDENTS CANNOT CLEAR SITE DATA (district policy) AND HAVE NO DEVTOOLS —
+     any plan ending in "have the student clear X" is not a plan.
+     ⭐⭐ TELL THE NEXT ROUND WHETHER IT CAME BACK: recurrence = a write bug.
+     68 harnesses, 0 audit problems. test:rules NOT run (rules untouched).
 
      v15.32.0 — Round 57 (Bar-Lock). ⭐ START HERE REWRITTEN. THE BUILD IS FULLY
      GREEN — 66 harnesses, test:rules 89/89, 0 audit problems — for the first
