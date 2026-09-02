@@ -4,7 +4,7 @@ A classroom typing application for Ellis Middle School. Students type real books
 one sentence at a time, and the time they spend doing it becomes the number their
 teacher grades.
 
-<!-- README.md v2.2.0 — Round 28 (Daugherty), 2026-08-23.
+<!-- README.md v2.3.0 — Round 57 (Bar-Lock), 2026-09-02.
 
      ⚠️⚠️ THIS FILE HAD BEEN OVERWRITTEN BY A COPY OF tests/README.md AND THE
      PROJECT README WAS GONE. HANDOFF §7's document map says this file should
@@ -67,12 +67,28 @@ what is in the repo is what runs.
 * `game.html` + `game.js` — **Library mode**, typing a book. The largest file
 * `learn.html` + `learn.js` — **School mode**, structured lessons and drills
 * `admin.html` + `admin.js` — book import, metadata, staff and class management
+  * `lessons-admin.js` — the Lessons panel, mounted by `admin.js`
+  * `staff-admin.js` — the Staff and class panel, mounted by `admin.js`
 * `reports.html` — the teacher's grading view
+* `school-audit.html` — a **read-only** diagnostic view of School data. It
+  changes nothing and is safe to open in front of anybody
 
-Shared modules both student pages import: `firebase-config.js` (⚠️ also the one
-home of `ADMIN_EMAILS`), `daylog.js`, `session-log.js`, `stats-wal.js`, `hud.js`,
-`keyboard.js`, `versions.js`, `settings-panel.js`, `drill-filter.js`,
-`variety-floor.js`, `celebrate.js`, `receipt.js`, `update-gate.js`.
+Shared modules the pages import: `firebase-config.js` (⚠️ also the one home of
+`ADMIN_EMAILS`), `daylog.js`, `logdays.js`, `session-log.js`, `stats-wal.js`,
+`hud.js`, `keyboard.js`, `versions.js`, `settings-panel.js`, `drill-filter.js`,
+`variety-floor.js`, `celebrate.js`, `receipt.js`, `update-gate.js`,
+`read-meter.js`, `lesson-gate.js`, `run-grade.js`, `chapter-position.js`,
+`adventure-renderer.js`.
+
+⚠️ **THE AUTHORITATIVE LIST IS `versions.js`, NOT THIS PARAGRAPH.** Every shipped
+file must be registered there or it ships unversioned and untested — `npm test`
+reports unregistered files. This list went twenty-five rounds without an update
+and was missing seven shipped modules when Round 57 checked it, so **regenerate
+it from `versions.js` rather than adding to it by hand:**
+
+```
+grep -oP "[a-z][a-z-]*\.(js|html)" versions.js | sort -u
+```
 
 ⚠️ **The two page controllers cannot import each other.** Every student-facing
 feature is therefore a **twin by construction**, and half-building one is the
@@ -103,14 +119,17 @@ npm install    # ⚠️ FIRST. jsdom is not vendored; without it THIRTEEN harnes
                #    fail with ERR_MODULE_NOT_FOUND, which is an uninstalled
                #    suite, not a red one. (Count verified Round 55 by
                #    `grep -ln jsdom tests/*.mjs | wc -l` — it said "eight" for
-               #    several rounds. Recount it, do not carry it forward.)
+               #    several rounds. Recount it, do not carry it forward.
+               #    Recounted Round 57: still thirteen.)
 npm test       # every fast harness, plus the registration and syntax audits
 npm run audit:versions   # version stamps and header budgets
 
 # ⚠️⚠️ THE RULES SUITE IS NOT PART OF `npm test` AND IS EASY TO FORGET.
 # It needs the Firebase emulator (a JVM and a one-time jar download):
 npm run test:rules:setup # once
-npm run test:rules       # ⚠️ Round 55 left SIX NEW CASES THAT HAVE NEVER RUN
+npm run test:rules       # ⚠️ 89 assertions. ALL GREEN as of Round 57 — the six
+                         #    cases Round 55 added had never once been executed
+                         #    (no environment had a JVM) and they pass.
 ```
 
 ⚠️ **Every shipped file carries its version TWICE** — a runtime constant and a

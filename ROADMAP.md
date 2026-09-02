@@ -347,8 +347,10 @@ numbers × the county's student count are the rollout argument.
 ---
 
 
-1. **29. ⚠️ README.md IS TWENTY-FIVE ROUNDS STALE**
-   — ⚠️ The file map and data model. Cheap; do it on a round with room.
+1. **47. ⭐ A GEMINI LICENCE CHECK, AND THE RIGHTS LADDER IT WOULD NEED LIFTED OUT OF admin.js FIRST**
+   — ⚠️ **UNBLOCKED IN ROUND 57.** It waited on `metadata-map-test.mjs` being
+   green, and that harness is green: the 39 assertions were test rot, not a
+   defect. The ladder can be extracted now.
 2. **27. ⚠️ game.js READS A WEEK IT DOES NOT NEED — THE GUARD learn.js ALREADY HAS**
    — ⚠️⚠️ **ITS VALUE COLLAPSED IN ROUND 52 AND NOBODY HAS RE-JUDGED IT.** The memo means the second call costs nothing already, and `loadUserStats()` needs the week regardless — so the guard now saves **roughly zero reads**. It is a tidiness/twin-symmetry item, not a performance one. **Do the harness first** if it is done at all.
 
@@ -360,15 +362,13 @@ Everything else still open:
 - 4. THE IMPLAUSIBILITY FLAG
 - 5. WHAT A NORMAL DAY LOOKS LIKE
 - 7. THE 5-SECOND FLOOR
-- 9. REDUCE THE SURFACE
+- 9. REDUCE THE SURFACE  *(the day-rollover bullet CLOSED Round 57; the rest stands)*
 - 30. ⚠️ ADVENTURE MODE GIVES NO COLOUR FEEDBACK ON A WRONG KEY — AND CAPS LOCK IS WHERE IT SHOWS
 - 34. ⚠️ THE LESSON-LEVEL MASTERY LOCK ONLY CLOSES WHEN EVERY RUN IS MASTERED
 - 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
 - 39. ⚠️ 64 alert() AND confirm() CALLS ARE THE LOUDEST “UNFINISHED” SIGNAL IN THE APP
 - 42. ⚠️ admin.js STILL CARRIES 183 (Round 56 CLOSED THE admin.html HALF) — AND THE THREE THINGS THIS ITEM GOT WRONG
-- 44. ⚠️ THE BOOK ID FIELD ACCEPTS ANYTHING TYPED INTO IT, AND slugifyBookId() IS RIGHT THERE
-- 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME
-- 47. ⭐ A GEMINI LICENCE CHECK, AND THE RIGHTS LADDER IT WOULD NEED LIFTED OUT OF admin.js FIRST
+- 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME  *(Jake ANSWERED it Round 57 — it is student-facing visibility, not a staff filter; read the item before starting)*
 
 ## ⏳ WATCHING — no action, just don't forget
 
@@ -376,6 +376,9 @@ Everything else still open:
 
 ## ✅ DONE — kept for the reasoning, not for the task
 
+- 48. ✅ “TEXT PREPARED BY” NAMED THE WRONG PERSON ON EVERY BOOK, ON EVERY SURFACE  *(Round 57 — two defects, one symptom)*
+- 44. ✅ THE BOOK ID FIELD ACCEPTS ANYTHING TYPED INTO IT, AND slugifyBookId() IS RIGHT THERE  *(Round 57 — warns on whitespace, never blocks)*
+- 29. ✅ README.md IS TWENTY-FIVE ROUNDS STALE  *(Round 57 — file map regenerated from versions.js)*
 - ✅ ITEM 18 — PRUNE `readWeek()` WITH THE LEDGER  *(BUILT, Round 37)*
 - ✅ ITEM 20 — THE LEADERBOARD  *(cache FIXED Round 37; the gate is by design)*
 - ✅ ITEM 19 — CONTINUE READING  *(BUILT, Round 38)*
@@ -475,7 +478,7 @@ right while leaving the HUD ticking from a stale seed just moves the lie.
 
 ---
 
-## 29. ⚠️ README.md IS TWENTY-FIVE ROUNDS STALE
+## 29. ✅ README.md IS TWENTY-FIVE ROUNDS STALE
 
 `README.md` is **v2.0.0, Round 28 (2026-08-23)**. Rounds 29–52 have since added
 or changed, at minimum: `chapter-position.js`, `celebrate.js`, `receipt.js`,
@@ -3808,11 +3811,47 @@ curriculum today.
 
 ## 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME
 
-**Jake, 2026-09-01:** *"a way for building admins to filter books for their
-building and for teachers to filter it even further."*
+✅ **ANSWERED BY JAKE, 2026-09-02, AND THE ANSWER CHANGES THE ITEM.** Asked
+whether this was a staff convenience filter or a real permission boundary, he
+said neither: *"The goal is to keep kids from seeing books that local teachers
+may not want. Maybe they think that Dracula shouldn't be in the hands of 6th
+graders — teachers can see it, but the students can't. If that can be done
+without Firestore, then please do."*
 
-⚠⚠ **THE FIRST THING TO SETTLE IS WHETHER THIS IS A FILTER OR A BOUNDARY, BECAUSE
-THEY ARE DIFFERENT FEATURES AND ONLY ONE OF THEM IS CHEAP.** A filter is a
+⚠️⚠️ **SO IT IS A THIRD THING, AND THE CHEAPEST OF THE THREE.** Not staff-facing
+at all: the audience is STUDENTS, and the surface is `index.html`, not
+`admin.js`. Staff keep seeing everything — there is no admin-side hiding to
+build, and no rules work, because nothing is being kept from a privileged user.
+That is why it can skip Firestore entirely, and Jake explicitly asked that it
+should.
+
+⚠️ **IT IS CURATION, NOT A LOCK, AND JAKE HAS BEEN TOLD SO.** A book hidden from
+the library grid is still reachable by anyone holding its URL — `game.html`
+takes a book id and the rules allow any signed-in student to read any book.
+Told 2026-09-02; he is content with that for the stated purpose. **Do not let a
+later round quietly upgrade this into a security claim** — if it ever needs to
+be a real boundary, that is rules work and a different item.
+
+⚠️ **THE THREE ⚠️ NOTES BELOW STILL STAND AND ARE THE REASON THIS IS NOT A
+ONE-LINER.** In particular there is still no field to filter ON, and item 46 is
+still the same step. What changes is the SHAPE of the field: a per-building
+"hidden from students" list needs a building identity on the book or on the
+setting, and the existing `_staffScope.schoolIds` is the only building identity
+in the codebase. Design the field for the visibility question, not for the
+filter question that was asked first.
+
+**Jake's original phrasing, 2026-09-01, kept because it is what generated the
+wrong reading:** *"a way for building admins to filter books for their building
+and for teachers to filter it even further."*
+
+⚠⚠ ~~**THE FIRST THING TO SETTLE IS WHETHER THIS IS A FILTER OR A BOUNDARY**~~ —
+settled above. Kept because the reasoning is still worth reading: the phrasing
+sounded like staff convenience, it was actually about students, and **neither of
+the two features this item was written to distinguish turned out to be the one
+Jake wanted.** A question with two options offered can still have a third
+answer. The original text follows.
+
+A filter is a
 convenience for staff looking at a long list. A boundary is *this building's
 admin cannot see or edit that building's books* — which is `firestore.rules`
 work, not UI work, and the rules have already caught three rounds out (items
@@ -3978,7 +4017,7 @@ tell you whether the move broke anything.
 
 ---
 
-## 44. ⚠️ THE BOOK ID FIELD ACCEPTS ANYTHING TYPED INTO IT, AND slugifyBookId() IS RIGHT THERE
+## 44. ✅ THE BOOK ID FIELD ACCEPTS ANYTHING TYPED INTO IT, AND slugifyBookId() IS RIGHT THERE
 
 **Reported by Jake, 2026-09-01**, from a sibling instance's diagnosis: the
 Wonderland book's id is `alice1_in wonderland` — a space in the middle of a
@@ -4056,3 +4095,93 @@ convention and are not the ids.
 **Size:** small, and it belongs in admin.js. ⭐ **Ride it along with any round
 already inside `admin.js`** rather than spending a round on it — item 42 is going
 to be in that file anyway.
+
+---
+
+## 48. ✅ “TEXT PREPARED BY” NAMED THE WRONG PERSON ON EVERY BOOK, ON EVERY SURFACE
+
+✅ **DONE**, Round 57 (Bar-Lock). `index.html` v3.17.0, `game.js` v3.47.0,
+`adventure-renderer.js` v1.5.5.
+
+**Jake, 2026-09-02, with a screenshot of The Phoenix and the Carpet:** *"I don't
+think the text prepared by field is working. I've updated this guy manually
+multiple times — it's not claude. This is a Global Grey book, so it's Julie (or
+Julia? I don't remember). But even when it's correctly pulling from Gutenberg in
+Admin, it's not showing up on the about page. It's ALWAYS claude....when it
+shouldn't be. You're awesome, but not that awesome."*
+
+⚠️⚠️ **HE WAS REPORTING TWO INDEPENDENT DEFECTS THAT PRODUCED ONE SYMPTOM**, and
+either one alone would have been enough to make the field look broken. That is
+why editing it in admin appeared to do nothing: both had to be fixed.
+
+**(1) THE LABEL WAS BOUND TO THE WRONG FIELD, AT THREE SITES.** `Text prepared
+by` read `cleanedBy` in `index.html`'s About panel, in `game.js`'s classic end
+credits, and in `adventure-renderer.js`'s. `cleanedBy` is *"Claude"* on
+essentially every book in the library — so the row said Claude on every book, no
+matter who had prepared the text. Not a data problem at all; the page was
+faithfully rendering a field nobody meant it to render.
+
+⚠️ **ON THE ABOUT PANEL IT WAS ALSO A DUPLICATE**, which is visible in Jake's
+screenshot and is the tell nobody read: that panel already had a correct
+`Cleaned up by: Claude` row four lines above, so it printed the same name twice
+under two different labels. **Three labels existed for two people** — `Prepared
+by`, `Cleaned up by`, `Text prepared by` — and the third was a second alias for
+one of the first two.
+
+**(2) `preparedBy` NEVER REACHED index.html AT ALL.** The library projection
+(`index.html`, in the book-list loop) carried `source`, `rights`, `archiveUrl`,
+`originUrl` and `cleanedBy` — and not `preparedBy`. So `book.preparedBy` was
+`undefined` for every book ever loaded, and the `Prepared by` row that had been
+sitting in that panel since v3.6.3 had never once rendered for anybody.
+`admin.js` has saved the field correctly since v3.20.0 and still does; the
+student-facing page simply never asked for it.
+
+⚠️ **AND ADVENTURE HAD THE SAME GAP ONE LAYER UP.** `game.js`'s credits payload
+passed only `cleanedBy` into `adventure-renderer.js`, so fixing that renderer's
+label alone would have rendered nothing at all.
+
+**What shipped.** `preparedBy` added to the projection (costs no extra read — it
+is one more string off a document already being held); `Text prepared by` pointed
+at `preparedBy` on all three surfaces; the duplicate row deleted; the cleaner's
+credit kept everywhere under `Cleaned up by`. ⚠️ **THE CLEANER'S CREDIT IS
+RELABELLED, NEVER DROPPED** — it is a disclosure that the text was modified, not
+only a courtesy.
+
+⚠️ **THE BOOKS CACHE KEY WAS BUMPED `ttb_booksCache_v2` → `_v3`, AND THAT BUMP IS
+PART OF THE FIX.** The cached value is the PROJECTION, not the raw document, so
+every cache written before this version lacks the new field. Without the bump the
+fix would have appeared not to work — for hours, for exactly the students who use
+the site most, with nothing on screen to explain why. Costs one extra read per
+student, once. See § READS before adding a third bump casually.
+
+✅ **AND THE HARNESS SHIPPED IN THE SAME ROUND** — `tests/credits-binding-test.mjs`
+v1.0.0, 54 assertions. **No harness watched the credit rows on any surface**,
+which is how a field that never reached the page went unnoticed for eleven
+versions and a label bound to the wrong variable survived at three sites at once.
+`credits-test.mjs` and `credits-scroll-test.mjs` both build fixtures containing
+`cleanedBy` and **neither asserts a single label**.
+
+⚠️ **IT ASSERTS THE PAIRING, NEVER THE PRESENCE.** "Does the string `Text prepared
+by` appear in game.js" would have passed against the broken build, on all three
+files, for the entire eleven versions. Every assertion reads a
+`[label, expression]` pair and checks which field the expression names.
+
+⚠️⚠️ **PARTS C AND D ARE CLASS GUARDS AND ARE THE MORE VALUABLE HALF.** They do
+not mention `preparedBy`: C asserts that **every** `book.<field>` the About panel
+renders is carried by the library projection, and D that **every**
+`detail.<field>` the adventure renderer reads is supplied by game.js's payload.
+Those catch the *next* field somebody adds to a credit surface and forgets to
+plumb through — the failure mode is silent, permanent, and looks exactly like a
+data problem, so nobody goes looking in the code.
+
+⚠️ **MUTATION-VERIFIED AGAINST THE PRE-FIX BUILD: 12 failing across A, B, C and
+E**, including Part E reproducing Jake's report exactly — `"TEXT PREPARED BY"
+renders the cleaner's name`. C and D were each verified separately by deleting a
+single line from the fixed build. **Part D correctly passes on the broken build**
+and the harness header says so, because D guards the failure that would have come
+*next*: fixing a label while leaving the field out of the payload.
+
+**Still open, and it is Jake's to answer:** the Global Grey preparer's name.
+He remembers *"Julie or Julia"* and the field currently holds whatever admin
+last stored. Now that the row actually renders, the value is visible on the
+About page and can be corrected book by book in admin — no code change needed.

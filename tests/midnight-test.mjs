@@ -1,4 +1,4 @@
-// midnight-test.mjs v1.0.0 — A SPRINT THAT CROSSES MIDNIGHT BELONGS TO TWO DAYS.
+// midnight-test.mjs v1.1.0 — A SPRINT THAT CROSSES MIDNIGHT BELONGS TO TWO DAYS.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // THE DEFECT — ROADMAP item 6, observed on real data 2026-08-20
@@ -147,9 +147,23 @@ console.log('\n─── A2. a sprint begun at 11:59:58 loses nothing ───'
 // ─── B. the ordering, which is the fix ─────────────────────────────────────
 console.log('\n─── B. ⚠️ THE CLOSE HAPPENS BEFORE THE RESET AND BEFORE THE INCREMENT ───');
 {
-    // The bounded region is the once-per-second block inside the tick. Ordering
-    // is asserted by position within it — not by proximity, which is what
-    // defeated three assertions in guest-merge-test.mjs this same round.
+    // ⚠️⚠️ v1.1.0 — THE ROLLOVER MOVED OUT OF THE TICK AND THIS PART FOLLOWED IT
+    // RATHER THAN BEING RELAXED. ROADMAP 9 needed the rollover reachable by
+    // something other than a counted second, so game.js v3.40.0 lifted the block
+    // verbatim into rollDayIfNeeded() and the tick now calls it at exactly the
+    // point the block used to occupy. The ordering constraints did not change;
+    // they are now spread across TWO regions, so this part asserts both:
+    //
+    //   B2–B3, B5   inside rollDayIfNeeded()  — close before reset, dated right
+    //   B4, B6      inside the per-second block — the call sits before the bump
+    //
+    // ⚠️ B4 USED TO PASS VACUOUSLY AND THAT IS WORTH KNOWING. It read
+    // `iClose < iBump` with `indexOf` returning -1 when the close was absent, so
+    // -1 < anything held and the assertion reported success on a build with no
+    // rollover at all. B2 happened to cover the absence, so nothing showed. Both
+    // ordering assertions now require their left operand to EXIST first.
+
+    // Region 1: the tick's per-second block.
     const start = game.indexOf('if (timeAccumulator >= 1000) {');
     const end   = game.indexOf('// Goal celebrations', start);
     ok(start > 0 && end > start, 'B1 the per-second block is locatable in game.js');
@@ -159,20 +173,60 @@ console.log('\n─── B. ⚠️ THE CLOSE HAPPENS BEFORE THE RESET AND BEFORE
     // describes — and B4 went red against correct code. Same failure as
     // guest-merge-test.mjs C4/C5/C7 this round, third variant: an assertion that
     // reads comments is measuring the documentation, not the program.
-    const block = game.slice(start, end)
-        .split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n');
+    const strip = s => s.split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n');
+    const block = strip(game.slice(start, end));
 
-    const iClose  = block.indexOf("logOpenSprint('midnight'");
-    const iReset  = block.indexOf('statsData.secondsToday = 0');
-    const iBump   = block.indexOf('sprintSeconds++');
+    // Region 2: rollDayIfNeeded() itself, by balanced brace so a later edit that
+    // grows the function cannot slide the end anchor onto something else.
+    const fnStart = game.indexOf('function rollDayIfNeeded(');
+    ok(fnStart > 0, 'B1b ⚠️ rollDayIfNeeded() exists — the rollover is a callable, not tick-only');
+    let depth = 0, fnEnd = fnStart;
+    for (let i = game.indexOf('{', fnStart); i < game.length; i++) {
+        if (game[i] === '{') depth++;
+        else if (game[i] === '}') { depth--; if (!depth) { fnEnd = i + 1; break; } }
+    }
+    const roll = strip(game.slice(fnStart, fnEnd));
 
-    ok(iClose > 0, 'B2 ⚠️ the tick closes the open sprint at the rollover');
-    ok(iClose < iReset,
+    const iClose = roll.indexOf("logOpenSprint('midnight'");
+    const iReset = roll.indexOf('statsData.secondsToday = 0');
+    const iCall  = block.indexOf('rollDayIfNeeded(');
+    const iBump  = block.indexOf('sprintSeconds++');
+
+    ok(iClose >= 0, 'B2 ⚠️ the rollover closes the open sprint');
+    ok(iClose >= 0 && iReset >= 0 && iClose < iReset,
        'B3 ⚠️ BEFORE the counters reset — after, and the sprint is dated by a day that no longer exists');
-    ok(iClose < iBump,
-       'B4 ⚠️⚠️ BEFORE sprintSeconds++ — one line lower and the first second of the NEW day is filed under yesterday, every midnight, invisibly');
-    ok(block.includes('logOpenSprint(\'midnight\', statsData.lastDate)'),
+    ok(iCall >= 0 && iBump >= 0 && iCall < iBump,
+       'B4 ⚠️⚠️ the tick calls the rollover BEFORE sprintSeconds++ — one line lower and the first second of the NEW day is filed under yesterday, every midnight, invisibly');
+    ok(roll.includes("logOpenSprint('midnight', statsData.lastDate)"),
        'B5 ⚠️ and it is dated from statsData.lastDate, the only value that still holds the outgoing day');
+    // ⚠️ THE ROLLOVER MUST NOT HAVE BEEN LEFT BEHIND AS WELL AS EXTRACTED. Two
+    // copies would reset the counters twice and file the sprint twice.
+    ok(!block.includes("logOpenSprint('midnight'"),
+       'B6 ⚠️ the tick does not ALSO carry an inline copy of the rollover');
+}
+
+// ─── B2. ROADMAP 9: the rollover is reachable without typing ───────────────
+console.log('\n─── B2. ⚠️ A TAB THAT WAKES ON A NEW DAY ROLLS OVER WITHOUT A KEYSTROKE ───');
+{
+    // ⚠️⚠️ THE DEFECT THIS PART EXISTS FOR. The rollover fired only on a counted
+    // second, so a tab that woke on a new day and FLUSHED — without the student
+    // typing — wrote yesterday's day counters into a document stamped with
+    // getLocalDateStr(), i.e. today. Yesterday's whole day on today's ledger
+    // line. That is the shape measured on two real students on 2026-08-21;
+    // Round 26 closed the MERGE path that produced those rows and left the
+    // FLUSH path open, where it stayed for thirty rounds.
+    //
+    // ⚠️ ASSERTED AS REACHABILITY, NOT AS A LIST OF CALL SITES. What matters is
+    // that a path which WRITES and a path which WAKES can both reach the
+    // rollover; naming the two functions would go red on any rename that kept
+    // the property true.
+    for (const [label, src] of [['game.js', game], ['learn.js', learn]]) {
+        const fn = label === 'game.js' ? 'rollDayIfNeeded' : 'rollDayIfNeeded';
+        const calls = (src.match(new RegExp(fn + '\\(', 'g')) || []).length;
+        // one declaration + the tick + at least two more (wake, write)
+        ok(calls >= 4,
+           `B2a ${label} ⚠️ the rollover has more than one caller — got ${calls} occurrences, want the declaration plus at least three call sites`);
+    }
 }
 
 // ─── C. the plumbing ───────────────────────────────────────────────────────
@@ -208,18 +262,41 @@ console.log('\n─── D. ✅ ROADMAP 6 CLOSED: learn.js mirrors game.js ─�
     // ⚠⚠ THE ORDERING IS HALF THE FIX, exactly as Part B asserts for game.js.
     // One line lower and the first second of each new day is filed under
     // yesterday, invisibly, forever.
-    const close = learn.indexOf("logOpenRun('midnight'");
-    const reset = learn.indexOf('statsData.secondsSchool = 0', close);
-    const incr  = learn.indexOf('statsData.secondsSchool++', close);
-    ok(close > 0 && reset > close,
+    //
+    // ⚠️⚠️ v1.1.0 — SPLIT ACROSS TWO REGIONS, FOR THE SAME REASON AS PART B.
+    // learn.js v2.43.0 lifted the rollover into rollDayIfNeeded() so ROADMAP 9
+    // could reach it from the wake and flush paths. The constraints did not
+    // change; they now live in two places, and asserting them with a single
+    // indexOf over the whole file silently inverted — the tick's increment sits
+    // ABOVE the extracted function in source order, so `indexOf(incr, close)`
+    // returned -1 and D6 went red against correct code.
+    const fnStart = learn.indexOf('function rollDayIfNeeded(');
+    ok(fnStart > 0, 'D5a ⚠ rollDayIfNeeded() exists in learn.js as well — the twins have not drifted');
+    let depth = 0, fnEnd = fnStart;
+    for (let i = learn.indexOf('{', fnStart); i < learn.length; i++) {
+        if (learn[i] === '{') depth++;
+        else if (learn[i] === '}') { depth--; if (!depth) { fnEnd = i + 1; break; } }
+    }
+    const roll = learn.slice(fnStart, fnEnd);
+
+    const tickStart = learn.indexOf('rollDayIfNeeded(\'tick\')');
+    const close = roll.indexOf("logOpenRun('midnight'");
+    const reset = roll.indexOf('statsData.secondsSchool = 0');
+    const incr  = learn.indexOf('statsData.secondsSchool++', tickStart);
+
+    ok(close >= 0 && reset >= 0 && close < reset,
        'D5 ⚠⚠ the close happens BEFORE the counters are reset');
-    ok(close > 0 && incr > close,
-       'D6 ⚠⚠ the close happens BEFORE the second is added to the new day');
+    ok(tickStart > 0 && incr > tickStart,
+       'D6 ⚠⚠ the tick rolls the day BEFORE the second is added to the new day');
+    // ⚠️ AND THE ROLLOVER WAS NOT LEFT BEHIND AS WELL AS EXTRACTED. Two copies
+    // would reset the counters twice and file the run twice.
+    ok(learn.slice(tickStart, incr + 200).indexOf("logOpenRun('midnight'") === -1,
+       'D6b ⚠ the tick does not ALSO carry an inline copy of the rollover');
 
     // ⚠ THE `= 1` COMPENSATIONS ARE GONE. They existed only because the
     // increments ran first; leaving one behind double-counts the first second of
     // every new day — the mirror image of the bug just fixed.
-    const tick = incr > 0 ? learn.slice(close, incr + 200) : learn.slice(close, close + 2500);
+    const tick = roll;
     ok(!/statsData\.secondsSchool = 1\b/.test(tick),
        'D7 ⚠ School\u2019s counter resets to 0, not the old compensating 1');
     ok(!/statsData\.secondsWeek = 1\b/.test(tick),

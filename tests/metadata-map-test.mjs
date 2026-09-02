@@ -1,4 +1,63 @@
-// metadata-map-test.mjs v1.4.0
+// metadata-map-test.mjs v1.5.0
+//
+// v1.5.0 — ⚠️⚠️ THE SAME FAILURE AS v1.4.0, ONE LAYER DOWN, AND v1.4.0'S OWN
+//          WARNING PREDICTED IT. Round 57 (Bar-Lock). This harness arrived RED
+//          at 39 assertions across three rounds of handoff, filed as "a real
+//          disagreement, not test rot." It was test rot. Every one of the 39
+//          was checked against the books' actual dc: metadata and the mapper
+//          was RIGHT in all 39.
+//
+//          v1.4.0 replaced a hand-kept list of book ids with a FILENAME
+//          convention (`_g` means Gutenberg) and wrote, correctly: "anything
+//          that requires a human to remember to edit a test fixture will
+//          eventually not be edited." It then made the FILENAME the fixture.
+//          Six Gutenberg books have since been imported without the suffix and
+//          three Global Grey books arrived as `_GG`, which the regex does not
+//          match — so 20 assertions held real Gutenberg books to Standard
+//          Ebooks expectations. A convention a human has to remember is a
+//          hand-kept list with the list spread across the file names.
+//
+//          ⚠️ THE OTHER 19 WERE A REAL CHANGE IN THE CORPUS, NOT A MISTAKE.
+//          The bookclean pipeline now stamps every cleaned book with "The
+//          original text is in the public domain in the United States. The
+//          editorial changes in this edition are dedicated to the worldwide
+//          public domain under CC0 1.0 ..." — 72 of the 74 books carry it. That
+//          is accurate and it is exactly what the combined PD & CC0 option is
+//          for, so canonicalRightsFrom() resolving to the combined value is
+//          CORRECT. The branch demanding plain PD from every `_g` book was
+//          describing a corpus that no longer exists.
+//
+//          ✅ FIXED BY READING THE BOOK, NOT ITS NAME. Both branches now derive
+//          their expectation from the archive in front of them: the source from
+//          dc:publisher + dc:identifier, the licence from whether dc:rights
+//          actually carries a CC0 dedication. There is nothing left for a human
+//          to keep in step. 471 -> 516 assertions, because the six unsuffixed
+//          Gutenberg books now receive the origin and preparedBy checks they
+//          were being excused from.
+//
+//          ⚠️ THE HONEST COST. The corpus half of the SOURCE check is now
+//          weaker: this file and canonicalSourceFrom() read the same two dc:
+//          fields, so a mapper that reordered SOURCE_PATTERNS is not caught by
+//          the corpus. What the corpus still catches alone is the failure that
+//          actually happened six times — a mapper returning '' and dropping the
+//          book into Custom..., a bare URL reaching the dropdown, or an option
+//          value that no longer exists in admin.html.
+//
+//          ⚠️⚠️ AND I FIRST WROTE THAT PART 1 COVERED THE ORDERING, WHICH WAS
+//          FALSE, AND ONLY MUTATION TESTING SAID SO. It does not. Worse, NOTHING
+//          did — not this version and not v1.4.0. canonicalSourceFrom() has two
+//          protections, the pattern ORDER and the two-pass edition/upstream
+//          SPLIT, and each was masking the other: flipping the order left the
+//          entire suite green, collapsing the split left it green, and only both
+//          at once went red. Two new PART 1 fixtures now pin each one where the
+//          other cannot cover for it; see the comment above them. This is a
+//          coverage hole that PREDATES v1.5.0 and was found only because the
+//          claim was checked before it was written down.
+//
+//          ⚠️ THE `_g` FILENAME CONVENTION IS NO LONGER LOAD-BEARING IN A TEST.
+//          v1.4.0 said in capitals that it was. It is now documentation only,
+//          and breaking it costs nothing here. isGutenbergFile() is kept — see
+//          its comment — solely to report the drift.
 //
 // v1.4.0 — ⚠️ THE STANDING 42-ASSERTION FAILURE IS CLOSED, AND THE CODE WAS
 //          NEVER WRONG. Round 19. For several rounds HANDOFF §6 item 3 carried
@@ -167,6 +226,36 @@ const sourceCases = [
     ['SE with no identifier still resolves on publisher alone',
      { publisher: 'Standard Ebooks', sources: ['https://www.gutenberg.org/ebooks/345'] },
      'Standard Ebooks'],
+
+    // ⚠️⚠️ THE NEXT TWO EXIST BECAUSE canonicalSourceFrom() HAS TWO INDEPENDENT
+    // PROTECTIONS AND, UNTIL v1.5.0, NEITHER WAS TESTED ALONE — THEY WERE COVERING
+    // FOR EACH OTHER. Round 57 mutation-verified this: flipping SOURCE_PATTERNS so
+    // Gutenberg precedes Standard Ebooks, and separately collapsing the two passes
+    // into one joined haystack, EACH LEFT THE WHOLE SUITE GREEN. Only both at once
+    // went red.
+    //
+    // The masking is symmetric. The split means a real SE book's PASS 1 string
+    // never contains the word "gutenberg" at all, so the order is never consulted
+    // and flipping it changes nothing. The order means that in a collapsed single
+    // haystack /standard\s*ebooks/ still matches before /gutenberg/, so collapsing
+    // the passes changes nothing either. Two mechanisms, one observable outcome.
+    //
+    // Each case below is built so that exactly ONE mechanism can produce the right
+    // answer and the other cannot help.
+
+    // Only the ORDER can answer this: both patterns match the SAME pass-1 haystack,
+    // so the split is irrelevant and whichever pattern is listed first wins.
+    ['ORDER, pinned alone: SE publisher with a gutenberg.org identifier',
+     { publisher: 'Standard Ebooks', identifier: 'https://www.gutenberg.org/ebooks/345', sources: [] },
+     'Standard Ebooks'],
+
+    // Only the SPLIT can answer this: the pass-1 answer (Global Grey) sits LATER in
+    // SOURCE_PATTERNS than the pass-2 one (Gutenberg), so no ordering rescues a
+    // collapsed haystack — it would return Project Gutenberg for a Global Grey book.
+    ['SPLIT, pinned alone: Global Grey edition built from a Gutenberg text',
+     { publisher: 'Global Grey ebooks', identifier: 'https://www.globalgreyebooks.com/x.html',
+       sources: ['https://www.gutenberg.org/ebooks/345'] },
+     'Global Grey'],
     ['Gutenberg direct: no publisher, identifier carries it',
      { publisher: '', identifier: 'http://www.gutenberg.org/91',
        sources: ['https://www.gutenberg.org/files/91/91-h/91-h.htm'] },
@@ -308,18 +397,41 @@ function liftedZipEntry(zip, p) {
     return null;
 }
 
-// ⚠️ A GUTENBERG BOOK IS IDENTIFIED BY ITS FILENAME, NOT BY A LIST. `_g` before
-// the extension (or before a `-claudeCleaned` suffix) is the import convention.
-// The previous version of this file kept a hand-written map of book ids here,
-// which went stale the moment a bookclean batch renamed and added books — see
-// the v1.4.0 note. Anything that requires a human to remember to edit a test
-// fixture will eventually not be edited.
 // ⚠️ THE BOOKCLEAN PASS RENAMES. `x.epub` becomes `x-claudeCleaned.epub` or
 // `x_claudeCleaned.epub` depending on the batch, which silently pushed every
 // cleaned book out of EXPECT and into the Standard Ebooks bulk branch. Normalise
-// before any filename lookup.
+// before any filename lookup. EXPECT is the only thing keyed by name now.
 const baseName = f => f.replace(/[-_]claudeCleaned(?=\.epub$)/i, '');
+
+// ⚠️⚠️ NOT USED TO CLASSIFY ANYTHING. v1.4.0 identified a Gutenberg book by this
+// suffix and made the convention load-bearing in a test; six books then arrived
+// without it and three Global Grey books arrived as `_GG`, which this does not
+// match. See the v1.5.0 note. It is kept ONLY to report the drift at the end of
+// the run, where a wrong answer costs a line of output rather than 20 red
+// assertions. DO NOT branch on it.
 const isGutenbergFile = f => /_g(-[A-Za-z]+)?\.epub$/.test(f);
+
+// ⚠️ THE BOOK ITSELF IS THE CLASSIFIER. Both of these read the archive in front
+// of us rather than anything a human maintains alongside it.
+//
+// `editionIsGutenberg` deliberately mirrors canonicalSourceFrom()'s PASS 1 — the
+// edition fields, dc:publisher + dc:identifier — and NOT its dc:source fallback.
+// That is the whole point: a Standard Ebooks book cites Gutenberg as its
+// upstream in dc:source, so anything that consults dc:source here would call
+// half the corpus Gutenberg and the expectation would be as wrong as the old
+// filename was. The SE guard is explicit for the same reason.
+const editionOf = meta => [meta.publisher, meta.identifier].filter(Boolean).join(' ');
+const isSEEdition  = ed => /standard\s*ebooks/i.test(ed);
+const isGutEdition = ed => /gutenberg/i.test(ed) && !isSEEdition(ed);
+const isGGEdition  = ed => /global\s*grey/i.test(ed);
+
+// ⚠️ A CC0 DEDICATION IN dc:rights IS A FACT ABOUT THE BOOK, NOT A GUESS ABOUT
+// ITS PUBLISHER. The bookclean pipeline stamps one into every book it touches —
+// the original text is public domain, the editorial changes are dedicated CC0 —
+// and both halves of that sentence are true and both belong in the stored
+// licence. A book WITHOUT the dedication is expected to map to plain PD, so this
+// harness keeps working through a bookclean batch either way.
+const CC0_DEDICATION = /creativecommons\.org\/publicdomain\/zero/i;
 
 // The canonical form admin.js must produce for a Gutenberg book. Asserted as a
 // SHAPE: this harness does not know, and must not pretend to know, which
@@ -363,6 +475,9 @@ try {
 
 const DC = 'http://purl.org/dc/elements/1.1/';
 let seCount = 0, gutCount = 0;
+// Books whose filename and whose metadata disagree about Gutenberg. Reported,
+// never asserted — see isGutenbergFile()'s comment.
+const nameDrift = [];
 for (const f of files) {
     const zip = await JSZip.loadAsync(readFileSync(path.join(LIB, f)));
     const container = await zip.file('META-INF/container.xml')?.async('string');
@@ -384,6 +499,14 @@ for (const f of files) {
         identifier: grab('identifier').find(v => /^https?:\/\//i.test(v)) || '',
     };
 
+    // Classify from the archive, once, and use the same answer for the source
+    // branch, the licence expectation and the Gutenberg-only signal checks below.
+    const edition   = editionOf(meta);
+    const isGut     = isGutEdition(edition);
+    const carriesCC0 = CC0_DEDICATION.test(meta.rights);
+    const wantRights = carriesCC0 ? PD_CC0 : PD;
+    if (isGut !== isGutenbergFile(f)) nameDrift.push(f);
+
     const gotSource = F.canonicalSourceFrom(meta, SOURCE_OPTS);
     const gotRights = F.canonicalRightsFrom(meta.rights, RIGHTS_OPTS);
 
@@ -391,17 +514,20 @@ for (const f of files) {
     if (EXPECT[key]) {
         eq(`${f} \u2192 source`, gotSource, EXPECT[key][0]);
         eq(`${f} \u2192 rights`, gotRights, EXPECT[key][1]);
-    } else if (isGutenbergFile(f)) {
-        // A `_g` book came from Project Gutenberg and must say so, with the
-        // public-domain rights string. No list, no maintenance.
+    } else if (isGut) {
+        // The book's own dc:publisher/dc:identifier say Project Gutenberg, so the
+        // dropdown must too. No list, no filename, no maintenance.
         eq(`${f} \u2192 source`, gotSource, 'Project Gutenberg');
-        eq(`${f} \u2192 rights`, gotRights, PD);
+        eq(`${f} \u2192 rights`, gotRights, wantRights);
     } else {
-        // Everything left is the Standard Ebooks bulk. Every one of them must resolve
-        // to Standard Ebooks and to the combined licence — that IS the reported bug.
+        // Everything left is Standard Ebooks or Global Grey. ⚠️ GLOBAL GREY IS NOT
+        // AN EXCEPTION LIST ANY MORE — it was one book in EXPECT, keyed by a
+        // pre-bookclean filename, and two more arrived as `_GG` and were silently
+        // asserted to be Standard Ebooks. Reading the publisher covers all three
+        // and covers the fourth nobody has uploaded yet.
         seCount++;
-        eq(`${f} \u2192 source`, gotSource, 'Standard Ebooks');
-        eq(`${f} \u2192 rights`, gotRights, PD_CC0);
+        eq(`${f} \u2192 source`, gotSource, isGGEdition(edition) ? 'Global Grey' : 'Standard Ebooks');
+        eq(`${f} \u2192 rights`, gotRights, wantRights);
     }
 
     // ⚠️ The regression that started all this: NOTHING may put a bare URL into the
@@ -413,7 +539,7 @@ for (const f of files) {
     // Origin URL. Gutenberg books must yield the canonical /ebooks/<id> form; every
     // other book must yield '' here and fall back to dc:identifier in the caller.
     const sig = await G.readInBookSignals(zip, opf, opfPath, meta);
-    if (isGutenbergFile(f)) {
+    if (isGut) {
         eq(`${f} \u2192 origin is a canonical /ebooks/<id> url`,
            GUTENBERG_ORIGIN_SHAPE.test(sig.originUrl), true);
         gutCount++;
@@ -447,7 +573,18 @@ for (const f of files) {
 }
 
 console.log(`\nmetadata-map-test: ${files.length} books read from ${LIB}` +
-            (files.length ? ` (${seCount} Standard Ebooks, ${gutCount} Gutenberg)` : ''));
+            (files.length ? ` (${seCount} Standard Ebooks/Global Grey, ${gutCount} Gutenberg)` : ''));
+
+// ⚠️ A NOTE, NOT AN ASSERTION, AND THE DISTINCTION IS THE POINT. The `_g` suffix
+// is a filing convention for humans; the books below are classified correctly
+// regardless of it, so failing here would be this file re-acquiring the exact
+// dependency v1.5.0 removed. It is printed so the drift is visible to whoever is
+// running batches, and costs nothing when it is empty.
+if (nameDrift.length) {
+    console.log(`\n  note: ${nameDrift.length} file(s) whose name and metadata disagree about Gutenberg`);
+    console.log('  (the `_g` suffix is documentation only — nothing here depends on it)');
+    for (const f of nameDrift) console.log(`    ${f}`);
+}
 if (fail) {
     console.log('\n' + bad.join('\n'));
     console.log(`\nFAIL \u2014 ${pass} passed, ${fail} failed.`);

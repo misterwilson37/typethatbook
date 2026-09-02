@@ -1,6 +1,125 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-01 by Round 56 (Munson), for whoever is next
+> ## ▶ START HERE — written 2026-09-02 by Round 57 (Bar-Lock), for whoever is next
+>
+> ⭐⭐ **THE BUILD IS FULLY GREEN FOR THE FIRST TIME IN SEVERAL ROUNDS.** 66
+> harnesses, `test:rules` 89/89, `audit:versions` 0 problems. **If your first run
+> is not green, you changed something — do not assume it arrived that way.**
+>
+> ### ⚠️⚠️ THE LESSON OF THIS ROUND: A RED HARNESS THAT SURVIVES A HANDOFF STOPS
+> ### BEING A FAILURE AND BECOMES THE NORMAL NUMBER
+>
+> `metadata-map-test.mjs` arrived at **39 failing assertions**, carried across
+> three handoffs, filed in writing as *"a real disagreement, not test rot."*
+> **It was test rot, in all 39.** `admin.js` was right every single time, checked
+> against the books' own `dc:` metadata.
+>
+> ⚠️ **THE FILE'S OWN v1.3.0 NOTE HAD WARNED ABOUT EXACTLY THIS**, about itself.
+> And `admin.js` v3.31.1 — archived this round — records the *opposite* error from
+> the same habit: that harness was dismissed for several rounds and turned out to
+> be reporting two real app defects. **Both mistakes come from ruling on a red
+> harness without opening it.** If `npm test` is not 66/66, that is the round's
+> first job, whatever the handoff says about it.
+>
+> ### ⚠️⚠️ AND THE SECOND LESSON: TWO PROTECTIONS CAN COVER FOR EACH OTHER
+>
+> I wrote into the fix's header that Part 1 already covered the source-ladder
+> ordering. **That was false, and only mutation testing said so.** Worse, nothing
+> covered it — not my version and not the previous one. `canonicalSourceFrom()`
+> has two protections, the pattern ORDER and the two-pass edition/upstream SPLIT.
+> Flipping the order left the whole suite green. Collapsing the split left it
+> green. **Only both at once went red.** Two Part 1 fixtures now pin each where
+> the other cannot help.
+>
+> ⚠️ **THE GENERAL FORM IS WORTH CARRYING:** when a function has two mechanisms
+> producing one observable outcome, a corpus test proves neither. Mutate them
+> **one at a time**, not together. `midnight-test.mjs` had the same disease — its
+> B4 read `iClose < iBump` where `indexOf` returns `-1`, so it reported success on
+> a build with **no rollover at all**.
+>
+> ### What shipped
+>
+> * **ROADMAP 48** — "Text prepared by" named the wrong person on every book, on
+>   all three credit surfaces. **Two independent defects, one symptom**: the label
+>   was bound to `cleanedBy` (which is "Claude" on every book) at three sites, and
+>   `preparedBy` was **never projected into the library book list at all**, so the
+>   correct row had never rendered for anybody since v3.6.3. ⚠️ The books cache key
+>   was bumped `v2 → v3` **as part of the fix** — the cached value is the
+>   projection, so without it the fix would have looked broken for hours.
+> * **ROADMAP 9's first bullet** — the day rollover was tick-only. A tab waking on
+>   a new day and flushing wrote yesterday's counters into a document stamped
+>   today. Same shape as the two students measured 2026-08-21; Round 26 closed the
+>   MERGE path and left the FLUSH path open for thirty rounds. Now
+>   `rollDayIfNeeded()` in both files, **moved verbatim and diffed to prove it**,
+>   with two new callers each (wake, flush).
+> * **ROADMAP 44** (whitespace warning), **29** (README file map), **45**
+>   (answered, see below).
+>
+> ### ⚠️ THINGS THAT ARE TRUE NOW AND WERE NOT BEFORE
+>
+> * **`npm run test:rules` WORKS AND IS GREEN — 89 ASSERTIONS.** The six cases
+>   Round 55 added had **never once been executed**; no environment had a JVM.
+>   This one did. ⚠️ `firestore.rules` is the one file Jake cannot test from a
+>   browser, so **run it in any round that touches the rules**, and say in the
+>   handoff whether you did.
+> * **ROADMAP 47 IS UNBLOCKED.** It waited on `metadata-map-test.mjs` being green.
+>   It is green. The rights ladder can be lifted out of `admin.js` now.
+> * **ROADMAP 45 IS ANSWERED, AND THE ANSWER WAS NEITHER OPTION THE ITEM OFFERED.**
+>   The item forced a choice between a staff convenience filter and a Firestore
+>   permission boundary. Jake wanted a third thing: **hiding books from STUDENTS**
+>   so a teacher can keep Dracula away from 6th graders while still seeing it
+>   themselves. `index.html`, no rules work. ⚠️ **A question with two options
+>   offered can still have a third answer.** He has been told explicitly that this
+>   is **curation, not a lock** — a held URL still reaches the book — and is
+>   content with that for the purpose. Do not let a later round upgrade it into a
+>   security claim.
+>
+> ### ⚠️ WHAT I GOT WRONG (keeping this section — Round 55 was right to start it)
+>
+> * **I wrote a coverage claim into a file header before checking it.** See above.
+>   It would have been believed by whoever read it next.
+> * **I called ROADMAP 9 "margin work" when laying out the round.** It is the
+>   counting path, in two files, guarded by five harnesses. I corrected that to
+>   Jake mid-round rather than discovering it in the diff, but the estimate was
+>   wrong when I gave it.
+> * **My first attempt at archiving header entries used a hand-counted line range
+>   and swallowed `const VERSION`.** `audit:versions` went from 1 problem to 6.
+>   Restored and redone by computing entry boundaries from the entry markers.
+>   ⚠️ **Do not carve a header block by line number.** Find the `// vX.Y.Z —`
+>   marker and read forward to the next marker or the next section divider.
+> * **I bumped `adventure-renderer.js`'s banner and not its constant** — the exact
+>   defect `version-stamp-test.mjs` exists for. It caught me. Both, same edit.
+>
+> ### What is left
+>
+> **42's `admin.js` half** is still the biggest single piece: 183 attributes / 539
+> declarations / 60 hex colours, inside template strings, and **item 38 for admin
+> is blocked until it is done**. `node tools/audit-inline-styles.mjs`.
+>
+> **34 and 35 are waiting on a week of Jake's real data** (his call, 2026-09-02).
+> **30** is unreproduced — *"wasn't seen today, but I'll keep my eye out."*
+> **39** wants its own conversation. ⚠️ **The reads measurement has still never
+> been taken**; Jake's position is that it waits for more books and fewer bugs.
+>
+> ✅ **THE CREDIT-ROW GAP IS CLOSED** — `credits-binding-test.mjs` v1.0.0, 54
+> assertions, shipped in the same round as the fix. Nothing had watched those rows
+> on any surface, which is how 48 hid. ⚠️ **Parts C and D are the half worth
+> understanding**: they name no specific field, and assert instead that every
+> field a credit surface READS is carried by the thing that FEEDS it — the library
+> projection for the About panel, game.js's payload for the adventure renderer.
+> **That is the guard against the next forgotten field**, and the failure mode it
+> catches is silent, permanent, and looks like a data problem from the outside.
+>
+> *On the name:* the **Bar-Lock** (1888) had a slotted bar that every typebar
+> locked into at the instant of the strike, so alignment was guaranteed by the
+> machine **at print time** rather than trusted from a setup someone did once.
+> That is this round exactly. `metadata-map-test.mjs` trusted a filename
+> convention established once and drifted six times; it now reads the book in
+> front of it at the moment of the check. ⚠️ And the machine's real lesson is the
+> one I nearly missed: a guarantee you cannot *observe failing* is not a
+> guarantee. Two of this file's mechanisms had been locking nothing for months.
+
+> ## Round 56 (Munson) — the previous handoff, kept
 >
 > ⭐⭐ **ITEM 42 IS CLOSED FOR `admin.html` AND OPEN FOR `admin.js`, AND THE SPLIT
 > IS THE POINT.** 834 of the markup's 866 inline declarations are now utility
@@ -138,7 +257,7 @@
 > thing. ⚠️ And the machine's real lesson is the harness's: the sleeve only works
 > because it is *aligned*, and my first attempt at the alignment was off by ten.
 
-> ## Round 55 (Smith-Premier) — the previous handoff, kept
+> ## Round 55 (Smith-Premier) — kept, two rounds back
 >
 > ⭐⭐ **THE CLEAN DAY HAPPENED, AND WHAT IT PRODUCED WAS SIX BUG REPORTS, NOT A
 > READS NUMBER.** Round 54 set this build up to measure the floor for a county
@@ -257,8 +376,27 @@
 > `grep -rihn "Round [0-9]* (" . | grep -oP "Round \d+ \([A-Za-z-]+\)"`.
 
 
-<!-- HANDOFF.md v15.31.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.32.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 40; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.32.0 — Round 57 (Bar-Lock). ⭐ START HERE REWRITTEN. THE BUILD IS FULLY
+     GREEN — 66 harnesses, test:rules 89/89, 0 audit problems — for the first
+     time in several rounds.
+     ⚠️⚠️ THE ROUND'S LESSON: a red harness that survives a handoff stops being a
+     failure and becomes the normal number. metadata-map-test.mjs carried 39
+     failing assertions across three handoffs, filed as "not test rot." It was
+     test rot, in all 39. admin.js v3.31.1 (archived this round) records the
+     OPPOSITE error from the same habit.
+     ⚠️⚠️ SECOND LESSON: two protections can cover for each other. Flipping
+     SOURCE_PATTERNS' order left the suite green; collapsing the two-pass split
+     left it green; only both at once went red. Mutate mechanisms ONE AT A TIME.
+     midnight-test.mjs's B4 had the same disease and was passing vacuously.
+     ⚠️ test:rules RUNS NOW — the six cases Round 55 added had never executed.
+     ⚠️ ROADMAP 47 UNBLOCKED; 45 ANSWERED and it was neither option offered.
+     ✅ THE CREDIT-ROW GAP IS CLOSED — credits-binding-test.mjs v1.0.0, 54
+     assertions, 12 failing against the pre-fix build. Parts C and D are CLASS
+     guards: every field a surface READS must be carried by what FEEDS it.
+     67 harnesses, 0 audit problems.
 
      v15.31.0 — Round 55 (Smith-Premier). ⭐ START HERE REWRITTEN. The clean day
      produced six bug reports rather than a reads number, and the reads
@@ -1091,6 +1229,180 @@ is not the same as checking the list. **Check the list.**
 > channel afterwards, which is the only reason the next line could be set at
 > speed. That round did no typesetting: it took seventy-nine loose things out of
 > the repo root and dropped each one into the channel it belonged in.
+
+---
+
+## §0.-37. ⚠️⚠️ ROUND 57 (Bar-Lock) — THE RED HARNESS WAS RIGHT TO BE RED, ABOUT ITSELF
+
+### A. ⚠️⚠️ 39 ASSERTIONS DISMISSED ACROSS THREE HANDOFFS, AND THE DISMISSAL WAS THE DEFECT
+
+`metadata-map-test.mjs` checks that importing an EPUB in admin auto-fills the
+Source and Licence dropdowns correctly. It is **the only guard on what the app
+claims about who owns each book**. It arrived at 39 failures, recorded as *"a
+real disagreement, not test rot."*
+
+**All 39 were the test. `admin.js` was right in every one**, verified against the
+real `dc:` metadata of all 74 books in `library/`.
+
+* **19** — the bookclean pipeline now stamps *"the original text is in the public
+  domain … the editorial changes … CC0 1.0"* into every book it touches. **72 of
+  74 carry it.** The mapper correctly resolves that to the combined licence; the
+  test still demanded plain public domain from every Gutenberg book.
+* **20** — the test decided *"is this Gutenberg?"* **from the filename**. Six
+  Gutenberg books have been imported without the `_g` suffix; three Global Grey
+  books arrived as `_GG`, which the regex does not match.
+
+⚠️⚠️ **THE SECOND HALF IS v1.4.0's OWN WARNING COMING TRUE.** That version
+replaced a hand-kept list of book ids with the filename convention and wrote, in
+capitals, *"anything that requires a human to remember to edit a test fixture
+will eventually not be edited."* **It then made the filename the fixture.** A
+convention a human must remember is a hand-kept list with the list spread across
+the file names. Both branches now read the archive in front of them: source from
+`dc:publisher` + `dc:identifier`, licence from whether `dc:rights` actually
+carries a CC0 dedication. **471 → 518 assertions.**
+
+⚠️ **THE FILENAME DRIFT IS NOW REPORTED, NEVER ASSERTED.** `isGutenbergFile()`
+survives only to print the six drifted names at the end of a run. Failing on it
+would be the file re-acquiring the exact dependency this round removed.
+
+### B. ⚠️⚠️ I WROTE A COVERAGE CLAIM INTO A HEADER BEFORE CHECKING IT, AND IT WAS FALSE
+
+The first draft of the v1.5.0 header said the corpus half got weaker but that
+Part 1's synthetic fixture still covered the source-ladder ordering. **It does
+not. And nothing did — not v1.5.0 and not v1.4.0.**
+
+`canonicalSourceFrom()` has **two** protections and they were **masking each
+other**:
+
+* Flip `SOURCE_PATTERNS` so Gutenberg precedes Standard Ebooks → **whole suite
+  green.** The two-pass split means a real SE book's pass-1 string never contains
+  the word "gutenberg", so the order is never consulted.
+* Collapse the two passes into one joined haystack → **whole suite green.** The
+  order means `/standard\s*ebooks/` still matches before `/gutenberg/`.
+* **Both at once → red.**
+
+Two Part 1 fixtures now pin each alone: an SE publisher with a `gutenberg.org`
+identifier (both patterns hit the same haystack, so only the ORDER can answer),
+and a Global Grey edition built from a Gutenberg text (the pass-1 answer sits
+LATER in the pattern list than the pass-2 one, so only the SPLIT can answer).
+Both mutation-verified: 1 failing each.
+
+⚠️⚠️ **THE GENERAL FORM, WORTH CARRYING FORWARD.** When two mechanisms produce
+one observable outcome, a corpus test proves neither. **Mutate them one at a
+time.** And **check a coverage claim before writing it into a file**, because the
+next reader will believe it — that is the whole reason these headers exist.
+
+### C. ⚠️ midnight-test.mjs's B4 HAD BEEN PASSING VACUOUSLY
+
+Found while making Part B follow the ROADMAP 9 extraction. B4 read
+`iClose < iBump` with `indexOf` returning `-1` when the close is absent — so
+`-1 < anything` held and **the assertion reported success on a build with no
+rollover at all.** B2 happened to cover the absence, so nothing ever showed.
+Both ordering assertions now require their left operand to exist first.
+
+### D. ✅ ROADMAP 9's FIRST BULLET — THE FLUSH PATH WAS OPEN FOR THIRTY ROUNDS
+
+The rollover fired only on a **counted second**. A tab that woke on a new day and
+flushed — **without the student typing** — worked from yesterday's day counters
+while `_flushAllInner()` stamped its document with `getLocalDateStr()`, i.e.
+today. ⚠️ **That is the same shape as the two students measured on 2026-08-21**
+(§0.-12). Round 26 closed the MERGE path that produced those rows and did not
+close the FLUSH path; `live-period-test.mjs` only ever drove the merge.
+
+Now `rollDayIfNeeded()` in both files, **moved verbatim** — diffed against the
+originals to prove it, not asserted — with the tick calling it at exactly the
+point the block used to occupy, so Round 6's ordering constraints hold by
+construction. Two new callers each: the visible half of `visibilitychange`, and
+the top of the flush inner. ⚠️ **Above the auth guard on purpose**: a guest tab
+goes stale the same way and the roll needs no account.
+
+⚠️ **THE MERGE PATH IS DELIBERATELY NOT A CALLER.** It has its own `liveDay`
+guard that `live-period-test.mjs` drives with those students' real figures. One
+guard per path, and that one is tested. Adding a second route to the same answer
+would change what that harness measures.
+
+### E. ⚠️⚠️ ROADMAP 48 — TWO DEFECTS, ONE SYMPTOM, AND THAT IS WHY IT LOOKED UNFIXABLE
+
+Jake, with a screenshot: *"It's ALWAYS claude....when it shouldn't be. You're
+awesome, but not that awesome."* He had edited the field manually several times
+and nothing changed. **Both of these had to be fixed; either alone kept the
+symptom.**
+
+1. **The label was bound to `cleanedBy` at three sites** — the About panel,
+   classic end credits, adventure end credits. `cleanedBy` is "Claude" on
+   essentially every book. ⚠️ On the About panel it was **also a duplicate**:
+   that panel already had a correct `Cleaned up by` row four lines above, so it
+   printed the same name twice under two labels. **Three labels existed for two
+   people.**
+2. **`preparedBy` was never projected into the library book list**, so
+   `book.preparedBy` was `undefined` for every book ever loaded and the correct
+   row had **never rendered for anybody since v3.6.3.** `admin.js` has saved the
+   field correctly since v3.20.0 and still does.
+
+⚠️ **Adventure had the same gap one layer up** — `game.js` passed only
+`cleanedBy` into the renderer, so fixing that label alone would have shown
+nothing.
+
+⚠️ **THE CACHE BUMP IS PART OF THE FIX, NOT HOUSEKEEPING.** `ttb_booksCache_v2 →
+_v3`. The cached value is the **projection**, so every cache written before this
+version lacks the field, and without the bump the fix would have appeared not to
+work for hours, for exactly the students who use the site most.
+
+⚠️⚠️ **NOTHING WATCHED THE CREDIT ROWS ON ANY SURFACE**, which is how a field that
+never reached the page survived eleven versions and a wrong binding survived at
+three sites at once. The credits are the project's **attribution** surface — where
+a CC BY book's legal obligation is discharged and where "this text was modified"
+is disclosed — and it was the least tested thing in the repo.
+
+✅ **CLOSED IN THE SAME ROUND: `tests/credits-binding-test.mjs` v1.0.0**, 54
+assertions, 12 failing against the pre-fix build.
+
+* ⚠️ **It asserts the PAIRING, never the presence.** *"Does the string `Text
+  prepared by` appear in game.js"* would have passed on the broken build, at all
+  three sites, for the whole eleven versions. Every assertion reads a
+  `[label, expression]` pair and resolves which field the expression names — all
+  three surfaces happen to build their credits as those tuples, so one reader
+  covers all three and none of them is matched by proximity.
+* ⚠️⚠️ **PARTS C AND D ARE CLASS GUARDS AND ARE THE MORE VALUABLE HALF.** Neither
+  mentions `preparedBy`. C asserts every `book.<field>` the About panel renders is
+  carried by the library projection; D asserts every `detail.<field>` the
+  adventure renderer reads is supplied by game.js's payload. **Part D correctly
+  PASSES on the broken build** — the broken renderer read `cleanedBy`, which the
+  payload did carry — because D guards the failure that would have come *next*:
+  fixing a label and leaving the field out of the payload, shipping a row that
+  renders nothing. Both were verified by deleting one line each from the fixed
+  build.
+* ⚠️ **Comments are stripped before any matching, and here that is load-bearing.**
+  The fixes carry comment blocks QUOTING the old wrong bindings verbatim — *"used
+  to read `detail.cleanedBy`"* sits four lines above the corrected line — so the
+  harness would have failed on its own fix without the strip.
+* ⚠️ **I wrote "11 failing across A, B, C, D and E" into its header from memory
+  and both numbers were wrong** (12, and D is not among them). That is the second
+  time in one afternoon I wrote a coverage claim before measuring it. Corrected in
+  the file, with the mistake left visible.
+
+### F. ⚠️ WHAT ELSE I GOT WRONG
+
+* **I called ROADMAP 9 "margin work" when planning the round.** It is the
+  counting path, in two files, guarded by five harnesses. Corrected to Jake
+  mid-round, but the estimate was wrong when given.
+* **My first header-archiving pass carved by hand-counted line range and
+  swallowed `const VERSION` from both big files.** `audit:versions` went 1 → 6
+  problems. Restored from backup and redone by locating the `// vX.Y.Z —` marker
+  and reading forward to the next marker or section divider. ⚠️ **Never carve a
+  header block by line number.**
+* **I bumped `adventure-renderer.js`'s banner and not its constant** — precisely
+  the defect `version-stamp-test.mjs` exists for. It caught me immediately.
+
+### G. ✅ THE RULES SUITE RAN — 89 ASSERTIONS, ALL GREEN
+
+Round 55 added six cases and every handoff since has carried *"THESE HAVE NEVER
+BEEN RUN"*, because no environment had a JVM. This one did.
+`npm run test:rules:setup` then `npm run test:rules`: **18 passing + 71 passing,
+0 failing.** The rules deployed for items 24, 32 and 33 are now **executed**
+rather than reasoned about. ⚠️ `firestore.rules` is the one file Jake cannot test
+from a browser — **run this in any round that touches it, and say in the handoff
+whether you did.**
 
 ---
 

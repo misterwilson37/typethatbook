@@ -1,4 +1,15 @@
-// adventure-renderer.js v1.5.4
+// adventure-renderer.js v1.5.5
+//
+// v1.5.5 — ⚠️ ROADMAP 48: "Text prepared by" NAMED THE WRONG PERSON. The row read
+//          `detail.cleanedBy`, which is "Claude" on essentially every book, so
+//          the credits named the cleaner as whoever prepared the text — on every
+//          book, whoever had actually prepared it. One wrong binding repeated at
+//          three sites; index.html and game.js carried the other two.
+//          ⚠️ THE CLEANER'S CREDIT IS RELABELLED, NOT REMOVED. It is a disclosure
+//          that the text was modified, not only a courtesy, so this is a second
+//          row rather than a swap.
+//          ⚠️ game.js v3.47.0 HAD TO SHIP WITH IT — the detail payload never
+//          carried `preparedBy`, so fixing this label alone rendered nothing.
 //
 // Canvas renderer for Adventure Mode. Observes ttb:* CustomEvents on document
 // and draws the typing session as a figure walking across word-platforms in a
@@ -57,7 +68,7 @@
 //   * Survives missed events — but draws NOTHING until the next textLoaded,
 //     which is why game.js replays it on a hot swap.
 
-export const RENDERER_VERSION = '1.5.4';
+export const RENDERER_VERSION = '1.5.5';
 
 // Above this many chapters, per-chapter dots overlap into an unreadable smear
 // and we switch to a continuous route with sparse ticks. 40 keeps every dot at
@@ -109,11 +120,18 @@ export function creditsContent(d) {
     // reason to render the word "undefined" at a student.
     rows.push({ kind: 'title', text: String(detail.title || 'This book') });
 
+    // ⚠️⚠️ ROADMAP 48 (v1.5.5). "Text prepared by" used to read `detail.cleanedBy`
+    // here, exactly as it did in game.js's classic credits and index.html's About
+    // panel — three sites, one wrong binding, so all three named the cleaner
+    // ("Claude", on essentially every book) as the person who prepared the text.
+    // ⚠️ The cleaner's credit is RELABELLED, not removed: it is a disclosure that
+    // the text was modified, not only a courtesy.
     const bits = [
-        ['By',               detail.author],
-        ['Source',           detail.source],
-        ['License',          detail.rights],
-        ['Text prepared by', detail.cleanedBy],
+        ['By',                detail.author],
+        ['Source',            detail.source],
+        ['License',           detail.rights],
+        ['Text prepared by',  detail.preparedBy],
+        ['Cleaned up by',     detail.cleanedBy],
     ].filter(([, v]) => v != null && String(v).trim() !== '');
 
     for (const [label, value] of bits) {

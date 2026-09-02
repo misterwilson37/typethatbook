@@ -1,4 +1,26 @@
-// admin.js v3.38.0
+// admin.js v3.39.0
+//
+// v3.39.0 — ⚠️ ROADMAP 44: A HAND-TYPED BOOK ID WITH A SPACE IN IT NOW WARNS.
+//           `.trim()` strips the ends and nothing else, and the autofill only
+//           fills a field that is EMPTY — so anyone who types the id themselves
+//           bypasses slugifyBookId() entirely. One book already carries an
+//           interior space (`alice1_in wonderland`).
+//           ⚠️ NOTHING IS BROKEN BY IT, WHICH IS WHY THIS WARNS AND DOES NOT
+//           BLOCK, AND WHY THE EXISTING BOOK IS BEING LEFT ALONE. Every URL that
+//           carries a book id encodes it, and chapterCacheKey() is colon-
+//           delimited so a space cannot collide. Renaming would be a migration
+//           with student data in it, for a cosmetic space.
+//           ⚠️⚠️ IT GUARDS WHITESPACE ONLY. The obvious wider guard — "warn when
+//           the id is not what slugifyBookId() would produce" — FIRES ON THE
+//           FLAGSHIP BOOK: DEFAULT_BOOK is "wizard_of_oz" and the slugifier emits
+//           "wizard-of-oz". The corpus and the slugifier already disagree by
+//           design, and slugifyBookId() is not idempotent (40-char truncation, a
+//           leading "the-" strip), so ids that are fine do not survive it.
+//           ⚠️ THE OFFERED REPAIR IS NOT slugifyBookId() EITHER — it collapses
+//           whitespace to one hyphen and changes nothing else. Cancel keeps the
+//           typed id exactly, because series ids like
+//           `l-frank-baum-oz01-the-wonderful-wizard-of-oz` are hand-shaped and a
+//           blocker would fight every new series.
 //
 // v3.38.0 — ⚠️ ROADMAP 46: WHO UPLOADED THIS BOOK, STAMPED AND NOT TYPEABLE.
 //           Jake, on a second building admin joining: "he may not be as strict as
@@ -112,28 +134,6 @@
 //           to CHANGELOG.md § ARCHIVED FILE HEADERS — this file was one over
 //           the 8-entry budget once v3.31.2 was added.
 //
-// v3.31.1 — TWO IMPORT-METADATA DEFECTS, both surfaced by the harness that had
-//           been failing 42 assertions for several rounds and was recorded in
-//           HANDOFF §6 item 3 as "a book-metadata question, not an app defect."
-//           It was an app defect. Twice.
-//
-//           (1) dc:rights read only its FIRST element. Standard Ebooks emits
-//           two — a short "Public domain (United States)" and then the CC0
-//           dedication — so every SE book carrying both had the CC0 half of its
-//           licence silently dropped at import. Identical in shape to the
-//           dc:source bug fixed in v3.26.0, sitting two lines away.
-//
-//           (2) readInBookSignals() no longer loses the transcriber credit on a
-//           bookclean'd Gutenberg import. The pass strips the
-//           #pg-machine-header wrapper and keeps its contents; the Credits
-//           lookup was scoped to that id and therefore found nothing on all
-//           thirteen cleaned Gutenberg books in library/. Falls back to the
-//           whole document, gated on the page mentioning gutenberg.org so the
-//           original protection against "Credits" in book prose survives.
-//           Found by tests/metadata-map-test.mjs v1.4.0 — the harness that had
-//           been failing 42 assertions for several rounds and was recorded as
-//           "not an app defect."
-//
 // Book authoring: EPUB import, chapter editor, metadata and tags, language
 // filter, CSV export. Hosts the Lessons and Staff panels from their own files.
 //
@@ -157,7 +157,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.38.0";
+const ADMIN_VERSION = "3.39.0";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -1765,10 +1765,54 @@ createParseBtn.onclick = async () => {
     if (!newBookId.value.trim() || !newBookTitle.value.trim()) {
         await autofillFromEpub(file);
     }
-    const id = newBookId.value.trim();
+    let id = newBookId.value.trim();
     const title = newBookTitle.value.trim();
     if (!id || !title) return alert(
         "Could not read a title from that EPUB \u2014 fill in Book ID and Title by hand.");
+
+    // ─── ROADMAP 44 (v3.39.0) — WHITESPACE ONLY, AND WARN RATHER THAN BLOCK ───
+    //
+    // `.trim()` strips the ends and nothing else, so a hand-typed INTERIOR space
+    // reaches Firestore as part of the document id. One book already carries one:
+    // `alice1_in wonderland`. Nothing is broken by it — every URL that carries a
+    // book id runs it through encodeURIComponent, and chapterCacheKey() is
+    // colon-delimited so a space cannot collide — which is exactly why this guard
+    // is a warning and why the existing book is being LEFT ALONE. A Firestore
+    // document id is immutable, so renaming it means create/copy/delete plus
+    // moving every progress and typing_logs record that cites it. That is a
+    // migration with student data in it, for a cosmetic space.
+    //
+    // ⚠️⚠️ IT GUARDS WHITESPACE AND ONLY WHITESPACE, AND THE OBVIOUS WIDER GUARD
+    // IS THE WRONG ONE. The proposal that came with the report was to warn when
+    // the typed id differs from what slugifyBookId() would produce. That check
+    // fires on the flagship book: game.js's DEFAULT_BOOK is "wizard_of_oz" with
+    // underscores, and slugifyBookId("Wizard of Oz") returns "wizard-of-oz" with
+    // hyphens. The corpus and the auto-slug already disagree, and slugifyBookId()
+    // is not idempotent either — it truncates at 40 characters and strips a
+    // leading "the-"/"a-"/"an-", so ids that are perfectly fine do not survive a
+    // round trip through it. A flag that fires on the correct case is a flag
+    // nobody reads by October.
+    //
+    // ⚠️ NEVER BLOCK. `e-nesbit-psammead01-children-and-it` and
+    // `l-frank-baum-oz01-the-wonderful-wizard-of-oz` are hand-shaped: the series
+    // prefix and volume number do real work no slugifier would produce. A blocker
+    // would fight Jake every time he adds a series. Cancel keeps what was typed.
+    //
+    // ⚠️ THE REPAIR IS NOT slugifyBookId(). It collapses whitespace to a single
+    // hyphen and touches nothing else, so it cannot truncate, cannot drop a
+    // leading article, and cannot turn an underscore id into a hyphen one.
+    if (/\s/.test(id)) {
+        const fixed = id.replace(/\s+/g, '-').replace(/-{2,}/g, '-');
+        const useFixed = confirm(
+            `The Book ID "${id}" contains a space.\n\n` +
+            `Firestore accepts it, and nothing in the app breaks — but a document id ` +
+            `cannot be renamed afterwards without moving every student record that ` +
+            `cites it.\n\n` +
+            `OK\u2003 use "${fixed}" instead\n` +
+            `Cancel\u2003 keep "${id}" exactly as typed`);
+        if (useFixed) { id = fixed; newBookId.value = fixed; }
+    }
+
     
     activeBookId = id;
     activeBookTitle.value = title;

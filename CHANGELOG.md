@@ -1,5 +1,127 @@
 # CHANGELOG — TypeThatBook
 
+## Round 57 (Bar-Lock) — 2026-09-02 — three things were being read from the wrong place
+
+⚠️⚠️ **THE ROUND'S SHAPE: EVERY DEFECT WAS SOMETHING TRUSTING A PROXY INSTEAD OF
+THE THING ITSELF.** A test that read filenames instead of books. A credits row
+that read the cleaner's field instead of the preparer's. A day rollover that
+could only be reached through a keystroke. None was a hard bug to fix; all four
+had survived many rounds because the wrong source of truth looked right.
+
+**⭐⭐ THE PERMANENTLY-RED HARNESS WAS TEST ROT, AND THE HANDOFF SAID IT WAS NOT**
+(`tests/metadata-map-test.mjs` v1.5.0). `metadata-map-test.mjs` had been arriving
+at **39 failing assertions** across three rounds of handoff, filed in writing as
+*"a real disagreement, not test rot."* It was rot, in all 39. Checked against the
+books' own `dc:` metadata, `admin.js` was **right every time**.
+
+Two causes. (1) The bookclean pipeline now stamps *"the original text is in the
+public domain … the editorial changes … CC0 1.0"* into every book it touches —
+**72 of the 74** carry it — and the mapper correctly resolves that to the combined
+licence, while the test still demanded plain public domain. (2) The test decided
+*"is this Gutenberg?"* **from the filename**. ⚠️ Its own v1.4.0 header had
+replaced a hand-kept list of book ids with that convention and written, in
+capitals, *"anything that requires a human to remember to edit a test fixture will
+eventually not be edited."* **It then made the filename the fixture.** Six
+Gutenberg books have since been imported without the `_g` suffix and three Global
+Grey books arrived as `_GG`, which the regex does not match. Both branches now
+read the archive in front of them. **471 → 518 assertions**, and the six
+unsuffixed books receive the origin and preparedBy checks they were being excused
+from.
+
+⚠️⚠️ **AND THE FIX'S OWN COMMENT WAS WRONG UNTIL IT WAS MUTATION-TESTED.** It
+claimed Part 1 already covered the source-ladder ordering. It did not — and
+**nothing did, in this version or the previous one.** `canonicalSourceFrom()` has
+two protections, the pattern ORDER and the two-pass edition/upstream SPLIT, and
+each was silently covering for the other: flipping the order left the entire suite
+green, collapsing the split left it green, and **only both at once went red.** Two
+new Part 1 fixtures pin each where the other cannot help. A coverage hole found
+only because a claim was checked before it was written down.
+
+**⚠️⚠️ THE `test:rules` SUITE RAN FOR THE FIRST TIME — 89 ASSERTIONS, ALL GREEN.**
+Round 55 added six rules cases and the handoff has carried *"THESE HAVE NEVER BEEN
+RUN"* ever since, because no environment had a JVM. This one did. The rules
+deployed for items 24, 32 and 33 are now **executed** rather than reasoned about.
+⚠️ `firestore.rules` is the one file Jake cannot test from a browser, so this is
+worth re-running every round that touches it.
+
+**⭐ ROADMAP 48 — "TEXT PREPARED BY" NAMED THE WRONG PERSON ON EVERY BOOK**
+(`index.html` v3.17.0, `game.js` v3.47.0, `adventure-renderer.js` v1.5.5). Jake,
+with a screenshot: *"It's ALWAYS claude....when it shouldn't be. You're awesome,
+but not that awesome."* ⚠️ **TWO INDEPENDENT DEFECTS PRODUCING ONE SYMPTOM**, and
+either alone was enough to make the field look broken — which is why editing it in
+admin appeared to do nothing. (1) The label was bound to `cleanedBy` at **three
+sites**, and `cleanedBy` is "Claude" on essentially every book. On the About panel
+it was **also a duplicate**: that panel already had a correct `Cleaned up by` row
+four lines above, so it printed the same name twice under two labels — three
+labels existed for two people. (2) `preparedBy` **was never projected into the
+library book list at all**, so `book.preparedBy` was `undefined` for every book
+ever loaded and the correct row had never rendered for anybody since v3.6.3.
+⚠️ The books cache key was bumped `v2 → v3` **as part of the fix** — the cached
+value is the projection, so without it the fix would have appeared not to work for
+hours, for the students who use the site most.
+
+**⭐ ROADMAP 9 — THE DAY ROLLOVER IS NO LONGER TICK-ONLY** (`game.js` v3.47.0,
+`learn.js` v2.43.0). It fired only on a **counted second**, so a tab that woke on
+a new day and flushed — without the student typing — worked from yesterday's day
+counters while the flush stamped its document with **today's** date. ⚠️ **That is
+the same shape as the defect measured on two real students on 2026-08-21.** Round
+26 closed the MERGE path that produced those two rows and **left the FLUSH path
+open**, where it stayed for thirty rounds because `live-period-test.mjs` only ever
+drove the merge. The block is now `rollDayIfNeeded()` in both files, moved
+**verbatim** (diffed against the originals to prove it), with the tick calling it
+at exactly the point the block used to occupy — so the ordering constraints Round
+6 spent a round establishing hold by construction rather than by re-derivation.
+⚠️ The merge path is **deliberately not** a caller: it has its own tested guard.
+
+⚠️ **`midnight-test.mjs` v1.1.0 FOLLOWED THE CODE RATHER THAN BEING RELAXED**, and
+in doing so found that **its own B4 had been passing vacuously** — it read
+`iClose < iBump` where `indexOf` returns `-1` if the close is absent, so `-1 <
+anything` held and the assertion reported success on a build with no rollover at
+all. Both ordering assertions now require their left operand to exist. Four
+mutations verified, including reverting the round's own fix.
+
+**⚠️ ROADMAP 44 — THE BOOK ID FIELD** (`admin.js` v3.39.0). A hand-typed id with an
+interior space now warns and offers to collapse it; **Cancel keeps what was
+typed**, because series ids are hand-shaped and a blocker would fight Jake every
+time he adds one. ⚠️ **Whitespace only.** The wider "does this match
+`slugifyBookId()`" check that was originally proposed **fires on the flagship
+book** — `DEFAULT_BOOK` is `wizard_of_oz` and the slugifier emits `wizard-of-oz`.
+
+**⚠️ ROADMAP 45 ANSWERED, AND THE ANSWER WAS NEITHER OPTION OFFERED.** The item
+was written to force a choice between a staff convenience filter and a Firestore
+permission boundary. Jake wanted a third thing: **hiding books from STUDENTS** so
+a local teacher can keep Dracula away from 6th graders while still seeing it
+themselves. Student-facing, `index.html`, no rules work. ⚠️ He has been told
+explicitly that this is **curation, not a lock** — a held URL still reaches the
+book — and is content with that. Do not let a later round upgrade it into a
+security claim.
+
+**ROADMAP 29 — README** (v2.3.0). The file map was missing **seven shipped
+modules**. It now carries the `grep` that regenerates it from `versions.js`, which
+is the authoritative list, rather than inviting the next hand edit.
+
+⚠️ **HEADER BUDGET: three files hit the 8-entry cap in one round.** `admin.js`
+v3.31.1, `game.js` v3.42.0 and `learn.js` v2.35.0 archived **verbatim** to
+§ ARCHIVED FILE HEADERS. ⚠️ `game.js` v3.42.0 is "I'm Done" and **three entries
+still in the live header cite it**; `learn.js` v2.35.0 is the "open at the first
+run that still counts" rule, which is the behaviour **ROADMAP 34 is about to be
+measured against**. Read it before touching the mastery lock.
+
+**⭐ AND THE HARNESS THAT SHOULD HAVE CAUGHT 48 SHIPPED IN THE SAME ROUND**
+(`tests/credits-binding-test.mjs` v1.0.0, 54 assertions). ⚠️ **Nothing watched the
+credit rows on any surface** — `credits-test.mjs` and `credits-scroll-test.mjs`
+both build fixtures containing `cleanedBy` and **neither asserts a single label**.
+It asserts the label→field **pairing**, never presence: *"does the string appear"*
+would have passed on the broken build, at all three sites, for eleven versions.
+⚠️⚠️ **Parts C and D are class guards and are the more valuable half** — every
+field a credit surface READS must be carried by the thing that FEEDS it, so the
+next forgotten field is caught rather than this one. **Mutation-verified against
+the pre-fix build: 12 failing**, including Part E reproducing Jake's report
+verbatim.
+
+**End state: all 67 harnesses pass, `test:rules` 89/89, `audit:versions` 0
+problems.** The suite has not been fully green for several rounds.
+
 ## Round 55 (Smith-Premier) — 2026-09-01 — the clean day produced bugs, not a number
 
 Round 54 set this build up to measure the reads floor for a county rollout. Jake
@@ -4570,6 +4692,335 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### game.js v3.42.0 and learn.js v2.35.0 — archived by Round 57 (Bar-Lock), 8-entry budget
+
+Both files hit the 8-entry budget in the same round for the same change
+(ROADMAP 9). Archived verbatim; nothing deleted.
+
+⚠️ **game.js v3.42.0 is "I'm Done" (ROADMAP 0d)** and THREE entries still in the
+live header cite it — v3.42.1, v3.42.2 and v3.42.3 are all follow-ups to it.
+This block is where those pointers resolve.
+
+⚠️ **learn.js v2.35.0 is the "open at the first run that still counts" rule**,
+and it is the behaviour ROADMAP 34 is about to be measured against: it is why a
+student re-entering a lesson lands on their first unmastered run rather than at
+the top. Read it before touching the mastery lock.
+
+```
+// v3.42.0 — "I'M DONE" (ROADMAP item 0d). A student-facing exit that files the
+//           open sprint and takes a `final` flush, then shows receipt.js's
+//           stamped card. ⚠️ IT IS A RECEIPT, NOT A SAVE BUTTON — nothing is
+//           gated on it, nothing warns if it is skipped, and ← Library and
+//           (Logout) remain untouched. See handleImDone() and receipt.js.
+//
+// Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
+// mode, chapter navigation, all modals, write-ahead-log persistence.
+//
+```
+
+```
+// v2.35.0 — ⚠️⚠️ A LESSON NOW OPENS AT THE FIRST RUN THAT STILL COUNTS. Jake:
+//           "if the first one is locked, students have no way to get to the
+//           second run legitimately." Runs are typed in order, so a student whose
+//           run 1 was mastered had to replay it FOR NOTHING to reach the run that
+//           still pays — the gate was taxing the student it meant to move along.
+//           firstOpenRunIdx() is well-defined because DOWNWARD CLOSURE makes the
+//           mastered runs a PREFIX and the open runs a SUFFIX; loosen closure and
+//           it must be rewritten, not patched. tests/run-mastery-test.mjs — which
+//           learn.js had CITED SINCE ROUND 32 WITHOUT IT EXISTING, now written.
+//
+```
+
+### game.js v3.42.0 and learn.js v2.35.0 — archived by Round 57 (Bar-Lock), 8-entry budget
+
+Both files hit the 8-entry budget in the same round, for the same change
+(ROADMAP 9). Archived verbatim, nothing deleted.
+
+⚠️ **game.js v3.42.0 is "I'm Done" (ROADMAP 0d)** and three later entries still
+in the live header cite it — v3.42.1, v3.42.2 and v3.42.3 are all follow-ups to
+it. This block is where those pointers resolve.
+
+⚠️ **learn.js v2.35.0 is the "open at the first run that still counts" rule**,
+which is the behaviour ROADMAP 34 is about to be measured against: it is the
+reason a student re-entering a lesson lands on their first unmastered run rather
+than at the top. Read it before touching the mastery lock.
+
+```
+// v3.42.0 — "I'M DONE" (ROADMAP item 0d). A student-facing exit that files the
+//           open sprint and takes a `final` flush, then shows receipt.js's
+//           stamped card. ⚠️ IT IS A RECEIPT, NOT A SAVE BUTTON — nothing is
+//           gated on it, nothing warns if it is skipped, and ← Library and
+//           (Logout) remain untouched. See handleImDone() and receipt.js.
+//
+// Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
+// mode, chapter navigation, all modals, write-ahead-log persistence.
+//
+// ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
+//
+// ⚠️ v3.43.0 — 33 OLDER ENTRIES (v3.39.0 back to v3.17.0) MOVED TO CHANGELOG.md
+//    § ARCHIVED FILE HEADERS. Nothing was deleted. The header budget is
+//    PROPORTIONAL now — see versions.js's HEADER_MAX_LINES — so this block is
+//    allowed to grow as the file does. The ENTRY budget is not proportional and
+//    is the one that fired: a changelog nobody scrolls to the bottom of is the
+//    defect, and it does not get better because the file got bigger.
+//
+// ── Load-bearing. Do not "simplify" these ─────────────────────────────────
+//
+//   * The write-ahead log is MORE durable than the per-sentence writes it
+//     replaced. visibilitychange:hidden is the flush event that matters;
+//     beforeunload does not fire reliably on Chromebooks.
+//   * The leaderboard cache is deliberately NOT busted on the hot path.
+//     Doing so cost ~$34,300/year at 7,000 students.
+//   * VIEW_MODE is `let`. It changes at runtime three ways: Settings, the
+//     splash, and reconciliation against the student's Firestore profile.
+//   * applyViewMode() must replay textLoaded + positionSet. A renderer
+//     mounted mid-session missed those events and will draw nothing.
+import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
+// ROADMAP item 10's gate lives in School, but its clock is fed from BOTH pages —
+// Jake: "when I say a month, I mean a month of typing ANYTHING". A student who
+// spends the period in Library is having an active day, and a School lesson must
+// know about it. ⚠️ THIS FILE IMPORTS THE MODULE ONLY TO COUNT DAYS; it renders
+// no lesson gate and must not start.
+import { activeDayPlan } from "./lesson-gate.js";
+// The day/week counters' WAL, shared with learn.js. Extracted BECAUSE this
+// file's WAL was the bug: one key held reading position (book-scoped) and the
+// time counters (not book-scoped), and walRecover()'s correct bookId guard
+// meant the counters were declined on a book switch and then overwritten.
+import { statsWalSave, statsWalRecover } from "./stats-wal.js";
+// The sprint/run history queue, shared with learn.js. Extracted BECAUSE the
+// rollup writer lived here and nowhere else: lesson mode wrote no sprint detail
+// at all, and this file dated every rollup at flush time rather than at typing
+// time. See session-log.js for both defects.
+import {
+    sessionLogInit, sessionLogPush, sessionLogFlush,
+    // sessionLogPendingSeconds is NOT imported — see the daylog.js import note.
+    sessionLogPending, sessionLogAdopt, sessionLogTake, GUEST_QUEUE_UID,
+} from "./session-log.js";
+// The time readout, shared with learn.js. Extracted BECAUSE this file's timer
+// slot held three different quantities depending on settings, and School's held a
+// fourth. DOM-free: it returns strings and this file writes them.
+import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
+         celebrationDone, celebrationMark } from "./hud.js";
+// ⚠️ v3.41.0 — THE CELEBRATIONS MOVED OUT. They were a hand-maintained twin of
+// learn.js's, and the two had already drifted. celebrate.js owns them now; this
+// file decides WHETHER to celebrate, that file decides HOW. Do not re-add a
+// local launchFireworks() — "make the fireworks bigger" must stay ONE edit.
+// showGoalToast is intentionally NOT imported: celebrate.js raises its own
+// toast as part of each celebration. It stays exported there for any future
+// caller that wants the banner without the animation.
+import { launchConfetti, launchFireworks } from "./celebrate.js";
+import { showReceipt } from "./receipt.js";
+// ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
+// ⚠️ readDaySessions/projectDayTotal are NOT imported. They exist in daylog.js
+// and are used by nothing shipped — v3.34.0 reverted the projection. Leaving the
+// import in would make it one keystroke to re-enable a grade computed from
+// records known to overlap. See HANDOFF §0.0 before touching this line.
+import { readWeek, invalidateWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
+         carryOverPlan, carryOverPayloadFor, sourceTotalsOf } from "./daylog.js";
+import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
+// The version footer's three primary reads (this html file, this js file's own
+// VERSION, style.css) plus the lazy full-build panel on hover. See
+// updateVersionBanner() below and the header on readOneDeployedVersion() for
+// why this doesn't just re-fetch game.js from inside itself.
+import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
+         countBuildNotes, renderHiddenNotesLine,
+         readAppliedCssVersion } from "./versions.js";
+// serverTimestamp is imported for ONE purpose: to hand it to session-log.js so
+// rollups carry a clock the student cannot set. It is not used anywhere else in
+// this file, and ⚠️ it must not be: a serverTimestamp() sentinel inside a
+// setDoc(merge:true) on typing_logs would be a second
+// dating scheme on the documents Round 12 spent a day reconciling.
+import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer, serverTimestamp, arrayUnion } from "./read-meter.js";
+import { noteDay, ensureSince } from "./logdays.js";
+import {
+    onAuthStateChanged,
+    GoogleAuthProvider,
+    signInWithPopup,
+    signOut
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js";
+
+// ⚠️ THIS LINE IS THE VERSION — the comment at the top of the file is decoration.
+// versions.js parses THIS, the footer renders THIS, and ROADMAP's verification
+// steps tell Jake to read THIS. It sat at "3.38.0" across six releases, through
+// the whole of Round 26, and the stale-day fix that shipped in v3.38.1 was
+// therefore invisible from the chair. Bump it in the SAME EDIT as the header
+// entry above, always. tests/version-stamp-test.mjs now fails the suite if you
+// do not.
+const VERSION = "3.47.0";
+
+// Hand the shared session queue its Firestore surface. Done at module scope,
+// once, because session-log.js imports no SDK of its own on purpose — one page
+// controller's Firestore version is the only one that should ever be in play.
+//
+```
+
+```
+// v2.35.0 — ⚠️⚠️ A LESSON NOW OPENS AT THE FIRST RUN THAT STILL COUNTS. Jake:
+//           "if the first one is locked, students have no way to get to the
+//           second run legitimately." Runs are typed in order, so a student whose
+//           run 1 was mastered had to replay it FOR NOTHING to reach the run that
+//           still pays — the gate was taxing the student it meant to move along.
+//           firstOpenRunIdx() is well-defined because DOWNWARD CLOSURE makes the
+//           mastered runs a PREFIX and the open runs a SUFFIX; loosen closure and
+//           it must be rewritten, not patched. tests/run-mastery-test.mjs — which
+//           learn.js had CITED SINCE ROUND 32 WITHOUT IT EXISTING, now written.
+//
+import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
+// ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
+// rule in it is a function of numbers this file passes in, which is why the whole
+// design is covered by lesson-gate-test.mjs without driving a browser.
+import { activeDayPlan, activeDayCountOf, fireCountOf, isMastered,
+         lessonModeFor, runModeFor, runScoreOf, runMastered, pointsForGrade,
+         lastLockDayOf, furthestIndexOf, reachBackFor,
+         MASTERY_POINTS, MASTERY_FIRE_COUNT, REACH_BACK_DAYS } from "./lesson-gate.js";
+// ROADMAP item 15 — the grade rule. ⚠️ PURE MODULE, AND THE ONLY COPY: every
+// function below used to live in this file, and reports.html needed all of them
+// to reconstruct a grade. Two copies of calculateGrade() is the shape Rule 9
+// forbids, so the copies here were DELETED in the same deploy that added this
+// import. ⚠️ gatesForRun() TAKES THE LESSON'S GATES AS AN ARGUMENT now — the
+// old one read `currentLesson` out of module scope, which is what made it
+// impossible to call from anywhere else.
+import { calculateGrade, gradeAdvances, gatesForRun, betterGrade,
+         chunkSequence, DRILL_TYPES, FIRE_GRADE, GRADE_ORDER,
+         REACH_HOME_COMPANION, CHUNK_TARGET, CHUNK_SLACK,
+         RUN_GRADE_VERSION } from "./run-grade.js";
+// The day/week counters' WAL, shared with game.js. It is a separate module
+// because the counters are the one piece of state that is true regardless of
+// which page or which book a student is on, and both previous copies of it were
+// scoped to something narrower than that. See stats-wal.js for the bug.
+import {
+    statsWalSave, statsWalRecover,
+    guestAccumSave, guestAccumLoad, guestAccumClear
+} from "./stats-wal.js";
+// The sprint/run history queue, shared with game.js. ⚠️ THIS FILE HAD NO SESSION
+// LOGGING OF ANY KIND BEFORE v2.6.0 — see the header. A run is the lesson-mode
+// equivalent of a sprint: a bounded stretch of typing with a duration, a
+// character count and a derived WPM, which is exactly what the module stores.
+import {
+    sessionLogInit, sessionLogPush, sessionLogFlush, sessionLogPending,
+    sessionLogAdopt, sessionLogTake, GUEST_QUEUE_UID,
+} from "./session-log.js";
+// The time readout, shared with game.js. ⚠️ Both pages render the SAME string in
+// the SAME element id — see hud.js for why that is the whole point.
+import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
+         celebrationDone, celebrationMark, fmt } from "./hud.js";
+// ⚠️ v2.26.0 — THE "copied from game.js" BLOCK IS GONE, and its header said so
+// in as many words for months. celebrate.js owns the celebrations; School and
+// Library now show the SAME one. Do not copy it back.
+// showGoalToast is intentionally NOT imported: celebrate.js raises its own
+// toast as part of each celebration. It stays exported there for any future
+// caller that wants the banner without the animation.
+import { launchConfetti, launchFireworks } from "./celebrate.js";
+import { showReceipt } from "./receipt.js";
+// ⚠️ ROADMAP 0b. The reading-font model MOVED here from this file in v2.28.0 —
+// there is no local copy left and there must not be a new one. `openMenuModal()`
+// in game.js is deliberately NOT imported: it reaches into book, chapter, sprint
+// and view state School has none of. This module is its shape, not its body.
+import { openSettingsPanel, buildSettingsButton, applyDrillFont, readDrillFont,
+         SETTINGS_PANEL_VERSION } from "./settings-panel.js";
+// ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
+// ⚠️ readDaySessions/projectDayTotal deliberately NOT imported — v2.19.0
+// reverted the projection. See HANDOFF §0.0.
+import { readWeek, invalidateWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
+         carryOverPlan, carryOverPayloadFor, sourceTotalsOf } from "./daylog.js";
+import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
+// ⚠️ v2.23.0 — THE DRILL TEXT FILTER. A student reported "ass" in a lesson.
+// Whole-group matching on Jake's ruling: `lass`, `mass` and `asse` are FINE.
+// See drill-filter.js's header — it holds the ruling and its edge cases.
+import { safeGroup, DRILL_FILTER_VERSION } from "./drill-filter.js";
+// The version footer's three primary reads (this html file, this js file's own
+// LEARN_VERSION, style.css) plus the lazy full-build panel on hover. ⚠️ SAME
+// STRUCTURE AS game.js, ON PURPOSE — see updateVersionFooter() below.
+import { noteDay, ensureSince } from "./logdays.js";
+import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
+         countBuildNotes, renderHiddenNotesLine,
+         readAppliedCssVersion } from "./versions.js";
+import {
+    collection, getDocs, query, where, doc, getDoc, setDoc, addDoc, deleteDoc,
+    // Aggregation query. Firestore bills getCountFromServer at ONE read per up
+    // to 1000 matched index entries, which is what makes the lessons cache
+    // validation cost 1 read instead of ~80. Available since SDK v9.11.
+    getCountFromServer,
+    // v3.46.0 — for logdays.js's ledger write. See the noteDay() call in the
+    // flush path below and the ordering rule in logdays.js's header.
+    updateDoc, arrayUnion,
+    // v2.7.1 — for session-log.js's `serverAt` and nothing else. ⚠️ Do not reach
+    // for it in flushStats(): a sentinel inside the typing_logs or
+    // typing_logs merge writes would be a second dating scheme on the
+    // two documents Round 12 spent a day getting to agree.
+    serverTimestamp
+} from "./read-meter.js";
+import {
+    onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import {
+    FINGER_COLORS, FINGER_NAMES, LAYOUTS, KB_VERSION,
+    createKeyboard, buildFingerMap, getFingerInfo,
+    createHandGuide, buildFingerSVG, setHandGuideToChar, setHandGuideToChars,
+    resetHandGuideToHome, colorKeyboardKeys, flashFingerPressed,
+    getHomePositions, getKeyCenterInKB, toggleKeyboardCase
+} from "./keyboard.js";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+// ⚠️ THIS LINE IS THE VERSION — the comment at the top of the file is decoration.
+// versions.js parses THIS, the footer renders THIS, and ROADMAP's verification
+// steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
+// in the SAME EDIT as the header entry above, always.
+// tests/version-stamp-test.mjs now fails the suite if you do not.
+const LEARN_VERSION = "2.43.0";
+
+// Hand the shared session queue its Firestore surface, once, at module scope.
+// session-log.js imports no SDK of its own on purpose — see that file.
+//
+// ⚠️ THIS LINE MUST MATCH game.js's. Both page controllers configure the same
+// shared module, and a dependency passed on one side and not the other means
+// School and Library write differently shaped documents — which is the R2
+// symmetry failure DESIGN-TELEMETRY.md exists to prevent, in its smallest
+// possible form. session-merge-test.mjs Part C asserts the two calls agree.
+//
+```
+
+### admin.js v3.31.1 — archived by Round 57 (Bar-Lock), 8-entry budget
+
+⚠️ **Archived, not deleted, and it is the entry that predicted this round.** It
+records two import-metadata defects found by `metadata-map-test.mjs` after that
+harness had been dismissed for several rounds as *"a book-metadata question, not
+an app defect."* Round 57 found the same harness's next 39 assertions dismissed
+the same way, in writing — and those WERE rot. The opposite error, from the same
+habit of ruling on a red harness without opening it.
+
+⚠️ **Its half (1) is why 72 of 74 books now map to the combined licence.** That
+is the fix which made `dc:rights` read ALL its elements rather than only the
+first, so a book carrying a public-domain statement AND a CC0 dedication keeps
+both. The bookclean pipeline now emits a single sentence carrying both halves,
+and the same code path serves it.
+
+```
+// v3.31.1 — TWO IMPORT-METADATA DEFECTS, both surfaced by the harness that had
+//           been failing 42 assertions for several rounds and was recorded in
+//           HANDOFF §6 item 3 as "a book-metadata question, not an app defect."
+//           It was an app defect. Twice.
+//
+//           (1) dc:rights read only its FIRST element. Standard Ebooks emits
+//           two — a short "Public domain (United States)" and then the CC0
+//           dedication — so every SE book carrying both had the CC0 half of its
+//           licence silently dropped at import. Identical in shape to the
+//           dc:source bug fixed in v3.26.0, sitting two lines away.
+//
+//           (2) readInBookSignals() no longer loses the transcriber credit on a
+//           bookclean'd Gutenberg import. The pass strips the
+//           #pg-machine-header wrapper and keeps its contents; the Credits
+//           lookup was scoped to that id and therefore found nothing on all
+//           thirteen cleaned Gutenberg books in library/. Falls back to the
+//           whole document, gated on the page mentioning gutenberg.org so the
+//           original protection against "Credits" in book prose survives.
+//           Found by tests/metadata-map-test.mjs v1.4.0 — the harness that had
+//           been failing 42 assertions for several rounds and was recorded as
+//           "not an app defect."
+//
+```
 
 ### admin.js v3.28.0 and v3.27.0 — archived by Round 55, 8-entry budget
 

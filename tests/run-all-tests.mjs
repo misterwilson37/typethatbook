@@ -163,6 +163,7 @@ const FAST = [
     ['ordinal-test.mjs',         'body ordinals on modern and legacy documents'],
     ['map-geometry-test.mjs',    'Adventure dot placement across real book sizes'],
     ['credits-test.mjs',         'Classic end credits: structure and injection'],
+    ['credits-binding-test.mjs', '⚠️⚠️ ROADMAP 48 — A CREDIT LABEL MUST NAME THE PERSON IT SAYS. "Text prepared by" read `cleanedBy` at THREE sites (About panel, classic credits, adventure credits) and cleanedBy is "Claude" on every book, so every book credited Claude with preparing the text; on the About panel it was ALSO a duplicate of the correct row beside it. And `preparedBy` was never projected into allBooks at all, so the correct row had NEVER rendered since v3.6.3. ⚠️ Asserts the label→field PAIRING, never presence — "does the string appear" passed on the broken build for eleven versions. Parts C and D are CLASS guards: every field a surface reads must be carried by the thing that feeds it'],
     ['credit-test.mjs',          'library card attribution: structure and injection'],
     ['card-markup-test.mjs',     'card markup survives the HTML parser intact'],
     ['about-test.mjs',           'detectAbout() and the completeness dot'],

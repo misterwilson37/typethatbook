@@ -633,7 +633,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.16.0";
+        const INDEX_VERSION = "3.17.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -842,7 +842,17 @@
         // "NOTICE" on every About section after v3.5.1 shipped aboutTitles: the fix
         // was live and the data feeding it was stale. Any future change to what is
         // cached needs this number bumped, or the change silently does nothing.
-        const BOOKS_CACHE_KEY   = 'ttb_booksCache_v2';
+        // ⚠️ BUMPED v2 -> v3 BY ROADMAP 48 (v3.17.0), AND THE BUMP IS PART OF THE
+        // FIX RATHER THAN HOUSEKEEPING. The cached value is the PROJECTION, not
+        // the raw document, so every cache written before this version lacks the
+        // new `preparedBy` field. Without the bump the fix would appear not to
+        // work — for hours, for exactly the people who use the site most, with
+        // nothing on screen to explain it. That is the failure mode this project
+        // keeps rediscovering.
+        // ⚠️ IT COSTS ONE EXTRA READ PER STUDENT, ONCE. The next load after the
+        // deploy misses and re-reads the book list; every load after that is
+        // back to normal. See §READS before adding a third bump casually.
+        const BOOKS_CACHE_KEY   = 'ttb_booksCache_v3';
         const BOOKS_CACHE_MS    = 8 * 3600 * 1000;   // ceiling on a validated cache
         // Served with NO reads inside this window. See _loadBooksOnce().
         const BOOKS_TRUST_MS    = 30 * 60 * 1000;    // 30 minutes
@@ -993,6 +1003,17 @@
                         archiveUrl: data.archiveUrl || "",
                         originUrl: data.originUrl || "",
                         cleanedBy: data.cleanedBy || "",
+                        // ⚠️ ROADMAP 48 (v3.17.0). THIS LINE WAS MISSING AND THAT
+                        // WAS THE WHOLE BUG. admin.js has saved `preparedBy` on
+                        // every book since v3.20.0, the About panel has had a row
+                        // ready to render it since v3.6.3 — and this projection
+                        // never carried it, so `book.preparedBy` was undefined for
+                        // every book in the library and the row never appeared.
+                        // Editing the field in admin worked perfectly and changed
+                        // nothing on screen, which is exactly how Jake found it.
+                        // ⚠️ COSTS NO EXTRA READ. It is one more string off a
+                        // document this loop is already holding.
+                        preparedBy: data.preparedBy || "",
                         // Just the IDS of the credits pages, not their text. The
                         // text is a subcollection read and only happens if someone
                         // actually opens the panel — one or two reads on a click,
@@ -1660,10 +1681,23 @@
             if (book.rights) metaRows.push(['License', creditLinkFor(book.rights)]);
             // Two different sets of people, kept apart on purpose (v3.6.3). Prepared by
             // is whoever produced the SOURCE text — Gutenberg's transcribers and
-            // proofreaders. Cleaned up by is whoever did our classroom pass. Nothing
-            // obliges either credit; both are the decent thing, and the second is also a
-            // disclosure that this text was modified.
-            if (book.preparedBy) metaRows.push(['Prepared by', escapeHtml(book.preparedBy)]);
+            // proofreaders, or Global Grey's. Cleaned up by is whoever did our classroom
+            // pass. Nothing obliges either credit; both are the decent thing, and the
+            // second is also a disclosure that this text was modified.
+            //
+            // ⚠️⚠️ ROADMAP 48 (v3.17.0) — THESE TWO USED TO SAY THE SAME NAME. There
+            // were THREE labels for TWO people, and the third one — "Text prepared
+            // by", further down this list — read `cleanedBy` as well. So the panel
+            // printed the cleaner twice, once under a label meaning the cleaner and
+            // once under a label meaning the source preparer. `cleanedBy` is "Claude"
+            // on essentially every book, so that row said Claude on every book no
+            // matter who had actually prepared the text. Jake: "You're awesome, but
+            // not that awesome."
+            // ⚠️ ONE LABEL PER PERSON NOW, AND THE DUPLICATE ROW IS GONE. The wording
+            // "Text prepared by" is kept because it is what is on screen today and
+            // what Jake reads as the source preparer; it is simply pointed at
+            // `preparedBy`, the field that holds that answer.
+            if (book.preparedBy) metaRows.push(['Text prepared by', escapeHtml(book.preparedBy)]);
             if (book.cleanedBy) metaRows.push(['Cleaned up by', escapeHtml(book.cleanedBy)]);
             // ⚠️ A URL WITHOUT A SCHEME IS A RELATIVE PATH (v3.5.2). Jake entered
             // "typethatbook.misterwilson.org/library/x.epub" and the browser
@@ -1686,7 +1720,6 @@
             const org = absUrl(book.originUrl);
             if (org) metaRows.push(['Originally from',
                 `<a href="${escapeAttr(org)}" target="_blank" rel="noopener noreferrer">the publisher's page</a>`]);
-            if (book.cleanedBy) metaRows.push(['Text prepared by', escapeHtml(book.cleanedBy)]);
             const metaHTML = metaRows.length
                 ? '<h3>Credits</h3><p class="about-meta">' +
                   metaRows.map(r => `<strong>${r[0]}:</strong> ${r[1]}`).join('<br>') + '</p>'

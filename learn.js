@@ -1,4 +1,23 @@
-// learn.js v2.42.0
+// learn.js v2.43.0
+//
+// v2.43.0 — ⚠️⚠️ ROADMAP 9: THE DAY ROLLOVER IS NO LONGER TICK-ONLY. The twin of
+//           game.js v3.47.0(a), and it must stay the twin. The rollover fired
+//           only on a COUNTED SECOND, so a tab that woke on a new day and
+//           flushed — without the student typing — worked from yesterday's day
+//           counters while _flushStatsInner() stamped its document with today's
+//           date. The block is now rollDayIfNeeded(), moved VERBATIM, with the
+//           tick calling it at exactly the point the block used to occupy, so
+//           the ordering constraints this file spent Round 6 getting right hold
+//           by construction: above the increments, above `anonSecondsAccum++`,
+//           above `armAnonLoginPrompt()`. Two new callers: the existing
+//           visible-half visibilitychange handler, and _flushStatsInner()'s top.
+//           ⚠️ ABOVE THE `!currentUser` GUARD ON PURPOSE. A guest tab goes stale
+//           the same way, and the roll needs no account — it writes localStorage
+//           and zeroes memory. That guard is about who may write to Firestore.
+//           ⚠️ ROADMAP 9 RECORDS THAT THESE TWO TICK LOOPS HAVE ALREADY DRIFTED
+//           ONCE ON THIS EXACT PATH. midnight-test.mjs v1.1.0 Part B2 asserts
+//           that BOTH files have more than one caller, so a fix applied to one
+//           file and forgotten in the other goes red.
 //
 // v2.42.0 — ⚠️⚠️⚠️ ROADMAP 43 — AN EMPTY PROGRESS CACHE WAS LOCKING
 //           STUDENTS OUT OF THE WHOLE CURRICULUM. `refreshProgressCache()` wrote
@@ -137,16 +156,6 @@
 //           the grade rule moved to run-grade.js so reports.html can reconstruct
 //           without a second copy of it. Rule 9: the copies here are DELETED.
 //
-// v2.35.0 — ⚠️⚠️ A LESSON NOW OPENS AT THE FIRST RUN THAT STILL COUNTS. Jake:
-//           "if the first one is locked, students have no way to get to the
-//           second run legitimately." Runs are typed in order, so a student whose
-//           run 1 was mastered had to replay it FOR NOTHING to reach the run that
-//           still pays — the gate was taxing the student it meant to move along.
-//           firstOpenRunIdx() is well-defined because DOWNWARD CLOSURE makes the
-//           mastered runs a PREFIX and the open runs a SUFFIX; loosen closure and
-//           it must be rewritten, not patched. tests/run-mastery-test.mjs — which
-//           learn.js had CITED SINCE ROUND 32 WITHOUT IT EXISTING, now written.
-//
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
 // rule in it is a function of numbers this file passes in, which is why the whole
@@ -249,7 +258,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.42.0";
+const LEARN_VERSION = "2.43.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -2323,27 +2332,7 @@ function startGradedTimer() {
             // begun at 11:59:58 has 2 seconds to close, the floor refuses them,
             // and the watermark is deliberately NOT advanced so they roll into
             // the first record of the new day rather than vanishing.
-            const todayStr = getLocalDateStr();
-            if (statsData.lastDate && statsData.lastDate !== todayStr) {
-                logOpenRun('midnight', statsData.lastDate);
-                console.log(`Day rolled over: ${statsData.lastDate} → ${todayStr}. Resetting daily stats.`);
-                statsData.secondsToday = 0; statsData.charsToday = 0; statsData.mistakesToday = 0;
-                // ⚠️ v2.20.0 — THE PER-SOURCE COUNTERS ROLL OVER WITH THE DAY. The
-                // Library triple resets to 0 — it is seeded from a document that
-                // is now the wrong day and this page never adds to it.
-                // ⚠️ v2.40.0 — SCHOOL'S RESETS TO 0 NOW, NOT 1. The second that
-                // just elapsed has not been counted yet at this point in the
-                // tick; the increments below add it, to the new day, once.
-                statsData.secondsSchool = 0; statsData.charsSchool = 0; statsData.mistakesSchool = 0;
-                statsData.secondsLibrary = 0; statsData.charsLibrary = 0; statsData.mistakesLibrary = 0;
-                statsData.lastDate = todayStr; dailyGoalCelebrated = false;
-                const ws = getWeekStart(new Date());
-                if (statsData.weekStart !== ws) {
-                    // ⚠️ v2.40.0 — 0, not 1, for the same reason as above.
-                    statsData.secondsWeek = 0; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
-                    statsData.weekStart = ws; weeklyGoalCelebrated = false;
-                }
-            }
+            rollDayIfNeeded('tick');
 
             learnActiveSeconds++;
             statsData.secondsToday++;
@@ -3195,6 +3184,57 @@ function flushSessionsNow() {
 
 // Close the open run WITHOUT ending it. Counters are untouched, so a student who
 // comes back and finishes the run has only the remainder recorded.
+// ─── ROADMAP 9, FIRST BULLET (v2.43.0) — THE DAY ROLLOVER IS REACHABLE NOW ────
+//
+// ⚠️⚠️ NOT NEW CODE, AND THE TWIN OF game.js's rollDayIfNeeded(). This is the
+// tick's midnight rollover moved here verbatim so that something other than a
+// counted second can reach it. The tick calls it at exactly the point the block
+// used to occupy, so every ordering constraint the block carried is preserved by
+// construction rather than by re-derivation. READ THOSE CONSTRAINTS AT THE CALL
+// SITE before moving it — in this file the block must also sit above
+// `anonSecondsAccum++` and `armAnonLoginPrompt()`, both day-scoped the same way.
+//
+// ⚠️ THE BUG IT CLOSES. The rollover fired only on a counted second, so a tab
+// that woke on a new day and flushed, or painted, WITHOUT the student typing was
+// working from yesterday's day counters — and the flush stamps its document with
+// getLocalDateStr(), i.e. TODAY. Round 26 closed the MERGE path that produced
+// the two measured student rows; it did not close the FLUSH path, and nothing
+// has since. game.js's copy of this comment carries the figures.
+//
+// ⚠️ KEEP THE TWO COPIES IDENTICAL IN SHAPE. game.js and learn.js have drifted
+// on this exact path before: ROADMAP 9 records that the two tick loops already
+// disagree about whether they increment before or after their midnight check.
+// midnight-test.mjs Part B2 asserts that BOTH files have more than one caller.
+//
+// Returns true when a day actually turned over, so a caller can repaint.
+function rollDayIfNeeded(reason) {
+    const todayStr = getLocalDateStr();
+    // ⚠️ A MISSING lastDate IS NOT A ROLLOVER. An unseeded statsData has no day
+    // to roll OUT of, and treating it as one would file an open run against
+    // `undefined` and zero counters that were never loaded.
+    if (!statsData.lastDate || statsData.lastDate === todayStr) return false;
+
+    logOpenRun('midnight', statsData.lastDate);
+    console.log(`Day rolled over (${reason}): ${statsData.lastDate} → ${todayStr}. Resetting daily stats.`);
+    statsData.secondsToday = 0; statsData.charsToday = 0; statsData.mistakesToday = 0;
+    // ⚠️ v2.20.0 — THE PER-SOURCE COUNTERS ROLL OVER WITH THE DAY. The
+    // Library triple resets to 0 — it is seeded from a document that
+    // is now the wrong day and this page never adds to it.
+    // ⚠️ v2.40.0 — SCHOOL'S RESETS TO 0 NOW, NOT 1. The second that
+    // just elapsed has not been counted yet at this point in the
+    // tick; the increments below add it, to the new day, once.
+    statsData.secondsSchool = 0; statsData.charsSchool = 0; statsData.mistakesSchool = 0;
+    statsData.secondsLibrary = 0; statsData.charsLibrary = 0; statsData.mistakesLibrary = 0;
+    statsData.lastDate = todayStr; dailyGoalCelebrated = false;
+    const ws = getWeekStart(new Date());
+    if (statsData.weekStart !== ws) {
+        // ⚠️ v2.40.0 — 0, not 1, for the same reason as above.
+        statsData.secondsWeek = 0; statsData.charsWeek = 0; statsData.mistakesWeek = 0;
+        statsData.weekStart = ws; weeklyGoalCelebrated = false;
+    }
+    return true;
+}
+
 function logOpenRun(reason, dateOverride) {
     if (stepSeconds <= 0 && chars <= 0) return;
     logRun(netWPM(), accuracyPct(), reason ? '(' + reason + ')' : '(interrupted)',
@@ -4502,6 +4542,13 @@ document.addEventListener('keydown', e => {
 // Runs whenever the tab becomes visible again and on a periodic interval during drills.
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
+        // ⚠️ ROADMAP 9 (v2.43.0) — THE WAKE CASE, AND IT COMES FIRST. A
+        // Chromebook lid closed overnight reopens on a new day with yesterday's
+        // counters still in memory, and everything below — plus the HUD repaint
+        // that follows — would otherwise work from them. Rolling here files
+        // yesterday's open run against yesterday and zeroes the day before
+        // anyone reads it. Twin of game.js's call in its hidden/visible handler.
+        rollDayIfNeeded('wake');
         ensureKeyboardFocus();
         rebuildKeyboardIfNeeded();
     }
@@ -5142,6 +5189,16 @@ async function flushStats(reason, final = false) {
 }
 
 async function _flushStatsInner(reason, final = false) {
+    // ⚠️⚠️ ROADMAP 9 (v2.43.0) — BEFORE THE GUARD, AND BEFORE ANYTHING IS
+    // WRITTEN. The twin of game.js's call in _flushAllInner(). This path stamps
+    // its daily-log document with today's date while writing statsData's
+    // counters, which a stale tab still holds from yesterday. Rolling first is
+    // what stops yesterday's day total landing on today's ledger line.
+    // ⚠️ ABOVE THE currentUser GUARD ON PURPOSE. A guest tab goes stale the same
+    // way, and the roll's own work — filing the open run to localStorage and
+    // zeroing in-memory counters — needs no account. The guard below is about
+    // who may WRITE to Firestore, which is a different question.
+    rollDayIfNeeded('flush:' + reason);
     if (!currentUser) return;
     // ⚠️⚠️ v2.37.0 — `&& !final` IS THE FIX FOR ROADMAP 25 AND IT IS ONE CLAUSE.
     //

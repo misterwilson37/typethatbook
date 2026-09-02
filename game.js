@@ -1,4 +1,37 @@
-// game.js v3.46.0
+// game.js v3.47.0
+//
+// v3.47.0 — TWO FIXES, BOTH ABOUT SOMETHING BEING READ FROM THE WRONG PLACE.
+//
+//           (a) ⚠️⚠️ ROADMAP 9: THE DAY ROLLOVER IS NO LONGER TICK-ONLY. It
+//           fired only on a COUNTED SECOND, so a tab that woke on a new day and
+//           flushed — without the student typing — worked from yesterday's day
+//           counters, while _flushAllInner() stamps its daily-log document with
+//           getLocalDateStr(), i.e. TODAY. Yesterday's whole day onto today's
+//           ledger line. That is the shape measured on two real students on
+//           2026-08-21; Round 26 closed the MERGE path that produced those rows
+//           and left the FLUSH path open, where it sat for thirty rounds. The
+//           block is now rollDayIfNeeded(), moved VERBATIM, with the tick
+//           calling it at exactly the point the block used to occupy — so every
+//           ordering constraint is preserved by construction. Two new callers:
+//           the visible half of visibilitychange, and _flushAllInner()'s top.
+//           ⚠️ THE MERGE PATH IS DELIBERATELY NOT A CALLER. loadUserStats()
+//           already refuses a stale contribution via its own `liveDay` guard,
+//           which live-period-test.mjs drives with those students' real figures.
+//           One guard per path, and that one is tested.
+//           ⚠️ midnight-test.mjs v1.1.0 FOLLOWED THE CODE RATHER THAN BEING
+//           RELAXED — and found its own B4 had been passing VACUOUSLY, because
+//           `indexOf` returns -1 when the close is absent and -1 < anything.
+//
+//           (b) ⚠️ ROADMAP 48: "Text prepared by" NAMED THE WRONG PERSON. Both
+//           credit surfaces in this file read `cleanedBy` under that label, and
+//           cleanedBy is "Claude" on essentially every book — so the credits
+//           told every student Claude prepared the text, whoever actually had.
+//           Jake: "You're awesome, but not that awesome." The row reads
+//           `preparedBy` now, and the cleaner keeps a row of its own labelled
+//           "Cleaned up by": that credit is a DISCLOSURE that the text was
+//           modified, not only a courtesy, so it is relabelled, never dropped.
+//           ⚠️ The adventure payload never carried `preparedBy` at all, so
+//           fixing adventure-renderer.js's label alone would have shown nothing.
 //
 // v3.46.0 — ROADMAP item 24, the writer half — TWIN OF learn.js v2.38.0.
 //           `sessionLogInit()` now passes `doc` and `setDoc` (both already
@@ -76,15 +109,6 @@
 //           the update gate. See HANDOFF §0.-14.
 //           ⚠️ The warning at line ~84 about this exact defect has now been true
 //           twice, so v3.42.1 also puts the reminder ON the constant itself.
-//
-// v3.42.0 — "I'M DONE" (ROADMAP item 0d). A student-facing exit that files the
-//           open sprint and takes a `final` flush, then shows receipt.js's
-//           stamped card. ⚠️ IT IS A RECEIPT, NOT A SAVE BUTTON — nothing is
-//           gated on it, nothing warns if it is skipped, and ← Library and
-//           (Logout) remain untouched. See handleImDone() and receipt.js.
-//
-// Typing engine, sprint timer, WPM/accuracy, streaks, leaderboard, practice
-// mode, chapter navigation, all modals, write-ahead-log persistence.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
@@ -178,7 +202,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.46.0";
+const VERSION = "3.47.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -2778,36 +2802,7 @@ function gameTick() {
             // is deliberately NOT advanced, so they roll into the first record
             // of the new day instead of being lost. Two seconds on the wrong
             // side of midnight is the residue, and it is the right residue.
-            const todayStr = getLocalDateStr();
-            if (statsData.lastDate && statsData.lastDate !== todayStr) {
-                logOpenSprint('midnight', statsData.lastDate);
-                console.log(`Day rolled over: ${statsData.lastDate} → ${todayStr}. Resetting daily stats.`);
-                statsData.secondsToday = 0;
-                statsData.charsToday = 0;
-                statsData.mistakesToday = 0;
-                // ⚠️ v3.35.0 — THE PER-SOURCE COUNTERS ROLL OVER WITH THE DAY.
-                // They are day-scoped, and a counter that survived midnight
-                // would be written into tomorrow's document as though it had
-                // been typed tomorrow. Both triples reset: the School one is
-                // seeded from a document that is also now the wrong day.
-                statsData.secondsLibrary = 0;
-                statsData.charsLibrary = 0;
-                statsData.mistakesLibrary = 0;
-                statsData.secondsSchool = 0;
-                statsData.charsSchool = 0;
-                statsData.mistakesSchool = 0;
-                statsData.lastDate = todayStr;
-                dailyGoalCelebrated = false; // eligible for today's goal
-                // Check week rollover too
-                const weekStart = getWeekStart(new Date());
-                if (statsData.weekStart !== weekStart) {
-                    statsData.secondsWeek = 0;
-                    statsData.charsWeek = 0;
-                    statsData.mistakesWeek = 0;
-                    statsData.weekStart = weekStart;
-                    weeklyGoalCelebrated = false;
-                }
-            }
+            rollDayIfNeeded('tick');
 
             activeSeconds++; sprintSeconds++;
 
@@ -4256,6 +4251,17 @@ async function flushAll(reason, final = false) {
 // matter between sessions (stats doc, session history); the periodic flush skips
 // them and writes position only.
 async function _flushAllInner(reason, final = false) {
+    // ⚠️⚠️ ROADMAP 9 (v3.47.0) — BEFORE THE GUARDS, AND BEFORE ANYTHING IS
+    // WRITTEN. This function stamps its daily-log document with
+    // getLocalDateStr() — TODAY — while writing statsData's counters, which a
+    // stale tab still holds from YESTERDAY. That combination is the whole
+    // defect: yesterday's day total posted onto today's ledger line, exactly
+    // the two rows measured on real students on 2026-08-21.
+    // ⚠️ ABOVE THE ANONYMOUS GUARD ON PURPOSE. A guest tab goes stale the same
+    // way, and the roll's own work — filing the open sprint to localStorage and
+    // zeroing in-memory counters — needs no account. The guard below is about
+    // who may WRITE to Firestore, which is a different question.
+    rollDayIfNeeded('flush:' + reason);
     if (!currentUser || currentUser.isAnonymous) return;
     const queued = sessionLogPending(currentUser.uid);
     if (!walDirty && !final && queued === 0) return;
@@ -4729,6 +4735,67 @@ function flushSessionsNow() {
 //
 // This is the whole fix for the students who switch books every few sentences.
 // Their time was always in the counters; now it is in the session history too.
+// ─── ROADMAP 9, FIRST BULLET (v3.47.0) — THE DAY ROLLOVER IS REACHABLE NOW ────
+//
+// ⚠️⚠️ THIS BLOCK IS NOT NEW CODE. It is the tick's midnight rollover, moved
+// here verbatim so that something other than a counted second can reach it. The
+// tick still calls it at exactly the point the block used to occupy, so every
+// ordering constraint the block carried is preserved by construction rather than
+// by re-derivation. READ THOSE CONSTRAINTS AT THE CALL SITE before moving it.
+//
+// ⚠️ THE BUG IT CLOSES. The rollover fired only on a counted second, so a tab
+// that woke on a new day and flushed, or painted, WITHOUT the student typing was
+// working from yesterday's day counters — and `_flushAllInner()` stamps its
+// document with `getLocalDateStr()`, i.e. TODAY. Yesterday's whole day, written
+// onto today's ledger line. That is the exact shape of the defect measured on
+// two real students on 2026-08-21 (live-period-test.mjs's header has their
+// figures). Round 26 closed the MERGE path that produced those two rows; it did
+// not close the FLUSH path, and nothing has since.
+//
+// ⚠️ WHY THE MERGE PATH IS NOT A CALL SITE. mergeGuestStats()/loadUserStats()
+// already refuse a stale contribution through their own `liveDay` guard, which
+// live-period-test.mjs drives with those students' real numbers. Rolling before
+// it would reach the same answer by a second route and would change what that
+// harness is measuring. One guard per path, and the one that exists is tested.
+//
+// Returns true when a day actually turned over, so a caller can repaint.
+function rollDayIfNeeded(reason) {
+    const todayStr = getLocalDateStr();
+    // ⚠️ A MISSING lastDate IS NOT A ROLLOVER. An unseeded statsData has no day to
+    // roll OUT of, and treating it as one would file an open sprint against
+    // `undefined` and zero counters that were never loaded.
+    if (!statsData.lastDate || statsData.lastDate === todayStr) return false;
+
+    logOpenSprint('midnight', statsData.lastDate);
+    console.log(`Day rolled over (${reason}): ${statsData.lastDate} → ${todayStr}. Resetting daily stats.`);
+    statsData.secondsToday = 0;
+    statsData.charsToday = 0;
+    statsData.mistakesToday = 0;
+    // ⚠️ v3.35.0 — THE PER-SOURCE COUNTERS ROLL OVER WITH THE DAY.
+    // They are day-scoped, and a counter that survived midnight
+    // would be written into tomorrow's document as though it had
+    // been typed tomorrow. Both triples reset: the School one is
+    // seeded from a document that is also now the wrong day.
+    statsData.secondsLibrary = 0;
+    statsData.charsLibrary = 0;
+    statsData.mistakesLibrary = 0;
+    statsData.secondsSchool = 0;
+    statsData.charsSchool = 0;
+    statsData.mistakesSchool = 0;
+    statsData.lastDate = todayStr;
+    dailyGoalCelebrated = false; // eligible for today's goal
+    // Check week rollover too
+    const weekStart = getWeekStart(new Date());
+    if (statsData.weekStart !== weekStart) {
+        statsData.secondsWeek = 0;
+        statsData.charsWeek = 0;
+        statsData.mistakesWeek = 0;
+        statsData.weekStart = weekStart;
+        weeklyGoalCelebrated = false;
+    }
+    return true;
+}
+
 function logOpenSprint(reason, dateOverride) {
     if (!isGameActive && sprintSeconds <= 0) return;
     const charsTyped = currentCharIndex - sprintCharStart;
@@ -4920,6 +4987,12 @@ let lastHiddenFlush = 0;
 let lastFlushedSecondsToday = 0;
 
 document.addEventListener('visibilitychange', () => {
+    // ⚠️ ROADMAP 9 (v3.47.0) — THE WAKE CASE, AND IT COMES FIRST. A Chromebook
+    // lid closed overnight reopens on a new day with yesterday's counters still
+    // in memory; everything below this line, and the HUD repaint that follows,
+    // would otherwise work from them. Rolling here files yesterday's open sprint
+    // against yesterday and zeroes the day before anyone reads it.
+    if (document.visibilityState === 'visible') rollDayIfNeeded('wake');
     if (document.visibilityState === 'hidden') {
         // ⚠️ FIRST, AND UNCONDITIONALLY. (v3.24.0) This is a localStorage write
         // inside session-log.js, so it costs nothing, needs no network and needs
@@ -5345,6 +5418,10 @@ async function finishChapter() {
             source:     bookMetadata ? bookMetadata.source : '',
             rights:     bookMetadata ? bookMetadata.rights : '',
             cleanedBy:  bookMetadata ? bookMetadata.cleanedBy : '',
+            // ⚠️ ROADMAP 48 (v3.47.0). The renderer had a "Text prepared by" row
+            // and this payload never carried the field it names, so fixing the
+            // label alone would have left adventure with nothing to show.
+            preparedBy: bookMetadata ? bookMetadata.preparedBy : '',
             chapters:   bodyChapterList().length
         });
         return;
@@ -5573,7 +5650,18 @@ function renderClassicCredits() {
     if (m.author)     bits.push(['By',                escapeHtmlG(m.author)]);
     if (m.source)     bits.push(['Source',            escapeHtmlG(m.source)]);
     if (m.rights)     bits.push(['License',           creditLine(m.rights)]);
-    if (m.cleanedBy)  bits.push(['Text prepared by',  escapeHtmlG(m.cleanedBy)]);
+    // ⚠️⚠️ ROADMAP 48 (v3.47.0). THIS ROW SAID "Text prepared by" AND READ
+    // `cleanedBy`, WHICH IS "Claude" ON ESSENTIALLY EVERY BOOK — so the end
+    // credits named the cleaner as the person who prepared the text, on every
+    // book, whoever had actually prepared it. Same defect, same wording, at
+    // three separate sites (index.html's About panel and adventure-renderer.js
+    // are the other two); index.html's was ALSO a duplicate, because that panel
+    // already had a correct "Cleaned up by" row beside it.
+    // ⚠️ THE CLEANER'S CREDIT IS NOT DROPPED, IT IS RELABELLED. It is a
+    // disclosure that this text was modified, not only a courtesy, so the fix
+    // here is a second row rather than a swap.
+    if (m.preparedBy) bits.push(['Text prepared by',  escapeHtmlG(m.preparedBy)]);
+    if (m.cleanedBy)  bits.push(['Cleaned up by',     escapeHtmlG(m.cleanedBy)]);
 
     const rows = bits.map(b =>
         '<div style="margin:3px 0;"><span style="opacity:0.55;">' + b[0] +
