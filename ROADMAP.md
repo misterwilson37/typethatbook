@@ -390,6 +390,9 @@ Everything else still open:
 - 12. ⚠️⚠️ REOPENED (Round 59, Jewett) — THE LEAD AXIS, AND JAKE'S RULING ON WHAT SHOULD ALIGN  *(⚠️ DO NOT SHIP style.css v3.10.0 — he looked at it rendered and ruled against it)*
 - 53. ⚠️ EIGHTY BOOKS AND NO WAY THROUGH THEM — SEARCH, AND SOMETHING FEATURED  *(Jake asked, 2026-09-03)*
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
+- 38. ⚠️ OPEN for admin (Round 55 closed reports.html) — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS  *(⚠️ UNBLOCKED, and Jake has RULED — build to the table, do not re-open it)*
+- 55. ⚠️ THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
+- 56. ⚠️ CONTROLS THAT LOOK INTERACTIVE AND ARE NOT — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS  *(Jake, 2026-09-03)*
 - 51. ⚠️ THE BUILD LIST IS IN NO ORDER A READER CAN RECOGNISE — SORT IT ALPHABETICALLY  *(Jake asked, 2026-09-03. Sort in renderBuildList(), NEVER the SOURCES array — read the item first)*
 - 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS  *(the instrument that would have caught Round 59's finding on the day)*
 
@@ -431,7 +434,6 @@ Everything else still open:
 - 31. ✅ CLOSED (Round 55) — THE IDLE SPACE-SKIP LEFT THE SPACE BAR LIT
 - 41. ✅ CLOSED (Round 55) — THE SLOW CONTROLS NOW LOOK BUSY
 - 40. ✅ CLOSED (Round 55) — THE STAFF PAGES ARE KEYBOARD-USABLE
-- 38. ✅ CLOSED for reports.html (Round 55) — THREE SEVERITIES, ONE MEANING EACH
 - 37. ✅ CLOSED (Round 55) — THE STAFF PAGES NOW USE A DESIGN SYSTEM
 - 43. ✅ CLOSED (Round 55) — AN EMPTY PROGRESS CACHE LOCKED STUDENTS OUT OF THE CURRICULUM
 - 46. ✅ CLOSED (Round 56) — WHO UPLOADED THIS BOOK, STAMPED AND NOT TYPEABLE
@@ -4014,7 +4016,7 @@ once the tokens exist, and 38 is barely expressible without them.
 
 ---
 
-## 38. ✅ CLOSED for reports.html (Round 55) — THREE SEVERITIES, ONE MEANING EACH
+## 38. ⚠️ OPEN for admin (Round 55 closed reports.html) — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS
 
 ⚠️ **JAKE'S STANDING RULING OF 2026-09-02 APPLIES TO admin AND IS RECORDED IN
 FULL IN ITEM 42:** *"right now it looks bad. Consistency would help a lot, so
@@ -4038,8 +4040,49 @@ BOTH.** Most of this page's markup is built in template strings, so an inline
 `style="color:#ff3333"` is exactly as unsystematic as a rule and harder to find.
 Zero raw hex outside `:root` in either half. Mutation-verified.
 
-⚠️ **STILL OPEN FOR admin.html**, and it is blocked on item 42 rather than on
-effort. Its amber still means three things; untangling that is part of the
+✅✅ **UNBLOCKED 2026-09-03 — item 42's colour half is done — AND JAKE HAS RULED
+ON WHAT THE COLOURS MEAN. BUILD TO THIS; DO NOT RE-OPEN THE DEBATE.**
+
+⚠️⚠️ **A BUTTON IS NOT A STATE, AND THE THREE SEVERITIES ABOVE DO NOT TRANSFER TO
+ONE.** notice/warn/bad grades a VALUE that already exists. A control is graded by
+**what a click costs if you did not mean it.** Forcing buttons onto the severity
+scale is a category error and would produce a red Save.
+
+⭐ **THE THREE TIERS FOR CONTROLS, AS RULED:**
+
+| Tier | Meaning | Examples |
+|---|---|---|
+| **safe** | tells you something, changes nothing | ABOUT, AUDIT BOOK, SCAN FOR LANGUAGE WARNINGS, Word list & search |
+| **edit** | changes the staged copy; recoverable by doing it again | EDIT, SPLIT, MERGE, BACK, FIX CHAPTER ORDER, REMOVE CHAPTER TITLES, SAVE METADATA |
+| **commit** | irreversible, or it reaches students | DEL, REMOVE, PROCESS OVERWRITE, **UPLOAD ALL CHAPTERS TO DATABASE** |
+
+⚠️⚠️ **THE REAL DEFECT IS IN THE COMMIT ROW, NOT THE RAINBOW.** `UPLOAD ALL
+CHAPTERS TO DATABASE` is the same blue as `EDIT` — **the control that pushes a
+book to every student looks exactly like the one that opens a text box**, and it
+is the largest, friendliest target on the page. Red already covers destruction
+(DEL, PROCESS OVERWRITE); it does not yet cover **publishing**, which is the same
+tier by consequence even though nothing is destroyed. ⚠️ Fix that before touching
+a single decorative colour — it is the only part of this item that can lose work.
+
+⚠️ **AND TWO REDS ARE DOING VERY DIFFERENT JOBS.** `REMOVE` (a cover image) and
+`PROCESS OVERWRITE` (the entire book's data) are the same red. Same colour,
+enormously different blast radius. ⚠️ `SAVE METADATA` is green — the safest-
+feeling colour on the page belongs to a write.
+
+⚠️ **THE TRADE JAKE ACCEPTED, RECORDED SO NOBODY RE-LITIGATES IT:** collapsing to
+three tiers means SPLIT / MERGE / BACK / EDIT all become one colour, and *"the
+purple one"* stops being how you find Merge. He took that trade — the labels are
+present, position is stable, and a rainbow that means nothing was costing more
+than it gave. **His words: "I like your three tier split."** ⚠️ If a later round
+finds itself wanting to give one button its own colour back, that is this
+decision being reversed by accident.
+
+⚠️ **THIS ROUND ENDS BY LOOKING AT IT RENDERED**, and an A/B beside the current
+page is the deliverable that gets the sign-off — twice on 2026-09-03 a picture
+told Jake something 68 harnesses could not.
+
+⚠️ **STILL OPEN FOR admin.html** as of this writing, and it was blocked on item 42
+rather than on effort. Its amber still means three things; untangling that is part of the
 inline-style extraction, not a separate pass over the same lines.
 
 ⚠️ **A NEAR-MISS WORTH KEEPING.** The colour sweep's regex matched the digits
@@ -4988,3 +5031,132 @@ because they are at the top. With eighty books and a discovery problem already
 (item 53), a popularity sort can make the tail *less* visible, not more —
 the opposite of what he asked 53 for. **Ask whether he wants popularity as the
 default order or as one option beside the current one.**
+
+---
+
+## 55. ⚠️ THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"
+
+**Jake, 2026-09-03, from a screenshot of Content Staging.** Four separate things,
+all in the same panel, all small. ⚠️ **Do them together — this panel is one grid
+and four separate rounds would relayout it four times.**
+
+### a. It should be three rows, and the URLs are the reason
+
+Row two is `GENRE / TARGET AGE RANGE / PROTAGONIST / COVER`; row three crams
+`SOURCE / LICENSE / ARCHIVE URL / ORIGIN URL / PREPARED BY / UPLOADED BY /
+CLEANED UP BY` into the width left beside the cover. ⚠️⚠️ **BOTH URL FIELDS
+RENDER AS THE STRING `https:/` AND NOTHING ELSE.** They are not truncated
+decoratively; they are *useless* — you cannot read, check or copy the archive
+link the book came from. **Give the two URLs their own row.**
+
+⭐ **The space already exists** and Jake named where: the cover preview is tall,
+so the column beside it has vertical room that the current two-row layout wastes.
+
+⚠️ **Jake's number-one design pet peeve applies directly here** — field boxes
+that are *almost* the same width read worse than boxes that are obviously
+different. Whatever the new grid is, make the columns match exactly or differ
+clearly. Do not eyeball it to "close enough".
+
+### b. `UPLOADED BY` has no input at all
+
+It renders the literal text *"— (added before this was recorded)"* where every
+neighbouring field has a control. ⚠️ **A label with prose where a box belongs
+reads as broken, not as empty.** At minimum it needs an input.
+
+⭐ **Jake's own idea, and it is better than a text box:** *"It could be a dropdown
+of admins, superadmins and teachers — at least for the superadmin. That would be
+handy."* ⚠️ **THE STAFF LIST ALREADY EXISTS** — `rights-ladder.js` and the staff
+tab know who the admins, superadmins and teachers are. Read from there rather
+than typing names as free text, or this field will accumulate three spellings of
+the same person.
+⚠️ **GATE IT ON THE LADDER, NOT ON A GUESS.** Jake scoped it *"at least for the
+superadmin"*; who else may set it is a question for him, and `rights-ladder.js`
+is the only place that answer should come from.
+⚠️ **NEVER STORE A STUDENT IN THIS FIELD.** It is a staff-attribution field on a
+book document that students read.
+
+### c. Saving does not confirm everything it saved
+
+⚠️⚠️ **Jake changed the age range, saved, and the confirmation at the top did not
+mention it.** *"I think there was something else that also wasn't included, but I
+can't remember right now what it was."*
+
+⚠️ **DO NOT FIX THE AGE-RANGE LINE AND CLOSE THIS.** A confirmation that lists
+*some* of what it wrote is worse than one that lists none, because it teaches the
+reader to trust a list that is lying — and the second omission Jake half-
+remembers is still in there. **Build the confirmation from the same object the
+write uses, so it cannot drift again.** If a field is written, it is listed, by
+construction.
+
+### d. It is where item 39 will bite
+
+The save confirmation is an `alert()`. ⚠️ Whatever this item does to the text,
+check item 39 first — 64 `alert()`/`confirm()` calls convert **whole pages at a
+time**, never one call, and a half-converted destructive confirmation fires
+without waiting for its answer.
+
+---
+
+## 56. ⚠️ CONTROLS THAT LOOK INTERACTIVE AND ARE NOT — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS
+
+**Jake, 2026-09-03, reviewing Round 59's hover work.** Three findings, related
+only in that each one is a control making a promise it does not keep.
+
+### a. ⚠️⚠️ THE (i) BUTTONS ARE THE REAL ONE. THEY DO NOTHING.
+
+*"Hovering over the i for Cover gives me a question mark, but clicking doesn't
+give me anything at all. That's true of all of those i's."*
+
+⚠️⚠️ **A HELP AFFORDANCE THAT ANSWERS NOTHING IS WORSE THAN NO AFFORDANCE.** The
+cursor changes, so the control promises an explanation, and the click spends the
+user's attention for nothing. Every field in Content Staging carries one.
+
+⭐ **JAKE SAID WHAT THEY SHOULD ANSWER, AND IT IS NOT "what is this field":**
+*"It would probably be helpful if they told the user where that information is
+auto-filled from, if anywhere."* **Provenance, not definition.** Half these
+fields are populated by the EPUB import and half are typed by a human, and
+nothing on the page says which is which — so a staff member editing an
+auto-filled field cannot tell whether their edit survives the next import.
+⚠️ **THE "if anywhere" MATTERS: a field with no auto-fill must say so**, rather
+than being given no tooltip and looking like the ones that are simply broken.
+
+⚠️ **ANSWER IT FROM THE IMPORTER, NOT FROM MEMORY.** Which fields the EPUB
+pipeline populates is knowable by reading the import path; a hand-written list
+will be wrong within two rounds and nothing will catch it.
+
+### b. EDIT and DEL have no tooltip, and their neighbours do
+
+*"The hover text on about, merge, split, and body are great. Edit and Del don't
+have them, and they would probably help."* ⚠️ **DEL is the destructive one in the
+row and the one with no explanation** — an inconsistency that falls on exactly
+the button where a moment's hesitation is worth most. Small fix; do it with (a).
+
+### c. ⚠️ TWO BUTTONS DO NOT BRIGHTEN ON HOVER, AND THE CAUSE IS NOT ROUND 59
+
+*"The hover glow works on all but two buttons — remove chapter titles in books
+and delete in class manager."*
+
+⚠️⚠️ **THIS IS A PRE-EXISTING GAP THAT ROUND 59 MADE VISIBLE, NOT ONE IT
+INTRODUCED.** Round 59 gave `btn-tint` to the eighteen buttons whose background
+had been *inline*; a button whose background comes from a CLASS —
+`button.danger-btn { background:#7a1f1f }`, `button.secondary-btn` — was never in
+that set. Those rules are (0,1,1), **which ties with `button:hover` (0,1,1) and
+wins on source order**, so they have never had a hover, and nobody noticed while
+their neighbours had none either.
+
+⚠️ **THE FIX IS SMALL AND THE BLAST RADIUS IS NOT.** `danger-btn` and
+`secondary-btn` are used all over admin, so adding the tint to those rules
+changes every one of them at once. **That is a look-at-it-rendered change**, and
+it wants Jake's eye before it ships — it is exactly the class of "everything
+moved slightly" he objects to.
+
+⚠️ **CONFIRM WHICH TWO BEFORE FIXING.** The literal string `REMOVE CHAPTER
+TITLES` does not appear in the repository as delivered, so that label is built
+elsewhere or from a variable. Find them with:
+`grep -rn "danger-btn\|secondary-btn" --include=*.js --include=*.html .`
+and match against the two Jake named, rather than assuming the mechanism above
+covers both.
+
+⭐ **`How this works / setup notes` NOT BRIGHTENING IS CORRECT** and needs no
+work — Jake worked out why himself: it is a `<summary>`, not a button, and it
+expands rather than acting.

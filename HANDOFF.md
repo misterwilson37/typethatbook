@@ -115,13 +115,30 @@
 >   `tests/hud-lead-test.mjs` are deliberately absent.**
 > * ⚠️ **THE ADMIN CHANGE IS VISIBLE**: eighteen buttons and two links gain a hover
 >   and a working disabled grey-out. Jake was told before uploading.
+> * ⭐⭐ **ITEM 38 IS UNBLOCKED AND JAKE HAS RULED ON IT — THE NEXT ADMIN ROUND IS
+>   THE ONE HE WANTS.** Three tiers for CONTROLS (safe / edit / commit), which is
+>   a different axis from the three severities that grade VALUES; the table is in
+>   the item. ⚠️ **The real defect there is not the rainbow**: `UPLOAD ALL CHAPTERS
+>   TO DATABASE` is the same blue as `EDIT`, so the control that publishes to
+>   every student looks like the one that opens a text box. ⚠️ He accepted the
+>   trade that SPLIT/MERGE/BACK/EDIT lose their individual colours — **recorded so
+>   nobody gives one back by accident.**
+> * ⚠️ **56c IS A GAP ROUND 59 MADE VISIBLE AND DID NOT CAUSE.** Two buttons still
+>   do not brighten because their background comes from `danger-btn` /
+>   `secondary-btn` — class rules at (0,1,1) that tie with `button:hover` and win
+>   on source order, so they never had a hover. Fixing it touches every button
+>   using those classes at once, so it is a look-at-it-rendered change.
 > * **New: 51** (sort the build list — specced, not shipped; sort in
 >   `renderBuildList()`, NEVER the `SOURCES` array, and copy the array first),
 >   **52** (documents-vs-repo auditor), **53** (search + a featured book — 80 books
 >   and kids see the first row only; ⚠️ two features for two different children,
->   and check item 45 first), **54** (popularity sort — ⚠️ Jake priced it as a read
->   and the read may be free; the WRITE is the expensive half, and it needs item 33
->   retaken first).
+>   and check item 45 first), **54** (popularity sort — ⚠️ ANSWERED: `session-log.js` already writes
+>   `bookId`, so popularity needs no new write at all), **55** (the metadata panel
+>   — three rows, the two URLs render as the useless string `https:/`, `UPLOADED
+>   BY` has no input, and the save confirmation omits fields it wrote), **56**
+>   (controls that look interactive and are not — ⚠️ the (i) buttons change the
+>   cursor and do nothing, and Jake said what they should answer: **where a field
+>   is auto-filled from**, not what it is).
 > * **50** still open and undiagnosed. **42's colour half is done; 38 is unblocked.**
 >   **34/35** wait on a week of Jake's data. **30** unreproduced. **39** wants its own
 >   conversation. **47 step two** is the functions-side copy plus a byte-identity
