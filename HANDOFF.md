@@ -183,10 +183,27 @@
 > answer** — no `readWeek()` caller passes a ledger, and passing
 > `ledgerFrom(userData, uid)` can only ADD reads, never cause an undercount.
 >
-> ⚠️ **A LATENT BUG WAS FOUND WHILE LOOKING AND IS NOT THIS ONE:** the mirror's
-> 400-day trim `days.shift()`s the oldest entries **without moving `since`
-> forward**, so past 400 recorded days those dates become "known absent" and get
-> skipped. Harmless now, wrong later.
+> ✅ **THE LATENT BUG FOUND WHILE LOOKING IS FIXED** (`logdays.js` v1.5.0): the
+> 400-day trim `days.shift()`ed the oldest entries **without moving `since`
+> forward**, so past 400 recorded days those dates became "known absent" and were
+> skipped — **item 50's exact shape, arriving on its own.** Fixed rather than
+> filed: the note would have outlived everyone who understood it. ⚠️ `since` moves
+> FORWARD there and that **obeys** the rule rather than breaking it — the rule
+> forbids turning a KNOWN day into a skip; a forward move makes the era below it
+> UNKNOWN and it is read blind. Costs reads, never minutes. H7,
+> mutation-verified.
+>
+> ### ⚠️⚠️ WHAT IS NEXT, AND WHY IT WAS NOT STARTED
+>
+> **ITEM 42's COLOUR HALF.** 128 `color` and 39 `background` declarations, every
+> one of them on the runtime-assignment surface of `admin.js` — the file that
+> writes every book in the library. **Deliberately not begun at the end of a long
+> session.** ⚠️ It is the half that unblocks item 38, and item 38's finding is
+> that amber means three different things on this page, so value-named extraction
+> (which merges nothing) is the shape to use and merging by eye is not.
+> ⚠️ `tx2.mjs`'s span-based approach and its EXTRACT list are described in
+> `admin.js` v3.41.0's header entry; the excluded properties are listed there with
+> their runtime-assignment counts, which is the survey the colour half needs.
 >
 > ### ⚠️⚠️ ORIGINAL NOTES ON 50 — STILL ACCURATE, AND THE ITEM'S VALUE IS WHAT IT RULES OUT
 >

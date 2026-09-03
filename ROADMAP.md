@@ -1,5 +1,7 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.59.0, 2026-09-02 (Round 58, Emerson, close).** ✅ **THE LATENT LEDGER BUG FOUND WHILE HUNTING ITEM 50 IS FIXED — `logdays.js` v1.5.0.** `noteDay()`'s `MAX_DAYS` trim dropped the oldest dates **without moving `since` forward**, so past 400 recorded days those dates became "known absent" and were skipped — **item 50's exact shape, arriving on its own.** ⚠️ `since` moves FORWARD there and that **obeys** the module's rule: the rule forbids turning a KNOWN day into a skip, and a forward move makes the era below it UNKNOWN, so it is read blind — costs reads, never minutes. `logdays-test.mjs` H7, mutation-verified against the shipped v1.4.0 behaviour. ⚠️⚠️ **ITEM 42's COLOUR HALF WAS NOT STARTED, DELIBERATELY** — 167 declarations across the runtime-assignment surface of the file that writes every book in the library is not work to begin at the end of a long session. It is the top open item and it wants a fresh round.
+
 **v3.58.0, 2026-09-02 (Round 58, Emerson, final).** ✅ **ITEM 42's admin.js HALF SHIPPED — `admin.js` v3.41.0, `admin.html` v1.4.0.** 250 declarations out of 136 template-string `style=` attributes into the utility block: 31 new classes, 46 existing reused, **0 name collisions**, and ⭐ **Jake's font-size ladder collapsed from TWELVE values to SIX**, every move to the nearest surviving rung. ⚠️⚠️ **COLOUR WAS DELIBERATELY EXCLUDED AND THE COLOUR HALF IS THE ONE THAT UNBLOCKS ITEM 38** — 128 `color` and 39 `background` declarations remain inline, every excluded property being one `admin.js` assigns at RUNTIME. **So 42 is not one job but two, and this is the half that does NOT unblock 38 — do not report 42 as nearly done.** ⚠️ 13 attributes refused as dynamic, which is how `.seg-row`'s `.style.background = ''` hazard excluded ITSELF rather than by anyone remembering it. ⚠️ **A hazard Round 57's survey did not name: 21 styled tags already carry a `class=`, and a second `class=` attribute is discarded SILENTLY by every parser** — 16 rewrites merge instead. ⚠️ `inline-styles-test.mjs` A3/A4 now read **both** consumers; reading only the markup reported 31 healthy classes as orphans and would have missed an admin.js class nobody declared. Mutation-verified.
 
 **v3.57.0, 2026-09-02 (Round 58, Emerson, final).** ✅ **ITEM 50 — THE STRUCTURAL REPAIR SHIPPED TOO, ON JAKE'S GO-AHEAD.** `logdays.js` v1.4.0 adds `reconcilePlan()`/`reconcile()`: **the mirror may not know less than the server.** Every `readWeek()` caller passes no ledger, so the reader trusts this browser's mirror alone while the server's `ttbLogDays` — written by the same `noteDay()`, never pruned — goes unconsulted. `learn.js` v2.45.0 calls it from `loadGateState()`, **on the user document that function already holds, so it costs ZERO extra reads.** ⚠️⚠️ **IT CANNOT CAUSE AN UNDERCOUNT:** it only ADDS days and only moves `since` BACKWARD — an extra day costs one wasted read, a missing one costs a child their week. `logdays-test.mjs` H1–H6, **mutation-verified twice**, including H3 which fails if `since` can ever move forward. ⚠️ **It heals the NEXT page load, not the current one** — `loadGateState()` runs after `loadUserStats()`'s `readWeek()`, and reordering startup for one refresh was not worth the risk. ⚠️ **Its `console.warn` is the only instrument that exists** — students have no devtools and cannot clear site data, so a recurrence is otherwise invisible. ⚠️ **THE ROOT CAUSE IS STILL UNKNOWN and the item stays open** — this makes the fault self-healing, not diagnosed.
@@ -3176,10 +3178,15 @@ build and the item can close.
    fault found:** `noteDay()` keeps `since = min(days)`, so a day earlier than
    anything recorded falls *before* `since` and is read **blind**, not skipped —
    the safe direction. `MAX_DAYS` is **400**, so the `days.shift()` trim cannot
-   reach inside one week. ⚠️ **A LATENT BUG IS THERE ANYWAY AND IS NOT THIS ONE:**
-   that trim drops the oldest entries **without moving `since` forward**, so after
-   400 recorded days the trimmed-away dates become "known absent" and are skipped.
-   Harmless now, wrong later, and worth fixing when someone is in the file.
+   reach inside one week. ✅ **A LATENT BUG WAS THERE AND IS NOW FIXED (`logdays.js` v1.5.0):**
+   that trim dropped the oldest entries **without moving `since` forward**, so
+   past 400 recorded days the trimmed-away dates became "known absent" and were
+   skipped — **this item's exact shape, arriving on its own.** Fixed rather than
+   left as a note, because the note would have outlived everyone who understood
+   it. ⚠️ `since` moves FORWARD there, which **obeys** this module's rule rather
+   than breaking it: the rule forbids reclassifying a KNOWN day into a skip, and
+   a forward move makes the era below it UNKNOWN, so it is read blind. Costs
+   reads, never minutes. `logdays-test.mjs` H7, mutation-verified.
 2. **`ttbDayCache:`** (daylog.js v1.7.0) — closed-day totals. ⚠️ **Read closely
    and no fault found:** it expires at local midnight, is discarded on any shape
    or uid mismatch, banks only days that were actually READ (never a skipped or

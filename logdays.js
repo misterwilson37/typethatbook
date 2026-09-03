@@ -1,4 +1,15 @@
-// logdays.js v1.4.0 — WHICH DAYS DID THIS STUDENT TYPE?
+// logdays.js v1.5.0 — WHICH DAYS DID THIS STUDENT TYPE?
+//
+// v1.5.0 — ⚠⚠ THE MAX_DAYS TRIM DROPPED EVIDENCE AND LEFT `since` BEHIND, so
+//          past 400 recorded days the trimmed-away dates became "known absent"
+//          and were skipped — ROADMAP 50's exact shape, arriving on its own.
+//          Latent at today's volumes; found while looking for 50 and fixed
+//          rather than left as a note, because the note would have outlived
+//          everyone who understood it.
+//          ⚠ `since` MOVES FORWARD HERE AND THAT OBEYS THE RULE RATHER THAN
+//          BREAKING IT: the rule forbids reclassifying a KNOWN day into a skip.
+//          A forward move makes the era below it UNKNOWN, so it is read blind —
+//          it costs reads, never minutes.
 //
 // v1.4.0 — ⚠️⚠️ ROADMAP 50: reconcilePlan()/reconcile(). THE MIRROR MAY NOT
 //          KNOW LESS THAN THE SERVER. Every readWeek() caller passes NO ledger,
@@ -118,7 +129,7 @@
 // see the user document must prefer it, and any reader that cannot must union
 // the two rather than trusting the local one alone.
 
-export const LOGDAYS_VERSION = "1.4.0";
+export const LOGDAYS_VERSION = "1.5.0";
 
 // ⚠️ FIELD NAME IS PREFIXED. `users` documents are shared with staff-admin.js,
 // the roster importer and the reports roster query; an unprefixed `logDays`
@@ -202,11 +213,29 @@ export async function noteDay({ db, doc, updateDoc, setDoc, arrayUnion, uid, dat
     const days = local ? local.days.slice() : [];
     if (!days.includes(date)) days.push(date);
     days.sort();
+    // ⚠️⚠️ THE TRIM DESTROYS EVIDENCE, SO `since` MUST FOLLOW IT FORWARD.
+    // v1.5.0. `since` means "I have been watching from here", and every date at
+    // or after it that is NOT in `days` is reported to planReads() as KNOWN
+    // ABSENT and skipped. Dropping the oldest dates while leaving `since` where
+    // it was therefore turns days this student DID type into skipped reads and
+    // zeros — the exact shape of ROADMAP 50, arriving on its own after 400
+    // recorded days.
+    //
+    // ⚠️ THIS IS THE ONE PLACE `since` MAY MOVE FORWARD, AND THE MODULE'S RULE
+    // THAT IT ONLY MOVES BACK IS NOT BEING BROKEN — IT IS BEING OBEYED. The rule
+    // exists because a forward move must never reclassify a KNOWN day into a
+    // skip. Here the opposite happens: the era below the new `since` becomes
+    // UNKNOWN, so planReads() reads it blind. It costs reads. It cannot cost a
+    // child their minutes, which is the only asymmetry this module cares about.
+    // logdays-test.mjs H7 fails if a trim ever leaves `since` behind.
+    const trimmed = days.length > MAX_DAYS;
     while (days.length > MAX_DAYS) days.shift();
 
     // Local mirror first: it cannot fail in a way that matters and it makes the
     // once-per-load guard meaningful even if the network is down.
-    writeLocal(uid, days, days[0] < since ? days[0] : since);
+    const mirrorSince = trimmed ? days[0]
+                                : (days[0] < since ? days[0] : since);
+    writeLocal(uid, days, mirrorSince);
     stampedThisLoad.add(key);
 
     try {

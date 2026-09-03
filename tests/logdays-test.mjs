@@ -520,6 +520,43 @@ await check('H6. reconcile() writes the healed mirror through to storage', () =>
     assert.deepEqual(plan.skip, []);
 });
 
+await check('H7. \u26a0\u26a0 the MAX_DAYS trim moves `since` forward with it', async () => {
+    // ROADMAP 50's shape, arriving on its own after 400 recorded days: the trim
+    // drops the OLDEST dates, and if `since` stays behind, every dropped date is
+    // at-or-after it and absent from `days` — which planReads() reports as KNOWN
+    // ABSENT and skips. Those are days the student really typed on.
+    store.clear();
+    const days = [];
+    for (let i = 0; i < 400; i++) {
+        const d = new Date(Date.UTC(2025, 0, 1) + i * 86400000);
+        days.push(d.toISOString().slice(0, 10));
+    }
+    const oldest = days[0];
+    store.set('ttb_logDays_v2', JSON.stringify({
+        uid: 'H7-student', days, since: oldest }));
+
+    const io = { db: {}, doc: () => ({}), arrayUnion: v => v,
+                 updateDoc: async () => {}, setDoc: async () => {} };
+    await noteDay({ ...io, uid: 'H7-student', date: '2026-09-02' });
+
+    const after = JSON.parse(store.get('ttb_logDays_v2'));
+    assert.equal(after.days.length, 400, 'the mirror stays capped');
+    assert.ok(!after.days.includes(oldest), 'the oldest day was trimmed');
+    assert.equal(after.since, after.days[0],
+        '\u26a0 `since` must follow the trim forward. Left behind, the trimmed ' +
+        'dates become "known absent" and are skipped.');
+
+    // Stated as the READER sees it, which is the assertion that matters.
+    const plan = planReads({ since: after.since, days: new Set(after.days) },
+                           [oldest, after.days[0], '2026-09-02'],
+                           { always: ['2026-09-02'] });
+    assert.ok(plan.fetch.includes(oldest),
+        '\u26a0\u26a0 a trimmed-away day the student DID type on must be read blind, ' +
+        'never skipped \u2014 a skip there is a zero, and a zero there is a child ' +
+        'losing minutes they earned');
+    assert.deepEqual(plan.skip, []);
+});
+
 let failed = 0;
 for (const [state, name] of results) {
     console.log(`  ${state === 'ok' ? 'ok  ' : 'FAIL'} ${name}`);
