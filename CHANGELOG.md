@@ -53,6 +53,25 @@ RENDERED earned its place twice in one round.
 - `style.css` and `tests/hud-lead-test.mjs` are **NOT in this upload.** Item 12
   is reopened with Jake's ruling as the spec.
 
+### ✅ Item 50 did not recur
+
+Jake, end of day 2026-09-03: *"weekly number came back right today! It was
+fixed!"* A full school day of typing on top of Round 58's invalidation did not
+re-corrupt the number, which points at **stale per-browser state** rather than a
+live write bug. ⚠️ **Left OPEN deliberately** — one day on the browsers he
+happened to check is not a week, and a write bug needing a particular sequence
+takes longer to surface. Close it on the week, not the day.
+
+### ⭐ Item 54 answered without spending anything
+
+Jake asked whether the popularity counter's writes were affordable and showed the
+console: **1.9K writes/day against 20K free, 17K reads against 50K.** They would
+have been. ⚠️ **But `session-log.js` already writes `bookId` on every session
+chunk, so popularity is derivable from writes that already happen** — a per-open
+counter pays twice for a fact the database has, puts a write on the student path
+that multiplies with a county rollout, and concentrates it on the most contended
+documents. Item 54 updated; the book-document counter is struck out.
+
 ### ✅ ROADMAP 42, the colour half — the one that unblocks item 38
 
 **232 declarations out of 150 template-string `style=` attributes.** `admin.js`

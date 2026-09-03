@@ -3175,6 +3175,22 @@ action button fails one assertion, removing the `return` fails the other.
 
 ## 50. ⚠️⚠️ THE WEEKLY HUD IS SHOWING ONLY TODAY — A STUDENT WITH 26m READS 6m
 
+✅ **IT DID NOT COME BACK. Jake, end of day 2026-09-03:** *"weekly number came
+back right today! It was fixed!"*
+
+⚠️⚠️ **THAT IS THE DISCRIMINATOR, AND IT POINTS AT STALE STATE RATHER THAN A LIVE
+WRITE BUG.** Round 58's repair invalidated all three per-browser stores; if the
+write path were still corrupting the number, one full school day of typing would
+have re-corrupted it. It did not.
+
+⚠️⚠️ **DO NOT CLOSE THIS ON ONE DAY, AND DO NOT REOPEN THE WRITE-PATH HUNT ON ONE
+DAY EITHER.** It is a single day on whichever browsers Jake happened to look at,
+and a write bug that needs a particular sequence takes longer than that to
+surface. **Leave it open until a full school week passes clean, then close it
+citing the week.** ⚠️ The failure mode to avoid is a later round reading "fixed"
+here, finding one bad screenshot, and restarting the whole investigation — the
+week is what makes the close safe.
+
 **Reported by Jake, 2026-09-02, three screenshots.** The student's daily-log rows
 read **8m 54s (2026-08-31) + 11m 5s (09-01) + 6m 16s (09-02)**, and the report's
 own week column totals them correctly at **26m 15s**. The student's top bar reads
@@ -4932,10 +4948,28 @@ question turns on how low they go. **But "most popular" does not have to be
 live, and a book's popularity does not change between one lunch period and the
 next.** Before pricing the live version, price these:
 
-* **A field on the book document.** The grid already reads the book list. A
-  counter living on a document that is already being read costs **nothing extra
-  to display** — the cost is on the WRITE side, and only if it is incremented
-  per open.
+⭐⭐ **ANSWERED 2026-09-03, AND THE ANSWER IS BETTER THAN "WE CAN AFFORD THE
+WRITES": THE DATA IS ALREADY BEING WRITTEN.** Every session chunk
+`session-log.js` writes already carries **`bookId`** (line 692 — it keeps that
+name because reports.html and the rules depend on it). **So popularity is
+derivable from writes that already happen. A per-open counter would be paying a
+second time for a fact the database already has.**
+
+⚠️⚠️ **AND THAT MATTERS MORE THAN THE HEADROOM, WHICH IS FINE.** Jake's console
+on 2026-09-03: **1.9K writes/day against a 20K/day free quota, and 17K reads
+against 50K.** A per-open increment would have fitted comfortably at ONE school —
+and item 54 exists in the shadow of a county rollout, where every student-path
+write multiplies by the number of buildings. ⚠️ **The per-document write limit is
+the sharper edge than the bill:** a counter on a hot book document takes a write
+every time a child opens it, and a class of twenty-five starting the same book at
+the bell is a burst on one document. Sharded counters are the standard answer and
+they are a lot of machinery for an ordering that could be a week stale without
+anyone noticing.
+
+* ~~**A field on the book document.**~~ ⚠️ **SUPERSEDED BY THE ABOVE** — do not
+  add a counter to the book document. It duplicates `bookId` in the session
+  logs, puts a write on the student path, and concentrates it on exactly the
+  documents that are most contended.
 * **A staff-refreshed ordering.** Whatever computes it runs when an admin asks,
   not when a child loads the page. Zero student-side cost by construction, and
   the ordering is a week stale, which for eighty public-domain books is not

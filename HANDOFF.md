@@ -7,11 +7,15 @@
 > RIGHT.** Item 12 proved both halves of that in one round. Read this block
 > before you trust any status line in this project.
 >
-> ⚠️⚠️ **ITEM 50 IS STILL THE ONLY OPEN DEFECT AND IS STILL UNDIAGNOSED.**
-> Emerson's question is still unanswered — **did the weekly HUD come back wrong?**
-> Jake said on the morning of 2026-09-03 that the day had barely started and it
-> would be a couple of hours. **Ask him.** Recurrence tells a write bug from
-> stale state and is worth more than any further reading of that code.
+> ✅ **ITEM 50 DID NOT RECUR. Jake, end of day 2026-09-03: "weekly number came
+> back right today! It was fixed!"** That is the discriminating fact Emerson's
+> repair was waiting on, and it points at **stale per-browser state that the
+> invalidation cleared**, not a live write bug. ⚠️ **DO NOT CLOSE IT YET — it is
+> one day, on the browsers Jake happened to look at.** A write bug that fires on
+> a particular sequence takes longer than a day to show. **Leave it open until a
+> full school week passes clean**, then close it citing the week rather than the
+> day. ⚠️ And do not go hunting the write path again on the strength of one
+> clean day either: the evidence points away from it.
 >
 > ### ⚠️⚠️ WHAT ROUND 59 FOUND: A ROUND THAT WAS WRITTEN, RECORDED, AND NEVER UPLOADED
 >
