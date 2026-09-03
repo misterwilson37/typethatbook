@@ -1,6 +1,110 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-03 by Round 59 (Jewett), for whoever is next
+> ## ▶ START HERE — written 2026-09-03 by Round 60 (Duplex), for whoever is next
+>
+> ⚠️⚠️ **A ✅ IN ROADMAP.md IS EVIDENCE THAT SOMEBODY WROTE A FIX. IT IS NOT
+> EVIDENCE THAT THE FIX IS RUNNING, AND IT IS NOT EVIDENCE THAT THE FIX WAS
+> RIGHT.** Round 59 proved both halves of that. ⭐ **Round 60 adds a third:
+> IT IS NOT EVIDENCE THAT THE FIX IS WIRED EVERYWHERE IT BELONGS.** Read this
+> block before you trust any status line in this project.
+>
+> ### ⚠️⚠️ WHAT ROUND 60 FOUND: ROUND 58's REPAIR EXISTED IN ONE PLACE IN THE REPO
+>
+> `reconcile()` — logdays.js's mirror healer, the "structural repair" ROADMAP 50
+> §C calls the cure for the whole class — was called from **`learn.js` and
+> nowhere else**. `game.js` imported `{ noteDay, ensureSince }` and not
+> `reconcile`. `index.html` imported neither.
+>
+> ⚠️⚠️ **ALL THREE PAINT THE SAME WEEKLY FIGURE, FROM THE SAME `readWeek()`, OFF
+> THE SAME PER-BROWSER LEDGER** — and §C's finding is that the fault is
+> per-browser. So a student who spent the day in Library or Adventure never
+> healed their mirror, ever. `planReads()` turns a missing day into a skip and a
+> skip into a zero: item 50's exact symptom.
+>
+> ⭐ **HOW IT WAS FOUND, BECAUSE THE METHOD IS THE REUSABLE PART.** Not by
+> reading `readWeek()` again — §B had been read three times. By grepping for the
+> FIX rather than the BUG: `grep -n "reconcile" *.js *.html` returns one call
+> site and two imports. **When a repair is described as structural, count its
+> call sites before you read its logic.**
+>
+> ### ⚠️⚠️ AND NOTHING WENT RED, FOR ROUND 59's REASON IN A DIFFERENT MODULE
+>
+> `logdays-test.mjs` drives `reconcilePlan()` and `reconcile()` as pure functions
+> and passed all the way through ROADMAP 50. **It never asked whether a page
+> CALLS them.** That is `audit:versions` comparing `style.css` against its own
+> header, one module over. ⭐ **A fix needs a check pointing at its WIRING, not
+> only at its logic** — that is now three occurrences (§0.-37, Round 59, this).
+>
+> **`tests/mirror-heal-test.mjs`** is that check, 21 assertions, mutation-verified
+> three ways. ⚠️ **Part A DISCOVERS the surfaces** from real `readWeek()` call
+> sites rather than naming today's three, because a *fourth* surface arriving
+> unhealed is the defect and a list of three would wave it through. ⚠️ Part B
+> brace-matches the enclosing function and requires the user document to be an
+> identifier already bound from `.data()` in that body, so the heal cannot quietly
+> become a read tax on every student.
+>
+> ### ⚠️⚠️ THE MOST IMPORTANT THING IN THIS FILE: THE CLEAN DAY MEANS LESS THAN IT LOOKS
+>
+> Round 59 recorded Jake's *"weekly number came back right today! It was fixed!"*
+> and told the next round to close item 50 after a clean week. **Do not.**
+>
+> The `_v2` rename left every mirror with `since` at **09-02/09-03**. Every
+> earlier day of the current week (08-29 → 09-04, Saturday anchor) falls **below**
+> `since`, so `planReads()` reads it **blind**. ⚠️⚠️ **NO UNDERCOUNT IS POSSIBLE
+> ON ANY SURFACE THIS WEEK, WHATEVER THE ROOT CAUSE IS.** The repair switched the
+> mechanism off. A clean week inside that window is not evidence of anything.
+>
+> ⭐ **THE NEXT WEEK STARTS SAT 2026-09-05 AND `since` SITS UNDER ALL SEVEN OF ITS
+> DAYS.** From the week of 09-07 the mirror is authoritative again. **The close
+> condition is the week of 09-05 → 09-11, not the next quiet week.**
+> ⚠️ If it recurs, expect `game.html` first — that page had no heal at all until
+> today. If it recurs on a page that now heals, §C's ruling stands and it is a
+> write bug.
+>
+> ⚠️ **A NO-CONSOLE CHECK JAKE CAN RUN IN A MINUTE**, if a student reports a low
+> weekly in Library: open **learn.html**, let it load, no typing; then reload
+> **game.html**. If the number corrects, the mirror was short.
+>
+> ### THE STATE OF PLAY
+>
+> * **69 harnesses pass, `audit:versions` 0 problems** — verified on arrival
+>   BEFORE anything changed (`npm install` first, §0.-29.A) and again after.
+>   ⚠️ `npm run test:rules` NOT run; nothing here touches `firestore.rules`.
+> * **Upload set:** `game.js`, `index.html`, `tests/mirror-heal-test.mjs`,
+>   `tests/run-all-tests.mjs`, and the three documents.
+>   ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are still deliberately absent**
+>   — Round 59's ruling, unchanged. **DO NOT SHIP style.css v3.10.0.**
+> * ⚠️ **NOTHING VISIBLE CHANGED.** No layout, no colour, no copy. That was
+>   deliberate: this lands in the counting path Jake is actively watching, and
+>   §0.-11.D says not to put "and the styling changed" into the middle of a
+>   diagnosis. Item 38's admin round is still the next one he wants.
+> * **New: 57** — `index.html` is in NO version registry (`versions.js` SOURCES,
+>   `tools/audit-versions.mjs`, `version-stamp-test.mjs` §D all carry the other
+>   four pages and not this one), and its stamp had **already drifted**:
+>   `INDEX_VERSION` read 3.17.0 with `v3.16.0` the newest header entry. ⭐ Item
+>   52's argument arriving from a third direction. Filed, not fixed — three
+>   mirrored files plus a harness, and not in this upload.
+> * **50** stays OPEN and still un-root-caused. **12** unchanged (do not ship
+>   style.css v3.10.0). **42's colour half done, 38 unblocked and ruled on.**
+>   **34/35** wait on a week of Jake's data. **30** unreproduced. **39** wants its
+>   own conversation. **47 step two** is the functions-side copy plus a
+>   byte-identity harness.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.** Not
+>   reconstructed, for Round 59's reason: writing someone else's round from their
+>   summaries produces a plausible document rather than a true one. It matters to
+>   item 52, whose auditor reads that file.
+>
+> *On the name:* the **Duplex** (1893) carried two keyboards and two typebar
+> baskets driven onto a single carriage, and was sold on the halves staying in
+> step. This round's finding is a repair that landed on one half of a pair — the
+> third time this project has shipped a fix into `learn.js` and not `game.js` —
+> and 68 harnesses had nothing to say about it, because every one of them was
+> looking at the logic and none at the carriage.
+
+> ## Round 59 (Jewett) — the previous handoff, kept
+>
+> ⚠️ Its own "Round 58 (Emerson)" block is kept below it.
 >
 > ⚠️⚠️ **A ✅ IN ROADMAP.md IS EVIDENCE THAT SOMEBODY WROTE A FIX. IT IS NOT
 > EVIDENCE THAT THE FIX IS RUNNING, AND IT IS NOT EVIDENCE THAT THE FIX WAS

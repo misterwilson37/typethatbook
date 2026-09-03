@@ -364,7 +364,7 @@ numbers × the county's student count are the rollout argument.
 
 
 1. **50. ⚠️⚠️ THE WEEKLY HUD IS SHOWING ONLY TODAY — A STUDENT WITH 26m READS 6m**
-   — ⚠️ **REPORTED BY JAKE 2026-09-02. NOT DIAGNOSED. The item says what was RULED OUT and gives the one no-console check that splits the rest.** Do not guess past it.
+   — ⚠️ **STILL NOT ROOT-CAUSED, but Round 60 shipped the missing two thirds of Round 58's repair (`game.js`, `index.html`).** ⚠️⚠️ **THE MECHANISM CANNOT FIRE UNTIL THE WEEK OF 2026-09-05** — every mirror's `since` is under this week, so the days are read blind and no undercount is possible. **A clean week that ends before 09-05 proves nothing.** Read the Round 60 block before drawing anything from a quiet week.
 2. **47. ⭐ A GEMINI LICENCE CHECK, AND THE RIGHTS LADDER IT WOULD NEED LIFTED OUT OF admin.js FIRST**
    — ⚠️ **UNBLOCKED IN ROUND 57.** It waited on `metadata-map-test.mjs` being
    green, and that harness is green: the 39 assertions were test rot, not a
@@ -394,6 +394,7 @@ Everything else still open:
 - 55. ⚠️ THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
 - 56. ⚠️ CONTROLS THAT LOOK INTERACTIVE AND ARE NOT — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS  *(Jake, 2026-09-03)*
 - 51. ⚠️ THE BUILD LIST IS IN NO ORDER A READER CAN RECOGNISE — SORT IT ALPHABETICALLY  *(Jake asked, 2026-09-03. Sort in renderBuildList(), NEVER the SOURCES array — read the item first)*
+- 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED  *(found Round 60; touches three mirrored files — read the item)*
 - 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS  *(the instrument that would have caught Round 59's finding on the day)*
 
 ## ⏳ WATCHING — no action, just don't forget
@@ -3177,6 +3178,56 @@ action button fails one assertion, removing the `return` fails the other.
 
 ## 50. ⚠️⚠️ THE WEEKLY HUD IS SHOWING ONLY TODAY — A STUDENT WITH 26m READS 6m
 
+### ⚠️⚠️ ROUND 60 (Duplex) — THE ROUND 58 REPAIR WAS WIRED ON ONE PAGE OF THREE
+
+✅ **SHIPPED: `game.js` v3.48.0 and `index.html` v3.18.0 now call `reconcile()`
+too.** Round 58 added it to `learn.js`'s `loadGateState()` and nowhere else.
+`game.js` imported `{ noteDay, ensureSince }` and not `reconcile`; `index.html`
+imported neither. **All three paint the same weekly figure, from the same
+`readWeek()`, off the same per-browser ledger.** So a student who spent the day
+in Library or Adventure never healed their mirror, ever — and §C's whole finding
+is that the fault is per-browser.
+
+⚠️⚠️ **NOTHING WENT RED, AND THE REASON IS ROUND 59'S REASON.**
+`logdays-test.mjs` H1–H7 drives `reconcilePlan()` and `reconcile()` as pure
+functions and asks whether they behave. **It never asks whether a page CALLS
+them.** That is `audit:versions` comparing `style.css` against its own header,
+one module over. ⭐ **`tests/mirror-heal-test.mjs` is the check that points at the
+wiring**, and its Part A **discovers** the surfaces from real `readWeek()` call
+sites rather than naming today's three — a *fourth* surface arriving unhealed is
+the defect, and a list of three would let it through. Mutation-verified three
+ways: call removed, call moved below `index.html`'s `classId` guard, and a fresh
+`getDoc()` smuggled into the argument list.
+
+⚠️⚠️ **AND THIS IS WHY ONE CLEAN DAY WAS NEVER GOING TO SETTLE IT — THE
+MECHANISM IS CURRENTLY SWITCHED OFF BY THE REPAIR ITSELF.** The `_v2` rename left
+every mirror with `since` at 09-02/09-03. Every earlier day of the current week
+(08-29 → 09-04, Saturday anchor) falls **below** `since`, so `planReads()` reads
+it **blind**. **No undercount is possible on any surface this week, whatever the
+root cause is.** ⭐ That is a complete explanation of *"weekly number came back
+right today"* that does not require anything to have been fixed.
+
+⚠️⚠️ **THE PREDICTION, AND IT IS THE THING TO WATCH.** The next week starts
+**Sat 2026-09-05**, and `since` sits under all seven of its days. **From the week
+of 09-07 the mirror is authoritative again**, and any day a student typed on a
+machine or browser their mirror did not record becomes a skip and a zero. So:
+
+* **If it recurs, expect it that week, and expect it on `game.html` first** —
+  before this round, that page had no heal at all.
+* **If it recurs on a page that DOES heal now,** the fault is a write bug after
+  all, and §C's ruling stands: the three stores can be told apart by which one
+  repopulated wrongly.
+
+⚠️ **THE CLOSE CONDITION IS UNCHANGED AND IS NOW HARDER, NOT EASIER.** A clean
+week that ends before 09-05 proves nothing, because the mechanism could not fire
+in it. **The week that counts is 09-05 → 09-11.**
+
+⚠️ **A NO-CONSOLE CHECK JAKE CAN RUN IN ONE MINUTE**, if a student reports a low
+weekly on the Library page: have them open **learn.html** and let it finish
+loading (no typing needed), then reload **game.html**. If the number corrects,
+the mirror was short and `learn.js`'s heal repaired it. Before this round that
+was the *only* way a Library student's mirror could ever be repaired.
+
 ✅ **IT DID NOT COME BACK. Jake, end of day 2026-09-03:** *"weekly number came
 back right today! It was fixed!"*
 
@@ -3336,6 +3387,36 @@ being told they have not.
 `statsData.secondsWeek >= goals.weeklySeconds`, so an affected student cannot
 cross the weekly goal and will never get the fireworks — §0.-13.D is the last time
 a missed crossing was a whole week gone, and the latch is per-period by design.
+
+## 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED
+
+**Found Round 60 while wiring ROADMAP 50's third call site.** `INDEX_VERSION` read
+`3.17.0` and the newest entry in its own header block was **`v3.16.0`**. Some
+round shipped 3.17.0 without an entry and nothing said so.
+
+⚠️⚠️ **THE REASON IS THAT NOTHING LOOKS AT THIS FILE.** `versions.js`'s `SOURCES`
+and its mirror in `tools/audit-versions.mjs` carry `game.html`, `learn.html`,
+`reports.html` and `admin.html`. **They do not carry `index.html`** — the page
+every student lands on first. So the constant-vs-header check that guards the
+other four pages has never once run on the library landing page, and its version
+does not appear in the build panel either.
+
+⭐ **THIS IS ITEM 52'S ARGUMENT ARRIVING FROM A THIRD DIRECTION.** A mirror needs
+a check pointing at it; so does a *registry*, and the way you find out a file is
+absent from one is by needing it for something else.
+
+**The build:** add `index.html` to `SOURCES` in **all three** places that mirror
+each other — `versions.js`, `tools/audit-versions.mjs`, and section D of
+`tests/version-stamp-test.mjs` — in one round, or that harness goes red by
+design. ⚠️ Its pattern is `/index\.html\s+v([0-9][^\s\->]*)/`-shaped like the
+other four, but ⚠️ **check the HEADER_EXEMPT list first**: `game.html` and
+`learn.html` are exempt from the header-block check and `index.html` carries a
+real one, so it should NOT be exempt.
+
+⚠️ **NOT DONE IN ROUND 60 ON PURPOSE.** It touches three mirrored files plus a
+harness, and it would have ridden into the same upload as a fix to the counting
+path Jake is watching. §0.-11.D. Round 60 bumped the stamp to **3.18.0** and
+wrote the gap into the header where the next reader will hit it.
 
 ## 30. ⚠️ ADVENTURE MODE GIVES NO COLOUR FEEDBACK ON A WRONG KEY — AND CAPS LOCK IS WHERE IT SHOWS
 

@@ -1,4 +1,22 @@
-// game.js v3.47.0
+// game.js v3.48.0
+//
+// v3.48.0 — ⚠️⚠️ ROADMAP 50: THE RECONCILER WAS WIRED ON ONE OF THE TWO STUDENT
+//           PAGES. Round 58 added logdays.js's reconcile() to learn.js's
+//           loadGateState() and nowhere else, so a student who spent the day in
+//           Library or Adventure never healed their mirror — while this page
+//           paints the same weekly figure, from the same readWeek(), off the
+//           same per-browser ledger. One call in noteActiveDay(), on the
+//           `_udata` it already holds for ensureSince(): zero extra reads.
+//           ⚠️ NOTHING WENT RED BECAUSE NOTHING POINTED AT THE WIRING.
+//           logdays-test.mjs drives reconcilePlan()/reconcile() as pure
+//           functions and never asked whether a page CALLS them — Round 59's
+//           finding in a different file. tests/mirror-heal-test.mjs asks the
+//           mirror question now, of BOTH controllers, and of index.html.
+//           ⚠️ THE CLEAN DAY OF 2026-09-03 DOES NOT COVER THIS. The _v2 rename
+//           left every mirror with `since` at 09-02/09-03, so every earlier day
+//           of the week falls BELOW it and is read blind — no undercount is
+//           currently possible on any surface. The week beginning Sat 2026-09-05
+//           is the first one `since` sits under in full. HANDOFF Round 60.
 //
 // v3.47.0 — TWO FIXES, BOTH ABOUT SOMETHING BEING READ FROM THE WRONG PLACE.
 //
@@ -97,18 +115,9 @@
 //           simply never referenced. tests/dead-handler-test.mjs now asks the
 //           mirror question. HANDOFF §0.-18.
 //
-// v3.42.1 — ⚠️ STAMP ONLY, NO BEHAVIOUR. `const VERSION` still read "3.38.0"
-//           after v3.38.1, v3.39.0, v3.39.1, v3.40.0, v3.41.0 and v3.42.0 all
-//           shipped. ⚠️⚠️ THE COST WAS AIMED SQUARELY AT MONDAY'S CUTOVER
-//           VERIFICATION: ROADMAP told Jake to check the footer for v3.38.1
-//           before concluding anything about a stale-day carry, and a correctly
-//           deployed build was going to answer "3.38.0" — the PRE-FIX version.
-//           The one instrument for telling "the fix never reached the browser"
-//           apart from "the fix is there and something else is wrong" was
-//           reporting the wrong answer, in the direction that sends you chasing
-//           the update gate. See HANDOFF §0.-14.
-//           ⚠️ The warning at line ~84 about this exact defect has now been true
-//           twice, so v3.42.1 also puts the reminder ON the constant itself.
+// ⚠️ v3.42.1's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 60) —
+//    the 8-entry budget, not a deletion. It was the stale-stamp round, and its
+//    warning still lives ON the constant itself at `const VERSION` below.
 //
 // ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
 //
@@ -186,7 +195,7 @@ import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
 // setDoc(merge:true) on typing_logs would be a second
 // dating scheme on the documents Round 12 spent a day reconciling.
 import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer, serverTimestamp, arrayUnion } from "./read-meter.js";
-import { noteDay, ensureSince } from "./logdays.js";
+import { noteDay, ensureSince, reconcile } from "./logdays.js";
 import {
     onAuthStateChanged,
     GoogleAuthProvider,
@@ -202,7 +211,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.47.0";
+const VERSION = "3.48.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -398,6 +407,27 @@ async function noteActiveDay() {
         try { await ensureSince({ db, doc, setDoc, uid: currentUser.uid,
                                   date: getLocalDateStr(), userData: _udata }); }
         catch (_) { /* ensureSince swallows its own failures */ }
+
+        // ⚠️⚠️ ROADMAP 50 — THE MIRROR MAY NOT KNOW LESS THAN THE SERVER.
+        // TWIN OF learn.js's loadGateState(), v2.45.0. Round 58 shipped the
+        // reconciler on learn.js alone, so a student who spent the day in
+        // Library or Adventure never healed their mirror — and this page paints
+        // the same weekly figure from the same readWeek(). A mirror missing a
+        // day the server vouches for turns a day the child typed into a skipped
+        // read and a zero.
+        // ⚠️ SAME DOCUMENT, ZERO EXTRA READS. `_udata` is already in hand for
+        // ensureSince() above; this is the one place on this page that holds it.
+        // ⚠️ IT ONLY ADDS DAYS AND ONLY MOVES `since` BACKWARD, so it cannot
+        // cause an undercount — an extra day costs one wasted read, a missing
+        // one costs a child their week.
+        // ⚠️ IT HEALS THE NEXT LOAD, NOT THIS ONE, exactly as learn.js's does:
+        // loadUserStats()'s readWeek() has already run by the time a student has
+        // typed enough to reach this. Say so rather than implying it is instant.
+        // ⚠️ AND IT IS REACHED ONLY BY A STUDENT WHO TYPES — noteActiveDay() is
+        // called from the tick and guarded by _activeDayDone. That is accepted:
+        // a student who never types has no new minutes to be short of.
+        try { reconcile(currentUser.uid, _udata); }
+        catch (_) { /* best effort — a failure here costs reads, never minutes */ }
 
         const plan = activeDayPlan(_udata, getLocalDateStr());
         if (!plan) return;                                 // already counted today — the common case

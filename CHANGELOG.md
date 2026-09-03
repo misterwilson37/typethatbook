@@ -1,5 +1,83 @@
 # CHANGELOG — TypeThatBook
 
+## Round 60 (Duplex) — 2026-09-03 — a repair that was wired on one page of three
+
+### ⚠️⚠️ ROADMAP 50: `reconcile()` existed in exactly one place in the repository
+
+Round 58 shipped the mirror healer into `learn.js`'s `loadGateState()` and
+nowhere else. `game.js` imported `{ noteDay, ensureSince }` and not `reconcile`.
+`index.html` imported neither. **All three student surfaces paint the same weekly
+figure, from the same `readWeek()`, off the same per-browser ledger** — and §C of
+item 50 had already established that the fault is per-browser.
+
+So a student who spent the day in Library or Adventure never healed their mirror.
+`planReads()` turns a day the mirror is missing into a skipped read, and a skipped
+read into a zero — item 50's photographed symptom, a weekly total that equals
+today exactly.
+
+**Shipped:**
+
+- `game.js` **v3.47.0 → v3.48.0** — `reconcile(currentUser.uid, _udata)` in
+  `noteActiveDay()`, on the user document already read for `ensureSince()` on the
+  line above. **Zero extra reads.** ⚠️ Reached only by a student who types
+  (`noteActiveDay()` is called from the tick, guarded by `_activeDayDone`), and
+  heals the *next* load, exactly as `learn.js`'s does.
+- `index.html` **v3.17.0 → v3.18.0** — `reconcile(currentUser.uid, ud)` in
+  `resolveIndexGoals()`, **above** the `classId` early return, because a student
+  with no class still has a week. ⚠️ Behind the goals cache, so it does not fire
+  on every load; here it heals *this* load, since `loadIndexStats()` awaits it
+  before its `readWeek()`. `logdays.js` is already in this page's module graph via
+  `daylog.js`, so the import costs no extra fetch.
+- `tests/mirror-heal-test.mjs` **NEW, 21 assertions** — registered in
+  `run-all-tests.mjs` **v1.20.0**. Suite is **69 harnesses**.
+- `game.js` v3.42.1's header entry archived below (8-entry budget).
+
+### ⚠️⚠️ Nothing went red, and it is Round 59's failure shape in a different module
+
+`logdays-test.mjs` drives `reconcilePlan()` and `reconcile()` as pure functions
+and passed throughout ROADMAP 50. **It never asked whether a page CALLS them.**
+That is `audit:versions` comparing `style.css`'s constant against `style.css`'s
+own header — a check pointing at the logic and nothing pointing at the wiring.
+
+`mirror-heal-test.mjs` Part A **discovers** the surfaces from real `readWeek()`
+call sites (comments stripped first — every one of these files discusses
+`readWeek()` in prose) rather than naming today's three, because a fourth surface
+arriving unhealed is the defect a list of three would wave through. Part B
+brace-matches the enclosing function and requires the user document to be an
+identifier already bound from a `.data()` call in that body, so the heal cannot
+quietly become a read tax. **Mutation-verified three ways:** call deleted (A2, C1
+red), call moved below `index.html`'s `classId` guard (C2 red), fresh `getDoc()`
+in the argument list (B3 red).
+
+### ⚠️⚠️ The clean day of 2026-09-03 does not mean what it looks like
+
+The `_v2` rename left every mirror with `since` at 09-02/09-03. Every earlier day
+of the current week (08-29 → 09-04) falls **below** `since`, so `planReads()`
+reads it **blind**. **No undercount was possible on any surface this week,
+whatever the root cause is.** The repair switched the mechanism off; it did not
+prove it fixed.
+
+**The next week starts Sat 2026-09-05, and `since` sits under all seven of its
+days.** From the week of 09-07 the mirror is authoritative again. A clean week
+that ends before 09-05 is not evidence — the close condition is now the week of
+**09-05 → 09-11**.
+
+### New: ROADMAP 57 — `index.html` is in no version registry
+
+`INDEX_VERSION` read `3.17.0` while the newest entry in its own header block was
+`v3.16.0`. Nothing caught it because `versions.js`'s `SOURCES` and its mirror in
+`tools/audit-versions.mjs` carry `game.html`, `learn.html`, `reports.html` and
+`admin.html` — **not** `index.html`, the page every student lands on first.
+Filed rather than fixed: it touches three mirrored files plus a harness, and it
+would have ridden into the same upload as a fix to the counting path Jake is
+watching (§0.-11.D). The stamp is bumped and the gap is written into the header.
+
+### Verification
+
+`npm install` first, then the suite before anything changed (68 pass,
+`audit:versions` 0 problems) and again after (**69 pass, 0 problems**).
+⚠️ `npm run test:rules` NOT run; nothing here touches `firestore.rules`.
+
 ## Round 59 (Jewett) — 2026-09-03 — a round that was written and never uploaded, and a fix that was right about the wrong thing
 
 ### ⚠️⚠️ ROADMAP item 12 was marked ✅ CLOSED in three documents and its code was not in the repository
@@ -6869,3 +6947,19 @@ function _renderFullBuildPanel(results) {
 // panel would show two files at their correct versions and no sign of the third.
 ```
 
+### § game.js — archived header entries (Round 60)
+
+```
+// v3.42.1 — ⚠️ STAMP ONLY, NO BEHAVIOUR. `const VERSION` still read "3.38.0"
+//           after v3.38.1, v3.39.0, v3.39.1, v3.40.0, v3.41.0 and v3.42.0 all
+//           shipped. ⚠️⚠️ THE COST WAS AIMED SQUARELY AT MONDAY'S CUTOVER
+//           VERIFICATION: ROADMAP told Jake to check the footer for v3.38.1
+//           before concluding anything about a stale-day carry, and a correctly
+//           deployed build was going to answer "3.38.0" — the PRE-FIX version.
+//           The one instrument for telling "the fix never reached the browser"
+//           apart from "the fix is there and something else is wrong" was
+//           reporting the wrong answer, in the direction that sends you chasing
+//           the update gate. See HANDOFF §0.-14.
+//           ⚠️ The warning at line ~84 about this exact defect has now been true
+//           twice, so v3.42.1 also puts the reminder ON the constant itself.
+```
