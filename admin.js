@@ -1,4 +1,78 @@
-// admin.js v3.42.0
+// admin.js v3.44.0
+//
+// v3.44.0 — ⚠️⚠️ "IT EXISTED, BUT IT WASN'T THERE." v3.43.0 ASKED THE WRONG
+//           QUESTION. Jake: *"I updated metadata and forgot to upload the
+//           chapters so it was just... empty. It existed, but it wasn't there."*
+//           Save Metadata writes a book document with no chapters, so "does the
+//           book exist" and "is there anything to destroy" come apart the first
+//           time somebody saves and walks away. activeBookHasChapters() is what
+//           the upload control asks now, and uploading to an empty book is green:
+//           it destroys nothing.
+//           ⚠️⚠️ AND THE RE-UPLOAD DOT HAD THE SAME BLIND SPOT, WHICH IS WORSE —
+//           a book with age, cover and licence and NO CHAPTERS drew a FILLED dot
+//           and sat in the library for a child to open and find nothing. `needs:
+//           CHAPTERS` now, first in the list, because every other gap is a book
+//           that works badly and this one is a book that does not work at all.
+//           ⚠️ COSTS NO READ: `b.chapters` has been in hand in loadBookList()
+//           since v3.21.0 — the dot already read it to check `about`.
+//           ⚠️ THE CONFIRM HAS THREE STATES NOW and they match what the button
+//           said; v3.43.0's two-way branch asked Jake to confirm destroying
+//           chapters that were never there.
+//
+//           ⭐ GREEN SPREADS TO TWO MORE CONTROLS, ON THE SAME ONE RULE —
+//           NOTHING HERE EXISTED BEFORE:
+//           • Save Metadata is `.tier-create` when the book has no document yet,
+//             and ⚠️ DROPS `.btn-tint-save` when it does, because two greens
+//             meaning two things is the defect item 38 exists to remove.
+//           • Parse & Initialize is `.tier-create` when NOTHING is staged. ⚠️ It
+//             touches no database either way, so it is never `commit` — but a
+//             second parse discards every split, merge and retitle staged since
+//             the first, with no confirm and no undo, so it stops being green.
+//           ⚠️ Repainted from renderChapterList(), the one place every staging
+//           change passes through.
+//
+//           ⭐ AND EVERY ONE OF THEM NOW CARRIES A HINT THAT NAMES WHAT IT
+//           WRITES. Jake: *"I've never been sure what clicking it does"* and
+//           *"uploading chapters also does metadata... or I've been acting like
+//           it does, so I HOPE it does."* ⚠️ IT DOES — this file's upload handler
+//           calls readBookMetadataForm(), the SAME reader Save Metadata uses. The
+//           hint on Save Metadata lists all twelve fields; ⚠️ ADD TO IT IN THE
+//           SAME EDIT AS readBookMetadataForm().
+//
+// v3.43.0 — ⚠️⚠️ ROADMAP 38 — `Upload All` IS TWO CONTROLS WEARING ONE BUTTON.
+//           Jake: "If we're uploading a book for the first time, it's not
+//           destructive, it's creative. It's new." Round 61 painted every upload
+//           red, which put the heaviest treatment on the page onto the button he
+//           presses on a GOOD day, after the work is done. Most uploads are new
+//           material. paintUploadButton() now swaps class AND label from
+//           activeBookExists(): green "Upload All Chapters to Database" when the
+//           book is new, red "Overwrite Existing Chapters in Database" when it is
+//           not.
+//           ⚠️⚠️ activeBookExists() IS EXTRACTED, NOT COPIED, AND THE CONFIRM
+//           DIALOG NOW READS IT TOO. v3.23.0's confirm already branched on the
+//           same hasOwnProperty(bookTitlesMap, activeBookId) test; leaving a
+//           second copy behind is how a green "create" button comes to open an
+//           "already exists, overwrite it?" dialog. One function, two callers.
+//           ⚠️⚠️ IT RETURNS null FOR "NOT KNOWN YET" AND null PAINTS RED.
+//           loadBookList() empties bookTitlesMap BEFORE its getDocs() resolves,
+//           so mid-refresh every book in the library reads as new — the one
+//           direction this must never guess wrong in. `bookListLoaded` is also
+//           cleared in the catch, because a failed read leaves the map empty and
+//           confidently wrong.
+//           ⚠️ COSTS NO READ. bookTitlesMap is already in memory from the list.
+//           ⚠️ A book document with NO chapters still reads as "exists" and gets
+//           the red. Titles are what the map carries; a chapter count would be a
+//           read per book change to sharpen a warning already erring safe.
+//
+// v3.42.1 — ⚠️ ONE CLASS, NO BEHAVIOUR. ROADMAP 38's commit tier: the chapter
+//           row's `Del` button gains `.tier-commit` beside the `.danger-btn` it
+//           already carried. ⚠️ NOTHING MOVES ON SCREEN — the two selectors share
+//           one declaration in admin.html v1.6.0 by design. The class is here so
+//           that tests/control-tier-test.mjs can ask the question in the vocabulary
+//           Jake ruled in, rather than by hunting a legacy name, and so the next
+//           pass can rename `.danger-btn` without having to work out which of its
+//           eight call sites were actually commit-tier. `Del` is the canonical
+//           commit example in his table.
 //
 // v3.42.0 — ⚠⚠ ROADMAP 42, THE COLOUR HALF — THE ONE THAT UNBLOCKS ITEM 38.
 //           232 declarations out of 150 template-string style= attributes: 31
@@ -130,74 +204,12 @@
 //           afterwards, and this field's whole value is that it can be trusted.
 //           Backfill on an explicit instruction, never by inference.
 //
-// v3.37.0 — TWO UNRELATED CHANGES, BOTH SHIPPED IN ROUND 56, FOLDED INTO ONE
-//           ENTRY BECAUSE NEITHER HAD BEEN DEPLOYED YET (the 8-entry header budget
-//           is worth more than a second stamp for an unshipped step).
+// ⚠️ v3.37.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 63).
+// ⚠️ v3.35.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 62).
 //
-//           (a) GENRE LIST. Drama added; Classic Literature, Historical Fiction
-//           and Young Adult retired at Jake's request ("they're lame and not
-//           helpful"). ⚠️ The two SUBJECT_TO_GENRE rows pointing at retired genres
-//           went in the same edit — guessGenre()'s result is written through
-//           writeSelectOrCustom(), which PRESERVES an unknown value in Custom…, so
-//           leaving them would have re-created the retired genres on import one
-//           book at a time with nothing on screen to say so.
-//           ⚠⚠ THIS RETAGS NOTHING. The student library's genre pills are built
-//           from the books (index.html:1085), not from GENRES, so a book still
-//           stored as "Young Adult" keeps its pill until that book is changed. No
-//           stored value is at risk: Custom… preserves it.
-//
-//           (b) ⚠️ NO dc:creator AT ALL NOW FALLS BACK TO THE FIRST dc:contributor.
-//           A compiler-led anthology carries no dc:creator: English Fairy Tales
-//           files Joseph Jacobs as a CONTRIBUTOR, so it imported with a blank
-//           author and lost him from both the title page and the filename.
-//           ⚠⚠ THREE SEPARATE PLACES IN THIS FILE READ dc:creator and all three
-//           needed it — readEpubMetadata(), the author-input autofill, and
-//           bookMetaAuthor. Fixing one leaves the author right in the form and
-//           blank on the title page, or the reverse.
-//           ⚠️ The bookMetaAuthor one is not about attribution at all: it feeds
-//           looksLikeLeadingMatter(), so a blank author there means the Gutenberg
-//           title page stops being recognised as front matter and gets imported as
-//           chapter one — a child typing boilerplate.
-//           ⚠️ And preparedBy no longer reuses a contributor already promoted to
-//           author, or the title page reads "By Joseph Jacobs / Prepared by Joseph
-//           Jacobs". The guard is `creators.length === 0`, never `!creators[0]`:
-//           on a normal Gutenberg book the contributor is the TRANSCRIBER, and a
-//           book that has an author must never be overridden by one.
-//
-// v3.35.0 — Standard Ebooks' own producer credit (colophon.xhtml's "This ebook
-//           was produced for Standard Ebooks by NAME") now fills Prepared By.
-//           readInBookSignals() couldn't reach it: that function is gated to
-//           Gutenberg AND scans only the first SIGNAL_SPINE_LIMIT (4) spine
-//           documents — right for Gutenberg's front-matter header, wrong for
-//           Standard Ebooks' colophon, which is backmatter (confirmed: itemref
-//           14 of 14 on a real book). New readStandardEbooksSignals() looks the
-//           document up by name instead of position — "colophon" is Standard
-//           Ebooks' own fixed filename — and findStandardEbooksProducer() reads
-//           the credit by its semantic shape (the anchor immediately after the
-//           one linking to standardebooks.org itself), not by pattern-matching
-//           prose. Verified the original Gutenberg transcriber credited two
-//           sentences later in the same colophon (David Widger, on Jekyll and
-//           Hyde) is never mistaken for this — he's marked
-//           epub:type="z3998:personal-name", never a link.
-//
-// v3.34.0 — dc:contributor read generically at import (readEpubMetadata()), and
-//           used as a fallback for Prepared By alongside Gutenberg's in-book
-//           credit scan. Global Grey editions credit their preparer in a personal
-//           sign-off glued onto the LAST CHAPTER'S PROSE, not in a scoped in-book
-//           element the way Gutenberg's machine header is — no reasonable scan
-//           target, and not classroom content even if there were. The
-//           restructuring pipeline (ttb-fix-epubs.py 1.14.0) now extracts that
-//           name at conversion time into dc:contributor instead, and this file
-//           simply reads it — a source-agnostic Dublin Core field, not a
-//           Global-Grey-specific branch, so any future source crediting a
-//           preparer this way is covered for free. Also closes the matching gap
-//           in canonicalSourceFrom(): Global Grey conversions previously emitted
-//           a bare 'Public domain text' dc:source/dc:identifier with no
-//           publisher at all, so SOURCE_PATTERNS' existing /global\s*grey/i case
-//           never once matched a converted book — the real product-page URL and
-//           publisher name were being discarded by the converter before this
-//           file ever saw them. Fixed on the converter side; this file needed no
-//           change for that half.
+// ⚠️ v3.34.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 61) —
+//    the 8-entry budget, not a deletion. It is the dc:contributor / Global Grey
+//    preparer-credit round.
 //
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
@@ -223,7 +235,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.42.0";
+const ADMIN_VERSION = "3.44.0";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -677,6 +689,178 @@ let stagedFromDB = false;
 let stagedBodyChapters = 0;
 let editingIndex = -1;
 let bookTitlesMap = {};
+
+// ⚠️ IS bookTitlesMap TRUSTWORTHY YET? loadBookList() empties it BEFORE the
+// getDocs() resolves, so during a refresh — and before the first load — every
+// book in the library looks brand new. That is the one direction this must never
+// guess wrong in, so the flag exists to say "I do not know" instead of "no".
+let bookListLoaded = false;
+
+// ⚠️⚠️ ROADMAP 38 — "IT EXISTED, BUT IT WASN'T THERE." (v3.44.0)
+//
+// Jake: *"There was a moment in the distant past where I updated metadata and
+// forgot to upload the chapters so it was just... empty. It existed, but it
+// wasn't there. Not great."*
+//
+// v3.43.0 asked whether the book EXISTS, which is the wrong question and its own
+// header admitted it. A book document written by Save Metadata alone has a title,
+// an author, an age range and NO CHAPTERS — it exists, it is in the library, and
+// a child who opens it finds nothing. Uploading chapters to that book destroys
+// nothing; it is the most creative act on the page.
+//
+// ⚠️ IT COSTS NO READ. `b.chapters` is already in hand in loadBookList() — the
+// re-upload dot has been reading it since v3.21.0 to check `about`.
+let bookHasChapters = {};
+
+/**
+ * ROADMAP 38 — does the ACTIVE book already exist in Firestore?
+ *
+ *   true   it exists: this upload replaces chapters that are already serving
+ *   false  it does not: this upload creates something
+ *   null   ⚠️ NOT KNOWN YET — the book list has not finished loading
+ *
+ * ⚠️⚠️ THIS IS THE SAME EXPRESSION uploadAllBtn's CONFIRM DIALOG USES, AND THAT
+ * IS THE POINT OF EXTRACTING IT. v3.23.0 already branched on
+ * hasOwnProperty(bookTitlesMap, activeBookId) to choose between "already exists"
+ * and "Create". A button that PAINTS from one predicate and CONFIRMS from a
+ * second copy of it is a button that can say "create" in green and then ask you
+ * to confirm an overwrite. One function, two callers, no drift.
+ *
+ * ⚠️ IT COSTS NO READ. bookTitlesMap is already in memory from the book list.
+ */
+function activeBookExists() {
+    if (!bookListLoaded) return null;
+    if (!activeBookId) return null;
+    return Object.prototype.hasOwnProperty.call(bookTitlesMap, activeBookId);
+}
+
+/**
+ * ROADMAP 38 — does the active book have any chapters in Firestore?
+ *
+ *   true   it does: an upload REPLACES what students are reading now
+ *   false  it does not — including a book that exists with metadata only
+ *   null   ⚠️ not known yet
+ *
+ * ⚠️⚠️ THIS, NOT activeBookExists(), IS WHAT THE UPLOAD BUTTON ASKS. "Does the
+ * book exist" and "is there anything to destroy" came apart the first time
+ * somebody saved metadata and walked away.
+ */
+function activeBookHasChapters() {
+    if (!bookListLoaded) return null;
+    if (!activeBookId) return null;
+    if (!Object.prototype.hasOwnProperty.call(bookHasChapters, activeBookId)) return false;
+    return bookHasChapters[activeBookId] === true;
+}
+
+/**
+ * ⚠️⚠️ ROADMAP 38 — THE UPLOAD CONTROL IS TWO CONTROLS WEARING ONE BUTTON.
+ *
+ * Jake, 2026-09-03: *"If we're uploading a book for the first time, it's not
+ * destructive, it's creative. It's new. Only if the book already exists does it
+ * delete anything, which is when the red is important."* He is right, and it
+ * resolves the objection Round 61 raised against its own change — that the
+ * heaviest treatment on the page was landing on the button pressed on a GOOD
+ * day, after the work was done. Most uploads are new material.
+ *
+ * ⚠️⚠️ UNKNOWN PAINTS AS COMMIT, NEVER AS CREATE. The failure that costs
+ * something is green-on-an-existing-book, so the fallback is the cautious one and
+ * the label stays the neutral original — a red button reading "Overwrite" on a
+ * book that turns out to be new is a lie, and lies train people to ignore the
+ * label.
+ *
+ * ⚠️ A BOOK DOCUMENT WITH NO CHAPTERS STILL READS AS "EXISTS" and gets the red.
+ * bookTitlesMap carries titles, not chapter counts, and asking Firestore for the
+ * count would be a read on every book change to sharpen a warning that is already
+ * erring in the safe direction. Left deliberately.
+ */
+function paintUploadButton() {
+    if (!uploadAllBtn) return;
+    const replacing = activeBookHasChapters();       // false only when it is SAFE
+    uploadAllBtn.classList.toggle('tier-create', replacing === false);
+    uploadAllBtn.classList.toggle('tier-commit', replacing !== false);
+    uploadAllBtn.textContent = (replacing === true)
+        ? 'Overwrite Existing Chapters in Database'
+        : 'Upload All Chapters to Database';
+    // ⚠️ THE HINT NAMES WHAT IT WRITES, BECAUSE NOBODY COULD TELL FROM THE LABEL.
+    // Jake: "uploading chapters also does metadata... or I've been acting like it
+    // does, so I HOPE it does." It does, and has since v3.31.x — this button
+    // calls readBookMetadataForm(), the SAME reader Save Metadata uses. Saying so
+    // on the control is cheaper than him hoping.
+    uploadAllBtn.title = (replacing === true)
+        ? 'REPLACES every chapter document in this book, and saves the metadata ' +
+          'form above at the same time. Chapters students are reading right now ' +
+          'are rewritten, and their cached copies are invalidated.'
+        : 'Writes every staged chapter to the database and saves the metadata ' +
+          'form above at the same time (the same fields as Save Metadata, plus ' +
+          'the chapters). Nothing is being replaced \u2014 this book has no ' +
+          'chapters yet.';
+}
+
+/**
+ * ⚠️ ROADMAP 38 — Save Metadata is CREATIVE the first time and an edit after.
+ *
+ * Jake: *"I hear you that it's a write to update metadata, but it's also an
+ * intentional one \u2014 or at least it is the first time."* That is the same rule
+ * green already follows on this page: nothing here existed before.
+ *
+ * ⚠️⚠️ AND IT DROPS `.btn-tint-save` WHEN IT GOES GREEN. Two greens meaning two
+ * things is the defect item 38 exists to remove, and #224422 is the older, weaker
+ * one. ⚠️ `.btn-tint-save` is still worn by #update-next-btn, so the CLASS is not
+ * retired here \u2014 that is the safe/edit pass's job.
+ */
+function paintSaveMetadataButton() {
+    if (!saveTitleBtn) return;
+    const creating = activeBookExists() === false;
+    saveTitleBtn.classList.toggle('tier-create', creating);
+    saveTitleBtn.classList.toggle('btn-tint-save', !creating);
+    // ⚠️ THE FULL LIST, BECAUSE THE SHORT ONE IS WHY HE NEVER TRUSTED IT.
+    // Jake: "the alert at the top of the page doesn't actually include everything
+    // update metadata updates... I've never been sure what clicking it does."
+    // These twelve are exactly readBookMetadataForm()'s keys. ⚠️ IF YOU ADD A
+    // FIELD TO THAT FUNCTION, ADD IT HERE IN THE SAME EDIT.
+    // \u26a0 KEEP EACH FIELD NAME WHOLE ON ONE LINE. F3 reads this function's
+    // SOURCE, so a name split across a `' + '` join reads as absent \u2014 and the
+    // wrap is not worth a check that cannot see half the list.
+    saveTitleBtn.title =
+        'Saves the twelve fields on this panel: ' +
+        'title, author, genre, min age, max age, protagonist gender, ' +
+        'source, rights, archive URL, origin URL, cleaned by, prepared by. ' +
+        '\u26a0 It does NOT touch chapters, the cover, or who uploaded the book' +
+        (creating ? '. This book does not exist in the database yet \u2014 saving ' +
+                    'creates it, WITHOUT chapters. Upload the chapters too, or it ' +
+                    'will sit in the library empty.'
+                  : ', and it overwrites whatever is stored for those twelve now.');
+}
+
+/**
+ * ⚠️ ROADMAP 38 — Parse is creative when nothing is staged, and destructive of
+ * unsaved work when something is.
+ *
+ * ⚠️⚠️ IT TOUCHES NO DATABASE EITHER WAY, so it is never `commit`. But a second
+ * parse discards every split, merge and retitle staged since the first one, with
+ * no confirm and no undo \u2014 v3.25.2's lesson one panel over. Green would be a
+ * lie there, so it simply stops being green.
+ */
+function paintParseButton() {
+    if (!createParseBtn) return;
+    const nothingStaged = stagedChapters.length === 0;
+    createParseBtn.classList.toggle('tier-create', nothingStaged);
+    createParseBtn.title = nothingStaged
+        ? 'Reads the EPUB and stages its chapters IN THIS PAGE only. Nothing is ' +
+          'written to the database until you upload.'
+        : '\u26a0 Re-reads the EPUB and REPLACES the ' + stagedChapters.length +
+          ' chapter(s) staged below \u2014 any splits, merges or retitles you have ' +
+          'made since the last parse are discarded. Still writes nothing to the ' +
+          'database.';
+}
+
+/** All three, together — they read the same two facts and must not disagree. */
+function paintTierButtons() {
+    paintUploadButton();
+    paintSaveMetadataButton();
+    paintParseButton();
+}
+
 let activeBookId = ""; 
 let importErrors = [];
 let currentErrorIdx = 0;
@@ -924,6 +1108,7 @@ async function loadBookList(selectFirst = false) {
     const previous = bookSelect.value;
     bookSelect.innerHTML = "<option>Loading...</option>";
     bookTitlesMap = {};
+    bookHasChapters = {};
     try {
         const querySnapshot = await getDocs(collection(db, "books"));
         bookSelect.innerHTML = "";
@@ -961,6 +1146,17 @@ async function loadBookList(selectFirst = false) {
             if (!b.coverUrl) gaps.push('cover');
             if (!b.rights) gaps.push('license');
             const chapArr = Array.isArray(b.chapters) ? b.chapters : [];
+            // ⚠️⚠️ THE GAP THE CHECKLIST WAS MISSING, AND IT IS THE WORST ONE
+            // (v3.44.0). A book with age, cover and licence and NO CHAPTERS drew
+            // a filled dot — "done" — and sat in the library for a student to
+            // open and find nothing. Jake hit exactly that. It goes FIRST in the
+            // list because every other gap is a book that works badly and this
+            // one is a book that does not work at all.
+            // ⚠️ `chapters` is the array of chapter metadata Upload All writes;
+            // `totalChapters` is its count. Either being empty is the same fault,
+            // and old documents may carry only one of them.
+            bookHasChapters[doc.id] = chapArr.length > 0 || (b.totalChapters || 0) > 0;
+            if (!bookHasChapters[doc.id]) gaps.push('CHAPTERS');
             const hasMatter = chapArr.some(c => c && c.matter && c.matter !== 'body');
             const hasAbout  = chapArr.some(c => c && c.about === true);
             if (hasMatter && !hasAbout) gaps.push('about');
@@ -971,15 +1167,31 @@ async function loadBookList(selectFirst = false) {
             bookSelect.appendChild(option);
         });
         
+        // ⚠️ SET BEFORE THE CHANGE EVENT BELOW, NOT AFTER. That event runs
+        // bookSelect.onchange synchronously, which repaints the upload button —
+        // with the flag still false it would paint "I do not know" onto a map
+        // that is, by this line, fully populated.
+        bookListLoaded = true;
+
         if (!selectFirst && previous &&
             Array.from(bookSelect.options).some(o => o.value === previous)) {
             bookSelect.value = previous;          // silent: no change event
+            paintTierButtons();                   // ...so repaint by hand
         } else if (querySnapshot.size > 0) {
             bookSelect.selectedIndex = 1;
             bookSelect.dispatchEvent(new Event('change'));
+        } else {
+            paintTierButtons();                   // empty library: nothing fires
         }
 
-    } catch (e) { bookSelect.innerHTML = "<option>Error</option>"; }
+    } catch (e) {
+        bookSelect.innerHTML = "<option>Error</option>";
+        // ⚠️ THE MAP IS NOW WRONG AND MUST NOT BE TRUSTED. It was emptied at the
+        // top of this function and the read failed, so every book in the library
+        // would read as new. Stay at "unknown", which paints commit.
+        bookListLoaded = false;
+        paintTierButtons();
+    }
 }
 
 bookSelect.onchange = () => {
@@ -1010,6 +1222,7 @@ bookSelect.onchange = () => {
         
         activeBookId = bookSelect.value;
         activeBookTitle.value = bookTitlesMap[activeBookId] || activeBookId;
+        paintTierButtons();
     }
 };
 
@@ -1813,6 +2026,7 @@ createParseBtn.onclick = async () => {
     
     activeBookId = id;
     activeBookTitle.value = title;
+    paintTierButtons();
     // ⚠️ CLEAR THE PREVIOUS BOOK'S TAGS FIRST (v3.23.0). autofillFromEpub() only
     // fills a field that is EMPTY — deliberately, so it cannot argue with something
     // typed by hand. But nothing cleared these between books, so importing a second
@@ -1890,6 +2104,7 @@ function resetCreateForm(announce) {
     currentErrorIdx = 0;
     editingIndex = -1;
     activeBookId = "";
+    paintTierButtons();
 
     if (stagedCoverUrl && stagedCoverUrl.startsWith('blob:')) {
         try { URL.revokeObjectURL(stagedCoverUrl); } catch (_) {}
@@ -3692,6 +3907,10 @@ function matterTag(chap) {
 
 // --- RENDER LIST ---
 function renderChapterList() {
+    // ⚠️ THE ONE PLACE EVERY STAGING CHANGE PASSES THROUGH. Parse's tier depends
+    // on stagedChapters.length, and hooking each mutation individually is how a
+    // later split or merge quietly stops repainting it.
+    paintParseButton();
     chapterListEl.innerHTML = "";
     stagedChapters.forEach((chap, index) => {
         const div = document.createElement('div');
@@ -3709,7 +3928,7 @@ function renderChapterList() {
                 <button class="split-btn" data-index="${index}" title="Split into multiple chapters">Split</button>
                 <button class="matter-btn" data-index="${index}" title="Cycle: body \u2192 front matter \u2192 back matter. Use this when the importer guessed wrong \u2014 it relabels, it does not delete.">${(chap.matter || 'body') === 'body' ? 'Body' : ((chap.matter === 'front') ? 'Front' : 'Back')}</button>
                 <button class="edit-btn" data-index="${index}">Edit</button>
-                <button class="danger-btn delete-btn" data-index="${index}">Del</button>
+                <button class="danger-btn tier-commit delete-btn" data-index="${index}">Del</button>
             </div>
         `;
         chapterListEl.appendChild(div);
@@ -4290,6 +4509,7 @@ saveTitleBtn.onclick = async () => {
 
         await setDoc(doc(db, "books", activeBookId), updates, { merge: true });
         bookTitlesMap[activeBookId] = newTitle;
+        paintTierButtons();    // it exists now — a second press IS an overwrite
 
         const stamp = new Date().toLocaleTimeString();
         const tagBits = [];
@@ -4331,14 +4551,29 @@ uploadAllBtn.onclick = async () => {
     // long before it exists as a document. Confusing on the first upload of every
     // single book, and it trains people to click through a warning that will one
     // day be real.
-    const alreadyExists = Object.prototype.hasOwnProperty.call(bookTitlesMap, activeBookId);
-    if (alreadyExists) {
-        if (!confirm(`"${bookTitlesMap[activeBookId]}" already exists.\n\n` +
-                     `Overwrite it with these ${stagedChapters.length} chapters?`)) return;
+    // ⚠️ THE SAME PREDICATE THE BUTTON PAINTED FROM (v3.43.0). It must be, or the
+    // green "create" button can open an "already exists, overwrite it?" dialog.
+    // ⚠️ null means the book list never loaded — treat that as EXISTS here too,
+    // exactly as the paint does, so the cautious confirm is the one you get.
+    // ⚠️⚠️ THREE STATES, AND THEY MUST MATCH WHAT THE BUTTON JUST SAID (v3.44.0).
+    // The middle one is Jake's empty book: the document exists, so v3.43.0's
+    // two-way branch called it an overwrite and asked him to confirm destroying
+    // chapters that were never there.
+    const replacing = activeBookHasChapters() !== false;   // null counts as YES
+    const exists    = activeBookExists() === true;
+    const label     = bookTitlesMap[activeBookId] || val('active-book-title') || activeBookId;
+    if (replacing) {
+        if (!confirm(`"${label}" already has chapters in the database.\n\n` +
+                     `REPLACE them with these ${stagedChapters.length} chapters?`)) return;
+    } else if (exists) {
+        if (!confirm(`"${label}" exists but has NO chapters \u2014 students opening ` +
+                     `it right now find an empty book.\n\n` +
+                     `Upload these ${stagedChapters.length} chapters to it?`)) return;
     } else {
-        if (!confirm(`Create "${val('active-book-title') || activeBookId}" with ` +
+        if (!confirm(`Create "${label}" with ` +
                      `${stagedChapters.length} chapters?`)) return;
     }
+    const alreadyExists = exists;   // uploadedBy stamping below reads this
 
     statusEl.innerText = "Uploading...";
     // Upload All reports to the status bar at the top, so a leftover green

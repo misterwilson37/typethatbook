@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<!-- tier-ab.html v1.2.0 — ROADMAP 38, Rounds 61-63 (Duplex).
+
+     ⚠️ NOT SHIPPED. This lives in tools/ and is never deployed. It exists because
+     item 38 says the round ENDS BY LOOKING AT IT RENDERED, and because twice on
+     2026-09-03 a picture told Jake something 68 harnesses could not.
+
+     ⚠️⚠️ THE CSS BELOW IS LIFTED VERBATIM FROM admin.html'S STYLE BLOCK. If you
+     change it to make the comparison look better you have made the comparison
+     worthless. The only thing that differs between the two columns is the class
+     on the buttons — which is the only thing that differs in the real change. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ROADMAP 38 — the upload control, before and after</title>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<style>
+    /* ── verbatim from admin.html ──────────────────────────────────────── */
+    :root {
+        --surface:      #111111;
+        --surface-1:    #191919;
+        --rule:         #333333;
+        --ink:          #eeeeee;
+        --ink-dim:      #aaaaaa;
+        --ink-dimmer:   #888888;
+        --accent:       #4B9CD3;
+    }
+    body { background: var(--surface); color: var(--ink);
+           font-family: 'Courier Prime', 'Courier New', monospace; padding: 20px; }
+    input, textarea, button, select {
+        width: 100%; padding: 12px; margin-bottom: 15px; background: #222;
+        border: 1px solid #444; color: #fff; font-family: inherit; box-sizing: border-box;
+    }
+    button { cursor: pointer; background: #0047AB; font-weight: bold;
+             text-transform: uppercase; border: none; transition: background 0.2s; }
+    button:hover { background: #4B9CD3; }
+    button.secondary-btn { background: #444; border: 1px solid #666; }
+    button.secondary-btn:hover { background: #666; }
+    button.tier-commit,
+    button.danger-btn { background: #500; border: 1px solid #800; color: #fcc; }
+    button.tier-commit:hover,
+    button.danger-btn:hover { background: #800; }
+    button.tier-create { background: #050; border: 1px solid #080; color: #cfc; }
+    button.tier-create:hover { background: #080; }
+    button.btn-tint:not(:disabled):hover  { filter: brightness(1.6); }
+    button.btn-tint-audit:not(:disabled)  { background: #332200; }
+    button.btn-tint-scan:not(:disabled)   { background: #220022; }
+    button.btn-tint-repair:not(:disabled) { background: #002233; }
+    button.btn-tint-save:not(:disabled)   { background: #224422; }
+
+    /* ── the harness around the comparison, not part of the page ──────── */
+    .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; max-width: 1180px; margin: 0 auto; }
+    .col { background: var(--surface-1); border: 1px solid var(--rule); padding: 18px 20px 8px; }
+    h1 { font-size: 1.1em; font-weight: 700; margin: 0 0 4px; }
+    .sub { color: var(--ink-dimmer); font-size: 0.8em; margin: 0 0 26px; line-height: 1.5; max-width: 1180px; margin-left: auto; margin-right: auto; }
+    h2 { font-size: 0.85em; letter-spacing: 0.08em; text-transform: uppercase;
+         color: var(--ink-dim); margin: 0 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
+    h2 .tag { float: right; text-transform: none; letter-spacing: 0; font-weight: 400; }
+    .row { display: flex; gap: 10px; }
+    .row > button { flex: 1; }
+    .note { font-size: 0.72em; color: var(--ink-dimmer); line-height: 1.6;
+            border-left: 2px solid var(--rule); padding-left: 10px; margin: 4px 0 18px; }
+    .note b { color: var(--ink-dim); font-weight: 700; }
+    .meta { max-width: 1180px; margin: 34px auto 0; font-size: 0.78em;
+            color: var(--ink-dimmer); line-height: 1.7; border-top: 1px solid var(--rule); padding-top: 18px; }
+    .meta b { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<h1>ROADMAP 38 — the upload control</h1>
+<p class="sub">
+    The chapter panel of admin.html, real markup, real CSS. <b>The only difference
+    between the two columns is the class on one button.</b> Everything else —
+    every decorative colour, every position, every label — is untouched and stays
+    untouched this round.
+</p>
+
+<div class="wrap">
+
+    <!-- ── BEFORE ────────────────────────────────────────────────────── -->
+    <div class="col">
+        <h2>Now <span class="tag">v1.5.0</span></h2>
+
+        <button id="a-upload">Upload All Chapters to Database</button>
+        <p class="note">
+            <b>No class attribute at all</b>, so it falls through to
+            <code>button { background:#0047AB }</code> — the same blue as
+            <b>EDIT</b>, below. The control that pushes a book to every student in
+            the building, and the control that opens a text box, are the same
+            colour. This one is also the widest target on the panel.
+        </p>
+
+        <div class="row">
+            <button class="secondary-btn btn-tint btn-tint-audit">🔍 Audit Book</button>
+            <button class="secondary-btn btn-tint btn-tint-scan">🔍 Scan Language</button>
+        </div>
+        <div class="row">
+            <button class="secondary-btn btn-tint btn-tint-repair">🔧 Fix Chapter Order</button>
+        </div>
+
+        <h2 style="margin-top:26px">A chapter row</h2>
+        <div class="row">
+            <button>Merge ↓</button>
+            <button>Split</button>
+            <button>Edit</button>
+            <button class="danger-btn">Del</button>
+        </div>
+        <p class="note">
+            <b>EDIT is the same blue as UPLOAD ALL.</b> That is the whole report.
+        </p>
+    </div>
+
+    <!-- ── AFTER ─────────────────────────────────────────────────────── -->
+    <div class="col">
+        <h2>Proposed <span class="tag">v1.8.0</span></h2>
+
+        <button class="tier-create">Parse &amp; Initialize Staging</button>
+        <p class="note">
+            <b>Nothing staged yet.</b> Reads the EPUB into this page; writes
+            nothing anywhere. Once chapters ARE staged it stops being green —
+            a second parse discards every split, merge and retitle you have made,
+            with no confirm and no undo.
+        </p>
+
+        <button class="tier-create" style="width:auto;padding:8px 18px">Save Metadata</button>
+        <p class="note">
+            <b>This book has no document yet</b>, so saving creates one. Once it
+            exists, this reverts to its ordinary treatment — the green is spent on
+            "nothing here existed before", not on "this write is friendly".
+            <b>Its hint now lists all twelve fields it writes</b>, which is the
+            question that never had an answer on the page.
+        </p>
+
+        <button class="tier-create" id="b-upload-new">Upload All Chapters to Database</button>
+        <p class="note">
+            <b>No chapters in the database</b> — either a brand new book, or one
+            that has metadata and nothing else. This upload destroys nothing.
+            <b>The empty-book case is the fix:</b> v3.43.0 asked whether the book
+            existed and would have painted this red.
+        </p>
+
+        <button class="tier-commit" id="b-upload-old">Overwrite Existing Chapters in Database</button>
+        <p class="note">
+            <b>The book already exists.</b> Every chapter currently serving students
+            is about to be replaced. <b>.tier-commit</b> — one declaration shared
+            with the legacy <code>.danger-btn</code> so the two reds cannot drift
+            into two near-identical reds. The label says what it does now, instead
+            of leaving the colour to carry it alone.
+        </p>
+
+        <button class="tier-commit" id="b-upload-unknown">Upload All Chapters to Database</button>
+        <p class="note">
+            <b>The state you should almost never see</b>, and the one worth arguing
+            with: the book list has not finished loading, so the panel does not yet
+            know. It paints red and keeps the neutral label — <b>never green.</b>
+            Green on a book that turns out to exist is a destroyed book; red on a
+            book that turns out to be new costs a raised eyebrow.
+        </p>
+
+        <div class="row">
+            <button class="secondary-btn btn-tint btn-tint-audit">🔍 Audit Book</button>
+            <button class="secondary-btn btn-tint btn-tint-scan">🔍 Scan Language</button>
+        </div>
+        <div class="row">
+            <button class="secondary-btn btn-tint btn-tint-repair">🔧 Fix Chapter Order</button>
+        </div>
+        <p class="note">
+            <b>Unchanged, deliberately.</b> These are the <i>safe</i> and
+            <i>edit</i> tiers and they are still a rainbow. Item 38 says fix the
+            commit row first because it is the only part that can lose work.
+        </p>
+
+        <h2 style="margin-top:26px">A chapter row</h2>
+        <div class="row">
+            <button>Merge ↓</button>
+            <button>Split</button>
+            <button>Edit</button>
+            <button class="danger-btn tier-commit">Del</button>
+        </div>
+        <p class="note">
+            Also unchanged on screen. <b>Del</b> gained the class so the vocabulary
+            is complete and the next pass can rename <code>.danger-btn</code>
+            without having to work out which of its eight call sites were really
+            commit-tier.
+        </p>
+    </div>
+</div>
+
+<div class="meta">
+    <b>What is NOT in this round, on purpose.</b> No decorative colour moved. The
+    amber on this page still means three different things; untangling that is the
+    next pass, and it wants your eyes on it the same way this did.<br><br>
+    <b>Jake's amendment, and it is the better design.</b> Round 61 painted every
+    upload red, which put the heaviest treatment on the page onto the button
+    pressed on a <i>good</i> day. The tier is not a property of the control, it is
+    a property of <i>the control plus the data</i>: on a new book this destroys
+    nothing. Green now means exactly one thing on this page — nothing here existed
+    before.<br><br>
+    <b>Which means the edit tier cannot have green.</b> <code>SAVE METADATA</code>
+    is <code>#224422</code> today and item 38 already says the safest-feeling
+    colour on the page belongs to a write. The safe/edit pass <i>retires</i> that
+    green rather than joining it, or the page has two greens meaning two
+    things.<br><br>
+    <b>"It existed, but it wasn't there."</b> The empty-book case is now handled
+    everywhere it shows: the upload button paints green, the confirm dialog says
+    the book has no chapters, and — the part that matters most — <b>the book list
+    stops calling it done.</b> A book with age, cover and licence and no chapters
+    drew a filled dot; it now reads <code>&#9675; … needs: CHAPTERS</code>,
+    first in the list. None of it costs a read.<br><br>
+    <b>The one thing still worth arguing about.</b> Parse &amp; Initialize can
+    discard staged edits with no confirm. Making it stop being green is a warning,
+    not a guard.<br><br>
+    <b>One open question in the commit tier.</b> <code>Cancel Import</code> wears
+    <code>.danger-btn</code> today and was left alone: it abandons staged work and
+    reaches nobody, so by the ruling's own test it is not commit. Moving it out is
+    a decision, not a cleanup.
+</div>
+
+</body>
+</html>

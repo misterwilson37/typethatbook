@@ -390,10 +390,11 @@ Everything else still open:
 - 12. ⚠️⚠️ REOPENED (Round 59, Jewett) — THE LEAD AXIS, AND JAKE'S RULING ON WHAT SHOULD ALIGN  *(⚠️ DO NOT SHIP style.css v3.10.0 — he looked at it rendered and ruled against it)*
 - 53. ⚠️ EIGHTY BOOKS AND NO WAY THROUGH THEM — SEARCH, AND SOMETHING FEATURED  *(Jake asked, 2026-09-03)*
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
-- 38. ⚠️ OPEN for admin (Round 55 closed reports.html) — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS  *(⚠️ UNBLOCKED, and Jake has RULED — build to the table, do not re-open it)*
+- 38. ⚠️ OPEN for admin — commit + create tiers DONE (Rounds 61-63), safe/edit NOT — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS  *(⚠️ UNBLOCKED, and Jake has RULED — build to the table, do not re-open it)*
 - 55. ⚠️ THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
 - 56. ⚠️ CONTROLS THAT LOOK INTERACTIVE AND ARE NOT — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS  *(Jake, 2026-09-03)*
 - 51. ⚠️ THE BUILD LIST IS IN NO ORDER A READER CAN RECOGNISE — SORT IT ALPHABETICALLY  *(Jake asked, 2026-09-03. Sort in renderBuildList(), NEVER the SOURCES array — read the item first)*
+- 58. ⭐ A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
 - 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED  *(found Round 60; touches three mirrored files — read the item)*
 - 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS  *(the instrument that would have caught Round 59's finding on the day)*
 
@@ -3388,6 +3389,110 @@ being told they have not.
 cross the weekly goal and will never get the fireworks — §0.-13.D is the last time
 a missed crossing was a whole week gone, and the latch is per-period by design.
 
+## 58. ⭐ A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S
+
+**Jake, 2026-09-03:** *"Some people may want to go Sunday to Monday or Monday to
+Sunday — not everyone has to be forced into my nonsense."* **The class manager is
+the right home for it, and he guessed the right panel: it is the goals panel in
+`lessons-admin.js` (`saveClass()` ~1390, `editClass()` ~1481) behind
+`#class-daily-input` / `#class-weekly-input` in `admin.html` ~1491.**
+
+### ✅ THE PARTS THAT ARE FREE, AND THERE ARE MORE OF THEM THAN EXPECTED
+
+Checked in the source, Round 60, before writing this item:
+
+* **It costs ZERO extra reads.** The class document is *already* fetched to
+  resolve `dailySeconds`/`weeklySeconds` (`game.js` ~2218) and *already* cached
+  with them. A `weekStartDay` field rides on the read that is happening anyway.
+* **⭐ THE RESOLUTION LADDER ALREADY EXISTS AND SHOULD BE COPIED EXACTLY.** Goals
+  resolve **class → `settings/goals` → default**. Do the same: class
+  `weekStartDay` → school default → **6 (Saturday)**, so an untouched class
+  behaves exactly as it does today and no migration is needed.
+* **⭐ NO firestore.rules CHANGE.** `match /classes/{classId}` has `allow read: if
+  signedIn()` and its `allow update` carries **no field whitelist** — it gates on
+  who you are, not on which keys you wrote. A new field needs nothing. ⚠️ Verify
+  that is still true before shipping; a round that has to ship rules is a
+  different-sized round (see `game.js` v3.46.0).
+* **⭐ NO DATA MIGRATION, AND THIS IS THE BIG ONE.** Nothing in Firestore is keyed
+  by week. Weekly totals are *derived* every time, by `readWeek()` over seven date
+  strings from `weekDatesOf()`. Changing the anchor **reinterprets logs that
+  already exist**; it does not invalidate a single stored counter.
+* **No interaction with ROADMAP 50.** `weekDatesOf()` feeds `planReads()`, but the
+  ledger reasons per DATE, not per week. A different seven dates is still seven
+  dates, each individually known, absent-since-`since`, or blind. No undercount.
+
+### ⚠️⚠️ THE PART THAT IS NOT FREE: THE ANCHOR RULE IS COPIED SIX TIMES
+
+`(getDay() + 1) % 7` is written out, separately, in:
+
+| File | Function |
+|---|---|
+| `daylog.js` ~193 | `weekStartOf()` — the student's week |
+| `game.js` ~1982 | `getWeekStart()` |
+| `learn.js` ~4702 | `getWeekStart()` |
+| `lessons-admin.js` ~2021 | `_weekStartDate()` — the admin student filter |
+| `reports.html` ~1321 | `getLastSaturday()` — the teacher's week |
+| `admin.html` ~1194 | the literal option label `This week (Sat–Fri)` |
+
+⚠️⚠️ **THESE MUST NOT DIVERGE, AND THE HARNESS THAT SAYS SO IS THE PRIORITY 1
+HARNESS.** `week-agreement-test.mjs` Part B exists because `reports.html` and
+`daylog.js` once named different Saturdays, and *"Saturday's typing was inside the
+number on the child's screen and outside the teacher's report, every evening,
+which is when a teacher grades."* **Six hand-written copies of an anchor that is
+about to become a variable is that defect waiting to happen five more times.**
+
+⭐ **SO THE FIRST STEP IS NOT "ADD A PARAMETER TO SIX FUNCTIONS". IT IS TO
+COLLAPSE THEM ONTO `daylog.js`'s.** One exported `weekStartOf(dateStr,
+weekStartDay = 6)`, imported everywhere, and the five other copies deleted. Ship
+that collapse **on its own, with the anchor still hardcoded to 6**, prove the
+suite is unchanged, and only then make it configurable. A round that does both at
+once cannot tell a collapse bug from an anchor bug.
+
+### ⚠️ WHAT NEEDS A RULING FROM JAKE BEFORE IT IS BUILT
+
+⚠️⚠️ **`reports.html`'s `This Week` BUTTON HAS NO SINGLE CLASS.** A teacher can
+pull a report spanning classes with different anchors, and then *no* start date is
+the right one. Do not decide this alone. The plausible answers: (a) use the
+anchor of the class currently selected in the filter and fall back to the school
+default when the filter is "all"; (b) leave the teacher's report on the school
+default always and accept that it can disagree with one class's HUD; (c) refuse
+the mix and grey the button when the selection spans anchors. **(a) is the least
+surprising and the most code.**
+
+⚠️ **AND THE SECOND QUESTION IS WHETHER A SCHOOL DEFAULT SHOULD EXIST AT ALL**, or
+whether the class is the only level. The goals ladder has both, which argues for
+both.
+
+### ⚠️ SMALLER THINGS THE BUILDING ROUND WILL HIT
+
+* **`GOALS_CACHE_KEY = 'ttb_goalsCache_v1'` has a day-long TTL**, so a teacher's
+  change would not reach a student for up to a day. **Bump it to `_v2` in the
+  shipping round** — same move as the `_v2` ledger rename, and for the same
+  reason.
+* **The weekly celebration latch is keyed by the week-start string**
+  (`celebrationMark('week', getWeekStart(...))`). Changing a class's anchor
+  mid-week changes the key, so a student can re-earn a weekly celebration they
+  already saw, or lose one they were about to. Harmless, but say so in the UI
+  copy rather than discovering it in a classroom.
+* **`hudCacheLoad()` compares `weekStart` and will simply miss** after a change,
+  repainting from the authoritative read. That one is already safe by
+  construction.
+* ⚠️ **`admin.html`'s own comment at ~1183 argues FOR Saturday** — it keeps Mon–Fri
+  whole in one bucket so a student's week cannot reset mid-week. That reasoning
+  still holds for Sat and Sun starts and **breaks for a Monday start**, where the
+  school week and the bucket are the same thing and a Friday afternoon sits at the
+  end of its own bucket. Not a reason to refuse Monday; a reason for the
+  `Last 7 days` default in that filter to stay the default.
+* **The field should be a day NUMBER (0=Sun … 6=Sat), not a string**, and the
+  editor a `<select>` of seven days, not free text.
+
+### The size, honestly
+
+The collapse is a contained, mechanical round with a strong existing harness. The
+configurable half is a small feature sitting on top of it. **The `reports.html`
+ruling is the only thing in it that can go wrong quietly**, which is why it is
+listed above as a question rather than a task.
+
 ## 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED
 
 **Found Round 60 while wiring ROADMAP 50's third call site.** `INDEX_VERSION` read
@@ -4097,7 +4202,7 @@ once the tokens exist, and 38 is barely expressible without them.
 
 ---
 
-## 38. ⚠️ OPEN for admin (Round 55 closed reports.html) — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS
+## 38. ⚠️ OPEN for admin — commit + create tiers DONE (Rounds 61-63), safe/edit NOT — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS
 
 ⚠️ **JAKE'S STANDING RULING OF 2026-09-02 APPLIES TO admin AND IS RECORDED IN
 FULL IN ITEM 42:** *"right now it looks bad. Consistency would help a lot, so
@@ -4161,6 +4266,165 @@ decision being reversed by accident.
 ⚠️ **THIS ROUND ENDS BY LOOKING AT IT RENDERED**, and an A/B beside the current
 page is the deliverable that gets the sign-off — twice on 2026-09-03 a picture
 told Jake something 68 harnesses could not.
+
+### ⭐⭐ ROUND 63 (Duplex) — "IT EXISTED, BUT IT WASN'T THERE"
+
+**Jake, 2026-09-03:** *"There was a moment in the distant past where I updated
+metadata and forgot to upload the chapters so it was just... empty. It existed,
+but it wasn't there. Not great."*
+
+⚠️⚠️ **ROUND 62 ASKED THE WRONG QUESTION AND ITS OWN HEADER SAID SO.** `Save
+Metadata` writes a book document with a title, an author, an age range and **no
+chapters**. So *exists* and *has something to destroy* come apart the first time
+anyone saves and walks away — and v3.43.0 painted that book RED, calling the most
+creative act on the page an overwrite. `activeBookHasChapters()` is what the
+upload control asks now.
+
+⚠️⚠️ **AND THE RE-UPLOAD DOT HAD THE SAME BLIND SPOT, WHICH IS THE WORSE HALF.**
+The checklist has flagged `age`, `cover`, `license` and `about` since v3.21.0 — a
+book with all four and **zero chapters drew a FILLED dot**. Done. In the library.
+For a child to open and find nothing. It reads `○ … needs: CHAPTERS` now, **first
+in the list**, because every other gap is a book that works badly and this one is
+a book that does not work at all.
+
+⭐ **NONE OF IT COSTS A READ.** `b.chapters` has been in hand inside
+`loadBookList()` since v3.21.0 — the dot was already reading it to check `about`.
+E2 asserts no per-book read creeps into that loop.
+
+### ⭐ GREEN SPREADS, ON THE SAME ONE RULE
+
+Jake: *"there are two other places where green should probably go… It'd be kind
+of fun if adding a book meant clicking each of the green buttons down the page."*
+It works, because the rule does not need bending: **green means nothing here
+existed before.**
+
+* **`Save Metadata`** → `.tier-create` when the book has no document. ⚠️ It
+  **drops `.btn-tint-save`** when it does, because two greens meaning two things
+  is the defect this item exists to remove. `#224422` is the older, weaker one.
+  ⚠️ The class is not retired — `#update-next-btn` still wears it; that is the
+  safe/edit pass's job.
+* **`Parse & Initialize`** → `.tier-create` when **nothing is staged**. ⚠️ It
+  touches no database either way, so it is never `commit`. But a second parse
+  discards every split, merge and retitle staged since the first, **with no
+  confirm and no undo**, so it stops being green. Repainted from
+  `renderChapterList()` — the one place every staging change passes through.
+
+⚠️ **THE LADDER IS NOT ONE COLUMN, THOUGH.** `Parse & Initialize` lives in
+`#create-new-ui` and `Save Metadata` in `#edit-existing-ui`; you do not see all
+three green at once. The sequence is real, the single green column is not.
+
+### ⭐ AND EVERY CONTROL THAT WRITES NOW SAYS WHAT IT WRITES
+
+Jake: *"I've never been sure what clicking it does… uploading chapters also does
+metadata, or I've been acting like it does, so I HOPE it does."*
+
+✅ **IT DOES.** `uploadAllBtn.onclick` calls `readBookMetadataForm()` — **the same
+reader `Save Metadata` uses** — so an upload writes all twelve metadata fields
+plus the chapters, `totalChapters`, `bodyChapters`, the content-version bump, and
+on a first upload `uploadedBy`/`uploadedAt`. **`Save Metadata` is a strict subset
+of `Upload All`.** F2 pins that, because the hint is now a claim about a write.
+
+⚠️ **THE HINTS ARE PER-STATE, NOT DECORATION.** An upload that replaces chapters
+says something different from one that creates them. `Save Metadata`'s hint lists
+**all twelve fields** — F3 reads `readBookMetadataForm()`'s own keys and fails if
+one is missing, so the list cannot rot the way the note at the top of the page
+did.
+
+⚠️ **STILL OPEN, AND IT IS A REAL ONE:** `Parse & Initialize` can discard staged
+edits with no confirmation. Round 63 made it stop being green, which is a warning,
+not a guard. v3.25.2 solved the neighbouring version of this for the overwrite
+file input; this one is unguarded.
+
+### ⭐⭐ ROUND 62 (Duplex) — JAKE'S AMENDMENT: THE UPLOAD BUTTON'S TIER IS A PROPERTY OF THE DATA
+
+**Jake, 2026-09-03, on reading Round 61's A/B:** *"Could we change the button
+based on whether or not the book exists? If we're uploading a book for the first
+time, it's not destructive, it's creative. It's new... Only if the book already
+exists does it delete anything, which is when the red is important."*
+
+✅ **SHIPPED: `admin.html` v1.7.0, `admin.js` v3.43.0.** He is right, and it
+answers the objection Round 61 raised against its own change — that the heaviest
+treatment on the page had landed on the button pressed on a *good* day, after the
+work was done. **`Upload All` is one control in two states**, and the tier is not
+a property of the control but of **the control plus the data**:
+
+| State | Class | Label |
+|---|---|---|
+| book does not exist | `.tier-create` (green) | Upload All Chapters to Database |
+| book exists | `.tier-commit` (red) | **Overwrite Existing Chapters in Database** |
+| ⚠️ not known yet | `.tier-commit` (red) | Upload All Chapters to Database |
+
+⭐ **IT COSTS NO READ, BECAUSE THE PREDICATE ALREADY EXISTED.** `v3.23.0` already
+branched on `hasOwnProperty(bookTitlesMap, activeBookId)` to choose between the
+"already exists" and "Create" confirm dialogs. It is extracted as
+`activeBookExists()` and **the confirm dialog now reads the same function** —
+⚠️⚠️ leaving a second copy behind is exactly how a green CREATE button comes to
+open an *"already exists, overwrite it?"* dialog. `control-tier-test.mjs` D4
+guards that pairing, brace-matched rather than windowed.
+
+⚠️⚠️ **"NOT KNOWN YET" PAINTS RED AND KEEPS THE NEUTRAL LABEL, AND THIS IS THE
+LOAD-BEARING PART.** `loadBookList()` empties `bookTitlesMap` **before** its
+`getDocs()` resolves, so mid-refresh every book in the library reads as new.
+**Green on a book that turns out to exist is a destroyed book; red on a book that
+turns out to be new costs a raised eyebrow.** `bookListLoaded` is cleared in the
+`catch` too, because a failed read leaves the map empty and confidently wrong.
+⚠️ D5 pins `=== false` specifically: `!exists` is true for `null`, which paints
+UNKNOWN green — the one mutation that matters.
+
+⚠️ **AND A RED BUTTON READING "OVERWRITE" ON A NEW BOOK WOULD BE A LIE**, which is
+why the unknown state keeps the original label. Colour errs safe; the label never
+claims something the panel does not know.
+
+⚠️⚠️ **THIS CONSTRAINS THE safe/edit PASS: GREEN IS SPENT.** `SAVE METADATA` is
+`#224422` today, and item 38 already notes that the safest-feeling colour on the
+page belongs to a write. The next pass **retires** that green rather than joining
+it — otherwise the page has two greens meaning two different things, which is the
+exact defect this item exists to remove.
+
+⚠️ **KNOWN AND ACCEPTED: a book document with ZERO chapters still reads as
+"exists" and gets the red.** `bookTitlesMap` carries titles, not chapter counts,
+and a count would be a Firestore read on every book change to sharpen a warning
+already erring the safe way.
+
+⭐ **`tools/tier-ab.html` v1.1.0 shows all three states.**
+
+### ⚠️⚠️ ROUND 61 (Duplex) — THE COMMIT TIER IS BUILT. THE OTHER TWO ARE NOT.
+
+✅ **`admin.html` v1.6.0, `admin.js` v3.42.1.** The headline defect is closed:
+**`#upload-all-btn` carried NO class attribute at all**, so it fell through to
+`button { background: #0047AB }` — the EDIT blue. It is `.tier-commit` now, one
+declaration **shared with the existing `.danger-btn`** so the two reds cannot
+drift into two nearly-identical reds. `Del`, `Process Overwrite`, `Yes,
+Overwrite`, `Delete Book` and the cover `Remove` all declare the tier too;
+**nothing about them moved on screen**, the class is there so the vocabulary is
+complete and the next pass can retire the `.danger-btn` name knowing which of its
+eight call sites were really commit.
+
+⭐ **`tests/control-tier-test.mjs` — 10 assertions, mutation-verified twice.**
+⚠️ **It asserts the TIER, never the shade.** Pinning a hex here would go red on
+the very next pass of this item for a reason that is not a defect. Part C guards
+the one colour fact that IS load-bearing: commit must not resolve to the same
+declaration as the default button. ⚠️ It reads `admin.js` as well, because most
+of this page's controls are built in template strings and a check that only read
+the markup would call a half-tiered page tiered.
+
+⭐ **THE A/B IS `tools/tier-ab.html`.** Real markup, real CSS lifted verbatim.
+⚠️ **It raised an objection against its own change** — Upload All read as heavy as
+`Del`, and it is the button pressed on a *good* day — and **Jake answered it the
+same afternoon.** See Round 62 above; the answer was not a fourth treatment for
+*publish* but the observation that the tier depends on the data.
+
+⚠️ **NO DECORATIVE COLOUR WAS TOUCHED, AND THE AMBER STILL MEANS THREE THINGS.**
+That was the instruction — fix the commit row first, because it is the only part
+of this item that can lose work. **`safe` and `edit` are NOT built**, and no class
+for them is declared: a vocabulary with nothing using it is dead CSS that reads as
+finished work.
+
+⚠️ **ONE CONTROL WAS LEFT ALONE ON PURPOSE AND IT IS A DECISION, NOT AN
+OVERSIGHT.** `Cancel Import` wears `.danger-btn` today. It abandons staged work
+and reaches nobody, so by the ruling's own test it is not commit — but moving it
+out changes what a teacher sees, so it waits for a ruling rather than riding in
+on a cleanup.
 
 ⚠️ **STILL OPEN FOR admin.html** as of this writing, and it was blocked on item 42
 rather than on effort. Its amber still means three things; untangling that is part of the

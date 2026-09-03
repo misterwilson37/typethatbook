@@ -1,5 +1,187 @@
 # CHANGELOG — TypeThatBook
 
+## Round 63 (Duplex) — 2026-09-03 — "it existed, but it wasn't there"
+
+### ⚠️⚠️ Round 62 asked whether the book EXISTS. The question is whether it has CHAPTERS.
+
+Jake: *"I updated metadata and forgot to upload the chapters so it was just...
+empty. It existed, but it wasn't there."* `Save Metadata` writes a book document
+with no chapters, so v3.43.0 painted that book red — calling the most creative
+act on the page an overwrite.
+
+**Shipped:**
+
+- `admin.js` **v3.43.0 → v3.44.0** — `activeBookHasChapters()`; the upload
+  control and its confirm dialog both read it. The confirm has **three** states
+  now (replacing / exists-but-empty / brand new); v3.43.0's two-way branch asked
+  Jake to confirm destroying chapters that were never there.
+- ⚠️⚠️ **The re-upload dot gains `needs: CHAPTERS`, first in the list.** A book
+  with age, cover and licence and zero chapters drew a **filled** dot — done — and
+  sat in the library for a child to open and find nothing. This is the actual fix
+  for the anecdote; the button was only where it showed.
+- **`Save Metadata`** is `.tier-create` when the book has no document, and **drops
+  `.btn-tint-save`** when it does. **`Parse & Initialize`** is `.tier-create` when
+  nothing is staged, and stops being green once something is — a second parse
+  discards staged splits, merges and retitles with no confirm.
+- `admin.html` **v1.7.0 → v1.8.0** — `title=` hints on the five controls that
+  write; no new colour.
+- `tests/control-tier-test.mjs` — Parts E and F, 11 new assertions,
+  mutation-verified three ways. `tools/tier-ab.html` **v1.2.0**.
+- `admin.js` v3.37.0's header entry archived below.
+
+### ✅ Yes, Upload All writes metadata
+
+`uploadAllBtn.onclick` calls `readBookMetadataForm()` — **the same reader `Save
+Metadata` uses.** An upload writes all twelve metadata fields, the chapters,
+`totalChapters`, `bodyChapters`, the content-version bump, and on a first upload
+`uploadedBy`/`uploadedAt`. **`Save Metadata` is a strict subset.** F2 pins it,
+because the hint is now a claim about a write, and F3 reads
+`readBookMetadataForm()`'s own keys so the twelve-field list cannot rot the way
+the page's own note did.
+
+### ⭐ It costs no read
+
+`b.chapters` has been inside `loadBookList()`'s snapshot since v3.21.0 — the dot
+already read it to check `about`. E2 fails if a per-book `getDoc` appears in that
+loop: forty books would be forty reads on every refresh, to sharpen a warning
+already erring the safe way.
+
+### Verification
+
+**70 harnesses pass, `audit:versions` 0 problems.** ⚠️ `npm run test:rules` NOT
+run; nothing here touches `firestore.rules`.
+
+## Round 62 (Duplex) — 2026-09-03 — the tier is a property of the control AND the data
+
+### ⭐⭐ Jake's amendment to ROADMAP 38, made on reading Round 61's A/B
+
+*"If we're uploading a book for the first time, it's not destructive, it's
+creative. It's new... Only if the book already exists does it delete anything,
+which is when the red is important."*
+
+Round 61 painted every upload red, which put the heaviest treatment on the page
+onto the button pressed on a **good** day, after the work was done — and Round 61
+said so in its own A/B. This is the answer, and it is a better one than the fourth
+treatment for *publish* that the objection was heading toward.
+
+| State | Class | Label |
+|---|---|---|
+| book does not exist | `.tier-create` (green) | Upload All Chapters to Database |
+| book exists | `.tier-commit` (red) | **Overwrite Existing Chapters in Database** |
+| ⚠️ not known yet | `.tier-commit` (red) | Upload All Chapters to Database |
+
+**Shipped:**
+
+- `admin.js` **v3.42.1 → v3.43.0** — `activeBookExists()` and
+  `paintUploadButton()`. ⚠️ The predicate is **extracted, not copied**: v3.23.0's
+  confirm dialog already branched on the same
+  `hasOwnProperty(bookTitlesMap, activeBookId)` test, and **it now reads the
+  shared function too.** A button that paints from one copy and confirms from a
+  second can go green and then ask you to confirm an overwrite. Repainted at all
+  four `activeBookId` set-points, after the book list loads, and after a metadata
+  save adds the book to the map.
+- `admin.html` **v1.6.0 → v1.7.0** — `.tier-create`, with the red's geometry
+  exactly: same three channels, same border width, same text lightness.
+- `tests/control-tier-test.mjs` — Part D, 5 new assertions, mutation-verified
+  three ways. `admin.js` v3.35.0's header entry archived below.
+- `tools/tier-ab.html` **v1.1.0** — all three states.
+
+### ⚠️⚠️ "Not known yet" paints red, and that is the load-bearing part
+
+`loadBookList()` empties `bookTitlesMap` **before** its `getDocs()` resolves, so
+mid-refresh every book in the library reads as new. `bookListLoaded` is also
+cleared in the `catch`, because a failed read leaves the map empty and confidently
+wrong. **Green on a book that turns out to exist is a destroyed book; red on a
+book that turns out to be new costs a raised eyebrow.**
+
+D5 pins `=== false` specifically — `!exists` is true for `null`, which paints
+UNKNOWN green, and that is the one mutation that matters. D4 brace-matches the
+click handler rather than scanning a character window, after the first draft's
+1400-char window went red on an added comment (§ GUARD ON STRUCTURE, NEVER ON
+DISTANCE).
+
+### ⚠️ This constrains the safe/edit pass: green is spent
+
+`SAVE METADATA` is `#224422` today and item 38 already notes that the
+safest-feeling colour on the page belongs to a write. The next pass **retires**
+that green rather than joining it, or the page carries two greens meaning two
+things — the exact defect item 38 exists to remove.
+
+**Known and accepted:** a book document with zero chapters still reads as "exists"
+and gets the red. The map carries titles, not chapter counts, and a count would be
+a read on every book change to sharpen a warning already erring safe.
+
+### Verification
+
+**70 harnesses pass, `audit:versions` 0 problems.** ⚠️ `npm run test:rules` NOT
+run; nothing here touches `firestore.rules`.
+
+## Round 61 (Duplex) — 2026-09-03 — the button that pushes a book to every student looked like the one that opens a text box
+
+### ⚠️⚠️ ROADMAP 38, the commit tier — `#upload-all-btn` had no class at all
+
+It fell through to `admin.html`'s default `button { background: #0047AB }`, which
+is the same blue as `EDIT`. Item 38 named this as the only part of that item that
+can lose work, and said to fix it before touching a single decorative colour.
+
+**Shipped:**
+
+- `admin.html` **v1.5.0 → v1.6.0** — `.tier-commit` declared, **sharing one
+  declaration with the legacy `.danger-btn`** so the two reds cannot drift apart.
+  Applied to `#upload-all-btn` (the fix) and declared on `#overwrite-btn`,
+  `#confirm-overwrite-btn`, `#delete-book-btn`, `#cover-remove-btn` — no visual
+  change to those four.
+- `admin.js` **v3.42.0 → v3.42.1** — one class, no behaviour: the chapter row's
+  `Del` gains `.tier-commit` beside the `.danger-btn` it already had. `Del` is the
+  canonical commit example in Jake's table, and most of this page's controls are
+  built in template strings, so a vocabulary that lives only in the markup is half
+  a vocabulary.
+- `tests/control-tier-test.mjs` **NEW, 10 assertions**, registered in
+  `run-all-tests.mjs` **v1.21.0**. Suite is **70 harnesses**.
+- `tools/tier-ab.html` **NEW, not deployed** — the A/B item 38 asks for.
+- `admin.js` v3.34.0's header entry archived below (8-entry budget).
+
+**Not shipped, on purpose:** no decorative colour moved, the page's amber still
+means three things, and `safe`/`edit` have no class declared — a vocabulary with
+nothing using it reads as finished work. `Cancel Import` keeps `.danger-btn`: it
+abandons staged work and reaches nobody, so by the ruling's own test it is not
+commit, and moving it is a decision rather than a cleanup.
+
+### ⚠️ The harness asserts the tier, never the shade
+
+A hex pinned here would go red on the next pass of this same item for a reason
+that is not a defect. Part C guards the one colour fact that is load-bearing —
+commit must not resolve to the same declaration as the default button — and Part
+B guards that `.tier-commit` and `.danger-btn` stay welded, because two blocks is
+how one tier becomes two nearly-identical reds. Mutation-verified twice: class
+removed from `#upload-all-btn` (A, C2 red), rule split in two (B1, B2, C1 red).
+
+### New: ROADMAP 58 — a class should choose its own week
+
+Jake, 2026-09-03: *"Some people may want to go Sunday to Monday or Monday to
+Sunday — not everyone has to be forced into my nonsense."* Traced before filing:
+the class document is **already** read and cached to resolve `dailySeconds` /
+`weeklySeconds`, so a `weekStartDay` field costs **zero extra reads**; `match
+/classes/{classId}` has **no field whitelist**, so **no rules change**; and
+**nothing in Firestore is keyed by week** — weekly totals are derived from
+`readWeek()` every time — so **no migration**.
+
+⚠️ The cost is that `(getDay() + 1) % 7` is written out **six times**
+(`daylog.js`, `game.js`, `learn.js`, `lessons-admin.js`, `reports.html`, and the
+literal `This week (Sat–Fri)` label in `admin.html`). Six hand-written copies of
+an anchor about to become a variable is `week-agreement-test.mjs`'s Priority-1
+defect waiting to happen five more times, so the first step is to **collapse them
+onto `daylog.js`'s with the anchor still hardcoded**, prove the suite unchanged,
+and only then make it configurable. One question needs Jake's ruling:
+`reports.html`'s `This Week` button has no single class when a report spans
+classes with different anchors.
+
+### Verification
+
+Suite before (69 pass, `audit:versions` 0 problems) and after (**70 pass, 0
+problems**). ⚠️ `npm run test:rules` NOT run; nothing here touches
+`firestore.rules`.
+
 ## Round 60 (Duplex) — 2026-09-03 — a repair that was wired on one page of three
 
 ### ⚠️⚠️ ROADMAP 50: `reconcile()` existed in exactly one place in the repository
@@ -6962,4 +7144,85 @@ function _renderFullBuildPanel(results) {
 //           the update gate. See HANDOFF §0.-14.
 //           ⚠️ The warning at line ~84 about this exact defect has now been true
 //           twice, so v3.42.1 also puts the reminder ON the constant itself.
+```
+
+### § admin.js — archived header entries (Round 61)
+
+```
+// v3.34.0 — dc:contributor read generically at import (readEpubMetadata()), and
+//           used as a fallback for Prepared By alongside Gutenberg's in-book
+//           credit scan. Global Grey editions credit their preparer in a personal
+//           sign-off glued onto the LAST CHAPTER'S PROSE, not in a scoped in-book
+//           element the way Gutenberg's machine header is — no reasonable scan
+//           target, and not classroom content even if there were. The
+//           restructuring pipeline (ttb-fix-epubs.py 1.14.0) now extracts that
+//           name at conversion time into dc:contributor instead, and this file
+//           simply reads it — a source-agnostic Dublin Core field, not a
+//           Global-Grey-specific branch, so any future source crediting a
+//           preparer this way is covered for free. Also closes the matching gap
+//           in canonicalSourceFrom(): Global Grey conversions previously emitted
+//           a bare 'Public domain text' dc:source/dc:identifier with no
+//           publisher at all, so SOURCE_PATTERNS' existing /global\s*grey/i case
+//           never once matched a converted book — the real product-page URL and
+//           publisher name were being discarded by the converter before this
+//           file ever saw them. Fixed on the converter side; this file needed no
+//           change for that half.
+```
+
+### § admin.js — archived header entries (Round 62)
+
+```
+// v3.35.0 — Standard Ebooks' own producer credit (colophon.xhtml's "This ebook
+//           was produced for Standard Ebooks by NAME") now fills Prepared By.
+//           readInBookSignals() couldn't reach it: that function is gated to
+//           Gutenberg AND scans only the first SIGNAL_SPINE_LIMIT (4) spine
+//           documents — right for Gutenberg's front-matter header, wrong for
+//           Standard Ebooks' colophon, which is backmatter (confirmed: itemref
+//           14 of 14 on a real book). New readStandardEbooksSignals() looks the
+//           document up by name instead of position — "colophon" is Standard
+//           Ebooks' own fixed filename — and findStandardEbooksProducer() reads
+//           the credit by its semantic shape (the anchor immediately after the
+//           one linking to standardebooks.org itself), not by pattern-matching
+//           prose. Verified the original Gutenberg transcriber credited two
+//           sentences later in the same colophon (David Widger, on Jekyll and
+//           Hyde) is never mistaken for this — he's marked
+//           epub:type="z3998:personal-name", never a link.
+```
+
+### § admin.js — archived header entries (Round 63)
+
+```
+// v3.37.0 — TWO UNRELATED CHANGES, BOTH SHIPPED IN ROUND 56, FOLDED INTO ONE
+//           ENTRY BECAUSE NEITHER HAD BEEN DEPLOYED YET (the 8-entry header budget
+//           is worth more than a second stamp for an unshipped step).
+//
+//           (a) GENRE LIST. Drama added; Classic Literature, Historical Fiction
+//           and Young Adult retired at Jake's request ("they're lame and not
+//           helpful"). ⚠️ The two SUBJECT_TO_GENRE rows pointing at retired genres
+//           went in the same edit — guessGenre()'s result is written through
+//           writeSelectOrCustom(), which PRESERVES an unknown value in Custom…, so
+//           leaving them would have re-created the retired genres on import one
+//           book at a time with nothing on screen to say so.
+//           ⚠⚠ THIS RETAGS NOTHING. The student library's genre pills are built
+//           from the books (index.html:1085), not from GENRES, so a book still
+//           stored as "Young Adult" keeps its pill until that book is changed. No
+//           stored value is at risk: Custom… preserves it.
+//
+//           (b) ⚠️ NO dc:creator AT ALL NOW FALLS BACK TO THE FIRST dc:contributor.
+//           A compiler-led anthology carries no dc:creator: English Fairy Tales
+//           files Joseph Jacobs as a CONTRIBUTOR, so it imported with a blank
+//           author and lost him from both the title page and the filename.
+//           ⚠⚠ THREE SEPARATE PLACES IN THIS FILE READ dc:creator and all three
+//           needed it — readEpubMetadata(), the author-input autofill, and
+//           bookMetaAuthor. Fixing one leaves the author right in the form and
+//           blank on the title page, or the reverse.
+//           ⚠️ The bookMetaAuthor one is not about attribution at all: it feeds
+//           looksLikeLeadingMatter(), so a blank author there means the Gutenberg
+//           title page stops being recognised as front matter and gets imported as
+//           chapter one — a child typing boilerplate.
+//           ⚠️ And preparedBy no longer reuses a contributor already promoted to
+//           author, or the title page reads "By Joseph Jacobs / Prepared by Joseph
+//           Jacobs". The guard is `creators.length === 0`, never `!creators[0]`:
+//           on a normal Gutenberg book the contributor is the TRANSCRIBER, and a
+//           book that has an author must never be overridden by one.
 ```

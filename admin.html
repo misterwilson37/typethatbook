@@ -1,9 +1,35 @@
 <!DOCTYPE html>
-<!-- admin.html v1.5.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.8.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.8.0 — ⚠️ HOVER HINTS ON THE CONTROLS THAT WRITE, and `title=` fallbacks
+     for the three admin.js v3.44.0 repaints per state. Jake: "I've never been
+     sure what clicking it does." ⚠️ A hint must name what the control WRITES —
+     restating the label is what these buttons already did. No CSS changed;
+     `.tier-create` from v1.7.0 is what Save Metadata and Parse & Initialize now
+     borrow, so this file gained no new colour.
+
+     v1.7.0 — ⚠️⚠️ ROADMAP 38 — `Upload All` IS TWO CONTROLS WEARING ONE BUTTON,
+     and v1.6.0 painted both of them red. On a book that does not exist yet the
+     upload destroys nothing; only on an existing book does it replace chapters
+     already serving students. `.tier-create` (green) joins `.tier-commit`, and
+     admin.js v3.43.0's paintUploadButton() swaps the class AND the label
+     together. ⚠️ UNKNOWN PAINTS AS COMMIT — the markup still ships
+     `class="tier-commit"`, which is the state before the book list has loaded.
+     ⚠️ DO NOT REUSE THE GREEN FOR THE `edit` TIER; see the comment on the rule.
+
+     v1.6.0 — ⚠️⚠️ ROADMAP 38, THE COMMIT TIER, AND NOTHING ELSE. `UPLOAD ALL
+     CHAPTERS TO DATABASE` carried NO class and fell through to the default
+     `button` rule, so the control that pushes a book to every student was the
+     same #0047AB as `EDIT` — and the largest target on the panel. It is now
+     `.tier-commit`, one declaration shared with the existing `.danger-btn`.
+     ⚠️ NO DECORATIVE COLOUR WAS TOUCHED. Item 38 says to fix the commit row
+     first because it is the only part of that item that can lose work; the
+     rainbow and the three-way amber are the NEXT pass, and they want the A/B
+     in front of Jake before they start. tests/control-tier-test.mjs.
 
      v1.3.0 — ROADMAP 42. 834 of this file's 866 inline declarations moved off
      276 elements and into the utility block at the END of <style>. 32 stay
@@ -100,8 +126,68 @@
         
         button.secondary-btn { background: #444; border: 1px solid #666; }
         button.secondary-btn:hover { background: #666; }
+        /* ── ⚠️⚠️ ROADMAP 38 — THE COMMIT TIER ───────────────────────────────
+           Jake's ruling of 2026-09-03: a control is graded by WHAT A CLICK COSTS
+           IF YOU DID NOT MEAN IT, not by the three value severities above. A
+           button is not a state, and forcing one onto notice/warn/bad produces a
+           red Save.
+
+           `commit` = irreversible, or it reaches students.
+
+           ⚠️⚠️ THE DEFECT THIS FIXES: `UPLOAD ALL CHAPTERS TO DATABASE` carried
+           NO class at all, so it fell through to the default `button` rule —
+           #0047AB, the same blue as EDIT. The control that pushes a book to every
+           student in the building looked exactly like the one that opens a text
+           box, and it is the largest target on the panel.
+
+           ⚠️ `.danger-btn` IS THIS TIER UNDER ITS OLD NAME and is deliberately
+           left declared beside it rather than renamed at eight call sites in a
+           round that also changes what a colour MEANS. The next pass over this
+           page renames it; until then the two selectors share one declaration so
+           they cannot drift apart. ⚠️ DO NOT GIVE EITHER ONE ITS OWN BLOCK.
+
+           ⚠️ AND YES, `UPLOAD ALL` NOW READS AS HEAVY AS `DEL`. That is the
+           ruling working, not a mistake: same tier, same weight, and the labels
+           are what tell them apart. */
+        button.tier-commit,
         button.danger-btn { background: #500; border: 1px solid #800; color: #fcc; }
+        button.tier-commit:hover,
         button.danger-btn:hover { background: #800; }
+
+        /* ── ⚠️⚠️ ROADMAP 38 — THE CREATE TIER, AND WHY IT IS NOT A FOURTH COLOUR
+           FOR A FOURTH KIND OF BUTTON ───────────────────────────────────────
+           Jake, 2026-09-03: "If we're uploading a book for the first time, it's
+           not destructive, it's creative. It's new. Only if the book already
+           exists does it delete anything, which is when the red is important."
+
+           ⚠️ SO THIS IS ONE CONTROL IN TWO STATES, NOT TWO CONTROLS. `Upload All`
+           is the only thing on this page whose TIER depends on the data: on a new
+           book it destroys nothing, on an existing one it replaces every chapter
+           already serving students. admin.js's paintUploadButton() swaps the
+           class and the label together — a green button reading "Overwrite" would
+           be worse than either mistake on its own.
+
+           ⚠️⚠️ THE GEOMETRY IS THE RED'S, EXACTLY — same three channels, same
+           border width, same text lightness. Two treatments that are ALMOST the
+           same shape is the failure mode; these are obviously different in hue
+           and identical in everything else.
+
+           ⚠️⚠️ DO NOT REUSE THIS GREEN FOR THE `edit` TIER. Item 38's ruling puts
+           SAVE METADATA in edit and notes that "the safest-feeling colour on the
+           page belongs to a write" — so the safe/edit pass RETIRES
+           .btn-tint-save's green rather than joining it. Green now means exactly
+           one thing on this page: nothing here existed before. */
+        button.tier-create { background: #050; border: 1px solid #080; color: #cfc; }
+        button.tier-create:hover { background: #080; }
+
+        /* ⚠️ THE `title=` ATTRIBUTES ON THESE CONTROLS ARE FALLBACKS FOR THE
+           MOMENT BEFORE admin.js PAINTS (v1.8.0). Upload All, Save Metadata and
+           Parse & Initialize all have their hint REWRITTEN per state — an upload
+           that replaces chapters says something different from one that creates
+           them. The static text here is the cautious, state-free version.
+           ⚠️ Jake, 2026-09-03: "I've never been sure what clicking it does." A
+           hint that names what a control WRITES is the answer; a hint that
+           restates the label is not. */
 
         label { display: block; margin-bottom: 5px; color: #888; text-transform: uppercase; font-size: 0.75rem; }
         
@@ -770,7 +856,7 @@
                 <!-- Deliberately last, deliberately red, deliberately NOT beside
                      Open Book. This is the only control in this panel that destroys
                      a student's reading position. -->
-                <button id="delete-book-btn" class="danger-btn u-width-auto u-padding-5px-14px u-font-size-0-85em u-margin-left-6px">🗑 Delete Book…</button>
+                <button id="delete-book-btn" class="danger-btn tier-commit u-width-auto u-padding-5px-14px u-font-size-0-85em u-margin-left-6px">🗑 Delete Book…</button>
                 <div id="export-books-status" class="u-font-size-0-75em u-margin-top-5px u-min-height-1-1em" style="color:#888;"></div>
                 <div id="library-balance-out" class="hidden u-margin-top-10px u-background-111 u-border-1px-solid-333 u-padding-12px u-font-size-0-8em u-max-height-340px u-overflow-y-auto"></div>
             </div>
@@ -801,7 +887,8 @@
                     </div>
                 </div>
                 <div class="u-display-flex u-gap-8px u-align-items-center u-margin-top-10px">
-                    <button id="create-parse-btn" class="u-margin-0">Parse &amp; Initialize Staging</button>
+                    <button id="create-parse-btn" class="u-margin-0"
+                            title="Reads the EPUB and stages its chapters in this page only. Writes nothing to the database.">Parse &amp; Initialize Staging</button>
                     <button id="create-reset-btn" class="secondary-btn u-width-auto u-margin-0 u-padding-8px-16px"
                             title="Clear these fields so you can start another book without reloading.">Start another book</button>
                 </div>
@@ -823,7 +910,8 @@
                     </div>
                     <div class="col u-display-flex u-align-items-flex-end">
                         <div class="u-width-100pct">
-                            <button id="save-title-btn" class="secondary-btn u-border-color-336633 btn-tint btn-tint-save">Save Metadata</button>
+                            <button id="save-title-btn" class="secondary-btn u-border-color-336633 btn-tint btn-tint-save"
+                                    title="Saves the twelve metadata fields on this panel. Does NOT touch chapters or the cover.">Save Metadata</button>
                             <div id="save-title-status" class="u-font-size-0-75em u-min-height-1-1em u-margin-top-4px" style="color:#888;"></div>
                         </div>
                     </div>
@@ -944,7 +1032,8 @@
                     <label>Cover <span class="hint" title="Auto-extracted from the EPUB when it has one. Choose a file to override it.">i</span></label>
                     <img id="cover-preview" class="hidden">
                     <input type="file" id="cover-upload" accept="image/*">
-                    <button id="cover-remove-btn" class="hidden danger-btn">Remove</button>
+                    <button id="cover-remove-btn" class="hidden danger-btn tier-commit"
+                            title="Clears this book's cover. A hand-sourced jacket image cannot be recovered from here.">Remove</button>
                   </div>
                 </div>
 
@@ -955,7 +1044,8 @@
                             <input type="file" id="overwrite-epub-file" accept=".epub">
                         </div>
                         <div class="col">
-                            <button id="overwrite-btn" class="danger-btn">Process Overwrite</button>
+                            <button id="overwrite-btn" class="danger-btn tier-commit"
+                                    title="Replaces this book's chapters and blank metadata from the EPUB chosen above. Check the filename first — this reads the file input, not the book.">Process Overwrite</button>
                         </div>
                     </div>
                     <!-- v3.25.0: overwrite fills BLANK metadata from the new file, and
@@ -972,7 +1062,8 @@
 
                 <div id="chapter-list"></div>
                 
-                <button id="upload-all-btn">Upload All Chapters to Database</button>
+                <button id="upload-all-btn" class="tier-commit"
+                        title="Writes every staged chapter to the database, and saves the metadata form above at the same time.">Upload All Chapters to Database</button>
                 
                 <div class="u-display-flex u-gap-10px u-margin-top-10px">
                     <button id="audit-book-btn" class="secondary-btn u-flex-1 u-border-color-664400 u-color-ffcc66 btn-tint btn-tint-audit">🔍 Audit Book for Untypeable Characters</button>
@@ -1514,7 +1605,7 @@
         <h2 class="u-color-ff3333 u-margin-top-0">⚠️ WARNING</h2>
         <p>This will replace all chapters currently in the Staging Area.</p>
         <div class="row u-margin-top-20px">
-            <div class="col"><button id="confirm-overwrite-btn" class="danger-btn">Yes, Overwrite</button></div>
+            <div class="col"><button id="confirm-overwrite-btn" class="danger-btn tier-commit">Yes, Overwrite</button></div>
             <div class="col"><button id="cancel-overwrite-btn" class="secondary-btn">Cancel</button></div>
         </div>
     </div>

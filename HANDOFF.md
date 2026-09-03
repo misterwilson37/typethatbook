@@ -1,6 +1,195 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-03 by Round 60 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-03 by Round 63 (Duplex), for whoever is next
+>
+> ⚠️ **ROUNDS 60–63 ARE ONE INSTANCE.** One name per conversation. **Round 60's
+> block, below, holds the most important thing in this file: ROADMAP 50 cannot
+> recur until the week of 2026-09-05, so a quiet week before then is not
+> evidence.** Read it before closing anything.
+>
+> ### ⚠️⚠️ ROUND 63: "IT EXISTED, BUT IT WASN'T THERE"
+>
+> Round 62 asked whether the book EXISTS. **`Save Metadata` writes a book document
+> with no chapters**, so *exists* and *has something to destroy* come apart the
+> first time anyone saves and walks away. Jake did exactly that once and ended up
+> with a book in the library that opened to nothing.
+>
+> ⚠️⚠️ **THE BUTTON WAS THE SMALL HALF. THE RE-UPLOAD DOT WAS THE BIG ONE.** Its
+> checklist has flagged `age`, `cover`, `license` and `about` since v3.21.0 — and
+> a book with all four and **zero chapters drew a FILLED dot.** Done. It reads
+> `○ … needs: CHAPTERS` now, first in the list. ⭐ **If you take one thing from
+> this round: a completeness indicator that does not check the thing the artifact
+> is FOR will call an empty one finished.**
+>
+> ⭐ **NONE OF IT COSTS A READ.** `b.chapters` has been inside `loadBookList()`'s
+> snapshot since v3.21.0. ⚠️ **E2 fails if a per-book `getDoc` appears in that
+> loop** — forty books is forty reads per refresh.
+>
+> ### ⭐ GREEN NOW MEANS ONE THING ON THIS PAGE, ON THREE CONTROLS
+>
+> **Nothing here existed before.** `Upload All` (no chapters yet), `Save Metadata`
+> (no book document yet), `Parse & Initialize` (nothing staged yet).
+> ⚠️ `Save Metadata` **drops `.btn-tint-save`** when it is not green — two greens
+> meaning two things is the defect item 38 exists to remove. The CLASS is not
+> retired; `#update-next-btn` still wears it, and that is the safe/edit pass.
+>
+> ⚠️ **`Parse & Initialize` CAN DISCARD STAGED EDITS WITH NO CONFIRM.** Round 63
+> made it stop being green, which is a warning, not a guard. v3.25.2 solved the
+> neighbouring version of this for the overwrite file input. **This is the best
+> remaining defect on this page.**
+>
+> ### ✅ THE QUESTION JAKE HAS BEEN CARRYING: yes, Upload All writes metadata
+>
+> `uploadAllBtn.onclick` calls `readBookMetadataForm()` — **the same reader `Save
+> Metadata` uses.** An upload writes all twelve fields, the chapters,
+> `totalChapters`, `bodyChapters`, the content-version bump, and on a first upload
+> `uploadedBy`/`uploadedAt`. **`Save Metadata` is a strict subset of `Upload
+> All`.** ⚠️ F2 pins it and F3 reads the form's own keys, so the hint cannot rot.
+> ⚠️ **ADD TO THE HINT IN THE SAME EDIT AS `readBookMetadataForm()`.**
+>
+> ### THE STATE OF PLAY
+>
+> * **70 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run;
+>   nothing in Rounds 60–63 touches `firestore.rules`.
+> * **The zip is cumulative across all four rounds** — `game.js` v3.48.0,
+>   `index.html` v3.18.0, `admin.html` v1.8.0, `admin.js` v3.44.0, three test
+>   files, `tools/tier-ab.html` (not deployed), and the three documents.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+>   **DO NOT SHIP style.css v3.10.0.**
+> * ⚠️ **NOTHING STUDENT-FACING CHANGED IN 61, 62 OR 63.** All three are
+>   admin-only. Round 60 is the student-facing one.
+> * **Next:** the Parse guard above; item 38's `safe`/`edit` pass (**green is
+>   spent** — read the constraint); then **58's collapse step**. **51**, **55/56**,
+>   **29** stay cheap and uncontested.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 62 (Duplex) — the previous block, kept
+>
+
+> ### ⭐⭐ ROUND 62: THE UPLOAD BUTTON'S TIER DEPENDS ON THE DATA
+>
+> Jake, on reading Round 61's A/B: *"If we're uploading a book for the first time,
+> it's not destructive, it's creative. It's new."* He is right, and it answers the
+> objection Round 61 raised against itself — that the heaviest treatment on the
+> page had landed on the button he presses on a **good** day.
+>
+> `Upload All` is now **one control in two states**: `.tier-create` green
+> *"Upload All Chapters to Database"* when the book does not exist, `.tier-commit`
+> red **"Overwrite Existing Chapters in Database"** when it does.
+>
+> ⭐ **IT COSTS NO READ, BECAUSE THE PREDICATE ALREADY EXISTED.** v3.23.0's confirm
+> dialog already branched on `hasOwnProperty(bookTitlesMap, activeBookId)`. It is
+> extracted as `activeBookExists()` and **the confirm now reads the same
+> function.** ⚠️⚠️ **DO NOT LET A SECOND COPY BACK IN** — that is precisely how a
+> green CREATE button comes to open an *"already exists, overwrite it?"* dialog.
+> `control-tier-test.mjs` D4 guards the pairing.
+>
+> ⚠️⚠️ **"NOT KNOWN YET" PAINTS RED, AND IF YOU CHANGE ONE THING IN THIS FEATURE,
+> DO NOT CHANGE THAT.** `loadBookList()` empties `bookTitlesMap` BEFORE its
+> `getDocs()` resolves, so mid-refresh every book in the library reads as new.
+> **Green on a book that turns out to exist is a destroyed book.** D5 pins
+> `=== false` rather than `!exists`, because `!null` is true and would paint
+> unknown green.
+>
+> ⚠️ **GREEN IS NOW SPENT ON THIS PAGE.** It means exactly one thing: nothing here
+> existed before. `SAVE METADATA`'s `#224422` must therefore be **retired** by the
+> safe/edit pass, not joined — item 38 already says the safest-feeling colour on
+> the page should not belong to a write.
+>
+> ⚠️ **KNOWN AND ACCEPTED:** a book document with zero chapters reads as "exists"
+> and gets the red. Titles are what the map carries; a chapter count would be a
+> read per book change to sharpen a warning already erring safe.
+>
+> ### THE STATE OF PLAY
+>
+> * **70 harnesses pass, `audit:versions` 0 problems.** ⚠️ `npm run test:rules`
+>   NOT run; nothing in Rounds 60–62 touches `firestore.rules`.
+> * **The zip is cumulative across all three rounds** — `game.js` v3.48.0,
+>   `index.html` v3.18.0, `admin.html` v1.7.0, `admin.js` v3.43.0,
+>   `tests/mirror-heal-test.mjs`, `tests/control-tier-test.mjs`,
+>   `tests/run-all-tests.mjs` v1.21.0, `tools/tier-ab.html` (not deployed), and the
+>   three documents. Check the build panel before assuming any of it landed.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+>   Round 59's ruling. **DO NOT SHIP style.css v3.10.0.**
+> * ⚠️ **NOTHING STUDENT-FACING CHANGED IN 61 OR 62.** Both are admin-only.
+> * **Next:** item 38's `safe`/`edit` pass (green is spent — read the constraint
+>   above first), then **58's collapse step**, which is contained and has
+>   `week-agreement-test.mjs` pointed straight at it. **51**, **55/56**, **29** are
+>   cheap and uncontested.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 61 (Duplex) — the previous block, kept
+>
+
+> ### ✅ ROUND 61: ROADMAP 38's COMMIT TIER, AND ROADMAP 58 FILED
+>
+> **`#upload-all-btn` carried no class attribute at all**, so it fell through to
+> `admin.html`'s default `button { background: #0047AB }` — the EDIT blue. The
+> control that pushes a book to every student in the building looked exactly like
+> the one that opens a text box, and it is the widest target on the panel.
+> `.tier-commit` now, **one declaration shared with the legacy `.danger-btn`** so
+> the two reds cannot drift into two nearly-identical reds.
+>
+> ⚠️ **THE ROUND ENDS WITH A QUESTION FOR JAKE, AND IT IS IN `tools/tier-ab.html`
+> — OPEN IT.** Upload All now reads as heavy as `Del`, and it is the button he
+> presses on a *good* day, after doing the work. That is his ruling working as
+> written. **If it reads as punishing rather than careful, the alternative is a
+> fourth treatment for *publish*, which reopens the trade he already took — so it
+> is better answered now than in three rounds.**
+>
+> ⚠️ **`safe` AND `edit` ARE NOT BUILT AND NO CLASS FOR THEM IS DECLARED.** A
+> vocabulary with nothing using it is dead CSS that reads as finished work. No
+> decorative colour moved; the page's amber still means three things. That was the
+> instruction — commit first, because it is the only part of item 38 that can lose
+> work.
+>
+> ⚠️ **`Cancel Import` KEEPS `.danger-btn` AND THAT IS A DECISION.** It abandons
+> staged work and reaches nobody, so by the ruling's own test it is not commit.
+> Moving it changes what a teacher sees; it waits for a ruling.
+>
+> ### ⭐ NEW: ROADMAP 58 — a class should choose its own week
+>
+> Jake asked for it and guessed the right panel: the goals editor in
+> `lessons-admin.js` (`saveClass()` ~1390 / `editClass()` ~1481). **Traced before
+> filing, and it is cheaper than it looks:** the class document is already read
+> and cached for `dailySeconds`/`weeklySeconds` (**zero extra reads**),
+> `match /classes/{classId}` has **no field whitelist** (**no rules change**), and
+> **nothing in Firestore is keyed by week** — weekly totals are derived by
+> `readWeek()` every time, so changing the anchor *reinterprets* existing logs
+> (**no migration**).
+>
+> ⚠️⚠️ **THE EXPENSIVE HALF: `(getDay() + 1) % 7` IS WRITTEN OUT SIX TIMES** —
+> `daylog.js`, `game.js`, `learn.js`, `lessons-admin.js`, `reports.html`, and the
+> literal `This week (Sat–Fri)` option label in `admin.html`. That is
+> `week-agreement-test.mjs`'s Priority-1 defect waiting to happen five more times.
+> ⭐ **Collapse them onto `daylog.js`'s FIRST, with the anchor still hardcoded to
+> 6, ship that alone, prove the suite unchanged — and only then make it
+> configurable.** A round that does both cannot tell a collapse bug from an anchor
+> bug. ⚠️ One thing genuinely needs Jake's ruling: `reports.html`'s `This Week`
+> button has no single class when a report spans classes with different anchors.
+>
+> ### THE STATE OF PLAY
+>
+> * **70 harnesses pass, `audit:versions` 0 problems.** ⚠️ `npm run test:rules`
+>   NOT run; nothing in Rounds 60 or 61 touches `firestore.rules`.
+> * **Round 61 upload set:** `admin.html`, `admin.js`,
+>   `tests/control-tier-test.mjs`, `tests/run-all-tests.mjs`, `tools/tier-ab.html`,
+>   and the three documents. ⚠️ `tools/` is not deployed.
+> * ⚠️ **IF ROUND 60 WAS NOT UPLOADED, ITS FILES ARE IN THIS ZIP TOO** —
+>   `game.js` v3.48.0, `index.html` v3.18.0, `tests/mirror-heal-test.mjs`. Check
+>   the build panel before assuming.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+>   Round 59's ruling, unchanged. **DO NOT SHIP style.css v3.10.0.**
+> * **Next, in the order I would take them:** item 38's `safe`/`edit` pass (wants
+>   the A/B answered first), then **58's collapse step**, which is contained and
+>   has a strong existing harness. **51**, **55/56** and **29** are all cheap and
+>   uncontested.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 60 (Duplex) — the previous block, kept, and its ROADMAP 50 warning still governs
 >
 > ⚠️⚠️ **A ✅ IN ROADMAP.md IS EVIDENCE THAT SOMEBODY WROTE A FIX. IT IS NOT
 > EVIDENCE THAT THE FIX IS RUNNING, AND IT IS NOT EVIDENCE THAT THE FIX WAS
