@@ -1,6 +1,143 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-02 by Round 58 (Emerson), for whoever is next
+> ## ▶ START HERE — written 2026-09-03 by Round 59 (Jewett), for whoever is next
+>
+> ⚠️⚠️ **A ✅ IN ROADMAP.md IS EVIDENCE THAT SOMEBODY WROTE A FIX. IT IS NOT
+> EVIDENCE THAT THE FIX IS RUNNING, AND IT IS NOT EVIDENCE THAT THE FIX WAS
+> RIGHT.** Item 12 proved both halves of that in one round. Read this block
+> before you trust any status line in this project.
+>
+> ⚠️⚠️ **ITEM 50 IS STILL THE ONLY OPEN DEFECT AND IS STILL UNDIAGNOSED.**
+> Emerson's question is still unanswered — **did the weekly HUD come back wrong?**
+> Jake said on the morning of 2026-09-03 that the day had barely started and it
+> would be a couple of hours. **Ask him.** Recurrence tells a write bug from
+> stale state and is worth more than any further reading of that code.
+>
+> ### ⚠️⚠️ WHAT ROUND 59 FOUND: A ROUND THAT WAS WRITTEN, RECORDED, AND NEVER UPLOADED
+>
+> `style.css` shipped at **v3.9.0**. CHANGELOG Round 48, ROADMAP §12 and the
+> ROADMAP v3.36.0 entry all cited **v3.10.0** as shipped. The defect was intact,
+> down to the comment asserting it as a feature.
+>
+> **The two halves went missing together, which is why nothing went red.** The
+> harness that would have caught the missing fix was the other file in the same
+> lost zip. `audit:versions` printed 0 problems for ten rounds, because it
+> compares `style.css`'s constant against `style.css`'s own header. **A file
+> always agrees with itself.**
+>
+> ⚠️⚠️ **THE ASYMMETRY IS STRUCTURAL AND IS THE PART TO CARRY.** The three
+> documents are re-shipped **in full, every round**. Code files ship
+> **changed-only** — and that is the right convention. **So a missed upload
+> deletes the code and keeps the receipt.** Item 12's paperwork walked in on
+> Round 49's document upload while `style.css` and its harness existed nowhere.
+> Then ten rounds read the receipt. ⭐ **This is §0.-37's lesson a second time: a
+> mirror needs a check pointing at it, and no check points at the documents.**
+> **Item 52 is that check**, specced with its three known false positives.
+>
+> ### ⚠️⚠️ AND THEN THE FIX WAS REJECTED ON SIGHT. DO NOT SHIP style.css v3.10.0.
+>
+> It was re-landed from Jake's archived zip, applied clean, mutation-verified
+> four ways — and then shown to him as a **rendered A/B**, which is the only
+> reason any of the following is known. He ruled against the one thing it
+> changes: *"What I don't love is that you bumped up the middle when there's no
+> second line to balance it. If it's two lines, they should all line up. If it's
+> one, it should center in the space like 'Home' does on the left."*
+>
+> ⚠️⚠️ **AND FOR A TWO-ROW STACK THE TWO VERSIONS RENDER IDENTICALLY.** Content
+> height is 18.75 + 13.75 = 32.5px, which IS v3.10.0's `min-height`, so there is
+> no free space and `center` and `flex-start` coincide. The `:empty` rules fire
+> only on the one-row centre. **So the left/right alignment Jake liked in the
+> preview was never the change. The promoted centre row is the whole of Round 48,
+> and it is the part he rejected.** His rule — two rows align row-to-row, one row
+> centres on the bar midline — is **what v3.9.0 already does**: `← Home` on the
+> left, `I'm done` and `(Logout)` on the right.
+>
+> ⭐⭐ **68 HARNESSES AGREED THE FIX WAS CORRECT. A PICTURE DISAGREED.** § IF A
+> ROUND TOUCHES LAYOUT, LOOK AT IT RENDERED earned its place twice in one round —
+> once to find the missing file, once to stop it shipping. **Build the A/B before
+> the next attempt, not after.**
+>
+> ✅ **JAKE ANSWERED WHAT THE SECOND CENTRE ROW IS, AND IT DECIDES THE DESIGN:**
+> *"the sprint is how long it takes the student to type that run, which is lower
+> than daily… It's helpful to me to see how long a kid is taking to type a lesson
+> as I walk around."* **Elapsed time on the current run. The audience is Jake, not
+> the student.** Count-up, no limit, no completion state, resets per run.
+> ⚠️ **IT IS A DISPLAY OF TIME ALREADY BEING TRACKED — DO NOT ADD A SECOND CLOCK**;
+> ROADMAP 0's ruling on the timing mechanism is directly upstream.
+> ⚠️ **`hud-lead-test.mjs` PART B ASSERTS THAT FIELD STAYS EMPTY** on learn.html.
+> Correct today, wrong the moment this lands — update it deliberately, in the same
+> round, with the reason written down.
+>
+> ### ✅ WHAT SHIPPED: ROADMAP 42's COLOUR HALF, WHICH UNBLOCKS ITEM 38
+>
+> **232 declarations out of 150 template-string `style=` attributes.** `admin.js`
+> goes **163 → 13** attributes, **289 → 57** declarations. 31 new utilities, 30
+> reused, 0 collisions.
+>
+> ⭐ **The blocking rule cost nothing.** The reset grep still returns exactly three
+> `.style.<p> = ''` sites and all three land on elements with no static `style=`,
+> so none was ever a candidate. `.seg-row` excluded itself again by interpolation.
+>
+> ⚠️⚠️ **EIGHTEEN WERE BUTTON BACKGROUNDS AND THAT PART IS NOT MECHANICAL, THOUGH
+> IT LOOKS IT.** Each had been suppressing `button:hover` AND `button:disabled`
+> since it was written. **And the obvious extraction makes it worse:**
+> `u-background-333` is (0,1,0) and `button:hover` is (0,1,1), so every one would
+> have flooded Carolina blue on hover. They take btn-tint's shape —
+> `button.btn-bg-<v>:not(:disabled)` plus `btn-tint` for the derived brightness
+> hover. ⚠️ **Not `u-` names on purpose:** that prefix promises a single-class
+> single-property utility and three assertions read it that way. Three were
+> **deleted** — their value was `#0047AB`, which IS `button`'s own background.
+>
+> ⚠️ **NO COLOUR WAS MERGED.** Value-named only; item 38 still decides meaning.
+>
+> ⚠️ **11 ATTRIBUTES REFUSED AS SPLICED** — the text spans a JS string join, so
+> deleting the span deletes the quote ending one literal and the one beginning the
+> next. **A quote alone is NOT a splice:** `font-family:'Courier New'` is ordinary
+> CSS, and reading it as one refused seven healthy attributes on the first pass.
+>
+> ⚠️ **THE ITEM 38 METRIC WAS LYING AND THE TOOL WAS THE LAST CONSUMER FIXED.**
+> `audit-inline-styles.mjs` counted uses in the markup alone and called 62 healthy
+> classes orphans. **`inline-styles-test.mjs` A3/A4 had this exact bug and Round 58
+> fixed it there and left it in the tool**, because nothing points a check at a
+> tool. Now **104 used-once of 261**, zero orphans.
+>
+> ### THE STATE OF PLAY
+>
+> * **68 harnesses pass, `audit:versions` 0 problems** — verified on arrival BEFORE
+>   anything changed (`npm install` first, §0.-29.A) and again after.
+>   ⚠️ `npm run test:rules` NOT run; nothing here touches `firestore.rules`.
+> * **Upload set:** `admin.js`, `admin.html`, `tests/inline-styles-test.mjs`,
+>   `tools/audit-inline-styles.mjs`, and the three documents. ⚠️ **`style.css` and
+>   `tests/hud-lead-test.mjs` are deliberately absent.**
+> * ⚠️ **THE ADMIN CHANGE IS VISIBLE**: eighteen buttons and two links gain a hover
+>   and a working disabled grey-out. Jake was told before uploading.
+> * **New: 51** (sort the build list — specced, not shipped; sort in
+>   `renderBuildList()`, NEVER the `SOURCES` array, and copy the array first),
+>   **52** (documents-vs-repo auditor), **53** (search + a featured book — 80 books
+>   and kids see the first row only; ⚠️ two features for two different children,
+>   and check item 45 first), **54** (popularity sort — ⚠️ Jake priced it as a read
+>   and the read may be free; the WRITE is the expensive half, and it needs item 33
+>   retaken first).
+> * **50** still open and undiagnosed. **42's colour half is done; 38 is unblocked.**
+>   **34/35** wait on a week of Jake's data. **30** unreproduced. **39** wants its own
+>   conversation. **47 step two** is the functions-side copy plus a byte-identity
+>   harness.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md has no Round 56 or Round 58 entry.** Not reconstructed —
+>   writing someone else's round from their summaries produces a plausible document
+>   rather than a true one. It matters to item 52, whose auditor reads that file.
+>
+> *On the name:* the **Jewett** (1892) was a blind writer — the type struck the
+> platen from underneath, so the line you had just typed stayed hidden until you
+> lifted the carriage. Every part of the mechanism reported success and none of it
+> showed you the paper. Three documents recorded `style.css` v3.10.0 as shipped,
+> `audit:versions` printed 0 problems for ten rounds, `npm test` was green, and the
+> page never received the fix. ⚠️ **Then the carriage was lifted a second time and
+> the fix itself turned out to be wrong** — which no harness could have told
+> anyone, and Jake could, in one look. **Both of this round's findings came from
+> showing him a picture.**
+
+> ## Round 58 (Emerson) — the previous handoff, kept
 >
 > ✅ **ROADMAP 49 IS FIXED AND SHIPPED — `learn.js` v2.44.0.** ⚠️⚠️ **ROADMAP 50
 > IS STILL OPEN, STILL UNDIAGNOSED, AND IS THE ONLY OUTSTANDING DEFECT.** Jake reported them mid-round, with screenshots, from two different

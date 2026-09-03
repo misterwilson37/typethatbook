@@ -1,5 +1,7 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.61.0, 2026-09-03 (Round 59, Jewett).** ⚠️⚠️ **ITEM 12 WAS MARKED ✅ CLOSED IN THREE DOCUMENTS AND ITS CODE WAS NEVER IN THE REPO.** `style.css` shipped at **v3.9.0** while CHANGELOG Round 48, ROADMAP §12 and the v3.36.0 entry all cited **v3.10.0**; `hud-lead-test.mjs` was v1.1.0 with no Section E. **Round 48's upload never landed, and both halves went missing together, which is why the suite stayed green.** ⚠️⚠️ **THE ASYMMETRY IS STRUCTURAL: the three documents re-ship EVERY round and code files ship changed-only**, so item 12's paperwork rode in on Round 49's docs while the code it described existed nowhere. **A missed upload deletes the work and keeps the receipt.** ⚠️⚠️ **AND THEN JAKE LOOKED AT THE RE-LANDED FIX RENDERED AND RULED AGAINST IT — SO IT IS NOT SHIPPING AND ITEM 12 IS REOPENED.** For a two-row stack v3.9.0 and v3.10.0 are **identical** (content height 32.5px IS the min-height, so `center` and `flex-start` coincide); the promoted one-row centre is the entire change, and that is the part he rejected. ⭐ **His rule: two rows align row-to-row, one row centres — which the page already does.** ✅ **And he answered the question that actually settles it: School's second centre row is ELAPSED TIME ON THE CURRENT RUN**, read over a shoulder as he walks the room. ⭐⭐ **THE INSTRUMENT THAT MADE ALL OF THIS VISIBLE WAS A RENDERED A/B, NOT A HARNESS** — §"if a round touches layout, look at it rendered" earned its place twice in one round. ✅ **ITEM 42's COLOUR HALF IS DONE, AND IT UNBLOCKS ITEM 38.** 232 declarations out of 150 template-string `style=` attributes; `admin.js` **163 → 13** attributes and **289 → 57** declarations; 31 new utilities, 30 reused, 0 collisions. ⚠️⚠️ **EIGHTEEN OF THEM WERE BUTTON BACKGROUNDS AND THAT PART IS NOT MECHANICAL** — each had been suppressing `button:hover` AND `button:disabled`, and the obvious extraction makes it worse (`u-background-333` is 0,1,0; `button:hover` is 0,1,1). They take btn-tint's guarded shape instead. ⚠️ **THE METRIC ITEM 38 STEERS BY WAS LYING**: `audit-inline-styles.mjs` counted uses in the markup alone, reporting 62 healthy classes as orphans — the same one-consumer bug Round 58 fixed in the harness and left in the tool that prints the number. ⭐ **New items 51–54**, three of them Jake's.
+
 **v3.59.0, 2026-09-02 (Round 58, Emerson, close).** ✅ **THE LATENT LEDGER BUG FOUND WHILE HUNTING ITEM 50 IS FIXED — `logdays.js` v1.5.0.** `noteDay()`'s `MAX_DAYS` trim dropped the oldest dates **without moving `since` forward**, so past 400 recorded days those dates became "known absent" and were skipped — **item 50's exact shape, arriving on its own.** ⚠️ `since` moves FORWARD there and that **obeys** the module's rule: the rule forbids turning a KNOWN day into a skip, and a forward move makes the era below it UNKNOWN, so it is read blind — costs reads, never minutes. `logdays-test.mjs` H7, mutation-verified against the shipped v1.4.0 behaviour. ⚠️⚠️ **ITEM 42's COLOUR HALF WAS NOT STARTED, DELIBERATELY** — 167 declarations across the runtime-assignment surface of the file that writes every book in the library is not work to begin at the end of a long session. It is the top open item and it wants a fresh round.
 
 **v3.58.0, 2026-09-02 (Round 58, Emerson, final).** ✅ **ITEM 42's admin.js HALF SHIPPED — `admin.js` v3.41.0, `admin.html` v1.4.0.** 250 declarations out of 136 template-string `style=` attributes into the utility block: 31 new classes, 46 existing reused, **0 name collisions**, and ⭐ **Jake's font-size ladder collapsed from TWELVE values to SIX**, every move to the nearest surviving rung. ⚠️⚠️ **COLOUR WAS DELIBERATELY EXCLUDED AND THE COLOUR HALF IS THE ONE THAT UNBLOCKS ITEM 38** — 128 `color` and 39 `background` declarations remain inline, every excluded property being one `admin.js` assigns at RUNTIME. **So 42 is not one job but two, and this is the half that does NOT unblock 38 — do not report 42 as nearly done.** ⚠️ 13 attributes refused as dynamic, which is how `.seg-row`'s `.style.background = ''` hazard excluded ITSELF rather than by anyone remembering it. ⚠️ **A hazard Round 57's survey did not name: 21 styled tags already carry a `class=`, and a second `class=` attribute is discarded SILENTLY by every parser** — 16 rewrites merge instead. ⚠️ `inline-styles-test.mjs` A3/A4 now read **both** consumers; reading only the markup reported 31 healthy classes as orphans and would have missed an admin.js class nobody declared. Mutation-verified.
@@ -385,6 +387,11 @@ Everything else still open:
 - 39. ⚠️ 64 alert() AND confirm() CALLS ARE THE LOUDEST “UNFINISHED” SIGNAL IN THE APP
 - 42. ⚠️ admin.js STILL CARRIES 183 (Round 56 CLOSED THE admin.html HALF) — AND THE THREE THINGS THIS ITEM GOT WRONG
 - 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME  *(Jake ANSWERED it Round 57 — it is student-facing visibility, not a staff filter; read the item before starting)*
+- 12. ⚠️⚠️ REOPENED (Round 59, Jewett) — THE LEAD AXIS, AND JAKE'S RULING ON WHAT SHOULD ALIGN  *(⚠️ DO NOT SHIP style.css v3.10.0 — he looked at it rendered and ruled against it)*
+- 53. ⚠️ EIGHTY BOOKS AND NO WAY THROUGH THEM — SEARCH, AND SOMETHING FEATURED  *(Jake asked, 2026-09-03)*
+- 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
+- 51. ⚠️ THE BUILD LIST IS IN NO ORDER A READER CAN RECOGNISE — SORT IT ALPHABETICALLY  *(Jake asked, 2026-09-03. Sort in renderBuildList(), NEVER the SOURCES array — read the item first)*
+- 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS  *(the instrument that would have caught Round 59's finding on the day)*
 
 ## ⏳ WATCHING — no action, just don't forget
 
@@ -415,7 +422,6 @@ Everything else still open:
 - 22. ✅ MEASURED AND CLOSED (Round 44) — runCount DRIFT IS ESSENTIALLY ABSENT
 - 24. ✅ CLOSED (Round 46, Rem-Sho) — THE WRITER: A RESENT CHUNK NO LONGER DUPLICATES
 - 26. ✅ CLOSED (Round 47, Blickensderfer) — THE CONTINUE-READING ROW READS AS ITS OWN THING
-- 12. ✅ CLOSED (Round 47, Blickensderfer) — THE LEAD AXIS, AND TWO STALE BULLETS
 - 23. ✅ CLOSED (Round 50, Blickensderfer) — THE RUN LIST IS PAIRED WITH THE LESSON
 - 14a. ✅ CLOSED BY VERIFICATION (Round 50, Blickensderfer) — ALREADY SHIPPED BY ITEM 14
 - 11a. ✅ CLOSED (Round 53) — JAKE RULED: THE WRITE-TIME STAMP IS CORRECT
@@ -1540,9 +1546,104 @@ write both.
 
 ---
 
-## 12. ✅ CLOSED (Round 47, Blickensderfer) — THE LEAD AXIS, AND TWO STALE BULLETS
+## 12. ⚠️⚠️ REOPENED (Round 59, Jewett) — THE LEAD AXIS, AND JAKE'S RULING ON WHAT SHOULD ALIGN
 
-✅ **FIXED IN style.css v3.10.0.** School's lesson HUD leaves `#hud-sprint`
+⚠️⚠️ **DO NOT SHIP `style.css` v3.10.0. JAKE LOOKED AT IT RENDERED AND RULED
+AGAINST THE ONE THING IT CHANGES.** He was shown an A/B of the shipped rules
+against Round 48's and said, of the promoted centre row: *"What I don't love is
+that you bumped up the middle when there's no second line to balance it. If it's
+two lines, they should all line up. If it's one, it should center in the space
+like 'Home' does on the left."*
+
+⚠️⚠️ **AND THAT RULE IS WHAT v3.9.0 ALREADY DOES.** For a two-row stack the two
+versions render **identically** — content height is 18.75 + 13.75 = 32.5px,
+which IS v3.10.0's `min-height`, so there is no free space and
+`justify-content: center` and `flex-start` land in the same place. The
+`:empty` rules only fire when the lead row is empty. **So the left/right
+alignment Jake liked in the preview was never the change; the promotion of the
+one-row centre stack is the entire content of Round 48, and it is the part he
+rejected.**
+
+⭐ **HIS RULE, STATED PROPERLY, AND THE PAGE ALREADY OBEYS IT:** a stack with two
+rows aligns row-to-row across all three sections; anything with one row centres
+on the bar's midline. `← Home` on the left does exactly that, and so do
+`I'm done` and `(Logout)` on the right — ⚠️ he guessed "settings on the right"
+and there is no gear on learn.html, but the elements he was reaching for behave
+the way he described.
+
+⭐ **THE THIRD OPTION IS THE ONE THAT ACTUALLY SETTLES IT, AND IT IS HIS:**
+*"we could add sprint length to the middle for the second line, which could be
+cool and even it out."* If the centre always has two rows, the centre always
+aligns, the `:empty` case never arises, and the cross-surface jump that
+generated the original screenshot goes away without any conditional CSS at all.
+✅ **AND JAKE HAS ANSWERED WHAT GOES IN IT, 2026-09-03:** *"the sprint is how
+long it takes the student to type that run, which is lower than daily (except
+for the first run, of course). It's helpful to me to see how long a kid is
+taking to type a lesson as I walk around."*
+
+⚠️⚠️ **SO IT IS ELAPSED TIME ON THE CURRENT RUN, AND THE AUDIENCE IS JAKE, NOT
+THE STUDENT.** He reads it over a shoulder while walking the room. That decides
+several things a CSS round would otherwise guess at: it is a **count-up, not a
+countdown**; it has **no limit and no completion state**; and it resets at the
+start of each run rather than accumulating like Daily.
+
+⚠️⚠️ **IT IS A DISPLAY OF TIME ALREADY BEING TRACKED, AND IT MUST STAY THAT WAY.**
+Do NOT introduce a second clock. ROADMAP 0's ruling on what *"don't touch the
+timing mechanism"* means is directly upstream of this, and the midnight-straddle
+and Overnight Rescue work is downstream of the same counters. **Find the run's
+existing start and render it. If no such value exists, that is a question for
+Jake before it is a line of code.**
+
+⚠️ **`hud-lead-test.mjs` PART B ASSERTS THE FIELD IS EMPTY ON learn.html** — that
+School's centre row has nothing to render rather than a stray `0:00`. That
+assertion was correct for a School with no sprint and becomes wrong the moment
+this lands. **Update it deliberately, in the same round, with the reason
+written down** — do not let a later round discover it as a failure and "fix" it
+by emptying the field again.
+
+⚠️ And it is ROADMAP 0's territory, so read 0a–0e first.
+
+⚠️ **WHAT WAS ACTUALLY WRONG IN AUGUST IS NOW UNCLEAR AND SHOULD BE RE-ASKED.**
+The screenshot complaint was *"very obviously off in comparison to every other
+HUD (including the lesson menu HUD)"* — a CROSS-SURFACE comparison. The lesson
+menu and the lesson are the same markup, so the comparison was probably against
+Library, where the centre lead is filled during a sprint and empty otherwise.
+**That is a jump between pages, not a misalignment within one bar**, and Round
+48 fixed the second thing. Get a fresh screenshot before the next attempt.
+
+⚠️ **KEEP THE RE-LANDING RECORD BELOW ANYWAY.** The finding that made this round
+— a ✅ standing for ten rounds over code that was never in the repo — is
+independent of whether the fix was right, and item 52 exists because of it.
+
+### The re-landing, kept — and the round that never reached the repo
+
+⚠️⚠️ **READ THIS FIRST: THIS ITEM WAS MARKED CLOSED FOR TEN ROUNDS WITH ITS CODE
+ABSENT FROM THE REPOSITORY.** Round 48 wrote the fix, wrote the harness, wrote
+the entries below and in CHANGELOG.md, and **its two-file upload never landed.**
+`style.css` sat at v3.9.0 with the defect intact while every document in the
+project cited v3.10.0. Nothing went red, because the harness that would have
+caught it was the other file in the same lost zip.
+
+⚠️⚠️ **THE ASYMMETRY THAT HID IT IS WORTH MORE THAN THE FIX.** ROADMAP.md,
+HANDOFF.md and CHANGELOG.md are re-shipped **in full, every round**. Code files
+are shipped **changed-only** (see § CONVENTIONS). So the *record* of Round 48
+walked into the repo on Round 49's document upload while the *code* it described
+did not exist anywhere. **A missed upload deletes the work and keeps the
+receipt** — and the receipt is what the next ten rounds read.
+
+⚠️ **THE PRACTICAL RULE:** a ✅ in this file is evidence that somebody *wrote* a
+fix, not that the fix is *running*. When an item's claim matters, check the
+shipped file's version stamp against the claim. **Item 52 makes that check
+mechanical**; until it exists, do it by hand.
+
+✅ **RE-LANDED 2026-09-03 from Jake's archived Round 48 zip.** It applied clean:
+the shipped `style.css` was byte-identical to Round 48's apart from the fix
+itself, so nothing had drifted underneath it in ten rounds. Section E's nine
+assertions were re-verified against four mutations (revert `justify-content`,
+swap the variable for a literal, drop the `min-height` floor, drop the `:empty`
+rule) and each was caught.
+
+✅ **THE ORIGINAL FIX, AS WRITTEN AND AS NOW SHIPPED — style.css v3.10.0.** School's lesson HUD leaves `#hud-sprint`
 empty by design, and `.hud-stack` was `justify-content: center` with auto
 height — so the one remaining row centred on the BAR's midline (~30px) while
 every two-row stack put its LEAD row at ~23px. WPM/accuracy, the headline
@@ -4672,3 +4773,184 @@ and the harness header says so, because D guards the failure that would have com
 He remembers *"Julie or Julia"* and the field currently holds whatever admin
 last stored. Now that the row actually renders, the value is visible on the
 About page and can be corrected book by book in admin — no code change needed.
+
+---
+
+## 51. ⚠️ THE BUILD LIST IS IN NO ORDER A READER CAN RECOGNISE — SORT IT ALPHABETICALLY
+
+**Jake, 2026-09-03:** *"the build info list is in no order I can recognize.
+Alphabetical would certainly make it easier to find stuff in."*
+
+He is right and the reason is historical: `SOURCES` in `versions.js` is in the
+order modules were **registered**, one round at a time, over about forty rounds.
+`game.js`, `learn.js` and `keyboard.js` lead because they were first; the Round
+27 trio (`drill-filter`, `celebrate`, `receipt`) sits in a clump after
+`daylog.js` because that is the round that noticed them. There are 31 entries.
+Nothing about that order helps the person who is looking for one file, and the
+person looking for one file is Jake at a classroom machine, wondering whether
+the thing in front of him is running the build he just uploaded.
+
+### ⚠️ SORT THE OUTPUT, NOT `SOURCES` — THIS IS THE WHOLE DESIGN
+
+**Do not reorder the `SOURCES` array.** Three things depend on it staying as it
+is:
+
+* It is **mirrored in `tools/audit-versions.mjs` and `tests/version-stamp-test.mjs`**,
+  and section D of that harness fails if the three disagree. Sorting one and not
+  the others is a three-file change for a display preference.
+* Half its entries carry **positional comments** — the ROADMAP 9b block above
+  `drill-filter.js`, the ROADMAP 16 block above `reports.html`. Alphabetising
+  the array orphans every one of them from the entries they explain.
+* The registration order is the only surviving record of when each module
+  entered the build, which is occasionally what someone is actually asking.
+
+**`renderBuildList(results, { notes })` in `versions.js` is the single choke
+point** — `game.js`, `learn.js` and `index.html` all call it, so one sort there
+fixes every surface Jake can see:
+
+```js
+const rows = [...results]
+    .sort((a, b) => a.file.localeCompare(b.file))
+    .map(r => { … });
+```
+
+⚠️ **COPY THE ARRAY.** `results` is `_buildCache`, handed to every caller by
+reference; an in-place `.sort()` would quietly reorder the cache that the next
+caller reads.
+
+### ⚠️ THE PART THAT IS NOT ONE LINE, AND WHY THIS WAS NOT DONE IN ROUND 59
+
+`versions.js`'s leading header is **already at the 8-entry budget**
+(v1.15.0 down to v1.8.0), so a v1.16.0 entry pushes v1.8.0 out to CHANGELOG.md
+§ ARCHIVED FILE HEADERS, and the archive move needs the usual check for live
+comments still citing the archived version (§0.-30.G). That is the real cost of
+this item — the sort itself is four lines.
+
+⚠️ **`tools/audit-versions.mjs` PRINTS IN `SOURCES` ORDER TOO AND IS DELIBERATELY
+LEFT ALONE.** Jake has no CLI and never sees that output; a round that sorts it
+for symmetry is adding a fourth file to the upload for nobody's benefit. If a
+later round does it anyway, say so here rather than leaving the two orders
+disagreeing with no note.
+
+---
+
+## 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS
+
+Round 59's finding: `style.css` shipped at v3.9.0 while CHANGELOG.md,
+ROADMAP.md and the item itself all cited v3.10.0 as shipped. **Every check in
+this project runs from the repo toward the repo.** `audit:versions` compares a
+file's constant against that same file's header. `drill-filter-test.mjs` F12
+compares `style.css`'s `body::before` against `style.css`'s own first line. Both
+agreed perfectly, about a file that was ten rounds stale, because **a file
+always agrees with itself.**
+
+⚠️⚠️ **THIS IS §0.-37's LESSON ARRIVING A SECOND TIME.** Round 58 found the same
+shape in the version machinery — section D's two loops both ended at the
+harness's own list, so nothing was ever asserted INTO `tools/audit-versions.mjs`
+and it could lose an entry silently. **A mirror needs a check pointing at it.**
+The documents are a mirror of the repo and no check points at them.
+
+### The instrument
+
+`tools/audit-claims.mjs` plus `tests/claims-test.mjs`. Scan CHANGELOG.md,
+ROADMAP.md and HANDOFF.md for version claims of the form `` `file.js` v1.2.3 ``,
+take the **highest** claimed version per file, and compare it against what that
+file actually stamps. A claim above the shipped stamp is a round that did not
+land. Run against the repo as it arrived in Round 59 it reports `style.css`
+3.9.0 against a claimed 3.10.0, which is the whole defect, in one line, for
+free.
+
+⚠️ **THREE FALSE POSITIVES ARE ALREADY KNOWN AND MUST BE HANDLED, NOT SUPPRESSED
+WHOLESALE:**
+
+* **`reports.html` carries TWO versions** — the markup stamp (v1.7.0, what
+  `audit:versions` reads) and `REPORTS_VERSION` (v2.36.0, what the documents
+  quote). Same file, two numbers, and a naive comparison calls the higher one
+  missing. Compare against whichever stamp the citation means, or track both.
+* **Harness headers lag their own content.** `progress-test.mjs` says v1.1.0 and
+  already imports `chapter-position.js`; `drill-filter-test.mjs` says v1.0.0 and
+  already carries F12. The content landed and the stamp did not follow, which is
+  the *opposite* error and is bookkeeping, not a lost round. **Do not let these
+  three train anyone to ignore the tool** — §0.-14.G: a checker that cries wolf
+  on honest input is a checker the next round skips.
+* A version cited as **superseded** ("was v3.6.3, now …") reads as a claim.
+  Prefer the highest number on the line rather than every number on it.
+
+⚠️ **THE ONE THING IT MUST NOT DO IS GO RED ON ARRIVAL.** Fix the three stamp
+lags in the same round it ships, or it starts life as a known-red harness, which
+is what §0.-37 spent a whole round undoing.
+
+
+---
+
+## 53. ⚠️ EIGHTY BOOKS AND NO WAY THROUGH THEM — SEARCH, AND SOMETHING FEATURED
+
+**Jake, 2026-09-03:** *"a search feature on the stacks, and maybe a featured or
+random book suggestion at the top somewhere. Maybe to fill in blanks by resume?
+Or in the open padding on the left or right? I dunno. With as many books as
+there are now — nearly 80! — kids aren't seeing all of the books that are
+there."*
+
+⚠️⚠️ **THE PROBLEM IS DISCOVERY, NOT NAVIGATION, AND THE TWO HALVES ARE FOR
+DIFFERENT CHILDREN.** Search serves the child who already knows what they want.
+The featured slot serves the one who does not — and that is the child Jake is
+describing, the one who takes whatever is in the first row every time. **Do not
+let this become one feature.** A search box alone closes the item without
+touching the actual complaint.
+
+⚠️ **THE PLACEMENT IS EXPLICITLY UNDECIDED AND HE SAID SO** — *"I dunno."*
+Two candidates in his own words: the empty space beside the resume block, or the
+side padding. **Anything shipped here is a layout change on `index.html`, which
+is the page every child lands on**, so it is a round that ends by looking at it
+rendered (§ IF A ROUND TOUCHES LAYOUT, LOOK AT IT RENDERED), and Jake's design
+pet peeve about "slightly off" applies to whatever sits next to the grid.
+
+⭐ **BOTH HALVES CAN BE FREE.** The library grid is already in memory on
+`index.html` — search filters what is there and needs no read at all. A RANDOM
+pick is also free. It is only "featured" in the editorial sense, or "popular",
+that wants data, and that is item 54.
+
+⚠️ **CHECK ITEM 45 BEFORE BUILDING EITHER.** Per-building student visibility
+lands on this same page and this same list. A featured slot that surfaces a book
+a building has hidden from students would defeat 45 on the page 45 exists to
+protect, and a search box is the most direct way to hand a child the title
+somebody chose to keep off the grid. **Whichever ships second must not undo the
+first.**
+
+---
+
+## 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL
+
+**Jake, 2026-09-03:** *"I wish there was some way to sort by most popular, but I
+know that would take another read or write, and it's probably not worth it. But
+it would be nice!"*
+
+⚠️⚠️ **HE TALKED HIMSELF OUT OF IT ON A COST HE HAS NOT MEASURED, AND THAT COST
+MAY BE ZERO.** He is right that a live popularity count is a read per page load,
+and on this project reads are the thing being defended — the county-rollout
+question turns on how low they go. **But "most popular" does not have to be
+live, and a book's popularity does not change between one lunch period and the
+next.** Before pricing the live version, price these:
+
+* **A field on the book document.** The grid already reads the book list. A
+  counter living on a document that is already being read costs **nothing extra
+  to display** — the cost is on the WRITE side, and only if it is incremented
+  per open.
+* **A staff-refreshed ordering.** Whatever computes it runs when an admin asks,
+  not when a child loads the page. Zero student-side cost by construction, and
+  the ordering is a week stale, which for eighty public-domain books is not
+  stale at all.
+* ⚠️ **A per-open increment is a WRITE ON THE STUDENT PATH**, which is the
+  expensive half and the one to be sceptical of — not the read.
+
+⚠️ **DO NOT SHIP THE COUNTER BEFORE THE READS MEASUREMENT (item 33) IS RETAKEN.**
+That measurement still has never been taken, and adding a write to the student
+path before it is taken means the next measurement cannot separate this feature's
+cost from the baseline it was supposed to establish.
+
+⚠️ **AND IT NEEDS A RULING FROM JAKE BEFORE IT IS BUILT, NOT AFTER.** "Most
+popular" on a classroom tool is a feedback loop: the books at the top get picked
+because they are at the top. With eighty books and a discovery problem already
+(item 53), a popularity sort can make the tail *less* visible, not more —
+the opposite of what he asked 53 for. **Ask whether he wants popularity as the
+default order or as one option beside the current one.**

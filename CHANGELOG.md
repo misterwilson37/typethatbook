@@ -1,5 +1,139 @@
 # CHANGELOG — TypeThatBook
 
+## Round 59 (Jewett) — 2026-09-03 — a round that was written and never uploaded, and a fix that was right about the wrong thing
+
+### ⚠️⚠️ ROADMAP item 12 was marked ✅ CLOSED in three documents and its code was not in the repository
+
+`style.css` shipped at **v3.9.0** with the defect intact while CHANGELOG Round
+48, ROADMAP §12 and the ROADMAP v3.36.0 entry all cited **v3.10.0**.
+`hud-lead-test.mjs` was v1.1.0 with parts A–D and no Section E.
+
+**The two halves went missing together, which is why the suite stayed green** —
+the harness that would have caught the missing fix was the other file in the
+same lost upload. `audit:versions` reported 0 problems throughout, because it
+compares `style.css`'s constant to `style.css`'s own header. **A file always
+agrees with itself.**
+
+**⚠️⚠️ THE ASYMMETRY IS THE FINDING.** The three documents are re-shipped in full
+every round; code files ship changed-only. So item 12's paperwork entered the
+repo on Round 49's document upload while the code it described existed only in
+Round 48's zip. **A missed upload deletes the work and keeps the receipt**, and
+the receipt is what ten subsequent rounds read. Item 52 is the instrument that
+would have caught it on the day.
+
+Jake's hypothesis — that Round 48 forgot a version bump and the rules were live
+— was the right thing to check first, and it was not that: `--hud-row-lead`,
+`--hud-row-sub` and `.hud-lead:empty` appear nowhere in the shipped file.
+
+### ⚠️⚠️ And then the re-landed fix was rejected on sight, so it is NOT shipping
+
+Round 48's zip was re-applied, verified, mutation-checked four ways, and shown to
+Jake as a rendered A/B against the shipped rules. He ruled against the one thing
+it changes: *"What I don't love is that you bumped up the middle when there's no
+second line to balance it. If it's two lines, they should all line up. If it's
+one, it should center in the space like 'Home' does on the left."*
+
+**⚠️⚠️ AND FOR A TWO-ROW STACK THE TWO VERSIONS ARE IDENTICAL.** Content height is
+18.75 + 13.75 = 32.5px, which IS v3.10.0's `min-height`, so there is no free
+space and `justify-content: center` and `flex-start` coincide. The `:empty`
+rules fire only on the one-row centre. **So the left/right alignment Jake liked
+in the preview was never the change — the promoted centre row is the whole of
+Round 48, and it is the part he rejected.** His rule (two rows align, one row
+centres) is what v3.9.0 already does.
+
+✅ **He answered the question that settles it properly: School's second centre
+row is ELAPSED TIME ON THE CURRENT RUN**, audience himself, read over a shoulder
+while walking the room. Count-up, no limit, resets per run. Recorded in item 12
+with the constraints that follow from it.
+
+⭐ **THE INSTRUMENT THAT FOUND BOTH THINGS WAS A RENDERED A/B, NOT A HARNESS.**
+68 harnesses agreed the fix was correct. § IF A ROUND TOUCHES LAYOUT, LOOK AT IT
+RENDERED earned its place twice in one round.
+
+- `style.css` and `tests/hud-lead-test.mjs` are **NOT in this upload.** Item 12
+  is reopened with Jake's ruling as the spec.
+
+### ✅ ROADMAP 42, the colour half — the one that unblocks item 38
+
+**232 declarations out of 150 template-string `style=` attributes.** `admin.js`
+goes from **163 attributes to 13** and **289 declarations to 57**. 31 new
+utility classes, 30 existing reused, 0 name collisions.
+
+⚠️ **The blocking rule cost nothing.** The reset grep still returns exactly three
+`.style.<prop> = ''` sites, and all three land on elements carrying no static
+`style=` attribute, so none was ever a candidate. `.seg-row` excluded itself
+again by being interpolated.
+
+**⚠️⚠️ Eighteen of them were button backgrounds, and that part is not mechanical
+although it looks it.** An inline value beats every selector, so each had been
+suppressing BOTH `button:hover` and `button:disabled` since it was written — the
+second being the defect class Jake ruled on in Round 57. **And the obvious
+extraction makes it worse:** `u-background-333` is one class (0,1,0) and
+`button:hover` is (0,1,1), so each button would have flooded Carolina blue on
+hover. They take btn-tint's shape instead — `button.btn-bg-<v>:not(:disabled)`
+plus `btn-tint` for the derived brightness hover. **Deliberately not `u-` names:**
+that prefix promises a single-class single-property utility, and three separate
+assertions read it that way.
+
+- Three were **deleted** rather than moved — their value was `#0047AB`, which IS
+  `button`'s own background, so the declaration said nothing and only
+  suppressed. One was `background:none` and took the existing `.btn-plain`.
+- **No colour was merged.** Value-named extraction only; item 38 still decides
+  what amber means here. Jake's standing ruling licenses normalising sizes,
+  explicitly not colours.
+- 13 attributes refused: 2 dynamic, 11 **spliced** — the attribute text spans a
+  JS string join, so deleting the span would delete the quote ending one literal
+  and the one beginning the next. ⚠️ A quote alone is not a splice:
+  `font-family:'Courier New'` is ordinary CSS inside a double-quoted attribute,
+  and reading it as one refused seven healthy attributes on the first pass.
+- A **specificity checker** was written before anything was touched: for every
+  declaration moved, does a higher-specificity rule now win? It found the
+  eighteen buttons and two links, and reports zero against the finished files.
+
+### ⚠️ The item 38 metric was lying, and the tool that prints it was the last consumer to be fixed
+
+`tools/audit-inline-styles.mjs` counted utility-class usage in `admin.html`'s
+markup alone. After this round it reported **62 healthy classes as orphans**
+while understating the single-use tail — the number item 38 is steering by.
+**`inline-styles-test.mjs` A3/A4 had exactly this bug and Round 58 fixed it
+there**, in the harness, and left it in the tool, because nothing points a check
+at a tool. Fixed at v1.1.0; the metric now reads **104 used exactly once of 261**,
+zero orphans.
+
+### Files
+
+- `admin.js` **v3.42.0**, `admin.html` **v1.5.0**
+- `tests/inline-styles-test.mjs` **v1.1.0** — Section E, 5 assertions,
+  mutation-verified four ways (drop `:not(:disabled)` → E2; drop `btn-tint` →
+  E3; one inline background back on any button → E1; a `#0047AB` rule → E5).
+  ⚠️ E1 asserts the CLASS, not the eighteen instances, because the nineteenth is
+  the one that gets written without thinking about any of this.
+- `tools/audit-inline-styles.mjs` **v1.1.0**
+- `admin.js` v3.33.0's header entry archived to § ARCHIVED FILE HEADERS (8-entry
+  budget). ⚠️ Two live references still cite it — line 671's "WRITES THE SPAN,
+  NOT THE WHOLE FOOTER" and `session-merge-test.mjs`'s dead-HUD-reset assertion —
+  so the pointer folded into v3.42.0's entry is load-bearing.
+- ROADMAP.md **v3.61.0** — item 12 REOPENED; **new items 51, 52, 53, 54**
+
+⚠️ **Items 51 (sort the build list) was specced and not shipped**: it is not the
+one line it looks like — `versions.js`'s header is at the 8-entry budget, so it
+drags a CHANGELOG archive with it — and it does not belong in an upload whose
+job is the admin page.
+
+**68 harnesses pass; `audit:versions` 0 problems.** Verified on arrival BEFORE
+anything changed and again after. `npm run test:rules` NOT run — nothing here
+touches `firestore.rules`.
+
+⚠️ **`learn.html` still carries the false comment** that `#hud-sprint` "stays
+empty here and the live row centres itself". It is now doubly stale: item 12 is
+reopened AND that field is going to hold a run timer. Fix it in whatever round
+lands the second centre row.
+
+⚠️ **CHANGELOG.md has no Round 56 or Round 58 entry** — 57 is followed directly
+by 55. Not reconstructed here: writing someone else's round from their ROADMAP
+summaries produces a plausible document rather than a true one. ⚠️ It matters to
+item 52, whose auditor reads this file.
+
 ## Round 57 (Bar-Lock) — 2026-09-02 — three things were being read from the wrong place
 
 ⚠️⚠️ **THE ROUND'S SHAPE: EVERY DEFECT WAS SOMETHING TRUSTING A PROXY INSTEAD OF
@@ -4767,6 +4901,29 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### admin.js v3.33.0 — archived by Round 59 (Jewett), 8-entry budget
+
+⚠️ **TWO LIVE COMMENTS STILL CITE v3.33.0** — `admin.js` line 671 ("WRITES THE
+SPAN, NOT THE WHOLE FOOTER") and `tests/session-merge-test.mjs`, which asserts
+the dead v3.33.0 HUD reset is gone. The pointer folded into v3.42.0's entry is
+load-bearing, not courtesy. ⚠️ It also carried the v3.32.0 pointer, which is
+the entry directly below this one — both resolve here, nothing is deleted.
+
+```
+// v3.33.0 — ROADMAP 16. The build panel, and admin.html is now registered in
+//           versions.js SOURCES — a stale admin.js was previously invisible to
+//           the one instrument built to find stale files, which is backwards for
+//           the file that writes every book. ⚠️ The version line now writes a
+//           SPAN inside the footer, not the footer's innerText, which would
+//           delete the new button.
+//          ⚠ v3.32.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS
+//          (8-entry budget, Round 58). It is the read-meter.js routing — ONE
+//          changed import URL, no behaviour change — and it carried the v3.25.3
+//          pointer, which FOUR live comments in this file depend on. NOTHING
+//          DELETED; both resolve in the CHANGELOG.
+//
+```
 
 ### admin.js v3.32.0 — archived by Round 58 (Emerson), 8-entry budget
 

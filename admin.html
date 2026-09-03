@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- admin.html v1.4.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.5.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
@@ -283,6 +283,39 @@
         button.btn-plain,
         button.btn-plain:hover { background: none; }
 
+        /* ⚠️⚠️ ROADMAP 42, THE admin.js HALF — THE EIGHTEEN BUTTON BACKGROUNDS.
+           An inline background beats every selector, so all eighteen had been
+           suppressing `button:hover` AND `button:disabled` since they were
+           written. Jake ruled on that class of thing in Round 57: "You have
+           buttons that don't work or are invisible? They need to be fixed."
+
+           ⚠️ THEY ARE NOT `u-` UTILITIES AND MUST NOT BE RENAMED INTO THAT
+           NAMESPACE. The u- prefix promises a single class carrying one
+           property, winning on source order; these carry a compound selector
+           and a guard. inline-styles-test.mjs A3/A4/D2 all read the u- prefix
+           that way.
+
+           ⚠️ `:not(:disabled)` IS THE WHOLE POINT, same as btn-tint-* above:
+           without it these tie with `button:disabled` and, sitting later, win —
+           and the button never greys out. Do NOT "simplify" it away.
+
+           ⚠️ Three more were deleted rather than moved: their inline value was
+           #0047AB, which IS `button`'s own background, so the declaration said
+           nothing and only suppressed. Round 57 deleted three of these in this
+           file for the same reason. One was `background:none` and took
+           .btn-plain, which exists for exactly that.
+
+           ⭐ NO NEW COLOUR: every value here was already on the page, and the
+           hover is btn-tint's derived filter: brightness(). Item 38 is still
+           open and gets to decide what these MEAN. */
+        button.btn-bg-333:not(:disabled)              { background: #333; }
+        button.btn-bg-1a3a1a:not(:disabled)           { background: #1a3a1a; }
+        button.btn-bg-664400:not(:disabled)           { background: #664400; }
+        button.btn-bg-004466:not(:disabled)           { background: #004466; }
+        button.btn-bg-4b9cd3:not(:disabled)           { background: #4B9CD3; }
+        button.btn-bg-ffaa00:not(:disabled)           { background: #ffaa00; }
+
+
         /* ════════════════════════════════════════════════════════════════════
            ROADMAP 42 — THE INLINE STYLES, EXTRACTED
            ════════════════════════════════════════════════════════════════════
@@ -321,6 +354,7 @@
         /* background */
         .u-background-000 { background: #000; }
         .u-background-001a2a { background: #001a2a; }
+        .u-background-0a0a0a { background: #0a0a0a; }
         .u-background-0a1a0a { background: #0a1a0a; }
         .u-background-111 { background: #111; }
         .u-background-12000c { background: #12000c; }
@@ -330,19 +364,28 @@
         .u-background-1a1a00 { background: #1a1a00; }
         .u-background-1a1a1a { background: #1a1a1a; }
         .u-background-222 { background: #222; }
+        .u-background-2a0022 { background: #2a0022; }
+        .u-background-660000 { background: #660000; }
 
         /* border */
+        .u-border-0 { border: 0; }
         .u-border-1px-solid-004466 { border: 1px solid #004466; }
+        .u-border-1px-solid-006688 { border: 1px solid #006688; }
         .u-border-1px-solid-1a4a1a { border: 1px solid #1a4a1a; }
         .u-border-1px-solid-330022 { border: 1px solid #330022; }
         .u-border-1px-solid-333 { border: 1px solid #333; }
+        .u-border-1px-solid-336633 { border: 1px solid #336633; }
         .u-border-1px-solid-440022 { border: 1px solid #440022; }
         .u-border-1px-solid-444 { border: 1px solid #444; }
         .u-border-1px-solid-444400 { border: 1px solid #444400; }
         .u-border-1px-solid-4a1a1a { border: 1px solid #4a1a1a; }
         .u-border-1px-solid-4b9cd3 { border: 1px solid #4B9CD3; }
+        .u-border-1px-solid-552244 { border: 1px solid #552244; }
         .u-border-1px-solid-553300 { border: 1px solid #553300; }
         .u-border-1px-solid-555 { border: 1px solid #555; }
+        .u-border-1px-solid-661111 { border: 1px solid #661111; }
+        .u-border-1px-solid-664400 { border: 1px solid #664400; }
+        .u-border-1px-solid-996600 { border: 1px solid #996600; }
         .u-border-none { border: none; }
 
         /* border-bottom */
@@ -364,6 +407,8 @@
         .u-border-color-664400 { border-color: #664400; }
 
         /* border-left */
+        .u-border-left-2px-solid-442233 { border-left: 2px solid #442233; }
+        .u-border-left-2px-solid-886600 { border-left: 2px solid #886600; }
         .u-border-left-3px-solid-4b9cd3 { border-left: 3px solid #4B9CD3; }
 
         /* border-radius */
@@ -377,39 +422,56 @@
         .u-border-top-1px-solid-330022 { border-top: 1px solid #330022; }
         .u-border-top-1px-solid-333 { border-top: 1px solid #333; }
         .u-border-top-1px-solid-444 { border-top: 1px solid #444; }
+        .u-border-top-1px-solid-553300 { border-top: 1px solid #553300; }
 
         /* box-sizing */
         .u-box-sizing-border-box { box-sizing: border-box; }
 
         /* color */
+        .u-color-000 { color: #000; }
         .u-color-00ff41 { color: #00ff41; }
         .u-color-4b9cd3 { color: #4B9CD3; }
         .u-color-555 { color: #555; }
         .u-color-666 { color: #666; }
+        .u-color-66cc66 { color: #66cc66; }
         .u-color-66ccff { color: #66ccff; }
+        .u-color-775577 { color: #775577; }
         .u-color-777 { color: #777; }
         .u-color-886688 { color: #886688; }
         .u-color-888 { color: #888; }
+        .u-color-88ddaa { color: #88ddaa; }
+        .u-color-997799 { color: #997799; }
         .u-color-aaa { color: #aaa; }
         .u-color-b87ae8 { color: #b87ae8; }
         .u-color-bbb { color: #bbb; }
+        .u-color-bbddbb { color: #bbddbb; }
+        .u-color-c05621 { color: #c05621; }
+        .u-color-cc6688 { color: #cc6688; }
         .u-color-cc66cc { color: #cc66cc; }
+        .u-color-cc7777 { color: #cc7777; }
         .u-color-cc99cc { color: #cc99cc; }
         .u-color-ccc { color: #ccc; }
+        .u-color-ddd { color: #ddd; }
+        .u-color-eebbee { color: #eebbee; }
         .u-color-eee { color: #eee; }
         .u-color-ff3333 { color: #ff3333; }
+        .u-color-ff4444 { color: #ff4444; }
         .u-color-ff6666 { color: #ff6666; }
         .u-color-ff9999 { color: #ff9999; }
         .u-color-ffaa00 { color: #ffaa00; }
         .u-color-ffcc66 { color: #ffcc66; }
+        .u-color-fff { color: #fff; }
+        .u-color-red { color: red; }
         .u-color-white { color: white; }
 
         /* cursor */
         .u-cursor-pointer { cursor: pointer; }
 
         /* display */
+        .u-display-block { display: block; }
         .u-display-flex { display: flex; }
         .u-display-grid { display: grid; }
+        .u-display-inline-block { display: inline-block; }
         .u-display-none { display: none; }
 
         /* flex */
@@ -447,6 +509,7 @@
 
         /* font-weight */
         .u-font-weight-bold { font-weight: bold; }
+        .u-font-weight-normal { font-weight: normal; }
 
         /* gap */
         .u-gap-0 { gap: 0; }
@@ -541,6 +604,7 @@
 
         /* opacity */
         .u-opacity-0-4 { opacity: 0.4; }
+        .u-opacity-6 { opacity: .6; }
 
         /* overflow */
         .u-overflow-auto { overflow: auto; }

@@ -1,5 +1,16 @@
-// inline-styles-test.mjs v1.0.0 — ⚠️⚠️ THE EXTRACTED STYLES STAY EXTRACTED, AND
+// inline-styles-test.mjs v1.1.0 — ⚠️⚠️ THE EXTRACTED STYLES STAY EXTRACTED, AND
 //                                    THE UTILITY BLOCK STAYS LAST.
+//
+// v1.1.0 — SECTION E: THE EIGHTEEN BUTTON BACKGROUNDS admin.js WAS BUILDING
+//          INLINE (ROADMAP 42, the colour half). Every one of them had been
+//          suppressing `button:hover` AND `button:disabled` since it was
+//          written, because an inline value beats every selector. Moving them
+//          onto plain `u-` utilities would have handed `button:hover` (0,1,1)
+//          the win over the utility (0,1,0) and flooded each button Carolina
+//          blue on hover — an extraction that LOOKS mechanical and is not.
+//          ⚠️ Mutation-verified: dropping :not(:disabled) from one rule fails
+//          E2, dropping btn-tint from one button fails E3, putting a single
+//          inline background back on a button in admin.js fails E1.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // WHY THIS EXISTS
@@ -216,6 +227,81 @@ ok(/filter:\s*brightness/.test(cssNoComments),
    'C3e the tint hover is a derived filter, not four new hex values \u2014 item 38 is ' +
    'still open on this page, and Round 55 was rightly pulled up for adding colour ' +
    'while improving something else');
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n--- E. ⚠️⚠️ A BUTTON BACKGROUND IS NEVER INLINE, AND ITS RULE IS GUARDED ---');
+//
+// ⚠️⚠️ THIS IS THE ONE PART OF ROADMAP 42 THAT IS NOT MECHANICAL, AND IT LOOKS
+// MECHANICAL. admin.js built eighteen buttons with an inline `background`. An
+// inline value beats every selector, so each of them had been silently
+// suppressing BOTH `button:hover { background:#4B9CD3 }` AND
+// `button:disabled { background:#555 }` for as long as it existed — the second
+// being the class of defect Jake ruled on in Round 57: "You have buttons that
+// don't work or are invisible? They need to be fixed."
+//
+// ⚠️ AND THE OBVIOUS EXTRACTION MAKES IT WORSE, NOT BETTER. `u-background-333`
+// is a single class (0,1,0); `button:hover` is (0,1,1) and BEATS it. The button
+// would go Carolina blue on hover, on a page nobody screenshots.
+//
+// E1 asserts the CLASS — no inline background on any button in admin.js — and
+// not the eighteen instances, because the nineteenth is the one that will be
+// written without thinking about any of this.
+{
+    const offenders = [];
+    for (const m of adminJs.matchAll(/<\s*button\b[^>]*>/g)) {
+        const tag = m[0];
+        const style = /\sstyle\s*=\s*"([^"]*)"/.exec(tag);
+        if (!style) continue;
+        if (style[1].includes('${')) continue;         // runtime value; can never be a class
+        if (/(^|;)\s*background\s*:/.test(style[1]))
+            offenders.push(tag.slice(0, 90));
+    }
+    ok(offenders.length === 0,
+       '⚠️⚠️ E1 NO <button> IN admin.js CARRIES A STATIC INLINE background. Found: ' +
+       (offenders.slice(0, 3).join(' | ') || 'none') +
+       ' \u2014 an inline background suppresses button:hover AND button:disabled, ' +
+       'and the disabled one is a control that gives a teacher no feedback while ' +
+       'it does slow work');
+
+    // E2 — the mechanism, same argument as C3c one section up.
+    const bgRules = [...cssNoComments.matchAll(/button\.(btn-bg-[\w-]+)([^{]*)\{/g)];
+    ok(bgRules.length > 0, `E2a the guarded button backgrounds exist (${bgRules.length} rules)`);
+    const unguarded = bgRules.filter(m => !/:not\(:disabled\)/.test(m[2])).map(m => m[1]);
+    ok(unguarded.length === 0,
+       '⚠️⚠️ E2 EVERY .btn-bg-* RULE IS GUARDED BY :not(:disabled). Unguarded: ' +
+       (unguarded.join(', ') || 'none') +
+       ' \u2014 without the guard the rule ties with button:disabled and wins on ' +
+       'source order, which is the suppression it was written to end');
+
+    // E3 — the pairing. The background class supplies no hover of its own; the
+    // hover is btn-tint's derived brightness filter. A button carrying one and
+    // not the other is a button with no hover feedback at all, which is how
+    // these eighteen looked before this round.
+    const missing = [];
+    for (const m of adminJs.matchAll(/\bclass\s*=\s*"([^"]*)"/g)) {
+        const cls = m[1].split(/\s+/);
+        if (cls.some(c => c.startsWith('btn-bg-')) && !cls.includes('btn-tint'))
+            missing.push(m[1].slice(0, 70));
+    }
+    ok(missing.length === 0,
+       '⚠️ E3 EVERY btn-bg-* BUTTON ALSO CARRIES btn-tint. Missing: ' +
+       (missing.slice(0, 3).join(' | ') || 'none') +
+       ' \u2014 btn-bg-* sets the resting colour and nothing else; btn-tint is where ' +
+       'the derived hover lives');
+
+    // E4 — ⚠️ NO NEW COLOUR. Item 38 is still open on this page and gets to
+    // decide what these values MEAN; this round moved them and merged none.
+    const bgValues = [...cssNoComments.matchAll(/button\.btn-bg-[\w-]+[^{]*\{\s*background:\s*([^;}]+)/g)]
+        .map(m => m[1].trim().toLowerCase());
+    ok(bgValues.every(v => /^#[0-9a-f]{3,6}$/.test(v)),
+       'E4 every guarded tint is a plain hex that was already on the page \u2014 no ' +
+       'gradient, no new named colour, nothing invented while item 38 is open');
+    ok(!bgValues.includes('#0047ab'),
+       '\u26a0\ufe0f E5 #0047AB IS NOT AMONG THEM. It IS `button`\u2019s own background, so a ' +
+       'rule restating it says nothing and only suppresses \u2014 three of the eighteen ' +
+       'were deleted rather than moved for exactly that reason, and Round 57 ' +
+       'deleted three more in admin.html before them');
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\n--- D. ⚠️⚠️ THE UTILITY BLOCK IS LAST. THIS IS THE ONE THAT ROTS SILENTLY ---');

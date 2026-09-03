@@ -1,4 +1,43 @@
-// admin.js v3.41.0
+// admin.js v3.42.0
+//
+// v3.42.0 — ⚠⚠ ROADMAP 42, THE COLOUR HALF — THE ONE THAT UNBLOCKS ITEM 38.
+//           232 declarations out of 150 template-string style= attributes: 31
+//           new utility classes, 30 existing reused, 0 collisions. This file
+//           goes 163 style= attributes to 13 and 289 declarations to 57.
+//           ⚠⚠ EIGHTEEN OF THEM WERE BUTTON BACKGROUNDS AND THAT PART IS NOT
+//           MECHANICAL. An inline value beats every selector, so each had been
+//           suppressing BOTH `button:hover` and `button:disabled` since it was
+//           written — the second is the defect class Jake ruled on in Round 57
+//           ("buttons that don't work or are invisible need to be fixed").
+//           ⚠⚠ AND THE OBVIOUS EXTRACTION MAKES IT WORSE: `u-background-333` is
+//           one class (0,1,0) and `button:hover` is (0,1,1), so the button would
+//           flood Carolina blue on hover. They take btn-tint's shape instead —
+//           `button.btn-bg-<v>:not(:disabled)` plus btn-tint for the derived
+//           brightness hover. ⚠ NOT `u-` NAMES ON PURPOSE: that prefix promises
+//           a single-class single-property utility and these are neither.
+//           ⚠ THREE WERE DELETED RATHER THAN MOVED — their value was #0047AB,
+//           which IS `button`'s own background, so the declaration said nothing
+//           and only suppressed. One was `background:none` and took .btn-plain.
+//           ⚠ NO COLOUR WAS MERGED. Value-named extraction only; item 38 still
+//           gets to decide what amber means here. Jake's standing ruling of
+//           2026-09-02 licenses normalising SIZES, explicitly not colours.
+//           ⚠ THE BLOCKING RULE COST NOTHING: the three `.style.<p> = ''` resets
+//           (build-panel display, .seg-row background, .seg-text color) all land
+//           on elements with no static style= attribute, so none of them was in
+//           the candidate set. Re-run the grep in ROADMAP 42 before extending
+//           this — a new `= ''` anywhere adds a fourth.
+//           ⚠ 13 attributes refused: 2 dynamic (contain ${{}}), 11 SPLICED — the
+//           attribute text spans a JS string join, so deleting the span would
+//           delete the quote that ends one literal and the one that begins the
+//           next. A quote alone is not a splice: font-family:'Courier New' is
+//           ordinary CSS inside a double-quoted attribute, and reading it as one
+//           refused seven healthy attributes on the first pass.
+//           ⚠ v3.33.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS
+//           (8-entry budget). It is the build panel and the versions.js SOURCES
+//           registration, and TWO live references depend on it — line 671's
+//           "WRITES THE SPAN, NOT THE WHOLE FOOTER" and session-merge-test.mjs's
+//           dead-HUD-reset assertion. It carried the v3.32.0 pointer too.
+//           NOTHING DELETED; all of it resolves in the CHANGELOG.
 //
 // v3.41.0 — ⚠⚠ ROADMAP 42, THE admin.js HALF. 250 declarations moved out of
 //           136 template-string style= attributes into admin.html's utility
@@ -160,18 +199,6 @@
 //           file ever saw them. Fixed on the converter side; this file needed no
 //           change for that half.
 //
-// v3.33.0 — ROADMAP 16. The build panel, and admin.html is now registered in
-//           versions.js SOURCES — a stale admin.js was previously invisible to
-//           the one instrument built to find stale files, which is backwards for
-//           the file that writes every book. ⚠️ The version line now writes a
-//           SPAN inside the footer, not the footer's innerText, which would
-//           delete the new button.
-//          ⚠ v3.32.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS
-//          (8-entry budget, Round 58). It is the read-meter.js routing — ONE
-//          changed import URL, no behaviour change — and it carried the v3.25.3
-//          pointer, which FOUR live comments in this file depend on. NOTHING
-//          DELETED; both resolve in the CHANGELOG.
-//
 // ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
 //
 // ── Load-bearing. Do not "simplify" these ─────────────────────────────────
@@ -196,7 +223,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.41.0";
+const ADMIN_VERSION = "3.42.0";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -565,15 +592,15 @@ function renderCustomWords() {
     const el = document.getElementById('custom-word-list');
     if (!el) return;
     if (!customFlaggedWords.length) {
-        el.innerHTML = '<span class="u-font-size-0-75em" style="color:#775577">None yet. The built-in list still applies.</span>';
+        el.innerHTML = '<span class="u-font-size-0-75em u-color-775577">None yet. The built-in list still applies.</span>';
         return;
     }
     el.innerHTML = customFlaggedWords.map((w, i) =>
-        '<span class="u-border-radius-12px u-padding-2px-8px u-font-size-0-75em" style="background:#2a0022; border:1px solid #552244; color:#eebbee">' +
-        (isRegexTerm(w) ? '<span class="u-font-size-0-9em" style="color:#88ddaa" title="regular expression">.*&nbsp;</span>' : '') +
+        '<span class="u-border-radius-12px u-padding-2px-8px u-font-size-0-75em u-background-2a0022 u-border-1px-solid-552244 u-color-eebbee">' +
+        (isRegexTerm(w) ? '<span class="u-font-size-0-9em u-color-88ddaa" title="regular expression">.*&nbsp;</span>' : '') +
         escapeHtmlSafe(w) +
-        ' <button data-widx="' + i + '" class="custom-word-del u-cursor-pointer u-padding-0-0-0-4px u-font-size-1em u-width-auto" title="Remove" ' +
-        'style="background:none; border:0; color:#cc6688">\u00d7</button></span>'
+        ' <button data-widx="' + i + '" class="custom-word-del u-cursor-pointer u-padding-0-0-0-4px u-font-size-1em u-width-auto btn-plain u-border-0 u-color-cc6688" title="Remove" ' +
+        '>\u00d7</button></span>'
     ).join('');
     el.querySelectorAll('.custom-word-del').forEach(b => {
         b.onclick = async () => {
@@ -693,10 +720,10 @@ else if (footerEl) footerEl.innerText = `Admin JS: v${ADMIN_VERSION}`;
             const { readDeployedVersions, renderBuildList } = await import('./versions.js');
             const results = await readDeployedVersions({ force: true });
             list.innerHTML =
-                `<div class="u-margin-bottom-4px" style="opacity:.6">admin.js v${ADMIN_VERSION} (this page)</div>`
+                `<div class="u-margin-bottom-4px u-opacity-6">admin.js v${ADMIN_VERSION} (this page)</div>`
                 + renderBuildList(results, { notes: true });
         } catch (e) {
-            list.innerHTML = '<div style="color:#c05621">Could not read build info.</div>';
+            list.innerHTML = '<div class="u-color-c05621">Could not read build info.</div>';
             console.warn('[admin] build panel:', e);
         }
     });
@@ -1958,14 +1985,14 @@ function showOfferedCover() {
     const fileUrl = URL.createObjectURL(offeredCover.blob);
     host.classList.remove('hidden');
     host.insertAdjacentHTML('beforeend',
-        '<div class="u-margin-top-10px u-padding-top-10px" style="border-top:1px solid #553300">' +
-        '<b>Cover</b><div class="u-font-size-0-8em u-margin-4px-0-8px" style="color:#aaa">' +
+        '<div class="u-margin-top-10px u-padding-top-10px u-border-top-1px-solid-553300">' +
+        '<b>Cover</b><div class="u-font-size-0-8em u-margin-4px-0-8px u-color-aaa">' +
         'This book already has a cover, so the one in the file was NOT used.</div>' +
-        '<div class="u-gap-14px u-align-items-flex-end" style="display:flex">' +
-        '<div class="u-text-align-center u-font-size-0-75em" style="color:#888">' +
-        '<img src="' + escapeAttrSafe(savedCoverUrl) + '" class="u-max-height-110px u-margin-bottom-4px" style="display:block">saved</div>' +
-        '<div class="u-text-align-center u-font-size-0-75em" style="color:#66cc66">' +
-        '<img src="' + escapeAttrSafe(fileUrl) + '" class="u-max-height-110px u-margin-bottom-4px" style="display:block">in the file</div>' +
+        '<div class="u-gap-14px u-align-items-flex-end u-display-flex">' +
+        '<div class="u-text-align-center u-font-size-0-75em u-color-888">' +
+        '<img src="' + escapeAttrSafe(savedCoverUrl) + '" class="u-max-height-110px u-margin-bottom-4px u-display-block">saved</div>' +
+        '<div class="u-text-align-center u-font-size-0-75em u-color-66cc66">' +
+        '<img src="' + escapeAttrSafe(fileUrl) + '" class="u-max-height-110px u-margin-bottom-4px u-display-block">in the file</div>' +
         '<button id="cover-accept-file" class="u-align-self-center">Use the file\u2019s cover</button>' +
         '</div></div>');
     const btn = document.getElementById('cover-accept-file');
@@ -2039,16 +2066,16 @@ async function reportMetadataMismatches(file) {
 
     host.classList.remove('hidden');
     host.innerHTML =
-        '<div class="u-margin-bottom-6px" style="color:#ffaa00; font-weight:bold">' +
+        '<div class="u-margin-bottom-6px u-color-ffaa00 u-font-weight-bold">' +
         '\u26a0\ufe0f The file disagrees with what is saved on ' + diffs.length +
         ' field' + (diffs.length !== 1 ? 's' : '') + '</div>' +
-        '<div class="u-font-size-0-8em u-margin-bottom-8px" style="color:#aaa">Nothing changes ' +
+        '<div class="u-font-size-0-8em u-margin-bottom-8px u-color-aaa">Nothing changes ' +
         'unless you click. The file is often right \u2014 but not always, so it is your call.</div>' +
         diffs.map((d, i) =>
             '<div class="u-margin-bottom-6px u-font-size-0-85em">' +
             '<b>' + escapeHtml(d.label) + '</b><br>' +
-            '<span style="color:#888;">saved:</span> ' + escapeHtml(d.current) + '<br>' +
-            '<span style="color:#888;">file:&nbsp;</span> <span style="color:#66cc66;">' +
+            '<span class="u-color-888">saved:</span> ' + escapeHtml(d.current) + '<br>' +
+            '<span class="u-color-888">file:&nbsp;</span> <span class="u-color-66cc66">' +
             escapeHtml(d.fileVal) + '</span> ' +
             '<button class="mismatch-accept u-margin-left-8px u-font-size-0-9em" data-i="' + i + '" ' +
             '>Use the file\u2019s</button>' +
@@ -3800,54 +3827,54 @@ function openSplitUI(chapIndex) {
     if (headings.length > 0) {
         headingsList = `
             <div class="u-margin-bottom-15px">
-                <div class="u-margin-bottom-8px" style="color:#00ff41">Detected ${headings.length} heading(s) — click to toggle:</div>
+                <div class="u-margin-bottom-8px u-color-00ff41">Detected ${headings.length} heading(s) — click to toggle:</div>
                 ${headings.map(h => `
-                    <label class="u-padding-6px-8px u-margin-2px-0 u-border-radius-3px u-cursor-pointer" style="display:block; background:#1a1a1a; border:1px solid #333">
+                    <label class="u-padding-6px-8px u-margin-2px-0 u-border-radius-3px u-cursor-pointer u-display-block u-background-1a1a1a u-border-1px-solid-333">
                         <input type="checkbox" class="split-point-cb u-margin-right-8px" data-seg-index="${h.index}" checked >
-                        <span style="color:#ffaa00;">Seg ${h.index}:</span> <span style="color:#ccc;">${escapeHtml(h.text.substring(0, 60))}</span>
+                        <span class="u-color-ffaa00">Seg ${h.index}:</span> <span class="u-color-ccc">${escapeHtml(h.text.substring(0, 60))}</span>
                     </label>
                 `).join('')}
             </div>
         `;
     } else {
-        headingsList = `<div class="u-margin-bottom-15px" style="color:#888">No headings auto-detected.</div>`;
+        headingsList = `<div class="u-margin-bottom-15px u-color-888">No headings auto-detected.</div>`;
     }
     
     content.innerHTML = `
-        <div class="u-justify-content-space-between u-align-items-center u-margin-bottom-15px u-padding-bottom-10px" style="display:flex; border-bottom:1px solid #444">
-            <h3 class="u-margin-0" style="color:#4B9CD3">Split Chapter: ${escapeHtml(chap.title)}</h3>
-            <span style="color:#888;">${chap.segments.length} segments</span>
+        <div class="u-justify-content-space-between u-align-items-center u-margin-bottom-15px u-padding-bottom-10px u-display-flex u-border-bottom-1px-solid-444">
+            <h3 class="u-margin-0 u-color-4b9cd3">Split Chapter: ${escapeHtml(chap.title)}</h3>
+            <span class="u-color-888">${chap.segments.length} segments</span>
         </div>
         
         ${headingsList}
         
         <div class="u-margin-bottom-10px">
-            <label class="u-margin-bottom-5px" style="color:#ccc; display:block">Split points (segment numbers, comma-separated):</label>
-            <input id="manual-split-input" type="text" class="u-width-100pct u-padding-10px" style="background:#111; color:white; border:1px solid #555; font-family:'Courier New', monospace" 
+            <label class="u-margin-bottom-5px u-color-ccc u-display-block">Split points (segment numbers, comma-separated):</label>
+            <input id="manual-split-input" type="text" class="u-width-100pct u-padding-10px u-background-111 u-color-white u-border-1px-solid-555 u-font-family-courier-new-monospace" 
                    placeholder="e.g. 15, 30, 45" value="${headings.map(h => h.index).join(', ')}">
         </div>
         
-        <div class="u-margin-bottom-6px u-gap-6px u-align-items-center" style="display:flex">
+        <div class="u-margin-bottom-6px u-gap-6px u-align-items-center u-display-flex">
             <input id="seg-search-input" type="text" placeholder="Search segments..." 
-                   class="u-flex-3 u-padding-8px-10px u-font-size-0-85em" style="background:#111; color:white; border:1px solid #555; font-family:'Courier New', monospace">
-            <span id="seg-search-count" class="u-flex-1 u-font-size-0-75em u-white-space-nowrap u-text-align-center" style="color:#888"></span>
-            <button id="seg-search-prev" class="u-flex-1 u-padding-8px-0 u-cursor-pointer u-font-size-0-75em" style="background:#333; border:1px solid #555; color:#ccc">▲ Prev</button>
-            <button id="seg-search-next" class="u-flex-1 u-padding-8px-0 u-cursor-pointer u-font-size-0-75em" style="background:#333; border:1px solid #555; color:#ccc">▼ Next</button>
+                   class="u-flex-3 u-padding-8px-10px u-font-size-0-85em u-background-111 u-color-white u-border-1px-solid-555 u-font-family-courier-new-monospace">
+            <span id="seg-search-count" class="u-flex-1 u-font-size-0-75em u-white-space-nowrap u-text-align-center u-color-888"></span>
+            <button id="seg-search-prev" class="u-flex-1 u-padding-8px-0 u-cursor-pointer u-font-size-0-75em btn-bg-333 btn-tint u-border-1px-solid-555 u-color-ccc">▲ Prev</button>
+            <button id="seg-search-next" class="u-flex-1 u-padding-8px-0 u-cursor-pointer u-font-size-0-75em btn-bg-333 btn-tint u-border-1px-solid-555 u-color-ccc">▼ Next</button>
         </div>
         
-        <div id="seg-browser" class="u-margin-bottom-15px u-max-height-200px u-overflow-y-auto u-padding-8px u-font-size-0-8em" style="background:#0a0a0a; border:1px solid #333; font-family:'Courier New', monospace">
+        <div id="seg-browser" class="u-margin-bottom-15px u-max-height-200px u-overflow-y-auto u-padding-8px u-font-size-0-8em u-background-0a0a0a u-border-1px-solid-333 u-font-family-courier-new-monospace">
             ${chap.segments.map((seg, i) => {
                 const preview = seg.text.replace(/^\t/, '').trim().substring(0, 90);
                 const isHeading = headings.some(h => h.index === i);
                 return `<div class="seg-row" data-index="${i}" style="padding:2px 4px; ${isHeading ? 'color:#ffaa00; font-weight:bold; background:#1a1500;' : 'color:#666;'} cursor:pointer;" 
                          title="Click to add as split point">
-                    <span class="u-min-width-36px" style="color:#555; display:inline-block">${i}</span> <span class="seg-text">${escapeHtml(preview)}${seg.text.length > 90 ? '...' : ''}</span>
+                    <span class="u-min-width-36px u-color-555 u-display-inline-block">${i}</span> <span class="seg-text">${escapeHtml(preview)}${seg.text.length > 90 ? '...' : ''}</span>
                 </div>`;
             }).join('')}
         </div>
         
         <div class="row">
-            <div class="col"><button id="split-execute-btn" class="u-width-100pct u-padding-12px" style="background:#0047AB">Split Chapter</button></div>
+            <div class="col"><button id="split-execute-btn" class="u-width-100pct u-padding-12px">Split Chapter</button></div>
             <div class="col"><button id="split-cancel-btn" class="secondary-btn u-width-100pct u-padding-12px" >Cancel</button></div>
         </div>
     `;
@@ -4866,21 +4893,21 @@ function showLanguageWarnings(issues, fromDB = false) {
         const approvedNow = activeBookId ? getApprovedWords(activeBookId) : [];
         if (approvedNow.length) {
             container.innerHTML =
-                '<div style="color:#00ff41; font-weight:bold;">\u2705 No unapproved language found.</div>' +
-                '<div class="u-font-size-0-85em u-margin-top-6px" style="color:#aaa">' +
+                '<div class="u-color-00ff41 u-font-weight-bold">\u2705 No unapproved language found.</div>' +
+                '<div class="u-font-size-0-85em u-margin-top-6px u-color-aaa">' +
                 approvedNow.length + ' word' + (approvedNow.length !== 1 ? 's' : '') +
                 ' approved for this book and hidden from this scan: ' +
-                approvedNow.map(w => '<span style="color:#66cc66;">' + escapeHtml(w) +
+                approvedNow.map(w => '<span class="u-color-66cc66">' + escapeHtml(w) +
                                      '</span>').join(', ') +
-                ' <a href="#" id="lang-clear-approvals" class="u-margin-left-8px" style="color:#ff6666">' +
+                ' <a href="#" id="lang-clear-approvals" class="u-margin-left-8px u-color-ff6666">' +
                 'Clear all</a>' +
-                '<div class="u-margin-top-4px" style="color:#777">Approvals are stored in this ' +
+                '<div class="u-margin-top-4px u-color-777">Approvals are stored in this ' +
                 'browser only, per book \u2014 they do not travel to another device and ' +
                 'are not part of the book record.</div></div>';
             wireClearApprovals();
             return;
         }
-        container.innerHTML = '<div style="color:#00ff41; font-weight:bold;">\u2705 No flagged language found.</div>';
+        container.innerHTML = '<div class="u-color-00ff41 u-font-weight-bold">\u2705 No flagged language found.</div>';
         return;
     }
 
@@ -4895,46 +4922,46 @@ function showLanguageWarnings(issues, fromDB = false) {
     const approvedWords = activeBookId ? getApprovedWords(activeBookId) : [];
 
     let html = `
-        <div class="u-font-size-1-1em u-margin-bottom-10px" style="color:#ff6666; font-weight:bold">
+        <div class="u-font-size-1-1em u-margin-bottom-10px u-color-ff6666 u-font-weight-bold">
             ⚠️ ${issues.length} language warning${issues.length !== 1 ? 's' : ''} found
         </div>
-        <div class="u-font-size-0-85em u-margin-bottom-12px" style="color:#aaa">
+        <div class="u-font-size-0-85em u-margin-bottom-12px u-color-aaa">
             Review each flagged word. Edit to replace it, or approve if it's acceptable in context (e.g. "chink in armor").
-            ${approvedWords.length > 0 ? `<div class="u-margin-top-4px" style="color:#888">Approved words for this book: ${approvedWords.map(w => `<span style="color:#66cc66;">${escapeHtml(w)}</span>`).join(', ')} <a href="#" id="lang-clear-approvals" class="u-margin-left-8px" style="color:#ff6666">Clear all</a></div>` : ''}
+            ${approvedWords.length > 0 ? `<div class="u-margin-top-4px u-color-888">Approved words for this book: ${approvedWords.map(w => `<span class="u-color-66cc66">${escapeHtml(w)}</span>`).join(', ')} <a href="#" id="lang-clear-approvals" class="u-margin-left-8px u-color-ff6666">Clear all</a></div>` : ''}
         </div>
     `;
 
     Object.entries(grouped).forEach(([wordKey, { word, occurrences }]) => {
-        html += `<div class="u-padding-10px-0" style="border-bottom:1px solid #333">`;
-        html += `<div class="u-justify-content-space-between u-align-items-center u-margin-bottom-6px" style="display:flex">
-            <div class="u-font-size-1em" style="font-weight:bold; color:#ff6666">"${escapeHtml(word)}" — ${occurrences.length} occurrence${occurrences.length !== 1 ? 's' : ''}</div>
-            <button class="lang-approve-word-btn u-padding-3px-10px u-cursor-pointer u-font-size-0-75em u-width-auto" data-word="${escapeHtml(wordKey)}" style="background:#1a3a1a; color:#66cc66; border:1px solid #336633">✅ Approve all "${escapeHtml(word)}"</button>
+        html += `<div class="u-padding-10px-0 u-border-bottom-1px-solid-333">`;
+        html += `<div class="u-justify-content-space-between u-align-items-center u-margin-bottom-6px u-display-flex">
+            <div class="u-font-size-1em u-font-weight-bold u-color-ff6666">"${escapeHtml(word)}" — ${occurrences.length} occurrence${occurrences.length !== 1 ? 's' : ''}</div>
+            <button class="lang-approve-word-btn u-padding-3px-10px u-cursor-pointer u-font-size-0-75em u-width-auto btn-bg-1a3a1a btn-tint u-color-66cc66 u-border-1px-solid-336633" data-word="${escapeHtml(wordKey)}">✅ Approve all "${escapeHtml(word)}"</button>
         </div>`;
 
         occurrences.forEach(occ => {
             const safeCtx = escapeHtml(occ.context);
             const highlighted = safeCtx.replace(
                 new RegExp(escapeRegex(escapeHtml(occ.word)), 'gi'),
-                m => `<span class="bad-char-highlight" style="background:#660000;">${m}</span>`
+                m => `<span class="bad-char-highlight u-background-660000">${m}</span>`
             );
             const fullText = occ.segRef.text || '';
             const prefix = occ.ctxStart > 0 ? '...' : '';
             const suffix = occ.ctxEnd < fullText.length ? '...' : '';
 
-            html += `<div id="lang-issue-${occ.globalIdx}" class="u-margin-6px-0-6px-15px u-padding-6px u-border-radius-4px" style="background:#111; border:1px solid #333">
-                <div class="u-justify-content-space-between u-align-items-center" style="display:flex">
-                    <div class="u-font-size-0-75em" style="color:#666">Ch: ${escapeHtml(occ.chapTitle)} | Seg ${occ.segIdx}</div>
-                    <div class="u-gap-4px" style="display:flex">
-                        <button class="lang-more-ctx-btn u-padding-2px-8px u-cursor-pointer u-font-size-0-75em u-width-auto" data-idx="${occ.globalIdx}" style="background:#333; color:#aaa; border:1px solid #555">📖 More</button>
-                        <button class="lang-edit-btn u-padding-2px-8px u-cursor-pointer u-font-size-0-75em u-width-auto" data-idx="${occ.globalIdx}" style="background:#333; color:#4B9CD3; border:1px solid #4B9CD3">✏️ Edit</button>
+            html += `<div id="lang-issue-${occ.globalIdx}" class="u-margin-6px-0-6px-15px u-padding-6px u-border-radius-4px u-background-111 u-border-1px-solid-333">
+                <div class="u-justify-content-space-between u-align-items-center u-display-flex">
+                    <div class="u-font-size-0-75em u-color-666">Ch: ${escapeHtml(occ.chapTitle)} | Seg ${occ.segIdx}</div>
+                    <div class="u-gap-4px u-display-flex">
+                        <button class="lang-more-ctx-btn u-padding-2px-8px u-cursor-pointer u-font-size-0-75em u-width-auto btn-bg-333 btn-tint u-color-aaa u-border-1px-solid-555" data-idx="${occ.globalIdx}">📖 More</button>
+                        <button class="lang-edit-btn u-padding-2px-8px u-cursor-pointer u-font-size-0-75em u-width-auto btn-bg-333 btn-tint u-color-4b9cd3 u-border-1px-solid-4b9cd3" data-idx="${occ.globalIdx}">✏️ Edit</button>
                     </div>
                 </div>
-                <div id="lang-ctx-${occ.globalIdx}" class="u-font-size-0-85em u-margin-top-4px u-line-height-1-5" style="font-family:'Courier New', monospace; color:#888">${prefix}${highlighted}${suffix}</div>
+                <div id="lang-ctx-${occ.globalIdx}" class="u-font-size-0-85em u-margin-top-4px u-line-height-1-5 u-font-family-courier-new-monospace u-color-888">${prefix}${highlighted}${suffix}</div>
                 <div id="lang-editor-${occ.globalIdx}" class="hidden u-margin-top-6px" >
-                    <textarea id="lang-textarea-${occ.globalIdx}" rows="3" class="u-width-100pct u-padding-6px u-font-size-0-9em u-box-sizing-border-box" style="background:#1a1a1a; color:#ddd; border:1px solid #555; font-family:'Courier New', monospace"></textarea>
-                    <div class="u-gap-6px u-margin-top-4px" style="display:flex">
-                        <button class="lang-save-btn u-padding-4px-12px u-cursor-pointer u-font-size-0-75em u-width-auto" data-idx="${occ.globalIdx}" style="background:#0047AB; color:#fff; border:none">Save & Re-Scan</button>
-                        <button class="lang-cancel-btn u-padding-4px-12px u-cursor-pointer u-font-size-0-75em u-width-auto" data-idx="${occ.globalIdx}" style="background:#333; color:#aaa; border:1px solid #555">Cancel</button>
+                    <textarea id="lang-textarea-${occ.globalIdx}" rows="3" class="u-width-100pct u-padding-6px u-font-size-0-9em u-box-sizing-border-box u-background-1a1a1a u-color-ddd u-border-1px-solid-555 u-font-family-courier-new-monospace"></textarea>
+                    <div class="u-gap-6px u-margin-top-4px u-display-flex">
+                        <button class="lang-save-btn u-padding-4px-12px u-cursor-pointer u-font-size-0-75em u-width-auto u-color-fff u-border-none" data-idx="${occ.globalIdx}">Save & Re-Scan</button>
+                        <button class="lang-cancel-btn u-padding-4px-12px u-cursor-pointer u-font-size-0-75em u-width-auto btn-bg-333 btn-tint u-color-aaa u-border-1px-solid-555" data-idx="${occ.globalIdx}">Cancel</button>
                     </div>
                 </div>
             </div>`;
@@ -5002,7 +5029,7 @@ function wireLangButtons() {
                 const safeCtx = escapeHtml(iss.context);
                 const highlighted = safeCtx.replace(
                     new RegExp(escapeRegex(escapeHtml(iss.word)), 'gi'),
-                    m => `<span class="bad-char-highlight" style="background:#660000;">${m}</span>`
+                    m => `<span class="bad-char-highlight u-background-660000">${m}</span>`
                 );
                 const prefix = atStart ? '' : '...';
                 const suffix = atEnd ? '' : '...';
@@ -5107,7 +5134,7 @@ async function runAudit() {
     auditBtn.disabled = true;
     auditBtn.innerText = '🔍 Auditing...';
     auditResults.classList.remove('hidden');
-    auditResults.innerHTML = '<div style="color:#888;">Scanning chapters...</div>';
+    auditResults.innerHTML = '<div class="u-color-888">Scanning chapters...</div>';
     auditIssueData = [];
 
     try {
@@ -5129,15 +5156,15 @@ async function runAudit() {
                 segments: c.segments || []
             }));
             if (!chapters.length) {
-                auditResults.innerHTML = '<div style="color:red;">Nothing staged to audit.</div>';
+                auditResults.innerHTML = '<div class="u-color-red">Nothing staged to audit.</div>';
                 return;
             }
         } else {
             const metaSnap = await getDoc(doc(db, "books", activeBookId));
             if (!metaSnap.exists()) {
-                auditResults.innerHTML = '<div style="color:#ffaa00;">' +
+                auditResults.innerHTML = '<div class="u-color-ffaa00">' +
                     'No saved copy of <strong>' + activeBookId + '</strong> in the database yet, ' +
-                    'and nothing staged to audit.<br><span style="color:#888;">' +
+                    'and nothing staged to audit.<br><span class="u-color-888">' +
                     'If you just parsed an EPUB, click <strong>Open Book</strong> to load it, ' +
                     'or upload it first.</span></div>';
                 return;
@@ -5174,7 +5201,7 @@ async function runAudit() {
         }
         renderAuditResults(chapters.length);
     } catch (e) {
-        auditResults.innerHTML = `<div style="color:red;">Audit error: ${e.message}</div>`;
+        auditResults.innerHTML = `<div class="u-color-red">Audit error: ${e.message}</div>`;
     } finally {
         auditBtn.disabled = false;
         auditBtn.innerText = '🔍 Audit Book for Untypeable Characters';
@@ -5184,13 +5211,13 @@ async function runAudit() {
 function renderAuditResults(chapCount) {
     const totalIssues = auditIssueData.length;
     const sourceBanner = auditIsFromDB
-        ? '<div class="u-font-size-0-8em u-margin-bottom-8px" style="color:#4B9CD3">Auditing the <strong>saved</strong> copy in the database. Fixes write immediately.</div>'
-        : '<div class="u-font-size-0-8em u-margin-bottom-8px" style="color:#ffaa00">Auditing <strong>staged</strong> chapters that are not uploaded yet. Fixes stay in memory until you click <strong>Upload All</strong>.</div>';
+        ? '<div class="u-font-size-0-8em u-margin-bottom-8px u-color-4b9cd3">Auditing the <strong>saved</strong> copy in the database. Fixes write immediately.</div>'
+        : '<div class="u-font-size-0-8em u-margin-bottom-8px u-color-ffaa00">Auditing <strong>staged</strong> chapters that are not uploaded yet. Fixes stay in memory until you click <strong>Upload All</strong>.</div>';
 
     if (totalIssues === 0) {
         auditResults.innerHTML = sourceBanner + `
-            <div class="u-font-size-1-1em" style="color:#00ff41; font-weight:bold">✅ Clean! No untypeable characters found.</div>
-            <div class="u-margin-top-5px" style="color:#888">Scanned ${chapCount} chapters.</div>
+            <div class="u-font-size-1-1em u-color-00ff41 u-font-weight-bold">✅ Clean! No untypeable characters found.</div>
+            <div class="u-margin-top-5px u-color-888">Scanned ${chapCount} chapters.</div>
         `;
         return;
     }
@@ -5202,17 +5229,17 @@ function renderAuditResults(chapCount) {
     });
 
     let html = `
-        <div class="u-font-size-1-1em u-margin-bottom-10px" style="color:#ffaa00; font-weight:bold">
+        <div class="u-font-size-1-1em u-margin-bottom-10px u-color-ffaa00 u-font-weight-bold">
             ⚠️ Found ${totalIssues} untypeable character${totalIssues !== 1 ? 's' : ''} in ${Object.keys(grouped).length} chapter${Object.keys(grouped).length !== 1 ? 's' : ''}
         </div>
-        <button id="audit-fix-all-btn" class="u-padding-8px-16px u-cursor-pointer u-margin-bottom-15px u-width-auto" style="background:#664400; border:1px solid #996600; color:#ffcc66">
+        <button id="audit-fix-all-btn" class="u-padding-8px-16px u-cursor-pointer u-margin-bottom-15px u-width-auto btn-bg-664400 btn-tint u-border-1px-solid-996600 u-color-ffcc66">
             ⚡ Auto-Fix All ${totalIssues} Issues in Database
         </button>
     `;
 
     Object.entries(grouped).forEach(([chapId, { chapTitle, issues }]) => {
-        html += `<div class="u-padding-8px-0" style="border-bottom:1px solid #333">`;
-        html += `<div style="font-weight:bold; color:#4B9CD3;">${escapeHtml(chapTitle)} (${chapId}) — ${issues.length} issue${issues.length !== 1 ? 's' : ''}</div>`;
+        html += `<div class="u-padding-8px-0 u-border-bottom-1px-solid-333">`;
+        html += `<div class="u-font-weight-bold u-color-4b9cd3">${escapeHtml(chapTitle)} (${chapId}) — ${issues.length} issue${issues.length !== 1 ? 's' : ''}</div>`;
         issues.forEach(iss => {
             const seg = iss.segments[iss.segIdx];
             const text = seg.text || '';
@@ -5232,24 +5259,24 @@ function renderAuditResults(chapCount) {
             const safeCh = escapeHtml(iss.char);
             const highlighted = safeCtx.split(safeCh).join(`<span class="bad-char-highlight">${safeCh}</span>`);
 
-            html += `<div id="audit-issue-${iss.globalIdx}" class="u-margin-6px-0-6px-15px u-padding-6px u-border-radius-4px" style="background:#111; border:1px solid #333">
-                <div class="u-justify-content-space-between u-align-items-center" style="display:flex">
-                    <div class="u-font-size-0-8em" style="color:#aaa">
+            html += `<div id="audit-issue-${iss.globalIdx}" class="u-margin-6px-0-6px-15px u-padding-6px u-border-radius-4px u-background-111 u-border-1px-solid-333">
+                <div class="u-justify-content-space-between u-align-items-center u-display-flex">
+                    <div class="u-font-size-0-8em u-color-aaa">
                         Seg ${iss.segIdx}, pos ${iss.charIdx}:
-                        <span style="color:#ff3333; font-weight:bold;">"${safeCh}"</span>
-                        (U+${iss.hex}) → <span style="color:#00ff41;">${escapeHtml(String(iss.replacement))}</span>
+                        <span class="u-color-ff3333 u-font-weight-bold">"${safeCh}"</span>
+                        (U+${iss.hex}) → <span class="u-color-00ff41">${escapeHtml(String(iss.replacement))}</span>
                     </div>
-                    <div class="u-gap-4px" style="display:flex">
-                        <button class="audit-edit-btn u-padding-2px-8px u-cursor-pointer u-font-size-0-75em u-width-auto" data-idx="${iss.globalIdx}" style="background:#333; color:#4B9CD3; border:1px solid #4B9CD3">✏️ Edit</button>
-                        <button class="audit-autofix-btn u-padding-2px-8px u-cursor-pointer u-font-size-0-75em u-width-auto" data-idx="${iss.globalIdx}" style="background:#333; color:#ffcc66; border:1px solid #664400">⚡ Fix</button>
+                    <div class="u-gap-4px u-display-flex">
+                        <button class="audit-edit-btn u-padding-2px-8px u-cursor-pointer u-font-size-0-75em u-width-auto btn-bg-333 btn-tint u-color-4b9cd3 u-border-1px-solid-4b9cd3" data-idx="${iss.globalIdx}">✏️ Edit</button>
+                        <button class="audit-autofix-btn u-padding-2px-8px u-cursor-pointer u-font-size-0-75em u-width-auto btn-bg-333 btn-tint u-color-ffcc66 u-border-1px-solid-664400" data-idx="${iss.globalIdx}">⚡ Fix</button>
                     </div>
                 </div>
-                <div class="u-font-size-0-85em u-margin-top-4px u-line-height-1-5" style="font-family:'Courier New', monospace; color:#888">${highlighted}</div>
+                <div class="u-font-size-0-85em u-margin-top-4px u-line-height-1-5 u-font-family-courier-new-monospace u-color-888">${highlighted}</div>
                 <div id="audit-editor-${iss.globalIdx}" class="hidden u-margin-top-6px" >
-                    <textarea id="audit-textarea-${iss.globalIdx}" rows="3" class="u-width-100pct u-padding-6px u-font-size-0-9em u-box-sizing-border-box" style="background:#1a1a1a; color:#ddd; border:1px solid #555; font-family:'Courier New', monospace"></textarea>
-                    <div class="u-gap-6px u-margin-top-4px" style="display:flex">
-                        <button class="audit-save-btn u-padding-4px-12px u-cursor-pointer u-font-size-0-75em u-width-auto" data-idx="${iss.globalIdx}" style="background:#0047AB; color:#fff; border:none">Save & Re-Check</button>
-                        <button class="audit-cancel-btn u-padding-4px-12px u-cursor-pointer u-font-size-0-75em u-width-auto" data-idx="${iss.globalIdx}" style="background:#333; color:#aaa; border:1px solid #555">Cancel</button>
+                    <textarea id="audit-textarea-${iss.globalIdx}" rows="3" class="u-width-100pct u-padding-6px u-font-size-0-9em u-box-sizing-border-box u-background-1a1a1a u-color-ddd u-border-1px-solid-555 u-font-family-courier-new-monospace"></textarea>
+                    <div class="u-gap-6px u-margin-top-4px u-display-flex">
+                        <button class="audit-save-btn u-padding-4px-12px u-cursor-pointer u-font-size-0-75em u-width-auto u-color-fff u-border-none" data-idx="${iss.globalIdx}">Save & Re-Check</button>
+                        <button class="audit-cancel-btn u-padding-4px-12px u-cursor-pointer u-font-size-0-75em u-width-auto btn-bg-333 btn-tint u-color-aaa u-border-1px-solid-555" data-idx="${iss.globalIdx}">Cancel</button>
                     </div>
                 </div>
             </div>`;
@@ -5372,7 +5399,7 @@ function wireAuditButtons() {
                 await setDoc(doc(db, "books", activeBookId, "chapters", iss.chapId), { segments: iss.segments }, { merge: true });
                 await bumpContentVersion(activeBookId);
                 const el = document.getElementById(`audit-issue-${idx}`);
-                if (el) { el.style.borderColor = '#336633'; el.style.background = '#0a220a'; el.innerHTML = '<div class="u-font-size-0-8em" style="color:#00ff41">✅ Fixed</div>'; }
+                if (el) { el.style.borderColor = '#336633'; el.style.background = '#0a220a'; el.innerHTML = '<div class="u-font-size-0-8em u-color-00ff41">✅ Fixed</div>'; }
                 statusEl.innerText = `Fixed issue in ${iss.chapTitle}.`;
                 statusEl.style.borderColor = '#00ff41';
             } catch (e) { alert('Fix failed: ' + e.message); }
@@ -5399,7 +5426,7 @@ if (langScanBtn) {
             const container = document.getElementById('language-results');
             if (container) {
                 container.classList.remove('hidden');
-                container.innerHTML = '<div style="color:#00ff41; font-weight:bold;">✅ No flagged language found.</div>';
+                container.innerHTML = '<div class="u-color-00ff41 u-font-weight-bold">✅ No flagged language found.</div>';
             }
             statusEl.innerText = "Language scan complete — no issues found.";
             statusEl.style.borderColor = "#00ff41";
@@ -5436,7 +5463,7 @@ if (langScanBtn) {
         if (!hits.length) {
             if (container) {
                 container.classList.remove('hidden');
-                container.innerHTML = '<div style="color:#00ff41;">No matches for <strong>' +
+                container.innerHTML = '<div class="u-color-00ff41">No matches for <strong>' +
                     escapeHtmlSafe(term) + '</strong> in this book.</div>';
             }
             statusEl.innerText = 'No matches for "' + term + '".';
@@ -5544,15 +5571,15 @@ if (langScanBtn) {
         const doArticles   = document.getElementById('fr-fixarticles').checked;
         const doTitles     = document.getElementById('fr-titles').checked;
 
-        if (!find) { out.innerHTML = '<span style="color:#ffaa00;">Nothing to find.</span>'; return; }
+        if (!find) { out.innerHTML = '<span class="u-color-ffaa00">Nothing to find.</span>'; return; }
         if (!stagedChapters.length) {
-            out.innerHTML = '<span style="color:#ffaa00;">No book staged. Parse or open one first.</span>';
+            out.innerHTML = '<span class="u-color-ffaa00">No book staged. Parse or open one first.</span>';
             return;
         }
 
         const built = buildFindRegex(find, wholeWord);
         if (built.error) {
-            out.innerHTML = '<span style="color:#ff4444;">' + escapeHtmlSafe(built.error) + '</span>';
+            out.innerHTML = '<span class="u-color-ff4444">' + escapeHtmlSafe(built.error) + '</span>';
             return;
         }
 
@@ -5599,7 +5626,7 @@ if (langScanBtn) {
         }
 
         if (!total) {
-            out.innerHTML = '<span style="color:#ffaa00;">No matches for <code>' +
+            out.innerHTML = '<span class="u-color-ffaa00">No matches for <code>' +
                             escapeHtmlSafe(find) + '</code>.</span>';
             return;
         }
@@ -5610,21 +5637,21 @@ if (langScanBtn) {
             (chaptersHit === 1 ? '' : 's') + (titlesHit ? ' (' + titlesHit + ' in titles)' : '') + '.</div>';
 
         if (!commit) {
-            html += '<div class="u-margin-bottom-8px" style="color:#888">Nothing has changed yet. ' +
+            html += '<div class="u-margin-bottom-8px u-color-888">Nothing has changed yet. ' +
                     'Check the samples, then commit.</div>';
         }
 
         html += samples.map(s =>
-            '<div class="u-margin-bottom-8px u-padding-left-8px" style="border-left:2px solid #442233">' +
-            '<div class="u-font-size-0-9em" style="color:#886688">' + escapeHtmlSafe(s.where) + '</div>' +
-            '<div style="color:#997799;">\u2212 ' + escapeHtmlSafe(s.before) + '</div>' +
-            '<div style="color:#bbddbb;">+ ' + escapeHtmlSafe(s.after) + '</div></div>').join('');
+            '<div class="u-margin-bottom-8px u-padding-left-8px u-border-left-2px-solid-442233">' +
+            '<div class="u-font-size-0-9em u-color-886688">' + escapeHtmlSafe(s.where) + '</div>' +
+            '<div class="u-color-997799">\u2212 ' + escapeHtmlSafe(s.before) + '</div>' +
+            '<div class="u-color-bbddbb">+ ' + escapeHtmlSafe(s.after) + '</div></div>').join('');
 
-        if (samples.length >= 12) html += '<div style="color:#666;">\u2026 first 12 shown.</div>';
+        if (samples.length >= 12) html += '<div class="u-color-666">\u2026 first 12 shown.</div>';
 
         if (commit) {
             renderChapterList();
-            html += '<div class="u-margin-top-10px" style="color:#ffaa00">Staged only \u2014 ' +
+            html += '<div class="u-margin-top-10px u-color-ffaa00">Staged only \u2014 ' +
                     'upload to save.</div>';
         } else {
             html += '<div class="u-margin-top-10px"><button id="fr-commit-btn" class="secondary-btn" ' +
@@ -5686,17 +5713,17 @@ if (langScanBtn) {
 
         if (hits) {
             html += hits.length
-                ? '<div class="u-margin-bottom-10px" style="color:#ffaa00"><b>' + hits.length +
+                ? '<div class="u-margin-bottom-10px u-color-ffaa00"><b>' + hits.length +
                   ' term' + (hits.length === 1 ? '' : 's') + ' matched:</b> ' +
-                  hits.map(h => '<code style="color:#eebbee;">' + escapeHtmlSafe(h.term) +
+                  hits.map(h => '<code class="u-color-eebbee">' + escapeHtmlSafe(h.term) +
                                 '</code> \u2192 ' + escapeHtmlSafe(h.found.join(', '))).join(' &nbsp;\u00b7&nbsp; ') +
                   '</div>'
-                : '<div class="u-margin-bottom-10px" style="color:#00ff41"><b>Nothing matched.</b> ' +
+                : '<div class="u-margin-bottom-10px u-color-00ff41"><b>Nothing matched.</b> ' +
                   'That sentence passes the filter as it stands.</div>';
         }
 
         if (skipped.length) {
-            html += '<div class="u-margin-bottom-10px u-padding-8px" style="color:#ff4444; border:1px solid #661111">' +
+            html += '<div class="u-margin-bottom-10px u-padding-8px u-color-ff4444 u-border-1px-solid-661111">' +
                     '<b>\u26a0 ' + skipped.length + ' stored term' + (skipped.length===1?'':'s') +
                     ' could not be compiled and ' + (skipped.length===1?'is':'are') + ' being IGNORED:</b><br>' +
                     skipped.map(s => '<code>' + escapeHtmlSafe(s.term) + '</code> \u2014 ' +
@@ -5706,7 +5733,7 @@ if (langScanBtn) {
         const byCat = {};
         for (const t of terms) (byCat[t.category || 'custom'] ||= []).push(t);
 
-        html += '<div class="u-margin-bottom-8px" style="color:#aaa"><b>' + terms.length +
+        html += '<div class="u-margin-bottom-8px u-color-aaa"><b>' + terms.length +
                 '</b> terms active \u00b7 ' +
                 terms.filter(t => t.source === 'custom').length + ' custom \u00b7 ' +
                 terms.filter(t => t.kind === 'regex').length + ' regex</div>';
@@ -5716,20 +5743,20 @@ if (langScanBtn) {
             if (!list || !list.length) continue;
             html += '<div class="u-margin-top-10px"><div style="color:' + (COLOR[cat]||'#aaa') +
                     '; font-weight:bold; margin-bottom:4px;">' + (LABEL[cat]||cat) +
-                    ' <span style="opacity:.6; font-weight:normal;">(' + list.length + ')</span></div>' +
-                    '<div class="u-flex-wrap-wrap u-gap-4px" style="display:flex">' +
+                    ' <span class="u-opacity-6 u-font-weight-normal">(' + list.length + ')</span></div>' +
+                    '<div class="u-flex-wrap-wrap u-gap-4px u-display-flex">' +
                     list.map(t => {
                         const on = hits && hits.some(hh => hh.term === t.term);
                         return '<span style="background:' + (on ? '#443300' : '#1c1c1c') +
                                '; border:1px solid ' + (on ? '#ffaa00' : '#333') +
                                '; border-radius:10px; padding:1px 7px; color:' +
                                (on ? '#ffcc55' : '#bbb') + ';">' +
-                               (t.kind === 'regex' ? '<span style="color:#88ddaa;">.*</span> ' : '') +
+                               (t.kind === 'regex' ? '<span class="u-color-88ddaa">.*</span> ' : '') +
                                escapeHtmlSafe(t.term) + '</span>';
                     }).join('') + '</div></div>';
         }
 
-        html += '<div class="u-margin-top-12px u-font-size-0-9em u-padding-top-8px" style="color:#666; border-top:1px solid #330022">' +
+        html += '<div class="u-margin-top-12px u-font-size-0-9em u-padding-top-8px u-color-666 u-border-top-1px-solid-330022">' +
                 'Built-in terms live in <code>FLAGGED_WORD_GROUPS</code> in admin.js and need a ' +
                 'code change. Custom terms save to <code>settings/languageFilter</code> and apply ' +
                 'to every book immediately. The <b>Review</b> group is expected to fire often \u2014 ' +
@@ -5934,13 +5961,13 @@ if (balanceBtn) balanceBtn.onclick = async () => {
             return '<span style="display:inline-block; width:120px; background:#222; ' +
                    'vertical-align:middle; margin:0 6px;"><span style="display:inline-block; ' +
                    'height:9px; width:' + pct + '%; background:#4B9CD3;"></span></span>' +
-                   count + ' <span style="color:#666;">(' + pct + '%)</span>';
+                   count + ' <span class="u-color-666">(' + pct + '%)</span>';
         };
         const section = (title, entries) =>
             '<div class="u-margin-bottom-14px"><div style="color:#4B9CD3; font-weight:bold; ' +
             'margin-bottom:4px;">' + title + '</div>' +
             entries.map(([k, c]) =>
-                '<div><span class="u-min-width-150px" style="display:inline-block; color:#ccc">' +
+                '<div><span class="u-min-width-150px u-display-inline-block u-color-ccc">' +
                 escapeHtmlSafe(k) + '</span>' + bar(c) + '</div>').join('') + '</div>';
 
         // Age coverage per year, so a hole in the middle of the range is visible.
@@ -5955,10 +5982,10 @@ if (balanceBtn) balanceBtn.onclick = async () => {
         const noProt   = rows.filter(r => !r.protagonistGender).length;
 
         out.innerHTML =
-            '<div class="u-margin-bottom-10px" style="color:#888"><b>' + n + '</b> books total</div>' +
-            (untagged ? '<div class="u-margin-bottom-10px" style="color:#ffaa00">\u26a0 ' + untagged +
+            '<div class="u-margin-bottom-10px u-color-888"><b>' + n + '</b> books total</div>' +
+            (untagged ? '<div class="u-margin-bottom-10px u-color-ffaa00">\u26a0 ' + untagged +
                         ' with no age range \u2014 invisible to any age filter.</div>' : '') +
-            (noProt ? '<div class="u-margin-bottom-10px" style="color:#ffaa00">\u26a0 ' + noProt +
+            (noProt ? '<div class="u-margin-bottom-10px u-color-ffaa00">\u26a0 ' + noProt +
                       ' with no protagonist tag.</div>' : '') +
             section('Protagonist', tally('protagonistGender', '(untagged)')) +
             section('Genre', tally('genre', '(none)')) +
@@ -5971,7 +5998,7 @@ if (balanceBtn) balanceBtn.onclick = async () => {
             '</div>';
         if (st) { st.textContent = ''; }
     } catch (e) {
-        out.innerHTML = '<span style="color:#ff4444;">Failed: ' + escapeHtmlSafe(e.message) + '</span>';
+        out.innerHTML = '<span class="u-color-ff4444">Failed: ' + escapeHtmlSafe(e.message) + '</span>';
     }
 };
 
@@ -6009,19 +6036,19 @@ if (repairChapterOrderBtn) {
             const dupCount = chapters.length - deduped.length;
 
             if (before === after && dupCount === 0) {
-                resultsEl.innerHTML = '<span style="color:#00ff41;">✓ Chapter order is already clean — no changes needed.</span>';
+                resultsEl.innerHTML = '<span class="u-color-00ff41">✓ Chapter order is already clean — no changes needed.</span>';
                 return;
             }
 
             // Preview
             resultsEl.innerHTML =
                 '<strong>Before (' + chapters.length + ' entries):</strong><br>' +
-                before.split(', ').map(id => '<span style="color:#888">' + id + '</span>').join(' ') +
+                before.split(', ').map(id => '<span class="u-color-888">' + id + '</span>').join(' ') +
                 '<br><br><strong>After (' + deduped.length + ' entries):</strong><br>' +
-                after.split(', ').map(id => '<span style="color:#66ccff">' + id + '</span>').join(' ') +
-                (dupCount > 0 ? '<br><br><span style="color:#ffaa00;">⚠️ ' + dupCount + ' duplicate(s) will be removed.</span>' : '') +
-                '<br><br><button id="repair-confirm-btn" class="u-padding-8px-20px u-cursor-pointer u-border-radius-4px" style="background:#004466; border:1px solid #006688; color:#66ccff">Write Repaired Order to Firestore</button>' +
-                ' <button id="repair-cancel-btn" class="u-padding-8px-20px u-cursor-pointer u-border-radius-4px" style="background:#333; border:1px solid #555; color:#aaa">Cancel</button>';
+                after.split(', ').map(id => '<span class="u-color-66ccff">' + id + '</span>').join(' ') +
+                (dupCount > 0 ? '<br><br><span class="u-color-ffaa00">⚠️ ' + dupCount + ' duplicate(s) will be removed.</span>' : '') +
+                '<br><br><button id="repair-confirm-btn" class="u-padding-8px-20px u-cursor-pointer u-border-radius-4px btn-bg-004466 btn-tint u-border-1px-solid-006688 u-color-66ccff">Write Repaired Order to Firestore</button>' +
+                ' <button id="repair-cancel-btn" class="u-padding-8px-20px u-cursor-pointer u-border-radius-4px btn-bg-333 btn-tint u-border-1px-solid-555 u-color-aaa">Cancel</button>';
 
             document.getElementById('repair-cancel-btn').onclick = () => {
                 resultsEl.innerHTML = 'Cancelled.';
@@ -6032,13 +6059,13 @@ if (repairChapterOrderBtn) {
                 resultsEl.innerHTML = 'Writing...';
                 await setDoc(doc(db, "books", activeBookId),
                              { chapters: deduped, contentVersion: Date.now() }, { merge: true });
-                resultsEl.innerHTML = '<span style="color:#00ff41;">✓ Done — ' + deduped.length + ' chapters in correct order. Reload the book to confirm.</span>';
+                resultsEl.innerHTML = '<span class="u-color-00ff41">✓ Done — ' + deduped.length + ' chapters in correct order. Reload the book to confirm.</span>';
                 statusEl.innerText = 'Chapter order repaired.';
                 statusEl.style.borderColor = '#00ff41';
             };
 
         } catch (e) {
-            resultsEl.innerHTML = '<span style="color:#ff4444;">Error: ' + e.message + '</span>';
+            resultsEl.innerHTML = '<span class="u-color-ff4444">Error: ' + e.message + '</span>';
         }
     };
 }
@@ -6120,25 +6147,25 @@ async function runTitleRepair() {
         }
 
         if (!hits.length) {
-            out.innerHTML = '<span style="color:#00ff41;">\u2713 Nothing to remove \u2014 no ' +
+            out.innerHTML = '<span class="u-color-00ff41">\u2713 Nothing to remove \u2014 no ' +
                 'chapter in this book starts with its own title. Either it was imported ' +
                 'with v3.13.0 or later, or it never had the problem.</span>';
             return;
         }
 
         out.innerHTML =
-            '<div class="u-margin-bottom-8px" style="color:#ffcc66; font-weight:bold">' + hits.length +
+            '<div class="u-margin-bottom-8px u-color-ffcc66 u-font-weight-bold">' + hits.length +
             ' of ' + metaChapters.length + ' chapters begin with their own title.</div>' +
-            '<div class="u-margin-bottom-10px" style="color:#888">The first line goes; the second ' +
+            '<div class="u-margin-bottom-10px u-color-888">The first line goes; the second ' +
             'line becomes the new opening. Chapter titles and ids are not touched.</div>' +
             hits.slice(0, 40).map(h =>
-                '<div class="u-padding-left-8px u-margin-bottom-8px" style="border-left:2px solid #886600">' +
-                '<div style="color:#4B9CD3;">' + escapeHtml(h.id) + ' \u2014 ' +
+                '<div class="u-padding-left-8px u-margin-bottom-8px u-border-left-2px-solid-886600">' +
+                '<div class="u-color-4b9cd3">' + escapeHtml(h.id) + ' \u2014 ' +
                 escapeHtml(h.title) + '</div>' +
-                '<div style="color:#cc7777;">\u2212 ' + escapeHtml(h.removing) + '</div>' +
-                '<div style="color:#bbddbb;">new first line: ' + escapeHtml(h.nextLine) +
+                '<div class="u-color-cc7777">\u2212 ' + escapeHtml(h.removing) + '</div>' +
+                '<div class="u-color-bbddbb">new first line: ' + escapeHtml(h.nextLine) +
                 '\u2026</div></div>').join('') +
-            (hits.length > 40 ? '<div style="color:#666;">\u2026 first 40 shown.</div>' : '') +
+            (hits.length > 40 ? '<div class="u-color-666">\u2026 first 40 shown.</div>' : '') +
             '<div class="u-margin-top-10px"><button id="repair-titles-go" ' +
             'style="background:#664400;border:1px solid #996600;color:#ffcc66;padding:8px 18px;' +
             'cursor:pointer;border-radius:4px;width:auto;">Remove all ' + hits.length +
@@ -6161,16 +6188,16 @@ async function runTitleRepair() {
             // Students hold cached chapter text; without this they keep the old
             // copy until expiry. See bumpContentVersion().
             if (done) await bumpContentVersion(activeBookId);
-            out.innerHTML = '<span style="color:#00ff41;">\u2713 Removed the title line from ' +
+            out.innerHTML = '<span class="u-color-00ff41">\u2713 Removed the title line from ' +
                 done + ' of ' + hits.length + ' chapters. Students see the change on next load.' +
                 '</span>' + (done < hits.length
-                    ? '<div style="color:#ff6666;">' + (hits.length - done) +
+                    ? '<div class="u-color-ff6666">' + (hits.length - done) +
                       ' failed \u2014 see the console.</div>' : '');
             statusEl.innerText = 'Removed ' + done + ' chapter-title lines from typed text.';
             statusEl.style.borderColor = '#00ff41';
         };
     } catch (e) {
-        out.innerHTML = '<span style="color:#ff4444;">Error: ' + escapeHtml(e.message) + '</span>';
+        out.innerHTML = '<span class="u-color-ff4444">Error: ' + escapeHtml(e.message) + '</span>';
     }
 }
 injectTitleRepairUI();
@@ -6198,17 +6225,17 @@ function showRequestAccessPanel(user) {
     box.style.cssText = 'max-width:520px;margin:18px auto;padding:18px;' +
         'background:#1a1a1a;border:1px solid #333;border-radius:4px;text-align:left';
     box.innerHTML = `
-        <div class="u-margin-bottom-6px" style="color:#4B9CD3; font-weight:bold">Not a staff account</div>
-        <div class="u-font-size-0-9em u-line-height-1-5 u-margin-bottom-12px" style="color:#aaa">
+        <div class="u-margin-bottom-6px u-color-4b9cd3 u-font-weight-bold">Not a staff account</div>
+        <div class="u-font-size-0-9em u-line-height-1-5 u-margin-bottom-12px u-color-aaa">
             You're signed in as ${(user.email || '').replace(/[<>&"]/g, '')}, which is a
             student account. If you're a teacher and need access, ask below and an
             administrator will set you up.
         </div>
         <textarea id="request-note" placeholder="Which school and classes do you teach? (optional)"
-            class="u-width-100pct u-min-height-60px u-border-radius-3px u-padding-8px u-font-size-0-9em" style="background:#111; color:#eee; border:1px solid #333; font:inherit"></textarea>
-        <div class="u-gap-8px u-align-items-center u-margin-top-10px" style="display:flex">
-            <button id="request-send" class="u-padding-6px-18px u-border-radius-3px u-cursor-pointer" style="background:#4B9CD3; color:#000; border:none; font:inherit; font-weight:bold">Request access</button>
-            <span id="request-status" class="u-font-size-0-85em" style="color:#888"></span>
+            class="u-width-100pct u-min-height-60px u-border-radius-3px u-padding-8px u-font-size-0-9em u-background-111 u-color-eee u-border-1px-solid-333 u-font-inherit"></textarea>
+        <div class="u-gap-8px u-align-items-center u-margin-top-10px u-display-flex">
+            <button id="request-send" class="u-padding-6px-18px u-border-radius-3px u-cursor-pointer btn-bg-4b9cd3 btn-tint u-color-000 u-border-none u-font-inherit u-font-weight-bold">Request access</button>
+            <span id="request-status" class="u-font-size-0-85em u-color-888"></span>
         </div>`;
     login.appendChild(box);
 
@@ -6257,7 +6284,7 @@ function showBootstrapWarning(user) {
     div.style.cssText = 'background:#2b1c00;border:1px solid #ffaa00;border-radius:4px;' +
         'padding:14px;margin:12px 0;font-size:.85em;line-height:1.6;color:#ffd79a';
     div.innerHTML = `
-        <div class="u-margin-bottom-6px" style="font-weight:bold; color:#ffaa00">
+        <div class="u-margin-bottom-6px u-font-weight-bold u-color-ffaa00">
             Setup incomplete — writes will fail</div>
         <p class="u-margin-0-0-8px">
             This page is treating you as a super admin, but the security rules
@@ -6271,13 +6298,13 @@ function showBootstrapWarning(user) {
         </p>
         <p class="u-margin-0-0-6px"><b>Firestore Database → Start collection →
             <code>staff</code> → Document ID:</b></p>
-        <div class="u-gap-6px u-align-items-center u-margin-0-0-8px" style="display:flex">
-            <code id="bootstrap-uid" class="u-padding-4px-8px u-border-radius-3px u-user-select-all u-flex-1 u-overflow-auto" style="background:#000">${user.uid}</code>
-            <button id="bootstrap-copy" class="u-padding-4px-12px u-font-size-0-9em u-border-radius-3px u-cursor-pointer" style="font:inherit; background:#ffaa00; color:#000; border:none">Copy</button>
+        <div class="u-gap-6px u-align-items-center u-margin-0-0-8px u-display-flex">
+            <code id="bootstrap-uid" class="u-padding-4px-8px u-border-radius-3px u-user-select-all u-flex-1 u-overflow-auto u-background-000">${user.uid}</code>
+            <button id="bootstrap-copy" class="u-padding-4px-12px u-font-size-0-9em u-border-radius-3px u-cursor-pointer u-font-inherit btn-bg-ffaa00 btn-tint u-color-000 u-border-none">Copy</button>
         </div>
         <p class="u-margin-0-0-8px">Fields — <code>active</code> is a
             <b>boolean</b>, not the string "true":</p>
-        <pre class="u-margin-0-0-8px u-padding-8px u-border-radius-3px u-overflow-auto" style="background:#000"
+        <pre class="u-margin-0-0-8px u-padding-8px u-border-radius-3px u-overflow-auto u-background-000"
 >role        (string)   super_admin
 schoolIds   (array)    ["ems"]
 readScope   (string)   building
@@ -6286,7 +6313,7 @@ email       (string)   ${(user.email || '').replace(/[<>&"]/g, '')}
 displayName (string)   ${(user.displayName || '').replace(/[<>&"]/g, '')}</pre>
         <p class="u-margin-0">
             <a href="https://console.firebase.google.com/" target="_blank" rel="noopener"
-               style="color:#ffaa00">Open the Firebase console →</a>
+               class="u-color-ffaa00">Open the Firebase console →</a>
             &nbsp;Then reload. This banner disappears on its own.
         </p>`;
     host.insertBefore(div, host.firstChild);

@@ -1,4 +1,4 @@
-// audit-inline-styles.mjs v1.0.0 — ROADMAP 42's instrument.
+// audit-inline-styles.mjs v1.1.0 — ROADMAP 42's instrument.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 //   node tools/audit-inline-styles.mjs            # every staff surface
@@ -18,12 +18,27 @@
 // ⚠️ THE SINGLE-USE COUNT IS THE ONE TO WATCH. It is the size of the one-off
 // tail — mostly one-off colour — and it is the metric for item 38. It should
 // fall hard when the three severities land, and barely move otherwise.
+//
+// ⚠️⚠️ v1.1.0 — THE UTILITY BLOCK HAS TWO CONSUMERS AND THIS TOOL WAS READING
+// ONE. The classes are declared in admin.html and used from admin.html AND
+// admin.js, and counting uses in the markup alone made the item 38 metric a
+// lie in both directions at once: after Round 59 moved 232 more declarations
+// out of admin.js it reported 62 healthy classes as orphans while UNDERSTATING
+// the single-use tail, which is the number the item is steering by.
+// ⚠️ inline-styles-test.mjs A3/A4 had exactly this bug and Round 58 fixed it
+// there. The tool that PRINTS the metric kept it for one more round, because
+// nothing points a check at a tool. **A future page built against these
+// utilities has to join CONSUMERS below.**
 
 import { readFileSync, readdirSync } from 'fs';
 
 const DEFAULT = ['admin.html', 'admin.js', 'reports.html'];
 const files = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULT;
 const root = new URL('../', import.meta.url);
+
+// ⚠️ EVERY FILE THAT WRITES `class="u-…"` AGAINST admin.html's BLOCK. Usage is
+// counted across all of them; declaring lives in admin.html alone.
+const CONSUMERS = ['admin.html', 'admin.js'];
 
 const stripComments = (src, isHtml) => isHtml
     ? src.replace(/<!--[\s\S]*?-->/g, '')
@@ -46,9 +61,14 @@ for (const f of files) {
         const css = body.slice(a, b).replace(/\/\*[\s\S]*?\*\//g, '');
         utilCount = [...css.matchAll(/\.(u-[\w-]+)\s*\{/g)].length;
         body = body.slice(0, a) + body.slice(b);
-        for (const m of body.matchAll(/\bclass\s*=\s*"([^"]*)"/g))
-            for (const c of m[1].split(/\s+/))
-                if (c.startsWith('u-')) utilUses.set(c, (utilUses.get(c) || 0) + 1);
+        for (const consumer of CONSUMERS) {
+            let text;
+            if (consumer === f) text = body;
+            else { try { text = readFileSync(new URL(consumer, root), 'utf8'); } catch { continue; } }
+            for (const m of text.matchAll(/\bclass\s*=\s*"([^"]*)"/g))
+                for (const c of m[1].split(/\s+/))
+                    if (c.startsWith('u-')) utilUses.set(c, (utilUses.get(c) || 0) + 1);
+        }
     }
 
     const attrs = [...body.matchAll(/\bstyle\s*=\s*"([^"]*)"/g)].map(m => m[1]);
