@@ -1,8 +1,71 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-04 by Round 66 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-04 by Round 67 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–66 ARE ONE INSTANCE.**
+> ⚠️ **ROUNDS 60–67 ARE ONE INSTANCE.**
+>
+> ### ⭐ ROUND 67: THE COVER PROBLEM WAS NEVER THE COVER
+>
+> Jake raised that column three times. **Every control on this page carries
+> `margin-bottom: 15px` from a global rule that predates the grid**, and inside a
+> grid cell that margin is INSIDE the cell — so a control's visible bottom sat 15px
+> above its own cell's bottom while the cover frame filled its cell exactly.
+>
+> ⭐ **A LAYOUT BUG THAT SURVIVES TWO FIXES IS NOT IN THE THING BEING FIXED.**
+> Rounds 65 and 66 both moved the cover. The cover was fine.
+>
+> ⚠️ **THE `gap` IS THE ONLY VERTICAL SPACING IN THAT PANEL NOW.** Do not add a
+> margin back to tighten or loosen one row; change the gap, once, for all of it.
+> J1 pins it.
+>
+> ### ⚠️ THE BUTTON HEIGHTS: TWO CAUSES, NEITHER OF THEM PADDING
+>
+> `⤓`, `📊` and `🗑` are not the same height — a colour emoji has bigger metrics
+> than a plain glyph, and **the tallest glyph sets the line box**. Separately,
+> `Parse & Initialize` inherited `width: 100%` and squeezed its neighbour's label
+> onto a second line.
+>
+> ⭐ **`.btn-bar` FIXES BOTH WITH NO MEASUREMENT** (`align-items: stretch` +
+> `width: auto`). ⚠️⚠️ **NEVER TUNE PADDING PER BUTTON TO EQUALISE HEIGHTS** —
+> that is chasing a font metric with a magic number and it breaks when an emoji
+> font updates.
+>
+> ### ⭐ TWO RULINGS FROM JAKE — READ BEFORE TOUCHING COLOUR
+>
+> * **55b: SUPERADMIN ONLY** may override `uploadedBy`. ⚠️⚠️ `firestore.rules`
+>   needs no change, **which also means the rules will not enforce it — the UI
+>   will.** Say that out loud in the round that builds it, and note that
+>   `paintUploadedByStamp()` already owns that element when the book does not
+>   exist.
+> * **38: THE CHAPTER ROW KEEPS ITS RAINBOW.** *"I see their value now that I'm
+>   looking for them to disappear every round."* ⚠️⚠️ **THOSE COLOURS ARE DOING A
+>   JOB** — they are how forty rows get scanned. Flattening them would remove a
+>   working index and call it consistency. **The safe/edit pass is scoped to
+>   everything EXCEPT the chapter row.** ⚠️ Green is spent (it means "nothing here
+>   existed before"), so `SAVE METADATA`'s `#224422` gets retired, not joined —
+>   and `ABOUT`'s green stays, documented rather than changed.
+>
+> ### THE STATE OF PLAY
+>
+> * **71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run;
+>   nothing in Rounds 60–67 touches `firestore.rules`.
+> * ⚠️ **CONFIRMED LIVE: 60–63, 65, 66** (Jake's screenshots). Round 64 and 67
+>   unconfirmed. Expected stamps: `admin.html` **v1.12.0**, `admin.js`
+>   **v3.47.0**, `lessons-admin.js` **v1.17.0**, `versions.js` **v1.16.0**.
+> * ⚠️ **`tools/meta-panel-ab.html` MUST BE REGENERATED IN THE SAME ROUND AS ANY
+>   CHANGE TO THAT PANEL.** F5 fails otherwise.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+>   **DO NOT SHIP style.css v3.10.0.**
+> * ⚠️ **NOTHING STUDENT-FACING HAS CHANGED SINCE ROUND 60**, which is live.
+>   ⚠️ **THE WEEK OF 09-05 STARTS SATURDAY** — see the correction in Round 60's
+>   block. Watch `game.html` from 09-07.
+> * **Next:** **56a** (the (i) buttons do nothing — ⚠️ answer it **from the
+>   importer**, not from memory), **55b** now that it is ruled, then the scoped
+>   `safe`/`edit` pass, then **58's collapse step**.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 66 (Duplex) — the previous block, kept
 >
 > ### ✅ ROUND 66: THE HALF ROUND 65 LEFT ON FLEX
 >

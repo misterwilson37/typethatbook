@@ -393,6 +393,81 @@ check('H2. the painter runs it with the others', () => {
         'code and shows a bare dash');
 });
 
+// ─── J. THE GRID OWNS THE SPACING, AND ROWS OF BUTTONS ARE ROWS ────────────
+//
+// Jake, on the v1.11.0 render: *"Parse and Another book are not the same height.
+// Ditto export csv and the other buttons in that row. And there's uneven space
+// between the rows and the edges."* Plus: the cover column still did not line up
+// with the rows to its left.
+//
+// ⚠️⚠️ THE COVER AND THE ROW RHYTHM HAD ONE CAUSE. Every control on this page
+// carries `margin-bottom: 15px` from the global rule, which predates the grid.
+// Inside a grid cell that margin is INSIDE the cell, so a control's visible
+// bottom sat 15px above its own cell's bottom while the cover frame filled its
+// cell exactly.
+
+check('J1. ⚠️⚠️ no control inside the panel grids carries its own bottom margin', () => {
+    const css = adminHtml.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    assert.match(css, /\.meta-grid\s+input[^{]*\{[^}]*margin-bottom:\s*0/,
+        '⚠️ the global `margin-bottom: 15px` is back inside the grid. A control ' +
+        'then ends 15px above its own cell, the cover frame does not, and the ' +
+        'column stops lining up with the rows beside it — which is the exact ' +
+        'thing Jake reported twice');
+});
+
+check('J2. the cover controls are ONE row tall', () => {
+    // ⚠️ Stacked, they were two controls tall, so the last field row grew to hold
+    // them and `Prepared by` / `Cleaned up by` stopped lining up with everything
+    // above. One row tall is what makes column 7 agree with columns 1-6.
+    const rule = /\.meta-cover-controls\s*\{[^}]*\}/.exec(adminHtml);
+    assert.ok(rule, '.meta-cover-controls is gone');
+    assert.ok(!/flex-direction:\s*column/.test(rule[0]),
+        'the cover controls are stacked again, so the last field row has to grow ' +
+        'to hold them and column 7 no longer matches the rows to its left');
+});
+
+check('J3. ⚠️ button rows equalise height by CONSTRUCTION, not by a tuned number', () => {
+    // Two causes, neither a padding: colour emoji have bigger metrics than plain
+    // glyphs and the tallest sets the line box; and a 100%-wide button squeezed
+    // its neighbour's label into a second line.
+    const css = adminHtml.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    assert.match(css, /\.btn-bar\s*\{[^}]*align-items:\s*stretch/,
+        '⚠️ `align-items: stretch` is what makes a row of buttons equal height ' +
+        'without measuring anything. Tuning padding per button instead is chasing ' +
+        'a font metric with a magic number, and it breaks when an emoji font updates');
+    assert.match(css, /\.btn-bar\s*>\s*button\s*\{[^}]*width:\s*auto/,
+        'without `width: auto` the 100%-wide button squeezes its neighbour until ' +
+        'the label wraps, which is how they came to be different heights');
+});
+
+check('J4. both button rows actually USE it', () => {
+    // ⚠️ A class nothing wears is the same as no class. Both rows Jake named must
+    // be inside one.
+    for (const id of ['export-books-csv-btn', 'create-parse-btn']) {
+        const at = adminHtml.indexOf('id="' + id + '"');
+        assert.ok(at > 0, '#' + id + ' not found');
+        const before = adminHtml.slice(Math.max(0, at - 1200), at);
+        assert.ok(before.lastIndexOf('btn-bar') > before.lastIndexOf('</div>'),
+            '#' + id + ' is not inside a .btn-bar, so its row is back to being ' +
+            'buttons that happen to sit near each other');
+    }
+});
+
+check('J5. ⚠️ the panel\u2019s dividers share ONE rhythm', () => {
+    // They were 12px/10px above and 15px/15px below — "not the same, not clearly
+    // different", which is the pet peeve written as CSS.
+    const box = adminHtml.slice(adminHtml.indexOf('id="import-box"') >= 0
+        ? adminHtml.indexOf('id="import-box"') : adminHtml.indexOf('Database Manager'),
+        adminHtml.indexOf('<div class="meta-head">'));
+    const tops = [...box.matchAll(/u-margin-top-(\d+)px[^"]*u-border-top-1px-solid-333[^"]*u-padding-top-(\d+)px/g)];
+    assert.ok(tops.length >= 2, 'expected at least two dividers; found ' + tops.length);
+    const pairs = tops.map(m => m[1] + '/' + m[2]);
+    assert.equal(new Set(pairs).size, 1,
+        '⚠️ the dividers use different spacing: ' + pairs.join(' and ') + '. A ' +
+        'divider rhythm should be one number used twice, not two that are nearly ' +
+        'the same');
+});
+
 let failed = 0;
 for (const [state, name] of results) {
     console.log(`  ${state === 'ok' ? 'ok  ' : 'FAIL'} ${name}`);

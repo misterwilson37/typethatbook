@@ -4301,6 +4301,30 @@ decision being reversed by accident.
 page is the deliverable that gets the sign-off — twice on 2026-09-03 a picture
 told Jake something 68 harnesses could not.
 
+### ⭐ JAKE'S RULING, 2026-09-04: THE CHAPTER ROW KEEPS ITS RAINBOW
+
+*"Let's leave the rainbow of buttons in the chapter layout for now. I see their
+value now that I'm looking for them to disappear every round. The other buttons on
+the page can get more regular treatment, though."*
+
+⚠️⚠️ **THIS SCOPES THE `safe`/`edit` PASS, AND IT IS NOT A DEFERRAL.** The chapter
+row's colours are **doing a job**: `About`, `Merge`, `Split`, `Front`/`Body`,
+`Edit`, `Del` get scanned dozens of times per book, and colour is how he finds the
+one he wants in a list of forty rows. **Flattening them into two tiers would
+remove a working index and call it consistency.** ⭐ Same argument as "a colour can
+carry meaning that merging would destroy" — and here the person who uses it every
+day says it does.
+
+**So the pass is everything on the page EXCEPT the chapter row:** `Audit`, `Scan`,
+`Fix Chapter Order`, `Remove Chapter Titles`, `Export`, `Balance Report`, `Start
+another book`, `Open Book`, the wizard's controls.
+
+⚠️ **GREEN IS SPENT** — it means "nothing here existed before", on `Upload All`,
+`Save Metadata` and `Parse & Initialize`. `SAVE METADATA`'s old `#224422` gets
+**retired**, not joined. ⚠️ **`ABOUT` IN THE CHAPTER ROW IS ALSO GREEN**, which is
+one colour doing two jobs — but the chapter row is now out of scope, so the honest
+resolution is to write that down in the CSS, not to change it.
+
 ### ⭐⭐ ROUND 63 (Duplex) — "IT EXISTED, BUT IT WASN'T THERE"
 
 **Jake, 2026-09-03:** *"There was a moment in the distant past where I updated
@@ -5430,6 +5454,51 @@ default order or as one option beside the current one.**
 all in the same panel, all small. ⚠️ **Do them together — this panel is one grid
 and four separate rounds would relayout it four times.**
 
+### ✅ ROUND 67 (Duplex) — ONE 15px MARGIN WAS BEHIND ALL OF IT
+
+**Jake, on the v1.11.0 render:** *"Book cover column elements don't line up with
+the rows to their left"* — the third time he had raised that column — plus
+*"Parse and Another book are not the same height. Ditto export csv and the other
+buttons in that row. And there's uneven space between the rows and the edges."*
+
+⚠️⚠️ **THE COVER PROBLEM WAS NEVER THE COVER.** Every input, select and button on
+this page carries `margin-bottom: 15px` from a global rule that **predates the
+grid**. Inside a grid cell that margin is **inside the cell** — so a control's
+visible bottom sat 15px above its own cell's bottom, while the cover frame (no
+margin) filled its cell exactly. Rounds 65 and 66 both moved the cover and both
+left the 15px alone, which is why the column kept coming back *almost* right.
+
+✅ **`admin.html` v1.12.0. The `gap` is the only vertical spacing in the panel
+now.** ⚠️ **DO NOT ADD A MARGIN BACK TO TIGHTEN OR LOOSEN A ROW** — change the
+gap, once, for all of it. `build-list-test.mjs` J1 pins it.
+
+⭐ **THE LESSON WORTH KEEPING: A LAYOUT BUG THAT SURVIVES TWO FIXES IS NOT IN THE
+THING BEING FIXED.** Both previous rounds moved the cover. The cover was fine.
+
+### ⚠️ THE TWO BUTTON ROWS HAD TWO DIFFERENT CAUSES, AND NEITHER WAS PADDING
+
+* **Export / Balance / Delete:** `⤓`, `📊` and `🗑` are not the same height. A
+  colour emoji has bigger metrics than a plain glyph, and **the tallest glyph in a
+  line sets the line box**, so three buttons with identical padding rendered at
+  three heights.
+* **Parse / Start another book:** `Parse & Initialize Staging` inherits
+  `button { width: 100% }`, so it took the row and squeezed its neighbour until
+  the label **wrapped to two lines**.
+
+⭐ **`.btn-bar` FIXES BOTH WITHOUT A SINGLE MEASUREMENT.** `align-items: stretch`
+makes every item take the tallest one's height **by construction**, and
+`width: auto` stops the greedy button squeezing its neighbour. ⚠️⚠️ **DO NOT
+"FIX" EMOJI HEIGHT BY TUNING PADDING PER BUTTON** — that is chasing a font metric
+with a magic number, and it breaks the day an emoji font updates. J3 pins the
+mechanism, J4 pins that both rows actually use it.
+
+⚠️ Both dividers in the Database Manager are **20/20**; they were 12/10 and 15/15
+— the pet peeve written as CSS. J5 fails if they diverge again.
+⚠️ Cover column **160px → 200px** so its file input and `Remove` fit **side by
+side, one row tall**; stacked they forced the last field row to grow.
+⚠️ `.u-margin-left-6px` deleted — `.btn-bar` owns that gap. `inline-styles-test.mjs`
+A4 flagged it the moment its last user went, for the second round running.
+
 ### ✅ ROUND 66 (Duplex) — THE HALF ROUND 65 LEFT UNALIGNED
 
 **Jake, on the v1.10.0 render:** *"100 times better. Could we make the cover a
@@ -5550,6 +5619,31 @@ so the column beside it has vertical room that the current two-row layout wastes
 that are *almost* the same width read worse than boxes that are obviously
 different. Whatever the new grid is, make the columns match exactly or differ
 clearly. Do not eyeball it to "close enough".
+
+### ⭐ JAKE'S RULING, 2026-09-04: SUPERADMIN ONLY
+
+*"I think superadmin should be the only one to do it, because I'm the only one to
+upload books right now, so I'm the only one who has to fill in the blanks...with
+me!"*
+
+⚠️ **SO IT IS A SUPERADMIN-ONLY OVERRIDE, NOT A FIELD EVERY ADMIN EDITS.** Notes
+for the round that builds it, gathered while doing 55a:
+
+* **The stamp itself does not change.** `uploadedBy` is still written on first
+  upload from the signed-in account, and `Save Metadata` still never writes it
+  (v3.38.0 — an overwrite must not restamp). The override is a *correction*
+  affordance, not the normal path.
+* ⚠️ **`firestore.rules` needs no change** — `match /books/{bookId}` has no field
+  whitelist — but ⚠️⚠️ **THAT ALSO MEANS THE RULES DO NOT ENFORCE "SUPERADMIN
+  ONLY". THE UI DOES.** Say so out loud in the round rather than letting a reader
+  assume the server is guarding it.
+* The dropdown wants the staff list `staff-admin.js` already loads, and it must
+  store the **uid**, never a name or an email (both go stale).
+* ⚠️ `showUploadedBy()` already resolves a uid to a display name with a cache and
+  no per-open read (§READS). Do not "harden" that into a fetch.
+* ⚠️ **`paintUploadedByStamp()` (v3.47.0) OWNS THAT ELEMENT WHEN THE BOOK DOES NOT
+  EXIST.** A control dropped in beside it must agree about who writes the text, or
+  the placeholder and the control will fight on every repaint.
 
 ### b. `UPLOADED BY` has no input at all
 

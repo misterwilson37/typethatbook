@@ -1,5 +1,65 @@
 # CHANGELOG — TypeThatBook
 
+## Round 67 (Duplex) — 2026-09-04 — one 15px margin was behind all of it
+
+### ⚠️⚠️ The cover problem was never the cover
+
+Jake raised that column for the third time. Every input, select and button on the
+page carries `margin-bottom: 15px` from a global rule that **predates the grid**,
+and inside a grid cell that margin is **inside the cell** — so a control's visible
+bottom sat 15px above its own cell's bottom while the cover frame (no margin)
+filled its cell exactly.
+
+Rounds 65 and 66 both moved the cover. The cover was fine. ⭐ **A layout bug that
+survives two fixes is not in the thing being fixed.**
+
+`admin.html` **v1.11.0 → v1.12.0**. The `gap` is now the only vertical spacing in
+the panel. ⚠️ **Do not add a margin back to tighten or loosen a row** — change the
+gap, once, for all of it.
+
+### ⚠️ The two button rows had two different causes, and neither was padding
+
+- **Export / Balance / Delete:** `⤓`, `📊` and `🗑` are not the same height. A
+  colour emoji has bigger metrics than a plain glyph and **the tallest glyph in a
+  line sets the line box**, so three buttons with identical padding rendered at
+  three heights.
+- **Parse / Start another book:** `Parse & Initialize Staging` inherits
+  `button { width: 100% }`, took the row, and squeezed its neighbour until the
+  label **wrapped to two lines**.
+
+⭐ `.btn-bar` fixes both **without a single measurement**: `align-items: stretch`
+gives every item the tallest one's height by construction, and `width: auto` stops
+the greedy button squeezing its neighbour. ⚠️⚠️ **Do not "fix" emoji height by
+tuning padding per button** — that is chasing a font metric with a magic number,
+and it breaks the day an emoji font updates.
+
+### Also
+
+- Both Database Manager dividers are **20/20**; they were 12/10 and 15/15.
+- Cover column **160px → 200px** so its file input and `Remove` fit **side by side,
+  one row tall**. Stacked, they forced the last field row to grow and
+  `Prepared by` / `Cleaned up by` stopped lining up with everything above.
+- `.u-margin-left-6px` deleted — `.btn-bar` owns that gap. `inline-styles-test.mjs`
+  A4 flagged it the moment its last user went, for the second round running.
+- `build-list-test.mjs` gains **Part J, 5 assertions** (28 total),
+  mutation-verified four ways. `tools/meta-panel-ab.html` **v1.2.0**.
+
+### Two rulings from Jake, recorded not built
+
+**ROADMAP 55b — superadmin only** may override `uploadedBy`. ⚠️⚠️ `firestore.rules`
+needs no change, which also means **the rules will not enforce it — the UI will**.
+That has to be said out loud in the round that builds it.
+
+**ROADMAP 38 — the chapter row keeps its rainbow.** Its colours are doing a job:
+they are how forty rows get scanned. Flattening them would remove a working index
+and call it consistency. The `safe`/`edit` pass is now scoped to everything
+*except* the chapter row.
+
+### Verification
+
+**71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `npm run test:rules` NOT
+run; nothing here touches `firestore.rules`.
+
 ## Round 66 (Duplex) — 2026-09-04 — the half Round 65 left on flex
 
 ### ⚠️⚠️ Two of Jake's three questions had one cause

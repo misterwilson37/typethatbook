@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- meta-panel-ab.html v1.1.0 — ROADMAP 55a, Rounds 65-66 (Duplex).
+<!-- meta-panel-ab.html v1.2.0 — ROADMAP 55a/38, Rounds 65-67 (Duplex).
 
      ⚠️ NOT SHIPPED. Lives in tools/, never deployed.
 
@@ -42,8 +42,8 @@
     .hidden { display:none; }
     .danger-btn, .tier-commit { background:#500; border:1px solid #800; color:#fcc; }
 
-/* ─── lifted verbatim from admin.html v1.11.0 ─────────────────────────── */
-.import-box { --cover-w: 160px; --meta-gap: 20px; }
+/* ─── lifted verbatim from admin.html v1.12.0 ─────────────────────────── */
+.import-box { --cover-w: 200px; --meta-gap: 20px; }
 .meta-head,
 .meta-grid {
     display: grid;
@@ -51,6 +51,23 @@
     gap: 14px var(--meta-gap);
 }
 .meta-head > *, .meta-grid > * { min-width: 0; }
+
+/* ⚠️⚠️ THE GRID OWNS THE VERTICAL SPACING. THE CONTROLS MUST NOT ALSO
+   (v1.12.0) ────────────────────────────────────────────────────────
+   Every input, select and button on this page carries
+   `margin-bottom: 15px` from the global rule, which predates the grid.
+   Inside a grid cell that margin is INSIDE the cell — so a control's
+   visible bottom sat 15px above its own cell's bottom, while the cover
+   frame (which has no margin) filled its cell exactly. That 15px is the
+   whole of why Jake saw the cover column "not line up with the rows to
+   its left", and it is why the row rhythm was 29px in some places and
+   14px in others.
+   ⚠️ THE `gap` IS THE ONLY SPACING NOW. Do not reintroduce a margin here
+   to "tighten" or "loosen" a row: change the gap, once, for all of it. */
+.meta-head input, .meta-head select, .meta-head textarea, .meta-head button,
+.meta-grid input, .meta-grid select, .meta-grid textarea, .meta-grid button {
+    margin-bottom: 0;
+}
 .meta-head { border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 10px; }
 .meta-grid { border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 15px; }
 /* ⚠️ ONE SPAN VOCABULARY FOR BOTH GRIDS. The header row uses f3 + f2 + f2
@@ -66,21 +83,52 @@
    does not announce anything. */
 .label-spacer { visibility: hidden; }
 
+/* ── ⚠️ ROADMAP 38 — A ROW OF BUTTONS IS ONE ROW, NOT THREE BUTTONS THAT
+   HAPPEN TO SIT TOGETHER (v1.12.0) ────────────────────────────────
+   Jake: "Parse and Another book are not the same height. Ditto export csv
+   and the other buttons in that row."
+
+   ⚠️⚠️ TWO DIFFERENT CAUSES, AND NEITHER WAS A WIDTH OR A PADDING.
+   1. `⤓`, `📊` and `🗑` are not the same height. A colour emoji has bigger
+      metrics than a plain arrow glyph, and the tallest glyph in a line
+      sets the line box, so three buttons with identical padding rendered
+      at three heights. ⚠️ DO NOT "FIX" THIS BY TUNING PADDING PER BUTTON —
+      that is chasing a font metric with a magic number, and it breaks the
+      day an emoji font updates.
+   2. `Parse & Initialize Staging` inherits `button { width: 100% }`, so it
+      took the whole row and squeezed `Start another book` until its label
+      WRAPPED, making it two lines tall.
+
+   ⭐ `align-items: stretch` FIXES BOTH WITHOUT A SINGLE MEASUREMENT: in a
+   flex row every item takes the cross size of the tallest, so the heights
+   are equal BY CONSTRUCTION rather than by a number somebody tuned once.
+   ⚠️ Keep `width: auto` here — that is what stops the 100%-wide button
+   from squeezing its neighbour into a second line. */
+.btn-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; }
+.btn-bar > button { width: auto; margin: 0; }
+.btn-bar > .btn-bar-grow { flex: 1 1 auto; }
+
 /* ⚠️ THE COVER IS A SLOT OF A FIXED NUMBER OF ROWS, NOT AN IMAGE OF
    WHATEVER HEIGHT THE JPEG HAPPENS TO BE. That is the whole fix: the
    frame's top and bottom are gridlines, so the cover agrees with the rows
    beside it instead of being slightly off all of them. The picture sits
    inside at its own aspect ratio. */
 .meta-cover  { grid-column: 7; grid-row: 1 / span 3; display: flex; flex-direction: column; }
-.meta-cover-controls { grid-column: 7; grid-row: 4; display: flex; flex-direction: column; gap: 6px; }
+/* ⚠️ THE CONTROLS SIT SIDE BY SIDE, NOT STACKED (v1.12.0). Stacked they
+   were two controls tall, so the last field row had to grow to hold them
+   and `Prepared by` / `Cleaned up by` stopped lining up with everything
+   above. One row tall is what makes column 7 agree with columns 1-6.
+   ⚠️ THIS IS WHY THE COVER COLUMN IS 200px AND NOT 160px. */
+.meta-cover-controls { grid-column: 7; grid-row: 4; display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; }
+.meta-cover-controls > label { flex-basis: 100%; }
 .cover-frame {
     flex: 1 1 auto; min-height: 0; border: 1px solid #444; border-radius: 3px;
     background: #161616; display: flex; align-items: center; justify-content: center;
     overflow: hidden; padding: 4px; box-sizing: border-box;
 }
 .cover-frame img { max-width: 100%; max-height: 100%; display: block; }
-.meta-cover-controls input[type=file] { width: 100%; font-size: 0.68em; margin: 0; }
-.meta-cover-controls .danger-btn { font-size: 0.7em; padding: 4px 8px; margin: 0; width: 100%; }
+.meta-cover-controls input[type=file] { flex: 1 1 auto; min-width: 0; font-size: 0.68em; margin: 0; }
+.meta-cover-controls .danger-btn { flex: 0 0 auto; font-size: 0.7em; padding: 4px 10px; margin: 0; width: auto; }
 
 /* ⚠️ The read-only stamp is a real box so it sits on the same baseline as
    its neighbours instead of floating on a padding-top guess. It is still
@@ -99,7 +147,6 @@
     .meta-cover, .meta-cover-controls { grid-column: span 2; grid-row: auto; }
     .cover-frame { min-height: 180px; }
 }
-
     /* harness around the comparison, not part of the page */
     h1 { font-size:1.1em; margin:0 0 6px; }
     .sub { color:var(--ink-dimmer); font-size:.8em; margin:0 0 26px; line-height:1.6; max-width:1150px; }
@@ -127,7 +174,7 @@
     them. Hover a field to see its hint.
 </p>
 
-<h2>Proposed <span class="tag">admin.html v1.11.0</span></h2>
+<h2>Proposed <span class="tag">admin.html v1.12.0</span></h2>
 <div class="stage">
   <div class="import-box guide">
 <div class="meta-head">
@@ -314,6 +361,17 @@
 </div>
 
 <div class="meta">
+    <b>What changed in v1.12.0.</b> Every control on this page carries
+    <code>margin-bottom: 15px</code> from a global rule that predates the grid, and
+    inside a grid cell that margin is <i>inside the cell</i> — so a control's
+    visible bottom sat 15px above its own cell's bottom while the cover frame
+    filled its cell exactly. That one 15px is why the cover column would not line
+    up with the rows to its left. The <code>gap</code> is the only vertical spacing
+    now.<br><br>
+    <b>The cover's file input and Remove sit side by side</b>, one row tall.
+    Stacked, they forced the last field row to grow and
+    <code>Prepared by</code> / <code>Cleaned up by</code> stopped lining up with
+    everything above. The column went 160px → 200px to fit them.<br><br>
     <b>What changed since v1.10.0, and why.</b> v1.10.0 gridded the fields and left
     the title row on flex, so <code>Save Metadata</code> lined up with nothing
     underneath it. The header row and the field grid now share <b>one</b>
