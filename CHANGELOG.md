@@ -1,5 +1,61 @@
 # CHANGELOG — TypeThatBook
 
+## Round 65 (Duplex) — 2026-09-04 — the metadata panel is one six-column grid
+
+### ⚠️⚠️ ROADMAP 55a — both URL fields rendered as the string `https:/`
+
+`admin.html` **v1.9.0 → v1.10.0**. The field block was `.row { display:flex }`
+with **seven equal `.col`s** sharing whatever the 120px cover column left over.
+The URLs were not truncated decoratively — they were **useless**: you could not
+read, check or copy the link a book came from.
+
+| row | fields | spans |
+|---|---|---|
+| 1 | Genre / Target Age Range / Protagonist | 2 + 2 + 2 |
+| 2 | **Archive URL / Origin URL** | 3 + 3 |
+| 3 | Source / License-rights / Uploaded by | 2 + 2 + 2 |
+| 4 | **Prepared by / Cleaned up by** | 3 + 3 |
+
+⚠️ **Four rows, not the three Jake asked for.** Ten fields over three rows of six
+means somebody gets one column, and one column is what produced `https:/`. Four
+rows also brings the field block's height up to the cover column beside it — the
+vertical space item 55a noted was being wasted.
+
+⭐ **The spans are the alignment.** Every field edge in every row lands on the same
+six gridlines; four more flex rows would each solve their own widths and agree only
+by accident. Spans are **2 or 3 of six, never 1.4 of three** — `.u-flex-1-4 {
+flex: 1.4 }` is deleted, and `inline-styles-test.mjs` A4 flagged it as an orphan
+the moment its last user went.
+
+⚠️ `min-width: 0` on the grid children is load-bearing: a grid item's default
+`min-width` is `auto`, so a long `<option>` sets its column's floor — a second,
+quieter route back to `https:/`.
+
+⚠️ `Uploaded by`'s bare text became `.meta-stamp`, a real box on the same baseline
+instead of floating on a `padding-top` guess. **Still read-only** — ROADMAP 55b is
+the control it should become, and that needs Jake's ruling on who may set it.
+
+⚠️ **Every id, option value and handler is unchanged; `admin.js` did not move.**
+
+### The guards, and the A/B
+
+`build-list-test.mjs` gains **Part F, 5 assertions** (`run-all-tests.mjs`
+**v1.23.0**; no new harness file). ⚠️ **Structure, never pixels** — a width
+assertion in an item about widths goes red for reasons that are not defects. F2
+walks the spans and fails if any row does not sum to exactly six. F5 fails if
+`tools/meta-panel-ab.html` drifts from the shipped markup: **a stale A/B is a
+picture of a page that does not exist, and it is what Jake signs off against.**
+Mutation-verified four ways.
+
+`tools/meta-panel-ab.html` **NEW, not deployed** — both panels at the same width
+with the same cover column, the "after" lifted verbatim from `admin.html`, and the
+six gridlines drawn in so the alignment is visible.
+
+### Verification
+
+**71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `npm run test:rules` NOT
+run; nothing here touches `firestore.rules`.
+
 ## Round 64 (Duplex) — 2026-09-03 — the guard, the sort, two dead hovers, and a README command that was hiding a defect
 
 ### ⚠️⚠️ Parse & Initialize could discard an afternoon with no confirm

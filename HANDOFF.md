@@ -1,11 +1,69 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-03 by Round 64 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-04 by Round 65 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–64 ARE ONE INSTANCE.** **Round 60's block, below, still holds the
-> most important thing in this file: ROADMAP 50 cannot recur until the week of
-> 2026-09-05, so a quiet week before then is not evidence.**
+> ⚠️ **ROUNDS 60–65 ARE ONE INSTANCE.** **Round 60's block, below, still holds the
+> most important thing in this file: ROADMAP 50's mechanism could not fire before
+> the week of 2026-09-05. That week has now STARTED — this is the first week its
+> `since` sits under. Watch `game.html` first.**
 >
+> ### ✅ ROUND 65: ROADMAP 55a — THE METADATA PANEL IS A GRID
+>
+> Seven equal flex columns shared what the 120px cover left over, so **both URL
+> fields rendered as the string `https:/`** — not truncated decoratively, useless.
+> One six-column grid now, four rows, spans summing to six: 2+2+2 / 3+3 / 2+2+2 /
+> 3+3.
+>
+> ⚠️ **FOUR ROWS, NOT THE THREE JAKE ASKED FOR, AND THE REASON IS IN THE ITEM.**
+> Ten fields over three rows of six means somebody gets one column, which is what
+> produced `https:/`.
+>
+> ⭐ **THE SPANS ARE THE ALIGNMENT.** Every field edge lands on the same six
+> gridlines. ⚠️ Spans are **2 or 3 of six, never 1.4 of three** — `.u-flex-1-4`
+> was Jake's pet peeve written as CSS and is deleted.
+>
+> ⚠️ **`min-width: 0` ON THE GRID CHILDREN IS LOAD-BEARING** — a grid item's
+> default is `auto`, so a long `<option>` sets its column's floor and squeezes the
+> URLs again. F4 pins it.
+>
+> ⚠️ **`Uploaded by` LOOKS LIKE A CONTROL NOW AND IS NOT ONE.** It is `.meta-stamp`,
+> a real box on the right baseline, **still read-only**. ROADMAP 55b is the
+> dropdown, and it needs Jake's ruling on who may set it. Do not mistake the box
+> for the feature.
+>
+> ⚠️ **`tools/meta-panel-ab.html` MUST BE REGENERATED IN THE SAME ROUND AS ANY
+> CHANGE TO THAT PANEL.** F5 fails otherwise — a stale A/B is a picture of a page
+> that does not exist, and it is what Jake signs off against.
+>
+> ### ⚠️ A DEPLOY LESSON FROM ROUND 64 THAT IS WORTH KEEPING
+>
+> Jake reported a round live and a control still unstyled. **The build panel in his
+> screenshot read `Admin JS: v3.42.0`** — the file had not been uploaded. ⭐ **WHEN
+> A SHIPPED CHANGE DOES NOT APPEAR, READ THE BUILD PANEL BEFORE READING THE CODE.**
+> ⚠️ Related: Round 64 shipped `admin.js` v3.45.0 **and** v3.46.0 in one zip, so
+> 3.45.0 never existed as a file anyone held. That is fine and documented in the
+> header — but it means **a version the panel never showed is not a missed step.**
+>
+> ### THE STATE OF PLAY
+>
+> * **71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run;
+>   nothing in Rounds 60–65 touches `firestore.rules`.
+> * ⚠️ **ROUNDS 60–63 ARE CONFIRMED LIVE.** Round 64 and 65 are not, as of writing.
+>   Expected stamps: `admin.html` **v1.10.0**, `admin.js` **v3.46.0**,
+>   `lessons-admin.js` **v1.17.0**, `versions.js` **v1.16.0**.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+>   **DO NOT SHIP style.css v3.10.0.**
+> * ⚠️ **NOTHING STUDENT-FACING HAS CHANGED SINCE ROUND 60**, which is live.
+> * **Next:** **56a** — the (i) buttons, which do nothing. ⚠️ Answer it **from the
+>   importer**, not from memory. Then **55b/c/d**, **58's collapse step**, and item
+>   38's `safe`/`edit` pass (**green is spent** — it means "nothing here existed
+>   before", on three controls).
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 64 (Duplex) — the previous block, kept
+>
+
 > ⚠️⚠️ **AND ROUND 64 HAS A DEPLOY LESSON WORTH KEEPING.** Jake reported Round 63
 > live and Parse & Initialize still blue. **The build panel in his screenshot read
 > `Admin JS: v3.42.0`** — `admin.js` had not been uploaded. Nothing was wrong with

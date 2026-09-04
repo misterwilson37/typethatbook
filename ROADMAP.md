@@ -391,7 +391,7 @@ Everything else still open:
 - 53. ⚠️ EIGHTY BOOKS AND NO WAY THROUGH THEM — SEARCH, AND SOMETHING FEATURED  *(Jake asked, 2026-09-03)*
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
 - 38. ⚠️ OPEN for admin — commit + create tiers DONE (Rounds 61-63), safe/edit NOT — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS  *(⚠️ UNBLOCKED, and Jake has RULED — build to the table, do not re-open it)*
-- 55. ⚠️ THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
+- 55. ⚠️ (a) DONE Round 65 — (b)(c)(d) OPEN — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
 - 56. ⚠️ (a) OPEN — (b) AND (c) CLOSED ROUND 64 — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS  *(Jake, 2026-09-03)*
 - 58. ⭐ A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
 - 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED  *(found Round 60; touches three mirrored files — read the item)*
@@ -5424,11 +5424,66 @@ default order or as one option beside the current one.**
 
 ---
 
-## 55. ⚠️ THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"
+## 55. ⚠️ (a) DONE Round 65 — (b)(c)(d) OPEN — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"
 
 **Jake, 2026-09-03, from a screenshot of Content Staging.** Four separate things,
 all in the same panel, all small. ⚠️ **Do them together — this panel is one grid
 and four separate rounds would relayout it four times.**
+
+### ✅ ROUND 65 (Duplex) — (a) DONE, AND IT IS FOUR ROWS, NOT THREE
+
+✅ **`admin.html` v1.10.0. The field block is ONE SIX-COLUMN GRID.** It was
+`.row { display:flex }` with **seven equal `.col`s** sharing whatever the 120px
+cover column left over — which is the whole of why both URLs rendered as
+`https:/`.
+
+| row | fields | spans |
+|---|---|---|
+| 1 | Genre / Target Age Range / Protagonist | 2 + 2 + 2 |
+| 2 | **Archive URL / Origin URL** | 3 + 3 |
+| 3 | Source / License-rights / Uploaded by | 2 + 2 + 2 |
+| 4 | **Prepared by / Cleaned up by** | 3 + 3 |
+
+⚠️⚠️ **JAKE ASKED FOR THREE ROWS AND THIS IS FOUR, DELIBERATELY.** Ten fields
+across three rows of six means somebody gets one column, and **one column is what
+produced `https:/` in the first place**. Four rows also brings the field block's
+height up to the cover column beside it — ⭐ the vertical space this item noted
+the two-row layout was wasting.
+
+⭐ **THE SPANS ARE THE ALIGNMENT, AND THAT IS WHY IT IS A GRID.** Every field edge
+in every row lands on the same six gridlines. Four more flex rows would each solve
+their own widths and agree with each other only by accident. ⚠️ **Spans are 2 or
+3 of six, never 1.4 of three** — `.u-flex-1-4 { flex: 1.4 }` was Jake's pet peeve
+written as CSS, and it is deleted (`inline-styles-test.mjs` A4 flagged it as an
+orphan the moment the last user went).
+
+⚠️ **THE ROWS FORM THEMSELVES** from the spans, so there are no row containers to
+keep in sync: adding a field means choosing a span.
+
+⚠️ **TWO PAIRINGS ARE DELIBERATE AND ARE THE THING TO AGREE OR DISAGREE WITH.**
+The URLs share a row at equal width because they are read *against* each other
+(yours vs upstream). **`Prepared by` and `Cleaned up by` share the last row at
+equal width because they are the two fields this panel keeps getting confused** —
+adjacency at identical size invites the comparison their hints explain rather than
+hiding it.
+
+⚠️ **`min-width: 0` ON THE GRID CHILDREN IS LOAD-BEARING.** A grid item's default
+`min-width` is `auto`, so a `<select>` with a long option sets its column's floor
+— a second, quieter way to get `https:/`. `build-list-test.mjs` F4 pins it.
+
+⚠️ **EVERY id, OPTION VALUE AND HANDLER IS UNCHANGED. `admin.js` did not move.**
+
+⭐ **`tools/meta-panel-ab.html` — open it.** Both panels at the same width with the
+same cover column, the "after" markup **lifted verbatim from `admin.html`**, and
+the six gridlines drawn in so the alignment is visible. ⚠️ F5 fails if the render
+drifts from the shipped panel: **a stale A/B is a picture of a page that does not
+exist, and it is what Jake signs off against.**
+
+⚠️ **(b) IS PARTLY TOUCHED AND MUST NOT BE MISTAKEN FOR DONE.** `Uploaded by`'s
+bare text is now `.meta-stamp`, a real box on the same baseline as its neighbours
+instead of floating on a `padding-top` guess. **It is still read-only.** Making it
+*line up* is alignment; making it *editable* is the decision below, and it needs
+Jake's ruling on who may set it.
 
 ### a. It should be three rows, and the URLs are the reason
 

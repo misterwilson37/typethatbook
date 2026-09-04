@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<!-- meta-panel-ab.html v1.0.0 — ROADMAP 55a, Round 65 (Duplex).
+
+     ⚠️ NOT SHIPPED. Lives in tools/, never deployed.
+
+     ⚠️⚠️ THE "AFTER" MARKUP AND CSS ARE LIFTED VERBATIM FROM admin.html v1.10.0.
+     If you edit them here to make the comparison look better, the comparison is
+     worthless. The "before" is admin.html v1.9.0's flex rows, equally verbatim.
+
+     ⚠️ Both panels are shown at the SAME WIDTH, with the same 120px cover column
+     beside them, because the whole defect is about how width gets divided. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ROADMAP 55a — the metadata panel, before and after</title>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<style>
+    :root { --surface:#111; --surface-1:#191919; --rule:#333; --ink:#eee;
+            --ink-dim:#aaa; --ink-dimmer:#888; --accent:#4B9CD3; }
+    body { background:var(--surface); color:var(--ink);
+           font-family:'Courier Prime','Courier New',monospace; padding:24px; }
+    /* verbatim from admin.html */
+    input, textarea, button, select {
+        width:100%; padding:12px; margin-bottom:15px; background:#222;
+        border:1px solid #444; color:#fff; font-family:inherit; box-sizing:border-box; }
+    label { display:block; font-size:0.75em; color:#888; text-transform:uppercase;
+            letter-spacing:0.05em; margin-bottom:4px; }
+    .hint { display:inline-flex; align-items:center; justify-content:center;
+            width:15px; height:15px; border:1px solid #555; border-radius:50%;
+            font-size:0.85em; font-style:italic; color:#888; cursor:help; }
+    .row { display:flex; gap:20px; }
+    .col { flex:1; }
+    .u-flex-1-4 { flex:1.4; }
+    .u-width-100pct { width:100%; }
+    .hidden { display:none; }
+    .u-display-flex { display:flex; } .u-align-items-center { align-items:center; }
+    .u-gap-6px { gap:6px; } .u-color-888 { color:#888; }
+    .u-margin-top-4px { margin-top:4px; } .u-margin-top-12px { margin-top:12px; }
+    .u-font-size-0-85em { font-size:0.85em; } .u-padding-top-10px { padding-top:10px; }
+    .meta-block { display:flex; gap:22px; align-items:flex-start;
+        border-bottom:1px solid #333; margin-bottom:20px; padding-bottom:15px; }
+    .meta-fields { flex:1 1 auto; min-width:0; }
+    .meta-cover { flex:0 0 120px; text-align:center; display:flex;
+        flex-direction:column; align-items:center; gap:6px; }
+    .meta-cover label { display:block; width:100%; text-align:left; }
+    .meta-cover .jacket { width:100px; height:132px; border:1px solid #444;
+        border-radius:3px; background:#2a1030; display:flex; align-items:center;
+        justify-content:center; font-size:0.6em; color:#997; text-align:center; padding:6px; }
+    .meta-cover input[type=file] { width:116px; font-size:0.68em; }
+    .danger-btn { background:#500; border:1px solid #800; color:#fcc;
+                  font-size:0.7em; padding:3px 8px; margin:0; width:auto; }
+    /* ── v1.10.0's grid, verbatim ── */
+    .meta-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:14px 20px; }
+    .meta-grid > * { min-width:0; }
+    .meta-grid .f2 { grid-column:span 2; }
+    .meta-grid .f3 { grid-column:span 3; }
+    .meta-stamp { background:#1c1c1c; border:1px dashed #444; color:#888;
+        padding:12px; box-sizing:border-box; width:100%; font-family:inherit;
+        font-size:0.85em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    /* harness around the comparison, not part of the page */
+    h1 { font-size:1.1em; margin:0 0 6px; }
+    .sub { color:var(--ink-dimmer); font-size:0.8em; margin:0 0 30px; line-height:1.6; max-width:1150px; }
+    h2 { font-size:0.85em; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-dim);
+         margin:34px 0 14px; padding-bottom:8px; border-bottom:1px solid var(--rule); }
+    h2 .tag { float:right; text-transform:none; letter-spacing:0; font-weight:400; }
+    .panel { background:var(--surface-1); border:1px dashed #444; padding:20px; max-width:1150px; }
+    .note { font-size:.74em; color:var(--ink-dimmer); line-height:1.65; max-width:1150px;
+            border-left:2px solid var(--rule); padding-left:12px; margin:14px 0 0; }
+    .note b { color:var(--ink-dim); }
+    .meta { max-width:1150px; margin:40px 0 0; font-size:.78em; color:var(--ink-dimmer);
+            line-height:1.7; border-top:1px solid var(--rule); padding-top:18px; }
+    .meta b { color:var(--ink); }
+    .guide { position:relative; }
+    .guide::before { content:''; position:absolute; inset:0; pointer-events:none;
+        background:repeating-linear-gradient(to right,
+            rgba(75,156,211,.16) 0 1px, transparent 1px calc((100% + 20px)/6)); }
+</style>
+</head>
+<body>
+
+<h1>ROADMAP 55a — the metadata panel</h1>
+<p class="sub">
+    Same width, same 120px cover column, same fields. The whole defect is about
+    how the width gets divided, so both panels are shown at the size the real one
+    renders at. <b>Hover a field to see its hint — those are unchanged.</b>
+</p>
+
+<h2>Now <span class="tag">admin.html v1.9.0 — two flex rows</span></h2>
+<div class="panel">
+  <div class="meta-block">
+    <div class="meta-fields">
+      <div class="row">
+        <div class="col"><label>Genre <span class="hint" title="unchanged">i</span></label>
+          <select><option>Adventure</option></select></div>
+        <div class="col u-flex-1-4"><label>Target Age Range <span class="hint" title="unchanged">i</span></label>
+          <div class="u-display-flex u-align-items-center u-gap-6px">
+            <input type="number" placeholder="7" class="u-width-100pct">
+            <span class="u-color-888">to</span>
+            <input type="number" placeholder="11" class="u-width-100pct"></div></div>
+        <div class="col"><label>Protagonist</label>
+          <select><option>Male</option></select></div>
+      </div>
+      <div class="row u-margin-top-12px">
+        <div class="col"><label>Source <span class="hint" title="unchanged">i</span></label>
+          <select><option>Project Gutenberg</option></select></div>
+        <div class="col u-flex-1-4"><label>License / rights <span class="hint" title="unchanged">i</span></label>
+          <select><option>Public domain (United States)</option></select></div>
+        <div class="col"><label>Archive URL <span class="hint" title="unchanged">i</span></label>
+          <input type="text" value="https://github.com/mrwilson/ttb-epubs/tom-swift-02.epub"></div>
+        <div class="col"><label>Origin URL <span class="hint" title="unchanged">i</span></label>
+          <input type="text" value="https://www.gutenberg.org/ebooks/4230"></div>
+        <div class="col"><label>Prepared by <span class="hint" title="unchanged">i</span></label>
+          <input type="text" value="Produced by Al Haines"></div>
+        <div class="col"><label>Uploaded by <span class="hint" title="unchanged">i</span></label>
+          <div class="u-color-888 u-font-size-0-85em u-padding-top-10px">&mdash;</div></div>
+        <div class="col"><label>Cleaned up by <span class="hint" title="unchanged">i</span></label>
+          <select><option>Claude</option></select></div>
+      </div>
+    </div>
+    <div class="meta-cover">
+      <label>Cover <span class="hint" title="unchanged">i</span></label>
+      <div class="jacket">Tom Swift and His Motor-Boat</div>
+      <input type="file"><button class="danger-btn">Remove</button>
+    </div>
+  </div>
+</div>
+<p class="note">
+    <b>Seven equal columns sharing what the cover left over.</b> Both URLs render
+    as <code>https:/</code> and nothing else &mdash; not truncated decoratively,
+    <b>useless</b>: you cannot read, check or copy the link the book came from.
+    <code>Prepared by</code> shows <code>Produce</code>. <code>Source</code> shows
+    <code>Proj&lsaquo;</code>. And the age range and licence columns are
+    <code>flex: 1.4</code> against their neighbours' <code>1</code> &mdash; not the
+    same, not clearly different.
+</p>
+
+<h2>Proposed <span class="tag">admin.html v1.10.0 — one six-column grid</span></h2>
+<div class="panel">
+  <div class="meta-block">
+    <div class="meta-fields guide">
+<div class="meta-grid">
+
+  <!-- row 1 — what the book IS -->
+  <div class="f2">
+      <label>Genre <span class="hint" title="Options are built in admin.js from the GENRES list. Custom… stores whatever you type, and a stored genre that is not in the list is preserved rather than silently dropped.">i</span></label>
+      <select id="active-book-genre" class="u-width-100pct"></select>
+      <input type="text" id="active-book-genre-custom" class="hidden u-width-100pct u-margin-top-4px"
+             placeholder="Type new genre">
+  </div>
+  <div class="f2">
+      <label>Target Age Range <span class="hint" title="Reading age, not grade. Leave both blank if unsure — an untagged book is hidden whenever a student filters by age.">i</span></label>
+      <div class="u-display-flex u-align-items-center u-gap-6px">
+          <input type="number" id="active-book-minage" min="3" max="18"
+                 placeholder="7" class="u-width-100pct">
+          <span class="u-color-888">to</span>
+          <input type="number" id="active-book-maxage" min="3" max="18"
+                 placeholder="11" class="u-width-100pct">
+                          </div>
+  </div>
+  <div class="f2">
+      <label for="active-book-protagonist">Protagonist</label>
+      <select id="active-book-protagonist" class="u-width-100pct">
+          <option value="">— Not tagged —</option>
+          <option value="female">Female</option>
+          <option value="male">Male</option>
+          <option value="ensemble">Ensemble / group</option>
+          <option value="nonhuman">Animal or non-human</option>
+          <option value="unspecified">Unspecified in text</option>
+      </select>
+  </div>
+
+  <!-- row 2 — ⚠️ THE URLS, HALF A ROW EACH. This is the fix. -->
+  <div class="f3">
+      <label>Archive URL <span class="hint" title="Link to the EPUB this was built from. Provenance, not compliance — it lets anyone check your edition against the original.">i</span></label>
+      <input type="text" id="active-book-archive" class="u-width-100pct"
+             placeholder="https://github.com/…/name.epub">
+  </div>
+  <div class="f3">
+      <label>Origin URL <span class="hint" title="Where this edition came from originally — the Standard Ebooks or Gutenberg page, the author's own download. Archive URL is YOUR copy; this is the upstream one. Having both means the provenance survives whichever host disappears first.">i</span></label>
+      <input type="text" id="active-book-origin" class="u-width-100pct"
+             placeholder="https://standardebooks.org/ebooks/…">
+  </div>
+
+  <!-- row 3 — where it came from, and who added it here -->
+  <div class="f2">
+      <label>Source <span class="hint" title="Who produced this edition — Standard Ebooks, Project Gutenberg, and so on. Auto-filled from the EPUB's dc:source or dc:publisher.">i</span></label>
+      <select id="active-book-source" class="u-width-100pct">
+          <option value="">— Not set —</option>
+          <option value="Standard Ebooks">Standard Ebooks</option>
+          <option value="Project Gutenberg">Project Gutenberg</option>
+          <option value="Global Grey">Global Grey</option>
+          <option value="Faded Page">Faded Page</option>
+          <option value="Wikisource">Wikisource</option>
+          <option value="Internet Archive">Internet Archive</option>
+          <option value="Author or publisher direct">Author or publisher direct</option>
+          <option value="__custom__">Custom…</option>
+      </select>
+      <input type="text" id="active-book-source-custom" class="hidden u-width-100pct u-margin-top-4px" placeholder="Who produced this edition">
+  </div>
+  <div class="f2">
+      <label>License / rights <span class="hint" title="Required for Creative Commons books; shown on the library card. The URL is part of the value on purpose — a license URI is what CC actually asks for, and the card turns it into a link. Auto-filled from the EPUB's dc:rights when it declares one, mapped onto one of these options rather than pasted in raw.">i</span></label>
+      <select id="active-book-rights" class="u-width-100pct">
+          <option value="">— Not set —</option>
+          <option value="Public domain (United States)">Public domain (United States)</option>
+          <!-- The Standard Ebooks case, and ~20 of the 23 books in the library.
+               SE's dc:rights asserts BOTH: the source text is believed US public
+               domain, AND SE's own editorial contributions are dedicated CC0.
+               Stated in that order because that is the order the rights arose.
+               Neither half requires attribution, so this is a credit, not a duty. -->
+          <option value="Public domain (United States) &amp; CC0 1.0 https://creativecommons.org/publicdomain/zero/1.0/">Public domain (United States) &amp; CC0 1.0</option>
+          <option value="CC0 1.0 Public Domain Dedication https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0 (public domain dedication)</option>
+          <option value="CC BY 4.0 https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</option>
+          <option value="CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</option>
+          <option value="CC BY-NC 4.0 https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</option>
+          <option value="CC BY-NC 3.0 https://creativecommons.org/licenses/by-nc/3.0/">CC BY-NC 3.0</option>
+          <option value="CC BY-NC-SA 4.0 https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</option>
+          <option value="CC BY-NC-SA 3.0 https://creativecommons.org/licenses/by-nc-sa/3.0/">CC BY-NC-SA 3.0</option>
+          <option value="__custom__">Custom…</option>
+      </select>
+      <input type="text" id="active-book-rights-custom" class="hidden u-width-100pct u-margin-top-4px" placeholder="License name and URL">
+  </div>
+  <div class="f2">
+      <label>Uploaded by <span class="hint" title="Who added this book to TypeThatBook, stamped automatically from the signed-in account the first time it was uploaded. READ-ONLY on purpose: this field exists so that a book which turns out to be wrongly licensed or badly cleaned can be traced to whoever added it, and a value anyone can type answers a weaker question. An overwrite does not restamp it — it stays with whoever created the book. Books added before this field existed show a dash.">i</span></label>
+      <div id="active-book-uploadedby" class="meta-stamp">—</div>
+  </div>
+
+  <!-- row 4 — ⚠️ THE PAIR THAT GETS CONFUSED, side by side, equal -->
+  <div class="f3">
+      <label>Prepared by <span class="hint" title="Who produced the SOURCE text — Project Gutenberg's transcribers and proofreaders, or Standard Ebooks' producer. Auto-filled from Gutenberg's machine header (its 'Credits' line). This is NOT the same as Cleaned up by: these are the volunteers who made the public-domain text exist, and crediting them is the decent thing even though nothing obliges it.">i</span></label>
+      <input type="text" id="active-book-preparedby" class="u-width-100pct"
+             placeholder="filled from the EPUB where it says">
+  </div>
+  <div class="f3">
+      <label>Cleaned up by <span class="hint" title="Who did YOUR classroom text pass. Defaults to Claude, because in practice it always has been. Distinct from Prepared by, which is whoever produced the source text.">i</span></label>
+      <select id="active-book-cleanedby" class="u-width-100pct">
+          <option value="">— Not set —</option>
+          <option value="Claude">Claude</option>
+          <option value="Jake Wilson">Jake Wilson</option>
+          <option value="__custom__">Custom…</option>
+      </select>
+      <input type="text" id="active-book-cleanedby-custom" class="hidden u-width-100pct u-margin-top-4px" placeholder="Who did the text pass">
+  </div>
+
+</div>    </div>
+    <div class="meta-cover">
+      <label>Cover <span class="hint" title="Auto-extracted from the EPUB when it has one. Choose a file to override it.">i</span></label>
+      <div class="jacket">Tom Swift and His Motor-Boat</div>
+      <input type="file"><button class="danger-btn">Remove</button>
+    </div>
+  </div>
+</div>
+<p class="note">
+    <b>The faint vertical lines are the six gridlines</b>, drawn here only &mdash;
+    they are not in the real page. Every field edge in every row lands on one.
+    That is the alignment: spans are <b>2 or 3 of six</b>, so a field is a third of
+    the row or a half of it and never almost the same as its neighbour.
+    <b>Rows form themselves</b> from the spans (2+2+2 / 3+3 / 2+2+2 / 3+3), so
+    there are no row containers to keep in sync when a field is added.
+</p>
+
+<div class="meta">
+    <b>You asked for three rows and this is four, on purpose.</b> Ten fields over
+    three rows of six means somebody gets one column, and one column is exactly
+    what produced <code>https:/</code>. Four rows also brings the field block's
+    height up to the cover column beside it &mdash; the vertical space item 55a
+    noted the two-row layout was wasting.<br><br>
+    <b>Two pairings are deliberate and worth agreeing or disagreeing with.</b> The
+    URLs share a row at equal width because they are read against each other
+    (yours versus upstream). <code>Prepared by</code> and <code>Cleaned up by</code>
+    share the last row at equal width because they are the two fields on this panel
+    that keep getting confused &mdash; adjacency at identical size invites the
+    comparison their hints explain, instead of hiding it.<br><br>
+    <b>What did NOT change.</b> Every id, every option value and every handler.
+    <code>admin.js</code> does not move for this round. No colour changed. The
+    hints are the same words.<br><br>
+    <b>Still open, and not silently done here.</b> <code>Uploaded by</code> is now a
+    real box on the same baseline as its neighbours instead of bare text floating on
+    a padding guess &mdash; but it is <b>still read-only</b>. Turning it into the
+    dropdown of admins and teachers you suggested is ROADMAP 55b, and it needs your
+    ruling on who may set it. Making it <i>line up</i> is alignment; making it
+    <i>editable</i> is a decision.
+</div>
+
+</body>
+</html>

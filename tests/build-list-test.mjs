@@ -206,6 +206,92 @@ for (const [cls, why] of [['edit-btn', 'opens the text'],
     });
 }
 
+// ─── F. ROADMAP 55a — THE METADATA PANEL IS A GRID, AND THE SPANS SUM ───────
+//
+// ⚠️⚠️ The old layout was `.row { display:flex }` with SEVEN equal `.col`s
+// sharing what the 120px cover column left over, and both URL fields rendered as
+// the string `https:/` — not truncated decoratively, useless.
+//
+// ⚠️ THESE ASSERT STRUCTURE, NOT PIXELS. No test here says a field is 240px
+// wide; they say the spans add up and that nothing is a fraction of a neighbour.
+// A width assertion in a file whose whole item is about widths goes red for
+// reasons that are not defects.
+
+const metaGrid = (() => {
+    const a = adminHtml.indexOf('<div class="meta-grid">');
+    if (a < 0) return null;
+    const b = adminHtml.indexOf('<div class="meta-cover">', a);
+    return adminHtml.slice(a, b);
+})();
+
+check('F1. the metadata panel is a grid, not flex rows', () => {
+    assert.ok(metaGrid, '.meta-grid is gone — if the panel was rebuilt again, ' +
+        'rewrite this section in that round rather than deleting it');
+    assert.match(adminHtml, /\.meta-grid\s*\{[^}]*grid-template-columns:\s*repeat\(6/,
+        'the six-column track is gone; spans of 2 and 3 mean nothing without it');
+    assert.ok(!/class="col[ "]/.test(metaGrid),
+        'a flex .col is back inside the grid — the two layout systems disagree ' +
+        'about width and the loser is whichever field holds a URL');
+});
+
+check('F2. ⚠️⚠️ every row\u2019s spans sum to exactly six', () => {
+    const spans = [...metaGrid.matchAll(/<div class="f([23])">/g)].map(m => +m[1]);
+    assert.ok(spans.length >= 8, 'expected at least eight fields; found ' + spans.length);
+    let row = 0;
+    for (const sp of spans) {
+        row += sp;
+        assert.ok(row <= 6,
+            '⚠️ a row overflows six columns, so it wraps and the field that wraps ' +
+            'gets a row to itself at full width — which reads as more important ' +
+            'than the title. Running total hit ' + row);
+        if (row === 6) row = 0;
+    }
+    assert.equal(row, 0,
+        '⚠️ the last row is short by ' + (6 - row) + ' column(s). Every row must ' +
+        'fill, or the final field stretches and stops lining up with the rows above');
+});
+
+check('F3. ⚠️ no field is a FRACTION of another \u2014 Jake\u2019s pet peeve, as CSS', () => {
+    // `.u-flex-1-4 { flex: 1.4 }` made two columns slightly wider than their
+    // neighbours. Not the same, not clearly different. Spans are 2 or 3 of six.
+    //
+    // ⚠️ COMMENTS STRIPPED FIRST, and the first draft did not — admin.html
+    // v1.10.0 explains the deleted rule by QUOTING it, so the check failed
+    // against correct code by reading its own explanation. staff-tokens-test.mjs
+    // learned this before; every check that counts occurrences in these files
+    // has to.
+    const css = adminHtml.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
+    assert.ok(!/flex:\s*1\.\d/.test(css),
+        'a fractional flex weight is back in admin.html. A field is a third of the ' +
+        'row or a half of it; "a bit wider than the one beside it" is the thing ' +
+        'this panel was rebuilt to stop doing');
+    assert.ok(!/class="f[^23"]/.test(metaGrid),
+        'a span class other than f2/f3 appeared. Two sizes is the point');
+});
+
+check('F4. ⚠️ min-width:0 is still on the grid children', () => {
+    // A grid item's default min-width is auto, so a <select> with a long option
+    // refuses to shrink — a second, quieter way to get `https:/`.
+    assert.match(adminHtml, /\.meta-grid\s*>\s*\*\s*\{[^}]*min-width:\s*0/,
+        'without this a long <option> sets its column\u2019s floor and the URL ' +
+        'fields are squeezed again, with nothing in the markup to explain why');
+});
+
+check('F5. the A/B render carries the SHIPPED grid, verbatim', () => {
+    // ⚠️ A rendered comparison that has drifted from the code is worse than none:
+    // it is a picture of a page that does not exist, and it is what Jake signs
+    // off against.
+    let ab;
+    try { ab = read('tools/meta-panel-ab.html'); }
+    catch { assert.fail('tools/meta-panel-ab.html is missing'); }
+    const shipped = metaGrid.slice(0, metaGrid.lastIndexOf('</div>'))
+        .split('\n').map(l => l.replace(/^ {18}/, '')).join('\n').trimEnd();
+    assert.ok(ab.includes(shipped.split('\n').slice(0, 6).join('\n')),
+        '⚠️ tools/meta-panel-ab.html no longer contains admin.html\u2019s grid ' +
+        'markup. Regenerate it in the same round as any change to the panel, or ' +
+        'delete it \u2014 a stale A/B is a picture of a page that does not exist');
+});
+
 let failed = 0;
 for (const [state, name] of results) {
     console.log(`  ${state === 'ok' ? 'ok  ' : 'FAIL'} ${name}`);

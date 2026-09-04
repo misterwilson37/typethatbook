@@ -1,9 +1,23 @@
 <!DOCTYPE html>
-<!-- admin.html v1.9.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.10.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.10.0 — ⚠️⚠️ ROADMAP 55a — THE METADATA PANEL IS ONE SIX-COLUMN GRID.
+     It was `.row { display:flex }` with SEVEN equal `.col`s sharing whatever the
+     120px cover column left over, and BOTH URL FIELDS RENDERED AS `https:/` AND
+     NOTHING ELSE — not truncated decoratively, useless. Four rows now, spans
+     summing to six: 2+2+2 / 3+3 / 2+2+2 / 3+3, so every field edge in every row
+     lands on the same six gridlines. ⚠️ SPANS ARE 2 OR 3 OF SIX, NEVER 1.4 OF
+     THREE — a field is a third of the row or a half of it, never almost the same
+     as its neighbour. ⚠️ JAKE ASKED FOR THREE ROWS AND THIS IS FOUR ON PURPOSE:
+     ten fields over three rows of six means somebody gets one column, which is
+     what produced `https:/`. ⚠️ `Uploaded by`'s bare text became `.meta-stamp`, a
+     real box on the same baseline — still read-only; ROADMAP 55b is the control
+     it should become. ⚠️ EVERY id, OPTION VALUE AND HANDLER IS UNCHANGED;
+     admin.js does not move. tools/meta-panel-ab.html.
 
      v1.9.0 — ⚠️ ROADMAP 56c: `btn-bg-3a2200` for #repair-titles-btn, which is
      built in JS and set its background inline — so it was outside Round 59's
@@ -252,6 +266,47 @@
             border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 15px;
         }
         .meta-fields { flex: 1 1 auto; min-width: 0; }
+
+        /* ── ⚠️ ROADMAP 55a — ONE SIX-COLUMN GRID, NOT THREE FLEX ROWS (v1.10.0)
+           The field block was `.row { display:flex }` with SEVEN equal `.col`s
+           sharing whatever the 120px cover left over. ⚠️⚠️ BOTH URL FIELDS
+           RENDERED AS THE STRING `https:/` AND NOTHING ELSE — not truncated
+           decoratively, USELESS: you could not read, check or copy the link a
+           book came from.
+
+           ⚠️⚠️ THE SPANS ARE 2 AND 3 OF SIX, NEVER 1.4 OF THREE. Jake's number
+           one pet peeve is elements that are ALMOST the same size; a field is
+           either a third of the row or a half of it, and every field edge in
+           every row lands on the same six gridlines. That is the alignment, and
+           it is why this is a grid rather than four more flex rows — flex rows
+           each solve their own widths and agree with each other by accident.
+
+           ⚠️ THE ROWS FORM THEMSELVES. Spans sum to six per row, so there are no
+           row containers to keep in sync: 2+2+2, 3+3, 2+2+2, 3+3. Adding a field
+           means choosing a span, not restructuring the markup.
+
+           ⚠️ `min-width: 0` IS LOAD-BEARING. A grid item's default min-width is
+           auto, so a <select> with a long option makes its column refuse to
+           shrink — which is a second way to get `https:/`. */
+        .meta-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px 20px; }
+        .meta-grid > * { min-width: 0; }
+        .meta-grid .f2 { grid-column: span 2; }
+        .meta-grid .f3 { grid-column: span 3; }
+        /* ⚠️ The read-only stamp is a real box so it sits on the same baseline as
+           its neighbours instead of floating on a padding-top guess. It is still
+           not typeable — see ROADMAP 55b for the control it should become. */
+        .meta-stamp {
+            background: #1c1c1c; border: 1px dashed #444; color: #888;
+            padding: 12px; box-sizing: border-box; width: 100%;
+            font-family: inherit; font-size: 0.85em;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        @media (max-width: 1100px) {
+            /* ⚠️ TWO COLUMNS, NOT ONE. A single column makes the age range and the
+               stamp full-width, which reads as more important than the title. */
+            .meta-grid { grid-template-columns: repeat(2, 1fr); }
+            .meta-grid .f2, .meta-grid .f3 { grid-column: span 1; }
+        }
         .meta-cover {
             flex: 0 0 120px; text-align: center;
             display: flex; flex-direction: column; align-items: center; gap: 6px;
@@ -573,7 +628,13 @@
 
         /* flex */
         .u-flex-1 { flex: 1; }
-        .u-flex-1-4 { flex: 1.4; }
+        /* ⚠️ `.u-flex-1-4 { flex: 1.4 }` WAS DELETED IN v1.10.0, and it is worth
+           saying why rather than just removing a line. It existed to make the
+           age-range and licence columns slightly wider than their neighbours in
+           the old flex rows — 1.4 against 1 — which is Jake's number one pet
+           peeve written as CSS: not the same, not clearly different. The grid
+           that replaced it spans 2 or 3 of six. inline-styles-test.mjs A4 flagged
+           it as an orphan the moment the last user went. */
         .u-flex-2 { flex: 2; }
 
         /* flex-direction */
@@ -939,104 +1000,132 @@
                      available on hover, taking no vertical space. -->
                 <div class="meta-block">
                   <div class="meta-fields">
-                    <div class="row">
-                        <div class="col">
-                            <label>Genre <span class="hint" title="Options are built in admin.js from the GENRES list. Custom… stores whatever you type, and a stored genre that is not in the list is preserved rather than silently dropped.">i</span></label>
-                            <select id="active-book-genre" class="u-width-100pct"></select>
-                            <input type="text" id="active-book-genre-custom" class="hidden u-width-100pct u-margin-top-4px"
-                                   placeholder="Type new genre">
-                        </div>
-                        <div class="col u-flex-1-4">
-                            <label>Target Age Range <span class="hint" title="Reading age, not grade. Leave both blank if unsure — an untagged book is hidden whenever a student filters by age.">i</span></label>
-                            <div class="u-display-flex u-align-items-center u-gap-6px">
-                                <input type="number" id="active-book-minage" min="3" max="18"
-                                       placeholder="7" class="u-width-100pct">
-                                <span class="u-color-888">to</span>
-                                <input type="number" id="active-book-maxage" min="3" max="18"
-                                       placeholder="11" class="u-width-100pct">
-                            </div>
-                        </div>
-                        <div class="col">
-                            <label for="active-book-protagonist">Protagonist</label>
-                            <select id="active-book-protagonist" class="u-width-100pct">
-                                <option value="">— Not tagged —</option>
-                                <option value="female">Female</option>
-                                <option value="male">Male</option>
-                                <option value="ensemble">Ensemble / group</option>
-                                <option value="nonhuman">Animal or non-human</option>
-                                <option value="unspecified">Unspecified in text</option>
-                            </select>
-                        </div>
+                  <!-- ⚠️ ROADMAP 55a (v1.10.0). ONE GRID, FOUR ROWS, SPANS THAT SUM
+                       TO SIX: 2+2+2 / 3+3 / 2+2+2 / 3+3. Rows form themselves, so
+                       there is nothing to keep in sync when a field is added —
+                       choose a span, not a container.
+
+                       ⚠️⚠️ JAKE ASKED FOR THREE ROWS AND THIS IS FOUR, DELIBERATELY.
+                       Ten fields over three rows of six means somebody gets one
+                       column, and one column is what produced `https:/` in the
+                       first place. Four rows also matches the field block's height
+                       to the cover column beside it, which item 55a notes was
+                       vertical space the two-row layout wasted.
+
+                       ⚠️ THE PAIRINGS ARE NOT ARBITRARY. The two URLs share a row
+                       at equal width because they are read side by side (yours vs
+                       upstream). `Prepared by` and `Cleaned up by` share the last
+                       row, at equal width, because they are the two fields this
+                       panel keeps getting confused — see their hints — and
+                       adjacency at identical size invites exactly the comparison
+                       the hints explain.
+
+                       ⚠️ EVERY id, OPTION VALUE AND HANDLER IS UNCHANGED. admin.js
+                       does not move for this. -->
+                  <div class="meta-grid">
+
+                    <!-- row 1 — what the book IS -->
+                    <div class="f2">
+                        <label>Genre <span class="hint" title="Options are built in admin.js from the GENRES list. Custom… stores whatever you type, and a stored genre that is not in the list is preserved rather than silently dropped.">i</span></label>
+                        <select id="active-book-genre" class="u-width-100pct"></select>
+                        <input type="text" id="active-book-genre-custom" class="hidden u-width-100pct u-margin-top-4px"
+                               placeholder="Type new genre">
+                    </div>
+                    <div class="f2">
+                        <label>Target Age Range <span class="hint" title="Reading age, not grade. Leave both blank if unsure — an untagged book is hidden whenever a student filters by age.">i</span></label>
+                        <div class="u-display-flex u-align-items-center u-gap-6px">
+                            <input type="number" id="active-book-minage" min="3" max="18"
+                                   placeholder="7" class="u-width-100pct">
+                            <span class="u-color-888">to</span>
+                            <input type="number" id="active-book-maxage" min="3" max="18"
+                                   placeholder="11" class="u-width-100pct">
+                                            </div>
+                    </div>
+                    <div class="f2">
+                        <label for="active-book-protagonist">Protagonist</label>
+                        <select id="active-book-protagonist" class="u-width-100pct">
+                            <option value="">— Not tagged —</option>
+                            <option value="female">Female</option>
+                            <option value="male">Male</option>
+                            <option value="ensemble">Ensemble / group</option>
+                            <option value="nonhuman">Animal or non-human</option>
+                            <option value="unspecified">Unspecified in text</option>
+                        </select>
                     </div>
 
-                    <div class="row u-margin-top-12px">
-                        <div class="col">
-                            <label>Source <span class="hint" title="Who produced this edition — Standard Ebooks, Project Gutenberg, and so on. Auto-filled from the EPUB's dc:source or dc:publisher.">i</span></label>
-                            <select id="active-book-source" class="u-width-100pct">
-                                <option value="">— Not set —</option>
-                                <option value="Standard Ebooks">Standard Ebooks</option>
-                                <option value="Project Gutenberg">Project Gutenberg</option>
-                                <option value="Global Grey">Global Grey</option>
-                                <option value="Faded Page">Faded Page</option>
-                                <option value="Wikisource">Wikisource</option>
-                                <option value="Internet Archive">Internet Archive</option>
-                                <option value="Author or publisher direct">Author or publisher direct</option>
-                                <option value="__custom__">Custom…</option>
-                            </select>
-                            <input type="text" id="active-book-source-custom" class="hidden u-width-100pct u-margin-top-4px" placeholder="Who produced this edition">
-                        </div>
-                        <div class="col u-flex-1-4">
-                            <label>License / rights <span class="hint" title="Required for Creative Commons books; shown on the library card. The URL is part of the value on purpose — a license URI is what CC actually asks for, and the card turns it into a link. Auto-filled from the EPUB's dc:rights when it declares one, mapped onto one of these options rather than pasted in raw.">i</span></label>
-                            <select id="active-book-rights" class="u-width-100pct">
-                                <option value="">— Not set —</option>
-                                <option value="Public domain (United States)">Public domain (United States)</option>
-                                <!-- The Standard Ebooks case, and ~20 of the 23 books in the library.
-                                     SE's dc:rights asserts BOTH: the source text is believed US public
-                                     domain, AND SE's own editorial contributions are dedicated CC0.
-                                     Stated in that order because that is the order the rights arose.
-                                     Neither half requires attribution, so this is a credit, not a duty. -->
-                                <option value="Public domain (United States) &amp; CC0 1.0 https://creativecommons.org/publicdomain/zero/1.0/">Public domain (United States) &amp; CC0 1.0</option>
-                                <option value="CC0 1.0 Public Domain Dedication https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0 (public domain dedication)</option>
-                                <option value="CC BY 4.0 https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</option>
-                                <option value="CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</option>
-                                <option value="CC BY-NC 4.0 https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</option>
-                                <option value="CC BY-NC 3.0 https://creativecommons.org/licenses/by-nc/3.0/">CC BY-NC 3.0</option>
-                                <option value="CC BY-NC-SA 4.0 https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</option>
-                                <option value="CC BY-NC-SA 3.0 https://creativecommons.org/licenses/by-nc-sa/3.0/">CC BY-NC-SA 3.0</option>
-                                <option value="__custom__">Custom…</option>
-                            </select>
-                            <input type="text" id="active-book-rights-custom" class="hidden u-width-100pct u-margin-top-4px" placeholder="License name and URL">
-                        </div>
-                        <div class="col">
-                            <label>Archive URL <span class="hint" title="Link to the EPUB this was built from. Provenance, not compliance — it lets anyone check your edition against the original.">i</span></label>
-                            <input type="text" id="active-book-archive" class="u-width-100pct"
-                                   placeholder="https://github.com/…/name.epub">
-                        </div>
-                        <div class="col">
-                            <label>Origin URL <span class="hint" title="Where this edition came from originally — the Standard Ebooks or Gutenberg page, the author's own download. Archive URL is YOUR copy; this is the upstream one. Having both means the provenance survives whichever host disappears first.">i</span></label>
-                            <input type="text" id="active-book-origin" class="u-width-100pct"
-                                   placeholder="https://standardebooks.org/ebooks/…">
-                        </div>
-                        <div class="col">
-                            <label>Prepared by <span class="hint" title="Who produced the SOURCE text — Project Gutenberg's transcribers and proofreaders, or Standard Ebooks' producer. Auto-filled from Gutenberg's machine header (its 'Credits' line). This is NOT the same as Cleaned up by: these are the volunteers who made the public-domain text exist, and crediting them is the decent thing even though nothing obliges it.">i</span></label>
-                            <input type="text" id="active-book-preparedby" class="u-width-100pct"
-                                   placeholder="filled from the EPUB where it says">
-                        </div>
-                        <div class="col">
-                            <label>Uploaded by <span class="hint" title="Who added this book to TypeThatBook, stamped automatically from the signed-in account the first time it was uploaded. READ-ONLY on purpose: this field exists so that a book which turns out to be wrongly licensed or badly cleaned can be traced to whoever added it, and a value anyone can type answers a weaker question. An overwrite does not restamp it — it stays with whoever created the book. Books added before this field existed show a dash.">i</span></label>
-                            <div id="active-book-uploadedby" class="u-color-888 u-font-size-0-85em u-padding-top-10px">—</div>
-                        </div>
-                        <div class="col">
-                            <label>Cleaned up by <span class="hint" title="Who did YOUR classroom text pass. Defaults to Claude, because in practice it always has been. Distinct from Prepared by, which is whoever produced the source text.">i</span></label>
-                            <select id="active-book-cleanedby" class="u-width-100pct">
-                                <option value="">— Not set —</option>
-                                <option value="Claude">Claude</option>
-                                <option value="Jake Wilson">Jake Wilson</option>
-                                <option value="__custom__">Custom…</option>
-                            </select>
-                            <input type="text" id="active-book-cleanedby-custom" class="hidden u-width-100pct u-margin-top-4px" placeholder="Who did the text pass">
-                        </div>
+                    <!-- row 2 — ⚠️ THE URLS, HALF A ROW EACH. This is the fix. -->
+                    <div class="f3">
+                        <label>Archive URL <span class="hint" title="Link to the EPUB this was built from. Provenance, not compliance — it lets anyone check your edition against the original.">i</span></label>
+                        <input type="text" id="active-book-archive" class="u-width-100pct"
+                               placeholder="https://github.com/…/name.epub">
                     </div>
+                    <div class="f3">
+                        <label>Origin URL <span class="hint" title="Where this edition came from originally — the Standard Ebooks or Gutenberg page, the author's own download. Archive URL is YOUR copy; this is the upstream one. Having both means the provenance survives whichever host disappears first.">i</span></label>
+                        <input type="text" id="active-book-origin" class="u-width-100pct"
+                               placeholder="https://standardebooks.org/ebooks/…">
+                    </div>
+
+                    <!-- row 3 — where it came from, and who added it here -->
+                    <div class="f2">
+                        <label>Source <span class="hint" title="Who produced this edition — Standard Ebooks, Project Gutenberg, and so on. Auto-filled from the EPUB's dc:source or dc:publisher.">i</span></label>
+                        <select id="active-book-source" class="u-width-100pct">
+                            <option value="">— Not set —</option>
+                            <option value="Standard Ebooks">Standard Ebooks</option>
+                            <option value="Project Gutenberg">Project Gutenberg</option>
+                            <option value="Global Grey">Global Grey</option>
+                            <option value="Faded Page">Faded Page</option>
+                            <option value="Wikisource">Wikisource</option>
+                            <option value="Internet Archive">Internet Archive</option>
+                            <option value="Author or publisher direct">Author or publisher direct</option>
+                            <option value="__custom__">Custom…</option>
+                        </select>
+                        <input type="text" id="active-book-source-custom" class="hidden u-width-100pct u-margin-top-4px" placeholder="Who produced this edition">
+                    </div>
+                    <div class="f2">
+                        <label>License / rights <span class="hint" title="Required for Creative Commons books; shown on the library card. The URL is part of the value on purpose — a license URI is what CC actually asks for, and the card turns it into a link. Auto-filled from the EPUB's dc:rights when it declares one, mapped onto one of these options rather than pasted in raw.">i</span></label>
+                        <select id="active-book-rights" class="u-width-100pct">
+                            <option value="">— Not set —</option>
+                            <option value="Public domain (United States)">Public domain (United States)</option>
+                            <!-- The Standard Ebooks case, and ~20 of the 23 books in the library.
+                                 SE's dc:rights asserts BOTH: the source text is believed US public
+                                 domain, AND SE's own editorial contributions are dedicated CC0.
+                                 Stated in that order because that is the order the rights arose.
+                                 Neither half requires attribution, so this is a credit, not a duty. -->
+                            <option value="Public domain (United States) &amp; CC0 1.0 https://creativecommons.org/publicdomain/zero/1.0/">Public domain (United States) &amp; CC0 1.0</option>
+                            <option value="CC0 1.0 Public Domain Dedication https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0 (public domain dedication)</option>
+                            <option value="CC BY 4.0 https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</option>
+                            <option value="CC BY-SA 4.0 https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</option>
+                            <option value="CC BY-NC 4.0 https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</option>
+                            <option value="CC BY-NC 3.0 https://creativecommons.org/licenses/by-nc/3.0/">CC BY-NC 3.0</option>
+                            <option value="CC BY-NC-SA 4.0 https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</option>
+                            <option value="CC BY-NC-SA 3.0 https://creativecommons.org/licenses/by-nc-sa/3.0/">CC BY-NC-SA 3.0</option>
+                            <option value="__custom__">Custom…</option>
+                        </select>
+                        <input type="text" id="active-book-rights-custom" class="hidden u-width-100pct u-margin-top-4px" placeholder="License name and URL">
+                    </div>
+                    <div class="f2">
+                        <label>Uploaded by <span class="hint" title="Who added this book to TypeThatBook, stamped automatically from the signed-in account the first time it was uploaded. READ-ONLY on purpose: this field exists so that a book which turns out to be wrongly licensed or badly cleaned can be traced to whoever added it, and a value anyone can type answers a weaker question. An overwrite does not restamp it — it stays with whoever created the book. Books added before this field existed show a dash.">i</span></label>
+                        <div id="active-book-uploadedby" class="meta-stamp">—</div>
+                    </div>
+
+                    <!-- row 4 — ⚠️ THE PAIR THAT GETS CONFUSED, side by side, equal -->
+                    <div class="f3">
+                        <label>Prepared by <span class="hint" title="Who produced the SOURCE text — Project Gutenberg's transcribers and proofreaders, or Standard Ebooks' producer. Auto-filled from Gutenberg's machine header (its 'Credits' line). This is NOT the same as Cleaned up by: these are the volunteers who made the public-domain text exist, and crediting them is the decent thing even though nothing obliges it.">i</span></label>
+                        <input type="text" id="active-book-preparedby" class="u-width-100pct"
+                               placeholder="filled from the EPUB where it says">
+                    </div>
+                    <div class="f3">
+                        <label>Cleaned up by <span class="hint" title="Who did YOUR classroom text pass. Defaults to Claude, because in practice it always has been. Distinct from Prepared by, which is whoever produced the source text.">i</span></label>
+                        <select id="active-book-cleanedby" class="u-width-100pct">
+                            <option value="">— Not set —</option>
+                            <option value="Claude">Claude</option>
+                            <option value="Jake Wilson">Jake Wilson</option>
+                            <option value="__custom__">Custom…</option>
+                        </select>
+                        <input type="text" id="active-book-cleanedby-custom" class="hidden u-width-100pct u-margin-top-4px" placeholder="Who did the text pass">
+                    </div>
+
+                  </div>
                   </div>
 
                   <div class="meta-cover">
