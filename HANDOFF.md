@@ -1,11 +1,77 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-04 by Round 65 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-04 by Round 66 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–65 ARE ONE INSTANCE.** **Round 60's block, below, still holds the
+> ⚠️ **ROUNDS 60–66 ARE ONE INSTANCE.**
+>
+> ### ✅ ROUND 66: THE HALF ROUND 65 LEFT ON FLEX
+>
+> Two of Jake's three questions had **one cause**: Round 65 gridded the fields and
+> left the header row and the cover on flex. ⭐ **TWO LAYOUT SYSTEMS ON ONE PANEL
+> AGREE ONLY BY ACCIDENT.**
+>
+> * **One `grid-template-columns`, shared by `.meta-head` and `.meta-grid`** — one
+>   declaration on both selectors, like `.tier-commit` / `.danger-btn`. ⚠️ **DO NOT
+>   GIVE EITHER ITS OWN**; G1 fails if a rule sets the track list for one only.
+> * ⚠️ **`Save Metadata` lines up because of a SPACER LABEL**, and it must stay
+>   `visibility: hidden` — `display: none` reserves no height and the alignment
+>   reverts with nothing on screen to say so. G3 pins it.
+> * **The cover is a three-row slot in column 7**, 160px wide, its frame's edges on
+>   gridlines. Its controls have their own cell on the last field row.
+> * ⚠️ **`inline-styles-test.mjs` A1 caught my three inline `grid-column` attributes.**
+>   The at-most-10 ratchet is doing its job; put spans in classes.
+>
+> ### ⚠️ "WHY ISN'T MY NAME SHOWING IN UPLOADED BY?" — ANSWERED, NOT FIXED
+>
+> `uploadedBy` is stamped on **first upload** from the signed-in account and
+> **never by Save Metadata** (v3.38.0 — an overwrite must not restamp). A book being
+> staged has no stamp. The bare em dash read as broken; it now says **"— stamped
+> when you upload"**. ⚠️⚠️ It writes only on `activeBookExists() === false`, never
+> `!exists` — `showUploadedBy()` owns that element for books that exist, and `null`
+> must not stomp a real name. ⚠️ **STILL READ-ONLY. 55b is the dropdown and it
+> needs Jake's ruling on who may set it.**
+>
+> ### ⚠️ I GOT A DATE WRONG AND JAKE CAUGHT IT
+>
+> Round 65 said the week of 2026-09-05 had started. **It had not** — see the
+> correction in the Round 60 block below. ⭐ **Off-by-one on a Saturday-anchored
+> week is exactly what `week-agreement-test.mjs` exists for, and I made it in prose
+> where no harness could see it.** Check the day of the week before asserting one.
+>
+> ### THE STATE OF PLAY
+>
+> * **71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run;
+>   nothing in Rounds 60–66 touches `firestore.rules`.
+> * ⚠️ **ROUNDS 60–63 ARE CONFIRMED LIVE, AND SO IS 65** (Jake's screenshot).
+>   Round 64 and 66 unconfirmed. Expected stamps: `admin.html` **v1.11.0**,
+>   `admin.js` **v3.47.0**, `lessons-admin.js` **v1.17.0**, `versions.js`
+>   **v1.16.0**.
+> * ⚠️ **`tools/meta-panel-ab.html` MUST BE REGENERATED IN THE SAME ROUND AS ANY
+>   CHANGE TO THAT PANEL.** F5 fails otherwise.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+>   **DO NOT SHIP style.css v3.10.0.**
+> * ⚠️ **NOTHING STUDENT-FACING HAS CHANGED SINCE ROUND 60**, which is live.
+> * **Next:** **56a** — the (i) buttons, which do nothing. ⚠️ Answer it **from the
+>   importer**, not from memory. Then **55b/c/d**, **58's collapse step**, and item
+>   38's `safe`/`edit` pass. ⚠️ **`ABOUT` in the chapter row is GREEN**, and green
+>   now means "nothing here existed before" on three controls — one green doing two
+>   jobs, and that pass has to resolve it.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 65 (Duplex) — the previous block, kept
+>
+> **Round 60's block, below, still holds the
 > most important thing in this file: ROADMAP 50's mechanism could not fire before
-> the week of 2026-09-05. That week has now STARTED — this is the first week its
-> `since` sits under. Watch `game.html` first.**
+> the week of 2026-09-05.**
+>
+> ⚠️ **DATE CORRECTION, AND JAKE CAUGHT IT.** Round 65 said that week had already
+> started. It had not: 2026-09-04 is a **Friday**, and weeks anchor on **Saturday**
+> — so 09-04 is the LAST day of the 08-29 → 09-04 week, and the first week
+> `since` sits under **begins Sat 2026-09-05**. ⚠️ Off-by-one on a Saturday-anchored
+> week is exactly the error `week-agreement-test.mjs` exists for, and I made it in
+> prose where no harness could catch it. **Watch `game.html` from the week of
+> 09-07.**
 >
 > ### ✅ ROUND 65: ROADMAP 55a — THE METADATA PANEL IS A GRID
 >

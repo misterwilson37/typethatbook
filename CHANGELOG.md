@@ -1,5 +1,72 @@
 # CHANGELOG — TypeThatBook
 
+## Round 66 (Duplex) — 2026-09-04 — the half Round 65 left on flex
+
+### ⚠️⚠️ Two of Jake's three questions had one cause
+
+*"Could we make the cover a little larger so that it lines up with the other rows
+rather than being slightly off of all of them?"* and *"why is save metadata not
+lined up with the title?"* — **Round 65 gridded the fields and left everything
+else on flex.** The header row was still `.row { display:flex }`; the cover was
+still a flex sibling beside the whole block. Two layout systems on one panel agree
+only by accident.
+
+`admin.html` **v1.10.0 → v1.11.0**:
+
+- ⭐ **One `grid-template-columns`, shared by `.meta-head` and `.meta-grid`** — not
+  two matching declarations, one on both selectors, the same pattern as
+  `.tier-commit` / `.danger-btn`. Header spans **3 + 2 + 2 = seven tracks**, using
+  the same `f2`/`f3` vocabulary as the fields.
+- ⚠️ **`Save Metadata` lines up because of a spacer label.** Its cell has no label,
+  so the button started at the top of the cell while the inputs beside it started
+  below *theirs* — about twenty pixels, invisible in review, obvious on screen.
+  **`visibility: hidden`, never `display: none`**: the latter reserves no height
+  and the alignment silently reverts.
+- ⭐ **The cover is a three-row slot in column 7**, not an image of whatever height
+  the jacket happens to be. Top and bottom are gridlines; the picture sits in a
+  `.cover-frame` at its own aspect ratio; the file input and `Remove` get their own
+  cell on the last field row. **Column 120px → 160px.**
+- ⚠️ The three inline `style="grid-column"` attributes in the first draft were
+  caught by `inline-styles-test.mjs` A1 — the at-most-10 ratchet. They are classes.
+
+### ⚠️ "Why isn't my name showing in uploaded by?" — the field was right and said nothing
+
+`admin.js` **v3.46.0 → v3.47.0**. `uploadedBy` is stamped on **first upload**, from
+the signed-in account, and **never by Save Metadata** — deliberately, since an
+overwrite must not restamp (v3.38.0). A book being staged for the first time
+therefore has no stamp, and the panel rendered a bare em dash, which reads as
+*broken* rather than as *not yet*.
+
+`paintUploadedByStamp()` adds the fourth state: **"— stamped when you upload"**.
+⚠️⚠️ It writes only when `activeBookExists() === false`, never `!exists` —
+`showUploadedBy()` owns that element for every book that exists, and `null` (book
+list not loaded) must not stomp a real name with a placeholder. No read. **Still
+read-only**; ROADMAP 55b is the dropdown.
+
+### ⚠️ A date correction Jake caught
+
+Round 65's handoff said the week of 2026-09-05 had already started. It had not:
+09-04 is a **Friday**, weeks anchor on **Saturday**, so 09-04 is the last day of
+the 08-29 → 09-04 week and the first week `since` sits under **begins Sat 09-05**.
+Off-by-one on a Saturday-anchored week is precisely what
+`week-agreement-test.mjs` exists for, and it happened in prose where no harness
+could see it.
+
+### The guards
+
+`build-list-test.mjs` gains **Parts G and H, 6 assertions** (23 total),
+mutation-verified four ways: splitting the shared template, `display:none` on the
+spacer, `!exists` on the stamp, and the cover back on flex. ⚠️ F5 was rewritten to
+compare with leading whitespace stripped — the previous version failed whenever the
+A/B's slice started at a different depth, which is a bounds difference reading as a
+stale render. `tools/meta-panel-ab.html` **v1.1.0** now carries the panel's CSS
+block as well as its markup.
+
+### Verification
+
+**71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `npm run test:rules` NOT
+run; nothing here touches `firestore.rules`.
+
 ## Round 65 (Duplex) — 2026-09-04 — the metadata panel is one six-column grid
 
 ### ⚠️⚠️ ROADMAP 55a — both URL fields rendered as the string `https:/`
@@ -7493,4 +7560,29 @@ try { sessionStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
 //           typed id exactly, because series ids like
 //           `l-frank-baum-oz01-the-wonderful-wizard-of-oz` are hand-shaped and a
 //           blocker would fight every new series.
+```
+
+### § admin.js — archived header entries (Round 66)
+
+```
+// v3.40.0 — ⚠️ ROADMAP 47, STEP ONE: THE LICENCE LADDER MOVED TO rights-ladder.js.
+//           SOURCE_PATTERNS, looksLikeBareUrl(), canonicalSourceFrom() and
+//           canonicalRightsFrom() left VERBATIM — bodies unchanged, the four
+//           declarations gained `export` and nothing else. Imported at the top of
+//           this file now.
+//           ⚠️ selectOptionValues() STAYED. It reads the live <select>, which is
+//           the whole mechanism by which admin.html remains the single source of
+//           truth for what a mapping may return, and it is the one piece a
+//           DOM-free consumer cannot have.
+//           ⚠️⚠️ ROADMAP 47's STATED REASON FOR THE MOVE WAS WRONG AND THE MOVE
+//           IS STILL RIGHT. The item says to extract so the planned Cloud
+//           Function can IMPORT the ladder. It cannot: `firebase deploy --only
+//           functions` packages the `functions/` directory and nothing above it.
+//           What the move actually buys is that metadata-map-test.mjs stops
+//           LIFTING these four out of this file as text and imports them, so the
+//           harness now exercises the shipped code rather than a re-evaluated
+//           copy — and the ladder gets one canonical home to check a future
+//           functions-side copy against.
+//           ⚠️ metadata-map-test.mjs PART F guards the property that makes that
+//           copy possible: the module imports nothing and touches no DOM.
 ```

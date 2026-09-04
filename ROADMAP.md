@@ -391,7 +391,7 @@ Everything else still open:
 - 53. ⚠️ EIGHTY BOOKS AND NO WAY THROUGH THEM — SEARCH, AND SOMETHING FEATURED  *(Jake asked, 2026-09-03)*
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
 - 38. ⚠️ OPEN for admin — commit + create tiers DONE (Rounds 61-63), safe/edit NOT — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS  *(⚠️ UNBLOCKED, and Jake has RULED — build to the table, do not re-open it)*
-- 55. ⚠️ (a) DONE Round 65 — (b)(c)(d) OPEN — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
+- 55. ⚠️ (a) DONE Rounds 65-66 — (b)(c)(d) OPEN — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
 - 56. ⚠️ (a) OPEN — (b) AND (c) CLOSED ROUND 64 — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS  *(Jake, 2026-09-03)*
 - 58. ⭐ A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
 - 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED  *(found Round 60; touches three mirrored files — read the item)*
@@ -5424,11 +5424,60 @@ default order or as one option beside the current one.**
 
 ---
 
-## 55. ⚠️ (a) DONE Round 65 — (b)(c)(d) OPEN — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"
+## 55. ⚠️ (a) DONE Rounds 65-66 — (b)(c)(d) OPEN — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"
 
 **Jake, 2026-09-03, from a screenshot of Content Staging.** Four separate things,
 all in the same panel, all small. ⚠️ **Do them together — this panel is one grid
 and four separate rounds would relayout it four times.**
+
+### ✅ ROUND 66 (Duplex) — THE HALF ROUND 65 LEFT UNALIGNED
+
+**Jake, on the v1.10.0 render:** *"100 times better. Could we make the cover a
+little larger so that it lines up with the other rows rather than being slightly
+off of all of them?"* and *"why is save metadata not lined up with the title?"*
+
+⚠️⚠️ **BOTH HAVE ONE CAUSE: ROUND 65 GRIDDED THE FIELDS AND LEFT EVERYTHING ELSE
+ON FLEX.** The header row was still `.row { display:flex }` and the cover was
+still a flex sibling *beside* the whole block. Two layout systems on one panel
+agree only by accident, and they didn't.
+
+✅ **`admin.html` v1.11.0.**
+
+* ⭐ **ONE `grid-template-columns`, SHARED BY `.meta-head` AND `.meta-grid`.** Not
+  two matching declarations — **one**, on both selectors, exactly as
+  `.tier-commit` and `.danger-btn` share theirs. ⚠️ **DO NOT GIVE EITHER ITS
+  OWN**; `build-list-test.mjs` G1 fails if a rule sets the track list for only one
+  of them. Header spans **3 + 2 + 2 = seven tracks**, the same `f2`/`f3`
+  vocabulary as the fields.
+* ⚠️ **`Save Metadata` LINES UP BECAUSE OF A SPACER LABEL.** Its cell has no label
+  of its own, so the button started at the top of the cell while the inputs beside
+  it started below *their* labels — about twenty pixels, invisible in code review,
+  obvious on screen. ⚠️ **`visibility: hidden`, NEVER `display: none`** — the
+  latter reserves no height and the alignment silently reverts. G3 pins it.
+* ⭐ **THE COVER IS A SLOT OF THREE ROWS IN COLUMN 7**, not an image of whatever
+  height the jacket happens to be. Its top and bottom are gridlines; the picture
+  sits inside a `.cover-frame` at its own aspect ratio. Its file input and
+  `Remove` get their own cell on the **last** field row, beside Prepared by /
+  Cleaned up by, instead of floating under the jacket. **Column 120px → 160px**,
+  so it is larger as well as aligned.
+* ⚠️ **The three inline `style="grid-column"` attributes I first wrote were caught
+  by `inline-styles-test.mjs` A1** (the ratchet: at most 10 in this file). They are
+  classes. The ratchet was right and the check cost nothing.
+
+### ⚠️ "WHY ISN'T MY NAME SHOWING IN UPLOADED BY?" — THE FIELD WAS RIGHT AND SAID NOTHING
+
+`admin.js` **v3.47.0**. `uploadedBy` is stamped on **first upload**, from the
+signed-in account, and **never by Save Metadata** (v3.38.0, deliberately — an
+overwrite must not restamp). So a book being staged for the first time has no
+stamp, and the panel rendered a bare em dash, which reads as *broken* rather than
+as *not yet*.
+
+`paintUploadedByStamp()` adds the fourth state: **"— stamped when you upload"**.
+⚠️⚠️ **IT WRITES ONLY WHEN `activeBookExists() === false`, never `!exists`** —
+`showUploadedBy()` owns that element for every book that does exist, and `null`
+(book list not loaded) must not stomp a real uploader's name with a placeholder.
+H1 pins the `=== false`. ⚠️ **No read.** ⚠️ **Still read-only** — 55b is the
+dropdown, and it needs Jake's ruling.
 
 ### ✅ ROUND 65 (Duplex) — (a) DONE, AND IT IS FOUR ROWS, NOT THREE
 

@@ -1,4 +1,18 @@
-// admin.js v3.46.0
+// admin.js v3.47.0
+//
+// v3.47.0 — ⚠️ "WHY ISN'T MY NAME SHOWING IN UPLOADED BY?" — Jake, of a book he
+//           was staging for the first time. THE FIELD WAS RIGHT AND SAID NOTHING.
+//           `uploadedBy` is stamped on FIRST UPLOAD from the signed-in account and
+//           never by Save Metadata (v3.38.0), so a book with no document yet has
+//           no stamp — and a bare em dash reads as broken rather than as "not
+//           yet". paintUploadedByStamp() adds the fourth state: "— stamped when
+//           you upload".
+//           ⚠️⚠️ IT WRITES ONLY WHEN THE BOOK DOES NOT EXIST (`=== false`, never
+//           `!exists`). showUploadedBy() owns that element for every book that
+//           does, and a repaint must never stomp a real name with a placeholder.
+//           ⚠️ NO READ. It rides the predicate that was already there.
+//           ⚠️ THE FIELD IS STILL READ-ONLY. ROADMAP 55b is the dropdown, and it
+//           needs Jake's ruling on who may set it.
 //
 // v3.46.0 — ROADMAP 56b AND 56c, both small and both about a control that makes
 //           a promise it does not keep.
@@ -173,27 +187,7 @@
 //           non-overlapping — nothing located by anchor text, so there is no
 //           anchor to match the wrong occurrence.
 //
-// v3.40.0 — ⚠️ ROADMAP 47, STEP ONE: THE LICENCE LADDER MOVED TO rights-ladder.js.
-//           SOURCE_PATTERNS, looksLikeBareUrl(), canonicalSourceFrom() and
-//           canonicalRightsFrom() left VERBATIM — bodies unchanged, the four
-//           declarations gained `export` and nothing else. Imported at the top of
-//           this file now.
-//           ⚠️ selectOptionValues() STAYED. It reads the live <select>, which is
-//           the whole mechanism by which admin.html remains the single source of
-//           truth for what a mapping may return, and it is the one piece a
-//           DOM-free consumer cannot have.
-//           ⚠️⚠️ ROADMAP 47's STATED REASON FOR THE MOVE WAS WRONG AND THE MOVE
-//           IS STILL RIGHT. The item says to extract so the planned Cloud
-//           Function can IMPORT the ladder. It cannot: `firebase deploy --only
-//           functions` packages the `functions/` directory and nothing above it.
-//           What the move actually buys is that metadata-map-test.mjs stops
-//           LIFTING these four out of this file as text and imports them, so the
-//           harness now exercises the shipped code rather than a re-evaluated
-//           copy — and the ladder gets one canonical home to check a future
-//           functions-side copy against.
-//           ⚠️ metadata-map-test.mjs PART F guards the property that makes that
-//           copy possible: the module imports nothing and touches no DOM.
-//
+// ⚠️ v3.40.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 66).
 // ⚠️ v3.39.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
 // ⚠️ v3.38.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
 // ⚠️ v3.37.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 63).
@@ -227,7 +221,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.46.0";
+const ADMIN_VERSION = "3.47.0";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -846,11 +840,38 @@ function paintParseButton() {
           'database.';
 }
 
-/** All three, together — they read the same two facts and must not disagree. */
+/**
+ * ⚠️ ROADMAP 55b-adjacent — "WHY ISN'T MY NAME SHOWING IN UPLOADED BY?" (v3.47.0)
+ *
+ * Jake asked, of a book he was staging for the first time. The field was working
+ * exactly as designed and said nothing about it: `uploadedBy` is stamped on FIRST
+ * UPLOAD, from the signed-in account, and never by Save Metadata. So a book that
+ * has not been uploaded yet has no stamp, and the panel rendered a bare em dash —
+ * which reads as broken rather than as "not yet".
+ *
+ * ⚠️ THREE STATES, NOT TWO. `showUploadedBy()` already distinguishes "you", "some
+ * other member of staff", and "added before this field existed". The one it could
+ * not express is "this book does not exist yet", because it is only called when a
+ * book is LOADED. That one belongs here, with the predicate that knows.
+ *
+ * ⚠️⚠️ IT ONLY EVER WRITES WHEN THE BOOK DOES NOT EXIST. If it exists,
+ * showUploadedBy() owns this element and a repaint must not stomp a real name
+ * with a placeholder — `=== false` exactly, never `!exists`.
+ */
+function paintUploadedByStamp() {
+    const el = document.getElementById('active-book-uploadedby');
+    if (!el) return;
+    if (activeBookExists() === false) {
+        el.textContent = '\u2014 stamped when you upload';
+    }
+}
+
+/** All four, together — they read the same two facts and must not disagree. */
 function paintTierButtons() {
     paintUploadButton();
     paintSaveMetadataButton();
     paintParseButton();
+    paintUploadedByStamp();
 }
 
 let activeBookId = ""; 
