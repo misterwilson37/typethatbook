@@ -1,5 +1,82 @@
 # CHANGELOG — TypeThatBook
 
+## Round 64 (Duplex) — 2026-09-03 — the guard, the sort, two dead hovers, and a README command that was hiding a defect
+
+### ⚠️⚠️ Parse & Initialize could discard an afternoon with no confirm
+
+Everything past the file check replaces `stagedChapters` wholesale — every split,
+merge, retitle and matter change since the last parse. None of it is in Firestore,
+so there is nothing to recover from and no undo.
+
+`admin.js` **v3.45.0**. ⚠️ The prompt **names the file**: this is v3.25.2's defect
+in the other panel — the file input survives everything, so the second press reads
+whatever is sitting in it, which may not be the book you have been editing.
+⚠️ It asks **only when something is staged**; a confirm on the first parse of every
+book is a dialog people learn to dismiss, and then it is not there on the press
+that mattered. Round 63's colour change stays: the colour is what you notice, the
+dialog is what stops you.
+
+### ROADMAP 51 — the build list sorts
+
+`versions.js` **v1.16.0**. `renderBuildList()` sorts **a copy** — `results` is
+`_buildCache` handed to every caller by reference, and three pages call it.
+⚠️ `SOURCES` is untouched, and `build-list-test.mjs` A3 fails if a later round
+alphabetises the array instead: it is mirrored in `tools/audit-versions.mjs` and
+`version-stamp-test.mjs` §D, half its entries carry positional comments, and it is
+the only record of registration order.
+
+### ROADMAP 56b and 56c — and (c) was hiding a real bug
+
+`Edit` and `Del` carry hints (`admin.js` **v3.46.0**); Del's says the part that is
+not obvious — the chapter document is pruned **when you upload**.
+
+The two dead hovers had **different causes**:
+
+- `#repair-titles-btn` set `background` through `style.cssText`. It is built in
+  JS, so it was never in Round 59's sweep of the eighteen inline backgrounds in
+  the markup, and an inline value beats every selector. `btn-tint btn-bg-3a2200`
+  now (`admin.html` **v1.9.0**).
+- ⚠️⚠️ **The class manager's Delete carried two `class` attributes**
+  (`lessons-admin.js` **v1.17.0**). HTML keeps the first and discards the second,
+  so `class-del-btn` was never on the element. Both consequences were live: the
+  inline `background:#500` killed the hover, and the click had to be found by
+  `[data-id]:last-child` — correct only while Delete stays the last child of that
+  card. `.lbtn-danger` already declared that exact treatment *and* a hover, four
+  lines apart in `admin.html`.
+
+⭐ `build-list-test.mjs` C1 is a **class guard**: it fails on any button built via
+`createElement('button')` whose `cssText` sets a background. ⚠️ Scoped by what
+`createElement` was asked for — the first draft flagged `showBootstrapWarning()`'s
+`<div>`, which has no hover to lose.
+
+### ⚠️⚠️ ROADMAP 29 — the README's own command was hiding ROADMAP 57
+
+`README.md` **v2.4.0**. The regeneration command it prints —
+`grep -oP "[a-z][a-z-]*\.(js|html)" versions.js` — matches anything shaped like a
+filename **including inside comments**, so it reported `index.html` as registered.
+**It is not in `SOURCES`.** The library landing page has never had its version
+stamp audited (ROADMAP 57), and the one command in this repo that would have
+surfaced that was answering the opposite. ⭐ **A check that over-reports is worse
+than no check: it answers the question you asked, wrongly, and you stop asking.**
+
+⚠️ **The item's own premise was stale.** It called the file "v2.0.0, twenty-five
+rounds stale"; it was **v2.3.0, Round 57**. Also fixed: `rights-ladder.js` missing
+from the module list (found by running the *corrected* command against the
+paragraph), and the `tools/` row. jsdom count re-measured, not carried forward:
+still thirteen.
+
+### Shipped
+
+`admin.js` v3.46.0, `admin.html` v1.9.0, `lessons-admin.js` v1.17.0,
+`versions.js` v1.16.0, `README.md` v2.4.0, `tests/build-list-test.mjs` (**NEW**,
+12 assertions, mutation-verified four ways), `run-all-tests.mjs` **v1.22.0**.
+Suite is **71 harnesses**. Four header entries archived below.
+
+### Verification
+
+**71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `npm run test:rules` NOT
+run; nothing here touches `firestore.rules`.
+
 ## Round 63 (Duplex) — 2026-09-03 — "it existed, but it wasn't there"
 
 ### ⚠️⚠️ Round 62 asked whether the book EXISTS. The question is whether it has CHAPTERS.
@@ -7225,4 +7302,139 @@ function _renderFullBuildPanel(results) {
 //           Jacobs". The guard is `creators.length === 0`, never `!creators[0]`:
 //           on a normal Gutenberg book the contributor is the TRANSCRIBER, and a
 //           book that has an author must never be overridden by one.
+```
+
+### § admin.js — archived header entries (Round 64)
+
+```
+// v3.38.0 — ⚠️ ROADMAP 46: WHO UPLOADED THIS BOOK, STAMPED AND NOT TYPEABLE.
+//           Jake, on a second building admin joining: "he may not be as strict as
+//           I am." The field exists to answer, months later, who added a book that
+//           turned out to be wrongly licensed — so a hand-typed value would record
+//           who REMEMBERED to fill it in, not who did it. Stamped from
+//           _staffScope.uid, rendered read-only.
+//           ⚠⚠ STAMPED ON CREATE ONLY. `alreadyExists` (already computed from
+//           bookTitlesMap, so it costs NO read) gates it: an overwrite must not
+//           restamp, or the field answers "who touched it last" — a different
+//           question nobody asked. Save Metadata never writes it at all.
+//           ⚠️ THE uid IS STORED, NOT A NAME. Names and emails go stale; staff/{uid}
+//           is resolved at display time and cached for the session, and only for a
+//           book that HAS a stamp.
+//           ⚠️ A BOOK WITH NO STAMP READS "— (added before this was recorded)",
+//           NOT Jake. He is almost certainly right that everything so far is his,
+//           but a guessed provenance stamp is indistinguishable from a recorded one
+//           afterwards, and this field's whole value is that it can be trusted.
+//           Backfill on an explicit instruction, never by inference.
+```
+
+### § versions.js — archived header entries (Round 64)
+
+```
+// v1.8.0 — registers update-gate.js. It is NOT imported by game.js or learn.js
+// — it loads from its own script tag in each shell — which is exactly why it
+// needs to be here: nothing else on the page would reveal that it failed to
+// load. A silently absent update gate looks identical to a working one right up
+// until a deploy doesn't reach the building.
+//
+const SOURCES = [
+    { file: 'game.js',               pattern: /\bconst\s+VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'learn.js',              pattern: /\bconst\s+LEARN_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'keyboard.js',           pattern: /\bexport\s+const\s+KB_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'adventure-renderer.js', pattern: /\bexport\s+const\s+RENDERER_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'admin.js',              pattern: /\bconst\s+ADMIN_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'lessons-admin.js',      pattern: /window\.LESSONS_ADMIN_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'staff-admin.js',        pattern: /window\.STAFF_ADMIN_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'firebase-config.js',    pattern: /\bexport\s+const\s+CONFIG_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'stats-wal.js',          pattern: /\bexport\s+const\s+STATS_WAL_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'session-log.js',        pattern: /\bexport\s+const\s+SESSION_LOG_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'hud.js',                pattern: /\bexport\s+const\s+HUD_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'chapter-position.js',   pattern: /\bexport\s+const\s+CHAPTER_POSITION_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'variety-floor.js',      pattern: /\bexport\s+const\s+VARIETY_FLOOR_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'rights-ladder.js',      pattern: /\bexport\s+const\s+RIGHTS_LADDER_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'versions.js',           pattern: /\bexport\s+const\s+VERSIONS_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'update-gate.js',        pattern: /\bexport\s+const\s+UPDATE_GATE_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'daylog.js',             pattern: /\bexport\s+const\s+DAYLOG_VERSION\s*=\s*["']([^"']+)["']/ },
+    // ⚠️ ROADMAP 9b, Round 27. Three modules extracted in Rounds 25–26 that the
+    // footer could not see. celebrate.js and receipt.js had no constant at all
+    // until this commit. ⚠️ THIS LIST IS MIRRORED IN tools/audit-versions.mjs
+    // AND tests/version-stamp-test.mjs — section D of that harness FAILS if the
+    // three ever disagree, so all three move together or none do.
+    { file: 'drill-filter.js',       pattern: /\bexport\s+const\s+DRILL_FILTER_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'celebrate.js',          pattern: /\bexport\s+const\s+CELEBRATE_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'receipt.js',            pattern: /\bexport\s+const\s+RECEIPT_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'lesson-gate.js',        pattern: /\bexport\s+const\s+LESSON_GATE_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'run-grade.js',          pattern: /\bexport\s+const\s+RUN_GRADE_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'read-meter.js',         pattern: /\bexport\s+const\s+READ_METER_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'logdays.js',            pattern: /\bexport\s+const\s+LOGDAYS_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'settings-panel.js',     pattern: /\bexport\s+const\s+SETTINGS_PANEL_VERSION\s*=\s*["']([^"']+)["']/ },
+    // Stylesheets carry theirs in a comment on line 1 as well as in a
+    // body::before / body::after stamp. The comment is what we parse here,
+    // because a page that doesn't load the stylesheet can still report it.
+    { file: 'style.css',             pattern: /style\.css\s+v([0-9][^\s*]*)/ },
+    { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
+    // Markup shells, versioned the same way the stylesheets are: a comment near
+    // the top, because there is no runtime JS in either file to hold a constant.
+    { file: 'game.html',             pattern: /game\.html\s+v([0-9][^\s\->]*)/ },
+    { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
+    // ⚠️ ROADMAP 16 — THE TWO STAFF PAGES WERE UNWATCHED, WHICH IS BACKWARDS.
+    // A stale admin.js is the single most damaging stale file in the project (it
+    // is what writes books), and it was the one file the drift detector could
+    // not see. reports.html and admin.html are shells like game.html: they hold
+    // no runtime constant of their own, so they carry a comment near the top.
+    { file: 'reports.html',          pattern: /reports\.html\s+v([0-9][^\s\->]*)/ },
+    { file: 'admin.html',            pattern: /admin\.html\s+v([0-9][^\s\->]*)/ },
+];
+
+export const VERSIONS_VERSION = '1.16.0';
+
+// ⚠️ v1.13.0 — THE OLD sessionStorage KEY, KEPT ONLY TO BE CLEARED. A tab that
+// loaded v1.12.0 or earlier has a stale build list sitting in sessionStorage
+// under this key; nothing reads it any more, but leaving it there means a
+// future reader finds a plausible-looking cache and wonders what writes it.
+// Cleared once at module load, then the name can go.
+const LEGACY_CACHE_KEY = 'ttb_buildVersions_v3';
+try { sessionStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
+```
+
+### § lessons-admin.js — archived header entries (Round 64)
+
+```
+// v1.11.0 — READ-SIDE OF THE SOURCE SPLIT (DESIGN-TELEMETRY.md §2.4). Same
+//          incident as game.js v3.29.0 / learn.js v2.14.0 / reports.html
+//          v2.13.0: typing_logs now carries secondsLibrary/secondsSchool
+//          instead of a shared `seconds` field two page controllers used to
+//          silently overwrite on each other. The roster panel's weekSeconds
+//          tally now sums both split fields when either is present, falling
+//          back to the legacy flat field for documents written before this
+//          shipped — the same rule reports.html's readLogTotals() applies,
+//          duplicated inline rather than imported, because this file and
+//          reports.html are two separate standalone pages with no shared
+//          module between them (the same reason getWeekStart() is a
+//          hand-maintained twin in game.js/learn.js, not an import).
+```
+
+### § admin.js — archived header entries (Round 64, second)
+
+```
+// v3.39.0 — ⚠️ ROADMAP 44: A HAND-TYPED BOOK ID WITH A SPACE IN IT NOW WARNS.
+//           `.trim()` strips the ends and nothing else, and the autofill only
+//           fills a field that is EMPTY — so anyone who types the id themselves
+//           bypasses slugifyBookId() entirely. One book already carries an
+//           interior space (`alice1_in wonderland`).
+//           ⚠️ NOTHING IS BROKEN BY IT, WHICH IS WHY THIS WARNS AND DOES NOT
+//           BLOCK, AND WHY THE EXISTING BOOK IS BEING LEFT ALONE. Every URL that
+//           carries a book id encodes it, and chapterCacheKey() is colon-
+//           delimited so a space cannot collide. Renaming would be a migration
+//           with student data in it, for a cosmetic space.
+//           ⚠️⚠️ IT GUARDS WHITESPACE ONLY. The obvious wider guard — "warn when
+//           the id is not what slugifyBookId() would produce" — FIRES ON THE
+//           FLAGSHIP BOOK: DEFAULT_BOOK is "wizard_of_oz" and the slugifier emits
+//           "wizard-of-oz". The corpus and the slugifier already disagree by
+//           design, and slugifyBookId() is not idempotent (40-char truncation, a
+//           leading "the-" strip), so ids that are fine do not survive it.
+//           ⚠️ THE OFFERED REPAIR IS NOT slugifyBookId() EITHER — it collapses
+//           whitespace to one hyphen and changes nothing else. Cancel keeps the
+//           typed id exactly, because series ids like
+//           `l-frank-baum-oz01-the-wonderful-wizard-of-oz` are hand-shaped and a
+//           blocker would fight every new series.
 ```

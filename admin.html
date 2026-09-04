@@ -1,9 +1,13 @@
 <!DOCTYPE html>
-<!-- admin.html v1.8.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.9.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.9.0 — ⚠️ ROADMAP 56c: `btn-bg-3a2200` for #repair-titles-btn, which is
+     built in JS and set its background inline — so it was outside Round 59's
+     sweep and had never had a hover. See the rule's own comment.
 
      v1.8.0 — ⚠️ HOVER HINTS ON THE CONTROLS THAT WRITE, and `title=` fallbacks
      for the three admin.js v3.44.0 repaints per state. Jake: "I've never been
@@ -400,6 +404,13 @@
         button.btn-bg-004466:not(:disabled)           { background: #004466; }
         button.btn-bg-4b9cd3:not(:disabled)           { background: #4B9CD3; }
         button.btn-bg-ffaa00:not(:disabled)           { background: #ffaa00; }
+        /* ⚠️ ROADMAP 56c (v1.9.0). #repair-titles-btn is BUILT IN JS and set its
+           background via style.cssText, so it was never in Round 59's sweep of
+           the eighteen inline backgrounds — and an inline value beats every
+           selector, so `button:hover` and btn-tint's brightness() could not reach
+           it. Jake found it by hovering. Its colour lives here now like every
+           other one's, and admin.js adds `btn-tint btn-bg-3a2200`. */
+        button.btn-bg-3a2200:not(:disabled)           { background: #3a2200; }
 
 
         /* ════════════════════════════════════════════════════════════════════

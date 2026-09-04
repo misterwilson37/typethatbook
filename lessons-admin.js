@@ -1,4 +1,17 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.16.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.17.0
+//
+// v1.17.0 — ⚠️⚠️ THE CLASS MANAGER'S DELETE BUTTON CARRIED TWO `class`
+//           ATTRIBUTES. HTML keeps the first and silently discards the second, so
+//           `class-del-btn` was never on the element. Two consequences, and both
+//           were live: the click had to be found by `[data-id]:last-child` —
+//           correct only for as long as Delete stays the last child — and the
+//           HOVER WAS DEAD, because the inline `background:#500` beat
+//           `.lbtn:hover` exactly as the eighteen inline backgrounds in admin.js
+//           v3.42.0 did. That is ROADMAP 56c's second button, and Jake found it
+//           by hovering.
+//           ⚠️ `.lbtn-danger` already declared this exact treatment AND a hover,
+//           four lines apart in admin.html; the inline copy was a second spelling
+//           of a rule that already existed. Both are gone.
 //
 // v1.16.0 — ⚠️⚠️ THE LESSON-TRAFFIC SIGNAL FIRED ON ALMOST EVERY ROW, AND THE
 // SWEEP SPENT ~4,000 READS WITHOUT SAYING SO. Both found by Jake on the first
@@ -79,23 +92,13 @@
 // v1.12.0 — legacy-first read, matching reports.html v2.14.0 after the source
 //          split was reverted in game.js v3.30.0 / learn.js v2.15.0.
 //
-// v1.11.0 — READ-SIDE OF THE SOURCE SPLIT (DESIGN-TELEMETRY.md §2.4). Same
-//          incident as game.js v3.29.0 / learn.js v2.14.0 / reports.html
-//          v2.13.0: typing_logs now carries secondsLibrary/secondsSchool
-//          instead of a shared `seconds` field two page controllers used to
-//          silently overwrite on each other. The roster panel's weekSeconds
-//          tally now sums both split fields when either is present, falling
-//          back to the legacy flat field for documents written before this
-//          shipped — the same rule reports.html's readLogTotals() applies,
-//          duplicated inline rather than imported, because this file and
-//          reports.html are two separate standalone pages with no shared
-//          module between them (the same reason getWeekStart() is a
-//          hand-maintained twin in game.js/learn.js, not an import).
+// ⚠️ v1.11.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
+// It is the read-side of the source split.
 //
 // ⚠️ v1.13.2 — v1.8.1, v1.8.0, v1.7.1 and v1.7.0 moved to CHANGELOG.md
 //    § ARCHIVED FILE HEADERS. Nothing deleted.
 //
-window.LESSONS_ADMIN_VERSION = '1.16.0';
+window.LESSONS_ADMIN_VERSION = '1.17.0';
 
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
@@ -1324,10 +1327,22 @@ function renderClassList() {
             '</div>' +
             '</div>' +
             '<button class="lbtn lbtn-secondary class-edit-btn" style="width:auto;padding:4px 12px;font-size:0.78em;" data-id="' + escHtml(cls.id) + '">Edit</button>' +
-            '<button class="lbtn" style="width:auto;padding:4px 12px;font-size:0.78em;background:#500;border:1px solid #800;color:#fcc;" class="class-del-btn" data-id="' + escHtml(cls.id) + '">Delete</button>';
+            // ⚠️⚠️ THIS BUTTON CARRIED TWO `class` ATTRIBUTES (v1.17.0, ROADMAP
+            // 56c). HTML keeps the FIRST and silently discards the second, so
+            // `class-del-btn` was never on the element — which is why the click
+            // had to be found by `[data-id]:last-child`, and why the hover was
+            // dead: the inline `background:#500` beat `.lbtn:hover` the way every
+            // inline background does (admin.js v3.42.0's eighteen buttons).
+            // ⚠️ `.lbtn-danger` already declares this exact treatment AND a
+            // hover, four lines apart in admin.html. The inline copy was a second
+            // spelling of a rule that already existed.
+            '<button class="lbtn lbtn-danger class-del-btn" style="width:auto;padding:4px 12px;font-size:0.78em;" data-id="' + escHtml(cls.id) + '">Delete</button>';
 
         card.querySelector('.class-edit-btn').onclick = () => startClassEdit(cls.id);
-        card.querySelector('[data-id="' + cls.id + '"]:last-child').onclick = () => deleteClass(cls.id);
+        // ⚠️ BY CLASS, NOT BY POSITION. `[data-id]:last-child` worked only because
+        // Delete happened to be last; appending anything to this card would have
+        // moved the delete handler onto it, silently.
+        card.querySelector('.class-del-btn').onclick = () => deleteClass(cls.id);
         listEl.appendChild(card);
     });
 

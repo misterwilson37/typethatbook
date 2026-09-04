@@ -1,5 +1,13 @@
-// versions.js v1.15.0 — reads every file's version constant out of the files as
+// versions.js v1.16.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
+//
+// v1.16.0 — ⚠️ ROADMAP 51: renderBuildList() SORTS ITS OUTPUT ALPHABETICALLY.
+// Jake could not find a file in a list ordered by when each module was
+// registered. ⚠️ THE `SOURCES` ARRAY IS UNTOUCHED AND MUST STAY THAT WAY — it is
+// mirrored in tools/audit-versions.mjs and version-stamp-test.mjs §D, half its
+// entries carry positional comments, and it is the only record of registration
+// order. ⚠️ THE SORT COPIES: `results` is `_buildCache` by reference and three
+// pages call this. tests/build-list-test.mjs.
 //
 // v1.15.0 — SOURCES gained run-grade.js (ROADMAP 15), the shared grade rule that
 //           learn.js and reports.html both import. ⚠️ THE D2 RATCHET CAUGHT THE
@@ -95,11 +103,10 @@
 // wrong seven documents, on both pages, and the symptom is a student seeing a
 // number that is merely WRONG rather than obviously broken. HANDOFF §0.0.
 //
-// v1.8.0 — registers update-gate.js. It is NOT imported by game.js or learn.js
-// — it loads from its own script tag in each shell — which is exactly why it
-// needs to be here: nothing else on the page would reveal that it failed to
-// load. A silently absent update gate looks identical to a working one right up
-// until a deploy doesn't reach the building.
+// ⚠️ v1.8.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
+// It is update-gate.js's registration, and its reason still applies: the gate
+// loads from its own script tag, so nothing else on the page would reveal that
+// it failed to load.
 //
 const SOURCES = [
     { file: 'game.js',               pattern: /\bconst\s+VERSION\s*=\s*["']([^"']+)["']/ },
@@ -150,7 +157,7 @@ const SOURCES = [
     { file: 'admin.html',            pattern: /admin\.html\s+v([0-9][^\s\->]*)/ },
 ];
 
-export const VERSIONS_VERSION = '1.15.0';
+export const VERSIONS_VERSION = '1.16.0';
 
 // ⚠️ v1.13.0 — THE OLD sessionStorage KEY, KEPT ONLY TO BE CLEARED. A tab that
 // loaded v1.12.0 or earlier has a stale build list sitting in sessionStorage
@@ -437,7 +444,30 @@ export function renderHiddenNotesLine(n) {
 // which is harmless. The opposite default put header-budget scolding on top of
 // a nine-year-old's book.
 export function renderBuildList(results, { notes = false } = {}) {
-    const rows = results.map(r => {
+    // ─── ⚠️ ROADMAP 51 — SORT THE OUTPUT, NEVER `SOURCES` (v1.16.0) ──────────
+    //
+    // Jake: *"the build info list is in no order I can recognize. Alphabetical
+    // would certainly make it easier to find stuff in."* The order was
+    // REGISTRATION order — game.js, learn.js and keyboard.js lead because they
+    // were first, and the Round 27 trio sits in a clump after daylog.js because
+    // that is the round that noticed them. Nothing in that helps the person
+    // looking for ONE file, and that person is Jake at a classroom machine asking
+    // whether what is in front of him is the build he just uploaded.
+    //
+    // ⚠️⚠️ DO NOT SORT THE `SOURCES` ARRAY INSTEAD. Three things depend on its
+    // order: it is mirrored in tools/audit-versions.mjs and section D of
+    // tests/version-stamp-test.mjs (which FAILS if the three disagree); half its
+    // entries carry POSITIONAL comments that alphabetising would orphan from the
+    // entries they explain; and registration order is the only surviving record
+    // of when each module entered the build.
+    //
+    // ⚠️⚠️ COPY THE ARRAY. `results` is `_buildCache`, handed to every caller BY
+    // REFERENCE — an in-place .sort() would quietly reorder the cache the next
+    // caller reads, and three pages call this (game.js, learn.js, index.html).
+    //
+    // ⚠️ localeCompare, not `<`. Raw comparison sorts by code unit, which puts
+    // every capital ahead of every lower-case name.
+    const rows = [...results].sort((a, b) => a.file.localeCompare(b.file)).map(r => {
         if (!r.version) {
             return `<div style="color:#c05621">${r.file} — could not read (${r.note})</div>`;
         }

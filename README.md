@@ -4,7 +4,26 @@ A classroom typing application for Ellis Middle School. Students type real books
 one sentence at a time, and the time they spend doing it becomes the number their
 teacher grades.
 
-<!-- README.md v2.3.0 — Round 57 (Bar-Lock), 2026-09-02.
+<!-- README.md v2.4.0 — Round 64 (Duplex), 2026-09-03.
+
+     v2.4.0 — ⚠️⚠️ THE REGENERATION COMMAND IN THIS FILE WAS WRONG, AND IT WAS
+     WRONG IN THE DIRECTION THAT HIDES A DEFECT. It grepped `versions.js` for
+     anything shaped like a filename, which reads COMMENTS as well as entries —
+     so it reported `index.html` as registered when it is not in `SOURCES` at
+     all. The page every student lands on first has never had its version stamp
+     audited (ROADMAP 57), and the one command in this repo that would have
+     revealed it said the opposite. It now reads the `file:` keys only.
+     ⚠️ A CHECK THAT OVER-REPORTS IS WORSE THAN NO CHECK: it answers the question
+     you asked, wrongly, and you stop asking.
+     ⚠️ `rights-ladder.js` (Round 47) added to the module list — found by running
+     the corrected command against the paragraph, which is the point of having
+     one. ⚠️ tools/ row corrected: `audit-inline-styles.mjs` and `tier-ab.html`
+     were not mentioned.
+     ⚠️ ROADMAP 29 CALLED THIS FILE "v2.0.0, twenty-five rounds stale" AND IT WAS
+     NOT — Round 57 rebuilt it and Round 55 corrected it twice. The item was
+     itself stale; do not trust a staleness claim without checking the stamp.
+
+     README.md v2.3.0 — Round 57 (Bar-Lock), 2026-09-02.
 
      ⚠️⚠️ THIS FILE HAD BEEN OVERWRITTEN BY A COPY OF tests/README.md AND THE
      PROJECT README WAS GONE. HANDOFF §7's document map says this file should
@@ -55,7 +74,7 @@ only a map.
 | `docs/TEACHER-GUIDE.md` | ⭐ **For teachers.** The reports panel in plain language — the error-rate column, the flag icons and the scan, deleting one run, clearing mastery. The only non-developer document in the repo |
 | `docs/README.md` | Index of `docs/` — one line per document on when to read it |
 | `tests/README.md` | How the harnesses work, what is registered, and what each cannot cover |
-| `tools/README.md` | `audit-versions.mjs` and the two EPUB builders |
+| `tools/README.md` | `audit-versions.mjs`, `audit-inline-styles.mjs`, the two EPUB builders, and `tier-ab.html` (a not-deployed A/B render for ROADMAP 38) |
 
 ## The shape of it
 
@@ -78,7 +97,7 @@ Shared modules the pages import: `firebase-config.js` (⚠️ also the one home 
 `hud.js`, `keyboard.js`, `versions.js`, `settings-panel.js`, `drill-filter.js`,
 `variety-floor.js`, `celebrate.js`, `receipt.js`, `update-gate.js`,
 `read-meter.js`, `lesson-gate.js`, `run-grade.js`, `chapter-position.js`,
-`adventure-renderer.js`.
+`rights-ladder.js`, `adventure-renderer.js`.
 
 ⚠️ **THE AUTHORITATIVE LIST IS `versions.js`, NOT THIS PARAGRAPH.** Every shipped
 file must be registered there or it ships unversioned and untested — `npm test`
@@ -87,8 +106,16 @@ and was missing seven shipped modules when Round 57 checked it, so **regenerate
 it from `versions.js` rather than adding to it by hand:**
 
 ```
-grep -oP "[a-z][a-z-]*\.(js|html)" versions.js | sort -u
+grep -oP "file:\s*'\K[^']+" versions.js | sort -u
 ```
+
+⚠️⚠️ **THAT COMMAND READS THE `file:` KEYS, NOT THE WHOLE FILE, AND THE
+DIFFERENCE MATTERS.** Until v2.4.0 it grepped `versions.js` for anything shaped
+like a filename — which matches **comments** — and so it reported `index.html` as
+registered. It is not in `SOURCES`. The library landing page has never had its
+version stamp audited (**ROADMAP 57**), and the one command here that would have
+shown that was answering the opposite. A check that over-reports is worse than no
+check.
 
 ⚠️ **The two page controllers cannot import each other.** Every student-facing
 feature is therefore a **twin by construction**, and half-building one is the

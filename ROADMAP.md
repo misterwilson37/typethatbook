@@ -392,8 +392,7 @@ Everything else still open:
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
 - 38. ⚠️ OPEN for admin — commit + create tiers DONE (Rounds 61-63), safe/edit NOT — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS  *(⚠️ UNBLOCKED, and Jake has RULED — build to the table, do not re-open it)*
 - 55. ⚠️ THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
-- 56. ⚠️ CONTROLS THAT LOOK INTERACTIVE AND ARE NOT — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS  *(Jake, 2026-09-03)*
-- 51. ⚠️ THE BUILD LIST IS IN NO ORDER A READER CAN RECOGNISE — SORT IT ALPHABETICALLY  *(Jake asked, 2026-09-03. Sort in renderBuildList(), NEVER the SOURCES array — read the item first)*
+- 56. ⚠️ (a) OPEN — (b) AND (c) CLOSED ROUND 64 — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS  *(Jake, 2026-09-03)*
 - 58. ⭐ A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
 - 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED  *(found Round 60; touches three mirrored files — read the item)*
 - 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS  *(the instrument that would have caught Round 59's finding on the day)*
@@ -407,7 +406,8 @@ Everything else still open:
 - 49. ✅ FIXED (Round 58, Emerson) — A STALE HARD-STOP OVERLAY DEMANDED A KEY FROM A DELETED DRILL  *(⚠️ Caps Lock is ruled NOT-a-bug — do not "fix" the e.key comparison)*
 - 48. ✅ “TEXT PREPARED BY” NAMED THE WRONG PERSON ON EVERY BOOK, ON EVERY SURFACE  *(Round 57 — two defects, one symptom)*
 - 44. ✅ THE BOOK ID FIELD ACCEPTS ANYTHING TYPED INTO IT, AND slugifyBookId() IS RIGHT THERE  *(Round 57 — warns on whitespace, never blocks)*
-- 29. ✅ README.md IS TWENTY-FIVE ROUNDS STALE  *(Round 57 — file map regenerated from versions.js)*
+- 51. ✅ THE BUILD LIST IS IN NO ORDER A READER CAN RECOGNISE — SORT IT ALPHABETICALLY  *(CLOSED Round 64)*  *(Jake asked, 2026-09-03. Sort in renderBuildList(), NEVER the SOURCES array — read the item first)*
+- 29. ✅ README.md IS TWENTY-FIVE ROUNDS STALE  *(CLOSED Round 64 — and the item's own premise was stale; read it)*  *(Round 57 — file map regenerated from versions.js)*
 - ✅ ITEM 18 — PRUNE `readWeek()` WITH THE LEDGER  *(BUILT, Round 37)*
 - ✅ ITEM 20 — THE LEADERBOARD  *(cache FIXED Round 37; the gate is by design)*
 - ✅ ITEM 19 — CONTINUE READING  *(BUILT, Round 38)*
@@ -506,6 +506,40 @@ right while leaving the HUD ticking from a stale seed just moves the lie.
 ---
 
 ## 29. ✅ README.md IS TWENTY-FIVE ROUNDS STALE
+
+### ✅ ROUND 64 (Duplex) — CLOSED, AND THE ITEM WAS WRONG ABOUT WHY
+
+⚠️⚠️ **THE PREMISE BELOW IS ITSELF STALE.** This item says `README.md` is
+"**v2.0.0, Round 28**". It was at **v2.3.0, Round 57** when Round 64 opened it —
+Round 57 rebuilt the file after finding it overwritten, and Round 55 corrected it
+twice before that. **A staleness claim is a fact about a file and goes stale like
+any other; check the stamp before acting on the item.**
+
+✅ **`README.md` v2.4.0.** What was actually wrong, found by measuring:
+
+* ⚠️⚠️ **ITS OWN REGENERATION COMMAND WAS BROKEN, IN THE DIRECTION THAT HIDES A
+  DEFECT.** `grep -oP "[a-z][a-z-]*\.(js|html)" versions.js` matches anything
+  shaped like a filename **including inside comments**, so it reported
+  `index.html` as registered. **It is not in `SOURCES`** — that is ROADMAP 57,
+  and the one command in this repo that would have surfaced it was answering the
+  opposite. It reads the `file:` keys only now. ⭐ **A check that over-reports is
+  worse than no check: it answers the question you asked, wrongly, and you stop
+  asking.**
+* `rights-ladder.js` (Round 47) was missing from the shared-module list — found
+  by running the corrected command against the paragraph, which is the point of
+  having one.
+* The `tools/` row named `audit-versions.mjs` and the EPUB builders, and missed
+  `audit-inline-styles.mjs` and `tier-ab.html`.
+* The jsdom count was **re-measured, not carried forward**: still thirteen.
+
+⚠️ **The harness total in prose was already avoided** and should stay avoided —
+this file has no total in it, and a number that changes every round does not
+belong in a document nobody updates every round.
+
+---
+
+#### The original item, kept for its warning
+
 
 `README.md` is **v2.0.0, Round 28 (2026-08-23)**. Rounds 29–52 have since added
 or changed, at minimum: `chapter-position.js`, `celebrate.js`, `receipt.js`,
@@ -4330,10 +4364,14 @@ says something different from one that creates them. `Save Metadata`'s hint list
 one is missing, so the list cannot rot the way the note at the top of the page
 did.
 
-⚠️ **STILL OPEN, AND IT IS A REAL ONE:** `Parse & Initialize` can discard staged
-edits with no confirmation. Round 63 made it stop being green, which is a warning,
-not a guard. v3.25.2 solved the neighbouring version of this for the overwrite
-file input; this one is unguarded.
+✅ **CLOSED ROUND 64 (`admin.js` v3.45.0): `Parse & Initialize` now confirms
+before discarding staged work.** ⚠️ **The prompt names the FILE** — v3.25.2's
+lesson in this panel is that the file input survives everything, so the second
+press reads whatever is sitting in it, which may not be the book you have been
+editing. ⚠️ **It asks ONLY when something is staged**: a confirm on the first
+parse of every book is a dialog people learn to dismiss, and then it is not there
+on the press that mattered (v3.23.0, one control over). ⚠️ Round 63's colour
+change stays — the colour is what you notice, the dialog is what stops you.
 
 ### ⭐⭐ ROUND 62 (Duplex) — JAKE'S AMENDMENT: THE UPLOAD BUTTON'S TIER IS A PROPERTY OF THE DATA
 
@@ -5180,7 +5218,14 @@ About page and can be corrected book by book in admin — no code change needed.
 
 ---
 
-## 51. ⚠️ THE BUILD LIST IS IN NO ORDER A READER CAN RECOGNISE — SORT IT ALPHABETICALLY
+## 51. ✅ THE BUILD LIST IS IN NO ORDER A READER CAN RECOGNISE — SORT IT ALPHABETICALLY
+
+✅ **ROUND 64 (Duplex): `versions.js` v1.16.0.** `renderBuildList()` sorts a
+**copy** — `[...results]` — because `results` is `_buildCache` handed to every
+caller by reference and three pages call it. `SOURCES` is untouched.
+`tests/build-list-test.mjs` A3 fails if a later round alphabetises the array
+instead, which is the mistake this item spends most of its length warning about.
+
 
 **Jake, 2026-09-03:** *"the build info list is in no order I can recognize.
 Alphabetical would certainly make it easier to find stuff in."*
@@ -5442,7 +5487,42 @@ without waiting for its answer.
 
 ---
 
-## 56. ⚠️ CONTROLS THAT LOOK INTERACTIVE AND ARE NOT — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS
+## 56. ⚠️ (a) OPEN — (b) AND (c) CLOSED ROUND 64 — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS
+
+### ✅ ROUND 64 (Duplex) — (b) AND (c), AND (c) WAS HIDING A REAL BUG
+
+**(b)** ✅ `Edit` and `Del` carry hints (`admin.js` v3.46.0). ⚠️ Del's says the
+part that is not obvious: removing a chapter here stages a removal, and the
+chapter document is pruned **when you upload**.
+
+**(c)** ✅ Both dead hovers fixed, and **they had different causes**:
+
+* `#repair-titles-btn` set `background` through `style.cssText`. ⚠️ It is **built
+  in JS**, so it was never in Round 59's sweep of the eighteen inline backgrounds
+  in the markup — and an inline value beats every selector. `btn-tint
+  btn-bg-3a2200` now (`admin.html` v1.9.0).
+* ⚠️⚠️ **THE CLASS MANAGER'S DELETE CARRIED TWO `class` ATTRIBUTES**
+  (`lessons-admin.js` v1.17.0). HTML keeps the first and silently discards the
+  second, so `class-del-btn` was **never on the element**. Two live consequences:
+  the inline `background:#500` killed the hover (Jake's report), and the click
+  had to be found by **`[data-id]:last-child`** — correct only for as long as
+  Delete stays the last child of that card. Both gone; `.lbtn-danger` already
+  declared that exact treatment *and* a hover, four lines apart in `admin.html`.
+
+⭐ **`build-list-test.mjs` C1 IS A CLASS GUARD, NOT A LIST OF THE TWO JAKE
+HOVERED OVER.** It fails on any button built via `createElement('button')` whose
+`cssText` sets a background. ⚠️ It is scoped by what `createElement` was asked
+for — the first draft flagged `showBootstrapWarning()`'s `<div>`, which has no
+hover to lose, and a check that fires on things that are fine is one people learn
+to route around.
+
+⚠️ **(a) IS STILL OPEN AND IS STILL THE REAL ONE.** The (i) buttons do nothing.
+It was left because it must be **answered from the importer** — which fields the
+EPUB pipeline auto-fills is knowable by reading the import path, and a
+hand-written list will be wrong within two rounds with nothing to catch it. That
+is a round's work, not a batch item.
+
+
 
 **Jake, 2026-09-03, reviewing Round 59's hover work.** Three findings, related
 only in that each one is a control making a promise it does not keep.

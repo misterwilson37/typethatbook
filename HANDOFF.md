@@ -1,12 +1,61 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-03 by Round 63 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-03 by Round 64 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–63 ARE ONE INSTANCE.** One name per conversation. **Round 60's
-> block, below, holds the most important thing in this file: ROADMAP 50 cannot
-> recur until the week of 2026-09-05, so a quiet week before then is not
-> evidence.** Read it before closing anything.
+> ⚠️ **ROUNDS 60–64 ARE ONE INSTANCE.** **Round 60's block, below, still holds the
+> most important thing in this file: ROADMAP 50 cannot recur until the week of
+> 2026-09-05, so a quiet week before then is not evidence.**
 >
+> ⚠️⚠️ **AND ROUND 64 HAS A DEPLOY LESSON WORTH KEEPING.** Jake reported Round 63
+> live and Parse & Initialize still blue. **The build panel in his screenshot read
+> `Admin JS: v3.42.0`** — `admin.js` had not been uploaded. Nothing was wrong with
+> the code; the code was not there. ⭐ **WHEN A SHIPPED CHANGE DOES NOT APPEAR,
+> READ THE BUILD PANEL BEFORE READING THE CODE.** That panel exists for exactly
+> this and it answered correctly on the first look.
+>
+> ### ✅ ROUND 64: FOUR SMALL THINGS, TWO OF WHICH WERE HIDING SOMETHING
+>
+> * ⚠️⚠️ **`Parse & Initialize` now confirms before discarding staged work**
+>   (`admin.js` v3.45.0). The prompt **names the file** — v3.25.2's defect in the
+>   other panel — and it asks **only when something is staged**.
+> * **ROADMAP 51 closed** (`versions.js` v1.16.0): the build list sorts **a copy**.
+>   ⚠️ `SOURCES` is untouched and must stay that way; `build-list-test.mjs` A3 is
+>   the case that catches a later round tidying the array instead.
+> * **ROADMAP 56b and 56c closed.** ⚠️⚠️ **(c) was hiding a real bug: the class
+>   manager's Delete carried TWO `class` attributes.** HTML discards the second,
+>   so `class-del-btn` was never on the element — the hover was dead AND the click
+>   was wired by `[data-id]:last-child`, correct only while Delete stays last.
+> * ⚠️⚠️ **ROADMAP 29 closed, and the README's own command was hiding ROADMAP
+>   57.** Its regeneration grep matched filenames **inside comments**, so it
+>   reported `index.html` as registered. It is not in `SOURCES`. ⭐ **A check that
+>   over-reports is worse than no check.** ⚠️ The item's premise was also stale —
+>   it called the file v2.0.0 when it was v2.3.0. **Check the stamp before acting
+>   on a staleness claim.**
+>
+> ### THE STATE OF PLAY
+>
+> * **71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run;
+>   nothing in Rounds 60–64 touches `firestore.rules`.
+> * ⚠️ **ROUNDS 60–63 ARE CONFIRMED LIVE** (Jake, after re-uploading `admin.js`).
+>   Round 64's files are not. Expected stamps: `admin.js` **v3.46.0**,
+>   `admin.html` **v1.9.0**, `lessons-admin.js` **v1.17.0**, `versions.js`
+>   **v1.16.0**.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+>   **DO NOT SHIP style.css v3.10.0.**
+> * ⚠️ **NOTHING STUDENT-FACING CHANGED IN 61–64.** Round 60 is the student-facing
+>   one, and it is live.
+> * **Next:** **56a** — the (i) buttons, which do nothing. ⚠️ It must be answered
+>   **from the importer**: which fields the EPUB pipeline auto-fills is knowable by
+>   reading the import path, and a hand-written list will be wrong within two
+>   rounds with nothing to catch it. Then **55** (the metadata panel — wants a
+>   rendered look and a ruling on who may set `uploadedBy`), then **58's collapse
+>   step**, then item 38's `safe`/`edit` pass (**green is spent**).
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 63 (Duplex) — the previous block, kept
+>
+
 > ### ⚠️⚠️ ROUND 63: "IT EXISTED, BUT IT WASN'T THERE"
 >
 > Round 62 asked whether the book EXISTS. **`Save Metadata` writes a book document

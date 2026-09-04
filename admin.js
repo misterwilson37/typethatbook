@@ -1,4 +1,35 @@
-// admin.js v3.44.0
+// admin.js v3.46.0
+//
+// v3.46.0 — ROADMAP 56b AND 56c, both small and both about a control that makes
+//           a promise it does not keep.
+//           (b) ⚠️ `Edit` AND `Del` WERE THE ONLY TWO BUTTONS IN THE CHAPTER ROW
+//           WITHOUT A HINT, and Del is the destructive one — the button where a
+//           moment's hesitation is worth most. Jake: "about, merge, split and
+//           body are great. Edit and Del don't have them." ⚠️ Del's hint says the
+//           thing that is NOT obvious: removing a chapter here stages a removal,
+//           and the chapter document is pruned when you upload (v3.22.0).
+//           (c) ⚠️⚠️ #repair-titles-btn HAD NO HOVER, AND THE CAUSE WAS NOT
+//           ROUND 59. This button is BUILT IN JS and set `background` through
+//           style.cssText, so it was never in that round's sweep of the eighteen
+//           inline backgrounds — and an inline value beats every selector, so
+//           `button:hover` could not reach it. The colour is `btn-bg-3a2200` in
+//           admin.html v1.9.0 now, with `btn-tint` for the brightness.
+//           ⚠️ THE OTHER DEAD HOVER WAS THE CLASS MANAGER'S DELETE, and it was a
+//           worse bug than a missing glow — see lessons-admin.js v1.17.0.
+//
+// v3.45.0 — ⚠️⚠️ PARSE & INITIALIZE COULD DISCARD AN AFTERNOON WITH NO CONFIRM.
+//           Everything past the file check REPLACES stagedChapters wholesale, so
+//           every split, merge, retitle and matter change made since the last
+//           parse went with it — none of it in Firestore, no undo, nothing to
+//           recover from. ⚠️ THIS IS v3.25.2's DEFECT IN THE OTHER PANEL: the
+//           file input survives everything, so a second press reads whatever is
+//           sitting in it, which may not be the book you have been editing. THE
+//           FILENAME IS IN THE PROMPT FOR THAT REASON.
+//           ⚠️ IT ASKS ONLY WHEN THERE IS SOMETHING TO LOSE — a confirm on the
+//           first parse of every book is a dialog people learn to dismiss, and
+//           then it is not there on the press that mattered (v3.23.0's lesson,
+//           one control over).
+//           ⚠️ v3.44.0's colour change was a WARNING, not a guard. Keep both.
 //
 // v3.44.0 — ⚠️⚠️ "IT EXISTED, BUT IT WASN'T THERE." v3.43.0 ASKED THE WRONG
 //           QUESTION. Jake: *"I updated metadata and forgot to upload the
@@ -163,47 +194,8 @@
 //           ⚠️ metadata-map-test.mjs PART F guards the property that makes that
 //           copy possible: the module imports nothing and touches no DOM.
 //
-// v3.39.0 — ⚠️ ROADMAP 44: A HAND-TYPED BOOK ID WITH A SPACE IN IT NOW WARNS.
-//           `.trim()` strips the ends and nothing else, and the autofill only
-//           fills a field that is EMPTY — so anyone who types the id themselves
-//           bypasses slugifyBookId() entirely. One book already carries an
-//           interior space (`alice1_in wonderland`).
-//           ⚠️ NOTHING IS BROKEN BY IT, WHICH IS WHY THIS WARNS AND DOES NOT
-//           BLOCK, AND WHY THE EXISTING BOOK IS BEING LEFT ALONE. Every URL that
-//           carries a book id encodes it, and chapterCacheKey() is colon-
-//           delimited so a space cannot collide. Renaming would be a migration
-//           with student data in it, for a cosmetic space.
-//           ⚠️⚠️ IT GUARDS WHITESPACE ONLY. The obvious wider guard — "warn when
-//           the id is not what slugifyBookId() would produce" — FIRES ON THE
-//           FLAGSHIP BOOK: DEFAULT_BOOK is "wizard_of_oz" and the slugifier emits
-//           "wizard-of-oz". The corpus and the slugifier already disagree by
-//           design, and slugifyBookId() is not idempotent (40-char truncation, a
-//           leading "the-" strip), so ids that are fine do not survive it.
-//           ⚠️ THE OFFERED REPAIR IS NOT slugifyBookId() EITHER — it collapses
-//           whitespace to one hyphen and changes nothing else. Cancel keeps the
-//           typed id exactly, because series ids like
-//           `l-frank-baum-oz01-the-wonderful-wizard-of-oz` are hand-shaped and a
-//           blocker would fight every new series.
-//
-// v3.38.0 — ⚠️ ROADMAP 46: WHO UPLOADED THIS BOOK, STAMPED AND NOT TYPEABLE.
-//           Jake, on a second building admin joining: "he may not be as strict as
-//           I am." The field exists to answer, months later, who added a book that
-//           turned out to be wrongly licensed — so a hand-typed value would record
-//           who REMEMBERED to fill it in, not who did it. Stamped from
-//           _staffScope.uid, rendered read-only.
-//           ⚠⚠ STAMPED ON CREATE ONLY. `alreadyExists` (already computed from
-//           bookTitlesMap, so it costs NO read) gates it: an overwrite must not
-//           restamp, or the field answers "who touched it last" — a different
-//           question nobody asked. Save Metadata never writes it at all.
-//           ⚠️ THE uid IS STORED, NOT A NAME. Names and emails go stale; staff/{uid}
-//           is resolved at display time and cached for the session, and only for a
-//           book that HAS a stamp.
-//           ⚠️ A BOOK WITH NO STAMP READS "— (added before this was recorded)",
-//           NOT Jake. He is almost certainly right that everything so far is his,
-//           but a guessed provenance stamp is indistinguishable from a recorded one
-//           afterwards, and this field's whole value is that it can be trusted.
-//           Backfill on an explicit instruction, never by inference.
-//
+// ⚠️ v3.39.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
+// ⚠️ v3.38.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
 // ⚠️ v3.37.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 63).
 // ⚠️ v3.35.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 62).
 //
@@ -235,7 +227,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.44.0";
+const ADMIN_VERSION = "3.46.0";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -1966,6 +1958,38 @@ if (newEpubFile) newEpubFile.addEventListener('change', e => autofillFromEpub(e.
 createParseBtn.onclick = async () => {
     const file = newEpubFile.files[0];
     if (!file) return alert("Choose an EPUB file.");
+
+    // ─── ⚠️⚠️ THE STAGED-WORK GUARD (v3.45.0, ROADMAP 38) ────────────────────
+    //
+    // Everything below this point REPLACES stagedChapters wholesale. Splits,
+    // merges, retitles, matter changes and About flags made since the last parse
+    // are discarded — none of it is in Firestore yet, so there is nothing to
+    // recover from and no undo. On a forty-chapter book that is an afternoon.
+    //
+    // ⚠️ THIS IS v3.25.2's DEFECT IN THE OTHER PANEL. That round guarded the
+    // OVERWRITE file input because it survived a change of book and "Process
+    // Overwrite reads the input, not the book". Same shape here: the file input
+    // survives everything, so the second press reads whatever is sitting in it —
+    // which may not be the book you have been editing for the last half hour.
+    // THE FILENAME IS IN THE PROMPT FOR THAT REASON; do not shorten it out.
+    //
+    // ⚠️ v3.44.0 TOOK THE GREEN OFF THIS BUTTON WHEN WORK IS STAGED, WHICH IS A
+    // WARNING AND NOT A GUARD. This is the guard. Keep both: the colour is what
+    // you notice, the dialog is what stops you.
+    //
+    // ⚠️ IT ASKS ONLY WHEN THERE IS SOMETHING TO LOSE. A confirm on the first
+    // parse of every book is a dialog people learn to dismiss, and then it is not
+    // there on the press that mattered — v3.23.0's lesson about the upload
+    // confirm, one control over.
+    if (stagedChapters.length > 0) {
+        const ok = confirm(
+            `${stagedChapters.length} chapter(s) are staged below.\n\n` +
+            `Parsing "${file.name}" REPLACES all of them. Any splits, merges, ` +
+            `retitles or front/back-matter changes you have made are lost, and ` +
+            `they have not been uploaded yet.\n\n` +
+            `Discard the staged chapters and parse this file?`);
+        if (!ok) return;
+    }
 
     // ⚠️ ONLY THE FILE IS REQUIRED NOW. This used to demand id and title up front,
     // which is why the author extraction that already existed inside parseEpubFile
@@ -3927,8 +3951,8 @@ function renderChapterList() {
                 ${canMerge ? `<button class="merge-btn" data-index="${index}" title="Merge with next chapter">Merge ↓</button>` : ''}
                 <button class="split-btn" data-index="${index}" title="Split into multiple chapters">Split</button>
                 <button class="matter-btn" data-index="${index}" title="Cycle: body \u2192 front matter \u2192 back matter. Use this when the importer guessed wrong \u2014 it relabels, it does not delete.">${(chap.matter || 'body') === 'body' ? 'Body' : ((chap.matter === 'front') ? 'Front' : 'Back')}</button>
-                <button class="edit-btn" data-index="${index}">Edit</button>
-                <button class="danger-btn tier-commit delete-btn" data-index="${index}">Del</button>
+                <button class="edit-btn" data-index="${index}" title="Open this chapter's text for editing. Changes stay staged in this page until you upload.">Edit</button>
+                <button class="danger-btn tier-commit delete-btn" data-index="${index}" title="⚠ Remove this chapter from the staged list. It is not deleted from the database until you upload — but if you do upload, the chapter document is pruned.">Del</button>
             </div>
         `;
         chapterListEl.appendChild(div);
@@ -6347,7 +6371,13 @@ function injectTitleRepairUI() {
     btn.textContent = '\u2702 Remove chapter titles from typed text';
     btn.title = 'For books imported before admin.js v3.13.0, whose first segment ' +
                 'repeats the chapter title.';
-    btn.style.cssText = 'background:#3a2200;border:1px solid #886600;color:#ffcc66;' +
+    // ⚠️ ROADMAP 56c — THE BACKGROUND MOVED TO A CLASS AND MUST STAY THERE.
+    // It was in this cssText, and an inline background beats every selector, so
+    // `button:hover` could not reach this button and it was one of the two Jake
+    // found with no hover glow. Round 59 fixed eighteen of these in the markup;
+    // this one is built in JS and was outside that sweep.
+    btn.className = 'btn-tint btn-bg-3a2200';
+    btn.style.cssText = 'border:1px solid #886600;color:#ffcc66;' +
         'padding:8px 16px;cursor:pointer;border-radius:4px;width:auto;margin-left:8px;';
     const anchor = document.getElementById('repair-chapter-order-btn');
     if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(btn, anchor.nextSibling);
