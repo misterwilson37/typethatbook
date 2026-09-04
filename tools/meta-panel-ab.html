@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- meta-panel-ab.html v1.2.0 — ROADMAP 55a/38, Rounds 65-67 (Duplex).
+<!-- meta-panel-ab.html v1.3.0 — ROADMAP 55a/55b/56a/38, Rounds 65-68 (Duplex).
 
      ⚠️ NOT SHIPPED. Lives in tools/, never deployed.
 
@@ -42,8 +42,48 @@
     .hidden { display:none; }
     .danger-btn, .tier-commit { background:#500; border:1px solid #800; color:#fcc; }
 
-/* ─── lifted verbatim from admin.html v1.12.0 ─────────────────────────── */
-.import-box { --cover-w: 200px; --meta-gap: 20px; }
+/* ─── lifted verbatim from admin.html v1.13.0 ─────────────────────────── */
+/* ── ⚠️⚠️ ROADMAP 56a — THE (i) IS A BUTTON NOW, AND IT ANSWERS THE
+   QUESTION JAKE ACTUALLY ASKED (v1.13.0) ────────────────────────────
+   Jake: "Hovering over the i for Cover gives me a question mark, but
+   clicking doesn't give me anything at all. That's true of all of those
+   i's." A help affordance that answers nothing is worse than none: the
+   cursor promises an explanation and the click spends attention for it.
+
+   ⚠️⚠️ IT WAS A <span> WITH A `title`, SO THERE WAS NOTHING TO CLICK. It
+   is a real <button> carrying `data-note`, and admin.js copies that note
+   into `title` at init so hover and click say the SAME WORDS from ONE
+   source. ⚠️ DO NOT PUT A `title=` BACK IN THE MARKUP — two copies of a
+   sentence drift, and the one you edit will be the wrong one.
+
+   ⭐ AND THE CONTENT IS PROVENANCE, NOT DEFINITION. Jake: "it would
+   probably be helpful if they told the user where that information is
+   auto-filled from, if anywhere." Half these fields come from the EPUB
+   and half are typed, and nothing on the page said which — so an editor
+   could not tell whether their edit survives the next import.
+   ⚠️⚠️ EVERY NOTE IS DERIVED FROM THE IMPORT PATH — readEpubMetadata()
+   and autofillFromEpub() — NOT FROM MEMORY. If you change what a field is
+   filled from, change its note in the SAME EDIT.
+
+   ⚠️ THE GLOBAL `button` RULE HAS TO BE UNDONE HERE, or each (i) becomes
+   a full-width uppercase #0047AB bar. */
+.hint {
+    display: inline-block; width: 13px; height: 13px; line-height: 11px;
+    text-align: center; border-radius: 50%; border: 1px solid #666;
+    color: #999; font-size: 0.62rem; font-style: italic; cursor: help;
+    vertical-align: middle; margin: 0 0 0 4px; font-family: serif;
+    padding: 0; min-width: 0; background: none; font-weight: normal;
+    text-transform: none; letter-spacing: 0;
+}
+.hint:hover { border-color: #4B9CD3; color: #4B9CD3; background: none; }
+.hint[aria-expanded="true"] { border-color: #4B9CD3; background: #4B9CD3; color: #111; }
+/* ⚠️ The note lands in the field's OWN cell, under its control, so it
+   pushes nothing sideways and cannot be mistaken for a neighbour's. */
+.hint-note {
+    margin-top: 6px; padding: 8px 10px; border-left: 2px solid #4B9CD3;
+    background: #16202a; color: #bbb; font-size: 0.72em; line-height: 1.55;
+}
+.import-box { --cover-w: 240px; --meta-gap: 20px; }
 .meta-head,
 .meta-grid {
     display: grid;
@@ -119,14 +159,31 @@
    and `Prepared by` / `Cleaned up by` stopped lining up with everything
    above. One row tall is what makes column 7 agree with columns 1-6.
    ⚠️ THIS IS WHY THE COVER COLUMN IS 200px AND NOT 160px. */
-.meta-cover-controls { grid-column: 7; grid-row: 4; display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; }
+        /* ⚠️ `nowrap` AND A WIDER COLUMN (v1.13.0). At 200px the native file
+   input's own minimum pushed `Remove` onto a second line, so the cover's
+   controls were two rows tall in a one-row cell and hung below it. The
+   input shrinks (min-width:0); Remove keeps its size. */
+.meta-cover-controls { grid-column: 7; grid-row: 4; display: flex; flex-wrap: nowrap; gap: 6px; align-items: stretch; }
 .meta-cover-controls > label { flex-basis: 100%; }
+/* ⚠️⚠️ THE IMAGE IS ABSOLUTELY POSITIONED, AND THAT IS THE WHOLE FIX
+   (v1.13.0). `.meta-cover` spans three rows, and a spanned grid item's
+   CONTENT contributes to the size of the rows it spans — so a tall jacket
+   forced rows 1-3 to grow, which is why there were gaps under the field
+   rows and why the frame still overhung the column. Out of flow, the
+   picture cannot size anything; the frame takes exactly the three rows the
+   FIELDS asked for, and its bottom edge is a gridline.
+   ⚠️ DO NOT PUT THE IMAGE BACK IN FLOW to "simplify" this. The symptom
+   returns as a layout that is almost right, which is the hardest kind to
+   attribute. */
 .cover-frame {
     flex: 1 1 auto; min-height: 0; border: 1px solid #444; border-radius: 3px;
-    background: #161616; display: flex; align-items: center; justify-content: center;
-    overflow: hidden; padding: 4px; box-sizing: border-box;
+    background: #161616; position: relative; overflow: hidden;
 }
-.cover-frame img { max-width: 100%; max-height: 100%; display: block; }
+.cover-frame img {
+    position: absolute; inset: 4px; margin: auto;
+    max-width: calc(100% - 8px); max-height: calc(100% - 8px);
+    width: auto; height: auto; display: block;
+}
 .meta-cover-controls input[type=file] { flex: 1 1 auto; min-width: 0; font-size: 0.68em; margin: 0; }
 .meta-cover-controls .danger-btn { flex: 0 0 auto; font-size: 0.7em; padding: 4px 10px; margin: 0; width: auto; }
 
@@ -174,16 +231,16 @@
     them. Hover a field to see its hint.
 </p>
 
-<h2>Proposed <span class="tag">admin.html v1.12.0</span></h2>
+<h2>Proposed <span class="tag">admin.html v1.13.0</span></h2>
 <div class="stage">
   <div class="import-box guide">
 <div class="meta-head">
     <div class="f3">
-        <label for="active-book-title">Book Display Title</label>
+        <label for="active-book-title">Book Display Title <button type="button" class="hint" data-note="AUTO-FILLED FROM dc:title. Only ever fills a BLANK field — it never overwrites what you typed. This is what students see on the shelf; the Book ID is slugified from it separately and does not change afterwards.">i</button></label>
         <input type="text" id="active-book-title">
     </div>
     <div class="f2">
-        <label for="active-book-author">Author</label>
+        <label for="active-book-author">Author <button type="button" class="hint" data-note="AUTO-FILLED FROM dc:creator, falling back to the first dc:contributor ONLY when the EPUB names no creator at all — which is how compiler-led anthologies keep their editor. Only ever fills a BLANK field — it never overwrites what you typed.">i</button></label>
         <input type="text" id="active-book-author" placeholder="e.g. Mark Twain">
     </div>
     <div class="f2">
@@ -234,13 +291,13 @@
 
     <!-- row 1 — what the book IS -->
     <div class="f2">
-        <label>Genre <span class="hint" title="Options are built in admin.js from the GENRES list. Custom… stores whatever you type, and a stored genre that is not in the list is preserved rather than silently dropped.">i</span></label>
+        <label>Genre <button type="button" class="hint" data-note="AUTO-FILLED FROM dc:subject — but only as a GUESS, and only when a subject matches a known rule, so most books arrive with this blank. Only ever fills a BLANK field — it never overwrites what you typed. Options come from the GENRES list in admin.js; Custom… stores whatever you type.">i</button></label>
         <select id="active-book-genre" class="u-width-100pct"></select>
         <input type="text" id="active-book-genre-custom" class="hidden u-width-100pct u-margin-top-4px"
                placeholder="Type new genre">
     </div>
     <div class="f2">
-        <label>Target Age Range <span class="hint" title="Reading age, not grade. Leave both blank if unsure — an untagged book is hidden whenever a student filters by age.">i</span></label>
+        <label>Target Age Range <button type="button" class="hint" data-note="⚠ NOTHING AUTO-FILLS THIS. The importer says so itself — “Age range still needs you.” Reading age, not grade. Leave both blank if unsure: an untagged book is hidden whenever a student filter is on.">i</button></label>
         <div class="u-display-flex u-align-items-center u-gap-6px">
             <input type="number" id="active-book-minage" min="3" max="18"
                    placeholder="7" class="u-width-100pct">
@@ -250,7 +307,7 @@
                             </div>
     </div>
     <div class="f2">
-        <label for="active-book-protagonist">Protagonist</label>
+        <label for="active-book-protagonist">Protagonist <button type="button" class="hint" data-note="⚠ NOTHING AUTO-FILLS THIS. No EPUB records who the story is about, so it is yours to set. Leaving it untagged hides the book whenever a student filters by protagonist.">i</button></label>
         <select id="active-book-protagonist" class="u-width-100pct">
             <option value="">— Not tagged —</option>
             <option value="female">Female</option>
@@ -263,19 +320,19 @@
 
     <!-- row 2 — ⚠️ THE URLS, HALF A ROW EACH. This is the fix. -->
     <div class="f3">
-        <label>Archive URL <span class="hint" title="Link to the EPUB this was built from. Provenance, not compliance — it lets anyone check your edition against the original.">i</span></label>
+        <label>Archive URL <button type="button" class="hint" data-note="AUTO-FILLED FROM THE ARCHIVE BASE PLUS THE EXACT FILENAME in the picker. Only ever fills a BLANK field — it never overwrites what you typed. It is the link to your copy of the EPUB this was built from — provenance, not compliance.">i</button></label>
         <input type="text" id="active-book-archive" class="u-width-100pct"
                placeholder="https://github.com/…/name.epub">
     </div>
     <div class="f3">
-        <label>Origin URL <span class="hint" title="Where this edition came from originally — the Standard Ebooks or Gutenberg page, the author's own download. Archive URL is YOUR copy; this is the upstream one. Having both means the provenance survives whichever host disappears first.">i</span></label>
+        <label>Origin URL <button type="button" class="hint" data-note="AUTO-FILLED FROM THE BOOK'S OWN UPSTREAM PAGE — Gutenberg's in-book link when there is one, otherwise dc:identifier. Only ever fills a BLANK field — it never overwrites what you typed. Where this edition came from originally, as opposed to Archive URL's “your copy”.">i</button></label>
         <input type="text" id="active-book-origin" class="u-width-100pct"
                placeholder="https://standardebooks.org/ebooks/…">
     </div>
 
     <!-- row 3 — where it came from, and who added it here -->
     <div class="f2">
-        <label>Source <span class="hint" title="Who produced this edition — Standard Ebooks, Project Gutenberg, and so on. Auto-filled from the EPUB's dc:source or dc:publisher.">i</span></label>
+        <label>Source <button type="button" class="hint" data-note="AUTO-FILLED FROM dc:publisher AND dc:source, normalised against the dropdown. Only ever fills a BLANK field — it never overwrites what you typed. Who produced this edition — Standard Ebooks, Project Gutenberg, and so on.">i</button></label>
         <select id="active-book-source" class="u-width-100pct">
             <option value="">— Not set —</option>
             <option value="Standard Ebooks">Standard Ebooks</option>
@@ -290,7 +347,7 @@
         <input type="text" id="active-book-source-custom" class="hidden u-width-100pct u-margin-top-4px" placeholder="Who produced this edition">
     </div>
     <div class="f2">
-        <label>License / rights <span class="hint" title="Required for Creative Commons books; shown on the library card. The URL is part of the value on purpose — a license URI is what CC actually asks for, and the card turns it into a link. Auto-filled from the EPUB's dc:rights when it declares one, mapped onto one of these options rather than pasted in raw.">i</span></label>
+        <label>License / rights <button type="button" class="hint" data-note="AUTO-FILLED FROM dc:rights — matched to an option, or dropped into Custom… verbatim when nothing matches. Only ever fills a BLANK field — it never overwrites what you typed. Required for Creative Commons books and shown on the library card; the URL is part of the value.">i</button></label>
         <select id="active-book-rights" class="u-width-100pct">
             <option value="">— Not set —</option>
             <option value="Public domain (United States)">Public domain (United States)</option>
@@ -312,18 +369,32 @@
         <input type="text" id="active-book-rights-custom" class="hidden u-width-100pct u-margin-top-4px" placeholder="License name and URL">
     </div>
     <div class="f2">
-        <label>Uploaded by <span class="hint" title="Who added this book to TypeThatBook, stamped automatically from the signed-in account the first time it was uploaded. READ-ONLY on purpose: this field exists so that a book which turns out to be wrongly licensed or badly cleaned can be traced to whoever added it, and a value anyone can type answers a weaker question. An overwrite does not restamp it — it stays with whoever created the book. Books added before this field existed show a dash.">i</span></label>
+        <label>Uploaded by <button type="button" class="hint" data-note="⚠ NOT FROM THE EPUB. Stamped from the signed-in account the FIRST time this book's chapters are uploaded, and never rewritten afterwards — Save Metadata does not touch it, and an overwrite does not restamp.">i</button></label>
         <div id="active-book-uploadedby" class="meta-stamp">—</div>
+        <!-- ⚠️ ROADMAP 55b — SUPERADMIN-ONLY CORRECTION (v1.13.0).
+             Jake's ruling: only superadmin may set this. ⚠️⚠️ THE
+             RULES DO NOT ENFORCE THAT — `match /books/{bookId}` has
+             no field whitelist, so this is a UI affordance and not a
+             permission. Do not describe it as a security boundary.
+             admin.js unhides it for superadmin and for an existing
+             book only; a book with no document has nothing to
+             correct. -->
+        <div id="active-book-uploadedby-edit" class="hidden btn-bar u-margin-top-6px">
+            <select id="active-book-uploadedby-select" class="btn-bar-grow u-font-size-0-8em"></select>
+            <button type="button" id="active-book-uploadedby-set"
+                    class="secondary-btn u-padding-4px-12px u-font-size-0-8em"
+                    title="Corrects who this book is recorded as uploaded by. Writes only this one field.">Set</button>
+        </div>
     </div>
 
     <!-- row 4 — ⚠️ THE PAIR THAT GETS CONFUSED, side by side, equal -->
     <div class="f3">
-        <label>Prepared by <span class="hint" title="Who produced the SOURCE text — Project Gutenberg's transcribers and proofreaders, or Standard Ebooks' producer. Auto-filled from Gutenberg's machine header (its 'Credits' line). This is NOT the same as Cleaned up by: these are the volunteers who made the public-domain text exist, and crediting them is the decent thing even though nothing obliges it.">i</span></label>
+        <label>Prepared by <button type="button" class="hint" data-note="AUTO-FILLED FROM GUTENBERG'S CREDITS ROW, else Standard Ebooks' colophon, else dc:contributor. Only ever fills a BLANK field — it never overwrites what you typed. Whoever produced the SOURCE text — not the classroom pass, which is Cleaned up by.">i</button></label>
         <input type="text" id="active-book-preparedby" class="u-width-100pct"
                placeholder="filled from the EPUB where it says">
     </div>
     <div class="f3">
-        <label>Cleaned up by <span class="hint" title="Who did YOUR classroom text pass. Defaults to Claude, because in practice it always has been. Distinct from Prepared by, which is whoever produced the source text.">i</span></label>
+        <label>Cleaned up by <button type="button" class="hint" data-note="⚠ NOT FROM THE EPUB. Defaults to Claude rather than being parsed out of the notice, because in practice it always has been. Who did YOUR classroom text pass — not the source text, which is Prepared by.">i</button></label>
         <select id="active-book-cleanedby" class="u-width-100pct">
             <option value="">— Not set —</option>
             <option value="Claude">Claude</option>
@@ -342,7 +413,7 @@
          Jake's number one pet peeve. The picture sits inside the
          frame at its own aspect ratio. -->
     <div class="meta-cover">
-        <label>Cover <span class="hint" title="Auto-extracted from the EPUB when it has one. Choose a file to override it.">i</span></label>
+        <label>Cover <button type="button" class="hint" data-note="AUTO-EXTRACTED FROM THE EPUB when it has one. Choose a file to override it; Remove clears it and a hand-sourced jacket cannot be recovered from here.">i</button></label>
         <div class="cover-frame"><img id="cover-preview" class="hidden"></div>
     </div>
 
@@ -361,6 +432,20 @@
 </div>
 
 <div class="meta">
+    <b>Click an (i).</b> They were <code>&lt;span&gt;</code>s with a
+    <code>title</code>, so there was nothing to click — the cursor promised an
+    explanation and the click spent your attention for nothing. They are real
+    buttons now, and <b>every note says where the field is auto-filled from, or
+    says plainly that nothing fills it</b>. All of it read out of
+    <code>readEpubMetadata()</code> and <code>autofillFromEpub()</code>, not
+    written from memory.<br><br>
+    <b>The cover finally lines up, and the cause was not the cover again.</b> A
+    grid item that SPANS rows contributes its content to the size of those rows —
+    so the jacket image was making rows 1&ndash;3 taller than the fields needed,
+    which is why there were gaps under the field rows and why the frame overhung
+    its column. The image is out of flow now, so it can size nothing. Column
+    200px&nbsp;&rarr;&nbsp;240px and <code>nowrap</code>, so
+    <code>Remove</code> stops falling under <code>Choose File</code>.<br><br>
     <b>What changed in v1.12.0.</b> Every control on this page carries
     <code>margin-bottom: 15px</code> from a global rule that predates the grid, and
     inside a grid cell that margin is <i>inside the cell</i> — so a control's

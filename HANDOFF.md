@@ -1,8 +1,60 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-04 by Round 67 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-04 by Round 68 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–67 ARE ONE INSTANCE.**
+> ⚠️ **ROUNDS 60–68 ARE ONE INSTANCE.**
+>
+> ### ⚠️⚠️ THE ONE THING TO CARRY FORWARD FROM ROUND 68
+>
+> **`firestore.rules` DOES NOT ENFORCE "SUPERADMIN ONLY" ON `uploadedBy`.**
+> `match /books/{bookId}` has no field whitelist, so any admin who can write a book
+> document can write that field. The control Round 68 added is a **UI affordance,
+> not a permission.** It is the right trade for a correction only Jake needs — but
+> **never describe it as a security boundary**, and if the day comes that it must
+> be one, the rules are where that goes. `build-list-test.mjs` L3 fails if that
+> warning leaves the header.
+>
+> ### ✅ ROUND 68: 56a AND 55b CLOSED, AND THE COVER FINALLY LINES UP
+>
+> * **The (i) buttons answer something.** They were `<span>`s with a `title`, so
+>   there was nothing to click. ⚠️ **ONE SOURCE OF WORDS** — `data-note` in the
+>   markup, copied into `title` by `initFieldHints()`. **DO NOT ADD A `title=` TO
+>   THE MARKUP.** ⚠️ One *delegated* handler: per-element handlers die when the
+>   panel re-renders, and **a dead help button looks exactly like a live one**.
+> * ⭐ **THE NOTES ARE PROVENANCE AND CAME OUT OF THE IMPORT PATH**, not from
+>   memory. ⚠️⚠️ **NOTHING CAN CHECK THAT A NOTE IS TRUE** — only that it is shaped
+>   like provenance. **Change `readEpubMetadata()` or `autofillFromEpub()`, change
+>   the note in the same edit.**
+> * ⚠️⚠️ **THE COVER WAS THE SPAN, NOT THE FRAME.** A grid item that spans rows
+>   contributes its content to the size of those rows — so the jacket image was
+>   making rows 1-3 taller than the fields needed. Four rounds moved the frame;
+>   none stopped the picture sizing the grid. It is `position: absolute` now.
+>   ⚠️ **DO NOT PUT IT BACK IN FLOW.**
+>   ⭐ **THE PATTERN, THIRD TIME NOW: A LAYOUT BUG THAT SURVIVES REPEATED FIXES IS
+>   NOT IN THE THING BEING FIXED.**
+>
+> ### THE STATE OF PLAY
+>
+> * **71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run;
+>   nothing in Rounds 60–68 touches `firestore.rules`.
+> * ⚠️ **CONFIRMED LIVE: 60–63, 65, 66, 67.** Rounds 64 and 68 unconfirmed.
+>   Expected stamps: `admin.html` **v1.13.0**, `admin.js` **v3.48.0**,
+>   `lessons-admin.js` **v1.17.0**, `versions.js` **v1.16.0**.
+> * ⚠️ **`tools/meta-panel-ab.html` MUST BE REGENERATED IN THE SAME ROUND AS ANY
+>   CHANGE TO THAT PANEL.** F5 caught exactly that this round.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+>   **DO NOT SHIP style.css v3.10.0.**
+> * ⚠️ **NOTHING STUDENT-FACING HAS CHANGED SINCE ROUND 60**, which is live.
+>   ⚠️ **THE FIRST WEEK ROADMAP 50 CAN FIRE IN BEGINS SAT 2026-09-05.** Watch
+>   `game.html` from 09-07.
+> * **Next:** **55c** (Save Metadata's confirmation does not name everything it
+>   saved — now cheap, since the (i) notes already enumerate the fields), the
+>   scoped **`safe`/`edit` pass** (⚠️ chapter row is OUT — Jake ruled its colours
+>   are doing a job), then **58's collapse step**.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 67 (Duplex) — the previous block, kept
 >
 > ### ⭐ ROUND 67: THE COVER PROBLEM WAS NEVER THE COVER
 >

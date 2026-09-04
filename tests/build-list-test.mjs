@@ -468,6 +468,94 @@ check('J5. ⚠️ the panel\u2019s dividers share ONE rhythm', () => {
         'the same');
 });
 
+// ─── K. ROADMAP 56a — THE (i) BUTTONS ANSWER SOMETHING ─────────────────────
+//
+// Jake: *"Hovering over the i for Cover gives me a question mark, but clicking
+// doesn't give me anything at all."* ⚠️⚠️ A help affordance that answers nothing
+// is worse than no affordance: the cursor promises an explanation and the click
+// spends the user's attention for nothing.
+
+check('K1. every hint is a BUTTON with a data-note', () => {
+    const spans = [...adminHtml.matchAll(/<span class="hint"[^>]*>/g)];
+    assert.deepEqual(spans.map(m => m[0].slice(0, 50)), [],
+        '⚠️ a hint is a <span> again, so there is nothing to click and the cursor ' +
+        'is lying about it');
+    const hints = [...adminHtml.matchAll(/<button[^>]*class="hint"[^>]*>/g)];
+    assert.ok(hints.length >= 12, 'expected at least twelve hints; found ' + hints.length);
+    for (const h of hints) {
+        assert.match(h[0], /data-note="[^"]{40,}"/,
+            'a hint with no note, or one too short to say anything: ' + h[0].slice(0, 60));
+        // ⚠️ ONE SOURCE OF WORDS. admin.js copies data-note into title at init;
+        // a hand-written title in the markup is a second copy that will drift,
+        // and the one you edit will be the wrong one.
+        assert.ok(!/\stitle=/.test(h[0]),
+            'a hint carries its own title= as well as data-note. Two copies of a ' +
+            'sentence drift: ' + h[0].slice(0, 60));
+    }
+});
+
+check('K2. ⚠️ the notes are PROVENANCE, not definitions', () => {
+    // Jake: "it would probably be helpful if they told the user where that
+    // information is auto-filled from, IF ANYWHERE." The "if anywhere" is the
+    // part a hand-written list gets wrong — a field nothing fills must SAY so,
+    // rather than being left without a note and looking merely broken.
+    const notes = [...adminHtml.matchAll(/class="hint" data-note="([^"]+)"/g)].map(m => m[1]);
+    assert.ok(notes.length >= 12, 'found only ' + notes.length + ' notes');
+    const silent = notes.filter(n => !/AUTO-FILLED|AUTO-EXTRACTED|NOTHING AUTO-FILLS|NOT FROM THE EPUB/.test(n));
+    assert.deepEqual(silent.map(n => n.slice(0, 45)), [],
+        '⚠️ these notes say what the field IS and not where it comes from. Every ' +
+        'one must state its source or state plainly that nothing fills it');
+});
+
+check('K3. ⚠️ the click is wired once, delegated, and does not focus the field', () => {
+    const fn = /function initFieldHints\s*\(\)\s*\{[\s\S]*?\n\}/.exec(adminJs);
+    assert.ok(fn, 'initFieldHints() is gone; the (i) buttons are dead again');
+    assert.match(fn[0], /document\.addEventListener\(\s*['"]click['"]/,
+        '⚠️ per-element handlers die silently when the panel re-renders, and a ' +
+        'dead help button looks exactly like a live one. Delegate');
+    assert.match(fn[0], /preventDefault/,
+        '⚠️ the (i) sits inside a <label for="…">, so without preventDefault a ' +
+        'click focuses the field and, on a <select>, opens it');
+    assert.match(fn[0], /title\s*=\s*h\.dataset\.note/,
+        'hover and click no longer read the same source, so they can disagree');
+    assert.match(adminJs, /initFieldHints\s*\(\)\s*;/,
+        'defined and never called, which looks exactly like working code');
+});
+
+// ─── L. ROADMAP 55b — THE OVERRIDE IS A UI AFFORDANCE, NOT A PERMISSION ─────
+
+check('L1. ⚠️⚠️ superadmin is tested by equality, never by exclusion', () => {
+    const fn = /function refreshUploadedByOverride\s*\(\)\s*\{[\s\S]*?\n\}/.exec(adminJs);
+    assert.ok(fn, 'refreshUploadedByOverride() is gone');
+    assert.match(fn[0], /_staffScope\.role\s*===\s*'superadmin'/,
+        "⚠️⚠️ an undefined role must never read as permission. `!== 'admin'` is " +
+        'exactly that bug, and it would hand the control to every account whose ' +
+        'staff document failed to load');
+    assert.match(fn[0], /activeBookExists\(\)\s*===\s*true/,
+        'a book with no document has nothing to correct, and paintUploadedByStamp() ' +
+        'owns that element in that state — two writers, one box');
+});
+
+check('L2. the staff list costs one read, on first open, never on load', () => {
+    // §READS. A superadmin-only correction nobody opens most days must not cost
+    // a read on every admin session.
+    const fn = /function initUploadedByOverride\s*\(\)\s*\{[\s\S]*?\n\}\n/.exec(adminJs);
+    assert.ok(fn, 'initUploadedByOverride() is gone');
+    assert.match(fn[0], /_staffListLoaded/, 'the once-only guard is gone');
+    assert.match(fn[0], /addEventListener\(\s*['"]focus['"]/,
+        'the list is no longer filled lazily, so it costs a read on every load');
+});
+
+check('L3. ⚠️ the round says out loud that the rules do not enforce it', () => {
+    // ⚠️⚠️ THE THING A LATER READER WILL GET WRONG. /books has no field
+    // whitelist, so any admin who can write a book document can write this
+    // field. It is an affordance, not a boundary, and silence about that is how
+    // it gets cited as a control it is not.
+    assert.match(adminJs, /rules DOES NOT ENFORCE|RULES DO NOT ENFORCE/i,
+        'the header no longer warns that firestore.rules does not enforce ' +
+        'superadmin-only here. Say it, or someone will assume the server guards it');
+});
+
 let failed = 0;
 for (const [state, name] of results) {
     console.log(`  ${state === 'ok' ? 'ok  ' : 'FAIL'} ${name}`);

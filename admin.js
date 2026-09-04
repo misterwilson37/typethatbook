@@ -1,4 +1,32 @@
-// admin.js v3.47.0
+// admin.js v3.48.0
+//
+// v3.48.0 — ⚠️⚠️ ROADMAP 56a: THE (i) BUTTONS ANSWER SOMETHING NOW. They were
+//           <span>s carrying a `title`, so there was nothing to click — a help
+//           affordance that promises an explanation and spends the click for
+//           nothing. initFieldHints() copies each `data-note` into `title` so
+//           HOVER AND CLICK SAY THE SAME WORDS FROM ONE SOURCE, and installs ONE
+//           delegated handler (per-element handlers die silently when the panel
+//           re-renders, and a dead help button looks exactly like a live one).
+//           ⚠️ preventDefault IS LOAD-BEARING: the (i) sits inside a
+//           <label for="…">, so a click would otherwise focus the field and, on
+//           a <select>, open it.
+//           ⭐ THE NOTES ARE PROVENANCE, NOT DEFINITION, and every one of them is
+//           DERIVED FROM readEpubMetadata()/autofillFromEpub() rather than from
+//           memory. Change what a field is filled from, change its note in the
+//           same edit.
+//
+//           ⚠️ ROADMAP 55b: THE SUPERADMIN-ONLY `Uploaded by` CORRECTION.
+//           ⚠️⚠️ firestore.rules DOES NOT ENFORCE IT. `match /books/{bookId}` has
+//           no field whitelist, so any admin who can write a book document can
+//           write this field. IT IS A UI AFFORDANCE, NOT A PERMISSION — the right
+//           trade for a correction only Jake needs, but never describe it as a
+//           security boundary.
+//           ⚠️ `=== 'superadmin'` EXACTLY; an undefined role must not read as
+//           permission, and `!== 'admin'` would be exactly that bug.
+//           ⚠️ ONE getDocs ON FIRST OPEN, never on load (§READS).
+//           ⚠️ THE STAMP IS UNCHANGED: upload still writes uploadedBy on FIRST
+//           upload only, Save Metadata still never writes it. This is a
+//           correction affordance, not the normal path.
 //
 // v3.47.0 — ⚠️ "WHY ISN'T MY NAME SHOWING IN UPLOADED BY?" — Jake, of a book he
 //           was staging for the first time. THE FIELD WAS RIGHT AND SAID NOTHING.
@@ -158,35 +186,7 @@
 //           dead-HUD-reset assertion. It carried the v3.32.0 pointer too.
 //           NOTHING DELETED; all of it resolves in the CHANGELOG.
 //
-// v3.41.0 — ⚠⚠ ROADMAP 42, THE admin.js HALF. 250 declarations moved out of
-//           136 template-string style= attributes into admin.html's utility
-//           block — 31 new classes, 46 existing ones reused, 0 name collisions.
-//           ⭐ JAKE'S STANDING RULING OF 2026-09-02 APPLIED: the twelve-value
-//           font-size ladder collapses onto SIX, every move to the nearest
-//           surviving rung. "I don't need to judge whether .7 is better than
-//           .72 on a step by step basis — right now it looks bad."
-//           ⚠⚠ COLOUR WAS DELIBERATELY NOT TOUCHED, AND THE COLOUR HALF IS THE
-//           ONE THAT UNBLOCKS ITEM 38. 128 color and 39 background declarations
-//           are still inline. Every excluded property is one this file assigns
-//           at RUNTIME (.style.borderColor ×43, .style.color ×16, .style.opacity
-//           ×6, .style.background ×6, .style.display ×4, .style.fontWeight ×1),
-//           and item 38's finding is that amber means three different things
-//           here — merging two ambers merges two meanings. SO 42 IS NOT ONE JOB
-//           BUT TWO, and this is the half that does not unblock 38.
-//           ⚠⚠ 13 ATTRIBUTES WERE REFUSED AS DYNAMIC and that is how the one
-//           hazard shape excluded ITSELF rather than by anyone remembering it:
-//           .seg-row's heading background is built by interpolation, and it is
-//           the element cleared with .style.background = ''.
-//           ⚠ A HAZARD ROUND 57's SURVEY DID NOT NAME: 21 styled tags ALREADY
-//           carry a class=. A second class= attribute is discarded SILENTLY by
-//           every parser — the first wins — so the utilities would simply not
-//           apply and nothing on screen would say so. 16 rewrites MERGE.
-//           ⚠ Round 56's transformer does not apply (it aligned a real DOM;
-//           these are template strings). Every edit was a (start,end) SPAN
-//           computed in one pass and applied right-to-left, asserted
-//           non-overlapping — nothing located by anchor text, so there is no
-//           anchor to match the wrong occurrence.
-//
+// ⚠️ v3.41.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 68).
 // ⚠️ v3.40.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 66).
 // ⚠️ v3.39.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
 // ⚠️ v3.38.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
@@ -221,7 +221,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.47.0";
+const ADMIN_VERSION = "3.48.0";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -866,12 +866,136 @@ function paintUploadedByStamp() {
     }
 }
 
+// ─── ⚠️⚠️ ROADMAP 56a — THE (i) BUTTONS ANSWER SOMETHING NOW (v3.48.0) ───────
+//
+// Jake: *"Hovering over the i for Cover gives me a question mark, but clicking
+// doesn't give me anything at all. That's true of all of those i's."*
+//
+// ⚠️ ONE SOURCE OF WORDS. The note lives in `data-note` in the markup; this copies
+// it into `title` so the hover tooltip and the click panel can never disagree.
+// ⚠️ DO NOT WRITE A `title=` INTO admin.html AS WELL — the copy you edit will be
+// the wrong one, and nothing would catch it.
+function initFieldHints() {
+    const hints = document.querySelectorAll('.hint[data-note]');
+    hints.forEach(h => {
+        if (!h.title) h.title = h.dataset.note;
+        h.setAttribute('aria-expanded', 'false');
+    });
+    // ⚠️ DELEGATED, because the metadata panel is re-rendered and per-element
+    // handlers would be lost silently — the failure mode is a button that looks
+    // exactly like a working one and does nothing, which is the defect this is
+    // fixing.
+    document.addEventListener('click', (e) => {
+        const h = e.target.closest && e.target.closest('.hint[data-note]');
+        if (!h) return;
+        // ⚠️ THE (i) SITS INSIDE A <label for="...">, so a click would otherwise
+        // focus the field and, on a <select>, open it. Both, on a help button.
+        e.preventDefault();
+        e.stopPropagation();
+        const cell = h.closest('.f2, .f3, .meta-cover, .meta-cover-controls') || h.parentElement;
+        const open = cell.querySelector(':scope > .hint-note');
+        if (open) { open.remove(); h.setAttribute('aria-expanded', 'false'); return; }
+        // One at a time: several open notes reflow the grid into a wall of text.
+        document.querySelectorAll('.hint-note').forEach(n => n.remove());
+        document.querySelectorAll('.hint[aria-expanded="true"]')
+                .forEach(b => b.setAttribute('aria-expanded', 'false'));
+        const note = document.createElement('div');
+        note.className = 'hint-note';
+        note.textContent = h.dataset.note;
+        cell.appendChild(note);
+        h.setAttribute('aria-expanded', 'true');
+    });
+}
+
+// ─── ⚠️ ROADMAP 55b — THE SUPERADMIN OVERRIDE FOR `Uploaded by` (v3.48.0) ────
+//
+// Jake's ruling, 2026-09-04: *"I think superadmin should be the only one to do
+// it, because I'm the only one to upload books right now."*
+//
+// ⚠️⚠️ firestore.rules DOES NOT ENFORCE THIS AND IT IS IMPORTANT THAT THE NEXT
+// READER KNOWS. `match /books/{bookId}` carries no field whitelist, so any admin
+// who can write a book document can write `uploadedBy` from a console. THIS IS A
+// UI AFFORDANCE, NOT A PERMISSION. It is the right trade for a correction only
+// Jake needs — but do not describe it as a security boundary, and if the day
+// comes that it must be one, the rules are where that goes.
+//
+// ⚠️ THE STAMP ITSELF IS UNCHANGED. Upload still writes uploadedBy on FIRST
+// upload only, and Save Metadata still never writes it — an overwrite must not
+// restamp (v3.38.0). This is a correction affordance, not the normal path.
+let _staffListLoaded = false;
+function initUploadedByOverride() {
+    const wrap = document.getElementById('active-book-uploadedby-edit');
+    const sel  = document.getElementById('active-book-uploadedby-select');
+    const btn  = document.getElementById('active-book-uploadedby-set');
+    if (!wrap || !sel || !btn) return;
+
+    // ⚠️ ONE getDocs, ON FIRST OPEN, NEVER ON LOAD (§READS). A superadmin-only
+    // correction nobody opens most days must not cost a read on every admin
+    // session. Jake is weighing a county rollout on exactly this arithmetic.
+    async function fillOnce() {
+        if (_staffListLoaded) return;
+        _staffListLoaded = true;
+        sel.innerHTML = '<option value="">\u2014 choose \u2014</option>';
+        try {
+            const snap = await getDocs(collection(db, 'staff'));
+            snap.forEach(d => {
+                const v = d.data() || {};
+                const o = document.createElement('option');
+                // ⚠️ THE uid IS THE VALUE, never a name or an email — both go
+                // stale the day somebody changes theirs (v3.38.0).
+                o.value = d.id;
+                o.textContent = v.displayName || v.name || v.email || d.id;
+                sel.appendChild(o);
+            });
+        } catch (e) {
+            // ⚠️ A staff collection this account cannot read is not a dialog.
+            _staffListLoaded = false;
+            sel.innerHTML = '<option value="">could not read staff list</option>';
+        }
+    }
+    sel.addEventListener('focus', fillOnce, { once: false });
+
+    btn.onclick = async () => {
+        const uid = sel.value;
+        if (!uid || !activeBookId) return;
+        if (!confirm('Record "' + (bookTitlesMap[activeBookId] || activeBookId) +
+                     '" as uploaded by ' + sel.options[sel.selectedIndex].text +
+                     '?\n\nThis writes that one field and nothing else.')) return;
+        try {
+            // ⚠️ setDoc + merge, NOT updateDoc — this file does not import
+            // updateDoc, and merge writes the one field just the same.
+            await setDoc(doc(db, 'books', activeBookId), { uploadedBy: uid }, { merge: true });
+            showUploadedBy(uid);
+        } catch (e) {
+            alert('Could not set it: ' + e.message);
+        }
+    };
+    refreshUploadedByOverride();
+}
+
+/**
+ * ⚠️ SUPERADMIN, AND AN EXISTING BOOK. Both, every repaint.
+ *
+ * ⚠️⚠️ `=== 'superadmin'` EXACTLY — an undefined role must never read as
+ * permission, and `!== 'admin'` would be exactly that bug.
+ * ⚠️ A book with no document has nothing to correct, and paintUploadedByStamp()
+ * owns that element in that state — two things writing one box is how a
+ * placeholder and a control come to fight on every repaint.
+ */
+function refreshUploadedByOverride() {
+    const wrap = document.getElementById('active-book-uploadedby-edit');
+    if (!wrap) return;
+    const allowed = _staffScope.role === 'superadmin' && activeBookExists() === true;
+    wrap.classList.toggle('hidden', !allowed);
+}
+
 /** All four, together — they read the same two facts and must not disagree. */
 function paintTierButtons() {
     paintUploadButton();
     paintSaveMetadataButton();
     paintParseButton();
     paintUploadedByStamp();
+    refreshUploadedByOverride();
 }
 
 let activeBookId = ""; 
@@ -1095,6 +1219,14 @@ onAuthStateChanged(auth, async (user) => {
                 const target = document.getElementById('tab-' + first);
                 if (target) target.click();
             }
+        // ⚠️ BOTH BEFORE loadBookList(), AND FOR DIFFERENT REASONS (v3.48.0).
+        // initFieldHints() copies data-note into title and installs ONE delegated
+        // click handler, so it must run before anything a user can click.
+        // initUploadedByOverride() reads _staffScope.role, which onAuthStateChanged
+        // has just set — and its refresh is then driven by paintTierButtons(),
+        // which loadBookList() calls.
+        initFieldHints();
+        initUploadedByOverride();
 await loadBookList(true);   // initial load: pick a book and open it
         // Safe now that auth has resolved — see the note by loadCustomWords().
         loadCustomWords();

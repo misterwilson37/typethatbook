@@ -1,5 +1,80 @@
 # CHANGELOG — TypeThatBook
 
+## Round 68 (Duplex) — 2026-09-04 — the (i) buttons answer something, and the cover was the span all along
+
+### ⚠️⚠️ ROADMAP 56a — a help affordance that answers nothing
+
+They were `<span>`s carrying a `title`, so **there was nothing to click**. The
+cursor promised an explanation and the click spent attention for nothing.
+
+`admin.html` **v1.13.0**, `admin.js` **v3.48.0**. Real `<button>`s with
+`data-note`; `initFieldHints()` copies each note into `title` so **hover and click
+say the same words from one source**. ⚠️ Do not write a `title=` into the markup as
+well — K1 fails on it, because two copies of a sentence drift and the one you edit
+will be the wrong one. ⚠️ One delegated handler: per-element handlers die silently
+when the panel re-renders, and **a dead help button looks exactly like a live
+one**. ⚠️ `preventDefault()` is load-bearing — the (i) sits inside a
+`<label for="…">`, so a click would otherwise focus the field and, on a `<select>`,
+open it.
+
+⭐ **The content is provenance, not definition, and all of it came out of
+`readEpubMetadata()` / `autofillFromEpub()`** — not from memory. Every note says
+where its field is auto-filled from, and every auto-filled one adds the thing that
+answers the real worry: *only ever fills a BLANK field — it never overwrites what
+you typed.*
+
+⚠️ **The "if anywhere" mattered.** `Protagonist`, `Book Display Title` and `Author`
+had **no (i) at all**, so three fields looked broken rather than unfilled. `Target
+Age Range` and `Protagonist` now say plainly that nothing fills them.
+
+### ✅ ROADMAP 55b — built, and the rules do not enforce it
+
+A staff `<select>` and a `Set` button beside the stamp, shown only when
+`_staffScope.role === 'superadmin'` **and** the book already exists.
+
+⚠️⚠️ **`firestore.rules` does not enforce superadmin-only here.** `match
+/books/{bookId}` carries no field whitelist, so any admin who can write a book
+document can write `uploadedBy`. **This is a UI affordance, not a permission** — the
+right trade for a correction only Jake needs, but the moment anyone cites it as a
+control it has to move into the rules. L3 fails if that warning leaves the header.
+
+⚠️ `=== 'superadmin'` exactly: `!== 'admin'` would hand the control to every
+account whose staff document failed to load — the same shape as "unknown paints
+green". ⚠️ One `getDocs` on first open, never on load (§READS). ⚠️ The stamp is
+unchanged: first upload only, never Save Metadata, never a restamp.
+
+### ⚠️⚠️ The cover, fourth time, and this time it was the span
+
+Jake: *"the choose file image and graphic still don't quite line up there on the
+right."*
+
+**A grid item that spans rows contributes its content to the size of those rows.**
+`.meta-cover` spans three, so the **jacket image itself** was making rows 1–3
+taller than the fields needed — which is why there were gaps under the field rows
+*and* why the frame overhung its column. Every previous round moved the frame; none
+stopped the picture sizing the grid.
+
+The image is `position: absolute` now. Out of flow it can size nothing, so the
+frame takes exactly the three rows the **fields** asked for and its bottom edge is
+a gridline. ⚠️ Do not put it back in flow — the symptom returns as a layout that is
+*almost* right, which four rounds of this item show is the hardest kind to
+attribute. Column **200px → 240px** with `nowrap`: at 200px the native file input's
+own minimum pushed `Remove` onto a second line.
+
+### Shipped
+
+`admin.html` v1.13.0, `admin.js` v3.48.0, `tests/build-list-test.mjs` (Parts K and
+L, 6 new assertions, **34 total**, mutation-verified four ways),
+`tools/meta-panel-ab.html` v1.3.0. One header entry archived below.
+
+**ROADMAP 56 is now closed. ROADMAP 55 a and b are done; c and d remain.**
+
+### Verification
+
+**71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `npm run test:rules` NOT
+run; nothing here touches `firestore.rules` — which is itself the point of the 55b
+warning above.
+
 ## Round 67 (Duplex) — 2026-09-04 — one 15px margin was behind all of it
 
 ### ⚠️⚠️ The cover problem was never the cover
@@ -7645,4 +7720,37 @@ try { sessionStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
 //           functions-side copy against.
 //           ⚠️ metadata-map-test.mjs PART F guards the property that makes that
 //           copy possible: the module imports nothing and touches no DOM.
+```
+
+### § admin.js — archived header entries (Round 68)
+
+```
+// v3.41.0 — ⚠⚠ ROADMAP 42, THE admin.js HALF. 250 declarations moved out of
+//           136 template-string style= attributes into admin.html's utility
+//           block — 31 new classes, 46 existing ones reused, 0 name collisions.
+//           ⭐ JAKE'S STANDING RULING OF 2026-09-02 APPLIED: the twelve-value
+//           font-size ladder collapses onto SIX, every move to the nearest
+//           surviving rung. "I don't need to judge whether .7 is better than
+//           .72 on a step by step basis — right now it looks bad."
+//           ⚠⚠ COLOUR WAS DELIBERATELY NOT TOUCHED, AND THE COLOUR HALF IS THE
+//           ONE THAT UNBLOCKS ITEM 38. 128 color and 39 background declarations
+//           are still inline. Every excluded property is one this file assigns
+//           at RUNTIME (.style.borderColor ×43, .style.color ×16, .style.opacity
+//           ×6, .style.background ×6, .style.display ×4, .style.fontWeight ×1),
+//           and item 38's finding is that amber means three different things
+//           here — merging two ambers merges two meanings. SO 42 IS NOT ONE JOB
+//           BUT TWO, and this is the half that does not unblock 38.
+//           ⚠⚠ 13 ATTRIBUTES WERE REFUSED AS DYNAMIC and that is how the one
+//           hazard shape excluded ITSELF rather than by anyone remembering it:
+//           .seg-row's heading background is built by interpolation, and it is
+//           the element cleared with .style.background = ''.
+//           ⚠ A HAZARD ROUND 57's SURVEY DID NOT NAME: 21 styled tags ALREADY
+//           carry a class=. A second class= attribute is discarded SILENTLY by
+//           every parser — the first wins — so the utilities would simply not
+//           apply and nothing on screen would say so. 16 rewrites MERGE.
+//           ⚠ Round 56's transformer does not apply (it aligned a real DOM;
+//           these are template strings). Every edit was a (start,end) SPAN
+//           computed in one pass and applied right-to-left, asserted
+//           non-overlapping — nothing located by anchor text, so there is no
+//           anchor to match the wrong occurrence.
 ```

@@ -392,7 +392,6 @@ Everything else still open:
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
 - 38. ⚠️ OPEN for admin — commit + create tiers DONE (Rounds 61-63), safe/edit NOT — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS  *(⚠️ UNBLOCKED, and Jake has RULED — build to the table, do not re-open it)*
 - 55. ⚠️ (a) DONE Rounds 65-66 — (b)(c)(d) OPEN — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
-- 56. ⚠️ (a) OPEN — (b) AND (c) CLOSED ROUND 64 — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS  *(Jake, 2026-09-03)*
 - 58. ⭐ A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
 - 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED  *(found Round 60; touches three mirrored files — read the item)*
 - 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS  *(the instrument that would have caught Round 59's finding on the day)*
@@ -406,6 +405,7 @@ Everything else still open:
 - 49. ✅ FIXED (Round 58, Emerson) — A STALE HARD-STOP OVERLAY DEMANDED A KEY FROM A DELETED DRILL  *(⚠️ Caps Lock is ruled NOT-a-bug — do not "fix" the e.key comparison)*
 - 48. ✅ “TEXT PREPARED BY” NAMED THE WRONG PERSON ON EVERY BOOK, ON EVERY SURFACE  *(Round 57 — two defects, one symptom)*
 - 44. ✅ THE BOOK ID FIELD ACCEPTS ANYTHING TYPED INTO IT, AND slugifyBookId() IS RIGHT THERE  *(Round 57 — warns on whitespace, never blocks)*
+- 56. ✅ CLOSED — (a) Round 68, (b) and (c) Round 64 — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS  *(Jake, 2026-09-03)*
 - 51. ✅ THE BUILD LIST IS IN NO ORDER A READER CAN RECOGNISE — SORT IT ALPHABETICALLY  *(CLOSED Round 64)*  *(Jake asked, 2026-09-03. Sort in renderBuildList(), NEVER the SOURCES array — read the item first)*
 - 29. ✅ README.md IS TWENTY-FIVE ROUNDS STALE  *(CLOSED Round 64 — and the item's own premise was stale; read it)*  *(Round 57 — file map regenerated from versions.js)*
 - ✅ ITEM 18 — PRUNE `readWeek()` WITH THE LEDGER  *(BUILT, Round 37)*
@@ -5454,6 +5454,27 @@ default order or as one option beside the current one.**
 all in the same panel, all small. ⚠️ **Do them together — this panel is one grid
 and four separate rounds would relayout it four times.**
 
+### ✅ ROUND 68 (Duplex) — THE COVER, FOURTH TIME, AND THIS TIME IT WAS THE SPAN
+
+**Jake:** *"the choose file image and graphic still don't quite line up there on
+the right."*
+
+⚠️⚠️ **A GRID ITEM THAT SPANS ROWS CONTRIBUTES ITS CONTENT TO THE SIZE OF THOSE
+ROWS.** `.meta-cover` spans three, so the **jacket image itself** was making rows
+1-3 taller than the fields needed — which is why there were gaps under the field
+rows *and* why the frame overhung its column. Every previous round moved the
+frame; none of them stopped the picture from sizing the grid.
+
+✅ **The image is `position: absolute` inside the frame.** Out of flow, it can
+size nothing; the frame takes exactly the three rows the **fields** asked for, and
+its bottom edge is a gridline. ⚠️ **DO NOT PUT IT BACK IN FLOW to simplify this** —
+the symptom returns as a layout that is *almost* right, which is the hardest kind
+to attribute, as four rounds of this item demonstrate.
+
+⚠️ Cover column **200px → 240px** and `flex-wrap: nowrap`: at 200px the native
+file input's own minimum pushed `Remove` onto a second line, so a one-row cell
+held two rows of controls and hung below itself.
+
 ### ✅ ROUND 67 (Duplex) — ONE 15px MARGIN WAS BEHIND ALL OF IT
 
 **Jake, on the v1.11.0 render:** *"Book cover column elements don't line up with
@@ -5620,6 +5641,30 @@ that are *almost* the same width read worse than boxes that are obviously
 different. Whatever the new grid is, make the columns match exactly or differ
 clearly. Do not eyeball it to "close enough".
 
+### ✅ ROUND 68 (Duplex) — (b) BUILT, AND ⚠️⚠️ THE RULES DO NOT ENFORCE IT
+
+✅ **`admin.js` v3.48.0, `admin.html` v1.13.0.** A staff `<select>` and a `Set`
+button beside the stamp, shown **only** when `_staffScope.role === 'superadmin'`
+**and** the book already exists.
+
+⚠️⚠️ **SAY THIS OUT LOUD EVERY TIME IT COMES UP: `firestore.rules` DOES NOT
+ENFORCE SUPERADMIN-ONLY HERE.** `match /books/{bookId}` carries no field
+whitelist, so any admin who can write a book document can write `uploadedBy` from
+a console. **This is a UI affordance, not a permission.** That is the right trade
+for a correction only Jake needs — but the moment anyone cites it as a control,
+it has to move into the rules. L3 fails if the warning leaves the header.
+
+⚠️ **`=== 'superadmin'` EXACTLY.** `!== 'admin'` would hand the control to every
+account whose staff document failed to load, which is the same shape as
+"unknown paints green" in ROADMAP 38. L1 pins it.
+
+⚠️ **ONE `getDocs` ON FIRST OPEN, NEVER ON LOAD** (§READS) — a correction nobody
+opens most days must not tax every admin session. L2 pins it.
+
+⚠️ **THE STAMP IS UNCHANGED.** Upload still writes `uploadedBy` on first upload
+only; `Save Metadata` still never writes it; an overwrite still does not restamp.
+This is a correction path, not the normal one.
+
 ### ⭐ JAKE'S RULING, 2026-09-04: SUPERADMIN ONLY
 
 *"I think superadmin should be the only one to do it, because I'm the only one to
@@ -5685,7 +5730,7 @@ without waiting for its answer.
 
 ---
 
-## 56. ⚠️ (a) OPEN — (b) AND (c) CLOSED ROUND 64 — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS
+## 56. ✅ CLOSED — (a) Round 68, (b) and (c) Round 64 — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS
 
 ### ✅ ROUND 64 (Duplex) — (b) AND (c), AND (c) WAS HIDING A REAL BUG
 
@@ -5724,6 +5769,52 @@ is a round's work, not a batch item.
 
 **Jake, 2026-09-03, reviewing Round 59's hover work.** Three findings, related
 only in that each one is a control making a promise it does not keep.
+
+### ✅ ROUND 68 (Duplex) — (a) CLOSED. THE (i) BUTTONS ANSWER SOMETHING.
+
+✅ **`admin.html` v1.13.0, `admin.js` v3.48.0.** They were `<span>`s carrying a
+`title`, so **there was nothing to click** — the cursor promised an explanation
+and the click spent attention for nothing. Real `<button>`s with `data-note` now.
+
+⭐ **ONE SOURCE OF WORDS.** `initFieldHints()` copies each `data-note` into
+`title`, so hover and click cannot disagree. ⚠️ **DO NOT WRITE A `title=` INTO THE
+MARKUP AS WELL** — K1 fails on it; two copies of a sentence drift and the one you
+edit will be the wrong one.
+
+⚠️ **DELEGATED, ONE HANDLER.** Per-element handlers die silently when the panel
+re-renders, and **a dead help button looks exactly like a live one** — which is
+the defect being fixed. ⚠️ `preventDefault()` is load-bearing: the (i) sits inside
+a `<label for="…">`, so a click would otherwise focus the field and, on a
+`<select>`, open it.
+
+⭐ **THE CONTENT IS PROVENANCE, AND ALL OF IT CAME OUT OF THE IMPORT PATH.**
+Read from `readEpubMetadata()` and `autofillFromEpub()`, field by field:
+
+| Field | Where it comes from |
+|---|---|
+| Book Display Title | `dc:title` |
+| Author | `dc:creator`, falling back to the first `dc:contributor` **only** when there is no creator at all |
+| Genre | `dc:subject` — a **guess**, only when a rule matches, so usually blank |
+| Target Age Range | ⚠️ **nothing** — the importer says so itself |
+| Protagonist | ⚠️ **nothing** |
+| Source | `dc:publisher` + `dc:source`, normalised |
+| License / rights | `dc:rights`, matched or dropped into Custom… verbatim |
+| Archive URL | archive base + the exact filename in the picker |
+| Origin URL | Gutenberg's in-book link, else `dc:identifier` |
+| Prepared by | Gutenberg Credits row → Standard Ebooks colophon → `dc:contributor` |
+| Cleaned up by | ⚠️ **not from the EPUB** — defaults to Claude |
+| Uploaded by | ⚠️ **not from the EPUB** — stamped at first upload |
+| Cover | extracted from the EPUB when present |
+
+⭐ **AND EVERY AUTO-FILLED NOTE SAYS THE ONE THING THAT ANSWERS JAKE'S REAL
+WORRY:** *only ever fills a BLANK field — it never overwrites what you typed.*
+⚠️ **THE "if anywhere" MATTERED:** `Protagonist`, `Book Display Title` and
+`Author` had **no (i) at all**, so three fields looked broken rather than
+unfilled. They have one now. K2 fails if any note says what a field *is* without
+saying where it comes from.
+
+⚠️ **CHANGE THE IMPORT PATH, CHANGE THE NOTE IN THE SAME EDIT.** Nothing can check
+that a note is *true* — only that it is shaped like provenance.
 
 ### a. ⚠️⚠️ THE (i) BUTTONS ARE THE REAL ONE. THEY DO NOTHING.
 
