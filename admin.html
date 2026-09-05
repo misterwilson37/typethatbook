@@ -1,9 +1,24 @@
 <!DOCTYPE html>
-<!-- admin.html v1.14.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.15.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.15.0 — ⚠️⚠️ THE COVER PREVIEW IS 2/3, THE SAME RATIO THE SHELF USES.
+     index.html's `.book-cover { width:100%; aspect-ratio: 2/3 }` is what a
+     student actually sees, so a preview in any other shape was previewing
+     something else. ⚠️ HEIGHT LEADS, WIDTH FOLLOWS: the frame still spans exactly
+     three grid rows, so its top and bottom stay on gridlines while it narrows.
+     ⚠️ THE COLUMN STAYS WIDER THAN THE FRAME ON PURPOSE — its width is set by the
+     two controls beneath, which belong in ONE row; at the frame's own ~150px
+     `Remove` drops to a second line and hangs out of its cell.
+     ⚠️ Row 4 is 4 + 2, not 3 + 3. `Prepared by` holds a producer credit
+     ("Produced by Juliet Sutherland, Susan Skinner and the Online Distributed
+     Proofreading Team") and was truncating at half a row; `Cleaned up by` holds
+     one word from a dropdown. The equal-width pairing was there so the two fields
+     this panel confuses would invite comparison — but a field you cannot read is
+     not being compared with anything, and the hints carry that distinction now.
 
      v1.14.0 — ⚠️⚠️ ROADMAP 38 — THE safe/edit PASS, SCOPED BY JAKE'S RULING.
      Four tiers, four obviously different hues: safe grey, edit blue, create
@@ -432,6 +447,10 @@
            widths is how the two halves drift apart again. */
         .meta-head .f2, .meta-grid .f2 { grid-column: span 2; }
         .meta-head .f3, .meta-grid .f3 { grid-column: span 3; }
+        /* ⚠️ f4 exists for ONE field: the producer credit, which is the longest
+           value on this panel and was truncating at half a row. Rows still sum to
+           six — 4 + 2. */
+        .meta-head .f4, .meta-grid .f4 { grid-column: span 4; }
 
         /* ⚠️ THE SPACER LABEL IS WHY `Save Metadata` LINES UP. Its cell has no
            label of its own, so without one the button started at the top of the
@@ -492,8 +511,22 @@
            ⚠️ DO NOT PUT THE IMAGE BACK IN FLOW to "simplify" this. The symptom
            returns as a layout that is almost right, which is the hardest kind to
            attribute. */
+        /* ⚠️⚠️ 2/3 — THE SAME RATIO THE LIBRARY PAGE USES (v1.15.0). index.html's
+           `.book-cover { width:100%; aspect-ratio: 2/3 }` is what a student
+           actually sees on the shelf, so the admin preview has to be that shape or
+           it is previewing something else. Jake asked for it by name.
+           ⚠️ HEIGHT LEADS, WIDTH FOLLOWS. The frame still spans exactly three grid
+           rows, so its top and bottom stay on gridlines; `aspect-ratio` sets the
+           WIDTH from that height and `margin: 0 auto` centres it in the column.
+           ⚠️ THE COLUMN IS WIDER THAN THE FRAME ON PURPOSE. Its width is set by
+           the two controls beneath, which Jake wants side by side in one row — at
+           the frame's own ~150px they do not fit, and Remove drops onto a second
+           line and hangs out of its cell. So: column sized by the controls, frame
+           sized by the ratio, both bottoms on the same lines. */
         .cover-frame {
-            flex: 1 1 auto; min-height: 0; border: 1px solid #444; border-radius: 3px;
+            flex: 1 1 auto; min-height: 0; aspect-ratio: 2 / 3;
+            width: auto; max-width: 100%; margin: 0 auto;
+            border: 1px solid #444; border-radius: 3px;
             background: #161616; position: relative; overflow: hidden;
         }
         .cover-frame img {
@@ -1370,13 +1403,23 @@
                         </div>
                     </div>
 
-                    <!-- row 4 — ⚠️ THE PAIR THAT GETS CONFUSED, side by side, equal -->
-                    <div class="f3">
+                    <!-- row 4 — ⚠️ 4 + 2, NOT 3 + 3 (v1.15.0). Jake: "Produced by
+                         should [be] 4 columns wide." `Prepared by` holds a
+                         producer credit — "Produced by Juliet Sutherland, Susan
+                         Skinner and the Online Distributed Proofreading Team" —
+                         and was truncating at half a row. `Cleaned up by` holds one
+                         word from a dropdown.
+                         ⚠️ THEY WERE EQUAL SO THE TWO FIELDS THIS PANEL KEEPS
+                         CONFUSING WOULD INVITE COMPARISON. That reasoning was
+                         wrong the moment it cost the longer one its content: a
+                         field you cannot read is not being compared with anything.
+                         The hints carry the distinction instead. -->
+                    <div class="f4">
                         <label>Prepared by <button type="button" class="hint" data-note="AUTO-FILLED FROM GUTENBERG'S CREDITS ROW, else Standard Ebooks' colophon, else dc:contributor. Only ever fills a BLANK field — it never overwrites what you typed. Whoever produced the SOURCE text — not the classroom pass, which is Cleaned up by.">i</button></label>
                         <input type="text" id="active-book-preparedby" class="u-width-100pct"
                                placeholder="filled from the EPUB where it says">
                     </div>
-                    <div class="f3">
+                    <div class="f2">
                         <label>Cleaned up by <button type="button" class="hint" data-note="⚠ NOT FROM THE EPUB. Defaults to Claude rather than being parsed out of the notice, because in practice it always has been. Who did YOUR classroom text pass — not the source text, which is Prepared by.">i</button></label>
                         <select id="active-book-cleanedby" class="u-width-100pct">
                             <option value="">— Not set —</option>

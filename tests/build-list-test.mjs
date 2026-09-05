@@ -239,7 +239,7 @@ check('F1. the metadata panel is a grid, not flex rows', () => {
 });
 
 check('F2. ⚠️⚠️ every row\u2019s spans sum to exactly six', () => {
-    const spans = [...metaGrid.matchAll(/<div class="f([23])">/g)].map(m => +m[1]);
+    const spans = [...metaGrid.matchAll(/<div class="f([234])">/g)].map(m => +m[1]);
     // ⚠️ FIELD CELLS ONLY. The cover and its controls are explicitly placed in
     // column 7 and carry no span class, so they are correctly absent here.
     assert.ok(spans.length >= 8, 'expected at least eight fields; found ' + spans.length);
@@ -271,8 +271,10 @@ check('F3. ⚠️ no field is a FRACTION of another \u2014 Jake\u2019s pet peeve
         'a fractional flex weight is back in admin.html. A field is a third of the ' +
         'row or a half of it; "a bit wider than the one beside it" is the thing ' +
         'this panel was rebuilt to stop doing');
-    assert.ok(!/class="f[^23"]/.test(metaGrid),
-        'a span class other than f2/f3 appeared. Two sizes is the point');
+    assert.ok(!/class="f[^234"]/.test(metaGrid),
+        '⚠️ a span class other than f2/f3/f4 appeared. Whole-column widths only — ' +
+        'the point is that a field is a third, a half or two thirds of the row, ' +
+        'never "a bit wider than the one beside it"');
 });
 
 check('F4. ⚠️ min-width:0 is still on the grid children', () => {
@@ -669,6 +671,38 @@ check('M8. \u26a0 the cover is still named explicitly', () => {
     // a "✓ Saved".
     const out = saveEnv.describeSave({ title: 'T' }, null, 'cover saved (image/jpeg)');
     assert.match(out, /cover saved/, 'the cover note was dropped from the line');
+});
+
+// ─── N. THE COVER PREVIEW IS THE SHAPE THE SHELF ACTUALLY SHOWS ────────────
+
+check('N1. ⚠️⚠️ the admin cover preview uses the LIBRARY\u2019s aspect ratio', () => {
+    // ⚠️ index.html's `.book-cover { aspect-ratio: 2/3 }` is what a student sees.
+    // A preview in any other shape is previewing something else, and the point of
+    // a preview is that it is not a guess.
+    const lib = /\.book-cover\s*\{[^}]*aspect-ratio:\s*([\d/\s]+);/.exec(read('index.html'));
+    assert.ok(lib, '⚠️ index.html no longer declares .book-cover\u2019s aspect-ratio. ' +
+        'If the shelf changed shape, this panel has to follow it in the same round');
+    const admin = /\.cover-frame\s*\{[^}]*aspect-ratio:\s*([\d/\s]+);/.exec(adminHtml);
+    assert.ok(admin, 'the admin preview has no aspect-ratio, so its shape is ' +
+        'whatever the grid rows happen to give it');
+    const norm = t => t.replace(/\s+/g, '');
+    assert.equal(norm(admin[1]), norm(lib[1]),
+        '\u26a0\u26a0 the admin preview is ' + norm(admin[1]) + ' and the shelf is ' +
+        norm(lib[1]) + '. They are read side by side by one person deciding ' +
+        'whether a cover looks right');
+});
+
+check('N2. the frame is sized by HEIGHT, so its edges stay on gridlines', () => {
+    // ⚠️ If `width` led instead, the frame would set its own height and stop
+    // agreeing with the rows beside it — the defect that took four rounds to
+    // find the first time.
+    const rule = /\.cover-frame\s*\{[^}]*\}/.exec(adminHtml)[0];
+    assert.match(rule, /width:\s*auto/,
+        '\u26a0 the frame sets an explicit width, so the ratio now drives its HEIGHT ' +
+        'and its bottom edge leaves the gridline it was put on');
+    assert.match(rule, /margin:\s*0 auto/,
+        'the frame no longer centres, so a narrower cover sits against one edge of ' +
+        'a wider column and reads as a mistake');
 });
 
 let failed = 0;

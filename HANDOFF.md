@@ -1,8 +1,59 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-04 by Round 71 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-04 by Round 72 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–71 ARE ONE INSTANCE.**
+> ⚠️ **ROUNDS 60–72 ARE ONE INSTANCE.**
+>
+> ⚠️⚠️ **STANDING WARNING: `firestore.rules` DOES NOT ENFORCE "SUPERADMIN ONLY" ON
+> `uploadedBy`.** `/books` has no field whitelist — a **UI affordance, not a
+> permission**.
+>
+> ### ✅ ROUND 72: THE COVER PREVIEW IS 2:3, READ FROM THE SHELF
+>
+> `index.html`'s `.book-cover` is `aspect-ratio: 2/3`. ⭐ **A PREVIEW IN ANY OTHER
+> SHAPE IS PREVIEWING SOMETHING ELSE.** N1 reads BOTH files and fails if they ever
+> diverge — ⚠️ **if the shelf changes shape, this panel follows in the SAME
+> round.**
+>
+> ⚠️ **HEIGHT LEADS, WIDTH FOLLOWS. DO NOT GIVE THE FRAME AN EXPLICIT WIDTH** —
+> the ratio would then drive its height and its bottom edge would leave the
+> gridline it took four rounds to land on. ⚠️ The column is wider than the frame on
+> purpose: the two controls beneath need the room to sit in one row.
+>
+> ⚠️ Row 4 is **4 + 2**. Round 65 made those two equal so the fields this panel
+> confuses would invite comparison; **that was wrong the moment it cost the longer
+> one its content.** A field you cannot read is not being compared with anything.
+>
+> ### ⭐ JAKE ANSWERED THE `This Week` QUESTION — READ IT BEFORE BUILDING 58 STEP TWO
+>
+> **Agree silently, ask when they disagree.** ⚠️ `scope-class` is a **single
+> `<select>`** and `classesById` is already in memory, so the check is free and
+> **no modal can fire while a teacher is looking at one class**.
+> ⚠️⚠️ **THE MODAL NEEDS ITEM 39's DIALOG WORK** — 22 `alert()`/`confirm()` calls on
+> that page, no modal infrastructure, and a native `confirm()` cannot offer three
+> ranges. The roadmap records both sequencing orders. ⭐ **My preference: ship step
+> two WITHOUT the modal** (most-common anchor + a visible line saying which class
+> disagrees), then let 39 upgrade it. The disagreement becoming *visible* is most
+> of the win.
+>
+> ### THE STATE OF PLAY
+>
+> * **71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run.
+> * ⚠️⚠️ **ROUND 71 IS THE FIRST STUDENT-FACING CHANGE SINCE ROUND 60** —
+>   `game.js` **v3.49.0**, `learn.js` **v2.46.0**. Also expected:
+>   `lessons-admin.js` **v1.18.0**, `reports.html` **v1.8.0**, `admin.html`
+>   **v1.15.0**, `admin.js` **v3.50.0**, `versions.js` **v1.16.0**.
+> * ⚠️ **CONFIRMED LIVE: 60–63, 65, 66, 67.** 64 and 68–72 unconfirmed.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+>   **DO NOT SHIP style.css v3.10.0.**
+> * ⚠️⚠️ **THE FIRST WEEK ROADMAP 50 CAN FIRE IN BEGINS SAT 2026-09-05.** Watch
+>   `game.html` from 09-07.
+> * **CLOSED: 38, 51, 56, 29. 55 is (a)(b)(c) done. 58 is step one of two.**
+> * **Next:** **58 step two**, then **39** (which carries 55d and the modal above).
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 71 (Duplex) — the previous block, kept
 >
 > ⚠️⚠️ **STANDING WARNING: `firestore.rules` DOES NOT ENFORCE "SUPERADMIN ONLY" ON
 > `uploadedBy`.** `/books` has no field whitelist — that control is a **UI

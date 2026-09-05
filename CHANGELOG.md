@@ -1,5 +1,50 @@
 # CHANGELOG — TypeThatBook
 
+## Round 72 (Duplex) — 2026-09-04 — the cover preview is the shape the shelf shows
+
+`admin.html` **v1.14.0 → v1.15.0**.
+
+### The cover is 2:3, read out of the library page rather than chosen
+
+`index.html`'s `.book-cover { width:100%; aspect-ratio: 2/3 }` is what a student
+sees on the shelf. ⭐ **A preview in any other shape is previewing something
+else.**
+
+⚠️ **Height leads, width follows.** The frame still spans exactly three grid rows,
+so its top and bottom stay on gridlines while it narrows; the ratio sets the width
+from that height and `margin: 0 auto` centres it. Giving it an explicit width would
+make the ratio drive its *height* and its bottom edge would leave the gridline it
+took four rounds to land on — N2 pins the direction, and **N1 reads both files and
+fails if the two ratios ever diverge**.
+
+⚠️ The column stays wider than the frame on purpose: its width is set by the two
+controls beneath, which belong in one row, and at the frame's own ~150px `Remove`
+drops to a second line and hangs out of its cell.
+
+### Row 4 is 4 + 2, and the old reasoning was wrong
+
+`Prepared by` holds a producer credit and was truncating at half a row; `Cleaned up
+by` holds one word from a dropdown. ⚠️⚠️ Round 65 made them equal so the two fields
+this panel keeps confusing would invite comparison — **that was wrong the moment it
+cost the longer one its content: a field you cannot read is not being compared with
+anything.** The (i) hints carry the distinction, which is where it belonged.
+
+### Filed: Jake's answer on `This Week` across mixed classes
+
+Agree silently, ask when they disagree. ⭐ Better than all three options in the
+item, and narrower than it sounds — `scope-class` is a single `<select>` and
+`classesById` is already in memory, so **no modal can fire while a teacher is
+looking at one class**. ⚠️ The modal's options must be *derived* from the selection
+(each anchor named with the classes using it), and the answer remembered for the
+session, or "All classes" plus one Monday class is a dialog on every press.
+⚠️ It needs item 39's dialog work; the roadmap records both sequencing orders and
+which I'd pick.
+
+### Verification
+
+**71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `npm run test:rules` NOT
+run.
+
 ## Round 71 (Duplex) — 2026-09-04 — the week anchor has one home
 
 ### ROADMAP 58, step one: five copies of `(getDay() + 1) % 7` collapsed onto one

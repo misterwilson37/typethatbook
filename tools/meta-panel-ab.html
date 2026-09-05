@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- meta-panel-ab.html v1.4.0 — ROADMAP 55/56/38, Rounds 65-70 (Duplex).
+<!-- meta-panel-ab.html v1.5.0 — ROADMAP 55/56/38, Rounds 65-72 (Duplex).
 
      ⚠️ NOT SHIPPED. Lives in tools/, never deployed.
 
@@ -42,7 +42,7 @@
     .hidden { display:none; }
     .danger-btn, .tier-commit { background:#500; border:1px solid #800; color:#fcc; }
 
-/* ─── lifted verbatim from admin.html v1.14.0 ─────────────────────────── */
+/* ─── lifted verbatim from admin.html v1.15.0 ─────────────────────────── */
 button.tier-commit:not(:disabled),
 button.danger-btn:not(:disabled) { background: #500; border: 1px solid #800; color: #fcc; }
 /* ⚠️ THE HOVERS NEED THE GUARD TOO. `:hover` still MATCHES a disabled
@@ -233,6 +233,10 @@ a:hover { color: #fff; }
    widths is how the two halves drift apart again. */
 .meta-head .f2, .meta-grid .f2 { grid-column: span 2; }
 .meta-head .f3, .meta-grid .f3 { grid-column: span 3; }
+/* ⚠️ f4 exists for ONE field: the producer credit, which is the longest
+   value on this panel and was truncating at half a row. Rows still sum to
+   six — 4 + 2. */
+.meta-head .f4, .meta-grid .f4 { grid-column: span 4; }
 
 /* ⚠️ THE SPACER LABEL IS WHY `Save Metadata` LINES UP. Its cell has no
    label of its own, so without one the button started at the top of the
@@ -293,8 +297,22 @@ a:hover { color: #fff; }
    ⚠️ DO NOT PUT THE IMAGE BACK IN FLOW to "simplify" this. The symptom
    returns as a layout that is almost right, which is the hardest kind to
    attribute. */
+/* ⚠️⚠️ 2/3 — THE SAME RATIO THE LIBRARY PAGE USES (v1.15.0). index.html's
+   `.book-cover { width:100%; aspect-ratio: 2/3 }` is what a student
+   actually sees on the shelf, so the admin preview has to be that shape or
+   it is previewing something else. Jake asked for it by name.
+   ⚠️ HEIGHT LEADS, WIDTH FOLLOWS. The frame still spans exactly three grid
+   rows, so its top and bottom stay on gridlines; `aspect-ratio` sets the
+   WIDTH from that height and `margin: 0 auto` centres it in the column.
+   ⚠️ THE COLUMN IS WIDER THAN THE FRAME ON PURPOSE. Its width is set by
+   the two controls beneath, which Jake wants side by side in one row — at
+   the frame's own ~150px they do not fit, and Remove drops onto a second
+   line and hangs out of its cell. So: column sized by the controls, frame
+   sized by the ratio, both bottoms on the same lines. */
 .cover-frame {
-    flex: 1 1 auto; min-height: 0; border: 1px solid #444; border-radius: 3px;
+    flex: 1 1 auto; min-height: 0; aspect-ratio: 2 / 3;
+    width: auto; max-width: 100%; margin: 0 auto;
+    border: 1px solid #444; border-radius: 3px;
     background: #161616; position: relative; overflow: hidden;
 }
 .cover-frame img {
@@ -528,6 +546,10 @@ button.tier-edit:not(:disabled):hover { background: #4B9CD3; }
    widths is how the two halves drift apart again. */
 .meta-head .f2, .meta-grid .f2 { grid-column: span 2; }
 .meta-head .f3, .meta-grid .f3 { grid-column: span 3; }
+/* ⚠️ f4 exists for ONE field: the producer credit, which is the longest
+   value on this panel and was truncating at half a row. Rows still sum to
+   six — 4 + 2. */
+.meta-head .f4, .meta-grid .f4 { grid-column: span 4; }
 
 /* ⚠️ THE SPACER LABEL IS WHY `Save Metadata` LINES UP. Its cell has no
    label of its own, so without one the button started at the top of the
@@ -588,8 +610,22 @@ button.tier-edit:not(:disabled):hover { background: #4B9CD3; }
    ⚠️ DO NOT PUT THE IMAGE BACK IN FLOW to "simplify" this. The symptom
    returns as a layout that is almost right, which is the hardest kind to
    attribute. */
+/* ⚠️⚠️ 2/3 — THE SAME RATIO THE LIBRARY PAGE USES (v1.15.0). index.html's
+   `.book-cover { width:100%; aspect-ratio: 2/3 }` is what a student
+   actually sees on the shelf, so the admin preview has to be that shape or
+   it is previewing something else. Jake asked for it by name.
+   ⚠️ HEIGHT LEADS, WIDTH FOLLOWS. The frame still spans exactly three grid
+   rows, so its top and bottom stay on gridlines; `aspect-ratio` sets the
+   WIDTH from that height and `margin: 0 auto` centres it in the column.
+   ⚠️ THE COLUMN IS WIDER THAN THE FRAME ON PURPOSE. Its width is set by
+   the two controls beneath, which Jake wants side by side in one row — at
+   the frame's own ~150px they do not fit, and Remove drops onto a second
+   line and hangs out of its cell. So: column sized by the controls, frame
+   sized by the ratio, both bottoms on the same lines. */
 .cover-frame {
-    flex: 1 1 auto; min-height: 0; border: 1px solid #444; border-radius: 3px;
+    flex: 1 1 auto; min-height: 0; aspect-ratio: 2 / 3;
+    width: auto; max-width: 100%; margin: 0 auto;
+    border: 1px solid #444; border-radius: 3px;
     background: #161616; position: relative; overflow: hidden;
 }
 .cover-frame img {
@@ -644,7 +680,7 @@ button.tier-edit:not(:disabled):hover { background: #4B9CD3; }
     them. Hover a field to see its hint.
 </p>
 
-<h2>Proposed <span class="tag">admin.html v1.14.0</span></h2>
+<h2>Proposed <span class="tag">admin.html v1.15.0</span></h2>
 <div class="stage">
   <div class="import-box guide">
 <div class="meta-head">
@@ -800,13 +836,23 @@ button.tier-edit:not(:disabled):hover { background: #4B9CD3; }
         </div>
     </div>
 
-    <!-- row 4 — ⚠️ THE PAIR THAT GETS CONFUSED, side by side, equal -->
-    <div class="f3">
+    <!-- row 4 — ⚠️ 4 + 2, NOT 3 + 3 (v1.15.0). Jake: "Produced by
+         should [be] 4 columns wide." `Prepared by` holds a
+         producer credit — "Produced by Juliet Sutherland, Susan
+         Skinner and the Online Distributed Proofreading Team" —
+         and was truncating at half a row. `Cleaned up by` holds one
+         word from a dropdown.
+         ⚠️ THEY WERE EQUAL SO THE TWO FIELDS THIS PANEL KEEPS
+         CONFUSING WOULD INVITE COMPARISON. That reasoning was
+         wrong the moment it cost the longer one its content: a
+         field you cannot read is not being compared with anything.
+         The hints carry the distinction instead. -->
+    <div class="f4">
         <label>Prepared by <button type="button" class="hint" data-note="AUTO-FILLED FROM GUTENBERG'S CREDITS ROW, else Standard Ebooks' colophon, else dc:contributor. Only ever fills a BLANK field — it never overwrites what you typed. Whoever produced the SOURCE text — not the classroom pass, which is Cleaned up by.">i</button></label>
         <input type="text" id="active-book-preparedby" class="u-width-100pct"
                placeholder="filled from the EPUB where it says">
     </div>
-    <div class="f3">
+    <div class="f2">
         <label>Cleaned up by <button type="button" class="hint" data-note="⚠ NOT FROM THE EPUB. Defaults to Claude rather than being parsed out of the notice, because in practice it always has been. Who did YOUR classroom text pass — not the source text, which is Prepared by.">i</button></label>
         <select id="active-book-cleanedby" class="u-width-100pct">
             <option value="">— Not set —</option>
@@ -845,6 +891,16 @@ button.tier-edit:not(:disabled):hover { background: #4B9CD3; }
 </div>
 
 <div class="meta">
+    <b>The cover is 2:3 now &mdash; the ratio <code>index.html</code>'s
+    <code>.book-cover</code> uses</b>, so this preview is the shape a student
+    actually sees on the shelf. Its <i>height</i> is still the three grid rows, and
+    the ratio sets the width from that, so its top and bottom stay on gridlines
+    while it narrows. The column stays wider than the frame because the two
+    controls beneath need the room to sit in one row.<br><br>
+    <b>Prepared by is four columns.</b> It holds "Produced by Juliet Sutherland,
+    Susan Skinner and the Online Distributed Proofreading Team" and was truncating
+    at half a row; <code>Cleaned up by</code> holds one word from a dropdown and
+    takes two. Rows still sum to six.<br><br>
     <b>Four tiers, four hues.</b> safe grey reads or reports; edit blue changes
     something that exists; create green means <i>nothing here existed before</i>;
     commit red is irreversible or reaches students. The four decorative tints are

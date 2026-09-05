@@ -3553,6 +3553,53 @@ default always and accept that it can disagree with one class's HUD; (c) refuse
 the mix and grey the button when the selection spans anchors. **(a) is the least
 surprising and the most code.**
 
+### ⭐ JAKE'S ANSWER, 2026-09-04: AGREE SILENTLY, ASK WHEN THEY DISAGREE
+
+*"If all the chosen classes match, then it's just the last week as defined by the
+matching classes. If there's a mismatch of the definition of a week, then a modal
+says 'The chosen classes define weeks differently. What range of days would you
+like to compare?' or 'Cancel'."*
+
+⭐ **BETTER THAN ALL THREE OPTIONS ABOVE**, and the page's shape makes it narrower
+than it sounds. `scope-class` is a **single `<select>`**, not a multi-select, and
+`classesById` is **already in memory**, so the agreement check costs nothing. Only
+three states exist:
+
+* **a specific class** → one anchor. ⚠️ **SILENT, ALWAYS.** No modal can fire while
+  a teacher is looking at one class, which is most grading.
+* **"My classes"** → ambiguous only if Jake gave two of his own classes different weeks.
+* **"All classes" / building** → ambiguous if any two differ.
+
+⚠️ **THE MODAL'S OPTIONS MUST BE DERIVED, NOT FREE TEXT.** List the distinct
+anchors present in the selection, each naming which classes use it —
+*"Sat 09-05 → Fri 09-11 — Period 3, Period 5"* — plus `Last 7 days` and `Cancel`.
+That turns "pick a range" into "pick whose week you meant", which is the real
+question, and it cannot produce a nonsense range.
+
+⚠️⚠️ **AND IT MUST REMEMBER THE ANSWER FOR THE SESSION.** "All classes" plus one
+Monday class would otherwise mean a dialog on every press of `This Week` — a toll
+on the DEFAULT state. Pick once, sticks until the scope changes. ⚠️ `Cancel` leaves
+the date boxes untouched, never cleared.
+
+### ⚠️⚠️ THE SEQUENCING COST, AND IT IS REAL
+
+**`reports.html` has 22 `alert()`/`confirm()` calls and NO modal infrastructure.**
+A native `confirm()` is yes/no; it cannot offer three ranges. So this needs item
+39's dialog work, and item 39's rule is that those convert **whole pages at a
+time** — a bespoke modal here would be the first crack in it. Two honest orders:
+
+1. **Item 39 does `reports.html` first**, then this lands on top. Clean; 39 is on
+   the list anyway.
+2. ⭐ **Step two ships WITHOUT the modal:** `This Week` follows the class when the
+   selection agrees, and on a mismatch fills the boxes with the most common anchor
+   **and prints a line under the button** — *"Period 2 starts weeks on Monday;
+   showing Sat–Fri."* No new infrastructure, and **the disagreement becomes visible
+   instead of silent**, which is already most of the win. The modal replaces the
+   line later.
+
+**Preference, not a finding: (2) first, then (1).** It gets the per-class week out
+without waiting on a 64-call refactor.
+
 ⚠️ **AND THE SECOND QUESTION IS WHETHER A SCHOOL DEFAULT SHOULD EXIST AT ALL**, or
 whether the class is the only level. The goals ladder has both, which argues for
 both.
@@ -5568,6 +5615,41 @@ default order or as one option beside the current one.**
 **Jake, 2026-09-03, from a screenshot of Content Staging.** Four separate things,
 all in the same panel, all small. ⚠️ **Do them together — this panel is one grid
 and four separate rounds would relayout it four times.**
+
+### ✅ ROUND 72 (Duplex) — THE COVER IS THE SHAPE THE SHELF SHOWS
+
+**Jake:** *"the book cover needs to be narrower. There's a defined aspect ratio on
+the library page, and it should match that."*
+
+✅ **`admin.html` v1.15.0. `.cover-frame` is `aspect-ratio: 2 / 3`** — read out of
+`index.html`'s `.book-cover`, not chosen. ⭐ **A PREVIEW IN ANY OTHER SHAPE IS
+PREVIEWING SOMETHING ELSE**, and the point of a preview is that it is not a guess.
+
+⚠️ **HEIGHT LEADS, WIDTH FOLLOWS.** The frame still spans exactly three grid rows,
+so its top and bottom stay on gridlines while it narrows; `aspect-ratio` sets the
+width from that height and `margin: 0 auto` centres it. ⚠️ **DO NOT GIVE IT AN
+EXPLICIT WIDTH** — the ratio would then drive its HEIGHT and its bottom edge would
+leave the gridline it took four rounds to land on. `build-list-test.mjs` N2 pins
+the direction; N1 reads BOTH files and fails if the two ratios ever diverge.
+
+⚠️ **THE COLUMN STAYS WIDER THAN THE FRAME, ON PURPOSE.** Its width is set by the
+two controls beneath — which Jake specifically liked side by side — and at the
+frame's own ~150px `Remove` drops to a second line and hangs out of its cell.
+**Column sized by the controls, frame sized by the ratio, both bottoms on the same
+lines.**
+
+### ⚠️ ROW 4 IS 4 + 2 NOW, AND THE OLD REASONING WAS WRONG
+
+**Jake:** *"Produced by should [be] 4 columns wide."* `Prepared by` holds a
+producer credit — *"Produced by Juliet Sutherland, Susan Skinner and the Online
+Distributed Proofreading Team"* — and was truncating at half a row. `Cleaned up by`
+holds one word from a dropdown.
+
+⚠️⚠️ **ROUND 65 MADE THEM EQUAL SO THE TWO FIELDS THIS PANEL KEEPS CONFUSING WOULD
+INVITE COMPARISON. THAT WAS WRONG THE MOMENT IT COST THE LONGER ONE ITS CONTENT:
+a field you cannot read is not being compared with anything.** The (i) hints carry
+the distinction instead, which is where it belonged. ⚠️ `f4` exists for this one
+field; rows still sum to six, and F2 fails if they stop.
 
 ### ✅ ROUND 68 (Duplex) — THE COVER, FOURTH TIME, AND THIS TIME IT WAS THE SPAN
 
