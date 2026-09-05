@@ -1,8 +1,60 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-04 by Round 70 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-04 by Round 71 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–70 ARE ONE INSTANCE.**
+> ⚠️ **ROUNDS 60–71 ARE ONE INSTANCE.**
+>
+> ⚠️⚠️ **STANDING WARNING: `firestore.rules` DOES NOT ENFORCE "SUPERADMIN ONLY" ON
+> `uploadedBy`.** `/books` has no field whitelist — that control is a **UI
+> affordance, not a permission**.
+>
+> ### ✅ ROUND 71: ROADMAP 58 STEP ONE — THE WEEK ANCHOR HAS ONE HOME
+>
+> `(getDay() + 1) % 7` was written out six times. `daylog.js`'s `weekStartOf()`
+> owns it now; `game.js`, `learn.js`, `lessons-admin.js` and `reports.html` are
+> **shape adapters** that convert the argument type their callers use.
+>
+> ⚠️⚠️ **THE ANCHOR IS STILL HARDCODED TO SATURDAY. THAT WAS THE INSTRUCTION.**
+> Step two changes `weekStartOf`'s signature — **in one place now, not six**.
+>
+> * ⚠️ **DO NOT REINTRODUCE THE ARITHMETIC ANYWHERE.** `week-agreement-test.mjs`
+>   **Part B2 DISCOVERS every .js/.html in the repo** and fails if any but
+>   `daylog.js` contains that expression. The file list is not named on purpose.
+> * ⚠️ **THREE HARNESSES LIFT AND EVAL THESE FUNCTIONS** — `week-agreement-test`,
+>   `week-anchor-test`, `roster-filter-test`. All three now supply `weekStartOf`
+>   into the lifted scope. ⭐ **THAT IS NOT A SECOND IMPLEMENTATION**: it is the
+>   same export the pages import, and it turns an agreement between three
+>   implementations into an agreement between three CALLERS OF ONE.
+> * ⚠️ **NOON, NOT MIDNIGHT** in both new Date-returning adapters. A bare
+>   `'YYYY-MM-DD'` parses as UTC and lands on the previous day here.
+> * ⚠️⚠️ **ONE COPY COULD NOT BE COLLAPSED AND NO GREP WILL CATCH IT:**
+>   `admin.html`'s literal `This week (Sat–Fri)` label. **It becomes a lie the
+>   moment a class picks Monday.** A human has to change it in step two.
+> * ⚠️ The `lessons-admin.js` ~1986 note about "pages that cannot import each
+>   other" is about the TOTALS rule, not this one — it did not apply, and the
+>   collapse cost no new machinery on either staff page.
+>
+> ### THE STATE OF PLAY
+>
+> * **71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run.
+> * ⚠️⚠️ **ROUND 71 IS THE FIRST STUDENT-FACING CHANGE SINCE ROUND 60.**
+>   `game.js` and `learn.js` both moved. Expected stamps: `game.js` **v3.49.0**,
+>   `learn.js` **v2.46.0**, `lessons-admin.js` **v1.18.0**, `reports.html`
+>   **v1.8.0**, `admin.html` **v1.14.0**, `admin.js` **v3.50.0**, `versions.js`
+>   **v1.16.0**.
+> * ⚠️ **CONFIRMED LIVE: 60–63, 65, 66, 67.** 64 and 68–71 unconfirmed.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+>   **DO NOT SHIP style.css v3.10.0.**
+> * ⚠️⚠️ **THE FIRST WEEK ROADMAP 50 CAN FIRE IN BEGINS SAT 2026-09-05.** Watch
+>   `game.html` from 09-07.
+> * **CLOSED: 38, 51, 56, 29. 55 is (a)(b)(c) done. 58 is step one of two.**
+> * **Next:** **58 step two** (the per-class field — ⚠️ it needs Jake's ruling on
+>   `reports.html`'s `This Week` across mixed classes first), then **39** (which
+>   carries 55d), then **42's tail**.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 70 (Duplex) — the previous block, kept
 >
 > ⚠️⚠️ **STILL THE STANDING WARNING: `firestore.rules` DOES NOT ENFORCE
 > "SUPERADMIN ONLY" ON `uploadedBy`.** `/books` has no field whitelist. That

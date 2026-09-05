@@ -1,5 +1,61 @@
 # CHANGELOG — TypeThatBook
 
+## Round 71 (Duplex) — 2026-09-04 — the week anchor has one home
+
+### ROADMAP 58, step one: five copies of `(getDay() + 1) % 7` collapsed onto one
+
+Two of them had **already** drifted once, and the symptom was that Saturday's
+typing sat inside the number on a child's screen and outside the teacher's report
+— every evening, which is when a teacher grades.
+
+| file | was | now |
+|---|---|---|
+| `game.js` **v3.49.0** | `getWeekStart()` | shape adapter → `weekStartOf()` |
+| `learn.js` **v2.46.0** | `getWeekStart()` | shape adapter → `weekStartOf()` |
+| `lessons-admin.js` **v1.18.0** | `_weekStartDate()` | shape adapter (Date in/out) |
+| `reports.html` **v1.8.0 / v2.37.0** | `getLastSaturday()` | shape adapter (Date in/out) |
+
+⚠️⚠️ **The anchor is still hardcoded to Saturday, and that was the instruction.**
+`weekStartOf()`'s signature is untouched. A round that collapses *and* configures
+cannot tell a collapse bug from an anchor bug.
+
+⭐ **It was possible because the "cannot import each other" note was stale.**
+`lessons-admin.js` is imported as a module by `admin.js`, and `reports.html`
+already imports `logdays.js` — the only thing `daylog.js` imports. No new
+machinery on either page.
+
+### ⭐ The guard is the point, and it is stronger than what it replaces
+
+`week-agreement-test.mjs` **Part B2**: it **discovers** every `.js`/`.html` in the
+repo and fails if any file but `daylog.js` contains `(getDay() + 1) % 7`. ⚠️ The
+file list is deliberately not named — a seventh copy in a file nobody thought of
+is the defect this catches. Comments are stripped, because four of these files now
+*explain* the collapse by quoting the arithmetic they no longer perform. A second
+half asserts each adapter actually **calls** `weekStartOf()`.
+
+⭐ **Part B proved two implementations agree today. B2 proves there is only one
+implementation to disagree with.**
+
+⚠️ Three harnesses lift these functions and eval them, so all three needed
+`weekStartOf` supplied into the lifted scope — not a second implementation, the
+same export the pages import. ⭐ What was an agreement between three
+implementations is now an agreement between three *callers of one*.
+
+⚠️ **Noon, not midnight, in both new adapters.** A `Date` from a bare
+`'YYYY-MM-DD'` parses as UTC and lands on the previous day here — `reports.html`
+v2.20.0's live defect in a different costume.
+
+### ⚠️ One copy could not be collapsed, and no grep will catch it
+
+`admin.html`'s literal `This week (Sat–Fri)` label is **copy, not code**. It
+becomes a lie the moment a class picks Monday, and Part B2 cannot see it.
+
+### Verification
+
+**71 harnesses pass** (`week-agreement-test.mjs` 49 assertions),
+`audit:versions` 0 problems. ⚠️ `npm run test:rules` NOT run; nothing here touches
+`firestore.rules`.
+
 ## Round 70 (Duplex) — 2026-09-04 — the safe/edit pass, and it found a control filed wrong
 
 ### ROADMAP 38 — four tiers, and item 38 is now CLOSED for admin
@@ -7963,4 +8019,65 @@ try { sessionStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
 //           pass can rename `.danger-btn` without having to work out which of its
 //           eight call sites were actually commit-tier. `Del` is the canonical
 //           commit example in his table.
+```
+
+### § game.js — archived header entries (Round 71)
+
+```
+// v3.44.0 — ROADMAP item 10's ACTIVE-DAY COUNTER, and nothing else. This file
+//           renders no lesson gate; it counts days, because Jake's rule is "a
+//           month of typing ANYTHING" and a period spent in Library is an active
+//           day that a School lesson has to know about. ⚠️ TWIN OF learn.js's
+//           noteActiveDay() — a page that fails to count silently starves the
+//           gate on the OTHER page, with no error and no symptom except a review
+//           window that never opens. lesson-gate-test.mjs section G greps both.
+//           ⚠️ THE CALL SITS BELOW THE TICK'S INCREMENTS, NOT BETWEEN THEM AND
+//           THE GATE — open-unit-test.mjs Part E asserts those two are adjacent.
+//
+// ⚠️ .43.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 71).
+```
+
+
+### § learn.js — archived header entries (Round 71)
+
+```
+// v2.31.0 — ⚠️ TWIN OF game.js's _buildNotesAllowed(). Read at RENDER time and
+// never cached: the panel outlives the sign-in, so a guest hover followed by
+// Jake signing in on the same tab must show more on the next hover.
+// ⚠️ A DISPLAY GATE, NOT A SECURITY ONE — everything it hides is in the raw
+// .js files anyone can open, and none of it is student data.
+```
+
+
+### § lessons-admin.js — archived header entries (Round 71)
+
+```
+// v1.12.0 — legacy-first read, matching reports.html v2.14.0 after the source
+//          split was reverted in game.js v3.30.0 / learn.js v2.15.0.
+```
+
+### § learn.js — archived header entries (Round 71, second)
+
+```
+// v2.38.0 — ROADMAP item 24, the writer half — TWIN OF game.js v3.46.0.
+//           `sessionLogInit()` now passes `doc` and `setDoc` (both already
+//           imported from read-meter.js for other writes) alongside the
+//           existing four dependencies, so session-log.js v1.7.0's
+//           idempotent flush has what it needs on this page. ⚠️ THIS MUST
+//           LAND IN THE SAME ROUND AS game.js's call — session-log.js's own
+//           header says the two must agree, and session-merge-test.mjs Part C
+//           checks it. Nothing else in this file changed; the fix lives
+//           entirely in session-log.js. See its v1.7.0 entry and HANDOFF
+//           §0.-36 for the full trace. ⚠️⚠️ SHIPS WITH firestore.rules v2.8.0
+//           — do not deploy this without it.
+//           ⚠️ v2.32.0 ARCHIVED THIS ROUND (8-entry budget) — its citations
+//           throughout this file resolve to CHANGELOG.md § ARCHIVED FILE
+//           HEADERS now.
+//          ⚠️ v2.37.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS
+//          (8-entry budget, Round 58, second archive from this file this
+//          round). It is ROADMAP 25 — "I'm done" stamping a child a receipt
+//          shorter than the time they typed, Library writing and School not,
+//          both files carrying comments swearing they were identical in shape.
+//          ⚠️ IDENTICAL IN SHAPE IS NOT IDENTICAL IN BEHAVIOUR, and
+//          im-done-test.mjs drives BOTH files because of it.
 ```

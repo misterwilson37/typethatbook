@@ -38,8 +38,18 @@ function lift(src, name){
   let d=0,j=src.indexOf('{',i); for(;j<src.length;j++){ if(src[j]==='{')d++; else if(src[j]==='}'){d--; if(!d)break;} }
   return src.slice(i,j+1);
 }
-const appFn  = new Function(lift(learn,'getWeekStart')+'; return getWeekStart;')();
-const gameFn = new Function(lift(game, 'getWeekStart')+'; return getWeekStart;')();
+// ⚠️ ROADMAP 58's COLLAPSE (Round 71) made both getWeekStart()s SHAPE ADAPTERS:
+// they call daylog.js's weekStartOf() rather than doing the arithmetic. A lifted
+// copy therefore needs weekStartOf and the file's own date formatter in scope.
+// ⚠️ SUPPLYING THEM IS NOT A SECOND IMPLEMENTATION — `sharedWeekStart` IS the
+// export the pages import, which is precisely what this file exists to compare
+// against. What used to be an agreement between three implementations is now an
+// agreement between three CALLERS of one, and that is the stronger property.
+const lifted = (src) => new Function('weekStartOf',
+    lift(src, 'getLocalDateStr') + '\n' + lift(src, 'getWeekStart') +
+    '\n; return getWeekStart;')(sharedWeekStart);
+const appFn  = lifted(learn);
+const gameFn = lifted(game);
 const audFn  = (d) => sharedWeekStart(d);
 
 let fail=0;

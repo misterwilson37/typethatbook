@@ -1,4 +1,18 @@
-// game.js v3.48.0
+// game.js v3.49.0
+//
+// v3.49.0 — ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP: THE WEEK ANCHOR HAS ONE HOME.
+//           `(getDay() + 1) % 7` was written out SIX times across the repo. Two of
+//           them had ALREADY drifted once, and the symptom was that Saturday's
+//           typing sat inside the number on a child's screen and outside the
+//           teacher's report — every evening, which is when a teacher grades.
+//           This file's week function is a SHAPE ADAPTER now: daylog.js's
+//           weekStartOf() owns the rule, and this converts the argument type its
+//           callers already use. ⚠️ DO NOT REINTRODUCE THE ARITHMETIC.
+//           ⚠️ THE ANCHOR IS STILL HARDCODED TO SATURDAY, DELIBERATELY — a round
+//           that collapses AND configures cannot tell a collapse bug from an
+//           anchor bug. Making it per-class is ROADMAP 58 step two.
+//           ⚠️ week-agreement-test.mjs Part B2 now DISCOVERS every .js/.html in
+//           the repo and fails if any but daylog.js contains that expression.
 //
 // v3.48.0 — ⚠️⚠️ ROADMAP 50: THE RECONCILER WAS WIRED ON ONE OF THE TWO STUDENT
 //           PAGES. Round 58 added logdays.js's reconcile() to learn.js's
@@ -71,50 +85,7 @@
 //           (60s TTL, page-scoped); this file just asks on every hover.
 //           ⚠️ DO NOT REINTRODUCE A CACHE HERE. HANDOFF §0.-22.
 //
-// v3.44.0 — ROADMAP item 10's ACTIVE-DAY COUNTER, and nothing else. This file
-//           renders no lesson gate; it counts days, because Jake's rule is "a
-//           month of typing ANYTHING" and a period spent in Library is an active
-//           day that a School lesson has to know about. ⚠️ TWIN OF learn.js's
-//           noteActiveDay() — a page that fails to count silently starves the
-//           gate on the OTHER page, with no error and no symptom except a review
-//           window that never opens. lesson-gate-test.mjs section G greps both.
-//           ⚠️ THE CALL SITS BELOW THE TICK'S INCREMENTS, NOT BETWEEN THEM AND
-//           THE GATE — open-unit-test.mjs Part E asserts those two are adjacent.
-//
-// v3.43.0 — ⚠️⚠️ THE BUILD PANEL WAS UNREADABLE AND ITS LOUDEST WARNING WAS
-//           FALSE. Two independent defects in one hover. (1) adventure.css's
-//           unscoped `body footer { opacity:.55 }` faded the whole subtree,
-//           panel included, in EVERY view — fixed in adventure.css v1.0.3 /
-//           style.css v3.8.1. (2) ⚠️ THE ONE IN THIS FILE: the renderer-drift
-//           check guarded against 'failed' but not against '—', the
-//           NEVER-MOUNTED sentinel, so classic view — the default — printed
-//           "mounted v—, deployed file reads v1.5.4 — stale module cache" on
-//           every single session. A red alarm that is always on is not an
-//           alarm. It now requires a real semver. ⚠️ AND THE ⚠ NOTES ARE
-//           STAFF-ONLY: versions.js v1.12.0 gates them, this file passes the
-//           flag and re-renders from cache when auth changes underneath. See
-//           HANDOFF §0.-20.
-//
-// v3.42.3 — THE CORNER ID STAMP IS GONE; the student ID moved into the Settings
-//           menu with its click-to-copy intact. renderIdStamp() deleted from BOTH
-//           writers in one commit — it was the duplicated twin its own header
-//           warned about. ⚠️ HANDOFF §2's deploy check named the stamp and has
-//           been rewritten; the build footer is the instrument now. §0.-19.
-//
-// v3.42.2 — ⚠️⚠️ "I'M DONE" WAS NEVER WIRED IN LIBRARY. handleImDone() shipped in
-//           v3.42.0 complete and correct; the button shipped in game.html; the
-//           style shipped in style.css v3.7.2; receipt.js shipped to draw the
-//           card. **The line attaching the handler to the button did not.**
-//           Clicking it produced no handler, no error and no console output —
-//           reported by Jake on 2026-08-22 after typing Pinocchio.
-//           ⚠️ learn.js WIRED ITS IDENTICAL BUTTON CORRECTLY. Round 26 built both
-//           halves of a twin and connected one — the sixth twin failure of the
-//           week (§0.-13.E), and the first to reach a child.
-//           ⚠️ NO HARNESS COULD HAVE CAUGHT IT: undefined-calls-test asks whether
-//           every reference RESOLVES, and handleImDone resolves perfectly — it is
-//           simply never referenced. tests/dead-handler-test.mjs now asks the
-//           mirror question. HANDOFF §0.-18.
-//
+// ⚠️ v3.44.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 71).
 // ⚠️ v3.42.1's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 60) —
 //    the 8-entry budget, not a deletion. It was the stale-stamp round, and its
 //    warning still lives ON the constant itself at `const VERSION` below.
@@ -180,7 +151,7 @@ import { showReceipt } from "./receipt.js";
 // import in would make it one keystroke to re-enable a grade computed from
 // records known to overlap. See HANDOFF §0.0 before touching this line.
 import { readWeek, invalidateWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
-         carryOverPlan, carryOverPayloadFor, sourceTotalsOf } from "./daylog.js";
+         carryOverPlan, carryOverPayloadFor, sourceTotalsOf, weekStartOf } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // The version footer's three primary reads (this html file, this js file's own
 // VERSION, style.css) plus the lazy full-build panel on hover. See
@@ -211,7 +182,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.48.0";
+const VERSION = "3.49.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1979,14 +1950,21 @@ function getLocalDateStr(date) {
         String(d.getDate()).padStart(2, '0');
 }
 
+// ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP — THE WEEK ANCHOR HAS ONE HOME NOW.
+// `(getDay() + 1) % 7` was written out SIX times across this repo. That is
+// `week-agreement-test.mjs`'s Priority-1 defect waiting to happen five more
+// times: reports.html and daylog.js once named different Saturdays, and
+// "Saturday's typing was inside the number on the child's screen and outside the
+// teacher's report, every evening, which is when a teacher grades."
+// ⚠️ THIS FUNCTION IS NOW A SHAPE ADAPTER AND NOTHING ELSE. daylog.js's
+// weekStartOf() owns the rule; this converts to and from the argument type this
+// file's callers already use. ⚠️ DO NOT REINTRODUCE THE ARITHMETIC HERE — if you
+// need a different anchor, that is ROADMAP 58's SECOND step, and it changes
+// weekStartOf's signature, not this file.
+// ⚠️ THE ANCHOR IS STILL HARDCODED TO SATURDAY, DELIBERATELY. A round that
+// collapses AND configures cannot tell a collapse bug from an anchor bug.
 function getWeekStart(date) {
-    // Returns "YYYY-MM-DD" string — consistent with learn.js, immune to DST bugs
-    const d = new Date(date);
-    const diff = (d.getDay() + 1) % 7;
-    d.setDate(d.getDate() - diff);
-    return d.getFullYear() + '-' +
-        String(d.getMonth() + 1).padStart(2, '0') + '-' +
-        String(d.getDate()).padStart(2, '0');
+    return weekStartOf(getLocalDateStr(date ? new Date(date) : new Date()));
 }
 
 

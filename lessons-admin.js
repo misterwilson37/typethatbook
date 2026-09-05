@@ -1,4 +1,18 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.17.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.18.0
+//
+// v1.18.0 — ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP: THE WEEK ANCHOR HAS ONE HOME.
+//           `(getDay() + 1) % 7` was written out SIX times across the repo. Two of
+//           them had ALREADY drifted once, and the symptom was that Saturday's
+//           typing sat inside the number on a child's screen and outside the
+//           teacher's report — every evening, which is when a teacher grades.
+//           This file's week function is a SHAPE ADAPTER now: daylog.js's
+//           weekStartOf() owns the rule, and this converts the argument type its
+//           callers already use. ⚠️ DO NOT REINTRODUCE THE ARITHMETIC.
+//           ⚠️ THE ANCHOR IS STILL HARDCODED TO SATURDAY, DELIBERATELY — a round
+//           that collapses AND configures cannot tell a collapse bug from an
+//           anchor bug. Making it per-class is ROADMAP 58 step two.
+//           ⚠️ week-agreement-test.mjs Part B2 now DISCOVERS every .js/.html in
+//           the repo and fails if any but daylog.js contains that expression.
 //
 // v1.17.0 — ⚠️⚠️ THE CLASS MANAGER'S DELETE BUTTON CARRIED TWO `class`
 //           ATTRIBUTES. HTML keeps the first and silently discards the second, so
@@ -89,17 +103,18 @@
 //           with a week of nearly nothing while reports.html showed their real
 //           minutes. No student-facing change; this is a staff page.
 //
-// v1.12.0 — legacy-first read, matching reports.html v2.14.0 after the source
-//          split was reverted in game.js v3.30.0 / learn.js v2.15.0.
-//
+// ⚠️ v1.12.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 71).
 // ⚠️ v1.11.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
 // It is the read-side of the source split.
 //
 // ⚠️ v1.13.2 — v1.8.1, v1.8.0, v1.7.1 and v1.7.0 moved to CHANGELOG.md
 //    § ARCHIVED FILE HEADERS. Nothing deleted.
 //
-window.LESSONS_ADMIN_VERSION = '1.17.0';
+window.LESSONS_ADMIN_VERSION = '1.18.0';
 
+// ⚠️ ROADMAP 58 — the week anchor, from its one home. daylog.js imports only
+// logdays.js, which this page's siblings already load, so this adds no machinery.
+import { weekStartOf } from "./daylog.js";
 import {
     collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
 } from "./read-meter.js";   // ⚠️ METERED. read-meter.js re-exports the whole SDK
@@ -2033,10 +2048,16 @@ async function loadStudentRoster() {
     }
 }
 
+// ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP. This was the fourth hand-written copy of
+// `(getDay() + 1) % 7`. ⚠️ IT IS A SHAPE ADAPTER NOW — daylog.js's weekStartOf()
+// owns the rule; this file's callers want a Date, so it converts.
+// ⚠️ DO NOT REINTRODUCE THE ARITHMETIC HERE. The header comment in admin.html
+// that points at this function is still accurate, and must stay accurate.
+// ⚠️ NOON, NOT MIDNIGHT: a Date built from a bare 'YYYY-MM-DD' is parsed as UTC
+// and lands on the PREVIOUS day west of Greenwich. Every date in this project is
+// anchored at noon for that reason.
 function _weekStartDate(date) {
-    const d = new Date(date);
-    d.setDate(d.getDate() - ((d.getDay() + 1) % 7));
-    return d;
+    return new Date(weekStartOf(_localDateStr(new Date(date))) + 'T12:00:00');
 }
 
 function _localDateStr(d) {

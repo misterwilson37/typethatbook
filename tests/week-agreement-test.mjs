@@ -97,8 +97,24 @@ const SOURCE_SPLIT_CUTOVER = cutOf(daylogSrc, 'daylog.js');
 ok('the two files agree on the cutover date',
    SOURCE_SPLIT_CUTOVER === cutOf(reportsSrc, 'reports.html'),
    `daylog ${SOURCE_SPLIT_CUTOVER} vs reports ${cutOf(reportsSrc, 'reports.html')}`);
-const teacherSat    = lift(reportsSrc, 'function getLastSaturday(from = new Date()) {');
-const teacherFmt    = lift(reportsSrc, 'function toDateStr(d) {');
+// ⚠️⚠️ ROADMAP 58's COLLAPSE (Round 71) MADE getLastSaturday() A SHAPE ADAPTER.
+// It no longer contains the anchor arithmetic — it calls daylog.js's
+// weekStartOf(), which is the whole point of the item. A lifted copy therefore
+// needs weekStartOf and toDateStr in scope, and providing them here is not a
+// second implementation: they are the SAME function objects the page imports and
+// the same formatter lifted from the page.
+// ⚠️ Parts B and C still run the TEACHER'S code path end to end. What changed is
+// that the path now goes through the student's function, which is exactly the
+// property this file was written to demand.
+const { weekStartOf: daylogWeekStartOf } = await import('../daylog.js');
+const teacherFmtRaw  = lift(reportsSrc, 'function toDateStr(d) {');
+const teacherSat = (() => {
+    const src = reportsSrc.slice(reportsSrc.indexOf('function getLastSaturday(from = new Date()) {'));
+    const body = src.slice(0, src.indexOf('\n    }') + 6);
+    return new Function('weekStartOf', 'toDateStr',
+        body + '\nreturn getLastSaturday;')(daylogWeekStartOf, teacherFmtRaw);
+})();
+const teacherFmt    = teacherFmtRaw;
 const { weekStartOf: studentWeek, localDateStr: studentYmd } =
     await import(new URL('../daylog.js', import.meta.url));
 
@@ -170,6 +186,64 @@ for (const d of ['2026-08-15', '2026-08-16', '2026-08-19', '2026-08-21', '2026-0
     const student = studentWeek(d);
     const teacher = teacherFmt(teacherSat(new Date(d + 'T12:00:00')));
     ok(`${d} → both anchor to ${student}`, student === teacher, `teacher said ${teacher}`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\nPart B2 — ⚠️⚠️ THE ANCHOR IS WRITTEN DOWN EXACTLY ONCE (ROADMAP 58)');
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ THIS IS THE CHECK THAT MAKES THE COLLAPSE STICK, AND IT IS STRICTLY
+// STRONGER THAN PART B. Part B proves two implementations agree TODAY. This
+// proves there is only one implementation to disagree with.
+//
+// `(getDay() + 1) % 7` was written out SIX times: daylog.js, game.js, learn.js,
+// lessons-admin.js, reports.html, and the literal label in admin.html. Two of
+// them had ALREADY drifted once — "Saturday's typing was inside the number on
+// the child's screen and outside the teacher's report, every evening, which is
+// when a teacher grades."
+//
+// ⚠️ THE FILE LIST IS DISCOVERED, NOT NAMED. A seventh copy in a file nobody
+// thought of is the defect this exists to catch, and a hardcoded list would let
+// it through.
+{
+    const dir = new URL('../', import.meta.url);
+    const files = fs.readdirSync(dir)
+        .filter(f => /\.(js|html)$/.test(f))
+        .filter(f => f !== 'daylog.js');          // the one home
+    const offenders = [];
+    for (const f of files) {
+        let src;
+        try { src = fs.readFileSync(new URL(f, dir), 'utf8'); } catch { continue; }
+        // ⚠️ COMMENTS STRIPPED. Four of these files now EXPLAIN the collapse by
+        // quoting the arithmetic they no longer perform; reading that as code
+        // would fail the round against correct source.
+        const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ')
+                        .replace(/<!--[\s\S]*?-->/g, ' ')
+                        .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+        if (/getDay\s*\(\s*\)\s*\+\s*1\s*\)\s*%\s*7/.test(code)) offenders.push(f);
+    }
+    ok('no file outside daylog.js re-implements the week anchor',
+       offenders.length === 0,
+       '⚠️⚠️ ' + offenders.join(', ') + ' contains `(getDay() + 1) % 7`. That rule ' +
+       'lives in daylog.js weekStartOf() and nowhere else. If you need a different ' +
+       'anchor, that is ROADMAP 58 step two — it changes weekStartOf\'s signature, ' +
+       'not this file');
+}
+
+// ⚠️ AND THE FOUR ADAPTERS MUST ACTUALLY CALL IT. A shim that quietly grew its
+// own arithmetic back would pass the grep above only if it spelled it
+// differently — so check the positive as well as the negative.
+for (const [file, fn] of [['game.js', 'function getWeekStart'],
+                          ['learn.js', 'function getWeekStart'],
+                          ['lessons-admin.js', 'function _weekStartDate'],
+                          ['reports.html', 'function getLastSaturday']]) {
+    const src = fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8');
+    const at = src.indexOf(fn);
+    const body = at < 0 ? '' : src.slice(at, src.indexOf('\n}', at) + 2) ||
+                                src.slice(at, src.indexOf('\n    }', at) + 6);
+    ok(`${file}'s week function delegates to weekStartOf()`,
+       at >= 0 && /weekStartOf\s*\(/.test(body),
+       `${file} computes its own week start again — the anchor has two homes`);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

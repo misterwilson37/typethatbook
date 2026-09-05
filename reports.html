@@ -1,5 +1,15 @@
 <!DOCTYPE html>
-<!-- reports.html v1.7.0 — versioned the same way style.css and game.html are: a comment
+<!-- reports.html v1.8.0
+     v1.8.0 — ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP. getLastSaturday() was the FIFTH
+     hand-written copy of `(getDay() + 1) % 7` — and the one that had ALREADY
+     disagreed with daylog.js once, which is why item 58 exists at all: Saturday's
+     typing sat inside the number on the child's screen and outside this report,
+     every evening, which is when a teacher grades. It is a SHAPE ADAPTER now,
+     calling daylog.js's weekStartOf(). ⚠️ DO NOT REINTRODUCE THE ARITHMETIC.
+     ⚠️ The anchor is still hardcoded to Saturday, deliberately — making it
+     per-class is ROADMAP 58 step two, and it changes weekStartOf's signature,
+     not this file. ⚠️ week-agreement-test.mjs Part B2 discovers every .js/.html
+     in the repo and fails if any but daylog.js contains that expression. — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (the inline module) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
@@ -950,7 +960,7 @@
     //           FIXED, NOT ONLY POLISH: recalc-btn re-enabled on the line after
     //           its await with no finally, so a throw left it dead until reload.
     //           tests/busy-state-test.mjs.
-    const REPORTS_VERSION = "2.36.0";
+    const REPORTS_VERSION = "2.37.0";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -1014,6 +1024,11 @@
     // Same shim the student pages use; `export *` keeps every SDK symbol.
     import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, ttbMeter } from "./read-meter.js";
     import { ledgerFrom, planReads } from "./logdays.js";
+    // ⚠️ ROADMAP 58 — the week anchor, from its one home. THIS PAGE IS WHY THE
+    // ITEM EXISTS: reports.html and daylog.js once named different Saturdays, and
+    // Saturday's typing was inside the child's number and outside the teacher's
+    // report, every evening, which is when a teacher grades.
+    import { weekStartOf } from "./daylog.js";
     // ROADMAP 15. ⚠️ THE GRADE RULE IS IMPORTED, NEVER RESTATED. Reconstructing a
     // grade needs calculateGrade(), the gates, the chunking and the continuation
     // merge — all four used to live only in learn.js, and a copy of any of them
@@ -1318,12 +1333,14 @@
     };
 
     // --- DATE HELPERS ---
+    // ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP. This was the fifth hand-written copy of
+    // `(getDay() + 1) % 7` — and the one that has ALREADY disagreed with
+    // daylog.js once. ⚠️ IT IS A SHAPE ADAPTER NOW: weekStartOf() owns the rule,
+    // this file's callers want a Date. ⚠️ DO NOT REINTRODUCE THE ARITHMETIC.
+    // ⚠️ NOON, NOT MIDNIGHT — a bare 'YYYY-MM-DD' parses as UTC and lands on the
+    // previous day here, which is v2.20.0's defect in a different costume.
     function getLastSaturday(from = new Date()) {
-        const d = new Date(from);
-        const day = d.getDay(); // 0=Sun
-        const diff = (day + 1) % 7; // days since Saturday
-        d.setDate(d.getDate() - diff);
-        return d;
+        return new Date(weekStartOf(toDateStr(new Date(from))) + 'T12:00:00');
     }
 
     function getNextFriday(from = new Date()) {

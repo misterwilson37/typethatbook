@@ -1,4 +1,18 @@
-// learn.js v2.45.0
+// learn.js v2.46.0
+//
+// v2.46.0 — ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP: THE WEEK ANCHOR HAS ONE HOME.
+//           `(getDay() + 1) % 7` was written out SIX times across the repo. Two of
+//           them had ALREADY drifted once, and the symptom was that Saturday's
+//           typing sat inside the number on a child's screen and outside the
+//           teacher's report — every evening, which is when a teacher grades.
+//           This file's week function is a SHAPE ADAPTER now: daylog.js's
+//           weekStartOf() owns the rule, and this converts the argument type its
+//           callers already use. ⚠️ DO NOT REINTRODUCE THE ARITHMETIC.
+//           ⚠️ THE ANCHOR IS STILL HARDCODED TO SATURDAY, DELIBERATELY — a round
+//           that collapses AND configures cannot tell a collapse bug from an
+//           anchor bug. Making it per-class is ROADMAP 58 step two.
+//           ⚠️ week-agreement-test.mjs Part B2 now DISCOVERS every .js/.html in
+//           the repo and fails if any but daylog.js contains that expression.
 //
 // v2.45.0 — ⚠️ ROADMAP 50: loadGateState() now calls logdays.js's reconcile()
 //           beside its existing ensureSince(), on the user document it ALREADY
@@ -139,28 +153,7 @@
 //           mutation-verified: removing the guard fails G2/G3/G4/G7, and
 //           accepting a falsy token fails G6).
 //
-// v2.38.0 — ROADMAP item 24, the writer half — TWIN OF game.js v3.46.0.
-//           `sessionLogInit()` now passes `doc` and `setDoc` (both already
-//           imported from read-meter.js for other writes) alongside the
-//           existing four dependencies, so session-log.js v1.7.0's
-//           idempotent flush has what it needs on this page. ⚠️ THIS MUST
-//           LAND IN THE SAME ROUND AS game.js's call — session-log.js's own
-//           header says the two must agree, and session-merge-test.mjs Part C
-//           checks it. Nothing else in this file changed; the fix lives
-//           entirely in session-log.js. See its v1.7.0 entry and HANDOFF
-//           §0.-36 for the full trace. ⚠️⚠️ SHIPS WITH firestore.rules v2.8.0
-//           — do not deploy this without it.
-//           ⚠️ v2.32.0 ARCHIVED THIS ROUND (8-entry budget) — its citations
-//           throughout this file resolve to CHANGELOG.md § ARCHIVED FILE
-//           HEADERS now.
-//          ⚠️ v2.37.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS
-//          (8-entry budget, Round 58, second archive from this file this
-//          round). It is ROADMAP 25 — "I'm done" stamping a child a receipt
-//          shorter than the time they typed, Library writing and School not,
-//          both files carrying comments swearing they were identical in shape.
-//          ⚠️ IDENTICAL IN SHAPE IS NOT IDENTICAL IN BEHAVIOUR, and
-//          im-done-test.mjs drives BOTH files because of it.
-//
+// ⚠️ v2.38.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 71).
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
 // rule in it is a function of numbers this file passes in, which is why the whole
@@ -218,7 +211,7 @@ import { openSettingsPanel, buildSettingsButton, applyDrillFont, readDrillFont,
 // ⚠️ readDaySessions/projectDayTotal deliberately NOT imported — v2.19.0
 // reverted the projection. See HANDOFF §0.0.
 import { readWeek, invalidateWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
-         carryOverPlan, carryOverPayloadFor, sourceTotalsOf } from "./daylog.js";
+         carryOverPlan, carryOverPayloadFor, sourceTotalsOf, weekStartOf } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // ⚠️ v2.23.0 — THE DRILL TEXT FILTER. A student reported "ass" in a lesson.
 // Whole-group matching on Jake's ruling: `lass`, `mass` and `asse` are FINE.
@@ -263,7 +256,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.45.0";
+const LEARN_VERSION = "2.46.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -4699,14 +4692,21 @@ function getLocalDateStr(date) {
     return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
+// ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP — THE WEEK ANCHOR HAS ONE HOME NOW.
+// `(getDay() + 1) % 7` was written out SIX times across this repo. That is
+// `week-agreement-test.mjs`'s Priority-1 defect waiting to happen five more
+// times: reports.html and daylog.js once named different Saturdays, and
+// "Saturday's typing was inside the number on the child's screen and outside the
+// teacher's report, every evening, which is when a teacher grades."
+// ⚠️ THIS FUNCTION IS NOW A SHAPE ADAPTER AND NOTHING ELSE. daylog.js's
+// weekStartOf() owns the rule; this converts to and from the argument type this
+// file's callers already use. ⚠️ DO NOT REINTRODUCE THE ARITHMETIC HERE — if you
+// need a different anchor, that is ROADMAP 58's SECOND step, and it changes
+// weekStartOf's signature, not this file.
+// ⚠️ THE ANCHOR IS STILL HARDCODED TO SATURDAY, DELIBERATELY. A round that
+// collapses AND configures cannot tell a collapse bug from an anchor bug.
 function getWeekStart(date) {
-    // Returns "YYYY-MM-DD" for the Saturday starting this school week (Sat-Fri).
-    const d = new Date(date);
-    const diff = (d.getDay() + 1) % 7;
-    d.setDate(d.getDate() - diff);
-    return d.getFullYear() + '-' +
-        String(d.getMonth() + 1).padStart(2, '0') + '-' +
-        String(d.getDate()).padStart(2, '0');
+    return weekStartOf(getLocalDateStr(date ? new Date(date) : new Date()));
 }
 
 
@@ -5492,11 +5492,7 @@ async function updateVersionFooter() {
     if (full) full.dataset.notes = '';
 }
 
-// v2.31.0 — ⚠️ TWIN OF game.js's _buildNotesAllowed(). Read at RENDER time and
-// never cached: the panel outlives the sign-in, so a guest hover followed by
-// Jake signing in on the same tab must show more on the next hover.
-// ⚠️ A DISPLAY GATE, NOT A SECURITY ONE — everything it hides is in the raw
-// .js files anyone can open, and none of it is student data.
+// ⚠️ v2.31.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 71).
 function _buildNotesAllowed() {
     return isStaffUser(currentUser);
 }

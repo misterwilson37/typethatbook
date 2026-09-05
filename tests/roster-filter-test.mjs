@@ -1,9 +1,13 @@
-// roster-filter-test.mjs v1.0.1 — the Students-tab date filter, pinned to the
+// roster-filter-test.mjs v1.0.2 — the Students-tab date filter, pinned to the
+// Saturday-morning case that made it unreadable.
+//
+// v1.0.2 — ROADMAP 58's collapse (Round 71). _weekStartDate() is a shape adapter
+//          now, so the lift needs daylog.js's weekStartOf() in scope. No
+//          assertion, threshold or expectation changed.
 //
 // v1.0.1 — PATH ONLY, Round 17 (Linotype). This file moved from the repo root
 //          into tests/, so every source it reads is now `../` rather than `./`.
 //          No assertion, threshold or expectation changed.
-// Saturday-morning case that made it unreadable.
 //
 // ⚠️ THE SCENARIO THIS EXISTS FOR. On Saturday 2026-08-15 the panel reported
 // "31 students loaded" above a table containing one row, and the one row was
@@ -19,6 +23,7 @@
 // STRUCTURAL:  the status-line ownership and the admin.html default.
 
 import { readFileSync } from 'fs';
+import { weekStartOf as sharedWeekStart } from '../daylog.js';
 
 let pass = 0, fail = 0;
 const failures = [];
@@ -42,8 +47,13 @@ const wsSrc = extractFn(src, '_weekStartDate');
 const ldSrc = extractFn(src, '_localDateStr');
 ok(!!wsSrc && !!ldSrc, 'lessons-admin.js defines _weekStartDate() and _localDateStr()');
 
+// ⚠️ ROADMAP 58's COLLAPSE (Round 71) made _weekStartDate() a SHAPE ADAPTER — it
+// calls daylog.js's weekStartOf() instead of doing the arithmetic. Supplying that
+// export here is not a second implementation; it is the same function the page
+// imports, which is the whole point of the collapse.
 const fns = (wsSrc && ldSrc)
-    ? new Function(`${wsSrc}; ${ldSrc}; return { _weekStartDate, _localDateStr };`)()
+    ? new Function('weekStartOf',
+        `${wsSrc}; ${ldSrc}; return { _weekStartDate, _localDateStr };`)(sharedWeekStart)
     : { _weekStartDate: d => d, _localDateStr: () => '' };
 const { _weekStartDate, _localDateStr } = fns;
 

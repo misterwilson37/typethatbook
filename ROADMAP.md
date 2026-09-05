@@ -391,7 +391,7 @@ Everything else still open:
 - 53. ⚠️ EIGHTY BOOKS AND NO WAY THROUGH THEM — SEARCH, AND SOMETHING FEATURED  *(Jake asked, 2026-09-03)*
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
 - 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
-- 58. ⭐ A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
+- 58. ⚠️ STEP ONE DONE (Round 71) — A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
 - 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED  *(found Round 60; touches three mirrored files — read the item)*
 - 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS  *(the instrument that would have caught Round 59's finding on the day)*
 
@@ -3423,13 +3423,73 @@ being told they have not.
 cross the weekly goal and will never get the fireworks — §0.-13.D is the last time
 a missed crossing was a whole week gone, and the latch is per-period by design.
 
-## 58. ⭐ A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S
+## 58. ⚠️ STEP ONE DONE (Round 71) — A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S
 
 **Jake, 2026-09-03:** *"Some people may want to go Sunday to Monday or Monday to
 Sunday — not everyone has to be forced into my nonsense."* **The class manager is
 the right home for it, and he guessed the right panel: it is the goals panel in
 `lessons-admin.js` (`saveClass()` ~1390, `editClass()` ~1481) behind
 `#class-daily-input` / `#class-weekly-input` in `admin.html` ~1491.**
+
+### ✅ ROUND 71 (Duplex) — STEP ONE DONE: THE ANCHOR HAS ONE HOME
+
+✅ **`daylog.js`'s `weekStartOf()` owns the rule. The other five copies are gone.**
+
+| file | was | now |
+|---|---|---|
+| `game.js` v3.49.0 | `getWeekStart()` | shape adapter → `weekStartOf()` |
+| `learn.js` v2.46.0 | `getWeekStart()` | shape adapter → `weekStartOf()` |
+| `lessons-admin.js` v1.18.0 | `_weekStartDate()` | shape adapter (Date in, Date out) |
+| `reports.html` v1.8.0 / v2.37.0 | `getLastSaturday()` | shape adapter (Date in, Date out) |
+| `admin.html` | the literal `This week (Sat–Fri)` label | ⚠️ **still copy — see below** |
+
+⚠️⚠️ **THE ANCHOR IS STILL HARDCODED TO SATURDAY, AND THAT WAS THE INSTRUCTION.**
+`weekStartOf()`'s signature is untouched. A round that collapses **and** configures
+cannot tell a collapse bug from an anchor bug, so step two — the per-class field —
+starts from a repo where the rule exists once.
+
+⭐ **THE COLLAPSE WAS POSSIBLE BECAUSE THE "CANNOT IMPORT EACH OTHER" NOTE WAS
+STALE.** `lessons-admin.js` is imported as a module by `admin.js`, and
+`reports.html` already imports `logdays.js` — which is the only thing `daylog.js`
+imports. **No new machinery on either page.** ⚠️ The comment at
+`lessons-admin.js` ~1986 still says three standalone pages cannot import each
+other; it is about the *totals* rule, and that one is genuinely held by execution
+in `daylog-cutover-test.mjs` Part G instead. Do not read it as forbidding this.
+
+### ⭐ THE GUARD IS THE POINT, AND IT IS STRICTLY STRONGER THAN WHAT WAS THERE
+
+`week-agreement-test.mjs` **Part B2** (new): it **discovers** every `.js`/`.html`
+in the repo and fails if any file but `daylog.js` contains `(getDay() + 1) % 7`.
+⚠️ **THE FILE LIST IS NOT NAMED** — a seventh copy in a file nobody thought of is
+exactly the defect this exists to catch. Comments are stripped first, because four
+of these files now *explain* the collapse by quoting the arithmetic they no longer
+perform. A second half asserts the positive: each of the four adapters must
+actually **call** `weekStartOf()`.
+
+⭐ **PART B USED TO PROVE TWO IMPLEMENTATIONS AGREE TODAY. B2 PROVES THERE IS ONLY
+ONE IMPLEMENTATION TO DISAGREE WITH.**
+
+⚠️ **THREE HARNESSES LIFT THESE FUNCTIONS AND EVAL THEM**
+(`week-agreement-test.mjs`, `week-anchor-test.mjs`, `roster-filter-test.mjs`), so
+all three needed `weekStartOf` supplied into the lifted scope. **That is not a
+second implementation** — it is the same export the pages import. ⭐ **WHAT WAS AN
+AGREEMENT BETWEEN THREE IMPLEMENTATIONS IS NOW AN AGREEMENT BETWEEN THREE CALLERS
+OF ONE**, which is the stronger property and the reason the item was written.
+
+⚠️ **NOON, NOT MIDNIGHT, IN BOTH NEW ADAPTERS.** A `Date` built from a bare
+`'YYYY-MM-DD'` parses as **UTC** and lands on the previous day west of Greenwich —
+`reports.html` v2.20.0's live defect in a different costume.
+
+### ⚠️ WHAT STEP TWO STILL HAS TO DO
+
+* `weekStartOf(dateStr, weekStartDay = 6)` and `weekDatesOf` likewise, threaded
+  through the four adapters — now a signature change in **one** place instead of
+  six rewrites.
+* ⚠️ **`admin.html`'s `This week (Sat–Fri)` LABEL IS COPY, NOT CODE, AND NO GREP
+  WILL CATCH IT.** It becomes a lie the moment a class picks Monday. Part B2
+  cannot see it; a human has to.
+* The `reports.html` ruling below (mixed classes) is still unanswered.
+* `GOALS_CACHE_KEY` bump, and the celebration-latch note.
 
 ### ✅ THE PARTS THAT ARE FREE, AND THERE ARE MORE OF THEM THAN EXPECTED
 
