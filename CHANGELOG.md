@@ -1,5 +1,62 @@
 # CHANGELOG — TypeThatBook
 
+## Round 78 (Duplex) — 2026-09-05 — measured `admin.js`, and deliberately did not convert it
+
+**Documents only. No code changed.**
+
+### ⚠️⚠️ The count was wrong and the `async` answer is the opposite of reports.html's
+
+**45 dialogs, not 42** — 30 `alert()`, 15 `confirm()`, counted with comments
+stripped.
+
+All eight of `reports.html`'s confirmations already sat in `async` functions,
+which is why that page converted in one round. **Six of these fifteen do not**:
+`createResetBtn`, `wizardCancelBtn`, `replaceAllBtn`, `replaceWordBtn` (two
+confirms in one handler), `clearLink` — and **`mergeWithNext(index)`, which is a
+plain function rather than a handler.**
+
+⭐ Making a shared function `async` changes its contract for every caller, and a
+caller that does not `await` gets a Promise and carries on silently. **It has
+exactly one caller**, an `onclick` arrow that can become `async` in the same edit
+— so the blast radius is one line. ⚠️ Verify that is still true before starting.
+
+### ⚠️ Why this round measured instead of converting
+
+45 sites and six handler conversions did not fit safely in the room left. ⭐ **That
+is item 39's own rule applied to itself: a half-converted page is worse than an
+unconverted one, and that is as true of the round that runs out of room as of the
+one that gets lazy.** The map is filed so the next attempt is one round.
+
+⚠️ And it surfaced the real first step, which is not the conversion: the dialog
+primitives live in **`reports.html`**, and `admin.html` is a different page.
+Copying them makes a second copy that will drift. **Whether they move to a shared
+module is the decision that comes first.**
+
+### ⭐ Jake's thinking on ROADMAP 60, recorded — the liability argument is the crux
+
+*"If a colleague uploads Harry Potter, I'm the one who would be in trouble — not
+the colleague."*
+
+⚠️⚠️ That reframes the item. It began as "teachers choose what their kids see" — a
+**preference** feature, where everyone uploads and a blocklist is natural. The
+liability point makes it a **control** question, where the upload right is the
+thing to restrict and curation becomes convenience on top of a vetted library.
+⭐ His own conclusion follows from it, and **that combination is coherent where the
+others are not**: if only vetted people upload, everything in the library is
+already approved, so hiding is a taste decision and a blocklist is right.
+
+⚠️ The `librarian` idea is a **fourth role in a three-role system** — `ROLE_LABELS`,
+`firestore.rules`, the staff editor and every `_scope` check. Round 74's lesson is
+that a role string is easy to get wrong and looks fine when you do. **A flag on an
+existing role is much cheaper and buys the same thing.**
+
+⚠️ **Nothing is decided.** The section records where the thinking got to, not a
+ruling, and says so.
+
+### Verification
+
+**72 harnesses pass, `audit:versions` 0 problems.** No code changed.
+
 ## Round 77 (Duplex) — 2026-09-05 — three spacing complaints, one cause
 
 `admin.html` **v1.18.0**.

@@ -1,8 +1,59 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-05 by Round 77 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-05 by Round 78 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–77 ARE ONE INSTANCE.**
+> ⚠️ **ROUNDS 60–78 ARE ONE INSTANCE, AND IT IS TIME FOR A FRESH ONE.** Nineteen
+> rounds is a long conversation; this block and the ROADMAP are written so the
+> next instance starts from measurement rather than from a guess. **Nothing is
+> half-done.** The tree is clean, 72 harnesses pass, and Round 78 changed no code.
+>
+> ### ⚠️⚠️ ROUND 78 MEASURED `admin.js` AND DELIBERATELY DID NOT CONVERT IT
+>
+> **45 dialogs, not the 42 the item claims** — 30 `alert()`, 15 `confirm()`.
+>
+> ⚠️⚠️ **AND THE `async` ANSWER IS THE OPPOSITE OF `reports.html`'s.** All eight of
+> that page's confirmations were already `async`, which is why it went in one
+> round. **SIX OF THESE FIFTEEN ARE NOT** — the table is in ROADMAP 39.
+> ⭐ **`mergeWithNext()` IS A PLAIN FUNCTION, NOT A HANDLER.** Making it `async`
+> changes its contract for every caller; it has **one**, so the blast radius is one
+> line. ⚠️ **VERIFY THAT IS STILL TRUE BEFORE STARTING.**
+>
+> ⚠️⚠️ **THE REAL FIRST STEP IS NOT THE CONVERSION.** The primitives —
+> `ttbChoose()`, `ttbConfirm()`, `ttbNotice()`, the `<dialog>`, the tokens — live in
+> **`reports.html`**, and `admin.html` is a different page. **Copying them creates a
+> second copy that will drift.** Decide whether they move to a shared module first.
+>
+> ⭐ **WHY IT STOPPED: item 39's own rule applied to itself.** A half-converted page
+> is worse than an unconverted one, and that is as true of the round that runs out
+> of room as of the one that gets lazy.
+>
+> ### THE STATE OF PLAY
+>
+> * **72 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run in
+>   any of Rounds 60–78; none of them touched `firestore.rules`.
+> * **Expected stamps:** `admin.html` **v1.18.0**, `admin.js` **v3.52.0**,
+>   `lessons-admin.js` **v1.20.0**, `reports.html` **v1.9.0**, `staff-admin.js`
+>   **v2.3.0**, `game.js` **v3.49.0**, `learn.js` **v2.46.0**, `versions.js`
+>   **v1.16.0**.
+> * ⚠️ **CONFIRMED LIVE: 60–63, 65, 66, 67.** 64 and 68–77 unconfirmed — ⭐ **READ
+>   THE BUILD PANEL BEFORE READING THE CODE** when something looks unchanged.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+>   **DO NOT SHIP style.css v3.10.0.**
+> * ⚠️⚠️ **ROADMAP 50's FIRST LIVE WEEK BEGAN SAT 2026-09-05 AND IS RUNNING NOW.**
+>   If a weekly total looks low, **watch `game.html` first** and read Round 60's
+>   block below before concluding anything.
+> * ⚠️ **ROADMAP 60 IS UNRULED AND MUST NOT BE BUILT FROM.** Jake's thinking is
+>   recorded in the item, including the liability argument that reframes it. He
+>   said: *"I dunno. I'm obviously still trying to think it through."*
+> * **Next, in order:** **39's `admin.js` half** (read the map first), **58 step
+>   two** (needs his `reports.html` ruling), the reports weekly-goal panel, and a
+>   "How this works" bar on the other staff pages.
+> * ⚠️ **The reads measurement has still never been taken.** It is the item that
+>   answers a question about the PROJECT rather than the code — whether TTB can go
+>   county-wide — and it has outlived every other open item.
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 77 (Duplex) — the previous block, kept
 >
 > ### ⭐ ROUND 77: THE CONTAINER OWNS THE SPACING, THE CONTROL DOES NOT
 >

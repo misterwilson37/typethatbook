@@ -3731,6 +3731,41 @@ into Round 76 would have shipped a guess at a feature he described in one line.
   shape. ⚠️ Answer it from data already in hand or do not answer it there.
 * ⚠️ **DEFAULT MUST BE "ALL BOOKS".** A class with no list set sees the whole
   library — otherwise the day this ships, every existing class goes empty.
+### ⭐ JAKE THINKING IT THROUGH, 2026-09-05 — THE LIABILITY ARGUMENT IS THE CRUX
+
+*"If a colleague uploads Harry Potter, I'm the one who would be in trouble — not
+the colleague."*
+
+⚠️⚠️ **THAT REFRAMES THE WHOLE ITEM AND IT SHOULD BE READ BEFORE ANY OF THE
+DESIGN BELOW.** This started as "teachers choose what their kids see", which is a
+*preference* feature. The liability point makes it a *control* question, and the
+two have opposite defaults:
+
+* **As a preference feature** — teachers curate, everyone uploads, a blocklist is
+  natural, and the risk is that someone's class sees something inappropriate.
+* **As a control question** — Jake is accountable for everything on the domain, so
+  the upload right is the thing to restrict, and curation becomes a convenience on
+  top of a library he has already vetted.
+
+⭐ **HIS OWN CONCLUSION FOLLOWS FROM IT:** *"Perhaps superadmins are the only ones
+who can upload books at all. That would mean that building admins and teachers
+would be working on a blocklist."* ⚠️ **THAT COMBINATION IS COHERENT AND THE OTHER
+COMBINATIONS ARE NOT.** If only vetted people upload, everything in the library is
+already approved, so hiding is a *taste* decision and a blocklist is right — new
+books stay visible, which is what a growing library wants.
+
+⚠️ **THE THIRD OPTION HE RAISED IS THE ONE THAT NEEDS THE MOST DESIGN:** a
+`librarian` role, or a flag on `building_admin`, for people he trusts to upload
+after clearing with him. ⚠️⚠️ **THAT IS A FOURTH ROLE IN A THREE-ROLE SYSTEM** —
+`ROLE_LABELS`, `firestore.rules`, the staff editor and every `_scope` check would
+all need it, and Round 74's lesson is that a role string is easy to get wrong and
+looks fine when you do. **A flag on an existing role is much cheaper than a fourth
+role and buys the same thing; consider it first.**
+
+⚠️ **NOTHING HERE IS DECIDED.** Jake: *"I dunno. I'm obviously still trying to
+think it through."* ⚠️ **DO NOT BUILD FROM THIS SECTION** — it records where the
+thinking got to, not a ruling.
+
 * Needs a ruling: **allowlist or blocklist?** Blocklist keeps new books visible by
   default (good for a growing library); an allowlist is what a teacher wanting a
   tight unit actually asks for. They behave oppositely as the library grows.
@@ -4841,11 +4876,50 @@ twice. It is ready for that round.
   page. ⚠️ **A CHECK THAT DUPLICATES THE PARSER BADLY IS WORSE THAN NO CHECK** —
   it fails on good code, gets loosened, and then guards nothing.
 
-### ⚠️ WHAT IS LEFT: `admin.js`'s 42 CALLS
+### ⚠️ WHAT IS LEFT: `admin.js` — MEASURED IN ROUND 78, NOT YET CONVERTED
 
-Same rule, same reason, and **bigger** — 42 sites in a file that also holds the
-upload path. ⚠️ **CHECK WHETHER EACH `confirm()` SITE IS ALREADY `async` FIRST**;
-`reports.html` was, and that is why it was one round rather than three.
+⚠️⚠️ **THE COUNT IN THE ORIGINAL REPORT WAS WRONG. IT IS 45, NOT 42:
+30 `alert()` AND 15 `confirm()`.** Counted with comments stripped, 2026-09-05.
+
+⚠️⚠️ **AND THE `async` ANSWER IS THE OPPOSITE OF `reports.html`'s.** All eight of
+that page's confirmations already sat in `async` functions, which is why it was
+one round. **Here, SIX of the fifteen do not:**
+
+| line | handler | note |
+|---|---|---|
+| 2314 | `createResetBtn.onclick` | plain arrow |
+| 3916 | `wizardCancelBtn.onclick` | plain arrow |
+| 3933 | `replaceAllBtn.onclick` | plain arrow |
+| 3984 + 3985 | `replaceWordBtn.onclick` | **two confirms, one handler** |
+| 4168 | **`mergeWithNext(index)`** | ⚠️ a plain FUNCTION, not a handler |
+| 5541 | `clearLink.onclick` | plain arrow |
+
+⭐ **`mergeWithNext()` IS THE ONE TO LOOK AT FIRST, AND IT IS BETTER NEWS THAN IT
+LOOKS.** Making a shared function `async` changes its contract for every caller —
+a caller that does not `await` gets a Promise and carries on, silently. **It has
+exactly ONE caller** (`admin.js:4158`, an `onclick` arrow that can become `async`
+in the same edit), so the blast radius is one line. ⚠️ **VERIFY THAT IS STILL TRUE
+BEFORE STARTING**; a second caller added in the meantime turns this from a
+one-line change into a contract change.
+
+⚠️ **THE OTHER NINE ARE ALREADY `async`** — including all three inside
+`uploadAllBtn.onclick`, which is the upload path and the highest-consequence
+handler on the page.
+
+### ⚠️ WHY ROUND 78 MEASURED AND DID NOT CONVERT
+
+The instance had been running a long conversation and judged it could not finish
+45 sites and six handler conversions safely. ⭐ **THAT IS THIS ITEM'S OWN RULE
+APPLIED TO ITSELF: a half-converted page is worse than an unconverted one, and
+that is as true of the round that runs out of room as of the one that gets lazy.**
+The map above is what makes the next attempt one round.
+
+⚠️ **`reports.html` ALREADY HAS THE PRIMITIVES** — `ttbChoose()`, `ttbConfirm()`,
+`ttbNotice()`, the `<dialog>` markup and the tokens. ⚠️⚠️ **THEY LIVE IN
+`reports.html` AND `admin.html` IS A DIFFERENT PAGE.** Copying them is a second
+copy that will drift; the round that does `admin.js` should decide whether they
+move to a shared module first. **That decision is the round's real first step, not
+the conversion.**
 
 ---
 
