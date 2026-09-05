@@ -1,5 +1,41 @@
 # CHANGELOG — TypeThatBook
 
+## Round 77 (Duplex) — 2026-09-05 — three spacing complaints, one cause
+
+`admin.html` **v1.18.0**.
+
+### ⭐ The container owns the spacing. The control does not. Third time of asking.
+
+All three of Jake's remaining spacing bugs are the global
+`input, button { margin-bottom: 15px }`, which predates every container on the
+page — the same rule Round 67 found in the metadata grid.
+
+- **The filter field "floating".** Both `<select>`s beside it carry `.l-field
+  u-margin-0`; the input was built from raw utilities and kept the 15px. ⚠️ In a
+  row that **centres** its items, that margin is part of the item's **outer** box —
+  so the visible field sat ~7px above its neighbours. It was floating, exactly.
+- **`Open Book`: 10px above, ~35px below** — its own 15px plus the next divider's
+  20px. **20/20 now.**
+- **`Process Overwrite` shorter than its file input.** ⚠️ A native file input's
+  height comes from its own internal button's metrics, so identical padding still
+  renders two heights. `.btn-bar`'s `align-items: stretch` equalises them **by
+  construction**. ⚠️⚠️ Do not tune padding to match them — that is chasing a widget
+  metric with a magic number, which is Round 67's emoji lesson in a new costume.
+
+⚠️ **The stretch has to reach the control, not stop at its wrapper.** A
+`.btn-bar-grow` div reaches the row height on its own; its child does not unless
+the wrapper passes it on — otherwise there are two heights inside two equal boxes,
+which looks identical to the original bug.
+
+⚠️ **The rest of the page has not been swept.** The global rule is still there and
+every container doing its own spacing is a candidate. Do it where a symptom is
+reported, not speculatively.
+
+### Verification
+
+**72 harnesses pass, `audit:versions` 0 problems.** 3 new assertions (**58
+total**), mutation-verified three ways. ⚠️ `npm run test:rules` NOT run.
+
 ## Round 76 (Duplex) — 2026-09-05 — the class manager says whose class it is
 
 `lessons-admin.js` **v1.20.0**, `admin.html` **v1.17.0**.

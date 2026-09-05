@@ -406,6 +406,7 @@ Everything else still open:
 - 48. ✅ “TEXT PREPARED BY” NAMED THE WRONG PERSON ON EVERY BOOK, ON EVERY SURFACE  *(Round 57 — two defects, one symptom)*
 - 44. ✅ THE BOOK ID FIELD ACCEPTS ANYTHING TYPED INTO IT, AND slugifyBookId() IS RIGHT THERE  *(Round 57 — warns on whitespace, never blocks)*
 - 38. ✅ CLOSED for admin (Rounds 61-70) — reports.html closed Round 55 — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS  *(⚠️ UNBLOCKED, and Jake has RULED — build to the table, do not re-open it)*
+- 61. ✅ THREE SPACING COMPLAINTS, ONE CAUSE, AND IT IS THE ONE ROUND 67 FOUND  *(CLOSED Round 77)*
 - 59. ✅ THE CLASS MANAGER NAMES ITS SCHOOL AND TEACHER, AND FILTERS ON BOTH  *(CLOSED Round 76)*
 - 56. ✅ CLOSED — (a) Round 68, (b) and (c) Round 64 — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS  *(Jake, 2026-09-03)*
 - 51. ✅ THE BUILD LIST IS IN NO ORDER A READER CAN RECOGNISE — SORT IT ALPHABETICALLY  *(CLOSED Round 64)*  *(Jake asked, 2026-09-03. Sort in renderBuildList(), NEVER the SOURCES array — read the item first)*
@@ -3635,6 +3636,41 @@ The collapse is a contained, mechanical round with a strong existing harness. Th
 configurable half is a small feature sitting on top of it. **The `reports.html`
 ruling is the only thing in it that can go wrong quietly**, which is why it is
 listed above as a question rather than a task.
+
+## 61. ✅ THREE SPACING COMPLAINTS, ONE CAUSE, AND IT IS THE ONE ROUND 67 FOUND
+
+**Jake, 2026-09-04:** *"the process overwrite button isn't as tall as the field
+for choose file... why is there more space below open book than there is above
+it?... look at that filter field! It's floating!"*
+
+✅ **`admin.html` v1.18.0. All three are the global
+`input, button { margin-bottom: 15px }`,** which predates every container on this
+page. ⭐ **A CONTROL THAT CARRIES ITS OWN MARGIN INSIDE A CONTAINER THAT ALREADY
+OWNS THE SPACING PRODUCES EXACTLY THESE SYMPTOMS.**
+
+* **The floating filter.** Both `<select>`s beside it carry `.l-field u-margin-0`;
+  the input was built from raw utilities and kept the 15px. ⚠️ **In a row that
+  CENTRES its items, that margin is part of the item's OUTER box** — so the
+  visible field sat ~7px above its neighbours. It was floating, exactly.
+* **`Open Book`, 10px above and ~35px below** — the button's own 15px plus the
+  next divider's 20px. **20/20 now.**
+* **`Process Overwrite` shorter than its file input.** ⚠️ **A native file input's
+  height comes from its own internal button's metrics**, so identical padding
+  still renders two heights. `.btn-bar`'s `align-items: stretch` equalises them
+  **by construction**. ⚠️⚠️ **DO NOT TUNE PADDING TO MATCH THEM** — that is
+  chasing a widget metric with a magic number, which is Round 67's emoji lesson in
+  a different costume.
+
+⚠️ **THE STRETCH HAS TO REACH THE CONTROL, NOT STOP AT ITS WRAPPER.** A
+`.btn-bar-grow` div reaches the row height on its own; its child does not unless
+the wrapper passes it on — otherwise you have two heights inside two equal boxes,
+which looks identical to the original bug. S3 pins it.
+
+⭐ **THE RULE, THIRD TIME OF ASKING: THE CONTAINER OWNS THE SPACING, THE CONTROL
+DOES NOT.** Round 67 applied it to the metadata grid; this applies it to the
+Database Manager and the Students bar. ⚠️ **THE REST OF THE PAGE HAS NOT BEEN
+SWEPT** — the global rule is still there, and every container that does its own
+spacing is a candidate. Do it where a symptom is reported, not speculatively.
 
 ## 59. ✅ THE CLASS MANAGER NAMES ITS SCHOOL AND TEACHER, AND FILTERS ON BOTH
 

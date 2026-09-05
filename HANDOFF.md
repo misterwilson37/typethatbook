@@ -1,8 +1,48 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-05 by Round 76 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-05 by Round 77 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–76 ARE ONE INSTANCE.**
+> ⚠️ **ROUNDS 60–77 ARE ONE INSTANCE.**
+>
+> ### ⭐ ROUND 77: THE CONTAINER OWNS THE SPACING, THE CONTROL DOES NOT
+>
+> **Third time this rule has been the answer.** All three of Jake's remaining
+> spacing complaints were the global `input, button { margin-bottom: 15px }`:
+> the filter field "floating" (its neighbours zeroed the margin, it did not, and
+> in a CENTRED row that margin is part of the OUTER box), `Open Book` at 10 above
+> and 35 below, and `Process Overwrite` shorter than its file input.
+>
+> ⚠️ **A NATIVE FILE INPUT'S HEIGHT COMES FROM ITS OWN INTERNAL BUTTON**, so
+> identical padding renders two heights. **NEVER TUNE PADDING TO EQUALISE
+> CONTROLS** — `align-items: stretch` does it with nothing measured.
+> ⚠️ **AND THE STRETCH MUST REACH THE CONTROL, NOT STOP AT ITS WRAPPER**, or you
+> get two heights inside two equal boxes, which looks identical to the bug.
+>
+> ⚠️⚠️ **THE PAGE HAS NOT BEEN SWEPT.** The global rule is still there. Fix it
+> where a symptom is reported, not speculatively.
+>
+> ### THE STATE OF PLAY
+>
+> * **72 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run.
+> * **Expected stamps:** `admin.html` **v1.18.0**, `admin.js` **v3.52.0**,
+>   `lessons-admin.js` **v1.20.0**, `reports.html` **v1.9.0**, `staff-admin.js`
+>   **v2.3.0**, `game.js` **v3.49.0**, `learn.js` **v2.46.0**, `versions.js`
+>   **v1.16.0**.
+> * ⚠️ **CONFIRMED LIVE: 60–63, 65, 66, 67.** 64 and 68–77 unconfirmed.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+> * ⚠️⚠️ **ROADMAP 50's FIRST LIVE WEEK BEGAN SAT 2026-09-05.** Watch `game.html`.
+> * ⚠️ **JAKE'S LIST FROM 2026-09-04 IS NOW CLEARED** except:
+>   1. Reports' weekly-goal panel is vestigial; the default belongs with the other
+>      goal definitions. ⚠️ Tangled with ROADMAP 58 step two.
+>   2. A "How this works" bar on every staff page — unblocked since Round 74.
+> * ⚠️ **ROADMAP 60 IS WAITING ON JAKE'S RULING** (allowlist vs blocklist for
+>   per-class book visibility). He is thinking about it.
+> * **Also next:** **39's admin.js half** (42 calls — ⚠️ check `async` FIRST) and
+>   **58 step two**.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 76 (Duplex) — the previous block, kept
 >
 > ### ✅ ROUND 76: ROADMAP 59 — THE CLASS MANAGER NAMES ITS SCHOOL AND TEACHER
 >

@@ -1,9 +1,28 @@
 <!DOCTYPE html>
-<!-- admin.html v1.17.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.18.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.18.0 — ⚠️⚠️ THREE SPACING COMPLAINTS, ONE CAUSE — AND IT IS THE SAME ONE
+     ROUND 67 FOUND IN THE GRID. The global `input, button { margin-bottom: 15px }`
+     predates every container on this page, and a control that carries its own
+     margin inside a container that already owns the spacing produces exactly
+     these three symptoms:
+       • the Students filter field "floating" — both <select>s beside it carry
+         `.l-field u-margin-0`; the input was built from raw utilities and kept
+         the 15px, and in a row that CENTRES its items that margin is part of the
+         item's OUTER box, so the visible field sat ~7px high;
+       • `Open Book` with 10px above and ~35px below — the button's own 15px plus
+         the next divider's 20px. It is 20/20 now;
+       • `Process Overwrite` shorter than its file input — a native file input's
+         height comes from its own internal button's metrics, so identical padding
+         still renders two heights. `.btn-bar`'s `align-items: stretch` equalises
+         them BY CONSTRUCTION. ⚠️ DO NOT TUNE PADDING TO MATCH THEM; that is
+         chasing a widget metric with a magic number, the Round 67 lesson.
+     ⭐ THE RULE, THIRD TIME OF ASKING: THE CONTAINER OWNS THE SPACING, THE CONTROL
+     DOES NOT.
 
      v1.17.0 — ⚠️ ROADMAP 59: the Class Manager's school/teacher filter bar.
      ⚠️⚠️ IT NARROWS AN ALREADY-SCOPED LIST AND IS NOT WHAT SCOPES IT — the cache
@@ -507,6 +526,13 @@
         .btn-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; }
         .btn-bar > button { width: auto; margin: 0; }
         .btn-bar > .btn-bar-grow { flex: 1 1 auto; }
+        /* ⚠️ THE STRETCH HAS TO REACH THE CONTROL, NOT STOP AT ITS WRAPPER. A
+           `.btn-bar-grow` div stretches to the row height on its own; its child
+           does not, unless the wrapper passes it on. Without this the file input
+           and the button are still two heights inside two equal boxes. */
+        .btn-bar > .btn-bar-grow { display: flex; }
+        .btn-bar > .btn-bar-grow > input,
+        .btn-bar > .btn-bar-grow > button { flex: 1 1 auto; margin: 0; width: auto; }
 
         /* ⚠️ THE COVER IS A SLOT OF A FIXED NUMBER OF ROWS, NOT AN IMAGE OF
            WHATEVER HEIGHT THE JPEG HAPPENS TO BE. That is the whole fix: the
@@ -1235,8 +1261,15 @@
                 <option value="">Loading books...</option>
             </select>
 
-            <div id="edit-existing-ui" class="hidden u-margin-top-10px">
-                <button id="open-book-btn">Open Book</button>
+            <!-- ⚠️ 20px ABOVE AND 20px BELOW (v1.18.0). Jake: "why is there more
+                 space below open book than there is above it?" It was 10px above
+                 (this div) and ~35px below — the button's own global
+                 `margin-bottom: 15px` PLUS the next divider's 20px. ⭐ SAME CAUSE
+                 AS THE FLOATING FILTER AND THE SHORT OVERWRITE BUTTON: a control
+                 carrying its own margin inside a container that already owns the
+                 spacing. The container owns it; the control does not. -->
+            <div id="edit-existing-ui" class="hidden u-margin-top-20px">
+                <button id="open-book-btn" class="u-margin-0">Open Book</button>
             </div>
 
             <div class="u-margin-top-20px u-border-top-1px-solid-333 u-padding-top-20px">
@@ -1508,11 +1541,19 @@
 
                 <div id="overwrite-section" class="hidden u-border-bottom-1px-solid-333 u-margin-bottom-20px u-padding-bottom-10px">
                     <label class="u-color-ff9999">Overwrite Data with New EPUB</label>
-                    <div class="row">
-                        <div class="col">
-                            <input type="file" id="overwrite-epub-file" accept=".epub">
+                    <!-- ⚠️ `.btn-bar`, NOT `.row` (v1.18.0). Jake: "the process
+                         overwrite button isn't as tall as the field for choose
+                         file." A native file input's height comes from its own
+                         internal button's metrics, so identical padding still
+                         renders two heights — the same shape as Round 67's emoji
+                         problem, and the same answer: `align-items: stretch`
+                         equalises them BY CONSTRUCTION, with nothing measured.
+                         ⚠️ DO NOT TUNE PADDING TO MATCH THEM. -->
+                    <div class="btn-bar">
+                        <div class="btn-bar-grow">
+                            <input type="file" id="overwrite-epub-file" accept=".epub" class="u-margin-0">
                         </div>
-                        <div class="col">
+                        <div class="btn-bar-grow">
                             <button id="overwrite-btn" class="danger-btn tier-commit"
                                     title="Replaces this book's chapters and blank metadata from the EPUB chosen above. Check the filename first — this reads the file input, not the book.">Process Overwrite</button>
                         </div>
@@ -1761,8 +1802,15 @@
                         <option value="all">All classes</option>
                         <option value="none">Unassigned</option>
                     </select>
+                    <!-- ⚠️ `u-margin-0` (v1.18.0). Jake: "look at that filter field!
+                         It's floating!" Both <select>s beside it carry `.l-field
+                         u-margin-0`; this input was built from raw utilities and so
+                         kept the global `input { margin-bottom: 15px }`. In a row
+                         that centres its items, that margin is part of the item's
+                         OUTER box — so the visible field sat ~7px above its
+                         neighbours. It was floating, exactly. -->
                     <input id="student-filter-text" type="text" placeholder="Filter name / email…"
-                        class="u-padding-5px-8px u-background-222 u-border-1px-solid-444 u-color-eee u-font-family-inherit u-font-size-0-8em u-border-radius-3px u-width-160px u-vertical-align-middle u-box-sizing-border-box">
+                        class="u-margin-0 u-padding-5px-8px u-background-222 u-border-1px-solid-444 u-color-eee u-font-family-inherit u-font-size-0-8em u-border-radius-3px u-width-160px u-vertical-align-middle u-box-sizing-border-box">
                     <button id="student-refresh-btn" class="lbtn lbtn-secondary u-width-auto u-padding-5px-12px u-font-size-0-8em">↺</button>
                     <button id="stuck-scan-btn" class="lbtn lbtn-secondary u-width-auto u-padding-5px-12px u-font-size-0-8em" title="Read every filtered student's lesson progress and list runs they can't clear">⚠️ Find stuck</button>
                     <button id="student-csv-toggle-btn" class="lbtn lbtn-secondary u-width-auto u-padding-5px-12px u-font-size-0-8em">CSV Import</button>

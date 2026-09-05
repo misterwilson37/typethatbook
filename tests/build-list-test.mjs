@@ -945,6 +945,65 @@ check('R5. the name lookups are lazy, cached, and never block the list', () => {
         'lookup costs the class list rather than two labels');
 });
 
+// ─── S. THE CONTAINER OWNS THE SPACING, THE CONTROL DOES NOT ───────────────
+//
+// ⭐ THIRD TIME OF ASKING. Round 67 found this in the metadata grid; Round 77
+// found the same global `input, button { margin-bottom: 15px }` behind all three
+// of Jake's remaining spacing complaints:
+//   • the Students filter "floating" — its neighbours zero the margin, it did not,
+//     and in a row that CENTRES its items that margin is part of the outer box;
+//   • `Open Book` with 10px above and ~35px below — its own 15px plus a divider;
+//   • `Process Overwrite` shorter than its file input.
+//
+// ⚠️ A NATIVE FILE INPUT'S HEIGHT COMES FROM ITS OWN INTERNAL BUTTON, so identical
+// padding still renders two heights. `align-items: stretch` equalises them BY
+// CONSTRUCTION — never tune padding to match a widget metric.
+
+check('S1. ⚠️ every control in the Students filter row zeroes its margin', () => {
+    // ⚠️ THE ROW IS THE UNIT. One control keeping the global margin is enough to
+    // make itself look misaligned against every sibling that dropped it.
+    // ⚠️ The class attribute is on the NEXT line and runs long; a 120-char window
+    // stopped inside it. Match to the tag's real close instead of guessing a span.
+    const row = /<input id="student-filter-text"[^>]*>/.exec(adminHtml);
+    assert.ok(row, '#student-filter-text is gone');
+    assert.match(row[0], /\bu-margin-0\b/,
+        '⚠️ the filter input carries the global `margin-bottom: 15px` again while ' +
+        'the selects beside it zero theirs. In a centred row that margin is part ' +
+        'of the outer box, so the field renders ~7px high — Jake called it floating');
+});
+
+check('S2. ⚠️ Open Book is spaced evenly above and below', () => {
+    const wrap = /<div id="edit-existing-ui" class="([^"]*)"/.exec(adminHtml);
+    assert.ok(wrap, '#edit-existing-ui is gone');
+    const above = /u-margin-top-(\d+)px/.exec(wrap[1]);
+    assert.ok(above, 'the wrapper no longer declares its top margin');
+    // The divider immediately after it is what supplies the space below.
+    const after = adminHtml.slice(adminHtml.indexOf('id="edit-existing-ui"'));
+    const below = /u-margin-top-(\d+)px[^"]*u-border-top-1px-solid-333/.exec(after);
+    assert.ok(below, 'the divider below Open Book has moved');
+    assert.equal(above[1], below[1],
+        '⚠️ ' + above[1] + 'px above and ' + below[1] + 'px below. Jake: "padding or ' +
+        'spacing or margins or whatever it\'s called should be even throughout"');
+    const btn = /<button id="open-book-btn"[^>]*>/.exec(adminHtml);
+    assert.match(btn[0], /\bu-margin-0\b/,
+        'the button carries its own bottom margin again, which is 15px of the ' +
+        'asymmetry all on its own');
+});
+
+check('S3. ⚠️ the overwrite row equalises by construction, not by padding', () => {
+    const sec = adminHtml.slice(adminHtml.indexOf('id="overwrite-section"'),
+                                adminHtml.indexOf('id="overwrite-section"') + 1600);
+    assert.match(sec, /class="btn-bar"/,
+        '⚠️ the overwrite row is back on `.row`, whose cols do not equalise their ' +
+        "children — a file input's height comes from its own internal button, so " +
+        'identical padding still renders two heights');
+    const css = adminHtml.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    assert.match(css, /\.btn-bar > \.btn-bar-grow \{ display: flex; \}/,
+        '⚠️ the stretch stops at the wrapper. A `.btn-bar-grow` div reaches the row ' +
+        'height on its own; its CHILD does not unless the wrapper passes it on, and ' +
+        'then you have two heights inside two equal boxes');
+});
+
 let failed = 0;
 for (const [state, name] of results) {
     console.log(`  ${state === 'ok' ? 'ok  ' : 'FAIL'} ${name}`);
