@@ -1,9 +1,23 @@
 <!DOCTYPE html>
-<!-- admin.html v1.18.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.19.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.19.0 — ⚠️ TWO ALIGNMENT FIXES, AND THE SECOND ONE HAD A SINGLE CAUSE.
+     • `Uploaded by`'s superadmin control REPLACES the read-only stamp instead of
+       stacking beneath it. A stamp plus a select plus a `Set` button made one
+       field three rows tall in a grid where every other field is one. The `Set`
+       button is gone — writing on `change` is one action instead of two, and the
+       confirmation that guarded `Set` still guards it. Blank means unset.
+     • ⚠️⚠️ THE COVER CONTROLS' SPACER LABEL WAS A FLEX ITEM IN A `nowrap` ROW, so
+       `flex-basis: 100%` took the whole width and shoved the file input and
+       `Remove` to the right — TRUNCATED AND MISALIGNED FROM ONE CAUSE. The cell is
+       a block now with the controls in their own row beneath the spacer.
+     • The frame is LEFT-ALIGNED, not centred: it is narrower than its column, so
+       centring put the jacket ~20px right of the label, the note and the controls.
+       ⭐ ONE VERTICAL LINE FOR EVERY ELEMENT IN THE COLUMN.
 
      v1.18.0 — ⚠️⚠️ THREE SPACING COMPLAINTS, ONE CAUSE — AND IT IS THE SAME ONE
      ROUND 67 FOUND IN THE GRID. The global `input, button { margin-bottom: 15px }`
@@ -549,8 +563,17 @@
            input's own minimum pushed `Remove` onto a second line, so the cover's
            controls were two rows tall in a one-row cell and hung below it. The
            input shrinks (min-width:0); Remove keeps its size. */
-        .meta-cover-controls { grid-column: 7; grid-row: 4; display: flex; flex-wrap: nowrap; gap: 6px; align-items: stretch; }
-        .meta-cover-controls > label { flex-basis: 100%; }
+        /* ⚠️⚠️ THE SPACER LABEL WAS A FLEX ITEM IN A `nowrap` ROW (fixed v1.19.0),
+           so `flex-basis: 100%` made it take the WHOLE width and shove the file
+           input and Remove off to the right — which is both symptoms Jake reported
+           at once: the controls truncated AND not lined up with the cover's left
+           edge. ⭐ ONE CAUSE, TWO COMPLAINTS.
+           ⚠️ THE CELL IS A BLOCK NOW and the two controls sit in their own flex
+           row beneath the spacer. The spacer still reserves a label's height so the
+           controls start where `Prepared by`'s input starts, which is what it was
+           for; it just is not competing for width any more. */
+        .meta-cover-controls { grid-column: 7; grid-row: 4; }
+        .cover-controls-row { display: flex; flex-wrap: nowrap; gap: 6px; align-items: stretch; }
         /* ⚠️⚠️ THE IMAGE IS ABSOLUTELY POSITIONED, AND THAT IS THE WHOLE FIX
            (v1.13.0). `.meta-cover` spans three rows, and a spanned grid item's
            CONTENT contributes to the size of the rows it spans — so a tall jacket
@@ -575,7 +598,12 @@
            sized by the ratio, both bottoms on the same lines. */
         .cover-frame {
             flex: 1 1 auto; min-height: 0; aspect-ratio: 2 / 3;
-            width: auto; max-width: 100%; margin: 0 auto;
+            /* ⚠️ LEFT-ALIGNED, NOT CENTRED (v1.19.0). Jake: "the word cover is not
+               lined up with cover". The frame is narrower than its column — 2:3
+               against the row height — so centring it put the jacket ~20px right of
+               the label, the note and the controls, which all start at the column's
+               left edge. ⭐ ONE VERTICAL LINE FOR EVERY ELEMENT IN THE COLUMN. */
+            width: auto; max-width: 100%; margin: 0;
             border: 1px solid #444; border-radius: 3px;
             background: #161616; position: relative; overflow: hidden;
         }
@@ -597,14 +625,14 @@
            for wanting the cover smaller — and these two still have to sit in ONE
            row, which he liked. Shrinking the file input's font shrinks its native
            button with it; that is the only lever a file input gives you. */
-        .meta-cover-controls input[type=file] { flex: 1 1 auto; min-width: 0; font-size: 0.6em; margin: 0; }
-        .meta-cover-controls .danger-btn { flex: 0 0 auto; font-size: 0.62em; padding: 4px 7px; margin: 0; width: auto; }
+        .cover-controls-row input[type=file] { flex: 1 1 auto; min-width: 0; font-size: 0.6em; margin: 0; }
+        .cover-controls-row .danger-btn { flex: 0 0 auto; font-size: 0.62em; padding: 4px 7px; margin: 0; width: auto; }
 
         /* ⚠️ `is-heavy` IS A DIFFERENT SENTENCE, NOT A LOUDER ONE. A sliver off the
            edge is normal; a third of the picture gone means the wrong file. */
         .cover-note {
             margin-top: 5px; font-size: 0.6em; line-height: 1.4;
-            color: #888; text-align: center; word-break: break-word;
+            color: #888; text-align: left; word-break: break-word;
         }
         .cover-note.is-heavy { color: var(--notice); }
 
@@ -1473,11 +1501,23 @@
                              admin.js unhides it for superadmin and for an existing
                              book only; a book with no document has nothing to
                              correct. -->
-                        <div id="active-book-uploadedby-edit" class="hidden btn-bar u-margin-top-6px">
-                            <select id="active-book-uploadedby-select" class="btn-bar-grow u-font-size-0-8em"></select>
-                            <button type="button" id="active-book-uploadedby-set"
-                                    class="secondary-btn u-padding-4px-12px u-font-size-0-8em"
-                                    title="Corrects who this book is recorded as uploaded by. Writes only this one field.">Set</button>
+                        <div id="active-book-uploadedby-edit" class="hidden">
+                            <!-- ⚠️ IT REPLACES THE STAMP, IT DOES NOT SIT UNDER IT
+                                 (v1.19.0). Jake: "superadmin should get a dropdown
+                                 in place of the label — that keeps it from having
+                                 the weird double row for that space alone." A stamp
+                                 AND a select AND a Set button made this one field
+                                 three rows tall in a grid where every other field is
+                                 one, which is the misalignment the grid exists to
+                                 stop.
+                                 ⚠️⚠️ NO `Set` BUTTON: writing on `change` is one
+                                 action instead of two, and the confirmation that
+                                 already guarded Set still guards it — the dialog is
+                                 the safeguard, the extra button never was.
+                                 ⚠️ THE BLANK OPTION IS THE UNSET STATE and needs no
+                                 message beside it. Jake: "Blank communicates it
+                                 hasn't been set." -->
+                            <select id="active-book-uploadedby-select" class="u-width-100pct"></select>
                         </div>
                     </div>
 
@@ -1532,9 +1572,11 @@
                          floating under the jacket. -->
                     <div class="meta-cover-controls">
                         <label class="label-spacer" aria-hidden="true">Cover file</label>
+                        <div class="cover-controls-row">
                         <input type="file" id="cover-upload" accept="image/*">
                         <button id="cover-remove-btn" class="hidden danger-btn tier-commit"
                                 title="Clears this book's cover. A hand-sourced jacket image cannot be recovered from here.">Remove</button>
+                        </div>
                     </div>
 
                   </div>

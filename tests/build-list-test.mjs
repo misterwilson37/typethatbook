@@ -720,9 +720,16 @@ check('N2. the frame is sized by HEIGHT, so its edges stay on gridlines', () => 
     assert.match(rule, /width:\s*auto/,
         '\u26a0 the frame sets an explicit width, so the ratio now drives its HEIGHT ' +
         'and its bottom edge leaves the gridline it was put on');
-    assert.match(rule, /margin:\s*0 auto/,
-        'the frame no longer centres, so a narrower cover sits against one edge of ' +
-        'a wider column and reads as a mistake');
+    // ⚠️ THIS ASSERTED `margin: 0 auto` UNTIL ROUND 79, AND JAKE OVERRULED IT.
+    // Centring a frame that is narrower than its column put the jacket ~20px right
+    // of the label, the note and the controls, which all start at the column's left
+    // edge — "the word cover is not lined up with cover". ⭐ THE RULE NOW IS ONE
+    // VERTICAL LINE FOR EVERY ELEMENT IN THE COLUMN, and the check records that
+    // rather than being deleted: a superseded assertion is worth replacing with the
+    // decision that replaced it.
+    assert.match(rule, /margin:\s*0;/,
+        'the frame is centred again, so the jacket sits right of the label, the ' +
+        'crop note and the controls — everything in this column shares one left edge');
 });
 
 // ─── P. A TOGGLE MUST CHANGE WHATEVER DECLARES THE STATE ────────────────────
@@ -1002,6 +1009,64 @@ check('S3. ⚠️ the overwrite row equalises by construction, not by padding', 
         '⚠️ the stretch stops at the wrapper. A `.btn-bar-grow` div reaches the row ' +
         'height on its own; its CHILD does not unless the wrapper passes it on, and ' +
         'then you have two heights inside two equal boxes');
+});
+
+// ─── T. THE `Uploaded by` CONTROL REPLACES THE STAMP, IT DOES NOT STACK ────
+//
+// Jake: *"superadmin should get a dropdown in place of the label — that keeps it
+// from having the weird double row for that space alone."* A stamp AND a select
+// AND a Set button made one field three rows tall in a grid where every other
+// field is one, which is the misalignment the grid exists to stop.
+
+check('T1. ⚠️⚠️ exactly one of the stamp and the select is visible', () => {
+    const fn = /function refreshUploadedByOverride\(\)[\s\S]*?\n\}/.exec(adminJs);
+    assert.ok(fn, 'refreshUploadedByOverride() is gone');
+    assert.match(fn[0], /active-book-uploadedby'\)[\s\S]{0,160}classList\.toggle\('hidden', allowed\)/,
+        '⚠️ the stamp is not hidden when the select is shown. They share one slot; ' +
+        'showing both is what made this field three rows tall');
+});
+
+check('T2. ⚠️ there is no Set button, and the confirmation survived it', () => {
+    // ⚠️⚠️ THE DIALOG WAS ALWAYS THE SAFEGUARD; THE BUTTON NEVER WAS. Dropping the
+    // button to save a row must not drop the guard with it.
+    assert.ok(!/active-book-uploadedby-set/.test(adminHtml),
+        'the Set button is back in the markup, which puts the second row back');
+    const fn = /sel\.onchange = async \(\)[\s\S]*?\n    \};/.exec(adminJs);
+    assert.ok(fn, 'the change handler is gone, so the control writes nothing');
+    // ⚠️ ASSERT THE GUARD, NOT THE CALL. `if (false && !confirm(...))` still
+    // contains the word, and a check that only greps for it passes a confirmation
+    // that has been short-circuited out of the way.
+    assert.match(fn[0], /if\s*\(\s*!confirm\(/,
+        '⚠️⚠️ the confirmation no longer GUARDS the write. Writing on `change` ' +
+        'unguarded turns a two-step correction into a one-keystroke write on a ' +
+        'field that records accountability');
+});
+
+check('T3. ⚠️ a cancelled change puts the select back', () => {
+    // A dropdown left showing a value the database does not hold is a control
+    // that lies, and it lies about who uploaded a book.
+    const fn = /sel\.onchange = async \(\)[\s\S]*?\n    \};/.exec(adminJs)[0];
+    const at = fn.indexOf('confirm(');
+    const after = fn.slice(at);
+    // ⚠️ The restore and the `return` are separated by a comment explaining why,
+    // so a tight character window misses them. Assert both are present after the
+    // confirm, not that they are adjacent.
+    assert.match(after, /sel\.value = \(_metaBaseline[\s\S]*?\breturn;/,
+        'a declined confirmation leaves the new name showing while the database ' +
+        'still holds the old one');
+});
+
+check('T4. the cover controls are not competing with their own spacer', () => {
+    // ⚠️⚠️ ONE CAUSE, TWO COMPLAINTS. `flex-basis: 100%` on a spacer label inside
+    // a `nowrap` row took the whole width and shoved the file input and Remove
+    // right — truncated AND misaligned, from a single declaration.
+    const css = adminHtml.replace(/\/\*[\s\S]*?\*\//g, ' ');
+    assert.ok(!/\.meta-cover-controls > label \{[^}]*flex-basis/.test(css),
+        '⚠️ the spacer label is a flex item again. In a nowrap row it takes the ' +
+        'full width and pushes the controls out of the column');
+    assert.match(css, /\.cover-controls-row \{[^}]*display: flex/,
+        'the controls have no row of their own, so the spacer and they are siblings ' +
+        'in the same flex context again');
 });
 
 let failed = 0;

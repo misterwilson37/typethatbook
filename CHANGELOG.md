@@ -1,5 +1,61 @@
 # CHANGELOG — TypeThatBook
 
+## Round 79 (Duplex) — 2026-09-05 — the double row collapses, and the cover column shares one left edge
+
+`admin.html` **v1.19.0**, `admin.js` **v3.53.0**.
+
+### The superadmin `Uploaded by` control replaces the stamp
+
+Jake: *"superadmin should get a dropdown in place of the label — that keeps it
+from having the weird double row for that space alone."* A stamp **and** a select
+**and** a `Set` button made one field three rows tall in a grid where every other
+field is one.
+
+⚠️⚠️ **No `Set` button: it writes on `change`, and the confirmation that guarded
+`Set` still guards it.** The dialog was always the safeguard; the extra button
+never was. ⚠️ A cancelled change puts the select back — a dropdown showing a value
+the database does not hold is a control that lies, about who uploaded a book.
+⚠️ Blank is the unset state and needs no message beside it.
+
+### ⚠️⚠️ One declaration caused both cover-column complaints
+
+`.meta-cover-controls > label { flex-basis: 100% }` on a spacer label **inside a
+`nowrap` flex row**. It took the whole width and shoved the file input and
+`Remove` to the right — **truncated AND misaligned, from one cause.** The cell is
+a block now, with the controls in their own row beneath the spacer.
+
+And the frame is **left-aligned, not centred**: it is narrower than its column, so
+centring put the jacket ~20px right of the label, the note and the controls.
+⭐ **One vertical line for every element in the column.**
+
+⚠️ `build-list-test.mjs` N2 had asserted `margin: 0 auto` — Jake overruled it, and
+the check now records the new rule rather than being deleted. **A superseded
+assertion is worth replacing with the decision that replaced it.**
+
+### ⚠️ A check that passed a disabled confirmation
+
+T2's first draft grepped for `confirm(`, which still matches
+`if (false && !confirm(...))`. It asserts `if (!confirm(` now — **the guard, not
+the call.**
+
+### New: ROADMAP 62 — nobody can change who teaches a class
+
+Jake's classes predate multi-teacher support and show "no teacher", with no way to
+fix them. ⚠️⚠️ **The gap is load-bearing.** `firestore.rules` says so in its own
+words: a teacher can only create a class with themselves on it and only edit one
+they are already on, *"so `teacherUids` is self-maintaining and can't be used to
+widen their own scope."* ⭐ **The thing that makes it safe today is that nobody can
+edit it** — an editor removes a property the authorisation model leans on, and a UI
+letting a teacher add themselves is a privilege escalation that looks like a
+helpful feature. **Rules first, UI second**, and that round must run
+`npm run test:rules`.
+
+### Verification
+
+**72 harnesses pass, `audit:versions` 0 problems.** 4 new assertions (**62
+total**), mutation-verified. ⚠️ `npm run test:rules` NOT run; nothing here touches
+`firestore.rules`.
+
 ## Round 78 (Duplex) — 2026-09-05 — measured `admin.js`, and deliberately did not convert it
 
 **Documents only. No code changed.**
@@ -8478,4 +8534,22 @@ try { sessionStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
 //
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it.
+```
+
+### § admin.js — archived header entries (Round 79)
+
+```
+// v3.45.0 — ⚠️⚠️ PARSE & INITIALIZE COULD DISCARD AN AFTERNOON WITH NO CONFIRM.
+//           Everything past the file check REPLACES stagedChapters wholesale, so
+//           every split, merge, retitle and matter change made since the last
+//           parse went with it — none of it in Firestore, no undo, nothing to
+//           recover from. ⚠️ THIS IS v3.25.2's DEFECT IN THE OTHER PANEL: the
+//           file input survives everything, so a second press reads whatever is
+//           sitting in it, which may not be the book you have been editing. THE
+//           FILENAME IS IN THE PROMPT FOR THAT REASON.
+//           ⚠️ IT ASKS ONLY WHEN THERE IS SOMETHING TO LOSE — a confirm on the
+//           first parse of every book is a dialog people learn to dismiss, and
+//           then it is not there on the press that mattered (v3.23.0's lesson,
+//           one control over).
+//           ⚠️ v3.44.0's colour change was a WARNING, not a guard. Keep both.
 ```

@@ -1,11 +1,59 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-05 by Round 78 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-05 by Round 79 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–78 ARE ONE INSTANCE, AND IT IS TIME FOR A FRESH ONE.** Nineteen
-> rounds is a long conversation; this block and the ROADMAP are written so the
-> next instance starts from measurement rather than from a guess. **Nothing is
-> half-done.** The tree is clean, 72 harnesses pass, and Round 78 changed no code.
+> ⚠️ **ROUNDS 60–79 ARE ONE INSTANCE, AND IT IS TIME FOR A FRESH ONE.** Nothing is
+> half-done: the tree is clean, 72 harnesses pass, Round 79 shipped complete.
+>
+> ### ⚠️⚠️ THE HIGHEST-VALUE THING IN THIS FILE RIGHT NOW: ROADMAP 62
+>
+> Jake wants to reassign teachers to classes. ⭐ **THE GAP IS LOAD-BEARING AND THE
+> RULES SAY SO IN THEIR OWN WORDS:** a teacher can only create a class with
+> themselves on it and only edit one they are already on, *"so `teacherUids` is
+> self-maintaining and can't be used to widen their own scope."*
+> ⚠️⚠️ **AN EDITOR REMOVES A PROPERTY THE AUTHORISATION MODEL LEANS ON. A UI THAT
+> LETS A TEACHER ADD THEMSELVES TO A CLASS IS A PRIVILEGE ESCALATION, AND IT WOULD
+> LOOK EXACTLY LIKE A HELPFUL FEATURE.** ⚠️ **RULES FIRST, UI SECOND**, and that
+> round is the first since Round 60 that must run `npm run test:rules`.
+>
+> ### ✅ ROUND 79
+>
+> * `Uploaded by`'s superadmin control **replaces** the stamp instead of stacking
+>   under it. ⚠️ No `Set` button — it writes on `change`, and **the confirmation
+>   that guarded `Set` still guards it.** A cancelled change puts the select back.
+> * ⚠️⚠️ **ONE DECLARATION CAUSED BOTH COVER COMPLAINTS:** a spacer label with
+>   `flex-basis: 100%` inside a `nowrap` row took the whole width and shoved the
+>   controls right — truncated AND misaligned at once.
+> * The frame is **left-aligned**; ⭐ one vertical line for every element in the
+>   column. ⚠️ N2 used to assert the opposite; Jake overruled it and the check
+>   records the new rule. **A superseded assertion is worth replacing with the
+>   decision that replaced it, not deleting.**
+> * ⚠️ T2's first draft grepped for `confirm(` and passed
+>   `if (false && !confirm(...))`. **Assert the guard, not the call.**
+>
+> ### THE STATE OF PLAY
+>
+> * **72 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run in
+>   Rounds 60–79; none touched `firestore.rules`. **ROADMAP 62 will.**
+> * **Expected stamps:** `admin.html` **v1.19.0**, `admin.js` **v3.53.0**,
+>   `lessons-admin.js` **v1.20.0**, `reports.html` **v1.9.0**, `staff-admin.js`
+>   **v2.3.0**, `game.js` **v3.49.0**, `learn.js` **v2.46.0**, `versions.js`
+>   **v1.16.0**.
+> * ⚠️ **CONFIRMED LIVE: 60–63, 65, 66, 67.** 64 and 68–79 unconfirmed. ⭐ **READ
+>   THE BUILD PANEL BEFORE READING THE CODE** when something looks unchanged.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+> * ⚠️⚠️ **ROADMAP 50's FIRST LIVE WEEK IS RUNNING NOW.** If a weekly total looks
+>   low, watch `game.html` first and read Round 60's block below.
+> * ⚠️ **ROADMAP 60 IS UNRULED.** Jake is still thinking; the item records his
+>   reasoning, including the liability argument that reframes it. **Do not build
+>   from it.**
+> * **Next, in order:** **62** (rules first), **39's `admin.js` half** (the map is
+>   in that item — ⚠️ decide whether the dialog primitives move to a shared module
+>   BEFORE converting), **58 step two**.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 78 (Duplex) — the previous block, kept
 >
 > ### ⚠️⚠️ ROUND 78 MEASURED `admin.js` AND DELIBERATELY DID NOT CONVERT IT
 >

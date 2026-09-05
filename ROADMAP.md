@@ -392,6 +392,7 @@ Everything else still open:
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
 - 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
 - 58. ⚠️ STEP ONE DONE (Round 71) — A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
+- 62. ⚠️ NOBODY CAN CHANGE WHO TEACHES A CLASS — AND THAT IS CURRENTLY A SECURITY PROPERTY  *(Jake, Round 79. ⚠️ RULES FIRST — the gap is load-bearing. Read the item before designing)*
 - 60. ⭐ STAFF SHOULD SEE EVERY BOOK AND CHOOSE WHAT THEIR OWN STUDENTS SEE  *(Jake, Round 76. NOT BUILT — needs a ruling on allowlist vs blocklist, and the shelf is the read-budget surface)*
 - 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED  *(found Round 60; touches three mirrored files — read the item)*
 - 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS  *(the instrument that would have caught Round 59's finding on the day)*
@@ -3636,6 +3637,69 @@ The collapse is a contained, mechanical round with a strong existing harness. Th
 configurable half is a small feature sitting on top of it. **The `reports.html`
 ruling is the only thing in it that can go wrong quietly**, which is why it is
 listed above as a question rather than a task.
+
+## 62. ⚠️ NOBODY CAN CHANGE WHO TEACHES A CLASS — AND THAT IS CURRENTLY A SECURITY PROPERTY
+
+**Jake, 2026-09-05:** *"I created my classes before there were multiple teacher
+supports... so now they don't have teachers, and there's no way to add them. This
+also becomes a problem if a teacher leaves her/his position midyear and another
+login has to take them over."*
+
+### ⚠️⚠️ READ THIS BEFORE DESIGNING ANYTHING: THE GAP IS LOAD-BEARING
+
+`firestore.rules` says it in its own words:
+
+> *"A teacher can only create a class with themselves on it, and can only edit a
+> class they're already on, so `teacherUids` is self-maintaining and can't be used
+> to widen their own scope."*
+
+⭐ **THE VERY THING THAT MAKES `teacherUids` SAFE TODAY IS THAT NOBODY CAN EDIT
+IT.** An editor is not a missing feature bolted on — it **removes a property the
+authorisation model currently leans on**. ⚠️⚠️ **A UI THAT LETS A TEACHER ADD
+THEMSELVES TO A CLASS IS A PRIVILEGE ESCALATION**, and it would look exactly like
+a helpful feature.
+
+### The three places it is currently closed
+
+1. `_newClassRecord()` sets `teacherUids: [_scope.uid]` at **creation only**.
+2. ⚠️ **The edit path DELIBERATELY EXCLUDES IT** (`lessons-admin.js` ~1497: *"An
+   EDIT must not carry createdAt or teacherUids"*). That was to stop `merge: true`
+   rewriting the creation date — `teacherUids` came along for the ride.
+3. `firestore.rules` has **no field-level guard** on `/classes` updates, so it
+   cannot currently tell "an admin reassigning a teacher" from "a teacher adding
+   themselves". ⚠️ **Same shape as ROADMAP 55b's warning: the UI would be the only
+   thing enforcing it.**
+
+### ⚠️ Jake's classes are ORPHANED, and that has a live consequence
+
+A class with **no** `teacherUids` fails `teachesClass()` for everyone — so **no
+teacher can edit it, and only an admin can.** That is why they render "no teacher"
+and why nothing on the page will fix them. ⚠️ **It also means those classes are
+invisible to any teacher-scoped query**, including `where('teacherUids',
+'array-contains', uid)` at `lessons-admin.js` ~2012. Check what else that breaks
+before assuming it is only cosmetic.
+
+### What the round has to decide, in order
+
+1. ⚠️⚠️ **THE RULES FIRST, NOT THE UI.** `/classes` update needs to distinguish
+   *who* may change `teacherUids`: `isAdmin()` yes, a teacher no — and a
+   `building_admin` only for classes whose `schoolId` is in `mySchools()`. ⭐ **IF
+   THE RULES CANNOT SAY IT, THE FEATURE IS NOT SAFE TO BUILD**, however good the
+   dropdown looks. ⚠️ **THIS ROUND MUST RUN `npm run test:rules`** — no round since
+   60 has needed to, and this one does.
+2. **Then** the editor: a multi-select of staff in the class's building, on the
+   Edit Class form beside `School`.
+3. ⚠️ **A migration or a bulk action for the orphans.** Seven classes with no
+   teacher is a five-minute job by hand and a permanent trap if it is not written
+   down; Jake should not have to remember which ones.
+
+### The second half Jake asked for, and it is a different file
+
+*"as well as who administrates what building"* — that is `staff-admin.js`'s
+`schoolIds`, not a class field at all. ⚠️ **It is a separate change with a separate
+rules question** (a `building_admin` must not be able to add buildings to their
+own record) and should not be folded into the class editor just because both were
+mentioned in one sentence.
 
 ## 61. ✅ THREE SPACING COMPLAINTS, ONE CAUSE, AND IT IS THE ONE ROUND 67 FOUND
 

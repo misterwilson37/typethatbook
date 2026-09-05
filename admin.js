@@ -1,4 +1,17 @@
-// admin.js v3.52.0
+// admin.js v3.53.0
+//
+// v3.53.0 — ⚠️ THE SUPERADMIN `Uploaded by` CONTROL REPLACES THE STAMP INSTEAD OF
+//           STACKING UNDER IT. Jake: "superadmin should get a dropdown in place of
+//           the label — that keeps it from having the weird double row for that
+//           space alone." A stamp AND a select AND a `Set` button made one field
+//           three rows tall in a grid where every other field is one.
+//           ⚠️⚠️ NO `Set` BUTTON: it writes on `change`, and THE CONFIRMATION THAT
+//           GUARDED `Set` STILL GUARDS IT — the dialog was always the safeguard;
+//           the extra button never was.
+//           ⚠️ A CANCELLED CHANGE PUTS THE SELECT BACK. A dropdown left showing a
+//           value the database does not hold is a control that lies.
+//           ⚠️ Blank is the unset state and needs no message beside it.
+//           ⚠️ EXACTLY ONE OF STAMP AND SELECT IS VISIBLE; they share one slot.
 //
 // v3.52.0 — ⚠️⚠️ THE COVER PREVIEW CROPS LIKE THE SHELF NOW, AND SAYS WHAT IT
 //           CUT. index.html's `.book-cover` is `object-fit: cover`; this frame was
@@ -137,20 +150,7 @@
 //           ⚠️ THE OTHER DEAD HOVER WAS THE CLASS MANAGER'S DELETE, and it was a
 //           worse bug than a missing glow — see lessons-admin.js v1.17.0.
 //
-// v3.45.0 — ⚠️⚠️ PARSE & INITIALIZE COULD DISCARD AN AFTERNOON WITH NO CONFIRM.
-//           Everything past the file check REPLACES stagedChapters wholesale, so
-//           every split, merge, retitle and matter change made since the last
-//           parse went with it — none of it in Firestore, no undo, nothing to
-//           recover from. ⚠️ THIS IS v3.25.2's DEFECT IN THE OTHER PANEL: the
-//           file input survives everything, so a second press reads whatever is
-//           sitting in it, which may not be the book you have been editing. THE
-//           FILENAME IS IN THE PROMPT FOR THAT REASON.
-//           ⚠️ IT ASKS ONLY WHEN THERE IS SOMETHING TO LOSE — a confirm on the
-//           first parse of every book is a dialog people learn to dismiss, and
-//           then it is not there on the press that mattered (v3.23.0's lesson,
-//           one control over).
-//           ⚠️ v3.44.0's colour change was a WARNING, not a guard. Keep both.
-//
+// ⚠️ v3.45.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 79).
 // ⚠️ v3.44.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 75).
 // ⚠️ v3.43.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 70).
 // ⚠️ v3.42.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 69).
@@ -189,7 +189,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.52.0";
+const ADMIN_VERSION = "3.53.0";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -900,16 +900,16 @@ let _staffListLoaded = false;
 function initUploadedByOverride() {
     const wrap = document.getElementById('active-book-uploadedby-edit');
     const sel  = document.getElementById('active-book-uploadedby-select');
-    const btn  = document.getElementById('active-book-uploadedby-set');
-    if (!wrap || !sel || !btn) return;
+    if (!wrap || !sel) return;
 
     // ⚠️ ONE getDocs, ON FIRST OPEN, NEVER ON LOAD (§READS). A superadmin-only
-    // correction nobody opens most days must not cost a read on every admin
-    // session. Jake is weighing a county rollout on exactly this arithmetic.
+    // correction nobody opens most days must not tax every admin session.
     async function fillOnce() {
         if (_staffListLoaded) return;
         _staffListLoaded = true;
-        sel.innerHTML = '<option value="">\u2014 choose \u2014</option>';
+        // ⚠️ THE BLANK OPTION IS THE UNSET STATE and needs no message beside it.
+        // Jake: "Blank communicates it hasn't been set."
+        sel.innerHTML = '<option value=""></option>';
         try {
             const snap = await getDocs(collection(db, 'staff'));
             snap.forEach(d => {
@@ -921,27 +921,40 @@ function initUploadedByOverride() {
                 o.textContent = v.displayName || v.name || v.email || d.id;
                 sel.appendChild(o);
             });
+            // Show what is currently recorded, so the control is not lying about
+            // a field it sits in place of.
+            if (_metaBaseline && _metaBaseline.uploadedBy) sel.value = _metaBaseline.uploadedBy;
         } catch (e) {
             // ⚠️ A staff collection this account cannot read is not a dialog.
             _staffListLoaded = false;
             sel.innerHTML = '<option value="">could not read staff list</option>';
         }
     }
-    sel.addEventListener('focus', fillOnce, { once: false });
+    sel.addEventListener('focus', fillOnce);
 
-    btn.onclick = async () => {
+    // ⚠️⚠️ WRITES ON `change`, WITH NO `Set` BUTTON (v3.53.0). Jake asked for the
+    // dropdown to REPLACE the stamp rather than stack under it, and a Set button
+    // would have put the row back. ⚠️ THE CONFIRMATION IS THE SAFEGUARD AND IT IS
+    // UNCHANGED — the extra button never was one.
+    sel.onchange = async () => {
         const uid = sel.value;
         if (!uid || !activeBookId) return;
+        const who = sel.options[sel.selectedIndex].text;
         if (!confirm('Record "' + (bookTitlesMap[activeBookId] || activeBookId) +
-                     '" as uploaded by ' + sel.options[sel.selectedIndex].text +
-                     '?\n\nThis writes that one field and nothing else.')) return;
+                     '" as uploaded by ' + who +
+                     '?\n\nThis writes that one field and nothing else.')) {
+            // ⚠️ PUT IT BACK. A cancelled dropdown that keeps the new value is a
+            // control showing something the database does not say.
+            sel.value = (_metaBaseline && _metaBaseline.uploadedBy) || '';
+            return;
+        }
         try {
-            // ⚠️ setDoc + merge, NOT updateDoc — this file does not import
-            // updateDoc, and merge writes the one field just the same.
             await setDoc(doc(db, 'books', activeBookId), { uploadedBy: uid }, { merge: true });
+            if (_metaBaseline) _metaBaseline.uploadedBy = uid;
             showUploadedBy(uid);
         } catch (e) {
             alert('Could not set it: ' + e.message);
+            sel.value = (_metaBaseline && _metaBaseline.uploadedBy) || '';
         }
     };
     refreshUploadedByOverride();
@@ -961,6 +974,11 @@ function refreshUploadedByOverride() {
     if (!wrap) return;
     const allowed = _staffScope.role === 'super_admin' && activeBookExists() === true;
     wrap.classList.toggle('hidden', !allowed);
+    // ⚠️⚠️ EXACTLY ONE OF THE TWO IS VISIBLE. They occupy the same slot in the
+    // grid, and showing both is what made this field three rows tall while every
+    // other field is one.
+    const stamp = document.getElementById('active-book-uploadedby');
+    if (stamp) stamp.classList.toggle('hidden', allowed);
 }
 
 /** All four, together — they read the same two facts and must not disagree. */
