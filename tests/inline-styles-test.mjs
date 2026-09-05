@@ -194,10 +194,16 @@ for (const [id, what] of [['tab-staff', 'the Staff tab, for building admins and 
 // misplaced — a suppressed :disabled is a DEFECT, not a design decision waiting
 // for sign-off. Ask about the ones that are genuinely a matter of taste; just fix
 // the ones that are broken.
+// ⚠️ ROADMAP 38's safe/edit pass (Round 70) RETIRED THE FOUR DECORATIVE TINTS,
+// so these buttons carry a TIER class now — `tier-safe`, `tier-edit`, or
+// `tier-create`/`tier-commit` painted by admin.js. ⚠️⚠️ C3's POINT IS UNCHANGED
+// AND IS THE HALF THAT MATTERS: no INLINE background, on the five buttons
+// admin.js really does disable for slow work. An inline value beats every
+// selector and re-kills `button:disabled` (Part C4).
 const TINTED = {
-    'save-title-btn': 'btn-tint-save', 'update-next-btn': 'btn-tint-save',
-    'audit-book-btn': 'btn-tint-audit', 'language-scan-btn': 'btn-tint-scan',
-    'repair-chapter-order-btn': 'btn-tint-repair',
+    'save-title-btn': 'tier-edit', 'update-next-btn': 'tier-edit',
+    'audit-book-btn': 'tier-safe', 'language-scan-btn': 'tier-safe',
+    'repair-chapter-order-btn': 'tier-safe',
 };
 for (const [id, cls] of Object.entries(TINTED)) {
     const tag = new RegExp(`<button[^>]*\\bid="${id}"[^>]*>`, 's').exec(markup);
@@ -205,8 +211,11 @@ for (const [id, cls] of Object.entries(TINTED)) {
        `⚠️⚠️ C3 #${id} CARRIES NO INLINE background. An inline value beats every ` +
        `selector, so putting one back re-kills button:disabled on a button admin.js ` +
        `really does disable for slow work`);
-    ok(tag && new RegExp(`\\b${cls}\\b`).test(tag[0]) && /\bbtn-tint\b/.test(tag[0]),
-       `C3b #${id} carries btn-tint and ${cls}`);
+    ok(tag && new RegExp(`\\b${cls}\\b`).test(tag[0]),
+       `C3b #${id} declares the TIER class ${cls} rather than a decorative tint — ` +
+       `its colour must come from the tier system, not from a per-button hue. ` +
+       `⚠️ #save-title-btn also gains/loses tier-create at runtime; the MARKUP ` +
+       `class is the one asserted here`);
 }
 
 // C3c — ⚠️⚠️ THE MECHANISM, NOT JUST THE OUTCOME. `:not(:disabled)` is what lets a

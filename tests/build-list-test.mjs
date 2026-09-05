@@ -160,12 +160,16 @@ check('C1. ⚠️⚠️ no button built in admin.js sets `background` inline', (
         '`btn-bg-*` class in admin.html: ' + bad.join(' | '));
 });
 
-check('C2. #repair-titles-btn takes its colour from a class', () => {
-    assert.match(adminJs, /btn.className\s*=\s*'btn-tint btn-bg-3a2200'/,
-        'the repair button no longer declares btn-tint + a background class');
-    assert.match(adminHtml, /button\.btn-bg-3a2200:not\(:disabled\)\s*\{\s*background:/,
+check('C2. #repair-titles-btn takes its colour from a TIER class', () => {
+    // ⚠️ ROADMAP 38's safe/edit pass (Round 70) replaced its decorative amber
+    // with `tier-edit` — it rewrites STAGED text and nothing in the database, so
+    // it is neither safe nor commit. C1 above still guards the inline background.
+    assert.match(adminJs, /btn\.className\s*=\s*'tier-edit'/,
+        'the repair button no longer declares a tier; a per-button hue is exactly ' +
+        'what this pass retired');
+    assert.match(adminHtml, /button\.tier-edit:not\(:disabled\)\s*\{[^}]*background:/,
         'the class is applied in admin.js and declared nowhere, which renders as ' +
-        'the default blue');
+        'an unstyled button');
 });
 
 // ─── D. ONE ELEMENT, ONE `class` ATTRIBUTE ──────────────────────────────────

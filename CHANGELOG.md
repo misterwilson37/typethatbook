@@ -1,5 +1,67 @@
 # CHANGELOG — TypeThatBook
 
+## Round 70 (Duplex) — 2026-09-04 — the safe/edit pass, and it found a control filed wrong
+
+### ROADMAP 38 — four tiers, and item 38 is now CLOSED for admin
+
+| tier | hue | means |
+|---|---|---|
+| safe | grey | reads or reports; changes nothing |
+| edit | blue | changes something that exists, reversibly |
+| create | green | ⚠️ nothing here existed before |
+| commit | red | irreversible, or it reaches students |
+
+`admin.html` **v1.13.0 → v1.14.0**, `admin.js` **v3.49.0 → v3.50.0**. Retired:
+`btn-tint-save` `#224422`, `btn-tint-audit`, `btn-tint-scan`, `btn-tint-repair`,
+`btn-bg-3a2200`, `btn-bg-004466`, `btn-bg-1a3a1a`, and seven orphaned utilities
+that `inline-styles-test.mjs` A4 surfaced as each one's last user left.
+
+### ⚠️⚠️ It found a control that was filed wrong
+
+**`Write Repaired Order to Firestore` calls `setDoc()` on the LIVE book** — it
+rewrites the chapter order every student is reading — and it wore a **decorative
+blue**, sitting beside a grey `Cancel` **looking like its equal**. It is
+`.tier-commit` now, with a hint that says what it reaches.
+
+⭐ **Asking what a click costs is the only question that sorts controls
+correctly.** A decorative palette had no way to notice that one, because it was
+never asking.
+
+Also re-filed: `Remove Chapter Titles` → edit (rewrites *staged* text only),
+`Approve all "word"` → edit (the last second green), `Audit` / `Scan` / `Fix
+Chapter Order` → safe (all three only report).
+
+### ⚠️⚠️ And it uncovered a live defect shipped in Round 61
+
+**None of the tier rules carried `:not(:disabled)`.** `button:disabled` sits
+*earlier* in `admin.html`, so an unguarded tier rule ties on specificity and **wins
+on source order** — `Upload All` and `Save Metadata` stayed at full colour the
+whole time `admin.js` had them disabled for slow work. **That shipped from Round 61
+to Round 70 with nothing on screen to say so.** The `:hover` rules needed the same
+guard: `:hover` still *matches* a disabled button, so it repainted the grey-out the
+moment the pointer crossed it.
+
+⭐ `inline-styles-test.mjs` C3c caught it the moment the tiers inherited the
+question it had been asking of the old tint classes. The check existed and was
+aimed at the right property; it just had not been pointed at the new names yet.
+⚠️ **When you replace a class, move the checks that were watching it, in the same
+round.**
+
+### Green is spent, and the harness measures it
+
+G2 walks every `button` rule in the file and fails if more than one green
+background survives — a measurement of the page's actual palette, not a grep for a
+class name. G3 fails if anyone tiers the chapter row, which Jake ruled out because
+those colours are how one control is found among forty rows.
+
+`control-tier-test.mjs` gains **Part G, 4 assertions (30 total)**,
+mutation-verified four ways. `tools/meta-panel-ab.html` **v1.4.0**.
+
+### Verification
+
+**71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `npm run test:rules` NOT
+run; nothing here touches `firestore.rules`.
+
 ## Round 69 (Duplex) — 2026-09-04 — the save confirmation listed four of twelve fields
 
 ### ⚠️⚠️ ROADMAP 55c — Jake could not remember the second omission. There were eight.
@@ -7862,4 +7924,43 @@ try { sessionStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
 //           "WRITES THE SPAN, NOT THE WHOLE FOOTER" and session-merge-test.mjs's
 //           dead-HUD-reset assertion. It carried the v3.32.0 pointer too.
 //           NOTHING DELETED; all of it resolves in the CHANGELOG.
+```
+
+### § admin.js — archived header entries (Round 70)
+
+```
+// v3.43.0 — ⚠️⚠️ ROADMAP 38 — `Upload All` IS TWO CONTROLS WEARING ONE BUTTON.
+//           Jake: "If we're uploading a book for the first time, it's not
+//           destructive, it's creative. It's new." Round 61 painted every upload
+//           red, which put the heaviest treatment on the page onto the button he
+//           presses on a GOOD day, after the work is done. Most uploads are new
+//           material. paintUploadButton() now swaps class AND label from
+//           activeBookExists(): green "Upload All Chapters to Database" when the
+//           book is new, red "Overwrite Existing Chapters in Database" when it is
+//           not.
+//           ⚠️⚠️ activeBookExists() IS EXTRACTED, NOT COPIED, AND THE CONFIRM
+//           DIALOG NOW READS IT TOO. v3.23.0's confirm already branched on the
+//           same hasOwnProperty(bookTitlesMap, activeBookId) test; leaving a
+//           second copy behind is how a green "create" button comes to open an
+//           "already exists, overwrite it?" dialog. One function, two callers.
+//           ⚠️⚠️ IT RETURNS null FOR "NOT KNOWN YET" AND null PAINTS RED.
+//           loadBookList() empties bookTitlesMap BEFORE its getDocs() resolves,
+//           so mid-refresh every book in the library reads as new — the one
+//           direction this must never guess wrong in. `bookListLoaded` is also
+//           cleared in the catch, because a failed read leaves the map empty and
+//           confidently wrong.
+//           ⚠️ COSTS NO READ. bookTitlesMap is already in memory from the list.
+//           ⚠️ A book document with NO chapters still reads as "exists" and gets
+//           the red. Titles are what the map carries; a chapter count would be a
+//           read per book change to sharpen a warning already erring safe.
+//
+// v3.42.1 — ⚠️ ONE CLASS, NO BEHAVIOUR. ROADMAP 38's commit tier: the chapter
+//           row's `Del` button gains `.tier-commit` beside the `.danger-btn` it
+//           already carried. ⚠️ NOTHING MOVES ON SCREEN — the two selectors share
+//           one declaration in admin.html v1.6.0 by design. The class is here so
+//           that tests/control-tier-test.mjs can ask the question in the vocabulary
+//           Jake ruled in, rather than by hunting a legacy name, and so the next
+//           pass can rename `.danger-btn` without having to work out which of its
+//           eight call sites were actually commit-tier. `Del` is the canonical
+//           commit example in his table.
 ```

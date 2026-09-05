@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- meta-panel-ab.html v1.3.0 — ROADMAP 55a/55b/56a/38, Rounds 65-68 (Duplex).
+<!-- meta-panel-ab.html v1.4.0 — ROADMAP 55/56/38, Rounds 65-70 (Duplex).
 
      ⚠️ NOT SHIPPED. Lives in tools/, never deployed.
 
@@ -42,7 +42,420 @@
     .hidden { display:none; }
     .danger-btn, .tier-commit { background:#500; border:1px solid #800; color:#fcc; }
 
-/* ─── lifted verbatim from admin.html v1.13.0 ─────────────────────────── */
+/* ─── lifted verbatim from admin.html v1.14.0 ─────────────────────────── */
+button.tier-commit:not(:disabled),
+button.danger-btn:not(:disabled) { background: #500; border: 1px solid #800; color: #fcc; }
+/* ⚠️ THE HOVERS NEED THE GUARD TOO. `:hover` still MATCHES a disabled
+   button, so an unguarded hover rule repaints the grey-out the moment the
+   pointer crosses it — the same defect as the base rules, one interaction
+   later, and harder to catch because it only shows while pointing at it. */
+button.tier-commit:not(:disabled):hover,
+button.danger-btn:not(:disabled):hover { background: #800; }
+
+/* ── ⚠️⚠️ ROADMAP 38 — THE CREATE TIER, AND WHY IT IS NOT A FOURTH COLOUR
+   FOR A FOURTH KIND OF BUTTON ───────────────────────────────────────
+   Jake, 2026-09-03: "If we're uploading a book for the first time, it's
+   not destructive, it's creative. It's new. Only if the book already
+   exists does it delete anything, which is when the red is important."
+
+   ⚠️ SO THIS IS ONE CONTROL IN TWO STATES, NOT TWO CONTROLS. `Upload All`
+   is the only thing on this page whose TIER depends on the data: on a new
+   book it destroys nothing, on an existing one it replaces every chapter
+   already serving students. admin.js's paintUploadButton() swaps the
+   class and the label together — a green button reading "Overwrite" would
+   be worse than either mistake on its own.
+
+   ⚠️⚠️ THE GEOMETRY IS THE RED'S, EXACTLY — same three channels, same
+   border width, same text lightness. Two treatments that are ALMOST the
+   same shape is the failure mode; these are obviously different in hue
+   and identical in everything else.
+
+   ⚠️⚠️ DO NOT REUSE THIS GREEN FOR THE `edit` TIER. Item 38's ruling puts
+   SAVE METADATA in edit and notes that "the safest-feeling colour on the
+   page belongs to a write" — so the safe/edit pass RETIRES
+   .btn-tint-save's green rather than joining it. Green now means exactly
+   one thing on this page: nothing here existed before. */
+button.tier-create:not(:disabled) { background: #050; border: 1px solid #080; color: #cfc; }
+button.tier-create:not(:disabled):hover { background: #080; }
+
+/* ⚠️ THE `title=` ATTRIBUTES ON THESE CONTROLS ARE FALLBACKS FOR THE
+   MOMENT BEFORE admin.js PAINTS (v1.8.0). Upload All, Save Metadata and
+   Parse & Initialize all have their hint REWRITTEN per state — an upload
+   that replaces chapters says something different from one that creates
+   them. The static text here is the cautious, state-free version.
+   ⚠️ Jake, 2026-09-03: "I've never been sure what clicking it does." A
+   hint that names what a control WRITES is the answer; a hint that
+   restates the label is not. */
+
+label { display: block; margin-bottom: 5px; color: #888; text-transform: uppercase; font-size: 0.75rem; }
+
+.hidden { display: none !important; }
+.status-bar { padding: 15px; margin-bottom: 20px; background: #222; border-left: 4px solid #555; }
+.row { display: flex; gap: 20px; }
+.col { flex: 1; }
+a { color: #888; text-decoration: none; border-bottom: 1px dotted #888; }
+a:hover { color: #fff; }
+
+.import-box { background: #1a1a1a; border: 1px dashed #444; padding: 20px; margin-bottom: 30px; }
+
+#chapter-list { max-height: 400px; overflow-y: auto; background: #000; border: 1px solid #333; margin-bottom: 20px; }
+.chapter-item { padding: 10px; border-bottom: 1px solid #222; display: flex; align-items: center; justify-content: space-between; background: #111; transition: background 0.2s; }
+.chapter-item:hover { background: #151515; }
+.chapter-item.uploaded { border-left: 4px solid #00ff41; background: #0a220a; }
+.chapter-item.error { border-left: 4px solid #ff3333; background: #220a0a; }
+
+.chap-info { flex-grow: 1; margin-right: 15px; }
+.chap-title { font-weight: bold; color: #4B9CD3; font-size: 0.9em; }
+.chap-meta { font-size: 0.8em; color: #666; }
+.chap-status { font-size: 0.8em; color: #888; margin-left: 10px; }
+.chap-status.ok { color: #00ff41; font-weight: bold; }
+
+.chap-actions { display: flex; gap: 5px; }
+.chap-actions button { width: auto; padding: 5px 10px; font-size: 0.7em; margin: 0; }
+.split-btn { background: #1a3a5c; border: 1px solid #2a5a8c; color: #7ab8e8; }
+.split-btn:hover { background: #2a5a8c; color: white; }
+.merge-btn { background: #2a1a3c; border: 1px solid #5a2a8c; color: #b87ae8; }
+.merge-btn:hover { background: #4a2a6c; color: white; }
+
+/* ⚠️ FRONT/BODY/BACK and EDIT were the SAME BLUE (v3.22.1) and they do very
+   different things: one reclassifies a page, the other opens its text for
+   editing. Adjacent, identically coloured, one destructive-ish. The matter
+   toggle is now amber — the same colour the untagged dot uses for "this is a
+   judgement call" — and About is green when on, matching the row. */
+.matter-btn { background: #3a2f14; border: 1px solid #8a6a1e; color: #e8c46a; }
+.matter-btn:hover { background: #5a4a20; color: #fff3d0; }
+.about-btn { background: #16241c; border: 1px solid #35553f; color: #7fa88c; }
+.about-btn:hover { background: #24382c; color: #b6e6c4; }
+
+/* Hint tooltips. These replaced hint paragraphs printed under every field —
+   nine of them in one row, several of them taller than the input they
+   described, which squeezed the inputs to about six characters wide. */
+/* ── ⚠️⚠️ ROADMAP 56a — THE (i) IS A BUTTON NOW, AND IT ANSWERS THE
+   QUESTION JAKE ACTUALLY ASKED (v1.13.0) ────────────────────────────
+   Jake: "Hovering over the i for Cover gives me a question mark, but
+   clicking doesn't give me anything at all. That's true of all of those
+   i's." A help affordance that answers nothing is worse than none: the
+   cursor promises an explanation and the click spends attention for it.
+
+   ⚠️⚠️ IT WAS A <span> WITH A `title`, SO THERE WAS NOTHING TO CLICK. It
+   is a real <button> carrying `data-note`, and admin.js copies that note
+   into `title` at init so hover and click say the SAME WORDS from ONE
+   source. ⚠️ DO NOT PUT A `title=` BACK IN THE MARKUP — two copies of a
+   sentence drift, and the one you edit will be the wrong one.
+
+   ⭐ AND THE CONTENT IS PROVENANCE, NOT DEFINITION. Jake: "it would
+   probably be helpful if they told the user where that information is
+   auto-filled from, if anywhere." Half these fields come from the EPUB
+   and half are typed, and nothing on the page said which — so an editor
+   could not tell whether their edit survives the next import.
+   ⚠️⚠️ EVERY NOTE IS DERIVED FROM THE IMPORT PATH — readEpubMetadata()
+   and autofillFromEpub() — NOT FROM MEMORY. If you change what a field is
+   filled from, change its note in the SAME EDIT.
+
+   ⚠️ THE GLOBAL `button` RULE HAS TO BE UNDONE HERE, or each (i) becomes
+   a full-width uppercase #0047AB bar. */
+.hint {
+    display: inline-block; width: 13px; height: 13px; line-height: 11px;
+    text-align: center; border-radius: 50%; border: 1px solid #666;
+    color: #999; font-size: 0.62rem; font-style: italic; cursor: help;
+    vertical-align: middle; margin: 0 0 0 4px; font-family: serif;
+    padding: 0; min-width: 0; background: none; font-weight: normal;
+    text-transform: none; letter-spacing: 0;
+}
+.hint:hover { border-color: #4B9CD3; color: #4B9CD3; background: none; }
+.hint[aria-expanded="true"] { border-color: #4B9CD3; background: #4B9CD3; color: #111; }
+/* ⚠️ The note lands in the field's OWN cell, under its control, so it
+   pushes nothing sideways and cannot be mistaken for a neighbour's. */
+.hint-note {
+    margin-top: 6px; padding: 8px 10px; border-left: 2px solid #4B9CD3;
+    background: #16202a; color: #bbb; font-size: 0.72em; line-height: 1.55;
+}
+
+/* Fields on the left, cover in its own fixed column on the right, so the
+   cover does not steal width from eight inputs and the inputs do not
+   squash the cover. Stacks on a narrow screen. */
+
+/* ── ⚠️ ROADMAP 55a — ONE COLUMN TEMPLATE, SHARED BY BOTH ROWS OF THE
+   PANEL (v1.11.0) ─────────────────────────────────────────────────
+   The field block was `.row { display:flex }` with SEVEN equal `.col`s
+   sharing whatever the cover column left over. ⚠️⚠️ BOTH URL FIELDS
+   RENDERED AS THE STRING `https:/` AND NOTHING ELSE — not truncated
+   decoratively, USELESS: you could not read, check or copy the link a
+   book came from.
+
+   ⚠️⚠️ THE HEADER ROW AND THE FIELD GRID SHARE ONE DECLARATION, AND THAT
+   IS THE POINT. v1.10.0 gridded the fields and left the title row on
+   flex, so `Save Metadata` lined up with nothing below it and Jake asked
+   why. Two grids that are *meant* to agree and are declared separately
+   will disagree the first time one is edited. ⚠️ DO NOT GIVE EITHER
+   SELECTOR ITS OWN grid-template-columns.
+
+   ⚠️ SEVEN TRACKS: six equal field columns plus the cover. The cover is
+   IN the grid now rather than a flex sibling beside it, so its top, its
+   bottom and its controls land on real gridlines instead of wherever the
+   image's intrinsic height happened to put them.
+
+   ⚠️ SPANS ARE 2 OR 3 OF SIX, NEVER 1.4 OF THREE. Jake's number one pet
+   peeve is elements that are ALMOST the same size.
+
+   ⚠️ `min-width: 0` IS LOAD-BEARING. A grid item's default min-width is
+   auto, so a <select> with a long option refuses to shrink — a second,
+   quieter way to get `https:/`. */
+.import-box { --cover-w: 240px; --meta-gap: 20px; }
+.meta-head,
+.meta-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr) var(--cover-w);
+    gap: 14px var(--meta-gap);
+}
+.meta-head > *, .meta-grid > * { min-width: 0; }
+
+/* ⚠️⚠️ THE GRID OWNS THE VERTICAL SPACING. THE CONTROLS MUST NOT ALSO
+   (v1.12.0) ────────────────────────────────────────────────────────
+   Every input, select and button on this page carries
+   `margin-bottom: 15px` from the global rule, which predates the grid.
+   Inside a grid cell that margin is INSIDE the cell — so a control's
+   visible bottom sat 15px above its own cell's bottom, while the cover
+   frame (which has no margin) filled its cell exactly. That 15px is the
+   whole of why Jake saw the cover column "not line up with the rows to
+   its left", and it is why the row rhythm was 29px in some places and
+   14px in others.
+   ⚠️ THE `gap` IS THE ONLY SPACING NOW. Do not reintroduce a margin here
+   to "tighten" or "loosen" a row: change the gap, once, for all of it. */
+.meta-head input, .meta-head select, .meta-head textarea, .meta-head button,
+.meta-grid input, .meta-grid select, .meta-grid textarea, .meta-grid button {
+    margin-bottom: 0;
+}
+.meta-head { border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 10px; }
+.meta-grid { border-bottom: 1px solid #333; margin-bottom: 20px; padding-bottom: 15px; }
+/* ⚠️ ONE SPAN VOCABULARY FOR BOTH GRIDS. The header row uses f3 + f2 + f2
+   and the field rows use f2/f3; a second set of names for the same two
+   widths is how the two halves drift apart again. */
+.meta-head .f2, .meta-grid .f2 { grid-column: span 2; }
+.meta-head .f3, .meta-grid .f3 { grid-column: span 3; }
+
+/* ⚠️ THE SPACER LABEL IS WHY `Save Metadata` LINES UP. Its cell has no
+   label of its own, so without one the button started at the top of the
+   cell while the inputs beside it started below THEIR labels — the
+   "slightly off" Jake spotted. It is aria-hidden: it reserves height, it
+   does not announce anything. */
+.label-spacer { visibility: hidden; }
+
+/* ── ⚠️ ROADMAP 38 — A ROW OF BUTTONS IS ONE ROW, NOT THREE BUTTONS THAT
+   HAPPEN TO SIT TOGETHER (v1.12.0) ────────────────────────────────
+   Jake: "Parse and Another book are not the same height. Ditto export csv
+   and the other buttons in that row."
+
+   ⚠️⚠️ TWO DIFFERENT CAUSES, AND NEITHER WAS A WIDTH OR A PADDING.
+   1. `⤓`, `📊` and `🗑` are not the same height. A colour emoji has bigger
+      metrics than a plain arrow glyph, and the tallest glyph in a line
+      sets the line box, so three buttons with identical padding rendered
+      at three heights. ⚠️ DO NOT "FIX" THIS BY TUNING PADDING PER BUTTON —
+      that is chasing a font metric with a magic number, and it breaks the
+      day an emoji font updates.
+   2. `Parse & Initialize Staging` inherits `button { width: 100% }`, so it
+      took the whole row and squeezed `Start another book` until its label
+      WRAPPED, making it two lines tall.
+
+   ⭐ `align-items: stretch` FIXES BOTH WITHOUT A SINGLE MEASUREMENT: in a
+   flex row every item takes the cross size of the tallest, so the heights
+   are equal BY CONSTRUCTION rather than by a number somebody tuned once.
+   ⚠️ Keep `width: auto` here — that is what stops the 100%-wide button
+   from squeezing its neighbour into a second line. */
+.btn-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; }
+.btn-bar > button { width: auto; margin: 0; }
+.btn-bar > .btn-bar-grow { flex: 1 1 auto; }
+
+/* ⚠️ THE COVER IS A SLOT OF A FIXED NUMBER OF ROWS, NOT AN IMAGE OF
+   WHATEVER HEIGHT THE JPEG HAPPENS TO BE. That is the whole fix: the
+   frame's top and bottom are gridlines, so the cover agrees with the rows
+   beside it instead of being slightly off all of them. The picture sits
+   inside at its own aspect ratio. */
+.meta-cover  { grid-column: 7; grid-row: 1 / span 3; display: flex; flex-direction: column; }
+/* ⚠️ THE CONTROLS SIT SIDE BY SIDE, NOT STACKED (v1.12.0). Stacked they
+   were two controls tall, so the last field row had to grow to hold them
+   and `Prepared by` / `Cleaned up by` stopped lining up with everything
+   above. One row tall is what makes column 7 agree with columns 1-6.
+   ⚠️ THIS IS WHY THE COVER COLUMN IS 200px AND NOT 160px. */
+        /* ⚠️ `nowrap` AND A WIDER COLUMN (v1.13.0). At 200px the native file
+   input's own minimum pushed `Remove` onto a second line, so the cover's
+   controls were two rows tall in a one-row cell and hung below it. The
+   input shrinks (min-width:0); Remove keeps its size. */
+.meta-cover-controls { grid-column: 7; grid-row: 4; display: flex; flex-wrap: nowrap; gap: 6px; align-items: stretch; }
+.meta-cover-controls > label { flex-basis: 100%; }
+/* ⚠️⚠️ THE IMAGE IS ABSOLUTELY POSITIONED, AND THAT IS THE WHOLE FIX
+   (v1.13.0). `.meta-cover` spans three rows, and a spanned grid item's
+   CONTENT contributes to the size of the rows it spans — so a tall jacket
+   forced rows 1-3 to grow, which is why there were gaps under the field
+   rows and why the frame still overhung the column. Out of flow, the
+   picture cannot size anything; the frame takes exactly the three rows the
+   FIELDS asked for, and its bottom edge is a gridline.
+   ⚠️ DO NOT PUT THE IMAGE BACK IN FLOW to "simplify" this. The symptom
+   returns as a layout that is almost right, which is the hardest kind to
+   attribute. */
+.cover-frame {
+    flex: 1 1 auto; min-height: 0; border: 1px solid #444; border-radius: 3px;
+    background: #161616; position: relative; overflow: hidden;
+}
+.cover-frame img {
+    position: absolute; inset: 4px; margin: auto;
+    max-width: calc(100% - 8px); max-height: calc(100% - 8px);
+    width: auto; height: auto; display: block;
+}
+.meta-cover-controls input[type=file] { flex: 1 1 auto; min-width: 0; font-size: 0.68em; margin: 0; }
+.meta-cover-controls .danger-btn { flex: 0 0 auto; font-size: 0.7em; padding: 4px 10px; margin: 0; width: auto; }
+
+/* ⚠️ The read-only stamp is a real box so it sits on the same baseline as
+   its neighbours instead of floating on a padding-top guess. It is still
+   not typeable — ROADMAP 55b is the control it should become. */
+.meta-stamp {
+    background: #1c1c1c; border: 1px dashed #444; color: #888;
+    padding: 12px; box-sizing: border-box; width: 100%;
+    font-family: inherit; font-size: 0.85em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+@media (max-width: 1100px) {
+    /* ⚠️ TWO COLUMNS, NOT ONE. A single column makes the age range and the
+       stamp full-width, which reads as more important than the title. */
+    .meta-head, .meta-grid { grid-template-columns: repeat(2, 1fr); }
+    .meta-head > *, .meta-grid .f2, .meta-grid .f3 { grid-column: span 1; }
+    .meta-cover, .meta-cover-controls { grid-column: span 2; grid-row: auto; }
+    .cover-frame { min-height: 180px; }
+}
+
+.checkbox-wrapper { display: flex; align-items: center; margin-bottom: 15px; }
+.checkbox-wrapper input { width: auto; margin: 0 10px 0 0; }
+.checkbox-wrapper label { margin: 0; text-transform: none; color: #ddd; }
+
+/* MODALS */
+#warning-modal, #error-wizard-modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8); z-index: 200;
+    display: flex; justify-content: center; align-items: center;
+}
+.warning-content {
+    background: #220000; border: 2px solid #ff3333; padding: 30px;
+    max-width: 500px; text-align: center;
+}
+.error-wizard-content {
+    background: #151515; border: 2px solid #ffaa00; padding: 25px;
+    max-width: 800px; width: 90%; text-align: left;
+    max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 0 20px rgba(255, 170, 0, 0.2);
+}
+.bad-char-highlight {
+    background-color: #ff0000;
+    color: white;
+    font-weight: bold;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+footer { position: fixed; bottom: 5px; right: 10px; font-size: 0.7em; color: #666; background: rgba(255,255,255,0.8); z-index: 101; padding: 2px 5px; border-radius: 3px; }
+
+/* ── TABS ── */
+.tab-bar { display:flex; gap:0; margin-bottom:24px; border-bottom:2px solid #333; }
+.tab-btn {
+    padding: 10px 24px; background: #1a1a1a; border: 1px solid #333;
+    border-bottom: none; color: #777; cursor: pointer; font-family: inherit;
+    font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px;
+    transition: all 0.15s; margin-right: 4px; border-radius: 4px 4px 0 0;
+}
+.tab-btn:hover { color: #ccc; background: #222; }
+.tab-btn.tab-active { background: #222; color: #4B9CD3; border-color: #4B9CD3; border-bottom: 2px solid #222; margin-bottom: -2px; }
+
+/* ── LESSONS PANEL ── */
+.lesson-unit-header {
+    padding: 8px 12px; background: #1a1a2a; border-left: 3px solid #4B9CD3;
+    color: #4B9CD3; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px;
+    margin: 16px 0 4px;
+}
+.lesson-card { background: #111; border: 1px solid #2a2a2a; margin-bottom: 3px; border-radius: 3px; overflow: hidden; }
+.lesson-card-header { display:flex; align-items:center; padding:10px 12px; gap:8px; background:#141414; }
+.lesson-card-title { font-weight:bold; color:#ddd; font-size:0.9em; }
+.lesson-editor { background: #0e0e0e; }
+
+.lbtn { width:auto; padding:4px 10px; font-size:0.78em; margin:0; cursor:pointer; font-family:inherit; border-radius:2px; text-transform:uppercase; box-sizing:border-box; vertical-align:middle; }
+.lbtn-primary { background:#0047AB; border:none; color:white; }
+.lbtn-primary:hover { background:#4B9CD3; }
+.lbtn-secondary { background:#333; border:1px solid #555; color:#aaa; }
+.lbtn-secondary:hover { background:#555; color:white; }
+.lbtn-danger { background:#500; border:1px solid #800; color:#fcc; }
+.lbtn-danger:hover { background:#800; }
+
+.l-label { display:block; font-size:0.7em; color:#666; text-transform:uppercase; margin-bottom:3px; margin-top:6px; }
+.l-field { width:100%; padding:7px 9px; background:#1a1a1a; border:1px solid #333; color:#ddd; font-family:inherit; font-size:0.85em; box-sizing:border-box; margin:0; }
+.l-field:focus { border-color:#4B9CD3; outline:none; }
+textarea.l-field { resize:vertical; }
+.l-steps-header { display:flex; justify-content:space-between; align-items:center; color:#888; font-size:0.75em; text-transform:uppercase; letter-spacing:1px; padding:10px 0 6px; border-top:1px solid #222; margin-top:8px; }
+.l-step-card { background:#0a0a0a; border:1px solid #222; border-radius:3px; padding:10px; margin-bottom:6px; }
+#lessons-status { padding:10px 14px; margin-bottom:16px; background:#111; border-left:4px solid #555; font-size:0.85em; }
+#lesson-list { max-height:70vh; overflow-y:auto; }
+.lessons-toolbar { display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+#lessons-import-section,
+#lessons-export-section { background:#1a1a1a; border:1px dashed #444; padding:16px; margin-bottom:16px; }
+    
+/* ── ROADMAP 41 + 42 — THE TINTED ACTION BUTTONS ──────────────────
+   ⚠⚠ THESE TINTS USED TO BE INLINE, AND AN INLINE VALUE BEATS EVERY
+   SELECTOR — so `button:disabled { background:#555; cursor:not-allowed }`
+   could not reach them. #audit-book-btn and #save-title-btn really are
+   disabled during slow work, so the grey-out simply never happened.
+   #save-title-btn worked around it with `style.opacity = '0.6'` in
+   admin.js; #audit-book-btn had no workaround at all.
+
+   ⚠️ `:not(:disabled)` IS THE WHOLE MECHANISM. The tint applies only while
+   the button is live, so a disabled one falls through to
+   `button:disabled` and greys out on its own. Do NOT "simplify" this to a
+   plain `.btn-tint-save { background: ... }`: that ties with
+   `button:disabled` on specificity and, sitting later in the file, wins.
+   The bug returns and nothing looks wrong.
+
+   ⚠️ The hover is `filter: brightness()`, NOT four new hex values. Item 38
+   is still open on this page and Round 55 was rightly criticised for
+   adding two colours while improving legibility; a derived hover adds
+   none. */
+button.btn-tint:not(:disabled):hover   { filter: brightness(1.6); }
+
+/* ── ⚠️⚠️ ROADMAP 38 — THE safe/edit PASS (v1.14.0) ────────────────────
+   Jake, 2026-09-04: *"Let's leave the rainbow of buttons in the chapter
+   layout for now. I see their value now that I'm looking for them to
+   disappear every round. The other buttons on the page can get more
+   regular treatment, though."*
+
+   ⚠️⚠️ THE CHAPTER ROW IS OUT OF SCOPE AND THAT IS A RULING, NOT A
+   BACKLOG ITEM. Its colours are DOING A JOB — About / Merge / Split /
+   Front / Body / Edit / Del get scanned dozens of times per book, and
+   colour is how one is found among forty rows. Flattening them would
+   remove a working index and call it consistency. ⚠️ DO NOT "FINISH THE
+   JOB" BY TIERING THE CHAPTER ROW.
+
+   FOUR TIERS, FOUR OBVIOUSLY DIFFERENT HUES — never almost the same:
+     safe   grey   reads or reports; changes nothing
+     edit   blue   changes something that exists, reversibly
+     create green  ⚠️ NOTHING HERE EXISTED BEFORE. Spent. See below.
+     commit red    irreversible, or it reaches students
+
+   ⚠️⚠️ GREEN IS SPENT AND `#224422` IS RETIRED. `btn-tint-save` made
+   `Save Metadata` and `Update → Next` green while `.tier-create` means
+   "nothing here existed before" — one colour, two meanings, which is the
+   defect this whole item exists to remove. Save Metadata is green ONLY
+   when it is creating the book document (admin.js paints it), and blue
+   the rest of the time.
+
+   ⚠️ EACH TIER SHARES ITS DECLARATION WITH THE LEGACY NAME IT REPLACES,
+   so the two cannot drift into two nearly-identical greys or blues. DO
+   NOT GIVE EITHER SELECTOR ITS OWN BLOCK. */
+button.tier-safe:not(:disabled),
+button.secondary-btn:not(:disabled) { background: #444; border: 1px solid #666; }
+button.tier-safe:not(:disabled):hover,
+button.secondary-btn:not(:disabled):hover { background: #666; }
+/* ⚠️ `edit` IS THE DEFAULT `button` LOOK, DELIBERATELY. The commonest
+   thing a control does on this page is change something that already
+   exists, so the tier that needs no class is the right one to be the
+   default — and it matches `Edit` in the chapter row, which means the
+   same thing one panel down. */
+button.tier-edit:not(:disabled) { background: #0047AB; border: none; color: #fff; }
+button.tier-edit:not(:disabled):hover { background: #4B9CD3; }
 /* ── ⚠️⚠️ ROADMAP 56a — THE (i) IS A BUTTON NOW, AND IT ANSWERS THE
    QUESTION JAKE ACTUALLY ASKED (v1.13.0) ────────────────────────────
    Jake: "Hovering over the i for Cover gives me a question mark, but
@@ -231,7 +644,7 @@
     them. Hover a field to see its hint.
 </p>
 
-<h2>Proposed <span class="tag">admin.html v1.13.0</span></h2>
+<h2>Proposed <span class="tag">admin.html v1.14.0</span></h2>
 <div class="stage">
   <div class="import-box guide">
 <div class="meta-head">
@@ -250,7 +663,7 @@
              THEIR labels. aria-hidden: it reserves height, it does
              not announce anything. -->
         <label class="label-spacer" aria-hidden="true">Save</label>
-        <button id="save-title-btn" class="secondary-btn u-border-color-336633 btn-tint btn-tint-save"
+        <button id="save-title-btn" class="tier-edit"
                 title="Saves the twelve metadata fields on this panel. Does NOT touch chapters or the cover.">Save Metadata</button>
         <div id="save-title-status" class="u-font-size-0-75em u-min-height-1-1em u-margin-top-4px" style="color:#888;"></div>
     </div>
@@ -432,6 +845,12 @@
 </div>
 
 <div class="meta">
+    <b>Four tiers, four hues.</b> safe grey reads or reports; edit blue changes
+    something that exists; create green means <i>nothing here existed before</i>;
+    commit red is irreversible or reaches students. The four decorative tints are
+    retired and <code>#224422</code> with them &mdash; <b>green now means exactly
+    one thing on this page</b>, which is why <code>Save Metadata</code> is blue
+    here and green only while it is creating the book document.<br><br>
     <b>Click an (i).</b> They were <code>&lt;span&gt;</code>s with a
     <code>title</code>, so there was nothing to click — the cursor promised an
     explanation and the click spent your attention for nothing. They are real

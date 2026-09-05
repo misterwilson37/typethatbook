@@ -1,8 +1,57 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-04 by Round 69 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-04 by Round 70 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–69 ARE ONE INSTANCE.**
+> ⚠️ **ROUNDS 60–70 ARE ONE INSTANCE.**
+>
+> ⚠️⚠️ **STILL THE STANDING WARNING: `firestore.rules` DOES NOT ENFORCE
+> "SUPERADMIN ONLY" ON `uploadedBy`.** `/books` has no field whitelist. That
+> control is a **UI affordance, not a permission**.
+>
+> ### ✅ ROUND 70: THE safe/edit PASS. ITEM 38 IS CLOSED FOR ADMIN.
+>
+> Four tiers: **safe** grey (reads/reports), **edit** blue (changes something that
+> exists), **create** green (*nothing here existed before*), **commit** red
+> (irreversible, or reaches students).
+>
+> * ⚠️⚠️ **IT FOUND A CONTROL FILED WRONG.** `Write Repaired Order to Firestore`
+>   calls `setDoc()` on the LIVE book and wore a **decorative blue** beside a grey
+>   `Cancel`, looking like its equal. ⭐ **ASKING WHAT A CLICK COSTS IS THE ONLY
+>   QUESTION THAT SORTS CONTROLS CORRECTLY** — a decorative palette was never
+>   asking.
+> * ⚠️⚠️ **AND IT UNCOVERED A LIVE DEFECT I SHIPPED IN ROUND 61.** None of the
+>   tier rules carried `:not(:disabled)`, and `button:disabled` sits EARLIER in the
+>   file — so it tied on specificity and lost on source order. **`Upload All` and
+>   `Save Metadata` stayed full-colour while disabled, from Round 61 to Round 70.**
+>   The `:hover` rules needed it too: `:hover` still MATCHES a disabled button.
+>   ⭐ **`inline-styles-test.mjs` C3c CAUGHT IT ONLY ONCE THE TIERS INHERITED THE
+>   QUESTION IT HAD BEEN ASKING OF THE OLD TINT CLASSES. WHEN YOU REPLACE A CLASS,
+>   MOVE THE CHECKS THAT WERE WATCHING IT, IN THE SAME ROUND.**
+> * ⚠️ **GREEN IS SPENT.** G2 walks every `button` rule and fails on a second green
+>   background — a measurement of the palette, not a grep for a class name.
+> * ⚠️⚠️ **DO NOT TIER THE CHAPTER ROW.** Jake ruled it out: those colours are how
+>   he finds one control among forty rows. G3 fails if anyone "finishes the job".
+>
+> ### THE STATE OF PLAY
+>
+> * **71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run;
+>   nothing in Rounds 60–70 touches `firestore.rules`.
+> * ⚠️ **CONFIRMED LIVE: 60–63, 65, 66, 67.** Rounds 64, 68, 69, 70 unconfirmed.
+>   Expected stamps: `admin.html` **v1.14.0**, `admin.js` **v3.50.0**,
+>   `lessons-admin.js` **v1.17.0**, `versions.js` **v1.16.0**.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+>   **DO NOT SHIP style.css v3.10.0.**
+> * ⚠️ **NOTHING STUDENT-FACING HAS CHANGED SINCE ROUND 60**, which is live.
+>   ⚠️⚠️ **THE FIRST WEEK ROADMAP 50 CAN FIRE IN BEGINS SAT 2026-09-05.** Watch
+>   `game.html` from 09-07.
+> * **ROADMAP 38 and 56 are CLOSED. 55 is (a)(b)(c) done; (d) belongs to 39.**
+> * **Next:** **58's collapse step** (six copies of the week anchor onto one, anchor
+>   still hardcoded — contained, and `week-agreement-test.mjs` is pointed at it),
+>   then **39** (which carries 55d), then **42's remaining tail**.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 69 (Duplex) — the previous block, kept
 >
 > ⚠️⚠️ **STILL THE ONE THING TO CARRY FORWARD: `firestore.rules` DOES NOT ENFORCE
 > "SUPERADMIN ONLY" ON `uploadedBy`.** `/books` has no field whitelist. The Round

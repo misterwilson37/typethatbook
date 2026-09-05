@@ -1,9 +1,26 @@
 <!DOCTYPE html>
-<!-- admin.html v1.13.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.14.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.14.0 — ⚠️⚠️ ROADMAP 38 — THE safe/edit PASS, SCOPED BY JAKE'S RULING.
+     Four tiers, four obviously different hues: safe grey, edit blue, create
+     green, commit red. The four decorative tints (btn-tint-save #224422,
+     btn-tint-audit #332200, btn-tint-scan #220022, btn-tint-repair #002233) and
+     two per-button backgrounds (btn-bg-3a2200, btn-bg-004466) are RETIRED.
+     ⚠️⚠️ THE CHAPTER ROW IS OUT OF SCOPE AND THAT IS A RULING: its colours are
+     doing a job — they are how one control is found among forty rows. DO NOT
+     "FINISH THE JOB" BY TIERING IT.
+     ⚠️⚠️ GREEN IS SPENT. `Save Metadata` is green ONLY while it is creating the
+     book document; #224422 is gone, so no colour on this page means two things.
+     ⚠️⚠️ AND `:not(:disabled)` ON ALL FOUR TIERS — IT SHOULD HAVE BEEN THERE
+     SINCE v1.6.0. `button:disabled` sits earlier in this file, so an unguarded
+     tier rule ties on specificity and wins on source order; from Round 61 until
+     now, `Upload All` and `Save Metadata` stayed at full colour while admin.js
+     had them disabled. inline-styles-test.mjs C3c caught it the moment the tiers
+     inherited the question it had been asking of the old tint classes.
 
      v1.13.0 — ⚠️⚠️ ROADMAP 56a: THE (i) BUTTONS ANSWER SOMETHING. They were
      <span>s with a `title`, so there was nothing to click — a help affordance
@@ -216,10 +233,23 @@
            ⚠️ AND YES, `UPLOAD ALL` NOW READS AS HEAVY AS `DEL`. That is the
            ruling working, not a mistake: same tier, same weight, and the labels
            are what tell them apart. */
-        button.tier-commit,
-        button.danger-btn { background: #500; border: 1px solid #800; color: #fcc; }
-        button.tier-commit:hover,
-        button.danger-btn:hover { background: #800; }
+        /* ⚠️⚠️ `:not(:disabled)` IS NOT DECORATION (added v1.14.0, and it should
+           have been here in v1.6.0). `button:disabled { background:#555 }` sits
+           EARLIER in this file, so an unguarded tier rule TIES on specificity and
+           WINS ON SOURCE ORDER — and the grey-out silently stops happening.
+           ⚠️ admin.js really does disable `Upload All` and `Save Metadata` for
+           slow work, so from Round 61 until this round those buttons stayed at
+           full colour while they were doing nothing. `inline-styles-test.mjs` C3c
+           caught it; it had been asking that question of the old tint classes and
+           got pointed at the tiers when they replaced them. */
+        button.tier-commit:not(:disabled),
+        button.danger-btn:not(:disabled) { background: #500; border: 1px solid #800; color: #fcc; }
+        /* ⚠️ THE HOVERS NEED THE GUARD TOO. `:hover` still MATCHES a disabled
+           button, so an unguarded hover rule repaints the grey-out the moment the
+           pointer crosses it — the same defect as the base rules, one interaction
+           later, and harder to catch because it only shows while pointing at it. */
+        button.tier-commit:not(:disabled):hover,
+        button.danger-btn:not(:disabled):hover { background: #800; }
 
         /* ── ⚠️⚠️ ROADMAP 38 — THE CREATE TIER, AND WHY IT IS NOT A FOURTH COLOUR
            FOR A FOURTH KIND OF BUTTON ───────────────────────────────────────
@@ -244,8 +274,8 @@
            page belongs to a write" — so the safe/edit pass RETIRES
            .btn-tint-save's green rather than joining it. Green now means exactly
            one thing on this page: nothing here existed before. */
-        button.tier-create { background: #050; border: 1px solid #080; color: #cfc; }
-        button.tier-create:hover { background: #080; }
+        button.tier-create:not(:disabled) { background: #050; border: 1px solid #080; color: #cfc; }
+        button.tier-create:not(:disabled):hover { background: #080; }
 
         /* ⚠️ THE `title=` ATTRIBUTES ON THESE CONTROLS ARE FALLBACKS FOR THE
            MOMENT BEFORE admin.js PAINTS (v1.8.0). Upload All, Save Metadata and
@@ -584,10 +614,47 @@
            adding two colours while improving legibility; a derived hover adds
            none. */
         button.btn-tint:not(:disabled):hover   { filter: brightness(1.6); }
-        button.btn-tint-save:not(:disabled)    { background: #224422; }
-        button.btn-tint-audit:not(:disabled)   { background: #332200; }
-        button.btn-tint-scan:not(:disabled)    { background: #220022; }
-        button.btn-tint-repair:not(:disabled)  { background: #002233; }
+
+        /* ── ⚠️⚠️ ROADMAP 38 — THE safe/edit PASS (v1.14.0) ────────────────────
+           Jake, 2026-09-04: *"Let's leave the rainbow of buttons in the chapter
+           layout for now. I see their value now that I'm looking for them to
+           disappear every round. The other buttons on the page can get more
+           regular treatment, though."*
+
+           ⚠️⚠️ THE CHAPTER ROW IS OUT OF SCOPE AND THAT IS A RULING, NOT A
+           BACKLOG ITEM. Its colours are DOING A JOB — About / Merge / Split /
+           Front / Body / Edit / Del get scanned dozens of times per book, and
+           colour is how one is found among forty rows. Flattening them would
+           remove a working index and call it consistency. ⚠️ DO NOT "FINISH THE
+           JOB" BY TIERING THE CHAPTER ROW.
+
+           FOUR TIERS, FOUR OBVIOUSLY DIFFERENT HUES — never almost the same:
+             safe   grey   reads or reports; changes nothing
+             edit   blue   changes something that exists, reversibly
+             create green  ⚠️ NOTHING HERE EXISTED BEFORE. Spent. See below.
+             commit red    irreversible, or it reaches students
+
+           ⚠️⚠️ GREEN IS SPENT AND `#224422` IS RETIRED. `btn-tint-save` made
+           `Save Metadata` and `Update → Next` green while `.tier-create` means
+           "nothing here existed before" — one colour, two meanings, which is the
+           defect this whole item exists to remove. Save Metadata is green ONLY
+           when it is creating the book document (admin.js paints it), and blue
+           the rest of the time.
+
+           ⚠️ EACH TIER SHARES ITS DECLARATION WITH THE LEGACY NAME IT REPLACES,
+           so the two cannot drift into two nearly-identical greys or blues. DO
+           NOT GIVE EITHER SELECTOR ITS OWN BLOCK. */
+        button.tier-safe:not(:disabled),
+        button.secondary-btn:not(:disabled) { background: #444; border: 1px solid #666; }
+        button.tier-safe:not(:disabled):hover,
+        button.secondary-btn:not(:disabled):hover { background: #666; }
+        /* ⚠️ `edit` IS THE DEFAULT `button` LOOK, DELIBERATELY. The commonest
+           thing a control does on this page is change something that already
+           exists, so the tier that needs no class is the right one to be the
+           default — and it matches `Edit` in the chapter row, which means the
+           same thing one panel down. */
+        button.tier-edit:not(:disabled) { background: #0047AB; border: none; color: #fff; }
+        button.tier-edit:not(:disabled):hover { background: #4B9CD3; }
 
         /* ⚠️ The text-style toggles keep NO hover fill on purpose — they are
            links wearing a <button> for keyboard and screen-reader reasons, and
@@ -623,18 +690,17 @@
            hover is btn-tint's derived filter: brightness(). Item 38 is still
            open and gets to decide what these MEAN. */
         button.btn-bg-333:not(:disabled)              { background: #333; }
-        button.btn-bg-1a3a1a:not(:disabled)           { background: #1a3a1a; }
         button.btn-bg-664400:not(:disabled)           { background: #664400; }
-        button.btn-bg-004466:not(:disabled)           { background: #004466; }
         button.btn-bg-4b9cd3:not(:disabled)           { background: #4B9CD3; }
         button.btn-bg-ffaa00:not(:disabled)           { background: #ffaa00; }
-        /* ⚠️ ROADMAP 56c (v1.9.0). #repair-titles-btn is BUILT IN JS and set its
-           background via style.cssText, so it was never in Round 59's sweep of
-           the eighteen inline backgrounds — and an inline value beats every
-           selector, so `button:hover` and btn-tint's brightness() could not reach
-           it. Jake found it by hovering. Its colour lives here now like every
-           other one's, and admin.js adds `btn-tint btn-bg-3a2200`. */
-        button.btn-bg-3a2200:not(:disabled)           { background: #3a2200; }
+        /* ⚠️ `btn-bg-3a2200` and `btn-bg-004466` were DELETED in v1.14.0, and the
+           reason is the point of the safe/edit pass. Both were decorative
+           per-button colours: the first on `Remove Chapter Titles`, which edits
+           STAGED text, and the second on `Write Repaired Order to Firestore`,
+           which calls setDoc() on the LIVE book. ⚠️⚠️ THE SECOND ONE WAS WEARING
+           A DECORATIVE BLUE AND SITTING BESIDE A GREY CANCEL, LOOKING LIKE ITS
+           EQUAL. Asking what a click costs is the only question that sorts
+           controls correctly, and it is what found that one. */
 
 
         /* ════════════════════════════════════════════════════════════════════
@@ -691,11 +757,9 @@
         /* border */
         .u-border-0 { border: 0; }
         .u-border-1px-solid-004466 { border: 1px solid #004466; }
-        .u-border-1px-solid-006688 { border: 1px solid #006688; }
         .u-border-1px-solid-1a4a1a { border: 1px solid #1a4a1a; }
         .u-border-1px-solid-330022 { border: 1px solid #330022; }
         .u-border-1px-solid-333 { border: 1px solid #333; }
-        .u-border-1px-solid-336633 { border: 1px solid #336633; }
         .u-border-1px-solid-440022 { border: 1px solid #440022; }
         .u-border-1px-solid-444 { border: 1px solid #444; }
         .u-border-1px-solid-444400 { border: 1px solid #444400; }
@@ -720,12 +784,8 @@
         .u-border-collapse-collapse { border-collapse: collapse; }
 
         /* border-color */
-        .u-border-color-004466 { border-color: #004466; }
         .u-border-color-333 { border-color: #333; }
-        .u-border-color-336633 { border-color: #336633; }
-        .u-border-color-440044 { border-color: #440044; }
         .u-border-color-4b9cd3 { border-color: #4B9CD3; }
-        .u-border-color-664400 { border-color: #664400; }
 
         /* border-left */
         .u-border-left-2px-solid-442233 { border-left: 2px solid #442233; }
@@ -768,6 +828,7 @@
         .u-color-bbddbb { color: #bbddbb; }
         .u-color-c05621 { color: #c05621; }
         .u-color-cc6688 { color: #cc6688; }
+        .u-color-ffcc66 { color: #ffcc66; }
         .u-color-cc66cc { color: #cc66cc; }
         .u-color-cc7777 { color: #cc7777; }
         .u-color-cc99cc { color: #cc99cc; }
@@ -780,7 +841,6 @@
         .u-color-ff6666 { color: #ff6666; }
         .u-color-ff9999 { color: #ff9999; }
         .u-color-ffaa00 { color: #ffaa00; }
-        .u-color-ffcc66 { color: #ffcc66; }
         .u-color-fff { color: #fff; }
         .u-color-red { color: red; }
         .u-color-white { color: white; }
@@ -1142,7 +1202,7 @@
                 <div class="btn-bar u-margin-top-10px">
                     <button id="create-parse-btn" class="btn-bar-grow"
                             title="Reads the EPUB and stages its chapters in this page only. Writes nothing to the database.">Parse &amp; Initialize Staging</button>
-                    <button id="create-reset-btn" class="secondary-btn u-padding-8px-16px u-white-space-nowrap"
+                    <button id="create-reset-btn" class="tier-edit u-padding-8px-16px u-white-space-nowrap"
                             title="Clear these fields so you can start another book without reloading.">Start another book</button>
                 </div>
             </div>
@@ -1173,7 +1233,7 @@
                              THEIR labels. aria-hidden: it reserves height, it does
                              not announce anything. -->
                         <label class="label-spacer" aria-hidden="true">Save</label>
-                        <button id="save-title-btn" class="secondary-btn u-border-color-336633 btn-tint btn-tint-save"
+                        <button id="save-title-btn" class="tier-edit"
                                 title="Saves the twelve metadata fields on this panel. Does NOT touch chapters or the cover.">Save Metadata</button>
                         <div id="save-title-status" class="u-font-size-0-75em u-min-height-1-1em u-margin-top-4px" style="color:#888;"></div>
                     </div>
@@ -1381,11 +1441,11 @@
                         title="Writes every staged chapter to the database, and saves the metadata form above at the same time.">Upload All Chapters to Database</button>
                 
                 <div class="u-display-flex u-gap-10px u-margin-top-10px">
-                    <button id="audit-book-btn" class="secondary-btn u-flex-1 u-border-color-664400 u-color-ffcc66 btn-tint btn-tint-audit">🔍 Audit Book for Untypeable Characters</button>
-                    <button id="language-scan-btn" class="secondary-btn u-flex-1 u-border-color-440044 u-color-cc66cc btn-tint btn-tint-scan">🔍 Scan for Language Warnings</button>
+                    <button id="audit-book-btn" class="tier-safe u-flex-1">🔍 Audit Book for Untypeable Characters</button>
+                    <button id="language-scan-btn" class="tier-safe u-flex-1">🔍 Scan for Language Warnings</button>
                 </div>
                 <div class="u-display-flex u-gap-10px u-margin-top-10px">
-                    <button id="repair-chapter-order-btn" class="secondary-btn u-flex-1 u-border-color-004466 u-color-66ccff btn-tint btn-tint-repair">🔧 Fix Chapter Order &amp; Remove Duplicates</button>
+                    <button id="repair-chapter-order-btn" class="tier-safe u-flex-1">🔧 Fix Chapter Order &amp; Remove Duplicates</button>
                 </div>
                 <div id="repair-results" class="hidden u-margin-top-10px u-padding-10px u-background-001a2a u-border-1px-solid-004466 u-color-66ccff u-font-size-0-85em"></div>
                 <div id="audit-results" class="hidden u-margin-top-15px u-background-1a1a00 u-border-1px-solid-444400 u-padding-15px u-max-height-400px u-overflow-y-auto"></div>
@@ -1485,7 +1545,7 @@
                     <div id="chap-edit-position" class="hidden u-font-size-0-8em u-color-4b9cd3 u-margin-bottom-6px"></div>
                     <div class="u-display-flex u-gap-10px u-flex-wrap-wrap">
                         <button id="update-staged-btn" class="hidden">Update Staged Chapter</button>
-                        <button id="update-next-btn" class="hidden u-border-color-336633 btn-tint btn-tint-save">Update &amp; Next →</button>
+                        <button id="update-next-btn" class="hidden tier-edit">Update &amp; Next →</button>
                         <button id="save-btn">Save Directly to DB</button>
                     </div>
                 </div>

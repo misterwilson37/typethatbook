@@ -1,4 +1,22 @@
-// admin.js v3.49.0
+// admin.js v3.50.0
+//
+// v3.50.0 — ⚠️ ROADMAP 38's safe/edit PASS, THE admin.js HALF.
+//           ⚠️⚠️ ONE CONTROL WAS FILED WRONG AND THE PASS IS HOW IT SURFACED.
+//           `Write Repaired Order to Firestore` calls setDoc() ON THE LIVE BOOK —
+//           it rewrites the chapter order every student reads — and it wore
+//           `btn-bg-004466`, a DECORATIVE BLUE, sitting beside a grey Cancel
+//           looking like its equal. It is `.tier-commit` now, with a hint that
+//           says what it reaches. ⭐ ASKING WHAT A CLICK COSTS IS THE ONLY
+//           QUESTION THAT SORTS CONTROLS CORRECTLY; a decorative palette had no
+//           way to notice this one.
+//           • `Remove Chapter Titles` → `.tier-edit`: it rewrites STAGED text and
+//             nothing in the database, so it is neither safe nor commit.
+//           • `Save Metadata` falls back to `.tier-edit`, not `btn-tint-save`'s
+//             #224422. ⚠️ GREEN IS SPENT: it means "nothing here existed before",
+//             and a second green on a control that CHANGES something is the exact
+//             defect item 38 exists to remove.
+//           ⚠️ THE CHAPTER ROW IS UNTOUCHED, BY RULING. Its colours are doing a
+//           job — they are how one control is found among forty rows.
 //
 // v3.49.0 — ⚠️⚠️ ROADMAP 55c: THE SAVE CONFIRMATION LISTED FOUR OF TWELVE FIELDS.
 //           Jake changed the age range, saved, and the confirmation did not
@@ -144,41 +162,7 @@
 //           hint on Save Metadata lists all twelve fields; ⚠️ ADD TO IT IN THE
 //           SAME EDIT AS readBookMetadataForm().
 //
-// v3.43.0 — ⚠️⚠️ ROADMAP 38 — `Upload All` IS TWO CONTROLS WEARING ONE BUTTON.
-//           Jake: "If we're uploading a book for the first time, it's not
-//           destructive, it's creative. It's new." Round 61 painted every upload
-//           red, which put the heaviest treatment on the page onto the button he
-//           presses on a GOOD day, after the work is done. Most uploads are new
-//           material. paintUploadButton() now swaps class AND label from
-//           activeBookExists(): green "Upload All Chapters to Database" when the
-//           book is new, red "Overwrite Existing Chapters in Database" when it is
-//           not.
-//           ⚠️⚠️ activeBookExists() IS EXTRACTED, NOT COPIED, AND THE CONFIRM
-//           DIALOG NOW READS IT TOO. v3.23.0's confirm already branched on the
-//           same hasOwnProperty(bookTitlesMap, activeBookId) test; leaving a
-//           second copy behind is how a green "create" button comes to open an
-//           "already exists, overwrite it?" dialog. One function, two callers.
-//           ⚠️⚠️ IT RETURNS null FOR "NOT KNOWN YET" AND null PAINTS RED.
-//           loadBookList() empties bookTitlesMap BEFORE its getDocs() resolves,
-//           so mid-refresh every book in the library reads as new — the one
-//           direction this must never guess wrong in. `bookListLoaded` is also
-//           cleared in the catch, because a failed read leaves the map empty and
-//           confidently wrong.
-//           ⚠️ COSTS NO READ. bookTitlesMap is already in memory from the list.
-//           ⚠️ A book document with NO chapters still reads as "exists" and gets
-//           the red. Titles are what the map carries; a chapter count would be a
-//           read per book change to sharpen a warning already erring safe.
-//
-// v3.42.1 — ⚠️ ONE CLASS, NO BEHAVIOUR. ROADMAP 38's commit tier: the chapter
-//           row's `Del` button gains `.tier-commit` beside the `.danger-btn` it
-//           already carried. ⚠️ NOTHING MOVES ON SCREEN — the two selectors share
-//           one declaration in admin.html v1.6.0 by design. The class is here so
-//           that tests/control-tier-test.mjs can ask the question in the vocabulary
-//           Jake ruled in, rather than by hunting a legacy name, and so the next
-//           pass can rename `.danger-btn` without having to work out which of its
-//           eight call sites were actually commit-tier. `Del` is the canonical
-//           commit example in his table.
-//
+// ⚠️ v3.43.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 70).
 // ⚠️ v3.42.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 69).
 // ⚠️ v3.41.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 68).
 // ⚠️ v3.40.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 66).
@@ -215,7 +199,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.49.0";
+const ADMIN_VERSION = "3.50.0";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -798,7 +782,7 @@ function paintSaveMetadataButton() {
     if (!saveTitleBtn) return;
     const creating = activeBookExists() === false;
     saveTitleBtn.classList.toggle('tier-create', creating);
-    saveTitleBtn.classList.toggle('btn-tint-save', !creating);
+    saveTitleBtn.classList.toggle('tier-edit', !creating);
     // ⚠️ THE FULL LIST, BECAUSE THE SHORT ONE IS WHY HE NEVER TRUSTED IT.
     // Jake: "the alert at the top of the page doesn't actually include everything
     // update metadata updates... I've never been sure what clicking it does."
@@ -5457,7 +5441,7 @@ function showLanguageWarnings(issues, fromDB = false) {
         html += `<div class="u-padding-10px-0 u-border-bottom-1px-solid-333">`;
         html += `<div class="u-justify-content-space-between u-align-items-center u-margin-bottom-6px u-display-flex">
             <div class="u-font-size-1em u-font-weight-bold u-color-ff6666">"${escapeHtml(word)}" — ${occurrences.length} occurrence${occurrences.length !== 1 ? 's' : ''}</div>
-            <button class="lang-approve-word-btn u-padding-3px-10px u-cursor-pointer u-font-size-0-75em u-width-auto btn-bg-1a3a1a btn-tint u-color-66cc66 u-border-1px-solid-336633" data-word="${escapeHtml(wordKey)}">✅ Approve all "${escapeHtml(word)}"</button>
+            <button class="lang-approve-word-btn tier-edit u-padding-3px-10px u-cursor-pointer u-font-size-0-75em u-width-auto" data-word="${escapeHtml(wordKey)}">✅ Approve all "${escapeHtml(word)}"</button>
         </div>`;
 
         occurrences.forEach(occ => {
@@ -6569,8 +6553,8 @@ if (repairChapterOrderBtn) {
                 '<br><br><strong>After (' + deduped.length + ' entries):</strong><br>' +
                 after.split(', ').map(id => '<span class="u-color-66ccff">' + id + '</span>').join(' ') +
                 (dupCount > 0 ? '<br><br><span class="u-color-ffaa00">⚠️ ' + dupCount + ' duplicate(s) will be removed.</span>' : '') +
-                '<br><br><button id="repair-confirm-btn" class="u-padding-8px-20px u-cursor-pointer u-border-radius-4px btn-bg-004466 btn-tint u-border-1px-solid-006688 u-color-66ccff">Write Repaired Order to Firestore</button>' +
-                ' <button id="repair-cancel-btn" class="u-padding-8px-20px u-cursor-pointer u-border-radius-4px btn-bg-333 btn-tint u-border-1px-solid-555 u-color-aaa">Cancel</button>';
+                '<br><br><button id="repair-confirm-btn" class="tier-commit u-padding-8px-20px u-cursor-pointer u-border-radius-4px" title="Writes the repaired chapter order to the LIVE book — every student reading it gets the new order.">Write Repaired Order to Firestore</button>' +
+                ' <button id="repair-cancel-btn" class="tier-safe u-padding-8px-20px u-cursor-pointer u-border-radius-4px">Cancel</button>';
 
             document.getElementById('repair-cancel-btn').onclick = () => {
                 resultsEl.innerHTML = 'Cancelled.';
@@ -6639,9 +6623,9 @@ function injectTitleRepairUI() {
     // `button:hover` could not reach this button and it was one of the two Jake
     // found with no hover glow. Round 59 fixed eighteen of these in the markup;
     // this one is built in JS and was outside that sweep.
-    btn.className = 'btn-tint btn-bg-3a2200';
-    btn.style.cssText = 'border:1px solid #886600;color:#ffcc66;' +
-        'padding:8px 16px;cursor:pointer;border-radius:4px;width:auto;margin-left:8px;';
+    btn.className = 'tier-edit';   // ⚠ ROADMAP 38: it edits STAGED text
+    btn.style.cssText = 'padding:8px 16px;cursor:pointer;border-radius:4px;' +
+        'width:auto;margin-left:8px;';
     const anchor = document.getElementById('repair-chapter-order-btn');
     if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(btn, anchor.nextSibling);
     else host.parentNode.insertBefore(btn, host);

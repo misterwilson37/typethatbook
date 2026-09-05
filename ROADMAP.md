@@ -390,7 +390,6 @@ Everything else still open:
 - 12. ⚠️⚠️ REOPENED (Round 59, Jewett) — THE LEAD AXIS, AND JAKE'S RULING ON WHAT SHOULD ALIGN  *(⚠️ DO NOT SHIP style.css v3.10.0 — he looked at it rendered and ruled against it)*
 - 53. ⚠️ EIGHTY BOOKS AND NO WAY THROUGH THEM — SEARCH, AND SOMETHING FEATURED  *(Jake asked, 2026-09-03)*
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
-- 38. ⚠️ OPEN for admin — commit + create tiers DONE (Rounds 61-63), safe/edit NOT — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS  *(⚠️ UNBLOCKED, and Jake has RULED — build to the table, do not re-open it)*
 - 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
 - 58. ⭐ A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
 - 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED  *(found Round 60; touches three mirrored files — read the item)*
@@ -405,6 +404,7 @@ Everything else still open:
 - 49. ✅ FIXED (Round 58, Emerson) — A STALE HARD-STOP OVERLAY DEMANDED A KEY FROM A DELETED DRILL  *(⚠️ Caps Lock is ruled NOT-a-bug — do not "fix" the e.key comparison)*
 - 48. ✅ “TEXT PREPARED BY” NAMED THE WRONG PERSON ON EVERY BOOK, ON EVERY SURFACE  *(Round 57 — two defects, one symptom)*
 - 44. ✅ THE BOOK ID FIELD ACCEPTS ANYTHING TYPED INTO IT, AND slugifyBookId() IS RIGHT THERE  *(Round 57 — warns on whitespace, never blocks)*
+- 38. ✅ CLOSED for admin (Rounds 61-70) — reports.html closed Round 55 — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS  *(⚠️ UNBLOCKED, and Jake has RULED — build to the table, do not re-open it)*
 - 56. ✅ CLOSED — (a) Round 68, (b) and (c) Round 64 — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS  *(Jake, 2026-09-03)*
 - 51. ✅ THE BUILD LIST IS IN NO ORDER A READER CAN RECOGNISE — SORT IT ALPHABETICALLY  *(CLOSED Round 64)*  *(Jake asked, 2026-09-03. Sort in renderBuildList(), NEVER the SOURCES array — read the item first)*
 - 29. ✅ README.md IS TWENTY-FIVE ROUNDS STALE  *(CLOSED Round 64 — and the item's own premise was stale; read it)*  *(Round 57 — file map regenerated from versions.js)*
@@ -4236,7 +4236,7 @@ once the tokens exist, and 38 is barely expressible without them.
 
 ---
 
-## 38. ⚠️ OPEN for admin — commit + create tiers DONE (Rounds 61-63), safe/edit NOT — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS
+## 38. ✅ CLOSED for admin (Rounds 61-70) — reports.html closed Round 55 — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS
 
 ⚠️ **JAKE'S STANDING RULING OF 2026-09-02 APPLIES TO admin AND IS RECORDED IN
 FULL IN ITEM 42:** *"right now it looks bad. Consistency would help a lot, so
@@ -4300,6 +4300,61 @@ decision being reversed by accident.
 ⚠️ **THIS ROUND ENDS BY LOOKING AT IT RENDERED**, and an A/B beside the current
 page is the deliverable that gets the sign-off — twice on 2026-09-03 a picture
 told Jake something 68 harnesses could not.
+
+### ✅ ROUND 70 (Duplex) — THE safe/edit PASS. FOUR TIERS, AND ONE CONTROL WAS FILED WRONG.
+
+✅ **`admin.html` v1.14.0, `admin.js` v3.50.0.**
+
+| tier | hue | means |
+|---|---|---|
+| safe | grey | reads or reports; changes nothing |
+| edit | blue | changes something that exists, reversibly |
+| create | green | ⚠️ **nothing here existed before** |
+| commit | red | irreversible, or it reaches students |
+
+**Retired:** `btn-tint-save` `#224422`, `btn-tint-audit` `#332200`,
+`btn-tint-scan` `#220022`, `btn-tint-repair` `#002233`, `btn-bg-3a2200`,
+`btn-bg-004466`, `btn-bg-1a3a1a`, and seven orphaned border/colour utilities that
+`inline-styles-test.mjs` A4 surfaced as each one's last user left.
+
+### ⚠️⚠️ THE PASS FOUND A CONTROL THAT WAS FILED WRONG, WHICH IS WHAT IT WAS FOR
+
+**`Write Repaired Order to Firestore` calls `setDoc()` on the LIVE book** — it
+rewrites the chapter order every student is reading — and it wore
+`btn-bg-004466`, **a decorative blue**, sitting beside a grey `Cancel` **looking
+like its equal**. It is `.tier-commit` now, with a hint saying what it reaches.
+⭐ **ASKING WHAT A CLICK COSTS IS THE ONLY QUESTION THAT SORTS CONTROLS CORRECTLY.**
+A decorative palette had no way to notice that one, because it was never asking.
+
+Also re-filed: `Remove Chapter Titles` → **edit** (it rewrites *staged* text and
+nothing in the database), `Approve all "word"` → **edit** (it was the last second
+green), `Audit` / `Scan` / `Fix Chapter Order` → **safe** (all three only report).
+
+### ⚠️⚠️ AND THE PASS UNCOVERED A LIVE DEFECT I SHIPPED IN ROUND 61
+
+**None of the tier rules carried `:not(:disabled)`.** `button:disabled {
+background:#555 }` sits **earlier** in `admin.html`, so an unguarded tier rule ties
+on specificity and **wins on source order** — meaning `Upload All` and `Save
+Metadata` stayed at full colour the whole time `admin.js` had them disabled for
+slow work. **That shipped from Round 61 to Round 70 and nothing on screen said so.**
+
+⭐ **`inline-styles-test.mjs` C3c CAUGHT IT THE MOMENT THE TIERS INHERITED THE
+QUESTION IT HAD BEEN ASKING OF THE OLD TINT CLASSES.** The check existed, pointed
+at the right property, and simply had not been aimed at the new names yet —
+⚠️ **when you replace a class, move the checks that were watching it, in the same
+round.**
+
+### ⚠️⚠️ GREEN IS SPENT, AND G2 NOW MEASURES IT
+
+`.tier-create` means *nothing here existed before*. `#224422` meant *this button
+saves*, which is a different sentence in the same colour. **G2 walks every `button`
+rule in the file and fails if more than one green background survives** — not a
+grep for a class name, a measurement of the page's actual palette.
+
+### ⚠️ THE CHAPTER ROW IS UNTOUCHED, AND G3 FAILS IF ANYONE "FINISHES THE JOB"
+
+Jake's ruling below. Only `Del` carries a tier there, because it is genuinely
+commit. ⚠️ **DO NOT TIER THE REST OF THAT ROW.**
 
 ### ⭐ JAKE'S RULING, 2026-09-04: THE CHAPTER ROW KEEPS ITS RAINBOW
 

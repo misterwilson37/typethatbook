@@ -41,6 +41,7 @@ import { readFileSync } from 'node:fs';
 
 const html = readFileSync(new URL('../admin.html', import.meta.url), 'utf8');
 const js   = readFileSync(new URL('../admin.js',   import.meta.url), 'utf8');
+const adminJsSrc = js;
 
 const results = [];
 function check(name, fn) {
@@ -110,7 +111,11 @@ check('A6. the chapter row\u2019s Del button is tier-commit', () => {
 // ─── B. THE TIER IS DECLARED, ONCE, AND SHARES ITS DECLARATION ───────────────
 
 check('B1. .tier-commit is declared in admin.html', () => {
-    assert.match(html, /button\.tier-commit\s*,/,
+    // ⚠️ THE `:not(:disabled)` IS REQUIRED, not tolerated. `button:disabled` sits
+    // earlier in the file, so an unguarded tier rule ties on specificity and wins
+    // on source order — and Upload All stays full red while admin.js has it
+    // disabled mid-upload. That shipped from Round 61 to Round 70.
+    assert.match(html, /button\.tier-commit:not\(:disabled\)\s*,/,
         'the class is applied to controls and styled nowhere, which renders as ' +
         'the default blue and passes an "is the class present" test');
 });
@@ -121,10 +126,10 @@ check('B2. .tier-commit and .danger-btn share ONE declaration', () => {
     // drift into two nearly-identical reds — Jake's number one pet peeve, and
     // the exact failure item 38 lists as "two reds doing very different jobs".
     // The next pass renames .danger-btn away; until then they must be welded.
-    assert.match(html, /button\.tier-commit,\s*\n\s*button\.danger-btn\s*\{/,
+    assert.match(html, /button\.tier-commit:not\(:disabled\),\s*\n\s*button\.danger-btn:not\(:disabled\)\s*\{/,
         'the two selectors are no longer in one rule. If .danger-btn has been ' +
         'renamed out of existence, delete this case in that round and say so');
-    assert.match(html, /button\.tier-commit:hover,\s*\n\s*button\.danger-btn:hover\s*\{/,
+    assert.match(html, /button\.tier-commit:not\(:disabled\):hover,\s*\n\s*button\.danger-btn:not\(:disabled\):hover\s*\{/,
         'the hover states have separated, which is the same drift one state later');
 });
 
@@ -132,7 +137,7 @@ check('B2. .tier-commit and .danger-btn share ONE declaration', () => {
 
 check('C1. the commit tier is not the default button background', () => {
     const dflt  = /(?:^|\n)\s*button\s*\{[^}]*background:\s*([#\w]+)/.exec(html);
-    const commit = /button\.tier-commit,\s*\n\s*button\.danger-btn\s*\{[^}]*background:\s*([#\w]+)/.exec(html);
+    const commit = /button\.tier-commit:not\(:disabled\),\s*\n\s*button\.danger-btn:not\(:disabled\)\s*\{[^}]*background:\s*([#\w]+)/.exec(html);
     assert.ok(dflt && commit, 'could not read both backgrounds out of the style block');
     assert.notEqual(dflt[1].toLowerCase(), commit[1].toLowerCase(),
         '⚠️⚠️ commit and the default resolve to the SAME colour, which is the ' +
@@ -152,11 +157,11 @@ check('C2. #upload-all-btn is no longer classless', () => {
 // ─── D. THE UPLOAD CONTROL'S TIER FOLLOWS THE DATA ──────────────────────────
 
 check('D1. .tier-create is declared, and is not the commit red', () => {
-    assert.match(html, /button\.tier-create\s*\{/,
+    assert.match(html, /button\.tier-create:not\(:disabled\)\s*\{/,
         'the create tier is applied in admin.js and styled nowhere, which paints ' +
         'the default blue and passes every "is the class set" check');
-    const create = /button\.tier-create\s*\{[^}]*background:\s*([#\w]+)/.exec(html);
-    const commit = /button\.tier-commit,\s*\n\s*button\.danger-btn\s*\{[^}]*background:\s*([#\w]+)/.exec(html);
+    const create = /button\.tier-create:not\(:disabled\)\s*\{[^}]*background:\s*([#\w]+)/.exec(html);
+    const commit = /button\.tier-commit:not\(:disabled\),\s*\n\s*button\.danger-btn:not\(:disabled\)\s*\{[^}]*background:\s*([#\w]+)/.exec(html);
     assert.ok(create && commit, 'could not read both tier backgrounds');
     assert.notEqual(create[1].toLowerCase(), commit[1].toLowerCase(),
         'create and commit resolve to the same colour, so the state the button is ' +
@@ -316,6 +321,77 @@ check('F3. the Save Metadata hint lists every field the form writes', () => {
     assert.deepEqual(missing, [],
         'fields written by readBookMetadataForm() and not named in the hint: ' +
         missing.join(', ') + '. Add them in the same edit as the form');
+});
+
+// ─── G. ROADMAP 38's safe/edit PASS — SCOPED BY JAKE'S RULING ───────────────
+//
+// *"Let's leave the rainbow of buttons in the chapter layout for now. I see their
+// value now that I'm looking for them to disappear every round. The other buttons
+// on the page can get more regular treatment, though."*
+
+check('G1. ⚠️⚠️ the four decorative tints are RETIRED', () => {
+    // ⚠️ HTML comments too. This file's own version header explains WHY these
+    // were retired, by naming them — the first draft read its own explanation as
+    // evidence they were back, which is the same mistake staff-tokens-test.mjs
+    // learned about CSS comments.
+    const css = html.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
+    const js  = adminJsSrc.replace(/\/\/[^\n]*/g, ' ').replace(/\/\*[\s\S]*?\*\//g, ' ');
+    for (const t of ['btn-tint-save', 'btn-tint-audit', 'btn-tint-scan', 'btn-tint-repair',
+                     'btn-bg-3a2200', 'btn-bg-004466']) {
+        assert.ok(!css.includes(t) && !js.includes(t),
+            '`' + t + '` is back. A per-button hue is what the pass replaced — and ' +
+            '`btn-tint-save` in particular was a SECOND GREEN, on a control that ' +
+            'changes something that already exists');
+    }
+});
+
+check('G2. ⚠️⚠️ GREEN IS SPENT — no second green anywhere on the page', () => {
+    // `.tier-create` means "nothing here existed before". #224422 meant "this
+    // button saves", which is a different sentence in the same colour.
+    // ⚠️ BUTTON RULES ONLY. Panels and status boxes use dark greens for success
+    // and always have; this claim is about CONTROLS, and overreaching it would
+    // fail the round for something that is not the defect.
+    const css = html.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/<!--[\s\S]*?-->/g, ' ');
+    const greens = [...css.matchAll(/(button[^{}]*)\{([^}]*)\}/g)]
+        .flatMap(m => [...m[2].matchAll(/background:\s*(#[0-9a-f]{3,6})/gi)]
+                        .map(b => [m[1], b[1].toLowerCase()]))
+        // The create tier's own hover is the same tier, not a second meaning.
+        .filter(([sel]) => !/:hover/.test(sel))
+        .map(([, h]) => h)
+        .filter(h => {
+            const x = h.length === 4 ? h[1] + h[1] + h[2] + h[2] + h[3] + h[3] : h.slice(1);
+            const r = parseInt(x.slice(0, 2), 16), g = parseInt(x.slice(2, 4), 16), b = parseInt(x.slice(4), 16);
+            return g > r + 12 && g > b + 12;   // greener than it is anything else
+        });
+    assert.deepEqual([...new Set(greens)], ['#050'],
+        '⚠️ more than one green background on this page: ' + [...new Set(greens)].join(', ') +
+        '. Green means exactly one thing here — nothing existed before');
+});
+
+check('G3. ⚠️⚠️ the CHAPTER ROW is untouched, and that is a ruling', () => {
+    // Its colours are DOING A JOB: About / Merge / Split / Front / Body / Edit /
+    // Del get scanned dozens of times per book, and colour is how one is found
+    // among forty rows. Flattening them would remove a working index and call it
+    // consistency. ⚠️ DO NOT "FINISH THE JOB" HERE.
+    const row = /<button class="[^"]*\bmerge-btn\b[\s\S]{0,900}?delete-btn/.exec(adminJsSrc);
+    assert.ok(row, 'the chapter row template has moved — find it before assuming ' +
+        'this case is obsolete');
+    assert.ok(!/tier-safe|tier-edit/.test(row[0]),
+        '⚠️⚠️ the chapter row has been tiered. Jake ruled it OUT: those colours are ' +
+        'how he finds one control among forty rows, and flattening them removes a ' +
+        'working index. Only `Del` carries a tier, because it is genuinely commit');
+});
+
+check('G4. Write Repaired Order is COMMIT — it setDoc()s the live book', () => {
+    // ⭐ THE PASS FOUND THIS. It wore a decorative blue and sat beside a grey
+    // Cancel looking like its equal, while calling setDoc() on the book every
+    // student reads. Asking what a click costs is the only question that sorts
+    // controls correctly.
+    const tag = /<button id="repair-confirm-btn"[^>]*>/.exec(adminJsSrc);
+    assert.ok(tag, '#repair-confirm-btn has moved');
+    assert.match(tag[0], /\btier-commit\b/,
+        '⚠️⚠️ the button that rewrites the live chapter order is not commit-tier');
+    assert.match(tag[0], /title="[^"]{30,}"/, 'it does not say what it reaches');
 });
 
 let failed = 0;
