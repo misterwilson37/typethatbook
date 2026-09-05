@@ -1,5 +1,71 @@
 # CHANGELOG — TypeThatBook
 
+## Round 69 (Duplex) — 2026-09-04 — the save confirmation listed four of twelve fields
+
+### ⚠️⚠️ ROADMAP 55c — Jake could not remember the second omission. There were eight.
+
+The confirmation listed genre, ages, lead and cover. `readBookMetadataForm()`
+writes **twelve** fields: title, author, source, rights, both URLs, prepared by and
+cleaned up by were all written in silence.
+
+⭐ **A confirmation that lists *some* of what it wrote is worse than one that lists
+none** — it teaches the reader to trust a list that is lying.
+
+`admin.js` **v3.48.0 → v3.49.0**. `describeSave()` iterates
+`Object.entries(updates)` — **the same object handed to `setDoc()`**. Add a field
+to the form and it appears here with no edit. ⚠️ `SAVE_FIELD_LABELS` only
+prettifies names and **never gates what is shown**: an unlabelled key is listed
+anyway, humanised from its own name. A map that gated visibility would be the
+hand-kept list again, one refactor later.
+
+### ⭐ It reports what CHANGED, and that costs no read
+
+Jake asked whether it could, and whether it would need one. It does not:
+`loadBookMetadata()` already has the document open to fill the form, so
+`_metaBaseline` keeps what it read.
+
+⚠️ **The baseline is the DOCUMENT, never the form** — snapshotting the inputs would
+compare against whatever autofill left behind and report a change the database
+never had. ⚠️ The diff is exactly as fresh as the write is: a stale baseline means
+a stale `merge` too, so it never claims more accuracy than the save has.
+
+⚠️ A save that changed **nothing** now says so — it used to look identical to one
+that changed everything, which is how a dead form field goes unnoticed. ⚠️ A book
+with **no baseline** reports *first save*, not *nothing changed*. ⚠️ `minAge` and
+`maxAge` are one fact with two keys; reported apart, one edit read as two changes.
+⚠️ The cover line stays explicit — it is not in `updates` unless one was uploaded,
+so the iteration cannot speak for it, and its silence is what let two books ship
+coverless under a "✓ Saved".
+
+Real output, before and after an age + genre edit:
+
+```
+✓ Saved at 12:05:13 PM · changed: ages 10–14 · genre: Science Fiction ·
+  9 other field(s) unchanged · cover unchanged
+✓ Saved at 12:06:02 PM · no field changed — 11 written as they were · cover unchanged
+```
+
+### ⭐ Part M runs the real function
+
+`describeSave()` is pure, so `build-list-test.mjs` lifts it out of `admin.js` and
+drives it. **M2 builds its input from the key list read out of
+`readBookMetadataForm()` itself**, so "every written field is named" is *executed*
+rather than grepped — the one assertion this item is actually about. 8 new
+assertions, **42 total**, mutation-verified four ways: curated list instead of
+iteration, labels gating visibility, the age keys split, and no-baseline collapsing
+into no-change.
+
+### ⚠️ 55d untouched, deliberately
+
+The two `alert()`s at the top of the handler stay. Item 39 converts
+`alert()`/`confirm()` **whole pages at a time**, never one call, and a
+half-converted destructive confirmation fires without waiting for its answer.
+
+### Verification
+
+**71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `npm run test:rules` NOT
+run; nothing here touches `firestore.rules`.
+
 ## Round 68 (Duplex) — 2026-09-04 — the (i) buttons answer something, and the cover was the span all along
 
 ### ⚠️⚠️ ROADMAP 56a — a help affordance that answers nothing
@@ -7753,4 +7819,47 @@ try { sessionStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
 //           computed in one pass and applied right-to-left, asserted
 //           non-overlapping — nothing located by anchor text, so there is no
 //           anchor to match the wrong occurrence.
+```
+
+### § admin.js — archived header entries (Round 69)
+
+```
+// v3.42.0 — ⚠⚠ ROADMAP 42, THE COLOUR HALF — THE ONE THAT UNBLOCKS ITEM 38.
+//           232 declarations out of 150 template-string style= attributes: 31
+//           new utility classes, 30 existing reused, 0 collisions. This file
+//           goes 163 style= attributes to 13 and 289 declarations to 57.
+//           ⚠⚠ EIGHTEEN OF THEM WERE BUTTON BACKGROUNDS AND THAT PART IS NOT
+//           MECHANICAL. An inline value beats every selector, so each had been
+//           suppressing BOTH `button:hover` and `button:disabled` since it was
+//           written — the second is the defect class Jake ruled on in Round 57
+//           ("buttons that don't work or are invisible need to be fixed").
+//           ⚠⚠ AND THE OBVIOUS EXTRACTION MAKES IT WORSE: `u-background-333` is
+//           one class (0,1,0) and `button:hover` is (0,1,1), so the button would
+//           flood Carolina blue on hover. They take btn-tint's shape instead —
+//           `button.btn-bg-<v>:not(:disabled)` plus btn-tint for the derived
+//           brightness hover. ⚠ NOT `u-` NAMES ON PURPOSE: that prefix promises
+//           a single-class single-property utility and these are neither.
+//           ⚠ THREE WERE DELETED RATHER THAN MOVED — their value was #0047AB,
+//           which IS `button`'s own background, so the declaration said nothing
+//           and only suppressed. One was `background:none` and took .btn-plain.
+//           ⚠ NO COLOUR WAS MERGED. Value-named extraction only; item 38 still
+//           gets to decide what amber means here. Jake's standing ruling of
+//           2026-09-02 licenses normalising SIZES, explicitly not colours.
+//           ⚠ THE BLOCKING RULE COST NOTHING: the three `.style.<p> = ''` resets
+//           (build-panel display, .seg-row background, .seg-text color) all land
+//           on elements with no static style= attribute, so none of them was in
+//           the candidate set. Re-run the grep in ROADMAP 42 before extending
+//           this — a new `= ''` anywhere adds a fourth.
+//           ⚠ 13 attributes refused: 2 dynamic (contain ${{}}), 11 SPLICED — the
+//           attribute text spans a JS string join, so deleting the span would
+//           delete the quote that ends one literal and the one that begins the
+//           next. A quote alone is not a splice: font-family:'Courier New' is
+//           ordinary CSS inside a double-quoted attribute, and reading it as one
+//           refused seven healthy attributes on the first pass.
+//           ⚠ v3.33.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS
+//           (8-entry budget). It is the build panel and the versions.js SOURCES
+//           registration, and TWO live references depend on it — line 671's
+//           "WRITES THE SPAN, NOT THE WHOLE FOOTER" and session-merge-test.mjs's
+//           dead-HUD-reset assertion. It carried the v3.32.0 pointer too.
+//           NOTHING DELETED; all of it resolves in the CHANGELOG.
 ```

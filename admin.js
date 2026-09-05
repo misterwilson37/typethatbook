@@ -1,4 +1,36 @@
-// admin.js v3.48.0
+// admin.js v3.49.0
+//
+// v3.49.0 — ⚠️⚠️ ROADMAP 55c: THE SAVE CONFIRMATION LISTED FOUR OF TWELVE FIELDS.
+//           Jake changed the age range, saved, and the confirmation did not
+//           mention it — "I think there was something else that also wasn't
+//           included, but I can't remember what." THERE WERE EIGHT. The line
+//           listed genre, ages, lead and cover; title, author, source, rights,
+//           both URLs, prepared by and cleaned up by were written in silence.
+//           ⭐ A CONFIRMATION THAT LISTS *SOME* OF WHAT IT WROTE IS WORSE THAN ONE
+//           THAT LISTS NONE — it teaches the reader to trust a list that is lying.
+//           ⚠️⚠️ describeSave() ITERATES `Object.entries(updates)`, THE SAME OBJECT
+//           HANDED TO setDoc(). Add a field to readBookMetadataForm() and it
+//           appears with no edit here. ⚠️ DO NOT REPLACE IT WITH A CURATED LIST,
+//           however tidy the output looks; SAVE_FIELD_LABELS only prettifies names
+//           and never gates what is shown.
+//           ⭐ AND IT REPORTS WHAT CHANGED, NOT MERELY WHAT WAS WRITTEN — Jake
+//           asked, and asked whether that costs a read. IT DOES NOT:
+//           loadBookMetadata() already has the document open to fill the form, so
+//           `_metaBaseline` keeps what it read. ⚠️ THE BASELINE IS THE DOCUMENT,
+//           NEVER THE FORM: snapshotting the inputs would compare against whatever
+//           autofill left behind and report a change the database never had.
+//           ⚠️ The diff is exactly as fresh as the write is — a stale baseline
+//           means a stale merge too, so it never claims more accuracy than the
+//           save has.
+//           ⚠️ minAge/maxAge are ONE fact with two keys; reported apart they read
+//           as two changes for one edit. ⚠️ A save that changed NOTHING now says
+//           so — it used to look identical to one that changed everything, which
+//           is how a dead form field goes unnoticed.
+//           ⚠️ THE COVER LINE STAYS EXPLICIT: it is not in `updates` unless one
+//           was uploaded, so the iteration cannot speak for it, and its silence is
+//           what let two books ship coverless under a "✓ Saved".
+//           ⚠️ 55d UNTOUCHED: the two alert()s at the top of this handler stay.
+//           Item 39 converts alert()/confirm() WHOLE PAGES AT A TIME, never one.
 //
 // v3.48.0 — ⚠️⚠️ ROADMAP 56a: THE (i) BUTTONS ANSWER SOMETHING NOW. They were
 //           <span>s carrying a `title`, so there was nothing to click — a help
@@ -147,45 +179,7 @@
 //           eight call sites were actually commit-tier. `Del` is the canonical
 //           commit example in his table.
 //
-// v3.42.0 — ⚠⚠ ROADMAP 42, THE COLOUR HALF — THE ONE THAT UNBLOCKS ITEM 38.
-//           232 declarations out of 150 template-string style= attributes: 31
-//           new utility classes, 30 existing reused, 0 collisions. This file
-//           goes 163 style= attributes to 13 and 289 declarations to 57.
-//           ⚠⚠ EIGHTEEN OF THEM WERE BUTTON BACKGROUNDS AND THAT PART IS NOT
-//           MECHANICAL. An inline value beats every selector, so each had been
-//           suppressing BOTH `button:hover` and `button:disabled` since it was
-//           written — the second is the defect class Jake ruled on in Round 57
-//           ("buttons that don't work or are invisible need to be fixed").
-//           ⚠⚠ AND THE OBVIOUS EXTRACTION MAKES IT WORSE: `u-background-333` is
-//           one class (0,1,0) and `button:hover` is (0,1,1), so the button would
-//           flood Carolina blue on hover. They take btn-tint's shape instead —
-//           `button.btn-bg-<v>:not(:disabled)` plus btn-tint for the derived
-//           brightness hover. ⚠ NOT `u-` NAMES ON PURPOSE: that prefix promises
-//           a single-class single-property utility and these are neither.
-//           ⚠ THREE WERE DELETED RATHER THAN MOVED — their value was #0047AB,
-//           which IS `button`'s own background, so the declaration said nothing
-//           and only suppressed. One was `background:none` and took .btn-plain.
-//           ⚠ NO COLOUR WAS MERGED. Value-named extraction only; item 38 still
-//           gets to decide what amber means here. Jake's standing ruling of
-//           2026-09-02 licenses normalising SIZES, explicitly not colours.
-//           ⚠ THE BLOCKING RULE COST NOTHING: the three `.style.<p> = ''` resets
-//           (build-panel display, .seg-row background, .seg-text color) all land
-//           on elements with no static style= attribute, so none of them was in
-//           the candidate set. Re-run the grep in ROADMAP 42 before extending
-//           this — a new `= ''` anywhere adds a fourth.
-//           ⚠ 13 attributes refused: 2 dynamic (contain ${{}}), 11 SPLICED — the
-//           attribute text spans a JS string join, so deleting the span would
-//           delete the quote that ends one literal and the one that begins the
-//           next. A quote alone is not a splice: font-family:'Courier New' is
-//           ordinary CSS inside a double-quoted attribute, and reading it as one
-//           refused seven healthy attributes on the first pass.
-//           ⚠ v3.33.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS
-//           (8-entry budget). It is the build panel and the versions.js SOURCES
-//           registration, and TWO live references depend on it — line 671's
-//           "WRITES THE SPAN, NOT THE WHOLE FOOTER" and session-merge-test.mjs's
-//           dead-HUD-reset assertion. It carried the v3.32.0 pointer too.
-//           NOTHING DELETED; all of it resolves in the CHANGELOG.
-//
+// ⚠️ v3.42.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 69).
 // ⚠️ v3.41.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 68).
 // ⚠️ v3.40.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 66).
 // ⚠️ v3.39.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
@@ -221,7 +215,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.48.0";
+const ADMIN_VERSION = "3.49.0";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -697,6 +691,12 @@ let bookListLoaded = false;
 // ⚠️ IT COSTS NO READ. `b.chapters` is already in hand in loadBookList() — the
 // re-upload dot has been reading it since v3.21.0 to check `about`.
 let bookHasChapters = {};
+
+// ⚠️ ROADMAP 55c — WHAT THE DOCUMENT SAID WHEN THIS BOOK WAS OPENED (v3.49.0).
+// null means "no baseline": a book being created, or a book whose load failed.
+// ⚠️ THAT IS NOT THE SAME AS "nothing changed", and describeSave() must not
+// render it as such — a first save has to say so, not claim twelve changes.
+let _metaBaseline = null;
 
 /**
  * ROADMAP 38 — does the ACTIVE book already exist in Firestore?
@@ -1527,6 +1527,16 @@ openBookBtn.onclick = async () => {
             // a recorded one afterwards, and this field exists to be trusted.
             // Backfill on an explicit instruction, never on inference.
             showUploadedBy(meta.uploadedBy);
+            // ⚠️ ROADMAP 55c — THE BASELINE FOR "WHAT ACTUALLY CHANGED" (v3.49.0).
+            // Jake asked whether the save confirmation could name what CHANGED
+            // rather than what was written, and whether that costs a read. It does
+            // not: this function has the document open right now to fill the form,
+            // so the comparison value is already here. Taking it anywhere else would
+            // be a second read of a document the page just read.
+            // ⚠️ IT IS THE DOCUMENT, NOT THE FORM. Snapshotting the inputs after
+            // this block would compare against whatever autofill or a stale field
+            // left behind, and report a change the database never had.
+            _metaBaseline = meta;
             // Attribution (v3.20.0). Plain || is correct here — these are strings
             // and '' is exactly what an untagged book should show.
             writeSelectOrCustom('active-book-source', meta.source);
@@ -4629,6 +4639,107 @@ function readAgeRange() {
 // SECOND change listener duplicating the one in the population block 3,000 lines above,
 // and both were dead because no __custom__ option existed to select.
 
+// ─── ⚠️⚠️ ROADMAP 55c — THE SAVE CONFIRMATION IS BUILT FROM THE WRITE (v3.49.0)
+//
+// Jake changed the age range, saved, and the confirmation did not mention it —
+// *"I think there was something else that also wasn't included, but I can't
+// remember right now what it was."*
+//
+// ⚠️⚠️ THERE WERE EIGHT SOMETHING-ELSES. The old line listed genre, ages, lead and
+// cover: FOUR of the TWELVE fields readBookMetadataForm() writes. Title, author,
+// source, rights, both URLs, prepared by and cleaned up by were all written in
+// silence. ⭐ A CONFIRMATION THAT LISTS *SOME* OF WHAT IT WROTE IS WORSE THAN ONE
+// THAT LISTS NONE, because it teaches the reader to trust a list that is lying.
+//
+// ⚠️⚠️ SO IT ITERATES THE OBJECT THAT IS WRITTEN. Not a hand-kept list of
+// interesting fields — `Object.entries(updates)`, the same object handed to
+// setDoc(). Add a field to the form and it appears here with no edit, which is the
+// only arrangement that cannot drift. ⚠️ DO NOT REPLACE THIS WITH A CURATED LIST,
+// however tidy the output looks.
+//
+// ⭐ AND IT REPORTS WHAT CHANGED, NOT MERELY WHAT WAS WRITTEN. Jake asked for that
+// and asked whether it costs a read. It does not: loadBookMetadata() already has
+// the document open to fill the form, and `_metaBaseline` keeps it.
+// ⚠️ THE DIFF IS EXACTLY AS FRESH AS THE WRITE IS. If someone edited the book
+// elsewhere since this page opened it, the baseline is stale — but so is the
+// merge that is about to overwrite them. It never claims more accuracy than the
+// save itself has.
+
+// ⚠️ LABELS ONLY. A key missing from this map still gets listed, humanised from
+// its own name — the map makes the output readable, it does not decide what is
+// shown. A map that gated visibility would be the hand-kept list again.
+const SAVE_FIELD_LABELS = {
+    title: 'title', author: 'author', genre: 'genre',
+    protagonistGender: 'lead', source: 'source', rights: 'license',
+    archiveUrl: 'archive URL', originUrl: 'origin URL',
+    preparedBy: 'prepared by', cleanedBy: 'cleaned up by',
+};
+function saveFieldLabel(key) {
+    // ⚠️ LOWERCASE THE WHOLE THING, not just the first character. `.replace(/^./)`
+    // left inner capitals — `someNewField` came out as "some New Field", which
+    // reads as a bug in the very output that exists to be trusted.
+    return SAVE_FIELD_LABELS[key] ||
+           key.replace(/([A-Z])/g, ' $1').toLowerCase();
+}
+// URLs and producer credits run to hundreds of characters; a confirmation that
+// wraps four lines is one nobody reads.
+function saveFieldValue(v) {
+    const t = String(v === null || v === undefined ? '' : v).trim();
+    if (!t) return '';
+    return t.length > 34 ? t.slice(0, 31) + '\u2026' : t;
+}
+
+/**
+ * @param {object} updates  the exact object handed to setDoc()
+ * @param {object|null} before  the document as it was when the book was opened
+ * @param {string} coverNote  '' when no cover was part of this save
+ */
+function describeSave(updates, before, coverNote) {
+    const changed = [], unchanged = [];
+    const seen = new Set();
+
+    // ⚠️ minAge/maxAge ARE ONE FACT WITH TWO KEYS. Reported separately they read
+    // as two changes for one edit, and "maxAge: 14" on its own is meaningless.
+    if ('minAge' in updates || 'maxAge' in updates) {
+        seen.add('minAge'); seen.add('maxAge');
+        const now = updates.minAge === null || updates.minAge === undefined
+            ? 'no age range' : 'ages ' + updates.minAge + '\u2013' + updates.maxAge;
+        const was = !before ? null
+            : (before.minAge === null || before.minAge === undefined
+                ? 'no age range' : 'ages ' + before.minAge + '\u2013' + before.maxAge);
+        if (before && was === now) unchanged.push(now); else changed.push(now);
+    }
+    // The cover is not in `updates` unless one was uploaded, and its own note
+    // already says what happened. Handled, not skipped.
+    seen.add('coverUrl');
+
+    for (const [k, v] of Object.entries(updates)) {
+        if (seen.has(k)) continue;
+        const label = saveFieldLabel(k);
+        const shown = saveFieldValue(v);
+        const bit = shown ? label + ': ' + shown : label + ' cleared';
+        if (before && String(before[k] ?? '') === String(v ?? '')) unchanged.push(bit);
+        else changed.push(bit);
+    }
+
+    const stamp = new Date().toLocaleTimeString();
+    const parts = [];
+    if (!before) {
+        // ⚠️ NO BASELINE IS NOT "NOTHING CHANGED". Say which it is.
+        parts.push('first save \u00b7 ' + (changed.length) + ' field(s) written');
+        parts.push(changed.join(' \u00b7 '));
+    } else if (changed.length) {
+        parts.push('changed: ' + changed.join(' \u00b7 '));
+        if (unchanged.length) parts.push(unchanged.length + ' other field(s) unchanged');
+    } else {
+        // ⚠️ SAY SO. A save that changed nothing looked identical to one that
+        // changed everything, which is how a dead form field goes unnoticed.
+        parts.push('no field changed \u2014 ' + unchanged.length + ' written as they were');
+    }
+    if (coverNote) parts.push(coverNote);
+    return '\u2713 Saved at ' + stamp + ' \u00b7 ' + parts.filter(Boolean).join(' \u00b7 ');
+}
+
 saveTitleBtn.onclick = async () => {
     if (!activeBookId) return alert("No active book.");
     const newTitle = activeBookTitle.value.trim();
@@ -4660,9 +4771,10 @@ saveTitleBtn.onclick = async () => {
             return;
         }
         const updates = form.data;
-        const genre = updates.genre;
-        const age = { minAge: updates.minAge, maxAge: updates.maxAge };
-        const protagonistGender = updates.protagonistGender;
+        // ⚠️ v3.49.0 removed the three locals that used to be pulled out here
+        // (genre, age, protagonistGender). They existed only to feed a hand-kept
+        // confirmation list, and that list was the defect — describeSave() reads
+        // `updates` itself now. Pulling a field out again is the first step back.
 
         let coverNote = '';
         if (stagedCoverBlob) {
@@ -4688,17 +4800,15 @@ saveTitleBtn.onclick = async () => {
         bookTitlesMap[activeBookId] = newTitle;
         paintTierButtons();    // it exists now — a second press IS an overwrite
 
-        const stamp = new Date().toLocaleTimeString();
-        const tagBits = [];
-        tagBits.push(genre ? 'genre: ' + genre : 'genre cleared');
-        tagBits.push(age.minAge === null ? 'no age range'
-                                         : 'ages ' + age.minAge + '\u2013' + age.maxAge);
-        if (protagonistGender) tagBits.push('lead: ' + protagonistGender);
-        // Say whether a cover was part of this save. Its silence is what let two
-        // books slip through: "Saved" listed genre, ages and lead, and simply did
-        // not mention the one thing that had failed.
-        tagBits.push(coverNote || (stagedCoverUrl ? 'cover unchanged' : 'NO COVER'));
-        setInline('\u2713 Saved at ' + stamp + ' \u00b7 ' + tagBits.join(' \u00b7 '), '#00ff41');
+        // ⚠️ THE COVER LINE STAYS EXPLICIT. Its silence is what let two books ship
+        // with no cover while the screen said "✓ Saved" — and the cover is the one
+        // thing here that is NOT in `updates` unless it was uploaded, so the
+        // iteration above cannot speak for it.
+        const cover = coverNote || (stagedCoverUrl ? 'cover unchanged' : 'NO COVER');
+        setInline(describeSave(updates, _metaBaseline, cover), '#00ff41');
+        // ⚠️ THE BASELINE MOVES FORWARD ON SUCCESS. Without this, a second save in
+        // the same sitting reports the first save's edits all over again.
+        _metaBaseline = { ..._metaBaseline, ...updates };
         statusEl.innerText = "Metadata Updated.";
         statusEl.style.borderColor = "#00ff41";
         saveTitleBtn.textContent = '\u2713 Saved';

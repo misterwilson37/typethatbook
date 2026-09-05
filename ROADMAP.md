@@ -391,7 +391,7 @@ Everything else still open:
 - 53. ⚠️ EIGHTY BOOKS AND NO WAY THROUGH THEM — SEARCH, AND SOMETHING FEATURED  *(Jake asked, 2026-09-03)*
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
 - 38. ⚠️ OPEN for admin — commit + create tiers DONE (Rounds 61-63), safe/edit NOT — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS  *(⚠️ UNBLOCKED, and Jake has RULED — build to the table, do not re-open it)*
-- 55. ⚠️ (a) DONE Rounds 65-66 — (b)(c)(d) OPEN — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
+- 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
 - 58. ⭐ A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
 - 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED  *(found Round 60; touches three mirrored files — read the item)*
 - 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS  *(the instrument that would have caught Round 59's finding on the day)*
@@ -5448,7 +5448,7 @@ default order or as one option beside the current one.**
 
 ---
 
-## 55. ⚠️ (a) DONE Rounds 65-66 — (b)(c)(d) OPEN — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"
+## 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"
 
 **Jake, 2026-09-03, from a screenshot of Content Staging.** Four separate things,
 all in the same panel, all small. ⚠️ **Do them together — this panel is one grid
@@ -5707,6 +5707,56 @@ superadmin"*; who else may set it is a question for him, and `rights-ladder.js`
 is the only place that answer should come from.
 ⚠️ **NEVER STORE A STUDENT IN THIS FIELD.** It is a staff-attribution field on a
 book document that students read.
+
+### ✅ ROUND 69 (Duplex) — (c) CLOSED. IT WAS FOUR OF TWELVE.
+
+**Jake:** *"I think there was something else that also wasn't included, but I
+can't remember right now what it was."*
+
+⚠️⚠️ **THERE WERE EIGHT.** The confirmation listed genre, ages, lead and cover —
+four of the twelve fields `readBookMetadataForm()` writes. **Title, author,
+source, rights, both URLs, prepared by and cleaned up by were all written in
+silence.**
+
+✅ **`admin.js` v3.49.0. `describeSave()` iterates `Object.entries(updates)` — the
+same object handed to `setDoc()`.** Add a field to the form and it appears with no
+edit here. ⚠️ **`SAVE_FIELD_LABELS` ONLY PRETTIFIES NAMES; IT NEVER GATES WHAT IS
+SHOWN.** A key nobody has labelled is listed anyway, humanised from its own name —
+a map that gated visibility would be the hand-kept list again, one refactor later.
+M3 fails on it.
+
+### ⭐ AND IT SAYS WHAT *CHANGED*, WHICH JAKE ASKED FOR AND WHICH COSTS NO READ
+
+*"But it should also really read the things that were actually uploaded or
+changed, shouldn't it? Or would that require an additional read?"* **It does not.**
+`loadBookMetadata()` already has the book document open to fill the form;
+`_metaBaseline` keeps what it read. ⚠️ **THE BASELINE IS THE DOCUMENT, NEVER THE
+FORM** — snapshotting the inputs would compare against whatever autofill left
+behind and report a change the database never had.
+
+⚠️ **THE DIFF IS EXACTLY AS FRESH AS THE WRITE IS.** If someone edited the book
+elsewhere since the page opened it, the baseline is stale — but so is the `merge`
+about to overwrite them. It never claims more accuracy than the save has.
+
+⚠️ **A SAVE THAT CHANGED NOTHING NOW SAYS SO.** It used to look identical to one
+that changed everything, which is how a dead form field goes unnoticed. ⚠️ And a
+book with **no baseline** reports *first save*, not *nothing changed* — M6.
+⚠️ `minAge`/`maxAge` are one fact with two keys; apart, one edit read as two
+changes and `maxAge: 12` said nothing on its own.
+
+⚠️ **THE COVER LINE STAYS EXPLICIT.** It is not in `updates` unless one was
+uploaded, so the iteration cannot speak for it — and its silence is what let two
+books ship coverless under a "✓ Saved".
+
+⭐ **`build-list-test.mjs` PART M RUNS THE REAL FUNCTION.** `describeSave()` is
+pure, so the harness lifts it out of `admin.js` and drives it — and M2 builds its
+input from the key list read out of `readBookMetadataForm()` itself, so "every
+written field is named" is *executed*, not grepped. Mutation-verified four ways.
+
+⚠️ **(d) IS UNTOUCHED AND THAT WAS DELIBERATE.** The two `alert()`s at the top of
+this handler stay. Item 39 converts `alert()`/`confirm()` **whole pages at a
+time**, never one call, and a half-converted destructive confirmation fires
+without waiting for its answer.
 
 ### c. Saving does not confirm everything it saved
 

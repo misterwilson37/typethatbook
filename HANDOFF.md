@@ -1,8 +1,58 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-04 by Round 68 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-04 by Round 69 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–68 ARE ONE INSTANCE.**
+> ⚠️ **ROUNDS 60–69 ARE ONE INSTANCE.**
+>
+> ⚠️⚠️ **STILL THE ONE THING TO CARRY FORWARD: `firestore.rules` DOES NOT ENFORCE
+> "SUPERADMIN ONLY" ON `uploadedBy`.** `/books` has no field whitelist. The Round
+> 68 control is a **UI affordance, not a permission** — never describe it as a
+> security boundary. `build-list-test.mjs` L3 fails if that warning leaves the
+> header.
+>
+> ### ✅ ROUND 69: THE SAVE CONFIRMATION LISTED FOUR OF TWELVE FIELDS
+>
+> Jake could not remember the second omission. **There were eight.** Title,
+> author, source, rights, both URLs, prepared by and cleaned up by were written in
+> silence. ⭐ **A CONFIRMATION THAT LISTS *SOME* OF WHAT IT WROTE IS WORSE THAN ONE
+> THAT LISTS NONE** — it teaches the reader to trust a list that is lying.
+>
+> * ⚠️⚠️ **`describeSave()` ITERATES THE OBJECT HANDED TO `setDoc()`.** Add a field
+>   to `readBookMetadataForm()` and it appears with no edit. **DO NOT REPLACE IT
+>   WITH A CURATED LIST, however tidy the output looks** — `SAVE_FIELD_LABELS`
+>   only prettifies names and must never gate what is shown.
+> * ⭐ **IT REPORTS WHAT CHANGED, AND THAT COSTS NO READ** —
+>   `loadBookMetadata()` already has the document open. ⚠️ **THE BASELINE IS THE
+>   DOCUMENT, NEVER THE FORM**; snapshotting the inputs would compare against
+>   whatever autofill left behind and report a change the database never had.
+> * ⚠️ **A SAVE THAT CHANGED NOTHING SAYS SO**, and a book with no baseline says
+>   *first save* rather than *nothing changed*.
+> * ⭐ **PART M RUNS THE REAL FUNCTION.** `describeSave()` is pure, so the harness
+>   lifts it out and drives it, building its input from the key list read out of
+>   `readBookMetadataForm()` itself. ⚠️ **IF describeSave() EVER DEPENDS ON THE DOM
+>   OR ON MODULE STATE, PART M STOPS MEANING ANYTHING** — say so in that round
+>   rather than letting it pass vacuously.
+>
+> ### THE STATE OF PLAY
+>
+> * **71 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run;
+>   nothing in Rounds 60–69 touches `firestore.rules`.
+> * ⚠️ **CONFIRMED LIVE: 60–63, 65, 66, 67.** Rounds 64, 68 and 69 unconfirmed.
+>   Expected stamps: `admin.html` **v1.13.0**, `admin.js` **v3.49.0**,
+>   `lessons-admin.js` **v1.17.0**, `versions.js` **v1.16.0**.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+>   **DO NOT SHIP style.css v3.10.0.**
+> * ⚠️ **NOTHING STUDENT-FACING HAS CHANGED SINCE ROUND 60**, which is live.
+>   ⚠️⚠️ **THE FIRST WEEK ROADMAP 50 CAN FIRE IN BEGINS SAT 2026-09-05 — THAT IS
+>   TOMORROW.** Watch `game.html` from 09-07.
+> * **ROADMAP 55 is (a)(b)(c) done; (d) belongs to item 39. ROADMAP 56 is closed.**
+> * **Next:** the scoped **`safe`/`edit` pass** (⚠️ **CHAPTER ROW IS OUT** — Jake
+>   ruled its colours are doing a job; green is spent), then **58's collapse
+>   step**, then **39** (which carries 55d with it).
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 68 (Duplex) — the previous block, kept
 >
 > ### ⚠️⚠️ THE ONE THING TO CARRY FORWARD FROM ROUND 68
 >

@@ -556,6 +556,117 @@ check('L3. ⚠️ the round says out loud that the rules do not enforce it', () 
         'superadmin-only here. Say it, or someone will assume the server guards it');
 });
 
+// ─── M. ROADMAP 55c — THE CONFIRMATION IS BUILT FROM THE WRITE ─────────────
+//
+// Jake changed the age range, saved, and the confirmation did not mention it —
+// *"I think there was something else that also wasn't included."* ⚠️⚠️ THERE WERE
+// EIGHT. The old line listed genre, ages, lead and cover: four of the twelve
+// fields readBookMetadataForm() writes.
+//
+// ⭐ THESE CASES RUN THE REAL FUNCTION rather than grepping for it. describeSave()
+// is pure, so it can be lifted out of admin.js and driven — and the one assertion
+// that matters (every written field is named) is only worth anything if it is
+// executed against the form's ACTUAL key list, read out of the same file.
+
+const saveEnv = (() => {
+    const grab = (re) => { const m = re.exec(adminJs); return m ? m[0] : null; };
+    const pieces = [
+        grab(/const SAVE_FIELD_LABELS = \{[\s\S]*?\n\};/),
+        grab(/function saveFieldLabel\([\s\S]*?\n\}/),
+        grab(/function saveFieldValue\([\s\S]*?\n\}/),
+        grab(/function describeSave\([\s\S]*?\n\}\n/),
+    ];
+    if (pieces.some(p => !p)) return null;
+    try {
+        return new Function(pieces.join('\n') + '\nreturn { describeSave };')();
+    } catch { return null; }
+})();
+
+// The keys the form actually writes, read from readBookMetadataForm() itself.
+const formKeys = (() => {
+    const fn = /function readBookMetadataForm[\s\S]*?\n\}/.exec(adminJs);
+    if (!fn) return [];
+    return [...fn[0].matchAll(/^\s{8}(\w+):/gm)].map(m => m[1]);
+})();
+
+check('M1. describeSave() can be lifted and run \u2014 it is pure', () => {
+    assert.ok(saveEnv, 'describeSave() or its helpers could not be extracted. If ' +
+        'it now depends on the DOM or on module state it is no longer testable ' +
+        'here, and this whole section stops meaning anything \u2014 say so in that round');
+    assert.ok(formKeys.length >= 10, 'read only ' + formKeys.length + ' form keys');
+});
+
+check('M2. \u26a0\u26a0 EVERY field the form writes is named in the confirmation', () => {
+    // The item's actual requirement: if a field is written, it is listed, by
+    // construction. Driven with a value for every key the form produces.
+    const updates = {};
+    for (const k of formKeys) updates[k] = (k === 'minAge') ? 7 : (k === 'maxAge') ? 11 : 'X-' + k;
+    const out = saveEnv.describeSave(updates, null, '');
+    const missing = formKeys.filter(k => {
+        if (k === 'minAge' || k === 'maxAge') return !/ages 7/.test(out);
+        const human = k.replace(/([A-Z])/g, ' $1').toLowerCase();
+        return !out.toLowerCase().includes(human) && !out.includes('X-' + k);
+    });
+    assert.deepEqual(missing, [],
+        '\u26a0\u26a0 these fields are WRITTEN and not mentioned: ' + missing.join(', ') +
+        '. A confirmation that lists SOME of what it wrote is worse than one that ' +
+        'lists none \u2014 it teaches the reader to trust a list that is lying');
+});
+
+check('M3. \u26a0 a field added to the form needs NO edit here', () => {
+    // The by-construction property. A key nobody has ever labelled must still be
+    // listed, humanised from its own name.
+    const out = saveEnv.describeSave({ title: 'T', someNewField: 'hello' }, null, '');
+    assert.match(out, /some new field: hello/,
+        '\u26a0 an unlabelled key vanished from the confirmation. SAVE_FIELD_LABELS ' +
+        'must only prettify names, never gate what is shown \u2014 a map that gates is ' +
+        'the hand-kept list again, one refactor later');
+});
+
+check('M4. it reports what CHANGED, against the document it was opened with', () => {
+    const before = { title: 'Old', author: 'A', minAge: 7, maxAge: 11 };
+    const out = saveEnv.describeSave({ title: 'New', author: 'A', minAge: 7, maxAge: 11 },
+                                     before, '');
+    assert.match(out, /changed:/, 'no change was reported when the title changed');
+    assert.match(out, /title: New/, 'the changed field is not named');
+    assert.ok(!/changed:[^\u00b7]*author/.test(out),
+        'an unchanged field is being reported as changed, which makes the word ' +
+        '"changed" worthless');
+    assert.match(out, /unchanged/, 'it no longer says the rest were written too');
+});
+
+check('M5. \u26a0\u26a0 a save that changed NOTHING says so', () => {
+    // It used to look identical to one that changed everything, which is how a
+    // dead form field goes unnoticed.
+    const same = { title: 'T', author: 'A' };
+    const out = saveEnv.describeSave({ ...same }, { ...same }, '');
+    assert.match(out, /no field changed/i,
+        'a no-op save is indistinguishable from a real one');
+});
+
+check('M6. \u26a0 no baseline is reported as a FIRST SAVE, not as "nothing changed"', () => {
+    const out = saveEnv.describeSave({ title: 'T' }, null, '');
+    assert.match(out, /first save/i,
+        '\u26a0 a missing baseline is not the same as "nothing changed". A book being ' +
+        'created would otherwise report that none of its twelve fields changed');
+});
+
+check('M7. minAge and maxAge are ONE fact, not two', () => {
+    const out = saveEnv.describeSave({ minAge: 8, maxAge: 12 }, null, '');
+    assert.match(out, /ages 8\u201312/, 'the age range is not rendered as a range');
+    assert.ok(!/max age/i.test(out),
+        'the two keys are reported separately, so one edit reads as two changes ' +
+        'and "maxAge: 12" on its own says nothing');
+});
+
+check('M8. \u26a0 the cover is still named explicitly', () => {
+    // It is NOT in `updates` unless one was uploaded, so the iteration cannot
+    // speak for it — and its silence is what let two books ship coverless under
+    // a "✓ Saved".
+    const out = saveEnv.describeSave({ title: 'T' }, null, 'cover saved (image/jpeg)');
+    assert.match(out, /cover saved/, 'the cover note was dropped from the line');
+});
+
 let failed = 0;
 for (const [state, name] of results) {
     console.log(`  ${state === 'ok' ? 'ok  ' : 'FAIL'} ${name}`);
