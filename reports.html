@@ -1,5 +1,18 @@
 <!DOCTYPE html>
-<!-- reports.html v1.8.0
+<!-- reports.html v1.9.0
+     v1.9.0 — ⚠️⚠️ ROADMAP 39: NO BROWSER DIALOGS LEFT ON THIS PAGE. All 22
+     `alert()`/`confirm()` calls went together, because ONE NATIVE DIALOG AMONG
+     TWENTY STYLED ONES IS THE STATE THE ITEM SAYS IS WORSE THAN NEVER HAVING
+     STARTED — `if (!confirm(x)) return;` is synchronous and a modal is not, so an
+     unawaited call returns a truthy Promise and the destructive action fires
+     without waiting for the answer. tests/dialogs-test.mjs B1 owns that.
+     ⚠️ 8 confirmations became `await ttbConfirm(...)`; all eight already sat in
+     async functions. 14 alerts became BANNERS — an alert() that only reports
+     something does not deserve to steal focus or demand a dismissal.
+     ⚠️ The destructive tier and both banner surfaces are TOKENS, not raw hex;
+     staff-tokens-test.mjs C1 caught them the moment they appeared, and it was
+     right to. ⚠️ `--danger-*` mirrors admin.html's commit tier on purpose.
+
      v1.8.0 — ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP. getLastSaturday() was the FIFTH
      hand-written copy of `(getDay() + 1) % 7` — and the one that had ALREADY
      disagreed with daylog.js once, which is why item 58 exists at all: Saturday's
@@ -95,6 +108,19 @@
             --warn:         #ff9800;
             --bad:          #ff5555;
             --good:         #22c55e;
+
+            /* ⚠️ ROADMAP 39 (Round 73). The modal's destructive tier and the
+               banner surfaces are STATES, so they are tokens like every other
+               state on this page. staff-tokens-test.mjs C1 exists because a raw
+               hex in the style block is a colour nobody can restyle or reuse —
+               and it caught these the moment they appeared.
+               ⚠️ `--danger-*` mirrors admin.html's commit tier deliberately: the
+               same treatment means the same thing on both staff pages. */
+            --danger-fill:  #550000;
+            --danger-edge:  #880000;
+            --danger-ink:   #ffcccc;
+            --info-fill:    #16202a;
+            --bad-fill:     #241618;
 
             /* grade pips — a scale, not severities, and deliberately separate:
                a C is not a warning and must not be coloured like one */
@@ -467,6 +493,61 @@
     .sprint-idx { opacity: 0.5; min-width: 18px; }
     .session-src { font-size: 0.7rem; opacity: 0.7; border: 1px solid var(--rule-strong); padding: 0 4px; }
 
+
+        /* ── ⚠️⚠️ ROADMAP 39 — ONE DIALOG PATTERN FOR THE WHOLE PAGE (v1.9.0) ──
+           22 `alert()`/`confirm()` calls lived here. Browser dialogs cannot be
+           styled, cannot show structure, and read as scaffolding — and the
+           destructive confirmations that most need structure were the ones least
+           able to have it.
+
+           ⚠️⚠️ WHOLE PAGES, NEVER A CALL AT A TIME. `if (!confirm(x)) return;` is
+           SYNCHRONOUS and a modal is not, so a half-converted page is worse than
+           an unconverted one: a destructive action whose confirmation became
+           non-blocking fires WITHOUT WAITING FOR THE ANSWER. All 22 went together.
+
+           ⭐ IT IS A NATIVE <dialog> ON PURPOSE. showModal() gives the focus trap,
+           the inert background and Escape-to-close for free — three things a
+           hand-rolled overlay gets wrong quietly, and the last of which a teacher
+           will reach for by reflex. ⚠️ ESCAPE MUST RESOLVE FALSE; a dismissed
+           destructive confirmation that resolves TRUE is the worst bug this
+           pattern can have. */
+        dialog.ttb-modal {
+            border: 1px solid var(--rule); border-radius: 6px;
+            background: var(--surface-1); color: var(--ink);
+            padding: 0; max-width: 34rem; width: calc(100% - 2rem);
+            font-family: inherit;
+        }
+        dialog.ttb-modal::backdrop { background: rgba(0,0,0,.62); }
+        .ttb-modal-head {
+            padding: 14px 18px; border-bottom: 1px solid var(--rule);
+            font-weight: 700; font-size: .95em;
+        }
+        .ttb-modal-body {
+            padding: 16px 18px; font-size: .85em; line-height: 1.6;
+            white-space: pre-wrap;            /* the messages carry their own breaks */
+            max-height: 55vh; overflow-y: auto;
+        }
+        .ttb-modal-foot {
+            padding: 12px 18px; border-top: 1px solid var(--rule);
+            display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
+        }
+        .ttb-modal-foot button { width: auto; margin: 0; }
+        /* ⚠️ The destructive choice is styled by the CALLER passing danger:true,
+           never by guessing from the label — "Delete" and "Remove" are not the
+           only words for it, and a heuristic that is right most of the time is
+           worse here than one that is never asked to guess. */
+        .ttb-modal-danger { background: var(--danger-fill); border: 1px solid var(--danger-edge); color: var(--danger-ink); }
+        .ttb-modal-danger:hover { background: var(--danger-edge); }
+
+        /* ⚠️ INFORMATION DOES NOT GET A MODAL. An `alert()` that only reports
+           something becomes an inline banner: it does not steal focus, it does not
+           need dismissing, and it can sit next to the thing it is about. */
+        .ttb-banner {
+            margin: 12px 0; padding: 10px 14px; border-left: 3px solid var(--accent);
+            background: var(--info-fill); font-size: .82em; line-height: 1.55;
+            white-space: pre-wrap;
+        }
+        .ttb-banner.is-bad { border-left-color: var(--bad); background: var(--bad-fill); }
     </style>
 </head>
 <body>
@@ -548,6 +629,13 @@
             </div>
         </div>
 
+        <!-- ⚠️ ROADMAP 39 (v1.9.0). THE BANNER HOST SITS WHERE THE TEACHER IS
+             LOOKING. Its first home was the end of <body>, which is a message
+             nobody reads — an information banner below the fold is an alert()
+             with the shouting removed and none of the benefit.
+             ⚠️ Row-scoped messages pass their own host; this is the fallback for
+             anything that belongs to the page as a whole. -->
+        <div id="ttb-banner-host"></div>
         <div id="results-container" class="hidden">
             <div class="export-bar">
                 <div class="total-line" id="total-line"></div>
@@ -960,7 +1048,7 @@
     //           FIXED, NOT ONLY POLISH: recalc-btn re-enabled on the line after
     //           its await with no finally, so a throw left it dead until reload.
     //           tests/busy-state-test.mjs.
-    const REPORTS_VERSION = "2.37.0";
+    const REPORTS_VERSION = "2.38.0";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -1148,7 +1236,7 @@
 
     document.getElementById('login-btn').onclick = async () => {
         try { await signInWithPopup(auth, new GoogleAuthProvider()); }
-        catch (e) { alert(e.message); }
+        catch (e) { ttbNotice(e.message, { bad: true }); }
     };
 
     // --- SCOPE ---
@@ -1339,6 +1427,107 @@
     // this file's callers want a Date. ⚠️ DO NOT REINTRODUCE THE ARITHMETIC.
     // ⚠️ NOON, NOT MIDNIGHT — a bare 'YYYY-MM-DD' parses as UTC and lands on the
     // previous day here, which is v2.20.0's defect in a different costume.
+    // ═══ ⚠️⚠️ ROADMAP 39 — THE DIALOG PRIMITIVES (v2.38.0) ═══════════════════
+    //
+    // 22 `alert()`/`confirm()` calls became these three functions. ⚠️ WHOLE PAGE,
+    // NOT A CALL AT A TIME: `if (!confirm(x)) return;` is synchronous and a modal
+    // is not, so a half-converted page fires a destructive action WITHOUT WAITING
+    // FOR THE ANSWER. Every site on this page went together.
+    //
+    // ⭐ ttbChoose() IS THE GENERAL ONE AND ttbConfirm() IS EXPRESSED IN TERMS OF
+    // IT, not the other way round. ROADMAP 58 step two needs a three-way "which
+    // class's week did you mean?" dialog, and building the two-way case first
+    // would mean building the general one twice.
+
+    /**
+     * @param {string} title
+     * @param {string} message   plain text; newlines are preserved by CSS
+     * @param {Array<{label:string, value:*, danger?:boolean, primary?:boolean}>} options
+     * @returns {Promise<*>}  the chosen value, or null if dismissed
+     *
+     * ⚠️⚠️ DISMISSAL RESOLVES null, AND THAT IS THE MOST IMPORTANT LINE HERE.
+     * Escape, the backdrop and the close button all mean "I did not choose". A
+     * dismissed destructive confirmation that resolved TRUE is the worst bug this
+     * pattern can have, and native <dialog> closes on Escape whether you plan for
+     * it or not.
+     */
+    function ttbChoose(title, message, options) {
+        const dlg  = document.getElementById('ttb-modal');
+        const foot = document.getElementById('ttb-modal-foot');
+        document.getElementById('ttb-modal-title').textContent = title;
+        document.getElementById('ttb-modal-body').textContent  = message;
+        foot.innerHTML = '';
+        return new Promise(resolve => {
+            let settled = false;
+            const finish = (v) => {
+                if (settled) return;          // Escape can race a click
+                settled = true;
+                dlg.removeEventListener('close', onClose);
+                if (dlg.open) dlg.close();
+                resolve(v);
+            };
+            // ⚠️ `close` fires for Escape AND for our own .close(). The `settled`
+            // guard is what stops the escape path overwriting a real choice.
+            const onClose = () => finish(null);
+            dlg.addEventListener('close', onClose);
+            for (const o of options) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.textContent = o.label;
+                if (o.danger) b.className = 'ttb-modal-danger';
+                b.onclick = () => finish(o.value);
+                foot.appendChild(b);
+            }
+            dlg.showModal();
+            // ⚠️ FOCUS THE SAFE CHOICE, NEVER THE DESTRUCTIVE ONE. A teacher who
+            // presses Enter out of habit must not delete a session by reflex.
+            const safe = foot.querySelector('button:not(.ttb-modal-danger)');
+            (safe || foot.firstChild)?.focus();
+        });
+    }
+
+    /** Two-way confirmation. ⚠️ Resolves FALSE on dismissal, always. */
+    function ttbConfirm(message, { title = 'Confirm', ok = 'OK', danger = false } = {}) {
+        return ttbChoose(title, message, [
+            { label: 'Cancel', value: false },
+            { label: ok,      value: true, danger, primary: true },
+        ]).then(v => v === true);
+    }
+
+    /**
+     * ⚠️ WHERE A ROW-SCOPED MESSAGE BELONGS. A banner at the top of a
+     * forty-student report, about a run 800px further down, is a message the
+     * teacher has to go looking for — which is the failure `alert()` at least did
+     * not have. This finds the row the click came from so the answer appears
+     * beside the thing that was clicked.
+     * ⚠️ RETURNS null WHEN IT CANNOT FIND ONE, and ttbNotice() falls back to the
+     * page host. A message in the wrong place still beats no message.
+     */
+    function rowHost(e) {
+        const el = e && e.target;
+        if (!el || !el.closest) return null;
+        return el.closest('td, li, .day-detail, tr') || null;
+    }
+
+    /**
+     * Information. ⚠️ NOT A MODAL — an alert() that only reports something does
+     * not deserve to steal focus or demand a dismissal. It becomes a banner beside
+     * the thing it is about.
+     * @param {HTMLElement} [host]  where it belongs; falls back to the page host
+     */
+    function ttbNotice(message, { bad = false, host = null } = {}) {
+        const where = host || document.getElementById('ttb-banner-host');
+        if (!where) return;
+        // One banner per host: a stack of three stale messages is how a page
+        // stops being read at all.
+        where.querySelectorAll(':scope > .ttb-banner').forEach(n => n.remove());
+        const div = document.createElement('div');
+        div.className = 'ttb-banner' + (bad ? ' is-bad' : '');
+        div.textContent = message;
+        where.prepend(div);
+        div.scrollIntoView({ block: 'nearest' });
+    }
+
     function getLastSaturday(from = new Date()) {
         return new Date(weekStartOf(toDateStr(new Date(from))) + 'T12:00:00');
     }
@@ -1549,7 +1738,7 @@
     async function generateReport() {
         const startDate = document.getElementById('date-start').value;
         const endDate = document.getElementById('date-end').value;
-        if (!startDate || !endDate) return alert("Pick both dates.");
+        if (!startDate || !endDate) return ttbNotice("Pick both dates.", { bad: true });
 
         statusEl.innerText = "Querying...";
         document.getElementById('results-container').classList.add('hidden');
@@ -2373,7 +2562,7 @@
     const SCAN_SHORT_SECS  = 5;     // the 5-second floor, ROADMAP 7
 
     async function scanForFlags() {
-        if (!reportData || !reportData.length) { alert('Generate a report first.'); return; }
+        if (!reportData || !reportData.length) { ttbNotice('Generate a report first.', { bad: true }); return; }
         const btn = document.getElementById('scan-btn');
         const status = document.getElementById('scan-status');
         const setStatus = (m, c) => { if (status) { status.textContent = m; status.style.color = c || 'var(--ink-dimmer)'; } };
@@ -2383,12 +2572,13 @@
         // returns — say both, and do not pretend to know the second.
         const nStudents = reportData.length;
         const nDays = reportData.reduce((a, r) => a + r.dailyLogs.length, 0);
-        if (!confirm(
+        if (!await ttbConfirm(
             `Scan ${nStudents} student${nStudents === 1 ? '' : 's'} across ${nDays} recorded day` +
             `${nDays === 1 ? '' : 's'}?\n\n` +
             `This reads the session records — the same ones you would see by expanding ` +
             `every day by hand, fetched once instead of one day at a time. It costs reads, ` +
-            `which is why it is not automatic.`)) return;
+            `which is why it is not automatic.`,
+            { title: 'Scan for flags', ok: 'Scan' })) return;
 
         if (btn) btn.disabled = true;
         scanFlags = new Map();
@@ -2734,18 +2924,19 @@
             const sessionId = e.target.dataset.sessionId;
             const runId = e.target.dataset.runId;
             if (!sessionId || !runId) return;
-            if (!confirm(
+            if (!await ttbConfirm(
                 "Delete just this run?\n\n" +
                 "The run is removed from its session and the session's totals are " +
                 "recalculated, then the day's totals are recalculated from the sessions.\n\n" +
                 "This does NOT clear mastery. If this run is why a student is locked " +
                 "out of a lesson, deleting it will not unlock them — that is a " +
-                "separate fix (roadmap item 33).")) return;
+                "separate fix (roadmap item 33).",
+                { title: 'Delete run', ok: 'Delete run', danger: true })) return;
             try {
                 e.target.disabled = true;
                 const ref = doc(db, "typing_sessions", sessionId);
                 const snapDoc = await getDoc(ref);
-                if (!snapDoc.exists()) { alert("That session no longer exists."); return; }
+                if (!snapDoc.exists()) { ttbNotice("That session no longer exists.", { bad: true, host: rowHost(e) }); return; }
                 const data = snapDoc.data();
                 const sprints = Array.isArray(data.sprints) ? data.sprints : [];
 
@@ -2754,7 +2945,7 @@
                 // filtering, or one click silently deletes both.
                 const at = sprints.findIndex(sp => sprintIdentity(sp) === runId);
                 if (at < 0) {
-                    alert("Could not find that run — the session may have changed. Reopen the day and try again.");
+                    ttbNotice("Could not find that run — the session may have changed. Reopen the day and try again.", { bad: true, host: rowHost(e) });
                     return;
                 }
                 const kept = sprints.slice(0, at).concat(sprints.slice(at + 1));
@@ -2763,7 +2954,8 @@
                     // ⚠️ AN EMPTY SESSION IS NOT A SESSION. Leaving a zero-run
                     // rollup behind would show as a 0-second row that the day
                     // recalculation ignores — a ghost the teacher cannot explain.
-                    if (!confirm("That was the only run in this session. Delete the whole session?")) return;
+                    if (!await ttbConfirm("That was the only run in this session. Delete the whole session?",
+                        { title: 'Delete session', ok: 'Delete session', danger: true })) return;
                     await deleteDoc(ref);
                 } else {
                     const secs  = kept.reduce((a, sp) => a + (sp.seconds  || 0), 0);
@@ -2802,7 +2994,7 @@
                 if (reopen) { reopen.click(); reopen.click(); }
             } catch (err) {
                 console.error("Run delete error:", err);
-                alert("Could not delete that run: " + err.message);
+                ttbNotice("Could not delete that run: " + err.message, { bad: true, host: rowHost(e) });
                 e.target.disabled = false;
             }
             return;
@@ -2811,7 +3003,8 @@
         // Delete a session
         if (e.target.classList.contains('delete-session-btn')) {
             const sessionId = e.target.dataset.sessionId;
-            if (!confirm("Delete this typing session?")) return;
+            if (!await ttbConfirm("Delete this typing session?",
+                { title: 'Delete session', ok: 'Delete', danger: true })) return;
             try {
                 e.target.disabled = true;
                 await deleteDoc(doc(db, "typing_sessions", sessionId));
@@ -2841,7 +3034,7 @@
                 }
             } catch (err) {
                 console.error("Delete session error:", err);
-                alert("Delete failed: " + err.message);
+                ttbNotice("Delete failed: " + err.message, { bad: true, host: rowHost(e) });
                 e.target.disabled = false;
             }
             return;
@@ -3144,13 +3337,14 @@
     }
 
     async function clearMastery(uid, lessonId, btn) {
-        if (!confirm(
+        if (!await ttbConfirm(
             `Clear mastery for ${lessonId}?\n\n` +
             `Every run in this lesson goes back to being GRADED, so the student ` +
             `can earn credit in it again.\n\n` +
             `Grades, fireballs and attempt counts are KEPT — this undoes the lock, ` +
             `not the history.\n\n` +
-            `The reach-back clock is recalculated from whatever mastery is left.`)) return;
+            `The reach-back clock is recalculated from whatever mastery is left.`,
+            { title: 'Clear mastery', ok: 'Clear mastery', danger: true })) return;
         if (btn) btn.disabled = true;
         try {
             const ref = doc(db, 'users', uid, 'lessonProgress', lessonId);
@@ -3185,7 +3379,7 @@
                 // lesson unlocked and the clock stale — better than writing a
                 // number we could not verify, but the teacher must know.
                 console.warn('[mastery] could not re-derive lastLockDay', err);
-                alert(`Mastery cleared for ${lessonId}, but the reach-back clock could not be ` +
+                ttbNotice(`Mastery cleared for ${lessonId}, but the reach-back clock could not be ` +
                       `recalculated (${err.message}). The lesson is unlocked; tell whoever ` +
                       `maintains this so lastLockDay can be checked by hand.`);
                 if (btn) { const p = btn.closest('.grades-panel'); if (p) await showGrades(uid, p); }
@@ -3206,7 +3400,7 @@
             if (panel) await showGrades(uid, panel);
         } catch (err) {
             console.error('[mastery] clear failed', err);
-            alert(`Could not clear mastery: ${err.message}\n\n` +
+            ttbNotice(`Could not clear mastery: ${err.message}\n\n` +
                   `If this says "permission denied", firestore.rules v2.10.0 has not ` +
                   `been deployed yet — the rules file in the repo changes nothing until ` +
                   `it is pasted into the Firebase console.`);
@@ -3356,7 +3550,7 @@
         // ─── 1. the day's sprints ────────────────────────────────────────────
         const snap = await getDocs(query(collection(db, "typing_sessions"),
                                          where("uid", "==", uid), where("date", "==", date)));
-        if (snap.empty) { alert(`No session records for ${name} on ${date}.`); return; }
+        if (snap.empty) { ttbNotice(`No session records for ${name} on ${date}.`); return; }
 
         // ⚠️ SCHOOL ONLY. A Library sprint has no lesson and no run index; its
         // `bookId` is a book. Grading one would invent a lesson that was never
@@ -3367,7 +3561,7 @@
             if (s.source !== 'school') return;
             (Array.isArray(s.sprints) ? s.sprints : []).forEach(sp => flat.push(sp));
         });
-        if (!flat.length) { alert(`No lesson runs for ${name} on ${date} — nothing to grade.`); return; }
+        if (!flat.length) { ttbNotice(`No lesson runs for ${name} on ${date} — nothing to grade.`); return; }
 
         const skippedRemediation = flat.filter(sp => sp && sp.practice).length;
 
@@ -3377,7 +3571,7 @@
         // run graded D. It also counted sprints twice when two rollups overlap.
         // mergeRunAttempts() splits on `continuation` and dedupes per sprint.
         const attempts = mergeRunAttempts(flat);
-        if (!attempts.length) { alert(`No gradeable runs for ${name} on ${date}.`); return; }
+        if (!attempts.length) { ttbNotice(`No gradeable runs for ${name} on ${date}.`); return; }
 
         // ─── 2. the lessons those runs name ──────────────────────────────────
         const lessonIds = [...new Set(attempts.map(a => a.label).filter(Boolean))];
@@ -3463,7 +3657,7 @@
         // Newlines separate LINES here, never sentences.
         const writes = added.length + corrected.length;
         if (!writes) {
-            alert(`${name} — ${date}\n\nNothing to reconstruct.\n\n` +
+            ttbNotice(`${name} — ${date}\n\nNothing to reconstruct.\n\n` +
                   `Attempts found: ${attempts.length}\n` +
                   `Already graded (earned): ${already.length}\n` +
                   `Refused: ${refused.length}\n` +
@@ -3472,7 +3666,7 @@
             return;
         }
 
-        const go = confirm(
+        const go = await ttbConfirm(
             `RECONSTRUCT GRADES — ${name}, ${date}\n\n` +
             (added.length ? `ADD ${added.length}:\n` + added.slice(0, 12).join('\n') + '\n\n' : '') +
             (corrected.length ? `CORRECT ${corrected.length} written by an earlier run of this button:\n` +
@@ -3481,7 +3675,8 @@
             (skippedRemediation ? `, ${skippedRemediation} practice drills` : '') + '.\n\n' +
             `Writes runGrades/runFires only. Does NOT change passed, fireCount, runScores or the lesson grade, so nothing advances or unlocks.\n\n` +
             (refused.length ? `Refused:\n${refused.slice(0, 6).join('\n')}\n\n` : '') +
-            `Proceed?`);
+            `Proceed?`,
+            { title: 'Reconstruct grades', ok: 'Reconstruct' });
         if (!go) return;
 
         // ─── 6. write ────────────────────────────────────────────────────────
@@ -3503,7 +3698,7 @@
             }
         }
 
-        alert(`${name} — ${date}\n\n` +
+        ttbNotice(`${name} — ${date}\n\n` +
               `Wrote ${wrote} lesson record(s); ${writes} grade(s) ` +
               `(${added.length} added, ${corrected.length} corrected).` +
               (failedWrites ? `\n\n\u26a0\ufe0f ${failedWrites} write(s) FAILED — see the console.` : ''));
@@ -3708,7 +3903,7 @@
             if (!expectDrop && currentSec > 0 && totalSec > currentSec / DROP_GUARD_RATIO) {
                 const gained = totalSec - currentSec;
                 const pct = Math.round((totalSec / currentSec - 1) * 100);
-                const okToRaise = confirm(
+                const okToRaise = await ttbConfirm(
                     `\u26a0\ufe0f This would INCREASE the stored day by ${pct}%.\n\n` +
                     `  stored now : ${formatTime(currentSec)}  (${log.chars || 0} chars)\n` +
                     `  sessions   : ${formatTime(totalSec)}  (${totalChars} chars)\n` +
@@ -3736,7 +3931,7 @@
             if (!expectDrop && currentSec > 0 && totalSec < currentSec * DROP_GUARD_RATIO) {
                 const lost = currentSec - totalSec;
                 const pct  = Math.round((1 - totalSec / currentSec) * 100);
-                const okToDrop = confirm(
+                const okToDrop = await ttbConfirm(
                     `This would REDUCE the stored day by ${pct}%.\n\n` +
                     `  stored now : ${formatTime(currentSec)}  (${log.chars || 0} chars)\n` +
                     `  sessions   : ${formatTime(totalSec)}  (${totalChars} chars)\n` +
@@ -3967,5 +4162,15 @@
         return d.innerHTML;
     }
 </script>
+
+    <!-- ⚠️ ROADMAP 39 (v1.9.0). ONE dialog element for the page, reused. Building
+         one per call would leak a node per confirmation and lose the focus trap
+         the moment two were open. -->
+    <dialog class="ttb-modal" id="ttb-modal">
+        <div class="ttb-modal-head" id="ttb-modal-title"></div>
+        <div class="ttb-modal-body" id="ttb-modal-body"></div>
+        <div class="ttb-modal-foot" id="ttb-modal-foot"></div>
+    </dialog>
+
 </body>
 </html>

@@ -384,7 +384,7 @@ Everything else still open:
 - 30. ⚠️ ADVENTURE MODE GIVES NO COLOUR FEEDBACK ON A WRONG KEY — AND CAPS LOCK IS WHERE IT SHOWS
 - 34. ⚠️ THE LESSON-LEVEL MASTERY LOCK ONLY CLOSES WHEN EVERY RUN IS MASTERED
 - 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
-- 39. ⚠️ 64 alert() AND confirm() CALLS ARE THE LOUDEST “UNFINISHED” SIGNAL IN THE APP
+- 39. ⚠️ HALF DONE — reports.html CLOSED (Round 73), admin.js's 42 REMAIN
 - 42. ⚠️ admin.js STILL CARRIES 183 (Round 56 CLOSED THE admin.html HALF) — AND THE THREE THINGS THIS ITEM GOT WRONG
 - 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME  *(Jake ANSWERED it Round 57 — it is student-facing visibility, not a staff filter; read the item before starting)*
 - 12. ⚠️⚠️ REOPENED (Round 59, Jewett) — THE LEAD AXIS, AND JAKE'S RULING ON WHAT SHOULD ALIGN  *(⚠️ DO NOT SHIP style.css v3.10.0 — he looked at it rendered and ruled against it)*
@@ -4683,7 +4683,72 @@ Two more colours in the pile, added by the round that was improving legibility.
 
 ---
 
-## 39. ⚠️ 64 alert() AND confirm() CALLS ARE THE LOUDEST “UNFINISHED” SIGNAL IN THE APP
+## 39. ⚠️ HALF DONE — reports.html CLOSED (Round 73), admin.js's 42 REMAIN
+
+### ✅ ROUND 73 (Duplex) — ALL 22 ON `reports.html`, IN ONE GO
+
+✅ **`reports.html` v1.9.0 / v2.38.0.** ⚠️⚠️ **THEY WENT TOGETHER BECAUSE THEY HAD
+TO.** `if (!confirm(x)) return;` is synchronous and a modal is not, so an
+**unawaited `ttbConfirm()` returns a Promise — which is truthy** — and the guard
+that was meant to stop a destructive action does nothing. ⭐ **THAT IS A DATA-LOSS
+BUG THAT LOOKS EXACTLY LIKE A WORKING CONFIRMATION**, and it is why the item says
+whole pages. `tests/dialogs-test.mjs` **B1** owns it.
+
+* **8 confirmations → `await ttbConfirm(...)`.** ⚠️ All eight already sat in
+  `async` functions, which is the fact that made this page tractable — check that
+  before starting `admin.js`.
+* **14 alerts → banners.** ⚠️ An `alert()` that only *reports* something does not
+  deserve to steal focus or demand a dismissal.
+
+### ⭐ ttbChoose() IS THE GENERAL ONE, AND THAT WAS ON PURPOSE
+
+`ttbConfirm()` is expressed in terms of it, not the other way round — because
+**ROADMAP 58 step two needs a three-way "which class's week did you mean?"
+dialog**, and building the two-way case first would mean building the general one
+twice. It is ready for that round.
+
+### ⚠️ THE PROPERTIES THAT MAKE IT SAFE, EACH PINNED
+
+* ⚠️⚠️ **DISMISSAL RESOLVES "NO", ALWAYS.** Native `<dialog>` closes on Escape
+  whether you plan for it or not, and a dismissed destructive confirmation that
+  resolved TRUE is the worst bug this pattern can have. `ttbConfirm` tests
+  `=== true` exactly.
+* ⚠️ **FOCUS GOES TO THE SAFE CHOICE.** A teacher pressing Enter out of habit must
+  not delete a session by reflex — the dialog exists to interrupt that reflex, not
+  to arm it.
+* ⭐ **NATIVE `<dialog>` + `showModal()`**, for the focus trap, the inert
+  background and Escape — three things a hand-rolled overlay gets wrong quietly.
+* ⚠️ **ROW-SCOPED MESSAGES LAND BESIDE THEIR ROW** (`rowHost()`). A banner at the
+  top of a forty-student report, about a run 800px down, is a message the teacher
+  has to hunt for — a failure `alert()` did not have. ⚠️ The fallback host sits
+  ABOVE the results; its first home was the end of `<body>`, which is an
+  information banner nobody reads.
+
+### ⚠️ TWO THINGS THE HARNESSES CAUGHT, AND ONE THEY SHOULD NOT HAVE
+
+* `staff-tokens-test.mjs` **C1 rejected the modal's raw hex** the moment it
+  appeared, and was right to: the destructive tier and both banner surfaces are
+  tokens now, mirroring `admin.html`'s commit tier deliberately.
+* `clear-mastery-test.mjs` and `day-flags-test.mjs` were grepping for `confirm(`.
+  ⭐ **THEY ASSERT THE `await` NOW, WHICH IS STRONGER THAN WHAT THEY HAD** — when
+  you replace a mechanism, move the checks that were watching it, in the same
+  round.
+* ⚠️ **A `B2` WAS WRITTEN AND DELETED.** It tried to assert every `await` sat in
+  an `async` function by walking backwards for the nearest `function`, failed
+  against correct source, and was **redundant anyway**: `await` in a non-async
+  function is a SyntaxError, and `undefined-calls-test.mjs` already parses this
+  page. ⚠️ **A CHECK THAT DUPLICATES THE PARSER BADLY IS WORSE THAN NO CHECK** —
+  it fails on good code, gets loosened, and then guards nothing.
+
+### ⚠️ WHAT IS LEFT: `admin.js`'s 42 CALLS
+
+Same rule, same reason, and **bigger** — 42 sites in a file that also holds the
+upload path. ⚠️ **CHECK WHETHER EACH `confirm()` SITE IS ALREADY `async` FIRST**;
+`reports.html` was, and that is why it was one round rather than three.
+
+---
+
+### The original report, kept — 64 alert() and confirm() calls
 
 **Counted: 22 in `reports.html`, 42 in `admin.js`.**
 

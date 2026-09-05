@@ -176,7 +176,12 @@ ok(/cannot be regraded/i.test(src),
 console.log('\n--- F. THE SCAN IS ON DEMAND AND SAYS WHAT IT COSTS ---');
 const scanFn = lift('scanForFlags');
 ok(scanFn, 'F1 scanForFlags() exists');
-ok(scanFn && /confirm\(/.test(scanFn),
+// ⚠ ROADMAP 39 (Round 73) replaced the native confirm() with ttbConfirm(),
+// which is AWAITED. ⚠⚠ THE `await` IS PART OF THE ASSERTION, NOT DECORATION:
+// a modal is asynchronous, so an unawaited call returns a Promise — truthy —
+// and the destructive action fires WITHOUT WAITING FOR THE ANSWER. That is
+// the exact failure item 39 warns a half-converted page produces.
+ok(scanFn && /await\s+ttbConfirm\(/.test(scanFn),
    '⚠️⚠️ F2 IT ASKS BEFORE IT SPENDS. This is the read-expensive half of ROADMAP ' +
    '36 and the only thing standing between it and the read explosion is that a ' +
    'human pressed a button knowing the cost');

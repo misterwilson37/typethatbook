@@ -34,6 +34,7 @@ const versions = read('versions.js');
 const adminJs  = read('admin.js');
 const adminHtml = read('admin.html');
 const lessons  = read('lessons-admin.js');
+const staffAdmin = read('staff-admin.js');
 
 const results = [];
 function check(name, fn) {
@@ -533,10 +534,29 @@ check('K3. ⚠️ the click is wired once, delegated, and does not focus the fie
 check('L1. ⚠️⚠️ superadmin is tested by equality, never by exclusion', () => {
     const fn = /function refreshUploadedByOverride\s*\(\)\s*\{[\s\S]*?\n\}/.exec(adminJs);
     assert.ok(fn, 'refreshUploadedByOverride() is gone');
-    assert.match(fn[0], /_staffScope\.role\s*===\s*'superadmin'/,
-        "⚠️⚠️ an undefined role must never read as permission. `!== 'admin'` is " +
-        'exactly that bug, and it would hand the control to every account whose ' +
-        'staff document failed to load');
+    // ⚠️⚠️ ROUND 74: THIS CASE PASSED WHILE THE FEATURE WAS DEAD. It pinned the
+    // SHAPE of the comparison (`===`, not `!==`) and never asked whether the
+    // string on the right was a role that EXISTS. Round 68 compared against
+    // 'superadmin'; the real value is 'super_admin'. The control never appeared
+    // for anyone, for six rounds, and a green test said it was fine.
+    //
+    // ⭐ SO THE ROLE VOCABULARY IS READ OUT OF staff-admin.js's ROLE_LABELS —
+    // the source of truth — instead of being written here a second time. A
+    // literal in a test is just the same guess, typed twice.
+    const roles = [...staffAdmin.matchAll(/^\s{4}(\w+):\s*'/gm)].map(m => m[1]);
+    assert.ok(roles.includes('super_admin'),
+        'could not read the role vocabulary out of staff-admin.js ROLE_LABELS — ' +
+        'if it moved, point this at wherever it went rather than hardcoding roles here');
+    const cmp = /_staffScope\.role\s*===\s*'([a-z_]+)'/.exec(fn[0]);
+    assert.ok(cmp, "⚠️⚠️ an undefined role must never read as permission. " +
+        "`!== 'admin'` is exactly that bug, and it would hand the control to every " +
+        'account whose staff document failed to load');
+    assert.ok(roles.includes(cmp[1]),
+        "⚠️⚠️ the override is gated on role '" + cmp[1] + "', which is not a role " +
+        'that exists. staff-admin.js knows: ' + roles.join(', ') + '. A gate on a ' +
+        'string nothing can equal is a feature that never appears, and it looks ' +
+        'exactly like a feature that works');
+    assert.equal(cmp[1], 'super_admin', "Jake's ruling was super_admin only");
     assert.match(fn[0], /activeBookExists\(\)\s*===\s*true/,
         'a book with no document has nothing to correct, and paintUploadedByStamp() ' +
         'owns that element in that state — two writers, one box');
@@ -703,6 +723,69 @@ check('N2. the frame is sized by HEIGHT, so its edges stay on gridlines', () => 
     assert.match(rule, /margin:\s*0 auto/,
         'the frame no longer centres, so a narrower cover sits against one edge of ' +
         'a wider column and reads as a mistake');
+});
+
+// ─── P. A TOGGLE MUST CHANGE WHATEVER DECLARES THE STATE ────────────────────
+//
+// Jake: *"the one on staff doesn't work. At all. I click on it and nothing
+// happens."* The panel was hidden by the CLASS `u-display-none`; the handler
+// toggled the INLINE `style.display`, which starts as '' — so it could only ever
+// lose to the rule it was fighting.
+//
+// ⭐ SAME FAMILY AS ROUND 64's DEAD HOVERS, INVERTED: an inline background beat a
+// selector there; an empty inline value loses to a class here. ⚠️ THE RULE THAT
+// COVERS BOTH: whatever declares the state is what has to change it.
+//
+// ⚠️ THIS IS A CLASS GUARD, NOT A CHECK ON ONE BUTTON. It finds every element
+// hidden by a display class in the markup and fails if the code toggles that
+// element's inline display instead.
+
+check('P1. ⚠️⚠️ nothing toggles style.display on a class-hidden element', () => {
+    const staff = read('staff-admin.js');
+    const hidden = new Set(
+        [...adminHtml.matchAll(/id="([\w-]+)"[^>]*class="[^"]*\bu-display-none\b/g)]
+            .map(m => m[1]));
+    assert.ok(hidden.size > 0, 'no class-hidden elements found — if the utility was ' +
+        'renamed, point this at the new one rather than deleting the case');
+    const offenders = [];
+    for (const id of hidden) {
+        for (const src of [staff, adminJs, lessons]) {
+            // getElementById('x') … <same statement or next> .style.display =
+            // ⚠️ ONLY THE EMPTY-STRING ASSIGNMENT IS A BUG, AND THE FIRST DRAFT
+            // FLAGGED ALL SEVEN. `.u-display-none` is `display:none` with NO
+            // `!important`, so an inline value WINS: `= 'block'` shows the
+            // element and `= 'none'` is merely redundant. It is `= ''` that
+            // loses — the inline declaration goes away and the class applies —
+            // and that is the one that reads as "I made it visible" while doing
+            // nothing. A check that fires on the six that work is one people
+            // learn to route around.
+            const re = new RegExp("getElementById\\(\\s*'" + id +
+                "'\\s*\\)[\\s\\S]{0,200}?\\.style\\.display\\s*=\\s*''");
+            const byVar = new RegExp("=\\s*document\\.getElementById\\(\\s*'" + id +
+                "'\\s*\\)[\\s\\S]{0,400}?\\.style\\.display\\s*=\\s*''");
+            const ternary = new RegExp("getElementById\\(\\s*'" + id +
+                "'\\s*\\)[\\s\\S]{0,300}?\\.style\\.display\\s*=[^;]*\\?\\s*''");
+            if (re.test(src) || byVar.test(src) || ternary.test(src)) offenders.push(id);
+        }
+    }
+    assert.deepEqual(offenders, [],
+        '⚠️⚠️ ' + offenders.join(', ') + ' is hidden by a CLASS and toggled by inline ' +
+        'style. The class wins, so the control does nothing and looks exactly like ' +
+        'one that works. Toggle the class');
+});
+
+check('P2. the staff help disclosure reports its state', () => {
+    // ⚠️ A disclosure button that never says whether it is open is unusable
+    // without sight of the panel — and this one spent its whole life claiming
+    // nothing while doing nothing.
+    const staff = read('staff-admin.js');
+    const at = staff.indexOf("'staff-help-toggle'");
+    assert.ok(at > 0, 'the staff help toggle is gone');
+    const near = staff.slice(at, at + 700);
+    assert.match(near, /classList\.toggle/,
+        'the toggle is back to inline style, which the class overrides');
+    assert.match(near, /aria-expanded/,
+        'the button does not report open/closed');
 });
 
 let failed = 0;

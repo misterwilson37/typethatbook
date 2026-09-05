@@ -1,5 +1,80 @@
 # CHANGELOG — TypeThatBook
 
+## Rounds 73–74 (Duplex) — 2026-09-04/05 — no browser dialogs on reports.html, and six controls that did nothing
+
+### ⚠️⚠️ Round 74 first: the superadmin override never appeared, and my harness said it was fine
+
+Round 68 gated it on `role === 'superadmin'`. The real value, in `staff-admin.js`'s
+own `ROLE_LABELS`, is **`'super_admin'`** — with an underscore. **The control never
+appeared for anyone.**
+
+⭐ **The harness passed the whole time.** It asserted the comparison used `===`
+rather than `!==` — the safe *shape* — and never asked whether the string on the
+right was a role that exists. **A gate on a value nothing can equal looks exactly
+like a gate that works.** It now reads the vocabulary out of `ROLE_LABELS` and
+fails if the gate names anything absent from it: a literal in a test is the same
+guess, typed twice.
+
+### ⚠️⚠️ "How this works" did nothing — and five more like it
+
+The panel is hidden by the **class** `u-display-none`; the handler toggled the
+**inline** `style.display`. The class has no `!important`, so `= ''` removes the
+inline declaration and lets the class win. First click `'none'` (already hidden),
+second click `''` (still hidden). **A toggle that could only ever lose to the rule
+it was fighting.**
+
+⭐ Same family as Round 64's dead hovers, inverted — an inline value beat a
+selector there, an empty inline value loses to a class here. **The rule that
+covers both: whatever declares the state is what has to change it.**
+
+A class guard found **five more**, all fixed: `Remove Access` never appeared for an
+active staff member; `Cancel` never appeared while editing a class; the Lessons
+pane stayed hidden on every student open; the staff candidate panel, twice.
+⚠️ The guard flags only the `= ''` case — a real value like `'block'` *does* beat a
+class, and a check that fires on the sites that work is one people learn to route
+around.
+
+`staff-admin.js` **v2.3.0**, `lessons-admin.js` **v1.19.0**, `admin.js`
+**v3.51.0**.
+
+### ROADMAP 39 — all 22 dialogs on `reports.html`, in one go
+
+`reports.html` **v1.9.0 / v2.38.0**. ⚠️⚠️ **They went together because they had
+to.** `if (!confirm(x)) return;` is synchronous and a modal is not, so an
+**unawaited `ttbConfirm()` returns a truthy Promise** and the guard does nothing.
+⭐ **A data-loss bug that looks exactly like a working confirmation.**
+
+8 confirmations → `await ttbConfirm(...)` (all eight already sat in `async`
+functions). 14 alerts → **banners**: an `alert()` that only reports something does
+not deserve to steal focus or demand a dismissal.
+
+⭐ `ttbChoose()` is the general primitive and `ttbConfirm()` is expressed in terms
+of it — **ROADMAP 58 step two needs a three-way dialog**, and building the two-way
+case first would mean building the general one twice.
+
+⚠️ Dismissal resolves **no**, always (`=== true` exactly) — native `<dialog>`
+closes on Escape whether you plan for it or not. ⚠️ Focus goes to the **safe**
+choice, so Enter-out-of-habit does not delete a session. ⚠️ Row-scoped messages
+land beside their row; the fallback host sits **above** the results, not at the end
+of `<body>` where nobody reads it.
+
+### Three harness notes
+
+`staff-tokens-test.mjs` C1 rejected the modal's raw hex the moment it appeared and
+was right to. `clear-mastery-test.mjs` and `day-flags-test.mjs` were grepping for
+`confirm(` — they assert the **`await`** now, which is stronger than what they had.
+⚠️ And a `B2` was written and **deleted**: it duplicated the parser badly and
+failed against correct source. **A check that duplicates the parser badly is worse
+than no check.**
+
+`tests/dialogs-test.mjs` **NEW, 9 assertions**, mutation-verified four ways. Suite
+is **72 harnesses**.
+
+### Verification
+
+**72 harnesses pass, `audit:versions` 0 problems.** ⚠️ `npm run test:rules` NOT
+run.
+
 ## Round 72 (Duplex) — 2026-09-04 — the cover preview is the shape the shelf shows
 
 `admin.html` **v1.14.0 → v1.15.0**.
@@ -8125,4 +8200,15 @@ try { sessionStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
 //          both files carrying comments swearing they were identical in shape.
 //          ⚠️ IDENTICAL IN SHAPE IS NOT IDENTICAL IN BEHAVIOUR, and
 //          im-done-test.mjs drives BOTH files because of it.
+```
+
+### § lessons-admin.js — archived header entries (Round 74)
+
+```
+// v1.13.0 — ⚠️⚠️ THE ROSTER PANEL LEARNED THE PER-SOURCE CUTOVER. This file is
+//           the FOURTH reader of typing_logs and the only one Round 21's cutover
+//           work missed. Its weekSeconds column was legacy-first with no date
+//           gate, so from 2026-08-22 it would have reported a roster of students
+//           with a week of nearly nothing while reports.html showed their real
+//           minutes. No student-facing change; this is a staff page.
 ```

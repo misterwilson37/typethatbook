@@ -1,4 +1,15 @@
-// admin.js v3.50.0
+// admin.js v3.51.0
+//
+// v3.51.0 — ⚠️⚠️ THE SUPERADMIN OVERRIDE NEVER APPEARED, FOR ANYONE, SINCE
+//           v3.48.0. It was gated on `role === 'superadmin'`. The real value, in
+//           staff-admin.js's own ROLE_LABELS, is `'super_admin'` — WITH AN
+//           UNDERSCORE. Jake: "as the superadmin, I still can't set the owner."
+//           ⚠️⚠️ AND THE HARNESS PASSED THE WHOLE TIME. It asserted the comparison
+//           used `===` rather than `!==` — the safe SHAPE — and never asked
+//           whether the string on the right was a role that EXISTS. ⭐ A GATE ON A
+//           VALUE NOTHING CAN EQUAL LOOKS EXACTLY LIKE A GATE THAT WORKS.
+//           build-list-test.mjs L1 reads the vocabulary out of ROLE_LABELS now: a
+//           literal in a test is the same guess, typed twice.
 //
 // v3.50.0 — ⚠️ ROADMAP 38's safe/edit PASS, THE admin.js HALF.
 //           ⚠️⚠️ ONE CONTROL WAS FILED WRONG AND THE PASS IS HOW IT SURFACED.
@@ -71,7 +82,7 @@
 //           write this field. IT IS A UI AFFORDANCE, NOT A PERMISSION — the right
 //           trade for a correction only Jake needs, but never describe it as a
 //           security boundary.
-//           ⚠️ `=== 'superadmin'` EXACTLY; an undefined role must not read as
+//           ⚠️ `=== 'super_admin'` EXACTLY — and note the UNDERSCORE, which Round 68 got wrong; an undefined role must not read as
 //           permission, and `!== 'admin'` would be exactly that bug.
 //           ⚠️ ONE getDocs ON FIRST OPEN, never on load (§READS).
 //           ⚠️ THE STAMP IS UNCHANGED: upload still writes uploadedBy on FIRST
@@ -199,7 +210,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.50.0";
+const ADMIN_VERSION = "3.51.0";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -960,7 +971,7 @@ function initUploadedByOverride() {
 /**
  * ⚠️ SUPERADMIN, AND AN EXISTING BOOK. Both, every repaint.
  *
- * ⚠️⚠️ `=== 'superadmin'` EXACTLY — an undefined role must never read as
+ * ⚠️⚠️ `=== 'super_admin'` EXACTLY — and note the UNDERSCORE, which Round 68 got wrong — an undefined role must never read as
  * permission, and `!== 'admin'` would be exactly that bug.
  * ⚠️ A book with no document has nothing to correct, and paintUploadedByStamp()
  * owns that element in that state — two things writing one box is how a
@@ -969,7 +980,7 @@ function initUploadedByOverride() {
 function refreshUploadedByOverride() {
     const wrap = document.getElementById('active-book-uploadedby-edit');
     if (!wrap) return;
-    const allowed = _staffScope.role === 'superadmin' && activeBookExists() === true;
+    const allowed = _staffScope.role === 'super_admin' && activeBookExists() === true;
     wrap.classList.toggle('hidden', !allowed);
 }
 

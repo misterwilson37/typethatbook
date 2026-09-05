@@ -125,7 +125,13 @@ ok(clear && /maxLock === null/.test(clear) && /lastLockDay: deleteField\(\)/.tes
 
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\n--- E. IT TELLS THE TEACHER THE TRUTH ---');
-ok(clear && /confirm\(/.test(clear), 'E1 it confirms before writing');
+// ⚠ ROADMAP 39 (Round 73) replaced the native confirm() with ttbConfirm(),
+// which is AWAITED. ⚠⚠ THE `await` IS PART OF THE ASSERTION, NOT DECORATION:
+// a modal is asynchronous, so an unawaited call returns a Promise — truthy —
+// and the destructive action fires WITHOUT WAITING FOR THE ANSWER. That is
+// the exact failure item 39 warns a half-converted page produces.
+ok(clear && /await\s+ttbConfirm\(/.test(clear),
+   'E1 it AWAITS a confirmation before writing');
 ok(clear && /KEPT/.test(clear),
    '⚠️ E2 THE CONFIRM SAYS HISTORY IS KEPT. A teacher who thinks this erases ' +
    'grades will not use it on the child who needs it');

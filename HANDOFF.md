@@ -1,8 +1,81 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-04 by Round 72 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-05 by Rounds 73–74 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–72 ARE ONE INSTANCE.**
+> ⚠️ **ROUNDS 60–74 ARE ONE INSTANCE.**
+>
+> ### ⚠️⚠️ THE LESSON OF ROUND 74, AND IT IS ABOUT THE TESTS, NOT THE CODE
+>
+> **The superadmin override never appeared for anyone.** Round 68 gated it on
+> `role === 'superadmin'`; the real value is **`'super_admin'`**, with an
+> underscore, and it is right there in `staff-admin.js`'s `ROLE_LABELS`.
+>
+> ⚠️⚠️ **THE HARNESS PASSED THE WHOLE TIME.** It asserted the comparison used
+> `===` rather than `!==` — the safe SHAPE — and never asked whether the string on
+> the right was a role that EXISTS. ⭐ **A GATE ON A VALUE NOTHING CAN EQUAL LOOKS
+> EXACTLY LIKE A GATE THAT WORKS.** L1 reads the vocabulary out of `ROLE_LABELS`
+> now. **A literal in a test is the same guess, typed twice — read the source of
+> truth instead.**
+>
+> ### ⚠️⚠️ SIX CONTROLS DID NOTHING, AND IT IS ONE RULE
+>
+> Jake found the "How this works" bar dead. The panel is hidden by the CLASS
+> `u-display-none`; the handler toggled the INLINE `style.display`. The class has
+> no `!important`, so `= ''` removes the inline declaration and **lets the class
+> win** — first click `'none'` (already hidden), second click `''` (still hidden).
+>
+> ⭐ **SAME FAMILY AS ROUND 64's DEAD HOVERS, INVERTED. THE RULE THAT COVERS BOTH:
+> WHATEVER DECLARES THE STATE IS WHAT HAS TO CHANGE IT.**
+>
+> A class guard found **five more**: `Remove Access` never appeared for an active
+> staff member, `Cancel` never appeared while editing a class, the Lessons pane
+> stayed hidden on every student open, and the staff candidate panel twice.
+> ⚠️ `build-list-test.mjs` **P1 flags only the `= ''` case** — a real value beats a
+> class, and a check that fires on the sites that work gets routed around.
+>
+> ### ✅ ROUND 73: reports.html HAS NO BROWSER DIALOGS LEFT (ROADMAP 39, half)
+>
+> All 22 went together. ⚠️⚠️ **AN UNAWAITED `ttbConfirm()` RETURNS A TRUTHY
+> PROMISE**, so `if (!p) return;` never returns and the destructive action fires
+> without waiting. That is a data-loss bug that looks like a working confirmation,
+> and `dialogs-test.mjs` **B1** owns it.
+>
+> * ⭐ **`ttbChoose()` IS THE GENERAL PRIMITIVE**, and `ttbConfirm()` is expressed
+>   in terms of it — **ROADMAP 58 step two's three-way "which class's week?"
+>   dialog is ready to build on it.**
+> * ⚠️ Dismissal resolves NO, always (`=== true` exactly). Focus goes to the SAFE
+>   choice. Row-scoped messages land beside their row; the fallback host sits
+>   ABOVE the results.
+> * ⚠️ **`admin.js`'s 42 CALLS REMAIN.** Same rule. ⚠️ **CHECK WHETHER EACH
+>   `confirm()` SITE IS ALREADY `async` FIRST** — reports.html's all were, which is
+>   why it was one round rather than three.
+>
+> ### THE STATE OF PLAY
+>
+> * **72 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run.
+> * **Expected stamps:** `reports.html` **v1.9.0**, `admin.js` **v3.51.0**,
+>   `staff-admin.js` **v2.3.0**, `lessons-admin.js` **v1.19.0**, `admin.html`
+>   **v1.15.0**, `game.js` **v3.49.0**, `learn.js` **v2.46.0**, `versions.js`
+>   **v1.16.0**.
+> * ⚠️ **CONFIRMED LIVE: 60–63, 65, 66, 67.** 64 and 68–74 unconfirmed.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+> * ⚠️⚠️ **ROADMAP 50's FIRST LIVE WEEK BEGAN SAT 2026-09-05.** Watch `game.html`.
+> * **JAKE'S OPEN LIST, from 2026-09-04, none of it done yet:**
+>   1. ⚠️ **The library uses `object-fit: cover` (zoom-and-crop); the admin preview
+>      uses `contain`.** They genuinely show different pictures. He wants the crop
+>      REPORTED — "14% cropped from the sides" / "perfect fit!" — which is
+>      computable from the natural dimensions and would fill the dead column.
+>   2. Narrow the cover column so the six field columns get the width back.
+>   3. `Process Overwrite` is shorter than its `Choose File` field; more space
+>      below `Open Book` than above; the Students filter field floats.
+>   4. **Class Manager shows no school or teacher and cannot filter by either.**
+>      Needs a ruling on what a building_admin sees.
+>   5. Reports' weekly-goal panel is vestigial; the default belongs with the other
+>      goal definitions, not on that page.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 72 (Duplex) — the previous block, kept
 >
 > ⚠️⚠️ **STANDING WARNING: `firestore.rules` DOES NOT ENFORCE "SUPERADMIN ONLY" ON
 > `uploadedBy`.** `/books` has no field whitelist — a **UI affordance, not a

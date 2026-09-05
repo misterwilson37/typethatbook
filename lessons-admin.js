@@ -1,4 +1,16 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.18.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.19.0
+//
+// v1.19.0 — ⚠️⚠️ TWO CONTROLS THAT DID NOTHING, AND THE CAUSE IS ONE RULE.
+//           `Cancel` never appeared while editing a class, and the Lessons pane
+//           stayed hidden on every student open. Both are hidden by the CLASS
+//           `u-display-none`, and both were revealed by setting the INLINE
+//           `style.display = ''` — which REMOVES the inline declaration and lets
+//           the class win. A real value ('none', 'block') beats a class; '' loses
+//           to one, every time.
+//           ⭐ SAME FAMILY AS ROUND 64's DEAD HOVERS, INVERTED. THE RULE THAT
+//           COVERS BOTH: whatever declares the state is what has to change it.
+//           ⚠️ build-list-test.mjs P1 is a CLASS GUARD over every element hidden
+//           this way, and it found six across three files.
 //
 // v1.18.0 — ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP: THE WEEK ANCHOR HAS ONE HOME.
 //           `(getDay() + 1) % 7` was written out SIX times across the repo. Two of
@@ -96,13 +108,7 @@
 // Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
 // Version exposed as a window global so admin.js can read it.
 //
-// v1.13.0 — ⚠️⚠️ THE ROSTER PANEL LEARNED THE PER-SOURCE CUTOVER. This file is
-//           the FOURTH reader of typing_logs and the only one Round 21's cutover
-//           work missed. Its weekSeconds column was legacy-first with no date
-//           gate, so from 2026-08-22 it would have reported a roster of students
-//           with a week of nearly nothing while reports.html showed their real
-//           minutes. No student-facing change; this is a staff page.
-//
+// ⚠️ v1.13.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 74).
 // ⚠️ v1.12.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 71).
 // ⚠️ v1.11.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
 // It is the read-side of the source split.
@@ -110,7 +116,7 @@
 // ⚠️ v1.13.2 — v1.8.1, v1.8.0, v1.7.1 and v1.7.0 moved to CHANGELOG.md
 //    § ARCHIVED FILE HEADERS. Nothing deleted.
 //
-window.LESSONS_ADMIN_VERSION = '1.18.0';
+window.LESSONS_ADMIN_VERSION = '1.19.0';
 
 // ⚠️ ROADMAP 58 — the week anchor, from its one home. daylog.js imports only
 // logdays.js, which this page's siblings already load, so this adds no machinery.
@@ -1129,8 +1135,11 @@ async function loadStudentProgress(uid, label) {
     const lessonsPane = document.getElementById('student-pane-lessons');
     const booksPane   = document.getElementById('student-pane-books');
     const bookGrid    = document.getElementById('student-book-grid');
-    if (lessonsPane) lessonsPane.style.display = '';
-    if (booksPane)   booksPane.style.display   = 'none';
+    // ⚠️ CLASS, NOT INLINE STYLE (Round 74). `u-display-none` has no
+    // `!important`, so `= ''` lets the class win — the Lessons pane would have
+    // stayed hidden on every open of a student.
+    if (lessonsPane) lessonsPane.classList.remove('u-display-none');
+    if (booksPane)   booksPane.classList.add('u-display-none');
     if (bookGrid)    bookGrid.innerHTML = '<span style="color:#555;">Click the Books tab to load.</span>';
     gridEl.innerHTML = '<span style="color:#888;">Loading…</span>';
 
@@ -1511,7 +1520,12 @@ function startClassEdit(classId) {
     document.getElementById('class-daily-input').value = Math.floor((cls.dailySeconds || 0) / 60);
     document.getElementById('class-weekly-input').value= Math.floor((cls.weeklySeconds || 0) / 60);
     document.getElementById('class-form-title').textContent = 'Edit Class';
-    document.getElementById('class-cancel-btn').style.display = '';
+    // ⚠️ CLASS, NOT INLINE STYLE (Round 74). These elements are hidden by
+    // `u-display-none`, which has no `!important` — so `style.display = ''`
+    // removes the inline declaration and lets the CLASS win, leaving the element
+    // hidden while the code reads as if it revealed it. Setting a real value
+    // ('none', 'block') works; setting '' never does.
+    document.getElementById('class-cancel-btn').classList.remove('u-display-none');
     document.getElementById('class-form-status').textContent = '';
     document.getElementById('class-name-input').focus();
 }
@@ -1522,7 +1536,7 @@ function cancelClassEdit() {
     document.getElementById('class-daily-input').value = 10;
     document.getElementById('class-weekly-input').value= 50;
     document.getElementById('class-form-title').textContent = 'New Class';
-    document.getElementById('class-cancel-btn').style.display = 'none';
+    document.getElementById('class-cancel-btn').classList.add('u-display-none');
     document.getElementById('class-form-status').textContent = '';
 }
 
@@ -1671,8 +1685,13 @@ function initStudentsPanel() {
                 b.style.borderBottomColor = active ? '#4B9CD3' : 'transparent';
                 b.style.color = active ? '#4B9CD3' : '#666';
             });
-            document.getElementById('student-pane-lessons').style.display = pane === 'lessons' ? '' : 'none';
-            document.getElementById('student-pane-books').style.display   = pane === 'books'   ? '' : 'none';
+            document.getElementById('student-pane-lessons').classList.toggle('u-display-none', !(pane === 'lessons'));
+            // ⚠️ CLASS, NOT INLINE STYLE (Round 74). These elements are hidden by
+    // `u-display-none`, which has no `!important` — so `style.display = ''`
+    // removes the inline declaration and lets the CLASS win, leaving the element
+    // hidden while the code reads as if it revealed it. Setting a real value
+    // ('none', 'block') works; setting '' never does.
+        document.getElementById('student-pane-books').classList.toggle('u-display-none', !(pane === 'books'));
             if (pane === 'books' && _currentStudentUid) _loadStudentBooks(_currentStudentUid);
         });
     });

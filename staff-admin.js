@@ -1,5 +1,19 @@
-// staff-admin.js v2.2.0 — Staff tab for admin.html
-window.STAFF_ADMIN_VERSION = '2.2.0';
+// staff-admin.js v2.3.0 — Staff tab for admin.html
+//
+// v2.3.0 — ⚠️⚠️ THE "HOW THIS WORKS" BUTTON DID NOTHING, FOR ITS WHOLE LIFE.
+//          Jake: "I click on it and nothing happens. At all." The panel is hidden
+//          by the CLASS `u-display-none`; the handler toggled the INLINE
+//          `style.display`, which starts as '' — so the first click set it to
+//          'none' (already hidden) and the second set it back to '' (still
+//          hidden, the class untouched). A toggle that could only ever lose to
+//          the rule it was fighting.
+//          ⚠️ SAME FAMILY AS ROUND 64's DEAD HOVERS, INVERTED: there an inline
+//          background beat a selector, here an empty inline value loses to a
+//          class. ⭐ THE RULE THAT COVERS BOTH: whatever declares the state is
+//          what has to change it.
+//          ⚠️ It carries aria-expanded now — a disclosure button that never says
+//          whether it is open is unusable without sight of the panel.
+window.STAFF_ADMIN_VERSION = '2.3.0';
 //
 // v2.0.0 — REBUILT to need no command line. v1.0.0 called Cloud Functions to set
 //          Auth custom claims, which requires `firebase deploy --only functions`.
@@ -134,7 +148,12 @@ function bindUI() {
     // Schools panel is super_admin only.
     const schoolsBox = document.getElementById('schools-section');
     if (schoolsBox) {
-        schoolsBox.style.display = _scope.role === 'super_admin' ? '' : 'none';
+        // ⚠️ CLASS, NOT INLINE STYLE (Round 74). These elements are hidden by
+    // `u-display-none`, which has no `!important` — so `style.display = ''`
+    // removes the inline declaration and lets the CLASS win, leaving the element
+    // hidden while the code reads as if it revealed it. Setting a real value
+    // ('none', 'block') works; setting '' never does.
+        schoolsBox.classList.toggle('u-display-none', _scope.role !== 'super_admin');
         // v2.2.0: in bootstrap mode the role is granted by JavaScript only and
         // rules will reject every write. Say so rather than offering a form that
         // fails — this is the exact confusion that cost an evening.
@@ -152,11 +171,29 @@ function bindUI() {
         const addBtn = document.getElementById('school-add-btn');
         if (addBtn) addBtn.addEventListener('click', addSchool);
     }
+    // ⚠️⚠️ THIS BUTTON DID NOTHING, FOR ITS WHOLE LIFE (v2.3.0). Jake: *"I click
+    // on it and nothing happens. At all."*
+    //
+    // The panel is hidden by the CLASS `u-display-none`. The handler toggled the
+    // INLINE `style.display`, which starts as '' — so the first click set it to
+    // 'none' (already hidden, no visible change) and the second set it back to ''
+    // (still hidden, because the CLASS was never touched). A toggle that can only
+    // ever lose to the rule it is fighting.
+    //
+    // ⚠️ SAME FAMILY AS THE DEAD HOVERS OF ROUND 64, INVERTED. There an inline
+    // background beat a selector; here an empty inline value loses to a class.
+    // ⭐ THE RULE THAT COVERS BOTH: whatever declares the state is what has to
+    // change it. If a class hides it, toggle the class.
     const helpToggle = document.getElementById('staff-help-toggle');
-    if (helpToggle) helpToggle.addEventListener('click', () => {
-        const h = document.getElementById('staff-help');
-        h.style.display = h.style.display === 'none' ? '' : 'none';
-    });
+    if (helpToggle) {
+        helpToggle.setAttribute('aria-expanded', 'false');
+        helpToggle.addEventListener('click', () => {
+            const h = document.getElementById('staff-help');
+            if (!h) return;
+            const open = h.classList.toggle('u-display-none') === false;
+            helpToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+    }
     document.getElementById('staff-refresh-btn').addEventListener('click', async () => {
         await loadRequests();
         await refreshStaffList();
@@ -256,10 +293,18 @@ async function openGrantFor(person) {
     });
 
     const revokeBtn = document.getElementById('staff-revoke-btn');
-    revokeBtn.style.display = current && current.active !== false ? '' : 'none';
+    // ⚠️ CLASS, NOT INLINE STYLE (Round 74) — `u-display-none` has no
+    // `!important`, so `= ''` lets the class win and Remove Access stays hidden
+    // for every active member of staff, which is exactly when it is wanted.
+    revokeBtn.classList.toggle('u-display-none', !(current && current.active !== false));
     revokeBtn.onclick = () => doRevoke(person);
 
-    document.getElementById('staff-candidate').style.display = '';
+    // ⚠️ CLASS, NOT INLINE STYLE (Round 74). These elements are hidden by
+    // `u-display-none`, which has no `!important` — so `style.display = ''`
+    // removes the inline declaration and lets the CLASS win, leaving the element
+    // hidden while the code reads as if it revealed it. Setting a real value
+    // ('none', 'block') works; setting '' never does.
+    document.getElementById('staff-candidate').classList.remove('u-display-none');
     document.getElementById('staff-candidate').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -283,7 +328,7 @@ async function doGrant() {
             });
             setStatus(`${_candidate.email} will become a ${ROLE_LABELS[role]} ` +
                       `(${SCOPE_LABELS[readScope]}) the first time they sign in.`);
-            document.getElementById('staff-candidate').style.display = 'none';
+            document.getElementById('staff-candidate').classList.add('u-display-none');
             document.getElementById('staff-email-grant-input').value = '';
             _candidate = null;
             await loadPendingGrants();
@@ -316,7 +361,7 @@ async function doGrant() {
         setStatus(`${_candidate.displayName || _candidate.email} is now a ` +
                   `${ROLE_LABELS[role]} (${SCOPE_LABELS[readScope]}). ` +
                   `Effective immediately — no sign-out needed.`);
-        document.getElementById('staff-candidate').style.display = 'none';
+        document.getElementById('staff-candidate').classList.add('u-display-none');
         _candidate = null;
         await loadRequests();
         await refreshStaffList();
@@ -340,7 +385,7 @@ async function doRevoke(person) {
         }, { merge: true });
         setStatus(`Access removed for ${person.displayName || person.email}. ` +
                   `Effective immediately.`);
-        document.getElementById('staff-candidate').style.display = 'none';
+        document.getElementById('staff-candidate').classList.add('u-display-none');
         _candidate = null;
         await refreshStaffList();
     } catch (e) {
@@ -460,8 +505,8 @@ async function openGrantByEmail() {
                 automatically the first time they sign in.
             </div>`;
         document.querySelectorAll('.staff-school-cb').forEach(cb => { cb.checked = false; });
-        document.getElementById('staff-revoke-btn').style.display = 'none';
-        document.getElementById('staff-candidate').style.display = '';
+        document.getElementById('staff-revoke-btn').classList.add('u-display-none');
+        document.getElementById('staff-candidate').classList.remove('u-display-none');
         setStatus('');
     } catch (e) {
         console.error(e);
