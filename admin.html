@@ -1,9 +1,15 @@
 <!DOCTYPE html>
-<!-- admin.html v1.16.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.17.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.17.0 — ⚠️ ROADMAP 59: the Class Manager's school/teacher filter bar.
+     ⚠️⚠️ IT NARROWS AN ALREADY-SCOPED LIST AND IS NOT WHAT SCOPES IT — the cache
+     holds only what firestore.rules allowed, so clearing the filters never widens
+     what a building_admin can see. ⚠️ The bar hides entirely for a teacher: two
+     empty dropdowns over one person's own classes read as broken, not absent.
 
      v1.16.0 — ⚠️⚠️ THE PREVIEW NOW CROPS THE WAY THE SHELF CROPS, AND SAYS BY
      HOW MUCH. index.html's `.book-cover` is `object-fit: cover` — zoom until the
@@ -2057,6 +2063,25 @@
             </div>
 
             <!-- Class list -->
+            <!-- ⚠️⚠️ ROADMAP 59 (v1.17.0). THE FILTER NARROWS AN ALREADY-SCOPED
+                 LIST AND IS NOT WHAT SCOPES IT. `_classCache` holds only what
+                 firestore.rules let this account read, so a building_admin who
+                 clears these still sees only their building. A filter that WERE
+                 the boundary would leak the moment somebody reset it.
+                 ⚠️ The whole bar hides for a teacher — one person's own classes
+                 are not a list that needs narrowing, and two empty dropdowns
+                 read as a feature that is broken rather than absent. -->
+            <div id="class-filter-bar" class="btn-bar u-margin-bottom-12px hidden">
+                <div>
+                    <label for="class-filter-school">School</label>
+                    <select id="class-filter-school" class="u-font-size-0-8em"></select>
+                </div>
+                <div>
+                    <label for="class-filter-teacher">Teacher</label>
+                    <select id="class-filter-teacher" class="u-font-size-0-8em"></select>
+                </div>
+            </div>
+            <div id="class-filter-count" class="u-font-size-0-8em u-color-888 u-margin-bottom-8px"></div>
             <div id="class-list" class="u-display-flex u-flex-direction-column u-gap-8px"></div>
         </div><!-- /classes-panel -->
 

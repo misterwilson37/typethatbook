@@ -871,6 +871,80 @@ check('Q4. the note is wired to the image, and cleared with it', () => {
         'picture that is no longer there');
 });
 
+// ─── R. ROADMAP 59 — A CLASS CARD SAYS WHOSE IT IS ──────────────────────────
+//
+// Jake: *"there is zero indication on this page as to which teacher or school
+// these classes belong to. I should be able to see both of those things and
+// filter by them."* And his ruling: a building_admin sees everything in their
+// building, a teacher sees their own.
+//
+// ⚠️⚠️ THE CASE THAT MATTERS IS R2, AND IT IS NOT ABOUT DISPLAY. A filter that
+// became the scope boundary would leak another building's classes the moment
+// somebody cleared it. Scope is firestore.rules and `_scope`; the filter only
+// ever narrows what those already allowed.
+
+check('R1. the card prints the school and the teacher', () => {
+    const fn = /function renderClassList\(\)[\s\S]*?\n\}/.exec(lessons);
+    assert.ok(fn, 'renderClassList() is gone');
+    assert.match(fn[0], /_schoolLabel\(cls\)/, 'the card no longer names a school');
+    assert.match(fn[0], /_teacherLabel\(cls\)/, 'the card no longer names a teacher');
+});
+
+check('R2. ⚠️⚠️ the filter NARROWS the cache — it is never the source of it', () => {
+    // If the class list were FETCHED per filter, an empty filter would fetch
+    // everything, and "all schools" would mean all schools in the district.
+    const fn = /function renderClassList\(\)[\s\S]*?\n\}/.exec(lessons)[0];
+    assert.match(fn, /Object\.values\(_classCache\)/,
+        'the list no longer derives from _classCache');
+    assert.ok(!/getDocs|collection\(/.test(fn),
+        '⚠️⚠️ renderClassList() fetches. The filter must narrow what the rules ' +
+        'already allowed this account to read, never go and ask for more — ' +
+        'otherwise clearing it widens the boundary');
+    assert.match(fn, /classes\.filter\(/, 'nothing filters');
+});
+
+check('R3. ⚠️ the filter bar is hidden for a teacher, not merely empty', () => {
+    // Two empty dropdowns over one person's own classes read as a feature that
+    // is broken rather than one that is absent.
+    const fn = /async function initClassFilters\(\)[\s\S]*?\n\}/.exec(lessons);
+    assert.ok(fn, 'initClassFilters() is gone');
+    assert.match(fn[0], /_isSuper\(\)\s*\|\|\s*_scope\.role === 'building_admin'/,
+        "⚠️ the bar's audience is super_admin and building_admin. Note the " +
+        'UNDERSCORE — Round 74 shipped six rounds of a dead control by writing ' +
+        "'superadmin' instead");
+    assert.match(fn[0], /classList\.add\('hidden'\)/,
+        'a teacher gets an empty filter bar rather than none');
+});
+
+check('R4. ⚠️ the options come from the classes IN VIEW', () => {
+    // Offering a teacher whose classes this account cannot read is a filter that
+    // can only ever return nothing — and it leaks that they exist.
+    const fn = /async function initClassFilters\(\)[\s\S]*?\n\}/.exec(lessons)[0];
+    // ⚠️ ASSERT THE USE, NOT THE DECLARATION. The first draft grepped for the
+    // variable name, which still passed when the options were rebuilt from the
+    // whole staff list and the declaration was left behind — a check satisfied by
+    // dead code is a check satisfied by nothing.
+    assert.match(fn, /\[\s*\.\.\.usedSchools\s*\][\s\S]{0,200}?<option/,
+        'the school options are no longer BUILT from the classes in view, so they ' +
+        'can list buildings holding nothing this account can read');
+    assert.match(fn, /\[\s*\.\.\.usedTeachers\s*\][\s\S]{0,200}?<option/,
+        '⚠️ the teacher options are no longer BUILT from the classes in view. ' +
+        'Offering a teacher whose classes this account cannot read is a filter ' +
+        'that can only return nothing — and it leaks that they exist');
+});
+
+check('R5. the name lookups are lazy, cached, and never block the list', () => {
+    // §READS, and worse: blocking the panel on a lookup it needs only for LABELS
+    // means a failed lookup costs the whole class list.
+    assert.match(lessons, /let _teacherNames = null/, 'the teacher-name cache is gone');
+    assert.match(lessons, /if \(_teacherNames\) return _teacherNames/,
+        'the staff read is no longer cached, so it repeats on every render');
+    const load = /async function loadAndRenderClasses\(\)[\s\S]*?\n\}/.exec(lessons)[0];
+    assert.ok(load.indexOf('renderClassList()') < load.indexOf('initClassFilters()'),
+        '⚠️ the filters are initialised BEFORE the first paint, so a failed name ' +
+        'lookup costs the class list rather than two labels');
+});
+
 let failed = 0;
 for (const [state, name] of results) {
     console.log(`  ${state === 'ok' ? 'ok  ' : 'FAIL'} ${name}`);

@@ -1,5 +1,58 @@
 # CHANGELOG — TypeThatBook
 
+## Round 76 (Duplex) — 2026-09-05 — the class manager says whose class it is
+
+`lessons-admin.js` **v1.20.0**, `admin.html` **v1.17.0**.
+
+### ROADMAP 59 — school and teacher on every card, and filters on both
+
+⭐ **The data was already there.** Every class document carries `schoolId` and
+`teacherUids`, and `_classCache` has held both all along — **the card simply never
+printed them.** Only the id→name lookups needed fetching, and both are lazy and
+cached.
+
+⚠️⚠️ **The filter narrows an already-scoped list and is not what scopes it.**
+`firestore.rules` and `_scope` decide what a `building_admin` may read; clearing
+these dropdowns can never widen it. ⭐ **A filter that were the boundary would leak
+another building's classes the moment somebody reset it** — R2 fails if
+`renderClassList()` ever fetches instead of filtering the cache.
+
+⚠️ **The options come from the classes in view**, not the whole staff list.
+Offering a teacher whose classes this account cannot read is a filter that can only
+return nothing — and it leaks that they exist.
+
+⚠️ The bar **hides entirely for a teacher**: two empty dropdowns over one person's
+own classes read as broken rather than absent. ⚠️ `_teacherLabel()` names the
+plural, because a class can have several teachers and showing the first silently is
+a lie. ⚠️ Both labels fall back to the **id**, never to blank.
+
+⚠️ Note the underscore in `building_admin` — Round 74 shipped six rounds of a dead
+control by writing `superadmin` for `super_admin`. R3 pins this one.
+
+### ⚠️ One assertion was satisfied by dead code
+
+R4's first draft grepped for `usedTeachers` **anywhere** in the function, and still
+passed when the options were rebuilt from the whole staff list and the declaration
+was left behind. It asserts the **use** now. ⭐ **A check satisfied by dead code is
+a check satisfied by nothing.**
+
+### New: ROADMAP 60 — staff choose what books their own students see
+
+Jake, in the middle of answering a different question: *"Staff should have access
+to all of the books and decide what books their kids see."* ⚠️⚠️ **Filed
+separately and NOT built** — it is a capability statement, not a display fix, and
+folding it into this round would have shipped a guess at a feature described in one
+line. ⚠️ The shelf is the read-budget surface; a per-class filter that cannot be
+answered from the class document the page already fetches is the wrong shape.
+⚠️ Default must be "all books", or every existing class goes empty on the day it
+ships. Needs a ruling: allowlist or blocklist — they behave oppositely as the
+library grows.
+
+### Verification
+
+**72 harnesses pass, `audit:versions` 0 problems.** 5 new assertions (**55
+total**), mutation-verified four ways. ⚠️ `npm run test:rules` NOT run.
+
 ## Round 75 (Duplex) — 2026-09-05 — the preview crops like the shelf, and says what it cut
 
 `admin.html` **v1.16.0**, `admin.js` **v3.52.0**.
@@ -8304,4 +8357,32 @@ try { sessionStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
 //           calls readBookMetadataForm(), the SAME reader Save Metadata uses. The
 //           hint on Save Metadata lists all twelve fields; ⚠️ ADD TO IT IN THE
 //           SAME EDIT AS readBookMetadataForm().
+```
+
+### § lessons-admin.js — archived header entries (Round 76)
+
+```
+// v1.13.1 — ⚠️ THE ROSTER PANEL'S DATE NOW COMES FROM THE DOCUMENT ID. It read
+//           `data.date`, the field the writer stamped, where reports.html warns
+//           in capitals at its own point read to key off the id instead. Before
+//           the cutover a wrong stamp only mis-sorted a row; from 2026-08-22 it
+//           also picks the read BRANCH, and a post-cutover document read under a
+//           pre-cutover date goes legacy-first and drops that day's per-source
+//           afternoon. New helper `_logDateFromId()`; the totals expression
+//           itself is untouched, so daylog-cutover-test.mjs Part G still lifts
+//           it unchanged. Part H is new and covers the derivation.
+//           ⚠️ THE QUERY ABOVE STILL FILTERS ON `date` AND CANNOT DO OTHERWISE —
+//           an id is not an indexable field. So a document whose stamp is wrong
+//           can still fail to be DISCOVERED here. This fix makes the ones that
+//           are discovered read correctly; it does not make discovery sound.
+//           Staff page, read-only. No student write path is touched.
+//           ⚠️ ALSO REPAIRS THIS HEADER: v1.13.0's entry had been pasted
+//           into the MIDDLE OF v1.11.0's sentence, truncating it at
+//           "reports.html" and orphaning the paragraph that finished it
+//           — which is why `npm run audit:versions` reported the entries
+//           out of order. Entries are descending again and v1.11.0 reads
+//           as one sentence. Comments only; no code moved.
+//
+// Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
+// Version exposed as a window global so admin.js can read it.
 ```

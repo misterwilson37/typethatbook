@@ -392,6 +392,7 @@ Everything else still open:
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
 - 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
 - 58. ⚠️ STEP ONE DONE (Round 71) — A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
+- 60. ⭐ STAFF SHOULD SEE EVERY BOOK AND CHOOSE WHAT THEIR OWN STUDENTS SEE  *(Jake, Round 76. NOT BUILT — needs a ruling on allowlist vs blocklist, and the shelf is the read-budget surface)*
 - 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED  *(found Round 60; touches three mirrored files — read the item)*
 - 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS  *(the instrument that would have caught Round 59's finding on the day)*
 
@@ -405,6 +406,7 @@ Everything else still open:
 - 48. ✅ “TEXT PREPARED BY” NAMED THE WRONG PERSON ON EVERY BOOK, ON EVERY SURFACE  *(Round 57 — two defects, one symptom)*
 - 44. ✅ THE BOOK ID FIELD ACCEPTS ANYTHING TYPED INTO IT, AND slugifyBookId() IS RIGHT THERE  *(Round 57 — warns on whitespace, never blocks)*
 - 38. ✅ CLOSED for admin (Rounds 61-70) — reports.html closed Round 55 — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS  *(⚠️ UNBLOCKED, and Jake has RULED — build to the table, do not re-open it)*
+- 59. ✅ THE CLASS MANAGER NAMES ITS SCHOOL AND TEACHER, AND FILTERS ON BOTH  *(CLOSED Round 76)*
 - 56. ✅ CLOSED — (a) Round 68, (b) and (c) Round 64 — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS  *(Jake, 2026-09-03)*
 - 51. ✅ THE BUILD LIST IS IN NO ORDER A READER CAN RECOGNISE — SORT IT ALPHABETICALLY  *(CLOSED Round 64)*  *(Jake asked, 2026-09-03. Sort in renderBuildList(), NEVER the SOURCES array — read the item first)*
 - 29. ✅ README.md IS TWENTY-FIVE ROUNDS STALE  *(CLOSED Round 64 — and the item's own premise was stale; read it)*  *(Round 57 — file map regenerated from versions.js)*
@@ -3633,6 +3635,69 @@ The collapse is a contained, mechanical round with a strong existing harness. Th
 configurable half is a small feature sitting on top of it. **The `reports.html`
 ruling is the only thing in it that can go wrong quietly**, which is why it is
 listed above as a question rather than a task.
+
+## 59. ✅ THE CLASS MANAGER NAMES ITS SCHOOL AND TEACHER, AND FILTERS ON BOTH
+
+**Jake, 2026-09-04:** *"there is zero indication on this page as to which teacher
+or school these classes belong to. I should be able to see both of those things
+and filter by them."* **His ruling on scope:** *"Building admin should see
+everything in his building. The teachers and the classes... Teachers should be
+able to see...their own?"*
+
+✅ **`lessons-admin.js` v1.20.0, `admin.html` v1.17.0.**
+
+⭐ **THE DATA WAS ALREADY THERE.** Every class document carries `schoolId` and
+`teacherUids`, and `_classCache` has held both all along — **the card simply never
+printed them.** Only the id→name lookups needed fetching, and both are lazy and
+cached (§READS).
+
+⚠️⚠️ **THE FILTER NARROWS AN ALREADY-SCOPED LIST AND IS NOT WHAT SCOPES IT.**
+`firestore.rules` and `_scope` decide what a `building_admin` may READ; clearing
+these dropdowns can never widen it. ⭐ **A FILTER THAT WERE THE BOUNDARY WOULD LEAK
+ANOTHER BUILDING'S CLASSES THE MOMENT SOMEBODY RESET IT** — R2 fails if
+`renderClassList()` ever fetches rather than filtering the cache.
+
+⚠️ **THE OPTIONS COME FROM THE CLASSES IN VIEW**, not the whole staff or school
+list. Offering a teacher whose classes this account cannot read is a filter that
+can only ever return nothing — **and it leaks that they exist.** ⚠️ R4 asserts the
+options are *built* from those sets, not merely that the variables are declared:
+the first draft passed against dead code.
+
+⚠️ **THE BAR HIDES ENTIRELY FOR A TEACHER.** Two empty dropdowns over one person's
+own classes read as a feature that is broken rather than one that is absent.
+
+⚠️ **`_teacherLabel()` NAMES THE PLURAL** — "Ellis · Jake Wilson +2" — because a
+class can have several teachers and showing only the first silently is a lie.
+⚠️ Both labels fall back to the **id**, never to blank: "no school" on a card is a
+fact, an empty space looks like a state `firestore.rules` refuses to create.
+
+⚠️ **NOTE THE UNDERSCORE IN `building_admin`.** Round 74 shipped six rounds of a
+dead control by writing `superadmin` for `super_admin`; R3 pins this one.
+
+---
+
+## 60. ⭐ STAFF SHOULD SEE EVERY BOOK AND CHOOSE WHAT THEIR OWN STUDENTS SEE
+
+**Jake, 2026-09-05, in the middle of answering a different question:** *"Staff
+should have access to all of the books and decide what books their kids see."*
+
+⚠️⚠️ **THIS IS NOT THE CLASS MANAGER ITEM AND IT DOES NOT EXIST YET.** Filed
+separately because it is a capability statement, not a display fix, and folding it
+into Round 76 would have shipped a guess at a feature he described in one line.
+
+**What it implies, none of it built:**
+
+* A **per-class book allowlist** (or blocklist) — a new field on the class
+  document, and a new question for `game.js`/`index.html`'s shelf query.
+* ⚠️⚠️ **THE SHELF IS THE READ-BUDGET SURFACE.** Every student loads it, every
+  day. A per-class filter that costs a read per book, or that cannot be answered
+  from the class document the page **already** fetches for goals, is the wrong
+  shape. ⚠️ Answer it from data already in hand or do not answer it there.
+* ⚠️ **DEFAULT MUST BE "ALL BOOKS".** A class with no list set sees the whole
+  library — otherwise the day this ships, every existing class goes empty.
+* Needs a ruling: **allowlist or blocklist?** Blocklist keeps new books visible by
+  default (good for a growing library); an allowlist is what a teacher wanting a
+  tight unit actually asks for. They behave oppositely as the library grows.
 
 ## 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED
 

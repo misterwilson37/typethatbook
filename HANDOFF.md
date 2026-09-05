@@ -1,8 +1,59 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-05 by Round 75 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-05 by Round 76 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–75 ARE ONE INSTANCE.**
+> ⚠️ **ROUNDS 60–76 ARE ONE INSTANCE.**
+>
+> ### ✅ ROUND 76: ROADMAP 59 — THE CLASS MANAGER NAMES ITS SCHOOL AND TEACHER
+>
+> ⭐ **THE DATA WAS ALREADY THERE.** `schoolId` and `teacherUids` have been in
+> `_classCache` all along; the card never printed them.
+>
+> ⚠️⚠️ **THE FILTER NARROWS AN ALREADY-SCOPED LIST AND IS NOT WHAT SCOPES IT.**
+> A filter that were the boundary would leak another building's classes the moment
+> somebody cleared it. **R2 fails if `renderClassList()` ever fetches.**
+> ⚠️ Options come from the classes IN VIEW — offering a teacher whose classes this
+> account cannot read leaks that they exist.
+> ⚠️ **NOTE THE UNDERSCORE: `building_admin`, `super_admin`.** Round 74 shipped six
+> rounds of a dead control on that exact mistake.
+>
+> ⚠️ **A CHECK SATISFIED BY DEAD CODE IS A CHECK SATISFIED BY NOTHING.** R4's first
+> draft grepped for a variable NAME and passed when only its declaration remained.
+> Assert the **use**.
+>
+> ### ⭐ NEW: ROADMAP 60 — STAFF CHOOSE WHAT BOOKS THEIR STUDENTS SEE
+>
+> Jake said it in one line while answering something else, so it is **filed and not
+> built**. ⚠️⚠️ **THE SHELF IS THE READ-BUDGET SURFACE** — every student, every day.
+> A per-class filter that cannot be answered from the class document the page
+> ALREADY fetches for goals is the wrong shape. ⚠️ **Default must be "all books"**,
+> or every existing class goes empty the day it ships. ⚠️ Needs a ruling:
+> **allowlist or blocklist** — they behave oppositely as the library grows.
+>
+> ### THE STATE OF PLAY
+>
+> * **72 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run.
+> * **Expected stamps:** `admin.html` **v1.17.0**, `admin.js` **v3.52.0**,
+>   `lessons-admin.js` **v1.20.0**, `reports.html` **v1.9.0**, `staff-admin.js`
+>   **v2.3.0**, `game.js` **v3.49.0**, `learn.js` **v2.46.0**, `versions.js`
+>   **v1.16.0**.
+> * ⚠️ **CONFIRMED LIVE: 60–63, 65, 66, 67.** 64 and 68–76 unconfirmed.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+> * ⚠️⚠️ **ROADMAP 50's FIRST LIVE WEEK BEGAN SAT 2026-09-05.** Watch `game.html`.
+> * **JAKE'S OPEN LIST — cover crop and class manager now DONE:**
+>   1. `Process Overwrite` is shorter than its `Choose File` field; more space
+>      below `Open Book` than above; the Students filter field floats.
+>      ⭐ **PROBABLY ONE CAUSE AGAIN** — Round 67's three were a single 15px margin.
+>   2. Reports' weekly-goal panel is vestigial; the default belongs with the other
+>      goal definitions. ⚠️ Tangled with ROADMAP 58 step two.
+>   3. A "How this works" bar on every staff page — unblocked, the Staff one works
+>      as of Round 74.
+> * **Also next:** **39's admin.js half** (42 calls — ⚠️ check `async` FIRST),
+>   **58 step two**, and **60** once ruled.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Round 75 (Duplex) — the previous block, kept
 >
 > ### ✅ ROUND 75: THE PREVIEW CROPS LIKE THE SHELF, AND SAYS WHAT IT CUT
 >

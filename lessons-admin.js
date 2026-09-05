@@ -1,4 +1,24 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.19.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.20.0
+//
+// v1.20.0 — ⚠️ ROADMAP 59: A CLASS CARD SAYS WHOSE IT IS, AND THE LIST FILTERS.
+//           Jake: "there is zero indication on this page as to which teacher or
+//           school these classes belong to."
+//           ⭐ THE DATA WAS ALREADY THERE. Every class document carries
+//           `schoolId` and `teacherUids` and _classCache held both all along —
+//           the card simply never printed them. Only the id→name lookups needed
+//           fetching, and both are lazy and cached (§READS).
+//           ⚠️⚠️ THE FILTER NARROWS AN ALREADY-SCOPED LIST AND IS NOT WHAT SCOPES
+//           IT. firestore.rules and _scope decide what a building_admin may READ;
+//           clearing these dropdowns can never widen it. A filter that WERE the
+//           boundary would leak the moment somebody reset it.
+//           ⚠️ Options come from the classes IN VIEW, not from the whole staff or
+//           school list — offering a teacher whose classes this account cannot
+//           read is a filter that can only return nothing, and it leaks that they
+//           exist.
+//           ⚠️ The bar hides entirely for a teacher: two empty dropdowns over one
+//           person's own classes read as broken, not absent.
+//           ⚠️ initClassFilters() runs AFTER the first paint — blocking the list
+//           on label lookups would let a failed lookup cost the whole panel.
 //
 // v1.19.0 — ⚠️⚠️ TWO CONTROLS THAT DID NOTHING, AND THE CAUSE IS ONE RULE.
 //           `Cancel` never appeared while editing a class, and the Lessons pane
@@ -84,30 +104,7 @@
 //           § ARCHIVED FILE HEADERS; this file was over the build panel's
 //           entry budget. See versions.js v1.12.0.
 //
-// v1.13.1 — ⚠️ THE ROSTER PANEL'S DATE NOW COMES FROM THE DOCUMENT ID. It read
-//           `data.date`, the field the writer stamped, where reports.html warns
-//           in capitals at its own point read to key off the id instead. Before
-//           the cutover a wrong stamp only mis-sorted a row; from 2026-08-22 it
-//           also picks the read BRANCH, and a post-cutover document read under a
-//           pre-cutover date goes legacy-first and drops that day's per-source
-//           afternoon. New helper `_logDateFromId()`; the totals expression
-//           itself is untouched, so daylog-cutover-test.mjs Part G still lifts
-//           it unchanged. Part H is new and covers the derivation.
-//           ⚠️ THE QUERY ABOVE STILL FILTERS ON `date` AND CANNOT DO OTHERWISE —
-//           an id is not an indexable field. So a document whose stamp is wrong
-//           can still fail to be DISCOVERED here. This fix makes the ones that
-//           are discovered read correctly; it does not make discovery sound.
-//           Staff page, read-only. No student write path is touched.
-//           ⚠️ ALSO REPAIRS THIS HEADER: v1.13.0's entry had been pasted
-//           into the MIDDLE OF v1.11.0's sentence, truncating it at
-//           "reports.html" and orphaning the paragraph that finished it
-//           — which is why `npm run audit:versions` reported the entries
-//           out of order. Entries are descending again and v1.11.0 reads
-//           as one sentence. Comments only; no code moved.
-//
-// Imported by admin.js. Call initLessonsPanel(db, auth) after auth check.
-// Version exposed as a window global so admin.js can read it.
-//
+// ⚠️ v1.13.1's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 76).
 // ⚠️ v1.13.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 74).
 // ⚠️ v1.12.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 71).
 // ⚠️ v1.11.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
@@ -116,7 +113,7 @@
 // ⚠️ v1.13.2 — v1.8.1, v1.8.0, v1.7.1 and v1.7.0 moved to CHANGELOG.md
 //    § ARCHIVED FILE HEADERS. Nothing deleted.
 //
-window.LESSONS_ADMIN_VERSION = '1.19.0';
+window.LESSONS_ADMIN_VERSION = '1.20.0';
 
 // ⚠️ ROADMAP 58 — the week anchor, from its one home. daylog.js imports only
 // logdays.js, which this page's siblings already load, so this adds no machinery.
@@ -1303,7 +1300,7 @@ async function _schoolIdForClass(classId) {
 }
 
 function initClassesPanel() {
-    if (_classesPanelInited) { renderClassList(); return; }
+    if (_classesPanelInited) { renderClassList(); initClassFilters(); return; }
     _classesPanelInited = true;
 
     populateClassSchools();
@@ -1321,16 +1318,63 @@ async function loadAndRenderClasses() {
         _classCache = {};
         snap.forEach(d => { _classCache[d.id] = { id: d.id, ...d.data() }; });
         renderClassList();
+        // ⚠️ AFTER the first paint, never before it. The filter bar needs two
+        // lookups; blocking the class list on labels would mean a failed lookup
+        // costs the whole panel instead of two names.
+        initClassFilters();
     } catch(e) {
         document.getElementById('class-list').innerHTML =
             '<span style="color:#ff4444;">Load failed: ' + escHtml(e.message) + '</span>';
     }
 }
 
+/** ⚠️ FALLS BACK TO THE ID, NEVER TO BLANK. "unknown school" on a card is a
+ *  fact; an empty space is a card that looks like it has no building, which is
+ *  the state firestore.rules refuses to create. */
+function _schoolLabel(cls) {
+    const id = cls.schoolId || '';
+    if (!id) return 'no school';
+    return (_schoolNames && _schoolNames[id]) || id;
+}
+
+/** ⚠️ A class can have several teachers, and the plural matters — "Ellis · 3
+ *  teachers" is information; showing only the first one silently is not. */
+function _teacherLabel(cls) {
+    const uids = Array.isArray(cls.teacherUids) ? cls.teacherUids : [];
+    if (!uids.length) return 'no teacher';
+    if (!_teacherNames) return uids.length === 1 ? 'teacher' : uids.length + ' teachers';
+    const named = uids.map(u => _teacherNames[u] || u);
+    return named.length <= 2 ? named.join(', ') : named[0] + ' +' + (named.length - 1);
+}
+
 function renderClassList() {
     const listEl = document.getElementById('class-list');
-    const classes = Object.values(_classCache).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    let classes = Object.values(_classCache).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
+    // ⚠️⚠️ THE FILTER NARROWS AN ALREADY-SCOPED LIST. It is NOT what scopes it —
+    // `_classCache` holds only what firestore.rules let this account read, and a
+    // building_admin who clears these dropdowns still sees only their building.
+    // A filter that were the boundary would leak the moment somebody reset it.
+    const fSchool  = (document.getElementById('class-filter-school')  || {}).value || '';
+    const fTeacher = (document.getElementById('class-filter-teacher') || {}).value || '';
+    if (fSchool)  classes = classes.filter(c => (c.schoolId || '') === fSchool);
+    if (fTeacher) classes = classes.filter(c => (c.teacherUids || []).includes(fTeacher));
+
+    const countEl = document.getElementById('class-filter-count');
+    if (countEl) {
+        const total = Object.keys(_classCache).length;
+        // ⚠️ SAY WHEN SOMETHING IS HIDDEN. A filtered list that looks like the
+        // whole list is how "that class is missing" becomes a support question.
+        countEl.textContent = classes.length === total
+            ? `${total} class${total === 1 ? '' : 'es'}`
+            : `${classes.length} of ${total} shown — ${total - classes.length} hidden by the filters`;
+    }
+
+    if (!classes.length && Object.keys(_classCache).length) {
+        listEl.innerHTML = '<div style="color:#888; font-size:0.82em;">' +
+            'No classes match these filters.</div>';
+        return;
+    }
     if (!classes.length) {
         listEl.innerHTML = '<div style="color:#555; font-size:0.82em;">No classes yet. Create one above.</div>';
         return;
@@ -1345,6 +1389,13 @@ function renderClassList() {
         card.innerHTML =
             '<div style="flex:1;">' +
             '<div style="font-weight:bold;color:#eee;margin-bottom:2px;">' + escHtml(cls.name || cls.id) + '</div>' +
+            // ⚠️ WHOSE CLASS IS THIS. School and teacher come straight off the
+            // class document — both were already in _classCache; the card simply
+            // never printed them. The names fill in when the lookups land, so a
+            // failed lookup costs a label and not the panel.
+            '<div style="font-size:0.75em;color:#8ab;margin-bottom:2px;">' +
+            escHtml(_schoolLabel(cls)) + ' &nbsp;·&nbsp; ' + escHtml(_teacherLabel(cls)) +
+            '</div>' +
             '<div style="font-size:0.75em;color:#666;">' +
             'Daily: ' + dm + 'min&nbsp;&nbsp;Weekly: ' + wm + 'min' +
             '&nbsp;&nbsp;<span style="color:#444;">ID: ' + escHtml(cls.id) + '</span>' +
@@ -1483,6 +1534,48 @@ async function saveClass() {
         statusEl.textContent = 'Error: ' + e.message;
         statusEl.style.color = '#ff6666';
     }
+}
+
+/**
+ * ⚠️ ROADMAP 59 — the filter bar, populated from what this account may see.
+ *
+ * ⚠️⚠️ HIDDEN ENTIRELY FOR A TEACHER. One person's own classes are not a list
+ * that needs narrowing, and two empty dropdowns read as a feature that is broken
+ * rather than one that is absent. Jake: *"Teachers should be able to see...their
+ * own? Not much need for a filter there."*
+ *
+ * ⚠️ THE TEACHER OPTIONS COME FROM THE CLASSES IN VIEW, not from the whole staff
+ * list — offering a teacher whose classes this account cannot read would be a
+ * filter that can only ever return nothing, and it would leak that they exist.
+ */
+async function initClassFilters() {
+    const bar = document.getElementById('class-filter-bar');
+    if (!bar) return;
+    const canFilter = _isSuper() || _scope.role === 'building_admin';
+    if (!canFilter) { bar.classList.add('hidden'); return; }
+    bar.classList.remove('hidden');
+
+    const schoolSel  = document.getElementById('class-filter-school');
+    const teacherSel = document.getElementById('class-filter-teacher');
+
+    const [schools, names] = await Promise.all([_loadSchoolNames(), _loadTeacherNames()]);
+
+    // ⚠️ ONLY BUILDINGS THAT ACTUALLY HOLD A CLASS THIS ACCOUNT CAN SEE. A
+    // dropdown full of empty buildings is a list of places to find nothing.
+    const usedSchools = new Set(Object.values(_classCache).map(c => c.schoolId).filter(Boolean));
+    schoolSel.innerHTML = '<option value="">All schools</option>' +
+        [...usedSchools].sort((a, b) => (schools[a] || a).localeCompare(schools[b] || b))
+            .map(id => `<option value="${escHtml(id)}">${escHtml(schools[id] || id)}</option>`).join('');
+
+    const usedTeachers = new Set();
+    Object.values(_classCache).forEach(c => (c.teacherUids || []).forEach(u => usedTeachers.add(u)));
+    teacherSel.innerHTML = '<option value="">All teachers</option>' +
+        [...usedTeachers].sort((a, b) => (names[a] || a).localeCompare(names[b] || b))
+            .map(u => `<option value="${escHtml(u)}">${escHtml(names[u] || u)}</option>`).join('');
+
+    schoolSel.onchange  = renderClassList;
+    teacherSel.onchange = renderClassList;
+    renderClassList();          // the names have landed; repaint the cards
 }
 
 // Fill the school dropdown from the caller's own buildings.
@@ -2863,6 +2956,58 @@ let _csvMissingClasses = [];
 
 // Shared by the class form and the CSV importer. Returns [{id, name}] limited to
 // the caller's own buildings, or everything for a super admin.
+// ═══ ⚠️ ROADMAP 59 — A CLASS CARD MUST SAY WHOSE IT IS (v1.20.0) ════════════
+//
+// Jake: *"there is zero indication on this page as to which teacher or school
+// these classes belong to. I should be able to see both of those things and
+// filter by them."*
+//
+// ⚠️ THE DATA WAS ALREADY THERE. Every class document carries `schoolId` and
+// `teacherUids`, and `_classCache` has held both all along — the card simply
+// never printed them. The only thing that needed fetching was the uid→name and
+// id→name lookups, and both are cached and lazy.
+//
+// ⚠️⚠️ SCOPE IS NOT A FILTER. What a building_admin may SEE is decided by
+// firestore.rules and by `_scope`, not by this dropdown. The filter narrows a
+// list that is already scoped; it must never be the thing that scopes it, or the
+// first person to clear it sees another building's classes.
+
+let _teacherNames = null;      // uid → display name, or null until loaded
+let _schoolNames  = null;      // id  → name
+
+/**
+ * ⚠️ ONE getDocs, ON FIRST NEED, CACHED (§READS). The class list renders without
+ * it and fills the names in when they arrive — a panel that blocks on a lookup it
+ * only needs for LABELS is a panel that fails to open when the lookup fails.
+ */
+async function _loadTeacherNames() {
+    if (_teacherNames) return _teacherNames;
+    const out = {};
+    try {
+        const snap = await getDocs(collection(_db, 'staff'));
+        snap.forEach(d => {
+            const v = d.data() || {};
+            out[d.id] = v.displayName || v.name || v.email || d.id;
+        });
+    } catch (e) {
+        // ⚠️ A teacher cannot read the staff collection, and that is correct.
+        // Their own classes are the only ones they see, so the name adds nothing.
+        console.warn('Could not load staff names:', e);
+    }
+    _teacherNames = out;
+    return out;
+}
+
+/** The school names, keyed. ⚠️ Reuses _loadSchoolOptions() so "which buildings"
+ *  keeps having ONE answer — the same reason populateClassSchools() does. */
+async function _loadSchoolNames() {
+    if (_schoolNames) return _schoolNames;
+    const out = {};
+    for (const s of await _loadSchoolOptions()) out[s.id] = s.name;
+    _schoolNames = out;
+    return out;
+}
+
 async function _loadSchoolOptions() {
     try {
         const snap = await getDocs(collection(_db, 'schools'));
