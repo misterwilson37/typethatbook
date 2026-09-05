@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- meta-panel-ab.html v1.5.0 — ROADMAP 55/56/38, Rounds 65-72 (Duplex).
+<!-- meta-panel-ab.html v1.6.0 — ROADMAP 55/56/38, Rounds 65-75 (Duplex).
 
      ⚠️ NOT SHIPPED. Lives in tools/, never deployed.
 
@@ -42,7 +42,7 @@
     .hidden { display:none; }
     .danger-btn, .tier-commit { background:#500; border:1px solid #800; color:#fcc; }
 
-/* ─── lifted verbatim from admin.html v1.15.0 ─────────────────────────── */
+/* ─── lifted verbatim from admin.html v1.16.0 ─────────────────────────── */
 button.tier-commit:not(:disabled),
 button.danger-btn:not(:disabled) { background: #500; border: 1px solid #800; color: #fcc; }
 /* ⚠️ THE HOVERS NEED THE GUARD TOO. `:hover` still MATCHES a disabled
@@ -201,7 +201,7 @@ a:hover { color: #fff; }
    ⚠️ `min-width: 0` IS LOAD-BEARING. A grid item's default min-width is
    auto, so a <select> with a long option refuses to shrink — a second,
    quieter way to get `https:/`. */
-.import-box { --cover-w: 240px; --meta-gap: 20px; }
+.import-box { --cover-w: 175px; --meta-gap: 20px; }
 .meta-head,
 .meta-grid {
     display: grid;
@@ -315,13 +315,34 @@ a:hover { color: #fff; }
     border: 1px solid #444; border-radius: 3px;
     background: #161616; position: relative; overflow: hidden;
 }
+/* ⚠️⚠️ `cover`, NOT `contain` (v1.16.0) — index.html's `.book-cover` uses
+   `object-fit: cover`, so the shelf ZOOMS AND CROPS. This frame letterboxed
+   instead, which meant the admin was approving a picture no student would
+   ever see. A preview whose fit rule differs from the shelf's is not a
+   preview. ⚠️ `object-position: center` matches the shelf's default; change
+   one and you change both.
+   ⚠️ STILL ABSOLUTE, so the image cannot size the three rows it spans —
+   that was Round 68's fix and it is unrelated to the fit rule. */
 .cover-frame img {
-    position: absolute; inset: 4px; margin: auto;
-    max-width: calc(100% - 8px); max-height: calc(100% - 8px);
-    width: auto; height: auto; display: block;
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover; object-position: center; display: block;
 }
-.meta-cover-controls input[type=file] { flex: 1 1 auto; min-width: 0; font-size: 0.68em; margin: 0; }
-.meta-cover-controls .danger-btn { flex: 0 0 auto; font-size: 0.7em; padding: 4px 10px; margin: 0; width: auto; }
+/* ⚠️ COMPACT ENOUGH FOR A 175px COLUMN (v1.16.0). The column narrowed so
+   the six field columns could have the width back — Jake's whole reason
+   for wanting the cover smaller — and these two still have to sit in ONE
+   row, which he liked. Shrinking the file input's font shrinks its native
+   button with it; that is the only lever a file input gives you. */
+.meta-cover-controls input[type=file] { flex: 1 1 auto; min-width: 0; font-size: 0.6em; margin: 0; }
+.meta-cover-controls .danger-btn { flex: 0 0 auto; font-size: 0.62em; padding: 4px 7px; margin: 0; width: auto; }
+
+/* ⚠️ `is-heavy` IS A DIFFERENT SENTENCE, NOT A LOUDER ONE. A sliver off the
+   edge is normal; a third of the picture gone means the wrong file. */
+.cover-note {
+    margin-top: 5px; font-size: 0.6em; line-height: 1.4;
+    color: #888; text-align: center; word-break: break-word;
+}
+.cover-note.is-heavy { color: var(--notice); }
 
 /* ⚠️ The read-only stamp is a real box so it sits on the same baseline as
    its neighbours instead of floating on a padding-top guess. It is still
@@ -514,7 +535,7 @@ button.tier-edit:not(:disabled):hover { background: #4B9CD3; }
     margin-top: 6px; padding: 8px 10px; border-left: 2px solid #4B9CD3;
     background: #16202a; color: #bbb; font-size: 0.72em; line-height: 1.55;
 }
-.import-box { --cover-w: 240px; --meta-gap: 20px; }
+.import-box { --cover-w: 175px; --meta-gap: 20px; }
 .meta-head,
 .meta-grid {
     display: grid;
@@ -628,13 +649,34 @@ button.tier-edit:not(:disabled):hover { background: #4B9CD3; }
     border: 1px solid #444; border-radius: 3px;
     background: #161616; position: relative; overflow: hidden;
 }
+/* ⚠️⚠️ `cover`, NOT `contain` (v1.16.0) — index.html's `.book-cover` uses
+   `object-fit: cover`, so the shelf ZOOMS AND CROPS. This frame letterboxed
+   instead, which meant the admin was approving a picture no student would
+   ever see. A preview whose fit rule differs from the shelf's is not a
+   preview. ⚠️ `object-position: center` matches the shelf's default; change
+   one and you change both.
+   ⚠️ STILL ABSOLUTE, so the image cannot size the three rows it spans —
+   that was Round 68's fix and it is unrelated to the fit rule. */
 .cover-frame img {
-    position: absolute; inset: 4px; margin: auto;
-    max-width: calc(100% - 8px); max-height: calc(100% - 8px);
-    width: auto; height: auto; display: block;
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover; object-position: center; display: block;
 }
-.meta-cover-controls input[type=file] { flex: 1 1 auto; min-width: 0; font-size: 0.68em; margin: 0; }
-.meta-cover-controls .danger-btn { flex: 0 0 auto; font-size: 0.7em; padding: 4px 10px; margin: 0; width: auto; }
+/* ⚠️ COMPACT ENOUGH FOR A 175px COLUMN (v1.16.0). The column narrowed so
+   the six field columns could have the width back — Jake's whole reason
+   for wanting the cover smaller — and these two still have to sit in ONE
+   row, which he liked. Shrinking the file input's font shrinks its native
+   button with it; that is the only lever a file input gives you. */
+.meta-cover-controls input[type=file] { flex: 1 1 auto; min-width: 0; font-size: 0.6em; margin: 0; }
+.meta-cover-controls .danger-btn { flex: 0 0 auto; font-size: 0.62em; padding: 4px 7px; margin: 0; width: auto; }
+
+/* ⚠️ `is-heavy` IS A DIFFERENT SENTENCE, NOT A LOUDER ONE. A sliver off the
+   edge is normal; a third of the picture gone means the wrong file. */
+.cover-note {
+    margin-top: 5px; font-size: 0.6em; line-height: 1.4;
+    color: #888; text-align: center; word-break: break-word;
+}
+.cover-note.is-heavy { color: var(--notice); }
 
 /* ⚠️ The read-only stamp is a real box so it sits on the same baseline as
    its neighbours instead of floating on a padding-top guess. It is still
@@ -680,7 +722,7 @@ button.tier-edit:not(:disabled):hover { background: #4B9CD3; }
     them. Hover a field to see its hint.
 </p>
 
-<h2>Proposed <span class="tag">admin.html v1.15.0</span></h2>
+<h2>Proposed <span class="tag">admin.html v1.16.0</span></h2>
 <div class="stage">
   <div class="import-box guide">
 <div class="meta-head">
@@ -874,6 +916,12 @@ button.tier-edit:not(:disabled):hover { background: #4B9CD3; }
     <div class="meta-cover">
         <label>Cover <button type="button" class="hint" data-note="AUTO-EXTRACTED FROM THE EPUB when it has one. Choose a file to override it; Remove clears it and a hand-sourced jacket cannot be recovered from here.">i</button></label>
         <div class="cover-frame"><img id="cover-preview" class="hidden"></div>
+        <!-- ⚠️ WHAT THE SHELF WILL CUT OFF, written under the jacket.
+             Jake asked for it, and it does a second job: the frame is
+             narrower than its column (2:3 against the row height), and
+             this is what fills the space rather than leaving the cover
+             "drifting alone in a column by itself". -->
+        <div id="cover-fit-note" class="cover-note"></div>
     </div>
 
     <!-- ⚠️ The controls get their own cell on the LAST field row, so
@@ -891,6 +939,17 @@ button.tier-edit:not(:disabled):hover { background: #4B9CD3; }
 </div>
 
 <div class="meta">
+    <b>The preview crops the way the shelf crops now, and says what it cut.</b>
+    <code>index.html</code>'s <code>.book-cover</code> is
+    <code>object-fit: cover</code> &mdash; zoom until the 2:3 box is full, then cut
+    the overflow. This frame was <code>contain</code>, which letterboxes and cuts
+    <i>nothing</i>, so the admin was approving a picture no student would ever see.
+    The note under the jacket reports the loss from the image's natural
+    dimensions.<br><br>
+    <b>The column went 240px &rarr; 175px</b>, which was the point &mdash; the six
+    field columns get the width back. The two controls still sit in one row, which
+    is why it could not go all the way down to the jacket's own ~130px, and the
+    note is what fills the rest rather than leaving the cover drifting.<br><br>
     <b>The cover is 2:3 now &mdash; the ratio <code>index.html</code>'s
     <code>.book-cover</code> uses</b>, so this preview is the shape a student
     actually sees on the shelf. Its <i>height</i> is still the three grid rows, and

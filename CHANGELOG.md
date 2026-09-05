@@ -1,5 +1,55 @@
 # CHANGELOG — TypeThatBook
 
+## Round 75 (Duplex) — 2026-09-05 — the preview crops like the shelf, and says what it cut
+
+`admin.html` **v1.16.0**, `admin.js` **v3.52.0**.
+
+### ⚠️⚠️ Round 72 matched the ratio. It did not match the FIT RULE.
+
+`index.html`'s `.book-cover` is `object-fit: cover` — zoom until the 2:3 box is
+full, then cut the overflow. This frame was `contain`, which letterboxes and cuts
+**nothing**. ⭐ **The admin was approving a picture no student would ever see. A
+preview whose fit rule differs from the shelf's is not a preview.**
+
+`#cover-fit-note` reports the loss under the jacket:
+
+```
+1200 × 1800 · perfect fit
+1400 × 1800 · 14% cut from the sides (≈200px)
+1200 × 2400 · 25% cut top and bottom (≈600px)
+```
+
+⚠️ Computed from the image's **natural** dimensions, so it is the same answer at
+any rendered size — the crop is a property of the image against the ratio, not of
+the box the grid happened to give it. ⚠️ A **0.5% tolerance**: a 1200×1801 jpeg is
+not a design problem, and below that a number is only noise. ⚠️ `is-heavy` at 15%+
+is a **different sentence, not a louder one** — a sliver off the edge is normal, a
+third of the picture gone means the wrong file. ⚠️⚠️ An image with **no natural
+size says nothing**, not "0% cut": a confident number about an image that has not
+loaded is worse than silence.
+
+⚠️⚠️ **The `load` handler is attached before the `src`, and that order is pinned.**
+A cached image fires `load` synchronously on assignment, so a handler attached
+afterwards misses it — silently, and only for the covers that load fastest, which
+is the hardest kind of intermittent to chase.
+
+### The column gave its width back, which was the point
+
+**240px → 175px.** The two controls still sit in one row, so it could not go all
+the way down to the jacket's own ~130px — and the note is what fills the rest
+rather than leaving the cover "drifting alone in a column by itself".
+
+⚠️ The ratio now lives in **three** places — the shelf, the frame, and the crop
+arithmetic — and Q2 holds them together: a percentage computed against a shape the
+box does not have would be confidently wrong, which is the worst kind. ⭐ Q3 **runs**
+`describeCoverFit()` rather than reading it. 4 new assertions, **50 total**,
+mutation-verified four ways.
+
+### Verification
+
+**72 harnesses pass, `audit:versions` 0 problems.** ⚠️ `npm run test:rules` NOT
+run.
+
 ## Rounds 73–74 (Duplex) — 2026-09-04/05 — no browser dialogs on reports.html, and six controls that did nothing
 
 ### ⚠️⚠️ Round 74 first: the superadmin override never appeared, and my harness said it was fine
@@ -8211,4 +8261,47 @@ try { sessionStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
 //           gate, so from 2026-08-22 it would have reported a roster of students
 //           with a week of nearly nothing while reports.html showed their real
 //           minutes. No student-facing change; this is a staff page.
+```
+
+### § admin.js — archived header entries (Round 75)
+
+```
+// v3.44.0 — ⚠️⚠️ "IT EXISTED, BUT IT WASN'T THERE." v3.43.0 ASKED THE WRONG
+//           QUESTION. Jake: *"I updated metadata and forgot to upload the
+//           chapters so it was just... empty. It existed, but it wasn't there."*
+//           Save Metadata writes a book document with no chapters, so "does the
+//           book exist" and "is there anything to destroy" come apart the first
+//           time somebody saves and walks away. activeBookHasChapters() is what
+//           the upload control asks now, and uploading to an empty book is green:
+//           it destroys nothing.
+//           ⚠️⚠️ AND THE RE-UPLOAD DOT HAD THE SAME BLIND SPOT, WHICH IS WORSE —
+//           a book with age, cover and licence and NO CHAPTERS drew a FILLED dot
+//           and sat in the library for a child to open and find nothing. `needs:
+//           CHAPTERS` now, first in the list, because every other gap is a book
+//           that works badly and this one is a book that does not work at all.
+//           ⚠️ COSTS NO READ: `b.chapters` has been in hand in loadBookList()
+//           since v3.21.0 — the dot already read it to check `about`.
+//           ⚠️ THE CONFIRM HAS THREE STATES NOW and they match what the button
+//           said; v3.43.0's two-way branch asked Jake to confirm destroying
+//           chapters that were never there.
+//
+//           ⭐ GREEN SPREADS TO TWO MORE CONTROLS, ON THE SAME ONE RULE —
+//           NOTHING HERE EXISTED BEFORE:
+//           • Save Metadata is `.tier-create` when the book has no document yet,
+//             and ⚠️ DROPS `.btn-tint-save` when it does, because two greens
+//             meaning two things is the defect item 38 exists to remove.
+//           • Parse & Initialize is `.tier-create` when NOTHING is staged. ⚠️ It
+//             touches no database either way, so it is never `commit` — but a
+//             second parse discards every split, merge and retitle staged since
+//             the first, with no confirm and no undo, so it stops being green.
+//           ⚠️ Repainted from renderChapterList(), the one place every staging
+//           change passes through.
+//
+//           ⭐ AND EVERY ONE OF THEM NOW CARRIES A HINT THAT NAMES WHAT IT
+//           WRITES. Jake: *"I've never been sure what clicking it does"* and
+//           *"uploading chapters also does metadata... or I've been acting like
+//           it does, so I HOPE it does."* ⚠️ IT DOES — this file's upload handler
+//           calls readBookMetadataForm(), the SAME reader Save Metadata uses. The
+//           hint on Save Metadata lists all twelve fields; ⚠️ ADD TO IT IN THE
+//           SAME EDIT AS readBookMetadataForm().
 ```

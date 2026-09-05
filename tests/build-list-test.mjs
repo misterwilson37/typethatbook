@@ -788,6 +788,89 @@ check('P2. the staff help disclosure reports its state', () => {
         'the button does not report open/closed');
 });
 
+// ─── Q. THE PREVIEW CROPS THE WAY THE SHELF CROPS, AND SAYS BY HOW MUCH ────
+//
+// Jake: *"I believe the library zooms and crops rather than fitting... I'd LOVE
+// for there to be a note underneath that x% or pixels had to be cut."*
+//
+// ⚠️⚠️ HE WAS RIGHT AND IT WAS A REAL MISMATCH. index.html's `.book-cover` is
+// `object-fit: cover`; the admin frame was `contain`, which letterboxes and cuts
+// nothing — so the admin was approving a picture no student would ever see.
+// ⭐ A PREVIEW WHOSE FIT RULE DIFFERS FROM THE SHELF'S IS NOT A PREVIEW.
+
+check('Q1. ⚠️⚠️ the preview and the shelf use the SAME object-fit', () => {
+    const shelf = /\.book-cover\s*\{[^}]*object-fit:\s*(\w+)/.exec(read('index.html'));
+    assert.ok(shelf, 'index.html no longer sets object-fit on .book-cover — if the ' +
+        'shelf changed how it fits, this panel follows in the SAME round');
+    const admin = /\.cover-frame img\s*\{[^}]*object-fit:\s*(\w+)/.exec(adminHtml);
+    assert.ok(admin, 'the preview sets no object-fit, so its fit is the browser default');
+    assert.equal(admin[1], shelf[1],
+        '⚠️⚠️ the shelf fits with `' + shelf[1] + '` and the preview with `' + admin[1] +
+        '`. One of them is showing a picture the other never will');
+});
+
+check('Q2. ⚠️ the ratio is the same number in all THREE places', () => {
+    // The CSS frame, the shelf, and the arithmetic that reports the crop. Three
+    // places, one number — and the fit rule drifting is exactly how this item
+    // started.
+    const shelf = /\.book-cover\s*\{[^}]*aspect-ratio:\s*(\d+)\s*\/\s*(\d+)/.exec(read('index.html'));
+    const frame = /\.cover-frame\s*\{[^}]*aspect-ratio:\s*(\d+)\s*\/\s*(\d+)/.exec(adminHtml);
+    const code  = /COVER_ASPECT = (\d+)\s*\/\s*(\d+)/.exec(adminJs);
+    assert.ok(shelf && frame && code, 'one of the three declarations is gone');
+    const r = m => +m[1] / +m[2];
+    assert.equal(r(frame), r(shelf), 'the frame and the shelf disagree');
+    assert.equal(r(code), r(shelf),
+        '⚠️ the CROP ARITHMETIC uses a different ratio from the box it is describing, ' +
+        'so the percentage it reports is about a shape that does not exist');
+});
+
+check('Q3. ⭐ the crop arithmetic is right, driven not read', () => {
+    // describeCoverFit() is pure, so it gets run rather than grepped.
+    const cAspect = /const COVER_ASPECT = [^;]+;/.exec(adminJs);
+    const fn = /function describeCoverFit\([\s\S]*?\n\}/.exec(adminJs);
+    assert.ok(cAspect && fn, 'describeCoverFit() could not be lifted — if it now ' +
+        'depends on the DOM it is no longer testable here, and this case stops ' +
+        'meaning anything. Say so in that round');
+    const { describeCoverFit } =
+        new Function(cAspect[0] + '\n' + fn[0] + '\nreturn { describeCoverFit };')();
+
+    assert.match(describeCoverFit(1200, 1800).text, /perfect fit/,
+        'an exactly 2:3 cover is not reported as a perfect fit');
+    assert.equal(describeCoverFit(1000, 1500).lost, 0,
+        '⚠️ the answer must depend on the RATIO, not the size — a smaller image at ' +
+        'the same shape loses nothing either');
+
+    const wide = describeCoverFit(1400, 1800);
+    assert.match(wide.text, /sides/, 'a wide image loses its sides, not its top');
+    assert.ok(Math.abs(wide.lost - (1 - (2 / 3) / (1400 / 1800))) < 1e-9,
+        'the width crop is miscalculated');
+
+    const tall = describeCoverFit(1200, 2400);
+    assert.match(tall.text, /top and bottom/, 'a tall image loses top and bottom');
+    assert.ok(tall.lost > 0.24 && tall.lost < 0.26, '1200×2400 should lose about a quarter');
+
+    assert.equal(describeCoverFit(0, 0).text, '',
+        '⚠️ an image with no natural size must say NOTHING, not "0% cut" — a ' +
+        'confident number about an image that has not loaded is worse than silence');
+    assert.match(describeCoverFit(1200, 1801).text, /perfect fit/,
+        '⚠️ a one-pixel rounding difference is not a design problem; below the ' +
+        'tolerance a number is only noise');
+});
+
+check('Q4. the note is wired to the image, and cleared with it', () => {
+    const fn = /function updateCoverPreview\(\)[\s\S]*?\n\}/.exec(adminJs)[0];
+    assert.match(fn, /onload\s*=/, 'nothing reads the natural dimensions');
+    // ⚠️ A cached image can fire `load` synchronously on src assignment, so a
+    // handler attached afterwards misses it — silently, and only for the covers
+    // that load fastest, which is the hardest kind of intermittent to chase.
+    assert.ok(fn.indexOf('onload') < fn.indexOf('preview.src = stagedCoverUrl'),
+        '⚠️⚠️ the load handler is attached AFTER the src. A cached image fires load ' +
+        'synchronously on assignment and the note never appears — for some covers');
+    assert.match(fn, /note\.textContent = ''/,
+        'the note is not cleared when the cover is removed, so it describes a ' +
+        'picture that is no longer there');
+});
+
 let failed = 0;
 for (const [state, name] of results) {
     console.log(`  ${state === 'ok' ? 'ok  ' : 'FAIL'} ${name}`);

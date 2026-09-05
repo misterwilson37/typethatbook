@@ -1,8 +1,51 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-05 by Rounds 73–74 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-05 by Round 75 (Duplex), for whoever is next
 >
-> ⚠️ **ROUNDS 60–74 ARE ONE INSTANCE.**
+> ⚠️ **ROUNDS 60–75 ARE ONE INSTANCE.**
+>
+> ### ✅ ROUND 75: THE PREVIEW CROPS LIKE THE SHELF, AND SAYS WHAT IT CUT
+>
+> ⚠️⚠️ **ROUND 72 MATCHED THE RATIO AND NOT THE FIT RULE.** `index.html`'s
+> `.book-cover` is `object-fit: cover`; this frame was `contain`. ⭐ **THE ADMIN WAS
+> APPROVING A PICTURE NO STUDENT WOULD EVER SEE.**
+>
+> * ⚠️ **THE `load` HANDLER MUST STAY BEFORE THE `src`.** A cached image fires it
+>   SYNCHRONOUSLY on assignment; attach afterwards and the note never appears —
+>   for some covers, intermittently. Q4 fails if it moves.
+> * ⚠️ **NO NATURAL SIZE SAYS NOTHING**, not "0% cut". A confident number about an
+>   image that has not loaded is worse than silence.
+> * ⚠️ **THE RATIO IS IN THREE PLACES NOW** — shelf, frame, crop arithmetic — and
+>   Q2 holds them together. **If the shelf changes shape or fit, all three follow
+>   in the SAME round.**
+> * Cover column **240px → 175px**; the note fills what the frame no longer does.
+>
+> ### THE STATE OF PLAY
+>
+> * **72 harnesses pass, `audit:versions` 0 problems.** ⚠️ `test:rules` NOT run.
+> * **Expected stamps:** `admin.html` **v1.16.0**, `admin.js` **v3.52.0**,
+>   `reports.html` **v1.9.0**, `staff-admin.js` **v2.3.0**, `lessons-admin.js`
+>   **v1.19.0**, `game.js` **v3.49.0**, `learn.js` **v2.46.0**, `versions.js`
+>   **v1.16.0**.
+> * ⚠️ **CONFIRMED LIVE: 60–63, 65, 66, 67.** 64 and 68–75 unconfirmed.
+> * ⚠️ **`style.css` and `tests/hud-lead-test.mjs` are STILL deliberately absent.**
+> * ⚠️⚠️ **ROADMAP 50's FIRST LIVE WEEK BEGAN SAT 2026-09-05.** Watch `game.html`.
+> * **JAKE'S OPEN LIST — cover crop now DONE, these remain:**
+>   1. `Process Overwrite` is shorter than its `Choose File` field; more space
+>      below `Open Book` than above; the Students filter field floats. ⭐ **THESE
+>      ARE PROBABLY ONE CAUSE AGAIN** — Round 67's was a single 15px margin.
+>   2. **Class Manager shows no school or teacher and cannot filter by either.**
+>      ⚠️ Needs a ruling on what a `building_admin` sees.
+>   3. Reports' weekly-goal panel is vestigial; the default belongs with the other
+>      goal definitions. ⚠️ Tangled with ROADMAP 58 step two.
+>   4. A "How this works" bar on every staff page — ⚠️ the one on Staff works now
+>      (Round 74), so this is unblocked.
+> * **Also next:** **ROADMAP 39's admin.js half** (42 calls — ⚠️ check whether each
+>   `confirm()` site is already `async` FIRST), and **58 step two**.
+> * ⚠️ **The reads measurement has still never been taken.**
+> * ⚠️ **CHANGELOG.md still has no Round 56 or Round 58 entry.**
+
+> ## ▶ Rounds 73–74 (Duplex) — the previous block, kept
 >
 > ### ⚠️⚠️ THE LESSON OF ROUND 74, AND IT IS ABOUT THE TESTS, NOT THE CODE
 >

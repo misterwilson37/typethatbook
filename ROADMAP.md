@@ -5681,6 +5681,53 @@ default order or as one option beside the current one.**
 all in the same panel, all small. ⚠️ **Do them together — this panel is one grid
 and four separate rounds would relayout it four times.**
 
+### ✅ ROUND 75 (Duplex) — IT CROPS LIKE THE SHELF NOW, AND SAYS WHAT IT CUT
+
+**Jake:** *"I believe the library zooms and crops rather than fitting... I'd LOVE
+for there to be a note underneath that x% or pixels had to be cut."*
+
+⚠️⚠️ **HE WAS RIGHT, AND ROUND 72 ONLY FIXED HALF OF IT.** Matching the *ratio*
+was not the same as matching the *fit rule*. `index.html`'s `.book-cover` is
+`object-fit: cover` — zoom until the 2:3 box is full, then cut the overflow — and
+this frame was `contain`, which letterboxes and cuts **nothing**. ⭐ **THE ADMIN
+WAS APPROVING A PICTURE NO STUDENT WOULD EVER SEE. A PREVIEW WHOSE FIT RULE
+DIFFERS FROM THE SHELF'S IS NOT A PREVIEW.**
+
+✅ **`admin.html` v1.16.0, `admin.js` v3.52.0.** `#cover-fit-note` reports the
+loss under the jacket:
+
+* `1200 × 1800 · perfect fit`
+* `1400 × 1800 · 14% cut from the sides (≈200px)`
+* `1200 × 2400 · 25% cut top and bottom (≈600px)`
+
+⚠️ **COMPUTED FROM THE NATURAL DIMENSIONS**, so it is the same answer at any
+rendered size — the crop is a property of the image against the ratio, not of the
+box the grid happened to give it. ⚠️ **A 0.5% TOLERANCE**: a 1200×1801 jpeg is not
+a design problem, and below that a number is only noise. ⚠️ **`is-heavy` AT 15%+
+IS A DIFFERENT SENTENCE, NOT A LOUDER ONE** — a sliver off the edge is normal, a
+third of the picture gone means the wrong file.
+
+⚠️⚠️ **AN IMAGE WITH NO NATURAL SIZE SAYS NOTHING, NOT "0% cut".** A confident
+number about an image that has not loaded is worse than silence.
+
+⚠️ **THE `load` HANDLER IS ATTACHED BEFORE THE `src`, AND THAT ORDER IS PINNED.**
+A cached image fires `load` synchronously on assignment, so a handler attached
+afterwards misses it — silently, and only for the covers that load fastest, which
+is the hardest kind of intermittent to chase. Q4 fails if it moves.
+
+### ⭐ AND THE COLUMN GAVE ITS WIDTH BACK, WHICH WAS THE POINT
+
+Cover column **240px → 175px**. Jake: *"one of the benefits of the shrinking width
+was supposed to be that the 6 columns could be wider."* ⚠️ The two controls still
+sit in **one row** — he liked that — which is why the column could not go all the
+way down to the jacket's own ~130px. ⭐ **THE NOTE FILLS WHAT THE FRAME NO LONGER
+DOES**, instead of leaving the cover *"drifting alone in a column by itself"*.
+
+⚠️ **THE RATIO IS NOW IN THREE PLACES — the shelf, the frame, and the crop
+arithmetic — AND Q2 HOLDS THEM TOGETHER.** A percentage computed against a shape
+the box does not have would be confidently wrong, which is the worst kind.
+⭐ Q3 **runs** `describeCoverFit()` rather than reading it.
+
 ### ✅ ROUND 72 (Duplex) — THE COVER IS THE SHAPE THE SHELF SHOWS
 
 **Jake:** *"the book cover needs to be narrower. There's a defined aspect ratio on

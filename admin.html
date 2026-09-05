@@ -1,9 +1,27 @@
 <!DOCTYPE html>
-<!-- admin.html v1.15.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.16.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.16.0 — ⚠️⚠️ THE PREVIEW NOW CROPS THE WAY THE SHELF CROPS, AND SAYS BY
+     HOW MUCH. index.html's `.book-cover` is `object-fit: cover` — zoom until the
+     2:3 box is full, then cut the overflow — and this frame was `contain`, which
+     letterboxes and cuts NOTHING. ⚠️⚠️ THE ADMIN WAS APPROVING A PICTURE NO
+     STUDENT WOULD EVER SEE. A preview whose fit rule differs from the shelf's is
+     not a preview.
+     ⭐ `#cover-fit-note` reports what will be lost — "1200 × 1800 · perfect fit"
+     or "1400 × 1800 · 14% cut from the sides (≈196px)" — computed from the
+     image's NATURAL dimensions, so it is the same answer at any rendered size.
+     ⚠️ `is-heavy` at 15%+ is a DIFFERENT SENTENCE, not a louder one: a sliver off
+     the edge is normal, a third of the picture gone means the wrong file.
+     ⚠️ Cover column 240px → 175px, which is the point — the six field columns get
+     the width back. The two controls still sit in ONE row; shrinking the file
+     input's font shrinks its native button, which is the only lever it gives you.
+     ⚠️ THE NOTE ALSO FILLS THE COLUMN the frame no longer does: at 2:3 against the
+     row height the jacket is ~130px wide, and without the note the cover sat
+     alone in a wider column.
 
      v1.15.0 — ⚠️⚠️ THE COVER PREVIEW IS 2/3, THE SAME RATIO THE SHELF USES.
      index.html's `.book-cover { width:100%; aspect-ratio: 2/3 }` is what a
@@ -415,7 +433,7 @@
            ⚠️ `min-width: 0` IS LOAD-BEARING. A grid item's default min-width is
            auto, so a <select> with a long option refuses to shrink — a second,
            quieter way to get `https:/`. */
-        .import-box { --cover-w: 240px; --meta-gap: 20px; }
+        .import-box { --cover-w: 175px; --meta-gap: 20px; }
         .meta-head,
         .meta-grid {
             display: grid;
@@ -529,13 +547,34 @@
             border: 1px solid #444; border-radius: 3px;
             background: #161616; position: relative; overflow: hidden;
         }
+        /* ⚠️⚠️ `cover`, NOT `contain` (v1.16.0) — index.html's `.book-cover` uses
+           `object-fit: cover`, so the shelf ZOOMS AND CROPS. This frame letterboxed
+           instead, which meant the admin was approving a picture no student would
+           ever see. A preview whose fit rule differs from the shelf's is not a
+           preview. ⚠️ `object-position: center` matches the shelf's default; change
+           one and you change both.
+           ⚠️ STILL ABSOLUTE, so the image cannot size the three rows it spans —
+           that was Round 68's fix and it is unrelated to the fit rule. */
         .cover-frame img {
-            position: absolute; inset: 4px; margin: auto;
-            max-width: calc(100% - 8px); max-height: calc(100% - 8px);
-            width: auto; height: auto; display: block;
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            object-fit: cover; object-position: center; display: block;
         }
-        .meta-cover-controls input[type=file] { flex: 1 1 auto; min-width: 0; font-size: 0.68em; margin: 0; }
-        .meta-cover-controls .danger-btn { flex: 0 0 auto; font-size: 0.7em; padding: 4px 10px; margin: 0; width: auto; }
+        /* ⚠️ COMPACT ENOUGH FOR A 175px COLUMN (v1.16.0). The column narrowed so
+           the six field columns could have the width back — Jake's whole reason
+           for wanting the cover smaller — and these two still have to sit in ONE
+           row, which he liked. Shrinking the file input's font shrinks its native
+           button with it; that is the only lever a file input gives you. */
+        .meta-cover-controls input[type=file] { flex: 1 1 auto; min-width: 0; font-size: 0.6em; margin: 0; }
+        .meta-cover-controls .danger-btn { flex: 0 0 auto; font-size: 0.62em; padding: 4px 7px; margin: 0; width: auto; }
+
+        /* ⚠️ `is-heavy` IS A DIFFERENT SENTENCE, NOT A LOUDER ONE. A sliver off the
+           edge is normal; a third of the picture gone means the wrong file. */
+        .cover-note {
+            margin-top: 5px; font-size: 0.6em; line-height: 1.4;
+            color: #888; text-align: center; word-break: break-word;
+        }
+        .cover-note.is-heavy { color: var(--notice); }
 
         /* ⚠️ The read-only stamp is a real box so it sits on the same baseline as
            its neighbours instead of floating on a padding-top guess. It is still
@@ -1441,6 +1480,12 @@
                     <div class="meta-cover">
                         <label>Cover <button type="button" class="hint" data-note="AUTO-EXTRACTED FROM THE EPUB when it has one. Choose a file to override it; Remove clears it and a hand-sourced jacket cannot be recovered from here.">i</button></label>
                         <div class="cover-frame"><img id="cover-preview" class="hidden"></div>
+                        <!-- ⚠️ WHAT THE SHELF WILL CUT OFF, written under the jacket.
+                             Jake asked for it, and it does a second job: the frame is
+                             narrower than its column (2:3 against the row height), and
+                             this is what fills the space rather than leaving the cover
+                             "drifting alone in a column by itself". -->
+                        <div id="cover-fit-note" class="cover-note"></div>
                     </div>
 
                     <!-- ⚠️ The controls get their own cell on the LAST field row, so

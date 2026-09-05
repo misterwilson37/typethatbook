@@ -1,4 +1,21 @@
-// admin.js v3.51.0
+// admin.js v3.52.0
+//
+// v3.52.0 — ⚠️⚠️ THE COVER PREVIEW CROPS LIKE THE SHELF NOW, AND SAYS WHAT IT
+//           CUT. index.html's `.book-cover` is `object-fit: cover`; this frame was
+//           `contain`, which letterboxes and cuts NOTHING — so the admin was
+//           approving a picture no student would ever see. ⭐ MATCHING THE RATIO
+//           (Round 72) WAS NOT THE SAME AS MATCHING THE FIT RULE.
+//           describeCoverFit() reports the loss from the image's NATURAL
+//           dimensions: "1400 × 1800 · 14% cut from the sides (≈200px)".
+//           ⚠️ 0.5% TOLERANCE — a 1200×1801 jpeg is not a design problem.
+//           ⚠️ NO NATURAL SIZE SAYS NOTHING, not "0% cut": a confident number
+//           about an image that has not loaded is worse than silence.
+//           ⚠️⚠️ THE `load` HANDLER GOES ON BEFORE THE `src`. A cached image fires
+//           it SYNCHRONOUSLY on assignment, so attaching afterwards misses it —
+//           silently, and only for the covers that load fastest.
+//           ⚠️ COVER_ASPECT is the third copy of 2/3 (shelf, frame, arithmetic);
+//           build-list-test.mjs Q2 holds all three together, because a percentage
+//           computed against a shape the box does not have is confidently wrong.
 //
 // v3.51.0 — ⚠️⚠️ THE SUPERADMIN OVERRIDE NEVER APPEARED, FOR ANYONE, SINCE
 //           v3.48.0. It was gated on `role === 'superadmin'`. The real value, in
@@ -134,45 +151,7 @@
 //           one control over).
 //           ⚠️ v3.44.0's colour change was a WARNING, not a guard. Keep both.
 //
-// v3.44.0 — ⚠️⚠️ "IT EXISTED, BUT IT WASN'T THERE." v3.43.0 ASKED THE WRONG
-//           QUESTION. Jake: *"I updated metadata and forgot to upload the
-//           chapters so it was just... empty. It existed, but it wasn't there."*
-//           Save Metadata writes a book document with no chapters, so "does the
-//           book exist" and "is there anything to destroy" come apart the first
-//           time somebody saves and walks away. activeBookHasChapters() is what
-//           the upload control asks now, and uploading to an empty book is green:
-//           it destroys nothing.
-//           ⚠️⚠️ AND THE RE-UPLOAD DOT HAD THE SAME BLIND SPOT, WHICH IS WORSE —
-//           a book with age, cover and licence and NO CHAPTERS drew a FILLED dot
-//           and sat in the library for a child to open and find nothing. `needs:
-//           CHAPTERS` now, first in the list, because every other gap is a book
-//           that works badly and this one is a book that does not work at all.
-//           ⚠️ COSTS NO READ: `b.chapters` has been in hand in loadBookList()
-//           since v3.21.0 — the dot already read it to check `about`.
-//           ⚠️ THE CONFIRM HAS THREE STATES NOW and they match what the button
-//           said; v3.43.0's two-way branch asked Jake to confirm destroying
-//           chapters that were never there.
-//
-//           ⭐ GREEN SPREADS TO TWO MORE CONTROLS, ON THE SAME ONE RULE —
-//           NOTHING HERE EXISTED BEFORE:
-//           • Save Metadata is `.tier-create` when the book has no document yet,
-//             and ⚠️ DROPS `.btn-tint-save` when it does, because two greens
-//             meaning two things is the defect item 38 exists to remove.
-//           • Parse & Initialize is `.tier-create` when NOTHING is staged. ⚠️ It
-//             touches no database either way, so it is never `commit` — but a
-//             second parse discards every split, merge and retitle staged since
-//             the first, with no confirm and no undo, so it stops being green.
-//           ⚠️ Repainted from renderChapterList(), the one place every staging
-//           change passes through.
-//
-//           ⭐ AND EVERY ONE OF THEM NOW CARRIES A HINT THAT NAMES WHAT IT
-//           WRITES. Jake: *"I've never been sure what clicking it does"* and
-//           *"uploading chapters also does metadata... or I've been acting like
-//           it does, so I HOPE it does."* ⚠️ IT DOES — this file's upload handler
-//           calls readBookMetadataForm(), the SAME reader Save Metadata uses. The
-//           hint on Save Metadata lists all twelve fields; ⚠️ ADD TO IT IN THE
-//           SAME EDIT AS readBookMetadataForm().
-//
+// ⚠️ v3.44.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 75).
 // ⚠️ v3.43.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 70).
 // ⚠️ v3.42.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 69).
 // ⚠️ v3.41.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 68).
@@ -210,7 +189,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.51.0";
+const ADMIN_VERSION = "3.52.0";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -5343,17 +5322,78 @@ async function uploadCover(bookId, blob, contentType) {
     }
 }
 
+// ⚠️⚠️ THE SHELF CROPS, SO THE PREVIEW HAS TO CROP TOO — AND SAY BY HOW MUCH.
+//
+// Jake: *"I believe the library zooms and crops rather than fitting... I'd LOVE
+// for there to be a note underneath that x% or pixels had to be cut."*
+//
+// He is right, and it was a real mismatch: index.html's `.book-cover` is
+// `object-fit: cover` — zoom until the 2:3 box is full, then crop the overflow —
+// while this preview was `contain`, which letterboxes and cuts NOTHING.
+// ⚠️⚠️ SO THE ADMIN WAS APPROVING A PICTURE NO STUDENT WOULD EVER SEE. A preview
+// whose fit rule differs from the shelf's is not a preview.
+//
+// ⚠️ THE FRAME'S RATIO IS THE ONLY INPUT BESIDES THE IMAGE. Read it from the CSS
+// custom property rather than repeating 2/3 here, so this cannot drift from
+// .cover-frame the way the fit rule drifted from the shelf.
+const COVER_ASPECT = 2 / 3;   // ⚠️ MUST MATCH .cover-frame's aspect-ratio AND
+                              //    index.html's .book-cover. Three places, one
+                              //    number; build-list-test.mjs N1/N3 hold them.
+
+/**
+ * What `object-fit: cover` will cut off, in the shelf's 2:3 box.
+ * @returns {{text: string, lost: number}} lost is 0..1
+ *
+ * ⚠️ NATURAL DIMENSIONS, NOT RENDERED ONES. The rendered box is whatever the grid
+ * gave it; the crop is a property of the IMAGE against the RATIO, and is the same
+ * on the shelf as it is here at any size.
+ */
+function describeCoverFit(w, h) {
+    if (!w || !h) return { text: '', lost: 0 };
+    const r = w / h;
+    const px = `${w} \u00d7 ${h}`;
+    // ⚠️ A tolerance, because a 1200×1801 jpeg is not a design problem. Below
+    // half a percent nobody can see it and a number would only add noise.
+    if (Math.abs(r - COVER_ASPECT) / COVER_ASPECT < 0.005) {
+        return { text: `${px} \u00b7 perfect fit`, lost: 0 };
+    }
+    if (r > COVER_ASPECT) {
+        // Wider than 2:3 — the sides go.
+        const lost = 1 - (COVER_ASPECT / r);
+        const cut = Math.round(w * lost);
+        return { text: `${px} \u00b7 ${Math.round(lost * 100)}% cut from the sides (\u2248${cut}px)`, lost };
+    }
+    // Taller than 2:3 — top and bottom go.
+    const lost = 1 - (r / COVER_ASPECT);
+    const cut = Math.round(h * lost);
+    return { text: `${px} \u00b7 ${Math.round(lost * 100)}% cut top and bottom (\u2248${cut}px)`, lost };
+}
+
 function updateCoverPreview() {
     const preview = document.getElementById('cover-preview');
     const removeBtn = document.getElementById('cover-remove-btn');
+    const note = document.getElementById('cover-fit-note');
     if (stagedCoverUrl) {
+        // ⚠️ THE HANDLER GOES ON BEFORE THE src. A cached image can fire `load`
+        // synchronously on assignment, and a listener attached afterwards would
+        // miss it — silently, and only for the covers that load fastest.
+        preview.onload = () => {
+            if (!note) return;
+            const fit = describeCoverFit(preview.naturalWidth, preview.naturalHeight);
+            note.textContent = fit.text;
+            // ⚠️ A THIRD of the picture gone is a different message from a sliver.
+            note.classList.toggle('is-heavy', fit.lost >= 0.15);
+        };
+        preview.onerror = () => { if (note) note.textContent = 'cover could not be read'; };
         preview.src = stagedCoverUrl;
         preview.classList.remove('hidden');
         removeBtn.classList.remove('hidden');
     } else {
+        preview.onload = null;
         preview.src = "";
         preview.classList.add('hidden');
         removeBtn.classList.add('hidden');
+        if (note) { note.textContent = ''; note.classList.remove('is-heavy'); }
     }
 }
 
