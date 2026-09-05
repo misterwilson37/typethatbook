@@ -1,9 +1,54 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-05 by Round 79 (Duplex), for whoever is next
+> ## ▶ START HERE — written 2026-09-05 by Round 80 (Imperial), for whoever is next
 >
-> ⚠️ **ROUNDS 60–79 ARE ONE INSTANCE, AND IT IS TIME FOR A FRESH ONE.** Nothing is
-> half-done: the tree is clean, 72 harnesses pass, Round 79 shipped complete.
+> ⚠️ **THIS ROUND DID NOT TOUCH ROADMAP 62.** It is still the highest-value open
+> item and still needs rules designed before any UI. Read Round 79's block below
+> before starting it — nothing here changes its instructions.
+>
+> ### WHAT THIS ROUND WAS: A FRESH-EYES PASS, NOT A ROADMAP ROUND
+>
+> Came in cold, ran `npm test` and `npm run audit:versions` before reading a
+> line of prose (72/72, 0 problems — Round 79's claim checked out exactly), then
+> read for anything 79 rounds of focus on functional defects might have walked
+> past. Two things did, and only one was a real bug:
+>
+> 1. ✅ **THREE STALE ROOT-LEVEL DOCS, NONE OF THEM IN §9's DOCUMENT MAP.**
+>    `UPLOAD.md` (Round 30, whose own header says *"DELETE THIS FILE AFTER THE
+>    UPLOAD"* — the § CONVENTIONS block in ROADMAP.md says the same thing),
+>    `PLACEMENT.md` (Round 21, one-time deploy notes for a migration step
+>    history says was later shipped, reverted, and re-shipped differently), and
+>    a **root-level `tests-README.md`** — a frozen duplicate of `tests/README.md`
+>    left over from Round 17's reorg, stuck at v1.1.0/125 lines while the real
+>    one is at v1.9.0/354. **Jake deleted all three directly; nothing referenced
+>    them by name, `npm test` is unaffected.** Same failure shape
+>    `roadmap-index-test.mjs` already guards against elsewhere — an index that
+>    doesn't mention a document is worse than no index, because a reader trusts
+>    it instead of looking.
+> 2. ⚠️⚠️ **`functions/index.js` v1.7.0 → v1.7.1 — THE DAILY PRACTICE LIMIT WAS
+>    KEYED ON A UTC DAY.** `new Date().toISOString().split("T")[0]` is always
+>    the UTC calendar date; in September (CDT) the 5-per-day cap on
+>    `generatePractice()` reset around 7pm Central instead of midnight, ~6pm in
+>    winter (CST). Same bug class as Round 24's `sessionLogAdopt()` fix — this
+>    file just has no harness (`npm test` cannot run it; it needs the Admin SDK
+>    and isn't deployable from this repo), so it never got the scrutiny the app
+>    files did. **Fixed with `todayInSchoolTZ()`**, `Intl.DateTimeFormat` pinned
+>    to `America/Chicago` — carries its own DST table, so there's no
+>    winter/summer offset to keep in sync by hand the way a raw UTC-offset
+>    subtraction would need. Verified by hand against a January and a July
+>    instant either side of both the UTC and Central rollovers (see the file's
+>    own v1.7.1 header note for the numbers). ⚠️⚠️ **NOT LIVE.** Same as every
+>    other change to this file: it needs `firebase deploy`, Jake has no CLI, so
+>    this is mirrored into the console by hand — see the file's own top-of-file
+>    instruction. ✅ ROADMAP item 63 records it so it's findable from the index,
+>    not just this file's own header.
+>
+> **Nothing else changed.** No app-facing version stamp moved, `style.css` and
+> `tests/hud-lead-test.mjs` are still deliberately absent, ROADMAP 60 is still
+> unruled. Round 79's state-of-play below is otherwise current, including its
+> ⚠️⚠️ **HIGHEST-VALUE-ITEM call, unchanged: ROADMAP 62.**
+
+> ## ▶ Round 79 (Duplex) — the previous block, kept
 >
 > ### ⚠️⚠️ THE HIGHEST-VALUE THING IN THIS FILE RIGHT NOW: ROADMAP 62
 >

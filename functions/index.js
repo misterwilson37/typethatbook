@@ -1,8 +1,33 @@
-// index.js v1.7.0 — Cloud Functions source. generatePractice() is the ONLY
+// index.js v1.7.1 — Cloud Functions source. generatePractice() is the ONLY
 // export, and now that is enforced by the file rather than asserted by a comment.
 // NOT deployable from this repo: it needs `firebase deploy`, and Jake has no CLI.
 // Treat this file as the record of what is running, and bump this line whenever
 // the deployed function changes.
+//
+// v1.7.1 — ⚠️⚠️ THE DAILY LIMIT WAS KEYED ON A UTC DAY, THE SAME BUG CLASS
+//          §3.1 AND THE MIDNIGHT-STRADDLE WORK FOUGHT ELSEWHERE IN THIS
+//          PROJECT — nobody had checked this file against it because it
+//          cannot run in `npm test`. `new Date().toISOString().split("T")[0]`
+//          is always the UTC calendar date. daylog.js's `ymd()` avoids this by
+//          reading a Date object's LOCAL getFullYear()/getMonth()/getDate() —
+//          but that trick only works in the browser, where "local" IS the
+//          student's own clock. A Cloud Functions container's local timezone
+//          is UTC; porting daylog.js's approach here verbatim would have
+//          looked like a fix and changed nothing.
+//          ⚠️ EFFECT: in September (CDT, UTC-5) the 5-per-day cap reset at
+//          7pm Central instead of midnight; in winter (CST, UTC-6) at 6pm.
+//          A student practising after school and again after that rollover
+//          got a second set of 5 before their actual day was over.
+//          ⚠️ THE FIX: `todayInSchoolTZ()` reads the date in a FIXED,
+//          explicitly-named timezone (`America/Chicago`) via
+//          `Intl.DateTimeFormat`, which carries its own DST table — no
+//          separate winter/summer offset to keep in sync by hand. Every
+//          school this app has ever run in is in that timezone; if that ever
+//          stops being true, this is the one line that needs to know.
+//          ⚠️ NOT COVERED BY npm test, same reason the bug survived: this
+//          file has no harness. Verified by hand against the two DST cases
+//          (a January date and a July date) before shipping — see the round's
+//          own notes for the exact check.
 //
 // v1.7.0 — THE VARIETY FLOOR. A session needs at least 3 DIFFERENT missed
 //          characters (each missed enough times to count, deduped exactly) before
@@ -30,6 +55,18 @@ const db = admin.firestore();
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
 const DAILY_LIMIT = 5;
+
+// ⚠️ v1.7.1 — see the header note. This project's students are in one
+// district, one timezone, always — so a fixed IANA zone is correct here in a
+// way it would not be for a service with users anywhere. Intl.DateTimeFormat
+// handles the CDT/CST transition itself; 'en-CA' is just the locale whose
+// short date format happens to be YYYY-MM-DD.
+function todayInSchoolTZ() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Chicago',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+}
 
 // v1.3–v1.5 — the custom-claims staff system. Removed in v1.6.0.
 //
@@ -149,7 +186,7 @@ exports.generatePractice = onCall(
     // the limit exists to cap Gemini spend, and a limit that can be bypassed by
     // triggering failures is not a limit. Five is generous for a feature nobody
     // has asked for yet.
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayInSchoolTZ();
     const limitRef = db.collection("practice_limits").doc(uid);
     let count;
     try {

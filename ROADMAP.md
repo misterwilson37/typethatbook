@@ -407,6 +407,7 @@ Everything else still open:
 - 48. ✅ “TEXT PREPARED BY” NAMED THE WRONG PERSON ON EVERY BOOK, ON EVERY SURFACE  *(Round 57 — two defects, one symptom)*
 - 44. ✅ THE BOOK ID FIELD ACCEPTS ANYTHING TYPED INTO IT, AND slugifyBookId() IS RIGHT THERE  *(Round 57 — warns on whitespace, never blocks)*
 - 38. ✅ CLOSED for admin (Rounds 61-70) — reports.html closed Round 55 — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS  *(⚠️ UNBLOCKED, and Jake has RULED — build to the table, do not re-open it)*
+- 63. ✅ FIXED (Round 80, Imperial) — THE AI-PRACTICE DAILY LIMIT WAS KEYED ON A UTC DAY  *(`functions/index.js` v1.7.1 — NOT YET hand-mirrored to the console)*
 - 61. ✅ THREE SPACING COMPLAINTS, ONE CAUSE, AND IT IS THE ONE ROUND 67 FOUND  *(CLOSED Round 77)*
 - 59. ✅ THE CLASS MANAGER NAMES ITS SCHOOL AND TEACHER, AND FILTERS ON BOTH  *(CLOSED Round 76)*
 - 56. ✅ CLOSED — (a) Round 68, (b) and (c) Round 64 — THE (i) BUTTONS, TWO MISSING TOOLTIPS, TWO DEAD HOVERS  *(Jake, 2026-09-03)*
@@ -3700,6 +3701,42 @@ before assuming it is only cosmetic.
 rules question** (a `building_admin` must not be able to add buildings to their
 own record) and should not be folded into the class editor just because both were
 mentioned in one sentence.
+
+## 63. ✅ FIXED (Round 80, Imperial) — THE AI-PRACTICE DAILY LIMIT WAS KEYED ON A UTC DAY
+
+⚠️⚠️ **NOT FOUND BY TESTING — FOUND BY READING, BECAUSE THIS FILE CANNOT BE
+TESTED.** `functions/index.js`'s `generatePractice()` rate-limits a student to
+`DAILY_LIMIT = 5` calls, keyed on `new Date().toISOString().split("T")[0]`.
+`toISOString()` is always UTC. This is the exact bug class Round 24 fixed in
+`sessionLogAdopt()` and that `daylog.js`, `week-agreement-test.mjs` and
+`midnight-test.mjs` exist to keep fixed everywhere else — but `functions/index.js`
+needs the Admin SDK and is not deployable from this repo (Jake mirrors it into
+the console by hand), so it has never run inside `npm test` and none of that
+scrutiny ever reached it.
+
+⚠️ **EFFECT:** in September (CDT, UTC-5) the daily cap reset around 7pm Central
+instead of midnight; in winter (CST, UTC-6) around 6pm. A student practising
+after school and again after that rollover got a second set of 5 before their
+actual calendar day ended — a quiet leak in a cost-control cap, not a
+student-safety issue.
+
+✅ **THE FIX:** `todayInSchoolTZ()`, `functions/index.js` v1.7.1 — reads the date
+via `Intl.DateTimeFormat` pinned to `timeZone: 'America/Chicago'` rather than
+computing an offset by hand, so the CDT/CST transition is handled by the
+timezone database and not by a number someone has to remember to flip twice a
+year. Verified by hand (no harness exists for this file) against instants
+either side of both the UTC and the Central rollovers in January and July —
+see the file's own v1.7.1 header for the exact check. ⚠️⚠️ **NOT LIVE UNTIL
+HAND-MIRRORED INTO THE FIREBASE CONSOLE**, same as every other change to this
+file — a repo edit here changes nothing running today.
+
+⚠️ **WORTH BUILDING, NOT BUILT:** this file has no harness because it needs
+`firebase-admin`, which the rest of the suite doesn't. A thin harness that
+imports just `todayInSchoolTZ()` (or any future pure helper extracted the same
+way) would at least cover the part that doesn't need the SDK — the model chain,
+the transaction, and the Gemini call would still be unverifiable without an
+emulator. Not attempted this round; flagged so it isn't re-discovered as "this
+file is untestable, full stop."
 
 ## 61. ✅ THREE SPACING COMPLAINTS, ONE CAUSE, AND IT IS THE ONE ROUND 67 FOUND
 
