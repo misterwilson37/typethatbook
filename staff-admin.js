@@ -1,4 +1,31 @@
-// staff-admin.js v2.3.0 — Staff tab for admin.html
+// staff-admin.js v2.4.0 — Staff tab for admin.html
+//
+// v2.4.0 — ⚠️⚠️ ROADMAP 65: 'super_admin' WAS MISSING FROM THE ROLE DROPDOWN,
+//          FOR ITS WHOLE LIFE. Not a missing nice-to-have: opening Edit on an
+//          EXISTING super_admin could not pre-select their real role — it
+//          wasn't an option — so the dropdown silently fell back to its
+//          first entry, 'teacher'. Click Save without noticing and a fellow
+//          super_admin is demoted. Found while verifying Jake's own words —
+//          "super admin should be able to edit everything" — against
+//          firestore.rules with the emulator, not by reading either one in
+//          isolation: the RULE already allowed this exactly the way he
+//          described (any super_admin may edit ANY other staff record,
+//          including a fellow super_admin, but never their own — confirmed
+//          and mutation-verified in firestore-rules.test.mjs); the UI simply
+//          never offered the choice the rule had permitted since the file
+//          was written.
+//          ⭐ TWO COPIES OF ONE BUG: bindUI()'s options list AND
+//          openGrantFor()'s pre-select both excluded 'super_admin'
+//          separately — fixing only the list would have left the pre-select
+//          silently discarding the fix.
+//          ⚠️ ADDED, NOT JUST RESTORED: a confirm() in doGrant() specifically
+//          when an existing super_admin's role is being changed away from
+//          it. The rule's self-edit block plus a second super_admin account
+//          is Jake's own stated backstop for an accidental narrowing ("not a
+//          bad backstop... I have two accounts working superadmin right
+//          now") — this catches the mistake before the write needs undoing,
+//          which is cheaper than relying on the backstop to notice.
+window.STAFF_ADMIN_VERSION = '2.4.0';
 //
 // v2.3.0 — ⚠️⚠️ THE "HOW THIS WORKS" BUTTON DID NOTHING, FOR ITS WHOLE LIFE.
 //          Jake: "I click on it and nothing happens. At all." The panel is hidden
@@ -13,7 +40,6 @@
 //          what has to change it.
 //          ⚠️ It carries aria-expanded now — a disclosure button that never says
 //          whether it is open is unusable without sight of the panel.
-window.STAFF_ADMIN_VERSION = '2.3.0';
 //
 // v2.0.0 — REBUILT to need no command line. v1.0.0 called Cloud Functions to set
 //          Auth custom claims, which requires `firebase deploy --only functions`.
@@ -54,6 +80,7 @@ let _db = null, _auth = null;
 let _scope = { role: null, schoolIds: [] };
 let _schools = {};          // schoolId -> { name }
 let _candidate = null;      // the request currently being acted on
+let _candidateCurrentRole = null;  // ⚠️ ROADMAP 65 — role BEFORE this edit, for doGrant()'s demotion guard
 let _inited = false;
 
 const ROLE_LABELS = {
@@ -199,11 +226,23 @@ function bindUI() {
         await refreshStaffList();
     });
 
-    // A building_admin can only create teachers.
+    // ⚠️⚠️ ROADMAP 65 — 'super_admin' WAS MISSING FROM THIS LIST. Two live
+    // consequences, not one hypothetical: a super_admin could not promote
+    // anyone TO super_admin at all, and far worse — opening Edit on an
+    // EXISTING super_admin could not pre-select their real role (it wasn't
+    // an option), so the dropdown silently fell back to its first entry,
+    // 'teacher'. Click Save without noticing and a fellow super_admin is
+    // demoted. Confirmed against the rules first: `npm run test:rules`
+    // proves a super_admin CAN edit — including narrow — a FELLOW
+    // super_admin (Jake, 2026-09-06: "another superadmin being the one to
+    // narrow the reach isn't a bad backstop"), and CANNOT touch their OWN
+    // record at all, which the rule enforces regardless of what this
+    // dropdown offers. This list only needed to stop lying about what a
+    // super_admin already carries.
     const roleSel = document.getElementById('staff-role-select');
     roleSel.innerHTML = '';
     const allowed = _scope.role === 'super_admin'
-        ? ['teacher', 'building_admin']
+        ? ['teacher', 'building_admin', 'super_admin']
         : ['teacher'];
     allowed.forEach(r => {
         roleSel.innerHTML += `<option value="${r}">${ROLE_LABELS[r]}</option>`;
@@ -271,6 +310,13 @@ async function openGrantFor(person) {
         if (snap.exists()) current = snap.data();
     } catch (e) { /* none yet */ }
 
+    // ⚠️ ROADMAP 65 — REMEMBERED SO doGrant() CAN WARN BEFORE DEMOTING A
+    // super_admin. The rule already backstops this (only ANOTHER super_admin
+    // can touch the record at all, never the person themselves), but a
+    // confirm() here catches the mistake before the write instead of after —
+    // cheaper than relying on the backstop to notice and undo it.
+    _candidateCurrentRole = current?.role || null;
+
     const label = current && current.active !== false
         ? `${ROLE_LABELS[current.role] || current.role}` +
           (current.readScope ? ` · ${SCOPE_LABELS[current.readScope] || current.readScope}` : '') +
@@ -283,7 +329,15 @@ async function openGrantFor(person) {
         <div style="font-size:.85em;margin-top:4px">Currently:
             <span style="color:${current ? '#4B9CD3' : '#888'}">${esc(label)}</span></div>`;
 
-    if (current?.role && current.role !== 'super_admin') {
+    if (current?.role) {
+        // ⚠️ ROADMAP 65 — 'super_admin' USED TO BE EXPLICITLY EXCLUDED HERE,
+        // which was really a second copy of the same bug the dropdown's
+        // options list carried: neither said "cannot be pre-selected because
+        // it isn't a valid choice" so much as re-asserted that it wasn't a
+        // choice at all. Now that it is, excluding it here again would
+        // silently reintroduce the exact failure this round fixed —
+        // opening Edit on a super_admin would fall back to the dropdown's
+        // first entry instead of showing what they actually are.
         const rs = document.getElementById('staff-role-select');
         if ([...rs.options].some(o => o.value === current.role)) rs.value = current.role;
     }
@@ -342,6 +396,20 @@ async function doGrant() {
     if (_candidate.uid === _auth.currentUser?.uid) {
         return setStatus("That's you. Nobody can edit their own record — including " +
                          "super admins. Use the Firebase console.", true);
+    }
+
+    // ⚠️⚠️ ROADMAP 65 — CATCH THE DEMOTION BEFORE THE WRITE, NOT AFTER. The
+    // rule already backstops this (nobody edits their own record, so undoing
+    // a mistake here needs a DIFFERENT super_admin), but that backstop is for
+    // when this still happens — it shouldn't be the first line of defence
+    // against a role that silently failed to pre-select before this round.
+    if (_candidateCurrentRole === 'super_admin' && role !== 'super_admin') {
+        const name = _candidate.displayName || _candidate.email || 'this person';
+        if (!confirm(`${name} is currently a super_admin. Change them to ` +
+                     `${ROLE_LABELS[role]}?\n\nThey will lose full access immediately. ` +
+                     `Only another super_admin will be able to reverse this — not them.`)) {
+            return setStatus('Cancelled — role left unchanged.');
+        }
     }
 
     setStatus('Saving…');

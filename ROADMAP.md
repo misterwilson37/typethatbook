@@ -391,7 +391,6 @@ Everything else still open:
 - 53. ⚠️ EIGHTY BOOKS AND NO WAY THROUGH THEM — SEARCH, AND SOMETHING FEATURED  *(Jake asked, 2026-09-03)*
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
 - 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
-- 65. ⚠️ OPEN — WHO ADMINISTRATES WHAT BUILDING (staff-admin.js's schoolIds)  *(split out of item 62, Round 80. Not started — check building_admin self-widening FIRST)*
 - 58. ⚠️ STEP ONE DONE (Round 71) — A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
 - 60. ⭐ STAFF SHOULD SEE EVERY BOOK AND CHOOSE WHAT THEIR OWN STUDENTS SEE  *(Jake, Round 76. NOT BUILT — needs a ruling on allowlist vs blocklist, and the shelf is the read-budget surface)*
 - 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED  *(found Round 60; touches three mirrored files — read the item)*
@@ -409,6 +408,7 @@ Everything else still open:
 - 38. ✅ CLOSED for admin (Rounds 61-70) — reports.html closed Round 55 — THREE SEVERITIES FOR VALUES, THREE TIERS FOR CONTROLS  *(⚠️ UNBLOCKED, and Jake has RULED — build to the table, do not re-open it)*
 - 64. ✅ FIXED (Round 80, Imperial) — EVERY `<select>` WAS 2px TALLER THAN EVERY `<input>`  *(`admin.html` v1.20.0 — `reports.html`'s 2 selects likely share the cause, not yet checked)*
 - 62. ✅ FIXED (Round 80, Imperial) — WHO TEACHES A CLASS IS NOW EDITABLE, ADMIN ONLY  *(rules v2.11.0, editor in admin.html/lessons-admin.js v1.21.0, orphan-class flag — the schoolIds half split out to item 65)*
+- 65. ✅ FIXED (Round 80, Imperial) — WHO ADMINISTRATES WHAT BUILDING  *(rules already correct, zero rule changes — the bug was a missing 'super_admin' option in staff-admin.js's role dropdown, v2.4.0, plus a new demotion confirm() guard)*
 - 63. ✅ FIXED (Round 80, Imperial) — THE AI-PRACTICE DAILY LIMIT WAS KEYED ON A UTC DAY  *(`functions/index.js` v1.7.1 — NOT YET hand-mirrored to the console)*
 - 61. ✅ THREE SPACING COMPLAINTS, ONE CAUSE, AND IT IS THE ONE ROUND 67 FOUND  *(CLOSED Round 77)*
 - 59. ✅ THE CLASS MANAGER NAMES ITS SCHOOL AND TEACHER, AND FILTERS ON BOTH  *(CLOSED Round 76)*
@@ -3699,20 +3699,73 @@ whole file. 73/73 harnesses pass, 0 version-audit problems.
 `schoolIds`, not a class field, and was deliberately not folded into this
 round. See item 65.
 
-## 65. ⚠️ OPEN — WHO ADMINISTRATES WHAT BUILDING (staff-admin.js's schoolIds)
+## 65. ✅ FIXED (Round 80, Imperial) — WHO ADMINISTRATES WHAT BUILDING
 
 Split out of item 62, which Jake raised in the same sentence but which is a
-genuinely separate file and a separate rules question. **Not started.**
+genuinely separate file and a separate rules question.
 
-*"as well as who administrates what building"* — a `building_admin`'s
-`schoolIds` on their own `staff/{uid}` record currently has the same shape of
-question item 62 just closed for classes: who may change it, and can a
-`building_admin` widen their OWN `schoolIds` by writing to their own staff
-document? ⚠️⚠️ **CHECK THIS FIRST, BEFORE DESIGNING ANYTHING** — a
-`building_admin` must not be able to add buildings to their own record; that
-would be the direct staff-record equivalent of the class privilege-escalation
-item 62 just closed, and the same "rules first, `npm run test:rules` before
-the UI" discipline applies here without modification.
+### ⚠️⚠️ THE RULES WERE ALREADY RIGHT — VERIFIED, NOT ASSUMED, BEFORE DESIGNING ANYTHING
+
+The worry this item opened with — *"can a `building_admin` widen their OWN
+`schoolIds` by writing to their own staff document?"* — turned out to already
+be answered. Jake, 2026-09-06: *"super admin should be able to edit
+everything... How can a super admin widen their reach if they can edit
+anything? An admin shouldn't be able to turn themselves into a superadmin.
+That should definitely be blocked. That said, accidentally narrowing a reach
+could have real problems. So another superadmin being the one to narrow the
+reach isn't a bad backstop — especially considering that I have two accounts
+working superadmin right now."*
+
+Ran the emulator against exactly that description rather than reasoning about
+it in the abstract:
+
+- ✅ **super_admin CAN write a complete, valid staff record for someone
+  else** — confirmed with a full payload after finding that the ONE existing
+  test on this ("NOBODY can write a staff record — not even super_admin") was
+  itself wrong: it passed only because its sample payload was missing
+  `readScope`, a shape failure, not the policy it claimed to prove. Rewritten.
+- ✅ **super_admin CANNOT touch their OWN record**, at all — confirmed. This
+  is what makes a second super_admin the actual recovery path for a mistake,
+  not the Firebase console.
+- ✅✅ **super_admin CAN edit — including NARROW — a FELLOW super_admin** —
+  Jake's own described backstop, run for real and **mutation-verified**
+  (blocking it turns exactly this one case red).
+- ✅ **building_admin CANNOT touch a super_admin's record AT ALL**, not even
+  to narrow them, and **CANNOT promote a colleague to building_admin** —
+  both already correctly enforced.
+
+**Zero rules changes were needed.** `firestore.rules` already implemented
+every part of the policy Jake described. The four bullets above are now
+explicit, named test cases in `firestore-rules.test.mjs`'s "staff records"
+block (rewritten from 3 tests to 8), two of them mutation-verified, so the
+next round doesn't have to re-derive this from the rule text again.
+
+### ⚠️⚠️ THE ACTUAL BUG WAS IN THE UI, AND IT WAS THE EXACT RISK JAKE NAMED
+
+`staff-admin.js`'s role dropdown never offered `'super_admin'` as a choice —
+only `['teacher', 'building_admin']` for a super_admin viewer. Two live
+consequences: nobody could be promoted TO super_admin through the app at
+all, and far worse, **opening Edit on an EXISTING super_admin could not
+pre-select their real role**, so the form silently fell back to its first
+option, `teacher`. Clicking Save without noticing would have demoted a
+fellow super_admin — precisely the "accidentally narrowing a reach" scenario
+Jake described, arriving by omission rather than by any admin's intent.
+
+✅ **Fixed, `staff-admin.js` v2.4.0:** `'super_admin'` added to the dropdown
+for a super_admin viewer; the pre-select's separate, redundant exclusion of
+`'super_admin'` (a second copy of the same bug) removed too. ✅ **Added, not
+just restored:** `doGrant()` now asks for explicit confirmation specifically
+when an existing super_admin's role is being changed away from it — a guard
+in front of the mistake, complementing rather than replacing Jake's own
+stated backstop (a second super_admin account can always undo one).
+
+✅ **New harness**, `tests/staff-role-editor-test.mjs` — structural (this file
+has no pure functions to extract and run), covering the dropdown fix, the
+pre-select fix, the demotion guard's confirm(), that declining it actually
+stops the write, and that the self-edit refusal is checked before the
+demotion guard rather than after. **Mutation-verified** against all three of
+its load-bearing assertions. 74/74 harnesses pass, 80/80 rules tests pass, 0
+version-audit problems.
 
 ## 64. ✅ FIXED (Round 80, Imperial) — EVERY `<select>` WAS 2px TALLER THAN EVERY `<input>`
 

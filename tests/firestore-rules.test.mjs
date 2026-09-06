@@ -56,12 +56,17 @@ let env;
 // ── Cast of characters ──
 const EMS = 'ems', HMS = 'hms';                 // two buildings
 const JAKE = 'uid_jake';                        // super_admin
+// ⚠️ ROADMAP 65 — a SECOND super_admin, since "does a super_admin outrank a
+// FELLOW super_admin" is a different question from "does a super_admin
+// outrank a teacher," and the app runs with two of these accounts for real.
+const OTHER_SUPER = 'uid_other_super';          // a second super_admin
 const TEACHER_EMS = 'uid_teacher_ems';          // teacher at EMS
 const TEACHER_HMS = 'uid_teacher_hms';          // teacher at HMS
 const KID_EMS = 'uid_kid_ems';                  // student at EMS
 const KID_HMS = 'uid_kid_hms';                  // student at HMS
 
 const asJake       = () => env.authenticatedContext(JAKE, { role: 'super_admin', schoolIds: [EMS, HMS], email: 'jake@x.net' });
+const asOtherSuper = () => env.authenticatedContext(OTHER_SUPER, { role: 'super_admin', schoolIds: [EMS, HMS], email: 'other_super@x.net' });
 // readScope is per-person. A teacher defaults to 'own_classes'; a building_admin
 // grants 'building' when they want that teacher to see the whole school.
 const asTeacherEms = () => env.authenticatedContext(TEACHER_EMS,
@@ -113,6 +118,8 @@ beforeEach(async () => {
         // undefined and the rule errors out, which is what produced fourteen
         // failures that looked like broken rules.
         await setDoc(doc(db, 'staff', JAKE),
+            { role: 'super_admin', active: true, schoolIds: [EMS, HMS], readScope: 'building' });
+        await setDoc(doc(db, 'staff', OTHER_SUPER),
             { role: 'super_admin', active: true, schoolIds: [EMS, HMS], readScope: 'building' });
         await setDoc(doc(db, 'staff', TEACHER_EMS),
             { role: 'teacher', active: true, schoolIds: [EMS], readScope: 'building' });
@@ -298,13 +305,47 @@ describe('class ownership', () => {
 
 // ═══════════════════ staff records are function-only ═══════════════════
 describe('staff records', () => {
-    it('NOBODY can write a staff record from a client — not even super_admin', async () => {
-        // pushClaims() in functions/index.js is the only writer, via the Admin
-        // SDK, which bypasses rules. That's what keeps claim and record in step.
-        await assertFails(setDoc(doc(asJake().firestore(), 'staff', TEACHER_EMS),
-            { role: 'teacher', schoolIds: [EMS] }));
+    // ⚠️⚠️ ROADMAP 65 — REWRITTEN. The old version of this block asserted
+    // "NOBODY can write a staff record from a client — not even super_admin,"
+    // and it was WRONG: it passed only because its sample payload was
+    // missing `readScope`, which the rule requires regardless of who's
+    // writing — a shape failure, not a policy one. Verified against the
+    // actual rule with a COMPLETE payload before rewriting anything: a
+    // super_admin's write to a colleague succeeds. Jake, 2026-09-06: "super
+    // admin should be able to edit everything" — confirmed true for anyone
+    // OTHER than themselves; self-edit stays blocked for every role,
+    // including super_admin, on purpose (see below).
+    it('super_admin CAN write a complete, valid staff record for someone else', async () => {
+        await assertSucceeds(setDoc(doc(asJake().firestore(), 'staff', TEACHER_EMS),
+            { role: 'teacher', schoolIds: [EMS, HMS], readScope: 'building' }, { merge: true }));
+    });
+    it('super_admin CANNOT touch their OWN record — not even to add a building', async () => {
+        // ⚠️ Jake, 2026-09-06: not about "widening reach" (a super_admin
+        // already has none to widen) — about ACCIDENTAL NARROWING with no
+        // recovery path except the Firebase console. This is what makes a
+        // SECOND super_admin able to fix a mistake instead.
+        await assertFails(setDoc(doc(asJake().firestore(), 'staff', JAKE),
+            { role: 'super_admin', schoolIds: [EMS, HMS, 'a_third_school'], readScope: 'building' }, { merge: true }));
+    });
+    // ⚠️⚠️ THE BACKSTOP Jake described: "another superadmin being the one to
+    // narrow the reach isn't a bad backstop — especially considering that I
+    // have two accounts working superadmin right now." This is that
+    // scenario, run for real, not assumed from reading the rule.
+    it('super_admin CAN edit — including NARROW — a FELLOW super_admin', async () => {
+        await assertSucceeds(setDoc(doc(asJake().firestore(), 'staff', OTHER_SUPER),
+            { role: 'super_admin', schoolIds: [EMS], readScope: 'building' }, { merge: true }));
+    });
+    it('building_admin CANNOT edit a super_admin at all — not even to narrow them', async () => {
+        await assertFails(setDoc(doc(asBldgAdminEms().firestore(), 'staff', JAKE),
+            { role: 'super_admin', schoolIds: [EMS], readScope: 'building' }, { merge: true }));
+    });
+    it('building_admin CANNOT promote a colleague to building_admin', async () => {
         await assertFails(setDoc(doc(asBldgAdminEms().firestore(), 'staff', TEACHER_EMS),
-            { role: 'building_admin', schoolIds: [EMS] }));
+            { role: 'building_admin', schoolIds: [EMS], readScope: 'building' }, { merge: true }));
+    });
+    it('building_admin CAN edit a teacher\u2019s record in their own building', async () => {
+        await assertSucceeds(setDoc(doc(asBldgAdminEms().firestore(), 'staff', TEACHER_EMS),
+            { role: 'teacher', schoolIds: [EMS], readScope: 'building' }, { merge: true }));
     });
     it('staff can read staff records; students cannot', async () => {
         await assertSucceeds(getDoc(doc(asTeacherEms().firestore(), 'staff', TEACHER_EMS)));

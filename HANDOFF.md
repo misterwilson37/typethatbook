@@ -1,15 +1,14 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-05 by Round 80 (Imperial), for whoever is next
+> ## ▶ START HERE — written 2026-09-06 by Round 80 (Imperial), for whoever is next
 >
-> ⚠️⚠️ **ROADMAP 62 IS CLOSED.** This round started as a fresh-eyes pass and grew
-> into a full roadmap round once Jake asked to "continue with whatever is
-> next." Rules, editor, and orphan-flag are all shipped and verified — see §4
-> below. The item it split off, ROADMAP 65 (staff-admin.js's `schoolIds`), is
-> **not started** and is the natural next pick, though it needs its own
-> rules-first read the way 62 did.
+> ⚠️⚠️ **ROADMAP 62 AND 65 ARE BOTH CLOSED.** This round started as a
+> fresh-eyes pass and grew into two full roadmap rounds once Jake kept saying
+> "continue." Everything below is shipped and verified. The next actionable,
+> non-blocked pick is **item 39's admin.js half** (the dialog conversion —
+> see Round 79's block below for why).
 >
-> ### WHAT THIS ROUND WAS: FRESH EYES FIRST, THEN A FULL ROADMAP ITEM
+> ### WHAT THIS ROUND WAS: FRESH EYES FIRST, THEN TWO FULL ROADMAP ITEMS
 >
 > Came in cold, ran `npm test` and `npm run audit:versions` before reading a
 > line of prose (72/72, 0 problems — Round 79's claim checked out exactly), then
@@ -106,17 +105,46 @@
 >    (`v1.13.2`, already header-only) to CHANGELOG.md § ARCHIVED FILE HEADERS.
 >    ⚠️ **THE SECOND HALF JAKE ASKED FOR IN THE SAME SENTENCE — "who
 >    administrates what building," `staff-admin.js`'s `schoolIds` — IS NOT
->    THIS.** Split into ROADMAP 65, not started, and it needs the identical
->    rules-first treatment: check whether a `building_admin` can currently
->    widen their own `schoolIds` before designing anything, the same shape of
->    question 62 just closed for classes.
+>    THIS.** Split into ROADMAP 65 — closed in this same round, see §5.
+>
+> 5. ✅✅ **ROADMAP 65 CLOSED — WHO ADMINISTRATES WHAT BUILDING.** Jake's own
+>    words turned into the test plan directly: *"super admin should be able
+>    to edit everything... An admin shouldn't be able to turn themselves into
+>    a superadmin. That should definitely be blocked. That said, accidentally
+>    narrowing a reach could have real problems. So another superadmin being
+>    the one to narrow the reach isn't a bad backstop — especially
+>    considering that I have two accounts working superadmin right now."*
+>    **Ran the emulator against that description before writing anything —
+>    every part of it was already true.** `firestore.rules` needed ZERO
+>    changes: super_admin can already edit anyone else's record; nobody,
+>    super_admin included, can touch their own; a super_admin CAN edit —
+>    including narrow — a FELLOW super_admin (the exact backstop Jake
+>    described, confirmed and **mutation-verified**); a building_admin can't
+>    touch a super_admin at all or promote anyone to building_admin.
+>    ⚠️⚠️ **ONE EXISTING TEST WAS WRONG WHILE VERIFYING THIS**: "NOBODY can
+>    write a staff record — not even super_admin" was passing only because
+>    its sample payload was missing `readScope`, a shape failure it mistook
+>    for policy. Rewritten into 8 explicit cases (from 3), two
+>    mutation-verified. ⚠️⚠️ **THE ACTUAL BUG WAS IN THE UI, AND IT WAS THE
+>    EXACT RISK JAKE NAMED:** `staff-admin.js`'s role dropdown never offered
+>    `'super_admin'` at all — so opening Edit on an EXISTING super_admin
+>    couldn't pre-select their real role and silently fell back to `teacher`.
+>    Clicking Save without noticing would have demoted a fellow super_admin —
+>    an accidental narrowing arriving by omission, not by anyone's intent.
+>    ✅ **Fixed, v2.4.0**: the option added (two places — the dropdown's list
+>    AND the pre-select had the SAME exclusion, separately), plus a NEW
+>    `confirm()` in `doGrant()` specifically for "you're changing an existing
+>    super_admin away from that role" — a guard in front of the mistake,
+>    on top of Jake's own backstop, not instead of it. **New harness**,
+>    `tests/staff-role-editor-test.mjs`, structural (no pure function here to
+>    run), **mutation-verified** against all three load-bearing assertions.
+>    74/74 harnesses pass, 80/80 rules tests pass, 0 audit problems.
 >
 > **Everything else is as Round 79 left it.** `style.css` and
 > `tests/hud-lead-test.mjs` are still deliberately absent, ROADMAP 58 and 60
 > are still unruled (both need Jake's decision, not code). The next
-> actionable, non-blocked pick is either **ROADMAP 65** (above) or **item
-> 39's admin.js half** (the dialog conversion — see Round 79's block below for
-> why it's next in line either way).
+> actionable, non-blocked pick is **item 39's admin.js half** (the dialog
+> conversion — see Round 79's block below for why it's next in line).
 
 > ## ▶ Round 79 (Duplex) — the previous block, kept
 >
