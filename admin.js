@@ -1,4 +1,67 @@
-// admin.js v3.53.0
+// admin.js v3.54.0
+//
+// v3.54.0 — ⚠️⚠️ ROADMAP 39, admin.js's HALF: NO BROWSER DIALOGS LEFT ON THIS
+//           PAGE EITHER. reports.html closed its own 22 sites in Round 73;
+//           this file's 45 (30 alert() + 15 confirm(), recounted fresh
+//           against the actual file — Round 78's own line numbers had
+//           already drifted by 18 lines before this round touched anything)
+//           went together in one round, the same rule that page's own item
+//           insists on: a half-converted page is worse than an unconverted
+//           one, because an unawaited `ttbConfirm()` returns a truthy
+//           Promise and the guard that was meant to stop a destructive
+//           action does nothing.
+//           ⭐ THE PRIMITIVES ARE A DELIBERATE COPY, NOT A SHARED MODULE —
+//           the round's first decision, made before any conversion: this
+//           file already duplicates reports.html's design tokens for the
+//           same reason (see admin.html's :root comment), and extracting a
+//           shared module while also converting 45 sites in one round was
+//           the wrong two things to risk at once.
+//           ⚠️⚠️ A TRAP reports.html NEVER HAD: admin.html carries TWO
+//           full-viewport, z-index:200, fully opaque custom modals
+//           (#warning-modal, #error-wizard-modal) that predate this
+//           conversion. `ttbConfirm()`/`ttbChoose()` are unaffected — a
+//           native <dialog> opened with showModal() renders in the
+//           browser's own top layer regardless of z-index — but
+//           `ttbNotice()`'s plain-<div> banner is NOT, and would render
+//           invisibly behind either modal's backdrop. Solved with a
+//           modal-local `#wizard-banner-host` — and found a SECOND copy of
+//           the same trap mid-conversion: `openSplitUI()` reuses
+//           `#error-wizard-modal` for an unrelated feature by rebuilding its
+//           entire content via `content.innerHTML`, which would silently
+//           destroy that static host — so it carries its own copy of the
+//           same id. `tests/dialogs-admin-test.mjs` D1/D2 are the regression
+//           test for both halves of this.
+//           ⚠️ ONE `confirm()` BECAME `ttbChoose()`, NOT `ttbConfirm()` — the
+//           space-in-book-id dialog. Neither of its two answers actually
+//           cancels the parse, they just pick which id it proceeds with;
+//           `confirm()` couldn't label its own buttons, so the old message
+//           spelled "OK" and "Cancel" out by hand. A real dialog just says
+//           what each button does.
+//           ⚠️ `prompt()` IS DELIBERATELY LEFT NATIVE — a third dialog type
+//           this item's own count never included. The delete-book flow
+//           chose it over `confirm()` on purpose (typing the exact book id
+//           is a stronger safeguard than a button a careless Return can
+//           hit), and neither `ttbChoose()` nor `ttbConfirm()` has a
+//           typed-input capability to replace it with. One prompt(),
+//           pinned by name to that handler in the test.
+//           ⚠️ SIX HANDLERS BECAME `async` FOR THE `await` THEY GAINED:
+//           `createResetBtn`, `wizardCancelBtn`, `replaceAllBtn`,
+//           `replaceWordBtn`, `mergeWithNext()` (a shared function with
+//           exactly one caller, verified fresh before touching it — the
+//           caller was updated in the same edit, not left calling an async
+//           function fire-and-forget), and `wireClearApprovals()`'s
+//           `clearLink`.
+//           ⚠️ FIVE PRE-EXISTING STRUCTURAL TESTS GREPPED FOR LITERAL
+//           `confirm(` TEXT (`control-tier-test.mjs` E4,
+//           `build-list-test.mjs` T2/T3/B1/B2) and went stale the moment the
+//           mechanism moved — same shape `dialogs-test.mjs` itself already
+//           documented handling once for `reports.html`. Fixed all five.
+//           ⚠️⚠️ A SIXTH WAS WORSE: `build-list-test.mjs`'s B3 wasn't
+//           failing at all — its case-sensitive `indexOf('confirm(')` had
+//           coincidentally matched text inside one of THIS ROUND's OWN new
+//           comments ("confirm() couldn't label its own buttons") instead
+//           of any real code, and was passing vacuously. Caught by hand,
+//           not by the test — it did not fail on its own.
 //
 // v3.53.0 — ⚠️ THE SUPERADMIN `Uploaded by` CONTROL REPLACES THE STAMP INSTEAD OF
 //           STACKING UNDER IT. Jake: "superadmin should get a dropdown in place of
@@ -133,23 +196,9 @@
 //           ⚠️ THE FIELD IS STILL READ-ONLY. ROADMAP 55b is the dropdown, and it
 //           needs Jake's ruling on who may set it.
 //
-// v3.46.0 — ROADMAP 56b AND 56c, both small and both about a control that makes
-//           a promise it does not keep.
-//           (b) ⚠️ `Edit` AND `Del` WERE THE ONLY TWO BUTTONS IN THE CHAPTER ROW
-//           WITHOUT A HINT, and Del is the destructive one — the button where a
-//           moment's hesitation is worth most. Jake: "about, merge, split and
-//           body are great. Edit and Del don't have them." ⚠️ Del's hint says the
-//           thing that is NOT obvious: removing a chapter here stages a removal,
-//           and the chapter document is pruned when you upload (v3.22.0).
-//           (c) ⚠️⚠️ #repair-titles-btn HAD NO HOVER, AND THE CAUSE WAS NOT
-//           ROUND 59. This button is BUILT IN JS and set `background` through
-//           style.cssText, so it was never in that round's sweep of the eighteen
-//           inline backgrounds — and an inline value beats every selector, so
-//           `button:hover` could not reach it. The colour is `btn-bg-3a2200` in
-//           admin.html v1.9.0 now, with `btn-tint` for the brightness.
-//           ⚠️ THE OTHER DEAD HOVER WAS THE CLASS MANAGER'S DELETE, and it was a
-//           worse bug than a missing glow — see lessons-admin.js v1.17.0.
-//
+// ⚠️ v3.46.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (8-entry
+// budget, Round 80, Imperial). It was ROADMAP 56b and 56c: the Del/Edit
+// button hints and #repair-titles-btn's dead hover.
 // ⚠️ v3.45.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 79).
 // ⚠️ v3.44.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 75).
 // ⚠️ v3.43.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 70).
@@ -189,7 +238,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.53.0";
+const ADMIN_VERSION = "3.54.0";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -278,6 +327,103 @@ const replaceWordOriginal = document.getElementById('replace-word-original');
 const replaceWordCount = document.getElementById('replace-word-count');
 const replaceWordInput = document.getElementById('replace-word-input');
 const replaceWordBtn = document.getElementById('replace-word-btn');
+
+// ═══════════════════════════ ROADMAP 39 — DIALOGS ═══════════════════════════
+//
+// Same primitives as reports.html v1.9.0, copied rather than shared (see the
+// note on admin.html's :root block: this page already duplicates that page's
+// design tokens deliberately, for the same reason). ⚠️⚠️ `if (!confirm(x))
+// return;` is SYNCHRONOUS; a modal is not — an unawaited `ttbConfirm()`
+// returns a truthy Promise, so the guard that was meant to stop a
+// destructive action does nothing. Every one of this file's 15 confirm()
+// sites converts to `await ttbConfirm(...)` in the SAME edit as the handler
+// that carries it becomes `async`, never one without the other.
+//
+// ⭐ ttbChoose() IS THE GENERAL ONE; ttbConfirm() IS EXPRESSED IN TERMS OF IT.
+// Kept even though this page has no three-way dialog yet, so a future one
+// doesn't mean building the general case twice.
+//
+// ⚠️ NO rowHost() HERE. reports.html scopes a message to the report ROW a
+// click came from; this page is one book at a time, not many rows, so every
+// call site either takes the page-level default or names a host explicitly.
+// The one place that matters: #error-wizard-modal is a position:fixed,
+// z-index:200, fully opaque overlay — the page-level #ttb-banner-host sits
+// BEHIND it while the wizard is open, so the one alert() that fires from
+// inside it (wizardSaveBtn's validation message) passes
+// #wizard-banner-host explicitly. Nothing else needs to.
+
+/**
+ * @param {string} title
+ * @param {string} message   plain text; newlines are preserved by CSS
+ * @param {Array<{label:string, value:*, danger?:boolean, primary?:boolean}>} options
+ * @returns {Promise<*>}  the chosen value, or null if dismissed
+ *
+ * ⚠️⚠️ DISMISSAL RESOLVES null, AND THAT IS THE MOST IMPORTANT LINE HERE.
+ * Escape, the backdrop and the close button all mean "I did not choose". A
+ * dismissed destructive confirmation that resolved TRUE is the worst bug
+ * this pattern can have, and native <dialog> closes on Escape whether you
+ * plan for it or not.
+ */
+function ttbChoose(title, message, options) {
+    const dlg  = document.getElementById('ttb-modal');
+    const foot = document.getElementById('ttb-modal-foot');
+    document.getElementById('ttb-modal-title').textContent = title;
+    document.getElementById('ttb-modal-body').textContent  = message;
+    foot.innerHTML = '';
+    return new Promise(resolve => {
+        let settled = false;
+        const finish = (v) => {
+            if (settled) return;          // Escape can race a click
+            settled = true;
+            dlg.removeEventListener('close', onClose);
+            if (dlg.open) dlg.close();
+            resolve(v);
+        };
+        // ⚠️ `close` fires for Escape AND for our own .close(). The `settled`
+        // guard is what stops the escape path overwriting a real choice.
+        const onClose = () => finish(null);
+        dlg.addEventListener('close', onClose);
+        for (const o of options) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = o.label;
+            if (o.danger) b.className = 'ttb-modal-danger';
+            b.onclick = () => finish(o.value);
+            foot.appendChild(b);
+        }
+        dlg.showModal();
+        // ⚠️ FOCUS THE SAFE CHOICE, NEVER THE DESTRUCTIVE ONE. A reflex
+        // Enter press must not delete an import by habit.
+        const safe = foot.querySelector('button:not(.ttb-modal-danger)');
+        (safe || foot.firstChild)?.focus();
+    });
+}
+
+/** Two-way confirmation. ⚠️ Resolves FALSE on dismissal, always. */
+function ttbConfirm(message, { title = 'Confirm', ok = 'OK', danger = false } = {}) {
+    return ttbChoose(title, message, [
+        { label: 'Cancel', value: false },
+        { label: ok,      value: true, danger, primary: true },
+    ]).then(v => v === true);
+}
+
+/**
+ * Information. ⚠️ NOT A MODAL — an alert() that only reports something does
+ * not deserve to steal focus or demand a dismissal. It becomes a banner.
+ * @param {HTMLElement} [host]  where it belongs; falls back to the page host
+ */
+function ttbNotice(message, { bad = false, host = null } = {}) {
+    const where = host || document.getElementById('ttb-banner-host');
+    if (!where) return;
+    // One banner per host: a stack of three stale messages is how a page
+    // stops being read at all.
+    where.querySelectorAll(':scope > .ttb-banner').forEach(n => n.remove());
+    const div = document.createElement('div');
+    div.className = 'ttb-banner' + (bad ? ' is-bad' : '');
+    div.textContent = message;
+    where.prepend(div);
+    div.scrollIntoView({ block: 'nearest' });
+}
 
 // Suggested replacements for common characters (shown in Replace All)
 const CHAR_SUGGESTIONS = {
@@ -940,7 +1086,7 @@ function initUploadedByOverride() {
         const uid = sel.value;
         if (!uid || !activeBookId) return;
         const who = sel.options[sel.selectedIndex].text;
-        if (!confirm('Record "' + (bookTitlesMap[activeBookId] || activeBookId) +
+        if (!await ttbConfirm('Record "' + (bookTitlesMap[activeBookId] || activeBookId) +
                      '" as uploaded by ' + who +
                      '?\n\nThis writes that one field and nothing else.')) {
             // ⚠️ PUT IT BACK. A cancelled dropdown that keeps the new value is a
@@ -953,7 +1099,7 @@ function initUploadedByOverride() {
             if (_metaBaseline) _metaBaseline.uploadedBy = uid;
             showUploadedBy(uid);
         } catch (e) {
-            alert('Could not set it: ' + e.message);
+            ttbNotice('Could not set it: ' + e.message, { bad: true });
             sel.value = (_metaBaseline && _metaBaseline.uploadedBy) || '';
         }
     };
@@ -1232,7 +1378,7 @@ await loadBookList(true);   // initial load: pick a book and open it
 
 loginBtn.onclick = async () => {
     try { await signInWithPopup(auth, new GoogleAuthProvider()); } 
-    catch (e) { alert(e.message); }
+    catch (e) { ttbNotice(e.message, { bad: true }); }
 };
 
 // --- BOOK LIST ---
@@ -2112,7 +2258,7 @@ if (newEpubFile) newEpubFile.addEventListener('change', e => autofillFromEpub(e.
 // --- CREATE NEW PARSE ---
 createParseBtn.onclick = async () => {
     const file = newEpubFile.files[0];
-    if (!file) return alert("Choose an EPUB file.");
+    if (!file) return ttbNotice("Choose an EPUB file.", { bad: true });
 
     // ─── ⚠️⚠️ THE STAGED-WORK GUARD (v3.45.0, ROADMAP 38) ────────────────────
     //
@@ -2137,12 +2283,12 @@ createParseBtn.onclick = async () => {
     // there on the press that mattered — v3.23.0's lesson about the upload
     // confirm, one control over.
     if (stagedChapters.length > 0) {
-        const ok = confirm(
+        const ok = await ttbConfirm(
             `${stagedChapters.length} chapter(s) are staged below.\n\n` +
             `Parsing "${file.name}" REPLACES all of them. Any splits, merges, ` +
             `retitles or front/back-matter changes you have made are lost, and ` +
             `they have not been uploaded yet.\n\n` +
-            `Discard the staged chapters and parse this file?`);
+            `Discard the staged chapters and parse this file?`, { danger: true, ok: 'Discard & Parse' });
         if (!ok) return;
     }
 
@@ -2156,8 +2302,8 @@ createParseBtn.onclick = async () => {
     }
     let id = newBookId.value.trim();
     const title = newBookTitle.value.trim();
-    if (!id || !title) return alert(
-        "Could not read a title from that EPUB \u2014 fill in Book ID and Title by hand.");
+    if (!id || !title) return ttbNotice(
+        "Could not read a title from that EPUB \u2014 fill in Book ID and Title by hand.", { bad: true });
 
     // ─── ROADMAP 44 (v3.39.0) — WHITESPACE ONLY, AND WARN RATHER THAN BLOCK ───
     //
@@ -2192,13 +2338,19 @@ createParseBtn.onclick = async () => {
     // leading article, and cannot turn an underscore id into a hyphen one.
     if (/\s/.test(id)) {
         const fixed = id.replace(/\s+/g, '-').replace(/-{2,}/g, '-');
-        const useFixed = confirm(
+        // ⚠️ ttbChoose(), NOT ttbConfirm() — neither answer cancels the parse,
+        // they just pick which id it proceeds with. confirm() couldn't label
+        // its own buttons, so the old message spelled "OK" and "Cancel" out
+        // by hand; a real dialog can just say what each button does.
+        const useFixed = await ttbChoose('Book ID contains a space',
             `The Book ID "${id}" contains a space.\n\n` +
             `Firestore accepts it, and nothing in the app breaks — but a document id ` +
             `cannot be renamed afterwards without moving every student record that ` +
-            `cites it.\n\n` +
-            `OK\u2003 use "${fixed}" instead\n` +
-            `Cancel\u2003 keep "${id}" exactly as typed`);
+            `cites it.`,
+            [
+                { label: `Keep "${id}"`, value: false },
+                { label: `Use "${fixed}" instead`, value: true, primary: true },
+            ]);
         if (useFixed) { id = fixed; newBookId.value = fixed; }
     }
 
@@ -2326,17 +2478,21 @@ function resetCreateForm(announce) {
 }
 
 const createResetBtn = document.getElementById('create-reset-btn');
-if (createResetBtn) createResetBtn.onclick = () => {
+// ⚠️ ROADMAP 39 — WAS A PLAIN ARROW. `await ttbConfirm()` inside a non-async
+// function is a SyntaxError, so this becomes async in the same edit as the
+// confirm() it carries — one caller, this DOM event assignment, so the
+// blast radius is this line alone.
+if (createResetBtn) createResetBtn.onclick = async () => {
     // Only warn when there is something to lose. Confirming a no-op is noise.
     if (stagedChapters.length && !stagedFromDB &&
-        !confirm('Discard the ' + stagedChapters.length +
-                 ' staged chapters that have not been uploaded?')) return;
+        !await ttbConfirm('Discard the ' + stagedChapters.length +
+                 ' staged chapters that have not been uploaded?', { danger: true, ok: 'Discard' })) return;
     resetCreateForm(true);
 };
 
 // --- OVERWRITE ---
 overwriteBtn.onclick = () => {
-    if(!overwriteEpubFile.files[0]) return alert("Select file");
+    if(!overwriteEpubFile.files[0]) return ttbNotice("Select file", { bad: true });
     warningModal.classList.remove('hidden');
 };
 cancelOverwriteBtn.onclick = () => warningModal.classList.add('hidden');
@@ -3918,7 +4074,12 @@ wizardSaveBtn.onclick = () => {
     const badMatches = newSnippet.match(/[^ -~\t\n]/g);
     
     if (badMatches) {
-        alert(`Still found untypable character: "${badMatches[0]}"`);
+        // ⚠️ ROADMAP 39 — #wizard-banner-host, NOT the page default. This
+        // fires while #error-wizard-modal (position:fixed, z-index:200,
+        // opaque) is open; the page-level #ttb-banner-host sits behind it in
+        // stacking order and would be invisible until the modal closes.
+        ttbNotice(`Still found untypable character: "${badMatches[0]}"`,
+            { bad: true, host: document.getElementById('wizard-banner-host') });
     } else {
         // Stitch
         const prefix = fullText.substring(0, err.contextStart);
@@ -3930,8 +4091,10 @@ wizardSaveBtn.onclick = () => {
     }
 };
 
-wizardCancelBtn.onclick = () => {
-    if(confirm("Stop import?")) {
+// ⚠️ ROADMAP 39 — WAS A PLAIN ARROW; async now for the await ttbConfirm() it
+// carries. One caller (this DOM assignment), so nothing else to check.
+wizardCancelBtn.onclick = async () => {
+    if(await ttbConfirm("Stop import?", { danger: true, ok: 'Stop Import' })) {
         stagedChapters = [];
         stagedFromDB = false;
         wizardModal.classList.add('hidden');
@@ -3941,14 +4104,16 @@ wizardCancelBtn.onclick = () => {
     }
 };
 
-replaceAllBtn.onclick = () => {
+// ⚠️ ROADMAP 39 — WAS A PLAIN ARROW; async now for the await ttbConfirm() it
+// carries.
+replaceAllBtn.onclick = async () => {
     const err = importErrors[currentErrorIdx];
     const badChar = err.badChar;
     const replacement = replaceAllInput.value;
     const badCode = badChar.charCodeAt(0).toString(16).toUpperCase();
     
     const displayReplacement = replacement === '' ? '(remove)' : `"${replacement}"`;
-    if (!confirm(`Replace ALL "${badChar}" (U+${badCode}) with ${displayReplacement} across all chapters?`)) return;
+    if (!await ttbConfirm(`Replace ALL "${badChar}" (U+${badCode}) with ${displayReplacement} across all chapters?`)) return;
     
     // Global replace across all staged chapter segments
     const regex = new RegExp(escapeRegex(badChar), 'g');
@@ -3994,13 +4159,16 @@ function escapeRegex(str) {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-replaceWordBtn.onclick = () => {
+// ⚠️ ROADMAP 39 — WAS A PLAIN ARROW; async now for the two await
+// ttbConfirm() calls it carries (only one runs per press — replacement is
+// either empty or not).
+replaceWordBtn.onclick = async () => {
     const err = importErrors[currentErrorIdx];
     const badWord = replaceWordOriginal.textContent;
     const replacement = replaceWordInput.value;
     
-    if (!replacement && !confirm(`Replace "${badWord}" with nothing (delete the word)?`)) return;
-    if (replacement && !confirm(`Replace all "${badWord}" with "${replacement}" across all chapters?`)) return;
+    if (!replacement && !await ttbConfirm(`Replace "${badWord}" with nothing (delete the word)?`, { danger: true, ok: 'Delete' })) return;
+    if (replacement && !await ttbConfirm(`Replace all "${badWord}" with "${replacement}" across all chapters?`)) return;
     
     const regex = new RegExp(escapeRegex(badWord), 'g');
     let replaceCount = 0;
@@ -4173,17 +4341,21 @@ function renderChapterList() {
     });
     
     document.querySelectorAll('.merge-btn').forEach(btn => {
-        btn.onclick = (e) => mergeWithNext(parseInt(e.target.dataset.index));
+        // ⚠️ ROADMAP 39 — async now that mergeWithNext() is. Awaited, not
+        // fire-and-forget: mergeWithNext() has exactly this one caller
+        // (verified fresh this round, not assumed from the old count), so
+        // making it async changes one call site, not a shared contract.
+        btn.onclick = async (e) => { await mergeWithNext(parseInt(e.target.dataset.index)); };
     });
 }
 
 // --- MERGE CHAPTERS ---
-function mergeWithNext(index) {
+async function mergeWithNext(index) {
     if (index >= stagedChapters.length - 1) return;
     const current = stagedChapters[index];
     const next = stagedChapters[index + 1];
     
-    if (!confirm(`Merge "${current.title}" (${current.segments.length} segs) with "${next.title}" (${next.segments.length} segs)?`)) return;
+    if (!await ttbConfirm(`Merge "${current.title}" (${current.segments.length} segs) with "${next.title}" (${next.segments.length} segs)?`)) return;
     
     current.segments = current.segments.concat(next.segments);
     stagedChapters.splice(index + 1, 1);
@@ -4243,6 +4415,15 @@ function openSplitUI(chapIndex) {
             <h3 class="u-margin-0 u-color-4b9cd3">Split Chapter: ${escapeHtml(chap.title)}</h3>
             <span class="u-color-888">${chap.segments.length} segments</span>
         </div>
+        <!-- ⚠️⚠️ ROADMAP 39 — content.innerHTML REPLACES THE WHOLE MODAL BODY,
+             including the #wizard-banner-host that lives statically in
+             admin.html for the ORIGINAL wizard flow. Reusing the same id
+             here means document.getElementById('wizard-banner-host') finds
+             whichever one is actually in the DOM — this one, while the
+             split UI is showing. Without it, ttbNotice() would silently
+             fall through to the page-level host, which sits BEHIND this
+             modal's own opaque backdrop. -->
+        <div id="wizard-banner-host"></div>
         
         ${headingsList}
         
@@ -4367,7 +4548,11 @@ function openSplitUI(chapIndex) {
     
     document.getElementById('split-execute-btn').onclick = () => {
         const input = document.getElementById('manual-split-input').value.trim();
-        if (!input) { alert('No split points specified.'); return; }
+        // ⚠️ ROADMAP 39 — #wizard-banner-host again: this handler's whole UI
+        // lives inside the reused #error-wizard-modal (see the note above
+        // openSplitUI()'s content.innerHTML), same visibility problem as the
+        // original wizard's alert().
+        if (!input) { ttbNotice('No split points specified.', { bad: true, host: document.getElementById('wizard-banner-host') }); return; }
         
         const splitPoints = [...new Set(
             input.split(/[,\s]+/)
@@ -4375,7 +4560,7 @@ function openSplitUI(chapIndex) {
                  .filter(n => !isNaN(n) && n > 0 && n < chap.segments.length)
         )].sort((a, b) => a - b);
         
-        if (splitPoints.length === 0) { alert('No valid split points.'); return; }
+        if (splitPoints.length === 0) { ttbNotice('No valid split points.', { bad: true, host: document.getElementById('wizard-banner-host') }); return; }
         
         // Perform the split
         const newChapters = [];
@@ -4446,7 +4631,7 @@ function commitStagedEdit() {
     if (editingIndex < 0) return false;
     let data;
     try { data = JSON.parse(jsonContent.value); }
-    catch (e) { alert("Invalid JSON — not saved."); return false; }
+    catch (e) { ttbNotice("Invalid JSON — not saved.", { bad: true }); return false; }
     stagedChapters[editingIndex].title = manualTitle.value;
     stagedChapters[editingIndex].id = manualNum.value.trim();
     stagedChapters[editingIndex].segments = data.segments;
@@ -4733,9 +4918,9 @@ function describeSave(updates, before, coverNote) {
 }
 
 saveTitleBtn.onclick = async () => {
-    if (!activeBookId) return alert("No active book.");
+    if (!activeBookId) return ttbNotice("No active book.", { bad: true });
     const newTitle = activeBookTitle.value.trim();
-    if (!newTitle) return alert("Title required.");
+    if (!newTitle) return ttbNotice("Title required.", { bad: true });
 
     // Feedback lives next to the button now. The write always worked; the only
     // confirmation was the status bar at the top of the page, ~66 lines of markup
@@ -4813,7 +4998,7 @@ saveTitleBtn.onclick = async () => {
     } catch(e) {
         setInline('Save failed: ' + e.message, '#ff4444');
         saveTitleBtn.textContent = original;
-        alert("Metadata Save Failed: " + e.message);
+        ttbNotice("Metadata Save Failed: " + e.message, { bad: true });
     } finally {
         saveTitleBtn.disabled = false;
         saveTitleBtn.style.opacity = '1';
@@ -4822,8 +5007,8 @@ saveTitleBtn.onclick = async () => {
 
 // --- UPLOAD ALL ---
 uploadAllBtn.onclick = async () => {
-    if (stagedChapters.length === 0) return alert("Nothing to upload.");
-    if (!activeBookId) return alert("No active book.");
+    if (stagedChapters.length === 0) return ttbNotice("Nothing to upload.", { bad: true });
+    if (!activeBookId) return ttbNotice("No active book.", { bad: true });
     
     // ⚠️ ONLY ASK IF THERE IS SOMETHING TO OVERWRITE (v3.23.0). This said
     // "Overwrite <id>?" on a brand new book, because the id exists as a variable
@@ -4842,15 +5027,15 @@ uploadAllBtn.onclick = async () => {
     const exists    = activeBookExists() === true;
     const label     = bookTitlesMap[activeBookId] || val('active-book-title') || activeBookId;
     if (replacing) {
-        if (!confirm(`"${label}" already has chapters in the database.\n\n` +
-                     `REPLACE them with these ${stagedChapters.length} chapters?`)) return;
+        if (!await ttbConfirm(`"${label}" already has chapters in the database.\n\n` +
+                     `REPLACE them with these ${stagedChapters.length} chapters?`, { danger: true, ok: 'Replace' })) return;
     } else if (exists) {
-        if (!confirm(`"${label}" exists but has NO chapters \u2014 students opening ` +
+        if (!await ttbConfirm(`"${label}" exists but has NO chapters \u2014 students opening ` +
                      `it right now find an empty book.\n\n` +
                      `Upload these ${stagedChapters.length} chapters to it?`)) return;
     } else {
-        if (!confirm(`Create "${label}" with ` +
-                     `${stagedChapters.length} chapters?`)) return;
+        if (!await ttbConfirm(`Create "${label}" with ` +
+                     `${stagedChapters.length} chapters?`, { ok: 'Create' })) return;
     }
     const alreadyExists = exists;   // uploadedBy stamping below reads this
 
@@ -4887,7 +5072,7 @@ uploadAllBtn.onclick = async () => {
         } catch (e) {
             console.error(e);
             if(uiStatus) { uiStatus.innerText = "FAIL"; uiStatus.style.color = "red"; }
-            return alert(`Upload failed at ID ${chapId}`);
+            return ttbNotice(`Upload failed at ID ${chapId}`, { bad: true });
         }
     }
 
@@ -5039,14 +5224,14 @@ uploadAllBtn.onclick = async () => {
             createNewUI.classList.add('hidden');
             editExistingUI.classList.remove('hidden');
         }
-    } catch (e) { alert("Metadata Save Failed: " + e.message); }
+    } catch (e) { ttbNotice("Metadata Save Failed: " + e.message, { bad: true }); }
 };
 
 // --- DIRECT SAVE ---
 saveDirectBtn.onclick = async () => {
-    if (!activeBookId) return alert("No active book.");
+    if (!activeBookId) return ttbNotice("No active book.", { bad: true });
     const chapNum = manualNum.value.trim();
-    if(chapNum === "") return alert("Chapter ID required");
+    if(chapNum === "") return ttbNotice("Chapter ID required", { bad: true });
     
     try {
         const data = JSON.parse(jsonContent.value);
@@ -5054,7 +5239,7 @@ saveDirectBtn.onclick = async () => {
         await bumpContentVersion(activeBookId);
         statusEl.innerText = `Saved Chapter ${chapNum}`;
         statusEl.style.borderColor = "#00ff41";
-    } catch(e) { alert(e.message); }
+    } catch(e) { ttbNotice(e.message, { bad: true }); }
 };
 
 function resolvePath(base, relative) {
@@ -5419,7 +5604,7 @@ function updateCoverPreview() {
 document.getElementById('cover-upload')?.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) { alert('Please select an image file.'); return; }
+    if (!file.type.startsWith('image/')) { ttbNotice('Please select an image file.', { bad: true }); return; }
     stagedCoverBlob = file;
     // A File from the picker carries its own type, which is exactly why the
     // manual path never hit the bug the EPUB path did. Recorded anyway so both
@@ -5554,9 +5739,11 @@ function showLanguageWarnings(issues, fromDB = false) {
 function wireClearApprovals() {
     const clearLink = document.getElementById('lang-clear-approvals');
     if (!clearLink) return;
-    clearLink.onclick = (e) => {
+    // ⚠️ ROADMAP 39 — WAS A PLAIN ARROW; async now for the await
+    // ttbConfirm() it carries. One caller (this DOM assignment).
+    clearLink.onclick = async (e) => {
         e.preventDefault();
-        if (!confirm('Clear all approved words for this book?')) return;
+        if (!await ttbConfirm('Clear all approved words for this book?', { danger: true, ok: 'Clear All' })) return;
         saveApprovedWords(activeBookId, []);
         rerunLanguageScan();
     };
@@ -5668,7 +5855,7 @@ function wireLangButtons() {
                     await bumpContentVersion(activeBookId);
                     statusEl.innerText = `Saved edit to ${iss.chapTitle}.`;
                     statusEl.style.borderColor = '#00ff41';
-                } catch (e) { alert('Save failed: ' + e.message); return; }
+                } catch (e) { ttbNotice('Save failed: ' + e.message, { bad: true }); return; }
             }
             rerunLanguageScan();
         };
@@ -5868,7 +6055,7 @@ function wireAuditButtons() {
     if (fixAllBtn) {
         fixAllBtn.onclick = async () => {
             const chapIds = [...new Set(auditIssueData.map(i => i.chapId))];
-            if (!confirm(`Fix all issues in ${chapIds.length} chapter(s)?`)) return;
+            if (!await ttbConfirm(`Fix all issues in ${chapIds.length} chapter(s)?`, { ok: 'Fix All' })) return;
             fixAllBtn.disabled = true; fixAllBtn.innerText = '⏳ Fixing...';
             let fixed = 0;
             for (const chapId of chapIds) {
@@ -5942,7 +6129,7 @@ function wireAuditButtons() {
             const remaining = newSnippet.match(/[^ -~\t\n]/g);
             if (remaining) {
                 const chars = [...new Set(remaining)].map(c => `"${c}" (U+${c.charCodeAt(0).toString(16).toUpperCase().padStart(4,'0')})`).join(', ');
-                if (!confirm(`Still contains untypeable characters: ${chars}\n\nSave anyway?`)) return;
+                if (!await ttbConfirm(`Still contains untypeable characters: ${chars}\n\nSave anyway?`, { danger: true, ok: 'Save Anyway' })) return;
             }
             const seg = iss.segments[iss.segIdx];
             seg.text = seg.text.substring(0, textarea._ctxStart) + newSnippet + seg.text.substring(textarea._ctxEnd);
@@ -5961,7 +6148,7 @@ function wireAuditButtons() {
                 statusEl.innerText = `Saved edit to ${iss.chapTitle}.`;
                 statusEl.style.borderColor = '#00ff41';
                 runAudit();
-            } catch (e) { alert('Save failed: ' + e.message); }
+            } catch (e) { ttbNotice('Save failed: ' + e.message, { bad: true }); }
         };
     });
 
@@ -5977,7 +6164,7 @@ function wireAuditButtons() {
                 if (el) { el.style.borderColor = '#336633'; el.style.background = '#0a220a'; el.innerHTML = '<div class="u-font-size-0-8em u-color-00ff41">✅ Fixed</div>'; }
                 statusEl.innerText = `Fixed issue in ${iss.chapTitle}.`;
                 statusEl.style.borderColor = '#00ff41';
-            } catch (e) { alert('Fix failed: ' + e.message); }
+            } catch (e) { ttbNotice('Fix failed: ' + e.message, { bad: true }); }
         };
     });
 }
@@ -5987,7 +6174,7 @@ if (auditBtn) auditBtn.onclick = () => runAudit();
 // Language scan button (for existing books loaded from DB)
 if (langScanBtn) {
     langScanBtn.onclick = () => {
-        if (stagedChapters.length === 0) return alert("No book loaded. Open a book first.");
+        if (stagedChapters.length === 0) return ttbNotice("No book loaded. Open a book first.", { bad: true });
         const approved = activeBookId ? getApprovedWords(activeBookId) : [];
         const issues = scanForLanguageIssues(stagedChapters, approved);
         if (issues.length > 0) {
@@ -6016,7 +6203,7 @@ if (langScanBtn) {
         if (!input) return;
         const term = input.value.trim();
         if (!term) return;
-        if (stagedChapters.length === 0) return alert("No book loaded. Open a book first.");
+        if (stagedChapters.length === 0) return ttbNotice("No book loaded. Open a book first.", { bad: true });
 
         let rx;
         try {
@@ -6031,7 +6218,7 @@ if (langScanBtn) {
                 const trail = /\w$/.test(term) ? '\\b' : '';
                 rx = new RegExp(lead + esc + trail, 'gi');
             }
-        } catch (e) { return alert('Bad search pattern: ' + e.message); }
+        } catch (e) { return ttbNotice('Bad search pattern: ' + e.message, { bad: true }); }
 
         const hits = scanForLanguageIssues(stagedChapters, [], rx);
         const container = document.getElementById('language-results');
@@ -6430,7 +6617,7 @@ const deleteBookBtn = document.getElementById('delete-book-btn');
 if (deleteBookBtn) deleteBookBtn.onclick = async () => {
     const id = bookSelect.value;
     if (!id || id === '__NEW__') {
-        return alert('Pick a book from the dropdown first.');
+        return ttbNotice('Pick a book from the dropdown first.', { bad: true });
     }
     const title = bookTitlesMap[id] || id;
 
@@ -6449,9 +6636,17 @@ if (deleteBookBtn) deleteBookBtn.onclick = async () => {
         `Their typing history and totals are NOT affected.\n\n` +
         `This cannot be undone.\n\n` +
         `Type the book id to confirm:  ${id}`);
+    // ⚠️⚠️ ROADMAP 39 — prompt() IS DELIBERATELY LEFT NATIVE. It is a THIRD
+    // dialog type this item's own count never included (30 alert() + 15
+    // confirm() = 45, measured and re-verified this round; no prompt()
+    // anywhere in that count) — and the comment above this block explains
+    // why it was chosen over confirm() in the first place: typing the exact
+    // id is a stronger safeguard than a button a careless Return can hit.
+    // ttbChoose()/ttbConfirm() have no typed-input capability; building one
+    // is a real feature, not a drop-in swap, and nothing asked for it here.
     if (typed === null) return;
     if (typed.trim() !== id) {
-        return alert('That did not match the book id. Nothing was deleted.');
+        return ttbNotice('That did not match the book id. Nothing was deleted.', { bad: true });
     }
 
     statusEl.innerText = `Deleting "${title}"\u2026`;
@@ -6581,7 +6776,7 @@ if (balanceBtn) balanceBtn.onclick = async () => {
 const repairChapterOrderBtn = document.getElementById('repair-chapter-order-btn');
 if (repairChapterOrderBtn) {
     repairChapterOrderBtn.onclick = async () => {
-        if (!activeBookId) return alert("No book loaded. Open a book first.");
+        if (!activeBookId) return ttbNotice("No book loaded. Open a book first.", { bad: true });
         const resultsEl = document.getElementById('repair-results');
         resultsEl.classList.remove('hidden');
         resultsEl.innerHTML = 'Reading chapter metadata from Firestore...';
@@ -6702,7 +6897,7 @@ function injectTitleRepairUI() {
 }
 
 async function runTitleRepair() {
-    if (!activeBookId) return alert('Open a book first.');
+    if (!activeBookId) return ttbNotice('Open a book first.', { bad: true });
     const out = document.getElementById('repair-results');
     out.classList.remove('hidden');
     out.innerHTML = 'Reading chapters from Firestore\u2026';

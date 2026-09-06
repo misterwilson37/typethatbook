@@ -384,7 +384,6 @@ Everything else still open:
 - 30. ⚠️ ADVENTURE MODE GIVES NO COLOUR FEEDBACK ON A WRONG KEY — AND CAPS LOCK IS WHERE IT SHOWS
 - 34. ⚠️ THE LESSON-LEVEL MASTERY LOCK ONLY CLOSES WHEN EVERY RUN IS MASTERED
 - 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
-- 39. ⚠️ HALF DONE — reports.html CLOSED (Round 73), admin.js's 42 REMAIN
 - 42. ⚠️ admin.js STILL CARRIES 183 (Round 56 CLOSED THE admin.html HALF) — AND THE THREE THINGS THIS ITEM GOT WRONG
 - 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME  *(Jake ANSWERED it Round 57 — it is student-facing visibility, not a staff filter; read the item before starting)*
 - 12. ⚠️⚠️ REOPENED (Round 59, Jewett) — THE LEAD AXIS, AND JAKE'S RULING ON WHAT SHOULD ALIGN  *(⚠️ DO NOT SHIP style.css v3.10.0 — he looked at it rendered and ruled against it)*
@@ -409,6 +408,7 @@ Everything else still open:
 - 64. ✅ FIXED (Round 80, Imperial) — EVERY `<select>` WAS 2px TALLER THAN EVERY `<input>`  *(`admin.html` v1.20.0 — `reports.html`'s 2 selects likely share the cause, not yet checked)*
 - 62. ✅ FIXED (Round 80, Imperial) — WHO TEACHES A CLASS IS NOW EDITABLE, ADMIN ONLY  *(rules v2.11.0, editor in admin.html/lessons-admin.js v1.21.0, orphan-class flag — the schoolIds half split out to item 65)*
 - 65. ✅ FIXED (Round 80, Imperial) — WHO ADMINISTRATES WHAT BUILDING  *(rules already correct, zero rule changes — the bug was a missing 'super_admin' option in staff-admin.js's role dropdown, v2.4.0, plus a new demotion confirm() guard)*
+- 39. ✅ FIXED (Round 80, Imperial) — BOTH HALVES CLOSED: reports.html (Round 73), admin.js (this round)  *(30 alert() + 15 confirm() on admin.js, recounted fresh; one deliberate prompt() left native; new two-modal-trap regression test in tests/dialogs-admin-test.mjs)*
 - 63. ✅ FIXED (Round 80, Imperial) — THE AI-PRACTICE DAILY LIMIT WAS KEYED ON A UTC DAY  *(`functions/index.js` v1.7.1 — NOT YET hand-mirrored to the console)*
 - 61. ✅ THREE SPACING COMPLAINTS, ONE CAUSE, AND IT IS THE ONE ROUND 67 FOUND  *(CLOSED Round 77)*
 - 59. ✅ THE CLASS MANAGER NAMES ITS SCHOOL AND TEACHER, AND FILTERS ON BOTH  *(CLOSED Round 76)*
@@ -5027,7 +5027,7 @@ Two more colours in the pile, added by the round that was improving legibility.
 
 ---
 
-## 39. ⚠️ HALF DONE — reports.html CLOSED (Round 73), admin.js's 42 REMAIN
+## 39. ✅ FIXED (Round 80, Imperial) — BOTH HALVES CLOSED: reports.html (Round 73), admin.js (this round)
 
 ### ✅ ROUND 73 (Duplex) — ALL 22 ON `reports.html`, IN ONE GO
 
@@ -5084,7 +5084,80 @@ twice. It is ready for that round.
   page. ⚠️ **A CHECK THAT DUPLICATES THE PARSER BADLY IS WORSE THAN NO CHECK** —
   it fails on good code, gets loosened, and then guards nothing.
 
-### ⚠️ WHAT IS LEFT: `admin.js` — MEASURED IN ROUND 78, NOT YET CONVERTED
+### ✅ ROUND 80 (Imperial) — admin.js's 45, RECOUNTED FRESH AND CLOSED
+
+⚠️⚠️ **ROUND 78's OWN LINE NUMBERS HAD ALREADY DRIFTED BY 18 LINES** before
+this round touched anything — nothing in this conversation caused it; the
+count (45: 30 `alert()` + 15 `confirm()`) still matched exactly, but every
+cited line number and handler location was re-derived fresh against the
+actual file rather than trusted from the table below. **Lesson for next
+time a round measures and doesn't convert: the count survives; the map
+doesn't.**
+
+**The round's first decision, made before any conversion, as the item
+demanded:** duplicate the primitives rather than extract a shared module.
+`admin.html` already duplicates `reports.html`'s design tokens deliberately
+for the same reason (see its own `:root` comment) — extracting a shared
+module while also converting 45 sites and 6 handlers in one round was the
+wrong two things to risk at once.
+
+⚠️⚠️ **A CORRECTNESS TRAP `reports.html` NEVER HAD, FOUND BEFORE IT SHIPPED:**
+`admin.html` carries two full-viewport, `z-index: 200`, fully opaque custom
+modals (`#warning-modal`, `#error-wizard-modal`) that predate this
+conversion. A native `<dialog>` opened with `showModal()` renders in the
+browser's own top layer regardless of z-index, so `ttbConfirm()`/
+`ttbChoose()` are unaffected — but `ttbNotice()`'s plain-`<div>` banner is
+NOT, and would render invisibly behind either modal's backdrop. Checked
+every `alert()` site against this; exactly one (`wizardSaveBtn`'s validation
+failure) fires while `#error-wizard-modal` is open. Fixed with a
+modal-local `#wizard-banner-host`. ⚠️⚠️ **A SECOND, DEEPER COPY OF THE SAME
+TRAP TURNED UP MID-CONVERSION:** `openSplitUI()` reuses that same modal for
+an unrelated feature (chapter splitting) by rebuilding its entire content
+via `content.innerHTML` — which would silently destroy the static host the
+moment that code path runs. Caught and fixed by duplicating the same-id
+host into `openSplitUI()`'s own dynamic template.
+
+✅ **All 45 sites converted**, verified with a fresh programmatic count
+(zero bare `alert()`, zero bare `confirm()`) and `node --check`. The 6
+handlers the table below correctly predicted needing `async` all got it,
+including `mergeWithNext()` — re-verified it still has exactly one caller
+before touching it, and updated that caller in the same edit to `await`
+rather than fire-and-forget. ⭐ **One `confirm()` became `ttbChoose()`, not
+`ttbConfirm()`** — the space-in-book-id dialog, since neither answer
+actually cancels the parse; a real dialog can label its buttons instead of
+spelling "OK"/"Cancel" out in the message text the way `confirm()` had to.
+⚠️ **`prompt()` is deliberately left native** — a third dialog type this
+item's count never included, chosen over `confirm()` on purpose for the
+delete-book flow ("a confirm() dialog is one careless Return away from
+gone"), and neither primitive has a typed-input capability to replace it
+with.
+
+⚠️⚠️ **CONVERTING `confirm()` → `await ttbConfirm()` broke FIVE pre-existing
+structural tests** that grepped for literal `confirm(` text
+(`control-tier-test.mjs` E4; `build-list-test.mjs` T2, T3, B1, B2) — exactly
+the shape `dialogs-test.mjs` itself already documented handling once for
+`reports.html`. Fixed all five to check `ttbConfirm(` instead. ⚠️⚠️ **A
+SIXTH WAS WORSE, AND IT WASN'T FAILING:** `build-list-test.mjs`'s B3 was
+passing *vacuously* — its case-sensitive `indexOf('confirm(')` had
+coincidentally matched text inside one of this round's own new comments
+("confirm() couldn't label its own buttons") instead of any real code.
+Caught by hand, not by the test.
+
+✅ **New harness**, `tests/dialogs-admin-test.mjs` — same Part A/B/C
+structure as `dialogs-test.mjs`, plus a Part D that didn't need to exist for
+`reports.html`: a regression test for the two-banner-host fix, in both its
+static and `openSplitUI()`-rebuilt forms. **Mutation-verified** against the
+await-check and both halves of the modal-trap fix. `admin.js` v3.54.0,
+`admin.html` v1.22.0. 75/75 harnesses pass, 80/80 rules tests unaffected, 0
+version-audit problems.
+
+### Round 78's original measurement, kept — the map that made Round 80 one round
+
+⚠️ **LINE NUMBERS BELOW ARE AS ROUND 78 FOUND THEM AND ARE STALE** — Round 80
+found them drifted by 18 lines before touching anything, re-derived every
+one fresh, and converted all 45 sites the table below identifies. Kept for
+the reasoning (which handler, which shape, why `mergeWithNext()` mattered
+first), not for the exact line to jump to.
 
 ⚠️⚠️ **THE COUNT IN THE ORIGINAL REPORT WAS WRONG. IT IS 45, NOT 42:
 30 `alert()` AND 15 `confirm()`.** Counted with comments stripped, 2026-09-05.

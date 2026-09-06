@@ -270,9 +270,13 @@ check('E4. the confirm dialog has the empty-book state too', () => {
     assert.match(body, /activeBookExists\s*\(\)/,
         'the handler no longer distinguishes "exists with no chapters" from ' +
         '"does not exist" \u2014 one of those two dialogs is now wrong');
-    assert.equal((body.match(/confirm\(/g) || []).length, 3,
-        'expected three confirm branches (replacing / empty book / brand new); ' +
-        'found ' + (body.match(/confirm\(/g) || []).length);
+    // ⚠️ ROADMAP 39 — confirm() BECAME ttbConfirm(). Same shape as
+    // dialogs-test.mjs's own precedent for reports.html: when a mechanism
+    // is replaced, the check that was watching it moves with it, in the
+    // same round, rather than going stale and green for the wrong reason.
+    assert.equal((body.match(/ttbConfirm\(/g) || []).length, 3,
+        'expected three ttbConfirm branches (replacing / empty book / brand new); ' +
+        'found ' + (body.match(/ttbConfirm\(/g) || []).length);
 });
 
 // ─── F. THE HINTS NAME WHAT THE CONTROL WRITES ──────────────────────────────

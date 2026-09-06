@@ -2,13 +2,17 @@
 
 > ## ▶ START HERE — written 2026-09-06 by Round 80 (Imperial), for whoever is next
 >
-> ⚠️⚠️ **ROADMAP 62 AND 65 ARE BOTH CLOSED.** This round started as a
-> fresh-eyes pass and grew into two full roadmap rounds once Jake kept saying
-> "continue." Everything below is shipped and verified. The next actionable,
-> non-blocked pick is **item 39's admin.js half** (the dialog conversion —
-> see Round 79's block below for why).
+> ⚠️⚠️ **ROADMAP 39, 62 AND 65 ARE ALL CLOSED.** This round started as a
+> fresh-eyes pass and grew into three full roadmap rounds once Jake kept
+> saying "continue." Everything below is shipped and verified. **The
+> remaining big open items are Jake's to unblock, not code**: ROADMAP 58 and
+> 60 need his ruling. Beyond those, **item 42** (admin.js's own inline-style
+> extraction, ~183 attributes / 539 declarations, separate from the dialog
+> work this round did) looked like the next candidate from the index — it
+> was NOT touched or re-verified this round, so read it fresh rather than
+> trusting this pointer alone.
 >
-> ### WHAT THIS ROUND WAS: FRESH EYES FIRST, THEN TWO FULL ROADMAP ITEMS
+> ### WHAT THIS ROUND WAS: FRESH EYES FIRST, THEN THREE FULL ROADMAP ITEMS
 >
 > Came in cold, ran `npm test` and `npm run audit:versions` before reading a
 > line of prose (72/72, 0 problems — Round 79's claim checked out exactly), then
@@ -140,11 +144,49 @@
 >    run), **mutation-verified** against all three load-bearing assertions.
 >    74/74 harnesses pass, 80/80 rules tests pass, 0 audit problems.
 >
+> 6. ✅✅ **ROADMAP 39 CLOSED — admin.js's HALF OF THE DIALOG CONVERSION, THE
+>    LAST OF THE THREE ROUNDS THIS SESSION TURNED INTO.** Jake: *"This must
+>    be a big job!"* — it was; the item's own text called it "bigger than 37,
+>    38 and 40 put together," and Round 78 had already measured it once and
+>    deliberately stopped rather than risk a half-converted page. **Recounted
+>    the whole thing fresh rather than trusting Round 78's own numbers** —
+>    the count (45: 30 `alert()` + 15 `confirm()`) still matched exactly, but
+>    every line number had already drifted by 18 lines before this round
+>    touched anything. **The round's first decision, as the item demanded**:
+>    duplicate the primitives (`ttbChoose`/`ttbConfirm`/`ttbNotice`) into
+>    `admin.js` rather than extract a shared module — matching
+>    `admin.html`'s own existing, explicitly-documented precedent of
+>    duplicating `reports.html`'s design tokens for the identical reason.
+>    ⚠️⚠️ **FOUND A CORRECTNESS TRAP `reports.html` NEVER HAD, BEFORE IT
+>    SHIPPED**: `admin.html` carries two full-viewport, `z-index: 200`,
+>    opaque custom modals that predate this conversion. A native `<dialog>`
+>    is immune (browser top layer, any z-index) but `ttbNotice()`'s
+>    plain-`<div>` banner is not — checked every sitepoint, found exactly
+>    one that fires while a modal is open, fixed with a modal-local host.
+>    ⚠️⚠️ **THEN FOUND A SECOND, DEEPER COPY OF THE SAME TRAP MID-CONVERSION**:
+>    `openSplitUI()` reuses that same modal for an unrelated feature by
+>    rebuilding its whole content via `content.innerHTML`, which would have
+>    silently destroyed the fix. Caught and fixed before it shipped, not
+>    after. ✅ **All 45 sites converted**, zero bare `alert()`/`confirm()`
+>    remain (verified programmatically, not by eye), one deliberate
+>    `prompt()` left native and pinned by name to the delete-book handler —
+>    a third dialog type the item's own count never included, kept because
+>    it's a stronger safeguard than `confirm()` and neither primitive has a
+>    typed-input capability to replace it with. ⚠️ **Converting `confirm()`
+>    broke SIX pre-existing structural tests** that grepped for the literal
+>    text — five failed loudly and got fixed; **the sixth, `build-list-
+>    test.mjs`'s B3, was not failing at all** — it was passing *vacuously*,
+>    matching text inside one of this round's own new comments instead of
+>    any real code. Caught by hand, not by the suite. ✅ **New harness**,
+>    `tests/dialogs-admin-test.mjs`, mirroring `dialogs-test.mjs`'s
+>    structure plus a Part D unique to this page's two-modal trap,
+>    **mutation-verified** against the await-check and both halves of that
+>    fix. `admin.js` v3.54.0, `admin.html` v1.22.0. 75/75 harnesses pass,
+>    80/80 rules tests unaffected, 0 audit problems.
+>
 > **Everything else is as Round 79 left it.** `style.css` and
 > `tests/hud-lead-test.mjs` are still deliberately absent, ROADMAP 58 and 60
-> are still unruled (both need Jake's decision, not code). The next
-> actionable, non-blocked pick is **item 39's admin.js half** (the dialog
-> conversion — see Round 79's block below for why it's next in line).
+> are still unruled (both need Jake's decision, not code).
 
 > ## ▶ Round 79 (Duplex) — the previous block, kept
 >

@@ -6072,6 +6072,30 @@ what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
 
+### admin.js v3.46.0 — archived by Round 80 (Imperial), 8-entry budget
+
+Pushed over by v3.54.0 (ROADMAP 39, the admin.js dialog conversion).
+Verbatim, nothing deleted.
+
+```
+// v3.46.0 — ROADMAP 56b AND 56c, both small and both about a control that makes
+//           a promise it does not keep.
+//           (b) ⚠️ `Edit` AND `Del` WERE THE ONLY TWO BUTTONS IN THE CHAPTER ROW
+//           WITHOUT A HINT, and Del is the destructive one — the button where a
+//           moment's hesitation is worth most. Jake: "about, merge, split and
+//           body are great. Edit and Del don't have them." ⚠️ Del's hint says the
+//           thing that is NOT obvious: removing a chapter here stages a removal,
+//           and the chapter document is pruned when you upload (v3.22.0).
+//           (c) ⚠️⚠️ #repair-titles-btn HAD NO HOVER, AND THE CAUSE WAS NOT
+//           ROUND 59. This button is BUILT IN JS and set `background` through
+//           style.cssText, so it was never in that round's sweep of the eighteen
+//           inline backgrounds — and an inline value beats every selector, so
+//           `button:hover` could not reach it. The colour is `btn-bg-3a2200` in
+//           admin.html v1.9.0 now, with `btn-tint` for the brightness.
+//           ⚠️ THE OTHER DEAD HOVER WAS THE CLASS MANAGER'S DELETE, and it was a
+//           worse bug than a missing glow — see lessons-admin.js v1.17.0.
+```
+
 ### lessons-admin.js v1.13.2 — archived by Round 80 (Imperial), 8-entry budget
 
 Pushed over by v1.21.0 (ROADMAP 62, the Teachers multi-select). Verbatim,

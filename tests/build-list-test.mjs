@@ -108,7 +108,9 @@ check('A3. ⚠️⚠️ the `SOURCES` array is still in REGISTRATION order', () 
 check('B1. ⚠️⚠️ Parse & Initialize confirms before discarding staged chapters', () => {
     const body = fnBody(adminJs, 'createParseBtn.onclick =');
     assert.ok(body, 'the parse handler moved');
-    assert.match(body, /stagedChapters\.length\s*>\s*0[\s\S]{0,600}confirm\s*\(/,
+    // ⚠️ ROADMAP 39 — confirm() BECAME `await ttbConfirm()`. Same shape as
+    // dialogs-test.mjs's own precedent: the check moves with the mechanism.
+    assert.match(body, /stagedChapters\.length\s*>\s*0[\s\S]{0,600}ttbConfirm\s*\(/,
         'everything past the file check REPLACES stagedChapters wholesale — every ' +
         'split, merge and retitle since the last parse, none of it in Firestore ' +
         'and no undo. On a forty-chapter book that is an afternoon');
@@ -119,8 +121,8 @@ check('B2. it names the FILE it is about to parse', () => {
     // the second press reads whatever is sitting in it — which may not be the
     // book you have been editing.
     const body = fnBody(adminJs, 'createParseBtn.onclick =');
-    const dlg = /confirm\(([\s\S]{0,700}?)\);/.exec(body);
-    assert.ok(dlg, 'no confirm found in the handler');
+    const dlg = /ttbConfirm\(([\s\S]{0,700}?)\);/.exec(body);
+    assert.ok(dlg, 'no ttbConfirm found in the handler');
     assert.match(dlg[1], /file\.name/,
         'the prompt does not say which file it will read. That is the whole ' +
         'v3.25.2 failure: a stale file input and a dialog that does not name it');
@@ -131,7 +133,13 @@ check('B3. it asks ONLY when there is something to lose', () => {
     // dismiss, and then it is not there on the press that mattered (v3.23.0).
     const body = fnBody(adminJs, 'createParseBtn.onclick =');
     const guard = body.indexOf('stagedChapters.length > 0');
-    const dlg = body.indexOf('confirm(', guard >= 0 ? guard : 0);
+    // ⚠️⚠️ CASE-SENSITIVE, AND THAT MATTERED HERE FOR REAL: 'confirm(' — lowercase
+    // c — was matching text INSIDE A COMMENT further down this same handler
+    // ("confirm() couldn't label its own buttons", explaining why a DIFFERENT
+    // dialog uses ttbChoose() instead) rather than any real code, so this check
+    // was passing vacuously the moment confirm() became ttbConfirm(). Caught by
+    // hand-checking the match index, not by this test failing — it did not.
+    const dlg = body.indexOf('ttbConfirm(', guard >= 0 ? guard : 0);
     assert.ok(guard >= 0 && dlg > guard,
         'the confirm is no longer behind the "is anything staged" test');
 });
@@ -1033,10 +1041,13 @@ check('T2. ⚠️ there is no Set button, and the confirmation survived it', () 
         'the Set button is back in the markup, which puts the second row back');
     const fn = /sel\.onchange = async \(\)[\s\S]*?\n    \};/.exec(adminJs);
     assert.ok(fn, 'the change handler is gone, so the control writes nothing');
-    // ⚠️ ASSERT THE GUARD, NOT THE CALL. `if (false && !confirm(...))` still
-    // contains the word, and a check that only greps for it passes a confirmation
-    // that has been short-circuited out of the way.
-    assert.match(fn[0], /if\s*\(\s*!confirm\(/,
+    // ⚠️ ASSERT THE GUARD, NOT THE CALL. `if (false && !await ttbConfirm(...))`
+    // still contains the word, and a check that only greps for it passes a
+    // confirmation that has been short-circuited out of the way.
+    // ⚠️ ROADMAP 39 — confirm() BECAME `await ttbConfirm()`. Same shape as
+    // dialogs-test.mjs's own precedent: when the mechanism moves, the check
+    // that was watching it moves too, in the same round.
+    assert.match(fn[0], /if\s*\(\s*!await\s+ttbConfirm\(/,
         '⚠️⚠️ the confirmation no longer GUARDS the write. Writing on `change` ' +
         'unguarded turns a two-step correction into a one-keystroke write on a ' +
         'field that records accountability');
@@ -1046,7 +1057,7 @@ check('T3. ⚠️ a cancelled change puts the select back', () => {
     // A dropdown left showing a value the database does not hold is a control
     // that lies, and it lies about who uploaded a book.
     const fn = /sel\.onchange = async \(\)[\s\S]*?\n    \};/.exec(adminJs)[0];
-    const at = fn.indexOf('confirm(');
+    const at = fn.indexOf('ttbConfirm(');
     const after = fn.slice(at);
     // ⚠️ The restore and the `return` are separated by a comment explaining why,
     // so a tight character window misses them. Assert both are present after the

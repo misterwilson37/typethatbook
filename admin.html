@@ -1,9 +1,21 @@
 <!DOCTYPE html>
-<!-- admin.html v1.21.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.22.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.22.0 — ⚠️⚠️ ROADMAP 39, admin.js's HALF: THE MARKUP THE DIALOG
+     CONVERSION NEEDED. 5 new tokens (`--danger-fill`, `--danger-edge`,
+     `--danger-ink`, `--info-fill`, `--bad-fill`) matching reports.html's own
+     values, the `.ttb-modal`/`.ttb-banner` CSS, `<dialog id="ttb-modal">`,
+     a page-level `#ttb-banner-host`, and a `#wizard-banner-host` local to
+     `#error-wizard-modal` — that page's two full-viewport z-index:200
+     custom modals (`#warning-modal` too) would hide a plain-div banner
+     behind their own backdrop, which a native `<dialog>` is immune to but
+     `ttbNotice()`'s banner is not. See admin.js v3.54.0's own header for
+     the full reasoning, including the second copy of that same host
+     `openSplitUI()` needed in its own dynamically-rebuilt template.
 
      v1.21.0 — ⚠️⚠️ ROADMAP 62: A `Teachers` MULTI-SELECT ON THE CLASS EDITOR,
      ADMIN ONLY. `#class-teachers-wrap` is new markup in the Class Manager
@@ -297,6 +309,19 @@
             --warn:         #ff9800;
             --bad:          #ff5555;
             --good:         #22c55e;
+
+            /* ⚠️⚠️ ROADMAP 39 — THE MODAL/BANNER TOKENS, ADDED HERE FOR THE
+               SAME REASON THE REST OF THIS BLOCK EXISTS: the same names, the
+               same values, as reports.html's own copy. Two pages with a
+               'danger' colour that means something different would be worse
+               than the drift risk of two copies — see the note at the top of
+               this block, which already accepted that tradeoff for every
+               other token here. */
+            --danger-fill:  #550000;
+            --danger-edge:  #880000;
+            --danger-ink:   #ffcccc;
+            --info-fill:    #16202a;
+            --bad-fill:     #241618;
         }
 
         body { background: var(--surface); color: var(--ink); font-family: 'Courier Prime', 'Courier New', monospace; padding: 20px; }
@@ -743,6 +768,55 @@
             max-height: 90vh; overflow-y: auto;
             box-shadow: 0 0 20px rgba(255, 170, 0, 0.2);
         }
+
+        /* ⚠️⚠️ ROADMAP 39 — SAME PATTERN AS reports.html v1.9.0, COPIED
+           DELIBERATELY (see this file's own note on the :root block above).
+           `if (!confirm(x)) return;` is synchronous; a modal is not — an
+           unawaited `ttbConfirm()` returns a truthy Promise, and the guard
+           that was meant to stop a destructive action does nothing. Every
+           one of admin.js's 15 confirm() sites converts to `await
+           ttbConfirm(...)` alongside this, not before or after it.
+           ⭐ NATIVE <dialog> + showModal() ON PURPOSE — it renders in the
+           browser's own top layer, ABOVE #warning-modal and
+           #error-wizard-modal's z-index:200 overlays, regardless of when
+           either is open. A hand-rolled div would need its own z-index race
+           against two modals this page already has; a native dialog needs
+           none. */
+        dialog.ttb-modal {
+            border: 1px solid var(--rule); border-radius: 6px;
+            background: var(--surface-1); color: var(--ink);
+            padding: 0; max-width: 34rem; width: calc(100% - 2rem);
+            font-family: inherit;
+        }
+        dialog.ttb-modal::backdrop { background: rgba(0,0,0,.62); }
+        .ttb-modal-head {
+            padding: 14px 18px; border-bottom: 1px solid var(--rule);
+            font-weight: 700; font-size: .95em;
+        }
+        .ttb-modal-body {
+            padding: 16px 18px; font-size: .85em; line-height: 1.6;
+            white-space: pre-wrap;
+            max-height: 55vh; overflow-y: auto;
+        }
+        .ttb-modal-foot {
+            padding: 12px 18px; border-top: 1px solid var(--rule);
+            display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
+        }
+        .ttb-modal-foot button { width: auto; margin: 0; }
+        /* ⚠️ The destructive choice is styled by the CALLER passing
+           danger:true, never guessed from the label. */
+        .ttb-modal-danger { background: var(--danger-fill); border: 1px solid var(--danger-edge); color: var(--danger-ink); }
+        .ttb-modal-danger:hover { background: var(--danger-edge); }
+
+        /* ⚠️ INFORMATION DOES NOT GET A MODAL — an alert() that only reports
+           something becomes an inline banner instead: no focus stolen, no
+           dismissal demanded. 30 of admin.js's 45 sites were exactly this. */
+        .ttb-banner {
+            margin: 12px 0; padding: 10px 14px; border-left: 3px solid var(--accent);
+            background: var(--info-fill); font-size: .82em; line-height: 1.55;
+            white-space: pre-wrap;
+        }
+        .ttb-banner.is-bad { border-left-color: var(--bad); background: var(--bad-fill); }
         .bad-char-highlight {
             background-color: #ff0000;
             color: white;
@@ -1323,6 +1397,11 @@
 <body>
 
 <div class="container">
+    <!-- ⚠️⚠️ ROADMAP 39 — same primitive as reports.html: ttbNotice() prepends
+         here by default when a call site passes no more specific host. Sits
+         above every panel on the page, so it is reachable regardless of
+         which tab is open when the message fires. -->
+    <div id="ttb-banner-host"></div>
     <div class="u-display-flex u-justify-content-space-between u-align-items-center u-margin-bottom-20px">
         <h1>ADMIN PANEL</h1>
         <div class="u-display-flex u-gap-20px">
@@ -2279,6 +2358,15 @@
             <h3 class="u-margin-0 u-color-ffaa00">Import Issue Detected</h3>
             <span id="wizard-step" class="u-color-888"></span>
         </div>
+        <!-- ⚠️⚠️ ROADMAP 39 — THIS MODAL HAS ITS OWN BANNER HOST, AND THAT IS
+             NOT OPTIONAL. #error-wizard-modal is position:fixed, z-index:200,
+             a fully opaque backdrop — the page-level #ttb-banner-host sits
+             BEHIND it in stacking order while this is open, so a message
+             prepended there would be invisible until this modal closes. A
+             confirm()/ttbConfirm() replacement doesn't have this problem
+             (native <dialog> renders in the browser's top layer regardless
+             of z-index) — only ttbNotice()'s plain-div banner does. -->
+        <div id="wizard-banner-host"></div>
         
         <div class="u-margin-bottom-15px">
             <span class="u-color-ccc">Problem Character:</span> 
@@ -2324,6 +2412,16 @@
         </div>
     </div>
 </div>
+
+<!-- ⚠️⚠️ ROADMAP 39 — SAME MARKUP AS reports.html's #ttb-modal. Opened with
+     showModal(), so it renders above BOTH #warning-modal and
+     #error-wizard-modal regardless of which is showing when a confirmation
+     fires. See ttbChoose()/ttbConfirm() in admin.js. -->
+<dialog class="ttb-modal" id="ttb-modal">
+    <div class="ttb-modal-head" id="ttb-modal-title"></div>
+    <div class="ttb-modal-body" id="ttb-modal-body"></div>
+    <div class="ttb-modal-foot" id="ttb-modal-foot"></div>
+</dialog>
 
 <!-- ROADMAP 16 — the build panel. admin.js fills the span and wires the button. -->
 <footer id="admin-footer">
