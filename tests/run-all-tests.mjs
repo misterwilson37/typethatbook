@@ -188,6 +188,7 @@ const FAST = [
     ['variety-floor-test.mjs',   'the shared missed-character variety filter behind both practice buttons'],
     ['week-anchor-test.mjs',     'the report audit and the app agree on where the school week starts'],
     ['class-create-test.mjs',    'class name matching and the shared CSV class-creation path'],
+    ['class-teacher-editor-test.mjs', '⚠️⚠️ ROADMAP 62 — the admin-only teacherUids editor: _canReassignTeachers() run against four roles, saveClass()\u2019s gate, the reveal/hide wiring, the orphan-class flag, and one shared getDocs(\u2018staff\u2019) rather than two'],
     ['roster-filter-test.mjs',   'Students-tab date range: the Saturday week boundary and the status line'],
     ['sort-test.mjs',            'library sort keys against the real author strings in library/'],
     ['lesson-atomicity-test.mjs','lesson restart-on-incomplete, and the constants game.js and learn.js share'],

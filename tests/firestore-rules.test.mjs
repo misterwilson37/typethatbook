@@ -236,8 +236,37 @@ describe('class ownership', () => {
     });
 
     it('a teacher CAN edit a class they already teach', async () => {
+        // ⚠️ v2.11.0 — MUST NOT TOUCH teacherUids. This case used to pass a
+        // payload that removed CLASS_TEACHER from the list, which is the
+        // exact self-service move ROADMAP 62 closes — it was proving the gap
+        // it should have been guarding against. Rewritten to change a field
+        // an ordinary edit actually touches, teacherUids held constant.
         await assertSucceeds(setDoc(doc(asClassTeacher().firestore(), 'classes', 'c_ems'),
-            { name: 'Renamed', schoolId: EMS, teacherUids: [TEACHER_EMS] }));
+            { name: 'Renamed', schoolId: EMS, teacherUids: [CLASS_TEACHER, TEACHER_EMS] }));
+    });
+
+    // ⚠️⚠️ ROADMAP 62 — v2.11.0. Together these four pin the new boundary:
+    // an admin may reassign who teaches a class; a teacher, even one
+    // currently on it, may not — not by adding a colleague, not by
+    // dropping one, not even by dropping themselves.
+    it('a teacher CANNOT change teacherUids on a class they teach — adding someone', async () => {
+        await assertFails(setDoc(doc(asClassTeacher().firestore(), 'classes', 'c_ems'),
+            { name: '3rd Period', schoolId: EMS, teacherUids: [CLASS_TEACHER, TEACHER_EMS, 'uid_other_ems'] }));
+    });
+
+    it('a teacher CANNOT change teacherUids on a class they teach — dropping a colleague', async () => {
+        await assertFails(setDoc(doc(asClassTeacher().firestore(), 'classes', 'c_ems'),
+            { name: '3rd Period', schoolId: EMS, teacherUids: [CLASS_TEACHER] }));
+    });
+
+    it('a teacher CANNOT remove themselves from teacherUids either', async () => {
+        await assertFails(setDoc(doc(asClassTeacher().firestore(), 'classes', 'c_ems'),
+            { name: '3rd Period', schoolId: EMS, teacherUids: [TEACHER_EMS] }));
+    });
+
+    it('building_admin CAN reassign teacherUids for a class in their building', async () => {
+        await assertSucceeds(setDoc(doc(asBldgAdminEms().firestore(), 'classes', 'c_ems'),
+            { name: '3rd Period', schoolId: EMS, teacherUids: [TEACHER_EMS, 'uid_other_ems'] }));
     });
 
     it('a teacher must put themselves on a class they create', async () => {

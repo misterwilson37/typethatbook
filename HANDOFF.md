@@ -2,11 +2,14 @@
 
 > ## ▶ START HERE — written 2026-09-05 by Round 80 (Imperial), for whoever is next
 >
-> ⚠️ **THIS ROUND DID NOT TOUCH ROADMAP 62.** It is still the highest-value open
-> item and still needs rules designed before any UI. Read Round 79's block below
-> before starting it — nothing here changes its instructions.
+> ⚠️⚠️ **ROADMAP 62 IS CLOSED.** This round started as a fresh-eyes pass and grew
+> into a full roadmap round once Jake asked to "continue with whatever is
+> next." Rules, editor, and orphan-flag are all shipped and verified — see §4
+> below. The item it split off, ROADMAP 65 (staff-admin.js's `schoolIds`), is
+> **not started** and is the natural next pick, though it needs its own
+> rules-first read the way 62 did.
 >
-> ### WHAT THIS ROUND WAS: A FRESH-EYES PASS, NOT A ROADMAP ROUND
+> ### WHAT THIS ROUND WAS: FRESH EYES FIRST, THEN A FULL ROADMAP ITEM
 >
 > Came in cold, ran `npm test` and `npm run audit:versions` before reading a
 > line of prose (72/72, 0 problems — Round 79's claim checked out exactly), then
@@ -40,13 +43,80 @@
 >    own v1.7.1 header note for the numbers). ⚠️⚠️ **NOT LIVE.** Same as every
 >    other change to this file: it needs `firebase deploy`, Jake has no CLI, so
 >    this is mirrored into the console by hand — see the file's own top-of-file
->    instruction. ✅ ROADMAP item 63 records it so it's findable from the index,
->    not just this file's own header.
+>    instruction. **Jake redeployed it via the Cloud Run console during this
+>    same round** (Cloud Functions is now folded into Cloud Run in the Google
+>    Cloud console, not Firebase console — it only shows Dashboard/Usage) and
+>    took the Node 20→24 deprecation prompt to Node 24 on the plain `Ubuntu`
+>    base image, not `Ubuntu Full` — checked `firebase-admin` and
+>    `firebase-functions`' whole dependency tree for native (`.node`/
+>    `binding.gyp`) addons first; there are none, so Full's extra build tools
+>    buy nothing here. ✅ ROADMAP item 63 records the fix so it's findable from
+>    the index, not just this file's own header.
 >
-> **Nothing else changed.** No app-facing version stamp moved, `style.css` and
-> `tests/hud-lead-test.mjs` are still deliberately absent, ROADMAP 60 is still
-> unruled. Round 79's state-of-play below is otherwise current, including its
-> ⚠️⚠️ **HIGHEST-VALUE-ITEM call, unchanged: ROADMAP 62.**
+> 3. ✅ **`admin.html` v1.19.0 → v1.20.0 — EVERY `<select>` WAS 2px TALLER THAN
+>    EVERY `<input>`, MEASURED IN A REAL BROWSER, NOT EYEBALLED.** Jake spotted
+>    it live: `Prepared by` (input) sat shorter than `Cleaned up by` (select) in
+>    the same row. Rendered the actual `<style>` block and actual field-grid
+>    markup in headless Chromium and read `getBoundingClientRect()` before
+>    touching anything — 41px for every input, 43px for every select, identical
+>    padding/border/box-sizing on both from the shared rule. The grid itself was
+>    innocent: `.f2`/`.f3`/`.f4` wrapper divs land at the same height either
+>    side (confirmed by measuring the wrappers too) — the 2px gap sits inside
+>    the shorter cell, below the control. ⭐ **Different cause from Round 67's
+>    file-input/button mismatch** (that was a native control's own internal
+>    button; this is a native select's own UA chrome, `appearance: auto` by
+>    default) — so the fix is `appearance: none` on `select`, not a flex
+>    stretch, with a minimal CSS arrow replacing the one that removes.
+>    **Re-measured after: all twelve visible controls in the header and field
+>    grid now read 41px**, screenshotted both the flagged row and the
+>    Genre/Age/Protagonist row before and after. Full reasoning and the numbers
+>    are in the file's own v1.20.0 header. ⚠️ **SCOPED TO admin.html ONLY** —
+>    `reports.html` has 2 more unstyled selects and is very likely the same 2px,
+>    left alone on the standing rule (Round 77): fix where reported, not
+>    speculatively.
+>
+> 4. ✅✅ **ROADMAP 62 CLOSED — WHO TEACHES A CLASS IS NOW EDITABLE, ADMIN
+>    ONLY.** Jake said "continue with whatever is next" and the emulator
+>    turned out to actually run in this environment (Java is present;
+>    `firebase emulators:exec` downloads its jar from
+>    `storage.googleapis.com`, which is reachable) — so this round could do
+>    what 60 through 79 could not verify. **RULES FIRST, VERIFIED BEFORE THE
+>    UI EXISTED:** `firestore.rules` v2.11.0 adds one clause —
+>    `request.resource.data.teacherUids == resource.data.teacherUids` — to
+>    the plain-teacher branch of `/classes` update, closing a self-service gap
+>    that was **proven live, not hypothetical**: the existing "a teacher CAN
+>    edit a class they already teach" test in `firestore-rules.test.mjs` was
+>    passing with a payload that *removed that exact teacher from
+>    `teacherUids`*. Rewrote that case, added four more, **mutation-verified**
+>    (reverting just the new clause turns exactly those four red). 75/75
+>    rules tests pass. **Then, and only then, the editor:** a `Teachers`
+>    multi-select on the Class Manager's Edit form
+>    (`admin.html`/`lessons-admin.js` v1.21.0), admin-only
+>    (`_canReassignTeachers()`, mirroring the rule), edit-only — a fresh "New
+>    Class" is unchanged. **Then the orphan flag** Jake's own item asked for:
+>    `renderClassList()` marks a class with no `teacherUids` as `⚠ no
+>    teacher`, which was his own stated bar ("a five-minute job by hand" once
+>    he can see and edit them) rather than a bulk-migration tool nobody asked
+>    for. **New harness**, `tests/class-teacher-editor-test.mjs` — the one
+>    piece that's a pure function (`_canReassignTeachers()`) is extracted and
+>    RUN against four roles, not just read; everything DOM/Firestore-shaped is
+>    asserted structurally, per this project's own BEHAVIOURAL/STRUCTURAL
+>    split. 73/73 harnesses pass, 0 audit problems. ⚠️ `lessons-admin.js` hit
+>    the 8-entry header budget adding this — archived the oldest stub
+>    (`v1.13.2`, already header-only) to CHANGELOG.md § ARCHIVED FILE HEADERS.
+>    ⚠️ **THE SECOND HALF JAKE ASKED FOR IN THE SAME SENTENCE — "who
+>    administrates what building," `staff-admin.js`'s `schoolIds` — IS NOT
+>    THIS.** Split into ROADMAP 65, not started, and it needs the identical
+>    rules-first treatment: check whether a `building_admin` can currently
+>    widen their own `schoolIds` before designing anything, the same shape of
+>    question 62 just closed for classes.
+>
+> **Everything else is as Round 79 left it.** `style.css` and
+> `tests/hud-lead-test.mjs` are still deliberately absent, ROADMAP 58 and 60
+> are still unruled (both need Jake's decision, not code). The next
+> actionable, non-blocked pick is either **ROADMAP 65** (above) or **item
+> 39's admin.js half** (the dialog conversion — see Round 79's block below for
+> why it's next in line either way).
 
 > ## ▶ Round 79 (Duplex) — the previous block, kept
 >

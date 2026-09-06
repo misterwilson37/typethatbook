@@ -1,6 +1,52 @@
 rules_version = '2';
 
-// firestore.rules v2.10.0 — TypeThatBook
+// firestore.rules v2.11.0 — TypeThatBook
+//
+// v2.11.0 — ⚠️⚠️ /classes UPDATE NOW REFUSES A PLAIN TEACHER'S CHANGE TO
+//           teacherUids, ADMIN-ONLY FROM HERE. ROADMAP 62.
+//
+//           Jake, 2026-09-05: "I created my classes before there were
+//           multiple teacher supports... so now they don't have teachers,
+//           and there's no way to add them. This also becomes a problem if
+//           a teacher leaves her/his position midyear and another login has
+//           to take them over." Building the obvious editor for that FIRST
+//           would have been the mistake: the comment two lines below this
+//           one already said the quiet part — "teacherUids is
+//           self-maintaining and can't be used to widen their own scope" —
+//           and that was only true because nothing had ever tried.
+//
+//           ⚠️⚠️ VERIFIED, NOT ASSERTED: before this line existed,
+//           `npm run test:rules`'s own "a teacher CAN edit a class they
+//           already teach" case passed a payload that REMOVED that exact
+//           teacher from teacherUids, and asserted success. Not a
+//           hypothetical — a live rule permitting the thing this item warns
+//           against, sitting under a green checkmark because no shipped UI
+//           had ever sent that payload. `teachesClass()`'s whole safety
+//           argument — "self-maintaining" — was actually "unexercised."
+//
+//           ⚠️ THE FIX IS ONE CLAUSE: the plain-teacher branch now requires
+//           `request.resource.data.teacherUids == resource.data.teacherUids`
+//           — the field may not move at all through that branch. A teacher
+//           can still rename their class, change its minute goal, anything
+//           else about it; who is ON it is now an admin decision only.
+//           `isBldgAdmin()`'s branch is UNCHANGED and already correctly
+//           scoped — it had no field-level restriction to begin with, and
+//           `inMySchool()` on both the old and new `schoolId` already
+//           covers "only for classes whose schoolId is in mySchools()."
+//           `isSuper()` was and remains unrestricted.
+//
+//           ⚠️ THIS DOES NOT BY ITSELF FIX THE SEVEN ORPHANED CLASSES with no
+//           `teacherUids` at all — those still need an admin (or a one-time
+//           migration) to set the field the first time, same as before this
+//           version. It only closes the self-service path for classes that
+//           already have at least one teacher on them.
+//
+//           ⚠️ EXECUTED: `npm run test:rules`, updated and new cases in
+//           `firestore-rules.test.mjs`'s "class ownership" block — the
+//           existing case above was rewritten to stop relying on the gap it
+//           was inadvertently proving, and new cases pin the admin-only
+//           boundary in both directions (an admin CAN reassign; a teacher,
+//           even one currently on the class, CANNOT).
 //
 // v2.10.0 — ⚠️⚠️ A CLASS TEACHER MAY NOW WRITE lessonProgress FOR THEIR OWN
 //           STUDENTS. ROADMAP 33.
@@ -888,19 +934,30 @@ service cloud.firestore {
                         && request.resource.data.teacherUids is list
                         && request.auth.uid in request.resource.data.teacherUids);
 
-      // Updating: a building_admin edits any class in their building. A plain
-      // teacher edits only classes already in their own classIds — otherwise
-      // adding yourself to a colleague's class would be a self-service way to
-      // widen your own read scope.
+      // Updating: a building_admin edits any class in their building,
+      // including WHO teaches it. A plain teacher edits classes already in
+      // their own classIds, EXCEPT teacherUids itself — otherwise adding
+      // yourself to a colleague's class would be a self-service way to widen
+      // your own read scope, and so would quietly dropping a co-teacher.
+      // ⚠️⚠️ ROADMAP 62 — VERIFIED, NOT ASSERTED: before this line existed,
+      // `npm run test:rules`'s own "a teacher CAN edit a class they already
+      // teach" case passed with a payload that REMOVED that teacher from
+      // teacherUids — proof the self-service path was real, not
+      // hypothetical, even though no UI had ever sent it. teachesClass()
+      // is self-maintaining only if nothing lets a teacher rewrite it.
       allow update: if isSuper()
                     || (isBldgAdmin() && inMySchool(resource.data.schoolId)
                                       && inMySchool(request.resource.data.schoolId))
                     // Already on the class. Since update REQUIRES being on it,
                     // there's no way to add yourself to a colleague's class.
+                    // ⚠️ AND teacherUids MUST NOT CHANGE — a plain teacher may
+                    // rename their class, change its minute goal, anything
+                    // else, but WHO is on it is an admin-only decision.
                     || (isStaff() && resource.data.teacherUids is list
                                   && request.auth.uid in resource.data.teacherUids
                                   && inMySchool(resource.data.schoolId)
-                                  && inMySchool(request.resource.data.schoolId));
+                                  && inMySchool(request.resource.data.schoolId)
+                                  && request.resource.data.teacherUids == resource.data.teacherUids);
 
       allow delete: if isSuper()
                     || (isBldgAdmin() && inMySchool(resource.data.schoolId))

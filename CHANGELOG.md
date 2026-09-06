@@ -6072,6 +6072,23 @@ what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
 
+### lessons-admin.js v1.13.2 — archived by Round 80 (Imperial), 8-entry budget
+
+Pushed over by v1.21.0 (ROADMAP 62, the Teachers multi-select). Verbatim,
+nothing deleted. It was already a header-only stub with no code of its own —
+its whole content was a pointer to an earlier archival, and the four
+one-line pointers it introduced (`v1.13.1`, `v1.13.0`, `v1.12.0`, `v1.11.0`,
+plus an older one for `v1.8.1`/`v1.8.0`/`v1.7.1`/`v1.7.0`) are UNTOUCHED and
+still sit in the live header below where this entry used to be — they don't
+count against the budget, so there was no reason to move them too.
+
+```
+// v1.13.2 — HEADER ONLY, NO CODE. Four older entries moved to CHANGELOG.md
+//           § ARCHIVED FILE HEADERS; this file was over the build panel's
+//           entry budget. See versions.js v1.12.0.
+//
+```
+
 ### admin.js v3.33.0 — archived by Round 59 (Jewett), 8-entry budget
 
 ⚠️ **TWO LIVE COMMENTS STILL CITE v3.33.0** — `admin.js` line 671 ("WRITES THE

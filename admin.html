@@ -1,9 +1,55 @@
 <!DOCTYPE html>
-<!-- admin.html v1.19.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.21.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.21.0 — ⚠️⚠️ ROADMAP 62: A `Teachers` MULTI-SELECT ON THE CLASS EDITOR,
+     ADMIN ONLY. `#class-teachers-wrap` is new markup in the Class Manager
+     panel, hidden by default (`u-display-none`) — lessons-admin.js's
+     populateClassTeachers() is the only place that ever reveals it, and only
+     for isSuper()/building_admin, matching firestore.rules v2.11.0 exactly.
+     See lessons-admin.js v1.21.0's own header for the full reasoning; this
+     entry is the markup's half.
+     ⚠️ ALSO: v1.20.0's `select { appearance: none; ... }` fix NARROWED to
+     `select:not([multiple])`. The new Teachers control is a `<select
+     multiple>` — a listbox sized by `size`, not a single-line dropdown — and
+     the old unscoped rule was about to paint it a chevron arrow and eat 30px
+     of its width on the right for an arrow that opens nothing. The height
+     problem v1.20.0 fixed never applied to a multi-select in the first
+     place; this is a scope correction, not a new finding.
+
+     v1.20.0 — ⚠️⚠️ EVERY <select> ON THIS PANEL WAS 2px TALLER THAN EVERY
+     <input>, MEASURED, NOT GUESSED. Jake: "the height of the contributor box
+     is smaller than the height of the claude box" — `Prepared by` (an input)
+     beside `Cleaned up by` (a select). Rendered the real markup and CSS in a
+     headless browser and read `getBoundingClientRect()`: every text/number
+     input came back 41px, every select came back 43px, byte-identical padding
+     and border on both (the shared `input, textarea, button, select` rule).
+     ⚠️ THE GRID WAS ALREADY INNOCENT — `.f2`/`.f3`/`.f4` wrapper divs land at
+     the SAME height either side (grid's default `align-items: normal`
+     computes to stretch), confirmed by measuring the wrappers too. The 2px
+     gap is inside the shorter cell, below the control, not between cells.
+     ⭐ SAME FAMILY AS ROUND 67's FILE-INPUT/BUTTON MISMATCH, DIFFERENT CAUSE:
+     that one came from a native control's own internal button metrics and
+     was fixed with `align-items: stretch` on a shared flex row. This one is
+     a native `<select>`'s own UA chrome adding height no author padding
+     touches (`appearance: auto` by default) — there is no shared flex row to
+     stretch across here, so the fix is `appearance: none` on `select`
+     directly, which drops it to the input's own natural 41px. ⚠️ THAT ALSO
+     DELETES THE NATIVE DROPDOWN ARROW, so a minimal CSS chevron
+     (`background-image`, an inline SVG) replaces it — `padding-right: 30px`
+     so the arrow never overlaps a long option's text. ⚠️ VERIFIED, NOT
+     ASSERTED: re-measured all twelve visible controls in the header and
+     field grid after the change — all twelve now read 41px. Screenshotted
+     both the `Prepared by`/`Cleaned up by` row and the `Genre`/`Target Age
+     Range`/`Protagonist` row before and after; the arrow renders cleanly at
+     the new height in both. ⚠️ SCOPED TO admin.html ONLY — `reports.html`
+     carries 2 more `<select>`s with the same unstyled `appearance` and is
+     very likely the same 2px, untouched here on the standing rule "fix where
+     a symptom is reported, not speculatively" (Round 77's words). Worth a
+     look next time that page is open for something else.
 
      v1.19.0 — ⚠️ TWO ALIGNMENT FIXES, AND THE SECOND ONE HAD A SINGLE CAUSE.
      • `Uploaded by`'s superadmin control REPLACES the read-only stamp instead of
@@ -274,6 +320,29 @@
         input, textarea, button, select { 
             width: 100%; padding: 12px; margin-bottom: 15px; background: #222; 
             border: 1px solid #444; color: #fff; font-family: inherit; box-sizing: border-box;
+        }
+
+        /* ⚠️⚠️ v1.20.0 — MEASURED: every single-line <select> on this panel
+           rendered 2px TALLER than every <input>, with byte-identical
+           padding/border/box-sizing above — a native select's own UA chrome
+           (`appearance: auto`) adds height no author padding touches.
+           `appearance: none` drops it to the input's own natural height; the
+           background-image replaces the arrow that removes. See the file
+           header for the full measurement. ⚠️ padding-right LEAVES ROOM FOR
+           THE ARROW — it is sized for the arrow, not to tune the box's
+           height; the height fix is `appearance: none` alone.
+           ⚠️ v1.21.0 — SCOPED TO :not([multiple]). A multi-select (ROADMAP
+           62's Teachers picker) has no single-line height to fix and no
+           dropdown arrow to replace — it's a listbox, sized by `size`, not
+           by this rule's problem. Painting a chevron and eating 30px of its
+           row on the right for an arrow nothing opens was the wrong box to
+           style, not a smaller version of the right one. */
+        select:not([multiple]) {
+            appearance: none; -webkit-appearance: none; -moz-appearance: none;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0 L5 6 L10 0 Z' fill='%23999'/></svg>");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 30px;
         }
         
         button { cursor: pointer; background: #0047AB; font-weight: bold; text-transform: uppercase; border: none; transition: background 0.2s; }
@@ -2144,6 +2213,21 @@
                         <label class="l-label">Weekly Goal (min)</label>
                         <input id="class-weekly-input" class="l-field" type="number" value="50" min="0" step="1">
                     </div>
+                </div>
+                <!-- ⚠️⚠️ ROADMAP 62 — ADMIN ONLY, EDIT ONLY. A brand-new class still
+                     auto-assigns its creator (_newClassRecord()) and never shows
+                     this; that path is unchanged. This is for the reassignment
+                     case: an orphaned class, or a teacher who left mid-year.
+                     ⚠️ HIDDEN, NOT JUST EMPTY, FOR ANYONE WHO ISN'T isSuper() or
+                     building_admin — matches firestore.rules v2.11.0 exactly,
+                     where a plain teacher's write must leave teacherUids
+                     byte-identical. They also cannot read the staff collection
+                     this depends on, so an unhidden-but-empty control would be
+                     more confusing than none. populateClassTeachers() in
+                     lessons-admin.js is the only place this ever un-hides. -->
+                <div id="class-teachers-wrap" class="u-display-none u-margin-bottom-8px">
+                    <label class="l-label">Teachers <span class="u-color-888 u-font-size-0-8em">(who teaches this class — admin only)</span></label>
+                    <select id="class-teachers-select" class="l-field" multiple size="4"></select>
                 </div>
                 <div class="u-display-flex u-gap-8px">
                     <button id="class-save-btn" class="lbtn lbtn-primary u-width-auto u-padding-6px-20px">Save Class</button>

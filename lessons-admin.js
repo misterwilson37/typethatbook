@@ -1,4 +1,32 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.20.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.21.0
+//
+// v1.21.0 — ⚠️⚠️ ROADMAP 62: WHO TEACHES A CLASS IS NOW EDITABLE — ADMIN
+//           ONLY, MATCHING firestore.rules v2.11.0 EXACTLY. Jake: "I created
+//           my classes before there were multiple teacher supports... so now
+//           they don't have teachers, and there's no way to add them. This
+//           also becomes a problem if a teacher leaves her/his position
+//           midyear and another login has to take them over."
+//           ⭐ RULES FIRST, THIS SECOND, ON PURPOSE. The rule change (v2.11.0)
+//           landed and was verified with `npm run test:rules` BEFORE this
+//           file changed at all — building the editor first would have
+//           exposed the exact self-service gap that version closed.
+//           ✅ populateClassTeachers() reveals a multi-select beside the
+//           existing form, but ONLY on Edit (never on a fresh "New Class" —
+//           _newClassRecord() still auto-assigns the creator, unchanged) and
+//           ONLY for isSuper()/building_admin — the same two roles the rule
+//           now requires. A plain teacher's form is pixel-identical to
+//           before this version.
+//           ⭐ _loadStaffRecords() is a NEW cache, but not a new read —
+//           refactored _loadTeacherNames() to sit on top of it, so the
+//           picker costs nothing beyond the one `staff` getDocs the class
+//           list's own name lookup already paid for (§READS).
+//           ⚠️ §3 OF THE ROADMAP ITEM — "Jake should not have to remember
+//           which [classes have no teacher]" — is a card-list flag, not a
+//           bulk-migration tool: renderClassList() now marks a class with no
+//           teacherUids at all with an orange "⚠ no teacher" in place of the
+//           usual label. Jake's own estimate was "a five-minute job by
+//           hand" once he can see and edit them — a flag plus the picker
+//           already built is that, without a heavier tool nobody asked for.
 //
 // v1.20.0 — ⚠️ ROADMAP 59: A CLASS CARD SAYS WHOSE IT IS, AND THE LIST FILTERS.
 //           Jake: "there is zero indication on this page as to which teacher or
@@ -100,9 +128,9 @@
 //           ⚠️ The CSV lookup is PER ROW — a rollover file can name a different
 //           class on every line. tests/class-assign-test.mjs.
 //
-// v1.13.2 — HEADER ONLY, NO CODE. Four older entries moved to CHANGELOG.md
-//           § ARCHIVED FILE HEADERS; this file was over the build panel's
-//           entry budget. See versions.js v1.12.0.
+// ⚠️ v1.13.2's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (8-entry
+// budget, Round 80, Imperial). It was itself a header-only stub pointing at
+// four earlier archives; those pointers (below) are untouched and still work.
 //
 // ⚠️ v1.13.1's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 76).
 // ⚠️ v1.13.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 74).
@@ -113,7 +141,7 @@
 // ⚠️ v1.13.2 — v1.8.1, v1.8.0, v1.7.1 and v1.7.0 moved to CHANGELOG.md
 //    § ARCHIVED FILE HEADERS. Nothing deleted.
 //
-window.LESSONS_ADMIN_VERSION = '1.20.0';
+window.LESSONS_ADMIN_VERSION = '1.21.0';
 
 // ⚠️ ROADMAP 58 — the week anchor, from its one home. daylog.js imports only
 // logdays.js, which this page's siblings already load, so this adds no machinery.
@@ -1306,8 +1334,19 @@ function initClassesPanel() {
     populateClassSchools();
     const saveBtn   = document.getElementById('class-save-btn');
     const cancelBtn = document.getElementById('class-cancel-btn');
+    const schoolSel = document.getElementById('class-school-select');
     if (saveBtn)   saveBtn.onclick   = saveClass;
     if (cancelBtn) cancelBtn.onclick = cancelClassEdit;
+    // ⚠️ ROADMAP 62 — ONLY FIRES ON A REAL USER CHOICE. startClassEdit() sets
+    // `sel.value` directly, which never dispatches `change`, so this only
+    // fires when an admin picks a DIFFERENT building mid-edit — and clears
+    // the picker rather than carrying stale uids forward, since a class's
+    // OLD building's staff have no meaning in the new one.
+    if (schoolSel) schoolSel.onchange = () => {
+        if (document.getElementById('class-edit-id').value) {
+            populateClassTeachers(schoolSel.value, []);
+        }
+    };
 
     loadAndRenderClasses();
 }
@@ -1384,6 +1423,14 @@ function renderClassList() {
     classes.forEach(cls => {
         const dm = Math.floor((cls.dailySeconds || 0) / 60);
         const wm = Math.floor((cls.weeklySeconds || 0) / 60);
+        // ⚠️⚠️ ROADMAP 62 §3 — "Jake should not have to remember which ones."
+        // A class with no teacherUids at all is exactly the state a plain
+        // teacher's write can no longer produce (v2.11.0) but that already
+        // existed before that rule — the seven classes made before multiple
+        // teachers were supported. Flagging it here is the whole fix for
+        // "remember which ones": Edit already reveals the Teachers picker
+        // for an admin, so spotting it is the only step this adds.
+        const noTeacher = !(Array.isArray(cls.teacherUids) && cls.teacherUids.length);
         const card = document.createElement('div');
         card.style.cssText = 'background:#1a1a1a;border:1px solid #333;border-radius:4px;padding:12px 16px;display:flex;align-items:center;gap:12px;';
         card.innerHTML =
@@ -1394,7 +1441,10 @@ function renderClassList() {
             // never printed them. The names fill in when the lookups land, so a
             // failed lookup costs a label and not the panel.
             '<div style="font-size:0.75em;color:#8ab;margin-bottom:2px;">' +
-            escHtml(_schoolLabel(cls)) + ' &nbsp;·&nbsp; ' + escHtml(_teacherLabel(cls)) +
+            escHtml(_schoolLabel(cls)) + ' &nbsp;·&nbsp; ' +
+            (noTeacher
+                ? '<span style="color:#ffaa00;font-weight:bold;">⚠ no teacher</span>'
+                : escHtml(_teacherLabel(cls))) +
             '</div>' +
             '<div style="font-size:0.75em;color:#666;">' +
             'Daily: ' + dm + 'min&nbsp;&nbsp;Weekly: ' + wm + 'min' +
@@ -1494,8 +1544,8 @@ async function saveClass() {
         return;
     }
 
-    // An EDIT must not carry createdAt or teacherUids — _newClassRecord() is the
-    // create shape. Splitting it this way keeps merge:true from rewriting the
+    // An EDIT must not carry createdAt — _newClassRecord() is the create
+    // shape. Splitting it this way keeps merge:true from rewriting the
     // creation date every time somebody adjusts a goal.
     const record = editId ? {
         name: nameVal,
@@ -1504,6 +1554,21 @@ async function saveClass() {
         weeklySeconds: weeklyMin * 60,
         updatedAt: new Date().toISOString(),
     } : _newClassRecord(nameVal, schoolId, dailyMin * 60, weeklyMin * 60);
+
+    // ⚠️⚠️ ROADMAP 62 — ADMIN ONLY, EDIT ONLY, AND ONLY WHEN THE FIELD IS
+    // ACTUALLY ON SCREEN. A plain teacher's record must never carry this key
+    // at all: firestore.rules v2.11.0 requires their write leave teacherUids
+    // BYTE-IDENTICAL, and omitting it plus merge:true already guarantees
+    // that — there's no reason to ask an unprivileged write to touch a field
+    // it isn't allowed to move. The wrap being hidden (see
+    // populateClassTeachers) is the same admin check firing twice; this one
+    // is the one that actually gates the write.
+    if (editId && _canReassignTeachers()) {
+        const teacherSel = document.getElementById('class-teachers-select');
+        if (teacherSel) {
+            record.teacherUids = Array.from(teacherSel.selectedOptions).map(o => o.value);
+        }
+    }
 
     try {
         let classId = editId;
@@ -1619,6 +1684,9 @@ function startClassEdit(classId) {
     // hidden while the code reads as if it revealed it. Setting a real value
     // ('none', 'block') works; setting '' never does.
     document.getElementById('class-cancel-btn').classList.remove('u-display-none');
+    // ⚠️ ROADMAP 62 — reveals itself only for an admin (see
+    // populateClassTeachers); a plain teacher's form stays exactly as it was.
+    populateClassTeachers(cls.schoolId, cls.teacherUids);
     document.getElementById('class-form-status').textContent = '';
     document.getElementById('class-name-input').focus();
 }
@@ -1630,6 +1698,12 @@ function cancelClassEdit() {
     document.getElementById('class-weekly-input').value= 50;
     document.getElementById('class-form-title').textContent = 'New Class';
     document.getElementById('class-cancel-btn').classList.add('u-display-none');
+    // ⚠️ ROADMAP 62 — a fresh "New Class" auto-assigns its creator
+    // (_newClassRecord()) and never shows this field; hide it and drop
+    // whatever it held so a leftover selection can't survive into the next
+    // class this form is used to create or edit.
+    document.getElementById('class-teachers-wrap').classList.add('u-display-none');
+    document.getElementById('class-teachers-select').innerHTML = '';
     document.getElementById('class-form-status').textContent = '';
 }
 
@@ -2974,6 +3048,38 @@ let _csvMissingClasses = [];
 
 let _teacherNames = null;      // uid → display name, or null until loaded
 let _schoolNames  = null;      // id  → name
+let _staffRecords = null;      // [{uid, name, role, schoolIds, active}], or null until loaded
+
+/**
+ * ⚠️ ONE getDocs, ON FIRST NEED, CACHED (§READS), SHARED WITH _loadTeacherNames()
+ * (ROADMAP 62) so the class-teacher picker costs nothing beyond what the class
+ * list's own name lookup already pays — both read `staff` exactly once between
+ * them, not once each.
+ */
+async function _loadStaffRecords() {
+    if (_staffRecords) return _staffRecords;
+    const out = [];
+    try {
+        const snap = await getDocs(collection(_db, 'staff'));
+        snap.forEach(d => {
+            const v = d.data() || {};
+            out.push({
+                uid: d.id,
+                name: v.displayName || v.name || v.email || d.id,
+                role: v.role || '',
+                schoolIds: Array.isArray(v.schoolIds) ? v.schoolIds : [],
+                active: v.active !== false,
+            });
+        });
+    } catch (e) {
+        // ⚠️ A teacher cannot read the staff collection, and that is correct —
+        // populateClassTeachers() never calls this for anyone but an admin, so
+        // this catch exists for the same reason _loadTeacherNames()'s always did.
+        console.warn('Could not load staff records:', e);
+    }
+    _staffRecords = out;
+    return out;
+}
 
 /**
  * ⚠️ ONE getDocs, ON FIRST NEED, CACHED (§READS). The class list renders without
@@ -2983,19 +3089,47 @@ let _schoolNames  = null;      // id  → name
 async function _loadTeacherNames() {
     if (_teacherNames) return _teacherNames;
     const out = {};
-    try {
-        const snap = await getDocs(collection(_db, 'staff'));
-        snap.forEach(d => {
-            const v = d.data() || {};
-            out[d.id] = v.displayName || v.name || v.email || d.id;
-        });
-    } catch (e) {
-        // ⚠️ A teacher cannot read the staff collection, and that is correct.
-        // Their own classes are the only ones they see, so the name adds nothing.
-        console.warn('Could not load staff names:', e);
-    }
+    (await _loadStaffRecords()).forEach(s => { out[s.uid] = s.name; });
     _teacherNames = out;
     return out;
+}
+
+/**
+ * ⚠️ ROADMAP 62 — matches firestore.rules v2.11.0 exactly: only these two
+ * roles may move /classes' teacherUids through an update. One predicate,
+ * reused for both the UI gate (populateClassTeachers, saveClass) and nowhere
+ * else, so the two can't quietly drift apart from the rule they mirror.
+ */
+function _canReassignTeachers() {
+    return _isSuper() || _scope.role === 'building_admin';
+}
+
+/**
+ * ⚠️ ROADMAP 62 — ADMIN ONLY, EDIT ONLY. Populates (and reveals) the Teachers
+ * multi-select for the class currently being edited. A plain teacher never
+ * reaches this — firestore.rules v2.11.0 requires their write leave
+ * teacherUids byte-identical, and they cannot even read `staff` to populate
+ * a picker in the first place.
+ *
+ * ⚠️ FILTERED TO THE CLASS'S OWN schoolId, not the viewer's. A super_admin
+ * reassigning a class at a building that isn't their home base must still
+ * see THAT building's staff, not their own.
+ */
+async function populateClassTeachers(schoolId, selectedUids) {
+    const wrap = document.getElementById('class-teachers-wrap');
+    const sel  = document.getElementById('class-teachers-select');
+    if (!wrap || !sel) return;
+    if (!_canReassignTeachers()) { wrap.classList.add('u-display-none'); return; }
+    wrap.classList.remove('u-display-none');
+
+    const staff = await _loadStaffRecords();
+    const inBuilding = staff.filter(s => s.active && schoolId && s.schoolIds.includes(schoolId));
+    const picked = new Set(selectedUids || []);
+
+    sel.innerHTML = inBuilding.length
+        ? inBuilding.sort((a, b) => a.name.localeCompare(b.name))
+            .map(s => `<option value="${escHtml(s.uid)}"${picked.has(s.uid) ? ' selected' : ''}>${escHtml(s.name)}</option>`).join('')
+        : '<option value="" disabled>— no staff on file for this building —</option>';
 }
 
 /** The school names, keyed. ⚠️ Reuses _loadSchoolOptions() so "which buildings"
