@@ -20,8 +20,14 @@
 // PARTS
 //   A — `lead` is the Daily figure for every combination of sprint limit,
 //       goals and progress. Never the sprint, never blank, never both.
-//   B — the sprint is its OWN field and empty when there is no limit, so
-//       School's centre row has nothing to render rather than a stray "0:00".
+//   B — ⚠️⚠️ ROADMAP 12 — REWRITTEN. The sprint used to be empty whenever
+//       there was no limit; it is now ALWAYS populated, on every surface
+//       including School, because Jake wants elapsed time on the current
+//       run visible while he walks the room — a count-up FOR HIM, with no
+//       completion state, not a countdown for the student. Deliberately
+//       updated in the same round that changed hud.js, with the reason
+//       written down here so a later round doesn't rediscover the OLD
+//       behaviour as a regression and "fix" it back to empty.
 //   C — REGRESSION: the numbers hud.js reports are the numbers it was given.
 //       A layout change must not become an arithmetic change.
 //   D — GREP: both paint functions read `hud.lead` into the lead element,
@@ -73,18 +79,28 @@ console.log('\n─── A. `lead` is ALWAYS the Daily figure ───');
     }
 }
 
-console.log('\n─── B. the sprint is its own field ───');
+console.log('\n─── B. the sprint is always populated (ROADMAP 12) ───');
 {
-    // School hardcodes sprintLimit to 0. Its centre must render NOTHING rather
-    // than a stray "0:00" that a child would read as a number about them.
-    eq('B1 School (no limit) has an empty sprint', hudStrings({ todaySeconds: 410, sprintLimit: 0 }).sprint, '');
-    eq('B2 "infinity" is also no sprint', hudStrings({ todaySeconds: 410, sprintLimit: 'infinity' }).sprint, '');
-    eq('B3 a running sprint reads elapsed / limit',
+    // ⚠️⚠️ ROADMAP 12 — REWRITTEN, DELIBERATELY, IN THE SAME ROUND THAT CHANGED
+    // hud.js. It used to be empty whenever there was no limit — School
+    // hardcodes sprintLimit to 0 — on the theory that a child would read a
+    // stray "0:00" as a number about them. That reasoning still holds for WHY
+    // there's no "/ limit" suffix without a limit; it no longer holds for
+    // showing NOTHING, because Jake wants elapsed time on the current run
+    // visible on every surface while he walks the room — for him, not the
+    // student, a count-up with no completion state.
+    eq('B1 School (no limit), no time yet: plain elapsed, "0:00"',
+       hudStrings({ todaySeconds: 410, sprintLimit: 0 }).sprint, '0:00');
+    eq('B2 School (no limit), time elapsed: plain elapsed, no "/ limit" suffix',
+       hudStrings({ todaySeconds: 410, sprintLimit: 0, sprintSeconds: 47 }).sprint, '0:47');
+    eq('B3 "infinity" (Library\u2019s own no-limit choice): same, plain elapsed',
+       hudStrings({ todaySeconds: 410, sprintLimit: 'infinity', sprintSeconds: 90 }).sprint, '1:30');
+    eq('B4 a running sprint with a real limit still reads elapsed / limit',
        hudStrings({ todaySeconds: 410, sprintSeconds: 12, sprintLimit: 30 }).sprint, '0:12 / 0:30');
     ok(hudStrings({ sprintSeconds: 44, sprintLimit: 30 }).overtime,
-       'B4 past the limit still flags overtime');
+       'B5 past the limit still flags overtime');
     ok(!hudStrings({ todaySeconds: 410, sprintLimit: 0 }).overtime,
-       'B5 ⚠️ no limit can never be overtime — School must not glow orange');
+       'B6 ⚠️ no limit can never be overtime — School must not glow orange');
 }
 
 console.log('\n─── C. REGRESSION: a layout change is not an arithmetic change ───');

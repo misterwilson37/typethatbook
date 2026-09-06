@@ -1,4 +1,25 @@
-// hud.js v2.1.0
+// hud.js v2.2.0
+//
+// v2.2.0 — ⚠️⚠️ ROADMAP 12: THE SPRINT FIELD IS ALWAYS POPULATED NOW, ON EVERY
+//          SURFACE INCLUDING SCHOOL. Jake: "the sprint is how long it takes
+//          the student to type that run... it's helpful to me to see how
+//          long a kid is taking to type a lesson as I walk around." A
+//          count-up for HIM, with no limit and no completion state — not a
+//          countdown for the student, and not a new clock: `sprintSeconds`
+//          (School's own `stepSeconds`, included) was already tracked and
+//          wired all the way to `#hud-sprint` on both pages; the only thing
+//          suppressing it was `showSprint` gating on a limit School
+//          hardcodes to 0. Removed that gate — `sprint` reads plain elapsed
+//          time with no limit, "elapsed / limit" with one, never empty.
+//          ⚠️ `overtime` is UNCHANGED IN MEANING: still only true when a
+//          real limit exists and elapsed has passed it — a plain count-up
+//          has nothing to be "over."
+//          ⚠️⚠️ TWO TEST FILES ASSERTED THE OLD EMPTINESS AND WERE UPDATED
+//          DELIBERATELY, IN THIS SAME ROUND, WITH THE REASON WRITTEN DOWN —
+//          `hud-lead-test.mjs` Part B (rewritten, not just patched) and
+//          `hud-test.mjs`'s no-limit and empty-state cases. Both explain why
+//          the old assertion held and why it no longer does, so a later
+//          round doesn't read a green suite and assume nothing changed.
 //
 // v2.1.0 — ⚠️⚠️ ROADMAP 50: HUD_CACHE_KEY bumped _v1 → _v2. A ONE-SHOT REPAIR,
 //          NOT A FIX — the root cause of a weekly HUD reading exactly today's
@@ -139,7 +160,7 @@
 // decoration; versions.js parses THIS line and the build footer renders it.
 // It sat at '1.2.0' through v1.3.0 and v1.4.0 — bump it in the same edit that
 // writes the header entry, every time, or the file lies about itself.
-export const HUD_VERSION = '2.1.0';
+export const HUD_VERSION = '2.2.0';
 
 // m:ss. Not padded on minutes — `9:22` reads faster than `09:22` and a student's
 // day does not reach three digits. Seconds ALWAYS padded, or 9:7 appears.
@@ -175,8 +196,9 @@ function pair(elapsed, goal) {
 //
 //   lead    the Daily figure — ALWAYS, on every surface. Read the block at the
 //           return statement before changing that; it needs Jake.
-//   sprint  the live sprint clock for the CENTRE cluster, or '' when there is
-//           no limit to show it against (School's normal case).
+//   sprint  the live sprint clock for the CENTRE cluster. ALWAYS populated
+//           (ROADMAP 12) — "elapsed / limit" when a real limit exists,
+//           elapsed alone otherwise. Never empty, on any surface.
 //   right   the Weekly figure.
 //
 // The flags are for colour; the caller owns colour because the two pages theme
@@ -193,13 +215,21 @@ export function hudStrings(state) {
 
     const daily = 'Daily ' + pair(today, dailyGoal) + (dailyDone ? ' ✓' : '');
 
-    // A sprint is only shown when there is a limit to show it against. School
-    // has no per-run time target — its gates are WPM and accuracy — so School
-    // shows the Daily figure alone, in the same place Library shows it.
+    // ⚠️⚠️ ROADMAP 12 — ALWAYS SHOWN NOW, WITH OR WITHOUT A LIMIT. Jake:
+    // "the sprint is how long it takes the student to type that run...
+    // it's helpful to me to see how long a kid is taking to type a lesson
+    // as I walk around." That is a count-up with no completion state, for
+    // HIM, not a countdown toward a target for the student — a different
+    // thing from the "elapsed / limit" readout below, which still applies
+    // whenever a real limit exists.
+    // ⚠️ NOT A NEW CLOCK. `st.sprintSeconds` was already tracked and wired
+    // all the way to `#hud-sprint` on every surface, including School
+    // (`stepSeconds`, see learn.js) — the only reason it never rendered
+    // there was `showSprint` gating on a limit School hardcodes to 0. This
+    // is a display change, not new tracking.
     const limit = (st.sprintLimit === 'infinity') ? 0
                 : Math.max(0, Math.round(st.sprintLimit || 0));
     const sprint = Math.max(0, Math.round(st.sprintSeconds || 0));
-    const showSprint = limit > 0;
 
     // ══════════════════════════════════════════════════════════════════════════
     // ⚠️ v1.3.0 — THE PARENTHESIS WAS A SECOND ROW TRYING TO HAPPEN.
@@ -228,16 +258,18 @@ export function hudStrings(state) {
     return {
         // The graded number. Same slot, same word, all four surfaces.
         lead: daily,
-        // The live sprint, for the CENTRE cluster. Empty when there is no limit
-        // to show it against — School has no per-run time target, so School's
-        // centre is WPM and accuracy alone and its lead row is simply absent.
-        sprint: showSprint ? fmt(sprint) + ' / ' + fmt(limit) : '',
+        // ⚠️⚠️ ROADMAP 12 — ALWAYS POPULATED NOW (see the note above `limit`).
+        // With a real limit: "elapsed / limit", unchanged from before. With
+        // none (School's normal case, or Library's "infinity" option):
+        // elapsed alone — a plain count-up, never empty.
+        sprint: limit > 0 ? fmt(sprint) + ' / ' + fmt(limit) : fmt(sprint),
         right: 'Weekly ' + pair(week, weeklyGoal) + (weeklyDone ? ' ✓' : ''),
         dailyDone,
         weeklyDone,
         // Past the sprint target. Library colours the readout for this; the
-        // sprint is not stopped, and never has been.
-        overtime: showSprint && sprint >= limit,
+        // sprint is not stopped, and never has been. ⚠️ Only meaningful when
+        // a real limit exists — a plain count-up has nothing to be over.
+        overtime: limit > 0 && sprint >= limit,
     };
 }
 

@@ -551,6 +551,17 @@
                  and the shelf below. .continue-grid is now standalone. -->
             <div class="continue-grid" id="continue-grid"></div>
         </section>
+        <!-- ROADMAP 53 — FEATURED. Populated by renderFeatured(); hidden only
+             when the shelf itself has not loaded. ⚠️ UNLIKE Continue Reading,
+             this shows for GUESTS TOO — discovery is the point, and a guest
+             with no account is the reader most likely to need it. Reuses
+             .continue-row/.continue-grid/.continue-card wholesale; see
+             renderFeatured()'s own note for why that is not a parallel
+             .featured-* set. -->
+        <section id="featured-row" class="continue-row" hidden>
+            <h2 class="continue-heading">Featured</h2>
+            <div class="continue-grid" id="featured-grid"></div>
+        </section>
         <div id="filter-note"></div>
         <!-- ⚠️ THE SHELF HAS A HEADING NOW so the two rows read as two different
              things. It is NOT hidden with the Continue row: a guest, or a student
@@ -1003,11 +1014,18 @@
                         coverUrl: data.coverUrl || "",
                         totalChapters: data.totalChapters || (data.chapters ? data.chapters.length : 0),
                         // admin.js stamps this Date.now() on every book write, to bust
-                        // student chapter caches. Reused here as the ONLY timestamp any
-                        // book carries — there is no createdAt or addedAt anywhere in
-                        // the schema. ⚠️ That makes "Recently updated" honest and
-                        // "Recently added" a lie, which is why the option says updated.
+                        // student chapter caches. The only per-EDIT timestamp any book
+                        // carries — reused for "Recently updated" for that reason.
                         contentVersion: (typeof data.contentVersion === 'number') ? data.contentVersion : 0,
+                        // ⚠️ ROADMAP 53 — admin.js has stamped this since v3.5x (see its
+                        // own note by `bookData.uploadedAt = serverTimestamp()`), but this
+                        // projection never carried it, so "Recently added" was a lie this
+                        // comment used to state as fact rather than merely as the reason
+                        // "Recently updated" is what the sort option says. null for any
+                        // book uploaded before that stamp existed, or from console/import
+                        // paths this codebase does not control — the Featured row treats
+                        // that identically to "not new," never as "new right now."
+                        uploadedAt: data.uploadedAt || null,
                         // Written by admin.js since v3.18.x. null, not 0, when absent —
                         // an old document that never had it must fall back to
                         // totalChapters rather than report a book with no chapters.
@@ -1386,7 +1404,46 @@
             return 0;
         }
 
+        // ⚠️ ROADMAP 53 — SAME FOUR SHAPES, SAME REASON, AS progressTimeMs()
+        // ABOVE: a book's `uploadedAt` is a Firestore Timestamp on a cold
+        // read and a plain { seconds, nanoseconds } object once BOOKS_CACHE_KEY
+        // has round-tripped it through localStorage. Kept as its own function
+        // rather than sharing progressTimeMs()'s body — that one is lifted by
+        // name into continue-reading-test.mjs, and this file's own convention
+        // (admin.html's :root note, the ROADMAP 39 primitives) is to accept a
+        // second small copy over risking an already-tested function.
+        function bookUploadedAtMs(book) {
+            const v = book && book.uploadedAt;
+            if (!v) return 0;
+            try {
+                if (typeof v.toDate === 'function') return v.toDate().getTime() || 0;
+                if (typeof v.seconds === 'number') return v.seconds * 1000;
+                if (typeof v === 'number') return v;
+                if (typeof v === 'string') { const t = Date.parse(v); return isNaN(t) ? 0 : t; }
+                if (v instanceof Date) return v.getTime() || 0;
+            } catch (_) {}
+            return 0;
+        }
+
         const CONTINUE_MAX = 3;
+
+        // ⚠️⚠️ ROADMAP 53 — Jake, 2026-09-06: "'featured' should just be
+        // 'newest' and then if nothing is new within a week or 2, 'featured'
+        // should be random, untyped books." FEATURED_WINDOW_MS is that "week
+        // or 2" — no sharper spec was given, so 14 days (the wider half of
+        // his own range) was picked deliberately rather than split further;
+        // change this one constant if that's wrong, nothing else needs to
+        // move. FEATURED_MAX matches CONTINUE_MAX for visual consistency
+        // between the two special rows — not load-bearing, just matching.
+        const FEATURED_WINDOW_MS = 14 * 24 * 3600 * 1000;
+        const FEATURED_MAX = 3;
+        // ⚠️ THE RANDOM FALLBACK IS PICKED ONCE, NOT ON EVERY RENDER.
+        // renderBooks() runs from eight call sites — sort, filter, sign-in,
+        // sign-out — and re-rolling the dice on each one would reshuffle a
+        // student's Featured row every time they touched an unrelated
+        // control, which reads as broken, not as freshness. Cached per page
+        // load; a genuine reload is the only thing that re-rolls it.
+        let _featuredRandomCache = null;
 
         function renderContinue() {
             const row  = document.getElementById('continue-row');
@@ -1469,12 +1526,109 @@
             row.hidden = false;
         }
 
+        // ═══════════════════════════════════════════════════════════════════
+        // ROADMAP 53 — FEATURED: NEWEST FIRST, RANDOM UNTYPED AS FALLBACK
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // Jake, 2026-09-06: "I think 'featured' should just be 'newest' and
+        // then if nothing is new within a week or 2, 'featured' should be
+        // random, untyped books" — followed by "'plain random' is fine," so
+        // the fallback pool is NOT weighted by popularity (ROADMAP 54's own
+        // counter is a separate, later feature).
+        //
+        // ⚠️ "UNTYPED" IS PER-STUDENT AND FREE. It reuses `userProgress`,
+        // already loaded in full for Continue Reading — excluding a book the
+        // student has already opened costs no read this row didn't already
+        // have available. A guest has no progress at all, so the exclusion
+        // set is empty and they see a plain random pool, which is correct:
+        // there is nothing for them to have already "typed."
+        function renderFeatured() {
+            const row  = document.getElementById('featured-row');
+            const grid = document.getElementById('featured-grid');
+            if (!row || !grid) return;
+
+            const hide = () => { row.hidden = true; grid.innerHTML = ''; };
+
+            // A book mid-load has no shelf to pick from. Unlike Continue
+            // Reading, a GUEST still gets a Featured row — discovery is the
+            // point, and a guest is the reader most likely to need it.
+            if (!allBooks.length) return hide();
+
+            const cutoff = Date.now() - FEATURED_WINDOW_MS;
+            const newest = allBooks
+                .map(book => ({ book, at: bookUploadedAtMs(book) }))
+                // ⚠️ 0 (no stamp at all) NEVER COUNTS AS "NEW". A book
+                // uploaded before admin.js started stamping uploadedAt, or
+                // added by some path outside this codebase, has no evidence
+                // it belongs in this window — treated the same as "old,"
+                // never as "new right now."
+                .filter(x => x.at > cutoff)
+                .sort((a, b) => b.at - a.at)
+                .slice(0, FEATURED_MAX)
+                .map(x => x.book);
+
+            let picks, isNew;
+            if (newest.length) {
+                picks = newest;
+                isNew = true;
+            } else {
+                // ⚠️ PICKED ONCE PER PAGE LOAD, NOT ONCE PER RENDER — see
+                // _featuredRandomCache's own note above.
+                if (!_featuredRandomCache) {
+                    const started = new Set(Object.keys(userProgress || {}));
+                    const pool = allBooks.filter(b => !started.has(b.id));
+                    // Fisher-Yates on a COPY — allBooks itself must stay in
+                    // whatever order loadBooks()/sort left it in for every
+                    // other reader of that array.
+                    const shuffled = pool.slice();
+                    for (let i = shuffled.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                    }
+                    _featuredRandomCache = shuffled.slice(0, FEATURED_MAX);
+                }
+                picks = _featuredRandomCache;
+                isNew = false;
+            }
+
+            if (!picks.length) return hide();
+
+            // ⚠️ REUSES .continue-card/.continue-grid RATHER THAN A PARALLEL
+            // .featured-* SET. Those classes carry a long, pinned history
+            // (grid-column alignment against the shelf's own tracks, fixed
+            // cover dimensions, the two-line title clamp) that has nothing
+            // to do with "continue" specifically — duplicating it risks the
+            // two drifting apart the same way admin.html's token comment
+            // warns about for a different pair of files.
+            grid.innerHTML = picks.map(book => {
+                const coverHTML = book.coverUrl
+                    ? `<img class="continue-cover" src="${escapeAttr(book.coverUrl)}" alt="" loading="lazy">`
+                    : `<div class="continue-cover-placeholder"></div>`;
+                const badge = isNew ? 'New' : 'Featured';
+                return `
+                    <a class="continue-card" href="game.html?book=${encodeURIComponent(book.id)}">
+                        ${coverHTML}
+                        <div class="continue-body">
+                            <div class="continue-resume">${badge}</div>
+                            <div class="continue-title">${escapeHtml(book.title)}</div>
+                        </div>
+                    </a>`;
+            }).join('');
+
+            row.hidden = false;
+        }
+
         function renderBooks() {
             // ⚠️ CALLED FROM HERE so the row can never disagree with the shelf.
             // renderBooks() is invoked from eight places — cold load, warm cache,
             // stale cache, sign-in, sign-out, sort, filter — and hanging the row
             // off any one of them would leave the other seven stale.
             renderContinue();
+            // ⚠️ ROADMAP 53 — SAME REASONING, SAME PLACE. Featured must never
+            // disagree with the shelf either, and hanging it off fewer than
+            // all eight call sites would mean a signed-out student sees a
+            // stale Featured row a signed-in one already moved past.
+            renderFeatured();
             const grid = document.getElementById('book-grid');
             const byGenre = activeGenre === "all"
                 ? allBooks

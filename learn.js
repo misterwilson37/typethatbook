@@ -5021,10 +5021,14 @@ function renderTimeHUD() {
         hudTimer.style.color = hud.dailyDone ? '#22c55e' : '';
         // .hud-time-long and hud.long are GONE (hud.js v1.3.0). Do not re-add.
     }
-    // ⚠️ EMPTY HERE TODAY AND WIRED ANYWAY, SAME REASONING AS v2.11.1's. School
-    // gates on WPM and accuracy, not time, so `sprintLimit` is hardcoded to 0
-    // above and hud.sprint is ''. Kept in lockstep so a future School sprint
-    // cannot land in a different slot than Library's.
+    // ⚠️⚠️ ROADMAP 12 — NO LONGER EMPTY HERE. School gates on WPM and accuracy,
+    // not time, so `sprintLimit` stays hardcoded to 0 above — but `hud.sprint`
+    // now renders the elapsed count-up regardless of whether a limit exists
+    // (hud.js v2.2.0), and `stepSeconds` was already being tracked and passed
+    // in here for exactly this. Jake, of the value: "it's helpful to me to see
+    // how long a kid is taking to type a lesson as I walk around." Kept in
+    // lockstep with Library's own call so School's sprint can never land in a
+    // different slot.
     const sprintEl = document.getElementById('hud-sprint');
     if (sprintEl) {
         sprintEl.textContent = hud.sprint;

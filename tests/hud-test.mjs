@@ -48,7 +48,7 @@ let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; } else { fail++; console.log('  FAIL: ' + msg); } };
 
 console.log('\n─── A. formatting ───');
-ok(HUD_VERSION === '2.1.0', `hud.js reports v2.1.0 (got ${HUD_VERSION})`);
+ok(HUD_VERSION === '2.2.0', `hud.js reports v2.2.0 (got ${HUD_VERSION})`);
 ok(fmt(0) === '0:00', 'zero is 0:00');
 ok(fmt(7) === '0:07', 'seconds are padded (0:07, never 0:7)');
 ok(fmt(562) === '9:22', '562 seconds is 9:22');
@@ -104,9 +104,13 @@ console.log('\n─── B. the two readouts ───');
        '⚠️ hud.js never ellipsises — a cut-off goal is what this whole change fixed');
 }
 
-// ⚠️ NO SPRINT LIMIT → THE LEAD ROW IS UNCHANGED AND THE SPRINT IS EMPTY. This
-// is School's case and Library's no-limit case. The DAILY FIGURE MUST RENDER
-// IDENTICALLY IN BOTH — that is invariant: the graded number does not move.
+// ⚠️⚠️ ROADMAP 12 — REWRITTEN. Used to assert the sprint slot went empty with
+// no limit to show it against (School's case, and Library's "infinity"
+// choice) — that held until Jake asked for elapsed time on the current run
+// to be visible on every surface, always, for him to read while walking the
+// room. The lead-row invariant below (the graded number never moves,
+// whether or not a sprint is running) is unchanged and still the point of
+// this block.
 {
     const a = hudStrings({ sprintSeconds: 0, sprintLimit: 'infinity',
                            todaySeconds: 562, dailyGoal: 600, weekSeconds: 900, weeklyGoal: 3000 });
@@ -119,8 +123,8 @@ console.log('\n─── B. the two readouts ───');
        "⚠️ School (limit 0) and Library (limit 'infinity') render the same lead row");
     ok(a.lead === c.lead,
        '⚠️⚠️ THE GRADED NUMBER DOES NOT MOVE: the lead row is byte-identical whether or not a sprint is running');
-    ok(a.sprint === '' && b.sprint === '',
-       'with no limit to show it against, the sprint slot is empty rather than 0:00');
+    ok(a.sprint === '0:00' && b.sprint === '0:45',
+       'with no limit to show it against, the sprint slot shows plain elapsed time, no "/ limit" suffix');
     ok(!a.lead.includes('Active'),
        'the word "Active" is gone — it labelled a sprint total as though it were a day total');
 }
@@ -178,7 +182,10 @@ console.log('\n─── B. the two readouts ───');
     const h = hudStrings({});
     ok(h.lead === 'Daily 0:00' && h.right === 'Weekly 0:00',
        `an empty state renders zeros — got "${h.lead}" / "${h.right}"`);
-    ok(h.sprint === '', 'and an empty state has no sprint to show');
+    // ⚠️⚠️ ROADMAP 12 — the sprint field is ALWAYS populated now, so an
+    // all-defaults call renders '0:00' here too, same as lead/right — not
+    // empty, and not NaN.
+    ok(h.sprint === '0:00', `an empty state\u2019s sprint is a plain zero, not empty — got "${h.sprint}"`);
     // ⚠️ EVERY STRING FIELD, not just the one that used to exist. The old
     // version of this line read `.left`, which is how it survived the rename
     // into a TypeError rather than a failed assertion.

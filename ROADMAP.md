@@ -386,8 +386,7 @@ Everything else still open:
 - 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
 - 42. ⚠️ admin.js STILL CARRIES 183 (Round 56 CLOSED THE admin.html HALF) — AND THE THREE THINGS THIS ITEM GOT WRONG
 - 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME  *(Jake ANSWERED it Round 57 — it is student-facing visibility, not a staff filter; read the item before starting)*
-- 12. ⚠️⚠️ REOPENED (Round 59, Jewett) — THE LEAD AXIS, AND JAKE'S RULING ON WHAT SHOULD ALIGN  *(⚠️ DO NOT SHIP style.css v3.10.0 — he looked at it rendered and ruled against it)*
-- 53. ⚠️ EIGHTY BOOKS AND NO WAY THROUGH THEM — SEARCH, AND SOMETHING FEATURED  *(Jake asked, 2026-09-03)*
+- 53. ⚠️ HALF DONE — FEATURED SHIPPED (Round 80, Imperial), SEARCH STILL OPEN  *(newest-first, random-untyped fallback, per Jake's spec; search is unbuilt)*
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
 - 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
 - 58. ⚠️ STEP ONE DONE (Round 71) — A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
@@ -409,6 +408,7 @@ Everything else still open:
 - 62. ✅ FIXED (Round 80, Imperial) — WHO TEACHES A CLASS IS NOW EDITABLE, ADMIN ONLY  *(rules v2.11.0, editor in admin.html/lessons-admin.js v1.21.0, orphan-class flag — the schoolIds half split out to item 65)*
 - 65. ✅ FIXED (Round 80, Imperial) — WHO ADMINISTRATES WHAT BUILDING  *(rules already correct, zero rule changes — the bug was a missing 'super_admin' option in staff-admin.js's role dropdown, v2.4.0, plus a new demotion confirm() guard)*
 - 39. ✅ FIXED (Round 80, Imperial) — BOTH HALVES CLOSED: reports.html (Round 73), admin.js (this round)  *(30 alert() + 15 confirm() on admin.js, recounted fresh; one deliberate prompt() left native; new two-modal-trap regression test in tests/dialogs-admin-test.mjs)*
+- 12. ✅ FIXED (Round 80, Imperial) — THE LEAD AXIS, AND THE SPRINT CLOCK JAKE ASKED FOR  *(hud.js v2.2.0 — the layout question was already settled; the sprint clock is the feature that made it moot)*
 - 63. ✅ FIXED (Round 80, Imperial) — THE AI-PRACTICE DAILY LIMIT WAS KEYED ON A UTC DAY  *(`functions/index.js` v1.7.1 — NOT YET hand-mirrored to the console)*
 - 61. ✅ THREE SPACING COMPLAINTS, ONE CAUSE, AND IT IS THE ONE ROUND 67 FOUND  *(CLOSED Round 77)*
 - 59. ✅ THE CLASS MANAGER NAMES ITS SCHOOL AND TEACHER, AND FILTERS ON BOTH  *(CLOSED Round 76)*
@@ -1591,7 +1591,26 @@ write both.
 
 ---
 
-## 12. ⚠️⚠️ REOPENED (Round 59, Jewett) — THE LEAD AXIS, AND JAKE'S RULING ON WHAT SHOULD ALIGN
+## 12. ✅ FIXED (Round 80, Imperial) — THE LEAD AXIS, AND THE SPRINT CLOCK JAKE ASKED FOR
+
+### ✅ ROUND 80 (Imperial) — THE MISSING PIECE WAS THE FEATURE, NOT MORE CSS
+
+The layout question below was already settled correctly (verified, not
+re-argued) — the alignment rule Jake wanted is what the page already does.
+What was actually still open was the feature that makes the center row
+*always* two lines: elapsed time on the student's current run, visible to
+Jake as he walks the room. Asked; he said yes.
+
+✅ **`hud.js` v2.2.0 — the sprint field is now ALWAYS populated**, on every
+surface including School, elapsed alone when there's no limit ("elapsed /
+limit" unchanged when a real one exists). ⭐ **Not a new clock** —
+`sprintSeconds` (School's own `stepSeconds`) was already tracked and wired
+all the way to `#hud-sprint`; the only thing suppressing it was `showSprint`
+gating on a limit School hardcodes to 0. Removed the gate, not the tracking.
+Two test files (`hud-lead-test.mjs`, `hud-test.mjs`) had assertions pinned
+to the old emptiness — both rewritten deliberately, with the reason written
+into each changed line, and **mutation-verified**: reverting the fix turns
+exactly the right assertions red. 76/76 harnesses pass.
 
 ⚠️⚠️ **DO NOT SHIP `style.css` v3.10.0. JAKE LOOKED AT IT RENDERED AND RULED
 AGAINST THE ONE THING IT CHANGES.** He was shown an A/B of the shipped rules
@@ -6039,7 +6058,43 @@ is what §0.-37 spent a whole round undoing.
 
 ---
 
-## 53. ⚠️ EIGHTY BOOKS AND NO WAY THROUGH THEM — SEARCH, AND SOMETHING FEATURED
+## 53. ⚠️ HALF DONE — FEATURED SHIPPED (Round 80, Imperial), SEARCH STILL OPEN
+
+### ✅ ROUND 80 (Imperial) — FEATURED: NEWEST, THEN RANDOM UNTYPED
+
+Jake, 2026-09-06: *"I think 'featured' should just be 'newest' and then if
+nothing is new within a week or 2, 'featured' should be random, untyped
+books."* Asked whether the fallback should also weight toward popular books
+once ROADMAP 54's counter exists; he said *"'plain random' is fine... shipping
+it as is would be great."* Built exactly that, nothing more.
+
+✅ **`index.html` — `renderFeatured()`, a new row reusing `.continue-card`
+wholesale** (not a parallel `.featured-*` set — see its own comment for why).
+⭐ **FOUND A REAL GAP ALONG THE WAY**: this file's own comment claimed *"there
+is no createdAt or addedAt anywhere in the schema"* — false. `admin.js` has
+stamped `uploadedAt` on a book's first upload for a while; this page's book
+projection just never carried the field over. Added it. ⚠️ **A BOOK WITH NO
+STAMP NEVER COUNTS AS NEW** — old books uploaded before the stamp existed
+fall straight into "not new," never win a recency sort by accident.
+⚠️ **THE RANDOM FALLBACK IS PICKED ONCE PER PAGE LOAD**, cached, not re-rolled
+on every sort/filter click — that would reshuffle a student's row every time
+they touched an unrelated control. **"Untyped" is free** — it reuses
+`userProgress`, already loaded in full for Continue Reading; a guest's empty
+progress naturally reduces to "the whole library," so no guest special-case
+was needed.
+
+✅ **New harness**, `tests/featured-shelf-test.mjs`, 20 checks — `bookUploadedAtMs()`
+lifted and run against the same four timestamp shapes `progressTimeMs()` has,
+the newest-window and random-fallback pipelines mirrored and tested, and
+three structural checks **mutation-verified**: the cutoff operator (`>` vs
+`>=`, where the wrong one lets an unstamped book through), the stable-random
+cache, and the `renderBooks()` wiring. 76/76 harnesses pass.
+
+⚠️ **SEARCH IS STILL UNBUILT.** See the original report below — it is a
+separate half for a different reader (the child who already knows what they
+want, versus the one who doesn't), and nothing here started it.
+
+### The original report, kept — search is the half still open
 
 **Jake, 2026-09-03:** *"a search feature on the stacks, and maybe a featured or
 random book suggestion at the top somewhere. Maybe to fill in blanks by resume?

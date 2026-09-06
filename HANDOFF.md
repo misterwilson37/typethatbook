@@ -2,17 +2,16 @@
 
 > ## ▶ START HERE — written 2026-09-06 by Round 80 (Imperial), for whoever is next
 >
-> ⚠️⚠️ **ROADMAP 39, 62 AND 65 ARE ALL CLOSED.** This round started as a
-> fresh-eyes pass and grew into three full roadmap rounds once Jake kept
-> saying "continue." Everything below is shipped and verified. **The
-> remaining big open items are Jake's to unblock, not code**: ROADMAP 58 and
-> 60 need his ruling. Beyond those, **item 42** (admin.js's own inline-style
-> extraction, ~183 attributes / 539 declarations, separate from the dialog
-> work this round did) looked like the next candidate from the index — it
-> was NOT touched or re-verified this round, so read it fresh rather than
-> trusting this pointer alone.
+> ⚠️⚠️ **ROADMAP 12, 39, 62 AND 65 ARE CLOSED; 53 IS HALF DONE.** This round
+> started as a fresh-eyes pass and grew into five roadmap rounds once Jake
+> kept saying "continue." Everything below is shipped and verified.
+> **ROADMAP 58 and 60 still need Jake's ruling, not code** — though both now
+> have a confirmed design and a fact-checked technical answer waiting on him,
+> see item 7 below. **Item 53's search half is unbuilt.** Beyond those,
+> **item 42** (admin.js's own inline-style extraction) is the next candidate
+> from the index — not touched or re-verified this round.
 >
-> ### WHAT THIS ROUND WAS: FRESH EYES FIRST, THEN THREE FULL ROADMAP ITEMS
+> ### WHAT THIS ROUND WAS: FRESH EYES FIRST, THEN FIVE ROADMAP ITEMS
 >
 > Came in cold, ran `npm test` and `npm run audit:versions` before reading a
 > line of prose (72/72, 0 problems — Round 79's claim checked out exactly), then
@@ -184,9 +183,46 @@
 >    fix. `admin.js` v3.54.0, `admin.html` v1.22.0. 75/75 harnesses pass,
 >    80/80 rules tests unaffected, 0 audit problems.
 >
-> **Everything else is as Round 79 left it.** `style.css` and
-> `tests/hud-lead-test.mjs` are still deliberately absent, ROADMAP 58 and 60
-> are still unruled (both need Jake's decision, not code).
+> 7. ✅✅ **ROADMAP 12 CLOSED, ROADMAP 53 HALF-CLOSED, AND 54/58/60 GOT REAL
+>    ANSWERS INSTEAD OF GUESSES.** Jake answered a batch of open questions at
+>    once; each got investigated before being built, not assumed.
+>    ✅ **12 — the sprint clock.** The layout rule was already settled
+>    (verified earlier); what was missing was the feature that makes the
+>    center row always two lines — elapsed time on the student's current
+>    run, for Jake, while he walks the room. `hud.js` v2.2.0: the value was
+>    ALREADY tracked (`sprintSeconds`/School's `stepSeconds`), only
+>    suppressed by a limit-gate; removed the gate, not added a clock. Two
+>    test files had assertions pinned to the old emptiness — rewritten
+>    deliberately, **mutation-verified**.
+>    ✅ **53 (half) — Featured: newest, then random-untyped.** Built exactly
+>    what Jake specified, nothing more (he explicitly declined blending in
+>    popularity). Found a real gap along the way: `index.html`'s own comment
+>    claimed no creation timestamp existed on a book; `admin.js` has stamped
+>    `uploadedAt` on first upload for a while, this page's projection just
+>    never carried it. Fixed. **New harness**, `tests/featured-shelf-test.mjs`,
+>    20 checks, 3 mutation-verified (the cutoff operator, the stable-random
+>    cache, the `renderBooks()` wiring). ⚠️ Search is still unbuilt — a
+>    separate half for a different reader, per the item's own framing.
+>    ⚠️ **54 — investigated, not built.** Reading a popularity count would be
+>    free (rides along with book data the shelf already loads in full);
+>    building it costs one bounded, one-time-per-student-per-book write, not
+>    a per-page-load one. Jake wants it; not started.
+>    ⚠️ **58 — confirmed buildable as Jake described it**, mapped onto
+>    `ttbChoose()` (already proven twice). Not started.
+>    ⚠️ **60 — reframed by a fact-check, not by opinion.** Checked the actual
+>    rules: only `super_admin` can already create a book — that part of
+>    Jake's ask is already true today, not a change to make. The remaining
+>    question (whitelist vs. blacklist for student visibility) is his to
+>    settle, possibly with a colleague; laid out the tradeoff, didn't push
+>    an answer.
+>    76/76 harnesses pass, 0 audit problems throughout.
+>
+> **Everything else is as Round 79 left it**, except where item 7 changed it:
+> `style.css` v3.10.0 remains correctly unshipped (Jake rejected it, rendered),
+> and `hud-lead-test.mjs` — described below as "deliberately absent" a
+> DIFFERENT change — was substantially rewritten this round for an unrelated
+> reason (item 12's sprint clock), so read it fresh rather than trusting that
+> old description of it.
 
 > ## ▶ Round 79 (Duplex) — the previous block, kept
 >
