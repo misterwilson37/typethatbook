@@ -1,4 +1,10 @@
-/* adventure.css v1.0.3 — view-mode skin for Adventure Mode */
+/* adventure.css v1.0.4 — view-mode skin for Adventure Mode */
+/* v1.0.4: ⚠️⚠️ ROADMAP 30 — THE CAPS LOCK WARNING WAS RENDERING BEHIND THE
+           FIXED CANVAS. What showed was not the bar but the gap its flow
+           height opened below the canvas: a white band on a parchment page.
+           Taken out of flow and stacked above the canvas. ⚠️ The item's other
+           half — "no colour feedback on a wrong key" — was ALREADY FALSE when
+           Jake checked it against the running app; see ROADMAP 30. */
 /* v1.0.3: ⚠️⚠️ THE ONE UNSCOPED RULE IN THIS FILE WAS DIMMING THE BUILD PANEL
            ON EVERY PAGE, IN EVERY VIEW. `body footer { opacity: 0.55 }` was
            written for the one-line version stamp this footer used to be. It
@@ -29,7 +35,7 @@
 /* ⚠️ Bump this in the SAME EDIT as the header at the top. versions.js reads it
    back off the live page to spot a stale cached skin; it drifted for a whole
    version because nothing checked it. tests/version-stamp-test.mjs B does now. */
-body::after { content: "v1.0.3"; display: none; }
+body::after { content: "v1.0.4"; display: none; }
 
 /* ⚠️ v1.0.3 — THIS CLAIM WAS FALSE FOR THREE VERSIONS AND COST A ROUND.
    Almost every rule in this file is scoped under body.view-adventure. Classic
@@ -200,11 +206,39 @@ body.view-adventure .key.key-num .num-symbol {
     font-size: 11px;
 }
 
+/* ⚠️⚠️ v1.0.4 — THIS RULE PAINTED A BAR NOBODY COULD SEE, AND WHAT JAKE SAW
+   INSTEAD WAS THE HOLE IT PUNCHED. #caps-warning is a normal-flow child of
+   <body>, declared ABOVE #game-container in game.html. In classic view that is
+   exactly right: it pushes the page down and shows a red bar.
+
+   ⚠️ IN ADVENTURE VIEW #adventure-canvas IS `position: fixed` FROM top:56px TO
+   bottom:80px AT z-index:5, so it covers the entire flow beneath it. The
+   warning was rendered UNDER the canvas — the colours below were correct and
+   invisible — while its ~28px of flow height still pushed #book-info-bar and
+   #virtual-keyboard down. The canvas is fixed and does NOT move with them, so
+   the only visible symptom was a band of page background opening up between
+   the parchment and the title bar. **A white bar, on a page with no white in
+   it.** Jake, 2026-09-06: *"the caps lock is just showing as a white bar."*
+
+   ⭐ THE FIX IS TO STOP IT PARTICIPATING IN LAYOUT AT ALL, not to recolour
+   anything. Fixed to the top of the canvas region at z-index 6 — one above the
+   canvas — so it paints OVER the parchment and moves nothing. That is also why
+   it disposes of the sliver: an element out of flow cannot leave a gap behind
+   when it hides.
+
+   ⚠️ NO RADIUS. The 4px was written for a bar that was never seen; full-bleed
+   against the canvas edges, a rounded corner would show parchment through the
+   notch. It matches the classic bar's shape deliberately. */
 body.view-adventure #caps-warning {
+    position: fixed;
+    top: 56px;
+    left: 0;
+    right: 0;
+    z-index: 6;
     background: #c0392b;
     color: #f2e8d5;
     font-family: 'IM Fell English', serif;
-    border-radius: 4px;
+    border-radius: 0;
 }
 
 /* ─── Adventure view: modal ──────────────────────────────────────────── */

@@ -383,7 +383,6 @@ Everything else still open:
 - 5. WHAT A NORMAL DAY LOOKS LIKE
 - 7. THE 5-SECOND FLOOR
 - 9. REDUCE THE SURFACE  *(the day-rollover bullet CLOSED Round 57; the rest stands)*
-- 30. ⚠️ ADVENTURE MODE GIVES NO COLOUR FEEDBACK ON A WRONG KEY — AND CAPS LOCK IS WHERE IT SHOWS
 - 34. ⚠️ THE LESSON-LEVEL MASTERY LOCK ONLY CLOSES WHEN EVERY RUN IS MASTERED
 - 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
 - 42. ⚠️ NEARLY DONE — 13 ATTRIBUTES LEFT, NOT 183 (THIS HEADING WAS STALE FOR TWENTY ROUNDS) — AND THE THINGS THIS ITEM GOT WRONG  *(⚠️ Round 81 MEASURED it: 13 attributes, not 183 — the heading was stale for twenty rounds and Round 80 passed it forward. The remainder is runtime-conditional; what is left is a question for Jake, not a job)*
@@ -391,7 +390,7 @@ Everything else still open:
 - 53. ⚠️ HALF DONE — FEATURED SHIPPED (Round 80, Imperial), SEARCH STILL OPEN  *(newest-first, random-untyped fallback, per Jake's spec; search is unbuilt. ⚠️ Round 81 fixed the fallback's "untyped" half, which had never once run — read that block before touching renderFeatured())*
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
 - 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
-- 58. ⚠️ STEP ONE DONE (Round 71) — A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
+- 58. ⚠️ STEP ONE DONE (Round 71) — A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. ✅ **NOTHING WAITS ON JAKE** — the mixed-class question was answered 2026-09-04 and three places said otherwise until Round 81)*
 - 60. ⭐ STAFF SHOULD SEE EVERY BOOK AND CHOOSE WHAT THEIR OWN STUDENTS SEE  *(Jake, Round 76. NOT BUILT — needs a ruling on allowlist vs blocklist, and the shelf is the read-budget surface)*
 - 66. ⚠️ THE BOOKS CSV EXPORT NAMES ITS FILE FROM A UTC DAY — THE LAST OF THE ROUND 80 SWEEP  *(found Round 81 by sweeping the class, not by a report. ⚠️ Cosmetic — a filename, never a stored value. Read it before "fixing" any other toISOString() in the repo: the rest are timestamps and UTC is right for them)*
 - 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS  *(the instrument that would have caught Round 59's finding on the day)*
@@ -411,6 +410,7 @@ Everything else still open:
 - 65. ✅ FIXED (Round 80, Imperial) — WHO ADMINISTRATES WHAT BUILDING  *(rules already correct, zero rule changes — the bug was a missing 'super_admin' option in staff-admin.js's role dropdown, v2.4.0, plus a new demotion confirm() guard)*
 - 39. ✅ FIXED (Round 80, Imperial) — BOTH HALVES CLOSED: reports.html (Round 73), admin.js (this round)  *(30 alert() + 15 confirm() on admin.js, recounted fresh; one deliberate prompt() left native; new two-modal-trap regression test in tests/dialogs-admin-test.mjs)*
 - 12. ✅ FIXED (Round 80, Imperial) — THE LEAD AXIS, AND THE SPRINT CLOCK JAKE ASKED FOR  *(hud.js v2.2.0 — the layout question was already settled; the sprint clock is the feature that made it moot)*
+- 30. ✅ FIXED (Round 81, Fox) — THE CAPS LOCK BAR RENDERED BEHIND THE CANVAS. ⚠️ THE "NO COLOUR FEEDBACK" HALF WAS NEVER TRUE  *(⚠️ Jake's screenshots closed the colour half by observation — it was never true. The bar rendered UNDER the fixed canvas; what showed was the gap its flow height opened. ⚠️ Confirm the sliver is gone or this reopens)*
 - 57. ✅ CLOSED (Round 81, Fox) — index.html IS IN ALL THREE REGISTRIES, AND TWO OF THIS ITEM'S OWN INSTRUCTIONS WERE WRONG  *(the gap cost exactly what it predicted: Round 80's Featured shelf shipped unstamped. ⚠️ BOTH of the item's build instructions were wrong — read it before trusting a closed item's method)*
 - 63. ✅ FIXED (Round 80, Imperial) — THE AI-PRACTICE DAILY LIMIT WAS KEYED ON A UTC DAY  *(`functions/index.js` v1.7.1 — NOT YET hand-mirrored to the console)*
 - 61. ✅ THREE SPACING COMPLAINTS, ONE CAUSE, AND IT IS THE ONE ROUND 67 FOUND  *(CLOSED Round 77)*
@@ -3517,7 +3517,7 @@ OF ONE**, which is the stronger property and the reason the item was written.
 * ⚠️ **`admin.html`'s `This week (Sat–Fri)` LABEL IS COPY, NOT CODE, AND NO GREP
   WILL CATCH IT.** It becomes a lie the moment a class picks Monday. Part B2
   cannot see it; a human has to.
-* The `reports.html` ruling below (mixed classes) is still unanswered.
+* ✅ The `reports.html` mixed-class ruling below **was answered 2026-09-04** — agree silently, ask only on a genuine mismatch, and remember the answer for the session. ⚠️ This bullet said *"still unanswered"* until Round 81.
 * `GOALS_CACHE_KEY` bump, and the celebration-latch note.
 
 ### ✅ THE PARTS THAT ARE FREE, AND THERE ARE MORE OF THEM THAN EXPECTED
@@ -3571,7 +3571,18 @@ that collapse **on its own, with the anchor still hardcoded to 6**, prove the
 suite is unchanged, and only then make it configurable. A round that does both at
 once cannot tell a collapse bug from an anchor bug.
 
-### ⚠️ WHAT NEEDS A RULING FROM JAKE BEFORE IT IS BUILT
+### ✅ ANSWERED 2026-09-04 — THIS SECTION IS HISTORY, NOT AN OPEN QUESTION
+
+⚠️⚠️ **THIS HEADING SAID "WHAT NEEDS A RULING FROM JAKE BEFORE IT IS BUILT" UNTIL
+ROUND 81, WITH HIS ANSWER SITTING DIRECTLY BELOW IT.** Two other places said the
+same — the bullet in the build list above (*"still unanswered"*) and the index
+line. Jake, 2026-09-06: *"I thought I addressed all of those before."* **He had.**
+⭐ Same failure as item 42's heading, found the same day: **a flag outlives the
+thing it flags, and the reader who trusts it stalls waiting on a person who
+already answered.** The question and its three options are kept below because the
+answer only makes sense against them.
+
+### The question, as it was put to him
 
 ⚠️⚠️ **`reports.html`'s `This Week` BUTTON HAS NO SINGLE CLASS.** A teacher can
 pull a report spanning classes with different anchors, and then *no* start date is
@@ -4084,7 +4095,57 @@ correct for a browser, where "local" is the machine's own clock — this is
 `todayInSchoolTZ()`'s fixed-IANA-zone approach is NOT (that one exists because a
 Cloud Functions container's local zone is UTC). One line, one patch bump.
 
-## 30. ⚠️ ADVENTURE MODE GIVES NO COLOUR FEEDBACK ON A WRONG KEY — AND CAPS LOCK IS WHERE IT SHOWS
+## 30. ✅ FIXED (Round 81, Fox) — THE CAPS LOCK BAR RENDERED BEHIND THE CANVAS. ⚠️ THE "NO COLOUR FEEDBACK" HALF WAS NEVER TRUE
+
+### ⚠️⚠️ JAKE CHECKED IT AGAINST THE RUNNING APP AND HALF THE ITEM WAS FALSE
+
+Jake, 2026-09-06, with two screenshots: *"we definitely have wrong letter
+feedback, but the caps lock is just showing as a white bar....a sliver of which
+is still visible when the button is pressed again."*
+
+⭐ **THE COLOUR-FEEDBACK HALF IS CLOSED BY OBSERVATION.** The heading claimed
+Adventure gives none. It does. **Nobody had run the mode and looked** — the
+third stale premise found in a single day, after item 42's count and item 58's
+ruling. ⚠️ **A screenshot closed this in one message where three rounds of
+reading did not.**
+
+### ✅ WHAT THE WHITE BAR ACTUALLY WAS — NOT THE WARNING, THE HOLE IT PUNCHED
+
+`adventure.css` **v1.0.4**. `#caps-warning` is a normal-flow child of `<body>`,
+declared **above** `#game-container` in `game.html`. `body.view-adventure
+#adventure-canvas` is **`position: fixed`** from `top:56px` to `bottom:80px` at
+**`z-index:5`**, covering the entire flow beneath it.
+
+So the warning painted **correctly, underneath the canvas, where nobody could
+see it** — v1.0.3 had restyled its colours and never touched its positioning —
+while its ~28px of flow height went on pushing `#book-info-bar` and
+`#virtual-keyboard` down. The canvas is fixed and does not move with them.
+**What was visible was the gap: a white band on a page with no white in it.**
+
+✅ **FIXED BY TAKING IT OUT OF FLOW**, not by recolouring anything: fixed to the
+top of the canvas region at `z-index: 6`. ⚠️ **That is also why it disposes of
+the sliver** — an element out of flow cannot leave a gap behind when it hides.
+⚠️ **Jake: please confirm the sliver is gone.** The white band is explained and
+proven; the sliver's exact mechanism was never pinned, and the fix should remove
+it as a side effect of the element no longer affecting layout at all. **If a
+sliver survives, it is a second defect and this item reopens.**
+
+⚠️ **NO RADIUS.** The old `border-radius: 4px` was written for a bar nobody had
+seen; full-bleed against the canvas edges, a rounded corner shows parchment
+through the notch.
+
+### ⭐ THE CLASS, WHICH OUTLIVES THIS ITEM
+
+`adventure.css` skins classic elements by **overriding their paint**. That is
+safe for every element inside `#game-container` and **wrong for every element
+outside it**, because the fixed canvas re-parents the visual stack without
+re-parenting the DOM. ✅ **`tests/adventure-overlay-test.mjs` (NEW)** pins the
+category. ⚠️ **Mutation-verified against the plausible BAD fix too**: a
+`z-index` with no `position` does nothing on a static element and looks
+exactly like a repair.
+
+### The original item, kept
+
 
 **Jake, 2026-08-29:** *"Adventure mode caps lock is invisible. The bar pops up,
 but the words are the same color."*

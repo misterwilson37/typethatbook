@@ -62,6 +62,28 @@ three files; the audit tool's was missing `reports.html` and `admin.html`, so it
 believed it was header-checking two files it cannot read. **Section D3** compares
 them both ways now, mutation-verified against the pre-Round-81 state.
 
+### ✅ ROADMAP 30 — THE CAPS LOCK BAR WAS RENDERING BEHIND THE CANVAS
+
+`adventure.css` **v1.0.4**, `tests/adventure-overlay-test.mjs` **NEW**.
+
+⚠️⚠️ **JAKE'S SCREENSHOTS CLOSED HALF THE ITEM BY OBSERVATION.** The heading said
+Adventure gives no colour feedback on a wrong key. **It does.** Nobody had run
+the mode and looked — the third stale premise in one day.
+
+✅ **The real defect: `#caps-warning` is a normal-flow child of `<body>`, and
+`#adventure-canvas` is `position:fixed` at `z-index:5` covering the flow beneath
+it.** The warning painted correctly, under the canvas, invisible — while its
+~28px of flow height still pushed the bars below it down. **What showed was the
+gap: a white band on a page with no white in it.** Fixed out of flow at
+`z-index:6`; that also disposes of the sliver, since an element out of flow
+cannot leave a gap when it hides. ⚠️ **Sliver awaiting Jake's confirmation** —
+explained by the fix but never independently pinned.
+
+⭐ **The class is the lasting part**: `adventure.css` skins by overriding paint,
+safe inside `#game-container` and wrong outside it. The new harness pins it, and
+is **mutation-verified against the plausible bad fix** — a `z-index` with no
+`position` does nothing on a static element and looks like a repair.
+
 ### ⚠️⚠️ ITEM 42 MEASURED — THE HEADING WAS STALE BY 170 ATTRIBUTES
 
 `node tools/audit-inline-styles.mjs` says `admin.js` carries **13 attributes /

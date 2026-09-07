@@ -8,8 +8,12 @@
 > anything else. **Ran `npm test` and `npm run audit:versions` before reading a
 > line of prose** — 76/76, 0 problems; Round 80's claim was exact.
 >
-> **Still needing Jake, not code: ROADMAP 58 and 60.** Both have a confirmed
-> design and a fact-checked answer waiting on him — see Round 80's block below.
+> ⚠️⚠️ **CORRECTED 2026-09-06: ROADMAP 58 DOES *NOT* NEED JAKE. HE ANSWERED IT ON
+> 09-04 AND THREE PLACES STILL SAID HE HADN'T** — the item's own section heading,
+> a bullet in its build list, and the index line. Jake: *"I thought I addressed
+> all of those before."* He had. ⭐ **ONLY ITEM 60 IS GENUINELY OPEN** (allowlist
+> vs blocklist), and there his recorded words are *"I dunno. I'm obviously still
+> trying to think it through"* — a deliberate deferral, not an unasked question.
 > **Item 53's search half is unbuilt. Item 42** (admin.js's own inline-style
 > extraction) is still the next candidate from the index, untouched here.
 >
@@ -136,9 +140,31 @@
 > `control-tier-test.mjs` guards. Making them `.tier-commit` changes how they
 > look, so it is **item 38's call and his.**
 >
+> ### 6. ✅ ROADMAP 30 — A SCREENSHOT CLOSED IN ONE MESSAGE WHAT READING HAD NOT
+>
+> ⚠️⚠️ **HALF THE ITEM WAS NEVER TRUE.** It said Adventure gives no colour
+> feedback on a wrong key. **It does** — Jake sent screenshots. **Nobody had run
+> the mode and looked.** Third stale premise in one day, after 42's count and
+> 58's ruling.
+>
+> ✅ **The real defect, `adventure.css` v1.0.4:** `#caps-warning` is a flow child
+> of `<body>`; `#adventure-canvas` is `position:fixed` at `z-index:5` over the
+> whole flow beneath it. The warning painted correctly **underneath**, while its
+> ~28px of flow height pushed the bars below it down — **what showed was the gap,
+> a white band on a page with no white in it.** Fixed out of flow at z-index 6.
+> ⚠️ **THE SLIVER IS NOT INDEPENDENTLY PROVEN.** It should go, because an element
+> out of flow leaves no gap when it hides — **if it survives, item 30 reopens.**
+>
+> ⭐ **THE CLASS, AND THE REASON FOR THE NEW HARNESS:** `adventure.css` skins by
+> overriding PAINT. Safe for everything inside `#game-container`, **wrong for
+> everything outside it**, because the fixed canvas re-parents the visual stack
+> without re-parenting the DOM. `tests/adventure-overlay-test.mjs` pins the
+> category, mutation-verified against the plausible bad fix — **a z-index with no
+> position does nothing on a static element and looks like a repair.**
+>
 > ### THE STATE OF PLAY
 >
-> * **76 harnesses pass, `audit:versions` 0 problems** — checked on arrival before
+> * **77 harnesses pass, `audit:versions` 0 problems** — checked on arrival before
 >   anything changed and again after, **now including `index.html` for the first
 >   time.** ⚠️ `test:rules` not run; nothing here touches `firestore.rules`, which
 >   is still at **v2.11.0** from Round 80.
@@ -156,8 +182,12 @@
 > * ⚠️ **The reads measurement has still never been taken.** It is the item that
 >   decides the county rollout, and it needs one ordinary school day on a shipped
 >   build.
-> * **Next, in order:** **53's search half**, then **58**, **60** and **42's
->   remaining question** — all three want Jake's ruling before any code.
+> * **Next, in order:** **58 step two** (unblocked — nothing waits on Jake),
+>   **53's search half**, then **60** and **42's remainder**, which do want him.
+> * ⚠️⚠️ **BEFORE BUILDING FOR ANY FLAG, MEASURE OR RE-READ IT.** Round 81 found
+>   THREE stale ones in a day: item 42's heading (off by 170), item 58's ruling
+>   (answered two days earlier), and E1's blind spot. **§ CONVENTIONS' rule is
+>   not decoration.**
 
 > ## ▶ Round 80 (Imperial) — the previous block, kept
 >
