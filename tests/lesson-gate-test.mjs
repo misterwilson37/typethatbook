@@ -269,5 +269,87 @@ console.log('\n─── G. ⚠️ THE TWIN — both pages count the same days �
        'why every rule above is testable without a browser.');
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n--- H. ⚠️⚠️ THE MISTAKE THRESHOLDS SCALE TO THE DRILL ALPHABET ---');
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-08-29: kids finish two-key lessons with an F by mashing.
+// His ruling, 2026-09-06: *"Reduce the threshold for error stopping when it's
+// only 2 keys. It's not punishing, it's just asking kids to slow down."*
+//
+// ⚠️ THE GUARD WAS UNREACHABLE, NOT BROKEN — both thresholds count CONSECUTIVE
+// mistakes and reset on any correct key, so over two keys a masher needed a
+// coin-flip run of five (~1 in 30) to trip a limit written for prose.
+{
+    // ── H1. The case Jake actually reported.
+    ok(G.hardStopThresholdFor('ababab') === 2,
+       '⚠️⚠️ H1 A TWO-KEY DRILL STOPS AT 2 CONSECUTIVE MISSES. This is the whole ' +
+       'report: at 5 it was ~1 attempt in 30 and never fired.');
+
+    // ── H2. ⚠️ AND PROSE IS UNTOUCHED. The change may only ever TIGHTEN.
+    // If this ever fails, the fix made book-width typing harder than it shipped,
+    // which was never asked for and would land on every student at once.
+    ok(G.hardStopThresholdFor('the quick brown fox jumps over the lazy dog') === 5,
+       '⚠️⚠️ H2 A WIDE ALPHABET IS EXACTLY AS IT SHIPPED (5). The scaling is a ' +
+       'floor-and-cap, not a rescale — nothing with a full alphabet may change.');
+    ok(G.spamThresholdFor('the quick brown fox jumps over the lazy dog') === 10,
+       'H2b the restart ceiling is likewise unchanged at 10');
+
+    // ── H3. Monotonic across the range, and capped.
+    const seqs = { 'ab': 2, 'abc': 3, 'abcd': 4, 'abcde': 5, 'abcdef': 5, 'abcdefgh': 5 };
+    for (const [seq, want] of Object.entries(seqs)) {
+        ok(G.hardStopThresholdFor(seq) === want,
+           `H3 "${seq}" (${seq.length} keys) stops at ${want}, got ${G.hardStopThresholdFor(seq)}`);
+    }
+
+    // ── H4. ⚠️ THE FLOOR IS 2, AND IT IS THE LINE BETWEEN "SLOW DOWN" AND
+    // "PUNISHED FOR A TYPO". A threshold of 1 hard-stops on the first wrong key.
+    ok(G.hardStopThresholdFor('aaaa') >= 2,
+       '⚠️⚠️ H4 A ONE-KEY DRILL STILL ALLOWS A SINGLE SLIP. Stopping at 1 would ' +
+       'fire on a typo, which is not what Jake ruled and is not what the overlay ' +
+       'is for.');
+
+    // ── H5. Case-folding: Shift is not the thing a masher is failing to find.
+    ok(G.hardStopThresholdFor('aAaA') === 2,
+       'H5 `a`/`A` is a two-key drill — case must fold, or a shift-drill reads as ' +
+       'four keys and keeps the old unreachable threshold');
+
+    // ── H6. ⚠️ THE RESTART MUST STAY STRICTLY ABOVE THE OVERLAY.
+    // The overlay is the TEACHING half — it shows the key they missed. If the
+    // restart fires first the child is bounced without ever being shown it.
+    for (const seq of ['ab', 'abc', 'abcd', 'abcde', 'the quick brown fox']) {
+        ok(G.spamThresholdFor(seq) > G.hardStopThresholdFor(seq),
+           `⚠️⚠️ H6 "${seq}": the restart (${G.spamThresholdFor(seq)}) must stay ABOVE ` +
+           `the overlay (${G.hardStopThresholdFor(seq)}), or the child is restarted ` +
+           `without ever seeing the key they were missing`);
+    }
+
+    // ── H7. Degenerate input falls back to the shipped ceiling, never to 0.
+    // A 0 threshold would hard-stop before the first keystroke.
+    for (const bad of ['', null, undefined]) {
+        ok(G.hardStopThresholdFor(bad) === 5,
+           `H7 a missing sequence (${JSON.stringify(bad)}) falls back to the shipped 5, ` +
+           `never to 0 — a 0 would stop the drill before it began`);
+    }
+
+    // ── H8. ⚠️ THE WIRING, NOT JUST THE RULE. lesson-gate.js is pure and
+    // provable; none of that reaches a student unless learn.js actually calls it.
+    // ⚠️⚠️ THIS IS THE ASSERTION THAT WOULD HAVE CAUGHT ROUND 81's OTHER TWO
+    // FINDINGS: a correct pure function that nothing calls, and a guard whose
+    // constant was still hard-coded at the call site, both look green from here.
+    const learn = fs.readFileSync(new URL('../learn.js', import.meta.url), 'utf8');
+    ok(/hardStopThresholdFor\s*\(\s*drillSequence\s*\)/.test(learn),
+       '⚠️⚠️ H8 learn.js COMPUTES the hard stop from the live drill. If this fails, ' +
+       'the rule above is correct and unreachable, which is the exact shape of the ' +
+       'defect it was written to fix.');
+    ok(/spamThresholdFor\s*\(\s*drillSequence\s*\)/.test(learn),
+       'H8b learn.js computes the restart threshold from the live drill too');
+    ok(!/drillConsecutiveMistakes\s*>=\s*DRILL_HARD_STOP_THRESHOLD/.test(learn),
+       '⚠️⚠️ H8c THE OLD CONSTANT IS NO LONGER COMPARED DIRECTLY. Leaving the ' +
+       'hard-coded 5 at the call site makes every check above decorative.');
+}
+
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

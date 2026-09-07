@@ -1,4 +1,29 @@
-// learn.js v2.46.0
+// learn.js v2.47.0
+//
+// v2.47.0 — ⚠️⚠️ ROADMAP 35: THE SPAM GUARD COULD NOT FIRE IN A TWO-KEY LESSON.
+//           Jake, 2026-08-29: *"kids spamming the keyboard in the early lessons.
+//           When it's just two keys, it's not hard to finish a lesson with an
+//           F."* His ruling, 2026-09-06: *"Reduce the threshold for error
+//           stopping when it's only 2 keys. It's not punishing, it's just asking
+//           kids to slow down."*
+//           ⚠️ THE GUARD WAS NEVER BROKEN, IT WAS UNREACHABLE. Both thresholds
+//           count CONSECUTIVE mistakes and reset on any correct key, so over two
+//           keys a masher needed a coin-flip run of five — about 1 attempt in 30.
+//           The numbers were written for prose. Now computed per drill by
+//           hardStopThresholdFor()/spamThresholdFor() (lesson-gate.js v1.2.0).
+//           ⚠️ ONLY EVER TIGHTENS — capped at the old 5/10, so book typing is
+//           byte-for-byte the behaviour it shipped with.
+//           ⚠️⚠️ WHAT THIS IS NOT: it does NOT make an F worth zero minutes, and
+//           nobody should claim it does. Time is banked one second at a time into
+//           the SINGLE increment site four counting bugs died to create; there is
+//           no subtract path and there must not be one. What it does is make the
+//           EXISTING hard stop reachable — and that stop already runs
+//           clearInterval(timerInterval), so the clock dies the moment it fires.
+//           A masher banks a few seconds instead of a run. Fewer, never zero.
+//           ⚠️ A STRUGGLING CHILD IN A SHORT LESSON MEETS THE OVERLAY SOONER TOO.
+//           Named to Jake before he ruled; he ruled anyway, on the grounds that
+//           the overlay shows the key rather than penalising. If the early
+//           lessons start feeling sticky, THIS is the first thing to look at.
 //
 // v2.46.0 — ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP: THE WEEK ANCHOR HAS ONE HOME.
 //           `(getDay() + 1) % 7` was written out SIX times across the repo. Two of
@@ -126,34 +151,6 @@
 //           watermark is NOT advanced, so they roll into the first record of the
 //           new day rather than vanishing.
 //
-// v2.39.0 — ⚠️⚠️ ROADMAP 23 — THE RUN LIST IS NOW PAIRED WITH THE LESSON, AND
-//           THE TWO WRITERS ASSERT IT. The Round 41 defect was possible because
-//           four writers read `currentLesson` and NONE checked that
-//           `currentRuns` still belonged to it — and the symptom was a GRADE on
-//           a child's record, not an error. `remediationRun` (v2.36.0) guards
-//           the one detour that breaks the pairing today; this guards the SHAPE,
-//           so the next feature that swaps the run list fails loudly.
-//           `currentRunsFor` is set at EVERY site that assigns `currentRuns`
-//           (startLesson, the remediation detour, and the exit reset), and
-//           recordRunOutcome() / saveProgress() refuse when it does not match.
-//
-//           ⚠️ THE ROADMAP PROPOSED COMPARING buildRunList() LENGTHS AND THAT
-//           WOULD HAVE BEEN WRONG TWICE: buildSequence() is RANDOM per call for
-//           key_random / key_pattern_auto, so recomputing invites a false
-//           positive — and a false positive here REFUSES A REAL RUN, which is
-//           silent data loss and strictly worse than the hazard. It also passes
-//           any swap that happens to produce the same run count, which the
-//           remediation drill on a 3-chunk lesson would. A pairing token answers
-//           the real question in O(1) with no recomputation.
-//
-//           ⚠️ IT CANNOT FIRE TODAY — finishStep() returns at the remediation
-//           branch before either writer. That is the point: it is a backstop for
-//           a hazard that has already cost one round, not a fix for a live bug.
-//           tests/exit-flush-test.mjs Section G drives it (7 assertions,
-//           mutation-verified: removing the guard fails G2/G3/G4/G7, and
-//           accepting a falsy token fails G6).
-//
-// ⚠️ v2.38.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 71).
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
 // rule in it is a function of numbers this file passes in, which is why the whole
@@ -161,7 +158,8 @@ import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 import { activeDayPlan, activeDayCountOf, fireCountOf, isMastered,
          lessonModeFor, runModeFor, runScoreOf, runMastered, pointsForGrade,
          lastLockDayOf, furthestIndexOf, reachBackFor,
-         MASTERY_POINTS, MASTERY_FIRE_COUNT, REACH_BACK_DAYS } from "./lesson-gate.js";
+         MASTERY_POINTS, MASTERY_FIRE_COUNT, REACH_BACK_DAYS,
+         hardStopThresholdFor, spamThresholdFor } from "./lesson-gate.js";
 // ROADMAP item 15 — the grade rule. ⚠️ PURE MODULE, AND THE ONLY COPY: every
 // function below used to live in this file, and reports.html needed all of them
 // to reconstruct a grade. Two copies of calculateGrade() is the shape Rule 9
@@ -256,7 +254,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.46.0";
+const LEARN_VERSION = "2.47.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -608,8 +606,25 @@ let drillConsecutiveMistakes = 0;   // resets on any correct key
 let drillIsHardStop      = false;   // timer paused, waiting for correct key
 // DRILL_STOP_TIME_THRESHOLD (was 3) removed in v2.0.0 — it did not do what its name
 // or comment claimed. See the note in handleDrillKey's error branch.
-const DRILL_HARD_STOP_THRESHOLD = 5;  // consecutive errors before hard stop overlay (matches game.js)
-const DRILL_SPAM_THRESHOLD      = 10; // consecutive errors to restart step entirely
+// ⚠️⚠️ v2.47.0 — THESE ARE CEILINGS NOW, NOT THE THRESHOLDS. The live values are
+// computed per drill by hardStopThresholdFor()/spamThresholdFor() in
+// lesson-gate.js, which scale them to how many DISTINCT keys the drill asks for.
+// Read that block for why `threshold = key count` is the right rule and not a
+// magic number; the short version is that it keeps a masher's chance of tripping
+// the guard flat (~0.25–0.37) across every alphabet size instead of collapsing to
+// 1-in-30 in a two-key lesson.
+//
+// ⚠️ THE CONSTANTS ARE KEPT AND STILL NAMED, because they are the CAP: nothing
+// with a wide alphabet changes behaviour, so prose typing is exactly as it was.
+//
+// ⚠️⚠️ AND THE OLD COMMENT HERE WAS A LIE, WHICH IS ITS OWN SMALL FINDING. The
+// hard stop was annotated "(matches game.js)". game.js has SPAM_THRESHOLD = 3.
+// They have never matched, in any version. They are NOT twins and must not be
+// made into them: game.js types a book over the full alphabet, learn.js types a
+// two-key drill, and one number cannot be right for both — which is the entire
+// premise of scaling this one.
+const DRILL_HARD_STOP_THRESHOLD = 5;  // CEILING for prose-width drills (NOT game.js's 3)
+const DRILL_SPAM_THRESHOLD      = 10; // CEILING; the restart stays at twice the stop
 
 // ─── DOM ─────────────────────────────────────────────────────────────────────
 const mapView        = document.getElementById('map-view');
@@ -2941,7 +2956,12 @@ function handleDrillKey(e) {
         // protected never. The graded clock now pauses on idle (startGradedTimer)
         // and the hard stop below stops it outright, so nothing is left to do here.
 
-        if (!ggAllowMistakes && drillConsecutiveMistakes >= DRILL_SPAM_THRESHOLD) {
+        // ⚠️ v2.47.0 — computed from the drill in hand, capped at the constants
+        // above. `drillSequence` is the baked run, so this is the alphabet the
+        // student is actually being asked for, not the lesson's nominal one.
+        const stopAt = hardStopThresholdFor(drillSequence);
+        const spamAt = spamThresholdFor(drillSequence);
+        if (!ggAllowMistakes && drillConsecutiveMistakes >= spamAt) {
             const stepIdx = currentStepIdx;
             clearInterval(timerInterval);
             clearInterval(learnTickInterval);
@@ -2949,7 +2969,7 @@ function handleDrillKey(e) {
             setTimeout(() => beginStep(stepIdx), 400);
             return;
         }
-        if (!ggAllowMistakes && drillConsecutiveMistakes >= DRILL_HARD_STOP_THRESHOLD) {
+        if (!ggAllowMistakes && drillConsecutiveMistakes >= stopAt) {
             drillIsHardStop = true;
             clearInterval(timerInterval);
             _showHardStopOverlay(newExpected);

@@ -384,7 +384,6 @@ Everything else still open:
 - 7. THE 5-SECOND FLOOR
 - 9. REDUCE THE SURFACE  *(the day-rollover bullet CLOSED Round 57; the rest stands)*
 - 34. ⚠️ THE LESSON-LEVEL MASTERY LOCK ONLY CLOSES WHEN EVERY RUN IS MASTERED
-- 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
 - 42. ⚠️ NEARLY DONE — 13 ATTRIBUTES LEFT, NOT 183 (THIS HEADING WAS STALE FOR TWENTY ROUNDS) — AND THE THINGS THIS ITEM GOT WRONG  *(⚠️ Round 81 MEASURED it: 13 attributes, not 183 — the heading was stale for twenty rounds and Round 80 passed it forward. The remainder is runtime-conditional; what is left is a question for Jake, not a job)*
 - 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME  *(Jake ANSWERED it Round 57 — it is student-facing visibility, not a staff filter; read the item before starting)*
 - 53. ⚠️ HALF DONE — FEATURED SHIPPED (Round 80, Imperial), SEARCH STILL OPEN  *(newest-first, random-untyped fallback, per Jake's spec; search is unbuilt. ⚠️ Round 81 fixed the fallback's "untyped" half, which had never once run — read that block before touching renderFeatured())*
@@ -410,6 +409,7 @@ Everything else still open:
 - 65. ✅ FIXED (Round 80, Imperial) — WHO ADMINISTRATES WHAT BUILDING  *(rules already correct, zero rule changes — the bug was a missing 'super_admin' option in staff-admin.js's role dropdown, v2.4.0, plus a new demotion confirm() guard)*
 - 39. ✅ FIXED (Round 80, Imperial) — BOTH HALVES CLOSED: reports.html (Round 73), admin.js (this round)  *(30 alert() + 15 confirm() on admin.js, recounted fresh; one deliberate prompt() left native; new two-modal-trap regression test in tests/dialogs-admin-test.mjs)*
 - 12. ✅ FIXED (Round 80, Imperial) — THE LEAD AXIS, AND THE SPRINT CLOCK JAKE ASKED FOR  *(hud.js v2.2.0 — the layout question was already settled; the sprint clock is the feature that made it moot)*
+- 35. ✅ FIXED (Round 81, Fox) — THE MISTAKE THRESHOLDS SCALE TO THE DRILL'S ALPHABET  *(Jake ruled 2026-09-06. ⚠️ It does NOT make an F worth zero minutes — no subtract path exists and none should; it makes the EXISTING hard stop reachable, and that already kills the clock. ⚠️ A struggling child meets the overlay sooner too — the named cost)*
 - 30. ✅ FIXED (Round 81, Fox) — THE CAPS LOCK BAR RENDERED BEHIND THE CANVAS. ⚠️ THE "NO COLOUR FEEDBACK" HALF WAS NEVER TRUE  *(⚠️ Jake's screenshots closed the colour half by observation — it was never true. The bar rendered UNDER the fixed canvas; what showed was the gap its flow height opened. ⚠️ Confirm the sliver is gone or this reopens)*
 - 57. ✅ CLOSED (Round 81, Fox) — index.html IS IN ALL THREE REGISTRIES, AND TWO OF THIS ITEM'S OWN INSTRUCTIONS WERE WRONG  *(the gap cost exactly what it predicted: Round 80's Featured shelf shipped unstamped. ⚠️ BOTH of the item's build instructions were wrong — read it before trusting a closed item's method)*
 - 63. ✅ FIXED (Round 80, Imperial) — THE AI-PRACTICE DAILY LIMIT WAS KEYED ON A UTC DAY  *(`functions/index.js` v1.7.1 — NOT YET hand-mirrored to the console)*
@@ -4458,7 +4458,62 @@ at a real week, and set the threshold from the distribution. ⚠️⚠️ **§0.
 EXACTLY THIS MISTAKE ALREADY MADE ONCE** — a threshold picked with no data fired
 on every row. **Measure first, and pair this with item 5.**
 
-## 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
+## 35. ✅ FIXED (Round 81, Fox) — THE MISTAKE THRESHOLDS SCALE TO THE DRILL'S ALPHABET
+
+### ✅ JAKE'S RULING, 2026-09-06 — AND HE ASKED THE RIGHT QUESTION FIRST
+
+*"Reduce the threshold for error stopping when it's only 2 keys. It's not
+punishing, it's just asking kids to slow down."*
+
+⚠️⚠️ **BEFORE RULING HE ASKED WHETHER AN F COULD BE MADE TO COUNT FOR NO MINUTES,
+AND THE ANSWER IS NO.** Time is banked one second at a time into the **single**
+increment site in `startGradedTimer()` that four separate counting bugs died to
+create. Taking seconds back needs a subtract path, and there must not be one.
+⭐ **What made the fix possible is that the machinery already existed**: the
+hard-stop already runs `clearInterval(timerInterval)`, so the clock dies the
+moment it fires. **It just could never fire.** Making it reachable stops the
+minutes as a consequence, on the path that already works. A masher banks a few
+seconds instead of a run — **fewer minutes, never zero**, and nobody should
+claim otherwise.
+
+### ✅ WHAT SHIPPED — `lesson-gate.js` v1.2.0, `learn.js` v2.47.0
+
+`hardStopThresholdFor()` / `spamThresholdFor()` compute from the live drill's
+distinct key count, case-folded.
+
+⭐⭐ **`threshold = key count` IS PRINCIPLED, NOT A MAGIC 2.** A masher over an
+`n`-key alphabet misses with probability `(n-1)/n`, so tripping a threshold of
+`k` has probability `((n-1)/n)^k`. Setting `k = n` makes that **flat across the
+whole range** — 0.25 at n=2, 0.30 at n=3, 0.32 at n=4, converging on 1/e ≈ 0.37.
+A masher is caught about as readily in a two-key drill as in prose, which is the
+actual goal. **That is why the cap at 5 is a real ceiling rather than a guess.**
+
+⚠️ **IT ONLY EVER TIGHTENS.** Capped at the shipped 5/10, so a wide alphabet is
+byte-for-byte what it was. A regression can only appear in short lessons.
+⚠️ **The floor is 2, not 1** — stopping at 1 fires on a typo, which is the line
+between "slow down" and "punished for a slip".
+
+✅ **`lesson-gate-test.mjs` section H**, mutation-verified three ways: reverting
+the call site to the hard-coded constant, dropping the floor, and rescaling
+instead of capping are each caught by the check that claims to guard them.
+⚠️ **H8 asserts the WIRING** — a correct pure function nothing calls looks green
+from a pure-function test, which is exactly the shape of two other Round 81
+findings.
+
+### ⚠️ THE COST, NAMED TO JAKE BEFORE HE RULED
+
+**A struggling child in a short lesson meets the overlay sooner too.** He ruled
+anyway, on the grounds that the overlay shows the key rather than penalising.
+⚠️ **If the early lessons start feeling sticky, this is the first thing to look
+at** — and the fix is the floor or the cap, not a return to a fixed number.
+
+⭐ **AND THE TWIN COMMENT WAS A LIE, NOW CORRECTED.** `DRILL_HARD_STOP_THRESHOLD`
+was annotated *"(matches game.js)"*; `game.js` has `SPAM_THRESHOLD = 3`. They
+have never matched in any version. **They are not twins and must not be made
+into them** — that one number cannot be right for both is the whole premise here.
+
+### The original item, kept
+
 
 **Jake, 2026-08-29:** *"kids spamming the keyboard in the early lessons. When
 it's just two keys, it's not hard to finish a lesson with an F."*

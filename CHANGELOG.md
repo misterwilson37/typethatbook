@@ -6215,6 +6215,41 @@ what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
 
+### learn.js v2.39.0 — archived by Round 81 (Fox), 8-entry budget
+
+Pushed over by v2.47.0 (ROADMAP 35, the scaled mistake thresholds). Verbatim.
+
+```
+// v2.39.0 — ⚠️⚠️ ROADMAP 23 — THE RUN LIST IS NOW PAIRED WITH THE LESSON, AND
+//           THE TWO WRITERS ASSERT IT. The Round 41 defect was possible because
+//           four writers read `currentLesson` and NONE checked that
+//           `currentRuns` still belonged to it — and the symptom was a GRADE on
+//           a child's record, not an error. `remediationRun` (v2.36.0) guards
+//           the one detour that breaks the pairing today; this guards the SHAPE,
+//           so the next feature that swaps the run list fails loudly.
+//           `currentRunsFor` is set at EVERY site that assigns `currentRuns`
+//           (startLesson, the remediation detour, and the exit reset), and
+//           recordRunOutcome() / saveProgress() refuse when it does not match.
+//
+//           ⚠️ THE ROADMAP PROPOSED COMPARING buildRunList() LENGTHS AND THAT
+//           WOULD HAVE BEEN WRONG TWICE: buildSequence() is RANDOM per call for
+//           key_random / key_pattern_auto, so recomputing invites a false
+//           positive — and a false positive here REFUSES A REAL RUN, which is
+//           silent data loss and strictly worse than the hazard. It also passes
+//           any swap that happens to produce the same run count, which the
+//           remediation drill on a 3-chunk lesson would. A pairing token answers
+//           the real question in O(1) with no recomputation.
+//
+//           ⚠️ IT CANNOT FIRE TODAY — finishStep() returns at the remediation
+//           branch before either writer. That is the point: it is a backstop for
+//           a hazard that has already cost one round, not a fix for a live bug.
+//           tests/exit-flush-test.mjs Section G drives it (7 assertions,
+//           mutation-verified: removing the guard fails G2/G3/G4/G7, and
+//           accepting a falsy token fails G6).
+//
+// ⚠️ v2.38.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 71).
+```
+
 ### admin.js v3.47.0 — archived by Round 81 (Fox), 8-entry budget
 
 Pushed over by v3.54.1 (the two dead hovers). Verbatim, nothing deleted.

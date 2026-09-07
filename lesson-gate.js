@@ -1,4 +1,12 @@
-// lesson-gate.js v1.1.0 — ROADMAP items 10 and 14, the farming gate.
+// lesson-gate.js v1.2.0 — ROADMAP items 10, 14 and 35, the farming gate.
+//
+// ⚠️⚠️ v1.2.0 — ROADMAP 35, JAKE'S RULING 2026-09-06. The mistake thresholds
+//        SCALE to the drill's distinct-key count instead of being fixed at the
+//        prose values. A two-key drill now stops at 2 consecutive misses, not 5,
+//        where the guard was previously unreachable (~1 attempt in 30). ⚠️ It
+//        only ever TIGHTENS — capped at the shipped 5/10, so prose is untouched.
+//        See the block at the foot of this file for why `threshold = key count`
+//        is the principled rule rather than a magic 2.
 //
 // ⚠️⚠️ v1.1.0 — ROADMAP 14. MASTERY IS NOW CUMULATIVE POINTS PER **RUN**.
 //        A🔥 = 2, A = 1, B and below = 0, MASTERED AT 4. Jake's ruling, and it
@@ -59,7 +67,7 @@
 // lesson-gate-test.mjs rather than reachable only by driving a browser, and it
 // is the same discipline daylog.js and drill-filter.js are built on.
 
-export const LESSON_GATE_VERSION = '1.1.0';
+export const LESSON_GATE_VERSION = '1.2.0';
 
 // Three A🔥 closes a lesson. Jake's number.
 export const MASTERY_FIRE_COUNT = 3;
@@ -355,4 +363,89 @@ export function furthestIndexOf(lessons, progress) {
     let furthest = -1;
     lessons.forEach((l, i) => { if (progress?.[l.id]?.passed) furthest = i; });
     return furthest;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ THE MISTAKE THRESHOLDS SCALE TO THE DRILL'S ALPHABET (v1.2.0)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-08-29: *"kids spamming the keyboard in the early lessons. When it's
+// just two keys, it's not hard to finish a lesson with an F."*
+// Jake's ruling, 2026-09-06: *"Reduce the threshold for error stopping when it's
+// only 2 keys. It's not punishing, it's just asking kids to slow down."*
+//
+// ⚠️ THE GUARD WAS NEVER BROKEN. IT WAS UNREACHABLE. Both thresholds count
+// CONSECUTIVE mistakes and reset to zero on any correct key. Over a 2-key
+// alphabet a masher lands on the right key about half the time, so five wrong in
+// a row is a coin-flip run of five — about 1 attempt in 30 — and ten is 1 in
+// 1,000. The numbers were set for prose, where a masher misses nearly every key.
+//
+// ⭐⭐ WHY `threshold = distinct key count` AND NOT AN ARBITRARY SMALLER NUMBER.
+// A masher over an n-key alphabet misses with probability (n-1)/n, so the chance
+// of tripping a threshold of k is ((n-1)/n)^k. Setting k = n makes that
+// ((n-1)/n)^n, which is FLAT across the whole range and converges on 1/e:
+//
+//     n=2 → 0.250    n=3 → 0.296    n=4 → 0.316    n=5 → 0.328    n→∞ → 0.368
+//
+// So a masher is caught about as readily in a two-key drill as in prose, which
+// is the actual goal. ⚠️ This is why the rule is not "use 2 when n is 2": that
+// would be a magic number that happens to work for one case. The formula is the
+// reason, and it is what makes the cap at 5 a real ceiling rather than a guess.
+//
+// ⚠️⚠️ IT ONLY EVER TIGHTENS. Capped at the shipped 5 / 10, so no drill with a
+// wide alphabet changes behaviour at all — this cannot make prose typing harder
+// than it is today, and a regression here can only show up in short lessons.
+//
+// ⚠️ THE MINIMUM IS 2, NOT 1. A threshold of 1 would hard-stop on the very first
+// wrong key, which is a typo, not spam. That is the line between "slow down" and
+// "punished for a slip", and it is Jake's framing that puts it at 2.
+//
+// ⚠️ WHAT THIS DOES **NOT** DO, and it matters for what anyone claims about it:
+// it does not make an F worth zero minutes. Time is banked one second at a time
+// as the student types, into a SINGLE increment site that four separate counting
+// bugs died to create. There is no subtract path and there must not be one. What
+// this does is make the EXISTING hard stop reachable — and that stop already
+// runs `clearInterval(timerInterval)`, so the clock dies the moment it fires.
+// The masher banks a few seconds instead of a run. Fewer minutes, never zero.
+//
+// ⚠️ A STRUGGLING CHILD IN A SHORT LESSON MEETS THE OVERLAY SOONER TOO. That is
+// the real cost and it was named to Jake before he ruled. The overlay shows the
+// key they need, so it teaches rather than penalises — but if the early lessons
+// start feeling sticky, THIS is the change to look at first.
+
+export const DRILL_HARD_STOP_CEILING = 5;   // the shipped prose value; a ceiling now
+export const DRILL_SPAM_CEILING      = 10;  // ditto
+export const DRILL_HARD_STOP_FLOOR   = 2;   // a typo is not spam
+
+/**
+ * How many DISTINCT characters a drill actually asks for.
+ * ⚠️ Case-folded: a lesson teaching `a` and `A` is a two-key lesson to a masher,
+ * because Shift is not what they are failing to find. Whitespace counts as one
+ * key (the space bar) rather than being dropped — a space IS a key they can miss.
+ */
+export function drillKeyCount(sequence) {
+    if (!sequence || !sequence.length) return DRILL_HARD_STOP_CEILING;
+    const keys = new Set();
+    for (const ch of sequence) keys.add(String(ch).toLowerCase());
+    return keys.size;
+}
+
+/**
+ * Consecutive mistakes before the hard-stop overlay, scaled to the alphabet.
+ * ⚠️ Never exceeds the shipped ceiling: this tightens short drills and leaves
+ * everything else exactly as it was.
+ */
+export function hardStopThresholdFor(sequence) {
+    const n = drillKeyCount(sequence);
+    return Math.max(DRILL_HARD_STOP_FLOOR, Math.min(n, DRILL_HARD_STOP_CEILING));
+}
+
+/**
+ * Consecutive mistakes before the run restarts entirely.
+ * ⚠️ Held at twice the hard stop, which is the shipped 5:10 relationship. The
+ * restart must stay STRICTLY above the overlay or it fires first and the child
+ * never sees the key they were missing — the overlay is the teaching half.
+ */
+export function spamThresholdFor(sequence) {
+    return Math.min(hardStopThresholdFor(sequence) * 2, DRILL_SPAM_CEILING);
 }
