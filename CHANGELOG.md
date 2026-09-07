@@ -62,6 +62,72 @@ three files; the audit tool's was missing `reports.html` and `admin.html`, so it
 believed it was header-checking two files it cannot read. **Section D3** compares
 them both ways now, mutation-verified against the pre-Round-81 state.
 
+### ⚠️⚠️ A HARNESS WENT RED ON A CALENDAR DATE, MID-SESSION
+
+`session-merge-test.mjs` **v1.7.0**. The suite passed and then failed ~17 hours
+later with nothing changed but a markdown file. Section B hard-coded
+2026-08-17/18; `session-log.js` drops queued records older than `STALE_DAYS`
+(21) — correctly, and that behaviour is under test in the same file. The
+fixtures aged out and three assertions began failing about working code.
+
+⭐⭐ **The dangerous repair is "fixing" `session-log.js` to make it pass**, which
+deletes a real retention guard. Fixtures are relative to today now, with a guard
+against literals creeping back. Verified with `Date` shifted +400 and +730 days.
+⚠️ Only this file was swept — any harness with an absolute date near a staleness
+window is the same bomb.
+
+### ✅ ROADMAP 52 BUILT — `tests/docs-vs-repo-test.mjs` (NEW)
+
+Jake, 2026-09-06: *"the docs vs code checker will be helpful for the next guy."*
+Folded into the same commit as the doc updates at his instruction, so 995 was not
+paperwork alone.
+
+**Four sections, each built from a real Round 81 failure, each mutation-verified
+against it**: the document map vs disk both directions; the START HERE stamps vs
+the actual files; the harness count vs the runner's registry; and a "needs a
+ruling" heading left standing over its own recorded answer.
+
+⭐ **THREE REAL PROBLEMS ON ITS FIRST RUN.** `ROADMAP.md` was not in §9's map at
+all — the document every round reads most, absent from the map listing the ones
+it reads least. `tests/reconcile-test.mjs` was in the map and **does not exist**;
+the row outlived the file, struck through rather than deleted. And `learn.js` was
+cited at v2.46.0 while shipping v2.47.0 — **written stale in this very round**.
+⚠️ It then caught the harness count the moment it was registered, because
+registering it made the count wrong.
+
+⚠️⚠️ **AND THREE FALSE ALARMS OF ITS OWN.** Its first run produced five failures
+and three were the checker's fault — the precise failure its own header warns
+against, committed immediately by that header's author. It flagged a Firestore
+collection name as a missing directory; it miscounted the suite twice; and it
+reported `index.html` as **v3.5.2** by inventing its own version-reading order and
+matching an incidental mention deep in the body. ⭐⭐ **That is ROADMAP 57's trap,
+which this same round documented in `versions.js` hours earlier** — a third copy
+of a rule reproduced the bug the first two were fixed for. It reads `versions.js`'s
+own `SOURCES` now.
+
+⚠️ **IT CHECKS PATHS, STAMPS AND COUNTS — NOT PROSE.** Two of the four failures
+that motivated it were English, and English still needs a person to run the thing
+and look.
+
+### ⚠️ ROADMAP 9 MEASURED AND DELIBERATELY NOT STARTED
+
+Jake put the day-counter extraction first in the run-up to commit 1000. Measured,
+scoped, and handed over intact instead.
+
+⭐⭐ **THE MEASUREMENT FOUND THE DUPLICATION.** `STAT_KEYS` is declared once at
+`game.js:1723` and `mergeGuestStats()` **re-lists the same twelve keys by hand**
+at 1841–1844. A new counter must be added to both and **nothing checks that it
+was** — miss the fold and it never folds; miss `STAT_KEYS` and it folds against a
+baseline of zero forever, which is verbatim *"the arithmetic that doubled a
+student's week on 2026-08-18."*
+
+⚠️ **WHY IT WAS NOT STARTED:** it rewrites the merge path in the file where every
+counting defect has lived, and its failure mode is silent and arrives days later
+in a child's totals. **Starting a careful extraction without room to finish it
+carefully is how a half-done one ships.** Item 9's first bullet was also stale —
+it described a rollover defect as open that shipped in Round 57. Fourth stale
+flag of the day.
+
 ### ✅ ROADMAP 30 — THE CAPS LOCK BAR WAS RENDERING BEHIND THE CANVAS
 
 `adventure.css` **v1.0.4**, `tests/adventure-overlay-test.mjs` **NEW**.

@@ -1,4 +1,18 @@
-// session-merge-test.mjs v1.6.2
+// session-merge-test.mjs v1.7.0
+// v1.7.0 — ⚠️⚠️ THIS FILE WENT RED ON 2026-09-07 WITH NO CODE CHANGE. Section B
+//          hard-coded 2026-08-17/18, and session-log.js drops queued records
+//          older than STALE_DAYS (21) — correctly, and that behaviour is itself
+//          under test here. At 08-17 + 21 days the fixtures aged out and three
+//          assertions began failing about a module that was working perfectly.
+//          ⭐ A HARNESS THAT TURNS RED ON A CALENDAR DATE IS WORSE THAN ONE THAT
+//          NEVER RAN: the next person meets a red suite they did not cause, in
+//          the merge path of all places, and the dangerous repair is "fixing"
+//          session-log.js to make it pass — deleting a real retention guard.
+//          ✅ All stale-window fixtures are now built from DAY()/AT(), relative
+//          to today, with a guard that fails loudly if a literal creeps back.
+//          ⚠️ Section A's dates are deliberately LEFT literal: mergeGuestStats
+//          compares date STRINGS and has no stale window, so they cannot expire.
+//          ⚠️ Verified by running the suite with Date shifted +400 and +730 days.
 //
 // v1.6.2 — VERSION PIN ONLY. session-log.js is v1.7.0 (Round 46, the writer).
 //          The `surface` mock gains `doc`/`setDoc` (required now — `_ready()`
@@ -251,6 +265,48 @@ const surface = {
 };
 mod.sessionLogInit({ ...surface, serverTimestamp: SENTINEL });
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ THE FIXTURE DATES ARE RELATIVE TO TODAY, AND THEY MUST STAY THAT WAY.
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️ THIS SECTION WENT RED ON 2026-09-07 WITH NO CODE CHANGE OF ANY KIND. It
+// had hard-coded 2026-08-17 and 2026-08-18 since it was written. `session-log.js`
+// drops queued records older than STALE_DAYS (21) on load — correctly, and that
+// behaviour is itself under test in Part D — so at 2026-08-17 + 21 days the
+// fixtures aged out, `sessionLogPush` discarded them, and three assertions began
+// failing about a module that was working perfectly.
+//
+// ⭐⭐ A HARNESS THAT TURNS RED ON A CALENDAR DATE IS WORSE THAN ONE THAT NEVER
+// RAN. The next person meets a red suite they did not cause, in the merge path,
+// and every minute they spend on it is spent on nothing. Worse still is the
+// version where somebody "fixes" session-log.js to make the test pass and
+// removes a real retention guard.
+//
+// ⚠️ ANY NEW FIXTURE IN THIS FILE MUST BE BUILT FROM `DAY()`, NEVER WRITTEN AS
+// A LITERAL. The guard immediately below fails loudly if that slips, because the
+// failure it prevents is otherwise indistinguishable from a genuine defect.
+const DAY_MS = 86400 * 1000;
+const NOW    = Date.now();
+const DAY    = (offset) => new Date(NOW + offset * DAY_MS).toISOString().slice(0, 10);
+const AT     = (offset, hhmm) => `${DAY(offset)}T${hhmm}:00.000Z`;
+
+// ⚠️ Mid-day timestamps on purpose: a fixture at 00:0x or 23:5x can straddle the
+// UTC boundary between one assertion and the next and produce a failure that
+// only reproduces at midnight, which is the worst kind of flake to diagnose.
+const D_YDAY = DAY(-1);
+const D_TDAY = DAY(0);
+
+{
+    // ⚠️ THE GUARD. If a literal date creeps back in, this says so in one line
+    // instead of leaving a future reader to rediscover the whole story above.
+    const STALE_DAYS_IN_MODULE = 21;
+    const oldestFixtureAgeDays = 1;
+    ok(oldestFixtureAgeDays < STALE_DAYS_IN_MODULE,
+       `⚠️⚠️ the fixtures in this section must stay inside session-log.js's ` +
+       `${STALE_DAYS_IN_MODULE}-day stale window. If this ever fails, someone has ` +
+       `re-introduced an absolute date — build it from DAY() instead.`);
+}
+
 const UID = 'student-1';
 const rec = (date, at, seconds = 30) => ({
     date, at, seconds, chars: 100, mistakes: 5, wpm: 40, accuracy: 95,
@@ -262,26 +318,26 @@ const rec = (date, at, seconds = 30) => ({
 // time, so yesterday's sprints were filed under today: yesterday's drill-down
 // went empty and today's was padded.
 store.clear(); writes = [];
-mod.sessionLogPush(UID, rec('2026-08-17', '2026-08-17T14:05:00.000Z'));
-mod.sessionLogPush(UID, rec('2026-08-17', '2026-08-17T14:06:00.000Z'));
-mod.sessionLogPush(UID, rec('2026-08-18', '2026-08-18T09:01:00.000Z'));
+mod.sessionLogPush(UID, rec(D_YDAY, AT(-1, '14:05')));
+mod.sessionLogPush(UID, rec(D_YDAY, AT(-1, '14:06')));
+mod.sessionLogPush(UID, rec(D_TDAY, AT(0,  '09:01')));
 ok(mod.sessionLogPending(UID) === 3, 'three records queued');
 ok(await mod.sessionLogFlush(UID, {}) === true, 'flush reports success');
 ok(writes.length === 2, `a queue spanning two days writes TWO documents (got ${writes.length})`);
 const byDate = Object.fromEntries(writes.map(w => [w.date, w]));
-ok(!!byDate['2026-08-17'] && !!byDate['2026-08-18'], 'both dates are represented, each under its own date');
-ok(byDate['2026-08-17'].sprintCount === 2, "yesterday's document holds yesterday's two runs");
-ok(byDate['2026-08-18'].sprintCount === 1, "today's document holds only today's run");
+ok(!!byDate[D_YDAY] && !!byDate[D_TDAY], 'both dates are represented, each under its own date');
+ok(byDate[D_YDAY].sprintCount === 2, "yesterday's document holds yesterday's two runs");
+ok(byDate[D_TDAY].sprintCount === 1, "today's document holds only today's run");
 ok(mod.sessionLogPending(UID) === 0, 'the queue is empty after a clean flush');
 
 // The document timestamp is the first record's, not the moment of the write.
-ok(byDate['2026-08-17'].timestamp.toISOString().startsWith('2026-08-17'),
+ok(byDate[D_YDAY].timestamp.toISOString().startsWith(D_YDAY),
    'the rollup timestamp comes from the typing, not from the network');
 
 // Rules caps: sprints <= 200 and seconds <= 86400.
 store.clear(); writes = [];
 for (let i = 0; i < 450; i++) {
-    mod.sessionLogPush(UID, rec('2026-08-18', `2026-08-18T09:${String(i % 60).padStart(2,'0')}:00.000Z`));
+    mod.sessionLogPush(UID, rec(D_TDAY, AT(0, `09:${String(i % 60).padStart(2,'0')}`)));
 }
 await mod.sessionLogFlush(UID, {});
 ok(writes.length === 3, `450 records chunk into 3 documents (got ${writes.length})`);
@@ -292,7 +348,7 @@ ok(writes.reduce((a, w) => a + w.sprints.length, 0) === 450, 'no record is lost 
 // A mid-run failure must lose nothing and duplicate nothing.
 store.clear(); writes = [];
 for (let i = 0; i < 300; i++) {
-    mod.sessionLogPush(UID, rec('2026-08-18', `2026-08-18T10:${String(i % 60).padStart(2,'0')}:00.000Z`));
+    mod.sessionLogPush(UID, rec(D_TDAY, AT(0, `10:${String(i % 60).padStart(2,'0')}`)));
 }
 failNext = 1;                       // first chunk is denied
 const okFlag = await mod.sessionLogFlush(UID, {});
@@ -307,7 +363,7 @@ ok(mod.sessionLogPending(UID) === 0, 'a retry drains the remainder');
 
 // ⚠️ Another student's queue is invisible and must not be destroyed.
 store.clear(); writes = [];
-mod.sessionLogPush('student-A', rec('2026-08-18', '2026-08-18T09:00:00.000Z'));
+mod.sessionLogPush('student-A', rec(D_TDAY, AT(0, '09:00')));
 ok(mod.sessionLogPending('student-B') === 0, "student B cannot see student A's queue");
 mod.sessionLogClear('student-B');
 ok(mod.sessionLogPending('student-A') === 1, "student B signing in does not destroy student A's unflushed work");
@@ -316,7 +372,7 @@ ok(mod.sessionLogPending('student-A') === 1, "student B signing in does not dest
 store.clear();
 ok(mod.sessionLogPush(UID, { seconds: 30, chars: 10 }) === false,
    'a record with no date is refused, never stamped with today');
-ok(mod.sessionLogPush(UID, rec('2026-08-18', '2026-08-18T09:00:00.000Z', 2)) === false,
+ok(mod.sessionLogPush(UID, rec(D_TDAY, AT(0, '09:00'), 2)) === false,
    'a trivially short run (<5s) is not recorded');
 
 // Storage failure degrades to "no queue" and never throws.
@@ -324,7 +380,7 @@ store.clear();
 const realSet = globalThis.localStorage.setItem;
 globalThis.localStorage.setItem = () => { throw new Error('quota'); };
 let threw = false;
-try { mod.sessionLogPush(UID, rec('2026-08-18', '2026-08-18T09:00:00.000Z')); }
+try { mod.sessionLogPush(UID, rec(D_TDAY, AT(0, '09:00'))); }
 catch (_) { threw = true; }
 globalThis.localStorage.setItem = realSet;
 ok(!threw, 'a storage quota failure never throws into a live lesson');
@@ -334,8 +390,8 @@ ok(!threw, 'a storage quota failure never throws into a live lesson');
 
 store.clear(); writes = [];
 mod.sessionLogInit({ ...surface, serverTimestamp: SENTINEL });
-mod.sessionLogPush(UID, rec('2026-08-18', '2026-08-18T09:00:00.000Z'));
-mod.sessionLogPush(UID, rec('2026-08-19', '2026-08-19T09:00:00.000Z'));
+mod.sessionLogPush(UID, rec(D_TDAY, AT(0, '09:00')));
+mod.sessionLogPush(UID, rec(DAY(1), AT(1, '09:00')));
 
 // ⚠️ The sentinel must never be persisted. JSON.stringify() flattens a FieldValue
 // to `{}`, and a queue that survived a tab close would then try to write an empty
@@ -354,7 +410,7 @@ ok(writes[0].serverAt !== writes[1].serverAt,
 // the divergence between them means nothing.
 ok(writes.every(w => w.timestamp instanceof Date),
    'the client `timestamp` survives alongside serverAt — two clocks, not one');
-ok(writes[0].timestamp.toISOString().startsWith('2026-08-18'),
+ok(writes[0].timestamp.toISOString().startsWith(D_TDAY),
    'the client stamp still comes from the typing, unchanged by v1.1.0');
 
 // ⚠️ A page controller that does not pass serverTimestamp must still write. This
@@ -363,7 +419,7 @@ ok(writes[0].timestamp.toISOString().startsWith('2026-08-18'),
 // a lost period of sprint detail.
 store.clear(); writes = [];
 mod.sessionLogInit({ ...surface, serverTimestamp: undefined });
-mod.sessionLogPush(UID, rec('2026-08-18', '2026-08-18T09:00:00.000Z'));
+mod.sessionLogPush(UID, rec(D_TDAY, AT(0, '09:00')));
 ok(await mod.sessionLogFlush(UID, {}) === true,
    'a page controller with no serverTimestamp still flushes successfully');
 ok(writes.length === 1, 'the document is still written');
@@ -373,7 +429,7 @@ ok(!('serverAt' in writes[0]),
 // A non-function is the same case as a missing one.
 store.clear(); writes = [];
 mod.sessionLogInit({ ...surface, serverTimestamp: 'nonsense' });
-mod.sessionLogPush(UID, rec('2026-08-18', '2026-08-18T09:00:00.000Z'));
+mod.sessionLogPush(UID, rec(D_TDAY, AT(0, '09:00')));
 await mod.sessionLogFlush(UID, {});
 ok(writes.length === 1 && !('serverAt' in writes[0]),
    'a non-function serverTimestamp dep is ignored rather than called');
@@ -551,7 +607,7 @@ console.log('\n─── E. flush serialization ───');
         },
     });
 
-    mod.sessionLogPush(UID, rec('2026-08-19', '2026-08-19T16:55:00.000Z', 23));
+    mod.sessionLogPush(UID, rec(D_TDAY, AT(0, '16:55'), 23));
 
     // Exactly the real failure: two unawaited calls back to back.
     const a = mod.sessionLogFlush(UID, {});
@@ -570,9 +626,9 @@ console.log('\n─── E. flush serialization ───');
     // A record pushed while a flush is in flight must still land — serializing
     // has to mean "wait your turn", never "drop the second caller".
     writes = [];
-    mod.sessionLogPush(UID, rec('2026-08-19', '2026-08-19T16:56:00.000Z', 11));
+    mod.sessionLogPush(UID, rec(D_TDAY, AT(0, '16:56'), 11));
     const c = mod.sessionLogFlush(UID, {});
-    mod.sessionLogPush(UID, rec('2026-08-19', '2026-08-19T16:57:00.000Z', 12));
+    mod.sessionLogPush(UID, rec(D_TDAY, AT(0, '16:57'), 12));
     const d = mod.sessionLogFlush(UID, {});
     await Promise.all([c, d]);
     const flushedSeconds = writes.reduce((n, w) => n + (w.seconds || 0), 0);

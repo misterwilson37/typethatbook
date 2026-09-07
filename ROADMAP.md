@@ -392,7 +392,6 @@ Everything else still open:
 - 58. ⚠️ STEP ONE DONE (Round 71) — A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. ✅ **NOTHING WAITS ON JAKE** — the mixed-class question was answered 2026-09-04 and three places said otherwise until Round 81)*
 - 60. ⭐ STAFF SHOULD SEE EVERY BOOK AND CHOOSE WHAT THEIR OWN STUDENTS SEE  *(Jake, Round 76. NOT BUILT — needs a ruling on allowlist vs blocklist, and the shelf is the read-budget surface)*
 - 66. ⚠️ THE BOOKS CSV EXPORT NAMES ITS FILE FROM A UTC DAY — THE LAST OF THE ROUND 80 SWEEP  *(found Round 81 by sweeping the class, not by a report. ⚠️ Cosmetic — a filename, never a stored value. Read it before "fixing" any other toISOString() in the repo: the rest are timestamps and UTC is right for them)*
-- 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS  *(the instrument that would have caught Round 59's finding on the day)*
 
 ## ⏳ WATCHING — no action, just don't forget
 
@@ -409,6 +408,7 @@ Everything else still open:
 - 65. ✅ FIXED (Round 80, Imperial) — WHO ADMINISTRATES WHAT BUILDING  *(rules already correct, zero rule changes — the bug was a missing 'super_admin' option in staff-admin.js's role dropdown, v2.4.0, plus a new demotion confirm() guard)*
 - 39. ✅ FIXED (Round 80, Imperial) — BOTH HALVES CLOSED: reports.html (Round 73), admin.js (this round)  *(30 alert() + 15 confirm() on admin.js, recounted fresh; one deliberate prompt() left native; new two-modal-trap regression test in tests/dialogs-admin-test.mjs)*
 - 12. ✅ FIXED (Round 80, Imperial) — THE LEAD AXIS, AND THE SPRINT CLOCK JAKE ASKED FOR  *(hud.js v2.2.0 — the layout question was already settled; the sprint clock is the feature that made it moot)*
+- 52. ✅ BUILT (Round 81, Fox) — THE MECHANICAL HALF IS CHECKED NOW; THE PROSE HALF STILL NEEDS A PERSON  *(Jake asked for it. Found THREE real problems on its first run — and three false alarms of its own, one of which was the exact index.html trap this same round had documented hours earlier. ⚠️ Prose claims still need a person)*
 - 35. ✅ FIXED (Round 81, Fox) — THE MISTAKE THRESHOLDS SCALE TO THE DRILL'S ALPHABET  *(Jake ruled 2026-09-06. ⚠️ It does NOT make an F worth zero minutes — no subtract path exists and none should; it makes the EXISTING hard stop reachable, and that already kills the clock. ⚠️ A struggling child meets the overlay sooner too — the named cost)*
 - 30. ✅ FIXED (Round 81, Fox) — THE CAPS LOCK BAR RENDERED BEHIND THE CANVAS. ⚠️ THE "NO COLOUR FEEDBACK" HALF WAS NEVER TRUE  *(⚠️ Jake's screenshots closed the colour half by observation — it was never true. The bar rendered UNDER the fixed canvas; what showed was the gap its flow height opened. ⚠️ Confirm the sliver is gone or this reopens)*
 - 57. ✅ CLOSED (Round 81, Fox) — index.html IS IN ALL THREE REGISTRIES, AND TWO OF THIS ITEM'S OWN INSTRUCTIONS WERE WRONG  *(the gap cost exactly what it predicted: Round 80's Featured shelf shipped unstamped. ⚠️ BOTH of the item's build instructions were wrong — read it before trusting a closed item's method)*
@@ -2494,12 +2494,57 @@ structurally blocking before the target.
 
 No deadline.
 
-- ⚠️ **THE DAY ROLLOVER LIVES ONLY IN THE TICK.** It fires on a counted second,
-  so a tab that wakes on a new day and signs in, flushes or paints — without
-  typing — is working from stale day counters until the first keystroke. Round
-  26 closed the one path that wrote them to Firestore; it did not move the
-  rollover somewhere a page load can reach. **This is now a repair, not tidying,
-  and it is the same work as the bullet below.** `HANDOFF.md` §0.-12.E.
+- ~~**THE DAY ROLLOVER LIVES ONLY IN THE TICK.**~~ ✅ **CLOSED — `game.js`
+  v3.47.0 and `learn.js` v2.43.0**, both halves. ⚠️⚠️ **THIS BULLET STILL CARRIED
+  A ⚠️ AND ITS ORIGINAL TEXT UNTIL ROUND 81**, describing a repair that had
+  already shipped on both pages. The index line noted the closure; the body did
+  not, so anyone reading the item itself — which is what you do before building
+  — saw an open defect. **Fourth stale flag found in one day.**
+
+### ⚠️ ROUND 81 (Fox) — THE EXTRACTION IS MEASURED AND DELIBERATELY NOT STARTED
+
+Jake put this first in the run-up to commit 1000. **I measured it and stopped**,
+which is the recommendation, not a failure to deliver.
+
+**What is actually there.** The arithmetic core is small and genuinely
+extractable — `STAT_KEYS`, `captureStatsBaseline()`, `resetStatsBaseline()` and
+`mergeGuestStats()`, about 135 lines around `game.js:1717–1851`. The fold rule
+itself is four lines of pure arithmetic with two clamps.
+
+⭐⭐ **AND THE MEASUREMENT FOUND THE DUPLICATION THIS ITEM PREDICTED, IN THE
+WORST PLACE.** `STAT_KEYS` is declared once at 1723 — and then `mergeGuestStats()`
+**re-lists the same twelve keys by hand** at 1841–1844, split into its day-scoped
+nine and week-scoped three:
+
+```js
+for (const k of ['secondsToday','charsToday','mistakesToday',
+                 'secondsLibrary','charsLibrary','mistakesLibrary',
+                 'secondsSchool','charsSchool','mistakesSchool']) fold(k, dayMatches, liveDay);
+for (const k of ['secondsWeek','charsWeek','mistakesWeek'])       fold(k, weekMatches, liveWeek);
+```
+
+⚠️ **A NEW COUNTER MUST BE ADDED TO BOTH, AND NOTHING CHECKS THAT IT WAS.** A
+counter added to `STAT_KEYS` but not to the fold gets a baseline and never folds;
+a counter added to the fold but not to `STAT_KEYS` folds against **a baseline of
+zero forever** — and the comment at 1717 says exactly what that produces,
+because it already happened: *"That is the arithmetic that doubled a student's
+week on 2026-08-18."*
+
+⭐ **So the payoff is not tidiness. It is one source of truth for the key lists,
+plus the fold rule made directly testable** — the rule whose two clamps
+(`Math.max(0, live - base)` and the `liveValid` branch) are each a fix for a
+measured, named, real-student defect.
+
+⚠️⚠️ **WHY IT WAS NOT STARTED IN ROUND 81, AND THIS IS THE PART TO KEEP.** The
+work is a rewrite of the merge path in the file where, by this item's own words,
+*every counting defect has lived* — and its failure mode is silent and arrives
+days later in a child's totals, not as a red harness. **It needs a full session
+with room to write the harness first, mutate it, and re-derive the guest-merge
+cases from scratch.** Round 81 reached it with most of its context already spent
+on four other findings. **Starting a careful extraction with no room to finish it
+carefully is how a half-done one ships.** Measured, scoped, handed over intact.
+
+- ⚠️ **THE ORIGINAL BULLET, WHICH STANDS:**
 - **Extract the timer/stats/flush path out of `game.js`** as `daycounter.js` —
   pure functions, injected dependencies, directly testable, the same discipline
   as `daylog.js`. That path is where every counting defect has lived.
@@ -6241,7 +6286,66 @@ disagreeing with no note.
 
 ---
 
-## 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS
+## 52. ✅ BUILT (Round 81, Fox) — THE MECHANICAL HALF IS CHECKED NOW; THE PROSE HALF STILL NEEDS A PERSON
+
+### ✅ `tests/docs-vs-repo-test.mjs` (NEW) — Jake asked for it, 2026-09-06
+
+*"the docs vs code checker will be helpful for the next guy."*
+
+**Four sections, each built from a real Round 81 failure and mutation-verified
+against it:**
+
+* **A — the document map vs disk, both directions.** Every `.md` in the repo is
+  in §9's map, and every path in §9 exists.
+* **B — the START HERE stamps vs the actual files.** ⚠️ Only the FIRST block;
+  previous rounds' blocks legitimately cite the versions current when written,
+  and flagging those would be crying wolf about history.
+* **C — the harness count vs the runner's registry.** The number is quoted in
+  three documents and is the last thing anybody re-derives.
+* **D — a "needs a ruling" heading left standing over its own answer.** ⭐ This
+  is item 58's exact shape and the reason Jake had to say *"I thought I addressed
+  all of those before."*
+
+### ⭐ IT FOUND THREE REAL PROBLEMS ON ITS FIRST RUN
+
+1. **`ROADMAP.md` was not in §9's document map** — the file every round reads
+   most, absent from the map listing the ones it reads least.
+2. **`tests/reconcile-test.mjs` was in the map and does not exist.** The row
+   outlived the file. Struck through rather than deleted.
+3. **`learn.js` was cited at v2.46.0 in the handoff** while shipping v2.47.0 —
+   written stale in this very round, caught within minutes.
+
+### ⚠️⚠️ AND THREE FALSE ALARMS OF ITS OWN, WHICH IS THE PART TO READ
+
+Its first run produced five failures and **three were the checker's fault** —
+the precise failure its own header warns against, committed by the header's
+author, immediately.
+
+* It flagged a **Firestore collection name** (`typing_sessions/*`) as a missing
+  directory, because it scanned all of HANDOFF.md instead of §9's table.
+* It reported `index.html` as **v3.5.2**, by inventing its own version-reading
+  order and matching an incidental mention deep in the file's body. ⭐⭐ **THAT
+  IS THE EXACT TRAP ROADMAP 57 SET, WHICH THIS SAME ROUND HAD DOCUMENTED IN
+  `versions.js` HOURS EARLIER.** Writing a third copy of the rule reproduced the
+  bug the first two were fixed for. It reads `versions.js`'s own `SOURCES` now.
+* It miscounted the suite **twice** (69, then 70, against 77) by grepping a
+  registry split across arrays and mixing quote styles.
+
+⚠️ **A CHECKER THAT CRIES WOLF IS WORSE THAN NO CHECKER**, because the next
+round learns to skip it. That is why every section asserts an EXACT match rather
+than a range, and why anything ambiguous is a note rather than a failure.
+
+### ⚠️ WHAT IT CANNOT DO — DO NOT TRUST A GREEN RUN TOO FAR
+
+It checks claims that are a **path, a stamp, or a count**. It cannot tell whether
+an item's DESCRIPTION of a defect is still true. **Two of the four failures that
+motivated it were prose** — item 42's "183 attributes" and item 30's "no colour
+feedback" — and prose still needs a person to run the thing and look. ⭐ Item 42's
+becomes catchable the day a number like that is written as a stamp rather than as
+English.
+
+### The original item, kept
+
 
 Round 59's finding: `style.css` shipped at v3.9.0 while CHANGELOG.md,
 ROADMAP.md and the item itself all cited v3.10.0 as shipped. **Every check in

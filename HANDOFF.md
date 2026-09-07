@@ -162,16 +162,93 @@
 > category, mutation-verified against the plausible bad fix — **a z-index with no
 > position does nothing on a static element and looks like a repair.**
 >
+> ### 7. ⚠️⚠️ THE DAY-COUNTER EXTRACTION IS MEASURED AND DELIBERATELY NOT STARTED
+>
+> **Jake put it first in the run-up to commit 1000. Round 81 measured it and
+> stopped.** That was the recommendation, not a shortfall — read ROADMAP 9.
+>
+> ⭐⭐ **THE MEASUREMENT FOUND THE DUPLICATION, IN THE WORST PLACE.** `STAT_KEYS`
+> is declared once at `game.js:1723` — and `mergeGuestStats()` **re-lists the
+> same twelve keys by hand** at 1841–1844. A new counter must be added to both,
+> and **nothing checks that it was.** Miss the fold and it never folds; miss
+> `STAT_KEYS` and it folds against **a baseline of zero forever** — which is,
+> verbatim from the comment at 1717, *"the arithmetic that doubled a student's
+> week on 2026-08-18."*
+>
+> ⚠️⚠️ **WHY IT WAS NOT STARTED, AND THIS IS THE PART TO KEEP.** It rewrites the
+> merge path in the file where every counting defect has lived, and its failure
+> mode is **silent, and arrives days later in a child's totals** rather than as a
+> red harness. It needs a session with room to write the harness FIRST, mutate
+> it, and re-derive the guest-merge cases from scratch. **Starting a careful
+> extraction without room to finish it carefully is how a half-done one ships.**
+> ⭐ Take this one first, cold, with full context.
+>
+> ### 8. ✅ THE DOCS-VS-CODE CHECKER JAKE ASKED FOR — `tests/docs-vs-repo-test.mjs`
+>
+> *"the docs vs code checker will be helpful for the next guy."* Built into the
+> same commit as the doc updates at his instruction, so 995 was not paperwork
+> alone. ROADMAP 52 closed.
+>
+> **Four sections, each built from a real Round 81 failure**: the document map vs
+> disk both ways; the START HERE stamps vs the actual files; the harness count vs
+> the runner's registry; and a "needs a ruling" heading left standing over its own
+> answer. Each mutation-verified against the failure it was built for.
+>
+> ⭐ **IT FOUND THREE REAL PROBLEMS ON ITS FIRST RUN**: `ROADMAP.md` was not in
+> §9's map at all; `tests/reconcile-test.mjs` was in the map and does not exist;
+> and `learn.js` was cited at v2.46.0 while shipping v2.47.0 — written stale in
+> this very round. ⚠️ **And it caught the harness count the moment it was
+> registered**, because registering it made the count wrong and I had not updated it.
+>
+> ⚠️⚠️ **AND THREE FALSE ALARMS OF ITS OWN, WHICH IS THE PART TO READ.** Its first
+> run produced five failures and three were the checker's fault — the exact
+> failure its own header warns against. Worst: it reported `index.html` as
+> **v3.5.2** by inventing its own version-reading order and matching an incidental
+> mention in the body. ⭐⭐ **THAT IS ROADMAP 57's TRAP, WHICH THIS SAME ROUND HAD
+> DOCUMENTED IN `versions.js` HOURS EARLIER** — a third copy of a rule reproduced
+> the bug the first two were fixed for. It reads `versions.js`'s `SOURCES` now.
+> **A checker that cries wolf is worse than no checker**; that is why every section
+> asserts an exact match and anything ambiguous is a note.
+>
+> ⚠️ **IT CHECKS PATHS, STAMPS AND COUNTS — NOT PROSE.** Two of the four failures
+> that motivated it (item 42's stale count, item 30's false premise) were English,
+> and English still needs a person to run the thing and look.
+>
+> ### 9. ⚠️⚠️ A HARNESS WENT RED ON A CALENDAR DATE, MID-SESSION, WITH NO CODE CHANGE
+>
+> `session-merge-test.mjs` **v1.7.0**. The suite passed, then failed ~17 hours
+> later having touched nothing but CHANGELOG.md. **Section B hard-coded
+> 2026-08-17/18**, and `session-log.js` drops queued records older than
+> `STALE_DAYS` (21) — **correctly**, and that behaviour is itself under test in
+> the same file. At 08-17 + 21 days the fixtures aged out and three assertions
+> began failing about a module that was working perfectly.
+>
+> ⭐⭐ **A HARNESS THAT TURNS RED ON A DATE IS WORSE THAN ONE THAT NEVER RAN.**
+> The next person meets a red suite they did not cause, in the merge path of all
+> places — and **the dangerous repair is "fixing" `session-log.js` to make it
+> pass, which deletes a real retention guard.**
+>
+> ✅ All stale-window fixtures are built from `DAY()`/`AT()` now, relative to
+> today, **with a guard that fails loudly if a literal date creeps back in.**
+> ⚠️ Section A's dates are deliberately LEFT literal — `mergeGuestStats` compares
+> date STRINGS and has no stale window, so they cannot expire. ⚠️ Verified by
+> re-running with `Date` shifted **+400 and +730 days**.
+>
+> ⚠️ **THERE MAY BE MORE.** Only this file was swept. Any harness with an
+> absolute date near a retention or staleness window is the same bomb, and it
+> will go off on a day nobody is expecting it.
+>
 > ### THE STATE OF PLAY
 >
-> * **77 harnesses pass, `audit:versions` 0 problems** — checked on arrival before
+> * **78 harnesses pass, `audit:versions` 0 problems** — checked on arrival before
 >   anything changed and again after, **now including `index.html` for the first
 >   time.** ⚠️ `test:rules` not run; nothing here touches `firestore.rules`, which
 >   is still at **v2.11.0** from Round 80.
 > * **Expected stamps:** `index.html` **v3.19.0**, `versions.js` **v1.17.0**,
 >   `admin.html` **v1.22.1**, `admin.js` **v3.54.1**, `lessons-admin.js`
 >   **v1.21.0**, `reports.html` **v1.9.0**, `staff-admin.js` **v2.4.0**, `game.js`
->   **v3.49.0**, `learn.js` **v2.46.0**, `hud.js` **v2.2.0**.
+>   **v3.49.0**, `learn.js` **v2.47.0**, `lesson-gate.js` **v1.2.0**,
+>   `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**.
 > * ⚠️ **`style.css` v3.10.0 is STILL correctly unshipped** — Jake rejected it
 >   rendered. Do not ship it.
 > * ⚠️ **`functions/index.js` v1.7.1 is live** — Jake mirrored it into the Cloud
@@ -182,8 +259,18 @@
 > * ⚠️ **The reads measurement has still never been taken.** It is the item that
 >   decides the county rollout, and it needs one ordinary school day on a shipped
 >   build.
-> * **Next, in order:** **58 step two** (unblocked — nothing waits on Jake),
->   **53's search half**, then **60** and **42's remainder**, which do want him.
+> * **JAKE'S OWN QUEUE, 2026-09-06, to commit 1000:** day-counter extraction →
+>   docs-vs-code checker → library search + popular sort. ⚠️ **The F-blocker
+>   shipped early at his instruction (ROADMAP 35) and is DONE.**
+> * ⚠️⚠️ **HE HAS TABLED, EXPLICITLY:** the mastery-lock workaround (needs him to
+>   watch a child, *"that's not going to happen"*), and staff book allowlists
+>   (*"I don't even see the other guy, and he hasn't asked for it"*). **Do not
+>   re-raise either.**
+> * ⚠️⚠️ **STOP TALKING TO JAKE IN ITEM NUMBERS.** *"referring to something as 34
+>   and 58 and whatever is utter nonsense to me... the document is too large and
+>   unwieldy for me to even navigate."* The roadmap is a maintainer's file, not
+>   his. **Say what a thing IS, in English, every time.** He also asked whether a
+>   one-page plain-English status doc would help; **offered, not yet built.**
 > * ⚠️⚠️ **BEFORE BUILDING FOR ANY FLAG, MEASURE OR RE-READ IT.** Round 81 found
 >   THREE stale ones in a day: item 42's heading (off by 170), item 58's ruling
 >   (answered two days earlier), and E1's blind spot. **§ CONVENTIONS' rule is
@@ -8942,6 +9029,7 @@ a pointer to a file you should go and read.**
 |---|---|
 | `HANDOFF.md` | this file — the only handoff. **Root**, and it stays there |
 | `README.md` | what the project is; file map, data model. **Root** |
+| `ROADMAP.md` | **Root.** Every open item, the index at the top, and the § CONVENTIONS block. ⚠️⚠️ **MISSING FROM THIS TABLE UNTIL ROUND 81** — the document every round reads most, absent from the map that lists the ones it reads least. Found by `docs-vs-repo-test.mjs` on its first run, which is the entire argument for that harness. ⚠️ It is Claude's working file, NOT Jake's: *"the document is too large and unwieldy for me to even navigate"* — never answer him in item numbers |
 | `CHANGELOG.md` | **Root.** Kept, but its index is stale — §6.4. The file headers are the more reliable history. ⚠️ Round 17 left it untouched on purpose: a changelog is a record of what happened, and rewriting old entries to use new paths would falsify it |
 | `docs/README.md` | 🆕 index of the folder below — one line per document on when to read it |
 | `docs/DESIGN-TELEMETRY.md` | ⚠️ the forward plan. §2 verification-only, §7 build order, §8 things that must not happen |
@@ -8953,7 +9041,7 @@ a pointer to a file you should go and read.**
 | `docs/archive/MULTITENANCY.md` | ⚠️ **SUPERSEDED, and see the correction below.** Kept for two arguments that appear nowhere else; its warning header is what makes keeping it safe |
 | `docs/archive/HANDOFF-ARCHIVE.md` | ⚠️⚠️ **ROUNDS 15–20's NARRATIVES, SPLIT OUT BY ROUND 23 WHEN THIS FILE HIT 237 KB.** Read-only; nothing in it is a plan, a blocker or an instruction, and every claim that still governs the code was lifted into this file first. **If you ever need it to do your job, that is a bug in HANDOFF.md — fix it here, do not start citing that.** ⚠️ **Missing from this table until Round 81, which was worse than an ordinary omission**: the paragraph below says every `HANDOFF-roundN.md` is deleted and *gone means gone*, and a reader could easily take that as covering this file too |
 | `tests/README.md` | 🆕 the suite: what is registered, what is deliberately not, and the standing failure |
-| `tests/reconcile-test.mjs` | ⚠️ not a document, listed here because **its header is one** — it states what the reconciliation harness does *not* cover, which is the part that matters. Read it before trusting a green run |
+| ~~`tests/reconcile-test.mjs`~~ | ⚠️⚠️ **THIS FILE DOES NOT EXIST AND THIS ROW POINTED AT NOTHING.** It was listed for its header, which stated what the reconciliation harness did *not* cover. The file is gone — renamed or absorbed — and the row outlived it, sending anyone who took the map seriously looking for something that is not there. **Caught by `docs-vs-repo-test.mjs` on its first run.** Row kept, struck through, because a silently deleted row teaches nothing |
 | `tests/TESTING-ttb-test-epubs.md` | the synthetic EPUB test corpus |
 | `tools/README.md` | 🆕 `audit-versions.mjs` and the two EPUB builders, with their accepted problem count |
 | `library/gutCleaners/*` | the EPUB-normalisation project's own docs. Separate concern, leave alone |
