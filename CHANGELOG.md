@@ -62,6 +62,32 @@ three files; the audit tool's was missing `reports.html` and `admin.html`, so it
 believed it was header-checking two files it cannot read. **Section D3** compares
 them both ways now, mutation-verified against the pre-Round-81 state.
 
+### ⚠️⚠️ ITEM 42 MEASURED — THE HEADING WAS STALE BY 170 ATTRIBUTES
+
+`node tools/audit-inline-styles.mjs` says `admin.js` carries **13 attributes /
+57 declarations / 22 hex colours**. The item heading and index line both said
+**183 / 539 / 60**. Rounds 58–59 did the work and nobody updated the flag —
+**and Round 80 read it and passed it forward** as "the next candidate." A round
+that trusted it would have gone hunting 170 attributes that do not exist.
+
+✅ **The measurement found two real defects instead.** `#fr-commit-btn` and
+`#repair-titles-go` both carried a static inline `background`, so `button:hover`
+had never fired on either. ⭐ The second is the **twin of `#repair-titles-btn`**,
+which Round 56c fixed for this exact reason — same feature, one half done.
+
+⚠️⚠️ **`inline-styles-test.mjs` E1 WAS GREEN BECAUSE IT COULD NOT SEE THEM.** It
+required whitespace before `style`; both tags split across concatenated string
+literals, putting a `'` there instead. The match failed, the style read null,
+the button was skipped **as a pass**. E1 **v1.2.0** accepts `[\s'"+]`.
+**Mutation-verified: old regex + defect fully present = 35/35 green.**
+
+✅ Fixed, `admin.js` **v3.54.1** / `admin.html` **v1.22.1**. **No colour
+changed.** ⚠️ Neither button is ever disabled — hover half only.
+
+⚠️ **What is left of 42 is a question, not a job**: ~11 runtime-conditional
+attributes, plus whether those two commit-tier buttons should become
+`.tier-commit`, which changes how they look and is **item 38's call and Jake's**.
+
 ### ✅ SMALLER, AND BOTH ABOUT A RECORD THAT HAD STOPPED BEING TRUE
 
 - **`package.json` `engines.node` 22 → 24.** It had **never** matched the live
@@ -6166,6 +6192,57 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### admin.js v3.47.0 — archived by Round 81 (Fox), 8-entry budget
+
+Pushed over by v3.54.1 (the two dead hovers). Verbatim, nothing deleted.
+
+```
+// v3.47.0 — ⚠️ "WHY ISN'T MY NAME SHOWING IN UPLOADED BY?" — Jake, of a book he
+//           was staging for the first time. THE FIELD WAS RIGHT AND SAID NOTHING.
+//           `uploadedBy` is stamped on FIRST UPLOAD from the signed-in account and
+//           never by Save Metadata (v3.38.0), so a book with no document yet has
+//           no stamp — and a bare em dash reads as broken rather than as "not
+//           yet". paintUploadedByStamp() adds the fourth state: "— stamped when
+//           you upload".
+//           ⚠️⚠️ IT WRITES ONLY WHEN THE BOOK DOES NOT EXIST (`=== false`, never
+//           `!exists`). showUploadedBy() owns that element for every book that
+//           does, and a repaint must never stomp a real name with a placeholder.
+//           ⚠️ NO READ. It rides the predicate that was already there.
+//           ⚠️ THE FIELD IS STILL READ-ONLY. ROADMAP 55b is the dropdown, and it
+//           needs Jake's ruling on who may set it.
+//
+// ⚠️ v3.46.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (8-entry
+// budget, Round 80, Imperial). It was ROADMAP 56b and 56c: the Del/Edit
+// button hints and #repair-titles-btn's dead hover.
+// ⚠️ v3.45.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 79).
+// ⚠️ v3.44.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 75).
+// ⚠️ v3.43.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 70).
+// ⚠️ v3.42.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 69).
+// ⚠️ v3.41.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 68).
+// ⚠️ v3.40.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 66).
+// ⚠️ v3.39.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
+// ⚠️ v3.38.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
+// ⚠️ v3.37.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 63).
+// ⚠️ v3.35.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 62).
+//
+// ⚠️ v3.34.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 61) —
+//    the 8-entry budget, not a deletion. It is the dc:contributor / Global Grey
+//    preparer-credit round.
+//
+// ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
+//
+// ── Load-bearing. Do not "simplify" these ─────────────────────────────────
+//
+//   * loadBookList(selectFirst) defaults to FALSE and preserves the current
+//     selection. Passing true fires onchange, which hides the staging area
+//     and reassigns activeBookId — that is how Save Metadata used to throw
+//     away a book's staged chapters.
+//   * loadCustomWords() must not run at module-eval time; settings/{docId}
+//     is gated behind signedIn() and it would race auth.
+//   * Never use innerText on a DOMParser document. It needs layout and
+//     returns undefined in Firefox.
+```
 
 ### versions.js v1.9.0 — archived by Round 81 (Fox), 8-entry budget
 

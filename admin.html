@@ -1,9 +1,15 @@
 <!DOCTYPE html>
-<!-- admin.html v1.22.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.22.1 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.22.1 — ⚠️ `btn-bg-442200` declared, for #fr-commit-btn, whose background
+     had been INLINE in admin.js and therefore beating `button:hover` since it was
+     written. NO NEW COLOUR — #442200 was already on the page, just not in a place
+     the :not(:disabled) guard could reach. See admin.js v3.54.1 for the blind spot
+     in inline-styles-test.mjs E1 that hid it, and its twin #repair-titles-go.
 
      v1.22.0 — ⚠️⚠️ ROADMAP 39, admin.js's HALF: THE MARKUP THE DIALOG
      CONVERSION NEEDED. 5 new tokens (`--danger-fill`, `--danger-edge`,
@@ -966,6 +972,11 @@
            open and gets to decide what these MEAN. */
         button.btn-bg-333:not(:disabled)              { background: #333; }
         button.btn-bg-664400:not(:disabled)           { background: #664400; }
+        /* ⚠️ v1.22.1 — #fr-commit-btn's colour, which had been INLINE in admin.js
+           and therefore beating button:hover since it was written. Same value,
+           declared where the guard can reach it. NO NEW COLOUR: #442200 was
+           already on the page, it was just not in this block. */
+        button.btn-bg-442200:not(:disabled)           { background: #442200; }
         button.btn-bg-4b9cd3:not(:disabled)           { background: #4B9CD3; }
         button.btn-bg-ffaa00:not(:disabled)           { background: #ffaa00; }
         /* ⚠️ `btn-bg-3a2200` and `btn-bg-004466` were DELETED in v1.14.0, and the

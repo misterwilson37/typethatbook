@@ -1,5 +1,16 @@
-// inline-styles-test.mjs v1.1.0 — ⚠️⚠️ THE EXTRACTED STYLES STAY EXTRACTED, AND
+// inline-styles-test.mjs v1.2.0 — ⚠️⚠️ THE EXTRACTED STYLES STAY EXTRACTED, AND
 //                                    THE UTILITY BLOCK STAYS LAST.
+//
+// v1.2.0 — ⚠️⚠️ E1 COULD NOT SEE TWO OF THE BUTTONS IT EXISTS TO CATCH, AND WAS
+//          GREEN BECAUSE OF IT. Its extraction required WHITESPACE before
+//          `style`; admin.js splits long tags across concatenated string
+//          literals, so the character before `style` is the `'` opening the
+//          next literal. Two buttons lived in that gap — #fr-commit-btn and
+//          #repair-titles-go — both with a static inline background and so
+//          both with a dead button:hover, one of them the TWIN of a button
+//          Round 56c had already fixed for the same reason. Character class
+//          widened to [\s'"+]. ⚠️ Mutation-verified: restore the old regex
+//          with the defect fully present and this suite returns 35/35 green.
 //
 // v1.1.0 — SECTION E: THE EIGHTEEN BUTTON BACKGROUNDS admin.js WAS BUILDING
 //          INLINE (ROADMAP 42, the colour half). Every one of them had been
@@ -255,11 +266,33 @@ console.log('\n--- E. ⚠️⚠️ A BUTTON BACKGROUND IS NEVER INLINE, AND ITS 
 // E1 asserts the CLASS — no inline background on any button in admin.js — and
 // not the eighteen instances, because the nineteenth is the one that will be
 // written without thinking about any of this.
+//
+// ⚠️⚠️ v1.2.0 — AND IT COULD NOT SEE TWO OF THEM. The extraction was
+// `/\sstyle\s*=\s*"([^"]*)"/`, which requires WHITESPACE before `style`. In
+// admin.js the markup is built by concatenating string literals, so a long tag
+// routinely breaks like this:
+//
+//     '<button id="fr-commit-btn" class="secondary-btn" ' +
+//     'style="width:auto; ... background:#442200; ' +
+//
+// The character immediately before `style` is the `'` that OPENS the next
+// literal, not whitespace. `\sstyle` failed, `style` came back null, and the
+// button was skipped entirely — silently, as a pass.
+//
+// ⚠️ TWO BUTTONS LIVED IN THAT BLIND SPOT, both with a static inline
+// background and therefore both with a dead `button:hover`: `#fr-commit-btn`
+// and `#repair-titles-go`. ⭐ THE SECOND IS THE POINTED ONE — Round 56c fixed
+// the dead hover on `#repair-titles-btn`, the button that OPENS that feature,
+// and the confirm button two lines down kept its own because no checker could
+// reach it. A twin, one half fixed.
+//
+// The class is now `[\s'"+]` — whitespace, or any of the characters a
+// concatenation boundary can put there. ⚠️ Do NOT tighten this back to `\s`.
 {
     const offenders = [];
     for (const m of adminJs.matchAll(/<\s*button\b[^>]*>/g)) {
         const tag = m[0];
-        const style = /\sstyle\s*=\s*"([^"]*)"/.exec(tag);
+        const style = /[\s'"+]style\s*=\s*"([^"]*)"/.exec(tag);
         if (!style) continue;
         if (style[1].includes('${')) continue;         // runtime value; can never be a class
         if (/(^|;)\s*background\s*:/.test(style[1]))

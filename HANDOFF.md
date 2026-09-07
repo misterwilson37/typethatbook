@@ -108,6 +108,34 @@
 > in the repo is a `createdAt`/`assignedAt` timestamp where UTC is correct and
 > "fixing" it would be the defect. **The test is whether the value is a DAY KEY.**
 >
+> ### 5. ⚠️⚠️ ITEM 42's HEADING WAS STALE BY 170 ATTRIBUTES — MEASURE, DO NOT READ
+>
+> Round 80 named item 42 the next candidate and did not re-verify it. **It says
+> `admin.js` carries 183 attributes / 539 declarations / 60 hex colours.
+> `node tools/audit-inline-styles.mjs` says 13 / 57 / 22.** Rounds 58–59 did the
+> work and nobody moved the flag. ⭐ **§ CONVENTIONS' "VERIFY A FLAG BEFORE YOU
+> BUILD FOR IT" earned its place again** — this is item 17's shape, which cost
+> Round 35 a whole round.
+>
+> ✅ **The measurement found two real defects instead.** `#fr-commit-btn` and
+> `#repair-titles-go` carried static inline `background`, so `button:hover` had
+> never fired on either. ⭐ The second is the **TWIN of `#repair-titles-btn`**,
+> fixed by Round 56c for this identical reason — same feature, one half done.
+> ⚠️⚠️ **`inline-styles-test.mjs` E1 WAS GREEN BECAUSE IT COULD NOT SEE THEM**:
+> it required whitespace before `style`, and both tags split across concatenated
+> literals put a `'` there. Skipped silently, as a pass. **E1 v1.2.0 accepts
+> `[\s'"+]`; mutation-verified — old regex with the defect present is 35/35
+> green.** Fixed in `admin.js` **v3.54.1** / `admin.html` **v1.22.1**, **no
+> colour changed**, hover half only (neither button is ever disabled).
+>
+> ⚠️ **WHAT IS LEFT OF 42 IS A QUESTION FOR JAKE, NOT A JOB.** ~11 attributes,
+> nearly all runtime-conditional (`x ? 'a' : ''`) — the category Round 58
+> deliberately refused, because a class cannot express a value chosen at render
+> time. **The one thing worth asking him**: those two buttons are commit-tier
+> controls painted by hand, bypassing the `.tier-commit` system
+> `control-tier-test.mjs` guards. Making them `.tier-commit` changes how they
+> look, so it is **item 38's call and his.**
+>
 > ### THE STATE OF PLAY
 >
 > * **76 harnesses pass, `audit:versions` 0 problems** — checked on arrival before
@@ -115,7 +143,7 @@
 >   time.** ⚠️ `test:rules` not run; nothing here touches `firestore.rules`, which
 >   is still at **v2.11.0** from Round 80.
 > * **Expected stamps:** `index.html` **v3.19.0**, `versions.js` **v1.17.0**,
->   `admin.html` **v1.22.0**, `admin.js` **v3.54.0**, `lessons-admin.js`
+>   `admin.html` **v1.22.1**, `admin.js` **v3.54.1**, `lessons-admin.js`
 >   **v1.21.0**, `reports.html` **v1.9.0**, `staff-admin.js` **v2.4.0**, `game.js`
 >   **v3.49.0**, `learn.js` **v2.46.0**, `hud.js` **v2.2.0**.
 > * ⚠️ **`style.css` v3.10.0 is STILL correctly unshipped** — Jake rejected it
@@ -128,8 +156,8 @@
 > * ⚠️ **The reads measurement has still never been taken.** It is the item that
 >   decides the county rollout, and it needs one ordinary school day on a shipped
 >   build.
-> * **Next, in order:** **42** (admin.js's inline-style extraction), **53's search
->   half**, **58 step two** and **60** — both of which want Jake's ruling first.
+> * **Next, in order:** **53's search half**, then **58**, **60** and **42's
+>   remaining question** — all three want Jake's ruling before any code.
 
 > ## ▶ Round 80 (Imperial) — the previous block, kept
 >

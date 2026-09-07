@@ -1,4 +1,30 @@
-// admin.js v3.54.0
+// admin.js v3.54.1
+//
+// v3.54.1 — ⚠️⚠️ TWO BUTTONS HAD A DEAD `button:hover` AND NO CHECKER COULD SEE
+//           THEM. `#fr-commit-btn` ("Replace all N") and `#repair-titles-go`
+//           ("Remove all N") both carried a static inline `background`, which
+//           beats every selector, so `button:hover` had never fired on either
+//           for as long as they have existed.
+//           ⭐ THE SECOND IS A TWIN OF ONE JAKE ALREADY HAD FIXED: Round 56c
+//           gave `#repair-titles-btn` — the button that OPENS that feature — a
+//           real hover for this exact reason, and the confirm button two lines
+//           below it kept the defect.
+//           ⚠️⚠️ WHY ROUND 59's SWEEP OF THE EIGHTEEN INLINE BACKGROUNDS MISSED
+//           THEM, AND WHY inline-styles-test.mjs E1 WAS GREEN: E1 extracted the
+//           attribute with `/\sstyle\s*=\s*"..."/`, requiring WHITESPACE before
+//           `style`. Both of these tags are split across concatenated string
+//           literals, so the character before `style` is the `'` opening the
+//           next literal. The match failed, the style came back null, and the
+//           button was skipped — silently, as a pass. E1 v1.2.0 accepts
+//           `[\s'"+]` now and goes red on both; mutation-verified by reverting
+//           the regex, which returns the suite to 35/35 green with the defect
+//           fully present.
+//           ⚠️ NEITHER BUTTON IS EVER `.disabled`, so no `button:disabled` was
+//           being suppressed — this is the hover half only. Colours are
+//           UNCHANGED: `btn-bg-664400` already existed and is reused;
+//           `btn-bg-442200` is the same #442200 moved to where the guard can
+//           reach it. Borders stay inline — hover and disabled only ever set
+//           `background`, so a border suppresses nothing.
 //
 // v3.54.0 — ⚠️⚠️ ROADMAP 39, admin.js's HALF: NO BROWSER DIALOGS LEFT ON THIS
 //           PAGE EITHER. reports.html closed its own 22 sites in Round 73;
@@ -182,50 +208,6 @@
 //           upload only, Save Metadata still never writes it. This is a
 //           correction affordance, not the normal path.
 //
-// v3.47.0 — ⚠️ "WHY ISN'T MY NAME SHOWING IN UPLOADED BY?" — Jake, of a book he
-//           was staging for the first time. THE FIELD WAS RIGHT AND SAID NOTHING.
-//           `uploadedBy` is stamped on FIRST UPLOAD from the signed-in account and
-//           never by Save Metadata (v3.38.0), so a book with no document yet has
-//           no stamp — and a bare em dash reads as broken rather than as "not
-//           yet". paintUploadedByStamp() adds the fourth state: "— stamped when
-//           you upload".
-//           ⚠️⚠️ IT WRITES ONLY WHEN THE BOOK DOES NOT EXIST (`=== false`, never
-//           `!exists`). showUploadedBy() owns that element for every book that
-//           does, and a repaint must never stomp a real name with a placeholder.
-//           ⚠️ NO READ. It rides the predicate that was already there.
-//           ⚠️ THE FIELD IS STILL READ-ONLY. ROADMAP 55b is the dropdown, and it
-//           needs Jake's ruling on who may set it.
-//
-// ⚠️ v3.46.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (8-entry
-// budget, Round 80, Imperial). It was ROADMAP 56b and 56c: the Del/Edit
-// button hints and #repair-titles-btn's dead hover.
-// ⚠️ v3.45.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 79).
-// ⚠️ v3.44.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 75).
-// ⚠️ v3.43.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 70).
-// ⚠️ v3.42.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 69).
-// ⚠️ v3.41.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 68).
-// ⚠️ v3.40.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 66).
-// ⚠️ v3.39.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
-// ⚠️ v3.38.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
-// ⚠️ v3.37.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 63).
-// ⚠️ v3.35.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 62).
-//
-// ⚠️ v3.34.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 61) —
-//    the 8-entry budget, not a deletion. It is the dc:contributor / Global Grey
-//    preparer-credit round.
-//
-// ── Full history: CHANGELOG.md § admin.js ─────────────────────────────────
-//
-// ── Load-bearing. Do not "simplify" these ─────────────────────────────────
-//
-//   * loadBookList(selectFirst) defaults to FALSE and preserves the current
-//     selection. Passing true fires onchange, which hides the staging area
-//     and reassigns activeBookId — that is how Save Metadata used to throw
-//     away a book's staged chapters.
-//   * loadCustomWords() must not run at module-eval time; settings/{docId}
-//     is gated behind signedIn() and it would race auth.
-//   * Never use innerText on a DOMParser document. It needs layout and
-//     returns undefined in Firefox.
 import { db, auth, storage, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 import { initLessonsPanel, setStaffHooks } from "./lessons-admin.js";
 // ROADMAP 47 step one. Pure string mapping, no DOM and no SDK — see that file's
@@ -238,7 +220,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.54.0";
+const ADMIN_VERSION = "3.54.1";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -6416,8 +6398,13 @@ if (langScanBtn) {
             html += '<div class="u-margin-top-10px u-color-ffaa00">Staged only \u2014 ' +
                     'upload to save.</div>';
         } else {
-            html += '<div class="u-margin-top-10px"><button id="fr-commit-btn" class="secondary-btn" ' +
-                    'style="width:auto; padding:5px 14px; font-size:0.9em; background:#442200; ' +
+            // ⚠️ v3.54.1 — background moved to the GUARDED class. It was inline,
+            // which beats every selector, so this button's `button:hover` had
+            // never fired. Colour unchanged (#442200); only where it is
+            // declared changed. The border stays inline — it suppresses
+            // nothing, since hover and disabled both only set `background`.
+            html += '<div class="u-margin-top-10px"><button id="fr-commit-btn" class="secondary-btn btn-bg-442200 btn-tint" ' +
+                    'style="width:auto; padding:5px 14px; font-size:0.9em; ' +
                     'border-color:#885500;">Replace all ' + total + '</button></div>';
         }
         out.innerHTML = html;
@@ -6942,8 +6929,16 @@ async function runTitleRepair() {
                 '<div class="u-color-bbddbb">new first line: ' + escapeHtml(h.nextLine) +
                 '\u2026</div></div>').join('') +
             (hits.length > 40 ? '<div class="u-color-666">\u2026 first 40 shown.</div>' : '') +
-            '<div class="u-margin-top-10px"><button id="repair-titles-go" ' +
-            'style="background:#664400;border:1px solid #996600;color:#ffcc66;padding:8px 18px;' +
+            // ⚠️⚠️ v3.54.1 — THIS IS THE TWIN OF THE BUTTON ROUND 56c ALREADY
+            // FIXED. That round gave `#repair-titles-btn` — the control that
+            // OPENS this feature — a real hover, because an inline background
+            // had killed it. THIS is the confirm button two lines down, it had
+            // the identical defect, and no checker could see it: the tag is
+            // split across concatenated literals, which is the blind spot
+            // inline-styles-test.mjs E1 v1.2.0 closes. Reuses the EXISTING
+            // btn-bg-664400; no new colour, none changed.
+            '<div class="u-margin-top-10px"><button id="repair-titles-go" class="btn-bg-664400 btn-tint" ' +
+            'style="border:1px solid #996600;color:#ffcc66;padding:8px 18px;' +
             'cursor:pointer;border-radius:4px;width:auto;">Remove all ' + hits.length +
             '</button> <button id="repair-titles-cancel" class="secondary-btn u-width-auto u-padding-8px-18px" ' +
             '>Cancel</button></div>';

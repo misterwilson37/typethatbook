@@ -386,7 +386,7 @@ Everything else still open:
 - 30. ⚠️ ADVENTURE MODE GIVES NO COLOUR FEEDBACK ON A WRONG KEY — AND CAPS LOCK IS WHERE IT SHOWS
 - 34. ⚠️ THE LESSON-LEVEL MASTERY LOCK ONLY CLOSES WHEN EVERY RUN IS MASTERED
 - 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
-- 42. ⚠️ admin.js STILL CARRIES 183 (Round 56 CLOSED THE admin.html HALF) — AND THE THREE THINGS THIS ITEM GOT WRONG
+- 42. ⚠️ NEARLY DONE — 13 ATTRIBUTES LEFT, NOT 183 (THIS HEADING WAS STALE FOR TWENTY ROUNDS) — AND THE THINGS THIS ITEM GOT WRONG  *(⚠️ Round 81 MEASURED it: 13 attributes, not 183 — the heading was stale for twenty rounds and Round 80 passed it forward. The remainder is runtime-conditional; what is left is a question for Jake, not a job)*
 - 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME  *(Jake ANSWERED it Round 57 — it is student-facing visibility, not a staff filter; read the item before starting)*
 - 53. ⚠️ HALF DONE — FEATURED SHIPPED (Round 80, Imperial), SEARCH STILL OPEN  *(newest-first, random-untyped fallback, per Jake's spec; search is unbuilt. ⚠️ Round 81 fixed the fallback's "untyped" half, which had never once run — read that block before touching renderFeatured())*
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
@@ -5387,7 +5387,66 @@ already does.
 
 ---
 
-## 42. ⚠️ admin.js STILL CARRIES 183 (Round 56 CLOSED THE admin.html HALF) — AND THE THREE THINGS THIS ITEM GOT WRONG
+## 42. ⚠️ NEARLY DONE — 13 ATTRIBUTES LEFT, NOT 183 (THIS HEADING WAS STALE FOR TWENTY ROUNDS) — AND THE THINGS THIS ITEM GOT WRONG
+
+### ⚠️⚠️ ROUND 81 (Fox) — MEASURED BEFORE BUILDING, AND THE PREMISE WAS STALE
+
+**This heading said `admin.js` carries 183 attributes / 539 declarations / 60
+hex colours. `node tools/audit-inline-styles.mjs` says 13 / 57 / 22.** Rounds 58
+and 59 did the work — v3.58.0 and v3.61.0 record the exact figures this
+measurement reproduces — and **nobody updated the heading or the index line.**
+
+⚠️⚠️ **AND ROUND 80 READ THE STALE HEADING AND PASSED IT FORWARD**, naming 42
+"the next candidate from the index — not touched or re-verified this round." A
+round that took it at its word would have gone hunting 170 attributes that do
+not exist. ⭐ **This is the § CONVENTIONS rule VERIFY A FLAG BEFORE YOU BUILD FOR
+IT earning its place again**, and it is the same failure that cost Round 35 an
+entire round on item 17.
+
+### ✅ WHAT THE MEASUREMENT FOUND INSTEAD — TWO DEAD HOVERS AND THE BLIND SPOT
+
+Checking whether the 13 survivors are deliberately retained turned up two that
+are not. `#fr-commit-btn` and `#repair-titles-go` both carried a **static inline
+`background`**, which beats every selector, so `button:hover` had never fired on
+either.
+
+⭐ **`#repair-titles-go` IS THE TWIN OF A BUTTON JAKE ALREADY HAD FIXED.** Round
+56c gave `#repair-titles-btn` — the control that OPENS that feature — a real
+hover for this precise reason. The confirm button two lines below it kept the
+defect.
+
+⚠️⚠️ **WHY ROUND 59's SWEEP OF THE EIGHTEEN MISSED THEM, AND WHY `E1` WAS
+GREEN.** `inline-styles-test.mjs` E1 — whose own comment says it asserts the
+CLASS rather than the instances "because the nineteenth is the one that will be
+written without thinking about any of this" — extracted the attribute with
+`/\sstyle\s*=\s*"..."/`, requiring **whitespace** before `style`. Both tags are
+split across concatenated string literals, so the character before `style` is
+the `'` opening the next literal. The match failed, the style came back null,
+and the button was **skipped silently, as a pass**. ✅ E1 v1.2.0 accepts
+`[\s'"+]`. **Mutation-verified: with the old regex and the defect fully
+restored, the suite is 35/35 green.**
+
+✅ **FIXED**, `admin.js` **v3.54.1** / `admin.html` **v1.22.1**. ⚠️ **NO COLOUR
+CHANGED** — `btn-bg-664400` already existed and is reused; `btn-bg-442200` is
+the same value moved where the `:not(:disabled)` guard reaches it. ⚠️ Neither
+button is ever `.disabled`, so this is the **hover half only**; no
+`button:disabled` was being suppressed.
+
+### ⚠️ WHAT IS ACTUALLY LEFT, AND IT IS A QUESTION FOR JAKE, NOT A JOB
+
+**11 attributes / ~50 declarations**, and they are not obviously extractable:
+most are runtime-conditional (`chap.about ? '...' : ''`, `commit ? A : B`),
+which is the category Round 58 deliberately refused because a class cannot
+express a value chosen at render time.
+
+⚠️⚠️ **THE ONE THING WORTH ASKING**: the two buttons fixed above are
+**commit-tier controls painted by hand**, bypassing the `.tier-commit` system
+`control-tier-test.mjs` guards. Whether they should BE `.tier-commit` — which
+would change how they look — is **item 38's question and Jake's call**, not a
+refactor's. Recorded, not done.
+
+### The original item, kept
+
 
 ✅ **`admin.html` v1.3.0 — 834 of its 866 inline declarations moved off 276
 elements into a utility block; 32 remain, each for a reason pinned by
