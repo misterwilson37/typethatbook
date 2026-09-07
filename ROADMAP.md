@@ -1,5 +1,7 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.62.0, 2026-09-06 (Round 81, Fox).** ✅ **ITEM 57 CLOSED, AND THE GAP HAD ALREADY COST WHAT IT PREDICTED.** `index.html` is registered in all three mirrors (`versions.js` v1.17.0, `tools/audit-versions.mjs` v1.6.0, the harness) — and while closing it, **Round 80's entire Featured shelf turned out to have shipped into that file with `INDEX_VERSION` still reading 3.18.0 and no header entry**, invisible because no registry carried the page. ⚠️⚠️ **BOTH OF ITEM 57's OWN BUILD INSTRUCTIONS WERE WRONG AND ARE WRITTEN UP IN IT**: its suggested pattern matches an incidental line in the body and would have reported **v3.5.2** forever, and its "should NOT be exempt" would have produced a check that reads an empty block and passes forever (the `//` header is real but sits inside the `<script>`, and both scans stop at `<!DOCTYPE html>`). The coverage it wanted is **section A2**, which finds the block by the constant it sits above. ⭐ **AND A THIRD MIRROR NOBODY CHECKED**: `HEADER_EXEMPT` is copied into the same three files and the audit tool's copy was missing `reports.html` and `admin.html` — a false claim of coverage, same shape as Round 58's `rights-ladder.js` gap. **Section D3** compares them now, both ways. ⚠️⚠️ **ITEM 53's FALLBACK WAS BUILT CORRECTLY AND HAD NEVER ONCE RUN** — `_featuredRandomCache` was write-once and the first render of every page load precedes auth, so the "untyped" exclusion was computed against an empty `userProgress` and frozen. **Item 43's shape, one round later.** ⚠️ **The old harness was green against it BECAUSE of D4**, the assertion meant to guard it. Fixed with a stamped cache; `featured-shelf-test.mjs` v1.1.0 **runs** the function now instead of grepping it. ⭐ **New item 66** — the last `toISOString()` day-key in the repo, filed and deliberately not fixed. ✅ Also: `package.json` `engines.node` corrected 22 → **24** (it had never matched the live runtime, in either direction), and two documents registered in indexes that had silently omitted them.
+
 **v3.61.0, 2026-09-03 (Round 59, Jewett).** ⚠️⚠️ **ITEM 12 WAS MARKED ✅ CLOSED IN THREE DOCUMENTS AND ITS CODE WAS NEVER IN THE REPO.** `style.css` shipped at **v3.9.0** while CHANGELOG Round 48, ROADMAP §12 and the v3.36.0 entry all cited **v3.10.0**; `hud-lead-test.mjs` was v1.1.0 with no Section E. **Round 48's upload never landed, and both halves went missing together, which is why the suite stayed green.** ⚠️⚠️ **THE ASYMMETRY IS STRUCTURAL: the three documents re-ship EVERY round and code files ship changed-only**, so item 12's paperwork rode in on Round 49's docs while the code it described existed nowhere. **A missed upload deletes the work and keeps the receipt.** ⚠️⚠️ **AND THEN JAKE LOOKED AT THE RE-LANDED FIX RENDERED AND RULED AGAINST IT — SO IT IS NOT SHIPPING AND ITEM 12 IS REOPENED.** For a two-row stack v3.9.0 and v3.10.0 are **identical** (content height 32.5px IS the min-height, so `center` and `flex-start` coincide); the promoted one-row centre is the entire change, and that is the part he rejected. ⭐ **His rule: two rows align row-to-row, one row centres — which the page already does.** ✅ **And he answered the question that actually settles it: School's second centre row is ELAPSED TIME ON THE CURRENT RUN**, read over a shoulder as he walks the room. ⭐⭐ **THE INSTRUMENT THAT MADE ALL OF THIS VISIBLE WAS A RENDERED A/B, NOT A HARNESS** — §"if a round touches layout, look at it rendered" earned its place twice in one round. ✅ **ITEM 42's COLOUR HALF IS DONE, AND IT UNBLOCKS ITEM 38.** 232 declarations out of 150 template-string `style=` attributes; `admin.js` **163 → 13** attributes and **289 → 57** declarations; 31 new utilities, 30 reused, 0 collisions. ⚠️⚠️ **EIGHTEEN OF THEM WERE BUTTON BACKGROUNDS AND THAT PART IS NOT MECHANICAL** — each had been suppressing `button:hover` AND `button:disabled`, and the obvious extraction makes it worse (`u-background-333` is 0,1,0; `button:hover` is 0,1,1). They take btn-tint's guarded shape instead. ⚠️ **THE METRIC ITEM 38 STEERS BY WAS LYING**: `audit-inline-styles.mjs` counted uses in the markup alone, reporting 62 healthy classes as orphans — the same one-consumer bug Round 58 fixed in the harness and left in the tool that prints the number. ⭐ **New items 51–54**, three of them Jake's.
 
 **v3.59.0, 2026-09-02 (Round 58, Emerson, close).** ✅ **THE LATENT LEDGER BUG FOUND WHILE HUNTING ITEM 50 IS FIXED — `logdays.js` v1.5.0.** `noteDay()`'s `MAX_DAYS` trim dropped the oldest dates **without moving `since` forward**, so past 400 recorded days those dates became "known absent" and were skipped — **item 50's exact shape, arriving on its own.** ⚠️ `since` moves FORWARD there and that **obeys** the module's rule: the rule forbids turning a KNOWN day into a skip, and a forward move makes the era below it UNKNOWN, so it is read blind — costs reads, never minutes. `logdays-test.mjs` H7, mutation-verified against the shipped v1.4.0 behaviour. ⚠️⚠️ **ITEM 42's COLOUR HALF WAS NOT STARTED, DELIBERATELY** — 167 declarations across the runtime-assignment surface of the file that writes every book in the library is not work to begin at the end of a long session. It is the top open item and it wants a fresh round.
@@ -386,12 +388,12 @@ Everything else still open:
 - 35. ⚠️ THE SPAM GUARD CANNOT FIRE IN A TWO-KEY LESSON
 - 42. ⚠️ admin.js STILL CARRIES 183 (Round 56 CLOSED THE admin.html HALF) — AND THE THREE THINGS THIS ITEM GOT WRONG
 - 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME  *(Jake ANSWERED it Round 57 — it is student-facing visibility, not a staff filter; read the item before starting)*
-- 53. ⚠️ HALF DONE — FEATURED SHIPPED (Round 80, Imperial), SEARCH STILL OPEN  *(newest-first, random-untyped fallback, per Jake's spec; search is unbuilt)*
+- 53. ⚠️ HALF DONE — FEATURED SHIPPED (Round 80, Imperial), SEARCH STILL OPEN  *(newest-first, random-untyped fallback, per Jake's spec; search is unbuilt. ⚠️ Round 81 fixed the fallback's "untyped" half, which had never once run — read that block before touching renderFeatured())*
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
 - 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
 - 58. ⚠️ STEP ONE DONE (Round 71) — A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. One question needs his ruling: `reports.html`'s This Week button across mixed classes)*
 - 60. ⭐ STAFF SHOULD SEE EVERY BOOK AND CHOOSE WHAT THEIR OWN STUDENTS SEE  *(Jake, Round 76. NOT BUILT — needs a ruling on allowlist vs blocklist, and the shelf is the read-budget surface)*
-- 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED  *(found Round 60; touches three mirrored files — read the item)*
+- 66. ⚠️ THE BOOKS CSV EXPORT NAMES ITS FILE FROM A UTC DAY — THE LAST OF THE ROUND 80 SWEEP  *(found Round 81 by sweeping the class, not by a report. ⚠️ Cosmetic — a filename, never a stored value. Read it before "fixing" any other toISOString() in the repo: the rest are timestamps and UTC is right for them)*
 - 52. ⭐ NOTHING CHECKS THE DOCUMENTS AGAINST THE REPO, AND THAT IS HOW ITEM 12 HID FOR TEN ROUNDS  *(the instrument that would have caught Round 59's finding on the day)*
 
 ## ⏳ WATCHING — no action, just don't forget
@@ -409,6 +411,7 @@ Everything else still open:
 - 65. ✅ FIXED (Round 80, Imperial) — WHO ADMINISTRATES WHAT BUILDING  *(rules already correct, zero rule changes — the bug was a missing 'super_admin' option in staff-admin.js's role dropdown, v2.4.0, plus a new demotion confirm() guard)*
 - 39. ✅ FIXED (Round 80, Imperial) — BOTH HALVES CLOSED: reports.html (Round 73), admin.js (this round)  *(30 alert() + 15 confirm() on admin.js, recounted fresh; one deliberate prompt() left native; new two-modal-trap regression test in tests/dialogs-admin-test.mjs)*
 - 12. ✅ FIXED (Round 80, Imperial) — THE LEAD AXIS, AND THE SPRINT CLOCK JAKE ASKED FOR  *(hud.js v2.2.0 — the layout question was already settled; the sprint clock is the feature that made it moot)*
+- 57. ✅ CLOSED (Round 81, Fox) — index.html IS IN ALL THREE REGISTRIES, AND TWO OF THIS ITEM'S OWN INSTRUCTIONS WERE WRONG  *(the gap cost exactly what it predicted: Round 80's Featured shelf shipped unstamped. ⚠️ BOTH of the item's build instructions were wrong — read it before trusting a closed item's method)*
 - 63. ✅ FIXED (Round 80, Imperial) — THE AI-PRACTICE DAILY LIMIT WAS KEYED ON A UTC DAY  *(`functions/index.js` v1.7.1 — NOT YET hand-mirrored to the console)*
 - 61. ✅ THREE SPACING COMPLAINTS, ONE CAUSE, AND IT IS THE ONE ROUND 67 FOUND  *(CLOSED Round 77)*
 - 59. ✅ THE CLASS MANAGER NAMES ITS SCHOOL AND TEACHER, AND FILTERS ON BOTH  *(CLOSED Round 76)*
@@ -3997,7 +4000,24 @@ thinking got to, not a ruling.
   default (good for a growing library); an allowlist is what a teacher wanting a
   tight unit actually asks for. They behave oppositely as the library grows.
 
-## 57. ⚠️ index.html IS IN NO VERSION REGISTRY, AND ITS STAMP HAS ALREADY DRIFTED
+## 57. ✅ CLOSED (Round 81, Fox) — index.html IS IN ALL THREE REGISTRIES, AND TWO OF THIS ITEM'S OWN INSTRUCTIONS WERE WRONG
+
+### ✅ ROUND 81 (Fox) — CLOSED, AND THE ITEM WAS WRONG TWICE
+
+**Registered in all three mirrors** — `versions.js` v1.17.0, `tools/audit-versions.mjs` v1.6.0, `tests/version-stamp-test.mjs` §SOURCES. `index.html` v3.19.0 now appears in the build panel and in `npm run audit:versions`.
+
+⚠️⚠️ **THE COST OF THE GAP WAS PAID BEFORE IT WAS CLOSED, EXACTLY AS THIS ITEM PREDICTED.** Round 80 shipped the entire ROADMAP 53 Featured shelf into this file — `renderFeatured()`, `bookUploadedAtMs()`, `FEATURED_WINDOW_MS`, the `#featured-row` markup — with `INDEX_VERSION` still reading **3.18.0** and no header entry. A whole feature landed unstamped and no instrument in the repo could say so.
+
+⚠️⚠️ **INSTRUCTION ONE WAS WRONG: THE SUGGESTED PATTERN WOULD HAVE LIED.** This item proposed `/index\.html\s+v([0-9][^\s\->]*)/` "like the other four". **There is no such comment in this file** — but there IS an incidental one in the body, `// ⚠️ BUMPED TO v2 (index.html v3.5.2)`, in a sentence about a cache key. That pattern would have reported **v3.5.2** as the page's version, forever, in the one instrument you consult when you doubt what is running. Registered on the runtime constant instead, which HANDOFF §1 prefers anyway: the other four markup shells use a comment only because they hold no constant, and this page holds one that already drives its own `<title>` and footer.
+
+⚠️⚠️ **INSTRUCTION TWO WAS WRONG: "it should NOT be exempt" WOULD HAVE BOUGHT COVERAGE ON PAPER ONLY.** This file's `//` version block is real — that part was right — but it sits **inside the `<script>`, above `const INDEX_VERSION`**, not at the top of the file. Section A and section E both scan the LEADING lines and stop at the first line that is neither blank nor `//`, which here is line 1, `<!DOCTYPE html>`. Non-exempt would have meant reading an empty block, comparing nothing, and passing forever.
+
+✅ **THE COVERAGE THIS ITEM WANTED IS REAL AND IT IS SECTION A2** of `version-stamp-test.mjs`, which finds the block by the constant it sits above rather than by position. Mutation-verified. ⚠️ **A2's own comment states what it cannot catch**: it WOULD have caught this item's original finding (3.17.0 against a v3.16.0 entry); it would NOT have caught Round 80's unstamped feature, because that touched neither the constant nor the header, so the two agreed while both disagreed with the code. **No stamp check can catch that shape** — only `featured-shelf-test.mjs` Part E can.
+
+⭐ **AND IT SURFACED A THIRD MIRROR NOBODY WAS CHECKING.** `HEADER_EXEMPT` is copied into the same three files and **nothing had ever compared those copies**. The harness's carried `reports.html` and `admin.html`; the audit tool's did not — so that tool believed it was header-checking two files whose headers it cannot read, for the identical `<!DOCTYPE html>` reason. Not a wrong answer: **a false claim of coverage**, the same shape as the `rights-ladder.js` gap Round 58 closed one list over. Tool corrected, and **section D3** now compares the two lists both ways, mutation-verified against the pre-Round-81 state.
+
+### The original item, kept
+
 
 **Found Round 60 while wiring ROADMAP 50's third call site.** `INDEX_VERSION` read
 `3.17.0` and the newest entry in its own header block was **`v3.16.0`**. Some
@@ -4026,6 +4046,43 @@ real one, so it should NOT be exempt.
 harness, and it would have ridden into the same upload as a fix to the counting
 path Jake is watching. §0.-11.D. Round 60 bumped the stamp to **3.18.0** and
 wrote the gap into the header where the next reader will hit it.
+
+## 66. ⚠️ THE BOOKS CSV EXPORT NAMES ITS FILE FROM A UTC DAY — THE LAST OF THE ROUND 80 SWEEP
+
+**Found Round 81 (Fox) while sweeping for the bug class Round 80 fixed in
+`functions/index.js`.** `admin.js`'s book-export handler builds its download
+filename with:
+
+```js
+const stamp = new Date().toISOString().slice(0, 10);
+downloadCsv('typethatbook-books-' + stamp + '.csv', csv);
+```
+
+`toISOString()` is UTC. In CDT that rolls over at **7pm Central**, in CST at
+**6pm** — so an export run in the evening is named with tomorrow's date.
+
+⚠️⚠️ **FILED, NOT FIXED, AND THAT IS THE POINT OF THE ITEM.** The standing rule
+(Round 77) is fix where reported, not speculatively, and this is the weakest
+possible instance of the class: it touches **a filename**, not a stored value,
+not a grade, not a day key. Nothing reads it back. Jake exports from his desk
+during the school day, so it has almost certainly never once been wrong in
+practice.
+
+⭐ **IT IS RECORDED BECAUSE THE CLASS IS THE POINT, NOT THE INSTANCE.** This
+project has now found the same `toISOString()` day-key defect in
+`sessionLogAdopt()` (Round 24, real, cost minutes), `reports.html` (twice, with
+long comments left behind), and `generatePractice()` (Round 80, real, cost a
+student a second set of drills). ⚠️ **A grep for `toISOString()` is not a bug
+list** — every other hit in the repo is a `createdAt`/`updatedAt`/`assignedAt`
+timestamp, where UTC is exactly right and "fixing" it would be the defect. **The
+discriminator is whether the value is used as a DAY KEY.** By that test this
+line is the only remaining hit in the repo, and it is cosmetic.
+
+⚠️ **IF IT IS EVER DONE**: `daylog.js`'s `ymd()` is the local-date helper and is
+correct for a browser, where "local" is the machine's own clock — this is
+`admin.js`, which runs in Jake's browser, so `ymd()` is the right tool here and
+`todayInSchoolTZ()`'s fixed-IANA-zone approach is NOT (that one exists because a
+Cloud Functions container's local zone is UTC). One line, one patch bump.
 
 ## 30. ⚠️ ADVENTURE MODE GIVES NO COLOUR FEEDBACK ON A WRONG KEY — AND CAPS LOCK IS WHERE IT SHOWS
 
@@ -6059,6 +6116,53 @@ is what §0.-37 spent a whole round undoing.
 ---
 
 ## 53. ⚠️ HALF DONE — FEATURED SHIPPED (Round 80, Imperial), SEARCH STILL OPEN
+
+### ⚠️⚠️ ROUND 81 (Fox) — THE "UNTYPED" HALF HAD NEVER ONCE RUN. FIXED
+
+**`index.html` v3.19.0.** Round 80 built the exclusion correctly and it did
+nothing, on every ordinary page load, for every signed-in student.
+
+`_featuredRandomCache` was **write-once**, guarded by `if
+(!_featuredRandomCache)`. The first render of any page load happens **before
+auth resolves** — the INIT block's `loadBooks()` is fire-and-forget and its own
+comment says auth is unresolved at that point, and `_loadBooksOnce()` calls
+`renderBooks()` on **all three** of its paths (trusted cache, count-validated
+cache, full fetch). `renderBooks()` calls `renderFeatured()`. So the draw was
+made while `userProgress` was still `{}`, from a pool that excluded nothing, and
+then frozen for the rest of the page. **The row whose entire job was to offer
+books a student had not typed was offering them books they had.**
+
+⚠️⚠️ **SAME SHAPE AS ITEM 43, ONE ROUND LATER AND IN THE ADJACENT FILE**: an
+empty map captured during the pre-auth window and thereafter treated as a valid
+cached answer. That one locked a child out of the curriculum; this one only cost
+a recommendation — but the mechanism is identical and so is the reason it
+survived review.
+
+⚠️⚠️ **AND THE HARNESS WAS GREEN AGAINST IT, BECAUSE OF THE ASSERTION MEANT TO
+GUARD IT.** `featured-shelf-test.mjs` v1.0.0 lifted `untypedPool()` as a pure
+function and proved it excludes started books (C1–C3), then checked
+STRUCTURALLY that the shipped function contains `started.has(b.id)` (D3) and
+caches behind `if (!_featuredRandomCache)` (D4). All green. **None of them asked
+WHEN the cache is filled**, and D4 demanded precisely the write-once shape that
+froze the wrong answer.
+
+✅ **THE FIX: re-roll when the ANSWER changes, never when the VIEW does.**
+`_featuredRandomStamp` is a signature of the uid, `allBooks.length`, and the
+sorted started-ids. A sort or filter click leaves all three identical and reuses
+the picks; auth resolving, or a second child signing in on a shared machine,
+earns a fresh and correctly-filtered draw. ⚠️ **All three components are
+load-bearing** — a uid-only stamp still breaks, because `onAuthStateChanged`
+assigns `currentUser` on its first line and fills `userProgress` only after the
+await, so a render can land between them.
+
+✅ **`featured-shelf-test.mjs` v1.1.0 — Part E RUNS `renderFeatured()`** against
+a stub DOM with a seeded RNG rather than grepping it, and D4 is rewritten into
+the rule that replaced it, with its old regex quoted so the next reader sees
+why. Mutation-verified three ways; each mutation is caught by the check that
+claims to guard it. ⚠️ **E2's first draft was too weak to fail** — its untyped
+pool was exactly `FEATURED_MAX`, so a re-roll could only change the order, and
+the "never record the stamp" mutation left it green. **Caught by mutation-testing
+the fix, not by reading it.**
 
 ### ✅ ROUND 80 (Imperial) — FEATURED: NEWEST, THEN RANDOM UNTYPED
 

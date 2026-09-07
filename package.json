@@ -4,10 +4,30 @@
   "//engines": [
     "Node 18 was decommissioned for Cloud Functions deploys, so the previous pin",
     "would have failed at the worst possible moment: the first time anyone tried",
-    "to deploy, probably while debugging something else. 22 is the current LTS."
+    "to deploy, probably while debugging something else.",
+    "",
+    "\u26a0\u26a0 ROUND 81: THIS SAID 22 AND THE DEPLOYED FUNCTION IS ON 24. Round 80",
+    "fixed the UTC-day bug in functions/index.js, Jake redeployed it through the",
+    "Cloud Run console, and took the Node 20 deprecation prompt to Node 24 while he",
+    "was there. So this field has now disagreed with the live runtime TWICE over,",
+    "in both directions: it said 22 while the function ran on 20, and then kept",
+    "saying 22 after the function moved to 24. It was never once the truth.",
+    "",
+    "\u26a0 THE REASON IT DRIFTS IS THE REASON NOTHING CAUGHT IT: deploys here are",
+    "console clicks, not `firebase deploy`, so nothing ever READS this field. It is",
+    "documentation that looks like configuration, which is the worst kind \u2014 and",
+    "firebase.json has no `functions` block at all, so a CLI deploy could not run",
+    "from this repo today even if someone had one.",
+    "",
+    "\u26a0\u26a0 IT IS STILL WORTH KEEPING ACCURATE, AND HERE IS THE CONCRETE COST OF",
+    "NOT: the day anyone DOES wire up a CLI deploy, this field is what picks the",
+    "runtime, and a stale 22 would silently DOWNGRADE a function running on 24.",
+    "That failure arrives as a deploy that appears to succeed. functions/index.js's",
+    "own header says to treat that file as the record of what is running; this",
+    "field is part of the same record and is held to the same standard."
   ],
   "engines": {
-    "node": "22"
+    "node": "24"
   },
   "//main": [
     "The Cloud Function source moved to functions/index.js in the Round 17 tidy,",

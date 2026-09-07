@@ -602,6 +602,35 @@
         // it, because they used to be hardcoded separately and had already
         // drifted apart (title said 3.0.0, footer said 2.3.1).
         //
+        // v3.19.0: ⚠️⚠️ THIS ONE STAMP COVERS TWO ROUNDS, AND THAT IS THE POINT.
+        //         ROADMAP 53's Featured shelf — renderFeatured(),
+        //         bookUploadedAtMs(), FEATURED_WINDOW_MS, the #featured-row
+        //         markup — SHIPPED INTO THIS FILE WITH THE CONSTANT STILL
+        //         READING 3.18.0 AND NO ENTRY HERE. A whole feature landed
+        //         unstamped and nothing said so, because this is the one page
+        //         no registry watches (ROADMAP 57, closed in this round).
+        //         ⚠️ NOT WALKED BACKWARDS AND NOT SPLIT INTO TWO STAMPS:
+        //         corrections go forward and there is one bump per shipped
+        //         release, so 3.19.0 is the version at which BOTH the feature
+        //         and the fix below are true. §1 of HANDOFF.md.
+        //         ⚠️⚠️ AND THE FIX: THE FALLBACK'S "UNTYPED" HALF HAD NEVER
+        //         ONCE RUN. `_featuredRandomCache` was write-once, and the
+        //         first render of every page load happens before auth
+        //         resolves — INIT's `loadBooks()` is fire-and-forget and
+        //         `_loadBooksOnce()` calls renderBooks() on all three of its
+        //         paths — so the draw was made while `userProgress` was `{}`,
+        //         from a pool that excluded nothing, and then frozen. Every
+        //         signed-in student was being offered books they had already
+        //         typed, in the row whose entire job was not to.
+        //         ⚠️ SAME SHAPE AS ROADMAP 43 one round earlier: an empty map
+        //         captured in the pre-auth window and treated as a valid
+        //         cached answer. Fixed with `_featuredRandomStamp` — see its
+        //         note at the constant. ⚠️ THE OLD HARNESS WAS GREEN AGAINST
+        //         THIS and its D4 was the assertion holding it in place;
+        //         featured-shelf-test.mjs v1.1.0 adds a Part E that RUNS
+        //         renderFeatured() instead of grepping it, and rewrites D4
+        //         into the rule that replaced it.
+        //
         // v3.18.0: ⚠️⚠️ ROADMAP 50 — the mirror heal, the third of three student
         //         surfaces. reconcile() in resolveIndexGoals(), on the user
         //         document it already reads. ⚠️ BEHIND THE GOALS CACHE, so it
@@ -660,7 +689,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.18.0";
+        const INDEX_VERSION = "3.19.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -1437,13 +1466,40 @@
         // between the two special rows — not load-bearing, just matching.
         const FEATURED_WINDOW_MS = 14 * 24 * 3600 * 1000;
         const FEATURED_MAX = 3;
-        // ⚠️ THE RANDOM FALLBACK IS PICKED ONCE, NOT ON EVERY RENDER.
+        // ⚠️ THE RANDOM FALLBACK IS NOT RE-ROLLED ON EVERY RENDER.
         // renderBooks() runs from eight call sites — sort, filter, sign-in,
         // sign-out — and re-rolling the dice on each one would reshuffle a
         // student's Featured row every time they touched an unrelated
-        // control, which reads as broken, not as freshness. Cached per page
-        // load; a genuine reload is the only thing that re-rolls it.
+        // control, which reads as broken, not as freshness.
+        //
+        // ⚠️⚠️ BUT "ONCE PER PAGE LOAD" WAS THE WRONG RULE, AND IT SILENTLY
+        // DELETED THE "UNTYPED" HALF OF THIS FEATURE (v3.19.0). The cache
+        // used to be write-once, guarded by `if (!_featuredRandomCache)`.
+        // The first render of any page load happens BEFORE auth resolves —
+        // the INIT block's `loadBooks()` is fire-and-forget and
+        // `_loadBooksOnce()` calls `renderBooks()` on all three of its paths
+        // — so `userProgress` was still `{}`, the exclusion set was empty,
+        // and that unfiltered draw was then frozen for the rest of the page.
+        // Every signed-in student was shown "random, untyped" books picked
+        // from a pool that excluded nothing.
+        //
+        // ⚠️ SAME SHAPE AS ROADMAP 43: an empty map captured during the
+        // pre-auth window and thereafter treated as a valid cached answer.
+        //
+        // THE RULE NOW: re-roll when the ANSWER changes, never when the VIEW
+        // changes. `_featuredRandomStamp` is a signature of everything the
+        // draw depends on — who is asking, how many books exist, and which
+        // ones they have already opened. A sort or filter click leaves all
+        // three identical and reuses the cached picks; auth resolving, or a
+        // second child signing in on a shared machine, changes the signature
+        // and earns a fresh, correctly-filtered draw.
+        //
+        // ⚠️ THE ONE VISIBLE CONSEQUENCE, AND IT IS THE CORRECT ONE: the row
+        // may change once shortly after page load, when progress arrives.
+        // That is not a reshuffle on a click — it is the row replacing a
+        // guess it should never have shown with the answer.
         let _featuredRandomCache = null;
+        let _featuredRandomStamp = null;
 
         function renderContinue() {
             const row  = document.getElementById('continue-row');
@@ -1572,10 +1628,22 @@
                 picks = newest;
                 isNew = true;
             } else {
-                // ⚠️ PICKED ONCE PER PAGE LOAD, NOT ONCE PER RENDER — see
-                // _featuredRandomCache's own note above.
-                if (!_featuredRandomCache) {
-                    const started = new Set(Object.keys(userProgress || {}));
+                // ⚠️ RE-ROLLED WHEN THE ANSWER CHANGES, NEVER WHEN THE VIEW
+                // DOES — see _featuredRandomStamp's own note above.
+                const started = new Set(Object.keys(userProgress || {}));
+                // ⚠️ ALL THREE PARTS ARE LOAD-BEARING. The uid alone is not
+                // enough: `currentUser` is assigned at the top of the auth
+                // handler and `userProgress` only after the await inside
+                // loadUserProgress(), so a render landing between them would
+                // stamp a real uid onto an empty exclusion set and freeze it
+                // exactly as before. The started ids are what the pool is
+                // actually built from, so they are what the signature reads.
+                // allBooks.length catches the cold-fetch path replacing a
+                // cached shelf with a larger one.
+                const stamp = (currentUser ? currentUser.uid : '') + '|' +
+                              allBooks.length + '|' +
+                              Array.from(started).sort().join(',');
+                if (!_featuredRandomCache || _featuredRandomStamp !== stamp) {
                     const pool = allBooks.filter(b => !started.has(b.id));
                     // Fisher-Yates on a COPY — allBooks itself must stay in
                     // whatever order loadBooks()/sort left it in for every
@@ -1586,6 +1654,7 @@
                         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
                     }
                     _featuredRandomCache = shuffled.slice(0, FEATURED_MAX);
+                    _featuredRandomStamp = stamp;
                 }
                 picks = _featuredRandomCache;
                 isNew = false;

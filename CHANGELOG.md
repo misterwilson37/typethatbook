@@ -1,5 +1,100 @@
 # CHANGELOG — TypeThatBook
 
+## Round 81 (Fox) — 2026-09-06 — a feature that had never run, and the page no registry watched
+
+**Came in cold on Jake's instruction to read the handoff and the roadmap and
+watch for anything else.** Ran `npm test` and `npm run audit:versions` before
+reading a line of prose — 76/76, 0 problems, Round 80's claim exact.
+
+### ⚠️⚠️ ROADMAP 53's FALLBACK WAS BUILT CORRECTLY AND HAD NEVER ONCE RUN
+
+`index.html` **v3.19.0**. The Featured row's "random, **untyped**" fallback
+excluded nothing, on every ordinary page load, for every signed-in student.
+
+`_featuredRandomCache` was write-once. The first render of a page load precedes
+auth — INIT's `loadBooks()` is fire-and-forget and `_loadBooksOnce()` calls
+`renderBooks()` on all three of its paths — so the draw happened with
+`userProgress` still `{}` and was then frozen. ⚠️⚠️ **ITEM 43's SHAPE, ONE ROUND
+LATER AND IN THE ADJACENT FILE**: an empty map captured in the pre-auth window
+and treated as a valid cached answer.
+
+⚠️⚠️ **THE HARNESS WAS GREEN AGAINST IT BECAUSE OF THE ASSERTION MEANT TO GUARD
+IT.** D4 demanded `if (!_featuredRandomCache)` — precisely the write-once shape
+that froze the wrong answer. C1–C3 tested a lifted `untypedPool()` in isolation
+and D3 grepped for `started.has(b.id)`; **nothing asked when the cache is
+filled.**
+
+✅ Fixed with `_featuredRandomStamp` — uid, `allBooks.length`, sorted started-ids.
+Re-roll when the ANSWER changes, never when the VIEW does. **All three components
+load-bearing**: a uid-only stamp still breaks, because `onAuthStateChanged` sets
+`currentUser` on its first line and fills `userProgress` only after the await.
+
+✅ `featured-shelf-test.mjs` **v1.1.0** — Part E **runs** `renderFeatured()`
+against a stub DOM with a seeded RNG. Red against the shipped code (E1, E3)
+before the fix. Mutation-verified three ways, each caught by the check that
+claims to guard it. D4 rewritten into the rule that superseded it, old regex
+quoted. ⚠️ **E2's first draft was too weak to fail** — pool exactly
+`FEATURED_MAX`, so a re-roll changed only the order; caught by mutation-testing,
+not by reading.
+
+### ✅ ROADMAP 57 CLOSED — AND BOTH OF ITS BUILD INSTRUCTIONS WERE WRONG
+
+`versions.js` **v1.17.0**, `tools/audit-versions.mjs` **v1.6.0**,
+`tests/version-stamp-test.mjs` **§SOURCES**.
+
+⚠️⚠️ **THE GAP HAD ALREADY COST WHAT THE ITEM PREDICTED**: Round 80 shipped the
+whole Featured shelf into `index.html` with the constant still at 3.18.0 and no
+header entry. v3.19.0 covers both rounds — **one bump per shipped release, and
+corrections go forward**.
+
+- ⚠️ **Its suggested pattern would have lied.** No `index.html vX` comment
+  exists, but an incidental `(index.html v3.5.2)` does, in a sentence about a
+  cache key. Registered on the runtime constant instead.
+- ⚠️ **"Should NOT be exempt" would have bought coverage on paper only.** The
+  `//` block is real but sits inside the `<script>`; both scans stop at
+  `<!DOCTYPE html>`. ✅ **Section A2** finds it by the constant it sits above.
+  Mutation-verified. ⚠️ A2's comment states what it *cannot* catch — Round 80's
+  unstamped feature, where constant and header agreed and both disagreed with
+  the code.
+
+⭐ **A THIRD MIRROR NOBODY WAS CHECKING.** `HEADER_EXEMPT` is copied into the same
+three files; the audit tool's was missing `reports.html` and `admin.html`, so it
+believed it was header-checking two files it cannot read. **Section D3** compares
+them both ways now, mutation-verified against the pre-Round-81 state.
+
+### ✅ SMALLER, AND BOTH ABOUT A RECORD THAT HAD STOPPED BEING TRUE
+
+- **`package.json` `engines.node` 22 → 24.** It had **never** matched the live
+  runtime: it said 22 while the function ran on 20, then kept saying 22 after
+  Round 80's console redeploy took it to 24. Nothing reads it (deploys are
+  console clicks; `firebase.json` has no `functions` block) — but the day anyone
+  wires up a CLI deploy, this field picks the runtime and a stale 22 **silently
+  downgrades**, arriving as a deploy that appears to succeed.
+- **Two documents registered in indexes that omitted them.** `HANDOFF.md` §9
+  gained `docs/TEACHER-GUIDE.md`, `docs/archive/HANDOFF-ARCHIVE.md` and
+  `library/contentCleaner/*`; `docs/README.md` **v1.2.0** gained the archive.
+  ⚠️⚠️ **THE ARCHIVE OMISSION WAS THE ONE THAT MATTERED**: §9's own "GONE, AND
+  GONE MEANS GONE" paragraph reads as if every split-out handoff file was
+  deleted, so two indexes agreed by omission about a 2,177-line file that is
+  right there. **Round 80 fixed this exact shape one directory up and this
+  survived it.**
+
+⭐ **New item 66** — `admin.js`'s CSV export names its file from a UTC day.
+**Filed and deliberately NOT fixed**: it touches a filename, nothing reads it
+back, and the standing rule is fix where reported. Recorded because the *class*
+matters — and because a grep for `toISOString()` is not a bug list, since every
+other hit is a timestamp where UTC is correct.
+
+**76 harnesses pass; `audit:versions` 0 problems** — verified on arrival before
+anything changed and again after, now including `index.html` for the first time.
+`npm run test:rules` NOT run — nothing here touches `firestore.rules`.
+
+⚠️ **CHANGELOG.md has no Round 80 entry either** — this one follows 79 directly.
+That is now three gaps (56, 58, 80). Not reconstructed here, for the reason
+already recorded: writing someone else's round from their ROADMAP summaries
+produces a plausible document rather than a true one. ⚠️ It matters to item 52,
+whose auditor reads this file.
+
 ## Round 79 (Duplex) — 2026-09-05 — the double row collapses, and the cover column shares one left edge
 
 `admin.html` **v1.19.0**, `admin.js` **v3.53.0**.
@@ -6071,6 +6166,25 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### versions.js v1.9.0 — archived by Round 81 (Fox), 8-entry budget
+
+Pushed over by v1.17.0 (ROADMAP 57, registering `index.html`). Verbatim,
+nothing deleted. ⚠️ Its own pointer to v1.8.0's archived entry travels with
+it, so the chain back through Round 64 is unbroken.
+
+```
+// v1.9.0 — registers daylog.js, the FIFTH module game.js and learn.js both
+// import — and the one whose staleness is worst. A cached copy of it reads the
+// wrong seven documents, on both pages, and the symptom is a student seeing a
+// number that is merely WRONG rather than obviously broken. HANDOFF §0.0.
+//
+// ⚠️ v1.8.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
+// It is update-gate.js's registration, and its reason still applies: the gate
+// loads from its own script tag, so nothing else on the page would reveal that
+// it failed to load.
+//
+```
 
 ### admin.js v3.46.0 — archived by Round 80 (Imperial), 8-entry budget
 

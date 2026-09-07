@@ -1,5 +1,11 @@
-// audit-versions.mjs v1.5.0 — Round 15 (Sholes's successor), Round 17 (Linotype),
-// Round 27 (Chicago), Round 28 (Daugherty), Round 58 (Emerson).
+// audit-versions.mjs v1.6.0 — Round 15 (Sholes's successor), Round 17 (Linotype),
+// Round 27 (Chicago), Round 28 (Daugherty), Round 58 (Emerson), Round 81 (Fox).
+//
+// v1.6.0 — ⚠️⚠️ ROADMAP 57: index.html registered, and HEADER_EXEMPT CORRECTED
+//          against the harness's copy, which had been right while this one was
+//          wrong since Round 27. See the long note above the list. ⚠️ Nothing
+//          compared the two exemption lists — section D compares the SOURCES
+//          arrays and stops there. It compares both now.
 //
 // v1.5.0 — SOURCES mirrors versions.js v1.15.0: rights-ladder.js added. ⚠️ IT
 //          HAD BEEN MISSING SINCE ROUND 57 SHIPPED THAT MODULE, so this tool
@@ -99,8 +105,31 @@ const SOURCES = [
     { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
     { file: 'reports.html',          pattern: /reports\.html\s+v([0-9][^\s\->]*)/ },
     { file: 'admin.html',            pattern: /admin\.html\s+v([0-9][^\s\->]*)/ },
+    // ⚠️ ROADMAP 57 — mirrors versions.js v1.17.0. Read that entry's comment
+    // before touching the pattern: it is the runtime constant on purpose, and
+    // the pattern the item suggested would have matched an incidental line.
+    { file: 'index.html',            pattern: /\bconst\s+INDEX_VERSION\s*=\s*["']([^"']+)["']/ },
 ];
-const HEADER_EXEMPT = ['style.css', 'adventure.css', 'game.html', 'learn.html'];
+// ⚠️⚠️ THIS LIST DISAGREED WITH tests/version-stamp-test.mjs's COPY OF IT UNTIL
+// ROUND 81, AND THE HARNESS'S WAS THE RIGHT ONE. It carried reports.html and
+// admin.html; this one did not — so this tool believed it was header-checking
+// two files it cannot header-check. leadingBlock() below only counts lines that
+// are blank or start with `//`, and every .html file here opens with
+// `<!DOCTYPE html>`, so n is 0 and the header comparison, the line budget and
+// the entry-count check all silently do nothing on them. The checks were not
+// skipped by decision, they were skipped by accident, which is the worse of the
+// two — an exemption list is a CLAIM about what is watched.
+// ⚠️ index.html is exempt for the same mechanical reason and NOT because it
+// lacks a header: it has a real `//` version block, it just sits inside the
+// <script> rather than at the top of the file, where leadingBlock() cannot
+// reach it. ⚠️⚠️ ROADMAP 57 SAID EXPLICITLY THAT index.html "should NOT be
+// exempt". That instruction was written without checking this function, and
+// following it would have produced a check that reads an empty block and passes
+// forever. The coverage it was asking for is real and it is in
+// tests/version-stamp-test.mjs section A2, which finds the block by the
+// constant it sits above instead of by position in the file.
+const HEADER_EXEMPT = ['style.css', 'adventure.css', 'game.html', 'learn.html',
+                       'reports.html', 'admin.html', 'index.html'];
 // ⚠️ MIRRORS versions.js v1.12.0. Change there first; these three are the copy.
 const HEADER_FLOOR_LINES = 220;
 const HEADER_LINES_RATIO = 0.08;

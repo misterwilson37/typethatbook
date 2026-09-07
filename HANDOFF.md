@@ -1,6 +1,137 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-06 by Round 80 (Imperial), for whoever is next
+> ## ▶ START HERE — written 2026-09-06 by Round 81 (Fox), for whoever is next
+>
+> ⚠️⚠️ **ROADMAP 57 IS CLOSED. ITEM 53's FEATURED HALF IS NOW ACTUALLY WORKING —
+> IT WAS NOT BEFORE, THOUGH THREE DOCUMENTS AND A GREEN HARNESS SAID IT WAS.**
+> This round came in cold to read the handoff and the roadmap and watch for
+> anything else. **Ran `npm test` and `npm run audit:versions` before reading a
+> line of prose** — 76/76, 0 problems; Round 80's claim was exact.
+>
+> **Still needing Jake, not code: ROADMAP 58 and 60.** Both have a confirmed
+> design and a fact-checked answer waiting on him — see Round 80's block below.
+> **Item 53's search half is unbuilt. Item 42** (admin.js's own inline-style
+> extraction) is still the next candidate from the index, untouched here.
+>
+> ### 1. ⚠️⚠️ A FEATURE THAT HAD NEVER ONCE RUN, AND THE HARNESS WAS GREEN ON IT
+>
+> `index.html` **v3.19.0**. ROADMAP 53's Featured row falls back to "random,
+> **untyped**" books when nothing is new. **The exclusion excluded nothing**, on
+> every ordinary page load, for every signed-in student.
+>
+> `_featuredRandomCache` was write-once. **The first render of any page load
+> happens before auth resolves** — INIT's `loadBooks()` is fire-and-forget (its
+> own comment says auth is unresolved there) and `_loadBooksOnce()` calls
+> `renderBooks()` on **all three** of its paths. So the draw was made with
+> `userProgress` still `{}` and then frozen for the page.
+> ⚠️⚠️ **THIS IS ROADMAP 43's SHAPE, ONE ROUND LATER AND IN THE ADJACENT FILE**:
+> an empty map captured in the pre-auth window and thereafter treated as a valid
+> cached answer. **If you take one thing from this round, take that this window
+> keeps producing the same bug and nothing structural stops it.**
+>
+> ⚠️⚠️ **AND THE HARNESS WAS GREEN BECAUSE OF THE ASSERTION MEANT TO GUARD IT.**
+> D4 demanded `if (!_featuredRandomCache)` — exactly the write-once shape that
+> froze the wrong answer. C1–C3 ran a lifted `untypedPool()` in isolation and D3
+> grepped the source for `started.has(b.id)`. **All green; none of them asked
+> WHEN the cache is filled.** ⭐ A pure function proved correct and a grep proving
+> it is called are not the same as the feature working.
+>
+> ✅ **FIXED** with `_featuredRandomStamp` — uid, `allBooks.length`, sorted
+> started-ids. **Re-roll when the ANSWER changes, never when the VIEW does.**
+> ⚠️ All three components are load-bearing: a uid-only stamp still breaks,
+> because `onAuthStateChanged` assigns `currentUser` on its first line and fills
+> `userProgress` only after the await, so a render can land between them (E6).
+> ✅ **`featured-shelf-test.mjs` v1.1.0 Part E RUNS the function** against a stub
+> DOM with a seeded RNG instead of grepping it; red against the shipped code
+> before the fix, **mutation-verified three ways**. D4 rewritten into the rule
+> that superseded it, old regex quoted in place. ⚠️ **E2's first draft was too
+> weak to fail** — its pool was exactly `FEATURED_MAX` so a re-roll changed only
+> the order; **caught by mutation-testing the fix, not by reading it.**
+>
+> ### 2. ✅✅ ROADMAP 57 CLOSED — AND BOTH OF THE ITEM'S INSTRUCTIONS WERE WRONG
+>
+> `versions.js` **v1.17.0**, `tools/audit-versions.mjs` **v1.6.0**, the harness's
+> `SOURCES`. `index.html` is watched now — build panel and `audit:versions`.
+>
+> ⚠️⚠️ **THE GAP HAD ALREADY COST EXACTLY WHAT THE ITEM PREDICTED, AND NOBODY
+> KNEW: Round 80 shipped the WHOLE Featured shelf into `index.html` with
+> `INDEX_VERSION` still reading 3.18.0 and no header entry.** v3.19.0 covers both
+> rounds — one bump per shipped release, corrections forward.
+>
+> ⚠️ **Its suggested pattern would have lied.** `/index\.html\s+v.../` matches no
+> header comment here, but it does match an incidental `(index.html v3.5.2)` deep
+> in the body — reporting a nine-version-old number in the one instrument you
+> consult when you doubt what is running. **Registered on the runtime constant.**
+> ⚠️ **Its "should NOT be exempt" would have bought coverage on paper only.** The
+> `//` block is real but sits inside the `<script>`; section A and E both stop at
+> line 1, `<!DOCTYPE html>`. ✅ The coverage it wanted is **section A2**, which
+> finds the block by the constant it sits above. ⚠️ **A2 says in its own comment
+> what it cannot catch** — Round 80's unstamped feature, where constant and
+> header agreed while both disagreed with the code. No stamp check can catch that
+> shape; only Part E can.
+>
+> ⭐ **A THIRD MIRROR NOBODY WAS CHECKING.** `HEADER_EXEMPT` is copied into the
+> same three files and nothing compared the copies. The audit tool's was missing
+> `reports.html` and `admin.html`, so it believed it was header-checking two files
+> whose headers it cannot read. **Not a wrong answer — a false claim of
+> coverage**, the same shape as Round 58's `rights-ladder.js` gap one list over.
+> **Section D3** compares them both ways now, mutation-verified.
+>
+> ### 3. ✅ TWO RECORDS THAT HAD STOPPED BEING TRUE
+>
+> * **`package.json` `engines.node` 22 → 24.** It had **never** matched the live
+>   runtime, in either direction: it said 22 while the function ran on 20, and
+>   kept saying 22 after Round 80's console redeploy took it to 24. ⚠️ Nothing
+>   reads it today — deploys are console clicks and `firebase.json` has no
+>   `functions` block. **The cost is deferred, not absent**: the day anyone wires
+>   up a CLI deploy, this field picks the runtime and a stale 22 **silently
+>   downgrades a function running on 24**, arriving as a deploy that appears to
+>   succeed.
+> * **§9's document map and `docs/README.md` were both missing files that are in
+>   the repo.** §9 gained `docs/TEACHER-GUIDE.md`, `docs/archive/HANDOFF-ARCHIVE.md`
+>   and `library/contentCleaner/*` (22 batch READMEs and a separate project's own
+>   handoff, where §9 had listed only `gutCleaners/`). `docs/README.md` **v1.2.0**
+>   gained the archive. ⚠️⚠️ **THE ARCHIVE OMISSION WAS THE BAD ONE**: §9's own
+>   "GONE, AND GONE MEANS GONE" paragraph reads as if every split-out handoff file
+>   was deleted, so **two indexes agreed, by omission, about a 2,177-line file
+>   sitting right there.** ⭐ Round 80 fixed this exact shape one directory up and
+>   this survived it — **an index needs a check pointing at it, which is ROADMAP
+>   52's argument arriving from a fourth direction.**
+>
+> ### 4. ⭐ NEW ITEM 66, FILED AND DELIBERATELY NOT FIXED
+>
+> `admin.js`'s books-CSV export names its file from `toISOString()` — a UTC day,
+> so an evening export is stamped tomorrow. ⚠️ **It touches a filename, nothing
+> reads it back, and Jake exports during the school day.** Filed under the
+> standing fix-where-reported rule. ⚠️ **The item's real content is the
+> discriminator**: a grep for `toISOString()` is NOT a bug list — every other hit
+> in the repo is a `createdAt`/`assignedAt` timestamp where UTC is correct and
+> "fixing" it would be the defect. **The test is whether the value is a DAY KEY.**
+>
+> ### THE STATE OF PLAY
+>
+> * **76 harnesses pass, `audit:versions` 0 problems** — checked on arrival before
+>   anything changed and again after, **now including `index.html` for the first
+>   time.** ⚠️ `test:rules` not run; nothing here touches `firestore.rules`, which
+>   is still at **v2.11.0** from Round 80.
+> * **Expected stamps:** `index.html` **v3.19.0**, `versions.js` **v1.17.0**,
+>   `admin.html` **v1.22.0**, `admin.js` **v3.54.0**, `lessons-admin.js`
+>   **v1.21.0**, `reports.html` **v1.9.0**, `staff-admin.js` **v2.4.0**, `game.js`
+>   **v3.49.0**, `learn.js` **v2.46.0**, `hud.js` **v2.2.0**.
+> * ⚠️ **`style.css` v3.10.0 is STILL correctly unshipped** — Jake rejected it
+>   rendered. Do not ship it.
+> * ⚠️ **`functions/index.js` v1.7.1 is live** — Jake mirrored it into the Cloud
+>   Run console himself during Round 80, on Node 24.
+> * ⚠️ **CHANGELOG.md now has no Round 56, 58 or 80 entry.** Three gaps. Not
+>   reconstructed, for the reason already recorded: writing someone else's round
+>   from their ROADMAP summaries produces a plausible document, not a true one.
+> * ⚠️ **The reads measurement has still never been taken.** It is the item that
+>   decides the county rollout, and it needs one ordinary school day on a shipped
+>   build.
+> * **Next, in order:** **42** (admin.js's inline-style extraction), **53's search
+>   half**, **58 step two** and **60** — both of which want Jake's ruling first.
+
+> ## ▶ Round 80 (Imperial) — the previous block, kept
 >
 > ⚠️⚠️ **ROADMAP 12, 39, 62 AND 65 ARE CLOSED; 53 IS HALF DONE.** This round
 > started as a fresh-eyes pass and grew into five roadmap rounds once Jake
@@ -2248,8 +2379,21 @@
 > `grep -rihn "Round [0-9]* (" . | grep -oP "Round \d+ \([A-Za-z-]+\)"`.
 
 
-<!-- HANDOFF.md v15.37.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
+<!-- HANDOFF.md v15.38.0 — consolidated 2026-08-18 by Round 14 (Sholes); amended
      through Round 40; ⚠️ RESTRUCTURED 2026-08-20 by Round 23 (Empire).
+
+     v15.38.0 — Round 81 (Fox). ⭐ START HERE REWRITTEN; Round 80's block kept
+     below it. ⚠️⚠️ ROADMAP 53's Featured fallback had NEVER ONCE RUN — a
+     write-once cache filled during the pre-auth window, ITEM 43's shape one
+     round later — and the harness was green on it BECAUSE of the assertion
+     meant to guard it. Fixed, index.html v3.19.0, Part E RUNS the function now.
+     ✅ ROADMAP 57 CLOSED (versions.js v1.17.0) and BOTH of that item's build
+     instructions turned out to be wrong; the gap had already cost what it
+     predicted, since Round 80's whole Featured shelf shipped at a stale 3.18.0.
+     ⭐ §9's DOCUMENT MAP GAINED THREE ENTRIES IT WAS MISSING — and one of them,
+     docs/archive/HANDOFF-ARCHIVE.md, was a 2,177-line file that §9's own "GONE
+     MEANS GONE" paragraph read as having deleted. ⚠️ Round 80 fixed this exact
+     shape one directory up and this survived it.
 
      v15.33.0 — Round 58 (Emerson). ⭐ START HERE REWRITTEN.
      ⚠️⚠️ TWO LIVE STUDENT-FACING DEFECTS ARE OPEN AND NEITHER IS FIXED —
@@ -8698,6 +8842,7 @@ a pointer to a file you should go and read.**
 
 | round | instance | what it was |
 |---|---|---|
+| 81 | Fox | ⚠️⚠️ **A FEATURE THAT HAD NEVER ONCE RUN, AND A GREEN HARNESS THAT WAS THE REASON.** ROADMAP 53's Featured fallback excluded nothing: `_featuredRandomCache` was write-once and the first render of every page load precedes auth, so the "untyped" set was computed against an empty `userProgress` and frozen. **Item 43's shape, one round later, in the adjacent file.** ⚠️ D4 demanded exactly the write-once shape that froze it. Fixed with a stamped cache; `featured-shelf-test.mjs` v1.1.0 Part E RUNS the function instead of grepping it, mutation-verified three ways — ⚠️ **and E2's own first draft was too weak to fail, caught by mutation-testing rather than reading.** ✅ **ROADMAP 57 closed, and BOTH its build instructions were wrong**: its pattern would have reported an incidental `v3.5.2` from the body, and its "should NOT be exempt" would have read an empty block forever. Section A2 finds the header by the constant it sits above. ⚠️⚠️ The gap had already cost what it predicted — **Round 80's whole Featured shelf shipped at a stale 3.18.0.** ⭐ A third mirror, `HEADER_EXEMPT`, had drifted unchecked; D3 compares it now. `package.json` engines 22 → 24 (never once true). Two documents registered in indexes that omitted them. index.html v3.19.0, versions.js v1.17.0, 76 harnesses. |
 | 1–2 | Underwood, Dvorak | Write-ahead log replaces per-sentence writes. Lesson-mode pedagogy audit. Roles in documents, not claims. |
 | 3 | Blick | Adventure Mode out of alpha. Language filter. EPUB multi-work spines. The document-map rule this file finally enforces. |
 | 4 | Oliver | `reports.html` 2.8.0. Storage rules and the cover bug. |
@@ -8745,13 +8890,16 @@ a pointer to a file you should go and read.**
 | `docs/SCALE-PLAN.md` | cost model. Read the header box; its Security section's premise was false and is re-headed |
 | `docs/TTL-GUIDE.md` | TTL policy, billing arithmetic, composite indexes. Console steps walked through with Jake |
 | `docs/README-SESSION-LOGGING.md` | teacher-facing: session history, the week audit, the ID stamp |
+| `docs/TEACHER-GUIDE.md` | ⭐ **THE ONLY DOCUMENT IN THIS REPO NOT WRITTEN FOR A MAINTAINER.** The reports panel in a teacher's words. ⚠️ Keep developer prose out of it — that is the whole point of it existing separately. Added Round 55; **missing from this table until Round 81**, though `docs/README.md` had it all along |
 | `docs/PEDAGOGY-AUDIT.md` | Round 2 research. The only record of why the lesson gates are what they are |
 | `docs/archive/MULTITENANCY.md` | ⚠️ **SUPERSEDED, and see the correction below.** Kept for two arguments that appear nowhere else; its warning header is what makes keeping it safe |
+| `docs/archive/HANDOFF-ARCHIVE.md` | ⚠️⚠️ **ROUNDS 15–20's NARRATIVES, SPLIT OUT BY ROUND 23 WHEN THIS FILE HIT 237 KB.** Read-only; nothing in it is a plan, a blocker or an instruction, and every claim that still governs the code was lifted into this file first. **If you ever need it to do your job, that is a bug in HANDOFF.md — fix it here, do not start citing that.** ⚠️ **Missing from this table until Round 81, which was worse than an ordinary omission**: the paragraph below says every `HANDOFF-roundN.md` is deleted and *gone means gone*, and a reader could easily take that as covering this file too |
 | `tests/README.md` | 🆕 the suite: what is registered, what is deliberately not, and the standing failure |
 | `tests/reconcile-test.mjs` | ⚠️ not a document, listed here because **its header is one** — it states what the reconciliation harness does *not* cover, which is the part that matters. Read it before trusting a green run |
 | `tests/TESTING-ttb-test-epubs.md` | the synthetic EPUB test corpus |
 | `tools/README.md` | 🆕 `audit-versions.mjs` and the two EPUB builders, with their accepted problem count |
-| `library/gutCleaners/*` | the bookclean project's own docs. Separate concern, leave alone |
+| `library/gutCleaners/*` | the EPUB-normalisation project's own docs. Separate concern, leave alone |
+| `library/contentCleaner/*` | ⚠️ **THE BOOKCLEAN PROJECT — A SEPARATE PROJECT WITH ITS OWN HANDOFF, ITS OWN INSTANCE-NAMING SERIES AND 22 BATCH READMEs.** Language cleanup of the library's EPUBs. **Not mentioned in this table until Round 81**, which listed only `gutCleaners/` and so read as if that were the whole of it. Same rule: separate concern, leave alone |
 
 **⚠️ CORRECTION, ROUND 17 — `MULTITENANCY.md` WAS NEVER DELETED.** This section said it was, from
 Round 14 through Round 16, while the file sat in the repo root the entire time. Three rounds of

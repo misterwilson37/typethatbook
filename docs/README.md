@@ -1,9 +1,20 @@
 # docs/
 
-<!-- docs/README.md v1.1.0 — Round 17 (Linotype). New file. This is a map, not a
+<!-- docs/README.md v1.2.0 — Round 17 (Linotype). New file. This is a map, not a
      second copy of anything: every line below points at a file and says what it is
      good for. Round 13 and Round 14 both burned time on document maps that listed
      files which were not in the repo. Everything listed here is in this folder.
+
+     v1.2.0 — Round 81 (Fox): registered archive/HANDOFF-ARCHIVE.md, which had
+     been sitting in the folder below unlisted since Round 23 split it out of
+     HANDOFF.md. ⚠️⚠️ AN UNLISTED ARCHIVE IS WORSE THAN AN UNLISTED CURRENT
+     DOCUMENT, because HANDOFF.md §9's own "GONE, AND GONE MEANS GONE" paragraph
+     reads as if every split-out handoff file was deleted — so a reader had two
+     indexes agreeing, by omission, about a 2,177-line file that is right there.
+     ⚠️ The header of this very file says "everything listed here is in this
+     folder"; the converse was never checked, and that is the gap. Round 80 fixed
+     the same shape one directory up (three stale root-level docs missing from
+     §9's map) and this one survived it.
 
      v1.1.0 — Round 55: registered TEACHER-GUIDE.md, the first teacher-facing
      document in the repo. ⚠️ It is listed under Current with the rest, but it is
@@ -36,4 +47,5 @@ only thing that makes keeping the file safe**, so do not strip one.
 
 | File | Status |
 |---|---|
+| `HANDOFF-ARCHIVE.md` | ⚠️ **READ-ONLY. Rounds 15–20's round-by-round narratives**, split out of `HANDOFF.md` by Round 23 when that file reached 237 KB. ⚠️⚠️ **IT IS NOT A SECOND HANDOFF AND MUST NEVER BECOME ONE** — nothing in it is a plan, a blocker or an instruction, and every claim that still governs the code was lifted into `HANDOFF.md`'s own text first. If you find yourself needing something from here to do your job, that is a bug in `HANDOFF.md`: fix it there rather than starting to cite this. **Registered Round 81** — it had been in this folder unlisted, which for an archive is the worst place to be unlisted, since `HANDOFF.md` §9 also says every split-out handoff file is deleted. |
 | `MULTITENANCY.md` | ⚠️ **SUPERSEDED.** A Round 1 design doc specifying roles in Firebase Auth custom claims. That design was built and then deliberately reversed — `firestore.rules` v2.0.0 moved roles into `staff/{uid}` documents — and this file is the probable origin of `firestore-rules.test.mjs` seeding the wrong thing. Two of its arguments are still load-bearing and appear nowhere else, which is why it survives. **`README.md` and `HANDOFF.md` both said this file was deleted in Round 14. It was not.** Round 17 moved it here rather than deleting it, because a document three rounds of notes describe as gone is exactly the document someone will go looking for; now the folder name answers the question. If you want it actually gone, delete it deliberately — git history is the archive. |

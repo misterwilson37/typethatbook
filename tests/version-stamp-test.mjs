@@ -124,6 +124,10 @@ const SOURCES = [
     { file: 'learn.html',            pattern: /learn\.html\s+v([0-9][^\s\->]*)/ },
     { file: 'reports.html',          pattern: /reports\.html\s+v([0-9][^\s\->]*)/ },
     { file: 'admin.html',            pattern: /admin\.html\s+v([0-9][^\s\->]*)/ },
+    // ⚠️ ROADMAP 57 — mirrors versions.js v1.17.0. Runtime constant, NOT a
+    // filename comment; see that entry for why the item's own suggested
+    // pattern would have reported a nine-version-old number.
+    { file: 'index.html',            pattern: /\bconst\s+INDEX_VERSION\s*=\s*["']([^"']+)["']/ },
 ];
 // The CSS files carry their header in the same comment the pattern above reads,
 // so header-vs-constant is not a meaningful question for them. The HTML files
@@ -133,8 +137,21 @@ const SOURCES = [
 // comment, and none of these files has either: the stylesheets carry a CSS
 // comment, the markup shells an HTML one. Adding a file here says "this has no
 // runtime constant to disagree with", not "stop watching it".
+// ⚠️⚠️ index.html IS EXEMPT FROM SECTION A FOR A DIFFERENT REASON FROM EVERY
+// OTHER NAME HERE, AND ROADMAP 57 EXPLICITLY ASKED FOR THE OPPOSITE. The item
+// said it "carries a real one, so it should NOT be exempt" — and it does carry
+// a real `//` version block, which is why that instruction looked right. What
+// the item did not check is WHERE: the block sits inside the <script>, above
+// `const INDEX_VERSION`, not at the top of the file. Section A and section E
+// both scan the LEADING lines and stop at the first line that is neither blank
+// nor `//` — which for this file is line 1, `<!DOCTYPE html>`. Leaving it
+// non-exempt would have produced a check that reads an empty block, finds no
+// header, compares nothing and passes forever: coverage on paper only, which is
+// the failure this whole file exists to prevent.
+// ⭐ THE COVERAGE THE ITEM WANTED IS REAL AND IT IS IN SECTION A2 BELOW, which
+// finds the block by the constant it sits above instead of by position.
 const HEADER_EXEMPT = ['style.css', 'adventure.css', 'game.html', 'learn.html',
-                       'reports.html', 'admin.html'];
+                       'reports.html', 'admin.html', 'index.html'];
 // ⚠️ MIRRORS versions.js v1.12.0 AND tools/audit-versions.mjs v1.4.0. Three
 // copies; section D fails if the SOURCES lists disagree, but nothing checks
 // these three numbers against each other — change versions.js first, then both
@@ -192,6 +209,70 @@ for (const { file, pattern } of SOURCES) {
        `⚠️ ${file}: constant says v${version}, header says v${header} — ONE OF THE TWO IS A LIE. ` +
        `The constant is what versions.js parses and what the footer renders, so fix whichever is wrong ` +
        `and bump BOTH in the same edit.`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\n─── A2. ⚠️⚠️ index.html — THE HEADER IS REAL, IT IS JUST NOT AT THE TOP ───');
+// ═══════════════════════════════════════════════════════════════════════════
+// ROADMAP 57, closed in Round 81. This is section A's check, rewritten for the
+// one file whose version block cannot be found by position.
+//
+// ⚠️ WHY IT IS A SEPARATE SECTION RATHER THAN A LOOSENING OF SECTION A: that
+// scan's own comment records TWO false positives fought to get it where it is,
+// and a checker that cries wolf is worse than no checker because the next round
+// learns to skip it. Widening it to find comment blocks anywhere in any file
+// would put every one of those hard-won cases back in play to buy coverage on a
+// single file. This block instead uses a rule that is exact for this file: the
+// header is the run of `//` lines immediately above `const INDEX_VERSION`.
+//
+// ⚠️⚠️ WHAT THIS WOULD AND WOULD NOT HAVE CAUGHT, stated plainly so nobody
+// over-trusts it. It WOULD have caught ROADMAP 57's original finding — the
+// constant reading 3.17.0 while the newest entry said v3.16.0. It would NOT
+// have caught Round 80 shipping the Featured shelf unstamped, because that
+// round touched NEITHER the constant nor the header, so the two agreed with
+// each other while both disagreed with the code. ⭐ No stamp check can catch
+// that shape; only a behavioural test can, which is what
+// featured-shelf-test.mjs Part E is for.
+{
+    const src = read('index.html');
+    const k = src.search(/\bconst\s+INDEX_VERSION\s*=/);
+    ok(k > 0, 'index.html still declares const INDEX_VERSION');
+    if (k > 0) {
+        const constant = (src.slice(k).match(/["']([^"']+)["']/) || [])[1];
+        ok(!!constant, 'index.html\u2019s INDEX_VERSION has a readable value');
+
+        // Walk backwards from the constant over the comment run above it.
+        const before = src.slice(0, k).split('\n');
+        const block = [];
+        for (let i = before.length - 1; i >= 0; i--) {
+            const t = before[i].trim();
+            if (t === '' || t.startsWith('//')) block.unshift(t); else break;
+        }
+        ok(block.length > 0,
+           '\u26a0\ufe0f index.html\u2019s version block is gone from above INDEX_VERSION \u2014 ' +
+           'if it moved, this check has to move with it or it silently stops checking');
+
+        const entries = block
+            .map(l => (l.match(/^\/\/\s*v(\d+\.\d+\.\d+)\s*[:\u2014-]/) || [])[1])
+            .filter(Boolean);
+        ok(entries.length > 0, 'index.html\u2019s version block still carries dated entries');
+
+        if (constant && entries.length) {
+            ok(entries[0] === constant,
+               `\u26a0\ufe0f index.html: constant says v${constant}, newest header entry says ` +
+               `v${entries[0]} \u2014 ONE OF THE TWO IS A LIE. This is the exact drift ROADMAP 57 ` +
+               `was filed for (3.17.0 against a v3.16.0 entry), and it went unseen for ` +
+               `twenty rounds because no registry carried this page.`);
+
+            const ordered = entries.every((v, i) => {
+                if (i === 0) return true;
+                const a = entries[i - 1].split('.').map(Number), b = v.split('.').map(Number);
+                for (let j = 0; j < 3; j++) if (a[j] !== b[j]) return a[j] > b[j];
+                return true;
+            });
+            ok(ordered, `\u26a0\ufe0f index.html header entries are out of order: ${entries.join(' ')}`);
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -316,6 +397,43 @@ console.log('\n─── D. ⚠️ THE THREE MIRRORS OF THE SOURCE LIST AGREE �
     for (const f of mine) {
         if (!shipped.includes(f)) {
             notes.push(`${f} is checked here but not by versions.js — the footer will not report it`);
+        }
+    }
+
+    // ⚠️⚠️ D3, ROUND 81 — SOURCES IS NOT THE ONLY MIRRORED LIST, AND THE OTHER
+    // ONE HAD ALREADY DRIFTED. HEADER_EXEMPT is copied into this file and into
+    // tools/audit-versions.mjs, and until Round 81 nothing compared them: the
+    // audit tool's copy was missing reports.html and admin.html, so that tool
+    // believed it was header-checking two files whose headers it cannot read
+    // (leadingBlock() there counts only `//` lines from the top, and every
+    // .html file opens with `<!DOCTYPE html>`).
+    //
+    // ⭐ THE COST WAS NOT A WRONG ANSWER, IT WAS A FALSE CLAIM OF COVERAGE,
+    // which is the same shape as the rights-ladder.js gap D fixed above and as
+    // ROADMAP 52's whole argument. An exemption list states what is NOT being
+    // watched; a wrong one states it about the wrong files.
+    //
+    // ⚠️ Direction: both ways. Unlike SOURCES there is no legitimate reason for
+    // these to differ — neither list is about HTTP fetching, both are about the
+    // same `//`-only leading scan, and the two implementations of that scan
+    // agree line for line.
+    {
+        const exempt = src => {
+            const m = src.match(/const HEADER_EXEMPT = \[([\s\S]*?)\];/);
+            return m ? [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]) : [];
+        };
+        const auditExempt = exempt(read('tools/audit-versions.mjs'));
+        ok(auditExempt.length > 0, 'tools/audit-versions.mjs exposes a readable HEADER_EXEMPT');
+        for (const f of HEADER_EXEMPT) {
+            ok(auditExempt.includes(f),
+               `⚠️ ${f} is header-exempt here but NOT in tools/audit-versions.mjs — ` +
+               `that tool will try to header-check a file it cannot read and pass ` +
+               `silently, reporting coverage it does not have`);
+        }
+        for (const f of auditExempt) {
+            ok(HEADER_EXEMPT.includes(f),
+               `⚠️ ${f} is header-exempt in tools/audit-versions.mjs but not here — ` +
+               `decide which is right and make both say it`);
         }
     }
 }

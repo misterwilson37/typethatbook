@@ -1,5 +1,17 @@
-// versions.js v1.16.0 — reads every file's version constant out of the files as
+// versions.js v1.17.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
+//
+// v1.17.0 — ⚠️⚠️ ROADMAP 57 CLOSED: SOURCES gained index.html, the library
+//           landing page — the page every student sees first and the only one
+//           no registry has ever watched. Its stamp now appears in the build
+//           panel beside the other four surfaces, and `npm run audit:versions`
+//           reads it. ⚠️ Read the entry's own comment below before touching the
+//           pattern: it is the RUNTIME CONSTANT, not a filename comment, and
+//           the pattern ROADMAP 57 suggested would have matched an incidental
+//           line in the body and reported v3.5.2.
+//           ⚠️ COST: one more static fetch on a footer hover, ~123 KB. That is
+//           larger than any other entry here, and it is still a fifth of what
+//           the same panel already pulls for game.js. Not a Firestore read.
 //
 // v1.16.0 — ⚠️ ROADMAP 51: renderBuildList() SORTS ITS OUTPUT ALPHABETICALLY.
 // Jake could not find a file in a list ordered by when each module was
@@ -98,16 +110,6 @@
 // refreshing everything. I have to close the tab and open a new one."* That was
 // the panel, not his browser and not the files. See HANDOFF §0.-22.
 
-// v1.9.0 — registers daylog.js, the FIFTH module game.js and learn.js both
-// import — and the one whose staleness is worst. A cached copy of it reads the
-// wrong seven documents, on both pages, and the symptom is a student seeing a
-// number that is merely WRONG rather than obviously broken. HANDOFF §0.0.
-//
-// ⚠️ v1.8.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
-// It is update-gate.js's registration, and its reason still applies: the gate
-// loads from its own script tag, so nothing else on the page would reveal that
-// it failed to load.
-//
 const SOURCES = [
     { file: 'game.js',               pattern: /\bconst\s+VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'learn.js',              pattern: /\bconst\s+LEARN_VERSION\s*=\s*["']([^"']+)["']/ },
@@ -155,9 +157,30 @@ const SOURCES = [
     // no runtime constant of their own, so they carry a comment near the top.
     { file: 'reports.html',          pattern: /reports\.html\s+v([0-9][^\s\->]*)/ },
     { file: 'admin.html',            pattern: /admin\.html\s+v([0-9][^\s\->]*)/ },
+    // ⚠️⚠️ ROADMAP 57, Round 81 — THE PAGE EVERY STUDENT LANDS ON FIRST WAS
+    // THE ONE PAGE NO REGISTRY WATCHED, and it cost exactly what the item
+    // predicted: Round 80 shipped the whole Featured shelf into index.html
+    // with INDEX_VERSION still reading 3.18.0 and no header entry, and
+    // nothing anywhere could say so.
+    //
+    // ⚠️ IT IS READ FROM THE RUNTIME CONSTANT, NOT FROM A `index.html vX`
+    // COMMENT, AND THE ITEM'S OWN SUGGESTED PATTERN WOULD HAVE BEEN WRONG.
+    // ROADMAP 57 proposed /index\.html\s+v([0-9][^\s\->]*)/ "like the other
+    // four". There is no such comment in the file — but there IS an
+    // incidental one deep in the body ("BUMPED TO v2 (index.html v3.5.2)"),
+    // so that pattern would have matched a nine-version-old number in a
+    // sentence about a cache key and reported it as the page's version,
+    // forever, in the one instrument you consult when you doubt what is
+    // running. Checked before copying.
+    //
+    // ⭐ AND THE CONSTANT IS THE BETTER SOURCE ANYWAY: the other four markup
+    // shells use a comment only because they hold no runtime constant. This
+    // page holds one that already drives its own <title> and footer, which
+    // is precisely the property the WHY block below argues for.
+    { file: 'index.html',            pattern: /\bconst\s+INDEX_VERSION\s*=\s*["']([^"']+)["']/ },
 ];
 
-export const VERSIONS_VERSION = '1.16.0';
+export const VERSIONS_VERSION = '1.17.0';
 
 // ⚠️ v1.13.0 — THE OLD sessionStorage KEY, KEPT ONLY TO BE CLEARED. A tab that
 // loaded v1.12.0 or earlier has a stale build list sitting in sessionStorage
