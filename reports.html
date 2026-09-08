@@ -636,6 +636,26 @@
             <div class="goal-status" id="goal-status"></div>
         </div>
 
+        <!-- ⚠️⚠️ ROADMAP 54. HIDDEN UNTIL isSuper() CONFIRMS — see the reveal
+             right after login, next to reports-section itself. Not tied to a
+             CSS role class because this page has none; a plain teacher who
+             saw this button would get a permission-denied on click, since
+             settings/popularity write is isSuper()-only in firestore.rules,
+             same tier as settings/goals. -->
+        <div class="goals-panel hidden" id="popularity-panel">
+            <h2 style="font-size:1rem; color:var(--accent); margin-bottom:15px; letter-spacing:1px;">LIBRARY POPULARITY</h2>
+            <p style="font-size:.85em; color:var(--ink-dimmer); margin:0 0 12px;">
+                Powers "Most Popular" sorting on the library page. Derived from
+                typing_logs' existing <code>bookId</code> field — no new write
+                happens when a student opens a book. Costs one read per book in
+                the library each time this runs; a stale ranking a week old is
+                not a problem worth a live counter over, so there's no reason
+                to click this more than occasionally.
+            </p>
+            <button id="recalc-popularity-btn">Recalculate</button>
+            <div class="goal-status" id="popularity-status"></div>
+        </div>
+
         <!-- SCOPE -->
         <div class="controls" id="scope-controls">
             <div class="control-group">
@@ -1094,6 +1114,20 @@
     //           FIXED, NOT ONLY POLISH: recalc-btn re-enabled on the line after
     //           its await with no finally, so a throw left it dead until reload.
     //           tests/busy-state-test.mjs.
+    // v2.40.0 — ⭐ ROADMAP 54: LIBRARY POPULARITY, DERIVED FROM WRITES THAT
+    //           ALREADY HAPPEN. A new "LIBRARY POPULARITY" panel, hidden
+    //           unless isSuper() — settings/popularity write is isSuper()-only
+    //           in firestore.rules, same tier as settings/goals, so a plain
+    //           teacher who saw the button would only get permission-denied.
+    //           `recalculatePopularity()` reads the book list once, then runs
+    //           ONE `getCountFromServer()` PER BOOK against `typing_logs`
+    //           filtered by the `bookId` field session-log.js already writes
+    //           on every chunk — an aggregation query, not a full read of
+    //           every session, and it only ever runs on an explicit click,
+    //           never on a student's page load. ⚠️⚠️ NOT A LIVE COUNTER — Jake
+    //           was right to be wary of a per-open write on the student path;
+    //           this needed no new write at all, since the data was already
+    //           being written. See index.html v3.20.0 for the reader half.
     // v2.39.0 — ⭐ ROADMAP 58 STEP TWO: A CLASS CAN CHOOSE ITS OWN WEEK, THE
     //           TEACHER'S HALF. `getLastSaturday()`/`getNextFriday()` gain a
     //           `weekStartDay = 6` parameter — a plain default, NOT a call to
@@ -1117,7 +1151,7 @@
     //           guards against is invisible on every login BUT the first one
     //           of a session, which is exactly the kind that survives review.
     //           tests/class-week-anchor-test.mjs Section F, mutation-verified.
-    const REPORTS_VERSION = "2.39.0";
+    const REPORTS_VERSION = "2.40.0";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -1179,7 +1213,7 @@
 
     // ⚠️ SDK ROUTED THROUGH read-meter.js so this page can say what it COST.
     // Same shim the student pages use; `export *` keeps every SDK symbol.
-    import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, ttbMeter } from "./read-meter.js";
+    import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, getCountFromServer, ttbMeter } from "./read-meter.js";
     import { ledgerFrom, planReads } from "./logdays.js";
     // ⚠️ ROADMAP 58 — the week anchor, from its one home. THIS PAGE IS WHY THE
     // ITEM EXISTS: reports.html and daylog.js once named different Saturdays, and
@@ -1297,6 +1331,10 @@
             }
             document.getElementById('login-section').classList.add('hidden');
             document.getElementById('reports-section').classList.remove('hidden');
+            // ⚠️ ROADMAP 54 — the recalculate button writes settings/popularity,
+            // isSuper()-only in firestore.rules; a plain teacher who could see
+            // it would only ever get a permission-denied on click.
+            if (isSuper()) document.getElementById('popularity-panel').classList.remove('hidden');
             // ⚠️⚠️ ROADMAP 58 STEP TWO. setDefaultDates() now calls
             // resolveWeekAnchor(), which reads classesById AND
             // schoolWeekStartDay — so it MUST run after both loadScopeOptions()
@@ -1817,6 +1855,58 @@
 
     document.getElementById('generate-btn').onclick = (e) =>
         withBusy(e.currentTarget, 'Working\u2026', generateReport);
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ROADMAP 54 — LIBRARY POPULARITY, DERIVED FROM WRITES THAT ALREADY HAPPEN
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // ⚠️⚠️ Jake, 2026-09-03: "I wish there was some way to sort by most
+    // popular, but I know that would take another read or write, and it's
+    // probably not worth it." He was right to be wary of a LIVE counter — a
+    // per-open increment is a write on the student path, and a class of 25
+    // starting the same book at the bell is a burst on one document — but
+    // wrong that it needs a new write at all: every typing_logs chunk
+    // session-log.js writes already carries `bookId`. This runs ONLY when a
+    // super_admin clicks the button, never on a student's page load, and
+    // costs one getCountFromServer() per book in the library — an
+    // aggregation query, not a full read of every session, and still bounded
+    // and occasional rather than continuous.
+    //
+    // ⚠️ NOT THE DEFAULT SORT. Jake's own item text asks whether popularity
+    // should be the default order or one option beside the current one, and
+    // that question is still open — with eighty books and a discovery
+    // problem already (ROADMAP 53), a popularity sort can make the tail LESS
+    // visible, the opposite of what he asked 53 for. Built as an opt-in sort
+    // option in index.html; promoting it to the default is a separate
+    // decision for him to make, not this round's to assume.
+    async function recalculatePopularity() {
+        const statusEl = document.getElementById('popularity-status');
+        statusEl.textContent = 'Reading the library\u2026';
+        statusEl.className = 'goal-status';
+        try {
+            const booksSnap = await getDocs(collection(db, 'books'));
+            const bookIds = booksSnap.docs.map(d => d.id);
+            const counts = {};
+            let done = 0;
+            for (const bookId of bookIds) {
+                const agg = await getCountFromServer(
+                    query(collection(db, 'typing_logs'), where('bookId', '==', bookId)));
+                counts[bookId] = agg.data().count;
+                done++;
+                statusEl.textContent = `Counting\u2026 ${done}/${bookIds.length}`;
+            }
+            await setDoc(doc(db, 'settings', 'popularity'), {
+                counts, updatedAt: new Date().toISOString()
+            });
+            statusEl.textContent = `Done \u2014 ${bookIds.length} books, ${new Date().toLocaleString()}`;
+            statusEl.className = 'goal-status ok';
+        } catch (e) {
+            statusEl.textContent = 'Failed: ' + e.message;
+            statusEl.className = 'goal-status err';
+        }
+    }
+    document.getElementById('recalc-popularity-btn').onclick = (e) =>
+        withBusy(e.currentTarget, 'Recalculating\u2026', recalculatePopularity);
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE ROSTER SWEEP  (v2.21.0)  —  READ WHAT THE STUDENT READS

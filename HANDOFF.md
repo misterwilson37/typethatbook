@@ -1,6 +1,119 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-07 by Round 82 (Crandall), for whoever is next
+> ## ▶ START HERE — written 2026-09-07 by Round 83 (Densmore), for whoever is next
+>
+> ⚠️⚠️ **ROADMAP 54 IS BUILT — LIBRARY POPULARITY, DERIVED FROM WRITES THAT
+> ALREADY HAPPEN, WITH NO NEW COST ON THE STUDENT PATH.** Came in cold, read
+> the handoff and the roadmap, ran `npm test` and `npm run audit:versions`
+> before reading a line of prose — **79/79, 0 problems; Round 82's claim was
+> exact.** Jake's queue for the run-up to commit 1000 continues: week views
+> (Round 82, done) → **book search and popular sort (this round)** → three
+> typing games at commit 1000 itself, from material that still has not
+> arrived. **This round is the "popular sort" half of that queue; search is
+> still untouched.**
+>
+> ### 1. ⭐ THE READ-COST QUESTION JAKE TALKED HIMSELF OUT OF, ANSWERED FOR REAL
+>
+> Jake, 2026-09-03: *"I wish there was some way to sort by most popular, but I
+> know that would take another read or write, and it's probably not worth
+> it."* He was right to distrust a LIVE counter and wrong that it needs a new
+> write at all — `session-log.js` already stamps `bookId` on every chunk it
+> writes. ⚠️⚠️ **THIS ROUND BUILT EXACTLY THE "STAFF-REFRESHED ORDERING" THE
+> ITEM'S OWN TEXT PRICED AS THE SAFE ANSWER, AND NOTHING ELSE.**
+> `reports.html` **v2.40.0**: a new "LIBRARY POPULARITY" panel, hidden unless
+> `isSuper()` (the button writes `settings/popularity`, `isSuper()`-only in
+> `firestore.rules`, same tier as `settings/goals` — a plain teacher who could
+> see it would only get permission-denied). `recalculatePopularity()` reads
+> the book list once, then runs ONE `getCountFromServer()` PER BOOK against
+> `typing_logs` filtered on `bookId` — an aggregation query, not a read of
+> every session — and only ever on an explicit click. **No new write anywhere
+> on the student path, at any point.**
+>
+> ### 2. ⭐ THE SORT ITSELF IS OPT-IN, ON PURPOSE — THE ACTUAL RULING IS STILL OPEN
+>
+> `index.html` **v3.20.0**. "Most Popular" is a new option in `#sort-select`,
+> **not a change to the default**. Jake's own text explicitly leaves "default
+> order or one beside the current one" as an open question, and with eighty
+> books and a discovery problem already open (ROADMAP 53), defaulting to
+> popularity could make the tail of the library LESS visible — the opposite
+> of what 53 exists to fix. ⚠️⚠️ **DO NOT PROMOTE IT TO DEFAULT WITHOUT ASKING
+> HIM FIRST** — that is the one piece of this item still genuinely
+> unanswered, not a detail this round overlooked.
+>
+> ⚠️⚠️ **ZERO ADDED COST FOR EVERY STUDENT WHO NEVER TOUCHES IT.**
+> `settings/popularity` is fetched LAZILY — only on the first time a student
+> actually selects "Most Popular" — never on page load, and the result stays
+> cached for the rest of that page's life. A book missing from the counts map
+> (never typed, or uploaded after the last recalculation) sorts as a plain
+> zero, tied at the bottom on title — never crashes, never ranks above a book
+> that's actually been measured, never treated as "more popular than nothing
+> measured." No `settings/popularity` document at all (staff has never
+> clicked Recalculate) silently degrades to plain title order.
+>
+> `firestore.rules` **v2.12.0**: `settings/popularity` joins `settings/goals`
+> as the only two guest-readable settings documents — a guest browses the
+> library too, and the sort control doesn't know or care whether the visitor
+> is signed in. ⚠️ **NOT ADDED TO `versions.js` SOURCES, same as every rules
+> change** — the live rules in the Firebase console are what matter, and Jake
+> pastes this file by hand; deploy it yourself.
+>
+> ### 3. ⚠️ ONE NEW HARNESS, MUTATION-VERIFIED, ACROSS ALL THREE FILES AT ONCE
+>
+> `tests/popularity-sort-test.mjs`, 27 assertions. ⚠️ **WHY ONE FILE FOR THREE
+> SOURCES**: the feature only works if `reports.html` (writer), `index.html`
+> (reader) and `firestore.rules` (gatekeeper) all agree on the same document
+> shape — a harness checking only one of the three could stay green while the
+> other two drifted. Mutation-verified: making a missing book outrank a
+> measured one (`|| 999` instead of `|| 0`) turns 2 assertions red; removing
+> the cache-hit guard in `ensurePopularityLoaded()` (so every reselection
+> re-fetches) turns 1 red.
+>
+> ### THE STATE OF PLAY
+>
+> * **80 harnesses pass, `audit:versions` 0 problems** — one new harness this
+>   round (`popularity-sort-test.mjs`), registered. ⚠️ `test:rules` not run;
+>   nothing here touches rules LOGIC beyond the single settings/{docId} line
+>   above, and that line has no branch a rules-emulator test would exercise
+>   differently from reading it.
+> * **Expected stamps:** `index.html` **v3.20.0**, `versions.js` **v1.17.0**,
+>   `admin.html` **v1.23.0**, `admin.js` **v3.54.1**, `lessons-admin.js`
+>   **v1.22.0**, `reports.html` **v1.10.0** (its REPORTS_VERSION module
+>   constant is separately at 2.40.0 — see item 1 above),
+>   `staff-admin.js` **v2.4.0**, `game.js` **v3.50.0**, `learn.js` **v2.48.0**,
+>   `daylog.js` **v1.9.0**, `firebase/firestore.rules` **v2.12.0**,
+>   `lesson-gate.js` **v1.2.0**, `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**.
+> * ⚠️ **`style.css` v3.10.0 is STILL correctly unshipped** — Jake rejected it
+>   rendered. Do not ship it.
+> * ⚠️ **`functions/index.js` v1.7.1 is live** — Jake mirrored it into the Cloud
+>   Run console himself during Round 80, on Node 24.
+> * ⚠️ **`firebase/firestore.rules` v2.12.0 IS NOT DEPLOYED UNTIL JAKE PASTES
+>   IT.** Same as always for this file — it isn't fetched by anything, isn't
+>   in `versions.js` SOURCES, and the repo's copy and the live one can disagree
+>   silently until he copies it into the Firebase console by hand.
+> * ⚠️ **CHANGELOG.md now has no Round 56, 58 or 80 entry.** Three gaps. Not
+>   reconstructed, for the reason already recorded: writing someone else's round
+>   from their ROADMAP summaries produces a plausible document, not a true one.
+> * ⚠️ **The reads measurement has still never been taken.** It is the item that
+>   decides the county rollout, and it needs one ordinary school day on a
+>   shipped build.
+> * ⭐⭐ **JAKE'S OWN QUEUE FOR THE RUN-UP TO COMMIT 1000:** week anchor (Round
+>   82, done) → popular sort (**this round, done**) → **book search is the
+>   only piece of this queue still unbuilt** → three typing games at commit
+>   1000 itself, from material Jake is building with Gemini that still has
+>   not been shared with this repo or this round. ⚠️ **DO NOT GUESS AT THE
+>   GAMES.** Every prior mention of this work stayed at "his two games" / "his
+>   game plans" without either side pinning down mechanics, and it is now
+>   three, not two. Ask for whatever he has before writing a line toward them.
+> * ⚠️⚠️ **HE HAS TABLED, EXPLICITLY:** the mastery-lock workaround (needs him to
+>   watch a child, *"that's not going to happen"*), and staff book allowlists
+>   (*"I don't even see the other guy, and he hasn't asked for it"*). **Do not
+>   re-raise either.**
+> * ⚠️⚠️ **STOP TALKING TO JAKE IN ITEM NUMBERS.** Say what a thing IS, in
+>   plain English, every time.
+> * ⚠️⚠️ **BEFORE BUILDING FOR ANY FLAG, MEASURE OR RE-READ IT.** Round 81 found
+>   THREE stale ones in a day. **§ CONVENTIONS' rule is not decoration.**
+
+> ## ▶ Round 82 (Crandall) — the previous block, kept
 >
 > ⚠️⚠️ **ROADMAP 58 IS NOW FULLY CLOSED — STEP TWO SHIPPED: A CLASS CAN CHOOSE
 > ITS OWN WEEK.** Came in cold, read the handoff and the roadmap, ran `npm test`

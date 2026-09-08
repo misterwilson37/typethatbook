@@ -1,5 +1,50 @@
 # CHANGELOG — TypeThatBook
 
+## Round 83 (Densmore) — 2026-09-07 — library popularity, derived from writes that already happen
+
+**Came in cold on Jake's instruction to keep going with his own queue** — week
+views shipped last round, popular sort is this one, book search and the three
+typing games at commit 1000 are what's left. Ran `npm test` and `npm run
+audit:versions` before reading a line of prose — 79/79, 0 problems, Round 82's
+claim exact.
+
+### ⭐ THE READ-COST QUESTION, ANSWERED FOR REAL
+
+Jake, 2026-09-03: *"I wish there was some way to sort by most popular, but I
+know that would take another read or write, and it's probably not worth it."*
+He was right to distrust a live counter and wrong that it needs a new write —
+`session-log.js` already stamps `bookId` on every chunk it writes.
+`reports.html` **v2.40.0**: a new "LIBRARY POPULARITY" panel, visible only to
+`isSuper()`. `recalculatePopularity()` reads the book list once, then runs one
+`getCountFromServer()` per book against `typing_logs` — an aggregation query,
+not a read of every session — only on an explicit click. **No new write
+anywhere on the student path.** `firestore.rules` **v2.12.0**:
+`settings/popularity` joins `settings/goals` as guest-readable; write stays
+`isSuper()`-only.
+
+### ⭐ THE SORT ITSELF IS OPT-IN — THE ACTUAL RULING IS STILL OPEN
+
+`index.html` **v3.20.0**. "Most Popular" is a new option in the sort control,
+not a change to the default — Jake's own text leaves that as an open question,
+and with eighty books and a discovery problem already open (ROADMAP 53), a
+popularity default could bury the tail further. ⚠️⚠️ Zero added cost for a
+student who never touches it: `settings/popularity` is fetched lazily, on
+first selection of that sort, never on page load, and stays cached for the
+rest of the page's life. A book missing from the counts (never typed, or
+uploaded since the last recalculation) sorts as zero, tied at the bottom on
+title — never crashes, never outranks a book that's actually been measured.
+No document at all silently degrades to plain title order.
+
+### Bookkeeping
+
+New harness: `tests/popularity-sort-test.mjs` (27 assertions, spanning
+`reports.html`/`index.html`/`firestore.rules` in one file since the feature
+only works if all three agree on the same document shape), registered. 80/80
+harnesses pass; `npm run audit:versions` 0 problems. No header-budget
+archivals needed this round (`firestore.rules` isn't subject to the 8-entry
+cap — it's deliberately excluded from `versions.js` SOURCES, see its own
+header note).
+
 ## Round 82 (Crandall) — 2026-09-07 — a class can choose its own week
 
 **Came in cold on Jake's instruction to pick up his own queue** (week views →

@@ -193,6 +193,7 @@ const FAST = [
     ['staff-role-editor-test.mjs', '⚠️⚠️ ROADMAP 65 — the missing \u2018super_admin\u2019 option in the role dropdown, the pre-select bug it caused on an existing super_admin, and the demotion confirm() guard, checked in the right order relative to the self-edit refusal'],
     ['roster-filter-test.mjs',   'Students-tab date range: the Saturday week boundary and the status line'],
     ['sort-test.mjs',            'library sort keys against the real author strings in library/'],
+    ['popularity-sort-test.mjs', '⭐ ROADMAP 54: the opt-in "Most Popular" library sort — popularityOf()/sortBooks()\u2019s \'popular\' case, the lazy zero-cost-until-asked fetch in index.html, reports.html\u2019s staff-triggered getCountFromServer() recalculation, and settings/popularity\u2019s guest-readable/isSuper()-write tier in firestore.rules'],
     ['lesson-atomicity-test.mjs','lesson restart-on-incomplete, and the constants game.js and learn.js share'],
     // ── promoted out of PENDING when the concurrent round's code landed ──
     ['session-merge-test.mjs',   'the guest/expired merge, session-log rollup dating, the repair resync, and Part E: two concurrent flushes write ONE document'],

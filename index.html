@@ -533,6 +533,7 @@
                 <option value="short">Shortest first</option>
                 <option value="long">Longest first</option>
                 <option value="recent">Recently updated</option>
+                <option value="popular">Most Popular</option>
                 <!-- Inserted at runtime for signed-in students only; a guest has no
                      progress, so the option would sort nothing. See renderBooks(). -->
             </select>
@@ -601,6 +602,26 @@
         // This page's own version. The <title> and footer are both written from
         // it, because they used to be hardcoded separately and had already
         // drifted apart (title said 3.0.0, footer said 2.3.1).
+        //
+        // v3.20.0: ⭐ ROADMAP 54 — "MOST POPULAR" JOINS THE SORT CONTROL, AS AN
+        //         OPTION, NOT THE DEFAULT. Jake's own text left "default order
+        //         or one beside the current one" as an open question; with
+        //         eighty books and a discovery problem already (ROADMAP 53), a
+        //         popularity default could bury the tail further, the opposite
+        //         of what 53 was for. Built as opt-in; promoting it is his call.
+        //         ⚠️⚠️ ZERO ADDED COST FOR EVERY STUDENT WHO NEVER PICKS IT —
+        //         settings/popularity (staff-recalculated in reports.html from
+        //         typing_logs' existing bookId field, never a live per-open
+        //         counter) is fetched LAZILY, on first selection of this sort,
+        //         not on page load. `popularityCounts` then stays cached for
+        //         the rest of the page's life, same lifetime as everything
+        //         else `sortBooks()` reads. ⚠️ A BOOK MISSING FROM THE COUNTS
+        //         MAP — never typed, or added after the last recalculation —
+        //         SORTS AS ZERO, tying at the bottom on title, never crashing
+        //         and never treated as "more popular than nothing measured".
+        //         ⚠️ NO settings/popularity DOCUMENT YET (staff never clicked
+        //         Recalculate) DEGRADES TO PLAIN TITLE ORDER, silently — never
+        //         an error state a student would see.
         //
         // v3.19.0: ⚠️⚠️ THIS ONE STAMP COVERS TWO ROUNDS, AND THAT IS THE POINT.
         //         ROADMAP 53's Featured shelf — renderFeatured(),
@@ -689,7 +710,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.19.0";
+        const INDEX_VERSION = "3.20.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -1363,6 +1384,38 @@
         }
 
 
+        // ⚠️⚠️ ROADMAP 54. LAZY, NOT PREFETCHED — a student who never picks
+        // "Most Popular" must pay nothing for this to exist. `null` means "not
+        // yet asked for"; `{}` means "asked for and there's nothing there yet"
+        // (staff hasn't run Recalculate in reports.html) — both are falsy in
+        // JS, so `popularityOf()` doesn't need to tell them apart, but the
+        // `null` check in `ensurePopularityLoaded()` does, or a second student
+        // picking this sort in the same page load would re-fetch every time.
+        let popularityCounts = null;
+        let popularityFetchPromise = null;
+        async function ensurePopularityLoaded() {
+            if (popularityCounts) return popularityCounts;
+            if (popularityFetchPromise) return popularityFetchPromise;
+            popularityFetchPromise = (async () => {
+                try {
+                    const snap = await getDoc(doc(db, 'settings', 'popularity'));
+                    popularityCounts = (snap.exists() && snap.data().counts) || {};
+                } catch (e) {
+                    console.warn('Popularity load failed:', e);
+                    popularityCounts = {};
+                }
+                return popularityCounts;
+            })();
+            return popularityFetchPromise;
+        }
+        // A book absent from the map — never typed, or added since the last
+        // Recalculate — is exactly as popular as a book explicitly counted at
+        // zero. Both belong at the bottom, tied on title, never above a book
+        // that IS in the map.
+        function popularityOf(b) {
+            return (popularityCounts && popularityCounts[b.id]) || 0;
+        }
+
         function sortBooks(list) {
             const arr = list.slice();
             const byTitle = (a, b) => titleSortKey(a.title).localeCompare(titleSortKey(b.title));
@@ -1383,6 +1436,8 @@
                     return arr.sort((a, b) => (b.contentVersion - a.contentVersion) || byTitle(a, b));
                 case 'progress':
                     return arr.sort((a, b) => (progressOf(b) - progressOf(a)) || byTitle(a, b));
+                case 'popular':
+                    return arr.sort((a, b) => (popularityOf(b) - popularityOf(a)) || byTitle(a, b));
                 default:
                     return arr.sort(byTitle);
             }
@@ -2054,9 +2109,14 @@
         }
 
         // --- SORT CONTROL ---
-        document.getElementById('sort-select').addEventListener('change', (e) => {
+        document.getElementById('sort-select').addEventListener('change', async (e) => {
             activeSort = e.target.value;
             e.target.classList.toggle('is-set', activeSort !== 'title');
+            // ⚠️ ROADMAP 54 — the one sort option with a network fetch behind
+            // it, and only on its FIRST selection. Every other case in
+            // sortBooks() is synchronous over data already in memory; this is
+            // the exception, not the pattern to copy for a future sort.
+            if (activeSort === 'popular') await ensurePopularityLoaded();
             renderBooks();
         });
 

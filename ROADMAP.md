@@ -387,7 +387,7 @@ Everything else still open:
 - 42. ⚠️ NEARLY DONE — 13 ATTRIBUTES LEFT, NOT 183 (THIS HEADING WAS STALE FOR TWENTY ROUNDS) — AND THE THINGS THIS ITEM GOT WRONG  *(⚠️ Round 81 MEASURED it: 13 attributes, not 183 — the heading was stale for twenty rounds and Round 80 passed it forward. The remainder is runtime-conditional; what is left is a question for Jake, not a job)*
 - 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME  *(Jake ANSWERED it Round 57 — it is student-facing visibility, not a staff filter; read the item before starting)*
 - 53. ⚠️ HALF DONE — FEATURED SHIPPED (Round 80, Imperial), SEARCH STILL OPEN  *(newest-first, random-untyped fallback, per Jake's spec; search is unbuilt. ⚠️ Round 81 fixed the fallback's "untyped" half, which had never once run — read that block before touching renderFeatured())*
-- 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
+- 54. ⚠️ BUILT AS AN OPTION (Round 83, Densmore) — DEFAULT-VS-OPTION IS STILL JAKE'S CALL  *(Jake asked, 2026-09-03; the read-cost question is answered and shipped as an opt-in sort — no live counter, no write on the student path — but whether it should ever become the default order is still open)*
 - 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
 - 60. ⭐ STAFF SHOULD SEE EVERY BOOK AND CHOOSE WHAT THEIR OWN STUDENTS SEE  *(Jake, Round 76. NOT BUILT — needs a ruling on allowlist vs blocklist, and the shelf is the read-budget surface)*
 - 66. ⚠️ THE BOOKS CSV EXPORT NAMES ITS FILE FROM A UTC DAY — THE LAST OF THE ROUND 80 SWEEP  *(found Round 81 by sweeping the class, not by a report. ⚠️ Cosmetic — a filename, never a stored value. Read it before "fixing" any other toISOString() in the repo: the rest are timestamps and UTC is right for them)*
@@ -6555,7 +6555,7 @@ first.**
 
 ---
 
-## 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL
+## 54. ⚠️ BUILT AS AN OPTION (Round 83, Densmore) — DEFAULT-VS-OPTION IS STILL JAKE'S CALL
 
 **Jake, 2026-09-03:** *"I wish there was some way to sort by most popular, but I
 know that would take another read or write, and it's probably not worth it. But
@@ -6608,6 +6608,36 @@ because they are at the top. With eighty books and a discovery problem already
 (item 53), a popularity sort can make the tail *less* visible, not more —
 the opposite of what he asked 53 for. **Ask whether he wants popularity as the
 default order or as one option beside the current one.**
+
+### ✅ CLOSED, THE READ-COST QUESTION — ⚠️ STILL OPEN, THE DEFAULT-VS-OPTION ONE
+
+Round 83 (Densmore), 2026-09-07. **Built exactly the "staff-refreshed ordering"
+this section priced as the safe answer, and nothing else.**
+
+* `reports.html` **v2.40.0**: a new "LIBRARY POPULARITY" panel, visible only to
+  `isSuper()`. `recalculatePopularity()` reads the book list once, then runs
+  one `getCountFromServer()` per book against `typing_logs` filtered on the
+  `bookId` field `session-log.js` already writes on every chunk — **an
+  aggregation query, not a read of every session**, and it only ever runs on
+  an explicit click. **No new write anywhere on the student path.**
+* `firestore.rules` **v2.12.0**: `settings/popularity` joins `settings/goals`
+  as the only two guest-readable settings documents; write stays
+  `isSuper()`-only, same tier as `goals`.
+* `index.html` **v3.20.0**: "Most Popular" is a **new option in the sort
+  control, not a change to the default**, which is what leaves the actual
+  open question — default vs. option — genuinely still open rather than
+  quietly resolved by omission. ⚠️⚠️ **ZERO COST FOR A STUDENT WHO NEVER PICKS
+  IT** — `settings/popularity` is fetched lazily, on first selection of that
+  sort, not on page load, and stays cached for the rest of the page's life.
+  A book missing from the counts (never typed, or added since the last
+  recalculation) sorts as zero — tied at the bottom on title, never above a
+  book that's actually been measured.
+* New harness `tests/popularity-sort-test.mjs`, 27 assertions across all three
+  files, several mutation-verified.
+* ⚠️ **STILL UNANSWERED: should this ever become the default order, and does
+  a super_admin need a reminder to re-run it occasionally, or is "whenever
+  someone remembers" good enough for eighty public-domain books?** Neither
+  blocks what shipped; both are his call, not this round's to assume.
 
 ---
 

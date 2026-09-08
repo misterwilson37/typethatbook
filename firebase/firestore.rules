@@ -1,6 +1,14 @@
 rules_version = '2';
 
-// firestore.rules v2.11.0 — TypeThatBook
+// firestore.rules v2.12.0 — TypeThatBook
+//
+// v2.12.0 — ⭐ ROADMAP 54: settings/popularity JOINS settings/goals AS
+//           GUEST-READABLE. Holds the library's popularity ranking, derived
+//           entirely from typing_logs' existing bookId field via staff-
+//           triggered getCountFromServer() queries in reports.html — NO new
+//           write on the student path, and NOT a live per-open counter (the
+//           thing this item's own text explicitly warns off). Write stays
+//           isSuper()-only, same tier as settings/goals.
 //
 // v2.11.0 — ⚠️⚠️ /classes UPDATE NOW REFUSES A PLAIN TEACHER'S CHANGE TO
 //           teacherUids, ADMIN-ONLY FROM HERE. ROADMAP 62.
@@ -1016,7 +1024,10 @@ service cloud.firestore {
 
     // ⚠️ KEYED ON THE DOCUMENT ID ON PURPOSE — do not collapse this back to a
     // single condition. settings/goals is the class minute target and every
-    // student reads it, guest or not. settings/languageFilter is the curated
+    // student reads it, guest or not. settings/popularity (ROADMAP 54) is the
+    // library's popularity ranking — index.html's sort control is guest-
+    // visible too, and a guest who picks "Most Popular" needs the same read a
+    // signed-in student gets. settings/languageFilter is the curated
     // flagged-word list; it stays behind auth because publishing a list of
     // slurs and profanity to the open internet is a bad outcome with no upside,
     // and admin.js is its only reader anyway.
@@ -1025,7 +1036,7 @@ service cloud.firestore {
     // default: if a future document needs to be guest-readable, adding its id
     // here is a deliberate act.
     match /settings/{docId} {
-      allow read:  if docId == 'goals' || signedIn();
+      allow read:  if docId == 'goals' || docId == 'popularity' || signedIn();
       allow write: if isSuper();
     }
 
