@@ -1,3 +1,4 @@
+// game-draw.js v1.2.0 — keyStates added Round 90 (miss/fixed key colouring).
 // game-draw.js v1.1.0 — CANVAS HELPERS SHARED BY ALL THREE ARCADE VIEWS.
 // Round 82 (Victor); keyboard strip added Round 89.
 //
@@ -95,6 +96,7 @@ export function keyboardStripHeight(H, enabled) {
  *   height     {number}   from keyboardStripHeight()
  *   nextChar   {string}   the character to light, or null
  *   left,right {string[]} lines for the flanks
+ *   keyStates  {object}   char -> 'miss' | 'fixed', for the error memory
  *   progress   {number}   0..1, drawn as a bar under the right flank; null to omit
  *
  * ⚠️ THE NUMBER ROW IS OMITTED ON PURPOSE. Three letter rows and a space bar
@@ -107,6 +109,7 @@ export function drawKeyboardStrip(ctx, o) {
     const rows = (LAYOUTS.qwerty).rows;
     const top = H - height;
     const want = o.nextChar;
+    const states = o.keyStates || {};
     const wantLower = want == null ? null : String(want).toLowerCase();
     const shifted = want != null && want !== wantLower;
 
@@ -138,16 +141,25 @@ export function drawKeyboardStrip(ctx, o) {
             const x = originX + indent + c * (keyW + pad);
             const col = fingerColorOf(ch);
             const isWant = wantLower !== null && ch === wantLower;
+            // ⚠️⚠️ ERROR STATE OUTRANKS FINGER COLOUR, AND THAT IS THE POINT.
+            // Students asked for keys that turn red where they get stuck; a
+            // red key that is still tinted by its finger is neither. 'miss'
+            // shouts, 'fixed' stays marked but stops shouting — erasing it
+            // entirely would delete the very information they asked for.
+            const st = states[ch];
+            const keyCol = st === 'miss' ? '#ff5566' : st === 'fixed' ? '#7fb8ff' : col;
             roundRect(ctx, x, y, keyW, keyH, 4);
-            ctx.fillStyle = col;
+            ctx.fillStyle = keyCol;
             // ⚠️ THE RESTING TINT IS FAINT BUT NOT INVISIBLE. At 0.05 the board
             // rendered as uniform grey and the colours — the entire reason a
             // beginner needs this strip — conveyed nothing.
-            ctx.globalAlpha = isWant ? 0.95 : 0.16;
+            // A missed key sits brighter than a resting one even when it is not
+            // the current target, or it is only findable by hunting for it.
+            ctx.globalAlpha = isWant ? 0.95 : (st === 'miss' ? 0.42 : st === 'fixed' ? 0.30 : 0.16);
             ctx.fill();
             ctx.globalAlpha = 1;
-            ctx.strokeStyle = isWant ? '#ffffff' : col;
-            ctx.lineWidth = isWant ? 2 : 1;
+            ctx.strokeStyle = isWant ? '#ffffff' : keyCol;
+            ctx.lineWidth = isWant || st === 'miss' ? 2 : 1;
             ctx.globalAlpha = isWant ? 1 : 0.75;
             ctx.stroke();
             ctx.globalAlpha = 1;
@@ -156,6 +168,35 @@ export function drawKeyboardStrip(ctx, o) {
             ctx.fillText(ch.toUpperCase(), x + keyW / 2, y + keyH / 2 + 0.5);
             ctx.globalAlpha = 1;
         });
+
+        // ⚠️ ENTER SITS AT THE RIGHT END OF THE HOME ROW (rIdx 1), which is where
+        // keyboard.js's createKeyboard() puts it and therefore where School has
+        // trained the student to look. Putting it anywhere else would teach a
+        // position their fingers then have to unlearn.
+        // ⚠️ IT IS A RIGHT-PINKY KEY and takes that colour from the shared map
+        // (keyboard.js maps '\n' to right-pinky), not from a literal here.
+        if (r === 1) {
+            const ex = originX + indent + rowChars.length * (keyW + pad);
+            const ew = keyW * 1.6;
+            const wantEnter = want === '\n' || want === '\r';
+            const ecol = fingerColorOf('\n');
+            roundRect(ctx, ex, y, ew, keyH, 4);
+            ctx.fillStyle = ecol;
+            ctx.globalAlpha = wantEnter ? 0.95 : 0.16;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.strokeStyle = wantEnter ? '#ffffff' : ecol;
+            ctx.lineWidth = wantEnter ? 2 : 1;
+            ctx.globalAlpha = wantEnter ? 1 : 0.75;
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            ctx.save();
+            ctx.font = 'bold ' + Math.max(9, Math.floor(keyH * 0.30)) + 'px "Courier Prime", monospace';
+            ctx.fillStyle = wantEnter ? '#04070d' : '#e8f2fa';
+            ctx.globalAlpha = wantEnter ? 1 : 0.9;
+            ctx.fillText('\u21b5 ENTER', ex + ew / 2, y + keyH / 2 + 0.5);
+            ctx.restore();
+        }
     });
 
     // Space bar
@@ -196,10 +237,29 @@ export function drawKeyboardStrip(ctx, o) {
     drawFlank(o.left, 14, 'left');
     drawFlank(o.right, W - 14, 'right');
 
+    // ⚠️⚠️ BOTTOM-ANCHORED, NOT APPENDED TO THE TOP LISTS. Jake, 2026-09-08:
+    // *"add current daily minutes to the bottom left and weekly minutes to the
+    // bottom right."* These are the student's REAL totals for the day and the
+    // week — the same numbers School and the reports show — and they must sit
+    // apart from the run's own live stats above them, or a child reads "28 WPM"
+    // and "14m today" as two facts of the same kind. Anchoring to the bottom
+    // edge keeps that separation at every strip height.
+    const drawBottom = (text, xCenter, align) => {
+        if (!text || flankW < 70) return;
+        ctx.textAlign = align;
+        ctx.font = 'bold 12px "Courier Prime", monospace';
+        ctx.fillStyle = '#5f7387';
+        ctx.fillText(text, xCenter, top + height - 12);
+    };
+    drawBottom(o.bottomLeft, 14, 'left');
+    drawBottom(o.bottomRight, W - 14, 'right');
+
     if (o.progress != null && flankW >= 70) {
         const bw = Math.min(160, flankW - 10);
         const bx = W - 14 - bw;
-        const by = top + height - 22;
+        // ⚠️ LIFTED CLEAR OF THE WEEKLY-MINUTES LINE BELOW IT (Round 90). At
+        // `height - 22` the bar and that text occupied the same pixels.
+        const by = top + height - (o.bottomRight ? 36 : 22);
         roundRect(ctx, bx, by, bw, 10, 5);
         ctx.fillStyle = 'rgba(2,4,10,0.8)'; ctx.fill();
         ctx.strokeStyle = 'rgba(0,229,255,0.3)'; ctx.lineWidth = 1; ctx.stroke();

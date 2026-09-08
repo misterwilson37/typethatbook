@@ -120,24 +120,42 @@
             opacity: .85;
         }
         .shelf-heading { margin-top: 0; }
-        /* ⚠️⚠️ THE SAME TRACKS AS .library-grid, DELIBERATELY, AND THAT IS THE
-           WHOLE FIX FOR "slightly off". Jake: being slightly different is worse
-           than being obviously different. So this grid declares the SHELF's
-           columns and gap, and each card SPANS TWO of them — the card edges land
-           on the shelf's own column lines at every viewport width, because they
-           are computed from the same tracks rather than from a number that
-           happens to look close. Change .library-grid's minmax and this follows
-           it; do not give this one its own. */
+        /* ⚠️⚠️ v3.23.0 — TWO CARDS, HALF THE SHELF EACH, AND THAT RETIRES THE
+           SPAN-TWO ALIGNMENT TRICK ON PURPOSE. READ THIS BEFORE PUTTING IT BACK.
+           Jake, 2026-09-08, of the shipped row: "featured and resume are both 1.5
+           rows, which is wonky. I think we keep them one row... Could the
+           featured and resumes be 2.5 columns wide?"
+           THE OLD RULE WAS THE CAUSE OF THE COMPLAINT. This grid used to declare
+           .library-grid's own tracks — repeat(auto-fill, minmax(180px, 1fr)) —
+           with each card set to `grid-column: span 2`, so card edges landed on
+           the shelf's column lines. But .library-grid is capped at max-width
+           1100px, which resolves to FIVE columns at every desktop width, and
+           three 2-span cards need SIX. So the third card wrapped, and what Jake
+           saw was two cards, a leftover column, and a half-empty second row —
+           the alignment invariant producing the wonk it was written to prevent.
+           ⚠️ TWO EQUAL COLUMNS CANNOT WRAP. At the 5-column shelf each card is
+           2.5 columns wide (Jake's own number) — deliberately NOT on a column
+           line, but symmetric and full-width, which is what an odd column count
+           allows. At a 4-column shelf each card is exactly 2 columns and the
+           edges land on the shelf's lines again for free. Both are one row.
+           ⚠️ THE CARD COUNT IS THE OTHER HALF OF THIS RULE. CONTINUE_MAX and
+           FEATURED_MAX are 2 because this grid is two-up; raising either one
+           re-creates the wrap. They are the lever, not this file. */
         .continue-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 24px;
             max-width: 1100px;
             margin: 0 auto;
             padding: 0 24px;
         }
+        /* Below this the shelf itself is two columns or fewer, and half of that
+           is narrower than the cover plus a readable title. One card per row is
+           a list, which is fine; half a card is not. */
+        @media (max-width: 640px) {
+            .continue-grid { grid-template-columns: 1fr; }
+        }
         .continue-card {
-            grid-column: span 2;
             display: flex; gap: 12px; align-items: stretch;
             /* The cover is 84px and the padding is 12px top and bottom. Flooring
                here means the cover is never the thing that leaves a gap — the
@@ -152,11 +170,10 @@
             text-decoration: none; color: inherit;
             transition: transform 0.2s, box-shadow 0.2s;
         }
-        /* At the narrowest widths the shelf itself is one column, and a 2-span
-           card would invent a second one and overflow the page. */
-        @media (max-width: 480px) {
-            .continue-card { grid-column: span 1; }
-        }
+        /* ⚠️ THE 480px `grid-column: span 1` OVERRIDE IS GONE WITH THE SPAN.
+           It existed because a 2-span card in a 1-column shelf invented a second
+           column and overflowed the page. Nothing spans anything now, and the
+           640px rule above covers the narrow case properly. */
         .continue-card:hover {
             transform: translateY(-4px);
             box-shadow: 0 8px 24px var(--shadow-hover);
@@ -186,8 +203,20 @@
             background: linear-gradient(135deg, #c9bfb0 0%, #a89880 100%);
         }
         /* min-width:0 is load-bearing: without it a long title refuses to wrap
-           and pushes the card past its grid column. */
-        .continue-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+           and pushes the card past its grid column.
+           ⚠️ justify-content:center ONLY MOVES THE FEATURED CARDS, and that is
+           why it is safe to put here rather than on a modifier class. Jake,
+           2026-09-08: "There's one line of text - the title - and then nothing
+           makes up the vertical space provided by the covers." A Continue card
+           has .continue-meta with `margin-top:auto`, and an auto margin absorbs
+           ALL free space before justify-content gets a say — so those cards keep
+           their verb-at-top, bar-at-bottom stack exactly as before. A Featured
+           card has no meta, so its badge/title/author block centres against the
+           84px cover instead of stranding it above a void. */
+        .continue-body {
+            flex: 1; min-width: 0;
+            display: flex; flex-direction: column; justify-content: center;
+        }
         .continue-resume {
             font-size: .68rem; font-weight: 700; color: var(--accent);
             text-transform: uppercase; letter-spacing: .03em;
@@ -201,9 +230,22 @@
            truncated tail costs them nothing. */
         .continue-title {
             font-size: .9rem; font-weight: 700; line-height: 1.25;
-            margin: 1px 0 8px;
+            margin: 1px 0 4px;
             display: -webkit-box; -webkit-box-orient: vertical;
             -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+        }
+        /* ⚠️ SAME FIELD AND SAME PRESENTATION AS THE SHELF'S .book-author — the
+           plain name, no "by", muted, one size down from the title. A book shown
+           in two places on one screen must not be attributed two different ways.
+           ⚠️ ONE LINE, ELLIPSISED, not the title's two-line clamp. The title has
+           earned the right to wrap; a surname pushing a card taller than the one
+           beside it in the same grid row is the "slightly off" complaint again.
+           Renders nothing at all when the book has no author — admin.js passes
+           dc:creator straight through and some Gutenberg records have none. */
+        .continue-author {
+            font-size: .74rem; color: var(--text-muted);
+            margin: 0 0 8px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         /* ⚠️ margin-top:auto PINS THE BAR AND THE STAMP TO THE BOTTOM. Titles run
            one line or three; without this the bars sit at different heights in
@@ -629,6 +671,35 @@
         // it, because they used to be hardcoded separately and had already
         // drifted apart (title said 3.0.0, footer said 2.3.1).
         //
+        // v3.23.0: ⭐ ROADMAP 69 — THE TWO SPECIAL ROWS ARE ONE ROW, THEY NAME THE
+        //         AUTHOR, AND "FEATURED" MOVES. Jake, 2026-09-08, with a
+        //         full-screen screenshot: "featured and resume are both 1.5 rows,
+        //         which is wonky... Could the featured and resumes be 2.5 columns
+        //         wide? ... there is plenty of room for an author... Ideally, the
+        //         'Featured' would be different every time."
+        //         ⚠️⚠️ THE WONK WAS THE ALIGNMENT INVARIANT, NOT A MISSING RULE.
+        //         .continue-grid declared .library-grid's own auto-fill tracks
+        //         with each card at `grid-column: span 2` so card edges landed on
+        //         shelf column lines — but the shelf is capped at max-width 1100px
+        //         and resolves to FIVE columns at every desktop width, and three
+        //         2-span cards need SIX. The third wrapped. Two equal columns
+        //         cannot wrap; see the .continue-grid comment for why 2.5 columns
+        //         is the right answer at an odd column count and why it lands back
+        //         on the shelf's lines at an even one. CONTINUE_MAX and
+        //         FEATURED_MAX are 2 as a consequence, and are the lever.
+        //         ⚠️ FEATURED WAS DETERMINISTIC AND NOBODY HAD NOTICED. The
+        //         newest branch was sort-by-uploadedAt then slice, with no shuffle
+        //         anywhere — only the FALLBACK rolled dice. Three books were
+        //         inside the 14-day window, so the same titles showed for a
+        //         fortnight. The row is a MIXTURE now (FEATURED_NEW_SLOTS), the
+        //         badge is per card rather than per row, and BOTH halves run
+        //         through the stamped cache — so the stamp gained the new-id set,
+        //         or a book aging out of the window would keep its "New" badge in
+        //         a long-lived tab.
+        //         ⚠️ AND "MOST POPULAR" NOW SAYS WHEN IT HAS NOTHING TO SORT BY.
+        //         It degraded silently to title order for a whole round; the
+        //         actual counting defect is fixed in reports.html v1.11.0.
+        //
         // v3.22.0: ⚠️ ROADMAP 67 — A FINISHED BOOK LEAVES THE CONTINUE-READING ROW.
         //         Jake, 2026-09-08, of a book he had just completed: "It's still
         //         showing in my continue reading menu... Got to the library from
@@ -793,7 +864,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.22.0";
+        const INDEX_VERSION = "3.23.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -1651,7 +1722,15 @@
             return 0;
         }
 
-        const CONTINUE_MAX = 3;
+        // ⚠️ TWO, BECAUSE .continue-grid IS TWO-UP (v3.23.0). Three cards in a
+        // two-column grid is the 1.5-row wrap Jake reported, one row down. This
+        // constant and FEATURED_MAX below are the levers for that decision; the
+        // CSS is not. Raising either one means giving the grid a third column
+        // and re-checking it rendered at the 4-column shelf width.
+        // ⚠️ IT COSTS THE THIRD-MOST-RECENT BOOK A CARD. The row is the
+        // shortcut, not the record — the shelf still carries every book with a
+        // progress pip on it, and "My progress" sorts the whole library by it.
+        const CONTINUE_MAX = 2;
 
         // ⚠️⚠️ ROADMAP 53 — Jake, 2026-09-06: "'featured' should just be
         // 'newest' and then if nothing is new within a week or 2, 'featured'
@@ -1659,10 +1738,27 @@
         // or 2" — no sharper spec was given, so 14 days (the wider half of
         // his own range) was picked deliberately rather than split further;
         // change this one constant if that's wrong, nothing else needs to
-        // move. FEATURED_MAX matches CONTINUE_MAX for visual consistency
-        // between the two special rows — not load-bearing, just matching.
+        // move.
+        // ⚠️ FEATURED_MAX IS LOAD-BEARING NOW, WHICH IT WAS NOT BEFORE. It used
+        // to match CONTINUE_MAX "for visual consistency — not load-bearing, just
+        // matching." Both are 2 because .continue-grid is two-up; read that
+        // rule's comment in the style block before changing either.
         const FEATURED_WINDOW_MS = 14 * 24 * 3600 * 1000;
-        const FEATURED_MAX = 3;
+        const FEATURED_MAX = 2;
+        // ⚠️⚠️ AT MOST THIS MANY SLOTS GO TO NEW BOOKS, AND THE REST ARE ALWAYS
+        // A DISCOVERY DRAW. Jake, 2026-09-08: "Ideally, the 'Featured' would be
+        // different every time, or at least not the same 2 titles every time."
+        // The v3.19.0 shape was newest-OR-random: if ANY book fell inside the
+        // window, the whole row was `sort((a,b) => b.at - a.at).slice(0, MAX)` —
+        // fully deterministic, so a fortnight of page loads showed the identical
+        // titles. Three books were inside the window when he reported it.
+        // Reserving SOME slots rather than all of them means a new book still
+        // surfaces (which is what ROADMAP 53 asked for) while the row still
+        // moves between loads (which is what he asked for now).
+        // ⚠️ max(1, MAX-1) — never zero, or a brand-new upload could be invisible
+        // on the row whose whole job is announcing it, and never all of them, or
+        // this is the old deterministic behaviour again under a new name.
+        const FEATURED_NEW_SLOTS = Math.max(1, FEATURED_MAX - 1);
         // ⚠️ THE RANDOM FALLBACK IS NOT RE-ROLLED ON EVERY RENDER.
         // renderBooks() runs from eight call sites — sort, filter, sign-in,
         // sign-out — and re-rolling the dice on each one would reshuffle a
@@ -1777,6 +1873,7 @@
                         <div class="continue-body">
                             <div class="continue-resume">Resume</div>
                             <div class="continue-title">${escapeHtml(book.title)}</div>
+                            ${book.author ? `<div class="continue-author">${escapeHtml(book.author)}</div>` : ''}
                             ${barHTML || lastHTML
                                 ? `<div class="continue-meta">${barHTML}${lastHTML}</div>` : ''}
                         </div>
@@ -1815,54 +1912,81 @@
             if (!allBooks.length) return hide();
 
             const cutoff = Date.now() - FEATURED_WINDOW_MS;
-            const newest = allBooks
+            // ⚠️ 0 (no stamp at all) NEVER COUNTS AS "NEW". A book uploaded
+            // before admin.js started stamping uploadedAt, or added by some
+            // path outside this codebase, has no evidence it belongs in this
+            // window — treated the same as "old," never as "new right now."
+            const newIds = new Set(allBooks
                 .map(book => ({ book, at: bookUploadedAtMs(book) }))
-                // ⚠️ 0 (no stamp at all) NEVER COUNTS AS "NEW". A book
-                // uploaded before admin.js started stamping uploadedAt, or
-                // added by some path outside this codebase, has no evidence
-                // it belongs in this window — treated the same as "old,"
-                // never as "new right now."
                 .filter(x => x.at > cutoff)
-                .sort((a, b) => b.at - a.at)
-                .slice(0, FEATURED_MAX)
-                .map(x => x.book);
+                .map(x => x.book.id));
 
-            let picks, isNew;
-            if (newest.length) {
-                picks = newest;
-                isNew = true;
-            } else {
-                // ⚠️ RE-ROLLED WHEN THE ANSWER CHANGES, NEVER WHEN THE VIEW
-                // DOES — see _featuredRandomStamp's own note above.
-                const started = new Set(Object.keys(userProgress || {}));
-                // ⚠️ ALL THREE PARTS ARE LOAD-BEARING. The uid alone is not
-                // enough: `currentUser` is assigned at the top of the auth
-                // handler and `userProgress` only after the await inside
-                // loadUserProgress(), so a render landing between them would
-                // stamp a real uid onto an empty exclusion set and freeze it
-                // exactly as before. The started ids are what the pool is
-                // actually built from, so they are what the signature reads.
-                // allBooks.length catches the cold-fetch path replacing a
-                // cached shelf with a larger one.
-                const stamp = (currentUser ? currentUser.uid : '') + '|' +
-                              allBooks.length + '|' +
-                              Array.from(started).sort().join(',');
-                if (!_featuredRandomCache || _featuredRandomStamp !== stamp) {
-                    const pool = allBooks.filter(b => !started.has(b.id));
-                    // Fisher-Yates on a COPY — allBooks itself must stay in
-                    // whatever order loadBooks()/sort left it in for every
-                    // other reader of that array.
-                    const shuffled = pool.slice();
-                    for (let i = shuffled.length - 1; i > 0; i--) {
+            const started = new Set(Object.keys(userProgress || {}));
+
+            // ⚠️ RE-ROLLED WHEN THE ANSWER CHANGES, NEVER WHEN THE VIEW DOES —
+            // see _featuredRandomStamp's own note above.
+            // ⚠️ ALL FOUR PARTS ARE LOAD-BEARING. The uid alone is not enough:
+            // `currentUser` is assigned at the top of the auth handler and
+            // `userProgress` only after the await inside loadUserProgress(), so
+            // a render landing between them would stamp a real uid onto an empty
+            // exclusion set and freeze it. The started ids are what the pool is
+            // actually built from, so they are what the signature reads.
+            // allBooks.length catches the cold-fetch path replacing a cached
+            // shelf with a larger one.
+            // ⭐ THE NEW IDS ARE THE FOURTH PART AND THEY ARE v3.23.0's. The
+            // window is a moving cutoff, so a book can age out of it inside one
+            // long-lived tab — and now that BOTH halves of the pick run through
+            // this cache (they did not before), an aged-out book would otherwise
+            // keep its "New" badge until the page was reloaded.
+            const stamp = (currentUser ? currentUser.uid : '') + '|' +
+                          allBooks.length + '|' +
+                          Array.from(newIds).sort().join(',') + '|' +
+                          Array.from(started).sort().join(',');
+
+            if (!_featuredRandomCache || _featuredRandomStamp !== stamp) {
+                // Fisher-Yates on a COPY — allBooks itself must stay in
+                // whatever order loadBooks()/sort left it in for every other
+                // reader of that array.
+                const shuffled = (pool) => {
+                    const out = pool.slice();
+                    for (let i = out.length - 1; i > 0; i--) {
                         const j = Math.floor(Math.random() * (i + 1));
-                        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                        [out[i], out[j]] = [out[j], out[i]];
                     }
-                    _featuredRandomCache = shuffled.slice(0, FEATURED_MAX);
-                    _featuredRandomStamp = stamp;
-                }
-                picks = _featuredRandomCache;
-                isNew = false;
+                    return out;
+                };
+                const picked = [];
+                const fillTo = (limit, pool) => {
+                    for (const b of pool) {
+                        if (picked.length >= limit) return;
+                        if (!picked.includes(b)) picked.push(b);
+                    }
+                };
+                const isNewBook = (b) => newIds.has(b.id);
+                // ⚠️⚠️ THE ORDER OF THESE FOUR IS THE WHOLE POLICY.
+                //   1. A new book, drawn at random from everything inside the
+                //      window — so three new uploads take turns rather than the
+                //      newest two winning every load forever.
+                //   2. The rest of the row is the ROADMAP 53 discovery draw:
+                //      random, and never something they have already opened.
+                //   3. Short of a full row, more new books. A library with two
+                //      new titles and nothing untyped left should still fill.
+                //   4. ⚠️ LAST RESORT ONLY: anything at all, including books
+                //      they have typed. v3.19.0 HID THE ROW in this case (the
+                //      pool came back empty and `!picks.length` bailed), which
+                //      punishes the most engaged reader in the building by
+                //      deleting their discovery row. A book they have seen
+                //      before beats a heading over nothing.
+                fillTo(Math.min(FEATURED_NEW_SLOTS, FEATURED_MAX),
+                       shuffled(allBooks.filter(isNewBook)));
+                fillTo(FEATURED_MAX,
+                       shuffled(allBooks.filter(b => !isNewBook(b) && !started.has(b.id))));
+                fillTo(FEATURED_MAX, shuffled(allBooks.filter(isNewBook)));
+                fillTo(FEATURED_MAX, shuffled(allBooks));
+                _featuredRandomCache = picked;
+                _featuredRandomStamp = stamp;
             }
+            const picks = _featuredRandomCache;
 
             if (!picks.length) return hide();
 
@@ -1877,13 +2001,19 @@
                 const coverHTML = book.coverUrl
                     ? `<img class="continue-cover" src="${escapeAttr(book.coverUrl)}" alt="" loading="lazy">`
                     : `<div class="continue-cover-placeholder"></div>`;
-                const badge = isNew ? 'New' : 'Featured';
+                // ⚠️ THE BADGE IS PER CARD NOW, NOT PER ROW (v3.23.0). It used
+                // to be one `isNew` decided for the whole row, because the row
+                // was newest-OR-random and could only be one of the two. It is
+                // a MIXTURE now, so a row can legitimately read "New" beside
+                // "Featured" and each card has to say which it is.
+                const badge = newIds.has(book.id) ? 'New' : 'Featured';
                 return `
                     <a class="continue-card" href="game.html?book=${encodeURIComponent(book.id)}">
                         ${coverHTML}
                         <div class="continue-body">
                             <div class="continue-resume">${badge}</div>
                             <div class="continue-title">${escapeHtml(book.title)}</div>
+                            ${book.author ? `<div class="continue-author">${escapeHtml(book.author)}</div>` : ''}
                         </div>
                     </a>`;
             }).join('');
@@ -1934,10 +2064,34 @@
                     ? byGenre.filter(b => (b.minAge === null || b.maxAge === null) &&
                                           matchesSearch(b) && matchesProt(b)).length
                     : 0;
-                note.innerHTML = hiddenUntagged
-                    ? `${hiddenUntagged} book${hiddenUntagged === 1 ? '' : 's'} ` +
-                      `hidden — no age range set yet. <a id="note-clear">Show all ages</a>`
-                    : '';
+                // ⚠️⚠️ v3.23.0 — "MOST POPULAR" USED TO FAIL SILENTLY AS
+                // ALPHABETICAL, AND THAT IS HOW ITS DEFECT SURVIVED A ROUND.
+                // Jake, 2026-09-08: "Sort by popular is just alphabetical. I ran
+                // the popularity report in reports.html and it did not appear to
+                // do anything." He was reading the sort correctly — every count
+                // was 0, so sortBooks()'s `|| byTitle(a, b)` tiebreak decided
+                // the whole order. The cause was in reports.html (it counted a
+                // field typing_logs does not carry; see recalculatePopularity()
+                // there), but NOTHING ON THIS PAGE SAID SO — an unmeasured
+                // library and a measured one look identical from a shelf, which
+                // is exactly the class of failure the app is not allowed to have.
+                // ⚠️ THIS IS NOT A FIX, IT IS AN INSTRUMENT. It costs nothing —
+                // popularityCounts is already in memory by the time this runs,
+                // because the sort handler awaits ensurePopularityLoaded() — and
+                // it means the next person to see a flat popularity sort learns
+                // it from the page instead of from a diff.
+                const popularityUnmeasured = activeSort === 'popular' &&
+                    !(popularityCounts && Object.values(popularityCounts).some(n => n > 0));
+                const parts = [];
+                if (hiddenUntagged) {
+                    parts.push(`${hiddenUntagged} book${hiddenUntagged === 1 ? '' : 's'} ` +
+                        `hidden — no age range set yet. <a id="note-clear">Show all ages</a>`);
+                }
+                if (popularityUnmeasured) {
+                    parts.push('Nothing has been measured for “Most Popular” yet, ' +
+                        'so this is title order. A teacher recalculates it in Reports.');
+                }
+                note.innerHTML = parts.join(' · ');
                 const nc = document.getElementById('note-clear');
                 if (nc) nc.onclick = () => {
                     ageMin = ageMax = null;

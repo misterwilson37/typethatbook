@@ -1,4 +1,22 @@
-// game-deadline.js v1.3.0
+// game-deadline.js v1.4.0
+//
+// v1.4.0 — ⭐ ROUND 90 — STUDENT FEEDBACK, FOUR ITEMS.
+//   • PER-KEY ERROR MEMORY: a key you miss turns red and stays marked (blue)
+//     once you land it. ⚠️ KEYED ON THE CHARACTER THEY NEEDED, not the one they
+//     hit — a student stuck on 'k' who keeps pressing 'j' needs 'k' lit.
+//   • THE DESTRUCTION BANNER DROPPED TO GROUND LEVEL. At H*0.32 it covered
+//     falling words at their most readable, right after a hit when the student
+//     is already behind.
+//   • THE CONTROL BAR LEFT THE SKY (game-chrome.js v1.2.0). Targets enter from
+//     the top; the buttons were covering every word as it became readable.
+//   • ⚠️⚠️ THE "SLOWER IN THE GAME THAN THE QUIZ" REPORT IS *NOT* A CLOCK BUG —
+//     MEASURED, NOT ASSUMED. Simulating students at 15/25/40/60 WPM against a 15
+//     gate reports back 15/25/40/60 exactly: the clock does not cap anyone and
+//     spawnDue() already refills an empty sky instantly. The remaining gap is
+//     real human time — locating and reading a word that has just appeared at
+//     the top of a large canvas, which a quiz never charges because its text is
+//     already on the page and already read. DO NOT "FIX" THIS IN THE ARITHMETIC.
+//
 //
 // v1.3.0 — ⭐ ROUND 89 — SPACE BOUGHT BACK, AND THE KEYBOARD IS SHARED AND
 //   OPTIONAL. Jake, 2026-09-08: *"That missing space makes the game harder, so
@@ -270,6 +288,16 @@ export function mount(container, opts) {
     // report investigable.
     const rand = cfg.rand || Math.random;
     const onQuit = (opts && opts.onQuit) || function () {};
+    // ⚠️⚠️ THE MINUTES ARE SUPPLIED BY THE CALLER, NEVER READ HERE. Jake wants
+    // the student's daily and weekly totals under the keyboard, and those live
+    // in daylog.js's day documents — a Firestore read. A VIEW MUST NOT FETCH:
+    // this file is mounted by tools/game-lab.html, which has no auth at all, as
+    // well as by arcade.html, which does. A getter keeps the read where the
+    // page's own budget is accounted for and lets a page that cannot answer
+    // simply not pass one.
+    // ⚠️ IT IS A FUNCTION, NOT A VALUE, so a caller that refreshes the totals
+    // mid-run is reflected without remounting the game.
+    const getMinutes = (opts && opts.minutes) || null;
 
     const shieldCount = Math.max(1, Math.min(LANDMARKS.length, cfg.shields == null ? 3 : cfg.shields));
     // ⚠️⚠️ ROUND 87 — THE DIRECTOR IS TOLD HOW MANY HITS THE CITY CAN ACTUALLY
@@ -310,6 +338,17 @@ export function mount(container, opts) {
     // not student data — nothing on this page writes to the database, and that
     // must stay true. A read that throws (private mode, blocked storage) simply
     // leaves the default on.
+    // ⚠️⚠️ PER-KEY ERROR MEMORY, FOR THE KEYBOARD STRIP. Students, via Jake
+    // 2026-09-08: *"Keys should turn red when you fail them so you have a visual
+    // reminder of where you're stuck."*
+    //   'miss'  — a wrong key was pressed while THIS key was the one wanted
+    //   'fixed' — they later got it right, so it stops shouting but is still
+    //             marked, because "where I keep getting stuck" is the whole
+    //             point and clearing it entirely would erase the lesson
+    // ⚠️ KEYED ON THE EXPECTED CHARACTER, NOT THE ONE THEY PRESSED. A student
+    // stuck on 'k' who keeps hitting 'j' needs 'k' lit — marking 'j' would point
+    // at the finger that is working.
+    const keyStates = {};
     let kbOn = true;
     try {
         const v = localStorage.getItem('ttb_arcade_keyboard');
@@ -354,6 +393,10 @@ export function mount(container, opts) {
         // must not eat the sky, and below ~360px of height it is dropped
         // entirely rather than squeezed into unreadability.
         kbH = keyboardStripHeight(H, kbOn);
+        // ⚠️ TELL THE CHROME WHERE THE FLOOR IS. Its bar is positioned from the
+        // bottom, so it must clear the keyboard strip when one is drawn. +10 so
+        // the buttons sit inside the flank rather than straddling its top edge.
+        try { container.style.setProperty('--gc-bottom', (kbH ? kbH + 10 : 8) + 'px'); } catch (_) {}
         const groundY = H - 26 - kbH;
         const laneX = i => W * ((i + 1) / (shieldCount + 1));
         const reach = Math.abs(laneX(Math.floor(shieldCount / 2)) - laneX(0));
@@ -499,6 +542,9 @@ export function mount(container, opts) {
 
     function accept(target, ch, now) {
         d.keyResult(true, now);
+        // A key they had missed and have now landed goes from red to corrected.
+        const k = String(ch).toLowerCase();
+        if (keyStates[k] === 'miss') keyStates[k] = 'fixed';
         target.typed++;
         fire(ch, target, target.typed >= target.text.length, now);
         if (target.typed >= target.text.length) {
@@ -516,6 +562,13 @@ export function mount(container, opts) {
     }
 
     function reject(ch, now) {
+        // ⚠️ MARK WHAT THEY *NEEDED*, NOT WHAT THEY HIT. The expected character
+        // comes from the locked target, or the one they should be on.
+        {
+            const src = locked || aimAt;
+            const wanted = src && src.typed < src.text.length ? src.text[src.typed] : null;
+            if (wanted) keyStates[String(wanted).toLowerCase()] = 'miss';
+        }
         // ⚠️ AN UNMATCHED KEY IS A MISTAKE. All three prototypes silently dropped
         // it, which let a student mash for a minute and report 100% accuracy.
         d.keyResult(false, now);
@@ -731,8 +784,9 @@ export function mount(container, opts) {
                     const src = locked || aimAt;
                     return src && src.typed < src.text.length ? src.text[src.typed] : null;
                 })(),
-                left: hl.left, right: hl.right,
+                left: hl.left, right: hl.right, keyStates,
                 progress: d.endless ? null : d.clearedChars / d.quotaChars,
+                ...minuteLines(),
             });
         } else {
             drawHudTop(ctx, W, rep, d);
@@ -741,8 +795,18 @@ export function mount(container, opts) {
 
         if (banner && now < banner.until) {
             platedText(ctx, {
-                x: W / 2, y: H * 0.32, text: banner.text,
-                font: 'bold 30px "Courier Prime", monospace',
+                // ⚠️⚠️ GROUND LEVEL, NOT MID-SKY. Students, via Jake
+                // 2026-09-08: *"The text showing that various monuments have
+                // been destroyed get in the way of the text. They should move
+                // to the ground level to avoid blocking the typable
+                // characters."* At H*0.32 the banner sat exactly where falling
+                // words are most readable, so the game covered the thing it was
+                // asking them to type — and it did it at the WORST moment, just
+                // after a hit, when they are already behind. Just above the
+                // skyline it is still unmissable and blocks nothing: no target
+                // is typable down there, it has already landed.
+                x: W / 2, y: (H - kbH) - 64, text: banner.text,
+                font: 'bold 26px "Courier Prime", monospace',
                 color: ended ? '#ffd700' : '#ff5566',
                 bg: 'rgba(2,4,10,0.92)', border: '#334', padX: 22, padY: 12,
             });
@@ -1216,6 +1280,36 @@ export function mount(container, opts) {
      * falls back to the top plate. Otherwise turning the board off would also
      * silently remove the score, which is not what the toggle is for.
      */
+    /**
+     * The student's real day and week totals, for the bottom of each flank.
+     *
+     * ⚠️⚠️ THESE DO NOT INCLUDE THE RUN IN PROGRESS, AND THAT IS NOT A ROUNDING
+     * ISSUE — arcade time is not counted at all yet (nothing on this page
+     * writes). So the numbers are the student's REAL totals as of page load and
+     * will not move while they play. That is honest, but it is also exactly the
+     * kind of thing a child reads as broken, so the labels say TODAY and WEEK
+     * rather than implying live accumulation. WHEN THE learn.js SECONDS SEAM IS
+     * WIRED, these start moving on their own and the labels still hold.
+     * ⚠️ NO GETTER MEANS NO LINES, not zeroes — "0m today" is a claim, and a
+     * page that never asked has no business making it.
+     */
+    function minuteLines() {
+        if (!getMinutes) return {};
+        let m = null;
+        try { m = getMinutes(); } catch (_) { return {}; }
+        if (!m) return {};
+        const fmt = sec => {
+            if (sec == null) return null;
+            const mins = Math.floor(sec / 60);
+            return mins >= 60 ? Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm' : mins + 'm';
+        };
+        const day = fmt(m.dailySeconds), week = fmt(m.weeklySeconds);
+        return {
+            bottomLeft:  day  == null ? null : 'TODAY  ' + day,
+            bottomRight: week == null ? null : 'WEEK  ' + week,
+        };
+    }
+
     function hudLines(rep, dir) {
         return dir.endless
             ? { left: ['SCORE ' + rep.score, rep.wpm + ' WPM', rep.acc + '%'],

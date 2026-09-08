@@ -1,5 +1,14 @@
 <!DOCTYPE html>
-<!-- reports.html v1.10.0
+<!-- reports.html v1.11.0
+     v1.11.0 — ⚠️⚠️ ROADMAP 54's PANEL SAID IT COUNTED typing_logs' `bookId`, AND
+     THERE IS NO SUCH FIELD. The copy now names what is actually counted —
+     students with a progress document for the book — and the panel gains two
+     buttons that exist because of Rule 10: "Dry run" counts and shows without
+     writing anything, and "Show saved" reads back what the library page is
+     sorting by right now, including the `basis` stamp that tells an all-zero
+     v2.40.0 map apart from a real one. A `#popularity-table` div holds the
+     readout. See REPORTS_VERSION 2.41.0 for the counting half.
+
      v1.10.0 — ⭐ ROADMAP 58 STEP TWO. STUDENT GOALS gains a third card, "Week
      Starts On" — the school-wide default anchor, saved to settings/goals
      alongside the daily/weekly minutes it already held. The "Weekly Goal
@@ -645,15 +654,25 @@
         <div class="goals-panel hidden" id="popularity-panel">
             <h2 style="font-size:1rem; color:var(--accent); margin-bottom:15px; letter-spacing:1px;">LIBRARY POPULARITY</h2>
             <p style="font-size:.85em; color:var(--ink-dimmer); margin:0 0 12px;">
-                Powers "Most Popular" sorting on the library page. Derived from
-                typing_logs' existing <code>bookId</code> field — no new write
-                happens when a student opens a book. Costs one read per book in
-                the library each time this runs; a stale ranking a week old is
-                not a problem worth a live counter over, so there's no reason
-                to click this more than occasionally.
+                Powers "Most Popular" sorting on the library page. A book's score
+                is <b>how many students have started it</b>, counted from the
+                <code>users/{uid}/progress</code> documents the app already
+                writes — no new write happens when a student opens a book.
+                Costs one read per student plus one per book any of them have
+                opened, only when you click. A ranking a week old is not a
+                problem worth a live counter over.
             </p>
+            <p style="font-size:.85em; color:var(--ink-dimmer); margin:0 0 12px;">
+                <b>Dry run</b> counts and shows you the numbers without saving
+                anything. <b>Show saved</b> reads back what the library page is
+                actually sorting by right now. Recalculate does the count and
+                saves it.
+            </p>
+            <button id="popularity-peek-btn">Show saved</button>
+            <button id="popularity-dryrun-btn">Dry run</button>
             <button id="recalc-popularity-btn">Recalculate</button>
             <div class="goal-status" id="popularity-status"></div>
+            <div id="popularity-table" style="margin-top:12px;font-size:.85em;line-height:1.6;"></div>
         </div>
 
         <!-- SCOPE -->
@@ -1114,6 +1133,38 @@
     //           FIXED, NOT ONLY POLISH: recalc-btn re-enabled on the line after
     //           its await with no finally, so a throw left it dead until reload.
     //           tests/busy-state-test.mjs.
+    // v2.41.0 — ⚠️⚠️⚠️ ROADMAP 54 COUNTED A FIELD THAT DOES NOT EXIST, AND THE
+    //           BUTTON WORKED PERFECTLY WHILE DOING IT. Jake, 2026-09-08: "Sort
+    //           by popular is just alphabetical. I ran the popularity report in
+    //           reports.html and it did not appear to do anything."
+    //           ⚠️⚠️ `typing_logs` HAS NO `bookId` FIELD — it is keyed
+    //           `{uid}_{date}`, one merged rollup per student per DAY, and a
+    //           child who reads two books in a period has one document with no
+    //           single book to name. `bookId` lives on `typing_sessions`. So
+    //           v2.40.0's per-book `getCountFromServer()` matched nothing,
+    //           eighty zeros were written, and index.html's sortBooks() fell
+    //           through to its `|| byTitle()` tiebreak — the alphabetical order
+    //           Jake was looking at. ⚠️⚠️ AND popularity-sort-test.mjs v1.0.0
+    //           ASSERTED THE BROKEN QUERY AS A REQUIREMENT. Rule 10 exactly: a
+    //           green suite over synthetic expectations is not evidence about
+    //           production data. That harness is v2.0.0 now and pins the rule
+    //           that would have caught it — a counter may only filter on a
+    //           field some writer actually writes.
+    //           ⭐ COUNTS `users/{uid}/progress` INSTEAD, on Jake's choice: one
+    //           document per student per book, never TTL'd, so the score is
+    //           "how many children have started this book," all-time. It needs
+    //           NO console index change (typing_sessions.bookId is exempted from
+    //           single-field indexing in firestore.indexes.json) and NO rules
+    //           change (isSuper() already reads that path; a collectionGroup()
+    //           query would have needed a new `match /{path=**}/progress/{id}`).
+    //           ⚠️ IT IGNORES THE SCOPE PICKERS ON PURPOSE — settings/popularity
+    //           is one library-wide document; see tallyPopularity()'s comment.
+    //           ⚠️⚠️ SHIPS WITH A DRY RUN AND A SHOW-SAVED READOUT BECAUSE OF
+    //           RULE 10. This code was written where Firestore is unreachable —
+    //           the same condition that produced the defect above — so Jake can
+    //           see the all-zero map that is stored today, then see real counts,
+    //           before either becomes the order his students browse in. Do not
+    //           remove those two buttons as clutter.
     // v2.40.0 — ⭐ ROADMAP 54: LIBRARY POPULARITY, DERIVED FROM WRITES THAT
     //           ALREADY HAPPEN. A new "LIBRARY POPULARITY" panel, hidden
     //           unless isSuper() — settings/popularity write is isSuper()-only
@@ -1151,7 +1202,7 @@
     //           guards against is invisible on every login BUT the first one
     //           of a session, which is exactly the kind that survives review.
     //           tests/class-week-anchor-test.mjs Section F, mutation-verified.
-    const REPORTS_VERSION = "2.40.0";
+    const REPORTS_VERSION = "2.41.0";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -1213,7 +1264,7 @@
 
     // ⚠️ SDK ROUTED THROUGH read-meter.js so this page can say what it COST.
     // Same shim the student pages use; `export *` keeps every SDK symbol.
-    import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, getCountFromServer, ttbMeter } from "./read-meter.js";
+    import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, ttbMeter } from "./read-meter.js";
     import { ledgerFrom, planReads } from "./logdays.js";
     // ⚠️ ROADMAP 58 — the week anchor, from its one home. THIS PAGE IS WHY THE
     // ITEM EXISTS: reports.html and daylog.js once named different Saturdays, and
@@ -1864,13 +1915,73 @@
     // popular, but I know that would take another read or write, and it's
     // probably not worth it." He was right to be wary of a LIVE counter — a
     // per-open increment is a write on the student path, and a class of 25
-    // starting the same book at the bell is a burst on one document — but
-    // wrong that it needs a new write at all: every typing_logs chunk
-    // session-log.js writes already carries `bookId`. This runs ONLY when a
-    // super_admin clicks the button, never on a student's page load, and
-    // costs one getCountFromServer() per book in the library — an
-    // aggregation query, not a full read of every session, and still bounded
-    // and occasional rather than continuous.
+    // starting the same book at the bell is a burst on one document. This runs
+    // ONLY when a super_admin clicks the button, never on a student's page
+    // load.
+    //
+    // ═════════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️⚠️ v2.41.0 — IT COUNTED A FIELD THAT DOES NOT EXIST, AND SHIPPED
+    //                  GREEN FOR A ROUND. READ THIS BEFORE CHANGING THE SOURCE.
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // Jake, 2026-09-08: "Sort by popular is just alphabetical. I ran the
+    // popularity report in reports.html and it did not appear to do anything."
+    //
+    // v2.40.0 counted with:
+    //     getCountFromServer(query(collection(db, 'typing_logs'),
+    //                              where('bookId', '==', bookId)))
+    //
+    // ⚠️⚠️ `typing_logs` DOCUMENTS HAVE NO `bookId` FIELD. Every writer of that
+    // collection was checked: game.js's flush and its guest carry-over,
+    // learn.js's carry-over, and daylog.js's dayLogPayloadFor() /
+    // carryOverPayloadFor() which build the payload for all of them. The fields
+    // are uid, email, displayName, classId, schoolId, date, the
+    // seconds/chars/mistakes triple, and lastUpdated. That is the whole
+    // document.
+    //
+    // ⚠️ AND IT COULD NEVER CARRY ONE. `typing_logs` is keyed `{uid}_{date}` —
+    // one document per student per DAY, merged into by both controllers. A
+    // child who reads two books in a period has one document; there is no
+    // single book for it to name. `bookId` lives on `typing_sessions`, the
+    // per-sprint rollup, where session-log.js writes it from `chunk[0].label`.
+    //
+    // So the query matched nothing, all eighty counts came back 0, an all-zero
+    // map was written, and index.html's sortBooks() fell through to its
+    // `|| byTitle(a, b)` tiebreak — which is the alphabetical order Jake saw.
+    // ⚠️ THE BUTTON WORKED PERFECTLY. It faithfully counted zero, eighty times.
+    //
+    // ⚠️⚠️ AND THE HARNESS ASSERTED THE BUG: popularity-sort-test.mjs v1.0.0
+    // pinned `where('bookId', '==', bookId)` against typing_logs as a
+    // REQUIREMENT. Rule 10, verbatim — a green suite over synthetic
+    // expectations is not evidence about production data. v2.0.0 of that file
+    // replaces the assertion with the one that would have caught this: the
+    // field a counter filters on must be a field some writer actually writes.
+    //
+    // ─── WHY `progress` AND NOT `typing_sessions` ────────────────────────────
+    //
+    // `typing_sessions` does carry `bookId`, and it was the obvious repair.
+    // Jake chose this instead, and it is the cheaper and better-defined of the
+    // two:
+    //
+    //   * NO CONSOLE WORK. firestore.indexes.json exempts
+    //     typing_sessions.bookId from single-field indexing (`"indexes": []`),
+    //     so an equality query on it cannot run until that exemption is removed
+    //     in the GOOGLE CLOUD console and rebuilt across the collection. Jake
+    //     has no CLI; every index is a hand-made console change.
+    //   * NO RULES CHANGE. `users/{uid}/{collection}/{docId}` already allows
+    //     isSuper() to read, and this iterates the roster the way
+    //     readRosterUids() does rather than issuing a collectionGroup() query —
+    //     which WOULD have needed a new `match /{path=**}/progress/{id}` rule,
+    //     because collection-group queries do not match a nested path rule.
+    //   * IT MEANS SOMETHING PLAINER. One progress document per student per
+    //     book, never TTL'd, so the score is "how many children have started
+    //     this book" — all-time. typing_sessions is TTL'd at 120 days and one
+    //     document per SPRINT, so counting it would rank a single dogged reader
+    //     above a book a whole class opened once, and would forget last spring.
+    //
+    // ⚠️ COST: one read per user document (the roster query) plus one per
+    // progress document. At Ellis that is ~90 + a few hundred. Bounded,
+    // occasional, and paid by a staff click.
     //
     // ⚠️ NOT THE DEFAULT SORT. Jake's own item text asks whether popularity
     // should be the default order or one option beside the current one, and
@@ -1879,32 +1990,160 @@
     // visible, the opposite of what he asked 53 for. Built as an opt-in sort
     // option in index.html; promoting it to the default is a separate
     // decision for him to make, not this round's to assume.
-    async function recalculatePopularity() {
-        const statusEl = document.getElementById('popularity-status');
-        statusEl.textContent = 'Reading the library\u2026';
-        statusEl.className = 'goal-status';
-        try {
-            const booksSnap = await getDocs(collection(db, 'books'));
-            const bookIds = booksSnap.docs.map(d => d.id);
-            const counts = {};
-            let done = 0;
-            for (const bookId of bookIds) {
-                const agg = await getCountFromServer(
-                    query(collection(db, 'typing_logs'), where('bookId', '==', bookId)));
-                counts[bookId] = agg.data().count;
-                done++;
-                statusEl.textContent = `Counting\u2026 ${done}/${bookIds.length}`;
+    //
+    // ⚠️⚠️ AND IT IS RULE 10's TURN NOW. This function was written in a
+    // container that cannot reach Firestore, so the count below has NEVER been
+    // executed against real data by its author. That is exactly the condition
+    // that produced the defect it replaces. It therefore ships with a DRY RUN
+    // that computes and displays without writing, and a SHOW SAVED that reads
+    // back the stored document — so the all-zero map currently in Firestore is
+    // visible as the failing evidence BEFORE, and real counts are visible
+    // AFTER, on Jake's own library. ⚠️ Do not delete those two buttons as
+    // clutter; they are the harness this fix could not otherwise have.
+
+    // Counts, per book id, how many DISTINCT students have a progress document
+    // for it. Returns { counts, students, progressDocs, missedUids }.
+    //
+    // ⚠️ A STUDENT WHOSE progress COLLECTION COULD NOT BE READ IS COUNTED AS A
+    // MISS, NEVER AS ZERO. Same rule as readLogById() above: a read that failed
+    // is not evidence of an absence, and a ranking that cannot tell them apart
+    // is a ranking nobody can trust. The caller reports the number.
+    // ⚠️⚠️ IT DELIBERATELY IGNORES THE SCOPE PICKERS, AND readRosterUids() IS
+    // DELIBERATELY NOT REUSED. That function answers "who is in the currently
+    // selected school or class", which is the right question for a report and
+    // the WRONG one here: settings/popularity is a single library-wide document
+    // that every student on every shelf reads, so counting only the class Jake
+    // happened to have selected would publish one period's taste as the whole
+    // library's order — silently, since nothing on index.html could say which
+    // scope produced the map. This is a different question, not a second copy
+    // of the same one (Rule 9).
+    // ⚠️ isSuper() ONLY, ENFORCED BY THE RULES AND NOT BY THIS CODE. The panel
+    // is hidden for anyone else and `allow read` on /users/{uid} passes for a
+    // super via inMySchool()'s unconditional first clause; a building admin
+    // clicking this would get permission-denied on the first student outside
+    // their building, which the missedUids count would then report honestly.
+    async function tallyPopularity(statusEl) {
+        if (statusEl) statusEl.textContent = 'Reading the roster\u2026';
+        const rosterSnap = await getDocs(collection(db, 'users'));
+        const uids = rosterSnap.docs.map(d => d.id);
+        const counts = {};
+        let progressDocs = 0;
+        const missedUids = [];
+        let done = 0;
+        for (const uid of uids) {
+            try {
+                const snap = await getDocs(collection(db, 'users', uid, 'progress'));
+                snap.forEach(d => {
+                    progressDocs++;
+                    counts[d.id] = (counts[d.id] || 0) + 1;
+                });
+            } catch (e) {
+                console.warn('[popularity] progress read failed', uid, e && e.message);
+                missedUids.push(uid);
             }
-            await setDoc(doc(db, 'settings', 'popularity'), {
-                counts, updatedAt: new Date().toISOString()
-            });
-            statusEl.textContent = `Done \u2014 ${bookIds.length} books, ${new Date().toLocaleString()}`;
+            done++;
+            if (statusEl) statusEl.textContent = `Counting\u2026 ${done}/${uids.length} students`;
+        }
+        return { counts, students: uids.length, progressDocs, missedUids };
+    }
+
+    // ⚠️ RENDERS WHAT WAS COUNTED, NOT A VERDICT ON IT. Jake reads this to
+    // decide whether the numbers are plausible before they become the order
+    // eighty children browse in.
+    function renderPopularityTable(counts, title) {
+        const host = document.getElementById('popularity-table');
+        if (!host) return;
+        const rows = Object.entries(counts || {})
+            .filter(([, n]) => n > 0)
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+        const total = rows.reduce((s, [, n]) => s + n, 0);
+        if (!rows.length) {
+            host.innerHTML = `<b>${escapeHtml(title)}</b><br>` +
+                '\u26a0\ufe0f Nothing scored above zero. On the library page ' +
+                '"Most Popular" is title order.';
+            return;
+        }
+        const shown = rows.slice(0, 15);
+        host.innerHTML = `<b>${escapeHtml(title)}</b> \u2014 ` +
+            `${rows.length} book(s) with a reader, ${total} reader-book pair(s)<br>` +
+            shown.map(([id, n], i) =>
+                `${i + 1}. ${escapeHtml(id)} \u2014 <b>${n}</b>`).join('<br>') +
+            (rows.length > shown.length
+                ? `<br>\u2026 and ${rows.length - shown.length} more` : '');
+    }
+
+    async function peekPopularity() {
+        const statusEl = document.getElementById('popularity-status');
+        statusEl.className = 'goal-status';
+        statusEl.textContent = 'Reading settings/popularity\u2026';
+        try {
+            const snap = await getDoc(doc(db, 'settings', 'popularity'));
+            if (!snap.exists()) {
+                statusEl.textContent = 'No settings/popularity document exists yet \u2014 ' +
+                    'the library page is sorting "Most Popular" by title.';
+                statusEl.className = 'goal-status';
+                renderPopularityTable({}, 'Saved (no document)');
+                return;
+            }
+            const data = snap.data() || {};
+            statusEl.textContent = `Saved ${data.updatedAt || '(no stamp)'}` +
+                (data.basis ? ` \u2014 basis: ${data.basis}` : ' \u2014 basis: (not recorded)');
             statusEl.className = 'goal-status ok';
+            renderPopularityTable(data.counts || {}, 'Saved in settings/popularity');
         } catch (e) {
             statusEl.textContent = 'Failed: ' + e.message;
             statusEl.className = 'goal-status err';
         }
     }
+
+    async function dryRunPopularity() {
+        const statusEl = document.getElementById('popularity-status');
+        statusEl.className = 'goal-status';
+        try {
+            const { counts, students, progressDocs, missedUids } = await tallyPopularity(statusEl);
+            statusEl.textContent = `Dry run \u2014 ${students} student(s), ` +
+                `${progressDocs} progress document(s)` +
+                (missedUids.length ? `, \u26a0\ufe0f ${missedUids.length} unreadable` : '') +
+                '. NOTHING WAS SAVED.';
+            statusEl.className = missedUids.length ? 'goal-status' : 'goal-status ok';
+            renderPopularityTable(counts, 'Dry run \u2014 not saved');
+        } catch (e) {
+            statusEl.textContent = 'Failed: ' + e.message;
+            statusEl.className = 'goal-status err';
+        }
+    }
+
+    async function recalculatePopularity() {
+        const statusEl = document.getElementById('popularity-status');
+        statusEl.className = 'goal-status';
+        try {
+            const { counts, students, progressDocs, missedUids } = await tallyPopularity(statusEl);
+            // ⚠️ `basis` IS WRITTEN SO A LATER READER CAN TELL WHICH DEFINITION
+            // A STORED MAP USED. The all-zero maps v2.40.0 left behind carry no
+            // basis field at all, which is how peekPopularity() can name the
+            // difference on sight instead of guessing from the numbers.
+            await setDoc(doc(db, 'settings', 'popularity'), {
+                counts,
+                basis: 'students-with-progress',
+                students,
+                progressDocs,
+                updatedAt: new Date().toISOString()
+            });
+            statusEl.textContent = `Saved \u2014 ${students} student(s), ` +
+                `${progressDocs} progress document(s)` +
+                (missedUids.length ? `, \u26a0\ufe0f ${missedUids.length} unreadable` : '') +
+                `, ${new Date().toLocaleString()}`;
+            statusEl.className = missedUids.length ? 'goal-status' : 'goal-status ok';
+            renderPopularityTable(counts, 'Saved to settings/popularity');
+        } catch (e) {
+            statusEl.textContent = 'Failed: ' + e.message;
+            statusEl.className = 'goal-status err';
+        }
+    }
+    document.getElementById('popularity-peek-btn').onclick = (e) =>
+        withBusy(e.currentTarget, 'Reading\u2026', peekPopularity);
+    document.getElementById('popularity-dryrun-btn').onclick = (e) =>
+        withBusy(e.currentTarget, 'Counting\u2026', dryRunPopularity);
     document.getElementById('recalc-popularity-btn').onclick = (e) =>
         withBusy(e.currentTarget, 'Recalculating\u2026', recalculatePopularity);
 

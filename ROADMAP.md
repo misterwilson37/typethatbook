@@ -1,5 +1,7 @@
 # TYPETHATBOOK — ROADMAP
 
+**v3.63.0, 2026-09-08 (Round 87, Merritt).** ⚠️⚠️⚠️ **ITEM 54 SHIPPED A COUNTER THAT FILTERED A FIELD WHICH DOES NOT EXIST, AND THE HARNESS ASSERTED THE BROKEN QUERY AS A REQUIREMENT.** Jake: *"Sort by popular is just alphabetical. I ran the popularity report in reports.html and it did not appear to do anything."* `typing_logs` has **no per-book field and cannot** — it is keyed `{uid}_{date}`, one merged rollup per student per DAY, so a child who reads two books in a period has ONE document with no single book to name; that field lives on `typing_sessions`. **The query matched nothing, eighty zeros were written, and `sortBooks()` fell through to its `|| byTitle()` tiebreak.** ⭐ **The button worked perfectly; it faithfully counted zero, eighty times.** ⚠️⚠️ **All 27 assertions in `popularity-sort-test.mjs` v1.0.0 were green throughout, because every one compared the code against an expectation invented in the same session as the code — Rule 10 in one sentence.** Now **v2.0.0, 48 assertions**, whose **Part E is a RATCHET**: it derives the fields `typing_logs` writers actually write, by brace-matching the four `setDoc()` payloads and **calling** `daylog.js`'s two builders on both sides of the source-split cutover rather than mirroring a list, and refuses any filter naming a field outside that set. **Mutation-verified twice** — old query restored, and `date` renamed to an invented `dayKey`, to prove it guards the CLASS not the keyword. ⭐ **Recounted from `users/{uid}/progress`** on Jake's choice: students-with-progress, all-time, **no console index change and no rules change** (a `collectionGroup()` query would have needed a new `match /{path=**}/progress/{id}`, and the harness pins that neither the rule nor the query exists so a later round cannot land half the pair). ⚠️⚠️ **ITEM 54 STAYS OPEN AND THE NEW COUNT IS UNVERIFIED:** this container cannot reach Firestore — the same condition that produced the defect — so the panel ships with **Dry run** (no `setDoc` in it, asserted) and **Show saved**, and Jake must click Show saved → Dry run → Recalculate before anyone calls it closed. ✅ **NEW ITEM 69 CLOSED — the two special rows.** ⚠️⚠️ **The 1.5-row wrap WAS ROADMAP 26's alignment invariant**: the row borrowed `.library-grid`'s auto-fill tracks with `grid-column: span 2`, and the shelf is capped at 1100px = **five** columns, so three 2-span cards needed six. Two equal columns at **2.5 shelf-columns each — Jake's own number** — cannot wrap, and at a 4-column shelf each card is exactly 2 columns and lands back on the shelf's lines for free. ⚠️ **`CONTINUE_MAX`/`FEATURED_MAX` are load-bearing now** and both 2. ⚠️ **Featured had been fully deterministic and B1–B4/E5 had PINNED that** — only the fallback ever rolled dice; it is a shuffled mixture with one reserved new slot and a per-card badge. ⚠️⚠️ **A hazard I got wrong is recorded rather than dropped:** E7 claimed to guard the stamp's new-id component and mutation testing left it green, because the badge is derived outside the cache; **E8** is the check that genuinely fails without it. ⚠️ **NOTHING WAS LOOKED AT RENDERED** — § CONVENTIONS requires it for a layout round and this container has no browser.
+
 **v3.62.0, 2026-09-06 (Round 81, Fox).** ✅ **ITEM 57 CLOSED, AND THE GAP HAD ALREADY COST WHAT IT PREDICTED.** `index.html` is registered in all three mirrors (`versions.js` v1.17.0, `tools/audit-versions.mjs` v1.6.0, the harness) — and while closing it, **Round 80's entire Featured shelf turned out to have shipped into that file with `INDEX_VERSION` still reading 3.18.0 and no header entry**, invisible because no registry carried the page. ⚠️⚠️ **BOTH OF ITEM 57's OWN BUILD INSTRUCTIONS WERE WRONG AND ARE WRITTEN UP IN IT**: its suggested pattern matches an incidental line in the body and would have reported **v3.5.2** forever, and its "should NOT be exempt" would have produced a check that reads an empty block and passes forever (the `//` header is real but sits inside the `<script>`, and both scans stop at `<!DOCTYPE html>`). The coverage it wanted is **section A2**, which finds the block by the constant it sits above. ⭐ **AND A THIRD MIRROR NOBODY CHECKED**: `HEADER_EXEMPT` is copied into the same three files and the audit tool's copy was missing `reports.html` and `admin.html` — a false claim of coverage, same shape as Round 58's `rights-ladder.js` gap. **Section D3** compares them now, both ways. ⚠️⚠️ **ITEM 53's FALLBACK WAS BUILT CORRECTLY AND HAD NEVER ONCE RUN** — `_featuredRandomCache` was write-once and the first render of every page load precedes auth, so the "untyped" exclusion was computed against an empty `userProgress` and frozen. **Item 43's shape, one round later.** ⚠️ **The old harness was green against it BECAUSE of D4**, the assertion meant to guard it. Fixed with a stamped cache; `featured-shelf-test.mjs` v1.1.0 **runs** the function now instead of grepping it. ⭐ **New item 66** — the last `toISOString()` day-key in the repo, filed and deliberately not fixed. ✅ Also: `package.json` `engines.node` corrected 22 → **24** (it had never matched the live runtime, in either direction), and two documents registered in indexes that had silently omitted them.
 
 **v3.61.0, 2026-09-03 (Round 59, Jewett).** ⚠️⚠️ **ITEM 12 WAS MARKED ✅ CLOSED IN THREE DOCUMENTS AND ITS CODE WAS NEVER IN THE REPO.** `style.css` shipped at **v3.9.0** while CHANGELOG Round 48, ROADMAP §12 and the v3.36.0 entry all cited **v3.10.0**; `hud-lead-test.mjs` was v1.1.0 with no Section E. **Round 48's upload never landed, and both halves went missing together, which is why the suite stayed green.** ⚠️⚠️ **THE ASYMMETRY IS STRUCTURAL: the three documents re-ship EVERY round and code files ship changed-only**, so item 12's paperwork rode in on Round 49's docs while the code it described existed nowhere. **A missed upload deletes the work and keeps the receipt.** ⚠️⚠️ **AND THEN JAKE LOOKED AT THE RE-LANDED FIX RENDERED AND RULED AGAINST IT — SO IT IS NOT SHIPPING AND ITEM 12 IS REOPENED.** For a two-row stack v3.9.0 and v3.10.0 are **identical** (content height 32.5px IS the min-height, so `center` and `flex-start` coincide); the promoted one-row centre is the entire change, and that is the part he rejected. ⭐ **His rule: two rows align row-to-row, one row centres — which the page already does.** ✅ **And he answered the question that actually settles it: School's second centre row is ELAPSED TIME ON THE CURRENT RUN**, read over a shoulder as he walks the room. ⭐⭐ **THE INSTRUMENT THAT MADE ALL OF THIS VISIBLE WAS A RENDERED A/B, NOT A HARNESS** — §"if a round touches layout, look at it rendered" earned its place twice in one round. ✅ **ITEM 42's COLOUR HALF IS DONE, AND IT UNBLOCKS ITEM 38.** 232 declarations out of 150 template-string `style=` attributes; `admin.js` **163 → 13** attributes and **289 → 57** declarations; 31 new utilities, 30 reused, 0 collisions. ⚠️⚠️ **EIGHTEEN OF THEM WERE BUTTON BACKGROUNDS AND THAT PART IS NOT MECHANICAL** — each had been suppressing `button:hover` AND `button:disabled`, and the obvious extraction makes it worse (`u-background-333` is 0,1,0; `button:hover` is 0,1,1). They take btn-tint's guarded shape instead. ⚠️ **THE METRIC ITEM 38 STEERS BY WAS LYING**: `audit-inline-styles.mjs` counted uses in the markup alone, reporting 62 healthy classes as orphans — the same one-consumer bug Round 58 fixed in the harness and left in the tool that prints the number. ⭐ **New items 51–54**, three of them Jake's.
@@ -386,7 +388,7 @@ Everything else still open:
 - 34. ⚠️ THE LESSON-LEVEL MASTERY LOCK ONLY CLOSES WHEN EVERY RUN IS MASTERED
 - 42. ⚠️ NEARLY DONE — 13 ATTRIBUTES LEFT, NOT 183 (THIS HEADING WAS STALE FOR TWENTY ROUNDS) — AND THE THINGS THIS ITEM GOT WRONG  *(⚠️ Round 81 MEASURED it: 13 attributes, not 183 — the heading was stale for twenty rounds and Round 80 passed it forward. The remainder is runtime-conditional; what is left is a question for Jake, not a job)*
 - 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME  *(Jake ANSWERED it Round 57 — it is student-facing visibility, not a staff filter; read the item before starting)*
-- 54. ⚠️ BUILT AS AN OPTION (Round 83, Densmore) — DEFAULT-VS-OPTION IS STILL JAKE'S CALL  *(Jake asked, 2026-09-03; the read-cost question is answered and shipped as an opt-in sort — no live counter, no write on the student path — but whether it should ever become the default order is still open)*
+- 54. ⚠️⚠️ IT COUNTED A FIELD THAT DOES NOT EXIST (Round 83, Densmore) — RECOUNTED Round 87 (Merritt), AND UNVERIFIED ON REAL DATA UNTIL JAKE CLICKS THREE BUTTONS  *(⚠️⚠️ Round 87: `typing_logs` has NO per-book field and cannot — it is keyed {uid}_{date}, one rollup per student per DAY — so the count returned eighty zeros and the sort was plain alphabetical, which is exactly what Jake reported. The harness ASSERTED the broken query. Recounted from `users/{uid}/progress` (students-with-progress, all-time, no index or rules change). ⚠️ STAYS OPEN: the new count has never executed against Firestore, so Jake must click Show saved → Dry run → Recalculate, in that order, before anyone calls this closed. The original default-vs-option question is ALSO still open and is separate)*
 - 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
 - 68. ⭐ THE ARCADE IS BUILT AND PLAYABLE — THE NEXT MOVE IS A CLASSROOM ANSWER, NOT CODE  *(Round 82 built it, Round 86 wired arcade.html to real lessons for commit 1000. ⚠️ NOTHING IS WIRED INTO learn.js and nothing is saved, on Jake's ruling — kids compare Deadline against the same run they typed. Whether the numbers line up is what decides if the learn.js seam is worth building)*
 - 60. ⭐ STAFF SHOULD SEE EVERY BOOK AND CHOOSE WHAT THEIR OWN STUDENTS SEE  *(Jake, Round 76. NOT BUILT — needs a ruling on allowlist vs blocklist, and the shelf is the read-budget surface)*
@@ -397,6 +399,7 @@ Everything else still open:
 
 ## ✅ DONE — kept for the reasoning, not for the task
 
+- 69. ✅ CLOSED (Round 87, Merritt) — THE TWO SPECIAL ROWS: ONE ROW, AN AUTHOR, AND A FEATURED SHELF THAT MOVES  *(Jake, 2026-09-08, from a full-screen screenshot. ⚠️⚠️ The 1.5-row wrap WAS ROADMAP 26's alignment invariant: the row borrowed the shelf's auto-fill tracks with 2-span cards, and the shelf is capped at 1100px = five columns, so three 2-span cards needed six and the third wrapped. Two equal columns at 2.5 shelf-columns each — Jake's own number — cannot. ⚠️ CONTINUE_MAX and FEATURED_MAX are load-bearing now and are both 2; read the item before raising either. Featured is a shuffled mixture with one slot reserved for a new book, and the badge is per card. ⚠️ NOTHING WAS SEEN RENDERED — the pixels are unconfirmed)*
 - 53. ✅ CLOSED (Round 80 Featured, Round 81 fix, Round 84 Remington's search) — A SEARCH BOX ON THE STACKS  *(newest-first, random-untyped Featured fallback, per Jake's spec; search is a plain title/author substring box, its own row above Genre, composed into the existing filter chain. ⚠️ Round 81 fixed the fallback's "untyped" half, which had never once run — read that block before touching renderFeatured())*
 - 66. ✅ FIXED (Round 85, Caligraph) — THE BOOKS CSV EXPORT NAMED ITS FILE FROM A UTC DAY  *(found Round 81 by sweeping the class, not by a report; cosmetic — a filename, never a stored value. ⚠️ Read it before "fixing" any other toISOString() in the repo: the rest are timestamps and UTC is right for them)*
 - 67. ✅ FIXED (Round 85, Caligraph) — A FINISHED BOOK NEVER LEFT THE "CONTINUE READING" ROW  *(Jake reported it live, 2026-09-08, from the finished page itself. The row had no concept of "finished" at all; game.js now stamps finishedAt and index.html filters on it, with a conservative fallback for books finished before the stamp existed)*
@@ -4147,6 +4150,103 @@ harness, and it would have ridden into the same upload as a fix to the counting
 path Jake is watching. §0.-11.D. Round 60 bumped the stamp to **3.18.0** and
 wrote the gap into the header where the next reader will hit it.
 
+## 69. ✅ CLOSED (Round 87, Merritt) — THE TWO SPECIAL ROWS: ONE ROW, AN AUTHOR, AND A FEATURED SHELF THAT MOVES
+
+Jake, 2026-09-08, with a full-screen screenshot: *"featured and resume are both
+1.5 rows, which is wonky. I think we keep them one row. Author name should be
+featured there, too. Ideally, the 'Featured' would be different every time, or at
+least not the same 2 titles every time."* Then, on the geometry: *"I think it's
+always five columns wide. Could the featured and resumes be 2.5 columns wide? And
+if it ever shrinks to 4 columns, then those cards could go down to 2?"* And on
+the empty cards: *"If you look at what actually shows, there is plenty of room
+for an author. There's one line of text - the title - and then nothing makes up
+the vertical space provided by the covers."*
+
+### ⚠️⚠️ THE WONK WAS A LOAD-BEARING INVARIANT DOING WHAT IT WAS WRITTEN TO PREVENT
+
+`.continue-grid` declared `.library-grid`'s own `repeat(auto-fill, minmax(180px,
+1fr))` tracks with every card at `grid-column: span 2`, so card edges landed on
+the shelf's column lines. That was ROADMAP 26's deliberate answer to Jake's
+*"being slightly different is worse than being obviously different"*, and its
+comment said so in capitals.
+
+**But the shelf is capped at `max-width: 1100px`, which resolves to FIVE columns
+at every desktop width, and three 2-span cards need SIX.** The third wrapped —
+two cards, a leftover column, half an empty row. He was right that it is always
+five columns; that is the cap, not the viewport.
+
+⭐ **JAKE'S OWN NUMBER IS THE FIX AND IT IS EXACT.** Two equal columns cannot
+wrap. At a 5-column shelf each card is **2.5 columns** — off the column lines,
+but symmetric and full-width, which is what an odd count allows. At a 4-column
+shelf each card is **exactly 2 columns** and the edges land back on the shelf's
+lines for free. Both are one row, at every width, forever.
+
+- ⚠️⚠️ **`CONTINUE_MAX` AND `FEATURED_MAX` ARE LOAD-BEARING NOW.**
+  `FEATURED_MAX`'s own comment read *"matches CONTINUE_MAX for visual
+  consistency — not load-bearing, just matching"* for two rounds. It became
+  load-bearing the instant the grid stopped auto-filling: **N cards in a
+  fixed-column grid wrap the moment N exceeds the column count.** Both are 2.
+  `featured-shelf-test.mjs` Part F reads the expected count **out of the CSS**,
+  never from a literal in the test.
+- ⚠️ **IT COSTS CONTINUE READING ITS THIRD CARD**, accepted deliberately: the row
+  is the shortcut, not the record. Every book keeps its shelf card and its
+  progress pip, and "My progress" sorts the whole library by it. **The two
+  constants are the lever if three is wanted back — that needs a third grid
+  column and a look at it rendered at the 4-column width.**
+- **The author line** is `book.author`, same field and same plain-name
+  presentation as the shelf's `.book-author`: a book shown twice on one screen
+  must not be attributed two ways. One line, ellipsised — a wrapping surname
+  makes one card taller than its neighbour in the same grid row, which is the
+  "slightly off" complaint one row down.
+- ⭐ **THE DEAD SPACE IS ONE DECLARATION, AND IT ONLY MOVES THE FEATURED CARDS.**
+  `justify-content: center` on `.continue-body`. A Continue card has
+  `.continue-meta` with `margin-top: auto`, and **an auto margin absorbs all
+  free space before `justify-content` gets a say** — so those keep their
+  verb-top/bar-bottom stack byte for byte, while a Featured card (no meta)
+  centres against the 84px cover instead of stranding it above a void.
+
+### ⚠️ FEATURED WAS FULLY DETERMINISTIC, AND THE HARNESS HAD PROVED IT WAS
+
+Only the **fallback** ever rolled dice. The newest branch was `.sort((a, b) =>
+b.at - a.at).slice(0, FEATURED_MAX)` — a total order over a stable field, no
+shuffle anywhere — so the row was frozen for as long as anything sat inside the
+14-day window. **Three books were inside it when Jake reported this.**
+`featured-shelf-test.mjs` B1–B4 and E5 all *pinned that ordering*: proving a
+design is implemented is not the same as proving it is right.
+
+⭐ **Jake proposed shuffling everything inside the window and then preferred the
+reserved-slot mixture** — *"Typed that before I read your idea, which is
+better."* `FEATURED_NEW_SLOTS = Math.max(1, FEATURED_MAX - 1)` reserves a slot
+for a new book **drawn at random from inside the window**, so three new uploads
+take turns; the rest is the ROADMAP 53 untyped discovery draw. ⚠️ **Both bounds
+matter**: at zero a brand-new upload could be invisible on the row built to
+announce it, and at `FEATURED_MAX` this is the old behaviour under a new name.
+
+- **The badge is per card**, not per row — a mixed row legitimately reads "New"
+  beside "Featured".
+- ⚠️ **A LAST-RESORT FILL CHANGED A BEHAVIOUR ON PURPOSE.** v3.19.0 **hid the row
+  entirely** when a student had started every book (empty pool → `!picks.length`
+  → `hide()`), which deletes the discovery row of the most engaged reader in the
+  building. A book they have seen before beats a heading over nothing.
+- ⚠️⚠️ **AND A HAZARD I GOT WRONG, KEPT HERE BECAUSE THE NEGATIVE RESULT IS THE
+  USEFUL PART.** I added the new-id set to the pick cache's stamp and wrote an
+  E7 claiming it guarded against a book aging out of the moving window and
+  keeping its "New" badge in a long-lived tab. **Deleting the stamp component
+  left E7 green, 34/34** — `newIds` is derived fresh every render and the badge
+  is read from it *outside* the cache, so the hazard cannot happen. **E8** is the
+  check that genuinely fails without the component: a book **replaced** in a live
+  tab (one pulled, one uploaded, `allBooks.length` unchanged) must still earn the
+  reserved slot, and without the re-roll the frozen pick can still be pointing at
+  the **deleted** book — a card whose link 404s.
+
+### ⚠️ WHAT IS OWED, AND IT IS NOT CODE
+
+**Nothing was looked at rendered.** § CONVENTIONS is explicit that a round
+touching layout must look at it rendered, and this one had no browser. The grid
+arithmetic is derived and asserted; **the pixels are Jake's to confirm** — the
+2.5-column card at full screen, whether three-across would have been too cramped
+(one constant), and the author ellipsis on the library's longest name.
+
 ## 68. ⭐ THE ARCADE IS BUILT AND PLAYABLE — THE NEXT MOVE IS A CLASSROOM ANSWER, NOT CODE
 
 **Jake, 2026-09-07:** *"One of the primary complaints I've had from kids is that
@@ -6748,7 +6848,7 @@ by looking at it rendered, not by reasoning about CSS in the abstract.
 
 ---
 
-## 54. ⚠️ BUILT AS AN OPTION (Round 83, Densmore) — DEFAULT-VS-OPTION IS STILL JAKE'S CALL
+## 54. ⚠️⚠️ IT COUNTED A FIELD THAT DOES NOT EXIST (Round 83, Densmore) — RECOUNTED Round 87 (Merritt), AND UNVERIFIED ON REAL DATA UNTIL JAKE CLICKS THREE BUTTONS
 
 **Jake, 2026-09-03:** *"I wish there was some way to sort by most popular, but I
 know that would take another read or write, and it's probably not worth it. But

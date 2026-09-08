@@ -134,20 +134,6 @@
 </head>
 <body>
 <div class="wrap">
-    <h1>DEADLINE</h1>
-    <div class="beta">BETA</div>
-
-    <!-- ⚠️ THE "NOT SAVED" LINE COMES BEFORE THEY PLAY, NOT AFTER. A student who
-         banks twenty minutes and then finds their totals unmoved has been misled
-         by omission, and the teacher hears about it, not the page. -->
-    <p class="note">
-        Play a lesson you've already reached, at that lesson's own speed and
-        accuracy targets. Then type the same run in School and see whether the
-        numbers line up.<br>
-        <strong>Nothing here is saved yet</strong> — your time, score and grade
-        don't count toward your lessons. You need a keyboard to play.
-    </p>
-
     <div class="panel" id="picker">
         <div id="loading" class="note" style="margin:0">Loading your lessons…</div>
         <div id="pickerBody" style="display:none">
@@ -171,6 +157,29 @@
 
     <div class="panel" id="stageWrap"><div id="stage"></div></div>
 
+    <!-- ⚠️⚠️ BELOW THE FRAME, ON PURPOSE. Students, via Jake 2026-09-08: *"The
+         block of text outside of the game (DEADLINE [Beta]...Play a lesson...)
+         should be below the frame to again maximize screen space."* On a
+         Chromebook the title and blurb pushed the canvas down far enough that
+         the top of the sky — where every target enters — was the first thing
+         scrolled off. It is orientation text: needed once, re-read never, so it
+         belongs after the thing it orients. -->
+    <h1>DEADLINE</h1>
+    <div class="beta">BETA</div>
+
+    <!-- ⚠️ THE "NOT SAVED" LINE COMES BEFORE THEY PLAY, NOT AFTER. A student who
+         banks twenty minutes and then finds their totals unmoved has been misled
+         by omission, and the teacher hears about it, not the page. -->
+    <p class="note">
+        Play a lesson you've already reached, at that lesson's own speed and
+        accuracy targets. Then type the same run in School and see whether the
+        numbers line up.<br>
+        <strong>Nothing here is saved yet</strong> — your time, score and grade
+        don't count toward your lessons. You need a keyboard to play.
+    </p>
+
+
+
     <div class="panel" id="result" style="display:none">
         <div id="verdict"></div>
         <table id="compare"></table>
@@ -180,9 +189,18 @@
 
 <script type="module">
 import { db, auth } from './firebase-config.js';
-import { collection, getDocs } from './read-meter.js';
+import { collection, getDocs, doc, getDoc } from './read-meter.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { runPlan, gatesForRun, chunkSequence } from './run-grade.js';
+import { readWeek, localDateStr } from './daylog.js';
+// ⚠️⚠️ A SURFACE THAT READS A WEEK MUST HEAL THE MIRROR (ROADMAP 50).
+// mirror-heal-test.mjs DISCOVERS readWeek() call sites rather than naming the
+// known three, precisely so a fourth surface arriving unhealed is caught — and
+// it caught this page the moment it started reading a week. Without reconcile(),
+// a student whose local day-ledger is missing days the server vouches for gets
+// those days planned as skips, and a skip reads as a zero: a weekly total
+// silently too low, on the page that exists to be compared against School.
+import { reconcile } from './logdays.js';
 import { missionConfigFromRun } from './game-shell.js';
 import { mount as mountDeadline } from './game-deadline.js';
 
@@ -218,6 +236,10 @@ let PROGRESS = {};
 let PLAYABLE = [];
 let handle = null;
 let lastPlayedWPM = null;
+// ⚠️ THE STUDENT'S REAL DAY AND WEEK SECONDS, read once at load and handed to
+// the game for the strip's bottom corners. null until read, and null forever for
+// a signed-out visitor — the game shows nothing rather than a made-up zero.
+let MINUTES = null;
 
 const $ = id => document.getElementById(id);
 
@@ -425,6 +447,8 @@ function play() {
     if (handle) { handle.destroy(); handle = null; }
     handle = mountDeadline($('stage'), {
         config: cfg,
+        // ⚠️ A GETTER, not the object — see game-deadline.js's minuteLines().
+        minutes: () => MINUTES,
         onQuit: () => finish(null, r),
         onEnd:  rep => finish(rep, r),
     });
@@ -463,6 +487,74 @@ function finish(rep, r) {
             `<td>${r.sequence.length}</td></tr>` +
         `<tr><td>seconds</td><td>${rep.seconds != null ? Math.round(rep.seconds) : '\u2014'}</td><td>\u2014</td></tr>`;
     console.log('[arcade] report', rep);
+}
+
+/**
+ * Load today's and this week's typing seconds.
+ *
+ * ⚠️⚠️ THIS COSTS READS AND THEY ARE ACCOUNTED FOR HERE ON PURPOSE. The user
+ * document, the class document and settings/goals resolve the WEEK ANCHOR —
+ * class → school default → Saturday, the same ladder game.js and learn.js walk —
+ * and readWeek() then reads the week's day documents, most of which daylog.js
+ * serves from its closed-day localStorage cache on any load after the first.
+ * ⚠️ IT MUST BE THE CLASS'S OWN ANCHOR. Hardcoding Saturday here would print a
+ * weekly total that disagrees with the one the same child sees in School, for
+ * every class that chose a different week — and a number that disagrees with
+ * itself across two pages is worse than no number.
+ * ⚠️ FAILURE IS SILENT AND TOTAL: any error leaves MINUTES null and the game
+ * simply omits the lines. Nothing here may block a student from playing.
+ */
+async function loadMinutes(user) {
+    if (!user || user.isAnonymous) return;
+    try {
+        let weekStartDay = 6, classId = '';
+        const uSnap = await withTimeout(getDoc(doc(db, 'users', user.uid)), 'your account');
+        // ⚠️ BOUND TO A PLAIN IDENTIFIER, and reconcile() is handed THAT.
+        // mirror-heal-test.mjs B3 rejects an inline `uSnap.data()` in the
+        // argument list on purpose: an expression there is where a second
+        // getDoc() gets smuggled in, turning a free repair into a per-load read.
+        const userDoc = uSnap.exists() ? uSnap.data() : null;
+        if (userDoc) classId = userDoc.classId || '';
+        let resolved = false;
+        if (classId) {
+            const cSnap = await getDoc(doc(db, 'classes', classId));
+            if (cSnap.exists()) {
+                const cd = cSnap.data();
+                if (Number.isInteger(cd.weekStartDay) && cd.weekStartDay >= 0 && cd.weekStartDay <= 6) {
+                    weekStartDay = cd.weekStartDay; resolved = true;
+                }
+            }
+        }
+        if (!resolved) {
+            const gSnap = await getDoc(doc(db, 'settings', 'goals'));
+            if (gSnap.exists()) {
+                const gd = gSnap.data();
+                if (Number.isInteger(gd.weekStartDay) && gd.weekStartDay >= 0 && gd.weekStartDay <= 6) {
+                    weekStartDay = gd.weekStartDay;
+                }
+            }
+        }
+        // ⚠️ HANDED THE DOCUMENT THIS FUNCTION ALREADY READ, never a fresh
+        // getDoc() — the repair must stay free. uSnap is read above for classId.
+        if (userDoc) {
+            try { reconcile(user.uid, userDoc); } catch (_) {}
+        }
+        const wk = await readWeek({
+            db, doc, getDoc, uid: user.uid,
+            dateStr: localDateStr(), weekStartDay,
+        });
+        // ⚠️ GATED ON ok EXACTLY AS daylog.js's OWN COMMENT DEMANDS. A partial
+        // week reads as zeroes, and showing a student a wrongly-low weekly total
+        // is worse than showing none.
+        if (wk && wk.ok) {
+            MINUTES = {
+                dailySeconds: (wk.today && wk.today.seconds) || 0,
+                weeklySeconds: (wk.week && wk.week.seconds) || 0,
+            };
+        }
+    } catch (e) {
+        console.warn('[arcade] minutes unavailable:', e.message);
+    }
 }
 
 // ⚠️⚠️ A HUNG READ IS NOT A REJECTED READ, AND THE DIFFERENCE IS A FOREVER
@@ -526,6 +618,10 @@ async function load(user) {
         }
         $('pickerBody').style.display = 'block';
         fillLessons();
+        // ⚠️ NOT AWAITED. The minutes are decoration on a strip the student has
+        // not reached yet; making the lesson picker wait on a week read would
+        // trade the thing they came for against a number in a corner.
+        loadMinutes(user);
     } catch (e) {
         $('loading').style.display = 'none';
         $('err').style.display = 'block';

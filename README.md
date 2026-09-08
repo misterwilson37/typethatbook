@@ -112,10 +112,11 @@ grep -oP "file:\s*'\K[^']+" versions.js | sort -u
 ⚠️⚠️ **THAT COMMAND READS THE `file:` KEYS, NOT THE WHOLE FILE, AND THE
 DIFFERENCE MATTERS.** Until v2.4.0 it grepped `versions.js` for anything shaped
 like a filename — which matches **comments** — and so it reported `index.html` as
-registered. It is not in `SOURCES`. The library landing page has never had its
-version stamp audited (**ROADMAP 57**), and the one command here that would have
-shown that was answering the opposite. A check that over-reports is worse than no
-check.
+registered when it was not. ✅ **It IS registered now** (`versions.js` v1.17.0,
+ROADMAP 57), read from the `INDEX_VERSION` constant rather than from a filename
+comment — but the lesson stands and the command above is still the right one: a
+check that over-reports is worse than no check, and this paragraph claimed the
+opposite of the truth for as long as it went unread.
 
 ⚠️ **The two page controllers cannot import each other.** Every student-facing
 feature is therefore a **twin by construction**, and half-building one is the
@@ -130,6 +131,20 @@ their own HUD are read from those same documents, so the child's screen and the
 teacher's report cannot disagree. `typing_sessions` holds sprint- and run-level
 detail for drill-down; it is **evidence, never a grade**. HANDOFF §3.1 is the
 full statement and is worth reading before touching any counter.
+
+⚠️⚠️ **AND `typing_logs` NAMES NO BOOK. It cannot.** It is keyed
+`{uid}_{date}` — one merged rollup **per student per DAY**, written by both page
+controllers — so a child who reads two books in a period has ONE document, and
+there is no single book for it to be about. The per-book id lives on
+`typing_sessions`, where `session-log.js` writes it from the sprint's own label.
+**This is not a subtlety; it is the fact ROADMAP 54's popularity counter got
+wrong.** That feature filtered `typing_logs` on a field the collection has never
+had, returned zero for all eighty books, and the library's "Most Popular" sort
+therefore rendered as flawless alphabetical order for a whole round — while its
+harness asserted the broken query as a requirement. **If you are about to filter
+`typing_logs` on anything, `popularity-sort-test.mjs` Part E is a ratchet that
+derives the real field list from the shipped writers; add your field there or
+find out why it does not exist.**
 
 ⚠️⚠️ **AND MASTERY LIVES IN NEITHER OF THEM.** `users/{uid}/lessonProgress/{id}`
 holds `runScores`, `runLocks`, `runGrades` and the attempt counters — the record

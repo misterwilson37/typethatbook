@@ -1,5 +1,122 @@
 # CHANGELOG — TypeThatBook
 
+## Round 87 (Merritt) — 2026-09-08 — ⚠️⚠️⚠️ "Most Popular" counted a field that does not exist, and the harness required it
+
+**Jake came in about the Library page.** Two rows rendering as 1.5 rows, no
+author on either, a Featured shelf that never changed, and *"the real issue"* —
+a popularity sort that was plain alphabetical. Baseline confirmed before
+touching anything: **87 harnesses, `audit:versions` 0 problems.**
+
+### ⚠️⚠️⚠️ ROADMAP 54, REOPENED AND CLOSED — `typing_logs` HAS NO PER-BOOK FIELD
+
+`reports.html` v2.40.0 counted each book with a `getCountFromServer()` filtering
+`typing_logs` on `bookId`. **Every writer of that collection was checked** —
+`game.js`'s flush and guest carry-over, `learn.js`'s carry-over, and
+`daylog.js`'s `dayLogPayloadFor()` / `carryOverPayloadFor()` which build the
+payload for all of them. The fields are `uid`, `email`, `displayName`,
+`classId`, `schoolId`, `date`, the seconds/chars/mistakes triple and
+`lastUpdated`. That is the whole document.
+
+⚠️⚠️ **AND IT COULD NEVER HAVE CARRIED ONE.** `typing_logs` is keyed
+`{uid}_{date}` — one merged rollup per student per **DAY** — so a child who
+reads two books in a period has ONE document with no single book to name. The
+field lives on `typing_sessions`, the per-sprint rollup.
+
+The query matched nothing, eighty zeros were written to `settings/popularity`,
+and `sortBooks()` fell through to its `|| byTitle(a, b)` tiebreak. ⭐ **The
+button worked perfectly. It faithfully counted zero, eighty times.**
+
+⚠️⚠️ **`popularity-sort-test.mjs` v1.0.0 PINNED THE BROKEN QUERY AS A
+REQUIREMENT** and stayed green for a round. All 27 of its assertions compared
+the code against expectations invented in the same session as the code — **Rule
+10 in one sentence.** Now **v2.0.0, 48 assertions**, whose new **Part E is a
+ratchet**: it derives the fields `typing_logs` writers actually write (brace-
+matching the four `setDoc()` payloads and *calling* `daylog.js`'s two builders
+on both sides of the source-split cutover, never mirroring a list) and refuses
+any filter on the page naming a field outside that set. **Mutation-verified
+twice** — with the old query restored, and with `date` renamed to an invented
+`dayKey`, to prove it guards the class and not the keyword.
+
+⭐ **Jake chose the new source: `users/{uid}/progress`** — one document per
+student per book, never TTL'd, so the score is *how many children have started
+this book*, all-time. It needs **no console index change** (the obvious repair,
+`typing_sessions.bookId`, is exempted from single-field indexing in
+`firestore.indexes.json`, and Jake has no CLI) and **no rules change**
+(`isSuper()` already reads that path; a `collectionGroup()` query would have
+needed a new `match /{path=**}/progress/{id}`, and the harness pins that no such
+rule was opened *and* no such query exists, so a later round cannot land half
+the pair). ⚠️ It **ignores the scope pickers** and does not reuse
+`readRosterUids()`: `settings/popularity` is one library-wide document, and
+counting the selected class would publish one period's taste as the whole
+library's order. ⚠️ **An unreadable student is a MISS, never a zero.**
+
+### ⚠️⚠️ RULE 10 IS NOT SATISFIED YET, AND THE FIX SHIPS WITH ITS OWN INSTRUMENTS
+
+**The new count was never executed.** This container cannot reach Firestore, so
+none of that page's code ran — **the exact condition that produced the defect
+above.** So the panel gained **Dry run** (counts and displays; `setDoc` appears
+nowhere in it, asserted) and **Show saved** (reads the document back, including
+a new `basis` field that tells an all-zero v2.40.0 map from a real one on
+sight). ⚠️ **Item 54 stays open until Jake runs all three in order.**
+
+⭐ **And `index.html` now admits when it has nothing to sort by** — an all-zero
+map and a real one were indistinguishable from the shelf, and that silence is
+why this survived a round.
+
+### ⭐ THE TWO SPECIAL ROWS — `index.html` v3.23.0
+
+⚠️⚠️ **THE WONK WAS A LOAD-BEARING INVARIANT DOING WHAT IT WAS WRITTEN TO
+PREVENT.** `.continue-grid` declared `.library-grid`'s `auto-fill` tracks with
+each card at `grid-column: span 2` so edges landed on shelf column lines — but
+the shelf is capped at `max-width: 1100px`, **five columns at every desktop
+width**, and three 2-span cards need six. The third wrapped.
+
+Two equal columns cannot wrap: at five shelf columns each card is **2.5 columns**
+(Jake's own number), and at four it is exactly two, landing back on the shelf's
+lines for free. ⚠️ **`CONTINUE_MAX` and `FEATURED_MAX` are load-bearing now**
+and are both 2 — `FEATURED_MAX`'s comment had said *"not load-bearing, just
+matching"* for two rounds. **Part F reads the expected count out of the CSS**,
+not from a literal in the test. ⚠️ It costs Continue Reading its third card,
+accepted: the row is the shortcut, not the record.
+
+Author line on both rows from `book.author`, same field and presentation as the
+shelf's `.book-author`. ⭐ The dead vertical space Jake noticed is one
+declaration — `justify-content: center` — **and it only moves the Featured
+cards**, because a Continue card's `.continue-meta` has `margin-top: auto` and
+an auto margin absorbs all free space before `justify-content` gets a say.
+
+### ⚠️ FEATURED WAS DETERMINISTIC AND THE HARNESS HAD PROVED IT WAS
+
+Only the *fallback* ever rolled dice; the newest branch was sort-then-slice with
+no shuffle, so the row froze for as long as anything sat in the 14-day window —
+**three books did.** B1–B4 and E5 all pinned that ordering. Now a mixture:
+`FEATURED_NEW_SLOTS = Math.max(1, FEATURED_MAX - 1)` reserves a slot for a new
+book drawn at random from inside the window, the rest are the untyped discovery
+draw, the badge is **per card**, and a last-resort fill replaces v3.19.0's
+behaviour of **hiding the row entirely** from a student who had started every
+book.
+
+⚠️⚠️ **A HAZARD I GOT WRONG, RECORDED RATHER THAN QUIETLY DROPPED.** E7 claimed
+to guard the stamp's new-id component against a stale "New" badge; deleting that
+component left it **green, 34/34**, because `newIds` is derived fresh every
+render *outside* the cache. E7 keeps the behaviour with the negative result
+written into it, and **E8** is the check that genuinely fails without it: a book
+**replaced** in a live tab must still earn the reserved slot, and without the
+re-roll the frozen pick can still point at the **deleted** book.
+
+### NOTES
+
+* ⚠️ **The comment-stripping trap, fourth and fifth instance.** Round 86
+  predicted a fourth by name. `renderFeatured()`'s comment explains why the
+  row-wide `isNew` was removed and D6's grep read the explanation as the
+  violation; the popularity harness hit the same thing against `reports.html`'s
+  own write-up of the fix. **Expect a sixth.**
+* ⚠️ **Nothing rendered was looked at** — ROADMAP § CONVENTIONS requires it for
+  a layout round and this container has no browser. The grid arithmetic is
+  derived and asserted; the pixels are Jake's to confirm.
+* **Untouched, on Jake's instruction:** `learn.js`, `arcade.html`, `game.js`,
+  every `game-*` module. **Upload set: `index.html`, `reports.html`.**
+
 ## Round 86 (Victor II) — 2026-09-08 — ⭐⭐⭐ COMMIT 1000: the arcade lands, and kids can play a real lesson
 
 **The milestone commit Jake saved for the games.** Round 82 (Victor) built them

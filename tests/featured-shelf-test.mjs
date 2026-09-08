@@ -1,5 +1,24 @@
-// featured-shelf-test.mjs v1.1.0 — ROADMAP 53. FEATURED IS "NEWEST," THEN
-// "RANDOM, UNTYPED" WHEN NOTHING IS NEW.
+// featured-shelf-test.mjs v1.2.0 — ROADMAP 53 + 69. FEATURED IS A MIXTURE:
+// SOME NEW, THE REST A DISCOVERY DRAW, AND ALL OF IT SHUFFLED.
+//
+// ⚠️⚠️ v1.2.0 — THE "NEWEST" HALF WAS DETERMINISTIC AND THIS FILE PROVED IT
+// WAS, WHICH IS NOT THE SAME AS PROVING IT SHOULD BE. B1–B4 and E5 all pinned
+// `sort((a,b) => b.at - a.at).slice(0, MAX)` — a total order over a stable
+// field, so a fortnight of page loads showed identical titles. Jake,
+// 2026-09-08: "Ideally, the 'Featured' would be different every time, or at
+// least not the same 2 titles every time." Three books were inside the window
+// when he said it, and the row had shown the same two for days.
+//
+// ⚠️ SO B1–B4's `pickNewest()` MIRROR NOW DESCRIBES A CANDIDATE SET, NOT AN
+// ORDER — it is kept because "which books are eligible" and "0 never counts as
+// new" are still real rules with real edge cases, and only the ordering claim
+// was wrong. ⭐ E5 IS REWRITTEN INTO THE DECISION THAT SUPERSEDED IT rather
+// than deleted, following D4's own precedent in this file: E5 used to assert
+// that the cache MUST NOT reach the new path, and now both halves of the pick
+// deliberately run through it. A superseded assertion is worth rewriting into
+// the reason it changed, so the next reader learns the history instead of
+// finding a gap. Part F is new and covers the two-up grid and the row's card
+// count, which are now a single coupled decision.
 //
 // Jake, 2026-09-06: "I think 'featured' should just be 'newest' and then if
 // nothing is new within a week or 2, 'featured' should be random, untyped
@@ -229,9 +248,53 @@ check('D5. renderFeatured() is called from renderBooks(), same as renderContinue
         'on 7 of its 8 call sites');
 });
 
-check('D6. the badge text distinguishes "New" from "Featured"', () => {
-    assert.match(renderFeaturedSrc, /isNew\s*\?\s*'New'\s*:\s*'Featured'/,
-        'the two modes (newest vs. random fallback) no longer say which one a card is');
+check('D6. the badge is decided PER CARD, not once for the row', () => {
+    // ⚠️⚠️ THIS ASSERTION USED TO READ:
+    //     assert.match(renderFeaturedSrc, /isNew\s*\?\s*'New'\s*:\s*'Featured'/)
+    // That was correct for as long as the row was newest-OR-random and could
+    // only ever be one of the two. It is a MIXTURE now, so a single `isNew`
+    // for the whole row would mislabel every card in it — the reserved new
+    // pick and the discovery picks would all claim the same badge.
+    assert.match(renderFeaturedSrc, /newIds\.has\(book\.id\)\s*\?\s*'New'\s*:\s*'Featured'/,
+        'the badge is not read per book \u2014 a mixed row would label its ' +
+        'discovery picks "New", or its new upload "Featured"');
+    // ⚠️⚠️ COMMENTS ARE STRIPPED FIRST, AND THIS IS THE FOURTH TIME THIS REPO
+    // HAS HIT THAT — HANDOFF §3 predicted a fourth by name. renderFeatured()'s
+    // own comment EXPLAINS why the row-wide `isNew` was removed, and a bare
+    // grep read the explanation as the violation and went red against correct
+    // code. arcade-lesson-test.mjs and staff-tokens-test.mjs carry the
+    // identical note for the identical reason.
+    const noComments = renderFeaturedSrc
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    assert.doesNotMatch(noComments, /\bisNew\b/,
+        'a row-wide isNew flag came back \u2014 it cannot describe a mixed row');
+});
+
+check('D9. some slots are RESERVED for new books, and never all of them', () => {
+    // ⚠️ BOTH BOUNDS ARE THE POINT. At zero, a brand-new upload could be
+    // invisible on the row whose job is announcing it. At FEATURED_MAX, this
+    // is the old deterministic newest-only row wearing a new name, and Jake's
+    // complaint comes straight back.
+    assert.match(src, /FEATURED_NEW_SLOTS\s*=\s*Math\.max\(1,\s*FEATURED_MAX\s*-\s*1\)/,
+        'the reserved-slot count is no longer bounded below by 1 and above by ' +
+        'FEATURED_MAX - 1 \u2014 read the constant\u2019s own comment');
+    assert.match(renderFeaturedSrc, /FEATURED_NEW_SLOTS/,
+        'renderFeatured() no longer honours the reserved-slot count');
+});
+
+check('D10. every pool the pick draws from is SHUFFLED, and allBooks is not', () => {
+    // ⚠️ THE FISHER-YATES MUST RUN ON A COPY. allBooks is what renderBooks()
+    // sorts and filters for the shelf; shuffling it in place would reorder the
+    // stacks under the child as a side effect of drawing two cards.
+    assert.match(renderFeaturedSrc, /const out = pool\.slice\(\)/,
+        'the shuffle no longer copies \u2014 it is reordering allBooks in place');
+    const fills = [...renderFeaturedSrc.matchAll(/fillTo\([^)]*,\s*shuffled\(/g)];
+    assert.ok(fills.length >= 2,
+        `every fill must draw from a shuffled pool (found ${fills.length} that do)`);
+    assert.doesNotMatch(renderFeaturedSrc, /\.sort\(\(a, b\) => b\.at - a\.at\)/,
+        '⚠️ the deterministic newest-first sort is back \u2014 that is the exact ' +
+        'shape that showed Jake the same two titles for a fortnight');
 });
 
 check('D7. reuses .continue-card, not a parallel .featured-card', () => {
@@ -335,6 +398,7 @@ function withFeaturedEnv(fn) {
         currentUser: globalThis.currentUser,
         FEATURED_WINDOW_MS: globalThis.FEATURED_WINDOW_MS,
         FEATURED_MAX: globalThis.FEATURED_MAX,
+        FEATURED_NEW_SLOTS: globalThis.FEATURED_NEW_SLOTS,
         bookUploadedAtMs: globalThis.bookUploadedAtMs,
         escapeAttr: globalThis.escapeAttr,
         escapeHtml: globalThis.escapeHtml,
@@ -342,7 +406,13 @@ function withFeaturedEnv(fn) {
     };
     try {
         globalThis.FEATURED_WINDOW_MS = WINDOW;
+        // ⚠️ THE CONSTANTS ARE INJECTED, NOT READ FROM index.html, SO PART E
+        // KEEPS ITS 3-CARD ARITHMETIC WHILE THE SHIPPED ROW IS 2. Part F is
+        // what checks the shipped values, and it checks them against the GRID
+        // rather than against a number written here — a hardcoded 2 in this
+        // file would just be a second place to forget to change.
         globalThis.FEATURED_MAX = 3;
+        globalThis.FEATURED_NEW_SLOTS = 2;
         globalThis.bookUploadedAtMs = bookUploadedAtMs;
         globalThis.escapeAttr = (s) => String(s);
         globalThis.escapeHtml = (s) => String(s);
@@ -514,10 +584,26 @@ check('E6. \u26a0\ufe0f a uid alone is NOT a sufficient stamp \u2014 the narrow 
     });
 });
 
-check('E5. the newest branch is unaffected by any of this', () => {
-    // ⚠️ THE CACHE MUST NOT REACH THE "NEW" PATH AT ALL. If a fix ever
-    // routed both branches through one cached array, a book uploaded
-    // mid-session would be ranked against a frozen answer.
+check('E5. a new book still surfaces \u2014 but it SHARES the row now', () => {
+    // ⚠️⚠️ THIS CHECK USED TO ASSERT THE OPPOSITE OF WHAT IT ASSERTS NOW, AND
+    // THE OLD VERSION WAS RIGHT ABOUT ITS OWN DESIGN. It read:
+    //
+    //     assert.deepEqual(renderedIds(dom.grid), ['brand-new'],
+    //         'a book inside the window must win outright over the random fallback');
+    //     assert.equal(featured.peek(), null,
+    //         'the random cache was populated on the newest path...');
+    //
+    // "Win outright" was the v3.19.0 rule and it is exactly what Jake asked to
+    // be changed: a single new upload took the WHOLE row, and two or three new
+    // uploads took it deterministically, in uploadedAt order, every load for a
+    // fortnight. ⭐ The new rule is that a new book is guaranteed A SLOT, not
+    // the row — so the cache legitimately holds both halves of the pick, and
+    // `peek()` being non-null is now correct rather than a defect.
+    //
+    // ⚠️ THE HALF THE OLD CHECK WAS PROTECTING IS NOT DROPPED. Its real worry
+    // was a book aging out of the moving window while a frozen answer kept
+    // ranking it — that is what E7 covers, by putting the new-id set INTO the
+    // stamp instead of keeping the branch out of the cache.
     withFeaturedEnv(() => {
         const dom = makeStubDom();
         globalThis.document = dom.document;
@@ -530,13 +616,203 @@ check('E5. the newest branch is unaffected by any of this', () => {
         globalThis.userProgress = E_STARTED;
         featured.render();
 
-        assert.deepEqual(renderedIds(dom.grid), ['brand-new'],
-            'a book inside the window must win outright over the random fallback');
-        assert.match(dom.grid.innerHTML, /New</, 'the badge should read "New"');
-        assert.equal(featured.peek(), null,
-            'the random cache was populated on the newest path \u2014 the two branches ' +
-            'must stay independent');
+        const shown = renderedIds(dom.grid);
+        assert.ok(shown.includes('brand-new'),
+            'a book inside the window must still be guaranteed a slot \u2014 that is ' +
+            'the half of ROADMAP 53 the mixture must not lose');
+        assert.equal(shown.length, 3, 'the row should still fill to FEATURED_MAX');
+        assert.match(dom.grid.innerHTML, /New</, 'the new book\u2019s badge should read "New"');
+        assert.match(dom.grid.innerHTML, /Featured</,
+            'the slots beside it are discovery picks and must say so');
+        const leaked = shown.filter(id => id !== 'brand-new' && !E_UNTYPED.has(id));
+        assert.deepEqual(leaked, [],
+            'the non-new slots are still the ROADMAP 53 untyped draw \u2014 a book the ' +
+            'student has already opened leaked into one');
     });
+});
+
+check('E7. \u26a0\ufe0f a book aging out of the window loses its badge without a reload', () => {
+    // ⚠️⚠️ READ THIS BEFORE TRUSTING THE STAMP FOR IT. An earlier draft of this
+    // check claimed to be the guard on the new-id component of
+    // `_featuredRandomStamp`, and MUTATION-TESTING SAID OTHERWISE: delete that
+    // component from index.html and this check stays GREEN, 34/34.
+    //
+    // ⭐ THE REASON IS THAT THE BADGE IS NOT CACHED AT ALL. `newIds` is derived
+    // fresh on every render and `badge` is read from it inside the map over
+    // `picks`, so the label follows the clock even when the PICK is a frozen
+    // one. That is the right design and it is why the hazard the earlier draft
+    // worried about — a Chromebook left open across the window boundary
+    // printing "New" over a three-week-old book — cannot happen.
+    //
+    // ⚠️ SO THIS CHECK IS KEPT FOR THE BEHAVIOUR AND NOT FOR THE MECHANISM.
+    // E8 below is the one that fails without the stamp component. If a later
+    // round moves the badge INTO the cached pick (storing `{book, badge}`
+    // rather than a book), this check becomes the one that goes red, which is
+    // exactly what it is here for.
+    withFeaturedEnv(() => {
+        const dom = makeStubDom();
+        globalThis.document = dom.document;
+        const featured = renderFeaturedRunner();
+
+        const fresh = { id: 'fresh', title: 'Fresh', uploadedAt: Date.now() - DAY };
+        globalThis.allBooks = E_BOOKS.concat([fresh]);
+        globalThis.currentUser = { uid: 'student-1' };
+        globalThis.userProgress = E_STARTED;
+        featured.render();
+        assert.ok(renderedIds(dom.grid).includes('fresh'), 'sanity: it starts inside the window');
+        assert.match(dom.grid.innerHTML, /New</, 'sanity: it starts badged New');
+
+        // The same book, now older than the window — the library did not
+        // change, the clock did.
+        fresh.uploadedAt = Date.now() - 30 * DAY;
+        featured.render();
+
+        assert.doesNotMatch(dom.grid.innerHTML, /New</,
+            'an aged-out book is still badged "New" \u2014 the badge is being read from ' +
+            'the cached pick instead of from a freshly derived new-id set');
+    });
+});
+
+check('E8. \u2b50 a book REPLACED in a live tab still earns its reserved slot', () => {
+    // ⚠️⚠️ THIS IS THE ASSERTION THE NEW-ID COMPONENT OF THE STAMP EXISTS FOR,
+    // AND IT IS THE ONLY ONE THAT FAILS WITHOUT IT. The other three components
+    // cannot see this case: the uid is unchanged, the started set is unchanged,
+    // and `allBooks.length` is unchanged — one book left the library and
+    // another arrived, which is an ordinary afternoon for Jake (a title pulled
+    // for re-cleaning, its replacement uploaded, and a student's tab still open
+    // on the Library page through both).
+    //
+    // ⚠️ TWO THINGS GO WRONG AT ONCE WITHOUT THE RE-ROLL, AND THE SECOND IS
+    // WORSE THAN A STALE ROW: the brand-new upload is denied the reserved slot
+    // whose entire purpose is announcing it, AND the frozen pick can still be
+    // holding the book that was DELETED — a card whose link 404s, which is the
+    // exact failure renderContinue() carries a filter against.
+    withFeaturedEnv(() => {
+        const dom = makeStubDom();
+        globalThis.document = dom.document;
+        const featured = renderFeaturedRunner();
+
+        // 20 books, none new, 17 started — so the row is three discovery picks
+        // drawn from b17/b18/b19, and b19 is certain to be in it.
+        globalThis.allBooks = E_BOOKS;
+        globalThis.currentUser = { uid: 'student-1' };
+        globalThis.userProgress = E_STARTED;
+        featured.render();
+        assert.ok(renderedIds(dom.grid).includes('b19'),
+            'sanity: the pool is exactly FEATURED_MAX, so b19 must be showing');
+
+        // b19 is pulled and a fresh title takes its place. Same count.
+        globalThis.allBooks = E_BOOKS.slice(0, 19).concat([
+            { id: 'just-uploaded', title: 'Just Uploaded', uploadedAt: Date.now() - DAY },
+        ]);
+        assert.equal(globalThis.allBooks.length, E_BOOKS.length,
+            'sanity: this case only bites while the LENGTH is unchanged');
+        featured.render();
+
+        const shown = renderedIds(dom.grid);
+        assert.ok(shown.includes('just-uploaded'),
+            'the new upload did not get its reserved slot \u2014 the pick was reused ' +
+            'because nothing in the stamp noticed the library had changed');
+        assert.ok(!shown.includes('b19'),
+            '\u26a0\ufe0f the row is still pointing at a book that has left the library ' +
+            '\u2014 that card\u2019s link is a 404');
+    });
+});
+
+// ─── F. THE ROW IS ONE ROW, AND THE CARD COUNT IS PART OF THAT RULE ─────────
+//
+// ⚠️⚠️ THIS SECTION EXISTS BECAUSE THE CARD COUNT AND THE GRID USED TO BE
+// INDEPENDENT AND ARE NOT ANY MORE. FEATURED_MAX's own comment said, for two
+// rounds, "matches CONTINUE_MAX for visual consistency — not load-bearing,
+// just matching." It became load-bearing the moment .continue-grid stopped
+// auto-filling: N cards in a fixed-column grid wrap the moment N exceeds the
+// column count, and the wrap is what Jake reported as "1.5 rows, which is
+// wonky." Nothing on screen says "this wrapped because a constant in the JS
+// disagrees with a rule in the CSS," so it is asserted here.
+
+const cssBlock = (() => {
+    const a = src.indexOf('<style>'), b = src.indexOf('</style>');
+    return src.slice(a, b).replace(/\/\*[\s\S]*?\*\//g, '');
+})();
+
+function gridColumnCount(rule) {
+    const m = cssBlock.match(new RegExp('\\' + rule.replace('.', '.') +
+        '\\s*\\{([^}]*)\\}'));
+    if (!m) return null;
+    const t = m[1].match(/grid-template-columns:\s*repeat\((\d+),/);
+    return t ? Number(t[1]) : null;
+}
+
+check('F1. .continue-grid declares a FIXED column count, not auto-fill', () => {
+    // ⚠️ auto-fill IS THE DEFECT, NOT THE FIX. It gave the row the shelf's own
+    // tracks so 2-span cards aligned to shelf column lines — but .library-grid
+    // is capped at max-width 1100px, which resolves to FIVE columns at every
+    // desktop width, and three 2-span cards need SIX.
+    const m = cssBlock.match(/\.continue-grid\s*\{([^}]*)\}/);
+    assert.ok(m, '.continue-grid rule is gone');
+    assert.doesNotMatch(m[1], /auto-fill|auto-fit/,
+        'the row is auto-filling again \u2014 an odd column count then wraps the last ' +
+        'card onto a half-empty second row');
+    assert.match(m[1], /grid-template-columns:\s*repeat\(\d+,/,
+        'the row no longer states how many cards fit across it');
+});
+
+check('F2. \u26a0\ufe0f\u26a0\ufe0f nothing spans two columns any more', () => {
+    // The span and the fixed column count together would mean HALF as many
+    // cards fit as the count says, and the wrap returns with no rule changed.
+    const m = cssBlock.match(/\.continue-card\s*\{([^}]*)\}/);
+    assert.ok(m, '.continue-card rule is gone');
+    assert.doesNotMatch(m[1], /grid-column/,
+        '.continue-card spans columns again \u2014 with a fixed 2-column grid that ' +
+        'fits one card per row and wraps the second');
+});
+
+check('F3. \u2b50 BOTH row maxima equal the grid\u2019s column count', () => {
+    // ⚠️ CHECKED AGAINST THE CSS, NEVER AGAINST A LITERAL WRITTEN HERE. A
+    // hardcoded 2 in this file is just a third place to forget.
+    const cols = gridColumnCount('.continue-grid');
+    assert.ok(cols, 'could not read the column count out of .continue-grid');
+    const featuredMax = Number(src.match(/const FEATURED_MAX = (\d+)/)[1]);
+    const continueMax = Number(src.match(/const CONTINUE_MAX = (\d+)/)[1]);
+    assert.equal(featuredMax, cols,
+        `FEATURED_MAX is ${featuredMax} against a ${cols}-column row \u2014 ` +
+        (featuredMax > cols ? 'the extra card(s) wrap, which is the 1.5-row complaint'
+                            : 'the row renders short and leaves a visible gap'));
+    assert.equal(continueMax, cols,
+        `CONTINUE_MAX is ${continueMax} against a ${cols}-column row \u2014 ` +
+        (continueMax > cols ? 'the extra card(s) wrap, which is the 1.5-row complaint'
+                            : 'the row renders short and leaves a visible gap'));
+});
+
+check('F4. the narrow-width rule collapses to ONE column, never two', () => {
+    // Half of a two-column shelf is narrower than the 56px cover plus a
+    // readable title. One card per row is a list; half a card is a defect.
+    const media = cssBlock.match(/@media \(max-width: (\d+)px\) \{\s*\.continue-grid \{([^}]*)\}/);
+    assert.ok(media, 'the narrow-width override for .continue-grid is gone');
+    assert.match(media[2], /grid-template-columns:\s*1fr/,
+        'the narrow override no longer collapses the row to a single column');
+});
+
+check('F5. both rows name the author, from the same field as the shelf', () => {
+    // ⚠️ Jake, 2026-09-08: "If you look at what actually shows, there is
+    // plenty of room for an author. There's one line of text - the title - and
+    // then nothing makes up the vertical space provided by the covers."
+    // ⚠️ THE SAME FIELD AS renderBooks() IS THE POINT. A book shown twice on
+    // one screen attributed two different ways is worse than one not
+    // attributed at all.
+    for (const fn of ['renderContinue', 'renderFeatured']) {
+        const body = liftFn(fn);
+        assert.match(body, /book\.author \? `<div class="continue-author">\$\{escapeHtml\(book\.author\)\}<\/div>` : ''/,
+            `${fn}() does not render the author line, or renders it from a ` +
+            'different field or without escaping');
+    }
+    assert.match(cssBlock, /\.continue-author\s*\{/, '.continue-author has no rule');
+    // One line, ellipsised: a wrapping surname makes one card taller than the
+    // one beside it in the same grid row, which is the "slightly off"
+    // complaint this whole row has been fighting since ROADMAP 26.
+    const rule = cssBlock.match(/\.continue-author\s*\{([^}]*)\}/)[1];
+    assert.match(rule, /white-space:\s*nowrap/, 'the author line may wrap and unbalance the row');
+    assert.match(rule, /text-overflow:\s*ellipsis/, 'a long author name is cut without an ellipsis');
 });
 
 // ─────────────────────────────────────────────────────────────────────────

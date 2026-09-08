@@ -1,5 +1,10 @@
 // game-chrome.js v1.1.0
 //
+// v1.2.0 — ⭐ THE BAR MOVED OFF THE SKY, to the bottom-left, offset by whatever
+//          the view reports as its keyboard height (--gc-bottom). Targets enter
+//          from the top, so a control bar up there covered every word at the
+//          moment it became readable.
+//
 // v1.1.0 — ⭐ AN OPTIONAL "Keys" BUTTON. Jake, 2026-09-08: *"We should be able to
 //          toggle off the keyboard, too."* The view owns the state and the
 //          persistence; this file owns the button and its label, and renders
@@ -32,7 +37,7 @@
 
 import { prefersReducedMotion } from './game-draw.js';
 
-export const GAME_CHROME_VERSION = '1.1.0';
+export const GAME_CHROME_VERSION = '1.2.0';
 
 // ⚠️ THREE SECONDS, AND THE SPAWNS WAIT FOR IT. Not the clock — the clock starts
 // on the first keystroke regardless, and always did.
@@ -41,8 +46,17 @@ export const COUNTDOWN_MS = 3000;
 const CSS = `
 .gc-wrap { position:absolute; inset:0; pointer-events:none;
            font-family:"Courier Prime", ui-monospace, monospace; }
-.gc-bar { position:absolute; top:8px; left:50%; transform:translateX(-50%);
-          display:flex; gap:6px; pointer-events:auto; }
+/* ⚠️⚠️ THE BAR LIVES AT THE BOTTOM NOW. Students, via Jake 2026-09-08: *"The
+   control panel - pause, keyboard, etc - all block the view at the top... The
+   sky should be clear for incoming UFOs."* They were right and it was the worst
+   possible place: targets ENTER from the top, so the controls covered every
+   word at exactly the moment it first became readable — costing reading time on
+   every single target.
+   ⚠️ THE VIEW SETS --gc-bottom TO THE KEYBOARD STRIP'S HEIGHT. With the board up
+   the buttons sit in its left flank; with it off they drop to the floor. Either
+   way nothing overlaps the sky. */
+.gc-bar { position:absolute; bottom:var(--gc-bottom, 8px); left:14px;
+          display:flex; gap:6px; pointer-events:auto; z-index:2; }
 .gc-btn { background:rgba(6,10,18,0.86); color:#bfe9ff; border:1px solid #2b6c8a;
           border-radius:6px; padding:6px 12px; font:inherit; font-size:13px;
           cursor:pointer; min-width:44px; min-height:32px; }
