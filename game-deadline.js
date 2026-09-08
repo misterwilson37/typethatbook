@@ -1,4 +1,30 @@
-// game-deadline.js v1.0.0 — DEADLINE. Round 82 (Victor).
+// game-deadline.js v1.1.0
+//
+// v1.1.0 — ⭐ ROUND 87, JAKE'S FOUR GRAPHICS NOTES, ALL FROM WATCHING IT PLAYED.
+//   1. THE HULLS CARRY THE LETTERS' FINGER COLOURS. One arc per character, in
+//      order, from keyboard.js's map — the same colours as the silo barrels and
+//      the on-screen keyboard — and typed characters dim, so the hull drains as
+//      the student works. An unmapped character keeps the hull colour rather
+//      than falling back to finger 0; see this file's own note on why that
+//      default once put every unmapped character on the left pinky.
+//   2. THE BARRELS AIM AT WHAT THEY ARE SHOOTING AT, and are drawn INNERMOST
+//      FIRST so the outermost sits on top. Vertical barrels never occluded each
+//      other, so draw order did not matter until they rotated — at which point
+//      an innermost-last order hides the other three colours at exactly the
+//      angles the student is looking at. See drawSilos().
+//   3. THE DOMES DO SOMETHING NOW. Jake: *"they don't do anything... if the dome
+//      is destroyed, the building should be revealed and then destroyed."* Each
+//      dome now reaches the centre lane, so the Batman Building sits under all
+//      three and the outer landmarks under two each; a hit strips the nearest
+//      standing dome and only a BARE lane loses its landmark. The city absorbs
+//      six hits instead of three, an exposed landmark is outlined in amber, and
+//      the director's shield count is doubled to match. ⚠️ Strictly more
+//      forgiving, so the 990-trial corpus sweep still holds.
+//   4. THE LANDMARKS ARE GEMINI'S ART, inlined as base64 data URLs with a vector
+//      fallback for the frames before they decode. ⚠️ The Batman SVG's
+//      full-bleed sky rect was stripped first — it read as a pale sticker over a
+//      night skyline.
+// — DEADLINE. Round 82 (Victor).
 //
 // ⚠️⚠️ AN EARLIER DRAFT OF THIS FILE CARRIED A RULE 9 VIOLATION OF MY OWN MAKING,
 // AND IT IS WORTH RECORDING BECAUSE THE NEXT PERSON WILL BE TEMPTED THE SAME WAY.
@@ -119,6 +145,54 @@ const LANDMARKS = [
     { name: 'THE RYMAN', short: 'RYMAN' },
 ];
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LANDMARK ART — v1.1.0, ROUND 87
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-08: *"The buildings need more definition. Attached are svgs that
+// Gemini put together for you."* They are markedly more recognisable than the
+// hand-drawn canvas paths they replace — the Batman Building's twin spires and
+// crown, the Ryman's gothic windows and gable, the Parthenon's Doric colonnade.
+//
+// ⚠️⚠️ INLINED AS BASE64 DATA URLS, NOT FETCHED. Three reasons, and the third is
+// the one that matters: a fetch is a network round trip per game start; a
+// relative path breaks the moment this module is imported from a page at a
+// different depth (arcade.html is at the root, tools/game-lab.html is not); and
+// game-deadline.js is imported by pages that must keep working with no server
+// beyond static file hosting. A data URL has no path and no request.
+//
+// ⚠️ THE BATMAN SVG'S FULL-BLEED SKY RECT WAS STRIPPED BEFORE EMBEDDING. Gemini
+// drew it on a pale gradient background, which is right for a standalone
+// illustration and reads as a light STICKER pasted on a night skyline once it is
+// composited over the game. Nothing else was altered — the building itself is
+// exactly as drawn. If these are ever re-exported, strip the background again.
+//
+// ⚠️ DRAWN ONLY ONCE LOADED. `drawImage` with an unloaded Image throws in some
+// browsers and silently no-ops in others, so every draw checks `.complete` and
+// falls back to the vector shapes below. THE FALLBACKS ARE NOT DEAD CODE — they
+// are what the first frame or two of every game uses.
+const LANDMARK_SVG = {
+    'PARTHENON':   'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA3NjAgMzYwIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIj4gPGRlZnM+IDwhLS0gQ29sdW1uIERlZmluaXRpb24gLS0+IDxnIGlkPSJkb3JpYy1jb2x1bW4iPiA8IS0tIFNoYWZ0IC0tPiA8cmVjdCB4PSIwIiB5PSIxMCIgd2lkdGg9IjI4IiBoZWlnaHQ9IjE0MCIgZmlsbD0iI0U2REFCRiIgLz4gPCEtLSBGbHV0aW5nIC8gU2hhZGluZyAtLT4gPHJlY3QgeD0iNCIgeT0iMTAiIHdpZHRoPSI0IiBoZWlnaHQ9IjE0MCIgZmlsbD0iI0Q0QzRBMSIgLz4gPHJlY3QgeD0iMTIiIHk9IjEwIiB3aWR0aD0iNCIgaGVpZ2h0PSIxNDAiIGZpbGw9IiNENEM0QTEiIC8+IDxyZWN0IHg9IjIwIiB5PSIxMCIgd2lkdGg9IjQiIGhlaWdodD0iMTQwIiBmaWxsPSIjQzJCMDg5IiAvPiA8IS0tIEVjaGludXMgKExvd2VyIENhcGl0YWwpIC0tPiA8cG9seWdvbiBwb2ludHM9Ii00LDEwIDMyLDEwIDI4LDE1IDAsMTUiIGZpbGw9IiNENEM0QTEiIC8+IDwhLS0gQWJhY3VzIChVcHBlciBDYXBpdGFsKSAtLT4gPHJlY3QgeD0iLTYiIHk9IjAiIHdpZHRoPSI0MCIgaGVpZ2h0PSIxMCIgZmlsbD0iI0U2REFCRiIgLz4gPC9nPiA8IS0tIFRyaWdseXBoIERlZmluaXRpb24gLS0+IDxnIGlkPSJ0cmlnbHlwaCI+IDxyZWN0IHg9IjAiIHk9IjAiIHdpZHRoPSIxOCIgaGVpZ2h0PSIyNCIgZmlsbD0iI0U2REFCRiIgLz4gPCEtLSBWZXJ0aWNhbCBncm9vdmVzIC0tPiA8cmVjdCB4PSIzIiB5PSIwIiB3aWR0aD0iMyIgaGVpZ2h0PSIyNCIgZmlsbD0iI0MyQjA4OSIgLz4gPHJlY3QgeD0iOSIgeT0iMCIgd2lkdGg9IjMiIGhlaWdodD0iMjQiIGZpbGw9IiNDMkIwODkiIC8+IDxyZWN0IHg9IjE1IiB5PSIwIiB3aWR0aD0iMyIgaGVpZ2h0PSIyNCIgZmlsbD0iI0MyQjA4OSIgLz4gPC9nPiA8L2RlZnM+IDwhLS0gQ3JlcGlkb21hIChTdGVwcGVkIEJhc2UpIC0tPiA8ZyBpZD0iYmFzZSI+IDxyZWN0IHg9IjY1IiB5PSIzMzAiIHdpZHRoPSI2MzAiIGhlaWdodD0iMTIiIGZpbGw9IiNENEM0QTEiIC8+IDxyZWN0IHg9IjgwIiB5PSIzMTgiIHdpZHRoPSI2MDAiIGhlaWdodD0iMTIiIGZpbGw9IiNFNkRBQkYiIC8+IDxyZWN0IHg9Ijk1IiB5PSIzMDYiIHdpZHRoPSI1NzAiIGhlaWdodD0iMTIiIGZpbGw9IiNENEM0QTEiIC8+IDwhLS0gU3R5bG9iYXRlIChUb3AgU3RlcCkgLS0+IDxyZWN0IHg9IjExMCIgeT0iMjk0IiB3aWR0aD0iNTQwIiBoZWlnaHQ9IjEyIiBmaWxsPSIjRTZEQUJGIiAvPiA8L2c+IDwhLS0gQ2VsbGEgKElubmVyIEJ1aWxkaW5nIFNoYWRvdyAmIERvb3J3YXkpIC0tPiA8ZyBpZD0iaW5uZXItYnVpbGRpbmciPiA8cmVjdCB4PSIxNDUiIHk9IjE0NCIgd2lkdGg9IjQ3MCIgaGVpZ2h0PSIxNTAiIGZpbGw9IiM4Rjc4NTUiIC8+IDwhLS0gR2lhbnQgQnJvbnplIERvb3JzIFJlcHJlc2VudGF0aW9uIC0tPiA8cmVjdCB4PSIzNDUiIHk9IjE3NCIgd2lkdGg9IjcwIiBoZWlnaHQ9IjEyMCIgZmlsbD0iIzRBM0IyOSIgLz4gPHJlY3QgeD0iMzc5IiB5PSIxNzQiIHdpZHRoPSIyIiBoZWlnaHQ9IjEyMCIgZmlsbD0iIzJFMjQxNyIgLz4gPC9nPiA8IS0tIFBlcmlzdHlsZSAoT3V0ZXIgQ29sdW1ucykgLS0+IDxnIGlkPSJjb2x1bW5zIj4gPHVzZSBocmVmPSIjZG9yaWMtY29sdW1uIiB4PSIxMjAiIHk9IjE0NCIgLz4gPHVzZSBocmVmPSIjZG9yaWMtY29sdW1uIiB4PSIxODYiIHk9IjE0NCIgLz4gPHVzZSBocmVmPSIjZG9yaWMtY29sdW1uIiB4PSIyNTIiIHk9IjE0NCIgLz4gPHVzZSBocmVmPSIjZG9yaWMtY29sdW1uIiB4PSIzMTgiIHk9IjE0NCIgLz4gPHVzZSBocmVmPSIjZG9yaWMtY29sdW1uIiB4PSIzODQiIHk9IjE0NCIgLz4gPHVzZSBocmVmPSIjZG9yaWMtY29sdW1uIiB4PSI0NTAiIHk9IjE0NCIgLz4gPHVzZSBocmVmPSIjZG9yaWMtY29sdW1uIiB4PSI1MTYiIHk9IjE0NCIgLz4gPHVzZSBocmVmPSIjZG9yaWMtY29sdW1uIiB4PSI1ODIiIHk9IjE0NCIgLz4gPC9nPiA8IS0tIEVudGFibGF0dXJlIC0tPiA8ZyBpZD0iZW50YWJsYXR1cmUiPiA8IS0tIEFyY2hpdHJhdmUgLS0+IDxyZWN0IHg9IjExMCIgeT0iMTI0IiB3aWR0aD0iNTQwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjRTZEQUJGIiAvPiA8IS0tIFRhZW5pYSAoVGhpbiBiYW5kIGFib3ZlIGFyY2hpdHJhdmUpIC0tPiA8cmVjdCB4PSIxMTAiIHk9IjEyMCIgd2lkdGg9IjU0MCIgaGVpZ2h0PSI0IiBmaWxsPSIjQzJCMDg5IiAvPiA8IS0tIEZyaWV6ZSAoTWV0b3BlcyBhbmQgVHJpZ2x5cGhzKSAtLT4gPHJlY3QgeD0iMTEwIiB5PSI5NiIgd2lkdGg9IjU0MCIgaGVpZ2h0PSIyNCIgZmlsbD0iI0I1OUU3OCIgLz4gPCEtLSBCYWNrZ3JvdW5kIGZvciBNZXRvcGVzIC0tPiA8IS0tIENlbnRlcmVkIG9uIENvbHVtbnMgLS0+IDx1c2UgaHJlZj0iI3RyaWdseXBoIiB4PSIxMjUiIHk9Ijk2IiAvPiA8dXNlIGhyZWY9IiN0cmlnbHlwaCIgeD0iMTkxIiB5PSI5NiIgLz4gPHVzZSBocmVmPSIjdHJpZ2x5cGgiIHg9IjI1NyIgeT0iOTYiIC8+IDx1c2UgaHJlZj0iI3RyaWdseXBoIiB4PSIzMjMiIHk9Ijk2IiAvPiA8dXNlIGhyZWY9IiN0cmlnbHlwaCIgeD0iMzg5IiB5PSI5NiIgLz4gPHVzZSBocmVmPSIjdHJpZ2x5cGgiIHg9IjQ1NSIgeT0iOTYiIC8+IDx1c2UgaHJlZj0iI3RyaWdseXBoIiB4PSI1MjEiIHk9Ijk2IiAvPiA8dXNlIGhyZWY9IiN0cmlnbHlwaCIgeD0iNTg3IiB5PSI5NiIgLz4gPCEtLSBCZXR3ZWVuIENvbHVtbnMgLS0+IDx1c2UgaHJlZj0iI3RyaWdseXBoIiB4PSIxNTgiIHk9Ijk2IiAvPiA8dXNlIGhyZWY9IiN0cmlnbHlwaCIgeD0iMjI0IiB5PSI5NiIgLz4gPHVzZSBocmVmPSIjdHJpZ2x5cGgiIHg9IjI5MCIgeT0iOTYiIC8+IDx1c2UgaHJlZj0iI3RyaWdseXBoIiB4PSIzNTYiIHk9Ijk2IiAvPiA8dXNlIGhyZWY9IiN0cmlnbHlwaCIgeD0iNDIyIiB5PSI5NiIgLz4gPHVzZSBocmVmPSIjdHJpZ2x5cGgiIHg9IjQ4OCIgeT0iOTYiIC8+IDx1c2UgaHJlZj0iI3RyaWdseXBoIiB4PSI1NTQiIHk9Ijk2IiAvPiA8IS0tIENvcm5pY2UgKEdlaXNvbikgLS0+IDxyZWN0IHg9IjEwMCIgeT0iODYiIHdpZHRoPSI1NjAiIGhlaWdodD0iMTAiIGZpbGw9IiNENEM0QTEiIC8+IDwvZz4gPCEtLSBQZWRpbWVudCAoVHJpYW5ndWxhciBSb29mKSAtLT4gPGcgaWQ9InBlZGltZW50Ij4gPCEtLSBPdXRlciBUcmlhbmdsZSAvIENvcm5pY2UgZWRnZSAtLT4gPHBvbHlnb24gcG9pbnRzPSIxMDAsODYgMzgwLDI0IDY2MCw4NiIgZmlsbD0iI0U2REFCRiIgLz4gPCEtLSBJbm5lciBUeW1wYW51bSAoUmVjZXNzZWQgYXJlYSkgLS0+IDxwb2x5Z29uIHBvaW50cz0iMTI0LDg2IDM4MCwzNCA2MzYsODYiIGZpbGw9IiM4Rjc4NTUiIC8+IDwhLS0gQWJzdHJhY3QgUGVkaW1lbnQgU2N1bHB0dXJlcyAoU3RhdHVhcnkpIC0tPiA8cGF0aCBkPSJNMzcwLDg2IEwzNzUsNTAgTDM4NSw1MCBMMzkwLDg2IFoiIGZpbGw9IiNENEM0QTEiIC8+IDxjaXJjbGUgY3g9IjM4MCIgY3k9IjQ1IiByPSI1IiBmaWxsPSIjRDRDNEExIiAvPiA8cGF0aCBkPSJNMzUwLDg2IEwzNDUsNjUgTDM2MCw2MCBMMzY1LDg2IFoiIGZpbGw9IiNDMkIwODkiIC8+IDxwYXRoIGQ9Ik00MTAsODYgTDQxNSw2NSBMNDAwLDYwIEwzOTUsODYgWiIgZmlsbD0iI0MyQjA4OSIgLz4gPHBhdGggZD0iTTMyMCw4NiBMMzEwLDc1IEwzMzAsNzAgTDM0MCw4NiBaIiBmaWxsPSIjRDRDNEExIiAvPiA8cGF0aCBkPSJNNDQwLDg2IEw0NTAsNzUgTDQzMCw3MCBMNDIwLDg2IFoiIGZpbGw9IiNENEM0QTEiIC8+IDxwYXRoIGQ9Ik0yODAsODYgTDI3MCw4MCBMMjkwLDc1IEwzMDAsODYgWiIgZmlsbD0iI0MyQjA4OSIgLz4gPHBhdGggZD0iTTQ4MCw4NiBMNDkwLDgwIEw0NzAsNzUgTDQ2MCw4NiBaIiBmaWxsPSIjQzJCMDg5IiAvPiA8IS0tIFJha2luZyBDb3JuaWNlIChVcHBlciBlZGdlIG9mIHJvb2YpIC0tPiA8cG9seWdvbiBwb2ludHM9Ijk4LDg2IDM4MCwxOCA2NjIsODYgNjYyLDgwIDM4MCwxMiA5OCw4MCIgZmlsbD0iI0Q0QzRBMSIgLz4gPC9nPiA8IS0tIEFjcm90ZXJpYSAoUm9vZiBPcm5hbWVudHMpIC0tPiA8ZyBpZD0iYWNyb3RlcmlhIj4gPCEtLSBDZW50ZXIgKEFwZXgpIC0tPiA8cG9seWdvbiBwb2ludHM9IjM3MiwxMiAzODgsMTIgMzg0LDAgMzc2LDAiIGZpbGw9IiNDMkIwODkiIC8+IDwhLS0gTGVmdCBDb3JuZXIgLS0+IDxwb2x5Z29uIHBvaW50cz0iOTgsODAgMTEwLDgwIDExNCw2OCAxMDQsNzAiIGZpbGw9IiNDMkIwODkiIC8+IDwhLS0gUmlnaHQgQ29ybmVyIC0tPiA8cG9seWdvbiBwb2ludHM9IjY2Miw4MCA2NTAsODAgNjQ2LDY4IDY1Niw3MCIgZmlsbD0iI0MyQjA4OSIgLz4gPC9nPiA8L3N2Zz4=',
+    'BATMAN BLDG': 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAgODAwIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIj4gPGRlZnM+IDxjbGlwUGF0aCBpZD0idG9wR2xhc3NDbGlwIj4gPHBvbHlnb24gcG9pbnRzPSIxMjUsMjA1IDI3NSwyMDUgMjM1LDMzMCAxNjUsMzMwIi8+IDwvY2xpcFBhdGg+IDwhLS0gU3VidGxlIHJlZmxlY3RpdmUgYmx1ZSBncmFkaWVudHMgZm9yIHRoZSBnbGFzcyBjb3JlIC0tPiA8bGluZWFyR3JhZGllbnQgaWQ9ImNlbnRyYWxHbGFzc0dyYWRpZW50IiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIwJSI+IDxzdG9wIG9mZnNldD0iMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiMwODE0MjM7IHN0b3Atb3BhY2l0eToxIiAvPiA8IS0tIFNsaWdodGx5IGRhcmtlciBibHVlIGZvciBsZWZ0IC0tPiA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiMwQzIwMzA7IHN0b3Atb3BhY2l0eToxIiAvPiA8IS0tIFNsaWdodGx5IGxpZ2h0ZXIgYmx1ZSBmb3IgcmlnaHQgLS0+IDwvbGluZWFyR3JhZGllbnQ+IDxsaW5lYXJHcmFkaWVudCBpZD0ic2xvcGVkR2xhc3NHcmFkaWVudCIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMCUiPiA8c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMEExNjI4OyBzdG9wLW9wYWNpdHk6MSIgLz4gPCEtLSBTbGlnaHRseSBkYXJrZXIgYmx1ZSBmb3IgbGVmdCAtLT4gPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMTIyODNBOyBzdG9wLW9wYWNpdHk6MSIgLz4gPCEtLSBTbGlnaHRseSBsaWdodGVyIGJsdWUgZm9yIHJpZ2h0IC0tPiA8L2xpbmVhckdyYWRpZW50PiA8IS0tIEVudmlyb25tZW50IGdyYWRpZW50IGZvciBpbXBsaWNpdCByZWZsZWN0aW9uIGNvbnRleHQgLS0+IDxsaW5lYXJHcmFkaWVudCBpZD0icmVmbGVjdGlvbkNvbnRleHRHcmFkaWVudCIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMCUiPiA8c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojQzBEMEUwOyBzdG9wLW9wYWNpdHk6MSIgLz4gPCEtLSBMZWZ0IHNreTogZGFya2VyIGdyZXktYmx1ZSAtLT4gPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojRDBFOEY4OyBzdG9wLW9wYWNpdHk6MSIgLz4gPCEtLSBSaWdodCBza3k6IGxpZ2h0ZXIgZ3JleS1ibHVlIC0tPiA8L2xpbmVhckdyYWRpZW50PiA8L2RlZnM+IDwhLS0gSW1wbGljaXQgYmFja2dyb3VuZCBmaWxsIGZvciByZWZsZWN0aW9uIGNvbnRleHQgYW5kIG5vIHdoaXRlIHNwYWNlIC0tPiA8IS0tIFRvcCBBbnRlbm5hZSAtLT4gPGxpbmUgeDE9IjExMi41IiB5MT0iNjAiIHgyPSIxMTIuNSIgeTI9IjIwIiBzdHJva2U9IiM3QTgwODQiIHN0cm9rZS13aWR0aD0iMi41Ii8+IDxsaW5lIHgxPSIyODcuNSIgeTE9IjYwIiB4Mj0iMjg3LjUiIHkyPSIyMCIgc3Ryb2tlPSIjN0E4MDg0IiBzdHJva2Utd2lkdGg9IjIuNSIvPiA8IS0tIExlZnQgU3BpcmUgKCJFYXIiKSAtLT4gPGcgaWQ9ImxlZnQtc3BpcmUiPiA8cG9seWdvbiBwb2ludHM9IjEwMCwyMDAgMTI1LDIwMCAxMjUsMTIwIDExNiw4MCAxMTQsNjAgMTExLDYwIDEwOSw4MCAxMDAsMTIwIiBmaWxsPSIjQzRDOUNDIi8+IDxwb2x5Z29uIHBvaW50cz0iMTEyLjUsMjAwIDEyNSwyMDAgMTI1LDEyMCAxMTYsODAgMTE0LDYwIDExMi41LDYwIiBmaWxsPSIjQThBREIwIi8+IDxsaW5lIHgxPSIxMDYiIHkxPSIxMjAiIHgyPSIxMDYiIHkyPSIyMDAiIHN0cm9rZT0iIzlFQTRBOCIgc3Ryb2tlLXdpZHRoPSIxIi8+IDxsaW5lIHgxPSIxMTIuNSIgeTE9IjgwIiB4Mj0iMTEyLjUiIHkyPSIyMDAiIHN0cm9rZT0iIzlFQTRBOCIgc3Ryb2tlLXdpZHRoPSIxLjUiLz4gPGxpbmUgeDE9IjExOSIgeTE9IjEyMCIgeDI9IjExOSIgeTI9IjIwMCIgc3Ryb2tlPSIjOUVBNEE4IiBzdHJva2Utd2lkdGg9IjEiLz4gPC9nPiA8IS0tIFJpZ2h0IFNwaXJlICgiRWFyIikgLS0+IDxnIGlkPSJyaWdodC1zcGlyZSI+IDxwb2x5Z29uIHBvaW50cz0iMjc1LDIwMCAzMDAsMjAwIDMwMCwxMjAgMjkxLDgwIDI4OSw2MCAyODYsNjAgMjg0LDgwIDI3NSwxMjAiIGZpbGw9IiNDNEM5Q0MiLz4gPHBvbHlnb24gcG9pbnRzPSIyNzUsMjAwIDI4Ny41LDIwMCAyODcuNSw2MCAyODYsNjAgMjg0LDgwIDI3NSwxMjAiIGZpbGw9IiNBOEFEQjAiLz4gPGxpbmUgeDE9IjI4MSIgeTE9IjEyMCIgeDI9IjI4MSIgeTI9IjIwMCIgc3Ryb2tlPSIjOUVBNEE4IiBzdHJva2Utd2lkdGg9IjEiLz4gPGxpbmUgeDE9IjI4Ny41IiB5MT0iODAiIHgyPSIyODcuNSIgeTI9IjIwMCIgc3Ryb2tlPSIjOUVBNEE4IiBzdHJva2Utd2lkdGg9IjEuNSIvPiA8bGluZSB4MT0iMjk0IiB5MT0iMTIwIiB4Mj0iMjk0IiB5Mj0iMjAwIiBzdHJva2U9IiM5RUE0QTgiIHN0cm9rZS13aWR0aD0iMSIvPiA8L2c+IDwhLS0gVG9wIEJyaWRnZSAvIFJvb2YgU3RydWN0dXJlIChObyBMb2dvKSAtLT4gPGcgaWQ9InRvcC1icmlkZ2UiPiA8cG9seWdvbiBwb2ludHM9IjEyNSwyMDAgMjc1LDIwMCAyNzUsMTcwIDI2MCwxNTAgMTQwLDE1MCAxMjUsMTcwIiBmaWxsPSIjRTZFQUVGIi8+IDwhLS0gQnJpZGdlIGluc2V0IC8gc2hhZG93IC0tPiA8cG9seWdvbiBwb2ludHM9IjEyNSwyMDUgMjc1LDIwNSAyNzUsMTc1IDI1OCwxNTUgMTQyLDE1NSAxMjUsMTc1IiBmaWxsPSIjQThBRUIzIi8+IDxwb2x5Z29uIHBvaW50cz0iMTQwLDIwNSAyNjAsMjA1IDI2MCwxODAgMjQ1LDE2NSAxNTUsMTY1IDE0MCwxODAiIGZpbGw9IiM4ODkxOTYiLz4gPC9nPiA8IS0tIFNsb3BlZCBUb3AgR2xhc3MgKFRyYXBlem9pZCwgR3JhZGllbnQgRmlsbCkgLS0+IDxnIGlkPSJzbG9wZWQtZ2xhc3MiPiA8cG9seWdvbiBwb2ludHM9IjEyNSwyMDUgMjc1LDIwNSAyMzUsMzMwIDE2NSwzMzAiIGZpbGw9InVybCgjc2xvcGVkR2xhc3NHcmFkaWVudCkiLz4gPGcgY2xpcC1wYXRoPSJ1cmwoI3RvcEdsYXNzQ2xpcCkiPiA8cGF0aCBkPSJNMTIwLDIwNSBWMzMwIE0xMzAsMjA1IFYzMzAgTTE0MCwyMDUgVjMzMCBNMTUwLDIwNSBWMzMwIE0xNjAsMjA1IFYzMzAgTTE3MCwyMDUgVjMzMCBNMTgwLDIwNSBWMzMwIE0xOTAsMjA1IFYzMzAgTTIwMCwyMDUgVjMzMCBNMjEwLDIwNSBWMzMwIE0yMjAsMjA1IFYzMzAgTTIzMCwyMDUgVjMzMCBNMjQwLDIwNSBWMzMwIE0yNTAsMjA1IFYzMzAgTTI2MCwyMDUgVjMzMCBNMjcwLDIwNSBWMzMwIiBzdHJva2U9IiMxRDQzNkIiIHN0cm9rZS13aWR0aD0iMSIvPiA8cGF0aCBkPSJNMTAwLDIxNSBIMzAwIE0xMDAsMjI1IEgzMDAgTTEwMCwyMzUgSDMwMCBNMTAwLDI0NSBIMzAwIE0xMDAsMjU1IEgzMDAgTTEwMCwyNjUgSDMwMCBNMTAwLDI3NSBIMzAwIE0xMDAsMjg1IEgzMDAgTTEwMCwyOTUgSDMwMCBNMTAwLDMwNSBIMzAwIE0xMDAsMzE1IEgzMDAgTTEwMCwzMjUgSDMwMCIgc3Ryb2tlPSIjMUQ0MzZCIiBzdHJva2Utd2lkdGg9IjEiLz4gPC9nPiA8L2c+IDwhLS0gQ2VudHJhbCBWZXJ0aWNhbCBHbGFzcyBDb3JlIChHcmFkaWVudCBGaWxsKSAtLT4gPGcgaWQ9ImNlbnRyYWwtZ2xhc3MiPiA8cmVjdCB4PSIxNjUiIHk9IjMzMCIgd2lkdGg9IjcwIiBoZWlnaHQ9IjM5MCIgZmlsbD0idXJsKCNjZW50cmFsR2xhc3NHcmFkaWVudCkiLz4gPHBhdGggZD0iTTE3NSwzMzAgVjcyMCBNMTg1LDMzMCBWNzIwIE0xOTUsMzMwIFY3MjAgTTIwNSwzMzAgVjcyMCBNMjE1LDMzMCBWNzIwIE0yMjUsMzMwIFY3MjAiIHN0cm9rZT0iIzFENDM2QiIgc3Ryb2tlLXdpZHRoPSIxLjUiLz4gPCEtLSBIb3Jpem9udGFsIFN0cnVjdHVyYWwgU2hhZG93cyAtLT4gPGxpbmUgeDE9IjE2NSIgeTE9IjQxMCIgeDI9IjIzNSIgeTI9IjQxMCIgc3Ryb2tlPSIjMDQwQTEyIiBzdHJva2Utd2lkdGg9IjIiLz4gPGxpbmUgeDE9IjE2NSIgeTE9IjQ5MCIgeDI9IjIzNSIgeTI9IjQ5MCIgc3Ryb2tlPSIjMDQwQTEyIiBzdHJva2Utd2lkdGg9IjIiLz4gPGxpbmUgeDE9IjE2NSIgeTE9IjU3MCIgeDI9IjIzNSIgeTI9IjU3MCIgc3Ryb2tlPSIjMDQwQTEyIiBzdHJva2Utd2lkdGg9IjIiLz4gPGxpbmUgeDE9IjE2NSIgeTE9IjY1MCIgeDI9IjIzNSIgeTI9IjY1MCIgc3Ryb2tlPSIjMDQwQTEyIiBzdHJva2Utd2lkdGg9IjIiLz4gPC9nPiA8IS0tIFN0b25lIFBpbGxhcnMgLSBMZWZ0IFNpZGUgKE91dGVyIHRvIElubmVyKSAtLT4gPGcgaWQ9ImxlZnQtcGlsbGFycyI+IDwhLS0gT3V0ZXIgTGF5ZXIgKFRhbGxlc3QpIC0tPiA8cmVjdCB4PSIxMDAiIHk9IjIwMCIgd2lkdGg9IjI1IiBoZWlnaHQ9IjUyMCIgZmlsbD0iI0M1QUE4QyIvPiA8cmVjdCB4PSIxMDAiIHk9IjIwMCIgd2lkdGg9IjMiIGhlaWdodD0iNTIwIiBmaWxsPSIjRTJDREI2Ii8+IDxyZWN0IHg9IjEyMiIgeT0iMjAwIiB3aWR0aD0iMyIgaGVpZ2h0PSI1MjAiIGZpbGw9IiNBMDg2NkEiLz4gPGxpbmUgeDE9IjEwNy41IiB5MT0iMjAwIiB4Mj0iMTA3LjUiIHkyPSI3MjAiIHN0cm9rZT0iIzE1MUExRSIgc3Ryb2tlLXdpZHRoPSI0LjUiIHN0cm9rZS1kYXNoYXJyYXk9IjE0IDUiLz4gPGxpbmUgeDE9IjExNy41IiB5MT0iMjAwIiB4Mj0iMTE3LjUiIHkyPSI3MjAiIHN0cm9rZT0iIzE1MUExRSIgc3Ryb2tlLXdpZHRoPSI0LjUiIHN0cm9rZS1kYXNoYXJyYXk9IjE0IDUiLz4gPCEtLSBNaWRkbGUgTGF5ZXIgLS0+IDxyZWN0IHg9IjEyNSIgeT0iMzEwIiB3aWR0aD0iMjAiIGhlaWdodD0iNDEwIiBmaWxsPSIjQzVBQThDIi8+IDxyZWN0IHg9IjEyNSIgeT0iMzEwIiB3aWR0aD0iMyIgaGVpZ2h0PSI0MTAiIGZpbGw9IiNFMkNEQjYiLz4gPHJlY3QgeD0iMTQyIiB5PSIzMTAiIHdpZHRoPSIzIiBoZWlnaHQ9IjQxMCIgZmlsbD0iI0EwODY2QSIvPiA8bGluZSB4MT0iMTMxIiB5MT0iMzEwIiB4Mj0iMTMxIiB5Mj0iNzIwIiBzdHJva2U9IiMxNTFBMUUiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWRhc2hhcnJheT0iMTQgNSIvPiA8bGluZSB4MT0iMTM5IiB5MT0iMzEwIiB4Mj0iMTM5IiB5Mj0iNzIwIiBzdHJva2U9IiMxNTFBMUUiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWRhc2hhcnJheT0iMTQgNSIvPiA8IS0tIElubmVyIExheWVyIChTaG9ydGVzdCkgLS0+IDxyZWN0IHg9IjE0NSIgeT0iNDIwIiB3aWR0aD0iMjAiIGhlaWdodD0iMzAwIiBmaWxsPSIjQzVBQThDIi8+IDxyZWN0IHg9IjE0NSIgeT0iNDIwIiB3aWR0aD0iMyIgaGVpZ2h0PSIzMDAiIGZpbGw9IiNFMkNEQjYiLz4gPHJlY3QgeD0iMTYyIiB5PSI0MjAiIHdpZHRoPSIzIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI0EwODY2QSIvPiA8bGluZSB4MT0iMTUxIiB5MT0iNDIwIiB4Mj0iMTUxIiB5Mj0iNzIwIiBzdHJva2U9IiMxNTFBMUUiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWRhc2hhcnJheT0iMTQgNSIvPiA8bGluZSB4MT0iMTU5IiB5MT0iNDIwIiB4Mj0iMTU5IiB5Mj0iNzIwIiBzdHJva2U9IiMxNTFBMUUiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWRhc2hhcnJheT0iMTQgNSIvPiA8L2c+IDwhLS0gU3RvbmUgUGlsbGFycyAtIFJpZ2h0IFNpZGUgKElubmVyIHRvIE91dGVyKSAtLT4gPGcgaWQ9InJpZ2h0LXBpbGxhcnMiPiA8IS0tIElubmVyIExheWVyIChTaG9ydGVzdCkgLS0+IDxyZWN0IHg9IjIzNSIgeT0iNDIwIiB3aWR0aD0iMjAiIGhlaWdodD0iMzAwIiBmaWxsPSIjQzVBQThDIi8+IDxyZWN0IHg9IjIzNSIgeT0iNDIwIiB3aWR0aD0iMyIgaGVpZ2h0PSIzMDAiIGZpbGw9IiNFMkNEQjYiLz4gPHJlY3QgeD0iMjUyIiB5PSI0MjAiIHdpZHRoPSIzIiBoZWlnaHQ9IjMwMCIgZmlsbD0iI0EwODY2QSIvPiA8bGluZSB4MT0iMjQxIiB5MT0iNDIwIiB4Mj0iMjQxIiB5Mj0iNzIwIiBzdHJva2U9IiMxNTFBMUUiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWRhc2hhcnJheT0iMTQgNSIvPiA8bGluZSB4MT0iMjQ5IiB5MT0iNDIwIiB4Mj0iMjQ5IiB5Mj0iNzIwIiBzdHJva2U9IiMxNTFBMUUiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWRhc2hhcnJheT0iMTQgNSIvPiA8IS0tIE1pZGRsZSBMYXllciAtLT4gPHJlY3QgeD0iMjU1IiB5PSIzMTAiIHdpZHRoPSIyMCIgaGVpZ2h0PSI0MTAiIGZpbGw9IiNDNUFBOEMiLz4gPHJlY3QgeD0iMjU1IiB5PSIzMTAiIHdpZHRoPSIzIiBoZWlnaHQ9IjQxMCIgZmlsbD0iI0UyQ0RCNiIvPiA8cmVjdCB4PSIyNzIiIHk9IjMxMCIgd2lkdGg9IjMiIGhlaWdodD0iNDEwIiBmaWxsPSIjQTA4NjZBIi8+IDxsaW5lIHgxPSIyNjEiIHkxPSIzMTAiIHgyPSIyNjEiIHkyPSI3MjAiIHN0cm9rZT0iIzE1MUExRSIgc3Ryb2tlLXdpZHRoPSI0IiBzdHJva2UtZGFzaGFycmF5PSIxNCA1Ii8+IDxsaW5lIHgxPSIyNjkiIHkxPSIzMTAiIHgyPSIyNjkiIHkyPSI3MjAiIHN0cm9rZT0iIzE1MUExRSIgc3Ryb2tlLXdpZHRoPSI0IiBzdHJva2UtZGFzaGFycmF5PSIxNCA1Ii8+IDwhLS0gT3V0ZXIgTGF5ZXIgKFRhbGxlc3QpIC0tPiA8cmVjdCB4PSIyNzUiIHk9IjIwMCIgd2lkdGg9IjI1IiBoZWlnaHQ9IjUyMCIgZmlsbD0iI0M1QUE4QyIvPiA8cmVjdCB4PSIyNzUiIHk9IjIwMCIgd2lkdGg9IjMiIGhlaWdodD0iNTIwIiBmaWxsPSIjRTJDREI2Ii8+IDxyZWN0IHg9IjI5NyIgeT0iMjAwIiB3aWR0aD0iMyIgaGVpZ2h0PSI1MjAiIGZpbGw9IiNBMDg2NkEiLz4gPGxpbmUgeDE9IjI4Mi41IiB5MT0iMjAwIiB4Mj0iMjgyLjUiIHkyPSI3MjAiIHN0cm9rZT0iIzE1MUExRSIgc3Ryb2tlLXdpZHRoPSI0LjUiIHN0cm9rZS1kYXNoYXJyYXk9IjE0IDUiLz4gPGxpbmUgeDE9IjI5Mi41IiB5MT0iMjAwIiB4Mj0iMjkyLjUiIHkyPSI3MjAiIHN0cm9rZT0iIzE1MUExRSIgc3Ryb2tlLXdpZHRoPSI0LjUiIHN0cm9rZS1kYXNoYXJyYXk9IjE0IDUiLz4gPC9nPiA8IS0tIEJhc2UgJiBBdHJpdW1zIC0tPiA8ZyBpZD0iYnVpbGRpbmctYmFzZSI+IDwhLS0gTWFpbiBCcmljayBGb3VuZGF0aW9uIC0tPiA8cmVjdCB4PSI5MCIgeT0iNzIwIiB3aWR0aD0iMjIwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjNzU0QjNBIi8+IDxyZWN0IHg9IjEwMCIgeT0iNzMwIiB3aWR0aD0iMjAwIiBoZWlnaHQ9IjcwIiBmaWxsPSIjMTUxNTE1Ii8+IDxyZWN0IHg9IjEwNSIgeT0iNzM1IiB3aWR0aD0iMTkwIiBoZWlnaHQ9IjY1IiBmaWxsPSIjMjAxQTE4Ii8+IDwhLS0gTGVmdCBHbGFzcyBBdHJpdW0gLS0+IDxwb2x5Z29uIHBvaW50cz0iMTIwLDcyMCAxNjAsNzIwIDE0MCw2OTUiIGZpbGw9IiMyQTVDNkQiIHN0cm9rZT0iIzFFNDI0RiIgc3Ryb2tlLXdpZHRoPSIxIi8+IDxsaW5lIHgxPSIxNDAiIHkxPSI2OTUiIHgyPSIxNDAiIHkyPSI3MjAiIHN0cm9rZT0iIzQ4ODY5QyIgc3Ryb2tlLXdpZHRoPSIxIi8+IDwhLS0gQ2VudGVyIEdsYXNzIEF0cml1bSAtLT4gPHBvbHlnb24gcG9pbnRzPSIxNzAsNzIwIDIzMCw3MjAgMjAwLDY4MCIgZmlsbD0iIzJBNUM2RCIgc3Ryb2tlPSIjMUU0MjRGIiBzdHJva2Utd2lkdGg9IjEiLz4gPGxpbmUgeDE9IjIwMCIgeTE9IjY4MCIgeDI9IjIwMCIgeTI9IjcyMCIgc3Ryb2tlPSIjNDg4NjlDIiBzdHJva2Utd2lkdGg9IjEiLz4gPCEtLSBSaWdodCBHbGFzcyBBdHJpdW0gLS0+IDxwb2x5Z29uIHBvaW50cz0iMjQwLDcyMCAyODAsNzIwIDI2MCw2OTUiIGZpbGw9IiMyQTVDNkQiIHN0cm9rZT0iIzFFNDI0RiIgc3Ryb2tlLXdpZHRoPSIxIi8+IDxsaW5lIHgxPSIyNjAiIHkxPSI2OTUiIHgyPSIyNjAiIHkyPSI3MjAiIHN0cm9rZT0iIzQ4ODY5QyIgc3Ryb2tlLXdpZHRoPSIxIi8+IDwvZz4gPC9zdmc+',
+    'RYMAN':       'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgNTAwIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIj4gPGRlZnM+IDwhLS0gUmV1c2FibGUgR290aGljIEFyY2hlZCBXaW5kb3cgLS0+IDxnIGlkPSJnb3RoaWMtd2luZG93Ij4gPCEtLSBXaW5kb3cgZ2xhc3MgLS0+IDxyZWN0IHg9IjAiIHk9IjMwIiB3aWR0aD0iMzAiIGhlaWdodD0iNzAiIGZpbGw9IiMyOTM4NDUiIC8+IDxwYXRoIGQ9Ik0gMCwzMCBRIDUsMTAgMTUsMCBRIDI1LDEwIDMwLDMwIFoiIGZpbGw9IiMyOTM4NDUiIC8+IDwhLS0gT3V0ZXIgVHJpbSAtLT4gPHJlY3QgeD0iMCIgeT0iMzAiIHdpZHRoPSIzMCIgaGVpZ2h0PSI3MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRTNEQUM5IiBzdHJva2Utd2lkdGg9IjIiIC8+IDxwYXRoIGQ9Ik0gMCwzMCBRIDUsMTAgMTUsMCBRIDI1LDEwIDMwLDMwIiBmaWxsPSJub25lIiBzdHJva2U9IiNFM0RBQzkiIHN0cm9rZS13aWR0aD0iMiIgLz4gPCEtLSBXaW5kb3cgUGFuZXMgKE11bGxpb25zKSAtLT4gPGxpbmUgeDE9IjE1IiB5MT0iMCIgeDI9IjE1IiB5Mj0iMTAwIiBzdHJva2U9IiNFM0RBQzkiIHN0cm9rZS13aWR0aD0iMS41IiAvPiA8bGluZSB4MT0iMCIgeTE9IjUwIiB4Mj0iMzAiIHkyPSI1MCIgc3Ryb2tlPSIjRTNEQUM5IiBzdHJva2Utd2lkdGg9IjEuNSIgLz4gPGxpbmUgeDE9IjAiIHkxPSI3NSIgeDI9IjMwIiB5Mj0iNzUiIHN0cm9rZT0iI0UzREFDOSIgc3Ryb2tlLXdpZHRoPSIxLjUiIC8+IDwhLS0gU2lsbCAtLT4gPHJlY3QgeD0iLTMiIHk9IjEwMCIgd2lkdGg9IjM2IiBoZWlnaHQ9IjQiIGZpbGw9IiNFM0RBQzkiIHJ4PSIxIiAvPiA8L2c+IDwvZGVmcz4gPCEtLSBCYWNrZ3JvdW5kIEJhc2UgKFRyYW5zcGFyZW50IGZvciBjaXR5c2NhcGUsIGFkZGVkIHNreSBvcHRpb25hbGx5IG9taXR0ZWQpIC0tPiA8IS0tIDEuIEN1cG9sYSAvIFJvb2YgU3BpcmUgLS0+IDxyZWN0IHg9IjI0MiIgeT0iODAiIHdpZHRoPSIxNiIgaGVpZ2h0PSIyMCIgZmlsbD0iIzhDMkUyMCIvPiA8cG9seWdvbiBwb2ludHM9IjIzOCw4MCAyNTAsNjUgMjYyLDgwIiBmaWxsPSIjMjkzODQ1Ii8+IDxsaW5lIHgxPSIyNTAiIHkxPSI2NSIgeDI9IjI1MCIgeTI9IjUwIiBzdHJva2U9IiMzMzMzMzMiIHN0cm9rZS13aWR0aD0iMiIvPiA8Y2lyY2xlIGN4PSIyNTAiIGN5PSI1MCIgcj0iMiIgZmlsbD0iIzMzMzMzMyIvPiA8IS0tIDIuIE1haW4gQnVpbGRpbmcgV2FsbHMgKEJyaWNrIEJhc2UpIC0tPiA8IS0tIENlbnRlciBCbG9jayAtLT4gPHJlY3QgeD0iMTMwIiB5PSIxOTAiIHdpZHRoPSIyNDAiIGhlaWdodD0iMjYwIiBmaWxsPSIjQTYzQTI5Ii8+IDwhLS0gQ2VudGVyIEdhYmxlIC0tPiA8cG9seWdvbiBwb2ludHM9IjEzMCwxOTAgMjUwLDEwMCAzNzAsMTkwIiBmaWxsPSIjQTYzQTI5Ii8+IDwhLS0gTGVmdCBXaW5nIC0tPiA8cmVjdCB4PSI3MCIgeT0iMjQwIiB3aWR0aD0iNjAiIGhlaWdodD0iMjEwIiBmaWxsPSIjQTYzQTI5Ii8+IDwhLS0gUmlnaHQgV2luZyAtLT4gPHJlY3QgeD0iMzcwIiB5PSIyNDAiIHdpZHRoPSI2MCIgaGVpZ2h0PSIyMTAiIGZpbGw9IiNBNjNBMjkiLz4gPCEtLSAzLiBIb3Jpem9udGFsIFN0b25lIEJhbmRpbmcgLS0+IDxsaW5lIHgxPSI3MCIgeTE9IjM0MCIgeDI9IjQzMCIgeTI9IjM0MCIgc3Ryb2tlPSIjRTNEQUM5IiBzdHJva2Utd2lkdGg9IjMiIC8+IDxsaW5lIHgxPSI3MCIgeTE9IjM5MCIgeDI9IjQzMCIgeTI9IjM5MCIgc3Ryb2tlPSIjRTNEQUM5IiBzdHJva2Utd2lkdGg9IjMiIC8+IDwhLS0gNC4gVmVydGljYWwgUGlsbGFycyAvIEJ1dHRyZXNzZXMgLS0+IDwhLS0gQ2VudGVyIGVkZ2VzIC0tPiA8cmVjdCB4PSIxMzAiIHk9IjE5MCIgd2lkdGg9IjE4IiBoZWlnaHQ9IjI2MCIgZmlsbD0iIzhDMkUyMCIvPiA8cmVjdCB4PSIzNTIiIHk9IjE5MCIgd2lkdGg9IjE4IiBoZWlnaHQ9IjI2MCIgZmlsbD0iIzhDMkUyMCIvPiA8IS0tIENlbnRlciBpbm5lciAtLT4gPHJlY3QgeD0iMjEwIiB5PSIxOTAiIHdpZHRoPSIxMiIgaGVpZ2h0PSIyNjAiIGZpbGw9IiM4QzJFMjAiLz4gPHJlY3QgeD0iMjc4IiB5PSIxOTAiIHdpZHRoPSIxMiIgaGVpZ2h0PSIyNjAiIGZpbGw9IiM4QzJFMjAiLz4gPCEtLSBPdXRlciB3aW5nIGVkZ2VzIC0tPiA8cmVjdCB4PSI3MCIgeT0iMjQwIiB3aWR0aD0iMTUiIGhlaWdodD0iMjEwIiBmaWxsPSIjOEMyRTIwIi8+IDxyZWN0IHg9IjQxNSIgeT0iMjQwIiB3aWR0aD0iMTUiIGhlaWdodD0iMjEwIiBmaWxsPSIjOEMyRTIwIi8+IDwhLS0gNS4gV2luZG93cyAtLT4gPCEtLSBMZWZ0IFdpbmcgV2luZG93IC0tPiA8dXNlIGhyZWY9IiNnb3RoaWMtd2luZG93IiB4PSI5MiIgeT0iMjI1IiAvPiA8IS0tIENlbnRlciBXaW5kb3dzIC0tPiA8dXNlIGhyZWY9IiNnb3RoaWMtd2luZG93IiB4PSIxNjQiIHk9IjE5MCIgLz4gPHVzZSBocmVmPSIjZ290aGljLXdpbmRvdyIgeD0iMjM1IiB5PSIxOTAiIC8+IDx1c2UgaHJlZj0iI2dvdGhpYy13aW5kb3ciIHg9IjMwNiIgeT0iMTkwIiAvPiA8IS0tIFJpZ2h0IFdpbmcgV2luZG93IC0tPiA8dXNlIGhyZWY9IiNnb3RoaWMtd2luZG93IiB4PSIzNzgiIHk9IjIyNSIgLz4gPCEtLSA2LiBSb29mIENhcHMgYW5kIFRyaW1zIC0tPiA8IS0tIE1haW4gR2FibGUgVHJpbSAtLT4gPHBvbHlsaW5lIHBvaW50cz0iMTIwLDE5OCAyNTAsMTAwIDM4MCwxOTgiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI0UzREFDOSIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+IDwhLS0gR2FibGUgQXJjaCBSZWxpZWYgLS0+IDxwYXRoIGQ9Ik0gMTcwLDE5MCBRIDI1MCwxMzUgMzMwLDE5MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRTNEQUM5IiBzdHJva2Utd2lkdGg9IjIiIG9wYWNpdHk9IjAuNiIvPiA8IS0tIExlZnQgV2luZyBUcmltIC0tPiA8bGluZSB4MT0iNjUiIHkxPSIyNDAiIHgyPSIxNDAiIHkyPSIyNDAiIHN0cm9rZT0iI0UzREFDOSIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4gPCEtLSBSaWdodCBXaW5nIFRyaW0gLS0+IDxsaW5lIHgxPSIzNjAiIHkxPSIyNDAiIHgyPSI0MzUiIHkyPSIyNDAiIHN0cm9rZT0iI0UzREFDOSIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4gPCEtLSA3LiBNYWluIEVudHJhbmNlIC8gRG9vcnMgLS0+IDxyZWN0IHg9IjIyMiIgeT0iNDAwIiB3aWR0aD0iNTYiIGhlaWdodD0iNTAiIGZpbGw9IiMyQTE2MTAiIC8+IDxwYXRoIGQ9Ik0gMjIyLDQwMCBRIDI1MCwzNzUgMjc4LDQwMCBaIiBmaWxsPSIjMkExNjEwIiAvPiA8IS0tIERvb3IgVHJpbSAtLT4gPHBhdGggZD0iTSAyMjIsNDUwIEwgMjIyLDQwMCBRIDI1MCwzNzUgMjc4LDQwMCBMIDI3OCw0NTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI0UzREFDOSIgc3Ryb2tlLXdpZHRoPSIzIiAvPiA8IS0tIENlbnRlciBEb29yIFNwbGl0ICYgSGFuZGxlcyAtLT4gPGxpbmUgeDE9IjI1MCIgeTE9IjM4OCIgeDI9IjI1MCIgeTI9IjQ1MCIgc3Ryb2tlPSIjRTNEQUM5IiBzdHJva2Utd2lkdGg9IjEuNSIgLz4gPGNpcmNsZSBjeD0iMjQ1IiBjeT0iNDI1IiByPSIxLjUiIGZpbGw9IiNFM0RBQzkiIC8+IDxjaXJjbGUgY3g9IjI1NSIgY3k9IjQyNSIgcj0iMS41IiBmaWxsPSIjRTNEQUM5IiAvPiA8IS0tIDguIFNpZ25hZ2UgLS0+IDxyZWN0IHg9IjIwNSIgeT0iMTU1IiB3aWR0aD0iOTAiIGhlaWdodD0iMjAiIGZpbGw9IiNFM0RBQzkiIHJ4PSIyIiAvPiA8dGV4dCB4PSIyNTAiIHk9IjE2OSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXdlaWdodD0iOTAwIiBmb250LXNpemU9IjExIiBmaWxsPSIjMkExNjEwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBsZXR0ZXItc3BhY2luZz0iMS41Ij5SWU1BTjwvdGV4dD4gPCEtLSA5LiBHcm91bmQgJiBTdGVwcyAtLT4gPHJlY3QgeD0iMjAwIiB5PSI0NTAiIHdpZHRoPSIxMDAiIGhlaWdodD0iNCIgZmlsbD0iI0IwQjBCMCIgLz4gPHJlY3QgeD0iMTg1IiB5PSI0NTQiIHdpZHRoPSIxMzAiIGhlaWdodD0iNCIgZmlsbD0iIzkwOTA5MCIgLz4gPHJlY3QgeD0iMTcwIiB5PSI0NTgiIHdpZHRoPSIxNjAiIGhlaWdodD0iNCIgZmlsbD0iIzcwNzA3MCIgLz4gPCEtLSBCYXNlIEZvdW5kYXRpb24gTGluZSAtLT4gPGxpbmUgeDE9IjMwIiB5MT0iNDYyIiB4Mj0iNDcwIiB5Mj0iNDYyIiBzdHJva2U9IiMyMjIyMjIiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiAvPiA8L3N2Zz4=',
+};
+// ⚠️ MODULE-LEVEL, SO THE DECODE HAPPENS ONCE FOR THE LIFE OF THE PAGE rather
+// than once per mount(). A student replaying ten times decodes three SVGs once.
+const LANDMARK_IMG = {};
+for (const k of Object.keys(LANDMARK_SVG)) {
+    const im = new Image();
+    im.src = LANDMARK_SVG[k];
+    LANDMARK_IMG[k] = im;
+}
+// Natural aspect ratios, so a landmark is never stretched. Taken from each
+// SVG's own viewBox.
+const LANDMARK_BOX = {
+    'PARTHENON':   { w: 760, h: 360, drawH: 62  },
+    'BATMAN BLDG': { w: 400, h: 800, drawH: 168 },
+    'RYMAN':       { w: 500, h: 500, drawH: 84  },
+};
+
 const MISFIRE_DARK_MS = 260;   // purely visual; see the header
 const MISSILE_SPEED = 900;     // px/sec, generous — the missile is feedback, not a mechanic
 
@@ -150,8 +224,20 @@ export function mount(container, opts) {
     const rand = cfg.rand || Math.random;
     const onQuit = (opts && opts.onQuit) || function () {};
 
-    let d = new GameDirector(cfg);
     const shieldCount = Math.max(1, Math.min(LANDMARKS.length, cfg.shields == null ? 3 : cfg.shields));
+    // ⚠️⚠️ ROUND 87 — THE DIRECTOR IS TOLD HOW MANY HITS THE CITY CAN ACTUALLY
+    // ABSORB, AND IT IS NOW DOUBLE. Every lane has a dome AND a landmark under
+    // it, so the city takes `shieldCount` hits to strip and `shieldCount` more
+    // to flatten. Leaving the director on 3 would end the game with three
+    // buildings still visibly standing, which is the exact "the dome doesn't do
+    // anything" complaint in a new costume.
+    // ⚠️ THIS ONLY EVER MAKES A RUN EASIER, so every clearability guarantee the
+    // 990-trial corpus sweep established still holds — more shields is strictly
+    // more forgiving. That one-way property is what makes it safe to land
+    // without re-running the corpus.
+    // ⚠️ AND IT IS DELIBERATELY *NOT* `cfg.shields`: the caller asks for a
+    // difficulty, the view decides how that difficulty is staged on screen.
+    let d = new GameDirector(Object.assign({}, cfg, { shields: shieldCount * 2 }));
     let capsOn = false;
     let started = false;   // set by the countdown; spawns wait for it
 
@@ -163,25 +249,58 @@ export function mount(container, opts) {
     const ctx = canvas.getContext('2d');
 
     let W = 0, H = 0, stars = [];
-    let domes = [], tubes = [];
+    let domes = [], tubes = [], buildings = [];
+    // ⚠️ WHERE THE SILOS ARE AIMING. Set each frame from the locked target so a
+    // barrel points at the thing it is about to shoot. See drawSilos().
+    let aimAt = null;
 
     function layout() {
         const size = fitCanvas(canvas, ctx);
         W = size.w; H = size.h;
         stars = makeStars(W, H, Math.round(W * H / 6000));
 
-        // Lanes are evenly spread; each dome sits over its own landmark and
-        // catches only its own lane.
+        // ⚠️⚠️ ROUND 87 — OVERLAPPING DOMES, JAKE'S OWN DESIGN.
+        //
+        // Jake, 2026-09-08: *"While I like the idea of the three buildings
+        // having three different domes, they don't do anything. If the dome is
+        // destroyed, the building should be revealed and then destroyed - not
+        // immediately destroyed... reorganize it so that the three domes cover
+        // the three buildings, but all three domes overlap to cover the batman
+        // building. That way the first removed dome reveals one building,
+        // allowing the next hit to destroy the next dome AND that building."*
+        //
+        // He is describing a real mechanic, and the old one was decoration: a
+        // leak killed the dome and the landmark in the same instant, so three
+        // domes were three lives wearing a costume.
+        //
+        // ⭐ NOW THE CITY ABSORBS SIX HITS, NOT THREE. Each dome is wide enough
+        // to reach the CENTRE lane, so the Batman Building sits under all three
+        // and the outer two sit under two each. A hit resolves against the
+        // NEAREST dome still covering that lane; only when a lane is bare does
+        // the landmark under it fall. So the first hit anywhere strips a dome
+        // and exposes an outer landmark, and the shape of the city tells the
+        // student what is still protected without a legend.
         const groundY = H - 26;
+        const laneX = i => W * ((i + 1) / (shieldCount + 1));
+        const reach = Math.abs(laneX(Math.floor(shieldCount / 2)) - laneX(0));
+        const prevDomes = domes;
+        const prevBuildings = buildings;
         domes = [];
+        buildings = [];
         for (let i = 0; i < shieldCount; i++) {
-            const cx = W * ((i + 1) / (shieldCount + 1));
             domes.push({
-                x: cx, y: groundY,
-                radius: Math.max(52, Math.min(120, W / (shieldCount * 2.6))),
-                active: domes[i] ? domes[i].active : true,
+                x: laneX(i), y: groundY,
+                // ⚠️ +8 SO THE CENTRE LANE IS GENUINELY INSIDE EVERY DOME, not
+                // exactly on its rim where a rounding error decides coverage.
+                radius: Math.max(60, reach + 8),
+                active: prevDomes[i] ? prevDomes[i].active : true,
                 landmark: LANDMARKS[i % LANDMARKS.length],
                 lane: i,
+            });
+            buildings.push({
+                x: laneX(i), y: groundY, lane: i,
+                landmark: LANDMARKS[i % LANDMARKS.length],
+                alive: prevBuildings[i] ? prevBuildings[i].alive : true,
             });
         }
         // Two silos, four tubes each. Left hand fires from the left silo.
@@ -383,17 +502,42 @@ export function mount(container, opts) {
                 e.spin += dt * 1.6;
 
                 if (threat(e) >= 1) {
-                    const dome = domes[e.lane];
                     live.splice(i, 1);
                     if (locked === e) locked = null;
                     burst(particles, e.x, e.y, '#ff8800', Math.round(30 * motionScale()), 260);
                     flash = 0.35;
                     sfx.hit();
-                    if (dome && dome.active) {
-                        dome.active = false;
-                        banner = { text: dome.landmark.name + ' IS GONE', until: now + 2200 };
-                        shatter(dome);
+
+                    // ⚠️⚠️ ROUND 87 — A DOME ABSORBS THE HIT, AND ONLY A BARE
+                    // LANE LOSES ITS LANDMARK. See the layout() note for why.
+                    // The nearest still-standing dome covering this lane takes
+                    // it; "nearest" so a hit on an outer lane strips that lane's
+                    // own dome first rather than peeling the centre's early,
+                    // which would leave the outer landmark exposed while the
+                    // dome directly above it still stood — visible nonsense.
+                    const lane = buildings[e.lane] || buildings[0];
+                    let shield = null, best = Infinity;
+                    for (const dm of domes) {
+                        if (!dm.active) continue;
+                        const dx = Math.abs(dm.x - lane.x);
+                        if (dx <= dm.radius && dx < best) { best = dx; shield = dm; }
                     }
+                    if (shield) {
+                        shield.active = false;
+                        const bare = buildings.filter(b => b.alive && !covered(b)).length;
+                        banner = {
+                            text: 'SHIELD DOWN \u2014 ' +
+                                  (bare ? bare + ' EXPOSED' : 'CITY STILL COVERED'),
+                            until: now + 2200,
+                        };
+                        shatter(shield);
+                    } else if (lane && lane.alive) {
+                        lane.alive = false;
+                        banner = { text: lane.landmark.name + ' IS GONE', until: now + 2200 };
+                        burst(particles, lane.x, lane.y - 30, '#ff4444',
+                              Math.round(40 * motionScale()), 300);
+                    }
+
                     d.leaked(e.text, now);
                     if (d.over) { finish(now, false); break; }
                 }
@@ -425,6 +569,11 @@ export function mount(container, opts) {
         }
 
         draw(now, ts / 1000);
+    }
+
+    // Is this landmark still under any standing dome?
+    function covered(b) {
+        return domes.some(dm => dm.active && Math.abs(dm.x - b.x) <= dm.radius);
     }
 
     function shatter(dome) {
@@ -476,6 +625,11 @@ export function mount(container, opts) {
         ctx.fillRect(0, 0, W, H);
 
         drawStars(ctx, stars, tSec);
+        // ⚠️ THE SILOS AIM AT WHAT THE STUDENT IS ACTUALLY TYPING. Locked
+        // target first; failing that the most threatening one, so the barrels
+        // are already pointing where the next keystroke will matter.
+        aimAt = locked || live.reduce(
+            (best, e) => (best === null || threat(e) > threat(best) ? e : best), null);
         drawSkyline(ctx, W, H, domes, tSec);
         drawDomes(ctx, domes);
         drawSilos(ctx, tubes, now);
@@ -512,21 +666,80 @@ export function mount(container, opts) {
             ctx.translate(e.x, e.y);
             ctx.rotate(Math.atan2(e.vy, e.vx) - Math.PI / 2);
             const c = isLocked ? '#ffd700' : '#7fd7ff';
-            ctx.strokeStyle = c;
             ctx.lineWidth = 2;
+
+            // ⚠️⚠️ ROUND 87 — THE HULL IS DRAWN IN THE FINGER COLOURS OF ITS OWN
+            // LETTERS.
+            //
+            // Jake, 2026-09-08: *"UFOs look great, but I wish the lines
+            // reflected the colors of the letters that have to be typed."*
+            //
+            // The saucer's outline is cut into one arc per character, in order,
+            // each stroked in that character's finger colour — the SAME colours
+            // keyboard.js gives the silo barrels and the on-screen keyboard, so
+            // a student can read "this one is mostly right-hand" off the shape
+            // before they read the word. ⭐ TYPED CHARACTERS DIM, so the hull
+            // drains as they go and progress is legible at a glance from across
+            // a classroom, not only in the label plate underneath.
+            //
+            // ⚠️ A CHARACTER WITH NO FINGER (space, punctuation outside the map)
+            // FALLS BACK TO THE HULL COLOUR rather than to finger 0 — this file's
+            // own header records that defaulting to 0 is exactly what once put
+            // every unmapped character on the left pinky.
+            const segColors = [];
+            for (let ci = 0; ci < e.text.length; ci++) {
+                const f = fingerIndexOf(e.text[ci]);
+                const col = f == null ? c : FINGER_COLORS[FINGER_NAMES[f]];
+                segColors.push({ col, done: ci < e.typed });
+            }
+            const strokeArcs = (rx, ry, from, to) => {
+                const n = segColors.length || 1;
+                const span = (to - from) / n;
+                for (let k = 0; k < n; k++) {
+                    const sg = segColors[k] || { col: c, done: false };
+                    ctx.strokeStyle = sg.col;
+                    // ⚠️ ALPHA, NOT A DARKER COLOUR — a dimmed finger colour and
+                    // a different finger colour are hard to tell apart.
+                    ctx.globalAlpha = sg.done ? 0.28 : 1;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, rx, ry, 0, from + k * span, from + (k + 1) * span);
+                    ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
+            };
+
             if (e.kind === 0) {
-                ctx.beginPath(); ctx.ellipse(0, 0, 22, 9, 0, 0, Math.PI * 2); ctx.stroke();
+                strokeArcs(22, 9, 0, Math.PI * 2);
+                ctx.strokeStyle = c;
                 ctx.beginPath(); ctx.arc(0, -4, 10, Math.PI, 0); ctx.stroke();
             } else if (e.kind === 1) {
-                ctx.beginPath();
-                ctx.moveTo(0, -16); ctx.lineTo(20, 6); ctx.lineTo(0, 14); ctx.lineTo(-20, 6);
-                ctx.closePath(); ctx.stroke();
+                // ⚠️ THE DIAMOND IS A POLYGON, so its edges are walked directly
+                // rather than reusing strokeArcs — four corners, one segment per
+                // character spread along the perimeter.
+                const pts = [[0, -16], [20, 6], [0, 14], [-20, 6]];
+                const n = segColors.length || 1;
+                for (let k = 0; k < n; k++) {
+                    const sg = segColors[k] || { col: c, done: false };
+                    const t0 = k / n, t1 = (k + 1) / n;
+                    const at = t => {
+                        const seg = t * 4, i0 = Math.min(3, Math.floor(seg)), f = seg - i0;
+                        const a = pts[i0], b = pts[(i0 + 1) % 4];
+                        return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+                    };
+                    const p0 = at(t0), p1 = at(t1);
+                    ctx.strokeStyle = sg.col;
+                    ctx.globalAlpha = sg.done ? 0.28 : 1;
+                    ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+                }
+                ctx.globalAlpha = 1;
             } else {
+                ctx.strokeStyle = c;
                 ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.stroke();
                 ctx.save(); ctx.rotate(e.spin);
-                ctx.beginPath(); ctx.ellipse(0, 0, 24, 6, 0, 0, Math.PI * 2); ctx.stroke();
+                strokeArcs(24, 6, 0, Math.PI * 2);
                 ctx.restore();
             }
+            ctx.strokeStyle = c;
             // Engine glow
             ctx.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(tSec * 8 + e.spin));
             ctx.fillStyle = c;
@@ -569,18 +782,70 @@ export function mount(container, opts) {
         }
     }
 
+    /**
+     * ⚠️⚠️ ROUND 87 — THE BARRELS TRACK WHAT THEY ARE SHOOTING AT.
+     *
+     * Jake, 2026-09-08: *"Missile silos on the left and right should point at
+     * whatever they're shooting at, with the outermost barrels being on the
+     * foremost layer (so that when they turn, you can see all four colors)."*
+     *
+     * Both halves matter and the second is the subtle one. Four barrels standing
+     * vertically in a row occlude almost nothing, so draw order never mattered.
+     * The moment they ROTATE they sweep across each other, and if the innermost
+     * is drawn last it covers the three behind it at exactly the angles the
+     * student is looking — so the finger colours, which are the whole point of
+     * having four barrels, disappear precisely when they become informative.
+     *
+     * ⭐ SO THEY ARE DRAWN INNERMOST FIRST, OUTERMOST LAST, per silo. Sorting by
+     * distance from the silo centre does that for both sides at once without a
+     * left/right special case.
+     */
     function drawSilos(ctx, list, now) {
-        for (const t of list) {
+        // ⚠️ SORTED COPY. `list` is `tubes`, whose ORDER IS ITS FINGER INDEX —
+        // sorting it in place would silently re-map every finger to the wrong
+        // barrel, which is the kind of defect that looks like a colour bug.
+        const order = list.slice().sort(
+            (a, b) => Math.abs(a.x - a.siloX) - Math.abs(b.x - b.siloX));
+
+        for (const t of order) {
             const dark = now < t.darkUntil;
+
+            // Point at the live target if there is one, else rest at a slight
+            // outward fan so the silo never looks switched off.
+            let ang = (t.x < t.siloX ? -0.18 : 0.18);
+            if (aimAt) {
+                // ⚠️ ATAN2 FROM THE BARREL'S OWN BASE, not the silo centre, or
+                // the four barrels would sit parallel and read as one object.
+                ang = Math.atan2(aimAt.x - t.x, t.y - aimAt.y);
+                // ⚠️ CLAMPED. A target that has drifted behind a silo would
+                // otherwise swing the barrel through the ground.
+                const LIM = 1.35;
+                ang = Math.max(-LIM, Math.min(LIM, ang));
+            }
+
             ctx.save();
             ctx.translate(t.x, t.y);
+            ctx.rotate(ang);
+            // Barrel
             ctx.fillStyle = dark ? '#2a2f38' : t.color;
             ctx.fillRect(-5, -46, 10, 46);
             ctx.fillStyle = 'rgba(255,255,255,0.28)';
             if (!dark) ctx.fillRect(-3, -46, 2.5, 46);
+            // Muzzle
             ctx.fillStyle = '#151a22';
             ctx.fillRect(-6, -48, 12, 5);
+            // ⚠️ A DARK OUTLINE SO OVERLAPPING BARRELS STAY COUNTABLE. Four
+            // saturated colours touching each other with no separator read as
+            // one smeared shape once they fan out.
+            ctx.strokeStyle = 'rgba(2,6,14,0.85)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(-5, -46, 10, 46);
             ctx.restore();
+
+            // Pivot cap, drawn unrotated so the barrel appears to turn in a
+            // socket rather than to slide.
+            ctx.fillStyle = dark ? '#222831' : 'rgba(255,255,255,0.20)';
+            ctx.beginPath(); ctx.arc(t.x, t.y, 4.5, 0, Math.PI * 2); ctx.fill();
         }
         // Silo bodies, drawn after so the tubes emerge from them
         const seen = new Set();
@@ -682,20 +947,75 @@ export function mount(container, opts) {
         ctx.globalAlpha = 1;
 
         // Landmarks, one under each dome
-        list.forEach((dome, i) => {
-            const x = dome.x;
-            const dead = !dome.active;
-            const ink = dead ? '#2a1c22' : '#0d1730';
-            const trim = dead ? '#5a2a36' : '#2b4a7a';
-            if (dome.landmark.short === 'PARTHENON') drawParthenon(ctx, x, g, ink, trim);
-            else if (dome.landmark.short === 'BATMAN BLDG') drawBatman(ctx, x, g, ink, trim, dead);
-            else drawRyman(ctx, x, g, ink, trim);
-        });
+        // ⚠️ THE LANDMARK'S STATE IS ITS OWN, NOT ITS DOME'S (Round 87). A
+        // building stands until IT is hit; losing the dome above it only exposes
+        // it. That separation is the whole mechanic.
+        for (const b of buildings) {
+            drawLandmark(ctx, b, g);
+        }
 
         // L&C Tower and the Pinnacle, off to the sides, always standing
         drawSlab(ctx, W * 0.04, g, 26, 130, '#0b1226', '#2b4a7a');
         drawSlab(ctx, W * 0.955, g, 32, 150, '#0b1226', '#2b4a7a');
         ctx.restore();
+    }
+
+    /**
+     * One landmark, using Gemini's art when it has loaded.
+     *
+     * ⚠️ A DEAD BUILDING IS NOT JUST A TINT — it is drawn shorter, dimmed and
+     * leaning, because on a dark skyline a colour change alone reads as "that
+     * one is lit differently", not as "that one is rubble". The point of the
+     * whole mechanic is that a student can see at a glance what they have lost.
+     */
+    function drawLandmark(ctx, b, g) {
+        const key = b.landmark.short;
+        const img = LANDMARK_IMG[key];
+        const box = LANDMARK_BOX[key] || { w: 1, h: 1, drawH: 80 };
+        const dead = !b.alive;
+        const exposed = b.alive && !covered(b);
+
+        if (img && img.complete && img.naturalWidth) {
+            const h = box.drawH * (dead ? 0.55 : 1);
+            const w = h * (box.w / box.h);
+            ctx.save();
+            // ⚠️ RUBBLE LEANS AND DARKENS. globalAlpha alone left a perfectly
+            // intact building that happened to be faint.
+            if (dead) {
+                ctx.globalAlpha = 0.5;
+                ctx.translate(b.x, g);
+                ctx.rotate(0.10);
+                ctx.translate(-b.x, -g);
+            } else {
+                // ⚠️ SLIGHTLY DIMMED EVEN WHEN ALIVE. The art is daylight-bright
+                // and this is a night skyline; at full strength it detaches from
+                // the background and reads as a sticker.
+                ctx.globalAlpha = exposed ? 0.95 : 0.82;
+            }
+            ctx.drawImage(img, b.x - w / 2, g - h, w, h);
+            ctx.restore();
+
+            // ⭐ AN EXPOSED BUILDING IS OUTLINED IN WARNING AMBER. Without this
+            // the student has to infer "my dome is gone" from an absence, and an
+            // absence is exactly what nobody notices mid-game.
+            if (exposed) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255,190,90,0.55)';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([5, 4]);
+                ctx.strokeRect(b.x - w / 2 - 3, g - h - 3, w + 6, h + 6);
+                ctx.restore();
+            }
+            return;
+        }
+
+        // ⚠️ FALLBACK, AND IT RUNS FOR REAL — the first frames of every game
+        // happen before the SVGs decode. See the LANDMARK_SVG note.
+        const ink  = dead ? '#2a1c22' : '#0d1730';
+        const trim = dead ? '#5a2a36' : '#2b4a7a';
+        if (key === 'PARTHENON') drawParthenon(ctx, b.x, g, ink, trim);
+        else if (key === 'BATMAN BLDG') drawBatman(ctx, b.x, g, ink, trim, dead);
+        else drawRyman(ctx, b.x, g, ink, trim);
     }
 
     function drawSlab(ctx, x, g, w, h, fill, trim) {
