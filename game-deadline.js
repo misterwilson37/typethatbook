@@ -1,4 +1,24 @@
-// game-deadline.js v1.1.0
+// game-deadline.js v1.2.0
+//
+// v1.2.0 — ⭐ ROUND 88 — THE ON-SCREEN KEYBOARD IS BACK, AT THE BOTTOM.
+//   Jake, 2026-09-08: *"Apparently that's a tool kids still depend on at that
+//   point."* A student in unit 2 is still hunting for keys, and a typing game
+//   that hides the keyboard asks them to do two hard things at once.
+//   ⚠️ DRAWN ON THE CANVAS, not built from keyboard.js's createKeyboard() — that
+//   emits DOM styled by rules in style.css, which School loads and neither
+//   arcade.html nor tools/game-lab.html does. Reusing it would have rendered as
+//   unstyled stacked divs on both standalone pages. The SHAPE is local; the
+//   LAYOUT and the COLOURS are still keyboard.js's.
+//   ⚠️ THE STRIP IS SUBTRACTED FROM THE PLAY AREA, NOT OVERLAID. The impact test
+//   is distance-based, so a target falling behind the keys would "land"
+//   somewhere the student cannot see. Raising the ground keeps every landing
+//   visible; below ~360px of window height the strip is dropped entirely rather
+//   than squeezed unreadable.
+//   ⚠️ COLOURS COME FROM THIS FILE'S OWN fingerIndexOf(), NOT getFingerInfo()
+//   DIRECTLY: keyboard.js stores `finger` as a NAME, so FINGER_NAMES[info.finger]
+//   is undefined and the fill silently keeps the previous colour — which is
+//   exactly how the first draft rendered as a grey board.
+//
 //
 // v1.1.0 — ⭐ ROUND 87, JAKE'S FOUR GRAPHICS NOTES, ALL FROM WATCHING IT PLAYED.
 //   1. THE HULLS CARRY THE LETTERS' FINGER COLOURS. One arc per character, in
@@ -109,7 +129,11 @@
 // what reaches the student who is only here to type.
 
 import { GameDirector } from './game-shell.js';
-import { buildFingerMap, getFingerInfo, FINGER_COLORS, FINGER_NAMES } from './keyboard.js';
+// ⚠️ LAYOUTS JOINS THE IMPORT (Round 88). The keyboard strip is drawn on the
+// canvas, but its ROWS still come from keyboard.js — this file must not hold a
+// second copy of the layout any more than it holds a second copy of the finger
+// map. game-assumptions-test.mjs Part J exists for exactly that reason.
+import { buildFingerMap, getFingerInfo, FINGER_COLORS, FINGER_NAMES, LAYOUTS } from './keyboard.js';
 import { mountChrome } from './game-chrome.js';
 import { sfx, isMuted, setMuted } from './game-audio.js';
 import {
@@ -249,6 +273,12 @@ export function mount(container, opts) {
     const ctx = canvas.getContext('2d');
 
     let W = 0, H = 0, stars = [];
+    // ⚠️ THE KEYBOARD STRIP'S HEIGHT, AND THE GROUND SITS ON TOP OF IT.
+    // Jake, 2026-09-08: *"Can we add the keyboard back in at the bottom?
+    // Apparently that's a tool kids still depend on at that point."* A student
+    // in unit 2 is still hunting for keys; a typing game that hides the
+    // keyboard asks them to do two hard things at once.
+    let kbH = 0;
     let domes = [], tubes = [], buildings = [];
     // ⚠️ WHERE THE SILOS ARE AIMING. Set each frame from the locked target so a
     // barrel points at the thing it is about to shoot. See drawSilos().
@@ -280,7 +310,15 @@ export function mount(container, opts) {
         // the landmark under it fall. So the first hit anywhere strips a dome
         // and exposes an outer landmark, and the shape of the city tells the
         // student what is still protected without a legend.
-        const groundY = H - 26;
+        // ⚠️⚠️ THE KEYBOARD IS SUBTRACTED FROM THE PLAY AREA, NOT DRAWN OVER IT.
+        // Overlaying would let a UFO fall behind the keys and "land" somewhere
+        // the student cannot see — the impact test is distance-based, so it
+        // would fire with the target hidden. Raising the ground keeps every
+        // landing visible. ⚠️ CAPPED AND FLOORED: on a short window the strip
+        // must not eat the sky, and below ~360px of height it is dropped
+        // entirely rather than squeezed into unreadability.
+        kbH = H < 360 ? 0 : Math.max(84, Math.min(132, H * 0.19));
+        const groundY = H - 26 - kbH;
         const laneX = i => W * ((i + 1) / (shieldCount + 1));
         const reach = Math.abs(laneX(Math.floor(shieldCount / 2)) - laneX(0));
         const prevDomes = domes;
@@ -643,6 +681,11 @@ export function mount(container, opts) {
         // the edges and degrades to a static border under prefers-reduced-motion.
         drawHitFeedback(ctx, W, H, flash);
 
+        // ⚠️ AFTER the world and the hit feedback, BEFORE the HUD. The strip is
+        // furniture, not part of the scene — a UFO must never appear to pass in
+        // front of it — but the banner and the HUD still outrank it.
+        drawKeyboard(ctx, W, H);
+
         drawHud(ctx, W, d.report(now), d);
         if (capsOn) drawCapsWarning(ctx, W, 46);
 
@@ -755,6 +798,134 @@ export function mount(container, opts) {
                 font: 'bold 20px "Courier Prime", monospace',
             });
         }
+    }
+
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * THE ON-SCREEN KEYBOARD — Round 88
+     * ═══════════════════════════════════════════════════════════════════════
+     *
+     * Jake, 2026-09-08: *"Can we add the keyboard back in at the bottom?
+     * Apparently that's a tool kids still depend on at that point."*
+     *
+     * ⚠️⚠️ DRAWN ON THE CANVAS, NOT BUILT FROM keyboard.js's createKeyboard().
+     * That function emits DOM styled by `.key`/`.kb-row` rules that live in
+     * style.css — which School loads and neither arcade.html nor
+     * tools/game-lab.html does. Reusing it would either drag a stylesheet into
+     * two standalone pages or, worse, appear to work while rendering as
+     * unstyled stacked divs under the game. So the SHAPE is drawn here.
+     *
+     * ⚠️ BUT THE LAYOUT AND THE COLOURS ARE STILL keyboard.js's. Rows come from
+     * LAYOUTS, colours from FINGER_COLORS via the shared finger map. This file
+     * holds no second copy of either — the same rule that governs the silo
+     * barrels, and the reason game-assumptions-test.mjs Part J exists.
+     *
+     * ⚠️ THE NUMBER ROW IS OMITTED ON PURPOSE. Three letter rows and a space bar
+     * cover every character any lesson or book target uses; the number row would
+     * cost a fifth of the sky to show keys that never light up.
+     */
+    function drawKeyboard(ctx, W, H) {
+        if (!kbH) return;
+        const L = LAYOUTS.qwerty;
+        const rows = L.rows;
+        const top = H - kbH;
+
+        // What is the student meant to press next? The locked target if there is
+        // one; otherwise the most threatening, which is what they should be
+        // starting on anyway.
+        const src = locked || aimAt;
+        const want = src && src.typed < src.text.length ? src.text[src.typed] : null;
+        // ⚠️ A SHIFTED CHARACTER LIGHTS ITS BASE KEY. '!' is Shift+1 on the row
+        // this keyboard does not draw, so it simply lights nothing rather than
+        // lighting the wrong key — silence beats a confident wrong answer.
+        let wantLower = want == null ? null : String(want).toLowerCase();
+        const shifted = want != null && want !== wantLower;
+
+        const pad = 3;
+        const rowH = Math.floor((kbH - 10) / 4);
+        const keyH = rowH - pad;
+        // Width is set by the longest row so the board never overflows.
+        const widest = Math.max(...rows.map(r => r.length));
+        const keyW = Math.min(46, Math.floor((W * 0.62) / widest)) - pad;
+        const boardW = widest * (keyW + pad);
+        const originX = (W - boardW) / 2;
+
+        ctx.save();
+        // Backing panel, so the keys never sit directly on the skyline.
+        ctx.fillStyle = 'rgba(4,8,16,0.82)';
+        ctx.fillRect(0, top, W, kbH);
+        ctx.strokeStyle = 'rgba(120,170,220,0.18)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, top + 0.5); ctx.lineTo(W, top + 0.5); ctx.stroke();
+
+        ctx.font = 'bold ' + Math.max(10, Math.floor(keyH * 0.42)) + 'px "Courier Prime", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        rows.forEach((rowChars, r) => {
+            // Stagger, as a real keyboard does — a perfectly square grid is
+            // noticeably harder to map onto the board under their hands.
+            const indent = r * (keyW * 0.34);
+            const y = top + 6 + r * rowH;
+            rowChars.forEach((ch, c) => {
+                const x = originX + indent + c * (keyW + pad);
+                // ⚠️ fingerIndexOf(), NOT getFingerInfo() DIRECTLY. keyboard.js
+                // stores `finger` as a NAME ('left-index'), not an index, so
+                // FINGER_NAMES[info.finger] is undefined and the fill silently
+                // keeps whatever colour was set last — which is exactly how the
+                // first draft of this strip rendered as a grey board. This file's
+                // own helper does the name→index lookup and is the same path the
+                // hulls and the barrels use, so the three can never disagree.
+                const fi = fingerIndexOf(ch);
+                const col = fi == null ? '#7fd7ff' : FINGER_COLORS[FINGER_NAMES[fi]];
+                const isWant = wantLower !== null && ch === wantLower;
+
+                roundRect(ctx, x, y, keyW, keyH, 4);
+                // ⚠️ THE TINT IS ALWAYS ON, FAINTLY. The colours are the point —
+                // they are how a student maps a letter to a finger — so they
+                // must be legible before the key is called for, not only when
+                // it lights up.
+                ctx.fillStyle = col;
+                // ⚠️ THE RESTING TINT IS FAINT BUT NOT INVISIBLE. At 0.05 the
+                // board rendered as uniform grey and the colours — the entire
+                // reason a beginner needs this strip — conveyed nothing.
+                ctx.globalAlpha = isWant ? 0.95 : 0.16;
+                ctx.fill();
+                ctx.globalAlpha = 1;
+                ctx.strokeStyle = isWant ? '#ffffff' : col;
+                ctx.lineWidth = isWant ? 2 : 1;
+                ctx.globalAlpha = isWant ? 1 : 0.75;
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+
+                ctx.fillStyle = isWant ? '#04070d' : '#e8f2fa';
+                ctx.globalAlpha = isWant ? 1 : 0.9;
+                ctx.fillText(ch.toUpperCase(), x + keyW / 2, y + keyH / 2 + 0.5);
+                ctx.globalAlpha = 1;
+            });
+        });
+
+        // Space bar
+        const sy = top + 6 + rows.length * rowH;
+        const sw = boardW * 0.46, sx = (W - sw) / 2;
+        const wantSpace = want === ' ';
+        roundRect(ctx, sx, sy, sw, keyH, 4);
+        ctx.fillStyle = wantSpace ? '#cfe6f5' : 'rgba(255,255,255,0.05)';
+        ctx.fill();
+        ctx.strokeStyle = wantSpace ? '#ffffff' : 'rgba(200,225,245,0.45)';
+        ctx.lineWidth = wantSpace ? 2 : 1;
+        ctx.stroke();
+
+        // ⚠️ SHIFT IS SHOWN, NOT DRAWN AS KEYS. The student needs to know a
+        // capital needs Shift — matching is case-sensitive here exactly as it is
+        // in the drills — but two full shift keys would cost a row.
+        if (shifted) {
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold 11px "Courier Prime", monospace';
+            ctx.fillText('\u21e7 SHIFT + ' + wantLower.toUpperCase(), W / 2, sy + keyH / 2 + 0.5);
+        }
+        ctx.restore();
     }
 
     function drawDomes(ctx, list) {
@@ -902,7 +1073,7 @@ export function mount(container, opts) {
      * Tower, the Pinnacle, a Broadway neon strip and the pedestrian bridge.
      */
     function drawSkyline(ctx, W, H, list, tSec) {
-        const g = H - 26;
+        const g = H - 26 - kbH;
         ctx.save();
 
         // Far background block towers
