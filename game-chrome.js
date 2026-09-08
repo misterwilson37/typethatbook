@@ -1,4 +1,10 @@
-// game-chrome.js v1.0.0 — THE FURNITURE EVERY GAME NEEDS AND NEITHER HAD.
+// game-chrome.js v1.1.0
+//
+// v1.1.0 — ⭐ AN OPTIONAL "Keys" BUTTON. Jake, 2026-09-08: *"We should be able to
+//          toggle off the keyboard, too."* The view owns the state and the
+//          persistence; this file owns the button and its label, and renders
+//          nothing at all when the view does not pass onToggleKeys.
+// — THE FURNITURE EVERY GAME NEEDS AND NEITHER HAD.
 // Round 82 (Victor).
 //
 // ⚠️⚠️ WHAT WAS MISSING, AND WHY EACH ITEM MATTERS MORE THAN IT SOUNDS:
@@ -26,7 +32,7 @@
 
 import { prefersReducedMotion } from './game-draw.js';
 
-export const GAME_CHROME_VERSION = '1.0.0';
+export const GAME_CHROME_VERSION = '1.1.0';
 
 // ⚠️ THREE SECONDS, AND THE SPAWNS WAIT FOR IT. Not the clock — the clock starts
 // on the first keystroke regardless, and always did.
@@ -83,8 +89,17 @@ export function mountChrome(container, opts) {
     bar.className = 'gc-bar';
     const btnPause = mkBtn('Pause');
     const btnMute = mkBtn(o.muted ? 'Sound off' : 'Sound on');
+    // ⚠️ OPTIONAL, AND ABSENT WHEN THE VIEW DOES NOT OFFER IT. Escape Key has no
+    // keyboard strip yet, and a dead button is worse than a missing one.
+    const btnKeys = o.onToggleKeys ? mkBtn(o.keysOn === false ? 'Keys off' : 'Keys on') : null;
     const btnQuit = mkBtn('Done');
-    bar.append(btnPause, btnMute, btnQuit);
+    bar.append(btnPause, btnMute, ...(btnKeys ? [btnKeys] : []), btnQuit);
+    if (btnKeys) {
+        btnKeys.addEventListener('click', () => {
+            const on = o.onToggleKeys();
+            btnKeys.textContent = on ? 'Keys on' : 'Keys off';
+        });
+    }
 
     const panel = document.createElement('div');
     panel.className = 'gc-panel gc-hidden';

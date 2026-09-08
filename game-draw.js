@@ -1,5 +1,21 @@
-// game-draw.js v1.0.0 — CANVAS HELPERS SHARED BY ALL THREE ARCADE VIEWS.
-// Round 82 (Victor).
+// game-draw.js v1.1.0 — CANVAS HELPERS SHARED BY ALL THREE ARCADE VIEWS.
+// Round 82 (Victor); keyboard strip added Round 89.
+//
+// v1.1.0 — ⭐ THE KEYBOARD STRIP MOVED HERE FROM game-deadline.js. Jake,
+//          2026-09-08: *"Maybe there's a whole arcade css that they all share so
+//          the games all share the same keyboard."* Right instinct, wrong
+//          mechanism for this codebase — the strip is CANVAS, not CSS, so a
+//          stylesheet cannot carry it. A shared DRAWING helper is the same idea
+//          in the form this architecture already uses, and it is why this file
+//          exists at all. Escape Key can now show the identical board by calling
+//          one function.
+//          ⚠️ IT ALSO OWNS THE STAT FLANKS. Jake, same message: *"just add those
+//          stats to the left and right of the keyboard (given that that space is
+//          available now)."* The board is centred and narrower than the canvas,
+//          so there is dead space either side; putting the readout there buys
+//          back the whole top strip for sky. Flanks live with the strip because
+//          their geometry is the strip's geometry — a caller computing those
+//          rectangles itself would drift the moment key sizing changed.
 //
 // ⚠️⚠️ THE PLATE IS THE WHOLE POINT OF THIS FILE. Jake, 2026-09-07, on the
 // Muncher prototype: *"it will need some sort of color behind it to be easier to
@@ -28,6 +44,171 @@ export const GAME_DRAW_VERSION = '1.0.0';
  * transform below means every subsequent draw call is in CSS pixels regardless
  * of devicePixelRatio, so nothing downstream has to know about retina at all.
  */
+// ⚠️ THE LAYOUT AND THE COLOURS ARE keyboard.js's, ALWAYS. No arcade file may
+// hold a second copy of either — game-assumptions-test.mjs Part J is the guard.
+import { LAYOUTS, FINGER_COLORS, FINGER_NAMES, buildFingerMap, getFingerInfo }
+    from './keyboard.js';
+
+const _KB_MAP = buildFingerMap('qwerty');
+
+/**
+ * Finger index 0..7 for a character, or null.
+ *
+ * ⚠️ keyboard.js STORES `finger` AS A NAME ('left-index'), NOT AN INDEX, so
+ * FINGER_NAMES[info.finger] is undefined and a canvas fill silently keeps
+ * whatever colour was set last — which is exactly how the first draft of this
+ * strip rendered as a grey board. Go through the name→index lookup.
+ * ⚠️ A THUMB CHARACTER (space) RETURNS null RATHER THAN 0. Falling back to 0 is
+ * what once put every unmapped character on the left pinky.
+ */
+export function fingerIndexOfChar(ch) {
+    const info = getFingerInfo(_KB_MAP, ch);
+    if (!info || !info.finger) return null;
+    const i = FINGER_NAMES.indexOf(info.finger);
+    return i === -1 ? null : i;
+}
+
+export function fingerColorOf(ch, fallback) {
+    const i = fingerIndexOfChar(ch);
+    return i == null ? (fallback || '#7fd7ff') : FINGER_COLORS[FINGER_NAMES[i]];
+}
+
+/**
+ * How tall the keyboard strip should be, or 0 if it must not be drawn.
+ *
+ * ⚠️ THE CALLER SUBTRACTS THIS FROM THE PLAY AREA — the strip is never overlaid.
+ * Impact tests in these games are distance-based, so a target falling behind the
+ * keys would "land" somewhere the student cannot see.
+ * ⚠️ 0 BELOW ~360px OF HEIGHT. Squeezing four rows into a short window produces
+ * a board nobody can read, which is worse than no board.
+ */
+export function keyboardStripHeight(H, enabled) {
+    if (!enabled || H < 360) return 0;
+    return Math.max(84, Math.min(132, H * 0.19));
+}
+
+/**
+ * The on-screen keyboard, plus a stat flank on each side.
+ *
+ * @param {object} o
+ *   W, H       {number}   canvas size
+ *   height     {number}   from keyboardStripHeight()
+ *   nextChar   {string}   the character to light, or null
+ *   left,right {string[]} lines for the flanks
+ *   progress   {number}   0..1, drawn as a bar under the right flank; null to omit
+ *
+ * ⚠️ THE NUMBER ROW IS OMITTED ON PURPOSE. Three letter rows and a space bar
+ * cover every character any lesson or book target uses; the number row would
+ * cost a fifth of the sky to show keys that never light up.
+ */
+export function drawKeyboardStrip(ctx, o) {
+    const { W, H, height } = o;
+    if (!height) return;
+    const rows = (LAYOUTS.qwerty).rows;
+    const top = H - height;
+    const want = o.nextChar;
+    const wantLower = want == null ? null : String(want).toLowerCase();
+    const shifted = want != null && want !== wantLower;
+
+    const pad = 3;
+    const rowH = Math.floor((height - 10) / 4);
+    const keyH = rowH - pad;
+    const widest = Math.max.apply(null, rows.map(r => r.length));
+    const keyW = Math.min(46, Math.floor((W * 0.62) / widest)) - pad;
+    const boardW = widest * (keyW + pad);
+    const originX = (W - boardW) / 2;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(4,8,16,0.82)';
+    ctx.fillRect(0, top, W, height);
+    ctx.strokeStyle = 'rgba(120,170,220,0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, top + 0.5); ctx.lineTo(W, top + 0.5); ctx.stroke();
+
+    ctx.font = 'bold ' + Math.max(10, Math.floor(keyH * 0.42)) + 'px "Courier Prime", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    rows.forEach((rowChars, r) => {
+        // Stagger, as a real keyboard does — a square grid is noticeably harder
+        // to map onto the board under their hands.
+        const indent = r * (keyW * 0.34);
+        const y = top + 6 + r * rowH;
+        rowChars.forEach((ch, c) => {
+            const x = originX + indent + c * (keyW + pad);
+            const col = fingerColorOf(ch);
+            const isWant = wantLower !== null && ch === wantLower;
+            roundRect(ctx, x, y, keyW, keyH, 4);
+            ctx.fillStyle = col;
+            // ⚠️ THE RESTING TINT IS FAINT BUT NOT INVISIBLE. At 0.05 the board
+            // rendered as uniform grey and the colours — the entire reason a
+            // beginner needs this strip — conveyed nothing.
+            ctx.globalAlpha = isWant ? 0.95 : 0.16;
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.strokeStyle = isWant ? '#ffffff' : col;
+            ctx.lineWidth = isWant ? 2 : 1;
+            ctx.globalAlpha = isWant ? 1 : 0.75;
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = isWant ? '#04070d' : '#e8f2fa';
+            ctx.globalAlpha = isWant ? 1 : 0.9;
+            ctx.fillText(ch.toUpperCase(), x + keyW / 2, y + keyH / 2 + 0.5);
+            ctx.globalAlpha = 1;
+        });
+    });
+
+    // Space bar
+    const sy = top + 6 + rows.length * rowH;
+    const sw = boardW * 0.46, sx = (W - sw) / 2;
+    const wantSpace = want === ' ';
+    roundRect(ctx, sx, sy, sw, keyH, 4);
+    ctx.fillStyle = wantSpace ? '#cfe6f5' : 'rgba(255,255,255,0.05)';
+    ctx.fill();
+    ctx.strokeStyle = wantSpace ? '#ffffff' : 'rgba(200,225,245,0.45)';
+    ctx.lineWidth = wantSpace ? 2 : 1;
+    ctx.stroke();
+
+    // ⚠️ SHIFT IS ANNOUNCED, NOT DRAWN AS KEYS. Matching is case-sensitive here
+    // exactly as it is in the drills, so the student must know a capital needs
+    // Shift — but two full shift keys would cost a row.
+    if (shifted) {
+        ctx.fillStyle = '#ffd700';
+        ctx.font = 'bold 11px "Courier Prime", monospace';
+        ctx.fillText('\u21e7 SHIFT + ' + wantLower.toUpperCase(), W / 2, sy + keyH / 2 + 0.5);
+    }
+
+    // ── the flanks ──────────────────────────────────────────────────────────
+    // ⚠️ CLIPPED TO THEIR OWN SIDE. A long stat line running under the board
+    // would sit behind the keys and read as corruption.
+    const flankW = originX - 14;
+    const drawFlank = (lines, xCenter, align) => {
+        if (!lines || !lines.length || flankW < 70) return;
+        ctx.textAlign = align;
+        const lh = Math.min(22, (height - 12) / Math.max(3, lines.length));
+        lines.forEach((ln, i) => {
+            ctx.font = (i === 0 ? 'bold ' : '') +
+                Math.max(11, Math.floor(lh * 0.62)) + 'px "Courier Prime", monospace';
+            ctx.fillStyle = i === 0 ? '#8fe8c8' : '#7f97ab';
+            ctx.fillText(ln, xCenter, top + 14 + i * lh);
+        });
+    };
+    drawFlank(o.left, 14, 'left');
+    drawFlank(o.right, W - 14, 'right');
+
+    if (o.progress != null && flankW >= 70) {
+        const bw = Math.min(160, flankW - 10);
+        const bx = W - 14 - bw;
+        const by = top + height - 22;
+        roundRect(ctx, bx, by, bw, 10, 5);
+        ctx.fillStyle = 'rgba(2,4,10,0.8)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(0,229,255,0.3)'; ctx.lineWidth = 1; ctx.stroke();
+        roundRect(ctx, bx + 1.5, by + 1.5, Math.max(0, (bw - 3) * Math.min(1, o.progress)), 7, 3.5);
+        ctx.fillStyle = o.progress >= 1 ? '#ffd700' : '#00e5ff'; ctx.fill();
+    }
+    ctx.restore();
+}
+
 export function fitCanvas(canvas, ctx) {
     const dpr = Math.min(3, window.devicePixelRatio || 1);
     const rect = canvas.getBoundingClientRect();
