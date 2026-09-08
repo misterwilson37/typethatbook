@@ -386,7 +386,6 @@ Everything else still open:
 - 34. ⚠️ THE LESSON-LEVEL MASTERY LOCK ONLY CLOSES WHEN EVERY RUN IS MASTERED
 - 42. ⚠️ NEARLY DONE — 13 ATTRIBUTES LEFT, NOT 183 (THIS HEADING WAS STALE FOR TWENTY ROUNDS) — AND THE THINGS THIS ITEM GOT WRONG  *(⚠️ Round 81 MEASURED it: 13 attributes, not 183 — the heading was stale for twenty rounds and Round 80 passed it forward. The remainder is runtime-conditional; what is left is a question for Jake, not a job)*
 - 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME  *(Jake ANSWERED it Round 57 — it is student-facing visibility, not a staff filter; read the item before starting)*
-- 53. ⚠️ HALF DONE — FEATURED SHIPPED (Round 80, Imperial), SEARCH STILL OPEN  *(newest-first, random-untyped fallback, per Jake's spec; search is unbuilt. ⚠️ Round 81 fixed the fallback's "untyped" half, which had never once run — read that block before touching renderFeatured())*
 - 54. ⚠️ BUILT AS AN OPTION (Round 83, Densmore) — DEFAULT-VS-OPTION IS STILL JAKE'S CALL  *(Jake asked, 2026-09-03; the read-cost question is answered and shipped as an opt-in sort — no live counter, no write on the student path — but whether it should ever become the default order is still open)*
 - 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
 - 60. ⭐ STAFF SHOULD SEE EVERY BOOK AND CHOOSE WHAT THEIR OWN STUDENTS SEE  *(Jake, Round 76. NOT BUILT — needs a ruling on allowlist vs blocklist, and the shelf is the read-budget surface)*
@@ -398,6 +397,7 @@ Everything else still open:
 
 ## ✅ DONE — kept for the reasoning, not for the task
 
+- 53. ✅ CLOSED (Round 80 Featured, Round 81 fix, Round 84 Remington's search) — A SEARCH BOX ON THE STACKS  *(newest-first, random-untyped Featured fallback, per Jake's spec; search is a plain title/author substring box, its own row above Genre, composed into the existing filter chain. ⚠️ Round 81 fixed the fallback's "untyped" half, which had never once run — read that block before touching renderFeatured())*
 - 58. ✅ CLOSED (Round 71 + Round 82, Crandall) — A CLASS CAN CHOOSE ITS OWN WEEK — Sat–Fri WAS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Round 71 collapsed six copies of the anchor rule to one; Round 82 made it configurable — class → school default → 6 — and shipped it in game.js, learn.js, admin.html's class editor, and reports.html per Jake's own no-modal ruling on mixed-class weeks, answered 2026-09-04)*
 
 - 49. ✅ FIXED (Round 58, Emerson) — A STALE HARD-STOP OVERLAY DEMANDED A KEY FROM A DELETED DRILL  *(⚠️ Caps Lock is ruled NOT-a-bug — do not "fix" the e.key comparison)*
@@ -6436,7 +6436,7 @@ is what §0.-37 spent a whole round undoing.
 
 ---
 
-## 53. ⚠️ HALF DONE — FEATURED SHIPPED (Round 80, Imperial), SEARCH STILL OPEN
+## 53. ✅ CLOSED (Round 80 Featured, Round 81 fix, Round 84 Remington's search) — A SEARCH BOX ON THE STACKS
 
 ### ⚠️⚠️ ROUND 81 (Fox) — THE "UNTYPED" HALF HAD NEVER ONCE RUN. FIXED
 
@@ -6552,6 +6552,53 @@ a building has hidden from students would defeat 45 on the page 45 exists to
 protect, and a search box is the most direct way to hand a child the title
 somebody chose to keep off the grid. **Whichever ships second must not undo the
 first.**
+
+---
+
+### ✅ CLOSED, Round 84 (Remington), 2026-09-08 — SEARCH SHIPPED
+
+**Placement resolved without either of Jake's own two suggestions.** He offered
+"beside the resume block" or "the side padding," both explicitly *"I dunno"* —
+but both depend on space that only exists SOMETIMES: the resume row has slack
+only when a student has fewer in-progress books than it has columns for, and
+the side padding only exists on a wide screen. **A control this central cannot
+come and go depending on how many books a student happens to be reading.**
+Shipped as its own `filter-bar` row, above Genre, present at every width — same
+footing as Ages/Lead and Sort already have below it. ⚠️⚠️ **RENDERED AND LOOKED
+AT before shipping** — Playwright was already present in this environment;
+built a fixture from the real, updated file (not a mockup) and screenshotted it
+at desktop and mobile widths, per this file's own rule that a layout round ends
+by looking at it rendered, not by reasoning about CSS in the abstract.
+
+* `index.html` **v3.21.0**: `matchesSearch(book)` — plain, case-insensitive
+  substring match against the RAW `title`/`author`, deliberately **not** run
+  through `titleSortKey()`/`authorSortKey()`, which strip leading articles and
+  fold surnames for ORDERING and would make "Grahame" fail to find "Kenneth
+  Grahame" the way a person actually searches. Composed into the *same* filter
+  pass as age and protagonist in `renderBooks()` — one array walk, not two —
+  and the "N hidden — no age range set" note now also respects an active
+  search, or it would report a count against books the search had already
+  excluded from view.
+* `.filter-search` is its **own** CSS class, not `.filter-select` — that rule
+  sets `cursor: pointer`, correct for a dropdown and visibly wrong for a text
+  box meant to be typed into. Same palette and shape, own `cursor: text` and
+  its own `.is-set` state, matching every other active filter control on the
+  page.
+* No debounce — the library is already fully in memory for every other filter
+  on this page (same reasoning `sortBooks()` already relies on), so filtering
+  on every keystroke costs nothing a debounce would be protecting against.
+* New harness `tests/search-test.mjs`, 23 assertions, 2 mutation-verified.
+  `tests/sort-test.mjs` needed one regex loosened (a line-break tolerance)
+  where `matchesSearch()` joining the filter predicate pushed an existing call
+  onto two lines — assertion intent unchanged.
+* Left alone, deliberately: Continue Reading and Featured are NOT filtered by
+  search — Jake's own framing treats those as serving the child who does
+  *not* know what they want, and search is for the one who does; filtering
+  them together would blur that distinction back together.
+* ⚠️ **ITEM 45/60 STILL APPLIES THE MOMENT EITHER IS BUILT.** Per-building
+  visibility doesn't exist yet, so there's nothing today for search to
+  accidentally bypass — but whenever it lands, search must keep filtering
+  *within* whatever building-scoped list that produces, never around it.
 
 ---
 

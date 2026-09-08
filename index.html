@@ -239,6 +239,17 @@
         }
         .filter-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
         .filter-select.is-set { border-color: var(--accent); color: var(--accent); }
+        /* ⚠️ ROADMAP 53. NOT .filter-select — that rule sets `cursor: pointer`,
+           right for a <select> and visibly wrong for a text box a student is
+           meant to click into and type in. Same palette, same shape, own rule. */
+        .filter-search {
+            background: #1c1c1c; color: #eee; border: 1px solid #444;
+            border-radius: 999px; padding: 6px 16px; font: inherit; font-size: 0.85rem;
+            cursor: text; width: 260px; max-width: 100%;
+        }
+        .filter-search::placeholder { color: #888; }
+        .filter-search:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+        .filter-search.is-set { border-color: var(--accent); color: var(--accent); }
         #filter-note {
             font-size: 0.78rem; color: #8a8a8a; margin: 2px 0 10px; min-height: 1.1em;
         }
@@ -506,6 +517,21 @@
             <h1>Choose Your Book</h1>
             <p>Pick a story and start typing — <a href="#" id="back-to-landing" style="color:var(--text-muted);">← back</a></p>
         </div>
+        <!-- ⚠️ ROADMAP 53. ITS OWN ROW, ABOVE THE FOUR EXISTING FILTER BARS —
+             Jake's own placement suggestions (beside the resume block, or the
+             side padding) both depend on space that only exists SOMETIMES:
+             the resume row has slack only when a student has fewer in-progress
+             books than the row has columns for, and the side padding only
+             exists on a wide screen. A control this central cannot come and
+             go depending on how many books a student happens to be reading.
+             This row exists always, at every width, exactly like Ages/Lead
+             and Sort below it. -->
+        <div class="filter-bar" id="search-bar">
+            <span class="filter-group-label">Search</span>
+            <input type="search" id="book-search" class="filter-search"
+                   placeholder="Title or author…" aria-label="Search the library by title or author">
+        </div>
+
         <div class="filter-bar" id="filter-bar">
             <button class="filter-pill active" data-genre="all">All</button>
         </div>
@@ -602,6 +628,40 @@
         // This page's own version. The <title> and footer are both written from
         // it, because they used to be hardcoded separately and had already
         // drifted apart (title said 3.0.0, footer said 2.3.1).
+        //
+        // v3.21.0: ⭐ ROADMAP 53 — A SEARCH BOX ON THE STACKS, FOR THE CHILD WHO
+        //         ALREADY KNOWS WHAT THEY WANT. Featured (v3.19.0) serves the
+        //         one who doesn't; this is the other half of the same item,
+        //         for a different reader, on Jake's own framing — "do not let
+        //         this become one feature."
+        //         ⚠️⚠️ PLACEMENT: NEITHER OF JAKE'S OWN TWO SUGGESTIONS. He
+        //         offered "beside the resume block" or "the side padding" —
+        //         both explicitly "I dunno" — but both depend on space that
+        //         only exists SOMETIMES: the resume row has slack only when a
+        //         student has fewer in-progress books than it has columns
+        //         for, and the side padding only exists on a wide screen. A
+        //         control this central cannot come and go by how many books
+        //         a student happens to be reading. Shipped as its own
+        //         filter-bar row, above Genre, at every width, same footing
+        //         as Ages/Lead and Sort below it — RENDERED AND LOOKED AT
+        //         with Playwright (already present in this environment)
+        //         before shipping, per this file's own "if a round touches
+        //         layout, look at it rendered" rule, not guessed from CSS.
+        //         ⚠️ .filter-search IS ITS OWN CLASS, NOT .filter-select —
+        //         that rule sets `cursor: pointer`, right for a dropdown and
+        //         visibly wrong for a text box meant to be typed into.
+        //         `matchesSearch()` is plain substring match on the RAW
+        //         title/author, deliberately NOT run through
+        //         titleSortKey()/authorSortKey() — those strip leading
+        //         articles and fold surnames for ORDERING, and would make
+        //         "Grahame" fail to find "Kenneth Grahame" the way a person
+        //         actually types a search. Composes into the SAME filter pass
+        //         as age and protagonist in renderBooks(), so it never needs
+        //         a second array walk, and the "N hidden — no age range set"
+        //         note now also respects an active search, or it would report
+        //         a count computed against books the search already excluded
+        //         from view. tests/search-test.mjs, 23 assertions, 2
+        //         mutation-verified.
         //
         // v3.20.0: ⭐ ROADMAP 54 — "MOST POPULAR" JOINS THE SORT CONTROL, AS AN
         //         OPTION, NOT THE DEFAULT. Jake's own text left "default order
@@ -710,7 +770,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.20.0";
+        const INDEX_VERSION = "3.21.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -807,6 +867,10 @@
         let userProgress = {};
         let activeGenre = "all";
         let activeProt  = "all";
+        // ⚠️ ROADMAP 53 — always lowercased at the point it's set, never at the
+        // point it's read, so matchesSearch() doesn't repeat that work on
+        // every book in the library on every keystroke.
+        let searchQuery = "";
         // null = "Any". The pair is the filter; either end alone still filters,
         // because an open end just means unbounded on that side.
         let ageMin = null, ageMax = null;
@@ -1233,6 +1297,23 @@
         function matchesProt(book) {
             if (activeProt === "all") return true;
             return book.protagonistGender === activeProt;
+        }
+
+        // ⚠️ ROADMAP 53 — THE HALF FEATURED WASN'T. Featured (v3.19.0) serves
+        // the child who doesn't know what they want; this serves the one who
+        // does. Plain substring, title OR author, case-insensitive — not run
+        // through titleSortKey()/authorSortKey(), which strip leading articles
+        // and fold surnames for ORDERING and would make "Grahame" fail to find
+        // "Kenneth Grahame" the way a person actually searches.
+        // ⚠️ OPERATES ON THE SAME LIST GENRE/AGE/LEAD ALREADY FILTERED TO
+        // (see renderBooks()) — ROADMAP 45/60's future per-building hide is
+        // not built yet, but whenever it is, this must keep filtering WITHIN
+        // whatever list that produces, never around it. A search box is the
+        // most direct way to hand a child a title a building chose to hide.
+        function matchesSearch(book) {
+            if (!searchQuery) return true;
+            return (book.title  && book.title.toLowerCase().includes(searchQuery)) ||
+                   (book.author && book.author.toLowerCase().includes(searchQuery));
         }
 
         function buildTagFilters() {
@@ -1758,7 +1839,8 @@
                 ? allBooks
                 : allBooks.filter(b => b.genre === activeGenre);
 
-            const filtered = sortBooks(byGenre.filter(b => matchesAge(b) && matchesProt(b)));
+            const filtered = sortBooks(
+                byGenre.filter(b => matchesSearch(b) && matchesAge(b) && matchesProt(b)));
 
             // The progress option only exists for someone who has progress. A guest
             // would get a control that reorders nothing, which reads as broken
@@ -1781,7 +1863,8 @@
             if (note) {
                 const ageOn = (ageMin !== null || ageMax !== null);
                 const hiddenUntagged = ageOn
-                    ? byGenre.filter(b => (b.minAge === null || b.maxAge === null) && matchesProt(b)).length
+                    ? byGenre.filter(b => (b.minAge === null || b.maxAge === null) &&
+                                          matchesSearch(b) && matchesProt(b)).length
                     : 0;
                 note.innerHTML = hiddenUntagged
                     ? `${hiddenUntagged} book${hiddenUntagged === 1 ? '' : 's'} ` +
@@ -2107,6 +2190,18 @@
             openAbout(id);
             return true;
         }
+
+        // --- SEARCH CONTROL ---
+        // ⚠️ ROADMAP 53. NO DEBOUNCE — the library is already fully in memory
+        // (the same array Sort/Genre/Age already filter with no read of their
+        // own), so filtering on every keystroke costs nothing a debounce would
+        // be protecting against. A DELAY here would be pure latency with no
+        // benefit behind it.
+        document.getElementById('book-search').addEventListener('input', (e) => {
+            searchQuery = e.target.value.trim().toLowerCase();
+            e.target.classList.toggle('is-set', searchQuery !== '');
+            renderBooks();
+        });
 
         // --- SORT CONTROL ---
         document.getElementById('sort-select').addEventListener('change', async (e) => {

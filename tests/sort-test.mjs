@@ -1,4 +1,9 @@
-// sort-test.mjs v1.0.1 — the library sort keys, tested against the ACTUAL
+// sort-test.mjs v1.0.2 — the library sort keys, tested against the ACTUAL
+//
+// v1.0.2 — ROADMAP 53. The renderBooks() ordering check now tolerates a line
+//          break between `sortBooks(` and `byGenre.filter` — matchesSearch()
+//          joining the filter predicate pushed that call onto two lines.
+//          Assertion intent unchanged: renderBooks() still owns the ordering.
 //
 // v1.0.1 — PATH ONLY, Round 17 (Linotype). This file moved from the repo root
 //          into tests/, so every source it reads is now `../` rather than `./`.
@@ -153,7 +158,10 @@ ok(F.lengthOf({}) === 0, 'a book with no chapter counts at all does not throw');
 // ── STRUCTURAL: the frozen load-time sort is gone ────────────────────────────
 ok(!/allBooks\.sort\(\(a, b\) => a\.title\.localeCompare\(b\.title\)\)/.test(html),
    'loadBooks() no longer freezes one order before the control can change it');
-ok(/sortBooks\(byGenre\.filter/.test(html), 'renderBooks() owns the ordering');
+// ⚠️ v1.0.2 — ROADMAP 53 wrapped this call onto two lines when matchesSearch()
+// joined the filter predicate; the regex now tolerates the line break between
+// sortBooks( and byGenre.filter rather than demanding they sit on one line.
+ok(/sortBooks\(\s*byGenre\.filter/.test(html), 'renderBooks() owns the ordering');
 
 if (fail) {
     console.log(`\nsort-test: ${pass} passed, ${fail} FAILED`);

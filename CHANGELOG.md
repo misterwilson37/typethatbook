@@ -1,5 +1,48 @@
 # CHANGELOG — TypeThatBook
 
+## Round 84 (Remington) — 2026-09-08 — a search box on the stacks, for the reader who already knows
+
+**Came in cold on Jake's instruction to keep going** — this closes out his own
+queue for the run-up to commit 1000 (week anchor, popular sort, book search),
+leaving only the three typing games still waiting on material that hasn't
+arrived. Ran `npm test` and `npm run audit:versions` before reading a line of
+prose — 80/80, 0 problems, Round 83's claim exact.
+
+### ⭐ SEARCH, PLACED WITHOUT EITHER OF JAKE'S OWN TWO SUGGESTIONS
+
+`index.html` **v3.21.0**. Jake, 2026-09-03: *"a search feature on the
+stacks... maybe to fill in blanks by resume? Or in the open padding on the
+left or right? I dunno."* Both suggestions depend on space that only exists
+sometimes — the resume row has slack only when a student has fewer
+in-progress books than it has columns for, and the side padding only exists
+on a wide screen. A control this central can't come and go by how many books
+a student happens to be reading. Shipped as its own filter-bar row, above
+Genre, at every width — same footing as Ages/Lead and Sort below it.
+
+⚠️⚠️ **Rendered and looked at, not guessed from CSS.** Playwright was already
+available in this environment; built a fixture from the real, updated file
+and screenshotted it at desktop and mobile widths before calling it done.
+
+`matchesSearch()` is a plain, case-insensitive substring match on the raw
+title/author — deliberately not run through `titleSortKey()`/
+`authorSortKey()`, which fold names and strip articles for ordering and would
+make "Grahame" fail to find "Kenneth Grahame." Composed into the same filter
+pass as age and protagonist, one array walk, not two. `.filter-search` is its
+own CSS class, not `.filter-select` — that rule sets `cursor: pointer`, right
+for a dropdown and visibly wrong for a text box. No debounce — the library is
+already fully in memory for every other filter on this page.
+
+Continue Reading and Featured are deliberately not filtered by search — Jake's
+own framing treats those as serving the child who doesn't know what they
+want, and blurring them back together would undo that distinction.
+
+### Bookkeeping
+
+New harness: `tests/search-test.mjs` (23 assertions, 2 mutation-verified),
+registered. `tests/sort-test.mjs` had one regex loosened for a line break
+`matchesSearch()` introduced into an existing call — assertion intent
+unchanged. 81/81 harnesses pass; `npm run audit:versions` 0 problems.
+
 ## Round 83 (Densmore) — 2026-09-07 — library popularity, derived from writes that already happen
 
 **Came in cold on Jake's instruction to keep going with his own queue** — week

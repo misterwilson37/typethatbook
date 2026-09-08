@@ -1,6 +1,107 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-07 by Round 83 (Densmore), for whoever is next
+> ## ▶ START HERE — written 2026-09-08 by Round 84 (Remington), for whoever is next
+>
+> ⚠️⚠️ **ROADMAP 53 IS NOW FULLY CLOSED — SEARCH SHIPPED, AND JAKE'S OWN QUEUE
+> FOR THE RUN-UP TO COMMIT 1000 IS DONE.** Came in cold, read the handoff and
+> the roadmap, ran `npm test` and `npm run audit:versions` before reading a
+> line of prose — **80/80, 0 problems; Round 83's claim was exact.** His
+> queue was: week anchor (Round 82) → popular sort (Round 83) → book search
+> (**this round**) → three typing games at commit 1000. **All three
+> non-game items are shipped. The games are the only thing left before 1000,
+> and the material for them still has not arrived.**
+>
+> ### 1. ⭐ A SEARCH BOX ON THE STACKS, PLACED WITHOUT EITHER OF JAKE'S OWN SUGGESTIONS
+>
+> `index.html` **v3.21.0**. Jake, 2026-09-03: *"a search feature on the
+> stacks... maybe to fill in blanks by resume? Or in the open padding on the
+> left or right? I dunno."* Both of his own candidates depend on space that
+> only exists SOMETIMES — the resume row has slack only when a student has
+> fewer in-progress books than it has columns for, and the side padding only
+> exists on a wide screen. ⚠️⚠️ **A CONTROL THIS CENTRAL CANNOT COME AND GO
+> DEPENDING ON HOW MANY BOOKS A STUDENT HAPPENS TO BE READING.** Shipped as
+> its own `filter-bar` row, above Genre, present at every width — same
+> footing Ages/Lead and Sort already have below it. Neither of his two
+> "I dunno" suggestions; a third option that doesn't have the failure mode
+> either one did.
+>
+> ⚠️⚠️ **RENDERED AND LOOKED AT, NOT GUESSED FROM CSS.** Playwright was
+> already present in this environment (`/home/claude/.npm-global`) — built a
+> fixture from the REAL, updated file (not a mockup) and screenshotted it at
+> desktop and mobile widths before calling this done, per this file's own
+> "if a round touches layout, look at it rendered" rule. **Worth knowing
+> for the next round that hits a layout item**: this environment can do
+> that now; it doesn't have to be guessed and left for Jake to catch.
+>
+> `matchesSearch()` is a plain, case-insensitive substring match on the RAW
+> `title`/`author` — deliberately **not** run through `titleSortKey()`/
+> `authorSortKey()`, which strip leading articles and fold surnames for
+> ORDERING and would make "Grahame" fail to find "Kenneth Grahame" the way a
+> person actually types a search. Composed into the SAME filter pass as age
+> and protagonist in `renderBooks()`, one array walk, not two. `.filter-search`
+> is its own CSS class, not `.filter-select` — that rule sets `cursor:
+> pointer`, right for a dropdown and wrong for a text box, exactly the kind
+> of "slightly off" mismatch Jake has flagged before. No debounce — the
+> library's already fully in memory for every other filter on this page.
+>
+> ⚠️ Continue Reading and Featured are **NOT** filtered by search, on
+> purpose — Jake's own framing treats those as serving the child who doesn't
+> know what they want, search is for the one who does, and filtering them
+> together blurs that distinction back out. ⚠️ ITEM 45/60 (per-building
+> visibility) still doesn't exist, so there's nothing today for search to
+> bypass — but whenever it's built, search must keep filtering WITHIN
+> whatever list that produces, never around it.
+>
+> New harness `tests/search-test.mjs`, 23 assertions, 2 mutation-verified.
+> `tests/sort-test.mjs` needed one regex loosened for a line break
+> `matchesSearch()` introduced into an existing call — assertion intent
+> unchanged, confirmed by re-running it.
+>
+> ### THE STATE OF PLAY
+>
+> * **81 harnesses pass, `audit:versions` 0 problems** — one new harness this
+>   round (`search-test.mjs`), registered. ⚠️ `test:rules` not run; nothing
+>   here touches `firestore.rules`.
+> * **Expected stamps:** `index.html` **v3.21.0**, `versions.js` **v1.17.0**,
+>   `admin.html` **v1.23.0**, `admin.js` **v3.54.1**, `lessons-admin.js`
+>   **v1.22.0**, `reports.html` **v1.10.0** (its REPORTS_VERSION module
+>   constant is separately at 2.40.0), `staff-admin.js` **v2.4.0**, `game.js`
+>   **v3.50.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.9.0**,
+>   `firebase/firestore.rules` **v2.12.0** — **Jake confirmed this is
+>   published to the live console**, not just committed here.
+>   `lesson-gate.js` **v1.2.0**, `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**.
+> * ⚠️ **`style.css` v3.10.0 is STILL correctly unshipped** — Jake rejected it
+>   rendered. Do not ship it.
+> * ⚠️ **`functions/index.js` v1.7.1 is live** — Jake mirrored it into the Cloud
+>   Run console himself during Round 80, on Node 24.
+> * ⚠️ **CHANGELOG.md now has no Round 56, 58 or 80 entry.** Three gaps. Not
+>   reconstructed, for the reason already recorded: writing someone else's round
+>   from their ROADMAP summaries produces a plausible document, not a true one.
+> * ⚠️ **The reads measurement has still never been taken.** It is the item that
+>   decides the county rollout, and it needs one ordinary school day on a
+>   shipped build.
+> * ⭐⭐⭐ **JAKE'S OWN QUEUE FOR THE RUN-UP TO COMMIT 1000 IS COMPLETE:** week
+>   anchor (Round 82) → popular sort (Round 83) → book search (Round 84,
+>   this one). **The three typing games he wants at commit 1000 are the only
+>   thing left, and the material for them — code, a doc, screenshots, even
+>   just a description of each game — still has not been shared with this
+>   repo or any round.** ⚠️⚠️ **DO NOT GUESS AT THE GAMES.** Every prior
+>   mention of this work, across every past conversation, stayed at "his two
+>   games" / "his game plans" without either side pinning down mechanics,
+>   and it went from two to three at some point without either side noticing
+>   until it was said aloud. Ask for whatever he has before writing a line
+>   toward them — a guess that doesn't match what he and Gemini actually
+>   built would waste the exact milestone commit he's treating this as.
+> * ⚠️⚠️ **HE HAS TABLED, EXPLICITLY:** the mastery-lock workaround (needs him to
+>   watch a child, *"that's not going to happen"*), and staff book allowlists
+>   (*"I don't even see the other guy, and he hasn't asked for it"*). **Do not
+>   re-raise either.**
+> * ⚠️⚠️ **STOP TALKING TO JAKE IN ITEM NUMBERS.** Say what a thing IS, in
+>   plain English, every time.
+> * ⚠️⚠️ **BEFORE BUILDING FOR ANY FLAG, MEASURE OR RE-READ IT.** Round 81 found
+>   THREE stale ones in a day. **§ CONVENTIONS' rule is not decoration.**
+
+> ## ▶ Round 83 (Densmore) — the previous block, kept
 >
 > ⚠️⚠️ **ROADMAP 54 IS BUILT — LIBRARY POPULARITY, DERIVED FROM WRITES THAT
 > ALREADY HAPPEN, WITH NO NEW COST ON THE STUDENT PATH.** Came in cold, read
