@@ -1,7 +1,7 @@
 {
   "source": "typethatbook/lessons",
-  "exportedAt": "2026-09-08T09:53:35.164Z",
-  "exporterVersion": "1.21.0",
+  "exportedAt": "2026-09-08T13:20:58.312Z",
+  "exporterVersion": "1.22.0",
   "lessonCount": 47,
   "lessons": [
     {
@@ -32,23 +32,23 @@
       },
       "steps": [
         {
-          "id": "s1",
-          "type": "key_pattern",
           "text": "fjfj jfjf fjfj jfjf ffjj jjff fjfj jfjf ff jj fj jf",
           "anchorEnforced": true,
-          "label": "New Keys — Pattern"
+          "type": "key_pattern",
+          "label": "New Keys — Pattern",
+          "id": "s1"
         },
         {
-          "anchorEnforced": true,
-          "id": "s2",
           "groupCount": 12,
           "label": "New Keys — Random",
-          "type": "key_random",
           "groupSize": 4,
+          "type": "key_random",
           "keySet": [
             "f",
             "j"
-          ]
+          ],
+          "id": "s2",
+          "anchorEnforced": true
         }
       ]
     },
@@ -77,42 +77,42 @@
         ";"
       ],
       "gates": {
-        "minWPM": 10,
-        "minAccuracy": 90
+        "minAccuracy": 90,
+        "minWPM": 10
       },
       "steps": [
         {
-          "label": "New Keys — Pattern",
           "anchorEnforced": true,
-          "text": "dkdk kdkd ddkk kkdd dkdk kdkd ddk kdd dkk kdd",
+          "label": "New Keys — Pattern",
           "type": "key_pattern",
+          "text": "dkdk kdkd ddkk kkdd dkdk kdkd ddk kdd dkk kdd",
           "id": "s1"
         },
         {
           "id": "s2",
+          "label": "New Keys — Random",
+          "groupSize": 4,
+          "type": "key_random",
+          "groupCount": 12,
           "keySet": [
             "d",
             "k"
           ],
-          "type": "key_random",
-          "groupSize": 4,
-          "anchorEnforced": true,
-          "groupCount": 12,
-          "label": "New Keys — Random"
+          "anchorEnforced": true
         },
         {
           "label": "All Keys So Far",
           "type": "key_random",
+          "groupCount": 12,
+          "id": "s3",
+          "groupSize": 5,
           "keySet": [
             "f",
             "d",
             "j",
             "k"
           ],
-          "anchorEnforced": false,
-          "groupCount": 12,
-          "groupSize": 5,
-          "id": "s3"
+          "anchorEnforced": false
         }
       ]
     },
@@ -153,26 +153,24 @@
           "anchorEnforced": true,
           "id": "s1",
           "type": "key_pattern",
-          "text": "slsl lsls ssll llss slsl lsls ssl lls sll lss",
-          "label": "New Keys — Pattern"
+          "label": "New Keys — Pattern",
+          "text": "slsl lsls ssll llss slsl lsls ssl lls sll lss"
         },
         {
           "label": "New Keys — Random",
-          "id": "s2",
+          "anchorEnforced": true,
           "type": "key_random",
+          "id": "s2",
           "keySet": [
             "s",
             "l"
           ],
-          "groupCount": 12,
           "groupSize": 4,
-          "anchorEnforced": true
+          "groupCount": 12
         },
         {
-          "label": "All Keys So Far",
-          "groupSize": 5,
-          "id": "s3",
-          "type": "key_random",
+          "groupCount": 12,
+          "anchorEnforced": false,
           "keySet": [
             "f",
             "d",
@@ -181,8 +179,10 @@
             "k",
             "l"
           ],
-          "anchorEnforced": false,
-          "groupCount": 12
+          "type": "key_random",
+          "label": "All Keys So Far",
+          "groupSize": 5,
+          "id": "s3"
         }
       ]
     },
@@ -215,35 +215,33 @@
         "l"
       ],
       "gates": {
-        "minWPM": 10,
-        "minAccuracy": 90
+        "minAccuracy": 90,
+        "minWPM": 10
       },
       "steps": [
         {
-          "anchorEnforced": true,
           "id": "s1",
           "label": "New Keys — Pattern",
-          "text": "a;a; ;a;a aa;; ;;aa a;a; ;a;a a;; ;aa a;;a ;aa;",
-          "type": "key_pattern"
+          "anchorEnforced": true,
+          "type": "key_pattern",
+          "text": "a;a; ;a;a aa;; ;;aa a;a; ;a;a a;; ;aa a;;a ;aa;"
         },
         {
-          "groupCount": 12,
-          "label": "New Keys — Random",
           "id": "s2",
           "groupSize": 4,
-          "type": "key_random",
           "anchorEnforced": true,
+          "groupCount": 12,
+          "type": "key_random",
           "keySet": [
             "a",
             ";"
-          ]
+          ],
+          "label": "New Keys — Random"
         },
         {
+          "id": "s3",
           "anchorEnforced": false,
           "groupCount": 14,
-          "id": "s3",
-          "groupSize": 5,
-          "type": "key_random",
           "keySet": [
             "a",
             "s",
@@ -254,6 +252,8 @@
             "l",
             ";"
           ],
+          "groupSize": 5,
+          "type": "key_random",
           "label": "Full Home Row"
         }
       ]
@@ -282,12 +282,12 @@
       },
       "steps": [
         {
-          "label": "Home Row — Random",
           "anchorEnforced": false,
-          "type": "key_random",
           "id": "s1",
-          "groupCount": 16,
+          "type": "key_random",
           "groupSize": 5,
+          "groupCount": 16,
+          "label": "Home Row — Random",
           "keySet": [
             "a",
             "s",
@@ -300,11 +300,6 @@
           ]
         },
         {
-          "groupCount": 18,
-          "label": "Home Row — Longer Run",
-          "groupSize": 6,
-          "type": "key_random",
-          "id": "s2",
           "anchorEnforced": false,
           "keySet": [
             "a",
@@ -315,7 +310,12 @@
             "k",
             "l",
             ";"
-          ]
+          ],
+          "type": "key_random",
+          "id": "s2",
+          "groupCount": 18,
+          "label": "Home Row — Longer Run",
+          "groupSize": 6
         }
       ]
     },
@@ -355,35 +355,36 @@
       },
       "steps": [
         {
+          "groupCount": 10,
           "type": "key_pattern_auto",
-          "label": "New Keys — Pattern",
+          "id": "s1",
           "anchorEnforced": true,
           "keySet": [
             "g",
             "h"
           ],
-          "groupCount": 10,
-          "id": "s1",
-          "groupSize": 4
+          "groupSize": 4,
+          "label": "New Keys — Pattern"
         },
         {
-          "id": "s2",
-          "type": "key_random",
-          "label": "New Keys — Random",
           "anchorEnforced": true,
-          "groupSize": 4,
-          "groupCount": 12,
           "keySet": [
             "g",
             "h"
-          ]
+          ],
+          "id": "s2",
+          "type": "key_random",
+          "label": "New Keys — Random",
+          "groupCount": 12,
+          "groupSize": 4
         },
         {
-          "groupCount": 14,
           "anchorEnforced": false,
-          "id": "s3",
           "type": "key_random",
+          "groupCount": 14,
+          "label": "All Keys So Far",
           "groupSize": 5,
+          "id": "s3",
           "keySet": [
             "a",
             "s",
@@ -395,8 +396,7 @@
             "k",
             "l",
             ";"
-          ],
-          "label": "All Keys So Far"
+          ]
         }
       ]
     },
@@ -438,36 +438,36 @@
       },
       "steps": [
         {
-          "label": "New Keys — Pattern",
           "id": "s1",
-          "groupSize": 4,
-          "groupCount": 10,
+          "label": "New Keys — Pattern",
           "type": "key_pattern_auto",
-          "anchorEnforced": true,
-          "keySet": [
-            "t",
-            "y"
-          ]
-        },
-        {
+          "groupCount": 10,
           "keySet": [
             "t",
             "y"
           ],
-          "type": "key_random",
-          "label": "New Keys — Random",
-          "groupCount": 12,
           "anchorEnforced": true,
-          "id": "s2",
           "groupSize": 4
         },
         {
+          "groupCount": 12,
+          "groupSize": 4,
+          "keySet": [
+            "t",
+            "y"
+          ],
+          "id": "s2",
+          "anchorEnforced": true,
+          "type": "key_random",
+          "label": "New Keys — Random"
+        },
+        {
+          "groupSize": 5,
           "groupCount": 14,
           "anchorEnforced": false,
-          "groupSize": 5,
-          "label": "All Keys So Far",
           "id": "s3",
           "type": "key_random",
+          "label": "All Keys So Far",
           "keySet": [
             "a",
             "s",
@@ -525,30 +525,32 @@
       },
       "steps": [
         {
-          "type": "key_pattern_auto",
-          "keySet": [
-            "r",
-            "u"
-          ],
-          "id": "s1",
-          "label": "New Keys — Pattern",
+          "groupSize": 4,
           "groupCount": 10,
-          "anchorEnforced": true,
-          "groupSize": 4
-        },
-        {
-          "label": "New Keys — Random",
-          "anchorEnforced": true,
-          "type": "key_random",
-          "id": "s2",
-          "groupCount": 12,
           "keySet": [
             "r",
             "u"
           ],
-          "groupSize": 4
+          "anchorEnforced": true,
+          "id": "s1",
+          "type": "key_pattern_auto",
+          "label": "New Keys — Pattern"
         },
         {
+          "keySet": [
+            "r",
+            "u"
+          ],
+          "label": "New Keys — Random",
+          "groupCount": 12,
+          "id": "s2",
+          "type": "key_random",
+          "groupSize": 4,
+          "anchorEnforced": true
+        },
+        {
+          "anchorEnforced": false,
+          "groupCount": 14,
           "keySet": [
             "a",
             "s",
@@ -565,12 +567,10 @@
             "r",
             "u"
           ],
-          "groupCount": 14,
-          "groupSize": 5,
-          "type": "key_random",
           "id": "s3",
-          "anchorEnforced": false,
-          "label": "All Keys So Far"
+          "label": "All Keys So Far",
+          "type": "key_random",
+          "groupSize": 5
         }
       ]
     },
@@ -616,31 +616,32 @@
       },
       "steps": [
         {
-          "keySet": [
-            "b",
-            "n"
-          ],
           "anchorEnforced": true,
           "groupSize": 4,
-          "id": "s1",
           "groupCount": 10,
+          "type": "key_pattern_auto",
+          "id": "s1",
           "label": "New Keys — Pattern",
-          "type": "key_pattern_auto"
+          "keySet": [
+            "b",
+            "n"
+          ]
         },
         {
-          "anchorEnforced": true,
-          "id": "s2",
+          "groupSize": 4,
           "keySet": [
             "b",
             "n"
           ],
-          "groupSize": 4,
           "label": "New Keys — Random",
+          "anchorEnforced": true,
+          "groupCount": 12,
           "type": "key_random",
-          "groupCount": 12
+          "id": "s2"
         },
         {
-          "groupSize": 5,
+          "label": "All Keys So Far",
+          "type": "key_random",
           "keySet": [
             "a",
             "s",
@@ -659,11 +660,10 @@
             "b",
             "n"
           ],
-          "groupCount": 14,
-          "type": "key_random",
-          "id": "s3",
           "anchorEnforced": false,
-          "label": "All Keys So Far"
+          "id": "s3",
+          "groupCount": 14,
+          "groupSize": 5
         }
       ]
     },
@@ -694,12 +694,14 @@
       ],
       "anchorKeys": [],
       "gates": {
-        "minAccuracy": 88,
-        "minWPM": 14
+        "minWPM": 14,
+        "minAccuracy": 88
       },
       "steps": [
         {
-          "groupSize": 5,
+          "label": "Index Synthesis — Round 1",
+          "type": "key_random",
+          "groupCount": 18,
           "keySet": [
             "a",
             "s",
@@ -718,17 +720,13 @@
             "b",
             "n"
           ],
-          "label": "Index Synthesis — Round 1",
+          "groupSize": 5,
           "anchorEnforced": false,
-          "id": "s1",
-          "groupCount": 18,
-          "type": "key_random"
+          "id": "s1"
         },
         {
-          "groupSize": 6,
           "id": "s2",
           "groupCount": 18,
-          "label": "Index Synthesis — Round 2",
           "keySet": [
             "a",
             "s",
@@ -747,8 +745,10 @@
             "b",
             "n"
           ],
+          "anchorEnforced": false,
           "type": "key_random",
-          "anchorEnforced": false
+          "groupSize": 6,
+          "label": "Index Synthesis — Round 2"
         }
       ]
     },
@@ -789,37 +789,40 @@
         "j"
       ],
       "gates": {
-        "minWPM": 15,
-        "minAccuracy": 85
+        "minAccuracy": 85,
+        "minWPM": 15
       },
       "steps": [
         {
-          "anchorEnforced": true,
-          "groupCount": 10,
-          "label": "New Keys — Pattern",
+          "type": "key_pattern_auto",
           "groupSize": 4,
           "id": "s1",
-          "type": "key_pattern_auto",
-          "keySet": [
-            "e",
-            "i"
-          ]
-        },
-        {
-          "label": "New Keys — Random",
-          "groupCount": 12,
-          "groupSize": 4,
-          "type": "key_random",
-          "anchorEnforced": true,
           "keySet": [
             "e",
             "i"
           ],
-          "id": "s2"
+          "label": "New Keys — Pattern",
+          "anchorEnforced": true,
+          "groupCount": 10
         },
         {
-          "groupCount": 16,
+          "keySet": [
+            "e",
+            "i"
+          ],
+          "groupCount": 12,
+          "id": "s2",
+          "label": "New Keys — Random",
+          "groupSize": 4,
+          "type": "key_random",
+          "anchorEnforced": true
+        },
+        {
+          "id": "s3",
+          "anchorEnforced": false,
           "groupSize": 5,
+          "groupCount": 16,
+          "type": "key_random",
           "label": "All Keys So Far",
           "keySet": [
             "a",
@@ -840,13 +843,10 @@
             "n",
             "e",
             "i"
-          ],
-          "id": "s3",
-          "anchorEnforced": false,
-          "type": "key_random"
+          ]
         },
         {
-          "label": "Word Practice",
+          "id": "s4",
           "anchorEnforced": false,
           "words": [
             "the",
@@ -906,8 +906,8 @@
             "burn",
             "stern"
           ],
-          "id": "s4",
-          "type": "word_list"
+          "type": "word_list",
+          "label": "Word Practice"
         }
       ]
     },
@@ -956,27 +956,27 @@
       "steps": [
         {
           "type": "key_pattern_auto",
-          "groupSize": 4,
           "id": "s1",
-          "anchorEnforced": true,
           "keySet": [
             "w",
             "o"
           ],
           "groupCount": 10,
-          "label": "New Keys — Pattern"
+          "anchorEnforced": true,
+          "label": "New Keys — Pattern",
+          "groupSize": 4
         },
         {
-          "label": "New Keys — Random",
+          "groupSize": 4,
           "id": "s2",
           "keySet": [
             "w",
             "o"
           ],
-          "type": "key_random",
-          "groupSize": 4,
           "anchorEnforced": true,
-          "groupCount": 12
+          "groupCount": 12,
+          "type": "key_random",
+          "label": "New Keys — Random"
         },
         {
           "anchorEnforced": false,
@@ -1002,15 +1002,16 @@
             "w",
             "o"
           ],
+          "label": "All Keys So Far",
           "groupCount": 16,
-          "id": "s3",
-          "type": "key_random",
           "groupSize": 5,
-          "label": "All Keys So Far"
+          "type": "key_random",
+          "id": "s3"
         },
         {
-          "label": "Word Practice",
           "type": "word_list",
+          "id": "s4",
+          "label": "Word Practice",
           "words": [
             "word",
             "work",
@@ -1051,8 +1052,7 @@
             "shore",
             "snore"
           ],
-          "anchorEnforced": false,
-          "id": "s4"
+          "anchorEnforced": false
         }
       ]
     },
@@ -1092,8 +1092,9 @@
       },
       "steps": [
         {
-          "id": "s1",
           "type": "word_list",
+          "label": "Word Drill",
+          "id": "s1",
           "words": [
             "the",
             "then",
@@ -1136,14 +1137,13 @@
             "shook",
             "shift"
           ],
-          "anchorEnforced": false,
-          "label": "Word Drill"
+          "anchorEnforced": false
         },
         {
           "anchorEnforced": false,
-          "label": "Sentence Practice",
-          "type": "sentence_list",
           "id": "s2",
+          "type": "sentence_list",
+          "label": "Sentence Practice",
           "sentences": [
             "robin found an old door at the end of the long street.",
             "it had been there for as long as she knew.",
@@ -1198,35 +1198,36 @@
         "l"
       ],
       "gates": {
-        "minAccuracy": 85,
-        "minWPM": 15
+        "minWPM": 15,
+        "minAccuracy": 85
       },
       "steps": [
         {
           "label": "New Keys — Pattern",
-          "id": "s1",
+          "keySet": [
+            "q",
+            "p"
+          ],
+          "type": "key_pattern_auto",
+          "anchorEnforced": true,
           "groupCount": 10,
+          "groupSize": 4,
+          "id": "s1"
+        },
+        {
           "anchorEnforced": true,
           "groupSize": 4,
-          "type": "key_pattern_auto",
+          "type": "key_random",
+          "label": "New Keys — Random",
+          "id": "s2",
+          "groupCount": 12,
           "keySet": [
             "q",
             "p"
           ]
         },
         {
-          "type": "key_random",
-          "anchorEnforced": true,
-          "groupCount": 12,
-          "keySet": [
-            "q",
-            "p"
-          ],
-          "label": "New Keys — Random",
-          "groupSize": 4,
-          "id": "s2"
-        },
-        {
+          "groupCount": 16,
           "keySet": [
             "a",
             "s",
@@ -1251,17 +1252,15 @@
             "q",
             "p"
           ],
-          "type": "key_random",
-          "groupCount": 16,
-          "label": "All Keys So Far",
+          "id": "s3",
           "groupSize": 5,
+          "type": "key_random",
           "anchorEnforced": false,
-          "id": "s3"
+          "label": "All Keys So Far"
         },
         {
-          "label": "Word Practice",
-          "type": "word_list",
           "id": "s4",
+          "anchorEnforced": false,
           "words": [
             "quite",
             "quiet",
@@ -1320,7 +1319,8 @@
             "trade",
             "plant"
           ],
-          "anchorEnforced": false
+          "type": "word_list",
+          "label": "Word Practice"
         }
       ]
     },
@@ -1367,16 +1367,28 @@
         "l"
       ],
       "gates": {
-        "minAccuracy": 85,
-        "minWPM": 15
+        "minWPM": 15,
+        "minAccuracy": 85
       },
       "steps": [
         {
-          "label": "New Keys — Pattern",
-          "type": "key_pattern_auto",
-          "groupCount": 10,
-          "groupSize": 4,
           "id": "s1",
+          "groupCount": 10,
+          "keySet": [
+            "z",
+            "/"
+          ],
+          "type": "key_pattern_auto",
+          "label": "New Keys — Pattern",
+          "groupSize": 4,
+          "anchorEnforced": true
+        },
+        {
+          "groupSize": 4,
+          "label": "New Keys — Random",
+          "id": "s2",
+          "type": "key_random",
+          "groupCount": 12,
           "keySet": [
             "z",
             "/"
@@ -1384,18 +1396,7 @@
           "anchorEnforced": true
         },
         {
-          "groupSize": 4,
-          "type": "key_random",
-          "keySet": [
-            "z",
-            "/"
-          ],
-          "id": "s2",
-          "anchorEnforced": true,
-          "label": "New Keys — Random",
-          "groupCount": 12
-        },
-        {
+          "groupSize": 5,
           "keySet": [
             "a",
             "s",
@@ -1423,13 +1424,15 @@
             "/"
           ],
           "type": "key_random",
-          "anchorEnforced": false,
-          "id": "s3",
-          "groupCount": 16,
           "label": "All Keys So Far",
-          "groupSize": 5
+          "groupCount": 16,
+          "id": "s3",
+          "anchorEnforced": false
         },
         {
+          "anchorEnforced": false,
+          "label": "Word Practice",
+          "type": "word_list",
           "words": [
             "zone",
             "zero",
@@ -1480,10 +1483,7 @@
             "zipper",
             "zoning"
           ],
-          "type": "word_list",
-          "anchorEnforced": false,
-          "id": "s4",
-          "label": "Word Practice"
+          "id": "s4"
         }
       ]
     },
@@ -1537,36 +1537,33 @@
       },
       "steps": [
         {
-          "label": "New Keys — Pattern",
-          "id": "s1",
-          "type": "key_pattern_auto",
+          "groupCount": 10,
           "keySet": [
             "v",
             "m"
           ],
-          "groupCount": 10,
+          "type": "key_pattern_auto",
           "groupSize": 4,
+          "id": "s1",
+          "label": "New Keys — Pattern",
           "anchorEnforced": true
         },
         {
           "anchorEnforced": true,
           "groupCount": 12,
-          "groupSize": 4,
           "type": "key_random",
+          "id": "s2",
+          "label": "New Keys — Random",
+          "groupSize": 4,
           "keySet": [
             "v",
             "m"
-          ],
-          "id": "s2",
-          "label": "New Keys — Random"
+          ]
         },
         {
           "label": "All Keys So Far",
-          "id": "s3",
           "type": "key_random",
-          "groupSize": 5,
           "anchorEnforced": false,
-          "groupCount": 16,
           "keySet": [
             "a",
             "s",
@@ -1594,7 +1591,10 @@
             "/",
             "v",
             "m"
-          ]
+          ],
+          "groupSize": 5,
+          "id": "s3",
+          "groupCount": 16
         },
         {
           "words": [
@@ -1663,12 +1663,15 @@
             "stem",
             "storm"
           ],
-          "type": "word_list",
-          "anchorEnforced": false,
+          "label": "Word Practice",
           "id": "s4",
-          "label": "Word Practice"
+          "anchorEnforced": false,
+          "type": "word_list"
         },
         {
+          "label": "Sentence Practice",
+          "id": "s5",
+          "anchorEnforced": false,
           "type": "sentence_list",
           "sentences": [
             "the following day robin went to the door and found an old map.",
@@ -1679,10 +1682,7 @@
             "it said to push at the base of the door to get it to open.",
             "robin pushed at the base and felt something give way inside.",
             "she got down on her knees and began to dig away the dirt."
-          ],
-          "id": "s5",
-          "label": "Sentence Practice",
-          "anchorEnforced": false
+          ]
         }
       ]
     },
@@ -1738,33 +1738,35 @@
       },
       "steps": [
         {
+          "anchorEnforced": true,
+          "keySet": [
+            "c",
+            ","
+          ],
           "type": "key_pattern_auto",
-          "groupSize": 4,
           "label": "New Keys — Pattern",
-          "id": "s1",
           "groupCount": 10,
-          "keySet": [
-            "c",
-            ","
-          ],
-          "anchorEnforced": true
-        },
-        {
           "groupSize": 4,
-          "groupCount": 12,
-          "type": "key_random",
-          "id": "s2",
+          "id": "s1"
+        },
+        {
           "label": "New Keys — Random",
+          "anchorEnforced": true,
+          "groupSize": 4,
+          "type": "key_random",
           "keySet": [
             "c",
             ","
           ],
-          "anchorEnforced": true
+          "groupCount": 12,
+          "id": "s2"
         },
         {
-          "groupSize": 5,
           "type": "key_random",
+          "id": "s3",
           "label": "All Keys So Far",
+          "groupSize": 5,
+          "anchorEnforced": false,
           "keySet": [
             "a",
             "s",
@@ -1795,15 +1797,11 @@
             "c",
             ","
           ],
-          "groupCount": 16,
-          "anchorEnforced": false,
-          "id": "s3"
+          "groupCount": 16
         },
         {
-          "label": "Word Practice",
-          "id": "s4",
-          "type": "word_list",
           "anchorEnforced": false,
+          "id": "s4",
           "words": [
             "can",
             "cap",
@@ -1860,13 +1858,12 @@
             "attic",
             "fabric",
             "arctic"
-          ]
+          ],
+          "label": "Word Practice",
+          "type": "word_list"
         },
         {
-          "label": "Sentence Practice",
           "type": "sentence_list",
-          "id": "s5",
-          "anchorEnforced": false,
           "sentences": [
             "robin pushed hard at the base, and the door moved inward with a soft creak.",
             "inside, she found a garden that had grown wild for what seemed like years.",
@@ -1876,7 +1873,10 @@
             "robin took one careful step forward, then another, then one more.",
             "the garden was overgrown, but it was also beautiful in its own wild way.",
             "she decided to keep the garden a secret, at least for a little while."
-          ]
+          ],
+          "anchorEnforced": false,
+          "id": "s5",
+          "label": "Sentence Practice"
         }
       ]
     },
@@ -1929,35 +1929,40 @@
         "k"
       ],
       "gates": {
-        "minAccuracy": 85,
-        "minWPM": 18
+        "minWPM": 18,
+        "minAccuracy": 85
       },
       "steps": [
         {
-          "id": "s1",
           "anchorEnforced": true,
-          "groupCount": 10,
-          "type": "key_pattern_auto",
-          "keySet": [
-            "x",
-            "."
-          ],
-          "label": "New Keys — Pattern",
-          "groupSize": 4
-        },
-        {
-          "groupCount": 12,
           "groupSize": 4,
           "keySet": [
             "x",
             "."
           ],
-          "id": "s2",
-          "type": "key_random",
-          "anchorEnforced": true,
-          "label": "New Keys — Random"
+          "groupCount": 10,
+          "id": "s1",
+          "type": "key_pattern_auto",
+          "label": "New Keys — Pattern"
         },
         {
+          "groupSize": 4,
+          "groupCount": 12,
+          "anchorEnforced": true,
+          "type": "key_random",
+          "label": "New Keys — Random",
+          "id": "s2",
+          "keySet": [
+            "x",
+            "."
+          ]
+        },
+        {
+          "anchorEnforced": false,
+          "groupCount": 16,
+          "id": "s3",
+          "label": "All Keys So Far",
+          "groupSize": 5,
           "keySet": [
             "a",
             "s",
@@ -1990,15 +1995,12 @@
             "x",
             "."
           ],
-          "groupSize": 5,
-          "id": "s3",
-          "type": "key_random",
-          "anchorEnforced": false,
-          "groupCount": 16,
-          "label": "All Keys So Far"
+          "type": "key_random"
         },
         {
           "anchorEnforced": false,
+          "label": "Word Practice",
+          "type": "word_list",
           "words": [
             "box",
             "fox",
@@ -2049,12 +2051,9 @@
             "extreme",
             "complex"
           ],
-          "id": "s4",
-          "type": "word_list",
-          "label": "Word Practice"
+          "id": "s4"
         },
         {
-          "id": "s5",
           "sentences": [
             "the next morning, robin brought her notebook to sketch what she had found.",
             "she fixed the gate so it would stay open and not blow shut in the wind.",
@@ -2065,9 +2064,10 @@
             "she wrote down everything she saw, filling six full pages by the time she left.",
             "it was the best secret she had ever kept, and she was proud of it."
           ],
-          "type": "sentence_list",
+          "id": "s5",
           "label": "Sentence Practice",
-          "anchorEnforced": false
+          "anchorEnforced": false,
+          "type": "sentence_list"
         }
       ]
     },
@@ -2115,11 +2115,12 @@
       },
       "steps": [
         {
-          "groupSize": 5,
-          "label": "Full Alphabet — Random",
-          "id": "s1",
           "groupCount": 20,
           "anchorEnforced": false,
+          "type": "key_random",
+          "label": "Full Alphabet — Random",
+          "groupSize": 5,
+          "id": "s1",
           "keySet": [
             "a",
             "b",
@@ -2147,13 +2148,9 @@
             "x",
             "y",
             "z"
-          ],
-          "type": "key_random"
+          ]
         },
         {
-          "type": "word_list",
-          "label": "Word Drill",
-          "anchorEnforced": false,
           "words": [
             "above",
             "below",
@@ -2208,14 +2205,17 @@
             "years",
             "zones"
           ],
-          "id": "s2"
+          "anchorEnforced": false,
+          "label": "Word Drill",
+          "id": "s2",
+          "type": "word_list"
         },
         {
-          "type": "passage",
-          "label": "Passage",
           "id": "s3",
           "anchorEnforced": false,
-          "text": "The bright fox leaped quickly over the old wooden fence, startling a dozen birds that had been napping in the warm afternoon sun. A jazz band played somewhere in the nearby park, sending vibrant music drifting across the quiet neighborhood. Every person walking by seemed to slow down, just a little, to enjoy the unexpected gift of that sound."
+          "text": "The bright fox leaped quickly over the old wooden fence, startling a dozen birds that had been napping in the warm afternoon sun. A jazz band played somewhere in the nearby park, sending vibrant music drifting across the quiet neighborhood. Every person walking by seemed to slow down, just a little, to enjoy the unexpected gift of that sound.",
+          "type": "passage",
+          "label": "Passage"
         }
       ]
     },
@@ -2245,31 +2245,35 @@
       },
       "steps": [
         {
-          "keySet": [
-            "5",
-            "6"
-          ],
+          "type": "key_pattern_auto",
+          "groupCount": 10,
           "anchorEnforced": true,
           "label": "New Keys — Pattern",
-          "type": "key_pattern_auto",
           "id": "s1",
-          "groupCount": 10,
-          "groupSize": 4
-        },
-        {
-          "groupCount": 10,
-          "label": "New Keys — Random",
           "groupSize": 4,
-          "type": "key_random",
-          "anchorEnforced": true,
-          "id": "s2",
           "keySet": [
             "5",
             "6"
           ]
         },
         {
+          "anchorEnforced": true,
+          "label": "New Keys — Random",
+          "groupCount": 10,
+          "keySet": [
+            "5",
+            "6"
+          ],
+          "type": "key_random",
           "groupSize": 4,
+          "id": "s2"
+        },
+        {
+          "groupCount": 12,
+          "groupSize": 4,
+          "type": "key_random",
+          "label": "Numbers with Letter Keys",
+          "id": "s3",
           "keySet": [
             "5",
             "6",
@@ -2282,11 +2286,7 @@
             "g",
             "h"
           ],
-          "id": "s3",
-          "type": "key_random",
-          "groupCount": 12,
-          "anchorEnforced": false,
-          "label": "Numbers with Letter Keys"
+          "anchorEnforced": false
         }
       ]
     },
@@ -2321,37 +2321,37 @@
             "4",
             "7"
           ],
-          "groupCount": 10,
-          "type": "key_pattern_auto",
-          "groupSize": 4,
+          "anchorEnforced": true,
           "label": "New Keys — Pattern",
-          "anchorEnforced": true
+          "type": "key_pattern_auto",
+          "groupCount": 10,
+          "groupSize": 4
         },
         {
-          "label": "New Keys — Random",
+          "type": "key_random",
+          "groupCount": 10,
           "keySet": [
             "4",
             "7"
           ],
-          "id": "s2",
-          "groupSize": 4,
           "anchorEnforced": true,
-          "groupCount": 10,
-          "type": "key_random"
+          "label": "New Keys — Random",
+          "groupSize": 4,
+          "id": "s2"
         },
         {
           "label": "4 5 6 7 Combined",
+          "groupSize": 4,
+          "id": "s3",
+          "type": "key_random",
+          "anchorEnforced": false,
+          "groupCount": 12,
           "keySet": [
             "4",
             "5",
             "6",
             "7"
-          ],
-          "anchorEnforced": false,
-          "type": "key_random",
-          "id": "s3",
-          "groupSize": 4,
-          "groupCount": 12
+          ]
         }
       ]
     },
@@ -2385,30 +2385,36 @@
       },
       "steps": [
         {
-          "id": "s1",
           "groupCount": 10,
-          "type": "key_pattern_auto",
-          "anchorEnforced": true,
           "keySet": [
             "3",
             "8"
           ],
           "groupSize": 4,
+          "id": "s1",
+          "anchorEnforced": true,
+          "type": "key_pattern_auto",
           "label": "New Keys — Pattern"
         },
         {
-          "groupSize": 4,
+          "id": "s2",
+          "label": "New Keys — Random",
           "anchorEnforced": true,
           "type": "key_random",
+          "groupSize": 4,
           "keySet": [
             "3",
             "8"
           ],
-          "id": "s2",
-          "label": "New Keys — Random",
           "groupCount": 10
         },
         {
+          "id": "s3",
+          "anchorEnforced": false,
+          "groupSize": 4,
+          "type": "key_random",
+          "groupCount": 12,
+          "label": "3 through 8 Combined",
           "keySet": [
             "3",
             "4",
@@ -2416,13 +2422,7 @@
             "6",
             "7",
             "8"
-          ],
-          "groupCount": 12,
-          "anchorEnforced": false,
-          "groupSize": 4,
-          "id": "s3",
-          "label": "3 through 8 Combined",
-          "type": "key_random"
+          ]
         }
       ]
     },
@@ -2453,41 +2453,39 @@
         "k"
       ],
       "gates": {
-        "minWPM": 12,
-        "minAccuracy": 85
+        "minAccuracy": 85,
+        "minWPM": 12
       },
       "steps": [
         {
           "groupSize": 4,
           "id": "s1",
+          "label": "New Keys — Pattern",
           "groupCount": 10,
-          "anchorEnforced": true,
           "keySet": [
             "2",
             "9"
           ],
           "type": "key_pattern_auto",
-          "label": "New Keys — Pattern"
+          "anchorEnforced": true
         },
         {
+          "id": "s2",
+          "type": "key_random",
+          "groupCount": 10,
+          "groupSize": 4,
+          "label": "New Keys — Random",
+          "anchorEnforced": true,
           "keySet": [
             "2",
             "9"
-          ],
-          "groupSize": 4,
-          "anchorEnforced": true,
-          "type": "key_random",
-          "label": "New Keys — Random",
-          "groupCount": 10,
-          "id": "s2"
+          ]
         },
         {
-          "label": "2 through 9 Combined",
-          "groupSize": 4,
-          "id": "s3",
-          "anchorEnforced": false,
           "groupCount": 12,
+          "anchorEnforced": false,
           "type": "key_random",
+          "groupSize": 4,
           "keySet": [
             "2",
             "3",
@@ -2497,7 +2495,9 @@
             "7",
             "8",
             "9"
-          ]
+          ],
+          "id": "s3",
+          "label": "2 through 9 Combined"
         }
       ]
     },
@@ -2530,41 +2530,40 @@
         "l"
       ],
       "gates": {
-        "minAccuracy": 85,
-        "minWPM": 12
+        "minWPM": 12,
+        "minAccuracy": 85
       },
       "steps": [
         {
-          "id": "s1",
+          "groupSize": 4,
           "anchorEnforced": true,
           "keySet": [
             "1",
             "0"
           ],
-          "label": "New Keys — Pattern",
+          "id": "s1",
           "groupCount": 10,
-          "type": "key_pattern_auto",
-          "groupSize": 4
+          "label": "New Keys — Pattern",
+          "type": "key_pattern_auto"
         },
         {
           "id": "s2",
           "anchorEnforced": true,
+          "groupCount": 10,
+          "groupSize": 4,
+          "type": "key_random",
+          "label": "New Keys — Random",
           "keySet": [
             "1",
             "0"
-          ],
-          "type": "key_random",
-          "groupCount": 10,
-          "groupSize": 4,
-          "label": "New Keys — Random"
+          ]
         },
         {
-          "groupSize": 4,
-          "label": "All Ten Digits",
-          "id": "s3",
-          "type": "key_random",
-          "groupCount": 14,
           "anchorEnforced": false,
+          "type": "key_random",
+          "groupSize": 4,
+          "groupCount": 14,
+          "label": "All Ten Digits",
           "keySet": [
             "0",
             "1",
@@ -2576,7 +2575,8 @@
             "7",
             "8",
             "9"
-          ]
+          ],
+          "id": "s3"
         }
       ]
     },
@@ -2627,14 +2627,14 @@
       ],
       "anchorKeys": [],
       "gates": {
-        "minWPM": 15,
-        "minAccuracy": 85
+        "minAccuracy": 85,
+        "minWPM": 15
       },
       "steps": [
         {
-          "label": "Digits — Full Random",
-          "id": "s1",
           "type": "key_random",
+          "groupSize": 4,
+          "groupCount": 16,
           "keySet": [
             "0",
             "1",
@@ -2647,15 +2647,12 @@
             "8",
             "9"
           ],
-          "groupSize": 4,
-          "anchorEnforced": false,
-          "groupCount": 16
+          "label": "Digits — Full Random",
+          "id": "s1",
+          "anchorEnforced": false
         },
         {
-          "type": "sentence_list",
           "label": "Mixed Alphanumeric",
-          "anchorEnforced": false,
-          "id": "s2",
           "sentences": [
             "robin had visited the garden 14 times over the past 3 weeks.",
             "the garden wall was about 6 feet tall and roughly 40 feet wide.",
@@ -2667,7 +2664,10 @@
             "she started planting seeds in a small bed about 2 by 4 feet near the gate.",
             "the stone path had 18 stones on one side and 19 on the other.",
             "on her 15th visit, the fox looked at her and held still for 5 whole seconds."
-          ]
+          ],
+          "anchorEnforced": false,
+          "type": "sentence_list",
+          "id": "s2"
         }
       ]
     },
@@ -2716,13 +2716,17 @@
       },
       "steps": [
         {
-          "anchorEnforced": false,
           "id": "s1",
-          "text": "Ff Jj Dd Kk Ss Ll Aa ;; Ff Jj Gg Hh Tt Yy Rr Uu",
           "label": "Capital Pairs — Pattern",
+          "anchorEnforced": false,
+          "text": "Ff Jj Dd Kk Ss Ll Aa ;; Ff Jj Gg Hh Tt Yy Rr Uu",
           "type": "key_pattern"
         },
         {
+          "label": "Common Capitalized Words",
+          "type": "word_list",
+          "anchorEnforced": false,
+          "id": "s2",
           "words": [
             "The",
             "They",
@@ -2754,17 +2758,12 @@
             "Name",
             "School",
             "Grade"
-          ],
-          "type": "word_list",
-          "id": "s2",
-          "anchorEnforced": false,
-          "label": "Common Capitalized Words"
+          ]
         },
         {
-          "label": "Sentences with Capitals",
           "type": "sentence_list",
-          "anchorEnforced": false,
           "id": "s3",
+          "label": "Sentences with Capitals",
           "sentences": [
             "Robin pushed open the old gate and stepped into the garden for the sixteenth time.",
             "She had named the cat Ash, and Ash now met her at the gate every visit.",
@@ -2774,7 +2773,8 @@
             "Robin looked up the address at the local library and found an old article.",
             "The house had belonged to a woman named Dr. Ford, who had passed long ago.",
             "Robin felt that finding this place had been one of the best days of her life."
-          ]
+          ],
+          "anchorEnforced": false
         }
       ]
     },
@@ -2818,15 +2818,11 @@
       ],
       "anchorKeys": [],
       "gates": {
-        "minWPM": 20,
-        "minAccuracy": 85
+        "minAccuracy": 85,
+        "minWPM": 20
       },
       "steps": [
         {
-          "anchorEnforced": false,
-          "type": "sentence_list",
-          "id": "s1",
-          "label": "Capitalization Drill",
           "sentences": [
             "Robin brought her friend Marcus to see the garden one Saturday in March.",
             "Marcus had never seen anything like it, and he stood very still for a long time.",
@@ -2838,14 +2834,18 @@
             "By the end of the week, the story of the Garden of the Bell House had spread.",
             "Robin was not sure what would happen next, but she was glad she had tried the handle.",
             "Sometimes the best things in the world are just waiting behind an old locked door."
-          ]
+          ],
+          "label": "Capitalization Drill",
+          "type": "sentence_list",
+          "anchorEnforced": false,
+          "id": "s1"
         },
         {
-          "type": "passage",
+          "anchorEnforced": false,
           "text": "Last summer, Maya and her brother joined a program at the Nashville Public Library called Reading Across America. Every Tuesday, a librarian named Mr. Okafor read aloud from a different book, and the students followed along in their own copies. One week they read from Little Women, and another week from a novel set in ancient Egypt. By the end of August, Maya had read more books than she had in any previous year, and Mr. Okafor had become her favorite person in the whole neighborhood.",
+          "type": "passage",
           "id": "s2",
-          "label": "Passage with Mixed Capitals",
-          "anchorEnforced": false
+          "label": "Passage with Mixed Capitals"
         }
       ]
     },
@@ -2866,15 +2866,15 @@
       },
       "steps": [
         {
+          "id": "s1",
           "sentences": [
             "The quick brown fox jumps over the lazy dog.",
             "Pack my box with five dozen liquor jugs.",
             "How vexingly quick daft zebras jump."
           ],
-          "label": "Pangram Set 1",
           "anchorEnforced": false,
-          "id": "s1",
-          "type": "sentence_list"
+          "type": "sentence_list",
+          "label": "Pangram Set 1"
         }
       ]
     },
@@ -2890,20 +2890,20 @@
       ],
       "anchorKeys": [],
       "gates": {
-        "minAccuracy": 90,
-        "minWPM": 25
+        "minWPM": 25,
+        "minAccuracy": 90
       },
       "steps": [
         {
-          "anchorEnforced": false,
+          "id": "s1",
           "sentences": [
             "The five boxing wizards jump quickly.",
             "Sphinx of black quartz, judge my vow.",
             "Two driven jocks help fax my big quiz."
           ],
           "label": "Pangram Set 2",
-          "type": "sentence_list",
-          "id": "s1"
+          "anchorEnforced": false,
+          "type": "sentence_list"
         }
       ]
     },
@@ -2918,20 +2918,20 @@
       ],
       "anchorKeys": [],
       "gates": {
-        "minWPM": 25,
-        "minAccuracy": 90
+        "minAccuracy": 90,
+        "minWPM": 25
       },
       "steps": [
         {
+          "id": "s1",
+          "anchorEnforced": false,
+          "type": "sentence_list",
+          "label": "Pangram Set 3",
           "sentences": [
             "Waltz, bad nymph, for quick jigs vex.",
             "Blowzy red vixens fight for a quick jump.",
             "Five quacking zephyrs jolt my wax bed."
-          ],
-          "id": "s1",
-          "anchorEnforced": false,
-          "type": "sentence_list",
-          "label": "Pangram Set 3"
+          ]
         }
       ]
     },
@@ -2946,21 +2946,21 @@
       ],
       "anchorKeys": [],
       "gates": {
-        "minAccuracy": 90,
-        "minWPM": 25
+        "minWPM": 25,
+        "minAccuracy": 90
       },
       "steps": [
         {
-          "label": "Pangram Set 4",
-          "id": "s1",
-          "type": "sentence_list",
-          "anchorEnforced": false,
           "sentences": [
             "Brick quiz whangs jumpy veldt fox.",
             "Jumpy frogs can vex the big quiz whelk.",
             "The jay, pig, fox, zebra, and my wolves quack.",
             "Quick fox jumps nightly above wizard."
-          ]
+          ],
+          "anchorEnforced": false,
+          "label": "Pangram Set 4",
+          "type": "sentence_list",
+          "id": "s1"
         }
       ]
     },
@@ -2975,11 +2975,12 @@
       ],
       "anchorKeys": [],
       "gates": {
-        "minAccuracy": 90,
-        "minWPM": 25
+        "minWPM": 25,
+        "minAccuracy": 90
       },
       "steps": [
         {
+          "anchorEnforced": false,
           "type": "sentence_list",
           "sentences": [
             "Squelch bugs vex, jumpy frogs with zeal.",
@@ -2988,8 +2989,7 @@
             "The explorer gazed at vivid, quickly blooming jungle wax flowers."
           ],
           "label": "Pangram Set 5",
-          "id": "s1",
-          "anchorEnforced": false
+          "id": "s1"
         }
       ]
     },
@@ -3009,15 +3009,15 @@
       },
       "steps": [
         {
-          "anchorEnforced": false,
-          "type": "sentence_list",
           "label": "Pangram Set 6",
+          "type": "sentence_list",
           "sentences": [
             "Jaded zombies acted quaintly but kept driving their foxy wagon forward.",
             "My girl wove six dozen plaid jackets before she quit.",
             "Six big devils from Japan quickly forgot how to waltz.",
             "Crazy Fredrick bought many very exquisite opal jewels."
           ],
+          "anchorEnforced": false,
           "id": "s1"
         }
       ]
@@ -3067,16 +3067,16 @@
       },
       "steps": [
         {
-          "label": "Pangram Set 8",
-          "anchorEnforced": false,
-          "type": "sentence_list",
+          "id": "s1",
           "sentences": [
             "We promptly judged antique ivory buckles for the next prize.",
             "How quickly daft jumping zebras vex.",
             "Zany fox with big jolting quiver may ex the vow on pack.",
             "Jackdaws love my big sphinx of quartz."
           ],
-          "id": "s1"
+          "anchorEnforced": false,
+          "type": "sentence_list",
+          "label": "Pangram Set 8"
         }
       ]
     },
@@ -3097,14 +3097,14 @@
       "steps": [
         {
           "label": "Pangram Set 9",
+          "type": "sentence_list",
+          "anchorEnforced": false,
           "sentences": [
             "Sixty zips were quickly picked from the vast jungle box.",
             "The wizard quickly jinxed the gnomes before they vaporized.",
             "Cozy sphinx waves quart jug of bad milk.",
             "King Alexander was just partly conquered by extra forces, while vexed."
           ],
-          "type": "sentence_list",
-          "anchorEnforced": false,
           "id": "s1"
         }
       ]
@@ -3120,13 +3120,12 @@
       ],
       "anchorKeys": [],
       "gates": {
-        "minAccuracy": 90,
-        "minWPM": 25
+        "minWPM": 25,
+        "minAccuracy": 90
       },
       "steps": [
         {
-          "type": "sentence_list",
-          "anchorEnforced": false,
+          "id": "s1",
           "sentences": [
             "Bright vixens jump dozing fowl quack.",
             "Grumpy wizards make toxic brew for the evil queen and jack.",
@@ -3134,8 +3133,9 @@
             "Pack my box with five dozen liquor jugs.",
             "Sphinx of black quartz, judge my vow."
           ],
+          "type": "sentence_list",
           "label": "Pangram Set 10",
-          "id": "s1"
+          "anchorEnforced": false
         }
       ]
     },
@@ -3156,11 +3156,11 @@
       },
       "steps": [
         {
-          "label": "Passage",
           "text": "The quick brown fox is perhaps the most famous animal in typing history, though it has never once jumped over an actual lazy dog. In real life, foxes are clever hunters who move through forests at night. Zebras live in vast open grasslands and rely on their bold black and white stripes to confuse predators. Every kind of wild creature, from the buzzing bee to the jumping jackrabbit, has found its own way to survive in a complex world.",
+          "id": "s1",
           "type": "passage",
           "anchorEnforced": false,
-          "id": "s1"
+          "label": "Passage"
         }
       ]
     },
@@ -3175,16 +3175,16 @@
       ],
       "anchorKeys": [],
       "gates": {
-        "minAccuracy": 90,
-        "minWPM": 25
+        "minWPM": 25,
+        "minAccuracy": 90
       },
       "steps": [
         {
-          "label": "Passage",
-          "text": "Bright lightning bolts crack across the sky during a summer storm, and the thunder that follows can shake the windows of a whole building. Freezing wind chills the exposed skin of anyone who ventures outside too quickly in winter. Quiet snowflakes drift downward and blanket every rooftop in a soft white layer. Weather is one of the few forces that can change your plans, your mood, and your entire day without asking your permission.",
+          "id": "s1",
           "anchorEnforced": false,
+          "text": "Bright lightning bolts crack across the sky during a summer storm, and the thunder that follows can shake the windows of a whole building. Freezing wind chills the exposed skin of anyone who ventures outside too quickly in winter. Quiet snowflakes drift downward and blanket every rooftop in a soft white layer. Weather is one of the few forces that can change your plans, your mood, and your entire day without asking your permission.",
           "type": "passage",
-          "id": "s1"
+          "label": "Passage"
         }
       ]
     },
@@ -3204,10 +3204,10 @@
       },
       "steps": [
         {
+          "anchorEnforced": false,
+          "text": "Every great athlete knows that skill is built slowly through practice, not in one explosive jump. The best basketball players spend quiet hours working on their form before the crowd ever shows up. Boxers develop quick reflexes by training their bodies to move without thinking. Whether you play on a team or compete by yourself, the goal is always the same: push your limits, fix your weaknesses, and show up better than you were the day before.",
           "id": "s1",
           "label": "Passage",
-          "text": "Every great athlete knows that skill is built slowly through practice, not in one explosive jump. The best basketball players spend quiet hours working on their form before the crowd ever shows up. Boxers develop quick reflexes by training their bodies to move without thinking. Whether you play on a team or compete by yourself, the goal is always the same: push your limits, fix your weaknesses, and show up better than you were the day before.",
-          "anchorEnforced": false,
           "type": "passage"
         }
       ]
@@ -3223,15 +3223,15 @@
       ],
       "anchorKeys": [],
       "gates": {
-        "minAccuracy": 90,
-        "minWPM": 25
+        "minWPM": 25,
+        "minAccuracy": 90
       },
       "steps": [
         {
-          "type": "passage",
-          "text": "The first computers were enormous machines that filled entire rooms and could only perform basic calculations. Today, a smartphone sitting in your pocket is more powerful than any of those early systems by a factor of millions. Programmers write code using keyboards, and the speed at which they type has a real effect on how quickly ideas become products. Learning to type well is not just a school skill, it is a foundation for almost every career that involves a screen.",
           "label": "Passage",
+          "type": "passage",
           "id": "s1",
+          "text": "The first computers were enormous machines that filled entire rooms and could only perform basic calculations. Today, a smartphone sitting in your pocket is more powerful than any of those early systems by a factor of millions. Programmers write code using keyboards, and the speed at which they type has a real effect on how quickly ideas become products. Learning to type well is not just a school skill, it is a foundation for almost every career that involves a screen.",
           "anchorEnforced": false
         }
       ]
@@ -3252,11 +3252,11 @@
       },
       "steps": [
         {
+          "text": "A single oak tree can live for several hundred years, quietly growing wider and taller with every passing season. Its roots dig deep into the earth to find water, while its branches stretch outward to capture as much sunlight as possible. In the fall, the leaves change from green to blazing shades of orange, red, and gold before finally letting go. Dozens of animals, from squirrels to woodpeckers to foxes, depend on that one tree for food and shelter throughout the year.",
           "label": "Passage",
-          "anchorEnforced": false,
-          "type": "passage",
           "id": "s1",
-          "text": "A single oak tree can live for several hundred years, quietly growing wider and taller with every passing season. Its roots dig deep into the earth to find water, while its branches stretch outward to capture as much sunlight as possible. In the fall, the leaves change from green to blazing shades of orange, red, and gold before finally letting go. Dozens of animals, from squirrels to woodpeckers to foxes, depend on that one tree for food and shelter throughout the year."
+          "type": "passage",
+          "anchorEnforced": false
         }
       ]
     },
@@ -3276,11 +3276,11 @@
       },
       "steps": [
         {
-          "id": "s1",
-          "type": "passage",
           "label": "Passage",
-          "text": "Long before the age of printing, every book had to be copied by hand, one letter at a time, by skilled workers called scribes. A single Bible might take a monk years to complete, working by the light of a small candle in a drafty room. The invention of the printing press in the 1400s changed everything almost overnight, making books cheaper and knowledge available to people who had never owned one before. The keyboard you are using right now is just the latest step in that very long story.",
-          "anchorEnforced": false
+          "id": "s1",
+          "anchorEnforced": false,
+          "type": "passage",
+          "text": "Long before the age of printing, every book had to be copied by hand, one letter at a time, by skilled workers called scribes. A single Bible might take a monk years to complete, working by the light of a small candle in a drafty room. The invention of the printing press in the 1400s changed everything almost overnight, making books cheaper and knowledge available to people who had never owned one before. The keyboard you are using right now is just the latest step in that very long story."
         }
       ]
     },
@@ -3295,14 +3295,14 @@
       ],
       "anchorKeys": [],
       "gates": {
-        "minWPM": 25,
-        "minAccuracy": 90
+        "minAccuracy": 90,
+        "minWPM": 25
       },
       "steps": [
         {
           "text": "Jazz was born in New Orleans in the early 1900s, mixing African rhythms with European harmonies in ways nobody had ever quite combined before. The music was bold, improvised, and always a little bit surprising, which is exactly why so many people loved it and so many others found it strange. Over the following decades, jazz grew into dozens of different styles and spread to every corner of the globe. Today, a quiet saxophone playing in the background of a coffee shop is the distant echo of something that once seemed revolutionary.",
-          "anchorEnforced": false,
           "type": "passage",
+          "anchorEnforced": false,
           "label": "Passage",
           "id": "s1"
         }
@@ -3324,11 +3324,11 @@
       },
       "steps": [
         {
-          "id": "s1",
           "label": "Passage",
-          "type": "passage",
+          "text": "On July 20, 1969, two astronauts stepped onto the surface of the moon for the very first time, while a third orbited quietly above. The whole world watched on small black and white televisions, many of them not quite believing what they were seeing. Getting there required thousands of engineers, mathematicians, and scientists working for nearly a decade on every possible problem, from rocket fuel to space suits to navigation. It remains one of the most complex and extraordinary things human beings have ever done.",
           "anchorEnforced": false,
-          "text": "On July 20, 1969, two astronauts stepped onto the surface of the moon for the very first time, while a third orbited quietly above. The whole world watched on small black and white televisions, many of them not quite believing what they were seeing. Getting there required thousands of engineers, mathematicians, and scientists working for nearly a decade on every possible problem, from rocket fuel to space suits to navigation. It remains one of the most complex and extraordinary things human beings have ever done."
+          "type": "passage",
+          "id": "s1"
         }
       ]
     },
@@ -3349,10 +3349,10 @@
       "steps": [
         {
           "type": "passage",
-          "id": "s1",
-          "anchorEnforced": false,
           "text": "Every culture on earth has developed its own unique way of cooking, shaped by the ingredients that grow nearby and the traditions passed down through families over generations. Mexican food relies on corn, beans, and spicy chili peppers. Japanese cuisine prizes fresh fish, rice, and the quiet, precise art of presentation. In France, sauces are taken so seriously that professional chefs spend years mastering just a handful of them. Whatever your favorite dish happens to be, somebody somewhere spent a lifetime figuring out exactly how to make it taste that good.",
-          "label": "Passage"
+          "anchorEnforced": false,
+          "label": "Passage",
+          "id": "s1"
         }
       ]
     },
@@ -3368,15 +3368,15 @@
       ],
       "anchorKeys": [],
       "gates": {
-        "minWPM": 25,
-        "minAccuracy": 90
+        "minAccuracy": 90,
+        "minWPM": 25
       },
       "steps": [
         {
+          "text": "Learning to type is, in a quiet way, one of the most useful things you will ever do. It will not feel impressive at first, but the skill compounds quickly once your fingers know where to go without your brain having to send them there. Every book you will ever write, every message you will ever send, every idea you will ever type out starts with the same twenty-six keys laid out in the same order they have always been in. You have learned them all. Now go read something.",
+          "id": "s1",
           "anchorEnforced": false,
           "label": "Final Passage",
-          "id": "s1",
-          "text": "Learning to type is, in a quiet way, one of the most useful things you will ever do. It will not feel impressive at first, but the skill compounds quickly once your fingers know where to go without your brain having to send them there. Every book you will ever write, every message you will ever send, every idea you will ever type out starts with the same twenty-six keys laid out in the same order they have always been in. You have learned them all. Now go read something.",
           "type": "passage"
         }
       ]

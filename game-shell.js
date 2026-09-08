@@ -174,6 +174,21 @@ export const PRESSURE_CEILING = 2.5;
 // caught up on at all, and the game stops being about typing.
 export const MIN_QUEUE_DEPTH = 1.5;
 
+/**
+ * ⚠️ v1.1.0 — THE MINIMUM GAP BETWEEN TWO TARGETS' SCHEDULED ARRIVALS.
+ *
+ * `nextTarget()` refuses to schedule a target to land before one already in the
+ * air (see the block there — Jake's "small words flew in at speed past longer
+ * words"). This is the daylight it leaves between them.
+ *
+ * ⚠️ NOT ZERO, ON PURPOSE. At zero, two targets land in the same frame and the
+ * "type the one closest to the ground" rule has no answer — the student sees a
+ * tie and the game picks arbitrarily. 350 ms is under half a second, so it never
+ * reads as an artificial queue, and it is comfortably more than one frame at any
+ * refresh rate this runs on.
+ */
+export const ORDER_GAP_MS = 350;
+
 // Score. ⚠️ SCORE IS A VIEW OF PRACTICE, NOT A SEPARATE ECONOMY. Ten points per
 // correctly typed character means the leaderboard ranks the student who typed the
 // most correct characters, which is the thing the app exists to produce. Shield
@@ -477,6 +492,10 @@ export class GameDirector {
         this._cursor = 0;        // index into targets, wraps
         this._lastSpawnAt = null;
         this._lastInterval = null;   // ⚠️ SET FROM THE TARGET JUST HANDED OUT
+        // ⚠️ v1.1.0 — when the last target handed out is scheduled to land.
+        // nextTarget() clamps against this so a short word can never overtake a
+        // long one already falling. See the block there.
+        this._lastArrivalAt = null;
         this._extraCleared = 0;  // targets cleared past the quota — the ramp input
     }
 
@@ -585,7 +604,48 @@ export class GameDirector {
         this._lastSpawnAt = nowMs;
         // ⚠️ THE NEXT INTERVAL IS PRICED FROM THE WORK JUST ISSUED. See intervalMs.
         this._lastInterval = text.length;
-        return { text, lifetimeMs: this.lifetimeFor(text) };
+
+        let lifetimeMs = this.lifetimeFor(text);
+
+        // ⚠️⚠️ ORDER PRESERVATION — v1.1.0, AND IT IS A GAMEPLAY FIX, NOT A
+        // TUNING ONE.
+        //
+        // Jake, 2026-09-08, of a 40 WPM student on book prose: *"The words came
+        // too fast to keep up with unless he dropped it to about 15 wpm. I think
+        // a lot of that had to do with the number of small words that flew in at
+        // speed past longer words that came in more slowly."*
+        //
+        // He diagnosed it exactly. `lifetimeFor()` prices travel time by the
+        // target's own length — correct, and the fix for the u4_l1/s4 defect —
+        // but in a FALLING game lifetime IS fall speed. A 3-letter word given a
+        // 3-letter word's travel time descends nearly twice as fast as a
+        // 6-letter word beside it, catches it, and lands first. So:
+        //   • the "type the one closest to the ground" rule keeps re-pointing at
+        //     a different word, and the student is punished for having correctly
+        //     started on the one that WAS lowest;
+        //   • mixed-length prose (book words, exactly what he tested) churns
+        //     constantly, while a uniform authored word list looks fine — which
+        //     is why 990 fixture trials never caught it. THE HARNESS MEASURED
+        //     CLEARABILITY, AND THIS IS LEGIBILITY.
+        //
+        // ⭐ THE FIX IS TO CLAMP ARRIVAL ORDER, NOT TO FLATTEN LIFETIME. Making
+        // every target fall at one speed would reintroduce exactly the defect
+        // per-target lifetime exists to prevent: a 6-letter word living a
+        // 4-letter word's travel time is unclearable at the gate. Instead a
+        // target may never be scheduled to land before one already in the air.
+        //
+        // ⚠️ THIS ONLY EVER LENGTHENS A LIFETIME, NEVER SHORTENS ONE, so every
+        // clearability guarantee the 990-trial sweep established still holds —
+        // more time is strictly easier. That one-way property is what makes this
+        // safe to land without re-running the corpus, and Part A's arithmetic is
+        // untouched: lifetimeFor() still returns exactly what it did.
+        if (this._lastArrivalAt != null) {
+            const earliest = this._lastArrivalAt + ORDER_GAP_MS;
+            if (nowMs + lifetimeMs < earliest) lifetimeMs = earliest - nowMs;
+        }
+        this._lastArrivalAt = nowMs + lifetimeMs;
+
+        return { text, lifetimeMs };
     }
 
     // ── accounting ──────────────────────────────────────────────────────────

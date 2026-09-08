@@ -1,7 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- arcade.html v2.0.0 — DEADLINE, ON A REAL LESSON, AT ITS REAL GATES. Round 86.
+<!-- arcade.html v3.0.0 — DEADLINE, ON A REAL LESSON, AT ITS REAL GATES. Round 87.
+
+     ⚠️⚠️ v3.0.0 FIXES A SHIPPED REGRESSION. v2.0.0 offered only runs with their
+     own speed gate AND only lessons the student had reached. Jake logged in as
+     his son, who is on unit 2, and the page said nothing was unlocked — units 1
+     and 2 are ENTIRELY drills, which carry no speed gate, so he had no
+     qualifying run at all and the lessons that did were ahead of him. The
+     reasoning behind each filter was sound and the product was broken.
+     Jake: *"If a kid can't test it, then it's not worth anything."*
+     Now: every lesson is listed, no lock; drills are playable at the LESSON's
+     pace with the UI saying School grades them on accuracy only; lessons whose
+     drills are generated get synthesized key practice; and a speed dropdown
+     built from the corpus lets the gates be judged against each other.
+
 
      Jake, 2026-09-08: *"Can you wire the kid facing one to lessons so that they
      can pick any lesson they've accessed and get those same limits and whatnot?
@@ -146,6 +159,10 @@
                 <label for="run">RUN</label>
                 <select id="run"></select>
             </div>
+            <div class="row">
+                <label for="speed">SPEED &mdash; the pace words arrive at</label>
+                <select id="speed"></select>
+            </div>
             <div class="gates" id="gates"></div>
             <button class="play" id="play" disabled>Play &rarr;</button>
         </div>
@@ -169,12 +186,18 @@ import { runPlan, gatesForRun, chunkSequence } from './run-grade.js';
 import { missionConfigFromRun } from './game-shell.js';
 import { mount as mountDeadline } from './game-deadline.js';
 
-const ARCADE_PAGE_VERSION = '2.0.0';
+const ARCADE_PAGE_VERSION = '3.0.0';
 
 // ⚠️ THE ONLY STEP TYPES THIS PAGE OFFERS — exactly the types that carry a speed
 // gate AND are deterministic from the lesson document. See the header. Adding to
 // this set is a seam change, not a tweak.
-const OFFERABLE = new Set(['word_list', 'sentence_list', 'passage']);
+// ⚠️ v3.0.0 — key_pattern JOINED THE LIST. It is a DRILL_TYPE, so School grades
+// it on accuracy alone and gatesForRun() returns minWPM null for it — but it
+// carries real `text` on the lesson document, so the arcade CAN reproduce
+// exactly what the student typed. The other two drill types (key_pattern_auto,
+// key_random) carry an empty `text` and are generated fresh by learn.js on every
+// run; those get a synthesized key-practice entry instead (see keyPracticeFor).
+const OFFERABLE = new Set(['word_list', 'sentence_list', 'passage', 'key_pattern']);
 
 // The real characters a student types for these three types. ⚠️ MUST STAY
 // IDENTICAL TO learn.js's buildSequence() FOR THESE CASES — that function is not
@@ -185,6 +208,7 @@ function sequenceForStep(step) {
         case 'word_list':     return (step.words || []).join(' ').split('');
         case 'sentence_list': return (step.sentences || []).join(' ').split('');
         case 'passage':       return (step.text || '').split('');
+        case 'key_pattern':   return (step.text || '').split('');
         default:              return [];
     }
 }
@@ -193,6 +217,7 @@ let LESSONS = [];
 let PROGRESS = {};
 let PLAYABLE = [];
 let handle = null;
+let lastPlayedWPM = null;
 
 const $ = id => document.getElementById(id);
 
@@ -207,10 +232,23 @@ function playableRunsOf(lesson) {
         const seq = chunkSequence(sequenceForStep(step))[entry.chunkIdx];
         if (!seq || !seq.length) return;
         const gates = gatesForRun(entry, lesson.gates || {});
-        // ⚠️ A RUN WITH NO SPEED GATE IS NOT COMPARABLE AND IS NOT OFFERED.
-        if (gates.minWPM == null) return;
+        // ⚠️⚠️ v3.0.0 — A DRILL IS NOW OFFERED, WITH THE LESSON'S OWN PACE AND A
+        // LABEL SAYING SO. v2.0.0 refused any run with a null minWPM, which was
+        // defensible reasoning and a broken product: units 1 and 2 are ENTIRELY
+        // drills, so a real student on unit 2 opened the page and was told
+        // nothing was unlocked. Jake, 2026-09-08: "If a kid can't test it, then
+        // it's not worth anything."
+        // The game still needs SOME pace to exist, so a drill borrows
+        // `lesson.gates.minWPM` — every lesson carries one, including unit 1
+        // (10 WPM). ⚠️ THAT IS A PACE, NOT A GRADE: School does not hold a drill
+        // to a speed, and `speedGraded` carries that distinction to the UI so
+        // nobody reads a drill result as a School comparison.
+        const speedGraded = gates.minWPM != null;
+        const wpm = speedGraded ? gates.minWPM : (lesson.gates || {}).minWPM;
+        if (!(wpm > 0)) return;
         out.push({
-            runIdx, gates, sequence: seq, runCount: plan.length,
+            runIdx, speedGraded, runCount: plan.length, sequence: seq,
+            gates: { minWPM: wpm, minAccuracy: gates.minAccuracy },
             label: entry.chunkCount > 1
                 ? `${step.label || 'Step ' + (entry.stepIdx + 1)} (${entry.chunkIdx + 1}/${entry.chunkCount})`
                 : (step.label || 'Step ' + (entry.stepIdx + 1)),
@@ -219,15 +257,46 @@ function playableRunsOf(lesson) {
     return out;
 }
 
+// ⚠️⚠️ v3.0.0 — FOR LESSONS WHOSE EVERY RUN IS GENERATED. key_pattern_auto and
+// key_random build their characters in learn.js at run time from the lesson's
+// key sets; the text is not on the document and those generators are not
+// importable from a standalone page. Lessons 5-10 of the course are entirely
+// these, so without this a student in unit 2 still sees an empty list.
+//
+// ⚠️ THIS DOES NOT CLAIM TO REPRODUCE THE DRILL. It builds practice groups from
+// the lesson's OWN keys — the same letters, not the same sequence — and the UI
+// labels it "key practice" rather than a run number, because calling it "Run 2"
+// would invite a comparison against a School run whose characters were
+// different. Drills are accuracy-graded anyway, so no speed comparison is lost.
+function keyPracticeFor(lesson) {
+    const keys = (lesson.availableKeys && lesson.availableKeys.length)
+        ? lesson.availableKeys
+        : (lesson.newKeys || []);
+    if (!keys.length) return null;
+    const wpm = (lesson.gates || {}).minWPM;
+    if (!(wpm > 0)) return null;
+    // Deterministic from the lesson id, so a student replaying gets the same
+    // practice and can actually compare two attempts at it.
+    let seed = 0;
+    for (const ch of String(lesson.id)) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
+    const groups = [];
+    for (let i = 0; i < 24; i++) {
+        let g = '';
+        for (let j = 0; j < 3; j++) g += keys[Math.floor(rnd() * keys.length)];
+        groups.push(g);
+    }
+    return {
+        runIdx: -1, speedGraded: false, runCount: 0, synthesized: true,
+        sequence: groups.join(' ').split(''),
+        gates: { minWPM: wpm, minAccuracy: (lesson.gates || {}).minAccuracy || 90 },
+        label: 'key practice \u2014 ' + keys.join(' '),
+    };
+}
+
 // ⚠️ "ACCESSED" MEANS A PROGRESS RECORD EXISTS, plus the first lesson and the one
 // after their last pass. NOT "passed" — Jake asked for any lesson they have
 // ACCESSED, and a student mid-way through a unit should be able to play it.
-function hasReached(lesson, idx) {
-    if (idx === 0) return true;
-    if (PROGRESS[lesson.id]) return true;
-    const prev = LESSONS[idx - 1];
-    return !!(prev && PROGRESS[prev.id] && PROGRESS[prev.id].passed);
-}
 
 function fillLessons() {
     const sel = $('lesson');
@@ -254,7 +323,11 @@ function fillRuns() {
     p.runs.forEach((r, i) => {
         const o = document.createElement('option');
         o.value = String(i);
-        o.textContent = `Run ${r.runIdx + 1} of ${r.runCount} \u2014 ${r.label}`;
+        // ⚠️ A SYNTHESIZED ENTRY MUST NOT WEAR A RUN NUMBER — see keyPracticeFor.
+        o.textContent = r.synthesized
+            ? r.label
+            : `Run ${r.runIdx + 1} of ${r.runCount} \u2014 ${r.label}` +
+              (r.speedGraded ? '' : '  (drill \u2014 accuracy only in School)');
         sel.appendChild(o);
     });
     // ⚠️ DEFAULTS TO THE LAST OFFERABLE RUN — "doing the final lesson and then
@@ -262,6 +335,7 @@ function fillRuns() {
     // clicks to reach.
     sel.value = String(Math.max(0, p.runs.length - 1));
     sel.disabled = false;
+    fillSpeeds();
     showGates();
 }
 
@@ -270,14 +344,62 @@ function currentRun() {
     return p ? (p.runs[Number($('run').value) || 0] || null) : null;
 }
 
+// ⚠️⚠️ v3.0.0 — THE SPEED DROPDOWN. Jake, 2026-09-08: "I have no idea what the
+// gates are for the lessons. A drop down of the possibilities would be helpful
+// so that we can judge it based on the actual things."
+//
+// The list is BUILT FROM THE CORPUS, not typed in: every distinct minWPM any
+// lesson actually uses, plus this run's own. A hardcoded 10/15/20/25 would go
+// stale the moment a lesson is re-gated, and would then be quietly lying about
+// what "the actual things" are.
+// ⚠️ IT DEFAULTS TO THIS RUN'S OWN GATE EVERY TIME THE RUN CHANGES, so the
+// honest comparison is what you get without touching anything; changing it is a
+// deliberate act for judging pacing, and the result panel says when you did.
+function allGateWPMs() {
+    const set = new Set();
+    for (const L of LESSONS) {
+        const g = (L.gates || {}).minWPM;
+        if (g > 0) set.add(g);
+        for (const r of (PLAYABLE.find(p => p.lesson.id === L.id) || {}).runs || []) {
+            if (r.gates.minWPM > 0) set.add(r.gates.minWPM);
+        }
+    }
+    return [...set].sort((a, b) => a - b);
+}
+
+function fillSpeeds() {
+    const r = currentRun();
+    const sel = $('speed');
+    sel.innerHTML = '';
+    if (!r) { sel.disabled = true; return; }
+    const own = r.gates.minWPM;
+    for (const w of allGateWPMs()) {
+        const o = document.createElement('option');
+        o.value = String(w);
+        o.textContent = w + ' WPM' + (w === own ? '  \u2014 this run\u2019s target' : '');
+        sel.appendChild(o);
+    }
+    sel.value = String(own);
+    sel.disabled = false;
+}
+
+function chosenWPM() {
+    const v = parseInt($('speed').value, 10);
+    return v > 0 ? v : (currentRun() || { gates: {} }).gates.minWPM;
+}
+
 function showGates() {
     const r = currentRun();
     const p = PLAYABLE[Number($('lesson').value) || 0];
     if (!r) { $('gates').innerHTML = ''; $('play').disabled = true; return; }
     const grades = (PROGRESS[p.lesson.id] && PROGRESS[p.lesson.id].runGrades) || {};
     const best = grades[String(r.runIdx)];
+    const wpm = chosenWPM();
+    const altered = wpm !== r.gates.minWPM;
     $('gates').innerHTML =
-        `<span>speed target <b>${r.gates.minWPM} WPM</b></span>` +
+        `<span>${r.speedGraded ? 'speed target' : 'pace'} <b>${wpm} WPM</b>` +
+        (altered ? ` <i>(this run\u2019s own is ${r.gates.minWPM})</i>` : '') + `</span>` +
+        (r.speedGraded ? '' : '<span><i>School grades this drill on accuracy only</i></span>') +
         `<span>accuracy target <b>${r.gates.minAccuracy}%</b></span>` +
         `<span>${r.sequence.length} characters</span>` +
         (best ? `<span>your best typed grade <b>${best}</b></span>` : '');
@@ -291,7 +413,12 @@ function play() {
     // same run shape learn.js's buildRunList() produces. If this page and the
     // eventual wiring disagreed about difficulty they would not be comparable,
     // so this must never hand-build a config.
-    const cfg = missionConfigFromRun({ sequence: r.sequence }, r.gates, null);
+    // ⚠️ THE CHOSEN SPEED REPLACES ONLY minWPM. Everything else about difficulty
+    // still comes from missionConfigFromRun(), so a run played at its own gate is
+    // byte-identical to what v2.0.0 launched and remains comparable to School.
+    const gates = { minWPM: chosenWPM(), minAccuracy: r.gates.minAccuracy };
+    const cfg = missionConfigFromRun({ sequence: r.sequence }, gates, null);
+    lastPlayedWPM = gates.minWPM;
     $('picker').style.display = 'none';
     $('result').style.display = 'none';
     $('stageWrap').style.display = 'block';
@@ -313,7 +440,8 @@ function finish(rep, r) {
         $('compare').innerHTML = '';
         return;
     }
-    const metWPM = rep.wpm >= r.gates.minWPM;
+    const playedWPM = lastPlayedWPM != null ? lastPlayedWPM : r.gates.minWPM;
+    const metWPM = rep.wpm >= playedWPM;
     const metAcc = rep.acc >= r.gates.minAccuracy;
     $('verdict').innerHTML =
         `<span class="big">${rep.wpm} WPM &middot; ${rep.acc}%</span><br>` +
@@ -327,7 +455,8 @@ function finish(rep, r) {
     $('compare').innerHTML =
         '<tr><th></th><th>this game</th><th>this run\u2019s target</th></tr>' +
         `<tr><td>speed</td><td class="${metWPM ? 'met' : 'miss'}">${rep.wpm} WPM</td>` +
-            `<td>${r.gates.minWPM} WPM</td></tr>` +
+            `<td>${playedWPM} WPM${playedWPM !== r.gates.minWPM
+                ? ' (run\u2019s own: ' + r.gates.minWPM + ')' : ''}</td></tr>` +
         `<tr><td>accuracy</td><td class="${metAcc ? 'met' : 'miss'}">${rep.acc}%</td>` +
             `<td>${r.gates.minAccuracy}%</td></tr>` +
         `<tr><td>characters</td><td>${rep.chars != null ? rep.chars : '\u2014'}</td>` +
@@ -368,9 +497,24 @@ async function load(user) {
             pSnap.forEach(d => { PROGRESS[d.id] = d.data(); });
         }
 
-        PLAYABLE = LESSONS
-            .map((lesson, idx) => ({ lesson, idx, runs: playableRunsOf(lesson) }))
-            .filter(p => p.runs.length && hasReached(p.lesson, p.idx));
+        // ⚠️⚠️ v3.0.0 — EVERY LESSON IS LISTED. NO LOCK, NO GATING.
+        // v2.0.0 filtered by hasReached() AND required a speed-gated run, and
+        // the two together meant a real student on unit 2 was told nothing was
+        // unlocked: units 1-2 are entirely drills, so they had no qualifying run
+        // at ALL, and the lessons that did have one were ahead of him.
+        // Jake, 2026-09-08: "Perhaps just a dropdown of the lessons? ... If a kid
+        // can't test it, then it's not worth anything." He is right, and the
+        // gating was never protecting anything — this page saves nothing, teaches
+        // nothing and grades nothing, so there is no reason a child may not
+        // practise a lesson ahead of the one they are on. hasReached() is gone.
+        PLAYABLE = LESSONS.map((lesson, idx) => {
+            const runs = playableRunsOf(lesson);
+            if (!runs.length) {
+                const kp = keyPracticeFor(lesson);
+                if (kp) runs.push(kp);
+            }
+            return { lesson, idx, runs };
+        }).filter(p => p.runs.length);
 
         $('loading').style.display = 'none';
         if (!PLAYABLE.length) {
@@ -390,7 +534,8 @@ async function load(user) {
 }
 
 $('lesson').addEventListener('change', fillRuns);
-$('run').addEventListener('change', showGates);
+$('run').addEventListener('change', () => { fillSpeeds(); showGates(); });
+$('speed').addEventListener('change', showGates);
 $('play').addEventListener('click', play);
 $('again').addEventListener('click', () => {
     $('result').style.display = 'none';
