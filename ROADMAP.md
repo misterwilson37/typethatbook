@@ -389,7 +389,6 @@ Everything else still open:
 - 54. ⚠️ BUILT AS AN OPTION (Round 83, Densmore) — DEFAULT-VS-OPTION IS STILL JAKE'S CALL  *(Jake asked, 2026-09-03; the read-cost question is answered and shipped as an opt-in sort — no live counter, no write on the student path — but whether it should ever become the default order is still open)*
 - 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
 - 60. ⭐ STAFF SHOULD SEE EVERY BOOK AND CHOOSE WHAT THEIR OWN STUDENTS SEE  *(Jake, Round 76. NOT BUILT — needs a ruling on allowlist vs blocklist, and the shelf is the read-budget surface)*
-- 66. ⚠️ THE BOOKS CSV EXPORT NAMES ITS FILE FROM A UTC DAY — THE LAST OF THE ROUND 80 SWEEP  *(found Round 81 by sweeping the class, not by a report. ⚠️ Cosmetic — a filename, never a stored value. Read it before "fixing" any other toISOString() in the repo: the rest are timestamps and UTC is right for them)*
 
 ## ⏳ WATCHING — no action, just don't forget
 
@@ -398,6 +397,8 @@ Everything else still open:
 ## ✅ DONE — kept for the reasoning, not for the task
 
 - 53. ✅ CLOSED (Round 80 Featured, Round 81 fix, Round 84 Remington's search) — A SEARCH BOX ON THE STACKS  *(newest-first, random-untyped Featured fallback, per Jake's spec; search is a plain title/author substring box, its own row above Genre, composed into the existing filter chain. ⚠️ Round 81 fixed the fallback's "untyped" half, which had never once run — read that block before touching renderFeatured())*
+- 66. ✅ FIXED (Round 85, Caligraph) — THE BOOKS CSV EXPORT NAMED ITS FILE FROM A UTC DAY  *(found Round 81 by sweeping the class, not by a report; cosmetic — a filename, never a stored value. ⚠️ Read it before "fixing" any other toISOString() in the repo: the rest are timestamps and UTC is right for them)*
+- 67. ✅ FIXED (Round 85, Caligraph) — A FINISHED BOOK NEVER LEFT THE "CONTINUE READING" ROW  *(Jake reported it live, 2026-09-08, from the finished page itself. The row had no concept of "finished" at all; game.js now stamps finishedAt and index.html filters on it, with a conservative fallback for books finished before the stamp existed)*
 - 58. ✅ CLOSED (Round 71 + Round 82, Crandall) — A CLASS CAN CHOOSE ITS OWN WEEK — Sat–Fri WAS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Round 71 collapsed six copies of the anchor rule to one; Round 82 made it configurable — class → school default → 6 — and shipped it in game.js, learn.js, admin.html's class editor, and reports.html per Jake's own no-modal ruling on mixed-class weeks, answered 2026-09-04)*
 
 - 49. ✅ FIXED (Round 58, Emerson) — A STALE HARD-STOP OVERLAY DEMANDED A KEY FROM A DELETED DRILL  *(⚠️ Caps Lock is ruled NOT-a-bug — do not "fix" the e.key comparison)*
@@ -4145,7 +4146,73 @@ harness, and it would have ridden into the same upload as a fix to the counting
 path Jake is watching. §0.-11.D. Round 60 bumped the stamp to **3.18.0** and
 wrote the gap into the header where the next reader will hit it.
 
-## 66. ⚠️ THE BOOKS CSV EXPORT NAMES ITS FILE FROM A UTC DAY — THE LAST OF THE ROUND 80 SWEEP
+## 67. ✅ FIXED (Round 85, Caligraph) — A FINISHED BOOK NEVER LEFT THE "CONTINUE READING" ROW
+
+**Jake, 2026-09-08, reported live:** *"I finished 'The Mystery of the Missing
+Moonlight', which is a super short story written by ChatGPT on a lark. It's
+still showing in my continue reading menu, although I'm definitely done with
+it. Got to the library from the finished page, in fact."*
+
+⚠️⚠️ **THE ROW HAD NO CONCEPT OF "FINISHED" AT ALL, AND THAT IS THE WHOLE
+ITEM.** `renderContinue()` filtered on *has a progress timestamp* and nothing
+else — and a book a student has just completed is always the **most recently
+touched thing they own**, so it did not merely linger, it sat at the TOP of the
+row. His parenthetical is the proof: he reached the library *from the finished
+page*, so the card was drawn one navigation after the app itself had declared
+the book over.
+
+⚠️ **THE APP KNEW AND DID NOT WRITE IT DOWN.** `game.js`'s completion branch
+(`if (!nextChapterId)` — "no next BODY chapter") is the only definition of a
+finished book anywhere in the project, and it drew a congratulation, emitted an
+event, and persisted **nothing**. There was no field for `index.html` to ask.
+
+### What shipped
+
+* `game.js` **v3.51.0** — stamps `finishedAt` on the progress document, riding
+  in the write the completion branch already triggers. ⚠️⚠️ **FLUSHED
+  EXPLICITLY, AND THAT IS LOAD-BEARING**: `pagehide` only does `walSave()`/
+  `flushSessionsNow()` (localStorage — **no Firestore progress write at all**),
+  and `visibilitychange:hidden` reaches `flushAll()` only past a time/delta
+  gate. A student who finishes and immediately clicks **"Back to the library"**
+  — the button this very modal draws, and exactly how Jake hit it — satisfies
+  neither gate, and the stamp would die with the tab.
+* `index.html` **v3.22.0** — `isFinished()` prefers the stamp. ⚠️ **EVERY BOOK
+  FINISHED BEFORE v3.51.0 HAS NO STAMP, INCLUDING THE ONE IN THE REPORT**, so
+  there is a legacy fallback, deliberately CONSERVATIVE: leaving a finished
+  book in the row is the bug being fixed, but hiding an unfinished one
+  **deletes a child's way back to it from the row that exists to get them back
+  to it**. When unsure, show it.
+* ⚠️⚠️ **THE FALLBACK IS NOT `completedChapters.length >= bodyTotal`.** That is
+  the obvious test and it is WRONG: **front matter is typeable**, lands in the
+  same `completedChapters` array, and `bodyTotal` counts BODY chapters only —
+  a padded array would hide a half-read book. It requires the CURRENT position
+  to be the last body chapter (`bodyIndex === bodyTotal`) AND that chapter to
+  be in `completedChapters`. Being parked on the last chapter is not enough:
+  they may be reading it right now.
+* ⚠️ `renderBooks()` is UNTOUCHED. A finished book stays on the shelf — this
+  item is about one row, not about hiding books.
+* ⚠️ `finishedAt` is **set and never cleared**. A student who reopens a
+  finished book to re-read it still finished it. If re-reading should restore
+  the card, that is a deliberate product decision and a different edit.
+
+### ⭐ A note on the harness, worth reading
+
+The first draft of the front-matter assertion **passed against the naive
+implementation**. Its `bodyIndex` was mid-book, so the index guard rejected the
+case before the count test could ever run — it proved nothing while looking
+like it proved the most important thing in the item. Caught only by mutating
+the source and noticing the assertion stayed green. **A test that cannot fail
+is not coverage.** `tests/finished-book-test.mjs`, 22 assertions.
+
+### ⚠️ Open, and it is Jake's call, not a defect
+
+Nothing surfaces a finished book as finished anywhere else — the shelf card
+shows a percentage, not a "done" state, and there is no "finished books" shelf.
+Whether that is worth having is a product question nobody has asked him.
+
+---
+
+## 66. ✅ FIXED (Round 85, Caligraph) — THE BOOKS CSV EXPORT NAMED ITS FILE FROM A UTC DAY
 
 **Found Round 81 (Fox) while sweeping for the bug class Round 80 fixed in
 `functions/index.js`.** `admin.js`'s book-export handler builds its download
@@ -4181,6 +4248,17 @@ correct for a browser, where "local" is the machine's own clock — this is
 `admin.js`, which runs in Jake's browser, so `ymd()` is the right tool here and
 `todayInSchoolTZ()`'s fixed-IANA-zone approach is NOT (that one exists because a
 Cloud Functions container's local zone is UTC). One line, one patch bump.
+
+### ✅ DONE, Round 85 (Caligraph), 2026-09-08
+
+`admin.js` **v3.55.0**, on a round that had room after Jake asked for something
+knockable-out before commit 999. Uses `daylog.js`'s exported `localDateStr()`
+(the `ymd()` wrapper named above), not `todayInSchoolTZ()` — exactly as this
+item specified. ⚠️ **THE "FILED, NOT FIXED" JUDGEMENT WAS RIGHT AND SHOULD NOT
+BE READ AS A MISTAKE CORRECTED**: it sat for four rounds because it is
+cosmetic, and it was fixed on a round with spare capacity, not because the
+risk was ever re-assessed upward. `tests/csv-export-date-test.mjs` pins it, and
+pins that the fix did not reach for the Cloud-Functions-specific helper.
 
 ## 30. ✅ FIXED (Round 81, Fox) — THE CAPS LOCK BAR RENDERED BEHIND THE CANVAS. ⚠️ THE "NO COLOUR FEEDBACK" HALF WAS NEVER TRUE
 

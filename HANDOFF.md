@@ -1,6 +1,115 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-08 by Round 84 (Remington), for whoever is next
+> ## ▶ START HERE — written 2026-09-08 by Round 85 (Caligraph), for whoever is next
+>
+> ⚠️⚠️ **TWO ITEMS CLOSED, ONE OF THEM REPORTED BY JAKE MID-ROUND.** Came in
+> cold, read the handoff and the roadmap, ran `npm test` and `npm run
+> audit:versions` first — **82/82, 0 problems**. Jake asked for something
+> knockable-out for commit 999, then found a real bug while I was working, so
+> this round is one filed cosmetic fix and one live report.
+>
+> ### 1. ⚠️⚠️ A FINISHED BOOK NEVER LEFT "CONTINUE READING" — ROADMAP 67, NEW
+>
+> Jake, 2026-09-08: *"I finished 'The Mystery of the Missing Moonlight'... It's
+> still showing in my continue reading menu, although I'm definitely done with
+> it. Got to the library from the finished page, in fact."*
+>
+> ⚠️⚠️ **THE ROW HAD NO CONCEPT OF "FINISHED" AT ALL.** `renderContinue()`
+> filtered on *has a progress timestamp* and nothing else — and a just-finished
+> book is always the **most recently touched thing a student owns**, so it sat
+> at the TOP of the row, permanently. `game.js`'s completion branch (`if
+> (!nextChapterId)`) was the only place in the app that knew a book was over,
+> and **it wrote nothing down**: there was no field for `index.html` to ask.
+>
+> * `game.js` **v3.51.0** stamps `finishedAt` on the progress document, riding
+>   in the write that branch already triggers. ⚠️⚠️ **FLUSHED EXPLICITLY, AND
+>   THAT IS LOAD-BEARING** — `pagehide` only does `walSave()`/
+>   `flushSessionsNow()` (localStorage; **no Firestore progress write at
+>   all**), and `visibilitychange:hidden` reaches `flushAll()` only past a
+>   time/delta gate. A student who finishes and immediately clicks **"Back to
+>   the library"** — the button the completion modal itself draws, and exactly
+>   how Jake hit this — satisfies neither, and the stamp would die with the tab.
+> * `index.html` **v3.22.0** filters the row through `isFinished()`.
+>   ⚠️ **EVERY BOOK FINISHED BEFORE v3.51.0 HAS NO STAMP, INCLUDING THE ONE IN
+>   THE REPORT**, so there is a legacy fallback — deliberately CONSERVATIVE,
+>   because the two failure directions are not equal: leaving a finished book
+>   in the row is the bug, but hiding an unfinished one **deletes a child's way
+>   back to it from the row built to get them back to it**.
+> * ⚠️⚠️ **THE FALLBACK IS NOT `completedChapters.length >= bodyTotal`.** That
+>   is the obvious test and it is WRONG: **front matter is typeable**, lands in
+>   the same `completedChapters` array, and `bodyTotal` counts BODY chapters
+>   only — so a padded array would hide a half-read book. It requires the
+>   CURRENT position to be the last body chapter (`bodyIndex === bodyTotal`)
+>   AND that chapter to be in `completedChapters`. Parked on the last chapter
+>   is not enough; they may be reading it right now.
+> * ⚠️ `renderBooks()` is UNTOUCHED — a finished book stays on the shelf. This
+>   was about one row, not about hiding books.
+> * ⭐ **A NOTE ON THE HARNESS, WORTH READING.** The first draft of the
+>   front-matter assertion **passed against the naive implementation** — its
+>   `bodyIndex` was mid-book, so the index guard rejected the case before the
+>   count ever ran, and it proved nothing. Caught by mutating the source and
+>   noticing the assertion stayed green. **A test that cannot fail is not
+>   coverage**; it is now constructed so only the real check answers it.
+>   `tests/finished-book-test.mjs`, 22 assertions, mutation-verified.
+>
+> ### 2. ⚠️ THE BOOKS CSV EXPORT NAMED ITS FILE FROM A UTC DAY — ROADMAP 66, CLOSED
+>
+> `admin.js` **v3.55.0**. `new Date().toISOString().slice(0, 10)` rolls over at
+> **7pm Central (6pm CST)**, so an evening export was named with tomorrow's
+> date. Now `daylog.js`'s `localDateStr()`. ⚠️ **FILED-NOT-FIXED FOR SEVEN
+> ROUNDS ON PURPOSE** and that was right: it touches a filename nothing reads
+> back — not a stored value, not a grade, not a day key — and Jake exports from
+> his desk during the school day, so it has almost certainly never once been
+> wrong in practice. Fixed now only because the round had room. ⚠️ **THE CLASS
+> IS THE POINT, NOT THIS INSTANCE**: the same `toISOString()`-as-day-key
+> mistake has now been found in `sessionLogAdopt()`, `reports.html` (twice),
+> and `generatePractice()`. **A grep for `toISOString()` is NOT a bug list** —
+> every other hit in the repo is a `createdAt`/`updatedAt` timestamp where UTC
+> is correct and "fixing" it would BE the defect. The discriminator is whether
+> the value is used as a DAY KEY. `tests/csv-export-date-test.mjs` pins it.
+>
+> ### THE STATE OF PLAY
+>
+> * **83 harnesses pass, `audit:versions` 0 problems** — two new harnesses this
+>   round, both registered. ⚠️ `test:rules` not run; nothing here touches
+>   `firestore.rules`, still **v2.12.0** and **published to the live console**
+>   (Jake confirmed, 2026-09-08).
+> * **Expected stamps:** `index.html` **v3.22.0**, `versions.js` **v1.17.0**,
+>   `admin.html` **v1.23.0**, `admin.js` **v3.55.0**, `lessons-admin.js`
+>   **v1.22.0**, `reports.html` **v1.10.0** (its REPORTS_VERSION module
+>   constant is separately at 2.40.0), `staff-admin.js` **v2.4.0**, `game.js`
+>   **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.9.0**,
+>   `firebase/firestore.rules` **v2.12.0**, `lesson-gate.js` **v1.2.0**,
+>   `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**.
+> * ⚠️ **HEADER-BUDGET ARCHIVAL THIS ROUND:** `admin.js` v3.48.0 moved to
+>   CHANGELOG.md § ARCHIVED FILE HEADERS, verbatim, pointer left behind.
+> * ⚠️ **`style.css` v3.10.0 is STILL correctly unshipped** — Jake rejected it
+>   rendered. Do not ship it.
+> * ⚠️ **`functions/index.js` v1.7.1 is live** — Jake mirrored it into the Cloud
+>   Run console himself during Round 80, on Node 24.
+> * ⚠️ **CHANGELOG.md has no Round 56, 58 or 80 entry.** Three gaps, not
+>   reconstructed: writing someone else's round from their ROADMAP summaries
+>   produces a plausible document, not a true one.
+> * ⚠️ **The reads measurement has still never been taken.** It decides the
+>   county rollout and needs one ordinary school day on a shipped build.
+> * ⭐⭐⭐ **COMMIT 1000 IS NEXT, AND IT IS THE THREE TYPING GAMES.** Jake's own
+>   queue is fully shipped (week anchor R82, popular sort R83, book search
+>   R84). ⚠️⚠️ **DO NOT GUESS AT THE GAMES.** The material — code, a doc,
+>   screenshots, even a description of each — **still has not been shared with
+>   this repo or any round**, and every prior mention stayed at "his games"
+>   without mechanics ever being pinned down. It also went from TWO to THREE
+>   without either side noticing until it was said aloud. **Ask before writing
+>   a line toward them**; a guess that misses what he and Gemini actually built
+>   wastes the exact milestone commit he is saving it for.
+> * ⚠️⚠️ **HE HAS TABLED, EXPLICITLY:** the mastery-lock workaround (*"that's
+>   not going to happen"*) and staff book allowlists (*"he hasn't asked for
+>   it"*). **Do not re-raise either.**
+> * ⚠️⚠️ **STOP TALKING TO JAKE IN ITEM NUMBERS.** Say what a thing IS, in
+>   plain English, every time.
+> * ⚠️⚠️ **BEFORE BUILDING FOR ANY FLAG, MEASURE OR RE-READ IT.** Round 81 found
+>   THREE stale ones in a day. **§ CONVENTIONS' rule is not decoration.**
+
+> ## ▶ Round 84 (Remington) — the previous block, kept
 >
 > ⚠️⚠️ **ROADMAP 53 IS NOW FULLY CLOSED — SEARCH SHIPPED, AND JAKE'S OWN QUEUE
 > FOR THE RUN-UP TO COMMIT 1000 IS DONE.** Came in cold, read the handoff and
@@ -63,10 +172,10 @@
 >   round (`search-test.mjs`), registered. ⚠️ `test:rules` not run; nothing
 >   here touches `firestore.rules`.
 > * **Expected stamps:** `index.html` **v3.21.0**, `versions.js` **v1.17.0**,
->   `admin.html` **v1.23.0**, `admin.js` **v3.54.1**, `lessons-admin.js`
+>   `admin.html` **v1.23.0**, `admin.js` **v3.55.0**, `lessons-admin.js`
 >   **v1.22.0**, `reports.html` **v1.10.0** (its REPORTS_VERSION module
 >   constant is separately at 2.40.0), `staff-admin.js` **v2.4.0**, `game.js`
->   **v3.50.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.9.0**,
+>   **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.9.0**,
 >   `firebase/firestore.rules` **v2.12.0** — **Jake confirmed this is
 >   published to the live console**, not just committed here.
 >   `lesson-gate.js` **v1.2.0**, `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**.

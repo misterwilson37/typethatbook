@@ -629,6 +629,29 @@
         // it, because they used to be hardcoded separately and had already
         // drifted apart (title said 3.0.0, footer said 2.3.1).
         //
+        // v3.22.0: ⚠️ ROADMAP 67 — A FINISHED BOOK LEAVES THE CONTINUE-READING ROW.
+        //         Jake, 2026-09-08, of a book he had just completed: "It's still
+        //         showing in my continue reading menu... Got to the library from
+        //         the finished page, in fact." The row filtered on "has a progress
+        //         timestamp" and NOTHING ELSE, so a just-finished book — always
+        //         the most recently touched thing a student owns — sat at the top
+        //         of it forever. isFinished() prefers game.js v3.51.0's explicit
+        //         `finishedAt` stamp; ⚠️ EVERY BOOK FINISHED BEFORE THAT VERSION
+        //         HAS NO STAMP, INCLUDING THE ONE IN THE REPORT, so there is a
+        //         legacy fallback — and it is deliberately CONSERVATIVE, because
+        //         the two failure directions are not equal: leaving a finished
+        //         book in the row is the bug, but hiding an unfinished one
+        //         deletes a child's way back to it from the row that exists to
+        //         get them back to it. ⚠️⚠️ THE FALLBACK IS NOT
+        //         `completedChapters.length >= bodyTotal`, which is the obvious
+        //         test and is WRONG: front matter is typeable and lands in the
+        //         same array while bodyTotal counts BODY chapters only, so a
+        //         padded array would hide a half-read book. It requires the
+        //         CURRENT position to be the last body chapter AND that chapter
+        //         to be completed. ⚠️ renderBooks() is untouched — a finished
+        //         book stays on the shelf; this is about one row.
+        //         tests/finished-book-test.mjs, 22 assertions, mutation-verified.
+        //
         // v3.21.0: ⭐ ROADMAP 53 — A SEARCH BOX ON THE STACKS, FOR THE CHILD WHO
         //         ALREADY KNOWS WHAT THEY WANT. Featured (v3.19.0) serves the
         //         one who doesn't; this is the other half of the same item,
@@ -770,7 +793,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.21.0";
+        const INDEX_VERSION = "3.22.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -1456,6 +1479,44 @@
         // has been hardened too, but two defences are right for a coupling this
         // invisible: nothing in index.html announces that a variable name here is
         // load-bearing for a file over there.
+        // ⚠️⚠️ ROADMAP 67. TWO ANSWERS, AND THE SECOND ONE IS THE REASON THIS IS
+        // NOT A ONE-LINER.
+        //
+        // game.js v3.51.0 stamps `finishedAt` on the progress document at the
+        // completion moment. That is the authoritative answer and it is exact.
+        //
+        // ⚠️ BUT EVERY BOOK FINISHED BEFORE THAT VERSION SHIPPED HAS NO STAMP,
+        // including the one that produced this bug report. A fix that only
+        // reads `finishedAt` would leave Jake's own finished books sitting in
+        // the row that made him report it, which would read as "not fixed".
+        // So there is a fallback for legacy documents — and it has to be a
+        // CONSERVATIVE one, because the two failure directions are not equal:
+        // leaving a finished book in the row is the bug we are fixing, but
+        // hiding a book a child is still reading DELETES THEIR WAY BACK TO IT
+        // from the row built to get them back to it. When unsure, show it.
+        //
+        // ⚠️ THE FALLBACK IS NOT `completedChapters.length >= bodyTotal`, WHICH
+        // IS THE OBVIOUS ONE AND IS WRONG. Front matter is typeable — a student
+        // can complete `0.1`, `0.2` and so on — and those land in the same
+        // `completedChapters` array while `bodyTotal` counts BODY chapters only.
+        // A child who read three front-matter sections and half a short book
+        // would clear that test and lose the book off their row mid-read.
+        //
+        // Instead: the student's CURRENT position must be the last body chapter
+        // (bodyIndex === bodyTotal, both written by game.js in the same write),
+        // AND that chapter must be in completedChapters. Being parked on the
+        // last chapter is not enough — they may be reading it right now.
+        function isFinished(book, progress) {
+            if (!progress) return false;
+            if (progress.finishedAt) return true;
+            const total = progress.bodyTotal;
+            const idx   = progress.bodyIndex;
+            if (!(typeof total === 'number' && total > 0)) return false;
+            if (!(typeof idx === 'number' && idx === total)) return false;
+            const done = Array.isArray(progress.completedChapters) ? progress.completedChapters : [];
+            return done.map(String).includes(String(progress.chapter));
+        }
+
         function progressOf(b) {
             const p = userProgress[b.id];
             if (!p) return -1;
@@ -1663,6 +1724,13 @@
                 // guessing puts a stranger's-looking book at the top of a row
                 // titled "Continue reading".
                 .filter(x => x.at > 0)
+                // ⚠️⚠️ ROADMAP 67 — A FINISHED BOOK IS NOT SOMETHING TO CONTINUE.
+                // Jake, 2026-09-08, of a book he had just finished: "It's still
+                // showing in my continue reading menu... Got to the library from
+                // the finished page, in fact." This row filtered on "has a
+                // timestamp" and nothing else, so a completed book sat at the
+                // top of it — the most recently touched thing they own — forever.
+                .filter(x => !isFinished(x.book, userProgress[x.id]))
                 .sort((a, b) => b.at - a.at)
                 .slice(0, CONTINUE_MAX);
 

@@ -1,4 +1,21 @@
-// admin.js v3.54.1
+// admin.js v3.55.0
+//
+// v3.55.0 — ⚠️ ROADMAP 66. THE BOOKS CSV EXPORT NAMED ITS FILE FROM A UTC DAY.
+//           `new Date().toISOString().slice(0, 10)` rolls over at 7pm Central
+//           (6pm CST), so an export run in the evening was named with
+//           tomorrow's date. ⚠️ FILED, NOT FIXED, FOR SEVEN ROUNDS ON PURPOSE —
+//           it touches a filename nothing reads back, not a stored value, a
+//           grade, or a day key, and Jake exports from his desk during the
+//           school day, so it has almost certainly never once been wrong in
+//           practice. Fixed now because the class of defect (the SAME
+//           `toISOString()`-as-day-key mistake already found and fixed in
+//           `sessionLogAdopt()`, `reports.html` twice, and `generatePractice()`)
+//           is the point of the item, not this one cosmetic instance.
+//           ⚠️ `daylog.js`'s `localDateStr()`, NOT `todayInSchoolTZ()` — this
+//           code runs in Jake's own browser, where "local" is the machine's
+//           own clock, and `todayInSchoolTZ()`'s fixed-IANA-zone approach
+//           exists specifically for a Cloud Functions container, whose local
+//           zone is UTC. One line, one patch bump.
 //
 // v3.54.1 — ⚠️⚠️ TWO BUTTONS HAD A DEAD `button:hover` AND NO CHECKER COULD SEE
 //           THEM. `#fr-commit-btn` ("Replace all N") and `#repair-titles-go`
@@ -180,35 +197,13 @@
 //           ⚠️ 55d UNTOUCHED: the two alert()s at the top of this handler stay.
 //           Item 39 converts alert()/confirm() WHOLE PAGES AT A TIME, never one.
 //
-// v3.48.0 — ⚠️⚠️ ROADMAP 56a: THE (i) BUTTONS ANSWER SOMETHING NOW. They were
-//           <span>s carrying a `title`, so there was nothing to click — a help
-//           affordance that promises an explanation and spends the click for
-//           nothing. initFieldHints() copies each `data-note` into `title` so
-//           HOVER AND CLICK SAY THE SAME WORDS FROM ONE SOURCE, and installs ONE
-//           delegated handler (per-element handlers die silently when the panel
-//           re-renders, and a dead help button looks exactly like a live one).
-//           ⚠️ preventDefault IS LOAD-BEARING: the (i) sits inside a
-//           <label for="…">, so a click would otherwise focus the field and, on
-//           a <select>, open it.
-//           ⭐ THE NOTES ARE PROVENANCE, NOT DEFINITION, and every one of them is
-//           DERIVED FROM readEpubMetadata()/autofillFromEpub() rather than from
-//           memory. Change what a field is filled from, change its note in the
-//           same edit.
-//
-//           ⚠️ ROADMAP 55b: THE SUPERADMIN-ONLY `Uploaded by` CORRECTION.
-//           ⚠️⚠️ firestore.rules DOES NOT ENFORCE IT. `match /books/{bookId}` has
-//           no field whitelist, so any admin who can write a book document can
-//           write this field. IT IS A UI AFFORDANCE, NOT A PERMISSION — the right
-//           trade for a correction only Jake needs, but never describe it as a
-//           security boundary.
-//           ⚠️ `=== 'super_admin'` EXACTLY — and note the UNDERSCORE, which Round 68 got wrong; an undefined role must not read as
-//           permission, and `!== 'admin'` would be exactly that bug.
-//           ⚠️ ONE getDocs ON FIRST OPEN, never on load (§READS).
-//           ⚠️ THE STAMP IS UNCHANGED: upload still writes uploadedBy on FIRST
-//           upload only, Save Metadata still never writes it. This is a
-//           correction affordance, not the normal path.
+// ⚠️ v3.48.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS.
 //
 import { db, auth, storage, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
+// ROADMAP 66. `localDateStr()` is the local-date formatter — correct here
+// because this file runs in Jake's own browser, unlike the Cloud Functions
+// container `todayInSchoolTZ()` exists for.
+import { localDateStr } from "./daylog.js";
 import { initLessonsPanel, setStaffHooks } from "./lessons-admin.js";
 // ROADMAP 47 step one. Pure string mapping, no DOM and no SDK — see that file's
 // header for why it is separate and why it must stay dependency-free.
@@ -220,7 +215,7 @@ import { doc, setDoc, getDoc, deleteDoc, collection, getDocs, serverTimestamp } 
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-const ADMIN_VERSION = "3.54.1";
+const ADMIN_VERSION = "3.55.0";
 
 // ⚠️ v3.36.0 — THREE GENRES RETIRED AT JAKE'S REQUEST, ONE ADDED. Jake: *"They're
 // lame and not helpful."* Gone: Classic Literature, Historical Fiction, Young
@@ -6688,7 +6683,11 @@ if (exportBooksBtn) exportBooksBtn.onclick = async () => {
             r.maxAge === null ? '' : r.maxAge,
             r.protagonistGender, r.chapters, r.hasCover
         ]))).join('\r\n');
-        const stamp = new Date().toISOString().slice(0, 10);
+        // ⚠️ ROADMAP 66 — LOCAL, NOT UTC. toISOString() rolls the date over at
+        // 7pm Central (6pm CST); localDateStr() uses the browser's own clock,
+        // which is what "local" should mean for a file Jake downloads from his
+        // own desk.
+        const stamp = localDateStr();
         downloadCsv('typethatbook-books-' + stamp + '.csv', csv);
         set('\u2713 Exported ' + rows.length + ' books.', '#00ff41');
     } catch (e) {

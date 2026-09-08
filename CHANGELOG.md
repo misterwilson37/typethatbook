@@ -1,5 +1,66 @@
 # CHANGELOG — TypeThatBook
 
+## Round 85 (Caligraph) — 2026-09-08 — a finished book leaves the shelf it was finished from
+
+Jake asked for something knockable-out before commit 999, then found a real bug
+mid-round. Ran `npm test` and `npm run audit:versions` first — 82/82, 0
+problems, Round 84's claim exact.
+
+### ⚠️⚠️ A FINISHED BOOK NEVER LEFT "CONTINUE READING"
+
+Jake, 2026-09-08: *"It's still showing in my continue reading menu, although
+I'm definitely done with it. Got to the library from the finished page, in
+fact."*
+
+The row had **no concept of "finished" at all** — `renderContinue()` filtered
+on *has a progress timestamp* and nothing else, and a just-completed book is
+always the most recently touched thing a student owns, so it sat at the TOP of
+the row permanently. `game.js`'s completion branch was the only place in the
+app that knew a book was over, and it wrote nothing down: there was no field
+for `index.html` to ask.
+
+`game.js` **v3.51.0** stamps `finishedAt` on the progress document, riding in
+the write that branch already triggers. ⚠️⚠️ Flushed explicitly, and that is
+load-bearing: `pagehide` only does `walSave()`/`flushSessionsNow()`
+(localStorage, no Firestore progress write), and `visibilitychange:hidden`
+reaches `flushAll()` only past a time/delta gate — a student clicking "Back to
+the library", the button the completion modal itself draws, satisfies neither.
+
+`index.html` **v3.22.0** filters through `isFinished()`. Every book finished
+before v3.51.0 has no stamp, including the one in the report, so there is a
+legacy fallback — deliberately conservative, because leaving a finished book in
+the row is the bug, but hiding an unfinished one deletes a child's way back to
+it from the row built to get them back to it. ⚠️⚠️ The fallback is **not**
+`completedChapters.length >= bodyTotal`: front matter is typeable, lands in the
+same array, and `bodyTotal` counts body chapters only, so a padded array would
+hide a half-read book. It requires the current position to be the last body
+chapter AND that chapter to be completed. `renderBooks()` is untouched — a
+finished book stays on the shelf.
+
+⭐ The first draft of the front-matter assertion **passed against the naive
+implementation** — its `bodyIndex` was mid-book, so the index guard rejected the
+case before the count ran. Caught by mutating the source and noticing the test
+stayed green. A test that cannot fail is not coverage.
+
+### ⚠️ THE BOOKS CSV EXPORT NAMED ITS FILE FROM A UTC DAY
+
+`admin.js` **v3.55.0**. `toISOString()` rolls over at 7pm Central (6pm CST), so
+an evening export was named with tomorrow's date; now `daylog.js`'s
+`localDateStr()`. Filed-not-fixed for four rounds and that was right — it
+touches a filename nothing reads back, and Jake exports during the school day.
+Fixed because the round had room, not because the risk was re-assessed. ⚠️ The
+class is the point, not the instance: the same mistake has now been found in
+`sessionLogAdopt()`, `reports.html` (twice), and `generatePractice()`. A grep
+for `toISOString()` is **not** a bug list — every other hit is a
+`createdAt`/`updatedAt` timestamp where UTC is correct.
+
+### Bookkeeping
+
+New harnesses: `tests/finished-book-test.mjs` (22 assertions) and
+`tests/csv-export-date-test.mjs` (5), both registered and mutation-verified.
+83/83 pass; `audit:versions` 0 problems. `admin.js` v3.48.0 archived to
+§ ARCHIVED FILE HEADERS for the 8-entry budget.
+
 ## Round 84 (Remington) — 2026-09-08 — a search box on the stacks, for the reader who already knows
 
 **Came in cold on Jake's instruction to keep going** — this closes out his own
@@ -6515,6 +6576,41 @@ Pushed over by v2.47.0 (ROADMAP 35, the scaled mistake thresholds). Verbatim.
 //           accepting a falsy token fails G6).
 //
 // ⚠️ v2.38.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 71).
+```
+
+### admin.js v3.48.0 — archived this round, 8-entry budget
+
+Pushed over by v3.55.0 (ROADMAP 66, the UTC-day CSV filename). Verbatim,
+nothing deleted.
+
+```
+// v3.48.0 — ⚠️⚠️ ROADMAP 56a: THE (i) BUTTONS ANSWER SOMETHING NOW. They were
+//           <span>s carrying a `title`, so there was nothing to click — a help
+//           affordance that promises an explanation and spends the click for
+//           nothing. initFieldHints() copies each `data-note` into `title` so
+//           HOVER AND CLICK SAY THE SAME WORDS FROM ONE SOURCE, and installs ONE
+//           delegated handler (per-element handlers die silently when the panel
+//           re-renders, and a dead help button looks exactly like a live one).
+//           ⚠️ preventDefault IS LOAD-BEARING: the (i) sits inside a
+//           <label for="…">, so a click would otherwise focus the field and, on
+//           a <select>, open it.
+//           ⭐ THE NOTES ARE PROVENANCE, NOT DEFINITION, and every one of them is
+//           DERIVED FROM readEpubMetadata()/autofillFromEpub() rather than from
+//           memory. Change what a field is filled from, change its note in the
+//           same edit.
+//
+//           ⚠️ ROADMAP 55b: THE SUPERADMIN-ONLY `Uploaded by` CORRECTION.
+//           ⚠️⚠️ firestore.rules DOES NOT ENFORCE IT. `match /books/{bookId}` has
+//           no field whitelist, so any admin who can write a book document can
+//           write this field. IT IS A UI AFFORDANCE, NOT A PERMISSION — the right
+//           trade for a correction only Jake needs, but never describe it as a
+//           security boundary.
+//           ⚠️ `=== 'super_admin'` EXACTLY — and note the UNDERSCORE, which Round 68 got wrong; an undefined role must not read as
+//           permission, and `!== 'admin'` would be exactly that bug.
+//           ⚠️ ONE getDocs ON FIRST OPEN, never on load (§READS).
+//           ⚠️ THE STAMP IS UNCHANGED: upload still writes uploadedBy on FIRST
+//           upload only, Save Metadata still never writes it. This is a
+//           correction affordance, not the normal path.
 ```
 
 ### admin.js v3.47.0 — archived by Round 81 (Fox), 8-entry budget

@@ -1,4 +1,18 @@
-// game.js v3.50.0
+// game.js v3.51.0
+//
+// v3.51.0 — ⚠️ ROADMAP 67 (Jake, 2026-09-08): A FINISHED BOOK KEPT APPEARING
+//           UNDER "CONTINUE READING". *"It's still showing in my continue
+//           reading menu, although I'm definitely done with it. Got to the
+//           library from the finished page, in fact."* This file's completion
+//           branch was the ONLY place that knew a book was over, and it wrote
+//           nothing down — index.html had no field to ask. `finishedAt` is now
+//           stamped on the progress document in the write that branch already
+//           triggers. ⚠️⚠️ FLUSHED EXPLICITLY: pagehide only does walSave()/
+//           flushSessionsNow() (localStorage, no Firestore progress write) and
+//           visibilitychange:hidden reaches flushAll() only past a time/delta
+//           gate — a student clicking the "Back to the library" button this
+//           very modal draws can satisfy neither, and the stamp would die with
+//           the tab. Once per book, at the one moment it is knowable.
 //
 // v3.50.0 — ⭐ ROADMAP 58 STEP TWO: A CLASS CAN CHOOSE ITS OWN WEEK. `goals` now
 //           carries `weekStartDay` (0=Sun … 6=Sat), resolved the SAME way
@@ -198,7 +212,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.50.0";
+const VERSION = "3.51.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -4174,6 +4188,11 @@ const WAL_KEY = 'ttb_wal_v2';
 const FLUSH_INTERVAL_MS = 300000;   // 5 minutes
 let walFlushTimer = null;
 let walDirty = false;
+// ⚠️ ROADMAP 67 (Jake, 2026-09-08: a finished book kept appearing under
+// "Continue reading"). Set at the completion moment, read by the next flush,
+// which is already going to happen — the completion path calls markDirty()
+// immediately before this is set. NOT a second write.
+let bookJustFinished = false;
 // ⚠️ pendingSessions IS GONE. (v3.22.0) The queue lives in session-log.js, which
 // persists it to its own localStorage key and stamps every record with the date
 // it was TYPED. It used to ride inside this WAL under `sessions`, which meant it
@@ -4348,6 +4367,16 @@ async function _flushAllInner(reason, final = false) {
                 completedChapters: Array.from(completedChapters),
                 ...(_ord !== undefined ? { bodyIndex: _ord } : {}),
                 ...(_bodyTotal ? { bodyTotal: _bodyTotal } : {}),
+                // ⚠️ ROADMAP 67 — WRITTEN ONCE, NEVER UNWRITTEN. index.html's
+                // Continue-reading row filters on this. It is a stamp, not a
+                // boolean, so a later round can answer "when did they finish
+                // it" without a migration; and it rides in a write that was
+                // already happening, so it costs nothing.
+                // ⚠️ ONLY EVER SET, NEVER CLEARED HERE — a student who reopens
+                // a finished book to re-read it is still someone who finished
+                // it. If re-reading should restore the card, that is a
+                // deliberate decision and a different edit.
+                ...(bookJustFinished ? { finishedAt: new Date() } : {}),
                 ...progressStamp(),
                 lastUpdated: new Date()
             }, { merge: true });
@@ -5437,6 +5466,26 @@ async function finishChapter() {
     // Judged on the BODY list, so an appendix, endnotes, a colophon or an
     // uncopyright page no longer stand between a kid and the end of the story.
     if (!nextChapterId) {
+        // ⚠️ ROADMAP 67 — THE STAMP GOES ON HERE, WHERE "FINISHED" IS ACTUALLY
+        // KNOWN. This branch is the app's only definition of a completed book
+        // ("no next BODY chapter"), and index.html previously had no way to ask
+        // the question — its Continue-reading row filtered on "has a timestamp"
+        // and nothing else, so a finished book sat at the top of the row
+        // forever.
+        //
+        // ⚠️⚠️ FLUSHED EXPLICITLY, NOT LEFT TO markDirty() ALONE. The two
+        // handlers that would otherwise carry it are both gated: pagehide
+        // only does walSave()/flushSessionsNow() (localStorage, no Firestore
+        // progress write at all), and visibilitychange:hidden reaches
+        // flushAll() only when HIDDEN_FLUSH_MIN_GAP_MS has elapsed or enough
+        // unflushed seconds have piled up. A student who finishes a book and
+        // immediately clicks "Back to the library" — which is exactly how Jake
+        // hit this, and the button this very modal is about to draw — can
+        // satisfy neither gate, and the stamp would be lost with the tab.
+        // Once per book, at the one moment it can be known.
+        bookJustFinished = true;
+        markDirty();
+        await flushAll('book finished', true);
         // The book is over. Say so loudly, name it, and put the credits one click
         // away — which is also the honest place for them: a reader who has just
         // typed every word of a book is exactly who should see who made it.
