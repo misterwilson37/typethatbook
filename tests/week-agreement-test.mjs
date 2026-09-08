@@ -1,4 +1,18 @@
-// week-agreement-test.mjs v1.1.0 — amended Round 21 (Hammond), ROADMAP Phase B.
+// week-agreement-test.mjs v1.3.0 — amended Round 21 (Hammond), ROADMAP Phase B.
+//
+// v1.3.0 — reports.html's getLastSaturday()/getNextFriday() gained a second
+//          `weekStartDay = 6` parameter for ROADMAP 58 step two; the lifted
+//          copy's literal indexOf() string updated to match. The lifted
+//          function is called with one argument throughout this file, so it
+//          still exercises the SATURDAY default — the per-class override
+//          itself is reports.html's own resolveWeekAnchor(), which is out of
+//          reach for a lift-and-eval harness and covered separately.
+//
+// v1.2.0 — ⭐ ROADMAP 58 STEP TWO adds Part B3: weekStartOf()/weekDatesOf() now
+//          take a weekStartDay argument, and every one of the 7 possible
+//          anchors is checked against a week built independently of the
+//          function under test, plus the no-argument-still-means-Saturday
+//          backward-compat guarantee every existing caller relies on.
 //
 // ⚠️ v1.1.0 EXISTS BECAUSE THIS HARNESS BROKE THE MOMENT PHASE B TOUCHED THE
 // READERS, WHICH IS THE POINT OF IT. Both readers gained a second parameter —
@@ -109,13 +123,13 @@ ok('the two files agree on the cutover date',
 const { weekStartOf: daylogWeekStartOf } = await import('../daylog.js');
 const teacherFmtRaw  = lift(reportsSrc, 'function toDateStr(d) {');
 const teacherSat = (() => {
-    const src = reportsSrc.slice(reportsSrc.indexOf('function getLastSaturday(from = new Date()) {'));
+    const src = reportsSrc.slice(reportsSrc.indexOf('function getLastSaturday(from = new Date(), weekStartDay = 6) {'));
     const body = src.slice(0, src.indexOf('\n    }') + 6);
     return new Function('weekStartOf', 'toDateStr',
         body + '\nreturn getLastSaturday;')(daylogWeekStartOf, teacherFmtRaw);
 })();
 const teacherFmt    = teacherFmtRaw;
-const { weekStartOf: studentWeek, localDateStr: studentYmd } =
+const { weekStartOf: studentWeek, weekDatesOf: studentWeekDates, localDateStr: studentYmd } =
     await import(new URL('../daylog.js', import.meta.url));
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -247,7 +261,60 @@ for (const [file, fn] of [['game.js', 'function getWeekStart'],
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-console.log('\nPart C — ⚠️ AT EVERY HOUR, IN JAKE\'S TIMEZONE');
+console.log('\nPart B3 — ⭐ ROADMAP 58 STEP TWO: A CLASS CAN CHOOSE ITS OWN WEEK');
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⚠️ THE FORMULA CHANGED SHAPE, NOT JUST GAINED A PARAMETER: `(getDay() + 1) %
+// 7` became `(getDay() - weekStartDay + 7) % 7`. At weekStartDay=6 the two must
+// be the SAME formula, not just agree on a handful of sampled dates — that is
+// what Part B above already covers at the default. This part covers every
+// other anchor.
+//
+// ⚠️ NOT A LOOKUP TABLE OF EXPECTED DATES. A hand-built table of "the right
+// answer" for 7 anchors × many dates is itself arithmetic that can be wrong in
+// the same way the function under test can be wrong, and a shared mistake
+// would agree with itself. These are INVARIANTS true of any correct week
+// anchor, checked independently of how weekStartOf() computes anything:
+//   (1) the returned date really falls on weekStartDay
+//   (2) the queried date is 0–6 days AFTER the returned date, never before,
+//       never 7+ days after
+{
+    const DAY_MS = 86400000;
+    const daysBetween = (a, b) =>
+        Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / DAY_MS);
+    const dates = ['2026-08-15', '2026-08-16', '2026-08-17', '2026-08-18',
+                   '2026-08-19', '2026-08-20', '2026-08-21', '2026-08-22',
+                   '2026-01-01', '2026-12-31', '2026-02-28'];
+    for (let weekStartDay = 0; weekStartDay <= 6; weekStartDay++) {
+        for (const d of dates) {
+            const start = studentWeek(d, weekStartDay);
+            const startDow = new Date(start + 'T12:00:00').getDay();
+            const offset = daysBetween(start, d);
+            ok(`weekStartDay=${weekStartDay}, ${d}: anchor ${start} falls on the right weekday`,
+               startDow === weekStartDay, `anchor's own getDay() is ${startDow}`);
+            ok(`weekStartDay=${weekStartDay}, ${d}: ${d} is 0-6 days after its anchor`,
+               offset >= 0 && offset <= 6, `offset was ${offset}`);
+        }
+    }
+    // ⚠️ OMITTING THE SECOND ARGUMENT MUST BEHAVE EXACTLY AS v1.8.0 DID — every
+    // existing caller in the repo omits it.
+    for (const d of dates) {
+        ok(`no weekStartDay argument defaults to Saturday: ${d}`,
+           studentWeek(d) === studentWeek(d, 6), `${studentWeek(d)} vs ${studentWeek(d, 6)}`);
+    }
+    // ⚠️ weekDatesOf() MUST RETURN SEVEN CONSECUTIVE DATES STARTING ON THE
+    // ANCHOR, for every anchor, not just Saturday.
+    for (let weekStartDay = 0; weekStartDay <= 6; weekStartDay++) {
+        const week = studentWeekDates('2026-08-18', weekStartDay);
+        const startsRight = week[0] === studentWeek('2026-08-18', weekStartDay);
+        const consecutive = week.every((d, i) => i === 0 ||
+            daysBetween(week[i - 1], d) === 1);
+        ok(`weekDatesOf(weekStartDay=${weekStartDay}) starts on the anchor and is 7 consecutive days`,
+           week.length === 7 && startsRight && consecutive, JSON.stringify(week));
+    }
+}
+
+
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // ⚠️ DO NOT COLLAPSE THIS INTO PART B. Part B runs at local noon and passes with

@@ -1,5 +1,82 @@
 # CHANGELOG — TypeThatBook
 
+## Round 82 (Crandall) — 2026-09-07 — a class can choose its own week
+
+**Came in cold on Jake's instruction to pick up his own queue** (week views →
+book search → popular sort) while he assembles material for three typing
+games he wants to land at commit 1000. Ran `npm test` and `npm run
+audit:versions` before reading a line of prose — 78/78, 0 problems, Round 81's
+claim exact.
+
+### ⭐⭐ ROADMAP 58 CLOSED — THE ANCHOR IS PARAMETERISED, NOT JUST COLLAPSED
+
+`daylog.js` **v1.9.0**. Round 71's collapse made `weekStartOf()` the one place
+the anchor lives; nothing before this version could ask for a day other than
+Saturday. `weekStartOf(dateStr, weekStartDay = 6)` generalises `(getDay() + 1)
+% 7` to `(getDay() - weekStartDay + 7) % 7` — the same formula at
+weekStartDay=6, not a second implementation beside the first. Every existing
+caller that omits the new argument is byte-identical to v1.8.0.
+`week-agreement-test.mjs` Part B3 checks all 7 anchors against invariants
+(the anchor falls on the right weekday; the query date is 0–6 days after it)
+rather than a hand-built answer table, so the test can't share a directional
+mistake with the code — mutation-verified: reverting the formula turns 66
+assertions red.
+
+### ⭐ THE LADDER: CLASS → SCHOOL DEFAULT → SATURDAY
+
+`game.js` **v3.50.0**, `learn.js` **v2.48.0**. `goals.weekStartDay` resolves
+inside the same `loadGoals()` read that already resolves the minutes. ⚠️
+**Not quite free**: a class that sets its own minutes but not its own anchor
+still needs `settings/goals`, once per student per 24h cache window — a cost
+that didn't exist before this version, and worth it rather than pinning every
+new class to Saturday forever. `GOALS_CACHE_KEY`/`LEARN_GOALS_KEY` bumped
+v1→v2 in lockstep — they're one shared key by design; bumping only one turns
+every load of the other page into a permanent cache miss.
+
+### ⭐ THE CLASS EDITOR: "SCHOOL DEFAULT" IS A REAL THIRD STATE
+
+`admin.html` **v1.23.0**, `lessons-admin.js` **v1.22.0**. The picker's blank
+option means no override, not day 0 or day 6 — a class left there tracks the
+school default automatically, even after it later changes. ⚠️⚠️ Clearing an
+existing override needs `deleteField()` (`merge: true` never removes a key
+that isn't in the payload); the sentinel it returns must never reach
+`_classCache` directly, or the next edit reads it as a truthy non-integer and
+shows garbage — caught before shipping, pinned by
+`tests/class-week-anchor-test.mjs` Section B. `_weekStartDate()` (the
+Students-tab "This week" filter) was deliberately left on the hardcoded
+default: it spans classes and schools at once, and admin.html's `This week
+(Sat–Fri)` label stays true because of that choice, not by accident.
+
+### ⭐ REPORTS.HTML: THE NO-MODAL RULING, BUILT
+
+`reports.html` **v1.10.0 / v2.39.0**. A new "Week Starts On" card sets the
+school default. `resolveWeekAnchor()` reads exactly the class ids the
+`<select>` is already offering for `'__mine__'`/`'__all__'` — never a fresh
+query — so its mismatch note can never disagree with what's on screen. A
+single named class is never ambiguous; when the relevant classes disagree,
+the most common anchor wins and `#week-anchor-note` names the split, ties
+breaking toward the lower day number. ⚠️⚠️ Found and fixed a real init-order
+bug along the way: `setDefaultDates()` now depends on `classesById` and
+`schoolWeekStartDay`, and used to run *before* the calls that populate them —
+meaning the very first render of the date boxes on every login used the
+pre-load defaults regardless of what was configured. `getLastSaturday()`/
+`getNextFriday()` gained a plain `weekStartDay = 6` default rather than one
+that calls `resolveWeekAnchor()`, because `week-agreement-test.mjs` lifts
+`getLastSaturday()` into a sandbox with only `weekStartOf`/`toDateStr`
+injected, and a default referencing an out-of-scope function throws.
+`tests/class-week-anchor-test.mjs` Section F drives `resolveWeekAnchor()`
+itself against a fake `<select>` across seven scenarios, two
+mutation-verified.
+
+### Bookkeeping
+
+New harness: `tests/class-week-anchor-test.mjs` (31 assertions), registered.
+79/79 harnesses pass; `npm run audit:versions` 0 problems.
+Header-budget archivals (8-entry cap): `daylog.js` v1.4.0's stray
+duplicate-title line removed outright (zero content — it repeated the module
+tagline, not a real entry); `learn.js` v2.40.0 and `lessons-admin.js` v1.14.0
+moved to § ARCHIVED FILE HEADERS below, verbatim, pointers left behind.
+
 ## Round 81 (Fox) — 2026-09-06 — a feature that had never run, and the page no registry watched
 
 **Came in cold on Jake's instruction to read the handoff and the roadmap and
@@ -6281,6 +6358,42 @@ what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
 
+### learn.js v2.40.0 — archived this round, 8-entry budget
+
+Pushed over by v2.48.0 (ROADMAP 58 step two, the per-class week anchor). Verbatim.
+
+```
+// v2.40.0 — ⚠️⚠️ ROADMAP 6, THE SCHOOL HALF — THE MIDNIGHT STRADDLE. Library was
+//           fixed in game.js v3.38.0; School had the same defect and kept it for
+//           several rounds because the fix is NOT a one-liner here. A lesson
+//           straddling midnight filed ONE record stamped with the day it ENDED
+//           on, so the day counters and the drill-down disagreed — neither wrong,
+//           answering different questions.
+//
+//           ⚠️⚠️ THE ROLLOVER MOVED ABOVE THE INCREMENTS AND THAT IS HALF THE FIX.
+//           This file incremented stepSeconds BEFORE its rollover check and
+//           compensated by resetting counters to `1` rather than `0`. That worked
+//           for the COUNTERS and could not work for the LOG: by the time the
+//           rollover ran, the second was already in a stepSeconds that
+//           logOpenRun() was about to file under the new day. The block now sits
+//           above `learnActiveSeconds++`, above `anonSecondsAccum++` and above
+//           `armAnonLoginPrompt()`, and every `= 1` is back to `= 0`.
+//           ⚠️ ONE LINE LOWER AND THE FIRST SECOND OF EACH NEW DAY IS FILED UNDER
+//           YESTERDAY, invisibly, forever. midnight-test.mjs D5/D6 assert the
+//           ordering; D7–D9 assert the compensations are gone. Mutation-verified.
+//
+//           `logRun()` and `logOpenRun()` take a `dateOverride` for exactly one
+//           caller — the rollover — and default to today for every other.
+//           ⚠️ THE 5-SECOND FLOOR STILL APPLIES, as in game.js: a run begun at
+//           11:59:58 has 2 seconds to close, the floor refuses them, and the
+//           watermark is NOT advanced, so they roll into the first record of the
+//           new day rather than vanishing.
+```
+
+⚠️ Still cited inline at four sites in learn.js (the rollover block, the
+`dateOverride` comment, and both `= 0` resets) — those citations stand on their
+own describing what that version changed and needed no pointer added.
+
 ### learn.js v2.39.0 — archived by Round 81 (Fox), 8-entry budget
 
 Pushed over by v2.47.0 (ROADMAP 35, the scaled mistake thresholds). Verbatim.
@@ -6408,6 +6521,39 @@ Verbatim, nothing deleted.
 //           admin.html v1.9.0 now, with `btn-tint` for the brightness.
 //           ⚠️ THE OTHER DEAD HOVER WAS THE CLASS MANAGER'S DELETE, and it was a
 //           worse bug than a missing glow — see lessons-admin.js v1.17.0.
+```
+
+### lessons-admin.js v1.14.0 — archived this round, 8-entry budget
+
+Pushed over by v1.22.0 (ROADMAP 58 step two, the per-class week anchor).
+Verbatim. Its own pointer lines to v1.13.2/v1.13.1/v1.13.0/v1.12.0/v1.11.0
+move down with it, unchanged, and still work from here.
+
+```
+// v1.14.0 — ⚠️⚠️ ROADMAP 11 — A STUDENT IN A CLASS BUT NOT A SCHOOL. THREE
+//           writers assigned a class and only TWO wrote schoolId; the
+//           single-student save and _bulkAssign() sent classId alone, so the
+//           student had NO building — visible under "All schools", invisible
+//           under their own, missing from every school-filtered report. Jake's
+//           own son, three rounds running. ⚠️ _schoolIdForClass() is now the ONE
+//           answerer and it FALLS BACK TO THE CLASS DOCUMENT: _classCache is
+//           filled when the CLASSES panel opens, so a fix reading it directly
+//           would have looked right and written '' exactly as the bug did.
+//           ⚠️ The CSV lookup is PER ROW — a rollover file can name a different
+//           class on every line. tests/class-assign-test.mjs.
+
+⚠️ v1.13.2's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (8-entry
+budget, Round 80, Imperial). It was itself a header-only stub pointing at
+four earlier archives; those pointers (below) are untouched and still work.
+
+⚠️ v1.13.1's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 76).
+⚠️ v1.13.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 74).
+⚠️ v1.12.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 71).
+⚠️ v1.11.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
+It is the read-side of the source split.
+
+⚠️ v1.13.2 — v1.8.1, v1.8.0, v1.7.1 and v1.7.0 moved to CHANGELOG.md
+   § ARCHIVED FILE HEADERS. Nothing deleted.
 ```
 
 ### lessons-admin.js v1.13.2 — archived by Round 80 (Imperial), 8-entry budget

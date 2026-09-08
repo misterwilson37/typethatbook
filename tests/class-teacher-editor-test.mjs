@@ -130,9 +130,14 @@ ok(/id="class-teachers-select"[^>]*\bmultiple\b/.test(html),
 // not identical grid placement, since a multi-line listbox sharing a
 // single-line input row is exactly the height mismatch item 64 just fixed
 // elsewhere on this same page.
+// ⚠️ v1.22.0 — ROADMAP 58 STEP TWO added a 5th field ("Week Starts On") to the
+// same grid, ordinary panel growth rather than the control being buried
+// somewhere else — widened 2000 → 2800 for exactly that one field's worth of
+// markup (measured 2441 at the time of the change), not loosened to "anything
+// on the page passes."
 const schoolIdx   = html.indexOf('id="class-school-select"');
 const teachersIdx = html.indexOf('id="class-teachers-wrap"');
-ok(schoolIdx > -1 && teachersIdx > schoolIdx && teachersIdx - schoolIdx < 2000,
+ok(schoolIdx > -1 && teachersIdx > schoolIdx && teachersIdx - schoolIdx < 2800,
    'the Teachers field sits close after School in the document, not buried elsewhere in the panel');
 
 // ═══════════════════ H. the multi-select is NOT caught by the chevron rule ═

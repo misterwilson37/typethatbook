@@ -1,4 +1,22 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.21.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.22.0
+//
+// v1.22.0 — ⭐ ROADMAP 58 STEP TWO: THE CLASS EDITOR'S HALF. `saveClass()` gains
+//           a `weekStartDay` field (0=Sun…6=Sat) from admin.html's new "Week
+//           Starts On" picker. ⚠️⚠️ BLANK MEANS "SCHOOL DEFAULT", NOT ZERO —
+//           a brand-new class gets NO weekStartDay key at all so it inherits
+//           whatever the school default is at read time (game.js/learn.js's
+//           loadGoals()); clearing an existing override on an EDIT uses
+//           `deleteField()`, because `merge: true` never removes a key that
+//           isn't in the payload and a stale explicit day would otherwise
+//           survive someone picking "School default" specifically to undo it.
+//           ⚠️ `deleteField()` IS A SENTINEL, NOT A VALUE — `_classCache` gets
+//           the key stripped out after the write, never the sentinel object
+//           itself, or `startClassEdit()` would read it as truthy.
+//           ⚠️ `_weekStartDate()` (the Students-tab "This week" filter) is
+//           DELIBERATELY LEFT ON THE HARDCODED DEFAULT — it spans classes and
+//           schools at once, where "one class's week" doesn't apply, and
+//           admin.html's `This week (Sat–Fri)` label stays true because of
+//           that choice, not by accident.
 //
 // v1.21.0 — ⚠️⚠️ ROADMAP 62: WHO TEACHES A CLASS IS NOW EDITABLE — ADMIN
 //           ONLY, MATCHING firestore.rules v2.11.0 EXACTLY. Jake: "I created
@@ -116,38 +134,17 @@
 // ⚠️ A🔥 counts are recorded from 2026-08-25 onward only; a dash means NOT
 // RECORDED, not zero earned, and the table footnote says so.
 //
-// v1.14.0 — ⚠️⚠️ ROADMAP 11 — A STUDENT IN A CLASS BUT NOT A SCHOOL. THREE
-//           writers assigned a class and only TWO wrote schoolId; the
-//           single-student save and _bulkAssign() sent classId alone, so the
-//           student had NO building — visible under "All schools", invisible
-//           under their own, missing from every school-filtered report. Jake's
-//           own son, three rounds running. ⚠️ _schoolIdForClass() is now the ONE
-//           answerer and it FALLS BACK TO THE CLASS DOCUMENT: _classCache is
-//           filled when the CLASSES panel opens, so a fix reading it directly
-//           would have looked right and written '' exactly as the bug did.
-//           ⚠️ The CSV lookup is PER ROW — a rollover file can name a different
-//           class on every line. tests/class-assign-test.mjs.
+// ⚠️ v1.14.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS, along with its
+// own pointer lines to v1.13.2/v1.13.1/v1.13.0/v1.12.0/v1.11.0 — all moved
+// together, unchanged.
 //
-// ⚠️ v1.13.2's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (8-entry
-// budget, Round 80, Imperial). It was itself a header-only stub pointing at
-// four earlier archives; those pointers (below) are untouched and still work.
-//
-// ⚠️ v1.13.1's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 76).
-// ⚠️ v1.13.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 74).
-// ⚠️ v1.12.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 71).
-// ⚠️ v1.11.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 64).
-// It is the read-side of the source split.
-//
-// ⚠️ v1.13.2 — v1.8.1, v1.8.0, v1.7.1 and v1.7.0 moved to CHANGELOG.md
-//    § ARCHIVED FILE HEADERS. Nothing deleted.
-//
-window.LESSONS_ADMIN_VERSION = '1.21.0';
+window.LESSONS_ADMIN_VERSION = '1.22.0';
 
 // ⚠️ ROADMAP 58 — the week anchor, from its one home. daylog.js imports only
 // logdays.js, which this page's siblings already load, so this adds no machinery.
 import { weekStartOf } from "./daylog.js";
 import {
-    collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where
+    collection, getDocs, getDoc, setDoc, deleteDoc, doc, query, orderBy, where, deleteField
 } from "./read-meter.js";   // ⚠️ METERED. read-meter.js re-exports the whole SDK
 // with the billable calls wrapped, so this is a URL swap and nothing else.
 // Jake, 2026-08-25, after a 138-student scan: "There's nothing in the console
@@ -1555,6 +1552,22 @@ async function saveClass() {
         updatedAt: new Date().toISOString(),
     } : _newClassRecord(nameVal, schoolId, dailyMin * 60, weeklyMin * 60);
 
+    // ⚠️⚠️ ROADMAP 58 STEP TWO. "School default" is the empty-string option and
+    // means NO OVERRIDE, not zero. A brand-new class that never gets the key at
+    // all inherits whatever the school default is at read time, in game.js's
+    // and learn.js's loadGoals(). ⚠️ CLEARING AN EXISTING OVERRIDE NEEDS
+    // deleteField() — merge:true never removes a key that isn't in the payload,
+    // so writing nothing here would leave a stale explicit day standing after
+    // someone picked "School default" specifically to undo it.
+    let clearedWeekStartDay = false;
+    const weekStartSel = document.getElementById('class-weekstart-select');
+    const weekStartVal = weekStartSel ? weekStartSel.value : '';
+    if (weekStartVal === '') {
+        if (editId) { record.weekStartDay = deleteField(); clearedWeekStartDay = true; }
+    } else {
+        record.weekStartDay = parseInt(weekStartVal, 10);
+    }
+
     // ⚠️⚠️ ROADMAP 62 — ADMIN ONLY, EDIT ONLY, AND ONLY WHEN THE FIELD IS
     // ACTUALLY ON SCREEN. A plain teacher's record must never carry this key
     // at all: firestore.rules v2.11.0 requires their write leave teacherUids
@@ -1578,7 +1591,13 @@ async function saveClass() {
             classId = _newClassId(nameVal);
         }
         await setDoc(doc(_db, 'classes', classId), record, { merge: true });
+        // ⚠️ deleteField() IS A SENTINEL, NOT A VALUE — spreading `record`
+        // straight into the in-memory cache would store that sentinel object as
+        // if it were the class's weekStartDay, and startClassEdit() would then
+        // read it as truthy and show garbage in the picker. Strip it out of the
+        // cached copy instead of copying it in.
         _classCache[classId] = { id: classId, ..._classCache[classId], ...record };
+        if (clearedWeekStartDay) delete _classCache[classId].weekStartDay;
         statusEl.textContent = isNew ? 'Class created.' : 'Saved.';
         statusEl.style.color = '#00ff41';
 
@@ -1677,6 +1696,13 @@ function startClassEdit(classId) {
     document.getElementById('class-name-input').value  = cls.name || '';
     document.getElementById('class-daily-input').value = Math.floor((cls.dailySeconds || 0) / 60);
     document.getElementById('class-weekly-input').value= Math.floor((cls.weeklySeconds || 0) / 60);
+    // ⚠️⚠️ ROADMAP 58 STEP TWO. An absent weekStartDay means "school default",
+    // which is the blank option — NOT day 6. Showing Saturday here for a class
+    // that actually inherits would look identical to an explicit Saturday
+    // override until someone changed the school default and this class didn't
+    // follow it.
+    document.getElementById('class-weekstart-select').value =
+        Number.isInteger(cls.weekStartDay) ? String(cls.weekStartDay) : '';
     document.getElementById('class-form-title').textContent = 'Edit Class';
     // ⚠️ CLASS, NOT INLINE STYLE (Round 74). These elements are hidden by
     // `u-display-none`, which has no `!important` — so `style.display = ''`
@@ -1696,6 +1722,11 @@ function cancelClassEdit() {
     document.getElementById('class-name-input').value  = '';
     document.getElementById('class-daily-input').value = 10;
     document.getElementById('class-weekly-input').value= 50;
+    // ⚠️ ROADMAP 58 STEP TWO — "School default", not a hardcoded day. A brand
+    // new class saved without touching this field gets no weekStartDay key at
+    // all (see saveClass()), so the picker resetting to the same choice is not
+    // decorative.
+    document.getElementById('class-weekstart-select').value = '';
     document.getElementById('class-form-title').textContent = 'New Class';
     document.getElementById('class-cancel-btn').classList.add('u-display-none');
     // ⚠️ ROADMAP 62 — a fresh "New Class" auto-assigns its creator

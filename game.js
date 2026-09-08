@@ -1,4 +1,20 @@
-// game.js v3.49.0
+// game.js v3.50.0
+//
+// v3.50.0 — ⭐ ROADMAP 58 STEP TWO: A CLASS CAN CHOOSE ITS OWN WEEK. `goals` now
+//           carries `weekStartDay` (0=Sun … 6=Sat), resolved the SAME way
+//           dailySeconds/weeklySeconds already are — class doc → settings/goals
+//           → 6 — inside the SAME loadGoals() read, at ZERO extra Firestore
+//           cost. `getWeekStart()` passes it to daylog.js's weekStartOf(); every
+//           readWeek() call site now sends `weekStartDay: goals.weekStartDay`.
+//           ⚠️ GOALS_CACHE_KEY BUMPED v1 → v2 — an entry cached before this
+//           version has no weekStartDay field, and `|| 6` on the read makes a
+//           cache miss on the anchor read as Saturday rather than as `undefined`
+//           flowing into date arithmetic. ⚠️ CHANGING A CLASS'S ANCHOR MID-WEEK
+//           MOVES ITS CELEBRATION-LATCH KEY (`celebrationMark('week', ...)` is
+//           keyed by the week-start STRING), so a student can re-earn or miss a
+//           weekly fireworks moment the day the anchor changes. Harmless and
+//           rare enough not to guard; said here so it isn't rediscovered as a
+//           bug.
 //
 // v3.49.0 — ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP: THE WEEK ANCHOR HAS ONE HOME.
 //           `(getDay() + 1) % 7` was written out SIX times across the repo. Two of
@@ -182,7 +198,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.49.0";
+const VERSION = "3.50.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1059,7 +1075,10 @@ let sessionExpired = false;
 let lastKnownUid = '';        // survives the null, so we can tell whose session it was
 
 // Goals
-let goals = { dailySeconds: 0, weeklySeconds: 0 };
+// ⚠️ v3.53.0 — ROADMAP 58 STEP TWO. weekStartDay defaults to 6 (Saturday) so a
+// call to getWeekStart() before loadGoals() has resolved anything behaves
+// exactly as every version before this one did.
+let goals = { dailySeconds: 0, weeklySeconds: 0, weekStartDay: 6 };
 let dailyGoalCelebrated = false;
 let weeklyGoalCelebrated = false;
 
@@ -1664,7 +1683,7 @@ async function loadUserStats() {
         // can never be repaired, and can never drift from the days beneath it.
         // Every week-counter defect this project has had was a stored week
         // counter. There isn't one now.
-        const read = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr });
+        const read = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr, weekStartDay: goals.weekStartDay });
 
         // ⚠️ A PARTIAL READ MUST NOT PAINT. If any of the seven failed, the
         // totals below are an undercount that looks exactly like a light week —
@@ -1890,7 +1909,7 @@ async function retroactiveSaveGuestSession(user) {
         const dateStr = getLocalDateStr(now);
         const weekStart = getWeekStart(now);
 
-        const read = await readWeek({ db, doc, getDoc, uid: user.uid, dateStr });
+        const read = await readWeek({ db, doc, getDoc, uid: user.uid, dateStr, weekStartDay: goals.weekStartDay });
         // ⚠️ A FAILED READ MERGES AS "SERVER HAS NOTHING", which is the safe
         // direction here and only here: mergeGuestStats()'s floor never lets the
         // result fall below what this browser already holds, so the worst case
@@ -1956,15 +1975,15 @@ function getLocalDateStr(date) {
 // times: reports.html and daylog.js once named different Saturdays, and
 // "Saturday's typing was inside the number on the child's screen and outside the
 // teacher's report, every evening, which is when a teacher grades."
-// ⚠️ THIS FUNCTION IS NOW A SHAPE ADAPTER AND NOTHING ELSE. daylog.js's
+// ⚠️ THIS FUNCTION IS A SHAPE ADAPTER AND NOTHING ELSE. daylog.js's
 // weekStartOf() owns the rule; this converts to and from the argument type this
-// file's callers already use. ⚠️ DO NOT REINTRODUCE THE ARITHMETIC HERE — if you
-// need a different anchor, that is ROADMAP 58's SECOND step, and it changes
-// weekStartOf's signature, not this file.
-// ⚠️ THE ANCHOR IS STILL HARDCODED TO SATURDAY, DELIBERATELY. A round that
-// collapses AND configures cannot tell a collapse bug from an anchor bug.
+// file's callers already use, and reads the resolved anchor off `goals` — the
+// same module-level object dailySeconds/weeklySeconds already live on.
+// ⚠️ DO NOT REINTRODUCE THE ARITHMETIC HERE.
+// ⚠️ v3.50.0 — ROADMAP 58 STEP TWO. `goals.weekStartDay` defaults to 6, so
+// nothing here needs to special-case "goals not loaded yet".
 function getWeekStart(date) {
-    return weekStartOf(getLocalDateStr(date ? new Date(date) : new Date()));
+    return weekStartOf(getLocalDateStr(date ? new Date(date) : new Date()), goals.weekStartDay);
 }
 
 
@@ -1974,7 +1993,14 @@ function getWeekStart(date) {
 // third for the settings fallback. Cached for a day. `classId`/`schoolId` are
 // captured here and stamped onto every log so reports can be scoped without
 // scanning the collection — see MULTITENANCY.md.
-const GOALS_CACHE_KEY = 'ttb_goalsCache_v1';
+// ⚠️ v3.50.0 — BUMPED v1 → v2. An entry cached before this version has no
+// weekStartDay field; `c.weekStartDay || 6` on a hit would read `undefined`
+// as falsy and land on 6 anyway, so this bump isn't load-bearing for
+// correctness — it's here because a NEW key means every browser re-reads
+// once instead of serving a cache shape from before the field existed, and a
+// value nobody can name a case where it disagrees with the fallback is not
+// worth trusting only by accident.
+const GOALS_CACHE_KEY = 'ttb_goalsCache_v2';
 
 // ─── Student school picker (v3.8.0) ───────────────────────────────────────
 //
@@ -2176,6 +2202,7 @@ async function loadGoals() {
                     (Date.now() - c.at) < GOALS_CACHE_MS) {
                     goals.dailySeconds = c.dailySeconds || 0;
                     goals.weeklySeconds = c.weeklySeconds || 0;
+                    goals.weekStartDay = Number.isInteger(c.weekStartDay) ? c.weekStartDay : 6;
                     ttbClassId = c.classId || '';
                     ttbSchoolId = c.schoolId || '';
                     applyGoalCelebrationState();
@@ -2184,7 +2211,8 @@ async function loadGoals() {
             }
         } catch (_) { /* fall through to a real read */ }
 
-        let resolved = false;
+        let resolved = false;         // dailySeconds/weeklySeconds resolved
+        let anchorResolved = false;   // weekStartDay resolved from a CLASS override
         ttbClassId = ''; ttbSchoolId = '';
         if (currentUser && !currentUser.isAnonymous) {
             const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
@@ -2200,19 +2228,39 @@ async function loadGoals() {
                         goals.weeklySeconds = cd.weeklySeconds || 0;
                         // A class knows its building; the user doc may not yet.
                         if (!ttbSchoolId && cd.schoolId) ttbSchoolId = cd.schoolId;
+                        // ⚠️ v3.50.0 — a class carries no weekStartDay AT ALL unless
+                        // someone picked one explicitly (admin.html's "School
+                        // default" option omits the key entirely, on purpose — see
+                        // saveClass()). An absent key here is "inherit", not zero.
+                        if (Number.isInteger(cd.weekStartDay) && cd.weekStartDay >= 0 && cd.weekStartDay <= 6) {
+                            goals.weekStartDay = cd.weekStartDay;
+                            anchorResolved = true;
+                        }
                         console.log(`Goals from class "${cd.name}": daily=${goals.dailySeconds}s, weekly=${goals.weeklySeconds}s`);
                         resolved = true;
                     }
                 }
             }
         }
-        if (!resolved) {
+        // ⚠️ v3.50.0 — READ ONCE, USED FOR TWO FALLBACKS. A class that resolved
+        // its OWN minutes but not its OWN anchor still needs this read for the
+        // anchor alone — the "zero extra reads" claim in ROADMAP 58 holds for
+        // the two cases that existed before this version (no class; class sets
+        // everything) and costs exactly one extra document for the new middle
+        // case, once per student per GOALS_CACHE_MS window.
+        if (!resolved || !anchorResolved) {
             const goalsSnap = await getDoc(doc(db, "settings", "goals"));
             if (goalsSnap.exists()) {
                 const data = goalsSnap.data();
-                goals.dailySeconds  = data.dailySeconds  || 0;
-                goals.weeklySeconds = data.weeklySeconds || 0;
-                console.log(`Goals from settings: daily=${goals.dailySeconds}s, weekly=${goals.weeklySeconds}s`);
+                if (!resolved) {
+                    goals.dailySeconds  = data.dailySeconds  || 0;
+                    goals.weeklySeconds = data.weeklySeconds || 0;
+                    console.log(`Goals from settings: daily=${goals.dailySeconds}s, weekly=${goals.weeklySeconds}s`);
+                }
+                if (!anchorResolved && Number.isInteger(data.weekStartDay) &&
+                    data.weekStartDay >= 0 && data.weekStartDay <= 6) {
+                    goals.weekStartDay = data.weekStartDay;
+                }
             }
         }
 
@@ -2220,6 +2268,7 @@ async function loadGoals() {
             localStorage.setItem(GOALS_CACHE_KEY, JSON.stringify({
                 uid: currentUser ? currentUser.uid : '', at: Date.now(),
                 dailySeconds: goals.dailySeconds, weeklySeconds: goals.weeklySeconds,
+                weekStartDay: goals.weekStartDay,
                 classId: ttbClassId, schoolId: ttbSchoolId
             }));
         } catch (_) {}
@@ -3011,7 +3060,7 @@ async function handleImDone() {
         let week = null, ok = true;
         if (currentUser) {
             try {
-                week = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr });
+                week = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr, weekStartDay: goals.weekStartDay });
                 ok = !!(week && week.ok);
             } catch (_) { ok = false; }
         }

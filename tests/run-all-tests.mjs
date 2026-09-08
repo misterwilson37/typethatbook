@@ -187,6 +187,7 @@ const FAST = [
     ['hud-test.mjs',             'the shared time readout: layout, goal denominators, one formatter only'],
     ['variety-floor-test.mjs',   'the shared missed-character variety filter behind both practice buttons'],
     ['week-anchor-test.mjs',     'the report audit and the app agree on where the school week starts'],
+    ['class-week-anchor-test.mjs', '⭐ ROADMAP 58 STEP TWO: the class-editor wiring for a per-class week anchor — admin.html’s picker, saveClass()’s deleteField() scoping and cache-sentinel guard, startClassEdit()/cancelClassEdit(), the class → school-default → 6 ladder in both game.js and learn.js’s loadGoals(), and reports.html’s resolveWeekAnchor() no-modal mismatch/tie-break logic'],
     ['class-create-test.mjs',    'class name matching and the shared CSV class-creation path'],
     ['class-teacher-editor-test.mjs', '⚠️⚠️ ROADMAP 62 — the admin-only teacherUids editor: _canReassignTeachers() run against four roles, saveClass()\u2019s gate, the reveal/hide wiring, the orphan-class flag, and one shared getDocs(\u2018staff\u2019) rather than two'],
     ['staff-role-editor-test.mjs', '⚠️⚠️ ROADMAP 65 — the missing \u2018super_admin\u2019 option in the role dropdown, the pre-select bug it caused on an existing super_admin, and the demotion confirm() guard, checked in the right order relative to the self-edit refusal'],

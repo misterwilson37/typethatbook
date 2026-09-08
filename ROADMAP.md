@@ -389,7 +389,6 @@ Everything else still open:
 - 53. ⚠️ HALF DONE — FEATURED SHIPPED (Round 80, Imperial), SEARCH STILL OPEN  *(newest-first, random-untyped fallback, per Jake's spec; search is unbuilt. ⚠️ Round 81 fixed the fallback's "untyped" half, which had never once run — read that block before touching renderFeatured())*
 - 54. ⚠️ SORT THE LIBRARY BY MOST POPULAR — AND WHETHER IT COSTS A READ AT ALL  *(Jake asked, 2026-09-03; he assumed it costs a read, and it may not)*
 - 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
-- 58. ⚠️ STEP ONE DONE (Round 71) — A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Costs no extra reads, no rules change, no migration — but the anchor rule is written out SIX times and must be collapsed first. ✅ **NOTHING WAITS ON JAKE** — the mixed-class question was answered 2026-09-04 and three places said otherwise until Round 81)*
 - 60. ⭐ STAFF SHOULD SEE EVERY BOOK AND CHOOSE WHAT THEIR OWN STUDENTS SEE  *(Jake, Round 76. NOT BUILT — needs a ruling on allowlist vs blocklist, and the shelf is the read-budget surface)*
 - 66. ⚠️ THE BOOKS CSV EXPORT NAMES ITS FILE FROM A UTC DAY — THE LAST OF THE ROUND 80 SWEEP  *(found Round 81 by sweeping the class, not by a report. ⚠️ Cosmetic — a filename, never a stored value. Read it before "fixing" any other toISOString() in the repo: the rest are timestamps and UTC is right for them)*
 
@@ -398,6 +397,8 @@ Everything else still open:
 - ⏳ THE CUTOVER IS STILL 2026-08-22 — nothing to do but watch
 
 ## ✅ DONE — kept for the reasoning, not for the task
+
+- 58. ✅ CLOSED (Round 71 + Round 82, Crandall) — A CLASS CAN CHOOSE ITS OWN WEEK — Sat–Fri WAS JAKE'S, NOT EVERYONE'S  *(Jake, Round 60. Round 71 collapsed six copies of the anchor rule to one; Round 82 made it configurable — class → school default → 6 — and shipped it in game.js, learn.js, admin.html's class editor, and reports.html per Jake's own no-modal ruling on mixed-class weeks, answered 2026-09-04)*
 
 - 49. ✅ FIXED (Round 58, Emerson) — A STALE HARD-STOP OVERLAY DEMANDED A KEY FROM A DELETED DRILL  *(⚠️ Caps Lock is ruled NOT-a-bug — do not "fix" the e.key comparison)*
 - 48. ✅ “TEXT PREPARED BY” NAMED THE WRONG PERSON ON EVERY BOOK, ON EVERY SURFACE  *(Round 57 — two defects, one symptom)*
@@ -3497,7 +3498,7 @@ being told they have not.
 cross the weekly goal and will never get the fireworks — §0.-13.D is the last time
 a missed crossing was a whole week gone, and the latch is per-period by design.
 
-## 58. ⚠️ STEP ONE DONE (Round 71) — A CLASS SHOULD CHOOSE ITS OWN WEEK — Sat–Fri IS JAKE'S, NOT EVERYONE'S
+## 58. ✅ CLOSED (Round 71 + Round 82, Crandall) — A CLASS CAN CHOOSE ITS OWN WEEK — Sat–Fri WAS JAKE'S, NOT EVERYONE'S
 
 **Jake, 2026-09-03:** *"Some people may want to go Sunday to Monday or Monday to
 Sunday — not everyone has to be forced into my nonsense."* **The class manager is
@@ -3718,6 +3719,47 @@ The collapse is a contained, mechanical round with a strong existing harness. Th
 configurable half is a small feature sitting on top of it. **The `reports.html`
 ruling is the only thing in it that can go wrong quietly**, which is why it is
 listed above as a question rather than a task.
+
+### ✅ CLOSED, Round 82 (Crandall), 2026-09-07 — WHAT ACTUALLY SHIPPED
+
+Everything above this line is Round 60/71's PLANNING; this is what the plan
+became once built, and where it turned out to be wrong or incomplete.
+
+* `daylog.js` **v1.9.0**: `weekStartOf(dateStr, weekStartDay = 6)` and
+  `weekDatesOf(dateStr, weekStartDay = 6)`, exactly the "day NUMBER, not a
+  string" shape this section asked for. `readWeek()` folds the anchor into its
+  memo key.
+* `game.js` **v3.50.0** / `learn.js` **v2.48.0**: `goals.weekStartDay` resolves
+  class → `settings/goals` → 6, inside the SAME `loadGoals()` read that
+  already resolves the minutes — ⚠️ **NOT the "zero extra reads" this section
+  hoped for**: a class that sets its own minutes but not its own anchor still
+  needs the `settings/goals` document, once per student per 24h cache window,
+  a cost that didn't exist before this version. `GOALS_CACHE_KEY`/
+  `LEARN_GOALS_KEY` bumped v1→v2, exactly as this section's "smaller things"
+  list called for.
+* `admin.html` **v1.23.0** / `lessons-admin.js` **v1.22.0**: the `<select>` of
+  seven days this section asked for, plus a "School default" option this
+  section didn't anticipate — an absent `weekStartDay` on a class means it
+  follows the school default automatically, forever, rather than every class
+  needing its own explicit pin the day it's created.
+* `reports.html` **v1.10.0 / v2.39.0**: Jake's no-modal ruling (most common
+  anchor wins, a visible note names the disagreement) built as answered.
+  `setDefaultDates()`'s dependency on the newly-loaded `classesById`/
+  `schoolWeekStartDay` surfaced a real init-order bug — it used to run BEFORE
+  the data it now needs — fixed as part of this round, not carried in from
+  the plan.
+* **The celebration-latch note above was correct and is unchanged**: changing
+  a class's anchor mid-week does move the key, and that is still only in the
+  UI copy, not guarded in code. Left exactly as this section said to leave it.
+* **The admin.html roster filter (`_weekStartDate()`) was deliberately NOT
+  parameterised** — it spans classes and schools at once, where "one class's
+  week" has no single answer, and its `This week (Sat–Fri)` label stays true
+  because of that choice. `tests/class-week-anchor-test.mjs` Section E pins
+  the one-argument call so a future round can't parameterise it without also
+  fixing the label in the same commit.
+* 79/79 harnesses pass; `tests/week-agreement-test.mjs` Part B3 and
+  `tests/class-week-anchor-test.mjs` (new) cover the anchor math and the
+  wiring respectively, several assertions mutation-verified.
 
 ## 62. ✅ FIXED (Round 80, Imperial) — WHO TEACHES A CLASS IS NOW EDITABLE, ADMIN ONLY
 

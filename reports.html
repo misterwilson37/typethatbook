@@ -1,5 +1,16 @@
 <!DOCTYPE html>
-<!-- reports.html v1.9.0
+<!-- reports.html v1.10.0
+     v1.10.0 — ⭐ ROADMAP 58 STEP TWO. STUDENT GOALS gains a third card, "Week
+     Starts On" — the school-wide default anchor, saved to settings/goals
+     alongside the daily/weekly minutes it already held. The "Weekly Goal
+     (Sat–Fri)" label loses its parenthetical: the anchor is no longer always
+     Saturday, and the new card is what says so now. A "week-anchor-note" line
+     under the quick-date buttons surfaces Jake's no-modal ruling: "This Week"
+     follows the selected scope's anchor when the classes in view agree, and
+     falls back to the most common one with a visible note when they don't.
+     See REPORTS_VERSION 2.39.0 for the JS half (resolveWeekAnchor() and the
+     getLastSaturday()/getNextFriday() signature change).
+
      v1.9.0 — ⚠️⚠️ ROADMAP 39: NO BROWSER DIALOGS LEFT ON THIS PAGE. All 22
      `alert()`/`confirm()` calls went together, because ONE NATIVE DIALOG AMONG
      TWENTY STYLED ONES IS THE STATE THE ITEM SAYS IS WORSE THAN NEVER HAVING
@@ -301,6 +312,14 @@
             width: 80px; text-align: center; border-radius: 4px;
         }
         .goal-input-row input:focus { border-color: var(--accent); outline: none; }
+        /* ⚠️ ROADMAP 58 STEP TWO — matches .goal-input-row input[type="number"]'s
+           tokens so the new "Week Starts On" card doesn't look like a different
+           control glued onto an existing panel. */
+        .goal-input-row select {
+            background: var(--surface); border: 1px solid var(--rule-strong); color: var(--ink-bright);
+            padding: 8px 10px; font-family: inherit; font-size: 1rem; border-radius: 4px;
+        }
+        .goal-input-row select:focus { border-color: var(--accent); outline: none; }
         .goal-unit { color: var(--ink-faint); font-size: 0.8rem; }
         .goal-hint { color: var(--ink-ghost); font-size: 0.65rem; margin-top: 6px; font-style: italic; }
         .goal-status {
@@ -584,12 +603,33 @@
                 </div>
                 <div class="goal-card">
                     <div class="goal-icon">🎆</div>
-                    <label for="weekly-goal">Weekly Goal (Sat–Fri)</label>
+                    <label for="weekly-goal">Weekly Goal</label>
                     <div class="goal-input-row">
                         <input type="number" id="weekly-goal" min="0" max="600" step="5" value="0" />
                         <span class="goal-unit">minutes</span>
                     </div>
                     <div class="goal-hint">Fireworks when reached</div>
+                </div>
+                <!-- ⚠️⚠️ ROADMAP 58 STEP TWO. THE SCHOOL DEFAULT, NOT A CLASS'S
+                     OWN CHOICE — a class with its own weekStartDay (set in
+                     admin.html's Class Manager) ignores this entirely. Any class
+                     left on "School default" there follows whatever is picked
+                     here, going forward, from the moment this saves. -->
+                <div class="goal-card">
+                    <div class="goal-icon">📅</div>
+                    <label for="weekstart-goal">Week Starts On</label>
+                    <div class="goal-input-row">
+                        <select id="weekstart-goal">
+                            <option value="0">Sunday</option>
+                            <option value="1">Monday</option>
+                            <option value="2">Tuesday</option>
+                            <option value="3">Wednesday</option>
+                            <option value="4">Thursday</option>
+                            <option value="5">Friday</option>
+                            <option value="6" selected>Saturday</option>
+                        </select>
+                    </div>
+                    <div class="goal-hint">Applies to any class with no override of its own</div>
                 </div>
                 <button id="save-goals-btn">Save Goals</button>
             </div>
@@ -627,6 +667,12 @@
                 <button class="quick-btn" data-range="this-week">This Week</button>
                 <button class="quick-btn" data-range="last-week">Last Week</button>
             </div>
+            <!-- ⚠️⚠️ ROADMAP 58 STEP TWO, JAKE'S RULING: NO MODAL. When the
+                 classes in view don't all anchor their week the same day, "This
+                 Week" silently picks the most common anchor and this line says
+                 so, rather than asking every single time. resolveWeekAnchor()
+                 fills it in; empty when there's nothing to disagree about. -->
+            <div class="goal-hint" id="week-anchor-note"></div>
         </div>
 
         <!-- ⚠️ ROADMAP 39 (v1.9.0). THE BANNER HOST SITS WHERE THE TEACHER IS
@@ -1048,7 +1094,30 @@
     //           FIXED, NOT ONLY POLISH: recalc-btn re-enabled on the line after
     //           its await with no finally, so a throw left it dead until reload.
     //           tests/busy-state-test.mjs.
-    const REPORTS_VERSION = "2.38.0";
+    // v2.39.0 — ⭐ ROADMAP 58 STEP TWO: A CLASS CAN CHOOSE ITS OWN WEEK, THE
+    //           TEACHER'S HALF. `getLastSaturday()`/`getNextFriday()` gain a
+    //           `weekStartDay = 6` parameter — a plain default, NOT a call to
+    //           resolveWeekAnchor(), because week-agreement-test.mjs Part B
+    //           lifts getLastSaturday() with only weekStartOf/toDateStr
+    //           injected and would throw ReferenceError on any other default.
+    //           Every real call site (setDefaultDates(), both quick-date
+    //           buttons) passes the anchor explicitly.
+    //
+    //           ⚠️⚠️ resolveWeekAnchor() IMPLEMENTS JAKE'S NO-MODAL RULING: a
+    //           single named class is never ambiguous; '__mine__'/'__all__'
+    //           read the exact class ids the <select> is ALREADY OFFERING
+    //           (never a fresh query), so the note can never name a
+    //           disagreement the teacher can't also see in the dropdown; when
+    //           the relevant classes disagree, the MOST COMMON anchor wins,
+    //           ties break toward the lower day number, and #week-anchor-note
+    //           names which classes disagree rather than silently picking a
+    //           side. ⚠️ INIT ORDER MATTERS: setDefaultDates() now depends on
+    //           classesById and schoolWeekStartDay, so it moved to run AFTER
+    //           loadScopeOptions() and loadGoals(), not before — the bug this
+    //           guards against is invisible on every login BUT the first one
+    //           of a session, which is exactly the kind that survives review.
+    //           tests/class-week-anchor-test.mjs Section F, mutation-verified.
+    const REPORTS_VERSION = "2.39.0";
 
     // ═════════════════════════════════════════════════════════════════════════
     // THE PER-SOURCE CUTOVER  (v2.22.0; hoisted to this scope in v2.24.0)
@@ -1150,6 +1219,10 @@
     let me = { uid: null, email: '', role: null, schoolIds: [], classIds: [], readScope: 'own_classes' };
     let schoolsById = {};     // schoolId -> { name }
     let classesById = {};     // classId  -> { name, schoolId }
+    // ⚠️ ROADMAP 58 STEP TWO — the school-wide default anchor (0=Sun…6=Sat),
+    // loaded once by loadGoals(). A class's OWN weekStartDay always wins over
+    // this; resolveWeekAnchor() below is where the two combine.
+    let schoolWeekStartDay = 6;
 
     const isSuper = () => me.role === 'super_admin';
 
@@ -1224,9 +1297,17 @@
             }
             document.getElementById('login-section').classList.add('hidden');
             document.getElementById('reports-section').classList.remove('hidden');
-            setDefaultDates();
+            // ⚠️⚠️ ROADMAP 58 STEP TWO. setDefaultDates() now calls
+            // resolveWeekAnchor(), which reads classesById AND
+            // schoolWeekStartDay — so it MUST run after both loadScopeOptions()
+            // (fills classesById) and loadGoals() (resolves schoolWeekStartDay),
+            // never before. Getting this order backwards means the very FIRST
+            // render of the date boxes on every login silently uses the
+            // pre-load defaults (empty classesById, schoolWeekStartDay=6)
+            // instead of what was actually configured.
             await loadScopeOptions();
             await loadGoals();
+            setDefaultDates();
         } else {
             statusEl.innerText = "Not logged in.";
             statusEl.style.borderColor = "var(--bad)";
@@ -1315,11 +1396,22 @@
                            : (seesBuilding ? '__all__' : (ids[0] || ''));
             document.getElementById('scope-note').textContent =
                 mine.length ? '★ = your class' : '';
+            // ⚠️ ROADMAP 58 STEP TWO — classesById just got rebuilt (a school
+            // change reloads it), so a mismatch note computed before this call
+            // is stale the moment this function returns.
+            updateWeekAnchorNote();
         } catch (e) {
             console.warn('Class load failed:', e);
             classSel.innerHTML = '<option value="__all__">All classes</option>';
         }
     }
+    // ⚠️ ROADMAP 58 STEP TWO — picking a different class within the same
+    // school changes resolveWeekAnchor()'s answer without classesById changing
+    // at all, so this needs its own listener rather than piggybacking on
+    // loadClassOptions() (which is schoolSel's change handler, and also runs
+    // once on initial load, before wiring this would even find the element
+    // twice).
+    document.getElementById('scope-class').addEventListener('change', updateWeekAnchorNote);
 
     // Build the tightest query the selected scope allows. This is the read-cost
     // fix as much as the permissions one: the old version queried typing_logs by
@@ -1398,6 +1490,10 @@
                 const data = goalsSnap.data();
                 document.getElementById('daily-goal').value = Math.round((data.dailySeconds || 0) / 60);
                 document.getElementById('weekly-goal').value = Math.round((data.weeklySeconds || 0) / 60);
+                if (Number.isInteger(data.weekStartDay) && data.weekStartDay >= 0 && data.weekStartDay <= 6) {
+                    schoolWeekStartDay = data.weekStartDay;
+                }
+                document.getElementById('weekstart-goal').value = String(schoolWeekStartDay);
             }
         } catch (e) { console.warn("Goals load error:", e); }
     }
@@ -1405,13 +1501,16 @@
     document.getElementById('save-goals-btn').onclick = async () => {
         const dailyMins = parseInt(document.getElementById('daily-goal').value) || 0;
         const weeklyMins = parseInt(document.getElementById('weekly-goal').value) || 0;
+        const weekStartDay = parseInt(document.getElementById('weekstart-goal').value, 10);
         const statusDiv = document.getElementById('goal-status');
         try {
             await setDoc(doc(db, "settings", "goals"), {
                 dailySeconds: dailyMins * 60,
                 weeklySeconds: weeklyMins * 60,
+                weekStartDay: weekStartDay,
                 updatedAt: new Date()
             });
+            schoolWeekStartDay = weekStartDay;
             statusDiv.textContent = `Saved: ${dailyMins}m daily / ${weeklyMins}m weekly`;
             statusDiv.className = 'goal-status ok';
         } catch (e) {
@@ -1528,12 +1627,76 @@
         div.scrollIntoView({ block: 'nearest' });
     }
 
-    function getLastSaturday(from = new Date()) {
-        return new Date(weekStartOf(toDateStr(new Date(from))) + 'T12:00:00');
+    // ⚠️⚠️ ROADMAP 58 STEP TWO, JAKE'S RULING: NO MODAL. "This Week" follows
+    // the selected scope's anchor when every relevant class agrees; when they
+    // don't, it falls back to the MOST COMMON anchor and #week-anchor-note
+    // says so — the disagreement becomes visible instead of silently picking a
+    // side. Ties break toward the LOWER day number, deterministically, rather
+    // than toward whichever anchor happened to be first in iteration order.
+    // ⚠️ '__all__' READS THE <select>'s OWN OPTIONS, NOT A FRESH QUERY OF
+    // classesById — that is exactly the set the teacher sees in the dropdown
+    // under the current school filter, so this can never disagree with what's
+    // on screen.
+    function resolveWeekAnchor() {
+        const classId = document.getElementById('scope-class').value;
+        let relevantIds;
+        if (classId && classId !== '__all__' && classId !== '__mine__') {
+            relevantIds = [classId];
+        } else if (classId === '__mine__') {
+            relevantIds = (me.classIds || []).filter(id => classesById[id]);
+        } else {
+            relevantIds = Array.from(document.getElementById('scope-class').options)
+                .map(o => o.value)
+                .filter(v => v && v !== '__all__' && v !== '__mine__');
+        }
+
+        const anchorOf = (id) => {
+            const cd = classesById[id];
+            return (cd && Number.isInteger(cd.weekStartDay) && cd.weekStartDay >= 0 && cd.weekStartDay <= 6)
+                ? cd.weekStartDay : schoolWeekStartDay;
+        };
+
+        if (!relevantIds.length) return { day: schoolWeekStartDay, mismatch: false, counts: null };
+
+        const counts = new Map();
+        for (const id of relevantIds) {
+            const day = anchorOf(id);
+            counts.set(day, (counts.get(day) || 0) + 1);
+        }
+        if (counts.size === 1) {
+            return { day: anchorOf(relevantIds[0]), mismatch: false, counts: null };
+        }
+        let bestDay = null, bestCount = -1;
+        for (const [day, count] of [...counts.entries()].sort((a, b) => a[0] - b[0])) {
+            if (count > bestCount) { bestCount = count; bestDay = day; }
+        }
+        return { day: bestDay, mismatch: true, counts };
     }
 
-    function getNextFriday(from = new Date()) {
-        const sat = getLastSaturday(from);
+    const WEEK_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    function updateWeekAnchorNote() {
+        const noteEl = document.getElementById('week-anchor-note');
+        if (!noteEl) return;
+        const { mismatch, day, counts } = resolveWeekAnchor();
+        if (!mismatch) { noteEl.textContent = ''; return; }
+        const parts = [...counts.entries()].sort((a, b) => b[1] - a[1])
+            .map(([d, c]) => `${c} on ${WEEK_DAY_NAMES[d]}`);
+        noteEl.textContent = `Classes in view don't agree on their week (${parts.join(', ')}) — ` +
+            `showing ${WEEK_DAY_NAMES[day]}-anchored weeks.`;
+    }
+
+    // ⚠️⚠️ ROADMAP 58 STEP TWO. weekStartDay defaults to 6 rather than reading
+    // resolveWeekAnchor() itself — this function is LIFTED VERBATIM into
+    // week-agreement-test.mjs's Part B with only weekStartOf/toDateStr injected,
+    // so a default that calls resolveWeekAnchor() would throw ReferenceError
+    // there. Every real call site in this file passes the anchor explicitly.
+    function getLastSaturday(from = new Date(), weekStartDay = 6) {
+        return new Date(weekStartOf(toDateStr(new Date(from)), weekStartDay) + 'T12:00:00');
+    }
+
+    function getNextFriday(from = new Date(), weekStartDay = 6) {
+        const sat = getLastSaturday(from, weekStartDay);
         const fri = new Date(sat);
         fri.setDate(fri.getDate() + 6);
         return fri;
@@ -1566,10 +1729,12 @@
     }
 
     function setDefaultDates() {
-        const sat = getLastSaturday();
-        const fri = getNextFriday();
+        const { day } = resolveWeekAnchor();
+        const sat = getLastSaturday(new Date(), day);
+        const fri = getNextFriday(new Date(), day);
         document.getElementById('date-start').value = toDateStr(sat);
         document.getElementById('date-end').value = toDateStr(fri);
+        updateWeekAnchorNote();
     }
 
     // --- QUICK DATE BUTTONS ---
@@ -1581,15 +1746,19 @@
                 document.getElementById('date-start').value = toDateStr(today);
                 document.getElementById('date-end').value = toDateStr(today);
             } else if (range === 'this-week') {
-                document.getElementById('date-start').value = toDateStr(getLastSaturday());
-                document.getElementById('date-end').value = toDateStr(getNextFriday());
+                const { day } = resolveWeekAnchor();
+                document.getElementById('date-start').value = toDateStr(getLastSaturday(today, day));
+                document.getElementById('date-end').value = toDateStr(getNextFriday(today, day));
+                updateWeekAnchorNote();
             } else if (range === 'last-week') {
-                const lastSat = getLastSaturday();
+                const { day } = resolveWeekAnchor();
+                const lastSat = getLastSaturday(today, day);
                 lastSat.setDate(lastSat.getDate() - 7);
                 const lastFri = new Date(lastSat);
                 lastFri.setDate(lastFri.getDate() + 6);
                 document.getElementById('date-start').value = toDateStr(lastSat);
                 document.getElementById('date-end').value = toDateStr(lastFri);
+                updateWeekAnchorNote();
             }
             generateReport();
         };

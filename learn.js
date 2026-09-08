@@ -1,4 +1,19 @@
-// learn.js v2.47.0
+// learn.js v2.48.0
+//
+// v2.48.0 — ⭐ ROADMAP 58 STEP TWO: A CLASS CAN CHOOSE ITS OWN WEEK. Mirrors
+//           game.js v3.50.0 exactly. `goals.weekStartDay` (0=Sun…6=Sat,
+//           default 6) resolves inside the SAME loadGoals() read as
+//           dailySeconds/weeklySeconds: class doc → settings/goals → 6, at
+//           the cost of one extra document ONLY in the new middle case (a
+//           class exists but doesn't override the anchor), once per student
+//           per LEARN_GOALS_MS window. `getWeekStart()` passes it to
+//           daylog.js's weekStartOf(); every readWeek() call site now sends
+//           `weekStartDay: goals.weekStartDay`. ⚠️ LEARN_GOALS_KEY BUMPED
+//           v1 → v2 — SAME KEY game.js WRITES, so a bare bump here without the
+//           matching one there would make each page invalidate the other's
+//           cache on every load. ⚠️ CHANGING A CLASS'S ANCHOR MID-WEEK MOVES
+//           ITS CELEBRATION-LATCH KEY, same as game.js's note — harmless, not
+//           guarded, said here so it isn't rediscovered as a bug.
 //
 // v2.47.0 — ⚠️⚠️ ROADMAP 35: THE SPAM GUARD COULD NOT FIRE IN A TWO-KEY LESSON.
 //           Jake, 2026-08-29: *"kids spamming the keyboard in the early lessons.
@@ -125,31 +140,9 @@
 //           ⚠️ v2.33.1 ARCHIVED THIS ROUND (8-entry budget) — its two citations
 //           in this file resolve to CHANGELOG.md § ARCHIVED FILE HEADERS now.
 //
-// v2.40.0 — ⚠️⚠️ ROADMAP 6, THE SCHOOL HALF — THE MIDNIGHT STRADDLE. Library was
-//           fixed in game.js v3.38.0; School had the same defect and kept it for
-//           several rounds because the fix is NOT a one-liner here. A lesson
-//           straddling midnight filed ONE record stamped with the day it ENDED
-//           on, so the day counters and the drill-down disagreed — neither wrong,
-//           answering different questions.
-//
-//           ⚠️⚠️ THE ROLLOVER MOVED ABOVE THE INCREMENTS AND THAT IS HALF THE FIX.
-//           This file incremented stepSeconds BEFORE its rollover check and
-//           compensated by resetting counters to `1` rather than `0`. That worked
-//           for the COUNTERS and could not work for the LOG: by the time the
-//           rollover ran, the second was already in a stepSeconds that
-//           logOpenRun() was about to file under the new day. The block now sits
-//           above `learnActiveSeconds++`, above `anonSecondsAccum++` and above
-//           `armAnonLoginPrompt()`, and every `= 1` is back to `= 0`.
-//           ⚠️ ONE LINE LOWER AND THE FIRST SECOND OF EACH NEW DAY IS FILED UNDER
-//           YESTERDAY, invisibly, forever. midnight-test.mjs D5/D6 assert the
-//           ordering; D7–D9 assert the compensations are gone. Mutation-verified.
-//
-//           `logRun()` and `logOpenRun()` take a `dateOverride` for exactly one
-//           caller — the rollover — and default to today for every other.
-//           ⚠️ THE 5-SECOND FLOOR STILL APPLIES, as in game.js: a run begun at
-//           11:59:58 has 2 seconds to close, the floor refuses them, and the
-//           watermark is NOT advanced, so they roll into the first record of the
-//           new day rather than vanishing.
+// ⚠️ v2.40.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS — still cited
+// inline at the midnight-rollover block, the dateOverride comment, and both
+// `= 0` resets below; those citations stand alone and needed no pointer.
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
@@ -254,7 +247,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.47.0";
+const LEARN_VERSION = "2.48.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -525,7 +518,10 @@ function mergeGuestStats(serverData, dateStr, weekStart) {
     statsData.weekStart = weekStart;
     captureStatsBaseline();
 }
-let goals     = { dailySeconds: 0, weeklySeconds: 0 };
+// ⚠️ v2.48.0 — ROADMAP 58 STEP TWO. weekStartDay defaults to 6 (Saturday), same
+// reasoning as game.js's twin: a call before loadGoals() resolves anything
+// behaves exactly as every version before this one did.
+let goals     = { dailySeconds: 0, weeklySeconds: 0, weekStartDay: 6 };
 let classInfo = { id: '', name: '', dailySeconds: 0, weeklySeconds: 0 };
 let dailyGoalCelebrated  = false;
 let weeklyGoalCelebrated = false;
@@ -1191,7 +1187,7 @@ async function retroactiveSaveAnonSession(user) {
         // old stats document, and a week read is exactly that once named. Both
         // period guards match by construction — the read WAS for this date and
         // this week.
-        const read = await readWeek({ db, doc, getDoc, uid: user.uid, dateStr });
+        const read = await readWeek({ db, doc, getDoc, uid: user.uid, dateStr, weekStartDay: goals.weekStartDay });
         // ⚠️ v2.20.0 — THE PER-SOURCE FIELDS ARE PASSED AS THE SERVER SIDE.
         // mergeGuestStats() computes `server + this browser's contribution` for
         // every key it folds; a key with no server value folds as `0 + mine`,
@@ -1327,8 +1323,14 @@ const PROGRESS_CACHE_MS   = 8 * 3600 * 1000;    // one school day
 // across a sign-out and let the second student's flush write the first
 // student's map, or an empty one, under the new uid.
 let _progressLoadedForUid = null;
-const LEARN_GOALS_KEY     = 'ttb_goalsCache_v1'; // SAME key game.js uses — one
-                                                 // read serves both pages
+const LEARN_GOALS_KEY     = 'ttb_goalsCache_v2'; // SAME key game.js uses — one
+                                                 // read serves both pages.
+                                                 // ⚠️ v2.48.0 — bumped v1 → v2
+                                                 // in lockstep with game.js;
+                                                 // these two MUST always carry
+                                                 // the same string, or each
+                                                 // page treats the other's
+                                                 // cache as a miss forever.
 const LEARN_GOALS_MS      = 24 * 3600 * 1000;
 
 // Read a namespaced cache entry, or null. Never throws: a corrupt or absent
@@ -3305,7 +3307,7 @@ async function handleImDone() {
         let week = null, ok = true;
         if (currentUser) {
             try {
-                week = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr });
+                week = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr, weekStartDay: goals.weekStartDay });
                 ok = !!(week && week.ok);
             } catch (_) { ok = false; }
         }
@@ -4712,21 +4714,15 @@ function getLocalDateStr(date) {
     return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
 
-// ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP — THE WEEK ANCHOR HAS ONE HOME NOW.
-// `(getDay() + 1) % 7` was written out SIX times across this repo. That is
-// `week-agreement-test.mjs`'s Priority-1 defect waiting to happen five more
-// times: reports.html and daylog.js once named different Saturdays, and
-// "Saturday's typing was inside the number on the child's screen and outside the
-// teacher's report, every evening, which is when a teacher grades."
-// ⚠️ THIS FUNCTION IS NOW A SHAPE ADAPTER AND NOTHING ELSE. daylog.js's
+// ⚠️ THIS FUNCTION IS A SHAPE ADAPTER AND NOTHING ELSE. daylog.js's
 // weekStartOf() owns the rule; this converts to and from the argument type this
-// file's callers already use. ⚠️ DO NOT REINTRODUCE THE ARITHMETIC HERE — if you
-// need a different anchor, that is ROADMAP 58's SECOND step, and it changes
-// weekStartOf's signature, not this file.
-// ⚠️ THE ANCHOR IS STILL HARDCODED TO SATURDAY, DELIBERATELY. A round that
-// collapses AND configures cannot tell a collapse bug from an anchor bug.
+// file's callers already use, and reads the resolved anchor off `goals` — the
+// same module-level object dailySeconds/weeklySeconds already live on.
+// ⚠️ DO NOT REINTRODUCE THE ARITHMETIC HERE.
+// ⚠️ v2.48.0 — ROADMAP 58 STEP TWO. `goals.weekStartDay` defaults to 6, so
+// nothing here needs to special-case "goals not loaded yet".
 function getWeekStart(date) {
-    return weekStartOf(getLocalDateStr(date ? new Date(date) : new Date()));
+    return weekStartOf(getLocalDateStr(date ? new Date(date) : new Date()), goals.weekStartDay);
 }
 
 
@@ -4742,7 +4738,7 @@ async function loadUserStats() {
         // game.js v3.31.0 exactly, through the same shared daylog.js, so the two
         // pages cannot drift apart in how they compute this. The stats rollup
         // this used to read is deleted. HANDOFF §0.0.
-        const read = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr });
+        const read = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr, weekStartDay: goals.weekStartDay });
 
         // ⚠️ A PARTIAL READ MUST NOT PAINT — an undercount looks exactly like a
         // light week, and showing a child less than they earned is the failure
@@ -4934,6 +4930,7 @@ async function loadGoals() {
         if (c) {
             goals.dailySeconds  = c.dailySeconds  || 0;
             goals.weeklySeconds = c.weeklySeconds || 0;
+            goals.weekStartDay  = Number.isInteger(c.weekStartDay) ? c.weekStartDay : 6;
             classInfo = { id: c.classId || '', name: c.className || '',
                           schoolId: c.schoolId || '',
                           dailySeconds: goals.dailySeconds,
@@ -4944,7 +4941,8 @@ async function loadGoals() {
         }
 
         // Step 1: check if user belongs to a class
-        let resolved = false;
+        let resolved = false;         // dailySeconds/weeklySeconds resolved
+        let anchorResolved = false;   // weekStartDay resolved from a CLASS override
         if (currentUser) {
             const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
             if (userSnap.exists()) {
@@ -4955,6 +4953,13 @@ async function loadGoals() {
                         const cd = classSnap.data();
                         goals.dailySeconds  = cd.dailySeconds  || 0;
                         goals.weeklySeconds = cd.weeklySeconds || 0;
+                        // ⚠️ v2.48.0 — mirrors game.js exactly: an absent key here
+                        // means "inherit the school default", not zero. See
+                        // saveClass() in lessons-admin.js.
+                        if (Number.isInteger(cd.weekStartDay) && cd.weekStartDay >= 0 && cd.weekStartDay <= 6) {
+                            goals.weekStartDay = cd.weekStartDay;
+                            anchorResolved = true;
+                        }
                         classInfo = { id: ud.classId, name: cd.name || '',
                                       schoolId: ud.schoolId || cd.schoolId || '',
                                       dailySeconds: goals.dailySeconds,
@@ -4965,17 +4970,28 @@ async function loadGoals() {
                 }
             }
         }
-        // Step 2: fall back to settings/goals if no class
-        if (!resolved) {
+        // Step 2: fall back to settings/goals for whichever half of the ladder
+        // a class didn't answer. ⚠️ v2.48.0 — READ ONCE, USED FOR TWO FALLBACKS,
+        // same reasoning as game.js's twin: this costs one extra document only
+        // in the new middle case (a class exists but has no anchor override).
+        if (!resolved || !anchorResolved) {
             const snap = await getDoc(doc(db, 'settings', 'goals'));
             if (snap.exists()) {
                 const d = snap.data();
-                goals.dailySeconds  = d.dailySeconds  || 0;
-                goals.weeklySeconds = d.weeklySeconds || 0;
+                if (!resolved) {
+                    goals.dailySeconds  = d.dailySeconds  || 0;
+                    goals.weeklySeconds = d.weeklySeconds || 0;
+                }
+                if (!anchorResolved && Number.isInteger(d.weekStartDay) &&
+                    d.weekStartDay >= 0 && d.weekStartDay <= 6) {
+                    goals.weekStartDay = d.weekStartDay;
+                }
             }
-            classInfo = { id: '', name: '', dailySeconds: goals.dailySeconds,
-                          weeklySeconds: goals.weeklySeconds };
-            updateClassDisplay();
+            if (!resolved) {
+                classInfo = { id: '', name: '', dailySeconds: goals.dailySeconds,
+                              weeklySeconds: goals.weeklySeconds };
+                updateClassDisplay();
+            }
         }
 
         // Persist for 24h. `className` is extra over game.js's payload and is
@@ -4983,6 +4999,7 @@ async function loadGoals() {
         cacheWrite(LEARN_GOALS_KEY, {
             uid: currentUser ? currentUser.uid : '',
             dailySeconds: goals.dailySeconds, weeklySeconds: goals.weeklySeconds,
+            weekStartDay: goals.weekStartDay,
             classId: classInfo.id || '', className: classInfo.name || '',
             schoolId: classInfo.schoolId || ''
         });

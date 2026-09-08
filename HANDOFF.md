@@ -1,6 +1,145 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-06 by Round 81 (Fox), for whoever is next
+> ## ▶ START HERE — written 2026-09-07 by Round 82 (Crandall), for whoever is next
+>
+> ⚠️⚠️ **ROADMAP 58 IS NOW FULLY CLOSED — STEP TWO SHIPPED: A CLASS CAN CHOOSE
+> ITS OWN WEEK.** Came in cold, read the handoff and the roadmap, ran `npm test`
+> and `npm run audit:versions` before reading a line of prose — **78/78, 0
+> problems; Round 81's claim was exact.** Jake's ask for this stretch of
+> commits was explicit: pick up his own queue (week views → book search →
+> popular sort) while he pulls together material for three typing games he
+> wants to land at **commit 1000** as a milestone — that material hasn't
+> arrived yet, so it is untouched here. **This round is the "week views" half.**
+>
+> ### 1. ⭐⭐ THE ANCHOR IS PARAMETERISED, NOT JUST COLLAPSED
+>
+> `daylog.js` **v1.9.0**. Round 71's collapse made `weekStartOf()` the single
+> place the anchor lives; that only removed the DUPLICATION. Nothing before
+> this version could ask for any day OTHER than Saturday. `weekStartOf(dateStr,
+> weekStartDay = 6)` and `weekDatesOf(dateStr, weekStartDay = 6)` now take the
+> anchor as an argument — the formula generalised from `(getDay() + 1) % 7` to
+> `(getDay() - weekStartDay + 7) % 7`, which is the SAME formula at
+> weekStartDay=6, not a second implementation living next to the first.
+> `readWeek()` threads it through and folds it into the per-load memo key.
+> ⚠️ **EVERY EXISTING CALLER THAT OMITS THE SECOND ARGUMENT IS BYTE-IDENTICAL
+> TO v1.8.0** — this was the whole point of defaulting rather than requiring it.
+> `week-agreement-test.mjs` Part B3 checks all 7 possible anchors against
+> INVARIANTS (the anchor falls on the right weekday; the query date is 0–6 days
+> after it) rather than a hand-built answer table, specifically so the test
+> couldn't share a directional mistake with the code — **mutation-verified**:
+> reverting the formula turns 66 assertions red.
+>
+> ### 2. ⭐ THE LADDER: CLASS → SCHOOL DEFAULT → SATURDAY, AT (MOSTLY) ZERO EXTRA COST
+>
+> `game.js` **v3.50.0**, `learn.js` **v2.48.0**. `goals.weekStartDay` resolves
+> inside the SAME `loadGoals()` read that already resolves daily/weekly
+> minutes — a class's own `weekStartDay` wins when it has one; `settings/goals`
+> answers when it doesn't. ⚠️⚠️ **THIS IS NOT FREE THE WAY THE ROADMAP HOPED.**
+> The existing minutes-ladder never re-checks `settings/goals` once a class is
+> found; a genuine per-field ladder for the anchor means a class that sets its
+> OWN minutes but not its OWN anchor still needs that second document — one
+> extra read, once per student per `GOALS_CACHE_MS` (24h) window, only in that
+> one new case. Judged worth it rather than silently keeping every class
+> permanently pinned to Saturday the moment it's created. `GOALS_CACHE_KEY`/
+> `LEARN_GOALS_KEY` bumped v1→v2 IN LOCKSTEP — they are one shared key by
+> design (learn.js's own comment says so); bumping only one turns every load of
+> the OTHER page into a permanent cache miss forever, silently.
+>
+> ### 3. ⭐ THE CLASS EDITOR: "SCHOOL DEFAULT" IS A REAL THIRD STATE, NOT A DAY
+>
+> `admin.html` **v1.23.0**, `lessons-admin.js` **v1.22.0**. The picker's blank
+> option means NO override, not day 0 or day 6 — a class left there tracks
+> whatever the school default is, automatically, forever, even after it
+> changes. ⚠️⚠️ **CLEARING AN EXISTING OVERRIDE NEEDS `deleteField()`** —
+> `merge: true` never removes a key that isn't in the payload, so writing
+> nothing would leave a stale explicit day standing after someone picked
+> "School default" specifically to undo it. ⚠️ **THE SENTINEL ITSELF MUST NOT
+> REACH `_classCache`** — `deleteField()` returns an opaque object; the naive
+> `{ ...record }` spread would have stored THAT OBJECT as the class's
+> `weekStartDay`, and the next `startClassEdit()` would have read it as a
+> truthy non-integer and shown garbage. Caught before shipping, not after —
+> `tests/class-week-anchor-test.mjs` Section B asserts the strip explicitly.
+>
+> ⚠️ **THE STUDENTS-TAB "THIS WEEK" ROSTER FILTER IS DELIBERATELY UNCHANGED.**
+> `_weekStartDate()` spans classes and schools at once, where "one class's
+> week" has no single answer; admin.html's literal `This week (Sat–Fri)` label
+> stays true BECAUSE this was left on the hardcoded default, not by accident.
+> If a future round parameterises it, the label needs to stop being static
+> text in the same commit — `class-week-anchor-test.mjs` Section E pins the
+> one-argument call so that regression can't happen quietly.
+>
+> ### 4. ⭐ REPORTS.HTML: JAKE'S OWN NO-MODAL RULING, IMPLEMENTED
+>
+> `reports.html` **v1.10.0** (markup) / **v2.39.0** (module). A new "Week
+> Starts On" card on STUDENT GOALS is the school default. `resolveWeekAnchor()`
+> reads exactly the class ids the `<select>` is ALREADY OFFERING for
+> `'__mine__'`/`'__all__'` — never a fresh query — so the mismatch note this
+> function drives can never disagree with what the teacher can see in the
+> dropdown. A single named class is never ambiguous. When the relevant classes
+> disagree, the MOST COMMON anchor wins and `#week-anchor-note` names the split
+> rather than silently picking a side; ties break toward the lower day number.
+> ⚠️⚠️ **INIT ORDER WAS A REAL BUG, NOT A STYLE NIT.** `setDefaultDates()` now
+> depends on `classesById` and `schoolWeekStartDay`; it used to run BEFORE
+> `loadScopeOptions()`/`loadGoals()`, which means the very first render of the
+> date boxes on every login would have used the pre-load defaults (empty
+> `classesById`, `schoolWeekStartDay = 6`) regardless of what was actually
+> configured. Reordered. Found in this round, not carried over.
+> `getLastSaturday()`/`getNextFriday()` gained a `weekStartDay = 6` PLAIN
+> default rather than one that calls `resolveWeekAnchor()` — `week-agreement-
+> test.mjs` Part B lifts `getLastSaturday()` with only `weekStartOf`/
+> `toDateStr` injected, and a default expression referencing a function that
+> isn't in that sandbox throws `ReferenceError`. `tests/class-week-anchor-
+> test.mjs` Section F lifts and drives `resolveWeekAnchor()` itself against a
+> fake `<select>`, seven scenarios, two mutation-verified (tie-break direction,
+> `'__all__'`'s dropdown-not-query scoping).
+>
+> ### THE STATE OF PLAY
+>
+> * **79 harnesses pass, `audit:versions` 0 problems** — one new harness this
+>   round (`class-week-anchor-test.mjs`), registered. ⚠️ `test:rules` not run;
+>   nothing here touches `firestore.rules`, still at **v2.11.0** from Round 80.
+> * **Expected stamps:** `index.html` **v3.19.0**, `versions.js` **v1.17.0**,
+>   `admin.html` **v1.23.0**, `admin.js` **v3.54.1**, `lessons-admin.js`
+>   **v1.22.0**, `reports.html` **v1.10.0**, `staff-admin.js` **v2.4.0**,
+>   `game.js` **v3.50.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.9.0**,
+>   `lesson-gate.js` **v1.2.0**, `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**.
+> * ⚠️ **HEADER-BUDGET ARCHIVALS THIS ROUND** (8-entry cap, mechanically
+>   enforced): `daylog.js` v1.4.0's stray duplicate-title line removed outright
+>   (zero content lost — it was the module tagline repeated, not a real entry);
+>   `learn.js` v2.40.0 (the midnight straddle) and `lessons-admin.js` v1.14.0
+>   (a student in a class but not a school) moved to CHANGELOG.md § ARCHIVED
+>   FILE HEADERS, verbatim, pointers left behind.
+> * ⚠️ **`style.css` v3.10.0 is STILL correctly unshipped** — Jake rejected it
+>   rendered. Do not ship it.
+> * ⚠️ **`functions/index.js` v1.7.1 is live** — Jake mirrored it into the Cloud
+>   Run console himself during Round 80, on Node 24.
+> * ⚠️ **CHANGELOG.md now has no Round 56, 58 or 80 entry.** Three gaps. Not
+>   reconstructed, for the reason already recorded: writing someone else's round
+>   from their ROADMAP summaries produces a plausible document, not a true one.
+> * ⚠️ **The reads measurement has still never been taken.** It is the item that
+>   decides the county rollout, and it needs one ordinary school day on a
+>   shipped build.
+> * ⭐⭐ **JAKE'S OWN QUEUE FOR THE RUN-UP TO COMMIT 1000, confirmed 2026-09-07:**
+>   week anchor (**this round, done**) → book search → sorting the library by
+>   popularity → **three typing games at commit 1000 itself**, from material
+>   Jake is building with Gemini that has not been shared with this repo or
+>   this round. ⚠️ **DO NOT GUESS AT THE GAMES.** Every prior mention of this
+>   work, across every past conversation, stayed at "his two games" / "his game
+>   plans" without either side ever pinning down mechanics, and it is now three,
+>   not two. Ask for whatever he has — code, a doc, screenshots, a description —
+>   before writing a line toward them.
+> * ⚠️⚠️ **HE HAS TABLED, EXPLICITLY:** the mastery-lock workaround (needs him to
+>   watch a child, *"that's not going to happen"*), and staff book allowlists
+>   (*"I don't even see the other guy, and he hasn't asked for it"*). **Do not
+>   re-raise either.**
+> * ⚠️⚠️ **STOP TALKING TO JAKE IN ITEM NUMBERS.** *"referring to something as 34
+>   and 58 and whatever is utter nonsense to me... the document is too large and
+>   unwieldy for me to even navigate."* Say what a thing IS, in English, every
+>   time.
+> * ⚠️⚠️ **BEFORE BUILDING FOR ANY FLAG, MEASURE OR RE-READ IT.** Round 81 found
+>   THREE stale ones in a day. **§ CONVENTIONS' rule is not decoration.**
+
+> ## ▶ Round 81 (Fox) — the previous block, kept
 >
 > ⚠️⚠️ **ROADMAP 57 IS CLOSED. ITEM 53's FEATURED HALF IS NOW ACTUALLY WORKING —
 > IT WAS NOT BEFORE, THOUGH THREE DOCUMENTS AND A GREEN HARNESS SAID IT WAS.**
@@ -245,9 +384,9 @@
 >   time.** ⚠️ `test:rules` not run; nothing here touches `firestore.rules`, which
 >   is still at **v2.11.0** from Round 80.
 > * **Expected stamps:** `index.html` **v3.19.0**, `versions.js` **v1.17.0**,
->   `admin.html` **v1.22.1**, `admin.js` **v3.54.1**, `lessons-admin.js`
->   **v1.21.0**, `reports.html` **v1.9.0**, `staff-admin.js` **v2.4.0**, `game.js`
->   **v3.49.0**, `learn.js` **v2.47.0**, `lesson-gate.js` **v1.2.0**,
+>   `admin.html` **v1.23.0**, `admin.js` **v3.54.1**, `lessons-admin.js`
+>   **v1.22.0**, `reports.html` **v1.10.0**, `staff-admin.js` **v2.4.0**, `game.js`
+>   **v3.50.0**, `learn.js` **v2.48.0**, `lesson-gate.js` **v1.2.0**,
 >   `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**.
 > * ⚠️ **`style.css` v3.10.0 is STILL correctly unshipped** — Jake rejected it
 >   rendered. Do not ship it.

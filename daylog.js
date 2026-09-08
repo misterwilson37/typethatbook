@@ -1,4 +1,27 @@
-// daylog.js v1.8.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
+// daylog.js v1.9.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
+//
+// v1.9.0 — ⭐ ROADMAP 58 STEP TWO: `weekStartOf(dateStr, weekStartDay = 6)` and
+//          `weekDatesOf(dateStr, weekStartDay = 6)` take the anchor as an
+//          argument instead of hardcoding Saturday. ⚠️ THE FORMULA IS
+//          `(getDay() - weekStartDay + 7) % 7`, not `(getDay() + 1) % 7` — the
+//          old literal was that formula with weekStartDay fixed at 6, and
+//          `week-agreement-test.mjs` Part B2's grep for the old literal is
+//          exactly why it had to change shape rather than just gain a default.
+//          ⚠️⚠️ EVERY CALL SITE THAT OMITS THE SECOND ARGUMENT BEHAVES
+//          BYTE-IDENTICALLY TO v1.8.0 — this only changes anything for a
+//          caller that resolves and passes a real weekStartDay, which as of
+//          this version is game.js and learn.js's `getWeekStart()`, seeded
+//          from the same class → school-default → 6 ladder `dailySeconds`/
+//          `weeklySeconds` already use. `readWeek()` now threads the same
+//          value through to `weekDatesOf()` and folds it into the per-load
+//          memo key, so two callers asking about the same uid and date but
+//          different anchors (which should never happen inside one page load,
+//          but cost nothing to guard) cannot serve each other's answer.
+//          ⚠️ ALSO REMOVED A STRAY DUPLICATE-TITLE LINE that was carrying a
+//          `v1.4.0 —` stamp and counting as a real entry against the header
+//          budget below, while its content was just the module tagline
+//          repeated. No history lost — the top banner already says it, and
+//          the real v1.4.0 entry (the Overnight Rescue) is unchanged.
 //
 // v1.8.0 — ⚠️⚠️ ROADMAP 50: DAY_CACHE_SHAPE 3 → 4, the documented one-shot
 //          invalidation, used for exactly the reason it exists. No fault was
@@ -47,9 +70,6 @@
 //          14 reads / 10 misses on one game.html load. ⚠️ A SKIPPED DAY MUST NOT
 //          SET ok:false — see the comment in the map below, and Part G of
 //          daylog-cutover-test.mjs's sibling harness logdays-test.mjs.
-//
-// v1.4.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
-//                     DOCUMENT IS A PROJECTION OF THE SESSION RECORD.
 //
 // v1.4.0 — ⚠️ THE OVERNIGHT RESCUE, on Jake's ruling: a child who typed as a
 //          guest and did not sign in until the next day gets those minutes
@@ -149,7 +169,7 @@
 // tests/week-anchor-test.mjs and tests/daylog-test.mjs both hold that line. A
 // mismatch here does not throw — it silently reads the wrong seven days.
 
-export const DAYLOG_VERSION = "1.8.0";
+export const DAYLOG_VERSION = "1.9.0";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE PER-SOURCE CUTOVER
@@ -187,16 +207,25 @@ function ymd(d) {
            String(d.getDate()).padStart(2, '0');
 }
 
-/** The Saturday that starts the Sat–Fri school week containing `dateStr`. */
-export function weekStartOf(dateStr) {
+/**
+ * The day that starts the school week containing `dateStr`.
+ * @param {number} [weekStartDay=6] 0=Sunday … 6=Saturday. Omit for the
+ *   default (Saturday) — every existing caller that doesn't know about this
+ *   parameter keeps behaving exactly as it did before v1.9.0.
+ * ⚠️ THIS FORMULA IS THE OLD `(getDay() + 1) % 7` GENERALISED, NOT REPLACED —
+ * at weekStartDay=6 it reduces to the original expression exactly.
+ * `week-agreement-test.mjs` Part B2 greps every OTHER file for that literal;
+ * do not reintroduce it there even in this more general form.
+ */
+export function weekStartOf(dateStr, weekStartDay = 6) {
     const d = new Date(dateStr + 'T12:00:00');
-    d.setDate(d.getDate() - ((d.getDay() + 1) % 7));
+    d.setDate(d.getDate() - ((d.getDay() - weekStartDay + 7) % 7));
     return ymd(d);
 }
 
-/** The seven date strings of the school week containing `dateStr`, Sat first. */
-export function weekDatesOf(dateStr) {
-    const start = new Date(weekStartOf(dateStr) + 'T12:00:00');
+/** The seven date strings of the school week containing `dateStr`, anchor first. */
+export function weekDatesOf(dateStr, weekStartDay = 6) {
+    const start = new Date(weekStartOf(dateStr, weekStartDay) + 'T12:00:00');
     const out = [];
     for (let i = 0; i < 7; i++) {
         const d = new Date(start);
@@ -383,7 +412,15 @@ export function dayLogPayloadFor(source, dateStr, { day, own }) {
 // typing_logs MUST call it. weekly-memo-test.mjs asserts they all do.
 const _weekMemo = new Map();
 
-const _memoKey = (uid, dateStr) => String(uid) + '|' + String(dateStr);
+// ⚠️ v1.9.0 — weekStartDay is folded into the key, appended AFTER dateStr, so
+// invalidateWeek()'s `startsWith(uid + '|')` prefix match still drops every
+// entry for a uid regardless of which anchor it was read under. A single page
+// load only ever resolves one anchor (goals load once, at startup), so this
+// guards an edge case rather than a case that happens — but the cost of
+// guarding it is one extra key segment, and the cost of not guarding it is a
+// week read under one anchor served back as the answer for another.
+const _memoKey = (uid, dateStr, weekStartDay) =>
+    String(uid) + '|' + String(dateStr) + '|' + String(weekStartDay);
 
 /**
  * Drop the memo for a uid. Call after ANY write to typing_logs, before the next
@@ -401,8 +438,8 @@ export function invalidateWeek(uid) {
 export function _weekMemoSize() { return _weekMemo.size; }
 
 export async function readWeek(args) {
-    const { uid, dateStr } = args;
-    const key = _memoKey(uid, dateStr);
+    const { uid, dateStr, weekStartDay = 6 } = args;
+    const key = _memoKey(uid, dateStr, weekStartDay);
     if (_weekMemo.has(key)) return _clone(await _weekMemo.get(key));
 
     const p = _readWeekUncached(args);
@@ -522,12 +559,12 @@ export function clearDayCache(uid) {
     try { localStorage.removeItem(DAY_CACHE_PREFIX + uid); } catch (_) {}
 }
 
-async function _readWeekUncached({ db, doc, getDoc, uid, dateStr, ledger }) {
+async function _readWeekUncached({ db, doc, getDoc, uid, dateStr, ledger, weekStartDay = 6 }) {
     const _now = Date.now();
     const _cached = _readDayCache(uid, _now);
-    const _cacheable = new Set(closedDaysOf(weekDatesOf(dateStr), dateStr));
+    const _cacheable = new Set(closedDaysOf(weekDatesOf(dateStr, weekStartDay), dateStr));
     const _fresh = {};
-    const dates = weekDatesOf(dateStr);
+    const dates = weekDatesOf(dateStr, weekStartDay);
 
     // ⚠️ v1.3.0 — ROADMAP ITEM 18. SEVEN READS TO FIND ONE OR TWO DAYS.
     //

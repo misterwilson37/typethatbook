@@ -1,9 +1,19 @@
 <!DOCTYPE html>
-<!-- admin.html v1.22.1 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.23.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.23.0 — ⭐ ROADMAP 58 STEP TWO. The Class Manager's editor gains a "Week
+     Starts On" picker, 5th column in what was a 4-column grid — new utility
+     `u-grid-template-columns-2fr-1fr-1fr-1fr-1fr`. ⚠️ THE OLD 4-COLUMN UTILITY
+     HAD EXACTLY ONE USE, THIS DIV, so it's deleted rather than left orphaned —
+     inline-styles-test.mjs A4 caught it declared-and-unused on the first pass.
+     ⚠️ BLANK ("School default") IS NOT A VALUE, IT
+     MEANS NO OVERRIDE — saveClass() in lessons-admin.js is what turns that into
+     omitting the field (new class) or deleteField() (clearing an existing
+     override). See lessons-admin.js v1.22.0 for the write side.
 
      v1.22.1 — ⚠️ `btn-bg-442200` declared, for #fr-commit-btn, whose background
      had been INLINE in admin.js and therefore beating `button:hover` since it was
@@ -1197,7 +1207,7 @@
         /* grid-template-columns */
         .u-grid-template-columns-1fr-1fr { grid-template-columns: 1fr 1fr; }
         .u-grid-template-columns-1fr-2fr-auto { grid-template-columns: 1fr 2fr auto; }
-        .u-grid-template-columns-2fr-1fr-1fr-1fr { grid-template-columns: 2fr 1fr 1fr 1fr; }
+        .u-grid-template-columns-2fr-1fr-1fr-1fr-1fr { grid-template-columns: 2fr 1fr 1fr 1fr 1fr; }
         .u-grid-template-columns-2fr-1fr-auto { grid-template-columns: 2fr 1fr auto; }
         .u-grid-template-columns-repeat-auto-fill-minmax-140px-1fr { grid-template-columns: repeat(auto-fill,minmax(140px,1fr)); }
 
@@ -2286,7 +2296,7 @@
             <div class="u-background-1a1a1a u-border-1px-solid-333 u-border-radius-4px u-padding-16px u-margin-bottom-20px">
                 <div class="u-font-size-0-8em u-color-4b9cd3 u-font-weight-bold u-margin-bottom-10px" id="class-form-title">New Class</div>
                 <input type="hidden" id="class-edit-id">
-                <div class="u-display-grid u-grid-template-columns-2fr-1fr-1fr-1fr u-gap-8px u-margin-bottom-8px">
+                <div class="u-display-grid u-grid-template-columns-2fr-1fr-1fr-1fr-1fr u-gap-8px u-margin-bottom-8px">
                     <div>
                         <label class="l-label">Class Name</label>
                         <input id="class-name-input" class="l-field" type="text" placeholder="e.g. Period 2 — 7th Grade">
@@ -2302,6 +2312,22 @@
                     <div>
                         <label class="l-label">Weekly Goal (min)</label>
                         <input id="class-weekly-input" class="l-field" type="number" value="50" min="0" step="1">
+                    </div>
+                    <div>
+                        <label class="l-label">Week Starts On</label>
+                        <!-- ⚠️ ROADMAP 58 STEP TWO. Blank = no override, inherits
+                             the school default. See saveClass() in
+                             lessons-admin.js for the write side. -->
+                        <select id="class-weekstart-select" class="l-field">
+                            <option value="">School default</option>
+                            <option value="0">Sunday</option>
+                            <option value="1">Monday</option>
+                            <option value="2">Tuesday</option>
+                            <option value="3">Wednesday</option>
+                            <option value="4">Thursday</option>
+                            <option value="5">Friday</option>
+                            <option value="6">Saturday</option>
+                        </select>
                     </div>
                 </div>
                 <!-- ⚠️⚠️ ROADMAP 62 — ADMIN ONLY, EDIT ONLY. A brand-new class still

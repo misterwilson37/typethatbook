@@ -1,4 +1,11 @@
-// week-anchor-test.mjs v1.0.1 — the audit's week anchor must equal the app's.
+// week-anchor-test.mjs v1.2.0 — the audit's week anchor must equal the app's.
+//
+// v1.2.0 — ⭐ ROADMAP 58 STEP TWO. Both getWeekStart()s now read
+//          `goals.weekStartDay` (default 6) and pass it to weekStartOf(), so a
+//          lifted copy needs `goals` in scope too, not just `weekStartOf`. A
+//          bare `{ weekStartDay: 6 }` stub is supplied — this file tests the
+//          DEFAULT anchor all three sources agree on; the per-class override
+//          itself is covered in week-agreement-test.mjs Part B3.
 //
 // v1.0.1 — PATH ONLY, Round 17 (Linotype). This file moved from the repo root
 //          into tests/, so every source it reads is now `../` rather than `./`.
@@ -45,9 +52,9 @@ function lift(src, name){
 // export the pages import, which is precisely what this file exists to compare
 // against. What used to be an agreement between three implementations is now an
 // agreement between three CALLERS of one, and that is the stronger property.
-const lifted = (src) => new Function('weekStartOf',
+const lifted = (src) => new Function('weekStartOf', 'goals',
     lift(src, 'getLocalDateStr') + '\n' + lift(src, 'getWeekStart') +
-    '\n; return getWeekStart;')(sharedWeekStart);
+    '\n; return getWeekStart;')(sharedWeekStart, { weekStartDay: 6 });
 const appFn  = lifted(learn);
 const gameFn = lifted(game);
 const audFn  = (d) => sharedWeekStart(d);
