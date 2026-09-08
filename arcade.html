@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- arcade.html v2.0.0 — DEADLINE, ON A REAL LESSON, AT ITS REAL GATES. Round 86.
+
+     Jake, 2026-09-08: *"Can you wire the kid facing one to lessons so that they
+     can pick any lesson they've accessed and get those same limits and whatnot?
+     That's the real test - kids who are typing actively doing the final lesson
+     and then playing deadline - seeing if they line up."*
+
+     v1.0.0 was a forwarder to tools/game-lab.html. ⚠️ THAT WAS THE WRONG PAGE TO
+     PUT CHILDREN ON: the lab's toolbar exposes gate WPM, accuracy, word source
+     and shield count, so a student sets their own difficulty and the comparison
+     is worthless. The lab stays exactly as it is — it is a bench and still the
+     right bench. This is a different page for a different reader.
+
+     ⚠️⚠️ THIS PAGE IS STILL A MEASUREMENT, NOT THE WIRING. It writes NOTHING:
+     no lessonProgress, no typing_logs, no seconds, no leaderboard. The games
+     stay inert by the definition game-assumptions-test.mjs Part H uses — no
+     file the app links to imports them — and when the real wiring lands it goes
+     through finishStep()/recordRunOutcome(), never through here.
+
+     ═══ WHY ONLY SOME RUNS ARE OFFERED, WHICH IS THE WHOLE DESIGN ═══
+
+     ⚠️ ONLY RUNS THAT CARRY A SPEED GATE APPEAR. run-grade.js's gatesForRun()
+     returns `minWPM: null` for DRILL_TYPES (key_pattern, key_pattern_auto,
+     key_random) — speed on random letter groups measures nothing, which is why
+     learn.js grades those on accuracy alone. A drill has no WPM to line up
+     WITH, so offering one would invite exactly the comparison the lesson engine
+     deliberately refuses to make.
+
+     ⭐ AND THAT FILTER SOLVES A SECOND PROBLEM FOR FREE. learn.js's
+     buildSequence() is not exported and cannot be imported from a standalone
+     page; two drill types (key_pattern_auto, key_random) GENERATE A FRESH
+     RANDOM SEQUENCE EVERY CALL, which is why learn.js bakes the characters into
+     each run rather than regenerating them. But the three types that DO carry a
+     speed gate — word_list, sentence_list, passage — are all deterministic
+     `.split('')` of text stored on the lesson document. So this page reproduces
+     those sequences exactly, with no refactor of learn.js and no second copy of
+     a random generator that could drift.
+     ⚠️ DO NOT "IMPROVE" THIS BY ADDING THE DRILL TYPES. That needs
+     buildSequence() lifted into a shared module — a real seam change — and it
+     would hand the student a sequence they never actually typed.
+
+     ⚠️ RUN NUMBERS COME FROM run-grade.js's runPlan(), NOT FROM COUNTING THE
+     RUNS THIS PAGE OFFERS. The student sees "Run 4 of 6" meaning the same run 4
+     learn.js means, so the comparison is against the right thing. runPlan()
+     chunks with shapeSequence(), whose output has the same length and the same
+     space positions as buildSequence() for these three types — identical
+     `.split('')` of the same joined text — so chunk boundaries agree exactly.
+     THAT AGREEMENT IS LOAD-BEARING; tests/arcade-lesson-test.mjs asserts it
+     rather than trusting this comment.
+
+     ═══ READS ═══
+
+     ⚠️ TWO getDocs ON LOAD AND NOTHING PER LAUNCH: `lessons` and this student's
+     `lessonProgress` — exactly what learn.js already pays to draw its map.
+     Picking another lesson or replaying costs zero.
+     ⚠️ DO NOT ADD A typing_logs QUERY to show a stored WPM. Per-run WPM lives
+     only there, it is a query per launch, and the GATE is the yardstick that
+     makes the comparison meaningful anyway. -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Arcade — Deadline (beta) — TypeThatBook</title>
+<style>
+    :root {
+        color-scheme: dark;
+        --bg: #06090f; --panel: #0b1018; --rule: #1d2735;
+        --ink: #cfe0ea; --ink-dim: #8aa2b4; --ink-ghost: #5f7387;
+        --accent: #bfe9ff; --accent-line: #2b6c8a; --accent-fill: #164055;
+        --good: #8fe8c8; --warn: #ffd27d; --bad: #ff8f8f;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+        font-family: "Courier Prime", ui-monospace, monospace;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 22px 18px 40px; }
+    h1 { font-size: 1.3rem; margin: 0 0 2px; color: var(--accent); letter-spacing: 1px; }
+    .beta {
+        display: inline-block; font-size: .68rem; letter-spacing: 1px;
+        border: 1px solid var(--accent-line); border-radius: 999px;
+        padding: 2px 9px; color: var(--good);
+    }
+    .note { font-size: .8rem; color: var(--ink-dim); line-height: 1.55; margin: 12px 0 18px; }
+    .panel {
+        background: var(--panel); border: 1px solid var(--rule);
+        border-radius: 10px; padding: 16px; margin-bottom: 14px;
+    }
+    label { display: block; font-size: .72rem; color: var(--ink-dim);
+            letter-spacing: 1px; margin-bottom: 5px; }
+    select, button {
+        font: inherit; border-radius: 6px; padding: 8px 12px;
+        background: #111a26; color: var(--ink); border: 1px solid #26343f;
+    }
+    select { width: 100%; font-size: .88rem; }
+    select:disabled { opacity: .45; }
+    .row { margin-bottom: 12px; }
+    button.play {
+        background: var(--accent-fill); color: var(--accent);
+        border-color: var(--accent-line); cursor: pointer; padding: 10px 26px;
+    }
+    button.play:hover:not(:disabled) { background: #1d5470; }
+    button.play:disabled { opacity: .4; cursor: default; }
+    .gates { display: flex; gap: 18px; flex-wrap: wrap; font-size: .82rem;
+             color: var(--ink-dim); margin: 10px 0 14px; }
+    .gates b { color: var(--warn); font-weight: 700; }
+    #stageWrap { display: none; }
+    #stage { position: relative; width: 100%; height: 78vh; min-height: 420px;
+             border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+    #verdict { font-size: .85rem; line-height: 1.6; }
+    #verdict .big { font-size: 1.5rem; color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; font-size: .82rem; margin-top: 10px; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); }
+    th { color: var(--ink-ghost); font-weight: 400; font-size: .72rem; letter-spacing: 1px; }
+    .met { color: var(--good); }
+    .miss { color: var(--bad); }
+    .err { color: var(--bad); font-size: .82rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <h1>DEADLINE</h1>
+    <div class="beta">BETA</div>
+
+    <!-- ⚠️ THE "NOT SAVED" LINE COMES BEFORE THEY PLAY, NOT AFTER. A student who
+         banks twenty minutes and then finds their totals unmoved has been misled
+         by omission, and the teacher hears about it, not the page. -->
+    <p class="note">
+        Play a lesson you've already reached, at that lesson's own speed and
+        accuracy targets. Then type the same run in School and see whether the
+        numbers line up.<br>
+        <strong>Nothing here is saved yet</strong> — your time, score and grade
+        don't count toward your lessons. You need a keyboard to play.
+    </p>
+
+    <div class="panel" id="picker">
+        <div id="loading" class="note" style="margin:0">Loading your lessons…</div>
+        <div id="pickerBody" style="display:none">
+            <div class="row">
+                <label for="lesson">LESSON</label>
+                <select id="lesson"></select>
+            </div>
+            <div class="row">
+                <label for="run">RUN</label>
+                <select id="run"></select>
+            </div>
+            <div class="gates" id="gates"></div>
+            <button class="play" id="play" disabled>Play &rarr;</button>
+        </div>
+        <div id="err" class="err" style="display:none"></div>
+    </div>
+
+    <div class="panel" id="stageWrap"><div id="stage"></div></div>
+
+    <div class="panel" id="result" style="display:none">
+        <div id="verdict"></div>
+        <table id="compare"></table>
+        <button class="play" id="again" style="margin-top:14px">Pick another &rarr;</button>
+    </div>
+</div>
+
+<script type="module">
+import { db, auth } from './firebase-config.js';
+import { collection, getDocs } from './read-meter.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { runPlan, gatesForRun, chunkSequence } from './run-grade.js';
+import { missionConfigFromRun } from './game-shell.js';
+import { mount as mountDeadline } from './game-deadline.js';
+
+const ARCADE_PAGE_VERSION = '2.0.0';
+
+// ⚠️ THE ONLY STEP TYPES THIS PAGE OFFERS — exactly the types that carry a speed
+// gate AND are deterministic from the lesson document. See the header. Adding to
+// this set is a seam change, not a tweak.
+const OFFERABLE = new Set(['word_list', 'sentence_list', 'passage']);
+
+// The real characters a student types for these three types. ⚠️ MUST STAY
+// IDENTICAL TO learn.js's buildSequence() FOR THESE CASES — that function is not
+// importable from here, so tests/arcade-lesson-test.mjs lifts both and compares
+// them rather than leaving the duplication unguarded.
+function sequenceForStep(step) {
+    switch (step.type) {
+        case 'word_list':     return (step.words || []).join(' ').split('');
+        case 'sentence_list': return (step.sentences || []).join(' ').split('');
+        case 'passage':       return (step.text || '').split('');
+        default:              return [];
+    }
+}
+
+let LESSONS = [];
+let PROGRESS = {};
+let PLAYABLE = [];
+let handle = null;
+
+const $ = id => document.getElementById(id);
+
+function playableRunsOf(lesson) {
+    const plan  = runPlan(lesson);          // full plan, drills included
+    const steps = lesson.steps || [];
+    const out = [];
+    plan.forEach((entry, runIdx) => {
+        if (!OFFERABLE.has(entry.type)) return;
+        const step = steps[entry.stepIdx];
+        if (!step) return;
+        const seq = chunkSequence(sequenceForStep(step))[entry.chunkIdx];
+        if (!seq || !seq.length) return;
+        const gates = gatesForRun(entry, lesson.gates || {});
+        // ⚠️ A RUN WITH NO SPEED GATE IS NOT COMPARABLE AND IS NOT OFFERED.
+        if (gates.minWPM == null) return;
+        out.push({
+            runIdx, gates, sequence: seq, runCount: plan.length,
+            label: entry.chunkCount > 1
+                ? `${step.label || 'Step ' + (entry.stepIdx + 1)} (${entry.chunkIdx + 1}/${entry.chunkCount})`
+                : (step.label || 'Step ' + (entry.stepIdx + 1)),
+        });
+    });
+    return out;
+}
+
+// ⚠️ "ACCESSED" MEANS A PROGRESS RECORD EXISTS, plus the first lesson and the one
+// after their last pass. NOT "passed" — Jake asked for any lesson they have
+// ACCESSED, and a student mid-way through a unit should be able to play it.
+function hasReached(lesson, idx) {
+    if (idx === 0) return true;
+    if (PROGRESS[lesson.id]) return true;
+    const prev = LESSONS[idx - 1];
+    return !!(prev && PROGRESS[prev.id] && PROGRESS[prev.id].passed);
+}
+
+function fillLessons() {
+    const sel = $('lesson');
+    sel.innerHTML = '';
+    PLAYABLE.forEach((p, i) => {
+        const o = document.createElement('option');
+        o.value = String(i);
+        const done = PROGRESS[p.lesson.id] && PROGRESS[p.lesson.id].passed ? ' \u2713' : '';
+        o.textContent = (p.lesson.title || p.lesson.id) + done;
+        sel.appendChild(o);
+    });
+    sel.disabled = !PLAYABLE.length;
+    // ⚠️ DEFAULTS TO THE FURTHEST LESSON OPEN TO THEM, not the first. Jake's
+    // case is a student who has just finished a lesson and wants to compare it.
+    sel.value = String(Math.max(0, PLAYABLE.length - 1));
+    fillRuns();
+}
+
+function fillRuns() {
+    const p = PLAYABLE[Number($('lesson').value) || 0];
+    const sel = $('run');
+    sel.innerHTML = '';
+    if (!p) { sel.disabled = true; return; }
+    p.runs.forEach((r, i) => {
+        const o = document.createElement('option');
+        o.value = String(i);
+        o.textContent = `Run ${r.runIdx + 1} of ${r.runCount} \u2014 ${r.label}`;
+        sel.appendChild(o);
+    });
+    // ⚠️ DEFAULTS TO THE LAST OFFERABLE RUN — "doing the final lesson and then
+    // playing deadline" is the case, so the final run should not take three
+    // clicks to reach.
+    sel.value = String(Math.max(0, p.runs.length - 1));
+    sel.disabled = false;
+    showGates();
+}
+
+function currentRun() {
+    const p = PLAYABLE[Number($('lesson').value) || 0];
+    return p ? (p.runs[Number($('run').value) || 0] || null) : null;
+}
+
+function showGates() {
+    const r = currentRun();
+    const p = PLAYABLE[Number($('lesson').value) || 0];
+    if (!r) { $('gates').innerHTML = ''; $('play').disabled = true; return; }
+    const grades = (PROGRESS[p.lesson.id] && PROGRESS[p.lesson.id].runGrades) || {};
+    const best = grades[String(r.runIdx)];
+    $('gates').innerHTML =
+        `<span>speed target <b>${r.gates.minWPM} WPM</b></span>` +
+        `<span>accuracy target <b>${r.gates.minAccuracy}%</b></span>` +
+        `<span>${r.sequence.length} characters</span>` +
+        (best ? `<span>your best typed grade <b>${best}</b></span>` : '');
+    $('play').disabled = false;
+}
+
+function play() {
+    const r = currentRun();
+    if (!r) return;
+    // ⚠️ THE SAME missionConfigFromRun() THE REAL WIRING WILL CALL, given the
+    // same run shape learn.js's buildRunList() produces. If this page and the
+    // eventual wiring disagreed about difficulty they would not be comparable,
+    // so this must never hand-build a config.
+    const cfg = missionConfigFromRun({ sequence: r.sequence }, r.gates, null);
+    $('picker').style.display = 'none';
+    $('result').style.display = 'none';
+    $('stageWrap').style.display = 'block';
+    if (handle) { handle.destroy(); handle = null; }
+    handle = mountDeadline($('stage'), {
+        config: cfg,
+        onQuit: () => finish(null, r),
+        onEnd:  rep => finish(rep, r),
+    });
+    $('stage').scrollIntoView({ block: 'nearest' });
+}
+
+function finish(rep, r) {
+    if (handle) { handle.destroy(); handle = null; }
+    $('stageWrap').style.display = 'none';
+    $('result').style.display = 'block';
+    if (!rep) {
+        $('verdict').innerHTML = '<span class="big">Stopped</span><br>No result \u2014 nothing was saved.';
+        $('compare').innerHTML = '';
+        return;
+    }
+    const metWPM = rep.wpm >= r.gates.minWPM;
+    const metAcc = rep.acc >= r.gates.minAccuracy;
+    $('verdict').innerHTML =
+        `<span class="big">${rep.wpm} WPM &middot; ${rep.acc}%</span><br>` +
+        (metWPM && metAcc
+            ? 'You cleared both targets for this run.'
+            : 'You did not clear ' + (!metWPM && !metAcc ? 'either target'
+                : !metWPM ? 'the speed target' : 'the accuracy target') + ' this time.');
+    // ⚠️ THE COMPARISON TABLE IS THE POINT OF THE PAGE — the game result beside
+    // the SAME gate the typed run is graded against, so nobody has to do
+    // arithmetic to put the two side by side.
+    $('compare').innerHTML =
+        '<tr><th></th><th>this game</th><th>this run\u2019s target</th></tr>' +
+        `<tr><td>speed</td><td class="${metWPM ? 'met' : 'miss'}">${rep.wpm} WPM</td>` +
+            `<td>${r.gates.minWPM} WPM</td></tr>` +
+        `<tr><td>accuracy</td><td class="${metAcc ? 'met' : 'miss'}">${rep.acc}%</td>` +
+            `<td>${r.gates.minAccuracy}%</td></tr>` +
+        `<tr><td>characters</td><td>${rep.chars != null ? rep.chars : '\u2014'}</td>` +
+            `<td>${r.sequence.length}</td></tr>` +
+        `<tr><td>seconds</td><td>${rep.seconds != null ? Math.round(rep.seconds) : '\u2014'}</td><td>\u2014</td></tr>`;
+    console.log('[arcade] report', rep);
+}
+
+// ⚠️⚠️ A HUNG READ IS NOT A REJECTED READ, AND THE DIFFERENCE IS A FOREVER
+// SPINNER. Found by loading this page where Firestore was unreachable: getDocs()
+// did not throw, it simply never settled, so the catch below never ran and the
+// student sat on "Loading your lessons…" with no way to tell whether the page
+// was broken or slow. A child on a classroom Chromebook that has dropped its
+// wifi hits exactly that. 12 seconds is long enough for a genuinely slow
+// morning-of-first-period cold start and short enough that nobody is left
+// guessing.
+// ⚠️ THIS TIMEOUT IS COSMETIC ONLY — it never cancels the underlying read (the
+// SDK has no cancel) and never retries. It exists so the page can SAY something.
+const LOAD_TIMEOUT_MS = 12000;
+function withTimeout(promise, what) {
+    return Promise.race([
+        promise,
+        new Promise((_, rej) =>
+            setTimeout(() => rej(new Error('timed out reading ' + what)), LOAD_TIMEOUT_MS)),
+    ]);
+}
+
+async function load(user) {
+    try {
+        const lessonSnap = await withTimeout(getDocs(collection(db, 'lessons')), 'lessons');
+        LESSONS = lessonSnap.docs
+            .map(d => Object.assign({ id: d.id }, d.data()))
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+        if (user && !user.isAnonymous) {
+            const pSnap = await withTimeout(
+                getDocs(collection(db, 'users', user.uid, 'lessonProgress')), 'your progress');
+            pSnap.forEach(d => { PROGRESS[d.id] = d.data(); });
+        }
+
+        PLAYABLE = LESSONS
+            .map((lesson, idx) => ({ lesson, idx, runs: playableRunsOf(lesson) }))
+            .filter(p => p.runs.length && hasReached(p.lesson, p.idx));
+
+        $('loading').style.display = 'none';
+        if (!PLAYABLE.length) {
+            $('err').style.display = 'block';
+            $('err').textContent = user
+                ? 'No lessons with a speed target are open to you yet \u2014 finish a lesson in School first.'
+                : 'Sign in on the School page first, then come back.';
+            return;
+        }
+        $('pickerBody').style.display = 'block';
+        fillLessons();
+    } catch (e) {
+        $('loading').style.display = 'none';
+        $('err').style.display = 'block';
+        $('err').textContent = 'Could not load lessons: ' + e.message;
+    }
+}
+
+$('lesson').addEventListener('change', fillRuns);
+$('run').addEventListener('change', showGates);
+$('play').addEventListener('click', play);
+$('again').addEventListener('click', () => {
+    $('result').style.display = 'none';
+    $('picker').style.display = 'block';
+});
+
+// ⚠️ WAITS FOR AUTH RATHER THAN READING IMMEDIATELY. Lessons are world-readable
+// (firestore.rules: `match /lessons/{lessonId} { allow read: if true }`), but
+// lessonProgress is not — firing that read before auth resolves gets a
+// permission error for a student who IS signed in.
+//
+// ⚠️⚠️ BUT AUTH ITSELF CAN HANG, AND THAT WAS THE ACTUAL FOREVER-SPINNER. Found
+// by loading this page with the network unreachable: onAuthStateChanged fired
+// NEITHER its callback NOR its error handler, so load() was never called and the
+// getDocs timeouts below could not help — they guard a read that had not been
+// started. A classroom Chromebook that has dropped its wifi lands exactly here.
+//
+// So: whichever comes first wins, and `started` makes that idempotent. Falling
+// through as signed-out is the right degrade — lessons are world-readable, so
+// the student still gets a lesson list and a playable game; they lose only the
+// "your best typed grade" line, which is a nicety, not the feature.
+let started = false;
+const begin = user => { if (started) return; started = true; load(user); };
+const AUTH_TIMEOUT_MS = 6000;
+setTimeout(() => begin(null), AUTH_TIMEOUT_MS);
+onAuthStateChanged(auth, user => begin(user), () => begin(null));
+</script>
+</body>
+</html>

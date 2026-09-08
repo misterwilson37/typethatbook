@@ -1,5 +1,67 @@
 # CHANGELOG — TypeThatBook
 
+## Round 86 (Victor II) — 2026-09-08 — ⭐⭐⭐ COMMIT 1000: the arcade lands, and kids can play a real lesson
+
+**The milestone commit Jake saved for the games.** Round 82 (Victor) built them
+in a side session and handed over a zip; this round folded them in and wired
+**Deadline** to real lessons so children can play it against the same targets
+School grades them on.
+
+### ⭐ THE DROP, AND WHAT WAS CHECKED BEFORE TRUSTING IT
+
+Eight modules, three harnesses, a bench page, four docs, one rules proposal.
+Ran the suites before reading the prose: **193 game assertions pass**, and all
+59 seam assertions still hold against a repo that moved four rounds under them.
+
+⚠️⚠️ **ONE REAL DEFECT ON INTEGRATION.** `game-assumptions-test.mjs` — the
+harness whose whole job is protecting the games from roadmap work — **would have
+been permanently red the moment it was registered, while passing 59/59
+standalone.** The runner marks a harness bad on its OUTPUT matching
+`/FAIL|UNSAFE|\bERROR\b/`, and one assertion LABEL read "IF THIS FAILS".
+Reworded, with a note at the site. Never put those words in an assertion label.
+
+### ⭐ arcade.html v2.0.0 — DEADLINE ON A REAL LESSON, AT ITS REAL GATES
+
+Jake: *"kids who are typing actively doing the final lesson and then playing
+deadline - seeing if they line up."* A student picks a lesson they have reached
+and a run inside it, plays at that run's own `minWPM`/`minAccuracy`, and gets a
+table putting the game result beside the same targets.
+
+⚠️ **v1.0.0 was a forwarder to `tools/game-lab.html` and that was wrong** — the
+lab's toolbar lets a child set their own gate, which makes the comparison
+worthless. The lab is unchanged; this is a second page for a different reader.
+
+⚠️⚠️ **Only runs with a speed gate are offered.** `gatesForRun()` returns
+`minWPM: null` for drills, so a drill has no WPM to line up with — and the three
+types that DO carry a gate are deterministic text on the lesson document, so the
+page reproduces them exactly without lifting `buildSequence()` out of `learn.js`.
+**110 playable runs across 32 of 47 lessons, gates 15/18/20/25, 66 drill runs
+excluded.** Run numbers come from `runPlan()` and mean what `learn.js` means —
+**zero chunk mismatches across all 110**, or every comparison would be off by a
+run, silently.
+
+⚠️ **Nothing is saved.** Jake: *"No need to save. This is only a test and won't
+be rolled out to everyone."* Two `getDocs` on load, nothing per launch, no
+writes at all.
+
+### ⚠️ WHAT COULD NOT BE VERIFIED, SAID PLAINLY
+
+This environment blocks `gstatic.com`, so the Firebase SDK never loads and
+`arcade.html`'s own code never executed here. The module graph resolves and the
+JS is valid, but the dropdowns, a real run, and the two load timeouts are
+**unverified**. The Deadline engine itself WAS driven end-to-end in a browser
+through the bench. Jake was told before shipping.
+
+### Bookkeeping
+
+New harness `tests/arcade-lesson-test.mjs` (26 assertions, mutation-verified);
+Round 82's three registered. ⚠️ It failed its own first run by reading
+`arcade.html`'s *"DO NOT ADD A typing_logs QUERY"* warning as the violation it
+warns against — comments are stripped before structural checks now, exactly as
+`staff-tokens-test.mjs` already documents. **Third time this repo has hit that.**
+87/87 harnesses pass; `audit:versions` 0 problems. ⚠️ The games are deliberately
+NOT registered in `versions.js` — that waits for the deploy that wires them.
+
 ## Round 85 (Caligraph) — 2026-09-08 — a finished book leaves the shelf it was finished from
 
 Jake asked for something knockable-out before commit 999, then found a real bug

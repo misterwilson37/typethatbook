@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- tools/game-lab.html v1.3.0 — NOT DEPLOYED. Round 82 (Victor).
+
+     A bench for feeling the arcade views at a chosen gate, the way
+     tools/tier-ab.html is a bench for a render. It mounts game-missile.js
+     through game-shell.js with the gate, target length and word source set by
+     the controls, so a difficulty question can be answered by playing rather
+     than by arguing.
+
+     ⚠️ IT IS NOT A ROUTE INTO THE APP AND MUST NOT BECOME ONE. Nothing here
+     touches Firestore, statsData, the leaderboard or a lesson record. The
+     "RESULT" panel prints exactly the object game-shell.js would hand to
+     learn.js, and printing it is all it does. The real wiring is learn.js's
+     job and is not in this file.
+
+     Open it from the repo root so the relative imports resolve:
+        npx http-server . -p 8080   →   http://localhost:8080/tools/game-lab.html
+     (file:// will not work — ES modules need a real origin.) -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Lab — TypeThatBook</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#06090f; color:#cfe0ea;
+         font-family:"Courier Prime", ui-monospace, monospace; }
+  header { display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+           padding:8px 12px; background:#0b1018; border-bottom:1px solid #1d2735; }
+  label { font-size:12px; color:#8aa2b4; display:flex; gap:5px; align-items:center; }
+  input, select { background:#111a26; color:#dcecf6; border:1px solid #26343f;
+                  border-radius:4px; padding:3px 6px; font:inherit; font-size:12px; }
+  input[type=number] { width:62px; }
+  button { background:#164055; color:#bfe9ff; border:1px solid #2b6c8a;
+           border-radius:4px; padding:5px 12px; font:inherit; cursor:pointer; }
+  button:hover { background:#1d5470; }
+  #stage { position:relative; width:100vw; height:calc(100vh - 46px - 96px); }
+  /* ⚠️ game-chrome.js overlays an absolutely-positioned layer inside #stage, so
+     #stage MUST be a positioning context. It sets position:relative itself if the
+     host forgot, but a host that gets it right is one less surprise. */
+  #readout { height:96px; overflow:auto; padding:8px 12px; font-size:12px;
+             background:#080d14; border-top:1px solid #1d2735; white-space:pre-wrap; }
+  .k { color:#ffd700; }
+  .n { color:#8fe8c8; }
+</style>
+</head>
+<body>
+
+<header>
+  <label>gate WPM <input id="wpm" type="number" value="15" min="5" max="80"></label>
+  <label>min acc <input id="acc" type="number" value="85" min="50" max="100"></label>
+  <label>source
+    <select id="src">
+      <option value="home">home row groups (Unit 1)</option>
+      <option value="reach">home + e i r u (Unit 2)</option>
+      <option value="words" selected>sight words</option>
+      <option value="prose">book prose</option>
+    </select>
+  </label>
+  <label>game
+    <select id="game">
+      <option value="deadline" selected>Deadline</option>
+      <option value="escape">Escape Key</option>
+    </select>
+  </label>
+  <label>mode
+    <select id="mode">
+      <option value="mission" selected>mission (assessed, quota)</option>
+      <option value="arcade">arcade (endless, ramps)</option>
+    </select>
+  </label>
+  <label>shields <input id="shields" type="number" value="3" min="1" max="3"></label>
+  <button id="go">Start</button>
+  <span id="derived" class="n" style="font-size:12px;"></span>
+</header>
+
+<div id="stage"></div>
+<div id="readout">Set a gate, press Start, then Start again on the get-ready panel. Sound is off by default — the Sound button turns it on. Escape clears the current word. Deadline: type the word nearest the ground. Escape Key: type an adjacent word to move onto it — your row and column are tinted, because that is where creatures arrive.</div>
+
+<script type="module">
+import { mount as mountDeadline } from '../game-deadline.js';
+import { mount as mountEscape } from '../game-escape.js';
+import { GAMES, titleOf } from '../game-names.js';
+import {
+    targetsFromSequence, avgTargetChars, spawnIntervalMs, travelMs,
+    queueDepthFor, makeArcadeTargets, MISSION_PRESSURE, GAME_SHELL_VERSION,
+} from '../game-shell.js';
+
+const stage = document.getElementById('stage');
+const out = document.getElementById('readout');
+const derived = document.getElementById('derived');
+let handle = null;
+
+// Sequences shaped like learn.js's buildSequence() output for each step type.
+const HOME = ['a','s','d','f','j','k','l',';'];
+const REACH = HOME.concat(['e','i','r','u']);
+const WORDS = ('said with that this from have they were when your what been many some '
+             + 'them then than more will time into only over just like').split(' ');
+const PROSE = 'The cat sat on the mat and looked at the rain. It was a long grey afternoon '
+            + 'and nothing at all was going to happen until supper.';
+
+function sequenceFor(kind) {
+    if (kind === 'home')  return makeArcadeTargets(HOME, 40, 4).join(' ').split('');
+    if (kind === 'reach') return makeArcadeTargets(REACH, 40, 4).join(' ').split('');
+    if (kind === 'words') return WORDS.join(' ').split('');
+    return PROSE.split('');
+}
+
+function describe(cfg) {
+    const avg = avgTargetChars(cfg.targets);
+    const iv = spawnIntervalMs(avg, cfg.targetWPM, MISSION_PRESSURE);
+    const life = travelMs(iv, queueDepthFor(MISSION_PRESSURE));
+    const muncher = document.getElementById('game').value === 'escape';
+    return `shell v${GAME_SHELL_VERSION} · ${cfg.targets.length} targets · avg ${avg.toFixed(1)} chars`
+         + (muncher ? ` · enemy step ${(iv / 1000).toFixed(2)}s`
+                    : ` · push ${(iv / 1000).toFixed(2)}s · lifetime ${(life / 1000).toFixed(1)}s`)
+         + ` · quota ${cfg.endless ? '∞' : cfg.quotaChars} chars`;
+}
+
+function start() {
+    if (handle) { handle.destroy(); handle = null; }
+    const endless = document.getElementById('mode').value === 'arcade';
+    const targets = targetsFromSequence(sequenceFor(document.getElementById('src').value));
+    const cfg = {
+        targets,
+        targetWPM: Number(document.getElementById('wpm').value) || 15,
+        minAccuracy: Number(document.getElementById('acc').value) || 85,
+        shields: Number(document.getElementById('shields').value) || 3,
+        endless,
+        quotaChars: targets.reduce((n, t) => n + t.length, 0),
+    };
+    derived.textContent = describe(cfg);
+    out.textContent = 'Playing…';
+
+    // ⚠️ ONE CONFIG, EITHER VIEW. That the same object drives a push game and a
+    // cadence game with no per-game branching here is the point of the shell.
+    const mount = document.getElementById('game').value === 'escape' ? mountEscape : mountDeadline;
+    handle = mount(stage, {
+        config: cfg,
+        onTick: r => {
+            out.textContent = `live · ${r.wpm} WPM · ${r.acc}% · ${r.seconds.toFixed(0)}s`
+                + ` · cleared ${r.targetsCleared} · leaks ${r.hits} · score ${r.score}`;
+        },
+        onQuit: r => {
+            // ⚠️ THE "Done" BUTTON. A real host would unmount here; the lab just
+            // reports, so Jake can see what the host would receive.
+            out.textContent = 'QUIT (this is what the host receives)\n' + JSON.stringify(r, null, 2);
+        },
+        onEnd: r => {
+            // ⚠️ EXACTLY THE OBJECT learn.js WOULD RECEIVE. Nothing is written.
+            out.textContent = 'RESULT (this is the whole object; nothing was saved)\n'
+                + JSON.stringify(r, null, 2);
+            console.log('[game-lab] report', r);
+        },
+    });
+}
+
+document.getElementById('go').addEventListener('click', start);
+// ⚠️ Enter must not reach the game as a keystroke from the toolbar.
+document.querySelectorAll('header input, header select').forEach(el => {
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); start(); } });
+});
+</script>
+</body>
+</html>

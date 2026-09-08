@@ -1,6 +1,134 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-08 by Round 85 (Caligraph), for whoever is next
+> ## ▶ START HERE — written 2026-09-08 by Round 86 (Victor II), for whoever is next
+>
+> ⭐⭐⭐ **THIS IS COMMIT 1000, AND IT IS THE GAMES.** Round 82 (Victor) built the
+> arcade in a side session and handed over a zip; this round folded it in and
+> wired **Deadline** to real lessons so children can play it. Jake, 2026-09-08:
+> *"kids who are typing actively doing the final lesson and then playing deadline
+> - seeing if they line up."*
+>
+> ⚠️⚠️ **THE GAMES ARE STILL NOT WIRED INTO `learn.js`, AND THAT IS DELIBERATE.**
+> Nothing writes. No seconds counted, no run graded, no leaderboard. `arcade.html`
+> is a MEASUREMENT so Jake can run a real classroom comparison before anyone pays
+> for the seam. Jake, this round: *"No need to save. This is only a test and won't
+> be rolled out to everyone."*
+>
+> ### 1. ⭐ WHAT LANDED FROM ROUND 82, AND WHAT I CHECKED BEFORE TRUSTING IT
+>
+> Eight modules, three harnesses, `tools/game-lab.html`, four docs, one rules
+> proposal. **Ran the suites before reading the prose**, per this file's own
+> discipline: 95 + 39 + 59 = **193 game assertions pass**, and every one of the
+> 59 seam assertions in `game-assumptions-test.mjs` still holds against a repo
+> that moved four rounds under it (Rounds 82–85 changed `learn.js`, `game.js`,
+> `index.html`, `daylog.js`).
+>
+> ⚠️⚠️ **ONE REAL DEFECT FOUND ON INTEGRATION, AND IT IS A CLASS WORTH KNOWING.**
+> `game-assumptions-test.mjs` — the harness whose entire job is protecting the
+> games from roadmap work — **would have been permanently red the moment it was
+> registered, while passing 59/59 standalone.** `run-all-tests.mjs` decides a
+> harness is bad on `r.status !== 0 || /FAIL|UNSAFE|\bERROR\b/.test(out)`: it
+> reads the OUTPUT, not just the exit code. One assertion LABEL read *"⚠️ IF THIS
+> FAILS, game-shell.js's netWPM() must change…"* and the word FAILS matched.
+> Reworded to "IF THIS BREAKS", with a note at the site. ⚠️ **NEVER PUT THE WORDS
+> FAIL, UNSAFE OR ERROR IN AN ASSERTION LABEL.** I hit the same class a second
+> time an hour later writing `arcade-lesson-test.mjs`, from the other direction —
+> see §3.
+>
+> ### 2. ⭐ `arcade.html` v2.0.0 — DEADLINE ON A REAL LESSON, AT ITS REAL GATES
+>
+> A student picks a lesson they have reached and a run inside it, plays Deadline
+> at **that run's own `minWPM`/`minAccuracy`**, and gets a table putting the game
+> result beside the same targets School grades that run against.
+>
+> ⚠️ **v1.0.0 WAS A FORWARDER TO `tools/game-lab.html` AND THAT WAS WRONG.** The
+> lab's toolbar exposes gate WPM, accuracy, word source and shield count — a
+> child sets their own difficulty and the comparison Jake is running is worthless.
+> The lab is UNCHANGED and still the right bench for Jake. This is a second page
+> for a different reader.
+>
+> ⚠️⚠️ **ONLY RUNS THAT CARRY A SPEED GATE ARE OFFERED, AND THE FILTER PAYS FOR
+> ITSELF TWICE.** `gatesForRun()` returns `minWPM: null` for DRILL_TYPES — speed
+> on random letter groups measures nothing, which is why `learn.js` grades drills
+> on accuracy alone, so a drill has no WPM to line up WITH. ⭐ And the three types
+> that DO carry a speed gate (`word_list`, `sentence_list`, `passage`) are all
+> deterministic `.split('')` of text on the lesson document — so the page
+> reproduces them exactly **without** lifting `learn.js`'s `buildSequence()` into
+> a shared module (a real seam change) and without a second copy of a random
+> generator that could drift. The other two drill types generate fresh random text
+> on every call, which is why `learn.js` bakes characters into each run.
+> ⚠️ **DO NOT "IMPROVE" THIS BY ADDING THE DRILL TYPES.**
+>
+> **Measured against the real 47-lesson corpus: 110 playable runs across 32
+> lessons, gates 15/18/20/25 WPM, 66 drill runs correctly excluded.** ⭐ That 110
+> independently matches the run count Round 82's own Part I sweep uses, which is a
+> free cross-check that both are walking the same corpus the same way.
+>
+> ⚠️ **RUN NUMBERS COME FROM `runPlan()`, NOT FROM COUNTING WHAT THE PAGE OFFERS**
+> — "Run 4 of 6" means `learn.js`'s run 4. Verified across all 110: **zero chunk
+> mismatches.** If that ever drifts, every comparison Jake collects is off by a
+> run, silently.
+>
+> ### 3. ⚠️ `arcade-lesson-test.mjs` — 26 ASSERTIONS, AND ITS OWN LESSON
+>
+> Part B lifts BOTH `arcade.html`'s `sequenceForStep()` and `learn.js`'s
+> `buildSequence()` and compares them character for character on every offerable
+> step in the corpus, so the duplication is **guarded rather than commented**.
+> Part C pins the chunk agreement above. Part D pins that the page still writes
+> nothing and still costs exactly two `getDocs`.
+>
+> ⚠️⚠️ **AND IT FAILED ITS FIRST RUN BY READING THE PAGE'S OWN WARNINGS AS
+> VIOLATIONS.** `arcade.html`'s header says *"DO NOT ADD A `typing_logs` QUERY"*
+> and *"TWO `getDocs` ON LOAD"* — so a grep for `typing_logs` and a count of
+> `getDocs(` both found the warning, not a violation, and went red on correct
+> code. Comments are stripped before every structural check now.
+> `staff-tokens-test.mjs` carries the identical note for the identical reason.
+> **Third time this repo has hit it; expect a fourth.**
+>
+> ### THE STATE OF PLAY
+>
+> * **87 harnesses pass, `audit:versions` 0 problems.** Four new this round
+>   (three from Round 82, plus `arcade-lesson-test.mjs`), all registered.
+> * ⚠️⚠️ **THE GAMES ARE DELIBERATELY *NOT* IN `versions.js` SOURCES.** Round 82's
+>   `INTEGRATION.md` §3 is right: while they are inert the build panel would fetch
+>   eight modules no student loads. **Register them in the deploy that wires them,
+>   not before** — and all three mirrors together (`versions.js`,
+>   `tools/audit-versions.mjs`, `tests/version-stamp-test.mjs` §D), or that
+>   harness fails.
+> * ⚠️ **`arcade.html` IS UNLINKED AND STAYS THAT WAY** — Jake, this round: *"Not
+>   now. arcade.html is easy enough to type."* No tile on Library, no option on
+>   School. `game-names.js`'s `ARCADE_ENTRY` records the eventual intent.
+> * ⚠️⚠️ **I COULD NOT RUN `arcade.html` AGAINST REAL DATA.** This environment
+>   blocks `gstatic.com`, so the Firebase SDK never loads and the page's own code
+>   never executes. The module graph resolves and the JS is valid; the dropdowns,
+>   a real run, and the two load timeouts are **UNVERIFIED**. The Deadline engine
+>   itself WAS driven end-to-end in a browser through `tools/game-lab.html`
+>   (starts, words fall, keystrokes match, stats accrue, zero console errors).
+>   **Jake was told this plainly before he shipped it.**
+> * **Expected stamps:** `index.html` **v3.22.0**, `versions.js` **v1.17.0**,
+>   `admin.html` **v1.23.0**, `admin.js` **v3.55.0**, `lessons-admin.js`
+>   **v1.22.0**, `reports.html` **v1.10.0**, `staff-admin.js` **v2.4.0**,
+>   `game.js` **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.9.0**,
+>   `firebase/firestore.rules` **v2.12.0** (published), `lesson-gate.js`
+>   **v1.2.0**, `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**, `arcade.html`
+>   **v2.0.0**, and all eight `game-*`/`escape-board` modules at **1.0.0** per
+>   Jake's ruling that a draft is not a version.
+> * ⚠️ **`style.css` v3.10.0 STILL correctly unshipped.** Do not ship it.
+> * ⚠️ **The reads measurement has still never been taken.** It decides the county
+>   rollout and needs one ordinary school day on a shipped build.
+> * ⚠️ **The leaderboard rules have never been executed.** Shape approved
+>   (`firebase/APPROVED-game-scores.md`); `npm run test:rules` against the
+>   emulator is owed and Jake cannot run it.
+> * ⭐ **THE NEXT REAL DECISION IS JAKE'S, FROM THE CLASSROOM.** Do the game
+>   numbers line up with the typed numbers? That answer decides whether the
+>   `learn.js` wiring is worth building — and `NEXT-STEPS.md` §5 has the ordered
+>   queue for it, with the seconds seam first and flagged as the delicate one.
+> * ⚠️⚠️ **HE HAS TABLED, EXPLICITLY:** the mastery-lock workaround and staff book
+>   allowlists. **Do not re-raise either.**
+> * ⚠️⚠️ **STOP TALKING TO JAKE IN ITEM NUMBERS.** Say what a thing IS, in plain
+>   English, every time.
+
+> ## ▶ Round 85 (Caligraph) — the previous block, kept
 >
 > ⚠️⚠️ **TWO ITEMS CLOSED, ONE OF THEM REPORTED BY JAKE MID-ROUND.** Came in
 > cold, read the handoff and the roadmap, ran `npm test` and `npm run
@@ -9502,6 +9630,11 @@ a pointer to a file you should go and read.**
 | `docs/PEDAGOGY-AUDIT.md` | Round 2 research. The only record of why the lesson gates are what they are |
 | `docs/archive/MULTITENANCY.md` | ⚠️ **SUPERSEDED, and see the correction below.** Kept for two arguments that appear nowhere else; its warning header is what makes keeping it safe |
 | `docs/archive/HANDOFF-ARCHIVE.md` | ⚠️⚠️ **ROUNDS 15–20's NARRATIVES, SPLIT OUT BY ROUND 23 WHEN THIS FILE HIT 237 KB.** Read-only; nothing in it is a plan, a blocker or an instruction, and every claim that still governs the code was lifted into this file first. **If you ever need it to do your job, that is a bug in HANDOFF.md — fix it here, do not start citing that.** ⚠️ **Missing from this table until Round 81, which was worse than an ordinary omission**: the paragraph below says every `HANDOFF-roundN.md` is deleted and *gone means gone*, and a reader could easily take that as covering this file too |
+| `README-games.md` | 🆕 **Round 82 (Victor), landed Round 86.** The arcade architecture: why `game-shell.js` owns every number and the views own only pixels. ⚠️ Read this before touching any `game-*.js` |
+| `HANDOFF-games.md` | 🆕 **Round 82's own handoff.** The four bugs that each looked fixed, with what every draft got wrong. §1d is required reading before touching Escape Key |
+| `INTEGRATION.md` | 🆕 the seam map for folding the games in: what touches what, the three version mirrors, and why the games must NOT be registered in `versions.js` until the deploy that wires them |
+| `NEXT-STEPS.md` | 🆕 Round 82's ordered action list and the record of Jake's five product rulings, with his quotes. ⚠️ Read as a record, not a queue — all five are answered and applied |
+| `firebase/APPROVED-game-scores.md` | 🆕 the game leaderboard shape. ⚠️⚠️ **APPROVED IS NOT DEPLOYED.** The shape is settled; the rules TEXT has never been executed and must pass `npm run test:rules` against the emulator before it goes near the console |
 | `tests/README.md` | 🆕 the suite: what is registered, what is deliberately not, and the standing failure |
 | ~~`tests/reconcile-test.mjs`~~ | ⚠️⚠️ **THIS FILE DOES NOT EXIST AND THIS ROW POINTED AT NOTHING.** It was listed for its header, which stated what the reconciliation harness did *not* cover. The file is gone — renamed or absorbed — and the row outlived it, sending anyone who took the map seriously looking for something that is not there. **Caught by `docs-vs-repo-test.mjs` on its first run.** Row kept, struck through, because a silently deleted row teaches nothing |
 | `tests/TESTING-ttb-test-epubs.md` | the synthetic EPUB test corpus |

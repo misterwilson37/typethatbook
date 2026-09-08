@@ -388,6 +388,7 @@ Everything else still open:
 - 45. ⚠️ BOOKS ARE GLOBAL, SO “FILTER BY BUILDING” IS TWO FEATURES WEARING ONE NAME  *(Jake ANSWERED it Round 57 — it is student-facing visibility, not a staff filter; read the item before starting)*
 - 54. ⚠️ BUILT AS AN OPTION (Round 83, Densmore) — DEFAULT-VS-OPTION IS STILL JAKE'S CALL  *(Jake asked, 2026-09-03; the read-cost question is answered and shipped as an opt-in sort — no live counter, no write on the student path — but whether it should ever become the default order is still open)*
 - 55. ⚠️ (a)(b)(c) DONE Rounds 65-69 — (d) OPEN, and it belongs to item 39 — THE METADATA PANEL — THREE ROWS, VISIBLE URLS, AND A BOX FOR "UPLOADED BY"  *(Jake, 2026-09-03, from a screenshot)*
+- 68. ⭐ THE ARCADE IS BUILT AND PLAYABLE — THE NEXT MOVE IS A CLASSROOM ANSWER, NOT CODE  *(Round 82 built it, Round 86 wired arcade.html to real lessons for commit 1000. ⚠️ NOTHING IS WIRED INTO learn.js and nothing is saved, on Jake's ruling — kids compare Deadline against the same run they typed. Whether the numbers line up is what decides if the learn.js seam is worth building)*
 - 60. ⭐ STAFF SHOULD SEE EVERY BOOK AND CHOOSE WHAT THEIR OWN STUDENTS SEE  *(Jake, Round 76. NOT BUILT — needs a ruling on allowlist vs blocklist, and the shelf is the read-budget surface)*
 
 ## ⏳ WATCHING — no action, just don't forget
@@ -4145,6 +4146,73 @@ real one, so it should NOT be exempt.
 harness, and it would have ridden into the same upload as a fix to the counting
 path Jake is watching. §0.-11.D. Round 60 bumped the stamp to **3.18.0** and
 wrote the gap into the header where the next reader will hit it.
+
+## 68. ⭐ THE ARCADE IS BUILT AND PLAYABLE — THE NEXT MOVE IS A CLASSROOM ANSWER, NOT CODE
+
+**Jake, 2026-09-07:** *"One of the primary complaints I've had from kids is that
+there is not a game at the end of the lessons like what they had at typing
+club."*
+
+Round 82 (Victor) built it in a side session — two games plus the shell they
+share, from three Gemini prototypes. **Round 86 folded it in and made Deadline
+playable by children at commit 1000.**
+
+### ⚠️⚠️ NOTHING IS WIRED INTO learn.js, AND NOTHING IS SAVED
+
+Jake, 2026-09-08: *"No need to save. This is only a test and won't be rolled out
+to everyone."* `arcade.html` writes no `lessonProgress`, no `typing_logs`, no
+seconds, no leaderboard. It costs two `getDocs` on load and nothing per launch.
+**This is a measurement, not a feature** — it exists so a real classroom answer
+arrives before anyone pays for the seam.
+
+### The one idea, because everything else follows from it
+
+**Speed is not the difficulty knob. Throughput is.** `WPM = chars/sec × 12`, so
+a 15 WPM gate is 1.25 chars/sec, and what forces a student to sustain it is how
+often work ARRIVES. ⚠️⚠️ **AND PRESSURE MUST NEVER GO BELOW 1.0** — the first
+draft used 0.75 for "headroom" and made every gate mathematically unreachable,
+because the clock is wall-clock and waiting for a spawn is charged. Perfect play
+scored 11.3 against a 15 gate. Headroom comes from target lifetime and shields,
+never from spawn rate.
+
+### What arcade.html offers, and the two things that make it trustworthy
+
+⚠️ **ONLY RUNS WITH A SPEED GATE.** `gatesForRun()` returns `minWPM: null` for
+DRILL_TYPES, so a drill has no WPM to line up with. ⭐ And the three types that
+DO carry one are deterministic text on the lesson document, so the page
+reproduces the exact characters without lifting `buildSequence()` out of
+`learn.js`. **110 playable runs across 32 of 47 lessons; gates 15/18/20/25.**
+
+⚠️⚠️ **RUN NUMBERS MEAN WHAT learn.js MEANS** — verified zero chunk mismatches
+across all 110. If that drifts, every comparison is off by a run, silently.
+`tests/arcade-lesson-test.mjs` Part C is the guard, and Part B compares
+`arcade.html`'s duplicated `sequenceForStep()` against `learn.js`'s
+`buildSequence()` character for character.
+
+### ⏳ Open, and none of it is code
+
+1. ⭐ **THE CLASSROOM ANSWER.** Do the game numbers line up with the typed ones?
+   That decides whether the `learn.js` wiring is worth building at all.
+2. ⚠️ **The leaderboard rules have never been executed.** Shape approved
+   (`firebase/APPROVED-game-scores.md`); `npm run test:rules` against the
+   emulator is owed, and Jake cannot run it.
+3. ⚠️ **Escape Key is arcade-only by ruling, not by capability.**
+   `escape-board-test.mjs` Part B proves a camper loses all three shields on
+   40/40 seeds, which is what would earn it the graded path. One flag.
+4. **Shatter is registered and unbuilt.** It needs `splitTarget(text)` with a
+   fallback ladder: syllables → compound parts → halves → characters.
+
+### ⚠️ If the wiring is ever built, the seconds seam is the delicate one
+
+`learn.js` has **exactly one** per-second increment site, below
+`rollDayIfNeeded('tick')`, with a comment saying four counting bugs died to
+create it and there is no subtract path. A game **cannot** bank a duration at
+the end — its loop must call that same tick once per elapsed second, below the
+same rollover, with the same 5-second floor. Anything else is a second record of
+a quantity that already exists and files a midnight-straddling game under the
+wrong day. `NEXT-STEPS.md` §5 has the ordered queue.
+
+---
 
 ## 67. ✅ FIXED (Round 85, Caligraph) — A FINISHED BOOK NEVER LEFT THE "CONTINUE READING" ROW
 
