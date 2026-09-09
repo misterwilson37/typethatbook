@@ -114,7 +114,9 @@ export function drawKeyboardStrip(ctx, o) {
     const shifted = want != null && want !== wantLower;
 
     const pad = 3;
-    const rowH = Math.floor((height - 10) / 4);
+    // ⚠️ THE PREVIEW OWNS THE TOP 34px WHEN PRESENT, so the rows start below it.
+    const headY = o.nextWord ? 34 : 0;
+    const rowH = Math.floor((height - 10 - headY) / 4);
     const keyH = rowH - pad;
     const widest = Math.max.apply(null, rows.map(r => r.length));
     const keyW = Math.min(46, Math.floor((W * 0.62) / widest)) - pad;
@@ -136,7 +138,7 @@ export function drawKeyboardStrip(ctx, o) {
         // Stagger, as a real keyboard does — a square grid is noticeably harder
         // to map onto the board under their hands.
         const indent = r * (keyW * 0.34);
-        const y = top + 6 + r * rowH;
+        const y = top + 6 + headY + r * rowH;
         rowChars.forEach((ch, c) => {
             const x = originX + indent + c * (keyW + pad);
             const col = fingerColorOf(ch);
@@ -200,7 +202,7 @@ export function drawKeyboardStrip(ctx, o) {
     });
 
     // Space bar
-    const sy = top + 6 + rows.length * rowH;
+    const sy = top + 6 + headY + rows.length * rowH;
     const sw = boardW * 0.46, sx = (W - sw) / 2;
     const wantSpace = want === ' ';
     roundRect(ctx, sx, sy, sw, keyH, 4);
@@ -253,6 +255,22 @@ export function drawKeyboardStrip(ctx, o) {
     };
     drawBottom(o.bottomLeft, 14, 'left');
     drawBottom(o.bottomRight, W - 14, 'right');
+
+    // ⚠️⚠️ THE NEXT WORD, SO IT CAN BE READ BEFORE IT ARRIVES. This is the whole
+    // remedy for the "waiting for the next word" cap — the student pre-reads
+    // here instead of paying a locate-and-read when it appears in the sky.
+    // ⚠️ IT IS NOT A TARGET AND MUST NOT LOOK LIKE ONE: dim, small, unboxed,
+    // parked on the strip. A second thing that looks typable is worse than no
+    // preview at all.
+    if (o.nextWord) {
+        ctx.textAlign = 'center';
+        ctx.font = '11px "Courier Prime", monospace';
+        ctx.fillStyle = '#5f7387';
+        ctx.fillText('NEXT', W / 2, top + 12);
+        ctx.font = 'bold 15px "Courier Prime", monospace';
+        ctx.fillStyle = '#9fb6c6';
+        ctx.fillText(o.nextWord, W / 2, top + 28);
+    }
 
     if (o.progress != null && flankW >= 70) {
         const bw = Math.min(160, flankW - 10);

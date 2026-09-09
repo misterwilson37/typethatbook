@@ -1,4 +1,27 @@
-// game-deadline.js v1.4.0
+// game-deadline.js v1.5.0
+//
+// v1.5.0 — ⭐ ROUND 91 — THE "SLOWER THAN THE QUIZ" GAP, DIAGNOSED AND ADDRESSED.
+//   ⚠️⚠️ v1.4.0 CALLED THIS "REAL HUMAN TIME, DO NOT FIX IN THE ARITHMETIC" AND
+//   LEFT IT THERE. That was half right and wholly unhelpful: it IS locate-and-
+//   read time, and it was still costing a 100 WPM typist more than half his
+//   speed. Jake, measured on himself: *"Simply waiting for the next word to
+//   appear dropped me to 48."* Modelled at 500ms per word it reports 44 for a
+//   100 WPM typist and 22 for a 30 WPM one — matching his figure and his
+//   prediction for a 30 WPM child.
+//   ⭐ THE FIX IS A "NEXT" PREVIEW ON THE KEYBOARD STRIP (GameDirector.peekNext),
+//   so the word is already read when it arrives. ⚠️ RAISING MIN_ON_SCREEN TO
+//   SHOW MORE WAS TRIED FIRST AND IS WRONG: at 3 the corpus sweep falls from
+//   99.9% to 53.2% clearable, because a refill floor spawns work a slower
+//   typist never asked for. READING AHEAD MUST NOT MEAN RECEIVING FASTER.
+//   • Landmark name plates removed; they sat on the ground line under art that
+//     no longer needs captioning. The names still appear in the loss banner.
+//   • ⚠️ DOMES ARE FLATTENED, NOT SHRUNK. `radius` IS the coverage test — the
+//     obvious `reach * 0.86` gives smaller domes and silently ends the
+//     three-deep overlap that is the six-lives mechanic. Caught by asserting
+//     coverage after the change, not by looking at it. DOME_SQUASH scales the
+//     drawn height only.
+//   • Control bar moved to mid-flank, between the run stats and the minutes.
+//
 //
 // v1.4.0 — ⭐ ROUND 90 — STUDENT FEEDBACK, FOUR ITEMS.
 //   • PER-KEY ERROR MEMORY: a key you miss turns red and stays marked (blue)
@@ -253,10 +276,15 @@ for (const k of Object.keys(LANDMARK_SVG)) {
 // Natural aspect ratios, so a landmark is never stretched. Taken from each
 // SVG's own viewBox.
 const LANDMARK_BOX = {
-    'PARTHENON':   { w: 760, h: 360, drawH: 62  },
-    'BATMAN BLDG': { w: 400, h: 800, drawH: 168 },
-    'RYMAN':       { w: 500, h: 500, drawH: 84  },
+    'PARTHENON':   { w: 760, h: 360, drawH: 50  },
+    'BATMAN BLDG': { w: 400, h: 800, drawH: 132 },
+    'RYMAN':       { w: 500, h: 500, drawH: 66  },
 };
+
+// ⚠️ HOW FLAT THE DOMES ARE DRAWN. 1.0 is a true half-circle. Lowering this
+// gives falling words more sky WITHOUT changing which lanes a dome protects —
+// coverage is a horizontal test against `radius`, which this does not touch.
+const DOME_SQUASH = 0.72;
 
 const MISFIRE_DARK_MS = 260;   // purely visual; see the header
 const MISSILE_SPEED = 900;     // px/sec, generous — the missile is feedback, not a mechanic
@@ -393,10 +421,15 @@ export function mount(container, opts) {
         // must not eat the sky, and below ~360px of height it is dropped
         // entirely rather than squeezed into unreadability.
         kbH = keyboardStripHeight(H, kbOn);
+        if (kbH) kbH += 34;   // ⚠️ the NEXT preview's own band; see drawKeyboardStrip.
         // ⚠️ TELL THE CHROME WHERE THE FLOOR IS. Its bar is positioned from the
         // bottom, so it must clear the keyboard strip when one is drawn. +10 so
         // the buttons sit inside the flank rather than straddling its top edge.
-        try { container.style.setProperty('--gc-bottom', (kbH ? kbH + 10 : 8) + 'px'); } catch (_) {}
+        // ⚠️ MID-FLANK, NOT ON THE FLOOR. Jake, 2026-09-08: *"put them between the
+        // stats and the minutes."* At kbH+10 the bar sat on the skyline and
+        // covered the landmarks; at ~40% of the strip height it lands in the gap
+        // between the WPM lines above and TODAY below, over nothing.
+        try { container.style.setProperty('--gc-bottom', (kbH ? Math.round(kbH * 0.40) : 8) + 'px'); } catch (_) {}
         const groundY = H - 26 - kbH;
         const laneX = i => W * ((i + 1) / (shieldCount + 1));
         const reach = Math.abs(laneX(Math.floor(shieldCount / 2)) - laneX(0));
@@ -409,6 +442,16 @@ export function mount(container, opts) {
                 x: laneX(i), y: groundY,
                 // ⚠️ +8 SO THE CENTRE LANE IS GENUINELY INSIDE EVERY DOME, not
                 // exactly on its rim where a rounding error decides coverage.
+                // ⚠️⚠️ THE RADIUS IS THE COVERAGE TEST AND MUST NOT SHRINK.
+                // Jake asked for smaller domes to give the words more room, and
+                // the obvious `reach * 0.86` DOES make them smaller — it also
+                // silently stops the outer two domes from reaching the centre
+                // lane, which ends the three-deep overlap that is the entire
+                // six-lives mechanic. Caught by asserting coverage after the
+                // change rather than by looking at it.
+                // ⭐ SO THE ARC IS FLATTENED INSTEAD: radius (and therefore
+                // coverage) is unchanged, and `squash` below scales only the
+                // drawn HEIGHT. Same protection, less sky.
                 radius: Math.max(60, reach + 8),
                 active: prevDomes[i] ? prevDomes[i].active : true,
                 landmark: LANDMARKS[i % LANDMARKS.length],
@@ -785,6 +828,7 @@ export function mount(container, opts) {
                     return src && src.typed < src.text.length ? src.text[src.typed] : null;
                 })(),
                 left: hl.left, right: hl.right, keyStates,
+                nextWord: d.peekNext(),
                 progress: d.endless ? null : d.clearedChars / d.quotaChars,
                 ...minuteLines(),
             });
@@ -926,17 +970,21 @@ export function mount(container, opts) {
                 ctx.strokeStyle = '#00e5ff';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.arc(dome.x, dome.y, dome.radius, Math.PI, 0);
+                // ⚠️ DRAWN AS A FLATTENED ELLIPSE, NOT A SMALLER CIRCLE — see
+                // the radius note in layout(). Width is coverage; height is
+                // only pixels, so height is what gives the words room.
+                ctx.ellipse(dome.x, dome.y, dome.radius, dome.radius * DOME_SQUASH,
+                            0, Math.PI, 0);
                 ctx.fill(); ctx.stroke();
                 ctx.restore();
             }
-            platedText(ctx, {
-                x: dome.x, y: dome.y + 12, text: dome.landmark.short,
-                font: 'bold 11px "Courier Prime", monospace',
-                color: dome.active ? '#8fd8e8' : '#66404a',
-                bg: 'rgba(2,4,10,0.8)', padX: 6, padY: 3,
-                border: dome.active ? 'rgba(0,229,255,0.3)' : 'rgba(255,60,90,0.4)',
-            });
+            // ⚠️ THE NAME PLATES ARE GONE (Round 91). Jake, 2026-09-08: *"we
+            // could center them all and remove the names of the buildings."*
+            // They sat on the ground line where the control bar also lives, and
+            // Gemini's art is recognisable enough that a label under the
+            // Parthenon was captioning a photograph. The names still appear where
+            // they carry meaning — the "PARTHENON IS GONE" banner — which is the
+            // one moment a student needs to be told which one they just lost.
         }
     }
 

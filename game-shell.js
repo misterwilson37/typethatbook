@@ -597,6 +597,32 @@ export class GameDirector {
      * survival phase is not, so a game that stopped spawning at the end of the
      * pool would end by going quiet — which reads as a bug, not as a victory.
      */
+    /**
+     * The text of the target that will spawn NEXT, without advancing anything.
+     *
+     * ⚠️⚠️ THIS EXISTS SO THE STUDENT CAN READ AHEAD WITHOUT THE GAME SPAWNING
+     * FASTER, AND THE DIFFERENCE IS THE WHOLE POINT.
+     *
+     * Jake, 2026-09-08, typing at 80-100 WPM: *"Simply waiting for the next word
+     * to appear dropped me to 48."* Modelled and reproduced: with one word on
+     * screen a student pays a fresh locate-and-read before every target, and at
+     * 100 WPM that overhead is comparable to the typing itself — the model
+     * reports 44 for a 100 WPM typist and 22 for a 30 WPM one, matching what he
+     * measured and what he predicted for a 30 WPM child.
+     *
+     * ⚠️ RAISING MIN_ON_SCREEN TO SHOW MORE WAS TRIED AND IS WRONG. At 3 the
+     * corpus sweep collapses from 99.9% to 53.2% clearable, because a forced
+     * refill floor spawns work a slower typist has not asked for. Reading ahead
+     * must not mean receiving faster.
+     *
+     * ⚠️ SO THIS PEEKS ONLY. No cursor movement, no clock, no spawn. The view
+     * prints it; the pacing contract is untouched.
+     */
+    peekNext() {
+        if (!this.targets.length) return null;
+        return this.targets[this._cursor % this.targets.length];
+    }
+
     nextTarget(nowMs) {
         if (!this.targets.length) return null;
         const text = this.targets[this._cursor % this.targets.length];
