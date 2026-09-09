@@ -1,4 +1,15 @@
-// game-chrome.js v1.6.0
+// game-chrome.js v1.7.0
+//
+// v1.7.0 — ⭐ ROUND 101 — THE CARD BUTTONS BECOME BOLTED-IN HARDWARE. Jake,
+//          2026-09-09: *"I wish the buttons were a little more thought out -
+//          made to look like they were a part of the physical interface there
+//          above."* Bevelled plates with a lit top edge, a 9x4 lamp matching the
+//          threat board's shield pips, a press that SINKS rather than lights,
+//          and amber on the one control that ends the run.
+//          ⚠️⚠️ EVERY COSMETIC RULE IS SCOPED TO .gc-bar-card. learn.js and
+//          Escape Key mount the FLOATING bar over a full-bleed canvas, where a
+//          raised plate would read as a panel dropped on the sky — they see the
+//          bare .gc-btn rules and nothing else. DO NOT MERGE THE TWO BLOCKS.
 //
 // v1.6.0 — ⚠️⚠️ THE DUPLICATED CONTROLS. destroy() removed `wrap` and left the
 //          BAR on the page, because with a barHost the bar has a different
@@ -68,7 +79,7 @@
 
 import { prefersReducedMotion } from './game-draw.js';
 
-export const GAME_CHROME_VERSION = '1.6.0';
+export const GAME_CHROME_VERSION = '1.7.0';
 
 // ⚠️ THREE SECONDS, AND THE SPAWNS WAIT FOR IT. Not the clock — the clock starts
 // on the first keystroke regardless, and always did.
@@ -114,6 +125,63 @@ const CSS = `
    larger than the floor — the floor only decides what happens when there is no
    room to spare. */
 .gc-bar-card .gc-btn { min-height:34px; }
+/* ⭐ ROUND 101 — THE CARD BUTTONS ARE BOLTED-IN HARDWARE, AND EVERY RULE BELOW
+   IS SCOPED TO .gc-bar-card FOR A REASON. Jake, 2026-09-09: *"I wish the buttons
+   were a little more thought out - made to look like they were a part of the
+   physical interface there above."* The interface above them is a canvas of
+   segmented lamps, corner brackets and lit top edges — so these borrow the same
+   vocabulary rather than inventing a fifth one.
+   ⚠️⚠️ THE FLOATING BAR MUST NOT INHERIT ANY OF IT. learn.js and Escape Key put
+   .gc-btn over a full-bleed canvas, where a raised plate with a bevel would read
+   as a panel dropped on the sky. Everything cosmetic here is under
+   .gc-bar-card; the bare .gc-btn rules above are still the only thing those two
+   surfaces see. ⚠️ DO NOT "TIDY" THESE INTO THE .gc-btn BLOCK.
+   ⚠️ AND NO BACKTICKS — this whole string is a template literal. */
+.gc-bar-card .gc-btn {
+    position:relative;
+    padding:9px 12px 9px 30px;
+    border:1px solid #24455c; border-left:3px solid #2b6c8a; border-radius:2px;
+    background:linear-gradient(180deg, rgba(20,34,48,0.96) 0%, rgba(9,16,24,0.96) 100%);
+    /* A lit top edge and a dark bottom one: the same two-tone housing the flank
+       cards use, so a button reads as part of the console's face. */
+    box-shadow:inset 0 1px 0 rgba(143,232,200,0.10),
+               inset 0 -2px 0 rgba(0,0,0,0.45),
+               0 1px 0 rgba(0,0,0,0.55);
+    letter-spacing:2px;
+}
+/* ⚠️ THE LAMP IS 9x4 BECAUSE THE THREAT BOARD'S SHIELD PIPS ARE 9x4. Two lamp
+   sizes six inches apart is exactly the "slightly off" that reads worse than an
+   obvious difference — one machine, one lamp. */
+.gc-bar-card .gc-btn::before {
+    content:''; position:absolute; left:11px; top:50%; margin-top:-2px;
+    width:9px; height:4px; background:rgba(120,170,220,0.5);
+}
+.gc-bar-card .gc-btn:hover {
+    background:linear-gradient(180deg, rgba(30,62,84,0.98) 0%, rgba(14,30,42,0.98) 100%);
+    border-left-color:#8fe8c8; color:#e8f6ff;
+}
+.gc-bar-card .gc-btn:hover::before {
+    background:#8fe8c8; box-shadow:0 0 7px rgba(143,232,200,0.55);
+}
+/* ⚠️ A PRESS SINKS, IT DOES NOT LIGHT UP. The bevel inverts and the plate drops
+   1px, which is what a physical control does — and it keeps the pressed state
+   readable on a touch screen where there is no hover to have lost. */
+.gc-bar-card .gc-btn:active {
+    transform:translateY(1px);
+    box-shadow:inset 0 2px 5px rgba(0,0,0,0.65);
+    background:linear-gradient(180deg, rgba(9,16,24,0.98) 0%, rgba(20,34,48,0.98) 100%);
+}
+.gc-bar-card .gc-btn:focus-visible { outline:2px solid #8fe8c8; outline-offset:1px; }
+/* ⚠️ AMBER ON THE WAY OUT, AND COLOUR IS NOT THE ONLY CHANNEL — it is also the
+   last button in the stack and says DONE. The rest of the console reserves amber
+   for the gate marker, i.e. "the thing you are steering toward"; leaving the run
+   is the one control with a consequence, so it does not look identical to Pause. */
+.gc-bar-card .gc-btn-exit { border-left-color:#ffcf6b; }
+.gc-bar-card .gc-btn-exit::before { background:rgba(255,207,107,0.55); }
+.gc-bar-card .gc-btn-exit:hover { border-left-color:#ffd27d; }
+.gc-bar-card .gc-btn-exit:hover::before {
+    background:#ffd27d; box-shadow:0 0 7px rgba(255,210,125,0.55);
+}
 .gc-btn { background:rgba(6,12,20,0.92); color:#bfe9ff;
           border:1px solid #2b6c8a; border-left:3px solid #2b6c8a;
           border-radius:3px; padding:9px 12px; font:inherit; font-size:12px;
@@ -183,7 +251,7 @@ export function mountChrome(container, opts) {
     // ⚠️ OPTIONAL, AND ABSENT WHEN THE VIEW DOES NOT OFFER IT. Escape Key has no
     // keyboard strip yet, and a dead button is worse than a missing one.
     const btnKeys = o.onToggleKeys ? mkBtn(o.keysOn === false ? 'Keys off' : 'Keys on') : null;
-    const btnQuit = mkBtn('Done');
+    const btnQuit = mkBtn('Done', 'gc-btn-exit');
     bar.append(btnPause, btnMute, ...(btnKeys ? [btnKeys] : []), btnQuit);
     if (btnKeys) {
         btnKeys.addEventListener('click', () => {
@@ -220,9 +288,12 @@ export function mountChrome(container, opts) {
     let rafId = null;
     let muted = !!o.muted;
 
-    function mkBtn(label) {
+    // ⚠️ `extra` IS COSMETIC ONLY, AND ONLY THE CARD STACK STYLES IT. A class on
+    // the floating bar's buttons changes nothing there by construction — every
+    // rule that reads it is scoped to .gc-bar-card in the CSS above.
+    function mkBtn(label, extra) {
         const b = document.createElement('button');
-        b.className = 'gc-btn';
+        b.className = 'gc-btn' + (extra ? ' ' + extra : '');
         b.type = 'button';
         b.textContent = label;
         // ⚠️ BLUR ON CLICK. See the header — a focused button eats Space and

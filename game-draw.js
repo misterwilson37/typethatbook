@@ -1,3 +1,6 @@
+// game-draw.js v1.7.0 — Round 101: the BANKED bank sizes and spaces itself to
+// the console's spare height, and the keyboard shows BOTH halves of an error —
+// the key the student needed (swelling) and the key they hit (blinking).
 // game-draw.js v1.6.0 — playfield countdown overlay; BANKED becomes a
 // seven-segment readout, Round 100b.
 // game-draw.js v1.5.0 — the threat board, Round 100 (Franklin).
@@ -37,7 +40,7 @@
 // may be imported by anything that draws; that only stays safe while it knows
 // nothing.
 
-export const GAME_DRAW_VERSION = '1.6.0';
+export const GAME_DRAW_VERSION = '1.7.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device
@@ -105,7 +108,21 @@ export function keyboardStripHeight(H, enabled) {
  *   nextChar   {string}   the character to light, or null
  *   left,right {string[]} lines for the flanks
  *   keyStates  {object}   char -> 'miss' | 'fixed', for the error memory
+ *   missPulse  {object}   OPTIONAL {key, age} — the key the student NEEDED,
+ *                         swelling and settling over KEY_MISS_PULSE_MS
+ *   hitFlash   {object}   OPTIONAL {key, age} — the key they actually HIT,
+ *                         blinking red over KEY_HIT_FLASH_MS
  *   progress   {number}   0..1, drawn as a bar under the right flank; null to omit
+ *
+ * ⚠️⚠️ THE TWO FEEDBACK CHANNELS ARE DIFFERENT SHAPES ON PURPOSE (Round 101).
+ * Jake: *"Maybe even pulsate larger with the missed key hit (so that the user
+ * can SEE that they're forgetting the period)."* The keyStates memory already
+ * turned the needed key red, and a child who is skipping every full stop still
+ * missed it, because a static tint two rows down does not catch an eye that is
+ * on a falling word. So the NEEDED key GROWS — motion, where the memory was
+ * static — and the key they actually pressed BLINKS and is gone. ⚠️ IF THESE
+ * EVER BECOME THE SAME EFFECT THE FEATURE IS DEAD: the student would see two red
+ * keys and no way to tell which one they were supposed to press.
  *
  * ⚠️ THE NUMBER ROW IS OMITTED ON PURPOSE. Three letter rows and a space bar
  * cover every character any lesson or book target uses; the number row would
@@ -120,6 +137,25 @@ export function drawKeyboardStrip(ctx, o) {
     const states = o.keyStates || {};
     const wantLower = want == null ? null : String(want).toLowerCase();
     const shifted = want != null && want !== wantLower;
+
+    // ── the two error signals (Round 101) ───────────────────────────────────
+    // ⚠️ AGE COMES IN, NOT A TIMESTAMP. This function is handed everything it
+    // draws and reads no clock of its own — the same rule drawCountdownOverlay()
+    // follows, and the reason a harness can render either of them deterministically.
+    const fx = (spec, span) => {
+        if (!spec || spec.key == null || !(spec.age >= 0) || spec.age > span) return null;
+        return { key: String(spec.key).toLowerCase(), t: 1 - spec.age / span };
+    };
+    const pulse = fx(o.missPulse, LAY.KEY_MISS_PULSE_MS);
+    const flash = fx(o.hitFlash, LAY.KEY_HIT_FLASH_MS);
+    // ⚠️ REDUCED MOTION DROPS THE GROWTH, NEVER THE COLOUR. A student who cannot
+    // have the movement must still be told which key they missed.
+    const grow = prefersReducedMotion() ? 0 : LAY.KEY_MISS_PULSE_SCALE;
+    /** Geometry of the pulsing key, drawn AFTER the board so it sits over its neighbours. */
+    let pulseAt = null;
+
+    /** The red blink on the key they actually pressed. Returns an alpha, or 0. */
+    const flashAlpha = ch => (flash && flash.key === ch ? 0.15 + 0.75 * flash.t : 0);
 
     const pad = LAY.KEY_PAD;
     // ⚠️ THE PREVIEW OWNS THE TOP 34px WHEN PRESENT, so the rows start below it.
@@ -157,7 +193,11 @@ export function drawKeyboardStrip(ctx, o) {
             // shouts, 'fixed' stays marked but stops shouting — erasing it
             // entirely would delete the very information they asked for.
             const st = states[ch];
-            const keyCol = st === 'miss' ? '#ff5566' : st === 'fixed' ? '#7fb8ff' : col;
+            const fa = flashAlpha(ch);
+            const keyCol = fa ? LAY.KEY_MISS_INK
+                        : st === 'miss' ? LAY.KEY_MISS_INK
+                        : st === 'fixed' ? '#7fb8ff' : col;
+            if (pulse && pulse.key === ch) pulseAt = { x, y, ch, col: LAY.KEY_MISS_INK };
             roundRect(ctx, x, y, keyW, keyH, 4);
             ctx.fillStyle = keyCol;
             // ⚠️ THE RESTING TINT IS FAINT BUT NOT INVISIBLE. At 0.05 the board
@@ -165,13 +205,14 @@ export function drawKeyboardStrip(ctx, o) {
             // beginner needs this strip — conveyed nothing.
             // A missed key sits brighter than a resting one even when it is not
             // the current target, or it is only findable by hunting for it.
-            ctx.globalAlpha = isWant ? LAY.KEY_ALPHA_ACTIVE
+            ctx.globalAlpha = fa ? fa
+                : isWant ? LAY.KEY_ALPHA_ACTIVE
                 : (st === 'miss' ? LAY.KEY_ALPHA_MISSED
                 : st === 'fixed' ? LAY.KEY_ALPHA_FIXED : LAY.KEY_ALPHA_RESTING);
             ctx.fill();
             ctx.globalAlpha = 1;
-            ctx.strokeStyle = isWant ? '#ffffff' : keyCol;
-            ctx.lineWidth = isWant || st === 'miss' ? 2 : 1;
+            ctx.strokeStyle = isWant && !fa ? '#ffffff' : keyCol;
+            ctx.lineWidth = isWant || st === 'miss' || fa ? 2 : 1;
             ctx.globalAlpha = isWant ? 1 : 0.75;
             ctx.stroke();
             ctx.globalAlpha = 1;
@@ -215,11 +256,23 @@ export function drawKeyboardStrip(ctx, o) {
     const sy = top + 6 + headY + rows.length * rowH;
     const sw = boardW * LAY.KB_SPACE_WIDTH_FRACTION, sx = (W - sw) / 2;
     const wantSpace = want === ' ';
+    // ⚠️ THE SPACE BAR CARRIES THE ERROR STATES TOO (Round 101). It did not
+    // before, and it is the one key on the board a student can be told to press
+    // MID-word and miss — a space between two words in a sentence target. A key
+    // that can be wanted but can never look wrong teaches nothing when it is.
+    const spaceSt = states[' '];
+    const spaceFa = flashAlpha(' ');
+    if (pulse && pulse.key === ' ') pulseAt = { x: sx, y: sy, w: sw, ch: ' ', col: LAY.KEY_MISS_INK };
     roundRect(ctx, sx, sy, sw, keyH, 4);
-    ctx.fillStyle = wantSpace ? '#cfe6f5' : 'rgba(255,255,255,0.05)';
+    ctx.fillStyle = spaceFa || spaceSt === 'miss' ? LAY.KEY_MISS_INK
+                  : wantSpace ? '#cfe6f5' : 'rgba(255,255,255,0.05)';
+    ctx.globalAlpha = spaceFa ? spaceFa
+                    : spaceSt === 'miss' ? LAY.KEY_ALPHA_MISSED : 1;
     ctx.fill();
-    ctx.strokeStyle = wantSpace ? '#ffffff' : 'rgba(200,225,245,0.45)';
-    ctx.lineWidth = wantSpace ? 2 : 1;
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = spaceFa || spaceSt === 'miss' ? LAY.KEY_MISS_INK
+                    : wantSpace ? '#ffffff' : 'rgba(200,225,245,0.45)';
+    ctx.lineWidth = wantSpace || spaceSt === 'miss' || spaceFa ? 2 : 1;
     ctx.stroke();
 
     // ⚠️ SHIFT IS ANNOUNCED, NOT DRAWN AS KEYS. Matching is case-sensitive here
@@ -229,6 +282,39 @@ export function drawKeyboardStrip(ctx, o) {
         ctx.fillStyle = '#ffd700';
         ctx.font = 'bold 11px "Courier Prime", monospace';
         ctx.fillText('\u21e7 SHIFT + ' + wantLower.toUpperCase(), W / 2, sy + keyH / 2 + 0.5);
+    }
+
+    // ── the key they NEEDED, swelling (Round 101) ───────────────────────────
+    //
+    // ⚠️⚠️ DRAWN LAST, AND THAT IS NOT A STYLE CHOICE. A key scaled up in place
+    // overlaps its neighbours; drawn inside the row loop it would be painted
+    // over by every key after it in the row and clipped on one side only, which
+    // reads as a rendering fault rather than as emphasis.
+    // ⚠️ IT SHRINKS TOWARD ITS RESTING SIZE, IT DOES NOT FLASH. One swell per
+    // error, settling — not a repeating strobe. See KEY_MISS_PULSE_MS.
+    if (pulseAt) {
+        const kw = pulseAt.w || keyW;
+        const s = 1 + grow * pulseAt.t;
+        const dw = kw * s, dh = keyH * s;
+        const dx = pulseAt.x + (kw - dw) / 2, dy = pulseAt.y + (keyH - dh) / 2;
+        ctx.save();
+        roundRect(ctx, dx, dy, dw, dh, 4 * s);
+        ctx.fillStyle = pulseAt.col;
+        ctx.globalAlpha = 0.35 + 0.5 * pulseAt.t;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = pulseAt.col;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        if (pulseAt.ch !== ' ') {
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold ' + Math.max(10, Math.floor(keyH * 0.42 * s)) +
+                       'px "Courier Prime", monospace';
+            ctx.fillText(String(pulseAt.ch).toUpperCase(), dx + dw / 2, dy + dh / 2 + 0.5);
+        }
+        ctx.restore();
     }
 
     // ── the flanks ──────────────────────────────────────────────────────────
@@ -933,9 +1019,9 @@ export function drawGauges(ctx, o) {
         corner(W - ox, H - oy, -1, -1);
     })();
 
-    const label = (lx, ly, text, align, color) => {
+    const label = (lx, ly, text, align, color, size) => {
         ctx.textAlign = align || 'left';
-        ctx.font = '9px "Courier Prime", monospace';
+        ctx.font = (size ? size : 9) + 'px "Courier Prime", monospace';
         ctx.fillStyle = color || LAY.GAUGE_LABEL;
         ctx.fillText(text, lx, ly);
     };
@@ -1144,21 +1230,64 @@ export function drawGauges(ctx, o) {
     // `Math.floor(sec/60)` here would be the second formatter that file has
     // warned about since Round 95, and the failure mode is a student shown two
     // different totals for one day.
+    // ⚠️⚠️ ROUND 101 — THE ROWS SIZE AND SPACE THEMSELVES TO WHAT IS LEFT.
+    // Jake, 2026-09-09: *"I'd like the today and week timers to be bigger and
+    // include seconds to better fill all the dead space on the right."*
+    // v1.4.0 drew them at a fixed 21px directly under the divider, so on a tall
+    // screen the console ended two thirds of the way up the card and the rest
+    // was bare — the identical failure Round 100 fixed on the flanks, one level
+    // down. ⭐ THE BLOCK NOW TAKES THE WHOLE REGION BELOW THE DIALS: the digits
+    // grow to the room available (bounded by SEG_TOTAL_MIN_H/MAX_H and by the
+    // column's WIDTH), and the two rows are spread down it rather than stacked
+    // at the top of it. That removes the space instead of relocating it.
+    // ⚠️ THE SECONDS ARE WHY THE WIDTH BOUND EXISTS. "0:08:05" is seven glyphs
+    // where "0:08" was four, so the height a 240px column can carry dropped by
+    // nearly half — a bare SEG_TOTAL_MAX_H would run the digits under the label.
     if (o.todayClock || o.weekClock) {
-        label(x, y + 8, 'BANKED');
-        const rowH = LAY.SEG_TOTAL_H + 7;
-        const row = (ry, name, clock) => {
-            if (!clock) return ry;
-            label(x, ry + LAY.SEG_TOTAL_H - 4, name);
-            drawSevenSeg(ctx, {
-                x: x + w, y: ry, h: LAY.SEG_TOTAL_H, text: clock,
-                color: LAY.GAUGE_TOTAL_INK, align: 'right',
+        let rows = [['TODAY', o.todayClock], ['WEEK', o.weekClock]].filter(r => !!r[1]);
+        // ⚠️⚠️ AND IT DEGRADES IN A FIXED ORDER RATHER THAN OVERFLOWING, WHICH
+        // v1.4.0 DID NOT. At GAUGE_MIN_H the clock and two dials leave under
+        // 20px here, and a fixed row height simply drew the WEEK row off the
+        // bottom of the canvas — the student lost a readout and nothing said so.
+        // The order of sacrifice is deliberate, cheapest first:
+        //   1. the BANKED heading — it is the one thing on the block that is
+        //      REDUNDANT, because every row already says TODAY or WEEK;
+        //   2. the digit size, down to a floor;
+        //   3. the WEEK row, because TODAY is the figure a child can still act
+        //      on in the minutes they have left;
+        //   4. the block.
+        let heading = true, rowsTop = y + 16;
+        let avail = H - 12 - rowsTop;
+        if (avail / rows.length < LAY.SEG_TOTAL_MIN_H) {
+            heading = false; rowsTop = y + 4; avail = H - 12 - rowsTop;
+        }
+        let slot = avail / rows.length;
+        if (slot < 16 && rows.length > 1) { rows = rows.slice(0, 1); slot = avail; }
+        if (slot >= 13) {
+            if (heading) label(x, y + 8, 'BANKED');
+            // The widest string decides the height BOTH rows use: two readouts
+            // of one kind at two sizes is exactly the "slightly off" this
+            // console is built to avoid.
+            const widest = rows.reduce((a, r) => r[1].length > a.length ? r[1] : a, '');
+            const labelW = 46;
+            const byWidth = (w - labelW) / (sevenSegWidth(widest, 100) / 100);
+            const pad = Math.min(LAY.SEG_TOTAL_PAD, slot * 0.2);
+            const h = Math.max(12,
+                      Math.min(LAY.SEG_TOTAL_MAX_H, byWidth, slot - pad));
+            rows.forEach(([name, clock], i) => {
+                const top = rowsTop + i * slot;
+                const dy = top + (slot - h) / 2;
+                // ⚠️ THE ROW LABEL GREW WITH THE DIGITS. At 9px beside a 36px
+                // readout the name reads as a stray mark, and the name is what
+                // keeps this block from being mistaken for the run clock.
+                label(x, dy + h / 2 + 4, name, 'left', LAY.GAUGE_LABEL,
+                      h >= 26 ? 11 : 9);
+                drawSevenSeg(ctx, {
+                    x: x + w, y: dy, h, text: clock,
+                    color: LAY.GAUGE_TOTAL_INK, align: 'right',
+                });
             });
-            return ry + rowH;
-        };
-        let ry = y + 14;
-        ry = row(ry, 'TODAY', o.todayClock);
-        ry = row(ry, 'WEEK', o.weekClock);
+        }
     }
 
     ctx.restore();

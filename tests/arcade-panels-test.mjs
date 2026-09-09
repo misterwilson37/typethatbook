@@ -1,3 +1,6 @@
+// arcade-panels-test.mjs v1.3.0 — Round 101: Part H, the console's spare height,
+// the seconds on BANKED, the free word-end space and the two error signals on
+// the board.
 // arcade-panels-test.mjs v1.2.0 — Round 100b: Part G, the four things Jake's
 // own screen showed — the playfield countdown, the duplicated controls, the
 // duplicated top HUD plate, and the flanks outgrowing the stage.
@@ -35,7 +38,7 @@
 
 import { readFileSync } from 'fs';
 import { drawRadar, drawGauges, drawSevenSeg, sevenSegWidth, drawThreatBoard,
-         drawCountdownOverlay } from '../game-draw.js';
+         drawCountdownOverlay, drawKeyboardStrip } from '../game-draw.js';
 import * as LAY from '../game-layout.js';
 
 let pass = 0, fail = 0;
@@ -807,6 +810,145 @@ console.log('\nG — JAKE\'S SCREEN: THE COUNTDOWN, AND THE THINGS DRAWN TWICE')
     ok(rightMin <= stage, '\u26a0\u26a0 and so does the right (' + rightMin +
        ' of ' + stage + 'px)');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\nH — ROUND 101: THE SPARE HEIGHT, THE SECONDS, AND THE TWO SIGNALS');
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ EVERY ASSERTION HERE IS A RELATIONSHIP, NOT A PIXEL. Jake asked for the
+// banked timers to be *"bigger... to better fill all the dead space"*, and the
+// thing that has to stay true is not a size — it is that a TALLER canvas yields
+// a BIGGER readout and that NOTHING leaves the panel at any height. A literal
+// would go red the first time game-layout.js is edited, which is what that file
+// exists for.
+{
+    const bankedAt = H => {
+        const c = recorder();
+        drawGauges(c, { W: GW, H, wpm: 22, acc: 94, targetWPM: 25, minAccuracy: 90,
+                        seconds: 73, shieldsLeft: 6,
+                        todayClock: '0:08:05', weekClock: '3:12:40' });
+        return c;
+    };
+    const bottomOf = c => Math.max(
+        ...c.ops.filter(o => o.op === 'fillRect').map(o => o.y + o.h),
+        ...textOps(c).map(o => o.y),
+        ...c.ops.filter(o => o.op === 'fill').flatMap(o => o.pts.map(p => p[1])));
+    // The banked digits are the lowest thing on the panel, so the height of the
+    // block is measurable as how far below the TODAY label the drawing reaches.
+    const sizeOf = c => {
+        const row = findText(c, 'TODAY');
+        if (!row) return 0;
+        const segs = c.ops.filter(o => o.op === 'fill' && o.color === LAY.GAUGE_TOTAL_INK)
+                          .flatMap(o => o.pts.map(p => p[1]))
+                          .filter(v => Math.abs(v - row.y) < 60);
+        return segs.length ? Math.max(...segs) - Math.min(...segs) : 0;
+    };
+    const short = bankedAt(LAY.GAUGE_MIN_H), tall = bankedAt(LAY.GAUGE_MAX_H);
+    ok(sizeOf(tall) > sizeOf(short),
+       '\u2b50 a taller console draws BIGGER banked digits (' +
+       Math.round(sizeOf(short)) + ' \u2192 ' + Math.round(sizeOf(tall)) + 'px)');
+    for (const H of [LAY.GAUGE_MIN_H, 300, 344, LAY.GAUGE_MAX_H]) {
+        ok(bottomOf(bankedAt(H)) <= H,
+           '\u26a0\u26a0 and nothing runs off the bottom at ' + H + 'px (' +
+           Math.round(bottomOf(bankedAt(H))) + ')');
+    }
+    // ⚠️ THE ROWS SPREAD, THEY DO NOT STACK. This is the whole difference
+    // between filling the dead space and moving it: at the tall size the two
+    // rows must sit FURTHER apart than at the short one.
+    const gapOf = c => {
+        const t = findText(c, 'TODAY'), w = findText(c, 'WEEK');
+        return t && w ? w.y - t.y : 0;
+    };
+    ok(gapOf(tall) > gapOf(bankedAt(344)),
+       'the two rows spread down the spare height rather than stacking at the top');
+    // ⚠️ AND IT DEGRADES INSTEAD OF OVERFLOWING. At the floor the block gives up
+    // its heading and then the WEEK row; TODAY is the last thing to go, because
+    // it is the figure a child can still act on.
+    ok(!!findText(short, 'TODAY'),
+       '\u26a0 at the shortest console TODAY survives the squeeze');
+}
+
+{
+    // ⚠️⚠️ THE SECONDS COME OFF THE SAME FORMATTER AS THE WORDS. Jake asked for
+    // seconds on these rows; the standing rule since Round 95 is that only
+    // minuteLines() may turn seconds into a readout, or a student is shown two
+    // different totals for one day. So the check is that the SHAPE changed in
+    // that one function and that drawGauges() still does no arithmetic.
+    const dl = readFileSync(new URL('../game-deadline.js', import.meta.url), 'utf8');
+    const fn = stripJs(dl.slice(dl.indexOf('function minuteLines()')));
+    const body = fn.slice(0, fn.indexOf('function hudLines'));
+    ok(/3600/.test(body) && /% 60/.test(body),
+       'minuteLines() emits hours, minutes AND seconds');
+    ok(/todayClock: clock\(m\.dailySeconds\)/.test(dl) &&
+       /weekClock:\s+clock\(m\.weeklySeconds\)/.test(dl),
+       'and both rows still come off that one function');
+    const draw = readFileSync(new URL('../game-draw.js', import.meta.url), 'utf8');
+    const gg = draw.slice(draw.indexOf('export function drawGauges'));
+    const banked = stripJs(gg.slice(gg.indexOf('if (o.todayClock')));
+    ok(!/dailySeconds|weeklySeconds/.test(banked),
+       '\u26a0\u26a0 and the drawing side never sees a seconds figure to reformat');
+}
+
+{
+    // ⚠️⚠️ A SPACE AT A WORD BOUNDARY IS FREE, MID-WORD IT IS NOT. Jake:
+    // *"I don't want spaces at the end of words to count against me... In the
+    // middle of a word should hurt, but at the end should not."*
+    // ⚠️ AND IT MUST NOT BE SCORED AS A HIT EITHER — d.keyResult(true) here
+    // would let a student inflate accuracy by tapping space, which is the exact
+    // hole reject() was written to close.
+    const dl = readFileSync(new URL('../game-deadline.js', import.meta.url), 'utf8');
+    const kd = stripJs(dl.slice(dl.indexOf('function onKeyDown(e)')));
+    const guard = kd.slice(kd.indexOf("if (ch === ' ')"), kd.indexOf('function accept'));
+    ok(/midWord/.test(guard) && /typed > 0/.test(guard) &&
+       /typed < src\.text\.length/.test(guard),
+       'the space guard tests whether a word is half-typed, not merely which key it is');
+    ok(/if \(!midWord\) return;/.test(guard),
+       '\u2b50 a boundary space returns without reaching reject()');
+    ok(!/keyResult/.test(guard),
+       '\u26a0\u26a0 and without being counted as a correct key either');
+}
+
+{
+    // ⚠️⚠️ TWO SIGNALS, TWO SHAPES. The key the student NEEDED swells; the key
+    // they HIT blinks. If these ever converge on one effect the feature is dead:
+    // the child sees two red keys and cannot tell which one to press.
+    const strip = (extra) => { const c = recorder();
+        drawKeyboardStrip(c, Object.assign(
+            { W: 800, H: 600, height: 120, nextChar: '.', keyStates: {} }, extra));
+        return c; };
+    const quiet = strip({});
+    const loud = withFullMotion(() => strip({ missPulse: { key: '.', age: 0 },
+                                              hitFlash: { key: 'm', age: 0 } }));
+    const redOf = c => c.ops.filter(o => o.color === LAY.KEY_MISS_INK).length;
+    ok(redOf(quiet) === 0, 'a clean board draws nothing red');
+    ok(redOf(loud) > redOf(quiet), 'an error paints red on the board');
+    // ⚠️ THE PULSE IS DRAWN LAST, OVER ITS NEIGHBOURS. Inside the row loop it
+    // would be painted over by every key after it and clipped on one side, which
+    // reads as a rendering fault rather than as emphasis.
+    const boardKeys = loud.ops.filter(o => o.op === 'stroke');
+    ok(boardKeys.length > 0 &&
+       boardKeys[boardKeys.length - 1].color === LAY.KEY_MISS_INK,
+       '\u26a0 the swelling key is stroked last, so it sits over its neighbours');
+    // ⚠️ IT EXPIRES. An age past the span draws nothing, which is what keeps a
+    // stale error off the first frame of the next run.
+    const stale = strip({ missPulse: { key: '.', age: LAY.KEY_MISS_PULSE_MS + 1 },
+                          hitFlash: { key: 'm', age: LAY.KEY_HIT_FLASH_MS + 1 } });
+    ok(redOf(stale) === 0, 'and both signals expire on their own spans');
+    // ⚠️⚠️ REDUCED MOTION KEEPS THE COLOUR AND DROPS THE GROWTH. A student who
+    // cannot have the movement must still be told which key they missed.
+    const still = strip({ missPulse: { key: '.', age: 0 } });
+    ok(redOf(still) > 0,
+       '\u26a0\u26a0 under prefers-reduced-motion the red survives');
+    // ⚠️ THE SIZE OF THE SWELL IS NOT OBSERVABLE ON THIS RECORDER — roundRect()
+    // draws with arcTo(), whose control points it does not log — so the motion
+    // half is pinned at source instead. ⚠️ A CHECK THAT CANNOT SEE ITS SUBJECT
+    // MUST SAY SO RATHER THAN ASSERT SOMETHING ADJACENT AND LOOK GREEN.
+    const draw = readFileSync(new URL('../game-draw.js', import.meta.url), 'utf8');
+    const strip2 = stripJs(draw.slice(draw.indexOf('export function drawKeyboardStrip')));
+    ok(/const grow = prefersReducedMotion\(\) \? 0 : LAY\.KEY_MISS_PULSE_SCALE/.test(strip2),
+       'and only the motion is what it loses \u2014 the scale, never the colour');
+}
+
 
 console.log(fail
     ? `\narcade-panels-test: ${pass} passed, ${fail} FAILED`

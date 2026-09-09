@@ -1,4 +1,14 @@
-// game-deadline.js v1.8.0
+// game-deadline.js v1.9.0
+//
+// v1.9.0 — ⭐ ROUND 101 — the console fills its card, and an error is visible on
+//   the board rather than only in the memory.
+//   • ⚠️⚠️ A SPACE AT A WORD BOUNDARY NO LONGER COUNTS AGAINST THE STUDENT.
+//     Jake: *"I don't want spaces at the end of words to count against me, as
+//     it's the logical key to hit. In the middle of a word should hurt, but at
+//     the end should not."* It is IGNORED, not scored as a hit — see onKeyDown().
+//   • The missed key SWELLS and the pressed key BLINKS; keyStates keeps the
+//     standing red. Two channels, two shapes — see game-draw.js.
+//   • BANKED carries seconds. Both shapes still come off ONE formatter.
 //
 // v1.8.0 — ⭐ ROUND 100b — Jake's screen, four notes.
 //   • The countdown is ALSO drawn big in the middle of the field. ⚠️ One
@@ -251,7 +261,7 @@ import {
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.8.0';
+export const GAME_DEADLINE_VERSION = '1.9.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -457,6 +467,19 @@ export function mount(container, opts) {
     // stuck on 'k' who keeps hitting 'j' needs 'k' lit — marking 'j' would point
     // at the finger that is working.
     const keyStates = {};
+    // ⚠️⚠️ THE MEMORY ABOVE IS PERMANENT FOR THE RUN; THESE TWO ARE MOMENTARY,
+    // AND THAT PAIRING IS THE FEATURE (Round 101). Jake, 2026-09-09: *"Wrong
+    // keys should also go red when missed. Maybe even pulsate larger with the
+    // missed key hit (so that the user can SEE that they're forgetting the
+    // period)."* keyStates already turned the needed key red and it was not
+    // enough — a static tint on a board below the action does not catch an eye
+    // that is on a falling word. So the needed key also SWELLS at the moment of
+    // the error (missPulse) and the key actually pressed BLINKS (hitFlash).
+    // ⚠️ ONE HOLDS A CHARACTER AND A TIMESTAMP, NOTHING ELSE. No animation state
+    // lives here; game-draw.js is handed an AGE and decides everything visual,
+    // exactly as the countdown overlay is handed a number.
+    let missPulse = null;   // { key, at } — the key they NEEDED
+    let hitFlash = null;    // { key, at } — the key they HIT
     let kbOn = true;
     try {
         const v = localStorage.getItem('ttb_arcade_keyboard');
@@ -661,6 +684,35 @@ export function mount(container, opts) {
         const now = performance.now();
         const ch = e.key;
 
+        // ⚠️⚠️ A SPACE AT A WORD BOUNDARY IS FREE, AND MID-WORD IT IS NOT.
+        // Jake, 2026-09-09: *"I don't want spaces at the end of words to count
+        // against me, as it's the logical key to hit. In the middle of a word
+        // should hurt, but at the end should not."*
+        //
+        // ⭐ THIS IS THE SAME RULING AS Escape, ONE LEVEL DOWN. Abandoning a lock
+        // is free because it is a tactical decision, not a mistake; the space
+        // after a finished word is not a decision at all — it is the habit every
+        // lesson in School has spent months building, fired at a game that ends
+        // its words with nothing. Charging for it teaches a child to UNLEARN
+        // correct typing in order to score, which is the exact opposite of what
+        // this page exists to measure.
+        //
+        // ⚠️ IT IS IGNORED, NOT COUNTED AS A HIT. d.keyResult(true) here would
+        // let a student inflate accuracy by tapping space, and the whole reason
+        // reject() charges for an unmatched key is that all three prototypes let
+        // exactly that happen.
+        //
+        // ⚠️ THE TEST IS "IS A WORD HALF-TYPED", NOT "IS THE KEY A SPACE". A
+        // space the target genuinely wants (a two-word target) never reaches
+        // here — it matches, and accept() takes it above. What reaches here
+        // mid-word is a space where a letter was wanted, and that is a real
+        // error: it is how a student types "the cat" as "th e cat".
+        if (ch === ' ') {
+            const src = locked && live.includes(locked) ? locked : null;
+            const midWord = !!src && src.typed > 0 && src.typed < src.text.length;
+            if (!midWord) return;   // preventDefault already ran above
+        }
+
         if (locked && live.includes(locked)) {
             if (locked.text[locked.typed] === ch) {
                 accept(locked, ch, now);
@@ -712,8 +764,19 @@ export function mount(container, opts) {
         {
             const src = locked || aimAt;
             const wanted = src && src.typed < src.text.length ? src.text[src.typed] : null;
-            if (wanted) keyStates[String(wanted).toLowerCase()] = 'miss';
+            if (wanted) {
+                keyStates[String(wanted).toLowerCase()] = 'miss';
+                // ⚠️ THE SWELL IS ON THE KEY THEY NEEDED, for the same reason the
+                // memory above is: a student stuck on '.' who keeps hitting a
+                // letter needs '.' to move, not the finger that is working.
+                missPulse = { key: String(wanted).toLowerCase(), at: now };
+            }
         }
+        // ⚠️ AND THE BLINK IS ON THE KEY THEY ACTUALLY PRESSED — the other half
+        // of the same fact, and the half nothing on this page showed before.
+        // Two channels, two shapes: see game-draw.js's note on why they must
+        // never converge into one red glow.
+        hitFlash = { key: String(ch).toLowerCase(), at: now };
         // ⚠️ AN UNMATCHED KEY IS A MISTAKE. All three prototypes silently dropped
         // it, which let a student mash for a minute and report 100% accuracy.
         d.keyResult(false, now);
@@ -1027,6 +1090,13 @@ export function mount(container, opts) {
                     return src && src.typed < src.text.length ? src.text[src.typed] : null;
                 })(),
                 left: hl.left, right: hl.right, keyStates,
+                // ⚠️ AN AGE IS COMPUTED HERE AND A TIMESTAMP IS NOT PASSED DOWN.
+                // game-draw.js reads no clock of its own — the same rule the
+                // countdown overlay follows, and what lets a harness render
+                // either of them deterministically. Expiry is decided by the
+                // spans in game-layout.js, on this side of the boundary.
+                missPulse: missPulse && { key: missPulse.key, age: now - missPulse.at },
+                hitFlash: hitFlash && { key: hitFlash.key, age: now - hitFlash.at },
                 nextWord: radarCtx ? null : d.peekNext(),
                 // ⚠️ THE QUOTA BAR AND THE MINUTES MOVE TO THE GAUGES TOO —
                 // the bar is the one Jake could not identify unlabelled.
@@ -1577,10 +1647,25 @@ export function mount(container, opts) {
         // failure a student sees is two different totals for one day.
         // ⭐ SO BOTH SHAPES COME OFF THE SAME SECONDS IN THE SAME FUNCTION, and
         // arcade-panels-test.mjs asserts they agree to the minute over a sweep.
+        //
+        // ⚠️⚠️ ROUND 101 — THE DIGITS CARRY SECONDS AND THE WORDS STILL DO NOT,
+        // AND THAT IS NOT A DRIFT. Jake, 2026-09-09: *"I'd like the today and
+        // week timers to be bigger and include seconds."* The two shapes are the
+        // SAME seconds at two resolutions: `fmt` rounds down to the minute for
+        // the narrow keyboard flanks, `clock` prints the whole figure for the
+        // console. They cannot disagree, because neither is a re-derivation of
+        // the other — both read `sec`.
+        // ⚠️ ALWAYS h:mm:ss, NEVER m:ss ON SHORT TOTALS. A row that switched
+        // shape once a student passed an hour would put TODAY and WEEK at
+        // different widths on the same panel, which is precisely the "slightly
+        // off" this console is built to avoid — and "8:05" beside "3:12:40"
+        // invites reading the first as eight hours.
         const clock = sec => {
             if (sec == null) return null;
-            const mins = Math.floor(sec / 60);
-            return Math.floor(mins / 60) + ':' + String(mins % 60).padStart(2, '0');
+            const s = Math.max(0, Math.floor(sec));
+            const h = Math.floor(s / 3600);
+            return h + ':' + String(Math.floor(s / 60) % 60).padStart(2, '0') +
+                       ':' + String(s % 60).padStart(2, '0');
         };
         const day = fmt(m.dailySeconds), week = fmt(m.weeklySeconds);
         return {
@@ -1643,6 +1728,12 @@ export function mount(container, opts) {
         live = []; missiles = []; particles = [];
         locked = null; banner = null; flash = 0; countdown = null;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
+        // ⚠️ THE MOMENTARY FEEDBACK IS CLEARED; THE ERROR MEMORY IS NOT. A swell
+        // left over from the last run would fire on the first frame of the new
+        // one, pointing at a key nobody just missed. keyStates deliberately
+        // survives — "where I keep getting stuck" is the whole point of it, and
+        // a student who replays to work on the same keys wants it standing.
+        missPulse = null; hitFlash = null;
         layout();
         chrome.setPhase('ready');
     }

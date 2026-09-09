@@ -1,3 +1,5 @@
+// game-layout.js v1.5.0 — the BANKED bank fills the console's spare height and
+// carries seconds; the missed key pulses. Round 101.
 // game-layout.js v1.4.0 — playfield countdown, seven-segment banked totals and
 // lower flex floors, Round 100b.
 // game-layout.js v1.3.0 — the flanks track the stage and the threat board,
@@ -32,7 +34,7 @@
  * file shipped without one, so the build panel had nothing to read and no check
  * could tell whether a classroom was running the layout it was supposed to.
  */
-export const GAME_LAYOUT_VERSION = '1.4.0';
+export const GAME_LAYOUT_VERSION = '1.5.0';
 
 // ── keyboard strip ──────────────────────────────────────────────────────────
 export const KB_HEIGHT_FRACTION = 0.19;
@@ -55,8 +57,27 @@ export const KB_SPACE_WIDTH_FRACTION = 0.46;
 
 export const KEY_ALPHA_RESTING = 0.16;
 export const KEY_ALPHA_ACTIVE = 0.95;
-export const KEY_ALPHA_MISSED = 0.42;
+export const KEY_ALPHA_MISSED = 0.55;
 export const KEY_ALPHA_FIXED = 0.30;
+
+// ── the missed key, seen (Round 101) ────────────────────────────────────────
+//
+// Jake, 2026-09-09: *"Wrong keys should also go red when missed. Maybe even
+// pulsate larger with the missed key hit (so that the user can SEE that they're
+// forgetting the period)."*
+//
+// ⚠️⚠️ TWO SIGNALS, TWO SHAPES, AND THE DIFFERENCE IS THE WHOLE VALUE. The key
+// the student NEEDED swells and settles; the key they actually HIT flashes and
+// goes. A child who cannot tell those apart learns nothing from either, so they
+// must never both be a red glow of the same size — one grows, one blinks.
+// ⚠️ ONE KEY, ONCE, PER ERROR, AND IT IS ~1% OF THE CANVAS. This is nowhere near
+// the full-screen red fill drawHitFeedback() had to stop doing; it is a single
+// key-sized element. It still respects prefers-reduced-motion, which drops the
+// scale and keeps the colour — the information survives, the movement does not.
+export const KEY_MISS_PULSE_MS    = 480;
+export const KEY_MISS_PULSE_SCALE = 0.45;
+export const KEY_HIT_FLASH_MS     = 260;
+export const KEY_MISS_INK         = '#ff5566';
 
 // ── stat flanks ─────────────────────────────────────────────────────────────
 export const FLANK_PAD_X = 14;
@@ -273,7 +294,29 @@ export const SEG_THICK       = 0.15;
 export const SEG_ASPECT      = 0.58;
 export const SEG_TIME_H      = 30;
 export const SEG_VALUE_H     = 17;
-export const SEG_TOTAL_H     = 21;
+
+/**
+ * ⚠️⚠️ THE BANKED ROWS ARE A RANGE, NOT A HEIGHT (Round 101). Jake, 2026-09-09:
+ * *"I'd like the today and week timers to be bigger and include seconds to
+ * better fill all the dead space on the right."* A single SEG_TOTAL_H could not
+ * do that for the same reason Round 100's fixed flank heights could not: the
+ * console canvas flexes between GAUGE_MIN_H and GAUGE_MAX_H, so the leftover
+ * under the dials is 0px on a short screen and ~190px on a tall one. Any one
+ * number is simultaneously too big for the first and too small for the second.
+ * ⭐ drawGauges() now SIZES THE ROWS TO THE ROOM IT HAS, between these two, and
+ * spaces them across it — which is what actually removes the dead space rather
+ * than moving it somewhere else on the card.
+ * ⚠️ THE CEILING IS ALSO A WIDTH RULE. "0:08:05" is seven glyphs; at more than
+ * about 40px tall the digits run into the row label on a 240px column, so
+ * drawGauges() takes the smaller of this and what the width allows. Raising
+ * this alone will NOT make them bigger.
+ */
+export const SEG_TOTAL_MIN_H = 22;
+export const SEG_TOTAL_MAX_H = 40;
+/** Breathing room above/below a row's digits inside its own slot. */
+export const SEG_TOTAL_PAD   = 10;
+/** Kept named: v1.4.0's single fixed height, now the floor of the range. */
+export const SEG_TOTAL_H     = SEG_TOTAL_MIN_H;
 export const SEG_TIME_INK    = '#ff5a4a';
 export const SEG_COUNT_INK   = '#ffd700';
 
