@@ -1,3 +1,5 @@
+// arcade-lesson-test.mjs v1.4.0 — Round 101 (Wellington): survival stays in
+// PROSE, the picker defaults to run 1, and the wall is derived from the gate.
 // arcade-lesson-test.mjs v1.3.0 — Round 101 (Wellington): survival mode, and the
 // one property everything rests on — the graded snapshot is frozen at the pass
 // and only that copy may ever be graded.
@@ -390,10 +392,40 @@ ok(/onSecond: \(\) => bankSecond\(\)/.test(code),
 
     // ⭐ THE POOL'S SOURCE IS DECIDED BY THE LESSON, not by a setting.
     const sv = arc.slice(arc.indexOf('function survivalTargetsFor'));
-    ok(/if \(si === r\.stepIdx && ci <= r\.chunkIdx\) return;/.test(sv),
+    const prose = arc.slice(arc.indexOf('function proseTargetsOf'));
+    ok(/if \(skip && si === skip\.stepIdx && ci <= skip\.chunkIdx\) return;/.test(prose),
        'survival starts at the chunk AFTER the one they were graded on');
+
+    // ⚠️⚠️ PROSE IS EXHAUSTED BEFORE ANY GENERATOR IS CONSIDERED. Jake, on
+    // v3.5.0: *"It also fleshed out with random characters rather than words.
+    // Once students have passages, they should stay in passages."* The old
+    // version only looked at later chunks of the SAME step, so playing the last
+    // chunk found nothing and dropped straight to `zxcv qwer` — a student who
+    // has read prose all year got letter groups for their victory lap.
+    ok(/step\.type !== 'passage' && step\.type !== 'sentence_list'/.test(prose),
+       'the survival pool is built from passages and sentences, not word lists or drills');
+    ok(sv.indexOf('proseTargetsOf(l, null)') < sv.indexOf('makeArcadeTargets'),
+       '\u2b50\u2b50 EVERY other prose lesson is tried before the generator is reached');
+    ok(/for \(let i = 0; i <= upTo/.test(sv),
+       '\u26a0 and it wraps back to unit 1 rather than stopping at the current lesson');
+    ok(/const upTo = here >= 0 \? here : PLAYABLE\.length - 1/.test(sv),
+       '\u26a0\u26a0 nothing PAST the lesson they are on \u2014 same window arcadeKeySet() uses, ' +
+       'so no unlearned key turns up in a victory lap');
     ok(/makeArcadeTargets\(arcadeKeySet\(LESSONS, PROGRESS\)/.test(sv),
-       '\u26a0 and a lesson with no prose left falls back to the student\u2019s OWN key set');
+       'and a student with no prose behind them still falls back to their OWN key set');
+
+    // ⚠️ THE PICKER DEFAULTS TO RUN 1, REVERSING v3.0.0's LAST-RUN DEFAULT.
+    // Survival superseded that reason: run 1 flows into the whole rest of the
+    // lesson, so the last run is now the SHORTEST one and it starts mid-sentence.
+    ok(/sel\.value = '0';/.test(arc),
+       '\u2b50 the run dropdown defaults to run 1');
+    ok(!/sel\.value = String\(Math\.max\(0, p\.runs\.length - 1\)\)/.test(arc),
+       'and the old last-run default is gone, not merely overridden');
+
+    // ⚠️ THE WALL IS DERIVED FROM THIS RUN'S GATE, because pressure is a multiple
+    // of that gate and the wall is an absolute WPM.
+    ok(/cfg\.pressureCeiling = survivalCeilingFor\(gates\.minWPM\)/.test(arc),
+       'the survival ceiling is derived from the run\u2019s own gate');
 }
 
 

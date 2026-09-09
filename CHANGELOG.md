@@ -239,17 +239,49 @@ change the MISSION, whose ramp begins the moment a fast student passes the quota
 ⭐ **The per-target step is self-balancing in wall-clock terms**: a faster student
 clears more targets, so the game speeds up faster for them.
 
+### ⚠️ THREE CORRECTIONS AFTER JAKE PLAYED v3.6.0
+
+⚠️⚠️ **THE WALL IS AN ABSOLUTE 100 WPM, NOT A MULTIPLE OF THE GATE.** Jake:
+*"Arcade mode should really only cap out at 100 wpm. It should work up and up and
+up until it gets there. Arcade games are made to eat quarters, so it can't go on
+forever."* My `SURVIVAL_PRESSURE_CEILING = 6.0` was a MULTIPLIER, so it meant 60
+WPM of demand on a 10 WPM lesson and 150 on a 25 WPM one — two students hitting
+walls twice as far apart as each other for no reason a child could see. ⭐ **The
+wall is a property of human hands, not of which lesson you are on.**
+`survivalCeilingFor(gate)` returns `SURVIVAL_MAX_WPM / gate`, floored at
+`PRESSURE_CEILING` so a fast-gated lesson cannot derive a ceiling *below* the
+mission ramp. ⭐ **AND THE ENDLESS ARCADE GETS IT TOO** — it had the identical
+plateau, flat at 2.5 forever, so a strong typist simply never lost.
+
+⚠️⚠️ **SURVIVAL FELL OUT OF PROSE AND INTO LETTER GROUPS.** Jake: *"It also
+fleshed out with random characters rather than words. Once students have
+passages, they should stay in passages."* v3.5.0 only looked at chunks after the
+played run **in the same step**, so playing the LAST chunk — which the picker
+defaulted to — found nothing and dropped straight to the generator. ⭐ **A student
+who has read prose all year got `zxcv qwer` for their victory lap.** Prose is now
+exhausted first: the rest of this lesson, then every other prose lesson in course
+order, wrapping back to unit 1. ⚠️ **Nothing past the lesson they are on** — same
+window `arcadeKeySet()` uses, so no unlearned key turns up in a victory lap. The
+generator survives only for a student with no prose behind them at all.
+
+⚠️ **THE RUN PICKER DEFAULTS TO RUN 1, REVERSING v3.0.0's RULING.** That default
+existed because *"doing the final lesson and then playing deadline"* was the case
+and the final run should not take three clicks. ⭐ **Survival superseded the
+reason entirely**: run 1 now flows into the whole rest of the lesson, so the last
+run is the SHORTEST one and it starts mid-sentence — which is exactly the *"there
+is no way the first word is `of`"* confusion, arriving a second time.
+
 | file | version |
 |---|---|
 | `game-chrome.js` | **1.7.0** |
 | `game-draw.js` | **1.8.0** |
 | `game-deadline.js` | **1.11.0** |
-| `game-shell.js` | **1.4.0** |
+| `game-shell.js` | **1.5.0** |
 | `game-layout.js` | **1.5.0** |
-| `arcade.html` | **3.6.0** |
+| `arcade.html` | **3.7.0** |
 | `tests/arcade-panels-test.mjs` | **1.3.0** (141 assertions) |
-| `tests/arcade-lesson-test.mjs` | **1.3.0** (96 assertions) |
-| `tests/game-shell-test.mjs` | Part K added (112 assertions) |
+| `tests/arcade-lesson-test.mjs` | **1.4.0** (103 assertions) |
+| `tests/game-shell-test.mjs` | Part K added (120 assertions) |
 
 ⚠️ **THE COSMETIC WORK IS NOT BROWSER-VERIFIED; THE TICK FIX IS NOT EITHER.**
 ⚠️⚠️ **AND THE TICK FIX IS THE FIRST THING IN THIS ROUND THAT REACHES A WRITE.**

@@ -1,3 +1,7 @@
+// game-shell.js v1.5.0 — Round 101 (Wellington): the survival wall is an ABSOLUTE
+// 100 WPM (survivalCeilingFor), not a multiple of the lesson's gate — a flat
+// multiplier walled two students at 60 and 150 WPM for no visible reason. The
+// endless arcade gets the same wall; it had the identical plateau.
 // game-shell.js v1.4.0 — Round 101 (Wellington): the pressure ceiling becomes a
 // per-run number. ⚠️⚠️ PRESSURE_CEILING IS A PLATEAU — reached 75 targets past the
 // quota and then flat — which is exactly *"the student will lose because it gets
@@ -121,7 +125,7 @@
 
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.4.0';
+export const GAME_SHELL_VERSION = '1.5.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -182,28 +186,40 @@ export const RAMP_PER_TARGET = 0.02;
 export const PRESSURE_CEILING = 2.5;
 
 /**
- * ⭐ THE SURVIVAL CEILING. Jake, 2026-09-09: *"survival mode has to get HARDER.
- * So the incoming enemies spawn gradually faster and faster. The student will
- * lose because it gets too hard, not because s/he gets tired."*
+ * ⭐ THE ABSOLUTE CEILING ON SURVIVAL, IN WPM. Jake, 2026-09-09: *"Arcade mode
+ * should really only cap out at 100 wpm. It should work up and up and up until
+ * it gets there. Arcade games are made to eat quarters, so it can't go on
+ * forever."*
  *
- * ⚠️⚠️ PRESSURE_CEILING IS A PLATEAU, AND A PLATEAU IS EXACTLY THE FAILURE HE
- * DESCRIBES. It is reached after 75 targets past the quota and then never moves,
- * so survival becomes a fixed rate the student either can or cannot hold —
- * measured: on a 10 WPM lesson the plateau is 25 WPM of demand, which a strong
- * eighth grader holds until the bell. The run then ends from fatigue, boredom or
- * the period ending, and the leaderboard ranks whoever had the most patience.
+ * ⚠️⚠️ A WPM IS THE RIGHT UNIT AND A PRESSURE MULTIPLE WAS THE WRONG ONE. My
+ * first version of this was a flat pressure ceiling of 6.0, which is a MULTIPLE
+ * of the lesson's own gate — so it meant 60 WPM of demand on a 10 WPM lesson and
+ * 150 on a 25 WPM one. Two students on two lessons would have hit walls twice as
+ * far apart as each other for no reason a child could see. The wall is a
+ * property of human hands, not of which lesson you happen to be on.
  *
- * ⚠️ IT IS A SAFETY RAIL, NOT A TARGET. 6.0 is 250 targets past the quota — far
- * beyond where any student is still clearing — so in practice the ramp simply
- * never stops. The number exists so that no arithmetic downstream divides by a
- * pressure that has run away, not because anyone will reach it.
- *
- * ⚠️⚠️ MISSIONS AND ESCAPE KEY KEEP PRESSURE_CEILING. This applies only where a
- * host asks for it (`cfg.pressureCeiling`), because a graded run must never get
- * harder than the gate it is judged against — the ramp there exists only for the
- * student who has ALREADY passed.
+ * ⚠️ PRESSURE_CEILING IS STILL THE FLOOR OF THE ANSWER. A lesson gated near or
+ * above 40 WPM would otherwise derive a ceiling BELOW the mission ramp's own 2.5
+ * and make survival easier than the run before it — so survivalCeilingFor()
+ * takes the larger. See it for the arithmetic.
  */
-export const SURVIVAL_PRESSURE_CEILING = 6.0;
+export const SURVIVAL_MAX_WPM = 100;
+
+/**
+ * The pressure ceiling that puts a run's demand at SURVIVAL_MAX_WPM.
+ *
+ * ⚠️ PRESSURE IS A MULTIPLE OF THE RUN'S OWN GATE — that is what
+ * spawnIntervalMs() consumes — so an absolute WPM wall has to be divided by the
+ * gate to become one. A 10 WPM lesson gets 10.0, a 25 WPM lesson 4.0, and both
+ * students hit 100 WPM of demand at the top.
+ *
+ * ⚠️⚠️ NEVER BELOW PRESSURE_CEILING. Survival must not be gentler than the ramp
+ * a mission already has past its quota.
+ */
+export function survivalCeilingFor(targetWPM) {
+    const gate = targetWPM > 0 ? targetWPM : 15;
+    return Math.max(PRESSURE_CEILING, SURVIVAL_MAX_WPM / gate);
+}
 
 // Queue depth shrinks with pressure, so the late game is short-fused as well as
 // fast. Never below this: a target that lives for one spawn interval cannot be
@@ -999,12 +1015,19 @@ export function arcadeConfig({ lessons, progress, bestWPM, targetWPM,
                                count = 200, rand = Math.random }) {
     const keys = arcadeKeySet(lessons, progress);
     const targets = makeArcadeTargets(keys, count, ARCADE_GROUP_SIZE, rand);
+    const gate = targetWPM > 0 ? targetWPM : arcadeTargetWPM({ lessons, progress, bestWPM });
     return {
         targets,
-        targetWPM: targetWPM > 0 ? targetWPM : arcadeTargetWPM({ lessons, progress, bestWPM }),
+        targetWPM: gate,
         minAccuracy: 85,
         shields: 3,
         endless: true,
+        // ⭐ *"Arcade games are made to eat quarters, so it can't go on forever."*
+        // ⚠️ THE ENDLESS MODE HAD THE SAME PLATEAU SURVIVAL DID — it stopped at
+        // PRESSURE_CEILING, which on a 10 WPM key set is 25 WPM of demand held
+        // flat forever, so a strong typist simply never lost. Now it climbs to
+        // SURVIVAL_MAX_WPM like everything else that ramps.
+        pressureCeiling: survivalCeilingFor(gate),
         rand,
     };
 }

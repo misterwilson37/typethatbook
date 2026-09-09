@@ -33,19 +33,29 @@
 >   cold at "of them."
 > * ⭐ **game-shell.js NEEDED ALMOST NOTHING**: the pool already wrapped and the
 >   pressure ramp already fed off targets cleared past the quota.
+> * ⚠️⚠️ **THE WALL IS AN ABSOLUTE 100 WPM** (`SURVIVAL_MAX_WPM`,
+>   `survivalCeilingFor(gate)`), not a multiple of the lesson's gate — a flat
+>   multiplier walled two students at 60 and 150 WPM for no visible reason.
+>   ⭐ The endless arcade carries the same wall now; it had the same plateau.
+> * ⚠️⚠️ **SURVIVAL STAYS IN PROSE.** Rest of this lesson, then every other prose
+>   lesson in course order, wrapping to unit 1; ⚠️ nothing past the lesson they
+>   are on. The generator is for a student with NO prose behind them. v3.5.0 fell
+>   to letter groups the moment the played run was the last chunk.
+> * ⚠️ **THE PICKER DEFAULTS TO RUN 1**, reversing v3.0.0's last-run default —
+>   survival made run 1 the interesting one, and the last chunk starts
+>   mid-sentence, which is the *"the first word is `of`"* confusion twice over.
 > * ⚠️⚠️ **THE RAMP MUST NOT PLATEAU, AND IT DID.** `PRESSURE_CEILING` is reached
 >   75 targets past the quota and then holds — on a 10 WPM lesson that is a fixed
 >   25 WPM of demand, which a strong student holds until the bell, so the run
 >   ended from fatigue. The ceiling is per-run now; survival passes
->   `SURVIVAL_PRESSURE_CEILING` (6.0, a safety rail at ~250 extra targets, not a
->   target). ⚠️ **Missions and Escape Key still stop at 2.5** — a graded run may
+>   a derived ceiling. ⚠️ **Missions still stop at 2.5** — a graded run may
 >   never get harder than the gate it is judged against.
 > * ⚠️ **`RAMP_PER_TARGET` WAS NOT RE-TUNED.** A steeper curve would also change
 >   the mission's own post-quota ramp. If survival still feels slow to steepen,
 >   that constant is the knob — and it is the one that affects both.
-> * ⚠️ **ARCADE ENDLESS (Escape Key, the lab) STILL PLATEAUS AT 2.5** and has the
->   same test-of-patience shape. Left alone deliberately: it was not part of this
->   conversation and its balance is Escape Key's, not Deadline's.
+> * ⚠️ **ESCAPE KEY IS STILL UNREACHABLE AND UNTOUCHED** — only `tools/game-lab.html`
+>   imports it and the lab is not deployed. It inherits the arcade wall through
+>   `arcadeConfig()` but nothing else from rounds 95-101.
 > * ⚠️ **NOTHING IS WRITTEN.** No leaderboard, no grade. Survival is a trial.
 >
 > ### ⚠️⚠️ READ THIS ONE FIRST: THE PER-SECOND TICK NEVER FIRED, IN ANY ROUND
@@ -90,12 +100,12 @@
 > | `game-chrome.js` | **1.7.0** |
 > | `game-draw.js` | **1.8.0** |
 > | `game-deadline.js` | **1.11.0** |
-> | `game-shell.js` | **1.4.0** |
+> | `game-shell.js` | **1.5.0** |
 > | `game-layout.js` | **1.5.0** |
-> | `arcade.html` | **3.6.0** |
+> | `arcade.html` | **3.7.0** |
 > | `tests/arcade-panels-test.mjs` | **1.3.0** (141 assertions) |
-> | `tests/arcade-lesson-test.mjs` | **1.3.0** (96 assertions) |
-> | `tests/game-shell-test.mjs` | Part K (112 assertions) |
+> | `tests/arcade-lesson-test.mjs` | **1.4.0** (103 assertions) |
+> | `tests/game-shell-test.mjs` | Part K (120 assertions) |
 >
 > * ⭐ **BANKED CARRIES SECONDS AND SIZES ITSELF TO THE SPARE HEIGHT.** ⚠️⚠️ **A
 >   FIXED `SEG_TOTAL_H` COULD NOT ANSWER *"fill all the dead space"*** for the

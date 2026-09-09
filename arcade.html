@@ -1,7 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- arcade.html v3.6.0 — survival raises the pressure ceiling, so the ramp never
+<!-- arcade.html v3.7.0 — the run picker defaults to RUN 1 (survival supersedes
+     v3.0.0's last-run default), survival stays in PROSE until there is none left
+     anywhere behind the student, and the wall is an absolute 100 WPM.
+     Round 101 (Wellington).
+     arcade.html v3.6.0 — survival raises the pressure ceiling, so the ramp never
      plateaus and the run ends because it got too hard. Round 101 (Wellington).
      arcade.html v3.5.0 — SURVIVAL MODE. The run is still the graded mission and
      still exactly the size of the School run; once its quota is met the game
@@ -378,7 +382,7 @@ import { GAME_SHELL_VERSION } from './game-shell.js';
 import { GAME_DRAW_VERSION } from './game-draw.js';
 import { GAME_CHROME_VERSION } from './game-chrome.js';
 import { GAME_LAYOUT_VERSION } from './game-layout.js';
-const ARCADE_PAGE_VERSION = '3.6.0';
+const ARCADE_PAGE_VERSION = '3.7.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -433,7 +437,7 @@ import { readWeek, localDateStr, dayLogPayloadFor } from './daylog.js';
 import { reconcile, noteDay } from './logdays.js';
 import { missionConfigFromRun, targetsFromSequence, arcadeKeySet,
          makeArcadeTargets, ARCADE_GROUP_SIZE,
-         SURVIVAL_PRESSURE_CEILING } from './game-shell.js';
+         survivalCeilingFor } from './game-shell.js';
 import { mount as mountDeadline } from './game-deadline.js';
 // ⚠️ THE BUILD PANEL READS RUNTIME CONSTANTS, NOT HEADER COMMENTS. A header is a
 // comment in the repo; the constant is what the DEPLOYED file says about itself,
@@ -638,50 +642,79 @@ function playableRunsOf(lesson) {
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * Jake, 2026-09-09: *"they have to do 1, and then it is a survival mode for the
- * rest... That's one thing that kids want - the ability to play past winning."*
+ * rest."* And on seeing v3.5.0 fall back to letter groups: *"It also fleshed out
+ * with random characters rather than words. Once students have passages, they
+ * should stay in passages. So passage 9 can loop back to passage 1, passage 2,
+ * and so on."*
  *
- * ⭐ THE SOURCE IS DECIDED BY WHAT THE LESSON ACTUALLY CONTAINS, not by a
- * setting. A passage has more of itself to give, so survival is the REST OF THE
- * PASSAGE — which is also the answer to *"the Graduation passages should be all
- * four runs"*: the later chunks stop being separate runs a student picks cold at
- * "of them." and become what comes at them, faster, once they have earned it.
- * A lesson that is only keys has no prose to continue into, so it falls back to
- * the arcade generator, whose groups are exactly what those units drill anyway.
+ * ⚠️⚠️ THE FALLBACK WAS REACHED FAR MORE OFTEN THAN I EXPECTED, AND THAT IS THE
+ * BUG HE SAW. v3.5.0 only looked at chunks AFTER the played run in the SAME step
+ * — so playing the LAST chunk of a passage (which the picker used to default to)
+ * found nothing and dropped straight to random groups. A student who has been
+ * reading prose all year got `zxcv qwer` for their victory lap.
+ *
+ * ⭐ SO PROSE IS EXHAUSTED BEFORE ANY GENERATOR IS CONSIDERED: the rest of this
+ * lesson first, then every other prose lesson in course order, wrapping right
+ * back to unit 1's passages. The generator survives ONLY for a student who has
+ * no prose at all — the early key units, where letter groups are what those
+ * lessons drill anyway.
+ *
+ * ⚠️ NOTHING PAST THE LESSON THEY ARE ON. Same window arcadeKeySet() uses: a
+ * later lesson's passage may lean on keys School has not taught them, and
+ * meeting an unlearned key in a victory lap is exactly the "different subject"
+ * failure the key set exists to prevent.
  *
  * ⚠️⚠️ THIS POOL IS APPENDED TO THE RUN'S OWN TARGETS AND `quotaChars` IS LEFT
  * ALONE, WHICH IS THE WHOLE TRICK. The director's quota was computed from the
  * run's characters, so the mission still ends exactly where the School run ends;
  * everything after it is spillover the pool happens to contain. ⭐ NOTHING IN
- * game-shell.js CHANGES: `nextTarget()` already wraps with
+ * game-shell.js CHANGES FOR THIS: `nextTarget()` already wraps with
  * `_cursor % targets.length`, so the pool cannot run dry, and `cleared()`
  * already feeds the pressure ramp from targets cleared past the quota.
- *
- * ⚠️ THE ARCADE FALLBACK USES THE STUDENT'S OWN KEY SET, never the alphabet.
- * arcadeKeySet() takes the union up to the lesson they are on, so a unit-2
- * student survives on home-row groups and meets no letter School has not taught
- * them — the property that makes the arcade practice rather than a different
- * subject.
  */
+// ⚠️ A CEILING ON THE POOL, NOT ON THE PLAY. The pool wraps, so this only decides
+// how long it takes to come round again. Every prose lesson in the course is a
+// few thousand words and there is no reason to build the whole array to survive
+// four minutes.
+const SURVIVAL_POOL_MAX = 1200;
+
+/** The prose steps of one lesson, as words, in order. */
+function proseTargetsOf(lesson, skip) {
+    const out = [];
+    ((lesson && lesson.steps) || []).forEach((step, si) => {
+        // ⚠️ PROSE ONLY. A word_list is not a passage and a drill is not either;
+        // "stay in passages" means the sentences and passages the student has
+        // actually been reading.
+        if (step.type !== 'passage' && step.type !== 'sentence_list') return;
+        chunkSequence(sequenceForStep(step)).forEach((seq, ci) => {
+            // ⚠️ STRICTLY AFTER THE RUN THEY PLAYED, in the lesson they played.
+            // Including its own chunk would have the student re-typing the graded
+            // text as their first survival words, which reads as the game
+            // glitching rather than as a reward.
+            if (skip && si === skip.stepIdx && ci <= skip.chunkIdx) return;
+            out.push(...targetsFromSequence(seq));
+        });
+    });
+    return out;
+}
+
 function survivalTargetsFor(lesson, r) {
     const out = [];
-    const steps = (lesson && lesson.steps) || [];
-    if (r.stepIdx != null) {
-        steps.forEach((step, si) => {
-            if (si < r.stepIdx) return;
-            if (!OFFERABLE.has(step.type)) return;
-            const chunks = chunkSequence(sequenceForStep(step));
-            chunks.forEach((seq, ci) => {
-                // ⚠️ STRICTLY AFTER THE RUN THEY PLAYED. Including its own chunk
-                // would have the student re-typing the graded text as their
-                // first survival words, which reads as the game glitching.
-                if (si === r.stepIdx && ci <= r.chunkIdx) return;
-                out.push(...targetsFromSequence(seq));
-            });
-        });
+    // 1 — the rest of the lesson they are on.
+    if (r.stepIdx != null) out.push(...proseTargetsOf(lesson, r));
+    // 2 — then every other prose lesson, in course order, wrapping to unit 1.
+    //     ⚠️ THE STUDENT'S OWN LESSON IS THE WINDOW'S EDGE; see the header.
+    const here = PLAYABLE.findIndex(p => p.lesson === lesson);
+    const upTo = here >= 0 ? here : PLAYABLE.length - 1;
+    for (let i = 0; i <= upTo && out.length < SURVIVAL_POOL_MAX; i++) {
+        const l = PLAYABLE[i] && PLAYABLE[i].lesson;
+        if (!l || l === lesson) continue;
+        out.push(...proseTargetsOf(l, null));
     }
-    if (out.length) return out;
-    // ⚠️ 200 GROUPS IS THE SAME COUNT arcadeConfig() USES. The pool wraps, so
-    // this is "long enough not to feel like a loop", not a limit on play.
+    if (out.length) return out.slice(0, SURVIVAL_POOL_MAX);
+    // 3 — and only then the generator, for a student with no prose behind them.
+    //     ⚠️ 200 GROUPS IS THE SAME COUNT arcadeConfig() USES. The pool wraps, so
+    //     it is "long enough not to feel like a loop", not a limit on play.
     return makeArcadeTargets(arcadeKeySet(LESSONS, PROGRESS), 200, ARCADE_GROUP_SIZE);
 }
 
@@ -758,10 +791,18 @@ function fillRuns() {
               (r.speedGraded ? '' : '  (drill \u2014 accuracy only in School)');
         sel.appendChild(o);
     });
-    // ⚠️ DEFAULTS TO THE LAST OFFERABLE RUN — "doing the final lesson and then
-    // playing deadline" is the case, so the final run should not take three
-    // clicks to reach.
-    sel.value = String(Math.max(0, p.runs.length - 1));
+    // ⚠️⚠️ DEFAULTS TO RUN 1, AND THIS REVERSES AN EARLIER RULING ON PURPOSE.
+    // v3.0.0 defaulted to the LAST offerable run, reasoning that *"doing the
+    // final lesson and then playing deadline"* was the case and the final run
+    // should not take three clicks. ⭐ SURVIVAL MODE SUPERSEDED THAT REASON
+    // ENTIRELY: run 1 now flows into the whole rest of the lesson, so the last
+    // run is no longer the interesting one — it is the SHORTEST one, and it
+    // starts mid-sentence.
+    // Jake, 2026-09-09: *"the dropdowns should default to run 1 for the
+    // graduation passages in the beta menu to reflect what it will eventually
+    // be."* ⚠️ AND IT REFLECTS THE END STATE: one gate per lesson, entered at the
+    // top of the text, survived from there.
+    sel.value = '0';
     sel.disabled = false;
     fillSpeeds();
     showGates();
@@ -868,7 +909,11 @@ function play() {
         // ⚠️ THIS RAISES THE CEILING ONLY; IT DOES NOT TOUCH THE GRADED RUN. The
         // ramp does not begin until the quota is met, so the mission a student is
         // judged on is played at exactly the gate either way.
-        cfg.pressureCeiling = SURVIVAL_PRESSURE_CEILING;
+        // ⚠️ DERIVED FROM THIS RUN'S OWN GATE, because pressure is a MULTIPLE of
+        // that gate and the wall Jake asked for is an absolute 100 WPM. A flat
+        // multiplier would put the wall at 60 WPM on one lesson and 150 on
+        // another, for no reason a student could see.
+        cfg.pressureCeiling = survivalCeilingFor(gates.minWPM);
     }
     lastPlayedWPM = gates.minWPM;
     $('picker').style.display = 'none';

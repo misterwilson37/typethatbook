@@ -29,7 +29,7 @@ import {
     targetsFromSequence, avgTargetChars, arcadeKeySet, makeArcadeTargets,
     missionConfigFromRun, charsPerSecondFor, GAME_SHELL_VERSION,
     enemyStepMs, targetTimeMs, POINTS_PER_CORRECT_CHAR, POINTS_PER_INTACT_SHIELD,
-    SURVIVAL_PRESSURE_CEILING, RAMP_PER_TARGET,
+    SURVIVAL_MAX_WPM, survivalCeilingFor, RAMP_PER_TARGET, arcadeConfig,
 } from '../game-shell.js';
 import { chunkSequence, gatesForRun } from '../run-grade.js';
 import { firstBlocked } from '../drill-filter.js';
@@ -722,7 +722,7 @@ console.log('\nPART K — SURVIVAL: the score that must not be a subtraction');
         const ramped = extras => {
             const d = new GameDirector({ targets: ['abcd'], targetWPM: 10,
                                          quotaChars: 4,
-                                         pressureCeiling: SURVIVAL_PRESSURE_CEILING });
+                                         pressureCeiling: survivalCeilingFor(10) });
             d.chars += 4; d.cleared('abcd', 1);          // meet the quota
             while (d._extraCleared < extras) d.cleared('abcd', 1);
             return d;
@@ -736,6 +736,37 @@ console.log('\nPART K — SURVIVAL: the score that must not be a subtraction');
            'and the words arrive faster for it, which is the thing a student feels');
         ok(at250.pressure > PRESSURE_CEILING,
            'the survival ceiling is genuinely above the mission one');
+
+
+        // ⚠️⚠️ THE WALL IS AN ABSOLUTE WPM, NOT A MULTIPLE OF THE LESSON'S GATE.
+        // Jake, 2026-09-09: *"Arcade mode should really only cap out at 100 wpm...
+        // Arcade games are made to eat quarters, so it can't go on forever."*
+        // My first version was a flat pressure ceiling of 6.0, which meant 60 WPM
+        // of demand on a 10 WPM lesson and 150 on a 25 WPM one — two students
+        // hitting walls twice as far apart as each other for no visible reason.
+        for (const gate of [10, 15, 25, 40]) {
+            const demand = gate * survivalCeilingFor(gate);
+            ok(Math.abs(demand - SURVIVAL_MAX_WPM) < 1e-9 || demand > SURVIVAL_MAX_WPM,
+               'a ' + gate + ' WPM lesson walls at ' + Math.round(demand) + ' WPM');
+        }
+        ok(Math.abs(10 * survivalCeilingFor(10) - SURVIVAL_MAX_WPM) < 1e-9 &&
+           Math.abs(25 * survivalCeilingFor(25) - SURVIVAL_MAX_WPM) < 1e-9,
+           '\u2b50 two students on different lessons hit the SAME wall (' +
+           SURVIVAL_MAX_WPM + ' WPM), which is a property of hands, not of lessons');
+        // ⚠️ AND NEVER GENTLER THAN THE MISSION RAMP. A lesson gated at or above
+        // 40 WPM would otherwise derive a ceiling below 2.5 and make survival
+        // easier than the run before it.
+        ok(survivalCeilingFor(60) === PRESSURE_CEILING,
+           '\u26a0 a fast-gated lesson floors at PRESSURE_CEILING rather than dropping below it');
+
+        // ⭐ AND THE ENDLESS ARCADE EATS QUARTERS TOO. It had the identical
+        // plateau: PRESSURE_CEILING flat forever, so a strong typist never lost.
+        const arc = arcadeConfig({ lessons: [{ id: 'l1', gates: { minWPM: 10 } }],
+                                   progress: {}, targetWPM: 10 });
+        ok(arc.pressureCeiling > PRESSURE_CEILING,
+           '\u26a0\u26a0 arcade endless carries a raised ceiling of its own now');
+        ok(Math.abs(arc.targetWPM * arc.pressureCeiling - SURVIVAL_MAX_WPM) < 1e-9,
+           'and walls at the same ' + SURVIVAL_MAX_WPM + ' WPM');
 
         // ⚠️⚠️ AND NOTHING ELSE MOVES. A graded run must never get harder than
         // the gate it is judged against, and Escape Key was not part of this
