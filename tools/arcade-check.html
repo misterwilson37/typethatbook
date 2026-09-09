@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- tools/arcade-check.html v1.0.0 — DOES THE ARCADE WRITE ACTUALLY WORK?
+     Round 93.
+
+     Jake, 2026-09-08: *"I can't run npm anything. So I'll need a better test."*
+     He is right, and `npm run test:rules` was never advice he could act on —
+     there is no command line in the classroom. This page is the same question
+     asked in the only place he can ask it: a browser, signed in as himself,
+     against the live database.
+
+     ⚠️⚠️ IT CANNOT CHANGE A SINGLE NUMBER, AND THAT IS THE WHOLE DESIGN.
+     Step 4 writes `secondsArcade` back at EXACTLY the value it just read. The
+     rules see a real arcade write and either accept or refuse it; the document
+     ends byte-identical either way. A test that had to add a second would be a
+     test nobody could safely run twice, or run at all on a real student.
+
+     ⚠️ WHAT IT IS ACTUALLY TESTING is the thing two rounds of green harnesses
+     could not: `firestore.rules` as DEPLOYED. Every check in `npm test` reads
+     the rules FILE in the repo, and the file and the console are different
+     objects that only agree when somebody pastes one into the other. This page
+     is the only instrument in the project that can tell them apart.
+
+     ⚠️ SAFE TO LEAVE DEPLOYED. It is unlinked, signed-in-only, writes nothing
+     that changes a total, and reads two documents. -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Arcade write check</title>
+<style>
+    body { background:#06090f; color:#cfe0ea; font-family:"Courier Prime",ui-monospace,monospace;
+           margin:0; padding:24px; line-height:1.5; }
+    .wrap { max-width:760px; margin:0 auto; }
+    h1 { font-size:1.2rem; color:#bfe9ff; letter-spacing:1px; }
+    button { font:inherit; background:#164055; color:#bfe9ff; border:1px solid #2b6c8a;
+             border-radius:6px; padding:10px 22px; cursor:pointer; }
+    button:hover { background:#1d5470; }
+    .step { border:1px solid #1d2735; background:#0b1018; border-radius:8px;
+            padding:12px 14px; margin:10px 0; font-size:.86rem; }
+    .ok   { border-color:#2e6b52; }
+    .bad  { border-color:#6b2e3a; }
+    .tag  { font-weight:700; letter-spacing:1px; }
+    .ok .tag  { color:#8fe8c8; }
+    .bad .tag { color:#ff8f8f; }
+    .why { color:#8aa2b4; font-size:.8rem; margin-top:6px; }
+    .verdict { font-size:1rem; margin-top:18px; padding:14px; border-radius:8px; }
+    .verdict.ok  { background:rgba(46,107,82,0.2); color:#8fe8c8; }
+    .verdict.bad { background:rgba(107,46,58,0.2); color:#ff8f8f; }
+    code { color:#ffd27d; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <h1>ARCADE WRITE CHECK</h1>
+    <p class="why">
+        Signs you in, then tries the exact write the arcade makes when a student
+        banks a second. <strong>It writes your current value back unchanged</strong> —
+        no total moves, and it is safe to run as many times as you like.
+    </p>
+    <button id="run">Run the check</button>
+    <div id="out"></div>
+</div>
+
+<script type="module">
+import { db, auth } from '../firebase-config.js';
+import { doc, getDoc, setDoc } from '../read-meter.js';
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { localDateStr, dayLogPayloadFor, SOURCE_FIELDS } from '../daylog.js';
+
+const out = document.getElementById('out');
+const step = (ok, label, why) => {
+    const d = document.createElement('div');
+    d.className = 'step ' + (ok ? 'ok' : 'bad');
+    d.innerHTML = '<span class="tag">' + (ok ? 'PASS' : 'FAIL') + '</span> ' + label +
+                  (why ? '<div class="why">' + why + '</div>' : '');
+    out.appendChild(d);
+    return ok;
+};
+const verdict = (ok, text) => {
+    const d = document.createElement('div');
+    d.className = 'verdict ' + (ok ? 'ok' : 'bad');
+    d.textContent = text;
+    out.appendChild(d);
+};
+
+document.getElementById('run').onclick = async () => {
+    out.innerHTML = '';
+    let user = auth.currentUser;
+    if (!user) {
+        try { user = (await signInWithPopup(auth, new GoogleAuthProvider())).user; }
+        catch (e) { step(false, 'Sign in', e.message); return; }
+    }
+    step(true, 'Signed in as ' + (user.email || user.uid));
+
+    // 1 — does this build even know about the arcade source?
+    if (!step(!!SOURCE_FIELDS.arcade,
+        'daylog.js knows the <code>arcade</code> source',
+        'If this fails you are running an older daylog.js — deploy it first; nothing below can pass.')) {
+        verdict(false, 'Old daylog.js. Deploy daylog.js v1.10.0 or later.');
+        return;
+    }
+
+    const dateStr = localDateStr();
+    const id = user.uid + '_' + dateStr;
+
+    // 2 — read today, and note what is already banked.
+    let before = null;
+    try {
+        const snap = await getDoc(doc(db, 'typing_logs', id));
+        before = snap.exists() ? snap.data() : {};
+        step(true, 'Read today\u2019s log (<code>' + id + '</code>)',
+             snap.exists() ? 'Document exists.' : 'No document yet today \u2014 the write will create one, which is the stricter case.');
+    } catch (e) {
+        step(false, 'Read today\u2019s log', e.message);
+        verdict(false, 'Could not read. Check you are signed in as a student account.');
+        return;
+    }
+
+    const current = Number(before.secondsArcade || 0);
+    step(true, 'Arcade seconds already banked today: <code>' + current + '</code>',
+         'The write below sets this field to the same number, so nothing changes.');
+
+    // 3 — build the payload the arcade builds, through the same builder.
+    const payload = dayLogPayloadFor('arcade', dateStr, {
+        day: {},
+        own: { seconds: current,
+               chars: Number(before.charsArcade || 0),
+               mistakes: Number(before.mistakesArcade || 0) },
+    });
+    step(true, 'Payload: <code>' + JSON.stringify(payload) + '</code>');
+
+    // 4 — the real thing: does the deployed rule accept it?
+    try {
+        await setDoc(doc(db, 'typing_logs', id), {
+            uid: user.uid,
+            email: user.email || '',
+            displayName: user.displayName || 'Anonymous',
+            classId: before.classId || '',
+            schoolId: before.schoolId || '',
+            date: dateStr,
+            ...payload,
+            lastUpdated: new Date(),
+        }, { merge: true });
+        step(true, 'The deployed rules ACCEPTED an arcade write');
+    } catch (e) {
+        const denied = /permission|insufficient/i.test(e.message || '');
+        step(false, 'The deployed rules REFUSED the write', e.message);
+        verdict(false, denied
+            ? 'firestore.rules v2.13.0 is not deployed. Paste it into the Firebase console \u2014 until then arcade minutes silently do not count.'
+            : 'Write failed for a reason other than permissions; the message above is the detail.');
+        return;
+    }
+
+    // 5 — read back, and prove nothing moved.
+    try {
+        const snap = await getDoc(doc(db, 'typing_logs', id));
+        const after = snap.exists() ? snap.data() : {};
+        const same = Number(after.secondsArcade || 0) === current;
+        step(same, 'Read back: <code>' + Number(after.secondsArcade || 0) + '</code> seconds',
+             same ? 'Unchanged, as intended.' : 'This should be impossible \u2014 the write was idempotent.');
+        verdict(same, same
+            ? 'All good. Arcade minutes will bank for students on this build.'
+            : 'The value moved. Do not run this again; tell Claude what it said.');
+    } catch (e) {
+        step(false, 'Read back', e.message);
+        verdict(false, 'The write was accepted but could not be confirmed.');
+    }
+};
+</script>
+</body>
+</html>

@@ -1,5 +1,15 @@
 # HANDOFF — TypeThatBook
 
+> ⚠️⚠️ **VERIFYING THE ARCADE WRITE WITHOUT A COMMAND LINE.** Jake cannot run
+> `npm run test:rules`, and every check in `npm test` reads the rules FILE in the
+> repo — the file and the Firebase console are different objects that agree only
+> when somebody pastes one into the other. **Open `tools/arcade-check.html`,
+> signed in.** It performs the exact write the arcade makes, with the value set
+> to what is already stored, so no total moves and it is safe to run repeatedly.
+> It names the failure in plain language: a permission error means
+> `firestore.rules` **v2.13.0** is not deployed, and until it is, arcade minutes
+> silently do not count.
+
 > ## ▶ START HERE — written 2026-09-08 by Round 87 (Merritt), for whoever is next
 >
 > ⚠️⚠️⚠️ **THE HEADLINE IS NOT THE LAYOUT WORK. IT IS THAT ROADMAP 54 SHIPPED A
