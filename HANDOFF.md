@@ -1,5 +1,117 @@
 # HANDOFF — TypeThatBook
 
+> ## ▶ START HERE — written 2026-09-09 by Round 101 (Wellington), for whoever is next
+>
+> **Instance name: Wellington**, an 1890s typewriter. ⚠️ **One name per
+> conversation** — checked against `CHANGELOG.md`, `HANDOFF.md`,
+> `HANDOFF-games.md` **and `ROADMAP.md`**; the omitted fourth file is what made
+> Round 100 a duplicate.
+>>
+> ### ⚠️⚠️ READ THIS ONE FIRST: THE PER-SECOND TICK NEVER FIRED, IN ANY ROUND
+>
+> Jake, 2026-09-09, screenshot at **0:35 with TODAY and WEEK frozen**: *"I can
+> confirm it's not adding time to the day or week."* ⭐ **NOT the "arcade writes
+> nothing yet" caveat** — `bankSecond()` moves `MINUTES` locally on purpose and
+> `flushArcadeSeconds()` writes. Nothing called it.
+>
+> * The banking loop lived **only in `finish()`** — so even working, the rows
+>   could not move during play.
+> * It sat behind `if (onSecond && started && !ended)` **three lines after
+>   `ended = true`**. Permanently false.
+> * ⭐ **EITHER FIX ALONE LOOKS LIKE A FIX AND BANKS NOTHING.** That is why it
+>   survived ten rounds.
+>
+> `bankWholeSeconds()` now runs from the **frame loop** and once at the **top of
+> `finish()`** — ⚠️ **before `ended` and before `d.end()` stops the graded
+> clock**. ⚠️ A `while` against `d.clock.seconds()`, never a `dt` accumulator: a
+> hidden tab returns many whole seconds and each is a separate dated tick.
+> ⚠️ **`restart()` resets `secondsBanked`** or the replay's first N seconds are
+> swallowed.
+>
+> ⚠️⚠️ **THE HARNESS LESSON — THE BIGGEST THING IN THIS ROUND.**
+> `arcade-lesson-test.mjs` pinned `onSecond: () => bankSecond()` from Round 68 and
+> was green throughout: it asserted the **listener** and never asked whether
+> anything **emitted**. ⭐ **A SEAM NEEDS BOTH ENDS ASSERTED. A green half-check is
+> worse than no check, because it is believed.** Eight assertions added on the
+> emitter side, including the ordering inside `finish()`.
+>
+> ⚠️⚠️ **THIS IS THE FIRST THING IN THE ROUND THAT REACHES A WRITE.** It changes
+> nothing about what is written — `flushArcadeSeconds()` and its `arcade` source
+> are untouched — but it is the difference between that path running and never
+> running. ⭐ **Watch the first real run for an `arcade` field landing in
+> `typing_logs`, and confirm that is the ruling Jake wants**: `daylog.js`'s
+> `SOURCE_FIELDS` held two sources, and this makes the third one live.
+>
+> ### JAKE'S THREE ASKS, ALL COSMETIC-ADJACENT, NONE COSMETIC-ONLY
+>
+> | file | version |
+> |---|---|
+> | `game-chrome.js` | **1.7.0** |
+> | `game-draw.js` | **1.7.0** |
+> | `game-deadline.js` | **1.10.0** |
+> | `game-layout.js` | **1.5.0** |
+> | `arcade.html` | 3.4.0 — ⚠️ **UNCHANGED THIS ROUND** |
+> | `tests/arcade-panels-test.mjs` | **1.3.0** (141 assertions) |
+> | `tests/arcade-lesson-test.mjs` | **1.2.0** (84 assertions) |
+>
+> * ⭐ **BANKED CARRIES SECONDS AND SIZES ITSELF TO THE SPARE HEIGHT.** ⚠️⚠️ **A
+>   FIXED `SEG_TOTAL_H` COULD NOT ANSWER *"fill all the dead space"*** for the
+>   same reason Round 100's fixed flank heights could not — the canvas flexes
+>   between `GAUGE_MIN_H` and `GAUGE_MAX_H`, so the leftover is <20px on a short
+>   window and ~190px on a laptop. It is a range now, and the rows **spread**
+>   down the region rather than stacking under the divider.
+> * ⚠️ **THE CEILING IS A WIDTH RULE.** `0:08:05` is seven glyphs where `0:08` was
+>   four; on a 240px column the width caps the digits near 34px, so raising
+>   `SEG_TOTAL_MAX_H` alone changes nothing.
+> * ⭐ **IT DEGRADES INSTEAD OF OVERFLOWING** — v1.4.0 drew the WEEK row off the
+>   bottom of the canvas at `GAUGE_MIN_H` and nothing said so. Order: heading,
+>   then size, then the WEEK row, then the block. TODAY is last out.
+> * ⚠️⚠️ **STILL ONE FORMATTER.** `minuteLines()` emits the words and the digits
+>   over the same seconds; the panel does no arithmetic of its own. Seconds
+>   changed the SHAPE inside that one function and nowhere else.
+> * ⭐ **A SPACE AT A WORD BOUNDARY IS FREE; MID-WORD IT STILL CHARGES.** ⚠️⚠️ **IT
+>   IS IGNORED, NOT COUNTED AS A HIT** — `keyResult(true)` there reopens the
+>   accuracy-inflation hole `reject()` exists to close, from the other side.
+> * ⭐ **TWO ERROR SIGNALS ON THE BOARD**: the key they NEEDED swells, the key they
+>   HIT blinks. ⚠️⚠️ **IF THEY EVER BECOME ONE EFFECT THE FEATURE IS DEAD** — two
+>   red keys and no way to tell which to press. `KEY_ALPHA_MISSED` 0.42 → 0.55,
+>   because at 0.42 the Round 90 memory did not read as red at all. The space bar
+>   carries the states now; it is the one key that can be wanted mid-word.
+> * ⭐ **THE CARD BUTTONS ARE HARDWARE**: bevel, 9×4 lamp (⚠️ **the threat board's
+>   pip size, deliberately**), a press that sinks, amber on `Done`.
+>   ⚠️⚠️ **EVERY COSMETIC RULE IS SCOPED TO `.gc-bar-card` AND THAT SCOPE IS
+>   LOAD-BEARING** — `learn.js` and Escape Key mount the FLOATING bar over a
+>   full-bleed canvas, where a raised plate reads as a panel dropped on the sky.
+>   **Do not tidy the two blocks together.**
+>
+> ### ⚠️⚠️ THE HARNESS LESSON, WHICH OUTLASTS THIS ROUND
+>
+> **A CHECK THAT CANNOT OBSERVE ITS SUBJECT MUST SAY SO.** I wrote an assertion
+> comparing the swelling key's width with and without motion. It came back `NaN`
+> on both sides — `roundRect()` draws with `arcTo()`, and the recorder does not
+> log its control points — so under a laxer comparison it would have passed while
+> measuring nothing. The motion half is pinned at source instead, with the reason
+> written above it. ⭐ **This is Round 100b's crash-mutation lesson in a second
+> costume: audit the fake, not just the assertions.**
+>
+> ### THE STATE OF PLAY
+>
+> * **Green**: panels 141, arcade-lesson 76, arcade-versions 29, game-assumptions
+>   59, game-shell 95, all 35 modules parse.
+> * ⚠️ **NOT BROWSER-VERIFIED.** What to confirm on a real screen: the banked
+>   rows fill the column bottom without crowding their labels; the space after a
+>   finished word costs nothing while a mid-word space still does; the swell and
+>   the blink are distinguishable rather than just "two red things" — ⭐ **Jake
+>   has been told to say the word and I will drop the blink**; and the buttons
+>   read as part of the console rather than as web buttons on a card.
+> * ⚠️⚠️ **THE TICK FIX REACHES A WRITE** (see the top block). The space rule and
+>   everything cosmetic do not.
+> * ⚠️ **Escape Key is still untouched** and the gap keeps widening: no scope, no
+>   console, no threat board, no mid-field countdown, and now no hardware buttons
+>   (it mounts the floating bar) and no space rule.
+> * ⚠️ **The arcade page is still unlinked**, still writes nothing, and the three
+>   games are still not wired into lessons.
+
 > ## ▶ START HERE — written 2026-09-09 by Round 100b (Franklin), for whoever is next
 >
 > **Instance name: Franklin**, the same as rounds 99 and 100 — ⚠️ **one name per

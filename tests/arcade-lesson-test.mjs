@@ -1,3 +1,9 @@
+// arcade-lesson-test.mjs v1.2.0 — Round 101 (Wellington): the OTHER HALF of the
+// per-second tick. v1.1.0 pinned that the PAGE wires `onSecond` to bankSecond()
+// and stayed green for ten rounds while the GAME never called it once — the
+// banked rows could not move, and Jake found it by playing for 35 seconds and
+// watching them sit at zero. ⚠️⚠️ A SEAM NEEDS BOTH ENDS ASSERTED: a check on the
+// listener that never asks whether anything emits is half a check.
 // arcade-lesson-test.mjs v1.1.0 — Round 99 (Franklin): the Round 97 lattice
 // assertion is REVERSED on Jake's correction, the radar's ring positions and
 // no-fade rule are pinned, and this file gained a comment stripper after
@@ -274,6 +280,62 @@ ok(/pagehide/.test(code) && /visibilitychange/.test(code),
 // midnight files under the day each second actually belonged to.
 ok(/onSecond: \(\) => bankSecond\(\)/.test(code),
    'the game emits bare ticks and the page stamps the date');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ AND THE GAME MUST ACTUALLY EMIT THE TICK — ROUND 101.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-09, with a screenshot at 0:35 on the run clock and TODAY/WEEK
+// both frozen: *"I can confirm it's not adding time to the day or week."*
+// ⭐ TWO DEFECTS IN ONE BLOCK, AND THE SECOND HID THE FIRST. The banking loop
+// lived only inside finish(), so nothing could move while a student played —
+// and it sat behind `if (onSecond && started && !ended)` three lines AFTER
+// `ended = true`, a guard that is permanently false. Moving the call without
+// fixing the guard would have looked like a fix and banked nothing.
+{
+    const dl = stripComments(readFileSync(new URL('../game-deadline.js', import.meta.url), 'utf8'));
+
+    ok(/function bankWholeSeconds\(now\)/.test(dl),
+       'the per-second bank is a named function rather than an inline loop');
+
+    // ⚠️ THE FRAME LOOP IS WHERE IT HAS TO FIRE. A student watches these rows
+    // DURING a run; a tick that only lands at game over is not the feature.
+    const frame = dl.slice(dl.indexOf('function frame(ts)'),
+                           dl.indexOf('function bankWholeSeconds'));
+    ok(/bankWholeSeconds\(now\)/.test(frame),
+       '\u2b50 and the frame loop calls it, so the totals move while they play');
+
+    // ⚠️⚠️ ORDERING IS THE FIX IN finish(), NOT A LOOSER GUARD. d.end() stops the
+    // graded clock, so a catch-up after it reads a frozen figure — and a call
+    // after `ended = true` behind a `!ended` test is the bug that shipped.
+    const fin = dl.slice(dl.indexOf('function finish(now, won)'));
+    const body = fin.slice(0, fin.indexOf('function drawSidePanels'));
+    ok(body.indexOf('bankWholeSeconds(now)') < body.indexOf('ended = true'),
+       '\u26a0\u26a0 finish() banks the last part-second BEFORE it sets `ended`');
+    ok(body.indexOf('bankWholeSeconds(now)') < body.indexOf('d.end(now)'),
+       'and before the graded clock is stopped');
+    ok(!/if \(onSecond && started && !ended\)/.test(dl),
+       '\u26a0\u26a0 the permanently-false guard is gone and has not come back');
+
+    // ⚠️ DERIVED FROM THE GRADED CLOCK, NEVER ACCUMULATED FROM dt. A second
+    // accumulator drifts from the figure the result modal reports, and then a
+    // student's banked minutes disagree with the run they just played.
+    const bank = dl.slice(dl.indexOf('function bankWholeSeconds'));
+    ok(/d\.clock\.seconds\(now\)/.test(bank.slice(0, 400)),
+       'the tick count comes off d.clock.seconds(), not a private accumulator');
+    ok(/while \(secondsBanked < whole\)/.test(bank),
+       '\u26a0 a WHILE loop \u2014 a hidden tab hands back many whole seconds at once, ' +
+       'and each is a separate second the host stamps with its own date');
+
+    // ⚠️⚠️ AND THE HIGH-WATER MARK RESETS WITH THE DIRECTOR. restart() builds a
+    // fresh GameDirector, so the clock returns to zero; a `secondsBanked` left
+    // at 35 would swallow the first 35 seconds of every replay. This only became
+    // reachable once the tick started firing at all.
+    const res = dl.slice(dl.indexOf('function restart()'));
+    ok(/secondsBanked = 0/.test(res.slice(0, 900)),
+       '\u2b50 restart() resets the seconds high-water mark with everything else');
+}
+
 
 // ⚠️⚠️ THE ENVELOPE, AND EVERY ONE OF THESE FAILS SILENTLY IN A CLASSROOM.
 // firestore.rules' validDailyLog() requires uid and date on the MERGED result,

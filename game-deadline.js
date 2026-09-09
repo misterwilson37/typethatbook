@@ -1,4 +1,18 @@
-// game-deadline.js v1.9.0
+// game-deadline.js v1.10.0
+//
+// v1.10.0 — ⚠️⚠️ THE PER-SECOND TICK NEVER FIRED, IN ANY ROUND. Jake, 2026-09-09,
+//   with 0:35 on the run clock and the banked rows at zero: *"I can confirm it's
+//   not adding time to the day or week."* The banking loop lived ONLY inside
+//   finish() — so nothing could move while a student played — and it sat behind
+//   `if (onSecond && started && !ended)` three lines AFTER `ended = true`, which
+//   is permanently false. ⭐ TWO DEFECTS IN ONE BLOCK, AND THE SECOND HID THE
+//   FIRST: moving the call without fixing the guard would have looked like a fix
+//   and banked nothing. Now bankWholeSeconds() is called from the frame loop and
+//   once more at the top of finish(), before `ended` and before d.end() stops the
+//   graded clock. ⚠️ restart() resets `secondsBanked` too, or the replay's first
+//   N seconds are swallowed by the last run's high-water mark.
+//   ⚠️ arcade-lesson-test.mjs pinned the PAGE's listener and stayed green for ten
+//   rounds while nothing emitted. A seam needs BOTH ends asserted.
 //
 // v1.9.0 — ⭐ ROUND 101 — the console fills its card, and an error is visible on
 //   the board rather than only in the memory.
@@ -261,7 +275,7 @@ import {
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.9.0';
+export const GAME_DEADLINE_VERSION = '1.10.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -903,7 +917,43 @@ export function mount(container, opts) {
             if (tickAcc >= 1) { tickAcc = 0; onTick(d.report(now)); }
         }
 
+        // ⚠️⚠️ THE PER-SECOND TICK FIRES *DURING PLAY*, AND UNTIL v1.10.0 IT DID
+        // NOT FIRE AT ALL. Jake, 2026-09-09, with a screenshot at 0:35 on the run
+        // clock and the banked rows still at zero: *"I can confirm it's not
+        // adding time to the day or week."* The whole loop lived inside finish()
+        // — so nothing could move while a student played, which is the one time
+        // they are looking at it — AND it sat behind `!ended` three lines after
+        // `ended = true`, so it was unreachable there too. ⭐ TWO DEFECTS IN ONE
+        // BLOCK, AND THE SECOND MADE THE FIRST INVISIBLE: moving the call without
+        // fixing the guard would have looked like a fix and banked nothing.
+        // ⚠️ DERIVED FROM d.clock.seconds(), NOT ACCUMULATED FROM dt. The graded
+        // clock already encodes "not while paused, not before the first
+        // keystroke, not after the end"; a separate accumulator would drift from
+        // the number the result modal reports, and a student's banked minutes
+        // would disagree with the run they just played.
+        // ⚠️ A WHILE LOOP, NOT AN `if`: a tab that was hidden hands back a delta
+        // of many seconds, and each one is a real second the host must file
+        // separately — it calls localDateStr() per tick so a run through midnight
+        // splits across two documents.
+        bankWholeSeconds(now);
+
         draw(now, ts / 1000);
+    }
+
+    /**
+     * Hand the host every whole graded second it has not been told about yet.
+     *
+     * ⚠️ IDEMPOTENT BY CONSTRUCTION — `secondsBanked` is a high-water mark, so
+     * calling this twice in one frame, or once more at the end of the run, can
+     * never double-count.
+     */
+    function bankWholeSeconds(now) {
+        if (!onSecond || !started) return;
+        const whole = Math.floor(d.clock.seconds(now));
+        while (secondsBanked < whole) {
+            secondsBanked++;
+            try { onSecond(); } catch (_) { /* never let a host error stop play */ }
+        }
     }
 
     // Is this landmark still under any standing dome?
@@ -926,18 +976,15 @@ export function mount(container, opts) {
 
     function finish(now, won) {
         if (ended) return;
+        // ⚠️⚠️ BANK THE LAST PART-SECOND *BEFORE* `ended` IS SET, WHICH IS THE BUG
+        // THIS ORDER EXISTS TO PREVENT. The old call sat AFTER `ended = true`
+        // behind a `!ended` guard — permanently false, so the final catch-up
+        // never ran and neither did anything else. ⭐ Ordering is the fix, not a
+        // looser guard: d.end() below stops the graded clock, so a call after it
+        // would also read a frozen figure.
+        bankWholeSeconds(now);
         ended = true;
         d.end(now);
-        // ⚠️ DERIVED FROM d.seconds(), NOT ACCUMULATED FROM dt. A separate
-        // accumulator drifts from the number the modal reports, and then the
-        // minutes a student banks disagree with the run they just played.
-        if (onSecond && started && !ended) {
-            const whole = Math.floor(d.clock.seconds(now));
-            while (secondsBanked < whole) {
-                secondsBanked++;
-                try { onSecond(); } catch (_) { /* never let a host error stop play */ }
-            }
-        }
 
         const rep = d.report(now);
         won ? sfx.win() : sfx.lose();
@@ -1734,6 +1781,13 @@ export function mount(container, opts) {
         // survives — "where I keep getting stuck" is the whole point of it, and
         // a student who replays to work on the same keys wants it standing.
         missPulse = null; hitFlash = null;
+        // ⚠️⚠️ THE HIGH-WATER MARK RESETS WITH THE DIRECTOR, OR THE SECOND RUN
+        // BANKS NOTHING. restart() builds a FRESH GameDirector, so the graded
+        // clock returns to zero — a `secondsBanked` left at 35 would swallow the
+        // first 35 seconds of every replay. ⚠️ This is exactly the "stale counter
+        // survives a restart" failure this function's own header warns about,
+        // and it only became reachable once the tick started firing at all.
+        secondsBanked = 0;
         layout();
         chrome.setPhase('ready');
     }
