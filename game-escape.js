@@ -1,4 +1,27 @@
-// game-escape.js v1.0.0 — ESCAPE KEY. Round 82 (Victor).
+// game-escape.js v1.1.0 — ESCAPE KEY. Round 82 (Victor), Round 102.
+//
+// v1.1.0 — ⚠️⚠️ THE PER-SECOND TICK DID NOT EXIST, SO NO HOST COULD EVER BANK A
+//   MINUTE OF THIS GAME. game-names.js has carried `countsTime: true` for this
+//   game since Round 82 (Jake: *"I'm leaning toward arcade for now, but time
+//   typed should still count"*) and NEXT-STEPS.md §4e states it twice — but
+//   mount() accepted no `onSecond`, so the registry was promising something
+//   the view had no way to deliver. Added bankWholeSeconds(), mirroring
+//   game-deadline.js v1.10.0 statement for statement: derived from
+//   d.clock.seconds() rather than accumulated from dt, a high-water mark so it
+//   is idempotent, called from the frame loop AND at the top of finish() ABOVE
+//   `ended = true` and ABOVE d.end(), and reset by restart().
+//   ⚠️ THE ORDER IS THE LESSON, NOT THE CODE. Deadline shipped this with the
+//   call in finish() only, behind a guard three lines after `ended = true` —
+//   two defects in one block, the second hiding the first, so moving the call
+//   without fixing the guard would have looked like a fix and banked nothing.
+//   ⚠️ ALSO FIXED: v1.0.0's mount() doc comment claimed *"same contract as
+//   game-deadline"*. It was false — no onSecond, no minutes, no barHost, no
+//   side canvases — and being false is how the missing tick stayed invisible.
+//   The accepted options are now listed, and so are the refused ones.
+//   ⚠️ STILL ARCADE-ONLY. This changes nothing about `assessed: false`; it only
+//   makes the clock half of Jake's 4e ruling actually reachable.
+//
+// v1.0.0 — first version of this file that has ever left a container.
 //
 // ⚠️ The polish pass added: get-ready countdown, pause, quit, restart and
 // mute via game-chrome.js; synthesised sound via game-audio.js; Caps Lock
@@ -63,11 +86,24 @@ import {
     drawParticles, roundRect, drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_ESCAPE_VERSION = '1.0.0';
+export const GAME_ESCAPE_VERSION = '1.1.0';
 
 /**
  * @param {HTMLElement} container
- * @param {object} opts  { config, onEnd, onTick } — same contract as game-deadline
+ * @param {object} opts
+ *   ⚠️ SPELLED OUT, NOT "SAME AS game-deadline". v1.0.0's comment claimed the
+ *   contracts matched; they did not, and the claim is how the missing tick
+ *   stayed invisible — a host reading it would reasonably assume `onSecond`
+ *   worked here. State what this view accepts and nothing more:
+ *     config    {object}    the GameDirector config (required in practice)
+ *     onEnd     {function}  (rep) once, when the run ends
+ *     onTick    {function}  (rep) about once a second, for a live HUD
+ *     onQuit    {function}  () when the student quits from the chrome
+ *     onSecond  {function}  () once per WHOLE GRADED SECOND — see its note
+ *   ⚠️ NOT ACCEPTED, AND DELIBERATELY: `minutes` (Deadline's banked-minutes
+ *   readout has no counterpart in this HUD), `survival`, `barHost`, and the
+ *   three side canvases. Adding one means building the panel that shows it —
+ *   a silently-ignored option is worse than an absent one.
  * @returns {{ destroy: function, report: function }}
  */
 export function mount(container, opts) {
@@ -77,6 +113,25 @@ export function mount(container, opts) {
     const rand = cfg.rand || Math.random;
 
     const onQuit = (opts && opts.onQuit) || function () {};
+
+    // ⚠️⚠️ ONE TICK PER WHOLE GRADED SECOND, AND THE VIEW STAMPS NO DATE. The
+    // host calls localDateStr() inside the callback, at the moment of the tick,
+    // which is what makes a game running through midnight split across two
+    // documents exactly as a lesson does. This file must never learn what a
+    // date is.
+    //
+    // ⚠️ IT FOLLOWS THE GRADED CLOCK, NOT WALL TIME: no tick while paused, none
+    // before the first keystroke, none after the run ends. `d.clock.seconds()`
+    // already encodes all three, so the tick is derived from it rather than
+    // from a second timer that could disagree with the number being reported.
+    //
+    // ⚠️⚠️ ADDED v1.1.0, AND ITS ABSENCE WAS A REAL DEFECT, NOT A MISSING
+    // NICETY. game-names.js has recorded `countsTime: true` for this game since
+    // Round 82 — Jake's ruling, *"I'm leaning toward arcade for now, but time
+    // typed should still count"* — and this view had no way to emit a second,
+    // so every minute a student spent in Escape Key was unbankable by any host.
+    // The registry was promising something the view could not deliver.
+    const onSecond = (opts && opts.onSecond) || null;
 
     let d = new GameDirector(cfg);
     let board = new EscapeBoard({ pool: cfg.targets || [], rand });
@@ -112,6 +167,10 @@ export function mount(container, opts) {
     let ended = false;
     let rafId = null, lastFrame = null, tickAcc = 0;
     let stepAccMs = 0;
+    // ⚠️ HIGH-WATER MARK, NOT AN ACCUMULATOR — see bankWholeSeconds(). Reset by
+    // restart(), or the replay's first N seconds are swallowed by the last run's
+    // mark, which is the exact bug game-deadline.js v1.10.0 records.
+    let secondsBanked = 0;
     // Per-enemy render position, eased toward the board's integer cell so a step
     // reads as a glide rather than a teleport.
     const ease = new Map();
@@ -178,6 +237,15 @@ export function mount(container, opts) {
 
     function finish(now, won) {
         if (ended) return;
+        // ⚠️⚠️ BEFORE `ended = true` AND BEFORE d.end(), AND THAT ORDER IS THE
+        // WHOLE LESSON OF game-deadline.js v1.10.0. There, the identical call
+        // sat behind `if (onSecond && started && !ended)` three lines AFTER
+        // `ended = true` — permanently false — and lived only in finish(), so
+        // nothing banked during play either. ⭐ TWO DEFECTS IN ONE BLOCK, AND
+        // THE SECOND HID THE FIRST: moving the call without fixing the guard
+        // would have looked like a fix and banked nothing. d.end() stops the
+        // graded clock, so a call below it loses the final partial second.
+        bankWholeSeconds(now);
         ended = true;
         d.end(now);
         const rep = d.report(now);
@@ -211,11 +279,16 @@ export function mount(container, opts) {
         particles = []; ease.clear();
         banner = null; flash = 0; stepAccMs = 0;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
+        // ⚠️ OR THE REPLAY'S FIRST N SECONDS ARE SWALLOWED by the previous
+        // run's high-water mark. A fresh director means a fresh clock starting
+        // at zero, so the mark has to start at zero with it.
+        secondsBanked = 0;
         layout();
         chrome.setPhase('ready');
     }
 
     // ── loop ────────────────────────────────────────────────────────────────
+    //
     //
     // ⚠️ ONE BOARD STEP PER `enemyStepMs()`, READ FRESH EVERY STEP so the arcade
     // ramp tightens it mid-game. At a 15 WPM gate and 4-character groups that is
@@ -261,11 +334,47 @@ export function mount(container, opts) {
 
         updateParticles(particles, dt);
         if (flash > 0) flash = Math.max(0, flash - dt);
+        // ⚠️ IN THE FRAME LOOP, NOT ONLY IN finish() — the host's daily total
+        // has to move WHILE the student plays, because that is when they are
+        // looking at it. See bankWholeSeconds() and finish().
+        // ⚠️ `now` IS THE FRAME'S OWN performance.now(), declared above, so this
+        // reads identically to game-deadline.js's call and one assertion pins
+        // both files.
+        bankWholeSeconds(now);
         if (onTick && !ended) {
             tickAcc += dt;
             if (tickAcc >= 1) { tickAcc = 0; onTick(d.report(now)); }
         }
         draw(now, ts / 1000, dt);
+    }
+
+    /**
+     * Hand the host every whole graded second it has not been told about yet.
+     *
+     * ⚠️ IDEMPOTENT BY CONSTRUCTION — `secondsBanked` is a high-water mark, so
+     * calling this twice in one frame, or once more at the top of finish(), can
+     * never double-count. That is what lets it sit in both places safely.
+     *
+     * ⚠️ DERIVED FROM d.clock.seconds(), NOT ACCUMULATED FROM dt. The graded
+     * clock already encodes "not while paused, not before the first keystroke,
+     * not after the end"; a separate accumulator would drift from the number
+     * the result panel reports, and a student's banked minutes would disagree
+     * with the run they just played. ⚠️ NOTE frame()'s `dt` IS CLAMPED to 50ms
+     * for the enemy stepper — accumulating from it would silently under-bank
+     * every hidden tab, which is precisely why this reads the clock instead.
+     *
+     * ⚠️ A WHILE LOOP, NOT AN `if`: a tab that was hidden hands back a delta of
+     * many seconds, and each one is a real second the host must file
+     * separately — it calls localDateStr() per tick so a run through midnight
+     * splits across two documents.
+     */
+    function bankWholeSeconds(now) {
+        if (!onSecond || !started) return;
+        const whole = Math.floor(d.clock.seconds(now));
+        while (secondsBanked < whole) {
+            secondsBanked++;
+            try { onSecond(); } catch (_) { /* never let a host error stop play */ }
+        }
     }
 
     // ── drawing ─────────────────────────────────────────────────────────────

@@ -1,5 +1,115 @@
 # HANDOFF — TypeThatBook
 
+> ## ▶ START HERE — written 2026-09-09 by Round 102 (Pittsburg), for whoever is next
+>
+> **Instance name: Pittsburg**, the Pittsburg Visible Typewriter. ⚠️ **One name
+> per conversation** — checked against `CHANGELOG.md`, `HANDOFF.md`,
+> `HANDOFF-games.md` **and `ROADMAP.md`**. ⚠️ **THE CHECK EARNED ITS KEEP THIS
+> ROUND**: my first choice was *Noiseless*, which reads as unused in
+> `HANDOFF-games.md` and `ROADMAP.md` and is **Round 6** in the other two. Grep
+> all four, every time.
+>
+> *On the name:* before visible writers, the type bar struck the **underside** of
+> the platen. You typed blind and lifted the carriage to see whether any of it
+> had worked. That is precisely what this round found: a clock nobody could see,
+> that had never worked, for twenty rounds.
+>
+> ### ⚠️⚠️ ESCAPE KEY NEVER EMITTED A SECOND, AND NOTHING WENT RED
+>
+> | file | version |
+> |---|---|
+> | `game-escape.js` | **1.1.0** |
+> | `tests/escape-seconds-test.mjs` | **1.0.0** (19 assertions) |
+> | `tests/run-all-tests.mjs` | **1.25.0** |
+>
+> `game-names.js` has carried `countsTime: true` for Escape Key since Round 82 —
+> Jake's 4e ruling, *"I'm leaning toward arcade for now, but time typed should
+> still count"* — and `mount()` accepted **no `onSecond` at all**. Every minute a
+> student spent in Escape Key was unbankable by any host. **The registry was
+> promising a thing the view had no way to deliver.**
+>
+> * ⭐ **THIS IS DEADLINE v1.10.0 A SECOND TIME, AND THE LESSON WAS ALREADY
+>   WRITTEN DOWN**: *"arcade-lesson-test.mjs pinned the PAGE's listener and stayed
+>   green for ten rounds while nothing emitted. A seam needs BOTH ends asserted."*
+>   ⚠️ **Escape Key had NEITHER end asserted**, which is why twenty rounds passed
+>   with nothing to go red. ⚠️ **Assume a third file has this shape and go
+>   looking** rather than waiting for Jake to play it and watch zeros.
+> * `bankWholeSeconds()` mirrors Deadline statement for statement: off
+>   `d.clock.seconds()` (never a private accumulator), a high-water mark so it is
+>   idempotent, called from the frame loop **and** at the top of `finish()` above
+>   both `ended = true` and `d.end(now)`, reset in `restart()`.
+> * ⚠️ **THE `dt` TRAP IS WORSE HERE THAN IN DEADLINE.** `frame()` CLAMPS `dt` to
+>   50ms for the enemy stepper, so a `dt`-based accumulator would silently
+>   under-bank every hidden tab. Reading the graded clock sidesteps it entirely.
+> * ⚠️ **v1.0.0's doc comment claimed "same contract as game-deadline". It was
+>   false** — no `onSecond`, no `minutes`, no `barHost`, no side canvases — **and
+>   being false is how the gap stayed invisible to a reader.** Now the accepted
+>   options are listed and so are the refused ones. ⭐ **A DOC COMMENT THAT
+>   OVERSTATES A CONTRACT IS A DEFECT, not untidiness.**
+> * ⚠️ **STILL ARCADE-ONLY.** `assessed: false` is untouched. This makes the
+>   clock half of 4e *reachable*; it does not grade anything.
+>
+> ### ⚠️ AND NOTHING IS CALLING IT YET
+>
+> **`arcade.html` hardcodes `mountDeadline` and never imports `game-escape.js`.**
+> Escape Key has **no student-facing surface at all** — `tools/game-lab.html` is
+> the only thing that mounts it. So the tick now exists and still fires nowhere.
+> ⚠️ **DO NOT READ `escape-seconds-test.mjs` GREEN AS "TIME BANKS."** It is
+> structural: it proves the four mistakes Deadline made are absent. A browser is
+> the only thing that can prove a minute lands.
+>
+> Round 100b's standing note remains true and is not shortened by this round:
+> *"Escape Key is still untouched"* — no scope, no console, no threat board, no
+> mid-field countdown, no hardware buttons (it mounts the floating bar), no space
+> rule. **One clock is not parity.**
+>
+> ### THE HARNESS LESSON, WHICH OUTLASTS THIS ROUND
+>
+> ⚠️⚠️ **A HARNESS THAT IS WRITTEN BUT NOT REGISTERED IS WORSE THAN NO HARNESS.**
+> `tests/run-all-tests.mjs` uses an **explicit array, not directory discovery**.
+> An unlisted file is one nobody runs, and it *looks* like coverage on the disk.
+> Registered in the same round it was written, and `docs-vs-repo-test` C2 caught
+> the knock-on immediately: the harness count in START HERE moved 90 → 91.
+> ⚠️ **C2 reads the FIRST `**N harnesses pass**` line in this file and only that
+> one** — later blocks are previous rounds' own records and must not be edited.
+>
+> ### ⚠️ RULE 10, DONE PROPERLY, AND IT IS CHEAP
+>
+> `escape-seconds-test.mjs` fails **11 of 19** against the pre-fix file and
+> passes 19/19 after. That took one `cp` and two runs. ⭐ **A harness not run
+> against the broken code is a harness you are guessing about** — and this one
+> caught a real mistake of mine mid-round: I had put `bankWholeSeconds()` *above*
+> `frame()`, where Deadline has it below, which broke a slice. **I moved the code
+> to match Deadline rather than loosen the assertion.**
+>
+> ### THE STATE OF PLAY
+>
+> * **Green**: escape-seconds 19, escape-board 39, arcade-lesson 103, game-shell
+>   120, game-assumptions 59, arcade-versions 29, version-stamp 284, docs-vs-repo
+>   21, all 35 modules parse.
+> * ⚠️ **Pre-existing failures unrelated to this round** (they fail identically on
+>   an untouched copy of the repo, verified): `undefined-calls-test`,
+>   `credits-test`, `credit-test`, `card-markup-test`, `about-test`,
+>   `about-render-test`, `metadata-map-test`, `drill-filter-test`,
+>   `continue-reading-test`. ⚠️ **DO NOT ASSUME THESE ARE YOURS** — and do not
+>   assume they are fine either; nobody has looked.
+> * ⚠️ **NOT BROWSER-VERIFIED.** Play Escape Key in `tools/game-lab.html` with an
+>   `onSecond` that logs, and confirm: ticks during play (not only at game over),
+>   none before the first keystroke, none while paused, and a restart that does
+>   not swallow its first seconds.
+>
+> ### ⚠️ THE OTHER HALF OF THIS SESSION IS NOT IN THIS FILE
+>
+> The Deadline→lesson-gate work lives in **`HANDOFF-learn2.md`** with
+> `learn2.html`/`learn2.js` — a **staging fork** of `learn.html`/`learn.js`,
+> deliberately absent from `versions.js`, carrying a deliberate Rule 9 exception
+> that **must be reconciled before a whole roster uses it**. ⚠️ **Read that file
+> before touching either learn page.** It also records two things that outlast
+> it: a **zero-effort lesson pass** the game wiring created (a student who types
+> nothing scores acc 100 / wpm 0 and advances) and the correction that
+> `firstOpenRunIdx()` **never covered the ordinary student**, because B, C, D and
+> F are all worth zero mastery points.
+
 > ## ▶ START HERE — written 2026-09-09 by Round 101 (Wellington), for whoever is next
 >
 > **Instance name: Wellington**, an 1890s typewriter. ⚠️ **One name per
@@ -215,8 +325,10 @@
 >
 > ### THE STATE OF PLAY
 >
-> * **90 harnesses pass** (122 assertions in the panels harness), `audit:versions`
->   0 problems, all 35 modules parse.
+> * **91 harnesses pass** (122 assertions in the panels harness), `audit:versions`
+>   0 problems, all 35 modules parse. ⚠️ **91, not 90, as of Round 102** —
+>   `escape-seconds-test.mjs` joined the registry. docs-vs-repo-test C2 reads
+>   THIS line and only this line, so it is the one that has to move.
 > * ⚠️ **STILL NOT BROWSER-VERIFIED.** What to confirm: the flanks fit the play
 >   frame at a real window height; the countdown appears mid-field AND in the
 >   console clock; BANKED reads as LED digits; one set of buttons after replaying
