@@ -206,7 +206,7 @@ import { sfx, isMuted, setMuted } from './game-audio.js';
 import {
     fitCanvas, platedText, platedProgress, makeStars, drawStars,
     burst, updateParticles, drawParticles, roundRect,
-    drawKeyboardStrip, keyboardStripHeight,
+    drawKeyboardStrip, keyboardStripHeight, drawRadar, drawGauges,
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
@@ -351,6 +351,14 @@ export function mount(container, opts) {
     // encodes all three, so the tick is derived from it rather than from a
     // second timer that could disagree with the number being reported.
     const onSecond = (opts && opts.onSecond) || null;
+
+    // ⚠️ SIBLING CANVASES, BOTH OPTIONAL. A host with no side columns (the lab,
+    // learn.js) passes neither and the game is byte-for-byte what it was — which
+    // is why the NEXT band below stays conditional rather than being removed.
+    const radarCanvas = (opts && opts.radarCanvas) || null;
+    const gaugeCanvas = (opts && opts.gaugeCanvas) || null;
+    const radarCtx = radarCanvas ? radarCanvas.getContext('2d') : null;
+    const gaugeCtx = gaugeCanvas ? gaugeCanvas.getContext('2d') : null;
     let secondsBanked = 0;
 
     const shieldCount = Math.max(1, Math.min(LANDMARKS.length, cfg.shields == null ? 3 : cfg.shields));
@@ -413,6 +421,13 @@ export function mount(container, opts) {
     // barrel points at the thing it is about to shoot. See drawSilos().
     let aimAt = null;
 
+    function fitSidePanels() {
+        // ⚠️ fitCanvas() ALREADY HANDLES DPR AND CSS-PIXEL SIZING for any canvas
+        // in any container, so a side panel costs nothing architecturally.
+        if (radarCanvas && radarCtx) fitCanvas(radarCanvas, radarCtx);
+        if (gaugeCanvas && gaugeCtx) fitCanvas(gaugeCanvas, gaugeCtx);
+    }
+
     function layout() {
         const size = fitCanvas(canvas, ctx);
         W = size.w; H = size.h;
@@ -446,8 +461,12 @@ export function mount(container, opts) {
         // landing visible. ⚠️ CAPPED AND FLOORED: on a short window the strip
         // must not eat the sky, and below ~360px of height it is dropped
         // entirely rather than squeezed into unreadability.
+        fitSidePanels();
         kbH = keyboardStripHeight(H, kbOn);
-        if (kbH) kbH += LAY.KB_PREVIEW_BAND;   // ⚠️ the NEXT preview's own band; see drawKeyboardStrip.
+        // ⭐ THE PREVIEW BAND IS ONLY PAID FOR WHEN THE STRIP CARRIES THE
+        // PREVIEW. With a radar the read-ahead lives there, so these 34px go
+        // back to the sky — and the sky is where the game happens.
+        if (kbH && !radarCtx) kbH += LAY.KB_PREVIEW_BAND;
         // ⚠️ TELL THE CHROME WHERE THE FLOOR IS. Its bar is positioned from the
         // bottom, so it must clear the keyboard strip when one is drawn. +10 so
         // the buttons sit inside the flank rather than straddling its top edge.
@@ -821,6 +840,39 @@ export function mount(container, opts) {
     }
 
     // ── drawing ─────────────────────────────────────────────────────────────
+    /**
+     * The two side canvases, if the host gave us any.
+     *
+     * ⚠️ CONTACTS ARE HANDED OVER PRE-NORMALISED (`nx` 0..1 across, `ny` 0..1
+     * down). The radar never learns a lane position, a dome radius or an impact
+     * test — the same separation that made sibling canvases the right
+     * architecture instead of an inset playfield rect.
+     */
+    function drawSidePanels(rep) {
+        if (radarCtx) {
+            drawRadar(radarCtx, {
+                W: radarCanvas.clientWidth, H: radarCanvas.clientHeight,
+                contacts: live.map(e => ({
+                    text: e.text, typed: e.typed,
+                    nx: W ? e.x / W : 0.5, ny: threat(e),
+                })),
+                inbound: d.peekNext(),
+            });
+        }
+        if (gaugeCtx) {
+            const m = minuteLines();
+            drawGauges(gaugeCtx, {
+                W: gaugeCanvas.clientWidth, H: gaugeCanvas.clientHeight,
+                wpm: rep.wpm, acc: rep.acc,
+                quota: d.endless ? null : d.clearedChars / d.quotaChars,
+                // ⚠️ THE SAME STRINGS THE STRIP USES, from the same helper. Two
+                // formatters would drift and show a student two "today" figures.
+                todayText: m.bottomLeft ? m.bottomLeft.replace('TODAY  ', '') : null,
+                weekText: m.bottomRight ? m.bottomRight.replace('WEEK  ', '') : null,
+            });
+        }
+    }
+
     function draw(now, tSec) {
         ctx.clearRect(0, 0, W, H);
         // Sky
@@ -856,8 +908,14 @@ export function mount(container, opts) {
         // ⚠️ ONE READOUT, TWO PLACES, NEVER BOTH. With the board up the stats
         // ride in its flanks; with it off they fall back to the top plate.
         const rep = d.report(now);
+        drawSidePanels(rep);
         if (kbH) {
-            const hl = hudLines(rep, d);
+            // ⚠️⚠️ THE FLANKS ARE THE NARROW-MODE FALLBACK NOW. With a gauge
+            // panel the same four numbers were drawn twice, six inches apart —
+            // and a student reading "11 WPM" in two places has to work out
+            // whether they are the same number. When the panel is present the
+            // strip carries the keys and nothing else.
+            const hl = gaugeCtx ? { left: [], right: [] } : hudLines(rep, d);
             drawKeyboardStrip(ctx, {
                 W, H, height: kbH,
                 nextChar: (() => {
@@ -865,9 +923,11 @@ export function mount(container, opts) {
                     return src && src.typed < src.text.length ? src.text[src.typed] : null;
                 })(),
                 left: hl.left, right: hl.right, keyStates,
-                nextWord: d.peekNext(),
-                progress: d.endless ? null : d.clearedChars / d.quotaChars,
-                ...minuteLines(),
+                nextWord: radarCtx ? null : d.peekNext(),
+                // ⚠️ THE QUOTA BAR AND THE MINUTES MOVE TO THE GAUGES TOO —
+                // the bar is the one Jake could not identify unlabelled.
+                progress: gaugeCtx ? null : (d.endless ? null : d.clearedChars / d.quotaChars),
+                ...(gaugeCtx ? {} : minuteLines()),
             });
         } else {
             drawHudTop(ctx, W, rep, d);

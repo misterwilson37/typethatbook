@@ -114,6 +114,7 @@
         border-radius: 10px; padding: 12px;
         min-height: 200px;
     }
+    .panel-canvas { display: block; width: 100%; margin-bottom: 12px; }
     .side-card h2 {
         font-size: .68rem; letter-spacing: 1px; color: var(--ink-ghost);
         margin: 0 0 10px; font-weight: 400;
@@ -202,9 +203,18 @@
                  and split with NO game code changed, so that if anything in the
                  play area moves, it proves something was W-relative that should
                  not have been. The radar is step 3. -->
-            <div class="side-card" id="radar-col"><h2>RADAR</h2></div>
+            <div class="side-card" id="radar-col">
+                <h2>RADAR</h2>
+                <!-- ⚠️ READ-AHEAD ONLY. Jake declined a radar a student could
+                     type off; see drawRadar()'s header for why that would make
+                     the city decorative. -->
+                <canvas id="radar-canvas" class="panel-canvas" style="height:420px"></canvas>
+            </div>
             <div id="stage"></div>
-            <div class="side-card" id="controls-col"><h2>CONTROLS</h2></div>
+            <div class="side-card" id="controls-col">
+                <h2>CONTROLS</h2>
+                <canvas id="gauge-canvas" class="panel-canvas" style="height:230px"></canvas>
+            </div>
         </div>
     </div>
 
@@ -605,6 +615,8 @@ function play() {
         // ⚠️ THE BUTTONS LIVE IN THE RIGHT CARD NOW, not over the canvas.
         // game-chrome.js keeps its floating fallback for hosts without one.
         barHost: $('controls-col'),
+        radarCanvas: $('radar-canvas'),
+        gaugeCanvas: $('gauge-canvas'),
         // ⚠️ A GETTER, not the object — see game-deadline.js's minuteLines().
         minutes: () => MINUTES,
         // ⚠️⚠️ ONE TICK PER GRADED SECOND. The date is stamped HERE, at the

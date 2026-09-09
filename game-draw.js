@@ -545,3 +545,188 @@ export function drawCapsWarning(ctx, w, y) {
         padX: 14, padY: 7,
     });
 }
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * THE RADAR — READ-AHEAD, AND NOTHING ELSE. Round 95.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Jake: *"Radar as read ahead. Even two words ahead would be helpful."* He
+ * explicitly declined a radar a student could type off — that would make the
+ * city, the domes and the three-deep overlap decorative, which is most of the
+ * game.
+ *
+ * ⚠️⚠️ SO IT MUST NOT LOOK TYPABLE. The rule drawKeyboardStrip() already states
+ * about the humble NEXT preview applies here with far more force: *"a second
+ * thing that looks typable is worse than no preview at all."* No plate, no box,
+ * no lock highlight, no colour that matches a live target, and dimmer than
+ * anything in the sky. If a student starts typing at this panel, the design has
+ * failed regardless of how it looks.
+ *
+ * ⚠️⚠️ AND NO SWEEPING LINE, EVER. A rotating bright line across a 200px panel
+ * is a periodic large-area flash in front of thirty twelve-year-olds — the same
+ * reason drawHitFeedback() stopped doing a full-screen fill. Static rings; the
+ * only motion is a contact fading in as it enters. `prefers-reduced-motion`
+ * removes even that.
+ *
+ * ⚠️ IT KNOWS NOTHING ABOUT PLAY GEOMETRY. Contacts arrive pre-normalised
+ * (`nx` 0..1 across, `ny` 0..1 down) so no lane, dome or impact number is
+ * reachable from here — the same reason the panels are sibling canvases rather
+ * than an inset rect.
+ *
+ * @param {object} o  W, H, contacts:[{text,typed,nx,ny}], inbound:string|null
+ */
+export function drawRadar(ctx, o) {
+    const { W, H } = o;
+    const pad = LAY.RADAR_PAD;
+    const reduced = prefersReducedMotion();
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Origin is the BOTTOM of the panel: it is the city, and contacts descend
+    // toward it exactly as they descend in the sky. Jake, on an earlier
+    // left-to-right draft: *"I was trying to make the text readable, but that
+    // doesn't matter."* Matching the sky matters more than reading comfort.
+    const originY = H - pad;
+    const cx = W / 2;
+
+    ctx.save();
+    ctx.strokeStyle = LAY.RADAR_GRID;
+    ctx.lineWidth = 1;
+    for (const r of LAY.RADAR_RINGS) {
+        ctx.beginPath();
+        ctx.ellipse(cx, originY, (W / 2 - pad) * r * 1.6, (H - pad * 2) * r, 0, Math.PI, 0);
+        ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(cx, pad); ctx.lineTo(cx, originY);
+    ctx.stroke();
+
+    // The inbound row, at the top, with no position because it has none yet.
+    if (o.inbound) {
+        ctx.font = '10px "Courier Prime", monospace';
+        ctx.fillStyle = 'rgba(120,170,220,0.4)';
+        ctx.textAlign = 'left';
+        ctx.fillText('INBOUND', pad, pad + 8);
+        ctx.font = '12px "Courier Prime", monospace';
+        ctx.fillStyle = LAY.RADAR_INK;
+        ctx.fillText(o.inbound, pad, pad + 24);
+    }
+
+    const top = pad + (o.inbound ? 34 : 10);
+    for (const c of (o.contacts || [])) {
+        const y = top + Math.max(0, Math.min(1, c.ny)) * (originY - top);
+        const x = pad + Math.max(0, Math.min(1, c.nx)) * (W - pad * 2);
+        // ⚠️ FADE IN, NOT PULSE. Derived from how far it has descended, so there
+        // is no timer and nothing periodic.
+        const alpha = reduced ? 1 : Math.min(1, (c.ny || 0) / LAY.RADAR_FADE_IN);
+
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(x, y, LAY.RADAR_PIP_R, 0, Math.PI * 2);
+        ctx.fillStyle = LAY.RADAR_PIP;
+        ctx.fill();
+
+        // The word, so it can be READ ahead — dim, unboxed, and offset from the
+        // pip so the pip stays the position and the text stays annotation.
+        ctx.font = '11px "Courier Prime", monospace';
+        ctx.textAlign = x > W * 0.6 ? 'right' : 'left';
+        const tx = x + (x > W * 0.6 ? -7 : 7);
+        const typed = (c.text || '').slice(0, c.typed || 0);
+        const rest = (c.text || '').slice(c.typed || 0);
+        if (ctx.textAlign === 'left') {
+            ctx.fillStyle = LAY.RADAR_TYPED;
+            ctx.fillText(typed, tx, y + 4);
+            const w = ctx.measureText(typed).width;
+            ctx.fillStyle = LAY.RADAR_INK;
+            ctx.fillText(rest, tx + w, y + 4);
+        } else {
+            // Right-aligned: draw the remainder first, then the typed prefix to
+            // its left, so the word still reads in order.
+            ctx.fillStyle = LAY.RADAR_INK;
+            ctx.fillText(rest, tx, y + 4);
+            const w = ctx.measureText(rest).width;
+            ctx.fillStyle = LAY.RADAR_TYPED;
+            ctx.fillText(typed, tx - w, y + 4);
+        }
+        ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+}
+
+/**
+ * The gauge stack: this run above, the student's real totals below.
+ *
+ * ⚠️ THE TWO GROUPS ARE DRAWN DIFFERENTLY ON PURPOSE — arc faces for the run,
+ * plain bars for the totals. game-draw.js already argues this for the keyboard
+ * flanks: a child must not read "28 WPM" and "14m today" as two facts of the
+ * same kind. One is this run and resets; one is their week and does not.
+ *
+ * ⚠️⚠️ THE QUOTA BAR IS LABELLED, AND THAT IS A BUG FIX. Unlabelled, it sat
+ * above the WEEK figure and Jake read it as the week's time — *"what is that
+ * progress bar?"* It is the RUN's character quota. If the author of a feature
+ * cannot identify it, no sixth-grader will.
+ */
+export function drawGauges(ctx, o) {
+    const { W, H } = o;
+    ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    ctx.textAlign = 'center';
+
+    const arc = (cx, cy, frac, label, value, ink) => {
+        const r = LAY.GAUGE_ARC_R;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, Math.PI * 0.8, Math.PI * 2.2);
+        ctx.strokeStyle = 'rgba(120,170,220,0.16)';
+        ctx.lineWidth = 5; ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, Math.PI * 0.8, Math.PI * 0.8 + Math.PI * 1.4 * Math.max(0, Math.min(1, frac)));
+        ctx.strokeStyle = ink; ctx.lineWidth = 5; ctx.stroke();
+        ctx.fillStyle = '#e8f2fa';
+        ctx.font = 'bold 15px "Courier Prime", monospace';
+        ctx.fillText(String(value), cx, cy + 4);
+        ctx.fillStyle = LAY.GAUGE_LABEL;
+        ctx.font = '9px "Courier Prime", monospace';
+        ctx.fillText(label, cx, cy + r + 12);
+    };
+
+    const half = W / 2;
+    arc(half * 0.55, 38, (o.wpm || 0) / LAY.GAUGE_WPM_MAX, 'WPM', o.wpm || 0, LAY.GAUGE_RUN_INK);
+    arc(half * 1.45, 38, (o.acc || 0) / 100, 'ACCURACY', (o.acc || 0) + '%', LAY.GAUGE_RUN_INK);
+
+    let y = 96;
+    if (o.quota != null) {
+        ctx.textAlign = 'left';
+        ctx.fillStyle = LAY.GAUGE_LABEL;
+        ctx.font = '9px "Courier Prime", monospace';
+        ctx.fillText('QUOTA', 10, y);
+        const bw = W - 20;
+        roundRect(ctx, 10, y + 5, bw, LAY.GAUGE_BAR_H, 4);
+        ctx.fillStyle = 'rgba(2,4,10,0.8)'; ctx.fill();
+        roundRect(ctx, 11, y + 6, Math.max(0, (bw - 2) * Math.min(1, o.quota)), LAY.GAUGE_BAR_H - 2, 3);
+        ctx.fillStyle = o.quota >= 1 ? '#ffd700' : LAY.GAUGE_RUN_INK; ctx.fill();
+        y += 30;
+    }
+
+    // ⚠️ A DIVIDER, BECAUSE THE GROUPS MEAN DIFFERENT THINGS. Everything below
+    // it survives the run; everything above it does not.
+    ctx.strokeStyle = 'rgba(120,170,220,0.18)';
+    ctx.beginPath(); ctx.moveTo(10, y - 6); ctx.lineTo(W - 10, y - 6); ctx.stroke();
+
+    const totalRow = (label, text) => {
+        ctx.textAlign = 'left';
+        ctx.fillStyle = LAY.GAUGE_LABEL;
+        ctx.font = '9px "Courier Prime", monospace';
+        ctx.fillText(label, 10, y + 8);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = LAY.GAUGE_TOTAL_INK;
+        ctx.font = 'bold 13px "Courier Prime", monospace';
+        ctx.fillText(text, W - 10, y + 9);
+        y += 24;
+    };
+    // ⚠️ NOTHING IS PRINTED WHEN THERE IS NOTHING TO PRINT. "0m today" is a
+    // claim; a page that never read the totals has no business making it.
+    if (o.todayText) totalRow('TODAY', o.todayText);
+    if (o.weekText) totalRow('THIS WEEK', o.weekText);
+    ctx.restore();
+}

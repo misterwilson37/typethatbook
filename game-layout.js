@@ -76,6 +76,50 @@ export const PLAY_MIN_W = 724;
 export const BREAK_THREE_COL = 1150;
 export const BREAK_TWO_COL = 820;
 
+// ── radar panel (Round 95) ──────────────────────────────────────────────────
+//
+// ⚠️⚠️ THE RADAR IS READ-AHEAD, NOT AN INPUT SURFACE. Jake declined a radar a
+// student could type off: that would make the city, the domes and the whole
+// three-deep overlap decorative. Everything below is instrument styling chosen
+// so it CANNOT be mistaken for a target — no plate, no box, no lock colour, and
+// deliberately dimmer than anything in the sky.
+export const RADAR_PAD = 10;
+/** Depth rings, as fractions of panel height from the origin at the bottom. */
+export const RADAR_RINGS = [0.25, 0.5, 0.75];
+export const RADAR_PIP_R = 3;
+/**
+ * ⚠️ A CONTACT FADES IN OVER ITS FIRST SLICE OF DESCENT — no timer, no pulse,
+ * no sweep. See RADAR_SWEEP below; this is the only motion on the panel.
+ */
+export const RADAR_FADE_IN = 0.15;
+/**
+ * ⚠️⚠️ THERE IS NO SWEEPING LINE AND THERE MUST NEVER BE ONE. A rotating bright
+ * line across a 200px panel is a periodic large-area flash in a room of thirty
+ * twelve-year-olds — the same reason drawHitFeedback() stopped doing a
+ * full-screen red fill. This constant exists to be found by anyone who reaches
+ * for one.
+ */
+export const RADAR_SWEEP = false;
+
+export const RADAR_INK = 'rgba(120,170,220,0.55)';
+export const RADAR_GRID = 'rgba(120,170,220,0.14)';
+export const RADAR_PIP = '#8fd8e8';
+export const RADAR_TYPED = 'rgba(120,170,220,0.28)';
+
+// ── gauges (Round 95) ───────────────────────────────────────────────────────
+//
+// ⚠️ RUN STATS AND REAL TOTALS GET DIFFERENT TREATMENTS ON PURPOSE. A child must
+// not read "28 WPM" and "14m today" as two facts of the same kind: one is this
+// run, one is their week. Arc faces for the run, plain bars for the totals.
+export const GAUGE_ARC_R = 26;
+export const GAUGE_ROW_H = 74;
+export const GAUGE_BAR_H = 8;
+export const GAUGE_LABEL = 'rgba(159,182,198,0.85)';
+export const GAUGE_RUN_INK = '#8fe8c8';
+export const GAUGE_TOTAL_INK = '#7fb8ff';
+/** WPM face ceiling. Above this the needle pins rather than rescaling. */
+export const GAUGE_WPM_MAX = 60;
+
 // ── control bar ─────────────────────────────────────────────────────────────
 // Where Pause/Sound/Keys/Done sits, as a fraction of strip height up from the
 // bottom. ⚠️ IT MUST NOT SIT ON THE SKY: targets enter from the top, so a bar up

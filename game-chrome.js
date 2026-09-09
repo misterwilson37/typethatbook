@@ -46,22 +46,23 @@ export const COUNTDOWN_MS = 3000;
 const CSS = `
 .gc-wrap { position:absolute; inset:0; pointer-events:none;
            font-family:"Courier Prime", ui-monospace, monospace; }
-/* ⚠️⚠️ THE BAR LIVES AT THE BOTTOM NOW. Students, via Jake 2026-09-08: *"The
-   control panel - pause, keyboard, etc - all block the view at the top... The
-   sky should be clear for incoming UFOs."* They were right and it was the worst
-   possible place: targets ENTER from the top, so the controls covered every
-   word at exactly the moment it first became readable — costing reading time on
-   every single target.
-   ⚠️ THE VIEW SETS --gc-bottom TO THE KEYBOARD STRIP'S HEIGHT. With the board up
-   the buttons sit in its left flank; with it off they drop to the floor. Either
-   way nothing overlaps the sky. */
+/* ⚠️⚠️ THE OVERLAY POSITIONING IS GONE (Round 94). Jake: "The buttons are a
+   nightmare. You can see that they cover the interface, which is a no go. Even
+   when the keyboard is hidden, they are offset awkwardly." Every value we tried
+   for the bottom offset landed the bar on something — the sky, the skyline, the
+   keys — because a floating bar over a full-bleed canvas has nowhere that is not
+   something. When a host supplies barHost the bar is an ordinary block in an
+   ordinary card and cannot cover anything by construction.
+   ⚠️⚠️ NO BACKTICKS IN THIS BLOCK, EVER. It lives inside a template literal, so
+   one backtick closes the string and the whole module fails to parse with an
+   error that names a CSS property and points nowhere near here. */
 .gc-bar { display:flex; gap:6px; pointer-events:auto; z-index:2; }
 /* ⚠️⚠️ THE OVERLAY POSITIONING IS GONE (Round 94). Jake: *"The buttons are a
    nightmare. You can see that they cover the interface, which is a no go. Even
    when the keyboard is hidden, they are offset awkwardly."* Every value we tried
-   for `bottom` landed the bar on something — the sky, the skyline, the keys —
+   for 'bottom' landed the bar on something — the sky, the skyline, the keys —
    because a floating bar over a full-bleed canvas has nowhere that is not
-   something. When a host supplies `barHost` the bar is an ordinary block in an
+   something. When a host supplies 'barHost' the bar is an ordinary block in an
    ordinary card and cannot cover anything by construction. */
 .gc-bar-card { flex-direction:column; align-items:stretch; gap:8px; }
 .gc-bar-card .gc-btn { width:100%; }

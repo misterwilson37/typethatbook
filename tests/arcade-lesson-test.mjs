@@ -368,6 +368,43 @@ console.log('\nE — SIDE PANELS: COVERAGE SURVIVES, AND THE PLAY AREA NEVER SHR
        'the countdown/modal panel still overlays the play container, not a side card');
 }
 
+// ⚠️⚠️ THE RADAR MUST NOT BE MISTAKABLE FOR A TARGET. Jake declined a radar a
+// student could type off; if it reads as a second input surface the city, the
+// domes and the six-lives overlap are decorative and most of the game is gone.
+{
+    const dr = readFileSync(new URL('../game-draw.js', import.meta.url), 'utf8');
+    const body = dr.slice(dr.indexOf('export function drawRadar'));
+    const fn = body.slice(0, body.indexOf('\nexport function', 1));
+    ok(!/platedText\s*\(/.test(fn), 'the radar draws no plate — plates are what a target wears');
+    ok(!/#ffd700/.test(fn), 'and never the lock colour');
+    ok(/RADAR_TYPED|RADAR_INK/.test(fn), 'it uses its own dim instrument palette');
+
+    // ⚠️⚠️ NO SWEEPING LINE, EVER — a rotating bright line across a 200px panel
+    // is a periodic large-area flash in front of thirty children, the same
+    // reason drawHitFeedback() stopped doing a full-screen fill.
+    ok(/RADAR_SWEEP = false/.test(readFileSync(new URL('../game-layout.js', import.meta.url), 'utf8')),
+       'the sweep constant is present and false, so anyone reaching for one finds the reason');
+    ok(!/rotate\s*\(/.test(fn), 'and the radar rotates nothing');
+    ok(/prefersReducedMotion\(\)/.test(fn),
+       'prefers-reduced-motion removes even the fade-in');
+
+    // ⚠️ IT KNOWS NOTHING ABOUT PLAY GEOMETRY. Contacts arrive normalised, so no
+    // lane, dome or impact number is reachable from the panel.
+    ok(!/laneX|radius|domes/.test(fn),
+       'the radar cannot reach a lane, a dome radius or an impact test');
+
+    const gd = readFileSync(new URL('../game-deadline.js', import.meta.url), 'utf8');
+    ok(/nx: W \? e\.x \/ W : 0\.5, ny: threat\(e\)/.test(gd),
+       'contacts are handed over pre-normalised');
+    // ⭐ THE FREE 34px: with a radar, the strip stops paying for the NEXT band.
+    ok(/if \(kbH && !radarCtx\) kbH \+= LAY\.KB_PREVIEW_BAND;/.test(gd),
+       'the preview band is only charged when the strip carries the preview');
+    // ⚠️ AND THE FLANKS BECOME THE NARROW-MODE FALLBACK, or the same four
+    // numbers are drawn twice six inches apart.
+    ok(/gaugeCtx \? \{ left: \[\], right: \[\] \} : hudLines/.test(gd),
+       'the strip flanks stand down when the gauge panel is present');
+}
+
 console.log(fail
     ? `\narcade-lesson-test: ${pass} passed, ${fail} FAILED`
     : `arcade-lesson-test: all ${pass} assertions pass`);
