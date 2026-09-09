@@ -192,6 +192,10 @@
 // what reaches the student who is only here to type.
 
 import { GameDirector } from './game-shell.js';
+// ⚠️ EVERY NUMBER THAT ONLY DECIDES PIXELS LIVES IN game-layout.js, so UI work
+// can happen in parallel without touching this file. See that file's header for
+// what may and may not move there.
+import * as LAY from './game-layout.js';
 // ⚠️ LAYOUTS JOINS THE IMPORT (Round 88). The keyboard strip is drawn on the
 // canvas, but its ROWS still come from keyboard.js — this file must not hold a
 // second copy of the layout any more than it holds a second copy of the finger
@@ -276,15 +280,15 @@ for (const k of Object.keys(LANDMARK_SVG)) {
 // Natural aspect ratios, so a landmark is never stretched. Taken from each
 // SVG's own viewBox.
 const LANDMARK_BOX = {
-    'PARTHENON':   { w: 760, h: 360, drawH: 50  },
-    'BATMAN BLDG': { w: 400, h: 800, drawH: 132 },
-    'RYMAN':       { w: 500, h: 500, drawH: 66  },
+    'PARTHENON':   { w: 760, h: 360, drawH: LAY.LANDMARK_HEIGHTS['PARTHENON'] },
+    'BATMAN BLDG': { w: 400, h: 800, drawH: LAY.LANDMARK_HEIGHTS['BATMAN BLDG'] },
+    'RYMAN':       { w: 500, h: 500, drawH: LAY.LANDMARK_HEIGHTS['RYMAN'] },
 };
 
 // ⚠️ HOW FLAT THE DOMES ARE DRAWN. 1.0 is a true half-circle. Lowering this
 // gives falling words more sky WITHOUT changing which lanes a dome protects —
 // coverage is a horizontal test against `radius`, which this does not touch.
-const DOME_SQUASH = 0.72;
+const DOME_SQUASH = LAY.DOME_SQUASH;
 
 const MISFIRE_DARK_MS = 260;   // purely visual; see the header
 const MISSILE_SPEED = 900;     // px/sec, generous — the missile is feedback, not a mechanic
@@ -326,6 +330,28 @@ export function mount(container, opts) {
     // ⚠️ IT IS A FUNCTION, NOT A VALUE, so a caller that refreshes the totals
     // mid-run is reflected without remounting the game.
     const getMinutes = (opts && opts.minutes) || null;
+
+    // ⚠️⚠️ THE TIME SEAM. Called ONCE PER WHOLE ELAPSED SECOND of actual play,
+    // never with a duration and never at the end.
+    //
+    // NEXT-STEPS.md §5.1 is emphatic and it is right: learn.js has exactly ONE
+    // per-second increment site, below rollDayIfNeeded('tick'), with a comment
+    // saying four counting bugs died to create it and that there is no subtract
+    // path. A game that banked `report.seconds` at game over would be a SECOND
+    // record of a quantity that already exists (Rule 9) and would file a
+    // midnight-straddling game entirely under the day it ended in.
+    //
+    // ⚠️ SO THE VIEW EMITS TICKS AND STAMPS NOTHING. The host calls
+    // localDateStr() inside the callback, at the moment of the tick, which is
+    // what makes a game running through midnight split across two documents
+    // exactly as a lesson does. This file must never learn what a date is.
+    //
+    // ⚠️ IT FOLLOWS THE GRADED CLOCK, NOT WALL TIME: no tick while paused, none
+    // before the first keystroke, none after the run ends. `d.seconds()` already
+    // encodes all three, so the tick is derived from it rather than from a
+    // second timer that could disagree with the number being reported.
+    const onSecond = (opts && opts.onSecond) || null;
+    let secondsBanked = 0;
 
     const shieldCount = Math.max(1, Math.min(LANDMARKS.length, cfg.shields == null ? 3 : cfg.shields));
     // ⚠️⚠️ ROUND 87 — THE DIRECTOR IS TOLD HOW MANY HITS THE CITY CAN ACTUALLY
@@ -421,7 +447,7 @@ export function mount(container, opts) {
         // must not eat the sky, and below ~360px of height it is dropped
         // entirely rather than squeezed into unreadability.
         kbH = keyboardStripHeight(H, kbOn);
-        if (kbH) kbH += 34;   // ⚠️ the NEXT preview's own band; see drawKeyboardStrip.
+        if (kbH) kbH += LAY.KB_PREVIEW_BAND;   // ⚠️ the NEXT preview's own band; see drawKeyboardStrip.
         // ⚠️ TELL THE CHROME WHERE THE FLOOR IS. Its bar is positioned from the
         // bottom, so it must clear the keyboard strip when one is drawn. +10 so
         // the buttons sit inside the flank rather than straddling its top edge.
@@ -429,8 +455,8 @@ export function mount(container, opts) {
         // stats and the minutes."* At kbH+10 the bar sat on the skyline and
         // covered the landmarks; at ~40% of the strip height it lands in the gap
         // between the WPM lines above and TODAY below, over nothing.
-        try { container.style.setProperty('--gc-bottom', (kbH ? Math.round(kbH * 0.40) : 8) + 'px'); } catch (_) {}
-        const groundY = H - 26 - kbH;
+        try { container.style.setProperty('--gc-bottom', (kbH ? Math.round(kbH * LAY.CHROME_BOTTOM_FRACTION) : LAY.CHROME_BOTTOM_NO_KEYBOARD) + 'px'); } catch (_) {}
+        const groundY = H - LAY.GROUND_INSET - kbH;
         const laneX = i => W * ((i + 1) / (shieldCount + 1));
         const reach = Math.abs(laneX(Math.floor(shieldCount / 2)) - laneX(0));
         const prevDomes = domes;
@@ -467,11 +493,11 @@ export function mount(container, opts) {
         tubes = [];
         for (let f = 0; f < 8; f++) {
             const left = f < 4;
-            const silo = left ? W * 0.10 : W * 0.90;
+            const silo = left ? W * LAY.SILO_LEFT_X : W * LAY.SILO_RIGHT_X;
             const idx = left ? f : f - 4;
             tubes.push({
                 finger: f,
-                x: silo - 22.5 + idx * 15,
+                x: silo - LAY.SILO_BARREL_OFFSET + idx * LAY.SILO_BARREL_SPACING,
                 y: groundY - 12,
                 color: FINGER_COLORS[FINGER_NAMES[f]],
                 darkUntil: 0,
@@ -763,6 +789,17 @@ export function mount(container, opts) {
         if (ended) return;
         ended = true;
         d.end(now);
+        // ⚠️ DERIVED FROM d.seconds(), NOT ACCUMULATED FROM dt. A separate
+        // accumulator drifts from the number the modal reports, and then the
+        // minutes a student banks disagree with the run they just played.
+        if (onSecond && started && !ended) {
+            const whole = Math.floor(d.clock.seconds(now));
+            while (secondsBanked < whole) {
+                secondsBanked++;
+                try { onSecond(); } catch (_) { /* never let a host error stop play */ }
+            }
+        }
+
         const rep = d.report(now);
         won ? sfx.win() : sfx.lose();
         // ⚠️ THE VIEW FORMATS THESE LINES; IT DOES NOT COMPUTE THEM. Every number
@@ -849,8 +886,8 @@ export function mount(container, opts) {
                 // after a hit, when they are already behind. Just above the
                 // skyline it is still unmissable and blocks nothing: no target
                 // is typable down there, it has already landed.
-                x: W / 2, y: (H - kbH) - 64, text: banner.text,
-                font: 'bold 26px "Courier Prime", monospace',
+                x: W / 2, y: (H - kbH) - LAY.BANNER_ABOVE_GROUND, text: banner.text,
+                font: 'bold ' + LAY.BANNER_FONT_PX + 'px "Courier Prime", monospace',
                 color: ended ? '#ffd700' : '#ff5566',
                 bg: 'rgba(2,4,10,0.92)', border: '#334', padX: 22, padY: 12,
             });
@@ -1108,7 +1145,7 @@ export function mount(container, opts) {
      * Tower, the Pinnacle, a Broadway neon strip and the pedestrian bridge.
      */
     function drawSkyline(ctx, W, H, list, tSec) {
-        const g = H - 26 - kbH;
+        const g = H - LAY.GROUND_INSET - kbH;
         ctx.save();
 
         // Far background block towers
@@ -1182,7 +1219,7 @@ export function mount(container, opts) {
         const exposed = b.alive && !covered(b);
 
         if (img && img.complete && img.naturalWidth) {
-            const h = box.drawH * (dead ? 0.55 : 1);
+            const h = box.drawH * (dead ? LAY.LANDMARK_DEAD_SCALE : 1);
             const w = h * (box.w / box.h);
             ctx.save();
             // ⚠️ RUBBLE LEANS AND DARKENS. globalAlpha alone left a perfectly
@@ -1190,13 +1227,13 @@ export function mount(container, opts) {
             if (dead) {
                 ctx.globalAlpha = 0.5;
                 ctx.translate(b.x, g);
-                ctx.rotate(0.10);
+                ctx.rotate(LAY.LANDMARK_DEAD_LEAN);
                 ctx.translate(-b.x, -g);
             } else {
                 // ⚠️ SLIGHTLY DIMMED EVEN WHEN ALIVE. The art is daylight-bright
                 // and this is a night skyline; at full strength it detaches from
                 // the background and reads as a sticker.
-                ctx.globalAlpha = exposed ? 0.95 : 0.82;
+                ctx.globalAlpha = exposed ? LAY.LANDMARK_ALPHA_EXPOSED : LAY.LANDMARK_ALPHA;
             }
             ctx.drawImage(img, b.x - w / 2, g - h, w, h);
             ctx.restore();

@@ -210,42 +210,50 @@ console.log('\nC — RUN NUMBERS MEAN WHAT learn.js MEANS');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-console.log('\nD — THE PAGE STAYS A MEASUREMENT: IT WRITES NOTHING');
+console.log('\nD — THE PAGE WRITES ARCADE SECONDS, AND ONLY ARCADE SECONDS');
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// ⚠️ Jake, 2026-09-08: *"No need to save. This is only a test and won't be
-// rolled out to everyone."* A write appearing here would be a second writer for
-// a quantity learn.js owns — the exact Rule 9 break the seam notes warn about —
-// and it would arrive without any of recordRunOutcome()'s guards.
-for (const w of ['setDoc', 'updateDoc', 'addDoc', 'deleteDoc', 'writeBatch', 'increment']) {
-    ok(!new RegExp('\\b' + w + '\\s*\\(').test(code),
-       'arcade.html never calls ' + w + '() — it is a measurement, not a writer');
-}
-ok(!/typing_logs/.test(code),
-   '⚠️ and never queries typing_logs — that is a read per launch, and the GATE is the yardstick');
+// ⚠️⚠️ THIS PART WAS INVERTED ON PURPOSE (Round 92). Until now it asserted the
+// page wrote NOTHING, which was true and was the right assertion while the
+// arcade was a pure measurement. Jake, 2026-09-08: *"New arcade source,
+// please"* — beta testers needed their minutes to count. An assertion that
+// pins yesterday's deliberate limitation becomes tomorrow's false alarm, so it
+// is rewritten rather than deleted: what must hold now is not "no writes" but
+// "no write this page has no business making".
 
-// Reads are bounded: lessons + this student's lessonProgress, and nothing else.
-{
-    const getDocsCalls = (code.match(/getDocs\s*\(/g) || []).length;
-    ok(getDocsCalls === 2,
-       '⚠️ exactly two getDocs calls — lessons and lessonProgress (found ' + getDocsCalls + ')');
-    ok(/collection\(db, 'lessons'\)/.test(code), 'one of them is the lessons collection');
-    ok(/'lessonProgress'/.test(code), 'the other is this student\'s lessonProgress');
-}
+// ⚠️ THE ONE WRITE, AND IT NAMES ONLY THE arcade ROW. That is the whole §3.1
+// fix: a merge naming only these fields cannot mention — and so cannot replace
+// — secondsSchool or secondsLibrary. If this page ever spells a field name
+// itself instead of going through dayLogPayloadFor(), that protection is gone.
+ok(/dayLogPayloadFor\('arcade',/.test(code),
+   'the day write is built by daylog.js\'s builder, for the arcade source');
+ok(!/secondsSchool|secondsLibrary|charsSchool|charsLibrary/.test(code),
+   '⚠️⚠️ the page never spells another source\'s field — a merge naming one would replace it');
 
-// ⚠️ A HUNG READ IS NOT A REJECTED READ. Both the auth resolution and the reads
-// carry a bounded fallback, or a Chromebook that has dropped its wifi leaves a
-// child on a spinner with nothing to read.
-ok(/AUTH_TIMEOUT_MS/.test(code) && /setTimeout\(\(\) => begin\(null\)/.test(code),
-   'auth resolution has a bounded fallback rather than waiting forever');
-ok(/LOAD_TIMEOUT_MS/.test(code) && /function withTimeout/.test(code),
-   'the Firestore reads have a bounded fallback too');
+// ⚠️ ABSOLUTE VALUE, NOT AN INCREMENT, so it must start from what is stored.
+ok(/ARCADE_BASE\.seconds \+ banked/.test(code),
+   'the write starts from the stored arcade total, so a second device cannot erase the first');
+ok(/ARCADE_BASE\.seconds \+= banked;[\s\S]{0,80}ARCADE_SECONDS -= banked;/.test(code),
+   'the baseline advances and the counter drops together, so a flush cannot double-write');
 
-// ⚠️ THE CONFIG COMES FROM missionConfigFromRun(), NOT HAND-BUILT. If this page
-// and the eventual learn.js wiring computed difficulty differently, the two
-// would not be comparable — which is the entire point of the page.
-ok(/missionConfigFromRun\(\{ sequence: r\.sequence \}, gates, null\)/.test(code),
-   '⚠️ difficulty comes from game-shell.js\'s missionConfigFromRun(), never hand-built here');
+// ⚠️ A DROPPED WRITE MUST COST A STUDENT NOTHING.
+ok(/catch[\s\S]{0,200}could not bank seconds/.test(code),
+   'a failed flush keeps the banked seconds for the next attempt rather than discarding them');
+
+// ⚠️ ONE WRITE A MINUTE, NOT ONE A SECOND. This app's whole budget assumes it.
+ok(/setInterval\(flushArcadeSeconds, 60000\)/.test(code),
+   'seconds are flushed on a timer, never per tick');
+ok(/pagehide/.test(code) && /visibilitychange/.test(code),
+   'and flushed when the tab goes away — beforeunload is unreliable on Chromebooks');
+
+// ⚠️ THE TICK CARRIES NO DATE. The host stamps it, so a session crossing
+// midnight files under the day each second actually belonged to.
+ok(/onSecond: \(\) => bankSecond\(\)/.test(code),
+   'the game emits bare ticks and the page stamps the date');
+
+// Still true, and still worth pinning: no per-launch typing_logs QUERY.
+ok(!/typing_logs['"]\),\s*where/.test(code),
+   '⚠️ still never QUERIES typing_logs — that is a read per launch, and the gate is the yardstick');
 
 console.log(fail
     ? `\narcade-lesson-test: ${pass} passed, ${fail} FAILED`

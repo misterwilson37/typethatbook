@@ -6686,6 +6686,49 @@ what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
 
+### daylog.js v1.2.0 — archived Round 92, 8-entry budget
+
+Pushed over by v1.10.0 (the `arcade` source). Verbatim.
+
+```
+// v1.2.0 — ⚠️ ROADMAP PHASE B, STEP B2. THE READER HALF OF THE §3.1 FIX, AND IT
+//          SHIPS ALONE. totalsOf() is now DATE-GATED and EXPORTED.
+//
+//          §3.1: game.js and learn.js each write the whole day total under
+//          `seconds`, so a tab left open from an earlier period overwrites a
+//          newer total and a whole mode's time disappears. The fix is per-source
+//          FIELDS — secondsLibrary / secondsSchool — which firestore.rules
+//          v2.5.0 has permitted since v2.4.0 and which needs NO RULES DEPLOY.
+//          Verified by execution: tests/rules-probe.test.mjs Part B.
+//          (⚠️ The per-source DOCUMENT id design in HANDOFF §0.-4.C is DENIED by
+//          the deployed rules. Do not revive it. §0.-5.B.)
+//
+//          ⚠️ THE BLOCKER WAS NEVER THE WRITERS — IT WAS THIS FUNCTION. Reading
+//          legacy-first means a document holding `seconds` beside split fields
+//          returns `seconds` and silently drops the splits. Move the writers
+//          first and every afternoon after the switch vanishes behind that
+//          morning's flat number. So the readers go first, alone, and with no
+//          writer producing splits the totals are BIT-FOR-BIT what they were.
+//          That is the safety argument for shipping this file by itself: it is
+//          a no-op until game.js and learn.js follow.
+//
+//          ⚠️ WHY A DATE GATE INSTEAD OF JUST SUMMING. Plain flat+split summing
+//          double-counts the days written during the v3.29.x window, when the
+//          split shipped and was reverted — those documents carry a flat number
+//          AND splits describing the same seconds. That is precisely why v2.14.0
+//          made this legacy-first, and undoing it blindly re-breaks days that
+//          are currently right. Jake has ruled that historical data is good
+//          enough and is not to be repaired (HANDOFF §0.-7.A item 4); the gate
+//          honours that exactly — every day before the cutover reads as it does
+//          today and no past number moves.
+//
+//          ⚠️ tests/daylog-test.mjs PART B IS THE PROOF AND IT PASSES UNCHANGED.
+//          Its documents are dated 08-17/18/19, all pre-cutover. IF THAT
+//          HARNESS EVER NEEDS EDITING TO ACCOMMODATE THIS CHANGE, THE CUTOVER IS
+//          WRONG — stop and re-read this note.
+//
+```
+
 ### learn.js v2.40.0 — archived this round, 8-entry budget
 
 Pushed over by v2.48.0 (ROADMAP 58 step two, the per-class week anchor). Verbatim.

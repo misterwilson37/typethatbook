@@ -49,6 +49,8 @@ export const GAME_DRAW_VERSION = '1.0.0';
 // hold a second copy of either — game-assumptions-test.mjs Part J is the guard.
 import { LAYOUTS, FINGER_COLORS, FINGER_NAMES, buildFingerMap, getFingerInfo }
     from './keyboard.js';
+// ⚠️ Pixel-only tunables. See game-layout.js's header before adding to it.
+import * as LAY from './game-layout.js';
 
 const _KB_MAP = buildFingerMap('qwerty');
 
@@ -84,8 +86,8 @@ export function fingerColorOf(ch, fallback) {
  * a board nobody can read, which is worse than no board.
  */
 export function keyboardStripHeight(H, enabled) {
-    if (!enabled || H < 360) return 0;
-    return Math.max(84, Math.min(132, H * 0.19));
+    if (!enabled || H < LAY.KB_MIN_CANVAS_HEIGHT) return 0;
+    return Math.max(LAY.KB_HEIGHT_MIN, Math.min(LAY.KB_HEIGHT_MAX, H * LAY.KB_HEIGHT_FRACTION));
 }
 
 /**
@@ -113,13 +115,13 @@ export function drawKeyboardStrip(ctx, o) {
     const wantLower = want == null ? null : String(want).toLowerCase();
     const shifted = want != null && want !== wantLower;
 
-    const pad = 3;
+    const pad = LAY.KEY_PAD;
     // ⚠️ THE PREVIEW OWNS THE TOP 34px WHEN PRESENT, so the rows start below it.
-    const headY = o.nextWord ? 34 : 0;
+    const headY = o.nextWord ? LAY.KB_PREVIEW_BAND : 0;
     const rowH = Math.floor((height - 10 - headY) / 4);
     const keyH = rowH - pad;
     const widest = Math.max.apply(null, rows.map(r => r.length));
-    const keyW = Math.min(46, Math.floor((W * 0.62) / widest)) - pad;
+    const keyW = Math.min(LAY.KEY_MAX_W, Math.floor((W * LAY.KB_BOARD_WIDTH_FRACTION) / widest)) - pad;
     const boardW = widest * (keyW + pad);
     const originX = (W - boardW) / 2;
 
@@ -137,7 +139,7 @@ export function drawKeyboardStrip(ctx, o) {
     rows.forEach((rowChars, r) => {
         // Stagger, as a real keyboard does — a square grid is noticeably harder
         // to map onto the board under their hands.
-        const indent = r * (keyW * 0.34);
+        const indent = r * (keyW * LAY.KB_ROW_STAGGER);
         const y = top + 6 + headY + r * rowH;
         rowChars.forEach((ch, c) => {
             const x = originX + indent + c * (keyW + pad);
@@ -157,7 +159,9 @@ export function drawKeyboardStrip(ctx, o) {
             // beginner needs this strip — conveyed nothing.
             // A missed key sits brighter than a resting one even when it is not
             // the current target, or it is only findable by hunting for it.
-            ctx.globalAlpha = isWant ? 0.95 : (st === 'miss' ? 0.42 : st === 'fixed' ? 0.30 : 0.16);
+            ctx.globalAlpha = isWant ? LAY.KEY_ALPHA_ACTIVE
+                : (st === 'miss' ? LAY.KEY_ALPHA_MISSED
+                : st === 'fixed' ? LAY.KEY_ALPHA_FIXED : LAY.KEY_ALPHA_RESTING);
             ctx.fill();
             ctx.globalAlpha = 1;
             ctx.strokeStyle = isWant ? '#ffffff' : keyCol;
@@ -179,7 +183,7 @@ export function drawKeyboardStrip(ctx, o) {
         // (keyboard.js maps '\n' to right-pinky), not from a literal here.
         if (r === 1) {
             const ex = originX + indent + rowChars.length * (keyW + pad);
-            const ew = keyW * 1.6;
+            const ew = keyW * LAY.KB_ENTER_WIDTH;
             const wantEnter = want === '\n' || want === '\r';
             const ecol = fingerColorOf('\n');
             roundRect(ctx, ex, y, ew, keyH, 4);
@@ -203,7 +207,7 @@ export function drawKeyboardStrip(ctx, o) {
 
     // Space bar
     const sy = top + 6 + headY + rows.length * rowH;
-    const sw = boardW * 0.46, sx = (W - sw) / 2;
+    const sw = boardW * LAY.KB_SPACE_WIDTH_FRACTION, sx = (W - sw) / 2;
     const wantSpace = want === ' ';
     roundRect(ctx, sx, sy, sw, keyH, 4);
     ctx.fillStyle = wantSpace ? '#cfe6f5' : 'rgba(255,255,255,0.05)';
@@ -224,9 +228,9 @@ export function drawKeyboardStrip(ctx, o) {
     // ── the flanks ──────────────────────────────────────────────────────────
     // ⚠️ CLIPPED TO THEIR OWN SIDE. A long stat line running under the board
     // would sit behind the keys and read as corruption.
-    const flankW = originX - 14;
+    const flankW = originX - LAY.FLANK_PAD_X;
     const drawFlank = (lines, xCenter, align) => {
-        if (!lines || !lines.length || flankW < 70) return;
+        if (!lines || !lines.length || flankW < LAY.FLANK_MIN_WIDTH) return;
         ctx.textAlign = align;
         const lh = Math.min(22, (height - 12) / Math.max(3, lines.length));
         lines.forEach((ln, i) => {
@@ -236,8 +240,8 @@ export function drawKeyboardStrip(ctx, o) {
             ctx.fillText(ln, xCenter, top + 14 + i * lh);
         });
     };
-    drawFlank(o.left, 14, 'left');
-    drawFlank(o.right, W - 14, 'right');
+    drawFlank(o.left, LAY.FLANK_PAD_X, 'left');
+    drawFlank(o.right, W - LAY.FLANK_PAD_X, 'right');
 
     // ⚠️⚠️ BOTTOM-ANCHORED, NOT APPENDED TO THE TOP LISTS. Jake, 2026-09-08:
     // *"add current daily minutes to the bottom left and weekly minutes to the
@@ -247,14 +251,14 @@ export function drawKeyboardStrip(ctx, o) {
     // and "14m today" as two facts of the same kind. Anchoring to the bottom
     // edge keeps that separation at every strip height.
     const drawBottom = (text, xCenter, align) => {
-        if (!text || flankW < 70) return;
+        if (!text || flankW < LAY.FLANK_MIN_WIDTH) return;
         ctx.textAlign = align;
         ctx.font = 'bold 12px "Courier Prime", monospace';
         ctx.fillStyle = '#5f7387';
         ctx.fillText(text, xCenter, top + height - 12);
     };
-    drawBottom(o.bottomLeft, 14, 'left');
-    drawBottom(o.bottomRight, W - 14, 'right');
+    drawBottom(o.bottomLeft, LAY.FLANK_PAD_X, 'left');
+    drawBottom(o.bottomRight, W - LAY.FLANK_PAD_X, 'right');
 
     // ⚠️⚠️ THE NEXT WORD, SO IT CAN BE READ BEFORE IT ARRIVES. This is the whole
     // remedy for the "waiting for the next word" cap — the student pre-reads
@@ -272,12 +276,12 @@ export function drawKeyboardStrip(ctx, o) {
         ctx.fillText(o.nextWord, W / 2, top + 28);
     }
 
-    if (o.progress != null && flankW >= 70) {
-        const bw = Math.min(160, flankW - 10);
-        const bx = W - 14 - bw;
+    if (o.progress != null && flankW >= LAY.FLANK_MIN_WIDTH) {
+        const bw = Math.min(LAY.FLANK_BAR_MAX_W, flankW - 10);
+        const bx = W - LAY.FLANK_PAD_X - bw;
         // ⚠️ LIFTED CLEAR OF THE WEEKLY-MINUTES LINE BELOW IT (Round 90). At
         // `height - 22` the bar and that text occupied the same pixels.
-        const by = top + height - (o.bottomRight ? 36 : 22);
+        const by = top + height - (o.bottomRight ? LAY.FLANK_BAR_LIFT_WITH_MINUTES : LAY.FLANK_BAR_LIFT_ALONE);
         roundRect(ctx, bx, by, bw, 10, 5);
         ctx.fillStyle = 'rgba(2,4,10,0.8)'; ctx.fill();
         ctx.strokeStyle = 'rgba(0,229,255,0.3)'; ctx.lineWidth = 1; ctx.stroke();

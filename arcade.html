@@ -189,10 +189,10 @@
 
 <script type="module">
 import { db, auth } from './firebase-config.js';
-import { collection, getDocs, doc, getDoc } from './read-meter.js';
+import { collection, getDocs, doc, getDoc, setDoc } from './read-meter.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { runPlan, gatesForRun, chunkSequence } from './run-grade.js';
-import { readWeek, localDateStr } from './daylog.js';
+import { readWeek, localDateStr, dayLogPayloadFor } from './daylog.js';
 // ⚠️⚠️ A SURFACE THAT READS A WEEK MUST HEAL THE MIRROR (ROADMAP 50).
 // mirror-heal-test.mjs DISCOVERS readWeek() call sites rather than naming the
 // known three, precisely so a fourth surface arriving unhealed is caught — and
@@ -240,6 +240,83 @@ let lastPlayedWPM = null;
 // the game for the strip's bottom corners. null until read, and null forever for
 // a signed-out visitor — the game shows nothing rather than a made-up zero.
 let MINUTES = null;
+// ⚠️⚠️ ARCADE SECONDS ARE COUNTED AND SHOWN, BUT NOT YET WRITTEN — AND THAT IS
+// A DELIBERATE STOP, NOT AN UNFINISHED THOUGHT.
+//
+// daylog.js's SOURCE_FIELDS has exactly two sources: `library` and `school`.
+// The arcade is a third surface, and which of these it belongs to is a SCHEMA
+// decision with consequences nobody can walk back — every day document written
+// under the wrong source is unseparable afterwards, because the fields are
+// summed and there is no subtract path. Folding arcade minutes into `school`
+// would make a lesson's minutes and a game's minutes the same number forever;
+// adding an `arcade` source touches totalsOf(), the reports, the rules and both
+// page controllers.
+//
+// So the seam is BUILT and the write is NOT. The ticks accumulate here, the
+// student sees today's and this week's minutes move as they play, and the one
+// line that would commit them is waiting on a ruling. ⚠️ THE NUMBERS BELOW ARE
+// LOCAL-ONLY AND VANISH ON RELOAD — do not describe them to a student as banked.
+let ARCADE_SECONDS = 0;
+
+// ⚠️⚠️ WHAT THE DOCUMENT ALREADY HOLDS UNDER *THIS SOURCE'S OWN* TRIPLE.
+// dayLogPayloadFor() writes an absolute value, not an increment, so the write
+// must start from what is stored or a second device would erase the first.
+// readWeek() hands this back as todaySources — no extra read.
+let ARCADE_BASE = { seconds: 0, chars: 0, mistakes: 0 };
+let ARCADE_UID = null;
+let flushTimer = null;
+
+/**
+ * Commit the arcade seconds banked so far.
+ *
+ * ⚠️ ONLY `arcade` FIELDS ARE NAMED, EVER. That is the whole §3.1 fix: a merge
+ * naming only this row cannot mention — and therefore cannot replace —
+ * secondsSchool or secondsLibrary. dayLogPayloadFor() enforces it by building
+ * the payload from SOURCE_FIELDS rather than letting this page spell fields.
+ * ⚠️ THE DATE IS TAKEN AT FLUSH TIME from the same localDateStr() the ticks use,
+ * so a session crossing midnight files the seconds it banked after midnight
+ * under the new day.
+ */
+async function flushArcadeSeconds() {
+    if (!ARCADE_UID || !ARCADE_SECONDS) return;
+    const dateStr = localDateStr();
+    const banked = ARCADE_SECONDS;
+    try {
+        const payload = dayLogPayloadFor('arcade', dateStr, {
+            day: {},
+            own: {
+                seconds: ARCADE_BASE.seconds + banked,
+                chars: ARCADE_BASE.chars,
+                mistakes: ARCADE_BASE.mistakes,
+            },
+        });
+        await setDoc(doc(db, 'typing_logs', ARCADE_UID + '_' + dateStr), payload, { merge: true });
+        // ⚠️ THE BASELINE MOVES AND THE COUNTER RESETS TOGETHER, or the next
+        // flush writes the same seconds twice.
+        ARCADE_BASE.seconds += banked;
+        ARCADE_SECONDS -= banked;
+    } catch (e) {
+        // ⚠️ BANKED SECONDS ARE NOT DISCARDED ON FAILURE. They stay in
+        // ARCADE_SECONDS and go in the next flush; a dropped write must cost a
+        // student nothing.
+        console.warn('[arcade] could not bank seconds:', e.message);
+    }
+}
+
+function bankSecond() {
+    ARCADE_SECONDS++;
+    // ⚠️ FLUSHED ON A TIMER, NOT PER SECOND. One write a minute per playing
+    // student is the budget this app is built around; a write per second is not.
+    if (!flushTimer) {
+        flushTimer = setInterval(flushArcadeSeconds, 60000);
+    }
+    // Reflected immediately so a tester can SEE the clock moving, which is the
+    // whole reason Jake asked for this before the write exists.
+    if (MINUTES) {
+        MINUTES.dailySeconds++;
+        MINUTES.weeklySeconds++;
+    }
+}
 
 const $ = id => document.getElementById(id);
 
@@ -449,8 +526,13 @@ function play() {
         config: cfg,
         // ⚠️ A GETTER, not the object — see game-deadline.js's minuteLines().
         minutes: () => MINUTES,
-        onQuit: () => finish(null, r),
-        onEnd:  rep => finish(rep, r),
+        // ⚠️⚠️ ONE TICK PER GRADED SECOND. The date is stamped HERE, at the
+        // moment of the tick, so a game running through midnight splits across
+        // two days exactly as a lesson does — the view never learns what a date
+        // is. See game-deadline.js's onSecond note.
+        onSecond: () => bankSecond(),
+        onQuit: () => { flushArcadeSeconds(); finish(null, r); },
+        onEnd:  rep => { flushArcadeSeconds(); finish(rep, r); },
     });
     $('stage').scrollIntoView({ block: 'nearest' });
 }
@@ -547,6 +629,10 @@ async function loadMinutes(user) {
         // week reads as zeroes, and showing a student a wrongly-low weekly total
         // is worse than showing none.
         if (wk && wk.ok) {
+            ARCADE_UID = user.uid;
+            if (wk.todaySources && wk.todaySources.arcade) {
+                ARCADE_BASE = Object.assign(ARCADE_BASE, wk.todaySources.arcade);
+            }
             MINUTES = {
                 dailySeconds: (wk.today && wk.today.seconds) || 0,
                 weeklySeconds: (wk.week && wk.week.seconds) || 0,
@@ -633,6 +719,13 @@ $('lesson').addEventListener('change', fillRuns);
 $('run').addEventListener('change', () => { fillSpeeds(); showGates(); });
 $('speed').addEventListener('change', showGates);
 $('play').addEventListener('click', play);
+// ⚠️ pagehide, NOT beforeunload — this file's siblings record that beforeunload
+// does not fire reliably on Chromebooks, which is every machine this runs on.
+window.addEventListener('pagehide', () => { flushArcadeSeconds(); });
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushArcadeSeconds();
+});
+
 $('again').addEventListener('click', () => {
     $('result').style.display = 'none';
     $('picker').style.display = 'block';

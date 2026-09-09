@@ -235,7 +235,7 @@
 > * **Expected stamps:** `index.html` **v3.23.0**, `reports.html` **v1.11.0**,
 >   `versions.js` **v1.17.0**, `admin.html` **v1.23.0**, `admin.js` **v3.55.0**,
 >   `lessons-admin.js` **v1.22.0**, `staff-admin.js` **v2.4.0**, `game.js`
->   **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.9.0**, `lesson-gate.js`
+>   **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.10.0**, `lesson-gate.js`
 >   **v1.2.0**, `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**, and
 >   `firebase/firestore.rules` **v2.12.0** (published, UNCHANGED this round).
 >   ⚠️ `arcade.html` **v2.0.0** and all eight `game-*`/`escape-board` modules at
@@ -352,7 +352,7 @@
 > * **Expected stamps:** `index.html` **v3.22.0**, `versions.js` **v1.17.0**,
 >   `admin.html` **v1.23.0**, `admin.js` **v3.55.0**, `lessons-admin.js`
 >   **v1.22.0**, `reports.html` **v1.10.0**, `staff-admin.js` **v2.4.0**,
->   `game.js` **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.9.0**,
+>   `game.js` **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.10.0**,
 >   `firebase/firestore.rules` **v2.12.0** (published), `lesson-gate.js`
 >   **v1.2.0**, `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**, `arcade.html`
 >   **v2.0.0**, and all eight `game-*`/`escape-board` modules at **1.0.0** per
@@ -450,7 +450,7 @@
 >   `admin.html` **v1.23.0**, `admin.js` **v3.55.0**, `lessons-admin.js`
 >   **v1.22.0**, `reports.html` **v1.10.0** (its REPORTS_VERSION module
 >   constant is separately at 2.40.0), `staff-admin.js` **v2.4.0**, `game.js`
->   **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.9.0**,
+>   **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.10.0**,
 >   `firebase/firestore.rules` **v2.12.0**, `lesson-gate.js` **v1.2.0**,
 >   `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**.
 > * ⚠️ **HEADER-BUDGET ARCHIVAL THIS ROUND:** `admin.js` v3.48.0 moved to
@@ -547,7 +547,7 @@
 >   `admin.html` **v1.23.0**, `admin.js` **v3.55.0**, `lessons-admin.js`
 >   **v1.22.0**, `reports.html` **v1.10.0** (its REPORTS_VERSION module
 >   constant is separately at 2.40.0), `staff-admin.js` **v2.4.0**, `game.js`
->   **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.9.0**,
+>   **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.10.0**,
 >   `firebase/firestore.rules` **v2.12.0** — **Jake confirmed this is
 >   published to the live console**, not just committed here.
 >   `lesson-gate.js` **v1.2.0**, `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**.
@@ -662,7 +662,7 @@
 >   **v1.22.0**, `reports.html` **v1.10.0** (its REPORTS_VERSION module
 >   constant is separately at 2.40.0 — see item 1 above),
 >   `staff-admin.js` **v2.4.0**, `game.js` **v3.50.0**, `learn.js` **v2.48.0**,
->   `daylog.js` **v1.9.0**, `firebase/firestore.rules` **v2.12.0**,
+>   `daylog.js` **v1.10.0**, `firebase/firestore.rules` **v2.12.0**,
 >   `lesson-gate.js` **v1.2.0**, `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**.
 > * ⚠️ **`style.css` v3.10.0 is STILL correctly unshipped** — Jake rejected it
 >   rendered. Do not ship it.
@@ -708,7 +708,7 @@
 >
 > ### 1. ⭐⭐ THE ANCHOR IS PARAMETERISED, NOT JUST COLLAPSED
 >
-> `daylog.js` **v1.9.0**. Round 71's collapse made `weekStartOf()` the single
+> `daylog.js` **v1.10.0**. Round 71's collapse made `weekStartOf()` the single
 > place the anchor lives; that only removed the DUPLICATION. Nothing before
 > this version could ask for any day OTHER than Saturday. `weekStartOf(dateStr,
 > weekStartDay = 6)` and `weekDatesOf(dateStr, weekStartDay = 6)` now take the
@@ -796,7 +796,7 @@
 > * **Expected stamps:** `index.html` **v3.19.0**, `versions.js` **v1.17.0**,
 >   `admin.html` **v1.23.0**, `admin.js` **v3.54.1**, `lessons-admin.js`
 >   **v1.22.0**, `reports.html` **v1.10.0**, `staff-admin.js` **v2.4.0**,
->   `game.js` **v3.50.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.9.0**,
+>   `game.js` **v3.50.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.10.0**,
 >   `lesson-gate.js` **v1.2.0**, `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**.
 > * ⚠️ **HEADER-BUDGET ARCHIVALS THIS ROUND** (8-entry cap, mechanically
 >   enforced): `daylog.js` v1.4.0's stray duplicate-title line removed outright

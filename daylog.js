@@ -1,3 +1,15 @@
+// daylog.js v1.10.0 —
+//
+// v1.10.0 — ⭐ A THIRD SOURCE: `arcade`. Jake's ruling, 2026-09-08. SOURCE_FIELDS
+//           gains its own triple (secondsArcade/charsArcade/mistakesArcade) and
+//           totalsOf() sums it alongside library and school.
+//           ⚠️ ADDITIVE AND RETROACTIVELY INERT: documents written before this
+//           version have no arcade fields, `|| 0` reads them as zero, and no
+//           historical total moves by a single second.
+//           ⚠️ SEPARABLE BY CONSTRUCTION, which is the point of the ruling — the
+//           fields are summed with no subtract path, so arcade minutes folded
+//           into `school` could never have been pulled back out.
+//
 // daylog.js v1.9.0 — THE STUDENT READS THE GRADED DOCUMENT, AND THE GRADED
 //
 // v1.9.0 — ⭐ ROADMAP 58 STEP TWO: `weekStartOf(dateStr, weekStartDay = 6)` and
@@ -97,41 +109,8 @@
 //
 //          It rides on readWeek()'s existing seven reads. No extra round trip.
 //
-// v1.2.0 — ⚠️ ROADMAP PHASE B, STEP B2. THE READER HALF OF THE §3.1 FIX, AND IT
-//          SHIPS ALONE. totalsOf() is now DATE-GATED and EXPORTED.
-//
-//          §3.1: game.js and learn.js each write the whole day total under
-//          `seconds`, so a tab left open from an earlier period overwrites a
-//          newer total and a whole mode's time disappears. The fix is per-source
-//          FIELDS — secondsLibrary / secondsSchool — which firestore.rules
-//          v2.5.0 has permitted since v2.4.0 and which needs NO RULES DEPLOY.
-//          Verified by execution: tests/rules-probe.test.mjs Part B.
-//          (⚠️ The per-source DOCUMENT id design in HANDOFF §0.-4.C is DENIED by
-//          the deployed rules. Do not revive it. §0.-5.B.)
-//
-//          ⚠️ THE BLOCKER WAS NEVER THE WRITERS — IT WAS THIS FUNCTION. Reading
-//          legacy-first means a document holding `seconds` beside split fields
-//          returns `seconds` and silently drops the splits. Move the writers
-//          first and every afternoon after the switch vanishes behind that
-//          morning's flat number. So the readers go first, alone, and with no
-//          writer producing splits the totals are BIT-FOR-BIT what they were.
-//          That is the safety argument for shipping this file by itself: it is
-//          a no-op until game.js and learn.js follow.
-//
-//          ⚠️ WHY A DATE GATE INSTEAD OF JUST SUMMING. Plain flat+split summing
-//          double-counts the days written during the v3.29.x window, when the
-//          split shipped and was reverted — those documents carry a flat number
-//          AND splits describing the same seconds. That is precisely why v2.14.0
-//          made this legacy-first, and undoing it blindly re-breaks days that
-//          are currently right. Jake has ruled that historical data is good
-//          enough and is not to be repaired (HANDOFF §0.-7.A item 4); the gate
-//          honours that exactly — every day before the cutover reads as it does
-//          today and no past number moves.
-//
-//          ⚠️ tests/daylog-test.mjs PART B IS THE PROOF AND IT PASSES UNCHANGED.
-//          Its documents are dated 08-17/18/19, all pre-cutover. IF THAT
-//          HARNESS EVER NEEDS EDITING TO ACCOMMODATE THIS CHANGE, THE CUTOVER IS
-//          WRONG — stop and re-read this note.
+// ⚠️ v1.2.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (8-entry budget,
+// Round 92). It is the reader half of the §3.1 source-split fix.
 //
 // v1.1.0 adds the Stage 2 half: sessionSignature(), sumDaySessions() and
 // projectDayTotal(). v1.0.0's readWeek() is unchanged.
@@ -169,7 +148,7 @@
 // tests/week-anchor-test.mjs and tests/daylog-test.mjs both hold that line. A
 // mismatch here does not throw — it silently reads the wrong seven days.
 
-export const DAYLOG_VERSION = "1.9.0";
+export const DAYLOG_VERSION = "1.10.0";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE PER-SOURCE CUTOVER
@@ -251,10 +230,17 @@ export function totalsOf(data, dateStr) {
         chars:    data.chars    || 0,
         mistakes: data.mistakes || 0,
     };
+    // ⚠️⚠️ v1.10.0 — `arcade` IS THE THIRD SOURCE AND IT SUMS IN HERE.
+    // Jake, 2026-09-08: *"New arcade source, please. While I hope to fold
+    // deadline into school eventually, the other games will not be, so having an
+    // arcade class is probably the way."*
+    // ⚠️ A DOCUMENT WRITTEN BEFORE THIS VERSION HAS NO ARCADE FIELDS, and `|| 0`
+    // makes that read as zero — which is exactly right, because no arcade
+    // seconds existed. This addition can never change a historical total.
     const split = {
-        seconds:  (data.secondsLibrary  || 0) + (data.secondsSchool  || 0),
-        chars:    (data.charsLibrary    || 0) + (data.charsSchool    || 0),
-        mistakes: (data.mistakesLibrary || 0) + (data.mistakesSchool || 0),
+        seconds:  (data.secondsLibrary  || 0) + (data.secondsSchool  || 0) + (data.secondsArcade  || 0),
+        chars:    (data.charsLibrary    || 0) + (data.charsSchool    || 0) + (data.charsArcade    || 0),
+        mistakes: (data.mistakesLibrary || 0) + (data.mistakesSchool || 0) + (data.mistakesArcade || 0),
     };
 
     // ⚠️ ON OR AFTER THE CUTOVER: FLAT + SPLITS. After the writers change, the
@@ -299,6 +285,16 @@ export function totalsOf(data, dateStr) {
 export const SOURCE_FIELDS = {
     library: { seconds: 'secondsLibrary', chars: 'charsLibrary', mistakes: 'mistakesLibrary' },
     school:  { seconds: 'secondsSchool',  chars: 'charsSchool',  mistakes: 'mistakesSchool'  },
+    // ⚠️⚠️ v1.10.0 — THE ARCADE. Jake's ruling, 2026-09-08. Deadline may fold
+    // into `school` one day; Escape Key and Shatter never will, so the games
+    // need a row that is theirs. ⚠️ ITS OWN ROW MEANS ITS OWN FIELDS: an arcade
+    // write names only these three, so a merge from game.js or learn.js cannot
+    // mention them and therefore cannot replace them. That is the whole §3.1
+    // fix, and it is why a third source is safe to add and a shared row is not.
+    // ⚠️ AND IT IS SEPARABLE FOREVER. Folding arcade minutes into `school` would
+    // have made a lesson's minutes and a game's minutes one number with no
+    // subtract path to undo it.
+    arcade:  { seconds: 'secondsArcade',  chars: 'charsArcade',  mistakes: 'mistakesArcade'  },
 };
 
 /**

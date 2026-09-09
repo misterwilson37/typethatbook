@@ -402,7 +402,12 @@ function typingLogsWrittenFields() {
         // be a second statement of the payload shape, which is the twin
         // failure this project has hit repeatedly. Rule 9.
         const trio = { seconds: 1, chars: 1, mistakes: 1 };
-        for (const source of ['library', 'school']) {
+        // ⚠️ DERIVED FROM SOURCE_FIELDS, NOT A LITERAL LIST. A hardcoded
+        // ['library','school'] made this assertion fail the moment daylog.js
+        // v1.10.0 added `arcade` — not because anything was wrong, but because
+        // the mirror had gone stale, which is the exact failure this file's own
+        // comment two lines up warns about. Rule 9 applies to the harness too.
+        for (const source of Object.keys(SOURCE_FIELDS)) {
             for (const d of ['2020-01-01', '2030-01-01']) {
                 Object.keys(dayLogPayloadFor(source, d, { day: trio, own: trio }))
                     .forEach(k => fields.add(k));
