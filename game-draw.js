@@ -1,4 +1,4 @@
-// game-draw.js v1.2.0 — keyStates added Round 90 (miss/fixed key colouring).
+// game-draw.js v1.3.0 — keyStates added Round 90 (miss/fixed key colouring).
 // game-draw.js v1.1.0 — CANVAS HELPERS SHARED BY ALL THREE ARCADE VIEWS.
 // Round 82 (Victor); keyboard strip added Round 89.
 //
@@ -31,7 +31,7 @@
 // may be imported by anything that draws; that only stays safe while it knows
 // nothing.
 
-export const GAME_DRAW_VERSION = '1.0.0';
+export const GAME_DRAW_VERSION = '1.3.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device

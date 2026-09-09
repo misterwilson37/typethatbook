@@ -1,5 +1,35 @@
 # CHANGELOG — TypeThatBook
 
+## Round 98 (Sholes II) — 2026-09-09 — the arcade starts telling the truth about itself
+
+Jake, 2026-09-09: *"you're not really following many of our normal protocols -
+and I've been too excited to notice. Pages don't have version banners, there's no
+handoff, you haven't named yourself."* All three were true, and the first one had
+already produced a real defect.
+
+⚠️⚠️ **FOUR ARCADE FILES SPENT TEN ROUNDS LYING ABOUT THEIR OWN VERSION.**
+`game-draw.js` header v1.2.0 / constant 1.0.0; `game-deadline.js` 1.5.0 / 1.0.0;
+`game-chrome.js` 1.1.0 / 1.3.0; `game-layout.js` had **no constant at all**.
+README's bump-both rule is enforced only for files in `versions.js` SOURCES, and
+the arcade is deliberately not registered — **so it fell in the gap between two
+correct decisions.** A classroom running a stale arcade file would have reported
+itself as current. All five synced; `tests/arcade-versions-test.mjs` discovers
+the files and pins header-to-constant agreement. ⭐ It is explicitly marked for
+deletion when the arcade joins `versions.js`.
+
+⭐ **`arcade.html` v3.1.0 gets a hover/click build panel** — the instrument
+HANDOFF §2 describes, since there is no command line in a classroom. ⚠️ It is
+**its own module and imports no Firebase**: the app module dies wholesale if the
+SDK fails to load, and a build panel that only works when the app works is
+useless at exactly the moment somebody needs it. Verified with Firebase entirely
+unreachable — the panel still reports every version. It also states plainly that
+it cannot see `firestore.rules`, which is deployed by hand and is a different
+object from the file in the repo.
+
+⚠️ A thirteen-round handoff block was written covering rounds 86-98, including
+the three defects that reached a classroom and why no harness caught them. It
+should have been thirteen blocks.
+
 ## Round 94 — 2026-09-08 — the buttons stop covering the game
 
 Steps 1 and 2 of `ARCADE-SIDE-PANELS-PLAN.md`, which that plan is explicit must

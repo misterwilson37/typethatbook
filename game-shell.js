@@ -1,4 +1,4 @@
-// game-shell.js v1.0.0 — THE GAME TIMING RULE, IN ONE PLACE, WITH NOTHING ELSE
+// game-shell.js v1.2.0 — THE GAME TIMING RULE, IN ONE PLACE, WITH NOTHING ELSE
 // IN IT. Round 82 (Victor).
 //
 // ⚠️⚠️ THREE GAMES, ONE COPY OF THE MATH. The arcade views (Deadline, Escape
@@ -109,7 +109,7 @@
 
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.0.0';
+export const GAME_SHELL_VERSION = '1.2.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS

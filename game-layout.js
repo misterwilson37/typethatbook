@@ -1,4 +1,4 @@
-// game-layout.js v1.0.0 — EVERY ARCADE LAYOUT NUMBER, IN ONE PLACE. Round 92.
+// game-layout.js v1.1.0 — EVERY ARCADE LAYOUT NUMBER, IN ONE PLACE. Round 92.
 //
 // Jake, 2026-09-08: *"Is there a file that will let me move buttons and stuff
 // around without messing with what you're doing?"*
@@ -20,6 +20,14 @@
 // silently ended the three-deep overlap giving the city six lives instead of
 // three. It looked fine. Want smaller domes? This squash is the knob. The radius
 // lives in game-deadline.js's layout() with a warning on it.
+
+/**
+ * ⚠️ THE RUNTIME CONSTANT. Every shipped file in this repo carries its version
+ * TWICE — here and in the header comment — and both move in the same edit. This
+ * file shipped without one, so the build panel had nothing to read and no check
+ * could tell whether a classroom was running the layout it was supposed to.
+ */
+export const GAME_LAYOUT_VERSION = '1.1.0';
 
 // ── keyboard strip ──────────────────────────────────────────────────────────
 export const KB_HEIGHT_FRACTION = 0.19;

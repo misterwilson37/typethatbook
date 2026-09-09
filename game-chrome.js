@@ -1,4 +1,4 @@
-// game-chrome.js v1.1.0
+// game-chrome.js v1.3.0
 //
 // v1.2.0 — ⭐ THE BAR MOVED OFF THE SKY, to the bottom-left, offset by whatever
 //          the view reports as its keyboard height (--gc-bottom). Targets enter

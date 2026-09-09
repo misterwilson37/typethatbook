@@ -1,5 +1,89 @@
 # HANDOFF — TypeThatBook
 
+> ## ▶ START HERE — written 2026-09-09 by Rounds 86-98 (Sholes II), for whoever is next
+>
+> ⚠️⚠️ **THIS BLOCK COVERS THIRTEEN ROUNDS AND IT SHOULD HAVE BEEN THIRTEEN
+> BLOCKS.** Jake, 2026-09-09: *"you're not really following many of our normal
+> protocols - and I've been too excited to notice. Pages don't have version
+> banners, there's no handoff, you haven't named yourself."* He is right on every
+> count. The arcade got built at speed with the ceremony dropped, and the ceremony
+> is what makes a round auditable by the next one. **Do not take this block as
+> licence to write one for your own stretch of work; write it each round.**
+>
+> ### THE DEFECT THAT CAME OUT OF DROPPING IT
+>
+> ⚠️⚠️ **FOUR ARCADE FILES SPENT TEN ROUNDS LYING ABOUT THEIR OWN VERSION.**
+> `game-draw.js` said v1.2.0 in its header and 1.0.0 in its constant;
+> `game-deadline.js` said 1.5.0 / 1.0.0; `game-chrome.js` 1.1.0 / 1.3.0;
+> `game-layout.js` shipped with **no runtime constant at all**. README's rule —
+> *"both are bumped in the same edit, always. npm test fails if the two
+> disagree"* — is enforced only for files in `versions.js` SOURCES, and the
+> arcade is deliberately **not** registered (a draft is not a version, and while
+> the games were inert the build panel had no business fetching eight modules no
+> student loaded). **The arcade fell in the gap between two correct decisions.**
+> All five are now synced; `tests/arcade-versions-test.mjs` discovers the files
+> and keeps the two stamps honest. ⭐ **DELETE THAT HARNESS when the arcade joins
+> `versions.js`** and let `version-stamp-test.mjs` own them — two answers to one
+> question is worse than none.
+>
+> ### WHAT SHIPPED, IN ORDER
+>
+> * **86** — arcade folded in from Round 82's drop; `arcade.html` wired to real
+>   lessons and their real gates. ⚠️ Found on integration:
+>   `game-assumptions-test.mjs` would have been **permanently red the moment it
+>   was registered** while passing 59/59 standalone — the runner judges a harness
+>   on its OUTPUT matching `/FAIL|UNSAFE|\bERROR\b/`, and an assertion LABEL
+>   said "IF THIS FAILS".
+> * **87-91** — student feedback: finger-coloured hulls, aiming silos, the
+>   overlapping-dome six-lives mechanic, Gemini's building art, the on-screen
+>   keyboard, per-key error memory, the banner off the play area.
+>   ⚠️⚠️ **ROUND 91 SHRANK THE DOME RADIUS FOR LOOKS AND SILENTLY ENDED THE
+>   THREE-DEEP OVERLAP.** The radius IS the coverage test. It looked completely
+>   fine. Domes are *flattened* now, never narrowed.
+> * **92-93** — `game-layout.js` (every pixel-only number, safe to edit in
+>   parallel); the `arcade` source in `daylog.js` v1.10.0; time actually counting.
+>   ⚠️ The write was **rejected by `firestore.rules` and would have failed in
+>   silence** — `validDailyLog()` demanded one of three seconds fields and an
+>   arcade write names none of them. Rules **v2.13.0** fixes it.
+> * **94-97** — side panels: three sibling canvases (never an inset playfield —
+>   every lane and dome number is `W`-relative), controls out of the canvas
+>   overlay, chunky-pixel radar with a materialising inbound contact, segmented
+>   lamp gauges.
+> * **98** — version integrity above, and `arcade.html`'s build panel.
+>
+> ### ⚠️ THINGS THAT SHIPPED BROKEN, AND WHY NOTHING CAUGHT THEM
+>
+> * **A backtick inside a CSS template literal** took `game-chrome.js` to a
+>   classroom. `node --check` passed (it parses a `.js` as a SCRIPT and the
+>   wreckage was script-legal), the runner reported "0 syntax failures", all 87
+>   harnesses passed — **because every harness reads these files as TEXT rather
+>   than loading them as modules.** `tests/module-parse-test.mjs` closes that.
+> * **A panel-drawing splice left a function unterminated** — `draw is not
+>   defined`, thrown every frame, both side canvases simply blank, game otherwise
+>   normal. Parsed clean. Only a browser said anything.
+> * ⚠️ **THE PATTERN**: four times now a harness has read a COMMENT as code — an
+>   assertion label containing "FAIL", `arcade.html`'s own "DO NOT ADD A
+>   typing_logs QUERY" warning, `firestore.rules`' header naming
+>   `secondsArcade`, `popularity-sort`'s field scan. **Strip comments before any
+>   "does the code do X" check. Assume a fifth.**
+>
+> ### THE STATE OF PLAY
+>
+> * **89 harnesses pass**, `audit:versions` 0 problems, all 35 modules parse.
+> * ⚠️ **`firestore.rules` v2.13.0 MUST BE PASTED INTO THE CONSOLE.** Until it is,
+>   arcade minutes silently do not count. **Jake cannot run `npm run
+>   test:rules`** — `tools/arcade-check.html` is the browser instrument that tests
+>   the DEPLOYED rules; it writes the stored value back unchanged, so it moves no
+>   total and is safe to run repeatedly.
+> * ⚠️ **The arcade is still absent from `versions.js` SOURCES**, by ruling. When
+>   the games stop being a draft, register them in all three mirrors at once.
+> * ⚠️ **`arcade.html` is unlinked**, by ruling. No tile on Library, no option on
+>   School.
+> * ⭐ **`game-layout.js` is safe to edit in parallel** — pixel-only numbers, no
+>   logic, no state, no Firestore.
+> * ⚠️ **Escape Key and Shatter are untouched.** Escape Key is arcade-only by
+>   ruling, not capability.
+
 > ⚠️⚠️ **VERIFYING THE ARCADE WRITE WITHOUT A COMMAND LINE.** Jake cannot run
 > `npm run test:rules`, and every check in `npm test` reads the rules FILE in the
 > repo — the file and the Firebase console are different objects that agree only
