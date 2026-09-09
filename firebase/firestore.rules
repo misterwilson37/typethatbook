@@ -1,6 +1,16 @@
 rules_version = '2';
 
-// firestore.rules v2.12.0 — TypeThatBook
+// firestore.rules v2.13.0 — TypeThatBook
+//
+// v2.13.0 — ⭐ THE ARCADE SOURCE (daylog.js v1.10.0). validDailyLog() now bounds
+//           secondsArcade/charsArcade/mistakesArcade, and — the part that
+//           actually mattered — the "at least one seconds field" clause accepts
+//           secondsArcade. ⚠️ WITHOUT THAT LAST CHANGE EVERY ARCADE FLUSH WAS
+//           REJECTED, silently, from the student's point of view: they play,
+//           the page banks nothing, and no error reaches them. Found by reading
+//           the rule rather than by a test, because the emulator suite cannot
+//           run in this environment.
+//
 //
 // v2.12.0 — ⭐ ROADMAP 54: settings/popularity JOINS settings/goals AS
 //           GUEST-READABLE. Holds the library's popularity ranking, derived
@@ -636,10 +646,27 @@ service cloud.firestore {
           && (!('secondsSchool' in d)   || (d.secondsSchool   is number && d.secondsSchool   >= 0 && d.secondsSchool   <= 86400))
           && (!('charsSchool' in d)     || (d.charsSchool     is number && d.charsSchool     >= 0 && d.charsSchool     <= 5000000))
           && (!('mistakesSchool' in d)  || (d.mistakesSchool  is number && d.mistakesSchool  >= 0 && d.mistakesSchool  <= 5000000))
+          // ⚠️⚠️ v2.13.0 — THE ARCADE TRIPLE. daylog.js v1.10.0 added `arcade`
+          // as a third source. ⚠️ WITHOUT THESE THE FIELDS ARE STILL *WRITABLE*
+          // (there is deliberately no keys().hasOnly() here) BUT UNBOUNDED — a
+          // client could park 10^9 seconds in secondsArcade and every total on
+          // every surface would inherit it, because totalsOf() sums the row.
+          // Same ceilings as the other two rows, for the same reason.
+          && (!('secondsArcade' in d)   || (d.secondsArcade   is number && d.secondsArcade   >= 0 && d.secondsArcade   <= 86400))
+          && (!('charsArcade' in d)     || (d.charsArcade     is number && d.charsArcade     >= 0 && d.charsArcade     <= 5000000))
+          && (!('mistakesArcade' in d)  || (d.mistakesArcade  is number && d.mistakesArcade  >= 0 && d.mistakesArcade  <= 5000000))
           // ⚠️ At least one recognized seconds field must exist, or an empty /
           // garbage document (uid + date and nothing else) would otherwise pass
           // every check above by having nothing to violate.
-          && ('seconds' in d || 'secondsLibrary' in d || 'secondsSchool' in d);
+          // ⚠️⚠️ THIS LINE WAS THE HARD BLOCKER FOR THE ARCADE, AND IT WOULD
+          // HAVE FAILED SILENTLY IN A CLASSROOM. An arcade-only write names
+          // none of the three fields this clause used to list, so EVERY flush
+          // from arcade.html was rejected — a student would have played, banked
+          // nothing, and seen no error. The clause is still doing its job (a
+          // uid+date document with no seconds at all is still refused); it just
+          // has to know about the third source now.
+          && ('seconds' in d || 'secondsLibrary' in d || 'secondsSchool' in d
+              || 'secondsArcade' in d);
     }
 
     // ⚠️ THE DOC ID IS NOW BOUND TO THE DATE FIELD, not merely prefixed by the

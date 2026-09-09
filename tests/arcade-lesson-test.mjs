@@ -251,6 +251,50 @@ ok(/pagehide/.test(code) && /visibilitychange/.test(code),
 ok(/onSecond: \(\) => bankSecond\(\)/.test(code),
    'the game emits bare ticks and the page stamps the date');
 
+// ⚠️⚠️ THE ENVELOPE, AND EVERY ONE OF THESE FAILS SILENTLY IN A CLASSROOM.
+// firestore.rules' validDailyLog() requires uid and date on the MERGED result,
+// and dayLogPayloadFor() returns only the three source fields — so an arcade
+// write to a day the student has not otherwise touched CREATES the document and
+// is rejected without them. The student plays, banks nothing, and sees no error.
+// The emulator suite cannot run in this environment, so these are pinned here.
+for (const f of ['uid:', 'date: dateStr', 'classId:', 'schoolId:']) {
+    ok(code.includes(f), 'the day write carries `' + f + '` for validDailyLog()');
+}
+
+// ⚠️ LEDGER FIRST. logdays.js's ledger may be a SUPERSET of the logs and must
+// never be a subset: a day in typing_logs but absent from the ledger is planned
+// as a skip by readWeek(), and a skip reads as a zero — the student's own
+// minutes would go DOWN after playing.
+{
+    const nd = code.indexOf('noteDay(');
+    const sd = code.indexOf("setDoc(doc(db, 'typing_logs'");
+    ok(nd > -1 && sd > -1 && nd < sd,
+       '⚠️ noteDay() runs BEFORE the typing_logs write, as in game.js and learn.js');
+}
+
+// ⚠️ THE RULES MUST ACCEPT AN ARCADE-ONLY WRITE. This clause was the hard
+// blocker: an arcade flush names none of seconds/secondsLibrary/secondsSchool.
+{
+    // ⚠️⚠️ COMMENTS STRIPPED, AND THIS ONE BIT. The first draft grepped the raw
+    // rules file, and `secondsArcade` appears in v2.13.0's own header comment
+    // explaining the change — so the assertion passed against a rules file with
+    // the clause DELETED. Caught by mutating the rule and watching the test stay
+    // green. Fourth time this repo has read a comment as code
+    // (game-assumptions-test's "FAIL" label, arcade.html's typing_logs warning,
+    // popularity-sort's field scan); assume a fifth.
+    const rules = readFileSync(new URL('../firebase/firestore.rules', import.meta.url), 'utf8')
+        .replace(/^\s*\/\/.*$/gm, '');
+    // ⚠️ TARGETS THE DISJUNCTION, NOT THE NAME. `'secondsArcade' in d` also
+    // appears in the BOUNDS line above it, so a bare name search stayed green
+    // with the accept-clause deleted — mutation-verified twice before this
+    // regex was right. What must hold is that secondsArcade appears in the
+    // "at least one recognised seconds field" list itself.
+    ok(/'secondsSchool' in d\s*\|\|\s*'secondsArcade' in d\s*\)/.test(rules),
+       '⚠️⚠️ validDailyLog() accepts secondsArcade as a recognised seconds field');
+    ok(/d\.secondsArcade\s+is number[\s\S]{0,60}<= 86400/.test(rules),
+       'and bounds it, so a client cannot park an impossible number in the day total');
+}
+
 // Still true, and still worth pinning: no per-launch typing_logs QUERY.
 ok(!/typing_logs['"]\),\s*where/.test(code),
    '⚠️ still never QUERIES typing_logs — that is a read per launch, and the gate is the yardstick');

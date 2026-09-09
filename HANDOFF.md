@@ -237,7 +237,7 @@
 >   `lessons-admin.js` **v1.22.0**, `staff-admin.js` **v2.4.0**, `game.js`
 >   **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.10.0**, `lesson-gate.js`
 >   **v1.2.0**, `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**, and
->   `firebase/firestore.rules` **v2.12.0** (published, UNCHANGED this round).
+>   `firebase/firestore.rules` **v2.13.0** (published, UNCHANGED this round).
 >   ⚠️ `arcade.html` **v2.0.0** and all eight `game-*`/`escape-board` modules at
 >   **1.0.0** per Jake's ruling that a draft is not a version — and still
 >   deliberately absent from `versions.js` SOURCES.
@@ -353,7 +353,7 @@
 >   `admin.html` **v1.23.0**, `admin.js` **v3.55.0**, `lessons-admin.js`
 >   **v1.22.0**, `reports.html` **v1.10.0**, `staff-admin.js` **v2.4.0**,
 >   `game.js` **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.10.0**,
->   `firebase/firestore.rules` **v2.12.0** (published), `lesson-gate.js`
+>   `firebase/firestore.rules` **v2.13.0** (published), `lesson-gate.js`
 >   **v1.2.0**, `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**, `arcade.html`
 >   **v2.0.0**, and all eight `game-*`/`escape-board` modules at **1.0.0** per
 >   Jake's ruling that a draft is not a version.
@@ -451,7 +451,7 @@
 >   **v1.22.0**, `reports.html` **v1.10.0** (its REPORTS_VERSION module
 >   constant is separately at 2.40.0), `staff-admin.js` **v2.4.0**, `game.js`
 >   **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.10.0**,
->   `firebase/firestore.rules` **v2.12.0**, `lesson-gate.js` **v1.2.0**,
+>   `firebase/firestore.rules` **v2.13.0**, `lesson-gate.js` **v1.2.0**,
 >   `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**.
 > * ⚠️ **HEADER-BUDGET ARCHIVAL THIS ROUND:** `admin.js` v3.48.0 moved to
 >   CHANGELOG.md § ARCHIVED FILE HEADERS, verbatim, pointer left behind.
@@ -548,7 +548,7 @@
 >   **v1.22.0**, `reports.html` **v1.10.0** (its REPORTS_VERSION module
 >   constant is separately at 2.40.0), `staff-admin.js` **v2.4.0**, `game.js`
 >   **v3.51.0**, `learn.js` **v2.48.0**, `daylog.js` **v1.10.0**,
->   `firebase/firestore.rules` **v2.12.0** — **Jake confirmed this is
+>   `firebase/firestore.rules` **v2.13.0** — **Jake confirmed this is
 >   published to the live console**, not just committed here.
 >   `lesson-gate.js` **v1.2.0**, `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**.
 > * ⚠️ **`style.css` v3.10.0 is STILL correctly unshipped** — Jake rejected it
@@ -662,7 +662,7 @@
 >   **v1.22.0**, `reports.html` **v1.10.0** (its REPORTS_VERSION module
 >   constant is separately at 2.40.0 — see item 1 above),
 >   `staff-admin.js` **v2.4.0**, `game.js` **v3.50.0**, `learn.js` **v2.48.0**,
->   `daylog.js` **v1.10.0**, `firebase/firestore.rules` **v2.12.0**,
+>   `daylog.js` **v1.10.0**, `firebase/firestore.rules` **v2.13.0**,
 >   `lesson-gate.js` **v1.2.0**, `adventure.css` **v1.0.4**, `hud.js` **v2.2.0**.
 > * ⚠️ **`style.css` v3.10.0 is STILL correctly unshipped** — Jake rejected it
 >   rendered. Do not ship it.

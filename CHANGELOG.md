@@ -1,5 +1,34 @@
 # CHANGELOG — TypeThatBook
 
+## Round 93 — 2026-09-08 — arcade time actually counts
+
+`daylog.js` **v1.10.0** added the `arcade` source last round; this round made a
+write of it survive contact with the rules.
+
+⚠️⚠️ **THE WRITE WAS REJECTED BY firestore.rules AND WOULD HAVE FAILED IN
+SILENCE.** `validDailyLog()` ended with *"at least one recognised seconds field
+must exist"* — listing `seconds`, `secondsLibrary`, `secondsSchool`. An
+arcade-only flush names none of them, so every write from `arcade.html` was
+refused: the student plays, banks nothing, and no error reaches them. Rules
+**v2.13.0** accepts and bounds the arcade triple.
+
+⚠️ **AND THE PAYLOAD WAS MISSING ITS ENVELOPE.** `dayLogPayloadFor()` returns
+only the three source fields, but `validDailyLog()` requires `uid` and `date` on
+the merged result — so an arcade write to a day the student had not otherwise
+touched would CREATE the document and be rejected. The write now carries the
+same envelope `learn.js` sends, and calls `noteDay()` **before** it, because
+logdays.js's ledger may be a superset of the logs and never a subset — a day
+present in `typing_logs` but absent from the ledger is planned as a skip by
+`readWeek()`, and a skip reads as a zero. The student's own minutes would have
+gone *down* after playing.
+
+⚠️ **Both were found by reading, not by testing** — the emulator suite cannot run
+in this environment — so `arcade-lesson-test.mjs` now pins the envelope, the
+ledger ordering and the rules clause. ⚠️ That rules assertion took **three**
+attempts to make real: it first matched the string in the rules' own header
+comment, then matched the bounds line rather than the accept clause, and passed
+against a deleted rule both times. Mutation-verified.
+
 ## Round 87 (Merritt) — 2026-09-08 — ⚠️⚠️⚠️ "Most Popular" counted a field that does not exist, and the harness required it
 
 **Jake came in about the Library page.** Two rows rendering as 1.5 rows, no

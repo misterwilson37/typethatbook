@@ -189,7 +189,7 @@
 
 <script type="module">
 import { db, auth } from './firebase-config.js';
-import { collection, getDocs, doc, getDoc, setDoc } from './read-meter.js';
+import { collection, getDocs, doc, getDoc, setDoc, updateDoc, arrayUnion } from './read-meter.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { runPlan, gatesForRun, chunkSequence } from './run-grade.js';
 import { readWeek, localDateStr, dayLogPayloadFor } from './daylog.js';
@@ -200,7 +200,7 @@ import { readWeek, localDateStr, dayLogPayloadFor } from './daylog.js';
 // a student whose local day-ledger is missing days the server vouches for gets
 // those days planned as skips, and a skip reads as a zero: a weekly total
 // silently too low, on the page that exists to be compared against School.
-import { reconcile } from './logdays.js';
+import { reconcile, noteDay } from './logdays.js';
 import { missionConfigFromRun } from './game-shell.js';
 import { mount as mountDeadline } from './game-deadline.js';
 
@@ -264,6 +264,12 @@ let ARCADE_SECONDS = 0;
 // readWeek() hands this back as todaySources — no extra read.
 let ARCADE_BASE = { seconds: 0, chars: 0, mistakes: 0 };
 let ARCADE_UID = null;
+// ⚠️ THE DOCUMENT ENVELOPE. dayLogPayloadFor() returns ONLY the three source
+// fields, and firestore.rules' validDailyLog() requires `uid` and `date` on the
+// merged result — so an arcade-only write to a day the student has not otherwise
+// touched CREATES the document and would be rejected without these. Read once
+// from the user doc loadMinutes() already fetched; no extra read.
+let ARCADE_WHO = null;
 let flushTimer = null;
 
 /**
@@ -290,7 +296,28 @@ async function flushArcadeSeconds() {
                 mistakes: ARCADE_BASE.mistakes,
             },
         });
-        await setDoc(doc(db, 'typing_logs', ARCADE_UID + '_' + dateStr), payload, { merge: true });
+        // ⚠️ LEDGER FIRST, exactly as game.js and learn.js do it. logdays.js's
+        // ledger may be a SUPERSET of the logs and must never be a subset: a day
+        // present in typing_logs but absent from the ledger is planned as a skip
+        // by readWeek(), and a skip reads as a zero.
+        try {
+            await noteDay({ db, doc, updateDoc, setDoc, arrayUnion,
+                            uid: ARCADE_UID, date: dateStr });
+        } catch (_) { /* noteDay swallows its own failures */ }
+
+        await setDoc(doc(db, 'typing_logs', ARCADE_UID + '_' + dateStr), {
+            uid: ARCADE_UID,
+            email: (ARCADE_WHO && ARCADE_WHO.email) || '',
+            displayName: (ARCADE_WHO && ARCADE_WHO.displayName) || 'Anonymous',
+            classId: (ARCADE_WHO && ARCADE_WHO.classId) || '',
+            schoolId: (ARCADE_WHO && ARCADE_WHO.schoolId) || '',
+            date: dateStr,
+            ...payload,
+            lastUpdated: new Date(),
+            // ⚠️ NO `source` TAG. It was dropped after the split cutover because
+            // one string cannot describe a day that holds two modes — and this
+            // page is the case that makes three.
+        }, { merge: true });
         // ⚠️ THE BASELINE MOVES AND THE COUNTER RESETS TOGETHER, or the next
         // flush writes the same seconds twice.
         ARCADE_BASE.seconds += banked;
@@ -630,6 +657,12 @@ async function loadMinutes(user) {
         // is worse than showing none.
         if (wk && wk.ok) {
             ARCADE_UID = user.uid;
+            ARCADE_WHO = {
+                email: user.email || '',
+                displayName: user.displayName || '',
+                classId: (userDoc && userDoc.classId) || '',
+                schoolId: (userDoc && userDoc.schoolId) || '',
+            };
             if (wk.todaySources && wk.todaySources.arcade) {
                 ARCADE_BASE = Object.assign(ARCADE_BASE, wk.todaySources.arcade);
             }
