@@ -28,7 +28,8 @@ import {
     spawnIntervalMs, travelMs, queueDepthFor, netWPM, accuracyPct,
     targetsFromSequence, avgTargetChars, arcadeKeySet, makeArcadeTargets,
     missionConfigFromRun, charsPerSecondFor, GAME_SHELL_VERSION,
-    enemyStepMs, targetTimeMs,
+    enemyStepMs, targetTimeMs, POINTS_PER_CORRECT_CHAR, POINTS_PER_INTACT_SHIELD,
+    SURVIVAL_PRESSURE_CEILING, RAMP_PER_TARGET,
 } from '../game-shell.js';
 import { chunkSequence, gatesForRun } from '../run-grade.js';
 import { firstBlocked } from '../drill-filter.js';
@@ -631,6 +632,146 @@ console.log('\nPART J — the finger map is keyboard.js\'s, and covers what a bo
     ok(FINGER_NAMES.length === 8, 'eight tubes, eight finger names');
     ok(FINGER_NAMES.every(n => !!FINGER_COLORS[n]),
        'and every one of them has a colour in keyboard.js — the game does not define its own');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\nPART K — SURVIVAL: the score that must not be a subtraction');
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-09: *"if they pass the game and enter survival mode, then they
+// get the passing score (unlocking the next lesson) and survival mode is there
+// to get on the leaderboard."*
+//
+// ⚠️⚠️ THIS PART EXISTS BECAUSE THE OBVIOUS IMPLEMENTATION IS WRONG AND LOOKS
+// RIGHT. "Survival score = score at the end minus score at the pass" reads as
+// arithmetic nobody would question, and it goes NEGATIVE: `score` pays for
+// INTACT SHIELDS, and survival is exactly when a student spends them. Caught by
+// running it, not by reading it — a clean 700 fell to 300 over four minutes.
+{
+    const words = 'the quick brown fox jumps over the lazy dog today'.split(' ');
+    const cfg = missionConfigFromRun({ sequence: words.join(' ').split('') },
+                                     { minWPM: 25, minAccuracy: 90 }, null);
+    // ⚠️ THE POOL IS APPENDED AFTER THE QUOTA IS COMPUTED, exactly as
+    // arcade.html does it. Appending first would move the finish line to the end
+    // of the survival words and the student could never pass.
+    const quotaBefore = cfg.quotaChars;
+    cfg.targets = cfg.targets.concat(['zzzz', 'qqqq', 'wwww', 'xxxx']);
+    ok(cfg.quotaChars === quotaBefore,
+       '\u26a0\u26a0 appending a survival pool does not move the mission\u2019s finish line');
+
+    const d = new GameDirector(cfg);
+    let t = 0;
+    d.clock.startIfNeeded(t);
+    for (const w of words) { t += w.length * 300; d.chars += w.length; d.cleared(w, t); }
+    ok(d.quotaMet, 'the run\u2019s own characters still meet the quota');
+    const passRep = d.report(t);
+    ok(passRep.survivalScore === 0,
+       '\u26a0 at the moment of the pass the survival score is zero \u2014 nothing has been ' +
+       'typed past the quota yet');
+
+    // Survive badly, and lose shields doing it.
+    for (let i = 0; i < 40; i++) { t += 6000; d.chars += 4; d.mistakes += 6; d.cleared('zzzz', t); }
+    d.hit(t); d.hit(t);
+    const end = d.report(t);
+
+    ok(end.score - passRep.score < 0,
+       '\u26a0\u26a0 the NAIVE subtraction is negative after two lost shields (' +
+       (end.score - passRep.score) + ') \u2014 which is why it is not the implementation');
+    ok(end.survivalScore > 0,
+       '\u2b50 and survivalScore is positive (' + end.survivalScore + ')');
+    ok(end.survivalScore === end.extraCleared * 4 * POINTS_PER_CORRECT_CHAR,
+       'it prices the characters cleared PAST the quota, at the app\u2019s one rate');
+    // ⚠️⚠️ AND NO SHIELD COMPONENT, WHICH NEEDS ITS OWN CASE OR IT IS UNTESTED.
+    // My first draft of this assertion was `|| true` at the end — a check that
+    // cannot fail, which is worse than no check because the count includes it.
+    // A fresh director has FULL shields and nothing cleared: its `score` is
+    // therefore large and its survival score must be exactly zero.
+    const fresh = new GameDirector(cfg);
+    ok(fresh.score >= POINTS_PER_INTACT_SHIELD && fresh.survivalScore === 0,
+       'survivalScore carries no shield component (score ' + fresh.score +
+       ', survival ' + fresh.survivalScore + ')');
+
+    // ⚠️⚠️ THE GRADED SNAPSHOT IS IMMUNE. This is the property the whole feature
+    // rests on: WPM and accuracy are RATIOS over the session and do not
+    // decompose, so the only correct moment to read them is the instant of the
+    // pass. A late 60%-accuracy sprint must not touch the figure that unlocks
+    // the lesson.
+    ok(passRep.wpm === 40 && passRep.acc === 100,
+       'the snapshot taken at the pass reads ' + passRep.wpm + ' WPM / ' + passRep.acc + '%');
+    ok(end.acc < passRep.acc && end.wpm < passRep.wpm,
+       'the SESSION figures collapse during a bad survival run (' +
+       end.wpm + ' WPM / ' + end.acc + '%)');
+    ok(passRep.wpm === 40 && passRep.acc === 100,
+       '\u2b50\u2b50 and the snapshot is untouched by any of it \u2014 the grade is frozen');
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ AND SURVIVAL MUST NOT PLATEAU, WHICH IS WHAT IT DID.
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // Jake, 2026-09-09: *"survival mode has to get HARDER. So the incoming
+    // enemies spawn gradually faster and faster. The student will lose because it
+    // gets too hard, not because s/he gets tired."*
+    //
+    // ⭐ THE RAMP ALREADY EXISTED AND STILL FAILED HIS TEST, because
+    // PRESSURE_CEILING is reached 75 targets past the quota and then holds.
+    // Measured at a 10 WPM gate that plateau is 25 WPM of demand — a rate a
+    // strong student holds until the bell, so the run ends from fatigue and the
+    // leaderboard ranks patience.
+    {
+        const ramped = extras => {
+            const d = new GameDirector({ targets: ['abcd'], targetWPM: 10,
+                                         quotaChars: 4,
+                                         pressureCeiling: SURVIVAL_PRESSURE_CEILING });
+            d.chars += 4; d.cleared('abcd', 1);          // meet the quota
+            while (d._extraCleared < extras) d.cleared('abcd', 1);
+            return d;
+        };
+        const at75 = ramped(75), at250 = ramped(250);
+        ok(at250.pressure > at75.pressure,
+           '\u2b50\u2b50 survival keeps climbing past 75 extra targets (' +
+           at75.pressure.toFixed(2) + ' \u2192 ' + at250.pressure.toFixed(2) +
+           ') \u2014 the plateau is what made it a test of patience');
+        ok(spawnIntervalMs(10, 5, at250.pressure) < spawnIntervalMs(10, 5, at75.pressure),
+           'and the words arrive faster for it, which is the thing a student feels');
+        ok(at250.pressure > PRESSURE_CEILING,
+           'the survival ceiling is genuinely above the mission one');
+
+        // ⚠️⚠️ AND NOTHING ELSE MOVES. A graded run must never get harder than
+        // the gate it is judged against, and Escape Key was not part of this
+        // conversation at all.
+        const plain = new GameDirector({ targets: ['abcd'], targetWPM: 10, quotaChars: 4 });
+        plain.chars += 4; plain.cleared('abcd', 1);
+        for (let i = 0; i < 400; i++) plain.cleared('abcd', 1);
+        ok(plain.pressure === PRESSURE_CEILING,
+           '\u26a0\u26a0 a director given no ceiling still stops at PRESSURE_CEILING (' +
+           plain.pressure + ')');
+
+        // ⚠️ THE RAMP ITSELF IS UNCHANGED — this round raised a cap, it did not
+        // re-tune the curve. A steeper ramp would also change the MISSION, whose
+        // ramp begins the moment a fast student passes the quota.
+        const one = ramped(1), two = ramped(2);
+        ok(Math.abs((two.pressure - one.pressure) - RAMP_PER_TARGET) < 1e-9,
+           'and the per-target step is still RAMP_PER_TARGET, untouched');
+    }
+
+    // ⚠️ THE POOL CANNOT RUN DRY. nextTarget() wraps on `_cursor % length`, which
+    // is what lets survival be endless without a second spawn path.
+    const d2 = new GameDirector(cfg);
+    d2.clock.startIfNeeded(0);
+    let seen = null;
+    for (let i = 0; i < cfg.targets.length + 3; i++) seen = d2.nextTarget(i * 1000);
+    ok(!!seen && !!seen.text,
+       '\u26a0 the target pool wraps rather than running out, however long they survive');
+
+    // ⚠️ AND THE RAMP FEEDS OFF THE EXTRAS, so survival gets harder on its own.
+    const d3 = new GameDirector(cfg);
+    d3.clock.startIfNeeded(0);
+    const flat = d3.pressure;
+    for (const w of words) { d3.chars += w.length; d3.cleared(w, 1000); }
+    for (let i = 0; i < 10; i++) d3.cleared('zzzz', 2000);
+    ok(d3.pressure > flat,
+       '\u2b50 pressure climbs once the quota is met \u2014 no new difficulty code needed');
 }
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} ok, ${fail} failed`);

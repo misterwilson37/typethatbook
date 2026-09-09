@@ -6,9 +6,9 @@
 `HANDOFF.md`, `HANDOFF-games.md` or `ROADMAP.md` — ⚠️ **all four checked**, which
 is the check Round 100 skipped and paid for.
 
-⚠️ **`arcade.html` IS UNCHANGED IN THIS ROUND**, deliberately. Every one of Jake's
-three asks landed in a module, so the page's version constant and header did not
-move and there was no second stamp to drift.
+⚠️ **`arcade.html` WAS UNCHANGED THROUGH THE COSMETIC WORK** — all three of the
+first asks landed in modules — and moved only for survival mode, which needs a
+host decision (which words to play on with) that no module can make.
 
 ⭐ **THE BANKED TIMERS CARRY SECONDS AND SIZE THEMSELVES TO THE ROOM.** Jake,
 2026-09-09: *"I'd like the today and week timers to be bigger and include seconds
@@ -154,15 +154,102 @@ Verified behaviourally against the real `GameClock`: 35s of frames bank 34-35
 ticks, a 10s hidden-tab jump banks 10, a 5s pause banks none, finish banks the
 remainder, and a replay banks from zero again.
 
+### ⭐ SURVIVAL MODE, AND THE FROZEN GRADE THAT MAKES IT SAFE
+
+Jake, 2026-09-09: *"they have to do 1, and then it is a survival mode for the
+rest... That's one thing that kids want - the ability to play past winning."* And
+the ruling that shapes it: *"if they pass the game and enter survival mode, then
+they get the passing score (unlocking the next lesson) and survival mode is there
+to get on the leaderboard/prove your mettle. Stats become whatever they did
+during the checking run, and then bragging rights."*
+
+⭐ **MOST OF IT WAS ALREADY BUILT AND NOBODY HAD NOTICED.** `cleared()` already
+incremented `_extraCleared` past the quota and `pressure` already ramped off it;
+`nextTarget()` already wrapped with `_cursor % targets.length`, so a pool cannot
+run dry. The only thing stopping play was one line in the view.
+
+⚠️⚠️ **THE GRADE FREEZES AT THE PASS, AND SUBTRACTING AFTERWARDS CANNOT WORK.**
+`d.report()` is a pure read of the counters and the clock, so one copy taken at
+the instant the quota is met **is** the graded run. The tempting alternative —
+grade the session and subtract the survival part — is impossible: **WPM and
+accuracy are ratios over the whole session and do not decompose.** A late
+60%-accuracy sprint drags the graded figure down no matter what is subtracted.
+
+⚠️ **A PASS CANNOT BE UNDONE BY DYING AFTERWARDS.** Losing the city in survival
+ends the session and still reports CITY DEFENDED, or playing on would be a gamble
+with the lesson the student had already earned — and no child takes that bet
+twice. ⚠️⚠️ **The result modal leads with the pass**, because the session ends the
+way every loss ends and a modal that led with the loss would tell a child who had
+unlocked the next lesson that they had failed it. That is the entire UX risk here.
+
+⚠️⚠️ **THE SURVIVAL SCORE IS NOT A SUBTRACTION, AND THE OBVIOUS VERSION IS WRONG
+IN A WAY THAT READS AS RIGHT.** `end.score - passScore` is arithmetic nobody would
+question — and it goes **negative**, because `score` pays for INTACT SHIELDS and
+survival is exactly when a student spends them. ⭐ **Found by running it, not by
+reading it: a clean 700 fell to 300 over four minutes of survival.**
+`game-shell.js` gains `survivalScore`, which prices the characters cleared past
+the quota and carries no shield component. ⚠️ **It lives in the shell because
+score math lives in the shell** — a view that computes a score is the defect that
+file exists to prevent, so this round's *"nothing in game-shell.js changes"* was
+wrong and is corrected here.
+
+⭐ **THE SURVIVAL WORDS ARE DECIDED BY WHAT THE LESSON CONTAINS, NOT BY A
+SETTING.** A passage continues into **the rest of itself** — which is also the
+answer to *"the Graduation passages should be all four runs"*: the later chunks
+stop being runs a student picks cold at "of them." and become what comes at them,
+faster, once earned. A lesson that is only keys falls back to `arcadeConfig()`'s
+generator, whose groups are what those units drill anyway, drawn from
+`arcadeKeySet()` so no letter appears that School has not taught.
+
+⚠️ **THE POOL IS APPENDED AFTER `missionConfigFromRun()` SETS `quotaChars`**, and
+the order is the whole trick: the mission stays exactly the size of the School
+run, and everything past it is spillover the pool happens to contain.
+
+⚠️ **The console's RUN QUOTA row becomes a SURVIVAL score row on the pass** — a
+bar pinned at 100% for four minutes is a readout that has stopped reporting.
+
+⚠️ **NOTHING IS WRITTEN YET.** The score reaches no leaderboard; the frozen `pass`
+is handed to the host and goes nowhere. ⚠️⚠️ **WHEN THE GATE SEAM IS BUILT, `pass`
+IS THE FIELD IT READS** — a wiring that filed `rep` would grade a leaderboard
+stunt as a lesson result.
+
+⚠️⚠️ **AND SURVIVAL MUST NOT PLATEAU, WHICH IS WHAT IT DID.** Jake, on seeing the
+first build: *"survival mode has to get HARDER. So the incoming enemies spawn
+gradually faster and faster. The student will lose because it gets too hard, not
+because s/he gets tired."* ⭐ **THE RAMP ALREADY EXISTED AND STILL FAILED THAT
+TEST**, because `PRESSURE_CEILING` is reached **75 targets past the quota** and
+then holds — measured on a 10 WPM lesson that plateau is a fixed **25 WPM of
+demand**, which a strong eighth grader holds until the bell. The run then ends
+from fatigue, boredom or the period ending, and the leaderboard ranks patience.
+
+⭐ The ceiling is a **per-run number** now (`cfg.pressureCeiling`), and survival
+passes `SURVIVAL_PRESSURE_CEILING` (6.0). On that same 10 WPM lesson: 15 WPM of
+demand at 25 extra words, 25 at 75, 40 at 150, 60 at 250 — and the fall time drops
+from 50s to 6s along the way. ⚠️ **6.0 IS A SAFETY RAIL, NOT A TARGET**: it is 250
+targets past the quota, far beyond where any student is still clearing, so in
+practice the ramp simply never stops. ⚠️⚠️ **MISSIONS AND ESCAPE KEY ARE UNCHANGED**
+— a director given no ceiling still stops at 2.5, and a graded run must never get
+harder than the gate it is judged against. Mutation-verified both ways: ignoring
+the per-run ceiling turns the survival assertions red, applying it everywhere
+turns the arcade-cap assertion red.
+
+⚠️ **THE RAMP CURVE ITSELF WAS NOT RE-TUNED.** `RAMP_PER_TARGET` still steps 0.02
+per cleared target — this round raised a cap, and a steeper curve would also
+change the MISSION, whose ramp begins the moment a fast student passes the quota.
+⭐ **The per-target step is self-balancing in wall-clock terms**: a faster student
+clears more targets, so the game speeds up faster for them.
+
 | file | version |
 |---|---|
 | `game-chrome.js` | **1.7.0** |
-| `game-draw.js` | **1.7.0** |
-| `game-deadline.js` | **1.10.0** |
+| `game-draw.js` | **1.8.0** |
+| `game-deadline.js` | **1.11.0** |
+| `game-shell.js` | **1.4.0** |
 | `game-layout.js` | **1.5.0** |
-| `arcade.html` | 3.4.0 (unchanged) |
+| `arcade.html` | **3.6.0** |
 | `tests/arcade-panels-test.mjs` | **1.3.0** (141 assertions) |
-| `tests/arcade-lesson-test.mjs` | **1.2.0** (84 assertions) |
+| `tests/arcade-lesson-test.mjs` | **1.3.0** (96 assertions) |
+| `tests/game-shell-test.mjs` | Part K added (112 assertions) |
 
 ⚠️ **THE COSMETIC WORK IS NOT BROWSER-VERIFIED; THE TICK FIX IS NOT EITHER.**
 ⚠️⚠️ **AND THE TICK FIX IS THE FIRST THING IN THIS ROUND THAT REACHES A WRITE.**

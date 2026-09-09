@@ -1,7 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- arcade.html v3.4.0 — the flanks fit inside the stage rather than
+<!-- arcade.html v3.6.0 — survival raises the pressure ceiling, so the ramp never
+     plateaus and the run ends because it got too hard. Round 101 (Wellington).
+     arcade.html v3.5.0 — SURVIVAL MODE. The run is still the graded mission and
+     still exactly the size of the School run; once its quota is met the game
+     does not end, the grade FREEZES, and the pool plays on. The survival words
+     are the REST OF THE PASSAGE where the lesson has one and arcade key groups
+     where it does not. ⚠️ The pass cannot be undone by dying afterwards.
+     Round 101 (Wellington).
+     arcade.html v3.4.0 — the flanks fit inside the stage rather than
      competing with it for the row height. Round 100b.
      arcade.html v3.3.0 — the flanks track the stage; the threat board.
      Round 100 (Franklin).
@@ -370,7 +378,7 @@ import { GAME_SHELL_VERSION } from './game-shell.js';
 import { GAME_DRAW_VERSION } from './game-draw.js';
 import { GAME_CHROME_VERSION } from './game-chrome.js';
 import { GAME_LAYOUT_VERSION } from './game-layout.js';
-const ARCADE_PAGE_VERSION = '3.4.0';
+const ARCADE_PAGE_VERSION = '3.6.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -423,7 +431,9 @@ import { readWeek, localDateStr, dayLogPayloadFor } from './daylog.js';
 // those days planned as skips, and a skip reads as a zero: a weekly total
 // silently too low, on the page that exists to be compared against School.
 import { reconcile, noteDay } from './logdays.js';
-import { missionConfigFromRun } from './game-shell.js';
+import { missionConfigFromRun, targetsFromSequence, arcadeKeySet,
+         makeArcadeTargets, ARCADE_GROUP_SIZE,
+         SURVIVAL_PRESSURE_CEILING } from './game-shell.js';
 import { mount as mountDeadline } from './game-deadline.js';
 // ⚠️ THE BUILD PANEL READS RUNTIME CONSTANTS, NOT HEADER COMMENTS. A header is a
 // comment in the repo; the constant is what the DEPLOYED file says about itself,
@@ -609,6 +619,10 @@ function playableRunsOf(lesson) {
         if (!(wpm > 0)) return;
         out.push({
             runIdx, speedGraded, runCount: plan.length, sequence: seq,
+            // ⚠️ CARRIED SO SURVIVAL CAN FIND WHAT COMES *AFTER* THIS RUN. The
+            // run already knows its own characters; survival needs to know where
+            // in the lesson they sat. See survivalTargetsFor().
+            stepIdx: entry.stepIdx, chunkIdx: entry.chunkIdx,
             gates: { minWPM: wpm, minAccuracy: gates.minAccuracy },
             label: entry.chunkCount > 1
                 ? `${step.label || 'Step ' + (entry.stepIdx + 1)} (${entry.chunkIdx + 1}/${entry.chunkCount})`
@@ -616,6 +630,59 @@ function playableRunsOf(lesson) {
         });
     });
     return out;
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * THE SURVIVAL POOL — what a student types after they have already won.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Jake, 2026-09-09: *"they have to do 1, and then it is a survival mode for the
+ * rest... That's one thing that kids want - the ability to play past winning."*
+ *
+ * ⭐ THE SOURCE IS DECIDED BY WHAT THE LESSON ACTUALLY CONTAINS, not by a
+ * setting. A passage has more of itself to give, so survival is the REST OF THE
+ * PASSAGE — which is also the answer to *"the Graduation passages should be all
+ * four runs"*: the later chunks stop being separate runs a student picks cold at
+ * "of them." and become what comes at them, faster, once they have earned it.
+ * A lesson that is only keys has no prose to continue into, so it falls back to
+ * the arcade generator, whose groups are exactly what those units drill anyway.
+ *
+ * ⚠️⚠️ THIS POOL IS APPENDED TO THE RUN'S OWN TARGETS AND `quotaChars` IS LEFT
+ * ALONE, WHICH IS THE WHOLE TRICK. The director's quota was computed from the
+ * run's characters, so the mission still ends exactly where the School run ends;
+ * everything after it is spillover the pool happens to contain. ⭐ NOTHING IN
+ * game-shell.js CHANGES: `nextTarget()` already wraps with
+ * `_cursor % targets.length`, so the pool cannot run dry, and `cleared()`
+ * already feeds the pressure ramp from targets cleared past the quota.
+ *
+ * ⚠️ THE ARCADE FALLBACK USES THE STUDENT'S OWN KEY SET, never the alphabet.
+ * arcadeKeySet() takes the union up to the lesson they are on, so a unit-2
+ * student survives on home-row groups and meets no letter School has not taught
+ * them — the property that makes the arcade practice rather than a different
+ * subject.
+ */
+function survivalTargetsFor(lesson, r) {
+    const out = [];
+    const steps = (lesson && lesson.steps) || [];
+    if (r.stepIdx != null) {
+        steps.forEach((step, si) => {
+            if (si < r.stepIdx) return;
+            if (!OFFERABLE.has(step.type)) return;
+            const chunks = chunkSequence(sequenceForStep(step));
+            chunks.forEach((seq, ci) => {
+                // ⚠️ STRICTLY AFTER THE RUN THEY PLAYED. Including its own chunk
+                // would have the student re-typing the graded text as their
+                // first survival words, which reads as the game glitching.
+                if (si === r.stepIdx && ci <= r.chunkIdx) return;
+                out.push(...targetsFromSequence(seq));
+            });
+        });
+    }
+    if (out.length) return out;
+    // ⚠️ 200 GROUPS IS THE SAME COUNT arcadeConfig() USES. The pool wraps, so
+    // this is "long enough not to feel like a loop", not a limit on play.
+    return makeArcadeTargets(arcadeKeySet(LESSONS, PROGRESS), 200, ARCADE_GROUP_SIZE);
 }
 
 // ⚠️⚠️ v3.0.0 — FOR LESSONS WHOSE EVERY RUN IS GENERATED. key_pattern_auto and
@@ -705,6 +772,12 @@ function currentRun() {
     return p ? (p.runs[Number($('run').value) || 0] || null) : null;
 }
 
+/** The lesson the picker is on. ⚠️ Same index as currentRun(), or they disagree. */
+function currentLesson() {
+    const p = PLAYABLE[Number($('lesson').value) || 0];
+    return p ? p.lesson : null;
+}
+
 // ⚠️⚠️ v3.0.0 — THE SPEED DROPDOWN. Jake, 2026-09-08: "I have no idea what the
 // gates are for the lessons. A drop down of the possibilities would be helpful
 // so that we can judge it based on the actual things."
@@ -779,6 +852,24 @@ function play() {
     // byte-identical to what v2.0.0 launched and remains comparable to School.
     const gates = { minWPM: chosenWPM(), minAccuracy: r.gates.minAccuracy };
     const cfg = missionConfigFromRun({ sequence: r.sequence }, gates, null);
+    // ⚠️⚠️ THE SURVIVAL POOL IS APPENDED *AFTER* missionConfigFromRun() HAS SET
+    // quotaChars, AND THE ORDER IS THE POINT. That function computes the quota
+    // from the targets it is given, so appending first would move the finish
+    // line to the end of the survival words and the student would never pass.
+    // Appending after leaves the mission exactly the size of the School run.
+    const survivalPool = survivalTargetsFor(currentLesson(), r);
+    if (survivalPool.length) {
+        cfg.targets = cfg.targets.concat(survivalPool);
+        // ⚠️⚠️ AND THE RAMP MUST NOT PLATEAU. Jake, 2026-09-09: *"survival mode
+        // has to get HARDER... The student will lose because it gets too hard,
+        // not because s/he gets tired."* PRESSURE_CEILING is reached 75 targets
+        // past the quota and then holds — on a 10 WPM lesson that is a fixed 25
+        // WPM of demand, which a strong student holds until the bell.
+        // ⚠️ THIS RAISES THE CEILING ONLY; IT DOES NOT TOUCH THE GRADED RUN. The
+        // ramp does not begin until the quota is met, so the mission a student is
+        // judged on is played at exactly the gate either way.
+        cfg.pressureCeiling = SURVIVAL_PRESSURE_CEILING;
+    }
     lastPlayedWPM = gates.minWPM;
     $('picker').style.display = 'none';
     $('result').style.display = 'none';
@@ -792,6 +883,10 @@ function play() {
         radarCanvas: $('radar-canvas'),
         threatCanvas: $('threat-canvas'),
         gaugeCanvas: $('gauge-canvas'),
+        // ⚠️⚠️ OPT-IN, AND ONLY THIS PAGE OPTS IN. learn.js and the lab mount the
+        // same view; a run that stopped ending when its quota was met would hang
+        // the lesson flow on both. See game-deadline.js's `survival` note.
+        survival: survivalPool.length > 0,
         // ⚠️ A GETTER, not the object — see game-deadline.js's minuteLines().
         minutes: () => MINUTES,
         // ⚠️⚠️ ONE TICK PER GRADED SECOND. The date is stamped HERE, at the
@@ -814,28 +909,47 @@ function finish(rep, r) {
         $('compare').innerHTML = '';
         return;
     }
+    // ⚠️⚠️ THE GRADED RUN IS `rep.pass`, NOT `rep`, AND EVERY FIGURE ON THIS PANEL
+    // MUST COME OFF IT. `rep` is the whole session including survival, so a
+    // student who passed at 34 WPM and then survived four minutes at 60% would
+    // be shown — and eventually GRADED — on the survival numbers. WPM and
+    // accuracy are ratios over the session and do not decompose, which is why
+    // the view freezes a copy at the moment of the pass rather than subtracting
+    // afterwards. See game-deadline.js's snapshot note.
+    const graded = rep.pass || rep;
     const playedWPM = lastPlayedWPM != null ? lastPlayedWPM : r.gates.minWPM;
-    const metWPM = rep.wpm >= playedWPM;
-    const metAcc = rep.acc >= r.gates.minAccuracy;
+    const metWPM = graded.wpm >= playedWPM;
+    const metAcc = graded.acc >= r.gates.minAccuracy;
+    const sv = rep.survival;
+    // ⚠️⚠️ A SURVIVOR WHO DIES IS TOLD THEY PASSED, FIRST. The session ends the
+    // way every loss ends — city gone — so leading with anything else would tell
+    // a child who had already earned the lesson that they had failed it.
     $('verdict').innerHTML =
-        `<span class="big">${rep.wpm} WPM &middot; ${rep.acc}%</span><br>` +
+        `<span class="big">${graded.wpm} WPM &middot; ${graded.acc}%</span><br>` +
         (metWPM && metAcc
             ? 'You cleared both targets for this run.'
             : 'You did not clear ' + (!metWPM && !metAcc ? 'either target'
-                : !metWPM ? 'the speed target' : 'the accuracy target') + ' this time.');
+                : !metWPM ? 'the speed target' : 'the accuracy target') + ' this time.') +
+        (sv && sv.cleared
+            // ⚠️ NO WPM OR ACCURACY ON THIS LINE, EVER. Those belong to the
+            // graded run alone; a second pair here is two answers to one
+            // question, which is the whole thing the freeze exists to prevent.
+            ? `<br><span class="met">Then you survived ${Math.round(sv.seconds)}s longer, ` +
+              `cleared ${sv.cleared} more words and scored ${sv.score}.</span>`
+            : '');
     // ⚠️ THE COMPARISON TABLE IS THE POINT OF THE PAGE — the game result beside
     // the SAME gate the typed run is graded against, so nobody has to do
     // arithmetic to put the two side by side.
     $('compare').innerHTML =
         '<tr><th></th><th>this game</th><th>this run\u2019s target</th></tr>' +
-        `<tr><td>speed</td><td class="${metWPM ? 'met' : 'miss'}">${rep.wpm} WPM</td>` +
+        `<tr><td>speed</td><td class="${metWPM ? 'met' : 'miss'}">${graded.wpm} WPM</td>` +
             `<td>${playedWPM} WPM${playedWPM !== r.gates.minWPM
                 ? ' (run\u2019s own: ' + r.gates.minWPM + ')' : ''}</td></tr>` +
-        `<tr><td>accuracy</td><td class="${metAcc ? 'met' : 'miss'}">${rep.acc}%</td>` +
+        `<tr><td>accuracy</td><td class="${metAcc ? 'met' : 'miss'}">${graded.acc}%</td>` +
             `<td>${r.gates.minAccuracy}%</td></tr>` +
-        `<tr><td>characters</td><td>${rep.chars != null ? rep.chars : '\u2014'}</td>` +
+        `<tr><td>characters</td><td>${graded.chars != null ? graded.chars : '\u2014'}</td>` +
             `<td>${r.sequence.length}</td></tr>` +
-        `<tr><td>seconds</td><td>${rep.seconds != null ? Math.round(rep.seconds) : '\u2014'}</td><td>\u2014</td></tr>`;
+        `<tr><td>seconds</td><td>${graded.seconds != null ? Math.round(graded.seconds) : '\u2014'}</td><td>\u2014</td></tr>`;
     console.log('[arcade] report', rep);
 }
 

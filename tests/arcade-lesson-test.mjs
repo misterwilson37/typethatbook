@@ -1,3 +1,6 @@
+// arcade-lesson-test.mjs v1.3.0 — Round 101 (Wellington): survival mode, and the
+// one property everything rests on — the graded snapshot is frozen at the pass
+// and only that copy may ever be graded.
 // arcade-lesson-test.mjs v1.2.0 — Round 101 (Wellington): the OTHER HALF of the
 // per-second tick. v1.1.0 pinned that the PAGE wires `onSecond` to bankSecond()
 // and stayed green for ten rounds while the GAME never called it once — the
@@ -334,6 +337,63 @@ ok(/onSecond: \(\) => bankSecond\(\)/.test(code),
     const res = dl.slice(dl.indexOf('function restart()'));
     ok(/secondsBanked = 0/.test(res.slice(0, 900)),
        '\u2b50 restart() resets the seconds high-water mark with everything else');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SURVIVAL: THE GRADE FREEZES, AND ONLY THE FROZEN COPY MAY BE GRADED
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ THE FAILURE THIS GUARDS IS SILENT AND EXPENSIVE: a wiring that graded the
+// SESSION instead of the snapshot would file a leaderboard stunt as a lesson
+// result, and the student it hurts is the one who passed cleanly and then played
+// on — exactly the child the mode is for.
+{
+    const dl = stripComments(readFileSync(new URL('../game-deadline.js', import.meta.url), 'utf8'));
+    const arc = stripComments(readFileSync(new URL('../arcade.html', import.meta.url), 'utf8'));
+
+    // ⚠️ OFF BY DEFAULT. learn.js and tools/game-lab.html mount this same view;
+    // a run that stopped ending on its quota would hang the lesson flow.
+    ok(/const survival = !!\(opts && opts\.survival\)/.test(dl),
+       'survival is an explicit host opt-in, not a default');
+    ok(/survival: survivalPool\.length > 0/.test(arc),
+       'and only the arcade page opts in, when it has a pool to play on with');
+
+    // ⚠️⚠️ THE SNAPSHOT, AND ITS TIMING. WPM and accuracy are ratios over the
+    // session and do not decompose — the instant of the pass is the only correct
+    // time to read them.
+    ok(/passReport = d\.report\(now\)/.test(dl),
+       '\u2b50 the grade is a COPY of the report taken at the moment the quota is met');
+    const acc = dl.slice(dl.indexOf('function accept('), dl.indexOf('function reject('));
+    ok(/if \(!survival\) \{ finish\(now, true\); \}/.test(acc),
+       'without survival the quota still ends the run exactly as before');
+    ok(/else if \(!passReport\)/.test(acc),
+       '\u26a0 and the snapshot is taken ONCE \u2014 a second pass would overwrite the grade');
+
+    // ⚠️⚠️ A PASS CANNOT BE UNDONE BY DYING AFTERWARDS.
+    ok(/const passed = !!passReport \|\| \(won && !survival\)/.test(dl),
+       '\u2b50\u2b50 a run with a snapshot reports as PASSED however the session ends');
+
+    // ⚠️ THE HOST IS HANDED BOTH, AND GRADES OFF `pass`.
+    ok(/pass: passReport \|\| \(passed \? rep : null\)/.test(dl),
+       'onEnd() carries the frozen run as `pass` alongside the whole session');
+    ok(/const graded = rep\.pass \|\| rep/.test(arc),
+       '\u26a0\u26a0 and the result panel grades off the SNAPSHOT, never the session');
+    ok(!/rep\.wpm|rep\.acc/.test(arc.slice(arc.indexOf('const graded = rep.pass'))),
+       '\u26a0\u26a0 no session WPM or accuracy reaches the panel at all');
+
+    // ⚠️ THE QUOTA IS NOT MOVED BY THE POOL. missionConfigFromRun() computes it
+    // from the targets it is given, so the append must come AFTER.
+    const play = arc.slice(arc.indexOf('function play()'));
+    ok(play.indexOf('missionConfigFromRun') < play.indexOf('cfg.targets = cfg.targets.concat'),
+       '\u26a0\u26a0 the survival pool is appended AFTER the quota is computed, or nobody passes');
+
+    // ⭐ THE POOL'S SOURCE IS DECIDED BY THE LESSON, not by a setting.
+    const sv = arc.slice(arc.indexOf('function survivalTargetsFor'));
+    ok(/if \(si === r\.stepIdx && ci <= r\.chunkIdx\) return;/.test(sv),
+       'survival starts at the chunk AFTER the one they were graded on');
+    ok(/makeArcadeTargets\(arcadeKeySet\(LESSONS, PROGRESS\)/.test(sv),
+       '\u26a0 and a lesson with no prose left falls back to the student\u2019s OWN key set');
 }
 
 

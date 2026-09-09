@@ -6,7 +6,48 @@
 > conversation** — checked against `CHANGELOG.md`, `HANDOFF.md`,
 > `HANDOFF-games.md` **and `ROADMAP.md`**; the omitted fourth file is what made
 > Round 100 a duplicate.
->>
+>>>
+> ### ⭐ SURVIVAL MODE — AND THE ONE PROPERTY EVERYTHING RESTS ON
+>
+> Jake's ruling: pass the run, keep playing, **the grade freezes at the pass** and
+> survival is leaderboard only. Time banks throughout.
+>
+> * ⚠️⚠️ **THE SNAPSHOT IS THE MECHANISM.** `passReport = d.report(now)` at the
+>   instant the quota is met. ⭐ **SUBTRACTING SURVIVAL AFTERWARDS IS IMPOSSIBLE**
+>   — WPM and accuracy are RATIOS over the session and do not decompose.
+> * ⚠️⚠️ **ONLY `pass` MAY EVER REACH `recordRunOutcome()`.** `onEnd()` hands the
+>   host both; `rep` is the whole session. **This is the field the gate seam
+>   reads.** A wiring that filed `rep` grades a leaderboard stunt as a lesson.
+> * ⚠️ **A PASS CANNOT BE UNDONE** by dying in survival, and the modal leads with
+>   the pass — the session ends like every loss, so anything else tells a child
+>   who unlocked the lesson that they failed it.
+> * ⚠️⚠️ **THE SURVIVAL SCORE IS NOT `end.score - passScore`.** That is negative:
+>   `score` pays for intact shields and survival is when they are spent (a clean
+>   700 fell to 300 in four minutes — found by RUNNING it). `game-shell.js` owns
+>   `survivalScore`; ⚠️ **score math does not move into a view.**
+> * ⚠️ **THE POOL IS APPENDED AFTER `missionConfigFromRun()`** or the finish line
+>   moves to the end of the survival words and nobody ever passes.
+> * ⭐ **THE WORD SOURCE IS THE LESSON'S OWN**: the rest of the passage where
+>   there is one, `arcadeKeySet()` groups where there is not. This is also the
+>   answer to the Graduation passages — later chunks are played INTO, not picked
+>   cold at "of them."
+> * ⭐ **game-shell.js NEEDED ALMOST NOTHING**: the pool already wrapped and the
+>   pressure ramp already fed off targets cleared past the quota.
+> * ⚠️⚠️ **THE RAMP MUST NOT PLATEAU, AND IT DID.** `PRESSURE_CEILING` is reached
+>   75 targets past the quota and then holds — on a 10 WPM lesson that is a fixed
+>   25 WPM of demand, which a strong student holds until the bell, so the run
+>   ended from fatigue. The ceiling is per-run now; survival passes
+>   `SURVIVAL_PRESSURE_CEILING` (6.0, a safety rail at ~250 extra targets, not a
+>   target). ⚠️ **Missions and Escape Key still stop at 2.5** — a graded run may
+>   never get harder than the gate it is judged against.
+> * ⚠️ **`RAMP_PER_TARGET` WAS NOT RE-TUNED.** A steeper curve would also change
+>   the mission's own post-quota ramp. If survival still feels slow to steepen,
+>   that constant is the knob — and it is the one that affects both.
+> * ⚠️ **ARCADE ENDLESS (Escape Key, the lab) STILL PLATEAUS AT 2.5** and has the
+>   same test-of-patience shape. Left alone deliberately: it was not part of this
+>   conversation and its balance is Escape Key's, not Deadline's.
+> * ⚠️ **NOTHING IS WRITTEN.** No leaderboard, no grade. Survival is a trial.
+>
 > ### ⚠️⚠️ READ THIS ONE FIRST: THE PER-SECOND TICK NEVER FIRED, IN ANY ROUND
 >
 > Jake, 2026-09-09, screenshot at **0:35 with TODAY and WEEK frozen**: *"I can
@@ -47,12 +88,14 @@
 > | file | version |
 > |---|---|
 > | `game-chrome.js` | **1.7.0** |
-> | `game-draw.js` | **1.7.0** |
-> | `game-deadline.js` | **1.10.0** |
+> | `game-draw.js` | **1.8.0** |
+> | `game-deadline.js` | **1.11.0** |
+> | `game-shell.js` | **1.4.0** |
 > | `game-layout.js` | **1.5.0** |
-> | `arcade.html` | 3.4.0 — ⚠️ **UNCHANGED THIS ROUND** |
+> | `arcade.html` | **3.6.0** |
 > | `tests/arcade-panels-test.mjs` | **1.3.0** (141 assertions) |
-> | `tests/arcade-lesson-test.mjs` | **1.2.0** (84 assertions) |
+> | `tests/arcade-lesson-test.mjs` | **1.3.0** (96 assertions) |
+> | `tests/game-shell-test.mjs` | Part K (112 assertions) |
 >
 > * ⭐ **BANKED CARRIES SECONDS AND SIZES ITSELF TO THE SPARE HEIGHT.** ⚠️⚠️ **A
 >   FIXED `SEG_TOTAL_H` COULD NOT ANSWER *"fill all the dead space"*** for the
@@ -98,7 +141,9 @@
 >
 > * **Green**: panels 141, arcade-lesson 76, arcade-versions 29, game-assumptions
 >   59, game-shell 95, all 35 modules parse.
-> * ⚠️ **NOT BROWSER-VERIFIED.** What to confirm on a real screen: the banked
+> * ⚠️ **NOT BROWSER-VERIFIED.** Survival adds: pass a run and confirm play
+>   continues, the console row flips to SURVIVAL, the score climbs, and dying
+>   afterwards still shows CITY DEFENDED with the graded numbers. Also: the banked
 >   rows fill the column bottom without crowding their labels; the space after a
 >   finished word costs nothing while a mid-word space still does; the swell and
 >   the blink are distinguishable rather than just "two red things" — ⭐ **Jake

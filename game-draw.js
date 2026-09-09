@@ -1,3 +1,5 @@
+// game-draw.js v1.8.0 — Round 101: the quota row becomes the SURVIVAL score once
+// the run is passed, because a bar pinned at 100% reports nothing.
 // game-draw.js v1.7.0 — Round 101: the BANKED bank sizes and spaces itself to
 // the console's spare height, and the keyboard shows BOTH halves of an error —
 // the key the student needed (swelling) and the key they hit (blinking).
@@ -40,7 +42,7 @@
 // may be imported by anything that draws; that only stays safe while it knows
 // nothing.
 
-export const GAME_DRAW_VERSION = '1.7.0';
+export const GAME_DRAW_VERSION = '1.8.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device
@@ -1190,7 +1192,20 @@ export function drawGauges(ctx, o) {
     // feature cannot identify it, no sixth-grader will.
     // ⚠️ ABSENT IN ARCADE, not zeroed: an endless run has no quota, and a bar
     // pinned at 0% would be reporting a mission that does not exist.
-    if (o.quota != null) {
+    // ⚠️⚠️ ONCE THE RUN IS PASSED THIS ROW STOPS BEING A QUOTA AND BECOMES THE
+    // SCORE (Round 101). Jake's survival mode: the graded run ends at 100% and
+    // the student plays on for the leaderboard, so a bar pinned full for the
+    // next four minutes is a readout that has stopped reporting. ⭐ THE ROW IS
+    // THE ONE NUMBER STILL MOVING. ⚠️ It is the SURVIVAL score, not the
+    // session's — the graded run's points belong to the frozen record.
+    if (o.survivalScore != null) {
+        label(x, y + 8, 'SURVIVAL');
+        label(x + w, y + 8, String(o.survivalScore), 'right', LAY.GAUGE_GOLD);
+        // A full gold bar, because the mission IS complete — it is the badge for
+        // the pass, not a progress reading, and it never moves again.
+        lampBar(x, y + 14, w, 1, null, LAY.GAUGE_GOLD);
+        y += 14 + LAY.GAUGE_BAR_H + 16;
+    } else if (o.quota != null) {
         const pct = Math.round(Math.min(1, o.quota) * 100);
         label(x, y + 8, 'RUN QUOTA');
         label(x + w, y + 8, pct + '%', 'right',

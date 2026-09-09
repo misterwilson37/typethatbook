@@ -1,4 +1,21 @@
-// game-deadline.js v1.10.0
+// game-deadline.js v1.11.0
+//
+// v1.11.0 — ⭐ SURVIVAL MODE, AND THE FROZEN GRADE THAT MAKES IT SAFE. Jake,
+//   2026-09-09: *"if they pass the game and enter survival mode, then they get
+//   the passing score (unlocking the next lesson) and survival mode is there to
+//   get on the leaderboard... Stats become whatever they did during the checking
+//   run, and then bragging rights."*
+//   • The quota no longer ends the run when the host passes `survival`. It takes
+//     a COPY of d.report() instead — ⚠️⚠️ WPM and accuracy are ratios over the
+//     session and DO NOT DECOMPOSE, so the only correct moment to read them is
+//     the instant of the pass. Subtracting survival afterwards cannot work.
+//   • ⚠️ A PASS CANNOT BE UNDONE. Dying in survival ends the session and still
+//     reports CITY DEFENDED, or playing on would be a gamble with the lesson the
+//     student already earned.
+//   • onEnd() hands the host `pass` (the frozen run) alongside `rep` (the whole
+//     session). ⚠️ ONLY `pass` MAY EVER REACH recordRunOutcome().
+//   • ⭐ NOTHING IN game-shell.js CHANGED: the pool already wraps and the
+//     pressure ramp already feeds off targets cleared past the quota.
 //
 // v1.10.0 — ⚠️⚠️ THE PER-SECOND TICK NEVER FIRED, IN ANY ROUND. Jake, 2026-09-09,
 //   with 0:35 on the run clock and the banked rows at zero: *"I can confirm it's
@@ -275,7 +292,7 @@ import {
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.10.0';
+export const GAME_DEADLINE_VERSION = '1.11.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -621,6 +638,17 @@ export function mount(container, opts) {
     let particles = [];
     let locked = null;          // reference into `live`
     let banner = null;          // { text, until }
+    // ⚠️⚠️ SURVIVAL IS THE HOST'S CHOICE, AND IT IS OFF BY DEFAULT. learn.js and
+    // tools/game-lab.html mount this view too; a run that silently refused to
+    // end when its quota was met would hang the lesson flow on both of them.
+    // ⚠️ AND IT IS A VIEW-LEVEL BEHAVIOUR, NOT A DIRECTOR ONE. The shell already
+    // ramps pressure past the quota (`_extraCleared`) and already wraps its
+    // target pool (`_cursor % targets.length`), so survival needs NOTHING from
+    // game-shell.js — only that this file stops calling finish() on the pass.
+    const survival = !!(opts && opts.survival);
+    // The frozen grade. Null until the quota is met; see the snapshot note in
+    // accept(). Its presence IS the "they have passed" flag.
+    let passReport = null;
     // ⚠️ THE COUNTDOWN NUMBER, OWNED BY THE CHROME AND RENDERED BY THE GAUGES.
     // null means "not counting", which is what makes the readout show the run
     // clock instead. See the onCountdown callback and drawGauges()'s clock
@@ -768,7 +796,29 @@ export function mount(container, opts) {
             live = live.filter(x => x !== target);
             if (locked === target) locked = null;
             burst(particles, target.x, target.y, '#00e5ff', Math.round(22 * motionScale()), 220);
-            if (!d.endless && d.quotaMet && !ended) finish(now, true);
+            if (!d.endless && d.quotaMet && !ended) {
+                // ⚠️⚠️ THE GRADE FREEZES HERE, AND EVERYTHING AFTER THIS LINE IS
+                // BRAGGING RIGHTS. Jake, 2026-09-09: *"if they pass the game and
+                // enter survival mode, then they get the passing score
+                // (unlocking the next lesson) and survival mode is there to get
+                // on the leaderboard/prove your mettle. Stats become whatever
+                // they did during the checking run, and then bragging rights."*
+                // ⭐ THE SNAPSHOT IS THE WHOLE MECHANISM: d.report() is a pure
+                // read of the counters and the clock, so one copy taken at this
+                // instant IS the graded run, and nothing a student does in the
+                // next four minutes can touch it.
+                // ⚠️⚠️ DO NOT REPLACE THIS WITH "SUBTRACT SURVIVAL AT THE END".
+                // WPM and accuracy are ratios over the whole session — they do
+                // not decompose, so a late 60%-accuracy sprint would drag the
+                // graded figure down no matter what was subtracted afterwards.
+                // The only correct time to read them is the moment of the pass.
+                if (!survival) { finish(now, true); }
+                else if (!passReport) {
+                    passReport = d.report(now);
+                    banner = { text: 'CITY DEFENDED \\u2014 SURVIVAL', until: now + 2600 };
+                    sfx.win();
+                }
+            }
         }
     }
 
@@ -974,6 +1024,12 @@ export function mount(container, opts) {
         }
     }
 
+    /** m:ss for the survival line. ⚠️ Display only — it never reaches a total. */
+    function fmtClock(sec) {
+        const s = Math.max(0, Math.round(sec || 0));
+        return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    }
+
     function finish(now, won) {
         if (ended) return;
         // ⚠️⚠️ BANK THE LAST PART-SECOND *BEFORE* `ended` IS SET, WHICH IS THE BUG
@@ -987,23 +1043,78 @@ export function mount(container, opts) {
         d.end(now);
 
         const rep = d.report(now);
-        won ? sfx.win() : sfx.lose();
+        // ⚠️⚠️ A PASS CANNOT BE UNDONE BY WHAT HAPPENS AFTER IT. Losing the city
+        // in survival ends the session; it does not un-unlock the lesson. Any
+        // other reading would make "play on for a leaderboard score" a gamble
+        // with the thing the student already earned, and no child would take it
+        // twice.
+        const passed = !!passReport || (won && !survival);
+        // ⚠️ SURVIVAL FIGURES ARE THE DIFFERENCE BETWEEN THE TWO READS, NOT A NEW
+        // COUNTER. A second accumulator over the same quantities is the Rule 9
+        // shape this project keeps finding — and these cannot disagree with the
+        // graded numbers, because both come off the same report.
+        // ⚠️⚠️ THE SCORE COMES FROM THE SHELL, NOT FROM SUBTRACTING TWO SCORES.
+        // The obvious `rep.score - passReport.score` is WRONG and was caught by
+        // running it: `score` pays for INTACT SHIELDS, and survival is exactly
+        // when a student spends them, so the difference goes negative for anyone
+        // who plays on long enough to lose one — a clean 700 fell to 300 over
+        // four minutes. d.survivalScore prices the characters cleared past the
+        // quota and nothing else. ⚠️ SECONDS AND COUNTS *DO* SUBTRACT — they are
+        // totals, not ratios and not shield-bearing.
+        const survivalPart = passReport ? {
+            seconds: Math.max(0, rep.seconds - passReport.seconds),
+            cleared: rep.extraCleared,
+            score: rep.survivalScore,
+        } : null;
+        passed ? sfx.win() : sfx.lose();
         // ⚠️ THE VIEW FORMATS THESE LINES; IT DOES NOT COMPUTE THEM. Every number
         // here came off the shell's report untouched, and no letter grade appears
         // — run-grade.js turns (wpm, acc) into a grade, and a second place that
         // did it is the Rule 9 shape this project keeps finding.
+        //
+        // ⚠️⚠️ A SURVIVOR WHO DIES MUST BE TOLD THEY PASSED, IN THE FIRST LINE,
+        // AND THIS IS THE ENTIRE UX RISK IN THE FEATURE. The session ends the way
+        // every losing run ends — shields gone, city flattened — so a modal that
+        // led with the loss would tell a child who had already earned the lesson
+        // that they had failed it. The heading is the PASS; the survival run is
+        // the line under it.
+        const gradeLine = r =>
+            `${r.wpm} WPM  ·  ${r.acc}% accurate  ·  ${r.targetsCleared} words`;
         if (chrome) {
+            const lines = [];
+            if (passReport) {
+                lines.push(gradeLine(passReport));
+                lines.push(`Needed ${passReport.targetWPM} WPM and ${passReport.minAccuracy}% — cleared`);
+                // ⚠️ THE SURVIVAL LINE NEVER PRINTS A WPM OR AN ACCURACY. Those
+                // exist for the graded run only; a second pair beside them is
+                // the "two different numbers for one thing" a student would then
+                // have to reconcile, and the whole point of the freeze is that
+                // there is exactly one answer.
+                lines.push(survivalPart && survivalPart.cleared
+                    ? `Survival: ${fmtClock(survivalPart.seconds)} · ` +
+                      `${survivalPart.cleared} more words · ${survivalPart.score} points`
+                    : 'Survival: the city fell right after the pass');
+            } else {
+                lines.push(gradeLine(rep));
+                lines.push(d.endless ? `Score ${rep.score}`
+                                     : `Needed ${rep.targetWPM} WPM and ${rep.minAccuracy}%`);
+            }
             chrome.showResult({
-                heading: won ? 'CITY DEFENDED' : 'THE DEADLINE PASSED',
-                lines: [
-                    `${rep.wpm} WPM  ·  ${rep.acc}% accurate  ·  ${rep.targetsCleared} words`,
-                    d.endless ? `Score ${rep.score}`
-                              : `Needed ${rep.targetWPM} WPM and ${rep.minAccuracy}%`,
-                ],
+                heading: passed ? 'CITY DEFENDED' : 'THE DEADLINE PASSED',
+                lines,
                 canRestart: true,
             });
         }
-        onEnd(rep);
+        // ⚠️⚠️ THE HOST IS HANDED THE GRADED RUN AS `pass`, AND IT IS THE ONLY
+        // THING THAT MAY EVER REACH recordRunOutcome(). `rep` is the whole
+        // session including survival, so a wiring that wrote `rep` would file a
+        // leaderboard stunt as a lesson grade. ⚠️ WHEN THE GATE SEAM IS BUILT,
+        // THIS IS THE FIELD IT READS.
+        onEnd(Object.assign({}, rep, {
+            passed,
+            pass: passReport || (passed ? rep : null),
+            survival: survivalPart,
+        }));
     }
 
     // ── drawing ─────────────────────────────────────────────────────────────
@@ -1071,6 +1182,15 @@ export function mount(container, opts) {
                 shieldsLeft: rep.shieldsLeft,
                 countdown,
                 quota: d.endless ? null : d.clearedChars / d.quotaChars,
+                // ⚠️⚠️ ONCE THE QUOTA IS MET THE ROW BECOMES THE SCORE, BECAUSE A
+                // BAR PINNED AT 100% FOR FOUR MINUTES REPORTS NOTHING. The
+                // student needs to see the one number that is still moving, or
+                // survival is a mode with no readout. ⚠️ THE SCORE IS THE
+                // SURVIVAL SCORE, not the session's: the graded run's points are
+                // part of the frozen record and counting them here would let a
+                // child read their leaderboard figure as including work that was
+                // already banked as a grade.
+                survivalScore: passReport ? rep.survivalScore : null,
                 // ⚠️ THE SAME STRINGS THE STRIP USES, from the same helper. Two
                 // formatters would drift and show a student two "today" figures.
                 todayText: m.bottomLeft ? m.bottomLeft.replace('TODAY  ', '') : null,
@@ -1788,6 +1908,9 @@ export function mount(container, opts) {
         // survives a restart" failure this function's own header warns about,
         // and it only became reachable once the tick started firing at all.
         secondsBanked = 0;
+        // ⚠️ AND THE FROZEN GRADE GOES WITH IT. A snapshot surviving into the
+        // replay would report the PREVIOUS run's WPM as this one's pass.
+        passReport = null;
         layout();
         chrome.setPhase('ready');
     }

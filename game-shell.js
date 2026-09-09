@@ -1,3 +1,15 @@
+// game-shell.js v1.4.0 — Round 101 (Wellington): the pressure ceiling becomes a
+// per-run number. ⚠️⚠️ PRESSURE_CEILING IS A PLATEAU — reached 75 targets past the
+// quota and then flat — which is exactly *"the student will lose because it gets
+// too hard, not because s/he gets tired"* failing. Survival passes
+// SURVIVAL_PRESSURE_CEILING; ⚠️ everything that passes nothing is unchanged.
+// game-shell.js v1.3.0 — Round 101 (Wellington): `survivalScore`, the one number
+// survival mode adds. ⚠️ IT LIVES HERE BECAUSE SCORE MATH LIVES HERE — the view
+// that needed it must not compute it, which is this file's founding rule. ⚠️⚠️ AND
+// BECAUSE THE ARITHMETIC IS NOT OBVIOUS: end-score minus score-at-the-pass is
+// WRONG, since `score` pays for intact shields and survival is when they are
+// spent. Everything else survival needs was already here — the pool wraps and
+// the pressure ramp already feeds off targets cleared past the quota.
 // game-shell.js v1.2.0 — THE GAME TIMING RULE, IN ONE PLACE, WITH NOTHING ELSE
 // IN IT. Round 82 (Victor).
 //
@@ -109,7 +121,7 @@
 
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.2.0';
+export const GAME_SHELL_VERSION = '1.4.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -168,6 +180,30 @@ export const RAMP_PER_TARGET = 0.02;
 // which no student in this building will hold; past here the queue depth is what
 // keeps tightening.
 export const PRESSURE_CEILING = 2.5;
+
+/**
+ * ⭐ THE SURVIVAL CEILING. Jake, 2026-09-09: *"survival mode has to get HARDER.
+ * So the incoming enemies spawn gradually faster and faster. The student will
+ * lose because it gets too hard, not because s/he gets tired."*
+ *
+ * ⚠️⚠️ PRESSURE_CEILING IS A PLATEAU, AND A PLATEAU IS EXACTLY THE FAILURE HE
+ * DESCRIBES. It is reached after 75 targets past the quota and then never moves,
+ * so survival becomes a fixed rate the student either can or cannot hold —
+ * measured: on a 10 WPM lesson the plateau is 25 WPM of demand, which a strong
+ * eighth grader holds until the bell. The run then ends from fatigue, boredom or
+ * the period ending, and the leaderboard ranks whoever had the most patience.
+ *
+ * ⚠️ IT IS A SAFETY RAIL, NOT A TARGET. 6.0 is 250 targets past the quota — far
+ * beyond where any student is still clearing — so in practice the ramp simply
+ * never stops. The number exists so that no arithmetic downstream divides by a
+ * pressure that has run away, not because anyone will reach it.
+ *
+ * ⚠️⚠️ MISSIONS AND ESCAPE KEY KEEP PRESSURE_CEILING. This applies only where a
+ * host asks for it (`cfg.pressureCeiling`), because a graded run must never get
+ * harder than the gate it is judged against — the ramp there exists only for the
+ * student who has ALREADY passed.
+ */
+export const SURVIVAL_PRESSURE_CEILING = 6.0;
 
 // Queue depth shrinks with pressure, so the late game is short-fused as well as
 // fast. Never below this: a target that lives for one spawn interval cannot be
@@ -474,6 +510,10 @@ export class GameDirector {
         this.shields = c.shields == null ? 3 : c.shields;
         this.shieldsMax = this.shields;
         this.endless = !!c.endless;
+        // ⚠️ OPTIONAL, AND THE DEFAULT IS THE OLD BEHAVIOUR EXACTLY. A host that
+        // says nothing gets PRESSURE_CEILING, so missions, the lab and Escape Key
+        // are byte-for-byte what they were.
+        this.pressureCeiling = c.pressureCeiling > 0 ? c.pressureCeiling : PRESSURE_CEILING;
         this.rand = c.rand || Math.random;
 
         this.avgChars = avgTargetChars(this.targets) || ARCADE_GROUP_SIZE;
@@ -497,6 +537,15 @@ export class GameDirector {
         // long one already falling. See the block there.
         this._lastArrivalAt = null;
         this._extraCleared = 0;  // targets cleared past the quota — the ramp input
+        // ⚠️⚠️ CHARACTERS CLEARED PAST THE QUOTA, FOR THE SURVIVAL SCORE (Round
+        // 101). It lives here and not in the view for the reason at the top of
+        // this section: a view that computes a score is the defect this file
+        // exists to prevent. ⭐ AND THE OBVIOUS SHORTCUT — end score minus the
+        // score at the pass — IS WRONG: `score` includes intact shields, and
+        // survival is precisely when a student spends them, so the subtraction
+        // goes NEGATIVE for anyone who plays on long enough to lose one. Found
+        // by running it: a clean 700 fell to 300 after four minutes of survival.
+        this._extraChars = 0;
     }
 
     // ── pressure and pacing ─────────────────────────────────────────────────
@@ -513,7 +562,7 @@ export class GameDirector {
      */
     get pressure() {
         const ramp = this._extraCleared * RAMP_PER_TARGET;
-        return Math.min(PRESSURE_CEILING, MISSION_PRESSURE + ramp);
+        return Math.min(this.pressureCeiling, MISSION_PRESSURE + ramp);
     }
 
     /**
@@ -732,7 +781,7 @@ export class GameDirector {
         const len = (text || '').length;
         this.clearedChars += len;
         this.clearedCount++;
-        if (this.endless || this.quotaMet) this._extraCleared++;
+        if (this.endless || this.quotaMet) { this._extraCleared++; this._extraChars += len; }
         if (!this.quotaMet && this.clearedChars >= this.quotaChars) {
             this.quotaMet = true;
         }
@@ -806,6 +855,8 @@ export class GameDirector {
             metAccuracy: acc >= this.minAccuracy,
             passed: wpm >= this.targetWPM && acc >= this.minAccuracy && this.quotaMet,
             score: this.score,
+            survivalScore: this.survivalScore,
+            extraCleared: this._extraCleared,
             endless: this.endless,
         };
     }
@@ -814,6 +865,25 @@ export class GameDirector {
         const correct = Math.max(0, this.chars - this.mistakes);
         return correct * POINTS_PER_CORRECT_CHAR
              + Math.max(0, this.shields) * POINTS_PER_INTACT_SHIELD;
+    }
+
+    /**
+     * ⭐ THE BRAGGING-RIGHTS FIGURE: what the student typed AFTER they had
+     * already passed. Jake, 2026-09-09: *"survival mode is there to get on the
+     * leaderboard/prove your mettle."*
+     *
+     * ⚠️⚠️ NO SHIELD COMPONENT, DELIBERATELY. `score` above pays for intact
+     * shields, which is right for a mission — but survival ends when the shields
+     * are gone, so including them would make this number FALL as a student
+     * survived longer, and go negative against the score at the pass. It is
+     * characters cleared past the quota, priced the same as every other
+     * character in this app.
+     * ⚠️ IT ALSO CANNOT DOUBLE-COUNT THE GRADED RUN: `_extraChars` starts at the
+     * target AFTER the one that met the quota, because cleared() tests
+     * `quotaMet` before flipping it.
+     */
+    get survivalScore() {
+        return this._extraChars * POINTS_PER_CORRECT_CHAR;
     }
 }
 
