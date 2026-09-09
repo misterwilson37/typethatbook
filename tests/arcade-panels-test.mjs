@@ -1,4 +1,7 @@
-// arcade-panels-test.mjs v1.1.0 — Round 100 (Lambert): the threat board, and
+// arcade-panels-test.mjs v1.2.0 — Round 100b: Part G, the four things Jake's
+// own screen showed — the playfield countdown, the duplicated controls, the
+// duplicated top HUD plate, and the flanks outgrowing the stage.
+// v1.1.0 — Round 100 (Franklin): the threat board, and
 // Part F, which pins that the flanks track the stage rather than carrying fixed
 // heights that cannot answer a question about a viewport-relative box.
 // v1.0.0 — THE SIDE PANELS ARE *RUN*, NOT READ. Round 99
@@ -31,8 +34,8 @@
 // panel; these two are equal) that must hold at any sane set of constants.
 
 import { readFileSync } from 'fs';
-import { drawRadar, drawGauges, drawSevenSeg, sevenSegWidth, drawThreatBoard }
-    from '../game-draw.js';
+import { drawRadar, drawGauges, drawSevenSeg, sevenSegWidth, drawThreatBoard,
+         drawCountdownOverlay } from '../game-draw.js';
 import * as LAY from '../game-layout.js';
 
 let pass = 0, fail = 0;
@@ -57,6 +60,13 @@ function recorder() {
         ops,
         save() {}, restore() {},
         clearRect() {}, setTransform() {},
+        // ⚠️ PRESENT SO A MUTATION CANNOT PASS BY CRASHING. Mutating
+        // drawCountdownOverlay() to pulse via ctx.translate() threw a TypeError
+        // on a recorder that lacked it, which LOOKS like a caught mutation and
+        // is not — the harness died instead of disagreeing. A recorder missing a
+        // method it should have is a hole in every assertion downstream of it.
+        translate(dx, dy) { this._tx = (this._tx || 0) + dx; this._ty = (this._ty || 0) + dy; },
+        scale() {}, rotate() {},
         beginPath() { path.length = 0; },
         closePath() {},
         moveTo(x, y) { path.push([x, y]); },
@@ -103,6 +113,13 @@ function withFullMotion(fn) {
         if (had) globalThis.window = prev; else delete globalThis.window;
     }
 }
+
+
+/** ⚠️ COMMENTS OUT BEFORE ANY "DOES THE CODE DO X" CHECK. Fifth instance of that
+ *  defect landed in this suite in Round 99; assume a sixth. */
+const stripJs = src => src
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/^[ \t]*\/\/.*$/gm, ' ');
 
 const textOps = ctx => ctx.ops.filter(o => o.op === 'text');
 const findText = (ctx, s) => textOps(ctx).find(o => o.text === s);
@@ -399,9 +416,46 @@ const hasColor = (ctx, col) => lamps(ctx).some(o => o.color === col);
     // formatted strings ("1h 20m") from ONE formatter in game-deadline.js;
     // drawSevenSeg renders digits only, so making them digital would mean
     // reformatting here — a second formatter showing a student two "today"s.
-    const withTotals = gauges({ wpm: 20, acc: 90, todayText: '14m', weekText: '1h 20m' });
-    ok(!!findText(withTotals, 'TODAY  14m') && !!findText(withTotals, 'WEEK   1h 20m'),
-       'the banked totals are printed verbatim, exactly as handed over');
+    // ⚠️⚠️ ROUND 100b — THE ROWS ARE SEVEN-SEGMENT NOW, on Jake's ruling that
+    // BANKED *"should look very similar to the run clock at the top"*. So the
+    // digits are polygons and the only TEXT on these rows is the two labels.
+    const withTotals = gauges({ wpm: 20, acc: 90, todayText: '14m', weekText: '1h 20m',
+                                todayClock: '0:14', weekClock: '1:20' });
+    ok(!!findText(withTotals, 'BANKED'), 'the banked block is headed');
+    ok(!!findText(withTotals, 'TODAY') && !!findText(withTotals, 'WEEK'),
+       'and each row is NAMED, which is what keeps it apart from the run clock');
+    ok(!findText(withTotals, '0:14') && !findText(withTotals, '1:20'),
+       '\u26a0 the totals are drawn in segments, not as text in a font');
+    // ⚠️ THE INK IS WHAT SEPARATES THE RUN FROM THE WEEK NOW THAT THE TYPEFACE
+    // DOES NOT. The standing rule is that a child must not read "28 WPM" and
+    // "14m today" as facts of the same kind; with one instrument family, colour
+    // and the row label carry that distinction and must not drift together.
+    const inks = new Set(withTotals.ops.filter(o => o.op === 'fill' && o.alpha === 1)
+                                       .map(o => o.color));
+    ok(inks.has(LAY.GAUGE_TOTAL_INK), 'the banked digits use the TOTAL ink');
+    ok(LAY.GAUGE_TOTAL_INK !== LAY.SEG_TIME_INK,
+       '\u26a0\u26a0 which is a different colour from the run clock\u2019s, deliberately');
+
+    // ⚠️⚠️ AND NOTHING DOWNSTREAM MAY REFORMAT SECONDS. drawSevenSeg cannot be
+    // handed "1h 20m", and the tempting fix is a Math.floor(sec/60) right here —
+    // which is the second formatter game-deadline.js has warned about since
+    // Round 95. Two places converting seconds to minutes is two chances to round
+    // differently, and what a student sees is two different totals for one day.
+    const draw = readFileSync(new URL('../game-draw.js', import.meta.url), 'utf8');
+    const gg = draw.slice(draw.indexOf('export function drawGauges'));
+    // ⚠️ SCOPED TO THE BANKED BLOCK, AND THE FIRST DRAFT WAS NOT. It forbade
+    // `/ 60` anywhere in drawGauges() and went red on correct code: the RUN
+    // CLOCK legitimately converts its own elapsed seconds to m:ss, a number that
+    // exists nowhere else and is nobody's stored total. The rule being enforced
+    // is about the BANKED figures, which are read from Firestore and must match
+    // what a teacher pulls \u2014 so that is the region to check.
+    const banked = stripJs(gg.slice(gg.indexOf('if (o.todayClock')));
+    ok(!/\/\s*60/.test(banked) && !/dailySeconds|weeklySeconds/.test(banked),
+       '\u26a0\u26a0 the banked block does no seconds\u2192minutes arithmetic of its own');
+    const dl = readFileSync(new URL('../game-deadline.js', import.meta.url), 'utf8');
+    ok(/todayClock: clock\(m\.dailySeconds\)/.test(dl) &&
+       /weekClock:\s+clock\(m\.weeklySeconds\)/.test(dl),
+       'both shapes are emitted by minuteLines(), over the same seconds');
     // ⚠️ NOTHING IS PRINTED WHEN THERE IS NOTHING TO PRINT. "0m today" is a
     // claim, and a page that never read the totals may not make it.
     const none = gauges({ wpm: 20, acc: 90 });
@@ -628,6 +682,130 @@ console.log('\nF — THE FLANKS TRACK THE STAGE, SO THERE IS NO BARE SPACE LEFT'
     ok(rightMin <= worstStage,
        '\u26a0\u26a0 and so does the right, which OVERFLOWED by 38px before this round (' +
        rightMin + ' of ' + worstStage + 'px)');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\nG — JAKE\'S SCREEN: THE COUNTDOWN, AND THE THINGS DRAWN TWICE');
+// ═══════════════════════════════════════════════════════════════════════════
+{
+    // ⭐ THE COUNTDOWN IS ALSO BIG IN THE MIDDLE OF THE FIELD. Jake: *"let's
+    // duplicate those numbers (and that font) in the middle of the playfield,
+    // too, so it's super obvious."*
+    const c = recorder();
+    drawCountdownOverlay(c, 800, 600, 3);
+    const segs = c.ops.filter(o => o.op === 'fill');
+    ok(segs.length === 7, 'the overlay draws one seven-segment digit');
+    ok(!!findText(c, 'GET READY'), 'with a caption');
+    // ⚠️ IT IS THE SAME TYPEFACE AS THE CONSOLE CLOCK BECAUSE IT IS THE SAME
+    // FUNCTION — that is the whole of "and that font".
+    ok(segs.every(o => o.color === LAY.SEG_COUNT_INK), 'in the countdown ink');
+    // Centred on the canvas, both axes, at any size.
+    const xs = segs.flatMap(o => o.pts.map(p => p[0]));
+    const ys = segs.flatMap(o => o.pts.map(p => p[1]));
+    ok(Math.abs((Math.min(...xs) + Math.max(...xs)) / 2 - 400) < 3,
+       'horizontally centred on the play area');
+    ok(Math.abs((Math.min(...ys) + Math.max(...ys)) / 2 - 300) < 3,
+       'and vertically centred');
+
+    // ⚠️⚠️ NO PULSE. The DOM countdown this replaces animated its scale every
+    // frame; a large centred numeral that strobes is a periodic large-area
+    // luminance change in front of thirty twelve-year-olds, which is the exact
+    // pattern drawHitFeedback() stopped doing a full-screen fill to avoid.
+    const big = (() => { const r = recorder(); drawCountdownOverlay(r, 800, 600, 3);
+        return r.ops.filter(o => o.op === 'fill').flatMap(o => o.pts.map(p => p[1])); })();
+    ok(Math.max(...big) === Math.max(...ys) && Math.min(...big) === Math.min(...ys),
+       'two draws of the same count are pixel-identical');
+    // ⚠️⚠️ AND THAT SAMPLE ALONE DOES NOT PROVE IT, WHICH IS WHY THE NEXT CHECK
+    // EXISTS. Mutating the overlay to scale by `Math.sin(Date.now())` passed all
+    // 120 assertions: two back-to-back draws land in the SAME MILLISECOND, so
+    // any time-driven pulse is invisible to sampling. A property about "for all
+    // t" cannot be established by evaluating at one t.
+    // ⭐ SO THE REAL CHECK IS STRUCTURAL: the overlay's geometry may depend on
+    // nothing but (W, H, n). No clock reaches it, so there is nothing to pulse
+    // with — and that is the assertion that guards a photosensitivity rule
+    // rather than merely describing one.
+    const drawSrc = readFileSync(new URL('../game-draw.js', import.meta.url), 'utf8');
+    const ov = stripJs(drawSrc.slice(drawSrc.indexOf('export function drawCountdownOverlay'),
+                                     drawSrc.indexOf('export function drawThreatBoard')));
+    ok(!/Date\.now|performance\.now|Math\.random|tSec|new Date/.test(ov),
+       '\u26a0\u26a0 no clock or randomness reaches the overlay, so it CANNOT pulse');
+    ok(!/globalAlpha\s*=/.test(ov),
+       'and it never varies its own alpha');
+    // ⚠️ AND NO FULL-AREA WASH BEHIND IT. A dimming panel over the sky would be
+    // the same luminance problem wearing a different hat.
+    ok(!c.ops.some(o => o.op === 'fillRect' && o.w >= 800),
+       'and nothing is drawn across the whole play area behind it');
+
+    // Absent-safe: no count, nothing drawn.
+    const off = recorder();
+    drawCountdownOverlay(off, 800, 600, null);
+    ok(off.ops.length === 0, 'no countdown means no overlay at all');
+}
+
+{
+    // ⚠️⚠️ ONE SOURCE, DISPLAYED TWICE \u2014 NOT TWO SOURCES. The rule Round 95
+    // enforced (the strip flanks and the console each computing a WPM) is about
+    // two things COUNTING. Both countdown readouts render the view's single
+    // `countdown` variable, handed down from game-chrome.js's one timer.
+    const dl = readFileSync(new URL('../game-deadline.js', import.meta.url), 'utf8');
+    const code = stripJs(dl);
+    ok(/drawCountdownOverlay\(ctx, W, H, countdown\)/.test(code) &&
+       /countdown,/.test(code),
+       'both readouts are fed the same `countdown` variable');
+    // The declaration, restart()'s reset, and the chrome callback. Nothing else
+    // may write it, or the two readouts have two sources after all.
+    ok((code.match(/countdown = /g) || []).length <= 3,
+       '\u26a0 and only the declaration, restart() and the chrome callback assign it');
+
+    // ⚠️⚠️ THE TOP HUD PLATE MUST NOT RUN WHEN A CONSOLE IS PRESENT. Jake's
+    // screenshot: "0 WPM 100% TARGET 25/90%" on a plate over the sky while the
+    // console printed the same four numbers to the right. It happened only with
+    // the KEYBOARD OFF \u2014 kbH is 0, so the fallback branch ran. The flanks stood
+    // down for this in Round 95; this branch did not.
+    ok(/\} else if \(!gaugeCtx\) \{\s*(?:[^}]*?)drawHudTop/.test(code) ||
+       /else if \(!gaugeCtx\)/.test(code),
+       '\u26a0\u26a0 drawHudTop() is gated on there being NO console panel');
+}
+
+{
+    // ⚠️⚠️ THE DUPLICATED BUTTONS. destroy() removed the overlay and left the
+    // BAR behind, because with a barHost the bar has a different parent \u2014 so
+    // arcade.html's destroy-and-remount on every launch appended another set.
+    // ⭐ AND THAT IS ALSO WHY THE PAGE WAS TOO TALL: the extra stack contributed
+    // its own min-content height to the grid row.
+    const chrome = readFileSync(new URL('../game-chrome.js', import.meta.url), 'utf8');
+    const cc = stripJs(chrome);
+    const destroy = cc.slice(cc.indexOf('destroy() {'));
+    ok(/bar\.parentNode.*removeChild\(bar\)/s.test(destroy.slice(0, 600)),
+       '\u26a0\u26a0 destroy() removes the BAR as well as the overlay');
+    ok(/wrap\.parentNode.*removeChild\(wrap\)/s.test(destroy.slice(0, 600)),
+       'and still removes the overlay');
+    ok(/classList\.contains\('gc-bar'\)/.test(cc),
+       'plus a stale-bar sweep on mount, so a missed teardown cannot show two');
+
+    // ⚠️ THE FLANKS MAY NOT SET THE GRID ROW HEIGHT. Every floor inside a card
+    // competes with #stage for it, which is what made the radar taller than the
+    // play frame on a real screen.
+    const html = readFileSync(new URL('../arcade.html', import.meta.url), 'utf8');
+    const lay = readFileSync(new URL('../game-layout.js', import.meta.url), 'utf8');
+    ok(/\.side-card \{[^}]*min-height: 0/.test(html),
+       '\u26a0\u26a0 a flank card contributes no min-height of its own');
+    ok(/\.side-card \{[^}]*overflow: hidden/.test(html),
+       'and clips rather than growing the row');
+    ok(/#controls-col \.gc-bar-card \{ min-height: 0/.test(html),
+       'nor does the control stack');
+    const num = k => Number((lay.match(new RegExp('export const ' + k + '\\s*=\\s*([0-9]+)')) || [])[1]);
+    // ⚠️ THE ARITHMETIC THAT MADE ROUND 100b NECESSARY, AT JAKE'S OWN VIEWPORT.
+    // His screenshot is ~745 CSS px tall, so #stage's 78vh is ~581.
+    const chromeH = 24 + 10 + 12;
+    const stage = Math.max(420, Math.round(745 * 0.78));
+    const leftMin  = num('RADAR_MIN_H') + num('THREAT_H') + chromeH + 8;
+    const rightMin = num('GAUGE_MIN_H') + chromeH + 4 + 4 * 34 + 3 * 8 + 10;
+    ok(leftMin <= stage, 'at Jake\'s viewport the left flank fits the stage (' +
+       leftMin + ' of ' + stage + 'px)');
+    ok(rightMin <= stage, '\u26a0\u26a0 and so does the right (' + rightMin +
+       ' of ' + stage + 'px)');
 }
 
 console.log(fail

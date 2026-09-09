@@ -1,6 +1,85 @@
 # CHANGELOG — TypeThatBook
 
-## Round 100 (Lambert) — 2026-09-09 — the flanks stop having bare space, for real
+## Round 100b (Franklin) — 2026-09-09 — Jake's actual screen
+
+⚠️ **ONE NAME PER CONVERSATION.** Jake: *"Each conversation gets one name, not one
+every back and forth."* Round 100 was signed "Lambert" and should not have been —
+⚠️⚠️ **and `Round 32 (Lambert)` already exists**, so it was a duplicate as well as
+a second name. The no-reuse check I claimed to run omitted `ROADMAP.md`. Rounds
+99, 100 and 100b are all **Franklin**.
+
+⚠️⚠️ **TWO OF THE FOUR REPORTS WERE ONE DEFECT.** `game-chrome.js`'s `destroy()`
+removed the overlay `wrap` and **left the button bar on the page** — with a
+`barHost` the bar has a different parent, and `arcade.html`'s `play()` destroys
+and re-mounts on every launch, so a second run appended a second set of controls.
+That is *"the buttons are currently duplicated when I'm paused"*. ⭐ **And it is
+also why the page was too tall**: the extra stack contributed its own min-content
+height to the grid row, so the flank cards outgrew `#stage` and the radar
+stretched with them. `v1.6.0` removes the bar in `destroy()` and sweeps stale
+bars on mount. ⚠️ **The lesson: a teardown must undo every attachment, not the
+obvious one.** The moment `mountChrome()` gained a second parent in Round 94 it
+needed a second removal, and nothing failed loudly because the leak looks like a
+layout opinion.
+
+⭐ **THE FLANKS FIT INSIDE THE STAGE NOW RATHER THAN COMPETING WITH IT.** A grid
+row is as tall as its tallest item's min-content, so every floor inside a flank
+card was bidding against `#stage` for the height. `.side-card` is
+`min-height: 0; overflow: hidden`, the control stack likewise, and the canvas
+floors dropped to 200/260px — ⚠️ **floors exist only so `fitCanvas()` never
+measures a zero-height box on the first frame; they are not target sizes.** At
+Jake's own viewport (~745 CSS px, so a 581px stage) the left flank needs 358px and
+the right 480px, both comfortably inside it — so the radar is now whatever height
+the screen leaves it, which is what he asked for.
+
+⭐ **THE COUNTDOWN IS ALSO DRAWN BIG IN THE MIDDLE OF THE FIELD**, same digits,
+same drawn font, from the same `countdown` variable. ⚠️ This reverses
+`drawGauges()`'s own *"one readout, one number"* note, and the distinction is
+worth keeping straight: that rule forbids a second thing **counting**, and Round
+95 had to delete a genuinely duplicated readout where the strip flanks and the
+console each computed a WPM. One source displayed twice is emphasis. ⚠️⚠️ **AND IT
+IS STATIC** — the DOM countdown it replaces animated its scale every frame, and a
+large centred numeral that pulses is the periodic large-area luminance change
+`drawHitFeedback()` stopped doing a full-screen fill to avoid.
+
+⭐ **BANKED IS A SEVEN-SEGMENT READOUT**, per Jake: *"That should look very
+similar to the run clock at the top."* ⚠️ The standing rule that a child must not
+read "28 WPM" and "14m today" as facts of the same kind is preserved by **ink and
+row label**, not by typeface: the run clock is red, these are the blue total ink.
+⚠️⚠️ **`drawSevenSeg()` cannot be handed "1h 20m"**, and the tempting fix is a
+`Math.floor(sec/60)` inside the panel — the second formatter `game-deadline.js`
+has warned about since Round 95. `minuteLines()` emits **both shapes from one
+function over the same seconds**, and the harness pins that the banked block does
+no arithmetic of its own.
+
+⚠️⚠️ **A FOURTH DUPLICATE, FOUND IN THE SCREENSHOT AND NOT REPORTED.** *"0 WPM
+100% TARGET 25/90%"* sits on a plate over the sky in Jake's image while the
+console prints the same four numbers to the right. `drawHudTop()` is the
+no-keyboard fallback, and with the keys toggled **off** `kbH` is 0 — so the
+branch ran even with a console present. The strip flanks stood down for exactly
+this reason in Round 95; this branch never did. Gated on `!gaugeCtx` now.
+
+### ⚠️⚠️ Two harness holes, and the second is the interesting one
+
+`arcade-panels-test.mjs` **v1.2.0**, 122 assertions, Part G added for all four
+reports. Mutation-verified five ways — the bar leak restored, the HUD plate
+ungated, the flank floors put back, a dimming wash behind the countdown, and a
+time-driven pulse on it.
+
+* ⚠️ **A mutation passed by CRASHING.** Pulsing the overlay via `ctx.translate()`
+  threw on a recorder that lacked the method, which reads as a caught mutation
+  and is not — the harness died instead of disagreeing. A recorder missing a
+  method it should have is a hole in every assertion downstream of it.
+* ⚠️⚠️ **"IT DOES NOT PULSE" CANNOT BE PROVEN BY SAMPLING.** Scaling by
+  `Math.sin(Date.now())` passed all 120 assertions, because two back-to-back
+  draws land in the **same millisecond**. A property about *all t* cannot be
+  established by evaluating at one t. ⭐ The check is structural now: no clock and
+  no randomness reaches the overlay, so there is nothing to pulse with — which
+  guards the photosensitivity rule rather than merely describing it.
+
+⚠️ **NOT VERIFIED IN A BROWSER.** ⚠️ **Nothing here touches a count, a grade or a
+write.**
+
+## Round 100 (Franklin) — 2026-09-09 — the flanks stop having bare space, for real
 
 ⚠️⚠️ **ROUND 99 ANSWERED *"big chunks of empty space don't fit the vibe"* WITH
 TALLER FIXED HEIGHTS, AND A FIXED HEIGHT CANNOT ANSWER THAT QUESTION.** Measured

@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- arcade.html v3.3.0 — the flanks track the stage; the threat board.
-     Round 100 (Lambert).
+<!-- arcade.html v3.4.0 — the flanks fit inside the stage rather than
+     competing with it for the row height. Round 100b.
+     arcade.html v3.3.0 — the flanks track the stage; the threat board.
+     Round 100 (Franklin).
      arcade.html v3.2.0 — DEADLINE, ON A REAL LESSON, AT ITS REAL GATES.
      Round 87; the build panel Round 98; the console Round 99 (Franklin).
 
@@ -134,7 +136,12 @@
         border: 1px solid var(--rule);
         border-top: 1px solid rgba(120,170,220,0.28);
         border-radius: 10px; padding: 12px;
-        min-height: 200px;
+        /* ⚠️⚠️ min-height:200px → 0, AND overflow HIDDEN (Round 100b). A grid
+           row is as tall as its TALLEST item's min-content, so every floor
+           inside a flank card was competing with #stage for the row height —
+           which is how Jake's screen ended up with a radar taller than the play
+           frame. The stage owns the row now; the flanks fit inside it. */
+        min-height: 0; overflow: hidden;
         display: flex; flex-direction: column;
         box-shadow: inset 0 1px 0 rgba(143,232,200,0.06);
     }
@@ -149,18 +156,29 @@
        the card, which is the grid row, which is #stage's 78vh — all definite —
        and the min-height is what makes that safe to reason about rather than
        merely true today. */
-    #radar-canvas { flex: 1 1 auto; min-height: 260px; margin-bottom: 8px; }
+    /* ⚠️ THE FLOORS ARE LOW ON PURPOSE. They exist only so fitCanvas() never
+       measures a zero-height box on the first frame; they are NOT a target size.
+       Every one of them competes with #stage for the grid row height, so a
+       generous floor is the thing that made the page too tall. ⭐ On a real
+       screen these canvases are whatever the stage leaves them, which is what
+       Jake asked for: *"I'm hopeful that the radar can just resize its height to
+       whatever the screen is."* */
+    #radar-canvas { flex: 1 1 auto; min-height: 200px; margin-bottom: 8px; }
     /* ⚠️ THE THREAT BOARD IS THE ONE FIXED-HEIGHT ELEMENT ON THE FLANK, on
        purpose: it needs three legible rows and no more, so every spare pixel in
        the column goes to the radar above it. */
     #threat-canvas { flex: 0 0 auto; height: 104px; margin-bottom: 0; }
-    #gauge-canvas { flex: 1 1 auto; min-height: 300px; max-height: 420px; }
+    #gauge-canvas { flex: 1 1 auto; min-height: 260px; max-height: 420px; }
     /* ⭐ AND THE LEFTOVER HEIGHT IN THE RIGHT COLUMN GOES TO THE BUTTONS, which
        is the better use of it: these are the only way off this page for a
        student on an iPad with no keyboard attached. ⚠️ CAPPED — four controls
        sharing 400px would be 100px tall each and read as a mistake. */
     #controls-col .gc-bar-card { flex: 1 1 auto; }
     #controls-col .gc-bar-card .gc-btn { flex: 1 1 auto; max-height: 68px; }
+    /* ⚠️ AND THE STACK MAY NOT SET THE ROW HEIGHT EITHER. Without min-height:0 a
+       flex container contributes its children's floors to the row, which is
+       half of why the console card outgrew the stage. */
+    #controls-col .gc-bar-card { min-height: 0; }
     .build-wrap { position: relative; text-align: right; margin-bottom: 8px; }
     .build-foot {
         background: none; border: 1px solid var(--rule); color: var(--ink-ghost);
@@ -352,7 +370,7 @@ import { GAME_SHELL_VERSION } from './game-shell.js';
 import { GAME_DRAW_VERSION } from './game-draw.js';
 import { GAME_CHROME_VERSION } from './game-chrome.js';
 import { GAME_LAYOUT_VERSION } from './game-layout.js';
-const ARCADE_PAGE_VERSION = '3.3.0';
+const ARCADE_PAGE_VERSION = '3.4.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still

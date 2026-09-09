@@ -1,11 +1,81 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-09 by Round 100 (Lambert), for whoever is next
+> ## ▶ START HERE — written 2026-09-09 by Round 100b (Franklin), for whoever is next
 >
-> **Instance name: Lambert**, after the 1896 Lambert typewriter and its circular
-> keyboard. Not a duplicate of any `Round N (Name)` in `CHANGELOG.md`,
-> `HANDOFF.md`, `HANDOFF-games.md` or `ROADMAP.md`; the previous was Round 99
-> (Franklin).
+> **Instance name: Franklin**, the same as rounds 99 and 100 — ⚠️ **one name per
+> conversation**, which I got wrong once already this session; see the Round 100
+> block below for what that cost.
+>
+> ### THE FOUR REPORTS FROM JAKE'S OWN SCREEN, AND THE FIFTH I FOUND IN IT
+>
+> | file | version |
+> |---|---|
+> | `game-chrome.js` | **1.6.0** |
+> | `game-draw.js` | **1.6.0** |
+> | `game-deadline.js` | **1.8.0** |
+> | `game-layout.js` | **1.4.0** |
+> | `arcade.html` | **3.4.0** |
+> | `tests/arcade-panels-test.mjs` | **1.2.0** (122 assertions) |
+>
+> * ⚠️⚠️ **THE DUPLICATED BUTTONS AND THE PAGE BEING TOO TALL WERE ONE DEFECT.**
+>   `destroy()` removed the overlay and left the BAR — with a `barHost` the bar
+>   has a different parent — so `play()`'s destroy-and-remount appended another
+>   set each launch, and the extra stack's min-content height pushed the flank
+>   cards past `#stage`. ⭐ **A TEARDOWN MUST UNDO EVERY ATTACHMENT.**
+> * ⭐ The flanks are `min-height: 0; overflow: hidden` now. ⚠️ **THE CANVAS
+>   FLOORS ARE NOT TARGET SIZES** — they exist only so `fitCanvas()` never
+>   measures a zero-height box on the first frame, and a generous floor is
+>   precisely what made the page too tall.
+> * ⭐ The countdown is also drawn big mid-field, from the same variable.
+> * ⭐ BANKED is seven-segment; ⚠️ **both shapes come from `minuteLines()`**, and
+>   the panel does no seconds→minutes arithmetic.
+> * ⚠️⚠️ **A FOURTH DUPLICATE NOBODY REPORTED**: `drawHudTop()` printed
+>   WPM/accuracy/target over the sky whenever the keyboard was toggled off, six
+>   inches from the console printing the same four numbers. Gated on `!gaugeCtx`.
+>
+> ### ⚠️⚠️ THE TWO HARNESS LESSONS, WHICH OUTLAST THIS ROUND
+>
+> * **A MUTATION CAN PASS BY CRASHING.** Pulsing the overlay via `ctx.translate()`
+>   threw on a recorder that lacked the method. That looks like a caught mutation
+>   and is not. ⚠️ **A recorder missing a method it should have is a hole in every
+>   assertion downstream of it** — audit the fake, not just the assertions.
+> * **"IT DOES NOT PULSE" CANNOT BE PROVEN BY SAMPLING.** Scaling by
+>   `Math.sin(Date.now())` passed all 120 assertions, because two back-to-back
+>   draws land in the same millisecond. ⭐ **A property about all t needs a
+>   structural check, not an evaluation at one t** — the assertion now says no
+>   clock and no randomness reaches the overlay, so there is nothing to pulse
+>   with. Apply this to every photosensitivity rule in the arcade.
+>
+> ### THE STATE OF PLAY
+>
+> * **90 harnesses pass** (122 assertions in the panels harness), `audit:versions`
+>   0 problems, all 35 modules parse.
+> * ⚠️ **STILL NOT BROWSER-VERIFIED.** What to confirm: the flanks fit the play
+>   frame at a real window height; the countdown appears mid-field AND in the
+>   console clock; BANKED reads as LED digits; one set of buttons after replaying
+>   several times; and no WPM plate over the sky with the keyboard off.
+> * ⚠️ **Nothing in 99/100/100b touches a count, a grade or a write.**
+> * ⚠️ **Escape Key is still untouched** and the gap is now wide: no scope, no
+>   console, no threat board, no mid-field countdown.
+
+> ## ▶ START HERE — written 2026-09-09 by Rounds 99-100 (Franklin), for whoever is next
+>
+> **Instance name: Franklin** — the SAME name as Round 99, because it is the same
+> conversation.
+>
+> ⚠️⚠️ **I GOT THIS WRONG AND IT IS WORTH RECORDING, BECAUSE THE MISTAKE BROKE THE
+> RULE TWICE OVER.** I named myself again for this round and signed it "Lambert".
+> Jake, 2026-09-09: *"Each conversation gets one name, not one every back and
+> forth."* ⭐ **AND `Round 32 (Lambert)` ALREADY EXISTS** — see this file's own
+> note that rounds 31-34 were written up as *"Fitch, Lambert, Crandall and
+> Molle"*. So the second name was both a second name AND a duplicate, and the
+> no-reuse check I claimed to have run would have caught it if I had run it
+> against `ROADMAP.md` as well as the other three. Corrected throughout; a stray
+> "Lambert" attributed to Round 100 anywhere is a straggler.
+>
+> ⭐ **THE RULE, RESTATED FOR WHOEVER IS NEXT: ONE NAME PER CONVERSATION,** logged
+> once, carried across every round in that conversation. Rounds 99 and 100 are
+> both Franklin.
 >
 > ### WHAT THIS ROUND WAS: FINISHING WHAT ROUND 99 ONLY APPEARED TO FINISH
 >

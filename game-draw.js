@@ -1,4 +1,6 @@
-// game-draw.js v1.5.0 — the threat board, Round 100 (Lambert).
+// game-draw.js v1.6.0 — playfield countdown overlay; BANKED becomes a
+// seven-segment readout, Round 100b.
+// game-draw.js v1.5.0 — the threat board, Round 100 (Franklin).
 // game-draw.js v1.4.0 — Round 99 (Franklin): the scope stops being pixellated,
 // the console becomes a console, and seven-segment digits are drawn rather than
 // downloaded. See drawSevenSeg(), drawRadar() and drawGauges() headers.
@@ -35,7 +37,7 @@
 // may be imported by anything that draws; that only stays safe while it knows
 // nothing.
 
-export const GAME_DRAW_VERSION = '1.5.0';
+export const GAME_DRAW_VERSION = '1.6.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device
@@ -1124,23 +1126,90 @@ export function drawGauges(ctx, o) {
     // game-deadline.js; drawSevenSeg() renders digits only, so making them
     // digital would mean reformatting them here — the second formatter that
     // file's own comment warns would show a student two different "today"s.
-    if (o.todayText || o.weekText) {
-        ctx.font = '9px "Courier Prime", monospace';
-        ctx.textAlign = 'left';
-        ctx.fillStyle = LAY.GAUGE_LABEL;
-        ctx.fillText('BANKED', x, y + 8);
-        ctx.font = 'bold 13px "Courier Prime", monospace';
-        ctx.fillStyle = LAY.GAUGE_TOTAL_INK;
-        if (o.todayText) ctx.fillText('TODAY  ' + o.todayText, x, y + 26);
-        if (o.weekText) ctx.fillText('WEEK   ' + o.weekText, x, y + 42);
+    // ⚠️⚠️ ROUND 100b — THESE ARE SEVEN-SEGMENT NOW, ON JAKE'S RULING: *"I like
+    // what you have with the exception of the Banked section. That should look
+    // very similar to the run clock at the top."*
+    //
+    // ⚠️ MY PREVIOUS NOTE HERE ARGUED THE OPPOSITE AND WAS HALF RIGHT. The
+    // standing rule — *"a child must not read '28 WPM' and '14m today' as two
+    // facts of the same kind"* — is about telling THIS RUN from THEIR WEEK, and
+    // it is preserved by INK, not by typeface: the run clock is red, these are
+    // the blue total ink, and each row is named. Same instrument family, two
+    // clearly different meters, which is what a real console looks like.
+    //
+    // ⚠️⚠️ AND THE DIGITS COME FROM THE SAME FORMATTER AS THE WORDS. drawSevenSeg
+    // renders digits, a colon and a minus and nothing else, so it cannot be
+    // handed "1h 20m". game-deadline.js's minuteLines() therefore emits BOTH
+    // shapes from ONE function over the SAME seconds — see its header. A local
+    // `Math.floor(sec/60)` here would be the second formatter that file has
+    // warned about since Round 95, and the failure mode is a student shown two
+    // different totals for one day.
+    if (o.todayClock || o.weekClock) {
+        label(x, y + 8, 'BANKED');
+        const rowH = LAY.SEG_TOTAL_H + 7;
+        const row = (ry, name, clock) => {
+            if (!clock) return ry;
+            label(x, ry + LAY.SEG_TOTAL_H - 4, name);
+            drawSevenSeg(ctx, {
+                x: x + w, y: ry, h: LAY.SEG_TOTAL_H, text: clock,
+                color: LAY.GAUGE_TOTAL_INK, align: 'right',
+            });
+            return ry + rowH;
+        };
+        let ry = y + 14;
+        ry = row(ry, 'TODAY', o.todayClock);
+        ry = row(ry, 'WEEK', o.weekClock);
     }
 
     ctx.restore();
 }
 
 /**
+ * The countdown, big, in the middle of the play area.
+ *
+ * Jake, 2026-09-09: *"I like the countdown clock in the run clock, but let's
+ * duplicate those numbers (and that font) in the middle of the playfield, too,
+ * so it's super obvious."*
+ *
+ * ⚠️⚠️ THIS DELIBERATELY REVERSES drawGauges()'s OWN "one readout, one number"
+ * NOTE, AND THE DISTINCTION IS WORTH KEEPING STRAIGHT. That rule forbids a
+ * second thing COUNTING; this is a second thing DISPLAYING a count that is
+ * handed to both from game-chrome.js's single timer, so the two cannot disagree
+ * by construction. Round 95 had to delete a genuinely duplicated readout — the
+ * strip flanks and the console each computing a WPM — and that is a different
+ * shape entirely: two sources, not one source twice.
+ *
+ * ⚠️ STATIC, AND THAT MATTERS MORE HERE THAN ANYWHERE ELSE ON THE CANVAS. The
+ * DOM countdown this replaces animated its scale every frame; a large centred
+ * numeral that pulses is a periodic large-area luminance change in front of
+ * thirty twelve-year-olds, which is the exact pattern drawHitFeedback() stopped
+ * doing a full-screen fill to avoid. No pulse, no dimming panel behind it.
+ *
+ * ⚠️ AND IT IS DRAWN UNDER THE HUD AND OVER NOTHING THAT MATTERS: during the
+ * countdown the spawns have not started, so the only thing in the sky is the
+ * word already on the radar. Once play begins this stops being drawn at all.
+ */
+export function drawCountdownOverlay(ctx, W, H, n) {
+    if (n == null) return;
+    const h = Math.max(LAY.COUNT_OVERLAY_MIN_H,
+                       Math.min(LAY.COUNT_OVERLAY_MAX_H, H * LAY.COUNT_OVERLAY_FRACTION));
+    const text = String(Math.max(0, Math.min(9, n)));
+    drawSevenSeg(ctx, {
+        x: W / 2, y: (H - h) / 2, h, text,
+        color: LAY.SEG_COUNT_INK, align: 'center',
+    });
+    ctx.save();
+    ctx.font = 'bold 13px "Courier Prime", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = 'rgba(159,182,198,0.75)';
+    ctx.fillText('GET READY', W / 2, (H - h) / 2 - 14);
+    ctx.restore();
+}
+
+/**
  * ═══════════════════════════════════════════════════════════════════════════
- * THE THREAT BOARD. Round 100 (Lambert).
+ * THE THREAT BOARD. Round 100 (Franklin).
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * Jake's brief for the flanks: *"we wouldn't leave parts of it bare - we'd have

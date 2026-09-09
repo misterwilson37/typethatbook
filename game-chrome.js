@@ -1,6 +1,13 @@
-// game-chrome.js v1.5.0
+// game-chrome.js v1.6.0
 //
-// v1.5.0 — ⭐ ROUND 100 (Lambert) — the card stack can take the column's spare
+// v1.6.0 — ⚠️⚠️ THE DUPLICATED CONTROLS. destroy() removed `wrap` and left the
+//          BAR on the page, because with a barHost the bar has a different
+//          parent — so every re-mount appended another set, and the extra
+//          stack's min-content height is what made the flanks taller than the
+//          stage. Fixed at source, plus a stale-bar sweep on mount. A card
+//          button's height floor is lower now for the same reason.
+//
+// v1.5.0 — ⭐ ROUND 100 (Franklin) — the card stack can take the column's spare
 //          height and the buttons grow into it, capped by the host. ⚠️ THE
 //          FLOATING BAR IS UNCHANGED: a bar overlaid on a canvas must not start
 //          stretching, and learn.js and Escape Key both still use it.
@@ -61,7 +68,7 @@
 
 import { prefersReducedMotion } from './game-draw.js';
 
-export const GAME_CHROME_VERSION = '1.5.0';
+export const GAME_CHROME_VERSION = '1.6.0';
 
 // ⚠️ THREE SECONDS, AND THE SPAWNS WAIT FOR IT. Not the clock — the clock starts
 // on the first keystroke regardless, and always did.
@@ -100,6 +107,13 @@ const CSS = `
    ⚠️ min-height STAYS AT OR ABOVE 40px: these are the only way off this page
    for a student on an iPad with no keyboard attached, and 32px was already
    under Apple's own 44pt guidance. */
+/* ⚠️ IN A CARD THE FLOOR IS LOWER THAN THE FLOATING BAR'S. Four 40px buttons
+   plus the canvas floor was contributing more min-content height than #stage
+   gives the row, which pushed the flanks past the play frame. They still GROW
+   to fill the column (the host sets flex), so the tap target on a real screen is
+   larger than the floor — the floor only decides what happens when there is no
+   room to spare. */
+.gc-bar-card .gc-btn { min-height:34px; }
 .gc-btn { background:rgba(6,12,20,0.92); color:#bfe9ff;
           border:1px solid #2b6c8a; border-left:3px solid #2b6c8a;
           border-radius:3px; padding:9px 12px; font:inherit; font-size:12px;
@@ -187,7 +201,18 @@ export function mountChrome(container, opts) {
     // side card would put "3… 2… 1…" beside the game instead of over it.
     wrap.append(panel);
     container.appendChild(wrap);
-    if (o.barHost) o.barHost.appendChild(bar);
+    if (o.barHost) {
+        // ⚠️ BELT AND BRACES, AND DELIBERATELY NOT THE FIX. The leak is fixed at
+        // source in destroy() below; this clears any bar a caller has already
+        // orphaned, so a page that mounts twice cannot show two sets of controls
+        // even if some future teardown path is missed again. ⚠️ SCOPED TO DIRECT
+        // CHILDREN of the host — a descendant .gc-bar would belong to somebody
+        // else's mount.
+        for (const stale of Array.from(o.barHost.children)) {
+            if (stale.classList && stale.classList.contains('gc-bar')) stale.remove();
+        }
+        o.barHost.appendChild(bar);
+    }
     else wrap.appendChild(bar);
 
     let phase = 'ready';
@@ -366,6 +391,21 @@ export function mountChrome(container, opts) {
             }
             window.removeEventListener('keydown', readyKey, true);
             if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+            // ⚠️⚠️ AND THE BAR, WHICH IS THE BUG JAKE SAW AS "the buttons are
+            // currently duplicated when I'm paused". With a barHost the bar is
+            // NOT inside `wrap` — it was appended to the host's own card — so
+            // removing `wrap` orphaned it and left it on the page. arcade.html's
+            // play() destroys and re-mounts on every launch, so a second run
+            // appended a SECOND set of controls, a third a third.
+            // ⭐ AND THAT IS ALSO WHY THE PAGE WAS TOO TALL. The extra stack
+            // contributed its own min-content height to the grid row, so the
+            // flank cards grew past #stage and the radar stretched with them.
+            // One defect, two of the four reports.
+            // ⚠️ THE LESSON: A TEARDOWN MUST UNDO EVERY ATTACHMENT, NOT THE
+            // OBVIOUS ONE. The moment mountChrome() gained a second parent
+            // (Round 94's barHost) it needed a second removal, and nothing
+            // failed loudly because the leak looks like a layout opinion.
+            if (bar.parentNode) bar.parentNode.removeChild(bar);
         },
     };
 }

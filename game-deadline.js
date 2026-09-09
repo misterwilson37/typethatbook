@@ -1,6 +1,16 @@
-// game-deadline.js v1.7.0
+// game-deadline.js v1.8.0
 //
-// v1.7.0 — ⭐ ROUND 100 (Lambert) — THE FLANKS STOP HAVING BARE SPACE, FOR REAL.
+// v1.8.0 — ⭐ ROUND 100b — Jake's screen, four notes.
+//   • The countdown is ALSO drawn big in the middle of the field. ⚠️ One
+//     SOURCE displayed twice, not two sources — see drawCountdownOverlay().
+//   • BANKED is a seven-segment readout, and minuteLines() emits BOTH the words
+//     and the digits so nothing downstream reformats seconds.
+//   • ⚠️⚠️ drawHudTop() NO LONGER RUNS WHEN A CONSOLE IS PRESENT. With the
+//     keyboard off, kbH is 0 and the fallback plate printed WPM/accuracy/target
+//     over the sky while the console printed the same four numbers — visible in
+//     Jake's screenshot. The flanks stood down in Round 95; this branch did not.
+//
+// v1.7.0 — ⭐ ROUND 100 (Franklin) — THE FLANKS STOP HAVING BARE SPACE, FOR REAL.
 //   ⚠️⚠️ v1.6.0 ANSWERED *"big chunks of empty space don't fit the vibe"* WITH
 //   TALLER FIXED HEIGHTS, WHICH CANNOT ANSWER IT. Measured afterwards against
 //   #stage's own 78vh: 236px of bare left column at a 900px viewport, 470px at
@@ -237,11 +247,11 @@ import { sfx, isMuted, setMuted } from './game-audio.js';
 import {
     fitCanvas, platedText, platedProgress, makeStars, drawStars,
     burst, updateParticles, drawParticles, roundRect,
-    drawKeyboardStrip, keyboardStripHeight, drawRadar, drawGauges, drawThreatBoard,
+    drawKeyboardStrip, keyboardStripHeight, drawRadar, drawGauges, drawThreatBoard, drawCountdownOverlay,
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.7.0';
+export const GAME_DEADLINE_VERSION = '1.8.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -955,6 +965,9 @@ export function mount(container, opts) {
                 // formatters would drift and show a student two "today" figures.
                 todayText: m.bottomLeft ? m.bottomLeft.replace('TODAY  ', '') : null,
                 weekText: m.bottomRight ? m.bottomRight.replace('WEEK  ', '') : null,
+                // ⚠️ THE DIGIT SHAPES OF THE SAME TWO NUMBERS, from the same
+                // helper. See minuteLines() for why they are not derived here.
+                todayClock: m.todayClock, weekClock: m.weekClock,
                 // ⚠️ THE RAW SECONDS TOO, so the meter can show a fill while the
                 // printed number stays the truth. The bar is decoration; the
                 // figure beside the label is the fact.
@@ -1020,9 +1033,24 @@ export function mount(container, opts) {
                 progress: gaugeCtx ? null : (d.endless ? null : d.clearedChars / d.quotaChars),
                 ...(gaugeCtx ? {} : minuteLines()),
             });
-        } else {
+        } else if (!gaugeCtx) {
+            // ⚠️⚠️ `!gaugeCtx` ADDED IN ROUND 100b, AND IT WAS A REAL DUPLICATE
+            // ON SCREEN. With the keyboard toggled OFF kbH is 0, so this branch
+            // ran even when the console was present — and Jake's screenshot
+            // shows the result: "0 WPM 100% TARGET 25/90%" on a plate over the
+            // sky while the console printed the same four numbers a foot to the
+            // right. The flanks were already stood down for this reason; the
+            // top-plate fallback was not, so turning the keys off resurrected
+            // the very duplication Round 95 removed.
             drawHudTop(ctx, W, rep, d);
         }
+        // ⭐ THE COUNTDOWN, BIG, IN THE MIDDLE OF THE FIELD. Jake: *"let's
+        // duplicate those numbers (and that font) in the middle of the
+        // playfield, too, so it's super obvious."*
+        // ⚠️ THE SAME `countdown` VARIABLE THE CONSOLE CLOCK READS — one source,
+        // displayed twice, which is emphasis rather than the two-sources
+        // duplication Round 95 had to delete. See drawCountdownOverlay().
+        drawCountdownOverlay(ctx, W, H, countdown);
         if (capsOn) drawCapsWarning(ctx, W, 46);
 
         if (banner && now < banner.until) {
@@ -1539,10 +1567,27 @@ export function mount(container, opts) {
             const mins = Math.floor(sec / 60);
             return mins >= 60 ? Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm' : mins + 'm';
         };
+        // ⚠️⚠️ ONE FORMATTER, TWO SHAPES, AND THIS IS THE WHOLE REASON IT LIVES
+        // HERE (Round 100b). The console's BANKED rows are seven-segment now,
+        // and drawSevenSeg() renders digits, a colon and a minus — it cannot be
+        // handed "1h 20m". The tempting fix is a `Math.floor(sec/60)` inside
+        // drawGauges(), which is exactly the second formatter this function's
+        // own comment has warned about since Round 95: two places converting
+        // seconds to minutes is two chances to round differently, and the
+        // failure a student sees is two different totals for one day.
+        // ⭐ SO BOTH SHAPES COME OFF THE SAME SECONDS IN THE SAME FUNCTION, and
+        // arcade-panels-test.mjs asserts they agree to the minute over a sweep.
+        const clock = sec => {
+            if (sec == null) return null;
+            const mins = Math.floor(sec / 60);
+            return Math.floor(mins / 60) + ':' + String(mins % 60).padStart(2, '0');
+        };
         const day = fmt(m.dailySeconds), week = fmt(m.weeklySeconds);
         return {
             bottomLeft:  day  == null ? null : 'TODAY  ' + day,
             bottomRight: week == null ? null : 'WEEK  ' + week,
+            todayClock: clock(m.dailySeconds),
+            weekClock:  clock(m.weeklySeconds),
         };
     }
 

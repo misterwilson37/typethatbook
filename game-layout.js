@@ -1,5 +1,7 @@
+// game-layout.js v1.4.0 — playfield countdown, seven-segment banked totals and
+// lower flex floors, Round 100b.
 // game-layout.js v1.3.0 — the flanks track the stage and the threat board,
-// Round 100 (Lambert).
+// Round 100 (Franklin).
 // game-layout.js v1.2.0 — EVERY ARCADE LAYOUT NUMBER, IN ONE PLACE. Round 92;
 // the scope/console split and the seven-segment readouts, Round 99 (Franklin).
 //
@@ -30,7 +32,7 @@
  * file shipped without one, so the build panel had nothing to read and no check
  * could tell whether a classroom was running the layout it was supposed to.
  */
-export const GAME_LAYOUT_VERSION = '1.3.0';
+export const GAME_LAYOUT_VERSION = '1.4.0';
 
 // ── keyboard strip ──────────────────────────────────────────────────────────
 export const KB_HEIGHT_FRACTION = 0.19;
@@ -271,7 +273,7 @@ export const SEG_THICK       = 0.15;
 export const SEG_ASPECT      = 0.58;
 export const SEG_TIME_H      = 30;
 export const SEG_VALUE_H     = 17;
-export const SEG_TOTAL_H     = 14;
+export const SEG_TOTAL_H     = 21;
 export const SEG_TIME_INK    = '#ff5a4a';
 export const SEG_COUNT_INK   = '#ffd700';
 
@@ -293,8 +295,8 @@ export const SEG_COUNT_INK   = '#ffd700';
 // something triggers a resize. The flex basis comes from the card, which comes
 // from the grid row, which comes from #stage — all definite — but the floor is
 // what makes that safe to reason about.
-export const RADAR_MIN_H = 260;
-export const GAUGE_MIN_H = 300;
+export const RADAR_MIN_H = 200;
+export const GAUGE_MIN_H = 260;
 /** ⚠️ A CEILING, so the readouts do not stretch into a sparse grey field on a
  *  tall monitor. Past this the buttons take the remaining height, which is the
  *  better use of it — see game-chrome.js's note on tap targets. */
@@ -325,6 +327,30 @@ export const THREAT_ROW_MIN = 22;
 export const THREAT_SHIELDED = '#6be89a';
 export const THREAT_EXPOSED  = '#ffcf6b';
 export const THREAT_LOST     = '#ff6b7a';
+
+
+// ── the countdown on the playfield (Round 100b) ──────────────────────────────
+//
+// Jake: *"I like the countdown clock in the run clock, but let's duplicate those
+// numbers (and that font) in the middle of the playfield, too, so it's super
+// obvious."*
+//
+// ⚠️⚠️ THIS IS AN EXPLICIT REVERSAL OF MY OWN NOTE IN drawGauges(), WHICH SAID
+// *"one readout, one number at a time... so there is never a second timer on
+// screen to reconcile."* That rule is about two SOURCES, and it still holds:
+// both readouts render the same `countdown` variable, handed down from
+// game-chrome.js's single timer, so they cannot disagree by construction. The
+// thing the rule forbids is a second thing COUNTING; a second thing DISPLAYING
+// the same count is just emphasis, and a three-second cue a child might miss is
+// worth emphasising.
+// ⚠️ STATIC DIGITS, NO PULSE, NO FLASH. A large centred numeral that scaled or
+// strobed once a second is a periodic large-area luminance change in front of
+// thirty twelve-year-olds — the reason drawHitFeedback() stopped filling the
+// screen. The old DOM countdown DID animate its scale; this does not, and the
+// digits are drawn on a transparent field rather than over a dimming panel.
+export const COUNT_OVERLAY_FRACTION = 0.30;
+export const COUNT_OVERLAY_MAX_H = 190;
+export const COUNT_OVERLAY_MIN_H = 64;
 
 // ── control bar ─────────────────────────────────────────────────────────────
 // Where Pause/Sound/Keys/Done sits, as a fraction of strip height up from the
