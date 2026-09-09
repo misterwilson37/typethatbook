@@ -1,4 +1,35 @@
-// game-deadline.js v1.5.0
+// game-deadline.js v1.7.0
+//
+// v1.7.0 — ⭐ ROUND 100 (Lambert) — THE FLANKS STOP HAVING BARE SPACE, FOR REAL.
+//   ⚠️⚠️ v1.6.0 ANSWERED *"big chunks of empty space don't fit the vibe"* WITH
+//   TALLER FIXED HEIGHTS, WHICH CANNOT ANSWER IT. Measured afterwards against
+//   #stage's own 78vh: 236px of bare left column at a 900px viewport, 470px at
+//   1200px — and a console card that OVERFLOWED the stage by 38px at 700px. The
+//   same constant was too small and too large at once.
+//   • The canvases flex; game-layout.js holds floors and ceilings, not heights.
+//   • ⭐ THE LEFT COLUMN'S SPARE HEIGHT GOES TO THE RADAR, and a fixed-height
+//     THREAT BOARD sits under it: which landmark is shielded, exposed or lost.
+//     ⚠️ IT EARNS ITS PLACE VIA Escape — abandoning a word to save a different
+//     landmark requires knowing which one is exposed, and that was previously
+//     only readable off the skyline while words were falling.
+//   • ⚠️ COUNTS CROSS THE SEAM, NEVER GEOMETRY, and the count uses the SAME
+//     predicate covered() does. See drawSidePanels().
+//
+// v1.6.0 — ⭐ ROUND 99 (Franklin) — THE CONSOLE. Jake, 2026-09-09: *"looking at
+//   this should not make you feel like the space is not intentionally used.
+//   We're looking out a window on the field of battle, and the space on either
+//   side is the console itself... This is a battle station, not a computer
+//   game."*
+//   • The gauge panel is fed the GATES, the graded clock and the shield count,
+//     so a number and the target it is judged against are legible together.
+//     ⚠️ ALL FIVE COME OFF `d.report()`, never off `cfg` — arcade substitutes a
+//     rolling WPM for a fixed gate, and a panel reading cfg would paint an
+//     arcade run red against a number nothing enforces.
+//   • The countdown renders in that panel's clock. ⚠️ THIS VIEW OPTS IN by
+//     passing onCountdown; game-chrome.js keeps its overlay numeral for any
+//     host that does not, which is why Escape Key is untouched.
+//   • ⚠️⚠️ A DEAD `--gc-bottom` WRITE WAS EVALUATING TO NaN EVERY layout() —
+//     it read two constants Round 94 retired. See layout() for the lesson.
 //
 // v1.5.0 — ⭐ ROUND 91 — THE "SLOWER THAN THE QUIZ" GAP, DIAGNOSED AND ADDRESSED.
 //   ⚠️⚠️ v1.4.0 CALLED THIS "REAL HUMAN TIME, DO NOT FIX IN THE ARITHMETIC" AND
@@ -206,11 +237,11 @@ import { sfx, isMuted, setMuted } from './game-audio.js';
 import {
     fitCanvas, platedText, platedProgress, makeStars, drawStars,
     burst, updateParticles, drawParticles, roundRect,
-    drawKeyboardStrip, keyboardStripHeight, drawRadar, drawGauges,
+    drawKeyboardStrip, keyboardStripHeight, drawRadar, drawGauges, drawThreatBoard,
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.5.0';
+export const GAME_DEADLINE_VERSION = '1.7.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -356,8 +387,13 @@ export function mount(container, opts) {
     // learn.js) passes neither and the game is byte-for-byte what it was — which
     // is why the NEXT band below stays conditional rather than being removed.
     const radarCanvas = (opts && opts.radarCanvas) || null;
+    // ⚠️ OPTIONAL, LIKE THE OTHER TWO. tools/game-lab.html and learn.js supply
+    // no side canvases at all, and every panel has to be absent-safe or the
+    // bench and the real lesson page break the moment a panel is added.
+    const threatCanvas = (opts && opts.threatCanvas) || null;
     const gaugeCanvas = (opts && opts.gaugeCanvas) || null;
     const radarCtx = radarCanvas ? radarCanvas.getContext('2d') : null;
+    const threatCtx = threatCanvas ? threatCanvas.getContext('2d') : null;
     const gaugeCtx = gaugeCanvas ? gaugeCanvas.getContext('2d') : null;
     let secondsBanked = 0;
 
@@ -425,6 +461,7 @@ export function mount(container, opts) {
         // ⚠️ fitCanvas() ALREADY HANDLES DPR AND CSS-PIXEL SIZING for any canvas
         // in any container, so a side panel costs nothing architecturally.
         if (radarCanvas && radarCtx) fitCanvas(radarCanvas, radarCtx);
+        if (threatCanvas && threatCtx) fitCanvas(threatCanvas, threatCtx);
         if (gaugeCanvas && gaugeCtx) fitCanvas(gaugeCanvas, gaugeCtx);
     }
 
@@ -467,14 +504,19 @@ export function mount(container, opts) {
         // PREVIEW. With a radar the read-ahead lives there, so these 34px go
         // back to the sky — and the sky is where the game happens.
         if (kbH && !radarCtx) kbH += LAY.KB_PREVIEW_BAND;
-        // ⚠️ TELL THE CHROME WHERE THE FLOOR IS. Its bar is positioned from the
-        // bottom, so it must clear the keyboard strip when one is drawn. +10 so
-        // the buttons sit inside the flank rather than straddling its top edge.
-        // ⚠️ MID-FLANK, NOT ON THE FLOOR. Jake, 2026-09-08: *"put them between the
-        // stats and the minutes."* At kbH+10 the bar sat on the skyline and
-        // covered the landmarks; at ~40% of the strip height it lands in the gap
-        // between the WPM lines above and TODAY below, over nothing.
-        try { container.style.setProperty('--gc-bottom', (kbH ? Math.round(kbH * LAY.CHROME_BOTTOM_FRACTION) : LAY.CHROME_BOTTOM_NO_KEYBOARD) + 'px'); } catch (_) {}
+        // ⚠️⚠️ THE `--gc-bottom` WRITE IS GONE, AND IT WAS EVALUATING TO NaN
+        // (Round 99). Round 94 moved the control bar out of the canvas overlay
+        // into a real card and RETIRED `CHROME_BOTTOM_FRACTION` /
+        // `CHROME_BOTTOM_NO_KEYBOARD` — commenting them out in game-layout.js
+        // with a note not to revive them — but this line kept reading them.
+        // `Math.round(kbH * undefined)` is NaN, so every layout() set
+        // `--gc-bottom: NaNpx` on the container. It was harmless only because
+        // nothing consumes that variable any more: game-chrome.js's CSS uses a
+        // literal `bottom:8px` for its fallback float.
+        // ⚠️ THE LESSON, NOT THE LINE: a retired constant left a live READER
+        // behind, and `try {} catch (_) {}` swallowed the evidence. Deleting a
+        // constant means deleting its call sites in the same edit — the same
+        // shape as Rule 9, one deploy, both halves.
         const groundY = H - LAY.GROUND_INSET - kbH;
         const laneX = i => W * ((i + 1) / (shieldCount + 1));
         const reach = Math.abs(laneX(Math.floor(shieldCount / 2)) - laneX(0));
@@ -532,6 +574,11 @@ export function mount(container, opts) {
     let particles = [];
     let locked = null;          // reference into `live`
     let banner = null;          // { text, until }
+    // ⚠️ THE COUNTDOWN NUMBER, OWNED BY THE CHROME AND RENDERED BY THE GAUGES.
+    // null means "not counting", which is what makes the readout show the run
+    // clock instead. See the onCountdown callback and drawGauges()'s clock
+    // block for why the three digits left the sky in Round 99.
+    let countdown = null;
     let flash = 0;              // seconds of red vignette remaining
     let ended = false;
     let lastFrame = null;
@@ -862,11 +909,47 @@ export function mount(container, opts) {
                 inboundProgress: d.spawnProgress(now),
             });
         }
+        // ⚠️⚠️ COUNTS CROSS THE SEAM, NEVER GEOMETRY. `cover` is computed HERE,
+        // where the dome measurement lives, and the panel receives an integer.
+        // The same rule as the radar's normalised contacts, and for the same
+        // reason: that measurement IS the coverage test that gives the city six
+        // lives, and Round 91 broke it with a change that looked completely
+        // fine. A panel that could read it is a panel that could be "improved"
+        // into breaking it.
+        if (threatCtx) {
+            drawThreatBoard(threatCtx, {
+                W: threatCanvas.clientWidth, H: threatCanvas.clientHeight,
+                coverMax: domes.length,
+                lanes: buildings.map(b => ({
+                    short: b.landmark.short,
+                    // ⚠️ THE SAME PREDICATE covered() USES, counted rather than
+                    // any'd. Two different tests for "is this lane protected"
+                    // would be a second copy of the rule that decides whether a
+                    // landmark falls — the panel must agree with the game by
+                    // construction, not by coincidence.
+                    cover: domes.filter(dm =>
+                        dm.active && Math.abs(dm.x - b.x) <= dm.radius).length,
+                    alive: b.alive,
+                })),
+            });
+        }
         if (gaugeCtx) {
             const m = minuteLines();
             drawGauges(gaugeCtx, {
                 W: gaugeCanvas.clientWidth, H: gaugeCanvas.clientHeight,
                 wpm: rep.wpm, acc: rep.acc,
+                // ⚠️⚠️ THE GATES COME OFF THE REPORT, NOT OFF cfg. The director
+                // is the only thing that knows what this run is judged against
+                // — arcade substitutes the student's rolling WPM for a fixed
+                // gate — and a panel reading cfg.targetWPM would paint an
+                // arcade run red against a number nothing is enforcing.
+                targetWPM: rep.targetWPM, minAccuracy: rep.minAccuracy,
+                // ⚠️ rep.seconds IS THE GRADED CLOCK, the same one finish()
+                // banks minutes from. A separate elapsed counter for the
+                // display would drift from the number the modal reports.
+                seconds: rep.seconds,
+                shieldsLeft: rep.shieldsLeft,
+                countdown,
                 quota: d.endless ? null : d.clearedChars / d.quotaChars,
                 // ⚠️ THE SAME STRINGS THE STRIP USES, from the same helper. Two
                 // formatters would drift and show a student two "today" figures.
@@ -1513,7 +1596,7 @@ export function mount(container, opts) {
     function restart() {
         d = new GameDirector(cfg);
         live = []; missiles = []; particles = [];
-        locked = null; banner = null; flash = 0;
+        locked = null; banner = null; flash = 0; countdown = null;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
         layout();
         chrome.setPhase('ready');
@@ -1557,6 +1640,12 @@ export function mount(container, opts) {
             layout();
             return kbOn;
         },
+        // ⭐ THE COUNTDOWN RENDERS IN THE CONSOLE'S CLOCK, NOT OVER THE SKY.
+        // ⚠️ SUPPLYING THIS CALLBACK IS WHAT TAKES THE 96px NUMERAL AWAY — see
+        // game-chrome.js v1.4.0. It is only correct to supply it because this
+        // view HAS a readout to put the digits in; Escape Key does not, passes
+        // no onCountdown, and keeps the overlay numeral unchanged.
+        onCountdown(n) { countdown = n; },
         onStart() { started = true; lastFrame = null; },
         onPause(on) {
             const now = performance.now();

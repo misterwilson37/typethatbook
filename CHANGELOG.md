@@ -1,5 +1,171 @@
 # CHANGELOG — TypeThatBook
 
+## Round 100 (Lambert) — 2026-09-09 — the flanks stop having bare space, for real
+
+⚠️⚠️ **ROUND 99 ANSWERED *"big chunks of empty space don't fit the vibe"* WITH
+TALLER FIXED HEIGHTS, AND A FIXED HEIGHT CANNOT ANSWER THAT QUESTION.** Measured
+after the fact against `#stage`'s own `height:78vh`:
+
+| viewport | stage | bare left column | bare right column |
+|---|---|---|---|
+| 800px | 624 | 158px | 40px |
+| 900px | 702 | **236px** | 118px |
+| 1200px | 936 | **470px** | 352px |
+| 700px | 546 | 80px | **−38px (overflowed)** |
+
+The same constant was simultaneously too small and too large, which is the
+signature of a number that should not have been a constant. `align-items` on the
+stage grid is `stretch` now, so a flank card is as tall as the stage; the
+canvases flex, and `game-layout.js` holds **floors and ceilings, not heights**.
+
+⚠️ **THE FLOOR IS MANDATORY, NOT TIDINESS.** `fitCanvas()` sizes the drawing
+buffer from `getBoundingClientRect()`, so a canvas whose height comes only from
+its own content resolves to **zero** on the first frame and the panel renders
+blank until something triggers a resize. Round 99's own comment warned about this
+— flexing is exactly when it becomes reachable.
+
+⭐ **AND THE SPARE HEIGHT IS SPENT, NOT LEFT.** The left column gives it to the
+radar, with a fixed-height **threat board** beneath: which landmark is SHIELDED,
+EXPOSED or LOST, with one lamp per standing shield. The right column gives it to
+the buttons, capped at 68px — they are the only way off this page for a student
+on an iPad with no keyboard attached, so bigger is strictly better up to a cap.
+
+⚠️⚠️ **THE THREAT BOARD EARNS ITS PLACE VIA THE ESCAPE KEY, WHICH IS THE TEST
+ANYTHING ON A FLANK HAS TO PASS.** A bare panel and a panel of decorative lamps
+both fail Jake's brief, and the second is worse: a child who learns the lights
+mean nothing stops reading the panel that also carries the gate. The game's
+central tactical choice is abandoning a word to save a different landmark, and
+that requires knowing which one is exposed — previously readable only off the
+skyline, while words were falling. It also makes the six-lives mechanic visible
+for the first time, because spent shield lamps are drawn as well as standing ones.
+
+⚠️ **COUNTS CROSS THE SEAM, NEVER GEOMETRY**, and the count uses the *same*
+predicate `covered()` does. Two different tests for "is this lane protected"
+would be a second copy of the rule that decides whether a landmark falls; the
+panel must agree with the game by construction rather than by coincidence.
+
+### ⚠️⚠️ THE HARNESS I WROTE TO CATCH THE WORST BUG ON THIS PANEL COULD NOT SEE IT
+
+`arcade-panels-test.mjs` **v1.1.0** gained Parts E and F. Part E's first draft
+asserted that SHIELDED, EXPOSED and LOST each appeared **somewhere** on the
+board. ⭐ **Mutation testing walked straight through it**: swapping SHIELDED and
+EXPOSED in `drawThreatBoard()` left all 94 assertions green. That is the worst
+available bug on this panel — it sends a child to defend the lane that is already
+safe — and the check written for it was blind to it.
+
+**A presence check is not a correctness check.** The row is the unit now: a state
+word must share its row's baseline with the landmark name it describes, and lamps
+are counted per row rather than panel-wide. Re-mutated: both the inverted state
+and lamps counted from the wrong lane now go red.
+
+⚠️ Part F pins the layout fix itself, including **the exact non-fix Round 99
+shipped** — restoring `align-items:start` and an inline `height:420px` turns it
+red. That assertion would have caught the previous round.
+
+⚠️ **NOT VERIFIED IN A BROWSER**; the geometry and the arithmetic are proven and
+the appearance is not. ⚠️ **Nothing here touches a count, a grade or a write.**
+
+## Round 99 (Franklin) — 2026-09-09 — the window and the console
+
+Jake, on the two arcade side panels: *"The left panel radar grid is pixellated,
+which is weird."* / *"On the right, I want something more intentional and that
+better fits the space."* / *"We're looking out a window on the field of battle,
+and the space on either side is the console itself. we wouldn't leave parts of it
+bare — we'd have information, or buttons, or lights, or something helping us make
+battle decisions. This is a battle station, not a computer game."*
+
+⚠️⚠️ **ROUND 97 GOT THE SCOPE OF A STYLE INSTRUCTION WRONG, AND JAKE CORRECTED
+THE ASK HIMSELF.** *"When I wanted it chunkier, I was referring to the overall
+look, and especially the right card. I did not actually specify that, though, so
+you delivered a version of what I said."* ⭐ **The scope was inferable from the
+thing being styled**: the left panel is the WINDOW, the right card is the
+CONSOLE. `game-draw.js` **v1.4.0** draws the radar as stroked pale-green arcs;
+the lattice stays on the gauges, where the harness still requires it.
+`RADAR_CELL` is deleted rather than left for someone to re-use. ⚠️ The old
+behaviour was PINNED by `arcade-lesson-test.mjs`, so the reversal is an edited
+assertion with the superseded one quoted above it — not a regression.
+
+⚠️⚠️ **THE THREE RINGS NOW MEAN SOMETHING.** Round 95 used `[0.25, 0.5, 0.75]` —
+arcs at arbitrary fractions of a panel. Per Jake's ruling they are `DOME`,
+`MIDWAY` and `SCREEN`, expressed in the same normalised `ny` depth a contact
+carries, with the not-yet-spawned word in a reserved band **above** the screen
+ring. So there is a word inbound during the countdown, which is what he asked
+for.
+
+⚠️⚠️ **THE CONTACT FADE WAS A PLAYABILITY BUG, NOT A LOOK.** *"Each word fades
+out the whole grid, too, making it impossible to actually start typing the next
+possible word."* Round 95 ramped every contact's alpha over its first 15% of
+descent — dimmest exactly when a fast student wants to read ahead, which is the
+panel's whole purpose. Deleted, not shortened. The inbound word is the only
+changing alpha left, and the harness caps that at one.
+
+⭐ **THE CONSOLE.** Two composite gauges (a segmented ring for the value, a
+lamp bar with tick marks and stoplight zones for the gate), a seven-segment
+clock, the shield count, the run quota and the banked totals — plus the control
+bar restyled as console hardware to fill the column. ⚠️ **The stoplight never
+colours a number the gate does not judge**: a drill carries `minWPM: null`, and
+a red bar there would invent a failure `learn.js` deliberately refuses to
+report. It prints `NO GATE` instead.
+
+⚠️⚠️ **THE DIGITS ARE DRAWN, NOT DOWNLOADED.** A seven-segment webfont is a
+network dependency on a page a child opens behind a district filter, and canvas
+does not wait for fonts — `fillText` with an unloaded family draws the fallback
+silently, so the clock would be the one element whose appearance depended on the
+wifi holding. `drawSevenSeg()` has no dependency and cannot fall back. Unlit
+segments are drawn too, which is most of what makes it read as an LED panel.
+
+⭐ **THE COUNTDOWN MOVED INTO THAT CLOCK, AND ROUND 94's RULING IS INTACT.** It
+said the countdown must not cover the radar and must not migrate to a side card;
+the READY/PAUSED/RESULT panels did not move, and the harness still pins that.
+Three digits did. ⭐ It serves the original reason **better**: the point of not
+covering the scope is that the inbound word is on it, and those three seconds are
+when a student is meant to read it. ⚠️ **Opt-in via `onCountdown`** — Escape Key
+and `learn.js` have no console, so an unconditional move would have silently
+deleted their countdown.
+
+⭐ **`tests/arcade-panels-test.mjs` v1.0.0 — 67 assertions — RUNS THE PANELS
+INSTEAD OF READING THEM.** Two arcade defects have reached a classroom past a
+fully green suite (a backtick in a CSS template literal; a splice that left a
+function unterminated, both side canvases blank). `module-parse-test.mjs` closed
+the parse half; **parsing is not drawing.** This calls the three draw functions
+against a recording 2D context and asserts geometry, because no regex can tell
+you the DOME ring ended up above the SCREEN ring. ⚠️ Part B is Rule 10 in the
+strict sense — it **fails against the shipped fade** and passes against the fix.
+**Mutation-verified four ways**: fade restored, rings swapped, preview clamped
+onto the screen ring, gate invented for an ungated drill. ⚠️ Every assertion is a
+relationship, never a pixel literal, because `game-layout.js` exists to be
+edited.
+
+### ⚠️ Three defects found on the way through, none of them the assignment
+
+* **`--gc-bottom` was being set to `NaNpx` on every `layout()`.** Round 94
+  retired two constants and commented them out; `game-deadline.js` kept reading
+  them, inside a `try {} catch (_) {}` that swallowed the evidence. ⭐ Deleting a
+  constant means deleting its readers in the same edit — the Rule 9 shape.
+* **`arcade.html` had two `ARCADE_PAGE_VERSION` constants, already drifted**
+  (3.1.0 vs 3.2.0), the second read by nothing and colliding with nothing only
+  because module blocks have separate scopes. **Rule 9 at its smallest.**
+  Deleted.
+* **`arcade.html`'s header said v3.0.0 while its constant said 3.1.0** — set by
+  Round 98, the round that existed to stop this. It is the one arcade file whose
+  two halves nothing checks.
+
+### ⚠️⚠️ The fifth read-a-comment-as-code, exactly as predicted
+
+Round 98 wrote: *"Strip comments before any 'does the code do X' check. Assume a
+fifth."* **The fifth arrived in this round's own new assertions** — two checks
+requiring `RADAR_CELL` and `RADAR_FADE_IN` to be *deleted* went red against
+correct code, because the block that deletes them explains itself and a
+substring search cannot tell an obituary from a declaration. ⚠️ The temptation
+was to reword the comment; that makes the prose worse to keep a broken check
+green. `arcade-lesson-test.mjs` **v1.1.0** has a `stripComments()` helper.
+**Assume a sixth.**
+
+⚠️ **NOT VERIFIED IN A BROWSER.** The geometry is proven and the appearance is
+not; see HANDOFF's Round 99 block for the four things to confirm on screen.
+⚠️ **Nothing here touches a count, a grade or a write.** No Rule 9, 10 or 11
+surface moved — the panel reads `d.report()` and draws.
+
 ## Round 98 (Sholes II) — 2026-09-09 — the arcade starts telling the truth about itself
 
 Jake, 2026-09-09: *"you're not really following many of our normal protocols -

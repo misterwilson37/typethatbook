@@ -1,7 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- arcade.html v3.0.0 — DEADLINE, ON A REAL LESSON, AT ITS REAL GATES. Round 87.
+<!-- arcade.html v3.3.0 — the flanks track the stage; the threat board.
+     Round 100 (Lambert).
+     arcade.html v3.2.0 — DEADLINE, ON A REAL LESSON, AT ITS REAL GATES.
+     Round 87; the build panel Round 98; the console Round 99 (Franklin).
+
+     ⚠️ THE HEADER SAID v3.0.0 WHILE ARCADE_PAGE_VERSION SAID 3.1.0. Round 98
+     existed to stop exactly this drift in the game modules and bumped this
+     page's constant without its header — the one file its own harness does not
+     check both halves of, because arcade-versions-test.mjs only pins the
+     `game-*` modules. Both are 3.2.0 now, in this edit, per README's rule.
 
      ⚠️⚠️ v3.0.0 FIXES A SHIPPED REGRESSION. v2.0.0 offered only runs with their
      own speed gate AND only lessons the student had reached. Jake logged in as
@@ -103,17 +112,55 @@
        shrank that radius for looks, silently ended the three-deep overlap, and
        it looked completely fine. An inset rect would put every one of those
        numbers in play; siblings put none of them in play. */
+    /* ⚠️⚠️ `stretch`, NOT `start` (Round 100). With `start` each flank card was
+       only as tall as its own fixed-height canvas, which is why Round 99's
+       taller canvases did not fix *"big chunks of empty space don't fit the
+       vibe"*: measured against #stage's 78vh, the left column still had 236px
+       of bare card at a 900px viewport and 470px at 1200px. Stretching makes
+       the cards track the stage, and the canvases inside them flex. */
     .stage-grid {
         display: grid;
         grid-template-columns: 200px minmax(724px, 1fr) 240px;
         gap: 14px;
-        align-items: start;
+        align-items: stretch;
     }
+    /* ⚠️ THE CARDS ARE THE CONSOLE, THE STAGE IS THE WINDOW (Round 99). Jake:
+       *"We're looking out a window on the field of battle, and the space on
+       either side is the console itself."* So the flanks read as housing —
+       inset, slightly lighter than the void, with a lit top edge — and the
+       stage keeps the plain dark frame of something you look THROUGH. */
     .side-card {
-        background: var(--panel); border: 1px solid var(--rule);
+        background: linear-gradient(180deg, #0d141d 0%, #0a1017 100%);
+        border: 1px solid var(--rule);
+        border-top: 1px solid rgba(120,170,220,0.28);
         border-radius: 10px; padding: 12px;
         min-height: 200px;
+        display: flex; flex-direction: column;
+        box-shadow: inset 0 1px 0 rgba(143,232,200,0.06);
     }
+    /* The canvas no longer reserves a bottom margin it does not need — the
+       control bar supplies its own rule and padding (game-chrome.js v1.4.0). */
+    #controls-col .panel-canvas { margin-bottom: 4px; }
+
+    /* ⚠️⚠️ THE CANVASES FLEX, WITH FLOORS (Round 100). fitCanvas() sizes the
+       drawing buffer from getBoundingClientRect(), so a canvas taking its
+       height from its own content resolves to ZERO on the first frame and the
+       panel renders blank until something triggers a resize. The basis here is
+       the card, which is the grid row, which is #stage's 78vh — all definite —
+       and the min-height is what makes that safe to reason about rather than
+       merely true today. */
+    #radar-canvas { flex: 1 1 auto; min-height: 260px; margin-bottom: 8px; }
+    /* ⚠️ THE THREAT BOARD IS THE ONE FIXED-HEIGHT ELEMENT ON THE FLANK, on
+       purpose: it needs three legible rows and no more, so every spare pixel in
+       the column goes to the radar above it. */
+    #threat-canvas { flex: 0 0 auto; height: 104px; margin-bottom: 0; }
+    #gauge-canvas { flex: 1 1 auto; min-height: 300px; max-height: 420px; }
+    /* ⭐ AND THE LEFTOVER HEIGHT IN THE RIGHT COLUMN GOES TO THE BUTTONS, which
+       is the better use of it: these are the only way off this page for a
+       student on an iPad with no keyboard attached. ⚠️ CAPPED — four controls
+       sharing 400px would be 100px tall each and read as a mistake. */
+    #controls-col .gc-bar-card { flex: 1 1 auto; }
+    #controls-col .gc-bar-card .gc-btn { flex: 1 1 auto; max-height: 68px; }
     .build-wrap { position: relative; text-align: right; margin-bottom: 8px; }
     .build-foot {
         background: none; border: 1px solid var(--rule); color: var(--ink-ghost);
@@ -233,12 +280,30 @@
                 <!-- ⚠️ READ-AHEAD ONLY. Jake declined a radar a student could
                      type off; see drawRadar()'s header for why that would make
                      the city decorative. -->
-                <canvas id="radar-canvas" class="panel-canvas" style="height:420px"></canvas>
+                <canvas id="radar-canvas" class="panel-canvas"></canvas>
+                <!-- ⚠️ INFORMATION, NOT DECORATION. Jake's brief for the flanks:
+                     *"we wouldn't leave parts of it bare - we'd have
+                     information, or buttons, or lights, or something helping us
+                     make battle decisions."* This says which landmark is
+                     shielded, exposed or lost — the fact the Escape key's whole
+                     tactical choice depends on, and previously readable only off
+                     the skyline while words were falling. -->
+                <canvas id="threat-canvas" class="panel-canvas"></canvas>
             </div>
             <div id="stage"></div>
+            <!-- ⚠️⚠️ THE CANVAS IS TALLER THAN ITS CONTENT NEEDS AND THE BUTTONS
+                 SIT UNDER IT, ON PURPOSE (Round 99). Jake: *"Big chunks of
+                 empty space don't fit the vibe."* The card is the console, so
+                 the readouts fill the top of it and the controls fill the
+                 bottom; at 230px the gauges ended two thirds of the way up and
+                 the rest of the column was bare.
+                 ⚠️ A FIXED HEIGHT, NOT `flex:1`. fitCanvas() sizes the drawing
+                 buffer from getBoundingClientRect(), so a canvas that took its
+                 height from its own content would resolve to zero on the first
+                 frame and the panel would render blank until the next resize. -->
             <div class="side-card" id="controls-col">
-                <h2>CONTROLS</h2>
-                <canvas id="gauge-canvas" class="panel-canvas" style="height:230px"></canvas>
+                <h2>CONSOLE</h2>
+                <canvas id="gauge-canvas" class="panel-canvas"></canvas>
             </div>
         </div>
     </div>
@@ -287,7 +352,7 @@ import { GAME_SHELL_VERSION } from './game-shell.js';
 import { GAME_DRAW_VERSION } from './game-draw.js';
 import { GAME_CHROME_VERSION } from './game-chrome.js';
 import { GAME_LAYOUT_VERSION } from './game-layout.js';
-const ARCADE_PAGE_VERSION = '3.1.0';
+const ARCADE_PAGE_VERSION = '3.3.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -348,8 +413,15 @@ import { mount as mountDeadline } from './game-deadline.js';
 // the in-page build footer is the only diagnostic instrument available at a
 // student's machine, because there is no command line in the classroom.
 
-const ARCADE_PAGE_VERSION = '3.1.0';
-
+// ⚠️⚠️ A SECOND `ARCADE_PAGE_VERSION` USED TO SIT HERE, AND IT HAD ALREADY
+// DRIFTED — deleted in Round 99. It said '3.1.0' while the build panel's copy
+// said '3.2.0', it was declared in this module and read by nothing, and the two
+// only failed to collide because separate <script type="module"> blocks have
+// separate scopes. **This is Rule 9 in its smallest possible form**: a second
+// record of a quantity that already existed, added for convenience, drifting
+// silently because nothing consumed it. The build panel's copy is the one the
+// deployed page reports and is therefore the only one.
+// ⚠️ IF THIS MODULE EVER NEEDS THE VERSION, IMPORT IT — do not re-declare it.
 
 // ⚠️ THE ONLY STEP TYPES THIS PAGE OFFERS — exactly the types that carry a speed
 // gate AND are deterministic from the lesson document. See the header. Adding to
@@ -700,6 +772,7 @@ function play() {
         // game-chrome.js keeps its floating fallback for hosts without one.
         barHost: $('controls-col'),
         radarCanvas: $('radar-canvas'),
+        threatCanvas: $('threat-canvas'),
         gaugeCanvas: $('gauge-canvas'),
         // ⚠️ A GETTER, not the object — see game-deadline.js's minuteLines().
         minutes: () => MINUTES,

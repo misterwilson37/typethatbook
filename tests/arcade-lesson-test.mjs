@@ -1,4 +1,8 @@
-// arcade-lesson-test.mjs v1.0.0 — ROADMAP 68: arcade.html PLAYS A REAL LESSON
+// arcade-lesson-test.mjs v1.1.0 — Round 99 (Franklin): the Round 97 lattice
+// assertion is REVERSED on Jake's correction, the radar's ring positions and
+// no-fade rule are pinned, and this file gained a comment stripper after
+// becoming the fifth instance of the read-a-comment-as-code defect.
+// v1.0.0 — ROADMAP 68: arcade.html PLAYS A REAL LESSON
 // RUN AT ITS REAL GATES, AND MEANS THE SAME RUN learn.js MEANS.
 //
 // Jake, 2026-09-08: *"kids who are typing actively doing the final lesson and
@@ -20,6 +24,26 @@ import { runPlan, gatesForRun, chunkSequence, DRILL_TYPES } from '../run-grade.j
 let pass = 0, fail = 0;
 const failures = [];
 const ok = (c, l) => { if (c) pass++; else { fail++; failures.push(l); } };
+
+// ⚠️⚠️ STRIP COMMENTS BEFORE ANY "DOES THE CODE DO X" CHECK. HANDOFF's own
+// standing note: *"four times now a harness has read a COMMENT as code — an
+// assertion label containing 'FAIL', arcade.html's own 'DO NOT ADD a
+// typing_logs QUERY' warning, firestore.rules' header naming secondsArcade,
+// popularity-sort's field scan. Strip comments before any 'does the code do X'
+// check. Assume a fifth."*
+//
+// ⭐ THE FIFTH ARRIVED IMMEDIATELY, IN THIS FILE, IN ROUND 99. Two new
+// assertions checked that `RADAR_CELL` and `RADAR_FADE_IN` were DELETED from
+// game-layout.js. They went red against correct code, because the block that
+// deletes them explains itself — *"RADAR_CELL is deleted; see the radar block
+// above"* — and a substring search cannot tell an obituary from a declaration.
+// ⚠️ THE TEMPTATION WAS TO REWORD THE COMMENT. That is backwards: it would
+// make the prose worse to keep a broken check green, and the next person to
+// write a useful warning would trip the same wire.
+const stripComments = src => src
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/^[ \t]*\/\/.*$/gm, ' ')
+    .replace(/([^:])\/\/.*$/gm, '$1');
 
 const html = readFileSync(new URL('../arcade.html', import.meta.url), 'utf8');
 
@@ -428,14 +452,62 @@ console.log('\nE — SIDE PANELS: COVERAGE SURVIVES, AND THE PLAY AREA NEVER SHR
     // ⚠️ SOLID PIP = IN THE SKY. HOLLOW = NOT YET. The preview must never look
     // like something already typable.
     const rd = dr.slice(dr.indexOf('export function drawRadar'), dr.indexOf('export function drawGauges'));
-    ok(/ghost/.test(rd) && /plot\(\{ text: o\.inbound[^)]*\}, [^,]+, true\)/.test(rd),
+    const lay = readFileSync(new URL('../game-layout.js', import.meta.url), 'utf8');
+    ok(/ghost/.test(rd) && /plot\(\{ text: o\.inbound[^)]*\}, [^,]+, true[,)]/.test(rd),
        'the inbound contact is drawn hollow, not solid');
+    // ⭐ AND IT SITS OUTSIDE THE SCREEN RING, NOT ON IT (Round 99). Jake: *"above
+    // that should be the preview/incoming word that isn't on the screen yet...
+    // even during the countdown, there should be a word coming in the edge of
+    // that screen."* A preview drawn ON the screen ring says "arrived", which is
+    // the one thing this panel must never say. rowY() clamps to 0..1, so the
+    // override is what puts it in the band — without it the clamp would silently
+    // park the preview on the ring and nothing would look wrong.
+    ok(/RADAR_PREVIEW_BAND/.test(lay) && /yAt/.test(rd),
+       '\u26a0 the preview is plotted in the band above the screen ring, not clamped onto it');
+    ok(/const topRow = pad \+ band/.test(rd),
+       'and the band is RESERVED height, so the preview is not an overlay on the sky');
     ok(/RADAR_INBOUND_MIN_ALPHA/.test(rd),
        'and never fully invisible, so it can be found before it brightens');
 
-    // ⭐ CHUNKY IS A GRID, NOT A FILTER.
-    ok(/const snap = v => Math\.round\(v \/ cell\) \* cell/.test(rd),
-       'radar geometry snaps to the cell lattice');
+    // ⚠️⚠️ REVERSED IN ROUND 99, DELIBERATELY, AND THE OLD ASSERTION IS QUOTED
+    // HERE SO THE REVERSAL IS NOT MISTAKEN FOR A REGRESSION. Round 97 pinned
+    // `const snap = v => Math.round(v / cell) * cell` in this function, having
+    // read *"more chunky pixels"* as covering the whole stage. Jake, 2026-09-09:
+    // *"The left panel radar grid is pixellated, which is weird... I'd like that
+    // all clean, traditional pale green lines."* And on the original ask: *"when
+    // I wanted it chunkier, I was referring to the overall look, and especially
+    // the right card."*
+    // ⭐ THE CHUNK KEPT ITS SCOPE, IT DID NOT GO AWAY: the assertions below
+    // still require the gauges to be segmented lamps. Scope is the whole point —
+    // the left panel is the WINDOW, the right card is the CONSOLE.
+    ok(!/const snap = /.test(stripComments(rd)) && !/RADAR_CELL/.test(stripComments(rd)),
+       '\u26a0 the radar no longer snaps to a lattice \u2014 Round 99 reversal, not a regression');
+    ok(!/RADAR_CELL/.test(stripComments(lay)),
+       'and RADAR_CELL is deleted rather than left dangling for someone to re-use');
+    ok(/quadraticCurveTo/.test(rd) && /ctx\.stroke\(\)/.test(rd),
+       'the rings are stroked curves now');
+    // ⚠️ THE RINGS ARE NAMED GAME POSITIONS, NOT FRACTIONS OF A PANEL. Round 95
+    // used [0.25, 0.5, 0.75] \u2014 three arcs that meant nothing. They are in the
+    // same `ny` units a contact carries, so a pip above a ring is genuinely
+    // nearer the screen than that ring is.
+    for (const k of ['RADAR_RING_SCREEN', 'RADAR_RING_MID', 'RADAR_RING_DOME']) {
+        ok(new RegExp('export const ' + k).test(lay), k + ' is a named ring position');
+    }
+    ok(!/RADAR_RINGS/.test(stripComments(lay)) && !/RADAR_RINGS/.test(stripComments(rd)),
+       'the anonymous RADAR_RINGS fractions are gone');
+
+    // ⚠️⚠️ AND A CONTACT NEVER FADES, WHICH WAS A PLAYABILITY BUG AND NOT A LOOK.
+    // Jake: *"Each word fades out the whole grid, too, making it impossible to
+    // actually start typing the next possible word. Once a word appears on
+    // there, it should stay on there and not fade out until it's destroyed."*
+    ok(!/RADAR_FADE_IN/.test(stripComments(rd)) && !/RADAR_FADE_IN/.test(stripComments(lay)),
+       '\u26a0\u26a0 the per-contact fade-in is deleted, not merely shortened');
+    ok(/RADAR_CONTACT_ALPHA/.test(rd),
+       'live contacts draw at one fixed strength from spawn to destruction');
+    // ⚠️ THE INBOUND WORD IS THE ONLY VARIABLE ALPHA LEFT ON THE PANEL. If a
+    // second one appears, the wash-in/wash-out complaint is back.
+    ok((rd.match(/globalAlpha = /g) || []).length <= 4,
+       'and it is the only thing on the panel with a changing alpha');
     const gg = dr.slice(dr.indexOf('export function drawGauges'));
     ok(/LAY\.GAUGE_SEGMENTS/.test(gg), 'the gauges are segmented, not smooth bars');
     // ⚠️ LIT SEGMENTS ROUND DOWN. A meter lighting its last lamp at 96% would

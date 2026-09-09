@@ -33,6 +33,7 @@ escape-board.js    THE RULES.    Escape Key's grid, enemies, keystroke matching.
 game-escape.js     THE PIXELS.   Renders a board. Owns no numbers, no rules.
 game-deadline.js   THE PIXELS.
 game-draw.js       Canvas helpers, reduced-motion, Caps Lock warning.
+                   Also the two side panels and the seven-segment readouts.
 game-chrome.js     Get-ready, pause, quit, restart, mute. DOM, so it is tappable.
 game-audio.js      Synthesised sound. Muted by default.
 game-names.js      Frozen ids <-> display titles.
@@ -43,6 +44,56 @@ lives in `game-shell.js` and nowhere else. A view that grows a `speed +=` line o
 a WPM calculation has reintroduced the defect the whole structure prevents — and
 that was the shape all three prototypes had, with three copies of the timing rule
 drifting apart.
+
+## The two side panels: the window and the console
+
+The arcade page is three sibling canvases — **never one wide canvas with an inset
+playfield**, because every lane position and dome measurement in `game-deadline.js`
+is derived from the play canvas's own width.
+
+* **Left — the RADAR.** Read-ahead only. Clean stroked pale-green arcs at three
+  named depths (`DOME`, `MIDWAY`, `SCREEN`) plus a band above the screen ring
+  holding the word that has not spawned yet, so there is something inbound even
+  during the countdown. A contact is drawn at one fixed strength from the frame it
+  appears to the frame it dies.
+* **Left, beneath it — the THREAT BOARD.** Which landmark is SHIELDED, EXPOSED or
+  LOST, with one lamp per standing shield and the spent ones still drawn. This is
+  the fact the Escape key's whole tactical choice depends on.
+* **Right — the CONSOLE.** Segmented ring-and-bar gauges for WPM and accuracy with
+  the gate marked in stoplight colours, a drawn seven-segment clock (which is also
+  where the countdown appears), the shield count, the run quota, the banked totals,
+  and the control buttons.
+
+⚠️ **THE STYLE SPLIT IS DELIBERATE AND IS NOT TWO STYLES BY ACCIDENT.** The left
+panel is a window you look *through*; the right card is the console you are
+sitting at. Chunky lattices and lamps belong to the console. Round 97 applied
+them everywhere and Round 99 gave them a boundary.
+
+⚠️ **NEITHER PANEL IS AN INPUT SURFACE.** A student may not type off the radar —
+that would make the city, the shields and the six-lives overlap decorative, which
+is most of the game. Hollow pip means "not yet"; solid means "in the sky".
+
+⚠️ **NO SWEEPING LINE, EVER.** A rotating bright line across a 200px panel is a
+periodic large-area flash in front of thirty twelve-year-olds. `RADAR_SWEEP` exists
+as a `false` constant so anyone reaching for one finds the reason first.
+
+⚠️ **THE FLANKS TRACK THE STAGE; THEY DO NOT CARRY FIXED HEIGHTS.** `#stage` is
+`78vh`, so a `px` height on a flank is bare space at one window size and an
+overflow at another — Round 99 shipped exactly that and Round 100 measured it
+(236px bare at 900px of viewport, 470px at 1200px, a 38px overflow at 700px).
+The cards stretch and the canvases flex. ⚠️ **But a flexing canvas keeps its
+`min-height`**: `fitCanvas()` reads `getBoundingClientRect()`, and no definite
+basis means a zero-sized buffer on the first frame and a blank panel until a
+resize.
+
+⚠️ **THE TEST FOR ANYTHING ADDED TO A FLANK IS "CAN A STUDENT ACT ON IT."**
+Decorative lamps fail the brief and are worse than bare space: a child who learns
+the lights mean nothing stops reading the panel that also carries the gate.
+
+⚠️ **THE PANELS OWN NO NUMBERS.** Every figure comes off `GameDirector.report()`,
+including the gates — arcade substitutes a rolling WPM for a fixed gate, so a panel
+reading `cfg.targetWPM` would paint an arcade run red against a number nothing
+enforces.
 
 ## The one idea worth understanding
 

@@ -1,5 +1,229 @@
 # HANDOFF — TypeThatBook
 
+> ## ▶ START HERE — written 2026-09-09 by Round 100 (Lambert), for whoever is next
+>
+> **Instance name: Lambert**, after the 1896 Lambert typewriter and its circular
+> keyboard. Not a duplicate of any `Round N (Name)` in `CHANGELOG.md`,
+> `HANDOFF.md`, `HANDOFF-games.md` or `ROADMAP.md`; the previous was Round 99
+> (Franklin).
+>
+> ### WHAT THIS ROUND WAS: FINISHING WHAT ROUND 99 ONLY APPEARED TO FINISH
+>
+> ⚠️⚠️ **ROUND 99 ANSWERED JAKE'S *"big chunks of empty space don't fit the
+> vibe"* WITH TALLER FIXED HEIGHTS AND SHIPPED IT AS DONE.** Measured afterwards
+> against `#stage`'s `height:78vh`: **236px** of bare left column at a 900px
+> viewport, **470px** at 1200px, and a console card that **overflowed the stage
+> by 38px at 700px**. One constant, too small and too large at once — the
+> signature of a number that should not have been a constant.
+>
+> ⭐ **THE LESSON WORTH CARRYING: A COMPLAINT ABOUT A VIEWPORT-RELATIVE BOX
+> CANNOT BE ANSWERED WITH A CONSTANT.** `#stage` is `78vh`; the flanks were
+> `px`. Round 99 made the numbers bigger and the *ratio* no better, and it looked
+> plausible because it looked better at one window size — the size I happened to
+> reason about.
+>
+> | file | version | what changed |
+> |---|---|---|
+> | `game-draw.js` | **1.5.0** | `drawThreatBoard()` added |
+> | `game-layout.js` | **1.3.0** | flex floors/ceilings, threat-board constants |
+> | `game-chrome.js` | **1.5.0** | the button stack may take the column's spare height |
+> | `game-deadline.js` | **1.7.0** | threat canvas wired; per-lane cover counted |
+> | `arcade.html` | **3.3.0** | grid stretches, canvases flex, threat canvas added |
+> | `tests/arcade-panels-test.mjs` | **1.1.0** | Parts E and F (95 assertions) |
+>
+> ### ⚠️⚠️ THE MOST IMPORTANT THING IN THIS BLOCK: A PRESENCE CHECK IS NOT A CORRECTNESS CHECK
+>
+> Part E's first draft asserted that `SHIELDED`, `EXPOSED` and `LOST` each
+> appeared **somewhere** on the board. **Swapping SHIELDED and EXPOSED in
+> `drawThreatBoard()` left all 94 assertions green.** That is the worst bug this
+> panel can have — it sends a child to defend the lane that is already safe — and
+> the assertion written for it was blind to it.
+>
+> ⭐ **THE ROW IS THE UNIT NOW**: a state word must share its row's baseline with
+> the landmark name it describes, and lamps are counted per row rather than
+> panel-wide. Re-mutated both ways, both red. ⚠️ **Check this shape in any
+> harness you write**: `findText(x)` proves a string was drawn, never that it was
+> drawn against the right thing.
+>
+> ### THE FLANK RULES, WHICH ARE NOW LOAD-BEARING
+>
+> * ⚠️ **NO FIXED HEIGHT MAY RETURN TO A FLANK CANVAS.** Part F asserts it, and
+>   restoring Round 99's `align-items:start` plus `height:420px` turns it red.
+> * ⚠️ **BUT A FLEXING CANVAS MUST KEEP ITS `min-height`.** `fitCanvas()` reads
+>   `getBoundingClientRect()`; no definite basis means a zero-sized buffer on the
+>   first frame and a blank panel until a resize.
+> * ⚠️ **THE THREAT BOARD IS THE ONE FIXED-HEIGHT ELEMENT ON A FLANK**, so the
+>   radar gets every spare pixel. Do not make it flex.
+> * ⚠️ **COUNTS CROSS THE SEAM, NEVER GEOMETRY**, and the cover count must keep
+>   using the same predicate `covered()` uses.
+> * ⭐ **THE TEST FOR ANYTHING ADDED TO A FLANK IS "CAN A STUDENT ACT ON IT."**
+>   Decorative lamps fail Jake's brief and are worse than bare space, because a
+>   child who learns the lights mean nothing stops reading the gate too.
+>
+> ### THE STATE OF PLAY
+>
+> * **90 harnesses pass** (95 assertions in the panels harness), `audit:versions`
+>   0 problems, all 35 modules parse.
+> * ⚠️ **NOT VERIFIED IN A BROWSER.** Geometry and arithmetic proven, appearance
+>   not. **What Jake owes rounds 99-100 together:** open `arcade.html` and confirm
+>   (1) the rings read as clean pale-green lines, (2) a word stays lit on the
+>   scope from arrival until destruction, (3) a word is inbound during the
+>   countdown, (4) the countdown shows in the console clock rather than over the
+>   sky, (5) **neither flank has bare space at his own window size**, and (6) the
+>   threat board names the exposed landmark correctly after a hit.
+> * ⚠️ **Nothing in rounds 99-100 touches a count, a grade or a write.** No Rule
+>   9, 10 or 11 surface moved.
+> * ⚠️ **Escape Key's gap is now larger, and it is the obvious next work.** It has
+>   no console, no scope and no threat board, so it keeps the overlay countdown
+>   and the old keyboard-flank readout. Everything Deadline gained is a shared
+>   `game-draw.js` function away.
+
+> ## ▶ START HERE — written 2026-09-09 by Round 99 (Franklin), for whoever is next
+>
+> **Instance name: Franklin**, after the Franklin typewriter (1891, with its
+> curved seven-segment-looking keyboard arc). Not a duplicate of any name in
+> `CHANGELOG.md`, `HANDOFF.md`, `HANDOFF-games.md` or `ROADMAP.md` — checked by
+> grepping `Round N (Name)` across all four; the last was Round 98 (Sholes II).
+>
+> ⚠️ **ONE ROUND, ONE BLOCK.** Round 98's block covered thirteen rounds and said
+> plainly that it should not have. This is the corrective, not a precedent to
+> read the other way.
+>
+> ### WHAT THIS ROUND WAS
+>
+> Jake, on the arcade's two side panels: *"The left panel radar grid is
+> pixellated, which is weird... I'd like that all clean, traditional pale green
+> lines."* / *"On the right, I want something more intentional and that better
+> fits the space."* / and the sentence the whole round answers to: *"We're
+> looking out a window on the field of battle, and the space on either side is
+> the console itself. we wouldn't leave parts of it bare - we'd have information,
+> or buttons, or lights, or something helping us make battle decisions. This is a
+> battle station, not a computer game."*
+>
+> | file | version | what changed |
+> |---|---|---|
+> | `game-draw.js` | **1.4.0** | radar rebuilt; gauges rebuilt; `drawSevenSeg()` added |
+> | `game-layout.js` | **1.2.0** | ring positions named; lattice scoped to the console; readout constants |
+> | `game-chrome.js` | **1.4.0** | optional `onCountdown`; console-styled buttons |
+> | `game-deadline.js` | **1.6.0** | feeds the gates/clock/shields to the panel; dead `--gc-bottom` write deleted |
+> | `arcade.html` | **3.2.0** | taller console canvas, card styling, header stamp synced, dead constant deleted |
+> | `tests/arcade-panels-test.mjs` | **1.0.0** | **new.** 67 assertions, green |
+> | `tests/arcade-lesson-test.mjs` | **1.1.0** | Round 97 lattice assertion reversed; comment stripper added |
+>
+> ### ⚠️⚠️ THE ONE THING TO UNDERSTAND: A STYLE INSTRUCTION HAS A SCOPE
+>
+> Round 97 read *"more chunky pixels"* as applying to the whole stage and snapped
+> the radar's rings to a 4px lattice. Jake, seeing it, corrected the ask himself:
+> *"when I wanted it chunkier, I was referring to the overall look, and especially
+> the right card. I did not actually specify that, though, so you delivered a
+> version of what I said."*
+>
+> ⭐ **THE SCOPE WAS INFERABLE FROM THE THING BEING STYLED, AND THAT IS THE
+> REUSABLE PART.** The left panel is the WINDOW and the right card is the
+> CONSOLE. Lattice the console; a scope is a scope. The chunk did not go away —
+> the gauges are still segmented lamps and the harness still requires it — it
+> acquired a boundary. ⚠️ **`arcade-lesson-test.mjs` PINNED THE OLD BEHAVIOUR**,
+> so the reversal is an edited assertion with the old one quoted above it. Do not
+> read that diff as a regression.
+>
+> ### ⚠️⚠️ THE FADE WAS A PLAYABILITY BUG, NOT A LOOK
+>
+> Jake: *"Each word fades out the whole grid, too, making it impossible to
+> actually start typing the next possible word."* Round 95 ramped **every**
+> contact's alpha over its first 15% of descent, so with several words alive the
+> panel washed in and out — and a contact was dimmest exactly when a fast student
+> wanted to read ahead, which is the panel's entire purpose. Deleted, not
+> shortened: `RADAR_CONTACT_ALPHA` is one fixed strength from the frame a contact
+> exists to the frame it does not. **The inbound word is now the only changing
+> alpha on the panel, and the harness caps that at one.**
+>
+> ### ⚠️ THE COUNTDOWN MOVED, AND ROUND 94's RULING IS INTACT
+>
+> Jake: *"Countdown time should move to the new digital readout to keep it
+> unified."* Round 94 ruled the countdown *"must not cover the radar"* and must
+> not migrate into a side card, and a harness pins that the chrome's panel still
+> overlays the play container. **Both hold.** The READY, PAUSED and RESULT panels
+> did not move; three digits did. ⭐ **And it serves the older ruling better than
+> the old placement did** — the reason not to cover the scope is that the inbound
+> word is on it, and those three seconds are precisely when a student is meant to
+> read it. A 96px numeral over the sky spent them instead.
+>
+> ⚠️⚠️ **IT IS OPT-IN, AND THAT IS LOAD-BEARING.** A host that passes no
+> `onCountdown` keeps the numeral. Escape Key and `learn.js` have no console to
+> put digits in; an unconditional move would have silently deleted their
+> countdown, and nothing on those pages would have said so.
+>
+> ### ⭐ THE NEW HARNESS, AND WHY TEXT-MATCHING WAS NOT ENOUGH
+>
+> `tests/arcade-panels-test.mjs` **calls the drawing functions** against a
+> recording 2D context and asserts geometry. Every other arcade harness reads
+> these modules as text, and HANDOFF's own list records two defects that reached a
+> classroom past a fully green suite (a backtick in a CSS template literal; a
+> splice that left a function unterminated, both side canvases simply blank).
+> `module-parse-test.mjs` closed the *parse* half. **Parsing is not drawing** —
+> a regex cannot tell you the DOME ring ended up above the SCREEN ring.
+>
+> ⚠️ **Part B is Rule 10 in the strict sense**: B4 fails against the shipped
+> Round 95 fade and passes against the fix. **Mutation-verified four ways** — the
+> fade restored, the rings swapped, the preview clamped onto the screen ring, and
+> a gate invented for an ungated drill. Each turned exactly the intended
+> assertions red.
+> ⚠️ **Every assertion is a RELATIONSHIP, never a pixel literal.**
+> `game-layout.js` exists to be edited in parallel; a width assertion would go
+> red for a reason that is not a defect.
+>
+> ### ⚠️ THREE DEFECTS FOUND ON THE WAY THROUGH, NONE OF THEM THE ASSIGNMENT
+>
+> * **`--gc-bottom` was being set to `NaNpx` on every `layout()`.** Round 94
+>   retired `CHROME_BOTTOM_FRACTION` / `CHROME_BOTTOM_NO_KEYBOARD` — commented
+>   out with a note not to revive them — but `game-deadline.js` kept **reading**
+>   them, inside a `try {} catch (_) {}` that swallowed the evidence. Harmless
+>   only because nothing consumes that variable any more. ⭐ **Deleting a
+>   constant means deleting its readers in the same edit** — the same shape as
+>   Rule 9.
+> * **`arcade.html` had two `ARCADE_PAGE_VERSION` constants and they had already
+>   drifted** (3.1.0 vs 3.2.0). The second was declared in the app module and
+>   read by nothing; they only failed to collide because separate
+>   `<script type="module">` blocks have separate scopes. **Rule 9 in its
+>   smallest possible form.** Deleted, not synced.
+> * **`arcade.html`'s header said v3.0.0 while its constant said 3.1.0** — set by
+>   Round 98, the round that existed to stop exactly this. It is the one file
+>   whose two halves nothing checks, because `arcade-versions-test.mjs` only pins
+>   the `game-*` modules.
+>
+> ### ⚠️⚠️ THE FIFTH READ-A-COMMENT-AS-CODE, EXACTLY AS PREDICTED
+>
+> Round 98's block ends: *"Strip comments before any 'does the code do X' check.
+> Assume a fifth."* **The fifth arrived within the hour, in this round's own new
+> assertions.** Two checks required `RADAR_CELL` and `RADAR_FADE_IN` to be
+> *deleted* from `game-layout.js`; they went red against correct code, because the
+> block that deletes them explains itself and a substring search cannot tell an
+> obituary from a declaration. ⚠️ **The temptation was to reword the comment.**
+> That is backwards — it makes the prose worse to keep a broken check green, and
+> the next person to write a useful warning trips the same wire.
+> `arcade-lesson-test.mjs` has a `stripComments()` helper now. **Assume a sixth.**
+>
+> ### THE STATE OF PLAY
+>
+> * **90 harnesses pass**, `audit:versions` 0 problems, all 35 modules parse.
+> * ⚠️ **NOT VERIFIED IN A BROWSER.** This container cannot run one, so the
+>   *geometry* is proven and the *appearance* is not. **What Jake owes this
+>   round:** open `arcade.html`, start a run, and confirm four things — the rings
+>   read as clean lines; a word stays lit on the scope from arrival to
+>   destruction; there is a word in the inbound band during the countdown; and
+>   the countdown appears in the console clock, not over the sky.
+> * ⚠️ `firestore.rules` **v2.13.0 is deployed** and `tools/arcade-check.html`
+>   passes — confirmed by Jake, 2026-09-09. Arcade minutes bank.
+> * ⚠️ **Nothing in this round touches a count, a grade or a write.** No Rule 9,
+>   10 or 11 surface moved; the panel reads `d.report()` and draws.
+> * ⚠️ **`docs-vs-repo-test.mjs` notes that `arcade.html` has no readable version
+>   stamp and skips it.** That is the standing consequence of Jake's ruling that
+>   the arcade stays out of `versions.js` while it is a draft — a note, not a
+>   failure. It becomes a real check the day the arcade is registered.
+> * ⚠️ **Escape Key and Shatter are still untouched**, and Escape Key now has a
+>   visible gap: it has no console, so it keeps the overlay countdown and has no
+>   gauges. That is correct for this round and is the obvious next piece of work.
+
 > ## ▶ START HERE — written 2026-09-09 by Rounds 86-98 (Sholes II), for whoever is next
 >
 > ⚠️⚠️ **THIS BLOCK COVERS THIRTEEN ROUNDS AND IT SHOULD HAVE BEEN THIRTEEN
@@ -69,7 +293,7 @@
 >
 > ### THE STATE OF PLAY
 >
-> * **89 harnesses pass**, `audit:versions` 0 problems, all 35 modules parse.
+> * **90 harnesses pass**, `audit:versions` 0 problems, all 35 modules parse.
 > * ⚠️ **`firestore.rules` v2.13.0 MUST BE PASTED INTO THE CONSOLE.** Until it is,
 >   arcade minutes silently do not count. **Jake cannot run `npm run
 >   test:rules`** — `tools/arcade-check.html` is the browser instrument that tests

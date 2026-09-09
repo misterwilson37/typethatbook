@@ -1,4 +1,7 @@
-// game-layout.js v1.1.0 — EVERY ARCADE LAYOUT NUMBER, IN ONE PLACE. Round 92.
+// game-layout.js v1.3.0 — the flanks track the stage and the threat board,
+// Round 100 (Lambert).
+// game-layout.js v1.2.0 — EVERY ARCADE LAYOUT NUMBER, IN ONE PLACE. Round 92;
+// the scope/console split and the seven-segment readouts, Round 99 (Franklin).
 //
 // Jake, 2026-09-08: *"Is there a file that will let me move buttons and stuff
 // around without messing with what you're doing?"*
@@ -27,7 +30,7 @@
  * file shipped without one, so the build panel had nothing to read and no check
  * could tell whether a classroom was running the layout it was supposed to.
  */
-export const GAME_LAYOUT_VERSION = '1.1.0';
+export const GAME_LAYOUT_VERSION = '1.3.0';
 
 // ── keyboard strip ──────────────────────────────────────────────────────────
 export const KB_HEIGHT_FRACTION = 0.19;
@@ -84,65 +87,244 @@ export const PLAY_MIN_W = 724;
 export const BREAK_THREE_COL = 1150;
 export const BREAK_TWO_COL = 820;
 
-// ── radar panel (Round 95) ──────────────────────────────────────────────────
+// ── radar panel (Round 95, rebuilt Round 99) ────────────────────────────────
 //
 // ⚠️⚠️ THE RADAR IS READ-AHEAD, NOT AN INPUT SURFACE. Jake declined a radar a
 // student could type off: that would make the city, the domes and the whole
 // three-deep overlap decorative. Everything below is instrument styling chosen
 // so it CANNOT be mistaken for a target — no plate, no box, no lock colour, and
 // deliberately dimmer than anything in the sky.
+//
+// ⚠️⚠️ ROUND 99 REVERSED ROUND 97 *ON THIS PANEL ONLY*, AND THE REVERSAL IS THE
+// POINT OF THIS BLOCK. Round 97 read *"more chunky pixels"* as applying
+// everywhere and snapped the rings to a 4px lattice, which drew them as runs of
+// squares. Jake, 2026-09-09: *"The left panel radar grid is pixellated, which is
+// weird... I'd like that all clean, traditional pale green lines."* And on the
+// original ask: *"when I wanted it chunkier, I was referring to the overall
+// look, and especially the right card. I did not actually specify that."*
+// ⭐ SO: CHUNKY IS THE GAUGES. THE RADAR IS A SCOPE. A stroked arc here and
+// segmented lamps there is not two styles by accident — it is the difference
+// between the window and the console, which is the whole brief.
 export const RADAR_PAD = 10;
-/** Depth rings, as fractions of panel height from the origin at the bottom. */
-export const RADAR_RINGS = [0.25, 0.5, 0.75];
-export const RADAR_PIP_R = 3;
+
 /**
- * ⚠️ A CONTACT FADES IN OVER ITS FIRST SLICE OF DESCENT — no timer, no pulse,
- * no sweep. See RADAR_SWEEP below; this is the only motion on the panel.
+ * ⚠️⚠️ THE THREE RINGS ARE NAMED POSITIONS IN THE GAME, NOT DECORATION, AND THIS
+ * IS THE CORRECTION OF A REAL DEFECT. Round 95 used `[0.25, 0.5, 0.75]` —
+ * three arcs at arbitrary fractions of the panel, meaning nothing. Jake,
+ * 2026-09-09: *"lowest should be dome, second should be midway up the screen,
+ * third should be screen, and above that should be the preview/incoming word
+ * that isn't on the screen yet."*
+ *
+ * ⚠️ THE UNITS ARE `ny`, THE SAME NORMALISED DEPTH A CONTACT CARRIES: 0 is the
+ * top of the play canvas (where a target enters) and 1 is impact on the dome.
+ * That is `threat()` in game-deadline.js, handed over pre-normalised. Any other
+ * unit here would be a second coordinate system for one quantity.
  */
-export const RADAR_FADE_IN = 0.15;
+export const RADAR_RING_SCREEN = 0.0;
+export const RADAR_RING_MID    = 0.5;
+export const RADAR_RING_DOME   = 1.0;
+
+/**
+ * ⚠️ THE DOME ARC NEEDS A DRAWN SIZE OR IT IS A POINT. `ny = 1` is the origin,
+ * so an arc through it has no height at all. This floors the innermost arc at a
+ * fraction of the panel's depth span — which also makes it read as what it is,
+ * a dome over the city.
+ */
+export const RADAR_DOME_ARC_MIN = 0.14;
+
+/**
+ * ⭐ THE BAND ABOVE THE SCREEN RING, WHERE THE NOT-YET-SPAWNED WORD SITS. Jake:
+ * *"even during the countdown, there should be a word coming in the edge of that
+ * screen."* It is reserved height, not an overlay, so the inbound contact is
+ * genuinely OUTSIDE the screen ring rather than drawn on top of the sky.
+ */
+export const RADAR_PREVIEW_BAND = 34;
+
+/**
+ * ⚠️⚠️ A CONTACT DOES NOT FADE, AND THIS IS THE OTHER ROUND 99 FIX. Round 95
+ * ramped every contact's alpha over its first 15% of descent (`RADAR_FADE_IN`,
+ * now deleted). With several words alive the whole panel appeared to wash in and
+ * out. Jake: *"Each word fades out the whole grid, too, making it impossible to
+ * actually start typing the next possible word. Once a word appears on there, it
+ * should stay on there and not fade out until it's destroyed."*
+ * ⭐ THE PANEL IS AN INSTRUMENT, AND AN INSTRUMENT DOES NOT DIM THE READING IT
+ * HAS ALREADY TAKEN. A contact is drawn at full strength from the frame it
+ * exists until the frame it does not.
+ */
+export const RADAR_CONTACT_ALPHA = 1;
+
 /**
  * ⚠️⚠️ THERE IS NO SWEEPING LINE AND THERE MUST NEVER BE ONE. A rotating bright
  * line across a 200px panel is a periodic large-area flash in a room of thirty
  * twelve-year-olds — the same reason drawHitFeedback() stopped doing a
  * full-screen red fill. This constant exists to be found by anyone who reaches
- * for one.
+ * for one. ⚠️ NOTE THAT ROUND 99 MADE THE PANEL PRETTIER, WHICH MAKES A SWEEP
+ * MORE TEMPTING, NOT LESS. The answer is still no.
  */
 export const RADAR_SWEEP = false;
 
-// ── retro-future treatment (Round 97) ───────────────────────────────────────
+// ── the scope's palette: pale phosphor green, per Jake's ruling ──────────────
+//
+// ⚠️ THE LINES ARE FAR DIMMER THAN THE CONTACTS, AND THE CONTACTS ARE STILL
+// DIMMER THAN ANYTHING IN THE SKY. That ordering is what keeps the panel
+// unmistakable for an input surface; it survived the recolour deliberately.
+export const RADAR_LINE  = 'rgba(150,228,172,0.26)';
+export const RADAR_LABEL = 'rgba(150,228,172,0.42)';
+export const RADAR_INK   = '#a4e6b4';
+export const RADAR_PIP   = '#8ee2a4';
+export const RADAR_TYPED = 'rgba(164,230,180,0.30)';
+/** Retired with the lattice, kept named so a search for it lands on the story. */
+export const RADAR_GRID  = RADAR_LINE;
+export const RADAR_LINE_W = 1;
+export const RADAR_PIP_R = 3.5;
+/** The inbound contact's resting alpha before its spawn is imminent. */
+export const RADAR_INBOUND_MIN_ALPHA = 0.28;
+
+// ── retro-future treatment (Round 97; scoped to the console in Round 99) ────
 //
 // Jake: *"I was hoping for a more retro-future feel. More chunky pixels. Gauges
-// that fill up one bar at a time."*
-//
-// ⚠️ CHUNKY IS A GRID SIZE, NOT A FILTER. Everything on the panels snaps to
-// RADAR_CELL / GAUGE_CELL, so pips, bars and rings all land on the same lattice
-// and read as one instrument rather than three styles sharing a card.
-export const RADAR_CELL = 4;
+// that fill up one bar at a time."* ⚠️ AND ON REVIEW, *"especially the right
+// card"* — the chunk belongs to the console, not to the scope. RADAR_CELL is
+// deleted; see the radar block above.
 export const GAUGE_CELL = 6;
 export const GAUGE_CELL_GAP = 2;
 /** Segments per meter. Fewer, larger cells read as more retro than many small. */
 export const GAUGE_SEGMENTS = 14;
-/** The inbound contact's resting alpha before its spawn is imminent. */
-export const RADAR_INBOUND_MIN_ALPHA = 0.12;
 
-export const RADAR_INK = 'rgba(120,170,220,0.55)';
-export const RADAR_GRID = 'rgba(120,170,220,0.14)';
-export const RADAR_PIP = '#8fd8e8';
-export const RADAR_TYPED = 'rgba(120,170,220,0.28)';
-
-// ── gauges (Round 95) ───────────────────────────────────────────────────────
+// ── gauges: THE CONSOLE (Round 95, rebuilt Round 99) ────────────────────────
 //
-// ⚠️ RUN STATS AND REAL TOTALS GET DIFFERENT TREATMENTS ON PURPOSE. A child must
-// not read "28 WPM" and "14m today" as two facts of the same kind: one is this
-// run, one is their week. Arc faces for the run, plain bars for the totals.
-export const GAUGE_ARC_R = 26;
-export const GAUGE_ROW_H = 74;
-export const GAUGE_BAR_H = 8;
-export const GAUGE_LABEL = 'rgba(159,182,198,0.85)';
-export const GAUGE_RUN_INK = '#8fe8c8';
+// Jake, 2026-09-09: *"On the right, I want something more intentional and that
+// better fits the space... a gauge that could be used for speed and wpm, so the
+// number and the target can be acknowledged. Perhaps with tick marks and stop
+// light coloration (red failing, green passing) to delineate the different
+// targets visually on the bar."* And the brief the whole card answers to:
+// *"We're looking out a window on the field of battle, and the space on either
+// side is the console itself. we wouldn't leave parts of it bare."*
+//
+// ⚠️ RUN STATS AND REAL TOTALS STILL GET DIFFERENT TREATMENTS. A child must not
+// read "28 WPM" and "14m today" as two facts of the same kind: one is this run,
+// one is their week. Dials for the run, plain readouts for the totals.
+//
+// ⚠️⚠️ THE STOPLIGHT IS A STATEMENT ABOUT THE TARGET, NOT ABOUT THE STUDENT.
+// Red means "below the gate right now", green means "at or above it". It must
+// never colour a number the gate does not judge — accuracy on a drill run has
+// no speed gate, and painting one red would invent a failure learn.js refuses to
+// report. See drawGauges(): a null target draws NO zones at all.
+export const GAUGE_LABEL     = 'rgba(159,182,198,0.85)';
+export const GAUGE_RUN_INK   = '#8fe8c8';
 export const GAUGE_TOTAL_INK = '#7fb8ff';
-/** WPM face ceiling. Above this the needle pins rather than rescaling. */
+/** WPM face ceiling. Above this the meter pins rather than rescaling. */
 export const GAUGE_WPM_MAX = 60;
+
+/**
+ * ⚠️ STOPLIGHT, AND DELIBERATELY NOT PURE RED/GREEN. Saturated #ff0000 next to
+ * #00ff00 is the single hardest pair for the commonest colour blindness, and
+ * one in twelve boys in a class of thirty has it. These differ in LIGHTNESS as
+ * well as hue, and the meter always prints the number too — the colour is the
+ * second channel, never the only one.
+ */
+export const GAUGE_RED   = '#ff6b7a';
+export const GAUGE_AMBER = '#ffcf6b';
+export const GAUGE_GREEN = '#6be89a';
+export const GAUGE_GOLD  = '#ffd700';
+/** An unlit lamp. Present, so the meter reads as a machine with lamps in it. */
+export const GAUGE_UNLIT = 'rgba(120,170,220,0.13)';
+
+// ── the composite gauge: ring + segmented bar, per Jake's reference image ────
+//
+// ⚠️ THE RING AND THE BAR ARE ONE INSTRUMENT, NOT TWO READINGS OF ONE NUMBER.
+// The RING is the value; the BAR is that value's position between zero and the
+// scale ceiling, with the gate marked on it. Drawing the same number twice was
+// the exact defect Round 95 fixed on the keyboard flanks — this passes because
+// the bar's job is the TARGET, which the ring cannot show.
+export const GAUGE_RING_D      = 62;
+export const GAUGE_RING_W      = 7;
+export const GAUGE_RING_SEGS   = 28;
+export const GAUGE_RING_GAP    = 0.22;
+export const GAUGE_UNIT_H      = 74;
+export const GAUGE_BAR_H       = 10;
+export const GAUGE_TICK_H      = 4;
+export const GAUGE_ARC_R       = GAUGE_RING_D / 2;
+export const GAUGE_ROW_H       = GAUGE_UNIT_H;
+
+// ── the digital readouts (Round 99) ─────────────────────────────────────────
+//
+// Jake, 2026-09-09, with a photo of a wall clock: *"Time is harder. I kind of
+// want it to be flip clocks, but that could be too distracting. Traditional
+// digital readouts would probably work better, especially if you use that for
+// the gauges above."* And: *"Countdown time should move to the new digital
+// readout to keep it unified. I'm thinking a font like the one attached."*
+//
+// ⚠️⚠️ THE SEGMENTS ARE DRAWN, NOT SET IN A FONT, AND THAT IS NOT STUBBORNNESS.
+// A seven-segment webfont is a network dependency on a page a child opens on a
+// classroom Chromebook behind a filter, and a canvas that has not got its font
+// yet silently falls back to the system monospace — so the readout would be the
+// one element on the panel whose appearance depended on whether the wifi held.
+// drawSevenSeg() has no dependency and cannot fall back. See its header.
+//
+// ⚠️ UNLIT SEGMENTS ARE DRAWN TOO. That is what makes it read as an LED panel
+// rather than as blocky text: on the real clock in Jake's photo you can see
+// every segment that is off. It is also functional — a digit's shape stays
+// legible while it changes.
+export const SEG_UNLIT_ALPHA = 0.13;
+export const SEG_THICK       = 0.15;
+export const SEG_ASPECT      = 0.58;
+export const SEG_TIME_H      = 30;
+export const SEG_VALUE_H     = 17;
+export const SEG_TOTAL_H     = 14;
+export const SEG_TIME_INK    = '#ff5a4a';
+export const SEG_COUNT_INK   = '#ffd700';
+
+// ── the flanks TRACK THE STAGE (Round 100) ──────────────────────────────────
+//
+// ⚠️⚠️ ROUND 99 ANSWERED *"big chunks of empty space don't fit the vibe"* WITH
+// TALLER FIXED HEIGHTS, AND A FIXED HEIGHT CANNOT ANSWER IT. Measured after the
+// fact, at #stage's own `height:78vh`: at a 900px viewport the left column still
+// had **236px** of bare card below the radar and the right had 118px; at 1200px
+// it was 470px and 352px. ⚠️ AND AT 700px THE CONSOLE CARD OVERFLOWED THE STAGE
+// BY 38px — the same constant was simultaneously too small and too large,
+// which is the signature of a number that should not have been a constant.
+// ⭐ THE CANVASES FLEX AND THE CARDS TRACK THE STAGE NOW. These are FLOORS and
+// CEILINGS, not heights.
+//
+// ⚠️ A FLOOR IS STILL REQUIRED. fitCanvas() sizes the drawing buffer from
+// getBoundingClientRect(), so a canvas whose height came only from its own
+// content resolves to ZERO on the first frame and the panel renders blank until
+// something triggers a resize. The flex basis comes from the card, which comes
+// from the grid row, which comes from #stage — all definite — but the floor is
+// what makes that safe to reason about.
+export const RADAR_MIN_H = 260;
+export const GAUGE_MIN_H = 300;
+/** ⚠️ A CEILING, so the readouts do not stretch into a sparse grey field on a
+ *  tall monitor. Past this the buttons take the remaining height, which is the
+ *  better use of it — see game-chrome.js's note on tap targets. */
+export const GAUGE_MAX_H = 420;
+/** ⚠️ AND A CEILING ON A BUTTON. Four controls sharing 400px of leftover column
+ *  would be 100px tall each, which reads as a mistake rather than as a console. */
+export const CONTROL_BTN_MAX_H = 68;
+
+// ── the threat board (Round 100) ────────────────────────────────────────────
+//
+// Jake's brief for the flanks: *"we wouldn't leave parts of it bare - we'd have
+// information, or buttons, or lights, or something helping us make battle
+// decisions."*
+//
+// ⚠️⚠️ THE TEST FOR ANYTHING PUT HERE IS "CAN A STUDENT ACT ON IT", AND
+// DECORATIVE LAMPS FAIL IT. A bare panel and a panel of meaningless lights are
+// both failures, and the second is worse: it teaches a child to stop reading the
+// panel. This board earns its place because the game's core tactical decision —
+// Escape abandons a word so you can save a different landmark — requires knowing
+// WHICH landmark is exposed, and until now that was only inferable by reading the
+// skyline mid-fall.
+//
+// ⚠️ IT RECEIVES COUNTS, NEVER GEOMETRY. Same rule as the radar's contacts: no
+// lane position and no dome measurement crosses into a panel, because the dome
+// measurement IS the coverage test that gives the city six lives.
+export const THREAT_H = 104;
+export const THREAT_ROW_MIN = 22;
+export const THREAT_SHIELDED = '#6be89a';
+export const THREAT_EXPOSED  = '#ffcf6b';
+export const THREAT_LOST     = '#ff6b7a';
 
 // ── control bar ─────────────────────────────────────────────────────────────
 // Where Pause/Sound/Keys/Done sits, as a fraction of strip height up from the

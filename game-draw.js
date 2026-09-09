@@ -1,3 +1,7 @@
+// game-draw.js v1.5.0 — the threat board, Round 100 (Lambert).
+// game-draw.js v1.4.0 — Round 99 (Franklin): the scope stops being pixellated,
+// the console becomes a console, and seven-segment digits are drawn rather than
+// downloaded. See drawSevenSeg(), drawRadar() and drawGauges() headers.
 // game-draw.js v1.3.0 — keyStates added Round 90 (miss/fixed key colouring).
 // game-draw.js v1.1.0 — CANVAS HELPERS SHARED BY ALL THREE ARCADE VIEWS.
 // Round 82 (Victor); keyboard strip added Round 89.
@@ -31,7 +35,7 @@
 // may be imported by anything that draws; that only stays safe while it knows
 // nothing.
 
-export const GAME_DRAW_VERSION = '1.3.0';
+export const GAME_DRAW_VERSION = '1.5.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device
@@ -548,12 +552,143 @@ export function drawCapsWarning(ctx, w, y) {
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * THE RADAR — READ-AHEAD, AND NOTHING ELSE. Round 95.
+ * SEVEN-SEGMENT DIGITS, DRAWN. Round 99.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Jake, 2026-09-09, with a photograph of a red LED wall clock: *"Traditional
+ * digital readouts would probably work better, especially if you use that for
+ * the gauges above... I'm thinking a font like the one attached."*
+ *
+ * ⚠️⚠️ NOT A WEBFONT, AND THE REASON IS THE CLASSROOM. A seven-segment font is a
+ * network dependency on a page a child opens on a Chromebook behind a district
+ * filter — and canvas does not wait for fonts. `ctx.fillText` with an unloaded
+ * family silently draws in the fallback, so the one element on this panel whose
+ * appearance depended on the wifi holding would be the clock. This has no
+ * dependency and therefore cannot fall back.
+ *
+ * ⚠️ THE UNLIT SEGMENTS ARE DRAWN. On the real clock every segment that is off
+ * is still visible, and that is most of what makes an LED panel look like one.
+ * It is also functional: the digit box keeps its shape as the value changes, so
+ * nothing on the panel reflows when 9 becomes 10.
+ *
+ * ⚠️ IT RENDERS DIGITS, COLON, MINUS AND SPACE — NOTHING ELSE. An unmapped
+ * character draws as a blank digit rather than throwing or silently vanishing.
+ * ⭐ SO IT MAY ONLY BE HANDED SOMETHING ALREADY NUMERIC. The minutes totals on
+ * this panel are formatted strings ("1h 20m") that come from ONE formatter in
+ * game-deadline.js, and they stay in plain monospace for exactly that reason —
+ * teaching this function to render an 'h' would be the second formatter that
+ * file's own comment warns about.
+ */
+const SEG_ON = {
+    //         a  b  c  d  e  f  g
+    '0': [1, 1, 1, 1, 1, 1, 0],
+    '1': [0, 1, 1, 0, 0, 0, 0],
+    '2': [1, 1, 0, 1, 1, 0, 1],
+    '3': [1, 1, 1, 1, 0, 0, 1],
+    '4': [0, 1, 1, 0, 0, 1, 1],
+    '5': [1, 0, 1, 1, 0, 1, 1],
+    '6': [1, 0, 1, 1, 1, 1, 1],
+    '7': [1, 1, 1, 0, 0, 0, 0],
+    '8': [1, 1, 1, 1, 1, 1, 1],
+    '9': [1, 1, 1, 1, 0, 1, 1],
+    '-': [0, 0, 0, 0, 0, 0, 1],
+    ' ': [0, 0, 0, 0, 0, 0, 0],
+};
+
+/** A horizontal bar as a hexagon, so the segments mitre against each other. */
+function segH(cx, cy, len, t) {
+    const h = len / 2, q = t / 2;
+    return [[cx - h, cy], [cx - h + q, cy - q], [cx + h - q, cy - q],
+            [cx + h, cy], [cx + h - q, cy + q], [cx - h + q, cy + q]];
+}
+function segV(cx, cy, len, t) {
+    const h = len / 2, q = t / 2;
+    return [[cx, cy - h], [cx + q, cy - h + q], [cx + q, cy + h - q],
+            [cx, cy + h], [cx - q, cy + h - q], [cx - q, cy - h + q]];
+}
+function segPolys(x, y, w, h, t) {
+    const L = w - t * 1.15;
+    const M = (h - t * 1.7) / 2;
+    const upper = y + t / 2 + M / 2 + t * 0.1;
+    const lower = y + h - t / 2 - M / 2 - t * 0.1;
+    return [
+        segH(x + w / 2, y + t / 2, L, t),          // a  top
+        segV(x + w - t / 2, upper, M, t),          // b  upper right
+        segV(x + w - t / 2, lower, M, t),          // c  lower right
+        segH(x + w / 2, y + h - t / 2, L, t),      // d  bottom
+        segV(x + t / 2, lower, M, t),              // e  lower left
+        segV(x + t / 2, upper, M, t),              // f  upper left
+        segH(x + w / 2, y + h / 2, L, t),          // g  middle
+    ];
+}
+
+/** Width a string will occupy at a given digit height. */
+export function sevenSegWidth(text, h) {
+    const dw = h * LAY.SEG_ASPECT, cw = h * 0.30, gap = h * 0.12;
+    let w = 0;
+    const s = String(text == null ? '' : text);
+    for (let i = 0; i < s.length; i++) {
+        w += (s[i] === ':' ? cw : dw) + (i === s.length - 1 ? 0 : gap);
+    }
+    return w;
+}
+
+/**
+ * @param {object} o
+ *   x, y   {number} top-left, or the anchor when `align` is set
+ *   h      {number} digit height; everything else derives from it
+ *   text   {string} digits, ':', '-' and ' ' only
+ *   color  {string} the lit colour; unlit segments are the same hue, faint
+ *   align  {'left'|'center'|'right'}
+ */
+export function drawSevenSeg(ctx, o) {
+    const h = o.h, t = h * LAY.SEG_THICK;
+    const dw = h * LAY.SEG_ASPECT, cw = h * 0.30, gap = h * 0.12;
+    const text = String(o.text == null ? '' : o.text);
+    const total = sevenSegWidth(text, h);
+    let x = o.align === 'center' ? o.x - total / 2
+          : o.align === 'right'  ? o.x - total
+          : o.x;
+    const ink = o.color || '#ff5a4a';
+
+    ctx.save();
+    for (const ch of text) {
+        if (ch === ':') {
+            ctx.fillStyle = ink;
+            for (const cy of [o.y + h * 0.33, o.y + h * 0.67]) {
+                ctx.beginPath();
+                ctx.arc(x + cw / 2, cy, t * 0.45, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            x += cw + gap;
+            continue;
+        }
+        const on = SEG_ON[ch] || SEG_ON[' '];
+        const polys = segPolys(x, o.y, dw, h, t);
+        ctx.fillStyle = ink;
+        for (let i = 0; i < 7; i++) {
+            ctx.globalAlpha = on[i] ? 1 : LAY.SEG_UNLIT_ALPHA;
+            const p = polys[i];
+            ctx.beginPath();
+            ctx.moveTo(p[0][0], p[0][1]);
+            for (let k = 1; k < p.length; k++) ctx.lineTo(p[k][0], p[k][1]);
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        x += dw + gap;
+    }
+    ctx.restore();
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * THE RADAR — READ-AHEAD, AND NOTHING ELSE. Round 95; rebuilt Round 99.
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * Jake: *"Radar as read ahead. Even two words ahead would be helpful."* He
- * explicitly declined a radar a student could type off — that would make the
- * city, the domes and the three-deep overlap decorative, which is most of the
+ * explicitly declined a scope a student could type off — that would make the
+ * city, the shields and the three-deep overlap decorative, which is most of the
  * game.
  *
  * ⚠️⚠️ SO IT MUST NOT LOOK TYPABLE. The rule drawKeyboardStrip() already states
@@ -563,66 +698,140 @@ export function drawCapsWarning(ctx, w, y) {
  * anything in the sky. If a student starts typing at this panel, the design has
  * failed regardless of how it looks.
  *
+ * ⚠️⚠️ ROUND 99 UNDID ROUND 97 HERE, ON JAKE'S CORRECTION, AND THE CORRECTION IS
+ * WORTH KEEPING. Round 97 snapped every line on this panel to a 4px lattice
+ * because he asked for *"more chunky pixels"*. Seeing it: *"The left panel radar
+ * grid is pixellated, which is weird... I'd like that all clean, traditional
+ * pale green lines."* Then, unprompted: *"when I wanted it chunkier, I was
+ * referring to the overall look, and especially the right card. I did not
+ * actually specify that, though, so you delivered a version of what I said."*
+ * ⭐ THE LESSON IS NOT "ASK MORE QUESTIONS". It is that a style instruction has
+ * a SCOPE, and the scope was inferable from the thing being styled: this panel
+ * is the WINDOW and the right card is the CONSOLE. Lattice the console.
+ *
  * ⚠️⚠️ AND NO SWEEPING LINE, EVER. A rotating bright line across a 200px panel
  * is a periodic large-area flash in front of thirty twelve-year-olds — the same
- * reason drawHitFeedback() stopped doing a full-screen fill. Static rings; the
- * only motion is a contact fading in as it enters. `prefers-reduced-motion`
- * removes even that.
+ * reason drawHitFeedback() stopped doing a full-screen fill. Static arcs. Now
+ * that the panel looks like a real scope this will be more tempting, not less.
+ *
+ * ⚠️⚠️ A CONTACT NEVER FADES. Round 95 ramped each contact's alpha over its
+ * first slice of descent, and with several words alive the panel appeared to
+ * wash in and out — Jake: *"Each word fades out the whole grid, too, making it
+ * impossible to actually start typing the next possible word."* The only thing
+ * on this panel with a variable alpha is the not-yet-spawned inbound word, and
+ * `prefers-reduced-motion` freezes even that.
  *
  * ⚠️ IT KNOWS NOTHING ABOUT PLAY GEOMETRY. Contacts arrive pre-normalised
- * (`nx` 0..1 across, `ny` 0..1 down) so no lane, dome or impact number is
- * reachable from here — the same reason the panels are sibling canvases rather
- * than an inset rect.
+ * (`nx` 0..1 across, `ny` 0..1 down, where 1 is impact) so no lane, no shield
+ * measurement and no impact test is reachable from here — the same reason the
+ * panels are sibling canvases rather than an inset rect.
  *
- * @param {object} o  W, H, contacts:[{text,typed,nx,ny}], inbound:string|null
+ * @param {object} o  W, H, contacts:[{text,typed,nx,ny}], inbound:string|null,
+ *                    inboundProgress:number
  */
 export function drawRadar(ctx, o) {
     const { W, H } = o;
     const pad = LAY.RADAR_PAD;
-    const cell = LAY.RADAR_CELL;
-    const reduced = prefersReducedMotion();
-    // ⚠️ EVERYTHING SNAPS TO THE CELL GRID. That is the whole of "chunky
-    // pixels": a lattice, not a filter — pips, rings and text all land on it, so
-    // the panel reads as one instrument rather than three styles in a card.
-    const snap = v => Math.round(v / cell) * cell;
+    const still = prefersReducedMotion();
+    const clamp01 = v => Math.max(0, Math.min(1, v || 0));
 
     ctx.clearRect(0, 0, W, H);
-    const originY = snap(H - pad);
-    const cx = snap(W / 2);
     ctx.save();
+    ctx.lineCap = 'round';
 
-    // Stepped depth rings — runs of cells, not smooth arcs.
-    ctx.fillStyle = LAY.RADAR_GRID;
-    for (const r of LAY.RADAR_RINGS) {
-        const rx = (W / 2 - pad) * r * 1.6, ry = (H - pad * 2) * r;
-        for (let a2 = Math.PI; a2 <= Math.PI * 2; a2 += 0.06) {
-            const x = snap(cx + Math.cos(a2) * rx), y = snap(originY + Math.sin(a2) * ry);
-            if (y < pad || y > originY) continue;
-            ctx.fillRect(x, y, cell, cell);
-        }
+    // ── the coordinate system, which is the game's own ──────────────────────
+    // ny = 0 is the top edge of the play canvas; ny = 1 is impact. The band
+    // above `topRow` is OUTSIDE the screen and holds the inbound word.
+    const band = LAY.RADAR_PREVIEW_BAND;
+    const topRow = pad + band;
+    const originY = H - pad;
+    const span = Math.max(1, originY - topRow);
+    const cx = W / 2;
+    const rowY = ny => topRow + clamp01(ny) * span;
+
+    // ⚠️ THE INNERMOST ARC IS FLOORED AWAY FROM THE ORIGIN. `ny = 1` IS the
+    // origin, so an arc through it would have no height at all and the lowest
+    // ring would be invisible. Floored, it also reads as the thing it marks.
+    const ringRow = ny => Math.min(rowY(ny), originY - span * LAY.RADAR_DOME_ARC_MIN);
+
+    // ── the three rings, named for what they are ────────────────────────────
+    //
+    // Jake: *"You have three rings on there - lowest should be dome, second
+    // should be midway up the screen, third should be screen, and above that
+    // should be the preview/incoming word that isn't on the screen yet."*
+    //
+    // ⚠️ SHALLOW PARALLEL ARCS, NOT NESTED CIRCLES. Concentric circles centred
+    // on the origin would put the middle ring across only half the panel's
+    // width, while a contact's `nx` uses the whole of it — so a word could sit
+    // visibly outside the ring whose depth it actually occupies. The arcs droop
+    // by a fixed fraction, so every ring spans the full width, none crosses
+    // another, and a pip above a line is genuinely nearer the screen than it.
+    const DROOP = 0.045;
+    const arc = (y0, w) => {
+        const dy = span * DROOP;
+        ctx.strokeStyle = LAY.RADAR_LINE;
+        ctx.lineWidth = w == null ? LAY.RADAR_LINE_W : w;
+        ctx.beginPath();
+        ctx.moveTo(pad, y0 + dy);
+        ctx.quadraticCurveTo(cx, y0 - dy, W - pad, y0 + dy);
+        ctx.stroke();
+    };
+    const tag = (y0, text) => {
+        ctx.font = '8px "Courier Prime", monospace';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = LAY.RADAR_LABEL;
+        ctx.fillText(text, pad + 1, y0 - 3);
+    };
+
+    const rings = [
+        [LAY.RADAR_RING_SCREEN, 'SCREEN'],
+        [LAY.RADAR_RING_MID, 'MIDWAY'],
+        [LAY.RADAR_RING_DOME, 'DOME'],
+    ];
+    for (const [ny, label] of rings) {
+        const y0 = ringRow(ny);
+        arc(y0, ny === LAY.RADAR_RING_DOME ? LAY.RADAR_LINE_W + 0.6 : LAY.RADAR_LINE_W);
+        tag(y0, label);
     }
-    for (let y = pad; y < originY; y += cell * 3) ctx.fillRect(cx, snap(y), cell, cell);
 
-    const top = pad + 16;
-    const plot = (c, alpha, ghost) => {
-        const y = snap(top + Math.max(0, Math.min(1, c.ny)) * (originY - top));
-        const x = snap(pad + Math.max(0, Math.min(1, c.nx)) * (W - pad * 2));
+    // Bearing line and two shallow spokes. Static furniture, nothing moving.
+    ctx.strokeStyle = LAY.RADAR_LINE;
+    ctx.lineWidth = LAY.RADAR_LINE_W;
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(cx, topRow); ctx.lineTo(cx, originY);
+    ctx.moveTo(cx, originY); ctx.lineTo(pad + (W - pad * 2) * 0.16, topRow);
+    ctx.moveTo(cx, originY); ctx.lineTo(W - pad - (W - pad * 2) * 0.16, topRow);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // ── contacts ────────────────────────────────────────────────────────────
+    //
+    // ⚠️ `ghost` IS THE WHOLE SAFETY PROPERTY OF THIS PANEL: SOLID MEANS "IN
+    // THE SKY", HOLLOW MEANS "NOT YET". A student must never mistake the
+    // preview for something already typable, and a hollow ring is the one
+    // distinction that survives being glanced at.
+    const plot = (c, alpha, ghost, yAt) => {
+        // ⚠️ `yAt` EXISTS FOR THE INBOUND WORD AND FOR NOTHING ELSE. It sits
+        // ABOVE the screen ring, which is a negative depth; rowY() clamps to
+        // 0..1, so without an override the preview would be drawn ON the ring
+        // and read as arrived — the one thing this panel must never say.
+        const y = yAt == null ? rowY(c.ny) : yAt;
+        const x = pad + clamp01(c.nx) * (W - pad * 2);
+        const r = LAY.RADAR_PIP_R;
         ctx.globalAlpha = alpha;
-        // ⚠️ SOLID MEANS "IN THE SKY"; HOLLOW MEANS "NOT YET". A student must
-        // never mistake the preview for something already typable.
-        ctx.fillStyle = LAY.RADAR_PIP;
         if (ghost) {
-            ctx.fillRect(x - cell, y - cell, cell * 3, cell);
-            ctx.fillRect(x - cell, y + cell, cell * 3, cell);
-            ctx.fillRect(x - cell, y, cell, cell);
-            ctx.fillRect(x + cell, y, cell, cell);
+            ctx.strokeStyle = LAY.RADAR_PIP;
+            ctx.lineWidth = 1.2;
+            ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
         } else {
-            ctx.fillRect(x - cell, y - cell, cell * 3, cell * 3);
+            ctx.fillStyle = LAY.RADAR_PIP;
+            ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
         }
         ctx.font = '11px "Courier Prime", monospace';
-        const right = x > W * 0.6;
+        const right = x > W * 0.58;
         ctx.textAlign = right ? 'right' : 'left';
-        const tx = x + (right ? -cell * 3 : cell * 3);
+        const tx = x + (right ? -(r + 4) : (r + 4));
         const typed = (c.text || '').slice(0, c.typed || 0);
         const rest = (c.text || '').slice(c.typed || 0);
         if (!right) {
@@ -637,40 +846,60 @@ export function drawRadar(ctx, o) {
         ctx.globalAlpha = 1;
     };
 
-    for (const c of (o.contacts || [])) {
-        plot(c, reduced ? 1 : Math.min(1, (c.ny || 0) / LAY.RADAR_FADE_IN), false);
-    }
+    // ⚠️ FULL STRENGTH, ALWAYS. See the header — the fade was the defect.
+    for (const c of (o.contacts || [])) plot(c, LAY.RADAR_CONTACT_ALPHA, false);
 
-    // ⭐ ONE WORD MORE THAN THE SKY HOLDS. Jake: *"they should be fading in
-    // before they even show up on the play screen - it's a preview of what's
-    // coming for kids who type a little faster than the floor."* It brightens as
-    // its spawn approaches, so a fast student reads it before it exists.
+    // ⭐ ONE WORD MORE THAN THE SKY HOLDS, PARKED OUTSIDE THE SCREEN RING. Jake:
+    // *"they should be fading in before they even show up on the play screen -
+    // it's a preview of what's coming for kids who type a little faster than
+    // the floor."* And Round 99: *"even during the countdown, there should be a
+    // word coming in the edge of that screen."* It brightens as its spawn
+    // approaches, so a fast student reads it before it exists.
     // ⚠️ ITS x IS UNKNOWN UNTIL IT SPAWNS, so it is centred, not guessed — a pip
     // that jumped sideways on spawn would teach a position that is a lie.
     if (o.inbound) {
-        ctx.globalAlpha = 0.45;
-        ctx.fillStyle = LAY.RADAR_GRID;
-        for (let x = pad; x < W - pad; x += cell * 2) ctx.fillRect(snap(x), top - cell * 2, cell, cell);
-        ctx.globalAlpha = 1;
-        const p2 = reduced ? 0.75
-            : Math.max(LAY.RADAR_INBOUND_MIN_ALPHA, (o.inboundProgress || 0)) * 0.75;
-        plot({ text: o.inbound, typed: 0, nx: 0.5, ny: 0 }, p2, true);
+        ctx.font = '8px "Courier Prime", monospace';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = LAY.RADAR_LABEL;
+        ctx.fillText('INBOUND', pad + 1, pad + 8);
+        const p = still ? 0.72
+            : Math.max(LAY.RADAR_INBOUND_MIN_ALPHA, clamp01(o.inboundProgress)) * 0.85;
+        plot({ text: o.inbound, typed: 0, nx: 0.5, ny: 0 }, p, true, pad + band * 0.55);
     }
     ctx.restore();
 }
 
 /**
- * The gauge stack: this run above, the student's real totals below.
+ * ═══════════════════════════════════════════════════════════════════════════
+ * THE CONSOLE. Round 95; rebuilt Round 99.
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * ⚠️ THE TWO GROUPS ARE DRAWN DIFFERENTLY ON PURPOSE — arc faces for the run,
- * plain bars for the totals. game-draw.js already argues this for the keyboard
- * flanks: a child must not read "28 WPM" and "14m today" as two facts of the
- * same kind. One is this run and resets; one is their week and does not.
+ * Jake, 2026-09-09, and this paragraph is the whole specification:
+ * *"But looking at this should not make you feel like the space is not
+ * intentionally used. We're looking out a window on the field of battle, and the
+ * space on either side is the console itself. we wouldn't leave parts of it bare
+ * - we'd have information, or buttons, or lights, or something helping us make
+ * battle decisions. This is a battle station, not a computer game."*
  *
- * ⚠️⚠️ THE QUOTA BAR IS LABELLED, AND THAT IS A BUG FIX. Unlabelled, it sat
- * above the WEEK figure and Jake read it as the week's time — *"what is that
- * progress bar?"* It is the RUN's character quota. If the author of a feature
- * cannot identify it, no sixth-grader will.
+ * ⚠️⚠️ SO EVERY ITEM HERE HAS TO EARN ITS PLACE, AND "FILLING SPACE" IS NOT A
+ * JOB. The temptation this brief creates is decorative lamps — a bare panel and
+ * a panel of meaningless lights are both failures, and the second one is worse
+ * because it teaches a child to stop reading the panel. Everything drawn below
+ * is a number the student can act on: how fast they are going, whether that
+ * clears the gate, how much of the run is left, and how long they have been at
+ * it.
+ *
+ * ⚠️ THE RING AND THE BAR IN EACH UNIT ARE NOT THE SAME READING TWICE. The ring
+ * is the VALUE; the bar is that value against the GATE, with the gate marked.
+ * Round 95 had to delete a duplicated readout for precisely this reason (the
+ * strip flanks and this panel printing one WPM six inches apart), so the test is
+ * not "do they look different" but "does either become unreadable if the other
+ * is removed". Take the bar away and the target disappears.
+ *
+ * ⚠️ RUN STATS AND REAL TOTALS KEEP THEIR DIFFERENT TREATMENTS. A child must not
+ * read "28 WPM" and "14m today" as two facts of the same kind: one is this run
+ * and resets, one is their week and does not. Dials above the rule, plain text
+ * below it.
  */
 export function drawGauges(ctx, o) {
     const { W, H } = o;
@@ -678,70 +907,327 @@ export function drawGauges(ctx, o) {
     ctx.clearRect(0, 0, W, H);
     ctx.save();
 
+    const x = 12, w = W - 24;
+    let y = 12;
+
+    // ── the bezel ───────────────────────────────────────────────────────────
+    // Corner brackets rather than a full box: a closed rectangle inside a card
+    // that already has a border reads as a mistake, and the brackets are what
+    // make this a panel bolted into a console rather than a list of numbers.
+    (() => {
+        const L = 14, ox = 3, oy = 3;
+        ctx.strokeStyle = 'rgba(120,170,220,0.30)';
+        ctx.lineWidth = 1;
+        const corner = (px, py, dx, dy) => {
+            ctx.beginPath();
+            ctx.moveTo(px + dx * L, py);
+            ctx.lineTo(px, py);
+            ctx.lineTo(px, py + dy * L);
+            ctx.stroke();
+        };
+        corner(ox, oy, 1, 1);
+        corner(W - ox, oy, -1, 1);
+        corner(ox, H - oy, 1, -1);
+        corner(W - ox, H - oy, -1, -1);
+    })();
+
+    const label = (lx, ly, text, align, color) => {
+        ctx.textAlign = align || 'left';
+        ctx.font = '9px "Courier Prime", monospace';
+        ctx.fillStyle = color || LAY.GAUGE_LABEL;
+        ctx.fillText(text, lx, ly);
+    };
+
     /**
-     * One segmented meter. Jake: *"Gauges that fill up one bar at a time."*
+     * One segmented lamp bar, optionally with a stoplight zone split.
      *
-     * ⚠️ SEGMENTS QUANTISE, AND THAT IS THE POINT — a value lands on a cell or
+     * ⚠️ SEGMENTS QUANTISE, AND THAT IS THE POINT — a value lands on a lamp or
      * it does not, so the meter ticks instead of creeping. A smooth bar reads as
      * modern; this reads as a machine with lamps in it.
      * ⚠️ THE LIT COUNT ROUNDS DOWN, NEVER UP: a meter showing the last lamp at
      * 96% would be claiming a target was met when it was not.
+     * ⚠️ `zone` IS null WHEN THERE IS NO GATE, and then NO lamp is tinted. A
+     * drill run carries no speed gate (run-grade.js returns `minWPM: null`), and
+     * painting one red would invent a failure learn.js deliberately refuses to
+     * report.
      */
-    const meter = (x, y, w, label, value, frac, ink) => {
-        ctx.textAlign = 'left';
-        ctx.font = '9px "Courier Prime", monospace';
-        ctx.fillStyle = LAY.GAUGE_LABEL;
-        ctx.fillText(label, x, y);
-        ctx.textAlign = 'right';
-        ctx.font = 'bold 12px "Courier Prime", monospace';
-        ctx.fillStyle = ink;
-        ctx.fillText(String(value), x + w, y);
-
-        const cw = (w - (segs - 1) * gap) / segs;
+    const lampBar = (bx, by, bw, frac, zone, ink) => {
+        const cw = (bw - (segs - 1) * gap) / segs;
         const lit = Math.floor(Math.max(0, Math.min(1, frac)) * segs);
         for (let i = 0; i < segs; i++) {
-            ctx.fillStyle = i < lit ? ink : 'rgba(120,170,220,0.13)';
-            ctx.fillRect(x + i * (cw + gap), y + 6, cw, cell);
+            const at = (i + 0.5) / segs;
+            const base = zone == null ? ink
+                : at < zone ? LAY.GAUGE_RED : LAY.GAUGE_GREEN;
+            ctx.fillStyle = i < lit ? base : LAY.GAUGE_UNLIT;
+            if (i >= lit && zone != null) {
+                // An unlit lamp still shows which zone it belongs to, faintly —
+                // that is what "delineate the different targets visually on the
+                // bar" asks for, and it works before the run has any value.
+                ctx.globalAlpha = 0.22;
+                ctx.fillStyle = base;
+            }
+            ctx.fillRect(bx + i * (cw + gap), by, cw, LAY.GAUGE_BAR_H);
+            ctx.globalAlpha = 1;
         }
-        return y + 6 + cell + 16;
+        return cw;
     };
 
-    const x = 10, w = W - 20;
-    let y = 16;
+    /** Tick marks above a bar, with a taller bright one on the gate. */
+    const ticks = (bx, by, bw, zone) => {
+        ctx.strokeStyle = 'rgba(120,170,220,0.35)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+            const tx = Math.round(bx + bw * f) + 0.5;
+            ctx.moveTo(tx, by); ctx.lineTo(tx, by + LAY.GAUGE_TICK_H);
+        }
+        ctx.stroke();
+        if (zone != null) {
+            const tx = Math.round(bx + bw * Math.max(0, Math.min(1, zone))) + 0.5;
+            ctx.strokeStyle = LAY.GAUGE_AMBER;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(tx, by - 2); ctx.lineTo(tx, by + LAY.GAUGE_BAR_H + 6);
+            ctx.stroke();
+        }
+    };
 
-    // ── this run ────────────────────────────────────────────────────────────
-    y = meter(x, y, w, 'WPM', o.wpm || 0, (o.wpm || 0) / LAY.GAUGE_WPM_MAX, LAY.GAUGE_RUN_INK);
-    y = meter(x, y, w, 'ACCURACY', (o.acc || 0) + '%', (o.acc || 0) / 100, LAY.GAUGE_RUN_INK);
+    /**
+     * A segmented ring face. Lamps, not a needle — the same quantisation rule
+     * as the bars, so the two halves of a unit agree about what "one step" is.
+     */
+    const ring = (rcx, rcy, frac, pass, ink) => {
+        const n = LAY.GAUGE_RING_SEGS;
+        const r0 = LAY.GAUGE_RING_D / 2 - LAY.GAUGE_RING_W;
+        const r1 = LAY.GAUGE_RING_D / 2;
+        const start = Math.PI * 0.75, sweep = Math.PI * 1.5;
+        const lit = Math.floor(Math.max(0, Math.min(1, frac)) * n);
+        const step = sweep / n;
+        for (let i = 0; i < n; i++) {
+            const a0 = start + i * step + step * LAY.GAUGE_RING_GAP * 0.5;
+            const a1 = start + (i + 1) * step - step * LAY.GAUGE_RING_GAP * 0.5;
+            ctx.beginPath();
+            ctx.arc(rcx, rcy, r1, a0, a1);
+            ctx.arc(rcx, rcy, r0, a1, a0, true);
+            ctx.closePath();
+            ctx.fillStyle = i < lit ? (pass === false ? LAY.GAUGE_RED : ink) : LAY.GAUGE_UNLIT;
+            ctx.fill();
+        }
+    };
+
+    /**
+     * ⚠️ ONE UNIT = ONE QUANTITY. `target` may be null, and then nothing on the
+     * unit is coloured by pass/fail and no gate tick is drawn.
+     */
+    const unit = (uy, name, value, text, max, target, ink) => {
+        const d = LAY.GAUGE_RING_D;
+        const rcx = x + d / 2, rcy = uy + d / 2;
+        const frac = max > 0 ? value / max : 0;
+        const zone = target == null || max <= 0 ? null : target / max;
+        const pass = target == null ? null : value >= target;
+        ring(rcx, rcy, frac, pass, pass === false ? LAY.GAUGE_RED : (pass ? LAY.GAUGE_GREEN : ink));
+        drawSevenSeg(ctx, {
+            x: rcx, y: rcy - LAY.SEG_VALUE_H / 2, h: LAY.SEG_VALUE_H, text,
+            color: pass === false ? LAY.GAUGE_RED : (pass ? LAY.GAUGE_GREEN : ink),
+            align: 'center',
+        });
+
+        const bx = x + d + 12;
+        const bw = x + w - bx;
+        label(bx, uy + 9, name);
+        ticks(bx, uy + 16, bw, zone);
+        lampBar(bx, uy + 16 + LAY.GAUGE_TICK_H + 3, bw, frac, zone, ink);
+        label(bx, uy + d - 2,
+              target == null ? 'NO GATE' : 'GATE ' + target,
+              'left', target == null ? LAY.GAUGE_LABEL : LAY.GAUGE_AMBER);
+        label(bx + bw, uy + d - 2, '0 - ' + max, 'right');
+        return uy + LAY.GAUGE_UNIT_H;
+    };
+
+    // ── the clock ───────────────────────────────────────────────────────────
+    //
+    // ⚠️⚠️ THE COUNTDOWN LIVES HERE NOW, AND THAT IS A RULING CHANGED ON PURPOSE.
+    // Round 94 recorded *"the countdown must not cover the radar... it is an
+    // overlay on the thing it is counting down TO"*, and the harness pins that
+    // the chrome's panel still belongs to the play container. Both stay true:
+    // the READY, PAUSED and RESULT panels are untouched overlays. Only the three
+    // digits moved. Jake, 2026-09-09: *"Countdown time should move to the new
+    // digital readout to keep it unified."*
+    // ⭐ AND IT SERVES THE OLDER RULING BETTER THAN THE OLD PLACEMENT DID. The
+    // reason the countdown must not cover the scope is that the inbound word is
+    // already on it — which is exactly the three seconds a student is meant to
+    // spend reading ahead. A 96px numeral over the sky spent them instead.
+    // ⚠️ ONE READOUT, ONE NUMBER AT A TIME. It is the count or the run clock,
+    // never both, so there is never a second timer on screen to reconcile.
+    (() => {
+        const counting = o.countdown != null;
+        const secs = Math.max(0, Math.floor(o.seconds || 0));
+        const text = counting
+            ? '  ' + Math.max(0, Math.min(9, o.countdown))
+            : Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+        label(x, y + 8, counting ? 'GET READY' : 'RUN CLOCK');
+        if (o.shieldsLeft != null) label(x + w, y + 8, 'SHIELDS', 'right');
+        const top = y + 14;
+        drawSevenSeg(ctx, {
+            x, y: top, h: LAY.SEG_TIME_H, text,
+            color: counting ? LAY.SEG_COUNT_INK : LAY.SEG_TIME_INK,
+        });
+        if (o.shieldsLeft != null) {
+            drawSevenSeg(ctx, {
+                x: x + w, y: top + 6, h: LAY.SEG_TIME_H - 6,
+                text: String(Math.max(0, Math.min(99, o.shieldsLeft))),
+                color: o.shieldsLeft <= 1 ? LAY.GAUGE_RED : LAY.SEG_TIME_INK,
+                align: 'right',
+            });
+        }
+        y = top + LAY.SEG_TIME_H + 14;
+    })();
+
+    // A ruled divider, in cells — the console's own seam between the clock and
+    // the dials.
+    ctx.fillStyle = 'rgba(120,170,220,0.22)';
+    for (let dx = x; dx < x + w; dx += cell * 2) ctx.fillRect(dx, y - 7, cell, 2);
+
+    // ── the dials ───────────────────────────────────────────────────────────
+    y = unit(y, 'WPM', o.wpm || 0, String(Math.max(0, Math.min(999, o.wpm || 0))),
+             LAY.GAUGE_WPM_MAX, o.targetWPM == null ? null : o.targetWPM,
+             LAY.GAUGE_RUN_INK);
+    y = unit(y, 'ACCURACY', o.acc || 0, String(Math.max(0, Math.min(100, o.acc || 0))),
+             100, o.minAccuracy == null ? null : o.minAccuracy,
+             LAY.GAUGE_RUN_INK);
+
+    // ⚠️⚠️ THE QUOTA BAR IS LABELLED, AND THAT IS A BUG FIX. Unlabelled, it sat
+    // above the WEEK figure and Jake read it as the week's time — *"what is that
+    // progress bar?"* It is the RUN's character quota. If the author of a
+    // feature cannot identify it, no sixth-grader will.
+    // ⚠️ ABSENT IN ARCADE, not zeroed: an endless run has no quota, and a bar
+    // pinned at 0% would be reporting a mission that does not exist.
     if (o.quota != null) {
-        // ⚠️⚠️ LABELLED, AND THAT IS A BUG FIX. Unlabelled it sat above the WEEK
-        // figure and Jake read it as the week's time — *"what is that progress
-        // bar?"* It is the RUN's character quota. If the author of a feature
-        // cannot identify it, no sixth-grader will.
-        y = meter(x, y, w, 'QUOTA', Math.round(Math.min(1, o.quota) * 100) + '%',
-                  o.quota, o.quota >= 1 ? '#ffd700' : LAY.GAUGE_RUN_INK);
+        const pct = Math.round(Math.min(1, o.quota) * 100);
+        label(x, y + 8, 'RUN QUOTA');
+        label(x + w, y + 8, pct + '%', 'right',
+              o.quota >= 1 ? LAY.GAUGE_GOLD : LAY.GAUGE_RUN_INK);
+        lampBar(x, y + 14, w, o.quota, null,
+                o.quota >= 1 ? LAY.GAUGE_GOLD : LAY.GAUGE_RUN_INK);
+        y += 14 + LAY.GAUGE_BAR_H + 16;
     }
 
-    // ⚠️ A RULED DIVIDER, IN CELLS. Everything above it resets with the run;
-    // everything below it is the student's real week and does not. game-draw's
-    // own rule: a child must not read "28 WPM" and "14m today" as two facts of
-    // the same kind.
     ctx.fillStyle = 'rgba(120,170,220,0.22)';
-    for (let dx = x; dx < x + w; dx += cell * 2) ctx.fillRect(dx, y - 6, cell, 2);
-    y += 8;
+    for (let dx = x; dx < x + w; dx += cell * 2) ctx.fillRect(dx, y - 7, cell, 2);
 
     // ── the real totals ─────────────────────────────────────────────────────
+    //
     // ⚠️ NOTHING IS PRINTED WHEN THERE IS NOTHING TO PRINT. "0m today" is a
     // claim, and a page that never read the totals has no business making it.
-    // ⚠️ THESE METERS ARE FRACTIONS OF A DAY/WEEK GOAL ONLY AS A VISUAL —
-    // the NUMBER is the truth and is printed beside the label.
-    if (o.todayText) {
-        y = meter(x, y, w, 'TODAY', o.todayText,
-                  Math.min(1, (o.todaySeconds || 0) / 1800), LAY.GAUGE_TOTAL_INK);
+    // ⚠️⚠️ THESE STAY PLAIN MONOSPACE, NOT SEVEN-SEGMENT, AND THAT IS DELIBERATE.
+    // They arrive as formatted strings ("1h 20m") from ONE formatter in
+    // game-deadline.js; drawSevenSeg() renders digits only, so making them
+    // digital would mean reformatting them here — the second formatter that
+    // file's own comment warns would show a student two different "today"s.
+    if (o.todayText || o.weekText) {
+        ctx.font = '9px "Courier Prime", monospace';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = LAY.GAUGE_LABEL;
+        ctx.fillText('BANKED', x, y + 8);
+        ctx.font = 'bold 13px "Courier Prime", monospace';
+        ctx.fillStyle = LAY.GAUGE_TOTAL_INK;
+        if (o.todayText) ctx.fillText('TODAY  ' + o.todayText, x, y + 26);
+        if (o.weekText) ctx.fillText('WEEK   ' + o.weekText, x, y + 42);
     }
-    if (o.weekText) {
-        y = meter(x, y, w, 'THIS WEEK', o.weekText,
-                  Math.min(1, (o.weekSeconds || 0) / 9000), LAY.GAUGE_TOTAL_INK);
-    }
+
     ctx.restore();
 }
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * THE THREAT BOARD. Round 100 (Lambert).
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Jake's brief for the flanks: *"we wouldn't leave parts of it bare - we'd have
+ * information, or buttons, or lights, or something helping us make battle
+ * decisions. This is a battle station, not a computer game."*
+ *
+ * ⚠️⚠️ THE TEST FOR ANYTHING PUT ON A FLANK IS "CAN A STUDENT ACT ON IT". A bare
+ * panel and a panel of decorative lamps are both failures of that brief, and the
+ * second is the worse one, because a child who learns the lights mean nothing
+ * stops reading the panel that also carries the gate.
+ *
+ * ⭐ THIS ONE EARNS ITS PLACE BECAUSE OF Escape. The game's central tactical
+ * choice is abandoning a word to save a different landmark — game-deadline.js's
+ * own note: *"the student is choosing which landmark to save, and charging them
+ * an error for a tactical decision would make the depth a trap."* Making that
+ * choice requires knowing which landmark is exposed, and until now that was only
+ * available by reading the skyline while words were falling. Round 87 outlines an
+ * exposed landmark in amber ON the skyline; this says the same thing in words, in
+ * a place the student is not simultaneously trying to read a falling word.
+ *
+ * ⚠️⚠️ IT RECEIVES COUNTS, NEVER GEOMETRY. Exactly the rule the radar's contacts
+ * follow: `cover` is a NUMBER of standing shields over that lane, computed by the
+ * view that owns the geometry. No lane position and no dome measurement may cross
+ * into a panel — that measurement IS the coverage test giving the city six lives
+ * instead of three, and Round 91 proved it can be broken by something that looks
+ * completely fine.
+ *
+ * ⚠️ THREE STATES, AND THE COLOUR IS NEVER THE ONLY CHANNEL. Each row prints a
+ * word as well: SHIELDED / EXPOSED / LOST. One boy in twelve in a class of thirty
+ * has a colour vision deficiency, and this panel's whole purpose is to be read at
+ * a glance under time pressure.
+ *
+ * @param {object} o  W, H, lanes:[{ short:string, cover:number, alive:boolean }]
+ */
+export function drawThreatBoard(ctx, o) {
+    const { W, H } = o;
+    const lanes = o.lanes || [];
+    ctx.clearRect(0, 0, W, H);
+    if (!lanes.length) return;
+    ctx.save();
+
+    const x = 10, w = W - 20;
+    ctx.font = '8px "Courier Prime", monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = LAY.GAUGE_LABEL;
+    ctx.fillText('CITY STATUS', x, 9);
+
+    // ⚠️ ROWS DIVIDE THE HEIGHT THEY ARE GIVEN, with a floor. This panel is the
+    // one element on the flank with a FIXED height, so that the radar above it
+    // gets every pixel the column has spare — but a caller could still hand it
+    // less, and three rows crushed into 30px is worse than none.
+    const top = 16;
+    const rowH = Math.max(LAY.THREAT_ROW_MIN, (H - top - 4) / lanes.length);
+
+    lanes.forEach((ln, i) => {
+        const y = top + i * rowH;
+        const state = !ln.alive ? 'LOST' : (ln.cover > 0 ? 'SHIELDED' : 'EXPOSED');
+        const ink = !ln.alive ? LAY.THREAT_LOST
+                  : ln.cover > 0 ? LAY.THREAT_SHIELDED : LAY.THREAT_EXPOSED;
+
+        ctx.font = 'bold 9px "Courier Prime", monospace';
+        ctx.textAlign = 'left';
+        // ⚠️ A LOST LANDMARK IS DIMMED, NOT DELETED. The row has to keep its
+        // place or the two survivors move under the student's eye mid-run.
+        ctx.globalAlpha = ln.alive ? 1 : 0.5;
+        ctx.fillStyle = ink;
+        ctx.fillText(ln.short || '', x, y + 8);
+
+        ctx.font = '8px "Courier Prime", monospace';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = ink;
+        ctx.fillText(state, x + w, y + 8);
+        ctx.globalAlpha = 1;
+
+        // Shield lamps: one per standing dome over this lane. ⚠️ THE UNLIT ONES
+        // ARE DRAWN, so the row shows what has been SPENT as well as what is
+        // left — that is the six-lives mechanic made visible.
+        const lampW = 9, lampGap = 3, max = o.coverMax || 3;
+        for (let k = 0; k < max; k++) {
+            const on = k < ln.cover;
+            ctx.globalAlpha = on ? 1 : 0.18;
+            ctx.fillStyle = on ? ink : 'rgba(120,170,220,0.5)';
+            ctx.fillRect(x + k * (lampW + lampGap), y + 12, lampW, 4);
+        }
+        ctx.globalAlpha = 1;
+    });
+
+    ctx.restore();
+}
