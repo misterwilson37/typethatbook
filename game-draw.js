@@ -579,77 +579,82 @@ export function drawCapsWarning(ctx, w, y) {
 export function drawRadar(ctx, o) {
     const { W, H } = o;
     const pad = LAY.RADAR_PAD;
+    const cell = LAY.RADAR_CELL;
     const reduced = prefersReducedMotion();
+    // ⚠️ EVERYTHING SNAPS TO THE CELL GRID. That is the whole of "chunky
+    // pixels": a lattice, not a filter — pips, rings and text all land on it, so
+    // the panel reads as one instrument rather than three styles in a card.
+    const snap = v => Math.round(v / cell) * cell;
 
     ctx.clearRect(0, 0, W, H);
-
-    // Origin is the BOTTOM of the panel: it is the city, and contacts descend
-    // toward it exactly as they descend in the sky. Jake, on an earlier
-    // left-to-right draft: *"I was trying to make the text readable, but that
-    // doesn't matter."* Matching the sky matters more than reading comfort.
-    const originY = H - pad;
-    const cx = W / 2;
-
+    const originY = snap(H - pad);
+    const cx = snap(W / 2);
     ctx.save();
-    ctx.strokeStyle = LAY.RADAR_GRID;
-    ctx.lineWidth = 1;
+
+    // Stepped depth rings — runs of cells, not smooth arcs.
+    ctx.fillStyle = LAY.RADAR_GRID;
     for (const r of LAY.RADAR_RINGS) {
-        ctx.beginPath();
-        ctx.ellipse(cx, originY, (W / 2 - pad) * r * 1.6, (H - pad * 2) * r, 0, Math.PI, 0);
-        ctx.stroke();
+        const rx = (W / 2 - pad) * r * 1.6, ry = (H - pad * 2) * r;
+        for (let a2 = Math.PI; a2 <= Math.PI * 2; a2 += 0.06) {
+            const x = snap(cx + Math.cos(a2) * rx), y = snap(originY + Math.sin(a2) * ry);
+            if (y < pad || y > originY) continue;
+            ctx.fillRect(x, y, cell, cell);
+        }
     }
-    ctx.beginPath();
-    ctx.moveTo(cx, pad); ctx.lineTo(cx, originY);
-    ctx.stroke();
+    for (let y = pad; y < originY; y += cell * 3) ctx.fillRect(cx, snap(y), cell, cell);
 
-    // The inbound row, at the top, with no position because it has none yet.
-    if (o.inbound) {
-        ctx.font = '10px "Courier Prime", monospace';
-        ctx.fillStyle = 'rgba(120,170,220,0.4)';
-        ctx.textAlign = 'left';
-        ctx.fillText('INBOUND', pad, pad + 8);
-        ctx.font = '12px "Courier Prime", monospace';
-        ctx.fillStyle = LAY.RADAR_INK;
-        ctx.fillText(o.inbound, pad, pad + 24);
-    }
-
-    const top = pad + (o.inbound ? 34 : 10);
-    for (const c of (o.contacts || [])) {
-        const y = top + Math.max(0, Math.min(1, c.ny)) * (originY - top);
-        const x = pad + Math.max(0, Math.min(1, c.nx)) * (W - pad * 2);
-        // ⚠️ FADE IN, NOT PULSE. Derived from how far it has descended, so there
-        // is no timer and nothing periodic.
-        const alpha = reduced ? 1 : Math.min(1, (c.ny || 0) / LAY.RADAR_FADE_IN);
-
+    const top = pad + 16;
+    const plot = (c, alpha, ghost) => {
+        const y = snap(top + Math.max(0, Math.min(1, c.ny)) * (originY - top));
+        const x = snap(pad + Math.max(0, Math.min(1, c.nx)) * (W - pad * 2));
         ctx.globalAlpha = alpha;
-        ctx.beginPath();
-        ctx.arc(x, y, LAY.RADAR_PIP_R, 0, Math.PI * 2);
+        // ⚠️ SOLID MEANS "IN THE SKY"; HOLLOW MEANS "NOT YET". A student must
+        // never mistake the preview for something already typable.
         ctx.fillStyle = LAY.RADAR_PIP;
-        ctx.fill();
-
-        // The word, so it can be READ ahead — dim, unboxed, and offset from the
-        // pip so the pip stays the position and the text stays annotation.
+        if (ghost) {
+            ctx.fillRect(x - cell, y - cell, cell * 3, cell);
+            ctx.fillRect(x - cell, y + cell, cell * 3, cell);
+            ctx.fillRect(x - cell, y, cell, cell);
+            ctx.fillRect(x + cell, y, cell, cell);
+        } else {
+            ctx.fillRect(x - cell, y - cell, cell * 3, cell * 3);
+        }
         ctx.font = '11px "Courier Prime", monospace';
-        ctx.textAlign = x > W * 0.6 ? 'right' : 'left';
-        const tx = x + (x > W * 0.6 ? -7 : 7);
+        const right = x > W * 0.6;
+        ctx.textAlign = right ? 'right' : 'left';
+        const tx = x + (right ? -cell * 3 : cell * 3);
         const typed = (c.text || '').slice(0, c.typed || 0);
         const rest = (c.text || '').slice(c.typed || 0);
-        if (ctx.textAlign === 'left') {
-            ctx.fillStyle = LAY.RADAR_TYPED;
-            ctx.fillText(typed, tx, y + 4);
-            const w = ctx.measureText(typed).width;
+        if (!right) {
+            ctx.fillStyle = LAY.RADAR_TYPED; ctx.fillText(typed, tx, y + 4);
             ctx.fillStyle = LAY.RADAR_INK;
-            ctx.fillText(rest, tx + w, y + 4);
+            ctx.fillText(rest, tx + ctx.measureText(typed).width, y + 4);
         } else {
-            // Right-aligned: draw the remainder first, then the typed prefix to
-            // its left, so the word still reads in order.
-            ctx.fillStyle = LAY.RADAR_INK;
-            ctx.fillText(rest, tx, y + 4);
-            const w = ctx.measureText(rest).width;
+            ctx.fillStyle = LAY.RADAR_INK; ctx.fillText(rest, tx, y + 4);
             ctx.fillStyle = LAY.RADAR_TYPED;
-            ctx.fillText(typed, tx - w, y + 4);
+            ctx.fillText(typed, tx - ctx.measureText(rest).width, y + 4);
         }
         ctx.globalAlpha = 1;
+    };
+
+    for (const c of (o.contacts || [])) {
+        plot(c, reduced ? 1 : Math.min(1, (c.ny || 0) / LAY.RADAR_FADE_IN), false);
+    }
+
+    // ⭐ ONE WORD MORE THAN THE SKY HOLDS. Jake: *"they should be fading in
+    // before they even show up on the play screen - it's a preview of what's
+    // coming for kids who type a little faster than the floor."* It brightens as
+    // its spawn approaches, so a fast student reads it before it exists.
+    // ⚠️ ITS x IS UNKNOWN UNTIL IT SPAWNS, so it is centred, not guessed — a pip
+    // that jumped sideways on spawn would teach a position that is a lie.
+    if (o.inbound) {
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = LAY.RADAR_GRID;
+        for (let x = pad; x < W - pad; x += cell * 2) ctx.fillRect(snap(x), top - cell * 2, cell, cell);
+        ctx.globalAlpha = 1;
+        const p2 = reduced ? 0.75
+            : Math.max(LAY.RADAR_INBOUND_MIN_ALPHA, (o.inboundProgress || 0)) * 0.75;
+        plot({ text: o.inbound, typed: 0, nx: 0.5, ny: 0 }, p2, true);
     }
     ctx.restore();
 }
@@ -669,64 +674,74 @@ export function drawRadar(ctx, o) {
  */
 export function drawGauges(ctx, o) {
     const { W, H } = o;
+    const cell = LAY.GAUGE_CELL, gap = LAY.GAUGE_CELL_GAP, segs = LAY.GAUGE_SEGMENTS;
     ctx.clearRect(0, 0, W, H);
     ctx.save();
-    ctx.textAlign = 'center';
 
-    const arc = (cx, cy, frac, label, value, ink) => {
-        const r = LAY.GAUGE_ARC_R;
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, Math.PI * 0.8, Math.PI * 2.2);
-        ctx.strokeStyle = 'rgba(120,170,220,0.16)';
-        ctx.lineWidth = 5; ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, Math.PI * 0.8, Math.PI * 0.8 + Math.PI * 1.4 * Math.max(0, Math.min(1, frac)));
-        ctx.strokeStyle = ink; ctx.lineWidth = 5; ctx.stroke();
-        ctx.fillStyle = '#e8f2fa';
-        ctx.font = 'bold 15px "Courier Prime", monospace';
-        ctx.fillText(String(value), cx, cy + 4);
-        ctx.fillStyle = LAY.GAUGE_LABEL;
+    /**
+     * One segmented meter. Jake: *"Gauges that fill up one bar at a time."*
+     *
+     * ⚠️ SEGMENTS QUANTISE, AND THAT IS THE POINT — a value lands on a cell or
+     * it does not, so the meter ticks instead of creeping. A smooth bar reads as
+     * modern; this reads as a machine with lamps in it.
+     * ⚠️ THE LIT COUNT ROUNDS DOWN, NEVER UP: a meter showing the last lamp at
+     * 96% would be claiming a target was met when it was not.
+     */
+    const meter = (x, y, w, label, value, frac, ink) => {
+        ctx.textAlign = 'left';
         ctx.font = '9px "Courier Prime", monospace';
-        ctx.fillText(label, cx, cy + r + 12);
+        ctx.fillStyle = LAY.GAUGE_LABEL;
+        ctx.fillText(label, x, y);
+        ctx.textAlign = 'right';
+        ctx.font = 'bold 12px "Courier Prime", monospace';
+        ctx.fillStyle = ink;
+        ctx.fillText(String(value), x + w, y);
+
+        const cw = (w - (segs - 1) * gap) / segs;
+        const lit = Math.floor(Math.max(0, Math.min(1, frac)) * segs);
+        for (let i = 0; i < segs; i++) {
+            ctx.fillStyle = i < lit ? ink : 'rgba(120,170,220,0.13)';
+            ctx.fillRect(x + i * (cw + gap), y + 6, cw, cell);
+        }
+        return y + 6 + cell + 16;
     };
 
-    const half = W / 2;
-    arc(half * 0.55, 38, (o.wpm || 0) / LAY.GAUGE_WPM_MAX, 'WPM', o.wpm || 0, LAY.GAUGE_RUN_INK);
-    arc(half * 1.45, 38, (o.acc || 0) / 100, 'ACCURACY', (o.acc || 0) + '%', LAY.GAUGE_RUN_INK);
+    const x = 10, w = W - 20;
+    let y = 16;
 
-    let y = 96;
+    // ── this run ────────────────────────────────────────────────────────────
+    y = meter(x, y, w, 'WPM', o.wpm || 0, (o.wpm || 0) / LAY.GAUGE_WPM_MAX, LAY.GAUGE_RUN_INK);
+    y = meter(x, y, w, 'ACCURACY', (o.acc || 0) + '%', (o.acc || 0) / 100, LAY.GAUGE_RUN_INK);
     if (o.quota != null) {
-        ctx.textAlign = 'left';
-        ctx.fillStyle = LAY.GAUGE_LABEL;
-        ctx.font = '9px "Courier Prime", monospace';
-        ctx.fillText('QUOTA', 10, y);
-        const bw = W - 20;
-        roundRect(ctx, 10, y + 5, bw, LAY.GAUGE_BAR_H, 4);
-        ctx.fillStyle = 'rgba(2,4,10,0.8)'; ctx.fill();
-        roundRect(ctx, 11, y + 6, Math.max(0, (bw - 2) * Math.min(1, o.quota)), LAY.GAUGE_BAR_H - 2, 3);
-        ctx.fillStyle = o.quota >= 1 ? '#ffd700' : LAY.GAUGE_RUN_INK; ctx.fill();
-        y += 30;
+        // ⚠️⚠️ LABELLED, AND THAT IS A BUG FIX. Unlabelled it sat above the WEEK
+        // figure and Jake read it as the week's time — *"what is that progress
+        // bar?"* It is the RUN's character quota. If the author of a feature
+        // cannot identify it, no sixth-grader will.
+        y = meter(x, y, w, 'QUOTA', Math.round(Math.min(1, o.quota) * 100) + '%',
+                  o.quota, o.quota >= 1 ? '#ffd700' : LAY.GAUGE_RUN_INK);
     }
 
-    // ⚠️ A DIVIDER, BECAUSE THE GROUPS MEAN DIFFERENT THINGS. Everything below
-    // it survives the run; everything above it does not.
-    ctx.strokeStyle = 'rgba(120,170,220,0.18)';
-    ctx.beginPath(); ctx.moveTo(10, y - 6); ctx.lineTo(W - 10, y - 6); ctx.stroke();
+    // ⚠️ A RULED DIVIDER, IN CELLS. Everything above it resets with the run;
+    // everything below it is the student's real week and does not. game-draw's
+    // own rule: a child must not read "28 WPM" and "14m today" as two facts of
+    // the same kind.
+    ctx.fillStyle = 'rgba(120,170,220,0.22)';
+    for (let dx = x; dx < x + w; dx += cell * 2) ctx.fillRect(dx, y - 6, cell, 2);
+    y += 8;
 
-    const totalRow = (label, text) => {
-        ctx.textAlign = 'left';
-        ctx.fillStyle = LAY.GAUGE_LABEL;
-        ctx.font = '9px "Courier Prime", monospace';
-        ctx.fillText(label, 10, y + 8);
-        ctx.textAlign = 'right';
-        ctx.fillStyle = LAY.GAUGE_TOTAL_INK;
-        ctx.font = 'bold 13px "Courier Prime", monospace';
-        ctx.fillText(text, W - 10, y + 9);
-        y += 24;
-    };
+    // ── the real totals ─────────────────────────────────────────────────────
     // ⚠️ NOTHING IS PRINTED WHEN THERE IS NOTHING TO PRINT. "0m today" is a
-    // claim; a page that never read the totals has no business making it.
-    if (o.todayText) totalRow('TODAY', o.todayText);
-    if (o.weekText) totalRow('THIS WEEK', o.weekText);
+    // claim, and a page that never read the totals has no business making it.
+    // ⚠️ THESE METERS ARE FRACTIONS OF A DAY/WEEK GOAL ONLY AS A VISUAL —
+    // the NUMBER is the truth and is printed beside the label.
+    if (o.todayText) {
+        y = meter(x, y, w, 'TODAY', o.todayText,
+                  Math.min(1, (o.todaySeconds || 0) / 1800), LAY.GAUGE_TOTAL_INK);
+    }
+    if (o.weekText) {
+        y = meter(x, y, w, 'THIS WEEK', o.weekText,
+                  Math.min(1, (o.weekSeconds || 0) / 9000), LAY.GAUGE_TOTAL_INK);
+    }
     ctx.restore();
 }
+

@@ -101,6 +101,22 @@ export const RADAR_FADE_IN = 0.15;
  */
 export const RADAR_SWEEP = false;
 
+// ── retro-future treatment (Round 97) ───────────────────────────────────────
+//
+// Jake: *"I was hoping for a more retro-future feel. More chunky pixels. Gauges
+// that fill up one bar at a time."*
+//
+// ⚠️ CHUNKY IS A GRID SIZE, NOT A FILTER. Everything on the panels snaps to
+// RADAR_CELL / GAUGE_CELL, so pips, bars and rings all land on the same lattice
+// and read as one instrument rather than three styles sharing a card.
+export const RADAR_CELL = 4;
+export const GAUGE_CELL = 6;
+export const GAUGE_CELL_GAP = 2;
+/** Segments per meter. Fewer, larger cells read as more retro than many small. */
+export const GAUGE_SEGMENTS = 14;
+/** The inbound contact's resting alpha before its spawn is imminent. */
+export const RADAR_INBOUND_MIN_ALPHA = 0.12;
+
 export const RADAR_INK = 'rgba(120,170,220,0.55)';
 export const RADAR_GRID = 'rgba(120,170,220,0.14)';
 export const RADAR_PIP = '#8fd8e8';

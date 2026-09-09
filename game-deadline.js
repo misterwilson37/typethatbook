@@ -848,7 +848,7 @@ export function mount(container, opts) {
      * test — the same separation that made sibling canvases the right
      * architecture instead of an inset playfield rect.
      */
-    function drawSidePanels(rep) {
+    function drawSidePanels(rep, now) {
         if (radarCtx) {
             drawRadar(radarCtx, {
                 W: radarCanvas.clientWidth, H: radarCanvas.clientHeight,
@@ -857,6 +857,9 @@ export function mount(container, opts) {
                     nx: W ? e.x / W : 0.5, ny: threat(e),
                 })),
                 inbound: d.peekNext(),
+                // ⚠️ HOW CLOSE ITS SPAWN IS, so the preview materialises rather
+                // than appearing whole. A pure read — see spawnProgress().
+                inboundProgress: d.spawnProgress(now),
             });
         }
         if (gaugeCtx) {
@@ -869,6 +872,11 @@ export function mount(container, opts) {
                 // formatters would drift and show a student two "today" figures.
                 todayText: m.bottomLeft ? m.bottomLeft.replace('TODAY  ', '') : null,
                 weekText: m.bottomRight ? m.bottomRight.replace('WEEK  ', '') : null,
+                // ⚠️ THE RAW SECONDS TOO, so the meter can show a fill while the
+                // printed number stays the truth. The bar is decoration; the
+                // figure beside the label is the fact.
+                todaySeconds: (getMinutes && (getMinutes() || {}).dailySeconds) || 0,
+                weekSeconds: (getMinutes && (getMinutes() || {}).weeklySeconds) || 0,
             });
         }
     }
@@ -908,7 +916,7 @@ export function mount(container, opts) {
         // ⚠️ ONE READOUT, TWO PLACES, NEVER BOTH. With the board up the stats
         // ride in its flanks; with it off they fall back to the top plate.
         const rep = d.report(now);
-        drawSidePanels(rep);
+        drawSidePanels(rep, now);
         if (kbH) {
             // ⚠️⚠️ THE FLANKS ARE THE NARROW-MODE FALLBACK NOW. With a gauge
             // panel the same four numbers were drawn twice, six inches apart —

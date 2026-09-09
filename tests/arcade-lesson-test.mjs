@@ -405,6 +405,45 @@ console.log('\nE — SIDE PANELS: COVERAGE SURVIVES, AND THE PLAY AREA NEVER SHR
        'the strip flanks stand down when the gauge panel is present');
 }
 
+// ⭐ THE RADAR SHOWS ONE WORD MORE THAN THE SKY HOLDS, and it materialises.
+{
+    const sh = readFileSync(new URL('../game-shell.js', import.meta.url), 'utf8');
+    const dr = readFileSync(new URL('../game-draw.js', import.meta.url), 'utf8');
+    const gd = readFileSync(new URL('../game-deadline.js', import.meta.url), 'utf8');
+
+    ok(/spawnProgress\(nowMs\)/.test(sh), 'the director reports how close the next spawn is');
+    // ⚠️⚠️ IT MUST BE A PURE READ. peekNext() and spawnProgress() exist because
+    // raising MIN_ON_SCREEN to show more collapsed the corpus sweep from 99.9%
+    // to 53.2% clearable. Reading ahead must never mean receiving faster.
+    const spBody = sh.slice(sh.indexOf('spawnProgress(nowMs)'), sh.indexOf('nextTarget(nowMs)'));
+    // ⚠️ `=(?!=)` — the first draft used `\\s*=` and matched the `==` in
+    // `this._lastSpawnAt == null`, failing a function that only READS it. A
+    // purity check that cannot tell a comparison from an assignment is worse
+    // than none: it goes red on correct code and gets deleted.
+    ok(!/_cursor\+\+|this\._lastSpawnAt\s*=(?!=)/.test(spBody),
+       '⚠️⚠️ spawnProgress() advances nothing — no cursor, no spawn clock');
+    ok(/inboundProgress: d\.spawnProgress\(now\)/.test(gd),
+       'the view feeds that progress to the radar');
+
+    // ⚠️ SOLID PIP = IN THE SKY. HOLLOW = NOT YET. The preview must never look
+    // like something already typable.
+    const rd = dr.slice(dr.indexOf('export function drawRadar'), dr.indexOf('export function drawGauges'));
+    ok(/ghost/.test(rd) && /plot\(\{ text: o\.inbound[^)]*\}, [^,]+, true\)/.test(rd),
+       'the inbound contact is drawn hollow, not solid');
+    ok(/RADAR_INBOUND_MIN_ALPHA/.test(rd),
+       'and never fully invisible, so it can be found before it brightens');
+
+    // ⭐ CHUNKY IS A GRID, NOT A FILTER.
+    ok(/const snap = v => Math\.round\(v \/ cell\) \* cell/.test(rd),
+       'radar geometry snaps to the cell lattice');
+    const gg = dr.slice(dr.indexOf('export function drawGauges'));
+    ok(/LAY\.GAUGE_SEGMENTS/.test(gg), 'the gauges are segmented, not smooth bars');
+    // ⚠️ LIT SEGMENTS ROUND DOWN. A meter lighting its last lamp at 96% would
+    // claim a target was met when it was not.
+    ok(/Math\.floor\(Math\.max\(0, Math\.min\(1, frac\)\) \* segs\)/.test(gg),
+       '⚠️ segment count rounds DOWN, so a meter never claims a target it missed');
+}
+
 console.log(fail
     ? `\narcade-lesson-test: ${pass} passed, ${fail} FAILED`
     : `arcade-lesson-test: all ${pass} assertions pass`);

@@ -623,6 +623,27 @@ export class GameDirector {
         return this.targets[this._cursor % this.targets.length];
     }
 
+    /**
+     * How close the next spawn is, 0..1. Read-only; advances nothing.
+     *
+     * ⚠️ THIS IS FOR THE RADAR'S INBOUND CONTACT AND NOTHING ELSE. Jake:
+     * *"they should be fading in before they even show up on the play screen -
+     * it's a preview of what's coming for kids who type a little faster than
+     * the floor."* A word that simply appears at full strength the instant it
+     * spawns is not a preview; one that materialises as its spawn approaches is.
+     *
+     * ⚠️ IT DOES NOT AFFECT PACING. peekNext() and this are both pure reads —
+     * raising MIN_ON_SCREEN to show more was tried and collapsed the corpus
+     * sweep from 99.9% to 53.2% clearable. Reading ahead must not mean
+     * receiving faster; that rule is why these are queries, not spawns.
+     */
+    spawnProgress(nowMs) {
+        if (this.over) return 0;
+        if (this._lastSpawnAt == null) return 1;
+        const dt = nowMs - this._lastSpawnAt;
+        return Math.max(0, Math.min(1, dt / Math.max(1, this.intervalMs)));
+    }
+
     nextTarget(nowMs) {
         if (!this.targets.length) return null;
         const text = this.targets[this._cursor % this.targets.length];
