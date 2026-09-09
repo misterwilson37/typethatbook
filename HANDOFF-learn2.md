@@ -55,7 +55,7 @@ decision is the exact failure this whole document exists to prevent.
 | file | status |
 |---|---|
 | `learn2.html` | **new.** Fork of `learn.html` v1.2.0. One new element (`#game-mount`), one `<style>` block scoped to it, script tag points at `learn2.js`. |
-| `learn2.js` | **new.** Fork of `learn.js` v2.48.0. Diffed line-for-line against it — see §2 for exactly what changed. |
+| `learn2.js` | **v0.4.0-staging.** Fork of `learn.js` v2.48.0. Diffed line-for-line against it — see §2 for exactly what changed. |
 | `HANDOFF-learn2.md` | this file. |
 **Not touched:** `learn.js`, `learn.html`, `game-deadline.js`, `game-shell.js`,
 `game-chrome.js`, `run-grade.js`, or anything else in the repo. `learn2.html`/
@@ -216,6 +216,66 @@ as a running max, so this costs **no new field, no new write, no new read**.
 It refuses the shortcut entirely (returns 0) when the record's stored
 `runCount` disagrees with the current chunking, because a lesson edit makes
 every stored index mean something else.
+
+---
+
+## 4b. ⭐⭐ THE VICTORY LAP — prose lessons (v0.4.0)
+
+Jake, 2026-09-09, after correcting me twice: *"kids do 1/4 as they did
+originally, then 2/4, then 3/4, then 4/4. Then — only for fun — they do the
+passage AGAIN as a game. Once they pass 1/4, they win, and the next lesson is
+unlocked... but the game doesn't stop until they lose. Everything past passing
+1/4 is for the leaderboard."*
+
+⚠️⚠️ **I GOT THIS WRONG TWICE, IN OPPOSITE DIRECTIONS, AND THE PATTERN IS THE
+LESSON.** v0.2.0 kept every chunk but handed the game the whole passage as its
+quota and stopped there — a fifth run as long as the lesson. v0.3.0 "fixed" the
+length by **deleting chunks 2..N**, solving a workload worry Jake never had by
+destroying the content he cares most about. ⭐ **NEITHER THE RUN LIST NOR THE
+POOL WAS EVER THE PROBLEM: THE QUOTA AND THE ENDING WERE.** When a shape keeps
+coming out wrong, check whether you are adjusting the wrong dimension.
+
+**The shape that shipped:**
+
+* Every authored chunk survives, graded exactly as before. `u7_r4` is still
+  four typed runs.
+* One extra run — the victory lap — pools the **whole** passage.
+* Its **quota is chunk 1's characters**: the bar they already cleared as run 1.
+  Measured on the corpus, that is **~25% of the passage, 45–60 seconds** to
+  unlock the next lesson.
+* It runs in **survival**, so play continues past the bar until they lose.
+  Everything after the bar is leaderboard only.
+
+⚠️⚠️ **THE GRADE READS `rep.pass`, NEVER `rep`.** `HANDOFF.md` names this exact
+mistake: *"A wiring that filed `rep` grades a leaderboard stunt as a lesson."*
+`rep` is the whole session including survival; `rep.pass` is the snapshot
+`game-deadline.js` froze the instant the quota was met. **Subtracting survival
+afterwards is impossible** — WPM and accuracy are ratios over the session and
+do not decompose. `chars`, `mistakes` and `logRun()` read the snapshot too.
+⚠️ **Only the CLOCK counts every second**, survival included — the child really
+did type for those minutes.
+
+⚠️ `rep.pass` is `null` when the quota was never met, which is exactly the
+lost-game case (§3). On a non-survival game `game-deadline.js` sets it to `rep`
+on a win, so one line is correct for both shapes.
+
+⚠️ **APPENDING IS INDEX-SAFE; INSERTING WOULD NOT BE.** `lesson-gate.js` keys
+per-run mastery **by index**, so a run added anywhere but the end would
+re-point banked scores at different work.
+
+⚠️ **THE ONE-RUN RULE APPLIES TO REPLACE ONLY** — Jake ruled a one-run lesson
+must not be a game *because the whole lesson would be the game*. A victory lap
+cannot do that. So the six single-run pangram lessons gained one, dissolving
+the arbitrary 195-character split. For those, quota = the whole (short) passage,
+about 48 seconds.
+
+⚠️ **EVERY UNIT 7 RUN PICKER OPENS AT RUN 1 ONCE.** Adding a run changes
+`runCount`, and `maxReachableRunIdx()` refuses the shortcut when the stored
+count disagrees. Correct, self-healing after one run, but it will look like a
+regression mid-unit.
+
+**Word-list lessons are unchanged: the game still REPLACES the final run**, no
+survival, quota as authored. Four lessons.
 
 ---
 

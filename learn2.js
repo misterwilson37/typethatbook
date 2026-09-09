@@ -1,4 +1,65 @@
-// learn2.js v0.1.0-staging
+// learn2.js v0.4.0-staging
+//
+// v0.4.0 — ⭐⭐ THE VICTORY LAP. Jake, correcting me a second time and settling
+//   the shape: *"kids do 1/4 as they did originally, then 2/4, then 3/4, then
+//   4/4. Then — only for fun — they do the passage AGAIN as a game. Once they
+//   pass 1/4, they win, and the next lesson is unlocked... but the game doesn't
+//   stop until they lose. Everything past passing 1/4 is for the leaderboard."*
+//   ⚠️⚠️ I GOT THIS WRONG TWICE IN OPPOSITE DIRECTIONS. v0.2.0 kept every chunk
+//   but gave the game the whole passage as its quota and stopped there — a fifth
+//   run as long as the lesson. v0.3.0 "fixed" the length by DELETING chunks 2..N,
+//   which solved a workload worry Jake never had by destroying the content he
+//   cares most about. ⭐ NEITHER THE RUN LIST NOR THE POOL WAS EVER THE PROBLEM:
+//   THE QUOTA AND THE ENDING WERE. Every authored chunk is back and graded
+//   exactly as before; the game is one extra run whose QUOTA is chunk 1's
+//   characters — the bar they already cleared as run 1 — and which runs in
+//   SURVIVAL so it continues past that bar until they lose.
+//   ⚠️⚠️ AND THE GRADE NOW READS `rep.pass`, NOT `rep`. HANDOFF.md names this
+//   exact mistake: *"A wiring that filed `rep` grades a leaderboard stunt as a
+//   lesson."* `rep` is the whole session including survival; `rep.pass` is the
+//   snapshot frozen at the quota. Subtracting survival afterwards is impossible —
+//   WPM and accuracy are ratios and do not decompose. chars/mistakes and logRun()
+//   read the snapshot too; only the CLOCK counts every second, which is right.
+//
+// v0.3.0 — (SUPERSEDED, and wrong — see v0.4.0.) Type your way in, play the rest. Jake's correction, and v0.2.0
+//   had it backwards in a way that made the lesson LONGER. He wanted: *"students
+//   had to pass the first run, and then it became the game... That way they don't
+//   have to type all four parts of the passage at speed to pass."* v0.2.0 kept
+//   every chunk and appended the game, taking u7_r4 from four graded runs to
+//   FIVE. ⚠️ "APPEND" WAS THE RIGHT WORD FOR THE WRONG SHAPE — the game is
+//   appended to the FIRST chunk, not to all of them. Now chunk 1 of the final
+//   prose step is typed as prose (sentences intact, in order) and chunks 2..N are
+//   replaced by one game run pooling the WHOLE step, so nothing leaves the pool.
+//   Measured on the corpus: every u7_r goes 3–4 runs -> 2, u6_l2 10 -> 8,
+//   27 graded runs removed overall. A passage step is ~4 minutes of typing AT
+//   GATE, and a student below gate can lose most of a 44-minute period to one
+//   lesson — that burden was the point of the ruling.
+//   ⚠️ THE SURVIVING CHUNK IS RELABELLED. buildRunList() stamps "(1/4)" on it and
+//   2/4–4/4 no longer exist; a student reading "1 of 4" expects three more.
+//
+// v0.2.0 — ⭐ PROSE IS TYPED WHOLE, THEN PLAYED. Jake's ruling, 2026-09-09:
+//   *"Append the game after the passage. It's a passage and should be treated
+//   as such."* v0.1.0 REPLACED the lesson's last run with the game, which on a
+//   graduation passage meant Deadline chopped that passage into falling words —
+//   the plot untrackable, and prose fluency is the whole thing Unit 7 teaches.
+//   attachGameSlot() now appends an extra run for prose finishes and only
+//   replaces for word_list ones. Measured on the real 47-lesson corpus:
+//   28 append, 4 replace, 15 no game (was 26 games, all replace).
+//   ⚠️ THE ONE-RUN RULE NOW APPLIES TO REPLACE ONLY, and that is not a quiet
+//   widening — Jake ruled a one-run lesson must not be a game *because the
+//   whole lesson would be the game*. Appending cannot do that. So the six
+//   single-run pangram lessons gained a game, which also dissolves the
+//   arbitrary 195-character chunk split that gave four of the ten a game and
+//   the rest none. ⚠️ FLAG TO JAKE — a consequence he did not explicitly ask for.
+//   ⚠️ EXISTING PROGRESS RECORDS ON THESE LESSONS NOW HAVE A STALE runCount, so
+//   maxReachableRunIdx() refuses the run-picker shortcut until the student
+//   finishes a run and the record is rewritten. That is correct, not a bug —
+//   the lesson genuinely changed shape — but it means every Unit 7 picker opens
+//   at run 1 once, for everyone.
+//   ⚠️ APPENDING IS INDEX-SAFE; INSERTING WOULD NOT BE. lesson-gate.js keys
+//   per-run mastery BY INDEX, so a run added anywhere but the end would
+//   re-point banked scores at different work.
+//   Also: runHasSpeedGate() deleted rather than left orphaned — see its note.
 //
 // ⚠️⚠️ THIS IS A FORK OF learn.js v2.48.0, NOT THE PRODUCTION FILE. Read
 // HANDOFF-learn2.md before touching this. Short version: it exists so a
@@ -299,7 +360,7 @@ import { mount as mountDeadline } from "./game-deadline.js";
 // number, not a deploy number: it means nothing to any student-facing page,
 // the way game-deadline.js's own 1.0.0 meant nothing until Round 82's ruling
 // that "nothing to this moment has had a version" applied to it.
-const LEARN_VERSION = "0.1.0-staging";
+const LEARN_VERSION = "0.4.0-staging";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -2731,18 +2792,14 @@ function cumulativeKeyCount(lesson) {
     return keys.size;
 }
 
-// Does the run at `idx` carry a real, authored speed gate? ⚠️ READ THROUGH
-// gatesForRun(), NEVER BY TESTING run.type AGAINST DRILL_TYPES HERE. An
-// explicit `step.gates.minWPM` overrides the type default (see that function's
-// precedence order), so a hand-authored speed gate on a key_random step is
-// real and must count. Reproducing the precedence would be a second copy of
-// the rule run-grade.js exists to own.
-function runHasSpeedGate(idx) {
-    const run = currentRuns[idx];
-    if (!run) return false;
-    const g = gatesForRun(run, currentLesson && currentLesson.gates);
-    return g && g.minWPM != null;
-}
+// ⚠️ runHasSpeedGate() USED TO LIVE HERE AND IS DELETED, NOT ORPHANED. Once
+// attachGameSlot() became the single place that decides, this had exactly zero
+// callers — and a zero-caller helper that looks like a rule is the shape
+// HANDOFF-games.md warns about by name (escape-board's `stunSteps`: declared,
+// decremented, never set, and it read as a feature for two rounds). The check
+// it performed still happens, inline in attachGameSlot(), through gatesForRun()
+// for the same reason: an explicit step.gates.minWPM overrides the type
+// default, so the precedence must be read from run-grade.js and never re-spelt.
 
 // ⭐ THE ONE ANSWERER: which run index, if any, is this lesson's game slot?
 // Returns -1 when the lesson has no game at all.
@@ -2763,11 +2820,13 @@ function runHasSpeedGate(idx) {
 function gameSlotIdx() {
     if (!currentLesson) return -1;
     if (currentRunsFor !== currentLesson.id) return -1;   // remediation drill
-    if (currentRuns.length <= 1) return -1;               // one-run lesson
-    if (cumulativeKeyCount(currentLesson) < GAME_MIN_KEYS) return -1;
-    const last = currentRuns.length - 1;
-    if (!runHasSpeedGate(last)) return -1;                // accuracy-only run
-    return last;
+    // ⚠️ A LOOKUP, NOT A DECISION. attachGameSlot() decided when the run list
+    // was built and marked the run; asking the question a second time here is
+    // how the picker and the Start button drifted apart in the first draft.
+    for (let i = 0; i < currentRuns.length; i++) {
+        if (currentRuns[i] && currentRuns[i].gameRun) return i;
+    }
+    return -1;
 }
 
 function isGameRun(idx) {
@@ -3040,8 +3099,20 @@ function beginGameStep(stepIdx) {
     const cfg = missionConfigFromRun(
         { sequence: currentStep.sequence }, gates, currentLesson && currentLesson.gates);
 
+    // ⚠️⚠️ THE QUOTA IS OVERRIDDEN FOR THE VICTORY LAP, and without this the run
+    // is unfair rather than merely long. missionConfigFromRun() sets quotaChars
+    // to the WHOLE pool — on u7_r4 that is four graded runs' worth of typing to
+    // clear one run. attachGameSlot() set the bar to chunk 1's characters: the
+    // exact stretch they already passed as run 1, so passing it again is a
+    // formality and the lesson unlocks almost immediately.
+    if (currentStep.quotaChars > 0) cfg.quotaChars = currentStep.quotaChars;
+
     gameHandle = mountDeadline(gameMount, {
         config: cfg,
+        // ⚠️ SURVIVAL: play does not stop at the quota. Everything past the bar
+        // is leaderboard only — see finishGameStep() for the field split that
+        // keeps it out of the grade.
+        survival: !!currentStep.survival,
         minutes: () => ({ dailySeconds: statsData.secondsToday, weeklySeconds: statsData.secondsWeek }),
         onSecond: () => bankGameSecond(),
         // Live HUD only — the report frozen at onEnd is what actually grades.
@@ -3105,22 +3176,34 @@ function finishGameStep(rep) {
     const anchorHint3 = document.getElementById('anchor-hint');
     if (anchorHint3) anchorHint3.style.display = 'none';
 
-    // ⚠️ THE SAME TWO NUMBERS finishStep() WOULD HAND showLessonResultModal():
-    // wpm/acc computed by game-shell.js's netWPM()/accuracyPct() — byte-for-
-    // byte the same two formulas this file grades a typed run with (see that
-    // file's header; it says so explicitly and Part B of its own suite pins
-    // it). chars/mistakes are set from the SAME report so logRun() and the
-    // mistakes===0 fire-grade check inside showLessonResultModal read real
-    // numbers rather than whatever a previous run left in these globals.
-    chars = rep.chars;
-    mistakes = rep.mistakes;
+    // ⚠️⚠️ THE GRADED RUN IS `rep.pass`, NEVER `rep`, AND HANDOFF.md NAMES THIS
+    // EXACT MISTAKE: *"A wiring that filed `rep` grades a leaderboard stunt as a
+    // lesson."* `rep` is the WHOLE session including every survival minute after
+    // the bar; `rep.pass` is the snapshot game-deadline.js froze at the instant
+    // the quota was met. ⭐ SUBTRACTING SURVIVAL AFTERWARDS IS IMPOSSIBLE — WPM
+    // and accuracy are ratios over the session and do not decompose — which is
+    // why the snapshot exists at all.
+    // ⚠️ `rep.pass` IS null WHEN THE QUOTA WAS NEVER MET, and that is exactly the
+    // lost-game case below. On a non-survival game-deadline.js sets it to `rep`
+    // on a win, so this one line is correct for both shapes.
+    const graded = rep && rep.pass;
+
+    // ⚠️ chars/mistakes DRIVE logRun() AND showLessonResultModal's clean check,
+    // so they come off the GRADED snapshot too. Taking them from `rep` while
+    // grading `pass` would file a leaderboard run's keystrokes against a lesson.
+    chars    = graded ? graded.chars    : rep.chars;
+    mistakes = graded ? graded.mistakes : rep.mistakes;
 
     saveStats();
-    logRun(rep.wpm, rep.acc);
+    // ⚠️ logRun() RECORDS THE GRADED RUN, for the same reason. The survival
+    // minutes are still banked as TIME by bankGameSecond() — the clock counts
+    // every second they played, which is right; only the SPRINT is the graded
+    // one.
+    logRun(graded ? graded.wpm : rep.wpm, graded ? graded.acc : rep.acc);
 
-    if (!rep.quotaMet) { renderGameLostResult(rep); return; }
+    if (!graded) { renderGameLostResult(rep); return; }
 
-    showLessonResultModal(rep.wpm, rep.acc);
+    showLessonResultModal(graded.wpm, graded.acc);
 }
 
 // The lost-game screen. ⚠️ IT IS NOT renderPracticeResult() AND IT IS NOT THE
@@ -3253,6 +3336,122 @@ function buildRunList(lesson) {
             });
         });
     });
+    return attachGameSlot(lesson, runs);
+}
+
+// ⚠️ PROSE IS TYPED WHOLE, THEN PLAYED — Jake's ruling, 2026-09-09: *"Append the
+// game after the passage. It's a passage and should be treated as such."*
+const PROSE_TYPES = ['passage', 'sentence_list'];
+
+/**
+ * Decide ONCE whether this lesson has a game slot and where it sits, and mark
+ * the run. ⭐ THIS IS THE ONLY PLACE THAT DECIDES; gameSlotIdx() just finds the
+ * flag. The first draft of this fork asked the question in three places and it
+ * was already drifting — see gameSlotIdx()'s header.
+ *
+ * ⚠️⚠️ TWO SHAPES, AND THE DIFFERENCE IS WHAT THE STUDENT LOSES.
+ *
+ *   REPLACE — the lesson's last run BECOMES the game. Right for a word_list
+ *   finish, where the run is a bag of words and the game is a better way to
+ *   type the same bag.
+ *
+ *   APPEND — the game is an EXTRA run after every authored run. Required for
+ *   prose. Deadline chops its pool into falling words, and a graduation passage
+ *   chopped into falling words is no longer a passage: the plot is untrackable
+ *   and prose fluency is the entire thing Unit 7 teaches. Replacing there
+ *   deleted the lesson to make room for the reward.
+ *
+ * ⚠️ APPENDING IS INDEX-SAFE AND REPLACING WOULD NOT BE. The new run goes on the
+ * END, so every existing run index still means the run it always meant — which
+ * matters because lesson-gate.js keys per-run mastery by index. Inserting
+ * anywhere else would silently re-point a student's banked scores at different
+ * work.
+ *
+ * ⚠️ THE ONE-RUN RULE APPLIES TO REPLACE ONLY, AND HERE IS WHY THAT IS NOT ME
+ * QUIETLY WIDENING JAKE'S RULING. He ruled a one-run lesson must not be a game
+ * *because the whole lesson would be the game and the student would never type
+ * the drill*. Appending cannot do that — the passage is still typed in full,
+ * and the game is additional. So the six single-run pangram lessons
+ * (u7_p1–p4, p7, p8) now get a game too, which also dissolves the arbitrary
+ * 195-character split that gave p5/p6/p9/p10 one and the rest none.
+ * ⚠️ FLAG THIS TO JAKE IF HE HAS NOT SEEN IT — it is the one consequence here
+ * he did not explicitly ask for.
+ */
+function attachGameSlot(lesson, runs) {
+    if (!runs.length) return runs;
+    if (cumulativeKeyCount(lesson) < GAME_MIN_KEYS) return runs;
+
+    const last = runs[runs.length - 1];
+    const isProse = PROSE_TYPES.indexOf(last.type) !== -1;
+
+    // ⚠️ THE SPEED GATE IS READ THROUGH gatesForRun(), NOT BY TESTING THE TYPE.
+    // A run graded on accuracy alone must never become a throughput test — see
+    // gameSlotIdx()'s header for the full reasoning. Prose always carries a
+    // gate today, but that is a property of the corpus, not a guarantee.
+    const g = gatesForRun(last, lesson.gates);
+    if (!g || g.minWPM == null) return runs;
+
+    if (isProse) {
+        // ⭐⭐ TYPE THE WHOLE PASSAGE AS AUTHORED, THEN PLAY IT AGAIN FOR FUN.
+        // Jake, 2026-09-09, correcting me twice: *"kids do 1/4 as they did
+        // originally, then 2/4, then 3/4, then 4/4. Then — only for fun — they do
+        // the passage AGAIN as a game. Once they pass 1/4, they win, and the next
+        // lesson is unlocked... but the game doesn't stop until they lose.
+        // Everything past passing 1/4 is for the leaderboard."*
+        //
+        // ⚠️⚠️ NOTHING IS REMOVED FROM THE LESSON. v0.3.0 deleted chunks 2..N and
+        // replaced them with the game, which quietly cut the graduation passage
+        // to a quarter of itself — it solved a workload worry Jake never had by
+        // destroying the content he cared most about. v0.2.0 kept every chunk but
+        // gave the game the WHOLE passage as its quota and stopped at the quota,
+        // making a fifth run that was as long as the lesson. ⭐ NEITHER THE RUN
+        // LIST NOR THE POOL WAS THE PROBLEM: THE QUOTA AND THE ENDING WERE.
+        //
+        // So: all authored chunks survive, graded exactly as before. The game is
+        // one extra run, pooling the whole passage, and:
+        //   • its QUOTA is chunk 1's characters — the bar they already cleared as
+        //     run 1, so clearing it again in the game is a formality and the
+        //     lesson unlocks the moment they do;
+        //   • it runs in SURVIVAL, so play continues past that bar until they
+        //     lose, and everything after it is leaderboard only.
+        const sameStep = runs.filter(r => r.stepIdx === last.stepIdx);
+        const pool = [].concat.apply([], sameStep.map(r => r.sequence));
+        const firstChunk = sameStep[0];
+        runs.push({
+            stepId: last.stepId,
+            stepIdx: last.stepIdx,
+            chunkIdx: sameStep.length,
+            chunkCount: 1,
+            // ⚠️ THE PROSE TYPE IS KEPT DELIBERATELY. gatesForRun() reads it,
+            // and prose types are absent from DRILL_TYPES, so this run inherits
+            // the lesson's real speed gate. Inventing a type here would send it
+            // down the accuracy-only branch and re-open the incoherence the
+            // speed-gate rule closed.
+            type: last.type,
+            anchorEnforced: false,
+            gates: null,
+            sequence: pool,
+            // ⚠️ THE PASS BAR, IN CHARACTERS, AND THE WHOLE REASON THIS IS FAIR.
+            // missionConfigFromRun() would otherwise set quotaChars to the whole
+            // pool, which on u7_r4 is four graded runs' worth of typing to clear
+            // ONE run. Overridden in beginGameStep().
+            quotaChars: (firstChunk && firstChunk.sequence)
+                ? firstChunk.sequence.join('').replace(/\s+/g, '').length
+                : 0,
+            // ⚠️ SURVIVAL IS OPT-IN PER HOST and this is the only place in this
+            // file that opts in. The graded run is frozen at the quota by
+            // game-deadline.js; see finishGameStep() for the field that must be
+            // read and the one that must never be.
+            survival: true,
+            label: 'Victory Lap — Deadline',
+            gameRun: true,
+        });
+        return runs;
+    }
+
+    // REPLACE. ⚠️ Jake's one-run rule lives here and only here.
+    if (runs.length < 2) return runs;
+    last.gameRun = true;
     return runs;
 }
 

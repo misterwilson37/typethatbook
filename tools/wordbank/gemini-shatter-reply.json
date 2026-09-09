@@ -1,0 +1,2192 @@
+[
+  {
+    "word": "debating",
+    "verdict": "ok",
+    "parts": ["debate", "ing"],
+    "note": "Corrected split from de+bat+ing to debate+ing.",
+    "glosses": ["to discuss or argue", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "decently",
+    "verdict": "ok",
+    "parts": ["decent", "ly"],
+    "note": "Corrected split from de+cent+ly to decent+ly.",
+    "glosses": ["proper or respectable", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "declaration",
+    "verdict": "ok",
+    "parts": ["declare", "ation"],
+    "note": "Corrected split from de+clara+tion to declare+ation.",
+    "glosses": ["to state clearly", "action or result"],
+    "grade": "medium"
+  },
+  {
+    "word": "defeated",
+    "verdict": "ok",
+    "parts": ["defeat", "ed"],
+    "note": "Corrected split from de+feat+ed to defeat+ed.",
+    "glosses": ["to win against", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "defined",
+    "verdict": "ok",
+    "parts": ["define", "ed"],
+    "note": "Corrected split from de+fin+ed to define+ed.",
+    "glosses": ["to explain the meaning of", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "delayed",
+    "verdict": "ok",
+    "parts": ["delay", "ed"],
+    "note": "Corrected split from de+lay+ed to delay+ed.",
+    "glosses": ["to make late or slow down", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "delighted",
+    "verdict": "ok",
+    "parts": ["delight", "ed"],
+    "note": "Corrected split from de+light+ed to delight+ed.",
+    "glosses": ["great joy or pleasure", "past tense / state of"],
+    "grade": "easy"
+  },
+  {
+    "word": "delightedly",
+    "verdict": "ok",
+    "parts": ["delight", "ed", "ly"],
+    "note": "Corrected split from de+lighted+ly to delight+ed+ly.",
+    "glosses": ["great joy or pleasure", "state of being", "in a way that is"],
+    "grade": "medium"
+  },
+  {
+    "word": "delightful",
+    "verdict": "ok",
+    "parts": ["delight", "ful"],
+    "note": "Corrected split from de+light+ful to delight+ful.",
+    "glosses": ["great joy or pleasure", "full of"],
+    "grade": "easy"
+  },
+  {
+    "word": "delights",
+    "verdict": "ok",
+    "parts": ["delight", "s"],
+    "note": "Corrected split from de+light+s to delight+s.",
+    "glosses": ["great joy or pleasure", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "delivered",
+    "verdict": "ok",
+    "parts": ["deliver", "ed"],
+    "note": "Corrected split from de+liver+ed to deliver+ed.",
+    "glosses": ["to bring or hand over", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "delivering",
+    "verdict": "ok",
+    "parts": ["deliver", "ing"],
+    "note": "Corrected split from de+liver+ing to deliver+ing.",
+    "glosses": ["to bring or hand over", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "delivery",
+    "verdict": "ok",
+    "parts": ["deliver", "y"],
+    "note": "Corrected split from de+liver+y to deliver+y.",
+    "glosses": ["to bring or hand over", "act or state of"],
+    "grade": "easy"
+  },
+  {
+    "word": "departed",
+    "verdict": "ok",
+    "parts": ["de", "part", "ed"],
+    "glosses": ["away / off", "to leave or divide", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "department",
+    "verdict": "ok",
+    "parts": ["de", "part", "ment"],
+    "glosses": ["away / separate", "to section or divide", "result or section"],
+    "grade": "medium"
+  },
+  {
+    "word": "deportment",
+    "verdict": "ok",
+    "parts": ["de", "port", "ment"],
+    "glosses": ["down / away", "to carry oneself", "behavior or manner"],
+    "grade": "hard"
+  },
+  {
+    "word": "depressed",
+    "verdict": "ok",
+    "parts": ["de", "press", "ed"],
+    "glosses": ["down", "to push", "past tense / state of"],
+    "grade": "easy"
+  },
+  {
+    "word": "depressing",
+    "verdict": "ok",
+    "parts": ["de", "press", "ing"],
+    "glosses": ["down", "to push", "causing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "deserves",
+    "verdict": "ok",
+    "parts": ["deserve", "s"],
+    "note": "Corrected split from de+serve+s to deserve+s.",
+    "glosses": ["to be worthy of", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "designed",
+    "verdict": "ok",
+    "parts": ["design", "ed"],
+    "note": "Corrected split from de+sign+ed to design+ed.",
+    "glosses": ["to plan or draw", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "designs",
+    "verdict": "ok",
+    "parts": ["design", "s"],
+    "note": "Corrected split from de+sign+s to design+s.",
+    "glosses": ["to plan or draw", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "desirable",
+    "verdict": "ok",
+    "parts": ["desire", "able"],
+    "note": "Corrected split from de+sir+able to desire+able.",
+    "glosses": ["to want or wish for", "able to be"],
+    "grade": "medium"
+  },
+  {
+    "word": "desired",
+    "verdict": "ok",
+    "parts": ["desire", "ed"],
+    "note": "Corrected split from de+sir+ed to desire+ed.",
+    "glosses": ["to want or wish for", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "desires",
+    "verdict": "ok",
+    "parts": ["desire", "s"],
+    "note": "Corrected split from de+sire+s to desire+s.",
+    "glosses": ["to want or wish for", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "desiring",
+    "verdict": "ok",
+    "parts": ["desire", "ing"],
+    "note": "Corrected split from de+sir+ing to desire+ing.",
+    "glosses": ["to want or wish for", "doing action"],
+    "grade": "medium"
+  },
+  {
+    "word": "desirous",
+    "verdict": "ok",
+    "parts": ["desire", "ous"],
+    "note": "Corrected split from de+sir+ous to desire+ous.",
+    "glosses": ["to want or wish for", "full of"],
+    "grade": "hard"
+  },
+  {
+    "word": "detailed",
+    "verdict": "ok",
+    "parts": ["detail", "ed"],
+    "note": "Corrected split from de+tail+ed to detail+ed.",
+    "glosses": ["a small part or feature", "past tense / state of"],
+    "grade": "easy"
+  },
+  {
+    "word": "details",
+    "verdict": "ok",
+    "parts": ["detail", "s"],
+    "note": "Corrected split from de+tail+s to detail+s.",
+    "glosses": ["small parts or features", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "detestable",
+    "verdict": "ok",
+    "parts": ["detest", "able"],
+    "note": "Corrected split from de+test+able to detest+able.",
+    "glosses": ["to hate intensely", "worthy of being"],
+    "grade": "medium"
+  },
+  {
+    "word": "detested",
+    "verdict": "ok",
+    "parts": ["detest", "ed"],
+    "note": "Corrected split from de+test+ed to detest+ed.",
+    "glosses": ["to hate intensely", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "devices",
+    "verdict": "ok",
+    "parts": ["device", "s"],
+    "note": "Corrected split from de+vice+s to device+s.",
+    "glosses": ["tools or gadgets", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "disagreeable",
+    "verdict": "ok",
+    "parts": ["dis", "agree", "able"],
+    "glosses": ["not / opposite", "to concur or match", "able to be"],
+    "grade": "easy"
+  },
+  {
+    "word": "disappeared",
+    "verdict": "ok",
+    "parts": ["dis", "appear", "ed"],
+    "glosses": ["not / reverse", "to come into sight", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "disappearing",
+    "verdict": "ok",
+    "parts": ["dis", "appear", "ing"],
+    "glosses": ["not / reverse", "to come into sight", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "discontented",
+    "verdict": "ok",
+    "parts": ["dis", "content", "ed"],
+    "glosses": ["not", "satisfied or happy", "state of being"],
+    "grade": "medium"
+  },
+  {
+    "word": "discovered",
+    "verdict": "ok",
+    "parts": ["dis", "cover", "ed"],
+    "glosses": ["remove / un-", "to hide or overlay", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "discovering",
+    "verdict": "ok",
+    "parts": ["dis", "cover", "ing"],
+    "glosses": ["remove / un-", "to hide or overlay", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "discovery",
+    "verdict": "ok",
+    "parts": ["dis", "cover", "y"],
+    "glosses": ["remove / un-", "to hide or overlay", "action or result"],
+    "grade": "easy"
+  },
+  {
+    "word": "diseases",
+    "verdict": "ok",
+    "parts": ["dis", "ease", "s"],
+    "glosses": ["lack of / away", "comfort or health", "plural"],
+    "grade": "medium"
+  },
+  {
+    "word": "disgraceful",
+    "verdict": "ok",
+    "parts": ["dis", "grace", "ful"],
+    "glosses": ["loss of / not", "honor or favor", "full of"],
+    "grade": "easy"
+  },
+  {
+    "word": "disgusted",
+    "verdict": "ok",
+    "parts": ["disgust", "ed"],
+    "note": "Corrected split from dis+gust+ed to disgust+ed.",
+    "glosses": ["strong dislike or revulsion", "past tense / state of"],
+    "grade": "easy"
+  },
+  {
+    "word": "dishonest",
+    "verdict": "ok",
+    "parts": ["dis", "honest"],
+    "note": "Corrected split from dis+hon+est to dis+honest.",
+    "glosses": ["not", "truthful or fair"],
+    "grade": "easy"
+  },
+  {
+    "word": "dismayed",
+    "verdict": "ok",
+    "parts": ["dismay", "ed"],
+    "note": "Corrected split from dis+may+ed to dismay+ed.",
+    "glosses": ["distress or discouragement", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "dismiss",
+    "verdict": "ok",
+    "parts": ["dis", "miss"],
+    "note": "Corrected split from dis+mis+s to dis+miss.",
+    "glosses": ["away / off", "to send"],
+    "grade": "easy"
+  },
+  {
+    "word": "dismissed",
+    "verdict": "ok",
+    "parts": ["dis", "miss", "ed"],
+    "glosses": ["away", "to send", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "dismounted",
+    "verdict": "ok",
+    "parts": ["dis", "mount", "ed"],
+    "glosses": ["off / reverse", "to get onto", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "disordered",
+    "verdict": "ok",
+    "parts": ["dis", "order", "ed"],
+    "glosses": ["lack of / not", "arrangement or rule", "past tense / state of"],
+    "grade": "easy"
+  },
+  {
+    "word": "displayed",
+    "verdict": "ok",
+    "parts": ["display", "ed"],
+    "note": "Corrected split from dis+play+ed to display+ed.",
+    "glosses": ["to show or exhibit", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "displaying",
+    "verdict": "ok",
+    "parts": ["display", "ing"],
+    "note": "Corrected split from dis+play+ing to display+ing.",
+    "glosses": ["to show or exhibit", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "disrespectful",
+    "verdict": "ok",
+    "parts": ["dis", "respect", "ful"],
+    "glosses": ["lack of / not", "honor or courtesy", "full of"],
+    "grade": "easy"
+  },
+  {
+    "word": "exacting",
+    "verdict": "ok",
+    "parts": ["ex", "act", "ing"],
+    "glosses": ["out / thoroughly", "to do or drive", "doing action"],
+    "grade": "medium"
+  },
+  {
+    "word": "exactly",
+    "verdict": "ok",
+    "parts": ["ex", "act", "ly"],
+    "glosses": ["out / thoroughly", "to do or drive", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "exclaimed",
+    "verdict": "ok",
+    "parts": ["ex", "claim", "ed"],
+    "glosses": ["out", "to call or shout", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "exclaiming",
+    "verdict": "ok",
+    "parts": ["ex", "claim", "ing"],
+    "glosses": ["out", "to call or shout", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "existed",
+    "verdict": "ok",
+    "parts": ["exist", "ed"],
+    "note": "Corrected split from ex+ist+ed to exist+ed.",
+    "glosses": ["to be real or live", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "existing",
+    "verdict": "ok",
+    "parts": ["exist", "ing"],
+    "note": "Corrected split from ex+ist+ing to exist+ing.",
+    "glosses": ["to be real or live", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "exists",
+    "verdict": "ok",
+    "parts": ["exist", "s"],
+    "note": "Corrected split from ex+ist+s to exist+s.",
+    "glosses": ["to be real or live", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "expensive",
+    "verdict": "ok",
+    "parts": ["expense", "ive"],
+    "note": "Corrected split from ex+pens+ive to expense+ive.",
+    "glosses": ["cost or price", "having the quality of"],
+    "grade": "easy"
+  },
+  {
+    "word": "explained",
+    "verdict": "ok",
+    "parts": ["ex", "plain", "ed"],
+    "glosses": ["out", "clear or simple", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "explaining",
+    "verdict": "ok",
+    "parts": ["ex", "plain", "ing"],
+    "glosses": ["out", "clear or simple", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "explains",
+    "verdict": "ok",
+    "parts": ["ex", "plain", "s"],
+    "glosses": ["out", "clear or simple", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "expressed",
+    "verdict": "ok",
+    "parts": ["ex", "press", "ed"],
+    "glosses": ["out", "to push", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "expressing",
+    "verdict": "ok",
+    "parts": ["ex", "press", "ing"],
+    "glosses": ["out", "to push", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "expressive",
+    "verdict": "ok",
+    "parts": ["ex", "press", "ive"],
+    "glosses": ["out", "to push", "having the quality of"],
+    "grade": "medium"
+  },
+  {
+    "word": "expressly",
+    "verdict": "ok",
+    "parts": ["ex", "press", "ly"],
+    "glosses": ["out", "to push / clear", "in a way that is"],
+    "grade": "medium"
+  },
+  {
+    "word": "extended",
+    "verdict": "ok",
+    "parts": ["ex", "tend", "ed"],
+    "glosses": ["out", "to stretch", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "extending",
+    "verdict": "ok",
+    "parts": ["ex", "tend", "ing"],
+    "glosses": ["out", "to stretch", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "images",
+    "verdict": "ok",
+    "parts": ["image", "s"],
+    "note": "Corrected split from im+age+s to image+s.",
+    "glosses": ["pictures or likenesses", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "impatiently",
+    "verdict": "ok",
+    "parts": ["im", "patient", "ly"],
+    "glosses": ["not", "able to wait calmly", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "impressed",
+    "verdict": "ok",
+    "parts": ["im", "press", "ed"],
+    "glosses": ["in / upon", "to push", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "impressive",
+    "verdict": "ok",
+    "parts": ["im", "press", "ive"],
+    "glosses": ["in / upon", "to push", "having the quality of"],
+    "grade": "easy"
+  },
+  {
+    "word": "imprisoned",
+    "verdict": "ok",
+    "parts": ["im", "prison", "ed"],
+    "glosses": ["in / into", "jail or place of confinement", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "imprisonment",
+    "verdict": "ok",
+    "parts": ["im", "prison", "ment"],
+    "glosses": ["in / into", "jail or place of confinement", "state or act of"],
+    "grade": "medium"
+  },
+  {
+    "word": "improvement",
+    "verdict": "ok",
+    "parts": ["improve", "ment"],
+    "note": "Corrected split from im+prove+ment to improve+ment.",
+    "glosses": ["to make better", "act or result of"],
+    "grade": "easy"
+  },
+  {
+    "word": "impulses",
+    "verdict": "ok",
+    "parts": ["im", "pulse", "s"],
+    "glosses": ["in / toward", "drive or beat", "plural"],
+    "grade": "medium"
+  },
+  {
+    "word": "incapable",
+    "verdict": "ok",
+    "parts": ["in", "capable"],
+    "note": "Corrected split from in+cap+able to in+capable.",
+    "glosses": ["not", "able or skilled"],
+    "grade": "easy"
+  },
+  {
+    "word": "indebted",
+    "verdict": "ok",
+    "parts": ["in", "debt", "ed"],
+    "glosses": ["in", "something owed", "state of being"],
+    "grade": "medium"
+  },
+  {
+    "word": "indifferently",
+    "verdict": "ok",
+    "parts": ["in", "different", "ly"],
+    "glosses": ["not", "distinguishing or concerned", "in a way that is"],
+    "grade": "medium"
+  },
+  {
+    "word": "indoors",
+    "verdict": "ok",
+    "parts": ["in", "door", "s"],
+    "glosses": ["inside", "entryway or building", "plural / adverbial"],
+    "grade": "easy"
+  },
+  {
+    "word": "informed",
+    "verdict": "ok",
+    "parts": ["inform", "ed"],
+    "note": "Corrected split from in+form+ed to inform+ed.",
+    "glosses": ["to tell or give news", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "informing",
+    "verdict": "ok",
+    "parts": ["inform", "ing"],
+    "note": "Corrected split from in+form+ing to inform+ing.",
+    "glosses": ["to tell or give news", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "inhabited",
+    "verdict": "ok",
+    "parts": ["inhabit", "ed"],
+    "note": "Corrected split from in+habit+ed to inhabit+ed.",
+    "glosses": ["to live in or occupy", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "inmates",
+    "verdict": "ok",
+    "parts": ["in", "mate", "s"],
+    "glosses": ["inside", "companion or resident", "plural"],
+    "grade": "medium"
+  },
+  {
+    "word": "installed",
+    "verdict": "ok",
+    "parts": ["in", "stall", "ed"],
+    "glosses": ["in / into", "place or booth", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "intended",
+    "verdict": "ok",
+    "parts": ["in", "tend", "ed"],
+    "glosses": ["towards / upon", "to stretch or aim", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "intending",
+    "verdict": "ok",
+    "parts": ["in", "tend", "ing"],
+    "glosses": ["towards / upon", "to stretch or aim", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "intends",
+    "verdict": "ok",
+    "parts": ["in", "tend", "s"],
+    "glosses": ["towards / upon", "to stretch or aim", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "intensely",
+    "verdict": "ok",
+    "parts": ["in", "tense", "ly"],
+    "glosses": ["in / upon", "stretched or strong", "in a way that is"],
+    "grade": "medium"
+  },
+  {
+    "word": "intention",
+    "verdict": "ok",
+    "parts": ["intent", "ion"],
+    "note": "Corrected split from in+ten+tion to intent+ion.",
+    "glosses": ["aim or purpose", "act or state of"],
+    "grade": "medium"
+  },
+  {
+    "word": "intently",
+    "verdict": "ok",
+    "parts": ["intent", "ly"],
+    "note": "Corrected split from in+tent+ly to intent+ly.",
+    "glosses": ["focused or purposeful", "in a way that is"],
+    "grade": "medium"
+  },
+  {
+    "word": "interest",
+    "verdict": "bad_split"
+  },
+  {
+    "word": "invented",
+    "verdict": "ok",
+    "parts": ["invent", "ed"],
+    "note": "Corrected split from in+vent+ed to invent+ed.",
+    "glosses": ["to create or discover", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "inwardly",
+    "verdict": "ok",
+    "parts": ["in", "ward", "ly"],
+    "glosses": ["inside", "toward direction", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "misfortunes",
+    "verdict": "ok",
+    "parts": ["mis", "fortune", "s"],
+    "glosses": ["bad / wrong", "luck or chance", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "misgivings",
+    "verdict": "ok",
+    "parts": ["mis", "giving", "s"],
+    "glosses": ["bad / wrong", "yielding or feeling", "plural"],
+    "grade": "medium"
+  },
+  {
+    "word": "mistakes",
+    "verdict": "ok",
+    "parts": ["mis", "take", "s"],
+    "glosses": ["wrong / bad", "to choose or hold", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "outdoors",
+    "verdict": "ok",
+    "parts": ["out", "door", "s"],
+    "glosses": ["outside", "entryway or building", "plural / adverbial"],
+    "grade": "easy"
+  },
+  {
+    "word": "outskirts",
+    "verdict": "ok",
+    "parts": ["out", "skirt", "s"],
+    "glosses": ["outer", "edge or border", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "outstretched",
+    "verdict": "ok",
+    "parts": ["out", "stretch", "ed"],
+    "glosses": ["out", "to extend", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "overflowed",
+    "verdict": "ok",
+    "parts": ["over", "flow", "ed"],
+    "glosses": ["excess / above", "to run like water", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "overflowing",
+    "verdict": "ok",
+    "parts": ["over", "flow", "ing"],
+    "glosses": ["excess / above", "to run like water", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "overhanging",
+    "verdict": "ok",
+    "parts": ["over", "hang", "ing"],
+    "glosses": ["above", "to suspend", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "overjoyed",
+    "verdict": "ok",
+    "parts": ["over", "joy", "ed"],
+    "glosses": ["excessive / very", "happiness", "state of being"],
+    "grade": "easy"
+  },
+  {
+    "word": "overlooked",
+    "verdict": "ok",
+    "parts": ["over", "look", "ed"],
+    "glosses": ["above / beyond", "to view", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "overlooking",
+    "verdict": "ok",
+    "parts": ["over", "look", "ing"],
+    "glosses": ["above / beyond", "to view", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "overpowered",
+    "verdict": "ok",
+    "parts": ["over", "power", "ed"],
+    "glosses": ["excessive / beyond", "strength or control", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "overpowering",
+    "verdict": "ok",
+    "parts": ["over", "power", "ing"],
+    "glosses": ["excessive / beyond", "strength or control", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "overturned",
+    "verdict": "ok",
+    "parts": ["over", "turn", "ed"],
+    "glosses": ["upside down / over", "to rotate", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "precautions",
+    "verdict": "ok",
+    "parts": ["pre", "caution", "s"],
+    "glosses": ["before", "care or warning", "plural"],
+    "grade": "medium"
+  },
+  {
+    "word": "presented",
+    "verdict": "ok",
+    "parts": ["present", "ed"],
+    "note": "Corrected split from pre+sent+ed to present+ed.",
+    "glosses": ["to show or give", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "presenting",
+    "verdict": "ok",
+    "parts": ["present", "ing"],
+    "note": "Corrected split from pre+sent+ing to present+ing.",
+    "glosses": ["to show or give", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "presently",
+    "verdict": "ok",
+    "parts": ["present", "ly"],
+    "note": "Corrected split from pre+sent+ly to present+ly.",
+    "glosses": ["soon or currently", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "presents",
+    "verdict": "ok",
+    "parts": ["present", "s"],
+    "note": "Corrected split from pre+sent+s to present+s.",
+    "glosses": ["gifts or shows", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "preserves",
+    "verdict": "ok",
+    "parts": ["preserve", "s"],
+    "note": "Corrected split from pre+serve+s to preserve+s.",
+    "glosses": ["to keep safe or save", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "pretended",
+    "verdict": "ok",
+    "parts": ["pretend", "ed"],
+    "note": "Corrected split from pre+tend+ed to pretend+ed.",
+    "glosses": ["to make believe", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "pretending",
+    "verdict": "ok",
+    "parts": ["pretend", "ing"],
+    "note": "Corrected split from pre+tend+ing to pretend+ing.",
+    "glosses": ["to make believe", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "prevented",
+    "verdict": "ok",
+    "parts": ["prevent", "ed"],
+    "note": "Corrected split from pre+vent+ed to prevent+ed.",
+    "glosses": ["to stop from happening", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "reaches",
+    "verdict": "ok",
+    "parts": ["reach", "es"],
+    "note": "Corrected split from re+ache+s to reach+es.",
+    "glosses": ["to stretch to or arrive at", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "really",
+    "verdict": "ok",
+    "parts": ["real", "ly"],
+    "note": "Corrected split from re+all+y to real+ly.",
+    "glosses": ["true or actual", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "reappeared",
+    "verdict": "ok",
+    "parts": ["re", "appear", "ed"],
+    "glosses": ["again", "to come into sight", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "reassuringly",
+    "verdict": "ok",
+    "parts": ["re", "assuring", "ly"],
+    "glosses": ["again", "giving confidence", "in a way that is"],
+    "grade": "medium"
+  },
+  {
+    "word": "recalled",
+    "verdict": "ok",
+    "parts": ["re", "call", "ed"],
+    "glosses": ["back / again", "to summon or remember", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "recalling",
+    "verdict": "ok",
+    "parts": ["re", "call", "ing"],
+    "glosses": ["back / again", "to summon or remember", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "recently",
+    "verdict": "ok",
+    "parts": ["recent", "ly"],
+    "note": "Corrected split from re+cent+ly to recent+ly.",
+    "glosses": ["happening not long ago", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "recoiled",
+    "verdict": "ok",
+    "parts": ["re", "coil", "ed"],
+    "glosses": ["back", "to spring or wind", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "recollected",
+    "verdict": "ok",
+    "parts": ["re", "collect", "ed"],
+    "glosses": ["again / back", "to gather", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "recollections",
+    "verdict": "ok",
+    "parts": ["re", "collection", "s"],
+    "glosses": ["back / again", "gathering of memories", "plural"],
+    "grade": "medium"
+  },
+  {
+    "word": "recorded",
+    "verdict": "ok",
+    "parts": ["record", "ed"],
+    "note": "Corrected split from re+cord+ed to record+ed.",
+    "glosses": ["to write down or save", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "records",
+    "verdict": "ok",
+    "parts": ["record", "s"],
+    "note": "Corrected split from re+cord+s to record+s.",
+    "glosses": ["written notes or saved data", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "recovered",
+    "verdict": "ok",
+    "parts": ["re", "cover", "ed"],
+    "glosses": ["back / again", "to hide or find", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "recovering",
+    "verdict": "ok",
+    "parts": ["re", "cover", "ing"],
+    "glosses": ["back / again", "to hide or find", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "recovery",
+    "verdict": "ok",
+    "parts": ["re", "cover", "y"],
+    "glosses": ["back / again", "to find or heal", "act or state of"],
+    "grade": "easy"
+  },
+  {
+    "word": "refined",
+    "verdict": "ok",
+    "parts": ["refine", "ed"],
+    "note": "Corrected split from re+fin+ed to refine+ed.",
+    "glosses": ["to purify or make fine", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "refreshed",
+    "verdict": "ok",
+    "parts": ["re", "fresh", "ed"],
+    "glosses": ["again", "new or clean", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "refreshing",
+    "verdict": "ok",
+    "parts": ["re", "fresh", "ing"],
+    "glosses": ["again", "new or clean", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "refreshment",
+    "verdict": "ok",
+    "parts": ["re", "fresh", "ment"],
+    "glosses": ["again", "new or clean", "thing or state"],
+    "grade": "easy"
+  },
+  {
+    "word": "regained",
+    "verdict": "ok",
+    "parts": ["re", "gain", "ed"],
+    "glosses": ["again / back", "to get or win", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "rejoined",
+    "verdict": "ok",
+    "parts": ["re", "join", "ed"],
+    "glosses": ["again / back", "to unite or connect", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "remained",
+    "verdict": "ok",
+    "parts": ["remain", "ed"],
+    "note": "Corrected split from re+main+ed to remain+ed.",
+    "glosses": ["to stay behind", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "remaining",
+    "verdict": "ok",
+    "parts": ["remain", "ing"],
+    "note": "Corrected split from re+main+ing to remain+ing.",
+    "glosses": ["to stay behind", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "remains",
+    "verdict": "ok",
+    "parts": ["remain", "s"],
+    "note": "Corrected split from re+main+s to remain+s.",
+    "glosses": ["to stay behind / leftover parts", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "remarkable",
+    "verdict": "ok",
+    "parts": ["re", "mark", "able"],
+    "glosses": ["again / thoroughly", "to note or notice", "worthy of / able to be"],
+    "grade": "easy"
+  },
+  {
+    "word": "remarked",
+    "verdict": "ok",
+    "parts": ["re", "mark", "ed"],
+    "glosses": ["again / thoroughly", "to note or say", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "remarking",
+    "verdict": "ok",
+    "parts": ["re", "mark", "ing"],
+    "glosses": ["again / thoroughly", "to note or say", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "remarks",
+    "verdict": "ok",
+    "parts": ["re", "mark", "s"],
+    "glosses": ["again / thoroughly", "to note or say", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "remembered",
+    "verdict": "ok",
+    "parts": ["remember", "ed"],
+    "note": "Corrected split from re+member+ed to remember+ed.",
+    "glosses": ["to recall to mind", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "remembering",
+    "verdict": "ok",
+    "parts": ["remember", "ing"],
+    "note": "Corrected split from re+member+ing to remember+ing.",
+    "glosses": ["to recall to mind", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "remembers",
+    "verdict": "ok",
+    "parts": ["remember", "s"],
+    "note": "Corrected split from re+member+s to remember+s.",
+    "glosses": ["to recall to mind", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "reminded",
+    "verdict": "ok",
+    "parts": ["re", "mind", "ed"],
+    "glosses": ["again / back", "memory or thought", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "reminding",
+    "verdict": "ok",
+    "parts": ["re", "mind", "ing"],
+    "glosses": ["again / back", "memory or thought", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "reminds",
+    "verdict": "ok",
+    "parts": ["re", "mind", "s"],
+    "glosses": ["again / back", "memory or thought", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "renewed",
+    "verdict": "ok",
+    "parts": ["re", "new", "ed"],
+    "glosses": ["again", "fresh or recent", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "repaired",
+    "verdict": "ok",
+    "parts": ["repair", "ed"],
+    "note": "Corrected split from re+pair+ed to repair+ed.",
+    "glosses": ["to fix or mend", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "reported",
+    "verdict": "ok",
+    "parts": ["re", "port", "ed"],
+    "glosses": ["back", "to carry", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "reporters",
+    "verdict": "ok",
+    "parts": ["report", "er", "s"],
+    "note": "Corrected split from re+porter+s to report+er+s.",
+    "glosses": ["to state or tell news", "one who does", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "reports",
+    "verdict": "ok",
+    "parts": ["re", "port", "s"],
+    "glosses": ["back", "to carry", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "represented",
+    "verdict": "ok",
+    "parts": ["re", "present", "ed"],
+    "glosses": ["again / on behalf of", "to show or stand for", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "representing",
+    "verdict": "ok",
+    "parts": ["re", "present", "ing"],
+    "glosses": ["again / on behalf of", "to show or stand for", "doing action"],
+    "grade": "medium"
+  },
+  {
+    "word": "repressed",
+    "verdict": "ok",
+    "parts": ["re", "press", "ed"],
+    "glosses": ["back", "to push", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "requested",
+    "verdict": "ok",
+    "parts": ["re", "quest", "ed"],
+    "glosses": ["again / thoroughly", "to seek or ask", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "resented",
+    "verdict": "ok",
+    "parts": ["resent", "ed"],
+    "note": "Corrected split from re+sent+ed to resent+ed.",
+    "glosses": ["to feel hurt or angry about", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "resentment",
+    "verdict": "ok",
+    "parts": ["resent", "ment"],
+    "note": "Corrected split from re+sent+ment to resent+ment.",
+    "glosses": ["to feel hurt or angry about", "feeling or state of"],
+    "grade": "medium"
+  },
+  {
+    "word": "resigned",
+    "verdict": "ok",
+    "parts": ["resign", "ed"],
+    "note": "Corrected split from re+sign+ed to resign+ed.",
+    "glosses": ["to step down or accept", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "resolutions",
+    "verdict": "ok",
+    "parts": ["re", "solution", "s"],
+    "glosses": ["firmly / again", "solving or decision", "plural"],
+    "grade": "medium"
+  },
+  {
+    "word": "resounded",
+    "verdict": "ok",
+    "parts": ["re", "sound", "ed"],
+    "glosses": ["back / again", "noise or tone", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "resources",
+    "verdict": "ok",
+    "parts": ["re", "source", "s"],
+    "glosses": ["again / back", "origin or supply", "plural"],
+    "grade": "medium"
+  },
+  {
+    "word": "restrained",
+    "verdict": "ok",
+    "parts": ["re", "strain", "ed"],
+    "glosses": ["back", "to pull tight or hold", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "resumed",
+    "verdict": "ok",
+    "parts": ["resume", "ed"],
+    "note": "Corrected split from re+sum+ed to resume+ed.",
+    "glosses": ["to start again", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "retreated",
+    "verdict": "ok",
+    "parts": ["retreat", "ed"],
+    "note": "Corrected split from re+treat+ed to retreat+ed.",
+    "glosses": ["to move back or withdraw", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "retreating",
+    "verdict": "ok",
+    "parts": ["retreat", "ing"],
+    "note": "Corrected split from re+treat+ing to retreat+ing.",
+    "glosses": ["to move back or withdraw", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "returned",
+    "verdict": "ok",
+    "parts": ["re", "turn", "ed"],
+    "glosses": ["back", "to rotate or move", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "returning",
+    "verdict": "ok",
+    "parts": ["re", "turn", "ing"],
+    "glosses": ["back", "to rotate or move", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "returns",
+    "verdict": "ok",
+    "parts": ["re", "turn", "s"],
+    "glosses": ["back", "to rotate or move", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "rewarded",
+    "verdict": "ok",
+    "parts": ["reward", "ed"],
+    "note": "Corrected split from re+ward+ed to reward+ed.",
+    "glosses": ["to give a prize or pay", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "submission",
+    "verdict": "ok",
+    "parts": ["sub", "mis", "sion"],
+    "glosses": ["under / yield", "to send or give", "act or state of"],
+    "grade": "medium"
+  },
+  {
+    "word": "transformed",
+    "verdict": "ok",
+    "parts": ["trans", "form", "ed"],
+    "glosses": ["across / change", "shape or outline", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "transported",
+    "verdict": "ok",
+    "parts": ["trans", "port", "ed"],
+    "glosses": ["across", "to carry", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "unaccountable",
+    "verdict": "ok",
+    "parts": ["un", "account", "able"],
+    "glosses": ["not", "to explain or answer for", "able to be"],
+    "grade": "medium"
+  },
+  {
+    "word": "unbearable",
+    "verdict": "ok",
+    "parts": ["un", "bear", "able"],
+    "glosses": ["not", "to stand or endure", "able to be"],
+    "grade": "easy"
+  },
+  {
+    "word": "uncomfortable",
+    "verdict": "ok",
+    "parts": ["un", "comfort", "able"],
+    "glosses": ["not", "ease or relief", "able to be"],
+    "grade": "easy"
+  },
+  {
+    "word": "uncommonly",
+    "verdict": "ok",
+    "parts": ["un", "common", "ly"],
+    "glosses": ["not", "usual or ordinary", "in a way that is"],
+    "grade": "medium"
+  },
+  {
+    "word": "unconsciously",
+    "verdict": "ok",
+    "parts": ["un", "conscious", "ly"],
+    "glosses": ["not", "aware or awake", "in a way that is"],
+    "grade": "medium"
+  },
+  {
+    "word": "uncovered",
+    "verdict": "ok",
+    "parts": ["un", "cover", "ed"],
+    "glosses": ["not / reverse", "to hide or wrap", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "understanding",
+    "verdict": "ok",
+    "parts": ["under", "stand", "ing"],
+    "glosses": ["beneath / among", "to hold position", "state of being"],
+    "grade": "easy"
+  },
+  {
+    "word": "understands",
+    "verdict": "ok",
+    "parts": ["under", "stand", "s"],
+    "glosses": ["beneath / among", "to hold position", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "undisturbed",
+    "verdict": "ok",
+    "parts": ["un", "disturb", "ed"],
+    "glosses": ["not", "to bother or trouble", "past tense / state of"],
+    "grade": "easy"
+  },
+  {
+    "word": "undoubtedly",
+    "verdict": "ok",
+    "parts": ["un", "doubted", "ly"],
+    "glosses": ["not", "questioned or uncertain", "in a way that is"],
+    "grade": "medium"
+  },
+  {
+    "word": "undressed",
+    "verdict": "ok",
+    "parts": ["un", "dress", "ed"],
+    "glosses": ["reverse / take off", "clothing", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "unearthly",
+    "verdict": "ok",
+    "parts": ["un", "earth", "ly"],
+    "glosses": ["not", "world or soil", "having the nature of"],
+    "grade": "medium"
+  },
+  {
+    "word": "unexpected",
+    "verdict": "ok",
+    "parts": ["un", "expect", "ed"],
+    "glosses": ["not", "to look for or await", "past tense / state of"],
+    "grade": "easy"
+  },
+  {
+    "word": "unexpectedly",
+    "verdict": "ok",
+    "parts": ["un", "expected", "ly"],
+    "glosses": ["not", "looked for or awaited", "in a way that is"],
+    "grade": "medium"
+  },
+  {
+    "word": "unfastened",
+    "verdict": "ok",
+    "parts": ["un", "fasten", "ed"],
+    "glosses": ["reverse / undo", "to attach or lock", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "unfinished",
+    "verdict": "ok",
+    "parts": ["un", "finish", "ed"],
+    "glosses": ["not", "to complete or end", "past tense / state of"],
+    "grade": "easy"
+  },
+  {
+    "word": "unfolded",
+    "verdict": "ok",
+    "parts": ["un", "fold", "ed"],
+    "glosses": ["not / reverse", "to bend over", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "unfortunately",
+    "verdict": "ok",
+    "parts": ["un", "fortunate", "ly"],
+    "glosses": ["not", "lucky or favored", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "unfriendly",
+    "verdict": "ok",
+    "parts": ["un", "friend", "ly"],
+    "glosses": ["not", "companion or pal", "having the nature of"],
+    "grade": "easy"
+  },
+  {
+    "word": "ungrateful",
+    "verdict": "ok",
+    "parts": ["un", "grateful"],
+    "note": "Corrected split from un+grate+ful to un+grateful.",
+    "glosses": ["not", "thankful or appreciative"],
+    "grade": "easy"
+  },
+  {
+    "word": "uninteresting",
+    "verdict": "ok",
+    "parts": ["un", "interest", "ing"],
+    "glosses": ["not", "holding attention", "having the quality of"],
+    "grade": "easy"
+  },
+  {
+    "word": "unkindly",
+    "verdict": "ok",
+    "parts": ["un", "kind", "ly"],
+    "glosses": ["not", "caring or gentle", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "unlikely",
+    "verdict": "ok",
+    "parts": ["un", "like", "ly"],
+    "glosses": ["not", "similar or probable", "having the nature of"],
+    "grade": "easy"
+  },
+  {
+    "word": "unlimited",
+    "verdict": "ok",
+    "parts": ["un", "limit", "ed"],
+    "glosses": ["not", "boundary or restriction", "past tense / state of"],
+    "grade": "easy"
+  },
+  {
+    "word": "unlocked",
+    "verdict": "ok",
+    "parts": ["un", "lock", "ed"],
+    "glosses": ["reverse / undo", "fastening or latch", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "unlucky",
+    "verdict": "ok",
+    "parts": ["un", "luck", "y"],
+    "glosses": ["not", "chance or fortune", "having the quality of"],
+    "grade": "easy"
+  },
+  {
+    "word": "unpacked",
+    "verdict": "ok",
+    "parts": ["un", "pack", "ed"],
+    "glosses": ["reverse / undo", "to bundle or store", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "unreasonable",
+    "verdict": "ok",
+    "parts": ["un", "reason", "able"],
+    "glosses": ["not", "logic or sense", "able to be"],
+    "grade": "easy"
+  },
+  {
+    "word": "unselfish",
+    "verdict": "ok",
+    "parts": ["un", "self", "ish"],
+    "glosses": ["not", "one's own person", "concerned with"],
+    "grade": "easy"
+  },
+  {
+    "word": "unspeakable",
+    "verdict": "ok",
+    "parts": ["un", "speak", "able"],
+    "glosses": ["not", "to say or utter", "able to be"],
+    "grade": "medium"
+  },
+  {
+    "word": "unsteady",
+    "verdict": "ok",
+    "parts": ["un", "stead", "y"],
+    "glosses": ["not", "firm place or standing", "having the quality of"],
+    "grade": "easy"
+  },
+  {
+    "word": "unsuccessful",
+    "verdict": "ok",
+    "parts": ["un", "success", "ful"],
+    "glosses": ["not", "achievement or win", "full of"],
+    "grade": "easy"
+  },
+  {
+    "word": "untouched",
+    "verdict": "ok",
+    "parts": ["un", "touch", "ed"],
+    "glosses": ["not", "to feel or reach", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "unusually",
+    "verdict": "ok",
+    "parts": ["un", "usual", "ly"],
+    "glosses": ["not", "common or normal", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "unwilling",
+    "verdict": "ok",
+    "parts": ["un", "will", "ing"],
+    "glosses": ["not", "desire or choice", "having the quality of"],
+    "grade": "easy"
+  },
+  {
+    "word": "unwillingly",
+    "verdict": "ok",
+    "parts": ["un", "willing", "ly"],
+    "glosses": ["not", "ready or inclined", "in a way that is"],
+    "grade": "medium"
+  },
+  {
+    "word": "unwonted",
+    "verdict": "unsuitable"
+  },
+  {
+    "word": "unworthy",
+    "verdict": "ok",
+    "parts": ["un", "worth", "y"],
+    "glosses": ["not", "value or merit", "having the quality of"],
+    "grade": "easy"
+  },
+  {
+    "word": "abandoned",
+    "verdict": "ok",
+    "parts": ["abandon", "ed"],
+    "glosses": ["to leave behind", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "abruptly",
+    "verdict": "ok",
+    "parts": ["abrupt", "ly"],
+    "glosses": ["sudden or unexpected", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "absently",
+    "verdict": "ok",
+    "parts": ["absent", "ly"],
+    "glosses": ["not present or distracted", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "absolutely",
+    "verdict": "ok",
+    "parts": ["absolute", "ly"],
+    "glosses": ["complete or total", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "accents",
+    "verdict": "ok",
+    "parts": ["accent", "s"],
+    "glosses": ["pronunciation or emphasis", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "acceptable",
+    "verdict": "ok",
+    "parts": ["accept", "able"],
+    "glosses": ["to receive or agree to", "able to be"],
+    "grade": "easy"
+  },
+  {
+    "word": "accepted",
+    "verdict": "ok",
+    "parts": ["accept", "ed"],
+    "glosses": ["to receive or agree to", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "accepting",
+    "verdict": "ok",
+    "parts": ["accept", "ing"],
+    "glosses": ["to receive or agree to", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "accidental",
+    "verdict": "ok",
+    "parts": ["accident", "al"],
+    "glosses": ["unintended event", "relating to"],
+    "grade": "easy"
+  },
+  {
+    "word": "accidentally",
+    "verdict": "ok",
+    "parts": ["accidental", "ly"],
+    "glosses": ["unintended or by chance", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "accidents",
+    "verdict": "ok",
+    "parts": ["accident", "s"],
+    "glosses": ["unintended events", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "accompanying",
+    "verdict": "ok",
+    "parts": ["accompany", "ing"],
+    "glosses": ["to go along with", "doing action"],
+    "grade": "medium"
+  },
+  {
+    "word": "accomplished",
+    "verdict": "ok",
+    "parts": ["accomplish", "ed"],
+    "glosses": ["to complete or achieve", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "accomplishment",
+    "verdict": "ok",
+    "parts": ["accomplish", "ment"],
+    "glosses": ["to complete or achieve", "action or result"],
+    "grade": "medium"
+  },
+  {
+    "word": "accomplishments",
+    "verdict": "ok",
+    "parts": ["accomplishment", "s"],
+    "glosses": ["completed achievements", "plural"],
+    "grade": "medium"
+  },
+  {
+    "word": "accorded",
+    "verdict": "ok",
+    "parts": ["accord", "ed"],
+    "glosses": ["to grant or agree", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "according",
+    "verdict": "ok",
+    "parts": ["accord", "ing"],
+    "glosses": ["to agree or match", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "accordingly",
+    "verdict": "ok",
+    "parts": ["according", "ly"],
+    "glosses": ["in agreement or conformity", "in a way that is"],
+    "grade": "medium"
+  },
+  {
+    "word": "accounted",
+    "verdict": "ok",
+    "parts": ["account", "ed"],
+    "glosses": ["to explain or reckon", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "accounts",
+    "verdict": "ok",
+    "parts": ["account", "s"],
+    "glosses": ["reports or records", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "accurately",
+    "verdict": "ok",
+    "parts": ["accurate", "ly"],
+    "glosses": ["correct or precise", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "acquaintances",
+    "verdict": "ok",
+    "parts": ["acquaintance", "s"],
+    "glosses": ["people known slightly", "plural"],
+    "grade": "medium"
+  },
+  {
+    "word": "acres",
+    "verdict": "ok",
+    "parts": ["acre", "s"],
+    "glosses": ["units of land area", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "acted",
+    "verdict": "ok",
+    "parts": ["act", "ed"],
+    "glosses": ["to do or perform", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "acting",
+    "verdict": "ok",
+    "parts": ["act", "ing"],
+    "glosses": ["to do or perform", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "actions",
+    "verdict": "ok",
+    "parts": ["action", "s"],
+    "glosses": ["deeds or movements", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "active",
+    "verdict": "ok",
+    "parts": ["act", "ive"],
+    "glosses": ["to do or perform", "having the quality of"],
+    "grade": "easy"
+  },
+  {
+    "word": "actors",
+    "verdict": "ok",
+    "parts": ["actor", "s"],
+    "glosses": ["people who perform", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "actually",
+    "verdict": "ok",
+    "parts": ["actual", "ly"],
+    "glosses": ["real or existing", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "added",
+    "verdict": "ok",
+    "parts": ["add", "ed"],
+    "glosses": ["to join or combine", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "adding",
+    "verdict": "ok",
+    "parts": ["add", "ing"],
+    "glosses": ["to join or combine", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "additional",
+    "verdict": "ok",
+    "parts": ["addition", "al"],
+    "glosses": ["something added", "relating to"],
+    "grade": "easy"
+  },
+  {
+    "word": "addressed",
+    "verdict": "ok",
+    "parts": ["address", "ed"],
+    "glosses": ["to speak to or direct toward", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "addressing",
+    "verdict": "ok",
+    "parts": ["address", "ing"],
+    "glosses": ["to speak to or direct toward", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "admiringly",
+    "verdict": "ok",
+    "parts": ["admiring", "ly"],
+    "glosses": ["looking at with pleasure", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "adopted",
+    "verdict": "ok",
+    "parts": ["adopt", "ed"],
+    "glosses": ["to take as one's own", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "advances",
+    "verdict": "ok",
+    "parts": ["advance", "s"],
+    "glosses": ["to move forward", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "advantages",
+    "verdict": "ok",
+    "parts": ["advantage", "s"],
+    "glosses": ["helpful conditions or benefits", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "adventures",
+    "verdict": "ok",
+    "parts": ["adventure", "s"],
+    "glosses": ["exciting experiences", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "advertisement",
+    "verdict": "ok",
+    "parts": ["advertise", "ment"],
+    "glosses": ["to promote or announce", "result or notice"],
+    "grade": "easy"
+  },
+  {
+    "word": "advertisements",
+    "verdict": "ok",
+    "parts": ["advertisement", "s"],
+    "glosses": ["notices promoting things", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "affairs",
+    "verdict": "ok",
+    "parts": ["affair", "s"],
+    "glosses": ["matters or events", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "affected",
+    "verdict": "ok",
+    "parts": ["affect", "ed"],
+    "glosses": ["to influence or change", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "affecting",
+    "verdict": "ok",
+    "parts": ["affect", "ing"],
+    "glosses": ["to influence or change", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "affectionately",
+    "verdict": "ok",
+    "parts": ["affectionate", "ly"],
+    "glosses": ["showing fondness or love", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "affections",
+    "verdict": "ok",
+    "parts": ["affection", "s"],
+    "glosses": ["feelings of love or fondness", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "afforded",
+    "verdict": "ok",
+    "parts": ["afford", "ed"],
+    "glosses": ["to provide or be able to pay", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "afternoons",
+    "verdict": "ok",
+    "parts": ["afternoon", "s"],
+    "glosses": ["times between noon and evening", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "afterward",
+    "verdict": "ok",
+    "parts": ["after", "ward"],
+    "glosses": ["following in time", "direction toward"],
+    "grade": "easy"
+  },
+  {
+    "word": "afterwards",
+    "verdict": "ok",
+    "parts": ["afterward", "s"],
+    "glosses": ["at a later time", "adverbial suffix"],
+    "grade": "easy"
+  },
+  {
+    "word": "agents",
+    "verdict": "ok",
+    "parts": ["agent", "s"],
+    "glosses": ["representatives or actors", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "agreeable",
+    "verdict": "ok",
+    "parts": ["agree", "able"],
+    "glosses": ["to concur or match", "able to be / pleasant"],
+    "grade": "easy"
+  },
+  {
+    "word": "agreement",
+    "verdict": "ok",
+    "parts": ["agree", "ment"],
+    "glosses": ["to concur or match", "result or arrangement"],
+    "grade": "easy"
+  },
+  {
+    "word": "aided",
+    "verdict": "ok",
+    "parts": ["aid", "ed"],
+    "glosses": ["to help or assist", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "aimed",
+    "verdict": "ok",
+    "parts": ["aim", "ed"],
+    "glosses": ["to point or direct", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "alarmed",
+    "verdict": "ok",
+    "parts": ["alarm", "ed"],
+    "glosses": ["frightened or warned", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "alarming",
+    "verdict": "ok",
+    "parts": ["alarm", "ing"],
+    "glosses": ["frightening or warning", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "alighted",
+    "verdict": "ok",
+    "parts": ["alight", "ed"],
+    "glosses": ["to land or step down", "past tense"],
+    "grade": "medium"
+  },
+  {
+    "word": "allowed",
+    "verdict": "ok",
+    "parts": ["allow", "ed"],
+    "glosses": ["to permit or let", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "allowing",
+    "verdict": "ok",
+    "parts": ["allow", "ing"],
+    "glosses": ["to permit or let", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "allows",
+    "verdict": "ok",
+    "parts": ["allow", "s"],
+    "glosses": ["to permit or let", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "altered",
+    "verdict": "ok",
+    "parts": ["alter", "ed"],
+    "glosses": ["to change or adjust", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "amazingly",
+    "verdict": "ok",
+    "parts": ["amazing", "ly"],
+    "glosses": ["causing wonder or surprise", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "ambitions",
+    "verdict": "ok",
+    "parts": ["ambition", "s"],
+    "glosses": ["strong desires or goals", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "amounted",
+    "verdict": "ok",
+    "parts": ["amount", "ed"],
+    "glosses": ["to add up to", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "amounts",
+    "verdict": "ok",
+    "parts": ["amount", "s"],
+    "glosses": ["totals or quantities", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "amusement",
+    "verdict": "ok",
+    "parts": ["amuse", "ment"],
+    "glosses": ["to entertain or delight", "state or result"],
+    "grade": "easy"
+  },
+  {
+    "word": "amusements",
+    "verdict": "ok",
+    "parts": ["amusement", "s"],
+    "glosses": ["entertainments or games", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "angels",
+    "verdict": "ok",
+    "parts": ["angel", "s"],
+    "glosses": ["heavenly beings", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "angered",
+    "verdict": "ok",
+    "parts": ["anger", "ed"],
+    "glosses": ["strong displeasure", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "angles",
+    "verdict": "ok",
+    "parts": ["angle", "s"],
+    "glosses": ["corners or directions", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "animals",
+    "verdict": "ok",
+    "parts": ["animal", "s"],
+    "glosses": ["living creatures", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "ankles",
+    "verdict": "ok",
+    "parts": ["ankle", "s"],
+    "glosses": ["joints above the feet", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "announcement",
+    "verdict": "ok",
+    "parts": ["announce", "ment"],
+    "glosses": ["to make known publicly", "statement or act"],
+    "grade": "easy"
+  },
+  {
+    "word": "annoyed",
+    "verdict": "ok",
+    "parts": ["annoy", "ed"],
+    "glosses": ["to bother or irritate", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "annoying",
+    "verdict": "ok",
+    "parts": ["annoy", "ing"],
+    "glosses": ["to bother or irritate", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "answered",
+    "verdict": "ok",
+    "parts": ["answer", "ed"],
+    "glosses": ["to reply or respond", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "answering",
+    "verdict": "ok",
+    "parts": ["answer", "ing"],
+    "glosses": ["to reply or respond", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "answers",
+    "verdict": "ok",
+    "parts": ["answer", "s"],
+    "glosses": ["replies or solutions", "plural / present tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "anxiously",
+    "verdict": "ok",
+    "parts": ["anxious", "ly"],
+    "glosses": ["worried or eager", "in a way that is"],
+    "grade": "easy"
+  },
+  {
+    "word": "apartment",
+    "verdict": "ok",
+    "parts": ["apart", "ment"],
+    "glosses": ["separate or set aside", "place or result"],
+    "grade": "easy"
+  },
+  {
+    "word": "apartments",
+    "verdict": "ok",
+    "parts": ["apartment", "s"],
+    "glosses": ["sets of living rooms", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "apparently",
+    "verdict": "ok",
+    "parts": ["apparent", "ly"],
+    "glosses": ["seeming or clear to see", "in a way that is"],
+    "grade": "medium"
+  },
+  {
+    "word": "appealed",
+    "verdict": "ok",
+    "parts": ["appeal", "ed"],
+    "glosses": ["to request earnestly or attract", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "appealing",
+    "verdict": "ok",
+    "parts": ["appeal", "ing"],
+    "glosses": ["to request earnestly or attract", "doing action"],
+    "grade": "easy"
+  },
+  {
+    "word": "appearances",
+    "verdict": "ok",
+    "parts": ["appearance", "s"],
+    "glosses": ["outward looks or comings", "plural"],
+    "grade": "easy"
+  },
+  {
+    "word": "appeared",
+    "verdict": "ok",
+    "parts": ["appear", "ed"],
+    "glosses": ["to come into sight", "past tense"],
+    "grade": "easy"
+  },
+  {
+    "word": "appearing",
+    "verdict": "ok",
+    "parts": ["appear", "ing"],
+    "glosses": ["to come into sight", "doing action"],
+    "grade": "easy"
+  }
+]
