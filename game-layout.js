@@ -53,12 +53,41 @@ export const FLANK_BAR_MAX_W = 160;
 export const FLANK_BAR_LIFT_WITH_MINUTES = 36;
 export const FLANK_BAR_LIFT_ALONE = 22;
 
+// ── side panels (Round 94) ──────────────────────────────────────────────────
+//
+// ⚠️⚠️ THE PLAY CANVAS KEEPS ITS OWN FULL-WIDTH COORDINATE SYSTEM. These widths
+// size SIBLING elements; they are never subtracted from the play canvas's `W`.
+// game-deadline.js's lane and dome maths is W-relative, and dome radius IS the
+// coverage test that gives the city six lives — Round 91 shrank it for looks and
+// silently ended the three-deep overlap, and it looked fine. Three canvases cost
+// nothing; an inset playfield rect costs that.
+export const WRAP_MAX_W = 1320;
+export const RADAR_COL_W = 200;
+export const CONTROL_COL_W = 240;
+export const PANEL_GAP = 14;
+
+// ⭐ THE PLAY AREA GROWS EVEN AFTER GIVING BOTH PANELS AWAY, because the old
+// 760px wrap cap cost more than the panels do: 724 → ~816 on a 13.6" Air.
+// ⚠️ THE FLOOR TO TEST AGAINST IS THE PLAY CANVAS, NOT THE PANEL WIDTHS: it must
+// never be narrower than today's 724 at any breakpoint that keeps 3 columns.
+export const PLAY_MIN_W = 724;
+
+// Fold order, per Jake's ruling: radar stays, controls drop below the frame.
+export const BREAK_THREE_COL = 1150;
+export const BREAK_TWO_COL = 820;
+
 // ── control bar ─────────────────────────────────────────────────────────────
 // Where Pause/Sound/Keys/Done sits, as a fraction of strip height up from the
 // bottom. ⚠️ IT MUST NOT SIT ON THE SKY: targets enter from the top, so a bar up
 // there covers every word as it first becomes readable. Students reported that.
-export const CHROME_BOTTOM_FRACTION = 0.40;
-export const CHROME_BOTTOM_NO_KEYBOARD = 8;
+// ⚠️⚠️ RETIRED IN ROUND 94 AND KEPT ONLY AS A GRAVESTONE. The bar is a real DOM
+// card in the right column now, not a canvas overlay, which is the actual fix
+// for *"the buttons are a nightmare... they cover the interface"*. Positioning a
+// floating bar over the play area was always going to land on something; every
+// value here was a different thing to land on. DO NOT REVIVE THESE — if a bar
+// needs placing over the canvas again, that is a design question, not a constant.
+// export const CHROME_BOTTOM_FRACTION = 0.40;
+// export const CHROME_BOTTOM_NO_KEYBOARD = 8;
 
 // ── skyline ─────────────────────────────────────────────────────────────────
 // Drawn heights in px; aspect ratio comes from each SVG's viewBox, so these

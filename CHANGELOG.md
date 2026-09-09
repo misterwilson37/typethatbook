@@ -1,5 +1,43 @@
 # CHANGELOG — TypeThatBook
 
+## Round 94 — 2026-09-08 — the buttons stop covering the game
+
+Steps 1 and 2 of `ARCADE-SIDE-PANELS-PLAN.md`, which that plan is explicit must
+ship without the radar: *"if the radar needs iteration, the button fix should
+not be waiting on it."* Steps 3-5 are untouched.
+
+⭐ **THE FIX FOR "the buttons are a nightmare" IS NOT A BETTER `bottom` VALUE.**
+A floating bar over a full-bleed canvas has nowhere to sit that is not on top of
+something — three rounds of repositioning it proved that by failing three
+different ways. `game-chrome.js` **v1.3.0** takes an optional `barHost`; given
+one, the buttons are an ordinary block in an ordinary card and cannot cover
+anything by construction. `CHROME_BOTTOM_FRACTION` and
+`CHROME_BOTTOM_NO_KEYBOARD` are retired, commented out with a note not to revive
+them. Hosts that pass no `barHost` (learn.js, Escape Key) keep the old floating
+bar unchanged.
+
+⚠️ **THE COUNTDOWN AND MODAL DO NOT MOVE.** Jake ruled the countdown must not
+cover the radar, which means it must not migrate to a card either — it overlays
+the thing it counts down to.
+
+⭐ **THE PLAY AREA GOT BIGGER, NOT SMALLER.** `.wrap` 760 → 1320: the old cap
+was costing more than the panels do. Measured in a browser at four viewports —
+**782 / 742 / 740 / 750px**, against 724 before. The plan's estimate of 816 did
+not account for the panel's own padding; the measured number is the true one.
+Radar folds out below 820 and controls drop below the frame under 1150, per
+Jake's fold order.
+
+⚠️⚠️ **THREE SIBLING CANVASES, NOT ONE WIDE CANVAS WITH AN INSET PLAYFIELD.**
+Lane positions and dome radii are derived from the play canvas's own `W`, and
+the radius **is** the coverage test that gives the city six lives. Round 91
+shrank it for looks, silently ended the three-deep overlap, and it looked fine.
+Siblings put none of that arithmetic in play. ⚠️ And the property is re-proved
+rather than assumed: `arcade-lesson-test.mjs` Part E asserts the overlap at
+seven play widths from 700 to 1284, asserts the outer pair still does NOT reach
+each other (or the graduated reveal collapses), and asserts the play column can
+never be floored below 724. Mutation-verified by widening the panels until the
+play area would shrink.
+
 ## Round 93 — 2026-09-08 — arcade time actually counts
 
 `daylog.js` **v1.10.0** added the `arcade` source last round; this round made a

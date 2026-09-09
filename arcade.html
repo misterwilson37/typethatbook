@@ -89,7 +89,48 @@
         margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
         font-family: "Courier Prime", ui-monospace, monospace;
     }
-    .wrap { max-width: 760px; margin: 0 auto; padding: 22px 18px 40px; }
+    /* ⚠️⚠️ 760 → 1320 (Round 94). THE OLD CAP WAS COSTING MORE THAN THE PANELS
+       DO: at 760 the keyboard board hits KEY_MAX_W and each flank is ~124px,
+       too narrow for four buttons — which is exactly why the control bar spilled
+       onto the keys. Widening gives the panels their space AND leaves the play
+       canvas ~816px, wider than the 724 it had before. */
+    .wrap { max-width: 1320px; margin: 0 auto; padding: 22px 18px 40px; }
+
+    /* ⚠️⚠️ THREE SIBLING COLUMNS, EACH WITH ITS OWN CANVAS — NOT ONE WIDE CANVAS
+       WITH AN INSET PLAYFIELD. game-deadline.js's lane positions and dome radii
+       are computed from the play canvas's own `W`, and the dome radius IS the
+       coverage test that gives the city six lives instead of three. Round 91
+       shrank that radius for looks, silently ended the three-deep overlap, and
+       it looked completely fine. An inset rect would put every one of those
+       numbers in play; siblings put none of them in play. */
+    .stage-grid {
+        display: grid;
+        grid-template-columns: 200px minmax(724px, 1fr) 240px;
+        gap: 14px;
+        align-items: start;
+    }
+    .side-card {
+        background: var(--panel); border: 1px solid var(--rule);
+        border-radius: 10px; padding: 12px;
+        min-height: 200px;
+    }
+    .side-card h2 {
+        font-size: .68rem; letter-spacing: 1px; color: var(--ink-ghost);
+        margin: 0 0 10px; font-weight: 400;
+    }
+    /* ⚠️ FOLD ORDER IS JAKE'S RULING: radar stays, controls drop below the
+       frame. ⚠️ AND THE PLAY COLUMN NEVER GOES BELOW 724px AT ANY BREAKPOINT —
+       that is the constraint to test, not the panel widths. */
+    @media (max-width: 1150px) {
+        .stage-grid { grid-template-columns: 200px minmax(724px, 1fr); }
+        #controls-col { grid-column: 1 / -1; min-height: 0; }
+        #controls-col .gc-bar-card { flex-direction: row; flex-wrap: wrap; }
+        #controls-col .gc-bar-card .gc-btn { width: auto; }
+    }
+    @media (max-width: 820px) {
+        .stage-grid { grid-template-columns: minmax(0, 1fr); }
+        #radar-col { display: none; }
+    }
     h1 { font-size: 1.3rem; margin: 0 0 2px; color: var(--accent); letter-spacing: 1px; }
     .beta {
         display: inline-block; font-size: .68rem; letter-spacing: 1px;
@@ -155,7 +196,17 @@
         <div id="err" class="err" style="display:none"></div>
     </div>
 
-    <div class="panel" id="stageWrap"><div id="stage"></div></div>
+    <div class="panel" id="stageWrap">
+        <div class="stage-grid">
+            <!-- ⚠️ EMPTY IN THIS ROUND, ON PURPOSE. The plan's step 1 is to widen
+                 and split with NO game code changed, so that if anything in the
+                 play area moves, it proves something was W-relative that should
+                 not have been. The radar is step 3. -->
+            <div class="side-card" id="radar-col"><h2>RADAR</h2></div>
+            <div id="stage"></div>
+            <div class="side-card" id="controls-col"><h2>CONTROLS</h2></div>
+        </div>
+    </div>
 
     <!-- ⚠️⚠️ BELOW THE FRAME, ON PURPOSE. Students, via Jake 2026-09-08: *"The
          block of text outside of the game (DEADLINE [Beta]...Play a lesson...)
@@ -551,6 +602,9 @@ function play() {
     if (handle) { handle.destroy(); handle = null; }
     handle = mountDeadline($('stage'), {
         config: cfg,
+        // ⚠️ THE BUTTONS LIVE IN THE RIGHT CARD NOW, not over the canvas.
+        // game-chrome.js keeps its floating fallback for hosts without one.
+        barHost: $('controls-col'),
         // ⚠️ A GETTER, not the object — see game-deadline.js's minuteLines().
         minutes: () => MINUTES,
         // ⚠️⚠️ ONE TICK PER GRADED SECOND. The date is stamped HERE, at the

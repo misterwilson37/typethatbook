@@ -1471,6 +1471,9 @@ export function mount(container, opts) {
     // were keyboard-only before this, which meant a student on an iPad with no
     // keyboard attached could not even quit.
     const chrome = mountChrome(container, {
+        // ⚠️ PASSED STRAIGHT THROUGH. This view has no opinion about where the
+        // buttons live; the page that mounts it does.
+        barHost: (opts && opts.barHost) || null,
         title: 'Deadline',
         hint: 'Words are falling on Nashville. Type the one closest to the ground. '
             + 'Esc gives up on a word so you can save a different landmark.',

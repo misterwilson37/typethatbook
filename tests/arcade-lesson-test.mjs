@@ -299,6 +299,75 @@ for (const f of ['uid:', 'date: dateStr', 'classId:', 'schoolId:']) {
 ok(!/typing_logs['"]\),\s*where/.test(code),
    '⚠️ still never QUERIES typing_logs — that is a read per launch, and the gate is the yardstick');
 
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\nE — SIDE PANELS: COVERAGE SURVIVES, AND THE PLAY AREA NEVER SHRINKS');
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ THE PLAN'S OWN CLOSING RULE: *"Assert three-deep overlap on the centre
+// lane AFTER the change... Do not verify by looking at it; it looked fine last
+// time."* Round 91 shrank the dome radius for looks, silently ended the overlap
+// that gives the city six lives instead of three, and nothing on screen said so.
+// The panels changed the play canvas's WIDTH, and every lane and radius is
+// derived from that width — so the property has to be re-proved at the new sizes,
+// not assumed because no dome code was edited.
+{
+    const lay = readFileSync(new URL('../game-layout.js', import.meta.url), 'utf8');
+    const num = k => {
+        const m = lay.match(new RegExp('export const ' + k + '\\s*=\\s*([0-9.]+)'));
+        return m ? Number(m[1]) : null;
+    };
+
+    // The same arithmetic game-deadline.js layout() performs, at a range of
+    // play-canvas widths the new grid can produce.
+    const coverageHolds = (W) => {
+        const n = 3;
+        const laneX = i => W * ((i + 1) / (n + 1));
+        const reach = Math.abs(laneX(Math.floor(n / 2)) - laneX(0));
+        const radius = Math.max(60, reach + 8);
+        const centre = laneX(1);
+        const allCoverCentre = [0, 1, 2].every(i => Math.abs(laneX(i) - centre) <= radius);
+        // ⚠️ AND THE OUTER PAIR MUST *NOT* REACH EACH OTHER, or every lane is
+        // covered by every dome and the graduated reveal collapses into "three
+        // hits then three hits" with no exposure in between.
+        const outersStayApart = Math.abs(laneX(0) - laneX(2)) > radius;
+        return allCoverCentre && outersStayApart;
+    };
+
+    for (const W of [700, 724, 776, 816, 900, 1100, 1284]) {
+        ok(coverageHolds(W), 'dome overlap holds at a ' + W + 'px play canvas');
+    }
+
+    // ⚠️ THE FLOOR IS THE PLAY CANVAS, NOT THE PANEL WIDTHS. The plan is explicit
+    // that the play area must never be narrower than it was before the panels.
+    const playMin = num('PLAY_MIN_W');
+    ok(playMin === 724, 'PLAY_MIN_W records today\'s width as the floor (' + playMin + ')');
+    const arcade = readFileSync(new URL('../arcade.html', import.meta.url), 'utf8');
+    const mins = [...arcade.matchAll(/minmax\((\d+)px,\s*1fr\)/g)].map(m => Number(m[1]));
+    ok(mins.length >= 2 && mins.every(v => v >= playMin),
+       '⚠️ every grid template floors the play column at or above PLAY_MIN_W — ' + JSON.stringify(mins));
+
+    // The three columns must actually fit the wrap they are given.
+    const wrap = num('WRAP_MAX_W'), radar = num('RADAR_COL_W'),
+          ctrl = num('CONTROL_COL_W'), gap = num('PANEL_GAP');
+    const play = wrap - 36 - radar - ctrl - 2 * gap;
+    ok(play >= playMin,
+       '⚠️⚠️ at the full wrap the play canvas is ' + play + 'px \u2014 wider than the ' +
+       playMin + 'px it had BEFORE the panels, which is what "without changing the size" required');
+
+    // ⚠️ THE OVERLAY CONSTANTS MUST STAY DEAD. Reviving them is reviving the bug.
+    ok(!/^export const CHROME_BOTTOM/m.test(lay),
+       'the retired chrome-overlay constants are not re-exported');
+    const chromeSrc = readFileSync(new URL('../game-chrome.js', import.meta.url), 'utf8');
+    ok(/barHost/.test(chromeSrc) && /gc-bar-card/.test(chromeSrc),
+       'game-chrome.js can host its bar outside the canvas');
+    ok(!/\.gc-bar\s*\{[^}]*position:absolute/.test(chromeSrc),
+       '⚠️ the default .gc-bar rule no longer positions itself over the canvas');
+    // ⚠️ THE COUNTDOWN AND MODAL STAY OVER THE PLAY AREA — Jake ruled the
+    // countdown must not cover the radar, which means it must not MOVE to a card.
+    ok(/wrap\.append\(panel\);/.test(chromeSrc),
+       'the countdown/modal panel still overlays the play container, not a side card');
+}
+
 console.log(fail
     ? `\narcade-lesson-test: ${pass} passed, ${fail} FAILED`
     : `arcade-lesson-test: all ${pass} assertions pass`);

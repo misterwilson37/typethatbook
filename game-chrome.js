@@ -37,7 +37,7 @@
 
 import { prefersReducedMotion } from './game-draw.js';
 
-export const GAME_CHROME_VERSION = '1.2.0';
+export const GAME_CHROME_VERSION = '1.3.0';
 
 // ⚠️ THREE SECONDS, AND THE SPAWNS WAIT FOR IT. Not the clock — the clock starts
 // on the first keystroke regardless, and always did.
@@ -55,8 +55,19 @@ const CSS = `
    ⚠️ THE VIEW SETS --gc-bottom TO THE KEYBOARD STRIP'S HEIGHT. With the board up
    the buttons sit in its left flank; with it off they drop to the floor. Either
    way nothing overlaps the sky. */
-.gc-bar { position:absolute; bottom:var(--gc-bottom, 8px); left:14px;
-          display:flex; gap:6px; pointer-events:auto; z-index:2; }
+.gc-bar { display:flex; gap:6px; pointer-events:auto; z-index:2; }
+/* ⚠️⚠️ THE OVERLAY POSITIONING IS GONE (Round 94). Jake: *"The buttons are a
+   nightmare. You can see that they cover the interface, which is a no go. Even
+   when the keyboard is hidden, they are offset awkwardly."* Every value we tried
+   for `bottom` landed the bar on something — the sky, the skyline, the keys —
+   because a floating bar over a full-bleed canvas has nowhere that is not
+   something. When a host supplies `barHost` the bar is an ordinary block in an
+   ordinary card and cannot cover anything by construction. */
+.gc-bar-card { flex-direction:column; align-items:stretch; gap:8px; }
+.gc-bar-card .gc-btn { width:100%; }
+/* ⚠️ FALLBACK ONLY, for a host that supplies no barHost (learn.js, and Escape
+   Key until it grows a card). Still off the sky: bottom-left, over the strip. */
+.gc-bar-float { position:absolute; bottom:8px; left:14px; }
 .gc-btn { background:rgba(6,10,18,0.86); color:#bfe9ff; border:1px solid #2b6c8a;
           border-radius:6px; padding:6px 12px; font:inherit; font-size:13px;
           cursor:pointer; min-width:44px; min-height:32px; }
@@ -100,7 +111,10 @@ export function mountChrome(container, opts) {
     if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
 
     const bar = document.createElement('div');
-    bar.className = 'gc-bar';
+    // ⚠️ THE HOST DECIDES WHETHER THIS IS A CARD OR AN OVERLAY. A host that
+    // passes barHost gets a static block inside its own layout; one that does
+    // not keeps the old floating bar, so learn.js and Escape Key are untouched.
+    bar.className = 'gc-bar' + (o.barHost ? ' gc-bar-card' : ' gc-bar-float');
     const btnPause = mkBtn('Pause');
     const btnMute = mkBtn(o.muted ? 'Sound off' : 'Sound on');
     // ⚠️ OPTIONAL, AND ABSENT WHEN THE VIEW DOES NOT OFFER IT. Escape Key has no
@@ -118,8 +132,14 @@ export function mountChrome(container, opts) {
     const panel = document.createElement('div');
     panel.className = 'gc-panel gc-hidden';
 
-    wrap.append(bar, panel);
+    // ⚠️⚠️ THE PANEL AND COUNTDOWN STAY IN THE PLAY CONTAINER, ALWAYS. Jake's
+    // ruling: the countdown must not cover the radar. It is an overlay on the
+    // thing it is counting down TO, and that is the play area — moving it into a
+    // side card would put "3… 2… 1…" beside the game instead of over it.
+    wrap.append(panel);
     container.appendChild(wrap);
+    if (o.barHost) o.barHost.appendChild(bar);
+    else wrap.appendChild(bar);
 
     let phase = 'ready';
     let countdownFrom = null;
