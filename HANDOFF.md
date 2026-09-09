@@ -208,7 +208,7 @@
 >
 > ### THE STATE OF PLAY
 >
-> * **87 harnesses pass, `audit:versions` 0 problems.** No new harness files;
+> * **88 harnesses pass, `audit:versions` 0 problems.** No new harness files;
 >   two rewritten (`popularity-sort-test.mjs` v1.0.0 → **v2.0.0**, 27 → 48
 >   assertions; `featured-shelf-test.mjs` v1.1.0 → **v1.2.0**, 27 → 35).
 > * ⚠️⚠️ **NOTHING WAS TOUCHED IN `learn.js`, `arcade.html`, `game.js` OR ANY
@@ -341,7 +341,7 @@
 >
 > ### THE STATE OF PLAY
 >
-> * **87 harnesses pass, `audit:versions` 0 problems.** Four new this round
+> * **88 harnesses pass, `audit:versions` 0 problems.** Four new this round
 >   (three from Round 82, plus `arcade-lesson-test.mjs`), all registered.
 > * ⚠️⚠️ **THE GAMES ARE DELIBERATELY *NOT* IN `versions.js` SOURCES.** Round 82's
 >   `INTEGRATION.md` §3 is right: while they are inert the build panel would fetch
