@@ -97,7 +97,21 @@ mod.sessionLogInit({
     },
 });
 
-const TODAY = '2026-08-20';
+// ⚠️⚠️ RELATIVE TO NOW, NOT A HARDCODED DATE — AND THIS FILE FAILED FOR REAL
+// BECAUSE IT WAS ONE. It pinned TODAY = '2026-08-20', and session-log.js drops
+// anything older than STALE_DAYS (21) on load. ⭐ SO THE HARNESS PASSED FOR
+// EXACTLY TWENTY-ONE DAYS AND THEN FAILED FOREVER, with nothing in the app
+// changed — every record it queued was stale on arrival and `sessionLogPending()`
+// correctly answered 0.
+//
+// ⚠️ A TIME BOMB IS THE WORST KIND OF RED TEST because it fails long after the
+// commit that armed it, and it fails on an untouched repo — so it reads exactly
+// like a pre-existing defect somebody else should look at. That is how Rounds
+// 102–104 carried nine `jsdom` failures forward without reading one error.
+//
+// ⚠️ ANY FIXTURE DATE THIS SUITE USES MUST BE DERIVED FROM `Date.now()`. The
+// staleness rule is a real rule and the harness has to live inside it.
+const TODAY = new Date().toISOString().slice(0, 10);
 let seq = 0;
 function rec(seconds = 60, date = TODAY, source = 'library') {
     seq++;

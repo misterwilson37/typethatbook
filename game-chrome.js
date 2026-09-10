@@ -1,3 +1,10 @@
+// game-chrome.js v1.9.0 — Round 111 (Bar-Let): THE WHOLE RUN IS REACHABLE FROM
+//   THE HOME ROW — Enter starts, Enter plays again, Escape pauses, Enter or
+//   Escape resumes. ⚠️⚠️ THE START HANDLER USED TO REMOVE ITSELF AT COUNTDOWN, so
+//   Enter worked exactly ONCE per mount and every restart needed the mouse.
+//   ⭐ THE MOUSE IS A POSTURE PROBLEM, NOT A CONVENIENCE ONE: every reach for it
+//   takes a hand off the home row, which is the one habit this app exists to
+//   build. ⚠️ SPACE RESUMES NOTHING — it is a live typing key in all three games.
 // game-chrome.js v1.8.0 — Round 109 (Bar-Let): ESCAPE PAUSES ANY GAME. Jake:
 //   *"The escape key should pause any game - this gives the hover mechanic to
 //   work."* ⚠️ IT LIVES HERE, NOT IN THE THREE VIEWS — pause is already this
@@ -85,7 +92,7 @@
 
 import { prefersReducedMotion } from './game-draw.js';
 
-export const GAME_CHROME_VERSION = '1.8.0';
+export const GAME_CHROME_VERSION = '1.9.0';
 
 // ⚠️ THREE SECONDS, AND THE SPAWNS WAIT FOR IT. Not the clock — the clock starts
 // on the first keystroke regardless, and always did.
@@ -357,9 +364,44 @@ export function mountChrome(container, opts) {
     window.addEventListener('keydown', readyKey, true);
     }
 
+    /**
+     * ⚠️⚠️ THE WHOLE RUN IS REACHABLE FROM THE HOME ROW. Jake, 2026-09-10:
+     * *"Enter should play again - ideally a kid would never have to use the mouse
+     * once he's in the game... That way they can stay on home row for as long as
+     * possible."*
+     *
+     * ⭐ THE MOUSE IS NOT A CONVENIENCE PROBLEM, IT IS A POSTURE PROBLEM. Every
+     * reach for it takes a hand off the home row, and the one habit this entire
+     * app exists to build is the hand that stays there. A game that ends with a
+     * mouse click undoes a little of its own lesson every round.
+     *
+     * ⚠️ THIS HANDLER USED TO REMOVE ITSELF AT `beginCountdown()`, so Enter
+     * worked exactly once — on the very first start — and every restart after
+     * that needed the mouse. ⭐ IT NOW LIVES FOR THE WHOLE MOUNT and switches on
+     * `phase`, which is the state that already decides what a key should mean.
+     *
+     *   ready   Enter / Space  start
+     *   over    Enter          play again
+     *   paused  Enter / Escape resume
+     *   playing Escape         pause (in pauseKey, so it can stop propagation)
+     *
+     * ⚠️ SPACE RESUMES NOTHING. It is a live typing key in all three games, and a
+     * student unpausing with it would fire a keystroke into the run they just
+     * came back to.
+     */
     function readyKey(e) {
-        if (phase !== 'ready') return;
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); beginCountdown(); }
+        if (phase === 'ready') {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); beginCountdown(); }
+            return;
+        }
+        if (phase === 'over') {
+            // ⚠️ ONLY WHEN A RESTART IS ACTUALLY ON OFFER. Enter on a result panel
+            // with no PLAY AGAIN button would silently do nothing, which reads as
+            // a stuck game rather than as a disabled key.
+            if (e.key === 'Enter' && o.onRestart) { e.preventDefault(); o.onRestart(); }
+            return;
+        }
+        if (phase === 'paused' && e.key === 'Enter') { e.preventDefault(); setPaused(false); }
     }
 
     // ⚠️⚠️ WHO OWNS THE THREE DIGITS IS DECIDED BY THE HOST, ONCE, HERE. A view
@@ -371,7 +413,6 @@ export function mountChrome(container, opts) {
     const hostOwnsCount = typeof o.onCountdown === 'function';
 
     function beginCountdown() {
-        window.removeEventListener('keydown', readyKey, true);
         phase = 'countdown';
         countdownFrom = performance.now();
         let num = null;

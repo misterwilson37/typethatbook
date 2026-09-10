@@ -753,6 +753,48 @@ export class EscapeBoard {
         return (last.stepsIn || 0) >= gap;
     }
 
+    /**
+     * Is the student under threat right now?
+     *
+     * ⚠️ THREAT IS AXIS-SHAPED, because the creatures are. A kaiju two rows away
+     * is not a threat to anyone; a kaiju on your row is, and so is a spider in
+     * your column. ⭐ THE HUNTER IS ALWAYS A THREAT — that is what it is for.
+     * ⚠️ A PEEKING OR STUCK CREATURE DOES NOT COUNT. It cannot act this turn, so
+     * treating it as pressure would let the student idle behind it.
+     */
+    inDanger() {
+        return this.enemies.some(e => {
+            if (e.peek > 0 || e.stunSteps > 0) return false;
+            if (e.kind === 'hunter') return true;
+            if (e.kind === 'kaiju') return e.y === this.player.y;
+            return e.x === this.player.x;
+        });
+    }
+
+    /**
+     * Which row (kaiju) or column (spider) a new creature should take.
+     *
+     * ⭐ THE STUDENT'S OWN LANE WHEN THEY ARE SAFE; AN UNCOVERED LANE WHEN THEY
+     * ARE NOT. ⚠️ THE SECOND HALF IS WHAT BREAKS THE TRAIN — without it, three
+     * kaiju stack into one row and the other four are free forever.
+     * ⚠️ AND IT FALLS BACK TO RANDOM rather than to a fixed lane: with every lane
+     * covered, a deterministic choice would make the sixth creature's position
+     * predictable at exactly the moment the board is most dangerous.
+     */
+    laneFor(kind) {
+        const axisOf = e => (e.kind === 'kaiju' ? e.y : e.x);
+        const span = kind === 'kaiju' ? ROWS : COLS;
+        const mine = kind === 'kaiju' ? this.player.y : this.player.x;
+        if (!this.inDanger()) return mine;
+        const covered = new Set(this.enemies
+            .filter(e => e.kind === kind && !e.dead)
+            .map(axisOf));
+        const free = [];
+        for (let i = 0; i < span; i++) if (!covered.has(i)) free.push(i);
+        if (!free.length) return Math.floor(this.rand() * span);
+        return free[Math.floor(this.rand() * free.length)];
+    }
+
     maybeSpawn() {
         if (!this.waveDue()) return null;
         this._fillSchedule(this.wave + 4);
@@ -763,16 +805,41 @@ export class EscapeBoard {
         // arrives from the top or bottom. ⚠️ THE HUNTER HAS NO AXIS and arrives at
         // whichever edge cell is farthest from the player, so it never opens with
         // a free catch.
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️ A NEW CREATURE THREATENS THE STUDENT IF NOTHING ELSE DOES
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // Jake, 2026-09-10: *"Creatures are pretty much always spawning on the
+        // same rows/columns, so you'll just have a train of Kaiju. I was able to
+        // sit still for multiple turns without having to do anything. New
+        // creatures should check to see if I'm in any danger and put me in danger
+        // if I'm not. That way I have to keep moving."*
+        //
+        // ⭐ THE TRAIN AND THE SITTING STILL ARE THE SAME BUG. A uniformly random
+        // lane is random about the BOARD and says nothing about the PLAYER, so it
+        // happily stacks three kaiju into one row — a train — while leaving the
+        // student's own row untouched for a minute. ⚠️ AND A TYPING GAME WHERE
+        // STANDING STILL IS SAFE IS A TYPING GAME WITH AN IDLE STRATEGY.
+        //
+        // ⭐ SO THE LANE IS CHOSEN, NOT ROLLED: if nothing currently threatens
+        // them, the new creature takes their row (kaiju) or column (spider). If
+        // something already does, it takes a lane that is NOT already covered, so
+        // the pressure spreads instead of piling into a train.
+        // ⚠️ THIS NEVER SPAWNS ON TOP OF THEM — a creature enters at the edge and
+        // still peeks for a step, so the student always has a turn to move.
         let spot;
         if (kind === 'kaiju') {
             const fromLeft = this.rand() < 0.5;
-            spot = { x: fromLeft ? 0 : COLS - 1, y: Math.floor(this.rand() * ROWS),
-                     dir: fromLeft ? 1 : -1 };
+            spot = { x: fromLeft ? 0 : COLS - 1, dir: fromLeft ? 1 : -1,
+                     y: this.laneFor('kaiju') };
         } else if (kind === 'spider') {
             const fromTop = this.rand() < 0.5;
-            spot = { x: Math.floor(this.rand() * COLS), y: fromTop ? 0 : ROWS - 1,
-                     dir: fromTop ? 1 : -1 };
+            spot = { y: fromTop ? 0 : ROWS - 1, dir: fromTop ? 1 : -1,
+                     x: this.laneFor('spider') };
         } else {
+            // ⚠️ THE HUNTER NEEDS NO LANE RULE — it comes for the student by
+            // definition. It still enters at the FARTHEST corner so it never
+            // opens with a free catch.
             const corners = [{ x: 0, y: 0 }, { x: COLS - 1, y: 0 },
                              { x: 0, y: ROWS - 1 }, { x: COLS - 1, y: ROWS - 1 }];
             corners.sort((a, b) =>

@@ -606,6 +606,8 @@ export function mount(container, opts) {
                 // DISTANCE. A bar filling toward an event that is not on a timer
                 // would be an animation telling a lie.
                 progress: waveProgress(),
+                // ⭐ THE ONE RULE THAT REWARDS APPROACHING SOMETHING.
+                tip: true,
             });
         }
         if (gaugeCtx) {
@@ -615,6 +617,8 @@ export function mount(container, opts) {
                 W: size.w, H: size.h,
                 seconds: rep.seconds,
                 shieldsLeft: rep.shieldsLeft,
+                // ⚠️ THE FIELD KEEPS game-shell.js's NAME; only the LABEL changes.
+                livesLabel: 'LIVES',
                 wpm: rep.wpm,
                 acc: rep.acc,
                 todayClock: m ? m.todayClock : null,

@@ -1,5 +1,80 @@
 # CHANGELOG — TypeThatBook
 
+## Round 111 (Bar-Let) — 2026-09-10 — standing still stops working, and the mouse is optional
+
+### ⚠️⚠️ THE KAIJU TRAIN AND THE SAFE IDLE WERE ONE BUG
+
+Jake: *"Creatures are pretty much always spawning on the same rows/columns, so
+you'll just have a train of Kaiju. I was able to sit still for multiple turns
+without having to do anything."*
+
+⭐ **A UNIFORMLY RANDOM LANE IS RANDOM ABOUT THE BOARD AND SAYS NOTHING ABOUT THE
+PLAYER.** It happily stacks three kaiju into one row — the train — while leaving
+the student's own row untouched for a minute. ⚠️ **AND A TYPING GAME WHERE
+STANDING STILL IS SAFE HAS AN IDLE STRATEGY**, which is the one thing an arcade
+graded on time cannot afford.
+
+⭐ **THE LANE IS NOW CHOSEN, NOT ROLLED**: if nothing currently threatens the
+student, the new creature takes their row (kaiju) or column (spider). If something
+already does, it takes a lane **not already covered**, so pressure spreads instead
+of piling up. ⚠️ It never spawns on top of them — entry is at the edge and the
+peek still costs a step, so there is always a turn to move.
+
+⚠️ **THREAT IS AXIS-SHAPED, BECAUSE THE CREATURES ARE.** A kaiju two rows away
+threatens nobody. ⚠️ A peeking or webbed creature does not count either — it
+cannot act this turn, so counting it would let the student idle behind it.
+
+Measured: longest safe idle **5 steps**, and **zero** boards with three kaiju in a
+row.
+
+### ⭐ "SHIELDS" IS "LIVES"
+
+⚠️ Right for Deadline too — a frog on a grid has no shields, and "lives" is a word
+every twelve-year-old already owns. ⚠️ **THE FIELD KEEPS `shieldsLeft`**, because
+`game-shell.js`'s counter is called that, and renaming a number in one file to
+match a label in another is how two names for one thing get started.
+
+### ⭐ THE PANEL EXPLAINS THE EXTRA LIFE
+
+⚠️ It is the **only rule in the game that rewards approaching something**, and
+every instinct the other two creatures teach says run. A student who never learns
+it never gets a life back. ⚠️ Drawn only when there is room, and wrapped **by
+measurement** — the panel is 210px on the page and 230 on the bench, and a
+hardcoded wrap is exactly how "when the board clears" got clipped last round.
+
+### ⭐ THE WHOLE RUN IS REACHABLE FROM THE HOME ROW
+
+Enter starts, Enter plays again, Escape pauses, Enter or Escape resumes.
+
+⚠️⚠️ **THE START HANDLER USED TO REMOVE ITSELF AT COUNTDOWN**, so Enter worked
+exactly once per mount and every restart needed the mouse. ⭐ **THE MOUSE IS A
+POSTURE PROBLEM, NOT A CONVENIENCE ONE**: every reach for it takes a hand off the
+home row, which is the one habit this whole app exists to build. ⚠️ **SPACE
+RESUMES NOTHING** — it is a live typing key in all three games, and unpausing with
+it would fire a keystroke into the run you just came back to.
+
+---
+
+### ⚠️⚠️⚠️ `queue-owner-test.mjs` WAS A TIME BOMB, AND I ALMOST FILED IT AS SOMEONE ELSE'S
+
+It pinned `const TODAY = '2026-08-20'`, and `session-log.js` drops records older
+than `STALE_DAYS` (21) on load. ⭐ **THE HARNESS PASSED FOR EXACTLY TWENTY-ONE
+DAYS AND THEN FAILED FOREVER**, with nothing in the app changed: every record it
+queued was stale on arrival, and `sessionLogPending()` correctly answered 0.
+
+⚠️⚠️ **A TIME BOMB IS THE WORST KIND OF RED TEST** — it fails long after the
+commit that armed it, it fails on an untouched repo, and so it reads exactly like
+a pre-existing defect for somebody else. **That is precisely how Rounds 102–104
+carried nine `jsdom` failures forward without reading one error**, and last round
+I wrote it up as "not from this round" myself. ⭐ Reading the assertion took two
+minutes.
+
+⚠️ **ANY FIXTURE DATE IN THIS SUITE MUST BE DERIVED FROM `Date.now()`.** The
+staleness rule is real and the harness has to live inside it.
+
+**ALL 93 HARNESSES PASS** — genuinely, for the first time in several rounds.
+⚠️⚠️ **NOT BROWSER-VERIFIED.**
+
 ## Round 110 (Bar-Let) — 2026-09-10 — repeats, dead seams, and a board that could trap you
 
 ### ⚠️⚠️ THE SAME EIGHT WORDS, THIRTY TIMES

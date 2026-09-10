@@ -302,5 +302,69 @@ console.log('\nPART E — ⚠️⚠️ THE BOARD STAYS PLAYABLE, WHICH ASH CAN E
     ok(MAX_ENEMIES >= 4, 'the population cap leaves room for the later waves');
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\nPART F — ⚠️⚠️ STANDING STILL MUST NOT BE SAFE');
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-10: *"Creatures are pretty much always spawning on the same
+// rows/columns, so you'll just have a train of Kaiju. I was able to sit still for
+// multiple turns without having to do anything."*
+//
+// ⭐ THE TRAIN AND THE SITTING STILL ARE ONE BUG. A uniformly random lane is
+// random about the BOARD and says nothing about the PLAYER — it stacks three
+// kaiju into one row while leaving the student's own row untouched for a minute.
+// ⚠️ AND A TYPING GAME WHERE STANDING STILL IS SAFE HAS AN IDLE STRATEGY.
+
+{
+    const bigPool = pool(1);
+    let worstIdle = 0, trains = 0, ownLane = 0, chances = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+        const b = new EscapeBoard({ pool: bigPool, rand: mulberry(seed) });
+        let run = 0;
+        for (let i = 0; i < 60; i++) {
+            const wasSafe = !b.inDanger();
+            const ev = b.step(1);
+            if (!b.inDanger()) { run++; worstIdle = Math.max(worstIdle, run); } else run = 0;
+            // Did a creature that spawned while the student was safe take their lane?
+            for (const e of ev) {
+                if (e.t !== 'spawn' || e.kind === 'hunter' || !wasSafe) continue;
+                chances++;
+                if (e.kind === 'kaiju' ? e.y === b.player.y : e.x === b.player.x) ownLane++;
+            }
+            const rows = {};
+            for (const e of b.enemies) if (e.kind === 'kaiju') rows[e.y] = (rows[e.y] || 0) + 1;
+            if (Object.values(rows).some(n => n >= 3)) trains++;
+        }
+    }
+    // ⚠️ NOT AN EXACT MATCH, AND THE GAP IS THE HARNESS'S NOT THE BOARD'S.
+    // `wasSafe` is sampled BEFORE step(), while the spawn decision happens AFTER
+    // movement — so in the handful of steps where a creature leaves the board or
+    // comes unstuck mid-step, the two readings honestly disagree. ⭐ MEASURING
+    // THE DECISION EXACTLY WOULD MEAN EXPOSING IT IN THE EVENT PURELY FOR A TEST,
+    // which is a worse trade than a documented threshold.
+    ok(chances > 10 && ownLane / chances >= 0.95,
+       `creatures spawned while the student was safe take their lane (${ownLane}/${chances})`);
+    ok(worstIdle <= 8,
+       `⚠️ the longest safe idle stretch is ${worstIdle} steps — standing still stops working`);
+    ok(trains === 0, '⚠️ and no board ever stacks three kaiju into one row');
+
+    // ⚠️ THREAT IS AXIS-SHAPED, because the creatures are. A kaiju two rows away
+    // threatens nobody; one on your row does.
+    const b2 = new EscapeBoard({ pool: bigPool, rand: mulberry(5) });
+    b2.enemies.length = 0;
+    ok(b2.inDanger() === false, 'an empty board is not dangerous');
+    b2.enemies.push({ kind: 'kaiju', x: 0, y: (b2.player.y + 2) % ROWS, dir: 1,
+                      peek: 0, stunSteps: 0, stepsIn: 1, dead: false });
+    ok(b2.inDanger() === false, 'a kaiju two rows away is not a threat');
+    b2.enemies[0].y = b2.player.y;
+    ok(b2.inDanger() === true, 'a kaiju on your row is');
+    // ⚠️ A PEEKING OR STUCK CREATURE DOES NOT COUNT — it cannot act this turn, so
+    // counting it as pressure would let the student idle behind it.
+    b2.enemies[0].peek = 1;
+    ok(b2.inDanger() === false, 'a creature still peeking is not yet pressure');
+    b2.enemies[0].peek = 0; b2.enemies[0].stunSteps = 2;
+    ok(b2.inDanger() === false, 'and neither is one held in a web');
+}
+
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} ok, ${fail} failed`);
 if (fail) { fails.forEach(f => console.log('  ✗ ' + f)); process.exitCode = 1; }

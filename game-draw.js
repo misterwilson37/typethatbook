@@ -1215,7 +1215,14 @@ export function drawGauges(ctx, o) {
             ? '  ' + Math.max(0, Math.min(9, o.countdown))
             : Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
         label(x, y + 8, counting ? 'GET READY' : 'RUN CLOCK');
-        if (o.shieldsLeft != null) label(x + w, y + 8, 'SHIELDS', 'right');
+        // ⚠️⚠️ THE WORD IS THE CALLER'S. Jake, 2026-09-10: *"Shields doesn't make
+        // any sense. It should be lives."* ⭐ HE IS RIGHT AND IT WAS RIGHT FOR
+        // DEADLINE TOO — a frog on a grid has no shields, a ship has hull, and
+        // "lives" is the word every twelve-year-old already owns. ⚠️ THE FIELD
+        // NAME STAYS `shieldsLeft` because game-shell.js's counter is called
+        // that, and renaming a number in one file to match a label in another is
+        // how two names for one thing get started.
+        if (o.shieldsLeft != null) label(x + w, y + 8, o.livesLabel || 'LIVES', 'right');
         const top = y + 14;
         drawSevenSeg(ctx, {
             x, y: top, h: LAY.SEG_TIME_H, text,
@@ -1610,6 +1617,39 @@ export function drawWavePreview(ctx, o) {
         ctx.globalAlpha = 1;
     });
 
+    // ⭐⭐ THE SPACE UNDER THE QUEUE EXPLAINS THE ONE MECHANIC NOBODY WOULD GUESS.
+    // Jake, 2026-09-10: *"the open space in the bottom left would be a great place
+    // to put the capture a caught bot to regain a life! explanation."*
+    // ⚠️ IT IS THE ONLY RULE IN THE GAME THAT REWARDS APPROACHING SOMETHING, and
+    // every instinct the other two creatures teach says run. A student who never
+    // learns it never gets a life back, so the panel says it out loud rather than
+    // waiting for them to try walking into a robot.
+    // ⚠️ DRAWN ONLY IF THERE IS ROOM. Squeezing it in on a short window would push
+    // the fourth queue row off the bottom, and the queue is the panel's job.
+    const tipTop = top + waves.length * rowH + 6;
+    if (o.tip && H - tipTop > 68) {
+        ctx.globalAlpha = 1;
+        roundRect(ctx, pad, tipTop, W - pad * 2, H - tipTop - pad, 6);
+        ctx.fillStyle = 'rgba(163,44,196,0.10)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(163,44,196,0.45)'; ctx.lineWidth = 1; ctx.stroke();
+
+        const s2 = ENEMY_SPRITES.hunter;
+        if (s2) drawPixelSprite(ctx, s2, ENEMY_PALETTES.hunter,
+                                pad + 24, tipTop + 26, 34);
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+        ctx.font = 'bold 10px "Courier Prime", monospace';
+        ctx.fillStyle = '#ffd700';
+        ctx.fillText('EXTRA LIFE', pad + 46, tipTop + 12);
+        ctx.font = '10px "Courier Prime", monospace';
+        ctx.fillStyle = '#c3d4e8';
+        // ⚠️ WRAPPED BY MEASUREMENT, NOT BY A GUESSED CHARACTER COUNT. This panel
+        // is 210px on the page and 230 on the bench, and a hardcoded wrap would
+        // truncate on one of them — which is exactly how "when the board clears"
+        // got clipped last round.
+        wrapText(ctx, 'A robot stuck in a web can be typed. Do it and you get a life back.',
+                 pad + 46, tipTop + 26, W - pad * 2 - 52, 12);
+    }
+
     if (o.progress != null) {
         const bw = W - pad * 2, by = top + rowH - 6;
         roundRect(ctx, pad, by, bw, 4, 2);
@@ -1618,6 +1658,19 @@ export function drawWavePreview(ctx, o) {
         ctx.fillStyle = '#a32cc4'; ctx.fill();
     }
     ctx.restore();
+}
+
+/** ⚠️ MEASURES EVERY WORD. A panel whose width changes between the page and the
+ *  bench cannot use a character count. */
+function wrapText(ctx, text, x, y, maxW, lineH) {
+    let line = '', ty = y;
+    for (const word of String(text).split(' ')) {
+        const test = line ? line + ' ' + word : word;
+        if (ctx.measureText(test).width > maxW && line) {
+            ctx.fillText(line, x, ty); ty += lineH; line = word;
+        } else line = test;
+    }
+    if (line) ctx.fillText(line, x, ty);
 }
 
 /** Up/down for the spider, left/right for the kaiju, a target for the hunter. */

@@ -479,6 +479,8 @@ export function mount(container, opts) {
                 // different word, so it reuses the console rather than growing a
                 // third one.
                 shieldsLeft: rep.shieldsLeft,
+                // ⚠️ THE FIELD KEEPS game-shell.js's NAME; only the LABEL changes.
+                livesLabel: 'LIVES',
                 wpm: rep.wpm, acc: rep.acc,
                 todayClock: m ? m.todayClock : null,
                 weekClock: m ? m.weekClock : null,
