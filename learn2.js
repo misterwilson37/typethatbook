@@ -246,6 +246,7 @@ import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 import { typedRunCount, maxReachableRunIdx, openingRunIdx } from './run-picker.js';
 import { planGameSlot, GAME_MIN_KEYS as SLOT_MIN_KEYS,
          PROSE_TYPES as SLOT_PROSE_TYPES } from './game-slot.js';
+import { panelOptionsFor } from './game-names.js';
 // ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
 // rule in it is a function of numbers this file passes in, which is why the whole
 // design is covered by lesson-gate-test.mjs without driving a browser.
@@ -363,7 +364,7 @@ import { mount as mountDeadline } from "./game-deadline.js";
 // number, not a deploy number: it means nothing to any student-facing page,
 // the way game-deadline.js's own 1.0.0 meant nothing until Round 82's ruling
 // that "nothing to this moment has had a version" applied to it.
-const LEARN_VERSION = "0.5.0-staging";
+const LEARN_VERSION = "0.6.0-staging";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -2865,7 +2866,19 @@ function destroyGameHandle() {
         gameHandle = null;
     }
     const gm = document.getElementById('game-mount');
-    if (gm) { gm.classList.add('hidden'); gm.innerHTML = ''; }
+    if (gm) gm.innerHTML = '';
+    // ⚠️ THE WRAP IS WHAT HIDES, NOT THE MOUNT. #game-mount is the middle cell of
+    // a three-column grid; hiding it alone leaves the radar and console cards
+    // standing empty on the lesson page between runs.
+    const gw = document.getElementById('game-wrap');
+    if (gw) gw.classList.add('hidden');
+    // ⚠️⚠️ AND THE HUD OVERRIDE IS CLEARED HERE, WHICH IS HALF OF WHY IT IS SAFE.
+    // updateHUD() shows the game's own wpm/acc while this is set; left standing,
+    // a finished game's frozen numbers would sit over the next TYPED run — the
+    // same Rule 11 lie as the one it was added to fix, pointing the other way.
+    // ⭐ THIS FUNCTION IS CALLED FROM EVERY EXIT THIS FILE HAS (see the header
+    // banner), which is exactly why the clear belongs here and nowhere else.
+    gameNumbers = null;
 }
 
 // ⚠️⚠️ THE GAME'S OWN TIME-BANKING SITE — A SECOND ONE, DELIBERATELY, AND ONLY
@@ -3115,7 +3128,10 @@ function beginGameStep(stepIdx) {
     accDisplay.textContent = '100%';
 
     const gameMount = document.getElementById('game-mount');
-    gameMount.classList.remove('hidden');
+    // ⚠️ THE WRAP CARRIES .hidden NOW, NOT THE MOUNT. #game-mount is the middle
+    // cell of a three-column grid; hiding the cell alone would leave two empty
+    // flank cards standing on the lesson page between runs.
+    document.getElementById('game-wrap').classList.remove('hidden');
     gameMount.innerHTML = '';
 
     // ⚠️ THE SAME missionConfigFromRun() arcade.html CALLS, given the same run
@@ -3141,12 +3157,38 @@ function beginGameStep(stepIdx) {
         // is leaderboard only — see finishGameStep() for the field split that
         // keeps it out of the grade.
         survival: !!currentStep.survival,
-        minutes: () => ({ dailySeconds: statsData.secondsToday, weeklySeconds: statsData.secondsWeek }),
+        // ⚠️⚠️ THE SAME panelOptionsFor() arcade.html CALLS, WITH THE SAME ELEMENT
+        // IDS. Jake, 2026-09-10: *"the game is a mess due to the layout that's
+        // there... nigh impossible for students."* This page mounted Deadline
+        // with NO panels, NO barHost and NO gauge — so game-chrome.js fell back
+        // to its floating button bar and dropped it straight onto the in-canvas
+        // BANKED readout, and there was no radar at all, which in the arcade is
+        // how a student sees what is coming.
+        // ⭐ IDENTICAL TO THE DEFECT I FIXED IN arcade.html's playFree() EARLIER
+        // THE SAME DAY, in the other direction — which is precisely why the
+        // wiring is one shared function and not a list of options per page.
+        // ⚠️ DO NOT INLINE THESE OPTIONS HERE. An object literal in this file is
+        // unreachable by any harness; see game-names.js's header on why that
+        // mattered.
+        ...panelOptionsFor('deadline', {
+            barHost: document.getElementById('controls-col'),
+            gauge:   document.getElementById('gauge-canvas'),
+            left:    document.getElementById('radar-canvas'),
+            threat:  document.getElementById('threat-canvas'),
+            minutes: () => ({ dailySeconds: statsData.secondsToday,
+                              weeklySeconds: statsData.secondsWeek }),
+        }),
         onSecond: () => bankGameSecond(),
         // Live HUD only — the report frozen at onEnd is what actually grades.
         onTick: rep => {
             chars = rep.chars;
             mistakes = rep.mistakes;
+            // ⚠️⚠️ THE HUD SHOWS THESE TWO FIELDS VERBATIM — see updateHUD(). The
+            // page used to keep `chars`/`mistakes` and derive its own WPM from
+            // `stepSeconds`, which is a different clock from the game's, so the
+            // two readouts on one screen disagreed. `chars` and `mistakes` are
+            // still tracked because logRun() and the result modal need them.
+            gameNumbers = { wpm: rep.wpm, acc: rep.acc };
             updateHUD();
         },
         onEnd: rep => finishGameStep(rep),
@@ -3980,7 +4022,44 @@ function accuracyPct() {
     return chars > 0 ? Math.round(((chars - mistakes) / chars) * 100) : 100;
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ DURING A GAME RUN THE HUD DISPLAYS THE GAME'S NUMBERS. IT DOES NOT
+// RECOMPUTE THEM. Round 114 (Carriage) — RULE 11.
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake's screenshot, 2026-09-10, mid-game: the top bar read **Acc: 94%** while
+// the game's own footer read **95% accurate**, same instant, same screen.
+//
+// ⭐ ONE QUANTITY, TWO READERS, TWO ANSWERS — which is the exact thing Rule 11
+// forbids. And accuracy is the number a lesson is GATED on.
+//
+// ⚠️ THE FORMULAS WERE NEVER THE PROBLEM. game-shell.js's netWPM() and
+// accuracyPct() are character-for-character learn.js's, deliberately, and its
+// header says so. ⭐ THE DENOMINATORS WERE. This page's netWPM() divides by
+// `stepSeconds`, the LESSON's step clock, which starts when the run begins; the
+// game divides by its OWN elapsed clock, which starts when the countdown ends.
+// Two clocks, therefore two speeds, and no formula change could ever have
+// reconciled them.
+//
+// ⭐ SO THERE IS ONE RECORD NOW: the report the game emits on every tick. Jake's
+// ruling, 2026-09-10, when offered three options: *"Keep them, but read them from
+// the game's numbers."* The game is the thing that GRADES the run —
+// finishGameStep() writes its report — so it is the only thing entitled to say
+// what the run is worth.
+//
+// ⚠️ SET AND CLEARED IN EXACTLY TWO PLACES: beginGameStep()'s onTick, and
+// destroyGameHandle(). A stale override would show a finished game's numbers over
+// a live typed run, which is the same class of lie in the other direction.
+let gameNumbers = null;
+
 function updateHUD() {
+    // ⚠️ NO ROUNDING, NO ARITHMETIC, NO FALLBACK ARITHMETIC. Recomputing "just in
+    // case a field is missing" is how a second answer gets back in.
+    if (gameNumbers) {
+        wpmDisplay.textContent = gameNumbers.wpm;
+        accDisplay.textContent = gameNumbers.acc + '%';
+        return;
+    }
     wpmDisplay.textContent = netWPM();
     accDisplay.textContent = accuracyPct() + '%';
 }

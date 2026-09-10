@@ -593,7 +593,7 @@ comment rather than closing it.
 
 #### Two things to know before the next round
 
-**Run `npm install` first.** The full suite reports 10 failures of 96 on a fresh
+**Run `npm install` first.** The full suite reports 10 failures of 97 on a fresh
 container and 1 after installing. Nine of them are just absent `devDependencies`
 (`acorn`, `acorn-walk`, `jsdom`, `@xmldom/xmldom`, `jszip`) and look identical to
 nine broken harnesses. Also: `npm install` rewrites `package.json` — it bumps the

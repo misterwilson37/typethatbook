@@ -84,7 +84,7 @@
 > `game-chrome.js` **v1.9.0**, `game-shell.js` **v1.7.0**,
 > `game-layout.js` **v1.5.0**, `game-deadline.js` **v1.11.0**.
 >
-> * **96 harnesses pass** after `npm install` — ⚠️ see rule 1; without it
+> * **97 harnesses pass** after `npm install` — ⚠️ see rule 1; without it
 >   nine more fail on a missing package and look like defects. ⚠️ **ONE REAL
 >   FAILURE STANDS**: `guest-merge-test.mjs` Part D — open, undiagnosed, ROADMAP
 >   114a. Treat any second failure as yours.

@@ -1,5 +1,104 @@
 # CHANGELOG — TypeThatBook
 
+## Round 114 (Carriage) — continued — the lesson game's playfield, and Rule 11 on screen
+
+### ⭐⭐ THE LESSON GAME WAS NOT TOO HARD. IT WAS THE WRONG SHAPE.
+
+Jake, 2026-09-10, watching a student on `learn2.html`: *"the game is a mess due to
+the layout that's there. I don't know if we can find a happy inbetween or if we
+need to transition full over to arcade view, but this is very definitely nigh
+impossible for students."*
+
+⚠️⚠️ **AN ASPECT RATIO, NOT A DIFFICULTY CURVE.** `learn2.html` gave Deadline
+`width: 100%` of an **uncapped body** — measured **~2380x521** on his screen, a
+**4.6:1** strip. `arcade.html`'s stage is **~816x581**, or **1.4:1**, because
+`.wrap` caps at 1320px and two side columns take 440px of it. ⭐ **SO WORDS WERE
+SPREAD ACROSS 2.9x THE HORIZONTAL DISTANCE A STUDENT SCANS IN THE ARCADE**, in a
+strip less than half as tall.
+
+⚠️ **AND EVERY NUMBER IN THE GAME IS DERIVED FROM THE PLAY CANVAS'S OWN `W`** —
+lane positions, dome radii, spawn spread. `arcade.html`'s own comment records that
+Round 91 shrank the dome radius *for looks*, silently ended the three-deep overlap
+that gives the city six lives instead of three, and **it looked completely fine**.
+The game was tuned against 816px and handed 2380.
+
+⚠️⚠️ **AND THE OLD COMMENT SAID IT WAS FINE.** It claimed the mount was *"close to
+arcade.html's #stage (78vh, 420px floor)"* — **true about the height, and the
+height was never the part that mattered.** ⭐ **MATCHING ONE DIMENSION OF A
+TWO-DIMENSIONAL PLAYFIELD IS NOT MATCHING IT.**
+
+Jake was offered four options and chose **Option C**: constrained stage **plus**
+the panels, keeping a slim lesson HUD. `learn2.html` now carries `arcade.html`'s
+`.stage-grid` — same 1320px cap, same `200px / minmax(724px, 1fr) / 240px`, same
+78vh, same two fold breakpoints, **values copied rather than reinvented**.
+
+### ⚠️⚠️ RULE 11, VISIBLE IN A SCREENSHOT: 94% AND 95% AT THE SAME INSTANT
+
+His top bar read **Acc: 94%**. The game's own footer read **95% accurate**. Same
+moment, same screen, and **accuracy is the number a lesson is gated on**.
+
+⭐ **THE FORMULAS WERE NEVER THE PROBLEM.** `game-shell.js`'s `netWPM()` and
+`accuracyPct()` are character-for-character `learn.js`'s, deliberately, and its
+header says so. ⚠️⚠️ **THE DENOMINATORS WERE.** This page's `netWPM()` divides by
+`stepSeconds`, the LESSON's step clock, which starts when the run begins; the game
+divides by its OWN elapsed clock, which starts when the countdown ends. **Two
+clocks, therefore two speeds, and no formula change could ever have reconciled
+them.**
+
+⭐ Jake's ruling when offered three options: *"Keep them, but read them from the
+game's numbers."* So `updateHUD()` now displays `rep.wpm` and `rep.acc`
+**verbatim** — no second rounding, no fallback arithmetic — while a game is
+mounted. ⚠️ **SET IN EXACTLY ONE PLACE AND CLEARED IN EXACTLY ONE PLACE**
+(`destroyGameHandle()`, which every exit in the file already calls): a stale
+override would show a finished game's frozen numbers over the next TYPED run,
+**the same lie pointing the other way**.
+
+### ⚠️ AND THE BUTTONS WERE SITTING ON THE GAUGES — THE ARCADE'S BUG, MIRRORED
+
+`learn2.js` mounted Deadline with **no panels, no `barHost`, no gauge canvas**, so
+`game-chrome.js` fell back to its floating bar and dropped PAUSE / SOUND OFF /
+KEYS ON / DONE straight onto the in-canvas BANKED readout, and **there was no
+radar at all** — which in the arcade is how a student sees what is coming.
+
+⭐⭐ **THIS IS THE SAME DEFECT AS `arcade.html`'s `playFree()` EARLIER THE SAME DAY,
+FROM THE OTHER SIDE** — which is precisely why the wiring is now **one shared
+`panelOptionsFor()`** and not a list of options per page. `learn2.js` calls the
+same function `arcade.html` does, with the same element ids. ⚠️ **DO NOT INLINE
+THOSE OPTIONS.** An object literal in a 360KB page controller is unreachable by
+any harness, and that is how the arcade's version survived eleven rounds behind a
+green suite.
+
+### The new harness, and what it is really guarding
+
+`tests/lesson-game-layout-test.mjs` — 43 assertions, mutation-verified **six**
+ways including reinstating the exact layout from Jake's screenshot.
+
+⚠️⚠️ **WHAT IT GUARDS IS NOT PRETTINESS.** If the two pages lay Deadline out
+differently then a lesson run and an arcade run are **not the same difficulty**,
+and the premise printed on `arcade.html` — *"type the same run in School and see
+whether the numbers line up"* — is void. ⭐ **AND THAT FAILURE IS INVISIBLE**: both
+pages render, both games play, and only the numbers quietly stop meaning the same
+thing. It is a text comparison of two stylesheets and it knows it; what it can do
+is refuse to let the two grids differ, which is the only way the pixel difference
+ever arises.
+
+⚠️ **`learn2.js` JOINED `undefined-calls-test.mjs` THIS ROUND**, having never been
+in it — **the single largest source file in the repo**, and Round 114 edited it in
+four places. ⭐ The list's own instruction says *"if you extract a module, add it
+here in the same commit"*, and **nobody ever wrote the same rule for a whole new
+page controller**, which is how both `learn2.js` and `arcade.html` slipped through.
+The rule is now: any new `.js` or any new page, same commit.
+
+### ⚠️ AND THE SAME UNESCAPED-APOSTROPHE MISTAKE, TWICE IN ONE ROUND
+
+Registering a harness with a description containing `that's` inside a
+single-quoted JS string broke `run-all-tests.mjs` — for the **second** time this
+round. ⭐ The first time it also **truncated the file to zero bytes**, because the
+script opened it with mode `'w'` before the encode threw; the second time the
+temp-file-then-`os.replace()` habit adopted after the first left the file intact
+and the error was a clean `node --check` failure. ⚠️ **WRITE VIA A TEMP FILE, AND
+ASSERT NO STRAIGHT APOSTROPHE BEFORE INSERTING PROSE INTO A QUOTED STRING.**
+
 ## Round 114 (Carriage) — continued — the run picker, and Deadline everywhere it makes sense
 
 ### ⚠️⚠️ THE RUN PICKER WAS BUILT, WIRED, AND COULD NOT FIRE FOR ONE SINGLE STUDENT

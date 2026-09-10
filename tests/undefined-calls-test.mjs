@@ -68,6 +68,21 @@ const FILES = [
     // `receipt.js` are imported by the writers; `settings-panel.js` is ROADMAP
     // 0b. **If you extract a module, add it here in the same commit.**
     'drill-filter.js', 'celebrate.js', 'receipt.js', 'settings-panel.js',
+    // ⚠️⚠️ Added Round 114 (Carriage). `learn2.js` IS 360KB OF JAVASCRIPT AND WAS
+    // NEVER IN THIS LIST — the single largest source file in the repo, the fork
+    // that mounts Deadline inside a lesson, and Round 114 edited it in four
+    // places. A typo in any of them would have reached a classroom unparsed,
+    // with a green suite behind it.
+    // ⭐ THE LIST'S OWN INSTRUCTION FOUR LINES UP SAYS "If you extract a module,
+    // add it here in the same commit" — and it was obeyed for modules and never
+    // written for a whole new PAGE CONTROLLER, which is how learn2.js and
+    // arcade.html both slipped through. ⚠️ THE RULE IS: ANY NEW .js OR ANY NEW
+    // PAGE, SAME COMMIT.
+    'learn2.js',
+    // ⚠️ Round 114's two extractions. Both are pure and tiny, and both decide
+    // something a student can see — which run they may start, and whether a
+    // lesson ends in a game.
+    'run-picker.js', 'game-slot.js',
 ];
 
 // ⚠️ HTML PAGES TOO (v1.2.0). v1.0.0 and v1.1.0 checked only the .js files and so
