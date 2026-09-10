@@ -1,5 +1,70 @@
 # CHANGELOG — TypeThatBook
 
+## Round 114 (Carriage) — continued — the arcade floor
+
+### ⭐ THREE CABINETS, A MARQUEE, AND THE OPTIONS PANEL DEMOTED TO STEP TWO
+
+Jake, 2026-09-10: *"why don't you make the Arcade landing page prettier so that I
+can launch it for the class tomorrow. It doesn't need to be as wide as the whole
+thing, and they should be able to click on the three games like they're looking at
+an arcade... with daily and weekly minutes at the top, along with the other
+standards of the website, but with an arcade-y feel. Do your best to transition
+from the other site to the game."*
+
+⚠️ **THE OLD FIRST ROW WAS A `<select>` WHOSE OWN COMMENT SAID IT "CHANGES WHAT
+THE REST OF THE PANEL MEANS"** — which is a great deal to ask a sixth-grader to
+infer from a combo box. Now: press a cabinet, then choose your words. Same two
+decisions, in the order a child already expects from an arcade.
+
+* **`.floor` gets its own 900px cap.** ⚠️⚠️ **`.wrap` STAYS AT 1320px AND
+  `.stage-grid` STAYS 200/724/240** — `game-deadline.js` derives its lane
+  positions and dome radii from the play canvas's own `W`, so narrowing the
+  playfield would retune every gate in the building by accident. Part J asserts
+  both.
+* **The marquee carries the same two clocks as the lesson HUD, with the same
+  words**, so a student crossing over from School recognises where their minutes
+  went. ⚠️ It reads `liveMinutes()` — the same getter the console gauges use — and
+  does **no clock arithmetic of its own**; a second formatter is a second answer
+  to "how long have I typed today". ⭐ It shows an em dash before minutes load,
+  never a confident `0:00`, and it **refreshes as seconds bank**, so nobody
+  returns from a run to a marquee frozen at page load.
+* **The artwork is inline SVG**, because Jake deploys through the GitHub web UI
+  with no CLI and a binary asset is a second thing to upload and get wrong. Each
+  cabinet reuses its own game's palette.
+* **"Play again" returns to the FLOOR, not the options panel.** ⭐ After a run is
+  exactly when a child most wants a different cabinet, and dropping them back on a
+  form with a level dropdown is where the old page lost them. Nothing is reset on
+  the way out.
+
+### ⚠️⚠️ THE REAL RISK WAS A SECOND RECORD OF WHICH GAME IS CHOSEN
+
+`currentGame()`, `applyGameMode()`, `playFree()` and `playDeadline()` all read
+`$('game').value`. ⭐ **SO A CABINET SETS THE SELECT AND CALLS THE SAME
+`applyGameMode()` THE DROPDOWN'S OWN LISTENER CALLS** — the cabinets are an
+**input** to the select, never a rival to it. A cabinet storing its choice in its
+own variable would be Rule 9, and the symptom would be pressing DEADLINE and
+playing Escape Key. Mutation-verified.
+
+⚠️ **AND THE SELECT IS HIDDEN, NOT REMOVED.** Deleting it makes all four readers
+return `undefined`, and each is absent-safe enough to fail quietly.
+
+⚠️ **THE FLOOR IS BUILT FROM `GAME_ORDER` AND THE SAME `unbuilt` FLAG THE DROPDOWN
+READS.** Two lists of which games exist is precisely what hid Shatter for eleven
+rounds; a fourth game gets a cabinet the day it is registered, artwork or not.
+
+⭐ **SHATTER SHIPS PLAYABLE WITH A VISIBLE "ROUGH EDGES" BADGE.** Jake: *"Shatter
+needs more work than you and I have rope for."* ⚠️ Hiding it would repeat the
+eleven-round mistake in the other direction; shipping it silently would let a
+class find the rough edges before the teacher does.
+
+Cabinets are real focusable `<button>` elements, for a class on iPads and
+Chromebooks, and the blink is on the hovered cabinet only — three at once is a
+fairground, not an arcade. `prefers-reduced-motion` turns the lift and the blink
+off.
+
+`arcade.html` **v3.15.0**. `arcade-panels-test.mjs` Part J, 229 assertions total,
+mutation-verified four ways.
+
 ## Round 114 (Carriage) — continued — a word never changes unless it is typed or destroyed
 
 ### ⚠️⚠️ refreshNeighbours() REWROTE STANDING WORDS AFTER EVERY MOVE

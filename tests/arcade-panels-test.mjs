@@ -1225,6 +1225,90 @@ console.log('\nI — ROUND 114: EVERY GAME GETS A CONSOLE, AND NO PANEL IS RESER
     ok(!threw, 'an empty queue draws nothing and does not throw');
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\nJ — ROUND 114: THE ARCADE FLOOR, AND ONE RECORD OF WHICH GAME');
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-10: *"they should be able to click on the three games like
+// they're looking at an arcade... After they pick the game, they can choose their
+// word pool/level/whatnot."*
+//
+// ⚠️⚠️ THE RISK IN A SECOND WAY TO CHOOSE A GAME IS A SECOND RECORD OF WHICH GAME
+// IS CHOSEN. `currentGame()`, `applyGameMode()`, `playFree()` and `playDeadline()`
+// all read `$('game').value`. ⭐ SO A CABINET CLICK **SETS THE SELECT** and calls
+// the same `applyGameMode()` the dropdown's own listener calls — the cabinets are
+// an INPUT to the select, never a rival to it. A cabinet that stored the choice in
+// its own variable would be Rule 9, and the symptom would be pressing DEADLINE and
+// playing Escape Key.
+{
+    const html = readFileSync(new URL('../arcade.html', import.meta.url), 'utf8');
+    const code = stripHtml(html);
+    const choose = code.slice(code.indexOf('function chooseCabinet'),
+                              code.indexOf('function showFloor'));
+
+    ok(choose.length > 60, 'chooseCabinet() is locatable');
+    ok(/\$\('game'\)\.value = id;/.test(choose),
+       '⚠⚠ a cabinet SETS the select rather than storing the game itself');
+    ok(/applyGameMode\(\);/.test(choose),
+       '⚠⚠ and calls the SAME applyGameMode() the dropdown listener calls, so ' +
+       'the two ways into the panel cannot configure it differently');
+    ok(!/GAME_ORDER\[|currentCabinet|selectedGame/.test(choose),
+       '⚠ and keeps no second record of the choice');
+
+    // ⚠️ THE SELECT IS HIDDEN, NOT REMOVED. Four readers would return undefined,
+    // and each is absent-safe enough to fail quietly.
+    ok(/<select id="game"><\/select>/.test(html),
+       'the game select still exists in the markup');
+    ok(/id="row-game" style="display:none"/.test(html),
+       '⚠⚠ hidden rather than deleted — removing it makes four readers ' +
+       'return undefined and every one of them fails silently');
+
+    // ⭐ THE CABINETS COME FROM THE REGISTRY, like fillGames(). Two lists of which
+    // games exist is what hid Shatter for eleven rounds.
+    const cabs = code.slice(code.indexOf('function renderCabinets'),
+                            code.indexOf('function chooseCabinet'));
+    ok(/for \(const id of GAME_ORDER\)/.test(cabs),
+       '⭐ the floor is built from GAME_ORDER, not a hand-written list of three');
+    ok(/if \(!g \|\| g\.unbuilt\) continue;/.test(cabs),
+       'and respects the same `unbuilt` flag the dropdown does');
+    ok(/titleOf\(id\)/.test(cabs),
+       'naming each cabinet through titleOf(), so a rename stays one line');
+    // ⚠️ A REAL <button>, for a class on iPads and Chromebooks.
+    ok(/b\.type = 'button';/.test(cabs) && /createElement\('button'\)/.test(cabs),
+       '⚠ each cabinet is a real focusable <button>, not a div with a handler');
+
+    // ⚠️ SHATTER SHIPS WITH AN HONEST WARNING RATHER THAN HIDDEN. Jake:
+    // *"Shatter needs more work than you and I have rope for."*
+    ok(/CAB_FLAG = \{ shatter:/.test(code),
+       '⭐ Shatter carries a visible warning and stays playable — hiding it is ' +
+       'the mistake that made it unreachable for eleven rounds');
+
+    // ⚠️⚠️ THE MARQUEE READS liveMinutes(), NOT ITS OWN ARITHMETIC. Rule 11.
+    const mq = code.slice(code.indexOf('function renderMarquee'),
+                          code.indexOf('function renderMarquee') + 420);
+    ok(/liveMinutes\(\)/.test(mq),
+       '⚠⚠ the marquee clocks come from liveMinutes(), the same getter the ' +
+       'console gauges use — not a second formatter');
+    ok(!/Math\.floor|\/ 60/.test(mq),
+       '⚠ and it does no clock arithmetic of its own');
+    ok(/'\\u2014'/.test(mq) || /\u2014/.test(mq),
+       '⭐ showing a dash before minutes load, never a confident 0:00');
+    ok(/renderMarquee\(\);/.test(code.slice(code.indexOf('MINUTES.weeklySeconds++'),
+                                             code.indexOf('MINUTES.weeklySeconds++') + 500)),
+       '⚠⚠ and it refreshes as seconds bank, so a student never returns to a ' +
+       'marquee frozen at page load');
+
+    // ⭐ AND THE PLAY STAGE IS UNTOUCHED. The floor is narrower; the playfield
+    // must not be, or every gate is retuned by accident.
+    ok(/\.floor \{ max-width: 900px/.test(code),
+       'the floor has its own narrower cap');
+    ok(/max-width: 1320px/.test(code),
+       '⚠⚠ while .wrap stays 1320px — game-deadline.js derives its lanes and ' +
+       'dome radii from the play canvas width, so narrowing it retunes the game');
+    ok(/grid-template-columns:\s*200px minmax\(724px, 1fr\) 240px;/.test(code),
+       'and the stage grid is unchanged');
+}
+
 console.log(fail
     ? `\narcade-panels-test: ${pass} passed, ${fail} FAILED`
     : `arcade-panels-test: all ${pass} assertions pass`);

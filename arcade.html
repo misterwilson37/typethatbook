@@ -1,7 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- arcade.html v3.14.0 — DEADLINE GETS ITS CONSOLE ON THE FREE-PLAY PATH,
+<!-- arcade.html v3.15.0 — THE ARCADE FLOOR: three clickable cabinets, a marquee
+     carrying the same daily/weekly clocks as the lesson HUD, and the options
+     panel demoted to step two. Round 114 (Carriage). Jake: *"they should be able
+     to click on the three games like they're looking at an arcade... Do your best
+     to transition from the other site to the game."*
+     ⚠️ THE PLAY STAGE IS UNTOUCHED. `.wrap` stays 1320px and .stage-grid stays
+     200/724/240, because game-deadline.js derives its lanes and dome radii from
+     the play canvas's own W. The FLOOR gets its own 900px cap instead.
+
+     arcade.html v3.14.0 — DEADLINE GETS ITS CONSOLE ON THE FREE-PLAY PATH,
      Shatter reaches the picker, the empty threat box is collapsed, and the
      title, blurb and saved-claim stop contradicting each other.
      Round 114 (Carriage).
@@ -297,11 +306,149 @@
     .met { color: var(--good); }
     .miss { color: var(--bad); }
     .err { color: var(--bad); font-size: .82rem; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       THE ARCADE FLOOR. Round 114 (Carriage).
+       ═══════════════════════════════════════════════════════════════════════
+       Jake, 2026-09-10: *"make the Arcade landing page prettier so that I can
+       launch it for the class tomorrow. It doesn't need to be as wide as the
+       whole thing, and they should be able to click on the three games like
+       they're looking at an arcade... with daily and weekly minutes at the top,
+       along with the other standards of the website, but with an arcade-y feel.
+       Do your best to transition from the other site to the game."*
+
+       ⚠️ THE LANDING PAGE IS NARROWER THAN THE STAGE ON PURPOSE. `.wrap` stays
+       1320px because game-deadline.js derives its lane positions and dome radii
+       from the play canvas's own W and 816px is the width every gate was tuned
+       against — see .stage-grid. So the CABINETS get their own narrower cap
+       instead, and nothing about the playfield moves. */
+    .floor { max-width: 900px; margin: 0 auto; }
+
+    /* ⭐ THE MARQUEE IS THE HANDOFF FROM SCHOOL TO ARCADE, which is the bit Jake
+       asked for by name. Same two clocks as the lesson HUD, same words, so a
+       student crossing over recognises where their minutes went. */
+    .marquee {
+        display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap;
+        border: 1px solid var(--rule); border-radius: 12px;
+        border-top: 1px solid rgba(120,170,220,0.28);
+        background: linear-gradient(180deg, #0d141d 0%, #0a1017 100%);
+        padding: 14px 18px; margin-bottom: 18px;
+        box-shadow: inset 0 1px 0 rgba(143,232,200,0.06);
+    }
+    .marquee .mq-title {
+        font-size: 1.15rem; letter-spacing: 4px; color: var(--warn);
+        text-shadow: 0 0 14px rgba(255,210,125,0.35); margin-right: auto;
+    }
+    .mq-clock { font-size: .72rem; letter-spacing: 1px; color: var(--ink-ghost); }
+    .mq-clock b {
+        display: block; font-size: 1.15rem; letter-spacing: 2px;
+        color: var(--accent); font-weight: 400;
+    }
+    .mq-home { font-size: .74rem; color: var(--ink-dim); text-decoration: none; }
+    .mq-home:hover { color: var(--accent); }
+
+    /* ⚠️ THREE CABINETS, AND THE GRID FOLDS RATHER THAN SQUASHING. A cabinet
+       narrower than ~240px stops reading as a cabinet and starts reading as a
+       button with a picture on it. */
+    .cabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    @media (max-width: 780px) { .cabs { grid-template-columns: 1fr; } }
+
+    /* ⭐ A CABINET IS A <button>, NOT A DIV WITH A CLICK HANDLER. Jake's students
+       are on iPads and Chromebooks; a real button is focusable, works on Enter
+       and Space, and is announced as pressable. ⚠️ DO NOT "TIDY" THIS INTO A DIV. */
+    .cab {
+        appearance: none; text-align: left; cursor: pointer; color: var(--ink);
+        font: inherit; padding: 0; overflow: hidden;
+        border: 1px solid var(--rule); border-radius: 14px;
+        border-top: 1px solid rgba(120,170,220,0.28);
+        background: linear-gradient(180deg, #101823 0%, #080d14 100%);
+        box-shadow: inset 0 1px 0 rgba(143,232,200,0.06);
+        display: flex; flex-direction: column;
+        transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+    }
+    .cab:hover, .cab:focus-visible {
+        transform: translateY(-3px);
+        border-color: var(--accent-line);
+        box-shadow: 0 10px 26px rgba(0,0,0,0.5), inset 0 1px 0 rgba(191,233,255,0.18);
+        outline: none;
+    }
+    .cab:active { transform: translateY(0); }
+    /* The screen: a dark glass panel with the game's own colour behind it. */
+    .cab-screen {
+        height: 132px; position: relative;
+        display: flex; align-items: center; justify-content: center;
+        border-bottom: 1px solid var(--rule);
+        background: radial-gradient(120% 90% at 50% 20%, var(--glow) 0%, #05080d 70%);
+    }
+    .cab-screen svg { width: 100%; height: 100%; display: block; }
+    /* ⚠️ SCANLINES ARE 3px AND VERY FAINT. Anything heavier reads as a broken
+       screen rather than a CRT, and it sits over artwork a student must read. */
+    .cab-screen::after {
+        content: ''; position: absolute; inset: 0; pointer-events: none;
+        background: repeating-linear-gradient(180deg,
+            rgba(0,0,0,0.22) 0 1px, rgba(0,0,0,0) 1px 3px);
+    }
+    .cab-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+    .cab-name {
+        font-size: 1rem; letter-spacing: 2px; color: var(--accent);
+        display: flex; align-items: center; gap: 8px;
+    }
+    .cab-tag { font-size: .78rem; color: var(--ink-dim); line-height: 1.45; }
+    .cab-insert {
+        margin-top: 4px; font-size: .68rem; letter-spacing: 2px;
+        color: var(--warn); opacity: .55;
+    }
+    /* ⭐ THE BLINK IS ON THE HOVERED CABINET ONLY. Three blinking labels at once
+       is a fairground, not an arcade, and it makes the page hard to read. */
+    .cab:hover .cab-insert, .cab:focus-visible .cab-insert {
+        opacity: 1; animation: blink 1.1s steps(1) infinite;
+    }
+    @keyframes blink { 50% { opacity: .25; } }
+    .cab-flag {
+        font-size: .6rem; letter-spacing: 1px; padding: 2px 7px; border-radius: 999px;
+        border: 1px solid var(--warn); color: var(--warn);
+    }
+    /* ⚠️ THE BACK LINK IS NOT A BROWSER BACK. Picking a game does not navigate,
+       so the browser's own back button would leave the arcade entirely. */
+    .cab-back {
+        appearance: none; background: none; border: 0; cursor: pointer;
+        color: var(--ink-dim); font: inherit; font-size: .78rem;
+        padding: 0; margin-bottom: 12px;
+    }
+    .cab-back:hover { color: var(--accent); }
+    @media (prefers-reduced-motion: reduce) {
+        .cab, .cab:hover, .cab:focus-visible { transform: none; transition: none; }
+        .cab:hover .cab-insert, .cab:focus-visible .cab-insert { animation: none; }
+    }
 </style>
 </head>
 <body>
 <div class="wrap">
-    <div class="panel" id="picker">
+    <!-- ⭐ THE ARCADE FLOOR. Jake, 2026-09-10: *"they should be able to click on
+         the three games like they're looking at an arcade... After they pick the
+         game, they can choose their word pool/level/whatnot."*
+         ⚠️ TWO STEPS, NOT ONE PANEL WITH A DROPDOWN AT THE TOP. The old first row
+         was a <select> that "changes what the rest of the panel means" — which is
+         a lot to ask a sixth-grader to infer from a combo box. Choosing a cabinet
+         and then choosing your words is the same two decisions in the order a
+         child already expects from an arcade. -->
+    <div class="floor" id="floor">
+        <div class="marquee">
+            <div class="mq-title">ARCADE</div>
+            <!-- ⚠️ THE SAME TWO CLOCKS AS THE LESSON HUD, SAME WORDS. A student
+                 crossing over from School should recognise where their minutes
+                 went; renaming them here would make the arcade look like a
+                 separate scoreboard. Filled by renderMarquee() once MINUTES
+                 loads, and left blank rather than showing 0:00 before then. -->
+            <div class="mq-clock">TODAY<b id="mq-today">—</b></div>
+            <div class="mq-clock">WEEK<b id="mq-week">—</b></div>
+            <a class="mq-home" href="./index.html">&larr; Library</a>
+            <a class="mq-home" href="./learn.html">School</a>
+        </div>
+        <div class="cabs" id="cabs"></div>
+    </div>
+
+    <div class="panel" id="picker" style="display:none">
         <div id="loading" class="note" style="margin:0">Loading your lessons…</div>
         <div id="pickerBody" style="display:none">
             <!-- ⚠️⚠️ THE GAME ROW IS FIRST BECAUSE IT CHANGES WHAT THE REST OF
@@ -309,7 +456,16 @@
                  run and compared to it; Shatter and Escape Key are not measured
                  against anything, so their rows are hidden rather than left on
                  screen answering a question nobody asked. -->
-            <div class="row">
+            <!-- ⚠️⚠️ THE GAME ROW IS STILL HERE AND STILL THE SOURCE OF TRUTH.
+                 currentGame(), applyGameMode(), playFree() and playDeadline() all
+                 read $('game').value, and a cabinet click SETS it rather than
+                 replacing it. ⭐ ONE RECORD OF "WHICH GAME": the cabinets are an
+                 input to this select, not a second answer beside it.
+                 ⚠️ IT IS HIDDEN, NOT REMOVED. A removed <select> makes every one
+                 of those four readers return undefined, and every one of them is
+                 absent-safe enough to fail quietly. -->
+            <button class="cab-back" id="cab-back" type="button">&larr; back to the arcade</button>
+            <div class="row" id="row-game" style="display:none">
                 <label for="game">GAME</label>
                 <select id="game"></select>
             </div>
@@ -513,7 +669,7 @@ import { GAME_LAYOUT_VERSION } from './game-layout.js';
 // reported. A module that can silently remove a panel must be reportable from
 // the classroom. ⚠️ It reaches no Firebase, so importing it here is safe.
 import { GAME_NAMES_VERSION } from './game-names.js';
-const ARCADE_PAGE_VERSION = '3.14.0';
+const ARCADE_PAGE_VERSION = '3.15.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -754,6 +910,12 @@ function bankSecond() {
     if (MINUTES) {
         MINUTES.dailySeconds++;
         MINUTES.weeklySeconds++;
+        // ⚠️ THE MARQUEE TRACKS THE SAME COUNTER THE CONSOLE GAUGES DO. Without
+        // this a student returns from a run to a marquee frozen at the value it
+        // held when the page loaded — which is the "I typed for ten minutes and
+        // nothing moved" complaint that four counting bugs died to prevent.
+        // ⭐ NOT A SECOND RECORD: it re-reads liveMinutes(), the same getter.
+        renderMarquee();
     }
 }
 
@@ -1156,6 +1318,161 @@ function applyPageChrome() {
         : 'Play for as long as you like. The words come from the letters you ' +
           'have learned so far, or from the whole pool if you pick it. You need ' +
           'a keyboard to play.';
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE ARCADE FLOOR — CABINETS, AND THE HANDOFF FROM SCHOOL. Round 114 (Carriage).
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-10: *"why don't you make the Arcade landing page prettier so that
+// I can launch it for the class tomorrow... they should be able to click on the
+// three games like they're looking at an arcade... After they pick the game, they
+// can choose their word pool/level/whatnot."*
+//
+// ⚠️ THE ARTWORK IS INLINE SVG, NOT AN IMAGE FILE. Jake deploys through the
+// GitHub web UI with no CLI (HANDOFF B.4), so a binary asset is a second thing to
+// upload and a second thing to get wrong. ⭐ AND IT REUSES EACH GAME'S OWN
+// PALETTE so a cabinet looks like the game behind it rather than like clip art.
+
+/**
+ * A tiny cabinet screen per game.
+ *
+ * ⚠️ ONE ENTRY PER GAME_ORDER ID, AND A MISSING ONE IS A BLANK SCREEN RATHER
+ * THAN A CRASH — see renderCabinets()'s fallback. A fourth game gets a cabinet
+ * the day it is registered, artwork or not.
+ */
+const CAB_ART = {
+    deadline:
+        // Falling words over the skyline, with the dome that catches them.
+        '<svg viewBox="0 0 220 132" xmlns="http://www.w3.org/2000/svg">' +
+        '<path d="M0 118h220v14H0z" fill="#0b1420"/>' +
+        '<g fill="#16283a"><rect x="18" y="78" width="20" height="40"/>' +
+        '<rect x="46" y="92" width="16" height="26"/><rect x="150" y="86" width="18" height="32"/>' +
+        '<rect x="182" y="70" width="22" height="48"/></g>' +
+        '<path d="M96 118 L106 62 L116 118z" fill="#1d3550"/>' +
+        '<path d="M40 118a70 56 0 0 1 140 0" fill="none" stroke="#2b6c8a" stroke-width="2" opacity=".85"/>' +
+        '<g font-family="monospace" font-size="13" fill="#bfe9ff">' +
+        '<text x="34" y="30">type</text><text x="128" y="48">fast</text></g>' +
+        '<g fill="#ffd27d"><circle cx="52" cy="42" r="2"/><circle cx="148" cy="60" r="2"/></g>' +
+        '</svg>',
+    escape:
+        // The grid, the frog, and one spider coming down a lane.
+        '<svg viewBox="0 0 220 132" xmlns="http://www.w3.org/2000/svg">' +
+        '<g fill="none" stroke="#233247" stroke-width="1">' +
+        '<rect x="34" y="18" width="152" height="96"/>' +
+        '<path d="M85 18v96M136 18v96M34 50h152M34 82h152"/></g>' +
+        '<rect x="86" y="51" width="49" height="31" fill="#12202e"/>' +
+        '<g fill="#8fe8c8"><ellipse cx="110" cy="66" rx="13" ry="9"/></g>' +
+        '<g fill="#06090f"><circle cx="105" cy="63" r="2"/><circle cx="115" cy="63" r="2"/></g>' +
+        '<path d="M60 18v18" stroke="#7a4fb5" stroke-width="1"/>' +
+        '<g fill="#9b6fd6"><circle cx="60" cy="41" r="7"/></g>' +
+        '<g fill="#ff8f8f"><circle cx="58" cy="40" r="1.4"/><circle cx="62" cy="40" r="1.4"/></g>' +
+        '<g font-family="monospace" font-size="10" fill="#5f7387">' +
+        '<text x="44" y="104">jump</text><text x="146" y="104">safe</text></g>' +
+        '</svg>',
+    shatter:
+        // One long rock splitting into pieces.
+        '<svg viewBox="0 0 220 132" xmlns="http://www.w3.org/2000/svg">' +
+        '<g fill="#243247" stroke="#33475f">' +
+        '<path d="M30 26h70l-6 22H24z"/><path d="M112 26h78l-8 22h-78z"/></g>' +
+        '<g fill="#1b2738" stroke="#2b3c52">' +
+        '<path d="M40 66h44l-4 20H34z"/><path d="M96 66h40l-4 20H92z"/>' +
+        '<path d="M148 66h40l-6 20h-38z"/></g>' +
+        '<g stroke="#ffd27d" stroke-width="1.5" opacity=".8">' +
+        '<path d="M104 24v26M140 62v26M90 62v26"/></g>' +
+        '<g font-family="monospace" font-size="10" fill="#8aa2b4">' +
+        '<text x="60" y="112">break it up</text></g>' +
+        '</svg>',
+};
+
+/** The glow behind each cabinet screen — the game's own accent. */
+const CAB_GLOW = { deadline: '#123049', escape: '#1a2c3f', shatter: '#2a2437' };
+
+/**
+ * ⚠️ A CABINET MAY CARRY A HONEST WARNING, AND SHATTER HAS ONE. Jake,
+ * 2026-09-10: *"Shatter needs more work than you and I have rope for."* ⭐ SO IT
+ * STAYS PLAYABLE AND SAYS SO. Hiding it would contradict its own registry entry
+ * (game-names.js spent eleven rounds flagged `unbuilt` and unreachable, which is
+ * the mistake in the other direction); shipping it silently would let a class
+ * find the rough edges before the teacher does.
+ */
+const CAB_FLAG = { shatter: 'ROUGH EDGES' };
+
+/**
+ * Paint the arcade floor.
+ *
+ * ⚠️ DERIVED FROM GAME_ORDER AND THE `unbuilt` FLAG, exactly like fillGames().
+ * Two lists of which games exist is the Rule 9 break that hid Shatter for eleven
+ * rounds; this reads the same registry the dropdown does.
+ */
+function renderCabinets() {
+    const host = $('cabs');
+    host.innerHTML = '';
+    for (const id of GAME_ORDER) {
+        const g = GAMES[id];
+        if (!g || g.unbuilt) continue;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'cab';
+        b.style.setProperty('--glow', CAB_GLOW[id] || '#16202c');
+        // ⚠️ THE ACCESSIBLE NAME IS THE TITLE ALONE. The tagline is read from the
+        // body text; putting it in the label too makes a screen reader say the
+        // whole sentence twice before the child can press anything.
+        b.setAttribute('aria-label', 'Play ' + titleOf(id));
+        b.innerHTML =
+            '<div class="cab-screen">' + (CAB_ART[id] || '') + '</div>' +
+            '<div class="cab-body">' +
+                '<div class="cab-name">' + titleOf(id) +
+                    (CAB_FLAG[id] ? '<span class="cab-flag">' + CAB_FLAG[id] + '</span>' : '') +
+                '</div>' +
+                '<div class="cab-tag">' + (g.tagline || '') + '</div>' +
+                '<div class="cab-insert">PRESS TO PLAY</div>' +
+            '</div>';
+        b.addEventListener('click', () => chooseCabinet(id));
+        host.appendChild(b);
+    }
+}
+
+/**
+ * A cabinet was pressed: set the game and show the options for it.
+ *
+ * ⚠️⚠️ IT SETS $('game').value AND THEN CALLS applyGameMode(). It does NOT
+ * reimplement what that function does. currentGame(), playFree() and
+ * playDeadline() all read the select, so the select stays the single record of
+ * which game is chosen and the cabinets are merely an input to it.
+ */
+function chooseCabinet(id) {
+    $('game').value = id;
+    $('floor').style.display = 'none';
+    $('picker').style.display = 'block';
+    // ⚠️ THE SAME FUNCTION THE DROPDOWN'S `change` LISTENER CALLS. If this ever
+    // diverges, the two ways into the panel configure it differently.
+    applyGameMode();
+    const play = $('play');
+    if (play) play.focus({ preventScroll: true });
+}
+
+/** Back to the floor. ⚠️ Nothing is reset — a student who changes their mind
+ *  about the game has not changed their mind about their level. */
+function showFloor() {
+    $('picker').style.display = 'none';
+    $('result').style.display = 'none';
+    $('floor').style.display = 'block';
+}
+
+/**
+ * The two clocks in the marquee.
+ *
+ * ⚠️⚠️ READ FROM liveMinutes(), THE SAME GETTER THE CONSOLE GAUGES USE. A second
+ * formatter here would be a second answer to "how long have I typed today", and
+ * Rule 11 is explicit that both readers must come from one record.
+ * ⚠️ AND IT SHOWS AN EM DASH, NOT 0:00, BEFORE MINUTES LOADS. A confident zero on
+ * a student who has typed all week is worse than an obvious blank.
+ */
+function renderMarquee() {
+    const m = liveMinutes();
+    $('mq-today').textContent = m ? m.todayClock : '\u2014';
+    $('mq-week').textContent = m ? m.weekClock : '\u2014';
 }
 
 function showFreeGates() {
@@ -1809,6 +2126,11 @@ async function load(user) {
         }
         $('pickerBody').style.display = 'block';
         fillGames();
+        // ⚠️ AFTER fillGames(), NOT BEFORE. The cabinets and the dropdown are
+        // built from the same registry, and a cabinet click sets the select's
+        // value — so the options have to exist for that assignment to stick.
+        renderCabinets();
+        renderMarquee();
         fillLevels();
         fillFreeSpeeds();
         fillLab();
@@ -1855,9 +2177,19 @@ document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flushArcadeSeconds();
 });
 
+$('cab-back').addEventListener('click', showFloor);
+
+// ⚠️⚠️ "PLAY AGAIN" GOES BACK TO THE ARCADE FLOOR, NOT TO THE OPTIONS PANEL.
+// Jake, 2026-09-10, on the whole point of the landing page: *"Do your best to
+// transition from the other site to the game."* ⭐ THE FLOOR IS WHERE A STUDENT
+// DECIDES WHAT TO DO NEXT — dropping them back on a form with a level dropdown
+// is where the old page lost them, and after a run is exactly when a child is
+// most likely to want a different cabinet.
+// ⚠️ NOTHING IS RESET on the way out: their level and word pool survive, so
+// pressing the same cabinet again is one more click and not a re-setup.
 $('again').addEventListener('click', () => {
     $('result').style.display = 'none';
-    $('picker').style.display = 'block';
+    showFloor();
 });
 
 // ⚠️ WAITS FOR AUTH RATHER THAN READING IMMEDIATELY. Lessons are world-readable
