@@ -243,6 +243,9 @@
 // `= 0` resets below; those citations stand alone and needed no pointer.
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
+import { typedRunCount, maxReachableRunIdx, openingRunIdx } from './run-picker.js';
+import { planGameSlot, GAME_MIN_KEYS as SLOT_MIN_KEYS,
+         PROSE_TYPES as SLOT_PROSE_TYPES } from './game-slot.js';
 // ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
 // rule in it is a function of numbers this file passes in, which is why the whole
 // design is covered by lesson-gate-test.mjs without driving a browser.
@@ -360,7 +363,7 @@ import { mount as mountDeadline } from "./game-deadline.js";
 // number, not a deploy number: it means nothing to any student-facing page,
 // the way game-deadline.js's own 1.0.0 meant nothing until Round 82's ruling
 // that "nothing to this moment has had a version" applied to it.
-const LEARN_VERSION = "0.4.0-staging";
+const LEARN_VERSION = "0.5.0-staging";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -2183,7 +2186,25 @@ function startLesson(lesson) {
     currentRunsFor = lesson.id;          // ⚠️ ROADMAP 23 — paired here, always.
     // ⚠️ v2.35.0 — NOT ALWAYS 0. See firstOpenRunIdx(): a student whose early runs
     // are mastered starts at the first one that still counts.
-    currentStepIdx = firstOpenRunIdx(lesson);
+    // ⚠️⚠️ WHERE THEY LEFT OFF, NOT WHERE THE MASTERY GATE SAYS. Jake,
+    // 2026-09-10: *"I want kids to be able to go back to where they left off and
+    // reach individual runs if they want."*
+    // ⭐ firstOpenRunIdx() ALONE COULD NEVER DO THAT, and that is the whole of
+    // why he watched a student get sent back to run 1. It returns the first run
+    // that is not yet 'practice', and a run only becomes 'practice' once
+    // MASTERED — MASTERY_POINTS = 4, banked at A🔥 = 2 and A = 1, with B, C, D
+    // and F worth ZERO. So it only ever advanced for a student scoring fireballs
+    // and A's on every earlier run. A child passing runs 1-4 with B's and C's —
+    // the ordinary case, the case the gates are tuned for — banked nothing and
+    // reopened at run 1 every single visit.
+    // ⚠️ THIS DOES NOT REOPEN THE 2026-08-17 RULING. Jake then: *"If a kid
+    // doesn't finish a lesson one session, they should restart it — not start at
+    // the last word."* That governs resuming mid-RUN, at the character, and a run
+    // still always starts at character zero. This picks which RUN is selected.
+    // ⚠️ THE LATER OF THE TWO, NEVER THE EARLIER: a mastered student must not be
+    // dragged BACK by a furthestRunIdx that trails their mastery.
+    currentStepIdx = openingRunIdx(firstOpenRunIdx(lesson),
+                                   userProgress[lesson.id], currentRuns);
     mistakes       = 0;
     chars          = 0;
     resetStepLogWatermark();
@@ -2775,7 +2796,12 @@ function beginStep(stepIdx) {
 //     ARE TEMPTED TO DELETE IT AS DEAD CODE, note that it is not dead in the
 //     escape-board `stunSteps` sense (declared, decremented, never set): it is
 //     evaluated on every call and simply never decides the answer today.
-const GAME_MIN_KEYS = 4;
+// ⚠️⚠️ THE NUMBER ITSELF NOW LIVES IN game-slot.js, AND THIS ROUND BRIEFLY HAD
+// BOTH. Two records of one threshold is the Rule 9 break this project keeps
+// finding — and the second copy is always the one a later round forgets to move.
+// ⭐ Jake KEPT the floor at 4, 2026-09-10. Re-exported here under its own name so
+// the reasoning above still has something to point at.
+const GAME_MIN_KEYS = SLOT_MIN_KEYS;
 
 // Cumulative distinct keys introduced up to AND INCLUDING `lesson`, over the
 // real course order. ⚠️ THE SAME WINDOW arcadeKeySet() USES (up to and
@@ -2934,18 +2960,20 @@ function bankGameSecond() {
 // field, no new write and no new read. ⚠️ IT IS DERIVED FROM A GRADED
 // OUTCOME: a run the student abandoned never advanced it, which is correct —
 // reaching a run means having finished the one before it.
-function maxReachableRunIdx(lesson) {
-    const rec = userProgress[lesson.id];
-    const last = currentRuns.length - 1;
-    // No record, or a lesson never started: run 1 and nothing else.
-    if (!rec || !rec.started) return 0;
-    // ⚠️ THE STORED runCount GUARDS AGAINST A LESSON EDIT. If the lesson has
-    // been re-chunked since this record was written, every stored index means
-    // something else — recordRunOutcome() stores runCount for exactly this
-    // reason. Refuse the shortcut rather than trust a stale index.
-    if (rec.runCount != null && rec.runCount !== currentRuns.length) return 0;
-    const furthest = Number(rec.furthestRunIdx) || 0;
-    return Math.max(0, Math.min(last, furthest + 1));
+// ⚠️⚠️ THE REACHABILITY ARITHMETIC LIVES IN run-picker.js, NOT HERE, AND THAT IS
+// THE WHOLE REASON THE FIX IS PROVABLE. Jake, 2026-09-10: *"There was no way to
+// navigate to later runs he had unlocked. That was supposed to be there."* It WAS
+// there — built, wired, and unable to fire for one single student, because two
+// lines of arithmetic sat inside a 6,000-line page no harness can import.
+// ⭐ SEE tests/run-picker-test.mjs, WHICH DRIVES A RECORD SHAPED EXACTLY LIKE ONE
+// learn.html WRITES and asserts the picker opens where the child left off.
+// ⚠️ AND THE MODULE IS SHARED ON PURPOSE: HANDOFF §11 says one of learn.js /
+// learn2.js gets deleted, and this answer must survive whichever way that goes.
+
+function typedRunCountLocal() { return typedRunCount(currentRuns); }
+
+function maxReachableRunIdxFor(lesson) {
+    return maxReachableRunIdx(userProgress[lesson.id], currentRuns);
 }
 
 // Draws the picker into #intro-run-picker. Called from showIntro().
@@ -2957,7 +2985,7 @@ function renderRunPicker(lesson) {
     // furniture that teaches a student the control does nothing.
     if (!currentRuns.length || currentRuns.length < 2) return;
 
-    const maxIdx = maxReachableRunIdx(lesson);
+    const maxIdx = maxReachableRunIdxFor(lesson);
     // ⚠️ ASKED, NOT RE-DERIVED — see gameSlotIdx()'s header.
     const gIdx = gameSlotIdx();
 
@@ -3341,7 +3369,10 @@ function buildRunList(lesson) {
 
 // ⚠️ PROSE IS TYPED WHOLE, THEN PLAYED — Jake's ruling, 2026-09-09: *"Append the
 // game after the passage. It's a passage and should be treated as such."*
-const PROSE_TYPES = ['passage', 'sentence_list'];
+// ⚠️ THE LIST ITSELF IS game-slot.js's. planGameSlot() is the only thing that
+// consults it, so a local copy here would be a second answer to "is this prose"
+// that nothing reads — dead code that reads like a rule.
+const PROSE_TYPES = SLOT_PROSE_TYPES;
 
 /**
  * Decide ONCE whether this lesson has a game slot and where it sits, and mark
@@ -3379,19 +3410,31 @@ const PROSE_TYPES = ['passage', 'sentence_list'];
  */
 function attachGameSlot(lesson, runs) {
     if (!runs.length) return runs;
-    if (cumulativeKeyCount(lesson) < GAME_MIN_KEYS) return runs;
+    // ⚠️ THE KEY FLOOR IS NOT RE-CHECKED HERE. planGameSlot() enforces it and
+    // returns mode 'none'; a second check would be a second place that knows the
+    // threshold, and it is the one that would be missed if Jake ever moves it.
 
     const last = runs[runs.length - 1];
-    const isProse = PROSE_TYPES.indexOf(last.type) !== -1;
 
-    // ⚠️ THE SPEED GATE IS READ THROUGH gatesForRun(), NOT BY TESTING THE TYPE.
-    // A run graded on accuracy alone must never become a throughput test — see
-    // gameSlotIdx()'s header for the full reasoning. Prose always carries a
-    // gate today, but that is a property of the corpus, not a guarantee.
-    const g = gatesForRun(last, lesson.gates);
-    if (!g || g.minWPM == null) return runs;
+    // ⚠️⚠️ THE JUDGEMENT LIVES IN game-slot.js NOW. Jake's ruling, 2026-09-10:
+    // *"I want deadline to replace the final run at the end of lessons anywhere
+    // that it makes sense"* — Option 1, pace from the lesson, grade on accuracy
+    // only, 4-key floor kept.
+    //
+    // ⭐⭐ WHAT THIS REPLACES WAS ONE LINE THAT COST 14 OF 47 LESSONS. It read
+    // `if (!g || g.minWPM == null) return runs;` — and run-grade.js returns a
+    // null minWPM for every DRILL_TYPE on purpose, so all of Units 1, 2 and 5
+    // silently got no game at all. Those are exactly the "more than 4 keys but
+    // not passages" lessons Jake asked for, and where most of the school sits.
+    // ⚠️ THE PACE AND THE GRADE ARE TWO DIFFERENT NUMBERS and that line
+    // conflated them; see game-slot.js's header.
+    const plan = planGameSlot(lesson, runs, {
+        gatesForRun,
+        cumulativeKeys: cumulativeKeyCount(lesson),
+    });
+    if (plan.mode === 'none') return runs;
 
-    if (isProse) {
+    if (plan.mode === 'append') {
         // ⭐⭐ TYPE THE WHOLE PASSAGE AS AUTHORED, THEN PLAY IT AGAIN FOR FUN.
         // Jake, 2026-09-09, correcting me twice: *"kids do 1/4 as they did
         // originally, then 2/4, then 3/4, then 4/4. Then — only for fun — they do
@@ -3449,8 +3492,14 @@ function attachGameSlot(lesson, runs) {
         return runs;
     }
 
-    // REPLACE. ⚠️ Jake's one-run rule lives here and only here.
-    if (runs.length < 2) return runs;
+    // ⭐ REPLACE. ⚠️ THE RUN KEEPS ITS ORIGINAL `type`, AND THAT IS WHAT KEEPS THE
+    // GRADE HONEST. gatesForRun() reads the type, drill types are in DRILL_TYPES,
+    // so a replaced drill stays graded on ACCURACY ALONE — exactly as the typed
+    // drill it replaces was. ⚠️ STAMPING A PROSE TYPE HERE, OR INVENTING A NEW
+    // ONE, WOULD TURN A UNIT 1 LESSON INTO A SPEED TEST. That is Option 2, which
+    // Jake was offered and did not choose.
+    // ⚠️ THE ONE-RUN RULE AND THE KEY FLOOR ARE BOTH IN planGameSlot() NOW, not
+    // here — one answerer, so the picker and the Start button cannot drift.
     last.gameRun = true;
     return runs;
 }
@@ -4775,7 +4824,11 @@ function recordRunOutcome(runIdx, grade, advanced) {
     userProgress[id] = Object.assign({}, prev, {
         lessonId: id,
         started: true,
-        runCount: currentRuns.length,
+        // ⚠️⚠️ THE TYPED COUNT, SO THIS RECORD MEANS THE SAME THING ON BOTH PAGES.
+        // Writing currentRuns.length here would stamp a game-inclusive number that
+        // learn.html then reads as a stale record — the same collision from the
+        // other side. See typedRunCount().
+        runCount: typedRunCountLocal(),
         // runCount is stored so a stale map is detectable: editing a lesson changes
         // how it chunks, which shifts every index in runAttempts/runFailures.
         furthestRunIdx: Math.max(prev.furthestRunIdx || 0, runIdx),

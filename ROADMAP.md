@@ -1,5 +1,111 @@
 # TYPETHATBOOK — ROADMAP
 
+### 114a — `guest-merge-test.mjs` Part D fails, and nobody knows why yet
+
+⚠️ **STATUS: OPEN, UNDIAGNOSED, AND DELIBERATELY NOT GUESSED AT.**
+
+Seven assertions in Part D, all cascading from D1 (*"the guest slot holds both
+records — got 0, want 2"*). Parts A–C pass, **including** *"a guest's records are
+kept, and handed over"* — so the mechanism has coverage that agrees, and only the
+against-the-real-module part disagrees.
+
+That pattern usually means the harness's own setup went stale rather than the
+merge breaking. ⚠️ **IT WAS NOT CONFIRMED AND MUST NOT BE ASSUMED**, because the
+subject is a student's banked minutes surviving a sign-in, which is Rule 11
+territory: if it is real, a guest's typing time is being dropped on adoption.
+
+**To close it:** decide first whether D1 is a fixture problem or a live one, and
+write down what a failure would mean before touching either side. This round's
+own lesson applies — the first fix attempt for the Deadline console was a harness
+that passed against the bug.
+
+### 114b — the arcade is still absent from `versions.js` SOURCES
+
+⚠️ Round 113 found that `docs-vs-repo-test.mjs` passes **vacuously** for all
+twelve arcade modules: none are in the registry, so all twelve report "no
+readable version stamp; skipped".
+
+Round 114 added `game-names.js` to the **arcade's own build panel**, which is a
+different surface and does **NOT** close this. `arcade-versions-test.mjs` is
+still the only thing keeping arcade stamps honest, and its own header says to
+delete it the day they join `versions.js` — ⚠️ **two answers to one question is
+worse than none.**
+
+### 114c — ⚠️⚠️ THE DEADLINE LESSON GATE CANNOT FIRE FOR UNITS 1, 2 OR 5, AND THAT IS JAKE'S MAIN CASE
+
+**STATUS: OPEN. DIAGNOSED AGAINST THE REAL CORPUS. NEEDS JAKE'S RULING — DO NOT
+JUST CHANGE IT.**
+
+Jake's spec, 2026-09-10: *"the use of deadline as the quiz at the end of a lesson.
+Replacing when there are more than 4 keys but not passages, appended when there
+are passages."*
+
+`attachGameSlot()` in `learn2.js` implements both shapes correctly and then
+returns early unless `gatesForRun(last, lesson.gates)` yields a non-null
+`minWPM`. Every Unit 1, 2 and 5 lesson ends on `key_random`, which is in
+`run-grade.js`'s `DRILL_TYPES` and therefore **accuracy-only by deliberate
+design** — speed on random letter groups measures nothing.
+
+⭐ **RUN AGAINST `tests/fixtures/lessons-export.json` (47 lessons, the real
+corpus):** 28 lessons append a game, 4 replace, **14 are blocked by the speed
+gate**, 1 by the 4-key floor. The 14 are precisely the "more than 4 keys, no
+passages" lessons — the replace case — and they are where most of a middle school
+sits.
+
+⚠️ **THE TENSION IS REAL AND IS NOT A BUG IN EITHER PIECE.** The previous round's
+comment is sound: *"a run graded on accuracy alone must never become a throughput
+test."* Deadline needs a target WPM to pace its spawns, and a drill has no speed
+gate on purpose. Making one up would turn an accuracy-only run into a speed
+measurement, which is a decision about whether children pass.
+
+⭐ **THE COHERENT ANSWER, FOR JAKE TO ACCEPT OR REJECT:** use the lesson's own
+`minWPM` (10/12/14 — it exists on all of them) as the **PACE ONLY**, and keep the
+run graded on **accuracy alone**, exactly as the typed drill is. ⚠️ `arcade.html`
+already does precisely this — it plays a drill run at a chosen pace and prints
+**NO GATE** on the console, and `arcade-panels-test.mjs` Part C4 pins that a
+gateless run is coloured neither red nor green. So the machinery exists and has
+assertions on it; what is missing is the ruling.
+
+⚠️ **RULE 10 AND RULE 11 BOTH APPLY BEFORE THIS SHIPS.** No harness yet drives a
+gate-speed typist through a *replaced drill* run, and nothing yet proves the
+student-facing and teacher-facing numbers agree for a game run.
+
+### 114d — ⚠️⚠️ THE RUN PICKER AND THE GAME SLOT DISABLE EACH OTHER
+
+**STATUS: OPEN. This is why Jake's students saw neither feature.**
+
+`maxReachableRunIdx()` refuses the run-picker shortcut when the stored `runCount`
+differs from `currentRuns.length`, which is right on its own terms — editing a
+lesson shifts every stored index. But `attachGameSlot()` **changes
+`currentRuns.length` by one**, so **every progress record ever written on
+`learn.html` is stale the moment it is read on `learn2.html`**, and the picker
+offers run 1 and nothing else.
+
+⭐ **SO THE TWO FEATURES JAKE ASKED FOR CANCEL EACH OTHER, AND THE FEATURE COULD
+NOT HAVE WORKED ON ITS FIRST DAY FOR ANYBODY.** Round 102's own note spotted this
+for the six Unit 7 pangram lessons — *"it means every Unit 7 picker opens at run 1
+once, for everyone"* — and called it "correct, not a bug". ⚠️ **IT GENERALISES TO
+EVERY LESSON AND EVERY STUDENT WITH PRIOR PROGRESS, WHICH IS ALL OF THEM**, and
+"once" is wrong too: the record is only rewritten when a run finishes.
+
+⚠️ **AND JAKE'S REPORTED CASE WAS `learn.html`, WHICH HAS NO PICKER AT ALL** —
+*"One kid left learn.html on the 4th run of a lesson, and it kicked him back to
+the first run."* Both facts are true at once, and only the fork was ever going to
+show him a picker.
+
+**Two candidate fixes, Jake's call:**
+1. Store the run count **excluding** the game slot, so appending one cannot
+   invalidate a record. ⚠️ Touches the stored progress shape.
+2. Compare `runCount` against the **typed** run count rather than
+   `currentRuns.length`, leaving stored records alone.
+
+⭐ **OPTION 2 IS PROBABLY RIGHT AND IS STILL A RULE 9 QUESTION**: it means two
+different notions of "how many runs" exist, and both must be named, or the next
+reader picks the wrong one. ⚠️ A harness must drive a record written before the
+game slot existed and assert the picker still opens at the right run — that is the
+Rule 10 shape, and there is no fixture for it yet.
+
+
 **v3.63.0, 2026-09-08 (Round 87, Merritt).** ⚠️⚠️⚠️ **ITEM 54 SHIPPED A COUNTER THAT FILTERED A FIELD WHICH DOES NOT EXIST, AND THE HARNESS ASSERTED THE BROKEN QUERY AS A REQUIREMENT.** Jake: *"Sort by popular is just alphabetical. I ran the popularity report in reports.html and it did not appear to do anything."* `typing_logs` has **no per-book field and cannot** — it is keyed `{uid}_{date}`, one merged rollup per student per DAY, so a child who reads two books in a period has ONE document with no single book to name; that field lives on `typing_sessions`. **The query matched nothing, eighty zeros were written, and `sortBooks()` fell through to its `|| byTitle()` tiebreak.** ⭐ **The button worked perfectly; it faithfully counted zero, eighty times.** ⚠️⚠️ **All 27 assertions in `popularity-sort-test.mjs` v1.0.0 were green throughout, because every one compared the code against an expectation invented in the same session as the code — Rule 10 in one sentence.** Now **v2.0.0, 48 assertions**, whose **Part E is a RATCHET**: it derives the fields `typing_logs` writers actually write, by brace-matching the four `setDoc()` payloads and **calling** `daylog.js`'s two builders on both sides of the source-split cutover rather than mirroring a list, and refuses any filter naming a field outside that set. **Mutation-verified twice** — old query restored, and `date` renamed to an invented `dayKey`, to prove it guards the CLASS not the keyword. ⭐ **Recounted from `users/{uid}/progress`** on Jake's choice: students-with-progress, all-time, **no console index change and no rules change** (a `collectionGroup()` query would have needed a new `match /{path=**}/progress/{id}`, and the harness pins that neither the rule nor the query exists so a later round cannot land half the pair). ⚠️⚠️ **ITEM 54 STAYS OPEN AND THE NEW COUNT IS UNVERIFIED:** this container cannot reach Firestore — the same condition that produced the defect — so the panel ships with **Dry run** (no `setDoc` in it, asserted) and **Show saved**, and Jake must click Show saved → Dry run → Recalculate before anyone calls it closed. ✅ **NEW ITEM 69 CLOSED — the two special rows.** ⚠️⚠️ **The 1.5-row wrap WAS ROADMAP 26's alignment invariant**: the row borrowed `.library-grid`'s auto-fill tracks with `grid-column: span 2`, and the shelf is capped at 1100px = **five** columns, so three 2-span cards needed six. Two equal columns at **2.5 shelf-columns each — Jake's own number** — cannot wrap, and at a 4-column shelf each card is exactly 2 columns and lands back on the shelf's lines for free. ⚠️ **`CONTINUE_MAX`/`FEATURED_MAX` are load-bearing now** and both 2. ⚠️ **Featured had been fully deterministic and B1–B4/E5 had PINNED that** — only the fallback ever rolled dice; it is a shuffled mixture with one reserved new slot and a per-card badge. ⚠️⚠️ **A hazard I got wrong is recorded rather than dropped:** E7 claimed to guard the stamp's new-id component and mutation testing left it green, because the badge is derived outside the cache; **E8** is the check that genuinely fails without it. ⚠️ **NOTHING WAS LOOKED AT RENDERED** — § CONVENTIONS requires it for a layout round and this container has no browser.
 
 **v3.62.0, 2026-09-06 (Round 81, Fox).** ✅ **ITEM 57 CLOSED, AND THE GAP HAD ALREADY COST WHAT IT PREDICTED.** `index.html` is registered in all three mirrors (`versions.js` v1.17.0, `tools/audit-versions.mjs` v1.6.0, the harness) — and while closing it, **Round 80's entire Featured shelf turned out to have shipped into that file with `INDEX_VERSION` still reading 3.18.0 and no header entry**, invisible because no registry carried the page. ⚠️⚠️ **BOTH OF ITEM 57's OWN BUILD INSTRUCTIONS WERE WRONG AND ARE WRITTEN UP IN IT**: its suggested pattern matches an incidental line in the body and would have reported **v3.5.2** forever, and its "should NOT be exempt" would have produced a check that reads an empty block and passes forever (the `//` header is real but sits inside the `<script>`, and both scans stop at `<!DOCTYPE html>`). The coverage it wanted is **section A2**, which finds the block by the constant it sits above. ⭐ **AND A THIRD MIRROR NOBODY CHECKED**: `HEADER_EXEMPT` is copied into the same three files and the audit tool's copy was missing `reports.html` and `admin.html` — a false claim of coverage, same shape as Round 58's `rights-ladder.js` gap. **Section D3** compares them now, both ways. ⚠️⚠️ **ITEM 53's FALLBACK WAS BUILT CORRECTLY AND HAD NEVER ONCE RUN** — `_featuredRandomCache` was write-once and the first render of every page load precedes auth, so the "untyped" exclusion was computed against an empty `userProgress` and frozen. **Item 43's shape, one round later.** ⚠️ **The old harness was green against it BECAUSE of D4**, the assertion meant to guard it. Fixed with a stamped cache; `featured-shelf-test.mjs` v1.1.0 **runs** the function now instead of grepping it. ⭐ **New item 66** — the last `toISOString()` day-key in the repo, filed and deliberately not fixed. ✅ Also: `package.json` `engines.node` corrected 22 → **24** (it had never matched the live runtime, in either direction), and two documents registered in indexes that had silently omitted them.

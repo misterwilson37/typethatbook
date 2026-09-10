@@ -1,6 +1,15 @@
-// game-escape.js v2.2.0 — a FIFTH creature in the wave queue, paid for by the
-//   collapse of the empty threat box beside it. Round 114 (Carriage).
-//   ⚠️ THE ROW COUNT IS NO LONGER SPELLED IN TWO FILES — see drawWavePreview().
+// game-escape.js v2.3.0 — Round 114 (Carriage). TWO CHANGES:
+//   • a FIFTH creature in the wave queue, paid for by the collapse of the empty
+//     threat box beside it. ⚠️ THE ROW COUNT IS NO LONGER SPELLED IN TWO FILES —
+//     see drawWavePreview().
+//   • ⚠️⚠️ THE PEEK STAGING MOVED OUT TO peekStaging() IN game-draw.js, because
+//     the kaiju leaned the WRONG WAY entering from the right and this is the
+//     SECOND round to fix that sentence. Round 112 made drawPixelSprite() take a
+//     screen angle, which was correct — and the mirror it removed had been
+//     cancelling a FIXED `lean = 0.5` at this call site. A lean that points along
+//     travel cannot be a constant. ⭐ The tell was three lines above the bug: the
+//     blast `tilt` was already signed by `mine.dir`. Two angles in one block, one
+//     signed and one not. See tests/escape-peek-test.mjs.
 // game-escape.js v2.1.0 — ESCAPE KEY. Round 82 (Victor), 102, 104, 106, 108, 112.
 //
 // v2.1.0 — ⚠️⚠️ THE TOP BAR IS GONE AND THE BOARD TOOK ITS 54px. Every number it
@@ -143,6 +152,7 @@ import {
     fitCanvas, platedText, platedProgress, burst, updateParticles,
     drawParticles, roundRect, drawHitFeedback, drawCapsWarning, motionScale,
     drawKeyboardStrip, keyboardStripHeight, drawWavePreview, drawGauges,
+    peekStaging,
 } from './game-draw.js';
 // ⚠️⚠️ THE CHARACTERS ARE JAKE'S, FROM HIS PROTOTYPE. Rounds 82–105 rebuilt this
 // game's rules correctly and quietly replaced its ART with primitives — a frog in
@@ -153,7 +163,7 @@ import {
     drawPixelSprite, drawBeam, drawVaporised, drawWeb,
 } from './game-sprites.js';
 
-export const GAME_ESCAPE_VERSION = '2.2.0';
+export const GAME_ESCAPE_VERSION = '2.3.0';
 
 /**
  * @param {HTMLElement} container
@@ -947,32 +957,25 @@ export function mount(container, opts) {
             // SCREEN. A warning nobody can see is a wasted turn, which is exactly
             // what he saw.
             //
-            // ⭐ THE CREATURE IS PUSHED BACK OFF ITS OWN EDGE AND ONLY LEANS IN,
-            // along the axis it will travel. Jake's own staging: *"Kaiju could
-            // literally tilt his head in (as he already tilts to blast). Spider
-            // could poke a quarter of his pixels into the board - enough to get
-            // his glowing eyes."*
+            // ⚠️⚠️ AND THE STAGING NUMBERS ARE NOT WRITTEN HERE ANY MORE. Jake,
+            // 2026-09-10: *"the Kaiju leans back to peek in if he enters from the
+            // right. He should lean forward."* This block used to hold a FIXED
+            // `lean = 0.5`, and a lean that points along the direction of travel
+            // cannot be a fixed number — see peekStaging(), which is where the
+            // arithmetic and the reason for it now live, with a harness on it.
+            // ⚠️ THE TELL WAS THREE LINES ABOVE THE BUG: `tilt` is signed by
+            // `mine.dir` because the blast tilt was got right. Two angles in one
+            // block, one signed and one not, and only the unsigned one was wrong.
             let px = pos.x, py = pos.y, lean = tilt;
             if (en.peek > 0) {
-                if (en.kind === 'kaiju') {
-                    // ⚠️ 62% OUT, PLUS A TILT TOWARD THE BOARD. Enough that the
-                    // head and the glowing eye clear the edge and nothing else.
-                    px -= en.dir * cell * 0.62;
-                    // ⚠️ ALWAYS POSITIVE — drawPixelSprite() now takes a SCREEN
-                    // angle and undoes the mirror itself, so "lean into the
-                    // board" is one number for both directions.
-                    lean = 0.5;
-                } else if (en.kind === 'spider') {
-                    // ⚠️ 72% OUT — a quarter of the sprite showing, which for
-                    // this grid is the head and the eyes and no legs.
-                    py -= en.dir * cell * 0.72;
-                } else {
-                    // ⚠️ THE HUNTER IS NOT STAGED, IT IS ANNOUNCED. Jake: *"Robot
-                    // gets an announcement, so it doesn't matter."* It has no
-                    // entry axis to lean along — it arrives at a corner — so a
-                    // lean would be a direction it is not about to move in.
-                    px = pos.x; py = pos.y;
-                }
+                const stage = peekStaging(en.kind, en.dir);
+                px += stage.ox * cell;
+                py += stage.oy * cell;
+                // ⚠️ THE STAGED LEAN REPLACES THE BLAST TILT RATHER THAN ADDING
+                // TO IT. A creature that has not arrived cannot have fired, so
+                // `tilt` is necessarily 0 here — but summing them would make that
+                // an assumption about blasts instead of a statement about peeks.
+                lean = stage.lean;
                 // ⚠️ FADED, SO A LEANING CREATURE NEVER READS AS ONE THAT HAS
                 // ARRIVED. It cannot catch anything yet (caughtBy() skips it) and
                 // it must not look like it can.

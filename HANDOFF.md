@@ -84,8 +84,20 @@
 > `game-chrome.js` **v1.9.0**, `game-shell.js` **v1.7.0**,
 > `game-layout.js` **v1.5.0**, `game-deadline.js` **v1.11.0**.
 >
-> * **93 harnesses pass** after `npm install` — ⚠️ see rule 1; without it nine of
->   them fail on a missing package and look like defects.
+> * **96 harnesses pass** after `npm install` — ⚠️ see rule 1; without it
+>   nine more fail on a missing package and look like defects. ⚠️ **ONE REAL
+>   FAILURE STANDS**: `guest-merge-test.mjs` Part D — open, undiagnosed, ROADMAP
+>   114a. Treat any second failure as yours.
+>   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
+>   `docs-vs-repo-test.mjs` C2 matches it by regex and reads the FIRST hit in this
+>   file — and §§1–8 are full of historical round records saying "57 harnesses
+>   pass", "56 harnesses pass" and so on. Reword this line and C2 silently starts
+>   grading a 2026-07 round instead of today. It read 57 for exactly that reason
+>   during Round 114.
+>   ⚠️⚠️ **THIS NUMBER IS QUOTED IN THREE PLACES AND `docs-vs-repo-test.mjs` C2
+>   CHECKS IT AGAINST THE RUNNER.** Round 114 registered a 94th harness and C2
+>   went red on this line within the same session, which is the check working —
+>   bump it here, in §14, and in `README.md` in the same edit.
 > * ⚠️⚠️ **THE STAMPS LIST ABOVE IS NOT ACTUALLY VERIFIED, AND THAT IS A REAL
 >   GAP.** `docs-vs-repo-test.mjs` checks it against `versions.js`'s registry —
 >   and **none of the twelve arcade modules are in that registry**, so all twelve
@@ -5709,7 +5721,7 @@ a pointer to a file you should go and read.**
 
 | doc | what it is for |
 |---|---|
-| `HANDOFF.md` | this file — the only handoff. **Root**, and it stays there |
+| `HANDOFF.md` | this file, and **as of Round 114 this row is finally true**: the only handoff. **Root**, and it stays there. ⚠️⚠️ **IT SAID "the only handoff" FROM ROUND 23 TO ROUND 114 WHILE THIS VERY TABLE LISTED THREE SIBLINGS FOUR ROWS BELOW** — `HANDOFF-games.md`, `HANDOFF-learn2.md`, plus `INTEGRATION.md` and `NEXT-STEPS.md` doing a handoff's job under other names. ⭐ Jake, 2026-09-10: *"that ends up being dozens of documents... it gets superconfusing for me."* All five are now §§10–14 below, appended verbatim. ⚠️ **DO NOT CREATE `HANDOFF-<anything>.md` AGAIN** — a round's handoff is a new numbered section in this file, which is what the section numbers are for |
 | `README.md` | what the project is; file map, data model. **Root** |
 | `ROADMAP.md` | **Root.** Every open item, the index at the top, and the § CONVENTIONS block. ⚠️⚠️ **MISSING FROM THIS TABLE UNTIL ROUND 81** — the document every round reads most, absent from the map that lists the ones it reads least. Found by `docs-vs-repo-test.mjs` on its first run, which is the entire argument for that harness. ⚠️ It is Claude's working file, NOT Jake's: *"the document is too large and unwieldy for me to even navigate"* — never answer him in item numbers |
 | `CHANGELOG.md` | **Root.** Kept, but its index is stale — §6.4. The file headers are the more reliable history. ⚠️ Round 17 left it untouched on purpose: a changelog is a record of what happened, and rewriting old entries to use new paths would falsify it |
@@ -5722,12 +5734,12 @@ a pointer to a file you should go and read.**
 | `docs/PEDAGOGY-AUDIT.md` | Round 2 research. The only record of why the lesson gates are what they are |
 | `docs/archive/MULTITENANCY.md` | ⚠️ **SUPERSEDED, and see the correction below.** Kept for two arguments that appear nowhere else; its warning header is what makes keeping it safe |
 | `docs/archive/HANDOFF-ARCHIVE.md` | ⚠️⚠️ **ROUNDS 15–20's NARRATIVES, SPLIT OUT BY ROUND 23 WHEN THIS FILE HIT 237 KB.** Read-only; nothing in it is a plan, a blocker or an instruction, and every claim that still governs the code was lifted into this file first. **If you ever need it to do your job, that is a bug in HANDOFF.md — fix it here, do not start citing that.** ⚠️ **Missing from this table until Round 81, which was worse than an ordinary omission**: the paragraph below says every `HANDOFF-roundN.md` is deleted and *gone means gone*, and a reader could easily take that as covering this file too |
-| `README-games.md` | 🆕 **Round 82 (Victor), landed Round 86.** The arcade architecture: why `game-shell.js` owns every number and the views own only pixels. ⚠️ Read this before touching any `game-*.js` |
-| `HANDOFF-games.md` | 🆕 **Round 82's own handoff.** The four bugs that each looked fixed, with what every draft got wrong. §1d is required reading before touching Escape Key |
-| `INTEGRATION.md` | 🆕 the seam map for folding the games in: what touches what, the three version mirrors, and why the games must NOT be registered in `versions.js` until the deploy that wires them |
-| `NEXT-STEPS.md` | 🆕 Round 82's ordered action list and the record of Jake's five product rulings, with his quotes. ⚠️ Read as a record, not a queue — all five are answered and applied |
+| ~~`README-games.md`~~ | ⚠️⚠️ **FOLDED INTO `README.md` APPENDIX A IN ROUND 114 AND DELETED.** Jake asked for one readme; this was the second. Struck rather than removed, because a silently deleted row teaches nothing. Old text:  🆕 **Round 82 (Victor), landed Round 86.** The arcade architecture: why `game-shell.js` owns every number and the views own only pixels. ⚠️ Read this before touching any `game-*.js` |
+| ~~`HANDOFF-games.md`~~ | ⚠️⚠️ **FOLDED INTO §10 OF THIS FILE IN ROUND 114 AND DELETED.** Old text:  🆕 **Round 82's own handoff.** The four bugs that each looked fixed, with what every draft got wrong. §1d is required reading before touching Escape Key |
+| ~~`INTEGRATION.md`~~ | ⚠️⚠️ **FOLDED INTO §12 OF THIS FILE IN ROUND 114 AND DELETED.** Old text:  🆕 the seam map for folding the games in: what touches what, the three version mirrors, and why the games must NOT be registered in `versions.js` until the deploy that wires them |
+| ~~`NEXT-STEPS.md`~~ | ⚠️⚠️ **FOLDED INTO §13 OF THIS FILE IN ROUND 114 AND DELETED.** Old text:  🆕 Round 82's ordered action list and the record of Jake's five product rulings, with his quotes. ⚠️ Read as a record, not a queue — all five are answered and applied |
 | `firebase/APPROVED-game-scores.md` | 🆕 the game leaderboard shape. ⚠️⚠️ **APPROVED IS NOT DEPLOYED.** The shape is settled; the rules TEXT has never been executed and must pass `npm run test:rules` against the emulator before it goes near the console |
-| `HANDOFF-learn2.md` | 🆕 **Round 102's fork handoff.** The `learn2.*` staging fork where Deadline is the lesson gate. ⚠️ **READ BEFORE TOUCHING EITHER LEARN PAGE**, and see §7 item 1 — the fork must be promoted or folded back, and the loser deleted. ⚠️ **Missing from this table from the moment it was created**, which `docs-vs-repo-test.mjs` reported and Round 102's own START HERE block claimed was green |
+| ~~`HANDOFF-learn2.md`~~ | ⚠️⚠️ **FOLDED INTO §11 OF THIS FILE IN ROUND 114 AND DELETED.** Old text:  🆕 **Round 102's fork handoff.** The `learn2.*` staging fork where Deadline is the lesson gate. ⚠️ **READ BEFORE TOUCHING EITHER LEARN PAGE**, and see §7 item 1 — the fork must be promoted or folded back, and the loser deleted. ⚠️ **Missing from this table from the moment it was created**, which `docs-vs-repo-test.mjs` reported and Round 102's own START HERE block claimed was green |
 | `tools/wordbank/shatter-gemini-prompt.md` | 🆕 **Round 102.** The model prompt that classified Shatter's 300 words against a closed list. ⚠️ Belongs beside `tools/wordbank/gemini-shatter-reply.json`, the one file in that round that **cannot be regenerated**. Also missing from this table since it was created |
 | `tests/README.md` | 🆕 the suite: what is registered, what is deliberately not, and the standing failure |
 | ~~`tests/reconcile-test.mjs`~~ | ⚠️⚠️ **THIS FILE DOES NOT EXIST AND THIS ROW POINTED AT NOTHING.** It was listed for its header, which stated what the reconciliation harness did *not* cover. The file is gone — renamed or absorbed — and the row outlived it, sending anyone who took the map seriously looking for something that is not there. **Caught by `docs-vs-repo-test.mjs` on its first run.** Row kept, struck through, because a silently deleted row teaches nothing |
@@ -5755,3 +5767,2080 @@ is to write the paragraph into `firestore.rules`'s own header, not to go looking
 
 **Do not go hunting for any of these, and do not send Jake hunting.** If you ever genuinely need
 one, say so plainly and name what you need it for.
+
+
+---
+
+## §10. The arcade games — architecture, and the bugs that each looked fixed
+
+⚠️ **FOLDED IN FROM `HANDOFF-games.md` IN ROUND 114 (Carriage), UNCHANGED BELOW THIS LINE.**
+Jake, 2026-09-10: *"you made specific handoffs and readmes for your work — that
+ends up being dozens of documents. I'd much rather you clean up the documentation
+that's there so that there's one readme and one handoff. Otherwise it gets
+superconfusing for me — no idea what it does for future yous."*
+
+⭐ **HE IS RIGHT, AND §9's OWN FIRST ROW HAD BEEN LYING ABOUT IT SINCE ROUND 23**:
+it read *"this file — the only handoff"* while listing three sibling handoffs four
+rows below. ⚠️ **THE CONTENT IS APPENDED VERBATIM RATHER THAN SUMMARISED** — every
+warning in it was paid for by a defect, and a merge is not a licence to edit
+history. Only heading levels are shifted, so §9's document-map region still ends
+where the harness expects.
+
+**Round 82 (Victor), 2026-09-07.** Instance name: **Victor**, an 1889 typewriter,
+following the round series. Not a duplicate of any name in `CHANGELOG.md`,
+`HANDOFF.md` or `ROADMAP.md` as of Round 81.
+
+⚠️ **THIS WORK WAS STAMPED "ROUND 65" THROUGH MOST OF ITS CONSTRUCTION AND THAT
+WAS WRONG.** The number came from grepping `Round N (Name)` across the docs, which
+picks up ROADMAP *prose* references to closed items rather than the `## Round N`
+heading at the head of `CHANGELOG.md` — the only reliable answer. Corrected
+throughout; a stray 65 anywhere is a straggler.
+
+⚠️ **READ `INTEGRATION.md` FIRST IF YOU ARE FOLDING THIS INTO OTHER WORK.** It
+covers the seam — what touches what, the three version mirrors, the draft ROADMAP
+and CHANGELOG entries, and `tests/game-assumptions-test.mjs`, which turns every
+assumption this round made about the repo into an executable check.
+
+⚠️ **Read `HANDOFF.md` first.** This document covers only the arcade games and
+assumes the standing rules, the deploy table and §5's invariants.
+
+---
+
+#### 0. State
+
+| file | version | status |
+|---|---|---|
+| `game-shell.js` | 1.0.0 | **new.** Pure. All game timing/scoring math |
+| `game-names.js` | 1.0.0 | **new.** Frozen ids ↔ titles, assessed/time flags, entry points |
+| `game-draw.js` | 1.0.0 | **new.** Canvas helpers + reduced-motion + Caps Lock |
+| `game-chrome.js` | 1.0.0 | **new.** Get-ready, pause, quit, restart, mute (DOM) |
+| `game-audio.js` | 1.0.0 | **new.** Synthesised sound, muted by default |
+| `escape-board.js` | 1.0.0 | **new.** Pure. Escape Key's grid, enemies, key rules |
+| `game-escape.js` | 1.0.0 | **new.** Escape Key view |
+| `game-deadline.js` | 1.0.0 | **new.** Deadline view |
+| `tests/game-shell-test.mjs` | 1.2.0 | **new.** 91 assertions, green |
+| `tests/escape-board-test.mjs` | 1.2.0 | **new.** 39 assertions, green |
+| `tests/game-assumptions-test.mjs` | 1.0.0 | **new.** 59 assertions, green — the seam |
+| `tools/game-lab.html` | 1.4.0 | Play bench, **all three games**, with a banked-seconds counter |
+| `shatter-board.js` | 1.0.0 | 🆕 **Round 103.** Pure. The split ladder, rock travel, the lock, the warp |
+| `arcade-pool.js` | 1.0.0 | 🆕 **Round 104.** Pure. Real words when the level's keys allow, letter groups when they do not |
+| `tests/arcade-pool-test.mjs` | 1.0.0 | 🆕 **Round 104.** 20 assertions, green |
+| `escape-board.js` | **1.1.0** | ⭐ optional `poolFor(round)` — without it `word-banks.js` is decorative |
+| `game-escape.js` | **1.2.0** | one cell font for the board, set by its longest word; accepts `poolFor` |
+| `game-shatter.js` | 1.0.0 | 🆕 **Round 103.** Shatter view. Arcade-only by ruling |
+| `tests/shatter-board-test.mjs` | 1.0.0 | 🆕 **Round 103.** 55 assertions, green |
+
+⚠️⚠️ **AS OF ROUND 104 ESCAPE KEY PLAYS REAL LIBRARY WORDS WHERE THE LEVEL ALLOWS
+IT.** `arcade-pool.js` decides per level; the home row spells **four** bank words
+in total, so Units 1–2 correctly keep letter groups. ⚠️ **THAT FALLBACK IS NOT A
+DEGRADATION** and must never be logged, warned or styled as one.
+
+⚠️ **`keyboard.js` IS NOW IMPORTED BY `game-deadline.js`** and was not touched.
+It is the source of truth for the finger map and the finger colours; see §1c.
+
+⚠️ **DELETE `game-missile.js` AND `game-muncher.js` IN THE SAME COMMIT** that adds
+`game-deadline.js` and `game-escape.js`. They are the same files renamed; leaving
+both is two copies of a game, which is the Rule 9 failure this project keeps
+finding. Nothing imports the old names.
+
+##### The names (Jake's rulings, 2026-09-07)
+
+| id (frozen) | title | was |
+|---|---|---|
+| `deadline` | **Deadline** | "Missile Command" — an active Atari trademark |
+| `escape` | **Escape Key** | "Word Muncher" |
+| `shatter` | **Shatter** | "Asteroids" — ✅ **BUILT, Round 103 (Bar-Let)** |
+
+⚠️ **THE ID AND THE TITLE ARE DIFFERENT THINGS AND `game-names.js` IS WHY.** The
+id goes into Firestore, the composite index and every leaderboard query, and must
+never change or it orphans scores. The title is what a twelve-year-old reads and
+is exactly the kind of thing that gets a better idea in eighteen months. With the
+registry, a rename is one line; without it, the title would have been spelled into
+two views, a modal, a leaderboard header and a Firestore field, and the fifth copy
+is the one nobody finds.
+
+⚠️ **"Last Word" was rejected deliberately.** It frames the game as unwinnable,
+and the *assessed* mode is winnable — clear the quota and the banner reads CITY
+DEFENDED. Only arcade is endless. Promising a struggling child doom before their
+graded run is the one thing the title must not do.
+
+##### ✅ EVERY MODULE IS 1.0.0 — Jake's ruling, 2026-09-07
+
+*"Nothing to this moment has had a version, so I'd rather it be 1.x. Gemini
+doesn't deserve to have version 1. It was version 0 at best."*
+
+He addressed `game-escape.js`, which had climbed to 2.2.0 across an inline-board
+draft, the extraction into `escape-board.js`, and the polish pass. ⚠️ **THE SAME
+ARGUMENT VOIDS EVERY NUMBER IN THE DROP** — the shell had reached 1.2.0,
+`game-draw.js` 1.1.0, `game-deadline.js` 1.2.0. All my own drafts; none ever
+deployed.
+
+⭐ **THE VERSION LOG RECORDS DEPLOYS, NOT DRAFTS.** A file that has never shipped
+has no history to record, and stamping five internal iterations into a header puts
+history in front of the next reader that describes nothing they can observe. The
+reasoning from those drafts is kept as prose throughout, because the reasoning is
+the part with value — the numbers were never real.
+
+⚠️ **THE NEXT CHANGE TO ANY OF THESE IS A NORMAL BUMP FROM 1.0.0**, and from here
+the version log means what it says everywhere else in this repo.
+
+**Not done, and deliberately not started:** the wiring into `learn.js` and the
+leaderboard write. ⚠️ **SHATTER IS NO LONGER ON THIS LIST — Round 103 built it.**
+Reasons for the other two in §4 and §6.
+
+⚠️ **v1.1.0 of the shell is a breaking change to the report object and it is
+taken deliberately while nothing consumes it.** `report().leaks` is now
+`report().hits`, because Muncher needed to report a collision and the alternative
+was keeping `leaks` for push games and adding `hits` for cadence games — **two
+records of one quantity, inside the report object, which is a Rule 9 break.**
+`leaked()` survives as a thin alias onto `hit()` so the Missile Command call site
+still reads in its own vocabulary. Every consumer was updated in this same
+change. ⚠️ Once `learn.js` reads this object, a rename like this needs the Rule 3
+major-bump conversation.
+
+Run the suites:
+```
+node tests/game-shell-test.mjs        # 91 — the timing rule
+node tests/escape-board-test.mjs      # 39 — the camper, the hunter, the webs
+node tests/game-assumptions-test.mjs  # 59 — THE SEAM with the rest of the repo
+```
+⚠️ Register all three in `tests/run-all-tests.mjs` or they are not coverage; see
+`INTEGRATION.md` §2 for the entries.
+Play it: serve the repo root, open `/tools/game-lab.html`.
+
+---
+
+#### 1. ⚠️⚠️ The defect this round exists to have caught
+
+The first draft of `game-shell.js` set `MISSION_PRESSURE = 0.75`, reasoning that
+a student typing at the gate deserves 25% headroom. **It made every gate
+mathematically unreachable and would have failed every child in the building.**
+
+Because the game clock is wall-clock, the seconds a student spends *waiting for
+the next spawn* are charged to them. So a push rate below the gate caps the
+achievable WPM below the gate:
+
+```
+gate 15 WPM, 4-char targets, pressure 0.75  →  push interval 4.27 s
+kill each target the instant it spawns      →  4 chars / 4.27 s × 12 = 11.3 WPM
+```
+
+11.3 against a gate of 15, for a student playing perfectly. It looked correct,
+it read correct in review, and it took thirty seconds of arithmetic in a harness
+to expose. **`tests/game-shell-test.mjs` Part A now pins that arithmetic**, so it
+cannot return as a readability tweak.
+
+The fix is two things, and both are load-bearing:
+
+1. **Pressure is 1.0** — work is pushed at exactly gate rate. Headroom comes
+   from target *lifetime* (`QUEUE_DEPTH` intervals) and from shields, neither of
+   which touches the measured number.
+2. **The push interval is a maximum wait, not a metronome.** If the screen holds
+   fewer than `MIN_ON_SCREEN` targets, the next spawns at once. Without this,
+   pressure 1.0 caps *everyone* at exactly the gate: a 30 WPM student would read
+   15, A🔥 (1.5 × gate) would be unreachable, and the game would be reporting the
+   spawn timer rather than the child. Part D asserts a 40 WPM typist reads 40.
+
+A second silent one, same class: `pressure` gated its ramp on `quotaMet`, and
+arcade sets `quotaChars = Infinity`, so **arcade had no difficulty curve at all**
+— identical to the prototype's `round` counter, which incremented, displayed, and
+changed nothing.
+
+---
+
+#### 1b. ⚠️⚠️ THE CAMPER, AND THREE DRAFTS THAT EACH LOOKED FIXED
+
+Jake asked the right question: *"Doesn't a student have to type in order to dodge?
+Or do you mean that they can just stay in place and hope to avoid trouble?"* — and
+proposed the fix: *"Could we have the creatures spawn at the row/column or within
+reach of the row/column?"*
+
+He was right, and it matters more than a fairness patch: **Escape Key's WPM is
+only a typing measurement if moving is mandatory**, because moving is what costs a
+typed word. A camper banks wall-clock seconds against zero characters. So the
+camper test is the test that decides whether Escape Key may sit on the graded
+path at all.
+
+Extracting `escape-board.js` made it testable, and it took **three drafts**, each
+of which looked correct:
+
+| draft | what it did | result |
+|---|---|---|
+| 1 | spawn on the player's row/column | **36 of 40 campers survived.** A creature spawning in the player's *column* then walked horizontally along its own row and never came near them. The lane was a start position, not a threat vector |
+| 2 | travel along the axis you spawned on | **38 of 40 survived.** Enemies kept their original aim forever, so after a respawn they patrolled a lane nobody was in. ⚠️ That would have hurt real play too — a board whose threats have lost you has nothing to escape from |
+| 3 | re-acquire the player's lane at board edges | **1 of 40 survived.** Seed 19: a kaiju reached the player's column mid-row, had no bounce to trigger a re-aim, and ran past the junction forever |
+| 4 | re-acquire at the junction as well as the edge | **0 of 40 survived.** Median death at enemy step 20 — about a minute at a 15 WPM gate |
+
+⚠️ **THE ONE-IN-FORTY MARGIN AT DRAFT 3 IS THE INTERESTING PART.** It looks like
+noise. It was a rule with a gap in it, and only a 40-seed sweep distinguished the
+two. A single playtest would have called draft 3 done.
+
+Base population also went from 1 to 2: `1 + floor((p-1)/0.18)` put exactly ONE
+enemy on the board through the entire mission phase, which was half the camping
+hole and an empty-feeling game besides.
+
+⚠️ **AND THE MOVER TEST WAS MEASURING THE WRONG THING TWICE.** Its first policy
+always typed the first available neighbour, walking cheerfully into enemies —
+37/40 died, which said nothing, because no child plays that way. Its second
+assertion demanded survival over 200 enemy steps, which is **10.7 minutes** at a
+15 WPM gate: an endless arcade run, where the ramp is *supposed* to win. The
+claims that actually bear on the grade are the two that shipped:
+
+* a dodging player clears **102 moves** on average against a **28-target** mission
+* and survives a mission-length run on **38 of 40** seeds
+
+⚠️ **DO NOT SOFTEN THE ROW/COLUMN SPAWN RULE.** It is load-bearing for the grade,
+not for the difficulty. The player's row and column are tinted in the view so the
+rule teaches itself without a tutorial.
+
+---
+
+#### 1c. THE POLISH PASS, AND THE TWO REAL DEFECTS IN IT
+
+Jake: *"Please do all the polish you can."* Most of it was furniture. Two items
+were defects.
+
+##### ⚠️⚠️ The full-screen red flash was a blocker, not a nicety
+
+All three prototypes — and the first draft of both shipped views — answered a hit
+with a **40–45% alpha red fill across the entire canvas**, repeated. In a room of
+thirty twelve-year-olds that is a photosensitivity risk, and repeated large-area
+luminance flashes are the exact pattern seizure guidance names. It now goes
+through `drawHitFeedback()`, which draws an edge vignette **transparent at the
+centre** (so the area the student is reading never changes luminance) and degrades
+to a **static border band** under `prefers-reduced-motion`. Particle counts scale
+by `motionScale()` too.
+⚠️ `prefersReducedMotion()` returns **true** when it cannot answer — a harness, an
+old WebView or a locked-down MDM browser is not consent to flash the screen. It is
+read fresh every frame rather than cached, because a student can change the OS setting
+mid-session.
+
+##### ⚠️⚠️ `game-deadline.js` carried a second, worse copy of the finger map
+
+v1.1.0 hand-wrote `FINGER_MAP` and `FINGER_COLORS`. **`keyboard.js` has exported
+`buildFingerMap()`, `getFingerInfo()` and `FINGER_COLORS` all along**, and handles
+the shift rows properly. The hand-written copy covered letters, digits and a
+little punctuation; everything else — `!`, `?`, `"`, `:`, all over any book
+lesson — fell through to `undefined`, and `FINGER_MAP[...] || 0` turned that into
+tube 0, the left pinky.
+
+**So in a prose lesson the game confidently launched from the wrong finger** — and
+the finger tubes are the single best thing in that game. Showing the wrong one is
+worse than showing none. Fixed by importing the real thing, which also means a
+recolour or layout change in `keyboard.js` follows here for free. Part J pins it.
+⚠️ Space now returns `null` rather than 0: it is a thumb character with no tube,
+and `|| 0` is what taught the left pinky to fire the space bar.
+
+⚠️ **AND PART J'S FIRST ASSERTION WAS WRONG, NOT THE MAP.** It asserted that no
+punctuation lands on the left pinky — but `!` is Shift+1, which really is the left
+pinky. Asserting "not pinky" would have forced a wrong answer to satisfy a wrong
+test. It now spot-checks known values and asserts the mapping is *distributed*
+rather than degenerate.
+
+##### The furniture
+
+* **`game-chrome.js`** — get-ready panel with a 3-2-1 countdown, pause, quit,
+  restart, mute. ⚠️ **DOM, not canvas**, so every one is a real tap target: both
+  views were keyboard-only, so a student on an iPad with no keyboard attached
+  could not even quit. ⚠️ Every button calls `blur()` on click, because a focused
+  `<button>` swallows Space and Enter and Space is a real character in prose.
+* **Spawns wait for the countdown**, but the clock does not — it starts on the
+  first keystroke as it always did, so a student reading the get-ready panel is
+  charged nothing.
+* **Pause stops the graded clock.** The one deliberate exception beside a hidden
+  tab: the student asked for it, and there is nothing on screen to type at.
+* **Restart builds a fresh director and board**, never resets the old ones. A
+  `reset()` would be a second place that knows every field on both objects, which
+  is how a stale counter survives a restart and shows up as a second game scoring
+  impossibly high.
+* **`game-audio.js`** — every sound synthesised from oscillators, so there are no
+  binaries for Jake to push through the GitHub web UI and nothing to 404. ⚠️
+  **Muted by default and remembered per browser** — thirty iPads making launch
+  noises in a 44-minute rotation is the teacher's problem, not the student's. The
+  AudioContext is created on the first deliberate unmute, never at import.
+  The keystroke pitch varies by finger, which is teaching rather than decoration:
+  a student hears the shape of a word, and a wrong finger is audibly wrong before
+  they have read the screen.
+* **Caps Lock warning**, read from `getModifierState` every keystroke rather than
+  tracked. Matching is case-sensitive, so without it a student with Caps Lock on
+  fails every single key and concludes the game is broken — the Word Muncher STUCK
+  failure in a new costume.
+* **Deadline now uses the injected `rand`** instead of `Math.random()`, so a lane
+  sequence is reproducible in a harness.
+* **`escape-board.js` v1.1.0: webs stun hunters again.** v1.0.0 declared
+  `stunSteps`, decremented it, and **nothing ever set it** — I dropped the
+  prototype's behaviour during the extraction and left the field behind, which is
+  dead code that reads like a feature. Restoring it gives webs a second role and
+  hands the student a real tactic: lead the hunter across a web. ⚠️ Checked at the
+  **top** of the enemy's turn — the first attempt tested for a web after movement,
+  by which time the hunter had already stepped off it. ⚠️ Hunters only: a webbed
+  kaiju stops being a lane threat, which is the property the whole design rests on.
+
+---
+
+#### 1d. ⚠️⚠️ THE HUNTER, WHICH I ALSO LOST — AND MY TEST SAID HE WAS FINE
+
+Jake: *"the hunter bot does actually appear in escape key, right? Somehow Gemini
+lost the guy, and he should appear around round 5 or 6."*
+
+**He did not appear.** Not in an assessed run, ever. And `escape-board-test.mjs`
+was green on a hunter assertion the whole time.
+
+⚠️ **THE TEST PROVED THE MECHANISM, NOT THE REACHABILITY.** It constructed a board
+at `pressure 1.6`, asserted a hunter spawned, and passed. But pressure is
+**deliberately flat at 1.0 through an assessed run** — a curve during a
+measurement would make the grade depend on how far in the student got — and an
+assessed run **ends at the quota**. So `pressure >= 1.25` was never met in real
+play and the hunter existed only in arcade. Same bug Gemini had, reached by a
+different route, and hidden behind a passing test.
+
+⚠️ **THE LESSON GENERALISES AND IS WORTH CARRYING TO THE OTHER GAMES: a test that
+constructs the precondition it is checking proves the code CAN do the thing, not
+that the thing HAPPENS.** Part C2 now drives boards at the pressure a mission
+actually uses.
+
+Fixing it took three changes, and only the first was the one I expected:
+
+1. **Rounds, not pressure.** `STEPS_PER_ROUND = 6`, `HUNTER_ROUND = 5`. Pressure
+   answers "how hard"; rounds answer "how far in", and the hunter is a how-far-in
+   creature. Round 5 begins at enemy step 24 ≈ 77 s at a 15 WPM gate, which puts
+   him in the last stretch of a ~28-step assessed run — its climax — and about a
+   minute and a quarter into arcade. ⚠️ **DO NOT RE-GATE THIS ON PRESSURE.**
+2. **Creatures expire and walk off** (`ENEMY_LIFE_ROUNDS = 3`). Necessary, and I
+   had not seen it coming: population at mission pressure is 2 and enemies had no
+   lifetime, so the board filled with the kaiju and spider drawn in round 1 and
+   **the unlock at round 5 opened onto a full board.** Zero hunters on 40 of 40,
+   with the round gate working perfectly. This separately fixes "the board is the
+   same two creatures for ten minutes" — a churning board reads alive, a static
+   one reads broken. ⚠️ A stunned creature still ages, or webbing a hunter would
+   preserve it forever.
+3. **The first hunter is guaranteed, not rolled for.** At a 30% roll on a slot
+   that frees every few steps he arrived around round 8 on 29 of 40 boards and
+   never on the other 11 — so "round 5 or 6" was still false, just less
+   dramatically. Every hunter after the first is probabilistic.
+
+Now: **40 of 40 boards see a hunter at flat mission pressure**, none before the
+unlock round even at high pressure, and the round is shown in the HUD — the
+difference from the prototype's display-only counter being that this one gates
+something.
+
+⚠️ **AND THE MISSION-SURVIVAL CHECK WAS MEASURING THE WRONG SPAN.** It ran a flat
+40 enemy steps, which keeps the board alive past the point a real mission would
+have ended and counts deaths that could not happen. It now runs until 28 targets
+are cleared, as an assessed run does: **39 of 40 seeds clear it.**
+
+---
+
+#### 1e. ✅ RULE 10 CLOSED — AND IT FOUND A REAL BUG AND A REAL MISCALIBRATION
+
+Jake exported the corpus on 2026-09-08: 47 lessons, 110 game-eligible runs after
+chunking. First run: **3 failures**. This is the whole argument for Rule 10 — every
+one of these was invisible to 130 assertions against fixtures.
+
+##### ⚠️⚠️ FINDING 1 — THE SPAWN INTERVAL USED THE CHUNK MEAN (a code bug)
+
+`u4_l1/s4`, `u4_l2/s4`, `u4_l4/s5` failed. Not seed noise — **deterministic**, and
+one chunk of a step would fail 0/9 seeds while another chunk of the *same step*
+passed 9/9. The length distributions told the story:
+
+```
+u4_l1/s4 chunk 0 — quite quiet quest queen ... pile pine
+  lengths 4–5, sd 0.42  → mean is a good predictor → 9/9 pass
+u4_l1/s4 chunk 1 — pink pipe pan pay pen ... spear spend speak pride trade plant
+  lengths 3–6, sd 0.96, AND THE LONG WORDS ARE ALL AT THE END → 0/9
+```
+
+Chunk 1's mean of 4.03 set a 3.23 s interval, but each 6-letter word needs 4.8 s at
+a 15 WPM gate. A gate-speed typist accumulated a deficit through the back half and
+lost all three shields, every time.
+
+⚠️ **THE MEAN IS ONLY A CORRECT PACING INPUT IF THE TARGETS ARE UNIFORM, AND
+AUTHORED WORD LISTS ARE NOT** — they group by length and by pattern, which is good
+pedagogy and fatal to a mean. ⭐ Fixed by pricing the interval **from the target
+just handed out**: work now arrives at gate rate *in characters*, so a 6-letter
+word buys 1.5× the interval a 4-letter word does. Lifetime is per-target for the
+same reason. All three runs went to 9/9.
+
+##### ⚠️ FINDING 2 — QUEUE_DEPTH 3 WAS TOO TIGHT (a miscalibration)
+
+With the bug fixed, two Unit 7 graduation passages still failed — now
+*seed-dependent* (4/9, 6/9), which is the signature of marginal difficulty rather
+than a broken rule. At pressure 1.0 work arrives at exactly gate rate, so a typist
+at exactly the gate **with any error rate** is fractionally slower than the push,
+and that deficit compounds. Unit 7 has the highest gate (25) and the longest words,
+so it is the tightest case in the corpus.
+
+Swept the whole corpus, 990 trials per setting:
+
+| `QUEUE_DEPTH` | gate-speed failures | runs affected | peak on screen | 60%-of-gate typists cleared |
+|---|---|---|---|---|
+| 3 | 19/990 | 6 | 4 | 0/550 |
+| **4** | **1/990** | **1** | **4** | **0/550** |
+| 5 | 0/990 | 0 | 5 | 0/550 |
+
+⭐ **4, and the two reasons it is free.** ⚠️ **PEAK TARGETS ON SCREEN IS 4 AT BOTH 3
+AND 4** — the buffer is measured in TIME, and a student who is keeping up never
+fills it, so the readability cost I asserted when I wrote *"3 is a readability
+ceiling"* does not exist. The depth only matters to a student already behind. And
+⚠️ **it does not let slow students through**: a typist at 60% of gate failed 550 of
+550 at depth 3, 4 *and* 5. The gate still discriminates; the buffer only stopped
+punishing someone for a rounding error.
+
+⚠️ **IF MISSIONS EVER FEEL TOO HARD, THIS IS THE NUMBER TO RAISE — NOT
+`MISSION_PRESSURE`.** Lowering pressure below 1.0 caps achievable WPM below the
+gate; see §1.
+
+##### ⚠️⚠️ FINDING 3 — PART I'S OWN ASSERTION WAS WRONG, FOR THE THIRD TIME THIS ROUND
+
+It ran **one fixed seed** per run and demanded a gate-speed typist clear every
+authored run. Two faults: one seed cannot distinguish a run that is **impossible**
+from one that is merely **hard**, and those need opposite responses; and demanding
+a 100% win rate from a typist at *exactly* the gate is not the design goal — such a
+student should usually clear it and will sometimes lose and retry, exactly as on an
+ordinary typed run.
+
+⚠️ **THAT IS THE THIRD BADLY-AIMED ASSERTION IN THIS ROUND**, after `escape-board`
+Part B measuring the wrong span and the hunter test asserting a mechanism instead
+of its reachability. The pattern is the lesson: **write down what a failure would
+mean before writing the assertion.**
+
+Part I now runs 9 seeds per run and asserts (a) no run is systematically
+unclearable at its own gate, (b) at least 95% of trials clear corpus-wide, and
+(c) a 60%-of-gate typist clears nothing. Result: **990 trials, 1 loss (0.1%),
+tightest run `u7_r6/s1` at 8/9.**
+
+---
+
+#### 2. The rules, and where they stand
+
+**Rule 9 — Single Source of Truth.** ✅ Held. Every quantity that decides whether
+a child passes lives in `game-shell.js` and nowhere else. The views own pixels
+and own no numbers. `netWPM()` and `accuracyPct()` are `learn.js`'s formulas
+character for character, and Part B pins them; `chunkSequence()` and
+`gatesForRun()` are *imported* from `run-grade.js`, not reproduced; arcade groups
+go through `drill-filter.js`'s real `safeGroup()`.
+⚠️ **`report()` deliberately has no `grade` field.** `run-grade.js`'s
+`calculateGrade()` turns `(wpm, acc)` into a letter, and a second place that did
+that is exactly what that module exists to prevent.
+
+**Rule 10 — Prove It on Real Data First.** ✅ **CLOSED, 2026-09-08, AND IT FOUND
+TWO THINGS.** See §1e. The fixture is committed at
+`tests/fixtures/lessons-export.json` (47 lessons, exporter v1.21.0). ⚠️ **RE-EXPORT
+IT WHENEVER THE LESSON CORPUS CHANGES MATERIALLY** — a stale fixture is a harness
+proving yesterday's corpus, which is the shape of half the bugs in this repo's
+history.
+
+The original note, kept because the reasoning is what mattered: ⚠️ **NOT
+SATISFIED. Do not treat any game result as authoritative yet.** The harness drives simulated typists through
+the real code paths and real arithmetic, but the lesson documents live in
+Firestore and are not in the repo, so Parts B–G use a fixture ladder. Part H is
+written and **skips loudly** rather than passing.
+
+> **To close it:** Admin → Lessons → Export JSON. ⚠️ **Jake cannot run the
+> harness himself — there is no CLI in his workflow (HANDOFF B.4, browser-only
+> deploys).** He uploads the export into a session and a Claude instance saves it
+> to `tests/fixtures/lessons-export.json` and runs `node tests/game-shell-test.mjs`.
+> Part I then drives a gate-speed typist through *every* game-eligible authored
+> run and asserts each one is clearable. Until that has run green, the game must
+> not write a grade.
+>
+> ⚠️ **Playing the games needs none of this.** `tools/game-lab.html` is static and
+> `tools/` is served by Pages, so pushing the files through the GitHub web UI and
+> opening `/tools/game-lab.html` on the live site is the whole loop. The JSON is
+> for the automated harness only, and conflating the two was this instance's
+> error in the previous turn.
+
+**Rule 11 — Sacred.** ⚠️ **Untested, because nothing is wired yet.** The student
+sees the game's `wpm`/`acc`; the teacher will see whatever `learn.js` records. The
+moment the wiring exists it must ship with a harness driving both readers off the
+same record. There is one *calibration* gap that is not a Rule 11 divergence but
+must be written down: see §3.
+
+**Rule 3 — version bumps.** All new files at 1.0.0. No existing file was touched,
+so nothing needed bumping. That is deliberate — see §4.
+
+**Rule 4 — no student data.** Nothing here reads or stores identity.
+
+---
+
+#### 3. Rulings baked in, with the quotes
+
+**Leaks are not charged as accuracy errors.** Jake, 2026-09-07: *"kids can
+already get 100% accuracy and lose because they don't get the required speed -
+and THAT's what we're looking at here."* A leak costs a shield and costs the
+seconds spent not typing it, which lands as a speed miss. Charging it twice would
+punish the careful slow typist in a second currency.
+⚠️ **Do not "fix" `leaked()` by adding the remaining characters to `mistakes`.**
+
+**An unmatched keystroke *is* an error.** All three prototypes silently discarded
+a key that hit nothing, so a masher could sit at 100% accuracy indefinitely. This
+is not the same event as a leak and is charged.
+
+**Wall clock, no idle subtraction.** `learn.js`'s `stepSeconds` stops when a
+student idles, correctly — in a drill, idle is a child staring at a screen. In a
+game, idle is *the game's own dead air between spawns*, and an idle-aware clock
+would divide 20 characters by the 0.4 s spent typing them and report 45 WPM for a
+student producing 15. Part G pins it. A hidden tab is the only pause.
+
+**The space-bar forgiveness, accepted and one-directional.** A drill charges the
+delimiter (`asdf jkl;` is ten keystrokes); a game does not. So the same text is
+worth **~19% fewer characters** in a game — measured, Part E. A space-to-confirm
+keystroke would make the two exactly comparable and was rejected: it puts a
+fiddly extra key between a sixth grader and an explosion, and Jake's ruling above
+points the same way. **The error is accepted only because it is forgiving — a
+game is never harder than the drill at the same gate, and Part E asserts that
+direction** so a change that inverts it fails the suite instead of failing
+children.
+⚠️ Nothing credits a phantom character. `chars` and `mistakes` are honest
+keystroke counts; crediting the missing delimiter would have inflated *accuracy*
+too (4 typed / 1 wrong = 75%, but 5 charged / 1 wrong = 80%), and accuracy is
+what a lesson is gated on.
+
+**Lanes are opt-in.** Jake's concern: *"my only fear on the lanes is that it
+distracts kids who just want to type."* So targeting **auto-locks to the target
+nearest impact** and a child who only wants to type never thinks about lanes.
+Lanes pay off only for a student who chooses to abandon a lock (Escape, free) to
+save a different landmark. Landmark names carry the payoff for everyone else:
+`THE PARTHENON IS GONE` is a story, not a skill check.
+
+**Arcade scales with the student, not with a lesson.** Jake: *"it generates
+words/letter combos based on as far as they've gotten in the lessons"* and *"It's
+tricking them into practicing more, so of course it counts."* `arcadeKeySet()`
+takes the union up to and including the lesson they are currently on — a student
+who has passed nothing gets the home row and nothing else. Target WPM is their
+own rolling WPM, because there is no gate to read.
+
+**Misfire feedback never blocks input.** The Muncher prototype froze the keyboard
+for four seconds on a web hit and flashed red, which reads to a twelve-year-old
+as broken hardware. A wrong key darks its finger's tube for 260 ms and fires a
+missile at nothing. Purely visual.
+
+---
+
+#### 4. Why `learn.js` was not touched
+
+Three reasons, in order of weight.
+
+1. **Rule 10 is open.** Wiring the game into the final run of a lesson makes it a
+   graded path. Until Part H has run green against the exported corpus, a green
+   suite here is a green suite on a fixture.
+2. **Rule 11 needs a harness that cannot be written yet.** The two-readers test
+   needs both readers to exist.
+3. **The leaderboard is a schema decision that is still yours.** Sketch below,
+   not built.
+
+⚠️ **The insertion point, when it is time:** `learn.js` line ~3376, the
+`isLastRun` fork in `finishStep()`. A game replaces the *final run* of a lesson
+(your framing, and it is better than the options I offered — the final run
+already exists as the graded slot, so nothing new has to be invented). The game
+must sit **above** `showLessonResultModal()` and hand it the same `(wpm, acc)`
+pair a typed run would, so `recordRunOutcome()`, `saveProgress()` and `logRun()`
+stay the single writers. ⚠️ **Do not add a second write path for a game result.**
+
+---
+
+#### 5. ✅ The leaderboard — shape approved 2026-09-07, NOT deployed
+
+✅ **Jake approved the shape:** *"Kids compete against themselves and then against
+everyone else, reducing the number of writes."* — his summary of the personal-best
+mechanic, and a better one than mine. Full text, rules and index in
+`firebase/APPROVED-game-scores.md`.
+
+⚠️⚠️ **APPROVED IS NOT DEPLOYED.** The rules text has never been executed. It must
+pass `npm run test:rules` against the emulator first, and that needs a session —
+`firestore.rules` is the one file Jake cannot test from a browser.
+
+The current board is one document per uid with four scalar categories and a
+top-10 `orderBy`. A per-lesson game board does not fit that shape.
+
+* New collection `game_scores`, doc id `{uid}_{game}_{lessonId}`.
+* Fields: `game`, `lessonId`, `score`, `initials`, `classId`, `schoolId`,
+  `updatedAt`. **Initials only** — same discipline as `leaderboard`, which every
+  student can read.
+* One composite index: `game` + `lessonId` + `score desc`.
+* **Written only on a personal best** for that `(game, lessonId)` — roughly one
+  write per student per lesson per game, which keeps the WAL-era cost profile.
+* Two boards, not one: **assessed** (the Missile Command final-run slot) and
+  **arcade**. Mixing them would rank forty minutes of Friday above a passed
+  graded run. Your framing: a different board because it is a different game.
+* ⚠️ **Escape Key writes only arcade rows** now (4e: arcade-only), so Deadline is
+  the only game producing assessed rows. Do not build the query layer assuming
+  every game appears on both boards — read `game-names.js`'s `assessed` flag.
+* ⚠️ Arcade minutes count toward totals, per your ruling. Stamp `mode: 'game'`
+  into the session detail anyway so `reports.html` *can* separate game minutes
+  from drill minutes when looking at one child. Costs nothing at write time and
+  keeps the totals inspectable.
+
+---
+
+#### 6. What the prototypes got right, and what has to change
+
+**Keep, and do not simplify away:** the finger tubes (Missile Command — one
+launch tube per finger, in that finger's `keyboard.js` colour; it is a live
+kinetic version of the keyboard colouring and it is the single best idea in all
+three files). Words-as-movement (Muncher). The wireframe vector art (Asteroids).
+
+**The cross-cutting defects, all three files:**
+
+| defect | detail |
+|---|---|
+| frame-rate dependence | Asteroids and Missile Command move in px/**frame**; both run at double speed on a 120 Hz iPad. Muncher was already `performance.now()`-based |
+| no accuracy signal | wrong keys silently discarded; a masher reads 100% |
+| hardcoded word lists | `SUPERNOVA` in a home-row lesson; bypasses `drill-filter.js` |
+| case | all three uppercase and match uppercase, so every capital is free. Drills compare exactly |
+| canvas sized once | no resize handler; rotate an iPad and Missile Command's domes are off screen |
+| no teardown | `window` keydown + a forever RAF loop. Mounted in `learn.html`, a game the student left eats the next drill's keystrokes |
+| text unreadable | bare `fillText` on busy canvas. `game-draw.js`'s plate is the fix, applied everywhere, not just to STUCK |
+
+**Muncher — done this round.** `game-muncher.js` v1.0.0. What changed and why:
+
+* ⭐ **The enemy step interval is `enemyStepMs()` from the shell — 3.2 s at a 15
+  WPM gate, not 1.2 s.** This was the whole unfairness. In Muncher one typed word
+  buys one cell of movement, so keeping pace with an enemy at 1.2 s required
+  `12 × 4 / 1.2 = 40 WPM` — nearly three times the default gate. ⚠️ **No amount
+  of iterating on the spawn table, the web duration or the hunter AI could ever
+  have fixed that**, which is why every step forward had a step backward: the
+  defect was one constant in a file where the other numbers were fine. Part H
+  pins both the old arithmetic and the new.
+* **It is a CADENCE game and it shares the shell's arithmetic anyway.** A push
+  game asks "how often does a target arrive"; a cadence game asks "how fast does
+  an enemy walk". Both are "how long does one target take at this gate", so
+  `enemyStepMs` is an *alias* of `spawnIntervalMs`, not a copy. Part H asserts
+  they are the same function object.
+* **Difficulty now comes from the director's pressure**, so enemy population
+  climbs and the step tightens as the ramp does. The prototype's `round` counter
+  incremented, displayed, and changed nothing but a round-6 hunter unlock; that
+  is the same class of silent no-op as the shell's own arcade-ramp bug in §1.
+* **Webs cost a new word and never eat a keystroke.** Per your amendment — a
+  *fresh* tear-free word, not the one just typed, on a plate above the board.
+  The prototype's `stuckUntil` swallowed every key for four seconds and flashed
+  red, which reads as broken hardware to a twelve-year-old.
+* **Adjacent-only uniqueness, on first character.** The prototype filtered
+  against all 30 cells, needing 31 distinct groups a home-row key set cannot
+  supply — and when it ran out it returned `dictionary[0]`, a silent duplicate,
+  in a game where two identical adjacent words make the direction unchoosable.
+  Only the four cells the player can type from need to differ, and only in their
+  first character. Part H proves a home-row pool offers 8 distinct first
+  characters and a two-key pool offers fewer than 4, so the warning path is real
+  rather than theoretical.
+* **Board scales to the canvas** (prototype: hardcoded 120 px cells, 720×600
+  canvas, cropped on a portrait iPad), **plates on every label**, case-sensitive
+  matching, unmatched keys charged as mistakes, `destroy()` tears down.
+* **Respawn goes to the cell farthest from any enemy**, not a fixed centre —
+  dropping the player back onto a hunter would spend two shields for one mistake.
+
+**Shatter** — ✅ **BUILT IN ROUND 103 (Bar-Let).** Was "Asteroids". `shatter-board.js`
+v1.0.0 + `game-shatter.js` v1.0.0 + `tests/shatter-board-test.mjs` (55 assertions).
+⚠️ **THE FOUR BULLETS BELOW WERE THE PLAN AND ALL FOUR SURVIVED CONTACT** — but
+three defects nobody predicted were found by the harness, and they are in
+`CHANGELOG.md` Round 103 and `HANDOFF.md` §2. ⚠️⚠️ **THE BIGGEST ONE IS NOT IN THIS
+LIST AND COULD NOT HAVE BEEN**: a split target costs **2N keystrokes**, so priced
+at N it demands 30 WPM of a child on a 15 WPM gate. `game-shell.js` v1.6.0's
+`costFactor` is the fix, and Part B of the harness pins it.
+⚠️ **ONE DEVIATION FROM THIS SECTION, DELIBERATE**: `splitTarget()` lives in
+`shatter-board.js`, not in `game-shell.js` as written below. The shell is shared
+arithmetic for all three games and would have had to import a 300-word morphology
+bank plus the drill filter to host it; `escape-board.js` is the precedent for a
+per-game pure module. ⚠️ **Jake was told and it is his to overturn.**
+
+* Free unlimited spacebar warp means the prototype is beaten without typing at
+  all — warp goes on a charge meter earned by clearing words.
+* Rocks wrap forever, so clearing never clears and the pressure is a step
+  function. Targets must converge and not wrap.
+* ⚠️ **THE SPLIT IS THE MECHANIC AND IT MUST NOT BE SEMANTIC.** Jake's objection
+  killed the sonar and campfire reskins outright: *"the subs won't split into
+  smaller subs, so it really does just become a missile command clone with a
+  different perspective. It's the splitting that makes it interesting."* And on
+  the obvious version of splitting: *"I like the idea of splitting compound words
+  into their component parts, but that will only work when they have lots of
+  letters."*
+  Both are right, and the resolution is that the split needs to be **readable and
+  shorter**, not meaningful. One shell function, `splitTarget(text)`, with a
+  fallback ladder: syllables → compound parts → halves → single characters. A
+  Unit 1 student shatters `asdfjk` into `asd` and `fjk` — the same drill, twice,
+  under more pressure. A Unit 7 student shatters `SUPERNOVA` into `SU-PER-NO-VA`
+  and learns syllable chunking as a survival reflex, which is the actual skill
+  that stops letter-by-letter typing. ⚠️ Every lesson gets the escalating swarm;
+  the split gets *more* meaningful as the student advances rather than only
+  working at the top.
+* On the rip-off question, Jake's own read is the right one: Maelstrom was
+  Asteroids' mechanic wearing none of Asteroids' clothes. Mechanics are not the
+  exposure; the name and the art are. Keep the mechanic, own the art, and the
+  title was the only item on the list that actually needed changing — which it
+  now has.
+
+---
+
+#### 7. ✅ ALL FIVE DECISIONS ANSWERED — Jake, 2026-09-07
+
+Applied in code and pinned in `tests/game-assumptions-test.mjs`. Nothing here is
+open. Full quotes and consequences in `NEXT-STEPS.md` §4.
+
+| # | ruling | where it lives |
+|---|---|---|
+| 4a | every module ships at **1.0.0** | headers + runtime constants |
+| 4b | leaderboard shape **approved**, still not deployed | `firebase/APPROVED-game-scores.md` |
+| 4c | assessed → lesson gates; arcade → **furthest gate reached** | `arcadeTargetWPM()` |
+| 4d | **both** entry points, quiet, **no day gate** | `game-names.js` `ARCADE_ENTRY` |
+| 4e | Escape Key **arcade-only**, time still counts | `game-names.js` `assessed`/`countsTime` |
+| 4g | ⭐ **2026-09-09**: *"choosing a specific level in the lessons should help decide what characters are available and what the starting speed should be. Beyond that... They're all going to be 'How far can you get?' games, gradually getting to impossible."* ⚠️ ONE `levelIdx` FEEDS BOTH the key set and the gate — `arcadeWindow()` is the single answerer, because two windows over one list would draw the letters from one lesson and the speed from another | `game-shell.js` v1.7.0, `arcade.html`'s LEVEL row |
+| 4f | ⭐ **RESTATED AND WIDENED 2026-09-09**: *"Shatter and Escape Key are just games. They're not quizzes... They're graded on time, and time spent typing is time spent well."* ⚠️ This closes the question 4e left half-open and applies to BOTH — no quota, no grade, no comparison table; the tick is the whole product | `game-shatter.js` header, `arcade.html` free-play path |
+
+##### ⚠️ THE TWO THAT CARRY A COST WORTH RE-READING
+
+**4c lags a fast student.** The app stores no rolling WPM — per-run WPM only
+reaches `typing_logs` (a query per arcade launch, against a codebase whose WAL
+round drove writes to near-zero) and `bestWPM` is a best, not a mean. Storing a
+new average would be a fourth record of a quantity the app already knows. So the
+arcade targets the `minWPM` gate of the furthest lesson reached: **free**, because
+`arcadeKeySet()` already walks that exact list, which also means the arcade's
+letters and its speed now come from the same window. ⚠️ A quick typist parked in
+Unit 1 gets a 15 WPM arcade until they advance. `bestWPM` raises the floor to 80%
+**only when the caller already holds the leaderboard document** — ⚠️ **DO NOT ADD
+A READ TO SUPPLY IT.**
+
+**4e turns the grade off but not the clock.** `assessed: false`, `countsTime:
+true`. ⚠️ **PART B OF `escape-board-test.mjs` IS STILL LOAD-BEARING** — a student
+who could stand still and bank minutes against zero characters would be farming
+the daily clock. Do not read that test as dead weight because the grade is off,
+and do not soften the row/column spawn rule it guards.
+
+##### What is still open, and it is not a decision
+
+⚠️ **Rule 10.** `game-shell-test.mjs` Part I skips loudly until
+`tests/fixtures/lessons-export.json` exists. **It is now the only thing blocking
+Deadline's wiring.** Jake exports Admin → Lessons → Export JSON and hands it to a
+session; he has no CLI and cannot run the harness himself.
+
+
+---
+
+## §11. The `learn2.*` staging fork — Deadline as the lesson gate
+
+⚠️ **FOLDED IN FROM `HANDOFF-learn2.md` IN ROUND 114 (Carriage), UNCHANGED BELOW THIS LINE.**
+Jake, 2026-09-10: *"you made specific handoffs and readmes for your work — that
+ends up being dozens of documents. I'd much rather you clean up the documentation
+that's there so that there's one readme and one handoff. Otherwise it gets
+superconfusing for me — no idea what it does for future yous."*
+
+⭐ **HE IS RIGHT, AND §9's OWN FIRST ROW HAD BEEN LYING ABOUT IT SINCE ROUND 23**:
+it read *"this file — the only handoff"* while listing three sibling handoffs four
+rows below. ⚠️ **THE CONTENT IS APPENDED VERBATIM RATHER THAN SUMMARISED** — every
+warning in it was paid for by a defect, and a merge is not a licence to edit
+history. Only heading levels are shifted, so §9's document-map region still ends
+where the harness expects.
+
+**2026-09-09.** Built at Jake's request: a lesson's FINAL run should be Deadline
+(`game-deadline.js`) instead of a typed drill, so a student on run 5/6 at the
+bell can come back, finish run 5, and play Deadline as run 6 to prove they're
+ready for the next lesson.
+
+⚠️⚠️ **READ THIS BEFORE TOUCHING `learn2.html` OR `learn2.js`.** They are a
+**staging fork of `learn.html`/`learn.js` v2.48.0, NOT the production page.**
+Read `HANDOFF.md` and `HANDOFF-games.md` first if you haven't — this document
+assumes both.
+
+---
+
+#### 0. Why a fork, and why that's a Rule 9 exception on purpose
+
+Deadline's keystrokes never touch `learn.js`'s `drillPos`/`learnLastInputTime`
+— the two variables `startGradedTimer()`'s tick gates on, and the exact gate
+`tests/open-unit-test.mjs` Part E brace-matches against, by reading
+`../learn.js` **by hardcoded filename** and failing if `statsData.secondsToday++`
+appears more than once in that file. There is no way to bank a game run's
+seconds without a second increment site somewhere, and putting it inside
+`learn.js` itself is precisely the shape that harness exists to catch.
+
+Two honest options were on the table (see the conversation this was built in):
+forking to a new file the harness has never heard of, or a flag-gated branch
+inside `learn.js` with a second, clearly-labelled increment site living beside
+the one Part E polices. **Jake chose the fork, 2026-09-09.**
+
+**What that costs, plainly:** `learn2.js` carries its own full copy of the
+grading/time engine. Two files now compute a grade and bank a second — the
+exact drift risk Rule 9 exists to prevent. This is deliberate and temporary,
+the same role `tools/game-lab.html` and (until Round 82) `arcade.html` already
+played: real, playable, **not the page a whole roster is on.**
+
+⚠️⚠️ **THIS MUST BE RECONCILED BEFORE IT GOES NEAR A WHOLE CLASS.** Two paths,
+Jake's call whenever he's ready:
+
+1. **Promote it.** Once tested, rename `learn2.html`→`learn.html` and
+   `learn2.js`→`learn.js` (bump to a real version, Rule 3's major-bump
+   conversation), delete the old ones, register in `versions.js`.
+2. **Fold it back.** Port `isGameRun()`/`beginGameStep()`/`bankGameSecond()`/
+   `finishGameStep()`/`destroyGameHandle()` into `learn.js` proper behind a
+   flag, accepting the second-increment-site cost inside the production file
+   and updating `open-unit-test.mjs` Part E to know about it deliberately
+   (rather than merely satisfying its letter).
+
+Either way: **delete the loser.** Two copies of this file surviving past the
+decision is the exact failure this whole document exists to prevent.
+
+---
+
+#### 1. State
+
+| file | status |
+|---|---|
+| `learn2.html` | **new.** Fork of `learn.html` v1.2.0. One new element (`#game-mount`), one `<style>` block scoped to it, script tag points at `learn2.js`. |
+| `learn2.js` | **v0.4.0-staging.** Fork of `learn.js` v2.48.0. Diffed line-for-line against it — see §2 for exactly what changed. |
+| `HANDOFF-learn2.md` | this file. |
+**Not touched:** `learn.js`, `learn.html`, `game-deadline.js`, `game-shell.js`,
+`game-chrome.js`, `run-grade.js`, or anything else in the repo. `learn2.html`/
+`learn2.js` are **deliberately absent from `versions.js`**, same as the arcade
+was kept out while inert (Round 82's ruling) — the version footer says
+"STAGING FORK" rather than pretending to a deploy number.
+
+**Rule 10:** already closed against the real corpus (2026-09-08, 990/990
+trials, see `HANDOFF-games.md` §1e) — this fork does not reopen it. It reuses
+`missionConfigFromRun()` unmodified.
+
+**Rule 11:** held by construction, not by a new harness. `finishGameStep(rep)`
+hands `rep.wpm`/`rep.acc` to the *same* `saveStats()` → `logRun()` →
+`showLessonResultModal()` chain a typed run's `finishStep()` already uses.
+There is no second reader — a game run and a typed run are graded by literally
+the same code from that point on.
+
+---
+
+#### 2. Exactly what changed, `learn.js` → `learn2.js`
+
+Confirmed with `diff` before this was written. Every change is one of:
+
+1. **Header banner** (this document, referenced).
+2. **Two new imports**: `missionConfigFromRun` (`game-shell.js`), `mount` as
+   `mountDeadline` (`game-deadline.js`). `readOneDeployedVersion` import
+   dropped — nothing calls it now that the footer can't ask `versions.js`
+   about an unregistered page.
+3. **`LEARN_VERSION`** → `"0.1.0-staging"`; footer/title text says STAGING FORK.
+4. **One new module var**: `gameHandle` (holds `mountDeadline()`'s handle).
+5. **`beginStep()`**: one new branch — `destroyGameHandle()` unconditionally
+   at entry (covers the Game Genie jump and every other caller for free),
+   then `if (isGameRun(stepIdx)) { beginGameStep(stepIdx); return; }` before
+   the typed-drill setup.
+6. **`stopLesson()` / `restartLesson()`**: one added `destroyGameHandle()`
+   call each, so a mounted game is never left running under a view that no
+   longer owns it.
+7. **Five new functions**, inserted as one block right after `beginStep()`,
+   clearly banner-delimited in the file:
+   - `gameSlotIdx()` / `isGameRun(idx)` / `runHasSpeedGate(idx)` /
+     `cumulativeKeyCount(lesson)` / `GAME_MIN_KEYS` — the one answerer for the
+     game slot and its three gates (§5).
+   - `destroyGameHandle()` — `gameHandle.destroy()` + hides `#game-mount`.
+   - `bankGameSecond()` — **the second time-increment site**, documented at
+     length in-file. Same statements, same order as `startGradedTimer()`'s
+     tick body (rollover → `stepSeconds`/`learnActiveSeconds`/
+     `statsData.*` → anon accum → goal celebrations → `noteActiveDay()` →
+     paint). Called from Deadline's `onSecond`, which only fires on a whole
+     elapsed *graded* second — never before the first keystroke, never while
+     paused, never after end (`game-deadline.js` watches `document.hidden`
+     itself, so a hidden tab already stops it with no extra wiring here).
+   - `beginGameStep(stepIdx)` — the typed-drill-shaped setup (hide intro,
+     unhide `#active-drill`, reset counters, paint pips/label) minus the
+     typed-only parts (no `drillKeyboard.onkeydown`, no `startGradedTimer()`),
+     then builds the mission with `missionConfigFromRun()` — **the same call
+     `arcade.html` makes**, given the run's own baked `sequence` — and mounts
+     Deadline with `onSecond`/`onTick`/`onEnd`/`onQuit` wired as above.
+   - `finishGameStep(rep)` / `renderGameLostResult(rep)` — the tail, gated on
+     `rep.quotaMet`. See §3, which is the most important section in this file.
+   - `maxReachableRunIdx()` / `renderRunPicker()` / `syncIntroStartLabel()` —
+     the run picker (§4), called from `showIntro()`.
+8. **`showIntro()`**: two added lines, `renderRunPicker(lesson)` and
+   `syncIntroStartLabel()`, after the intro text is set.
+
+Nothing else moved. `git diff`/`diff` against `learn.js` v2.48.0 should show
+only the above.
+
+---
+
+#### 3. ⚠️⚠️ THE ZERO-EFFORT PASS — a defect this wiring created, found before it shipped
+
+**Not a feature request. Found 2026-09-09 by reading `calculateGrade()` against
+a game nobody plays**, while checking whether accuracy-only final runs were
+safe. It would have let a student pass any lesson by doing nothing.
+
+A student mounts the game and **types nothing**. Every target leaks, every
+shield goes, the game ends by itself. `game-shell.js` does not charge a leak as
+an accuracy error — Jake's ruling 2026-09-07, and correct for a typed-run-shaped
+measurement — so the report reads `chars: 0, mistakes: 0`, and `accuracyPct(0)`
+returns **100** by definition. Handed to `showLessonResultModal()` that is
+acc 100 / wpm 0, which `calculateGrade()` turns into:
+
+* **accuracy-only final run** (all of Units 1, 2 and 5): `minWPM == null` and
+  `clean` is true → **A🔥**;
+* **speed-graded final run**: accuracy met, speed short → **'C'**, and
+  `gradeAdvances('C')` is **true**, because nothing in the corpus sets
+  `strictSpeed`.
+
+Either way `saveProgress(passed)` marks the lesson **passed**.
+
+⚠️ **A TYPED RUN CANNOT DO THIS, AND THE ASYMMETRY IS THE WHOLE POINT.**
+`finishStep()` is only reachable by typing the sequence to its end, so an
+abandoned typed run produces no outcome at all — only banked time. **The game
+is the first run in this app that can END BY ITSELF**, so it is the first one
+that ever needed this said.
+
+⭐ **THE FIX: A LOST GAME IS AN UNFINISHED RUN, NOT A FAILED ONE.**
+`finishGameStep()` gates on `rep.quotaMet`. A lost game banks the minutes and
+logs the sprint (the child really did type for those minutes; Jake's standing
+rule is that time counts whether the work finishes or not) but never reaches
+`recordRunOutcome()` or `saveProgress()` — exactly how an abandoned typed run
+already behaves. It gets its own screen, `renderGameLostResult()`: their real
+numbers, an honest line, Try Again / ← Map.
+
+⚠️ **DO NOT "FIX" THIS BY INVENTING A GRADE.** Writing 'F' would be a claim
+about how well they typed, and a student who cleared 90% of the mission at
+100% accuracy did not earn an F. The honest record is that the run did not
+finish.
+
+---
+
+#### 4. The run picker — and a correction to something I told Jake
+
+Jake, 2026-09-09: *"a student got kicked back to the first run and had no way
+to move forward with it."*
+
+⚠️⚠️ **EARLIER IN THAT SAME CONVERSATION I TOLD HIM THIS ALREADY WORKED, VIA
+ROUND 34's `firstOpenRunIdx()`. THAT WAS WRONG, AND HIS REPORT IS THE PROOF.**
+`firstOpenRunIdx()` returns the first run whose mode is not `'practice'`, and a
+run only becomes `'practice'` once **mastered** — `MASTERY_POINTS = 4`, banked
+at A🔥 = 2 and A = 1, with **B, C, D and F worth ZERO** (`lesson-gate.js`
+`RUN_POINTS`). So the resume only ever fires for a student who scored two
+fireballs, or a fireball and two A's, or four A's, **on every earlier run**. A
+child who passed runs 1–4 with B's and C's — the normal case, the case the
+gates are tuned for — banks nothing, and every visit reopens at run 1.
+
+⚠️ **NOTHING IS BROKEN IN `firstOpenRunIdx()`.** Round 34 fixed a real problem
+and fixed it only for students already excelling. It never covered the case
+Jake watched happen. Do not go looking for a bug in it.
+
+**Why a picker and not a new auto-resume:** Jake's standing ruling, 2026-08-17,
+the one that deleted mid-lesson resume in v2.5.0 — *"If a kid doesn't finish a
+lesson one session, they should restart it — not start at the last word. The
+lesson should be taken as a whole."* That ruling governs the DEFAULT and
+governs resuming mid-RUN, at the character. This changes neither: the lesson
+still opens at `firstOpenRunIdx()`, and a run still always starts at character
+zero. What is new is that a student may **choose** a run, deliberately, from a
+screen — which is also the "more practice where necessary" half of the ask.
+
+**Where it lives:** `#intro-run-picker`, on the intro panel, and ⚠️ **that
+placement is a ruling, not a layout choice.** ROADMAP item 8: a focusable
+control reachable by Tab from a **typing** view eats keystrokes the child
+should have been credited for — which is why the font picker went to the map
+and why `#done-btn` carries `tabindex="-1"`. The intro panel is not a typing
+view. **DO NOT MOVE THIS INTO `#active-drill`.**
+
+⚠️⚠️ **THE CEILING IS THE POINT, AND WITHOUT IT THIS HANDS EVERY STUDENT THE
+WHOLE CURRICULUM.** A lesson is marked passed by `showLessonResultModal()`,
+which only the FINAL run reaches — so an unrestricted picker would let a child
+open any lesson, jump to the last run, and pass without typing a character of
+runs 1..N-1. Now that the last run is the game, it would also be a one-click
+route to the only fun thing on the page, forever.
+
+`maxReachableRunIdx()`: a student may replay anything already reached and step
+exactly **one** run past it — the run they would have arrived at by typing
+anyway. Built from `furthestRunIdx`, already maintained on the progress record
+as a running max, so this costs **no new field, no new write, no new read**.
+It refuses the shortcut entirely (returns 0) when the record's stored
+`runCount` disagrees with the current chunking, because a lesson edit makes
+every stored index mean something else.
+
+---
+
+#### 4b. ⭐⭐ THE VICTORY LAP — prose lessons (v0.4.0)
+
+Jake, 2026-09-09, after correcting me twice: *"kids do 1/4 as they did
+originally, then 2/4, then 3/4, then 4/4. Then — only for fun — they do the
+passage AGAIN as a game. Once they pass 1/4, they win, and the next lesson is
+unlocked... but the game doesn't stop until they lose. Everything past passing
+1/4 is for the leaderboard."*
+
+⚠️⚠️ **I GOT THIS WRONG TWICE, IN OPPOSITE DIRECTIONS, AND THE PATTERN IS THE
+LESSON.** v0.2.0 kept every chunk but handed the game the whole passage as its
+quota and stopped there — a fifth run as long as the lesson. v0.3.0 "fixed" the
+length by **deleting chunks 2..N**, solving a workload worry Jake never had by
+destroying the content he cares most about. ⭐ **NEITHER THE RUN LIST NOR THE
+POOL WAS EVER THE PROBLEM: THE QUOTA AND THE ENDING WERE.** When a shape keeps
+coming out wrong, check whether you are adjusting the wrong dimension.
+
+**The shape that shipped:**
+
+* Every authored chunk survives, graded exactly as before. `u7_r4` is still
+  four typed runs.
+* One extra run — the victory lap — pools the **whole** passage.
+* Its **quota is chunk 1's characters**: the bar they already cleared as run 1.
+  Measured on the corpus, that is **~25% of the passage, 45–60 seconds** to
+  unlock the next lesson.
+* It runs in **survival**, so play continues past the bar until they lose.
+  Everything after the bar is leaderboard only.
+
+⚠️⚠️ **THE GRADE READS `rep.pass`, NEVER `rep`.** `HANDOFF.md` names this exact
+mistake: *"A wiring that filed `rep` grades a leaderboard stunt as a lesson."*
+`rep` is the whole session including survival; `rep.pass` is the snapshot
+`game-deadline.js` froze the instant the quota was met. **Subtracting survival
+afterwards is impossible** — WPM and accuracy are ratios over the session and
+do not decompose. `chars`, `mistakes` and `logRun()` read the snapshot too.
+⚠️ **Only the CLOCK counts every second**, survival included — the child really
+did type for those minutes.
+
+⚠️ `rep.pass` is `null` when the quota was never met, which is exactly the
+lost-game case (§3). On a non-survival game `game-deadline.js` sets it to `rep`
+on a win, so one line is correct for both shapes.
+
+⚠️ **APPENDING IS INDEX-SAFE; INSERTING WOULD NOT BE.** `lesson-gate.js` keys
+per-run mastery **by index**, so a run added anywhere but the end would
+re-point banked scores at different work.
+
+⚠️ **THE ONE-RUN RULE APPLIES TO REPLACE ONLY** — Jake ruled a one-run lesson
+must not be a game *because the whole lesson would be the game*. A victory lap
+cannot do that. So the six single-run pangram lessons gained one, dissolving
+the arbitrary 195-character split. For those, quota = the whole (short) passage,
+about 48 seconds.
+
+⚠️ **EVERY UNIT 7 RUN PICKER OPENS AT RUN 1 ONCE.** Adding a run changes
+`runCount`, and `maxReachableRunIdx()` refuses the shortcut when the stored
+count disagrees. Correct, self-healing after one run, but it will look like a
+regression mid-unit.
+
+**Word-list lessons are unchanged: the game still REPLACES the final run**, no
+survival, quota as authored. Four lessons.
+
+---
+
+#### 5. The three game gates — Jake's rulings, 2026-09-09
+
+`gameSlotIdx()` is **the one answerer** for "which run, if any, is this
+lesson's game slot." ⚠️⚠️ **EVERY SURFACE ASKS IT AND NONE RE-DERIVES IT.** The
+first draft spelled the test out three times — `isGameRun()`, the picker's 🚀
+chip, and the Start button's label — which is Rule 9 at its smallest, and whose
+failure mode is a picker promising a rocket the lesson then declines to
+deliver. All three copies would have looked individually correct.
+
+* **A one-run lesson is never a game.** *"If there were only one run, it should
+  not be a game."* ⚠️ **LIVE, NOT HYPOTHETICAL** — six lessons (`u7_p1`–`p4`,
+  `p7`, `p8`) are a single short `sentence_list` that chunks to one run.
+* ⭐ **No game where speed is not graded.** *"I would lean toward no game on any
+  lesson where wpm doesn't matter."* ⚠️⚠️ **THIS GATE CLOSES AN INCOHERENCE, NOT
+  JUST A PREFERENCE.** A run with `minWPM: null` is graded on accuracy alone,
+  but a Deadline mission is a **throughput test by construction** — the city
+  falls if you cannot keep up. The game would therefore decide pass/fail on a
+  quantity the grade formula is forbidden to look at: the student loses their
+  city for being slow, then reads a screen saying speed was never measured.
+  One of those two screens is lying whichever way it resolves.
+  ⚠️ It also removes `missionConfigFromRun()`'s invented-pace fallback from the
+  graded path entirely — **every game run now reads a real authored gate**,
+  which retires `game-shell.js`'s "not without Jake's sign-off" caveat rather
+  than answering it.
+  ⚠️ Read through `gatesForRun()`, **never** by testing `run.type` against
+  `DRILL_TYPES` locally: an explicit `step.gates.minWPM` overrides the type
+  default, and reproducing that precedence would be a second copy of the rule
+  `run-grade.js` owns.
+* **At least `GAME_MIN_KEYS` (4) cumulative keys.** *"Spamming the game is lame
+  and not worth doing."* ⚠️ **THIS GATE CANNOT FIRE AGAINST THE CURRENT CORPUS
+  AND IS KEPT DELIBERATELY.** The only sub-4-key lesson is `u1_l1`, which the
+  speed rule already excludes. Retained because it encodes a separate intent
+  that would otherwise hold only by coincidence. ⚠️ It is **not** dead in the
+  `escape-board` `stunSteps` sense (declared, decremented, never set) — it is
+  evaluated every call and simply never decides the answer today.
+
+##### Measured against the real corpus (47 lessons, executed through the actual `chunkSequence()`/`gatesForRun()`)
+
+| | count | which |
+|---|---|---|
+| **game** | **26** | `u3_l1`–`u3_l3`, all of `u4`, `u5_l6`, both `u6`, `u7_p5/p6/p9/p10`, all ten `u7_r*` |
+| no game — accuracy-only final run | 14 | `u1_l2`–`u1_l5`, `u2_l1`–`u2_l5`, `u5_l1`–`u5_l5` |
+| no game — single run | 6 | `u7_p1`–`p4`, `p7`, `p8` |
+| no game — under 4 keys | 1 | `u1_l1` |
+
+⚠️⚠️ **THE CONSEQUENCE JAKE SHOULD SEE: THE FIRST GAME IS NOW `u3_l1`, NOT
+`u1_l2`.** He originally expected it from "the second lesson"; the speed-gate
+ruling supersedes that and pushes it to lesson 11 of 47. Units 1, 2 and 5 are
+game-free. **This is the correct outcome of his own later ruling, but it is not
+what his earlier sentence described, so it should be confirmed rather than
+assumed.**
+
+##### ⚠️ Why Units 1, 2 and 5 end on `key_random` — not a corpus bug
+
+Units 1 and 2 because a handful of letters cannot spell a word. **Unit 5
+because it is the NUMBER ROW, and digits cannot spell one either** — `u5_l1`–
+`u5_l5` are literally `pattern → random-new-keys → combined-digits`, with no
+prose step available to them. Same structural cause, not an authoring slip.
+`u5_l6` (Number Row Synthesis) **keeps its game**: its capstone is a
+mixed-alphanumeric `sentence_list` carrying a real 15 WPM gate.
+
+⚠️ **A SEPARATE, PRE-EXISTING FINDING, STILL TRUE AND NOT ADDRESSED HERE:**
+because those 14 lessons are graded on their final run and that run is
+accuracy-only, **a student can pass all of Units 1, 2 and 5 at 2 WPM with clean
+accuracy** — today, typed, with or without this fork. Jake believed the
+opposite (*"I'm pretty sure there's always a speed component"*), which is true
+per-lesson (`gates.minWPM` exists on all 47) but false for the run that decides
+passing. Excluding the game from those lessons **avoids the incoherence; it
+does not fix this.** Fixing it is a curriculum decision — a speed gate on the
+synthesis steps, or `strictSpeed`, or nothing — and belongs to Jake, not to a
+wiring round.
+
+---
+
+#### 6. Open questions for Jake — none blocking
+
+* **Confirm the first game moving to `u3_l1`** (see §5). One sentence either
+  way.
+* **The `u7_p*` graduation passages split arbitrarily.** `p5`, `p6`, `p9`,
+  `p10` cross the 195-char chunk threshold and get a 2-run lesson whose second
+  run is the game; `p1`–`p4`, `p7`, `p8` fall under it and get none. A student
+  would see the game appear and vanish for no visible reason. Not wrong, just
+  arbitrary.
+* **`missedChars` never sees the game run.** Jake, 2026-09-09: *"Practice
+  missed keys isn't available during a game run, so it also doesn't matter."*
+  Recorded as answered, not open.
+
+---
+
+#### 7. Known gaps
+
+* **No new automated harness.** Built and reviewed by hand: line-by-line `diff`
+  against `learn.js` v2.48.0, `node --check`, every reused signature
+  cross-checked against `game-shell.js`/`game-deadline.js`'s real exports, and
+  the game-eligibility gates executed against the real 47-lesson fixture
+  through the actual `chunkSequence()`/`gatesForRun()`. **Not driven by a
+  browser.**
+* **The live WPM/Accuracy HUD during play is an estimate.** `onTick` and
+  `onSecond` are independent callbacks and can land a fraction of a second out
+  of sync with each other. The only number ever written is the one frozen in
+  `rep` at `onEnd`. Cosmetic.
+
+**Play it before trusting it with a class:** a normal multi-run lesson through
+to the Deadline finish; a **deliberate loss** (sit still — confirm it says the
+city fell, does NOT pass the lesson, and the map still shows the lesson
+unpassed); a fail-and-retry; a mid-game quit; a tab-hide mid-game; and the run
+picker on a lesson you are part-way through.
+
+#### 8. How to try it
+
+Push `learn2.html`, `learn2.js`, and this file through the GitHub web UI same
+as always — nothing else needs to move. Open `learn2.html` in place of
+`learn.html` for a test account, play a lesson through to its last run, and
+confirm Deadline mounts there instead of the typed drill. The version footer
+will say "STAGING FORK" the whole time, which is the point — nobody should be
+able to mistake this page for the live one by accident.
+
+
+---
+
+## §12. The integration seam — what touches what when the games are wired
+
+⚠️ **FOLDED IN FROM `INTEGRATION.md` IN ROUND 114 (Carriage), UNCHANGED BELOW THIS LINE.**
+Jake, 2026-09-10: *"you made specific handoffs and readmes for your work — that
+ends up being dozens of documents. I'd much rather you clean up the documentation
+that's there so that there's one readme and one handoff. Otherwise it gets
+superconfusing for me — no idea what it does for future yous."*
+
+⭐ **HE IS RIGHT, AND §9's OWN FIRST ROW HAD BEEN LYING ABOUT IT SINCE ROUND 23**:
+it read *"this file — the only handoff"* while listing three sibling handoffs four
+rows below. ⚠️ **THE CONTENT IS APPENDED VERBATIM RATHER THAN SUMMARISED** — every
+warning in it was paid for by a defect, and a merge is not a licence to edit
+history. Only heading levels are shifted, so §9's document-map region still ends
+where the harness expects.
+
+**Read this if you are:** Jake, deciding what to do next; or a Claude instance
+handed the full repo and told to fold in a side round's work.
+
+**Read `HANDOFF-games.md`** for the reasoning behind every decision and the record
+of what went wrong on the way. **Read `README-games.md`** for the architecture.
+**Read `NEXT-STEPS.md`** for the ordered action list. This file is the seam: what
+touches what, what is safe, and what will conflict.
+
+---
+
+#### 0. ⚠️ THE ROUND NUMBER WAS WRONG AND IS NOW RIGHT
+
+This work was stamped **Round 65** through most of its construction. The last
+shipped round is **81 (Fox)**, so it is **Round 82 (Victor)**. The 65 came from
+grepping `Round N (Name)` across the docs and picking up ROADMAP *prose*
+references — `ROADMAP.md` line ~520 says "ROUND 64 (Duplex)" about a closed item —
+rather than the `## Round N (Name)` heading at the head of `CHANGELOG.md`, which
+is the actual record.
+
+⚠️ **If you are the next instance: read `CHANGELOG.md`'s first heading to learn
+the round number. Nothing else in the repo answers that question reliably.** Every
+file in this drop now says Round 82; if you find a 65 anywhere, it is a straggler.
+
+**Victor** is an 1889 typewriter. Not a duplicate of any name in `CHANGELOG.md`,
+`HANDOFF.md` or `ROADMAP.md` as of Round 81.
+
+---
+
+#### 1. What lands, and why it is safe to land first
+
+Eight modules, three harnesses, one tools page, four docs, one proposal.
+
+```
+game-shell.js        game-names.js      game-draw.js       game-chrome.js
+game-audio.js        escape-board.js    game-escape.js     game-deadline.js
+tests/game-shell-test.mjs              (95 assertions, incl. the real corpus)
+tests/escape-board-test.mjs            (39 assertions)
+tests/game-assumptions-test.mjs        (59 assertions)
+tools/game-lab.html                    (NOT deployed — see §5)
+HANDOFF-games.md  README-games.md  INTEGRATION.md  NEXT-STEPS.md
+firebase/APPROVED-game-scores.md       (shape approved, NOT deployed)
+```
+
+⚠️⚠️ **EVERY ONE OF THESE FILES IS NEW. NOTHING IS OVERWRITTEN. NO SHIPPED FILE
+CHANGES.** `keyboard.js` is now *imported* by `game-deadline.js` but was not
+modified, so it needs no version bump and nothing else that imports it is
+affected.
+
+**The games are inert.** No student-facing file imports any of them, so pushing
+the whole drop serves identical bytes to every student.
+`tests/game-assumptions-test.mjs` **Part H asserts that inertness** — when the
+wiring lands, that assertion is the one to invert deliberately.
+
+⚠️ **This is the property that makes the drop mergeable against concurrent roadmap
+work.** There is no ordering constraint against any other round: the games cannot
+conflict with a change to `learn.js` because they do not touch it yet.
+
+---
+
+#### 2. Register the harnesses, or they are not coverage
+
+`tests/run-all-tests.mjs` is emphatic about this in its own header ("An
+unregistered passing test is not coverage"), and Round 81's handoff repeats it.
+Three entries:
+
+```js
+['game-shell-test.mjs',      'the game timing rule. ⚠️ PRESSURE ≥ 1.0 OR EVERY GATE IS UNREACHABLE — a push rate under the gate caps achievable WPM under the gate, because the clock is wall-clock and waiting for a spawn is charged. Part A pins that arithmetic; Part J pins that the finger map is keyboard.js\'s and not a second copy'],
+['escape-board-test.mjs',    '⚠️⚠️ Escape Key\'s board: THE CAMPER DIES and THE HUNTER ACTUALLY APPEARS. Both took several drafts that each looked fixed — the camper survived 36/40, then 38/40, then 1/40; the hunter was unreachable in an assessed run for two rounds behind a passing test that hand-set the pressure unlocking him'],
+['game-assumptions-test.mjs','⚠️ THE SEAM, NOT THE GAMES. Asserts the repo claims the games rely on and do not own: learn.js\'s netWPM/accuracyPct arithmetic (Rule 11), that secondsToday has exactly ONE increment site with no subtract path, that gatesForRun still returns null minWPM for drills, and that the games are still inert'],
+```
+
+⚠️ **`game-assumptions-test.mjs` is the one that matters for a fold-in.** It turns
+every assumption this round made about your repo into a check, so a round that
+changes `learn.js`'s WPM formula or opens a second seconds-counter goes **red**
+instead of diverging silently. It asserts on **structure, never on line numbers** —
+line numbers are the first thing a merge invalidates.
+
+**Header budgets already pass.** All eight modules were checked against
+`versions.js`'s real rules — `max(220, ceil(bodyLines * 0.08))` header lines,
+8 entry maximum, descending order. Largest header is `game-shell.js` at 109 lines
+against a 220 budget.
+
+---
+
+#### 3. The version registry — three mirrors, all or none
+
+`versions.js` `SOURCES` is mirrored in `tools/audit-versions.mjs` and
+`tests/version-stamp-test.mjs` §D, and that harness **fails if the three
+disagree**. `game-assumptions-test.mjs` Part G checks they agree about the game
+modules and reports the count.
+
+⚠️ **DO NOT REGISTER THE GAMES YET.** While they are inert, the build panel would
+fetch eight modules no student loads — `versions.js` fetches each source over HTTP
+for that panel, and `index.html` alone already costs ~123 KB there. Register them
+**in the deploy that wires them in**, not before.
+
+When that deploy comes, add these to all three files together, in this order:
+
+```js
+{ file: 'game-shell.js',    pattern: /\bexport\s+const\s+GAME_SHELL_VERSION\s*=\s*["']([^"']+)["']/ },
+{ file: 'game-names.js',    pattern: /\bexport\s+const\s+GAME_NAMES_VERSION\s*=\s*["']([^"']+)["']/ },
+{ file: 'game-draw.js',     pattern: /\bexport\s+const\s+GAME_DRAW_VERSION\s*=\s*["']([^"']+)["']/ },
+{ file: 'game-chrome.js',   pattern: /\bexport\s+const\s+GAME_CHROME_VERSION\s*=\s*["']([^"']+)["']/ },
+{ file: 'game-audio.js',    pattern: /\bexport\s+const\s+GAME_AUDIO_VERSION\s*=\s*["']([^"']+)["']/ },
+{ file: 'escape-board.js',  pattern: /\bexport\s+const\s+ESCAPE_BOARD_VERSION\s*=\s*["']([^"']+)["']/ },
+{ file: 'game-escape.js',   pattern: /\bexport\s+const\s+GAME_ESCAPE_VERSION\s*=\s*["']([^"']+)["']/ },
+{ file: 'game-deadline.js', pattern: /\bexport\s+const\s+GAME_DEADLINE_VERSION\s*=\s*["']([^"']+)["']/ },
+```
+
+Every module already carries a matching runtime constant and a header stamp, so
+the runtime-vs-header check passes the moment they are registered.
+
+---
+
+#### 4. Current versions
+
+✅ **EVERY MODULE IS 1.0.0.** Jake's ruling, 2026-09-07: *"Nothing to this moment
+has had a version, so I'd rather it be 1.x. Gemini doesn't deserve to have version
+1. It was version 0 at best."*
+
+| file | version |
+|---|---|
+| `game-shell.js` | 1.0.0 |
+| `game-names.js` | 1.0.0 |
+| `game-draw.js` | 1.0.0 |
+| `game-chrome.js` | 1.0.0 |
+| `game-audio.js` | 1.0.0 |
+| `escape-board.js` | 1.0.0 |
+| `game-escape.js` | 1.0.0 |
+| `game-deadline.js` | 1.0.0 |
+
+⚠️ **THE RULING WAS EXTENDED BEYOND THE FILE JAKE NAMED, DELIBERATELY.** He
+addressed `game-escape.js`, which had climbed to 2.2.0; but the shell had reached
+1.2.0, `game-draw.js` 1.1.0 and `game-deadline.js` 1.2.0, all internal drafts that
+never deployed. ⭐ **THE VERSION LOG RECORDS DEPLOYS, NOT DRAFTS.** The reasoning
+from those drafts is kept as prose; the numbers were never real. **The next change
+to any of these is a normal bump from 1.0.0.**
+
+⚠️ **`report()` reports `hits`, not `leaks`.** An earlier draft had `leaks`;
+keeping it for push games and adding `hits` for lane games would have been two
+records of one quantity inside the report object. `leaked()` survives as a thin
+alias so the push-game call site reads in its own vocabulary. **Once `learn.js`
+reads this object, a rename like that needs the Rule 3 conversation.**
+
+---
+
+#### 5. `tools/game-lab.html` — decide before pushing
+
+A bench that mounts either game at a chosen gate and prints the report object.
+Nothing is read or written.
+
+⚠️ **GitHub Pages serves the whole repo, so once pushed it is publicly reachable
+at `/tools/game-lab.html`.** Unlinked, so nobody finds it by accident, and
+harmless if they do. But "unlinked" is not "private". Your `tools/` directory
+already works this way, so it is not a new exposure — just one more page in it.
+**If you would rather it not be live, hold it back; the games do not need it.**
+
+---
+
+#### 6. What will conflict with concurrent roadmap work
+
+Nothing today, because the games are inert. Three things will conflict **when the
+wiring lands**, and all three are named by shape in
+`game-assumptions-test.mjs` so a merge that breaks them fails loudly:
+
+| seam | what the games need | which Part guards it |
+|---|---|---|
+| `learn.js` `netWPM()` / `accuracyPct()` | arithmetic identical to `game-shell.js`'s | B |
+| `learn.js` `statsData.secondsToday++` | **exactly one** site, no subtract path, below `rollDayIfNeeded()` | C |
+| `learn.js` `finishStep()` / `isLastRun` / `showLessonResultModal()` / `recordRunOutcome()` | all still present; `recordRunOutcome()` stays the single writer | D |
+| `run-grade.js` `gatesForRun()` | still returns **null** `minWPM` for drill steps | E |
+| `keyboard.js` finger map exports | `buildFingerMap`, `getFingerInfo`, 8 `FINGER_NAMES`, colours for each | A |
+
+⚠️ **THE SECONDS SEAM IS THE DELICATE ONE.** `learn.js`'s increment site carries a
+comment saying four separate counting bugs died to create a single site and that
+there is no subtract path and must not be one. A game **cannot** bank a duration
+at the end of a run: its loop has to call that same tick once per elapsed second,
+below the same midnight rollover, with the same 5-second floor. Anything else is a
+second record of a quantity that already exists (Rule 9) and files a
+midnight-straddling game under the wrong day — which is exactly the scar that
+comment describes.
+
+---
+
+#### 7. Draft ROADMAP entry
+
+For wherever your roadmap work has got to. Numbering left blank because this drop
+does not know what is taken.
+
+```markdown
+#### NN. ⏳ THE ARCADE GAMES ARE BUILT, INERT, AND WAITING ON FOUR DECISIONS
+
+Round 82 (Victor) shipped two of three games plus the shell they share.
+⚠️ **NOTHING IS WIRED.** No student-facing file imports them, and
+`tests/game-assumptions-test.mjs` Part H asserts that — so they cost nothing
+until someone decides to spend it.
+
+**Why they exist.** Jake, 2026-09-07: *"One of the primary complaints I've had
+from kids is that there is not a game at the end of the lessons like what they
+had at typing club."*
+
+**Deadline** replaces the final run of a lesson (assessed). **Escape Key** is a
+lane game that also runs endlessly from the keys a student has unlocked.
+**Shatter** is registered and unbuilt.
+
+##### The one idea, because everything else follows from it
+
+**Speed is not the difficulty knob. Throughput is.** `WPM = chars/sec × 12`, so a
+15 WPM gate is 1.25 chars/sec, and what forces a student to sustain it is how
+often work ARRIVES — not how fast anything moves. Pixel velocity is derived from
+`distance / lifetime`, which is why one mission plays identically on a 60 Hz
+Chromebook and a 120 Hz iPad. All three of Gemini's prototypes moved in pixels per
+FRAME and ran at double speed on a 120 Hz screen.
+
+⚠️⚠️ **AND PRESSURE MUST NEVER GO BELOW 1.0.** The first draft used 0.75 — 25%
+headroom for a student at the gate, which sounds obviously right and **made every
+gate mathematically unreachable**: the clock is wall-clock, so waiting for a spawn
+is charged, and a push rate under the gate caps achievable WPM under the gate.
+Perfect play scored 11.3 against a 15 gate. Headroom comes from target lifetime
+and shields, never from spawn rate.
+
+##### Blocked on — ✅ all five product decisions answered 2026-09-07; two items left
+
+1. ✅ **Rule 10 CLOSED 2026-09-08** — and it found a real pacing bug plus a
+   miscalibration; see `HANDOFF-games.md` §1e. The original note:
+   ⚠️ **Rule 10.** `game-shell-test.mjs` Part I **skips loudly** until
+   `tests/fixtures/lessons-export.json` exists. **No game result may be graded
+   before it runs green.** Jake exports Admin → Lessons → Export JSON and hands
+   it to a session — he has no CLI.
+
+2. ⚠️ **The leaderboard RULES have never been executed.** Shape approved
+   (`firebase/APPROVED-game-scores.md`); `npm run test:rules` against the emulator
+   is still owed, and Jake cannot run it.
+
+##### Two lessons worth keeping even if the games never ship
+
+⚠️⚠️ **A TEST THAT CONSTRUCTS THE PRECONDITION IT CHECKS PROVES THE CODE *CAN* DO
+THE THING, NOT THAT THE THING *HAPPENS*.** The hunter assertion was green for two
+rounds while the hunter could not appear in an assessed run at all — the test
+hand-set `pressure = 1.6`, and real assessed runs are flat at 1.0 and end at the
+quota. Jake found it by asking. Fixing it exposed a second bug behind the first:
+enemies had no lifetime, so the round-5 unlock opened onto a full board.
+
+⚠️ **A ONE-IN-FORTY MARGIN IS NOT NOISE.** Draft 3 of Escape Key's spawn rule let
+one camper in forty survive 200 enemy steps. That reads as variance; it was a rule
+with a gap — a creature that reached the player's column mid-row had no
+edge-bounce to trigger a re-aim and ran past the junction forever. Only a 40-seed
+sweep separated it from draft 4. A single playtest would have called it done.
+```
+
+---
+
+#### 8. Draft CHANGELOG entry
+
+```markdown
+#### Round 82 (Victor) — 2026-09-07 — three prototypes, one shell, and four bugs that each looked fixed
+
+**Came in on Jake's three Gemini-built prototypes** (Missile Command, Word
+Muncher, Asteroids) with the brief to review them and work out how they could tie
+to the speed and accuracy gates. ⚠️ **NOTHING SHIPPED INTO THE APP.** Eight new
+modules, three harnesses, 176 assertions, and no shipped file changed.
+
+##### ⚠️⚠️ THE PROTOTYPES SHARED ONE SHAPE AND IT WAS THE GRADEABLE ONE
+
+Three games, three difficulty curves, three copies of the timing rule — and every
+one tuned pixel velocity, which is not the knob. `WPM = chars/sec × 12`, so the
+gate is a throughput requirement and spawn RATE is what enforces it. Also: all
+three moved in px per FRAME (double speed on a 120 Hz iPad), all three silently
+discarded keystrokes that matched nothing (a masher held 100% accuracy), all three
+carried hardcoded word lists that bypassed `drill-filter.js`, all three uppercased
+both sides of the comparison (every capital free, where `learn.js` compares
+exactly), and none had a teardown — a `window` keydown listener and a forever RAF
+loop, which inside `learn.html` means a game the student left eating the next
+drill's keystrokes.
+
+Answer: `game-shell.js` owns every number, the views own pixels.
+`escape-board.js` owns Escape Key's rules. Both pure and driven by harnesses.
+
+##### ⚠️⚠️ FOUR BUGS THAT EACH LOOKED FIXED
+
+**Pressure 0.75 made every gate unreachable.** 25% headroom for a student at the
+gate; the clock is wall-clock, so a push rate under the gate caps achievable WPM
+under it. Perfect play: 11.3 WPM against a 15 gate. Every child would have
+retried forever. Fixed at 1.0 **plus** an on-demand spawn floor — without the
+second half, pressure 1.0 caps EVERYONE at the gate and A🔥 (1.5×) is
+unreachable.
+
+**The camper survived three drafts.** 36/40, then 38/40, then 1/40. Draft 1 made
+the lane a start position rather than a threat vector; draft 2 let enemies keep
+their original aim forever, so after a respawn they patrolled a lane nobody was
+in; draft 3 re-aimed only at board edges, so a creature reaching the player's
+column mid-row ran past the junction forever. ⚠️ **THE ONE-IN-FORTY MARGIN IS THE
+PART WORTH KEEPING** — it reads as noise and was a rule with a gap.
+
+**The hunter could not appear in an assessed run, and the test said he was fine.**
+Gated on `pressure >= 1.25`; pressure is flat at 1.0 through a measurement and the
+run ends at the quota. ⚠️ **THE ASSERTION HAND-SET THE PRESSURE THAT UNLOCKED HIM
+— it proved the mechanism and said nothing about reachability.** Jake caught it by
+asking. Moving the gate onto rounds was necessary and not sufficient: enemies had
+no lifetime, so the board filled in round 1 and the round-5 unlock opened onto a
+full board — zero hunters on 40/40 with the gate working perfectly.
+
+**`game-deadline.js` carried a second copy of the finger map, and the worse one.**
+`keyboard.js` has exported `buildFingerMap`/`getFingerInfo`/`FINGER_COLORS` all
+along. The hand-written copy covered letters, digits and a little punctuation;
+`!`, `?`, `"`, `:` fell through to `undefined` and `|| 0` sent them to tube 0.
+⚠️ **SO IN A PROSE LESSON IT LAUNCHED FROM THE WRONG FINGER**, and the tubes are
+the best idea in that game.
+
+##### Also
+
+Full-screen red hit flashes (40–45% alpha, repeated) replaced with an edge
+vignette transparent at the centre, degrading to a static border under
+`prefers-reduced-motion` — ⚠️ **a photosensitivity item, not a polish item.**
+Caps Lock detection, without which case-sensitive matching fails every key of a
+student who has no idea why. `game-chrome.js` for get-ready/pause/quit/restart/
+mute as DOM, so a student on a bare iPad can at least start and quit.
+`game-audio.js` synthesised so there are no binaries to upload, muted by default
+because thirty iPads in a 44-minute rotation is the teacher's problem.
+
+##### ⚠️ Rule 10 is OPEN and nothing may be graded until it closes
+
+Both game suites drive real code paths against fixtures; the lesson corpus lives
+in Firestore. `game-shell-test.mjs` Part I skips loudly until
+`tests/fixtures/lessons-export.json` exists.
+```
+
+---
+
+#### 9. If you are the next instance, in order
+
+1. `node tests/run-all-tests.mjs` and `npm run audit:versions` **before reading
+   prose** — Round 81's discipline, and it tells you whether this drop's claims
+   still hold.
+2. `node tests/game-assumptions-test.mjs`. **59 assertions about the seam.** If
+   any fail, the repo moved under the games; read the note on the failure rather
+   than loosening it.
+3. `HANDOFF-games.md` §1, §1b, §1c, §1d — the four bugs, with what each draft got
+   wrong. §1d is the one to read if you touch Escape Key.
+4. `NEXT-STEPS.md` §4 — ✅ **all five decisions are ANSWERED and applied**, with
+   Jake's quotes and the cost of each. Read it as a record, not a queue. ⚠️ Two
+   items remain and neither is a decision: the lessons JSON export (Rule 10) and
+   an emulator run of the leaderboard rules.
+5. Do not register the games in `versions.js` until the deploy that wires them
+   (§3). Do not deploy `firebase/APPROVED-game-scores.md` until it has **passed
+   `npm run test:rules` against the emulator** — the shape is approved, the text
+   is unverified, and reasoned-about rules are how four earlier rounds went wrong.
+
+
+---
+
+## §13. Round 82's ordered action list and Jake's five product rulings
+
+⚠️ **FOLDED IN FROM `NEXT-STEPS.md` IN ROUND 114 (Carriage), UNCHANGED BELOW THIS LINE.**
+Jake, 2026-09-10: *"you made specific handoffs and readmes for your work — that
+ends up being dozens of documents. I'd much rather you clean up the documentation
+that's there so that there's one readme and one handoff. Otherwise it gets
+superconfusing for me — no idea what it does for future yous."*
+
+⭐ **HE IS RIGHT, AND §9's OWN FIRST ROW HAD BEEN LYING ABOUT IT SINCE ROUND 23**:
+it read *"this file — the only handoff"* while listing three sibling handoffs four
+rows below. ⚠️ **THE CONTENT IS APPENDED VERBATIM RATHER THAN SUMMARISED** — every
+warning in it was paid for by a defect, and a merge is not a licence to edit
+history. Only heading levels are shifted, so §9's document-map region still ends
+where the harness expects.
+
+Everything in `ttb-games-round65.zip` is **inert**. Nothing in the repo imports any
+of it, so unzipping it into your tree and pushing changes **nothing** a student
+sees. That is deliberate: it means you can push first and decide second.
+
+Steps 1 and 2 are what is left for you. Steps 3 and 4 are **done** and kept as a
+record.
+
+⚠️ **IF YOU ARE HANDING THIS TO THE NEXT INSTANCE INSTEAD, give them
+`INTEGRATION.md`.** It has the seam map, the three version mirrors, draft ROADMAP
+and CHANGELOG entries, and the assumptions harness. This file is the do-it-yourself
+path; that one is the fold-it-in path. Both work from the same drop.
+
+---
+
+#### 1. Unzip and push (safe — no behaviour change)
+
+The zip mirrors the repo layout. Extract at the repo root:
+
+```
+game-shell.js          →  repo root
+game-names.js          →  repo root
+game-draw.js           →  repo root
+game-chrome.js         →  repo root
+game-audio.js          →  repo root
+escape-board.js        →  repo root
+game-escape.js         →  repo root
+game-deadline.js       →  repo root
+HANDOFF-games.md       →  repo root
+README-games.md        →  repo root
+tests/                 →  tests/       (2 files)
+(tools/game-lab.html is GONE as of Round 112 — the lab is arcade.html?lab=1)
+firebase/APPROVED-game-scores.md  →  firebase/   (shape approved, NOT deployed)
+```
+
+⚠️ **Nothing is overwritten.** Every file is new, and every module is at **1.0.0**
+per your 4a ruling. `keyboard.js` is now *imported*
+by `game-deadline.js` but was **not modified**, so there is no version bump on it
+and nothing else that imports it is affected.
+
+⚠️ **There is no `game-missile.js` or `game-muncher.js` to delete** — I never
+shipped those names to you. If earlier drafts made it into your tree from a
+previous message, delete them; they are superseded by `game-deadline.js` and
+`game-escape.js`.
+
+**Register the tests** in `tests/run-all-tests.mjs`, or they are not coverage. That
+file's own comment is emphatic about it ("An unregistered passing test is not
+coverage"). Two entries:
+
+Three entries — see `INTEGRATION.md` §2 for the full text, including
+`game-assumptions-test.mjs`, which asserts the repo claims the games depend on and
+do not own (learn.js's WPM arithmetic, the single seconds site, the insertion
+point). **That is the one that protects this work from your roadmap work.**
+
+---
+
+#### 2. Smoke test — play them (5 minutes, no JSON needed)
+
+Open `https://<your-pages-domain>/arcade.html?lab=1`. ⚠️ THE LAB IS THE ARCADE
+PAGE WITH A FLAG, NOT A SEPARATE BUILD — a bench with its own layout cannot
+reproduce the page's layout bugs, which is how four rounds of them reached Jake
+instead of the harness.
+
+⚠️ **This page is publicly reachable once pushed.** It is unlinked so nobody finds
+it by accident, and it is harmless if they do — no auth, no reads, no writes. But
+"unlinked" is not "private". If you would rather it not be live, keep it out of the
+push and tell me; I will note that in the handoff.
+
+Press **Start**, then **Start** again on the get-ready panel. Sound is **off** —
+the Sound button turns it on.
+
+##### What to check, and what "wrong" looks like
+
+| # | Check | Pass looks like | Tell me if |
+|---|---|---|---|
+| 1 | **Deadline, gate 15, source "sight words"** | comfortable; you clear the quota with shields left | you die, or it feels dead slow |
+| 2 | **Deadline, gate 40** | frantic but fair | the words arrive faster than you can read them |
+| 3 | **Deadline, source "book prose"** | ⚠️ **watch the tubes on punctuation.** `!` should fire from the LEFT PINKY; `?` from the RIGHT PINKY; `,` right middle; `.` right ring | any punctuation fires from the wrong tube |
+| 4 | **Type a wrong letter on purpose** | that finger's tube darks, a grey missile fizzles, accuracy drops | input feels blocked or laggy |
+| 5 | **Escape Key, mode arcade** | ⚠️ **a HUNTER (red pulsing star) appears around round 5–7.** The round is in the HUD | no hunter by round 10 |
+| 6 | **Escape Key — stand still and type nothing** | you lose all three shields in about a minute | you survive |
+| 7 | **Escape Key — step onto a web** | a tear-free word appears on a plate above the board; every key still lands | keys feel eaten, or the word is the one you just typed |
+| 8 | **Lead a hunter across a web** | it freezes for a few enemy steps | nothing happens |
+| 9 | **Rotate an iPad mid-game** | board re-lays out, nothing off screen | anything is cropped |
+| 10 | **Turn on OS "Reduce Motion", then take a hit** | a static red border, no full-screen flash | the whole screen flashes |
+| 11 | **Turn Caps Lock on** | "CAPS LOCK IS ON" appears | it does not, or matching silently succeeds |
+| 12 | **Pause, then Resume** | clock stops and resumes; the reported seconds do not jump | the WPM leaps after resuming |
+| 13 | **Play again after game over** | a clean run; score starts at zero | any number carries over from the last run |
+| 14 | **Done button** | the readout prints the report object | nothing happens |
+
+The readout panel at the bottom prints exactly the object `learn.js` would receive.
+Nothing is saved.
+
+---
+
+#### 3. ✅ RULE 10 IS CLOSED — and the export earned its keep immediately
+
+You sent `ttb-lessons-2026-09-08.json` (47 lessons, exporter v1.21.0). It is
+committed as `tests/fixtures/lessons-export.json` and Part I now drives **110 real
+runs × 9 seeds = 990 trials**.
+
+⚠️ **THE FIRST RUN FAILED, AND IT FOUND A REAL BUG THAT 130 ASSERTIONS AGAINST
+FIXTURES HAD MISSED.** Full write-up in `HANDOFF-games.md` §1e; the short version:
+
+1. **The spawn interval used the chunk MEAN.** `u4_l1/s4` chunk 1 —
+   `pink pipe pan pay ... spear spend speak pride trade plant` — starts with
+   3-letter words and **ends with 6-letter words**. Mean 4.03 set a 3.23 s
+   interval; a 6-letter word needs 4.8 s at a 15 WPM gate. A gate-speed typist
+   accumulated a deficit through the back half and lost all three shields on
+   **every seed**, while another chunk of the same step passed 9/9.
+   ⚠️ **A mean only paces correctly if targets are uniform, and authored word lists
+   are not — they group by length, which is good pedagogy and fatal to a mean.**
+   Work now arrives at gate rate *in characters*: each target's own length prices
+   the interval after it.
+2. **`QUEUE_DEPTH` 3 was too tight.** Two Unit 7 graduation passages still failed,
+   now seed-dependent. Raised to 4 on a corpus sweep: gate-speed failures went
+   **19/990 → 1/990**, peak targets on screen stayed at **4**, and a typist at 60%
+   of gate still cleared **0/550**. The buffer stopped punishing rounding error
+   without letting anyone through.
+3. **Part I's own assertion was wrong** — one seed cannot tell "impossible" from
+   "hard", and it demanded a 100% win rate from a typist at *exactly* the gate.
+   Reframed to a 9-seed sweep.
+
+**Final: 990 trials, 1 loss (0.1%). No run systematically unclearable. Tightest is
+`u7_r6/s1` at 8/9 — the longest graduation passage at the 25 WPM gate.**
+
+⚠️ **RE-EXPORT THE FIXTURE WHENEVER YOU CHANGE LESSONS MATERIALLY.** A stale
+fixture is a harness proving yesterday's corpus.
+
+⚠️ **NOTHING IS AUTHORED WRONG.** Both findings were my code, not your lessons. No
+lesson needs editing.
+
+---
+
+#### 4. ✅ DECISIONS — ANSWERED BY JAKE, 2026-09-07, AND ALREADY APPLIED
+
+All five are in the code and in the harnesses. Nothing below is still open.
+
+##### 4a ✅ Every module ships at **1.0.0**
+
+Jake: *"Nothing to this moment has had a version, so I'd rather it be 1.x. Gemini
+doesn't deserve to have version 1. It was version 0 at best. You upgraded it to
+1.x."*
+
+⚠️ **I EXTENDED THIS RULING BEYOND THE FILE YOU ASKED ABOUT — SAY SO IF THAT IS
+WRONG.** You addressed `game-escape.js` (which had reached 2.2.0). But the same
+argument voids *every* number in the drop: the shell had reached 1.2.0,
+`game-draw.js` 1.1.0, `game-deadline.js` 1.2.0 — all of them my own drafts, none
+ever deployed. **The version log records deploys, not drafts.** Stamping five
+internal iterations into a header puts history in front of the next reader that
+describes nothing they can observe. So all eight modules are **1.0.0**, and the
+reasoning from those drafts is kept as prose, because the reasoning is the part
+with value.
+
+##### 4b ✅ Leaderboard shape approved
+
+Jake: *"Kids compete against themselves and then against everyone else, reducing
+the number of writes."* — a better summary of the personal-best mechanic than the
+one I wrote. `firebase/PROPOSED-game-scores.md` is now **`firebase/APPROVED-game-scores.md`**.
+
+⚠️ **APPROVED IS NOT DEPLOYED.** The shape is settled; the rules *text* has still
+never been executed. It has to pass `npm run test:rules` against the emulator
+before it goes near the console, and that needs a Claude session, not you.
+
+##### 4c ✅ Assessed uses lesson gates; arcade uses the furthest gate reached
+
+Jake: *"For straight practice, target wpm should be the gates that are built into
+the lesson gates. For arcade, go with their rolling wpm from typethatbook."*
+
+The assessed half was already done. ⚠️ **THE ARCADE HALF NEEDED A SOURCE AND THE
+APP STORES NO ROLLING WPM** — per-run WPM only reaches `typing_logs` (a query per
+arcade launch, which is the cost your WAL round drove to near-zero) and `bestWPM`
+on the leaderboard doc is a *best*, not a mean. Storing a new average would be a
+fourth record of a quantity the app already knows.
+
+⭐ **So the arcade targets the `minWPM` gate of the furthest lesson the student has
+reached.** It is free — `lessons` and `progress` are already in memory on both
+pages, and `arcadeKeySet()` walks exactly that list to pick the arcade's letters,
+so the letters and the speed now come from the same window. 15 at the start, 20
+mid-course, 25 at the end of the ladder.
+
+⚠️ **THE KNOWN COST: it lags a fast student.** A quick typist parked in Unit 1 gets
+a 15 WPM arcade until they advance. `arcadeTargetWPM()` accepts an optional
+`bestWPM` and raises the floor to 80% of it **only if the caller already has the
+leaderboard document** — never fetched for this purpose. If that trade is wrong,
+say so; the alternative is a read per launch.
+
+##### 4d ✅ Both entry points, quiet, no day gate
+
+Jake: *"A tile on the library page (school, library, arcade) as well as an option
+on the school page to practice everything they've learned so far. I wouldn't make
+it too obvious, as I want school to come first."*
+
+Recorded in `game-names.js` as `ARCADE_ENTRY` — a third tile of **equal weight**
+beside School and Library (not a banner), plus a secondary option on the school
+page below the lesson path. ⚠️ **`dayGated: false`, and the harness asserts it**:
+you are explicitly undecided, so nothing may assume a Friday. A game that
+disappears on a Tuesday reads as broken.
+⚠️ **Neither surface is built** — this records the intent beside the registry so
+the two cannot drift into disagreeing about what the arcade is called.
+
+##### 4e ✅ Escape Key is arcade-only; its time still counts
+
+Jake: *"I'm leaning toward arcade for now, but time typed should still count."*
+
+`game-names.js`: `assessed: false`, `countsTime: true`. ⚠️ **A PRODUCT DECISION,
+NOT A CAPABILITY ONE** — Part B of `escape-board-test.mjs` proves a camper loses
+all three shields on 40 of 40 seeds, which is what would earn it the graded path.
+Flip one flag and it works.
+
+⚠️ **AND PART B STILL MATTERS WHILE THE GRADE IS OFF, because time counts.** A
+student who could stand still and bank minutes against zero characters would be
+farming the daily clock. Do not read that test as dead weight.
+
+---
+
+#### 5. The wiring work — §4 is settled, so this is the queue
+
+In the order I would do it:
+
+1. **Game seconds into the totals.** ⚠️ **This is the delicate one.** `learn.js`
+   line ~2366 is a *single* per-second increment site, below
+   `rollDayIfNeeded('tick')`, with a comment saying four counting bugs died to
+   create it and that there is no subtract path and must not be one. So a game
+   **cannot** bank a duration at the end — its loop has to call the same tick once
+   per elapsed second, below the same midnight rollover, with the same 5-second
+   floor. Anything else is a second record of a quantity that already exists
+   (Rule 9) and files a midnight-straddling game under the wrong day.
+2. **Deadline into the final-run slot** — the `isLastRun` fork in `finishStep()`,
+   above `showLessonResultModal()`, handing it the same `(wpm, acc)` pair a typed
+   run would so `recordRunOutcome()` / `saveProgress()` / `logRun()` stay the only
+   writers. ⚠️ No second write path for a game result.
+3. **The Rule 11 harness** — both readers driven off the same record, asserting
+   they agree. This ships *with* step 2, not after it.
+4. **The leaderboard**, once 4b is approved and the rules pass the emulator.
+5. **Shatter.** The split mechanic needs one shell function, `splitTarget(text)`,
+   with a fallback ladder: syllables → compound parts → halves → single characters.
+   That is what makes it work for a Unit 1 student (`asdfjk` → `asd` + `fjk`) as
+   well as a Unit 7 one (`SUPERNOVA` → `SU-PER-NO-VA`).
+
+---
+
+#### 6. Known gaps, so nothing is a surprise
+
+* **No touch input for gameplay.** The chrome buttons are tappable, so a student
+  can start, pause and quit on a bare iPad — but the games need a keyboard to
+  play. For a typing app that is arguably correct; flagging it because "the buttons
+  work but the game doesn't" is a confusing state to meet cold.
+* **Deadline caps at three landmarks.** A shield count above 3 wraps the landmark
+  list. Fine today; a real limit if shields ever become configurable.
+* **No sound assets, by design** — everything is synthesised, so there is nothing
+  to upload and nothing to 404, but it will not sound like an arcade cabinet.
+* **Shatter is registered in `game-names.js` and marked `unbuilt`**, so the lab
+  page and any future leaderboard code can be written once. It will not appear in
+  any picker until it exists.
+
+
+---
+
+## §14. Round 114 (Carriage) — the arcade page, and a harness defending a bug
+
+⚠️ **FOLDED IN FROM `HANDOFF-round114.md` IN ROUND 114 (Carriage), UNCHANGED BELOW THIS LINE.**
+Jake, 2026-09-10: *"you made specific handoffs and readmes for your work — that
+ends up being dozens of documents. I'd much rather you clean up the documentation
+that's there so that there's one readme and one handoff. Otherwise it gets
+superconfusing for me — no idea what it does for future yous."*
+
+⭐ **HE IS RIGHT, AND §9's OWN FIRST ROW HAD BEEN LYING ABOUT IT SINCE ROUND 23**:
+it read *"this file — the only handoff"* while listing three sibling handoffs four
+rows below. ⚠️ **THE CONTENT IS APPENDED VERBATIM RATHER THAN SUMMARISED** — every
+warning in it was paid for by a defect, and a merge is not a licence to edit
+history. Only heading levels are shifted, so §9's document-map region still ends
+where the harness expects.
+
+**Round 114 (Carriage), 2026-09-10.** Instance name: **Carriage**, as in carriage
+return, continuing the typewriter series. Checked against `CHANGELOG.md`,
+`HANDOFF.md`, `HANDOFF-games.md` and `ROADMAP.md` — no hits. Not a duplicate of
+Victor (Round 82), Franklin (99–100), Wellington (101) or Bar-Let (103–113).
+
+⚠️ **Read `HANDOFF.md` then `HANDOFF-games.md` first.** This covers one round on
+`arcade.html` and assumes the standing rules and §5's invariants.
+
+⭐ **EXPECTED BUILD STAMP AFTER DEPLOY: `arcade v3.14.0`.** Round 113's ruling —
+every delivery states the version to expect, every bug report starts by reading
+it. If the badge says 3.13.0, the files are not applied and nothing below is
+being tested.
+
+---
+
+#### 0. State
+
+| file | version | what changed |
+|---|---|---|
+| `arcade.html` | **3.14.0** | Deadline's console on the free-play path; `PANEL_ELS()`; `showThreatBoard()`; picker label; title/blurb track the game; `savedNote()`; `game-names.js` added to the build panel |
+| `game-names.js` | **1.2.0** | `unbuilt` cleared on Shatter; ⭐ `panelOptionsFor()` and `usesThreatBoard()` — the console wiring as a value |
+| `game-escape.js` | **2.2.0** | `upcoming(5)` — a fifth creature in the queue |
+| `game-draw.js` | **1.12.0** | `drawWavePreview()` derives its row count from height |
+| `tests/arcade-panels-test.mjs` | **1.4.0** | Part I, 211 assertions, mutation-verified 7 ways; `stripHtml()` |
+| `tests/arcade-versions-test.mjs` | **1.1.0** | pins `arcade.html`'s own two halves |
+| `tests/game-assumptions-test.mjs` | **1.1.0** | the `unbuilt` assertion is derived from disk, not asserted as a literal |
+| `tests/undefined-calls-test.mjs` | **1.4.0** | `arcade.html`, `learn2.html`, `school-audit.html` join `HTML_FILES` |
+
+`package.json` is **byte-identical to the upload** — see §5.
+
+---
+
+#### 1. ⚠️⚠️ THE DEFECT IN THIS ROUND'S OWN HARNESS, WHICH IS THE THING TO READ
+
+Jake reported three faults. Fixing them was straightforward. **Proving the first
+one fixed took two attempts, and the first attempt passed its own mutation test
+while the bug was still in place.**
+
+The bug: `playFree()` in `arcade.html` listed a spread of console options for
+`shatter` and a spread for `escape` and **nothing for `deadline`**, so a
+free-play Deadline run received no canvases at all. The panels were never
+missing — `drawRadar()`, `drawThreatBoard()` and `drawGauges()` have had 141
+assertions behind them since Round 99. Nothing called them.
+
+⚠️ **AND NOTHING REPORTED A FAULT, BECAUSE AN ABSENT OPTION IS A LEGAL OPTION.**
+Every panel in all three views is absent-safe by design, for `learn.js`'s
+benefit. ⭐ **THE FAILURE MODE OF AN ABSENT-SAFE CONTRACT IS A BLANK PANEL AND A
+GREEN SUITE.**
+
+##### The first harness, and why it was worthless
+
+Part I's first draft asserted that `playFree()`'s source contained `barHost:` and
+`gaugeCanvas:` exactly once apiece. Then I reinstated the exact shipped defect —
+moved the shared options back inside the `shatter` spread — and **all 185
+assertions passed.** The mutation kept each count at one. It only moved them
+inside a conditional, which is the entire bug.
+
+⚠️⚠️ **THE PROPERTY BEING CHECKED WAS "WHICH GAMES RECEIVE A CONSOLE", WHICH IS
+CONTROL FLOW, AND A REGEX OVER SOURCE TEXT CANNOT SEE CONTROL FLOW.**
+
+⭐ **THIS IS THE FIFTH BADLY-AIMED ASSERTION IN THIS FILE'S HISTORY AND THE ONLY
+DANGEROUS ONE.** `escape-board` Part B measured the wrong span, the hunter test
+asserted a mechanism instead of its reachability, `game-shell` Part I ran one
+seed, and Part J's first assertion demanded a wrong answer. **Every one of those
+went RED on correct code, which is loud.** This one went **GREEN on broken code**,
+which is silent, and it would have shipped a false claim of coverage.
+
+##### The fix that made it testable
+
+The wiring was an object literal inside `arcade.html`, which imports
+`firebase-config.js` — so no harness could import it and a regex was the only
+tool available. ⭐ **SO THE DECISION MOVED INTO `panelOptionsFor()` IN
+`game-names.js`, A PURE FUNCTION OVER THE REGISTRY.** Part I now calls it for
+every id in `GAME_ORDER` and asserts a returned object.
+
+⚠️ **THIS IS THE SAME MOVE `escape-board.js` MADE** before the camper bug was
+testable: extract the decision, then it can be driven. When something cannot be
+tested, that is a fact about the shape of the code, not about the harness.
+
+⚠️ **`panelOptionsFor()` MAY NEVER TOUCH A DOM API.** Elements arrive as plain
+values. A `document.getElementById` in it undoes the whole point.
+
+⚠️ **AND BOTH LAUNCH PATHS CALL IT.** They used to spell the same four options
+separately — two records of one wiring decision, and the free-play copy was the
+one missing a game. Part I asserts that **neither path names a canvas option
+itself**, which is the strongest available form: an absence.
+
+Mutation-verified seven ways, all red:
+
+| mutation | caught by |
+|---|---|
+| Deadline loses barHost/gauge/minutes | 3 assertions |
+| page hand-rolls the wiring again | 4 |
+| Escape Key wrongly claims a threat board | 2 |
+| two aliases for one left-panel box | 2 |
+| absent element yields an explicit `undefined` | 3 |
+| panel reinstates its literal row count of 4 | 6 |
+| view goes back to offering four creatures | 1 |
+
+---
+
+#### 2. ⚠️⚠️ A GREEN ASSERTION THAT KEPT A FINISHED GAME UNREACHABLE FOR ELEVEN ROUNDS
+
+Jake: *"Shatter is theoretically made, but not available in the game drop down."*
+
+`game-names.js` still carried `unbuilt: true` on `shatter` with a comment reading
+"NOT BUILT YET". Round 103 built the view; Rounds 106 and 109 took it to v1.2.0
+**with both side panels already wired.** `fillGames()` skips any game carrying the
+flag, so the option was simply absent — no error, nothing to notice.
+
+⚠️⚠️ **AND `game-assumptions-test.mjs` WAS DEFENDING IT.** Line 333 read
+`ok(GAMES.shatter.unbuilt === true, 'Shatter is flagged unbuilt so no picker
+offers it')`. True in Round 82. False from Round 103. **Green the whole time.**
+
+⭐ **THE FAULT IS THE SHAPE OF THE ASSERTION, NOT THE VALUE IN IT.** It pinned a
+fact about the **world** ("this game does not exist") as though it were a fact
+about the **design** ("this game must not be offered"). Facts about the world go
+stale on their own; the harness then holds the stale one in place and reports
+success for doing so.
+
+⭐ **SO IT IS NOW DERIVED FROM DISK**: for every id in `GAME_ORDER`, the view file
+either exists or it does not, and `unbuilt` must agree. It needs no editing when a
+fourth game arrives, and it goes red either way round.
+
+⚠️ **THE LESSON GENERALISES AND IS THE MOST PORTABLE THING IN THIS ROUND: AN
+ASSERTION WHOSE SUBJECT IS A FACT ABOUT THE WORLD MUST DERIVE THAT FACT, NEVER
+RESTATE IT.**
+
+---
+
+#### 3. The other two reported faults
+
+##### The dead space below the monster queue
+
+Jake: *"There's also dead space below the incoming monsters row."* That space was
+`#threat-canvas` — a fixed **104px** canvas only Deadline is handed — sitting
+empty below the radar on the other two games. A fixed height reserving room for a
+panel that was never going to arrive.
+
+* `#radar-col.no-threat #threat-canvas { display: none; }`, toggled by
+  `showThreatBoard()`, whose argument comes from `usesThreatBoard()` — ⭐ **the
+  same registry flag that decides whether `threatCanvas` is passed**, so the page
+  cannot reveal a box it passed no canvas for.
+* ⚠️ **`display:none`, NOT A ZERO HEIGHT.** `fitCanvas()` measures
+  `getBoundingClientRect()`; a 0px canvas is a live element whose draws all
+  resolve to nothing — a blank panel that costs frames rather than an absent one.
+* ⭐ **AND THE RECLAIMED HEIGHT PAYS FOR THE FIFTH CREATURE** Jake asked for, so
+  the extra row is funded by the fix rather than taken from the extra-life tip.
+
+⚠️⚠️ **AND THE ROW COUNT WAS IN TWO FILES.** `drawWavePreview()` sliced to a
+literal `4` while `game-escape.js` called `upcoming(4)` — agreeing by luck.
+Raising the view to 5 alone would have changed **nothing on screen**, and would
+have read as a deploy that did not take, which is precisely Round 113's finding
+wearing a different hat. ⭐ **THE VIEW NOW SAYS HOW MANY IT CAN OFFER; THE PANEL
+SAYS HOW MANY FIT**, derived from the same height budget `rowH` uses.
+
+⚠️ That also fixed a real overflow the literal was causing: at a 200px panel the
+old code drew to **207px inside a 200px canvas** and dropped the tip via a guard
+that had already been overrun. `drawWavePreview()` had **no assertions at all**
+before this round, which is why.
+
+##### The picker label
+
+Jake: *"take 'Play for fun!' off of Escape Key. On this panel, they're all for
+fun."* The suffix came from `assessed`, which is a **capability** flag meaning
+"this game CAN carry a grade" — and nothing on this page carries one.
+
+⚠️ **DO NOT DERIVE A LABEL FROM `assessed` AGAIN.** When the `learn.js` wiring
+lands, what changes is whether a **run** is graded — a per-run fact
+`isFreePlay()` already computes — not a permanent property of a title.
+
+---
+
+#### 4. Two changes Jake did not ask for, offered for veto
+
+Both are real defects found in the once-over. **Neither was requested.**
+
+1. **The `<h1>` always read `DEADLINE`.** True while Deadline was the only game;
+   a lie from Round 103. A student playing Escape Key read ESCAPE KEY in the
+   dropdown and DEADLINE under the frame. Now `titleOf(g.id)`, so a rename stays
+   the one line `game-names.js` exists to make it.
+
+2. ⚠️⚠️ **THE STANDING NOTE SAID SOMETHING FALSE ABOUT BANKED TIME.** It read
+   *"your time, score and grade don't count toward your lessons"* — but
+   `bankSecond()` and `flushArcadeSeconds()` write arcade seconds into
+   `typing_logs` **and the ledger**, so the time has counted since Round 102.
+   ⭐ **AND THE PAGE CONTRADICTED ITSELF:** the gates panel already said the
+   opposite, on the same screen. Two records of one claim, disagreeing — Rule 9,
+   in the copy rather than in the code.
+
+   ⚠️ **RESOLVED BY DELETING THE FALSE COPY, NOT CORRECTING IT.** `savedNote()` is
+   the one writer and **both** gate panels call it — the lesson path never carried
+   any such line at all, and a student playing a graded run is the one most likely
+   to assume the result counts. ⚠️ **WHEN THE WIRING LANDS, `savedNote()` IS THE
+   THING TO EDIT, AND IT MUST STAY THE ONLY THING.**
+
+---
+
+#### 5. ⚠️ Environment, and the nine failures that were never failures
+
+The full suite reported **10 failing of 93** on the pristine upload (94 harnesses after this round registered `escape-peek-test.mjs`). ⭐ **NINE OF
+THEM WERE A MISSING `npm install`** — `acorn`, `acorn-walk`, `jsdom`,
+`@xmldom/xmldom`, `jszip` are all declared in `devDependencies` and none were
+present. After installing: **1 failing of 93**, and **2 of 94** at the end of this round — the second being `docs-vs-repo-test.mjs` C2 catching this very count, now fixed.
+
+⚠️⚠️ **RUN `npm install` BEFORE BELIEVING A FAILURE COUNT.** Jake has no CLI
+(HANDOFF B.4, browser-only deploys), so a Claude instance is the only thing that
+ever runs these, and a fresh container starts with no `node_modules`. Nine
+harnesses reporting `ERR_MODULE_NOT_FOUND` look exactly like nine broken
+harnesses.
+
+⚠️ **`package.json` IS SHIPPED BYTE-IDENTICAL TO THE UPLOAD AND WAS DELIBERATELY
+REVERTED.** `npm install` rewrote it twice over: it bumped every devDependency
+range (`^8.11.0` → `^8.18.0` and so on) and **un-escaped the unicode in the `//`
+comment arrays**, turning `\u26a0\u26a0` into literal `⚠⚠`. Neither is this
+round's change to make, and the second would have produced a large meaningless
+diff across documentation blocks. ⚠️ **CHECK `package.json` AGAINST THE UPLOAD
+BEFORE DELIVERING, ANY ROUND THAT RUNS npm.**
+
+##### ⚠️ The one real pre-existing failure, NOT fixed and NOT diagnosed
+
+`guest-merge-test.mjs` — **7 assertions, Part D only.** All cascade from D1 (*"the
+guest slot holds both records — got 0, want 2"*), and Parts A–C pass **including**
+*"a guest's records are kept, and handed over"*. That pattern points at stale
+harness setup rather than a live merge bug, **but I did not confirm it and it must
+not be assumed.**
+
+⚠️ **IT TOUCHES STUDENT TIME, WHICH IS RULE 11 TERRITORY, SO IT DESERVES ITS OWN
+ROUND RATHER THAN A GUESS AT THE END OF THIS ONE.** Jake's bug-report rule cuts
+both ways: stop speculating after one or two files. Flagged, untouched.
+
+---
+
+#### 6. Run it
+
+```
+npm install                              # ⚠️ FIRST. Nine harnesses depend on it
+node tests/arcade-panels-test.mjs        # 211 — the panels, RUN not read; Part I
+node tests/game-assumptions-test.mjs     #  62 — the seam; the derived unbuilt flag
+node tests/arcade-versions-test.mjs      #  39 — both halves of every stamp
+node tests/undefined-calls-test.mjs      #  23 files, arcade.html now among them
+node tests/run-all-tests.mjs             # 1 failing of 94 — guest-merge (§5)
+```
+
+Play it: push the files and open `/arcade.html`. Confirm `arcade v3.14.0` in the
+badge **before** reporting anything. `?lab=1` adds the gate override.
+
+---
+
+#### 7. Not done
+
+* **Rule 11 remains untested for the games**, because nothing is wired to
+  `learn.js` yet. Unchanged by this round.
+* **`guest-merge-test.mjs` Part D** — §5.
+* **`docs-vs-repo-test.mjs` still passes vacuously for the arcade** — Round 113's
+  finding. None of the arcade modules are in `versions.js`'s registry, so all
+  twelve report "no readable version stamp; skipped". ⚠️ This round added
+  `game-names.js` to the arcade's own build panel, which is a different surface
+  and does **not** close that gap.
+* **`CHANGELOG.md` / `ROADMAP.md` entries** are drafted separately for pasting;
+  I did not edit those two files.

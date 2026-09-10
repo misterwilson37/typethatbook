@@ -1,3 +1,11 @@
+// game-draw.js v1.13.0 — Round 114 (Carriage): ⭐ peekStaging() — the spawn
+//   telegraph as arithmetic. The kaiju leaned the wrong way entering from the
+//   right, for the SECOND time; Round 112's screen-angle fix was right and had
+//   removed a mirror that was cancelling a fixed lean constant at the call site.
+//   ⚠️ TWO BUGS THAT CANCELLED, AND FIXING THE REAL ONE EXPOSED THE OTHER.
+//   Pinned by tests/escape-peek-test.mjs, which accumulates the real 2x3 canvas
+//   transform rather than reading source — an angle whose correctness depends on
+//   a scale() two files away cannot be settled by reading either file.
 // game-draw.js v1.12.0 — Round 114 (Carriage): drawWavePreview() derives HOW MANY
 //   queue rows to draw from the height it was given, instead of a literal 4 that
 //   disagreed with the count game-escape.js asked for. ⚠️⚠️ TWO RECORDS OF ONE
@@ -73,7 +81,7 @@
 // a picture they already know from the board.
 import { ENEMY_SPRITES, ENEMY_PALETTES, drawPixelSprite } from './game-sprites.js';
 
-export const GAME_DRAW_VERSION = '1.12.0';
+export const GAME_DRAW_VERSION = '1.13.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device
@@ -1769,6 +1777,82 @@ function drawMoveGlyph(ctx, x, y, r, kind) {
  *   maxWarps  {number}
  *   charge    {number}    0..1 toward the next one
  */
+// ═════════════════════════════════════════════════════════════════════════════
+// THE SPAWN TELEGRAPH, AS ARITHMETIC. Round 114 (Carriage).
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-10: *"Notice that the Kaiju leans back to peek in if he enters
+// from the right. He should lean forward (like he does on the left)."*
+//
+// ⚠️⚠️ AND ROUND 112 IS WHY, HAVING BEEN A FIX FOR THE SAME SENTENCE. Jake
+// reported the identical symptom then. `drawPixelSprite()` applies
+// `scale(-1, 1)` before rotating, which mirrors the rotation as well as the
+// sprite, so one call leaned the left-hand kaiju in and the right-hand one out.
+// Round 112 correctly diagnosed the mirror and made the angle SCREEN-SPACE —
+// negated inside the draw call so *"every caller means the same thing by a
+// positive angle"*.
+//
+// ⭐⭐ THAT FIX WAS RIGHT AND IT BROKE THIS ANYWAY, WHICH IS THE INTERESTING
+// PART. The mirror had been cancelling a second error: the call site passed a
+// FIXED `lean = 0.5`, and a lean that must point along the direction of travel
+// is not a fixed number — it is `+0.5` entering from the left and `-0.5`
+// entering from the right. While the mirror flipped the angle, the flip and the
+// lean were correlated (both derive from `dir`) and the wrong constant came out
+// looking correct on both edges. Removing the mirror exposed the constant.
+//
+// ⚠️ TWO BUGS THAT CANCELLED, AND FIXING THE REAL ONE REVEALED THE OTHER — so
+// Round 112's own report of success was true of the thing it changed and false
+// of what a student saw. ⭐ THE TELL WAS SITTING IN THE SAME FUNCTION: the blast
+// tilt three lines above already read `mine.dir < 0 ? -0.45 : 0.45`, signed by
+// direction, because that one had been got right. Two angles in one block, one
+// signed and one not, and only the unsigned one was wrong.
+//
+// ⭐ SO THE STAGING IS A PURE FUNCTION NOW, AND IT IS TESTED. An angle whose
+// correctness depends on a mirror two files away cannot be settled by reading
+// either file; it can be settled by arithmetic. Same move as this round's
+// panelOptionsFor() and Round 82's escape-board.js extraction.
+
+/**
+ * Where a peeking creature is drawn, relative to its own cell.
+ *
+ * @param {string} kind   'kaiju' | 'spider' | 'hunter'
+ * @param {number} dir    +1 entering from the left/top, -1 from the right/bottom
+ *                        (escape-board.js: `dir: fromLeft ? 1 : -1`)
+ * @returns {{ox: number, oy: number, lean: number}}
+ *          `ox`/`oy` are offsets in CELL FRACTIONS, to be multiplied by the cell
+ *          size by the caller. `lean` is a SCREEN-SPACE angle in radians —
+ *          positive is clockwise — matching drawPixelSprite()'s v1.1.0 contract.
+ *
+ * ⚠️ THE SIGN OF `lean` MUST TRACK `dir`, AND THAT IS THE WHOLE DEFECT. Leaning
+ * "into the board" is clockwise from the left edge and anticlockwise from the
+ * right, because the creature is tipping toward where it is about to walk.
+ * ⚠️ THE OFFSET IS ALWAYS AGAINST `dir` — a creature peeking is pushed BACK out
+ * of the board along the axis it will travel, so it is only partly on screen.
+ */
+export function peekStaging(kind, dir) {
+    const d = dir < 0 ? -1 : 1;
+    if (kind === 'kaiju') {
+        // ⚠️ 62% OUT, PLUS A TILT TOWARD THE BOARD. Enough that the head and the
+        // glowing eye clear the edge and nothing else. Jake's staging: *"Kaiju
+        // could literally tilt his head in (as he already tilts to blast)."*
+        return { ox: -d * 0.62, oy: 0, lean: d * KAIJU_PEEK_LEAN };
+    }
+    if (kind === 'spider') {
+        // ⚠️ 72% OUT — a quarter of the sprite showing, which for this grid is
+        // the head and the eyes and no legs. ⚠️ NO LEAN: the spider travels
+        // VERTICALLY, and a rotation is a lean along the horizontal. Tipping it
+        // would point at an axis it does not move on.
+        return { ox: 0, oy: -d * 0.72, lean: 0 };
+    }
+    // ⚠️ THE HUNTER IS NOT STAGED, IT IS ANNOUNCED. Jake: *"Robot gets an
+    // announcement, so it doesn't matter."* It arrives at a CORNER and has no
+    // entry axis, so a lean would name a direction it is not about to move in.
+    return { ox: 0, oy: 0, lean: 0 };
+}
+
+/** ⚠️ THE ONE PLACE THE KAIJU'S PEEK ANGLE IS WRITTEN DOWN. */
+export const KAIJU_PEEK_LEAN = 0.5;
+
 export function drawShatterPanel(ctx, o) {
     const { W, H } = o;
     ctx.clearRect(0, 0, W, H);

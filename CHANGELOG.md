@@ -1,5 +1,307 @@
 # CHANGELOG — TypeThatBook
 
+## Round 114 (Carriage) — continued — the run picker, and Deadline everywhere it makes sense
+
+### ⚠️⚠️ THE RUN PICKER WAS BUILT, WIRED, AND COULD NOT FIRE FOR ONE SINGLE STUDENT
+
+Jake, 2026-09-10: *"One kid left learn.html on the 4th run of a lesson, and it
+kicked him back to the first run. There was no way to navigate to later runs he
+had unlocked. That was supposed to be there... I do not understand why that's not
+possible to implement."*
+
+⭐ **IT WAS ENTIRELY POSSIBLE, AND HANDING IT BACK AS A DECISION WAS MY ERROR.**
+Two causes, and neither piece was wrong on its own:
+
+1. `maxReachableRunIdx()` refuses the shortcut when the stored `runCount` differs
+   from the live run count — **correct**, because `lesson-gate.js` keys per-run
+   mastery BY INDEX and a re-chunked lesson makes every stored index point at
+   different text. But `attachGameSlot()` **appends** a Deadline run, so
+   `learn2.html` counts one more run than `learn.html`, and ⭐ **EVERY PROGRESS
+   RECORD THE PRODUCTION PAGE HAD EVER WRITTEN LOOKED LIKE A STALE ONE.**
+   ⚠️ **A CORRECT GUARD, FIRING ON A DIFFERENCE THAT MEANT NOTHING** — for every
+   student, on every lesson. Fixed by comparing the **typed** run count, the
+   number that did not change, so a record means the same thing on both pages and
+   a genuine lesson edit still trips the guard.
+2. The opening run came from `firstOpenRunIdx()` alone, which advances only for a
+   **mastered** run — `MASTERY_POINTS = 4`, banked at A🔥 = 2 and A = 1, with
+   **B, C, D and F worth ZERO**. A child passing runs 1-4 with B's and C's — the
+   ordinary case, the case the gates are tuned for — banks nothing and reopens at
+   run 1 every visit. Now the **later** of furthest-mastered and furthest-reached.
+
+⭐⭐ **SO THE TWO FEATURES JAKE ASKED FOR DISABLED EACH OTHER**, and all 94
+harnesses were green throughout. ⚠️ **THIS DOES NOT REOPEN THE 2026-08-17 RULING**
+(*"they should restart it — not start at the last word"*): a run still starts at
+character zero, and every earlier run stays one click away.
+
+⭐ The arithmetic now lives in **`run-picker.js`** — pure, no DOM — with
+`tests/run-picker-test.mjs` (26 assertions) built from the record shape
+`recordRunOutcome()` really writes. ⚠️ **PART C STOPS THE LAZY FIX**: deleting the
+staleness guard makes Part A pass and is worse than the bug. Mutation-verified
+three ways. ⚠️ The module is shared on purpose — §11 says one of `learn.js` /
+`learn2.js` gets deleted, and this answer must survive either outcome.
+
+### ⭐⭐ DEADLINE NOW REPLACES THE FINAL RUN IN 46 OF 47 LESSONS — JAKE'S RULING
+
+Jake, 2026-09-10: *"I don't really care what the last guy said... I want deadline
+to replace the final run at the end of lessons anywhere that it makes sense. Give
+me some well defined options."* Four were offered; he chose **Option 1 — pace
+from the lesson, grade on accuracy only** — and **kept the 4-key floor**.
+
+⚠️⚠️ **THE PACE AND THE GRADE ARE TWO DIFFERENT NUMBERS, AND ONE LINE HAD
+CONFLATED THEM.** Deadline needs a WPM figure to decide **how fast words fall**; a
+lesson's `minWPM` is a figure a student must **beat to pass**. The guard read
+`if (!g || g.minWPM == null) return runs;` — and `run-grade.js` returns a null
+`minWPM` for every `DRILL_TYPE` deliberately, because speed on random letter
+groups measures nothing. ⭐ **SO EVERY LESSON ENDING IN A DRILL GOT NO GAME AT
+ALL: 15 of 47, being all of Units 1, 2 and 5** — exactly the "more than 4 keys
+but not passages" case, and where most of a middle school sits.
+
+⚠️ **`missionConfigFromRun()` ALREADY DID THE RIGHT THING AND NEEDED NO EDIT** —
+it falls back to `lessonGates.minWPM` when the run's own gate is null. The pace
+source existed all along; one guard upstream meant it was never reached.
+
+⚠️⚠️ **THE REPLACED RUN KEEPS ITS ORIGINAL `type`, AND THAT IS LOAD-BEARING FOR
+THE GRADE.** `gatesForRun()` reads the type, drill types stay in `DRILL_TYPES`, so
+a replaced drill is still graded on **accuracy alone** — exactly as the typed
+drill it replaces. **Stamping a prose type on a drill run, or inventing a new one,
+would turn every Unit 1 and 2 lesson into a speed test it is not today and would
+start failing children who pass now.** That is Option 2, offered and declined.
+
+⚠️ **AND A DRILL GAME STILL CANNOT BE PASSED BY DOING NOTHING.** A student who
+types nothing leaks every target, and `accuracyPct(0)` is **100 by definition** —
+which on an accuracy-only run would be an A🔥 for an empty screen.
+`finishGameStep()` gates on `rep.quotaMet`, so a lost game is an **unfinished**
+run. ⚠️ **DO NOT REMOVE THAT GATE.**
+
+⭐ The judgement is now **`game-slot.js`** — pure, returning a plan and mutating
+nothing — with `tests/game-slot-test.mjs` (83 assertions) driving the real
+`planGameSlot()` and the real `gatesForRun()` over all 47 authored lessons.
+⚠️ **PART B ASSERTS UNIT BY UNIT, NOT AS A TOTAL**: "46 of 47" reads the same
+whether the misses are scattered or three whole units, and those need opposite
+responses. Mutation-verified four ways, including the shipped guard (which
+reproduces 15 refusals exactly) and a silent slide into Option 2.
+
+⚠️ **AND THE DEDUPE THAT CAME WITH IT.** Wiring this in briefly left
+`GAME_MIN_KEYS` and `PROSE_TYPES` in **two** files, plus a duplicated key-floor
+check — a Rule 9 break created by the fix. Collapsed in the same edit.
+
+### ⚠️ AND I DESTROYED `run-all-tests.mjs` MID-SESSION, WHICH IS WORTH RECORDING
+
+A script opened it with `open(p, 'w')` — which **truncates before anything is
+written** — then threw a `UnicodeEncodeError` on a lone surrogate (`\ud83d\udd25`
+written as two escapes rather than `\U0001F525`). The file was left **empty**, and
+the retry read the empty file and wrote it back.
+⚠️⚠️ **THE SYMPTOM WAS THE SUITE REPORTING NOTHING AT ALL AND EXITING 0** — an
+empty module is valid, so `node --check` passed and every "no failures" reading
+was a file with no tests in it. Restored from Jake's upload and re-applied.
+⭐ **WRITE VIA A TEMP FILE AND `os.replace()`**, which is what saved `CHANGELOG.md`
+from the identical crash twenty minutes later.
+
+## Round 114 (Carriage) — 2026-09-10 — the arcade page, and a harness defending a bug
+
+### ⚠️⚠️ THE HARNESS WRITTEN TO PIN THIS ROUND'S MAIN DEFECT PASSED WHILE THE DEFECT WAS STILL THERE
+
+Jake, on a free-play Deadline run: *"you can see that there are no active
+consoles on deadline."* The panels were never missing — `drawRadar()`,
+`drawThreatBoard()` and `drawGauges()` have carried 141 assertions since Round
+99. **`playFree()` never called them.** It listed a spread of console options for
+`shatter`, a spread for `escape`, and nothing for `deadline`.
+
+⚠️ **NOTHING REPORTED A FAULT, BECAUSE AN ABSENT OPTION IS A LEGAL OPTION** —
+every panel is absent-safe for `learn.js`'s benefit. ⭐ **THE FAILURE MODE OF AN
+ABSENT-SAFE CONTRACT IS A BLANK PANEL AND A GREEN SUITE.**
+
+Part I's first draft asserted that `playFree()`'s source held `barHost:` and
+`gaugeCanvas:` once apiece. Reinstating the exact shipped bug — the options moved
+back inside the `shatter` spread — left both counts at one and **all 185
+assertions passed.** ⚠️⚠️ **THE PROPERTY IS "WHICH GAMES RECEIVE A CONSOLE",
+WHICH IS CONTROL FLOW, AND A REGEX OVER SOURCE TEXT CANNOT SEE CONTROL FLOW.**
+
+⭐ **FIFTH BADLY-AIMED ASSERTION IN THAT FILE'S HISTORY AND THE ONLY DANGEROUS
+ONE.** The other four went RED on correct code, which is loud. This went GREEN on
+broken code, and would have shipped a false claim of coverage.
+
+⭐ **THE FIX WAS TO MAKE THE WIRING A VALUE.** It was an object literal inside a
+page that imports `firebase-config.js`, so nothing could import it. `panelOptionsFor()`
+in `game-names.js` is now a pure function over the registry and Part I calls it
+for every id in `GAME_ORDER`. ⚠️ Same move `escape-board.js` made before the
+camper bug was testable: **when something cannot be tested, that is a fact about
+the shape of the code.** Mutation-verified seven ways.
+
+### ⚠️⚠️ AND A SECOND GREEN ASSERTION KEPT A FINISHED GAME UNREACHABLE FOR ELEVEN ROUNDS
+
+Jake: *"Shatter is theoretically made, but not available in the game drop down."*
+`game-names.js` carried `unbuilt: true` with a comment reading "NOT BUILT YET".
+Round 103 built the view; 106 and 109 took it to v1.2.0 with both panels wired.
+`fillGames()` skips the flag, so the option was simply absent.
+
+⚠️ **`game-assumptions-test.mjs` ASSERTED `unbuilt === true` AND WAS GREEN THE
+WHOLE TIME.** ⭐ **THE FAULT IS THE SHAPE, NOT THE VALUE: it pinned a fact about
+the WORLD as though it were a fact about the DESIGN.** Facts about the world go
+stale on their own and the harness then holds the stale one in place. Now derived
+from whether each view exists on disk; needs no edit when a fourth game arrives.
+
+⚠️ **PORTABLE RULE: AN ASSERTION WHOSE SUBJECT IS A FACT ABOUT THE WORLD MUST
+DERIVE THAT FACT, NEVER RESTATE IT.**
+
+### Done this round
+
+* **Deadline gets its console on the free-play path.** Both launch paths now
+  delegate to `panelOptionsFor()`; ⚠️ Part I asserts **neither path names a canvas
+  option itself**, which is the strongest available form — an absence.
+* **Shatter reaches the picker.** `unbuilt` cleared.
+* **The dead space below the monster queue is gone.** Jake: *"There's also dead
+  space below the incoming monsters row."* It was `#threat-canvas`, a fixed 104px
+  box only Deadline is handed, empty on the other two games. Collapsed with
+  `display:none` — ⚠️ **NOT a zero height**: `fitCanvas()` measures
+  `getBoundingClientRect()`, and a 0px canvas is a live element whose draws
+  resolve to nothing, which is a blank panel that costs frames.
+* ⭐ **THE RECLAIMED HEIGHT PAYS FOR A FIFTH CREATURE**, so the extra row is
+  funded by the fix rather than taken from the extra-life tip.
+* ⚠️⚠️ **AND THE ROW COUNT WAS IN TWO FILES.** `drawWavePreview()` sliced to a
+  literal 4 while `game-escape.js` called `upcoming(4)`, agreeing by luck.
+  Raising the view alone would have changed **nothing on screen** and read as a
+  deploy that did not take — Round 113's finding in a new costume. ⭐ **THE VIEW
+  SAYS HOW MANY IT CAN OFFER; THE PANEL SAYS HOW MANY FIT.** That also fixed a
+  real overflow: at 200px the literal drew to 207px inside a 200px canvas.
+  `drawWavePreview()` had **no assertions at all** before this round.
+* **The picker label drops "— just for fun".** Jake: *"On this panel, they're all
+  for fun."* It came from `assessed`, a **capability** flag, and nothing here
+  carries a grade. ⚠️ **DO NOT DERIVE A LABEL FROM `assessed` AGAIN** — when the
+  wiring lands, what changes is whether a RUN is graded, which `isFreePlay()`
+  already computes.
+* **`arcade.html`'s header read v3.7.0 while its constant read 3.13.0** — twelve
+  rounds. ⚠️ Round 98 found the same drift, fixed that instance by hand, and wrote
+  the gap into a comment: *"the one file its own harness does not check both
+  halves of."* ⭐ **A GAP DESCRIBED IN A COMMENT IS AN OPEN GAP.**
+  `arcade-versions-test.mjs` now pins it.
+* **`arcade.html` joins `undefined-calls-test.mjs`** — ~1,300 lines of inline
+  script, the largest after `index.html`, never in that list. Its instruction
+  covered extracted MODULES and nobody wrote the same rule for a new PAGE.
+* **`game-names.js` joins the arcade build panel.** It stopped being a list of
+  strings; a wrong answer in `panelOptionsFor()` is a blank panel with no error.
+
+### ⚠️ Two changes Jake did not ask for — flagged for veto
+
+* **The `<h1>` always read DEADLINE.** True while Deadline was the only game, a
+  lie from Round 103: a student playing Escape Key read one name in the dropdown
+  and another under the frame. Now `titleOf(g.id)`.
+* ⚠️⚠️ **THE STANDING NOTE SAID SOMETHING FALSE ABOUT BANKED TIME.** It read
+  *"your time, score and grade don't count toward your lessons"* — but
+  `flushArcadeSeconds()` writes to `typing_logs` and the ledger, so the time has
+  counted since Round 102, **and the gates panel above it already said so.** Two
+  records of one claim on one screen, disagreeing — Rule 9 in the copy rather
+  than the code. ⚠️ **DELETED, NOT CORRECTED**; `savedNote()` is the one writer
+  and both gate panels call it. The lesson path never carried such a line at all,
+  and a student on a graded run is the likeliest to assume it counts.
+
+### ⚠️ Environment: nine of ten suite failures were a missing `npm install`
+
+The pristine upload reports **10 failing of 93**; after installing the declared
+`devDependencies` (`acorn`, `acorn-walk`, `jsdom`, `@xmldom/xmldom`, `jszip`),
+**1 of 93.** ⚠️⚠️ **RUN `npm install` BEFORE BELIEVING A FAILURE COUNT** — a fresh
+container has no `node_modules`, and nine `ERR_MODULE_NOT_FOUND` harnesses look
+exactly like nine broken ones.
+
+⚠️ **`package.json` SHIPS BYTE-IDENTICAL TO THE UPLOAD, DELIBERATELY.** `npm
+install` rewrote it twice over — bumped every dependency range, and un-escaped the
+unicode in the `//` comment arrays (`\u26a0\u26a0` → literal `⚠⚠`). Neither is
+this round's change. **Check `package.json` against the upload on any round that
+runs npm.**
+
+### ⚠️ Left alone on purpose
+
+`guest-merge-test.mjs` — 7 assertions, Part D only, all cascading from one that
+finds zero stored records while Parts A–C pass **including** *"a guest's records
+are kept, and handed over."* That points at stale harness setup rather than a live
+merge bug, **but it was not confirmed.** ⚠️ It touches student time, which is Rule
+11 territory, so it gets its own round rather than a guess at the end of this one.
+
+### ⚠️⚠️ THE KAIJU LEAN — THE SAME SENTENCE FROM JAKE, TWICE, AND TWO BUGS THAT CANCELLED
+
+Jake, 2026-09-10: *"Notice that the Kaiju leans back to peek in if he enters from
+the right. He should lean forward (like he does on the left)."* ⚠️ **HE HAD
+REPORTED THIS BEFORE ROUND 112, WHICH SHIPPED A FIX FOR IT.**
+
+Round 112 was right about what it changed. `drawPixelSprite()` applies
+`scale(-1, 1)` before rotating, which mirrors the ANGLE as well as the sprite, so
+one call leaned the left kaiju in and the right one out; it made the angle
+screen-space by negating it inside the draw call.
+
+⭐⭐ **BUT THE MIRROR HAD BEEN CANCELLING A SECOND ERROR.** The call site passed a
+FIXED `lean = 0.5`, and a lean that points along the direction of travel is `+0.5`
+from the left edge and `-0.5` from the right. While the mirror was flipping the
+angle, the flip and the lean were correlated — both derive from `dir` — so the
+wrong constant came out looking right on both edges. **Removing the mirror left
+the constant naked.**
+
+⚠️ **SO ROUND 112'S REPORT OF SUCCESS WAS TRUE OF THE CODE AND FALSE OF THE
+SCREEN.** ⭐ **AND THE TELL WAS THREE LINES ABOVE THE BUG**: the blast tilt already
+read `mine.dir < 0 ? -0.45 : 0.45`, signed by direction, because that one had been
+got right. Two angles in one block, one signed and one not, and only the unsigned
+one was wrong.
+
+⭐ Fixed by extracting `peekStaging(kind, dir)` into `game-draw.js` — pure, with
+`tests/escape-peek-test.mjs` (21 assertions) behind it. ⚠️ **THE HARNESS
+ACCUMULATES THE REAL 2x3 CANVAS TRANSFORM** and asks where the top of the sprite
+lands, because an angle whose correctness depends on a `scale()` two files away
+cannot be settled by reading either file. Mutation-verified against both the
+fixed constant and the removal of Round 112's negation.
+
+⚠️⚠️ **AND TWO DRAFTS OF THAT HARNESS WERE WRONG BEFORE IT WORKED, BOTH BY
+MEASURING THE ARTWORK INSTEAD OF THE TRANSFORM.** The kaiju is not left-right
+symmetric, so mirroring moves the average x of any horizontal band on its own;
+and baseline-subtracting fixed the sign but not the magnitude, because the bands
+are chosen from post-rotation screen y and the two readings were not measuring the
+same pixels. ⭐ It now draws a **symmetric probe bar**, whose expected skew is
+computable by hand — 11.5px at 0.5 rad — and measures 10.1px. ⚠️ **DO NOT
+"IMPROVE" IT BY USING THE REAL SPRITE. That is the mistake, twice.**
+
+### ⭐ THE DOCUMENTATION IS ONE README AND ONE HANDOFF
+
+Jake, 2026-09-10: *"you made specific handoffs and readmes for your work — that
+ends up being dozens of documents. I'd much rather you clean up the documentation
+that's there... Otherwise it gets superconfusing for me — no idea what it does for
+future yous."*
+
+⚠️⚠️ **AND §9's FIRST ROW HAD BEEN LYING ABOUT IT SINCE ROUND 23**: it read *"this
+file — the only handoff"* while the same table listed three siblings four rows
+below, plus `INTEGRATION.md` and `NEXT-STEPS.md` doing a handoff's job under other
+names. `HANDOFF-games.md`, `HANDOFF-learn2.md`, `INTEGRATION.md` and
+`NEXT-STEPS.md` are now **§§10–13 of `HANDOFF.md`**, appended **verbatim** —
+every warning in them was paid for by a defect and a merge is not a licence to
+edit history. `README-games.md` is Appendix A of `README.md`.
+⚠️ **DO NOT CREATE `HANDOFF-<anything>.md` OR `README-<anything>.md` AGAIN.** A
+round's handoff is a new numbered section; a new area gets an appendix.
+⭐ `docs-vs-repo-test.mjs` reported the three Round 114 docs as unlisted before
+they were folded in, which is the harness making Jake's point mechanically.
+
+### ⚠️⚠️ learn2.html — BOTH REQUESTED FEATURES ARE BUILT AND NEITHER CAN FIRE. NOT FIXED; NEEDS A RULING
+
+Jake, 2026-09-10: *"I had some students do learn2.html today, and it didn't do
+either of the two things I asked for."* ⭐ **BOTH ARE PRESENT IN `learn2.js` AND
+FULLY WIRED.** Investigated against the real 47-lesson corpus
+(`tests/fixtures/lessons-export.json`) rather than by reading, and each has a
+specific reason it cannot reach a student. **Neither is fixed in this round** —
+both decide whether children pass lessons. See ROADMAP 114c and 114d.
+
+1. **The Deadline lesson gate never fires for Units 1, 2 or 5** — 14 of 47
+   lessons, and where most of the school lives. `attachGameSlot()` returns early
+   unless `gatesForRun()` yields a non-null `minWPM`, and every one of those
+   lessons ends on `key_random`, which is in `DRILL_TYPES` and is therefore
+   accuracy-only by design. ⚠️ **THAT IS EXACTLY JAKE'S "REPLACING WHEN THERE ARE
+   MORE THAN 4 KEYS BUT NOT PASSAGES" CASE.** Corpus result: 28 append, 4 replace,
+   14 blocked by the gate, 1 blocked by the key floor.
+2. **The run picker is dead for every student who has prior progress.**
+   `maxReachableRunIdx()` refuses the shortcut when the stored `runCount` differs
+   from `currentRuns.length` — correct on its own terms — but `attachGameSlot()`
+   **changes `currentRuns.length`**, so every record written on `learn.html`
+   is stale on `learn2.html` and the picker offers run 1 only. ⭐ **THE TWO
+   FEATURES DISABLE EACH OTHER**, and the previous round's own note called this
+   "correct, not a bug" for Unit 7 without noticing it generalises to every
+   lesson and every student. ⚠️ Jake's kid was on `learn.html`, which has no
+   picker at all — both facts are true at once.
+
 ## Round 113 (Bar-Let) — 2026-09-10 — the handoff, and the rules note
 
 ### ⚠️⚠️ THE BUG REPORT WAS AGAINST A BUILD TWO VERSIONS OLD
