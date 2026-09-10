@@ -1,6 +1,35 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-09 by Round 104 (Bar-Let), for whoever is next
+> ## ▶ START HERE — written 2026-09-09 by Round 106 (Bar-Let), for whoever is next
+>
+> ## ⚠️⚠️⚠️ READ THESE THREE FIRST — each cost a session or shipped a dead build
+>
+> **1. `npm install` BEFORE THE FIRST SUITE RUN.** Rounds 102–104 each recorded
+> *"nine pre-existing failures… nobody has looked."* Somebody looked in Round 105.
+> All nine were `Cannot find package 'jsdom'` / `'acorn'` — **declared correctly in
+> `package.json` since Round 8**, simply not installed in the dev container. One
+> `npm install` and **ALL 93 HARNESSES PASS.**
+> ⚠️⚠️ **THE PHRASE THAT KEPT IT ALIVE WAS "VERIFIED IDENTICAL ON AN UNTOUCHED
+> COPY."** I wrote it myself. It sounds like diligence and proves nothing — the
+> untouched copy sat in the *same container* with the *same missing packages*.
+> ⭐ **A CONTROL THAT SHARES THE SUSPECTED CAUSE IS NOT A CONTROL**, and reading
+> one of the actual error strings takes four seconds. **NEVER CARRY A FAILURE
+> COUNT FORWARD WITHOUT READING AN ERROR.**
+>
+> **2. A GREEN SUITE DOES NOT MEAN THE PAGES LOAD.** Round 105 shipped
+> `arcade.html` with a duplicate `import` binding — `SyntaxError: Cannot declare an
+> imported binding name twice` — and **the whole page was blank**. The suite was
+> 93/93 across that build, because `module-parse-test` covers `.js` files and
+> **nothing covers the two `<script type="module">` blocks in a page.** Open the
+> page.
+>
+> **3. ⚠️⚠️ DO NOT REWRITE THE ART. IT IS NOT A DRAFT.** Rounds 82–105 rebuilt
+> both games' rules correctly and quietly replaced their characters with
+> primitives — Jake: *"ALL THE ANIMATION I STARTED WITH IS GONE… I can't share
+> what you made with kids."* ⭐ **EVERY DEFECT THOSE ROUNDS FOUND WAS IN THE
+> ARITHMETIC; THE SPRITES WERE ALWAYS FINE.** `game-sprites.js` carries his pixel
+> data transcribed, not reinterpreted. A future round that finds those grids crude
+> and smooths them out is repeating the whole mistake.
 >
 > **Instance name: Bar-Let**, the Swiss portable. ⚠️ Checked against
 > `CHANGELOG.md`, `HANDOFF.md`, `HANDOFF-games.md`, `ROADMAP.md` **and

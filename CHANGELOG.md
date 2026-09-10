@@ -1,5 +1,192 @@
 # CHANGELOG — TypeThatBook
 
+## Round 106 (Bar-Let) — 2026-09-09 — ⚠️⚠️ arcade.html WAS DEAD, and the art comes back
+
+### ⚠️⚠️⚠️ `arcade.html` DID NOT LOAD AT ALL, FOR A ONE-LINE REASON
+
+```
+SyntaxError: Cannot declare an imported binding name twice: 'arcadeKeySet'
+```
+
+Round 105 added a second `import { ... arcadeKeySet ... }` to a module block that
+already imported it forty lines above. **The entire page was a blank screen.**
+
+⚠️ **NO HARNESS LOADS THIS PAGE, SO THE SUITE WAS GREEN THROUGHOUT.** 93 of 93,
+twice, over a build that could not render. ⭐ **A GREEN SUITE IS A STATEMENT ABOUT
+WHAT IS TESTED, AND NOTHING IN IT TESTS THAT A PAGE PARSES.** `module-parse-test`
+covers `.js` files; the two `<script type="module">` blocks in this page are
+covered by nothing. ⚠️ **CHECK A NEW IMPORT LINE AGAINST THE EXISTING ONES IN THE
+SAME BLOCK** — and open the page.
+
+---
+
+### ⚠️⚠️ THE ART: JAKE WAS RIGHT AND THE DIAGNOSIS IS NOT A MATTER OF TASTE
+
+Jake, 2026-09-09: *"ALL THE ANIMATION I STARTED WITH IS GONE... it looks 1000%
+times better than what's in lab. I can't share what you made with kids. It's
+garbage."* And on Shatter: *"that's just...bad. Just plain bad."*
+
+⭐ **ROUNDS 82–105 REBUILT THESE GAMES' RULES CORRECTLY AND QUIETLY REPLACED THEIR
+CHARACTERS WITH PRIMITIVES.** A frog in reading glasses, whose mouth opens while
+you type and whose pupils turn toward the neighbour you are aiming at, became a
+yellow arc. A 24×24 kaiju firing an atomic beam became a green triangle with two
+red squares. Shatter's rocks were rounded rectangles behind text.
+
+⚠️⚠️ **THE ART WAS NEVER THE PART THAT NEEDED REWRITING.** Every defect those
+rounds found — the unreachable gate, the safe camper, the dead per-second tick,
+the two-letter pool, the factor-of-two split cost — was in the **arithmetic**. The
+sprites were fine. Replacing them cost quality and bought nothing, and it happened
+for a reason worth naming: **a rewrite treats everything it touches as a draft.**
+
+⭐ `game-sprites.js` v1.0.0 carries Jake's pixel data **transcribed, not
+reinterpreted**. ⚠️ **DO NOT "IMPROVE" THOSE GRIDS.** A future round that finds
+them crude and smooths them out is repeating exactly the mistake this file undoes.
+
+**Escape Key** (`game-escape.js` v1.3.0): the frog, the kaiju, the spider and the
+hunter are their sprites again. The mouth opens on `typed.length > 0` — ⚠️ driven
+by typing, never by a timer, because an idle chomp says the same thing whether the
+student is working or staring at the screen. The eyes follow the **aim**, not the
+last move: looking where you already went tells nobody anything. The kaiju's beam
+is two strokes with a white core inside a cyan glow, and its head tilts toward the
+shot. Purple arcade grid, vaporised cells drawn as an X, proper web rosettes.
+
+⚠️ `drawPixelSprite()` **rounds the pixel size and floors it at 1**. The prototype
+hardcoded 4, which is right on its fixed canvas and wrong everywhere else — a
+fractional pixel size lands each cell on a different sub-pixel boundary and turns
+crisp pixel art into a smear. ⭐ That rounding is why this looks like pixel art at
+any board size.
+
+**Shatter** (`game-shatter.js` v1.1.0): rocks are irregular 10-point polygons with
+a **silhouette frozen at spawn** — ⚠️ re-rolling the offsets each frame makes the
+outline boil, which reads as a rendering fault rather than as stone — plus a slow
+per-rock tumble. A piece is filled where a parent is hollow: ⚠️ a difference of
+**kind**, not of degree, because a slightly-smaller hollow rock is exactly the
+"slightly off" that reads as a mistake. ⭐ And the ship aims at the locked rock,
+which is drawn confirmation the lock went where the student meant — worth most
+here, because two split pieces can share a first letter.
+
+### Shipped
+
+| file | version |
+|---|---|
+| `game-sprites.js` | **1.0.0** 🆕 |
+| `game-escape.js` | **1.3.0** |
+| `game-shatter.js` | **1.1.0** |
+| `arcade.html` | **3.10.1** — the crash fix |
+
+**ALL 93 HARNESSES PASS**, which this round is a standing reminder means less than
+it sounds like.
+
+## Round 105 (Bar-Let) — 2026-09-09 — ⚠️⚠️ THE NINE FAILURES WERE NEVER FAILURES, and the student picks the pool
+
+**Same instance as Rounds 103–104.**
+
+### ⚠️⚠️⚠️ THE NINE "PRE-EXISTING FAILURES" WERE A MISSING `npm install`
+
+Three consecutive handoffs — Rounds 102, 103 and 104 — recorded *"Nine
+pre-existing failures, NOT from this round. Do not assume they are yours. Do not
+assume they are fine. Nobody has looked."*
+
+**Somebody finally looked. All nine were the same error:**
+
+```
+Cannot find package 'jsdom'   ← eight of them
+Cannot find package 'acorn'   ← undefined-calls-test.mjs
+```
+
+⚠️ **`package.json` DECLARES BOTH, CORRECTLY, AND HAS SINCE ROUND 8.** Nothing was
+wrong with the repo. The dev container had no `node_modules`. One `npm install`
+and:
+
+```
+ALL 93 HARNESSES PASS.
+```
+
+⚠️⚠️ **AND THE PHRASE THAT KEPT IT ALIVE FOR THREE ROUNDS WAS "VERIFIED IDENTICAL
+ON AN UNTOUCHED COPY."** I wrote it myself in Round 103. It sounds like diligence
+and it proves nothing: the untouched copy sat in the *same container* with the
+*same missing packages*, so of course it failed identically. ⭐ **A CONTROL THAT
+SHARES THE SUSPECTED CAUSE IS NOT A CONTROL.** The check that would have worked —
+reading the actual error text — takes four seconds and no round did it, because
+each one inherited the previous round's conclusion as a premise.
+
+⚠️ **Jake called this**: *"Last time a Claudling told me that there were 9
+failures several times in a row, the last time they realized that they had a bug
+they'd been ignoring."*
+
+⭐ **THE STANDING RULE FROM HERE: `npm install` BEFORE THE FIRST SUITE RUN, AND
+NEVER COPY A FAILURE COUNT FORWARD WITHOUT READING ONE OF THE ERRORS.**
+
+---
+
+### ⚠️⚠️ `arcade-pool.js` v2.0.0 — THE STUDENT CHOOSES THE SCOPE
+
+Jake, 2026-09-09: *"students should have the option of opening it up to
+everything because roughly 30% of my students know how to type and have not done
+a single lesson. They should be able to open up available lessons OR go straight
+to the word pools. That's why we made the word pools (and put some real work into
+them, for the record)."*
+
+⚠️⚠️ **v1.0.0 GOT THIS BACKWARDS AND IT WAS THE WHOLE POINT OF THE FILE.** It
+widened the pool automatically as lessons unlocked letters and offered **no way
+out** — so a twelve-year-old who already types 60 WPM with zero lessons finished
+was locked to `asdfjk` letter groups by a rule they could not see or override.
+⭐ **THAT IS ABOUT A THIRD OF THE SCHOOL, and they are exactly the students the
+word banks were built for.**
+
+⚠️ **THE AUTOMATIC WIDENING WAS NEVER THE PROBLEM AND IS KEPT.** Words open when
+they open; that depends on the level of the kid. What was missing was the choice.
+
+* **`scope: 'level'`** — only letters this level has taught. Unchanged behaviour.
+* **`scope: 'full'`** — the whole pool, every letter, gated on nothing. Jake:
+  *"They either can do it or they can't. Again — it's a game."*
+
+⚠️ **NEITHER SCOPE IS THE "REAL" ONE.** A UI presenting `full` as unlocking
+something, or `level` as training wheels, has re-created the hole. The picker says
+"from my lessons so far" and "everything — the whole word pool", and the panel
+describes what each produces without ranking them.
+
+⚠️ **SCOPE DECIDES WHAT YOU TYPE; THE LEVEL STILL DECIDES HOW FAST IT ARRIVES.**
+Conflating them would hand a beginner who just wanted to see real words a speed
+they never asked for.
+
+---
+
+### ⚠️⚠️ SHATTER'S POOL IS `shatter-words.js`, AND WITHOUT IT SHATTER WAS NOT SHIPPED
+
+Round 104 left Shatter on `makeArcadeTargets()` letter groups, and I wrote it up
+as a next step rather than a defect. **That was wrong.** Every split landed on the
+**halves** rung — `asdfjk` → `asd|fjk` — and the **morpheme** rung, the one
+carrying the entire pedagogy, was reachable by nothing a student could play.
+
+⭐ **THE POINT IS `un|usual|ly`** — syllable chunking as a survival reflex, which
+is the actual skill that stops letter-by-letter typing. ⚠️ **A BUILD IN WHICH NO
+STUDENT CAN REACH THE MORPHEME RUNG HAS SHIPPED SHATTER WITHOUT SHIPPING
+SHATTER**, however well the view draws.
+
+`shatterPool()` now serves the 300 verified-morpheme words — **299 of them; one,
+`detestable`, is dropped because it contains a blocked group and `drill-filter.js`
+catches it.** ⭐ **EASY BAND FIRST, UNSHUFFLED**: the director consumes targets in
+order and wraps, so the order *is* the difficulty curve — a free ramp needing no
+new machinery. ⚠️ Shuffling would open a run with `accomplishment`.
+
+⚠️ A level-scoped Shatter still falls to letter groups for early units, and that
+remains the correct answer there: a beginner shattering `asd|fjk` is practising
+the drill they are actually on, under pressure.
+
+---
+
+### Shipped
+
+| file | version | state |
+|---|---|---|
+| `arcade-pool.js` | **2.0.0** | `scope`, `shatterPool()`, `arcadePool()` |
+| `tests/arcade-pool-test.mjs` | **1.1.0** | **34 assertions** — Part E is the new one |
+| `arcade.html` | **3.10.0** | a **WORDS** row: my lessons so far / everything |
+| `tools/game-lab.html` | **1.6.0** | both scopes, and Shatter's morpheme pool on the bench |
+
+**ALL 93 HARNESSES PASS.** ⚠️⚠️ **NOTHING THIS ROUND IS BROWSER-VERIFIED.**
+
 ## Round 104 (Bar-Let) — 2026-09-09 — the level chooses the letters, and Escape Key gets real words
 
 **Same instance as Round 103** — one name per conversation, not per round, however

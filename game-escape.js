@@ -1,4 +1,17 @@
-// game-escape.js v1.2.0 — ESCAPE KEY. Round 82 (Victor), Round 102, Round 104.
+// game-escape.js v1.3.0 — ESCAPE KEY. Round 82 (Victor), 102, 104, 106.
+//
+// v1.3.0 — ⚠️⚠️ THE ART IS JAKE'S AGAIN. Jake, 2026-09-09: *"ALL THE ANIMATION I
+//   STARTED WITH IS GONE... I can't share what you made with kids."* He is right,
+//   and the diagnosis is specific: Rounds 82–105 rebuilt this game's RULES
+//   correctly and quietly replaced its CHARACTERS with primitives. A frog in
+//   reading glasses whose mouth opens while you type became a yellow arc; a kaiju
+//   firing an atomic beam became a green triangle with two red squares.
+//   ⭐ THE MECHANICS SURVIVED THE PORT AND THE GAME DID NOT.
+//   ⚠️ THE ART WAS NEVER THE PART THAT NEEDED REWRITING — every defect those
+//   rounds found was in the arithmetic. Replacing the sprites cost quality and
+//   bought nothing; it happened because a rewrite treats everything it touches as
+//   a draft. See game-sprites.js's header, and DO NOT DO IT AGAIN.
+// game-escape.js v1.2.0 — Round 104.
 //
 // v1.2.0 — ⚠️⚠️ THE CELL FONT IS SIZED TO THE LONGEST WORD ON THE BOARD, and it
 //   had to be before word-banks.js could be wired in at all. That file's own
@@ -99,8 +112,16 @@ import {
     fitCanvas, platedText, platedProgress, burst, updateParticles,
     drawParticles, roundRect, drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
+// ⚠️⚠️ THE CHARACTERS ARE JAKE'S, FROM HIS PROTOTYPE. Rounds 82–105 rebuilt this
+// game's rules correctly and quietly replaced its ART with primitives — a frog in
+// glasses became a yellow arc, a kaiju became a green triangle. See
+// game-sprites.js's header. ⚠️ DO NOT REDRAW THESE WITH ctx PRIMITIVES AGAIN.
+import {
+    frogSprite, FROG_COLORS, ENEMY_SPRITES, ENEMY_PALETTES,
+    drawPixelSprite, drawBeam, drawVaporised, drawWeb,
+} from './game-sprites.js';
 
-export const GAME_ESCAPE_VERSION = '1.2.0';
+export const GAME_ESCAPE_VERSION = '1.3.0';
 
 /**
  * @param {HTMLElement} container
@@ -414,7 +435,7 @@ export function mount(container, opts) {
         drawWebs();
         drawWords();
         drawEnemies(tSec, dt);
-        drawPlayer(tSec);
+        drawPlayer();
         drawParticles(ctx, particles);
 
         if (board.player.webWord != null) {
@@ -461,36 +482,29 @@ export function mount(container, opts) {
                               : lane ? 'rgba(26,16,34,0.85)'
                               : 'rgba(9,15,24,0.85)';
                 ctx.fill();
-                ctx.strokeStyle = board.zapped[y][x] > 0 ? 'rgba(255,120,40,0.35)'
-                                : adj ? 'rgba(0,229,255,0.42)'
-                                : lane ? 'rgba(190,120,255,0.20)'
-                                : 'rgba(70,95,120,0.20)';
-                ctx.lineWidth = adj ? 2 : 1;
+                // ⚠️ THE PROTOTYPE'S PURPLE GRID, KEPT. Jake's board reads as an
+                // arcade cabinet because the lines are bright and coloured; a
+                // 20%-alpha slate outline reads as a spreadsheet.
+                ctx.strokeStyle = board.zapped[y][x] > 0 ? 'rgba(255,120,40,0.45)'
+                                : adj ? 'rgba(0,229,255,0.55)'
+                                : lane ? 'rgba(163,44,196,0.75)'
+                                : 'rgba(163,44,196,0.45)';
+                ctx.lineWidth = adj ? 2.5 : 2;
                 ctx.stroke();
                 ctx.restore();
+                // ⭐ A CELL WITH NO WORD IS DRAWN AS VAPORISED rather than left
+                // blank. The prototype's X says "something was here and it is
+                // gone", which is what actually happened; an empty cell says the
+                // board failed to deal one.
+                if (!board.grid[y][x] && !(x === board.player.x && y === board.player.y)) {
+                    drawVaporised(ctx, cx(x), cy(y), cell);
+                }
             }
         }
     }
 
     function drawWebs() {
-        for (const w of board.webs) {
-            const wx = cx(w.x), wy = cy(w.y), r = cell * 0.42;
-            ctx.save();
-            ctx.strokeStyle = 'rgba(225,235,255,0.4)';
-            ctx.lineWidth = 1;
-            for (let a = 0; a < 8; a++) {
-                ctx.beginPath();
-                ctx.moveTo(wx, wy);
-                ctx.lineTo(wx + Math.cos(a * Math.PI / 4) * r, wy + Math.sin(a * Math.PI / 4) * r);
-                ctx.stroke();
-            }
-            for (let k = 1; k <= 3; k++) {
-                ctx.beginPath();
-                ctx.arc(wx, wy, r * k / 3, 0, Math.PI * 2);
-                ctx.stroke();
-            }
-            ctx.restore();
-        }
+        for (const w of board.webs) drawWeb(ctx, cx(w.x), cy(w.y), cell * 0.42);
     }
 
     // ⚠️ Courier Prime's advance width, in ems. Used to fit a word to a cell
@@ -560,23 +574,35 @@ export function mount(container, opts) {
         }
     }
 
-    function drawPlayer(tSec) {
-        const px = cx(board.player.x), py = cy(board.player.y), r = cell * 0.3;
+    /**
+     * ⭐ THE FROG REACTS TO TYPING, AND THAT IS THE WHOLE POINT OF IT. Its mouth
+     * opens while a word is half-typed and its pupils turn toward the neighbour
+     * being aimed at — so the game confirms the student's intent BEFORE they
+     * finish the word. ⚠️ BOTH ARE DERIVED FROM `board.typed` AND `board.aim`,
+     * never from a timer: an idle chomp says the same thing whether the student
+     * is working or staring at the screen.
+     */
+    function aimDirection() {
+        const a = board.aim;
+        if (!a) return null;
+        if (a.y < board.player.y) return 'up';
+        if (a.y > board.player.y) return 'down';
+        if (a.x < board.player.x) return 'left';
+        if (a.x > board.player.x) return 'right';
+        return null;
+    }
+
+    function drawPlayer() {
         const webbed = board.player.webWord != null;
-        const chomp = webbed ? 0.12 : 0.10 + 0.26 * Math.abs(Math.sin(tSec * 4));
+        const sprite = frogSprite(aimDirection(), board.typed.length > 0,
+                                  board.player.facingLeft);
         ctx.save();
-        ctx.translate(px, py);
-        if (board.player.facingLeft) ctx.scale(-1, 1);
-        ctx.fillStyle = webbed ? '#c9a227' : '#ffd700';
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.arc(0, 0, r, chomp, Math.PI * 2 - chomp);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = '#05070c';
-        ctx.beginPath();
-        ctx.arc(r * 0.15, -r * 0.42, r * 0.14, 0, Math.PI * 2);
-        ctx.fill();
+        // ⚠️ WEBBED IS A TINT ON THE WHOLE SPRITE, NOT A SECOND SPRITE. A separate
+        // stuck-frog grid would be a second copy of the frog to keep in step.
+        if (webbed) ctx.globalAlpha = 0.72;
+        drawPixelSprite(ctx, sprite, FROG_COLORS,
+                        cx(board.player.x), cy(board.player.y), cell * 0.78,
+                        board.player.facingLeft);
         ctx.restore();
     }
 
@@ -596,67 +622,33 @@ export function mount(container, opts) {
             pos.x += (want.x - pos.x) * k;
             pos.y += (want.y - pos.y) * k;
 
-            const r = cell * 0.28;
+            // ⚠️⚠️ EVERY ENEMY IS ITS PROTOTYPE SPRITE, NOT A PRIMITIVE. The
+            // kaiju was a green triangle with two red squares here for twenty
+            // rounds; it is a 24×24 pixel monster with a tail and glowing eyes,
+            // and the difference is why Jake could not put this in front of
+            // students. ⚠️ `ENEMY_SPRITES` IS KEYED BY THE SAME `kind` STRING
+            // escape-board.js emits — an unknown kind draws nothing rather than
+            // a placeholder, because a wrong creature is worse than a gap.
+            const sprite = ENEMY_SPRITES[en.kind];
+            if (!sprite) { ctx.restore(); continue; }
             ctx.save();
-            ctx.translate(pos.x, pos.y);
-            if (en.stunSteps > 0) ctx.globalAlpha = 0.5;
-            if (en.kind === 'kaiju') {
-                ctx.fillStyle = '#4caf50';
-                ctx.beginPath();
-                ctx.moveTo(-r, r); ctx.lineTo(-r * 0.6, -r * 0.3);
-                ctx.lineTo(-r * 0.2, r * 0.1); ctx.lineTo(0, -r);
-                ctx.lineTo(r * 0.2, r * 0.1); ctx.lineTo(r * 0.6, -r * 0.3);
-                ctx.lineTo(r, r);
-                ctx.closePath(); ctx.fill();
-                ctx.fillStyle = '#ff3355';
-                ctx.fillRect(-r * 0.4, -r * 0.15, r * 0.25, r * 0.25);
-                ctx.fillRect(r * 0.15, -r * 0.15, r * 0.25, r * 0.25);
-            } else if (en.kind === 'spider') {
-                ctx.strokeStyle = '#cfd8e3';
-                ctx.lineWidth = 2;
-                for (let a = 0; a < 4; a++) {
-                    const ang = 0.5 + a * 0.5;
-                    for (const s of [-1, 1]) {
-                        ctx.beginPath();
-                        ctx.moveTo(0, 0);
-                        ctx.lineTo(s * Math.cos(ang) * r * 1.5,
-                                   Math.sin(ang + Math.sin(tSec * 5 + a) * 0.2) * r * 1.1);
-                        ctx.stroke();
-                    }
-                }
-                ctx.fillStyle = '#6b4fa0';
-                ctx.beginPath(); ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#ff3355';
-                ctx.beginPath(); ctx.arc(-r * 0.2, -r * 0.15, r * 0.12, 0, Math.PI * 2); ctx.fill();
-                ctx.beginPath(); ctx.arc(r * 0.2, -r * 0.15, r * 0.12, 0, Math.PI * 2); ctx.fill();
-            } else {
-                const pulse = 0.85 + 0.15 * Math.sin(tSec * 7);
-                ctx.fillStyle = '#ff3355';
-                ctx.beginPath();
-                for (let a = 0; a < 6; a++) {
-                    const ang = -Math.PI / 2 + a * Math.PI / 3;
-                    const rr = r * pulse * (a % 2 ? 0.6 : 1);
-                    if (a === 0) ctx.moveTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
-                    else ctx.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
-                }
-                ctx.closePath(); ctx.fill();
-                ctx.fillStyle = '#fff';
-                ctx.beginPath(); ctx.arc(0, 0, r * 0.2, 0, Math.PI * 2); ctx.fill();
+            // ⚠️ A STUNNED CREATURE IS FADED, NOT RECOLOURED. Recolouring a
+            // palette entry would need a second palette per enemy per state.
+            if (en.stunSteps > 0) ctx.globalAlpha = 0.45;
+            // ⭐ THE KAIJU FIRES DOWN ITS LANE, and the beam is drawn BEFORE the
+            // sprite so the creature sits on top of its own blast. Its head
+            // tilts toward the shot, which is the prototype's touch.
+            const firing = en.kind === 'kaiju' && en.stunSteps <= 0
+                && (en.x === board.player.x || en.y === board.player.y);
+            let tilt = 0;
+            if (firing) {
+                const tx = cx(board.player.x), ty = cy(board.player.y);
+                drawBeam(ctx, pos.x, pos.y, tx, ty, Math.abs(Math.sin(tSec * 30)));
+                tilt = en.y === board.player.y ? 0 : (ty < pos.y ? -0.45 : 0.45);
             }
-            ctx.restore();
-
-            // A short arrow along the enemy's travel axis: the telegraph again,
-            // per-creature this time.
-            ctx.save();
-            ctx.globalAlpha = 0.55;
-            ctx.strokeStyle = '#ff9bb0';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            const ax = en.axis === 'h' ? en.dir : 0;
-            const ay = en.axis === 'v' ? en.dir : 0;
-            ctx.moveTo(pos.x + ax * r * 1.2, pos.y + ay * r * 1.2);
-            ctx.lineTo(pos.x + ax * r * 2.0, pos.y + ay * r * 2.0);
-            ctx.stroke();
+            drawPixelSprite(ctx, sprite, ENEMY_PALETTES[en.kind],
+                            pos.x, pos.y, cell * 0.8,
+                            en.dir === -1 || en.facingLeft, tilt);
             ctx.restore();
         }
     }

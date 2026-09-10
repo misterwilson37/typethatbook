@@ -1,7 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- tools/game-lab.html v1.5.0 — Round 104 (Bar-Let): a word-bank source, so Escape
+<!-- tools/game-lab.html v1.6.0 — Round 105 (Bar-Let): the bench offers BOTH scopes,
+     and Shatter can be benched on its morpheme pool. ⚠️ A bench that could only
+     exercise the level-scoped path was testing the smaller half — about a third
+     of the school goes straight to the full pool.
+     tools/game-lab.html v1.5.0 — Round 104 (Bar-Let): a word-bank source, so Escape
      Key can be benched on real library words that lengthen as rounds advance.
      tools/game-lab.html v1.4.0 — Round 103 (Bar-Let): Shatter joins the bench, and
      the readout counts BANKED SECONDS.
@@ -68,7 +72,8 @@
       <option value="reach">home + e i r u (Unit 2)</option>
       <option value="words" selected>sight words</option>
       <option value="prose">book prose</option>
-      <option value="bank">word bank, by level (Escape Key)</option>
+      <option value="bank">word pool &mdash; my level (Escape Key / Shatter)</option>
+      <option value="bankfull">word pool &mdash; everything (Escape Key / Shatter)</option>
     </select>
   </label>
   <label>game
@@ -96,7 +101,7 @@
 import { mount as mountDeadline } from '../game-deadline.js';
 import { mount as mountEscape } from '../game-escape.js';
 import { mount as mountShatter } from '../game-shatter.js';
-import { poolProviderFor, poolForLevel } from '../arcade-pool.js';
+import { poolProviderFor, arcadePool } from '../arcade-pool.js';
 import { SHATTER_COST_FACTOR } from '../shatter-board.js';
 import { GAMES, titleOf } from '../game-names.js';
 import {
@@ -165,8 +170,16 @@ function start() {
     // characters that targetsFromSequence() splits on spaces; the banks are
     // already a word list, and round-tripping them through a character stream
     // would be a second way to produce the same array.
-    const bankPool = src === 'bank'
-        ? poolForLevel({ keySet: LAB_KEYS, round: 1 }) : null;
+    // ⚠️ THE BENCH OFFERS BOTH SCOPES BECAUSE THE STUDENT DOES. Jake, 2026-09-09:
+    // about a third of his students already type and have finished no lessons,
+    // and they must be able to go straight to the word pools. A bench that could
+    // only exercise the level-scoped path would be testing the smaller half.
+    const bankPool = (src === 'bank' || src === 'bankfull')
+        ? arcadePool({
+            game: which, scope: src === 'bankfull' ? 'full' : 'level',
+            keySet: LAB_KEYS, round: 1,
+          })
+        : null;
     const targets = bankPool ? bankPool.targets
         : targetsFromSequence(sequenceFor(src));
     const cfg = {
@@ -200,7 +213,9 @@ function start() {
         // words LENGTHEN as rounds advance; without it the bench would read one
         // of the eight banks and the other seven would stay unexercised.
         ...(which === 'escape' && bankPool
-            ? { poolFor: poolProviderFor(LAB_KEYS) } : {}),
+            ? { poolFor: poolProviderFor(LAB_KEYS, Math.random,
+                                         src === 'bankfull' ? 'full' : 'level') }
+            : {}),
         onTick: r => {
             out.textContent = `live · ${r.wpm} WPM · ${r.acc}% · ${r.seconds.toFixed(0)}s`
                 + ` · cleared ${r.targetsCleared} · leaks ${r.hits} · score ${r.score}`

@@ -1,4 +1,14 @@
-// game-shatter.js v1.0.0 — SHATTER. Round 103 (Bar-Let).
+// game-shatter.js v1.1.0 — SHATTER. Round 103, Round 106 (Bar-Let).
+//
+// v1.1.0 — ⚠️⚠️ ROCKS ARE OBJECTS NOW, NOT LABELS. v1.0.0 drew every target as a
+//   rounded rectangle behind text — Jake's verdict was *"that's just...bad. Just
+//   plain bad."* ⭐ NOTHING ABOUT A ROUNDED RECTANGLE SAYS *BREAKABLE*, and
+//   breakable is the one thing this game's art has to communicate. Rocks are
+//   irregular 10-point polygons with a silhouette frozen at spawn, a slow tumble,
+//   and a fill that distinguishes a piece from its parent by KIND rather than by
+//   degree. ⭐ And the ship aims at the locked rock, which is drawn confirmation
+//   the lock went where the student meant — worth most here, because two split
+//   pieces can share a first letter.
 //
 // ⚠️ v1.0.0 IS THE FIRST VERSION OF THIS FILE THAT HAS EVER LEFT A CONTAINER,
 // and by Jake's standing ruling (2026-09-07) that is where it starts: *"Nothing
@@ -60,8 +70,13 @@ import {
     drawParticles, roundRect, drawHitFeedback, drawCapsWarning, motionScale,
     makeStars, drawStars, fingerColorOf,
 } from './game-draw.js';
+// ⚠️⚠️ A ROCK IS AN OBJECT, NOT A LABEL. v1.0.0 drew each target as a rounded
+// rectangle behind text — nothing about which says *breakable*, which is the one
+// thing this game's art has to communicate. See game-sprites.js's header.
+import { rockOutline, drawRock, drawShip as drawShipArt, drawTargetWord }
+    from './game-sprites.js';
 
-export const GAME_SHATTER_VERSION = '1.0.0';
+export const GAME_SHATTER_VERSION = '1.1.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -160,6 +175,22 @@ export function mount(container, opts) {
         return { x: cx + Math.cos(rock.angle) * rr, y: cy + Math.sin(rock.angle) * rr };
     }
 
+    /**
+     * Attach the view-only art fields a rock needs. ⚠️ EVERY ROCK GETS THESE,
+     * INCLUDING PIECES — a piece with no outline draws as a perfect circle and
+     * instantly reads as a different kind of object from the rock it came from.
+     * ⚠️ It is view state living on a board object, a deliberate exception: the
+     * alternative is a parallel Map keyed by rock that has to be pruned in three
+     * places, and Round 82's ease-Map already showed what that costs.
+     */
+    function decorate(rock) {
+        if (!rock || rock.outline) return rock;
+        rock.outline = rockOutline(rand);
+        rock.spin = rand() * Math.PI * 2;
+        rock.spinRate = (rand() - 0.5) * 0.6 * motionScale();
+        return rock;
+    }
+
     // ── view-only state ─────────────────────────────────────────────────────
     // ⚠️ EVERYTHING HERE IS COSMETIC. Board truth lives on `board`; game truth
     // lives on `d`. Nothing below is read to decide an outcome.
@@ -236,6 +267,7 @@ export function mount(container, opts) {
                   Math.round((r.pieces.length ? 22 : 12) * motionScale()),
                   r.pieces.length ? 200 : 150);
             if (r.pieces.length) {
+                r.pieces.forEach(decorate);
                 sfx.launch(0);
                 banner = { text: 'SHATTERED', until: now + 700 };
             }
@@ -333,7 +365,10 @@ export function mount(container, opts) {
             // word is not waiting for anything.
             if (!ended && d.spawnDue(now, board.rocks.length)) {
                 const t = d.nextTarget(now);
-                if (t) board.spawn(t.text, t.lifetimeMs, now);
+                // ⚠️⚠️ THE SILHOUETTE IS FROZEN AT SPAWN AND CARRIED ON THE ROCK.
+                // Re-rolling the offsets each frame makes the outline BOIL, which
+                // reads as a rendering fault rather than as stone.
+                if (t) decorate(board.spawn(t.text, t.lifetimeMs, now));
             }
         }
 
@@ -384,8 +419,8 @@ export function mount(container, opts) {
         drawStars(ctx, stars, tSec);
 
         drawRings();
-        drawRocks(now);
-        drawShip(tSec);
+        drawRocks(now, tSec);
+        drawShip();
         drawParticles(ctx, particles);
         drawHud(d.report(now));
 
@@ -425,56 +460,58 @@ export function mount(container, opts) {
         ctx.restore();
     }
 
-    function drawRocks(now) {
+    function drawRocks(now, tSec) {
         // ⚠️ FARTHEST FIRST, so a near rock is never drawn under a far one. The
         // near rock is the one the lock is pointing at.
         const sorted = board.rocks.slice().sort((a, b) => b.r - a.r);
-        const size = Math.max(15, Math.round(ringR * 0.075));
+        const size = Math.max(14, Math.round(ringR * 0.07));
         for (const rock of sorted) {
+            decorate(rock);
             const p = px(rock);
             const near = rock.r <= DANGER_R;
             const isLocked = rock === board.locked;
-            // ⚠️ THE COLOUR OF THE NEXT KEY COMES FROM keyboard.js VIA
-            // game-draw.js, so a rock's border is the SAME colour as the finger
-            // that types it everywhere else in this app. A local palette here
-            // would be a fourth copy of the finger map.
+            // ⭐ THE ROCK IS SIZED TO ITS OWN WORD, because the word sits inside
+            // it. That is legitimate here in a way it was not on Escape Key's
+            // grid: these are objects at different distances, so plainly
+            // different sizes read as depth rather than as sloppy alignment.
+            const rr = Math.max(size * 1.4, rock.text.length * size * 0.42);
+            // ⚠️ THE OUTLINE CARRIES STATE AND NOTHING ELSE DOES: red when it is
+            // about to land, yellow when locked, otherwise the colour of the
+            // finger that types its next key — the same finger map keyboard.js
+            // uses everywhere else in this app.
             const nextCh = rock.text[rock.typed] || rock.text[0];
-            const border = near ? '#ff5566'
-                : (isLocked ? '#ffd700' : fingerColorOf(nextCh, '#7fa'));
-            platedProgress(ctx, {
-                x: p.x, y: p.y, text: rock.text, typedLen: rock.typed,
-                font: `bold ${size}px "Courier Prime", monospace`,
-                border, borderWidth: isLocked ? 3 : 2,
-                typedColor: '#00e5ff', restColor: '#fff',
-                // ⚠️ A PIECE IS TINTED, NOT SHRUNK. Making the pieces smaller was
-                // the first draft and it is wrong twice over: it says "less
-                // important" about the half of the target that is still coming,
-                // and it puts two text sizes a few pixels apart on one screen —
-                // Jake's standing pet peeve, where slightly-different reads worse
-                // than clearly-different.
-                bg: rock.parent != null ? 'rgba(26,20,4,0.92)' : 'rgba(4,7,14,0.90)',
+            const stroke = near ? '#ff5566'
+                : isLocked ? '#ffff00'
+                : fingerColorOf(nextCh, '#ffffff');
+            drawRock(ctx, p.x, p.y, rr, rock.outline, {
+                spin: rock.spin + tSec * rock.spinRate,
+                stroke,
+                lineWidth: isLocked ? 2.6 : 1.8,
+                glow: near ? '#ff5566' : (isLocked ? '#ffff00' : null),
+                // ⚠️ A PIECE IS FILLED, A PARENT IS HOLLOW — a difference of KIND
+                // rather than of degree. A slightly smaller hollow rock would be
+                // exactly the "slightly off" that reads as a mistake.
+                fill: rock.parent != null ? 'rgba(60,44,10,0.55)' : 'rgba(4,7,14,0.55)',
             });
+            drawTargetWord(ctx, p.x, p.y, rock.text, rock.typed, size, isLocked);
         }
     }
 
-    function drawShip(tSec) {
-        ctx.save();
-        ctx.translate(cx, cy);
-        // A slow idle rotation, scaled by the reduced-motion preference — at
-        // motionScale() 0 it simply sits still.
-        ctx.rotate(tSec * 0.35 * motionScale());
-        ctx.beginPath();
-        ctx.moveTo(0, -SHIP_R * 0.8);
-        ctx.lineTo(SHIP_R * 0.62, SHIP_R * 0.62);
-        ctx.lineTo(0, SHIP_R * 0.28);
-        ctx.lineTo(-SHIP_R * 0.62, SHIP_R * 0.62);
-        ctx.closePath();
-        ctx.fillStyle = '#0b1424';
-        ctx.fill();
-        ctx.strokeStyle = '#00e5ff';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.restore();
+    /**
+     * ⭐ THE SHIP POINTS AT WHAT THE STUDENT IS TYPING. It is the prototype's
+     * best idea in this game: drawn confirmation that the lock landed where they
+     * meant — which matters more here than anywhere, because two split pieces
+     * can share a first letter.
+     * ⚠️ WITH NO LOCK IT POINTS UP AND HOLDS STILL. A ship idly rotating is
+     * telling the student about a target that does not exist.
+     */
+    function drawShip() {
+        let angle = null;
+        if (board.locked && board.rocks.includes(board.locked)) {
+            const p = px(board.locked);
+            angle = Math.atan2(p.y - cy, p.x - cx);
+        }
+        drawShipArt(ctx, cx, cy, SHIP_R * 0.8, angle);
     }
 
     function drawHud(rep) {

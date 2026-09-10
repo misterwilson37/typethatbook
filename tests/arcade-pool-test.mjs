@@ -16,8 +16,11 @@
 
 import {
     poolForLevel, poolProviderFor, wordsForKeys, distinctFirsts, lengthForRound,
+    shatterPool, arcadePool, SCOPES,
     MIN_POOL, MIN_DISTINCT_FIRSTS, ARCADE_POOL_VERSION,
 } from '../arcade-pool.js';
+import { splitTarget, splittable } from '../shatter-board.js';
+import { SHATTER_WORDS } from '../shatter-words.js';
 import { EscapeBoard, COLS, ROWS } from '../escape-board.js';
 import { BANKS, BANK_LENGTHS, MIN_LEN, MAX_LEN } from '../word-banks.js';
 import { firstBlocked } from '../drill-filter.js';
@@ -211,6 +214,74 @@ console.log('\nPART D — the provider, and the seven banks that would otherwise
     ok(broken.grid.some(row => row.some(Boolean)),
        'an empty provider result falls back to the static pool instead of a blank board');
     console.warn = realWarn;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\nPART E — ⚠️⚠️ THE STUDENT CHOOSES THE SCOPE, AND `full` IS NOT GATED');
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-09: *"students should have the option of opening it up to
+// everything because roughly 30% of my students know how to type and have not
+// done a single lesson... They either can do it or they can't. Again — it's a
+// game."*
+//
+// ⚠️⚠️ v1.0.0 OF THIS MODULE HAD NO `full` AT ALL. It widened the pool
+// automatically as lessons unlocked letters and offered no way out, so a child
+// who already types 60 WPM with zero lessons finished was locked to `asdfjk`
+// letter groups by a rule they could not see or override — about a third of the
+// school, and precisely the students the word banks were built for.
+
+{
+    const home = 'asdfjkl;'.split('');
+
+    // ⚠️ THE ONE THAT WOULD HAVE CAUGHT v1.0.0. A beginner's key set must not
+    // constrain a `full` run in any way.
+    const escFull = poolForLevel({ keySet: home, round: 1, scope: 'full' });
+    const escLevel = poolForLevel({ keySet: home, round: 1, scope: 'level' });
+    ok(escFull.source === 'words' && escFull.targets.length > 100,
+       `Escape Key at 'full' plays ${escFull.targets.length} real words on a home-row key set`);
+    ok(escLevel.source === 'letters',
+       "and at 'level' the same key set correctly gets letter groups");
+    ok(escFull.targets.some(w => [...w].some(ch => !home.includes(ch))),
+       '⚠️ `full` genuinely ignores the key set — it is not a relabelled level pool');
+
+    // ⭐⭐ THE ONE THAT MATTERS MOST, AND THE THING I HAD WRONG. Shatter's whole
+    // point is the morpheme rung, and a build where no student can reach it has
+    // shipped Shatter without shipping Shatter.
+    const shFull = shatterPool({ scope: 'full' });
+    ok(shFull.source === 'morphemes' && shFull.targets.length > 250,
+       `Shatter at 'full' plays ${shFull.targets.length} verified-morpheme words`);
+    let morphemeSplits = 0;
+    for (const w of shFull.targets) if (splitTarget(w).length >= 2 && w.length >= 6) morphemeSplits++;
+    ok(morphemeSplits > 250,
+       `${morphemeSplits} of them split on the MORPHEME rung, not the halves rung`);
+    ok(shFull.targets.includes('unusually'), "including `un|usual|ly` itself");
+
+    // ⚠️ EVERY WORD SURVIVES game-shatter.js's OWN FILTER, or the view silently
+    // shortens the pool below what this file intended.
+    ok(shFull.targets.every(splittable), 'every word in the pool is splittable()');
+    ok(shFull.targets.length === SHATTER_WORDS.length - 1,
+       'one word is dropped — `detestable` contains a blocked group, and drill-filter.js catches it');
+
+    // ⭐ ORDER IS THE DIFFICULTY CURVE. The director consumes targets in order
+    // and wraps, so easy-first is a free ramp. ⚠️ Shuffling would open a run
+    // with `accomplishment`.
+    const first20 = shFull.targets.slice(0, 20);
+    const gradeOf = w => (SHATTER_WORDS.find(e => e.w === w) || {}).grade;
+    ok(first20.every(w => gradeOf(w) === 'easy'), 'the pool opens on the easy band, unshuffled');
+
+    // A beginner asking for level scope still gets a playable Shatter.
+    const shLevel = shatterPool({ scope: 'level', keySet: home, rand: mulberry(3) });
+    ok(shLevel.targets.length > 0, 'a home-row student at `level` still gets a playable pool');
+    ok(shLevel.targets.every(splittable),
+       '⚠️ AND EVERY LETTER GROUP IS SPLITTABLE TOO — a 1-character target is a Deadline word in a Shatter costume');
+
+    // ⚠️ THE ONE ENTRY POINT ROUTES BOTH GAMES, so neither page branches on id.
+    ok(arcadePool({ game: 'shatter', scope: 'full' }).source === 'morphemes',
+       'arcadePool() routes Shatter to the morpheme pool');
+    ok(arcadePool({ game: 'escape', scope: 'full', round: 1 }).source === 'words',
+       'and Escape Key to the word banks');
+    ok(SCOPES.length === 2, 'there are exactly two scopes, and the picker offers both');
 }
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} ok, ${fail} failed`);

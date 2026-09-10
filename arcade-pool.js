@@ -1,42 +1,59 @@
 // arcade-pool.js v1.0.0 — WHAT WORDS AN ARCADE RUN IS PLAYED WITH.
 // Round 104 (Bar-Let).
 //
-// ⚠️⚠️ THIS FILE EXISTS BECAUSE TWO GOOD RULES COLLIDE, AND SOMETHING HAD TO
-// DECIDE WHICH ONE WINS PER LEVEL.
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ THE STUDENT CHOOSES THE SCOPE. THIS FILE DOES NOT CHOOSE IT FOR THEM.
+// ═══════════════════════════════════════════════════════════════════════════
 //
-//   Rule 1 — Jake, 2026-09-09: *"choosing a specific level in the lessons should
-//   help decide what characters are available."* An arcade that puts letters a
-//   student has never been taught in front of them is a different subject, not
-//   practice.
+// Jake, 2026-09-09, and this is the correction that produced v2.0.0:
 //
-//   Rule 2 — HANDOFF §7 item 2: wire `word-banks.js` in, because
-//   `makeArcadeTargets()` letter groups are the reason the arcade reads as
-//   nonsense. Every bank word appears in a book in the TTB library, and the
-//   banks are chosen for LETTER BALANCE rather than frequency.
+//   *"students should have the option of opening it up to everything because
+//   roughly 30% of my students know how to type and have not done a single
+//   lesson. They should be able to open up available lessons OR go straight to
+//   the word pools. That's why we made the word pools (and put some real work
+//   into them, for the record)."*
 //
-// ⚠️⚠️ THEY CANNOT BOTH HOLD AT UNIT 1. A student who has been taught `asdfjk`
-// can type no English word at all, so "real words, restricted to your keys" is
-// an EMPTY POOL — and an empty pool in Escape Key is a board of blank cells with
-// nowhere to move, which is the worst outcome available.
+// ⚠️⚠️ v1.0.0 GOT THIS BACKWARDS AND IT WAS THE WHOLE POINT OF THE FILE. It
+// widened the pool automatically as a student's lessons unlocked letters, and
+// offered **no way out** — so a twelve-year-old who already types 60 WPM but has
+// completed zero lessons was locked to `asdfjk` letter groups by a rule they
+// could not see or override. ⭐ **THAT IS ABOUT A THIRD OF THE SCHOOL**, and
+// they are exactly the students the word banks were built for.
 //
-// ⭐ SO THE RULE IS ONE SENTENCE: **real words when the level's keys can supply
-// enough of them, letter groups when they cannot.** The game upgrades itself as
-// a student advances, with no switch for anyone to forget to flip, and neither
-// rule is ever violated — the letters always come from the level either way.
+// ⚠️ THE AUTOMATIC WIDENING WAS NEVER THE PROBLEM AND IS KEPT. Words open when
+// they open; that depends on the level of the kid, and `scope: 'level'` still
+// does it. What was missing is `scope: 'full'`.
 //
-// ⚠️ AND THE FALLBACK IS NOT A FAILURE PATH. For a third of the school it is the
-// correct answer and will be for months. It must never log a warning, degrade
-// quietly, or look like something went wrong.
+//   scope 'level' — only letters this level has taught. Real words once those
+//                   letters can spell enough of them; letter groups until then.
+//                   ⚠️ THE LETTER-GROUP CASE IS NOT A FAILURE PATH — for the
+//                   early units it is the correct answer, and it must never
+//                   warn, degrade quietly or be styled as a problem.
+//   scope 'full'  — the whole pool, every letter, regardless of progress.
+//                   ⚠️ NOT GATED ON ANYTHING. A student who cannot handle it
+//                   loses quickly, which is what a "how far can you get" game
+//                   is for. Jake: *"They either can do it or they can't. Again —
+//                   it's a game."*
+//
+// ⚠️ NEITHER SCOPE IS THE "REAL" ONE. A UI that presents `full` as unlocking
+// something, or `level` as training wheels, has re-created the hole this version
+// exists to close.
 //
 // ⚠️ PURE. No DOM, no canvas, no Date.now(), no Math.random() unless you hand it
 // one. tests/arcade-pool-test.mjs drives it against every real key set the
 // course produces.
 
 import { BANKS, BANK_LENGTHS, MIN_LEN, MAX_LEN, ROUNDS_PER_TIER } from './word-banks.js';
+import { SHATTER_WORDS } from './shatter-words.js';
+import { splitTarget, splittable } from './shatter-board.js';
 import { makeArcadeTargets, ARCADE_GROUP_SIZE } from './game-shell.js';
 import { firstBlocked } from './drill-filter.js';
 
-export const ARCADE_POOL_VERSION = '1.0.0';
+export const ARCADE_POOL_VERSION = '2.0.0';
+
+/** The two scopes a student may choose between. ⚠️ NEITHER IS THE DEFAULT-CORRECT
+ *  ONE; the picker asks and the answer is theirs. */
+export const SCOPES = ['level', 'full'];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ⚠️⚠️ THE TWO THRESHOLDS, AND WHY THEY ARE THE NUMBERS THEY ARE
@@ -128,7 +145,13 @@ export function lengthForRound(round, minLen = MIN_LEN, maxLen = MAX_LEN) {
  * no 6-letter ones. ⚠️ THE ROUND STILL SETS THE CEILING: it never walks UP, or a
  * round would get harder words than the tier it is in.
  */
-export function poolForLevel({ keySet, round = 1, count = 200, rand = Math.random }) {
+export function poolForLevel({ keySet, round = 1, count = 200, scope = 'level',
+                               rand = Math.random }) {
+    // ⚠️ `full` IGNORES THE KEY SET ENTIRELY — that is what the student asked
+    // for. It does NOT ignore the round: word length still climbs as the run
+    // goes on, because that is the game's difficulty curve and not a restriction
+    // on who may play.
+    if (scope === 'full') keySet = null;
     const want = lengthForRound(round);
     const lengths = BANK_LENGTHS.filter(n => n <= want).sort((a, b) => b - a);
     for (const len of lengths) {
@@ -158,11 +181,88 @@ export function poolForLevel({ keySet, round = 1, count = 200, rand = Math.rando
  * board refresh and re-filtering a 200-word bank on each of 30 cells is work
  * nobody asked for.
  */
-export function poolProviderFor(keySet, rand = Math.random) {
+export function poolProviderFor(keySet, rand = Math.random, scope = 'level') {
     const cache = new Map();
     return function poolFor(round) {
         const key = lengthForRound(round);
-        if (!cache.has(key)) cache.set(key, poolForLevel({ keySet, round, rand }));
+        if (!cache.has(key)) cache.set(key, poolForLevel({ keySet, round, scope, rand }));
         return cache.get(key).targets;
     };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SHATTER'S POOL
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ SHATTER'S POOL IS `shatter-words.js`, NOT `word-banks.js`, AND THE
+// DIFFERENCE IS THE ENTIRE GAME. Those 300 words are the ones with **verified
+// morpheme splits** — the only pool on which `splitTarget()` reaches its top
+// rung. A Shatter run played on `word-banks.js` words, or on letter groups,
+// lands every split on the **halves** rung: `asdfjk` → `asd|fjk`, the same drill
+// twice. That is a real and useful thing for a beginner and it is NOT the point
+// of the game.
+//
+// ⭐ THE POINT IS `un|usual|ly` — a student learning syllable chunking as a
+// survival reflex, which is the actual skill that stops letter-by-letter typing.
+// ⚠️ A BUILD IN WHICH NO STUDENT CAN REACH THE MORPHEME RUNG HAS SHIPPED SHATTER
+// WITHOUT SHIPPING SHATTER.
+//
+// ⚠️ AND THAT IS WHY `scope: 'full'` MATTERS MOST HERE. Morpheme words are long
+// and use the whole alphabet, so a level-scoped pool cannot reach them until very
+// late in the course — while a third of the school could type them on day one.
+
+/**
+ * ⭐ EASY BAND FIRST, THEN MEDIUM. The director consumes `targets` in order and
+ * wraps, so the order IS the difficulty curve — a free ramp that costs nothing
+ * and needs no new machinery. ⚠️ NOT SHUFFLED: shuffling would hand a Unit-2
+ * student `accomplishment` as their opening rock.
+ */
+function gradedOrder(entries) {
+    const easy = [], rest = [];
+    for (const e of entries) (e.grade === 'easy' ? easy : rest).push(e);
+    return easy.concat(rest);
+}
+
+/**
+ * @param {object} o
+ *   scope  {'level'|'full'}
+ *   keySet {string[]}  only consulted when scope is 'level'
+ *   count  {number}    letter groups to make if a level cannot supply words
+ * @returns {{ targets: string[], source: 'morphemes'|'letters', len: null }}
+ *
+ * ⚠️ EVERY RETURNED WORD IS `splittable()`. game-shatter.js filters the pool
+ * again on mount and would silently drop anything that is not, leaving a
+ * shorter pool than anyone here intended.
+ */
+export function shatterPool({ scope = 'level', keySet, count = 200, rand = Math.random }) {
+    const usable = SHATTER_WORDS.filter(e => splittable(e.w) && !firstBlocked(e.w));
+    if (scope === 'full') {
+        return { targets: gradedOrder(usable).map(e => e.w), source: 'morphemes', len: null };
+    }
+    const keys = (keySet || []).filter(k => typeof k === 'string' && k.length === 1);
+    const allowed = keys.length ? new Set(keys.map(k => k.toLowerCase())) : null;
+    const fits = allowed
+        ? usable.filter(e => [...e.w].every(ch => allowed.has(ch)))
+        : usable;
+    if (fits.length >= MIN_POOL && distinctFirsts(fits.map(e => e.w)) >= MIN_DISTINCT_FIRSTS) {
+        return { targets: gradedOrder(fits).map(e => e.w), source: 'morphemes', len: null };
+    }
+    // ⚠️ NOT A FAILURE — see the header. A beginner shattering `asd|fjk` is
+    // practising the drill they are actually on, under pressure.
+    return {
+        targets: makeArcadeTargets(keySet, count, ARCADE_GROUP_SIZE, rand),
+        source: 'letters',
+        len: null,
+    };
+}
+
+/**
+ * One entry point, so a host does not need to know which module a game's words
+ * live in. ⚠️ THE HOSTS CALL THIS, NOT THE TWO FUNCTIONS ABOVE — two pages each
+ * branching on game id is two places to add the fourth game to.
+ */
+export function arcadePool({ game, scope = 'level', keySet, round = 1,
+                             count = 200, rand = Math.random }) {
+    if (game === 'shatter') return shatterPool({ scope, keySet, count, rand });
+    return poolForLevel({ keySet, round, scope, count, rand });
 }

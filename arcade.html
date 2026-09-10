@@ -289,6 +289,19 @@
                  LESSON/RUN/SPEED rather than joining them, because for a game
                  that grades nothing there is no run to pick and no gate to
                  alter — one choice decides both letters and pace. -->
+            <!-- ⚠️⚠️ THE SCOPE ROW COMES FIRST, BECAUSE IT DECIDES WHETHER THE
+                 LEVEL ROW MEANS ANYTHING. Jake, 2026-09-09: *"roughly 30% of my
+                 students know how to type and have not done a single lesson.
+                 They should be able to open up available lessons OR go straight
+                 to the word pools."* ⚠️ NEITHER OPTION IS PRESENTED AS THE
+                 UNLOCKED ONE OR THE REAL ONE — both are just choices. -->
+            <div class="row" id="row-scope" style="display:none">
+                <label for="scope">WORDS</label>
+                <select id="scope">
+                    <option value="level" selected>from my lessons so far</option>
+                    <option value="full">everything &mdash; the whole word pool</option>
+                </select>
+            </div>
             <div class="row" id="row-level" style="display:none">
                 <label for="level">LEVEL &mdash; sets the letters and the starting speed</label>
                 <select id="level"></select>
@@ -401,12 +414,13 @@ import { GAME_ESCAPE_VERSION } from './game-escape.js';
 import { GAME_SHATTER_VERSION } from './game-shatter.js';
 import { SHATTER_BOARD_VERSION } from './shatter-board.js';
 import { ARCADE_POOL_VERSION } from './arcade-pool.js';
+import { GAME_SPRITES_VERSION } from './game-sprites.js';
 import { ESCAPE_BOARD_VERSION } from './escape-board.js';
 import { GAME_SHELL_VERSION } from './game-shell.js';
 import { GAME_DRAW_VERSION } from './game-draw.js';
 import { GAME_CHROME_VERSION } from './game-chrome.js';
 import { GAME_LAYOUT_VERSION } from './game-layout.js';
-const ARCADE_PAGE_VERSION = '3.9.0';
+const ARCADE_PAGE_VERSION = '3.10.1';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -427,6 +441,7 @@ function buildBadge() {
         ['game-shatter.js', GAME_SHATTER_VERSION],
         ['shatter-board.js', SHATTER_BOARD_VERSION],
         ['arcade-pool.js', ARCADE_POOL_VERSION],
+        ['game-sprites.js', GAME_SPRITES_VERSION],
         ['game-shell.js', GAME_SHELL_VERSION],
         ['game-draw.js', GAME_DRAW_VERSION],
         ['game-chrome.js', GAME_CHROME_VERSION],
@@ -478,8 +493,13 @@ import { mount as mountShatter } from './game-shatter.js';
 // game-names.js's whole reason for existing is that a rename must be one line;
 // a title spelled into this picker would be the copy nobody finds.
 import { GAMES, GAME_ORDER, titleOf } from './game-names.js';
-import { arcadeConfig, arcadeKeySet, arcadeWindow, arcadeTargetWPM } from './game-shell.js';
-import { poolProviderFor, poolForLevel } from './arcade-pool.js';
+// ⚠️ arcadeKeySet AND makeArcadeTargets ARE ALREADY IMPORTED ABOVE — Round 105
+// added a SECOND import of arcadeKeySet here and the whole page died with
+// "Cannot declare an imported binding name twice". ⚠️⚠️ A NEW IMPORT LINE MUST BE
+// CHECKED AGAINST THE EXISTING ONES IN THE SAME MODULE BLOCK; nothing in the
+// harness suite loads this page, so only a browser could have caught it.
+import { arcadeConfig, arcadeWindow, arcadeTargetWPM } from './game-shell.js';
+import { poolProviderFor, arcadePool } from './arcade-pool.js';
 // ⚠️ THE BUILD PANEL READS RUNTIME CONSTANTS, NOT HEADER COMMENTS. A header is a
 // comment in the repo; the constant is what the DEPLOYED file says about itself,
 // and telling those apart is the entire reason this panel exists. HANDOFF §2:
@@ -947,6 +967,7 @@ function applyGameMode() {
         $(id).style.display = free ? 'none' : '';
     }
     $('row-level').style.display = free ? '' : 'none';
+    $('row-scope').style.display = free ? '' : 'none';
     if (free) showFreeGates(); else showGates();
 }
 
@@ -956,21 +977,25 @@ function showFreeGates() {
     // ⚠️ THE LETTERS ARE SHOWN, NOT COUNTED. "12 keys" is a number a student has
     // to trust; `a s d f j k l ; e i r u` is a thing they can check against their
     // own hands, and it is the whole content of the level choice they just made.
+    const full = chosenScope() === 'full';
     const shown = keys.slice().sort().join(' ');
+    // ⚠️ WHAT THE POOL ACTUALLY IS, SAID PLAINLY, AND NEITHER PHRASED AS BETTER.
+    // For the early units letter groups ARE the correct answer and will be for
+    // months; and `full` is not a reward for progress, it is a different choice.
+    const poolLine = pool.source === 'morphemes'
+        ? 'real words that break into their pieces \u2014 <b>un</b>+<b>usual</b>+<b>ly</b>'
+        : pool.source === 'words'
+            ? 'real words from the library, getting longer as you go'
+            : 'letter groups built from these letters';
     $('gates').innerHTML =
         `<span>${g.tagline}</span>` +
-        `<span>letters <b>${shown || '\u2014'}</b></span>` +
+        // ⚠️ THE LETTERS ROW IS MEANINGLESS AT `full` AND IS DROPPED RATHER THAN
+        // SHOWN STALE. A list of this level's letters beside a pool that ignores
+        // them is a panel contradicting itself.
+        (full ? '<span>letters <b>all of them</b></span>'
+              : `<span>letters <b>${shown || '\u2014'}</b></span>`) +
         `<span>starting speed <b>${wpm} WPM</b></span>` +
-        // ⚠️ AND WHETHER IT IS REAL WORDS OR LETTER GROUPS, SAID PLAINLY. It is
-        // the most visible difference between two levels, and a student who
-        // moved the picker and saw the game change deserves to know why.
-        // ⚠️ NEITHER IS PHRASED AS BETTER — for the early units, letter groups
-        // ARE the correct answer, and will be for months.
-        (g.id === 'escape'
-            ? `<span>${pool.source === 'words'
-                ? 'real words from the library, getting longer as you go'
-                : 'letter groups \u2014 real words need more letters than this level has'}</span>`
-            : '') +
+        `<span>${poolLine}</span>` +
         '<span><i>Nothing here is graded \u2014 but the time you spend typing ' +
         'counts toward your day and your week, exactly like School.</i></span>';
     $('play').disabled = false;
@@ -986,6 +1011,8 @@ function showFreeGates() {
  * game-shell.js is explicit that it may only be supplied by a caller that
  * ALREADY holds the leaderboard document, and this page does not.
  */
+function chosenScope() { return $('scope').value === 'full' ? 'full' : 'level'; }
+
 function chosenLevelIdx() {
     const v = parseInt($('level').value, 10);
     return Number.isFinite(v) && v >= 0 ? v : null;
@@ -1022,7 +1049,20 @@ function freePlayConfig() {
     // GATE. game-shell.js's arcadeWindow() is the single answerer — two windows
     // over one list would draw the letters from one lesson and the speed from
     // another.
-    return arcadeConfig({ lessons: LESSONS, progress: PROGRESS, levelIdx: chosenLevelIdx() });
+    const cfg = arcadeConfig({ lessons: LESSONS, progress: PROGRESS, levelIdx: chosenLevelIdx() });
+    // ⚠️⚠️ THE TARGETS ARE REPLACED; THE GATE IS NOT. Scope decides WHAT you
+    // type, the level decides HOW FAST it arrives — and a student who opens the
+    // pool up has said nothing about wanting a harder pace. ⚠️ Conflating the
+    // two would mean a beginner who wanted to see real words got a speed they
+    // never asked for, which is the shape of the hole this whole change closes.
+    const pool = arcadePool({
+        game: currentGame().id,
+        scope: chosenScope(),
+        keySet: arcadeKeySet(LESSONS, PROGRESS, chosenLevelIdx()),
+        round: 1,
+    });
+    if (pool.targets.length) cfg.targets = pool.targets;
+    return cfg;
 }
 
 /** What the chosen level actually produces, in words a twelve-year-old can read. */
@@ -1030,7 +1070,9 @@ function describeLevel() {
     const idx = chosenLevelIdx();
     const keys = arcadeKeySet(LESSONS, PROGRESS, idx);
     const wpm = arcadeTargetWPM({ lessons: LESSONS, progress: PROGRESS, levelIdx: idx });
-    const pool = poolForLevel({ keySet: keys, round: 1 });
+    const pool = arcadePool({
+        game: currentGame().id, scope: chosenScope(), keySet: keys, round: 1,
+    });
     return { keys, wpm, pool };
 }
 
@@ -1150,7 +1192,9 @@ function playFree() {
         // ⭐ THE PROVIDER IS BUILT FROM THE SAME KEY SET arcadeConfig() USED, so
         // the words and the pace come from one level and cannot disagree.
         ...(g.id === 'escape'
-            ? { poolFor: poolProviderFor(arcadeKeySet(LESSONS, PROGRESS, chosenLevelIdx())) }
+            ? { poolFor: poolProviderFor(
+                    arcadeKeySet(LESSONS, PROGRESS, chosenLevelIdx()),
+                    Math.random, chosenScope()) }
             : {}),
         // ⚠️⚠️ THE WHOLE REASON THIS PATH EXISTS. `countsTime: true` in the
         // registry is a promise, and for twenty rounds Escape Key had no way to
@@ -1419,6 +1463,7 @@ async function load(user) {
 
 $('game').addEventListener('change', applyGameMode);
 $('level').addEventListener('change', showFreeGates);
+$('scope').addEventListener('change', showFreeGates);
 $('lesson').addEventListener('change', fillRuns);
 $('run').addEventListener('change', () => { fillSpeeds(); showGates(); });
 $('speed').addEventListener('change', showGates);
