@@ -1,3 +1,10 @@
+// undefined-calls-test.mjs v1.4.0 — Round 114 (Carriage): arcade.html joins
+// HTML_FILES, along with learn2.html and school-audit.html. ⚠️ arcade.html is
+// ~1,300 lines of inline module script — the largest in the repo after
+// index.html — and it mounts three games. The list carried an instruction to add
+// any extracted MODULE in the same commit and nobody wrote the same rule for a
+// new PAGE, so the arcade never joined. Mutation-verified: a misspelled
+// PANEL_ELS() in the free-play mount is now reported with its line number.
 // undefined-calls-test.mjs v1.3.1 — Round 6 (Noiseless).
 //
 // v1.3.1 — PATH ONLY, Round 17 (Linotype). This file moved from the repo root
@@ -68,8 +75,22 @@ const FILES = [
 // which is the library and the FIRST page a student loads. Two undeclared-identifier
 // bugs had already been found in the .js files; there was no reason to assume the
 // inline scripts were cleaner, and every reason to check the student-facing one.
+// ⚠️⚠️ AND arcade.html WAS MISSING FROM THIS LIST UNTIL ROUND 114 (Carriage),
+// which is ~1,300 lines of inline module script — the largest inline body in the
+// repo after index.html — carrying two mounted games, the free-play wiring and
+// the banking flush. The list's own instruction two comments up says *"If you
+// extract a module, add it here in the same commit"*; nobody wrote the same rule
+// for a new PAGE, so the arcade simply never joined.
+// ⭐ THE OMISSION MATTERED THIS ROUND SPECIFICALLY: Round 114's fix replaced an
+// inline options literal with calls to panelOptionsFor() and PANEL_ELS(), and a
+// misspelled identifier in a page that mounts games would have thrown at launch
+// with a green suite behind it — which is the exact class of defect the header
+// above says this file exists to catch.
+// ⚠️ school-audit.html AND learn2.html ADDED FOR THE SAME REASON. A list of
+// pages that is not every page is a list that goes stale silently.
 const HTML_FILES = [
-    'index.html', 'game.html', 'learn.html', 'admin.html', 'reports.html', 'appcheck.html',
+    'index.html', 'game.html', 'learn.html', 'admin.html', 'reports.html',
+    'appcheck.html', 'arcade.html', 'learn2.html', 'school-audit.html',
 ];
 
 // Pull every non-empty inline <script> body out of an HTML file, tracking the line

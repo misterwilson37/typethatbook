@@ -1,3 +1,8 @@
+// game-draw.js v1.12.0 — Round 114 (Carriage): drawWavePreview() derives HOW MANY
+//   queue rows to draw from the height it was given, instead of a literal 4 that
+//   disagreed with the count game-escape.js asked for. ⚠️⚠️ TWO RECORDS OF ONE
+//   QUANTITY IN TWO FILES: raising the view's number alone would have changed
+//   nothing on screen and read as a fix that did not deploy.
 // game-draw.js v1.11.0 — Round 112 (Bar-Let): the wave preview RESERVES the tip's
 //   space before sizing its rows. ⚠️⚠️ THE ROWS WERE EATING IT — rowH came from
 //   the whole remaining height, so four rows expanded to fill the panel and the
@@ -68,7 +73,7 @@
 // a picture they already know from the board.
 import { ENEMY_SPRITES, ENEMY_PALETTES, drawPixelSprite } from './game-sprites.js';
 
-export const GAME_DRAW_VERSION = '1.11.0';
+export const GAME_DRAW_VERSION = '1.12.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device
@@ -1568,9 +1573,6 @@ export function drawWavePreview(ctx, o) {
     ctx.fillStyle = '#ffd700';
     ctx.fillText('WAVE ' + (o.round || 1), W - pad, pad);
 
-    const waves = (o.waves || []).slice(0, 4);
-    if (!waves.length) { ctx.restore(); return; }
-
     const top = pad + 22;
     // ⚠️⚠️ THE TIP'S SPACE IS RESERVED BEFORE THE ROWS ARE SIZED, NOT AFTER.
     // Jake, 2026-09-10: *"Nothing is in that bottom left corner yet."* ⭐ THE
@@ -1582,7 +1584,27 @@ export function drawWavePreview(ctx, o) {
     // block must come out of the budget BEFORE the flexible thing is sized, or
     // the flexible thing takes all of it.
     const tipH = o.tip ? 92 : 0;
-    const rowH = Math.max(48, (H - top - pad - tipH) / waves.length);
+    // ⚠️⚠️ HOW MANY ROWS ARE DRAWN IS DERIVED FROM THE HEIGHT, NOT FROM A
+    // LITERAL. This line used to be `waves.slice(0, 4)` at the top of the
+    // function while game-escape.js called `board.upcoming(4)` — TWO RECORDS OF
+    // ONE QUANTITY, in two files, and Round 114 tried to raise it to five in the
+    // view only. The view would have asked for five, this function would have
+    // silently dropped the fifth, and the panel would have looked exactly as it
+    // did before the change: the Rule 9 failure whose symptom is that a fix
+    // appears not to have deployed.
+    // ⭐ THE VIEW NOW SAYS HOW MANY IT CAN OFFER; THE PANEL SAYS HOW MANY FIT.
+    // Those are genuinely different questions, and neither file has to know the
+    // other's answer.
+    // ⚠️ THE FLOOR AND THE BUDGET ARE THE SAME TWO NUMBERS rowH USES BELOW. If
+    // they ever diverge, the panel will draw a row it has already decided it has
+    // no room for, which is how the tip got squeezed out last round.
+    const ROW_MIN = 48;
+    const budget = H - top - pad - tipH;
+    const room = Math.max(1, Math.floor(budget / ROW_MIN));
+    const waves = (o.waves || []).slice(0, room);
+    if (!waves.length) { ctx.restore(); return; }
+
+    const rowH = Math.max(ROW_MIN, budget / waves.length);
 
     waves.forEach((w, i) => {
         const y = top + i * rowH;

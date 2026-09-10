@@ -1,3 +1,16 @@
+// game-names.js v1.2.0 — Round 114 (Carriage). TWO CHANGES, ONE ROOT CAUSE:
+//   • Shatter is no longer flagged `unbuilt`. The view shipped in Round 103 and
+//     this flag kept it out of every picker for eleven rounds, defended the
+//     whole time by a green assertion in game-assumptions-test.mjs.
+//   • ⭐ panelOptionsFor() and usesThreatBoard() — the console wiring, as a
+//     VALUE. It lived as an object literal inside arcade.html, which imports
+//     firebase-config.js, so no harness could import it and the only available
+//     check was a regex over source text. That check PASSED against the exact
+//     shipped bug (Deadline receiving no panels on the free-play path), because
+//     a regex cannot see control flow. Extracting it is what made the defect
+//     testable; see that function's header.
+//   ⚠️ BOTH ARE THE SAME SHAPE: a fact about the world recorded in a second
+//   place, going stale where nothing could check it.
 // game-names.js v1.0.0 — THE GAME REGISTRY. Round 82 (Victor).
 //
 // ⚠️⚠️ THE ID AND THE TITLE ARE DIFFERENT THINGS AND THIS FILE IS WHY.
@@ -17,7 +30,7 @@
 // ⚠️ THIS IS ALSO WHY THE FILES ARE `game-escape.js` AND `game-deadline.js`
 // RATHER THAN `game-escape-key.js` AND SO ON. Filenames are ids too.
 
-export const GAME_NAMES_VERSION = '1.0.0';
+export const GAME_NAMES_VERSION = '1.2.0';
 
 /**
  * ⚠️ `id` VALUES ARE FROZEN. Add games; never rename these strings.
@@ -47,6 +60,9 @@ export const GAMES = {
         assessed: false,
         countsTime: true,
         module: './game-escape.js',
+        // ⚠️ THE LEFT PANEL'S OPTION NAME, NOT THE PANEL ITSELF. See `panels`
+        // below and panelOptionsFor().
+        panels: { left: 'previewCanvas', threat: false },
     },
     deadline: {
         id: 'deadline',
@@ -62,18 +78,33 @@ export const GAMES = {
         assessed: true,
         countsTime: true,
         module: './game-deadline.js',
+        // ⚠️ THE ONLY GAME WITH A THREAT BOARD, because it is the only one with
+        // landmarks to lose. The other two accept no such option.
+        panels: { left: 'radarCanvas', threat: true },
     },
     shatter: {
         id: 'shatter',
         title: 'Shatter',
-        // ⚠️ NOT BUILT YET. Registered so the leaderboard schema and the lab page
-        // can be written once. See HANDOFF-games.md §6.
+        // ⚠️⚠️ `unbuilt: true` SAT HERE FOR ELEVEN ROUNDS AFTER THE GAME WAS
+        // FINISHED, AND IT IS THE WHOLE REASON JAKE COULD NOT PLAY IT. Round 103
+        // built `game-shatter.js`; Rounds 106 and 109 took it to v1.2.0 with both
+        // side panels wired — and nobody came back to this object. `fillGames()`
+        // skips any game carrying the flag, so the picker never offered Shatter
+        // and there was no error to notice: the option was simply absent.
+        //
+        // ⭐ THE REGISTRY IS THE LAST STEP OF BUILDING A GAME, NOT A NOTE ABOUT
+        // ONE. A view that exists and a registry that denies it is the same class
+        // of defect as a `countsTime: true` on a view that emitted no seconds —
+        // a promise in one file with nothing behind it in another.
+        // ⚠️ AND A HARNESS WAS PINNING IT: game-assumptions-test.mjs asserted
+        // `unbuilt === true`, so the bug had a passing test defending it. See
+        // that file's Part on the registry for the corrected assertion.
         tagline: 'Break the long words into pieces before they reach you.',
         kind: 'throughput',
         assessed: false,
         countsTime: true,
         module: './game-shatter.js',
-        unbuilt: true,
+        panels: { left: 'panelCanvas', threat: false },
     },
 };
 
@@ -126,4 +157,92 @@ export function titleOf(id) {
 /** Is this id allowed to write an assessed result? */
 export function isAssessed(id) {
     return !!(GAMES[id] && GAMES[id].assessed);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ THE CONSOLE WIRING, AS A VALUE. Round 114 (Carriage).
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-10: *"there are no active consoles on deadline."* The panels had
+// existed since Round 94 with 141 assertions behind them; `playFree()` in
+// arcade.html simply never handed Deadline any canvases. It listed a spread for
+// `shatter` and a spread for `escape` and nothing for `deadline`, so the view got
+// nothing, correctly drew nothing, and fell back to a floating button bar.
+//
+// ⚠️⚠️ AND THE FIRST ATTEMPT TO PIN THAT WITH A HARNESS FAILED ITS OWN MUTATION
+// TEST, WHICH IS WHY THIS FUNCTION EXISTS. The wiring was an object literal
+// inside a page that imports firebase-config.js, so nothing could import it and
+// the only available check was a regex counting `gaugeCanvas:` in the source.
+// Reinstating the exact shipped bug — moving the shared options back inside a
+// per-game spread — kept that count at one and the suite stayed green. ⭐ A
+// REGEX OVER SOURCE TEXT CANNOT SEE CONTROL FLOW, and "which games receive a
+// console" is nothing but control flow.
+//
+// ⭐ SO THE DECISION IS A PURE FUNCTION OVER THE REGISTRY, AND THE HARNESS CALLS
+// IT FOR EVERY ID IN GAME_ORDER. A game that would ship with a blank flank now
+// fails an assertion about a returned object rather than passing one about a
+// substring. ⚠️ THIS IS THE SAME MOVE `escape-board.js` MADE when the camper bug
+// needed testing: extract the decision, then it can be driven.
+//
+// ⚠️ NO DOM API IS TOUCHED HERE AND NONE MAY BE. The elements arrive as plain
+// values, so this file stays importable by a harness and by learn.js alike. A
+// `document.getElementById` in this function would undo the whole point of it.
+//
+// ⚠️⚠️ BOTH LAUNCH PATHS IN arcade.html CALL THIS — the lesson-run Deadline path
+// and the free-play path. They used to spell the same four options separately,
+// which is two records of one wiring decision; the free-play copy is the one that
+// was missing a game. Rule 9: one record.
+
+/**
+ * The console options for a game, or `{}` when the host has no panels to give.
+ *
+ * @param {string} id      a GAMES key
+ * @param {object} els     { barHost, gauge, left, threat, minutes } — any may be
+ *                         absent, and an absent one is simply not passed on.
+ * @returns {object}       options to spread into the view's mount()
+ *
+ * ⚠️ ABSENT-SAFE IN BOTH DIRECTIONS. learn.js mounts these views with no panels
+ * at all and every view is written to expect that, so a missing element must
+ * yield an ABSENT key rather than an explicit `undefined` — the views test
+ * `opts.gaugeCanvas || null`, and passing undefined would work today and would
+ * silence a genuinely missing element tomorrow.
+ * ⚠️ AN UNKNOWN ID RETURNS `{}`, NOT A GUESS. A view this build has never heard
+ * of gets no canvases rather than Deadline's.
+ */
+export function panelOptionsFor(id, els) {
+    const g = GAMES[id];
+    const e = els || {};
+    if (!g || !g.panels) return {};
+    const out = {};
+    // ⚠️ THE THREE SHARED ONES ARE SHARED BECAUSE THE CONSOLE IS THE SAME
+    // CONSOLE — all three games draw it with drawGauges(). That is why they are
+    // assigned once here instead of per game.
+    if (e.barHost) out.barHost = e.barHost;
+    if (e.gauge) out.gaugeCanvas = e.gauge;
+    if (e.minutes) out.minutes = e.minutes;
+    // ⚠️ THE LEFT PANEL DIFFERS BY KEY NAME BECAUSE THE THREE VIEWS ASK
+    // DIFFERENT QUESTIONS OF THE SAME BOX: Deadline's radar answers "where", the
+    // wave preview deliberately refuses to, and Shatter's is a warp meter over
+    // window dressing. ⚠️ DO NOT COLLAPSE THESE TO `radarCanvas`. Escape Key and
+    // Shatter accept it as a fallback, so it would work and would stop saying
+    // which panel is meant.
+    if (e.left) out[g.panels.left] = e.left;
+    // ⚠️ DEADLINE ONLY. The other two views accept no threatCanvas, and a
+    // silently-ignored option is worse than an absent one.
+    if (g.panels.threat && e.threat) out.threatCanvas = e.threat;
+    return out;
+}
+
+/**
+ * Does this game draw a threat board?
+ *
+ * ⚠️⚠️ THE HOST NEEDS THIS SEPARATELY BECAUSE THE BOX IS ITS OWN ELEMENT. Jake,
+ * 2026-09-10: *"There's also dead space below the incoming monsters row."* That
+ * space was #threat-canvas — a fixed 104px canvas reserved for a panel only
+ * Deadline is handed — sitting empty on the other two games.
+ * ⭐ READ FROM THE SAME `panels.threat` FLAG panelOptionsFor() USES, so the page
+ * cannot reveal a box it did not pass a canvas for, or hide one it did.
+ */
+export function usesThreatBoard(id) {
+    return !!(GAMES[id] && GAMES[id].panels && GAMES[id].panels.threat);
 }

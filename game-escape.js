@@ -1,3 +1,6 @@
+// game-escape.js v2.2.0 — a FIFTH creature in the wave queue, paid for by the
+//   collapse of the empty threat box beside it. Round 114 (Carriage).
+//   ⚠️ THE ROW COUNT IS NO LONGER SPELLED IN TWO FILES — see drawWavePreview().
 // game-escape.js v2.1.0 — ESCAPE KEY. Round 82 (Victor), 102, 104, 106, 108, 112.
 //
 // v2.1.0 — ⚠️⚠️ THE TOP BAR IS GONE AND THE BOARD TOOK ITS 54px. Every number it
@@ -150,7 +153,7 @@ import {
     drawPixelSprite, drawBeam, drawVaporised, drawWeb,
 } from './game-sprites.js';
 
-export const GAME_ESCAPE_VERSION = '2.1.0';
+export const GAME_ESCAPE_VERSION = '2.2.0';
 
 /**
  * @param {HTMLElement} container
@@ -611,7 +614,20 @@ export function mount(container, opts) {
             drawWavePreview(previewCtx, {
                 W: size.w, H: size.h,
                 round: board.round,
-                waves: board.upcoming(4),   // ⚠️ FOUR — Jake: "another monster row could go on the left"
+                // ⚠️⚠️ FIVE, AND THE HEIGHT TO DRAW THEM ONLY EXISTS AS OF ROUND
+                // 114. Jake, 2026-09-10: *"There's also dead space below the
+                // incoming monsters row — add another monster or some other
+                // information."* The dead space was #threat-canvas, a fixed 104px
+                // box reserved for a panel only Deadline draws; arcade.html now
+                // collapses it, and that height flows into this canvas's flex.
+                // ⭐ SO THE FIFTH ROW IS PAID FOR BY THE FIX RATHER THAN TAKEN
+                // FROM THE EXTRA-LIFE TIP, which is the one rule in the game a
+                // student would never guess and must not be squeezed out.
+                // ⚠️ drawWavePreview() RESERVES THE TIP'S HEIGHT BEFORE SIZING
+                // ROWS and floors a row at 48px, so on a short window the tip
+                // still wins and the fifth row is simply not drawn. Raising this
+                // number does not risk the tip; see that function's header.
+                waves: board.upcoming(5),
                 // ⚠️ NULL WHEN THE NEXT WAVE WAITS ON A CLEAR BOARD RATHER THAN A
                 // DISTANCE. A bar filling toward an event that is not on a timer
                 // would be an animation telling a lie.

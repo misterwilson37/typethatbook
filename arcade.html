@@ -1,7 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- arcade.html v3.7.0 — the run picker defaults to RUN 1 (survival supersedes
+<!-- arcade.html v3.14.0 — DEADLINE GETS ITS CONSOLE ON THE FREE-PLAY PATH,
+     Shatter reaches the picker, the empty threat box is collapsed, and the
+     title, blurb and saved-claim stop contradicting each other.
+     Round 114 (Carriage).
+
+     ⚠️⚠️ THIS HEADER READ v3.7.0 WHILE ARCADE_PAGE_VERSION READ 3.13.0 — TWELVE
+     ROUNDS OF DRIFT, AND THE SECOND TIME THIS FILE HAS DONE IT. Round 98 found
+     the same thing, fixed that instance by hand, and wrote the reason into the
+     note below: this is the one arcade file whose harness checked neither half,
+     because arcade-versions-test.mjs discovers `game-*` modules and this is a
+     page. ⭐ A GAP DESCRIBED IN A COMMENT IS STILL AN OPEN GAP. Round 114 closed
+     it — that harness now pins arcade.html's header against its constant and
+     goes red on any future drift, which is what should have happened in 98.
+     ⚠️ EVERY ROUND 102–113 BUMP IS ABSENT FROM THIS LOG and is not being
+     reconstructed: CHANGELOG.md has them, and inventing entries here from
+     memory would put a second, worse history in front of the next reader.
+
+     arcade.html v3.7.0 — the run picker defaults to RUN 1 (survival supersedes
      v3.0.0's last-run default), survival stays in PROSE until there is none left
      anywhere behind the student, and the wall is an absolute 100 WPM.
      Round 101 (Wellington).
@@ -180,6 +197,19 @@
        purpose: it needs three legible rows and no more, so every spare pixel in
        the column goes to the radar above it. */
     #threat-canvas { flex: 0 0 auto; height: 104px; margin-bottom: 0; }
+    /* ⚠️⚠️ AND IT IS REMOVED ENTIRELY WHEN NOTHING IS DRAWING INTO IT. Jake,
+       2026-09-10, on an Escape Key run: *"There's also dead space below the
+       incoming monsters row."* ⭐ THAT DEAD SPACE WAS THIS CANVAS: only Deadline
+       is handed a threatCanvas, so on the other two games a 104px box sat below
+       the radar being 104px of nothing — a fixed height reserving room for a
+       panel that was never going to arrive.
+       ⚠️ `display: none`, NOT A ZERO HEIGHT. fitCanvas() measures
+       getBoundingClientRect(), and a 0px canvas is a live element whose draw
+       calls all resolve to nothing — which is a blank panel that costs frames
+       rather than an absent one. Removing it from layout also hands its height
+       to #radar-canvas's flex, which is what gives the wave queue room for a
+       fifth creature. See showThreatBoard(). */
+    #radar-col.no-threat #threat-canvas { display: none; }
     #gauge-canvas { flex: 1 1 auto; min-height: 260px; max-height: 420px; }
     /* ⭐ AND THE LEFTOVER HEIGHT IN THE RIGHT COLUMN GOES TO THE BUTTONS, which
        is the better use of it: these are the only way off this page for a
@@ -423,19 +453,30 @@
          the top of the sky — where every target enters — was the first thing
          scrolled off. It is orientation text: needed once, re-read never, so it
          belongs after the thing it orients. -->
-    <h1>DEADLINE</h1>
+    <!-- ⚠️⚠️ THE TITLE TRACKS THE PICKER. It read a hardcoded DEADLINE for
+         thirty rounds, which was true while Deadline was the only game and
+         became a lie the moment a second one shipped: a student playing Escape
+         Key read ESCAPE KEY in the dropdown and DEADLINE under the frame.
+         ⭐ THE STRING COMES FROM game-names.js VIA titleOf(), so a rename is
+         still the one line that file exists to make it. -->
+    <h1 id="game-title">DEADLINE</h1>
     <div class="beta">BETA</div>
 
-    <!-- ⚠️ THE "NOT SAVED" LINE COMES BEFORE THEY PLAY, NOT AFTER. A student who
-         banks twenty minutes and then finds their totals unmoved has been misled
-         by omission, and the teacher hears about it, not the page. -->
-    <p class="note">
-        Play a lesson you've already reached, at that lesson's own speed and
-        accuracy targets. Then type the same run in School and see whether the
-        numbers line up.<br>
-        <strong>Nothing here is saved yet</strong> — your time, score and grade
-        don't count toward your lessons. You need a keyboard to play.
-    </p>
+    <!-- ⚠️⚠️ THE "NOT SAVED" LINE USED TO LIVE HERE AND IT SAID SOMETHING FALSE.
+         It read *"your time, score and grade don't count toward your lessons"* —
+         but bankSecond() and flushArcadeSeconds() write arcade seconds into
+         `typing_logs` and the ledger, so the TIME has counted since Round 102.
+         ⭐ AND THE PAGE CONTRADICTED ITSELF ABOUT IT: the gates panel above the
+         button already said *"the time you spend typing counts toward your day
+         and your week, exactly like School"*. Two records of one claim, on one
+         screen, disagreeing — Rule 9, in the copy rather than in the code.
+         ⚠️ RESOLVED BY DELETING THIS COPY, NOT BY CORRECTING IT. Jake's standing
+         ruling is that the not-saved line comes BEFORE they play, and the gates
+         panel is before they play; this paragraph sits under the frame and is
+         read after. savedNote() is now the one writer of that sentence and both
+         gate panels call it.
+         ⚠️ DO NOT RE-ADD A SAVED/NOT-SAVED CLAIM TO THIS PARAGRAPH. -->
+    <p class="note" id="game-note"></p>
 
 
 
@@ -466,7 +507,13 @@ import { GAME_SHELL_VERSION } from './game-shell.js';
 import { GAME_DRAW_VERSION } from './game-draw.js';
 import { GAME_CHROME_VERSION } from './game-chrome.js';
 import { GAME_LAYOUT_VERSION } from './game-layout.js';
-const ARCADE_PAGE_VERSION = '3.13.0';
+// ⚠️⚠️ game-names.js JOINS THE PANEL IN ROUND 114, because it stopped being a
+// list of strings. panelOptionsFor() now decides which games get a console, and
+// a wrong answer there is a blank flank with no error — exactly the fault Jake
+// reported. A module that can silently remove a panel must be reportable from
+// the classroom. ⚠️ It reaches no Firebase, so importing it here is safe.
+import { GAME_NAMES_VERSION } from './game-names.js';
+const ARCADE_PAGE_VERSION = '3.14.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -477,6 +524,10 @@ const ARCADE_PAGE_VERSION = '3.13.0';
 function buildBadge() {
     const rows = [
         ['arcade.html', ARCADE_PAGE_VERSION],
+        // ⚠️ SECOND, NOT LAST. It is the registry every other row depends on:
+        // if the picker is missing a game or a flank is blank, this is the
+        // number to read before any of the view versions below.
+        ['game-names.js', GAME_NAMES_VERSION],
         ['game-deadline.js', GAME_DEADLINE_VERSION],
         // ⚠️ THE PANEL LISTS WHAT THE PAGE CAN MOUNT, and as of Round 103 that is
         // three views, not one. A game the student can launch whose version the
@@ -543,7 +594,7 @@ import { mount as mountShatter } from './game-shatter.js';
 // ⚠️ THE TITLES COME FROM THE REGISTRY, NEVER FROM A STRING IN THIS FILE.
 // game-names.js's whole reason for existing is that a rename must be one line;
 // a title spelled into this picker would be the copy nobody finds.
-import { GAMES, GAME_ORDER, titleOf } from './game-names.js';
+import { GAMES, GAME_ORDER, titleOf, panelOptionsFor, usesThreatBoard } from './game-names.js';
 // ⚠️ arcadeKeySet AND makeArcadeTargets ARE ALREADY IMPORTED ABOVE — Round 105
 // added a SECOND import of arcadeKeySet here and the whole page died with
 // "Cannot declare an imported binding name twice". ⚠️⚠️ A NEW IMPORT LINE MUST BE
@@ -1015,7 +1066,19 @@ function fillGames() {
         if (!g || g.unbuilt) continue;
         const o = document.createElement('option');
         o.value = id;
-        o.textContent = titleOf(id) + (g.assessed ? '' : ' \u2014 just for fun');
+        // ⚠️⚠️ NO "— just for fun" SUFFIX. Jake, 2026-09-10: *"take 'Play for
+        // fun!' or whatever it is off of Escape Key. On this panel, they're all
+        // for fun."* ⭐ HE IS RIGHT AND IT WAS ACTIVELY MISLEADING: `assessed` is
+        // a capability flag meaning "this game CAN carry a grade", and nothing on
+        // this page carries one — the standing note under the frame says so. So
+        // the suffix marked two of three games as the unserious ones while the
+        // third was equally unsaved, which invites a student to read Deadline as
+        // the real one and the others as filler.
+        // ⚠️ DO NOT DERIVE A LABEL FROM `assessed` HERE AGAIN. When the wiring
+        // into learn.js lands, the thing that changes is whether a run is graded
+        // — a per-RUN fact that isFreePlay() already computes — not a permanent
+        // property of a title in a dropdown.
+        o.textContent = titleOf(id);
         sel.appendChild(o);
     }
     sel.value = 'deadline';
@@ -1047,7 +1110,52 @@ function applyGameMode() {
     // the state unreachable from the state it hides in.
     $('row-scope').style.display = '';
     $('row-freespeed').style.display = fullPool ? '' : 'none';
+    // ⚠️ HERE RATHER THAN ON THE GAME DROPDOWN'S OWN LISTENER. The blurb depends
+    // on isFreePlay(), which the SCOPE row can change without the game changing,
+    // so hanging this off `change` on #game would leave a stale paragraph every
+    // time a student switched Deadline to the full pool.
+    applyPageChrome();
     if (free) showFreeGates(); else showGates();
+}
+
+/**
+ * ⚠️⚠️ THE ONE PLACE THAT SAYS WHAT THIS PAGE KEEPS. Both gate panels call it.
+ *
+ * The old copy under the frame claimed nothing was saved at all; the free-play
+ * panel claimed time was banked. Both were shown at once and only one was true.
+ * ⭐ THE HONEST ANSWER IS SPLIT, AND SAYING IT ONCE IS THE ONLY WAY IT STAYS
+ * SPLIT: the seconds are written to `typing_logs` exactly as School's are, and
+ * the score and grade are written nowhere yet.
+ *
+ * ⚠️ WHEN THE learn.js WIRING LANDS, THIS FUNCTION IS THE THING TO EDIT, and it
+ * must stay the only thing — a grade that starts counting while a second panel
+ * still says it does not is the failure this consolidation exists to prevent.
+ */
+function savedNote() {
+    return '<span><i>Your time counts toward your day and your week, exactly ' +
+           'like School. Your score and grade are not saved yet.</i></span>';
+}
+
+/**
+ * Point the title and the blurb under the frame at the chosen game.
+ *
+ * ⚠️ THE BLURB IS PER-GAME PROSE, NOT THE REGISTRY TAGLINE. `g.tagline` is
+ * already printed in the gates panel, and printing it twice on one screen would
+ * be the shape this round has spent its whole length removing. This paragraph
+ * answers a different question — what the student is being asked to DO — and
+ * only Deadline has a School run to be compared against.
+ */
+function applyPageChrome() {
+    const g = currentGame();
+    $('game-title').textContent = titleOf(g.id).toUpperCase();
+    document.title = 'Arcade \u2014 ' + titleOf(g.id) + ' (beta) \u2014 TypeThatBook';
+    $('game-note').innerHTML = (g.id === 'deadline' && !isFreePlay())
+        ? 'Play a lesson you\u2019ve already reached, at that lesson\u2019s own ' +
+          'speed and accuracy targets. Then type the same run in School and see ' +
+          'whether the numbers line up. You need a keyboard to play.'
+        : 'Play for as long as you like. The words come from the letters you ' +
+          'have learned so far, or from the whole pool if you pick it. You need ' +
+          'a keyboard to play.';
 }
 
 function showFreeGates() {
@@ -1075,8 +1183,9 @@ function showFreeGates() {
               : `<span>letters <b>${shown || '\u2014'}</b></span>`) +
         `<span>starting speed <b>${wpm} WPM</b></span>` +
         `<span>${poolLine}</span>` +
-        '<span><i>Nothing here is graded \u2014 but the time you spend typing ' +
-        'counts toward your day and your week, exactly like School.</i></span>';
+        // ⚠️ THIS SENTENCE IS NO LONGER SPELLED HERE. It was one of the two
+        // disagreeing copies; savedNote() is the only writer now.
+        savedNote();
     $('play').disabled = false;
 }
 
@@ -1260,8 +1369,51 @@ function showGates() {
         (r.speedGraded ? '' : '<span><i>School grades this drill on accuracy only</i></span>') +
         `<span>accuracy target <b>${r.gates.minAccuracy}%</b></span>` +
         `<span>${r.sequence.length} characters</span>` +
-        (best ? `<span>your best typed grade <b>${best}</b></span>` : '');
+        (best ? `<span>your best typed grade <b>${best}</b></span>` : '') +
+        // ⚠️ THE LESSON PATH NEVER CARRIED THIS AT ALL. Its only statement about
+        // saving was the paragraph under the frame, which is read after play and
+        // said something false. A student playing a graded lesson run is the one
+        // most likely to assume the result counts, so this is the panel that
+        // needed it most and was the panel without it.
+        savedNote();
     $('play').disabled = false;
+}
+
+/**
+ * Show or collapse the threat board, which only Deadline draws into.
+ *
+ * ⚠️⚠️ CALLED FROM BOTH LAUNCH PATHS, AND THE ARGUMENT IS DERIVED FROM THE SAME
+ * TEST THAT DECIDES WHETHER threatCanvas IS PASSED. A page that handed the canvas
+ * to Deadline and revealed it on a rule of its own would have two answers to
+ * "does this game have a threat board", and they would disagree the first time a
+ * fourth game arrives. ⭐ ONE QUESTION, ASKED ONCE: `id === 'deadline'`.
+ *
+ * ⚠️ THE ELEMENT IS NEVER REMOVED FROM THE DOM, ONLY FROM LAYOUT. $('threat-canvas')
+ * is read at mount time on the next launch, and a removed node would hand the
+ * view a detached canvas that draws perfectly into nothing.
+ */
+function showThreatBoard(on) {
+    $('radar-col').classList.toggle('no-threat', !on);
+}
+
+/**
+ * The panel elements, read fresh at each launch.
+ *
+ * ⚠️ A FUNCTION, NOT A CONSTANT. #stageWrap is `display:none` until a game
+ * mounts, and the elements are replaced by nothing but are re-read by
+ * game-chrome.js's stale-bar sweep; capturing them at module load also ran
+ * before the DOM existed for the build panel's sake.
+ * ⚠️ `minutes` IS A GETTER, NOT A SNAPSHOT — bankSecond() increments MINUTES
+ * live, and a value captured at mount would be frozen at press-play.
+ */
+function PANEL_ELS() {
+    return {
+        barHost: $('controls-col'),
+        gauge: $('gauge-canvas'),
+        left: $('radar-canvas'),
+        threat: $('threat-canvas'),
+        minutes: liveMinutes,
+    };
 }
 
 function play() {
@@ -1300,6 +1452,10 @@ function play() {
         cfg.pressureCeiling = survivalCeilingFor(gates.minWPM);
     }
     lastPlayedWPM = gates.minWPM;
+    // ⚠️ THIS PATH IS ALWAYS DEADLINE — isFreePlay() sent everything else away at
+    // the top — so the board is always shown here. Stated rather than assumed,
+    // because the previous line of defence for that was a comment.
+    showThreatBoard(usesThreatBoard('deadline'));
     $('picker').style.display = 'none';
     $('result').style.display = 'none';
     $('stageWrap').style.display = 'block';
@@ -1308,16 +1464,19 @@ function play() {
         config: cfg,
         // ⚠️ THE BUTTONS LIVE IN THE RIGHT CARD NOW, not over the canvas.
         // game-chrome.js keeps its floating fallback for hosts without one.
-        barHost: $('controls-col'),
-        radarCanvas: $('radar-canvas'),
-        threatCanvas: $('threat-canvas'),
-        gaugeCanvas: $('gauge-canvas'),
+        // ⚠️⚠️ THE SAME ONE FUNCTION THE FREE-PLAY PATH USES. These four options
+        // used to be spelled out separately in both places — two records of one
+        // wiring decision, and the free-play copy was the one missing a game.
+        // Rule 9: the copy that can go wrong is the second one.
+        ...panelOptionsFor('deadline', PANEL_ELS()),
         // ⚠️⚠️ OPT-IN, AND ONLY THIS PAGE OPTS IN. learn.js and the lab mount the
         // same view; a run that stopped ending when its quota was met would hang
         // the lesson flow on both. See game-deadline.js's `survival` note.
         survival: survivalPool.length > 0,
-        // ⚠️ A GETTER, not the object — see game-deadline.js's minuteLines().
-        minutes: liveMinutes,
+        // ⚠️ `minutes` NOW ARRIVES VIA panelOptionsFor() ABOVE, as a GETTER
+        // rather than the object — see game-deadline.js's minuteLines(). It is
+        // not repeated here, or the two paths would disagree about it the next
+        // time one of them changed.
         // ⚠️⚠️ ONE TICK PER GRADED SECOND. The date is stamped HERE, at the
         // moment of the tick, so a game running through midnight splits across
         // two days exactly as a lesson does — the view never learns what a date
@@ -1330,13 +1489,23 @@ function play() {
 }
 
 /**
- * Mount Shatter or Escape Key.
+ * Mount an ungraded run — Shatter, Escape Key, or Deadline against the whole
+ * word pool.
  *
- * ⚠️ NO `survival`, NO `barHost`, NO SIDE CANVASES. Those are Deadline's console
- * panels and neither of these views accepts them — game-escape.js's v1.1.0
- * header is explicit that a silently-ignored option is worse than an absent one,
- * and passing one here would be this page asserting a contract that does not
- * exist.
+ * ⚠️⚠️ THIS COMMENT USED TO READ *"Mount Shatter or Escape Key. NO `survival`, NO
+ * `barHost`, NO SIDE CANVASES."* — and every clause of it was false by Round 108,
+ * which is most of why the missing Deadline panels survived so long. The title
+ * was false the moment Round 112 let Deadline take the full pool; the `barHost`
+ * and side-canvas claims were false the moment Escape Key v2.0.0 and Shatter
+ * v1.2.0 accepted them, two rounds earlier. ⭐ A DOC COMMENT DESCRIBING A
+ * CONTRACT THAT NO LONGER HOLDS IS WORSE THAN NO COMMENT: it is the thing a
+ * reader checks INSTEAD of the code, so it does not merely fail to help, it
+ * actively answers the question wrongly. Round 82's HANDOFF flagged the same
+ * shape in game-escape.js v1.0.0 and it happened again here.
+ *
+ * ⚠️ `survival` REMAINS DEADLINE-AND-LESSON-ONLY, and that clause is still true:
+ * survival extends a run past a QUOTA, and a full-pool run has no quota to pass.
+ * See game-deadline.js's `survival` note.
  */
 function playFree() {
     const g = currentGame();
@@ -1344,6 +1513,7 @@ function playFree() {
         : g.id === 'escape' ? mountEscape
         : mountDeadline;
     lastPlayedWPM = null;
+    showThreatBoard(usesThreatBoard(g.id));
     $('picker').style.display = 'none';
     $('result').style.display = 'none';
     $('stageWrap').style.display = 'block';
@@ -1367,22 +1537,35 @@ function playFree() {
         // see drawWavePreview()'s header. Same box on the page, different job.
         // ⭐ SHATTER'S PANELS MIRROR THE OTHER TWO. Its left panel is a radar over
         // a warp meter rather than a wave preview — different content, same box.
-        ...(g.id === 'shatter'
-            ? {
-                barHost: $('controls-col'),
-                panelCanvas: $('radar-canvas'),
-                gaugeCanvas: $('gauge-canvas'),
-                minutes: liveMinutes,
-              }
-            : {}),
-        ...(g.id === 'escape'
-            ? {
-                barHost: $('controls-col'),
-                previewCanvas: $('radar-canvas'),
-                gaugeCanvas: $('gauge-canvas'),
-                minutes: liveMinutes,
-              }
-            : {}),
+        //
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️ DEADLINE GOT NO PANELS ON THIS PATH AT ALL, FOR ELEVEN ROUNDS.
+        // ═══════════════════════════════════════════════════════════════════
+        // Jake, 2026-09-10, on a free-play Deadline run: *"there are no active
+        // consoles on deadline."* ⭐ THE PANELS WERE NEVER MISSING — they are
+        // drawRadar(), drawThreatBoard() and drawGauges(), they have 141
+        // assertions behind them, and playDeadline() has passed all four
+        // options since Round 94. THIS function listed a spread for `shatter`
+        // and a spread for `escape` and nothing for `deadline`, so the view
+        // received no canvases, correctly drew no panels, and game-chrome.js
+        // correctly fell back to its floating button bar over the sky.
+        // ⚠️ NOTHING REPORTED A FAULT, because an absent option is a legal
+        // option: every panel in all three views is absent-safe by design, for
+        // learn.js's benefit. ⭐ THE FAILURE MODE OF AN ABSENT-SAFE CONTRACT IS
+        // A BLANK PANEL AND A GREEN SUITE, which is this repo's oldest shape.
+        //
+        // ⭐⭐ AND THE WIRING IS NOT SPELLED HERE AT ALL ANY MORE. It is
+        // panelOptionsFor() in game-names.js — a pure function over the registry
+        // — because the first harness written to pin this bug FAILED ITS OWN
+        // MUTATION TEST. The options were an object literal inside this file,
+        // which imports firebase-config.js, so nothing could import them and the
+        // only available check was a regex counting `gaugeCanvas:` in the
+        // source. Reinstating the exact shipped bug kept that count at one and
+        // the suite stayed green. ⚠️ A REGEX CANNOT SEE CONTROL FLOW, and which
+        // games receive a console is nothing but control flow.
+        // ⚠️ SO THIS LINE IS LOAD-BEARING FOR THE TEST, NOT ONLY FOR THE PAGE.
+        // Inlining these options again would restore an untestable literal.
+        ...panelOptionsFor(g.id, PANEL_ELS()),
         ...(g.id === 'escape'
             ? { poolFor: poolProviderFor(
                     arcadeKeySet(LESSONS, PROGRESS, chosenLevelIdx()),

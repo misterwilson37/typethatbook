@@ -1,3 +1,11 @@
+// arcade-panels-test.mjs v1.4.0 — Round 114 (Carriage): Part I. ⚠️⚠️ ITS FIRST
+// DRAFT PASSED ITS OWN MUTATION TEST AND WAS THEREFORE WORTHLESS — it counted
+// `gaugeCanvas:` in arcade.html's source, and reinstating the exact shipped bug
+// (Deadline receiving no console on the free-play path) left that count at one.
+// A regex over source text cannot see control flow. Rewritten to CALL
+// panelOptionsFor() for every id in GAME_ORDER; mutation-verified seven ways.
+// Also the first assertions drawWavePreview() has ever had, and stripHtml(),
+// because stripJs() leaves `<!-- -->` behind and two checks went red on prose.
 // arcade-panels-test.mjs v1.3.0 — Round 101: Part H, the console's spare height,
 // the seconds on BANKED, the free word-end space and the two error signals on
 // the board.
@@ -38,8 +46,9 @@
 
 import { readFileSync } from 'fs';
 import { drawRadar, drawGauges, drawSevenSeg, sevenSegWidth, drawThreatBoard,
-         drawCountdownOverlay, drawKeyboardStrip } from '../game-draw.js';
+         drawCountdownOverlay, drawKeyboardStrip, drawWavePreview } from '../game-draw.js';
 import * as LAY from '../game-layout.js';
+import { GAMES, GAME_ORDER, panelOptionsFor, usesThreatBoard } from '../game-names.js';
 
 let pass = 0, fail = 0;
 const failures = [];
@@ -123,6 +132,16 @@ function withFullMotion(fn) {
 const stripJs = src => src
     .replace(/\/\*[\s\S]*?\*\//g, ' ')
     .replace(/^[ \t]*\/\/.*$/gm, ' ');
+
+/** ⚠️⚠️ AND `<!-- -->` TOO, FOR arcade.html. stripJs() removes JS comments only,
+ *  so on an HTML file every markup comment survives into the "code" — and this
+ *  repo comments heavily, INCLUDING by quoting the exact strings a check is
+ *  asserting are gone. Two of Part I's assertions went red on correct code for
+ *  that reason: one counted a function name inside a comment about the function,
+ *  the other found deleted copy quoted in the note recording its deletion.
+ *  ⭐ FOURTH BADLY-AIMED ASSERTION IN THIS FILE'S HISTORY, and the same lesson as
+ *  the other three: decide what a failure would MEAN before writing the check. */
+const stripHtml = src => stripJs(src.replace(/<!--[\s\S]*?-->/g, ' '));
 
 const textOps = ctx => ctx.ops.filter(o => o.op === 'text');
 const findText = (ctx, s) => textOps(ctx).find(o => o.text === s);
@@ -949,6 +968,262 @@ console.log('\nH — ROUND 101: THE SPARE HEIGHT, THE SECONDS, AND THE TWO SIGNA
        'and only the motion is what it loses \u2014 the scale, never the colour');
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\nI — ROUND 114: EVERY GAME GETS A CONSOLE, AND NO PANEL IS RESERVED FOR NOBODY');
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ ALL THREE DEFECTS THIS PART COVERS WERE FOUND BY JAKE ON THE LIVE PAGE
+// WHILE ALL 141 ASSERTIONS ABOVE WERE GREEN, AND THEY WERE GREEN HONESTLY: every
+// one of them checks that a panel DRAWS CORRECTLY WHEN CALLED. Not one checked
+// that anything CALLS IT. ⭐ THE GAP IS THE SAME ONE HANDOFF-games.md §1d
+// already named — *"a test that constructs the precondition it is checking proves
+// the code CAN do the thing, not that the thing HAPPENS"* — and it cost eleven
+// rounds of a finished game nobody could reach.
+{
+    const html = readFileSync(new URL('../arcade.html', import.meta.url), 'utf8');
+    // ⚠️ MARKUP COMMENTS OUT AS WELL AS JS ONES. See stripHtml().
+    const code = stripHtml(html);
+    const free = code.slice(code.indexOf('function playFree()'),
+                            code.indexOf('function finishFree'));
+    ok(free.length > 200, 'playFree() is locatable in the page source');
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ THE FIRST VERSION OF THIS BLOCK PASSED ITS OWN MUTATION TEST AND WAS
+    // THEREFORE WORTHLESS. It counted occurrences of `barHost:` and
+    // `gaugeCanvas:` inside playFree()'s source and asserted each appeared
+    // exactly once. Reinstating the exact shipped defect — moving the shared
+    // options back inside the `shatter` spread, which is what was live when Jake
+    // reported *"there are no active consoles on deadline"* — left both counts at
+    // one, and all 185 assertions stayed green.
+    //
+    // ⭐ THE PROPERTY BEING CHECKED IS "WHICH GAMES RECEIVE A CONSOLE", WHICH IS
+    // CONTROL FLOW, AND A REGEX OVER SOURCE TEXT CANNOT SEE CONTROL FLOW. Round
+    // 114 moved the decision into panelOptionsFor() so it could be CALLED, which
+    // is the same move escape-board.js made before the camper bug was testable.
+    //
+    // ⚠️ THIS IS THE FIFTH BADLY-AIMED ASSERTION IN THIS FILE'S HISTORY, and the
+    // only one that would have shipped a false claim of coverage. The other four
+    // went red on correct code, which is loud; this one went GREEN on broken
+    // code, which is silent. ⭐ WRITE DOWN WHAT A FAILURE WOULD MEAN, THEN CHECK
+    // THAT THE CHECK CAN FAIL.
+    // ═════════════════════════════════════════════════════════════════════════
+    const ELS = { barHost: 'BAR', gauge: 'GAUGE', left: 'LEFT',
+                  threat: 'THREAT', minutes: 'MINUTES' };
+
+    for (const id of GAME_ORDER) {
+        if (GAMES[id].unbuilt) continue;
+        const o = panelOptionsFor(id, ELS);
+        const title = GAMES[id].title;
+        // ⚠️⚠️ THE ASSERTION THE OLD ONE COULD NOT MAKE. Every game the picker
+        // offers gets the console, and this fails for any game the registry
+        // forgets rather than for a substring that moved.
+        ok(o.barHost === 'BAR',
+           '⚠️⚠️ ' + title + ' receives a barHost, so its controls are real tap ' +
+           'targets rather than a floating bar over the sky');
+        ok(o.gaugeCanvas === 'GAUGE',
+           '⚠️⚠️ ' + title + ' receives a gaugeCanvas \u2014 THE DEFECT JAKE ' +
+           'REPORTED: Deadline received none on the free-play path');
+        ok(o.minutes === 'MINUTES',
+           title + ' receives the live minutes getter, so BANKED climbs');
+        // ⚠️ AND A LEFT PANEL, UNDER THE NAME ITS OWN VIEW ACCEPTS. Escape Key
+        // and Shatter also accept `radarCanvas` as a fallback, so a collapsed
+        // single key would work and would stop saying which panel is meant.
+        const leftKey = GAMES[id].panels.left;
+        ok(o[leftKey] === 'LEFT',
+           title + ' receives its left panel as `' + leftKey + '`');
+        // ⚠️ THE FIRST FORM OF THIS FILTER CAUGHT `gaugeCanvas` TOO — every
+        // console option ends in "Canvas", so "one left-panel key" cannot be
+        // expressed as "one key ending in Canvas". Named exclusions, because the
+        // set of left-panel aliases is exactly the three in the registry.
+        const leftKeys = Object.keys(o).filter(
+            k => /Canvas$/.test(k) && k !== 'threatCanvas' && k !== 'gaugeCanvas');
+        ok(leftKeys.length === 1,
+           '⚠️ ' + title + ' gets exactly ONE left-panel key, never two aliases ' +
+           'of one box (' + leftKeys.join(',') + ')');
+    }
+
+    // ⚠️ THE THREAT BOARD IS DEADLINE'S ALONE, AND THE OTHER TWO VIEWS ACCEPT NO
+    // SUCH OPTION. A silently-ignored option is worse than an absent one.
+    ok(panelOptionsFor('deadline', ELS).threatCanvas === 'THREAT',
+       'Deadline receives the threat board');
+    for (const id of ['escape', 'shatter']) {
+        ok(!('threatCanvas' in panelOptionsFor(id, ELS)),
+           '⚠️⚠️ ' + GAMES[id].title + ' is passed NO threatCanvas, because its ' +
+           'view does not accept one');
+        ok(usesThreatBoard(id) === false,
+           'and usesThreatBoard() agrees, so the page hides the empty box');
+    }
+    ok(usesThreatBoard('deadline') === true,
+       '⭐ usesThreatBoard() reads the SAME registry flag panelOptionsFor() uses, ' +
+       'so the page cannot reveal a box it passed no canvas for');
+
+    // ⚠️ ABSENT-SAFE, BECAUSE learn.js MOUNTS THESE VIEWS WITH NO PANELS AT ALL.
+    // ⭐ AND AN ABSENT ELEMENT MUST YIELD AN ABSENT KEY, NOT `undefined`: the
+    // views test `opts.gaugeCanvas || null`, so an explicit undefined works today
+    // and would silence a genuinely missing element tomorrow.
+    for (const id of GAME_ORDER) {
+        const bare = panelOptionsFor(id, {});
+        ok(Object.keys(bare).length === 0,
+           '⚠️ ' + id + ' with no elements yields NO keys at all, not undefined ones');
+    }
+    ok(Object.keys(panelOptionsFor('nonesuch', ELS)).length === 0,
+       '⚠️ an unknown game id gets no canvases rather than Deadline\u2019s');
+    ok(Object.keys(panelOptionsFor(undefined, ELS)).length === 0,
+       'and neither does an absent one');
+
+    // ⚠️⚠️ AND THE PAGE MUST DELEGATE RATHER THAN HAND-ROLL. The checks above
+    // prove the function is right; this one proves it is the thing being used.
+    // ⭐ THE STRONGEST FORM IS AN ABSENCE: no launch path may name a canvas
+    // option itself, or there is a second wiring decision and the tested one is
+    // decoration.
+    ok(/\.\.\.panelOptionsFor\(g\.id, PANEL_ELS\(\)\)/.test(free),
+       '⚠️⚠️ playFree() delegates its whole console wiring to panelOptionsFor()');
+    const lesson = code.slice(code.indexOf('function play()'),
+                              code.indexOf('function PANEL_ELS') > code.indexOf('function play()')
+                                ? code.indexOf('function PANEL_ELS')
+                                : code.indexOf('function playFree'));
+    const paths = code.slice(code.indexOf('function play()'),
+                             code.indexOf('function finishFree'));
+    for (const opt of ['gaugeCanvas', 'radarCanvas', 'threatCanvas',
+                       'previewCanvas', 'panelCanvas', 'barHost']) {
+        ok(!new RegExp(opt + ':').test(paths),
+           '⚠️ neither launch path names `' + opt + '` itself (' +
+           'that literal is what could not be tested)');
+    }
+    ok((code.match(/panelOptionsFor\(/g) || []).length === 2,
+       '⭐ and it is called exactly twice \u2014 once per launch path, one record ' +
+       'of one wiring decision (' +
+       (code.match(/panelOptionsFor\(/g) || []).length + ')');
+
+    // ⚠️⚠️ THE THREAT BOX IS COLLAPSED WHEN NOTHING DRAWS INTO IT. Jake: *"There's
+    // also dead space below the incoming monsters row."* That space was a fixed
+    // 104px canvas only Deadline is handed.
+    // ⭐ ONE WRITER, TWO CALL SITES, AND THE SAME TEST AS THE CANVAS ITSELF. A
+    // page that revealed the box on a rule of its own would have two answers to
+    // "does this game have a threat board".
+    ok(/function showThreatBoard\(on\)/.test(code),
+       'showThreatBoard() is the one writer of the threat box\u2019s visibility');
+    ok((code.match(/showThreatBoard\(/g) || []).length === 3,
+       '\u26a0 declared once and called from BOTH launch paths (' +
+       (code.match(/showThreatBoard\(/g) || []).length + ' mentions)');
+    ok(/showThreatBoard\(usesThreatBoard\(g\.id\)\)/.test(free),
+       '\u26a0\u26a0 and free play derives it from usesThreatBoard(), the SAME ' +
+       'registry flag that decides whether threatCanvas is passed \u2014 not from ' +
+       'an id comparison of its own');
+    ok(/#radar-col\.no-threat #threat-canvas \{ display: none; \}/.test(code),
+       'the collapse is display:none, not a zero height that still costs frames');
+
+    // ⚠️ THE SUFFIX IS GONE FROM THE PICKER. Jake, 2026-09-10: *"On this panel,
+    // they're all for fun."* ⭐ AND `assessed` MAY NOT DECIDE A LABEL AGAIN: it
+    // means a game CAN carry a grade, and nothing on this page carries one.
+    const fillGames = code.slice(code.indexOf('function fillGames()'),
+                                 code.indexOf('function applyGameMode'));
+    ok(/o\.textContent = titleOf\(id\);/.test(fillGames),
+       '\u26a0 a game option is labelled with its title and nothing else');
+    ok(!/just for fun/.test(fillGames),
+       'and carries no for-fun suffix');
+    ok(!/g\.assessed \?/.test(fillGames),
+       '\u26a0\u26a0 nor any other label derived from `assessed`');
+
+    // ⚠️⚠️ ONE WRITER FOR WHAT THE PAGE KEEPS. The paragraph under the frame said
+    // time was not counted while the gates panel said it was, on one screen,
+    // and the seconds really are written to typing_logs.
+    ok(/function savedNote\(\)/.test(code), 'savedNote() exists');
+    ok((code.match(/savedNote\(\)/g) || []).length === 3,
+       '\u26a0 and BOTH gate panels call it (' +
+       (code.match(/savedNote\(\)/g) || []).length + ' mentions incl. declaration)');
+    const note = code.slice(code.indexOf('function savedNote()'));
+    ok(/not saved yet/.test(note.slice(0, 600)) &&
+       /counts toward your day and your week/.test(note.slice(0, 600)),
+       '\u2b50 it says BOTH halves \u2014 the time is kept, the grade is not');
+    // ⚠️ AND THE FALSE CLAIM IS DELETED RATHER THAN CORRECTED IN PLACE. A second
+    // copy anywhere is the thing that goes stale when the wiring lands.
+    ok(!/your time, score and grade/.test(code),
+       '\u26a0\u26a0 the old paragraph\u2019s "time doesn\u2019t count" claim is gone entirely');
+    ok(/<p class="note" id="game-note"><\/p>/.test(code),
+       'and that paragraph is filled from applyPageChrome(), not hardcoded');
+    ok(/\$\('game-title'\)\.textContent = titleOf\(g\.id\)\.toUpperCase\(\)/.test(code),
+       '\u26a0 the page title tracks the chosen game via titleOf(), not a literal');
+}
+
+{
+    // ═════════════════════════════════════════════════════════════════════════
+    // THE WAVE QUEUE — UNTESTED UNTIL NOW, WHICH IS WHY IT HELD A SECOND COPY OF
+    // ITS OWN ROW COUNT.
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // ⚠️⚠️ drawWavePreview() SHIPPED IN ROUND 108 WITH NO ASSERTIONS AT ALL. It
+    // sliced its input to a literal 4 while game-escape.js called upcoming(4) —
+    // two records of one quantity, in two files, agreeing by luck. Round 114
+    // raised the view to 5; without this the panel would have gone on drawing 4
+    // and the change would have read as a deploy that did not take.
+    const waves = [
+        { wave: 1, kind: 'kaiju',  gap: null },
+        { wave: 2, kind: 'spider', gap: 2 },
+        { wave: 3, kind: 'spider', gap: 3 },
+        { wave: 4, kind: 'hunter', gap: 2 },
+        { wave: 5, kind: 'kaiju',  gap: 4 },
+    ];
+    const preview = (H, o) => { const c = recorder();
+        drawWavePreview(c, Object.assign({ W: LAY.RADAR_COL_W - 26, H, waves,
+                                           progress: 0.5, round: 3, tip: true }, o));
+        return c; };
+    const rowsOf = c => textOps(c).filter(o => /^(KAIJU|SPIDER|HUNTER)$/.test(o.text)).length;
+    const bottomOf = c => Math.max(...textOps(c).map(o => o.y),
+        ...c.ops.filter(o => o.op === 'fill').flatMap(o => o.pts.map(p => p[1])));
+
+    // ⭐ THE FIFTH CREATURE, WHICH IS THE THING JAKE ASKED FOR. It is only
+    // affordable because the threat box beside it is collapsed, so the height
+    // asserted here is the height the left flank actually has on his screen.
+    const tall = preview(520);
+    ok(rowsOf(tall) === 5,
+       '\u2b50 at a full-height flank all FIVE queued creatures are drawn (' +
+       rowsOf(tall) + ')');
+    ok(!!findText(tall, 'EXTRA LIFE'),
+       '\u26a0\u26a0 and the extra-life tip SURVIVES the extra row \u2014 it is the one ' +
+       'rule a student would never guess, and the row count may not buy space from it');
+    ok(!!findText(tall, 'WAVE 3'), 'the current wave is headed');
+    ok(!!findText(tall, 'when the board clears'),
+       'the first row prints its timing in full, untruncated');
+    ok(textOps(tall).filter(o => o.text === 'then').length === 4,
+       '\u26a0 only the NEXT wave gets a time; the four behind it read "then" (' +
+       textOps(tall).filter(o => o.text === 'then').length + ')');
+
+    // ⚠️⚠️ THE COUNT IS DERIVED, SO IT DEGRADES INSTEAD OF OVERFLOWING. This is
+    // the assertion the old literal could not satisfy: at 200px, four 48px rows
+    // plus a header ran to 226px inside a 200px canvas, and the tip was dropped
+    // by a guard that had already been overrun.
+    for (const H of [LAY.RADAR_MIN_H, 240, 300, 420, 520, 640]) {
+        const c = preview(H);
+        ok(bottomOf(c) <= H,
+           '\u26a0\u26a0 nothing leaves the panel at ' + H + 'px (' +
+           Math.round(bottomOf(c)) + ')');
+        ok(rowsOf(c) >= 1, 'and at least one creature is always shown at ' + H + 'px');
+    }
+    ok(rowsOf(preview(LAY.RADAR_MIN_H)) < rowsOf(tall),
+       '\u2b50 a short flank shows FEWER creatures rather than smaller ones');
+    ok(rowsOf(preview(640)) === rowsOf(tall),
+       'and the count is capped by what the view offered, not by the height');
+
+    // ⚠️ THE VIEW IS WHAT DECIDES HOW MANY ARE AVAILABLE, and it must ask for
+    // more than four or the derived count has nothing to spend the height on.
+    const esc = stripJs(readFileSync(new URL('../game-escape.js', import.meta.url), 'utf8'));
+    ok(/board\.upcoming\(5\)/.test(esc),
+       'game-escape.js offers five, so the panel has a fifth to draw');
+    const drawSrc = stripJs(readFileSync(new URL('../game-draw.js', import.meta.url), 'utf8'));
+    const wp = drawSrc.slice(drawSrc.indexOf('export function drawWavePreview'),
+                             drawSrc.indexOf('function wrapText'));
+    ok(!/slice\(0, [0-9]+\)/.test(wp),
+       '\u26a0\u26a0 and the panel holds NO literal row count of its own');
+
+    // Absent-safe, like every other panel: learn.js passes no canvases at all.
+    let threw = false;
+    try { const c = recorder();
+        drawWavePreview(c, { W: 174, H: 300, waves: [], progress: null, round: 1 }); }
+    catch (_) { threw = true; }
+    ok(!threw, 'an empty queue draws nothing and does not throw');
+}
 
 console.log(fail
     ? `\narcade-panels-test: ${pass} passed, ${fail} FAILED`

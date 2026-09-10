@@ -1,3 +1,10 @@
+// tests/game-assumptions-test.mjs v1.1.0 — Round 114 (Carriage). ⚠️⚠️ AN
+// ASSERTION IN HERE WAS DEFENDING A BUG FOR ELEVEN ROUNDS: it pinned
+// `GAMES.shatter.unbuilt === true`, which was correct in Round 82 and false from
+// Round 103, and it stayed green while `fillGames()` silently dropped Shatter
+// from the only picker that offers it. ⭐ THE FAULT WAS THE SHAPE, NOT THE VALUE
+// — it pinned a fact about the WORLD as though it were a fact about the DESIGN.
+// The flag is now DERIVED from whether each view exists on disk.
 // tests/game-assumptions-test.mjs v1.0.0 — DOES THE REPO STILL LOOK THE WAY THE
 // GAMES ASSUME IT DOES? Round 82 (Victor).
 //
@@ -321,7 +328,9 @@ console.log('\nPART I — the name registry is internally consistent');
     ok(!isAssessed('escape'),
        'Escape Key is arcade-only for now — ⚠️ a PRODUCT decision, not a capability ' +
        'one; escape-board-test Part B is what would earn it the graded path');
-    ok(!isAssessed('shatter'), 'and Shatter is not assessed, because it does not exist yet');
+    ok(!isAssessed('shatter'),
+       'and Shatter is not assessed \u2014 ⚠️ a PRODUCT decision like Escape Key\u2019s, ' +
+       'NOT a statement that it is unfinished; it shipped in Round 103');
     ok(Object.keys(GAMES).every(k => GAMES[k].countsTime === true),
        '⚠️ EVERY game counts time toward totals — Jake: "It\'s tricking them into ' +
        'practicing more, so of course it counts"');
@@ -330,7 +339,44 @@ console.log('\nPART I — the name registry is internally consistent');
        'assume a Friday; a game that vanishes on a Tuesday reads as broken');
     ok(ARCADE_ENTRY.libraryTile && ARCADE_ENTRY.schoolOption,
        'both entry points Jake asked for are recorded (library tile + school-page option)');
-    ok(GAMES.shatter.unbuilt === true, 'Shatter is flagged unbuilt so no picker offers it');
+    // ═════════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ THE ASSERTION THAT USED TO LIVE HERE WAS DEFENDING THE BUG.
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // It read `ok(GAMES.shatter.unbuilt === true, 'Shatter is flagged unbuilt so
+    // no picker offers it')`. That was true and correct in Round 82. Round 103
+    // BUILT the game, Rounds 106 and 109 took it to v1.2.0 with both side panels
+    // wired — and this line went on passing, green, for eleven rounds, while
+    // `fillGames()` silently dropped Shatter from the only picker that offers it.
+    // Jake could not give feedback on a game he was never shown.
+    //
+    // ⭐ THE FAULT IS THE SHAPE OF THE ASSERTION, NOT THE VALUE IN IT. It pinned
+    // a fact about the WORLD ("this game does not exist") as though it were a
+    // fact about the DESIGN ("this game must not be offered"). Facts about the
+    // world go stale on their own; the harness then holds the stale one in place
+    // and reports success for doing so.
+    //
+    // ⚠️ SO THE FLAG IS NOW DERIVED FROM DISK RATHER THAN ASSERTED AS A LITERAL.
+    // A view that exists may not be flagged unbuilt, and a flag with no view
+    // behind it may not be missing. Either way round, this goes red — and it
+    // needs no editing when a fourth game arrives.
+    for (const id of GAME_ORDER) {
+        const g = GAMES[id];
+        const src = read(String(g.module || '').replace(/^\.\//, ''));
+        ok(!!src === !g.unbuilt,
+           `⚠️⚠️ ${g.title}: the view ${src ? 'EXISTS' : 'is ABSENT'} on disk, so ` +
+           `unbuilt must be ${src ? 'falsy' : 'true'} (is ${JSON.stringify(g.unbuilt)}) ` +
+           '\u2014 a registry that denies a finished game is why Shatter was ' +
+           'unreachable for eleven rounds');
+    }
+    // ⚠️ AND THE PICKER'S FILTER IS THE THING THAT MAKES THE FLAG MATTER, so it
+    // is checked here rather than assumed. If arcade.html ever stops reading the
+    // flag, the check above is measuring a quantity nothing consumes.
+    {
+        const html = read('arcade.html') || '';
+        ok(/if \(!g \|\| g\.unbuilt\) continue;/.test(html),
+           'and fillGames() is still the consumer of that flag, so it still matters');
+    }
     ok(Object.keys(GAMES).every(k => GAMES[k].title && GAMES[k].module),
        'every game has a display title and a module path');
 }
