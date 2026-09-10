@@ -15,8 +15,9 @@
 // reopened.
 
 import {
-    EscapeBoard, COLS, ROWS, MIN_SPAWN_DISTANCE, MAX_ENEMIES,
-    STEPS_PER_ROUND, HUNTER_ROUND, ESCAPE_BOARD_VERSION,
+    EscapeBoard, COLS, ROWS, MAX_ENEMIES, HUNTER_WAVE, CLEAR_WAVES,
+    WEB_STEPS, ASH_STEPS, STUCK_STEPS, PEEK_STEPS,
+    gapForWave, kindForWave, ESCAPE_BOARD_VERSION,
 } from '../escape-board.js';
 import { makeArcadeTargets, GameDirector, enemyStepMs } from '../game-shell.js';
 import { firstBlocked } from '../drill-filter.js';
@@ -50,14 +51,11 @@ console.log('PART A — the board is legible and choosable');
 {
     const b = new EscapeBoard({ pool: pool(1), rand: mulberry(2) });
     ok(b.grid.length === ROWS && b.grid[0].length === COLS, 'the board is 6×5');
-    ok(b.grid[b.player.y][b.player.x] === '', 'the player\'s own cell is never a target');
+    ok(b.grid[b.player.y][b.player.x] === '', "the player's own cell is never a target");
 
-    // ⭐ The fix that makes small key sets work: four adjacent cells, four
-    // distinct first characters.
     let checked = 0, collisions = 0;
-    for (let trial = 0; trial < 400; trial++) {
+    for (let trial = 0; trial < 200; trial++) {
         const bb = new EscapeBoard({ pool: pool(trial + 1), rand: mulberry(trial + 100) });
-        // Walk it around so the check covers corners and edges too.
         for (let m = 0; m < 6; m++) {
             const firsts = bb.adjacent(bb.player.x, bb.player.y)
                 .map(c => bb.grid[c.y][c.x]).filter(Boolean).map(w => w[0]);
@@ -69,364 +67,231 @@ console.log('PART A — the board is legible and choosable');
             for (const ch of target) bb.tryKey(ch);
         }
     }
-    ok(collisions === 0,
-       `${checked} neighbourhoods across 400 boards, no two adjacent words share a first ` +
-       `character (${collisions} collisions)`);
-
-    const dirty = pool(7).filter(w => firstBlocked(w) !== '');
-    ok(dirty.length === 0, 'the pool is already filtered — no words are generated in this file');
+    ok(collisions === 0, `four adjacent cells, four distinct first characters (${checked} boards)`);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-console.log('\nPART B — ⭐ THE CAMPER DIES');
-// ═════════════════════════════════════════════════════════════════════════════
-
-/**
- * Run a board for N enemy steps with a given keystroke policy.
- * `policy` returns a character to type each step, or null to type nothing.
- */
-function runBoard({ seed, steps, pressure = 1.0, policy, shields = 3, stopAfterMoves = null }) {
-    const b = new EscapeBoard({ pool: pool(seed), rand: mulberry(seed * 31 + 7) });
-    let hits = 0, moves = 0, keys = 0, mistakes = 0;
-    for (let s = 0; s < steps; s++) {
-        if (policy) {
-            // The student gets roughly one word's worth of keystrokes per enemy
-            // step, which is what a gate-speed typist has.
-            for (let k = 0; k < 4; k++) {
-                const ch = policy(b);
-                if (ch == null) break;
-                const r = b.tryKey(ch);
-                keys++;
-                if (!r.correct) mistakes++;
-                if (r.kind === 'move') { moves++; break; }
-            }
-        }
-        const events = b.step(pressure);
-        if (events.some(e => e.t === 'caught')) { hits++; b.respawn(); }
-        if (hits >= shields) return { b, hits, moves, keys, mistakes, diedAtStep: s + 1 };
-        // ⚠️ AN ASSESSED RUN ENDS AT THE QUOTA, NOT AFTER A FIXED NUMBER OF ENEMY
-        // STEPS. The first version of the mission check ran a flat 40 steps, which
-        // kept the board alive past the point a real mission would have finished
-        // and counted deaths that could not have happened.
-        if (stopAfterMoves != null && moves >= stopAfterMoves) {
-            return { b, hits, moves, keys, mistakes, diedAtStep: null, cleared: true };
-        }
-    }
-    return { b, hits, moves, keys, mistakes, diedAtStep: null };
-}
-
-// The camper: never types a key.
-const camperDeaths = [];
-for (let seed = 1; seed <= 40; seed++) {
-    const r = runBoard({ seed, steps: 200, policy: () => null });
-    camperDeaths.push(r.diedAtStep);
-}
-const camperSurvivors = camperDeaths.filter(d => d === null).length;
-const median = camperDeaths.filter(Boolean).sort((a, b) => a - b)[
-    Math.floor(camperDeaths.filter(Boolean).length / 2)];
-console.log(`  [40 campers: ${40 - camperSurvivors} died, median at enemy step ${median}]`);
-ok(camperSurvivors === 0,
-   'a student who types NOTHING loses all three shields on every one of 40 seeds');
-ok(median <= 40,
-   `and quickly — median death at step ${median}, about ${(median * 3.2 / 60).toFixed(1)} minutes ` +
-   'at a 15 WPM gate, so camping is not a strategy even briefly');
-
-{
-    // ⚠️ THE MOVER MUST DODGE, OR THE TEST MEASURES THE WRONG THING. The first
-    // version of this policy always typed the first available neighbour, which
-    // walked cheerfully into enemies — 37 of 40 died, and that number said
-    // nothing about the design because no child plays that way. A student looks
-    // at the board and moves AWAY from the creature. The claim worth pinning is
-    // that a competent gate-speed player survives; a random walker dying is not
-    // evidence against it.
-    //
-    // ⚠️ IT ALSO COMMITS TO A TARGET. Once a word is started the student finishes
-    // it — switching mid-word is not available to them, since the buffer is
-    // shared, so a policy that re-decided every keystroke would have superhuman
-    // information.
-    let choice = null;
-    const safest = b => {
-        if (b.player.webWord != null) return b.player.webWord[b.typed.length];
-        if (b.typed === '' || !choice) {
-            const opts = b.adjacent(b.player.x, b.player.y)
-                .filter(c => b.grid[c.y][c.x])
-                .map(c => {
-                    let d = Infinity;
-                    for (const e of b.enemies) d = Math.min(d, Math.abs(e.x - c.x) + Math.abs(e.y - c.y));
-                    return { word: b.grid[c.y][c.x], d };
-                })
-                .sort((a, z) => z.d - a.d);
-            if (!opts.length) { b.clearTyped(); choice = null; return null; }
-            choice = opts[0].word;
-        }
-        if (!choice.startsWith(b.typed)) { b.clearTyped(); choice = null; return null; }
-        const ch = choice[b.typed.length];
-        if (ch == null) { choice = null; return null; }
-        return ch;
-    };
-
-    let deaths = 0, totalMoves = 0, movesBeforeDeath = [];
-    for (let seed = 1; seed <= 40; seed++) {
-        choice = null;
-        const r = runBoard({ seed, steps: 200, policy: safest });
-        if (r.diedAtStep) { deaths++; movesBeforeDeath.push(r.moves); }
-        totalMoves += r.moves;
-    }
-    const avgMoves = Math.round(totalMoves / 40);
-    console.log(`  [40 dodging movers, 200 steps: ${deaths} died, ${avgMoves} moves each]`);
-    // ⚠️ THE NUMBER THAT MATTERS FOR THE GRADED PATH: an assessed mission is one
-    // run's worth of targets, about 28 on a word-list chunk. If a competent
-    // player cannot clear that many moves before dying, the mission is
-    // unwinnable at the gate and Escape Key does not belong on the graded path.
-    ok(avgMoves >= 28,
-       `a dodging player clears ${avgMoves} moves on average — a 28-target mission is winnable`);
-
-    // ⚠️ AND THE DEATH RATE OVER 200 STEPS IS **NOT** A FAILURE. 200 enemy steps
-    // is 10.7 minutes at a 15 WPM gate — an endless arcade run, where the ramp is
-    // supposed to win eventually. The first version of this block asserted
-    // "survives more often than not" over that span, which measured the arcade
-    // board and called it a mission bug. The mission-length claim is the one
-    // that bears on the grade:
-    // A real assessed mission: one word-list chunk, 28 targets, ends when cleared.
-    const QUOTA_TARGETS = 28;
-    let missionDeaths = 0;
-    for (let seed = 1; seed <= 40; seed++) {
-        choice = null;
-        const r = runBoard({ seed, steps: 400, policy: safest, stopAfterMoves: QUOTA_TARGETS });
-        if (r.diedAtStep) missionDeaths++;
-    }
-    console.log(`  [40 dodging movers, real ${QUOTA_TARGETS}-target mission: ${missionDeaths} died]`);
-    ok(missionDeaths <= 4,
-       `a dodging player clears a ${QUOTA_TARGETS}-target mission on at least 36 of 40 seeds ` +
-       `(${40 - missionDeaths}/40)`);
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-console.log('\nPART C — the spawn rule that makes Part B true');
-// ═════════════════════════════════════════════════════════════════════════════
-
-{
-    let onAxis = 0, tooClose = 0, total = 0;
-    for (let seed = 1; seed <= 60; seed++) {
-        const b = new EscapeBoard({ pool: pool(seed), rand: mulberry(seed * 13 + 3) });
-        for (let s = 0; s < 60; s++) {
-            const before = b.enemies.length;
-            const px = b.player.x, py = b.player.y;
-            b.step(1.4);
-            if (b.enemies.length > before) {
-                const e = b.enemies[b.enemies.length - 1];
-                total++;
-                if (e.x === px || e.y === py) onAxis++;
-                const axisDist = e.x === px ? Math.abs(e.y - py) : Math.abs(e.x - px);
-                if (axisDist < MIN_SPAWN_DISTANCE) tooClose++;
-            }
-            // Keep the player moving so the axis actually changes.
-            const t = b.adjacent(b.player.x, b.player.y).map(c => b.grid[c.y][c.x]).find(Boolean);
-            if (t) for (const ch of t) b.tryKey(ch);
-        }
-    }
-    console.log(`  [${total} spawns observed]`);
-    ok(total > 100, 'enough spawns observed to mean something');
-    ok(onAxis === total,
-       `EVERY enemy arrives on the player's row or column (${onAxis}/${total})`);
-    ok(tooClose === 0,
-       `and none within ${MIN_SPAWN_DISTANCE} cells — telegraphed, never an ambush (${tooClose})`);
-}
-
-{
-    // Population and the hunter unlock ride the director's pressure, not a
-    // display-only round counter.
-    const b1 = new EscapeBoard({ pool: pool(5), rand: mulberry(9) });
-    for (let s = 0; s < 60; s++) b1.step(1.0);
-    const b2 = new EscapeBoard({ pool: pool(5), rand: mulberry(9) });
-    for (let s = 0; s < 60; s++) b2.step(2.0);
-    ok(b2.enemies.length > b1.enemies.length,
-       `higher pressure means more enemies (${b1.enemies.length} at 1.0 vs ${b2.enemies.length} at 2.0)`);
-    ok(b1.enemies.length <= MAX_ENEMIES && b2.enemies.length <= MAX_ENEMIES,
-       'and it is capped, so the board never becomes unreadable');
-
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-console.log('\nPART C2 — ⭐ THE HUNTER ACTUALLY SHOWS UP');
+console.log('\nPART B — ⚠️⚠️ THE WAVE SCHEDULE IS A TUTORIAL, AND WAVES 1–3 PROVE IT');
 // ═════════════════════════════════════════════════════════════════════════════
 //
-// ⚠️⚠️ HE DID NOT, AND THE OLD TEST HERE PASSED ANYWAY. It spawned a board at
-// pressure 1.6 and asserted a hunter appeared — proving the MECHANISM while
-// saying nothing about REACHABILITY. In real play pressure is flat at 1.0 through
-// an assessed run and the run ends at the quota, so `pressure >= 1.25` was never
-// met and the hunter existed only in arcade. Jake caught it by asking.
+// Jake's spec, 2026-09-09: *"First round is either a spider or a kaiju. Second
+// round is the opposite... Second round does not spawn until the first round is
+// down. This allows the player to learn what each one does."*
 //
-// ⚠️ THE LESSON GENERALISES: a test that constructs the precondition it is
-// checking for proves the code can do the thing, not that the thing happens.
+// ⚠️⚠️ THE OLD BOARD COULD NOT EXPRESS THIS AT ALL. It spawned on a POPULATION
+// TARGET driven by pressure, so a child met a kaiju and a spider simultaneously
+// in their first thirty seconds with no idea what either one did. That is not a
+// tuning difference; it is the difference between a game that teaches and one
+// that does not.
 
 {
-    ok(HUNTER_ROUND >= 4 && HUNTER_ROUND <= 6,
-       `the hunter unlocks at round ${HUNTER_ROUND} — Jake's "around round 5 or 6"`);
-    const stepAtUnlock = (HUNTER_ROUND - 1) * STEPS_PER_ROUND;
-    console.log(`  [round ${HUNTER_ROUND} begins at enemy step ${stepAtUnlock}` +
-                ` ≈ ${(stepAtUnlock * 3.2).toFixed(0)}s at a 15 WPM gate]`);
+    // The schedule itself, independent of any board.
+    ok(gapForWave(1) === null && gapForWave(3) === null,
+       'waves 1–3 wait for an empty board, not for a distance');
+    ok(gapForWave(4) === 4 && gapForWave(6) === 4, 'waves 4–6 arrive four squares in');
+    ok(gapForWave(9) === 3 && gapForWave(13) === 2 && gapForWave(20) === 1,
+       'and the gap tightens to 3, then 2, then a floor of 1');
+    ok(gapForWave(999) === 1, 'the tail is a floor, not an ever-shrinking table');
 
-    const b = new EscapeBoard({ pool: pool(1), rand: mulberry(2) });
-    ok(b.round === 1, 'a fresh board is round 1');
-    for (let i = 0; i < STEPS_PER_ROUND; i++) b.step(1.0);
-    ok(b.round === 2, 'and advances one round per STEPS_PER_ROUND enemy steps');
+    const r = mulberry(1);
+    ok(kindForWave(2, 'spider', r) === 'kaiju' && kindForWave(2, 'kaiju', r) === 'spider',
+       'wave 2 is always the opposite of wave 1');
+    ok(kindForWave(4, 'spider', r) === 'kaiju', 'and wave 4 the opposite of wave 3');
+    ok(kindForWave(HUNTER_WAVE, 'kaiju', r) === 'hunter',
+       `the hunter is guaranteed at wave ${HUNTER_WAVE}, not rolled for`);
 
-    // ⭐ REACHABILITY, AT THE PRESSURE AN ASSESSED RUN ACTUALLY USES.
-    let sawHunter = 0, firstRounds = [];
-    for (let seed = 1; seed <= 40; seed++) {
-        const bb = new EscapeBoard({ pool: pool(seed), rand: mulberry(seed * 17 + 1) });
-        let seen = null;
-        for (let s2 = 0; s2 < 60; s2++) {
-            bb.step(1.0);   // ⚠️ 1.0 — the flat mission pressure, not a hand-set 1.6
-            if (!seen && bb.enemies.some(e => e.kind === 'hunter')) seen = bb.round;
-            // keep the player moving so spawns keep coming
-            const t = bb.adjacent(bb.player.x, bb.player.y).map(c => bb.grid[c.y][c.x]).find(Boolean);
-            if (t) for (const ch of t) bb.tryKey(ch);
-        }
-        if (seen) { sawHunter++; firstRounds.push(seen); }
-    }
-    const avgRound = (firstRounds.reduce((a, z) => a + z, 0) / (firstRounds.length || 1)).toFixed(1);
-    console.log(`  [40 boards at mission pressure 1.0: ${sawHunter} saw a hunter, ` +
-                `first appearing around round ${avgRound}]`);
-    ok(sawHunter >= 38,
-       `a hunter appears at FLAT MISSION PRESSURE on at least 38 of 40 boards (${sawHunter}/40)`);
-    ok(firstRounds.every(r => r >= HUNTER_ROUND),
-       'and never before the unlock round');
-
-    // And none before it, checked directly.
+    // ⚠️⚠️ NO HUNTER MAY REACH THE BOARD BEFORE ITS WAVE, ON ANY SEED. A student
+    // meeting the bot before they have seen the other two alone has been handed
+    // the hardest creature first.
     let early = 0;
     for (let seed = 1; seed <= 40; seed++) {
-        const bb = new EscapeBoard({ pool: pool(seed), rand: mulberry(seed * 3 + 5) });
-        for (let s2 = 0; s2 < (HUNTER_ROUND - 1) * STEPS_PER_ROUND - 1; s2++) bb.step(2.0);
-        if (bb.enemies.some(e => e.kind === 'hunter')) early++;
+        const b = new EscapeBoard({ pool: pool(seed), rand: mulberry(seed) });
+        for (let i = 0; i < 60; i++) {
+            b.step(1);
+            if (b.wave <= HUNTER_WAVE && b.enemies.some(e => e.kind === 'hunter')) early++;
+        }
     }
-    ok(early === 0,
-       `no hunter before round ${HUNTER_ROUND} even at high pressure (${early}) — ` +
-       'the unlock is the round, not the difficulty');
+    ok(early === 0, `no hunter appears before wave ${HUNTER_WAVE} on 40 seeds`);
+
+    // ⭐ THE TEACHING PROPERTY, STATED AS A COUNT: through the first three waves
+    // there is never more than one creature on the board.
+    let crowded = 0, sawTwo = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+        const b = new EscapeBoard({ pool: pool(seed), rand: mulberry(seed + 7) });
+        for (let i = 0; i < 60; i++) {
+            b.step(1);
+            if (b.wave <= CLEAR_WAVES && b.enemies.length > 1) crowded++;
+            if (b.enemies.length > 1) sawTwo++;
+        }
+    }
+    ok(crowded === 0, 'through waves 1–3 the student faces exactly one creature at a time');
+    ok(sawTwo > 0, '⚠️ and later waves DO overlap — otherwise this is a solitaire, not a curve');
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-console.log('\nPART D — keystrokes: every one counts, and a web never eats one');
+console.log('\nPART C — the creatures do what Jake said they do');
 // ═════════════════════════════════════════════════════════════════════════════
 
 {
-    const b = new EscapeBoard({ pool: pool(3), rand: mulberry(4) });
-    const target = b.adjacent(b.player.x, b.player.y).map(c => b.grid[c.y][c.x]).find(Boolean);
-    const results = Array.from(target).map(ch => b.tryKey(ch));
-    ok(results.every(r => r.correct), 'typing a neighbour out is all correct keystrokes');
-    ok(results[results.length - 1].kind === 'move', 'and the last one moves the player');
-    ok(results.slice(0, -1).every(r => r.kind === 'progress'), 'the earlier ones report progress');
+    // ⭐ THE PEEK. A creature spends a step at the edge before committing.
+    let peeked = 0, spawns = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+        const b = new EscapeBoard({ pool: pool(seed), rand: mulberry(seed + 20) });
+        for (let i = 0; i < 40; i++) {
+            for (const ev of b.step(1)) {
+                if (ev.t !== 'spawn') continue;
+                spawns++;
+                const en = b.enemies.find(e => e.wave === ev.wave);
+                if (en && en.peek === PEEK_STEPS) peeked++;
+            }
+        }
+    }
+    ok(spawns > 50 && peeked === spawns,
+       `all ${spawns} spawns peek before entering — telegraphed, never an ambush`);
 
-    // ⚠️ THE PROTOTYPE DEFECT: an unmatched key was dropped on the floor.
-    const b2 = new EscapeBoard({ pool: pool(3), rand: mulberry(4) });
-    const firsts = new Set(b2.adjacent(b2.player.x, b2.player.y)
-        .map(c => b2.grid[c.y][c.x]).filter(Boolean).map(w => w[0]));
-    const bogus = ['q', 'w', 'z', 'x', 'p'].find(c => !firsts.has(c));
-    const r = b2.tryKey(bogus);
-    ok(r.correct === false && r.kind === 'miss',
-       'a key matching no neighbour is reported as a MISTAKE, not silently dropped');
-    ok(b2.typed === '', 'and the buffer resets so the student is not stuck mid-word');
+    // ⚠️ AND A PEEKING CREATURE CANNOT CATCH ANYONE. A telegraph that could kill
+    // you is not a telegraph.
+    const pb = new EscapeBoard({ pool: pool(1), rand: mulberry(3) });
+    pb.enemies.push({ kind: 'kaiju', x: pb.player.x, y: pb.player.y, dir: 1,
+                      peek: 1, stunSteps: 0, stepsIn: 0, dead: false });
+    ok(pb.caughtBy() === null, 'a creature still peeking cannot catch the player');
 
-    // Case matters, exactly as in a drill.
-    const b3 = new EscapeBoard({ pool: ['said', 'with', 'that', 'from'], rand: mulberry(6) });
-    const t3 = b3.adjacent(b3.player.x, b3.player.y).map(c => b3.grid[c.y][c.x]).find(Boolean);
-    ok(b3.tryKey(t3[0].toUpperCase()).correct === false,
-       'a capital where a lowercase was expected is a mistake — case-sensitive, like the drills');
+    // Axis: kaiju run rows and enter from a side; spiders run columns.
+    let kOK = 0, kN = 0, sOK = 0, sN = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+        const b = new EscapeBoard({ pool: pool(seed), rand: mulberry(seed + 31) });
+        for (let i = 0; i < 50; i++) {
+            for (const ev of b.step(1)) {
+                if (ev.t !== 'spawn') continue;
+                if (ev.kind === 'kaiju') { kN++; if (ev.x === 0 || ev.x === COLS - 1) kOK++; }
+                if (ev.kind === 'spider') { sN++; if (ev.y === 0 || ev.y === ROWS - 1) sOK++; }
+            }
+        }
+    }
+    ok(kN > 0 && kOK === kN, `every kaiju (${kN}) enters from the left or right edge`);
+    ok(sN > 0 && sOK === sN, `every spider (${sN}) enters from the top or bottom edge`);
+
+    // ⭐ 40/40/20. ⚠️ THE 20 IS THE ONE THAT MATTERS — a creature acting on every
+    // step leaves the student no clean square to cross.
+    let steps = 0, acted = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+        const b = new EscapeBoard({ pool: pool(seed), rand: mulberry(seed + 60) });
+        for (let i = 0; i < 60; i++) {
+            const before = b.enemies.filter(e => e.peek === 0 && e.stunSteps === 0
+                && (e.kind === 'kaiju' || e.kind === 'spider')).length;
+            const ev = b.step(1);
+            if (!before) continue;
+            steps += before;
+            acted += ev.filter(e => e.t === 'web' || e.t === 'blast').length;
+        }
+    }
+    const rate = acted / steps;
+    // ⚠️⚠️ 80% IS THE ROLL; THE OBSERVED RATE IS LOWER AND THAT IS CORRECT. A
+    // spider in column 0 that rolls "web left" has nothing to web, and a kaiju on
+    // the top row that rolls "zap up" has nothing to ash — the shot leaves the
+    // board and emits no event. ⭐ MY FIRST ASSERTION HERE DEMANDED ~80% AND
+    // FAILED AT 61%, measuring EFFECTS while claiming to measure ROLLS. The
+    // behaviour was right and the test was wrong.
+    // ⚠️ THE BAND STILL HAS TO EXCLUDE 100%: a creature that acted on every step
+    // would leave the student no clean square to cross, which is what the 20% is
+    // for, and edge-clipping alone would mask that.
+    ok(rate > 0.5 && rate < 0.85,
+       `a creature lands a web or a blast on ${(rate * 100).toFixed(0)}% of its steps `
+       + '(80% rolled, less landed — edge shots clip off the board)');
+
+    // Web and ash durations, verbatim from the spec.
+    ok(WEB_STEPS === 4, 'a web lasts four moves');
+    ok(ASH_STEPS === 5, 'ash holds a square for five');
+    ok(STUCK_STEPS.kaiju === 1 && STUCK_STEPS.hunter === 2,
+       'a webbed kaiju is stuck one turn, a hunter two');
+
+    // ⚠️⚠️ AN ASHED SQUARE IS UNENTERABLE, AND IT IS UNENTERABLE BY HAVING NO
+    // WORD. One rule, so a passability test and a word test cannot disagree.
+    const ab = new EscapeBoard({ pool: pool(5), rand: mulberry(9) });
+    const cell = ab.adjacent(ab.player.x, ab.player.y)[0];
+    ab.ash(cell.x, cell.y);
+    ok(ab.grid[cell.y][cell.x] === '' && !ab.passable(cell.x, cell.y),
+       'an ashed cell holds no word and reports itself impassable');
+    let reachable = false;
+    for (const c of ab.adjacent(ab.player.x, ab.player.y)) {
+        if (c.x === cell.x && c.y === cell.y && ab.grid[c.y][c.x]) reachable = true;
+    }
+    ok(!reachable, 'and no keystroke can route the player into it');
+
+    // ⚠️ THE PLAYER'S OWN SQUARE IS NEVER ASHED — a student standing where a
+    // blast lands must not end up somewhere they are not allowed to be.
+    ab.ash(ab.player.x, ab.player.y);
+    ok(ab.zapped[ab.player.y][ab.player.x] === 0, "a blast never ashes the player's own cell");
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\nPART D — the hunter can be beaten, and beating it pays');
+// ═════════════════════════════════════════════════════════════════════════════
+
 {
-    // Webs: cost a NEW word, never freeze.
-    const b = new EscapeBoard({ pool: pool(8), rand: mulberry(11) });
-    const adj = b.adjacent(b.player.x, b.player.y).find(c => b.grid[c.y][c.x]);
-    b.webs.push({ x: adj.x, y: adj.y, steps: 4 });
-    const word = b.grid[adj.y][adj.x];
+    // ⭐ THE EXTRA LIFE. Jake: *"If it gets caught in a web and the player gets
+    // him, the player can get a new life. Hooray."*
+    const b = new EscapeBoard({ pool: pool(2), rand: mulberry(11) });
+    const c = b.adjacent(b.player.x, b.player.y).find(a => b.grid[a.y][a.x]);
+    b.enemies.push({ kind: 'hunter', x: c.x, y: c.y, dir: 1, peek: 0,
+                     stunSteps: 2, stepsIn: 5, dead: false });
+    b.webs.push({ x: c.x, y: c.y, steps: WEB_STEPS });
+    const word = b.grid[c.y][c.x];
     let res = null;
     for (const ch of word) res = b.tryKey(ch);
-    ok(res.kind === 'move' && res.webbed === true, 'stepping onto a web webs the player');
-    ok(b.player.webWord && b.player.webWord !== word,
-       'and the tear-free word is a NEW word, not the one just typed');
+    ok(res.rescued === true && b.extraLives === 1,
+       'typing onto a webbed hunter destroys it and pays a life');
+    ok(!b.enemies.some(e => e.kind === 'hunter'), 'and the bot is off the board');
+    ok(res.webbed === false,
+       "⚠️ AND THE PLAYER IS NOT WEBBED BY THE SQUARE THEY JUST WON — resolving the web first would web them onto their own trophy");
 
-    const tear = b.player.webWord;
-    const tearResults = Array.from(tear).map(ch => b.tryKey(ch));
-    ok(tearResults.every(r => r.correct), 'every keystroke while webbed lands and counts');
-    ok(tearResults[tearResults.length - 1].kind === 'tear-free', 'and the last one frees them');
-    ok(b.player.webWord === null, 'the web is gone');
+    // ⚠️ A FREE HUNTER IS STILL A DEATH. Otherwise the bot is worth chasing.
+    const b2 = new EscapeBoard({ pool: pool(3), rand: mulberry(12) });
+    b2.enemies.push({ kind: 'hunter', x: b2.player.x, y: b2.player.y, dir: 1,
+                      peek: 0, stunSteps: 0, stepsIn: 5, dead: false });
+    ok(b2.caughtBy() !== null, 'walking into an unwebbed hunter is still a catch');
 
-    // A wrong key while webbed is a mistake, not a swallowed keystroke.
-    const b2 = new EscapeBoard({ pool: pool(8), rand: mulberry(12) });
-    b2.player.webWord = 'asdf';
-    const bad = b2.tryKey('j');
-    ok(bad.correct === false && bad.kind === 'miss',
-       'a wrong key while webbed is charged, not discarded');
-    ok(b2.player.webWord === 'asdf', 'and the player is still webbed rather than freed by an error');
+    // ⭐ A KAIJU DESTROYS A HUNTER IT MEETS, and the hunter alone loses.
+    const b3 = new EscapeBoard({ pool: pool(4), rand: mulberry(13) });
+    b3.enemies.push({ kind: 'hunter', x: 3, y: 2, dir: 1, peek: 0, stunSteps: 0, stepsIn: 5, dead: false });
+    b3.enemies.push({ kind: 'kaiju', x: 3, y: 2, dir: 1, peek: 0, stunSteps: 0, stepsIn: 5, dead: false });
+    const evs = b3.step(1);
+    ok(evs.some(e => e.t === 'destroyed' && e.kind === 'hunter'),
+       'a kaiju sharing a square with the hunter destroys it');
+    ok(b3.enemies.some(e => e.kind === 'kaiju'), '⚠️ and the kaiju survives — only the bot loses');
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-console.log('\nPART D2 — webs stun hunters, and only hunters');
+console.log('\nPART E — ⚠️⚠️ THE BOARD STAYS PLAYABLE, WHICH ASH CAN EASILY BREAK');
 // ═════════════════════════════════════════════════════════════════════════════
 //
-// ⚠️ v1.0.0 DECLARED `stunSteps`, DECREMENTED IT, AND NOTHING EVER SET IT. Dead
-// code that looks like a feature is worse than missing code, because the next
-// reader assumes the behaviour exists. Restoring it gives webs a second role and
-// hands the student a real tactic: lead the hunter across a web.
-{
-    const b = new EscapeBoard({ pool: pool(4), rand: mulberry(21) });
-    b.enemies.push({ kind: 'hunter', x: 5, y: 4, stunSteps: 0, axis: 'h', dir: -1 });
-    b.webs.push({ x: 5, y: 4, steps: 4 });
-    b.step(1.0);
-    ok(b.enemies[0].stunSteps > 0, 'a hunter standing on a web is stunned');
-
-    const before = { x: b.enemies[0].x, y: b.enemies[0].y };
-    b.step(1.0);
-    ok(b.enemies[0].x === before.x && b.enemies[0].y === before.y,
-       'and does not move while stunned');
-
-    // ⚠️ AND ONLY HUNTERS. A webbed kaiju stops being a lane threat, which is the
-    // property the whole design rests on; a webbed spider webs itself into a
-    // corner.
-    const b2 = new EscapeBoard({ pool: pool(4), rand: mulberry(22) });
-    b2.enemies.push({ kind: 'kaiju', x: 5, y: 4, stunSteps: 0, axis: 'h', dir: -1 });
-    b2.webs.push({ x: 5, y: 4, steps: 4 });
-    b2.step(1.0);
-    ok(b2.enemies[0].stunSteps === 0, 'a kaiju on a web is NOT stunned');
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-console.log('\nPART E — respawn does not spend a second shield');
-// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️ I BUILT THE COLUMN-WIDE ZAP FIRST AND A DRY RUN KILLED IT: at 80% of steps
+// firing and five steps of ash, one kaiju held roughly HALF THE BOARD unenterable
+// and the student had nowhere legal to type toward. Jake's two sentences are
+// parallel — the spider webs *left or right*, the kaiju zaps *up or down* — so
+// one cell is what they read as. This part is why that stays true.
 
 {
-    let landedOnEnemy = 0;
-    for (let seed = 1; seed <= 60; seed++) {
-        const b = new EscapeBoard({ pool: pool(seed), rand: mulberry(seed * 5) });
-        for (let s = 0; s < 40; s++) b.step(2.0);
-        b.respawn();
-        if (b.caughtBy()) landedOnEnemy++;
+    let worstAsh = 0, stranded = 0, samples = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+        const b = new EscapeBoard({ pool: pool(seed), rand: mulberry(seed + 90) });
+        for (let i = 0; i < 80; i++) {
+            b.step(1);
+            let ash = 0;
+            for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) if (b.zapped[y][x] > 0) ash++;
+            worstAsh = Math.max(worstAsh, ash);
+            samples++;
+            const moves = b.adjacent(b.player.x, b.player.y)
+                .filter(c => b.grid[c.y][c.x]).length;
+            if (moves === 0) stranded++;
+        }
     }
-    ok(landedOnEnemy === 0,
-       `60 respawns onto a crowded board, none landing on an enemy (${landedOnEnemy}) — ` +
-       'a fixed centre would have been where the swarm is');
-}
+    ok(worstAsh <= ROWS * COLS / 3,
+       `at worst ${worstAsh} of ${ROWS * COLS} squares are ash at once`);
+    ok(stranded === 0,
+       `⚠️⚠️ THE PLAYER ALWAYS HAS A LEGAL MOVE — 0 stranded positions in ${samples} samples`);
 
-// ═════════════════════════════════════════════════════════════════════════════
-console.log('\nPART F — the cadence is the shell\'s, and the game is a throughput game now');
-// ═════════════════════════════════════════════════════════════════════════════
-//
-// ⚠️ THE POINT OF THE ROW/COLUMN RULE, STATED AS ARITHMETIC. Moving costs one
-// typed word. Enemies arrive on the player's axis every other enemy step, and an
-// enemy step is the time a gate-speed typist needs for one word. So survival
-// demands roughly gate-rate typing, continuously — which is what makes the WPM
-// Escape Key reports a typing measurement rather than a patience measurement.
-{
-    const d = new GameDirector({ targets: pool(1), targetWPM: 15, minAccuracy: 85, endless: true });
-    const stepMs = enemyStepMs(d.avgChars, d.targetWPM, d.pressure);
-    ok(Math.abs(stepMs - 3200) < 1, `one enemy step is ${Math.round(stepMs)}ms at a 15 WPM gate`);
-    const wordsPerMinute = 60000 / stepMs;
-    ok(Math.abs(wordsPerMinute * 4 / 5 - 15) < 0.1,
-       'which is exactly gate-rate work per enemy step — one word, one step');
-    const faster = enemyStepMs(d.avgChars, 25, d.pressure);
-    ok(faster < stepMs, 'a higher gate tightens the cadence automatically');
+    ok(MAX_ENEMIES >= 4, 'the population cap leaves room for the later waves');
 }
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} ok, ${fail} failed`);

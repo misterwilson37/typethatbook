@@ -1,5 +1,32 @@
-// escape-board.js v1.1.0 — ESCAPE KEY's BOARD, WITH NO CANVAS IN IT.
-// Round 82 (Victor), Round 104 (Bar-Let).
+// escape-board.js v1.2.0 — ESCAPE KEY's BOARD, WITH NO CANVAS IN IT.
+// Round 82 (Victor), Round 104, Round 107 (Bar-Let).
+//
+// ⚠️⚠️ v1.2.0 IS A RULES REWRITE AND IS PROBABLY MAJOR-BUMP WORTHY. Jake's call,
+// not mine (Rule 3). The creature behaviours, the spawn geometry and the round
+// system are all replaced against his 2026-09-09 spec; `round` now means WAVE
+// rather than a step count, and `STEPS_PER_ROUND`, `HUNTER_ROUND`,
+// `MIN_SPAWN_DISTANCE`, `ZAP_STEPS` and `ENEMY_LIFE_ROUNDS` are gone. ⭐ IF
+// ANYTHING OUTSIDE THIS REPO EVER IMPORTED THOSE, THIS IS A 2.0.0.
+//
+// v1.2.0 — ⭐ THE ROUND SYSTEM IS A WAVE SCHEDULE, AND THE OLD ONE TAUGHT THE
+//   STUDENT NOTHING. Creatures used to arrive on a POPULATION TARGET driven by
+//   pressure, so a child met a kaiju and a spider together in their first thirty
+//   seconds with no idea what either did. Jake: *"Second round does not spawn
+//   until the first round is down. This allows the player to learn what each one
+//   does."* ⚠️ A population spawner cannot express that at all, which is why it
+//   was replaced rather than tuned.
+//   • Spiders run COLUMNS from the top or bottom and web one cell left or right,
+//     40/40/20. Kaiju run ROWS from the left or right and zap one cell up or
+//     down, 40/40/20. ⚠️ THE 20 IS LOAD-BEARING — a creature that acted every
+//     step would leave no clean square to cross.
+//   • Both PEEK at the edge for a step before committing. That replaces
+//     MIN_SPAWN_DISTANCE as the telegraph.
+//   • Webs last 4 steps and catch anything: kaiju stuck 1, hunter stuck 2, the
+//     player types a new word out. Ash holds a square for 5 and is unenterable —
+//     ⭐ BY HAVING NO WORD, so there is exactly one rule and no way for a
+//     passability test and a word test to disagree.
+//   • The hunter mostly follows, dies to a kaiju or its blast, and ⭐ PAYS AN
+//     EXTRA LIFE if the student types onto it while it is webbed.
 //
 // v1.1.0 — an OPTIONAL `poolFor(round)`. ⚠️⚠️ WITHOUT IT `word-banks.js` IS
 //   DECORATIVE: the eight banks exist so words lengthen as the student plays,
@@ -46,7 +73,7 @@
 
 import { safeGroup } from './drill-filter.js';
 
-export const ESCAPE_BOARD_VERSION = '1.1.0';
+export const ESCAPE_BOARD_VERSION = '1.2.0';
 
 export const COLS = 6;
 export const ROWS = 5;
@@ -54,67 +81,127 @@ export const ROWS = 5;
 // Telegraphing distance. At 1 an enemy could appear adjacent and take a shield
 // before the student has had a chance to read it, which is not pressure, it is a
 // coin flip. At 2 they always get at least one enemy step of warning.
-export const MIN_SPAWN_DISTANCE = 2;
+// ⚠️ MIN_SPAWN_DISTANCE IS GONE. Creatures now enter from the board EDGE and
+// spend a step peeking before they commit (see PEEK_STEPS), so the telegraph is
+// the peek rather than a spawn-distance floor. Re-adding a distance rule would
+// be a second answer to a question the peek already answers.
 
 // A zapped cell stays empty for this many enemy steps, and a web lasts this many.
 // ⚠️ IN STEPS, NOT MILLISECONDS, so both scale with the student's gate exactly as
 // the enemy cadence does. A duration in ms would have been a second difficulty
 // knob that ignored the gate.
-export const ZAP_STEPS = 3;
-export const WEB_STEPS = 4;
+// ⚠️ ZAP_STEPS AND THE OLD WEB_STEPS LIVED HERE. They are ASH_STEPS and
+// WEB_STEPS below now, on Jake's numbers (5 and 4), declared once beside the
+// rules that use them.
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ⚠️⚠️ ROUNDS EXIST SO THE HUNTER IS REACHABLE. THE FIRST VERSION LOST HIM.
+// ⚠️⚠️ v1.2.0 — A ROUND IS A WAVE, NOT A NUMBER OF STEPS. JAKE'S SPEC, 2026-09-09
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Jake asked the right question again: *"the hunter bot does actually appear in
-// escape key, right? Somehow Gemini lost the guy, and he should appear around
-// round 5 or 6."*
+// Everything above this line about rounds-as-step-counts was wrong, and it was
+// wrong in the way that matters most: **it never taught the student anything.**
+// Creatures arrived on a population timer, so a child met a kaiju and a spider
+// simultaneously in their first thirty seconds with no idea what either did.
 //
-// ⚠️ HE DID NOT. An earlier draft gated hunters on `pressure >= 1.25`, and pressure is
-// DELIBERATELY FLAT AT 1.0 THROUGH AN ASSESSED RUN — a difficulty curve during a
-// measurement would mean the grade depended on how far in the student got — and
-// an assessed run ENDS at the quota. So the unlock was unreachable and the hunter
-// only ever appeared in arcade. ⚠️ SAME BUG GEMINI HAD, REACHED BY A DIFFERENT
-// ROUTE, AND MY OWN TEST MISSED IT BECAUSE IT ASSERTED THE MECHANISM (spawn one
-// at pressure 1.6) RATHER THAN THE REACHABILITY (does one ever appear in play).
+// ⭐ JAKE'S SCHEDULE IS A TUTORIAL DISGUISED AS A DIFFICULTY CURVE:
 //
-// ⭐ ROUNDS ARE STEPS, NOT SCORE AND NOT PRESSURE. A round is a fixed number of
-// enemy steps, so it advances at the same wall-clock rate for every student and
-// arrives in a graded run as well as an endless one. At a 15 WPM gate an enemy
-// step is 3.2 s, so:
+//   wave 1  one of {spider, kaiju}, at random
+//   wave 2  THE OTHER ONE — and not until wave 1 is gone
+//   wave 3  either, again not until wave 2 is gone
+//   wave 4  the OPPOSITE of wave 3, once wave 3 is four squares in
+//   wave 5  either, four squares in
+//   wave 6  the hunter, four squares in
+//   waves 7–11   three squares in; 7–8 are the two, 9+ can be any of the three
+//   waves 12–14  two squares in
+//   waves 15+    one square in
 //
-//     round 5 begins at step 24  ≈ 77 seconds
-//     a 28-target mission is     ≈ 28 steps
+// ⚠️⚠️ WAVES 1–3 WAIT FOR AN EMPTY BOARD AND THAT IS THE WHOLE POINT OF THEM.
+// Jake: *"Second round does not spawn until the first round is down. This allows
+// the player to learn what each one does."* A population-based spawner cannot
+// express that, which is why this replaced one.
 //
-// which puts the hunter in the last stretch of an assessed run — the climax of it
-// — and about a minute and a quarter into arcade. That is Jake's "round 5 or 6".
-//
-// ⚠️ DO NOT RE-GATE THIS ON PRESSURE. Pressure answers "how hard", rounds answer
-// "how far in", and the hunter is a how-far-in creature.
-export const STEPS_PER_ROUND = 6;
-export const HUNTER_ROUND = 5;
+// ⚠️ THE TAIL IS DELIBERATELY BORING. Jake: *"You can also change it, as it's
+// obviously getting silly."* Past wave 15 the gap is pinned at one square and the
+// kind is random — the escalation stops being a table and becomes a floor,
+// because a schedule nobody can hold in their head is a schedule nobody can
+// debug. ⭐ THE REAL DIFFICULTY PAST THAT POINT IS game-shell.js's PRESSURE RAMP,
+// which is already gate-derived and already tested.
+
+/** Waves 1–3 wait for the board to clear. Later waves trigger on distance. */
+export const CLEAR_WAVES = 3;
+
+/** How far the previous wave must have travelled before the next one arrives. */
+export function gapForWave(wave) {
+    if (wave <= CLEAR_WAVES) return null;   // null = "wait for an empty board"
+    if (wave <= 6) return 4;
+    if (wave <= 11) return 3;
+    if (wave <= 14) return 2;
+    return 1;
+}
+
+// ⚠️⚠️ THE ONE THING IN JAKE'S SPEC I COULD NOT RECONCILE, FLAGGED RATHER THAN
+// GUESSED AT. He wrote *"Hunter bot doesn't spawn until the 4th round"* and then,
+// in the schedule itself, *"Sixth round is when the fifth round is 4 squares in,
+// but it's a hunter bot."* Those are different numbers for the same event.
+// ⭐ THE SCHEDULE WINS HERE because it is the more specific statement and because
+// wave 6 is where the guaranteed hunter reads best — the student has met both
+// other creatures alone AND together first. ⚠️ IF 4 WAS MEANT, THIS IS THE ONE
+// LINE TO CHANGE; nothing else assumes 6.
+export const HUNTER_WAVE = 6;
+
+/** From this wave on, a random pick may draw the hunter. */
+export const HUNTER_RANDOM_WAVE = 9;
+
+/**
+ * The kind for a wave. `prev` is the previous wave's kind, because two of the
+ * rules are stated relative to it.
+ *
+ * ⚠️ `rand` IS PASSED IN, NOT READ FROM `this`, so a schedule can be computed
+ * ahead of play for the preview panel without consuming the board's own random
+ * sequence — which would make the board's future depend on whether anyone was
+ * looking at it.
+ */
+export function kindForWave(wave, prev, rand) {
+    const two = ['spider', 'kaiju'];
+    if (wave === HUNTER_WAVE) return 'hunter';
+    // Waves 2 and 4 are stated as "the opposite of the one before".
+    if (wave === 2 || wave === 4) return prev === 'spider' ? 'kaiju' : 'spider';
+    if (wave >= HUNTER_RANDOM_WAVE) {
+        const r = rand();
+        return r < 0.4 ? 'spider' : r < 0.8 ? 'kaiju' : 'hunter';
+    }
+    return two[rand() < 0.5 ? 0 : 1];
+}
+
+// ⚠️⚠️ 40 / 40 / 20, JAKE'S NUMBERS, AND THE 20 IS THE IMPORTANT ONE. A creature
+// that acts on every single step gives the student no clean square to cross; the
+// one-in-five quiet step is what makes the board readable instead of a wall.
+export const ACT_LEFT = 0.4;
+export const ACT_RIGHT = 0.8;   // cumulative: 0.4–0.8 is the second direction
+
+/** A web lasts the time it takes to move four squares. Jake's spec, verbatim. */
+export const WEB_STEPS = 4;
+
+/** An ashed square holds no word and cannot be entered, for five steps. */
+export const ASH_STEPS = 5;
+
+/** How long a creature caught in a web stays stuck. The player is not on this
+ *  list: a webbed player types a new word out, and is never frozen. */
+export const STUCK_STEPS = { kaiju: 1, hunter: 2, spider: 0 };
+
+// ⚠️ A CREATURE PEEKS IN BEFORE IT COMMITS. Jake: *"they spawn at the top or
+// bottom and they peek in before they actually fully move in."* It costs the
+// student nothing and buys them a full step of warning, which is the difference
+// between a threat and an ambush — the same job MIN_SPAWN_DISTANCE used to do
+// before spawning moved to the board edge.
+export const PEEK_STEPS = 1;
 
 export const MAX_ENEMIES = 6;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ⚠️⚠️ CREATURES LEAVE, AND WITHOUT THAT THE HUNTER STILL COULD NOT APPEAR.
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// Moving the hunter unlock onto rounds was necessary and not sufficient: the
-// population cap at mission pressure is 2, enemies had NO lifetime, and so the
-// board filled with the kaiju and spider drawn in round 1 and never had a free
-// slot again. ⚠️ AT ROUND 5 THE UNLOCK OPENED ONTO A FULL BOARD AND NOTHING
-// SPAWNED — zero hunters on 40 of 40 boards, with the unlock working perfectly.
-//
-// ⭐ SO CREATURES EXPIRE AND WALK OFF, which is what the prototype's kaiju and
-// spider did and which I dropped in the extraction. It fixes the hunter, and it
-// separately fixes "the board is the same two creatures for ten minutes" — a
-// churning board reads alive, and a static one reads broken.
-//
-// ⚠️ IN ROUNDS, NOT MILLISECONDS, so it scales with the student's gate like
-// everything else here.
-export const ENEMY_LIFE_ROUNDS = 3;
+// ⚠️ CREATURES STILL EXPIRE, or the board fills and later waves have nowhere to
+// arrive. ⚠️ IN STEPS NOW, NOT ROUNDS — rounds are waves and no longer have a
+// fixed length, so a lifetime measured in them would vary with the schedule.
+export const ENEMY_LIFE_STEPS = 22;
 
 /**
  * @param {object} o
@@ -145,7 +232,14 @@ export class EscapeBoard {
         this.enemies = [];
         this.webs = [];
         this.stepsTaken = 0;
-        this._hunterSeen = false;
+        // ⚠️ THE WAVE, NOT A DERIVED ROUND NUMBER. `round` used to be
+        // `1 + floor(steps / STEPS_PER_ROUND)` — a clock, not a schedule — and it
+        // is why creatures arrived on a population timer and taught the student
+        // nothing. This counts waves actually dispatched.
+        this.wave = 1;
+        this._schedule = {};
+        this._lastSpawned = null;
+        this.extraLives = 0;
         this.grid = [];
         this.zapped = [];
 
@@ -272,6 +366,12 @@ export class EscapeBoard {
         const want = this.typed + ch;
         let exact = null, partial = false;
         for (const c of this.adjacent(p.x, p.y)) {
+            // ⚠️⚠️ AN ASHED SQUARE HOLDS NO WORD, SO IT IS UNREACHABLE BY
+            // CONSTRUCTION AND NEEDS NO SECOND CHECK HERE. Jake: *"Zapped squares
+            // are turned to ash and don't respawn words for 5 turns. As a result,
+            // the player cannot enter them."* ⭐ "AS A RESULT" IS THE DESIGN — the
+            // absence of a word IS the wall, so there is exactly one rule and no
+            // way for a passability test and a word test to disagree.
             const w = this.grid[c.y][c.x];
             if (!w || !w.startsWith(want)) continue;
             partial = true;
@@ -306,14 +406,31 @@ export class EscapeBoard {
         this.aim = null;
         this.refreshNeighbours();
 
+        // ⭐⭐ A HUNTER STUCK IN A WEB IS A PRIZE, NOT A HAZARD. Jake: *"If it
+        // gets caught in a web and the player gets him, the player can get a new
+        // life. Hooray."* ⚠️ IT IS CHECKED BEFORE THE WEB, because the square the
+        // hunter is stuck on is by definition a webbed square, and resolving the
+        // web first would web the player onto their own trophy.
+        // ⚠️ ONLY A STUCK HUNTER. Walking into a free one is still a death, or the
+        // bot would be worth chasing.
+        let rescued = false;
+        const hi = this.enemies.findIndex(e => e.kind === 'hunter'
+            && e.x === p.x && e.y === p.y && e.stunSteps > 0);
+        if (hi !== -1) {
+            this.enemies.splice(hi, 1);
+            this.extraLives++;
+            rescued = true;
+        }
+
         let webbed = false;
         const wi = this.webs.findIndex(w => w.x === p.x && w.y === p.y);
-        if (wi !== -1) {
+        if (wi !== -1 && !rescued) {
             this.webs.splice(wi, 1);
             p.webWord = this.wordAvoiding([word]);
             webbed = true;
         }
-        return { correct: true, kind: 'move', word, from, to: { x: p.x, y: p.y }, webbed };
+        return { correct: true, kind: 'move', word, from, to: { x: p.x, y: p.y },
+                 webbed, rescued };
     }
 
     clearTyped() { this.typed = ''; this.aim = null; }
@@ -351,11 +468,11 @@ export class EscapeBoard {
         }
         this.refreshNeighbours();
 
-        // ⚠️ CREATURES EXPIRE. See ENEMY_LIFE_ROUNDS — without this the board
+        // ⚠️ CREATURES EXPIRE. See ENEMY_LIFE_STEPS — without this the board
         // fills in round 1 and the hunter's unlock opens onto a full board.
         // ⚠️ A STUNNED CREATURE STILL AGES. Otherwise webbing a hunter would
         // preserve it indefinitely, which is the opposite of the tactic's point.
-        const life = ENEMY_LIFE_ROUNDS * STEPS_PER_ROUND;
+        const life = ENEMY_LIFE_STEPS;
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             const en = this.enemies[i];
             if (this.stepsTaken - (en.bornStep || 0) >= life) {
@@ -365,180 +482,254 @@ export class EscapeBoard {
         }
 
         for (const en of this.enemies) {
+            // ⭐ THE PEEK. Jake: *"they peek in before they actually fully move
+            // in."* A creature spends its first step at the board edge, visible
+            // and doing nothing, then commits. ⚠️ IT COSTS THE STUDENT NOTHING
+            // AND BUYS THEM A FULL STEP OF WARNING — the difference between a
+            // threat and an ambush, which is the job MIN_SPAWN_DISTANCE did back
+            // when creatures spawned inside the board.
+            if (en.peek > 0) { en.peek--; if (en.peek === 0) events.push({ t: 'enter', kind: en.kind, x: en.x, y: en.y }); continue; }
             if (en.stunSteps > 0) { en.stunSteps--; continue; }
-            // ⚠️⚠️ A HUNTER STANDING IN A WEB DOES NOT MOVE, WHICH IS WHAT
-            // `stunSteps` IS FOR. An earlier draft declared and decremented it and
-            // NOTHING EVER SET IT — the prototype's web-stuns-hunter behaviour
-            // was dropped during the extraction and the field left behind, which
-            // is dead code that reads like a feature. Restoring it gives webs a
-            // second role, makes the spider worth having on the board, and hands
-            // the student a real tactic: lead the hunter across a web.
-            //
-            // ⚠️ CHECKED AT THE TOP OF ITS TURN, NOT AFTER IT MOVES. The first
-            // attempt tested for a web underneath the enemy *after* movement, by
-            // which time the hunter had already stepped off the web it was
-            // standing on and was never caught by it.
-            //
-            // ⚠️ HUNTERS ONLY. A webbed kaiju stops being a lane threat, which is
-            // the property the entire design rests on, and a webbed spider webs
-            // itself into a corner.
-            if (en.kind === 'hunter' && this.webs.some(w => w.x === en.x && w.y === en.y)) {
-                en.stunSteps = WEB_STEPS;
-                events.push({ t: 'stuck', x: en.x, y: en.y });
+
+            // ⚠️⚠️ A WEB CATCHES ANYTHING THAT ENTERS IT, AND FOR DIFFERENT
+            // LENGTHS. Jake's spec: *"Kaiju are stuck for a turn... hunter bots
+            // are stuck for 2 turns, and the player has to type a new word to get
+            // out."* ⚠️ CHECKED AT THE TOP OF THE CREATURE'S TURN, NOT AFTER IT
+            // MOVES — an earlier draft tested for a web underneath an enemy after
+            // movement, by which time it had already stepped off the web it was
+            // standing on and was never caught at all.
+            // ⚠️ THE WEB IS CONSUMED. A web that held every passer-by forever
+            // would let one spider lock a lane for the rest of the game.
+            const wi = this.webs.findIndex(w => w.x === en.x && w.y === en.y);
+            if (wi !== -1 && STUCK_STEPS[en.kind] > 0) {
+                this.webs.splice(wi, 1);
+                en.stunSteps = STUCK_STEPS[en.kind];
+                events.push({ t: 'stuck', kind: en.kind, x: en.x, y: en.y });
                 continue;
             }
+
             if (en.kind === 'kaiju') {
-                // ⚠️⚠️ IT TRAVELS ALONG THE AXIS IT SPAWNED ON. See the header:
-                // the first draft spawned correctly on the player's row or column
-                // and then walked every kaiju HORIZONTALLY, so one that arrived in
-                // the player's column immediately walked out of it along its own
-                // row and never came near them again. 36 of 40 campers survived
-                // 200 enemy steps. The lane has to be a THREAT VECTOR, not a
-                // start position — the creature comes down your lane at you, and
-                // getting out of the lane is what costs a typed word.
-                //
-                // ⚠️⚠️ AND IT RE-ACQUIRES AT THE EDGE. The second draft fixed the
-                // axis and campers STILL survived, because an enemy kept its
-                // original aim forever: once the player respawned elsewhere, the
-                // two enemies on the board patrolled a lane nobody was standing in
-                // and the game went quiet. ⚠️ THAT WOULD HAVE HURT REAL PLAY TOO,
-                // not just the camper — a board whose threats have lost you is a
-                // board with nothing to escape from.
-                // ⚠️ RE-ACQUIRES AT THE JUNCTION AS WELL AS AT THE EDGE. The
-                // third draft only re-aimed on a bounce, and seed 19 found the
-                // hole: a kaiju closing the player's column reached that column
-                // mid-row, had no bounce to trigger a re-aim, and ran past the
-                // junction — then back, then past again, patrolling row 0 forever
-                // while the player sat in row 4. ⚠️ ONE CAMPER IN FORTY SURVIVED
-                // ON THAT ALONE, which is the kind of margin that looks like noise
-                // and is actually a rule with a gap in it.
-                // Re-aiming at the junction keeps the creature a lane-runner that
-                // TURNS at corners — readable, telegraphed — and keeps it distinct
-                // from the hunter, which closes every single step.
-                const arrived = en.axis === 'h' ? en.x === this.player.x : en.y === this.player.y;
-                const bounced = en.axis === 'v'
-                    ? (en.y + en.dir < 0 || en.y + en.dir > ROWS - 1)
-                    : (en.x + en.dir < 0 || en.x + en.dir > COLS - 1);
-                if (arrived || bounced) this.reacquire(en);
-                if (en.axis === 'v') {
-                    en.y = Math.max(0, Math.min(ROWS - 1, en.y + en.dir));
-                    const by = en.y - en.dir;
-                    if (by >= 0 && by < ROWS && !(en.x === this.player.x && by === this.player.y)) {
-                        this.grid[by][en.x] = '';
-                        this.zapped[by][en.x] = ZAP_STEPS;
-                        events.push({ t: 'zap', x: en.x, y: by });
+                // ⚠️⚠️ A KAIJU RUNS A ROW, ALWAYS. Jake: *"Kaiju spawn at the left
+                // or right."* It is a horizontal lane threat by construction, and
+                // its danger to a player NOT on its row is the zap, not the walk.
+                en.x += en.dir;
+                if (en.x < 0 || en.x > COLS - 1) {
+                    en.dead = true;
+                    events.push({ t: 'leave', kind: en.kind, x: en.x, y: en.y });
+                    continue;
+                }
+                // ⭐ 40 / 40 / 20 — UP, DOWN, OR NOTHING. The one-in-five quiet
+                // step is what leaves the student a clean square to cross.
+                const roll = this.rand();
+                const zapDir = roll < ACT_LEFT ? -1 : roll < ACT_RIGHT ? 1 : 0;
+                if (zapDir) {
+                    // ⚠️⚠️ ONE CELL, NOT THE WHOLE COLUMN, AND THE SPIDER IS WHY.
+                    // Jake's two sentences are deliberately parallel — the spider
+                    // shoots webs *left or right*, the kaiju zaps *up or down* —
+                    // so they are the same rule mirrored, and one cell is what
+                    // that reads as.
+                    // ⭐ I BUILT THE COLUMN-WIDE VERSION FIRST AND A DRY RUN
+                    // KILLED IT: at 80% of steps firing and five steps of ash, a
+                    // single kaiju held roughly HALF THE BOARD unenterable at
+                    // once, and the student had nowhere legal to type toward.
+                    // ⚠️ THE BEAM IS STILL DRAWN TO THE EDGE — the `blast` event
+                    // carries the direction and the view renders the full sweep,
+                    // because the kaiju should LOOK like it fires across the
+                    // board. What it damages is one square.
+                    const zy = en.y + zapDir;
+                    if (zy >= 0 && zy < ROWS) {
+                        this.ash(en.x, zy);
+                        events.push({ t: 'zap', x: en.x, y: zy });
+                        // ⚠️ THE BLAST KILLS A HUNTER IT LANDS ON. Jake's spec,
+                        // and it is the student's best tool: bait the bot into a
+                        // kaiju's firing line.
+                        for (const other of this.enemies) {
+                            if (other !== en && other.kind === 'hunter'
+                                && other.x === en.x && other.y === zy) {
+                                other.dead = true;
+                                events.push({ t: 'destroyed', kind: 'hunter', x: en.x, y: zy });
+                            }
+                        }
                     }
-                } else {
-                    en.x = Math.max(0, Math.min(COLS - 1, en.x + en.dir));
-                    const bx = en.x - en.dir;
-                    if (bx >= 0 && bx < COLS && !(bx === this.player.x && en.y === this.player.y)) {
-                        this.grid[en.y][bx] = '';
-                        this.zapped[en.y][bx] = ZAP_STEPS;
-                        events.push({ t: 'zap', x: bx, y: en.y });
-                    }
+                    events.push({ t: 'blast', x: en.x, y: en.y, dir: zapDir });
                 }
             } else if (en.kind === 'spider') {
-                // Re-aims every step, then drifts — a slower, less predictable
-                // version of the same lane threat rather than a creature that
-                // opts out of the design.
-                this.reacquire(en);
-                let dx = 0, dy = 0;
-                if (this.rand() < 0.65) {
-                    if (en.axis === 'v') dy = en.dir; else dx = en.dir;
-                } else if (en.axis === 'v') {
-                    dx = this.rand() < 0.5 ? 1 : -1;
-                } else {
-                    dy = this.rand() < 0.5 ? 1 : -1;
+                // ⚠️ A SPIDER RUNS A COLUMN. Jake: *"Spiders go up or down."*
+                en.y += en.dir;
+                if (en.y < 0 || en.y > ROWS - 1) {
+                    en.dead = true;
+                    events.push({ t: 'leave', kind: en.kind, x: en.x, y: en.y });
+                    continue;
                 }
-                en.x = Math.max(0, Math.min(COLS - 1, en.x + dx));
-                en.y = Math.max(0, Math.min(ROWS - 1, en.y + dy));
-                if (this.rand() < 0.5 && !(en.x === this.player.x && en.y === this.player.y)) {
-                    const ex = this.webs.find(w => w.x === en.x && w.y === en.y);
+                const roll = this.rand();
+                const webDir = roll < ACT_LEFT ? -1 : roll < ACT_RIGHT ? 1 : 0;
+                const wx = en.x + webDir;
+                if (webDir && wx >= 0 && wx < COLS) {
+                    const ex = this.webs.find(w => w.x === wx && w.y === en.y);
                     if (ex) ex.steps = WEB_STEPS;
-                    else this.webs.push({ x: en.x, y: en.y, steps: WEB_STEPS });
-                    events.push({ t: 'web', x: en.x, y: en.y });
+                    else this.webs.push({ x: wx, y: en.y, steps: WEB_STEPS });
+                    events.push({ t: 'web', x: wx, y: en.y });
                 }
             } else {
-                // Hunter: closes on the player one axis at a time.
-                if (en.x !== this.player.x) en.x += this.player.x > en.x ? 1 : -1;
-                else if (en.y !== this.player.y) en.y += this.player.y > en.y ? 1 : -1;
+                // ⚠️ THE HUNTER *MOSTLY* FOLLOWS. Jake's word, and the slack is
+                // the point: a bot that closes perfectly every step is unbeatable
+                // on a 6×5 board, and one that wanders is not a hunter. One step
+                // in five it drifts, which is what makes leading it onto a web or
+                // into a kaiju's row a plan rather than a coin flip.
+                if (this.rand() < 0.2) {
+                    if (this.rand() < 0.5) en.x += this.rand() < 0.5 ? 1 : -1;
+                    else en.y += this.rand() < 0.5 ? 1 : -1;
+                } else if (en.x !== this.player.x) {
+                    en.x += this.player.x > en.x ? 1 : -1;
+                } else if (en.y !== this.player.y) {
+                    en.y += this.player.y > en.y ? 1 : -1;
+                }
+                en.x = Math.max(0, Math.min(COLS - 1, en.x));
+                en.y = Math.max(0, Math.min(ROWS - 1, en.y));
             }
+            en.facingLeft = en.dir === -1;
+            en.stepsIn = (en.stepsIn || 0) + 1;
         }
 
-        const sp = this.maybeSpawn(pressure);
+        // ⚠️⚠️ CREATURES KILL EACH OTHER, AND ONLY THE HUNTER LOSES. Jake: *"It
+        // can be destroyed by the kaiju, the kaiju's blast, or the spider."* The
+        // other two pass through one another — they are hazards, not combatants,
+        // and a kaiju that could be removed by a spider would let the board clear
+        // itself while the student watched.
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+            const h = this.enemies[i];
+            if (h.kind !== 'hunter' || h.dead) continue;
+            const killer = this.enemies.find(e => e !== h && e.kind !== 'hunter'
+                && !e.dead && e.peek === 0 && e.x === h.x && e.y === h.y);
+            if (killer) {
+                h.dead = true;
+                events.push({ t: 'destroyed', kind: 'hunter', x: h.x, y: h.y, by: killer.kind });
+            }
+        }
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+            if (this.enemies[i].dead) this.enemies.splice(i, 1);
+        }
+
+        const sp = this.maybeSpawn();
         if (sp) events.push(sp);
         if (this.caughtBy()) events.push({ t: 'caught' });
         return events;
     }
 
     /**
-     * ⭐ SPAWN ON THE PLAYER'S ROW OR COLUMN. See the header block — this is the
-     * rule that makes standing still unsafe and therefore makes typing the only
-     * way to survive.
-     */
-    /**
-     * Re-aim an enemy at the player's current lane.
+     * Turn one cell to ash: the word is gone and the square cannot be entered.
      *
-     * ⚠️ IT PICKS THE **NEARER** AXIS, so an enemy that is already almost in line
-     * commits to that line instead of crossing the board. That keeps the threat
-     * readable — a creature that visibly turns down your row is telegraphing —
-     * and it is what stops an enemy patrolling a lane the player has left.
+     * ⚠️ THE PLAYER'S OWN CELL IS NEVER ASHED — a student standing where a blast
+     * lands takes the hit (the view checks `caughtBy`-style contact), but ashing
+     * the square under them would leave them standing somewhere they are not
+     * allowed to be, with no legal move.
      */
-    reacquire(en) {
-        const dx = this.player.x - en.x;
-        const dy = this.player.y - en.y;
-        if (Math.abs(dy) <= Math.abs(dx)) {
-            // Nearly on the player's row: get onto it, then run along it.
-            if (dy !== 0) { en.axis = 'v'; en.dir = dy > 0 ? 1 : -1; }
-            else { en.axis = 'h'; en.dir = dx >= 0 ? 1 : -1; }
-        } else {
-            if (dx !== 0) { en.axis = 'h'; en.dir = dx > 0 ? 1 : -1; }
-            else { en.axis = 'v'; en.dir = dy >= 0 ? 1 : -1; }
+    ash(x, y) {
+        if (x === this.player.x && y === this.player.y) return;
+        this.grid[y][x] = '';
+        this.zapped[y][x] = ASH_STEPS;
+    }
+
+    /** Can the player step here? ⚠️ THE VIEW MUST NOT ANSWER THIS — ash is a rule. */
+    passable(x, y) {
+        return x >= 0 && x < COLS && y >= 0 && y < ROWS && this.zapped[y][x] === 0;
+    }
+
+    // ── the wave schedule ───────────────────────────────────────────────────
+
+    /**
+     * ⭐ THE NEXT THREE WAVES, FOR THE PREVIEW PANEL. Jake: *"Left panel is like
+     * the radar in Deadline in that it previews what's coming, but not where. So
+     * it can go ahead and tell us what the next three monsters are."*
+     *
+     * ⚠️⚠️ THE SCHEDULE IS DECIDED IN ADVANCE AND STORED, NOT ROLLED AT SPAWN
+     * TIME. A preview that predicted a spawn by re-rolling would show one
+     * creature and deliver another; a preview that consumed the board's own
+     * random sequence would make the game's future depend on whether anyone was
+     * looking at the panel. ⭐ `_schedule` IS THE ONE ANSWER TO BOTH.
+     */
+    upcoming(n = 3) {
+        this._fillSchedule(this.wave + n + 1);
+        const out = [];
+        for (let i = 0; i < n; i++) {
+            const w = this.wave + i;
+            out.push({ wave: w, kind: this._schedule[w], gap: gapForWave(w) });
+        }
+        return out;
+    }
+
+    _fillSchedule(upTo) {
+        for (let w = 1; w <= upTo; w++) {
+            if (this._schedule[w]) continue;
+            this._schedule[w] = kindForWave(w, this._schedule[w - 1] || null, this.rand);
         }
     }
 
-    maybeSpawn(pressure) {
-        const p = pressure == null ? 1 : pressure;
-        // ⚠️ BASE POPULATION IS 2, NOT 1. The first draft's `1 + floor((p-1)/0.18)`
-        // put exactly ONE enemy on the board through the whole mission phase
-        // (pressure 1.0), which is both an empty-feeling game and half the reason
-        // the camper survived. Two lane-walkers at gate pressure is the floor.
-        const want = Math.min(MAX_ENEMIES, 2 + Math.floor((p - 1) / 0.18));
-        if (this.enemies.length >= want) return null;
-        // ⚠️ EVERY OTHER STEP, SO A FREED SLOT REFILLS PROMPTLY. At the previous
-        // cadence a creature that expired left a hole the board took several
-        // steps to notice, which read as a lull rather than a rhythm.
-        if (this.stepsTaken % 2 !== 0) return null;
+    /**
+     * Is the next wave due?
+     *
+     * ⚠️⚠️ WAVES 1–3 WAIT FOR AN EMPTY BOARD, AND THAT IS THE TUTORIAL. Jake:
+     * *"Second round does not spawn until the first round is down. This allows
+     * the player to learn what each one does."* A population-based spawner cannot
+     * express that at all, which is why it was replaced rather than tuned.
+     */
+    waveDue() {
+        if (this.enemies.length >= MAX_ENEMIES) return false;
+        // ⚠️ NO SPECIAL CASE FOR WAVE 1. An earlier line here required
+        // `stepsTaken === 0`, and step() increments that BEFORE calling this — so
+        // the condition was false on the very first step and false forever after.
+        // ⭐ THE BOARD SPAWNED NOTHING, EVER, and threw no error while doing it.
+        // Wave 1's rule is already the general rule: gap is null, so it waits for
+        // an empty board, and the board starts empty.
+        const gap = gapForWave(this.wave);
+        if (gap === null) return this.enemies.length === 0;
+        // ⚠️ MEASURED ON THE MOST RECENT WAVE'S OWN TRAVEL, not on a step count.
+        // "Four squares in" is a statement about the creature, and a creature that
+        // spent two of those steps stuck in a web has not gone four squares.
+        const last = this._lastSpawned;
+        if (!last) return true;
+        if (last.dead || !this.enemies.includes(last)) return true;
+        return (last.stepsIn || 0) >= gap;
+    }
 
-        const roll = this.rand();
-        // ⚠️ THE HUNTER UNLOCK IS THE ROUND, NOT THE PRESSURE. See the header.
-        //
-        // ⚠️⚠️ AND THE **FIRST** HUNTER IS GUARANTEED, NOT ROLLED FOR. With a 30%
-        // roll on a spawn slot that only frees every few steps, the first hunter
-        // arrived around round 8 on 29 of 40 boards and never at all on the other
-        // 11 — so "he shows up around round 5" was still false, just less
-        // dramatically. Forcing the first one makes the unlock mean what it says;
-        // every hunter after it is probabilistic.
-        const dueHunter = this.round >= HUNTER_ROUND && !this._hunterSeen;
-        const kind = dueHunter ? 'hunter'
-                   : (this.round >= HUNTER_ROUND && roll < 0.3) ? 'hunter'
-                   : roll < 0.6 ? 'kaiju' : 'spider';
-        if (kind === 'hunter') this._hunterSeen = true;
+    maybeSpawn() {
+        if (!this.waveDue()) return null;
+        this._fillSchedule(this.wave + 4);
+        const kind = this._schedule[this.wave];
 
-        const spot = this.spawnSpot();
-        if (!spot) return null;
-        // ⭐ THE AXIS AND DIRECTION COME FROM THE SPAWN GEOMETRY, so the creature
-        // travels down the player's lane toward where they were standing. This is
-        // what makes the row/column rule a threat rather than a formality.
-        const axis = spot.y === this.player.y ? 'h' : 'v';
-        const dir = axis === 'h'
-            ? (this.player.x >= spot.x ? 1 : -1)
-            : (this.player.y >= spot.y ? 1 : -1);
-        this.enemies.push({
-            kind, x: spot.x, y: spot.y, stunSteps: 0, axis, dir,
-            bornStep: this.stepsTaken,
-        });
-        return { t: 'spawn', kind, x: spot.x, y: spot.y, axis };
+        // ⚠️⚠️ CREATURES ENTER FROM THE EDGE THEIR AXIS DEMANDS. A kaiju runs a
+        // row so it arrives from the left or right; a spider runs a column so it
+        // arrives from the top or bottom. ⚠️ THE HUNTER HAS NO AXIS and arrives at
+        // whichever edge cell is farthest from the player, so it never opens with
+        // a free catch.
+        let spot;
+        if (kind === 'kaiju') {
+            const fromLeft = this.rand() < 0.5;
+            spot = { x: fromLeft ? 0 : COLS - 1, y: Math.floor(this.rand() * ROWS),
+                     dir: fromLeft ? 1 : -1 };
+        } else if (kind === 'spider') {
+            const fromTop = this.rand() < 0.5;
+            spot = { x: Math.floor(this.rand() * COLS), y: fromTop ? 0 : ROWS - 1,
+                     dir: fromTop ? 1 : -1 };
+        } else {
+            const corners = [{ x: 0, y: 0 }, { x: COLS - 1, y: 0 },
+                             { x: 0, y: ROWS - 1 }, { x: COLS - 1, y: ROWS - 1 }];
+            corners.sort((a, b) =>
+                (Math.abs(b.x - this.player.x) + Math.abs(b.y - this.player.y)) -
+                (Math.abs(a.x - this.player.x) + Math.abs(a.y - this.player.y)));
+            spot = { x: corners[0].x, y: corners[0].y, dir: 1 };
+        }
+
+        const en = {
+            kind, x: spot.x, y: spot.y, dir: spot.dir,
+            facingLeft: spot.dir === -1,
+            stunSteps: 0, peek: PEEK_STEPS, stepsIn: 0,
+            bornStep: this.stepsTaken, wave: this.wave, dead: false,
+        };
+        this.enemies.push(en);
+        this._lastSpawned = en;
+        this.wave++;
+        return { t: 'spawn', kind, x: en.x, y: en.y, wave: en.wave };
     }
 
     /**
@@ -570,12 +761,17 @@ export class EscapeBoard {
      * prototype showed it and a rising number is its own reward.
      */
     get round() {
-        return 1 + Math.floor(this.stepsTaken / STEPS_PER_ROUND);
+        return this.wave;
     }
 
     /** The enemy standing on the player, if any. */
     caughtBy() {
-        return this.enemies.find(e => e.x === this.player.x && e.y === this.player.y) || null;
+        // ⚠️ A PEEKING CREATURE HAS NOT ENTERED THE BOARD AND CANNOT CATCH
+        // ANYTHING, and a stuck one is held. ⚠️ THE STUCK CASE IS NOT KINDNESS —
+        // it is what makes a webbed hunter approachable, which is the whole
+        // extra-life tactic.
+        return this.enemies.find(e => e.peek === 0 && e.stunSteps === 0
+            && e.x === this.player.x && e.y === this.player.y) || null;
     }
 
     /**

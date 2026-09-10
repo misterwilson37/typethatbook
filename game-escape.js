@@ -365,6 +365,18 @@ export function mount(container, opts) {
                     } else if (ev.t === 'spawn' && ev.kind === 'hunter') {
                         sfx.hunter();
                         banner = { text: 'A HUNTER IS AWAKE', until: now + 1800 };
+                    } else if (ev.t === 'enter') {
+                        // ⭐ THE CREATURE COMMITS. Its own sound, because the peek
+                        // and the entry are two different moments for the student
+                        // and only one of them is a threat.
+                        sfx.step();
+                    } else if (ev.t === 'destroyed') {
+                        sfx.win();
+                        burst(particles, cx(ev.x), cy(ev.y), '#ffd700',
+                              Math.round(26 * motionScale()), 220);
+                        banner = { text: 'BOT DOWN', until: now + 1200 };
+                    } else if (ev.t === 'blast') {
+                        sfx.hunter();
                     } else if (ev.t === 'leave') {
                         burst(particles, cx(ev.x), cy(ev.y), '#556',
                               Math.round(8 * motionScale()), 90);
