@@ -1,5 +1,50 @@
 # CHANGELOG — TypeThatBook
 
+## Round 113 (Bar-Let) — 2026-09-10 — the handoff, and the rules note
+
+### ⚠️⚠️ THE BUG REPORT WAS AGAINST A BUILD TWO VERSIONS OLD
+
+Jake: *"arcade.html still shows the finger lessons when all the words is chosen.
+I've asked for that to be fixed three times now."* ⭐ **HIS BUILD PANEL READ
+v3.11.0.** The fix shipped in **v3.12.0** (Round 112), which also renames the row
+to SPEED and offers up to 100 WPM.
+
+⚠️⚠️ **THAT IS NOT A DEFENCE, IT IS A PROCESS FAILURE ON MY SIDE.** I shipped
+three zips in a row without ever saying which version number to expect on the
+panel, so there was no cheap way to tell "not applied" from "not fixed" — and the
+difference is invisible from the outside. ⭐ **EVERY DELIVERY FROM HERE STATES THE
+EXPECTED `arcade vX.Y.Z`, AND EVERY BUG REPORT STARTS BY READING IT.** Written
+into HANDOFF's START HERE.
+
+### Done this round
+
+* `firestore.rules` note removed from the build panel, at Jake's request.
+  ⚠️ **THE REASONING IS KEPT AS A COMMENT** — the rules are deployed by hand, so
+  the repo copy and the live one are different objects and a version row here
+  would imply otherwise. ⚠️ **DO NOT ADD A RULES ROW.** ⭐ And the note was
+  addressed to nobody this panel serves: it exists for a student or teacher
+  reading numbers off a classroom screen, and the one person who deploys rules
+  already knows how.
+* **HANDOFF's START HERE rewritten** — four rounds stale. It now leads with the
+  five rules this whole conversation paid for rather than a round-by-round diary.
+* A stale comment in `applyGameMode()` claiming the LEVEL row still sets the pace
+  at `full`. It did when written; Round 112's SPEED row took that job.
+
+### ⚠️⚠️ AND A GAP FOUND WHILE FIXING THE HANDOFF
+
+`docs-vs-repo-test.mjs` verifies HANDOFF's stamps list against `versions.js`'s
+registry — and **none of the twelve arcade modules are in that registry**, so all
+twelve report "no readable version stamp; skipped" and the check passes
+**vacuously**. ⭐ **IT IS THE SAME SHAPE AS EVERY OTHER DEAD SEAM THIS PROJECT HAS
+FOUND**: a check at one end with nothing to compare against at the other.
+
+⚠️ The numbers are not unchecked — `arcade-versions-test.mjs` verifies each
+arcade file's header against its constant. But the *document* is not. ⚠️ **THE FIX
+IS TO ADD THE ARCADE MODULES TO `versions.js`, NOT TO WRITE A THIRD LIST.** Left
+open deliberately rather than done hastily at the end of a long session.
+
+**ALL 93 HARNESSES PASS.** ⚠️⚠️ **NOT BROWSER-VERIFIED.**
+
 ## Round 112 (Bar-Let) — 2026-09-10 — ⚠️⚠️ THE LAB IS TORCHED, and the top bar with it
 
 ### ⚠️⚠️⚠️ `tools/game-lab.html` IS DELETED. THE LAB IS `arcade.html?lab=1`.

@@ -466,7 +466,7 @@ import { GAME_SHELL_VERSION } from './game-shell.js';
 import { GAME_DRAW_VERSION } from './game-draw.js';
 import { GAME_CHROME_VERSION } from './game-chrome.js';
 import { GAME_LAYOUT_VERSION } from './game-layout.js';
-const ARCADE_PAGE_VERSION = '3.12.0';
+const ARCADE_PAGE_VERSION = '3.13.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -499,12 +499,17 @@ function buildBadge() {
     foot.textContent = 'arcade v' + ARCADE_PAGE_VERSION;
     panel.innerHTML = rows.map(r =>
         '<div class="build-row"><span>' + r[0] + '</span><b>v' + r[1] + '</b></div>').join('') +
-        // ⚠️ SAYS PLAINLY THAT THE RULES CANNOT BE READ FROM HERE. firestore.rules
-        // is deployed by hand in the console, so the file in the repo and the one
-        // enforcing writes are different objects. A panel that listed a rules
-        // version would be reporting the repo's copy and implying it was live.
-        '<div class="build-note">firestore.rules is deployed separately \u2014 this ' +
-        'panel cannot see it. Use tools/arcade-check.html to test the live rules.</div>';
+        // ⚠️ THE firestore.rules NOTE WAS REMOVED IN ROUND 113 AT JAKE'S REQUEST.
+        // ⭐ THE REASONING THAT PUT IT HERE IS STILL TRUE AND IS KEPT AS A COMMENT
+        // RATHER THAN AS UI: firestore.rules is deployed by hand in the console,
+        // so the file in the repo and the one enforcing writes are different
+        // objects, and a panel that listed a rules version would be reporting the
+        // repo's copy while implying it was live. ⚠️ DO NOT ADD A RULES ROW HERE.
+        // Use tools/arcade-check.html to test the live rules.
+        // ⚠️ THE NOTE ITSELF WAS ADDRESSED TO NOBODY THIS PANEL SERVES. It exists
+        // for a student or a teacher reading version numbers off a classroom
+        // screen; the one person who deploys rules already knows how they deploy.
+        '';
     // ⚠️ HOVER *AND* CLICK. Hover alone is unusable on the iPads in this school,
     // and this is the one instrument available at a student's machine.
     foot.addEventListener('click', () => {
