@@ -1,3 +1,18 @@
+// escape-board.js v2.1.0 — Round 114 (Carriage): A WORD NEVER CHANGES UNLESS IT
+//   IS TYPED OR DESTROYED. Jake: *"sometimes the words change as you approach
+//   them."* refreshNeighbours() ran after EVERY move and overwrote a neighbour
+//   whenever two shared a first character — so a word a student had read and
+//   started aiming at could become a different word one step before they reached
+//   it. ⚠️⚠️ AND IT PROTECTED AGAINST SOMETHING type() ALREADY HANDLES: that
+//   function accumulates `typed` and only moves on an EXACT full-word match, so
+//   `cat` beside `cap` is settled by the third keystroke. Its header’s claim
+//   that *"identical adjacent words make the direction unchoosable"* is true of
+//   identical WHOLE WORDS and false of a shared first character.
+//   ⭐ DISTINCTNESS MOVED TO DRAW TIME via coNeighbourWords() — the cells at L1
+//   distance TWO, which are the ones that can ever be the player’s neighbours at
+//   the same moment. ⚠️ THE OLD FILL AVOIDED THE CELLS LEFT AND ABOVE, BOTH AT
+//   DISTANCE ONE, WHICH CAN NEVER COLLIDE — it was avoiding the wrong two cells,
+//   which is why a post-move sweep looked necessary at all.
 // escape-board.js v2.0.0 — ESCAPE KEY's BOARD, WITH NO CANVAS IN IT.
 // Round 82 (Victor), Round 104, Rounds 107–108 (Bar-Let).
 //
@@ -81,7 +96,7 @@
 
 import { safeGroup } from './drill-filter.js';
 
-export const ESCAPE_BOARD_VERSION = '2.0.0';
+export const ESCAPE_BOARD_VERSION = '2.1.0';
 
 export const COLS = 6;
 export const ROWS = 5;
@@ -258,13 +273,18 @@ export class EscapeBoard {
         }
         for (let y = 0; y < ROWS; y++) {
             for (let x = 0; x < COLS; x++) {
-                this.grid[y][x] = this.wordAvoiding([
-                    this.grid[y][x - 1], y > 0 ? this.grid[y - 1][x] : '',
-                ]);
+                // ⚠️ CO-NEIGHBOURS, NOT NEIGHBOURS. The old list was the cell to
+                // the left and the cell above — both at distance 1, which can
+                // never be co-neighbours of the player, so it was avoiding the
+                // wrong two cells and leaving the ones that actually collide.
+                // ⭐ That is why a post-move sweep appeared to be needed at all.
+                this.grid[y][x] = this.wordAvoiding(this.coNeighbourWords(x, y));
             }
         }
         this.grid[this.player.y][this.player.x] = '';
-        this.refreshNeighbours();
+        // ⚠️ NO refreshNeighbours() SWEEP. The forward fill above already avoids
+        // co-neighbour collisions as it goes; a post-pass would rewrite words
+        // that are already correct, which is the defect Jake reported.
     }
 
     // ── words ───────────────────────────────────────────────────────────────
@@ -340,18 +360,58 @@ export class EscapeBoard {
         return pool[Math.floor(this.rand() * pool.length)];
     }
 
-    /** Called after every move, because "adjacent" moves with the player. */
-    refreshNeighbours() {
-        const seen = new Set();
-        for (const c of this.adjacent(this.player.x, this.player.y)) {
-            let w = this.grid[c.y][c.x];
-            if (!w) continue;
-            if (seen.has(w[0])) {
-                this.grid[c.y][c.x] = this.wordAvoiding(Array.from(seen).concat([w]));
-                w = this.grid[c.y][c.x];
-            }
-            if (w) seen.add(w[0]);
+    // ═════════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ refreshNeighbours() USED TO LIVE HERE AND IT REWROTE STANDING WORDS.
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // Jake, 2026-09-10: *"Looking at escape key, sometimes the words change as you
+    // approach them. They should stay what they are unless typed or destroyed."*
+    //
+    // ⭐ THAT WAS THIS FUNCTION, EXACTLY, AND IT RAN AFTER EVERY MOVE. It walked
+    // the player's four neighbours and, whenever two shared a first character,
+    // OVERWROTE one of them with a fresh draw. So a word a student had already
+    // read and started aiming at could become a different word on the step before
+    // they reached it — which is the one thing a typing target must never do.
+    //
+    // ⚠️⚠️ AND IT WAS SOLVING A PROBLEM THE INPUT LOOP DOES NOT HAVE. Its header
+    // claimed *"identical adjacent words make the direction unchoosable"* — TRUE
+    // OF IDENTICAL WHOLE WORDS, FALSE OF A SHARED FIRST CHARACTER. type() below
+    // accumulates `this.typed` and only moves on an EXACT full-word match: with
+    // `cat` and `cap` side by side, "ca" is `progress` against both and the third
+    // keystroke decides. ⭐ THE DISAMBIGUATION WAS ALREADY THERE, one function
+    // down, and this was rewriting the board to protect it.
+    //
+    // ⭐ SO DISTINCTNESS IS ENFORCED WHEN A WORD IS DRAWN, NEVER AFTER. A cell
+    // only ever gets a new word when it is legitimately empty — the initial fill,
+    // the square the player just vacated, a square coming back from ash — which
+    // is Jake's rule stated positively: a word changes when it is TYPED or
+    // DESTROYED, and at no other time.
+
+    /**
+     * The words in every cell that could ever be a co-neighbour of (x, y).
+     *
+     * ⚠️⚠️ THAT IS THE CELLS AT L1 DISTANCE **2**, NOT THE ADJACENT ONES, and the
+     * distinction is the whole trick. Two cells are the player's neighbours at
+     * the same time exactly when they share an orthogonal neighbour — and any
+     * two of a cell's four neighbours are themselves distance 2 apart. So a word
+     * drawn here can never collide with a cell it will later stand beside in the
+     * same choice.
+     * ⭐ AND DISTANCE 1 DELIBERATELY DOES NOT MATTER: a cell and its own
+     * neighbour can never both be the player's neighbours, because the player
+     * would have to occupy two squares at once. Avoiding them too would shrink
+     * the usable pool for no reason, which matters enormously on a Unit 1 key
+     * set — see wordAvoiding()'s warning about four distinct first characters.
+     */
+    coNeighbourWords(x, y) {
+        const out = [];
+        for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1],
+                                [-2, 0], [2, 0], [0, -2], [0, 2]]) {
+            const nx = x + dx, ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) continue;
+            const w = this.grid[ny][nx];
+            if (w) out.push(w);
         }
+        return out;
     }
 
     adjacent(x, y) {
@@ -439,15 +499,18 @@ export class EscapeBoard {
 
         // The vacated cell refills, the entered one empties: the board stays full
         // and the player's own square is never a target.
-        this.grid[p.y][p.x] = this.wordAvoiding(
-            this.adjacent(p.x, p.y).map(a => this.grid[a.y][a.x]));
+        this.grid[p.y][p.x] = this.wordAvoiding(this.coNeighbourWords(p.x, p.y));
+        // ⚠️ AND NO POST-MOVE SWEEP: see coNeighbourWords(). The vacated cell is
+        // the ONLY cell that gets a new word on a move.
         if (c.dir === 'left') p.facingLeft = true;
         if (c.dir === 'right') p.facingLeft = false;
         p.x = c.x; p.y = c.y;
         this.grid[c.y][c.x] = '';
         this.typed = '';
         this.aim = null;
-        this.refreshNeighbours();
+        // ⚠️⚠️ AND THE MOVE ITSELF ENDS HERE, WITH NO SWEEP. This was the call
+        // that produced Jake's report — it ran on EVERY successful move, so the
+        // words around a student changed as they walked toward them.
 
         // ⭐⭐ A HUNTER STUCK IN A WEB IS A PRIZE, NOT A HAZARD. Jake: *"If it
         // gets caught in a web and the player gets him, the player can get a new
@@ -502,14 +565,16 @@ export class EscapeBoard {
                 if (this.zapped[y][x] > 0 && --this.zapped[y][x] === 0
                     && !(x === this.player.x && y === this.player.y)) {
                     this.grid[y][x] = this.wordAvoiding(
-                        this.adjacent(x, y).map(a => this.grid[a.y][a.x]));
+                        this.coNeighbourWords(x, y));
                 }
             }
         }
         for (let i = this.webs.length - 1; i >= 0; i--) {
             if (--this.webs[i].steps <= 0) this.webs.splice(i, 1);
         }
-        this.refreshNeighbours();
+        // ⚠️ NO SWEEP HERE EITHER. Squares coming back from ash draw their own
+        // word above, avoiding their co-neighbours; every other cell keeps the
+        // word the student has already read.
 
         // ⚠️ CREATURES EXPIRE. See ENEMY_LIFE_STEPS — without this the board
         // fills in round 1 and the hunter's unlock opens onto a full board.
@@ -938,6 +1003,8 @@ export class EscapeBoard {
         this.typed = '';
         this.aim = null;
         this.grid[best.y][best.x] = '';
-        this.refreshNeighbours();
+        // ⚠️ THE RESCUE MOVES THE PLAYER, IT DOES NOT RESHUFFLE THE BOARD. Being
+        // carried to a new square is startling enough without every word around
+        // it changing at the same moment.
     }
 }

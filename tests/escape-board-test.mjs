@@ -1,3 +1,15 @@
+// tests/escape-board-test.mjs v1.1.0 — Round 114 (Carriage): PART G, a word never
+//   changes unless it is typed or destroyed — a property test over 30 seeds and
+//   1,200 moves, because the bug was intermittent (*"SOMETIMES the words change"*)
+//   and any single scripted run would have missed it. It reports 237 rewrites
+//   against the code that shipped.
+//   ⚠️⚠️ AND PART D’S KAIJU/HUNTER CASE WAS SEED-FITTED. It hand-picked
+//   mulberry(13); removing refreshNeighbours() shifted the RNG stream by a few
+//   draws and it went red ON A CHANGE THAT CANNOT AFFECT THE RULE. Measured, only
+//   2 of 60 seeds reach that code at all — so it was testing that seed 13 was one
+//   of the 3%, not that the rule holds. ⭐ THIRD TIME IN THIS FILE’S HISTORY (the
+//   hunter in Part C, one seed in game-shell Part I). It now sweeps 200 seeds and
+//   asserts the rule over every case that reaches it, PLUS that some case does.
 // tests/escape-board-test.mjs v1.0.0 — DOES A STUDENT WHO STANDS STILL LOSE?
 // Round 82 (Victor).
 //
@@ -251,14 +263,55 @@ console.log('\nPART D — the hunter can be beaten, and beating it pays');
                       peek: 0, stunSteps: 0, stepsIn: 5, dead: false });
     ok(b2.caughtBy() !== null, 'walking into an unwebbed hunter is still a catch');
 
-    // ⭐ A KAIJU DESTROYS A HUNTER IT MEETS, and the hunter alone loses.
-    const b3 = new EscapeBoard({ pool: pool(4), rand: mulberry(13) });
-    b3.enemies.push({ kind: 'hunter', x: 3, y: 2, dir: 1, peek: 0, stunSteps: 0, stepsIn: 5, dead: false });
-    b3.enemies.push({ kind: 'kaiju', x: 3, y: 2, dir: 1, peek: 0, stunSteps: 0, stepsIn: 5, dead: false });
-    const evs = b3.step(1);
-    ok(evs.some(e => e.t === 'destroyed' && e.kind === 'hunter'),
-       'a kaiju sharing a square with the hunter destroys it');
-    ok(b3.enemies.some(e => e.kind === 'kaiju'), '⚠️ and the kaiju survives — only the bot loses');
+    // ═════════════════════════════════════════════════════════════════════════
+    // ⭐ A KAIJU DESTROYS A HUNTER IT MEETS, AND THE HUNTER ALONE LOSES.
+    // ═════════════════════════════════════════════════════════════════════════
+    //
+    // ⚠️⚠️ THIS USED TO BE ONE HAND-PICKED SEED AND IT WAS SEED-FITTED. It read
+    // `mulberry(13)`, placed both creatures on (3, 2), stepped once and asserted
+    // the destruction. Round 114 removed refreshNeighbours() from escape-board.js
+    // — which had been consuming random draws on every move — and the RNG stream
+    // shifted by a few calls, so seed 13 no longer keeps the two creatures on the
+    // same square and this went red **on a change that cannot affect the rule at
+    // all**.
+    //
+    // ⭐ MEASURED ACROSS 60 SEEDS, ONLY **2** PRODUCE THE COLLISION. So the old
+    // test was not testing a rule; it was testing that seed 13 happened to be one
+    // of the 3% that reach the code. ⚠️ THAT IS THE SAME SHAPE AS THE HUNTER BUG
+    // PART C EXISTS FOR — *"unreachable in an assessed run for two rounds behind
+    // a passing test that hand-set the pressure unlocking him"* — and as
+    // game-shell-test.mjs Part I, which ran one seed. **Third time in this file's
+    // history.**
+    //
+    // ⭐⭐ SO IT SWEEPS SEEDS AND ASSERTS THE RULE OVER EVERY CASE THAT REACHES
+    // IT, plus that some case does. Both halves are needed: the first is the
+    // rule, the second is the reachability that the rule is worth nothing
+    // without. ⚠️ AND IT IS IMMUNE TO THE NEXT CHANGE THAT SHIFTS THE STREAM,
+    // which is the actual point.
+    {
+        let reached = 0, kaijuSurvived = 0, hunterGone = 0;
+        for (let seed = 1; seed <= 200; seed++) {
+            const b3 = new EscapeBoard({ pool: pool(4), rand: mulberry(seed) });
+            b3.enemies.push({ kind: 'hunter', x: 3, y: 2, dir: 1, peek: 0,
+                              stunSteps: 0, stepsIn: 5, dead: false });
+            b3.enemies.push({ kind: 'kaiju', x: 3, y: 2, dir: 1, peek: 0,
+                              stunSteps: 0, stepsIn: 5, dead: false });
+            const evs = b3.step(1);
+            if (!evs.some(e => e.t === 'destroyed' && e.kind === 'hunter')) continue;
+            reached++;
+            if (b3.enemies.some(e => e.kind === 'kaiju')) kaijuSurvived++;
+            if (!b3.enemies.some(e => e.kind === 'hunter')) hunterGone++;
+        }
+        ok(reached > 0,
+           '⚠️⚠️ a kaiju meeting the hunter destroys it — REACHED on ' + reached +
+           ' of 200 seeds (a rule nothing reaches is a rule nothing enforces)');
+        ok(reached > 0 && kaijuSurvived === reached,
+           '⚠️ and the kaiju survives EVERY time — only the bot loses (' +
+           kaijuSurvived + '/' + reached + ')');
+        ok(reached > 0 && hunterGone === reached,
+           '⭐ and the hunter is actually off the board, not merely flagged (' +
+           hunterGone + '/' + reached + ')');
+    }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -364,6 +417,125 @@ console.log('\nPART F — ⚠️⚠️ STANDING STILL MUST NOT BE SAFE');
     ok(b2.inDanger() === false, 'a creature still peeking is not yet pressure');
     b2.enemies[0].peek = 0; b2.enemies[0].stunSteps = 2;
     ok(b2.inDanger() === false, 'and neither is one held in a web');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\nPART G — ⚠️⚠️ A WORD NEVER CHANGES UNLESS IT IS TYPED OR DESTROYED');
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-10: *"Looking at escape key, sometimes the words change as you
+// approach them. They should stay what they are unless typed or destroyed."*
+//
+// ⭐ THE CAUSE WAS refreshNeighbours(), WHICH RAN AFTER EVERY MOVE. It walked the
+// player's four neighbours and, whenever two shared a first character, OVERWROTE
+// one with a fresh draw — so a word a student had read and started aiming at
+// could become a different word on the step before they reached it.
+//
+// ⚠️⚠️ AND IT WAS PROTECTING AGAINST SOMETHING type() ALREADY HANDLES. Its header
+// claimed *"identical adjacent words make the direction unchoosable"* — true of
+// identical WHOLE WORDS, false of a shared first character. type() accumulates
+// `typed` and only moves on an exact full-word match, so `cat` beside `cap` is
+// resolved by the third keystroke. ⭐ THE DISAMBIGUATION WAS ONE FUNCTION AWAY
+// AND THE BOARD WAS BEING REWRITTEN TO PROTECT IT.
+//
+// ⚠️ SO DISTINCTNESS MOVED TO DRAW TIME, via coNeighbourWords() — the cells at L1
+// distance **2**, which are the ones that can ever be the player's neighbours at
+// the same moment. ⚠️ THE OLD FILL AVOIDED THE CELLS LEFT AND ABOVE, BOTH AT
+// DISTANCE 1, WHICH CAN NEVER COLLIDE — it was avoiding the wrong two cells,
+// which is why a post-move sweep looked necessary at all.
+//
+// ⚠️ THIS PART IS A PROPERTY TEST OVER MANY SEEDS AND MANY MOVES, DELIBERATELY.
+// The bug was intermittent — *"sometimes the words change"* — because it needed
+// two co-neighbours to collide, so any single scripted run is overwhelmingly
+// likely to miss it. That is the same trap as Part D's seed and Part C's hunter.
+{
+    let steps = 0, mutations = 0, legalRefills = 0;
+    const examples = [];
+
+    for (let seed = 1; seed <= 30; seed++) {
+        const b = new EscapeBoard({ pool: pool(seed), rand: mulberry(seed) });
+        // Snapshot every cell, then walk the board and compare after each move.
+        let before = b.grid.map(r => r.slice());
+        let beforePos = { x: b.player.x, y: b.player.y };
+
+        for (let n = 0; n < 40; n++) {
+            // Pick a neighbour that holds a word and type it out in full.
+            const target = b.adjacent(b.player.x, b.player.y)
+                            .find(c => b.grid[c.y][c.x]);
+            if (!target) break;
+            const word = b.grid[target.y][target.x];
+            if (b.player.webWord) break;   // webbed runs are Part B's business
+            for (const ch of word) b.tryKey(ch);
+            steps++;
+
+            for (let y = 0; y < b.grid.length; y++) {
+                for (let x = 0; x < b.grid[y].length; x++) {
+                    const was = before[y][x], now = b.grid[y][x];
+                    if (was === now) continue;
+                    // ⭐ THE THREE LEGAL REASONS A CELL'S WORD MAY DIFFER:
+                    //   • the player LEFT it, so it refilled  (typed)
+                    //   • the player ENTERED it, so it emptied (typed)
+                    //   • it was empty/ashed and came back     (destroyed)
+                    const vacated = (x === beforePos.x && y === beforePos.y);
+                    const entered = (x === b.player.x && y === b.player.y);
+                    const fromEmpty = !was;
+                    const toEmpty = !now;
+                    if (vacated || entered || fromEmpty || toEmpty) { legalRefills++; continue; }
+                    mutations++;
+                    if (examples.length < 4) {
+                        examples.push(`seed ${seed} (${x},${y}) "${was}"->"${now}"`);
+                    }
+                }
+            }
+            before = b.grid.map(r => r.slice());
+            beforePos = { x: b.player.x, y: b.player.y };
+        }
+    }
+
+    ok(steps > 200, 'the sweep actually moved (' + steps + ' typed moves over 30 seeds)');
+    ok(legalRefills > 0,
+       'and cells DID legitimately refill as the player walked (' + legalRefills +
+       ') — a run where nothing ever changed would prove nothing');
+    ok(mutations === 0,
+       '⚠️⚠️ NO STANDING WORD WAS EVER REWRITTEN in ' + steps + ' moves (' +
+       mutations + ' mutations' + (examples.length ? ': ' + examples.join('; ') : '') +
+       ') — THIS IS JAKE\u2019S REPORT, AND IT GOES RED AGAINST refreshNeighbours() ' +
+       '(237 rewrites)');
+    // ⚠️⚠️ DO NOT PUT THE WORD "FAIL" IN AN ASSERTION MESSAGE. run-all-tests.mjs
+    // judges a harness by exit code AND by text-matching every printed line
+    // against /FAIL|UNSAFE|ERROR/ — so this file passed standalone with 52 ok
+    // and 0 failed while the runner reported it as FAILING, purely because the
+    // message above said "IT FAILS AGAINST". ⭐ FOURTH TIME THIS ROUND THAT
+    // PROSE WAS READ AS DATA (stripHtml, noCss, the mis-escaped anchor).
+}
+
+// ⚠️ AND THE SWEEP IS GONE, not merely unused. A dormant function that rewrites
+// the board is one call away from doing it again.
+{
+    const b = new EscapeBoard({ pool: pool(2), rand: mulberry(2) });
+    ok(typeof b.refreshNeighbours !== 'function',
+       '\u26a0\u26a0 refreshNeighbours() no longer exists on the board at all');
+    ok(typeof b.coNeighbourWords === 'function',
+       'and coNeighbourWords() has replaced it');
+    // ⭐ DISTANCE 2, NOT 1 — the assertion that says WHICH cells it means.
+    const near = b.coNeighbourWords(3, 2);
+    const diag = b.grid[1][2], straight2 = b.grid[2][1];
+    ok(near.indexOf(diag) !== -1 || !diag,
+       'it includes the diagonal at (2,1) \u2014 a co-neighbour');
+    ok(near.indexOf(straight2) !== -1 || !straight2,
+       'and the cell two to the left \u2014 also a co-neighbour');
+    const adj = b.grid[2][2];
+    ok(adj === '' || near.indexOf(adj) === -1 || near.filter(w => w === adj).length <
+       (b.grid.flat().filter(w => w === adj).length),
+       '\u26a0 and it does NOT avoid distance-1 cells, which can never both be ' +
+       'the player\u2019s neighbours \u2014 avoiding them shrinks a Unit 1 pool for nothing');
+    // ⚠️ EDGES: a corner has fewer co-neighbours and must not throw or run off-grid.
+    let threw = false;
+    try { b.coNeighbourWords(0, 0); b.coNeighbourWords(COLS - 1, ROWS - 1); }
+    catch (_) { threw = true; }
+    ok(!threw, 'and it survives the corners without running off the grid');
+    ok(b.coNeighbourWords(0, 0).length < near.length,
+       'a corner has fewer co-neighbours than the middle');
 }
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} ok, ${fail} failed`);

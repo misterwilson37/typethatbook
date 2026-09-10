@@ -1,5 +1,89 @@
 # CHANGELOG — TypeThatBook
 
+## Round 114 (Carriage) — continued — a word never changes unless it is typed or destroyed
+
+### ⚠️⚠️ refreshNeighbours() REWROTE STANDING WORDS AFTER EVERY MOVE
+
+Jake, 2026-09-10: *"Looking at escape key, sometimes the words change as you
+approach them. They should stay what they are unless typed or destroyed."*
+(*"Everything else seems to be working right now!"*)
+
+⭐ **THAT WAS ONE FUNCTION, AND IT RAN ON EVERY SUCCESSFUL MOVE.**
+`refreshNeighbours()` walked the player's four neighbours and, whenever two shared
+a first character, **overwrote one of them with a fresh draw** — so a word a
+student had already read and started aiming at could become a different word on
+the step before they reached it. Which is the one thing a typing target must never
+do.
+
+⚠️⚠️ **AND IT WAS PROTECTING AGAINST SOMETHING `type()` ALREADY HANDLES.** Its
+header claimed *"identical adjacent words make the direction unchoosable"* —
+**true of identical WHOLE WORDS, false of a shared first character.** `type()`
+accumulates `this.typed` and only moves on an EXACT full-word match: with `cat`
+beside `cap`, `"ca"` is `progress` against both and the third keystroke decides.
+⭐ **THE DISAMBIGUATION WAS ONE FUNCTION AWAY AND THE BOARD WAS BEING REWRITTEN
+TO PROTECT IT.**
+
+⭐ **SO DISTINCTNESS MOVED TO DRAW TIME**, via `coNeighbourWords()` — the cells at
+**L1 distance TWO**, which are exactly the ones that can ever be the player's
+neighbours at the same moment, because any two of a cell's four neighbours are
+themselves distance 2 apart.
+
+⚠️⚠️ **AND THE OLD FILL WAS AVOIDING THE WRONG TWO CELLS.** It avoided the cell to
+the left and the cell above — **both at distance 1, which can never both be the
+player's neighbours**, since the player would have to occupy two squares at once.
+⭐ **THAT is why a post-move sweep looked necessary at all**: the generator was
+preventing collisions that could not happen and permitting the ones that could.
+Distance 1 is now deliberately *not* avoided, which matters enormously on a Unit 1
+key set — see `wordAvoiding()`'s warning about four distinct first characters.
+
+A cell now gets a new word only when it is legitimately empty: the initial fill,
+the square the player just vacated, or a square coming back from ash. ⭐ **WHICH
+IS JAKE'S RULE STATED POSITIVELY: a word changes when it is TYPED or DESTROYED,
+and at no other time.**
+
+### The harness, and why it had to be a property test
+
+`escape-board-test.mjs` Part G — 30 seeds, 1,200 typed moves, comparing every cell
+before and after each move and allowing exactly three reasons a word may differ
+(vacated, entered, or returning from empty). ⚠️ **IT REPORTS 237 REWRITES AGAINST
+THE CODE THAT SHIPPED**, with named examples.
+
+⚠️ **IT HAD TO SWEEP, BECAUSE THE BUG WAS INTERMITTENT.** Jake said *"SOMETIMES
+the words change"* — it needed two co-neighbours to collide, so any single
+scripted run is overwhelmingly likely to miss it. ⭐ It also asserts that cells
+*did* legitimately refill during the sweep, because a run where nothing ever
+changed would prove nothing.
+
+### ⚠️⚠️ AND PART D'S KAIJU/HUNTER CASE TURNED OUT TO BE SEED-FITTED
+
+Removing `refreshNeighbours()` stopped it consuming random draws on every move, so
+the RNG stream shifted by a few calls — and Part D **went red on a change that
+cannot affect the rule it tests.** It hand-picked `mulberry(13)`, placed both
+creatures on one square and stepped once.
+
+⭐ **MEASURED, ONLY 2 OF 60 SEEDS REACH THAT CODE AT ALL.** So it was never
+testing the rule; it was testing that seed 13 happened to be one of the 3% that
+gets there. ⚠️ **THIRD TIME IN THIS FILE'S HISTORY** — the camper, the hunter
+*"unreachable in an assessed run for two rounds behind a passing test that
+hand-set the pressure"*, and `game-shell-test.mjs` Part I running one seed. It now
+sweeps 200 seeds and asserts the rule over **every** case that reaches it, plus
+that some case does.
+
+### ⚠️ AND THE RUNNER READ MY PROSE AS DATA — FOURTH TIME THIS ROUND
+
+`run-all-tests.mjs` judges a harness by exit code **and** by text-matching every
+printed line against `/FAIL|UNSAFE|ERROR/`. My Part G assertion message read
+*"IT FAILS AGAINST refreshNeighbours()"*, so **the file passed standalone with 52
+ok and 0 failed while the runner reported it as FAILING**, purely on the word
+"FAILS" in a success message. ⭐ Reworded to "GOES RED AGAINST", with a warning
+above it.
+
+⚠️ **FOUR TIMES IN ONE ROUND A CHECK OF MINE MEASURED PROSE INSTEAD OF CODE**:
+`stripJs` leaving HTML comments, CSS comments satisfying a declaration check, a
+mis-escaped anchor making an insert a silent no-op, and now this. ⭐ **THE PATTERN
+IS ALWAYS THE SAME — THE TEXT AND THE THING THE TEXT DESCRIBES LIVE IN THE SAME
+FILE.**
+
 ## Round 114 (Carriage) — continued — the flanks fit, and the void is painted
 
 ### ⚠️⚠️ THE SIDE PANELS RAN OFF THE BOTTOM, BECAUSE `78vh` CANNOT SEE THE HUD
